@@ -24,6 +24,7 @@ import type {
 
 export const INCREMENTAL_WORKFLOW_STATE_ENTRY = "incremental-workflow-state";
 export const INCREMENTAL_WORKFLOW_MARKER_LABEL = "marker";
+export const INCREMENTAL_WORKFLOW_END_WIDGET = "auto-trees-end";
 export const INCREMENTAL_WORKFLOW_DEFAULT_END_PROMPT = [
 	"Treat this as a finished work increment that should become durable context for continuing the same repository session.",
 	"Focus on the final accepted outcome, not dead ends or step-by-step implementation noise.",
@@ -201,6 +202,13 @@ export default function (pi: ExtensionAPI) {
 		description:
 			"Roll up work since /marker into a summary and advance the marker",
 		handler: async (args, ctx) => {
+			const clearEndFeedback = () => {
+				if (ctx.hasUI) {
+					ctx.ui.setWidget(INCREMENTAL_WORKFLOW_END_WIDGET, undefined);
+				}
+				ctx.ui.setWorkingMessage();
+			};
+
 			await ctx.waitForIdle();
 
 			if (!markerId) {
@@ -225,6 +233,13 @@ export default function (pi: ExtensionAPI) {
 			ctx.ui.setWorkingMessage(
 				ctx.ui.theme.fg("dim", "Summarizing increment…"),
 			);
+			if (ctx.hasUI) {
+				ctx.ui.setWidget(
+					INCREMENTAL_WORKFLOW_END_WIDGET,
+					[ctx.ui.theme.fg("dim", "Summarising back to marker...")],
+					{ placement: "aboveEditor" },
+				);
+			}
 
 			let result: Awaited<ReturnType<typeof ctx.navigateTree>>;
 			try {
@@ -233,7 +248,7 @@ export default function (pi: ExtensionAPI) {
 					buildEndNavigationOptions(parseEndMode(args)),
 				);
 			} finally {
-				ctx.ui.setWorkingMessage();
+				clearEndFeedback();
 			}
 
 			if (result.cancelled) {
