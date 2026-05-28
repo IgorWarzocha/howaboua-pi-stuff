@@ -9,6 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(__dirname, "..");
 
 export const CONFIG_FILENAME = "pi-explore-subagents.json";
+export const PACKAGE_CONFIG_PATH = path.join(ROOT_DIR, "config.json");
 export const CHILD_ENV = "PI_EXPLORE_SUBAGENT_CHILD";
 export const TOOL_NAME = "explore_subagent";
 export const TOOL_LABEL = "Explore Subagent";

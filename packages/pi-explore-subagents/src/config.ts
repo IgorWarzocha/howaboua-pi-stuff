@@ -4,6 +4,7 @@ import {
 	DEFAULT_CONFIG,
 	getAgentDir,
 	getConfigPath,
+	PACKAGE_CONFIG_PATH,
 	TOOL_NAME,
 } from "./constants.js";
 import type {
@@ -29,6 +30,22 @@ function normalizeConfig(
 	return { model, thinking };
 }
 
+function readPackageConfig(): Record<ExploreMode, Required<ExploreConfig>> {
+	let parsed: ExtensionConfig | undefined;
+	try {
+		parsed = JSON.parse(
+			fs.readFileSync(PACKAGE_CONFIG_PATH, "utf8"),
+		) as ExtensionConfig;
+	} catch {
+		parsed = undefined;
+	}
+
+	return {
+		shallow: normalizeConfig(parsed?.shallow, DEFAULT_CONFIG.shallow),
+		deep: normalizeConfig(parsed?.deep, DEFAULT_CONFIG.deep),
+	};
+}
+
 export function ensureConfigFile(): string {
 	const agentDir = getAgentDir();
 	const configPath = getConfigPath();
@@ -36,7 +53,7 @@ export function ensureConfigFile(): string {
 	if (!fs.existsSync(configPath)) {
 		fs.writeFileSync(
 			configPath,
-			`${JSON.stringify(DEFAULT_CONFIG, null, 2)}\n`,
+			`${JSON.stringify(readPackageConfig(), null, 2)}\n`,
 			"utf8",
 		);
 	}

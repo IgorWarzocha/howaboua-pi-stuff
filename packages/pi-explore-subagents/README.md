@@ -52,7 +52,7 @@ You can also clone the package and install your local copy if you want to tune t
 
 ## Configuration
 
-On first use, the package creates `~/.pi/agent/pi-explore-subagents.json` with separate model settings for each mode. A good starting point is to keep `shallow` fast and inexpensive, and reserve `deep` for longer work:
+On first use, the package creates `~/.pi/agent/pi-explore-subagents.json` with separate model settings for each mode. If an older local install already has a tuned package-local `config.json`, those settings are copied into the new user-local file first. A good starting point is to keep `shallow` fast and inexpensive, and reserve `deep` for longer work:
 
 ```json
 {
