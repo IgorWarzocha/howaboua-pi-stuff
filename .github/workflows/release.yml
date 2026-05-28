@@ -31,6 +31,20 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Enable automerge for Changesets release PR
+        if: steps.changesets.outputs.published != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pr_number=$(gh pr list \
+            --head changeset-release/main \
+            --base main \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty')
+          if [ -n "$pr_number" ]; then
+            gh pr merge "$pr_number" --merge --auto
+          fi
       - name: Delete Changesets release branch after publish
         if: steps.changesets.outputs.published == 'true'
         run: git push origin --delete changeset-release/main || true
