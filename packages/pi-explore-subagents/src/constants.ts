@@ -1,3 +1,4 @@
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { StringEnum } from "@earendil-works/pi-ai";
@@ -7,7 +8,7 @@ import type { ExploreConfig, ExploreMode, ThinkingLevel } from "./types.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(__dirname, "..");
 
-export const CONFIG_PATH = path.join(ROOT_DIR, "config.json");
+export const CONFIG_FILENAME = "pi-explore-subagents.json";
 export const CHILD_ENV = "PI_EXPLORE_SUBAGENT_CHILD";
 export const TOOL_NAME = "explore_subagent";
 export const TOOL_LABEL = "Explore Subagent";
@@ -52,6 +53,15 @@ export const ALLOWED_THINKING = new Set<ThinkingLevel>([
 ]);
 export const RPC_POLL_MS = 150;
 export const RPC_QUIESCENCE_MS = 500;
+
+export function getAgentDir(): string {
+	const configured = process.env["PI_CODING_AGENT_DIR"]?.trim();
+	return configured || path.join(os.homedir(), ".pi", "agent");
+}
+
+export function getConfigPath(): string {
+	return path.join(getAgentDir(), CONFIG_FILENAME);
+}
 
 export const ExploreModeSchema = StringEnum(["shallow", "deep"] as const, {
 	description: "shallow | deep",

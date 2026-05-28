@@ -1,8 +1,9 @@
 import fs from "node:fs";
 import {
 	ALLOWED_THINKING,
-	CONFIG_PATH,
 	DEFAULT_CONFIG,
+	getAgentDir,
+	getConfigPath,
 	TOOL_NAME,
 } from "./constants.js";
 import type {
@@ -28,15 +29,28 @@ function normalizeConfig(
 	return { model, thinking };
 }
 
+export function ensureConfigFile(): string {
+	const agentDir = getAgentDir();
+	const configPath = getConfigPath();
+	fs.mkdirSync(agentDir, { recursive: true });
+	if (!fs.existsSync(configPath)) {
+		fs.writeFileSync(
+			configPath,
+			`${JSON.stringify(DEFAULT_CONFIG, null, 2)}\n`,
+			"utf8",
+		);
+	}
+	return configPath;
+}
+
 export function readConfig(): Record<ExploreMode, Required<ExploreConfig>> {
 	let parsed: ExtensionConfig;
+	const configPath = ensureConfigFile();
 	try {
-		parsed = JSON.parse(
-			fs.readFileSync(CONFIG_PATH, "utf8"),
-		) as ExtensionConfig;
+		parsed = JSON.parse(fs.readFileSync(configPath, "utf8")) as ExtensionConfig;
 	} catch (error) {
 		throw new Error(
-			`Could not parse ${CONFIG_PATH}: ${error instanceof Error ? error.message : String(error)}`,
+			`Could not parse ${configPath}: ${error instanceof Error ? error.message : String(error)}`,
 		);
 	}
 

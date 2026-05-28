@@ -48,11 +48,11 @@ Good for:
 pi install npm:@howaboua/pi-explore-subagents
 ```
 
-You can also clone the package and install your local copy if you want to tune the prompts, model choices, or mode behavior for your own workflow. That is often the best setup because every agent stack and codebase is a little different.
+You can also clone the package and install your local copy if you want to tune the prompts or mode behavior for your own workflow.
 
 ## Configuration
 
-The package includes a simple `config.json` with separate model settings for each mode. A good starting point is to keep `shallow` fast and inexpensive, and reserve `deep` for longer work:
+On first use, the package creates `~/.pi/agent/pi-explore-subagents.json` with separate model settings for each mode. A good starting point is to keep `shallow` fast and inexpensive, and reserve `deep` for longer work:
 
 ```json
 {
@@ -66,6 +66,8 @@ The package includes a simple `config.json` with separate model settings for eac
   }
 }
 ```
+
+Edit that user-local file to tune models or thinking levels. It lives outside the installed package, so reinstalls and updates will not wipe your changes.
 
 ## Usage
 
