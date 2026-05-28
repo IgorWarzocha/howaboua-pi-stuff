@@ -20,6 +20,7 @@ This is intentionally generic. Do not assume repo-specific labels, projects, mil
 - Do not push, force-push, open a PR, comment on a PR, or request review unless the user asked for that side effect or it is clearly part of the requested workflow.
 - Ask before destructive or high-blast-radius git operations. `git reset --hard`, branch deletion, rebases over shared work, and force pushes require extra care.
 - Use auto-closing keywords like `Closes #123` only when the PR fully resolves the issue. Use `Refs #123` for partial or related work.
+- For multi-line GitHub issue, PR, and comment bodies, write the body to a temp markdown file and use `--body-file`. Do not pass shell strings with `\n`; GitHub will render literal backslash-n garbage.
 - Do not run expensive or repo-forbidden validations blindly. Read local instructions first and choose lightweight validation that matches the task.
 - For npm packages, include version and changelog handling in PR prep when the change is intended to ship. Do not use an `Unreleased` section unless the repo explicitly requires one.
 
@@ -151,6 +152,15 @@ Useful command:
 
 ```bash
 gh pr comment <pr-number-or-url> --body-file <review-request-file>
+```
+
+For issue comments, use the same file-based pattern:
+
+```bash
+cat > /tmp/issue-comment.md <<'EOF'
+Human-readable markdown here.
+EOF
+gh issue comment <issue-number-or-url> --body-file /tmp/issue-comment.md
 ```
 
 ### 9. Triage review feedback
