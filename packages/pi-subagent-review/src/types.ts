@@ -68,11 +68,13 @@ export interface ChildRunDetails {
 export interface ReviewContext {
 	repoRoot: string;
 	currentRef: string;
-	baseBranch: "main" | "master" | "dev";
-	mergeBase: string;
-	baseTip: string;
+	scope: "base-diff" | "current-state" | "latest-commit";
+	baseBranch?: "main" | "master" | "dev" | undefined;
+	mergeBase?: string | undefined;
+	baseTip?: string | undefined;
+	latestCommit?: string | undefined;
 	status: string;
-	recentBaseCommits: string;
+	recentBaseCommits?: string | undefined;
 	hasTrackedChanges: boolean;
 	hasAnyChanges: boolean;
 }

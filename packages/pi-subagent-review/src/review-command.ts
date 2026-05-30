@@ -6,11 +6,15 @@ import {
 } from "./config.js";
 import { REVIEW_COMMAND } from "./constants.js";
 import { buildReviewConversationSummary } from "./conversation-summary.js";
+import { buildReviewUserMessage, sendReviewPrefaceOnce } from "./messages.js";
+import { buildReviewTask, detectReviewContext } from "./review.js";
 import {
-	buildReviewTask,
-	buildReviewUserMessage,
-	detectReviewContext,
-} from "./review.js";
+	applyReviewLoopMarker,
+	getSemanticLeafId,
+	parseReviewArgs,
+	readReviewLoopState,
+	summarizeReviewLoopIncrement,
+} from "./review-loop.js";
 import { getFinalOutput, runReviewSubagent } from "./subagent.js";
 
 export function registerReviewCommand(pi: ExtensionAPI) {
@@ -18,6 +22,8 @@ export function registerReviewCommand(pi: ExtensionAPI) {
 		description:
 			"Run an isolated code-review subagent against the current repo and send the findings back as a user message",
 		handler: async (args, ctx) => {
+			const parsedArgs = parseReviewArgs(args);
+			const reviewPrefaceDetails: { markerId?: string } = {};
 			const setReviewWidget = (message?: string) => {
 				ctx.ui.setWidget(
 					REVIEW_COMMAND,
@@ -40,6 +46,21 @@ export function registerReviewCommand(pi: ExtensionAPI) {
 				await ctx.waitForIdle();
 			}
 
+			if (!parsedArgs.startLoop) {
+				const markerId = readReviewLoopState(ctx)?.markerId;
+				if (markerId) {
+					const loopResult = await summarizeReviewLoopIncrement(
+						pi,
+						ctx,
+						markerId,
+					);
+					if (loopResult === "cancelled") {
+						ctx.ui.notify("/review cancelled", "warning");
+						return;
+					}
+				}
+			}
+
 			let review;
 			try {
 				review = await detectReviewContext(pi, ctx.cwd);
@@ -50,6 +71,21 @@ export function registerReviewCommand(pi: ExtensionAPI) {
 				);
 				return;
 			}
+
+			if (parsedArgs.startLoop) {
+				const targetId = getSemanticLeafId(ctx);
+				if (targetId) {
+					reviewPrefaceDetails.markerId = targetId;
+					applyReviewLoopMarker(
+						pi,
+						ctx,
+						targetId,
+						readReviewLoopState(ctx)?.markerId,
+					);
+					ctx.ui.notify("Review loop marker set", "info");
+				}
+			}
+			sendReviewPrefaceOnce(pi, ctx, reviewPrefaceDetails);
 
 			if (!review.hasAnyChanges) {
 				pi.sendUserMessage(
@@ -90,7 +126,11 @@ export function registerReviewCommand(pi: ExtensionAPI) {
 					);
 				}
 
-				const task = buildReviewTask(review, args, conversationSummary);
+				const task = buildReviewTask(
+					review,
+					parsedArgs.focus,
+					conversationSummary,
+				);
 				details = createChildRunDetails(task, review.repoRoot, reviewConfig);
 				if (reviewConfig.source === "current") {
 					ctx.ui.notify(

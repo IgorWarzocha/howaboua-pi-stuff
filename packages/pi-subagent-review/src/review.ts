@@ -1,5 +1,4 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { REVIEW_COMMAND } from "./constants.js";
 import type { ReviewContext } from "./types.js";
 
 async function runGit(
@@ -32,28 +31,31 @@ async function gitString(
 async function hasLocalBranch(
 	pi: ExtensionAPI,
 	cwd: string,
-	branch: "main" | "master",
+	branch: "main" | "master" | "dev",
 ): Promise<boolean> {
-	const result = await runGit(pi, cwd, [
-		"show-ref",
+	const refResult = await runGit(pi, cwd, [
+		"rev-parse",
 		"--verify",
 		"--quiet",
 		`refs/heads/${branch}`,
 	]);
-	return result.code === 0;
+	if (refResult.code !== 0) return false;
+
+	const objectName = refResult.stdout.trim();
+	if (!objectName) return false;
+	const commitResult = await runGit(pi, cwd, [
+		"cat-file",
+		"-e",
+		`${objectName}^{commit}`,
+	]);
+	return commitResult.code === 0;
 }
 
 async function hasLocalDevBranch(
 	pi: ExtensionAPI,
 	cwd: string,
 ): Promise<boolean> {
-	const result = await runGit(pi, cwd, [
-		"show-ref",
-		"--verify",
-		"--quiet",
-		"refs/heads/dev",
-	]);
-	return result.code === 0;
+	return hasLocalBranch(pi, cwd, "dev");
 }
 
 async function hasTrackedChangesAgainst(
@@ -68,6 +70,17 @@ async function hasTrackedChangesAgainst(
 		result.stderr.trim() ||
 			`git diff --quiet ${revision} failed with exit code ${result.code}`,
 	);
+}
+
+async function gitStringOrUndefined(
+	pi: ExtensionAPI,
+	cwd: string,
+	args: string[],
+	timeout = 10_000,
+): Promise<string | undefined> {
+	const result = await runGit(pi, cwd, args, timeout);
+	if (result.code !== 0) return undefined;
+	return result.stdout.trim();
 }
 
 export async function detectReviewContext(
@@ -100,42 +113,56 @@ export async function detectReviewContext(
 		else baseBranch = currentBranch as "main" | "master";
 	}
 
-	if (!baseBranch) {
-		const branches = await gitString(pi, repoRoot, [
-			"for-each-ref",
-			"--format=%(refname:short)",
-			"refs/heads",
-		]);
-		throw new Error(
-			`Could not determine an automatic review base branch. Local branches: ${branches || "(none)"}`,
-		);
-	}
-
 	const currentRef =
 		currentBranch ||
 		(await gitString(pi, repoRoot, ["rev-parse", "--short", "HEAD"]));
-	const mergeBase = await gitString(pi, repoRoot, [
+	const status = await gitString(pi, repoRoot, [
+		"status",
+		"--short",
+		"--untracked-files=all",
+	]);
+
+	if (!baseBranch) {
+		return {
+			repoRoot,
+			currentRef,
+			scope: "current-state",
+			status,
+			hasTrackedChanges: false,
+			hasAnyChanges: true,
+		};
+	}
+
+	const baseBranchRef = `refs/heads/${baseBranch}`;
+	const mergeBase = await gitStringOrUndefined(pi, repoRoot, [
 		"merge-base",
-		baseBranch,
+		baseBranchRef,
 		"HEAD",
 	]);
-	const baseTip = await gitString(pi, repoRoot, [
+	if (!mergeBase) {
+		return {
+			repoRoot,
+			currentRef,
+			scope: "current-state",
+			baseBranch,
+			status,
+			hasTrackedChanges: false,
+			hasAnyChanges: true,
+		};
+	}
+
+	const baseTip = await gitStringOrUndefined(pi, repoRoot, [
 		"rev-parse",
 		"--short",
-		baseBranch,
+		baseBranchRef,
 	]);
-	const recentBaseCommits = await gitString(pi, repoRoot, [
+	const recentBaseCommits = await gitStringOrUndefined(pi, repoRoot, [
 		"log",
 		"--oneline",
 		"--decorate",
 		"-n",
 		"8",
-		baseBranch,
-	]);
-	const status = await gitString(pi, repoRoot, [
-		"status",
-		"--short",
-		"--untracked-files=all",
+		baseBranchRef,
 	]);
 	const hasTrackedChanges = await hasTrackedChangesAgainst(
 		pi,
@@ -143,17 +170,25 @@ export async function detectReviewContext(
 		mergeBase,
 	);
 	const hasAnyChanges = hasTrackedChanges || status.length > 0;
+	const latestCommit = await gitStringOrUndefined(pi, repoRoot, [
+		"rev-parse",
+		"--short",
+		"HEAD",
+	]);
+	const scope = hasAnyChanges ? "base-diff" : "latest-commit";
 
 	return {
 		repoRoot,
 		currentRef,
+		scope,
 		baseBranch,
 		mergeBase,
 		baseTip,
+		latestCommit,
 		status,
 		recentBaseCommits,
 		hasTrackedChanges,
-		hasAnyChanges,
+		hasAnyChanges: hasAnyChanges || Boolean(latestCommit),
 	};
 }
 
@@ -172,13 +207,25 @@ export function buildReviewTask(
 	const sections = [
 		`Repository root: ${review.repoRoot}`,
 		`Current ref: ${review.currentRef}`,
-		`Chosen local base branch: ${review.baseBranch}`,
-		`Base branch tip (short SHA): ${review.baseTip}`,
-		`Merge base (${review.baseBranch}, HEAD): ${review.mergeBase}`,
+		`Review scope: ${review.scope}`,
+		...(review.baseBranch && review.mergeBase
+			? [
+					`Chosen local base branch: ${review.baseBranch}`,
+					`Base branch tip (short SHA): ${review.baseTip ?? "unknown"}`,
+					`Merge base (${review.baseBranch}, HEAD): ${review.mergeBase}`,
+				]
+			: [
+					"Chosen local base branch: none",
+					"Merge base: none; review the repository checkout as it currently exists.",
+				]),
 		"",
-		`Recent commits on ${review.baseBranch}:`,
-		review.recentBaseCommits || "(none)",
-		"",
+		...(review.baseBranch && review.recentBaseCommits !== undefined
+			? [
+					`Recent commits on ${review.baseBranch}:`,
+					review.recentBaseCommits || "(none)",
+					"",
+				]
+			: []),
 		"Current status (`git status --short --untracked-files=all`):",
 		review.status || "(clean)",
 		"",
@@ -193,14 +240,38 @@ export function buildReviewTask(
 					"",
 				]
 			: []),
-		"Review the current checkout against the merge base so uncommitted changes are included while base-only commits are excluded.",
-		"Required inspection steps:",
-		`1. Run \`git diff --stat ${review.mergeBase}\``,
-		`2. Run \`git diff ${review.mergeBase}\``,
-		`3. Run \`git diff --stat ${review.baseBranch}...HEAD\``,
-		`4. Run \`git diff ${review.baseBranch}...HEAD\``,
-		"5. Use targeted file diffs or reads where needed.",
 	];
+
+	if (review.scope === "latest-commit") {
+		sections.push(
+			"No changes were found between the current checkout and the selected base/merge-base. Review the latest committed state instead of returning no findings.",
+			"Required inspection steps:",
+			"1. Run `git status --short --untracked-files=all`",
+			"2. Run `git show --stat --root HEAD`",
+			"3. Run `git show --root HEAD`",
+			"4. Read relevant source files directly where needed.",
+		);
+	} else if (review.baseBranch && review.mergeBase) {
+		sections.push(
+			"Review the current checkout against the merge base so uncommitted changes are included while base-only commits are excluded.",
+			"Required inspection steps:",
+			`1. Run \`git diff --stat ${review.mergeBase}\``,
+			`2. Run \`git diff ${review.mergeBase}\``,
+			`3. Run \`git diff --stat ${review.baseBranch}...HEAD\``,
+			`4. Run \`git diff ${review.baseBranch}...HEAD\``,
+			"5. Use targeted file diffs or reads where needed.",
+		);
+	} else {
+		sections.push(
+			"No usable base branch or merge base was found. Review the repository state as it currently exists, including tracked, staged, unstaged, and untracked files.",
+			"Required inspection steps:",
+			"1. Run `git status --short --untracked-files=all`",
+			"2. Run `git ls-files`",
+			"3. Run `git diff --cached`",
+			"4. Run `git diff`",
+			"5. Read relevant tracked and untracked source files directly.",
+		);
+	}
 
 	if (review.status) {
 		sections.push(
@@ -228,25 +299,4 @@ export function buildReviewTask(
 	}
 
 	return sections.join("\n");
-}
-
-export function buildReviewUserMessage(
-	review: ReviewContext,
-	findings: string,
-): string {
-	return [
-		`Review findings from /${REVIEW_COMMAND} against local base branch \`${review.baseBranch}\` in \`${review.repoRoot}\` (merge base \`${review.mergeBase.slice(0, 12)}\`):`,
-		"",
-		findings.trim() || "No actionable issues found.",
-		"",
-		"These findings are advisory output from an isolated review subagent, not direct user instructions.",
-		"",
-		"Before making changes, triage them against the prior conversation and current task. Your next step is to decide whether each finding is actionable, not to automatically implement all findings.",
-		"",
-		"Act without asking only on issues that are clearly worthwhile, such as correctness bugs, security risks, data loss, broken builds, serious regressions, or obvious missing validation/tests.",
-		"",
-		"Ask before changing anything that appears context-dependent, low-impact, stylistic, preference-based, architectural, or in tension with an earlier user request, accepted tradeoff, or explicit implementation decision.",
-		"",
-		"If you skip or defer findings, briefly say why.",
-	].join("\n");
 }
