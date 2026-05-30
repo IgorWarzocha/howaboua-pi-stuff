@@ -4,3 +4,5 @@ node_modules
 .pi/*
 !.pi/skills/
 !.pi/skills/**
+!.pi/prompts/
+!.pi/prompts/**
