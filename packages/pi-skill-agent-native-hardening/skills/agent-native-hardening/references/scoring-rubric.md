@@ -8,11 +8,11 @@ Apply an explicit godfile/godfunction penalty during scoring. A repo with unreso
 6-8: clear feature modules, low duplication, boundaries enforced by scripts/lint
 9-10: lane-safe architecture, deterministic extension points, feature ownership is obvious and DRY
 
-## 2) fully_typed
-0-2: mostly untyped / pervasive `any`
-3-5: TS enabled but weak strictness, unsafe casts, duplicated DTOs, or flag-bag states
-6-8: strict configs in major lanes, limited unsafe edges, types mostly derived from source of truth
-9-10: strict everywhere, clean request/event/domain typing, invalid states modeled out, end-to-end type flow preserved where tooling supports it
+## 2) contract_safety
+0-2: contracts are mostly implicit, unchecked dynamic data is pervasive, or validation is absent
+3-5: some contracts exist, but weak enforcement, unsafe conversions, duplicated data shapes, or flag-bag states remain
+6-8: contracts are enforced in major lanes, unsafe edges are limited, shapes are mostly derived from a source of truth
+9-10: contracts are strict across boundaries, invalid states are modeled out, and end-to-end data flow is preserved where tooling supports it
 
 ## 3) traversable
 0-2: hard to locate ownership and flows, godfiles/godfunctions dominate navigation
@@ -22,14 +22,16 @@ Apply an explicit godfile/godfunction penalty during scoring. A repo with unreso
 
 ## 4) test_coverage
 0-2: no tests
-3-5: minimal deterministic tests for core transforms
-6-8: broad deterministic unit coverage across lanes
-9-10: robust unit + integration + failure-path coverage
+3-5: some deterministic tests exist, but risky core behavior or contract boundaries are unprotected
+6-8: fit-for-purpose deterministic tests protect important behavior and match the repo's established test complexity
+9-10: lightweight, high-signal coverage protects critical deterministic behavior, failure paths, and contracts without flaky tests or coverage theater
+
+Score test coverage by fitness, not volume. A small pragmatic suite can score 9-10 when it protects the codebase's real risk surface and matches the repo's testing intent. Do not penalize lightweight tests just because they are few. Penalize missing tests for risky core logic, flaky/slow tests, unmaintainable fixture or mock complexity, snapshot sprawl, and tests added mainly to raise a number.
 
 ## 5) feedback_loops
 0-2: no consistent checks
-3-5: lint/typecheck only in one lane
-6-8: repo-wide lint/typecheck/test wired into `check`
+3-5: lint/static analysis or contract checks only in one lane
+6-8: repo-wide lint/static analysis/contract checks/tests wired into one command
 9-10: fast, reliable, enforced CI-style local gates
 
 ## 6) self_documenting
@@ -49,19 +51,19 @@ Treat these as strong negative signals:
 - godfunctions that mix unrelated responsibilities, such as validation, orchestration, IO, mutation, rendering, and error handling in one long flow
 - central handlers or lifecycle methods that keep absorbing feature-specific branches instead of delegating to feature-owned code
 - root app/controller objects owning feature-local state, input handling, async task coordination, and rendering decisions
-- global dispatch functions that grow with every feature instead of delegating to feature-owned handlers or typed commands
+- global dispatch functions that grow with every feature instead of delegating to feature-owned handlers or explicit commands
 - positional data flowing through domain logic: magic indexes, parallel arrays, tuple rows, or string lists whose meaning depends on order
 - scattered manual reset/cleanup patterns that reveal unmodeled state transitions or lifecycle ownership
 
 Treat these as strong positive signals:
 - godfiles decomposed into feature folders with clear ownership
-- godfunctions decomposed into small named steps with clear ownership and typed inputs/outputs
+- godfunctions decomposed into small named steps with clear ownership and explicit inputs/outputs
 - feature-local modules separated by concern where needed (`index`/entrypoint, domain logic, IO, types/schema, tests)
 - shared abstractions extracted only when genuinely cross-feature and stable
-- discriminated unions, domain/branded types, and derived types replace ambiguous primitives or manually duplicated shapes
+- explicit state variants, domain-specific value types, validators, and derived contracts replace ambiguous primitives or manually duplicated shapes
 - lower fan-in/fan-out per module and fewer unrelated edits per lane
-- central paths are small routers/registries; feature behavior lives behind explicit, typed extension points
-- async/background work communicates through typed messages/events/results, with one clear state mutation owner
+- central paths are small routers/registries; feature behavior lives behind explicit, contracted extension points
+- async/background work communicates through explicit messages/events/results, with one clear state mutation owner
 - domain data keeps named fields until render/serialization boundaries
 
 Suggested score caps:

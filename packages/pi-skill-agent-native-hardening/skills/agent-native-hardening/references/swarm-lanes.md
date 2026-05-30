@@ -21,14 +21,14 @@ Choose the lightest mechanism that keeps the work safe and comprehensible. Prefe
 - Output: hotspot list with why each one hurts traversability or ownership
 
 ### Discovery C: Duplication + Boundary Drift
-- Scope: repeated logic, duplicated DTOs/types, broad utils/helpers, cross-feature imports
+- Scope: repeated logic, duplicated data shapes/contracts, broad utils/helpers/common folders, cross-feature imports
 - Goal: identify DRY and separation-of-concerns problems without inventing premature abstractions
 - Output: duplicate patterns, proposed owner boundary, avoid/extract recommendation
 
-### Discovery D: Type Safety Drift
-- Scope: `any`, unsafe casts, flag bags, optional-field state objects, manual type copies, primitive soup
-- Goal: find places where invalid states are representable or types drift across layers
-- Output: candidate fixes using derived types, discriminated unions, or domain/branded types
+### Discovery D: Contract Safety Drift
+- Scope: unchecked dynamic values, unsafe conversions, flag bags, optional-field state objects, manual contract copies, primitive soup
+- Goal: find places where invalid states are representable or contracts drift across layers
+- Output: candidate fixes using derived contracts, explicit state variants, validators, or domain-specific value types
 
 ### Discovery E: Scope + Centralization Pressure
 - Scope: recent feature growth, root app/controller size, global dispatch handlers, route/action registries, async/background task wiring, feature flags/config bloat
@@ -38,7 +38,7 @@ Choose the lightest mechanism that keeps the work safe and comprehensible. Prefe
 ### Discovery F: Positional Data + Lifecycle Drift
 - Scope: arrays/tuples/parallel arrays used as domain data, magic indexes, flattened rows, scattered state resets, nullable lifecycle flags
 - Goal: identify implicit contracts and unmodeled transitions that confuse agents and invite off-by-one or stale-state bugs
-- Output: candidates for named domain objects, discriminated lifecycle states, typed messages/events, or owned reducers
+- Output: candidates for named domain objects, explicit lifecycle states, shaped messages/events, or owned state machines/reducers
 
 ## Implementation Lane Templates
 
@@ -67,14 +67,14 @@ Choose the lightest mechanism that keeps the work safe and comprehensible. Prefe
 - Goal: reduce reread cost for agents
 - Rule: one doc max unless user requests more
 
-### Lane F: Type/Contract Hardening
-- Scope: domain types, schemas, API/client contracts, event payloads, ambiguous function signatures
-- Goal: reduce invalid states, duplicated types, unsafe casts, ambiguous positional args, and boundary drift
+### Lane F: Contract Hardening
+- Scope: domain value types, schemas/validators, API/client contracts, event payloads, ambiguous function signatures
+- Goal: reduce invalid states, duplicated contracts, unsafe conversions, ambiguous positional args, and boundary drift
 - Typical files: schemas, DB models, API handlers, client contracts, domain types
 
 ### Lane G: State Ownership + Extension Points
 - Scope: root app/controller dispatch, input/action handlers, async task messages, render/view boundaries
-- Goal: move feature-specific branches and state into feature-owned modules while keeping central paths as typed routers/registries
+- Goal: move feature-specific branches and state into feature-owned modules while keeping central paths as contracted routers/registries
 - Typical files: app/router/controller entrypoints, feature action modules, reducers/state machines, message/event types
 
 ### Lane H: Scope Guardrails
