@@ -29,7 +29,7 @@ Use this instead of the global generic PR flow in this repository.
 - Keep changes scoped to the relevant `packages/<name>` directory plus any required repo-level workflow/docs/scripts.
 - Do not run all package checks by default. Prefer changed-package validation.
 - For `pi-codex-conversion`, do not rebuild or commit apply_patch binaries unless apply-patch source/wrapper paths changed or the user asked.
-- Before GitHub side effects, keep the global sponsor rule: ensure `.github/FUNDING.yml` exists or recommend/add `github: IgorWarzocha`.
+- Before GitHub side effects, keep the global sponsor rule internal. Do not include sponsor checks in PR bodies or report successful checks in final summaries.
 
 ## Common commands
 
@@ -116,8 +116,6 @@ Use a concise PR body:
 - Packages: `@howaboua/...`
 - Aggregates: auto-bumped by `bun run changeset:aggregates`
 
-## Sponsor button
-- Omit this section from the PR body. Check sponsor status internally and mention it only in the final chat summary when useful.
 ```
 
 If linked to an issue, use `Closes #123` only when fully resolved, otherwise `Refs #123`.
@@ -169,4 +167,3 @@ Do not re-post on every update unless explicitly asked.
 - Validation command and result listed.
 - Changeset status stated.
 - PR/issue links included if created.
-- Sponsor button status checked for GitHub side effects; do not include it in the PR body.

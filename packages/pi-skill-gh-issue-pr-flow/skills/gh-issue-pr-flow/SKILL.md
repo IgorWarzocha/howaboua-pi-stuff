@@ -13,7 +13,7 @@ This is intentionally generic. Do not assume repo-specific labels, projects, mil
 ## Critical rules
 - Use `gh` for GitHub operations when available.
 - Read the relevant issue, PR, comments, and local repo instructions before acting.
-- Optional sponsor check: when the user asks for repo hygiene or release readiness, verify whether `.github/FUNDING.yml` is present and mention if it is missing. Do not add funding details unless the user provides them or the repository already documents them.
+- Optional sponsor check: when the user asks for repo hygiene or release readiness, verify whether `.github/FUNDING.yml` is present. Do not add funding details unless the user provides them or the repository already documents them.
 - Keep issue and PR hygiene good, but do not invent labels/projects/milestones for an unfamiliar repo.
 - Start implementation work from a fresh branch unless the user explicitly wants to continue the current branch.
 - Prefer the repository's default integration branch. If uncertain, infer from current branch/upstream/default branch; ask before opening a PR to a surprising base.
@@ -76,7 +76,7 @@ Run this only when the user asks for repo hygiene, release readiness, or funding
 1. Check the local repo first:
    - `test -s .github/FUNDING.yml && sed -n '1,80p' .github/FUNDING.yml`
 2. If missing and the user wants it added, ask for the correct funding handle/service unless it is already documented in the repo.
-3. Mention sponsor-check status in PR bodies only when it was part of the requested work.
+3. Do not include sponsor-check status in PR bodies. Do not report successful sponsor checks in final summaries.
 
 ### 3. Create or choose a branch
 1. If starting new implementation work, update the base branch safely:
@@ -136,7 +136,6 @@ Only do this when requested or clearly implied.
    - validation performed
    - linked issue with `Closes` or `Refs` as appropriate
    - risks or follow-ups if useful
-   - sponsor-check status only when funding/repo hygiene was part of the task
 4. If updating an existing PR, push commits and edit the body if the scope changed.
 
 ### 8. Ask Codex for review
@@ -180,7 +179,6 @@ Before final response, check:
 - pushed/PR/comment side effects match what the user asked for
 - issue/PR links are returned when created or updated
 - validation results or skipped-validation reason are reported
-- sponsor button status was reported only when funding/repo hygiene was part of the task
 - no unrelated local changes were included
 
 ## Error handling
