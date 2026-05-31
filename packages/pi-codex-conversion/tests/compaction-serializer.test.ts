@@ -32,7 +32,7 @@ test("compaction serializer gives unsigned assistant text blocks unique fallback
 		} as unknown as AgentMessage,
 	]);
 
-	assert.deepEqual(input.map((item) => (item as { id?: string }).id), ["msg_0_0", "msg_0_1"]);
+	assert.deepEqual(input.map((item) => (item as { id?: string }).id), ["msg_pi_0", "msg_pi_0_1"]);
 });
 
 test("compaction serializer preserves image generation call blocks", () => {

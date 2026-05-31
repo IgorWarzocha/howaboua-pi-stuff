@@ -5,7 +5,6 @@ import {
 	appendAssistantMessageDiagnostic,
 	clampThinkingLevel,
 	createAssistantMessageDiagnostic,
-	getEnvApiKey,
 	type Api,
 	type AssistantMessage,
 	type AssistantMessageEventStream,
@@ -671,16 +670,26 @@ function createSSEHeaderTimeout(): { signal: AbortSignal; clear: () => void; err
 	};
 }
 
-export async function* parseSSE(response: Response): AsyncIterable<StreamEventShape> {
+export async function* parseSSE(response: Response, signal?: AbortSignal): AsyncIterable<StreamEventShape> {
 	if (!response.body) return;
 
 	const reader = response.body.getReader();
 	const decoder = new TextDecoder();
 	let buffer = "";
+	const onAbort = () => {
+		void reader.cancel().catch(() => {});
+	};
+	signal?.addEventListener("abort", onAbort, { once: true });
 
 	try {
 		while (true) {
+			if (signal?.aborted) {
+				throw new Error("Request was aborted");
+			}
 			const { done, value } = await reader.read();
+			if (signal?.aborted) {
+				throw new Error("Request was aborted");
+			}
 			if (done) break;
 
 			buffer += decoder.decode(value, { stream: true });
@@ -707,6 +716,7 @@ export async function* parseSSE(response: Response): AsyncIterable<StreamEventSh
 			}
 		}
 	} finally {
+		signal?.removeEventListener("abort", onAbort);
 		try {
 			await reader.cancel();
 		} catch {
@@ -1717,7 +1727,7 @@ function createCodexStream<TApi extends Api>(
 		const requestPrompt = getLatestUserText(context);
 
 		try {
-			const apiKey = effectiveOptions?.apiKey || getEnvApiKey(model.provider) || "";
+			const apiKey = effectiveOptions?.apiKey;
 			if (!apiKey) {
 				throw new Error(`No API key for provider: ${model.provider}`);
 			}
@@ -1855,7 +1865,7 @@ function createCodexStream<TApi extends Api>(
 			}
 
 			stream.push({ type: "start", partial: output });
-			await processCapturedResponsesStream(parseSSE(response), output, stream, model, effectiveOptions, deps, requestCwd, requestPrompt);
+			await processCapturedResponsesStream(parseSSE(response, effectiveOptions?.signal), output, stream, model, effectiveOptions, deps, requestCwd, requestPrompt);
 			finalizeUsage(model, output);
 
 			if (effectiveOptions?.signal?.aborted) {

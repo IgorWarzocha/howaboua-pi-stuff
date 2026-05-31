@@ -118,6 +118,27 @@ test("parseSSE fails loudly on malformed Codex JSON", async () => {
 	}, /Invalid Codex SSE JSON/);
 });
 
+test("parseSSE aborts response body reads when the caller aborts", async () => {
+	const controller = new AbortController();
+	let canceled = false;
+	const stream = new ReadableStream({
+		start(innerController) {
+			innerController.enqueue(new TextEncoder().encode('data: {"type":"response.created","response":{"id":"resp_1"}}\n\n'));
+		},
+		cancel() {
+			canceled = true;
+		},
+	});
+
+	const events = parseSSE(new Response(stream), controller.signal);
+	const iterator = events[Symbol.asyncIterator]();
+	assert.equal((await iterator.next()).value.type, "response.created");
+
+	controller.abort();
+	await assert.rejects(() => iterator.next(), /Request was aborted/);
+	assert.equal(canceled, true);
+});
+
 test("getOpenAICodexImagePath saves images under the repo-local .pi/openai-codex-images directory", () => {
 	const filePath = getOpenAICodexImagePath("/repo", "resp_123", "ig_456", "png");
 	assert.equal(filePath, path.join("/repo", ".pi", "openai-codex-images", "ig_456-resp_123.png"));

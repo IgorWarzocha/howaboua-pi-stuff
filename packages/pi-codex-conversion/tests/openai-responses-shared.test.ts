@@ -66,7 +66,7 @@ test("convertResponsesMessages gives fallback assistant text ids a per-block suf
 
 	assert.deepEqual(
 		messages.map((message) => (typeof message === "object" && message && "id" in message ? message.id : undefined)),
-		["msg_0_0", "msg_0_1"],
+		["msg_pi_0", "msg_pi_0_1"],
 	);
 });
 

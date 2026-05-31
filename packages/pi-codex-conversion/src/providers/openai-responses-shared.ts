@@ -300,7 +300,7 @@ export function convertResponsesMessages<TApi extends Api>(
 		} else if (msg.role === "assistant") {
 			const output: ResponseInput = [];
 			const isDifferentModel = msg.model !== model.id && msg.provider === model.provider && msg.api === model.api;
-			let assistantBlockIndex = 0;
+			let textBlockIndex = 0;
 			for (const block of msg.content as InternalAssistantContent[]) {
 				if (isImageGenerationCallBlock(block)) {
 					const imageGenerationCall = sanitizeImageGenerationCallItem(block.item);
@@ -309,7 +309,9 @@ export function convertResponsesMessages<TApi extends Api>(
 					if (block.thinkingSignature) output.push(JSON.parse(block.thinkingSignature));
 				} else if (block.type === "text") {
 					const parsedSignature = parseTextSignature(block.textSignature);
-					let msgId = parsedSignature?.id ?? `msg_${msgIndex}_${assistantBlockIndex}`;
+					const fallbackMessageId = textBlockIndex === 0 ? `msg_pi_${msgIndex}` : `msg_pi_${msgIndex}_${textBlockIndex}`;
+					textBlockIndex++;
+					let msgId = parsedSignature?.id ?? fallbackMessageId;
 					if (msgId.length > 64) msgId = `msg_${shortHash(msgId)}`;
 					output.push({
 						type: "message",
@@ -319,7 +321,6 @@ export function convertResponsesMessages<TApi extends Api>(
 						id: msgId,
 						...(parsedSignature?.phase ? { phase: parsedSignature.phase } : {}),
 					});
-					assistantBlockIndex++;
 				} else if (block.type === "toolCall") {
 					const [callId, itemIdRaw] = block.id.split("|");
 					let itemId: string | undefined = itemIdRaw;
