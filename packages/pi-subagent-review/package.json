@@ -2,6 +2,9 @@
 	"name": "@howaboua/pi-subagent-review",
 	"version": "0.2.0",
 	"description": "Pi extension that adds /review via an isolated review subagent.",
+	"type": "module",
+	"main": "index.ts",
+	"exports": "./index.ts",
 	"license": "MIT",
 	"files": [
 		"index.ts",
@@ -35,10 +38,9 @@
 		]
 	},
 	"peerDependencies": {
-		"@earendil-works/pi-ai": "^0.76.0",
-		"@earendil-works/pi-coding-agent": "^0.76.0"
+		"@earendil-works/pi-ai": "^0.78.0",
+		"@earendil-works/pi-coding-agent": "^0.78.0"
 	},
-	"type": "module",
 	"scripts": {
 		"check": "bun run lint && bun run typecheck",
 		"prepack": "bun run check",
@@ -47,8 +49,8 @@
 		"format": "biome check --write ."
 	},
 	"devDependencies": {
-		"@earendil-works/pi-ai": "^0.76.0",
-		"@earendil-works/pi-coding-agent": "^0.76.0",
+		"@earendil-works/pi-ai": "^0.78.0",
+		"@earendil-works/pi-coding-agent": "^0.78.0",
 		"@types/node": "^24.10.0",
 		"typescript": "^5.9.3",
 		"@biomejs/biome": "^2.4.16"

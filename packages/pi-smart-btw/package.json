@@ -21,14 +21,14 @@
 		"pack:dry": "npm pack --dry-run"
 	},
 	"peerDependencies": {
-		"@earendil-works/pi-ai": "^0.76.0",
-		"@earendil-works/pi-coding-agent": "^0.76.0",
-		"@earendil-works/pi-tui": "^0.76.0"
+		"@earendil-works/pi-ai": "^0.78.0",
+		"@earendil-works/pi-coding-agent": "^0.78.0",
+		"@earendil-works/pi-tui": "^0.78.0"
 	},
 	"devDependencies": {
-		"@earendil-works/pi-ai": "^0.76.0",
-		"@earendil-works/pi-coding-agent": "^0.76.0",
-		"@earendil-works/pi-tui": "^0.76.0",
+		"@earendil-works/pi-ai": "^0.78.0",
+		"@earendil-works/pi-coding-agent": "^0.78.0",
+		"@earendil-works/pi-tui": "^0.78.0",
 		"@types/node": "^24.10.0",
 		"typescript": "^5.9.3",
 		"@biomejs/biome": "^2.4.16"
@@ -62,5 +62,7 @@
 	},
 	"engines": {
 		"node": ">=20.6.0"
-	}
+	},
+	"main": "index.ts",
+	"exports": "./index.ts"
 }

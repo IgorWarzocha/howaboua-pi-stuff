@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, posix } from "node:path";
 
 const root = process.cwd();
@@ -22,23 +22,34 @@ function dependencyMap(filter) {
   return out;
 }
 
-function packageInstallPath(packageName) {
-  return packageName.startsWith("@") ? packageName : packageName;
+function safeIdentifier(packageName) {
+  return packageName
+    .replace(/^@/, "")
+    .replace(/[^a-zA-Z0-9]+(.)/g, (_, char) => char.toUpperCase())
+    .replace(/^[^a-zA-Z_$]/, "extension");
 }
 
-function relativeDependencyResourcePath(aggregateName, dependencyName, resource) {
-  const fromDir = packageInstallPath(aggregateName);
-  const toDir = packageInstallPath(dependencyName);
+function writeExtensionAggregate(dir, filter) {
+  rmSync(join(packagesDir, dir, "extensions"), { recursive: true, force: true });
+  const extensionEntries = packages.filter(filter).filter((entry) => has("extensions", entry));
+  const imports = extensionEntries.map((entry) => `import ${safeIdentifier(entry.pkg.name)} from "${entry.pkg.name}";`);
+  const calls = extensionEntries.map((entry) => `\tawait ${safeIdentifier(entry.pkg.name)}(pi);`);
+  writeFileSync(
+    join(packagesDir, dir, "index.ts"),
+    `import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";\n${imports.join("\n")}\n\nexport default async function (pi: ExtensionAPI) {\n${calls.join("\n")}\n}\n`,
+  );
+  return ["./index.ts"];
+}
+
+function dependencyResourcePath(dependencyName, resource) {
   const cleanedResource = resource.replace(/^\.\//, "");
-  return posix.join(posix.relative(fromDir, toDir), cleanedResource);
+  return posix.join("..", dependencyName.replace(/^@howaboua\//, ""), cleanedResource);
 }
 
-function piPaths(aggregateName, kind, filter) {
+function skillPaths(filter) {
   const paths = [];
   for (const entry of packages.filter(filter)) {
-    for (const resource of entry.pkg.pi?.[kind] ?? []) {
-      paths.push(relativeDependencyResourcePath(aggregateName, entry.pkg.name, resource));
-    }
+    for (const resource of entry.pkg.pi?.skills ?? []) paths.push(dependencyResourcePath(entry.pkg.name, resource));
   }
   return paths;
 }
@@ -48,10 +59,10 @@ function updateAggregate(dir, filter, includeExtensions, includeSkills) {
   const pkg = JSON.parse(readFileSync(file, "utf8"));
   pkg.dependencies = dependencyMap(filter);
   delete pkg.bundledDependencies;
-  pkg.files = Array.from(new Set([...(pkg.files ?? []), "README.md", "LICENSE"]));
+  pkg.files = Array.from(new Set([...(pkg.files ?? []).filter((entry) => entry !== "extensions"), "index.ts", "README.md", "LICENSE"]));
   pkg.pi = {};
-  if (includeExtensions) pkg.pi.extensions = piPaths(pkg.name, "extensions", filter);
-  if (includeSkills) pkg.pi.skills = piPaths(pkg.name, "skills", filter);
+  if (includeExtensions) pkg.pi.extensions = writeExtensionAggregate(dir, filter);
+  if (includeSkills) pkg.pi.skills = skillPaths(filter);
   writeFileSync(file, JSON.stringify(pkg, null, "\t") + "\n");
 }
 

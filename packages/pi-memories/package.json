@@ -15,8 +15,8 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.16",
-		"@earendil-works/pi-coding-agent": "^0.76.0",
-		"@earendil-works/pi-tui": "^0.76.0",
+		"@earendil-works/pi-coding-agent": "^0.78.0",
+		"@earendil-works/pi-tui": "^0.78.0",
 		"@types/node": "^25.9.1",
 		"typebox": "^1.1.38",
 		"typescript": "^5.9.3"
@@ -46,5 +46,7 @@
 		"pi",
 		"pi-extension",
 		"memory"
-	]
+	],
+	"main": "src/index.ts",
+	"exports": "./src/index.ts"
 }

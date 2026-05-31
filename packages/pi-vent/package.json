@@ -43,18 +43,20 @@
 		"@types/node": "^24.10.0",
 		"typebox": "^1.0.55",
 		"typescript": "^5.9.3",
-		"@earendil-works/pi-coding-agent": "^0.76.0",
-		"@earendil-works/pi-tui": "^0.76.0",
+		"@earendil-works/pi-coding-agent": "^0.78.0",
+		"@earendil-works/pi-tui": "^0.78.0",
 		"@biomejs/biome": "^2.4.16"
 	},
 	"peerDependencies": {
 		"typebox": "*",
-		"@earendil-works/pi-coding-agent": "^0.76.0",
-		"@earendil-works/pi-tui": "^0.76.0"
+		"@earendil-works/pi-coding-agent": "^0.78.0",
+		"@earendil-works/pi-tui": "^0.78.0"
 	},
 	"pi": {
 		"extensions": [
 			"./extensions/vent.ts"
 		]
-	}
+	},
+	"main": "extensions/vent.ts",
+	"exports": "./extensions/vent.ts"
 }

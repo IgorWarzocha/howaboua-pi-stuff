@@ -27,18 +27,18 @@
 		"access": "public"
 	},
 	"devDependencies": {
-		"@earendil-works/pi-ai": "^0.76.0",
-		"@earendil-works/pi-coding-agent": "^0.76.0",
-		"@earendil-works/pi-tui": "^0.76.0",
+		"@earendil-works/pi-ai": "^0.78.0",
+		"@earendil-works/pi-coding-agent": "^0.78.0",
+		"@earendil-works/pi-tui": "^0.78.0",
 		"@types/node": "^25.9.1",
 		"typebox": "^1.1.38",
 		"typescript": "^6.0.3",
 		"@biomejs/biome": "^2.4.16"
 	},
 	"peerDependencies": {
-		"@earendil-works/pi-ai": "^0.76.0",
-		"@earendil-works/pi-coding-agent": "^0.76.0",
-		"@earendil-works/pi-tui": "^0.76.0",
+		"@earendil-works/pi-ai": "^0.78.0",
+		"@earendil-works/pi-coding-agent": "^0.78.0",
+		"@earendil-works/pi-tui": "^0.78.0",
 		"typebox": "*"
 	},
 	"pi": {
@@ -62,5 +62,7 @@
 	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-explore-subagents#readme",
 	"bugs": {
 		"url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
-	}
+	},
+	"main": "index.ts",
+	"exports": "./index.ts"
 }

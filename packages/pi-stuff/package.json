@@ -31,19 +31,12 @@
 	},
 	"files": [
 		"README.md",
-		"LICENSE"
+		"LICENSE",
+		"index.ts"
 	],
 	"pi": {
 		"extensions": [
-			"../pi-auto-reasoning-tool/src/index.ts",
-			"../pi-auto-trees/index.ts",
-			"../pi-explore-subagents/index.ts",
-			"../pi-markdown-workflows/dist/index.js",
-			"../pi-memories/src/index.ts",
-			"../pi-semantic-grep/src/index.ts",
-			"../pi-smart-btw/index.ts",
-			"../pi-subagent-review/index.ts",
-			"../pi-vent/extensions/vent.ts"
+			"./index.ts"
 		],
 		"skills": [
 			"../pi-skill-agent-native-hardening/skills",
