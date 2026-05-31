@@ -7,7 +7,9 @@ function shellCommandParts(value: string): string[] {
 	let current = "";
 	let quote: "'" | '"' | "" = "";
 	let escaped = false;
-	for (const char of value) {
+	for (let index = 0; index < value.length; index += 1) {
+		const char = value[index];
+		if (!char) continue;
 		if (escaped) {
 			current += char;
 			escaped = false;
@@ -33,12 +35,22 @@ function shellCommandParts(value: string): string[] {
 			}
 			continue;
 		}
-		if (char === ";" || char === "|") {
+		if (
+			char === ";" ||
+			char === "|" ||
+			(char === "&" && value[index + 1] === "&")
+		) {
 			if (current) {
 				parts.push(current);
 				current = "";
 			}
 			parts.push(";");
+			if (
+				(char === "|" && value[index + 1] === "|") ||
+				(char === "&" && value[index + 1] === "&")
+			) {
+				index += 1;
+			}
 			continue;
 		}
 		current += char;
@@ -174,4 +186,25 @@ export function shellTargets(value: string, base: string): string[] {
 	}
 	if (!paths.length) return [cwd];
 	return paths;
+}
+
+export function shellOutputBase(value: string, base: string): string {
+	const parts = shellCommandParts(value);
+	let cwd = base;
+	for (let index = 0; index < parts.length; index += 1) {
+		const item = parts[index];
+		if (!item || item === ";") continue;
+		if (item === "cd") {
+			const next = parts[index + 1];
+			if (next) cwd = resolvePath(next, cwd);
+			index += 1;
+			continue;
+		}
+		if (isDiscoveryCommandAt(parts, index)) {
+			if (item.toLowerCase() !== "git") return cwd;
+			const { directory } = gitCommandInfo(parts, index);
+			return directory ? resolvePath(directory, cwd) : cwd;
+		}
+	}
+	return cwd;
 }

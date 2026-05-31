@@ -13,6 +13,7 @@ import { mergePersistedContextDetails } from "./subdir/details.js";
 import { contentRootForTarget, resolvePath } from "./subdir/paths.js";
 import {
 	isDiscoveryShellCommand,
+	shellOutputBase,
 	shellTargets,
 } from "./subdir/shell-targets.js";
 
@@ -83,7 +84,12 @@ export function registerSubdirContextAutoload(pi: ExtensionAPI): void {
 			const base = pathInput ? resolvePath(pathInput, currentCwd) : currentCwd;
 			return [base, ...pathsFromToolText(event.content, base, event.toolName)];
 		}
-		return shellInput ? shellTargets(shellInput, currentCwd) : [];
+		if (!shellInput) return [];
+		const base = shellOutputBase(shellInput, currentCwd);
+		return [
+			...shellTargets(shellInput, currentCwd),
+			...pathsFromToolText(event.content, base, "shell"),
+		];
 	}
 
 	function pathsFromToolText(
@@ -123,10 +129,14 @@ export function registerSubdirContextAutoload(pi: ExtensionAPI): void {
 				loadedAgents.add(path.normalize(target));
 				continue;
 			}
-			const probe =
-				fs.existsSync(target) && fs.statSync(target).isDirectory()
-					? path.join(target, "__probe__")
-					: target;
+			let probe = target;
+			try {
+				if (fs.existsSync(target) && fs.statSync(target).isDirectory()) {
+					probe = path.join(target, "__probe__");
+				}
+			} catch {
+				continue;
+			}
 			for (const file of findAgentsFiles(probe, searchRoot, cwdAgentsPath)) {
 				paths.add(file);
 			}

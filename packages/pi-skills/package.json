@@ -22,7 +22,8 @@
 	},
 	"files": [
 		"README.md",
-		"LICENSE"
+		"LICENSE",
+		"index.ts"
 	],
 	"pi": {
 		"skills": [

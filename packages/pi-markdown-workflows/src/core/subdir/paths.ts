@@ -25,17 +25,21 @@ export function isInsideRoot(rootDir: string, targetPath: string): boolean {
 }
 
 export function contentRootForTarget(targetPath: string): string {
-	const startDir =
-		fs.existsSync(targetPath) && fs.statSync(targetPath).isDirectory()
-			? targetPath
-			: path.dirname(targetPath);
-	let dir = startDir;
-	let best = "";
-	while (true) {
-		if (fs.existsSync(path.join(dir, "AGENTS.md"))) best = dir;
-		if (fs.existsSync(path.join(dir, ".git"))) return dir;
-		const parent = path.dirname(dir);
-		if (parent === dir) return best || startDir;
-		dir = parent;
+	try {
+		const startDir =
+			fs.existsSync(targetPath) && fs.statSync(targetPath).isDirectory()
+				? targetPath
+				: path.dirname(targetPath);
+		let dir = startDir;
+		let best = "";
+		while (true) {
+			if (fs.existsSync(path.join(dir, "AGENTS.md"))) best = dir;
+			if (fs.existsSync(path.join(dir, ".git"))) return dir;
+			const parent = path.dirname(dir);
+			if (parent === dir) return best || startDir;
+			dir = parent;
+		}
+	} catch {
+		return "";
 	}
 }

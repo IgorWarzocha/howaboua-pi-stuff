@@ -1,5 +1,6 @@
-import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
 import type { PersistedContextFile } from "./details.js";
+
+type TextContent = { type: "text"; text: string };
 
 function escapeXml(value: string): string {
 	return value
@@ -9,10 +10,10 @@ function escapeXml(value: string): string {
 		.replaceAll(">", "&gt;");
 }
 
-export function appendAgentsContext(
-	content: (TextContent | ImageContent)[],
+export function appendAgentsContext<TContent extends { type: string }>(
+	content: TContent[],
 	files: PersistedContextFile[],
-): (TextContent | ImageContent)[] {
+): Array<TContent | TextContent> {
 	if (!files.length) return content;
 	const appendix = [
 		"<subdirectory_agents_context>",

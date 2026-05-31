@@ -399,9 +399,63 @@ async function run() {
 		/<agents_file path="a\/found\/AGENTS\.md">/,
 	);
 
+	await fs.mkdir(path.join(cwd, "a", "shell-found", "leaf"), {
+		recursive: true,
+	});
+	await fs.writeFile(
+		path.join(cwd, "a", "shell-found", "AGENTS.md"),
+		"SHELL FOUND",
+	);
+	await fs.writeFile(
+		path.join(cwd, "a", "shell-found", "leaf", "file.ts"),
+		"export const shellFound = 1;\n",
+	);
+	const shellFindResult = await toolResult(
+		toolEvent({
+			input: { cmd: "find . -name file.ts" },
+			content: [{ type: "text", text: "a/shell-found/leaf/file.ts" }],
+		}),
+		ctx,
+	);
+	assert.ok(
+		shellFindResult,
+		"shell discovery output paths should load nested AGENTS",
+	);
+	assert.match(
+		textContent(shellFindResult),
+		/<agents_file path="a\/shell-found\/AGENTS\.md">/,
+	);
+
+	await fs.mkdir(path.join(cwd, "a", "separated"), { recursive: true });
+	await fs.writeFile(
+		path.join(cwd, "a", "separated", "AGENTS.md"),
+		"SEPARATED",
+	);
+	await fs.writeFile(
+		path.join(cwd, "a", "separated", "file.ts"),
+		"export const separated = 1;\n",
+	);
+	const separatedNonDiscovery = await toolResult(
+		toolEvent({
+			input: { cmd: "find . -maxdepth 1 && echo ./a/separated/file.ts" },
+			content: [{ type: "text", text: "ok" }],
+		}),
+		ctx,
+	);
+	assert.equal(
+		separatedNonDiscovery,
+		undefined,
+		"&& should stop discovery argument scanning for later non-discovery commands",
+	);
+
+	const cdSibling = path.join(root, "sibling-cd");
+	await fs.mkdir(path.join(cdSibling, "pkg", "src"), { recursive: true });
+	await fs.writeFile(path.join(cdSibling, ".git"), "gitdir: /tmp/nowhere\n");
+	await fs.writeFile(path.join(cdSibling, "AGENTS.md"), "SIBLING CD ROOT");
+
 	const cdRepoRead = await toolResult(
 		toolEvent({
-			input: { cmd: `cd ${sibling} && ls ./pkg/src` },
+			input: { cmd: `cd ${cdSibling} && ls ./pkg/src` },
 			content: [{ type: "text", text: "listing" }],
 		}),
 		ctx,
@@ -412,7 +466,7 @@ async function run() {
 	);
 	assert.match(
 		textContent(cdRepoRead),
-		/<agents_file path="\.\.\/sibling\/AGENTS\.md">/,
+		/<agents_file path="\.\.\/sibling-cd\/AGENTS\.md">/,
 	);
 
 	const gitRepo = path.join(root, "git-target");
