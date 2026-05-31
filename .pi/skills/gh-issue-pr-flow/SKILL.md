@@ -117,7 +117,7 @@ Use a concise PR body:
 - Aggregates: auto-bumped by `bun run changeset:aggregates`
 
 ## Sponsor button
-- present / added / inherited / missing; follow-up recommended
+- Omit this section from the PR body. Check sponsor status internally and mention it only in the final chat summary when useful.
 ```
 
 If linked to an issue, use `Closes #123` only when fully resolved, otherwise `Refs #123`.
@@ -169,4 +169,4 @@ Do not re-post on every update unless explicitly asked.
 - Validation command and result listed.
 - Changeset status stated.
 - PR/issue links included if created.
-- Sponsor button status stated for GitHub side effects.
+- Sponsor button status checked for GitHub side effects; do not include it in the PR body.
