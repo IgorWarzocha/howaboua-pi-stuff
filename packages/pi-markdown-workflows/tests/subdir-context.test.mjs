@@ -30,6 +30,26 @@ function persistedFiles(details) {
 	return Array.isArray(value) ? value : [];
 }
 
+function textContent(result) {
+	return (
+		result.content
+			?.filter((item) => item.type === "text")
+			.map((item) => item.text)
+			.join("\n") ?? ""
+	);
+}
+
+function toolEvent(overrides) {
+	return {
+		toolName: "exec_command",
+		isError: false,
+		input: {},
+		content: [{ type: "text", text: "ok" }],
+		details: {},
+		...overrides,
+	};
+}
+
 async function run() {
 	const root = await fs.mkdtemp(
 		path.join(os.tmpdir(), "pi-workflows-tool-test-"),
@@ -63,7 +83,11 @@ async function run() {
 	const contextHook = pi.handlers.get("context");
 	assert.ok(sessionStart, "session_start handler must exist");
 	assert.ok(toolResult, "tool_result handler must exist");
-	assert.ok(contextHook, "context handler must exist");
+	assert.equal(
+		contextHook,
+		undefined,
+		"subdirectory AGENTS context must not be injected into model context",
+	);
 
 	sessionStart({}, ctx);
 
@@ -80,11 +104,9 @@ async function run() {
 		firstRead,
 		"first read should persist discovered AGENTS context in details",
 	);
-	assert.equal(
-		firstRead.content,
-		undefined,
-		"read output should remain unchanged (silent injection)",
-	);
+	assert.match(textContent(firstRead), /<subdirectory_agents_context>/);
+	assert.match(textContent(firstRead), /<agents_file path="a\/AGENTS\.md">/);
+	assert.match(textContent(firstRead), /<agents_file path="a\/b\/AGENTS\.md">/);
 	assert.equal(
 		persistedFiles(firstRead.details).length,
 		2,
@@ -96,46 +118,21 @@ async function run() {
 		message: { role: "toolResult", details: firstRead.details },
 	});
 
-	const firstContext = await contextHook({ messages: [] }, ctx);
-	assert.ok(
-		firstContext,
-		"context hook should inject hidden AGENTS context message",
-	);
-	assert.equal(firstContext.messages.length, 1);
-	assert.equal(firstContext.messages[0].role, "custom");
-	assert.equal(firstContext.messages[0].display, false);
-	assert.match(firstContext.messages[0].content, /a\/AGENTS\.md/);
-	assert.match(firstContext.messages[0].content, /a\/b\/AGENTS\.md/);
-
 	branchEntries.length = 0;
-	const emptyBranchContext = await contextHook({ messages: [] }, ctx);
-	assert.equal(
-		emptyBranchContext,
-		undefined,
-		"context hook should not inject stale AGENTS context when active branch has none",
-	);
-
 	branchEntries.push({
 		type: "message",
 		message: { role: "toolResult", details: firstRead.details },
 	});
 	sessionStart({}, ctx);
-	const resumedContext = await contextHook({ messages: [] }, ctx);
-	assert.ok(
-		resumedContext,
-		"context should be available immediately after resume/session start",
-	);
-	assert.match(resumedContext.messages[0].content, /a\/AGENTS\.md/);
-	assert.match(resumedContext.messages[0].content, /a\/b\/AGENTS\.md/);
 
 	const secondRead = await toolResult(readEvent, ctx);
 	assert.equal(
 		secondRead,
 		undefined,
-		"second read should not emit duplicate persisted updates",
+		"second read should not emit duplicate unchanged AGENTS context",
 	);
 
-	for (let index = 0; index < 7; index += 1) {
+	for (let index = 0; index < 8; index += 1) {
 		await toolResult(
 			{
 				toolName: "bash",
@@ -159,10 +156,18 @@ async function run() {
 		ctx,
 	);
 
-	assert.equal(
+	assert.ok(
 		tenthQualifyingAction,
-		undefined,
-		"cadence refresh should stay silent when context is unchanged",
+		"cadence refresh should re-append unchanged AGENTS context on the tenth qualifying operation",
+	);
+	assert.equal(
+		persistedFiles(tenthQualifyingAction.details).length,
+		0,
+		"cadence refresh should not persist duplicate unchanged AGENTS context",
+	);
+	assert.match(
+		textContent(tenthQualifyingAction),
+		/<agents_file path="a\/AGENTS\.md">/,
 	);
 
 	await fs.writeFile(path.join(cwd, "a", "b", "c", "AGENTS.md"), "C");
@@ -186,6 +191,10 @@ async function run() {
 	assert.equal(
 		persistedFiles(freshNestedViaBash.details)[0].path,
 		"a/b/c/AGENTS.md",
+	);
+	assert.match(
+		textContent(freshNestedViaBash),
+		/<agents_file path="a\/b\/c\/AGENTS\.md">/,
 	);
 
 	await fs.mkdir(path.join(cwd, "a", "d"), { recursive: true });
@@ -327,18 +336,145 @@ async function run() {
 		message: { role: "toolResult", details: freshNestedViaBash.details },
 	});
 
-	const refreshedContext = await contextHook({ messages: [] }, ctx);
+	const sibling = path.join(root, "sibling");
+	await fs.mkdir(path.join(sibling, "pkg", "src"), { recursive: true });
+	await fs.writeFile(path.join(sibling, ".git"), "gitdir: /tmp/nowhere\n");
+	await fs.writeFile(path.join(sibling, "AGENTS.md"), "SIBLING ROOT");
+	await fs.writeFile(path.join(sibling, "pkg", "AGENTS.md"), "SIBLING PKG");
+	await fs.writeFile(
+		path.join(sibling, "pkg", "src", "file.ts"),
+		"export const sibling = 1;\n",
+	);
+
+	const siblingRead = await toolResult(
+		{
+			toolName: "exec_command",
+			isError: false,
+			input: {
+				cmd: `sed -n '1,5p' ${path.join(sibling, "pkg", "src", "file.ts")}`,
+			},
+			content: [{ type: "text", text: "file" }],
+			details: {},
+		},
+		ctx,
+	);
+
 	assert.ok(
-		refreshedContext,
-		"context hook should include newly discovered nested AGENTS",
+		siblingRead,
+		"absolute sibling repo access should append sibling AGENTS",
+	);
+	assert.match(
+		textContent(siblingRead),
+		/<agents_file path="\.\.\/sibling\/AGENTS\.md">/,
+	);
+	assert.match(
+		textContent(siblingRead),
+		/<agents_file path="\.\.\/sibling\/pkg\/AGENTS\.md">/,
+	);
+
+	const parallelLikeDuplicate = await toolResult(readEvent, ctx);
+	assert.equal(
+		parallelLikeDuplicate,
+		undefined,
+		"runtime state should dedupe repeated reads even when branch state is stale",
+	);
+
+	await fs.mkdir(path.join(cwd, "a", "found", "leaf"), { recursive: true });
+	await fs.writeFile(path.join(cwd, "a", "found", "AGENTS.md"), "FOUND");
+	await fs.writeFile(
+		path.join(cwd, "a", "found", "leaf", "file.ts"),
+		"export const found = 1;\n",
+	);
+	const findResult = await toolResult(
+		toolEvent({
+			toolName: "find",
+			input: { path: "." },
+			content: [{ type: "text", text: "a/found/leaf/file.ts" }],
+		}),
+		ctx,
+	);
+	assert.ok(findResult, "find result paths should load nested AGENTS");
+	assert.match(
+		textContent(findResult),
+		/<agents_file path="a\/found\/AGENTS\.md">/,
+	);
+
+	const cdRepoRead = await toolResult(
+		toolEvent({
+			input: { cmd: `cd ${sibling} && ls ./pkg/src` },
+			content: [{ type: "text", text: "listing" }],
+		}),
+		ctx,
 	);
 	assert.ok(
-		refreshedContext.messages.some((message) =>
-			typeof message.content === "string"
-				? message.content.includes("a/b/c/AGENTS.md")
-				: false,
-		),
+		cdRepoRead,
+		"shell target extraction should track cd before discovery commands",
 	);
+	assert.match(
+		textContent(cdRepoRead),
+		/<agents_file path="\.\.\/sibling\/AGENTS\.md">/,
+	);
+
+	const gitRepo = path.join(root, "git-target");
+	await fs.mkdir(gitRepo, { recursive: true });
+	await fs.writeFile(path.join(gitRepo, ".git"), "gitdir: /tmp/nowhere\n");
+	await fs.writeFile(path.join(gitRepo, "AGENTS.md"), "GIT TARGET");
+
+	const gitCRead = await toolResult(
+		toolEvent({
+			input: { cmd: `git -C ${gitRepo} grep sibling` },
+			content: [{ type: "text", text: "match" }],
+		}),
+		ctx,
+	);
+	assert.ok(
+		gitCRead,
+		"git -C discovery commands should load the target repo AGENTS",
+	);
+	assert.match(
+		textContent(gitCRead),
+		/<agents_file path="\.\.\/git-target\/AGENTS\.md">/,
+	);
+
+	const patternOnly = await toolResult(
+		toolEvent({
+			input: { cmd: 'rg "a/found" .' },
+			content: [{ type: "text", text: "listing" }],
+		}),
+		ctx,
+	);
+	assert.equal(
+		patternOnly,
+		undefined,
+		"path-like rg patterns should not be treated as accessed paths when they do not exist",
+	);
+
+	await fs.mkdir(path.join(cwd, 'quote"dir'), { recursive: true });
+	await fs.writeFile(
+		path.join(cwd, 'quote"dir', "AGENTS.md"),
+		"</agents_file>",
+	);
+	await fs.writeFile(
+		path.join(cwd, 'quote"dir', "file.ts"),
+		"export const quoted = 1;\n",
+	);
+	const escapedAppendix = await toolResult(
+		toolEvent({
+			toolName: "find",
+			input: { path: "." },
+			content: [{ type: "text", text: 'quote"dir/file.ts' }],
+		}),
+		ctx,
+	);
+	assert.ok(
+		escapedAppendix,
+		"appendix should include escaped AGENTS path/content",
+	);
+	assert.match(
+		textContent(escapedAppendix),
+		/path="quote&quot;dir\/AGENTS\.md"/,
+	);
+	assert.match(textContent(escapedAppendix), /&lt;\/agents_file&gt;/);
 
 	await fs.rm(root, { recursive: true, force: true });
 	console.log("subdir-context test passed");
