@@ -28,7 +28,7 @@ export async function openConfigInExternalEditor(
 	try {
 		stopTui();
 		process.stdout.write(
-			`Opening ${file} in ${editorCmd}\nPi resumes when the editor exits.\n`,
+			`Opening config in your editor…\nPi resumes when the editor exits.\n`,
 		);
 		const status = await new Promise<number | null>((resolve) => {
 			const child = spawn(editor, [...editorArgs, file], {

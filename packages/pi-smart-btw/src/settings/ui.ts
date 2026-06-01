@@ -8,7 +8,7 @@ import {
 	SettingsList,
 	truncateToWidth,
 } from "@earendil-works/pi-tui";
-import { configPath, readConfig, THINKING_LEVELS } from "../config.js";
+import { readConfig, THINKING_LEVELS } from "../config.js";
 import type { ResolvedBtwConfig } from "../types.js";
 import { editorCommand, openConfigInExternalEditor } from "./config-editor.js";
 import {
@@ -32,9 +32,9 @@ export interface BtwSettingsScreenOptions {
 	initialTab?: SettingsTab | undefined;
 }
 
-type SettingsTab = "general" | "actions" | "about";
+type SettingsTab = "general" | "about";
 
-const TAB_ORDER: readonly SettingsTab[] = ["general", "actions", "about"];
+const TAB_ORDER: readonly SettingsTab[] = ["general", "about"];
 
 export async function openBtwSettingsScreen(
 	ctx: ExtensionContext,
@@ -65,6 +65,7 @@ export async function openBtwSettingsScreen(
 		let focusedId = "provider";
 
 		const saveAndClose = () => {
+			reloadDraftFromDisk();
 			draft = {
 				...draft,
 				...resolveProviderModel(ctx, draft.provider, draft.modelId),
@@ -88,7 +89,7 @@ export async function openBtwSettingsScreen(
 
 		const onSettingChange = (id: string, value: string) => {
 			focusedId = id;
-			if (activeTab === "actions" && id === "editConfig") {
+			if (id === "editShortcuts") {
 				void runEditConfig();
 				return;
 			}
@@ -138,7 +139,7 @@ export async function openBtwSettingsScreen(
 		const switchTab = () => {
 			const currentIndex = TAB_ORDER.indexOf(activeTab);
 			activeTab = TAB_ORDER[(currentIndex + 1) % TAB_ORDER.length] ?? "general";
-			focusedId = activeTab === "actions" ? "editConfig" : "provider";
+			focusedId = "provider";
 			mountList(focusedId);
 			tui.requestRender();
 		};
@@ -153,7 +154,14 @@ export async function openBtwSettingsScreen(
 					"",
 					...(activeTab === "about" ? [] : settingsList.render(width)),
 					rule(width, theme, "accent"),
-					theme.fg("dim", formatFooter(activeTab)),
+					...(activeTab === "about"
+						? [
+								theme.fg(
+									"dim",
+									"  Tab · g github · c changelog · i issue · Esc close (saves)",
+								),
+							]
+						: []),
 				].map((line) => truncateToWidth(line, width, "")),
 			invalidate: () => settingsList.invalidate(),
 			handleInput: (data: string) => {
@@ -184,20 +192,6 @@ function buildItems(
 	providers: string[],
 ): SettingItem[] {
 	if (tab === "about") return [];
-	if (tab === "actions") {
-		const editor = editorCommand();
-		return [
-			{
-				id: "editConfig",
-				label: "Config file",
-				currentValue: configPath(),
-				description: editor
-					? `Enter/Space opens in ${editor}`
-					: "Set $VISUAL or $EDITOR, then Enter/Space",
-				values: editor ? ["Open in editor"] : ["(no editor set)"],
-			},
-		];
-	}
 	const resolved = resolveProviderModel(ctx, draft.provider, draft.modelId);
 	const providerValues = providers.length > 0 ? providers : [resolved.provider];
 	const modelIds = listModelIdsForProvider(ctx, resolved.provider);
@@ -211,6 +205,7 @@ function buildItems(
 		(THINKING_LEVELS as readonly string[]).includes(draft.thinking)
 			? draft.thinking
 			: "low";
+	const editorReady = !!editorCommand();
 	return [
 		{
 			id: "provider",
@@ -229,6 +224,15 @@ function buildItems(
 			label: "Thinking",
 			currentValue: thinking,
 			values: [...THINKING_LEVELS],
+		},
+		{
+			id: "editShortcuts",
+			label: "Edit shortcuts",
+			currentValue: editorReady ? "Opens in default editor" : "Set $EDITOR",
+			values: editorReady ? ["Open"] : ["Unavailable"],
+			description: editorReady
+				? "Enter/Space — edits pi-smart-btw.json (composeShortcut, injectShortcut, …)"
+				: "Set $VISUAL or $EDITOR, then try again",
 		},
 	];
 }
@@ -266,14 +270,7 @@ function applySettingChange(
 function formatTabs(activeTab: SettingsTab, theme: Theme): string {
 	const renderTab = (tab: SettingsTab, label: string) =>
 		activeTab === tab ? theme.bold(label) : theme.fg("dim", label);
-	return `  ${renderTab("general", "General")}  ${theme.fg("dim", "/")}  ${renderTab("actions", "Actions")}  ${theme.fg("dim", "/")}  ${renderTab("about", "About")}`;
-}
-
-function formatFooter(activeTab: SettingsTab): string {
-	if (activeTab === "about") return "  Tab · g github · c changelog · i issue";
-	if (activeTab === "actions")
-		return "  Tab · Enter/Space open config · Esc close (saves)";
-	return "  Tab · Enter/Space cycle · Esc close (saves)";
+	return `  ${renderTab("general", "General")}  ${theme.fg("dim", "/")}  ${renderTab("about", "About")}`;
 }
 
 function formatLinks(theme: Theme): string[] {

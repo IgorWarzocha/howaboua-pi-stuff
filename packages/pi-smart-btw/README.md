@@ -40,7 +40,7 @@ While a slot is active:
 - **alt+j/k** — fold/unfold the widget
 - **/btw config** — settings UI (model, thinking, shortcuts, links)
 
-In **Actions** tab: open `~/.pi/agent/pi-smart-btw.json` in `$VISUAL` or `$EDITOR` (shortcuts and all fields). **Esc** closes the screen and saves General tab choices.
+In **General**: **Edit shortcuts** opens `~/.pi/agent/pi-smart-btw.json` in `$VISUAL` or `$EDITOR`. **Esc** closes and saves (merges file + provider/model/thinking).
 
 ## Configuration
 
