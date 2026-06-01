@@ -1,5 +1,7 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { formatBtwSettings, readConfig, writeConfig } from "../config.js";
+import { resolveProviderModel } from "./models.js";
+import { isValidChord } from "./shortcut-editor.js";
 import { openBtwSettingsScreen } from "./ui.js";
 
 const BTW_CONFIG_COMPLETIONS = ["config"] as const;
@@ -10,7 +12,11 @@ export function handleBtwConfigArg(
 	onSaved?: () => void,
 ): boolean {
 	if (arg !== "config") return false;
-	const initialConfig = readConfig();
+	const fileConfig = readConfig();
+	const initialConfig = {
+		...fileConfig,
+		...resolveProviderModel(ctx, fileConfig.provider, fileConfig.modelId),
+	};
 	if (!ctx.hasUI) {
 		ctx.ui.notify(formatBtwSettings(initialConfig), "info");
 		return true;
@@ -18,13 +24,31 @@ export function handleBtwConfigArg(
 	void openBtwSettingsScreen(ctx, {
 		initialConfig,
 		onChange: (nextConfig) => {
-			const result = writeConfig(nextConfig);
+			const resolved = {
+				...nextConfig,
+				...resolveProviderModel(ctx, nextConfig.provider, nextConfig.modelId),
+			};
+			for (const key of [
+				"composeShortcut",
+				"injectShortcut",
+				"dismissShortcut",
+				"foldShortcut",
+				"unfoldShortcut",
+				"previousShortcut",
+				"nextShortcut",
+			] as const) {
+				if (!isValidChord(resolved[key])) {
+					ctx.ui.notify(`Invalid shortcut: ${resolved[key]}`, "warning");
+					return false;
+				}
+			}
+			const result = writeConfig(resolved);
 			if (!result.ok) {
 				ctx.ui.notify(`Failed to save BTW settings: ${result.error}`, "error");
 				return false;
 			}
 			onSaved?.();
-			ctx.ui.notify(formatBtwSettings(nextConfig), "info");
+			ctx.ui.notify(formatBtwSettings(resolved), "info");
 			return true;
 		},
 	});

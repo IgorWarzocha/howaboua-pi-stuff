@@ -9,7 +9,6 @@ import {
 	truncateToWidth,
 } from "@earendil-works/pi-tui";
 import { THINKING_LEVELS } from "../config.js";
-import { DEFAULT_SHORTCUTS } from "../constants.js";
 import type { ResolvedBtwConfig } from "../types.js";
 import {
 	CHANGELOG_URL,
@@ -18,10 +17,11 @@ import {
 	openExternalUrl,
 } from "./links.js";
 import {
-	ensureProviderModel,
 	listModelIdsForProvider,
 	listProviders,
+	resolveProviderModel,
 } from "./models.js";
+import { createShortcutCaptureSubmenu } from "./shortcut-editor.js";
 
 export type BtwSettingsDraft = ResolvedBtwConfig;
 
@@ -39,7 +39,14 @@ export async function openBtwSettingsScreen(
 	ctx: ExtensionContext,
 	options: BtwSettingsScreenOptions,
 ): Promise<void> {
-	let draft = { ...options.initialConfig };
+	let draft = {
+		...options.initialConfig,
+		...resolveProviderModel(
+			ctx,
+			options.initialConfig.provider,
+			options.initialConfig.modelId,
+		),
+	};
 	let activeTab: SettingsTab = options.initialTab ?? "general";
 	const providers = listProviders(ctx);
 
@@ -152,11 +159,16 @@ function buildItems(
 	if (tab === "general") {
 		const providerValues = providers.includes(draft.provider)
 			? providers
-			: [draft.provider, ...providers];
+			: providers.length > 0
+				? [draft.provider, ...providers]
+				: [draft.provider];
 		const modelIds = listModelIdsForProvider(ctx, draft.provider);
-		const modelValues = modelIds.includes(draft.modelId)
-			? modelIds
-			: [draft.modelId, ...modelIds];
+		const modelValues =
+			modelIds.length > 0
+				? modelIds.includes(draft.modelId)
+					? modelIds
+					: [modelIds[0]!, ...modelIds.filter((id) => id !== modelIds[0])]
+				: [draft.modelId];
 		return [
 			{
 				id: "provider",
@@ -178,57 +190,37 @@ function buildItems(
 			},
 		];
 	}
+	const shortcutItem = (
+		id: keyof Pick<
+			BtwSettingsDraft,
+			| "composeShortcut"
+			| "injectShortcut"
+			| "dismissShortcut"
+			| "foldShortcut"
+			| "unfoldShortcut"
+			| "previousShortcut"
+			| "nextShortcut"
+		>,
+		label: string,
+	): SettingItem => ({
+		id,
+		label,
+		currentValue: draft[id],
+		description: "Enter/Space to record a new chord",
+		submenu: (current, done) =>
+			createShortcutCaptureSubmenu(current, (value: string | undefined) =>
+				done(value),
+			),
+	});
 	return [
-		{
-			id: "composeShortcut",
-			label: "Compose",
-			currentValue: draft.composeShortcut,
-			values: uniqueValues([draft.composeShortcut, DEFAULT_SHORTCUTS.compose]),
-		},
-		{
-			id: "injectShortcut",
-			label: "Inject & clear",
-			currentValue: draft.injectShortcut,
-			values: uniqueValues([draft.injectShortcut, DEFAULT_SHORTCUTS.inject]),
-		},
-		{
-			id: "dismissShortcut",
-			label: "Clear slot",
-			currentValue: draft.dismissShortcut,
-			values: uniqueValues([draft.dismissShortcut, DEFAULT_SHORTCUTS.clear]),
-		},
-		{
-			id: "foldShortcut",
-			label: "Fold",
-			currentValue: draft.foldShortcut,
-			values: uniqueValues([draft.foldShortcut, DEFAULT_SHORTCUTS.fold]),
-		},
-		{
-			id: "unfoldShortcut",
-			label: "Unfold",
-			currentValue: draft.unfoldShortcut,
-			values: uniqueValues([draft.unfoldShortcut, DEFAULT_SHORTCUTS.unfold]),
-		},
-		{
-			id: "previousShortcut",
-			label: "Previous slot",
-			currentValue: draft.previousShortcut,
-			values: uniqueValues([
-				draft.previousShortcut,
-				DEFAULT_SHORTCUTS.previous,
-			]),
-		},
-		{
-			id: "nextShortcut",
-			label: "Next slot",
-			currentValue: draft.nextShortcut,
-			values: uniqueValues([draft.nextShortcut, DEFAULT_SHORTCUTS.next]),
-		},
+		shortcutItem("composeShortcut", "Compose"),
+		shortcutItem("injectShortcut", "Inject & clear"),
+		shortcutItem("dismissShortcut", "Clear slot"),
+		shortcutItem("foldShortcut", "Fold widget"),
+		shortcutItem("unfoldShortcut", "Unfold widget"),
+		shortcutItem("previousShortcut", "Previous slot"),
+		shortcutItem("nextShortcut", "Next slot"),
 	];
-}
-
-function uniqueValues(values: string[]) {
-	return [...new Set(values.filter((v) => v.trim()))];
 }
 
 function applySettingChange(
@@ -241,13 +233,20 @@ function applySettingChange(
 	if (id === "provider") {
 		next.provider = value;
 		const ids = listModelIdsForProvider(ctx, value);
-		if (!ids.includes(next.modelId)) next.modelId = ids[0] ?? next.modelId;
-		return {
-			...next,
-			...ensureProviderModel(ctx, next.provider, next.modelId),
-		};
+		next.modelId = ids.includes(next.modelId)
+			? next.modelId
+			: (ids[0] ?? next.modelId);
+		return resolveProviderModel(
+			ctx,
+			next.provider,
+			next.modelId,
+		) as typeof next;
 	}
-	if (id === "modelId") next.modelId = value;
+	if (id === "modelId") {
+		const ids = listModelIdsForProvider(ctx, next.provider);
+		if (!ids.includes(value)) return next;
+		next.modelId = value;
+	}
 	if (
 		id === "thinking" &&
 		(THINKING_LEVELS as readonly string[]).includes(value)
@@ -260,8 +259,7 @@ function applySettingChange(
 	if (id === "unfoldShortcut") next.unfoldShortcut = value;
 	if (id === "previousShortcut") next.previousShortcut = value;
 	if (id === "nextShortcut") next.nextShortcut = value;
-	const fixed = ensureProviderModel(ctx, next.provider, next.modelId);
-	return { ...next, ...fixed };
+	return resolveProviderModel(ctx, next.provider, next.modelId) as typeof next;
 }
 
 function formatTabs(activeTab: SettingsTab, theme: Theme): string {
@@ -272,7 +270,7 @@ function formatTabs(activeTab: SettingsTab, theme: Theme): string {
 
 function formatFooter(activeTab: SettingsTab): string {
 	if (activeTab === "about") return "  Tab · g github · c changelog · i issue";
-	return "  Tab to switch · new children use provider/model/thinking";
+	return "  Tab · Shortcuts: Enter/Space record chord";
 }
 
 function formatLinks(theme: Theme): string[] {

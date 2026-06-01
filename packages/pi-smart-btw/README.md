@@ -40,7 +40,7 @@ While a slot is active:
 - **alt+j/k** — fold/unfold the widget
 - **/btw config** — settings UI (model, thinking, shortcuts, links)
 
-Config shortcuts (`composeShortcut`, `injectShortcut`, `dismissShortcut`) override compose/inject/clear only.
+In **Shortcuts** tab: select a row, **Enter** or **Space** to record a new chord (type keys, **+** between modifiers, **Enter** to save, **Esc** to cancel). Config shortcuts (`composeShortcut`, `injectShortcut`, `dismissShortcut`) override compose/inject/clear only.
 
 ## Configuration
 
