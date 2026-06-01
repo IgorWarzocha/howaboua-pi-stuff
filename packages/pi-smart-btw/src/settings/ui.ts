@@ -193,7 +193,10 @@ export async function openBtwSettingsScreen(
 					switchTab();
 					return;
 				}
-				if (activeTab === "about" && handleLinkKey(data, ctx)) return;
+				if (activeTab === "about") {
+					if (handleLinkKey(data, ctx)) tui.requestRender();
+					return;
+				}
 				settingsList.handleInput?.(data);
 				tui.requestRender();
 			},
