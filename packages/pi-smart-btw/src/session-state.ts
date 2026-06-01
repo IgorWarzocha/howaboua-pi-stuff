@@ -263,8 +263,9 @@ function collectBtwGenerations(
 		if (legacy) legacyTurns.push(legacy);
 	}
 	if (legacyTurns.length > 0) {
+		const existingLegacy = generations.get("1:legacy");
 		generations.set("1:legacy", {
-			cleared: false,
+			cleared: existingLegacy?.cleared ?? false,
 			generationId: "legacy",
 			slot: 1,
 			turns: legacyTurns.map((turn, index) => ({
