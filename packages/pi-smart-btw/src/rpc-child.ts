@@ -65,7 +65,7 @@ export class BtwChild {
 				contextTokens: 0,
 			},
 		};
-		this.proc = spawn("pi", args, {
+		this.proc = spawn(cfg.command, args, {
 			cwd,
 			shell: false,
 			stdio: ["pipe", "pipe", "pipe"],

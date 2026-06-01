@@ -18,6 +18,7 @@ const ALLOWED = new Set<ThinkingLevel>(THINKING_LEVELS);
 const DEFAULT_CONFIG: ResolvedBtwConfig = {
 	provider: "openai-codex",
 	modelId: "gpt-5.4-mini",
+	command: "pi",
 	thinking: "low",
 	composeShortcut: DEFAULT_SHORTCUTS.compose,
 	injectShortcut: DEFAULT_SHORTCUTS.inject,
@@ -86,6 +87,7 @@ export function ensureConfig() {
 				{
 					provider: DEFAULT_CONFIG.provider,
 					modelId: DEFAULT_CONFIG.modelId,
+					command: DEFAULT_CONFIG.command,
 					thinking: DEFAULT_CONFIG.thinking,
 					composeShortcut: DEFAULT_CONFIG.composeShortcut,
 					injectShortcut: DEFAULT_CONFIG.injectShortcut,
@@ -121,11 +123,16 @@ export function readConfig(): ResolvedBtwConfig {
 		typeof parsed.modelId === "string" && parsed.modelId.trim()
 			? parsed.modelId.trim()
 			: DEFAULT_CONFIG.modelId;
+	const command =
+		typeof parsed.command === "string" && parsed.command.trim()
+			? parsed.command.trim()
+			: DEFAULT_CONFIG.command;
 	const shortcut = (value: string | undefined, fallback: string) =>
 		typeof value === "string" && value.trim() ? value.trim() : fallback;
 	return {
 		provider,
 		modelId,
+		command,
 		thinking,
 		composeShortcut: shortcut(
 			parsed.composeShortcut,
@@ -161,6 +168,7 @@ export function writeConfig(
 			provider,
 			modelId,
 			thinking,
+			command,
 			composeShortcut,
 			injectShortcut,
 			dismissShortcut,
@@ -176,6 +184,7 @@ export function writeConfig(
 					provider,
 					modelId,
 					thinking,
+					command,
 					composeShortcut,
 					injectShortcut,
 					dismissShortcut,

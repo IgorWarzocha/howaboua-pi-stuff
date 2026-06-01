@@ -1,6 +1,10 @@
 import { spawn } from "node:child_process";
 import { configPath, ensureConfig } from "../config.js";
 
+function shellQuote(value: string): string {
+	return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
 export function editorCommand(): string | undefined {
 	const visual = process.env["VISUAL"]?.trim();
 	const editor = process.env["EDITOR"]?.trim();
@@ -21,16 +25,12 @@ export async function openConfigInExternalEditor(
 	}
 	ensureConfig();
 	const file = configPath();
-	const [editor, ...editorArgs] = editorCmd.split(/\s+/);
-	if (!editor) {
-		return { ok: false, error: "Invalid $VISUAL or $EDITOR." };
-	}
 	try {
 		stopTui();
 		const status = await new Promise<number | null>((resolve) => {
-			const child = spawn(editor, [...editorArgs, file], {
+			const child = spawn(`${editorCmd} ${shellQuote(file)}`, {
 				stdio: "inherit",
-				shell: process.platform === "win32",
+				shell: true,
 			});
 			child.on("error", () => resolve(null));
 			child.on("close", (code) => resolve(code));

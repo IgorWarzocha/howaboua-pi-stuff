@@ -125,6 +125,15 @@ function registerShortcuts(pi: ExtensionAPI, state: BtwState) {
 
 function registerSessionSwitchShortcuts(pi: ExtensionAPI, state: BtwState) {
 	const cfg = readConfig();
+	const configuredShortcuts = new Set([
+		cfg.composeShortcut,
+		cfg.injectShortcut,
+		cfg.dismissShortcut,
+		cfg.foldShortcut,
+		cfg.unfoldShortcut,
+		cfg.nextShortcut,
+		cfg.previousShortcut,
+	]);
 	const switchSession = (ctx: ExtensionContext, direction: number) => {
 		activate(state, ctx);
 		if (listSessions(state).length === 0) return;
@@ -143,7 +152,9 @@ function registerSessionSwitchShortcuts(pi: ExtensionAPI, state: BtwState) {
 		},
 	);
 	for (let index = 1; index <= 9; index++) {
-		pi.registerShortcut(`alt+${index}` as typeof DEFAULT_SHORTCUTS.compose, {
+		const chord = `alt+${index}`;
+		if (configuredShortcuts.has(chord)) continue;
+		pi.registerShortcut(chord as typeof DEFAULT_SHORTCUTS.compose, {
 			description: `Open /btw session ${index}`,
 			handler: async (ctx) => {
 				activate(state, ctx);
@@ -201,7 +212,7 @@ function registerBtwCommand(pi: ExtensionAPI, state: BtwState) {
 				trimmed.toLowerCase().startsWith("config ")
 			) {
 				activate(state, ctx);
-				handleBtwConfigArg(ctx, "config", () => registerShortcuts(pi, state));
+				handleBtwConfigArg(ctx, "config");
 				return;
 			}
 			const { question, sessionNumber } = parseBtwArgs(args);

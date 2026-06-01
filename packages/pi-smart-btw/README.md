@@ -40,7 +40,7 @@ While a slot is active:
 - **alt+j/k** — fold/unfold the widget
 - **/btw config** — settings UI (model, thinking, shortcuts, links)
 
-In **General**: **Edit shortcuts** opens `~/.pi/agent/pi-smart-btw.json` in `$VISUAL` or `$EDITOR`. **Esc** closes and saves (merges file + provider/model/thinking).
+In **General**: **Edit shortcuts** opens `~/.pi/agent/pi-smart-btw.json` in `$VISUAL` or `$EDITOR`. Use it for shortcuts and advanced JSON-only settings like `command`. Run `/reload` after editing shortcuts. **Esc** closes and saves (merges file + provider/model/thinking).
 
 ## Configuration
 
@@ -50,6 +50,7 @@ In **General**: **Edit shortcuts** opens `~/.pi/agent/pi-smart-btw.json` in `$VI
 {
   "provider": "openai-codex",
   "modelId": "gpt-5.4-mini",
+  "command": "pi",
   "thinking": "low",
   "injectShortcut": "alt+c",
   "dismissShortcut": "alt+x",

@@ -36,14 +36,6 @@ export function isBtwResultMessage(message: {
 	if (customType === MESSAGE_TYPE || customType === LEGACY_MESSAGE_TYPE)
 		return true;
 	if (customType.startsWith(`${MESSAGE_TYPE} `)) return true;
-	const details = message.details;
-	if (
-		typeof details === "object" &&
-		details !== null &&
-		"slot" in details &&
-		"generation" in details
-	)
-		return true;
 	return false;
 }
 
@@ -53,10 +45,7 @@ export function isBtwContextMessage(message: {
 	customType?: string;
 	details?: unknown;
 }): boolean {
-	if (!isBtwResultMessage(message)) return false;
-	const details = message.details as BtwMessageDetails | undefined;
-	if (details?.kind === "cleared") return false;
-	return true;
+	return isBtwResultMessage(message);
 }
 
 function getResultLabel(session: BtwSession, turn: BtwTurn) {

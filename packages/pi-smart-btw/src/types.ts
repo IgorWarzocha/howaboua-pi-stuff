@@ -13,6 +13,7 @@ export type ThinkingLevel =
 export interface BtwConfig {
 	provider: string;
 	modelId: string;
+	command?: string;
 	thinking?: ThinkingLevel;
 	injectShortcut?: string;
 	dismissShortcut?: string;

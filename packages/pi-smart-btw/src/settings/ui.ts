@@ -252,7 +252,9 @@ function buildItems(
 		{
 			id: "editShortcuts",
 			label: "Edit shortcuts",
-			currentValue: editorReady ? "Opens in default editor" : "Set $EDITOR",
+			currentValue: editorReady
+				? "Opens in default editor (please /reload)"
+				: "Set $EDITOR",
 			values: editorReady ? ["Open"] : ["Unavailable"],
 		},
 	];

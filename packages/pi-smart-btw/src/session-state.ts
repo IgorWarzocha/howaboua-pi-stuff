@@ -141,6 +141,13 @@ function getBtwDetails(message: {
 	customType?: string;
 	details?: unknown;
 }): BtwMessageDetails | undefined {
+	const customType = String(message.customType ?? "");
+	if (
+		customType !== "BTW SESSION" &&
+		customType !== "smart-btw-result" &&
+		!customType.startsWith("BTW SESSION ")
+	)
+		return undefined;
 	const details = message.details;
 	if (typeof details !== "object" || details === null) return undefined;
 	const record = details as BtwMessageDetails;
@@ -275,6 +282,18 @@ export function restoreStateFromMessages(
 	const latestBySlot = latestOpenGenerationsBySlot(
 		collectBtwGenerations(messages),
 	);
+	for (const session of listSessions(state)) {
+		const latest = latestBySlot.get(session.index + 1);
+		if (latest?.generationId === session.generationId) continue;
+		const hasPendingWork =
+			session.running ||
+			session.turns.some(
+				(turn) => turn.status === "queued" || turn.status === "running",
+			);
+		if (hasPendingWork) continue;
+		state.sessions[session.index] = undefined;
+		void session.child?.stop();
+	}
 	for (const record of latestBySlot.values()) {
 		const existing = state.sessions[record.slot - 1];
 		if (existing?.generationId === record.generationId) continue;
@@ -285,6 +304,8 @@ export function restoreStateFromMessages(
 			turns: record.turns,
 		});
 	}
+	if (!state.sessions[state.activeIndex])
+		state.activeIndex = listSessions(state)[0]?.index ?? 0;
 }
 
 function isCurrentGeneration(session: BtwSession, generation: number) {
@@ -293,11 +314,12 @@ function isCurrentGeneration(session: BtwSession, generation: number) {
 
 function formatRestoredFollowUpPrompt(
 	session: BtwSession,
+	currentTurn: BtwTurn,
 	question: string,
 	nextTurnIndex: number,
 ) {
 	const restoredTurns = doneTurns(
-		session.turns.filter((turn) => turn.question !== question),
+		session.turns.filter((turn) => turn !== currentTurn),
 	);
 	if (!(session.restored && restoredTurns.length > 0 && !session.child))
 		return undefined;
@@ -382,16 +404,17 @@ export async function runBtwTurn(args: {
 	turn.turnIndex ??= session.nextTurnIndex++;
 	render(ctx, state);
 	try {
+		const prompt = formatRestoredFollowUpPrompt(
+			session,
+			turn,
+			question,
+			turn.turnIndex,
+		);
 		if (!session.child) {
 			session.child = new BtwChild(ctx.cwd, () => render(ctx, state));
 			await session.child.ready();
 		}
 		if (!isCurrentGeneration(session, generation)) return;
-		const prompt = formatRestoredFollowUpPrompt(
-			session,
-			question,
-			turn.turnIndex,
-		);
 		turn.answer =
 			(await session.child.ask(
 				question,
