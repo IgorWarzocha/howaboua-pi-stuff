@@ -230,9 +230,6 @@ function buildItems(
 			label: "Edit shortcuts",
 			currentValue: editorReady ? "Opens in default editor" : "Set $EDITOR",
 			values: editorReady ? ["Open"] : ["Unavailable"],
-			description: editorReady
-				? "Enter/Space — edits pi-smart-btw.json (composeShortcut, injectShortcut, …)"
-				: "Set $VISUAL or $EDITOR, then try again",
 		},
 	];
 }
