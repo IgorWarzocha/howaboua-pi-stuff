@@ -2,7 +2,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { NUMBERED_SESSION_PATTERN } from "./constants.js";
+import { MAX_BTW_SESSIONS, NUMBERED_SESSION_PATTERN } from "./constants.js";
 import type { BtwMessageDetails } from "./messages.js";
 import { doneTurns } from "./output.js";
 import { BtwChild } from "./rpc-child.js";
@@ -70,6 +70,11 @@ export function switchRelativeSession(state: BtwState, direction: number) {
 }
 
 export function createSession(state: BtwState, index = lowestFreeIndex(state)) {
+	if (!Number.isSafeInteger(index) || index < 0 || index >= MAX_BTW_SESSIONS) {
+		throw new Error(
+			`BTW session index must be between 0 and ${MAX_BTW_SESSIONS - 1}.`,
+		);
+	}
 	while (state.sessions.length <= index) state.sessions.push(undefined);
 	const session = makeSession(index);
 	state.sessions[index] = session;
@@ -82,6 +87,12 @@ export function restoreSession(
 	state: BtwState,
 	args: { generationId: string; index: number; turns: BtwTurn[] },
 ) {
+	if (
+		!Number.isSafeInteger(args.index) ||
+		args.index < 0 ||
+		args.index >= MAX_BTW_SESSIONS
+	)
+		return undefined;
 	while (state.sessions.length <= args.index) state.sessions.push(undefined);
 	const session = makeSession(args.index);
 	session.generationId = args.generationId;
@@ -95,6 +106,11 @@ export function restoreSession(
 }
 
 export function ensureSession(state: BtwState, index: number) {
+	if (!Number.isSafeInteger(index) || index < 0 || index >= MAX_BTW_SESSIONS) {
+		throw new Error(
+			`BTW session number must be between 1 and ${MAX_BTW_SESSIONS}.`,
+		);
+	}
 	const session = state.sessions[index] ?? createSession(state, index);
 	switchToSession(state, index);
 	return session;

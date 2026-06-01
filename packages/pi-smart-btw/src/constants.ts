@@ -8,6 +8,7 @@ export const QUIET_MS = 500;
 export const POLL_MS = 150;
 
 export const NUMBERED_SESSION_PATTERN = /^(\d+)(?:\s+(.*))?$/u;
+export const MAX_BTW_SESSIONS = 9;
 
 export const KEY_HINT =
 	"alt: +z compose · +c inject & clear · +x clear · jk fold · hl switch";

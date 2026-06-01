@@ -13,7 +13,9 @@ import { mergePersistedContextDetails } from "./subdir/details.js";
 import { contentRootForTarget, resolvePath } from "./subdir/paths.js";
 import {
 	isDiscoveryShellCommand,
+	isPathOutputShellCommand,
 	shellOutputBase,
+	shellOutputToolName,
 	shellTargets,
 } from "./subdir/shell-targets.js";
 
@@ -86,10 +88,10 @@ export function registerSubdirContextAutoload(pi: ExtensionAPI): void {
 		}
 		if (!shellInput) return [];
 		const base = shellOutputBase(shellInput, currentCwd);
-		return [
-			...shellTargets(shellInput, currentCwd),
-			...pathsFromToolText(event.content, base, "shell"),
-		];
+		const outputPaths = isPathOutputShellCommand(shellInput)
+			? pathsFromToolText(event.content, base, shellOutputToolName(shellInput))
+			: [];
+		return [...shellTargets(shellInput, currentCwd), ...outputPaths];
 	}
 
 	function pathsFromToolText(

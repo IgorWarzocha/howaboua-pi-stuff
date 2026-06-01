@@ -98,6 +98,7 @@ export class BtwChild {
 		promptMessage?: string,
 	) {
 		const before = this.agentEndCount;
+		const beforeMessages = this.details.messages.length;
 		this.lastAgentMessages = [];
 		this.currentPartial = "";
 		this.onPartial = onPartial;
@@ -116,7 +117,9 @@ export class BtwChild {
 		await this.waitForAnswer(before);
 		this.onPartial = undefined;
 		return (
-			getFinalOutput(this.lastAgentMessages) || this.currentPartial
+			getFinalOutput(this.lastAgentMessages) ||
+			getFinalOutput(this.details.messages.slice(beforeMessages)) ||
+			this.currentPartial
 		).trim();
 	}
 

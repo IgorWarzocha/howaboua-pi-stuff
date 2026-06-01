@@ -2,12 +2,14 @@ import type {
 	ExtensionAPI,
 	ExtensionCommandContext,
 	ExtensionContext,
+	SessionEntry,
 } from "@earendil-works/pi-coding-agent";
 import { Box, Text } from "@earendil-works/pi-tui";
 import { ensureConfig, readConfig } from "./src/config.js";
 import {
 	DEFAULT_SHORTCUTS,
 	LEGACY_MESSAGE_TYPE,
+	MAX_BTW_SESSIONS,
 	MESSAGE_TYPE,
 } from "./src/constants.js";
 import type { BtwMessageDetails } from "./src/messages.js";
@@ -43,7 +45,11 @@ function activate(state: BtwState, ctx: ExtensionContext) {
 	restoreStateFromMessages(
 		state,
 		branch
-			.filter((entry) => entry.type === "custom_message")
+			.filter(
+				(entry): entry is Extract<SessionEntry, { type: "custom_message" }> =>
+					entry.type === "custom_message",
+			)
+			.filter((entry) => isBtwContextMessage(entry))
 			.map((entry) => ({
 				customType: entry.customType,
 				details: entry.details,
@@ -52,11 +58,11 @@ function activate(state: BtwState, ctx: ExtensionContext) {
 	);
 }
 
-function injectAnswers(
+async function injectAnswers(
 	pi: ExtensionAPI,
 	state: BtwState,
 	ctx: ExtensionContext,
-) {
+): Promise<void> {
 	activate(state, ctx);
 	const session = activeSession(state);
 	const turns = doneTurns(session?.turns ?? []);
@@ -64,14 +70,21 @@ function injectAnswers(
 		state.ctx?.ui.notify("No /btw answer to inject yet.", "warning");
 		return;
 	}
+	if (session) {
+		sendClearedMessage(pi, session);
+		try {
+			await clearSession(state, session);
+		} catch (error) {
+			ctx.ui.notify(
+				`Failed to stop /btw child cleanly: ${error instanceof Error ? error.message : String(error)}`,
+				"warning",
+			);
+		}
+	}
 	pi.sendUserMessage(
 		injectionText(turns),
 		state.ctx?.isIdle() ? undefined : { deliverAs: "followUp" },
 	);
-	if (session) {
-		sendClearedMessage(pi, session);
-		void clearSession(state, session);
-	}
 	if (state.ctx) render(state.ctx, state);
 }
 
@@ -218,9 +231,9 @@ function registerBtwCommand(pi: ExtensionAPI, state: BtwState) {
 			const { question, sessionNumber } = parseBtwArgs(args);
 			activate(state, ctx);
 			if (sessionNumber !== undefined) {
-				if (sessionNumber < 1) {
+				if (sessionNumber < 1 || sessionNumber > MAX_BTW_SESSIONS) {
 					ctx.ui.notify(
-						"Use /btw 1, /btw 2, etc. to pick a btw session.",
+						`Use /btw 1 through /btw ${MAX_BTW_SESSIONS} to pick a btw session.`,
 						"warning",
 					);
 					return;
