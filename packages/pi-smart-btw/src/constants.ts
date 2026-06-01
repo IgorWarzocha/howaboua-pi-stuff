@@ -10,14 +10,14 @@ export const POLL_MS = 150;
 export const NUMBERED_SESSION_PATTERN = /^(\d+)(?:\s+(.*))?$/u;
 
 export const KEY_HINT =
-	"alt: +z compose · +c inject & clear · +x clear · ↑/↓ fold · ←/→ switch";
+	"alt: +z compose · +c inject & clear · +x clear · jk fold · hl switch";
 
 export const SHORTCUTS = {
 	compose: "alt+z",
 	inject: "alt+c",
 	clear: "alt+x",
-	fold: "alt+down",
-	unfold: "alt+up",
-	next: "alt+right",
-	previous: "alt+left",
+	fold: "alt+j",
+	unfold: "alt+k",
+	next: "alt+l",
+	previous: "alt+h",
 } as const;

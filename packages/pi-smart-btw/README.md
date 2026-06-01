@@ -36,8 +36,8 @@ While a slot is active:
 - **alt+c** — inject answers into the main chat and clear the slot
 - **alt+x** — clear the slot (hidden tombstone in JSONL)
 - **alt+z** — prefill `/btw ` in the editor
-- **alt+←/→** — previous/next slot; **alt+1..9** — jump to slot
-- **alt+↑/↓** — fold/unfold the widget
+- **alt+h/l** — previous/next slot; **alt+1..9** — jump to slot
+- **alt+j/k** — fold/unfold the widget
 
 Config shortcuts (`composeShortcut`, `injectShortcut`, `dismissShortcut`) override compose/inject/clear only.
 
