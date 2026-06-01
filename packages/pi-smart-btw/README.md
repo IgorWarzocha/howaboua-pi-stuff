@@ -40,7 +40,7 @@ While a slot is active:
 - **alt+j/k** — fold/unfold the widget
 - **/btw config** — settings UI (model, thinking, shortcuts, links)
 
-In **Shortcuts** tab: select a row, **Enter** or **Space** to record a new chord (type keys, **+** between modifiers, **Enter** to save, **Esc** to cancel). Config shortcuts (`composeShortcut`, `injectShortcut`, `dismissShortcut`) override compose/inject/clear only.
+In **Actions** tab: open `~/.pi/agent/pi-smart-btw.json` in `$VISUAL` or `$EDITOR` (shortcuts and all fields). **Esc** closes the screen and saves General tab choices.
 
 ## Configuration
 

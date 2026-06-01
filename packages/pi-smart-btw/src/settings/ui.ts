@@ -8,8 +8,9 @@ import {
 	SettingsList,
 	truncateToWidth,
 } from "@earendil-works/pi-tui";
-import { THINKING_LEVELS } from "../config.js";
+import { configPath, readConfig, THINKING_LEVELS } from "../config.js";
 import type { ResolvedBtwConfig } from "../types.js";
+import { editorCommand, openConfigInExternalEditor } from "./config-editor.js";
 import {
 	CHANGELOG_URL,
 	GITHUB_URL,
@@ -22,12 +23,6 @@ import {
 	listProviders,
 	resolveProviderModel,
 } from "./models.js";
-import {
-	createShortcutCaptureSubmenu,
-	defaultShortcut,
-	isValidChord,
-	SHORTCUT_CONFIG_KEYS,
-} from "./shortcut-editor.js";
 
 export type BtwSettingsDraft = ResolvedBtwConfig;
 
@@ -37,9 +32,9 @@ export interface BtwSettingsScreenOptions {
 	initialTab?: SettingsTab | undefined;
 }
 
-type SettingsTab = "general" | "shortcuts" | "about";
+type SettingsTab = "general" | "actions" | "about";
 
-const TAB_ORDER: readonly SettingsTab[] = ["general", "shortcuts", "about"];
+const TAB_ORDER: readonly SettingsTab[] = ["general", "actions", "about"];
 
 export async function openBtwSettingsScreen(
 	ctx: ExtensionContext,
@@ -59,6 +54,16 @@ export async function openBtwSettingsScreen(
 	await ctx.ui.custom<void>((tui, theme, _kb, done) => {
 		let settingsList: SettingsList;
 
+		const reloadDraftFromDisk = () => {
+			const file = readConfig();
+			draft = {
+				...file,
+				...resolveProviderModel(ctx, file.provider, file.modelId),
+			};
+		};
+
+		let focusedId = "provider";
+
 		const saveAndClose = () => {
 			draft = {
 				...draft,
@@ -68,27 +73,73 @@ export async function openBtwSettingsScreen(
 			done(undefined);
 		};
 
-		const refreshList = () => {
-			settingsList = createSettingsList(
-				activeTab,
-				draft,
-				ctx,
-				providers,
-				(nextDraft) => {
-					draft = nextDraft;
-					refreshList();
-				},
-				saveAndClose,
-				() => tui.requestRender(),
-			);
+		const setListFocus = (
+			list: SettingsList,
+			items: SettingItem[],
+			id: string,
+		) => {
+			const index = items.findIndex((item) => item.id === id);
+			const listAny = list as unknown as { selectedIndex: number };
+			listAny.selectedIndex =
+				index >= 0
+					? index
+					: Math.min(listAny.selectedIndex, Math.max(0, items.length - 1));
 		};
 
-		refreshList();
+		const onSettingChange = (id: string, value: string) => {
+			focusedId = id;
+			if (activeTab === "actions" && id === "editConfig") {
+				void runEditConfig();
+				return;
+			}
+			const nextDraft = applySettingChange(id, value, draft, ctx);
+			const previousValue = buildItems(activeTab, draft, ctx, providers).find(
+				(item) => item.id === id,
+			)?.currentValue;
+			const applied = JSON.stringify(nextDraft) !== JSON.stringify(draft);
+			if (!applied && previousValue !== undefined) {
+				settingsList.updateValue(id, previousValue);
+			} else if (applied) {
+				draft = nextDraft;
+				mountList(focusedId);
+			}
+			tui.requestRender();
+		};
+
+		const mountList = (focusId = focusedId) => {
+			const items = buildItems(activeTab, draft, ctx, providers);
+			settingsList = new SettingsList(
+				items,
+				8,
+				getSettingsListTheme(),
+				onSettingChange,
+				saveAndClose,
+			);
+			setListFocus(settingsList, items, focusId);
+		};
+
+		const runEditConfig = async () => {
+			const result = await openConfigInExternalEditor(
+				() => tui.stop(),
+				() => tui.start(),
+				(full) => tui.requestRender(full),
+			);
+			if (!result.ok) {
+				ctx.ui.notify(result.error, "warning");
+				return;
+			}
+			reloadDraftFromDisk();
+			mountList(focusedId);
+			tui.requestRender();
+		};
+
+		mountList();
 
 		const switchTab = () => {
 			const currentIndex = TAB_ORDER.indexOf(activeTab);
 			activeTab = TAB_ORDER[(currentIndex + 1) % TAB_ORDER.length] ?? "general";
-			refreshList();
+			focusedId = activeTab === "actions" ? "editConfig" : "provider";
+			mountList(focusedId);
 			tui.requestRender();
 		};
 
@@ -126,38 +177,6 @@ function rule(
 	return theme.fg(color, "─".repeat(Math.max(0, width)));
 }
 
-function createSettingsList(
-	tab: SettingsTab,
-	draft: BtwSettingsDraft,
-	ctx: ExtensionContext,
-	providers: string[],
-	onDraftChanged: (draft: BtwSettingsDraft) => void,
-	onClose: () => void,
-	requestRender: () => void,
-): SettingsList {
-	let settingsList: SettingsList;
-	settingsList = new SettingsList(
-		buildItems(tab, draft, ctx, providers),
-		8,
-		getSettingsListTheme(),
-		(id, value) => {
-			const nextDraft = applySettingChange(id, value, draft, ctx);
-			const previousValue = buildItems(tab, draft, ctx, providers).find(
-				(item) => item.id === id,
-			)?.currentValue;
-			const applied = JSON.stringify(nextDraft) !== JSON.stringify(draft);
-			if (!applied && previousValue !== undefined) {
-				settingsList.updateValue(id, previousValue);
-			} else if (applied) {
-				onDraftChanged(nextDraft);
-			}
-			requestRender();
-		},
-		onClose,
-	);
-	return settingsList;
-}
-
 function buildItems(
 	tab: SettingsTab,
 	draft: BtwSettingsDraft,
@@ -165,67 +184,52 @@ function buildItems(
 	providers: string[],
 ): SettingItem[] {
 	if (tab === "about") return [];
-	if (tab === "general") {
-		const resolved = resolveProviderModel(ctx, draft.provider, draft.modelId);
-		const providerValues =
-			providers.length > 0 ? providers : [resolved.provider];
-		const modelIds = listModelIdsForProvider(ctx, resolved.provider);
-		const modelValues = modelIds.length > 0 ? modelIds : [resolved.modelId];
-		const modelCurrent =
-			modelValues.find((id) => id === resolved.modelId) ??
-			modelValues[0] ??
-			resolved.modelId;
+	if (tab === "actions") {
+		const editor = editorCommand();
 		return [
 			{
-				id: "provider",
-				label: "Provider",
-				currentValue: resolved.provider || "openai-codex",
-				values: providerValues,
-			},
-			{
-				id: "modelId",
-				label: "Model",
-				currentValue: modelCurrent || resolved.modelId || "",
-				values: modelValues,
-			},
-			{
-				id: "thinking",
-				label: "Thinking",
-				currentValue: draft.thinking,
-				values: [...THINKING_LEVELS],
+				id: "editConfig",
+				label: "Config file",
+				currentValue: configPath(),
+				description: editor
+					? `Enter/Space opens in ${editor}`
+					: "Set $VISUAL or $EDITOR, then Enter/Space",
+				values: editor ? ["Open in editor"] : ["(no editor set)"],
 			},
 		];
 	}
-	const shortcutItem = (
-		id: keyof Pick<
-			BtwSettingsDraft,
-			| "composeShortcut"
-			| "injectShortcut"
-			| "dismissShortcut"
-			| "foldShortcut"
-			| "unfoldShortcut"
-			| "previousShortcut"
-			| "nextShortcut"
-		>,
-		label: string,
-	): SettingItem => ({
-		id,
-		label,
-		currentValue: draft[id] ?? defaultShortcut(SHORTCUT_CONFIG_KEYS[id]),
-		description: "Space to record a new chord (Enter cycles)",
-		submenu: (current, done) =>
-			createShortcutCaptureSubmenu(current, (value: string | undefined) =>
-				done(value),
-			),
-	});
+	const resolved = resolveProviderModel(ctx, draft.provider, draft.modelId);
+	const providerValues = providers.length > 0 ? providers : [resolved.provider];
+	const modelIds = listModelIdsForProvider(ctx, resolved.provider);
+	const modelValues = modelIds.length > 0 ? modelIds : [resolved.modelId];
+	const modelCurrent =
+		modelValues.find((id) => id === resolved.modelId) ??
+		modelValues[0] ??
+		resolved.modelId;
+	const thinking =
+		draft.thinking &&
+		(THINKING_LEVELS as readonly string[]).includes(draft.thinking)
+			? draft.thinking
+			: "low";
 	return [
-		shortcutItem("composeShortcut", "Compose"),
-		shortcutItem("injectShortcut", "Inject & clear"),
-		shortcutItem("dismissShortcut", "Clear slot"),
-		shortcutItem("foldShortcut", "Fold widget"),
-		shortcutItem("unfoldShortcut", "Unfold widget"),
-		shortcutItem("previousShortcut", "Previous slot"),
-		shortcutItem("nextShortcut", "Next slot"),
+		{
+			id: "provider",
+			label: "Provider",
+			currentValue: resolved.provider,
+			values: providerValues,
+		},
+		{
+			id: "modelId",
+			label: "Model",
+			currentValue: modelCurrent,
+			values: modelValues,
+		},
+		{
+			id: "thinking",
+			label: "Thinking",
+			currentValue: thinking,
+			values: [...THINKING_LEVELS],
+		},
 	];
 }
 
@@ -256,30 +260,20 @@ function applySettingChange(
 		(THINKING_LEVELS as readonly string[]).includes(value)
 	)
 		next.thinking = value as BtwSettingsDraft["thinking"];
-	if (id === "composeShortcut" && isValidChord(value))
-		next.composeShortcut = value;
-	if (id === "injectShortcut" && isValidChord(value))
-		next.injectShortcut = value;
-	if (id === "dismissShortcut" && isValidChord(value))
-		next.dismissShortcut = value;
-	if (id === "foldShortcut" && isValidChord(value)) next.foldShortcut = value;
-	if (id === "unfoldShortcut" && isValidChord(value))
-		next.unfoldShortcut = value;
-	if (id === "previousShortcut" && isValidChord(value))
-		next.previousShortcut = value;
-	if (id === "nextShortcut" && isValidChord(value)) next.nextShortcut = value;
 	return { ...next, ...resolveProviderModel(ctx, next.provider, next.modelId) };
 }
 
 function formatTabs(activeTab: SettingsTab, theme: Theme): string {
 	const renderTab = (tab: SettingsTab, label: string) =>
 		activeTab === tab ? theme.bold(label) : theme.fg("dim", label);
-	return `  ${renderTab("general", "General")}  ${theme.fg("dim", "/")}  ${renderTab("shortcuts", "Shortcuts")}  ${theme.fg("dim", "/")}  ${renderTab("about", "About")}`;
+	return `  ${renderTab("general", "General")}  ${theme.fg("dim", "/")}  ${renderTab("actions", "Actions")}  ${theme.fg("dim", "/")}  ${renderTab("about", "About")}`;
 }
 
 function formatFooter(activeTab: SettingsTab): string {
 	if (activeTab === "about") return "  Tab · g github · c changelog · i issue";
-	return "  Tab · Enter/Space cycle · Shortcuts: Space record · Esc save & close";
+	if (activeTab === "actions")
+		return "  Tab · Enter/Space open config · Esc close (saves)";
+	return "  Tab · Enter/Space cycle · Esc close (saves)";
 }
 
 function formatLinks(theme: Theme): string[] {
