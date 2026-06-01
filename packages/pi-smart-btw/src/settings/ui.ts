@@ -24,6 +24,24 @@ import {
 	resolveProviderModel,
 } from "./models.js";
 
+function replaceSettingsHint(lines: string[]): string[] {
+	return lines.map((line) =>
+		line.replace(/Esc to cancel/gi, "Esc close (saves)"),
+	);
+}
+
+function mergeDraftForSave(
+	draft: BtwSettingsDraft,
+	ctx: ExtensionContext,
+): BtwSettingsDraft {
+	const fromDisk = readConfig();
+	return {
+		...fromDisk,
+		thinking: draft.thinking,
+		...resolveProviderModel(ctx, draft.provider, draft.modelId),
+	};
+}
+
 export type BtwSettingsDraft = ResolvedBtwConfig;
 
 export interface BtwSettingsScreenOptions {
@@ -65,12 +83,8 @@ export async function openBtwSettingsScreen(
 		let focusedId = "provider";
 
 		const saveAndClose = () => {
-			reloadDraftFromDisk();
-			draft = {
-				...draft,
-				...resolveProviderModel(ctx, draft.provider, draft.modelId),
-			};
-			if (!options.onSave(draft)) return;
+			const toSave = mergeDraftForSave(draft, ctx);
+			if (!options.onSave(toSave)) return;
 			done(undefined);
 		};
 
@@ -120,6 +134,14 @@ export async function openBtwSettingsScreen(
 		};
 
 		const runEditConfig = async () => {
+			const toSave = mergeDraftForSave(draft, ctx);
+			if (!options.onSave(toSave)) {
+				ctx.ui.notify(
+					"Could not save settings before opening editor",
+					"warning",
+				);
+				return;
+			}
 			const result = await openConfigInExternalEditor(
 				() => tui.stop(),
 				() => tui.start(),
@@ -152,7 +174,9 @@ export async function openBtwSettingsScreen(
 					rule(width, theme, "borderMuted"),
 					...(activeTab === "about" ? formatLinks(theme) : []),
 					"",
-					...(activeTab === "about" ? [] : settingsList.render(width)),
+					...(activeTab === "about"
+						? []
+						: replaceSettingsHint(settingsList.render(width))),
 					rule(width, theme, "accent"),
 					...(activeTab === "about"
 						? [
