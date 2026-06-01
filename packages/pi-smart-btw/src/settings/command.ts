@@ -26,7 +26,7 @@ export function handleBtwConfigArg(
 	}
 	void openBtwSettingsScreen(ctx, {
 		initialConfig,
-		onChange: (nextConfig) => {
+		onSave: (nextConfig) => {
 			const resolved = {
 				...nextConfig,
 				...resolveProviderModel(ctx, nextConfig.provider, nextConfig.modelId),
@@ -51,7 +51,6 @@ export function handleBtwConfigArg(
 				return false;
 			}
 			onSaved?.();
-			ctx.ui.notify("BTW settings saved", "info");
 			return true;
 		},
 	});

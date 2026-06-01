@@ -69,3 +69,13 @@ export function resolveProviderModel(
 
 	return { provider: pairs[0]!.provider, modelId: pairs[0]!.modelId };
 }
+
+export function isRegistryPair(
+	ctx: ExtensionContext,
+	provider: string,
+	modelId: string,
+): boolean {
+	return registryPairs(ctx).some(
+		(p) => p.provider === provider.trim() && p.modelId === modelId.trim(),
+	);
+}

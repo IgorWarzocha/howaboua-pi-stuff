@@ -17,6 +17,7 @@ import {
 	openExternalUrl,
 } from "./links.js";
 import {
+	isRegistryPair,
 	listModelIdsForProvider,
 	listProviders,
 	resolveProviderModel,
@@ -32,7 +33,7 @@ export type BtwSettingsDraft = ResolvedBtwConfig;
 
 export interface BtwSettingsScreenOptions {
 	initialConfig: BtwSettingsDraft;
-	onChange: (nextConfig: BtwSettingsDraft) => boolean;
+	onSave: (nextConfig: BtwSettingsDraft) => boolean;
 	initialTab?: SettingsTab | undefined;
 }
 
@@ -56,34 +57,38 @@ export async function openBtwSettingsScreen(
 	const providers = listProviders(ctx);
 
 	await ctx.ui.custom<void>((tui, theme, _kb, done) => {
-		let settingsList = createSettingsList(
-			activeTab,
-			draft,
-			ctx,
-			providers,
-			options,
-			(nextDraft) => {
-				draft = nextDraft;
-			},
-			done,
-			() => tui.requestRender(),
-		);
+		let settingsList: SettingsList;
 
-		const switchTab = () => {
-			const currentIndex = TAB_ORDER.indexOf(activeTab);
-			activeTab = TAB_ORDER[(currentIndex + 1) % TAB_ORDER.length] ?? "general";
+		const saveAndClose = () => {
+			draft = {
+				...draft,
+				...resolveProviderModel(ctx, draft.provider, draft.modelId),
+			};
+			if (!options.onSave(draft)) return;
+			done(undefined);
+		};
+
+		const refreshList = () => {
 			settingsList = createSettingsList(
 				activeTab,
 				draft,
 				ctx,
 				providers,
-				options,
 				(nextDraft) => {
 					draft = nextDraft;
+					refreshList();
 				},
-				done,
+				saveAndClose,
 				() => tui.requestRender(),
 			);
+		};
+
+		refreshList();
+
+		const switchTab = () => {
+			const currentIndex = TAB_ORDER.indexOf(activeTab);
+			activeTab = TAB_ORDER[(currentIndex + 1) % TAB_ORDER.length] ?? "general";
+			refreshList();
 			tui.requestRender();
 		};
 
@@ -126,9 +131,8 @@ function createSettingsList(
 	draft: BtwSettingsDraft,
 	ctx: ExtensionContext,
 	providers: string[],
-	options: BtwSettingsScreenOptions,
 	onDraftChanged: (draft: BtwSettingsDraft) => void,
-	done: (value?: void) => void,
+	onClose: () => void,
 	requestRender: () => void,
 ): SettingsList {
 	let settingsList: SettingsList;
@@ -141,15 +145,15 @@ function createSettingsList(
 			const previousValue = buildItems(tab, draft, ctx, providers).find(
 				(item) => item.id === id,
 			)?.currentValue;
-			if (options.onChange(nextDraft)) {
-				onDraftChanged(nextDraft);
-				draft = nextDraft;
-			} else if (previousValue !== undefined) {
+			const applied = JSON.stringify(nextDraft) !== JSON.stringify(draft);
+			if (!applied && previousValue !== undefined) {
 				settingsList.updateValue(id, previousValue);
+			} else if (applied) {
+				onDraftChanged(nextDraft);
 			}
 			requestRender();
 		},
-		() => done(undefined),
+		onClose,
 	);
 	return settingsList;
 }
@@ -163,22 +167,25 @@ function buildItems(
 	if (tab === "about") return [];
 	if (tab === "general") {
 		const resolved = resolveProviderModel(ctx, draft.provider, draft.modelId);
-		const providerValues = providers;
+		const providerValues =
+			providers.length > 0 ? providers : [resolved.provider];
 		const modelIds = listModelIdsForProvider(ctx, resolved.provider);
-		const modelValues = modelIds;
+		const modelValues = modelIds.length > 0 ? modelIds : [resolved.modelId];
+		const modelCurrent = modelValues.includes(resolved.modelId)
+			? resolved.modelId
+			: modelValues[0]!;
 		return [
 			{
 				id: "provider",
 				label: "Provider",
 				currentValue: resolved.provider,
-				values:
-					providerValues.length > 0 ? providerValues : [resolved.provider],
+				values: providerValues,
 			},
 			{
 				id: "modelId",
 				label: "Model",
-				currentValue: resolved.modelId,
-				values: modelValues.length > 0 ? modelValues : [resolved.modelId],
+				currentValue: modelCurrent,
+				values: modelValues,
 			},
 			{
 				id: "thinking",
@@ -204,7 +211,7 @@ function buildItems(
 		id,
 		label,
 		currentValue: draft[id] ?? defaultShortcut(SHORTCUT_CONFIG_KEYS[id]),
-		description: "Enter/Space to record a new chord",
+		description: "Space to record a new chord (Enter cycles)",
 		submenu: (current, done) =>
 			createShortcutCaptureSubmenu(current, (value: string | undefined) =>
 				done(value),
@@ -234,15 +241,13 @@ function applySettingChange(
 		next.provider = value;
 		const ids = listModelIdsForProvider(ctx, value);
 		next.modelId = ids[0] ?? next.modelId;
-		return resolveProviderModel(
-			ctx,
-			next.provider,
-			next.modelId,
-		) as typeof next;
+		return {
+			...next,
+			...resolveProviderModel(ctx, next.provider, next.modelId),
+		};
 	}
 	if (id === "modelId") {
-		const ids = listModelIdsForProvider(ctx, next.provider);
-		if (!ids.includes(value)) return next;
+		if (!isRegistryPair(ctx, next.provider, value)) return draft;
 		next.modelId = value;
 	}
 	if (
@@ -273,7 +278,7 @@ function formatTabs(activeTab: SettingsTab, theme: Theme): string {
 
 function formatFooter(activeTab: SettingsTab): string {
 	if (activeTab === "about") return "  Tab · g github · c changelog · i issue";
-	return "  Tab · Shortcuts: Enter/Space record chord";
+	return "  Tab · Enter/Space cycle · Shortcuts: Space record · Esc save & close";
 }
 
 function formatLinks(theme: Theme): string[] {
