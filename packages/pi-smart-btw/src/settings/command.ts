@@ -51,7 +51,7 @@ export function handleBtwConfigArg(
 				return false;
 			}
 			onSaved?.();
-			ctx.ui.notify(formatBtwSettings(resolved), "info");
+			ctx.ui.notify("BTW settings saved", "info");
 			return true;
 		},
 	});

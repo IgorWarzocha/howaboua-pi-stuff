@@ -162,30 +162,23 @@ function buildItems(
 ): SettingItem[] {
 	if (tab === "about") return [];
 	if (tab === "general") {
-		const providerValues = providers.includes(draft.provider)
-			? providers
-			: providers.length > 0
-				? [draft.provider, ...providers]
-				: [draft.provider];
-		const modelIds = listModelIdsForProvider(ctx, draft.provider);
-		const modelValues =
-			modelIds.length > 0
-				? modelIds.includes(draft.modelId)
-					? modelIds
-					: [modelIds[0]!, ...modelIds.filter((id) => id !== modelIds[0])]
-				: [draft.modelId];
+		const resolved = resolveProviderModel(ctx, draft.provider, draft.modelId);
+		const providerValues = providers;
+		const modelIds = listModelIdsForProvider(ctx, resolved.provider);
+		const modelValues = modelIds;
 		return [
 			{
 				id: "provider",
 				label: "Provider",
-				currentValue: draft.provider,
-				values: providerValues,
+				currentValue: resolved.provider,
+				values:
+					providerValues.length > 0 ? providerValues : [resolved.provider],
 			},
 			{
 				id: "modelId",
 				label: "Model",
-				currentValue: draft.modelId,
-				values: modelValues,
+				currentValue: resolved.modelId,
+				values: modelValues.length > 0 ? modelValues : [resolved.modelId],
 			},
 			{
 				id: "thinking",
@@ -234,13 +227,13 @@ function applySettingChange(
 	draft: BtwSettingsDraft,
 	ctx: ExtensionContext,
 ): BtwSettingsDraft {
+	const providers = listProviders(ctx);
 	const next = { ...draft };
 	if (id === "provider") {
+		if (!providers.includes(value)) return draft;
 		next.provider = value;
 		const ids = listModelIdsForProvider(ctx, value);
-		next.modelId = ids.includes(next.modelId)
-			? next.modelId
-			: (ids[0] ?? next.modelId);
+		next.modelId = ids[0] ?? next.modelId;
 		return resolveProviderModel(
 			ctx,
 			next.provider,

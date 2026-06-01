@@ -1,5 +1,4 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { modelRef, readConfig } from "./config.js";
 import { KEY_HINT, WIDGET_ID } from "./constants.js";
 import { listSessions, sessionStatus } from "./session-state.js";
 import type { BtwSession, BtwState } from "./types.js";
@@ -52,7 +51,6 @@ function pushTurnLines(
 function buildWidgetLines(
 	ctx: ExtensionContext,
 	state: BtwState,
-	cfg: ReturnType<typeof readConfig>,
 	session: BtwSession,
 ) {
 	const theme = ctx.ui.theme;
@@ -68,7 +66,7 @@ function buildWidgetLines(
 		.map((item) => sessionLabel(theme, item, state.activeIndex))
 		.join(" ");
 	const lines = [
-		`${theme.fg("accent", "╭─ btw")} ${theme.fg(statusTone, status)} ${theme.fg("dim", `${modelRef(cfg.provider, cfg.modelId)}:${cfg.thinking}`)} ${theme.fg("dim", `sessions ${sessionNumbers}`)}`,
+		`${theme.fg("accent", "╭─ btw")} ${theme.fg(statusTone, status)} ${theme.fg("dim", `sessions ${sessionNumbers}`)}`,
 	];
 	if (state.folded) {
 		lines.push(`${theme.fg("muted", "╰─")} ${theme.fg("dim", tuiKeyHint())}`);
@@ -80,14 +78,13 @@ function buildWidgetLines(
 }
 
 export function render(ctx: ExtensionContext, state: BtwState) {
-	const cfg = readConfig();
 	const sessions = listSessions(state);
 	if (sessions.length === 0) {
 		ctx.ui.setWidget(WIDGET_ID, undefined);
 		return;
 	}
 	const session = state.sessions[state.activeIndex] ?? sessions[0]!;
-	ctx.ui.setWidget(WIDGET_ID, buildWidgetLines(ctx, state, cfg, session), {
+	ctx.ui.setWidget(WIDGET_ID, buildWidgetLines(ctx, state, session), {
 		placement: "aboveEditor",
 	});
 }
