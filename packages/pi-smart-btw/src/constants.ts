@@ -12,7 +12,7 @@ export const NUMBERED_SESSION_PATTERN = /^(\d+)(?:\s+(.*))?$/u;
 export const KEY_HINT =
 	"alt: +z compose · +c inject & clear · +x clear · jk fold · hl switch";
 
-export const SHORTCUTS = {
+export const DEFAULT_SHORTCUTS = {
 	compose: "alt+z",
 	inject: "alt+c",
 	clear: "alt+x",
@@ -21,3 +21,6 @@ export const SHORTCUTS = {
 	next: "alt+l",
 	previous: "alt+h",
 } as const;
+
+/** @deprecated use DEFAULT_SHORTCUTS */
+export const SHORTCUTS = DEFAULT_SHORTCUTS;

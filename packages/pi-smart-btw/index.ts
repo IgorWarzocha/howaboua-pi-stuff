@@ -6,9 +6,9 @@ import type {
 import { Box, Text } from "@earendil-works/pi-tui";
 import { ensureConfig, readConfig } from "./src/config.js";
 import {
+	DEFAULT_SHORTCUTS,
 	LEGACY_MESSAGE_TYPE,
 	MESSAGE_TYPE,
-	SHORTCUTS,
 } from "./src/constants.js";
 import type { BtwMessageDetails } from "./src/messages.js";
 import {
@@ -77,7 +77,7 @@ function injectAnswers(
 
 function registerShortcuts(pi: ExtensionAPI, state: BtwState) {
 	const cfg = readConfig();
-	pi.registerShortcut(cfg.composeShortcut as typeof SHORTCUTS.compose, {
+	pi.registerShortcut(cfg.composeShortcut as typeof DEFAULT_SHORTCUTS.compose, {
 		description: "Prefill /btw in the prompt editor",
 		handler: async (ctx) => {
 			const current = ctx.ui.getEditorText();
@@ -86,11 +86,11 @@ function registerShortcuts(pi: ExtensionAPI, state: BtwState) {
 			);
 		},
 	});
-	pi.registerShortcut(cfg.injectShortcut as typeof SHORTCUTS.inject, {
+	pi.registerShortcut(cfg.injectShortcut as typeof DEFAULT_SHORTCUTS.inject, {
 		description: "Inject and clear active /btw session",
 		handler: async (ctx) => injectAnswers(pi, state, ctx),
 	});
-	pi.registerShortcut(cfg.dismissShortcut as typeof SHORTCUTS.clear, {
+	pi.registerShortcut(cfg.dismissShortcut as typeof DEFAULT_SHORTCUTS.clear, {
 		description: "Clear active /btw session",
 		handler: async (ctx) => {
 			activate(state, ctx);
@@ -102,7 +102,7 @@ function registerShortcuts(pi: ExtensionAPI, state: BtwState) {
 			if (state.ctx) render(state.ctx, state);
 		},
 	});
-	pi.registerShortcut(SHORTCUTS.fold, {
+	pi.registerShortcut(cfg.foldShortcut as typeof DEFAULT_SHORTCUTS.fold, {
 		description: "Fold active /btw block",
 		handler: async (ctx) => {
 			activate(state, ctx);
@@ -110,7 +110,7 @@ function registerShortcuts(pi: ExtensionAPI, state: BtwState) {
 			if (state.ctx) render(state.ctx, state);
 		},
 	});
-	pi.registerShortcut(SHORTCUTS.unfold, {
+	pi.registerShortcut(cfg.unfoldShortcut as typeof DEFAULT_SHORTCUTS.unfold, {
 		description: "Open active /btw block",
 		handler: async (ctx) => {
 			activate(state, ctx);
@@ -124,22 +124,26 @@ function registerShortcuts(pi: ExtensionAPI, state: BtwState) {
 }
 
 function registerSessionSwitchShortcuts(pi: ExtensionAPI, state: BtwState) {
+	const cfg = readConfig();
 	const switchSession = (ctx: ExtensionContext, direction: number) => {
 		activate(state, ctx);
 		if (listSessions(state).length === 0) return;
 		switchRelativeSession(state, direction);
 		if (state.ctx) render(state.ctx, state);
 	};
-	pi.registerShortcut(SHORTCUTS.next, {
+	pi.registerShortcut(cfg.nextShortcut as typeof DEFAULT_SHORTCUTS.next, {
 		description: "Next /btw session",
 		handler: async (ctx) => switchSession(ctx, 1),
 	});
-	pi.registerShortcut(SHORTCUTS.previous, {
-		description: "Previous /btw session",
-		handler: async (ctx) => switchSession(ctx, -1),
-	});
+	pi.registerShortcut(
+		cfg.previousShortcut as typeof DEFAULT_SHORTCUTS.previous,
+		{
+			description: "Previous /btw session",
+			handler: async (ctx) => switchSession(ctx, -1),
+		},
+	);
 	for (let index = 1; index <= 9; index++) {
-		pi.registerShortcut(`alt+${index}` as typeof SHORTCUTS.compose, {
+		pi.registerShortcut(`alt+${index}` as typeof DEFAULT_SHORTCUTS.compose, {
 			description: `Open /btw session ${index}`,
 			handler: async (ctx) => {
 				activate(state, ctx);

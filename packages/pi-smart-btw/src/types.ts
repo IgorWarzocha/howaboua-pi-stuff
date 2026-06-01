@@ -11,13 +11,18 @@ export type ThinkingLevel =
 	| "xhigh";
 
 export interface BtwConfig {
-	model: string;
+	provider: string;
+	modelId: string;
 	thinking?: ThinkingLevel;
-	provider?: string;
-	command?: string;
 	injectShortcut?: string;
 	dismissShortcut?: string;
 	composeShortcut?: string;
+	foldShortcut?: string;
+	unfoldShortcut?: string;
+	previousShortcut?: string;
+	nextShortcut?: string;
+	/** @deprecated legacy combined ref; migrated on read */
+	model?: string;
 }
 
 export interface BtwTurn {
@@ -53,7 +58,8 @@ export interface BtwState {
 
 export interface ChildDetails {
 	cwd: string;
-	model: string;
+	provider: string;
+	modelId: string;
 	thinking?: ThinkingLevel;
 	messages: Message[];
 	stderr: string;
@@ -69,3 +75,5 @@ export interface ChildDetails {
 	stopReason?: string;
 	errorMessage?: string;
 }
+
+export type ResolvedBtwConfig = Required<Omit<BtwConfig, "model">>;

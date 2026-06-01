@@ -1,5 +1,5 @@
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
-import { readConfig } from "./config.js";
+import { modelRef, readConfig } from "./config.js";
 import {
 	POLL_MS,
 	QUIET_MS,
@@ -46,11 +46,12 @@ export class BtwChild {
 		this.onUpdate = onUpdate;
 		const cfg = readConfig();
 		const args = ["--mode", "rpc", "--no-session"];
-		if (cfg.model) args.push("--model", cfg.model);
+		args.push("--model", modelRef(cfg.provider, cfg.modelId));
 		if (cfg.thinking) args.push("--thinking", cfg.thinking);
 		this.details = {
 			cwd,
-			model: cfg.model,
+			provider: cfg.provider,
+			modelId: cfg.modelId,
 			thinking: cfg.thinking,
 			messages: [],
 			stderr: "",
@@ -64,7 +65,7 @@ export class BtwChild {
 				contextTokens: 0,
 			},
 		};
-		this.proc = spawn(cfg.command, args, {
+		this.proc = spawn("pi", args, {
 			cwd,
 			shell: false,
 			stdio: ["pipe", "pipe", "pipe"],

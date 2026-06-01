@@ -37,7 +37,6 @@ While a slot is active:
 - **alt+x** — clear the slot (hidden tombstone in JSONL)
 - **alt+z** — prefill `/btw ` in the editor
 - **alt+h/l** — previous/next slot; **alt+1..9** — jump to slot
-- **alt+j/k** — fold
 - **alt+j/k** — fold/unfold the widget
 - **/btw config** — settings UI (model, thinking, shortcuts, links)
 
@@ -49,13 +48,16 @@ Config shortcuts (`composeShortcut`, `injectShortcut`, `dismissShortcut`) overri
 
 ```json
 {
-  "model": "openai-codex/gpt-5.4-mini",
-  "provider": "",
+  "provider": "openai-codex",
+  "modelId": "gpt-5.4-mini",
   "thinking": "low",
-  "command": "pi",
   "injectShortcut": "alt+c",
   "dismissShortcut": "alt+x",
-  "composeShortcut": "alt+z"
+  "composeShortcut": "alt+z",
+  "foldShortcut": "alt+j",
+  "unfoldShortcut": "alt+k",
+  "previousShortcut": "alt+h",
+  "nextShortcut": "alt+l"
 }
 ```
 

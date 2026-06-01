@@ -1,21 +1,41 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { modelRef, splitModelRef } from "../config.js";
 
-const FALLBACK_MODELS = [
-	"openai-codex/gpt-5.4-mini",
-	"openai-codex/gpt-5.3-codex-spark",
-	"openai-codex/gpt-5.4",
-	"google/gemini-2.5-flash",
-] as const;
+const FALLBACK = splitModelRef("openai-codex/gpt-5.4-mini");
 
-export function modelRef(provider: string, id: string) {
-	return `${provider}/${id}`;
+export function listProviders(ctx: ExtensionContext): string[] {
+	const set = new Set<string>([FALLBACK.provider]);
+	for (const model of ctx.modelRegistry.getAvailable()) set.add(model.provider);
+	return [...set].sort((a, b) => a.localeCompare(b));
 }
 
-export function listModelOptions(ctx: ExtensionContext): string[] {
-	const available = ctx.modelRegistry.getAvailable();
-	const refs = available.map((m) => modelRef(m.provider, m.id));
-	refs.sort((a, b) => a.localeCompare(b));
-	const set = new Set<string>(refs);
-	for (const fallback of FALLBACK_MODELS) set.add(fallback);
-	return [...set];
+export function listModelIdsForProvider(
+	ctx: ExtensionContext,
+	provider: string,
+): string[] {
+	const set = new Set<string>();
+	for (const model of ctx.modelRegistry.getAvailable()) {
+		if (model.provider === provider) set.add(model.id);
+	}
+	if (set.size === 0 && provider === FALLBACK.provider)
+		set.add(FALLBACK.modelId);
+	return [...set].sort((a, b) => a.localeCompare(b));
 }
+
+export function ensureProviderModel(
+	ctx: ExtensionContext,
+	provider: string,
+	modelId: string,
+): { provider: string; modelId: string } {
+	let p = provider.trim() || FALLBACK.provider;
+	let id = modelId.trim();
+	const ids = listModelIdsForProvider(ctx, p);
+	if (!id || !ids.includes(id)) id = ids[0] ?? FALLBACK.modelId;
+	if (!listProviders(ctx).includes(p)) {
+		p = FALLBACK.provider;
+		id = listModelIdsForProvider(ctx, p)[0] ?? FALLBACK.modelId;
+	}
+	return { provider: p, modelId: id };
+}
+
+export { modelRef };

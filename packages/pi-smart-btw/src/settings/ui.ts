@@ -8,17 +8,22 @@ import {
 	SettingsList,
 	truncateToWidth,
 } from "@earendil-works/pi-tui";
-import { readConfig, THINKING_LEVELS } from "../config.js";
+import { THINKING_LEVELS } from "../config.js";
+import { DEFAULT_SHORTCUTS } from "../constants.js";
+import type { ResolvedBtwConfig } from "../types.js";
 import {
 	CHANGELOG_URL,
-	DISCORD_URL,
 	GITHUB_URL,
 	ISSUE_URL,
 	openExternalUrl,
 } from "./links.js";
-import { listModelOptions } from "./models.js";
+import {
+	ensureProviderModel,
+	listModelIdsForProvider,
+	listProviders,
+} from "./models.js";
 
-export type BtwSettingsDraft = ReturnType<typeof readConfig>;
+export type BtwSettingsDraft = ResolvedBtwConfig;
 
 export interface BtwSettingsScreenOptions {
 	initialConfig: BtwSettingsDraft;
@@ -36,13 +41,14 @@ export async function openBtwSettingsScreen(
 ): Promise<void> {
 	let draft = { ...options.initialConfig };
 	let activeTab: SettingsTab = options.initialTab ?? "general";
-	const modelOptions = listModelOptions(ctx);
+	const providers = listProviders(ctx);
 
 	await ctx.ui.custom<void>((tui, theme, _kb, done) => {
 		let settingsList = createSettingsList(
 			activeTab,
 			draft,
-			modelOptions,
+			ctx,
+			providers,
 			options,
 			(nextDraft) => {
 				draft = nextDraft;
@@ -57,7 +63,8 @@ export async function openBtwSettingsScreen(
 			settingsList = createSettingsList(
 				activeTab,
 				draft,
-				modelOptions,
+				ctx,
+				providers,
 				options,
 				(nextDraft) => {
 					draft = nextDraft;
@@ -75,7 +82,6 @@ export async function openBtwSettingsScreen(
 					formatTabs(activeTab, theme),
 					rule(width, theme, "borderMuted"),
 					...(activeTab === "about" ? formatLinks(theme) : []),
-					...(activeTab === "shortcuts" ? formatShortcutNotes(theme) : []),
 					"",
 					...(activeTab === "about" ? [] : settingsList.render(width)),
 					rule(width, theme, "accent"),
@@ -106,7 +112,8 @@ function rule(
 function createSettingsList(
 	tab: SettingsTab,
 	draft: BtwSettingsDraft,
-	modelOptions: string[],
+	ctx: ExtensionContext,
+	providers: string[],
 	options: BtwSettingsScreenOptions,
 	onDraftChanged: (draft: BtwSettingsDraft) => void,
 	done: (value?: void) => void,
@@ -114,12 +121,12 @@ function createSettingsList(
 ): SettingsList {
 	let settingsList: SettingsList;
 	settingsList = new SettingsList(
-		buildItems(tab, draft, modelOptions),
+		buildItems(tab, draft, ctx, providers),
 		8,
 		getSettingsListTheme(),
 		(id, value) => {
-			const nextDraft = applySettingChange(id, value, draft);
-			const previousValue = buildItems(tab, draft, modelOptions).find(
+			const nextDraft = applySettingChange(id, value, draft, ctx);
+			const previousValue = buildItems(tab, draft, ctx, providers).find(
 				(item) => item.id === id,
 			)?.currentValue;
 			if (options.onChange(nextDraft)) {
@@ -138,31 +145,36 @@ function createSettingsList(
 function buildItems(
 	tab: SettingsTab,
 	draft: BtwSettingsDraft,
-	modelOptions: string[],
+	ctx: ExtensionContext,
+	providers: string[],
 ): SettingItem[] {
 	if (tab === "about") return [];
-	const valuesForModel = modelOptions.includes(draft.model)
-		? modelOptions
-		: [draft.model, ...modelOptions];
 	if (tab === "general") {
+		const providerValues = providers.includes(draft.provider)
+			? providers
+			: [draft.provider, ...providers];
+		const modelIds = listModelIdsForProvider(ctx, draft.provider);
+		const modelValues = modelIds.includes(draft.modelId)
+			? modelIds
+			: [draft.modelId, ...modelIds];
 		return [
 			{
-				id: "model",
-				label: "Child model",
-				currentValue: draft.model,
-				values: valuesForModel,
+				id: "provider",
+				label: "Provider",
+				currentValue: draft.provider,
+				values: providerValues,
+			},
+			{
+				id: "modelId",
+				label: "Model",
+				currentValue: draft.modelId,
+				values: modelValues,
 			},
 			{
 				id: "thinking",
 				label: "Thinking",
 				currentValue: draft.thinking,
 				values: [...THINKING_LEVELS],
-			},
-			{
-				id: "command",
-				label: "Pi command",
-				currentValue: draft.command,
-				values: uniqueValues([draft.command, "pi", "bun", "npx"]),
 			},
 		];
 	}
@@ -171,19 +183,46 @@ function buildItems(
 			id: "composeShortcut",
 			label: "Compose",
 			currentValue: draft.composeShortcut,
-			values: uniqueValues([draft.composeShortcut, "alt+z"]),
+			values: uniqueValues([draft.composeShortcut, DEFAULT_SHORTCUTS.compose]),
 		},
 		{
 			id: "injectShortcut",
 			label: "Inject & clear",
 			currentValue: draft.injectShortcut,
-			values: uniqueValues([draft.injectShortcut, "alt+c"]),
+			values: uniqueValues([draft.injectShortcut, DEFAULT_SHORTCUTS.inject]),
 		},
 		{
 			id: "dismissShortcut",
 			label: "Clear slot",
 			currentValue: draft.dismissShortcut,
-			values: uniqueValues([draft.dismissShortcut, "alt+x"]),
+			values: uniqueValues([draft.dismissShortcut, DEFAULT_SHORTCUTS.clear]),
+		},
+		{
+			id: "foldShortcut",
+			label: "Fold",
+			currentValue: draft.foldShortcut,
+			values: uniqueValues([draft.foldShortcut, DEFAULT_SHORTCUTS.fold]),
+		},
+		{
+			id: "unfoldShortcut",
+			label: "Unfold",
+			currentValue: draft.unfoldShortcut,
+			values: uniqueValues([draft.unfoldShortcut, DEFAULT_SHORTCUTS.unfold]),
+		},
+		{
+			id: "previousShortcut",
+			label: "Previous slot",
+			currentValue: draft.previousShortcut,
+			values: uniqueValues([
+				draft.previousShortcut,
+				DEFAULT_SHORTCUTS.previous,
+			]),
+		},
+		{
+			id: "nextShortcut",
+			label: "Next slot",
+			currentValue: draft.nextShortcut,
+			values: uniqueValues([draft.nextShortcut, DEFAULT_SHORTCUTS.next]),
 		},
 	];
 }
@@ -196,19 +235,33 @@ function applySettingChange(
 	id: string,
 	value: string,
 	draft: BtwSettingsDraft,
+	ctx: ExtensionContext,
 ): BtwSettingsDraft {
 	const next = { ...draft };
-	if (id === "model") next.model = value;
+	if (id === "provider") {
+		next.provider = value;
+		const ids = listModelIdsForProvider(ctx, value);
+		if (!ids.includes(next.modelId)) next.modelId = ids[0] ?? next.modelId;
+		return {
+			...next,
+			...ensureProviderModel(ctx, next.provider, next.modelId),
+		};
+	}
+	if (id === "modelId") next.modelId = value;
 	if (
 		id === "thinking" &&
 		(THINKING_LEVELS as readonly string[]).includes(value)
 	)
 		next.thinking = value as BtwSettingsDraft["thinking"];
-	if (id === "command") next.command = value.trim() || draft.command;
 	if (id === "composeShortcut") next.composeShortcut = value;
 	if (id === "injectShortcut") next.injectShortcut = value;
 	if (id === "dismissShortcut") next.dismissShortcut = value;
-	return next;
+	if (id === "foldShortcut") next.foldShortcut = value;
+	if (id === "unfoldShortcut") next.unfoldShortcut = value;
+	if (id === "previousShortcut") next.previousShortcut = value;
+	if (id === "nextShortcut") next.nextShortcut = value;
+	const fixed = ensureProviderModel(ctx, next.provider, next.modelId);
+	return { ...next, ...fixed };
 }
 
 function formatTabs(activeTab: SettingsTab, theme: Theme): string {
@@ -218,25 +271,14 @@ function formatTabs(activeTab: SettingsTab, theme: Theme): string {
 }
 
 function formatFooter(activeTab: SettingsTab): string {
-	if (activeTab === "about")
-		return "  Tab to switch sections · g/c/d/i open links";
-	return "  Tab to switch sections · new child sessions pick up model/thinking";
-}
-
-function formatShortcutNotes(theme: Theme): string[] {
-	return [
-		theme.fg(
-			"dim",
-			"  Slot fold/switch: alt+j/k fold, alt+h/l prev/next, alt+1..9",
-		),
-	];
+	if (activeTab === "about") return "  Tab · g github · c changelog · i issue";
+	return "  Tab to switch · new children use provider/model/thinking";
 }
 
 function formatLinks(theme: Theme): string[] {
 	return [
 		`${theme.bold("g")} github  ${theme.fg("dim", GITHUB_URL)}`,
 		`${theme.bold("c")} changes ${theme.fg("dim", CHANGELOG_URL)}`,
-		`${theme.bold("d")} discord ${theme.fg("dim", DISCORD_URL)}`,
 		`${theme.bold("i")} issue   ${theme.fg("dim", ISSUE_URL)}`,
 	];
 }
@@ -257,8 +299,6 @@ function getLinkTarget(
 			return { url: GITHUB_URL, message: "Opened GitHub" };
 		case "c":
 			return { url: CHANGELOG_URL, message: "Opened changelog" };
-		case "d":
-			return { url: DISCORD_URL, message: "Opened Discord" };
 		case "i":
 			return { url: ISSUE_URL, message: "Opened issue form" };
 		default:

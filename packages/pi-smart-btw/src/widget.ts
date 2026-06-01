@@ -1,5 +1,5 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { readConfig } from "./config.js";
+import { modelRef, readConfig } from "./config.js";
 import { KEY_HINT, WIDGET_ID } from "./constants.js";
 import { listSessions, sessionStatus } from "./session-state.js";
 import type { BtwSession, BtwState } from "./types.js";
@@ -68,7 +68,7 @@ function buildWidgetLines(
 		.map((item) => sessionLabel(theme, item, state.activeIndex))
 		.join(" ");
 	const lines = [
-		`${theme.fg("accent", "╭─ btw")} ${theme.fg(statusTone, status)} ${theme.fg("dim", `${cfg.model}:${cfg.thinking}`)} ${theme.fg("dim", `sessions ${sessionNumbers}`)}`,
+		`${theme.fg("accent", "╭─ btw")} ${theme.fg(statusTone, status)} ${theme.fg("dim", `${modelRef(cfg.provider, cfg.modelId)}:${cfg.thinking}`)} ${theme.fg("dim", `sessions ${sessionNumbers}`)}`,
 	];
 	if (state.folded) {
 		lines.push(`${theme.fg("muted", "╰─")} ${theme.fg("dim", tuiKeyHint())}`);

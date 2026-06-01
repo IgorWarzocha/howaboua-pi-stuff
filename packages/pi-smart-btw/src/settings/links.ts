@@ -3,8 +3,6 @@ import { spawn } from "node:child_process";
 export const GITHUB_URL =
 	"https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-smart-btw";
 export const CHANGELOG_URL = `${GITHUB_URL}/CHANGELOG.md`;
-export const DISCORD_URL =
-	"https://discord.com/channels/1456806362351669492/1482388023994748948";
 export const ISSUE_URL =
 	"https://github.com/IgorWarzocha/howaboua-pi-stuff/issues/new";
 
