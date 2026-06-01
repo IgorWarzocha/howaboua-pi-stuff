@@ -171,20 +171,21 @@ function buildItems(
 			providers.length > 0 ? providers : [resolved.provider];
 		const modelIds = listModelIdsForProvider(ctx, resolved.provider);
 		const modelValues = modelIds.length > 0 ? modelIds : [resolved.modelId];
-		const modelCurrent = modelValues.includes(resolved.modelId)
-			? resolved.modelId
-			: modelValues[0]!;
+		const modelCurrent =
+			modelValues.find((id) => id === resolved.modelId) ??
+			modelValues[0] ??
+			resolved.modelId;
 		return [
 			{
 				id: "provider",
 				label: "Provider",
-				currentValue: resolved.provider,
+				currentValue: resolved.provider || "openai-codex",
 				values: providerValues,
 			},
 			{
 				id: "modelId",
 				label: "Model",
-				currentValue: modelCurrent,
+				currentValue: modelCurrent || resolved.modelId || "",
 				values: modelValues,
 			},
 			{
@@ -267,7 +268,7 @@ function applySettingChange(
 	if (id === "previousShortcut" && isValidChord(value))
 		next.previousShortcut = value;
 	if (id === "nextShortcut" && isValidChord(value)) next.nextShortcut = value;
-	return resolveProviderModel(ctx, next.provider, next.modelId) as typeof next;
+	return { ...next, ...resolveProviderModel(ctx, next.provider, next.modelId) };
 }
 
 function formatTabs(activeTab: SettingsTab, theme: Theme): string {
