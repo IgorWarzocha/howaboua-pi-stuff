@@ -16,9 +16,9 @@ const DEFAULT_CONFIG: Required<BtwConfig> = {
 	provider: "",
 	thinking: "low",
 	command: "pi",
-	injectShortcut: "ctrl+alt+c",
-	dismissShortcut: "ctrl+alt+x",
-	composeShortcut: "ctrl+alt+z",
+	injectShortcut: "alt+c",
+	dismissShortcut: "alt+x",
+	composeShortcut: "alt+z",
 };
 
 function agentDir() {

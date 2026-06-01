@@ -33,11 +33,11 @@ pi -e npm:@howaboua/pi-smart-btw
 While a slot is active:
 
 - another `/btw …` (or `/btw N …`) continues that slot's child when targeted
-- **ctrl+alt+c** — inject answers into the main chat and clear the slot
-- **ctrl+alt+x** — clear the slot (hidden tombstone in JSONL)
-- **ctrl+alt+z** — prefill `/btw ` in the editor
-- **ctrl+alt+←/→** — previous/next slot; **ctrl+alt+1..9** — jump to slot
-- **ctrl+alt+↑/↓** — fold/unfold the widget
+- **alt+c** — inject answers into the main chat and clear the slot
+- **alt+x** — clear the slot (hidden tombstone in JSONL)
+- **alt+z** — prefill `/btw ` in the editor
+- **alt+←/→** — previous/next slot; **alt+1..9** — jump to slot
+- **alt+↑/↓** — fold/unfold the widget
 
 Config shortcuts (`composeShortcut`, `injectShortcut`, `dismissShortcut`) override compose/inject/clear only.
 
@@ -51,9 +51,9 @@ Config shortcuts (`composeShortcut`, `injectShortcut`, `dismissShortcut`) overri
   "provider": "",
   "thinking": "low",
   "command": "pi",
-  "injectShortcut": "ctrl+alt+c",
-  "dismissShortcut": "ctrl+alt+x",
-  "composeShortcut": "ctrl+alt+z"
+  "injectShortcut": "alt+c",
+  "dismissShortcut": "alt+x",
+  "composeShortcut": "alt+z"
 }
 ```
 

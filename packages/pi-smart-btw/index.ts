@@ -135,7 +135,7 @@ function registerSessionSwitchShortcuts(pi: ExtensionAPI, state: BtwState) {
 		handler: async (ctx) => switchSession(ctx, -1),
 	});
 	for (let index = 1; index <= 9; index++) {
-		pi.registerShortcut(`ctrl+alt+${index}` as typeof SHORTCUTS.compose, {
+		pi.registerShortcut(`alt+${index}` as typeof SHORTCUTS.compose, {
 			description: `Open /btw session ${index}`,
 			handler: async (ctx) => {
 				activate(state, ctx);
