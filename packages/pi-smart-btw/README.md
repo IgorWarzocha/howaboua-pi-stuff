@@ -37,7 +37,9 @@ While a slot is active:
 - **alt+x** — clear the slot (hidden tombstone in JSONL)
 - **alt+z** — prefill `/btw ` in the editor
 - **alt+h/l** — previous/next slot; **alt+1..9** — jump to slot
+- **alt+j/k** — fold
 - **alt+j/k** — fold/unfold the widget
+- **/btw config** — settings UI (model, thinking, shortcuts, links)
 
 Config shortcuts (`composeShortcut`, `injectShortcut`, `dismissShortcut`) override compose/inject/clear only.
 

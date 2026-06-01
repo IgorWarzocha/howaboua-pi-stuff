@@ -30,6 +30,10 @@ import {
 	runBtwTurn,
 	switchRelativeSession,
 } from "./src/session-state.js";
+import {
+	btwArgumentCompletions,
+	handleBtwConfigArg,
+} from "./src/settings/command.js";
 import type { BtwState } from "./src/types.js";
 import { render } from "./src/widget.js";
 
@@ -184,8 +188,18 @@ function queueQuestionTurn(args: {
 function registerBtwCommand(pi: ExtensionAPI, state: BtwState) {
 	pi.registerCommand("btw", {
 		description:
-			"Ask or continue an async side-session. Use /btw 1, /btw 2, etc. to switch or target sessions.",
+			"Async side-sessions (/btw 1 …). /btw or /btw N switches. /btw config opens settings.",
+		getArgumentCompletions: (prefix) => btwArgumentCompletions(prefix),
 		handler: async (args, ctx) => {
+			const trimmed = args.trim();
+			if (
+				trimmed.toLowerCase() === "config" ||
+				trimmed.toLowerCase().startsWith("config ")
+			) {
+				activate(state, ctx);
+				handleBtwConfigArg(ctx, "config", () => registerShortcuts(pi, state));
+				return;
+			}
 			const { question, sessionNumber } = parseBtwArgs(args);
 			activate(state, ctx);
 			if (sessionNumber !== undefined) {

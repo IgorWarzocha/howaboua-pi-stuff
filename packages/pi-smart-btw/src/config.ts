@@ -3,6 +3,15 @@ import os from "node:os";
 import path from "node:path";
 import type { BtwConfig, ThinkingLevel } from "./types.js";
 
+export const THINKING_LEVELS = [
+	"off",
+	"minimal",
+	"low",
+	"medium",
+	"high",
+	"xhigh",
+] as const satisfies readonly ThinkingLevel[];
+
 const ALLOWED = new Set<ThinkingLevel>([
 	"off",
 	"minimal",
@@ -81,4 +90,23 @@ export function readConfig(): Required<BtwConfig> {
 				? parsed.composeShortcut.trim()
 				: DEFAULT_CONFIG.composeShortcut,
 	};
+}
+
+export function writeConfig(
+	config: Required<BtwConfig>,
+): { ok: true } | { ok: false; error: string } {
+	try {
+		ensureConfig();
+		fs.writeFileSync(configPath(), JSON.stringify(config, null, 2) + "\n");
+		return { ok: true };
+	} catch (error) {
+		return {
+			ok: false,
+			error: error instanceof Error ? error.message : String(error),
+		};
+	}
+}
+
+export function formatBtwSettings(config: Required<BtwConfig>): string {
+	return `BTW: model ${config.model}, thinking ${config.thinking}, command ${config.command}`;
 }
