@@ -1,11 +1,12 @@
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import { readConfig } from "./config.js";
+import {
+	POLL_MS,
+	QUIET_MS,
+	READY_TIMEOUT,
+	RESPONSE_TIMEOUT,
+} from "./constants.js";
 import type { ChildDetails } from "./types.js";
-
-const READY_TIMEOUT = 10_000;
-const RESPONSE_TIMEOUT = 30_000;
-const QUIET_MS = 500;
-const POLL_MS = 150;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -34,6 +35,9 @@ export class BtwChild {
 	>();
 	private lastEventAt = Date.now();
 	private agentEndCount = 0;
+	private lastAgentMessages: any[] = [];
+	private currentPartial = "";
+	private onPartial: ((text: string) => void) | undefined;
 	private closed = false;
 	private exitCode: number | undefined;
 	private readonly onUpdate: (() => void) | undefined;
@@ -41,15 +45,9 @@ export class BtwChild {
 	constructor(cwd: string, onUpdate?: () => void) {
 		this.onUpdate = onUpdate;
 		const cfg = readConfig();
-		const args = [
-			"--mode",
-			"rpc",
-			"--no-session",
-			"--model",
-			cfg.model,
-			"--thinking",
-			cfg.thinking,
-		];
+		const args = ["--mode", "rpc", "--no-session"];
+		if (cfg.model) args.push("--model", cfg.model);
+		if (cfg.thinking) args.push("--thinking", cfg.thinking);
 		this.details = {
 			cwd,
 			model: cfg.model,
@@ -93,22 +91,32 @@ export class BtwChild {
 		await this.send({ type: "set_auto_retry", enabled: true });
 	}
 
-	async ask(question: string) {
-		this.agentEndCount = 0;
-		const before = this.details.messages.length;
-		const prompt = [
-			"Answer the user's question directly.",
-			"Use available tools only if they are needed to answer accurately.",
-			"Be concise unless the question requires detail.",
-			`Question: ${question}`,
-		].join("\n\n");
+	async ask(
+		question: string,
+		onPartial?: (text: string) => void,
+		promptMessage?: string,
+	) {
+		const before = this.agentEndCount;
+		this.lastAgentMessages = [];
+		this.currentPartial = "";
+		this.onPartial = onPartial;
 		await this.send({
 			type: "prompt",
-			message: prompt,
+			message:
+				promptMessage ??
+				[
+					"Answer the user's question directly.",
+					"Use available tools only if they are needed to answer accurately.",
+					"Be concise unless the question requires detail.",
+					`Question: ${question}`,
+				].join("\n\n"),
 			streamingBehavior: "followUp",
 		});
 		await this.waitForAnswer(before);
-		return getFinalOutput(this.details.messages).trim();
+		this.onPartial = undefined;
+		return (
+			getFinalOutput(this.lastAgentMessages) || this.currentPartial
+		).trim();
 	}
 
 	async stop() {
@@ -125,23 +133,8 @@ export class BtwChild {
 	private async waitForAnswer(beforeCount: number) {
 		while (!this.closed) {
 			await sleep(POLL_MS);
-			const state = await this.send<{
-				isStreaming: boolean;
-				isCompacting: boolean;
-				pendingMessageCount: number;
-			}>({ type: "get_state" });
-			const idle =
-				!state.isStreaming &&
-				!state.isCompacting &&
-				state.pendingMessageCount === 0;
 			const quiet = Date.now() - this.lastEventAt >= QUIET_MS;
-			if (
-				this.agentEndCount > 0 &&
-				idle &&
-				quiet &&
-				this.details.messages.length > beforeCount
-			)
-				return;
+			if (this.agentEndCount > beforeCount && quiet) return;
 		}
 		throw new Error(
 			`btw child closed.${this.details.stderr ? ` Stderr: ${this.details.stderr.trim()}` : ""}`,
@@ -192,43 +185,67 @@ export class BtwChild {
 		} catch {
 			return;
 		}
-		if (
-			data.type === "response" &&
-			typeof data.id === "string" &&
-			this.pending.has(data.id)
-		) {
-			const pending = this.pending.get(data.id)!;
-			clearTimeout(pending.timeout);
-			this.pending.delete(data.id);
-			data.success === false
-				? pending.reject(
-						new Error(String(data.error ?? `RPC ${data.command} failed`)),
-					)
-				: pending.resolve(data.data);
-			return;
-		}
+		if (this.handleResponse(data)) return;
 		this.lastEventAt = Date.now();
-		if (data.type === "agent_end") this.agentEndCount++;
-		if (data.type === "message_end" && data.message) {
-			this.details.messages.push(data.message);
-			if (data.message.role === "assistant") {
-				this.details.usage.turns++;
-				const u = data.message.usage;
-				if (u) {
-					this.details.usage.input += u.input || 0;
-					this.details.usage.output += u.output || 0;
-					this.details.usage.cacheRead += u.cacheRead || 0;
-					this.details.usage.cacheWrite += u.cacheWrite || 0;
-					this.details.usage.cost += u.cost?.total || 0;
-					this.details.usage.contextTokens = u.totalTokens || 0;
-				}
-				if (data.message.stopReason)
-					this.details.stopReason = data.message.stopReason;
-				if (data.message.errorMessage)
-					this.details.errorMessage = data.message.errorMessage;
+		if (data.type === "agent_end") this.handleAgentEnd(data);
+		if (data.type === "message_end" && data.message)
+			this.handleMessageEnd(data.message);
+		if (data.type === "message_update") this.handleMessageUpdate(data);
+	}
+
+	private handleResponse(data: any) {
+		if (
+			!(
+				data.type === "response" &&
+				typeof data.id === "string" &&
+				this.pending.has(data.id)
+			)
+		)
+			return false;
+		const pending = this.pending.get(data.id)!;
+		clearTimeout(pending.timeout);
+		this.pending.delete(data.id);
+		data.success === false
+			? pending.reject(
+					new Error(String(data.error ?? `RPC ${data.command} failed`)),
+				)
+			: pending.resolve(data.data);
+		return true;
+	}
+
+	private handleAgentEnd(data: any) {
+		this.agentEndCount++;
+		this.lastAgentMessages = Array.isArray(data.messages) ? data.messages : [];
+	}
+
+	private handleMessageUpdate(event: any) {
+		const partial = event.assistantMessageEvent?.partial;
+		if (partial?.role !== "assistant") return;
+		const text = getFinalOutput([partial]).trim();
+		if (!text || text === this.currentPartial) return;
+		this.currentPartial = text;
+		this.onPartial?.(text);
+		this.onUpdate?.();
+	}
+
+	private handleMessageEnd(message: any) {
+		this.details.messages.push(message);
+		if (message.role === "assistant") {
+			this.details.usage.turns++;
+			const u = message.usage;
+			if (u) {
+				this.details.usage.input += u.input || 0;
+				this.details.usage.output += u.output || 0;
+				this.details.usage.cacheRead += u.cacheRead || 0;
+				this.details.usage.cacheWrite += u.cacheWrite || 0;
+				this.details.usage.cost += u.cost?.total || 0;
+				this.details.usage.contextTokens = u.totalTokens || 0;
 			}
-			this.onUpdate?.();
+			if (message.stopReason) this.details.stopReason = message.stopReason;
+			if (message.errorMessage)
+				this.details.errorMessage = message.errorMessage;
 		}
+		this.onUpdate?.();
 	}
 
 	private rejectAll(error: Error) {

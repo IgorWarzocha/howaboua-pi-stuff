@@ -1,4 +1,6 @@
 import type { Message } from "@earendil-works/pi-ai";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { BtwChild } from "./rpc-child.js";
 
 export type ThinkingLevel =
 	| "off"
@@ -22,8 +24,31 @@ export interface BtwTurn {
 	question: string;
 	answer?: string;
 	error?: string;
+	partial?: string;
 	startedAt: number;
 	finishedAt?: number;
+	status?: "queued" | "running" | "answered" | "failed";
+	turnIndex?: number;
+}
+
+export interface BtwSession {
+	index: number;
+	generationId: string;
+	nextTurnIndex: number;
+	child?: BtwChild | undefined;
+	turns: BtwTurn[];
+	running: boolean;
+	unread: boolean;
+	generation: number;
+	queue: Promise<void>;
+	restored?: boolean;
+}
+
+export interface BtwState {
+	sessions: (BtwSession | undefined)[];
+	activeIndex: number;
+	folded: boolean;
+	ctx?: ExtensionContext | undefined;
 }
 
 export interface ChildDetails {

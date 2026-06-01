@@ -1,225 +1,270 @@
 import type {
 	ExtensionAPI,
 	ExtensionCommandContext,
+	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { Box, Text } from "@earendil-works/pi-tui";
 import { ensureConfig, readConfig } from "./src/config.js";
-import { BtwChild } from "./src/rpc-child.js";
-import type { BtwTurn } from "./src/types.js";
+import {
+	LEGACY_MESSAGE_TYPE,
+	MESSAGE_TYPE,
+	SHORTCUTS,
+} from "./src/constants.js";
+import type { BtwMessageDetails } from "./src/messages.js";
+import {
+	btwRestoreInputsFromAgentMessages,
+	isBtwContextMessage,
+	sendClearedMessage,
+	sendResultMessage,
+} from "./src/messages.js";
+import { doneTurns, injectionText } from "./src/output.js";
+import {
+	activeSession,
+	clearSession,
+	createInitialState,
+	createSession,
+	ensureSession,
+	listSessions,
+	parseBtwArgs,
+	restoreStateFromMessages,
+	runBtwTurn,
+	switchRelativeSession,
+} from "./src/session-state.js";
+import type { BtwState } from "./src/types.js";
+import { render } from "./src/widget.js";
 
-const WIDGET_ID = "smart-btw";
-const MESSAGE_TYPE = "smart-btw-result";
-const FALLBACK_COMPOSE_SHORTCUT = "alt+z";
-const FALLBACK_INJECT_SHORTCUT = "alt+c";
-const FALLBACK_DISMISS_SHORTCUT = "alt+x";
-
-type State = {
-	child: BtwChild | undefined;
-	turns: BtwTurn[];
-	running: boolean;
-	queue: Promise<void>;
-	ctx?: ExtensionCommandContext;
-};
-
-function doneTurns(turns: BtwTurn[]) {
-	return turns.filter((turn) => turn.answer || turn.error);
+function activate(state: BtwState, ctx: ExtensionContext) {
+	state.ctx = ctx;
+	const branch = ctx.sessionManager.getBranch();
+	restoreStateFromMessages(
+		state,
+		branch
+			.filter((entry) => entry.type === "custom_message")
+			.map((entry) => ({
+				customType: entry.customType,
+				details: entry.details,
+				content: entry.content,
+			})),
+	);
 }
 
-function injectionText(turns: BtwTurn[]) {
-	const completed = doneTurns(turns);
-	if (completed.length === 1) {
-		const turn = completed[0]!;
-		return [
-			"The user asked the following question in a separate session:",
-			turn.question,
-			"The answer was:",
-			turn.answer || turn.error || "(no answer)",
-			"Take it into account while executing the current task.",
-		].join("\n");
-	}
-
-	return [
-		"The user asked the following questions in a separate session:",
-		...completed.flatMap((turn, index) => [
-			"",
-			`Question ${index + 1}:`,
-			turn.question,
-			"Answer:",
-			turn.answer || turn.error || "(no answer)",
-		]),
-		"",
-		"Take them into account while executing the current task.",
-	].join("\n");
-}
-
-function render(ctx: ExtensionCommandContext, state: State) {
-	const t = ctx.ui.theme;
-	if (!state.child && state.turns.length === 0) {
-		ctx.ui.setWidget(WIDGET_ID, undefined);
+function injectAnswers(
+	pi: ExtensionAPI,
+	state: BtwState,
+	ctx: ExtensionContext,
+) {
+	activate(state, ctx);
+	const session = activeSession(state);
+	const turns = doneTurns(session?.turns ?? []);
+	if (turns.length === 0) {
+		state.ctx?.ui.notify("No /btw answer to inject yet.", "warning");
 		return;
 	}
-	const cfg = readConfig();
-	const lines: string[] = [];
-	const status = state.running
-		? t.fg("warning", "running")
-		: t.fg("success", "ready");
-	lines.push(
-		`${t.fg("accent", "╭─ btw")} ${status} ${t.fg("dim", `${cfg.model}:${cfg.thinking}`)}`,
+	pi.sendUserMessage(
+		injectionText(turns),
+		state.ctx?.isIdle() ? undefined : { deliverAs: "followUp" },
 	);
-	for (const turn of state.turns.slice(-3)) {
-		const q =
-			turn.question.length > 120
-				? `${turn.question.slice(0, 117)}...`
-				: turn.question;
-		lines.push(`${t.fg("muted", "│ Q")} ${q}`);
-		if (turn.error)
-			lines.push(
-				`${t.fg("error", "│ ✗ failed — see btw result in transcript")}`,
-			);
-		else if (turn.answer)
-			lines.push(
-				`${t.fg("success", "│ ✓ answered — see btw result in transcript")}`,
-			);
-		else lines.push(`${t.fg("warning", "│ … thinking")}`);
+	if (session) {
+		sendClearedMessage(pi, session);
+		void clearSession(state, session);
 	}
-	lines.push(
-		`${t.fg("muted", "╰─")} ${FALLBACK_COMPOSE_SHORTCUT} compose · ${FALLBACK_INJECT_SHORTCUT} inject · ${FALLBACK_DISMISS_SHORTCUT} dismiss`,
-	);
-	ctx.ui.setWidget(WIDGET_ID, lines, { placement: "aboveEditor" });
+	if (state.ctx) render(state.ctx, state);
 }
 
-function sendResultMessage(pi: ExtensionAPI, turn: BtwTurn) {
-	pi.sendMessage({
-		customType: MESSAGE_TYPE,
-		content: turn.answer || turn.error || "(no answer)",
-		display: true,
-		details: {
-			question: turn.question,
-			answer: turn.answer,
-			error: turn.error,
-			startedAt: turn.startedAt,
-			finishedAt: turn.finishedAt,
+function registerShortcuts(pi: ExtensionAPI, state: BtwState) {
+	const cfg = readConfig();
+	pi.registerShortcut(cfg.composeShortcut as typeof SHORTCUTS.compose, {
+		description: "Prefill /btw in the prompt editor",
+		handler: async (ctx) => {
+			const current = ctx.ui.getEditorText();
+			ctx.ui.setEditorText(
+				current.trim() ? `${current.trimEnd()} /btw ` : "/btw ",
+			);
 		},
 	});
+	pi.registerShortcut(cfg.injectShortcut as typeof SHORTCUTS.inject, {
+		description: "Inject and clear active /btw session",
+		handler: async (ctx) => injectAnswers(pi, state, ctx),
+	});
+	pi.registerShortcut(cfg.dismissShortcut as typeof SHORTCUTS.clear, {
+		description: "Clear active /btw session",
+		handler: async (ctx) => {
+			activate(state, ctx);
+			const session = activeSession(state);
+			if (session) {
+				sendClearedMessage(pi, session);
+				await clearSession(state, session);
+			}
+			if (state.ctx) render(state.ctx, state);
+		},
+	});
+	pi.registerShortcut(SHORTCUTS.fold, {
+		description: "Fold active /btw block",
+		handler: async (ctx) => {
+			activate(state, ctx);
+			state.folded = true;
+			if (state.ctx) render(state.ctx, state);
+		},
+	});
+	pi.registerShortcut(SHORTCUTS.unfold, {
+		description: "Open active /btw block",
+		handler: async (ctx) => {
+			activate(state, ctx);
+			state.folded = false;
+			const session = activeSession(state);
+			if (session) session.unread = false;
+			if (state.ctx) render(state.ctx, state);
+		},
+	});
+	registerSessionSwitchShortcuts(pi, state);
+}
+
+function registerSessionSwitchShortcuts(pi: ExtensionAPI, state: BtwState) {
+	const switchSession = (ctx: ExtensionContext, direction: number) => {
+		activate(state, ctx);
+		if (listSessions(state).length === 0) return;
+		switchRelativeSession(state, direction);
+		if (state.ctx) render(state.ctx, state);
+	};
+	pi.registerShortcut(SHORTCUTS.next, {
+		description: "Next /btw session",
+		handler: async (ctx) => switchSession(ctx, 1),
+	});
+	pi.registerShortcut(SHORTCUTS.previous, {
+		description: "Previous /btw session",
+		handler: async (ctx) => switchSession(ctx, -1),
+	});
+	for (let index = 1; index <= 9; index++) {
+		pi.registerShortcut(`ctrl+alt+${index}` as typeof SHORTCUTS.compose, {
+			description: `Open /btw session ${index}`,
+			handler: async (ctx) => {
+				activate(state, ctx);
+				ensureSession(state, index - 1);
+				if (state.ctx) render(state.ctx, state);
+			},
+		});
+	}
+}
+
+function queueQuestionTurn(args: {
+	ctx: ExtensionCommandContext;
+	pi: ExtensionAPI;
+	question: string;
+	state: BtwState;
+}) {
+	const { ctx, pi, question, state } = args;
+	const session = activeSession(state) ?? createSession(state);
+	const turn = {
+		question,
+		startedAt: Date.now(),
+		status: "queued" as const,
+	};
+	session.turns.push(turn);
+	state.folded = false;
+	session.unread = false;
+	render(ctx, state);
+	const generation = session.generation;
+	session.queue = session.queue
+		.catch(() => undefined)
+		.then(() =>
+			runBtwTurn({
+				ctx,
+				pi,
+				question,
+				state,
+				session,
+				turn,
+				generation,
+				sendResultMessage,
+				render,
+			}),
+		);
+}
+
+function registerBtwCommand(pi: ExtensionAPI, state: BtwState) {
+	pi.registerCommand("btw", {
+		description:
+			"Ask or continue an async side-session. Use /btw 1, /btw 2, etc. to switch or target sessions.",
+		handler: async (args, ctx) => {
+			const { question, sessionNumber } = parseBtwArgs(args);
+			activate(state, ctx);
+			if (sessionNumber !== undefined) {
+				if (sessionNumber < 1) {
+					ctx.ui.notify(
+						"Use /btw 1, /btw 2, etc. to pick a btw session.",
+						"warning",
+					);
+					return;
+				}
+				ensureSession(state, sessionNumber - 1);
+			}
+			if (!question) {
+				state.folded = false;
+				const session = activeSession(state);
+				if (session) session.unread = false;
+				render(ctx, state);
+				return;
+			}
+			queueQuestionTurn({ ctx, pi, question, state });
+		},
+	});
+}
+
+function renderBtwMessage(
+	message: { content?: unknown; details?: unknown },
+	_options: unknown,
+	theme: Parameters<Parameters<ExtensionAPI["registerMessageRenderer"]>[1]>[2],
+) {
+	const details = (message.details ?? {}) as BtwMessageDetails;
+	if (details.kind === "cleared") return undefined;
+	const box = new Box(1, 1, (value) => theme.bg("customMessageBg", value));
+	const label = details.label ?? MESSAGE_TYPE;
+	const status = details.error
+		? theme.fg("error", `${label} failed`)
+		: theme.fg("accent", label);
+	const question = details.question ?? "";
+	const body = details.answer ?? details.error ?? String(message.content ?? "");
+	box.addChild(
+		new Text(
+			`${status} ${theme.fg("muted", "Q")} ${question}\n\n${body}`,
+			0,
+			0,
+		),
+	);
+	return box;
 }
 
 export default function (pi: ExtensionAPI) {
 	if (process.env["PI_SMART_BTW_CHILD"] === "1") return;
 	ensureConfig();
-	pi.registerMessageRenderer(MESSAGE_TYPE, (message, _options, theme) => {
-		const details = message.details as
-			| { question?: string; answer?: string; error?: string }
-			| undefined;
-		const box = new Box(1, 1, (value) => theme.bg("customMessageBg", value));
-		const status = details?.error
-			? theme.fg("error", "btw failed")
-			: theme.fg("accent", "btw");
-		const question = details?.question ?? "";
-		const body =
-			details?.answer ?? details?.error ?? String(message.content ?? "");
-		box.addChild(
-			new Text(
-				`${status} ${theme.fg("muted", "Q")} ${question}\n\n${body}`,
-				0,
-				0,
+	const state = createInitialState();
+
+	pi.registerMessageRenderer(MESSAGE_TYPE, renderBtwMessage);
+	pi.registerMessageRenderer(LEGACY_MESSAGE_TYPE, renderBtwMessage);
+
+	pi.on("context", async (event) => {
+		restoreStateFromMessages(
+			state,
+			btwRestoreInputsFromAgentMessages(event.messages),
+		);
+		return {
+			messages: event.messages.filter(
+				(message) =>
+					!isBtwContextMessage(
+						message as {
+							role?: string;
+							customType?: string;
+							details?: unknown;
+						},
+					),
 			),
-		);
-		return box;
+		};
 	});
 
-	pi.on("context", async (event) => ({
-		messages: event.messages.filter((message) => {
-			const candidate = message as { role?: string; customType?: string };
-			return !(
-				candidate.role === "custom" && candidate.customType === MESSAGE_TYPE
-			);
-		}),
-	}));
-	const state: State = {
-		child: undefined,
-		turns: [],
-		running: false,
-		queue: Promise.resolve(),
-	};
-
-	const dismiss = async () => {
-		await state.child?.stop();
-		state.child = undefined;
-		state.turns = [];
-		state.running = false;
-		state.ctx?.ui.setWidget(WIDGET_ID, undefined);
-	};
-
-	const inject = () => {
-		const turns = doneTurns(state.turns);
-		if (turns.length === 0) {
-			state.ctx?.ui.notify("No /btw answer to inject yet.", "warning");
-			return;
-		}
-		pi.sendUserMessage(
-			injectionText(turns),
-			state.ctx?.isIdle() ? undefined : { deliverAs: "followUp" },
-		);
-	};
-
-	readConfig();
-	pi.registerShortcut(FALLBACK_COMPOSE_SHORTCUT as any, {
-		description: "Prefill /btw in the prompt editor",
-		handler: async (ctx) => {
-			const current = ctx.ui.getEditorText();
-			const prefix = current.trim() ? `${current.trimEnd()} /btw ` : "/btw ";
-			ctx.ui.setEditorText(prefix);
-		},
-	});
-
-	pi.registerShortcut(FALLBACK_INJECT_SHORTCUT as any, {
-		description: "Inject latest /btw answer into the main session",
-		handler: async () => inject(),
-	});
-	pi.registerShortcut(FALLBACK_DISMISS_SHORTCUT as any, {
-		description: "Dismiss active /btw block",
-		handler: async () => {
-			await dismiss();
-		},
-	});
-
-	pi.registerCommand("btw", {
-		description:
-			"Ask a fresh async side-session question. Re-run while open to ask a follow-up. UI: inject/dismiss shortcuts shown in the btw block.",
-		handler: async (args, ctx) => {
-			const question = args.trim();
-			state.ctx = ctx;
-			if (!question) {
-				ctx.ui.notify("Usage: /btw <question>", "warning");
-				return;
-			}
-			const turn: BtwTurn = { question, startedAt: Date.now() };
-			state.turns.push(turn);
-			render(ctx, state);
-
-			state.queue = state.queue.then(async () => {
-				state.running = true;
-				render(ctx, state);
-				try {
-					if (!state.child) {
-						state.child = new BtwChild(ctx.cwd, () => render(ctx, state));
-						await state.child.ready();
-					}
-					turn.answer = (await state.child.ask(question)) || "(no answer)";
-				} catch (error) {
-					turn.error = error instanceof Error ? error.message : String(error);
-					ctx.ui.notify(`/btw failed: ${turn.error}`, "error");
-				} finally {
-					turn.finishedAt = Date.now();
-					state.running = false;
-					render(ctx, state);
-					if (turn.answer || turn.error) sendResultMessage(pi, turn);
-				}
-			});
-		},
-	});
+	registerShortcuts(pi, state);
+	registerBtwCommand(pi, state);
 
 	pi.on("session_shutdown", async () => {
-		await state.child?.stop();
+		for (const session of listSessions(state)) await session.child?.stop();
 	});
 }

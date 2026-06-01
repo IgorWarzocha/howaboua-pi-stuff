@@ -1,15 +1,13 @@
 # pi-smart-btw
 
-`@howaboua/pi-smart-btw` adds `/btw <question>` to Pi: an async, ephemeral side session for questions you do not want to derail the main conversation. It starts a fresh no-session Pi RPC subprocess, renders side answers in the transcript, lets you ask follow-ups with more `/btw ...`, and injects the side-session result only when you choose.
+`@howaboua/pi-smart-btw` adds `/btw` side sessions to Pi: async, ephemeral child Pi RPC processes for questions you do not want to derail the main chat. Answers live in the transcript; the widget is status and controls only.
 
-- Fresh context: child starts with `pi --mode rpc --no-session`.
-- Full tools/extensions/skills: no `--no-skills`; installed extensions load normally except this extension disables itself in the child to avoid nesting UI.
-- Async main session: the command starts work in the background and returns immediately.
-- Compose: press `alt+z` to prefill `/btw ` in the prompt editor.
-- Injection: press `alt+c` from the UI while the btw block is visible.
-- Dismiss: press `alt+x` from the UI while the btw block is visible.
-- Only one slash command is registered: `/btw`.
-- Side answers are rendered as display-only custom transcript messages and filtered from the LLM context with Pi's `context` hook. They are only sent to the main agent when you explicitly inject them. The widget shows status/actions only.
+- Fresh context per slot: `pi --mode rpc --no-session` (full tools/extensions; this extension disables itself in the child).
+- Multiple numbered slots: `/btw 1 …`, `/btw 2 …`, `/btw` to open the panel, `/btw 1` to switch.
+- Per-slot queue and child: a slow slot 1 does not block slot 2.
+- Transcript is canonical: `BTW SESSION` custom messages with generation tombstones on clear/inject.
+- Restore from JSONL after restart; restored follow-ups seed the child with prior Q&A when needed.
+- Main LLM context filters BTW messages until you inject.
 
 ## Install
 
@@ -17,7 +15,7 @@
 pi install npm:@howaboua/pi-smart-btw
 ```
 
-Or try it for one session without adding it permanently:
+One-off:
 
 ```bash
 pi -e npm:@howaboua/pi-smart-btw
@@ -26,31 +24,26 @@ pi -e npm:@howaboua/pi-smart-btw
 ## Usage
 
 ```text
-/btw explain this error without interrupting the current task
+/btw 1 what is this repo?
+/btw 2 explain this error
+/btw 1 continue that answer
+/btw
 ```
 
-While the side session is open:
+While a slot is active:
 
-- run another `/btw ...` to ask a follow-up in the same child session
-- press `alt+c` to inject all completed side-session turns into the main chat
-- press `alt+x` to dismiss and stop the child session
-- press `alt+z` to prefill `/btw ` in the editor
+- another `/btw …` (or `/btw N …`) continues that slot's child when targeted
+- **ctrl+alt+c** — inject answers into the main chat and clear the slot
+- **ctrl+alt+x** — clear the slot (hidden tombstone in JSONL)
+- **ctrl+alt+z** — prefill `/btw ` in the editor
+- **ctrl+alt+←/→** — previous/next slot; **ctrl+alt+1..9** — jump to slot
+- **ctrl+alt+↑/↓** — fold/unfold the widget
 
-Injection format for one turn:
-
-```text
-The user asked the following question in a separate session:
-[Q]
-The answer was:
-[A]
-Take it into account while executing the current task.
-```
-
-For multiple completed turns, injection includes every question/answer pair in order.
+Config shortcuts (`composeShortcut`, `injectShortcut`, `dismissShortcut`) override compose/inject/clear only.
 
 ## Configuration
 
-Config is created at `~/.pi/agent/pi-smart-btw.json`:
+`~/.pi/agent/pi-smart-btw.json`:
 
 ```json
 {
@@ -58,9 +51,9 @@ Config is created at `~/.pi/agent/pi-smart-btw.json`:
   "provider": "",
   "thinking": "low",
   "command": "pi",
-  "injectShortcut": "alt+c",
-  "dismissShortcut": "alt+x",
-  "composeShortcut": "alt+z"
+  "injectShortcut": "ctrl+alt+c",
+  "dismissShortcut": "ctrl+alt+x",
+  "composeShortcut": "ctrl+alt+z"
 }
 ```
 
@@ -71,4 +64,3 @@ npm install
 npm run check
 npm run pack:dry-run
 ```
-

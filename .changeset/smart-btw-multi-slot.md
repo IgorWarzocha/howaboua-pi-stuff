@@ -1,0 +1,5 @@
+---
+"@howaboua/pi-smart-btw": minor
+---
+
+Multi-slot BTW sessions with JSONL restore, tombstones, inject-and-clear, and ctrl+alt shortcuts.
