@@ -21,7 +21,12 @@ import {
 	listProviders,
 	resolveProviderModel,
 } from "./models.js";
-import { createShortcutCaptureSubmenu } from "./shortcut-editor.js";
+import {
+	createShortcutCaptureSubmenu,
+	defaultShortcut,
+	isValidChord,
+	SHORTCUT_CONFIG_KEYS,
+} from "./shortcut-editor.js";
 
 export type BtwSettingsDraft = ResolvedBtwConfig;
 
@@ -205,7 +210,7 @@ function buildItems(
 	): SettingItem => ({
 		id,
 		label,
-		currentValue: draft[id],
+		currentValue: draft[id] ?? defaultShortcut(SHORTCUT_CONFIG_KEYS[id]),
 		description: "Enter/Space to record a new chord",
 		submenu: (current, done) =>
 			createShortcutCaptureSubmenu(current, (value: string | undefined) =>
@@ -252,13 +257,18 @@ function applySettingChange(
 		(THINKING_LEVELS as readonly string[]).includes(value)
 	)
 		next.thinking = value as BtwSettingsDraft["thinking"];
-	if (id === "composeShortcut") next.composeShortcut = value;
-	if (id === "injectShortcut") next.injectShortcut = value;
-	if (id === "dismissShortcut") next.dismissShortcut = value;
-	if (id === "foldShortcut") next.foldShortcut = value;
-	if (id === "unfoldShortcut") next.unfoldShortcut = value;
-	if (id === "previousShortcut") next.previousShortcut = value;
-	if (id === "nextShortcut") next.nextShortcut = value;
+	if (id === "composeShortcut" && isValidChord(value))
+		next.composeShortcut = value;
+	if (id === "injectShortcut" && isValidChord(value))
+		next.injectShortcut = value;
+	if (id === "dismissShortcut" && isValidChord(value))
+		next.dismissShortcut = value;
+	if (id === "foldShortcut" && isValidChord(value)) next.foldShortcut = value;
+	if (id === "unfoldShortcut" && isValidChord(value))
+		next.unfoldShortcut = value;
+	if (id === "previousShortcut" && isValidChord(value))
+		next.previousShortcut = value;
+	if (id === "nextShortcut" && isValidChord(value)) next.nextShortcut = value;
 	return resolveProviderModel(ctx, next.provider, next.modelId) as typeof next;
 }
 
