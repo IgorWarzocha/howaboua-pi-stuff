@@ -27,9 +27,6 @@ export async function openConfigInExternalEditor(
 	}
 	try {
 		stopTui();
-		process.stdout.write(
-			`Opening config in your editor…\nPi resumes when the editor exits.\n`,
-		);
 		const status = await new Promise<number | null>((resolve) => {
 			const child = spawn(editor, [...editorArgs, file], {
 				stdio: "inherit",
