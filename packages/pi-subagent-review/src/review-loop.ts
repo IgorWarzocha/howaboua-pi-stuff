@@ -4,6 +4,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 
 export const REVIEW_LOOP_STATE_ENTRY = "subagent-review-loop-state";
+export const REVIEW_LOOP_BOUNDARY_ENTRY = "subagent-review-loop-boundary";
 export const REVIEW_LOOP_MARKER_LABEL = "review";
 export const REVIEW_LOOP_WIDGET = "subagent-review-loop";
 export const REVIEW_LOOP_SUMMARY_PROMPT = [
@@ -104,6 +105,16 @@ export function applyReviewLoopMarker(
 		version: 1,
 		markerId: nextMarkerId,
 	} satisfies ReviewLoopState);
+}
+
+export function appendReviewLoopBoundary(
+	pi: ExtensionAPI,
+	ctx: ExtensionCommandContext,
+): string | undefined {
+	const previousLeafId = ctx.sessionManager.getLeafId();
+	pi.appendEntry(REVIEW_LOOP_BOUNDARY_ENTRY, { version: 1 });
+	const nextLeafId = ctx.sessionManager.getLeafId();
+	return nextLeafId && nextLeafId !== previousLeafId ? nextLeafId : undefined;
 }
 
 export async function summarizeReviewLoopIncrement(

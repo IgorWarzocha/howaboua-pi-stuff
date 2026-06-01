@@ -104,6 +104,37 @@ function isDiscoveryCommandAt(parts: string[], index: number): boolean {
 	return subcommand === "ls-files" || subcommand === "grep";
 }
 
+function isPathOutputCommandAt(parts: string[], index: number): boolean {
+	const command = parts[index]?.toLowerCase() ?? "";
+	if (["ls", "find", "rg", "grep", "fd", "tree"].includes(command)) return true;
+	if (command !== "git") return false;
+	const { subcommand } = gitCommandInfo(parts, index);
+	return subcommand === "ls-files" || subcommand === "grep";
+}
+
+export function isPathOutputShellCommand(value: string): boolean {
+	const parts = shellCommandParts(value);
+	for (let index = 0; index < parts.length; index += 1) {
+		if (isPathOutputCommandAt(parts, index)) return true;
+	}
+	return false;
+}
+
+export function shellOutputToolName(value: string): "grep" | "shell" {
+	const parts = shellCommandParts(value);
+	for (let index = 0; index < parts.length; index += 1) {
+		const command = parts[index]?.toLowerCase() ?? "";
+		if (command === "rg" || command === "grep") return "grep";
+		if (
+			command === "git" &&
+			gitCommandInfo(parts, index).subcommand === "grep"
+		) {
+			return "grep";
+		}
+	}
+	return "shell";
+}
+
 function pathExists(candidate: string, base: string): boolean {
 	return fs.existsSync(resolvePath(candidate, base));
 }

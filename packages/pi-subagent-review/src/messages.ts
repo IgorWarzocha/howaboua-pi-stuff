@@ -6,6 +6,7 @@ import { REVIEW_COMMAND } from "./constants.js";
 import type { ReviewContext } from "./types.js";
 
 export const REVIEW_LOOP_PREFACE_MESSAGE_TYPE = "subagent-review-preface";
+export const REVIEW_FINDINGS_MESSAGE_TYPE = "subagent-review-findings";
 
 export const REVIEW_LOOP_PREFACE_MESSAGE = [
 	"Review advisory note.",
@@ -17,22 +18,30 @@ export const REVIEW_LOOP_PREFACE_MESSAGE = [
 	"Act directly only on clearly worthwhile issues: correctness bugs, security risks, data loss, broken builds, or serious regressions. For context-dependent, stylistic, architectural, low-impact, or preference-based findings, discuss the tradeoff first and say whether you would address, defer, or skip it.",
 ].join("\n");
 
-function hasReviewPrefaceMessage(ctx: ExtensionCommandContext): boolean {
-	return ctx.sessionManager.getBranch().some((entry) => {
-		return (
+function getReviewPrefaceMessageId(
+	ctx: ExtensionCommandContext,
+): string | undefined {
+	let messageId: string | undefined;
+	for (const entry of ctx.sessionManager.getBranch()) {
+		if (
 			entry.type === "custom_message" &&
 			entry.customType === REVIEW_LOOP_PREFACE_MESSAGE_TYPE
-		);
-	});
+		) {
+			messageId = entry.id;
+		}
+	}
+	return messageId;
 }
 
 export function sendReviewPrefaceOnce(
 	pi: ExtensionAPI,
 	ctx: ExtensionCommandContext,
 	details: { markerId?: string } = {},
-): void {
-	if (hasReviewPrefaceMessage(ctx)) return;
+): { inserted: boolean; entryId?: string } {
+	const existingId = getReviewPrefaceMessageId(ctx);
+	if (existingId) return { inserted: false, entryId: existingId };
 
+	const previousLeafId = ctx.sessionManager.getLeafId();
 	pi.sendMessage(
 		{
 			customType: REVIEW_LOOP_PREFACE_MESSAGE_TYPE,
@@ -42,6 +51,12 @@ export function sendReviewPrefaceOnce(
 		},
 		{ triggerTurn: false },
 	);
+
+	const nextLeafId = ctx.sessionManager.getLeafId();
+	if (nextLeafId && nextLeafId !== previousLeafId) {
+		return { inserted: true, entryId: nextLeafId };
+	}
+	return { inserted: true };
 }
 
 export function buildReviewScopeText(review: ReviewContext): string {
@@ -71,4 +86,21 @@ export function buildReviewUserMessage(
 		"",
 		"If you address, skip, or defer findings, briefly say why.",
 	].join("\n");
+}
+
+export function sendReviewFindings(
+	pi: ExtensionAPI,
+	ctx: ExtensionCommandContext,
+	review: ReviewContext,
+	findings: string,
+): void {
+	pi.sendMessage(
+		{
+			customType: REVIEW_FINDINGS_MESSAGE_TYPE,
+			content: buildReviewUserMessage(review, findings),
+			display: true,
+			details: { repoRoot: review.repoRoot, scope: review.scope },
+		},
+		ctx.isIdle() ? { triggerTurn: true } : { deliverAs: "followUp" },
+	);
 }

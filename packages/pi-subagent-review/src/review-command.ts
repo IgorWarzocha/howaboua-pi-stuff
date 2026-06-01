@@ -6,9 +6,10 @@ import {
 } from "./config.js";
 import { REVIEW_COMMAND } from "./constants.js";
 import { buildReviewConversationSummary } from "./conversation-summary.js";
-import { buildReviewUserMessage, sendReviewPrefaceOnce } from "./messages.js";
+import { sendReviewFindings, sendReviewPrefaceOnce } from "./messages.js";
 import { buildReviewTask, detectReviewContext } from "./review.js";
 import {
+	appendReviewLoopBoundary,
 	applyReviewLoopMarker,
 	getSemanticLeafId,
 	parseReviewArgs,
@@ -20,10 +21,9 @@ import { getFinalOutput, runReviewSubagent } from "./subagent.js";
 export function registerReviewCommand(pi: ExtensionAPI) {
 	pi.registerCommand(REVIEW_COMMAND, {
 		description:
-			"Run an isolated code-review subagent against the current repo and send the findings back as a user message",
+			"Run an isolated code-review subagent against the current repo and send advisory findings back as custom review output",
 		handler: async (args, ctx) => {
 			const parsedArgs = parseReviewArgs(args);
-			const reviewPrefaceDetails: { markerId?: string } = {};
 			const setReviewWidget = (message?: string) => {
 				ctx.ui.setWidget(
 					REVIEW_COMMAND,
@@ -72,10 +72,12 @@ export function registerReviewCommand(pi: ExtensionAPI) {
 				return;
 			}
 
+			sendReviewPrefaceOnce(pi, ctx);
+
 			if (parsedArgs.startLoop) {
-				const targetId = getSemanticLeafId(ctx);
+				const targetId =
+					appendReviewLoopBoundary(pi, ctx) ?? getSemanticLeafId(ctx);
 				if (targetId) {
-					reviewPrefaceDetails.markerId = targetId;
 					applyReviewLoopMarker(
 						pi,
 						ctx,
@@ -85,14 +87,13 @@ export function registerReviewCommand(pi: ExtensionAPI) {
 					ctx.ui.notify("Review loop marker set", "info");
 				}
 			}
-			sendReviewPrefaceOnce(pi, ctx, reviewPrefaceDetails);
 
 			if (!review.hasAnyChanges) {
-				pi.sendUserMessage(
-					buildReviewUserMessage(
-						review,
-						"No changes found relative to the selected base branch.",
-					),
+				sendReviewFindings(
+					pi,
+					ctx,
+					review,
+					"No changes found relative to the selected base branch.",
 				);
 				ctx.ui.notify(
 					`No changes found relative to ${review.baseBranch}; sent summary to the agent.`,
@@ -155,9 +156,7 @@ export function registerReviewCommand(pi: ExtensionAPI) {
 						details.errorMessage || details.stderr || finalOutput,
 					);
 
-				const message = buildReviewUserMessage(review, finalOutput);
-				if (ctx.isIdle()) pi.sendUserMessage(message);
-				else pi.sendUserMessage(message, { deliverAs: "followUp" });
+				sendReviewFindings(pi, ctx, review, finalOutput);
 				ctx.ui.notify(
 					`Review findings sent back to the main agent from /${REVIEW_COMMAND}.`,
 					"info",

@@ -59,7 +59,14 @@ function updateAggregate(dir, filter, includeExtensions, includeSkills) {
   const pkg = JSON.parse(readFileSync(file, "utf8"));
   pkg.dependencies = dependencyMap(filter);
   delete pkg.bundledDependencies;
-  pkg.files = Array.from(new Set([...(pkg.files ?? []).filter((entry) => entry !== "extensions"), "index.ts", "README.md", "LICENSE"]));
+  pkg.files = Array.from(
+    new Set([
+      ...(pkg.files ?? []).filter((entry) => entry !== "extensions" && (includeExtensions || entry !== "index.ts")),
+      ...(includeExtensions ? ["index.ts"] : []),
+      "README.md",
+      "LICENSE",
+    ]),
+  );
   pkg.pi = {};
   if (includeExtensions) pkg.pi.extensions = writeExtensionAggregate(dir, filter);
   if (includeSkills) pkg.pi.skills = skillPaths(filter);
