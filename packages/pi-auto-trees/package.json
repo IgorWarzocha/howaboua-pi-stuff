@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-auto-trees",
-	"version": "0.1.4",
+	"version": "0.1.5",
 	"description": "A Pi package that adds /marker and /end commands for incremental long-running coding sessions.",
 	"type": "module",
 	"license": "MIT",

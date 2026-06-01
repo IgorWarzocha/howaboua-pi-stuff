@@ -1,5 +1,16 @@
 # @howaboua/pi-skills
 
+## 0.0.5
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-skill-gh-issue-pr-flow: Keep sponsor-check status out of PR bodies and avoid reporting successful sponsor checks in final summaries.
+
+- Updated dependencies [[`d312d81`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/d312d81f82e24645f7cc59f4b6ead1834afd19f9)]:
+  - @howaboua/pi-skill-gh-issue-pr-flow@0.0.3
+
 ## 0.0.4
 
 ### Changes

@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-explore-subagents",
-	"version": "0.1.6",
+	"version": "0.1.7",
 	"description": "Isolated discovery-only explore subagents for Pi.",
 	"type": "module",
 	"license": "MIT",

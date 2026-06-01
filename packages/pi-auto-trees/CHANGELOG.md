@@ -1,5 +1,11 @@
 # @howaboua/pi-auto-trees
 
+## 0.1.5
+
+### Changes
+
+- [#19](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/19) [`d312d81`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/d312d81f82e24645f7cc59f4b6ead1834afd19f9) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Expose package-root extension entrypoints so aggregate extension packages can import dependency versions through normal package resolution.
+
 ## 0.1.4
 
 ### Changes

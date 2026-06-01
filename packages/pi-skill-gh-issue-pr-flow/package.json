@@ -1,6 +1,6 @@
 {
   "name": "@howaboua/pi-skill-gh-issue-pr-flow",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Pi skill package for gh-issue-pr-flow.",
   "type": "module",
   "keywords": [

@@ -1,5 +1,22 @@
 # @howaboua/pi-stuff
 
+## 0.0.5
+
+### Changes
+
+- [#19](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/19) [`d312d81`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/d312d81f82e24645f7cc59f4b6ead1834afd19f9) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Load aggregate extension entries through package-local shims so dependency resolution prefers the aggregate package's own installed dependency versions.
+
+- Updated dependencies [[`d312d81`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/d312d81f82e24645f7cc59f4b6ead1834afd19f9), [`d312d81`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/d312d81f82e24645f7cc59f4b6ead1834afd19f9), [`d312d81`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/d312d81f82e24645f7cc59f4b6ead1834afd19f9), [`d312d81`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/d312d81f82e24645f7cc59f4b6ead1834afd19f9)]:
+  - @howaboua/pi-skill-gh-issue-pr-flow@0.0.3
+  - @howaboua/pi-markdown-workflows@0.2.11
+  - @howaboua/pi-auto-trees@0.1.5
+  - @howaboua/pi-explore-subagents@0.1.7
+  - @howaboua/pi-memories@0.1.1
+  - @howaboua/pi-semantic-grep@0.1.12
+  - @howaboua/pi-smart-btw@0.1.3
+  - @howaboua/pi-subagent-review@0.2.1
+  - @howaboua/pi-vent@0.2.6
+
 ## 0.0.4
 
 ### Changes

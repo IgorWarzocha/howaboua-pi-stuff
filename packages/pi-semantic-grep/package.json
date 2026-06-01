@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-semantic-grep",
-	"version": "0.1.11",
+	"version": "0.1.12",
 	"description": "Semantic code and docs search for pi, backed by OpenAI-compatible embeddings and repo-local SQLite indexes.",
 	"type": "module",
 	"license": "MIT",

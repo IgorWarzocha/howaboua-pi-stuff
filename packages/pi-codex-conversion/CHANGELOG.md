@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.18
+
+### Changes
+
+- [#19](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/19) [`d312d81`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/d312d81f82e24645f7cc59f4b6ead1834afd19f9) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Align the custom OpenAI Codex provider with Pi 0.77 and 0.78 Responses fixes for explicit API-key handling, SSE abort cleanup, and fallback replay message IDs.
+
+- [#19](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/19) [`d312d81`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/d312d81f82e24645f7cc59f4b6ead1834afd19f9) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Update Codex settings links to point at the monorepo package.
+
 ## 1.5.17
 
 ### Changes

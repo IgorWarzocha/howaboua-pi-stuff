@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-stuff",
-	"version": "0.0.4",
+	"version": "0.0.5",
 	"description": "all Howaboua Pi extensions and skills",
 	"type": "module",
 	"keywords": [
@@ -14,20 +14,20 @@
 	},
 	"dependencies": {
 		"@howaboua/pi-auto-reasoning-tool": "0.1.5",
-		"@howaboua/pi-auto-trees": "0.1.4",
-		"@howaboua/pi-explore-subagents": "0.1.6",
-		"@howaboua/pi-markdown-workflows": "0.2.10",
-		"@howaboua/pi-memories": "0.1.0",
-		"@howaboua/pi-semantic-grep": "0.1.11",
+		"@howaboua/pi-auto-trees": "0.1.5",
+		"@howaboua/pi-explore-subagents": "0.1.7",
+		"@howaboua/pi-markdown-workflows": "0.2.11",
+		"@howaboua/pi-memories": "0.1.1",
+		"@howaboua/pi-semantic-grep": "0.1.12",
 		"@howaboua/pi-skill-agent-native-hardening": "0.0.2",
 		"@howaboua/pi-skill-anti-ai-copy": "0.0.1",
 		"@howaboua/pi-skill-chrome-cdp": "0.0.1",
-		"@howaboua/pi-skill-gh-issue-pr-flow": "0.0.2",
+		"@howaboua/pi-skill-gh-issue-pr-flow": "0.0.3",
 		"@howaboua/pi-skill-project-reference-research": "0.0.1",
 		"@howaboua/pi-skill-skill-creator": "0.0.1",
-		"@howaboua/pi-smart-btw": "0.1.2",
-		"@howaboua/pi-subagent-review": "0.2.0",
-		"@howaboua/pi-vent": "0.2.5"
+		"@howaboua/pi-smart-btw": "0.1.3",
+		"@howaboua/pi-subagent-review": "0.2.1",
+		"@howaboua/pi-vent": "0.2.6"
 	},
 	"files": [
 		"README.md",

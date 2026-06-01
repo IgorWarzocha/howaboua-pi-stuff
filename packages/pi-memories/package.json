@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-memories",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"type": "module",
 	"pi": {
 		"extensions": [
