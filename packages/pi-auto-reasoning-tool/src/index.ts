@@ -88,7 +88,7 @@ function isRetryableAssistantError(
 
 export default function autoReasoningSelector(pi: ExtensionAPI) {
 	let lastSelection: LastSelection | undefined;
-	let baselineReasoningLevel: AppliedReasoningLevel | undefined;
+	let turnBaselineReasoningLevel: AppliedReasoningLevel | undefined;
 
 	pi.registerTool({
 		name: "change_reasoning",
@@ -138,7 +138,7 @@ export default function autoReasoningSelector(pi: ExtensionAPI) {
 	});
 
 	pi.on("agent_start", async () => {
-		baselineReasoningLevel ??= pi.getThinkingLevel();
+		turnBaselineReasoningLevel ??= pi.getThinkingLevel();
 	});
 
 	pi.on("agent_end", async (event, ctx) => {
@@ -146,8 +146,10 @@ export default function autoReasoningSelector(pi: ExtensionAPI) {
 		if (isRetryableAssistantError(lastAssistant, ctx.model?.contextWindow)) {
 			return;
 		}
-		pi.setThinkingLevel(
-			baselineReasoningLevel ?? FALLBACK_BASELINE_REASONING_LEVEL,
-		);
+
+		const levelToRestore =
+			turnBaselineReasoningLevel ?? FALLBACK_BASELINE_REASONING_LEVEL;
+		turnBaselineReasoningLevel = undefined;
+		pi.setThinkingLevel(levelToRestore);
 	});
 }
