@@ -137,6 +137,10 @@ export default function autoReasoningSelector(pi: ExtensionAPI) {
 		},
 	});
 
+	pi.on("before_agent_start", async () => {
+		turnBaselineReasoningLevel = pi.getThinkingLevel();
+	});
+
 	pi.on("agent_start", async () => {
 		turnBaselineReasoningLevel ??= pi.getThinkingLevel();
 	});
