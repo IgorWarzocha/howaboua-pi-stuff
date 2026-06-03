@@ -5,7 +5,18 @@ import { ExploreParams, TOOL_LABEL, TOOL_NAME } from "./constants.js";
 import { getFinalOutput, getMode } from "./messages.js";
 import { renderExploreCall, renderSubagentResultBlock } from "./render.js";
 import { runSubagent } from "./subagent.js";
-import type { ChildRunDetails, ExploreMode } from "./types.js";
+import type {
+	ChildRunDetails,
+	ExploreMode,
+	PersistedChildRunDetails,
+} from "./types.js";
+
+function persistedDetails(details: ChildRunDetails): PersistedChildRunDetails {
+	return {
+		mode: details.mode,
+		cwd: details.cwd,
+	};
+}
 
 export function registerExploreTool(pi: ExtensionAPI) {
 	pi.registerTool({
@@ -41,7 +52,7 @@ export function registerExploreTool(pi: ExtensionAPI) {
 			}
 			return {
 				content: [{ type: "text", text: finalOutput }],
-				details,
+				details: persistedDetails(details),
 			};
 		},
 		renderCall(args, theme) {
@@ -51,8 +62,11 @@ export function registerExploreTool(pi: ExtensionAPI) {
 			);
 		},
 		renderResult(result, { expanded, isPartial }, theme) {
-			const details = result.details as ChildRunDetails | undefined;
-			if (!details) {
+			const details = result.details as
+				| ChildRunDetails
+				| PersistedChildRunDetails
+				| undefined;
+			if (!details || !("messages" in details)) {
 				const first = result.content[0];
 				return new Text(
 					first?.type === "text" ? first.text : "(no output)",

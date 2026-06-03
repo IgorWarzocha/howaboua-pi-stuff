@@ -18,7 +18,20 @@ interface ImageGenerationCallBlock {
 	item: ImageGenerationCallItem;
 }
 
-type InternalAssistantContent = Extract<Message, { role: "assistant" }>["content"][number] | ImageGenerationCallBlock;
+interface WebSearchCallItem {
+	type: "web_search_call";
+	id: string;
+	status?: string | undefined;
+	action?: unknown | undefined;
+	results?: unknown | undefined;
+}
+
+interface WebSearchCallBlock {
+	type: "web_search_call";
+	item: WebSearchCallItem;
+}
+
+type InternalAssistantContent = Extract<Message, { role: "assistant" }>["content"][number] | ImageGenerationCallBlock | WebSearchCallBlock;
 
 export interface OpenAIResponsesStreamOptions {
 	serviceTier?: ResponseCreateParamsStreaming["service_tier"] | undefined;
@@ -75,6 +88,10 @@ function isImageGenerationCallBlock(block: InternalAssistantContent): block is I
 	return block.type === "image_generation_call" && block.item?.type === "image_generation_call";
 }
 
+function isWebSearchCallBlock(block: InternalAssistantContent): block is WebSearchCallBlock {
+	return block.type === "web_search_call" && block.item?.type === "web_search_call";
+}
+
 function sanitizeImageGenerationCallItem(item: unknown): ImageGenerationCallItem | undefined {
 	if (!item || typeof item !== "object") return undefined;
 	const candidate = item as Record<string, unknown>;
@@ -89,6 +106,21 @@ function sanitizeImageGenerationCallItem(item: unknown): ImageGenerationCallItem
 		status: candidate["status"]!,
 		result: candidate["result"]!,
 		...(typeof candidate["revised_prompt"]! === "string" ? { revised_prompt: candidate["revised_prompt"]! } : {}),
+	};
+}
+
+function sanitizeWebSearchCallItem(item: unknown): WebSearchCallItem | undefined {
+	if (!item || typeof item !== "object") return undefined;
+	const candidate = item as Record<string, unknown>;
+	if (candidate["type"] !== "web_search_call") return undefined;
+	if (typeof candidate["id"]! !== "string" || candidate["id"] === "") return undefined;
+
+	return {
+		type: "web_search_call",
+		id: candidate["id"]!,
+		...(typeof candidate["status"]! === "string" ? { status: candidate["status"]! } : {}),
+		...(candidate["action"] !== undefined ? { action: candidate["action"]! } : {}),
+		...(candidate["results"] !== undefined ? { results: candidate["results"]! } : {}),
 	};
 }
 
@@ -147,6 +179,7 @@ function transformMessages(
 				assistantMsg.provider === model.provider && assistantMsg.api === model.api && assistantMsg.model === model.id;
 			const transformedContent = (assistantMsg.content as InternalAssistantContent[]).flatMap((block) => {
 				if (isImageGenerationCallBlock(block)) return block;
+				if (isWebSearchCallBlock(block)) return block;
 				if (block.type === "thinking") {
 					if (block.redacted) return isSameModel ? block : [];
 					if (isSameModel && block.thinkingSignature) return block;
@@ -305,6 +338,9 @@ export function convertResponsesMessages<TApi extends Api>(
 				if (isImageGenerationCallBlock(block)) {
 					const imageGenerationCall = sanitizeImageGenerationCallItem(block.item);
 					if (imageGenerationCall) output.push(imageGenerationCall as ResponseInput[number]);
+				} else if (isWebSearchCallBlock(block)) {
+					const webSearchCall = sanitizeWebSearchCallItem(block.item);
+					if (webSearchCall) output.push(webSearchCall as ResponseInput[number]);
 				} else if (block.type === "thinking") {
 					if (block.thinkingSignature) output.push(JSON.parse(block.thinkingSignature));
 				} else if (block.type === "text") {
@@ -604,6 +640,15 @@ export async function processResponsesStream<TApi extends Api>(
 					(output.content as InternalAssistantContent[]).push({
 						type: "image_generation_call",
 						item: imageGenerationCall,
+					});
+				}
+				outputStates.delete(event.output_index);
+			} else if (item.type === "web_search_call") {
+				const webSearchCall = sanitizeWebSearchCallItem(item);
+				if (webSearchCall) {
+					(output.content as InternalAssistantContent[]).push({
+						type: "web_search_call",
+						item: webSearchCall,
 					});
 				}
 				outputStates.delete(event.output_index);

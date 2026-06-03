@@ -2,9 +2,10 @@ export const STATUS_KEY = "codex-adapter";
 export const STATUS_TEXT = "\u001b[38;2;0;76;255mCodex adapter\u001b[0m";
 export const APPLY_PATCH_ONLY_STATUS_TEXT = `${STATUS_TEXT} • apply patch only`;
 
-export function buildStatusText(options: { verbosity?: string | undefined; webSearch: boolean; imageGeneration: boolean; fast: boolean; useOnAllModels: boolean; compaction?: { enabled: boolean; model: string; reasoning: string } | undefined }): string {
+export function buildStatusText(options: { verbosity?: string | undefined; webSearch: boolean; imageGeneration: boolean; fast: boolean; useOnAllModels: boolean; useAdapterProviders?: boolean | undefined; compaction?: { enabled: boolean; model: string; reasoning: string } | undefined }): string {
 	const extras = [
 		options.useOnAllModels ? "all models" : undefined,
+		options.useAdapterProviders ? "codex proxy" : undefined,
 		options.webSearch ? "web search" : undefined,
 		options.imageGeneration ? "image gen" : undefined,
 		options.compaction?.enabled ? `compact ${options.compaction.model}/${options.compaction.reasoning}` : undefined,

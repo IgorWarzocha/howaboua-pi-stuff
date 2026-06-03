@@ -44,6 +44,11 @@ export interface ChildRunDetails {
 	usage: UsageStats;
 }
 
+export interface PersistedChildRunDetails {
+	mode: ExploreMode;
+	cwd: string;
+}
+
 export interface ModeSpec {
 	label: string;
 	shortDescription: string;

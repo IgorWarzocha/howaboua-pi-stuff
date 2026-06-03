@@ -11,6 +11,7 @@ export const COMPACTION_REASONING_LEVELS: readonly CompactionReasoning[] = ["cur
 
 export interface CodexConversionConfig {
 	applyPatchOnly: boolean;
+	adapterProviders: string[];
 	fast: boolean;
 	forceCachedWebSockets?: boolean | undefined;
 	imageGeneration: boolean;
@@ -18,6 +19,7 @@ export interface CodexConversionConfig {
 	compactionReasoning: CompactionReasoning;
 	responsesCompaction?: boolean | undefined;
 	statusLine: boolean;
+	useAdapterProviders: boolean;
 	useOnAllModels: boolean;
 	webSearch: boolean;
 	verbosity: CodexVerbosity;
@@ -26,6 +28,7 @@ export interface CodexConversionConfig {
 export const CODEX_CONVERSION_CONFIG_BASENAME = "pi-codex-conversion.json";
 export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	applyPatchOnly: false,
+	adapterProviders: [],
 	fast: false,
 	forceCachedWebSockets: true,
 	imageGeneration: true,
@@ -33,6 +36,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	compactionReasoning: "current",
 	responsesCompaction: false,
 	statusLine: true,
+	useAdapterProviders: false,
 	useOnAllModels: false,
 	webSearch: true,
 	verbosity: "low",
@@ -58,6 +62,14 @@ export function normalizeCompactionReasoning(value: unknown): CompactionReasonin
 	return (COMPACTION_REASONING_LEVELS as readonly string[]).includes(value) ? (value as CompactionReasoning) : undefined;
 }
 
+export function normalizeProviderList(value: unknown): string[] {
+	if (!Array.isArray(value)) return [];
+	return [...new Set(value
+		.filter((entry): entry is string => typeof entry === "string")
+		.map((entry) => entry.trim().toLowerCase())
+		.filter(Boolean))];
+}
+
 export function getCodexConversionConfigPath(agentDir: string = getAgentDir()): string {
 	return join(agentDir, CODEX_CONVERSION_CONFIG_BASENAME);
 }
@@ -73,6 +85,7 @@ export function readCodexConversionConfig(configPath: string = getCodexConversio
 		if (!isObject(parsed)) return { ...DEFAULT_CODEX_CONVERSION_CONFIG };
 		return {
 			applyPatchOnly: typeof parsed["applyPatchOnly"]! === "boolean" ? parsed["applyPatchOnly"]! : DEFAULT_CODEX_CONVERSION_CONFIG.applyPatchOnly,
+			adapterProviders: normalizeProviderList(parsed["adapterProviders"]!),
 			fast: typeof parsed["fast"]! === "boolean" ? parsed["fast"]! : DEFAULT_CODEX_CONVERSION_CONFIG.fast,
 			forceCachedWebSockets: typeof parsed["forceCachedWebSockets"]! === "boolean" ? parsed["forceCachedWebSockets"]! : DEFAULT_CODEX_CONVERSION_CONFIG.forceCachedWebSockets,
 			imageGeneration: typeof parsed["imageGeneration"]! === "boolean" ? parsed["imageGeneration"]! : DEFAULT_CODEX_CONVERSION_CONFIG.imageGeneration,
@@ -80,6 +93,7 @@ export function readCodexConversionConfig(configPath: string = getCodexConversio
 			compactionReasoning: normalizeCompactionReasoning(parsed["compactionReasoning"]!) ?? DEFAULT_CODEX_CONVERSION_CONFIG.compactionReasoning,
 			responsesCompaction: typeof parsed["responsesCompaction"]! === "boolean" ? parsed["responsesCompaction"]! : DEFAULT_CODEX_CONVERSION_CONFIG.responsesCompaction,
 			statusLine: typeof parsed["statusLine"]! === "boolean" ? parsed["statusLine"]! : DEFAULT_CODEX_CONVERSION_CONFIG.statusLine,
+			useAdapterProviders: typeof parsed["useAdapterProviders"]! === "boolean" ? parsed["useAdapterProviders"]! : DEFAULT_CODEX_CONVERSION_CONFIG.useAdapterProviders,
 			useOnAllModels: typeof parsed["useOnAllModels"]! === "boolean" ? parsed["useOnAllModels"]! : DEFAULT_CODEX_CONVERSION_CONFIG.useOnAllModels,
 			webSearch: typeof parsed["webSearch"]! === "boolean" ? parsed["webSearch"]! : DEFAULT_CODEX_CONVERSION_CONFIG.webSearch,
 			verbosity: normalizeCodexVerbosity(parsed["verbosity"]!) ?? DEFAULT_CODEX_CONVERSION_CONFIG.verbosity,

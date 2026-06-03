@@ -110,5 +110,5 @@ function getCommandConfigUpdate(arg: string, config: CodexConversionConfig): Cod
 }
 
 function formatCodexSettings(config: CodexConversionConfig): string {
-	return `Codex settings: all models ${config.useOnAllModels ? "on" : "off"}, statusline ${config.statusLine ? "on" : "off"}, fast ${config.fast ? "on" : "off"}, cached websocket upgrade ${config.forceCachedWebSockets === false ? "off" : "on"}, web search ${config.webSearch ? "on" : "off"}, image generation ${config.imageGeneration ? "on" : "off"}, responses compaction ${(config.responsesCompaction ?? false) ? "on" : "off"} (${config.compactionModel}/${config.compactionReasoning}), verbosity ${config.verbosity}`;
+	return `Codex settings: all models ${config.useOnAllModels ? "on" : "off"}, codex proxy ${config.useAdapterProviders ? "on" : "off"}${config.adapterProviders.length > 0 ? ` (${config.adapterProviders.join(", ")})` : ""}, statusline ${config.statusLine ? "on" : "off"}, fast ${config.fast ? "on" : "off"}, cached websocket upgrade ${config.forceCachedWebSockets === false ? "off" : "on"}, web search ${config.webSearch ? "on" : "off"}, image generation ${config.imageGeneration ? "on" : "off"}, responses compaction ${(config.responsesCompaction ?? false) ? "on" : "off"} (${config.compactionModel}/${config.compactionReasoning}), verbosity ${config.verbosity}`;
 }

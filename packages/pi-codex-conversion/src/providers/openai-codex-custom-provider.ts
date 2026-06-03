@@ -770,6 +770,7 @@ function closeWebSocketSilently(socket: WebSocketLike, code = 1000, reason = "do
 	}
 }
 
+
 export function closeOpenAICodexWebSocketSessions(sessionId?: string): void {
 	const closeEntry = (entry: SessionWebSocketCacheEntry) => {
 		if (entry.idleTimer) {
@@ -1023,6 +1024,35 @@ function requestBodiesMatchExceptInput(a: ResponsesBody, b: ResponsesBody): bool
 	return JSON.stringify(requestBodyForWebSocketContinuationComparison(a)) === JSON.stringify(requestBodyForWebSocketContinuationComparison(b));
 }
 
+function getFunctionCallId(item: unknown): string | undefined {
+	return item && typeof item === "object" && (item as { type?: unknown }).type === "function_call" && typeof (item as { call_id?: unknown }).call_id === "string"
+		? (item as { call_id: string }).call_id
+		: undefined;
+}
+
+function getFunctionCallOutputId(item: unknown): string | undefined {
+	return item && typeof item === "object" && (item as { type?: unknown }).type === "function_call_output" && typeof (item as { call_id?: unknown }).call_id === "string"
+		? (item as { call_id: string }).call_id
+		: undefined;
+}
+
+function getPendingToolOutputDelta(body: ResponsesBody, continuation: CachedWebSocketContinuationState): unknown[] | undefined {
+	const pendingCallIds = continuation.lastResponseItems.map(getFunctionCallId).filter((id): id is string => id !== undefined);
+	if (pendingCallIds.length === 0) return undefined;
+
+	const pending = new Set(pendingCallIds);
+	const currentInput = body.input ?? [];
+	let firstOutputIndex: number | undefined;
+	for (const [index, item] of currentInput.entries()) {
+		const callId = getFunctionCallOutputId(item);
+		if (!callId || !pending.has(callId)) continue;
+		firstOutputIndex ??= index;
+		pending.delete(callId);
+	}
+
+	return pending.size === 0 && firstOutputIndex !== undefined ? currentInput.slice(firstOutputIndex) : undefined;
+}
+
 function getCachedWebSocketInputDelta(body: ResponsesBody, continuation: CachedWebSocketContinuationState): { delta?: unknown[] | undefined; decision: WebSocketContinuationDecision } {
 	if (!requestBodiesMatchExceptInput(body, continuation.lastRequestBody)) {
 		return { decision: "body_mismatch" };
@@ -1036,6 +1066,10 @@ function getCachedWebSocketInputDelta(body: ResponsesBody, continuation: CachedW
 
 	const prefix = currentInput.slice(0, baseline.length);
 	if (!responseInputsEqual(prefix, baseline)) {
+		const pendingToolOutputDelta = getPendingToolOutputDelta(body, continuation);
+		if (pendingToolOutputDelta) {
+			return { delta: pendingToolOutputDelta, decision: "delta" };
+		}
 		return { decision: "input_prefix_mismatch" };
 	}
 

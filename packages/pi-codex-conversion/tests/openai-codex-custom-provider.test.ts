@@ -94,6 +94,63 @@ test("cached websocket request body reuses continuation across reasoning changes
 	);
 });
 
+test("cached websocket request body sends parallel tool outputs when assistant item replay drifts", () => {
+	const previousBody = buildRequestBody(codexModel, { systemPrompt: "Instructions", messages: [] }, { sessionId: "session-1" });
+	previousBody.input = [{ type: "message", role: "user", content: [{ type: "input_text", text: "inspect" }] }];
+	const responseItems = [
+		{ type: "function_call", id: "fc_1", call_id: "call_1", name: "exec_command", arguments: "{}" },
+		{ type: "function_call", id: "fc_2", call_id: "call_2", name: "semantic_grep", arguments: "{}" },
+	];
+	const toolOutputs = [
+		{ type: "function_call_output", call_id: "call_1", output: "one" },
+		{ type: "function_call_output", call_id: "call_2", output: "two" },
+	];
+	const fullBody = buildRequestBody(codexModel, { systemPrompt: "Instructions", messages: [] }, { sessionId: "session-1" });
+	fullBody.input = [
+		...previousBody.input,
+		{ ...responseItems[0], id: "fc_replayed_1" },
+		{ ...responseItems[1], id: "fc_replayed_2" },
+		...toolOutputs,
+	];
+
+	assert.deepEqual(
+		buildCachedWebSocketRequestBody({ lastRequestBody: previousBody, lastResponseId: "resp_1", lastResponseItems: responseItems }, fullBody),
+		{
+			body: { ...fullBody, previous_response_id: "resp_1", input: toolOutputs },
+			decision: "delta",
+		},
+	);
+});
+
+test("cached websocket request body keeps follow-up input after drifted tool outputs", () => {
+	const previousBody = buildRequestBody(codexModel, { systemPrompt: "Instructions", messages: [] }, { sessionId: "session-1" });
+	previousBody.input = [{ type: "message", role: "user", content: [{ type: "input_text", text: "inspect" }] }];
+	const responseItems = [
+		{ type: "function_call", id: "fc_1", call_id: "call_1", name: "exec_command", arguments: "{}" },
+		{ type: "function_call", id: "fc_2", call_id: "call_2", name: "semantic_grep", arguments: "{}" },
+	];
+	const delta = [
+		{ type: "function_call_output", call_id: "call_1", output: "one" },
+		{ type: "function_call_output", call_id: "call_2", output: "two" },
+		{ type: "message", role: "user", content: [{ type: "input_text", text: "now answer this" }] },
+	];
+	const fullBody = buildRequestBody(codexModel, { systemPrompt: "Instructions", messages: [] }, { sessionId: "session-1" });
+	fullBody.input = [
+		...previousBody.input,
+		{ ...responseItems[0], id: "fc_replayed_1" },
+		{ ...responseItems[1], id: "fc_replayed_2" },
+		...delta,
+	];
+
+	assert.deepEqual(
+		buildCachedWebSocketRequestBody({ lastRequestBody: previousBody, lastResponseId: "resp_1", lastResponseItems: responseItems }, fullBody),
+		{
+			body: { ...fullBody, previous_response_id: "resp_1", input: delta },
+			decision: "delta",
+		},
+	);
+});
+
 test("getEffectiveCodexTransport enables cached websockets without overriding auto or sse fallback semantics", () => {
 	assert.equal(getEffectiveCodexTransport(undefined, undefined), "auto");
 	assert.equal(getEffectiveCodexTransport(undefined, { forceCachedWebSockets: true }), "auto");

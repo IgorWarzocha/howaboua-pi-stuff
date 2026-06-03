@@ -33,7 +33,13 @@ export function syncAdapter(pi: ExtensionAPI, ctx: ExtensionContext, state: Adap
 
 export function shouldUseCodexAdapter(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
 	if (config.applyPatchOnly) return false;
-	return config.useOnAllModels || isCodexLikeContext(ctx);
+	return config.useOnAllModels || isConfiguredAdapterProvider(ctx, config) || isCodexLikeContext(ctx);
+}
+
+function isConfiguredAdapterProvider(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
+	if (!config.useAdapterProviders) return false;
+	const provider = ctx.model?.provider?.trim().toLowerCase();
+	return Boolean(provider && config.adapterProviders.includes(provider));
 }
 
 export function shouldUseApplyPatchOnly(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
@@ -104,6 +110,7 @@ function getStatusConfig(ctx: ExtensionContext, config: CodexConversionConfig): 
 	const showResponsesVerbosity = isResponsesContext(ctx);
 	return {
 		useOnAllModels: config.useOnAllModels,
+		useAdapterProviders: config.useAdapterProviders && isConfiguredAdapterProvider(ctx, config),
 		fast: showOpenAICodexFlags && config.fast,
 		webSearch: showOpenAICodexFlags && !config.applyPatchOnly && config.webSearch && supportsNativeWebSearch(ctx.model),
 		imageGeneration: showOpenAICodexFlags && !config.applyPatchOnly && config.imageGeneration && supportsNativeImageGeneration(ctx.model),

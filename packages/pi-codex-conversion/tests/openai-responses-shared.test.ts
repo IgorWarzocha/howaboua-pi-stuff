@@ -198,6 +198,56 @@ test("processResponsesStream preserves image generation calls for later Response
 	assert.deepEqual(messages, [imageItem]);
 });
 
+test("processResponsesStream preserves web search calls for later Responses turns", async () => {
+	const output = createAssistantOutput();
+	const webSearchItem = {
+		type: "web_search_call",
+		id: "ws_123",
+		status: "completed",
+		action: { type: "search", query: "BlackBerry 9700 Bold" },
+		results: [{ title: "BlackBerry Bold 9700", url: "https://example.com/9700" }],
+	};
+
+	await processResponsesStream(
+		asAsyncIterable([
+			{ type: "response.created", response: { id: "resp_1" } },
+			{
+				type: "response.output_item.added",
+				output_index: 0,
+				item: { type: "web_search_call", id: "ws_123", status: "in_progress" },
+			},
+			{
+				type: "response.output_item.done",
+				output_index: 0,
+				item: webSearchItem,
+			},
+			{
+				type: "response.completed",
+				response: {
+					id: "resp_1",
+					status: "completed",
+					usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0, input_tokens_details: { cached_tokens: 0 } },
+				},
+			},
+		]) as AsyncIterable<any>,
+		output as any,
+		{ push: () => undefined } as any,
+		model,
+	);
+
+	assert.deepEqual((output.content as any[]).filter((block) => block.type === "web_search_call"), [
+		{ type: "web_search_call", item: webSearchItem },
+	]);
+
+	const messages = convertResponsesMessages(
+		model,
+		{ messages: [output as any] },
+		new Set(["openai-codex"]),
+	);
+
+	assert.deepEqual(messages, [webSearchItem]);
+});
+
 test("convertResponsesMessages strips unsupported image generation call fields from old history", () => {
 	const messages = convertResponsesMessages(
 		model,

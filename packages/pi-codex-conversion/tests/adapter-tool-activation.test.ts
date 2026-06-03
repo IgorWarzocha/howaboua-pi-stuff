@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/config.ts";
+import { DEFAULT_CODEX_CONVERSION_CONFIG, normalizeProviderList } from "../src/adapter/config.ts";
 import { syncAdapter } from "../src/adapter/activation.ts";
 import type { AdapterState } from "../src/adapter/state.ts";
 import { mergeAdapterTools, restoreTools } from "../src/index.ts";
@@ -66,6 +66,50 @@ test("syncAdapter add-apply_patch-only mode is gated to Codex-like models", () =
 		createAdapterState({ applyPatchOnly: true, webSearch: true, imageGeneration: true }),
 	);
 	assert.deepEqual(plainPi.activeTools(), ["read", "bash", "edit", "write", "parallel"]);
+});
+
+test("syncAdapter enables adapter for configured custom providers", () => {
+	const pi = createToolHarness(["read", "bash", "edit", "write", "parallel"]);
+	const ctx = createContext({ provider: "my-provider", api: "custom-responses", id: "gpt-5" });
+	const state = createAdapterState({ useAdapterProviders: true, adapterProviders: ["my-provider"] });
+
+	syncAdapter(pi as never, ctx as never, state);
+
+	assert.deepEqual(pi.activeTools(), ["exec_command", "write_stdin", "apply_patch", "parallel"]);
+});
+
+test("normalizeProviderList trims, lowercases, dedupes, and ignores invalid entries", () => {
+	assert.deepEqual(normalizeProviderList([" My-Provider ", "my-provider", "", 42]), ["my-provider"]);
+});
+
+test("syncAdapter does not enable adapter for unlisted custom providers", () => {
+	const pi = createToolHarness(["read", "bash", "edit", "write", "parallel"]);
+	const ctx = createContext({ provider: "custom-llm", api: "custom-chat", id: "claude" });
+	const state = createAdapterState({ useAdapterProviders: true, adapterProviders: ["my-provider"] });
+
+	syncAdapter(pi as never, ctx as never, state);
+
+	assert.deepEqual(pi.activeTools(), ["read", "bash", "edit", "write", "parallel"]);
+});
+
+test("syncAdapter ignores configured custom providers while codex proxy is off", () => {
+	const pi = createToolHarness(["read", "bash", "edit", "write", "parallel"]);
+	const ctx = createContext({ provider: "my-provider", api: "custom-responses", id: "gpt-5" });
+	const state = createAdapterState({ useAdapterProviders: false, adapterProviders: ["my-provider"] });
+
+	syncAdapter(pi as never, ctx as never, state);
+
+	assert.deepEqual(pi.activeTools(), ["read", "bash", "edit", "write", "parallel"]);
+});
+
+test("syncAdapter custom provider list is adapter-only in apply_patch-only mode", () => {
+	const pi = createToolHarness(["read", "bash", "edit", "write", "parallel"]);
+	const ctx = createContext({ provider: "my-provider", api: "custom-responses", id: "gpt-5" });
+	const state = createAdapterState({ applyPatchOnly: true, useAdapterProviders: true, adapterProviders: ["my-provider"] });
+
+	syncAdapter(pi as never, ctx as never, state);
+
+	assert.deepEqual(pi.activeTools(), ["read", "bash", "edit", "write", "parallel"]);
 });
 
 test("restoreTools restores previous tools and keeps custom tools added while adapter mode was enabled", () => {

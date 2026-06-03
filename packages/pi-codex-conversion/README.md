@@ -55,11 +55,22 @@ The settings UI also has **Usage**, **Overrides**, and **About** tabs. **Usage**
 
 - add only the Pi `apply_patch` tool for GPT/Codex models while keeping Pi's default toolkit, prompt, provider behavior, and compaction flow
 
+Advanced users with custom Codex-compatible providers can opt specific providers into the adapter from the **Overrides** tab, or by editing `~/.pi/agent/pi-codex-conversion.json`:
+
+```json
+{
+  "useAdapterProviders": true,
+  "adapterProviders": ["my-provider"]
+}
+```
+
+This only enables the Codex tool/prompt adapter for those provider ids. Native Codex web search, native image generation, and priority service tier remain limited to the built-in `openai-codex` provider.
+
 The **Compaction** tab can enable native OpenAI Responses compaction and choose the compaction model/reasoning. If native compaction fails, the extension falls back to Pi's normal compaction flow; when an older native compacted window exists, it is included in that Pi fallback summarization request so OpenAI can still use the prior opaque context server-side.
 
 For OpenAI Codex subscription models, the extension also adjusts Pi's registered model context windows so Pi's fixed reserve-token compaction heuristic trips at roughly Codex's native auto-compact budget: 90% of Pi's resolved model window. This is calculated from Pi's current model metadata instead of hardcoded per-model limits.
 
-When `all` is on, non-Codex providers get the shell, patch, skill, and prompt-adapter behavior, but keep their normal Pi provider path. Native web search, native image generation, and priority service tier stay limited to the OpenAI Codex provider. Verbosity is applied to Responses API providers.
+When `all` is on, or when a provider is listed in `adapterProviders`, non-Codex providers get the shell, patch, skill, and prompt-adapter behavior, but keep their normal Pi provider path. Native web search, native image generation, and priority service tier stay limited to the OpenAI Codex provider. Verbosity is applied to Responses API providers.
 
 The footer shows the active state, for example:
 

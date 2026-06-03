@@ -1,5 +1,5 @@
 import { getSettingsListTheme, type ExtensionContext, type Theme } from "@earendil-works/pi-coding-agent";
-import { SettingsList, truncateToWidth, type SettingItem } from "@earendil-works/pi-tui";
+import { Container, type Focusable, Input, SettingsList, Spacer, Text, truncateToWidth, type SettingItem } from "@earendil-works/pi-tui";
 import {
 	COMPACTION_MODELS,
 	COMPACTION_REASONING_LEVELS,
@@ -7,6 +7,7 @@ import {
 	normalizeCodexVerbosity,
 	normalizeCompactionModel,
 	normalizeCompactionReasoning,
+	normalizeProviderList,
 	type CodexConversionConfig,
 } from "../adapter/config.ts";
 import { CHANGELOG_URL, DISCORD_URL, GITHUB_URL, ISSUE_URL, openExternalUrl } from "./links.ts";
@@ -23,6 +24,39 @@ export interface CodexSettingsScreenOptions {
 type SettingsTab = "general" | "compaction" | "usage" | "overrides" | "about";
 
 const TAB_ORDER: readonly SettingsTab[] = ["general", "compaction", "usage", "overrides", "about"];
+
+class TextSettingSubmenu extends Container implements Focusable {
+	private input: Input;
+	private theme: Theme;
+
+	constructor(title: string, description: string, currentValue: string, onSubmit: (value: string) => void, onCancel: () => void, theme: Theme) {
+		super();
+		this.theme = theme;
+		this.input = new Input();
+		this.input.setValue(currentValue);
+		this.input.onSubmit = () => onSubmit(this.input.getValue());
+		this.input.onEscape = onCancel;
+		this.addChild(new Text(this.theme.bold(this.theme.fg("accent", title)), 0, 0));
+		this.addChild(new Spacer(1));
+		this.addChild(new Text(this.theme.fg("dim", description), 0, 0));
+		this.addChild(new Spacer(1));
+		this.addChild(this.input);
+		this.addChild(new Spacer(1));
+		this.addChild(new Text(this.theme.fg("dim", "  Enter to save · Esc to cancel"), 0, 0));
+	}
+
+	get focused(): boolean {
+		return this.input.focused;
+	}
+
+	set focused(value: boolean) {
+		this.input.focused = value;
+	}
+
+	handleInput(data: string): void {
+		this.input.handleInput(data);
+	}
+}
 
 export async function openCodexSettingsScreen(ctx: ExtensionContext, options: CodexSettingsScreenOptions): Promise<void> {
 	let draft = { ...options.initialConfig };
@@ -41,7 +75,7 @@ export async function openCodexSettingsScreen(ctx: ExtensionContext, options: Co
 	};
 
 	await ctx.ui.custom<void>((tui, theme, _kb, done) => {
-		let settingsList = createSettingsList(activeTab, draft, options, (nextDraft) => {
+		let settingsList = createSettingsList(activeTab, draft, options, theme, (nextDraft) => {
 			draft = nextDraft;
 		}, done, () => tui.requestRender());
 		if (activeTab === "usage" && !usageState) loadUsage(() => tui.requestRender());
@@ -49,7 +83,7 @@ export async function openCodexSettingsScreen(ctx: ExtensionContext, options: Co
 		const switchTab = () => {
 			const currentIndex = TAB_ORDER.indexOf(activeTab);
 			activeTab = TAB_ORDER[(currentIndex + 1) % TAB_ORDER.length] ?? "general";
-			settingsList = createSettingsList(activeTab, draft, options, (nextDraft) => {
+			settingsList = createSettingsList(activeTab, draft, options, theme, (nextDraft) => {
 				draft = nextDraft;
 			}, done, () => tui.requestRender());
 			if (activeTab === "usage" && !usageState) loadUsage(() => tui.requestRender());
@@ -111,14 +145,15 @@ function createSettingsList(
 	tab: SettingsTab,
 	draft: CodexConversionConfig,
 	options: CodexSettingsScreenOptions,
+	theme: Theme,
 	onDraftChanged: (draft: CodexConversionConfig) => void,
 	done: (value?: void) => void,
 	requestRender: () => void,
 ): SettingsList {
 	let settingsList: SettingsList;
-	settingsList = new SettingsList(buildItems(tab, draft), 8, getSettingsListTheme(), (id, value) => {
+	settingsList = new SettingsList(buildItems(tab, draft, theme), 8, getSettingsListTheme(), (id, value) => {
 		const nextDraft = applySettingChange(id, value, draft);
-		const previousValue = buildItems(tab, draft).find((item) => item.id === id)?.currentValue;
+		const previousValue = buildItems(tab, draft, theme).find((item) => item.id === id)?.currentValue;
 		if (options.onChange(nextDraft)) {
 			onDraftChanged(nextDraft);
 			draft = nextDraft;
@@ -130,7 +165,7 @@ function createSettingsList(
 	return settingsList;
 }
 
-function buildItems(tab: SettingsTab, draft: CodexConversionConfig): SettingItem[] {
+function buildItems(tab: SettingsTab, draft: CodexConversionConfig, theme: Theme): SettingItem[] {
 	if (tab === "usage" || tab === "about") return [];
 
 	if (tab === "compaction") {
@@ -144,6 +179,13 @@ function buildItems(tab: SettingsTab, draft: CodexConversionConfig): SettingItem
 	if (tab === "overrides") {
 		return [
 			{ id: "applyPatchOnly", label: "Apply patch only", currentValue: draft.applyPatchOnly ? "on" : "off", values: ["off", "on"] },
+			{ id: "useAdapterProviders", label: "Codex proxy", currentValue: draft.useAdapterProviders ? "on" : "off", values: ["off", "on"] },
+			{
+				id: "adapterProviders",
+				label: "Proxy providers",
+				currentValue: formatProviderList(draft.adapterProviders),
+				submenu: (currentValue, done) => new TextSettingSubmenu("Proxy providers", "Comma-separated Pi provider ids that should use the Codex adapter.", currentValue, (value) => done(formatProviderList(normalizeProviderListFromText(value))), () => done(), theme),
+			},
 		];
 	}
 
@@ -161,7 +203,9 @@ function buildItems(tab: SettingsTab, draft: CodexConversionConfig): SettingItem
 function applySettingChange(id: string, value: string, draft: CodexConversionConfig): CodexConversionConfig {
 	const nextDraft = { ...draft };
 	if (id === "applyPatchOnly") nextDraft.applyPatchOnly = value === "on";
+	if (id === "adapterProviders") nextDraft.adapterProviders = normalizeProviderListFromText(value);
 	if (id === "useOnAllModels") nextDraft.useOnAllModels = value === "on";
+	if (id === "useAdapterProviders") nextDraft.useAdapterProviders = value === "on";
 	if (id === "statusLine") nextDraft.statusLine = value === "on";
 	if (id === "fast") nextDraft.fast = value === "on";
 	if (id === "forceCachedWebSockets") nextDraft.forceCachedWebSockets = value === "on";
@@ -172,6 +216,14 @@ function applySettingChange(id: string, value: string, draft: CodexConversionCon
 	if (id === "compactionReasoning") nextDraft.compactionReasoning = normalizeCompactionReasoning(value) ?? DEFAULT_CODEX_CONVERSION_CONFIG.compactionReasoning;
 	if (id === "verbosity") nextDraft.verbosity = normalizeCodexVerbosity(value) ?? DEFAULT_CODEX_CONVERSION_CONFIG.verbosity;
 	return nextDraft;
+}
+
+function formatProviderList(providers: string[]): string {
+	return providers.join(", ");
+}
+
+function normalizeProviderListFromText(value: string): string[] {
+	return normalizeProviderList(value.split(","));
 }
 
 function formatTabs(activeTab: SettingsTab, theme: Theme): string {
