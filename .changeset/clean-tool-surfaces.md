@@ -7,4 +7,4 @@ Add the model-facing-api-design skill package.
 
 Fix Codex context budget adjustment so starting fresh sessions does not recursively shrink a reused model's displayed context window.
 
-Add a Codex tools override for proxied providers, enabled by default, so Codex proxy users can choose whether listed providers receive optional native web search and image generation tools.
+Add a Proxy tools override for proxied providers, enabled by default, so Codex proxy users can choose whether listed providers receive native web search, image generation, and fast mode.

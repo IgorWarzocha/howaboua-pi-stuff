@@ -4,24 +4,24 @@ import { applyCodexRequestParams } from "./config.ts";
 import type { AdapterState } from "./state.ts";
 import { rewriteNativeImageGenerationTool } from "../tools/image-generation-tool.ts";
 import { rewriteNativeWebSearchTool } from "../tools/web-search-tool.ts";
-import { isConfiguredAdapterProvider, shouldUseCodexAdapter } from "./activation.ts";
+import { isEffectiveOpenAICodexContext, shouldUseCodexAdapter, shouldUseProxyNativeTools } from "./activation.ts";
 import { injectPendingNativeWindowIntoPiCompactionRequest, rewriteCodexCompactedProviderRequest } from "./compaction.ts";
 
 export async function rewriteCodexProviderRequest(payload: unknown, ctx: ExtensionContext, state: AdapterState): Promise<unknown | undefined> {
-	if (!shouldUseCodexAdapter(ctx, state.config) || (!isOpenAICodexContext(ctx) && !isResponsesContext(ctx))) {
+	if (!shouldUseCodexAdapter(ctx, state.config) || (!isEffectiveOpenAICodexContext(ctx, state.config) && !isResponsesContext(ctx))) {
 		return undefined;
 	}
 
-	const isOpenAICodex = isOpenAICodexContext(ctx);
-	const useProxyNativeTools = !isOpenAICodex && isConfiguredAdapterProvider(ctx, state.config) && state.config.adapterProviderCodexTools;
-	const webSearchPayload = (isOpenAICodex || useProxyNativeTools) && state.config.webSearch
+	const useProxyNativeTools = !isOpenAICodexContext(ctx) && shouldUseProxyNativeTools(ctx, state.config);
+	const isEffectiveOpenAICodex = isEffectiveOpenAICodexContext(ctx, state.config);
+	const webSearchPayload = isEffectiveOpenAICodex && state.config.webSearch
 		? rewriteNativeWebSearchTool(payload, ctx.model, { force: useProxyNativeTools })
 		: payload;
-	const imageGenerationPayload = (isOpenAICodex || (useProxyNativeTools && Array.isArray(ctx.model?.input) && ctx.model.input.includes("image"))) && state.config.imageGeneration
+	const imageGenerationPayload = isEffectiveOpenAICodex && state.config.imageGeneration
 		? rewriteNativeImageGenerationTool(webSearchPayload, ctx.model, { force: useProxyNativeTools })
 		: webSearchPayload;
 	const configuredPayload = applyCodexRequestParams(imageGenerationPayload, state.config, {
-		serviceTier: isOpenAICodex,
+		serviceTier: isEffectiveOpenAICodex,
 		verbosity: true,
 	});
 	const piCompactionPayload = await injectPendingNativeWindowIntoPiCompactionRequest(configuredPayload, ctx, state);

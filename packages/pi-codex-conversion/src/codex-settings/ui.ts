@@ -202,7 +202,7 @@ function buildItems(tab: SettingsTab, draft: CodexConversionConfig, theme: Theme
 		return [
 			{ id: "applyPatchOnly", label: "Apply patch only", currentValue: draft.applyPatchOnly ? "on" : "off", values: ["off", "on"] },
 			{ id: "useAdapterProviders", label: "Codex proxy", currentValue: draft.useAdapterProviders ? "on" : "off", values: ["off", "on"] },
-			{ id: "adapterProviderCodexTools", label: "Codex tools", currentValue: draft.adapterProviderCodexTools ? "on" : "off", values: ["off", "on"] },
+			{ id: "adapterProviderCodexTools", label: "Proxy tools", currentValue: draft.adapterProviderCodexTools ? "on" : "off", values: ["off", "on"] },
 			{
 				id: "adapterProviders",
 				label: "Proxy providers",

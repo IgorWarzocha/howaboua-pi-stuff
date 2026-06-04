@@ -1,12 +1,46 @@
 import { spawn } from "node:child_process";
 import { getCodexConversionConfigPath, readCodexConversionConfig, writeCodexConversionConfig } from "../adapter/config.ts";
 
-function shellQuote(value: string): string {
-	return `'${value.replace(/'/g, `'\\''`)}'`;
-}
-
 export function editorCommand(): string | undefined {
 	return process.env["VISUAL"]?.trim() || process.env["EDITOR"]?.trim() || undefined;
+}
+
+function splitEditorCommand(command: string): string[] {
+	const parts: string[] = [];
+	let current = "";
+	let quote: '"' | "'" | undefined;
+	let escaping = false;
+	for (const char of command) {
+		if (escaping) {
+			current += char;
+			escaping = false;
+			continue;
+		}
+		if (char === "\\") {
+			escaping = true;
+			continue;
+		}
+		if (quote) {
+			if (char === quote) quote = undefined;
+			else current += char;
+			continue;
+		}
+		if (char === '"' || char === "'") {
+			quote = char;
+			continue;
+		}
+		if (/\s/.test(char)) {
+			if (current) {
+				parts.push(current);
+				current = "";
+			}
+			continue;
+		}
+		current += char;
+	}
+	if (escaping) current += "\\";
+	if (current) parts.push(current);
+	return parts;
 }
 
 export async function openCodexConfigInExternalEditor(
@@ -21,7 +55,12 @@ export async function openCodexConfigInExternalEditor(
 	try {
 		stopTui();
 		const status = await new Promise<number | null>((resolve) => {
-			const child = spawn(`${editorCmd} ${shellQuote(file)}`, { stdio: "inherit", shell: true });
+			const [command, ...args] = splitEditorCommand(editorCmd);
+			if (!command) {
+				resolve(null);
+				return;
+			}
+			const child = spawn(command, [...args, file], { stdio: "inherit", shell: false });
 			child.on("error", () => resolve(null));
 			child.on("close", (code) => resolve(code));
 		});

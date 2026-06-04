@@ -4,7 +4,7 @@ import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/config.ts";
 import { rewriteCodexProviderRequest } from "../src/adapter/provider-request.ts";
 import type { AdapterState } from "../src/adapter/state.ts";
 
-function createState(adapterProviderCodexTools = true): AdapterState {
+function createState(adapterProviderCodexTools = true, fast = false): AdapterState {
 	return {
 		enabled: true,
 		cwd: process.cwd(),
@@ -14,6 +14,7 @@ function createState(adapterProviderCodexTools = true): AdapterState {
 			useAdapterProviders: true,
 			adapterProviders: ["my-provider"],
 			adapterProviderCodexTools,
+			fast,
 			webSearch: true,
 			imageGeneration: true,
 		},
@@ -45,10 +46,20 @@ test("rewriteCodexProviderRequest rewrites optional native tools for proxied pro
 	});
 });
 
+test("rewriteCodexProviderRequest applies fast mode to proxied providers when proxy tools are on", async () => {
+	const payload = { model: "gpt-5", tools: [] };
+
+	assert.deepEqual(await rewriteCodexProviderRequest(payload, ctx, createState(true, true)), {
+		...payload,
+		service_tier: "priority",
+		text: { verbosity: "low" },
+	});
+});
+
 test("rewriteCodexProviderRequest leaves optional native tools alone when proxy tools are off", async () => {
 	const payload = { model: "gpt-5", tools: [{ type: "function", name: "web.run", parameters: { type: "object" } }] };
 
-	assert.deepEqual(await rewriteCodexProviderRequest(payload, ctx, createState(false)), {
+	assert.deepEqual(await rewriteCodexProviderRequest(payload, ctx, createState(false, true)), {
 		...payload,
 		text: { verbosity: "low" },
 	});
