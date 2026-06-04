@@ -1,6 +1,6 @@
 ---
 name: skill-creator
-description: Designs, writes, refactors, and packages agent skills. Use for new skills, SKILL.md improvements, trigger descriptions, references/scripts splits, examples, validation, or porting workflows. Not for one-off prompt tweaks, strict runbooks, or vague workflows.
+description: "Designs, writes, refactors, and packages agent skills. Use for new skills, SKILL.md improvements, trigger descriptions, references/scripts splits, examples, validation, or porting workflows. Not for one-off prompt tweaks, strict runbooks, or vague workflows."
 ---
 
 # Skill Creator
@@ -47,6 +47,7 @@ Use this skill to build or improve reusable skills for a workspace without turni
 4. **Draft the frontmatter last, but keep it lean.**
    - Default to only `name` and `description` unless extra fields are truly justified.
    - Keep the description trigger-rich and compact.
+   - Quote `description` by default; unquoted YAML breaks on `: `, brackets, braces, and other plain-scalar traps.
    - Put all trigger guidance in the frontmatter `description`: what the skill does, when to use it, and when not to use it if overlap is likely.
    - Do not add `When to use`, `Do not use when`, `Activation`, `Triggers`, or similar trigger-boundary sections to the skill body. By the time the body is loaded, the agent should already know why this skill applies; if not, the `description` is wrong and must be improved.
    - Avoid architecture-centred or product-marketing wording.
@@ -75,6 +76,7 @@ Use this skill to build or improve reusable skills for a workspace without turni
 8. **Validate the skill against the guide and the target workspace.**
    - Trigger boundary is clear.
    - Frontmatter is slim.
+   - Frontmatter YAML parses cleanly; quote `description`, especially when it contains `: `.
    - Workflow is ordered.
    - References are exact and only loaded when needed.
    - It does not turn every task into diagnostics-first ritual.
@@ -98,6 +100,7 @@ Use this skill to build or improve reusable skills for a workspace without turni
 - The skill solves a recurring workflow, not a one-off.
 - The description states what it does, when to use it, and when not to use it if overlap is likely.
 - Frontmatter is not bloated.
+- Frontmatter YAML parses cleanly; quote `description`, especially when it contains `: `.
 - The body does not contain `When to use`, `Do not use when`, or equivalent trigger-selection sections.
 - `SKILL.md` stays operational; heavy detail is moved out.
 - The required efficiency pass has run after every skill create/update, and hard issues are fixed before shipping.

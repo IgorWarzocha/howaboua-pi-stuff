@@ -1,6 +1,6 @@
 ---
 name: model-facing-api-design
-description: Writes and reviews Pi tool APIs: tool names, descriptions, argument schemas, `promptSnippet`, and `promptGuidelines`. Use when adding/refining tools or making tool descriptions/arguments more effective.
+description: "Writes and reviews Pi tool APIs: tool names, descriptions, argument schemas, `promptSnippet`, and `promptGuidelines`. Use when adding/refining tools or making tool descriptions/arguments more effective."
 ---
 
 # Pi tool API design
