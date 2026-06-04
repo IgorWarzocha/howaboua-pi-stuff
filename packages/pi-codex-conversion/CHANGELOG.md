@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.5.21
+
+### Changes
+
+- [#35](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/35) [`2f03bc0`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/2f03bc04bfac5d7c41db7d3f53280baefa3a5ccc) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add the model-facing-api-design skill package.
+
+  Fix Codex context budget adjustment so starting fresh sessions does not recursively shrink a reused model's displayed context window.
+
+  Add a Proxy tools override for proxied providers, enabled by default, so Codex proxy users can choose whether listed providers receive native web search, image generation, and fast mode.
+
+- [#35](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/35) [`2f03bc0`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/2f03bc04bfac5d7c41db7d3f53280baefa3a5ccc) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add a configurable Codex background shell widget for running exec sessions, and use Pi's Windows shell resolution for default Codex exec sessions.
+
+  Preserve Windows shell invocation semantics for cmd.exe and PowerShell-backed exec sessions.
+
+## 1.5.20
+
+### Changes
+
+- [#30](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/30) [`645baa1`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/645baa16a2661d04964d5c9409830836a3405ead) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Match Codex background terminal polling by allowing empty `write_stdin` waits to use a dedicated 5-minute cap instead of the normal 30-second exec cap.
+
 ## 1.5.19
 
 ### Changes

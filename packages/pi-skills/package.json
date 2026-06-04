@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-skills",
-	"version": "0.0.6",
+	"version": "0.0.7",
 	"description": "all Howaboua Pi skills",
 	"type": "module",
 	"keywords": [
@@ -14,13 +14,13 @@
 	},
 	"dependencies": {
 		"@howaboua/pi-skill-agent-native-hardening": "0.0.2",
-		"@howaboua/pi-skill-agents-md": "0.0.0",
+		"@howaboua/pi-skill-agents-md": "0.0.1",
 		"@howaboua/pi-skill-anti-ai-copy": "0.0.1",
 		"@howaboua/pi-skill-chrome-cdp": "0.0.1",
 		"@howaboua/pi-skill-gh-issue-pr-flow": "0.0.3",
-		"@howaboua/pi-skill-model-facing-api-design": "0.0.0",
+		"@howaboua/pi-skill-model-facing-api-design": "0.0.1",
 		"@howaboua/pi-skill-project-reference-research": "0.0.1",
-		"@howaboua/pi-skill-skill-creator": "0.0.1"
+		"@howaboua/pi-skill-skill-creator": "0.0.2"
 	},
 	"files": [
 		"README.md",

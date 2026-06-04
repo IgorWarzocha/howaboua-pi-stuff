@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-markdown-workflows",
-	"version": "0.2.12",
+	"version": "0.2.13",
 	"description": "Pi extension with workflows tools and embedded subdirectory AGENTS.md context loading",
 	"repository": {
 		"type": "git",

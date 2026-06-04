@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-extensions",
-	"version": "0.0.8",
+	"version": "0.0.9",
 	"description": "all Howaboua Pi extensions",
 	"type": "module",
 	"keywords": [
@@ -16,7 +16,7 @@
 		"@howaboua/pi-auto-reasoning-tool": "0.1.6",
 		"@howaboua/pi-auto-trees": "0.1.5",
 		"@howaboua/pi-explore-subagents": "0.1.8",
-		"@howaboua/pi-markdown-workflows": "0.2.12",
+		"@howaboua/pi-markdown-workflows": "0.2.13",
 		"@howaboua/pi-memories": "0.1.1",
 		"@howaboua/pi-semantic-grep": "0.1.12",
 		"@howaboua/pi-smart-btw": "0.2.0",

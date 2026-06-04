@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-skill-model-facing-api-design",
-	"version": "0.0.0",
+	"version": "0.0.1",
 	"description": "Pi skill package for model-facing-api-design.",
 	"type": "module",
 	"keywords": [

@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-skill-agents-md",
-	"version": "0.0.0",
+	"version": "0.0.1",
 	"description": "Pi skill package for agents-md.",
 	"type": "module",
 	"keywords": [

@@ -1,5 +1,16 @@
 # @howaboua/pi-extensions
 
+## 0.0.9
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-markdown-workflows: Teach skill creation to quote frontmatter descriptions and make the efficiency checker flag unsafe unquoted YAML scalars with line and caret output.
+
+- Updated dependencies [[`2f03bc0`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/2f03bc04bfac5d7c41db7d3f53280baefa3a5ccc)]:
+  - @howaboua/pi-markdown-workflows@0.2.13
+
 ## 0.0.8
 
 ### Changes

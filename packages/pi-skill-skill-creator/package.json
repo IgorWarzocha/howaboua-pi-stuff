@@ -1,6 +1,6 @@
 {
   "name": "@howaboua/pi-skill-skill-creator",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Pi skill package for skill-creator.",
   "type": "module",
   "keywords": [
