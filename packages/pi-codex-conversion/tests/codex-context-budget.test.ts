@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { getCodexAutoCompactBudget, getCodexContextBudgetAdjustedModel, getPiContextWindowForCodexAutoCompact, readPiCompactionReserveTokens } from "../src/adapter/codex-context-budget.ts";
+import { applyCodexContextBudgetToModel, getCodexAutoCompactBudget, getCodexContextBudgetAdjustedModel, getPiContextWindowForCodexAutoCompact, readPiCompactionReserveTokens } from "../src/adapter/codex-context-budget.ts";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/config.ts";
 import type { AdapterState } from "../src/adapter/state.ts";
 
@@ -39,6 +39,33 @@ test("adjusts only openai-codex responses model context windows for Pi reserve s
 
 	const openAiModel = { ...codexModel, provider: "openai", api: "openai-responses", contextWindow: 400_000 };
 	assert.equal(getCodexContextBudgetAdjustedModel(openAiModel as never, state), openAiModel);
+});
+
+test("does not recursively shrink a shared Codex model across fresh adapter states", () => {
+	const model = {
+		id: "gpt-5.5",
+		name: "GPT-5.5",
+		provider: "openai-codex",
+		api: "openai-codex-responses",
+		baseUrl: "https://chatgpt.com/backend-api",
+		reasoning: true,
+		input: ["text", "image"],
+		cost: { input: 5, output: 30, cacheRead: 0.5, cacheWrite: 0 },
+		contextWindow: 272_000,
+		maxTokens: 128_000,
+	};
+
+	for (let index = 0; index < 4; index++) {
+		const state: AdapterState = {
+			enabled: false,
+			cwd: process.cwd(),
+			promptSkills: [],
+			config: DEFAULT_CODEX_CONVERSION_CONFIG,
+			codexContextBudgetReserveTokens: 16_384,
+		};
+		applyCodexContextBudgetToModel(model as never, state);
+		assert.equal(model.contextWindow, 261_184);
+	}
 });
 
 test("uses the configured Pi compaction reserve when deriving adjusted context windows", () => {
