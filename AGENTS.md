@@ -6,6 +6,8 @@ Agent-facing text is behavior: tool/command names, descriptions, schemas, skill 
 
 Skills and extensions must be universal for any user; do not ship hardcoded local paths, personal names, machine-specific assumptions, or private workflow details.
 
+Slash commands are for users, not agents; agents use tools. For extensions with commands, default to one entry command that opens UI or routes subactions (for example `/foo` plus `/foo bar` handling) unless the user explicitly asks for multiple command names.
+
 When a change is meant to ship, add a changeset for the package(s). On merge to `main`, the version PR and publish workflow turn that into the next concrete version immediately.
 
 Use concrete version language only:
