@@ -152,6 +152,22 @@ A generic GitHub issue/PR workflow with `gh`, branches, validation, PR bodies, a
 pi install npm:@howaboua/pi-skill-gh-issue-pr-flow
 ```
 
+#### `pi-skill-agents-md`
+
+Writes, audits, and trims scoped `AGENTS.md` files without turning them into repo summaries.
+
+```bash
+pi install npm:@howaboua/pi-skill-agents-md
+```
+
+#### `pi-skill-model-facing-api-design`
+
+Helps design compact Pi tool names, descriptions, schemas, snippets, and guidelines that models call correctly.
+
+```bash
+pi install npm:@howaboua/pi-skill-model-facing-api-design
+```
+
 #### `pi-skill-project-reference-research`
 
 Looks up external or local repos as reference context, then returns evidence-backed findings.
