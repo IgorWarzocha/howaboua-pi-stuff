@@ -72,6 +72,7 @@ export interface ExecSessionManagerOptions {
 	defaultWriteYieldTimeMs?: number | undefined;
 	minNonInteractiveExecYieldTimeMs?: number | undefined;
 	minEmptyWriteYieldTimeMs?: number | undefined;
+	maxEmptyWriteYieldTimeMs?: number | undefined;
 	maxSessionBufferChars?: number | undefined;
 }
 
@@ -82,6 +83,7 @@ const MIN_YIELD_TIME_MS = 250;
 const MIN_NON_INTERACTIVE_EXEC_YIELD_TIME_MS = 5_000;
 const MIN_EMPTY_WRITE_YIELD_TIME_MS = 5_000;
 const MAX_YIELD_TIME_MS = 30_000;
+const DEFAULT_MAX_EMPTY_WRITE_YIELD_TIME_MS = 300_000;
 const MAX_COMMAND_HISTORY = 256;
 const DEFAULT_MAX_SESSION_BUFFER_CHARS = 256 * 1024 * 1024;
 
@@ -170,12 +172,12 @@ function clampWriteYieldTime(
 	fallback: number,
 	isEmptyPoll: boolean,
 	minEmptyWriteYieldTimeMs: number,
+	maxEmptyWriteYieldTimeMs: number,
 ): number {
-	const value = clampYieldTime(yieldTimeMs, fallback);
 	if (!isEmptyPoll) {
-		return value;
+		return clampYieldTime(yieldTimeMs, fallback);
 	}
-	return Math.min(MAX_YIELD_TIME_MS, Math.max(minEmptyWriteYieldTimeMs, value));
+	return Math.min(maxEmptyWriteYieldTimeMs, Math.max(minEmptyWriteYieldTimeMs, yieldTimeMs ?? fallback));
 }
 
 function maxCharsForTokens(maxOutputTokens = DEFAULT_MAX_OUTPUT_TOKENS): number {
@@ -377,6 +379,10 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 	const minEmptyWriteYieldTimeMs = Math.min(
 		MAX_YIELD_TIME_MS,
 		Math.max(MIN_YIELD_TIME_MS, options.minEmptyWriteYieldTimeMs ?? MIN_EMPTY_WRITE_YIELD_TIME_MS),
+	);
+	const maxEmptyWriteYieldTimeMs = Math.max(
+		minEmptyWriteYieldTimeMs,
+		options.maxEmptyWriteYieldTimeMs ?? DEFAULT_MAX_EMPTY_WRITE_YIELD_TIME_MS,
 	);
 	const maxSessionBufferChars = Math.max(1024, options.maxSessionBufferChars ?? DEFAULT_MAX_SESSION_BUFFER_CHARS);
 
@@ -643,6 +649,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 								defaultWriteYieldTimeMs,
 								!input.chars || input.chars.length === 0,
 								minEmptyWriteYieldTimeMs,
+								maxEmptyWriteYieldTimeMs,
 							),
 							onUpdate ? (elapsedMs) => onUpdate(makeSnapshotSince(session, elapsedMs, updateBaseline, input.max_output_tokens)) : undefined,
 						)

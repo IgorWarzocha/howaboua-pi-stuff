@@ -314,6 +314,40 @@ test("empty write_stdin polls are clamped to the configured minimum", async () =
 	}
 });
 
+test("empty write_stdin polls can wait beyond the normal 30s exec cap", async () => {
+	const sessions = createExecSessionManager({
+		minNonInteractiveExecYieldTimeMs: 50,
+		minEmptyWriteYieldTimeMs: 50,
+		maxEmptyWriteYieldTimeMs: 250,
+	});
+	try {
+		const started = await sessions.exec(
+			{
+				cmd: "sleep 2",
+				shell: "/bin/bash",
+				login: false,
+				yield_time_ms: 50,
+			},
+			process.cwd(),
+		);
+
+		assert.equal(typeof started.session_id, "number");
+
+		const start = Date.now();
+		const resumed = await sessions.write({
+			session_id: started.session_id!,
+			yield_time_ms: 1_000,
+		});
+		const elapsed = Date.now() - start;
+
+		assert.ok(elapsed >= 200, `expected empty poll to use dedicated max, got ${elapsed}ms`);
+		assert.ok(elapsed < 800, `expected empty poll to cap before requested 1000ms, got ${elapsed}ms`);
+		assert.equal(resumed.session_id, started.session_id);
+	} finally {
+		sessions.shutdown();
+	}
+});
+
 test("non-empty write_stdin calls stay responsive and do not use the empty-poll minimum", async () => {
 	const sessions = createExecSessionManager({ minNonInteractiveExecYieldTimeMs: 50, minEmptyWriteYieldTimeMs: 500 });
 	try {

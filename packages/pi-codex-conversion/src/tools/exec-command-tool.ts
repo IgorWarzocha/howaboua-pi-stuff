@@ -15,8 +15,8 @@ const EXEC_COMMAND_PARAMETERS = Type.Object({
 			description: "Allocate a TTY. Defaults to false.",
 		}),
 	),
-	yield_time_ms: Type.Optional(Type.Number({ description: "Wait for output before yielding." })),
-	max_output_tokens: Type.Optional(Type.Number({ description: "Excess output will be truncated." })),
+	yield_time_ms: Type.Optional(Type.Number({ description: "Wait before yielding. Max 30000." })),
+	max_output_tokens: Type.Optional(Type.Number({ description: "Truncate excess output." })),
 	login: Type.Optional(Type.Boolean({ description: "Whether to run through a login-style shell so user PATH/toolchain setup is loaded. Defaults to true." })),
 });
 

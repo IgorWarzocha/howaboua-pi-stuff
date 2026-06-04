@@ -8,8 +8,8 @@ import { formatUnifiedExecResult } from "./unified-exec-format.ts";
 const WRITE_STDIN_PARAMETERS = Type.Object({
 	session_id: Type.Number({ description: "Running exec session ID." }),
 	chars: Type.Optional(Type.String({ description: "Bytes to write. Empty polls." })),
-	yield_time_ms: Type.Optional(Type.Number({ description: "Wait for output before yielding." })),
-	max_output_tokens: Type.Optional(Type.Number({ description: "Excess output will be truncated." })),
+	yield_time_ms: Type.Optional(Type.Number({ description: "Wait before yielding. Empty polls can wait up to 300000." })),
+	max_output_tokens: Type.Optional(Type.Number({ description: "Truncate excess output." })),
 });
 
 interface WriteStdinParams {
