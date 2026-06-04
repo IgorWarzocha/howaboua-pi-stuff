@@ -170,7 +170,7 @@
     },
     "packages/pi-skill-agents-md": {
       "name": "@howaboua/pi-skill-agents-md",
-      "version": "0.0.1",
+      "version": "0.0.0",
     },
     "packages/pi-skill-anti-ai-copy": {
       "name": "@howaboua/pi-skill-anti-ai-copy",
@@ -183,6 +183,10 @@
     "packages/pi-skill-gh-issue-pr-flow": {
       "name": "@howaboua/pi-skill-gh-issue-pr-flow",
       "version": "0.0.3",
+    },
+    "packages/pi-skill-model-facing-api-design": {
+      "name": "@howaboua/pi-skill-model-facing-api-design",
+      "version": "0.0.0",
     },
     "packages/pi-skill-omarchy-help": {
       "name": "@howaboua/pi-skill-omarchy-help",
@@ -201,10 +205,11 @@
       "version": "0.0.6",
       "dependencies": {
         "@howaboua/pi-skill-agent-native-hardening": "0.0.2",
-        "@howaboua/pi-skill-agents-md": "0.0.1",
+        "@howaboua/pi-skill-agents-md": "0.0.0",
         "@howaboua/pi-skill-anti-ai-copy": "0.0.1",
         "@howaboua/pi-skill-chrome-cdp": "0.0.1",
         "@howaboua/pi-skill-gh-issue-pr-flow": "0.0.3",
+        "@howaboua/pi-skill-model-facing-api-design": "0.0.0",
         "@howaboua/pi-skill-project-reference-research": "0.0.1",
         "@howaboua/pi-skill-skill-creator": "0.0.1",
       },
@@ -237,10 +242,11 @@
         "@howaboua/pi-memories": "0.1.1",
         "@howaboua/pi-semantic-grep": "0.1.12",
         "@howaboua/pi-skill-agent-native-hardening": "0.0.2",
-        "@howaboua/pi-skill-agents-md": "0.0.1",
+        "@howaboua/pi-skill-agents-md": "0.0.0",
         "@howaboua/pi-skill-anti-ai-copy": "0.0.1",
         "@howaboua/pi-skill-chrome-cdp": "0.0.1",
         "@howaboua/pi-skill-gh-issue-pr-flow": "0.0.3",
+        "@howaboua/pi-skill-model-facing-api-design": "0.0.0",
         "@howaboua/pi-skill-project-reference-research": "0.0.1",
         "@howaboua/pi-skill-skill-creator": "0.0.1",
         "@howaboua/pi-smart-btw": "0.2.0",
@@ -481,6 +487,8 @@
     "@howaboua/pi-skill-chrome-cdp": ["@howaboua/pi-skill-chrome-cdp@workspace:packages/pi-skill-chrome-cdp"],
 
     "@howaboua/pi-skill-gh-issue-pr-flow": ["@howaboua/pi-skill-gh-issue-pr-flow@workspace:packages/pi-skill-gh-issue-pr-flow"],
+
+    "@howaboua/pi-skill-model-facing-api-design": ["@howaboua/pi-skill-model-facing-api-design@workspace:packages/pi-skill-model-facing-api-design"],
 
     "@howaboua/pi-skill-omarchy-help": ["@howaboua/pi-skill-omarchy-help@workspace:packages/pi-skill-omarchy-help"],
 

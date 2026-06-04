@@ -1,0 +1,37 @@
+{
+	"name": "@howaboua/pi-skill-model-facing-api-design",
+	"version": "0.0.0",
+	"description": "Pi skill package for model-facing-api-design.",
+	"type": "module",
+	"keywords": [
+		"pi-package",
+		"pi",
+		"pi-skill",
+		"skill",
+		"model-facing-api-design",
+		"tool-design"
+	],
+	"license": "MIT",
+	"publishConfig": {
+		"access": "public"
+	},
+	"files": [
+		"skills",
+		"README.md",
+		"LICENSE"
+	],
+	"pi": {
+		"skills": [
+			"./skills"
+		]
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
+		"directory": "packages/pi-skill-model-facing-api-design"
+	},
+	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-skill-model-facing-api-design#readme",
+	"bugs": {
+		"url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
+	}
+}

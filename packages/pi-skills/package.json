@@ -18,6 +18,7 @@
 		"@howaboua/pi-skill-anti-ai-copy": "0.0.1",
 		"@howaboua/pi-skill-chrome-cdp": "0.0.1",
 		"@howaboua/pi-skill-gh-issue-pr-flow": "0.0.3",
+		"@howaboua/pi-skill-model-facing-api-design": "0.0.0",
 		"@howaboua/pi-skill-project-reference-research": "0.0.1",
 		"@howaboua/pi-skill-skill-creator": "0.0.1"
 	},
@@ -32,6 +33,7 @@
 			"../pi-skill-anti-ai-copy/skills",
 			"../pi-skill-chrome-cdp/skills",
 			"../pi-skill-gh-issue-pr-flow/skills",
+			"../pi-skill-model-facing-api-design/skills",
 			"../pi-skill-project-reference-research/skills",
 			"../pi-skill-skill-creator/skills"
 		]
