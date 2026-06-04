@@ -60,7 +60,7 @@ export type ExecSessionUpdateCallback = (result: UnifiedExecResult) => void;
 
 export interface ExecSessionManager {
 	exec(input: ExecCommandInput, cwd: string, signal?: AbortSignal, onUpdate?: ExecSessionUpdateCallback): Promise<UnifiedExecResult>;
-	write(input: WriteStdinInput, onUpdate?: ExecSessionUpdateCallback): Promise<UnifiedExecResult>;
+	write(input: WriteStdinInput, signal?: AbortSignal, onUpdate?: ExecSessionUpdateCallback): Promise<UnifiedExecResult>;
 	hasSession(sessionId: number): boolean;
 	getSessionCommand(sessionId: number): string | undefined;
 	onSessionExit(listener: (sessionId: number, command: string) => void): () => void;
@@ -424,9 +424,13 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 	function waitForExitOrTimeout(
 		session: ExecSession,
 		yieldTimeMs: number,
+		signal?: AbortSignal,
 		onUpdate?: (elapsedMs: number) => void,
 	): Promise<number> {
 		if (session.exitCode !== undefined && session.exitCode !== null) {
+			return Promise.resolve(0);
+		}
+		if (signal?.aborted) {
 			return Promise.resolve(0);
 		}
 
@@ -434,6 +438,14 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 		let updateTimer: ReturnType<typeof setInterval> | undefined;
 		let lastUpdateAt = 0;
 		return new Promise((resolvePromise) => {
+			let abortCleanup: (() => void) | undefined;
+			let done = false;
+			const finish = () => {
+				if (done) return;
+				done = true;
+				cleanup();
+				resolvePromise(Date.now() - startedAt);
+			};
 			const emitUpdate = (force = false) => {
 				const now = Date.now();
 				if (!force && now - lastUpdateAt < 250) return;
@@ -446,19 +458,19 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 					return;
 				}
 				emitUpdate(true);
-				cleanup();
-				resolvePromise(Date.now() - startedAt);
+				finish();
 			};
 			const timeout = setTimeout(() => {
-				cleanup();
-				resolvePromise(Date.now() - startedAt);
+				finish();
 			}, yieldTimeMs);
+			abortCleanup = registerAbortHandler(signal, finish);
 			if (onUpdate) {
 				updateTimer = setInterval(emitUpdate, 250);
 			}
 			const cleanup = () => {
 				clearTimeout(timeout);
 				if (updateTimer) clearInterval(updateTimer);
+				abortCleanup?.();
 				session.listeners.delete(onWake);
 			};
 			session.listeners.add(onWake);
@@ -621,11 +633,12 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			const waitedMs = await waitForExitOrTimeout(
 				session,
 				clampExecYieldTime(input.yield_time_ms, defaultExecYieldTimeMs, session.interactive, minNonInteractiveExecYieldTimeMs),
+				signal,
 				onUpdate ? (elapsedMs) => onUpdate(makeSnapshotResult(session, elapsedMs, input.max_output_tokens)) : undefined,
 			);
 			return makeResult(session, waitedMs, input.max_output_tokens);
 		},
-		write: async (input, onUpdate) => {
+		write: async (input, signal, onUpdate) => {
 			const session = sessions.get(input.session_id);
 			if (!session) {
 				throw new Error(`Unknown process id ${input.session_id}`);
@@ -651,6 +664,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 								minEmptyWriteYieldTimeMs,
 								maxEmptyWriteYieldTimeMs,
 							),
+							signal,
 							onUpdate ? (elapsedMs) => onUpdate(makeSnapshotSince(session, elapsedMs, updateBaseline, input.max_output_tokens)) : undefined,
 						)
 					: 0;
