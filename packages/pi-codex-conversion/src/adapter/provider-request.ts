@@ -4,7 +4,7 @@ import { applyCodexRequestParams } from "./config.ts";
 import type { AdapterState } from "./state.ts";
 import { rewriteNativeImageGenerationTool } from "../tools/image-generation-tool.ts";
 import { rewriteNativeWebSearchTool } from "../tools/web-search-tool.ts";
-import { shouldUseCodexAdapter } from "./activation.ts";
+import { isConfiguredAdapterProvider, shouldUseCodexAdapter } from "./activation.ts";
 import { injectPendingNativeWindowIntoPiCompactionRequest, rewriteCodexCompactedProviderRequest } from "./compaction.ts";
 
 export async function rewriteCodexProviderRequest(payload: unknown, ctx: ExtensionContext, state: AdapterState): Promise<unknown | undefined> {
@@ -13,9 +13,12 @@ export async function rewriteCodexProviderRequest(payload: unknown, ctx: Extensi
 	}
 
 	const isOpenAICodex = isOpenAICodexContext(ctx);
-	const webSearchPayload = isOpenAICodex && state.config.webSearch ? rewriteNativeWebSearchTool(payload, ctx.model) : payload;
-	const imageGenerationPayload = isOpenAICodex && state.config.imageGeneration
-		? rewriteNativeImageGenerationTool(webSearchPayload, ctx.model)
+	const useProxyNativeTools = !isOpenAICodex && isConfiguredAdapterProvider(ctx, state.config) && state.config.adapterProviderCodexTools;
+	const webSearchPayload = (isOpenAICodex || useProxyNativeTools) && state.config.webSearch
+		? rewriteNativeWebSearchTool(payload, ctx.model, { force: useProxyNativeTools })
+		: payload;
+	const imageGenerationPayload = (isOpenAICodex || (useProxyNativeTools && Array.isArray(ctx.model?.input) && ctx.model.input.includes("image"))) && state.config.imageGeneration
+		? rewriteNativeImageGenerationTool(webSearchPayload, ctx.model, { force: useProxyNativeTools })
 		: webSearchPayload;
 	const configuredPayload = applyCodexRequestParams(imageGenerationPayload, state.config, {
 		serviceTier: isOpenAICodex,

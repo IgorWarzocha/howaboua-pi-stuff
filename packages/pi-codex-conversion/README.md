@@ -64,13 +64,13 @@ Advanced users with custom Codex-compatible providers can opt specific providers
 }
 ```
 
-This enables the Codex prompt adapter for those provider ids. The **Codex tools** override is on by default and also swaps Pi's default file/shell tools for `exec_command`, `write_stdin`, and `apply_patch`; turn it off to keep the provider's normal Pi tool surface while still using the prompt/request adapter. Native Codex web search, native image generation, and priority service tier remain limited to the built-in `openai-codex` provider.
+This enables the Codex adapter for those provider ids. The **Codex tools** override is on by default and controls the optional native Codex tools for proxied providers: `web.run` and `image_generation`. The normal shell/patch adapter still applies to proxied providers; the override only gates those optional native tools. Priority service tier remains limited to the built-in `openai-codex` provider.
 
 The **Compaction** tab can enable native OpenAI Responses compaction and choose the compaction model/reasoning. If native compaction fails, the extension falls back to Pi's normal compaction flow; when an older native compacted window exists, it is included in that Pi fallback summarization request so OpenAI can still use the prior opaque context server-side.
 
 For OpenAI Codex subscription models, the extension also adjusts Pi's registered model context windows so Pi's fixed reserve-token compaction heuristic trips at roughly Codex's native auto-compact budget: 90% of Pi's resolved model window. This is calculated from Pi's current model metadata instead of hardcoded per-model limits.
 
-When `all` is on, non-Codex providers get the shell, patch, skill, and prompt-adapter behavior. When a provider is listed in `adapterProviders`, it gets the prompt/request adapter and, by default, the Codex shell/patch tools; the **Codex tools** override can keep Pi's normal tool surface for those proxied providers. Native web search, native image generation, and priority service tier stay limited to the OpenAI Codex provider. Verbosity is applied to Responses API providers.
+When `all` is on, non-Codex providers get the shell, patch, skill, and prompt-adapter behavior. When a provider is listed in `adapterProviders`, it also gets the adapter; by default the **Codex tools** override additionally exposes proxied native `web.run` and `image_generation` for Codex-compatible Responses providers. Priority service tier stays limited to the OpenAI Codex provider. Verbosity is applied to Responses API providers.
 
 The footer shows the active state, for example:
 

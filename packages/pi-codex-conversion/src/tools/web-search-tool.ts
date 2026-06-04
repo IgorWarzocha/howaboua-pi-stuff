@@ -36,8 +36,8 @@ export function supportsNativeWebSearch(model: ExtensionContext["model"]): boole
 	return isOpenAICodexModel(model);
 }
 
-export function supportsMultimodalNativeWebSearch(model: ExtensionContext["model"]): boolean {
-	if (!supportsNativeWebSearch(model)) {
+export function supportsMultimodalNativeWebSearch(model: ExtensionContext["model"], options: { force?: boolean | undefined } = {}): boolean {
+	if (!options.force && !supportsNativeWebSearch(model)) {
 		return false;
 	}
 	const id = (model?.id ?? "").toLowerCase();
@@ -52,8 +52,8 @@ function createEmptyResultComponent(): Container {
 	return new Container();
 }
 
-export function rewriteNativeWebSearchTool(payload: unknown, model: ExtensionContext["model"]): unknown {
-	if (!supportsNativeWebSearch(model) || !payload || typeof payload !== "object") {
+export function rewriteNativeWebSearchTool(payload: unknown, model: ExtensionContext["model"], options: { force?: boolean | undefined } = {}): unknown {
+	if ((!options.force && !supportsNativeWebSearch(model)) || !payload || typeof payload !== "object") {
 		return payload;
 	}
 
@@ -73,7 +73,7 @@ export function rewriteNativeWebSearchTool(payload: unknown, model: ExtensionCon
 			type: "web_search",
 			external_web_access: true,
 		};
-		if (supportsMultimodalNativeWebSearch(model)) {
+		if (supportsMultimodalNativeWebSearch(model, options)) {
 			nativeTool.search_content_types = [...WEB_SEARCH_MULTIMODAL_CONTENT_TYPES];
 		}
 		return nativeTool;

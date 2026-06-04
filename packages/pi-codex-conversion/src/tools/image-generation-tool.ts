@@ -44,8 +44,8 @@ function createEmptyResultComponent(): Container {
 	return new Container();
 }
 
-export function rewriteNativeImageGenerationTool(payload: unknown, model: ExtensionContext["model"]): unknown {
-	if (!supportsNativeImageGeneration(model) || !payload || typeof payload !== "object") {
+export function rewriteNativeImageGenerationTool(payload: unknown, model: ExtensionContext["model"], options: { force?: boolean | undefined } = {}): unknown {
+	if ((!options.force && !supportsNativeImageGeneration(model)) || !payload || typeof payload !== "object") {
 		return payload;
 	}
 

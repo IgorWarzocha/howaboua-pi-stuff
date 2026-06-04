@@ -36,14 +36,14 @@ export function shouldUseCodexAdapter(ctx: ExtensionContext, config: CodexConver
 	return config.useOnAllModels || isConfiguredAdapterProvider(ctx, config) || isCodexLikeContext(ctx);
 }
 
-function isConfiguredAdapterProvider(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
+export function isConfiguredAdapterProvider(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
 	if (!config.useAdapterProviders) return false;
 	const provider = ctx.model?.provider?.trim().toLowerCase();
 	return Boolean(provider && config.adapterProviders.includes(provider));
 }
 
-function shouldUseAdapterTools(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
-	return !isConfiguredAdapterProvider(ctx, config) || config.adapterProviderCodexTools;
+function shouldUseProxyNativeTools(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
+	return isConfiguredAdapterProvider(ctx, config) && config.adapterProviderCodexTools;
 }
 
 export function shouldUseApplyPatchOnly(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
@@ -124,14 +124,12 @@ function getStatusConfig(ctx: ExtensionContext, config: CodexConversionConfig): 
 }
 
 function getAdapterToolNames(ctx: ExtensionContext, config: CodexConversionConfig): string[] {
-	if (!shouldUseAdapterTools(ctx, config)) {
-		return DEFAULT_TOOL_NAMES;
-	}
+	const useProxyNativeTools = shouldUseProxyNativeTools(ctx, config);
 	const toolNames = [...CORE_ADAPTER_TOOL_NAMES];
-	if (config.webSearch && supportsNativeWebSearch(ctx.model)) {
+	if (config.webSearch && (supportsNativeWebSearch(ctx.model) || useProxyNativeTools)) {
 		toolNames.push(WEB_SEARCH_TOOL_NAME);
 	}
-	if (config.imageGeneration && supportsNativeImageGeneration(ctx.model)) {
+	if (config.imageGeneration && (supportsNativeImageGeneration(ctx.model) || (useProxyNativeTools && Array.isArray(ctx.model?.input) && ctx.model.input.includes("image")))) {
 		toolNames.push(IMAGE_GENERATION_TOOL_NAME);
 	}
 	if (Array.isArray(ctx.model?.input) && ctx.model.input.includes("image")) {
