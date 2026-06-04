@@ -8,8 +8,10 @@ import {
 	normalizeCompactionModel,
 	normalizeCompactionReasoning,
 	normalizeProviderList,
+	readCodexConversionConfig,
 	type CodexConversionConfig,
 } from "../adapter/config.ts";
+import { editorCommand, openCodexConfigInExternalEditor } from "./config-editor.ts";
 import { CHANGELOG_URL, DISCORD_URL, GITHUB_URL, ISSUE_URL, openExternalUrl } from "./links.ts";
 import { fetchCodexUsage, type CodexUsageSnapshot } from "./usage.ts";
 
@@ -75,9 +77,23 @@ export async function openCodexSettingsScreen(ctx: ExtensionContext, options: Co
 	};
 
 	await ctx.ui.custom<void>((tui, theme, _kb, done) => {
+		const runEditConfig = async (stopTui: () => void, startTui: () => void, requestRender: (full?: boolean) => void) => {
+			if (!options.onChange(draft)) {
+				ctx.ui.notify("Could not save settings before opening editor", "warning");
+				return;
+			}
+			const result = await openCodexConfigInExternalEditor(stopTui, startTui, requestRender);
+			if (!result.ok) {
+				ctx.ui.notify(result.error, "warning");
+				return;
+			}
+			draft = readCodexConversionConfig();
+			options.onChange(draft);
+		};
+
 		let settingsList = createSettingsList(activeTab, draft, options, theme, (nextDraft) => {
 			draft = nextDraft;
-		}, done, () => tui.requestRender());
+		}, done, () => tui.requestRender(), () => runEditConfig(() => tui.stop(), () => tui.start(), (full) => tui.requestRender(full)));
 		if (activeTab === "usage" && !usageState) loadUsage(() => tui.requestRender());
 
 		const switchTab = () => {
@@ -85,14 +101,15 @@ export async function openCodexSettingsScreen(ctx: ExtensionContext, options: Co
 			activeTab = TAB_ORDER[(currentIndex + 1) % TAB_ORDER.length] ?? "general";
 			settingsList = createSettingsList(activeTab, draft, options, theme, (nextDraft) => {
 				draft = nextDraft;
-			}, done, () => tui.requestRender());
+			}, done, () => tui.requestRender(), () => runEditConfig(() => tui.stop(), () => tui.start(), (full) => tui.requestRender(full)));
 			if (activeTab === "usage" && !usageState) loadUsage(() => tui.requestRender());
 			tui.requestRender();
 		};
 
 		return {
-			render: (width: number) =>
-				[
+			render: (width: number) => {
+				const hasSettingsList = activeTab !== "usage" && activeTab !== "about";
+				return [
 					rule(width, theme, "accent"),
 					formatTabs(activeTab, theme),
 					rule(width, theme, "borderMuted"),
@@ -101,10 +118,10 @@ export async function openCodexSettingsScreen(ctx: ExtensionContext, options: Co
 					...(activeTab === "usage" ? formatUsageLines(theme, usageState, usageLoading) : []),
 					...(activeTab === "about" ? formatLinks(theme) : []),
 					"",
-					...(activeTab === "usage" || activeTab === "about" ? [] : settingsList.render(width)),
+					...(hasSettingsList ? withSettingsFooter(settingsList.render(width), theme) : [theme.fg("dim", formatFooter(activeTab))]),
 					rule(width, theme, "accent"),
-					theme.fg("dim", formatFooter(activeTab)),
-				].map((line) => truncateToWidth(line, width, "")),
+				].map((line) => truncateToWidth(line, width, ""));
+			},
 			invalidate: () => settingsList.invalidate(),
 			handleInput: (data: string) => {
 				if (data === "\t") {
@@ -149,9 +166,14 @@ function createSettingsList(
 	onDraftChanged: (draft: CodexConversionConfig) => void,
 	done: (value?: void) => void,
 	requestRender: () => void,
+	onEditConfig: () => void,
 ): SettingsList {
 	let settingsList: SettingsList;
 	settingsList = new SettingsList(buildItems(tab, draft, theme), 8, getSettingsListTheme(), (id, value) => {
+		if (id === "editConfig") {
+			onEditConfig();
+			return;
+		}
 		const nextDraft = applySettingChange(id, value, draft);
 		const previousValue = buildItems(tab, draft, theme).find((item) => item.id === id)?.currentValue;
 		if (options.onChange(nextDraft)) {
@@ -186,12 +208,14 @@ function buildItems(tab: SettingsTab, draft: CodexConversionConfig, theme: Theme
 				currentValue: formatProviderList(draft.adapterProviders),
 				submenu: (currentValue, done) => new TextSettingSubmenu("Proxy providers", "Comma-separated Pi provider ids that should use the Codex adapter.", currentValue, (value) => done(formatProviderList(normalizeProviderListFromText(value))), () => done(), theme),
 			},
+			{ id: "editConfig", label: "Edit config", currentValue: editorCommand() ? "Opens in default editor (please /reload)" : "Set $EDITOR", values: editorCommand() ? ["Open"] : ["Unavailable"] },
 		];
 	}
 
 	return [
 		{ id: "useOnAllModels", label: "Use on all models", currentValue: draft.useOnAllModels ? "on" : "off", values: ["off", "on"] },
 		{ id: "statusLine", label: "Statusline", currentValue: draft.statusLine ? "on" : "off", values: ["off", "on"] },
+		{ id: "backgroundShellWidget", label: "Background shells widget", currentValue: draft.backgroundShellWidget ? "on" : "off", values: ["off", "on"] },
 		{ id: "fast", label: "Fast mode", currentValue: draft.fast ? "on" : "off", values: ["off", "on"] },
 		{ id: "forceCachedWebSockets", label: "Codex cached websocket upgrade", currentValue: draft.forceCachedWebSockets === false ? "off" : "on", values: ["off", "on"] },
 		{ id: "webSearch", label: "Web search", currentValue: draft.webSearch ? "on" : "off", values: ["off", "on"] },
@@ -207,6 +231,7 @@ function applySettingChange(id: string, value: string, draft: CodexConversionCon
 	if (id === "useOnAllModels") nextDraft.useOnAllModels = value === "on";
 	if (id === "useAdapterProviders") nextDraft.useAdapterProviders = value === "on";
 	if (id === "statusLine") nextDraft.statusLine = value === "on";
+	if (id === "backgroundShellWidget") nextDraft.backgroundShellWidget = value === "on";
 	if (id === "fast") nextDraft.fast = value === "on";
 	if (id === "forceCachedWebSockets") nextDraft.forceCachedWebSockets = value === "on";
 	if (id === "webSearch") nextDraft.webSearch = value === "on";
@@ -235,6 +260,17 @@ function formatFooter(activeTab: SettingsTab): string {
 	if (activeTab === "usage") return "  Tab to switch sections · r refresh";
 	if (activeTab === "about") return "  Tab to switch sections · g/c/d/i open links";
 	return "  Tab to switch sections";
+}
+
+function withSettingsFooter(lines: string[], theme: Theme): string[] {
+	const next = [...lines];
+	for (let index = next.length - 1; index >= 0; index -= 1) {
+		if (next[index]?.includes("Enter/Space")) {
+			next[index] = theme.fg("dim", "  Enter/Space to change · Esc to cancel · Tab to switch sections");
+			break;
+		}
+	}
+	return next;
 }
 
 function formatUsageLines(theme: Theme, usageState: CodexUsageSnapshot | { error: string } | undefined, loading: boolean): string[] {

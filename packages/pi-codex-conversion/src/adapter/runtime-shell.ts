@@ -1,3 +1,5 @@
+import { getShellConfig } from "@earendil-works/pi-coding-agent";
+
 export const CODEX_FALLBACK_SHELL = "/bin/bash";
 
 export function isFishShell(shell: string | undefined): boolean {
@@ -10,4 +12,11 @@ export function getCodexRuntimeShell(shell: string | undefined): string {
 		return CODEX_FALLBACK_SHELL;
 	}
 	return isFishShell(shell) ? CODEX_FALLBACK_SHELL : shell;
+}
+
+export function getDefaultCodexRuntimeShell(): string {
+	if (process.platform === "win32") {
+		return getShellConfig().shell;
+	}
+	return getCodexRuntimeShell(process.env["SHELL"]);
 }

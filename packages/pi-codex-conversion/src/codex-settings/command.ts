@@ -9,11 +9,19 @@ import { syncAdapter } from "../adapter/activation.ts";
 import type { AdapterState } from "../adapter/state.ts";
 import { openCodexSettingsScreen } from "./ui.ts";
 import { fetchCodexUsage, formatCodexUsage } from "./usage.ts";
+import type { BackgroundBashWidgetState } from "../tools/background-bash-widget.ts";
+import { renderBackgroundBashWidget } from "../tools/background-bash-widget.ts";
+import type { ExecSessionManager } from "../tools/exec-session-manager.ts";
 
-const CODEX_COMMAND_COMPLETIONS = ["all", "status", "fast", "search", "image", "compact", "usage", "low", "medium", "high"] as const;
-const CODEX_USAGE = "Usage: /codex, /codex all, /codex status, /codex fast, /codex search, /codex image, /codex compact, /codex usage, /codex low|medium|high";
+const CODEX_COMMAND_COMPLETIONS = ["all", "status", "fast", "search", "image", "compact", "usage", "ps", "low", "medium", "high"] as const;
+const CODEX_USAGE = "Usage: /codex, /codex all, /codex status, /codex fast, /codex search, /codex image, /codex compact, /codex usage, /codex ps, /codex low|medium|high";
 
-export function registerCodexCommand(pi: ExtensionAPI, state: AdapterState, onConfigApplied?: (config: CodexConversionConfig) => void): void {
+export function registerCodexCommand(
+	pi: ExtensionAPI,
+	state: AdapterState,
+	onConfigApplied?: (config: CodexConversionConfig) => void,
+	backgroundShells?: { sessions: ExecSessionManager; widget: BackgroundBashWidgetState } | undefined,
+): void {
 	function saveAndApply(ctx: ExtensionContext, nextConfig: CodexConversionConfig): boolean {
 		const writeResult = writeCodexConversionConfig(nextConfig);
 		if (!writeResult.ok) {
@@ -33,6 +41,20 @@ export function registerCodexCommand(pi: ExtensionAPI, state: AdapterState, onCo
 		handler: async (args, ctx) => {
 			state.config = readCodexConversionConfig();
 			const arg = args.trim().toLowerCase();
+			if (arg === "ps") {
+				if (!state.config.backgroundShellWidget) {
+					ctx.ui.notify("Background shells widget is off.", "info");
+					return;
+				}
+				if (!backgroundShells || backgroundShells.sessions.listSessions().length === 0) {
+					ctx.ui.notify("No background shells running.", "info");
+					return;
+				}
+				backgroundShells.widget.ctx = ctx;
+				backgroundShells.widget.folded = false;
+				renderBackgroundBashWidget(ctx, backgroundShells.widget, backgroundShells.sessions);
+				return;
+			}
 			if (arg === "usage") {
 				let usage;
 				try {
@@ -110,5 +132,5 @@ function getCommandConfigUpdate(arg: string, config: CodexConversionConfig): Cod
 }
 
 function formatCodexSettings(config: CodexConversionConfig): string {
-	return `Codex settings: all models ${config.useOnAllModels ? "on" : "off"}, codex proxy ${config.useAdapterProviders ? "on" : "off"}${config.adapterProviders.length > 0 ? ` (${config.adapterProviders.join(", ")})` : ""}, statusline ${config.statusLine ? "on" : "off"}, fast ${config.fast ? "on" : "off"}, cached websocket upgrade ${config.forceCachedWebSockets === false ? "off" : "on"}, web search ${config.webSearch ? "on" : "off"}, image generation ${config.imageGeneration ? "on" : "off"}, responses compaction ${(config.responsesCompaction ?? false) ? "on" : "off"} (${config.compactionModel}/${config.compactionReasoning}), verbosity ${config.verbosity}`;
+	return `Codex settings: all models ${config.useOnAllModels ? "on" : "off"}, codex proxy ${config.useAdapterProviders ? "on" : "off"}${config.adapterProviders.length > 0 ? ` (${config.adapterProviders.join(", ")})` : ""}, statusline ${config.statusLine ? "on" : "off"}, background shells widget ${config.backgroundShellWidget ? "on" : "off"}, fast ${config.fast ? "on" : "off"}, cached websocket upgrade ${config.forceCachedWebSockets === false ? "off" : "on"}, web search ${config.webSearch ? "on" : "off"}, image generation ${config.imageGeneration ? "on" : "off"}, responses compaction ${(config.responsesCompaction ?? false) ? "on" : "off"} (${config.compactionModel}/${config.compactionReasoning}), verbosity ${config.verbosity}`;
 }

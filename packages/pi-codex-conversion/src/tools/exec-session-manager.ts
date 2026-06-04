@@ -3,7 +3,7 @@ import { spawn, type ChildProcessByStdio } from "node:child_process";
 import { resolve } from "node:path";
 import type { Readable } from "node:stream";
 import * as pty from "node-pty";
-import { CODEX_FALLBACK_SHELL, getCodexRuntimeShell, isFishShell } from "../adapter/runtime-shell.ts";
+import { CODEX_FALLBACK_SHELL, getCodexRuntimeShell, getDefaultCodexRuntimeShell, isFishShell } from "../adapter/runtime-shell.ts";
 
 export interface UnifiedExecResult {
 	chunk_id: string;
@@ -13,6 +13,19 @@ export interface UnifiedExecResult {
 	session_id?: number | undefined;
 	original_token_count?: number | undefined;
 }
+
+export interface ExecSessionSnapshot {
+	id: number;
+	command: string;
+	running: boolean;
+	exitCode?: number | undefined;
+	startedAt: number;
+	updatedAt: number;
+	outputTail: string;
+	terminating: boolean;
+}
+
+export type ExecSessionChangeReason = "start" | "output" | "exit" | "terminate";
 
 export interface ExecCommandInput {
 	cmd: string;
@@ -37,6 +50,11 @@ interface BaseExecSession {
 	buffer: string;
 	emittedBuffer: string;
 	exitCode: number | null | undefined;
+	startedAt: number;
+	updatedAt: number;
+	finalized: boolean;
+	exposed: boolean;
+	terminating: boolean;
 	listeners: Set<() => void>;
 	interactive: boolean;
 }
@@ -63,6 +81,9 @@ export interface ExecSessionManager {
 	write(input: WriteStdinInput, signal?: AbortSignal, onUpdate?: ExecSessionUpdateCallback): Promise<UnifiedExecResult>;
 	hasSession(sessionId: number): boolean;
 	getSessionCommand(sessionId: number): string | undefined;
+	listSessions(maxOutputChars?: number): ExecSessionSnapshot[];
+	terminateSession(sessionId: number): boolean;
+	onSessionChange(listener: (reason: ExecSessionChangeReason) => void): () => void;
 	onSessionExit(listener: (sessionId: number, command: string) => void): () => void;
 	shutdown(): void;
 }
@@ -86,6 +107,7 @@ const MAX_YIELD_TIME_MS = 30_000;
 const DEFAULT_MAX_EMPTY_WRITE_YIELD_TIME_MS = 300_000;
 const MAX_COMMAND_HISTORY = 256;
 const DEFAULT_MAX_SESSION_BUFFER_CHARS = 256 * 1024 * 1024;
+const TERMINATE_ESCALATE_MS = 2_000;
 
 function resolveWorkdir(baseCwd: string, workdir?: string): string {
 	if (!workdir) return baseCwd;
@@ -93,7 +115,21 @@ function resolveWorkdir(baseCwd: string, workdir?: string): string {
 }
 
 function resolveShell(shell?: string): string {
-	return getCodexRuntimeShell(shell || process.env["SHELL"]!);
+	return shell ? getCodexRuntimeShell(shell) : getDefaultCodexRuntimeShell();
+}
+
+function killProcessTree(child: ChildProcessByStdio<null, Readable, Readable>, signal: NodeJS.Signals = "SIGTERM"): void {
+	const pid = child.pid;
+	if (!pid) return;
+	if (process.platform === "win32") {
+		spawn("taskkill", ["/pid", String(pid), "/t", "/f"], { stdio: "ignore", windowsHide: true });
+		return;
+	}
+	try {
+		process.kill(-pid, signal);
+	} catch {
+		child.kill(signal);
+	}
 }
 
 const BASH_SYNC_ENV_KEYS = [
@@ -369,6 +405,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 	let nextSessionId = 1;
 	const sessions = new Map<number, ExecSession>();
 	const commandHistory = new Map<number, string>();
+	const changeListeners = new Set<(reason: ExecSessionChangeReason) => void>();
 	const exitListeners = new Set<(sessionId: number, command: string) => void>();
 	const defaultExecYieldTimeMs = options.defaultExecYieldTimeMs ?? DEFAULT_EXEC_YIELD_TIME_MS;
 	const defaultWriteYieldTimeMs = options.defaultWriteYieldTimeMs ?? DEFAULT_WRITE_YIELD_TIME_MS;
@@ -397,17 +434,51 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 		}
 	}
 
-	function notify(session: ExecSession): void {
+	function notify(session: ExecSession, reason: ExecSessionChangeReason = "output"): void {
+		session.updatedAt = Date.now();
 		for (const listener of session.listeners) {
 			listener();
 		}
+		if (session.exposed) notifyChanged(reason);
 	}
 
-	function finalizeSession(session: ExecSession): void {
+	function notifyChanged(reason: ExecSessionChangeReason): void {
+		for (const listener of changeListeners) {
+			listener(reason);
+		}
+	}
+
+	function finalizeSession(session: ExecSession, reason: ExecSessionChangeReason = "exit"): void {
+		if (session.finalized) return;
+		session.finalized = true;
 		for (const listener of exitListeners) {
 			listener(session.id, session.command);
 		}
-		notify(session);
+		notify(session, reason);
+	}
+
+	function exposeSession(session: ExecSession): void {
+		if (session.exposed || (session.exitCode !== undefined && session.exitCode !== null)) return;
+		session.exposed = true;
+		notifyChanged("start");
+	}
+
+	function setClosedExitCode(session: ExecSession, code: number | null | undefined, signal?: string | null): void {
+		if (session.exitCode !== undefined && session.exitCode !== null) return;
+		if (session.terminating) {
+			session.exitCode = code && code !== 0 ? code : signal ? 128 + signalNumber(signal) : 143;
+			return;
+		}
+		session.exitCode = code ?? (signal ? 128 + signalNumber(signal) : 1);
+	}
+
+	function signalNumber(signal: string): number {
+		if (signal === "SIGTERM") return 15;
+		if (signal === "SIGKILL") return 9;
+		if (signal === "SIGINT") return 2;
+		const numericSignal = /^SIG(\d+)$/.exec(signal)?.[1];
+		if (numericSignal) return Number.parseInt(numericSignal, 10);
+		return 1;
 	}
 
 	function appendOutput(session: ExecSession, text: string): void {
@@ -488,6 +559,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			result.original_token_count = consumed.original_token_count;
 		}
 		if (session.exitCode === undefined || session.exitCode === null) {
+			exposeSession(session);
 			result.session_id = session.id;
 		} else {
 			result.exit_code = session.exitCode;
@@ -496,6 +568,19 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			}
 		}
 		return result;
+	}
+
+	function snapshotSession(session: ExecSession, maxOutputChars = 8_000): ExecSessionSnapshot {
+		return {
+			id: session.id,
+			command: session.command,
+			running: session.exitCode === undefined || session.exitCode === null,
+			exitCode: session.exitCode ?? undefined,
+			startedAt: session.startedAt,
+			updatedAt: session.updatedAt,
+			outputTail: session.buffer.slice(-maxOutputChars),
+			terminating: session.terminating,
+		};
 	}
 
 	function makeSnapshotResult(session: ExecSession, waitMs: number, maxOutputTokens?: number, unconsumedOnly = false): UnifiedExecResult {
@@ -536,6 +621,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			cwd: workdir,
 			stdio: ["ignore", "pipe", "pipe"],
 			env: execution.env,
+			detached: process.platform !== "win32",
 		});
 
 		const session: PipeExecSession = {
@@ -548,6 +634,11 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			exitCode: undefined,
 			listeners: new Set(),
 			interactive: false,
+			startedAt: Date.now(),
+			updatedAt: Date.now(),
+			finalized: false,
+			exposed: false,
+			terminating: false,
 		};
 
 		child.stdout.on("data", (data: Buffer) => {
@@ -556,8 +647,8 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 		child.stderr.on("data", (data: Buffer) => {
 			appendOutput(session, data.toString("utf8"));
 		});
-		child.on("close", (code) => {
-			session.exitCode = code ?? 0;
+		child.on("close", (code, signalName) => {
+			setClosedExitCode(session, code, signalName);
 			finalizeSession(session);
 		});
 		child.on("error", (error) => {
@@ -568,7 +659,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 
 		registerAbortHandler(signal, () => {
 			if (session.exitCode === undefined) {
-				child.kill("SIGTERM");
+				killProcessTree(child, "SIGTERM");
 			}
 		});
 
@@ -597,6 +688,11 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			exitCode: undefined,
 			listeners: new Set(),
 			interactive: true,
+			startedAt: Date.now(),
+			updatedAt: Date.now(),
+			finalized: false,
+			exposed: false,
+			terminating: false,
 			terminalCommitted: "",
 			terminalLine: [],
 			terminalCursor: 0,
@@ -605,8 +701,8 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 		child.onData((data) => {
 			appendOutput(session, data);
 		});
-		child.onExit(({ exitCode }) => {
-			session.exitCode = exitCode ?? 0;
+		child.onExit(({ exitCode, signal }) => {
+			setClosedExitCode(session, exitCode, typeof signal === "number" && signal > 0 ? `SIG${signal}` : undefined);
 			finalizeSession(session);
 		});
 
@@ -675,6 +771,34 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 		},
 		hasSession: (sessionId) => sessions.has(sessionId),
 		getSessionCommand: (sessionId) => sessions.get(sessionId)?.command ?? commandHistory.get(sessionId),
+		listSessions: (maxOutputChars) => {
+			const snapshotsById = new Map<number, ExecSessionSnapshot>();
+			for (const session of sessions.values()) {
+				if (!session.exposed) continue;
+				if (session.exitCode !== undefined && session.exitCode !== null) continue;
+				snapshotsById.set(session.id, snapshotSession(session, maxOutputChars));
+			}
+			return Array.from(snapshotsById.values()).sort((a, b) => a.id - b.id);
+		},
+		terminateSession: (sessionId) => {
+			const session = sessions.get(sessionId);
+			if (!session || session.exitCode !== undefined || session.terminating) return false;
+			session.terminating = true;
+			if (session.kind === "pty") {
+				session.child.kill();
+			} else {
+				killProcessTree(session.child, "SIGTERM");
+				setTimeout(() => {
+					if (session.exitCode === undefined || session.exitCode === null) killProcessTree(session.child, "SIGKILL");
+				}, TERMINATE_ESCALATE_MS).unref?.();
+			}
+			notify(session, "terminate");
+			return true;
+		},
+		onSessionChange: (listener) => {
+			changeListeners.add(listener);
+			return () => changeListeners.delete(listener);
+		},
 		onSessionExit: (listener) => {
 			exitListeners.add(listener);
 			return () => exitListeners.delete(listener);
@@ -687,7 +811,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 				if (session.kind === "pty") {
 					session.child.kill();
 				} else {
-					session.child.kill("SIGTERM");
+					killProcessTree(session.child, "SIGTERM");
 				}
 			}
 			sessions.clear();

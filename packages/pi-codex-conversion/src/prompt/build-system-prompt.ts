@@ -13,6 +13,7 @@ export interface StructuredPromptSkill {
 
 const CODEX_GUIDELINES = [
 	"Use `exec_command` for shell commands, file inspection, builds, and tests; prefer `rg` / `rg --files` for discovery and focused commands over truncation.",
+	"Use tty=true for dev servers, watchers, REPLs, and prompts.",
 	"Use `apply_patch` for text-file changes, including creates/deletes/moves; group related multi-file edits into one patch.",
 	"Prefer the `apply_patch` tool; use shell `apply_patch` only when chaining edits with other shell steps.",
 	"Use `write_stdin` only for running `exec_command` sessions; poll sparingly.",

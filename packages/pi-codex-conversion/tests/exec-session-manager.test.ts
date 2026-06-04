@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createExecSessionManager, type UnifiedExecResult } from "../src/tools/exec-session-manager.ts";
 
 function createFastTestExecSessionManager() {
@@ -17,6 +20,23 @@ async function finishSession(
 		output += result.output;
 	}
 	return { output, final: result };
+}
+
+function isPidRunning(pid: number): boolean {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+async function waitForPidExit(pid: number): Promise<boolean> {
+	for (let attempt = 0; attempt < 20; attempt += 1) {
+		if (!isPidRunning(pid)) return true;
+		await new Promise((resolve) => setTimeout(resolve, 100));
+	}
+	return !isPidRunning(pid);
 }
 
 test("exec session manager supports long-running commands via write_stdin", async () => {
@@ -48,6 +68,187 @@ test("exec session manager supports long-running commands via write_stdin", asyn
 		assert.equal(resumed.output, "hello\n:hello");
 		assert.equal(resumed.final.session_id, undefined);
 		assert.equal(resumed.final.exit_code, 0);
+	} finally {
+		sessions.shutdown();
+	}
+});
+
+test("exec session manager lists running sessions for user-facing widgets", async () => {
+	const sessions = createFastTestExecSessionManager();
+	let changes = 0;
+	const unsubscribe = sessions.onSessionChange(() => {
+		changes += 1;
+	});
+	try {
+		const started = await sessions.exec(
+			{
+				cmd: "printf ready && sleep 2",
+				shell: "/bin/bash",
+				login: false,
+				yield_time_ms: 50,
+			},
+			process.cwd(),
+		);
+
+		assert.equal(typeof started.session_id, "number");
+		const snapshots = sessions.listSessions();
+		assert.equal(snapshots.length, 1);
+		assert.deepEqual({ id: snapshots[0]!.id, command: snapshots[0]!.command, running: snapshots[0]!.running }, {
+			id: started.session_id,
+			command: "printf ready && sleep 2",
+			running: true,
+		});
+		assert.equal(snapshots[0]!.outputTail, "ready");
+		assert.ok(changes > 0);
+	} finally {
+		unsubscribe();
+		sessions.shutdown();
+	}
+});
+
+test("exec session manager hides exited sessions from user-facing widgets", async () => {
+	const sessions = createFastTestExecSessionManager();
+	try {
+		const started = await sessions.exec(
+			{
+				cmd: "printf ready && sleep 1 && printf done",
+				shell: "/bin/bash",
+				login: false,
+				yield_time_ms: 50,
+			},
+			process.cwd(),
+		);
+
+		assert.equal(typeof started.session_id, "number");
+		let snapshots = sessions.listSessions();
+		assert.equal(snapshots.length, 1);
+
+		const finished = await sessions.write({ session_id: started.session_id!, yield_time_ms: 1_500 });
+		assert.equal(finished.exit_code, 0);
+		assert.equal(finished.output, "done");
+
+		snapshots = sessions.listSessions();
+		assert.equal(snapshots.length, 0);
+
+		await assert.rejects(() => sessions.write({ session_id: started.session_id!, yield_time_ms: 50 }), /Unknown process id/);
+	} finally {
+		sessions.shutdown();
+	}
+});
+
+test("exec session manager can terminate running sessions", async () => {
+	const sessions = createFastTestExecSessionManager();
+	try {
+		const started = await sessions.exec(
+			{
+				cmd: "sleep 5",
+				shell: "/bin/bash",
+				login: false,
+				yield_time_ms: 50,
+			},
+			process.cwd(),
+		);
+
+		assert.equal(typeof started.session_id, "number");
+		assert.equal(sessions.terminateSession(started.session_id!), true);
+		assert.equal(sessions.listSessions().length, 1);
+		assert.equal(sessions.listSessions()[0]!.terminating, true);
+		assert.equal(sessions.terminateSession(started.session_id!), false);
+
+		const finished = await sessions.write({ session_id: started.session_id!, yield_time_ms: 500 });
+		assert.equal(finished.session_id, undefined);
+		assert.notEqual(finished.exit_code, 0);
+		assert.equal(sessions.listSessions().length, 0);
+	} finally {
+		sessions.shutdown();
+	}
+});
+
+test("exec session manager terminates child processes for non-tty sessions", { skip: process.platform === "win32" }, async () => {
+	const sessions = createFastTestExecSessionManager();
+	const dir = mkdtempSync(join(tmpdir(), "pi-codex-session-"));
+	const pidFile = join(dir, "child.pid");
+	let childPid: number | undefined;
+	try {
+		const childScript = "setInterval(() => {}, 1000)";
+		const parentScript = `const { spawn } = require("node:child_process"); const fs = require("node:fs"); const child = spawn(process.execPath, ["-e", ${JSON.stringify(childScript)}], { stdio: "ignore" }); fs.writeFileSync(${JSON.stringify(pidFile)}, String(child.pid)); setInterval(() => {}, 1000);`;
+		const started = await sessions.exec(
+			{
+				cmd: `${process.execPath} -e ${JSON.stringify(parentScript)}`,
+				shell: "/bin/bash",
+				login: false,
+				yield_time_ms: 50,
+			},
+			process.cwd(),
+		);
+
+		assert.equal(typeof started.session_id, "number");
+		for (let attempt = 0; attempt < 10 && !existsSync(pidFile); attempt += 1) {
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		}
+		childPid = Number(readFileSync(pidFile, "utf-8"));
+		assert.equal(isPidRunning(childPid), true);
+
+		assert.equal(sessions.terminateSession(started.session_id!), true);
+		await sessions.write({ session_id: started.session_id!, yield_time_ms: 500 });
+		assert.equal(await waitForPidExit(childPid), true);
+	} finally {
+		if (childPid && isPidRunning(childPid)) process.kill(childPid, "SIGKILL");
+		sessions.shutdown();
+		rmSync(dir, { recursive: true, force: true });
+	}
+});
+
+test("exec session manager does not expose short-lived foreground commands to widgets", async () => {
+	const sessions = createFastTestExecSessionManager();
+	let changes = 0;
+	const unsubscribe = sessions.onSessionChange(() => {
+		changes += 1;
+	});
+	try {
+		const result = await sessions.exec(
+			{
+				cmd: "printf ready",
+				shell: "/bin/bash",
+				login: false,
+				yield_time_ms: 500,
+			},
+			process.cwd(),
+		);
+
+		assert.equal(result.exit_code, 0);
+		assert.equal(result.session_id, undefined);
+		assert.equal(sessions.listSessions().length, 0);
+		assert.equal(changes, 0);
+	} finally {
+		unsubscribe();
+		sessions.shutdown();
+	}
+});
+
+test("exec session manager reports terminated sessions as non-zero", async () => {
+	const sessions = createFastTestExecSessionManager();
+	try {
+		let terminated = false;
+		const result = await sessions.exec(
+			{
+				cmd: "sleep 5",
+				shell: "/bin/bash",
+				login: false,
+				yield_time_ms: 5_000,
+			},
+			process.cwd(),
+			undefined,
+			(update) => {
+				if (!terminated && update.session_id !== undefined) {
+					terminated = sessions.terminateSession(update.session_id);
+				}
+			},
+		);
+
+		assert.equal(terminated, true);
+		assert.equal(result.session_id, undefined);
+		assert.notEqual(result.exit_code, 0);
 	} finally {
 		sessions.shutdown();
 	}
