@@ -5,18 +5,19 @@ export function editorCommand(): string | undefined {
 	return process.env["VISUAL"]?.trim() || process.env["EDITOR"]?.trim() || undefined;
 }
 
-function splitEditorCommand(command: string): string[] {
+export function splitEditorCommand(command: string, platform: NodeJS.Platform = process.platform): string[] {
 	const parts: string[] = [];
 	let current = "";
 	let quote: '"' | "'" | undefined;
 	let escaping = false;
+	const useBackslashEscapes = platform !== "win32";
 	for (const char of command) {
 		if (escaping) {
 			current += char;
 			escaping = false;
 			continue;
 		}
-		if (char === "\\") {
+		if (useBackslashEscapes && char === "\\") {
 			escaping = true;
 			continue;
 		}

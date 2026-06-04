@@ -133,7 +133,7 @@ function getAdapterToolNames(ctx: ExtensionContext, config: CodexConversionConfi
 	if (config.webSearch && (supportsNativeWebSearch(ctx.model) || useProxyNativeTools)) {
 		toolNames.push(WEB_SEARCH_TOOL_NAME);
 	}
-	if (config.imageGeneration && (supportsNativeImageGeneration(ctx.model) || (useProxyNativeTools && Array.isArray(ctx.model?.input) && ctx.model.input.includes("image")))) {
+	if (config.imageGeneration && (supportsNativeImageGeneration(ctx.model) || useProxyNativeTools)) {
 		toolNames.push(IMAGE_GENERATION_TOOL_NAME);
 	}
 	if (Array.isArray(ctx.model?.input) && ctx.model.input.includes("image")) {

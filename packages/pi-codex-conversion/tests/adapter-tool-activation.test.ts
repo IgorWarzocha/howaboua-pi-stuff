@@ -91,13 +91,12 @@ test("syncAdapter can disable optional native tools for configured custom provid
 
 test("syncAdapter enables optional native tools for configured custom providers by default", () => {
 	const pi = createToolHarness(["read", "bash", "edit", "write", "parallel"]);
-	const ctx = createContext({ provider: "my-provider", api: "custom-responses", id: "gpt-5" }) as ReturnType<typeof createContext> & { model: { input: string[] } };
-	ctx.model.input = ["text", "image"];
+	const ctx = createContext({ provider: "my-provider", api: "custom-responses", id: "gpt-5" });
 	const state = createAdapterState({ useAdapterProviders: true, adapterProviders: ["my-provider"], webSearch: true, imageGeneration: true });
 
 	syncAdapter(pi as never, ctx as never, state);
 
-	assert.deepEqual(pi.activeTools(), ["exec_command", "write_stdin", "apply_patch", "web.run", "image_generation", "view_image", "parallel"]);
+	assert.deepEqual(pi.activeTools(), ["exec_command", "write_stdin", "apply_patch", "web.run", "image_generation", "parallel"]);
 });
 
 test("normalizeProviderList trims, lowercases, dedupes, and ignores invalid entries", () => {

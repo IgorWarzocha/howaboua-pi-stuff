@@ -4,7 +4,7 @@ import { executeNativeCompaction } from "./compact-client.ts";
 import { extractCompactionSummaryText, hasCompactionOutputItem, sanitizeCompactedWindow, summarizeCompactionOutputForDiagnostics } from "./compaction-output.ts";
 import { findLatestNativeCompactionEntry, findLatestNativeCompactionEntryIndex, resolveLatestNativeCompactionEntry } from "./details-store.ts";
 import { rewriteResponsesPayloadWithNativeReplay, serializeLiveTailToResponsesInput } from "./payload-rewrite.ts";
-import { isResponsesCompatiblePayload, resolveNativeCompactionEnvironment, type ResponsesCompatibleRequestPayload } from "./compaction-runtime.ts";
+import { DEFAULT_SUPPORTED_PROVIDERS, isResponsesCompatiblePayload, resolveNativeCompactionEnvironment, type ResponsesCompatibleRequestPayload } from "./compaction-runtime.ts";
 import { convertResponsesTools } from "../providers/openai-responses-shared.ts";
 import {
 	serializeCompactionPreparationToRequest,
@@ -165,6 +165,10 @@ function isPiCompactionSummarizationPayload(payload: ResponsesCompatibleRequestP
 	});
 }
 
+function getSupportedNativeCompactionProviders(state: AdapterState): string[] {
+	return [...new Set([...DEFAULT_SUPPORTED_PROVIDERS, ...state.config.adapterProviders])];
+}
+
 export async function handleCodexSessionBeforeCompact(event: SessionBeforeCompactEvent, ctx: ExtensionContext, state: AdapterState, pi: ExtensionAPI) {
 	if (!state.config.responsesCompaction || !shouldUseCodexAdapter(ctx, state.config)) {
 		return undefined;
@@ -186,7 +190,7 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 	}
 	if (event.signal.aborted) return { cancel: true };
 
-	const resolution = await resolveNativeCompactionEnvironment(ctx, { enabled: true });
+	const resolution = await resolveNativeCompactionEnvironment(ctx, { enabled: true, supportedProviders: getSupportedNativeCompactionProviders(state) });
 	if (!resolution.ok) {
 		if (resolution.reason === "unsupported-provider" || resolution.reason === "unsupported-api") {
 			return undefined;
@@ -305,7 +309,7 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 
 export async function rewriteCodexCompactedProviderRequest(payload: unknown, ctx: ExtensionContext, state: AdapterState): Promise<unknown | undefined> {
 	if (!state.config.responsesCompaction || !shouldUseCodexAdapter(ctx, state.config) || (!isEffectiveOpenAICodexContext(ctx, state.config) && !isResponsesContext(ctx))) return undefined;
-	const resolution = await resolveNativeCompactionEnvironment(ctx, { enabled: true }, payload);
+	const resolution = await resolveNativeCompactionEnvironment(ctx, { enabled: true, supportedProviders: getSupportedNativeCompactionProviders(state) }, payload);
 	if (!resolution.ok) return undefined;
 	const runtime = resolution.runtime;
 	const branchEntries = ctx.sessionManager.getBranch();
@@ -334,7 +338,7 @@ export async function injectPendingNativeWindowIntoPiCompactionRequest(payload: 
 	}
 	if (!isPiCompactionSummarizationPayload(payload)) return undefined;
 
-	const resolution = await resolveNativeCompactionEnvironment(ctx, { enabled: true }, payload);
+	const resolution = await resolveNativeCompactionEnvironment(ctx, { enabled: true, supportedProviders: getSupportedNativeCompactionProviders(state) }, payload);
 	if (!resolution.ok) return undefined;
 	const runtime = resolution.runtime;
 	if (pending.provider !== runtime.provider || pending.api !== runtime.api || pending.baseUrl !== runtime.baseUrl) {
