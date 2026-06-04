@@ -78,6 +78,16 @@ test("syncAdapter enables adapter for configured custom providers", () => {
 	assert.deepEqual(pi.activeTools(), ["exec_command", "write_stdin", "apply_patch", "parallel"]);
 });
 
+test("syncAdapter can keep Pi tools for configured custom providers", () => {
+	const pi = createToolHarness(["read", "bash", "edit", "write", "parallel"]);
+	const ctx = createContext({ provider: "my-provider", api: "custom-responses", id: "gpt-5" });
+	const state = createAdapterState({ useAdapterProviders: true, adapterProviders: ["my-provider"], adapterProviderCodexTools: false });
+
+	syncAdapter(pi as never, ctx as never, state);
+
+	assert.deepEqual(pi.activeTools(), ["read", "bash", "edit", "write", "parallel"]);
+});
+
 test("normalizeProviderList trims, lowercases, dedupes, and ignores invalid entries", () => {
 	assert.deepEqual(normalizeProviderList([" My-Provider ", "my-provider", "", 42]), ["my-provider"]);
 });

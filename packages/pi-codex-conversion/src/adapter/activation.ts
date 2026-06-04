@@ -42,6 +42,10 @@ function isConfiguredAdapterProvider(ctx: ExtensionContext, config: CodexConvers
 	return Boolean(provider && config.adapterProviders.includes(provider));
 }
 
+function shouldUseAdapterTools(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
+	return !isConfiguredAdapterProvider(ctx, config) || config.adapterProviderCodexTools;
+}
+
 export function shouldUseApplyPatchOnly(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
 	return config.applyPatchOnly && isCodexLikeContext(ctx);
 }
@@ -120,6 +124,9 @@ function getStatusConfig(ctx: ExtensionContext, config: CodexConversionConfig): 
 }
 
 function getAdapterToolNames(ctx: ExtensionContext, config: CodexConversionConfig): string[] {
+	if (!shouldUseAdapterTools(ctx, config)) {
+		return DEFAULT_TOOL_NAMES;
+	}
 	const toolNames = [...CORE_ADAPTER_TOOL_NAMES];
 	if (config.webSearch && supportsNativeWebSearch(ctx.model)) {
 		toolNames.push(WEB_SEARCH_TOOL_NAME);

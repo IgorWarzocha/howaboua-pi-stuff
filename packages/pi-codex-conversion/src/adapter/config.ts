@@ -12,6 +12,7 @@ export const COMPACTION_REASONING_LEVELS: readonly CompactionReasoning[] = ["cur
 export interface CodexConversionConfig {
 	applyPatchOnly: boolean;
 	adapterProviders: string[];
+	adapterProviderCodexTools: boolean;
 	backgroundShellCloseShortcut: string;
 	backgroundShellNextShortcut: string;
 	backgroundShellPrevShortcut: string;
@@ -34,6 +35,7 @@ export const CODEX_CONVERSION_CONFIG_BASENAME = "pi-codex-conversion.json";
 export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	applyPatchOnly: false,
 	adapterProviders: [],
+	adapterProviderCodexTools: true,
 	backgroundShellCloseShortcut: "alt+r",
 	backgroundShellNextShortcut: "alt+e",
 	backgroundShellPrevShortcut: "alt+q",
@@ -96,6 +98,7 @@ export function readCodexConversionConfig(configPath: string = getCodexConversio
 		return {
 			applyPatchOnly: typeof parsed["applyPatchOnly"]! === "boolean" ? parsed["applyPatchOnly"]! : DEFAULT_CODEX_CONVERSION_CONFIG.applyPatchOnly,
 			adapterProviders: normalizeProviderList(parsed["adapterProviders"]!),
+			adapterProviderCodexTools: typeof parsed["adapterProviderCodexTools"]! === "boolean" ? parsed["adapterProviderCodexTools"]! : DEFAULT_CODEX_CONVERSION_CONFIG.adapterProviderCodexTools,
 			backgroundShellCloseShortcut: typeof parsed["backgroundShellCloseShortcut"]! === "string" && parsed["backgroundShellCloseShortcut"]!.trim() ? parsed["backgroundShellCloseShortcut"]!.trim() : DEFAULT_CODEX_CONVERSION_CONFIG.backgroundShellCloseShortcut,
 			backgroundShellNextShortcut: typeof parsed["backgroundShellNextShortcut"]! === "string" && parsed["backgroundShellNextShortcut"]!.trim() ? parsed["backgroundShellNextShortcut"]!.trim() : DEFAULT_CODEX_CONVERSION_CONFIG.backgroundShellNextShortcut,
 			backgroundShellPrevShortcut: typeof parsed["backgroundShellPrevShortcut"]! === "string" && parsed["backgroundShellPrevShortcut"]!.trim() ? parsed["backgroundShellPrevShortcut"]!.trim() : DEFAULT_CODEX_CONVERSION_CONFIG.backgroundShellPrevShortcut,

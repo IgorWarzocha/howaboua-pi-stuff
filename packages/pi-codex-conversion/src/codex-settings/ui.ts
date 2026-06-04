@@ -202,6 +202,7 @@ function buildItems(tab: SettingsTab, draft: CodexConversionConfig, theme: Theme
 		return [
 			{ id: "applyPatchOnly", label: "Apply patch only", currentValue: draft.applyPatchOnly ? "on" : "off", values: ["off", "on"] },
 			{ id: "useAdapterProviders", label: "Codex proxy", currentValue: draft.useAdapterProviders ? "on" : "off", values: ["off", "on"] },
+			{ id: "adapterProviderCodexTools", label: "Codex tools", currentValue: draft.adapterProviderCodexTools ? "on" : "off", values: ["off", "on"] },
 			{
 				id: "adapterProviders",
 				label: "Proxy providers",
@@ -228,6 +229,7 @@ function applySettingChange(id: string, value: string, draft: CodexConversionCon
 	const nextDraft = { ...draft };
 	if (id === "applyPatchOnly") nextDraft.applyPatchOnly = value === "on";
 	if (id === "adapterProviders") nextDraft.adapterProviders = normalizeProviderListFromText(value);
+	if (id === "adapterProviderCodexTools") nextDraft.adapterProviderCodexTools = value === "on";
 	if (id === "useOnAllModels") nextDraft.useOnAllModels = value === "on";
 	if (id === "useAdapterProviders") nextDraft.useAdapterProviders = value === "on";
 	if (id === "statusLine") nextDraft.statusLine = value === "on";
