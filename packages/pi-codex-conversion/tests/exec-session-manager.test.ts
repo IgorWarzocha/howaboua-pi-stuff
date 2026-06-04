@@ -387,6 +387,50 @@ test("empty write_stdin polls return promptly when aborted", async () => {
 	}
 });
 
+test("write_stdin does not write input when already aborted", async () => {
+	const sessions = createFastTestExecSessionManager();
+	try {
+		const started = await sessions.exec(
+			{
+				cmd: "read line && printf ':%s' \"$line\"",
+				shell: "/bin/bash",
+				login: false,
+				tty: true,
+				yield_time_ms: 50,
+			},
+			process.cwd(),
+		);
+
+		assert.equal(typeof started.session_id, "number");
+		const controller = new AbortController();
+		controller.abort();
+
+		await assert.rejects(
+			() =>
+				sessions.write(
+					{
+						session_id: started.session_id!,
+						chars: "cancelled\n",
+						yield_time_ms: 50,
+					},
+					controller.signal,
+				),
+			/write_stdin aborted/,
+		);
+
+		const resumed = await sessions.write({
+			session_id: started.session_id!,
+			chars: "hello\n",
+			yield_time_ms: 500,
+		});
+
+		assert.equal(resumed.output, "hello\n:hello");
+		assert.equal(resumed.exit_code, 0);
+	} finally {
+		sessions.shutdown();
+	}
+});
+
 test("non-empty write_stdin calls stay responsive and do not use the empty-poll minimum", async () => {
 	const sessions = createExecSessionManager({ minNonInteractiveExecYieldTimeMs: 50, minEmptyWriteYieldTimeMs: 500 });
 	try {

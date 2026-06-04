@@ -633,12 +633,15 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			const waitedMs = await waitForExitOrTimeout(
 				session,
 				clampExecYieldTime(input.yield_time_ms, defaultExecYieldTimeMs, session.interactive, minNonInteractiveExecYieldTimeMs),
-				signal,
+				undefined,
 				onUpdate ? (elapsedMs) => onUpdate(makeSnapshotResult(session, elapsedMs, input.max_output_tokens)) : undefined,
 			);
 			return makeResult(session, waitedMs, input.max_output_tokens);
 		},
 		write: async (input, signal, onUpdate) => {
+			if (signal?.aborted) {
+				throw new Error("write_stdin aborted");
+			}
 			const session = sessions.get(input.session_id);
 			if (!session) {
 				throw new Error(`Unknown process id ${input.session_id}`);
