@@ -3,7 +3,7 @@ import { spawn, type ChildProcessByStdio } from "node:child_process";
 import { resolve } from "node:path";
 import type { Readable } from "node:stream";
 import * as pty from "node-pty";
-import { CODEX_FALLBACK_SHELL, getCodexRuntimeShell, getDefaultCodexRuntimeShell, isFishShell } from "../adapter/runtime-shell.ts";
+import { CODEX_FALLBACK_SHELL, getCodexRuntimeShell, getCodexShellArgs, getDefaultCodexRuntimeShell, isFishShell } from "../adapter/runtime-shell.ts";
 
 export interface UnifiedExecResult {
 	chunk_id: string;
@@ -616,7 +616,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 	function createPipeSession(input: ExecCommandInput, workdir: string, shell: string, signal?: AbortSignal): PipeExecSession {
 		const login = input.login ?? true;
 		const execution = resolveExecution(input.shell, input.cmd);
-		const shellArgs = login ? ["-lc", execution.command] : ["-c", execution.command];
+		const shellArgs = getCodexShellArgs(shell, execution.command, login);
 		const child = spawn(shell, shellArgs, {
 			cwd: workdir,
 			stdio: ["ignore", "pipe", "pipe"],
@@ -669,7 +669,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 	function createPtySession(input: ExecCommandInput, workdir: string, shell: string, signal?: AbortSignal): PtyExecSession {
 		const login = input.login ?? true;
 		const execution = resolveExecution(input.shell, input.cmd);
-		const shellArgs = login ? ["-lc", execution.command] : ["-c", execution.command];
+		const shellArgs = getCodexShellArgs(shell, execution.command, login);
 		const child = pty.spawn(shell, shellArgs, {
 			cwd: workdir,
 			env: execution.env,
