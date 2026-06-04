@@ -18,6 +18,7 @@ import {
 	getOpenAICodexLatestImagePath,
 	getOpenAICodexImagePath,
 	parseSSE,
+	registerOpenAICodexCustomProvider,
 	saveOpenAICodexGeneratedImage,
 } from "../src/providers/openai-codex-custom-provider.ts";
 
@@ -45,6 +46,47 @@ const codexModel = {
 
 async function waitForTimers(): Promise<void> {
 	await new Promise<void>((resolve) => setTimeout(resolve, 0));
+}
+
+function fakeJwt(payload: Record<string, unknown>): string {
+	return ["header", Buffer.from(JSON.stringify(payload)).toString("base64url"), "signature"].join(".");
+}
+
+function sseResponse(events: unknown[]): Response {
+	return new Response(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(""), {
+		status: 200,
+		headers: { "content-type": "text/event-stream" },
+	});
+}
+
+async function collectStream(stream: AsyncIterable<unknown>): Promise<unknown[]> {
+	const events: unknown[] = [];
+	for await (const event of stream) events.push(event);
+	return events;
+}
+
+function createRegisteredCodexProvider(options?: { cwd?: string | undefined }) {
+	const providers = new Map<string, { streamSimple: (...args: never[]) => AsyncIterable<unknown> }>();
+	const handlers = new Map<string, Array<(...args: never[]) => unknown>>();
+	const renderers = new Map<string, unknown>();
+	const sentMessages: Array<{ message: unknown; options: unknown }> = [];
+	const pi = {
+		registerProvider(id: string, provider: { streamSimple: (...args: never[]) => AsyncIterable<unknown> }) {
+			providers.set(id, provider);
+		},
+		on(event: string, handler: (...args: never[]) => unknown) {
+			handlers.set(event, [...(handlers.get(event) ?? []), handler]);
+		},
+		registerMessageRenderer(type: string, renderer: unknown) {
+			renderers.set(type, renderer);
+		},
+		sendMessage(message: unknown, messageOptions: unknown) {
+			sentMessages.push({ message, options: messageOptions });
+		},
+	};
+
+	registerOpenAICodexCustomProvider(pi as never, { getCurrentCwd: () => options?.cwd ?? process.cwd() });
+	return { provider: providers.get("openai-codex")!, handlers, renderers, sentMessages };
 }
 
 test("buildRequestBody sends a non-empty fallback system prompt", () => {
@@ -113,6 +155,125 @@ test("buildRequestBody omits reasoning when Pi thinking is off", () => {
 	);
 
 	assert.equal(body.reasoning, undefined);
+});
+
+test("registered Codex provider exposes provider, lifecycle handlers, and activity renderers", () => {
+	const registered = createRegisteredCodexProvider();
+
+	assert.equal(typeof registered.provider.streamSimple, "function");
+	assert.equal(registered.renderers.has(IMAGE_SAVE_DISPLAY_MESSAGE_TYPE), true);
+	assert.equal(registered.renderers.has(WEB_SEARCH_ACTIVITY_MESSAGE_TYPE), true);
+	assert.equal((registered.handlers.get("session_start") ?? []).length, 1);
+	assert.equal((registered.handlers.get("session_shutdown") ?? []).length, 1);
+	assert.equal((registered.handlers.get("agent_end") ?? []).length, 1);
+});
+
+test("registered Codex provider retries retryable SSE failures and streams the final response", async () => {
+	const originalFetch = globalThis.fetch;
+	const registered = createRegisteredCodexProvider();
+	const fetchCalls: Array<{ url: string; init: RequestInit }> = [];
+	const responseEvents = [
+		{ type: "response.created", response: { id: "resp_1" } },
+		{ type: "response.output_item.added", output_index: 0, item: { type: "message", id: "msg_1", role: "assistant", content: [] } },
+		{ type: "response.content_part.added", output_index: 0, content_index: 0, part: { type: "output_text", text: "" } },
+		{ type: "response.output_text.delta", output_index: 0, content_index: 0, delta: "Hello" },
+		{ type: "response.output_item.done", output_index: 0, item: { type: "message", id: "msg_1", role: "assistant", content: [{ type: "output_text", text: "Hello" }], status: "completed" } },
+		{ type: "response.completed", response: { id: "resp_1", status: "completed", usage: { input_tokens: 12, output_tokens: 3, total_tokens: 15, input_tokens_details: { cached_tokens: 5 } } } },
+	];
+
+	try {
+		globalThis.fetch = (async (url, init) => {
+			fetchCalls.push({ url: String(url), init: init as RequestInit });
+			return fetchCalls.length === 1
+				? new Response("temporary overloaded", { status: 500, statusText: "Server Error" })
+				: sseResponse(responseEvents);
+		}) as typeof fetch;
+
+		const onResponses: unknown[] = [];
+		const stream = registered.provider.streamSimple(
+			{ ...(codexModel as object), baseUrl: "https://chatgpt.example/backend-api", cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } } as never,
+			{ systemPrompt: "Instructions", messages: [] } as never,
+			{
+				apiKey: fakeJwt({ "https://api.openai.com/auth": { chatgpt_account_id: "acct_1" } }),
+				transport: "sse",
+				sessionId: "session-1",
+				onResponse: (response: unknown) => onResponses.push(response),
+			} as never,
+		);
+
+		const events = await collectStream(stream);
+		const done = events.at(-1) as { type: string; message: { responseId?: string; content: Array<{ type: string; text?: string }>; usage: { input: number; cacheRead: number; output: number; totalTokens: number } } };
+
+		assert.equal(fetchCalls.length, 2);
+		assert.equal(fetchCalls[0]!.url, "https://chatgpt.example/backend-api/codex/responses");
+		assert.equal((fetchCalls[1]!.init.headers as Headers).get("session-id"), "session-1");
+		assert.equal((fetchCalls[1]!.init.headers as Headers).get("chatgpt-account-id"), "acct_1");
+		assert.equal(JSON.parse(fetchCalls[1]!.init.body as string).instructions, "Instructions");
+		assert.deepEqual(onResponses.map((response) => (response as { status: number }).status), [500, 200]);
+		assert.equal(events.some((event) => (event as { type?: string }).type === "start"), true);
+		assert.equal(events.some((event) => (event as { type?: string; delta?: string }).type === "text_delta" && (event as { delta?: string }).delta === "Hello"), true);
+		assert.equal(done.type, "done");
+		assert.equal(done.message.responseId, "resp_1");
+		assert.deepEqual(done.message.content, [{ type: "text", text: "Hello", textSignature: JSON.stringify({ v: 1, id: "msg_1" }) }]);
+		assert.deepEqual(done.message.usage, { input: 7, output: 3, cacheRead: 5, cacheWrite: 0, totalTokens: 15, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } });
+	} finally {
+		globalThis.fetch = originalFetch;
+	}
+});
+
+test("registered Codex provider converts non-retryable SSE errors into error events", async () => {
+	const originalFetch = globalThis.fetch;
+	const registered = createRegisteredCodexProvider();
+
+	try {
+		globalThis.fetch = (async () => new Response(JSON.stringify({ error: { message: "Bad request shape" } }), { status: 400, statusText: "Bad Request" })) as typeof fetch;
+		const events = await collectStream(registered.provider.streamSimple(
+			codexModel,
+			{ systemPrompt: "Instructions", messages: [] } as never,
+			{ apiKey: fakeJwt({ "https://api.openai.com/auth": { chatgpt_account_id: "acct_1" } }), transport: "sse" } as never,
+		));
+
+		assert.equal(events.length, 1);
+		assert.equal((events[0] as { type?: string }).type, "error");
+		assert.equal((events[0] as { error?: { errorMessage?: string } }).error?.errorMessage, "Bad request shape");
+	} finally {
+		globalThis.fetch = originalFetch;
+	}
+});
+
+test("registered Codex provider captures generated image and web search activities from SSE streams", async () => {
+	const originalFetch = globalThis.fetch;
+	const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "pi-codex-provider-activity-"));
+	const registered = createRegisteredCodexProvider({ cwd });
+	const encoded = Buffer.from("png-bytes").toString("base64");
+
+	try {
+		globalThis.fetch = (async () => sseResponse([
+			{ type: "response.created", response: { id: "resp_activity" } },
+			{ type: "response.output_item.done", output_index: 0, item: { type: "image_generation_call", id: "ig_activity", result: encoded, output_format: "png", revised_prompt: "Tiny icon", status: "completed" } },
+			{ type: "response.output_item.done", output_index: 1, item: { type: "web_search_call", id: "ws_activity", status: "completed", action: { query: "docs", sources: [{ url: "https://example.com/source" }] }, results: [{ title: "Docs", url: "https://example.com/source" }] } },
+			{ type: "response.completed", response: { id: "resp_activity", status: "completed", usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 } } },
+		])) as typeof fetch;
+
+		const events = await collectStream(registered.provider.streamSimple(
+			codexModel,
+			{ systemPrompt: "Instructions", messages: [{ role: "user", content: "Draw an icon" } as never] } as never,
+			{ apiKey: fakeJwt({ "https://api.openai.com/auth": { chatgpt_account_id: "acct_1" } }), transport: "sse" } as never,
+		));
+		assert.equal((events.at(-1) as { type?: string }).type, "done");
+
+		for (const handler of registered.handlers.get("agent_end") ?? []) await handler();
+		await waitForTimers();
+
+		assert.equal(registered.sentMessages.length, 2);
+		assert.equal((registered.sentMessages[0]!.message as { customType?: string }).customType, IMAGE_SAVE_DISPLAY_MESSAGE_TYPE);
+		assert.equal((registered.sentMessages[1]!.message as { customType?: string }).customType, WEB_SEARCH_ACTIVITY_MESSAGE_TYPE);
+		assert.deepEqual(await fs.readFile(path.join(cwd, ".pi", "openai-codex-images", "ig_activity-resp_activity.png")), Buffer.from("png-bytes"));
+		assert.match((registered.sentMessages[1]!.message as { content?: string }).content ?? "", /Docs — https:\/\/example\.com\/source/);
+	} finally {
+		globalThis.fetch = originalFetch;
+		await fs.rm(cwd, { recursive: true, force: true });
+	}
 });
 
 test("buildProviderErrorMessage marks websocket failures as Pi retryable connection errors", () => {
