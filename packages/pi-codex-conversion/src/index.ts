@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { Model } from "@earendil-works/pi-ai";
 import { Box, Text, truncateToWidth } from "@earendil-works/pi-tui";
-import { getCodexRuntimeShell } from "./adapter/runtime-shell.ts";
+import { getDefaultCodexRuntimeShell } from "./adapter/runtime-shell.ts";
 import { clearApplyPatchRenderState, registerApplyPatchTool } from "./tools/apply-patch-tool.ts";
 import { createExecCommandTracker } from "./tools/exec-command-state.ts";
 import { registerExecCommandTool } from "./tools/exec-command-tool.ts";
@@ -24,6 +24,7 @@ import type { AdapterState } from "./adapter/state.ts";
 import { registerCodexCommand } from "./codex-settings/command.ts";
 import { WEB_SEARCH_TOOL_NAME } from "./adapter/tool-set.ts";
 import { applyCodexContextBudgetToModel, readPiCompactionReserveTokens } from "./adapter/codex-context-budget.ts";
+import { BACKGROUND_BASH_WIDGET_ID, registerBackgroundBashWidgetShortcuts, renderBackgroundBashWidget, type BackgroundBashWidgetState } from "./tools/background-bash-widget.ts";
 
 function getCommandArg(args: unknown): string | undefined {
 	if (!args || typeof args !== "object" || !("cmd" in args) || typeof args.cmd !== "string") {
@@ -47,8 +48,10 @@ export default function codexConversion(pi: ExtensionAPI) {
 	const tracker = createExecCommandTracker();
 	const state: AdapterState = { enabled: false, cwd: process.cwd(), promptSkills: [], config: readCodexConversionConfig() };
 	const sessions = createExecSessionManager();
+	const backgroundBashWidget: BackgroundBashWidgetState = { folded: true };
 	const registeredNativeWebSearchTools = new Set<string>();
 	let nativeImageGenerationRegistered = false;
+	let backgroundWidgetRenderTimer: ReturnType<typeof setTimeout> | undefined;
 
 	function ensureOptionalNativeToolsRegistered(config = state.config): void {
 		if (config.webSearch) {
@@ -80,7 +83,31 @@ export default function codexConversion(pi: ExtensionAPI) {
 	registerExecCommandTool(pi, tracker, sessions);
 	registerWriteStdinTool(pi, sessions);
 	ensureOptionalNativeToolsRegistered();
-	registerCodexCommand(pi, state, ensureOptionalNativeToolsRegistered);
+	function clearBackgroundShellWidget(): void {
+		if (backgroundWidgetRenderTimer) {
+			clearTimeout(backgroundWidgetRenderTimer);
+			backgroundWidgetRenderTimer = undefined;
+		}
+		backgroundBashWidget.ctx?.ui.setWidget(BACKGROUND_BASH_WIDGET_ID, undefined);
+	}
+
+	function renderBackgroundShellWidget(ctx = backgroundBashWidget.ctx): void {
+		if (!ctx) return;
+		if (!state.config.backgroundShellWidget) {
+			clearBackgroundShellWidget();
+			return;
+		}
+		renderBackgroundBashWidget(ctx, backgroundBashWidget, sessions);
+	}
+
+	function applyConfig(config: typeof state.config): void {
+		ensureOptionalNativeToolsRegistered(config);
+		if (!config.backgroundShellWidget) clearBackgroundShellWidget();
+		else renderBackgroundShellWidget();
+	}
+
+	registerCodexCommand(pi, state, applyConfig, { sessions, widget: backgroundBashWidget });
+	registerBackgroundBashWidgetShortcuts(pi, backgroundBashWidget, sessions, state.config, () => state.config.backgroundShellWidget);
 
 	pi.registerMessageRenderer(NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, (message, _options, theme) => {
 		const box = new Box(1, 1, (text) => theme.bg("customMessageBg", text));
@@ -92,11 +119,30 @@ export default function codexConversion(pi: ExtensionAPI) {
 		return box;
 	});
 
+	sessions.onSessionChange((reason) => {
+		if (backgroundBashWidget.ctx && state.config.backgroundShellWidget) {
+			if (reason === "output") {
+				if (backgroundWidgetRenderTimer) return;
+				backgroundWidgetRenderTimer = setTimeout(() => {
+					backgroundWidgetRenderTimer = undefined;
+					if (backgroundBashWidget.ctx) renderBackgroundShellWidget(backgroundBashWidget.ctx);
+				}, 250);
+				return;
+			}
+			if (backgroundWidgetRenderTimer) {
+				clearTimeout(backgroundWidgetRenderTimer);
+				backgroundWidgetRenderTimer = undefined;
+			}
+			renderBackgroundShellWidget(backgroundBashWidget.ctx);
+		}
+	});
+
 	sessions.onSessionExit((sessionId) => {
 		tracker.recordSessionFinished(sessionId);
 	});
 
 	pi.on("session_start", async (_event, ctx) => {
+		backgroundBashWidget.ctx = ctx;
 		state.cwd = ctx.cwd;
 		state.config = readCodexConversionConfig();
 		state.codexContextBudgetReserveTokens = readPiCompactionReserveTokens(ctx.cwd);
@@ -106,6 +152,7 @@ export default function codexConversion(pi: ExtensionAPI) {
 		registerViewImageTool(pi, { allowOriginalDetail: supportsOriginalImageDetail(ctx.model) });
 		clearApplyPatchRenderState();
 		tracker.clear();
+		renderBackgroundShellWidget(ctx);
 		syncAdapter(pi, ctx, state);
 	});
 
@@ -147,6 +194,8 @@ export default function codexConversion(pi: ExtensionAPI) {
 
 	pi.on("session_shutdown", async () => {
 		clearApplyPatchRenderState();
+		clearBackgroundShellWidget();
+		backgroundBashWidget.ctx = undefined;
 		sessions.shutdown();
 	});
 
@@ -158,7 +207,7 @@ export default function codexConversion(pi: ExtensionAPI) {
 		return {
 			systemPrompt: buildCodexSystemPrompt(event.systemPrompt, {
 				skills,
-				shell: getCodexRuntimeShell(process.env["SHELL"]!),
+				shell: getDefaultCodexRuntimeShell(),
 			}),
 		};
 	});

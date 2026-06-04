@@ -12,6 +12,11 @@ export const COMPACTION_REASONING_LEVELS: readonly CompactionReasoning[] = ["cur
 export interface CodexConversionConfig {
 	applyPatchOnly: boolean;
 	adapterProviders: string[];
+	backgroundShellCloseShortcut: string;
+	backgroundShellNextShortcut: string;
+	backgroundShellPrevShortcut: string;
+	backgroundShellToggleShortcut: string;
+	backgroundShellWidget: boolean;
 	fast: boolean;
 	forceCachedWebSockets?: boolean | undefined;
 	imageGeneration: boolean;
@@ -29,6 +34,11 @@ export const CODEX_CONVERSION_CONFIG_BASENAME = "pi-codex-conversion.json";
 export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	applyPatchOnly: false,
 	adapterProviders: [],
+	backgroundShellCloseShortcut: "alt+r",
+	backgroundShellNextShortcut: "alt+e",
+	backgroundShellPrevShortcut: "alt+q",
+	backgroundShellToggleShortcut: "alt+w",
+	backgroundShellWidget: true,
 	fast: false,
 	forceCachedWebSockets: true,
 	imageGeneration: true,
@@ -86,6 +96,11 @@ export function readCodexConversionConfig(configPath: string = getCodexConversio
 		return {
 			applyPatchOnly: typeof parsed["applyPatchOnly"]! === "boolean" ? parsed["applyPatchOnly"]! : DEFAULT_CODEX_CONVERSION_CONFIG.applyPatchOnly,
 			adapterProviders: normalizeProviderList(parsed["adapterProviders"]!),
+			backgroundShellCloseShortcut: typeof parsed["backgroundShellCloseShortcut"]! === "string" && parsed["backgroundShellCloseShortcut"]!.trim() ? parsed["backgroundShellCloseShortcut"]!.trim() : DEFAULT_CODEX_CONVERSION_CONFIG.backgroundShellCloseShortcut,
+			backgroundShellNextShortcut: typeof parsed["backgroundShellNextShortcut"]! === "string" && parsed["backgroundShellNextShortcut"]!.trim() ? parsed["backgroundShellNextShortcut"]!.trim() : DEFAULT_CODEX_CONVERSION_CONFIG.backgroundShellNextShortcut,
+			backgroundShellPrevShortcut: typeof parsed["backgroundShellPrevShortcut"]! === "string" && parsed["backgroundShellPrevShortcut"]!.trim() ? parsed["backgroundShellPrevShortcut"]!.trim() : DEFAULT_CODEX_CONVERSION_CONFIG.backgroundShellPrevShortcut,
+			backgroundShellToggleShortcut: typeof parsed["backgroundShellToggleShortcut"]! === "string" && parsed["backgroundShellToggleShortcut"]!.trim() ? parsed["backgroundShellToggleShortcut"]!.trim() : DEFAULT_CODEX_CONVERSION_CONFIG.backgroundShellToggleShortcut,
+			backgroundShellWidget: typeof parsed["backgroundShellWidget"]! === "boolean" ? parsed["backgroundShellWidget"]! : DEFAULT_CODEX_CONVERSION_CONFIG.backgroundShellWidget,
 			fast: typeof parsed["fast"]! === "boolean" ? parsed["fast"]! : DEFAULT_CODEX_CONVERSION_CONFIG.fast,
 			forceCachedWebSockets: typeof parsed["forceCachedWebSockets"]! === "boolean" ? parsed["forceCachedWebSockets"]! : DEFAULT_CODEX_CONVERSION_CONFIG.forceCachedWebSockets,
 			imageGeneration: typeof parsed["imageGeneration"]! === "boolean" ? parsed["imageGeneration"]! : DEFAULT_CODEX_CONVERSION_CONFIG.imageGeneration,
