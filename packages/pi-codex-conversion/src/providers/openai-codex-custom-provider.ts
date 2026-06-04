@@ -35,7 +35,7 @@ export { parseSSE } from "./openai-codex/sse.ts";
 export { buildCachedWebSocketRequestBody, requestBodyForWebSocketContinuationComparison } from "./openai-codex/websocket-continuation.ts";
 export { buildWebSearchActivityMessage, buildWebSearchSummaryText, createActivityMessageDispatcher } from "./openai-codex/activity.ts";
 export { closeOpenAICodexWebSocketSessions } from "./openai-codex/websocket.ts";
-export type { ResponsesBody } from "./openai-codex/types.ts";
+export type { CachedWebSocketContinuationState, CachedWebSocketRequestBodyResult, ResponsesBody, WebSocketContinuationDecision } from "./openai-codex/types.ts";
 
 export function getEffectiveCodexTransport(
 	transport: Transport | undefined,
