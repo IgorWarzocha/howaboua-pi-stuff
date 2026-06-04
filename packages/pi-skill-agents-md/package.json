@@ -1,0 +1,36 @@
+{
+	"name": "@howaboua/pi-skill-agents-md",
+	"version": "0.0.0",
+	"description": "Pi skill package for agents-md.",
+	"type": "module",
+	"keywords": [
+		"pi-package",
+		"pi",
+		"pi-skill",
+		"skill",
+		"agents-md"
+	],
+	"license": "MIT",
+	"publishConfig": {
+		"access": "public"
+	},
+	"files": [
+		"skills",
+		"README.md",
+		"LICENSE"
+	],
+	"pi": {
+		"skills": [
+			"./skills"
+		]
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
+		"directory": "packages/pi-skill-agents-md"
+	},
+	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-skill-agents-md#readme",
+	"bugs": {
+		"url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
+	}
+}

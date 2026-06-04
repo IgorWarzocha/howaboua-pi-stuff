@@ -4,6 +4,8 @@ This repo publishes with Changesets. Do not write "upcoming release", "unrelease
 
 Agent-facing text is behavior: tool/command names, descriptions, schemas, skill files, `promptSnippet`, `promptGuidelines`, and subagent prompts. Keep it token-efficient and non-verbose.
 
+Skills and extensions must be universal for any user; do not ship hardcoded local paths, personal names, machine-specific assumptions, or private workflow details.
+
 When a change is meant to ship, add a changeset for the package(s). On merge to `main`, the version PR and publish workflow turn that into the next concrete version immediately.
 
 Use concrete version language only:

@@ -14,6 +14,7 @@
 	},
 	"dependencies": {
 		"@howaboua/pi-skill-agent-native-hardening": "0.0.2",
+		"@howaboua/pi-skill-agents-md": "0.0.0",
 		"@howaboua/pi-skill-anti-ai-copy": "0.0.1",
 		"@howaboua/pi-skill-chrome-cdp": "0.0.1",
 		"@howaboua/pi-skill-gh-issue-pr-flow": "0.0.3",
@@ -27,6 +28,7 @@
 	"pi": {
 		"skills": [
 			"../pi-skill-agent-native-hardening/skills",
+			"../pi-skill-agents-md/skills",
 			"../pi-skill-anti-ai-copy/skills",
 			"../pi-skill-chrome-cdp/skills",
 			"../pi-skill-gh-issue-pr-flow/skills",

@@ -30,7 +30,7 @@
     },
     "packages/pi-auto-reasoning-tool": {
       "name": "@howaboua/pi-auto-reasoning-tool",
-      "version": "0.1.5",
+      "version": "0.1.6",
       "dependencies": {
         "@earendil-works/pi-ai": "^0.78.0",
       },
@@ -43,7 +43,7 @@
     },
     "packages/pi-auto-trees": {
       "name": "@howaboua/pi-auto-trees",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "devDependencies": {
         "@biomejs/biome": "^2.4.16",
         "@earendil-works/pi-coding-agent": "^0.78.0",
@@ -55,7 +55,7 @@
     },
     "packages/pi-codex-conversion": {
       "name": "@howaboua/pi-codex-conversion",
-      "version": "1.5.17",
+      "version": "1.5.19",
       "bin": {
         "apply_patch": "./bin/apply_patch",
       },
@@ -84,7 +84,7 @@
     },
     "packages/pi-explore-subagents": {
       "name": "@howaboua/pi-explore-subagents",
-      "version": "0.1.6",
+      "version": "0.1.8",
       "devDependencies": {
         "@biomejs/biome": "^2.4.16",
         "@earendil-works/pi-ai": "^0.78.0",
@@ -103,7 +103,7 @@
     },
     "packages/pi-extensions": {
       "name": "@howaboua/pi-extensions",
-      "version": "0.0.4",
+      "version": "0.0.8",
       "dependencies": {
         "@howaboua/pi-auto-reasoning-tool": "0.1.5",
         "@howaboua/pi-auto-trees": "0.1.3",
@@ -118,7 +118,7 @@
     },
     "packages/pi-markdown-workflows": {
       "name": "@howaboua/pi-markdown-workflows",
-      "version": "0.2.10",
+      "version": "0.2.12",
       "dependencies": {
         "@howaboua/pi-howaboua-extensions-primitives-sdk": "^0.3.0",
         "typebox": "^1.1.34",
@@ -136,7 +136,7 @@
     },
     "packages/pi-memories": {
       "name": "@howaboua/pi-memories",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "devDependencies": {
         "@biomejs/biome": "^2.4.16",
         "@earendil-works/pi-coding-agent": "^0.78.0",
@@ -148,7 +148,7 @@
     },
     "packages/pi-semantic-grep": {
       "name": "@howaboua/pi-semantic-grep",
-      "version": "0.1.11",
+      "version": "0.1.12",
       "dependencies": {
         "better-sqlite3": "^12.10.0",
         "typebox": "^1.0.55",
@@ -168,6 +168,10 @@
       "name": "@howaboua/pi-skill-agent-native-hardening",
       "version": "0.0.2",
     },
+    "packages/pi-skill-agents-md": {
+      "name": "@howaboua/pi-skill-agents-md",
+      "version": "0.0.1",
+    },
     "packages/pi-skill-anti-ai-copy": {
       "name": "@howaboua/pi-skill-anti-ai-copy",
       "version": "0.0.1",
@@ -178,7 +182,7 @@
     },
     "packages/pi-skill-gh-issue-pr-flow": {
       "name": "@howaboua/pi-skill-gh-issue-pr-flow",
-      "version": "0.0.2",
+      "version": "0.0.3",
     },
     "packages/pi-skill-omarchy-help": {
       "name": "@howaboua/pi-skill-omarchy-help",
@@ -194,19 +198,20 @@
     },
     "packages/pi-skills": {
       "name": "@howaboua/pi-skills",
-      "version": "0.0.4",
+      "version": "0.0.6",
       "dependencies": {
-        "@howaboua/pi-skill-agent-native-hardening": "0.0.0",
-        "@howaboua/pi-skill-anti-ai-copy": "0.0.0",
-        "@howaboua/pi-skill-chrome-cdp": "0.0.0",
-        "@howaboua/pi-skill-gh-issue-pr-flow": "0.0.0",
-        "@howaboua/pi-skill-project-reference-research": "0.0.0",
-        "@howaboua/pi-skill-skill-creator": "0.0.0",
+        "@howaboua/pi-skill-agent-native-hardening": "0.0.2",
+        "@howaboua/pi-skill-agents-md": "0.0.1",
+        "@howaboua/pi-skill-anti-ai-copy": "0.0.1",
+        "@howaboua/pi-skill-chrome-cdp": "0.0.1",
+        "@howaboua/pi-skill-gh-issue-pr-flow": "0.0.3",
+        "@howaboua/pi-skill-project-reference-research": "0.0.1",
+        "@howaboua/pi-skill-skill-creator": "0.0.1",
       },
     },
     "packages/pi-smart-btw": {
       "name": "@howaboua/pi-smart-btw",
-      "version": "0.1.2",
+      "version": "0.2.0",
       "devDependencies": {
         "@biomejs/biome": "^2.4.16",
         "@earendil-works/pi-ai": "^0.78.0",
@@ -223,28 +228,29 @@
     },
     "packages/pi-stuff": {
       "name": "@howaboua/pi-stuff",
-      "version": "0.0.4",
+      "version": "0.0.8",
       "dependencies": {
-        "@howaboua/pi-auto-reasoning-tool": "0.1.5",
-        "@howaboua/pi-auto-trees": "0.1.3",
-        "@howaboua/pi-explore-subagents": "0.1.4",
-        "@howaboua/pi-markdown-workflows": "0.2.9",
-        "@howaboua/pi-memories": "0.0.0",
-        "@howaboua/pi-semantic-grep": "0.1.10",
-        "@howaboua/pi-skill-agent-native-hardening": "0.0.0",
-        "@howaboua/pi-skill-anti-ai-copy": "0.0.0",
-        "@howaboua/pi-skill-chrome-cdp": "0.0.0",
-        "@howaboua/pi-skill-gh-issue-pr-flow": "0.0.0",
-        "@howaboua/pi-skill-project-reference-research": "0.0.0",
-        "@howaboua/pi-skill-skill-creator": "0.0.0",
-        "@howaboua/pi-smart-btw": "0.1.1",
-        "@howaboua/pi-subagent-review": "0.1.52",
-        "@howaboua/pi-vent": "0.2.4",
+        "@howaboua/pi-auto-reasoning-tool": "0.1.6",
+        "@howaboua/pi-auto-trees": "0.1.5",
+        "@howaboua/pi-explore-subagents": "0.1.8",
+        "@howaboua/pi-markdown-workflows": "0.2.12",
+        "@howaboua/pi-memories": "0.1.1",
+        "@howaboua/pi-semantic-grep": "0.1.12",
+        "@howaboua/pi-skill-agent-native-hardening": "0.0.2",
+        "@howaboua/pi-skill-agents-md": "0.0.1",
+        "@howaboua/pi-skill-anti-ai-copy": "0.0.1",
+        "@howaboua/pi-skill-chrome-cdp": "0.0.1",
+        "@howaboua/pi-skill-gh-issue-pr-flow": "0.0.3",
+        "@howaboua/pi-skill-project-reference-research": "0.0.1",
+        "@howaboua/pi-skill-skill-creator": "0.0.1",
+        "@howaboua/pi-smart-btw": "0.2.0",
+        "@howaboua/pi-subagent-review": "0.2.2",
+        "@howaboua/pi-vent": "0.2.6",
       },
     },
     "packages/pi-subagent-review": {
       "name": "@howaboua/pi-subagent-review",
-      "version": "0.2.0",
+      "version": "0.2.2",
       "devDependencies": {
         "@biomejs/biome": "^2.4.16",
         "@earendil-works/pi-ai": "^0.78.0",
@@ -259,7 +265,7 @@
     },
     "packages/pi-vent": {
       "name": "@howaboua/pi-vent",
-      "version": "0.2.5",
+      "version": "0.2.6",
       "devDependencies": {
         "@biomejs/biome": "^2.4.16",
         "@earendil-works/pi-coding-agent": "^0.78.0",
@@ -467,6 +473,8 @@
     "@howaboua/pi-semantic-grep": ["@howaboua/pi-semantic-grep@workspace:packages/pi-semantic-grep"],
 
     "@howaboua/pi-skill-agent-native-hardening": ["@howaboua/pi-skill-agent-native-hardening@workspace:packages/pi-skill-agent-native-hardening"],
+
+    "@howaboua/pi-skill-agents-md": ["@howaboua/pi-skill-agents-md@workspace:packages/pi-skill-agents-md"],
 
     "@howaboua/pi-skill-anti-ai-copy": ["@howaboua/pi-skill-anti-ai-copy@workspace:packages/pi-skill-anti-ai-copy"],
 
