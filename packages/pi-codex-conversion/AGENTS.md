@@ -6,6 +6,7 @@
 - Compatibility pass covers request shape, transport/headers, reasoning/service-tier handling, retry/stream terminal semantics, and touched code.
 - Full code-mode branch: structured tool surface is only `exec_command` + `write_stdin`; Codex extras live on PATH.
 - PATH tools: `apply_patch`, `view_image`, `web.run`, `image_gen.imagegen`.
+- PATH tool build notes live in `PATH_TOOLS.md`.
 - Keep prompt guidance short and argv-shaped. Do not reintroduce structured TS wrappers for PATH tools.
 - Call out intentional divergences: PATH web/image tools are local wrappers around Codex-backed requests, not provider-native function tools.
 - Do not accept review-bot drift from stock Pi behavior unless backend-verified or intentional.

@@ -35,6 +35,7 @@
     "vendor/apply-patch/**",
     "available-tools.png",
     "CHANGELOG.md",
+    "PATH_TOOLS.md",
     "README.md",
     "LICENSE",
     "bin/view_image",
