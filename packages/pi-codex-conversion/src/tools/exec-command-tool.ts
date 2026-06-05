@@ -5,6 +5,9 @@ import { renderExecCommandCall, renderGroupedExecCommandCall } from "./codex-ren
 import type { ExecCommandTracker } from "./exec-command-state.ts";
 import type { ExecSessionManager, UnifiedExecResult } from "./exec-session-manager.ts";
 import { formatUnifiedExecResult } from "./unified-exec-format.ts";
+import { convertPathToolExecResult, getPathToolPolicy } from "./path-tool-outputs.ts";
+import { renderTextWithImages } from "./path-tool-rendering.ts";
+export { imageContentFromCodexViewImageOutput, imageContentsFromCodexViewImageOutput } from "./path-tool-outputs.ts";
 
 const EXEC_COMMAND_PARAMETERS = Type.Object({
 	cmd: Type.String({ description: "Shell command to execute." }),
@@ -129,7 +132,7 @@ const renderExecCommandResultWithOptionalContext: any = (
 	if (details?.exit_code !== undefined) {
 		text += `\n${theme.fg("muted", `Exit code: ${details.exit_code}`)}`;
 	}
-	return new Text(text, 0, 0);
+	return renderTextWithImages(text, result.content, theme);
 };
 
 export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTracker, sessions: ExecSessionManager): void {
@@ -149,10 +152,20 @@ export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTr
 				content: [{ type: "text" as const, text: formatUnifiedExecResult(partial, typedParams.cmd) }],
 				details: partial,
 			});
-			const result = await sessions.exec(typedParams, ctx.cwd, signal, onUpdate ? (partial) => onUpdate(toToolResult(partial)) : undefined);
+			const pathToolPolicy = getPathToolPolicy(typedParams.cmd, ctx.model);
+			const execParams = pathToolPolicy
+				? {
+					...typedParams,
+					...(pathToolPolicy.disableTruncation ? { max_output_tokens: Number.MAX_SAFE_INTEGER } : {}),
+					...(pathToolPolicy.yieldTimeMs !== undefined ? { yield_time_ms: pathToolPolicy.yieldTimeMs, max_yield_time_ms: pathToolPolicy.yieldTimeMs } : {}),
+				}
+				: typedParams;
+			const result = await sessions.exec(execParams, ctx.cwd, signal, pathToolPolicy?.suppressPartials ? undefined : onUpdate ? (partial) => onUpdate(toToolResult(partial)) : undefined);
 			if (result.session_id !== undefined) {
 				tracker.recordPersistentSession(toolCallId, result.session_id);
 			}
+			const pathToolResult = convertPathToolExecResult(typedParams.cmd, result, pathToolPolicy);
+			if (pathToolResult) return pathToolResult;
 			return {
 				content: [{ type: "text", text: formatUnifiedExecResult(result, typedParams.cmd) }],
 				details: result,

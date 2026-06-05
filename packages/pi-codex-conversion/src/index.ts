@@ -2,15 +2,11 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { Model } from "@earendil-works/pi-ai";
 import { Box, Text, truncateToWidth } from "@earendil-works/pi-tui";
 import { getDefaultCodexRuntimeShell } from "./adapter/runtime-shell.ts";
-import { clearApplyPatchRenderState, registerApplyPatchTool } from "./tools/apply-patch-tool.ts";
 import { createExecCommandTracker } from "./tools/exec-command-state.ts";
 import { registerExecCommandTool } from "./tools/exec-command-tool.ts";
 import { createExecSessionManager } from "./tools/exec-session-manager.ts";
 import { registerOpenAICodexCustomProvider } from "./providers/openai-codex-custom-provider.ts";
-import { registerImageGenerationTool } from "./tools/image-generation-tool.ts";
 import { buildCodexSystemPrompt, extractPiPromptSkills, resolvePromptSkills } from "./prompt/build-system-prompt.ts";
-import { registerViewImageTool, supportsOriginalImageDetail } from "./tools/view-image-tool.ts";
-import { registerWebSearchTool } from "./tools/web-search-tool.ts";
 import { registerWriteStdinTool } from "./tools/write-stdin-tool.ts";
 import { ensureBundledApplyPatchOnPath } from "./tools/apply-patch-binary.ts";
 import { readCodexConversionConfig } from "./adapter/config.ts";
@@ -22,7 +18,6 @@ import { isAdapterContextExcludedCustomMessage } from "./adapter/context-filter.
 import { getCodexSkillPaths, hasNoSkillsFlag } from "./adapter/skills.ts";
 import type { AdapterState } from "./adapter/state.ts";
 import { registerCodexCommand } from "./codex-settings/command.ts";
-import { WEB_SEARCH_TOOL_NAME } from "./adapter/tool-set.ts";
 import { applyCodexContextBudgetToModel, readPiCompactionReserveTokens } from "./adapter/codex-context-budget.ts";
 import { BACKGROUND_BASH_WIDGET_ID, registerBackgroundBashWidgetShortcuts, renderBackgroundBashWidget, type BackgroundBashWidgetState } from "./tools/background-bash-widget.ts";
 
@@ -49,23 +44,7 @@ export default function codexConversion(pi: ExtensionAPI) {
 	const state: AdapterState = { enabled: false, cwd: process.cwd(), promptSkills: [], config: readCodexConversionConfig() };
 	const sessions = createExecSessionManager();
 	const backgroundBashWidget: BackgroundBashWidgetState = { folded: true };
-	const registeredNativeWebSearchTools = new Set<string>();
-	let nativeImageGenerationRegistered = false;
 	let backgroundWidgetRenderTimer: ReturnType<typeof setTimeout> | undefined;
-
-	function ensureOptionalNativeToolsRegistered(config = state.config): void {
-		if (config.webSearch) {
-			const webSearchToolName = WEB_SEARCH_TOOL_NAME;
-			if (!registeredNativeWebSearchTools.has(webSearchToolName)) {
-				registerWebSearchTool(pi, webSearchToolName);
-				registeredNativeWebSearchTools.add(webSearchToolName);
-			}
-		}
-		if (config.imageGeneration && !nativeImageGenerationRegistered) {
-			registerImageGenerationTool(pi);
-			nativeImageGenerationRegistered = true;
-		}
-	}
 
 	function ensureCodexContextBudgetModel(ctx: { model: Model<any> | undefined }): void {
 		applyCodexContextBudgetToModel(ctx.model, state);
@@ -79,10 +58,8 @@ export default function codexConversion(pi: ExtensionAPI) {
 			imageGeneration: !state.config.applyPatchOnly && state.config.imageGeneration,
 		}),
 	});
-	registerApplyPatchTool(pi);
 	registerExecCommandTool(pi, tracker, sessions);
 	registerWriteStdinTool(pi, sessions);
-	ensureOptionalNativeToolsRegistered();
 	function clearBackgroundShellWidget(): void {
 		if (backgroundWidgetRenderTimer) {
 			clearTimeout(backgroundWidgetRenderTimer);
@@ -101,7 +78,6 @@ export default function codexConversion(pi: ExtensionAPI) {
 	}
 
 	function applyConfig(config: typeof state.config): void {
-		ensureOptionalNativeToolsRegistered(config);
 		if (!config.backgroundShellWidget) clearBackgroundShellWidget();
 		else renderBackgroundShellWidget();
 	}
@@ -147,10 +123,7 @@ export default function codexConversion(pi: ExtensionAPI) {
 		state.config = readCodexConversionConfig();
 		state.codexContextBudgetReserveTokens = readPiCompactionReserveTokens(ctx.cwd);
 		ensureCodexContextBudgetModel(ctx);
-		ensureOptionalNativeToolsRegistered();
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
-		registerViewImageTool(pi, { allowOriginalDetail: supportsOriginalImageDetail(ctx.model) });
-		clearApplyPatchRenderState();
 		tracker.clear();
 		renderBackgroundShellWidget(ctx);
 		syncAdapter(pi, ctx, state);
@@ -167,7 +140,6 @@ export default function codexConversion(pi: ExtensionAPI) {
 		state.codexContextBudgetReserveTokens = readPiCompactionReserveTokens(ctx.cwd);
 		ensureCodexContextBudgetModel(ctx);
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
-		registerViewImageTool(pi, { allowOriginalDetail: supportsOriginalImageDetail(ctx.model) });
 		syncAdapter(pi, ctx, state);
 	});
 
@@ -193,7 +165,6 @@ export default function codexConversion(pi: ExtensionAPI) {
 	});
 
 	pi.on("session_shutdown", async () => {
-		clearApplyPatchRenderState();
 		clearBackgroundShellWidget();
 		backgroundBashWidget.ctx = undefined;
 		sessions.shutdown();

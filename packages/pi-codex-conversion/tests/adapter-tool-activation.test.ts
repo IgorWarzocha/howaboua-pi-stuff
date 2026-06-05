@@ -34,8 +34,8 @@ function createContext(model: { provider: string; api: string; id: string }) {
 
 test("mergeAdapterTools replaces Pi core tools while preserving unrelated tools", () => {
 	assert.deepEqual(
-		mergeAdapterTools(["read", "bash", "edit", "write", "parallel", "custom_search"], ["exec_command", "write_stdin", "apply_patch"]),
-		["exec_command", "write_stdin", "apply_patch", "parallel", "custom_search"],
+		mergeAdapterTools(["read", "bash", "edit", "write", "parallel", "custom_search"], ["exec_command", "write_stdin"]),
+		["exec_command", "write_stdin", "parallel", "custom_search"],
 	);
 });
 
@@ -47,17 +47,17 @@ test("syncAdapter preserves disabled optional tools across repeated syncs", () =
 	syncAdapter(pi as never, ctx as never, state);
 	syncAdapter(pi as never, ctx as never, state);
 
-	assert.deepEqual(pi.activeTools(), ["exec_command", "write_stdin", "apply_patch", "web_search", "image_generation", "parallel"]);
+	assert.deepEqual(pi.activeTools(), ["exec_command", "write_stdin", "web_search", "image_generation", "parallel"]);
 });
 
-test("syncAdapter add-apply_patch-only mode is gated to Codex-like models", () => {
+test("syncAdapter apply_patch-only mode leaves PATH apply_patch to shell", () => {
 	const codexPi = createToolHarness(["read", "bash", "edit", "write", "web_search", "image_generation", "parallel"]);
 	syncAdapter(
 		codexPi as never,
 		createContext({ provider: "openai", api: "openai-responses", id: "gpt-5" }) as never,
 		createAdapterState({ applyPatchOnly: true, webSearch: true, imageGeneration: true }),
 	);
-	assert.deepEqual(codexPi.activeTools(), ["read", "bash", "edit", "write", "web_search", "parallel", "apply_patch"]);
+	assert.deepEqual(codexPi.activeTools(), ["read", "bash", "edit", "write", "web_search", "image_generation", "parallel"]);
 
 	const plainPi = createToolHarness(["read", "bash", "edit", "write", "parallel"]);
 	syncAdapter(
@@ -75,7 +75,7 @@ test("syncAdapter enables adapter for configured custom providers", () => {
 
 	syncAdapter(pi as never, ctx as never, state);
 
-	assert.deepEqual(pi.activeTools(), ["exec_command", "write_stdin", "apply_patch", "parallel"]);
+	assert.deepEqual(pi.activeTools(), ["exec_command", "write_stdin", "parallel"]);
 });
 
 test("syncAdapter can disable optional native tools for configured custom providers", () => {
@@ -86,17 +86,17 @@ test("syncAdapter can disable optional native tools for configured custom provid
 
 	syncAdapter(pi as never, ctx as never, state);
 
-	assert.deepEqual(pi.activeTools(), ["exec_command", "write_stdin", "apply_patch", "view_image", "parallel"]);
+	assert.deepEqual(pi.activeTools(), ["exec_command", "write_stdin", "parallel"]);
 });
 
-test("syncAdapter enables optional native tools for configured custom providers by default", () => {
+test("syncAdapter leaves optional native tools on PATH for configured custom providers", () => {
 	const pi = createToolHarness(["read", "bash", "edit", "write", "parallel"]);
 	const ctx = createContext({ provider: "my-provider", api: "custom-responses", id: "gpt-5" });
 	const state = createAdapterState({ useAdapterProviders: true, adapterProviders: ["my-provider"], webSearch: true, imageGeneration: true });
 
 	syncAdapter(pi as never, ctx as never, state);
 
-	assert.deepEqual(pi.activeTools(), ["exec_command", "write_stdin", "apply_patch", "web.run", "image_generation", "parallel"]);
+	assert.deepEqual(pi.activeTools(), ["exec_command", "write_stdin", "parallel"]);
 });
 
 test("normalizeProviderList trims, lowercases, dedupes, and ignores invalid entries", () => {
@@ -135,7 +135,7 @@ test("syncAdapter custom provider list is adapter-only in apply_patch-only mode"
 
 test("restoreTools restores previous tools and keeps custom tools added while adapter mode was enabled", () => {
 	assert.deepEqual(
-		restoreTools(["read", "bash", "edit", "write", "parallel"], ["exec_command", "write_stdin", "apply_patch", "parallel", "custom_search"]),
+		restoreTools(["read", "bash", "edit", "write", "parallel"], ["exec_command", "write_stdin", "parallel", "custom_search"]),
 		["read", "bash", "edit", "write", "parallel", "custom_search"],
 	);
 });

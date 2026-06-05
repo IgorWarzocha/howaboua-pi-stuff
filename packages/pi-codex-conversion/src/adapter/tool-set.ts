@@ -21,7 +21,7 @@ export const DEFAULT_TOOL_NAMES = ["read", "bash", "edit", "write"];
 
 export const SHELL_ADAPTER_TOOL_NAMES = ["exec_command", "write_stdin"];
 export const APPLY_PATCH_TOOL_NAME = "apply_patch";
-export const CORE_ADAPTER_TOOL_NAMES = [...SHELL_ADAPTER_TOOL_NAMES, APPLY_PATCH_TOOL_NAME];
+export const CORE_ADAPTER_TOOL_NAMES = [...SHELL_ADAPTER_TOOL_NAMES];
 export const IMAGE_GENERATION_TOOL_NAME = "image_generation";
 export const VIEW_IMAGE_TOOL_NAME = "view_image";
 export const WEB_SEARCH_TOOL_NAME = "web.run";

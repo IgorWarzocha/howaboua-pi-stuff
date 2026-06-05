@@ -33,6 +33,7 @@ export interface ExecCommandInput {
 	shell?: string | undefined;
 	tty?: boolean | undefined;
 	yield_time_ms?: number | undefined;
+	max_yield_time_ms?: number | undefined;
 	max_output_tokens?: number | undefined;
 	login?: boolean | undefined;
 }
@@ -195,12 +196,13 @@ function clampExecYieldTime(
 	fallback: number,
 	isInteractive: boolean,
 	minNonInteractiveExecYieldTimeMs: number,
+	maxYieldTimeMs = MAX_YIELD_TIME_MS,
 ): number {
-	const value = clampYieldTime(yieldTimeMs, fallback);
+	const value = Math.min(maxYieldTimeMs, Math.max(MIN_YIELD_TIME_MS, yieldTimeMs ?? fallback));
 	if (isInteractive) {
 		return value;
 	}
-	return Math.min(MAX_YIELD_TIME_MS, Math.max(minNonInteractiveExecYieldTimeMs, value));
+	return Math.min(maxYieldTimeMs, Math.max(minNonInteractiveExecYieldTimeMs, value));
 }
 
 function clampWriteYieldTime(
@@ -728,7 +730,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			onUpdate?.(makeSnapshotResult(session, 0, input.max_output_tokens, true));
 			const waitedMs = await waitForExitOrTimeout(
 				session,
-				clampExecYieldTime(input.yield_time_ms, defaultExecYieldTimeMs, session.interactive, minNonInteractiveExecYieldTimeMs),
+				clampExecYieldTime(input.yield_time_ms, defaultExecYieldTimeMs, session.interactive, minNonInteractiveExecYieldTimeMs, input.max_yield_time_ms),
 				undefined,
 				onUpdate ? (elapsedMs) => onUpdate(makeSnapshotResult(session, elapsedMs, input.max_output_tokens)) : undefined,
 			);

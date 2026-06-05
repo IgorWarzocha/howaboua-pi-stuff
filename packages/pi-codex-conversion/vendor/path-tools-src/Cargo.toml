@@ -1,0 +1,30 @@
+[workspace]
+members = [
+  "crates/codex-utils-cache",
+  "crates/codex-utils-image",
+  "crates/codex-view-image",
+  "crates/codex-web-run",
+  "crates/codex-imagegen",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+license = "Apache-2.0"
+version = "0.0.0"
+
+[workspace.dependencies]
+anyhow = "1"
+base64 = "0.22.1"
+codex-utils-cache = { path = "crates/codex-utils-cache" }
+codex-utils-image = { path = "crates/codex-utils-image" }
+image = { version = "^0.25.9", default-features = false }
+lru = "0.16.3"
+mime_guess = "2.0.5"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+uuid = { version = "1", features = ["v4"] }
+sha1 = "0.10"
+thiserror = "2"
+tokio = { version = "1", features = ["fs", "macros", "rt", "rt-multi-thread", "sync"] }

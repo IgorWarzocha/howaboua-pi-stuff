@@ -14,10 +14,13 @@ export interface StructuredPromptSkill {
 const CODEX_GUIDELINES = [
 	"Use `exec_command` for shell commands, file inspection, builds, and tests; prefer `rg` / `rg --files` for discovery and focused commands over truncation.",
 	"Use tty=true for dev servers, watchers, REPLs, and prompts.",
-	"Use `apply_patch` for text-file changes, including creates/deletes/moves; group related multi-file edits into one patch.",
-	"Prefer the `apply_patch` tool; use shell `apply_patch` only when chaining edits with other shell steps.",
+	"Use shell apply_patch for text-file changes, including creates/deletes/moves; group related multi-file edits into one patch.",
+	"Prefer apply_patch over ad-hoc file rewrite commands.",
+	"PATH tools use one JSON string arg. Parameters accepted:\n- view_image '{\"path\":\"/x.png\"}'\n- web.run '{\"search_query\":[{\"q\":\"...\"}]}'\n- image_gen.imagegen '{\"prompt\":\"...\"}'\n- image_gen.imagegen '{\"action\":\"edit\",\"prompt\":\"...\",\"images\":[\"/x.png\"]}' (path, URL, or data URL; pass URLs directly)",
+	"Listed PATH tools are available; do not check with command -v, which, help, or version.",
 	"Use `write_stdin` only for running `exec_command` sessions; poll sparingly.",
-	"Run independent tool calls in parallel when practical.",
+	"Chain short dependent shell commands in one exec_command with &&.",
+	"Run independent exec_command calls in parallel when practical.",
 ];
 
 function insertBeforeTrailingContext(prompt: string, section: string): string {

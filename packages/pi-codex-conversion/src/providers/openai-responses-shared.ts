@@ -32,6 +32,8 @@ interface WebSearchCallBlock {
 }
 
 type InternalAssistantContent = Extract<Message, { role: "assistant" }>["content"][number] | ImageGenerationCallBlock | WebSearchCallBlock;
+type ImageDetail = "auto" | "high" | "original";
+type ImageContentWithDetail = { type: "image"; data: string; mimeType: string; detail?: ImageDetail | undefined };
 
 export interface OpenAIResponsesStreamOptions {
 	serviceTier?: ResponseCreateParamsStreaming["service_tier"] | undefined;
@@ -126,6 +128,11 @@ function sanitizeWebSearchCallItem(item: unknown): WebSearchCallItem | undefined
 
 const NON_VISION_USER_IMAGE_PLACEHOLDER = "(image omitted: model does not support images)";
 const NON_VISION_TOOL_IMAGE_PLACEHOLDER = "(tool image omitted: model does not support images)";
+
+function imageDetailForResponses(block: unknown): ImageDetail {
+	const detail = block && typeof block === "object" ? (block as Record<string, unknown>)["detail"] : undefined;
+	return detail === "high" || detail === "original" ? detail : "auto";
+}
 
 function replaceImagesWithPlaceholder(
 	content: Extract<Message, { role: "user" }> extends { content: infer T } ? Exclude<T, string> : never,
@@ -326,7 +333,7 @@ export function convertResponsesMessages<TApi extends Api>(
 				const content = msg.content.map((item) =>
 					item.type === "text"
 						? { type: "input_text" as const, text: sanitizeSurrogates(item.text) }
-						: { type: "input_image" as const, detail: "auto" as const, image_url: `data:${item.mimeType};base64,${item.data}` },
+						: { type: "input_image" as const, detail: imageDetailForResponses(item), image_url: `data:${item.mimeType};base64,${item.data}` },
 				);
 				if (content.length > 0) messages.push({ role: "user", content });
 			}
@@ -380,10 +387,10 @@ export function convertResponsesMessages<TApi extends Api>(
 				? [
 						...(hasText ? [{ type: "input_text" as const, text: sanitizeSurrogates(textResult) }] : []),
 						...msg.content
-							.filter((block) => block.type === "image")
+							.filter((block): block is ImageContentWithDetail => block.type === "image")
 							.map((block) => ({
 								type: "input_image" as const,
-								detail: "auto" as const,
+								detail: imageDetailForResponses(block),
 								image_url: `data:${block.mimeType};base64,${block.data}`,
 							})),
 					]

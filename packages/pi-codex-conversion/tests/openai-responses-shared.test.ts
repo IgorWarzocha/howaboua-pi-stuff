@@ -70,6 +70,37 @@ test("convertResponsesMessages gives fallback assistant text ids a per-block suf
 	);
 });
 
+test("convertResponsesMessages preserves PATH view_image as structured tool image output", () => {
+	const imageModel = { ...model, input: ["text", "image"] as Array<"text" | "image"> };
+	const messages = convertResponsesMessages(
+		imageModel,
+		{
+			messages: [
+				{
+					role: "toolResult",
+					toolCallId: "call_image|fc_image",
+					content: [
+						{ type: "text", text: "Command completed\nOutput:\n<image output>" },
+						{ type: "image", mimeType: "image/png", data: "AAA", detail: "original" },
+					],
+				} as any,
+			],
+		},
+		new Set(["openai-codex"]),
+	);
+
+	assert.deepEqual(messages, [
+		{
+			type: "function_call_output",
+			call_id: "call_image",
+			output: [
+				{ type: "input_text", text: "Command completed\nOutput:\n<image output>" },
+				{ type: "input_image", detail: "original", image_url: "data:image/png;base64,AAA" },
+			],
+		},
+	]);
+});
+
 test("processResponsesStream keeps interleaved message items separate by output index", async () => {
 	const output = createAssistantOutput();
 	const pushedEvents: Array<{ type: string; contentIndex?: number }> = [];

@@ -24,7 +24,7 @@ type ResponsesTextInputItem = {
 
 type ResponsesImageInputItem = {
 	type: "input_image";
-	detail: "auto";
+	detail: "auto" | "high" | "original";
 	image_url: string;
 };
 

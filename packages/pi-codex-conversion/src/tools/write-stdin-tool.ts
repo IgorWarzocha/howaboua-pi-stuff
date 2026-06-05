@@ -4,6 +4,8 @@ import { Container, Text } from "@earendil-works/pi-tui";
 import { renderWriteStdinCall } from "./codex-rendering.ts";
 import type { ExecSessionManager, UnifiedExecResult } from "./exec-session-manager.ts";
 import { formatUnifiedExecResult } from "./unified-exec-format.ts";
+import { convertPathToolExecResult, getPathToolPolicy } from "./path-tool-outputs.ts";
+import { renderTextWithImages } from "./path-tool-rendering.ts";
 
 const WRITE_STDIN_PARAMETERS = Type.Object({
 	session_id: Type.Number({ description: "Running exec session ID." }),
@@ -111,20 +113,24 @@ export function registerWriteStdinTool(pi: ExtensionAPI, sessions: ExecSessionMa
 		description: "Writes to or polls a running exec session.",
 		promptSnippet: "Write to an exec session.",
 		parameters: WRITE_STDIN_PARAMETERS,
-		async execute(_toolCallId, params, signal, onUpdate) {
+		async execute(_toolCallId, params, signal, onUpdate, ctx) {
 			const typed = parseWriteStdinParams(params);
-			const command = sessions.getSessionCommand(typed.session_id);
+			const command = sessions.getSessionCommand(typed.session_id) ?? "";
+			const pathToolPolicy = getPathToolPolicy(command, ctx?.model);
+			const writeParams = pathToolPolicy?.disableTruncation ? { ...typed, max_output_tokens: Number.MAX_SAFE_INTEGER } : typed;
 			let result: UnifiedExecResult;
 			try {
 				const toToolResult = (partial: UnifiedExecResult) => ({
 					content: [{ type: "text" as const, text: formatUnifiedExecResult(partial, command) }],
 					details: partial,
 				});
-				result = await sessions.write(typed, signal, onUpdate ? (partial) => onUpdate(toToolResult(partial)) : undefined);
+				result = await sessions.write(writeParams, signal, pathToolPolicy?.suppressPartials ? undefined : onUpdate ? (partial) => onUpdate(toToolResult(partial)) : undefined);
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				throw new Error(`write_stdin failed: ${message}`);
 			}
+			const pathToolResult = convertPathToolExecResult(command, result, pathToolPolicy);
+			if (pathToolResult) return pathToolResult;
 			return {
 				content: [{ type: "text", text: formatUnifiedExecResult(result, command) }],
 				details: result,
@@ -147,7 +153,7 @@ export function registerWriteStdinTool(pi: ExtensionAPI, sessions: ExecSessionMa
 			if (state.exitCode !== undefined) {
 				text += `\n${theme.fg("muted", `Exit code: ${state.exitCode}`)}`;
 			}
-			return new Text(text, 0, 0);
+			return renderTextWithImages(text, result.content, theme);
 		},
 	});
 }
