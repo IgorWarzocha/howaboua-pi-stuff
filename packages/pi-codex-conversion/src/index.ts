@@ -8,7 +8,7 @@ import { createExecSessionManager } from "./tools/exec-session-manager.ts";
 import { registerOpenAICodexCustomProvider } from "./providers/openai-codex-custom-provider.ts";
 import { buildCodexSystemPrompt, extractPiPromptSkills, resolvePromptSkills } from "./prompt/build-system-prompt.ts";
 import { registerWriteStdinTool } from "./tools/write-stdin-tool.ts";
-import { ensureBundledApplyPatchOnPath } from "./tools/apply-patch-binary.ts";
+import { ensureBundledPathToolsOnPath } from "./tools/path-tools-binary.ts";
 import { readCodexConversionConfig } from "./adapter/config.ts";
 import { syncAdapter, mergeAdapterTools, restoreTools, stripAdapterTools, shouldUseCodexAdapter } from "./adapter/activation.ts";
 import { rewriteCodexProviderRequest } from "./adapter/provider-request.ts";
@@ -39,7 +39,7 @@ function isToolCallOnlyAssistantMessage(message: unknown): boolean {
 }
 
 export default function codexConversion(pi: ExtensionAPI) {
-	ensureBundledApplyPatchOnPath();
+	ensureBundledPathToolsOnPath();
 	const tracker = createExecCommandTracker();
 	const state: AdapterState = { enabled: false, cwd: process.cwd(), promptSkills: [], config: readCodexConversionConfig() };
 	const sessions = createExecSessionManager();
