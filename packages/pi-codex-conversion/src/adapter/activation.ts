@@ -21,7 +21,6 @@ export function syncAdapter(pi: ExtensionAPI, ctx: ExtensionContext, state: Adap
 }
 
 export function shouldUseCodexAdapter(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
-	if (config.applyPatchOnly) return false;
 	return config.useOnAllModels || isConfiguredAdapterProvider(ctx, config) || isCodexLikeContext(ctx);
 }
 
@@ -32,7 +31,7 @@ export function isConfiguredAdapterProvider(ctx: ExtensionContext, config: Codex
 }
 
 export function shouldUseProxyNativeTools(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
-	return isConfiguredAdapterProvider(ctx, config) && config.adapterProviderCodexTools;
+	return isConfiguredAdapterProvider(ctx, config);
 }
 
 export function isEffectiveOpenAICodexContext(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
@@ -86,8 +85,6 @@ function getStatusConfig(ctx: ExtensionContext, config: CodexConversionConfig): 
 		useOnAllModels: config.useOnAllModels,
 		useAdapterProviders: config.useAdapterProviders && isConfiguredAdapterProvider(ctx, config),
 		fast: showOpenAICodexFlags && config.fast,
-		webSearch: showOpenAICodexFlags && !config.applyPatchOnly && config.webSearch,
-		imageGeneration: showOpenAICodexFlags && !config.applyPatchOnly && config.imageGeneration,
 		compaction: { enabled: Boolean(config.responsesCompaction), model: config.compactionModel, reasoning: config.compactionReasoning },
 		...(showResponsesVerbosity ? { verbosity: config.verbosity } : {}),
 	};

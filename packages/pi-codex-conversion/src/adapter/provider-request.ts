@@ -1,10 +1,8 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { isOpenAICodexContext, isResponsesContext } from "./codex-model.ts";
+import { isResponsesContext } from "./codex-model.ts";
 import { applyCodexRequestParams } from "./config.ts";
 import type { AdapterState } from "./state.ts";
-import { rewriteNativeImageGenerationTool } from "../tools/image-generation-tool.ts";
-import { rewriteNativeWebSearchTool } from "../tools/web-search-tool.ts";
-import { isEffectiveOpenAICodexContext, shouldUseCodexAdapter, shouldUseProxyNativeTools } from "./activation.ts";
+import { isEffectiveOpenAICodexContext, shouldUseCodexAdapter } from "./activation.ts";
 import { injectPendingNativeWindowIntoPiCompactionRequest, rewriteCodexCompactedProviderRequest } from "./compaction.ts";
 
 export async function rewriteCodexProviderRequest(payload: unknown, ctx: ExtensionContext, state: AdapterState): Promise<unknown | undefined> {
@@ -12,15 +10,8 @@ export async function rewriteCodexProviderRequest(payload: unknown, ctx: Extensi
 		return undefined;
 	}
 
-	const useProxyNativeTools = !isOpenAICodexContext(ctx) && shouldUseProxyNativeTools(ctx, state.config);
 	const isEffectiveOpenAICodex = isEffectiveOpenAICodexContext(ctx, state.config);
-	const webSearchPayload = isEffectiveOpenAICodex && state.config.webSearch
-		? rewriteNativeWebSearchTool(payload, ctx.model, { force: useProxyNativeTools })
-		: payload;
-	const imageGenerationPayload = isEffectiveOpenAICodex && state.config.imageGeneration
-		? rewriteNativeImageGenerationTool(webSearchPayload, ctx.model, { force: useProxyNativeTools })
-		: webSearchPayload;
-	const configuredPayload = applyCodexRequestParams(imageGenerationPayload, state.config, {
+	const configuredPayload = applyCodexRequestParams(payload, state.config, {
 		serviceTier: isEffectiveOpenAICodex,
 		verbosity: true,
 	});

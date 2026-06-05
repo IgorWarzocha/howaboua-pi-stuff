@@ -20,7 +20,7 @@ function createAdapterState(overrides: Partial<AdapterState["config"]> = {}): Ad
 		enabled: false,
 		cwd: process.cwd(),
 		promptSkills: [],
-		config: { ...DEFAULT_CODEX_CONVERSION_CONFIG, imageGeneration: false, webSearch: false, ...overrides },
+		config: { ...DEFAULT_CODEX_CONVERSION_CONFIG, ...overrides },
 	};
 }
 
@@ -39,33 +39,15 @@ test("mergeAdapterTools replaces Pi core tools while preserving unrelated tools"
 	);
 });
 
-test("syncAdapter preserves disabled optional tools across repeated syncs", () => {
-	const pi = createToolHarness(["read", "web_search", "image_generation", "parallel"]);
+test("syncAdapter preserves unrelated tools across repeated syncs", () => {
+	const pi = createToolHarness(["read", "custom_search", "custom_image", "parallel"]);
 	const ctx = createContext({ provider: "openai", api: "openai-responses", id: "gpt-5" });
-	const state = createAdapterState({ webSearch: false, imageGeneration: false });
+	const state = createAdapterState();
 
 	syncAdapter(pi as never, ctx as never, state);
 	syncAdapter(pi as never, ctx as never, state);
 
-	assert.deepEqual(pi.activeTools(), ["exec_command", "write_stdin", "web_search", "image_generation", "parallel"]);
-});
-
-test("syncAdapter apply_patch-only mode leaves PATH apply_patch to shell", () => {
-	const codexPi = createToolHarness(["read", "bash", "edit", "write", "web_search", "image_generation", "parallel"]);
-	syncAdapter(
-		codexPi as never,
-		createContext({ provider: "openai", api: "openai-responses", id: "gpt-5" }) as never,
-		createAdapterState({ applyPatchOnly: true, webSearch: true, imageGeneration: true }),
-	);
-	assert.deepEqual(codexPi.activeTools(), ["read", "bash", "edit", "write", "web_search", "image_generation", "parallel"]);
-
-	const plainPi = createToolHarness(["read", "bash", "edit", "write", "parallel"]);
-	syncAdapter(
-		plainPi as never,
-		createContext({ provider: "anthropic", api: "anthropic-messages", id: "claude" }) as never,
-		createAdapterState({ applyPatchOnly: true, webSearch: true, imageGeneration: true }),
-	);
-	assert.deepEqual(plainPi.activeTools(), ["read", "bash", "edit", "write", "parallel"]);
+	assert.deepEqual(pi.activeTools(), ["exec_command", "write_stdin", "custom_search", "custom_image", "parallel"]);
 });
 
 test("syncAdapter enables adapter for configured custom providers", () => {
@@ -78,21 +60,10 @@ test("syncAdapter enables adapter for configured custom providers", () => {
 	assert.deepEqual(pi.activeTools(), ["exec_command", "write_stdin", "parallel"]);
 });
 
-test("syncAdapter can disable optional native tools for configured custom providers", () => {
-	const pi = createToolHarness(["read", "bash", "edit", "write", "parallel"]);
-	const ctx = createContext({ provider: "my-provider", api: "custom-responses", id: "gpt-5" }) as ReturnType<typeof createContext> & { model: { input: string[] } };
-	ctx.model.input = ["text", "image"];
-	const state = createAdapterState({ useAdapterProviders: true, adapterProviders: ["my-provider"], adapterProviderCodexTools: false, webSearch: true, imageGeneration: true });
-
-	syncAdapter(pi as never, ctx as never, state);
-
-	assert.deepEqual(pi.activeTools(), ["exec_command", "write_stdin", "parallel"]);
-});
-
-test("syncAdapter leaves optional native tools on PATH for configured custom providers", () => {
+test("syncAdapter leaves PATH tools to shell for configured custom providers", () => {
 	const pi = createToolHarness(["read", "bash", "edit", "write", "parallel"]);
 	const ctx = createContext({ provider: "my-provider", api: "custom-responses", id: "gpt-5" });
-	const state = createAdapterState({ useAdapterProviders: true, adapterProviders: ["my-provider"], webSearch: true, imageGeneration: true });
+	const state = createAdapterState({ useAdapterProviders: true, adapterProviders: ["my-provider"] });
 
 	syncAdapter(pi as never, ctx as never, state);
 
@@ -117,16 +88,6 @@ test("syncAdapter ignores configured custom providers while codex proxy is off",
 	const pi = createToolHarness(["read", "bash", "edit", "write", "parallel"]);
 	const ctx = createContext({ provider: "my-provider", api: "custom-responses", id: "gpt-5" });
 	const state = createAdapterState({ useAdapterProviders: false, adapterProviders: ["my-provider"] });
-
-	syncAdapter(pi as never, ctx as never, state);
-
-	assert.deepEqual(pi.activeTools(), ["read", "bash", "edit", "write", "parallel"]);
-});
-
-test("syncAdapter custom provider list is adapter-only in apply_patch-only mode", () => {
-	const pi = createToolHarness(["read", "bash", "edit", "write", "parallel"]);
-	const ctx = createContext({ provider: "my-provider", api: "custom-responses", id: "gpt-5" });
-	const state = createAdapterState({ applyPatchOnly: true, useAdapterProviders: true, adapterProviders: ["my-provider"] });
 
 	syncAdapter(pi as never, ctx as never, state);
 

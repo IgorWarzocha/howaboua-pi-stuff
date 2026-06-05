@@ -13,8 +13,8 @@ import type { BackgroundBashWidgetState } from "../tools/background-bash-widget.
 import { renderBackgroundBashWidget } from "../tools/background-bash-widget.ts";
 import type { ExecSessionManager } from "../tools/exec-session-manager.ts";
 
-const CODEX_COMMAND_COMPLETIONS = ["all", "status", "fast", "search", "image", "compact", "usage", "ps", "low", "medium", "high"] as const;
-const CODEX_USAGE = "Usage: /codex, /codex all, /codex status, /codex fast, /codex search, /codex image, /codex compact, /codex usage, /codex ps, /codex low|medium|high";
+const CODEX_COMMAND_COMPLETIONS = ["all", "status", "fast", "compact", "usage", "ps", "low", "medium", "high"] as const;
+const CODEX_USAGE = "Usage: /codex, /codex all, /codex status, /codex fast, /codex compact, /codex usage, /codex ps, /codex low|medium|high";
 
 export function registerCodexCommand(
 	pi: ExtensionAPI,
@@ -125,12 +125,10 @@ function getCommandConfigUpdate(arg: string, config: CodexConversionConfig): Cod
 	if (arg === "fast") return { ...config, fast: !config.fast };
 	if (arg === "all") return { ...config, useOnAllModels: !config.useOnAllModels };
 	if (arg === "status") return { ...config, statusLine: !config.statusLine };
-	if (arg === "search") return { ...config, webSearch: !config.webSearch };
-	if (arg === "image") return { ...config, imageGeneration: !config.imageGeneration };
 	const verbosity = normalizeCodexVerbosity(arg);
 	return verbosity ? { ...config, verbosity } : undefined;
 }
 
 function formatCodexSettings(config: CodexConversionConfig): string {
-	return `Codex settings: all models ${config.useOnAllModels ? "on" : "off"}, codex proxy ${config.useAdapterProviders ? "on" : "off"}${config.adapterProviders.length > 0 ? ` (${config.adapterProviders.join(", ")})` : ""}, proxy tools ${config.adapterProviderCodexTools ? "on" : "off"}, statusline ${config.statusLine ? "on" : "off"}, background shells widget ${config.backgroundShellWidget ? "on" : "off"}, fast ${config.fast ? "on" : "off"}, cached websocket upgrade ${config.forceCachedWebSockets === false ? "off" : "on"}, web search ${config.webSearch ? "on" : "off"}, image generation ${config.imageGeneration ? "on" : "off"}, responses compaction ${(config.responsesCompaction ?? false) ? "on" : "off"} (${config.compactionModel}/${config.compactionReasoning}), verbosity ${config.verbosity}`;
+	return `Codex settings: all models ${config.useOnAllModels ? "on" : "off"}, codex proxy ${config.useAdapterProviders ? "on" : "off"}${config.adapterProviders.length > 0 ? ` (${config.adapterProviders.join(", ")})` : ""}, statusline ${config.statusLine ? "on" : "off"}, background shells widget ${config.backgroundShellWidget ? "on" : "off"}, fast ${config.fast ? "on" : "off"}, cached websocket upgrade ${config.forceCachedWebSockets === false ? "off" : "on"}, responses compaction ${(config.responsesCompaction ?? false) ? "on" : "off"} (${config.compactionModel}/${config.compactionReasoning}), verbosity ${config.verbosity}`;
 }

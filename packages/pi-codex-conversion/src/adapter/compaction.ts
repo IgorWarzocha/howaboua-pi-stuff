@@ -13,11 +13,9 @@ import {
 	type ResponsesInputItem,
 } from "./serializer.ts";
 import { createNativeCompactionDetails, createNativeCompactionShimResult, isNativeCompactionDetails, NATIVE_COMPACTION_SHIM_SUMMARY, type NativeCompactionEntry } from "./types.ts";
-import { isOpenAICodexContext, isResponsesContext } from "./codex-model.ts";
-import { isEffectiveOpenAICodexContext, shouldUseCodexAdapter, shouldUseProxyNativeTools } from "./activation.ts";
+import { isResponsesContext } from "./codex-model.ts";
+import { isEffectiveOpenAICodexContext, shouldUseCodexAdapter } from "./activation.ts";
 import type { AdapterState } from "./state.ts";
-import { rewriteNativeImageGenerationTool } from "../tools/image-generation-tool.ts";
-import { rewriteNativeWebSearchTool } from "../tools/web-search-tool.ts";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === "object" && !Array.isArray(value);
@@ -59,21 +57,15 @@ function buildCompactionInstructions(systemPrompt: string, customInstructions?: 
 }
 
 function buildCompactionTools(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState): unknown[] | undefined {
+	void ctx;
+	void state;
 	const activeToolNames = new Set(pi.getActiveTools());
 	const tools = pi
 		.getAllTools()
 		.filter((tool) => activeToolNames.has(tool.name))
 		.map((tool): Tool => ({ name: tool.name, description: tool.description, parameters: tool.parameters }));
 	if (tools.length === 0) return undefined;
-	let payload: { tools: unknown[] } = { tools: convertResponsesTools(tools, { strict: null }) };
-	const useProxyNativeTools = !isOpenAICodexContext(ctx) && shouldUseProxyNativeTools(ctx, state.config);
-	if (isEffectiveOpenAICodexContext(ctx, state.config) && state.config.webSearch) {
-		payload = rewriteNativeWebSearchTool(payload, ctx.model, { force: useProxyNativeTools }) as { tools: unknown[] };
-	}
-	if (isEffectiveOpenAICodexContext(ctx, state.config) && state.config.imageGeneration) {
-		payload = rewriteNativeImageGenerationTool(payload, ctx.model, { force: useProxyNativeTools }) as { tools: unknown[] };
-	}
-	return payload.tools;
+	return convertResponsesTools(tools, { strict: null });
 }
 
 function buildCompactionReasoning(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState, compactionModel: string): NativeCompactionRequestOptions["reasoning"] {

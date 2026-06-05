@@ -10,9 +10,7 @@ export const COMPACTION_MODELS: readonly CompactionModel[] = ["gpt-5.5", "gpt-5.
 export const COMPACTION_REASONING_LEVELS: readonly CompactionReasoning[] = ["current", "minimal", "low", "medium", "high", "xhigh"];
 
 export interface CodexConversionConfig {
-	applyPatchOnly: boolean;
 	adapterProviders: string[];
-	adapterProviderCodexTools: boolean;
 	backgroundShellCloseShortcut: string;
 	backgroundShellNextShortcut: string;
 	backgroundShellPrevShortcut: string;
@@ -20,22 +18,18 @@ export interface CodexConversionConfig {
 	backgroundShellWidget: boolean;
 	fast: boolean;
 	forceCachedWebSockets?: boolean | undefined;
-	imageGeneration: boolean;
 	compactionModel: CompactionModel;
 	compactionReasoning: CompactionReasoning;
 	responsesCompaction?: boolean | undefined;
 	statusLine: boolean;
 	useAdapterProviders: boolean;
 	useOnAllModels: boolean;
-	webSearch: boolean;
 	verbosity: CodexVerbosity;
 }
 
 export const CODEX_CONVERSION_CONFIG_BASENAME = "pi-codex-conversion.json";
 export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
-	applyPatchOnly: false,
 	adapterProviders: [],
-	adapterProviderCodexTools: true,
 	backgroundShellCloseShortcut: "alt+r",
 	backgroundShellNextShortcut: "alt+e",
 	backgroundShellPrevShortcut: "alt+q",
@@ -43,14 +37,12 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	backgroundShellWidget: true,
 	fast: false,
 	forceCachedWebSockets: true,
-	imageGeneration: true,
 	compactionModel: "gpt-5.5",
 	compactionReasoning: "current",
 	responsesCompaction: false,
 	statusLine: true,
 	useAdapterProviders: false,
 	useOnAllModels: false,
-	webSearch: true,
 	verbosity: "low",
 };
 
@@ -96,9 +88,7 @@ export function readCodexConversionConfig(configPath: string = getCodexConversio
 		const parsed = JSON.parse(readFileSync(configPath, "utf-8")) as unknown;
 		if (!isObject(parsed)) return { ...DEFAULT_CODEX_CONVERSION_CONFIG };
 		return {
-			applyPatchOnly: typeof parsed["applyPatchOnly"]! === "boolean" ? parsed["applyPatchOnly"]! : DEFAULT_CODEX_CONVERSION_CONFIG.applyPatchOnly,
 			adapterProviders: normalizeProviderList(parsed["adapterProviders"]!),
-			adapterProviderCodexTools: typeof parsed["adapterProviderCodexTools"]! === "boolean" ? parsed["adapterProviderCodexTools"]! : DEFAULT_CODEX_CONVERSION_CONFIG.adapterProviderCodexTools,
 			backgroundShellCloseShortcut: typeof parsed["backgroundShellCloseShortcut"]! === "string" && parsed["backgroundShellCloseShortcut"]!.trim() ? parsed["backgroundShellCloseShortcut"]!.trim() : DEFAULT_CODEX_CONVERSION_CONFIG.backgroundShellCloseShortcut,
 			backgroundShellNextShortcut: typeof parsed["backgroundShellNextShortcut"]! === "string" && parsed["backgroundShellNextShortcut"]!.trim() ? parsed["backgroundShellNextShortcut"]!.trim() : DEFAULT_CODEX_CONVERSION_CONFIG.backgroundShellNextShortcut,
 			backgroundShellPrevShortcut: typeof parsed["backgroundShellPrevShortcut"]! === "string" && parsed["backgroundShellPrevShortcut"]!.trim() ? parsed["backgroundShellPrevShortcut"]!.trim() : DEFAULT_CODEX_CONVERSION_CONFIG.backgroundShellPrevShortcut,
@@ -106,14 +96,12 @@ export function readCodexConversionConfig(configPath: string = getCodexConversio
 			backgroundShellWidget: typeof parsed["backgroundShellWidget"]! === "boolean" ? parsed["backgroundShellWidget"]! : DEFAULT_CODEX_CONVERSION_CONFIG.backgroundShellWidget,
 			fast: typeof parsed["fast"]! === "boolean" ? parsed["fast"]! : DEFAULT_CODEX_CONVERSION_CONFIG.fast,
 			forceCachedWebSockets: typeof parsed["forceCachedWebSockets"]! === "boolean" ? parsed["forceCachedWebSockets"]! : DEFAULT_CODEX_CONVERSION_CONFIG.forceCachedWebSockets,
-			imageGeneration: typeof parsed["imageGeneration"]! === "boolean" ? parsed["imageGeneration"]! : DEFAULT_CODEX_CONVERSION_CONFIG.imageGeneration,
 			compactionModel: normalizeCompactionModel(parsed["compactionModel"]!) ?? DEFAULT_CODEX_CONVERSION_CONFIG.compactionModel,
 			compactionReasoning: normalizeCompactionReasoning(parsed["compactionReasoning"]!) ?? DEFAULT_CODEX_CONVERSION_CONFIG.compactionReasoning,
 			responsesCompaction: typeof parsed["responsesCompaction"]! === "boolean" ? parsed["responsesCompaction"]! : DEFAULT_CODEX_CONVERSION_CONFIG.responsesCompaction,
 			statusLine: typeof parsed["statusLine"]! === "boolean" ? parsed["statusLine"]! : DEFAULT_CODEX_CONVERSION_CONFIG.statusLine,
 			useAdapterProviders: typeof parsed["useAdapterProviders"]! === "boolean" ? parsed["useAdapterProviders"]! : DEFAULT_CODEX_CONVERSION_CONFIG.useAdapterProviders,
 			useOnAllModels: typeof parsed["useOnAllModels"]! === "boolean" ? parsed["useOnAllModels"]! : DEFAULT_CODEX_CONVERSION_CONFIG.useOnAllModels,
-			webSearch: typeof parsed["webSearch"]! === "boolean" ? parsed["webSearch"]! : DEFAULT_CODEX_CONVERSION_CONFIG.webSearch,
 			verbosity: normalizeCodexVerbosity(parsed["verbosity"]!) ?? DEFAULT_CODEX_CONVERSION_CONFIG.verbosity,
 		};
 	} catch (error) {

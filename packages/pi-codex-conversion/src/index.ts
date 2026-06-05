@@ -53,10 +53,6 @@ export default function codexConversion(pi: ExtensionAPI) {
 	registerOpenAICodexCustomProvider(pi, {
 		getCurrentCwd: () => state.cwd,
 		getConfig: () => state.config,
-		getNativeToolRewriteConfig: () => ({
-			webSearch: !state.config.applyPatchOnly && state.config.webSearch,
-			imageGeneration: !state.config.applyPatchOnly && state.config.imageGeneration,
-		}),
 	});
 	registerExecCommandTool(pi, tracker, sessions);
 	registerWriteStdinTool(pi, sessions);

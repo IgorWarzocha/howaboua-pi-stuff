@@ -200,9 +200,7 @@ function buildItems(tab: SettingsTab, draft: CodexConversionConfig, theme: Theme
 
 	if (tab === "overrides") {
 		return [
-			{ id: "applyPatchOnly", label: "Apply patch only", currentValue: draft.applyPatchOnly ? "on" : "off", values: ["off", "on"] },
 			{ id: "useAdapterProviders", label: "Codex proxy", currentValue: draft.useAdapterProviders ? "on" : "off", values: ["off", "on"] },
-			{ id: "adapterProviderCodexTools", label: "Proxy tools", currentValue: draft.adapterProviderCodexTools ? "on" : "off", values: ["off", "on"] },
 			{
 				id: "adapterProviders",
 				label: "Proxy providers",
@@ -219,25 +217,19 @@ function buildItems(tab: SettingsTab, draft: CodexConversionConfig, theme: Theme
 		{ id: "backgroundShellWidget", label: "Background shells widget", currentValue: draft.backgroundShellWidget ? "on" : "off", values: ["off", "on"] },
 		{ id: "fast", label: "Fast mode", currentValue: draft.fast ? "on" : "off", values: ["off", "on"] },
 		{ id: "forceCachedWebSockets", label: "Codex cached websocket upgrade", currentValue: draft.forceCachedWebSockets === false ? "off" : "on", values: ["off", "on"] },
-		{ id: "webSearch", label: "Web search", currentValue: draft.webSearch ? "on" : "off", values: ["off", "on"] },
-		{ id: "imageGeneration", label: "Image generation", currentValue: draft.imageGeneration ? "on" : "off", values: ["off", "on"] },
 		{ id: "verbosity", label: "Verbosity", currentValue: draft.verbosity, values: ["low", "medium", "high"] },
 	];
 }
 
 function applySettingChange(id: string, value: string, draft: CodexConversionConfig): CodexConversionConfig {
 	const nextDraft = { ...draft };
-	if (id === "applyPatchOnly") nextDraft.applyPatchOnly = value === "on";
 	if (id === "adapterProviders") nextDraft.adapterProviders = normalizeProviderListFromText(value);
-	if (id === "adapterProviderCodexTools") nextDraft.adapterProviderCodexTools = value === "on";
 	if (id === "useOnAllModels") nextDraft.useOnAllModels = value === "on";
 	if (id === "useAdapterProviders") nextDraft.useAdapterProviders = value === "on";
 	if (id === "statusLine") nextDraft.statusLine = value === "on";
 	if (id === "backgroundShellWidget") nextDraft.backgroundShellWidget = value === "on";
 	if (id === "fast") nextDraft.fast = value === "on";
 	if (id === "forceCachedWebSockets") nextDraft.forceCachedWebSockets = value === "on";
-	if (id === "webSearch") nextDraft.webSearch = value === "on";
-	if (id === "imageGeneration") nextDraft.imageGeneration = value === "on";
 	if (id === "responsesCompaction") nextDraft.responsesCompaction = value === "on";
 	if (id === "compactionModel") nextDraft.compactionModel = normalizeCompactionModel(value) ?? DEFAULT_CODEX_CONVERSION_CONFIG.compactionModel;
 	if (id === "compactionReasoning") nextDraft.compactionReasoning = normalizeCompactionReasoning(value) ?? DEFAULT_CODEX_CONVERSION_CONFIG.compactionReasoning;
