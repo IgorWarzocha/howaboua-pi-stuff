@@ -1,6 +1,7 @@
 mod types;
 
 use std::{env, fs};
+use std::io::Read;
 use std::path::PathBuf;
 
 use anyhow::Context;
@@ -43,13 +44,35 @@ struct WebRunArgs {
 
 fn parse_args() -> anyhow::Result<WebRunArgs> {
     let mut args = env::args().skip(1);
-    let Some(first) = args.next() else {
-        anyhow::bail!("web.run requires JSON arguments");
+    let input = match args.next() {
+        None => {
+            let mut stdin = String::new();
+            std::io::stdin()
+                .read_to_string(&mut stdin)
+                .context("failed to read web.run JSON arguments from stdin")?;
+            stdin
+        }
+        Some(first) if first == "-" => {
+            if args.next().is_some() {
+                anyhow::bail!("web.run accepts a single JSON argument or stdin");
+            }
+            let mut stdin = String::new();
+            std::io::stdin()
+                .read_to_string(&mut stdin)
+                .context("failed to read web.run JSON arguments from stdin")?;
+            stdin
+        }
+        Some(first) => {
+            if args.next().is_some() {
+                anyhow::bail!("web.run accepts a single JSON argument or stdin");
+            }
+            first
+        }
     };
-    if args.next().is_some() {
-        anyhow::bail!("web.run accepts a single JSON argument");
+    if input.trim().is_empty() {
+        anyhow::bail!("web.run requires JSON arguments");
     }
-    serde_json::from_str(&first).context("failed to parse web.run JSON arguments")
+    serde_json::from_str(input.trim()).context("failed to parse web.run JSON arguments")
 }
 
 fn pi_agent_dir() -> PathBuf {

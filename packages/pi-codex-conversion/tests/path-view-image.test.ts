@@ -28,6 +28,22 @@ test("bundled view_image emits Codex code-mode result JSON", () => {
 	assert.equal(parsed.image_url, `data:image/png;base64,${PNG_BASE64}`);
 });
 
+test("bundled view_image accepts JSON from stdin", () => {
+	const cwd = mkdtempSync(join(tmpdir(), "path-view-image-"));
+	const imagePath = join(cwd, "image.png");
+	writeFileSync(imagePath, Buffer.from(PNG_BASE64, "base64"));
+
+	const output = execFileSync("./bin/view_image", ["-"], {
+		cwd: packageRoot,
+		encoding: "utf8",
+		input: JSON.stringify({ path: imagePath }),
+	});
+	const parsed = JSON.parse(output);
+
+	assert.equal(parsed.detail, "high");
+	assert.equal(parsed.image_url, `data:image/png;base64,${PNG_BASE64}`);
+});
+
 test("exec_command recognizes Codex view_image JSON as image content", () => {
 	assert.deepEqual(imageContentFromCodexViewImageOutput(JSON.stringify({ image_url: `data:image/png;base64,${PNG_BASE64}`, detail: "high" })), {
 		type: "image",

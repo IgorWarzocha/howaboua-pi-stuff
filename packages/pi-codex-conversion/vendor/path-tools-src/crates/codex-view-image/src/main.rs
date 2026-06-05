@@ -1,4 +1,5 @@
 use std::env;
+use std::io::Read;
 use std::fs;
 use std::path::PathBuf;
 
@@ -20,13 +21,35 @@ enum ViewImageDetail {
 
 fn parse_args() -> anyhow::Result<ViewImageArgs> {
     let mut args = env::args().skip(1);
-    let Some(first) = args.next() else {
-        anyhow::bail!("view_image requires JSON arguments");
+    let input = match args.next() {
+        None => {
+            let mut stdin = String::new();
+            std::io::stdin()
+                .read_to_string(&mut stdin)
+                .context("failed to read view_image JSON arguments from stdin")?;
+            stdin
+        }
+        Some(first) if first == "-" => {
+            if args.next().is_some() {
+                anyhow::bail!("view_image accepts a single JSON argument or stdin");
+            }
+            let mut stdin = String::new();
+            std::io::stdin()
+                .read_to_string(&mut stdin)
+                .context("failed to read view_image JSON arguments from stdin")?;
+            stdin
+        }
+        Some(first) => {
+            if args.next().is_some() {
+                anyhow::bail!("view_image accepts a single JSON argument or stdin");
+            }
+            first
+        }
     };
-    if args.next().is_some() {
-        anyhow::bail!("view_image accepts a single JSON argument");
+    if input.trim().is_empty() {
+        anyhow::bail!("view_image requires JSON arguments");
     }
-    serde_json::from_str(&first).context("failed to parse view_image JSON arguments")
+    serde_json::from_str(input.trim()).context("failed to parse view_image JSON arguments")
 }
 
 fn main() -> anyhow::Result<()> {
