@@ -2,37 +2,12 @@ import { calculateCost, type Api, type AssistantMessage, type Context, type Mode
 import type { ResponseCreateParamsStreaming, ResponseInput, ResponseStreamEvent, Tool as OpenAITool } from "openai/resources/responses/responses.js";
 import { parse as partialParse } from "partial-json";
 import type { AssistantMessageEventStream } from "@earendil-works/pi-ai";
+import { encodeTextSignatureV1, parseTextSignature, shortHash } from "./openai-responses-signatures.ts";
+import { encryptedWebRunOutputFromDetails, imageDetailForResponses, isImageGenerationCallBlock, isWebSearchCallBlock, sanitizeImageGenerationCallItem, sanitizeWebSearchCallItem, type ImageDetail, type ImageGenerationCallBlock, type WebSearchCallBlock } from "./openai-responses-native-items.ts";
 
 type Message = Context["messages"][number];
 
-interface ImageGenerationCallItem {
-	type: "image_generation_call";
-	id: string;
-	status: string;
-	result: string | null;
-	revised_prompt?: string | undefined;
-}
-
-interface ImageGenerationCallBlock {
-	type: "image_generation_call";
-	item: ImageGenerationCallItem;
-}
-
-interface WebSearchCallItem {
-	type: "web_search_call";
-	id: string;
-	status?: string | undefined;
-	action?: unknown | undefined;
-	results?: unknown | undefined;
-}
-
-interface WebSearchCallBlock {
-	type: "web_search_call";
-	item: WebSearchCallItem;
-}
-
 type InternalAssistantContent = Extract<Message, { role: "assistant" }>["content"][number] | ImageGenerationCallBlock | WebSearchCallBlock;
-type ImageDetail = "auto" | "high" | "original";
 type ImageContentWithDetail = { type: "image"; data: string; mimeType: string; detail?: ImageDetail | undefined };
 
 export interface OpenAIResponsesStreamOptions {
@@ -44,8 +19,6 @@ export interface OpenAIResponsesStreamOptions {
 	applyServiceTierPricing?: (usage: Usage, serviceTier: ResponseCreateParamsStreaming["service_tier"] | undefined) => void;
 }
 
-type TextSignaturePhase = "commentary" | "final_answer";
-
 interface ConvertResponsesMessagesOptions {
 	includeSystemPrompt?: boolean | undefined;
 }
@@ -55,19 +28,6 @@ interface ConvertResponsesToolsOptions {
 }
 
 export const CODEX_TOOL_CALL_PROVIDERS = new Set(["openai", "openai-codex", "opencode"]);
-
-function shortHash(str: string): string {
-	let h1 = 0xdeadbeef;
-	let h2 = 0x41c6ce57;
-	for (let i = 0; i < str.length; i++) {
-		const ch = str.charCodeAt(i);
-		h1 = Math.imul(h1 ^ ch, 2654435761);
-		h2 = Math.imul(h2 ^ ch, 1597334677);
-	}
-	h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
-	h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
-	return (h2 >>> 0).toString(36) + (h1 >>> 0).toString(36);
-}
 
 function parseStreamingJson(partialJson: string): Record<string, unknown> {
 	if (!partialJson || partialJson.trim() === "") return {};
@@ -82,70 +42,12 @@ function parseStreamingJson(partialJson: string): Record<string, unknown> {
 	}
 }
 
-function encryptedOutputFromWebRunLike(value: unknown): string | undefined {
-	if (!value || typeof value !== "object") return undefined;
-	const encryptedOutput = (value as Record<string, unknown>)["encrypted_output"];
-	return typeof encryptedOutput === "string" && encryptedOutput.trim() ? encryptedOutput : undefined;
-}
-
-function encryptedWebRunOutputFromDetails(details: unknown): string | undefined {
-	if (!details || typeof details !== "object") return undefined;
-	const record = details as Record<string, unknown>;
-	return encryptedOutputFromWebRunLike(record["webRun"])
-		?? encryptedOutputFromWebRunLike((record["pathTool"] as Record<string, unknown> | undefined)?.["webRun"]);
-}
-
 function sanitizeSurrogates(text: string): string {
 	return text.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "");
 }
 
-function isImageGenerationCallBlock(block: InternalAssistantContent): block is ImageGenerationCallBlock {
-	return block.type === "image_generation_call" && block.item?.type === "image_generation_call";
-}
-
-function isWebSearchCallBlock(block: InternalAssistantContent): block is WebSearchCallBlock {
-	return block.type === "web_search_call" && block.item?.type === "web_search_call";
-}
-
-function sanitizeImageGenerationCallItem(item: unknown): ImageGenerationCallItem | undefined {
-	if (!item || typeof item !== "object") return undefined;
-	const candidate = item as Record<string, unknown>;
-	if (candidate["type"] !== "image_generation_call") return undefined;
-	if (typeof candidate["id"]! !== "string" || candidate["id"] === "") return undefined;
-	if (typeof candidate["status"]! !== "string" || candidate["status"] === "") return undefined;
-	if (!(typeof candidate["result"]! === "string" || candidate["result"] === null)) return undefined;
-
-	return {
-		type: "image_generation_call",
-		id: candidate["id"]!,
-		status: candidate["status"]!,
-		result: candidate["result"]!,
-		...(typeof candidate["revised_prompt"]! === "string" ? { revised_prompt: candidate["revised_prompt"]! } : {}),
-	};
-}
-
-function sanitizeWebSearchCallItem(item: unknown): WebSearchCallItem | undefined {
-	if (!item || typeof item !== "object") return undefined;
-	const candidate = item as Record<string, unknown>;
-	if (candidate["type"] !== "web_search_call") return undefined;
-	if (typeof candidate["id"]! !== "string" || candidate["id"] === "") return undefined;
-
-	return {
-		type: "web_search_call",
-		id: candidate["id"]!,
-		...(typeof candidate["status"]! === "string" ? { status: candidate["status"]! } : {}),
-		...(candidate["action"] !== undefined ? { action: candidate["action"]! } : {}),
-		...(candidate["results"] !== undefined ? { results: candidate["results"]! } : {}),
-	};
-}
-
 const NON_VISION_USER_IMAGE_PLACEHOLDER = "(image omitted: model does not support images)";
 const NON_VISION_TOOL_IMAGE_PLACEHOLDER = "(tool image omitted: model does not support images)";
-
-function imageDetailForResponses(block: unknown): ImageDetail {
-	const detail = block && typeof block === "object" ? (block as Record<string, unknown>)["detail"] : undefined;
-	return detail === "high" || detail === "original" ? detail : "auto";
-}
 
 function replaceImagesWithPlaceholder(
 	content: Extract<Message, { role: "user" }> extends { content: infer T } ? Exclude<T, string> : never,
@@ -279,29 +181,6 @@ function transformMessages(
 	insertSyntheticToolResults();
 
 	return result;
-}
-
-function encodeTextSignatureV1(id: string, phase?: string): string {
-	const payload: { v: 1; id: string; phase?: string | undefined } = { v: 1, id };
-	if (phase) payload.phase = phase;
-	return JSON.stringify(payload);
-}
-
-function parseTextSignature(signature: string | undefined): { id: string; phase?: TextSignaturePhase | undefined } | undefined {
-	if (!signature) return undefined;
-	if (signature.startsWith("{")) {
-		try {
-			const parsed = JSON.parse(signature) as { v?: number | undefined; id?: string | undefined; phase?: TextSignaturePhase | string | undefined };
-			if (parsed.v === 1 && typeof parsed.id === "string") {
-				return parsed.phase === "commentary" || parsed.phase === "final_answer"
-					? { id: parsed.id, phase: parsed.phase }
-					: { id: parsed.id };
-			}
-		} catch {
-			// Fall through to legacy plain-string handling.
-		}
-	}
-	return { id: signature };
 }
 
 export function convertResponsesMessages<TApi extends Api>(
