@@ -79,7 +79,7 @@ test("exec_command converts multiple PATH view_image calls in one shell command"
 		const result = await tool.execute(
 			"call-1",
 			{
-				cmd: `PATH=${JSON.stringify(join(packageRoot, "bin"))}:$PATH view_image ${JSON.stringify(JSON.stringify({ path: firstImagePath }))} && view_image ${JSON.stringify(JSON.stringify({ path: secondImagePath, detail: "original" }))}`,
+				cmd: `PATH=${JSON.stringify(join(packageRoot, "bin"))}:$PATH; view_image ${JSON.stringify(JSON.stringify({ path: firstImagePath }))} && view_image ${JSON.stringify(JSON.stringify({ path: secondImagePath, detail: "original" }))}`,
 			},
 			undefined,
 			undefined,

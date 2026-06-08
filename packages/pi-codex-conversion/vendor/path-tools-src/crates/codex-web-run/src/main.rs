@@ -336,7 +336,7 @@ async fn read_codex_auth() -> anyhow::Result<CodexAuth> {
 
 fn alpha_search_url() -> String {
     if let Ok(url) = env::var("PI_CODEX_ALPHA_SEARCH_URL") {
-        return alpha_search_url_from_base(&url);
+        return url;
     }
     if let Ok(base) = env::var("PI_CODEX_ALPHA_BASE_URL") {
         return alpha_search_url_from_base(&base);

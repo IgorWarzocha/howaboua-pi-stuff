@@ -14,7 +14,7 @@ export interface CodexToolProvider {
 const CODEX_ORIGINATOR = "codex_cli_rs";
 
 export function resolveCodexApiProviderBaseUrl(modelBaseUrl: string | undefined): string {
-	const base = modelBaseUrl?.trim() || `${DEFAULT_CODEX_BASE_URL}/codex`;
+	const base = modelBaseUrl?.trim() || DEFAULT_CODEX_BASE_URL;
 	const normalized = base.replace(/\/+$/, "");
 	try {
 		const url = new URL(normalized);

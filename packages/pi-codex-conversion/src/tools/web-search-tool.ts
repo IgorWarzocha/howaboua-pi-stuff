@@ -7,9 +7,8 @@ import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-w
 import type { ResponseInput } from "openai/resources/responses/responses.js";
 import { Type } from "typebox";
 import { Container, Text } from "@earendil-works/pi-tui";
-import { codexToolProviderEnv, codexToolProviderHeaders, CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE, resolveCodexAlphaSearchUrl, resolveCodexToolProvider, type CodexToolProvider } from "../adapter/codex-tool-provider.ts";
+import { codexToolProviderEnv, CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE, resolveCodexAlphaSearchUrl, resolveCodexToolProvider, type CodexToolProvider } from "../adapter/codex-tool-provider.ts";
 import { WEB_SEARCH_TOOL_NAME } from "../adapter/tool-set.ts";
-import { attachChatGptCloudflareCookies, storeChatGptCloudflareCookies } from "./chatgpt-cloudflare-cookies.ts";
 
 export const WEB_SEARCH_UNSUPPORTED_MESSAGE = CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE;
 export const WEB_SEARCH_SESSION_NOTE_TYPE = "codex-web-search-session-note";
@@ -106,19 +105,6 @@ export function supportsMultimodalNativeWebSearch(model: ExtensionContext["model
 	return !(model?.id ?? "").toLowerCase().includes("spark");
 }
 
-function parseEncryptedOutput(body: string): string {
-	let parsed: unknown;
-	try {
-		parsed = JSON.parse(body) as unknown;
-	} catch {
-		throw new Error("web_run search returned invalid JSON");
-	}
-	if (!parsed || typeof parsed !== "object") throw new Error("web_run search returned invalid JSON");
-	const encryptedOutput = (parsed as Record<string, unknown>)["encrypted_output"];
-	if (typeof encryptedOutput !== "string" || !encryptedOutput.trim()) throw new Error("web_run search returned no encrypted output");
-	return encryptedOutput;
-}
-
 function mergeSearchSettings(settings: unknown): Record<string, unknown> {
 	const merged = settings && typeof settings === "object" && !Array.isArray(settings) ? { ...(settings as Record<string, unknown>) } : {};
 	if (merged["allowed_callers"] === undefined) merged["allowed_callers"] = ["direct"];
@@ -141,10 +127,9 @@ export function buildCodexWebSearchRequest(params: Record<string, unknown>, prov
 }
 
 export async function executeCodexWebSearch(params: Record<string, unknown>, ctx: ExtensionContext, signal: AbortSignal | undefined | null, options: WebSearchToolOptions = {}): Promise<string> {
-	if (process.env["PI_CODEX_WEB_RUN_TS_FETCH"] === "1") return executeCodexWebSearchFetch(params, ctx, signal, options);
 	const provider = await resolveCodexToolProvider(ctx);
 	const scriptDir = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
-	const webRunPath = join(scriptDir, "bin", process.platform === "win32" ? "web_run.cmd" : "web_run");
+	const webRunPath = process.env["PI_CODEX_WEB_RUN_BIN"]?.trim() || join(scriptDir, "bin", process.platform === "win32" ? "web_run.cmd" : "web_run");
 	try {
 		const recentInput = options.getRecentInput?.();
 		const stdout = await runWebRunBinary(webRunPath, { id: options.sessionId, ...(recentInput && params["input"] === undefined ? { input: recentInput } : {}), ...params }, codexToolProviderEnv(provider), signal);
@@ -157,34 +142,6 @@ export async function executeCodexWebSearch(params: Record<string, unknown>, ctx
 		const message = stderr.trim() || (error instanceof Error ? error.message : String(error));
 		throw new Error(message);
 	}
-}
-
-export async function executeCodexWebSearchFetch(params: Record<string, unknown>, ctx: ExtensionContext, signal: AbortSignal | undefined | null, options: WebSearchToolOptions = {}): Promise<string> {
-	const provider = await resolveCodexToolProvider(ctx);
-	const url = resolveCodexAlphaSearchUrl(provider.baseUrl);
-	const headers = codexToolProviderHeaders(provider);
-	attachChatGptCloudflareCookies(url, headers);
-	const response = await fetch(url, {
-		method: "POST",
-		headers,
-		signal: signal ?? null,
-		body: JSON.stringify(buildCodexWebSearchRequest({ id: options.sessionId, ...params }, provider, options.getRecentInput?.())),
-	});
-	storeChatGptCloudflareCookies(url, response.headers);
-	const body = await response.text();
-	const cloudflareChallenge = response.headers.get("cf-mitigated") === "challenge" || (response.headers.get("server") ?? "").toLowerCase() === "cloudflare" && body.trimStart().startsWith("<html");
-	if (!response.ok) {
-		if (response.status === 403 && (cloudflareChallenge || body.toLowerCase().includes("cloudflare"))) throw new Error(`web_run alpha/search failed for \`${url}\`: HTTP 403 Cloudflare challenge`);
-		if (response.status === 404 && body.includes('"Not Found"')) throw new Error(`web_run alpha/search failed for \`${url}\`: HTTP 404 Not Found (Codex alpha/search endpoint unavailable for this account/backend)`);
-		throw new Error(`web_run alpha/search failed for \`${url}\`: HTTP ${response.status} ${body}`);
-	}
-	if (!body.trimStart().startsWith("{")) {
-		const lowerBody = body.toLowerCase();
-		if (cloudflareChallenge || lowerBody.includes("cloudflare")) throw new Error(`web_run alpha/search failed for \`${url}\`: Cloudflare challenge`);
-		if (lowerBody.includes("<!doctype html") && lowerBody.includes("chatgpt")) throw new Error(`web_run alpha/search failed for \`${url}\`: ChatGPT auth redirect`);
-		throw new Error(`web_run alpha/search failed for \`${url}\`: expected JSON response`);
-	}
-	return parseEncryptedOutput(body);
 }
 
 
