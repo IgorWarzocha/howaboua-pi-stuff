@@ -5,6 +5,13 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { buildRecentWebSearchInput, createWebSearchTool, executeCodexWebSearch, supportsMultimodalNativeWebSearch, supportsNativeWebSearch } from "../src/tools/web-search-tool.ts";
 
+function renderText(component: { render(width: number): string[] } | undefined): string {
+	assert.ok(component);
+	return component.render(120).map((line) => line.trimEnd()).join("\n");
+}
+
+const theme = { fg: (_role: string, text: string) => text, bold: (text: string) => text };
+
 function fakeJwt(accountId: string): string {
 	return ["header", Buffer.from(JSON.stringify({ "https://api.openai.com/auth": { chatgpt_account_id: accountId } })).toString("base64url"), "signature"].join(".");
 }
@@ -45,6 +52,12 @@ test("web_run schema tells agents to pass explicit search params", () => {
 	const parameters = createWebSearchTool().parameters as { properties?: Record<string, unknown> };
 	assert.ok(parameters.properties?.["search_query"]);
 	assert.ok(parameters.properties?.["image_query"]);
+});
+
+test("web_run renders Codex-style web search labels", () => {
+	const tool = createWebSearchTool();
+	assert.equal(renderText(tool.renderCall?.({ search_query: [{ q: "short query" }] }, theme as never, {} as never)), "• Searched the web\n  └ short query");
+	assert.equal(renderText(tool.renderCall?.({ find: [{ ref_id: "turn0view0", pattern: "needle" }] }, theme as never, {} as never)), "• Searched the web\n  └ 'needle'");
 });
 
 test("web_run supports OpenAI Codex Responses models and keeps spark text-only", () => {

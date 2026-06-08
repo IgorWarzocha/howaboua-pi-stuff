@@ -9,6 +9,7 @@ import { Type } from "typebox";
 import { Container, Text } from "@earendil-works/pi-tui";
 import { codexToolProviderEnv, CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE, resolveCodexToolProvider } from "../adapter/codex-tool-provider.ts";
 import { WEB_SEARCH_TOOL_NAME } from "../adapter/tool-set.ts";
+import { renderCodexToolCell } from "./codex-tool-cell.ts";
 
 export const WEB_SEARCH_UNSUPPORTED_MESSAGE = CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE;
 export const WEB_SEARCH_SESSION_NOTE_TYPE = "codex-web-search-session-note";
@@ -32,6 +33,27 @@ const WEB_SEARCH_PARAMETERS = Type.Object({
 }, { additionalProperties: true });
 const ASSISTANT_CONTEXT_CHAR_LIMIT = 4_000;
 function createEmptyResultComponent(): Container { return new Container(); }
+
+function firstString(value: unknown, key: string): string | undefined {
+	if (!value || typeof value !== "object") return undefined;
+	const field = (value as Record<string, unknown>)[key];
+	return typeof field === "string" && field.trim() ? field.trim() : undefined;
+}
+
+function webSearchCallDetail(params: Record<string, unknown>): string | undefined {
+	const search = Array.isArray(params["search_query"]!) ? params["search_query"]![0] : undefined;
+	const image = Array.isArray(params["image_query"]!) ? params["image_query"]![0] : undefined;
+	const open = Array.isArray(params["open"]!) ? params["open"]![0] : undefined;
+	const click = Array.isArray(params["click"]!) ? params["click"]![0] : undefined;
+	const find = Array.isArray(params["find"]!) ? params["find"]![0] : undefined;
+	const query = firstString(search, "q") ?? firstString(image, "q");
+	if (query) return query;
+	const opened = firstString(open, "url") ?? firstString(open, "ref_id") ?? firstString(click, "ref_id");
+	if (opened) return opened;
+	const pattern = firstString(find, "pattern");
+	if (pattern) return `'${pattern}'`;
+	return undefined;
+}
 
 export interface WebSearchToolOptions {
 	getRecentInput?: (() => ResponseInput | undefined) | undefined;
@@ -174,7 +196,7 @@ export function createWebSearchTool(name: string = WEB_SEARCH_TOOL_NAME, options
 			return { content: [{ type: "text", text: encryptedOutput }], details: { webRun: { output_text: encryptedOutput } } };
 		},
 		...(toolOptions.customRendering === false ? {} : {
-		renderCall(_args, theme) { return new Text(`${theme.fg("toolTitle", theme.bold(name))}`, 0, 0); },
+		renderCall(args, theme) { return renderCodexToolCell("Searched the web", webSearchCallDetail(args as Record<string, unknown>), theme); },
 		renderResult(result, { expanded }, theme) {
 			if (!expanded) return createEmptyResultComponent();
 			const textBlock = result.content.find((item) => item.type === "text");

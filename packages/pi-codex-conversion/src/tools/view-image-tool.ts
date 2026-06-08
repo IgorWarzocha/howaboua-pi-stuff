@@ -9,6 +9,7 @@ import { Text } from "@earendil-works/pi-tui";
 import { getBundledPathToolBinaryPath } from "./path-tools-binary.ts";
 import { imageContentFromCodexViewImageOutput } from "./path-tool-outputs.ts";
 import { runBundledTool } from "./path-tool-runner.ts";
+import { renderCodexToolCell } from "./codex-tool-cell.ts";
 
 const VIEW_IMAGE_UNSUPPORTED_MESSAGE = "view_image is not allowed because you do not support image inputs";
 const DETAIL_DESCRIPTION =
@@ -135,22 +136,17 @@ export function createViewImageTool(options: CreateViewImageToolOptions = {}): T
 		},
 		...(options.customRendering === false ? {} : {
 		renderCall(args, theme) {
-			return new Text(
-				`${theme.fg("toolTitle", theme.bold("view_image"))} ${theme.fg("accent", typeof args["path"]! === "string" ? args["path"]! : "")}`,
-				0,
-				0,
-			);
+			return renderCodexToolCell("Viewed Image", typeof args["path"]! === "string" ? args["path"]! : undefined, theme);
 		},
 		renderResult(result, { isPartial, expanded }, theme) {
 			if (isPartial) {
 				return new Text(theme.fg("warning", "Loading image..."), 0, 0);
 			}
-			const textBlock = result.content.find((item) => item.type === "text");
-			let text = theme.fg("success", "Image loaded");
-			if (expanded && textBlock?.type === "text") {
-				text += `\n${theme.fg("dim", textBlock.text)}`;
+			if (!expanded) {
+				return new Text("", 0, 0);
 			}
-			return new Text(text, 0, 0);
+			const textBlock = result.content.find((item) => item.type === "text");
+			return new Text(theme.fg("dim", textBlock?.type === "text" ? textBlock.text : ""), 0, 0);
 		},
 		}),
 	};

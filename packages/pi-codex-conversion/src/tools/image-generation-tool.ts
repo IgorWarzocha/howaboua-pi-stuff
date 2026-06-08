@@ -7,6 +7,7 @@ import { IMAGE_GENERATION_TOOL_NAME } from "../adapter/tool-set.ts";
 import { getBundledPathToolBinaryPath } from "./path-tools-binary.ts";
 import { formatPathImagegenOutput, imageContentsFromPathImagegenOutput, pathImagegenOutputFromJson } from "./path-tool-outputs.ts";
 import { runBundledTool } from "./path-tool-runner.ts";
+import { renderCodexToolCell } from "./codex-tool-cell.ts";
 
 export const IMAGE_GENERATION_UNSUPPORTED_MESSAGE = "imagegen requires an image-capable OpenAI Codex-compatible Responses provider";
 const IMAGE_GENERATION_PARAMETERS = Type.Object({
@@ -112,7 +113,7 @@ export function createImageGenerationTool(options: { customRendering?: boolean |
 			return { content: [{ type: "text", text: formatPathImagegenOutput(details) }, ...imageContentsFromPathImagegenOutput(details)], details };
 		},
 		...(options.customRendering === false ? {} : {
-		renderCall(_args, theme) { return new Text(`${theme.fg("toolTitle", theme.bold(IMAGE_GENERATION_TOOL_NAME))}`, 0, 0); },
+		renderCall(args, theme) { return renderCodexToolCell("Generated Image:", typeof args.prompt === "string" ? args.prompt : undefined, theme); },
 		renderResult(result, { expanded }, theme) {
 			if (!expanded) return createEmptyResultComponent();
 			const textBlock = result.content.find((item) => item.type === "text");

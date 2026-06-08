@@ -8,6 +8,13 @@ import { createViewImageTool, parseViewImageParams } from "../src/tools/view-ima
 const PNG_BASE64 =
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==";
 
+function renderText(component: { render(width: number): string[] } | undefined): string {
+	assert.ok(component);
+	return component.render(120).map((line) => line.trimEnd()).join("\n");
+}
+
+const theme = { fg: (_role: string, text: string) => text, bold: (text: string) => text };
+
 test("parseViewImageParams accepts omitted and null detail, but rejects invalid detail values", () => {
 	assert.deepEqual(parseViewImageParams({ path: "assets/example.png" }), { path: "assets/example.png", detail: undefined });
 	assert.deepEqual(parseViewImageParams({ path: "assets/example.png", detail: null }), {
@@ -29,6 +36,19 @@ test("createViewImageTool prepareArguments normalizes alternate path field names
 		path: "image.png",
 		detail: "original",
 	});
+});
+
+test("view_image renders Codex-style label", () => {
+	const tool = createViewImageTool({ allowOriginalDetail: true });
+	assert.equal(renderText(tool.renderCall?.({ path: "image.png" }, theme as never, {} as never)), "• Viewed Image\n  └ image.png");
+});
+
+test("view_image hides redundant collapsed result text", () => {
+	const tool = createViewImageTool({ allowOriginalDetail: true });
+	assert.equal(
+		renderText(tool.renderResult?.({ content: [{ type: "text", text: "Image loaded" }], details: undefined }, { expanded: false, isPartial: false }, theme as never, {} as never)),
+		"",
+	);
 });
 
 test("createViewImageTool prepareArguments preserves invalid detail values for validation", () => {
