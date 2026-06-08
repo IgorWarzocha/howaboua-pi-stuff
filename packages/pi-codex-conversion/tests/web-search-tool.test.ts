@@ -130,7 +130,7 @@ process.stdin.on("end", () => {
 			const captured = JSON.parse(await readFile(capturePath, "utf8")) as { env: Record<string, string>; input: Record<string, unknown> };
 			assert.equal(captured.env["PI_CODEX_ACCESS_TOKEN"]?.startsWith("poison-token"), false);
 			assert.equal(captured.env["PI_CODEX_ACCOUNT_ID"], "pi-account");
-			assert.equal(captured.env["PI_CODEX_ALPHA_SEARCH_URL"], "https://chatgpt.com/backend-api/codex/alpha/search");
+			assert.equal(captured.env["PI_CODEX_RESPONSES_URL"], "https://chatgpt.com/backend-api/codex/responses");
 			assert.equal(captured.input["id"], "session-123");
 			assert.deepEqual(captured.input["search_query"], [{ q: "OpenAI" }]);
 		});
@@ -191,17 +191,17 @@ process.stdin.on("end", () => { process.stderr.write("web_run alpha/search faile
 	}
 });
 
-test("createWebSearchTool returns encrypted web_run details through Pi's tool system", async () => {
+test("createWebSearchTool returns web_run text details through Pi's tool system", async () => {
 	const originalBin = process.env["PI_CODEX_WEB_RUN_BIN"];
 	try {
 		await withMockWebRun(`#!/usr/bin/env node
 process.stdin.resume();
-process.stdin.on("end", () => console.log(JSON.stringify({ encrypted_output: "ciphertext" })));
+process.stdin.on("end", () => console.log(JSON.stringify({ output_text: "search result" })));
 `, async (webRunPath) => {
 			process.env["PI_CODEX_WEB_RUN_BIN"] = webRunPath;
 			const result = await createWebSearchTool().execute("call", { search_query: [{ q: "OpenAI" }] }, undefined, undefined as never, createContext({ accountId: "pi-account" }));
-			assert.deepEqual(result.content, [{ type: "text", text: "[encrypted web search output]" }]);
-			assert.deepEqual(result.details, { webRun: { encrypted_output: "ciphertext" } });
+			assert.deepEqual(result.content, [{ type: "text", text: "search result" }]);
+			assert.deepEqual(result.details, { webRun: { output_text: "search result" } });
 		});
 	} finally {
 		if (originalBin === undefined) delete process.env["PI_CODEX_WEB_RUN_BIN"];

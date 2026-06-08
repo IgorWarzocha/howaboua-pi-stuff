@@ -135,8 +135,10 @@ export async function executeCodexWebSearch(params: Record<string, unknown>, ctx
 		const stdout = await runWebRunBinary(webRunPath, { id: options.sessionId, ...(recentInput && params["input"] === undefined ? { input: recentInput } : {}), ...params }, codexToolProviderEnv(provider), signal);
 		const parsed = JSON.parse(stdout) as Record<string, unknown>;
 		const encryptedOutput = parsed["encrypted_output"];
-		if (typeof encryptedOutput !== "string" || !encryptedOutput.trim()) throw new Error("web_run search returned no encrypted output");
-		return encryptedOutput;
+		if (typeof encryptedOutput === "string" && encryptedOutput.trim()) return encryptedOutput;
+		const outputText = parsed["output_text"] ?? parsed["text"];
+		if (typeof outputText === "string" && outputText.trim()) return outputText;
+		throw new Error("web_run search returned no output");
 	} catch (error) {
 		const stderr = error && typeof error === "object" && "stderr" in error ? String((error as { stderr?: unknown }).stderr ?? "") : "";
 		const message = stderr.trim() || (error instanceof Error ? error.message : String(error));
@@ -157,7 +159,7 @@ export function createWebSearchTool(name: string = WEB_SEARCH_TOOL_NAME, options
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
 			if (!supportsExecutableWebSearch(ctx.model)) throw new Error(WEB_SEARCH_UNSUPPORTED_MESSAGE);
 			const encryptedOutput = await executeCodexWebSearch(params, ctx, signal, toolOptions);
-			return { content: [{ type: "text", text: "[encrypted web search output]" }], details: { webRun: { encrypted_output: encryptedOutput } } };
+			return { content: [{ type: "text", text: encryptedOutput }], details: { webRun: { output_text: encryptedOutput } } };
 		},
 		renderCall(_args, theme) { return new Text(`${theme.fg("toolTitle", theme.bold(name))}`, 0, 0); },
 		renderResult(result, { expanded }, theme) {
