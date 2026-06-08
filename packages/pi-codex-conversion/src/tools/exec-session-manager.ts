@@ -1,7 +1,9 @@
-import { resolve } from "node:path";
-import { CODEX_FALLBACK_SHELL, getCodexRuntimeShell, getCodexShellArgs, getDefaultCodexRuntimeShell, isFishShell } from "../adapter/runtime-shell.ts";
-import { applyTerminalOutput, consumeOutput, generateChunkId, normalizePipeOutput, peekOutputSince, peekUnconsumedOutput, truncateOutput } from "./exec-output.ts";
+import { getCodexShellArgs } from "../adapter/runtime-shell.ts";
+import { applyTerminalOutput, normalizePipeOutput } from "./exec-output.ts";
 import { chunkToText, createExecBridgeClient, type BridgeReadResponse } from "./exec-bridge-client.ts";
+import { DEFAULT_EXEC_YIELD_TIME_MS, DEFAULT_MAX_EMPTY_WRITE_YIELD_TIME_MS, DEFAULT_WRITE_YIELD_TIME_MS, clampExecYieldTime, clampWriteYieldTime, normalizeMinEmptyWriteYieldTime, normalizeMinNonInteractiveExecYieldTime, resolveExecution, resolveShell, resolveWorkdir } from "./exec-shell.ts";
+import { registerAbortHandler, waitForExitOrTimeout } from "./exec-wait.ts";
+import { makeExecResult, makeSnapshotResult, makeSnapshotSince, snapshotSession } from "./exec-results.ts";
 
 export interface UnifiedExecResult {
 	chunk_id: string;
@@ -94,126 +96,9 @@ export interface ExecSessionManagerOptions {
 	maxSessionBufferChars?: number | undefined;
 }
 
-const DEFAULT_EXEC_YIELD_TIME_MS = 10_000;
-const DEFAULT_WRITE_YIELD_TIME_MS = 250;
-const MIN_YIELD_TIME_MS = 250;
-const MIN_NON_INTERACTIVE_EXEC_YIELD_TIME_MS = 5_000;
-const MIN_EMPTY_WRITE_YIELD_TIME_MS = 5_000;
-const MAX_YIELD_TIME_MS = 30_000;
-const DEFAULT_MAX_EMPTY_WRITE_YIELD_TIME_MS = 300_000;
 const MAX_COMMAND_HISTORY = 256;
 const DEFAULT_MAX_SESSION_BUFFER_CHARS = 256 * 1024 * 1024;
 const TERMINATE_ESCALATE_MS = 2_000;
-
-function resolveWorkdir(baseCwd: string, workdir?: string): string {
-	if (!workdir) return baseCwd;
-	return resolve(baseCwd, workdir);
-}
-
-function resolveShell(shell?: string): string {
-	return shell ? getCodexRuntimeShell(shell) : getDefaultCodexRuntimeShell();
-}
-
-const BASH_SYNC_ENV_KEYS = [
-	"PATH",
-	"SHELL",
-	"HOME",
-	"XDG_CONFIG_HOME",
-	"XDG_DATA_HOME",
-	"XDG_CACHE_HOME",
-	"BUN_INSTALL",
-	"PNPM_HOME",
-	"MISE_DATA_DIR",
-	"MISE_CONFIG_DIR",
-	"MISE_SHIMS_DIR",
-	"CARGO_HOME",
-	"GOPATH",
-	"PI_WEB_RUN_STATE_PATH",
-	"ANDROID_HOME",
-	"ANDROID_NDK_HOME",
-	"JAVA_HOME",
-];
-
-function shellEscape(value: string): string {
-	if (/^[A-Za-z0-9_@%+=:,./-]+$/.test(value)) return value;
-	return `'${value.replace(/'/g, `'"'"'`)}'`;
-}
-
-function shouldSyncBashEnv(requestedShell: string | undefined, effectiveShell: string): boolean {
-	return effectiveShell === CODEX_FALLBACK_SHELL && isFishShell(requestedShell || process.env["SHELL"]!);
-}
-
-function buildSyncedBashCommand(command: string, env: NodeJS.ProcessEnv): string {
-	const assignments: string[] = [];
-	for (const key of BASH_SYNC_ENV_KEYS) {
-		const value = key === "SHELL" ? CODEX_FALLBACK_SHELL : env[key]!;
-		if (typeof value !== "string") continue;
-		assignments.push(`export ${key}=${shellEscape(value)}`);
-	}
-	if (assignments.length === 0) return command;
-	return `${assignments.join("; ")}; ${command}`;
-}
-
-function resolveExecution(requestedShell: string | undefined, command: string, extraEnv?: NodeJS.ProcessEnv): { shell: string; command: string; env: NodeJS.ProcessEnv } {
-	const shell = resolveShell(requestedShell);
-	const env: NodeJS.ProcessEnv = { ...process.env, ...extraEnv };
-	if (!shouldSyncBashEnv(requestedShell, shell)) {
-		return { shell, command, env };
-	}
-	env["SHELL"] = CODEX_FALLBACK_SHELL;
-	return {
-		shell,
-		command: buildSyncedBashCommand(command, env),
-		env,
-	};
-}
-
-function clampYieldTime(yieldTimeMs: number | undefined, fallback: number): number {
-	const value = yieldTimeMs ?? fallback;
-	return Math.min(MAX_YIELD_TIME_MS, Math.max(MIN_YIELD_TIME_MS, value));
-}
-
-function clampExecYieldTime(
-	yieldTimeMs: number | undefined,
-	fallback: number,
-	isInteractive: boolean,
-	minNonInteractiveExecYieldTimeMs: number,
-	maxYieldTimeMs = MAX_YIELD_TIME_MS,
-): number {
-	const value = Math.min(maxYieldTimeMs, Math.max(MIN_YIELD_TIME_MS, yieldTimeMs ?? fallback));
-	if (isInteractive) {
-		return value;
-	}
-	return Math.min(maxYieldTimeMs, Math.max(minNonInteractiveExecYieldTimeMs, value));
-}
-
-function clampWriteYieldTime(
-	yieldTimeMs: number | undefined,
-	fallback: number,
-	isEmptyPoll: boolean,
-	minEmptyWriteYieldTimeMs: number,
-	maxEmptyWriteYieldTimeMs: number,
-): number {
-	if (!isEmptyPoll) {
-		return clampYieldTime(yieldTimeMs, fallback);
-	}
-	return Math.min(maxEmptyWriteYieldTimeMs, Math.max(minEmptyWriteYieldTimeMs, yieldTimeMs ?? fallback));
-}
-
-function registerAbortHandler(signal: AbortSignal | undefined, onAbort: () => void): () => void {
-	if (!signal) {
-		return () => {};
-	}
-
-	if (signal.aborted) {
-		onAbort();
-		return () => {};
-	}
-
-	const abortListener = () => onAbort();
-	signal.addEventListener("abort", abortListener, { once: true });
-	return () => signal.removeEventListener("abort", abortListener);
-}
 
 export function createExecSessionManager(options: ExecSessionManagerOptions = {}): ExecSessionManager {
 	let nextSessionId = 1;
@@ -224,14 +109,8 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 	const bridge = createExecBridgeClient();
 	const defaultExecYieldTimeMs = options.defaultExecYieldTimeMs ?? DEFAULT_EXEC_YIELD_TIME_MS;
 	const defaultWriteYieldTimeMs = options.defaultWriteYieldTimeMs ?? DEFAULT_WRITE_YIELD_TIME_MS;
-	const minNonInteractiveExecYieldTimeMs = Math.min(
-		MAX_YIELD_TIME_MS,
-		Math.max(MIN_YIELD_TIME_MS, options.minNonInteractiveExecYieldTimeMs ?? MIN_NON_INTERACTIVE_EXEC_YIELD_TIME_MS),
-	);
-	const minEmptyWriteYieldTimeMs = Math.min(
-		MAX_YIELD_TIME_MS,
-		Math.max(MIN_YIELD_TIME_MS, options.minEmptyWriteYieldTimeMs ?? MIN_EMPTY_WRITE_YIELD_TIME_MS),
-	);
+	const minNonInteractiveExecYieldTimeMs = normalizeMinNonInteractiveExecYieldTime(options.minNonInteractiveExecYieldTimeMs);
+	const minEmptyWriteYieldTimeMs = normalizeMinEmptyWriteYieldTime(options.minEmptyWriteYieldTimeMs);
 	const maxEmptyWriteYieldTimeMs = Math.max(
 		minEmptyWriteYieldTimeMs,
 		options.maxEmptyWriteYieldTimeMs ?? DEFAULT_MAX_EMPTY_WRITE_YIELD_TIME_MS,
@@ -305,127 +184,6 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			session.emittedBuffer = "";
 		}
 		notify(session);
-	}
-
-	function waitForExitOrTimeout(
-		session: ExecSession,
-		yieldTimeMs: number,
-		signal?: AbortSignal,
-		onUpdate?: (elapsedMs: number) => void,
-	): Promise<number> {
-		if (session.exitCode !== undefined && session.exitCode !== null) {
-			return Promise.resolve(0);
-		}
-		if (signal?.aborted) {
-			return Promise.resolve(0);
-		}
-
-		const startedAt = Date.now();
-		let updateTimer: ReturnType<typeof setInterval> | undefined;
-		let lastUpdateAt = 0;
-		return new Promise((resolvePromise) => {
-			let abortCleanup: (() => void) | undefined;
-			let done = false;
-			const finish = () => {
-				if (done) return;
-				done = true;
-				cleanup();
-				resolvePromise(Date.now() - startedAt);
-			};
-			const emitUpdate = (force = false) => {
-				const now = Date.now();
-				if (!force && now - lastUpdateAt < 250) return;
-				lastUpdateAt = now;
-				onUpdate?.(now - startedAt);
-			};
-			const onWake = () => {
-				if (session.exitCode === undefined || session.exitCode === null) {
-					emitUpdate();
-					return;
-				}
-				emitUpdate(true);
-				finish();
-			};
-			const timeout = setTimeout(() => {
-				finish();
-			}, yieldTimeMs);
-			abortCleanup = registerAbortHandler(signal, finish);
-			if (onUpdate) {
-				updateTimer = setInterval(emitUpdate, 250);
-			}
-			const cleanup = () => {
-				clearTimeout(timeout);
-				if (updateTimer) clearInterval(updateTimer);
-				abortCleanup?.();
-				session.listeners.delete(onWake);
-			};
-			session.listeners.add(onWake);
-		});
-	}
-
-	function makeResult(session: ExecSession, waitMs: number, maxOutputTokens?: number): UnifiedExecResult {
-		const consumed = consumeOutput(session, maxOutputTokens);
-		const result: UnifiedExecResult = {
-			chunk_id: generateChunkId(),
-			wall_time_seconds: waitMs / 1000,
-			output: consumed.output,
-		};
-		if (consumed.original_token_count !== undefined) {
-			result.original_token_count = consumed.original_token_count;
-		}
-		if (session.exitCode === undefined || session.exitCode === null) {
-			exposeSession(session);
-			result.session_id = session.id;
-		} else {
-			result.exit_code = session.exitCode;
-			if (session.emittedBuffer === session.buffer) {
-				sessions.delete(session.id);
-			}
-		}
-		return result;
-	}
-
-	function snapshotSession(session: ExecSession, maxOutputChars = 8_000): ExecSessionSnapshot {
-		return {
-			id: session.id,
-			command: session.command,
-			running: session.exitCode === undefined || session.exitCode === null,
-			exitCode: session.exitCode ?? undefined,
-			startedAt: session.startedAt,
-			updatedAt: session.updatedAt,
-			outputTail: session.buffer.slice(-maxOutputChars),
-			terminating: session.terminating,
-		};
-	}
-
-	function makeSnapshotResult(session: ExecSession, waitMs: number, maxOutputTokens?: number, unconsumedOnly = false): UnifiedExecResult {
-		const snapshot = unconsumedOnly ? peekUnconsumedOutput(session, maxOutputTokens) : truncateOutput(session.buffer, maxOutputTokens);
-		return makeSnapshotFromOutput(session, waitMs, snapshot);
-	}
-
-	function makeSnapshotSince(session: ExecSession, waitMs: number, baseline: string, maxOutputTokens?: number): UnifiedExecResult {
-		return makeSnapshotFromOutput(session, waitMs, peekOutputSince(session, baseline, maxOutputTokens));
-	}
-
-	function makeSnapshotFromOutput(
-		session: ExecSession,
-		waitMs: number,
-		snapshot: { output: string; original_token_count?: number | undefined },
-	): UnifiedExecResult {
-		const result: UnifiedExecResult = {
-			chunk_id: generateChunkId(),
-			wall_time_seconds: waitMs / 1000,
-			output: snapshot.output,
-		};
-		if (snapshot.original_token_count !== undefined) {
-			result.original_token_count = snapshot.original_token_count;
-		}
-		if (session.exitCode === undefined || session.exitCode === null) {
-			result.session_id = session.id;
-		} else {
-			result.exit_code = session.exitCode;
-		}
-		return result;
 	}
 
 	async function pollSession(session: RustExecSession, waitMs = 0, maxBytes?: number): Promise<void> {
@@ -530,7 +288,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 				undefined,
 				onUpdate ? (elapsedMs) => onUpdate(makeSnapshotResult(session, elapsedMs, input.max_output_tokens)) : undefined,
 			);
-			return makeResult(session, waitedMs, input.max_output_tokens);
+			return makeExecResult(session, waitedMs, input.max_output_tokens, exposeSession, (sessionId) => sessions.delete(sessionId));
 		},
 		write: async (input, signal, onUpdate) => {
 			if (signal?.aborted) {
@@ -563,7 +321,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 							onUpdate ? (elapsedMs) => onUpdate(makeSnapshotSince(session, elapsedMs, updateBaseline, input.max_output_tokens)) : undefined,
 						)
 					: 0;
-			return makeResult(session, waitedMs, input.max_output_tokens);
+			return makeExecResult(session, waitedMs, input.max_output_tokens, exposeSession, (sessionId) => sessions.delete(sessionId));
 		},
 		hasSession: (sessionId) => sessions.has(sessionId),
 		getSessionCommand: (sessionId) => sessions.get(sessionId)?.command ?? commandHistory.get(sessionId),
