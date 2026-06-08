@@ -7,7 +7,7 @@ import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-w
 import type { ResponseInput } from "openai/resources/responses/responses.js";
 import { Type } from "typebox";
 import { Container, Text } from "@earendil-works/pi-tui";
-import { codexToolProviderEnv, CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE, resolveCodexAlphaSearchUrl, resolveCodexToolProvider, type CodexToolProvider } from "../adapter/codex-tool-provider.ts";
+import { codexToolProviderEnv, CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE, resolveCodexToolProvider } from "../adapter/codex-tool-provider.ts";
 import { WEB_SEARCH_TOOL_NAME } from "../adapter/tool-set.ts";
 
 export const WEB_SEARCH_UNSUPPORTED_MESSAGE = CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE;
@@ -30,7 +30,6 @@ const WEB_SEARCH_PARAMETERS = Type.Object({
 		search_context_size: Type.Optional(Type.Union([Type.Literal("low"), Type.Literal("medium"), Type.Literal("high")])),
 	}, { additionalProperties: true })),
 }, { additionalProperties: true });
-const DEFAULT_WEB_SEARCH_MODEL = "gpt-5.4-mini";
 const ASSISTANT_CONTEXT_CHAR_LIMIT = 4_000;
 function createEmptyResultComponent(): Container { return new Container(); }
 
@@ -125,10 +124,6 @@ function formatWebRunOutput(parsed: Record<string, unknown>): string | undefined
 	return typeof outputText === "string" && outputText.trim() ? outputText : undefined;
 }
 
-export function resolveAlphaSearchUrlFromBase(baseUrl: string | undefined): string {
-	return resolveCodexAlphaSearchUrl(baseUrl ?? "");
-}
-
 export function supportsNativeWebSearch(model: ExtensionContext["model"]): boolean {
 	return (model?.provider ?? "").toLowerCase() === "openai-codex" && Boolean(model?.api?.includes("responses"));
 }
@@ -140,27 +135,6 @@ function supportsExecutableWebSearch(model: ExtensionContext["model"]): boolean 
 export function supportsMultimodalNativeWebSearch(model: ExtensionContext["model"], options: { force?: boolean | undefined } = {}): boolean {
 	if (!options.force && !supportsNativeWebSearch(model)) return false;
 	return !(model?.id ?? "").toLowerCase().includes("spark");
-}
-
-function mergeSearchSettings(settings: unknown): Record<string, unknown> {
-	const merged = settings && typeof settings === "object" && !Array.isArray(settings) ? { ...(settings as Record<string, unknown>) } : {};
-	if (merged["allowed_callers"] === undefined) merged["allowed_callers"] = ["direct"];
-	if (merged["external_web_access"] === undefined) merged["external_web_access"] = true;
-	return merged;
-}
-
-export function buildCodexWebSearchRequest(params: Record<string, unknown>, provider: CodexToolProvider, recentInput?: ResponseInput | undefined): Record<string, unknown> {
-	const { id, model, reasoning, input, settings, max_output_tokens, ...commands } = params;
-	const explicitInput = typeof input === "string" || Array.isArray(input) ? input : undefined;
-	return {
-		id: typeof id === "string" && id.trim() ? id : randomUUID(),
-		model: typeof model === "string" && model.trim() ? model : provider.model ?? DEFAULT_WEB_SEARCH_MODEL,
-		...(reasoning && typeof reasoning === "object" && !Array.isArray(reasoning) ? { reasoning } : {}),
-		...(explicitInput !== undefined ? { input: explicitInput } : recentInput ? { input: recentInput } : {}),
-		commands,
-		settings: mergeSearchSettings(settings),
-		...(typeof max_output_tokens === "number" ? { max_output_tokens } : {}),
-	};
 }
 
 export async function executeCodexWebSearch(params: Record<string, unknown>, ctx: ExtensionContext, signal: AbortSignal | undefined | null, options: WebSearchToolOptions = {}): Promise<string> {

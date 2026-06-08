@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { buildCodexWebSearchRequest, buildRecentWebSearchInput, createWebSearchTool, executeCodexWebSearch, resolveAlphaSearchUrlFromBase, supportsMultimodalNativeWebSearch, supportsNativeWebSearch } from "../src/tools/web-search-tool.ts";
+import { buildRecentWebSearchInput, createWebSearchTool, executeCodexWebSearch, supportsMultimodalNativeWebSearch, supportsNativeWebSearch } from "../src/tools/web-search-tool.ts";
 
 function fakeJwt(accountId: string): string {
 	return ["header", Buffer.from(JSON.stringify({ "https://api.openai.com/auth": { chatgpt_account_id: accountId } })).toString("base64url"), "signature"].join(".");
@@ -54,14 +54,6 @@ test("web_run supports OpenAI Codex Responses models and keeps spark text-only",
 });
 
 
-test("resolveAlphaSearchUrlFromBase treats bare server URI as app-server root", () => {
-	assert.equal(resolveAlphaSearchUrlFromBase("http://127.0.0.1:8061"), "http://127.0.0.1:8061/api/codex/alpha/search");
-	assert.equal(resolveAlphaSearchUrlFromBase("http://127.0.0.1:8061/api/codex"), "http://127.0.0.1:8061/api/codex/alpha/search");
-	assert.equal(resolveAlphaSearchUrlFromBase("https://chatgpt.com/backend-api/codex/responses"), "https://chatgpt.com/backend-api/codex/alpha/search");
-});
-
-
-
 test("buildRecentWebSearchInput mirrors Codex standalone web search context tail", () => {
 	const input = buildRecentWebSearchInput([
 		{ role: "user", content: [{ type: "input_text", text: "old user" }] },
@@ -78,34 +70,6 @@ test("buildRecentWebSearchInput mirrors Codex standalone web search context tail
 		{ type: "message", role: "user", content: [{ type: "input_text", text: "current user" }] },
 	]);
 });
-
-test("buildCodexWebSearchRequest matches Codex alpha/search request defaults", () => {
-	const body = buildCodexWebSearchRequest({ reasoning: { effort: "low" }, search_query: [{ q: "OpenAI", recency: 7 }], response_length: "short" }, { baseUrl: "https://chatgpt.com/api/codex", model: "gpt-5.4", token: "token", accountId: "acct" });
-	assert.match(body["id"] as string, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
-	assert.equal(body["model"], "gpt-5.4");
-	assert.deepEqual(body["reasoning"], { effort: "low" });
-	assert.deepEqual(body["commands"], { search_query: [{ q: "OpenAI", recency: 7 }], response_length: "short" });
-	assert.deepEqual(body["settings"], { allowed_callers: ["direct"], external_web_access: true });
-	assert.equal(body["input"], undefined);
-});
-
-
-
-test("buildCodexWebSearchRequest includes recent input when no explicit input is passed", () => {
-	const provider = { baseUrl: "https://chatgpt.com/backend-api/codex", model: "gpt-5.4-mini", token: fakeJwt("acct"), accountId: "acct" };
-	const recentInput = [{ type: "message", role: "user", content: [{ type: "input_text", text: "current user" }] }];
-	const request = buildCodexWebSearchRequest({ search_query: [{ q: "OpenAI" }] }, provider, recentInput as never);
-	assert.equal(request["input"], recentInput);
-});
-
-test("buildCodexWebSearchRequest preserves explicit structured input", () => {
-	const provider = { baseUrl: "https://chatgpt.com/backend-api/codex", model: "gpt-5.4-mini", token: fakeJwt("acct"), accountId: "acct" };
-	const explicitInput = [{ type: "message", role: "user", content: [{ type: "input_text", text: "explicit" }] }];
-	const recentInput = [{ role: "user", content: [{ type: "input_text", text: "recent" }] }];
-	const request = buildCodexWebSearchRequest({ input: explicitInput, search_query: [{ q: "OpenAI" }] }, provider, recentInput as never);
-	assert.equal(request["input"], explicitInput);
-});
-
 async function withMockWebRun(script: string, run: (path: string) => Promise<void>): Promise<void> {
 	const dir = await mkdtemp(join(tmpdir(), "pi-web-run-test-"));
 	const path = join(dir, "web_run_mock.mjs");
@@ -207,13 +171,13 @@ process.stdin.on("end", () => {
 	}
 });
 
-test("createWebSearchTool does not fall back when standalone alpha/search is unavailable", async () => {
+test("createWebSearchTool does not fall back when Rust web_run fails", async () => {
 	const originalBin = process.env["PI_CODEX_WEB_RUN_BIN"];
 	let calls = 0;
 	try {
 		await withMockWebRun(`#!/usr/bin/env node
 process.stdin.resume();
-process.stdin.on("end", () => { process.stderr.write("web_run alpha/search failed: HTTP 404 Not Found"); process.exit(1); });
+process.stdin.on("end", () => { process.stderr.write("web_run failed: HTTP 404 Not Found"); process.exit(1); });
 `, async (webRunPath) => {
 			process.env["PI_CODEX_WEB_RUN_BIN"] = webRunPath;
 			calls += 1;

@@ -28,12 +28,6 @@ export function resolveCodexApiProviderBaseUrl(modelBaseUrl: string | undefined)
 	return normalized;
 }
 
-export function resolveCodexAlphaSearchUrl(providerBaseUrl: string): string {
-	const base = providerBaseUrl.replace(/\/+$/, "");
-	if (base.endsWith("/alpha/search")) return base;
-	return `${resolveCodexApiProviderBaseUrl(base)}/alpha/search`;
-}
-
 export function resolveCodexResponsesUrl(providerBaseUrl: string): string {
 	const base = providerBaseUrl.replace(/\/+$/, "");
 	if (base.endsWith("/codex/responses")) return base;

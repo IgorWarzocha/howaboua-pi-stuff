@@ -13,9 +13,8 @@ import type { BackgroundBashWidgetState } from "../tools/background-bash-widget.
 import { renderBackgroundBashWidget } from "../tools/background-bash-widget.ts";
 import type { ExecSessionManager } from "../tools/exec-session-manager.ts";
 
-const CODEX_COMMAND_COMPLETIONS = ["all", "status", "fast", "compact", "usage", "ps", "login", "low", "medium", "high"] as const;
-const CODEX_USAGE = "Usage: /codex, /codex all, /codex status, /codex fast, /codex compact, /codex usage, /codex ps, /codex login, /codex low|medium|high";
-const OPENAI_CODEX_PROVIDER = "openai-codex";
+const CODEX_COMMAND_COMPLETIONS = ["all", "status", "fast", "compact", "usage", "ps", "low", "medium", "high"] as const;
+const CODEX_USAGE = "Usage: /codex, /codex all, /codex status, /codex fast, /codex compact, /codex usage, /codex ps, /codex low|medium|high";
 
 export function registerCodexCommand(
 	pi: ExtensionAPI,
@@ -39,13 +38,9 @@ export function registerCodexCommand(
 		description: "Configure Codex adapter settings",
 		getArgumentCompletions: (prefix) =>
 			CODEX_COMMAND_COMPLETIONS.filter((item) => item.startsWith(prefix.trim().toLowerCase())).map((value) => ({ label: value, value })),
-			handler: async (args, ctx) => {
+		handler: async (args, ctx) => {
 			state.config = readCodexConversionConfig();
 			const arg = args.trim().toLowerCase();
-			if (arg === "login") {
-				await loginOpenAICodex(ctx);
-				return;
-			}
 			if (arg === "ps") {
 				if (!state.config.ui.backgroundShellWidget) {
 					ctx.ui.notify("Background shells widget is off.", "info");
@@ -124,32 +119,6 @@ export function registerCodexCommand(
 			});
 		},
 	});
-}
-
-async function loginOpenAICodex(ctx: ExtensionContext): Promise<void> {
-	try {
-		await ctx.modelRegistry.authStorage.login(OPENAI_CODEX_PROVIDER, {
-			onAuth: ({ url, instructions }) => {
-				ctx.ui.notify(instructions ? `${instructions}\n${url}` : url, "info");
-			},
-			onDeviceCode: ({ verificationUri, userCode }) => {
-				ctx.ui.notify(`Open ${verificationUri} and enter code ${userCode}`, "info");
-			},
-			onPrompt: async ({ message, placeholder }) => (await ctx.ui.input(message, placeholder)) ?? "",
-			onManualCodeInput: async () => (await ctx.ui.input("Paste OpenAI Codex redirect URL", "http://localhost:1455/auth/callback?code=...")) ?? "",
-			onProgress: (message) => ctx.ui.notify(message, "info"),
-			onSelect: async ({ message, options }) => {
-				const label = await ctx.ui.select(message, options.map((option) => option.label));
-				return options.find((option) => option.label === label)?.id;
-			},
-			signal: ctx.signal ?? new AbortController().signal,
-		});
-		ctx.modelRegistry.refresh();
-		ctx.ui.notify("Logged in to OpenAI Codex with native scopes.", "info");
-	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		ctx.ui.notify(`OpenAI Codex login failed: ${message}`, "error");
-	}
 }
 
 function getCommandConfigUpdate(arg: string, config: CodexConversionConfig): CodexConversionConfig | undefined {
