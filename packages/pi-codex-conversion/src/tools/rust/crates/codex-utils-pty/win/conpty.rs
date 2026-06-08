@@ -29,6 +29,7 @@ use portable_pty::PtySize;
 use portable_pty::PtySystem;
 use portable_pty::SlavePty;
 use portable_pty::cmdbuilder::CommandBuilder;
+use std::ffi::c_void;
 use std::mem::ManuallyDrop;
 use std::os::windows::io::RawHandle;
 use std::ptr;
@@ -79,7 +80,7 @@ impl RawConPty {
     }
 
     pub fn pseudoconsole_handle(&self) -> RawHandle {
-        self.con.raw_handle()
+        self.con.raw_handle() as *mut c_void
     }
 
     pub fn into_handles(self) -> (PsuedoCon, FileDescriptor, FileDescriptor) {
