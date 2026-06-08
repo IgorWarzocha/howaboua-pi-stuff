@@ -9,11 +9,11 @@ const platform = process.platform;
 const arch = process.arch;
 const exe = platform === "win32" ? "view_image.exe" : "view_image";
 const platformArch = `${platform}-${arch}`;
-const binary = join(root, "vendor", "path-tools", platformArch, exe);
+const binary = join(root, "src", "tools", "view-image", "bin", platformArch, exe);
 
 if (!existsSync(binary)) {
   console.error(`view_image binary is not bundled for ${platformArch}.`);
-  console.error("Expected bundled binaries under vendor/path-tools/<platform>-<arch>/.");
+  console.error("Expected bundled binaries under src/tools/view-image/bin/<platform>-<arch>/.");
   process.exit(127);
 }
 

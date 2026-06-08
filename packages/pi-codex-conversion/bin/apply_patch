@@ -9,11 +9,11 @@ const platform = process.platform;
 const arch = process.arch;
 const exe = platform === "win32" ? "apply_patch.exe" : "apply_patch";
 const platformArch = `${platform}-${arch}`;
-const binary = join(root, "vendor", "apply-patch", platformArch, exe);
+const binary = join(root, "src", "tools", "apply-patch", "bin", platformArch, exe);
 
 if (!existsSync(binary)) {
   console.error(`apply_patch binary is not bundled for ${platformArch}.`);
-  console.error("Expected bundled binaries under vendor/apply-patch/<platform>-<arch>/.");
+  console.error("Expected bundled binaries under src/tools/apply-patch/bin/<platform>-<arch>/.");
   process.exit(127);
 }
 

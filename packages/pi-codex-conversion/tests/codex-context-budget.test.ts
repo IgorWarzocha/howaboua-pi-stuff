@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { applyCodexContextBudgetToModel, getCodexAutoCompactBudget, getCodexContextBudgetAdjustedModel, getPiContextWindowForCodexAutoCompact, readPiCompactionReserveTokens } from "../src/adapter/codex-context-budget.ts";
-import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/config.ts";
-import type { AdapterState } from "../src/adapter/state.ts";
+import { applyCodexContextBudgetToModel, getCodexAutoCompactBudget, getCodexContextBudgetAdjustedModel, getPiContextWindowForCodexAutoCompact, readPiCompactionReserveTokens } from "../src/adapter/prompt/codex-context-budget.ts";
+import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
+import type { AdapterState } from "../src/adapter/activation/state.ts";
 
 test("Codex auto compact budget uses 90 percent of Pi's resolved model window", () => {
 	assert.equal(getCodexAutoCompactBudget(272_000), 244_800);

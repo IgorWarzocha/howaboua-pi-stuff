@@ -5,10 +5,10 @@ PLATFORM=$(node -e 'process.stdout.write(process.platform)')
 ARCH=$(node -e 'process.stdout.write(process.arch)')
 EXE=web_run
 if [ "$PLATFORM" = "win32" ]; then EXE=web_run.exe; fi
-BINARY="$ROOT_DIR/vendor/path-tools/$PLATFORM-$ARCH/$EXE"
+BINARY="$ROOT_DIR/src/tools/web-run/bin/$PLATFORM-$ARCH/$EXE"
 if [ ! -f "$BINARY" ]; then
   echo "web_run binary is not bundled for $PLATFORM-$ARCH." >&2
-  echo "Expected bundled binaries under vendor/path-tools/<platform>-<arch>/." >&2
+  echo "Expected bundled binaries under src/tools/web-run/bin/<platform>-<arch>/." >&2
   exit 127
 fi
 chmod +x "$BINARY" 2>/dev/null || true

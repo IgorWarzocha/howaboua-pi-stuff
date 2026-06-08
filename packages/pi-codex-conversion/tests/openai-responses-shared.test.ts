@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { convertResponsesMessages, processResponsesStream } from "../src/providers/openai-responses-shared.ts";
+import { convertResponsesMessages, processResponsesStream } from "../src/providers/openai-responses/shared.ts";
 
 const model = {
 	id: "gpt-test",

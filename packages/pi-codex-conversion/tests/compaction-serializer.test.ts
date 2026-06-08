@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/config.ts";
-import { injectPendingNativeWindowIntoPiCompactionRequest } from "../src/adapter/compaction.ts";
-import type { AdapterState } from "../src/adapter/state.ts";
+import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
+import { injectPendingNativeWindowIntoPiCompactionRequest } from "../src/adapter/compaction/compaction.ts";
+import type { AdapterState } from "../src/adapter/activation/state.ts";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { Model } from "@earendil-works/pi-ai";
-import { serializeMessagesToCompactRequest, serializeMessagesToResponsesInput } from "../src/adapter/serializer.ts";
+import { serializeMessagesToCompactRequest, serializeMessagesToResponsesInput } from "../src/adapter/compaction/serializer.ts";
 
 const model = {
 	id: "gpt-5.1",

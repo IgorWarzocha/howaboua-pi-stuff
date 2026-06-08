@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { runBundledTool } from "../src/tools/path-tool-runner.ts";
+import { runBundledTool } from "../src/tools/path/runner.ts";
 
 test("runBundledTool aborts without leaking binary paths", async () => {
 	const controller = new AbortController();

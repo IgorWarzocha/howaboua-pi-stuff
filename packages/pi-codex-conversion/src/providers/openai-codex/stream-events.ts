@@ -1,4 +1,4 @@
-import { processResponsesStream } from "../openai-responses-shared.ts";
+import { processResponsesStream } from "../openai-responses/shared.ts";
 import type { Api, AssistantMessage, AssistantMessageEventStream, Model } from "@earendil-works/pi-ai";
 import { CODEX_RESPONSE_STATUSES } from "./constants.ts";
 import { applyServiceTierPricing, resolveCodexServiceTier } from "./usage.ts";

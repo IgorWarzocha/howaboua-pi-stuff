@@ -9,7 +9,7 @@ import {
 	type Model,
 	type Transport,
 } from "@earendil-works/pi-ai";
-import type { CodexConversionConfig } from "../adapter/config.ts";
+import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import { BASE_DELAY_MS, DEFAULT_SSE_HEADER_TIMEOUT_MS, MAX_RETRIES } from "./openai-codex/constants.ts";
 import { createErrorMessage, isRetryableError, NonRetryableProviderError, parseErrorResponse } from "./openai-codex/errors.ts";
 import { createCodexRequestId, extractAccountId, buildSSEHeaders, buildWebSocketHeaders, headersToRecord, resolveCodexUrl, resolveCodexWebSocketUrl } from "./openai-codex/headers.ts";

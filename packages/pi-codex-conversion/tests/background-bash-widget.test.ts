@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { renderBackgroundBashWidget, type BackgroundBashWidgetState } from "../src/tools/background-bash-widget.ts";
-import type { ExecSessionManager, ExecSessionSnapshot } from "../src/tools/exec-session-manager.ts";
+import { renderBackgroundBashWidget, type BackgroundBashWidgetState } from "../src/ui/background-bash-widget.ts";
+import type { ExecSessionManager, ExecSessionSnapshot } from "../src/tools/exec/session-manager.ts";
 
 function createTheme() {
 	return {

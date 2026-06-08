@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { formatCodexUsage } from "../src/codex-settings/usage.ts";
+import { formatCodexUsage } from "../src/ui/settings/usage.ts";
 
 test("formatCodexUsage reports remaining quota, not consumed quota", () => {
 	const text = formatCodexUsage({

@@ -1,19 +1,20 @@
 # PATH tool builds
 
-This package ships Codex tools as shell commands. Published installs use bundled binaries under `vendor/**/<platform>-<arch>/`.
+This package ships Codex tools as shell commands. Published installs use bundled binaries beside each tool under `src/tools/<tool>/bin/<platform>-<arch>/`.
 
 Architecture: Rust owns tool execution. TypeScript owns Pi registration, model/auth gating, result conversion, and TUI rendering. Keep normal Pi tools and PATH-mode shell tools using the same Rust binaries where practical.
 
 Current Rust-executed Pi tools:
 
-- `apply_patch` via `vendor/apply-patch/**` with `PI_APPLY_PATCH_JSON=1` for structured Pi deltas.
-- `view_image` via `vendor/path-tools/**/view_image`.
-- `web_run` via `vendor/path-tools/**/web_run`.
-- `imagegen` via `vendor/path-tools/**/imagegen`.
+- `apply_patch` via `src/tools/apply-patch/bin/**` with `PI_APPLY_PATCH_JSON=1` for structured Pi deltas.
+- `view_image` via `src/tools/view-image/bin/**`.
+- `web_run` via `src/tools/web-run/bin/**`.
+- `imagegen` via `src/tools/imagegen/bin/**`.
+- `exec_bridge` via `src/tools/exec/bin/**`.
 
-Use `src/tools/path-tool-runner.ts` for bundled binary execution from TypeScript glue.
+Use `src/tools/path/runner.ts` for bundled binary execution from TypeScript glue.
 
-Exec migration staging lives in `vendor/path-tools-src/crates/codex-exec-shim/`. It vendors the reusable Codex PTY/process substrate and a Pi-localized local process table. Keep Codex `core/src/unified_exec/**` out of this crate; that layer is coupled to Codex approvals, sandboxing, sessions, and event types.
+Rust source lives next to the owning tool in `src/tools/<tool>/rust/`. Shared Rust crates live in `src/tools/rust/crates/`. The workspace root is `src/tools/`.
 
 Build from `packages/pi-codex-conversion` on the target platform:
 
@@ -28,11 +29,11 @@ bun run build:path-tool codex-exec-shim exec_bridge
 Outputs:
 
 ```txt
-vendor/apply-patch/<platform>-<arch>/apply_patch(.exe)
-vendor/path-tools/<platform>-<arch>/view_image(.exe)
-vendor/path-tools/<platform>-<arch>/web_run(.exe)
-vendor/path-tools/<platform>-<arch>/imagegen(.exe)
-vendor/path-tools/<platform>-<arch>/exec_bridge(.exe)
+src/tools/apply-patch/bin/<platform>-<arch>/apply_patch(.exe)
+src/tools/view-image/bin/<platform>-<arch>/view_image(.exe)
+src/tools/web-run/bin/<platform>-<arch>/web_run(.exe)
+src/tools/imagegen/bin/<platform>-<arch>/imagegen(.exe)
+src/tools/exec/bin/<platform>-<arch>/exec_bridge(.exe)
 ```
 
-Commit the produced binaries for any platform we want to ship. Keep the vendored Rust source in `vendor/apply-patch-src/` and `vendor/path-tools-src/` in sync with the binaries.
+Commit the produced binaries for any platform we want to ship.

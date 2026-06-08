@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createImageGenerationTool, supportsNativeImageGeneration } from "../src/tools/image-generation-tool.ts";
+import { createImageGenerationTool, supportsNativeImageGeneration } from "../src/tools/imagegen/tool.ts";
 
 function renderText(component: { render(width: number): string[] } | undefined): string {
 	assert.ok(component);

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createExecSessionManager, type UnifiedExecResult } from "../src/tools/exec-session-manager.ts";
+import { createExecSessionManager, type UnifiedExecResult } from "../src/tools/exec/session-manager.ts";
 
 function createFastTestExecSessionManager() {
 	return createExecSessionManager({ minNonInteractiveExecYieldTimeMs: 50, minEmptyWriteYieldTimeMs: 50, maxSessionBufferChars: 4096 });

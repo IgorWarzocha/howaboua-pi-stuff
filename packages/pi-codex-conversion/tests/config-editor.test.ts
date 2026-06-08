@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { splitEditorCommand } from "../src/codex-settings/config-editor.ts";
+import { splitEditorCommand } from "../src/ui/settings/config-editor.ts";
 
 test("splitEditorCommand preserves Windows path backslashes", () => {
 	assert.deepEqual(splitEditorCommand(String.raw`C:\Windows\notepad.exe`, "win32"), [String.raw`C:\Windows\notepad.exe`]);

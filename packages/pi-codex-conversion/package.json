@@ -32,7 +32,6 @@
     "src/**/*.md",
     "bin/apply_patch",
     "bin/apply_patch.cmd",
-    "vendor/apply-patch/**",
     "available-tools.png",
     "CHANGELOG.md",
     "PATH_TOOLS.md",
@@ -40,9 +39,12 @@
     "LICENSE",
     "bin/view_image",
     "bin/web_run",
-    "vendor/path-tools/**",
-    "vendor/path-tools-src/**",
-    "bin/imagegen"
+    "bin/imagegen",
+    "src/tools/**/bin/**",
+    "src/tools/**/*.rs",
+    "src/tools/**/Cargo.toml",
+    "src/tools/Cargo.lock",
+    "src/tools/rust/UPSTREAM.*"
   ],
   "scripts": {
     "typecheck": "tsgo -p tsconfig.json",

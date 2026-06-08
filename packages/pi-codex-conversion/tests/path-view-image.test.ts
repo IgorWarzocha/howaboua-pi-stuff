@@ -5,9 +5,9 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { imageContentFromCodexViewImageOutput, imageContentsFromCodexViewImageOutput, registerExecCommandTool } from "../src/tools/exec-command-tool.ts";
-import { createExecCommandTracker } from "../src/tools/exec-command-state.ts";
-import { createExecSessionManager } from "../src/tools/exec-session-manager.ts";
+import { imageContentFromCodexViewImageOutput, imageContentsFromCodexViewImageOutput, registerExecCommandTool } from "../src/tools/exec/command-tool.ts";
+import { createExecCommandTracker } from "../src/tools/exec/command-state.ts";
+import { createExecSessionManager } from "../src/tools/exec/session-manager.ts";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const PNG_BASE64 =

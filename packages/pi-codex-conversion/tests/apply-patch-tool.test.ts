@@ -5,7 +5,7 @@ import { rm, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { clearApplyPatchRenderState, registerApplyPatchTool } from "../src/tools/apply-patch-tool.ts";
+import { clearApplyPatchRenderState, registerApplyPatchTool } from "../src/tools/apply-patch/tool.ts";
 
 function createTheme() {
 	return {

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { migrateCodexConversionConfigIfNeeded } from "../src/adapter/config-migration.ts";
-import { normalizeCodexConversionConfig, DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/config.ts";
+import { migrateCodexConversionConfigIfNeeded } from "../src/adapter/activation/config-migration.ts";
+import { normalizeCodexConversionConfig, DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 
 test("old flat config migrates to grouped config and preserves providers", () => {
 	const migration = migrateCodexConversionConfigIfNeeded({

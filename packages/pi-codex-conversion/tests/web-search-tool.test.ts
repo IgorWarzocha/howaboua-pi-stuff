@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { buildRecentWebSearchInput, createWebSearchTool, executeCodexWebSearch, supportsMultimodalNativeWebSearch, supportsNativeWebSearch } from "../src/tools/web-search-tool.ts";
+import { buildRecentWebSearchInput, createWebSearchTool, executeCodexWebSearch, supportsMultimodalNativeWebSearch, supportsNativeWebSearch } from "../src/tools/web-run/tool.ts";
 
 function renderText(component: { render(width: number): string[] } | undefined): string {
 	assert.ok(component);

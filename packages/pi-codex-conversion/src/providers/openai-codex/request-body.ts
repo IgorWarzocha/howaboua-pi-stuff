@@ -1,5 +1,5 @@
 import { clampThinkingLevel, type Api, type Context, type Model } from "@earendil-works/pi-ai";
-import { CODEX_TOOL_CALL_PROVIDERS, convertResponsesMessages, convertResponsesTools } from "../openai-responses-shared.ts";
+import { CODEX_TOOL_CALL_PROVIDERS, convertResponsesMessages, convertResponsesTools } from "../openai-responses/shared.ts";
 import { OPENAI_PROMPT_CACHE_KEY_MAX_LENGTH } from "./constants.ts";
 import type { OpenAICodexStreamOptions, ResponsesBody } from "./types.ts";
 

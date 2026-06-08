@@ -1,0 +1,15 @@
+[package]
+name = "codex-view-image"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "view_image"
+path = "main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+codex-utils-image = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

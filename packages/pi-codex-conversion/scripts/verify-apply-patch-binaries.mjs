@@ -12,7 +12,7 @@ const required = [
 ];
 
 const missing = required
-	.map(([platformArch, exe]) => join("vendor", "apply-patch", platformArch, exe))
+	.map(([platformArch, exe]) => join("src", "tools", "apply-patch", "bin", platformArch, exe))
 	.filter((path) => !existsSync(path));
 
 if (missing.length > 0) {

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getCodexShellArgs } from "../src/adapter/runtime-shell.ts";
+import { getCodexShellArgs } from "../src/adapter/prompt/runtime-shell.ts";
 
 test("getCodexShellArgs uses POSIX shell flags for bash-compatible shells", () => {
 	assert.deepEqual(getCodexShellArgs("/bin/bash", "echo hi", true), ["-lc", "echo hi"]);

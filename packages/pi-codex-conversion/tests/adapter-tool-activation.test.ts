@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULT_CODEX_CONVERSION_CONFIG, normalizeProviderList } from "../src/adapter/config.ts";
-import { syncAdapter } from "../src/adapter/activation.ts";
-import type { AdapterState } from "../src/adapter/state.ts";
+import { DEFAULT_CODEX_CONVERSION_CONFIG, normalizeProviderList } from "../src/adapter/activation/config.ts";
+import { syncAdapter } from "../src/adapter/activation/activation.ts";
+import type { AdapterState } from "../src/adapter/activation/state.ts";
 import { mergeAdapterTools, restoreTools } from "../src/index.ts";
 
 function createToolHarness(activeTools: string[]) {

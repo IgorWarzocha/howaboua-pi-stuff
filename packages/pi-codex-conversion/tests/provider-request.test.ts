@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/config.ts";
+import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { rewriteCodexProviderRequest } from "../src/adapter/provider-request.ts";
-import type { AdapterState } from "../src/adapter/state.ts";
+import type { AdapterState } from "../src/adapter/activation/state.ts";
 
 function createState(mode: "normal" | "path" = "normal", fast = false): AdapterState {
 	return {
