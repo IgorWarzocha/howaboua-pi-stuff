@@ -248,6 +248,8 @@ struct WebRunArgs {
     #[serde(default)]
     model: Option<String>,
     #[serde(default)]
+    reasoning: Option<serde_json::Value>,
+    #[serde(default)]
     input: Option<serde_json::Value>,
     #[serde(default)]
     settings: Option<SearchSettings>,
@@ -441,6 +443,7 @@ fn build_search_request(args: &WebRunArgs, model: String) -> SearchRequest {
             .cloned()
             .unwrap_or_else(|| Uuid::new_v4().to_string()),
         model,
+        reasoning: args.reasoning.clone(),
         input: args.input.clone(),
         commands: Some(args.commands.clone()),
         settings: Some(merge_settings(args.settings.clone())),

@@ -12,6 +12,8 @@ pub struct SearchRequest {
     pub id: String,
     pub model: String,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub input: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub commands: Option<SearchCommands>,
