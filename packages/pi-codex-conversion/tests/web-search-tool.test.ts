@@ -114,7 +114,7 @@ test("executeCodexWebSearch uses Pi-owned model auth and Codex-compatible header
 		assert.equal(headers.get("originator"), "codex_cli_rs");
 		assert.match(headers.get("user-agent") ?? "", /^codex_cli_rs\/0\.0\.0 /);
 		assert.equal(headers.get("version"), "0.0.0");
-		assert.equal(headers.get("accept"), "application/json");
+		assert.equal(headers.get("accept"), null);
 		assert.equal(headers.get("content-type"), "application/json");
 		assert.deepEqual(JSON.parse(String(captured!.init.body)).commands, { search_query: [{ q: "OpenAI" }] });
 	} finally {

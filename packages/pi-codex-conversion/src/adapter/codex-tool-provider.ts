@@ -65,7 +65,6 @@ export function codexToolProviderHeaders(provider: CodexToolProvider): Headers {
 	headers.set("User-Agent", codexWebRunUserAgent(CODEX_ORIGINATOR));
 	headers.set("version", "0.0.0");
 	headers.set("content-type", "application/json");
-	headers.set("accept", "application/json");
 	return headers;
 }
 

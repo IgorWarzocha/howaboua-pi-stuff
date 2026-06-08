@@ -8,7 +8,7 @@ use std::{env, fs};
 
 use anyhow::Context;
 use reqwest::cookie::{CookieStore, Jar};
-use reqwest::header::{ACCEPT, CONTENT_TYPE, HeaderMap, HeaderValue, USER_AGENT};
+use reqwest::header::{CONTENT_TYPE, HeaderMap, HeaderValue, USER_AGENT};
 use serde::Deserialize;
 use serde_json::json;
 use types::{AllowedCaller, SearchCommands, SearchRequest, SearchResponse, SearchSettings};
@@ -349,7 +349,6 @@ fn headers(token: &str, account_id: &str) -> anyhow::Result<HeaderMap> {
     );
     headers.insert("ChatGPT-Account-ID", HeaderValue::from_str(account_id)?);
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-    headers.insert(ACCEPT, HeaderValue::from_static("application/json"));
     Ok(headers)
 }
 
