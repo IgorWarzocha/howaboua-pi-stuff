@@ -43,6 +43,22 @@ Current date: 2026-03-14`, { mode: "path" });
 	assert.match(prompt, /- imagegen '\{"prompt":"\.\.\."\}'/);
 });
 
+test("buildCodexSystemPrompt removes normal tool guidance in path mode", () => {
+	const prompt = buildCodexSystemPrompt(`Guidelines:
+- Use \`apply_patch\` for text-file changes, including creates/deletes/moves; group related multi-file edits into one patch.
+- Prefer the \`apply_patch\` tool; use shell \`apply_patch\` only when chaining edits with other shell steps.
+- Run independent tool calls in parallel when practical.
+
+Current date: 2026-03-14`, { mode: "path" });
+
+	assert.doesNotMatch(prompt, /Use `apply_patch` for text-file changes/);
+	assert.doesNotMatch(prompt, /Prefer the `apply_patch` tool/);
+	assert.doesNotMatch(prompt, /Run independent tool calls in parallel when practical/);
+	assert.match(prompt, /Use shell apply_patch for text-file changes/);
+	assert.match(prompt, /Prefer apply_patch over ad-hoc file rewrite commands/);
+	assert.match(prompt, /Run independent exec_command calls in parallel when practical/);
+});
+
 test("buildCodexSystemPrompt injects skill inventory when Pi omitted it", () => {
 	const prompt = buildCodexSystemPrompt(
 		`You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.

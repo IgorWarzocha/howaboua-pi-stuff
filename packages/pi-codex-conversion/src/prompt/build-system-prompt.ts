@@ -32,6 +32,12 @@ const PATH_CODEX_GUIDELINES = [
 	"Run independent exec_command calls in parallel when practical.",
 ];
 
+const PATH_MODE_REMOVED_GUIDELINES = new Set([
+	"Use `apply_patch` for text-file changes, including creates/deletes/moves; group related multi-file edits into one patch.",
+	"Prefer the `apply_patch` tool; use shell `apply_patch` only when chaining edits with other shell steps.",
+	"Run independent tool calls in parallel when practical.",
+]);
+
 export interface CodexPromptToolOptions {
 	webRun?: boolean | undefined;
 	imageGeneration?: boolean | undefined;
@@ -155,8 +161,11 @@ function injectGuidelines(prompt: string, mode?: "normal" | "path", tools?: Code
 	}
 
 	const [, header, body, suffix] = match as RegExpMatchArray & { 1: string; 2: string; 3: string };
-	const existingLines = body
-		.split("\n")
+	const bodyLines = body.split("\n");
+	const keptBodyLines = mode === "path"
+		? bodyLines.filter((line) => !PATH_MODE_REMOVED_GUIDELINES.has(line.trim().replace(/^-\s*/, "")))
+		: bodyLines;
+	const existingLines = keptBodyLines
 		.map((line) => line.trim())
 		.filter((line) => line.startsWith("- "));
 	const existing = new Set(existingLines.map((line) => line.slice(2)));
@@ -165,7 +174,7 @@ function injectGuidelines(prompt: string, mode?: "normal" | "path", tools?: Code
 		return prompt;
 	}
 
-	const normalizedBody = body.trimEnd();
+	const normalizedBody = keptBodyLines.join("\n").trimEnd();
 	const replacement = `${header}${normalizedBody}\n${additions.join("\n")}${suffix}`;
 	return `${prompt.slice(0, match.index)}${replacement}${prompt.slice(match.index + match[0]!.length)}`;
 }
