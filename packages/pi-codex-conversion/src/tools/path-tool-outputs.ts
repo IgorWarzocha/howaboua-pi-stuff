@@ -113,6 +113,7 @@ interface PathWebRunOutput {
 	web_search_calls?: unknown[];
 	response_id?: string | null;
 	usage?: unknown;
+	encrypted_output?: string;
 }
 
 function pathWebRunOutputFromJson(output: string): PathWebRunOutput | undefined {

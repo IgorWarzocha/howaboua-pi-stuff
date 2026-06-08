@@ -82,12 +82,17 @@ function parseStreamingJson(partialJson: string): Record<string, unknown> {
 	}
 }
 
+function encryptedOutputFromWebRunLike(value: unknown): string | undefined {
+	if (!value || typeof value !== "object") return undefined;
+	const encryptedOutput = (value as Record<string, unknown>)["encrypted_output"];
+	return typeof encryptedOutput === "string" && encryptedOutput.trim() ? encryptedOutput : undefined;
+}
+
 function encryptedWebRunOutputFromDetails(details: unknown): string | undefined {
 	if (!details || typeof details !== "object") return undefined;
-	const webRun = (details as Record<string, unknown>)["webRun"];
-	if (!webRun || typeof webRun !== "object") return undefined;
-	const encryptedOutput = (webRun as Record<string, unknown>)["encrypted_output"];
-	return typeof encryptedOutput === "string" && encryptedOutput.trim() ? encryptedOutput : undefined;
+	const record = details as Record<string, unknown>;
+	return encryptedOutputFromWebRunLike(record["webRun"])
+		?? encryptedOutputFromWebRunLike((record["pathTool"] as Record<string, unknown> | undefined)?.["webRun"]);
 }
 
 function sanitizeSurrogates(text: string): string {

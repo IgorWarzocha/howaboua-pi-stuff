@@ -1,17 +1,18 @@
+import { execFile } from "node:child_process";
+import { join } from "node:path";
+import { promisify } from "node:util";
 import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { Container, Text } from "@earendil-works/pi-tui";
 import { WEB_SEARCH_TOOL_NAME } from "../adapter/tool-set.ts";
 import { extractAccountId } from "../providers/openai-codex/headers.ts";
-import { attachChatGptCloudflareCookies, storeChatGptCloudflareCookies } from "./chatgpt-cloudflare-cookies.ts";
+import { getBundledPathToolsBinDir } from "./path-tools-binary.ts";
 
 export const WEB_SEARCH_UNSUPPORTED_MESSAGE = "web_run requires an OpenAI Codex-compatible Responses provider";
 export const WEB_SEARCH_SESSION_NOTE_TYPE = "codex-web-search-session-note";
 
-const DEFAULT_ALPHA_SEARCH_BASE_URL = "https://chatgpt.com/backend-api";
-const DEFAULT_WEB_SEARCH_MODEL = "gpt-5.4-mini";
 const WEB_SEARCH_PARAMETERS = Type.Unsafe<Record<string, unknown>>({ type: "object", additionalProperties: true });
-type WebSearchArgs = Record<string, unknown>;
+const execFileAsync = promisify(execFile);
 
 function createEmptyResultComponent(): Container { return new Container(); }
 
@@ -28,75 +29,23 @@ export function supportsMultimodalNativeWebSearch(model: ExtensionContext["model
 	return !(model?.id ?? "").toLowerCase().includes("spark");
 }
 
-function pruneUndefined(value: unknown): unknown {
-	if (Array.isArray(value)) return value.map(pruneUndefined).filter((item) => item !== undefined);
-	if (!value || typeof value !== "object") return value;
-	const entries = Object.entries(value).flatMap(([key, item]) => {
-		const pruned = pruneUndefined(item);
-		return pruned === undefined ? [] : [[key, pruned] as const];
-	});
-	return Object.fromEntries(entries);
+function pathToolExecutable(): string {
+	return join(getBundledPathToolsBinDir(), process.platform === "win32" ? "web_run.cmd" : "web_run");
 }
 
-function defaultSettings(): Record<string, unknown> {
-	return {
-		allowed_callers: ["direct"],
-		external_web_access: true,
-	};
-}
-
-function resolveAlphaSearchUrl(baseUrl: string | undefined): string {
-	const base = (baseUrl?.trim() || DEFAULT_ALPHA_SEARCH_BASE_URL).replace(/\/+$/, "");
-	if (base.endsWith("/alpha/search")) return base;
-	if (base.endsWith("/codex/responses")) return `${base.slice(0, -"/codex/responses".length)}/alpha/search`;
-	if (base.endsWith("/codex")) return `${base.slice(0, -"/codex".length)}/alpha/search`;
-	return `${base}/alpha/search`;
-}
-
-async function resolveAuth(ctx: ExtensionContext): Promise<Headers> {
+async function resolveNativeEnv(ctx: ExtensionContext): Promise<NodeJS.ProcessEnv> {
 	if (!ctx.model) throw new Error(WEB_SEARCH_UNSUPPORTED_MESSAGE);
 	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(ctx.model);
 	if (!auth.ok) throw new Error(auth.error);
 	const apiKey = auth.apiKey ?? auth.headers?.["Authorization"]?.replace(/^Bearer\s+/i, "");
 	if (!apiKey) throw new Error(WEB_SEARCH_UNSUPPORTED_MESSAGE);
-	const headers = new Headers();
-	for (const [key, value] of Object.entries(auth.headers ?? {})) headers.set(key, value);
-	headers.set("Authorization", `Bearer ${apiKey}`);
-	if (!headers.has("chatgpt-account-id")) headers.set("chatgpt-account-id", extractAccountId(apiKey));
-	// Match Codex's alpha/search client closely. `pi` works for codex/responses but
-	// alpha/search is fussier and may route non-Codex originators through CF challenge pages.
-	headers.set("originator", "codex_cli_rs");
-	headers.set("User-Agent", "codex_cli_rs/pi-codex-conversion");
-	headers.set("content-type", "application/json");
-	headers.set("accept", "application/json");
-	headers.delete("OpenAI-Beta");
-	headers.delete("openai-beta");
-	return headers;
-}
-
-export function buildAlphaSearchRequest(args: WebSearchArgs, ctx: Pick<ExtensionContext, "model">): Record<string, unknown> {
-	const commands = { ...args };
-	const explicitInput = commands["input"];
-	const explicitSettings = commands["settings"];
-	const explicitModel = commands["model"];
-	const maxOutputTokens = commands["max_output_tokens"];
-	delete commands["input"];
-	delete commands["settings"];
-	delete commands["model"];
-	delete commands["max_output_tokens"];
-
-	const settings = explicitSettings && typeof explicitSettings === "object"
-		? { ...defaultSettings(), ...(explicitSettings as Record<string, unknown>) }
-		: defaultSettings();
-
-	return pruneUndefined({
-		id: `pi-web-run-${Date.now().toString(36)}`,
-		model: typeof explicitModel === "string" && explicitModel.trim() ? explicitModel : ctx.model?.id ?? DEFAULT_WEB_SEARCH_MODEL,
-		input: typeof explicitInput === "string" && explicitInput.trim() ? explicitInput : undefined,
-		commands: Object.keys(commands).length > 0 ? commands : undefined,
-		settings,
-		max_output_tokens: typeof maxOutputTokens === "number" ? maxOutputTokens : undefined,
-	}) as Record<string, unknown>;
+	return {
+		...process.env,
+		PI_CODEX_ACCESS_TOKEN: apiKey,
+		PI_CODEX_ACCOUNT_ID: auth.headers?.["chatgpt-account-id"] ?? extractAccountId(apiKey),
+		...(ctx.model.baseUrl ? { PI_CODEX_BASE_URL: ctx.model.baseUrl } : {}),
+		...(ctx.model.id ? { PI_CODEX_MODEL: ctx.model.id } : {}),
+	};
 }
 
 function parseEncryptedOutput(body: string): string {
@@ -112,12 +61,6 @@ function parseEncryptedOutput(body: string): string {
 	return encryptedOutput;
 }
 
-function webRunHttpError(status: number, body: string): Error {
-	if (status === 403 && /cloudflare|challenge|just a moment|enable javascript/i.test(body)) {
-		return new Error("web_run search failed: HTTP 403 Cloudflare challenge from alpha/search");
-	}
-	return new Error(`web_run search failed: HTTP ${status}${body.trim() ? ` ${body.slice(0, 500)}` : ""}`);
-}
 
 export function createWebSearchTool(name: string = WEB_SEARCH_TOOL_NAME): ToolDefinition<typeof WEB_SEARCH_PARAMETERS> {
 	return {
@@ -129,19 +72,20 @@ export function createWebSearchTool(name: string = WEB_SEARCH_TOOL_NAME): ToolDe
 		prepareArguments: (args) => args && typeof args === "object" ? args as Record<string, unknown> : {},
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
 			if (!supportsExecutableWebSearch(ctx.model)) throw new Error(WEB_SEARCH_UNSUPPORTED_MESSAGE);
-			const url = resolveAlphaSearchUrl(ctx.model?.baseUrl);
-			const headers = await resolveAuth(ctx);
-			attachChatGptCloudflareCookies(url, headers);
-			const response = await fetch(url, {
-				method: "POST",
-				headers,
-				signal: signal ?? null,
-				body: JSON.stringify(buildAlphaSearchRequest(params, ctx)),
-			});
-			storeChatGptCloudflareCookies(url, response.headers);
-			const body = await response.text();
-			if (!response.ok) throw webRunHttpError(response.status, body);
-			const encryptedOutput = parseEncryptedOutput(body);
+			let stdout: string;
+			try {
+				const result = await execFileAsync(pathToolExecutable(), [JSON.stringify(params)], {
+					env: await resolveNativeEnv(ctx),
+					signal: signal ?? undefined,
+					maxBuffer: 1024 * 1024 * 8,
+				});
+				stdout = result.stdout;
+			} catch (error) {
+				const stderr = error && typeof error === "object" && "stderr" in error && typeof error.stderr === "string" ? error.stderr.trim() : "";
+				const message = stderr || (error instanceof Error ? error.message : String(error));
+				throw new Error(message);
+			}
+			const encryptedOutput = parseEncryptedOutput(stdout);
 			return { content: [{ type: "text", text: "[encrypted web search output]" }], details: { webRun: { encrypted_output: encryptedOutput } } };
 		},
 		renderCall(_args, theme) { return new Text(`${theme.fg("toolTitle", theme.bold(name))}`, 0, 0); },

@@ -125,6 +125,32 @@ test("convertResponsesMessages preserves encrypted web_run output", () => {
 	]);
 });
 
+
+test("convertResponsesMessages preserves encrypted PATH web_run output", () => {
+	const messages = convertResponsesMessages(
+		model,
+		{
+			messages: [
+				{
+					role: "toolResult",
+					toolCallId: "call_web|fc_web",
+					content: [{ type: "text", text: "[encrypted web search output]" }],
+					details: { pathTool: { webRun: { encrypted_output: "ciphertext" } } },
+				} as any,
+			],
+		},
+		new Set(["openai-codex"]),
+	);
+
+	assert.deepEqual(messages, [
+		{
+			type: "function_call_output",
+			call_id: "call_web",
+			output: [{ type: "encrypted_content", encrypted_content: "ciphertext" }],
+		},
+	]);
+});
+
 test("processResponsesStream keeps interleaved message items separate by output index", async () => {
 	const output = createAssistantOutput();
 	const pushedEvents: Array<{ type: string; contentIndex?: number }> = [];

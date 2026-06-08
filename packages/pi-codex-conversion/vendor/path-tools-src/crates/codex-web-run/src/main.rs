@@ -1,15 +1,17 @@
 mod types;
 
-use std::{env, fs};
 use std::io::Read;
 use std::path::PathBuf;
+use std::{env, fs};
 
 use anyhow::Context;
-use reqwest::header::{HeaderMap, HeaderValue};
+use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, CONTENT_TYPE, USER_AGENT};
 use serde::Deserialize;
-use serde_json::{json, Value};
-use types::{SearchCommands, SearchQuery, SearchSettings};
-const DEFAULT_BASE_URL: &str = "https://chatgpt.com/backend-api";
+use serde_json::json;
+use types::{AllowedCaller, SearchCommands, SearchRequest, SearchResponse, SearchSettings};
+use uuid::Uuid;
+
+const DEFAULT_BASE_URL: &str = "https://chatgpt.com/backend-api/codex";
 const DEFAULT_MODEL: &str = "gpt-5.4-mini";
 
 #[derive(Debug, Deserialize)]
@@ -40,6 +42,8 @@ struct WebRunArgs {
     input: Option<String>,
     #[serde(default)]
     settings: Option<SearchSettings>,
+    #[serde(default)]
+    max_output_tokens: Option<u64>,
 }
 
 fn parse_args() -> anyhow::Result<WebRunArgs> {
@@ -104,15 +108,17 @@ fn read_codex_auth() -> anyhow::Result<CodexAuth> {
     Ok(CodexAuth { token: credential.access, account_id: credential.account_id })
 }
 
-fn responses_url() -> String {
+fn alpha_search_url() -> String {
     let base = env::var("PI_CODEX_BASE_URL").unwrap_or_else(|_| DEFAULT_BASE_URL.to_string());
     let normalized = base.trim_end_matches('/');
-    if normalized.ends_with("/codex/responses") {
+    if normalized.ends_with("/alpha/search") {
         normalized.to_string()
+    } else if normalized.ends_with("/codex/responses") {
+        format!("{}/alpha/search", normalized.trim_end_matches("/responses"))
     } else if normalized.ends_with("/codex") {
-        format!("{normalized}/responses")
+        format!("{normalized}/alpha/search")
     } else {
-        format!("{normalized}/codex/responses")
+        format!("{normalized}/codex/alpha/search")
     }
 }
 
@@ -120,133 +126,33 @@ fn headers(token: &str, account_id: &str) -> anyhow::Result<HeaderMap> {
     let mut headers = HeaderMap::new();
     headers.insert("Authorization", HeaderValue::from_str(&format!("Bearer {token}"))?);
     headers.insert("chatgpt-account-id", HeaderValue::from_str(account_id)?);
-    headers.insert("originator", HeaderValue::from_static("pi"));
-    headers.insert("OpenAI-Beta", HeaderValue::from_static("responses=experimental"));
-    headers.insert("content-type", HeaderValue::from_static("application/json"));
-    headers.insert("accept", HeaderValue::from_static("text/event-stream"));
-    headers.insert("User-Agent", HeaderValue::from_static("pi-codex-conversion web_run path-tool"));
+    headers.insert("originator", HeaderValue::from_static("codex_cli_rs"));
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    headers.insert(ACCEPT, HeaderValue::from_static("application/json"));
+    headers.insert(USER_AGENT, HeaderValue::from_static("codex_cli_rs/0.0.0 (pi-codex-conversion)"));
     Ok(headers)
 }
 
-fn first_query(commands: &SearchCommands) -> Option<String> {
-    fn query_from_list(items: &Option<Vec<SearchQuery>>) -> Option<String> {
-        items.as_ref()?.first().map(|query| query.q.clone())
+fn merge_settings(settings: Option<SearchSettings>) -> SearchSettings {
+    let mut merged = settings.unwrap_or_default();
+    if merged.allowed_callers.is_none() {
+        merged.allowed_callers = Some(vec![AllowedCaller::Direct]);
     }
-    query_from_list(&commands.search_query)
-        .or_else(|| query_from_list(&commands.image_query))
-        .or_else(|| commands.open.as_ref()?.first().map(|op| format!("open {}", op.ref_id)))
+    if merged.external_web_access.is_none() {
+        merged.external_web_access = Some(true);
+    }
+    merged
 }
 
-fn build_responses_body(args: &WebRunArgs, model: String) -> Value {
-    let query = args.input.clone().or_else(|| first_query(&args.commands)).unwrap_or_else(|| serde_json::to_string(&args.commands).unwrap_or_default());
-    let context_size = args
-        .settings
-        .as_ref()
-        .and_then(|settings| settings.search_context_size)
-        .map(|size| match size {
-            types::SearchContextSize::Low => "low",
-            types::SearchContextSize::Medium => "medium",
-            types::SearchContextSize::High => "high",
-        })
-        .unwrap_or("medium");
-
-    let body = json!({
-        "model": model,
-        "instructions": "Use web search and answer concisely with sources. Preserve source citations.",
-        "text": { "verbosity": "low" },
-        "input": [{
-            "type": "message",
-            "role": "user",
-            "content": [{ "type": "input_text", "text": query }]
-        }],
-        "tools": [{
-            "type": "web_search",
-            "external_web_access": true,
-            "search_context_size": context_size
-        }],
-        "tool_choice": "required",
-        "parallel_tool_calls": true,
-        "store": false,
-        "stream": true,
-        "include": ["web_search_call.action.sources", "web_search_call.results"]
-    });
-    body
-}
-
-fn parse_sse_text(text: &str) -> Vec<Value> {
-    let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
-    let mut events = Vec::new();
-    for frame in normalized.split("\n\n") {
-        let mut data = String::new();
-        for line in frame.lines() {
-            if let Some(rest) = line.strip_prefix("data:") {
-                if !data.is_empty() { data.push('\n'); }
-                data.push_str(rest.trim_start());
-            }
-        }
-        if data.is_empty() || data == "[DONE]" { continue; }
-        if let Ok(value) = serde_json::from_str::<Value>(&data) {
-            events.push(value);
-        }
+fn build_search_request(args: &WebRunArgs, model: String) -> SearchRequest {
+    SearchRequest {
+        id: format!("pi-web-run-{}", Uuid::new_v4()),
+        model,
+        input: args.input.clone(),
+        commands: Some(args.commands.clone()),
+        settings: Some(merge_settings(args.settings.clone())),
+        max_output_tokens: args.max_output_tokens,
     }
-    events
-}
-
-fn collect_response(events: &[Value]) -> Value {
-    let mut text = String::new();
-    let mut response_id = None::<String>;
-    let mut usage = None::<Value>;
-    let mut web_search_calls = Vec::new();
-    let mut citations = Vec::<Value>::new();
-
-    for event in events {
-        match event.get("type").and_then(Value::as_str) {
-            Some("response.created") => {
-                response_id = event.get("response").and_then(|response| response.get("id")).and_then(Value::as_str).map(str::to_string);
-            }
-            Some("response.completed") => {
-                usage = event.get("response").and_then(|response| response.get("usage")).cloned();
-            }
-            Some("response.output_text.delta") => {
-                if let Some(delta) = event.get("delta").and_then(Value::as_str) {
-                    text.push_str(delta);
-                }
-            }
-            Some("response.output_item.done") => {
-                let Some(item) = event.get("item") else { continue; };
-                if item.get("type").and_then(Value::as_str) == Some("web_search_call") {
-                    web_search_calls.push(item.clone());
-                } else if item.get("type").and_then(Value::as_str) == Some("message") {
-                    if let Some(content) = item.get("content").and_then(Value::as_array) {
-                        for part in content {
-                            if part.get("type").and_then(Value::as_str) != Some("output_text") { continue; }
-                            if text.is_empty() {
-                                if let Some(part_text) = part.get("text").and_then(Value::as_str) {
-                                    text.push_str(part_text);
-                                }
-                            }
-                            if let Some(annotations) = part.get("annotations").and_then(Value::as_array) {
-                                for annotation in annotations {
-                                    if annotation.get("type").and_then(Value::as_str) == Some("url_citation") {
-                                        citations.push(annotation.clone());
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-
-    json!({
-        "text": text,
-        "response_id": response_id,
-        "usage": usage,
-        "citations": citations,
-        "web_search_calls": web_search_calls
-    })
 }
 
 #[tokio::main]
@@ -258,31 +164,33 @@ async fn main() -> anyhow::Result<()> {
         .clone()
         .or_else(|| env::var("PI_CODEX_MODEL").ok())
         .unwrap_or_else(|| DEFAULT_MODEL.to_string());
-    let request = build_responses_body(&args, model);
+    let request = build_search_request(&args, model);
+    let url = alpha_search_url();
 
-    let response = reqwest::Client::new()
-        .post(responses_url())
+    let response = reqwest::Client::builder()
+        .user_agent("codex_cli_rs/0.0.0 (pi-codex-conversion)")
+        .build()
+        .context("failed to build web_run HTTP client")?
+        .post(&url)
         .headers(headers(&auth.token, &auth.account_id)?)
         .json(&request)
         .send()
         .await
-        .context("web_run responses request failed")?;
+        .with_context(|| format!("web_run alpha/search request failed for `{url}`"))?;
 
     let status = response.status();
     let body = response.text().await.context("failed to read web_run response")?;
     if !status.is_success() {
-        anyhow::bail!("web_run responses failed: HTTP {status} {body}");
+        if status.as_u16() == 403 && body.to_ascii_lowercase().contains("cloudflare") {
+            anyhow::bail!("web_run alpha/search failed for `{url}`: HTTP 403 Cloudflare challenge");
+        }
+        anyhow::bail!("web_run alpha/search failed for `{url}`: HTTP {status} {body}");
     }
 
-    let events = parse_sse_text(&body);
-    if let Some(failed) = events.iter().find(|event| event.get("type").and_then(Value::as_str) == Some("response.failed")) {
-        let message = failed
-            .get("error")
-            .and_then(|error| error.get("message").or_else(|| error.get("code")))
-            .and_then(Value::as_str)
-            .unwrap_or("web_run responses failed");
-        anyhow::bail!("{message}");
-    }
-    println!("{}", collect_response(&events));
+    let parsed: SearchResponse = serde_json::from_str(&body).context("failed to decode web_run alpha/search response")?;
+    println!("{}", json!({
+        "text": "[encrypted web search output]",
+        "encrypted_output": parsed.encrypted_output,
+    }));
     Ok(())
 }
