@@ -206,6 +206,12 @@ async fn main() -> anyhow::Result<()> {
         }
         anyhow::bail!("web_run alpha/search failed for `{url}`: HTTP {status} {body}");
     }
+    if !body.trim_start().starts_with('{') {
+        if body.to_ascii_lowercase().contains("cloudflare") {
+            anyhow::bail!("web_run alpha/search failed for `{url}`: Cloudflare challenge");
+        }
+        anyhow::bail!("web_run alpha/search failed for `{url}`: expected JSON response");
+    }
 
     let parsed: SearchResponse = serde_json::from_str(&body).context("failed to decode web_run alpha/search response")?;
     println!("{}", json!({
