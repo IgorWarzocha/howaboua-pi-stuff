@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildCodexWebSearchRequest, createWebSearchTool, executeCodexWebSearch, resolveAlphaSearchUrlFromBase, supportsMultimodalNativeWebSearch, supportsNativeWebSearch } from "../src/tools/web-search-tool.ts";
+import { buildCodexWebSearchRequest, createWebSearchTool, executeCodexWebSearchFetch, resolveAlphaSearchUrlFromBase, supportsMultimodalNativeWebSearch, supportsNativeWebSearch } from "../src/tools/web-search-tool.ts";
 
 function fakeJwt(accountId: string): string {
 	return ["header", Buffer.from(JSON.stringify({ "https://api.openai.com/auth": { chatgpt_account_id: accountId } })).toString("base64url"), "signature"].join(".");
@@ -69,7 +69,7 @@ test("executeCodexWebSearch uses Pi-owned model auth and Codex-compatible header
 			return new Response(JSON.stringify({ encrypted_output: "ciphertext" }), { status: 200, headers: { "content-type": "application/json" } });
 		}) as typeof fetch;
 
-		const encrypted = await executeCodexWebSearch({ search_query: [{ q: "OpenAI" }] }, createContext({ accountId: "pi-account" }), undefined);
+		const encrypted = await executeCodexWebSearchFetch({ search_query: [{ q: "OpenAI" }] }, createContext({ accountId: "pi-account" }), undefined);
 		assert.equal(encrypted, "ciphertext");
 		assert.equal(captured?.url, "https://chatgpt.com/api/codex/alpha/search");
 		const headers = captured!.init.headers as Headers;
@@ -91,13 +91,17 @@ test("executeCodexWebSearch uses Pi-owned model auth and Codex-compatible header
 
 test("createWebSearchTool returns encrypted web_run details through Pi's tool system", async () => {
 	const originalFetch = globalThis.fetch;
+	const originalFetchEnv = process.env["PI_CODEX_WEB_RUN_TS_FETCH"];
 	try {
+		process.env["PI_CODEX_WEB_RUN_TS_FETCH"] = "1";
 		globalThis.fetch = (async () => new Response(JSON.stringify({ encrypted_output: "ciphertext" }), { status: 200 })) as typeof fetch;
 		const result = await createWebSearchTool().execute("call", { search_query: [{ q: "OpenAI" }] }, undefined, undefined as never, createContext({ accountId: "pi-account" }));
 		assert.deepEqual(result.content, [{ type: "text", text: "[encrypted web search output]" }]);
 		assert.deepEqual(result.details, { webRun: { encrypted_output: "ciphertext" } });
 	} finally {
 		globalThis.fetch = originalFetch;
+		if (originalFetchEnv === undefined) delete process.env["PI_CODEX_WEB_RUN_TS_FETCH"];
+		else process.env["PI_CODEX_WEB_RUN_TS_FETCH"] = originalFetchEnv;
 	}
 });
 
@@ -105,11 +109,11 @@ test("executeCodexWebSearch reports Cloudflare and non-JSON failures", async () 
 	const originalFetch = globalThis.fetch;
 	try {
 		globalThis.fetch = (async () => new Response("<html>not json</html>", { status: 200 })) as typeof fetch;
-		await assert.rejects(() => executeCodexWebSearch({}, createContext(), undefined), /expected JSON response/);
+		await assert.rejects(() => executeCodexWebSearchFetch({}, createContext(), undefined), /expected JSON response/);
 		globalThis.fetch = (async () => new Response("<html>Cloudflare blocked</html>", { status: 403 })) as typeof fetch;
-		await assert.rejects(() => executeCodexWebSearch({}, createContext(), undefined), /HTTP 403 Cloudflare challenge/);
+		await assert.rejects(() => executeCodexWebSearchFetch({}, createContext(), undefined), /HTTP 403 Cloudflare challenge/);
 		globalThis.fetch = (async () => new Response("<html>challenge</html>", { status: 200, headers: { "cf-mitigated": "challenge", server: "cloudflare" } })) as typeof fetch;
-		await assert.rejects(() => executeCodexWebSearch({}, createContext(), undefined), /Cloudflare challenge/);
+		await assert.rejects(() => executeCodexWebSearchFetch({}, createContext(), undefined), /Cloudflare challenge/);
 	} finally {
 		globalThis.fetch = originalFetch;
 	}

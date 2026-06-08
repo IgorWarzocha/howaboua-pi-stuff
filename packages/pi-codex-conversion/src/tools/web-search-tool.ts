@@ -1,8 +1,12 @@
 import { randomUUID } from "node:crypto";
+import { spawn } from "node:child_process";
+import { join } from "node:path";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { Container, Text } from "@earendil-works/pi-tui";
-import { codexToolProviderHeaders, CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE, resolveCodexAlphaSearchUrl, resolveCodexToolProvider, type CodexToolProvider } from "../adapter/codex-tool-provider.ts";
+import { codexToolProviderEnv, codexToolProviderHeaders, CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE, resolveCodexAlphaSearchUrl, resolveCodexToolProvider, type CodexToolProvider } from "../adapter/codex-tool-provider.ts";
 import { WEB_SEARCH_TOOL_NAME } from "../adapter/tool-set.ts";
 import { attachChatGptCloudflareCookies, storeChatGptCloudflareCookies } from "./chatgpt-cloudflare-cookies.ts";
 
@@ -11,8 +15,25 @@ export const WEB_SEARCH_SESSION_NOTE_TYPE = "codex-web-search-session-note";
 
 const WEB_SEARCH_PARAMETERS = Type.Unsafe<Record<string, unknown>>({ type: "object", additionalProperties: true });
 const DEFAULT_WEB_SEARCH_MODEL = "gpt-5.4-mini";
-
 function createEmptyResultComponent(): Container { return new Container(); }
+
+async function runWebRunBinary(webRunPath: string, params: Record<string, unknown>, env: NodeJS.ProcessEnv, signal: AbortSignal | undefined | null): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const child = spawn(webRunPath, ["-"], { env, signal: signal ?? undefined, stdio: ["pipe", "pipe", "pipe"] });
+		let stdout = "";
+		let stderr = "";
+		child.stdout.setEncoding("utf8");
+		child.stderr.setEncoding("utf8");
+		child.stdout.on("data", (chunk) => { stdout += chunk; });
+		child.stderr.on("data", (chunk) => { stderr += chunk; });
+		child.on("error", reject);
+		child.on("close", (code) => {
+			if (code === 0) resolve(stdout);
+			else reject(new Error(stderr.trim() || `web_run exited with code ${code ?? "unknown"}`));
+		});
+		child.stdin.end(JSON.stringify(params));
+	});
+}
 
 export function resolveAlphaSearchUrlFromBase(baseUrl: string | undefined): string {
 	return resolveCodexAlphaSearchUrl(baseUrl ?? "");
@@ -64,6 +85,24 @@ export function buildCodexWebSearchRequest(params: Record<string, unknown>, prov
 }
 
 export async function executeCodexWebSearch(params: Record<string, unknown>, ctx: ExtensionContext, signal: AbortSignal | undefined | null): Promise<string> {
+	if (process.env["PI_CODEX_WEB_RUN_TS_FETCH"] === "1") return executeCodexWebSearchFetch(params, ctx, signal);
+	const provider = await resolveCodexToolProvider(ctx);
+	const scriptDir = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
+	const webRunPath = join(scriptDir, "bin", process.platform === "win32" ? "web_run.cmd" : "web_run");
+	try {
+		const stdout = await runWebRunBinary(webRunPath, params, codexToolProviderEnv(provider), signal);
+		const parsed = JSON.parse(stdout) as Record<string, unknown>;
+		const encryptedOutput = parsed["encrypted_output"];
+		if (typeof encryptedOutput !== "string" || !encryptedOutput.trim()) throw new Error("web_run search returned no encrypted output");
+		return encryptedOutput;
+	} catch (error) {
+		const stderr = error && typeof error === "object" && "stderr" in error ? String((error as { stderr?: unknown }).stderr ?? "") : "";
+		const message = stderr.trim() || (error instanceof Error ? error.message : String(error));
+		throw new Error(message);
+	}
+}
+
+export async function executeCodexWebSearchFetch(params: Record<string, unknown>, ctx: ExtensionContext, signal: AbortSignal | undefined | null): Promise<string> {
 	const provider = await resolveCodexToolProvider(ctx);
 	const url = resolveCodexAlphaSearchUrl(provider.baseUrl);
 	const headers = codexToolProviderHeaders(provider);
