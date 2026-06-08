@@ -1,8 +1,7 @@
-import { randomBytes } from "node:crypto";
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { resolve } from "node:path";
-import { getBundledPathToolBinaryPath } from "./path-tools-binary.ts";
 import { CODEX_FALLBACK_SHELL, getCodexRuntimeShell, getCodexShellArgs, getDefaultCodexRuntimeShell, isFishShell } from "../adapter/runtime-shell.ts";
+import { applyTerminalOutput, consumeOutput, generateChunkId, normalizePipeOutput, peekOutputSince, peekUnconsumedOutput, truncateOutput } from "./exec-output.ts";
+import { chunkToText, createExecBridgeClient, type BridgeReadResponse } from "./exec-bridge-client.ts";
 
 export interface UnifiedExecResult {
 	chunk_id: string;
@@ -97,7 +96,6 @@ export interface ExecSessionManagerOptions {
 
 const DEFAULT_EXEC_YIELD_TIME_MS = 10_000;
 const DEFAULT_WRITE_YIELD_TIME_MS = 250;
-const DEFAULT_MAX_OUTPUT_TOKENS = 10_000;
 const MIN_YIELD_TIME_MS = 250;
 const MIN_NON_INTERACTIVE_EXEC_YIELD_TIME_MS = 5_000;
 const MIN_EMPTY_WRITE_YIELD_TIME_MS = 5_000;
@@ -202,176 +200,6 @@ function clampWriteYieldTime(
 	return Math.min(maxEmptyWriteYieldTimeMs, Math.max(minEmptyWriteYieldTimeMs, yieldTimeMs ?? fallback));
 }
 
-function maxCharsForTokens(maxOutputTokens = DEFAULT_MAX_OUTPUT_TOKENS): number {
-	return Math.max(256, maxOutputTokens * 4);
-}
-
-function stripTerminalControlSequences(text: string, preserveCsi = false): string {
-	const withoutOscAndDcs = text
-		.replace(/\u001B\][^\u0007\u001B]*(?:\u0007|\u001B\\)/g, "")
-		.replace(/\u001B[P_X^][\s\S]*?\u001B\\/g, "");
-	if (preserveCsi) {
-		return withoutOscAndDcs;
-	}
-	return withoutOscAndDcs.replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, "").replace(/\u001B[@-_]/g, "");
-}
-
-function sanitizeBinaryOutput(text: string, preserveBackspace = false): string {
-	return Array.from(text)
-		.filter((char) => {
-			const code = char.codePointAt(0);
-			if (code === undefined) return false;
-			if (code === 0x09 || code === 0x0a || code === 0x0d) return true;
-			if (preserveBackspace && code === 0x08) return true;
-			if (code <= 0x1f) return false;
-			if (code >= 0xfff9 && code <= 0xfffb) return false;
-			return true;
-		})
-		.join("");
-}
-
-function normalizePipeOutput(text: string): string {
-	return sanitizeBinaryOutput(stripTerminalControlSequences(text)).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-}
-
-function writeTerminalChar(session: RustExecSession, char: string): void {
-	if (session.terminalCursor > session.terminalLine.length) {
-		session.terminalLine.push(...Array.from({ length: session.terminalCursor - session.terminalLine.length }, () => " "));
-	}
-	session.terminalLine[session.terminalCursor] = char;
-	session.terminalCursor += 1;
-}
-
-function applyTerminalOutput(session: RustExecSession, text: string): string {
-	const sanitized = stripTerminalControlSequences(text, true);
-	if (sanitized.length === 0) {
-		return session.terminalCommitted + session.terminalLine.join("");
-	}
-
-	for (let index = 0; index < sanitized.length; index += 1) {
-		const char = sanitized[index]!;
-		if (char === "\u001b") {
-			if (sanitized[index + 1] === "[") {
-				let sequenceEnd = index + 2;
-				while (sequenceEnd < sanitized.length) {
-					const code = sanitized.charCodeAt(sequenceEnd);
-					if (code >= 0x40 && code <= 0x7e) {
-						break;
-					}
-					sequenceEnd += 1;
-				}
-				if (sequenceEnd >= sanitized.length) {
-					break;
-				}
-				const params = sanitized.slice(index + 2, sequenceEnd);
-				const finalByte = sanitized[sequenceEnd]!;
-				if (finalByte === "K") {
-					const mode = Number(params || "0");
-					if (mode === 0) {
-						session.terminalLine = session.terminalLine.slice(0, session.terminalCursor);
-					} else if (mode === 1) {
-						session.terminalLine = [
-							...Array.from({ length: Math.min(session.terminalCursor, session.terminalLine.length) }, () => " "),
-							...session.terminalLine.slice(session.terminalCursor),
-						];
-					} else if (mode === 2) {
-						session.terminalLine = [];
-					}
-				}
-				index = sequenceEnd;
-				continue;
-			}
-
-			const next = (sanitized[index + 1])!;
-			if (next && /[()*+,\-./]/.test(next) && index + 2 < sanitized.length) {
-				index += 2;
-				continue;
-			}
-			if (next) {
-				index += 1;
-			}
-			continue;
-		}
-
-		const code = char.codePointAt(0);
-		if (code !== undefined && code <= 0x1f && char !== "\t" && char !== "\n" && char !== "\r" && char !== "\b") {
-			continue;
-		}
-
-		switch (char) {
-			case "\r":
-				session.terminalCursor = 0;
-				break;
-			case "\n":
-				session.terminalCommitted += `${session.terminalLine.join("")}\n`;
-				session.terminalLine = [];
-				session.terminalCursor = 0;
-				break;
-			case "\b":
-				session.terminalCursor = Math.max(0, session.terminalCursor - 1);
-				break;
-			default:
-				writeTerminalChar(session, char);
-				break;
-		}
-	}
-
-	return session.terminalCommitted + session.terminalLine.join("");
-}
-
-function computePtyDelta(previous: string, current: string): string {
-	if (current.startsWith(previous)) {
-		return current.slice(previous.length);
-	}
-
-	const lineStart = previous.lastIndexOf("\n") + 1;
-	const stablePrefix = previous.slice(0, lineStart);
-	if (current.startsWith(stablePrefix)) {
-		return `\r${current.slice(lineStart)}`;
-	}
-
-	return current;
-}
-
-function generateChunkId(): string {
-	return randomBytes(3).toString("hex");
-}
-
-function truncateOutput(text: string, maxOutputTokens?: number): { output: string; original_token_count?: number | undefined } {
-	if (text.length === 0) {
-		return { output: "" };
-	}
-
-	const maxChars = maxCharsForTokens(maxOutputTokens);
-	const originalTokenCount = Math.ceil(text.length / 4);
-	if (text.length <= maxChars) {
-		return { output: text, original_token_count: originalTokenCount };
-	}
-
-	return {
-		output: text.slice(-maxChars),
-		original_token_count: originalTokenCount,
-	};
-}
-
-function consumeOutput(session: ExecSession, maxOutputTokens?: number): { output: string; original_token_count?: number | undefined } {
-	const text =
-		session.tty ? computePtyDelta(session.emittedBuffer, session.buffer) : session.buffer.slice(session.emittedBuffer.length);
-	session.emittedBuffer = session.buffer;
-	return truncateOutput(text, maxOutputTokens);
-}
-
-function peekUnconsumedOutput(session: ExecSession, maxOutputTokens?: number): { output: string; original_token_count?: number | undefined } {
-	const text =
-		session.tty ? computePtyDelta(session.emittedBuffer, session.buffer) : session.buffer.slice(session.emittedBuffer.length);
-	return truncateOutput(text, maxOutputTokens);
-}
-
-function peekOutputSince(session: ExecSession, baseline: string, maxOutputTokens?: number): { output: string; original_token_count?: number | undefined } {
-	const text = session.tty ? computePtyDelta(baseline, session.buffer) : session.buffer.slice(baseline.length);
-	return truncateOutput(text, maxOutputTokens);
-}
-
 function registerAbortHandler(signal: AbortSignal | undefined, onAbort: () => void): () => void {
 	if (!signal) {
 		return () => {};
@@ -393,6 +221,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 	const commandHistory = new Map<number, string>();
 	const changeListeners = new Set<(reason: ExecSessionChangeReason) => void>();
 	const exitListeners = new Set<(sessionId: number, command: string) => void>();
+	const bridge = createExecBridgeClient();
 	const defaultExecYieldTimeMs = options.defaultExecYieldTimeMs ?? DEFAULT_EXEC_YIELD_TIME_MS;
 	const defaultWriteYieldTimeMs = options.defaultWriteYieldTimeMs ?? DEFAULT_WRITE_YIELD_TIME_MS;
 	const minNonInteractiveExecYieldTimeMs = Math.min(
@@ -599,91 +428,8 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 		return result;
 	}
 
-	interface BridgeResponse<T = unknown> {
-		request_id: number;
-		ok: boolean;
-		result?: T | undefined;
-		error?: string | undefined;
-	}
-
-	interface BridgeReadResponse {
-		chunks: Array<{ seq: number; stream: "stdout" | "stderr" | "pty"; chunk: string }>;
-		nextSeq: number;
-		exited: boolean;
-		exitCode?: number | null | undefined;
-		closed: boolean;
-		failure?: string | null | undefined;
-	}
-
-	let bridge: ChildProcessWithoutNullStreams | undefined;
-	let nextBridgeRequestId = 1;
-	const pendingBridgeRequests = new Map<number, { resolve: (value: BridgeResponse) => void; reject: (error: Error) => void }>();
-	let bridgeLineBuffer = "";
-	let bridgeClosing = false;
-
-	function getBridge(): ChildProcessWithoutNullStreams {
-		if (bridge && !bridge.killed) return bridge;
-		const binary = getBundledPathToolBinaryPath("exec_bridge");
-		if (!binary) throw new Error(`exec_bridge binary is not bundled for ${process.platform}-${process.arch}`);
-		bridgeClosing = false;
-		bridge = spawn(binary, [], { stdio: "pipe", env: process.env });
-		bridge.stdout.on("data", (data: Buffer) => {
-			bridgeLineBuffer += data.toString("utf8");
-			for (;;) {
-				const newline = bridgeLineBuffer.indexOf("\n");
-				if (newline === -1) break;
-				const line = bridgeLineBuffer.slice(0, newline).trim();
-				bridgeLineBuffer = bridgeLineBuffer.slice(newline + 1);
-				if (!line) continue;
-				let response: BridgeResponse;
-				try {
-					response = JSON.parse(line) as BridgeResponse;
-				} catch {
-					continue;
-				}
-				const pending = pendingBridgeRequests.get(response.request_id);
-				if (!pending) continue;
-				pendingBridgeRequests.delete(response.request_id);
-				pending.resolve(response);
-			}
-		});
-		bridge.stderr.on("data", (data: Buffer) => {
-			// Keep stderr quiet unless a request fails; the bridge itself returns structured errors.
-			void data;
-		});
-		bridge.on("close", () => {
-			for (const pending of pendingBridgeRequests.values()) pending.reject(new Error(bridgeClosing ? "exec_bridge closed" : "exec_bridge exited"));
-			pendingBridgeRequests.clear();
-			bridge = undefined;
-		});
-		bridge.on("error", (error) => {
-			for (const pending of pendingBridgeRequests.values()) pending.reject(error);
-			pendingBridgeRequests.clear();
-		});
-		return bridge;
-	}
-
-	async function bridgeRequest<T = unknown>(request: Record<string, unknown>): Promise<T> {
-		const requestId = nextBridgeRequestId++;
-		const child = getBridge();
-		const response = await new Promise<BridgeResponse<T>>((resolve, reject) => {
-			pendingBridgeRequests.set(requestId, { resolve: resolve as (value: BridgeResponse) => void, reject });
-			child.stdin.write(`${JSON.stringify({ ...request, request_id: requestId })}\n`, (error) => {
-				if (!error) return;
-				pendingBridgeRequests.delete(requestId);
-				reject(error);
-			});
-		});
-		if (!response.ok) throw new Error(response.error ?? "exec_bridge request failed");
-		return response.result as T;
-	}
-
-	function chunkToText(chunk: string): string {
-		return Buffer.from(chunk, "base64").toString("utf8");
-	}
-
 	async function pollSession(session: RustExecSession, waitMs = 0, maxBytes?: number): Promise<void> {
-		const response = await bridgeRequest<BridgeReadResponse>({
+		const response = await bridge.request<BridgeReadResponse>({
 			op: "read",
 			process_id: session.processId,
 			after_seq: session.lastSeq,
@@ -731,7 +477,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 				const login = input.login ?? true;
 				const execution = resolveExecution(input.shell, input.cmd, input.env);
 				const shellArgs = getCodexShellArgs(shell, execution.command, login);
-				await bridgeRequest({
+				await bridge.request({
 					op: "exec",
 					process_id: session.processId,
 					argv: [shell, ...shellArgs],
@@ -773,7 +519,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			rememberCommand(session.id, session.command);
 			registerAbortHandler(signal, () => {
 				if (session.exitCode === undefined || session.exitCode === null) {
-					void bridgeRequest({ op: "terminate", process_id: session.processId }).catch(() => {});
+					void bridge.request({ op: "terminate", process_id: session.processId }).catch(() => {});
 				}
 			});
 
@@ -799,7 +545,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 				if (!session.interactive) {
 					throw new Error("stdin is closed for this session; rerun exec_command with tty=true to keep stdin open");
 				}
-				await bridgeRequest({ op: "write", process_id: session.processId, chunk: Array.from(Buffer.from(input.chars, "utf8")) });
+				await bridge.request({ op: "write", process_id: session.processId, chunk: Array.from(Buffer.from(input.chars, "utf8")) });
 			}
 			onUpdate?.(makeSnapshotSince(session, 0, updateBaseline, input.max_output_tokens));
 			const waitedMs =
@@ -834,9 +580,9 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			const session = sessions.get(sessionId);
 			if (!session || session.exitCode !== undefined || session.terminating) return false;
 			session.terminating = true;
-			void bridgeRequest({ op: "terminate", process_id: session.processId }).catch(() => {});
+			void bridge.request({ op: "terminate", process_id: session.processId }).catch(() => {});
 			setTimeout(() => {
-				if (session.exitCode === undefined || session.exitCode === null) void bridgeRequest({ op: "terminate", process_id: session.processId }).catch(() => {});
+				if (session.exitCode === undefined || session.exitCode === null) void bridge.request({ op: "terminate", process_id: session.processId }).catch(() => {});
 			}, TERMINATE_ESCALATE_MS).unref?.();
 			notify(session, "terminate");
 			return true;
@@ -851,12 +597,9 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 		},
 		shutdown: () => {
 			for (const session of sessions.values()) {
-				if (session.exitCode === undefined || session.exitCode === null) void bridgeRequest({ op: "terminate", process_id: session.processId }).catch(() => {});
+				if (session.exitCode === undefined || session.exitCode === null) void bridge.request({ op: "terminate", process_id: session.processId }).catch(() => {});
 			}
-			if (bridge && !bridge.killed) {
-				bridgeClosing = true;
-				bridge.kill();
-			}
+			bridge.shutdown();
 			sessions.clear();
 			commandHistory.clear();
 		},

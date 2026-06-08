@@ -1,49 +1,25 @@
-import { relative } from "node:path";
 import { Type } from "typebox";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Container, Text } from "@earendil-works/pi-tui";
-import { parsePatchActions } from "../patch/parser.ts";
 import { ExecutePatchError, type ExecutePatchResult } from "../patch/types.ts";
-import { getBundledApplyPatchBinaryPath } from "./apply-patch-binary.ts";
-import { formatApplyPatchSummary, formatPatchTarget, renderApplyPatchCall } from "./apply-patch-rendering.ts";
-import { parseSingleJsonLine, runBundledTool } from "./path-tool-runner.ts";
+import { formatPatchTarget } from "./apply-patch-rendering.ts";
+import { executePatchWithRust } from "./apply-patch-executor.ts";
+import {
+	clearApplyPatchRenderState,
+	isApplyPatchToolDetails,
+	markApplyPatchFailure,
+	markApplyPatchPartialFailure,
+	renderApplyPatchCallFromState,
+	setApplyPatchRenderState,
+	type ApplyPatchPartialFailureDetails,
+	type ApplyPatchSuccessDetails,
+} from "./apply-patch-render-state.ts";
 
 const APPLY_PATCH_PARAMETERS = Type.Object({
 	input: Type.String({
 		description: "Full patch text. Use *** Begin Patch / *** End Patch with Add/Update/Delete File sections.",
 	}),
 });
-
-interface ApplyPatchRenderState {
-	cwd: string;
-	patchText: string;
-	collapsed: string;
-	expanded: string;
-	status: "pending" | "partial_failure" | "failed";
-	failedTargets?: string[] | undefined;
-}
-
-interface ApplyPatchSuccessDetails {
-	status: "success";
-	result: ExecutePatchResult;
-}
-
-interface ApplyPatchPartialFailureDetails {
-	status: "partial_failure";
-	result: ExecutePatchResult;
-	error: string;
-	failedTargets?: string[] | undefined;
-	appliedFiles: string[];
-	failedFiles: string[];
-	recoveryInstructions: {
-		mustReadFiles: string[];
-		mustNotReadFiles: string[];
-	};
-}
-
-type ApplyPatchToolDetails = ApplyPatchSuccessDetails | ApplyPatchPartialFailureDetails;
-
-const applyPatchRenderStates = new Map<string, ApplyPatchRenderState>();
 
 interface ApplyPatchRenderContextLike {
 	toolCallId?: string | undefined;
@@ -61,141 +37,11 @@ function parseApplyPatchParams(params: unknown): { patchText: string } {
 
 function prepareApplyPatchArguments(args: unknown): { input: string } {
 	if (args && typeof args === "object") {
-		if ("input" in args && typeof args.input === "string") {
-			return { input: args.input };
-		}
-		if ("patchText" in args && typeof args.patchText === "string") {
-			return { input: args.patchText };
-		}
-		if ("patch" in args && typeof args.patch === "string") {
-			return { input: args.patch };
-		}
+		if ("input" in args && typeof args.input === "string") return { input: args.input };
+		if ("patchText" in args && typeof args.patchText === "string") return { input: args.patchText };
+		if ("patch" in args && typeof args.patch === "string") return { input: args.patch };
 	}
 	return args as { input: string };
-}
-
-function isApplyPatchToolDetails(details: unknown): details is ApplyPatchToolDetails {
-	return typeof details === "object" && details !== null && "status" in details && "result" in details;
-}
-
-function setApplyPatchRenderState(
-	toolCallId: string,
-	patchText: string,
-	cwd: string,
-	status: "pending" | "partial_failure" | "failed" = "pending",
-	failedTargets?: string[],
-): void {
-	const collapsed = formatApplyPatchSummary(patchText, cwd);
-	const expanded = renderApplyPatchCall(patchText, cwd);
-	applyPatchRenderStates.set(toolCallId, {
-		cwd,
-		patchText,
-		collapsed,
-		expanded,
-		status,
-		failedTargets,
-	});
-}
-
-function markApplyPatchPartialFailure(toolCallId: string, failedTargets?: string[]): void {
-	markApplyPatchFailure(toolCallId, "partial_failure", failedTargets);
-}
-
-function markApplyPatchFailure(toolCallId: string, status: "partial_failure" | "failed", failedTargets?: string[]): void {
-	const existing = applyPatchRenderStates.get(toolCallId);
-	if (!existing) {
-		return;
-	}
-	applyPatchRenderStates.set(toolCallId, {
-		...existing,
-		status,
-		failedTargets,
-	});
-}
-
-function renderPartialFailureCall(
-	text: string,
-	theme: { fg(role: string, text: string): string },
-	failedTargets?: string[],
-): string {
-	const lines = text.split("\n");
-	if (lines.length === 0) {
-		return theme.fg("warning", "• Edit partially failed");
-	}
-	lines[0] = lines[0]!.replace(/^• (Added|Edited|Deleted)\b/, "• Edit partially failed");
-	const failedLineIndexes = new Set<number>();
-	if (failedTargets) {
-		for (let i = 0; i < lines.length; i += 1) {
-			for (const failedTarget of failedTargets) {
-				const failedLine = markFailedTargetLine(lines[i]!, failedTarget);
-				if (failedLine) {
-					lines[i] = failedLine;
-					failedLineIndexes.add(i);
-					break;
-				}
-			}
-		}
-	}
-	return lines
-		.map((line, index) => {
-			if (failedLineIndexes.has(index)) {
-				return theme.fg("error", line);
-			}
-			if (index === 0) {
-				return theme.fg("warning", line);
-			}
-			return line;
-		})
-		.join("\n");
-}
-
-function renderFailedCall(
-	text: string,
-	theme: { fg(role: string, text: string): string },
-	failedTargets?: string[],
-): string {
-	const lines = text.split("\n");
-	if (lines.length === 0) {
-		return theme.fg("error", "• Edit failed");
-	}
-	lines[0] = lines[0]!.replace(/^• (Added|Edited|Deleted)\b/, "• Edit failed");
-	const failedLineIndexes = new Set<number>();
-	if (failedTargets) {
-		for (let i = 0; i < lines.length; i += 1) {
-			for (const failedTarget of failedTargets) {
-				const failedLine = markFailedTargetLine(lines[i]!, failedTarget);
-				if (failedLine) {
-					lines[i] = failedLine;
-					failedLineIndexes.add(i);
-					break;
-				}
-			}
-		}
-	}
-	return lines
-		.map((line, index) => {
-			if (failedLineIndexes.has(index) || index === 0) {
-				return theme.fg("error", line);
-			}
-			return line;
-		})
-		.join("\n");
-}
-
-function markFailedTargetLine(line: string, failedTarget: string): string | undefined {
-	const suffixMatch = line.match(/ \(\+\d+ -\d+\)$/);
-	if (!suffixMatch) {
-		return undefined;
-	}
-	const suffix = suffixMatch[0]!;
-	const prefixAndTarget = line.slice(0, -suffix.length);
-	const candidatePrefixes = ["• Edit partially failed ", "• Added ", "• Edited ", "• Deleted ", "  └ ", "    "];
-	for (const prefix of candidatePrefixes) {
-		if (prefixAndTarget === `${prefix}${failedTarget}`) {
-			return `${prefix}${failedTarget} failed${suffix}`;
-		}
-	}
-	return undefined;
 }
 
 function summarizePatchCounts(result: ExecutePatchResult): string {
@@ -212,9 +58,7 @@ function uniqueStrings(values: Array<string | undefined>): string[] {
 }
 
 function getFailedPaths(error: ExecutePatchError): string[] {
-	return uniqueStrings(
-		error.failures.flatMap(({ action }) => [action.path, action.type === "update" ? action.movePath : undefined]),
-	);
+	return uniqueStrings(error.failures.flatMap(({ action }) => [action.path, action.type === "update" ? action.movePath : undefined]));
 }
 
 function getAppliedPaths(result: ExecutePatchResult, failedFiles: string[]): string[] {
@@ -235,111 +79,17 @@ function buildPartialFailureMessage(message: string, failedFiles: string[], appl
 }
 
 function describeFailedActions(error: ExecutePatchError, cwd: string): string[] {
-	return uniqueStrings(
-		error.failures.map(({ action }) => formatPatchTarget(action.path, action.type === "update" ? action.movePath : undefined, cwd)),
-	);
-}
-
-interface RustApplyPatchJson {
-	status: "success" | "failure";
-	error?: string | null | undefined;
-	exact?: boolean | undefined;
-	result: ExecutePatchResult;
-}
-
-function parseRustApplyPatchJson(stdout: string): RustApplyPatchJson {
-	const parsed = parseSingleJsonLine<RustApplyPatchJson>(stdout, "apply_patch");
-	if (!parsed || typeof parsed !== "object" || !parsed.result) {
-		throw new Error("apply_patch returned invalid structured JSON output");
-	}
-	return parsed;
-}
-
-async function executePatchWithRust({ cwd, patchText, signal }: { cwd: string; patchText: string; signal?: AbortSignal | undefined }): Promise<ExecutePatchResult> {
-	const binary = getBundledApplyPatchBinaryPath();
-	if (!binary) {
-		throw new Error(`apply_patch binary is not bundled for ${process.platform}-${process.arch}`);
-	}
-	const child = await runBundledTool({
-		binary,
-		args: [patchText],
-		cwd,
-		env: { ...process.env, PI_APPLY_PATCH_JSON: "1" },
-		signal,
-		label: "apply_patch",
-	});
-	const parsed = parseRustApplyPatchJson(child.stdout);
-	if (parsed.status === "success" && child.status === 0) {
-		return parsed.result;
-	}
-
-	const result = parsed.result ?? { changedFiles: [], createdFiles: [], deletedFiles: [], movedFiles: [], fuzz: 0 };
-	const errorMessage = parsed.error ?? child.stderr ?? "apply_patch failed";
-	let parsedActions = [] as ReturnType<typeof parsePatchActions>;
-	try {
-		parsedActions = parsePatchActions({ text: patchText }).map((action) => ({
-			...action,
-			path: displayPatchPath(cwd, action.path),
-			movePath: action.movePath ? displayPatchPath(cwd, action.movePath) : action.movePath,
-		}));
-	} catch {
-		// Rust already produced the authoritative parse error.
-	}
-	const failureAction = parsedActions.find((action) => errorMentionsAction(errorMessage, action));
-	const failures = failureAction ? [{ action: failureAction, message: errorMessage }] : [];
-	throw new ExecutePatchError(parsed.error ?? child.stderr ?? "apply_patch failed", result, failures);
-}
-
-function displayPatchPath(cwd: string, path: string): string {
-	if (!path.startsWith("/")) {
-		return path;
-	}
-	const relativePath = relative(cwd, path);
-	return relativePath && !relativePath.startsWith("..") && !relativePath.startsWith("/") ? relativePath : path;
-}
-
-function errorMentionsAction(error: string, action: { path: string; movePath?: string | undefined }): boolean {
-	return error.includes(action.path) || (action.movePath ? error.includes(action.movePath) : false);
+	return uniqueStrings(error.failures.map(({ action }) => formatPatchTarget(action.path, action.type === "update" ? action.movePath : undefined, cwd)));
 }
 
 export type { ExecutePatchResult } from "../patch/types.ts";
-
-export function clearApplyPatchRenderState(): void {
-	applyPatchRenderStates.clear();
-}
+export { clearApplyPatchRenderState };
 
 const renderApplyPatchCallWithOptionalContext: any = (
 	args: { input?: unknown | undefined },
 	theme: { fg(role: string, text: string): string; bold(text: string): string },
 	context?: ApplyPatchRenderContextLike,
-) => {
-	if (context?.argsComplete === false) {
-		return new Text(`${theme.fg("dim", "•")} ${theme.bold("Patching")}`, 0, 0);
-	}
-	const patchText = typeof args.input === "string" ? args.input : "";
-	if (patchText.trim().length === 0) {
-		return new Text(`${theme.fg("dim", "•")} ${theme.bold("Patching")}`, 0, 0);
-	}
-	const cached = context?.toolCallId ? applyPatchRenderStates.get(context.toolCallId) : undefined;
-	const cwd = context?.cwd ?? cached?.cwd;
-	const effectivePatchText = cached?.patchText ?? patchText;
-	const baseText = context?.expanded
-		? cached?.expanded ?? renderApplyPatchCall(effectivePatchText, cwd)
-		: cached?.collapsed ?? formatApplyPatchSummary(effectivePatchText, cwd);
-	if (baseText.trim().length === 0) {
-		if (cached?.status === "failed") {
-			return new Text(theme.fg("error", "• Edit failed"), 0, 0);
-		}
-		return new Text(`${theme.fg("dim", "•")} ${theme.bold("Patching")}`, 0, 0);
-	}
-	const text =
-		cached?.status === "partial_failure"
-			? renderPartialFailureCall(baseText, theme, cached.failedTargets)
-			: cached?.status === "failed"
-				? renderFailedCall(baseText, theme, cached.failedTargets)
-				: baseText;
-	return new Text(text, 0, 0);
-};
+) => new Text(renderApplyPatchCallFromState(args, theme, context), 0, 0);
 
 export function registerApplyPatchTool(pi: ExtensionAPI): void {
 	pi.registerTool({
@@ -350,9 +100,7 @@ export function registerApplyPatchTool(pi: ExtensionAPI): void {
 		parameters: APPLY_PATCH_PARAMETERS,
 		prepareArguments: prepareApplyPatchArguments,
 		async execute(toolCallId, params, signal, _onUpdate, ctx) {
-			if (signal?.aborted) {
-				throw new Error("apply_patch aborted");
-			}
+			if (signal?.aborted) throw new Error("apply_patch aborted");
 
 			const typedParams = parseApplyPatchParams(params);
 			setApplyPatchRenderState(toolCallId, typedParams.patchText, ctx.cwd);
@@ -364,9 +112,7 @@ export function registerApplyPatchTool(pi: ExtensionAPI): void {
 					const partial = error.hasPartialSuccess();
 					const failedTargets = describeFailedActions(error, ctx.cwd);
 					const failedTargetSummary = failedTargets.join(", ");
-					const prefix = partial
-						? `apply_patch partially failed after ${summarizePatchCounts(error.result)}`
-						: "apply_patch failed";
+					const prefix = partial ? `apply_patch partially failed after ${summarizePatchCounts(error.result)}` : "apply_patch failed";
 					const message = failedTargetSummary ? `${prefix} while patching ${failedTargetSummary}: ${error.message}` : `${prefix}: ${error.message}`;
 					if (partial) {
 						const failedFiles = getFailedPaths(error);
@@ -382,10 +128,7 @@ export function registerApplyPatchTool(pi: ExtensionAPI): void {
 								failedTargets,
 								appliedFiles,
 								failedFiles,
-								recoveryInstructions: {
-									mustReadFiles: failedFiles,
-									mustNotReadFiles: appliedFiles,
-								},
+								recoveryInstructions: { mustReadFiles: failedFiles, mustNotReadFiles: appliedFiles },
 							} satisfies ApplyPatchPartialFailureDetails,
 						};
 					}
@@ -404,28 +147,13 @@ export function registerApplyPatchTool(pi: ExtensionAPI): void {
 				`Fuzz: ${result.fuzz}`,
 			].join("\n");
 
-			return {
-				content: [{ type: "text", text: summary }],
-				details: {
-					status: "success",
-					result,
-				} satisfies ApplyPatchSuccessDetails,
-			};
+			return { content: [{ type: "text", text: summary }], details: { status: "success", result } satisfies ApplyPatchSuccessDetails };
 		},
 		renderCall: renderApplyPatchCallWithOptionalContext,
 		renderResult(result, { isPartial }, theme) {
-			if (isPartial) {
-				return new Text(`${theme.fg("dim", "•")} ${theme.bold("Patching")}`, 0, 0);
-			}
-
-			if (!isApplyPatchToolDetails(result.details)) {
-				return new Container();
-			}
-
-			if (result.details.status === "partial_failure") {
-				return new Container();
-			}
-
+			if (isPartial) return new Text(`${theme.fg("dim", "•")} ${theme.bold("Patching")}`, 0, 0);
+			if (!isApplyPatchToolDetails(result.details)) return new Container();
+			if (result.details.status === "partial_failure") return new Container();
 			return new Container();
 		},
 	});
