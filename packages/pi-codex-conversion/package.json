@@ -47,7 +47,8 @@
     "src/tools/**/*.rs",
     "src/tools/**/Cargo.toml",
     "src/tools/Cargo.lock",
-    "src/tools/rust/UPSTREAM.*"
+    "src/tools/rust/UPSTREAM.*",
+    "!src/tools/target/**"
   ],
   "scripts": {
     "typecheck": "tsgo -p tsconfig.json",
