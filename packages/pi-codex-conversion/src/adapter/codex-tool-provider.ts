@@ -34,17 +34,26 @@ export function resolveCodexAlphaSearchUrl(providerBaseUrl: string): string {
 	return `${resolveCodexApiProviderBaseUrl(base)}/alpha/search`;
 }
 
+function headerValue(headers: Record<string, string> | undefined, name: string): string | undefined {
+	if (!headers) return undefined;
+	const lowerName = name.toLowerCase();
+	for (const [key, value] of Object.entries(headers)) {
+		if (key.toLowerCase() === lowerName) return value;
+	}
+	return undefined;
+}
+
 export async function resolveCodexToolProvider(ctx: ExtensionContext): Promise<CodexToolProvider> {
 	if (!ctx.model) throw new Error(CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE);
 	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(ctx.model);
 	if (!auth.ok) throw new Error(auth.error);
-	const token = auth.apiKey ?? auth.headers?.["Authorization"]?.replace(/^Bearer\s+/i, "");
+	const token = auth.apiKey ?? headerValue(auth.headers, "Authorization")?.replace(/^Bearer\s+/i, "");
 	if (!token) throw new Error(CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE);
 	return {
 		baseUrl: resolveCodexApiProviderBaseUrl(ctx.model.baseUrl),
 		model: ctx.model.id,
 		token,
-		accountId: auth.headers?.["chatgpt-account-id"] ?? extractAccountId(token),
+		accountId: headerValue(auth.headers, "chatgpt-account-id") ?? extractAccountId(token),
 	};
 }
 

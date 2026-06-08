@@ -6,7 +6,7 @@ function fakeJwt(accountId: string): string {
 	return ["header", Buffer.from(JSON.stringify({ "https://api.openai.com/auth": { chatgpt_account_id: accountId } })).toString("base64url"), "signature"].join(".");
 }
 
-function createContext(options: { token?: string; accountId?: string; baseUrl?: string; model?: string } = {}) {
+function createContext(options: { token?: string; accountId?: string; baseUrl?: string; model?: string; headers?: Record<string, string> } = {}) {
 	const token = options.token ?? fakeJwt(options.accountId ?? "acct-from-token");
 	return {
 		cwd: process.cwd(),
@@ -20,8 +20,8 @@ function createContext(options: { token?: string; accountId?: string; baseUrl?: 
 			async getApiKeyAndHeaders() {
 				return {
 					ok: true,
-					apiKey: token,
-					headers: options.accountId ? { "chatgpt-account-id": options.accountId } : {},
+					apiKey: options.headers ? undefined : token,
+					headers: options.headers ?? (options.accountId ? { "chatgpt-account-id": options.accountId } : {}),
 				};
 			},
 		},
@@ -87,6 +87,29 @@ test("executeCodexWebSearch uses Pi-owned model auth and Codex-compatible header
 			if (value === undefined) delete process.env[key];
 			else process.env[key] = value;
 		}
+	}
+});
+
+
+
+test("executeCodexWebSearch accepts case-insensitive auth headers from Pi model registry", async () => {
+	const originalFetch = globalThis.fetch;
+	let captured: { init: RequestInit } | undefined;
+	try {
+		globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+			captured = { init: init ?? {} };
+			return new Response(JSON.stringify({ encrypted_output: "ciphertext" }), { status: 200 });
+		}) as typeof fetch;
+		await executeCodexWebSearchFetch(
+			{ search_query: [{ q: "OpenAI" }] },
+			createContext({ headers: { Authorization: "Bearer header-token", "ChatGPT-Account-ID": "header-account" } }),
+			undefined,
+		);
+		const headers = captured!.init.headers as Headers;
+		assert.equal(headers.get("authorization"), "Bearer header-token");
+		assert.equal(headers.get("chatgpt-account-id"), "header-account");
+	} finally {
+		globalThis.fetch = originalFetch;
 	}
 });
 
