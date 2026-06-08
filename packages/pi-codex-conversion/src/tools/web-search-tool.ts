@@ -4,11 +4,11 @@ import { promisify } from "node:util";
 import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { Container, Text } from "@earendil-works/pi-tui";
+import { codexToolProviderEnv, CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE, resolveCodexAlphaSearchUrl, resolveCodexToolProvider } from "../adapter/codex-tool-provider.ts";
 import { WEB_SEARCH_TOOL_NAME } from "../adapter/tool-set.ts";
-import { extractAccountId } from "../providers/openai-codex/headers.ts";
 import { getBundledPathToolsBinDir } from "./path-tools-binary.ts";
 
-export const WEB_SEARCH_UNSUPPORTED_MESSAGE = "web_run requires an OpenAI Codex-compatible Responses provider";
+export const WEB_SEARCH_UNSUPPORTED_MESSAGE = CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE;
 export const WEB_SEARCH_SESSION_NOTE_TYPE = "codex-web-search-session-note";
 
 const WEB_SEARCH_PARAMETERS = Type.Unsafe<Record<string, unknown>>({ type: "object", additionalProperties: true });
@@ -18,19 +18,10 @@ function createEmptyResultComponent(): Container { return new Container(); }
 
 export function resolveAlphaSearchUrlFromBase(baseUrl: string | undefined): string {
 	const explicitAlphaBase = process.env["PI_CODEX_ALPHA_BASE_URL"];
-	if (explicitAlphaBase?.trim()) return alphaSearchUrlFromBase(explicitAlphaBase);
+	if (explicitAlphaBase?.trim()) return resolveCodexAlphaSearchUrl(explicitAlphaBase);
 	const serverUri = process.env["PI_CODEX_SERVER_URI"];
 	if (serverUri?.trim()) return `${serverUri.trim().replace(/\/+$/, "")}/api/codex/alpha/search`;
-	return alphaSearchUrlFromBase(baseUrl?.trim() || "https://chatgpt.com/backend-api/codex");
-}
-
-function alphaSearchUrlFromBase(baseUrl: string): string {
-	const base = baseUrl.replace(/\/+$/, "");
-	if (base.endsWith("/alpha/search")) return base;
-	if (base.endsWith("/codex/responses")) return `${base.slice(0, -"/responses".length)}/alpha/search`;
-	if (base.endsWith("/api/codex") || base.endsWith("/backend-api/codex") || base.endsWith("/codex")) return `${base}/alpha/search`;
-	if (base.endsWith("/api") || base.endsWith("/backend-api")) return `${base}/codex/alpha/search`;
-	return `${base}/api/codex/alpha/search`;
+	return resolveCodexAlphaSearchUrl(baseUrl ?? "");
 }
 
 export function supportsNativeWebSearch(model: ExtensionContext["model"]): boolean {
@@ -51,18 +42,7 @@ function pathToolExecutable(): string {
 }
 
 async function resolveNativeEnv(ctx: ExtensionContext): Promise<NodeJS.ProcessEnv> {
-	if (!ctx.model) throw new Error(WEB_SEARCH_UNSUPPORTED_MESSAGE);
-	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(ctx.model);
-	if (!auth.ok) throw new Error(auth.error);
-	const apiKey = auth.apiKey ?? auth.headers?.["Authorization"]?.replace(/^Bearer\s+/i, "");
-	if (!apiKey) throw new Error(WEB_SEARCH_UNSUPPORTED_MESSAGE);
-	return {
-		...process.env,
-		PI_CODEX_ACCESS_TOKEN: apiKey,
-		PI_CODEX_ACCOUNT_ID: auth.headers?.["chatgpt-account-id"] ?? extractAccountId(apiKey),
-		...(ctx.model.baseUrl ? { PI_CODEX_BASE_URL: ctx.model.baseUrl, PI_CODEX_ALPHA_SEARCH_URL: resolveAlphaSearchUrlFromBase(ctx.model.baseUrl) } : {}),
-		...(ctx.model.id ? { PI_CODEX_MODEL: ctx.model.id } : {}),
-	};
+	return codexToolProviderEnv(await resolveCodexToolProvider(ctx));
 }
 
 function parseEncryptedOutput(body: string): string {
