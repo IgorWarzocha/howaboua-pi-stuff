@@ -1,8 +1,7 @@
 import { randomBytes } from "node:crypto";
-import { spawn, type ChildProcessByStdio } from "node:child_process";
+import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { resolve } from "node:path";
-import type { Readable } from "node:stream";
-import * as pty from "node-pty";
+import { getBundledPathToolBinaryPath } from "./path-tools-binary.ts";
 import { CODEX_FALLBACK_SHELL, getCodexRuntimeShell, getCodexShellArgs, getDefaultCodexRuntimeShell, isFishShell } from "../adapter/runtime-shell.ts";
 
 export interface UnifiedExecResult {
@@ -61,20 +60,17 @@ interface BaseExecSession {
 	interactive: boolean;
 }
 
-interface PipeExecSession extends BaseExecSession {
-	kind: "pipe";
-	child: ChildProcessByStdio<null, Readable, Readable>;
-}
-
-interface PtyExecSession extends BaseExecSession {
-	kind: "pty";
-	child: pty.IPty;
+interface RustExecSession extends BaseExecSession {
+	kind: "rust";
+	processId: string;
+	tty: boolean;
+	lastSeq: number;
 	terminalCommitted: string;
 	terminalLine: string[];
 	terminalCursor: number;
 }
 
-type ExecSession = PipeExecSession | PtyExecSession;
+type ExecSession = RustExecSession;
 
 export type ExecSessionUpdateCallback = (result: UnifiedExecResult) => void;
 
@@ -118,20 +114,6 @@ function resolveWorkdir(baseCwd: string, workdir?: string): string {
 
 function resolveShell(shell?: string): string {
 	return shell ? getCodexRuntimeShell(shell) : getDefaultCodexRuntimeShell();
-}
-
-function killProcessTree(child: ChildProcessByStdio<null, Readable, Readable>, signal: NodeJS.Signals = "SIGTERM"): void {
-	const pid = child.pid;
-	if (!pid) return;
-	if (process.platform === "win32") {
-		spawn("taskkill", ["/pid", String(pid), "/t", "/f"], { stdio: "ignore", windowsHide: true });
-		return;
-	}
-	try {
-		process.kill(-pid, signal);
-	} catch {
-		child.kill(signal);
-	}
 }
 
 const BASH_SYNC_ENV_KEYS = [
@@ -252,7 +234,7 @@ function normalizePipeOutput(text: string): string {
 	return sanitizeBinaryOutput(stripTerminalControlSequences(text)).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 }
 
-function writeTerminalChar(session: PtyExecSession, char: string): void {
+function writeTerminalChar(session: RustExecSession, char: string): void {
 	if (session.terminalCursor > session.terminalLine.length) {
 		session.terminalLine.push(...Array.from({ length: session.terminalCursor - session.terminalLine.length }, () => " "));
 	}
@@ -260,7 +242,7 @@ function writeTerminalChar(session: PtyExecSession, char: string): void {
 	session.terminalCursor += 1;
 }
 
-function applyTerminalOutput(session: PtyExecSession, text: string): string {
+function applyTerminalOutput(session: RustExecSession, text: string): string {
 	const sanitized = stripTerminalControlSequences(text, true);
 	if (sanitized.length === 0) {
 		return session.terminalCommitted + session.terminalLine.join("");
@@ -374,19 +356,19 @@ function truncateOutput(text: string, maxOutputTokens?: number): { output: strin
 
 function consumeOutput(session: ExecSession, maxOutputTokens?: number): { output: string; original_token_count?: number | undefined } {
 	const text =
-		session.kind === "pty" ? computePtyDelta(session.emittedBuffer, session.buffer) : session.buffer.slice(session.emittedBuffer.length);
+		session.tty ? computePtyDelta(session.emittedBuffer, session.buffer) : session.buffer.slice(session.emittedBuffer.length);
 	session.emittedBuffer = session.buffer;
 	return truncateOutput(text, maxOutputTokens);
 }
 
 function peekUnconsumedOutput(session: ExecSession, maxOutputTokens?: number): { output: string; original_token_count?: number | undefined } {
 	const text =
-		session.kind === "pty" ? computePtyDelta(session.emittedBuffer, session.buffer) : session.buffer.slice(session.emittedBuffer.length);
+		session.tty ? computePtyDelta(session.emittedBuffer, session.buffer) : session.buffer.slice(session.emittedBuffer.length);
 	return truncateOutput(text, maxOutputTokens);
 }
 
 function peekOutputSince(session: ExecSession, baseline: string, maxOutputTokens?: number): { output: string; original_token_count?: number | undefined } {
-	const text = session.kind === "pty" ? computePtyDelta(baseline, session.buffer) : session.buffer.slice(baseline.length);
+	const text = session.tty ? computePtyDelta(baseline, session.buffer) : session.buffer.slice(baseline.length);
 	return truncateOutput(text, maxOutputTokens);
 }
 
@@ -488,7 +470,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 	function appendOutput(session: ExecSession, text: string): void {
 		if (text.length === 0) return;
 		session.buffer =
-			session.kind === "pty" ? applyTerminalOutput(session, text) : `${session.buffer}${normalizePipeOutput(text)}`;
+			session.tty ? applyTerminalOutput(session, text) : `${session.buffer}${normalizePipeOutput(text)}`;
 		if (session.buffer.length > maxSessionBufferChars) {
 			session.buffer = session.buffer.slice(-maxSessionBufferChars);
 			session.emittedBuffer = "";
@@ -617,81 +599,123 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 		return result;
 	}
 
-	function createPipeSession(input: ExecCommandInput, workdir: string, shell: string, signal?: AbortSignal): PipeExecSession {
-		const login = input.login ?? true;
-		const execution = resolveExecution(input.shell, input.cmd, input.env);
-		const shellArgs = getCodexShellArgs(shell, execution.command, login);
-		const child = spawn(shell, shellArgs, {
-			cwd: workdir,
-			stdio: ["ignore", "pipe", "pipe"],
-			env: execution.env,
-			detached: process.platform !== "win32",
-		});
-
-		const session: PipeExecSession = {
-			kind: "pipe",
-			id: nextSessionId++,
-			command: input.cmd,
-			child,
-			buffer: "",
-			emittedBuffer: "",
-			exitCode: undefined,
-			listeners: new Set(),
-			interactive: false,
-			startedAt: Date.now(),
-			updatedAt: Date.now(),
-			finalized: false,
-			exposed: false,
-			terminating: false,
-		};
-
-		child.stdout.on("data", (data: Buffer) => {
-			appendOutput(session, data.toString("utf8"));
-		});
-		child.stderr.on("data", (data: Buffer) => {
-			appendOutput(session, data.toString("utf8"));
-		});
-		child.on("close", (code, signalName) => {
-			setClosedExitCode(session, code, signalName);
-			finalizeSession(session);
-		});
-		child.on("error", (error) => {
-			appendOutput(session, `${error.message}\n`);
-			session.exitCode = 1;
-			finalizeSession(session);
-		});
-
-		registerAbortHandler(signal, () => {
-			if (session.exitCode === undefined) {
-				killProcessTree(child, "SIGTERM");
-			}
-		});
-
-		return session;
+	interface BridgeResponse<T = unknown> {
+		request_id: number;
+		ok: boolean;
+		result?: T | undefined;
+		error?: string | undefined;
 	}
 
-	function createPtySession(input: ExecCommandInput, workdir: string, shell: string, signal?: AbortSignal): PtyExecSession {
-		const login = input.login ?? true;
-		const execution = resolveExecution(input.shell, input.cmd, input.env);
-		const shellArgs = getCodexShellArgs(shell, execution.command, login);
-		const child = pty.spawn(shell, shellArgs, {
-			cwd: workdir,
-			env: execution.env,
-			name: process.env["TERM"] || "xterm-256color",
-			cols: 80,
-			rows: 24,
-		});
+	interface BridgeReadResponse {
+		chunks: Array<{ seq: number; stream: "stdout" | "stderr" | "pty"; chunk: string }>;
+		nextSeq: number;
+		exited: boolean;
+		exitCode?: number | null | undefined;
+		closed: boolean;
+		failure?: string | null | undefined;
+	}
 
-		const session: PtyExecSession = {
-			kind: "pty",
+	let bridge: ChildProcessWithoutNullStreams | undefined;
+	let nextBridgeRequestId = 1;
+	const pendingBridgeRequests = new Map<number, { resolve: (value: BridgeResponse) => void; reject: (error: Error) => void }>();
+	let bridgeLineBuffer = "";
+	let bridgeClosing = false;
+
+	function getBridge(): ChildProcessWithoutNullStreams {
+		if (bridge && !bridge.killed) return bridge;
+		const binary = getBundledPathToolBinaryPath("exec_bridge");
+		if (!binary) throw new Error(`exec_bridge binary is not bundled for ${process.platform}-${process.arch}`);
+		bridgeClosing = false;
+		bridge = spawn(binary, [], { stdio: "pipe", env: process.env });
+		bridge.stdout.on("data", (data: Buffer) => {
+			bridgeLineBuffer += data.toString("utf8");
+			for (;;) {
+				const newline = bridgeLineBuffer.indexOf("\n");
+				if (newline === -1) break;
+				const line = bridgeLineBuffer.slice(0, newline).trim();
+				bridgeLineBuffer = bridgeLineBuffer.slice(newline + 1);
+				if (!line) continue;
+				let response: BridgeResponse;
+				try {
+					response = JSON.parse(line) as BridgeResponse;
+				} catch {
+					continue;
+				}
+				const pending = pendingBridgeRequests.get(response.request_id);
+				if (!pending) continue;
+				pendingBridgeRequests.delete(response.request_id);
+				pending.resolve(response);
+			}
+		});
+		bridge.stderr.on("data", (data: Buffer) => {
+			// Keep stderr quiet unless a request fails; the bridge itself returns structured errors.
+			void data;
+		});
+		bridge.on("close", () => {
+			for (const pending of pendingBridgeRequests.values()) pending.reject(new Error(bridgeClosing ? "exec_bridge closed" : "exec_bridge exited"));
+			pendingBridgeRequests.clear();
+			bridge = undefined;
+		});
+		bridge.on("error", (error) => {
+			for (const pending of pendingBridgeRequests.values()) pending.reject(error);
+			pendingBridgeRequests.clear();
+		});
+		return bridge;
+	}
+
+	async function bridgeRequest<T = unknown>(request: Record<string, unknown>): Promise<T> {
+		const requestId = nextBridgeRequestId++;
+		const child = getBridge();
+		const response = await new Promise<BridgeResponse<T>>((resolve, reject) => {
+			pendingBridgeRequests.set(requestId, { resolve: resolve as (value: BridgeResponse) => void, reject });
+			child.stdin.write(`${JSON.stringify({ ...request, request_id: requestId })}\n`, (error) => {
+				if (!error) return;
+				pendingBridgeRequests.delete(requestId);
+				reject(error);
+			});
+		});
+		if (!response.ok) throw new Error(response.error ?? "exec_bridge request failed");
+		return response.result as T;
+	}
+
+	function chunkToText(chunk: string): string {
+		return Buffer.from(chunk, "base64").toString("utf8");
+	}
+
+	async function pollSession(session: RustExecSession, waitMs = 0, maxBytes?: number): Promise<void> {
+		const response = await bridgeRequest<BridgeReadResponse>({
+			op: "read",
+			process_id: session.processId,
+			after_seq: session.lastSeq,
+			max_bytes: maxBytes,
+			wait_ms: waitMs,
+		});
+		for (const chunk of response.chunks ?? []) {
+			appendOutput(session, chunkToText(chunk.chunk));
+			session.lastSeq = Math.max(session.lastSeq, chunk.seq);
+		}
+		session.lastSeq = Math.max(session.lastSeq, response.nextSeq - 1);
+		if (typeof response.exitCode === "number") {
+			setClosedExitCode(session, response.exitCode);
+		}
+		if (response.closed || response.exited) {
+			finalizeSession(session);
+		}
+	}
+
+	function createRustSession(input: ExecCommandInput, workdir: string, shell: string): RustExecSession {
+		const session: RustExecSession = {
+			kind: "rust",
 			id: nextSessionId++,
+			processId: "",
 			command: input.cmd,
-			child,
 			buffer: "",
 			emittedBuffer: "",
 			exitCode: undefined,
 			listeners: new Set(),
-			interactive: true,
+			interactive: Boolean(input.tty),
+			tty: Boolean(input.tty),
+			lastSeq: 0,
 			startedAt: Date.now(),
 			updatedAt: Date.now(),
 			finalized: false,
@@ -701,33 +725,57 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			terminalLine: [],
 			terminalCursor: 0,
 		};
-
-		child.onData((data) => {
-			appendOutput(session, data);
-		});
-		child.onExit(({ exitCode, signal }) => {
-			setClosedExitCode(session, exitCode, typeof signal === "number" && signal > 0 ? `SIG${signal}` : undefined);
-			finalizeSession(session);
-		});
-
-		registerAbortHandler(signal, () => {
-			if (session.exitCode === undefined) {
-				child.kill();
+		session.processId = `pi-${session.id}`;
+		void (async () => {
+			try {
+				const login = input.login ?? true;
+				const execution = resolveExecution(input.shell, input.cmd, input.env);
+				const shellArgs = getCodexShellArgs(shell, execution.command, login);
+				await bridgeRequest({
+					op: "exec",
+					process_id: session.processId,
+					argv: [shell, ...shellArgs],
+					cwd: workdir,
+					env: execution.env,
+					tty: Boolean(input.tty),
+					pipe_stdin: Boolean(input.tty),
+					arg0: null,
+				});
+				void pollSessionLoop(session);
+			} catch (error) {
+				appendOutput(session, `${error instanceof Error ? error.message : String(error)}\n`);
+				session.exitCode = 1;
+				finalizeSession(session);
 			}
-		});
-
+		})();
 		return session;
+	}
+
+	async function pollSessionLoop(session: RustExecSession): Promise<void> {
+		while (sessions.has(session.id) && (session.exitCode === undefined || session.exitCode === null)) {
+			try {
+				await pollSession(session, 250);
+			} catch (error) {
+				appendOutput(session, `${error instanceof Error ? error.message : String(error)}\n`);
+				session.exitCode = 1;
+				finalizeSession(session);
+				return;
+			}
+		}
 	}
 
 	return {
 		exec: async (input, cwd, signal, onUpdate) => {
 			const shell = resolveShell(input.shell);
 			const workdir = resolveWorkdir(cwd, input.workdir);
-			const session = input.tty
-				? createPtySession(input, workdir, shell, signal)
-				: createPipeSession(input, workdir, shell, signal);
+			const session = createRustSession(input, workdir, shell);
 			sessions.set(session.id, session);
 			rememberCommand(session.id, session.command);
+			registerAbortHandler(signal, () => {
+				if (session.exitCode === undefined || session.exitCode === null) {
+					void bridgeRequest({ op: "terminate", process_id: session.processId }).catch(() => {});
+				}
+			});
 
 			onUpdate?.(makeSnapshotResult(session, 0, input.max_output_tokens, true));
 			const waitedMs = await waitForExitOrTimeout(
@@ -751,9 +799,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 				if (!session.interactive) {
 					throw new Error("stdin is closed for this session; rerun exec_command with tty=true to keep stdin open");
 				}
-				if (session.kind === "pty") {
-					session.child.write(input.chars);
-				}
+				await bridgeRequest({ op: "write", process_id: session.processId, chunk: Array.from(Buffer.from(input.chars, "utf8")) });
 			}
 			onUpdate?.(makeSnapshotSince(session, 0, updateBaseline, input.max_output_tokens));
 			const waitedMs =
@@ -788,14 +834,10 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			const session = sessions.get(sessionId);
 			if (!session || session.exitCode !== undefined || session.terminating) return false;
 			session.terminating = true;
-			if (session.kind === "pty") {
-				session.child.kill();
-			} else {
-				killProcessTree(session.child, "SIGTERM");
-				setTimeout(() => {
-					if (session.exitCode === undefined || session.exitCode === null) killProcessTree(session.child, "SIGKILL");
-				}, TERMINATE_ESCALATE_MS).unref?.();
-			}
+			void bridgeRequest({ op: "terminate", process_id: session.processId }).catch(() => {});
+			setTimeout(() => {
+				if (session.exitCode === undefined || session.exitCode === null) void bridgeRequest({ op: "terminate", process_id: session.processId }).catch(() => {});
+			}, TERMINATE_ESCALATE_MS).unref?.();
 			notify(session, "terminate");
 			return true;
 		},
@@ -809,14 +851,11 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 		},
 		shutdown: () => {
 			for (const session of sessions.values()) {
-				if (session.exitCode !== undefined) {
-					continue;
-				}
-				if (session.kind === "pty") {
-					session.child.kill();
-				} else {
-					killProcessTree(session.child, "SIGTERM");
-				}
+				if (session.exitCode === undefined || session.exitCode === null) void bridgeRequest({ op: "terminate", process_id: session.processId }).catch(() => {});
+			}
+			if (bridge && !bridge.killed) {
+				bridgeClosing = true;
+				bridge.kill();
 			}
 			sessions.clear();
 			commandHistory.clear();

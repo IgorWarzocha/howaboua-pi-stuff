@@ -7,6 +7,10 @@ license.workspace = true
 [lib]
 doctest = false
 
+[[bin]]
+name = "exec_bridge"
+path = "src/main.rs"
+
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
