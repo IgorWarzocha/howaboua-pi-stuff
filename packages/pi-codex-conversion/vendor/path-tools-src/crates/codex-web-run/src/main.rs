@@ -9,10 +9,11 @@ use std::{env, fs};
 use anyhow::Context;
 use base64::Engine;
 use reqwest::cookie::{CookieStore, Jar};
-use reqwest::header::{ACCEPT, CONTENT_TYPE, HeaderMap, HeaderValue, USER_AGENT};
+use reqwest::header::{CONTENT_TYPE, HeaderMap, HeaderValue, USER_AGENT};
 use serde::Deserialize;
 use serde_json::json;
-use types::{SearchCommands, SearchSettings};
+use types::{AllowedCaller, SearchCommands, SearchRequest, SearchResponse, SearchSettings};
+use uuid::Uuid;
 
 const DEFAULT_BASE_URL: &str = "https://chatgpt.com/backend-api/codex";
 const DEFAULT_MODEL: &str = "gpt-5.4-mini";
@@ -239,7 +240,6 @@ async fn refresh_pi_codex_auth(
 }
 
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 struct WebRunArgs {
     #[serde(default)]
     id: Option<String>,
@@ -334,27 +334,38 @@ async fn read_codex_auth() -> anyhow::Result<CodexAuth> {
     })
 }
 
-fn codex_responses_url() -> String {
-    if let Ok(url) = env::var("PI_CODEX_RESPONSES_URL") {
+fn alpha_search_url() -> String {
+    if let Ok(url) = env::var("PI_CODEX_ALPHA_SEARCH_URL") {
         return url;
     }
+    if let Ok(base) = env::var("PI_CODEX_ALPHA_BASE_URL") {
+        return alpha_search_url_from_base(&base);
+    }
+    if let Ok(server_uri) = env::var("PI_CODEX_SERVER_URI") {
+        return format!(
+            "{}/api/codex/alpha/search",
+            server_uri.trim_end_matches('/')
+        );
+    }
     let base = env::var("PI_CODEX_BASE_URL").unwrap_or_else(|_| DEFAULT_BASE_URL.to_string());
-    responses_url_from_base(&base)
+    alpha_search_url_from_base(&base)
 }
 
-fn responses_url_from_base(base: &str) -> String {
+fn alpha_search_url_from_base(base: &str) -> String {
     let normalized = base.trim_end_matches('/');
-    if normalized.ends_with("/codex/responses") {
+    if normalized.ends_with("/alpha/search") {
         normalized.to_string()
+    } else if normalized.ends_with("/codex/responses") {
+        format!("{}/alpha/search", normalized.trim_end_matches("/responses"))
     } else if normalized.ends_with("/api/codex")
         || normalized.ends_with("/backend-api/codex")
         || normalized.ends_with("/codex")
     {
-        format!("{normalized}/responses")
+        format!("{normalized}/alpha/search")
     } else if normalized.ends_with("/api") || normalized.ends_with("/backend-api") {
-        format!("{normalized}/codex/responses")
+        format!("{normalized}/codex/alpha/search")
     } else {
-        format!("{normalized}/api/codex/responses")
+        format!("{normalized}/api/codex/alpha/search")
     }
 }
 
@@ -366,8 +377,6 @@ fn headers(token: &str, account_id: &str) -> anyhow::Result<HeaderMap> {
     );
     headers.insert("ChatGPT-Account-ID", HeaderValue::from_str(account_id)?);
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-    headers.insert(ACCEPT, HeaderValue::from_static("text/event-stream"));
-    headers.insert("OpenAI-Beta", HeaderValue::from_static("responses=experimental"));
     Ok(headers)
 }
 
@@ -414,89 +423,32 @@ fn build_codex_http_client() -> anyhow::Result<reqwest::Client> {
         .context("failed to build web_run HTTP client")
 }
 
-fn search_context_size(settings: &Option<SearchSettings>) -> &'static str {
-    match settings
-        .as_ref()
-        .and_then(|settings| settings.search_context_size.as_ref())
-    {
-        Some(types::SearchContextSize::Low) => "low",
-        Some(types::SearchContextSize::Medium) | None => "medium",
-        Some(types::SearchContextSize::High) => "high",
+fn merge_settings(settings: Option<SearchSettings>) -> SearchSettings {
+    let mut merged = settings.unwrap_or_default();
+    if merged.allowed_callers.is_none() {
+        merged.allowed_callers = Some(vec![AllowedCaller::Direct]);
     }
+    if merged.external_web_access.is_none() {
+        merged.external_web_access = Some(true);
+    }
+    merged
 }
 
-fn search_prompt(args: &WebRunArgs) -> anyhow::Result<String> {
-    if let Some(queries) = args.commands.search_query.as_ref()
-        && let Some(query) = queries.first()
-        && !query.q.trim().is_empty()
-    {
-        return Ok(query.q.clone());
+fn build_search_request(args: &WebRunArgs, model: String) -> SearchRequest {
+    SearchRequest {
+        id: args
+            .id
+            .as_ref()
+            .filter(|id| !id.trim().is_empty())
+            .cloned()
+            .unwrap_or_else(|| Uuid::new_v4().to_string()),
+        model,
+        reasoning: args.reasoning.clone(),
+        input: args.input.clone(),
+        commands: Some(args.commands.clone()),
+        settings: Some(merge_settings(args.settings.clone())),
+        max_output_tokens: args.max_output_tokens,
     }
-    if let Some(queries) = args.commands.image_query.as_ref()
-        && let Some(query) = queries.first()
-        && !query.q.trim().is_empty()
-    {
-        return Ok(format!("Find images and current sources for: {}", query.q));
-    }
-    anyhow::bail!("web_run currently requires search_query or image_query for Responses web search")
-}
-
-fn build_responses_web_search_request(args: &WebRunArgs, model: String) -> anyhow::Result<serde_json::Value> {
-    let prompt = search_prompt(args)?;
-    Ok(json!({
-        "model": model,
-        "instructions": "You are a concise web search assistant. Use web search, answer the query, and preserve source citations from annotations.",
-        "input": [{
-            "type": "message",
-            "role": "user",
-            "content": [{ "type": "input_text", "text": prompt }]
-        }],
-        "tools": [{
-            "type": "web_search",
-            "external_web_access": true,
-            "search_context_size": search_context_size(&args.settings)
-        }],
-        "tool_choice": "required",
-        "parallel_tool_calls": true,
-        "store": false,
-        "stream": true,
-        "include": []
-    }))
-}
-
-fn output_text_from_sse(body: &str) -> anyhow::Result<String> {
-    let mut text = String::new();
-    for block in body.split("\n\n") {
-        let data = block
-            .lines()
-            .filter_map(|line| line.strip_prefix("data: "))
-            .collect::<Vec<_>>()
-            .join("\n");
-        if data.is_empty() || data == "[DONE]" {
-            continue;
-        }
-        let event: serde_json::Value = match serde_json::from_str(&data) {
-            Ok(event) => event,
-            Err(_) => continue,
-        };
-        if event.get("type").and_then(serde_json::Value::as_str) == Some("response.output_text.delta")
-            && let Some(delta) = event.get("delta").and_then(serde_json::Value::as_str)
-        {
-            text.push_str(delta);
-        }
-        if event.get("type").and_then(serde_json::Value::as_str) == Some("response.failed") {
-            let message = event
-                .get("error")
-                .and_then(|error| error.get("message"))
-                .and_then(serde_json::Value::as_str)
-                .unwrap_or("Codex web search failed");
-            anyhow::bail!(message.to_string());
-        }
-    }
-    if text.trim().is_empty() {
-        anyhow::bail!("web_run Responses search returned no text");
-    }
-    Ok(text)
 }
 
 #[tokio::main]
@@ -508,8 +460,8 @@ async fn main() -> anyhow::Result<()> {
         .clone()
         .or_else(|| env::var("PI_CODEX_MODEL").ok())
         .unwrap_or_else(|| DEFAULT_MODEL.to_string());
-    let request = build_responses_web_search_request(&args, model)?;
-    let url = codex_responses_url();
+    let request = build_search_request(&args, model);
+    let url = alpha_search_url();
 
     let response = build_codex_http_client()?
         .post(&url)
@@ -517,7 +469,7 @@ async fn main() -> anyhow::Result<()> {
         .json(&request)
         .send()
         .await
-        .with_context(|| format!("web_run Responses web search request failed for `{url}`"))?;
+        .with_context(|| format!("web_run alpha/search request failed for `{url}`"))?;
 
     let status = response.status();
     let cloudflare_mitigated = response
@@ -544,18 +496,29 @@ async fn main() -> anyhow::Result<()> {
         }
         if status.as_u16() == 404 && body.contains("\"Not Found\"") {
             anyhow::bail!(
-                "web_run Responses web search failed for `{url}`: HTTP 404 Not Found (Codex endpoint unavailable for this account/backend)"
+                "web_run alpha/search failed for `{url}`: HTTP 404 Not Found (Codex alpha/search endpoint unavailable for this account/backend)"
             );
         }
-        anyhow::bail!("web_run Responses web search failed for `{url}`: HTTP {status} {body}");
+        anyhow::bail!("web_run alpha/search failed for `{url}`: HTTP {status} {body}");
+    }
+    if !body.trim_start().starts_with('{') {
+        let lower_body = body.to_ascii_lowercase();
+        if cloudflare_challenge || lower_body.contains("cloudflare") {
+            anyhow::bail!("web_run alpha/search failed for `{url}`: Cloudflare challenge");
+        }
+        if lower_body.contains("<!doctype html") && lower_body.contains("chatgpt") {
+            anyhow::bail!("web_run alpha/search failed for `{url}`: ChatGPT auth redirect");
+        }
+        anyhow::bail!("web_run alpha/search failed for `{url}`: expected JSON response");
     }
 
-    let text = output_text_from_sse(&body).context("failed to decode web_run Responses search response")?;
+    let parsed: SearchResponse =
+        serde_json::from_str(&body).context("failed to decode web_run alpha/search response")?;
     println!(
         "{}",
         json!({
-            "text": text,
-            "output_text": text,
+            "text": "[encrypted web search output]",
+            "encrypted_output": parsed.encrypted_output,
         })
     );
     Ok(())
