@@ -83,19 +83,36 @@ pub enum SearchResponseLength { Short, Medium, Long }
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct SearchSettings {
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_location: Option<ApproximateLocation>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub search_context_size: Option<SearchContextSize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub filters: Option<SearchFilters>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_settings: Option<SearchImageSettings>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allowed_callers: Option<Vec<AllowedCaller>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub external_web_access: Option<bool>,
 }
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ApproximateLocation {
+    pub r#type: LocationType,
+    #[serde(skip_serializing_if = "Option::is_none")] pub country: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub region: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub city: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub timezone: Option<String>,
+}
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum LocationType { Approximate }
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum SearchContextSize { Low, Medium, High }
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub struct SearchFilters { #[serde(skip_serializing_if = "Option::is_none")] pub allowed_domains: Option<Vec<String>>, #[serde(skip_serializing_if = "Option::is_none")] pub blocked_domains: Option<Vec<String>> }
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct SearchImageSettings { #[serde(skip_serializing_if = "Option::is_none")] pub max_results: Option<u64>, #[serde(skip_serializing_if = "Option::is_none")] pub caption: Option<bool> }
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum AllowedCaller { Direct, Shell, CodeInterpreter }

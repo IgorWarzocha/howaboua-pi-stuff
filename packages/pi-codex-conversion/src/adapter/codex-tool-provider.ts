@@ -60,7 +60,7 @@ export async function resolveCodexToolProvider(ctx: ExtensionContext): Promise<C
 export function codexToolProviderHeaders(provider: CodexToolProvider): Headers {
 	const headers = new Headers();
 	headers.set("Authorization", `Bearer ${provider.token}`);
-	headers.set("chatgpt-account-id", provider.accountId);
+	headers.set("ChatGPT-Account-ID", provider.accountId);
 	headers.set("originator", CODEX_ORIGINATOR);
 	headers.set("User-Agent", codexWebRunUserAgent(CODEX_ORIGINATOR));
 	headers.set("version", "0.0.0");

@@ -212,7 +212,7 @@ fn alpha_search_url_from_base(base: &str) -> String {
 fn headers(token: &str, account_id: &str) -> anyhow::Result<HeaderMap> {
     let mut headers = HeaderMap::new();
     headers.insert("Authorization", HeaderValue::from_str(&format!("Bearer {token}"))?);
-    headers.insert("chatgpt-account-id", HeaderValue::from_str(account_id)?);
+    headers.insert("ChatGPT-Account-ID", HeaderValue::from_str(account_id)?);
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
     headers.insert(ACCEPT, HeaderValue::from_static("application/json"));
     Ok(headers)
