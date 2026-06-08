@@ -76,6 +76,7 @@ type ExecSession = RustExecSession;
 export type ExecSessionUpdateCallback = (result: UnifiedExecResult) => void;
 
 export interface ExecSessionManager {
+	setBaseEnv(env: NodeJS.ProcessEnv): void;
 	exec(input: ExecCommandInput, cwd: string, signal?: AbortSignal, onUpdate?: ExecSessionUpdateCallback): Promise<UnifiedExecResult>;
 	write(input: WriteStdinInput, signal?: AbortSignal, onUpdate?: ExecSessionUpdateCallback): Promise<UnifiedExecResult>;
 	hasSession(sessionId: number): boolean;
@@ -88,6 +89,7 @@ export interface ExecSessionManager {
 }
 
 export interface ExecSessionManagerOptions {
+	env?: NodeJS.ProcessEnv | undefined;
 	defaultExecYieldTimeMs?: number | undefined;
 	defaultWriteYieldTimeMs?: number | undefined;
 	minNonInteractiveExecYieldTimeMs?: number | undefined;
@@ -107,6 +109,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 	const changeListeners = new Set<(reason: ExecSessionChangeReason) => void>();
 	const exitListeners = new Set<(sessionId: number, command: string) => void>();
 	const bridge = createExecBridgeClient();
+	let baseEnv: NodeJS.ProcessEnv = { ...(options.env ?? process.env) };
 	const defaultExecYieldTimeMs = options.defaultExecYieldTimeMs ?? DEFAULT_EXEC_YIELD_TIME_MS;
 	const defaultWriteYieldTimeMs = options.defaultWriteYieldTimeMs ?? DEFAULT_WRITE_YIELD_TIME_MS;
 	const minNonInteractiveExecYieldTimeMs = normalizeMinNonInteractiveExecYieldTime(options.minNonInteractiveExecYieldTimeMs);
@@ -186,6 +189,10 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 		notify(session);
 	}
 
+	function setBaseEnv(env: NodeJS.ProcessEnv): void {
+		baseEnv = { ...env };
+	}
+
 	async function pollSession(session: RustExecSession, waitMs = 0, maxBytes?: number): Promise<void> {
 		const response = await bridge.request<BridgeReadResponse>({
 			op: "read",
@@ -233,7 +240,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 		void (async () => {
 			try {
 				const login = input.login ?? true;
-				const execution = resolveExecution(input.shell, input.cmd, input.env);
+				const execution = resolveExecution(input.shell, input.cmd, input.env, baseEnv);
 				const shellArgs = getCodexShellArgs(shell, execution.command, login);
 				await bridge.request({
 					op: "exec",
@@ -269,6 +276,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 	}
 
 	return {
+		setBaseEnv,
 		exec: async (input, cwd, signal, onUpdate) => {
 			const shell = resolveShell(input.shell);
 			const workdir = resolveWorkdir(cwd, input.workdir);

@@ -28,11 +28,28 @@ export function getBundledPathToolBinaryPath(toolName: string): string | undefin
 	return existsSync(binary) ? binary : undefined;
 }
 
+function pathEnvKey(env: NodeJS.ProcessEnv): string {
+	if (process.platform !== "win32") return "PATH";
+	return Object.keys(env).find((key) => key.toLowerCase() === "path") ?? "Path";
+}
+
+export function createBundledPathToolsEnv(baseEnv: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+	const binDir = getBundledPathToolsBinDir();
+	if (!PATH_TOOL_WRAPPERS.some((wrapper) => existsSync(join(binDir, wrapper)))) return { ...baseEnv };
+	const env = { ...baseEnv };
+	const key = pathEnvKey(env);
+	const currentPath = env[key] ?? "";
+	const entries = currentPath.split(delimiter).filter(Boolean);
+	if (!entries.includes(binDir)) env[key] = [binDir, ...entries].join(delimiter);
+	return env;
+}
+
 export function ensureBundledPathToolsOnPath(env: NodeJS.ProcessEnv = process.env): string | undefined {
 	const binDir = getBundledPathToolsBinDir();
 	if (!PATH_TOOL_WRAPPERS.some((wrapper) => existsSync(join(binDir, wrapper)))) return undefined;
-	const currentPath = env["PATH"] ?? "";
+	const key = pathEnvKey(env);
+	const currentPath = env[key] ?? "";
 	const entries = currentPath.split(delimiter).filter(Boolean);
-	if (!entries.includes(binDir)) env["PATH"] = [binDir, ...entries].join(delimiter);
+	if (!entries.includes(binDir)) env[key] = [binDir, ...entries].join(delimiter);
 	return binDir;
 }

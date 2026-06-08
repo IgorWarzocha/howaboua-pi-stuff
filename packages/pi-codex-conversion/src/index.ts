@@ -12,7 +12,7 @@ import { buildCodexSystemPrompt, extractPiPromptSkills, resolvePromptSkills } fr
 import { registerViewImageTool } from "./tools/view-image/tool.ts";
 import { buildRecentWebSearchInput, registerWebSearchTool } from "./tools/web-run/tool.ts";
 import { registerWriteStdinTool } from "./tools/exec/write-stdin-tool.ts";
-import { ensureBundledPathToolsOnPath } from "./tools/path/binary.ts";
+import { createBundledPathToolsEnv } from "./tools/path/binary.ts";
 import { readCodexConversionConfig } from "./adapter/activation/config.ts";
 import { syncAdapter, mergeAdapterTools, restoreTools, stripAdapterTools, shouldUseCodexAdapter } from "./adapter/activation/activation.ts";
 import { rewriteCodexProviderRequest } from "./adapter/provider-request.ts";
@@ -46,10 +46,10 @@ function isToolCallOnlyAssistantMessage(message: unknown): boolean {
 }
 
 export default function codexConversion(pi: ExtensionAPI) {
-	ensureBundledPathToolsOnPath();
+	const bundledPathToolsEnv = createBundledPathToolsEnv();
 	const tracker = createExecCommandTracker();
 	const state: AdapterState = { enabled: false, cwd: process.cwd(), promptSkills: [], config: readCodexConversionConfig() };
-	const sessions = createExecSessionManager();
+	const sessions = createExecSessionManager({ env: bundledPathToolsEnv });
 	const backgroundBashWidget: BackgroundBashWidgetState = { folded: true };
 	const registeredNativeWebSearchTools = new Set<string>();
 	let latestRecentWebSearchInput: ResponseInput | undefined;
@@ -147,6 +147,7 @@ export default function codexConversion(pi: ExtensionAPI) {
 	});
 
 	pi.on("session_start", async (_event, ctx) => {
+		sessions.setBaseEnv(createBundledPathToolsEnv());
 		backgroundBashWidget.ctx = ctx;
 		state.cwd = ctx.cwd;
 		state.config = readCodexConversionConfig();

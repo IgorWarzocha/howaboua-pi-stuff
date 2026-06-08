@@ -41,9 +41,9 @@ function buildSyncedBashCommand(command: string, env: NodeJS.ProcessEnv): string
 	return assignments.length === 0 ? command : `${assignments.join("; ")}; ${command}`;
 }
 
-export function resolveExecution(requestedShell: string | undefined, command: string, extraEnv?: NodeJS.ProcessEnv): { shell: string; command: string; env: NodeJS.ProcessEnv } {
+export function resolveExecution(requestedShell: string | undefined, command: string, extraEnv?: NodeJS.ProcessEnv, baseEnv: NodeJS.ProcessEnv = process.env): { shell: string; command: string; env: NodeJS.ProcessEnv } {
 	const shell = resolveShell(requestedShell);
-	const env: NodeJS.ProcessEnv = { ...process.env, ...extraEnv };
+	const env: NodeJS.ProcessEnv = { ...baseEnv, ...extraEnv };
 	if (!shouldSyncBashEnv(requestedShell, shell)) return { shell, command, env };
 	env["SHELL"] = CODEX_FALLBACK_SHELL;
 	return { shell, command: buildSyncedBashCommand(command, env), env };
