@@ -5,6 +5,7 @@ import { extractCompactionSummaryText, hasCompactionOutputItem, sanitizeCompacte
 import { findLatestNativeCompactionEntry, findLatestNativeCompactionEntryIndex, resolveLatestNativeCompactionEntry } from "./details-store.ts";
 import { rewriteResponsesPayloadWithNativeReplay, serializeLiveTailToResponsesInput } from "./payload-rewrite.ts";
 import { DEFAULT_SUPPORTED_PROVIDERS, isResponsesCompatiblePayload, resolveNativeCompactionEnvironment, type ResponsesCompatibleRequestPayload } from "./compaction-runtime.ts";
+import { formatCodexUsageLimitError } from "../providers/openai-codex/errors.ts";
 import { convertResponsesTools } from "../providers/openai-responses-shared.ts";
 import {
 	serializeCompactionPreparationToRequest,
@@ -118,6 +119,8 @@ function getCompactionIdentity(entry: { details?: unknown | undefined } | undefi
 function formatCompactFailureMessage(compactResult: Awaited<ReturnType<typeof executeNativeCompaction>>): string {
 	if (compactResult.ok) return "OpenAI native compaction succeeded";
 	const status = compactResult.status ? ` HTTP ${compactResult.status}` : "";
+	const friendly = formatCodexUsageLimitError(compactResult.responseJson ?? compactResult.responseText ?? compactResult.errorMessage);
+	if (friendly) return `OpenAI native compaction failed (${compactResult.reason}${status}): ${friendly}`;
 	const response = compactResult.responseText?.trim();
 	const detail = response ? `: ${response.slice(0, 500)}` : compactResult.errorMessage ? `: ${compactResult.errorMessage}` : "";
 	return `OpenAI native compaction failed (${compactResult.reason}${status})${detail}`;

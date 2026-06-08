@@ -232,6 +232,27 @@ test("buildProviderErrorMessage marks websocket failures as Pi retryable connect
 	assert.equal(buildProviderErrorMessage(new Error("Unsupported parameter: max_output_tokens")), "Unsupported parameter: max_output_tokens");
 });
 
+test("buildProviderErrorMessage formats Codex usage limit JSON", () => {
+	const error = new Error(`Turn prefix summarization failed: Codex error: ${JSON.stringify({
+		type: "error",
+		error: { type: "usage_limit_reached", message: "The usage limit has been reached", plan_type: "prolite", resets_in_seconds: 1860 },
+		status_code: 429,
+		headers: {
+			"X-Codex-Active-Limit": "premium",
+			"X-Codex-Primary-Used-Percent": "100",
+			"X-Codex-Secondary-Used-Percent": "51",
+			"X-Codex-Bengalfox-Primary-Used-Percent": "0",
+			"X-Codex-Bengalfox-Secondary-Used-Percent": "4",
+			"X-Codex-Bengalfox-Limit-Name": "GPT-5.3-Codex-Spark",
+		},
+	})}`);
+
+	assert.equal(
+		buildProviderErrorMessage(error),
+		"Codex usage limit reached (prolite plan). Resets in ~31m. Current premium: 5h 100%, weekly 51%. Extra GPT-5.3-Codex-Spark: 5h 0%, weekly 4%.",
+	);
+});
+
 test("websocket continuation comparison ignores per-turn reasoning changes", () => {
 	const base = buildRequestBody(codexModel, { systemPrompt: "Instructions", messages: [] }, { sessionId: "session-1", reasoning: "low" });
 	const changedReasoning = buildRequestBody(codexModel, { systemPrompt: "Instructions", messages: [] }, { sessionId: "session-1", reasoning: "high" });
