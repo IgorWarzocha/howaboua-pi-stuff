@@ -6,6 +6,7 @@ import { Type } from "typebox";
 import { Container, Text } from "@earendil-works/pi-tui";
 import { WEB_SEARCH_TOOL_NAME } from "../adapter/tool-set.ts";
 import { extractAccountId } from "../providers/openai-codex/headers.ts";
+import { discoverCodexProviderBaseUrl } from "./codex-config-discovery.ts";
 import { getBundledPathToolsBinDir } from "./path-tools-binary.ts";
 
 export const WEB_SEARCH_UNSUPPORTED_MESSAGE = "web_run requires an OpenAI Codex-compatible Responses provider";
@@ -21,7 +22,8 @@ export function resolveAlphaSearchUrlFromBase(baseUrl: string | undefined): stri
 	if (explicitAlphaBase?.trim()) return alphaSearchUrlFromBase(explicitAlphaBase);
 	const serverUri = process.env["PI_CODEX_SERVER_URI"];
 	if (serverUri?.trim()) return `${serverUri.trim().replace(/\/+$/, "")}/api/codex/alpha/search`;
-	return alphaSearchUrlFromBase(baseUrl?.trim() || "https://chatgpt.com/backend-api/codex");
+	const discoveredBase = discoverCodexProviderBaseUrl();
+	return alphaSearchUrlFromBase(baseUrl?.trim() || discoveredBase || "https://chatgpt.com/backend-api/codex");
 }
 
 function alphaSearchUrlFromBase(baseUrl: string): string {
@@ -56,11 +58,12 @@ async function resolveNativeEnv(ctx: ExtensionContext): Promise<NodeJS.ProcessEn
 	if (!auth.ok) throw new Error(auth.error);
 	const apiKey = auth.apiKey ?? auth.headers?.["Authorization"]?.replace(/^Bearer\s+/i, "");
 	if (!apiKey) throw new Error(WEB_SEARCH_UNSUPPORTED_MESSAGE);
+	const providerBaseUrl = discoverCodexProviderBaseUrl() ?? ctx.model.baseUrl;
 	return {
 		...process.env,
 		PI_CODEX_ACCESS_TOKEN: apiKey,
 		PI_CODEX_ACCOUNT_ID: auth.headers?.["chatgpt-account-id"] ?? extractAccountId(apiKey),
-		...(ctx.model.baseUrl ? { PI_CODEX_BASE_URL: ctx.model.baseUrl, PI_CODEX_ALPHA_SEARCH_URL: resolveAlphaSearchUrlFromBase(ctx.model.baseUrl) } : {}),
+		...(providerBaseUrl ? { PI_CODEX_BASE_URL: providerBaseUrl, PI_CODEX_ALPHA_SEARCH_URL: resolveAlphaSearchUrlFromBase(providerBaseUrl) } : {}),
 		...(ctx.model.id ? { PI_CODEX_MODEL: ctx.model.id } : {}),
 	};
 }
