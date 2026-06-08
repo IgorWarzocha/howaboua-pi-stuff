@@ -316,8 +316,12 @@ async fn main() -> anyhow::Result<()> {
         anyhow::bail!("web_run alpha/search failed for `{url}`: HTTP {status} {body}");
     }
     if !body.trim_start().starts_with('{') {
-        if cloudflare_challenge || body.to_ascii_lowercase().contains("cloudflare") {
+        let lower_body = body.to_ascii_lowercase();
+        if cloudflare_challenge || lower_body.contains("cloudflare") {
             anyhow::bail!("web_run alpha/search failed for `{url}`: Cloudflare challenge");
+        }
+        if lower_body.contains("<!doctype html") && lower_body.contains("chatgpt") {
+            anyhow::bail!("web_run alpha/search failed for `{url}`: ChatGPT auth redirect");
         }
         anyhow::bail!("web_run alpha/search failed for `{url}`: expected JSON response");
     }

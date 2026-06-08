@@ -121,7 +121,9 @@ export async function executeCodexWebSearchFetch(params: Record<string, unknown>
 		throw new Error(`web_run alpha/search failed for \`${url}\`: HTTP ${response.status} ${body}`);
 	}
 	if (!body.trimStart().startsWith("{")) {
-		if (cloudflareChallenge || body.toLowerCase().includes("cloudflare")) throw new Error(`web_run alpha/search failed for \`${url}\`: Cloudflare challenge`);
+		const lowerBody = body.toLowerCase();
+		if (cloudflareChallenge || lowerBody.includes("cloudflare")) throw new Error(`web_run alpha/search failed for \`${url}\`: Cloudflare challenge`);
+		if (lowerBody.includes("<!doctype html") && lowerBody.includes("chatgpt")) throw new Error(`web_run alpha/search failed for \`${url}\`: ChatGPT auth redirect`);
 		throw new Error(`web_run alpha/search failed for \`${url}\`: expected JSON response`);
 	}
 	return parseEncryptedOutput(body);
