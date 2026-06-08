@@ -16,12 +16,13 @@ export function renderTextWithImages(
 	text: string,
 	content: ToolContentLike[],
 	theme: { fg(role: string, text: string): string },
+	options: { paddingX?: number | undefined } = {},
 ): Text | Container {
 	const images = content.filter(isImageContent);
-	if (!images.length) return new Text(text, 0, 0);
+	if (!images.length) return new Text(text, options.paddingX ?? 0, 0);
 
 	const box = new Container();
-	box.addChild(new Text(text, 0, 0));
+	box.addChild(new Text(text, options.paddingX ?? 0, 0));
 	for (const image of images) {
 		box.addChild(new Spacer(1));
 		box.addChild(new Image(image.data, image.mimeType, { fallbackColor: (value) => theme.fg("dim", value) }, { maxWidthCells: 60 }));

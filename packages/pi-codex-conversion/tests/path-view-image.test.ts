@@ -14,6 +14,13 @@ const PNG_BASE64 =
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==";
 const packageRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
+function renderText(component: { render(width: number): string[] } | undefined): string {
+	assert.ok(component);
+	return component.render(120).map((line) => line.trimEnd()).join("\n").trimEnd();
+}
+
+const theme = { fg: (_role: string, text: string) => text, bold: (text: string) => text };
+
 test("exec_command can opt out of custom rendering", () => {
 	let tool: { renderCall?: unknown; renderResult?: unknown } | undefined;
 	const pi = { registerTool(definition: typeof tool) { tool = definition; } } as unknown as ExtensionAPI;
@@ -22,6 +29,50 @@ test("exec_command can opt out of custom rendering", () => {
 	assert.ok(tool);
 	assert.equal("renderCall" in tool, false);
 	assert.equal("renderResult" in tool, false);
+});
+
+test("exec_command indents expanded output under the command cell", () => {
+	let tool: { renderResult?: (...args: any[]) => { render(width: number): string[] } } | undefined;
+	const pi = { registerTool(definition: typeof tool) { tool = definition; } } as unknown as ExtensionAPI;
+	registerExecCommandTool(pi, createExecCommandTracker(), createExecSessionManager());
+
+	assert.ok(tool?.renderResult);
+	const rendered = renderText(tool.renderResult(
+		{ content: [{ type: "text", text: "alpha\nbeta" }], details: { output: "alpha\nbeta", exit_code: 0 } },
+		{ expanded: true, isPartial: false },
+		theme,
+		{ toolCallId: "call-1", args: { cmd: "printf" } },
+	));
+	assert.equal(rendered, "    alpha\n    beta\n    Exit code: 0");
+});
+
+test("exec_command aligns multiline command previews", () => {
+	let tool: { renderCall?: (...args: any[]) => { render(width: number): string[] } } | undefined;
+	const pi = { registerTool(definition: typeof tool) { tool = definition; } } as unknown as ExtensionAPI;
+	registerExecCommandTool(pi, createExecCommandTracker(), createExecSessionManager());
+
+	assert.ok(tool?.renderCall);
+	const rendered = renderText(tool.renderCall(
+		{ cmd: "cat <<'EOF'\nThis is a multi-line exec command.\nEOF" },
+		theme,
+		{ toolCallId: "call-1" },
+	));
+	assert.equal(rendered, "• Ran\n  └ cat <<'EOF'\n    This is a multi-line exec command.\n    EOF");
+});
+
+test("exec_command keeps collapsed partial output hidden", () => {
+	let tool: { renderResult?: (...args: any[]) => { render(width: number): string[] } } | undefined;
+	const pi = { registerTool(definition: typeof tool) { tool = definition; } } as unknown as ExtensionAPI;
+	registerExecCommandTool(pi, createExecCommandTracker(), createExecSessionManager());
+
+	assert.ok(tool?.renderResult);
+	const rendered = renderText(tool.renderResult(
+		{ content: [{ type: "text", text: "alpha\nbeta" }], details: { output: "alpha\nbeta" } },
+		{ expanded: false, isPartial: true },
+		theme,
+		{ toolCallId: "call-1", args: { cmd: "printf" } },
+	));
+	assert.equal(rendered, "");
 });
 
 test("bundled view_image emits Codex code-mode result JSON", () => {

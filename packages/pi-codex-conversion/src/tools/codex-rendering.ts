@@ -51,12 +51,34 @@ function renderExplorationText(actionGroups: ShellAction[][], state: ExecCommand
 function renderCommandText(command: string, state: ExecCommandStatus, theme: RenderTheme): string {
 	const verb = state === "running" ? "Running" : "Ran";
 	let text = `${theme.fg("dim", "•")} ${theme.bold(verb)}`;
-	text += `\n${theme.fg("dim", "  └ ")}${theme.fg("accent", shortenCommand(command))}`;
+	for (const [index, line] of formatCommandLines(command).entries()) {
+		const prefix = index === 0 ? "  └ " : "    ";
+		text += `\n${theme.fg("dim", prefix)}${theme.fg("accent", line)}`;
+	}
 	return text;
 }
 
+function formatCommandLines(command: string, maxLines = 5): string[] {
+	const lines = command
+		.replace(/\t/g, "   ")
+		.split("\n")
+		.map((line) => line.trimEnd())
+		.filter((line, index, all) => line.length > 0 || (index > 0 && index < all.length - 1));
+	const visible = lines.slice(0, maxLines).map((line) => shortenLine(line));
+	if (lines.length > maxLines) {
+		visible.push("...");
+	}
+	return visible.length > 0 ? visible : [""];
+}
+
+function shortenLine(line: string, max = 100): string {
+	const trimmed = line.trim();
+	if (trimmed.length <= max) return trimmed;
+	return `${trimmed.slice(0, max - 3)}...`;
+}
+
 function shortenCommand(command: string, max = 100): string {
-	const trimmed = command.trim();
+	const trimmed = command.replace(/\s+/g, " ").trim();
 	if (trimmed.length <= max) return trimmed;
 	return `${trimmed.slice(0, max - 3)}...`;
 }

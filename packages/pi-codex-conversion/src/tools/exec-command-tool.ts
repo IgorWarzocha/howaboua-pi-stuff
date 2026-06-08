@@ -109,12 +109,12 @@ const renderExecCommandCallWithOptionalContext: any = (
 
 const renderExecCommandResultWithOptionalContext: any = (
 	result: { content: Array<{ type: string; text?: string | undefined }>; details?: unknown | undefined },
-	options: { expanded: boolean; isPartial: boolean },
+	_options: { expanded: boolean; isPartial: boolean },
 	theme: { fg(role: string, text: string): string },
 	context: ExecCommandRenderContextLike | undefined,
 	tracker: ExecCommandTracker,
 ) => {
-	if (!options.expanded) {
+	if (!_options.expanded) {
 		return createEmptyResultComponent();
 	}
 
@@ -133,7 +133,7 @@ const renderExecCommandResultWithOptionalContext: any = (
 	if (details?.exit_code !== undefined) {
 		text += `\n${theme.fg("muted", `Exit code: ${details.exit_code}`)}`;
 	}
-	return renderTextWithImages(text, result.content, theme);
+	return renderTextWithImages(text, result.content, theme, { paddingX: 4 });
 };
 
 export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTracker, sessions: ExecSessionManager, options: { customRendering?: boolean | undefined } = {}): void {
