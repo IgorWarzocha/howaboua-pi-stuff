@@ -1,16 +1,14 @@
 import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { Container, Image, Spacer, Text } from "@earendil-works/pi-tui";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
-import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { extractAccountId, resolveCodexUrl } from "../providers/openai-codex/headers.ts";
 import { IMAGE_GENERATION_TOOL_NAME } from "../adapter/tool-set.ts";
+import { getBundledPathToolBinaryPath } from "./path-tools-binary.ts";
+import { formatPathImagegenOutput, imageContentsFromPathImagegenOutput, pathImagegenOutputFromJson } from "./path-tool-outputs.ts";
+import { runBundledTool } from "./path-tool-runner.ts";
 
 export const IMAGE_GENERATION_UNSUPPORTED_MESSAGE = "imagegen requires an image-capable OpenAI Codex-compatible Responses provider";
-const IMAGE_DIR = ".pi/openai-codex-images";
-const LATEST_IMAGE_NAME = "latest.png";
-
 const IMAGE_GENERATION_PARAMETERS = Type.Object({
 	prompt: Type.String({ description: "Image generation or edit prompt." }),
 	action: Type.Optional(Type.Union([Type.Literal("generate"), Type.Literal("edit")], { description: "Defaults to generate." })),
@@ -29,7 +27,7 @@ type ImagegenArgs = {
 	size?: string | undefined;
 };
 
-type SavedImage = { path: string; absolute_path: string; latest_path: string; latest_absolute_path: string };
+type SavedImage = { path: string; absolute_path: string; latest_path?: string; latest_absolute_path?: string };
 
 type ImagegenDetails = { path: string; latest_path: string; images: SavedImage[]; background?: string | undefined; quality?: string | undefined; size?: string | undefined };
 
@@ -63,96 +61,32 @@ async function resolveAuth(ctx: ExtensionContext): Promise<Headers> {
 	headers.set("accept", "text/event-stream");
 	return headers;
 }
-function workspaceRoot(cwd: string): string {
-	let current = resolve(cwd);
-	for (;;) {
-		try { readFileSync(join(current, ".git")); return current; } catch {}
-		try { if (readFileSync(join(current, ".git", "HEAD"))) return current; } catch {}
-		const parent = dirname(current);
-		if (parent === current) return resolve(cwd);
-		current = parent;
-	}
-}
-
-function imageUrlFromArg(value: string): string {
-	if (value.startsWith("data:image/") || value.startsWith("http://") || value.startsWith("https://")) return value;
-	const bytes = readFileSync(value);
-	const ext = value.toLowerCase().split(".").pop();
-	const mime = ext === "jpg" || ext === "jpeg" ? "image/jpeg" : ext === "webp" ? "image/webp" : "image/png";
-	return `data:${mime};base64,${bytes.toString("base64")}`;
-}
-
-function buildInput(args: ImagegenArgs): unknown[] {
-	if (args.action !== "edit") return [{ type: "message", role: "user", content: [{ type: "input_text", text: args.prompt }] }];
-	if (!args.images?.length) throw new Error("image edit requires an images array of paths or image URLs");
-	return [{ type: "message", role: "user", content: [{ type: "input_text", text: args.prompt }, ...args.images.map((image) => ({ type: "input_image", image_url: imageUrlFromArg(image), detail: "auto" }))] }];
-}
-
-function buildRequest(args: ImagegenArgs, ctx: ExtensionContext): Record<string, unknown> {
-	const tool: Record<string, unknown> = { type: "image_generation", output_format: "png" };
-	if (args.background) tool["background"] = args.background;
-	if (args.quality) tool["quality"] = args.quality;
-	if (args.size) tool["size"] = args.size;
+async function imagegenEnv(ctx: ExtensionContext): Promise<NodeJS.ProcessEnv> {
+	const headers = await resolveAuth(ctx);
+	const authorization = headers.get("authorization") ?? "";
+	const token = authorization.replace(/^Bearer\s+/i, "");
 	return {
-		model: ctx.model?.id ?? "gpt-5.4-mini",
-		instructions: "Use image_generation to satisfy the request. Do not answer with text only.",
-		text: { verbosity: "low" },
-		input: buildInput(args),
-		tools: [tool],
-		tool_choice: "required",
-		parallel_tool_calls: true,
-		store: false,
-		stream: true,
+		...process.env,
+		PI_CODEX_ACCESS_TOKEN: token,
+		PI_CODEX_ACCOUNT_ID: headers.get("chatgpt-account-id") ?? extractAccountId(token),
+		PI_CODEX_BASE_URL: resolveCodexUrl(ctx.model?.baseUrl).replace(/\/codex\/responses$/, ""),
 	};
 }
 
-function parseSseText(text: string): unknown[] {
-	return text.replace(/\r\n?/g, "\n").split("\n\n").flatMap((frame) => {
-		const data = frame.split("\n").filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trimStart()).join("\n");
-		if (!data || data === "[DONE]") return [];
-		try { return [JSON.parse(data)]; } catch { return []; }
+async function executeRustImagegen(args: ImagegenArgs, signal: AbortSignal | undefined, ctx: ExtensionContext): Promise<ImagegenDetails> {
+	if (signal?.aborted) throw new Error("imagegen aborted");
+	const binary = getBundledPathToolBinaryPath("imagegen");
+	if (!binary) throw new Error(`imagegen binary is not bundled for ${process.platform}-${process.arch}`);
+	const child = runBundledTool({
+		binary,
+		args: [JSON.stringify({ ...args, model: ctx.model?.id, cwd: ctx.cwd })],
+		cwd: ctx.cwd,
+		env: await imagegenEnv(ctx),
 	});
-}
-
-function collectImages(events: unknown[]): { data: string[]; background?: string | undefined; quality?: string | undefined; size?: string | undefined } {
-	const data: string[] = [];
-	let background: string | undefined;
-	let quality: string | undefined;
-	let size: string | undefined;
-	for (const event of events) {
-		if (!event || typeof event !== "object") continue;
-		const item = event as any;
-		if (item.type === "response.failed") throw new Error(item.response?.error?.message ?? item.error?.message ?? "imagegen responses failed");
-		if (item.type !== "response.output_item.done" || item.item?.type !== "image_generation_call") continue;
-		if (typeof item.item.result === "string" && item.item.result) data.push(item.item.result);
-		if (typeof item.item.background === "string") background = item.item.background;
-		if (typeof item.item.quality === "string") quality = item.item.quality;
-		if (typeof item.item.size === "string") size = item.item.size;
-	}
-	if (!data.length) throw new Error("image generation returned no image data");
-	return { data, background, quality, size };
-}
-
-function saveImages(cwd: string, response: ReturnType<typeof collectImages>): ImagegenDetails {
-	const root = workspaceRoot(cwd);
-	const outDir = join(root, IMAGE_DIR);
-	mkdirSync(outDir, { recursive: true });
-	const latest = join(outDir, LATEST_IMAGE_NAME);
-	const images: SavedImage[] = response.data.map((b64, index) => {
-		const path = join(outDir, `ig_${randomUUID().replaceAll("-", "")}${index === 0 ? "" : `_${index + 1}`}.png`);
-		const bytes = Buffer.from(b64, "base64");
-		writeFileSync(path, bytes);
-		if (index === 0) writeFileSync(latest, bytes);
-		return { path: relative(root, path), absolute_path: path, latest_path: relative(root, latest), latest_absolute_path: latest };
-	});
-	return { path: images[0]!.path, latest_path: images[0]!.latest_path, images, background: response.background, quality: response.quality, size: response.size };
-}
-
-function formatImagegenOutput(output: ImagegenDetails): string {
-	const lines = [`Generated image: ${output.path}`, `Latest: ${output.latest_path}`];
-	const metadata = [output.size, output.quality, output.background].filter((item): item is string => typeof item === "string" && item.length > 0);
-	if (metadata.length) lines.push(`Info: ${metadata.join(", ")}`);
-	return lines.join("\n");
+	if (child.status !== 0) throw new Error((child.stderr || child.stdout || "imagegen failed").trim());
+	const parsed = pathImagegenOutputFromJson(child.stdout);
+	if (!parsed) throw new Error("imagegen returned output, but Pi could not parse it");
+	return parsed as ImagegenDetails;
 }
 
 function renderResultWithImages(text: string, details: ImagegenDetails, theme: { fg(role: string, text: string): string }): Container {
@@ -178,11 +112,8 @@ export function createImageGenerationTool(): ToolDefinition<typeof IMAGE_GENERAT
 		prepareArguments: (args) => args as any,
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
 			if (!supportsExecutableImageGeneration(ctx.model)) throw new Error(IMAGE_GENERATION_UNSUPPORTED_MESSAGE);
-			const response = await fetch(resolveCodexUrl(ctx.model?.baseUrl), { method: "POST", headers: await resolveAuth(ctx), signal: signal ?? null, body: JSON.stringify(buildRequest(params, ctx)) });
-			const body = await response.text();
-			if (!response.ok) throw new Error(`imagegen failed: HTTP ${response.status} ${body}`);
-			const details = saveImages(ctx.cwd, collectImages(parseSseText(body)));
-			return { content: [{ type: "text", text: formatImagegenOutput(details) }, ...details.images.map((image) => ({ type: "image" as const, mimeType: "image/png", data: readFileSync(image.absolute_path).toString("base64"), detail: "high" as const }))], details };
+			const details = await executeRustImagegen(params, signal, ctx);
+			return { content: [{ type: "text", text: formatPathImagegenOutput(details) }, ...imageContentsFromPathImagegenOutput(details)], details };
 		},
 		renderCall(_args, theme) { return new Text(`${theme.fg("toolTitle", theme.bold(IMAGE_GENERATION_TOOL_NAME))}`, 0, 0); },
 		renderResult(result, { expanded }, theme) {

@@ -108,7 +108,15 @@ function isPathToolDiscoveryCommand(command: string, toolName: string): boolean 
 }
 
 interface PathWebRunOutput {
-	text: string;
+	text?: string;
+	output_text?: string;
+	search_results?: Array<{ ref_id?: string; title?: string; url?: string; source?: string }>;
+	ref_id?: string;
+	title?: string;
+	url?: string;
+	content?: Array<{ line?: number; text?: string }>;
+	links?: Array<{ id?: number; text?: string; url?: string }>;
+	open?: Array<{ ref_id?: string; title?: string; url?: string; content?: Array<{ line?: number; text?: string }>; links?: Array<{ id?: number; text?: string; url?: string }> }>;
 	citations?: Array<{ title?: string; url?: string }>;
 	web_search_calls?: unknown[];
 	response_id?: string | null;
@@ -120,14 +128,17 @@ function pathWebRunOutputFromJson(output: string): PathWebRunOutput | undefined 
 	let parsed: unknown;
 	try { parsed = JSON.parse(output.trim()); } catch { return undefined; }
 	if (!parsed || typeof parsed !== "object") return undefined;
-	const text = (parsed as Record<string, unknown>)["text"];
-	if (typeof text !== "string") return undefined;
+	const record = parsed as Record<string, unknown>;
+	const text = record["text"] ?? record["output_text"];
+	if (typeof text !== "string" && !Array.isArray(record["search_results"]) && !Array.isArray(record["content"]) && !Array.isArray(record["open"])) return undefined;
 	return parsed as PathWebRunOutput;
 }
 
 function formatPathWebRunOutput(output: PathWebRunOutput): string {
-	const lines = [output.text || "(no text output)"];
-	const citations = Array.isArray(output.citations) ? output.citations : [];
+	if (Array.isArray(output.content)) return formatPathWebRunPage(output);
+	if (Array.isArray(output.open) && output.open.length === 1) return formatPathWebRunPage(output.open[0]!);
+	const lines = [output.text || output.output_text || "(no text output)"];
+	const citations = Array.isArray(output.search_results) ? output.search_results : Array.isArray(output.citations) ? output.citations : [];
 	if (citations.length) {
 		lines.push("", "Sources:");
 		for (const [index, citation] of citations.entries()) {
@@ -139,16 +150,31 @@ function formatPathWebRunOutput(output: PathWebRunOutput): string {
 	return lines.join("\n");
 }
 
-interface PathImagegenOutput {
-	path: string;
-	latest_path?: string;
-	images?: Array<{ path?: string; absolute_path?: string; latest_path?: string; latest_absolute_path?: string }>;
-	background?: string;
-	quality?: string;
-	size?: string;
+function formatPathWebRunPage(page: NonNullable<PathWebRunOutput["open"]>[number] | PathWebRunOutput): string {
+	const lines = [`Title: ${page.title ?? "(untitled)"}`, `URL: ${page.url ?? ""}`, ""];
+	for (const item of Array.isArray(page.content) ? page.content : []) {
+		if (typeof item.line === "number" && typeof item.text === "string") lines.push(`${item.line}  ${item.text}`);
+	}
+	const links = Array.isArray(page.links) ? page.links : [];
+	if (links.length) {
+		lines.push("", "Links:");
+		for (const link of links.slice(0, 40)) {
+			if (typeof link.id === "number" && typeof link.text === "string") lines.push(`[${link.id}] ${link.text}`);
+		}
+	}
+	return lines.join("\n");
 }
 
-function pathImagegenOutputFromJson(output: string): PathImagegenOutput | undefined {
+export interface PathImagegenOutput {
+	path: string;
+	latest_path?: string | undefined;
+	images?: Array<{ path?: string | undefined; absolute_path?: string | undefined; latest_path?: string | undefined; latest_absolute_path?: string | undefined }> | undefined;
+	background?: string | undefined;
+	quality?: string | undefined;
+	size?: string | undefined;
+}
+
+export function pathImagegenOutputFromJson(output: string): PathImagegenOutput | undefined {
 	let parsed: unknown;
 	try { parsed = JSON.parse(output.trim()); } catch { return undefined; }
 	if (!parsed || typeof parsed !== "object") return undefined;
@@ -157,7 +183,7 @@ function pathImagegenOutputFromJson(output: string): PathImagegenOutput | undefi
 	return parsed as PathImagegenOutput;
 }
 
-function imageContentsFromPathImagegenOutput(output: PathImagegenOutput): PathViewImageContent[] {
+export function imageContentsFromPathImagegenOutput(output: PathImagegenOutput): PathViewImageContent[] {
 	const images = Array.isArray(output.images) ? output.images : [];
 	return images.flatMap((image) => {
 		const absolutePath = image.absolute_path;
@@ -170,7 +196,7 @@ function imageContentsFromPathImagegenOutput(output: PathImagegenOutput): PathVi
 	});
 }
 
-function formatPathImagegenOutput(output: PathImagegenOutput): string {
+export function formatPathImagegenOutput(output: PathImagegenOutput): string {
 	const lines = [`Generated image: ${output.path}`];
 	if (output.latest_path) lines.push(`Latest: ${output.latest_path}`);
 	const metadata = [output.size, output.quality, output.background].filter((item): item is string => typeof item === "string" && item.length > 0);

@@ -1,7 +1,4 @@
-import { stat } from "node:fs/promises";
-import { isAbsolute, resolve } from "node:path";
 import {
-	createReadTool,
 	type AgentToolResult,
 	type ExtensionAPI,
 	type ExtensionContext,
@@ -9,6 +6,9 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { Type, type TSchema } from "typebox";
 import { Text } from "@earendil-works/pi-tui";
+import { getBundledPathToolBinaryPath } from "./path-tools-binary.ts";
+import { imageContentFromCodexViewImageOutput } from "./path-tool-outputs.ts";
+import { runBundledTool } from "./path-tool-runner.ts";
 
 const VIEW_IMAGE_UNSUPPORTED_MESSAGE = "view_image is not allowed because you do not support image inputs";
 const DETAIL_DESCRIPTION =
@@ -19,18 +19,8 @@ interface ViewImageParams {
 	detail?: string | undefined;
 }
 
-interface ViewImageReader {
-	execute: (toolCallId: string, params: { path: string }, signal?: AbortSignal) => Promise<AgentToolResult<unknown>>;
-}
-
-interface ViewImageReaders {
-	resized: ViewImageReader;
-	original: ViewImageReader;
-}
-
 interface CreateViewImageToolOptions {
 	allowOriginalDetail?: boolean | undefined;
-	createReaders?: (cwd: string) => ViewImageReaders;
 }
 
 type ViewImageParameters = ReturnType<typeof createViewImageParameters>;
@@ -85,40 +75,24 @@ function prepareViewImageArguments(args: unknown): Record<string, unknown> {
 	return prepared;
 }
 
-function resolveViewImagePath(path: string, cwd: string): string {
-	return isAbsolute(path) ? path : resolve(cwd, path);
-}
-
-async function ensureViewImagePathIsFile(path: string, cwd: string): Promise<string> {
-	const absolutePath = resolveViewImagePath(path, cwd);
-	let metadata;
-	try {
-		metadata = await stat(absolutePath);
-	} catch (error) {
-		throw new Error(`unable to locate image at \`${absolutePath}\`: ${error instanceof Error ? error.message : String(error)}`);
+function executeRustViewImage(params: ViewImageParams, cwd: string): AgentToolResult<unknown> {
+	const binary = getBundledPathToolBinaryPath("view_image");
+	if (!binary) {
+		throw new Error(`view_image binary is not bundled for ${process.platform}-${process.arch}`);
 	}
-	if (!metadata.isFile()) {
-		throw new Error(`image path \`${absolutePath}\` is not a file`);
+	const child = runBundledTool({
+		binary,
+		args: [JSON.stringify(params)],
+		cwd,
+	});
+	if (child.status !== 0) {
+		throw new Error((child.stderr || child.stdout || "view_image failed").trim());
 	}
-	return absolutePath;
-}
-
-function normalizeViewImageResult(result: AgentToolResult<unknown>): AgentToolResult<unknown> {
-	const imageContent = result.content.find((item) => item.type === "image");
-	if (!imageContent || imageContent.type !== "image") {
+	const imageContent = imageContentFromCodexViewImageOutput(child.stdout);
+	if (!imageContent) {
 		throw new Error("view_image expected an image file. Use exec_command for text files.");
 	}
-	return {
-		...result,
-		content: [imageContent],
-	};
-}
-
-function createDefaultViewImageReaders(cwd: string): ViewImageReaders {
-	return {
-		resized: createReadTool(cwd),
-		original: createReadTool(cwd, { autoResizeImages: false }),
-	};
+	return { content: [imageContent], details: { pathTool: { viewImage: true } } };
 }
 
 function supportsImageInputs(model: ExtensionContext["model"]): boolean {
@@ -138,7 +112,6 @@ export function supportsOriginalImageDetail(model: ExtensionContext["model"]): b
 export function createViewImageTool(options: CreateViewImageToolOptions = {}): ToolDefinition<ViewImageParameters> {
 	const allowOriginalDetail = options.allowOriginalDetail ?? false;
 	const parameters = createViewImageParameters(allowOriginalDetail);
-	const createReaders = options.createReaders ?? createDefaultViewImageReaders;
 
 	return {
 		name: "view_image",
@@ -147,7 +120,7 @@ export function createViewImageTool(options: CreateViewImageToolOptions = {}): T
 		promptSnippet: "View a local image from the filesystem.",
 		parameters,
 		prepareArguments: prepareViewImageArguments,
-		async execute(toolCallId, params, signal, _onUpdate, ctx) {
+		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			if (!supportsImageInputs(ctx.model)) {
 				throw new Error(VIEW_IMAGE_UNSUPPORTED_MESSAGE);
 			}
@@ -155,11 +128,7 @@ export function createViewImageTool(options: CreateViewImageToolOptions = {}): T
 			if (typedParams.detail === "original" && !allowOriginalDetail) {
 				throw new Error("view_image.detail is not available for the current model");
 			}
-			await ensureViewImagePathIsFile(typedParams.path, ctx.cwd);
-			const readers = createReaders(ctx.cwd);
-			const reader = typedParams.detail === "original" ? readers.original : readers.resized;
-			const result = await reader.execute(toolCallId, { path: typedParams.path }, signal);
-			return normalizeViewImageResult(result);
+			return executeRustViewImage(typedParams, ctx.cwd);
 		},
 		renderCall(args, theme) {
 			return new Text(

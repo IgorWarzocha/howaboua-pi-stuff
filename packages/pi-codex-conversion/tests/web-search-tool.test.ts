@@ -9,10 +9,14 @@ function fakeJwt(accountId: string): string {
 	return ["header", Buffer.from(JSON.stringify({ "https://api.openai.com/auth": { chatgpt_account_id: accountId } })).toString("base64url"), "signature"].join(".");
 }
 
-function createContext(options: { token?: string; accountId?: string; baseUrl?: string; model?: string; headers?: Record<string, string> } = {}) {
+function createContext(options: { token?: string; accountId?: string; baseUrl?: string; model?: string; headers?: Record<string, string>; sessionFile?: string; sessionId?: string } = {}) {
 	const token = options.token ?? fakeJwt(options.accountId ?? "acct-from-token");
 	return {
 		cwd: process.cwd(),
+		...(options.sessionFile || options.sessionId ? { sessionManager: {
+			getSessionFile: () => options.sessionFile,
+			getSessionId: () => options.sessionId,
+		} } : {}),
 		model: {
 			provider: "openai-codex",
 			api: "openai-codex-responses",
@@ -148,6 +152,34 @@ process.stdin.on("end", () => {
 	}
 });
 
+test("executeCodexWebSearch stores web_run state beside Pi session file", async () => {
+	const originalBin = process.env["PI_CODEX_WEB_RUN_BIN"];
+	try {
+		await withMockWebRun(`#!/usr/bin/env node
+import { writeFileSync } from "node:fs";
+let input = "";
+process.stdin.on("data", (chunk) => input += chunk);
+process.stdin.on("end", () => {
+  writeFileSync(process.env.CAPTURE_PATH, JSON.stringify({ env: process.env, input: JSON.parse(input) }));
+  console.log(JSON.stringify({ output_text: "ok" }));
+});
+`, async (webRunPath) => {
+			const dir = await mkdtemp(join(tmpdir(), "pi-session-dir-"));
+			const capturePath = join(tmpdir(), `pi-web-run-capture-${Date.now()}.json`);
+			process.env["PI_CODEX_WEB_RUN_BIN"] = webRunPath;
+			process.env["CAPTURE_PATH"] = capturePath;
+			await executeCodexWebSearch({ search_query: [{ q: "OpenAI" }] }, createContext({ accountId: "pi-account", sessionFile: join(dir, "session.jsonl"), sessionId: "session/abc" }), undefined, { sessionId: "fallback" });
+			const captured = JSON.parse(await readFile(capturePath, "utf8")) as { env: Record<string, string>; input: Record<string, unknown> };
+			assert.equal(captured.input["id"], "session/abc");
+			assert.equal(captured.env["PI_WEB_RUN_STATE_PATH"], join(dir, ".web-run-session_abc.json"));
+			await rm(dir, { recursive: true, force: true });
+		});
+	} finally {
+		if (originalBin === undefined) delete process.env["PI_CODEX_WEB_RUN_BIN"];
+		else process.env["PI_CODEX_WEB_RUN_BIN"] = originalBin;
+	}
+});
+
 
 
 test("executeCodexWebSearch accepts case-insensitive auth headers from Pi model registry", async () => {
@@ -208,6 +240,26 @@ process.stdin.on("end", () => console.log(JSON.stringify({ output_text: "search 
 			const result = await createWebSearchTool().execute("call", { search_query: [{ q: "OpenAI" }] }, undefined, undefined as never, createContext({ accountId: "pi-account" }));
 			assert.deepEqual(result.content, [{ type: "text", text: "search result" }]);
 			assert.deepEqual(result.details, { webRun: { output_text: "search result" } });
+		});
+	} finally {
+		if (originalBin === undefined) delete process.env["PI_CODEX_WEB_RUN_BIN"];
+		else process.env["PI_CODEX_WEB_RUN_BIN"] = originalBin;
+	}
+});
+
+test("createWebSearchTool returns web_run JSON with search results when available", async () => {
+	const originalBin = process.env["PI_CODEX_WEB_RUN_BIN"];
+	try {
+		await withMockWebRun(`#!/usr/bin/env node
+process.stdin.resume();
+process.stdin.on("end", () => console.log(JSON.stringify({ output_text: "summary", search_results: [{ ref_id: "turn0search0", title: "Example", url: "https://example.com", source: "example.com" }] })));
+`, async (webRunPath) => {
+			process.env["PI_CODEX_WEB_RUN_BIN"] = webRunPath;
+			const result = await createWebSearchTool().execute("call", { search_query: [{ q: "OpenAI" }] }, undefined, undefined as never, createContext({ accountId: "pi-account" }));
+			const text = result.content[0]?.type === "text" ? result.content[0].text : "";
+			const parsed = JSON.parse(text) as Record<string, unknown>;
+			assert.equal(parsed["output_text"], "summary");
+			assert.deepEqual(parsed["search_results"], [{ ref_id: "turn0search0", title: "Example", url: "https://example.com", source: "example.com" }]);
 		});
 	} finally {
 		if (originalBin === undefined) delete process.env["PI_CODEX_WEB_RUN_BIN"];

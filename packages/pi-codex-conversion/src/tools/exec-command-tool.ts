@@ -7,6 +7,7 @@ import type { ExecSessionManager, UnifiedExecResult } from "./exec-session-manag
 import { formatUnifiedExecResult } from "./unified-exec-format.ts";
 import { convertPathToolExecResult, getPathToolPolicy } from "./path-tool-outputs.ts";
 import { renderTextWithImages } from "./path-tool-rendering.ts";
+import { webRunSessionStatePath } from "./web-search-tool.ts";
 export { imageContentFromCodexViewImageOutput, imageContentsFromCodexViewImageOutput } from "./path-tool-outputs.ts";
 
 const EXEC_COMMAND_PARAMETERS = Type.Object({
@@ -153,9 +154,11 @@ export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTr
 				details: partial,
 			});
 			const pathToolPolicy = getPathToolPolicy(typedParams.cmd, ctx.model);
+			const webRunStatePath = pathToolPolicy?.parseWebRunOutput ? webRunSessionStatePath(ctx) : undefined;
 			const execParams = pathToolPolicy
 				? {
 					...typedParams,
+					...(webRunStatePath ? { env: { PI_WEB_RUN_STATE_PATH: webRunStatePath } } : {}),
 					...(pathToolPolicy.disableTruncation ? { max_output_tokens: Number.MAX_SAFE_INTEGER } : {}),
 					...(pathToolPolicy.yieldTimeMs !== undefined ? { yield_time_ms: pathToolPolicy.yieldTimeMs, max_yield_time_ms: pathToolPolicy.yieldTimeMs } : {}),
 				}

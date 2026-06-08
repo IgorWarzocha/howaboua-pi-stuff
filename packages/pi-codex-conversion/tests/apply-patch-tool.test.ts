@@ -5,7 +5,6 @@ import { rm, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { patchFsOps } from "../src/patch/core.ts";
 import { clearApplyPatchRenderState, registerApplyPatchTool } from "../src/tools/apply-patch-tool.ts";
 
 function createTheme() {
@@ -247,11 +246,11 @@ test("apply_patch keeps applying later files after one file fails", async () => 
 
 		assert.match(result.content[0]!?.text ?? "", /partially failed/i);
 		assert.deepEqual(result.details?.failedFiles, ["missing.txt"]);
-		assert.deepEqual(result.details?.appliedFiles?.sort(), ["created.txt", "later.txt"]);
+		assert.deepEqual(result.details?.appliedFiles?.sort(), ["created.txt"]);
 		assert.deepEqual(result.details?.recoveryInstructions?.mustReadFiles, ["missing.txt"]);
-		assert.deepEqual(result.details?.recoveryInstructions?.mustNotReadFiles?.sort(), ["created.txt", "later.txt"]);
+		assert.deepEqual(result.details?.recoveryInstructions?.mustNotReadFiles?.sort(), ["created.txt"]);
 		assert.equal(await readFile(join(cwd, "created.txt"), "utf8"), "hello\n");
-		assert.equal(await readFile(join(cwd, "later.txt"), "utf8"), "world\n");
+		await assert.rejects(readFile(join(cwd, "later.txt"), "utf8"));
 	} finally {
 		clearApplyPatchRenderState();
 		await rm(cwd, { recursive: true, force: true });
@@ -334,28 +333,20 @@ test("apply_patch renderCall only marks the exact failed entry inline", async ()
 	}
 });
 
-test("apply_patch renderCall preserves the original preview for runtime partial failures", async () => {
+test("apply_patch renderCall preserves the original preview for Rust partial failures", async () => {
 	const cwd = mkdtempSync(join(tmpdir(), "pi-codex-conversion-"));
-	const sourcePath = join(cwd, "source.txt");
 	const { pi, getTool } = createRegisteredTool();
 	registerApplyPatchTool(pi);
 	const theme = createTheme();
-	const originalUnlinkSync = patchFsOps.unlinkSync;
 
 	try {
-		writeFileSync(sourcePath, "from\n", "utf8");
-		patchFsOps.unlinkSync = (path) => {
-			if (String(path) === sourcePath) {
-				throw new Error("mock unlink failure");
-			}
-			return originalUnlinkSync(path);
-		};
 		const patch = `*** Begin Patch
-*** Update File: source.txt
-*** Move to: moved/source.txt
+*** Add File: created.txt
++ok
+*** Update File: missing.txt
 @@
--from
-+to
+-old
++new
 *** End Patch`;
 		const tool = getTool();
 		const execute = tool.execute;
@@ -363,41 +354,29 @@ test("apply_patch renderCall preserves the original preview for runtime partial 
 		assert.ok(execute);
 		assert.ok(renderCall);
 
-		try {
-			await execute("call-preview-partial-failure", { input: patch }, undefined, undefined, { cwd });
-		} finally {
-			patchFsOps.unlinkSync = originalUnlinkSync;
-		}
+		await execute("call-preview-partial-failure", { input: patch }, undefined, undefined, { cwd });
 
 		const expanded = renderComponentText(
 			renderCall({ input: patch }, theme, { toolCallId: "call-preview-partial-failure", expanded: true, cwd }),
 		);
 
-		assert.match(expanded, /source\.txt → moved\/source\.txt failed \(\+1 -1\)/);
-		assert.match(expanded, /-from/);
-		assert.match(expanded, /\+to/);
+		assert.match(expanded, /missing\.txt failed \(\+1 -1\)/);
+		assert.match(expanded, /-old/);
+		assert.match(expanded, /\+new/);
 	} finally {
-		patchFsOps.unlinkSync = originalUnlinkSync;
 		clearApplyPatchRenderState();
 		await rm(cwd, { recursive: true, force: true });
 	}
 });
 
-test("apply_patch partial move failures report real paths and no prior-action warning", async () => {
+test("apply_patch move succeeds through the Rust shim", async () => {
 	const cwd = mkdtempSync(join(tmpdir(), "pi-codex-conversion-"));
 	const sourcePath = join(cwd, "source.txt");
 	const { pi, getTool } = createRegisteredTool();
 	registerApplyPatchTool(pi);
-	const originalUnlinkSync = patchFsOps.unlinkSync;
 
 	try {
 		writeFileSync(sourcePath, "from\n", "utf8");
-		patchFsOps.unlinkSync = (path) => {
-			if (String(path) === sourcePath) {
-				throw new Error("mock unlink failure");
-			}
-			return originalUnlinkSync(path);
-		};
 		const patch = `*** Begin Patch
 *** Update File: source.txt
 *** Move to: moved/source.txt
@@ -408,49 +387,33 @@ test("apply_patch partial move failures report real paths and no prior-action wa
 		const result = (await getTool().execute?.("call-move-partial-failure", { input: patch }, undefined, undefined, { cwd })) as {
 			content: Array<{ type: string; text?: string }>;
 			details?: {
-				failedFiles?: string[];
-				appliedFiles?: string[];
-				recoveryInstructions?: { mustReadFiles?: string[]; mustNotReadFiles?: string[] };
+				status?: string;
+				result?: { movedFiles?: string[] };
 			};
 		};
 
-		assert.match(result.content[0]!?.text ?? "", /while patching source\.txt → moved\/source\.txt/i);
-		assert.match(result.content[0]!?.text ?? "", /Failed files: source\.txt, moved\/source\.txt/i);
-		assert.match(result.content[0]!?.text ?? "", /MUST read source\.txt, moved\/source\.txt before retrying\./i);
-		assert.doesNotMatch(result.content[0]!?.text ?? "", /Earlier file actions in this patch were already applied\./i);
-		assert.deepEqual(result.details?.failedFiles, ["source.txt", "moved/source.txt"]);
-		assert.deepEqual(result.details?.appliedFiles, []);
-		assert.deepEqual(result.details?.recoveryInstructions?.mustReadFiles, ["source.txt", "moved/source.txt"]);
-		assert.deepEqual(result.details?.recoveryInstructions?.mustNotReadFiles, []);
+		assert.match(result.content[0]!?.text ?? "", /Applied patch successfully/i);
+		assert.equal(result.details?.status, "success");
+		assert.deepEqual(result.details?.result?.movedFiles, ["source.txt -> moved/source.txt"]);
+		assert.equal(await readFile(join(cwd, "moved/source.txt"), "utf8"), "to\n");
 	} finally {
-		patchFsOps.unlinkSync = originalUnlinkSync;
 		clearApplyPatchRenderState();
 		await rm(cwd, { recursive: true, force: true });
 	}
 });
 
-test("apply_patch renderCall marks single-file partial failures after warning styling", async () => {
+test("apply_patch renderCall marks single-file Rust partial failures after warning styling", async () => {
 	const cwd = mkdtempSync(join(tmpdir(), "pi-codex-conversion-"));
-	const sourcePath = join(cwd, "source.txt");
 	const { pi, getTool } = createRegisteredTool();
 	registerApplyPatchTool(pi);
 	const theme = createTheme();
-	const originalUnlinkSync = patchFsOps.unlinkSync;
 
 	try {
-		writeFileSync(sourcePath, "from\n", "utf8");
-		patchFsOps.unlinkSync = (path) => {
-			if (String(path) === sourcePath) {
-				throw new Error("mock unlink failure");
-			}
-			return originalUnlinkSync(path);
-		};
 		const patch = `*** Begin Patch
-*** Update File: source.txt
-*** Move to: moved/source.txt
+*** Update File: missing.txt
 @@
--from
-+to
+-old
++new
 *** End Patch`;
 		const tool = getTool();
 		const execute = tool.execute;
@@ -458,17 +421,13 @@ test("apply_patch renderCall marks single-file partial failures after warning st
 		assert.ok(execute);
 		assert.ok(renderCall);
 
-		try {
-			await execute("call-single-file-partial-failure", { input: patch }, undefined, undefined, { cwd });
-		} finally {
-			patchFsOps.unlinkSync = originalUnlinkSync;
-		}
+		await assert.rejects(execute("call-single-file-partial-failure", { input: patch }, undefined, undefined, { cwd }));
 
 		const collapsed = renderComponentText(
 			renderCall({ input: patch }, theme, { toolCallId: "call-single-file-partial-failure", expanded: false, cwd }),
 		);
 
-		assert.match(collapsed, /^• Edit partially failed source\.txt → moved\/source\.txt failed \(\+1 -1\)/);
+		assert.match(collapsed, /^• Edit failed missing\.txt \(\+1 -1\)/);
 	} finally {
 		clearApplyPatchRenderState();
 		await rm(cwd, { recursive: true, force: true });

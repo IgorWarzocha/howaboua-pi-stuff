@@ -22,6 +22,9 @@ const SearchQueryParameters = Type.Object({
 const WEB_SEARCH_PARAMETERS = Type.Object({
 	search_query: Type.Optional(Type.Array(SearchQueryParameters, { description: "Web searches to run. Use this for normal web search." })),
 	image_query: Type.Optional(Type.Array(SearchQueryParameters, { description: "Image-oriented web searches to run." })),
+	open: Type.Optional(Type.Array(Type.Object({ ref_id: Type.String(), lineno: Type.Optional(Type.Number()) }, { additionalProperties: true }), { description: "Open a search result ref_id or URL." })),
+	click: Type.Optional(Type.Array(Type.Object({ ref_id: Type.String(), id: Type.Number() }, { additionalProperties: true }), { description: "Open a link id from an opened page." })),
+	find: Type.Optional(Type.Array(Type.Object({ ref_id: Type.String(), pattern: Type.String() }, { additionalProperties: true }), { description: "Find text in an opened page." })),
 	response_length: Type.Optional(Type.Union([Type.Literal("short"), Type.Literal("medium"), Type.Literal("long")], { description: "Desired response length." })),
 	settings: Type.Optional(Type.Object({
 		search_context_size: Type.Optional(Type.Union([Type.Literal("low"), Type.Literal("medium"), Type.Literal("high")])),
@@ -34,6 +37,18 @@ function createEmptyResultComponent(): Container { return new Container(); }
 export interface WebSearchToolOptions {
 	getRecentInput?: (() => ResponseInput | undefined) | undefined;
 	sessionId?: string | undefined;
+}
+
+function safeSessionId(id: string): string {
+	return id.replace(/[^a-zA-Z0-9_-]/g, "_");
+}
+
+export function webRunSessionStatePath(ctx: ExtensionContext): string | undefined {
+	const sessionManager = ctx.sessionManager;
+	const sessionFile = sessionManager?.getSessionFile?.();
+	const sessionId = sessionManager?.getSessionId?.();
+	if (typeof sessionFile !== "string" || !sessionFile || typeof sessionId !== "string" || !sessionId) return undefined;
+	return join(dirname(sessionFile), `.web-run-${safeSessionId(sessionId)}.json`);
 }
 
 function isResponseMessage(item: ResponseInput[number]): item is Extract<ResponseInput[number], { type?: "message"; role?: string }> {
@@ -101,6 +116,15 @@ async function runWebRunBinary(webRunPath: string, params: Record<string, unknow
 	});
 }
 
+function formatWebRunOutput(parsed: Record<string, unknown>): string | undefined {
+	const encryptedOutput = parsed["encrypted_output"];
+	if (typeof encryptedOutput === "string" && encryptedOutput.trim()) return encryptedOutput;
+	if (parsed["search_results"] !== undefined) return JSON.stringify(parsed, null, 2);
+	if (Array.isArray(parsed["content"]) || Array.isArray(parsed["open"]) || Array.isArray(parsed["find"])) return JSON.stringify(parsed, null, 2);
+	const outputText = parsed["output_text"] ?? parsed["text"];
+	return typeof outputText === "string" && outputText.trim() ? outputText : undefined;
+}
+
 export function resolveAlphaSearchUrlFromBase(baseUrl: string | undefined): string {
 	return resolveCodexAlphaSearchUrl(baseUrl ?? "");
 }
@@ -143,13 +167,14 @@ export async function executeCodexWebSearch(params: Record<string, unknown>, ctx
 	const provider = await resolveCodexToolProvider(ctx);
 	const scriptDir = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 	const webRunPath = process.env["PI_CODEX_WEB_RUN_BIN"]?.trim() || join(scriptDir, "bin", process.platform === "win32" ? "web_run.cmd" : "web_run");
+	const sessionId = ctx.sessionManager?.getSessionId?.() || options.sessionId;
+	const statePath = webRunSessionStatePath(ctx);
+	const env = { ...codexToolProviderEnv(provider), ...(statePath ? { PI_WEB_RUN_STATE_PATH: statePath } : {}) };
 	try {
-		const stdout = await runWebRunBinary(webRunPath, { id: options.sessionId, ...params }, codexToolProviderEnv(provider), signal);
+		const stdout = await runWebRunBinary(webRunPath, { id: sessionId, ...params }, env, signal);
 		const parsed = JSON.parse(stdout) as Record<string, unknown>;
-		const encryptedOutput = parsed["encrypted_output"];
-		if (typeof encryptedOutput === "string" && encryptedOutput.trim()) return encryptedOutput;
-		const outputText = parsed["output_text"] ?? parsed["text"];
-		if (typeof outputText === "string" && outputText.trim()) return outputText;
+		const output = formatWebRunOutput(parsed);
+		if (output) return output;
 		throw new Error("web_run search returned no output");
 	} catch (error) {
 		const stderr = error && typeof error === "object" && "stderr" in error ? String((error as { stderr?: unknown }).stderr ?? "") : "";
@@ -164,7 +189,7 @@ export function createWebSearchTool(name: string = WEB_SEARCH_TOOL_NAME, options
 	return {
 		name,
 		label: name,
-		description: "Search the web for sources relevant to the current task. Call with search_query: [{ q: \"...\" }] or image_query: [{ q: \"...\" }].",
+		description: "Search the web for sources relevant to the current task. Call with search_query: [{ q: \"...\" }], open: [{ ref_id: \"turn0search0\" }], click, or find. Returns JSON.",
 		promptSnippet: "Search the web. Always provide explicit arguments, usually { search_query: [{ q: \"...\" }], response_length: \"short\" }. Do not call with empty arguments.",
 		parameters: WEB_SEARCH_PARAMETERS,
 		prepareArguments: (args) => args && typeof args === "object" ? args as Record<string, unknown> : {},

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { cpSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 
@@ -17,7 +17,10 @@ function run(cmd, args, cwd) {
 }
 
 const commit = run("git", ["rev-parse", "HEAD"], codexRepo);
-const status = run("git", ["status", "--short"], codexRepo);
+const status = run("git", ["status", "--short"], codexRepo)
+	.split("\n")
+	.filter((line) => line && !line.match(/^\?\? \.pi\/?/))
+	.join("\n");
 if (status) {
 	console.error(`Refusing to sync from dirty Codex checkout:\n${status}`);
 	process.exit(1);
@@ -28,7 +31,11 @@ rmSync(join(dest, "crates", "codex-utils-absolute-path", "src"), { recursive: tr
 mkdirSync(join(dest, "crates", "codex-apply-patch"), { recursive: true });
 mkdirSync(join(dest, "crates", "codex-utils-absolute-path"), { recursive: true });
 cpSync(join(codexRs, "apply-patch", "src"), join(dest, "crates", "codex-apply-patch", "src"), { recursive: true });
-cpSync(join(codexRs, "apply-patch", "apply_patch_tool_instructions.md"), join(dest, "crates", "codex-apply-patch", "apply_patch_tool_instructions.md"));
+const instructions = join(codexRs, "apply-patch", "apply_patch_tool_instructions.md");
+rmSync(join(dest, "crates", "codex-apply-patch", "apply_patch_tool_instructions.md"), { force: true });
+if (existsSync(instructions)) {
+	cpSync(instructions, join(dest, "crates", "codex-apply-patch", "apply_patch_tool_instructions.md"));
+}
 cpSync(join(codexRs, "utils", "absolute-path", "src"), join(dest, "crates", "codex-utils-absolute-path", "src"), { recursive: true });
 writeFileSync(join(dest, "UPSTREAM"), `openai/codex ${commit}\n`);
 

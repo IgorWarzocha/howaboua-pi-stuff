@@ -8,21 +8,6 @@ import { createViewImageTool, parseViewImageParams } from "../src/tools/view-ima
 const PNG_BASE64 =
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==";
 
-function createReader(label: string, calls: string[]) {
-	return {
-		async execute() {
-			calls.push(label);
-			return {
-				content: [
-					{ type: "text" as const, text: `${label} note` },
-					{ type: "image" as const, data: PNG_BASE64, mimeType: "image/png" },
-				],
-				details: { label },
-			};
-		},
-	};
-}
-
 test("parseViewImageParams accepts omitted and null detail, but rejects invalid detail values", () => {
 	assert.deepEqual(parseViewImageParams({ path: "assets/example.png" }), { path: "assets/example.png", detail: undefined });
 	assert.deepEqual(parseViewImageParams({ path: "assets/example.png", detail: null }), {
@@ -57,56 +42,36 @@ test("createViewImageTool prepareArguments preserves invalid detail values for v
 	assert.throws(() => parseViewImageParams(tool.prepareArguments?.({ file_path: "image.png", detail: 1 })), /view_image\.detail must be a string/);
 });
 
-test("createViewImageTool uses resized reader by default and strips text output", async () => {
+test("createViewImageTool uses Rust view_image resized mode by default", async () => {
 	const cwd = await mkdtemp(join(tmpdir(), "view-image-tool-"));
 	const imagePath = join(cwd, "image.png");
 	await writeFile(imagePath, Buffer.from(PNG_BASE64, "base64"));
 
-	const calls: string[] = [];
-	const tool = createViewImageTool({
-		allowOriginalDetail: true,
-		createReaders() {
-			return {
-				resized: createReader("resized", calls),
-				original: createReader("original", calls),
-			};
-		},
-	});
+	const tool = createViewImageTool({ allowOriginalDetail: true });
 
 	const result = await tool.execute("call-1", { path: "image.png" }, undefined, undefined, {
 		cwd,
 		model: { input: ["image"] },
 	} as never);
 
-	assert.deepEqual(calls, ["resized"]);
 	assert.equal(result.content.length, 1);
-	assert.deepEqual(result.content[0]!, { type: "image", data: PNG_BASE64, mimeType: "image/png" });
+	assert.deepEqual(result.content[0]!, { type: "image", data: PNG_BASE64, mimeType: "image/png", detail: "high" });
 });
 
-test("createViewImageTool uses original reader when requested", async () => {
+test("createViewImageTool uses Rust view_image original mode when requested", async () => {
 	const cwd = await mkdtemp(join(tmpdir(), "view-image-tool-"));
 	const imagePath = join(cwd, "image.png");
 	await writeFile(imagePath, Buffer.from(PNG_BASE64, "base64"));
 
-	const calls: string[] = [];
-	const tool = createViewImageTool({
-		allowOriginalDetail: true,
-		createReaders() {
-			return {
-				resized: createReader("resized", calls),
-				original: createReader("original", calls),
-			};
-		},
-	});
+	const tool = createViewImageTool({ allowOriginalDetail: true });
 
 	const result = await tool.execute("call-2", { path: "image.png", detail: "original" }, undefined, undefined, {
 		cwd,
 		model: { input: ["image"] },
 	} as never);
 
-	assert.deepEqual(calls, ["original"]);
 	assert.equal(result.content.length, 1);
-	assert.equal(result.content[0]!?.type, "image");
+	assert.deepEqual(result.content[0]!, { type: "image", data: PNG_BASE64, mimeType: "image/png", detail: "original" });
 });
 
 test("createViewImageTool rejects missing paths and directories with codex-like errors", async () => {
@@ -114,15 +79,7 @@ test("createViewImageTool rejects missing paths and directories with codex-like 
 	const dirPath = join(cwd, "screenshots");
 	await mkdir(dirPath);
 
-	const tool = createViewImageTool({
-		allowOriginalDetail: true,
-		createReaders() {
-			return {
-				resized: createReader("resized", []),
-				original: createReader("original", []),
-			};
-		},
-	});
+	const tool = createViewImageTool({ allowOriginalDetail: true });
 
 	await assert.rejects(
 		() => tool.execute("call-3", { path: "missing.png" }, undefined, undefined, { cwd, model: { input: ["image"] } } as never),
@@ -134,54 +91,29 @@ test("createViewImageTool rejects missing paths and directories with codex-like 
 	);
 });
 
-test("createViewImageTool rejects non-image read results", async () => {
+test("createViewImageTool rejects non-image files", async () => {
 	const cwd = await mkdtemp(join(tmpdir(), "view-image-tool-"));
-	const imagePath = join(cwd, "image.png");
-	await writeFile(imagePath, Buffer.from(PNG_BASE64, "base64"));
+	await writeFile(join(cwd, "not-image.txt"), "plain text");
 
-	const tool = createViewImageTool({
-		allowOriginalDetail: true,
-		createReaders() {
-			return {
-				resized: {
-					async execute() {
-						return {
-							content: [{ type: "text" as const, text: "plain text" }],
-							details: {},
-						};
-					},
-				},
-				original: createReader("original", []),
-			};
-		},
-	});
+	const tool = createViewImageTool({ allowOriginalDetail: true });
 
 	await assert.rejects(
-		() => tool.execute("call-5", { path: "image.png" }, undefined, undefined, { cwd, model: { input: ["image"] } } as never),
-		/view_image expected an image file\. Use exec_command for text files\./,
+		() => tool.execute("call-5", { path: "not-image.txt" }, undefined, undefined, { cwd, model: { input: ["image"] } } as never),
+		/unable to process image at/,
 	);
 });
 
-test("createViewImageTool resolves relative paths against execute context cwd", async () => {
+test("createViewImageTool resolves relative paths through Rust process cwd", async () => {
 	const cwd = await mkdtemp(join(tmpdir(), "view-image-tool-"));
 	const imagePath = join(cwd, "image.png");
 	await writeFile(imagePath, Buffer.from(PNG_BASE64, "base64"));
 
-	const seenCwds: string[] = [];
-	const tool = createViewImageTool({
-		createReaders(currentCwd) {
-			seenCwds.push(currentCwd);
-			return {
-				resized: createReader("resized", []),
-				original: createReader("original", []),
-			};
-		},
-	});
+	const tool = createViewImageTool();
 
-	await tool.execute("call-6", { path: "image.png" }, undefined, undefined, { cwd, model: { input: ["image"] } } as never);
+	const result = await tool.execute("call-6", { path: "image.png" }, undefined, undefined, { cwd, model: { input: ["image"] } } as never);
 
-	assert.deepEqual(seenCwds, [cwd]);
-	assert.equal(imagePath, join(seenCwds[0]!, "image.png"));
+	assert.equal(result.content[0]?.type, "image");
+	assert.equal(imagePath, join(cwd, "image.png"));
 });
 
 test("createViewImageTool rejects models without image input support", async () => {

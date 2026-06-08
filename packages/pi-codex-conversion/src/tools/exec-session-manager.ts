@@ -31,6 +31,7 @@ export interface ExecCommandInput {
 	cmd: string;
 	workdir?: string | undefined;
 	shell?: string | undefined;
+	env?: NodeJS.ProcessEnv | undefined;
 	tty?: boolean | undefined;
 	yield_time_ms?: number | undefined;
 	max_yield_time_ms?: number | undefined;
@@ -147,6 +148,7 @@ const BASH_SYNC_ENV_KEYS = [
 	"MISE_SHIMS_DIR",
 	"CARGO_HOME",
 	"GOPATH",
+	"PI_WEB_RUN_STATE_PATH",
 	"ANDROID_HOME",
 	"ANDROID_NDK_HOME",
 	"JAVA_HOME",
@@ -172,9 +174,9 @@ function buildSyncedBashCommand(command: string, env: NodeJS.ProcessEnv): string
 	return `${assignments.join("; ")}; ${command}`;
 }
 
-function resolveExecution(requestedShell: string | undefined, command: string): { shell: string; command: string; env: NodeJS.ProcessEnv } {
+function resolveExecution(requestedShell: string | undefined, command: string, extraEnv?: NodeJS.ProcessEnv): { shell: string; command: string; env: NodeJS.ProcessEnv } {
 	const shell = resolveShell(requestedShell);
-	const env: NodeJS.ProcessEnv = { ...process.env };
+	const env: NodeJS.ProcessEnv = { ...process.env, ...extraEnv };
 	if (!shouldSyncBashEnv(requestedShell, shell)) {
 		return { shell, command, env };
 	}
@@ -617,7 +619,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 
 	function createPipeSession(input: ExecCommandInput, workdir: string, shell: string, signal?: AbortSignal): PipeExecSession {
 		const login = input.login ?? true;
-		const execution = resolveExecution(input.shell, input.cmd);
+		const execution = resolveExecution(input.shell, input.cmd, input.env);
 		const shellArgs = getCodexShellArgs(shell, execution.command, login);
 		const child = spawn(shell, shellArgs, {
 			cwd: workdir,
@@ -670,7 +672,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 
 	function createPtySession(input: ExecCommandInput, workdir: string, shell: string, signal?: AbortSignal): PtyExecSession {
 		const login = input.login ?? true;
-		const execution = resolveExecution(input.shell, input.cmd);
+		const execution = resolveExecution(input.shell, input.cmd, input.env);
 		const shellArgs = getCodexShellArgs(shell, execution.command, login);
 		const child = pty.spawn(shell, shellArgs, {
 			cwd: workdir,

@@ -183,6 +183,34 @@ test("exec_command compacts PATH web_run JSON output", async () => {
 	}
 });
 
+test("exec_command gives PATH web_run the Pi session state path", async () => {
+	const cwd = mkdtempSync(join(tmpdir(), "path-web-run-session-"));
+	const sessionFile = join(cwd, "session.jsonl");
+	const sessions = createExecSessionManager();
+	try {
+		let tool: any;
+		registerExecCommandTool({ registerTool(definition: unknown) { tool = definition; } } as never, createExecCommandTracker(), sessions);
+		const result = await tool.execute(
+			"call-1",
+			{ cmd: `node -e ${JSON.stringify("console.log(JSON.stringify({ output_text: process.env.PI_WEB_RUN_STATE_PATH }))")} # web_run` },
+			new AbortController().signal,
+			undefined,
+			{
+				cwd,
+				model: {},
+				sessionManager: {
+					getSessionFile: () => sessionFile,
+					getSessionId: () => "session/abc",
+				},
+			} as never,
+		);
+		const text = result.content[0]?.type === "text" ? result.content[0].text : "";
+		assert.match(text, /\.web-run-session_abc\.json/);
+	} finally {
+		sessions.shutdown();
+	}
+});
+
 test("exec_command compacts PATH imagegen output and displays image content", async () => {
 	const cwd = mkdtempSync(join(tmpdir(), "path-imagegen-"));
 	const imagePath = join(cwd, "generated.png");
