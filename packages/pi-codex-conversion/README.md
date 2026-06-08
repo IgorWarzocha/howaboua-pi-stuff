@@ -15,12 +15,21 @@ pi install npm:@howaboua/pi-codex-conversion
 
 ## Active tools in adapter mode
 
-When the adapter is active, the LLM sees these Pi tools:
+Normal mode keeps the familiar Pi function-tool surface:
+
+- `exec_command` — shell execution with Codex-style `cmd` parameters and resumable sessions
+- `write_stdin` — continue or poll a running exec session
+- `apply_patch` — patch edits
+- `view_image` — inspect local images when the model supports image input
+- `web.run` — native Codex web search when enabled and supported
+- `image_generation` — native Codex image generation when enabled and supported
+
+PATH mode narrows the structured tool surface to shell control only:
 
 - `exec_command` — shell execution with Codex-style `cmd` parameters and resumable sessions
 - `write_stdin` — continue or poll a running exec session
 
-The extension also puts Codex-style tools on `PATH`:
+In PATH mode, Codex-style extras live on `PATH`:
 
 - `apply_patch` — patch edits
 - `view_image` — inspect local images
@@ -31,8 +40,8 @@ Notably:
 
 - there is **no** dedicated `read`, `edit`, or `write` tool in adapter mode
 - local text-file inspection should happen through `exec_command`
-- file creation and edits should default to shell `apply_patch`
-- image/web tools run through `exec_command` as PATH tools, not Pi function tools
+- file creation and edits should default to `apply_patch`; in PATH mode that is the shell command
+- in PATH mode, image/web tools run through `exec_command` as PATH tools, not Pi function tools
 - Pi may still expose additional runtime tools such as `parallel`; the prompt is written to tolerate that
 
 ## PATH tool examples
@@ -70,7 +79,7 @@ Settings are saved globally in `~/.pi/agent/pi-codex-conversion.json`.
 
 The settings UI has **General**, **Tools**, **OpenAI**, **Usage**, and **About** tabs. **Usage** refreshes automatically when opened and can be refreshed manually with `r`.
 
-**General** controls adapter mode, scope, status UI, background shells, and whether native Responses compaction is enabled. **Path mode** is available as a setting label for the PATH-tool rollout; for now it behaves like Normal mode.
+**General** controls PATH mode, scope, status UI, background shells, and whether native Responses compaction is enabled. PATH mode switches the adapter to the shell-only surface above.
 
 Advanced users with custom Codex-compatible providers can add provider ids in General, or by editing `~/.pi/agent/pi-codex-conversion.json`:
 

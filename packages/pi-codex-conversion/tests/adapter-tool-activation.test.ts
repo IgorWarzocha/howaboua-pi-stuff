@@ -20,7 +20,12 @@ function createAdapterState(overrides: Partial<AdapterState["config"]> = {}): Ad
 		enabled: false,
 		cwd: process.cwd(),
 		promptSkills: [],
-		config: { ...DEFAULT_CODEX_CONVERSION_CONFIG, ...overrides, scope: { ...DEFAULT_CODEX_CONVERSION_CONFIG.scope, ...overrides.scope } },
+		config: {
+			...DEFAULT_CODEX_CONVERSION_CONFIG,
+			...overrides,
+			scope: { ...DEFAULT_CODEX_CONVERSION_CONFIG.scope, ...overrides.scope },
+			tools: { ...DEFAULT_CODEX_CONVERSION_CONFIG.tools, ...overrides.tools },
+		},
 	};
 }
 
@@ -47,7 +52,7 @@ test("syncAdapter preserves unrelated tools across repeated syncs", () => {
 	syncAdapter(pi as never, ctx as never, state);
 	syncAdapter(pi as never, ctx as never, state);
 
-	assert.deepEqual(pi.activeTools(), ["exec_command", "write_stdin", "custom_search", "custom_image", "parallel"]);
+	assert.deepEqual(pi.activeTools(), ["exec_command", "write_stdin", "apply_patch", "custom_search", "custom_image", "parallel"]);
 });
 
 test("syncAdapter enables adapter for configured custom providers", () => {
@@ -57,13 +62,13 @@ test("syncAdapter enables adapter for configured custom providers", () => {
 
 	syncAdapter(pi as never, ctx as never, state);
 
-	assert.deepEqual(pi.activeTools(), ["exec_command", "write_stdin", "parallel"]);
+	assert.deepEqual(pi.activeTools(), ["exec_command", "write_stdin", "apply_patch", "web.run", "image_generation", "parallel"]);
 });
 
 test("syncAdapter leaves PATH tools to shell for configured custom providers", () => {
 	const pi = createToolHarness(["read", "bash", "edit", "write", "parallel"]);
 	const ctx = createContext({ provider: "my-provider", api: "custom-responses", id: "gpt-5" });
-	const state = createAdapterState({ scope: { allProviders: false, additionalProviders: ["my-provider"] } });
+	const state = createAdapterState({ mode: "path", scope: { allProviders: false, additionalProviders: ["my-provider"] } });
 
 	syncAdapter(pi as never, ctx as never, state);
 

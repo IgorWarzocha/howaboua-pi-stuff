@@ -113,8 +113,6 @@ export async function openCodexSettingsScreen(ctx: ExtensionContext, options: Co
 					rule(width, theme, "accent"),
 					formatTabs(activeTab, theme),
 					rule(width, theme, "borderMuted"),
-					...(activeTab === "tools" ? formatToolsNotes(theme) : []),
-					...(activeTab === "openai" ? formatOpenAINotes(theme) : []),
 					...(activeTab === "usage" ? formatUsageLines(theme, usageState, usageLoading) : []),
 					...(activeTab === "about" ? formatLinks(theme) : []),
 					"",
@@ -140,20 +138,7 @@ export async function openCodexSettingsScreen(ctx: ExtensionContext, options: Co
 	});
 }
 
-function formatToolsNotes(theme: Theme): string[] {
-	return [
-		theme.fg("dim", "  Required in adapter scope: exec_command, write_stdin, apply_patch, view_image."),
-		theme.fg("dim", "  Optional toggles control prompt advertising, not whether binaries exist on PATH."),
-	];
-}
 
-function formatOpenAINotes(theme: Theme): string[] {
-	return [
-		theme.fg("dim", "  Beta: native OpenAI Responses compaction is experimental. Please report any issues."),
-		theme.fg("error", "  Warning: do not turn compaction off or switch providers mid-session; old context may be much less reliable."),
-		theme.fg("warning", "  If native compaction recovery fails, go back below 90% context and compact from there."),
-	];
-}
 
 function rule(width: number, theme: Theme, color: "accent" | "borderMuted"): string {
 	return theme.fg(color, "─".repeat(Math.max(0, width)));
@@ -198,7 +183,7 @@ function buildItems(tab: SettingsTab, draft: CodexConversionConfig, theme: Theme
 			{ id: "viewImage", label: "View image", currentValue: "required", values: ["required"] },
 			{ id: "webRun", label: "Web search", currentValue: draft.tools.webRun ? "on" : "off", values: ["off", "on"] },
 			{ id: "imageGeneration", label: "Image generation", currentValue: draft.tools.imageGeneration ? "on" : "off", values: ["off", "on"] },
-			{ id: "applyPatchForStandardGpt", label: "Apply patch for standard GPT", currentValue: draft.tools.applyPatchForStandardGpt ? "on" : "off", values: ["off", "on"] },
+			{ id: "applyPatchForStandardGpt", label: "Apply patch for ALL GPT", currentValue: draft.tools.applyPatchForStandardGpt ? "on" : "off", values: ["off", "on"] },
 		];
 	}
 
@@ -213,7 +198,7 @@ function buildItems(tab: SettingsTab, draft: CodexConversionConfig, theme: Theme
 	}
 
 	return [
-		{ id: "mode", label: "Mode", currentValue: draft.mode === "path" ? "Path mode" : "Normal", values: ["Normal", "Path mode"] },
+		{ id: "mode", label: "PATH mode", currentValue: draft.mode === "path" ? "on" : "off", values: ["off", "on"] },
 		{ id: "allProviders", label: "Use for all providers/models", currentValue: draft.scope.allProviders ? "on" : "off", values: ["off", "on"] },
 		{
 			id: "additionalProviders",
@@ -229,7 +214,7 @@ function buildItems(tab: SettingsTab, draft: CodexConversionConfig, theme: Theme
 }
 
 function applySettingChange(id: string, value: string, draft: CodexConversionConfig): CodexConversionConfig {
-	if (id === "mode") return { ...draft, mode: value === "Path mode" ? "path" : "normal" };
+	if (id === "mode") return { ...draft, mode: value === "on" ? "path" : "normal" };
 	if (id === "allProviders") return { ...draft, scope: { ...draft.scope, allProviders: value === "on" } };
 	if (id === "additionalProviders") return { ...draft, scope: { ...draft.scope, additionalProviders: normalizeProviderListFromText(value) } };
 	if (id === "statusLine") return { ...draft, ui: { ...draft.ui, statusLine: value === "on" } };

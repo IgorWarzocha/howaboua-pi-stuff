@@ -11,7 +11,16 @@ export interface StructuredPromptSkill {
 	disableModelInvocation?: boolean | undefined;
 }
 
-const BASE_CODEX_GUIDELINES = [
+const NORMAL_CODEX_GUIDELINES = [
+	"Use `exec_command` for shell commands, file inspection, builds, and tests; prefer `rg` / `rg --files` for discovery and focused commands over truncation.",
+	"Use tty=true for dev servers, watchers, REPLs, and prompts.",
+	"Use `apply_patch` for text-file changes, including creates/deletes/moves; group related multi-file edits into one patch.",
+	"Use `write_stdin` only for running `exec_command` sessions; poll sparingly.",
+	"Chain short dependent shell commands in one exec_command with &&.",
+	"Run independent tool calls in parallel when practical.",
+];
+
+const PATH_CODEX_GUIDELINES = [
 	"Use `exec_command` for shell commands, file inspection, builds, and tests; prefer `rg` / `rg --files` for discovery and focused commands over truncation.",
 	"Use tty=true for dev servers, watchers, REPLs, and prompts.",
 	"Use shell apply_patch for text-file changes, including creates/deletes/moves; group related multi-file edits into one patch.",
@@ -29,8 +38,9 @@ export interface CodexPromptToolOptions {
 	imageGeneration?: boolean | undefined;
 }
 
-function buildCodexGuidelines(tools: CodexPromptToolOptions = {}): string[] {
-	const guidelines = [...BASE_CODEX_GUIDELINES];
+function buildCodexGuidelines(mode: "normal" | "path" = "normal", tools: CodexPromptToolOptions = {}): string[] {
+	if (mode !== "path") return [...NORMAL_CODEX_GUIDELINES];
+	const guidelines = [...PATH_CODEX_GUIDELINES];
 	const examples = [];
 	if (tools.webRun !== false) examples.push(`- web.run '{"search_query":[{"q":"..."}]}'`);
 	if (tools.imageGeneration !== false) {
@@ -133,10 +143,10 @@ function injectSkills(prompt: string, skills: PromptSkill[]): string {
 	return insertBeforeTrailingContext(prompt, lines.join("\n"));
 }
 
-function injectGuidelines(prompt: string, tools?: CodexPromptToolOptions): string {
+function injectGuidelines(prompt: string, mode?: "normal" | "path", tools?: CodexPromptToolOptions): string {
 	const match = prompt.match(/(^Guidelines:\n)([\s\S]*?)(\n\n(?=Pi documentation\b|# Project Context|# Skills|Current date:))/m);
 	if (!match || match.index === undefined) {
-		const fallbackSection = `Guidelines:\n${buildCodexGuidelines(tools).map((line) => `- ${line}`).join("\n")}`;
+		const fallbackSection = `Guidelines:\n${buildCodexGuidelines(mode, tools).map((line) => `- ${line}`).join("\n")}`;
 		return insertBeforeTrailingContext(prompt, fallbackSection);
 	}
 
@@ -146,7 +156,7 @@ function injectGuidelines(prompt: string, tools?: CodexPromptToolOptions): strin
 		.map((line) => line.trim())
 		.filter((line) => line.startsWith("- "));
 	const existing = new Set(existingLines.map((line) => line.slice(2)));
-	const additions = buildCodexGuidelines(tools).filter((line) => !existing.has(line)).map((line) => `- ${line}`);
+	const additions = buildCodexGuidelines(mode, tools).filter((line) => !existing.has(line)).map((line) => `- ${line}`);
 	if (additions.length === 0) {
 		return prompt;
 	}
@@ -156,6 +166,6 @@ function injectGuidelines(prompt: string, tools?: CodexPromptToolOptions): strin
 	return `${prompt.slice(0, match.index)}${replacement}${prompt.slice(match.index + match[0]!.length)}`;
 }
 
-export function buildCodexSystemPrompt(basePrompt: string, options: { skills?: PromptSkill[] | undefined; shell?: string | undefined; tools?: CodexPromptToolOptions | undefined } = {}): string {
-	return injectShell(injectSkills(injectGuidelines(basePrompt, options.tools), options.skills ?? []), options.shell);
+export function buildCodexSystemPrompt(basePrompt: string, options: { skills?: PromptSkill[] | undefined; shell?: string | undefined; mode?: "normal" | "path" | undefined; tools?: CodexPromptToolOptions | undefined } = {}): string {
+	return injectShell(injectSkills(injectGuidelines(basePrompt, options.mode, options.tools), options.skills ?? []), options.shell);
 }

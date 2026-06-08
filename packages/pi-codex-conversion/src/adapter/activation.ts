@@ -3,16 +3,28 @@ import { isCodexLikeContext, isOpenAICodexContext, isResponsesContext } from "./
 import type { CodexConversionConfig } from "./config.ts";
 import type { AdapterState } from "./state.ts";
 import {
+	APPLY_PATCH_ONLY_STATUS_TEXT,
+	APPLY_PATCH_TOOL_NAME,
 	CORE_ADAPTER_TOOL_NAMES,
 	DEFAULT_TOOL_NAMES,
+	IMAGE_GENERATION_TOOL_NAME,
+	PATH_MODE_TOOL_NAMES,
 	STATUS_KEY,
 	SHELL_ADAPTER_TOOL_NAMES,
+	VIEW_IMAGE_TOOL_NAME,
+	WEB_SEARCH_TOOL_NAME,
 	buildStatusText,
 } from "./tool-set.ts";
+import { supportsNativeImageGeneration } from "../tools/image-generation-tool.ts";
+import { supportsNativeWebSearch } from "../tools/web-search-tool.ts";
 
-const ADAPTER_TOOL_NAMES = [...CORE_ADAPTER_TOOL_NAMES];
+const ADAPTER_TOOL_NAMES = [...CORE_ADAPTER_TOOL_NAMES, WEB_SEARCH_TOOL_NAME, IMAGE_GENERATION_TOOL_NAME, VIEW_IMAGE_TOOL_NAME];
 
 export function syncAdapter(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState): void {
+	if (shouldUseApplyPatchOnly(ctx, state.config)) {
+		enableApplyPatchOnly(pi, ctx, state);
+		return;
+	}
 	if (shouldUseCodexAdapter(ctx, state.config)) {
 		enableAdapter(pi, ctx, state);
 	} else {
@@ -21,6 +33,7 @@ export function syncAdapter(pi: ExtensionAPI, ctx: ExtensionContext, state: Adap
 }
 
 export function shouldUseCodexAdapter(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
+	if (shouldUseApplyPatchOnly(ctx, config)) return false;
 	return config.scope.allProviders || isConfiguredAdapterProvider(ctx, config) || isCodexLikeContext(ctx);
 }
 
@@ -30,11 +43,34 @@ export function isConfiguredAdapterProvider(ctx: ExtensionContext, config: Codex
 }
 
 export function shouldUseProxyNativeTools(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
-	return isConfiguredAdapterProvider(ctx, config);
+	return config.mode === "normal" && isConfiguredAdapterProvider(ctx, config);
 }
 
 export function isEffectiveOpenAICodexContext(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
 	return isOpenAICodexContext(ctx) || shouldUseProxyNativeTools(ctx, config);
+}
+
+export function shouldUseApplyPatchOnly(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
+	if (config.mode !== "normal" || !config.tools.applyPatchForStandardGpt || shouldUseCodexAdapterByScope(ctx, config)) return false;
+	return (ctx.model?.id ?? "").toLowerCase().includes("gpt");
+}
+
+function shouldUseCodexAdapterByScope(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
+	return config.scope.allProviders || isConfiguredAdapterProvider(ctx, config) || isCodexLikeContext(ctx);
+}
+
+function enableApplyPatchOnly(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState): void {
+	const adapterOwnedTools = [APPLY_PATCH_TOOL_NAME];
+	if (!state.enabled || state.adapterOwnedToolNames?.some((toolName) => toolName !== APPLY_PATCH_TOOL_NAME)) {
+		const restoredBase = state.enabled
+			? restoreTools(state.previousToolNames && state.previousToolNames.length > 0 ? state.previousToolNames : DEFAULT_TOOL_NAMES, pi.getActiveTools(), state.adapterOwnedToolNames ?? ADAPTER_TOOL_NAMES)
+			: stripAdapterTools(pi.getActiveTools(), ADAPTER_TOOL_NAMES);
+		state.previousToolNames = restoredBase;
+		state.enabled = true;
+	}
+	state.adapterOwnedToolNames = adapterOwnedTools;
+	pi.setActiveTools(mergeToolNames(state.previousToolNames ?? DEFAULT_TOOL_NAMES, adapterOwnedTools));
+	setApplyPatchOnlyStatus(ctx, state.config);
 }
 
 function enableAdapter(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState): void {
@@ -80,26 +116,43 @@ function setStatus(ctx: ExtensionContext, enabled: boolean, config: CodexConvers
 function getStatusConfig(ctx: ExtensionContext, config: CodexConversionConfig): Parameters<typeof buildStatusText>[0] {
 	const showOpenAICodexFlags = isEffectiveOpenAICodexContext(ctx, config);
 	const showResponsesVerbosity = isResponsesContext(ctx);
+	const useProxyNativeTools = shouldUseProxyNativeTools(ctx, config);
 	return {
+		mode: config.mode,
 		useOnAllModels: config.scope.allProviders,
 		additionalProvider: isConfiguredAdapterProvider(ctx, config),
 		fast: showOpenAICodexFlags && config.openai.fast,
+		webSearch: config.mode === "normal" && showOpenAICodexFlags && config.tools.webRun && (supportsNativeWebSearch(ctx.model) || useProxyNativeTools),
+		imageGeneration: config.mode === "normal" && showOpenAICodexFlags && config.tools.imageGeneration && (supportsNativeImageGeneration(ctx.model) || useProxyNativeTools),
 		compaction: { enabled: Boolean(config.compaction.responsesCompaction), model: config.openai.compactionModel, reasoning: config.openai.compactionReasoning },
 		...(showResponsesVerbosity ? { verbosity: config.openai.verbosity } : {}),
 	};
 }
 
 function getAdapterToolNames(ctx: ExtensionContext, config: CodexConversionConfig): string[] {
-	void ctx;
-	void config;
-	return [...CORE_ADAPTER_TOOL_NAMES];
+	if (config.mode === "path") return [...PATH_MODE_TOOL_NAMES];
+	const useProxyNativeTools = shouldUseProxyNativeTools(ctx, config);
+	const toolNames = [...CORE_ADAPTER_TOOL_NAMES];
+	if (config.tools.webRun && (supportsNativeWebSearch(ctx.model) || useProxyNativeTools)) toolNames.push(WEB_SEARCH_TOOL_NAME);
+	if (config.tools.imageGeneration && (supportsNativeImageGeneration(ctx.model) || useProxyNativeTools)) toolNames.push(IMAGE_GENERATION_TOOL_NAME);
+	if (Array.isArray(ctx.model?.input) && ctx.model.input.includes("image")) toolNames.push(VIEW_IMAGE_TOOL_NAME);
+	return toolNames;
 }
 
 function getAdapterOwnedToolNames(config: CodexConversionConfig): string[] {
-	void config;
+	if (config.mode === "path") return [...SHELL_ADAPTER_TOOL_NAMES];
 	return [
 		...SHELL_ADAPTER_TOOL_NAMES,
+		APPLY_PATCH_TOOL_NAME,
+		VIEW_IMAGE_TOOL_NAME,
+		...(config.tools.webRun ? [WEB_SEARCH_TOOL_NAME] : []),
+		...(config.tools.imageGeneration ? [IMAGE_GENERATION_TOOL_NAME] : []),
 	];
+}
+
+function setApplyPatchOnlyStatus(ctx: ExtensionContext, config: CodexConversionConfig): void {
+	if (!ctx.hasUI) return;
+	ctx.ui.setStatus(STATUS_KEY, config.ui.statusLine ? APPLY_PATCH_ONLY_STATUS_TEXT : undefined);
 }
 
 function mergeToolNames(...toolNameGroups: string[][]): string[] {
