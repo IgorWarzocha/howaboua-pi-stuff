@@ -306,6 +306,23 @@ async fn read_codex_auth() -> anyhow::Result<CodexAuth> {
     })
 }
 
+fn responses_url() -> String {
+    let base = env::var("PI_CODEX_BASE_URL").unwrap_or_else(|_| DEFAULT_BASE_URL.to_string());
+    let normalized = base.trim_end_matches('/');
+    if normalized.ends_with("/responses") {
+        normalized.to_string()
+    } else if normalized.ends_with("/codex")
+        || normalized.ends_with("/api/codex")
+        || normalized.ends_with("/backend-api/codex")
+    {
+        format!("{normalized}/responses")
+    } else if normalized.ends_with("/api") || normalized.ends_with("/backend-api") {
+        format!("{normalized}/codex/responses")
+    } else {
+        format!("{normalized}/api/codex/responses")
+    }
+}
+
 fn alpha_search_url() -> String {
     if let Ok(url) = env::var("PI_CODEX_ALPHA_SEARCH_URL") {
         return alpha_search_url_from_base(&url);
@@ -395,6 +412,95 @@ fn build_codex_http_client() -> anyhow::Result<reqwest::Client> {
         .context("failed to build web_run HTTP client")
 }
 
+fn hosted_web_search_prompt(args: &WebRunArgs) -> String {
+    format!(
+        "Execute these web.run commands and return a concise, source-backed result. Commands JSON:\n{}",
+        serde_json::to_string(&args.commands).unwrap_or_else(|_| "{}".to_string())
+    )
+}
+
+fn parse_hosted_responses_text(body: &str) -> anyhow::Result<String> {
+    let mut final_text = String::new();
+    let mut delta_text = String::new();
+    for line in body.lines() {
+        let Some(data) = line.strip_prefix("data: ") else {
+            continue;
+        };
+        let data = data.trim();
+        if data.is_empty() || data == "[DONE]" {
+            continue;
+        }
+        let Ok(event) = serde_json::from_str::<serde_json::Value>(data) else {
+            continue;
+        };
+        if event.get("type").and_then(serde_json::Value::as_str)
+            == Some("response.output_text.delta")
+            && let Some(delta) = event.get("delta").and_then(serde_json::Value::as_str)
+        {
+            delta_text.push_str(delta);
+        }
+        if event.get("type").and_then(serde_json::Value::as_str)
+            == Some("response.output_text.done")
+            && let Some(text) = event.get("text").and_then(serde_json::Value::as_str)
+        {
+            final_text = text.to_string();
+        }
+    }
+    let text = if final_text.trim().is_empty() {
+        delta_text.trim()
+    } else {
+        final_text.trim()
+    };
+    if text.is_empty() {
+        anyhow::bail!("hosted web_search fallback returned no text output");
+    }
+    Ok(text.to_string())
+}
+
+async fn execute_hosted_web_search_fallback(
+    args: &WebRunArgs,
+    auth: &CodexAuth,
+    model: &str,
+) -> anyhow::Result<String> {
+    let url = responses_url();
+    let mut request_headers = headers(&auth.token, &auth.account_id)?;
+    request_headers.insert(ACCEPT, HeaderValue::from_static("text/event-stream"));
+    request_headers.insert(
+        "OpenAI-Beta",
+        HeaderValue::from_static("responses=experimental"),
+    );
+    let settings = merge_settings(args.settings.clone());
+    let input = args.input.clone().unwrap_or_else(|| {
+        json!([{
+            "role": "user",
+            "content": [{ "type": "input_text", "text": hosted_web_search_prompt(args) }]
+        }])
+    });
+    let response = build_codex_http_client()?
+        .post(&url)
+        .headers(request_headers)
+        .json(&json!({
+            "model": model,
+            "instructions": "You are backing the Codex web.run tool. Use web search when needed and answer with the result only.",
+            "input": input,
+            "tools": [{ "type": "web_search", "external_web_access": settings.external_web_access != Some(false) }],
+            "stream": true,
+            "store": false,
+        }))
+        .send()
+        .await
+        .with_context(|| format!("hosted web_search fallback request failed for `{url}`"))?;
+    let status = response.status();
+    let body = response
+        .text()
+        .await
+        .context("failed to read hosted web_search fallback response")?;
+    if !status.is_success() {
+        anyhow::bail!("hosted web_search fallback failed for `{url}`: HTTP {status} {body}");
+    }
+    parse_hosted_responses_text(&body)
+}
+
 fn merge_settings(settings: Option<SearchSettings>) -> SearchSettings {
     let mut merged = settings.unwrap_or_default();
     if merged.allowed_callers.is_none() {
@@ -461,9 +567,15 @@ async fn main() -> anyhow::Result<()> {
             anyhow::bail!("web_run alpha/search failed for `{url}`: HTTP 403 Cloudflare challenge");
         }
         if status.as_u16() == 404 && body.contains("\"Not Found\"") {
-            anyhow::bail!(
-                "web_run alpha/search failed for `{url}`: HTTP 404 Not Found (Codex alpha/search endpoint unavailable for this account/backend)"
+            let text = execute_hosted_web_search_fallback(&args, &auth, &request.model).await?;
+            println!(
+                "{}",
+                json!({
+                    "text": text,
+                    "hosted_web_search_fallback": true,
+                })
             );
+            return Ok(());
         }
         anyhow::bail!("web_run alpha/search failed for `{url}`: HTTP {status} {body}");
     }

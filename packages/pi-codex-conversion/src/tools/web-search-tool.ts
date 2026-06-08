@@ -8,6 +8,7 @@ import type { ResponseInput } from "openai/resources/responses/responses.js";
 import { Type } from "typebox";
 import { Container, Text } from "@earendil-works/pi-tui";
 import { codexToolProviderEnv, codexToolProviderHeaders, CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE, resolveCodexAlphaSearchUrl, resolveCodexToolProvider, type CodexToolProvider } from "../adapter/codex-tool-provider.ts";
+import { resolveCodexUrl } from "../providers/openai-codex/headers.ts";
 import { WEB_SEARCH_TOOL_NAME } from "../adapter/tool-set.ts";
 import { attachChatGptCloudflareCookies, storeChatGptCloudflareCookies } from "./chatgpt-cloudflare-cookies.ts";
 
@@ -16,11 +17,18 @@ export const WEB_SEARCH_SESSION_NOTE_TYPE = "codex-web-search-session-note";
 
 const WEB_SEARCH_PARAMETERS = Type.Unsafe<Record<string, unknown>>({ type: "object", additionalProperties: true });
 const DEFAULT_WEB_SEARCH_MODEL = "gpt-5.4-mini";
+const HOSTED_WEB_SEARCH_FALLBACK_PREFIX = "__PI_HOSTED_WEB_SEARCH_FALLBACK__";
 const ASSISTANT_CONTEXT_CHAR_LIMIT = 4_000;
 function createEmptyResultComponent(): Container { return new Container(); }
 
 export interface WebSearchToolOptions {
 	getRecentInput?: (() => ResponseInput | undefined) | undefined;
+}
+
+interface CodexWebSearchExecution {
+	kind: "encrypted" | "hosted";
+	text: string;
+	encryptedOutput?: string | undefined;
 }
 
 function isResponseMessage(item: ResponseInput[number]): item is Extract<ResponseInput[number], { type?: "message"; role?: string }> {
@@ -147,8 +155,9 @@ export async function executeCodexWebSearch(params: Record<string, unknown>, ctx
 		const stdout = await runWebRunBinary(webRunPath, { ...(recentInput && params["input"] === undefined ? { input: recentInput } : {}), ...params }, codexToolProviderEnv(provider), signal);
 		const parsed = JSON.parse(stdout) as Record<string, unknown>;
 		const encryptedOutput = parsed["encrypted_output"];
-		if (typeof encryptedOutput !== "string" || !encryptedOutput.trim()) throw new Error("web_run search returned no encrypted output");
-		return encryptedOutput;
+		if (typeof encryptedOutput === "string" && encryptedOutput.trim()) return encryptedOutput;
+		if (parsed["hosted_web_search_fallback"] === true && typeof parsed["text"] === "string") return `${HOSTED_WEB_SEARCH_FALLBACK_PREFIX}${parsed["text"]}`;
+		throw new Error("web_run search returned no encrypted output");
 	} catch (error) {
 		const stderr = error && typeof error === "object" && "stderr" in error ? String((error as { stderr?: unknown }).stderr ?? "") : "";
 		const message = stderr.trim() || (error instanceof Error ? error.message : String(error));
@@ -184,6 +193,67 @@ export async function executeCodexWebSearchFetch(params: Record<string, unknown>
 	return parseEncryptedOutput(body);
 }
 
+function hostedWebSearchPrompt(params: Record<string, unknown>): string {
+	return `Execute these web.run commands and return a concise, source-backed result. Commands JSON:
+${JSON.stringify(params)}`;
+}
+
+function parseHostedResponsesText(sseBody: string): string {
+	let finalText = "";
+	let deltaText = "";
+	for (const line of sseBody.split(/\r?\n/)) {
+		if (!line.startsWith("data: ")) continue;
+		const data = line.slice(6).trim();
+		if (!data || data === "[DONE]") continue;
+		let event: Record<string, unknown>;
+		try { event = JSON.parse(data) as Record<string, unknown>; } catch { continue; }
+		if (event["type"] === "response.output_text.delta" && typeof event["delta"] === "string") deltaText += event["delta"];
+		if (event["type"] === "response.output_text.done" && typeof event["text"] === "string") finalText = event["text"];
+	}
+	const text = (finalText || deltaText).trim();
+	if (!text) throw new Error("hosted web_search fallback returned no text output");
+	return text;
+}
+
+async function executeHostedCodexWebSearch(params: Record<string, unknown>, ctx: ExtensionContext, signal: AbortSignal | undefined | null, recentInput?: ResponseInput | undefined): Promise<string> {
+	const provider = await resolveCodexToolProvider(ctx);
+	const url = resolveCodexUrl(provider.baseUrl);
+	const headers = codexToolProviderHeaders(provider);
+	headers.set("OpenAI-Beta", "responses=experimental");
+	headers.set("accept", "text/event-stream");
+	attachChatGptCloudflareCookies(url, headers);
+	const input = recentInput?.length ? recentInput : [{ role: "user", content: [{ type: "input_text", text: hostedWebSearchPrompt(params) }] }];
+	const response = await fetch(url, {
+		method: "POST",
+		headers,
+		signal: signal ?? null,
+		body: JSON.stringify({
+			model: provider.model ?? DEFAULT_WEB_SEARCH_MODEL,
+			instructions: "You are backing the Codex web.run tool. Use web search when needed and answer with the result only.",
+			input,
+			tools: [{ type: "web_search", external_web_access: mergeSearchSettings(params["settings"])["external_web_access"] !== false }],
+			stream: true,
+			store: false,
+		}),
+	});
+	storeChatGptCloudflareCookies(url, response.headers);
+	const body = await response.text();
+	if (!response.ok) throw new Error(`hosted web_search fallback failed for \`${url}\`: HTTP ${response.status} ${body}`);
+	return parseHostedResponsesText(body);
+}
+
+export async function executeCodexWebSearchResult(params: Record<string, unknown>, ctx: ExtensionContext, signal: AbortSignal | undefined | null, options: WebSearchToolOptions = {}): Promise<CodexWebSearchExecution> {
+	try {
+		const encryptedOutput = await executeCodexWebSearch(params, ctx, signal, options);
+		if (encryptedOutput.startsWith(HOSTED_WEB_SEARCH_FALLBACK_PREFIX)) return { kind: "hosted", text: encryptedOutput.slice(HOSTED_WEB_SEARCH_FALLBACK_PREFIX.length) };
+		return { kind: "encrypted", text: "[encrypted web search output]", encryptedOutput };
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		if (!message.includes("Codex alpha/search endpoint unavailable")) throw error;
+		const text = await executeHostedCodexWebSearch(params, ctx, signal, options.getRecentInput?.());
+		return { kind: "hosted", text };
+	}
+}
 
 export function createWebSearchTool(name: string = WEB_SEARCH_TOOL_NAME, options: WebSearchToolOptions = {}): ToolDefinition<typeof WEB_SEARCH_PARAMETERS> {
 	return {
@@ -195,8 +265,9 @@ export function createWebSearchTool(name: string = WEB_SEARCH_TOOL_NAME, options
 		prepareArguments: (args) => args && typeof args === "object" ? args as Record<string, unknown> : {},
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
 			if (!supportsExecutableWebSearch(ctx.model)) throw new Error(WEB_SEARCH_UNSUPPORTED_MESSAGE);
-			const encryptedOutput = await executeCodexWebSearch(params, ctx, signal, options);
-			return { content: [{ type: "text", text: "[encrypted web search output]" }], details: { webRun: { encrypted_output: encryptedOutput } } };
+			const result = await executeCodexWebSearchResult(params, ctx, signal, options);
+			if (result.kind === "encrypted") return { content: [{ type: "text", text: result.text }], details: { webRun: { encrypted_output: result.encryptedOutput } } };
+			return { content: [{ type: "text", text: result.text }], details: { webRun: { hosted_web_search_fallback: true } } };
 		},
 		renderCall(_args, theme) { return new Text(`${theme.fg("toolTitle", theme.bold(name))}`, 0, 0); },
 		renderResult(result, { expanded }, theme) {
