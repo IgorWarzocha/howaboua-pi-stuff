@@ -18,5 +18,5 @@ test("web_run supports OpenAI Codex Responses models and keeps spark text-only",
 test("resolveAlphaSearchUrlFromBase treats bare server URI as app-server root", () => {
 	assert.equal(resolveAlphaSearchUrlFromBase("http://127.0.0.1:8061"), "http://127.0.0.1:8061/api/codex/alpha/search");
 	assert.equal(resolveAlphaSearchUrlFromBase("http://127.0.0.1:8061/api/codex"), "http://127.0.0.1:8061/api/codex/alpha/search");
-	assert.equal(resolveAlphaSearchUrlFromBase("https://chatgpt.com/backend-api/codex/responses"), "https://chatgpt.com/backend-api/codex/alpha/search");
+	assert.equal(resolveAlphaSearchUrlFromBase("https://chatgpt.com/backend-api/codex/responses"), "https://chatgpt.com/api/codex/alpha/search");
 });

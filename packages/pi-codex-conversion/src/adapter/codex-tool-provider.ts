@@ -16,6 +16,9 @@ export function resolveCodexApiProviderBaseUrl(modelBaseUrl: string | undefined)
 	const normalized = base.replace(/\/+$/, "");
 	try {
 		const url = new URL(normalized);
+		if (url.pathname === "/backend-api" || url.pathname === "/backend-api/codex" || url.pathname === "/backend-api/codex/responses") {
+			return `${url.origin}/api/codex`;
+		}
 		if (url.pathname === "" || url.pathname === "/") return `${normalized}/api/codex`;
 	} catch {
 		// Keep string-only fallback below.
