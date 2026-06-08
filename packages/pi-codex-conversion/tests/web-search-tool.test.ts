@@ -208,3 +208,27 @@ process.stdin.on("end", () => console.log(JSON.stringify({ output_text: "search 
 		else process.env["PI_CODEX_WEB_RUN_BIN"] = originalBin;
 	}
 });
+
+test("executeCodexWebSearch passes recent input so bare calls can infer a query", async () => {
+	const originalBin = process.env["PI_CODEX_WEB_RUN_BIN"];
+	try {
+		await withMockWebRun(`#!/usr/bin/env node
+let input = "";
+process.stdin.on("data", (chunk) => input += chunk);
+process.stdin.on("end", () => {
+  const parsed = JSON.parse(input);
+  const latest = parsed.input.at(-1).content[0].text;
+  console.log(JSON.stringify({ output_text: latest }));
+});
+`, async (webRunPath) => {
+			process.env["PI_CODEX_WEB_RUN_BIN"] = webRunPath;
+			const result = await executeCodexWebSearch({}, createContext(), undefined, {
+				getRecentInput: () => [{ type: "message", role: "user", content: [{ type: "input_text", text: "current news" }] }] as never,
+			});
+			assert.equal(result, "current news");
+		});
+	} finally {
+		if (originalBin === undefined) delete process.env["PI_CODEX_WEB_RUN_BIN"];
+		else process.env["PI_CODEX_WEB_RUN_BIN"] = originalBin;
+	}
+});
