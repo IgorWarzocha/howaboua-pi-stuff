@@ -438,38 +438,7 @@ fn search_prompt(args: &WebRunArgs) -> anyhow::Result<String> {
     {
         return Ok(format!("Find images and current sources for: {}", query.q));
     }
-    if let Some(input) = args.input.as_ref()
-        && let Some(text) = latest_user_text(input)
-    {
-        return Ok(text);
-    }
-    anyhow::bail!("web_run requires search_query, image_query, or recent user input")
-}
-
-fn latest_user_text(input: &serde_json::Value) -> Option<String> {
-    let items = input.as_array()?;
-    for item in items.iter().rev() {
-        if item.get("role").and_then(serde_json::Value::as_str) != Some("user") {
-            continue;
-        }
-        let content = item.get("content")?;
-        if let Some(text) = content.as_str().map(str::trim).filter(|text| !text.is_empty()) {
-            return Some(text.to_string());
-        }
-        let blocks = content.as_array()?;
-        let text = blocks
-            .iter()
-            .filter(|block| block.get("type").and_then(serde_json::Value::as_str) == Some("input_text"))
-            .filter_map(|block| block.get("text").and_then(serde_json::Value::as_str))
-            .map(str::trim)
-            .filter(|text| !text.is_empty())
-            .collect::<Vec<_>>()
-            .join("\n");
-        if !text.is_empty() {
-            return Some(text);
-        }
-    }
-    None
+    anyhow::bail!("web_run currently requires search_query or image_query for Responses web search")
 }
 
 fn build_responses_web_search_request(args: &WebRunArgs, model: String) -> anyhow::Result<serde_json::Value> {
