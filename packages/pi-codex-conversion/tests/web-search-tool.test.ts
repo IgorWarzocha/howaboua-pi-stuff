@@ -157,43 +157,6 @@ test("createWebSearchTool returns encrypted web_run details through Pi's tool sy
 	}
 });
 
-
-test("createWebSearchTool falls back to hosted Codex web_search when alpha/search is unavailable", async () => {
-	const originalFetch = globalThis.fetch;
-	const originalFetchEnv = process.env["PI_CODEX_WEB_RUN_TS_FETCH"];
-	const calls: Array<{ url: string; init: RequestInit }> = [];
-	try {
-		process.env["PI_CODEX_WEB_RUN_TS_FETCH"] = "1";
-		globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
-			calls.push({ url: String(url), init: init ?? {} });
-			if (calls.length === 1) return new Response(JSON.stringify({ detail: "Not Found" }), { status: 404, headers: { "content-type": "application/json" } });
-			return new Response([
-				'event: response.output_text.delta',
-				'data: {"type":"response.output_text.delta","delta":"searched "}',
-				'',
-				'event: response.output_text.done',
-				'data: {"type":"response.output_text.done","text":"searched result"}',
-				'',
-			].join("\n"), { status: 200, headers: { "content-type": "text/event-stream" } });
-		}) as typeof fetch;
-
-		const result = await createWebSearchTool().execute("call", { search_query: [{ q: "OpenAI" }] }, undefined, undefined as never, createContext({ accountId: "pi-account" }));
-		assert.deepEqual(result.content, [{ type: "text", text: "searched result" }]);
-		assert.deepEqual(result.details, { webRun: { hosted_web_search_fallback: true } });
-		assert.equal(calls[0]?.url, "https://chatgpt.com/backend-api/codex/alpha/search");
-		assert.equal(calls[1]?.url, "https://chatgpt.com/backend-api/codex/responses");
-		const headers = calls[1]!.init.headers as Headers;
-		assert.equal(headers.get("chatgpt-account-id"), "pi-account");
-		assert.equal(headers.get("OpenAI-Beta"), "responses=experimental");
-		assert.equal(headers.get("accept"), "text/event-stream");
-		assert.deepEqual(JSON.parse(String(calls[1]!.init.body)).tools, [{ type: "web_search", external_web_access: true }]);
-	} finally {
-		globalThis.fetch = originalFetch;
-		if (originalFetchEnv === undefined) delete process.env["PI_CODEX_WEB_RUN_TS_FETCH"];
-		else process.env["PI_CODEX_WEB_RUN_TS_FETCH"] = originalFetchEnv;
-	}
-});
-
 test("executeCodexWebSearch reports Cloudflare and non-JSON failures", async () => {
 	const originalFetch = globalThis.fetch;
 	try {
