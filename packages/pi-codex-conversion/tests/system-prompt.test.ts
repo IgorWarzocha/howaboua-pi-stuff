@@ -27,6 +27,19 @@ test("buildCodexSystemPrompt inserts fallback Guidelines when the base prompt ha
 	assert.match(prompt, /^Current date: 2026-03-14$/m);
 });
 
+test("buildCodexSystemPrompt documents all PATH tools in path mode", () => {
+	const prompt = buildCodexSystemPrompt(`Guidelines:
+- Be concise
+
+Current date: 2026-03-14`, { mode: "path" });
+
+	assert.match(prompt, /PATH tool accepted forms:/);
+	assert.match(prompt, /- apply_patch <<'PATCH'\n  \*\*\* Begin Patch\n  \.\.\.\n  \*\*\* End Patch\n  PATCH/);
+	assert.match(prompt, /- view_image '\{"path":"\/x\.png"\}'/);
+	assert.match(prompt, /- web_run '\{"search_query":\[\{"q":"\.\.\."\}\]\}'/);
+	assert.match(prompt, /- imagegen '\{"prompt":"\.\.\."\}'/);
+});
+
 test("buildCodexSystemPrompt injects skill inventory when Pi omitted it", () => {
 	const prompt = buildCodexSystemPrompt(
 		`You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.
