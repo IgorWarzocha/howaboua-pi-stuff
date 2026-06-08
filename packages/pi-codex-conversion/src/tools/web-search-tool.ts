@@ -127,10 +127,11 @@ function mergeSearchSettings(settings: unknown): Record<string, unknown> {
 
 export function buildCodexWebSearchRequest(params: Record<string, unknown>, provider: CodexToolProvider, recentInput?: ResponseInput | undefined): Record<string, unknown> {
 	const { model, input, settings, max_output_tokens, ...commands } = params;
+	const explicitInput = typeof input === "string" || Array.isArray(input) ? input : undefined;
 	return {
 		id: `pi-web-run-${randomUUID()}`,
 		model: typeof model === "string" && model.trim() ? model : provider.model ?? DEFAULT_WEB_SEARCH_MODEL,
-		...(typeof input === "string" ? { input } : recentInput ? { input: recentInput } : {}),
+		...(explicitInput !== undefined ? { input: explicitInput } : recentInput ? { input: recentInput } : {}),
 		commands,
 		settings: mergeSearchSettings(settings),
 		...(typeof max_output_tokens === "number" ? { max_output_tokens } : {}),

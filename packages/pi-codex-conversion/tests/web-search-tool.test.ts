@@ -84,6 +84,14 @@ test("buildCodexWebSearchRequest includes recent input when no explicit input is
 	assert.equal(request["input"], recentInput);
 });
 
+test("buildCodexWebSearchRequest preserves explicit structured input", () => {
+	const provider = { baseUrl: "https://chatgpt.com/backend-api/codex", model: "gpt-5.4-mini", token: fakeJwt("acct"), accountId: "acct" };
+	const explicitInput = [{ type: "message", role: "user", content: [{ type: "input_text", text: "explicit" }] }];
+	const recentInput = [{ role: "user", content: [{ type: "input_text", text: "recent" }] }];
+	const request = buildCodexWebSearchRequest({ input: explicitInput, search_query: [{ q: "OpenAI" }] }, provider, recentInput as never);
+	assert.equal(request["input"], explicitInput);
+});
+
 test("executeCodexWebSearch uses Pi-owned model auth and Codex-compatible headers", async () => {
 	const originalFetch = globalThis.fetch;
 	const originalEnv = { CODEX_HOME: process.env["CODEX_HOME"], PI_CODEX_ACCESS_TOKEN: process.env["PI_CODEX_ACCESS_TOKEN"], PI_CODEX_ACCOUNT_ID: process.env["PI_CODEX_ACCOUNT_ID"] };
