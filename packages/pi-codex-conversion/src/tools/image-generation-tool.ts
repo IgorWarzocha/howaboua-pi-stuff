@@ -13,18 +13,12 @@ const IMAGE_GENERATION_PARAMETERS = Type.Object({
 	prompt: Type.String({ description: "Image generation or edit prompt." }),
 	action: Type.Optional(Type.Union([Type.Literal("generate"), Type.Literal("edit")], { description: "Defaults to generate." })),
 	images: Type.Optional(Type.Array(Type.String(), { description: "For edits: image paths, data URLs, or HTTPS URLs." })),
-	background: Type.Optional(Type.Union([Type.Literal("transparent"), Type.Literal("opaque"), Type.Literal("auto")])),
-	quality: Type.Optional(Type.Union([Type.Literal("low"), Type.Literal("medium"), Type.Literal("high"), Type.Literal("auto")])),
-	size: Type.Optional(Type.String()),
 });
 
 type ImagegenArgs = {
 	prompt: string;
 	action?: "generate" | "edit" | undefined;
 	images?: string[] | undefined;
-	background?: "transparent" | "opaque" | "auto" | undefined;
-	quality?: "low" | "medium" | "high" | "auto" | undefined;
-	size?: string | undefined;
 };
 
 type SavedImage = { path: string; absolute_path: string; latest_path?: string; latest_absolute_path?: string };

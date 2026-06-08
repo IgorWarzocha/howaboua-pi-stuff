@@ -52,12 +52,6 @@ struct ImagegenArgs {
     #[serde(default)]
     model: Option<String>,
     #[serde(default)]
-    background: Option<ImageBackground>,
-    #[serde(default)]
-    quality: Option<ImageQuality>,
-    #[serde(default)]
-    size: Option<String>,
-    #[serde(default)]
     cwd: Option<String>,
 }
 
@@ -252,19 +246,10 @@ fn response_input(args: &ImagegenArgs) -> anyhow::Result<serde_json::Value> {
 
 fn build_request(args: &ImagegenArgs) -> anyhow::Result<serde_json::Value> {
     let model = args.model.clone().unwrap_or_else(|| "gpt-5.4-mini".to_string());
-    let mut tool = json!({
+    let tool = json!({
         "type": "image_generation",
         "output_format": "png",
     });
-    if let Some(background) = args.background {
-        tool["background"] = json!(background);
-    }
-    if let Some(quality) = args.quality {
-        tool["quality"] = json!(quality);
-    }
-    if let Some(size) = &args.size {
-        tool["size"] = json!(size);
-    }
     Ok(json!({
         "model": model,
         "instructions": "Use image_generation to satisfy the request. Do not answer with text only.",

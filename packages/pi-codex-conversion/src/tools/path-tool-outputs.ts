@@ -199,8 +199,6 @@ export function imageContentsFromPathImagegenOutput(output: PathImagegenOutput):
 export function formatPathImagegenOutput(output: PathImagegenOutput): string {
 	const lines = [`Generated image: ${output.path}`];
 	if (output.latest_path) lines.push(`Latest: ${output.latest_path}`);
-	const metadata = [output.size, output.quality, output.background].filter((item): item is string => typeof item === "string" && item.length > 0);
-	if (metadata.length) lines.push(`Info: ${metadata.join(", ")}`);
 	return lines.join("\n");
 }
 
