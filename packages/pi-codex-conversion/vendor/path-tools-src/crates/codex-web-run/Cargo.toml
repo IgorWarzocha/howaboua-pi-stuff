@@ -13,5 +13,6 @@ anyhow = { workspace = true }
 reqwest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+os_info = { workspace = true }
 tokio = { workspace = true }
 uuid = { workspace = true }

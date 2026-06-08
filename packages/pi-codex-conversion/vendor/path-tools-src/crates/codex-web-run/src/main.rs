@@ -379,11 +379,12 @@ fn codex_user_agent(originator: &str) -> String {
                 .filter(|value| !value.trim().is_empty())
         })
         .unwrap_or_else(|| "unknown".to_string());
+    let os_info = os_info::get();
     format!(
         "{originator}/0.0.0 ({} {}; {}) {terminal}",
-        std::env::consts::OS,
-        "unknown",
-        std::env::consts::ARCH
+        os_info.os_type(),
+        os_info.version(),
+        os_info.architecture().unwrap_or("unknown")
     )
 }
 
