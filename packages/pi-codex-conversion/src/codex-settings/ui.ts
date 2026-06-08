@@ -271,7 +271,7 @@ function formatUsageLines(theme: Theme, usageState: CodexUsageSnapshot | { error
 		const secondary = usageColumns(limit.secondary);
 		return [limit.limitName ?? limit.limitId, primary.bar, primary.percent, primary.reset, secondary.bar, secondary.percent, secondary.reset];
 	});
-	const headers = ["Limit", "5h", "", "Reset", "Weekly", "", "Reset"];
+	const headers = ["Limit", "5h left", "", "Reset", "Weekly left", "", "Reset"];
 	const widths = columnWidths([headers, ...rows]);
 	return [
 		`  ${theme.bold(`Codex usage${usageState.planType ? ` · ${usageState.planType}` : ""}`)}${loading ? theme.fg("dim", "  refreshing…") : ""}`,
@@ -301,7 +301,7 @@ function formatUsageRow(row: string[], widths: number[]): string {
 
 function usageColumns(window: { usedPercent?: number | undefined; windowMinutes?: number | undefined; resetsAt?: number | undefined } | undefined): { bar: string; percent: string; reset: string } {
 	if (!window) return { bar: "—", percent: "", reset: "" };
-	const percent = window.usedPercent === undefined ? undefined : Math.max(0, Math.min(100, window.usedPercent));
+	const percent = window.usedPercent === undefined ? undefined : 100 - Math.max(0, Math.min(100, window.usedPercent));
 	return {
 		bar: bar(percent),
 		percent: percent === undefined ? "?%" : `${Math.round(percent)}%`,

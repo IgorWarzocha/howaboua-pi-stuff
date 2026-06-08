@@ -135,9 +135,10 @@ function formatReset(timestampSeconds: number | undefined): string {
 
 function formatWindow(label: string, window: CodexUsageWindow | undefined): string | undefined {
 	if (!window) return undefined;
-	const percent = window.usedPercent === undefined ? "?" : `${Math.round(window.usedPercent)}%`;
+	const remainingPercent = window.usedPercent === undefined ? undefined : 100 - Math.max(0, Math.min(100, window.usedPercent));
+	const percent = remainingPercent === undefined ? "?" : `${Math.round(remainingPercent)}%`;
 	const span = window.windowMinutes ? `${Math.round(window.windowMinutes)}m` : "window";
-	return `${label}: ${percent} used (${span}, ${formatReset(window.resetsAt)})`;
+	return `${label}: ${percent} left (${span}, ${formatReset(window.resetsAt)})`;
 }
 
 export function formatCodexUsage(snapshot: CodexUsageSnapshot): string {
