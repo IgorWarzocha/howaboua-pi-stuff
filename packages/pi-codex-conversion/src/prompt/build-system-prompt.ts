@@ -25,7 +25,6 @@ const PATH_CODEX_GUIDELINES = [
 	"Use tty=true for dev servers, watchers, REPLs, and prompts.",
 	"Use shell apply_patch for text-file changes, including creates/deletes/moves; group related multi-file edits into one patch.",
 	"Prefer apply_patch over ad-hoc file rewrite commands.",
-	"PATH tools use one JSON string arg. Parameters accepted:\n- view_image '{\"path\":\"/x.png\"}'",
 	"Listed PATH tools are available; do not check with command -v, which, help, or version.",
 	"For PATH JSON with quotes/newlines, use stdin: tool <<'JSON' ... JSON.",
 	"Use `write_stdin` only for running `exec_command` sessions; poll sparingly.",
@@ -41,13 +40,13 @@ export interface CodexPromptToolOptions {
 function buildCodexGuidelines(mode: "normal" | "path" = "normal", tools: CodexPromptToolOptions = {}): string[] {
 	if (mode !== "path") return [...NORMAL_CODEX_GUIDELINES];
 	const guidelines = [...PATH_CODEX_GUIDELINES];
-	const examples = [];
+	const examples = [`- view_image '{"path":"/x.png"}'`];
 	if (tools.webRun !== false) examples.push(`- web.run '{"search_query":[{"q":"..."}]}'`);
 	if (tools.imageGeneration !== false) {
 		examples.push(`- image_gen.imagegen '{"prompt":"..."}'`);
 		examples.push(`- image_gen.imagegen '{"action":"edit","prompt":"...","images":["https://... or /x.png"]}'`);
 	}
-	if (examples.length) guidelines.splice(5, 0, `Optional PATH tools:\n${examples.join("\n")}`);
+	guidelines.splice(4, 0, `PATH tools use one JSON string arg. Parameters accepted:\n${examples.join("\n")}`);
 	return guidelines;
 }
 
