@@ -1,15 +1,38 @@
-#!/bin/sh
-SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-ROOT_DIR=$(dirname -- "$SCRIPT_DIR")
-PLATFORM=$(node -e 'process.stdout.write(process.platform)')
-ARCH=$(node -e 'process.stdout.write(process.arch)')
-EXE=imagegen
-if [ "$PLATFORM" = "win32" ]; then EXE=imagegen.exe; fi
-BINARY="$ROOT_DIR/src/tools/imagegen/bin/$PLATFORM-$ARCH/$EXE"
-if [ ! -f "$BINARY" ]; then
-  echo "imagegen binary is not bundled for $PLATFORM-$ARCH." >&2
-  echo "Expected bundled binaries under src/tools/imagegen/bin/<platform>-<arch>/." >&2
-  exit 127
-fi
-chmod +x "$BINARY" 2>/dev/null || true
-exec "$BINARY" "$@"
+#!/usr/bin/env node
+import { spawnSync } from "node:child_process";
+import { chmodSync, existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const root = dirname(dirname(fileURLToPath(import.meta.url)));
+const platform = process.platform;
+const arch = process.arch;
+const exe = platform === "win32" ? "imagegen.exe" : "imagegen";
+const platformArch = `${platform}-${arch}`;
+const binary = join(root, "src", "tools", "imagegen", "bin", platformArch, exe);
+
+if (!existsSync(binary)) {
+  console.error(`imagegen binary is not bundled for ${platformArch}.`);
+  console.error("Expected bundled binaries under src/tools/imagegen/bin/<platform>-<arch>/.");
+  process.exit(127);
+}
+
+if (platform !== "win32") {
+  try {
+    chmodSync(binary, 0o755);
+  } catch {
+    // Best effort. If chmod fails, spawn below will report the real error.
+  }
+}
+
+const result = spawnSync(binary, process.argv.slice(2), {
+  stdio: "inherit",
+  env: process.env,
+  cwd: process.cwd(),
+});
+
+if (result.error) {
+  console.error(result.error.message);
+  process.exit(1);
+}
+process.exit(result.status ?? 0);

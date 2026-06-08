@@ -2,12 +2,9 @@ import { existsSync } from "node:fs";
 import { dirname, delimiter, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const PATH_TOOL_WRAPPERS = [
-	process.platform === "win32" ? "apply_patch.cmd" : "apply_patch",
-	"view_image",
-	"web_run",
-	"imagegen",
-];
+const PATH_TOOL_WRAPPERS = ["apply_patch", "view_image", "web_run", "imagegen"].map((name) =>
+	process.platform === "win32" ? `${name}.cmd` : name,
+);
 
 const TOOL_DIRS: Record<string, string> = {
 	exec_bridge: "exec",
