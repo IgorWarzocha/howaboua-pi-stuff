@@ -75,6 +75,16 @@ test("syncAdapter leaves PATH tools to shell for configured custom providers", (
 	assert.deepEqual(pi.activeTools(), ["exec_command", "write_stdin", "parallel"]);
 });
 
+test("syncAdapter strips normal adapter tools when PATH mode is enabled", () => {
+	const pi = createToolHarness(["exec_command", "write_stdin", "apply_patch", "web.run", "image_generation", "view_image", "parallel"]);
+	const ctx = createContext({ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5" });
+	const state = createAdapterState({ mode: "path" });
+
+	syncAdapter(pi as never, ctx as never, state);
+
+	assert.deepEqual(pi.activeTools(), ["exec_command", "write_stdin", "parallel"]);
+});
+
 test("normalizeProviderList trims, lowercases, dedupes, and ignores invalid entries", () => {
 	assert.deepEqual(normalizeProviderList([" My-Provider ", "my-provider", "", 42]), ["my-provider"]);
 });

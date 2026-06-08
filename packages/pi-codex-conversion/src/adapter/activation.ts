@@ -140,7 +140,7 @@ function getAdapterToolNames(ctx: ExtensionContext, config: CodexConversionConfi
 }
 
 function getAdapterOwnedToolNames(config: CodexConversionConfig): string[] {
-	if (config.mode === "path") return [...SHELL_ADAPTER_TOOL_NAMES];
+	if (config.mode === "path") return [...ADAPTER_TOOL_NAMES];
 	return [
 		...SHELL_ADAPTER_TOOL_NAMES,
 		APPLY_PATCH_TOOL_NAME,
