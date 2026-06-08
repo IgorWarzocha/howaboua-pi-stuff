@@ -11,6 +11,8 @@ export interface CodexToolProvider {
 	accountId: string;
 }
 
+const CODEX_ORIGINATOR = "codex_cli_rs";
+
 export function resolveCodexApiProviderBaseUrl(modelBaseUrl: string | undefined): string {
 	const base = modelBaseUrl?.trim() || `${DEFAULT_CODEX_BASE_URL}/codex`;
 	const normalized = base.replace(/\/+$/, "");
@@ -47,6 +49,25 @@ export async function resolveCodexToolProvider(ctx: ExtensionContext): Promise<C
 		token,
 		accountId: auth.headers?.["chatgpt-account-id"] ?? extractAccountId(token),
 	};
+}
+
+export function codexToolProviderHeaders(provider: CodexToolProvider): Headers {
+	const headers = new Headers();
+	headers.set("Authorization", `Bearer ${provider.token}`);
+	headers.set("chatgpt-account-id", provider.accountId);
+	headers.set("originator", CODEX_ORIGINATOR);
+	headers.set("User-Agent", codexWebRunUserAgent(CODEX_ORIGINATOR));
+	headers.set("content-type", "application/json");
+	headers.set("accept", "application/json");
+	return headers;
+}
+
+export function codexWebRunUserAgent(originator: string = CODEX_ORIGINATOR): string {
+	const platform = process.platform === "darwin" ? "Mac OS" : process.platform === "win32" ? "Windows" : process.platform === "linux" ? "Linux" : process.platform;
+	const release = "unknown";
+	const arch = process.arch === "arm64" ? "arm64" : process.arch;
+	const terminal = process.env["TERM_PROGRAM"]?.trim() || process.env["TERM"]?.trim() || "unknown";
+	return `${originator}/0.0.0 (${platform} ${release}; ${arch}) ${terminal}`;
 }
 
 export function codexToolProviderEnv(provider: CodexToolProvider): NodeJS.ProcessEnv {

@@ -297,15 +297,26 @@ async fn main() -> anyhow::Result<()> {
         .with_context(|| format!("web_run alpha/search request failed for `{url}`"))?;
 
     let status = response.status();
+    let cloudflare_mitigated = response
+        .headers()
+        .get("cf-mitigated")
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.eq_ignore_ascii_case("challenge"));
+    let cloudflare_server = response
+        .headers()
+        .get("server")
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.eq_ignore_ascii_case("cloudflare"));
     let body = response.text().await.context("failed to read web_run response")?;
+    let cloudflare_challenge = cloudflare_mitigated || (cloudflare_server && body.trim_start().starts_with("<html"));
     if !status.is_success() {
-        if status.as_u16() == 403 && body.to_ascii_lowercase().contains("cloudflare") {
+        if status.as_u16() == 403 && (cloudflare_challenge || body.to_ascii_lowercase().contains("cloudflare")) {
             anyhow::bail!("web_run alpha/search failed for `{url}`: HTTP 403 Cloudflare challenge");
         }
         anyhow::bail!("web_run alpha/search failed for `{url}`: HTTP {status} {body}");
     }
     if !body.trim_start().starts_with('{') {
-        if body.to_ascii_lowercase().contains("cloudflare") {
+        if cloudflare_challenge || body.to_ascii_lowercase().contains("cloudflare") {
             anyhow::bail!("web_run alpha/search failed for `{url}`: Cloudflare challenge");
         }
         anyhow::bail!("web_run alpha/search failed for `{url}`: expected JSON response");
