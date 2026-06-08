@@ -31,7 +31,7 @@ export type { CachedWebSocketContinuationState, CachedWebSocketRequestBodyResult
 
 export function getEffectiveCodexTransport(
 	transport: Transport | undefined,
-	config: Pick<CodexConversionConfig, "forceCachedWebSockets"> | undefined,
+	config: Pick<CodexConversionConfig["openai"], "forceCachedWebSockets"> | undefined,
 ): Transport {
 	const configuredTransport = transport ?? "auto";
 	if (config?.forceCachedWebSockets === false) return configuredTransport;
@@ -45,7 +45,7 @@ function createCodexStream<TApi extends Api>(
 	options: CodexProviderStreamOptions | undefined,
 	deps: {
 		getCurrentCwd: () => string;
-		getConfig?: () => Pick<CodexConversionConfig, "forceCachedWebSockets"> | undefined;
+		getConfig?: () => Pick<CodexConversionConfig["openai"], "forceCachedWebSockets"> | undefined;
 		onStreamSettled?: () => void | undefined;
 	},
 ): AssistantMessageEventStream {
@@ -210,7 +210,7 @@ function createCodexStream<TApi extends Api>(
 	return stream;
 }
 
-export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: { getCurrentCwd: () => string; getConfig?: () => Pick<CodexConversionConfig, "forceCachedWebSockets"> | undefined }): void {
+export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: { getCurrentCwd: () => string; getConfig?: () => Pick<CodexConversionConfig["openai"], "forceCachedWebSockets"> | undefined }): void {
 	pi.registerProvider("openai-codex", {
 		api: "openai-codex-responses",
 		streamSimple: (model, context, streamOptions) => createCodexStream(model, context, streamOptions, {

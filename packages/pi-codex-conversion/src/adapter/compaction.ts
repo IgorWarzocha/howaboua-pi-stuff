@@ -70,7 +70,7 @@ function buildCompactionTools(pi: ExtensionAPI, ctx: ExtensionContext, state: Ad
 
 function buildCompactionReasoning(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState, compactionModel: string): NativeCompactionRequestOptions["reasoning"] {
 	const model = ctx.model;
-	const level = state.config.compactionReasoning === "current" ? pi.getThinkingLevel() : state.config.compactionReasoning;
+	const level = state.config.openai.compactionReasoning === "current" ? pi.getThinkingLevel() : state.config.openai.compactionReasoning;
 	if (!model?.reasoning || level === "off") return undefined;
 	const clampedLevel = clampThinkingLevel(model, level as ModelThinkingLevel);
 	const rawEffort = model.thinkingLevelMap?.[clampedLevel] ?? clampedLevel;
@@ -102,8 +102,8 @@ function buildCompactionRequestOptions(pi: ExtensionAPI, ctx: ExtensionContext, 
 	return {
 		parallel_tool_calls: true,
 		prompt_cache_key: clampOpenAIPromptCacheKey(ctx.sessionManager.getSessionId()),
-		...(isEffectiveOpenAICodexContext(ctx, state.config) && state.config.fast ? { service_tier: "priority" } : {}),
-		text: { verbosity: state.config.verbosity },
+		...(isEffectiveOpenAICodexContext(ctx, state.config) && state.config.openai.fast ? { service_tier: "priority" } : {}),
+		text: { verbosity: state.config.openai.verbosity },
 		...(tools ? { tools } : {}),
 		...(reasoning ? { reasoning } : {}),
 	};
@@ -158,11 +158,11 @@ function isPiCompactionSummarizationPayload(payload: ResponsesCompatibleRequestP
 }
 
 function getSupportedNativeCompactionProviders(state: AdapterState): string[] {
-	return [...new Set([...DEFAULT_SUPPORTED_PROVIDERS, ...state.config.adapterProviders])];
+	return [...new Set([...DEFAULT_SUPPORTED_PROVIDERS, ...state.config.scope.additionalProviders])];
 }
 
 export async function handleCodexSessionBeforeCompact(event: SessionBeforeCompactEvent, ctx: ExtensionContext, state: AdapterState, pi: ExtensionAPI) {
-	if (!state.config.responsesCompaction || !shouldUseCodexAdapter(ctx, state.config)) {
+	if (!state.config.compaction.responsesCompaction || !shouldUseCodexAdapter(ctx, state.config)) {
 		return undefined;
 	}
 
@@ -192,7 +192,7 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 	}
 
 	const runtime = resolution.runtime;
-	const compactionModel = state.config.compactionModel;
+	const compactionModel = state.config.openai.compactionModel;
 	const compactionTargetModel = { ...runtime.currentModel, id: compactionModel };
 	const requestOptions = buildCompactionRequestOptions(pi, ctx, state, compactionModel);
 	const branchEntries = ctx.sessionManager.getBranch();
@@ -300,7 +300,7 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 }
 
 export async function rewriteCodexCompactedProviderRequest(payload: unknown, ctx: ExtensionContext, state: AdapterState): Promise<unknown | undefined> {
-	if (!state.config.responsesCompaction || !shouldUseCodexAdapter(ctx, state.config) || (!isEffectiveOpenAICodexContext(ctx, state.config) && !isResponsesContext(ctx))) return undefined;
+	if (!state.config.compaction.responsesCompaction || !shouldUseCodexAdapter(ctx, state.config) || (!isEffectiveOpenAICodexContext(ctx, state.config) && !isResponsesContext(ctx))) return undefined;
 	const resolution = await resolveNativeCompactionEnvironment(ctx, { enabled: true, supportedProviders: getSupportedNativeCompactionProviders(state) }, payload);
 	if (!resolution.ok) return undefined;
 	const runtime = resolution.runtime;

@@ -11,18 +11,35 @@ export interface StructuredPromptSkill {
 	disableModelInvocation?: boolean | undefined;
 }
 
-const CODEX_GUIDELINES = [
+const BASE_CODEX_GUIDELINES = [
 	"Use `exec_command` for shell commands, file inspection, builds, and tests; prefer `rg` / `rg --files` for discovery and focused commands over truncation.",
 	"Use tty=true for dev servers, watchers, REPLs, and prompts.",
 	"Use shell apply_patch for text-file changes, including creates/deletes/moves; group related multi-file edits into one patch.",
 	"Prefer apply_patch over ad-hoc file rewrite commands.",
-	"PATH tools use one JSON string arg. Parameters accepted:\n- view_image '{\"path\":\"/x.png\"}'\n- web.run '{\"search_query\":[{\"q\":\"...\"}]}'\n- image_gen.imagegen '{\"prompt\":\"...\"}'\n- image_gen.imagegen '{\"action\":\"edit\",\"prompt\":\"...\",\"images\":[\"https://... or /x.png\"]}'",
+	"PATH tools use one JSON string arg. Parameters accepted:\n- view_image '{\"path\":\"/x.png\"}'",
 	"Listed PATH tools are available; do not check with command -v, which, help, or version.",
 	"For PATH JSON with quotes/newlines, use stdin: tool <<'JSON' ... JSON.",
 	"Use `write_stdin` only for running `exec_command` sessions; poll sparingly.",
 	"Chain short dependent shell commands in one exec_command with &&.",
 	"Run independent exec_command calls in parallel when practical.",
 ];
+
+export interface CodexPromptToolOptions {
+	webRun?: boolean | undefined;
+	imageGeneration?: boolean | undefined;
+}
+
+function buildCodexGuidelines(tools: CodexPromptToolOptions = {}): string[] {
+	const guidelines = [...BASE_CODEX_GUIDELINES];
+	const examples = [];
+	if (tools.webRun !== false) examples.push(`- web.run '{"search_query":[{"q":"..."}]}'`);
+	if (tools.imageGeneration !== false) {
+		examples.push(`- image_gen.imagegen '{"prompt":"..."}'`);
+		examples.push(`- image_gen.imagegen '{"action":"edit","prompt":"...","images":["https://... or /x.png"]}'`);
+	}
+	if (examples.length) guidelines.splice(5, 0, `Optional PATH tools:\n${examples.join("\n")}`);
+	return guidelines;
+}
 
 function insertBeforeTrailingContext(prompt: string, section: string): string {
 	const currentDateIndex = prompt.lastIndexOf("\nCurrent date:");
@@ -116,10 +133,10 @@ function injectSkills(prompt: string, skills: PromptSkill[]): string {
 	return insertBeforeTrailingContext(prompt, lines.join("\n"));
 }
 
-function injectGuidelines(prompt: string): string {
+function injectGuidelines(prompt: string, tools?: CodexPromptToolOptions): string {
 	const match = prompt.match(/(^Guidelines:\n)([\s\S]*?)(\n\n(?=Pi documentation\b|# Project Context|# Skills|Current date:))/m);
 	if (!match || match.index === undefined) {
-		const fallbackSection = `Guidelines:\n${CODEX_GUIDELINES.map((line) => `- ${line}`).join("\n")}`;
+		const fallbackSection = `Guidelines:\n${buildCodexGuidelines(tools).map((line) => `- ${line}`).join("\n")}`;
 		return insertBeforeTrailingContext(prompt, fallbackSection);
 	}
 
@@ -129,7 +146,7 @@ function injectGuidelines(prompt: string): string {
 		.map((line) => line.trim())
 		.filter((line) => line.startsWith("- "));
 	const existing = new Set(existingLines.map((line) => line.slice(2)));
-	const additions = CODEX_GUIDELINES.filter((line) => !existing.has(line)).map((line) => `- ${line}`);
+	const additions = buildCodexGuidelines(tools).filter((line) => !existing.has(line)).map((line) => `- ${line}`);
 	if (additions.length === 0) {
 		return prompt;
 	}
@@ -139,6 +156,6 @@ function injectGuidelines(prompt: string): string {
 	return `${prompt.slice(0, match.index)}${replacement}${prompt.slice(match.index + match[0]!.length)}`;
 }
 
-export function buildCodexSystemPrompt(basePrompt: string, options: { skills?: PromptSkill[] | undefined; shell?: string | undefined } = {}): string {
-	return injectShell(injectSkills(injectGuidelines(basePrompt), options.skills ?? []), options.shell);
+export function buildCodexSystemPrompt(basePrompt: string, options: { skills?: PromptSkill[] | undefined; shell?: string | undefined; tools?: CodexPromptToolOptions | undefined } = {}): string {
+	return injectShell(injectSkills(injectGuidelines(basePrompt, options.tools), options.skills ?? []), options.shell);
 }

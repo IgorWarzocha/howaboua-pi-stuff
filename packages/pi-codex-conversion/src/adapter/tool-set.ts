@@ -1,10 +1,10 @@
 export const STATUS_KEY = "codex-adapter";
 export const STATUS_TEXT = "\u001b[38;2;0;76;255mCodex adapter\u001b[0m";
 
-export function buildStatusText(options: { verbosity?: string | undefined; fast: boolean; useOnAllModels: boolean; useAdapterProviders?: boolean | undefined; compaction?: { enabled: boolean; model: string; reasoning: string } | undefined }): string {
+export function buildStatusText(options: { verbosity?: string | undefined; fast: boolean; useOnAllModels: boolean; additionalProvider?: boolean | undefined; compaction?: { enabled: boolean; model: string; reasoning: string } | undefined }): string {
 	const extras = [
 		options.useOnAllModels ? "all models" : undefined,
-		options.useAdapterProviders ? "codex proxy" : undefined,
+		options.additionalProvider ? "additional provider" : undefined,
 		options.compaction?.enabled ? `compact ${options.compaction.model}/${options.compaction.reasoning}` : undefined,
 		options.fast ? "fast" : undefined,
 	]

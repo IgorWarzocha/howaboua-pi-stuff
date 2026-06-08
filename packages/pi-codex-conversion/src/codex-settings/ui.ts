@@ -23,9 +23,9 @@ export interface CodexSettingsScreenOptions {
 	onRefreshUsage?: () => Promise<CodexUsageSnapshot>;
 }
 
-type SettingsTab = "general" | "compaction" | "usage" | "overrides" | "about";
+type SettingsTab = "general" | "tools" | "openai" | "usage" | "about";
 
-const TAB_ORDER: readonly SettingsTab[] = ["general", "compaction", "usage", "overrides", "about"];
+const TAB_ORDER: readonly SettingsTab[] = ["general", "tools", "openai", "usage", "about"];
 
 class TextSettingSubmenu extends Container implements Focusable {
 	private input: Input;
@@ -113,8 +113,8 @@ export async function openCodexSettingsScreen(ctx: ExtensionContext, options: Co
 					rule(width, theme, "accent"),
 					formatTabs(activeTab, theme),
 					rule(width, theme, "borderMuted"),
-					...(activeTab === "compaction" ? formatCompactionNotes(theme) : []),
-					...(activeTab === "overrides" ? formatOverridesNotes(theme) : []),
+					...(activeTab === "tools" ? formatToolsNotes(theme) : []),
+					...(activeTab === "openai" ? formatOpenAINotes(theme) : []),
 					...(activeTab === "usage" ? formatUsageLines(theme, usageState, usageLoading) : []),
 					...(activeTab === "about" ? formatLinks(theme) : []),
 					"",
@@ -140,17 +140,18 @@ export async function openCodexSettingsScreen(ctx: ExtensionContext, options: Co
 	});
 }
 
-function formatCompactionNotes(theme: Theme): string[] {
+function formatToolsNotes(theme: Theme): string[] {
 	return [
-		theme.fg("dim", "  Beta: native OpenAI Responses compaction is experimental. Please report any issues."),
-		theme.fg("error", "  Warning: do not turn this off or switch providers mid-session; old context may be much less reliable."),
-		theme.fg("warning", "  If native compaction recovery fails, go back below 90% context and compact from there."),
+		theme.fg("dim", "  Required in adapter scope: exec_command, write_stdin, apply_patch, view_image."),
+		theme.fg("dim", "  Optional toggles control prompt advertising, not whether binaries exist on PATH."),
 	];
 }
 
-function formatOverridesNotes(theme: Theme): string[] {
+function formatOpenAINotes(theme: Theme): string[] {
 	return [
-		theme.fg("dim", "  Advanced tool-surface overrides."),
+		theme.fg("dim", "  Beta: native OpenAI Responses compaction is experimental. Please report any issues."),
+		theme.fg("error", "  Warning: do not turn compaction off or switch providers mid-session; old context may be much less reliable."),
+		theme.fg("warning", "  If native compaction recovery fails, go back below 90% context and compact from there."),
 	];
 }
 
@@ -190,51 +191,59 @@ function createSettingsList(
 function buildItems(tab: SettingsTab, draft: CodexConversionConfig, theme: Theme): SettingItem[] {
 	if (tab === "usage" || tab === "about") return [];
 
-	if (tab === "compaction") {
+	if (tab === "tools") {
 		return [
-			{ id: "responsesCompaction", label: "Responses compaction", currentValue: (draft.responsesCompaction ?? false) ? "on" : "off", values: ["off", "on"] },
-			{ id: "compactionModel", label: "Model", currentValue: draft.compactionModel, values: [...COMPACTION_MODELS] },
-			{ id: "compactionReasoning", label: "Reasoning", currentValue: draft.compactionReasoning, values: [...COMPACTION_REASONING_LEVELS] },
+			{ id: "shellCommands", label: "Shell commands", currentValue: "required", values: ["required"] },
+			{ id: "applyPatch", label: "Apply patch", currentValue: "required", values: ["required"] },
+			{ id: "viewImage", label: "View image", currentValue: "required", values: ["required"] },
+			{ id: "webRun", label: "Web search", currentValue: draft.tools.webRun ? "on" : "off", values: ["off", "on"] },
+			{ id: "imageGeneration", label: "Image generation", currentValue: draft.tools.imageGeneration ? "on" : "off", values: ["off", "on"] },
+			{ id: "applyPatchForStandardGpt", label: "Apply patch for standard GPT", currentValue: draft.tools.applyPatchForStandardGpt ? "on" : "off", values: ["off", "on"] },
 		];
 	}
 
-	if (tab === "overrides") {
+	if (tab === "openai") {
 		return [
-			{ id: "useAdapterProviders", label: "Codex proxy", currentValue: draft.useAdapterProviders ? "on" : "off", values: ["off", "on"] },
-			{
-				id: "adapterProviders",
-				label: "Proxy providers",
-				currentValue: formatProviderList(draft.adapterProviders),
-				submenu: (currentValue, done) => new TextSettingSubmenu("Proxy providers", "Comma-separated Pi provider ids that should use the Codex adapter.", currentValue, (value) => done(formatProviderList(normalizeProviderListFromText(value))), () => done(), theme),
-			},
-			{ id: "editConfig", label: "Edit config", currentValue: editorCommand() ? "Opens in default editor (please /reload)" : "Set $EDITOR", values: editorCommand() ? ["Open"] : ["Unavailable"] },
+			{ id: "fast", label: "Fast mode", currentValue: draft.openai.fast ? "on" : "off", values: ["off", "on"] },
+			{ id: "verbosity", label: "Verbosity", currentValue: draft.openai.verbosity, values: ["low", "medium", "high"] },
+			{ id: "forceCachedWebSockets", label: "Cached websocket upgrade", currentValue: draft.openai.forceCachedWebSockets ? "on" : "off", values: ["off", "on"] },
+			{ id: "compactionModel", label: "Compaction model", currentValue: draft.openai.compactionModel, values: [...COMPACTION_MODELS] },
+			{ id: "compactionReasoning", label: "Compaction reasoning", currentValue: draft.openai.compactionReasoning, values: [...COMPACTION_REASONING_LEVELS] },
 		];
 	}
 
 	return [
-		{ id: "useOnAllModels", label: "Use on all models", currentValue: draft.useOnAllModels ? "on" : "off", values: ["off", "on"] },
-		{ id: "statusLine", label: "Statusline", currentValue: draft.statusLine ? "on" : "off", values: ["off", "on"] },
-		{ id: "backgroundShellWidget", label: "Background shells widget", currentValue: draft.backgroundShellWidget ? "on" : "off", values: ["off", "on"] },
-		{ id: "fast", label: "Fast mode", currentValue: draft.fast ? "on" : "off", values: ["off", "on"] },
-		{ id: "forceCachedWebSockets", label: "Codex cached websocket upgrade", currentValue: draft.forceCachedWebSockets === false ? "off" : "on", values: ["off", "on"] },
-		{ id: "verbosity", label: "Verbosity", currentValue: draft.verbosity, values: ["low", "medium", "high"] },
+		{ id: "mode", label: "Mode", currentValue: draft.mode === "path" ? "Path mode" : "Normal", values: ["Normal", "Path mode"] },
+		{ id: "allProviders", label: "Use for all providers/models", currentValue: draft.scope.allProviders ? "on" : "off", values: ["off", "on"] },
+		{
+			id: "additionalProviders",
+			label: "Additional providers",
+			currentValue: formatProviderList(draft.scope.additionalProviders),
+			submenu: (currentValue, done) => new TextSettingSubmenu("Additional providers", "Comma-separated provider ids that should also use the selected adapter mode.", currentValue, (value) => done(formatProviderList(normalizeProviderListFromText(value))), () => done(), theme),
+		},
+		{ id: "statusLine", label: "Statusline", currentValue: draft.ui.statusLine ? "on" : "off", values: ["off", "on"] },
+		{ id: "backgroundShellWidget", label: "Background shells widget", currentValue: draft.ui.backgroundShellWidget ? "on" : "off", values: ["off", "on"] },
+		{ id: "responsesCompaction", label: "Responses compaction", currentValue: draft.compaction.responsesCompaction ? "on" : "off", values: ["off", "on"] },
+		{ id: "editConfig", label: "Edit config", currentValue: editorCommand() ? "Opens in default editor (please /reload)" : "Set $EDITOR", values: editorCommand() ? ["Open"] : ["Unavailable"] },
 	];
 }
 
 function applySettingChange(id: string, value: string, draft: CodexConversionConfig): CodexConversionConfig {
-	const nextDraft = { ...draft };
-	if (id === "adapterProviders") nextDraft.adapterProviders = normalizeProviderListFromText(value);
-	if (id === "useOnAllModels") nextDraft.useOnAllModels = value === "on";
-	if (id === "useAdapterProviders") nextDraft.useAdapterProviders = value === "on";
-	if (id === "statusLine") nextDraft.statusLine = value === "on";
-	if (id === "backgroundShellWidget") nextDraft.backgroundShellWidget = value === "on";
-	if (id === "fast") nextDraft.fast = value === "on";
-	if (id === "forceCachedWebSockets") nextDraft.forceCachedWebSockets = value === "on";
-	if (id === "responsesCompaction") nextDraft.responsesCompaction = value === "on";
-	if (id === "compactionModel") nextDraft.compactionModel = normalizeCompactionModel(value) ?? DEFAULT_CODEX_CONVERSION_CONFIG.compactionModel;
-	if (id === "compactionReasoning") nextDraft.compactionReasoning = normalizeCompactionReasoning(value) ?? DEFAULT_CODEX_CONVERSION_CONFIG.compactionReasoning;
-	if (id === "verbosity") nextDraft.verbosity = normalizeCodexVerbosity(value) ?? DEFAULT_CODEX_CONVERSION_CONFIG.verbosity;
-	return nextDraft;
+	if (id === "mode") return { ...draft, mode: value === "Path mode" ? "path" : "normal" };
+	if (id === "allProviders") return { ...draft, scope: { ...draft.scope, allProviders: value === "on" } };
+	if (id === "additionalProviders") return { ...draft, scope: { ...draft.scope, additionalProviders: normalizeProviderListFromText(value) } };
+	if (id === "statusLine") return { ...draft, ui: { ...draft.ui, statusLine: value === "on" } };
+	if (id === "backgroundShellWidget") return { ...draft, ui: { ...draft.ui, backgroundShellWidget: value === "on" } };
+	if (id === "responsesCompaction") return { ...draft, compaction: { ...draft.compaction, responsesCompaction: value === "on" } };
+	if (id === "webRun") return { ...draft, tools: { ...draft.tools, webRun: value === "on" } };
+	if (id === "imageGeneration") return { ...draft, tools: { ...draft.tools, imageGeneration: value === "on" } };
+	if (id === "applyPatchForStandardGpt") return { ...draft, tools: { ...draft.tools, applyPatchForStandardGpt: value === "on" } };
+	if (id === "fast") return { ...draft, openai: { ...draft.openai, fast: value === "on" } };
+	if (id === "forceCachedWebSockets") return { ...draft, openai: { ...draft.openai, forceCachedWebSockets: value === "on" } };
+	if (id === "compactionModel") return { ...draft, openai: { ...draft.openai, compactionModel: normalizeCompactionModel(value) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai.compactionModel } };
+	if (id === "compactionReasoning") return { ...draft, openai: { ...draft.openai, compactionReasoning: normalizeCompactionReasoning(value) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai.compactionReasoning } };
+	if (id === "verbosity") return { ...draft, openai: { ...draft.openai, verbosity: normalizeCodexVerbosity(value) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai.verbosity } };
+	return draft;
 }
 
 function formatProviderList(providers: string[]): string {
@@ -247,7 +256,7 @@ function normalizeProviderListFromText(value: string): string[] {
 
 function formatTabs(activeTab: SettingsTab, theme: Theme): string {
 	const renderTab = (tab: SettingsTab, label: string) => activeTab === tab ? theme.bold(label) : theme.fg("dim", label);
-	return `  ${renderTab("general", "General")}  ${theme.fg("dim", "/")}  ${renderTab("compaction", "Compaction")}  ${theme.fg("dim", "/")}  ${renderTab("usage", "Usage")}  ${theme.fg("dim", "/")}  ${renderTab("overrides", "Overrides")}  ${theme.fg("dim", "/")}  ${renderTab("about", "About")}`;
+	return `  ${renderTab("general", "General")}  ${theme.fg("dim", "/")}  ${renderTab("tools", "Tools")}  ${theme.fg("dim", "/")}  ${renderTab("openai", "OpenAI")}  ${theme.fg("dim", "/")}  ${renderTab("usage", "Usage")}  ${theme.fg("dim", "/")}  ${renderTab("about", "About")}`;
 }
 
 function formatFooter(activeTab: SettingsTab): string {

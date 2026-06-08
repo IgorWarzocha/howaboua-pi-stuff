@@ -87,7 +87,7 @@ test("injects pending native compacted window into Pi compaction summarization p
 		enabled: true,
 		cwd: process.cwd(),
 		promptSkills: [],
-		config: { ...DEFAULT_CODEX_CONVERSION_CONFIG, responsesCompaction: true },
+		config: { ...DEFAULT_CODEX_CONVERSION_CONFIG, compaction: { ...DEFAULT_CODEX_CONVERSION_CONFIG.compaction, responsesCompaction: true } },
 		pendingPiCompactionNativeWindow: {
 			window: [{ type: "compaction_summary", encrypted_content: "sealed" }],
 			provider: model.provider,
@@ -119,7 +119,7 @@ test("does not inject pending native compacted window into normal Responses requ
 		enabled: true,
 		cwd: process.cwd(),
 		promptSkills: [],
-		config: { ...DEFAULT_CODEX_CONVERSION_CONFIG, responsesCompaction: true },
+		config: { ...DEFAULT_CODEX_CONVERSION_CONFIG, compaction: { ...DEFAULT_CODEX_CONVERSION_CONFIG.compaction, responsesCompaction: true } },
 		pendingPiCompactionNativeWindow: {
 			window: [{ type: "compaction_summary", encrypted_content: "sealed" }],
 			provider: model.provider,
@@ -144,7 +144,7 @@ test("clears pending native compacted window for a different session", async () 
 		enabled: true,
 		cwd: process.cwd(),
 		promptSkills: [],
-		config: { ...DEFAULT_CODEX_CONVERSION_CONFIG, responsesCompaction: true },
+		config: { ...DEFAULT_CODEX_CONVERSION_CONFIG, compaction: { ...DEFAULT_CODEX_CONVERSION_CONFIG.compaction, responsesCompaction: true } },
 		pendingPiCompactionNativeWindow: {
 			window: [{ type: "compaction_summary", encrypted_content: "sealed" }],
 			provider: model.provider,

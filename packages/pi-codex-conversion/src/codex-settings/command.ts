@@ -42,7 +42,7 @@ export function registerCodexCommand(
 			state.config = readCodexConversionConfig();
 			const arg = args.trim().toLowerCase();
 			if (arg === "ps") {
-				if (!state.config.backgroundShellWidget) {
+				if (!state.config.ui.backgroundShellWidget) {
 					ctx.ui.notify("Background shells widget is off.", "info");
 					return;
 				}
@@ -92,7 +92,7 @@ export function registerCodexCommand(
 				}
 				await openCodexSettingsScreen(ctx, {
 					initialConfig: state.config,
-					initialTab: "compaction",
+					initialTab: "openai",
 					onChange: (config) => saveAndApply(ctx, config),
 				});
 				return;
@@ -122,13 +122,13 @@ export function registerCodexCommand(
 }
 
 function getCommandConfigUpdate(arg: string, config: CodexConversionConfig): CodexConversionConfig | undefined {
-	if (arg === "fast") return { ...config, fast: !config.fast };
-	if (arg === "all") return { ...config, useOnAllModels: !config.useOnAllModels };
-	if (arg === "status") return { ...config, statusLine: !config.statusLine };
+	if (arg === "fast") return { ...config, openai: { ...config.openai, fast: !config.openai.fast } };
+	if (arg === "all") return { ...config, scope: { ...config.scope, allProviders: !config.scope.allProviders } };
+	if (arg === "status") return { ...config, ui: { ...config.ui, statusLine: !config.ui.statusLine } };
 	const verbosity = normalizeCodexVerbosity(arg);
-	return verbosity ? { ...config, verbosity } : undefined;
+	return verbosity ? { ...config, openai: { ...config.openai, verbosity } } : undefined;
 }
 
 function formatCodexSettings(config: CodexConversionConfig): string {
-	return `Codex settings: all models ${config.useOnAllModels ? "on" : "off"}, codex proxy ${config.useAdapterProviders ? "on" : "off"}${config.adapterProviders.length > 0 ? ` (${config.adapterProviders.join(", ")})` : ""}, statusline ${config.statusLine ? "on" : "off"}, background shells widget ${config.backgroundShellWidget ? "on" : "off"}, fast ${config.fast ? "on" : "off"}, cached websocket upgrade ${config.forceCachedWebSockets === false ? "off" : "on"}, responses compaction ${(config.responsesCompaction ?? false) ? "on" : "off"} (${config.compactionModel}/${config.compactionReasoning}), verbosity ${config.verbosity}`;
+	return `Codex settings: all models ${config.scope.allProviders ? "on" : "off"}, additional providers ${config.scope.additionalProviders.length > 0 ? config.scope.additionalProviders.join(", ") : "none"}, statusline ${config.ui.statusLine ? "on" : "off"}, background shells widget ${config.ui.backgroundShellWidget ? "on" : "off"}, fast ${config.openai.fast ? "on" : "off"}, cached websocket upgrade ${config.openai.forceCachedWebSockets === false ? "off" : "on"}, responses compaction ${(config.compaction.responsesCompaction ?? false) ? "on" : "off"} (${config.openai.compactionModel}/${config.openai.compactionReasoning}), verbosity ${config.openai.verbosity}`;
 }

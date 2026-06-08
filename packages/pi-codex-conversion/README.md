@@ -68,18 +68,21 @@ Use `/codex` to change adapter settings.
 
 Settings are saved globally in `~/.pi/agent/pi-codex-conversion.json`.
 
-The settings UI has **General**, **Compaction**, **Usage**, **Overrides**, and **About** tabs. **Usage** refreshes automatically when opened and can be refreshed manually with `r`. The General tab can force cached WebSockets for the extension-owned OpenAI Codex provider without changing Pi's global transport setting, so other providers keep using the user's normal Pi transport preference.
+The settings UI has **General**, **Tools**, **OpenAI**, **Usage**, and **About** tabs. **Usage** refreshes automatically when opened and can be refreshed manually with `r`.
 
-Advanced users with custom Codex-compatible providers can opt specific providers into the adapter from the **Overrides** tab, or by editing `~/.pi/agent/pi-codex-conversion.json`:
+**General** controls adapter mode, scope, status UI, background shells, and whether native Responses compaction is enabled. **Path mode** is available as a setting label for the PATH-tool rollout; for now it behaves like Normal mode.
+
+Advanced users with custom Codex-compatible providers can add provider ids in General, or by editing `~/.pi/agent/pi-codex-conversion.json`:
 
 ```json
 {
-  "useAdapterProviders": true,
-  "adapterProviders": ["my-provider"]
+  "scope": {
+    "additionalProviders": ["my-provider"]
+  }
 }
 ```
 
-The **Compaction** tab can enable native OpenAI Responses compaction and choose the compaction model/reasoning. If native compaction fails, the extension falls back to Pi's normal compaction flow; when an older native compacted window exists, it is included in that Pi fallback summarization request so OpenAI can still use the prior opaque context server-side.
+**Tools** shows required adapter behavior and optional web/image/apply-patch prompt features. **OpenAI** controls fast mode, verbosity, cached WebSocket upgrade, and compaction model/reasoning. If native compaction fails, the extension falls back to Pi's normal compaction flow; when an older native compacted window exists, it is included in that Pi fallback summarization request so OpenAI can still use the prior opaque context server-side.
 
 For OpenAI Codex subscription models, the extension adjusts Pi's registered model context windows so Pi's fixed reserve-token compaction heuristic trips at roughly Codex's native auto-compact budget: 90% of Pi's resolved model window. This is calculated from Pi's current model metadata instead of hardcoded per-model limits.
 

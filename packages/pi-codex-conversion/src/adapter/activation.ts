@@ -21,13 +21,12 @@ export function syncAdapter(pi: ExtensionAPI, ctx: ExtensionContext, state: Adap
 }
 
 export function shouldUseCodexAdapter(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
-	return config.useOnAllModels || isConfiguredAdapterProvider(ctx, config) || isCodexLikeContext(ctx);
+	return config.scope.allProviders || isConfiguredAdapterProvider(ctx, config) || isCodexLikeContext(ctx);
 }
 
 export function isConfiguredAdapterProvider(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
-	if (!config.useAdapterProviders) return false;
 	const provider = ctx.model?.provider?.trim().toLowerCase();
-	return Boolean(provider && config.adapterProviders.includes(provider));
+	return Boolean(provider && config.scope.additionalProviders.includes(provider));
 }
 
 export function shouldUseProxyNativeTools(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
@@ -70,7 +69,7 @@ function disableAdapter(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterS
 
 function setStatus(ctx: ExtensionContext, enabled: boolean, config: CodexConversionConfig): void {
 	if (!ctx.hasUI) return;
-	if (!config.statusLine) {
+	if (!config.ui.statusLine) {
 		ctx.ui.setStatus(STATUS_KEY, undefined);
 		return;
 	}
@@ -82,11 +81,11 @@ function getStatusConfig(ctx: ExtensionContext, config: CodexConversionConfig): 
 	const showOpenAICodexFlags = isEffectiveOpenAICodexContext(ctx, config);
 	const showResponsesVerbosity = isResponsesContext(ctx);
 	return {
-		useOnAllModels: config.useOnAllModels,
-		useAdapterProviders: config.useAdapterProviders && isConfiguredAdapterProvider(ctx, config),
-		fast: showOpenAICodexFlags && config.fast,
-		compaction: { enabled: Boolean(config.responsesCompaction), model: config.compactionModel, reasoning: config.compactionReasoning },
-		...(showResponsesVerbosity ? { verbosity: config.verbosity } : {}),
+		useOnAllModels: config.scope.allProviders,
+		additionalProvider: isConfiguredAdapterProvider(ctx, config),
+		fast: showOpenAICodexFlags && config.openai.fast,
+		compaction: { enabled: Boolean(config.compaction.responsesCompaction), model: config.openai.compactionModel, reasoning: config.openai.compactionReasoning },
+		...(showResponsesVerbosity ? { verbosity: config.openai.verbosity } : {}),
 	};
 }
 

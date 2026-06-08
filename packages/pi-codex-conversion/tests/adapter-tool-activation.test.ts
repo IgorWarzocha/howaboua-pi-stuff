@@ -20,7 +20,7 @@ function createAdapterState(overrides: Partial<AdapterState["config"]> = {}): Ad
 		enabled: false,
 		cwd: process.cwd(),
 		promptSkills: [],
-		config: { ...DEFAULT_CODEX_CONVERSION_CONFIG, ...overrides },
+		config: { ...DEFAULT_CODEX_CONVERSION_CONFIG, ...overrides, scope: { ...DEFAULT_CODEX_CONVERSION_CONFIG.scope, ...overrides.scope } },
 	};
 }
 
@@ -53,7 +53,7 @@ test("syncAdapter preserves unrelated tools across repeated syncs", () => {
 test("syncAdapter enables adapter for configured custom providers", () => {
 	const pi = createToolHarness(["read", "bash", "edit", "write", "parallel"]);
 	const ctx = createContext({ provider: "my-provider", api: "custom-responses", id: "gpt-5" });
-	const state = createAdapterState({ useAdapterProviders: true, adapterProviders: ["my-provider"] });
+	const state = createAdapterState({ scope: { allProviders: false, additionalProviders: ["my-provider"] } });
 
 	syncAdapter(pi as never, ctx as never, state);
 
@@ -63,7 +63,7 @@ test("syncAdapter enables adapter for configured custom providers", () => {
 test("syncAdapter leaves PATH tools to shell for configured custom providers", () => {
 	const pi = createToolHarness(["read", "bash", "edit", "write", "parallel"]);
 	const ctx = createContext({ provider: "my-provider", api: "custom-responses", id: "gpt-5" });
-	const state = createAdapterState({ useAdapterProviders: true, adapterProviders: ["my-provider"] });
+	const state = createAdapterState({ scope: { allProviders: false, additionalProviders: ["my-provider"] } });
 
 	syncAdapter(pi as never, ctx as never, state);
 
@@ -77,17 +77,17 @@ test("normalizeProviderList trims, lowercases, dedupes, and ignores invalid entr
 test("syncAdapter does not enable adapter for unlisted custom providers", () => {
 	const pi = createToolHarness(["read", "bash", "edit", "write", "parallel"]);
 	const ctx = createContext({ provider: "custom-llm", api: "custom-chat", id: "claude" });
-	const state = createAdapterState({ useAdapterProviders: true, adapterProviders: ["my-provider"] });
+	const state = createAdapterState({ scope: { allProviders: false, additionalProviders: ["my-provider"] } });
 
 	syncAdapter(pi as never, ctx as never, state);
 
 	assert.deepEqual(pi.activeTools(), ["read", "bash", "edit", "write", "parallel"]);
 });
 
-test("syncAdapter ignores configured custom providers while codex proxy is off", () => {
+test("syncAdapter ignores providers not listed as additional providers", () => {
 	const pi = createToolHarness(["read", "bash", "edit", "write", "parallel"]);
 	const ctx = createContext({ provider: "my-provider", api: "custom-responses", id: "gpt-5" });
-	const state = createAdapterState({ useAdapterProviders: false, adapterProviders: ["my-provider"] });
+	const state = createAdapterState({ scope: { allProviders: false, additionalProviders: [] } });
 
 	syncAdapter(pi as never, ctx as never, state);
 

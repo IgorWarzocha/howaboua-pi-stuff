@@ -1,8 +1,10 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import { migrateCodexConversionConfigIfNeeded } from "./config-migration.ts";
 
 export type CodexVerbosity = "low" | "medium" | "high";
+export type CodexAdapterMode = "normal" | "path";
 export type CompactionModel = "gpt-5.5" | "gpt-5.3-codex-spark" | "gpt-5.4-mini";
 export type CompactionReasoning = "current" | "minimal" | "low" | "medium" | "high" | "xhigh";
 
@@ -10,44 +12,56 @@ export const COMPACTION_MODELS: readonly CompactionModel[] = ["gpt-5.5", "gpt-5.
 export const COMPACTION_REASONING_LEVELS: readonly CompactionReasoning[] = ["current", "minimal", "low", "medium", "high", "xhigh"];
 
 export interface CodexConversionConfig {
-	adapterProviders: string[];
-	backgroundShellCloseShortcut: string;
-	backgroundShellNextShortcut: string;
-	backgroundShellPrevShortcut: string;
-	backgroundShellToggleShortcut: string;
-	backgroundShellWidget: boolean;
-	fast: boolean;
-	forceCachedWebSockets?: boolean | undefined;
-	compactionModel: CompactionModel;
-	compactionReasoning: CompactionReasoning;
-	responsesCompaction?: boolean | undefined;
-	statusLine: boolean;
-	useAdapterProviders: boolean;
-	useOnAllModels: boolean;
-	verbosity: CodexVerbosity;
+	mode: CodexAdapterMode;
+	scope: { allProviders: boolean; additionalProviders: string[] };
+	tools: { webRun: boolean; imageGeneration: boolean; applyPatchForStandardGpt: boolean };
+	ui: {
+		statusLine: boolean;
+		backgroundShellWidget: boolean;
+		backgroundShellToggleShortcut: string;
+		backgroundShellPrevShortcut: string;
+		backgroundShellNextShortcut: string;
+		backgroundShellCloseShortcut: string;
+	};
+	compaction: { responsesCompaction: boolean };
+	openai: {
+		fast: boolean;
+		verbosity: CodexVerbosity;
+		forceCachedWebSockets: boolean;
+		compactionModel: CompactionModel;
+		compactionReasoning: CompactionReasoning;
+	};
 }
 
 export const CODEX_CONVERSION_CONFIG_BASENAME = "pi-codex-conversion.json";
 export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
-	adapterProviders: [],
-	backgroundShellCloseShortcut: "alt+r",
-	backgroundShellNextShortcut: "alt+e",
-	backgroundShellPrevShortcut: "alt+q",
-	backgroundShellToggleShortcut: "alt+w",
-	backgroundShellWidget: true,
-	fast: false,
-	forceCachedWebSockets: true,
-	compactionModel: "gpt-5.5",
-	compactionReasoning: "current",
-	responsesCompaction: false,
-	statusLine: true,
-	useAdapterProviders: false,
-	useOnAllModels: false,
-	verbosity: "low",
+	mode: "normal",
+	scope: { allProviders: false, additionalProviders: [] },
+	tools: { webRun: true, imageGeneration: true, applyPatchForStandardGpt: false },
+	ui: {
+		statusLine: true,
+		backgroundShellWidget: true,
+		backgroundShellToggleShortcut: "alt+w",
+		backgroundShellPrevShortcut: "alt+q",
+		backgroundShellNextShortcut: "alt+e",
+		backgroundShellCloseShortcut: "alt+r",
+	},
+	compaction: { responsesCompaction: false },
+	openai: {
+		fast: false,
+		verbosity: "low",
+		forceCachedWebSockets: true,
+		compactionModel: "gpt-5.4-mini",
+		compactionReasoning: "current",
+	},
 };
 
-function isObject(value: unknown): value is Record<string, unknown> {
+export function isObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function normalizeCodexAdapterMode(value: unknown): CodexAdapterMode | undefined {
+	return value === "normal" || value === "path" ? value : undefined;
 }
 
 export function normalizeCodexVerbosity(value: unknown): CodexVerbosity | undefined {
@@ -74,6 +88,51 @@ export function normalizeProviderList(value: unknown): string[] {
 		.filter(Boolean))];
 }
 
+function bool(value: unknown, fallback: boolean): boolean {
+	return typeof value === "boolean" ? value : fallback;
+}
+
+function stringValue(value: unknown, fallback: string): string {
+	return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+export function normalizeCodexConversionConfig(value: unknown): CodexConversionConfig {
+	if (!isObject(value)) return structuredClone(DEFAULT_CODEX_CONVERSION_CONFIG);
+	const scope = isObject(value["scope"]) ? value["scope"] : {};
+	const tools = isObject(value["tools"]) ? value["tools"] : {};
+	const ui = isObject(value["ui"]) ? value["ui"] : {};
+	const compaction = isObject(value["compaction"]) ? value["compaction"] : {};
+	const openai = isObject(value["openai"]) ? value["openai"] : {};
+	return {
+		mode: normalizeCodexAdapterMode(value["mode"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.mode,
+		scope: {
+			allProviders: bool(scope["allProviders"], DEFAULT_CODEX_CONVERSION_CONFIG.scope["allProviders"]),
+			additionalProviders: normalizeProviderList(scope["additionalProviders"]),
+		},
+		tools: {
+			webRun: bool(tools["webRun"], DEFAULT_CODEX_CONVERSION_CONFIG.tools["webRun"]),
+			imageGeneration: bool(tools["imageGeneration"], DEFAULT_CODEX_CONVERSION_CONFIG.tools["imageGeneration"]),
+			applyPatchForStandardGpt: bool(tools["applyPatchForStandardGpt"], DEFAULT_CODEX_CONVERSION_CONFIG.tools["applyPatchForStandardGpt"]),
+		},
+		ui: {
+			statusLine: bool(ui["statusLine"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["statusLine"]),
+			backgroundShellWidget: bool(ui["backgroundShellWidget"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellWidget"]),
+			backgroundShellToggleShortcut: stringValue(ui["backgroundShellToggleShortcut"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellToggleShortcut"]),
+			backgroundShellPrevShortcut: stringValue(ui["backgroundShellPrevShortcut"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellPrevShortcut"]),
+			backgroundShellNextShortcut: stringValue(ui["backgroundShellNextShortcut"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellNextShortcut"]),
+			backgroundShellCloseShortcut: stringValue(ui["backgroundShellCloseShortcut"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellCloseShortcut"]),
+		},
+		compaction: { responsesCompaction: bool(compaction["responsesCompaction"], DEFAULT_CODEX_CONVERSION_CONFIG.compaction["responsesCompaction"]) },
+		openai: {
+			fast: bool(openai["fast"], DEFAULT_CODEX_CONVERSION_CONFIG.openai["fast"]),
+			verbosity: normalizeCodexVerbosity(openai["verbosity"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai["verbosity"],
+			forceCachedWebSockets: bool(openai["forceCachedWebSockets"], DEFAULT_CODEX_CONVERSION_CONFIG.openai["forceCachedWebSockets"]),
+			compactionModel: normalizeCompactionModel(openai["compactionModel"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai["compactionModel"],
+			compactionReasoning: normalizeCompactionReasoning(openai["compactionReasoning"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai["compactionReasoning"],
+		},
+	};
+}
+
 export function getCodexConversionConfigPath(agentDir: string = getAgentDir()): string {
 	return join(agentDir, CODEX_CONVERSION_CONFIG_BASENAME);
 }
@@ -81,33 +140,18 @@ export function getCodexConversionConfigPath(agentDir: string = getAgentDir()): 
 export function readCodexConversionConfig(configPath: string = getCodexConversionConfigPath()): CodexConversionConfig {
 	if (!existsSync(configPath)) {
 		writeCodexConversionConfig(DEFAULT_CODEX_CONVERSION_CONFIG, configPath);
-		return { ...DEFAULT_CODEX_CONVERSION_CONFIG };
+		return structuredClone(DEFAULT_CODEX_CONVERSION_CONFIG);
 	}
-
 	try {
 		const parsed = JSON.parse(readFileSync(configPath, "utf-8")) as unknown;
-		if (!isObject(parsed)) return { ...DEFAULT_CODEX_CONVERSION_CONFIG };
-		return {
-			adapterProviders: normalizeProviderList(parsed["adapterProviders"]!),
-			backgroundShellCloseShortcut: typeof parsed["backgroundShellCloseShortcut"]! === "string" && parsed["backgroundShellCloseShortcut"]!.trim() ? parsed["backgroundShellCloseShortcut"]!.trim() : DEFAULT_CODEX_CONVERSION_CONFIG.backgroundShellCloseShortcut,
-			backgroundShellNextShortcut: typeof parsed["backgroundShellNextShortcut"]! === "string" && parsed["backgroundShellNextShortcut"]!.trim() ? parsed["backgroundShellNextShortcut"]!.trim() : DEFAULT_CODEX_CONVERSION_CONFIG.backgroundShellNextShortcut,
-			backgroundShellPrevShortcut: typeof parsed["backgroundShellPrevShortcut"]! === "string" && parsed["backgroundShellPrevShortcut"]!.trim() ? parsed["backgroundShellPrevShortcut"]!.trim() : DEFAULT_CODEX_CONVERSION_CONFIG.backgroundShellPrevShortcut,
-			backgroundShellToggleShortcut: typeof parsed["backgroundShellToggleShortcut"]! === "string" && parsed["backgroundShellToggleShortcut"]!.trim() ? parsed["backgroundShellToggleShortcut"]!.trim() : DEFAULT_CODEX_CONVERSION_CONFIG.backgroundShellToggleShortcut,
-			backgroundShellWidget: typeof parsed["backgroundShellWidget"]! === "boolean" ? parsed["backgroundShellWidget"]! : DEFAULT_CODEX_CONVERSION_CONFIG.backgroundShellWidget,
-			fast: typeof parsed["fast"]! === "boolean" ? parsed["fast"]! : DEFAULT_CODEX_CONVERSION_CONFIG.fast,
-			forceCachedWebSockets: typeof parsed["forceCachedWebSockets"]! === "boolean" ? parsed["forceCachedWebSockets"]! : DEFAULT_CODEX_CONVERSION_CONFIG.forceCachedWebSockets,
-			compactionModel: normalizeCompactionModel(parsed["compactionModel"]!) ?? DEFAULT_CODEX_CONVERSION_CONFIG.compactionModel,
-			compactionReasoning: normalizeCompactionReasoning(parsed["compactionReasoning"]!) ?? DEFAULT_CODEX_CONVERSION_CONFIG.compactionReasoning,
-			responsesCompaction: typeof parsed["responsesCompaction"]! === "boolean" ? parsed["responsesCompaction"]! : DEFAULT_CODEX_CONVERSION_CONFIG.responsesCompaction,
-			statusLine: typeof parsed["statusLine"]! === "boolean" ? parsed["statusLine"]! : DEFAULT_CODEX_CONVERSION_CONFIG.statusLine,
-			useAdapterProviders: typeof parsed["useAdapterProviders"]! === "boolean" ? parsed["useAdapterProviders"]! : DEFAULT_CODEX_CONVERSION_CONFIG.useAdapterProviders,
-			useOnAllModels: typeof parsed["useOnAllModels"]! === "boolean" ? parsed["useOnAllModels"]! : DEFAULT_CODEX_CONVERSION_CONFIG.useOnAllModels,
-			verbosity: normalizeCodexVerbosity(parsed["verbosity"]!) ?? DEFAULT_CODEX_CONVERSION_CONFIG.verbosity,
-		};
+		const migration = migrateCodexConversionConfigIfNeeded(parsed);
+		const config = normalizeCodexConversionConfig(migration.config);
+		if (migration.migrated) writeCodexConversionConfig(config, configPath);
+		return config;
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		console.warn(`[pi-codex-conversion] Failed to read ${configPath}: ${message}`);
-		return { ...DEFAULT_CODEX_CONVERSION_CONFIG };
+		return structuredClone(DEFAULT_CODEX_CONVERSION_CONFIG);
 	}
 }
 
@@ -117,7 +161,7 @@ export function writeCodexConversionConfig(
 ): { ok: true } | { ok: false; error: string } {
 	try {
 		mkdirSync(dirname(configPath), { recursive: true });
-		writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf-8");
+		writeFileSync(configPath, `${JSON.stringify(normalizeCodexConversionConfig(config), null, 2)}\n`, "utf-8");
 		return { ok: true };
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
@@ -135,7 +179,7 @@ export function applyCodexRequestParams(
 	const text = isObject(payload["text"]!) ? payload["text"]! : {};
 	return {
 		...payload,
-		...(options.serviceTier && config.fast ? { service_tier: "priority" } : {}),
-		...(options.verbosity ? { text: { ...text, verbosity: config.verbosity } } : {}),
+		...(options.serviceTier && config.openai["fast"] ? { service_tier: "priority" } : {}),
+		...(options.verbosity ? { text: { ...text, verbosity: config.openai["verbosity"] } } : {}),
 	};
 }

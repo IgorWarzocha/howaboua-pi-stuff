@@ -84,7 +84,7 @@ export function registerBackgroundBashWidgetShortcuts(
 	pi: ExtensionAPI,
 	state: BackgroundBashWidgetState,
 	sessions: ExecSessionManager,
-	config: Pick<CodexConversionConfig, "backgroundShellCloseShortcut" | "backgroundShellNextShortcut" | "backgroundShellPrevShortcut" | "backgroundShellToggleShortcut">,
+	config: Pick<CodexConversionConfig["ui"], "backgroundShellCloseShortcut" | "backgroundShellNextShortcut" | "backgroundShellPrevShortcut" | "backgroundShellToggleShortcut">,
 	isEnabled: () => boolean,
 ): void {
 	function rerender(ctx: ExtensionContext): void {

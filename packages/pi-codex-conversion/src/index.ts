@@ -52,7 +52,7 @@ export default function codexConversion(pi: ExtensionAPI) {
 
 	registerOpenAICodexCustomProvider(pi, {
 		getCurrentCwd: () => state.cwd,
-		getConfig: () => state.config,
+		getConfig: () => state.config.openai,
 	});
 	registerExecCommandTool(pi, tracker, sessions);
 	registerWriteStdinTool(pi, sessions);
@@ -66,7 +66,7 @@ export default function codexConversion(pi: ExtensionAPI) {
 
 	function renderBackgroundShellWidget(ctx = backgroundBashWidget.ctx): void {
 		if (!ctx) return;
-		if (!state.config.backgroundShellWidget) {
+		if (!state.config.ui.backgroundShellWidget) {
 			clearBackgroundShellWidget();
 			return;
 		}
@@ -74,12 +74,12 @@ export default function codexConversion(pi: ExtensionAPI) {
 	}
 
 	function applyConfig(config: typeof state.config): void {
-		if (!config.backgroundShellWidget) clearBackgroundShellWidget();
+		if (!config.ui.backgroundShellWidget) clearBackgroundShellWidget();
 		else renderBackgroundShellWidget();
 	}
 
 	registerCodexCommand(pi, state, applyConfig, { sessions, widget: backgroundBashWidget });
-	registerBackgroundBashWidgetShortcuts(pi, backgroundBashWidget, sessions, state.config, () => state.config.backgroundShellWidget);
+	registerBackgroundBashWidgetShortcuts(pi, backgroundBashWidget, sessions, state.config.ui, () => state.config.ui.backgroundShellWidget);
 
 	pi.registerMessageRenderer(NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, (message, _options, theme) => {
 		const box = new Box(1, 1, (text) => theme.bg("customMessageBg", text));
@@ -92,7 +92,7 @@ export default function codexConversion(pi: ExtensionAPI) {
 	});
 
 	sessions.onSessionChange((reason) => {
-		if (backgroundBashWidget.ctx && state.config.backgroundShellWidget) {
+		if (backgroundBashWidget.ctx && state.config.ui.backgroundShellWidget) {
 			if (reason === "output") {
 				if (backgroundWidgetRenderTimer) return;
 				backgroundWidgetRenderTimer = setTimeout(() => {
@@ -175,6 +175,7 @@ export default function codexConversion(pi: ExtensionAPI) {
 			systemPrompt: buildCodexSystemPrompt(event.systemPrompt, {
 				skills,
 				shell: getDefaultCodexRuntimeShell(),
+				tools: state.config.tools,
 			}),
 		};
 	});
