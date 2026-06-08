@@ -7,6 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use std::{env, fs};
 
 use anyhow::Context;
+use base64::Engine;
 use reqwest::cookie::{CookieStore, Jar};
 use reqwest::header::{CONTENT_TYPE, HeaderMap, HeaderValue, USER_AGENT};
 use serde::Deserialize;
@@ -129,6 +130,20 @@ struct TokenRefreshResponse {
     access_token: String,
     refresh_token: Option<String>,
     expires_in: Option<u64>,
+    id_token: Option<String>,
+}
+
+fn account_id_from_jwt(token: &str) -> Option<String> {
+    let payload = token.split('.').nth(1)?;
+    let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(payload)
+        .ok()?;
+    let claims: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
+    claims
+        .get("chatgpt_account_id")
+        .and_then(serde_json::Value::as_str)
+        .filter(|account_id| !account_id.trim().is_empty())
+        .map(str::to_string)
 }
 
 fn now_ms() -> u64 {
@@ -184,6 +199,11 @@ async fn refresh_pi_codex_auth(
         .unwrap_or_else(|| refresh_token.to_string());
     let new_expires =
         now_ms().saturating_add(refreshed.expires_in.unwrap_or(0).saturating_mul(1_000));
+    let refreshed_account_id = refreshed
+        .id_token
+        .as_deref()
+        .and_then(account_id_from_jwt)
+        .unwrap_or_else(|| credential.account_id.clone());
     if let Some(entry) = auth_json
         .get_mut("openai-codex")
         .and_then(serde_json::Value::as_object_mut)
@@ -202,6 +222,10 @@ async fn refresh_pi_codex_auth(
                 serde_json::Value::Number(new_expires.into()),
             );
         }
+        entry.insert(
+            "accountId".to_string(),
+            serde_json::Value::String(refreshed_account_id.clone()),
+        );
         fs::write(auth_path, serde_json::to_vec_pretty(auth_json)?).with_context(|| {
             format!(
                 "failed to write refreshed Pi auth file `{}`",
@@ -211,7 +235,7 @@ async fn refresh_pi_codex_auth(
     }
     Ok(CodexAuth {
         token: refreshed.access_token,
-        account_id: credential.account_id.clone(),
+        account_id: refreshed_account_id,
     })
 }
 

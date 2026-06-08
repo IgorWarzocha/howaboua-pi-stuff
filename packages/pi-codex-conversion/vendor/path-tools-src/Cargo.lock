@@ -167,6 +167,7 @@ name = "codex-web-run"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "base64",
  "os_info",
  "reqwest",
  "serde",
