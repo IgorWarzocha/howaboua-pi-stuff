@@ -109,16 +109,31 @@ fn read_codex_auth() -> anyhow::Result<CodexAuth> {
 }
 
 fn alpha_search_url() -> String {
+    if let Ok(url) = env::var("PI_CODEX_ALPHA_SEARCH_URL") {
+        return alpha_search_url_from_base(&url);
+    }
+    if let Ok(base) = env::var("PI_CODEX_ALPHA_BASE_URL") {
+        return alpha_search_url_from_base(&base);
+    }
+    if let Ok(server_uri) = env::var("PI_CODEX_SERVER_URI") {
+        return format!("{}/api/codex/alpha/search", server_uri.trim_end_matches('/'));
+    }
     let base = env::var("PI_CODEX_BASE_URL").unwrap_or_else(|_| DEFAULT_BASE_URL.to_string());
+    alpha_search_url_from_base(&base)
+}
+
+fn alpha_search_url_from_base(base: &str) -> String {
     let normalized = base.trim_end_matches('/');
     if normalized.ends_with("/alpha/search") {
         normalized.to_string()
     } else if normalized.ends_with("/codex/responses") {
         format!("{}/alpha/search", normalized.trim_end_matches("/responses"))
-    } else if normalized.ends_with("/codex") {
+    } else if normalized.ends_with("/api/codex") || normalized.ends_with("/backend-api/codex") || normalized.ends_with("/codex") {
         format!("{normalized}/alpha/search")
-    } else {
+    } else if normalized.ends_with("/api") || normalized.ends_with("/backend-api") {
         format!("{normalized}/codex/alpha/search")
+    } else {
+        format!("{normalized}/api/codex/alpha/search")
     }
 }
 

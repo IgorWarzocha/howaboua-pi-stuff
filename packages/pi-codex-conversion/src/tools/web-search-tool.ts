@@ -16,6 +16,23 @@ const execFileAsync = promisify(execFile);
 
 function createEmptyResultComponent(): Container { return new Container(); }
 
+export function resolveAlphaSearchUrlFromBase(baseUrl: string | undefined): string {
+	const explicitAlphaBase = process.env["PI_CODEX_ALPHA_BASE_URL"];
+	if (explicitAlphaBase?.trim()) return alphaSearchUrlFromBase(explicitAlphaBase);
+	const serverUri = process.env["PI_CODEX_SERVER_URI"];
+	if (serverUri?.trim()) return `${serverUri.trim().replace(/\/+$/, "")}/api/codex/alpha/search`;
+	return alphaSearchUrlFromBase(baseUrl?.trim() || "https://chatgpt.com/backend-api/codex");
+}
+
+function alphaSearchUrlFromBase(baseUrl: string): string {
+	const base = baseUrl.replace(/\/+$/, "");
+	if (base.endsWith("/alpha/search")) return base;
+	if (base.endsWith("/codex/responses")) return `${base.slice(0, -"/responses".length)}/alpha/search`;
+	if (base.endsWith("/api/codex") || base.endsWith("/backend-api/codex") || base.endsWith("/codex")) return `${base}/alpha/search`;
+	if (base.endsWith("/api") || base.endsWith("/backend-api")) return `${base}/codex/alpha/search`;
+	return `${base}/api/codex/alpha/search`;
+}
+
 export function supportsNativeWebSearch(model: ExtensionContext["model"]): boolean {
 	return (model?.provider ?? "").toLowerCase() === "openai-codex" && Boolean(model?.api?.includes("responses"));
 }
@@ -43,7 +60,7 @@ async function resolveNativeEnv(ctx: ExtensionContext): Promise<NodeJS.ProcessEn
 		...process.env,
 		PI_CODEX_ACCESS_TOKEN: apiKey,
 		PI_CODEX_ACCOUNT_ID: auth.headers?.["chatgpt-account-id"] ?? extractAccountId(apiKey),
-		...(ctx.model.baseUrl ? { PI_CODEX_BASE_URL: ctx.model.baseUrl } : {}),
+		...(ctx.model.baseUrl ? { PI_CODEX_BASE_URL: ctx.model.baseUrl, PI_CODEX_ALPHA_SEARCH_URL: resolveAlphaSearchUrlFromBase(ctx.model.baseUrl) } : {}),
 		...(ctx.model.id ? { PI_CODEX_MODEL: ctx.model.id } : {}),
 	};
 }
