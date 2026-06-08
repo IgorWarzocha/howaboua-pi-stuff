@@ -23,8 +23,7 @@ use serde::Deserialize;
 use serde_json::json;
 use sha2::Digest as _;
 use sha2::Sha512;
-use types::{AllowedCaller, SearchCommands, SearchRequest, SearchResponse, SearchSettings};
-use uuid::Uuid;
+use types::{SearchCommands, SearchSettings};
 
 const DEFAULT_BASE_URL: &str = "https://chatgpt.com/backend-api/codex";
 const DEFAULT_MODEL: &str = "gpt-5.4-mini";
@@ -741,7 +740,7 @@ async fn main() -> anyhow::Result<()> {
         if status.as_u16() == 403
             && (cloudflare_challenge || body.to_ascii_lowercase().contains("cloudflare"))
         {
-            anyhow::bail!("web_run alpha/search failed for `{url}`: HTTP 403 Cloudflare challenge");
+            anyhow::bail!("web_run Responses web search failed for `{url}`: HTTP 403 Cloudflare challenge");
         }
         if status.as_u16() == 404 && body.contains("\"Not Found\"") {
             anyhow::bail!(
