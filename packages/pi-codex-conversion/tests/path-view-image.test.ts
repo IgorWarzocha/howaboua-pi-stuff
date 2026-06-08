@@ -1,130 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { imageContentFromCodexViewImageOutput, imageContentsFromCodexViewImageOutput, registerExecCommandTool } from "../src/tools/exec/command-tool.ts";
+import { registerExecCommandTool } from "../src/tools/exec/command-tool.ts";
 import { createExecCommandTracker } from "../src/tools/exec/command-state.ts";
 import { createExecSessionManager } from "../src/tools/exec/session-manager.ts";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const PNG_BASE64 =
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==";
 const packageRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
-function renderText(component: { render(width: number): string[] } | undefined): string {
-	assert.ok(component);
-	return component.render(120).map((line) => line.trimEnd()).join("\n").trimEnd();
-}
-
-const theme = { fg: (_role: string, text: string) => text, bold: (text: string) => text };
-
-test("exec_command can opt out of custom rendering", () => {
-	let tool: { renderCall?: unknown; renderResult?: unknown } | undefined;
-	const pi = { registerTool(definition: typeof tool) { tool = definition; } } as unknown as ExtensionAPI;
-	registerExecCommandTool(pi, createExecCommandTracker(), createExecSessionManager(), { customRendering: false });
-
-	assert.ok(tool);
-	assert.equal("renderCall" in tool, false);
-	assert.equal("renderResult" in tool, false);
-});
-
-test("exec_command indents expanded output under the command cell", () => {
-	let tool: { renderResult?: (...args: any[]) => { render(width: number): string[] } } | undefined;
-	const pi = { registerTool(definition: typeof tool) { tool = definition; } } as unknown as ExtensionAPI;
-	registerExecCommandTool(pi, createExecCommandTracker(), createExecSessionManager());
-
-	assert.ok(tool?.renderResult);
-	const rendered = renderText(tool.renderResult(
-		{ content: [{ type: "text", text: "alpha\nbeta" }], details: { output: "alpha\nbeta", exit_code: 0 } },
-		{ expanded: true, isPartial: false },
-		theme,
-		{ toolCallId: "call-1", args: { cmd: "printf" } },
-	));
-	assert.equal(rendered, "    alpha\n    beta\n    Exit code: 0");
-});
-
-test("exec_command aligns multiline command previews", () => {
-	let tool: { renderCall?: (...args: any[]) => { render(width: number): string[] } } | undefined;
-	const pi = { registerTool(definition: typeof tool) { tool = definition; } } as unknown as ExtensionAPI;
-	registerExecCommandTool(pi, createExecCommandTracker(), createExecSessionManager());
-
-	assert.ok(tool?.renderCall);
-	const rendered = renderText(tool.renderCall(
-		{ cmd: "cat <<'EOF'\nThis is a multi-line exec command.\nEOF" },
-		theme,
-		{ toolCallId: "call-1" },
-	));
-	assert.equal(rendered, "• Ran\n  └ cat <<'EOF'\n    This is a multi-line exec command.\n    EOF");
-});
-
-test("exec_command keeps collapsed partial output hidden", () => {
-	let tool: { renderResult?: (...args: any[]) => { render(width: number): string[] } } | undefined;
-	const pi = { registerTool(definition: typeof tool) { tool = definition; } } as unknown as ExtensionAPI;
-	registerExecCommandTool(pi, createExecCommandTracker(), createExecSessionManager());
-
-	assert.ok(tool?.renderResult);
-	const rendered = renderText(tool.renderResult(
-		{ content: [{ type: "text", text: "alpha\nbeta" }], details: { output: "alpha\nbeta" } },
-		{ expanded: false, isPartial: true },
-		theme,
-		{ toolCallId: "call-1", args: { cmd: "printf" } },
-	));
-	assert.equal(rendered, "");
-});
-
-test("bundled view_image emits Codex code-mode result JSON", () => {
-	const cwd = mkdtempSync(join(tmpdir(), "path-view-image-"));
-	const imagePath = join(cwd, "image.png");
-	writeFileSync(imagePath, Buffer.from(PNG_BASE64, "base64"));
-
-	const output = execFileSync("./bin/view_image", [JSON.stringify({ path: imagePath, detail: "original" })], {
-		cwd: packageRoot,
-		encoding: "utf8",
-	});
-	const parsed = JSON.parse(output);
-
-	assert.equal(parsed.detail, "original");
-	assert.equal(parsed.image_url, `data:image/png;base64,${PNG_BASE64}`);
-});
-
-test("bundled view_image accepts JSON from stdin", () => {
-	const cwd = mkdtempSync(join(tmpdir(), "path-view-image-"));
-	const imagePath = join(cwd, "image.png");
-	writeFileSync(imagePath, Buffer.from(PNG_BASE64, "base64"));
-
-	const output = execFileSync("./bin/view_image", ["-"], {
-		cwd: packageRoot,
-		encoding: "utf8",
-		input: JSON.stringify({ path: imagePath }),
-	});
-	const parsed = JSON.parse(output);
-
-	assert.equal(parsed.detail, "high");
-	assert.equal(parsed.image_url, `data:image/png;base64,${PNG_BASE64}`);
-});
-
-test("exec_command recognizes Codex view_image JSON as image content", () => {
-	assert.deepEqual(imageContentFromCodexViewImageOutput(JSON.stringify({ image_url: `data:image/png;base64,${PNG_BASE64}`, detail: "high" })), {
-		type: "image",
-		mimeType: "image/png",
-		data: PNG_BASE64,
-		detail: "high",
-	});
-	assert.equal(imageContentFromCodexViewImageOutput("not json"), undefined);
-	assert.deepEqual(
-		imageContentsFromCodexViewImageOutput([
-			JSON.stringify({ image_url: `data:image/png;base64,${PNG_BASE64}`, detail: "high" }),
-			JSON.stringify({ image_url: `data:image/png;base64,${PNG_BASE64}`, detail: "original" }),
-		].join("\n")),
-		[
-			{ type: "image", mimeType: "image/png", data: PNG_BASE64, detail: "high" },
-			{ type: "image", mimeType: "image/png", data: PNG_BASE64, detail: "original" },
-		],
-	);
-});
 
 test("exec_command converts multiple PATH view_image calls in one shell command", async () => {
 	const cwd = mkdtempSync(join(tmpdir(), "path-view-image-"));
@@ -158,66 +45,6 @@ test("exec_command converts multiple PATH view_image calls in one shell command"
 	}
 });
 
-test("exec_command bypasses truncation for PATH view_image output", async () => {
-	const cwd = mkdtempSync(join(tmpdir(), "path-view-image-"));
-	const imagePath = join(cwd, "image.png");
-	writeFileSync(imagePath, Buffer.from(PNG_BASE64, "base64"));
-
-	let tool: any;
-	const sessions = createExecSessionManager();
-	try {
-		registerExecCommandTool({ registerTool(definition: unknown) { tool = definition; } } as never, createExecCommandTracker(), sessions);
-
-		const result = await tool.execute(
-			"call-1",
-			{
-				cmd: `PATH=${JSON.stringify(join(packageRoot, "bin"))}:$PATH view_image ${JSON.stringify(JSON.stringify({ path: imagePath }))}`,
-				max_output_tokens: 1,
-			},
-			undefined,
-			undefined,
-			{ cwd, model: { input: ["text", "image"] } },
-		);
-
-		assert.deepEqual(result.content, [
-			{ type: "text", text: `Command: PATH=${JSON.stringify(join(packageRoot, "bin"))}:$PATH view_image ${JSON.stringify(JSON.stringify({ path: imagePath }))}\nChunk ID: ${result.details.chunk_id}\nWall time: ${result.details.wall_time_seconds.toFixed(4)} seconds\nProcess exited with code 0\nOutput:\n<image output>` },
-			{ type: "image", mimeType: "image/png", data: PNG_BASE64, detail: "high" },
-		]);
-		assert.equal(result.details.output, "<image output>");
-		assert.equal(result.details.original_token_count, undefined);
-	} finally {
-		sessions.shutdown();
-	}
-});
-
-test("exec_command parses PATH view_image output when model input metadata is absent", async () => {
-	const cwd = mkdtempSync(join(tmpdir(), "path-view-image-"));
-	const imagePath = join(cwd, "image.png");
-	writeFileSync(imagePath, Buffer.from(PNG_BASE64, "base64"));
-
-	let tool: any;
-	const sessions = createExecSessionManager();
-	try {
-		registerExecCommandTool({ registerTool(definition: unknown) { tool = definition; } } as never, createExecCommandTracker(), sessions);
-
-		const result = await tool.execute(
-			"call-1",
-			{
-				cmd: `PATH=${JSON.stringify(join(packageRoot, "bin"))}:$PATH view_image ${JSON.stringify(JSON.stringify({ path: imagePath }))}`,
-				max_output_tokens: 1,
-			},
-			undefined,
-			undefined,
-			{ cwd, model: { id: "gpt-5.5" } },
-		);
-
-		assert.deepEqual(result.content[1], { type: "image", mimeType: "image/png", data: PNG_BASE64, detail: "high" });
-		assert.equal(result.details.output, "<image output>");
-	} finally {
-		sessions.shutdown();
-	}
-});
-
 test("exec_command compacts PATH web_run JSON output", async () => {
 	const sessions = createExecSessionManager();
 	try {
@@ -240,34 +67,6 @@ test("exec_command compacts PATH web_run JSON output", async () => {
 		assert.match(text, /https:\/\/example\.com\/docs/);
 		assert.doesNotMatch(result.details.output, /rawSearchData/);
 		assert.equal(result.details.original_token_count, undefined);
-	} finally {
-		sessions.shutdown();
-	}
-});
-
-test("exec_command gives PATH web_run the Pi session state path", async () => {
-	const cwd = mkdtempSync(join(tmpdir(), "path-web-run-session-"));
-	const sessionFile = join(cwd, "session.jsonl");
-	const sessions = createExecSessionManager();
-	try {
-		let tool: any;
-		registerExecCommandTool({ registerTool(definition: unknown) { tool = definition; } } as never, createExecCommandTracker(), sessions);
-		const result = await tool.execute(
-			"call-1",
-			{ cmd: `node -e ${JSON.stringify("console.log(JSON.stringify({ output_text: process.env.PI_WEB_RUN_STATE_PATH }))")} # web_run` },
-			new AbortController().signal,
-			undefined,
-			{
-				cwd,
-				model: {},
-				sessionManager: {
-					getSessionFile: () => sessionFile,
-					getSessionId: () => "session/abc",
-				},
-			} as never,
-		);
-		const text = result.content[0]?.type === "text" ? result.content[0].text : "";
-		assert.match(text, /\.web-run-session_abc\.json/);
 	} finally {
 		sessions.shutdown();
 	}

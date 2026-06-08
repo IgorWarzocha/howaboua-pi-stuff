@@ -6,9 +6,11 @@ import { migrateCodexConversionConfigIfNeeded } from "./config-migration.ts";
 export type CodexVerbosity = "low" | "medium" | "high";
 export type CodexAdapterMode = "normal" | "path";
 export type CompactionModel = "gpt-5.5" | "gpt-5.3-codex-spark" | "gpt-5.4-mini";
+export type WebSearchModel = "gpt-5.5" | "gpt-5.4-mini" | "gpt-5.3-codex-spark";
 export type CompactionReasoning = "current" | "minimal" | "low" | "medium" | "high" | "xhigh";
 
 export const COMPACTION_MODELS: readonly CompactionModel[] = ["gpt-5.5", "gpt-5.3-codex-spark", "gpt-5.4-mini"];
+export const WEB_SEARCH_MODELS: readonly WebSearchModel[] = ["gpt-5.5", "gpt-5.4-mini", "gpt-5.3-codex-spark"];
 export const COMPACTION_REASONING_LEVELS: readonly CompactionReasoning[] = ["current", "minimal", "low", "medium", "high", "xhigh"];
 
 export interface CodexConversionConfig {
@@ -29,6 +31,7 @@ export interface CodexConversionConfig {
 		fast: boolean;
 		verbosity: CodexVerbosity;
 		forceCachedWebSockets: boolean;
+		webSearchModel: WebSearchModel;
 		compactionModel: CompactionModel;
 		compactionReasoning: CompactionReasoning;
 	};
@@ -53,6 +56,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 		fast: false,
 		verbosity: "low",
 		forceCachedWebSockets: true,
+		webSearchModel: "gpt-5.4-mini",
 		compactionModel: "gpt-5.4-mini",
 		compactionReasoning: "current",
 	},
@@ -75,6 +79,11 @@ export function normalizeCodexVerbosity(value: unknown): CodexVerbosity | undefi
 export function normalizeCompactionModel(value: unknown): CompactionModel | undefined {
 	if (typeof value !== "string") return undefined;
 	return (COMPACTION_MODELS as readonly string[]).includes(value) ? (value as CompactionModel) : undefined;
+}
+
+export function normalizeWebSearchModel(value: unknown): WebSearchModel | undefined {
+	if (typeof value !== "string") return undefined;
+	return (WEB_SEARCH_MODELS as readonly string[]).includes(value) ? (value as WebSearchModel) : undefined;
 }
 
 export function normalizeCompactionReasoning(value: unknown): CompactionReasoning | undefined {
@@ -130,6 +139,7 @@ export function normalizeCodexConversionConfig(value: unknown): CodexConversionC
 			fast: bool(openai["fast"], DEFAULT_CODEX_CONVERSION_CONFIG.openai["fast"]),
 			verbosity: normalizeCodexVerbosity(openai["verbosity"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai["verbosity"],
 			forceCachedWebSockets: bool(openai["forceCachedWebSockets"], DEFAULT_CODEX_CONVERSION_CONFIG.openai["forceCachedWebSockets"]),
+			webSearchModel: normalizeWebSearchModel(openai["webSearchModel"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai["webSearchModel"],
 			compactionModel: normalizeCompactionModel(openai["compactionModel"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai["compactionModel"],
 			compactionReasoning: normalizeCompactionReasoning(openai["compactionReasoning"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai["compactionReasoning"],
 		},

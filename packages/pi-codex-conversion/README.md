@@ -19,10 +19,10 @@ Normal mode keeps the familiar Pi function-tool surface:
 
 - `exec_command` — shell execution with Codex-style `cmd` parameters and resumable sessions
 - `write_stdin` — continue or poll a running exec session
-- `apply_patch` — patch edits
-- `view_image` — inspect local images when the model supports image input
-- `web_run` — TS Codex web search when enabled and supported
-- `imagegen` — TS Codex image generation when enabled and supported
+- `apply_patch` — patch edits through the bundled Rust patch tool
+- `view_image` — inspect local images through the bundled Rust image tool when the model supports image input
+- `web_run` — Codex-backed web search through the bundled Rust web tool when enabled and supported
+- `imagegen` — Codex-backed image generation and image edits through the bundled Rust image tool when enabled and supported
 
 PATH mode narrows the structured tool surface to shell control only:
 
@@ -91,7 +91,7 @@ Advanced users with custom Codex-compatible providers can add provider ids in Ge
 }
 ```
 
-**Tools** shows required adapter behavior and optional web/image/apply-patch prompt features. **OpenAI** controls fast mode, verbosity, cached WebSocket upgrade, and compaction model/reasoning. If native compaction fails, the extension falls back to Pi's normal compaction flow; when an older native compacted window exists, it is included in that Pi fallback summarization request so OpenAI can still use the prior opaque context server-side.
+**Tools** shows required adapter behavior and optional web/image/apply-patch prompt features. **OpenAI** controls fast mode, verbosity, cached WebSocket upgrade, web search model, and compaction model/reasoning. Web search defaults to `gpt-5.4-mini`. If native compaction fails, the extension falls back to Pi's normal compaction flow; when an older native compacted window exists, it is included in that Pi fallback summarization request so OpenAI can still use the prior opaque context server-side.
 
 For OpenAI Codex subscription models, the extension adjusts Pi's registered model context windows so Pi's fixed reserve-token compaction heuristic trips at roughly Codex's native auto-compact budget: 90% of Pi's resolved model window. This is calculated from Pi's current model metadata instead of hardcoded per-model limits.
 
@@ -120,7 +120,7 @@ Codex adapter V: low • fast
 
 ## Details worth knowing
 
-- `exec_command` and `write_stdin` use a PTY-backed session manager for interactive commands and long-running processes.
+- `exec_command` and `write_stdin` use a bundled Rust exec bridge; `tty: true` runs through a PTY for interactive commands.
 - The package prepends its `bin` directory to `PATH` so bundled Codex tools are available in shell commands.
 - `imagegen` waits up to five minutes in a foreground `exec_command` call before falling back to a resumable session.
 - The package includes bundled binaries and vendored Rust source for the PATH tools.

@@ -1,5 +1,5 @@
 ---
-"@howaboua/pi-codex-conversion": patch
+"@howaboua/pi-codex-conversion": major
 ---
 
-Rework Codex conversion around Rust-owned tool execution: route apply_patch, view_image, imagegen, web_run, exec_command, and write_stdin through bundled Rust binaries, reorganize tools into tool-owned folders with colocated Rust source and binaries, add cross-platform binary build artifacts, refresh PATH-mode prompt/tool behavior, and update Codex settings with grouped tabs and tool-rendering controls.
+Rework Codex conversion around bundled Rust tool execution: exec_command/write_stdin use the Rust exec bridge, apply_patch/view_image/web_run/imagegen use bundled cross-platform binaries, PATH mode exposes Codex extras as shell commands, and settings move to grouped tabs with tool-rendering and web search model controls.

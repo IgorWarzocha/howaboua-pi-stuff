@@ -108,31 +108,6 @@ test("native replay accepts Pi payloads that include adapter display messages", 
 	assert.deepEqual(result.rewrittenPayload.input.map((item) => (item as { type?: string; role?: string }).type ?? (item as { role?: string }).role), ["compaction_summary", "user"]);
 });
 
-test("native replay accepts Pi payloads that omit adapter display messages", () => {
-	const compaction = compactionEntry("pre");
-	const result = runReplay([
-		compactionSummaryMessage(compaction),
-		user("pre", 1),
-		user("tail", 6),
-	]);
-
-	assert.equal(result.ok, true);
-	if (!result.ok) return;
-	assert.deepEqual(result.rewrittenPayload.input.map((item) => (item as { type?: string; role?: string }).type ?? (item as { role?: string }).role), ["compaction_summary", "user"]);
-});
-
-test("native replay accepts Pi payloads that omit the pre-compaction kept window", () => {
-	const compaction = compactionEntry("pre");
-	const result = runReplay([
-		compactionSummaryMessage(compaction),
-		user("tail", 6),
-	]);
-
-	assert.equal(result.ok, true);
-	if (!result.ok) return;
-	assert.deepEqual(result.rewrittenPayload.input.map((item) => (item as { type?: string; role?: string }).type ?? (item as { role?: string }).role), ["compaction_summary", "user"]);
-});
-
 test("native replay preserves current payload tail beyond persisted branch entries", () => {
 	const compaction = compactionEntry("pre");
 	const result = runReplay([

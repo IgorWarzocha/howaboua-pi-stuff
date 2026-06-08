@@ -10,4 +10,3 @@ test("resolveCodexApiProviderBaseUrl mirrors Codex provider base shape", () => {
 	assert.equal(resolveCodexApiProviderBaseUrl("http://127.0.0.1:8061/api/codex"), "http://127.0.0.1:8061/api/codex");
 	assert.equal(resolveCodexApiProviderBaseUrl("http://127.0.0.1:8061/api"), "http://127.0.0.1:8061/api/codex");
 });
-

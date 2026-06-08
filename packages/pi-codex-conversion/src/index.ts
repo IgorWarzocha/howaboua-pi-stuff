@@ -46,10 +46,9 @@ function isToolCallOnlyAssistantMessage(message: unknown): boolean {
 }
 
 export default function codexConversion(pi: ExtensionAPI) {
-	const bundledPathToolsEnv = createBundledPathToolsEnv();
 	const tracker = createExecCommandTracker();
 	const state: AdapterState = { enabled: false, cwd: process.cwd(), promptSkills: [], config: readCodexConversionConfig() };
-	const sessions = createExecSessionManager({ env: bundledPathToolsEnv });
+	const sessions = createExecSessionManager({ env: createBundledPathToolsEnv({ ...process.env, PI_CODEX_MODEL: state.config.openai.webSearchModel }) });
 	const backgroundBashWidget: BackgroundBashWidgetState = { folded: true };
 	const registeredNativeWebSearchTools = new Set<string>();
 	let latestRecentWebSearchInput: ResponseInput | undefined;
@@ -57,6 +56,10 @@ export default function codexConversion(pi: ExtensionAPI) {
 
 	function customRenderingOptions(config = state.config): { customRendering: boolean } {
 		return { customRendering: config.ui.toolRendering };
+	}
+
+	function bundledPathToolsEnv(config = state.config): NodeJS.ProcessEnv {
+		return createBundledPathToolsEnv({ ...process.env, PI_CODEX_MODEL: config.openai.webSearchModel });
 	}
 
 	function registerCoreTools(config = state.config): void {
@@ -69,7 +72,7 @@ export default function codexConversion(pi: ExtensionAPI) {
 	function ensureOptionalNativeToolsRegistered(config = state.config): void {
 		if (config.tools.webRun) {
 			const webSearchToolName = WEB_SEARCH_TOOL_NAME;
-			registerWebSearchTool(pi, webSearchToolName, { getRecentInput: () => latestRecentWebSearchInput, ...customRenderingOptions(config) });
+			registerWebSearchTool(pi, webSearchToolName, { getRecentInput: () => latestRecentWebSearchInput, model: () => state.config.openai.webSearchModel, ...customRenderingOptions(config) });
 			registeredNativeWebSearchTools.add(webSearchToolName);
 		}
 		if (config.tools.imageGeneration) {
@@ -107,6 +110,7 @@ export default function codexConversion(pi: ExtensionAPI) {
 	function applyConfig(config: typeof state.config): void {
 		registerCoreTools(config);
 		ensureOptionalNativeToolsRegistered(config);
+		sessions.setBaseEnv(bundledPathToolsEnv(config));
 		if (!config.ui.backgroundShellWidget) clearBackgroundShellWidget();
 		else renderBackgroundShellWidget();
 	}
@@ -147,10 +151,10 @@ export default function codexConversion(pi: ExtensionAPI) {
 	});
 
 	pi.on("session_start", async (_event, ctx) => {
-		sessions.setBaseEnv(createBundledPathToolsEnv());
 		backgroundBashWidget.ctx = ctx;
 		state.cwd = ctx.cwd;
 		state.config = readCodexConversionConfig();
+		sessions.setBaseEnv(bundledPathToolsEnv());
 		state.codexContextBudgetReserveTokens = readPiCompactionReserveTokens(ctx.cwd);
 		ensureCodexContextBudgetModel(ctx);
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());

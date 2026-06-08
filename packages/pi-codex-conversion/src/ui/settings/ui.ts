@@ -4,10 +4,12 @@ import {
 	COMPACTION_MODELS,
 	COMPACTION_REASONING_LEVELS,
 	DEFAULT_CODEX_CONVERSION_CONFIG,
+	WEB_SEARCH_MODELS,
 	normalizeCodexVerbosity,
 	normalizeCompactionModel,
 	normalizeCompactionReasoning,
 	normalizeProviderList,
+	normalizeWebSearchModel,
 	readCodexConversionConfig,
 	type CodexConversionConfig,
 } from "../../adapter/activation/config.ts";
@@ -192,6 +194,7 @@ function buildItems(tab: SettingsTab, draft: CodexConversionConfig, theme: Theme
 			{ id: "fast", label: "Fast mode", currentValue: draft.openai.fast ? "on" : "off", values: ["off", "on"] },
 			{ id: "verbosity", label: "Verbosity", currentValue: draft.openai.verbosity, values: ["low", "medium", "high"] },
 			{ id: "forceCachedWebSockets", label: "Cached websocket upgrade", currentValue: draft.openai.forceCachedWebSockets ? "on" : "off", values: ["off", "on"] },
+			{ id: "webSearchModel", label: "Web search model", currentValue: draft.openai.webSearchModel, values: [...WEB_SEARCH_MODELS] },
 			{ id: "compactionModel", label: "Compaction model", currentValue: draft.openai.compactionModel, values: [...COMPACTION_MODELS] },
 			{ id: "compactionReasoning", label: "Compaction reasoning", currentValue: draft.openai.compactionReasoning, values: [...COMPACTION_REASONING_LEVELS] },
 		];
@@ -227,6 +230,7 @@ function applySettingChange(id: string, value: string, draft: CodexConversionCon
 	if (id === "applyPatchForStandardGpt") return { ...draft, tools: { ...draft.tools, applyPatchForStandardGpt: value === "on" } };
 	if (id === "fast") return { ...draft, openai: { ...draft.openai, fast: value === "on" } };
 	if (id === "forceCachedWebSockets") return { ...draft, openai: { ...draft.openai, forceCachedWebSockets: value === "on" } };
+	if (id === "webSearchModel") return { ...draft, openai: { ...draft.openai, webSearchModel: normalizeWebSearchModel(value) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai.webSearchModel } };
 	if (id === "compactionModel") return { ...draft, openai: { ...draft.openai, compactionModel: normalizeCompactionModel(value) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai.compactionModel } };
 	if (id === "compactionReasoning") return { ...draft, openai: { ...draft.openai, compactionReasoning: normalizeCompactionReasoning(value) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai.compactionReasoning } };
 	if (id === "verbosity") return { ...draft, openai: { ...draft.openai, verbosity: normalizeCodexVerbosity(value) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai.verbosity } };
@@ -248,15 +252,15 @@ function formatTabs(activeTab: SettingsTab, theme: Theme): string {
 
 function formatFooter(activeTab: SettingsTab): string {
 	if (activeTab === "usage") return "  Tab to switch sections · r refresh";
-	if (activeTab === "about") return "  Tab to switch sections · g/c/d/i open links";
-	return "  Tab to switch sections";
+	if (activeTab === "about") return "  Tab to switch sections · g/c/d/i open links · Esc to close";
+	return "  Tab to switch sections · Esc to close";
 }
 
 function withSettingsFooter(lines: string[], theme: Theme): string[] {
 	const next = [...lines];
 	for (let index = next.length - 1; index >= 0; index -= 1) {
 		if (next[index]?.includes("Enter/Space")) {
-			next[index] = theme.fg("dim", "  Enter/Space to change · Esc to cancel · Tab to switch sections");
+			next[index] = theme.fg("dim", "  Enter/Space to change · Esc to close · Tab to switch sections");
 			break;
 		}
 	}

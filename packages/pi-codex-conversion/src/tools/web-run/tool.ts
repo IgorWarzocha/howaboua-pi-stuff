@@ -58,6 +58,7 @@ function webSearchCallDetail(params: Record<string, unknown>): string | undefine
 export interface WebSearchToolOptions {
 	getRecentInput?: (() => ResponseInput | undefined) | undefined;
 	sessionId?: string | undefined;
+	model?: string | (() => string | undefined) | undefined;
 	customRendering?: boolean | undefined;
 }
 
@@ -165,10 +166,11 @@ export async function executeCodexWebSearch(params: Record<string, unknown>, ctx
 	const scriptDir = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 	const webRunPath = process.env["PI_CODEX_WEB_RUN_BIN"]?.trim() || join(scriptDir, "bin", process.platform === "win32" ? "web_run.cmd" : "web_run");
 	const sessionId = ctx.sessionManager?.getSessionId?.() || options.sessionId;
+	const model = typeof options.model === "function" ? options.model() : options.model;
 	const statePath = webRunSessionStatePath(ctx);
 	const env = { ...codexToolProviderEnv(provider), ...(statePath ? { PI_WEB_RUN_STATE_PATH: statePath } : {}) };
 	try {
-		const stdout = await runWebRunBinary(webRunPath, { id: sessionId, ...params }, env, signal);
+		const stdout = await runWebRunBinary(webRunPath, { id: sessionId, ...(model ? { model } : {}), ...params }, env, signal);
 		const parsed = JSON.parse(stdout) as Record<string, unknown>;
 		const output = formatWebRunOutput(parsed);
 		if (output) return output;

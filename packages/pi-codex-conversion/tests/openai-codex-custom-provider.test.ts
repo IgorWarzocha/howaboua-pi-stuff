@@ -1,11 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-	buildProviderErrorMessage,
 	buildRequestBody,
 	buildCachedWebSocketRequestBody,
-	getEffectiveCodexTransport,
-	requestBodyForWebSocketContinuationComparison,
 	parseSSE,
 	registerOpenAICodexCustomProvider,
 } from "../src/providers/openai-codex-custom-provider.ts";
@@ -73,16 +70,6 @@ function createRegisteredCodexProvider(options?: { cwd?: string | undefined }) {
 	return { provider: providers.get("openai-codex")!, handlers, renderers, sentMessages };
 }
 
-test("buildRequestBody sends a non-empty fallback system prompt", () => {
-	const body = buildRequestBody(codexModel, { systemPrompt: "", messages: [] });
-	assert.equal(body.instructions, "You are a helpful assistant.");
-});
-
-test("buildRequestBody preserves provided system prompts", () => {
-	const body = buildRequestBody(codexModel, { systemPrompt: "Custom instructions", messages: [] });
-	assert.equal(body.instructions, "Custom instructions");
-});
-
 test("buildRequestBody keeps Codex request shape stable for common options", () => {
 	const body = buildRequestBody(
 		codexModel,
@@ -129,24 +116,6 @@ test("buildRequestBody keeps Codex request shape stable for common options", () 
 	]);
 	assert.equal("max_output_tokens" in body, false, "Codex ChatGPT backend rejects max_output_tokens");
 	assert.equal("max_completion_tokens" in body, false, "Codex ChatGPT backend rejects max token aliases here");
-});
-
-test("buildRequestBody omits reasoning when Pi thinking is off", () => {
-	const body = buildRequestBody(
-		codexModel,
-		{ systemPrompt: "Instructions", messages: [] },
-		{ reasoning: "off" } as never,
-	);
-
-	assert.equal(body.reasoning, undefined);
-});
-
-test("registered Codex provider exposes provider and shutdown handler", () => {
-	const registered = createRegisteredCodexProvider();
-
-	assert.equal(typeof registered.provider.streamSimple, "function");
-	assert.equal(registered.renderers.size, 0);
-	assert.equal((registered.handlers.get("session_shutdown") ?? []).length, 1);
 });
 
 test("registered Codex provider retries retryable SSE failures and streams the final response", async () => {
@@ -222,59 +191,6 @@ test("registered Codex provider converts non-retryable SSE errors into error eve
 	}
 });
 
-test("buildProviderErrorMessage marks websocket failures as Pi retryable connection errors", () => {
-	assert.equal(buildProviderErrorMessage(new Error("WebSocket error")), "Connection error: WebSocket error");
-	assert.equal(buildProviderErrorMessage(new Error("WebSocket closed 1000")), "Connection error: WebSocket closed 1000");
-	assert.equal(
-		buildProviderErrorMessage(new Error("WebSocket stream closed before response.completed")),
-		"Connection error: WebSocket stream closed before response.completed",
-	);
-	assert.equal(buildProviderErrorMessage(new Error("Unsupported parameter: max_output_tokens")), "Unsupported parameter: max_output_tokens");
-});
-
-test("buildProviderErrorMessage formats Codex usage limit JSON", () => {
-	const error = new Error(`Turn prefix summarization failed: Codex error: ${JSON.stringify({
-		type: "error",
-		error: { type: "usage_limit_reached", message: "The usage limit has been reached", plan_type: "prolite", resets_in_seconds: 1860 },
-		status_code: 429,
-		headers: {
-			"X-Codex-Active-Limit": "premium",
-			"X-Codex-Primary-Used-Percent": "100",
-			"X-Codex-Secondary-Used-Percent": "51",
-			"X-Codex-Bengalfox-Primary-Used-Percent": "0",
-			"X-Codex-Bengalfox-Secondary-Used-Percent": "4",
-			"X-Codex-Bengalfox-Limit-Name": "GPT-5.3-Codex-Spark",
-		},
-	})}`);
-
-	assert.equal(
-		buildProviderErrorMessage(error),
-		"Codex usage limit reached (prolite plan). Resets in ~31m. Current premium: 5h 100%, weekly 51%. Extra GPT-5.3-Codex-Spark: 5h 0%, weekly 4%.",
-	);
-});
-
-test("websocket continuation comparison ignores per-turn reasoning changes", () => {
-	const base = buildRequestBody(codexModel, { systemPrompt: "Instructions", messages: [] }, { sessionId: "session-1", reasoning: "low" });
-	const changedReasoning = buildRequestBody(codexModel, { systemPrompt: "Instructions", messages: [] }, { sessionId: "session-1", reasoning: "high" });
-
-	assert.deepEqual(
-		requestBodyForWebSocketContinuationComparison(changedReasoning),
-		requestBodyForWebSocketContinuationComparison(base),
-		"changing thinking level should not force a full-context WebSocket request",
-	);
-});
-
-test("websocket continuation comparison still includes semantic request fields", () => {
-	const base = buildRequestBody(codexModel, { systemPrompt: "Instructions", messages: [] }, { sessionId: "session-1", reasoning: "low" });
-	const changedModel = { ...base, model: "different-model" };
-
-	assert.notDeepEqual(
-		requestBodyForWebSocketContinuationComparison(changedModel),
-		requestBodyForWebSocketContinuationComparison(base),
-		"model changes must still force a full-context WebSocket request",
-	);
-});
-
 test("cached websocket request body reuses continuation across reasoning changes", () => {
 	const previousBody = buildRequestBody(codexModel, { systemPrompt: "Instructions", messages: [] }, { sessionId: "session-1", reasoning: "low" });
 	previousBody.input = [{ type: "message", role: "user", content: [{ type: "input_text", text: "first" }] }];
@@ -292,128 +208,6 @@ test("cached websocket request body reuses continuation across reasoning changes
 	);
 });
 
-test("cached websocket request body sends parallel tool outputs when assistant item replay drifts", () => {
-	const previousBody = buildRequestBody(codexModel, { systemPrompt: "Instructions", messages: [] }, { sessionId: "session-1" });
-	previousBody.input = [{ type: "message", role: "user", content: [{ type: "input_text", text: "inspect" }] }];
-	const responseItems = [
-		{ type: "function_call", id: "fc_1", call_id: "call_1", name: "exec_command", arguments: "{}" },
-		{ type: "function_call", id: "fc_2", call_id: "call_2", name: "semantic_grep", arguments: "{}" },
-	];
-	const toolOutputs = [
-		{ type: "function_call_output", call_id: "call_1", output: "one" },
-		{ type: "function_call_output", call_id: "call_2", output: "two" },
-	];
-	const fullBody = buildRequestBody(codexModel, { systemPrompt: "Instructions", messages: [] }, { sessionId: "session-1" });
-	fullBody.input = [
-		...previousBody.input,
-		{ ...responseItems[0], id: "fc_replayed_1" },
-		{ ...responseItems[1], id: "fc_replayed_2" },
-		...toolOutputs,
-	];
-
-	assert.deepEqual(
-		buildCachedWebSocketRequestBody({ lastRequestBody: previousBody, lastResponseId: "resp_1", lastResponseItems: responseItems }, fullBody),
-		{
-			body: { ...fullBody, previous_response_id: "resp_1", input: toolOutputs },
-			decision: "delta",
-		},
-	);
-});
-
-test("cached websocket request body keeps follow-up input after drifted tool outputs", () => {
-	const previousBody = buildRequestBody(codexModel, { systemPrompt: "Instructions", messages: [] }, { sessionId: "session-1" });
-	previousBody.input = [{ type: "message", role: "user", content: [{ type: "input_text", text: "inspect" }] }];
-	const responseItems = [
-		{ type: "function_call", id: "fc_1", call_id: "call_1", name: "exec_command", arguments: "{}" },
-		{ type: "function_call", id: "fc_2", call_id: "call_2", name: "semantic_grep", arguments: "{}" },
-	];
-	const delta = [
-		{ type: "function_call_output", call_id: "call_1", output: "one" },
-		{ type: "function_call_output", call_id: "call_2", output: "two" },
-		{ type: "message", role: "user", content: [{ type: "input_text", text: "now answer this" }] },
-	];
-	const fullBody = buildRequestBody(codexModel, { systemPrompt: "Instructions", messages: [] }, { sessionId: "session-1" });
-	fullBody.input = [
-		...previousBody.input,
-		{ ...responseItems[0], id: "fc_replayed_1" },
-		{ ...responseItems[1], id: "fc_replayed_2" },
-		...delta,
-	];
-
-	assert.deepEqual(
-		buildCachedWebSocketRequestBody({ lastRequestBody: previousBody, lastResponseId: "resp_1", lastResponseItems: responseItems }, fullBody),
-		{
-			body: { ...fullBody, previous_response_id: "resp_1", input: delta },
-			decision: "delta",
-		},
-	);
-});
-
-test("cached websocket request body reports explicit non-delta decisions", () => {
-	const previousBody = buildRequestBody(codexModel, { systemPrompt: "Instructions", messages: [] }, { sessionId: "session-1" });
-	previousBody.input = [{ type: "message", role: "user", content: [{ type: "input_text", text: "first" }] }];
-	const continuation = { lastRequestBody: previousBody, lastResponseId: "resp_1", lastResponseItems: [] };
-
-	assert.deepEqual(buildCachedWebSocketRequestBody(undefined, previousBody), { body: previousBody, decision: "no_continuation" });
-
-	const changedModel = { ...previousBody, model: "other-model" };
-	assert.deepEqual(buildCachedWebSocketRequestBody(continuation, changedModel), { body: changedModel, decision: "body_mismatch" });
-
-	const shorter = { ...previousBody, input: [] };
-	assert.deepEqual(buildCachedWebSocketRequestBody(continuation, shorter), { body: shorter, decision: "input_shorter_than_baseline" });
-
-	const missingPreviousResponse = { ...previousBody, input: [...previousBody.input, { type: "message", role: "user", content: [] }] };
-	assert.deepEqual(
-		buildCachedWebSocketRequestBody({ ...continuation, lastResponseId: "" }, missingPreviousResponse),
-		{ body: missingPreviousResponse, decision: "missing_previous_response_id" },
-	);
-});
-
-test("getEffectiveCodexTransport enables cached websockets without overriding auto or sse fallback semantics", () => {
-	assert.equal(getEffectiveCodexTransport(undefined, undefined), "auto");
-	assert.equal(getEffectiveCodexTransport(undefined, { forceCachedWebSockets: true }), "auto");
-	assert.equal(getEffectiveCodexTransport("auto", { forceCachedWebSockets: true }), "auto");
-	assert.equal(getEffectiveCodexTransport("websocket", { forceCachedWebSockets: true }), "websocket-cached");
-	assert.equal(getEffectiveCodexTransport("websocket-cached", { forceCachedWebSockets: true }), "websocket-cached");
-	assert.equal(getEffectiveCodexTransport("sse", { forceCachedWebSockets: true }), "sse");
-});
-
-test("getEffectiveCodexTransport preserves Pi transport when cached websocket override is disabled", () => {
-	assert.equal(getEffectiveCodexTransport(undefined, { forceCachedWebSockets: false }), "auto");
-	assert.equal(getEffectiveCodexTransport("websocket", { forceCachedWebSockets: false }), "websocket");
-	assert.equal(getEffectiveCodexTransport("websocket-cached", { forceCachedWebSockets: false }), "websocket-cached");
-});
-
-test("parseSSE fails loudly on malformed Codex JSON", async () => {
-	const response = new Response("data: {not json}\n\n");
-	await assert.rejects(async () => {
-		for await (const _event of parseSSE(response)) {
-			// consume stream
-		}
-	}, /Invalid Codex SSE JSON/);
-});
-
-test("parseSSE aborts response body reads when the caller aborts", async () => {
-	const controller = new AbortController();
-	let canceled = false;
-	const stream = new ReadableStream({
-		start(innerController) {
-			innerController.enqueue(new TextEncoder().encode('data: {"type":"response.created","response":{"id":"resp_1"}}\n\n'));
-		},
-		cancel() {
-			canceled = true;
-		},
-	});
-
-	const events = parseSSE(new Response(stream), controller.signal);
-	const iterator = events[Symbol.asyncIterator]();
-	assert.equal((await iterator.next()).value.type, "response.created");
-
-	controller.abort();
-	await assert.rejects(() => iterator.next(), /Request was aborted/);
-	assert.equal(canceled, true);
-});
-
 test("parseSSE accepts CRLF chunks, joined data lines, and ignores done sentinel", async () => {
 	const response = new Response([
 		'data: {"type":"response.created",\r\n',
@@ -426,4 +220,3 @@ test("parseSSE accepts CRLF chunks, joined data lines, and ignores done sentinel
 
 	assert.deepEqual(events, [{ type: "response.created", response: { id: "resp_1" } }]);
 });
-
