@@ -3,11 +3,12 @@ mod types;
 use std::io::Read;
 use std::path::PathBuf;
 use std::sync::{Arc, LazyLock};
+use std::time::{SystemTime, UNIX_EPOCH};
 use std::{env, fs};
 
 use anyhow::Context;
 use reqwest::cookie::{CookieStore, Jar};
-use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, CONTENT_TYPE, USER_AGENT};
+use reqwest::header::{ACCEPT, CONTENT_TYPE, HeaderMap, HeaderValue, USER_AGENT};
 use serde::Deserialize;
 use serde_json::json;
 use types::{AllowedCaller, SearchCommands, SearchRequest, SearchResponse, SearchSettings};
@@ -26,11 +27,16 @@ struct ChatGptCloudflareCookieStore {
 }
 
 impl CookieStore for ChatGptCloudflareCookieStore {
-    fn set_cookies(&self, cookie_headers: &mut dyn Iterator<Item = &HeaderValue>, url: &reqwest::Url) {
+    fn set_cookies(
+        &self,
+        cookie_headers: &mut dyn Iterator<Item = &HeaderValue>,
+        url: &reqwest::Url,
+    ) {
         if !is_chatgpt_cookie_url(url) {
             return;
         }
-        let mut cloudflare_cookie_headers = cookie_headers.filter(|header| is_allowed_cloudflare_set_cookie_header(header));
+        let mut cloudflare_cookie_headers =
+            cookie_headers.filter(|header| is_allowed_cloudflare_set_cookie_header(header));
         self.jar.set_cookies(&mut cloudflare_cookie_headers, url);
     }
 
@@ -50,7 +56,11 @@ fn is_chatgpt_cookie_url(url: &reqwest::Url) -> bool {
     let Some(host) = url.host_str() else {
         return false;
     };
-    matches!(host, "chatgpt.com" | "chat.openai.com" | "chatgpt-staging.com") || host.ends_with(".chatgpt.com") || host.ends_with(".chatgpt-staging.com")
+    matches!(
+        host,
+        "chatgpt.com" | "chat.openai.com" | "chatgpt-staging.com"
+    ) || host.ends_with(".chatgpt.com")
+        || host.ends_with(".chatgpt-staging.com")
 }
 
 fn is_allowed_cloudflare_set_cookie_header(header: &HeaderValue) -> bool {
@@ -82,7 +92,15 @@ fn only_cloudflare_cookies(header: HeaderValue) -> Option<HeaderValue> {
 fn is_allowed_cloudflare_cookie_name(name: &str) -> bool {
     matches!(
         name,
-        "__cf_bm" | "__cflb" | "__cfruid" | "__cfseq" | "__cfwaitingroom" | "_cfuvid" | "cf_clearance" | "cf_ob_info" | "cf_use_ob"
+        "__cf_bm"
+            | "__cflb"
+            | "__cfruid"
+            | "__cfseq"
+            | "__cfwaitingroom"
+            | "_cfuvid"
+            | "cf_clearance"
+            | "cf_ob_info"
+            | "cf_use_ob"
     ) || name.starts_with("cf_chl_")
 }
 
@@ -95,6 +113,8 @@ struct PiAuthFile {
 #[derive(Debug, Deserialize)]
 struct PiOAuthCredential {
     access: String,
+    refresh: Option<String>,
+    expires: Option<u64>,
     #[serde(rename = "accountId")]
     account_id: String,
 }
@@ -102,6 +122,97 @@ struct PiOAuthCredential {
 struct CodexAuth {
     token: String,
     account_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct TokenRefreshResponse {
+    access_token: String,
+    refresh_token: Option<String>,
+    expires_in: Option<u64>,
+}
+
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| u64::try_from(duration.as_millis()).unwrap_or(u64::MAX))
+        .unwrap_or(0)
+}
+
+fn token_needs_refresh(credential: &PiOAuthCredential) -> bool {
+    credential
+        .expires
+        .is_some_and(|expires| expires <= now_ms().saturating_add(60_000))
+}
+
+async fn refresh_pi_codex_auth(
+    auth_path: &PathBuf,
+    auth_json: &mut serde_json::Value,
+    credential: &PiOAuthCredential,
+) -> anyhow::Result<CodexAuth> {
+    let Some(refresh_token) = credential
+        .refresh
+        .as_deref()
+        .filter(|token| !token.trim().is_empty())
+    else {
+        anyhow::bail!(
+            "Pi openai-codex credential access token is expired and no refresh token is available; run /login openai-codex"
+        );
+    };
+    let response = build_codex_http_client()?
+        .post("https://auth.openai.com/oauth/token")
+        .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
+        .json(&json!({
+            "client_id": "app_EMoamEEZ73f0CkXaXp7hrann",
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token,
+        }))
+        .send()
+        .await
+        .context("failed to refresh Pi openai-codex token")?;
+    let status = response.status();
+    let body = response
+        .text()
+        .await
+        .context("failed to read Pi openai-codex token refresh response")?;
+    if !status.is_success() {
+        anyhow::bail!("Pi openai-codex token refresh failed: HTTP {status} {body}");
+    }
+    let refreshed: TokenRefreshResponse = serde_json::from_str(&body)
+        .context("failed to decode Pi openai-codex token refresh response")?;
+    let new_refresh = refreshed
+        .refresh_token
+        .unwrap_or_else(|| refresh_token.to_string());
+    let new_expires =
+        now_ms().saturating_add(refreshed.expires_in.unwrap_or(0).saturating_mul(1_000));
+    if let Some(entry) = auth_json
+        .get_mut("openai-codex")
+        .and_then(serde_json::Value::as_object_mut)
+    {
+        entry.insert(
+            "access".to_string(),
+            serde_json::Value::String(refreshed.access_token.clone()),
+        );
+        entry.insert(
+            "refresh".to_string(),
+            serde_json::Value::String(new_refresh),
+        );
+        if refreshed.expires_in.is_some() {
+            entry.insert(
+                "expires".to_string(),
+                serde_json::Value::Number(new_expires.into()),
+            );
+        }
+        fs::write(auth_path, serde_json::to_vec_pretty(auth_json)?).with_context(|| {
+            format!(
+                "failed to write refreshed Pi auth file `{}`",
+                auth_path.display()
+            )
+        })?;
+    }
+    Ok(CodexAuth {
+        token: refreshed.access_token,
+        account_id: credential.account_id.clone(),
+    })
 }
 
 #[derive(Debug, Deserialize)]
@@ -159,25 +270,40 @@ fn pi_agent_dir() -> PathBuf {
     PathBuf::from(home).join(".pi").join("agent")
 }
 
-fn read_codex_auth() -> anyhow::Result<CodexAuth> {
-    if let (Ok(token), Ok(account_id)) = (env::var("PI_CODEX_ACCESS_TOKEN"), env::var("PI_CODEX_ACCOUNT_ID")) {
+async fn read_codex_auth() -> anyhow::Result<CodexAuth> {
+    if let (Ok(token), Ok(account_id)) = (
+        env::var("PI_CODEX_ACCESS_TOKEN"),
+        env::var("PI_CODEX_ACCOUNT_ID"),
+    ) {
         return Ok(CodexAuth { token, account_id });
     }
     let auth_path = env::var("PI_AUTH_PATH")
         .map(PathBuf::from)
         .unwrap_or_else(|_| pi_agent_dir().join("auth.json"));
-    let auth: PiAuthFile = serde_json::from_str(
-        &fs::read_to_string(&auth_path)
-            .with_context(|| format!("failed to read Pi auth file `{}`", auth_path.display()))?,
-    )
-    .with_context(|| format!("failed to parse Pi auth file `{}`", auth_path.display()))?;
+    let auth_file = fs::read_to_string(&auth_path)
+        .with_context(|| format!("failed to read Pi auth file `{}`", auth_path.display()))?;
+    let mut auth_json: serde_json::Value = serde_json::from_str(&auth_file)
+        .with_context(|| format!("failed to parse Pi auth file `{}`", auth_path.display()))?;
+    let auth: PiAuthFile = serde_json::from_value(auth_json.clone())
+        .with_context(|| format!("failed to parse Pi auth file `{}`", auth_path.display()))?;
     let Some(credential) = auth.openai_codex else {
-        anyhow::bail!("Pi auth file `{}` has no openai-codex credential; run /login openai-codex", auth_path.display());
+        anyhow::bail!(
+            "Pi auth file `{}` has no openai-codex credential; run /login openai-codex",
+            auth_path.display()
+        );
     };
     if credential.access.is_empty() || credential.account_id.is_empty() {
-        anyhow::bail!("Pi openai-codex credential is missing access token or account id; run /login openai-codex");
+        anyhow::bail!(
+            "Pi openai-codex credential is missing access token or account id; run /login openai-codex"
+        );
     }
-    Ok(CodexAuth { token: credential.access, account_id: credential.account_id })
+    if token_needs_refresh(&credential) {
+        return refresh_pi_codex_auth(&auth_path, &mut auth_json, &credential).await;
+    }
+    Ok(CodexAuth {
+        token: credential.access,
+        account_id: credential.account_id,
+    })
 }
 
 fn alpha_search_url() -> String {
@@ -188,7 +314,10 @@ fn alpha_search_url() -> String {
         return alpha_search_url_from_base(&base);
     }
     if let Ok(server_uri) = env::var("PI_CODEX_SERVER_URI") {
-        return format!("{}/api/codex/alpha/search", server_uri.trim_end_matches('/'));
+        return format!(
+            "{}/api/codex/alpha/search",
+            server_uri.trim_end_matches('/')
+        );
     }
     let base = env::var("PI_CODEX_BASE_URL").unwrap_or_else(|_| DEFAULT_BASE_URL.to_string());
     alpha_search_url_from_base(&base)
@@ -200,7 +329,10 @@ fn alpha_search_url_from_base(base: &str) -> String {
         normalized.to_string()
     } else if normalized.ends_with("/codex/responses") {
         format!("{}/alpha/search", normalized.trim_end_matches("/responses"))
-    } else if normalized.ends_with("/api/codex") || normalized.ends_with("/backend-api/codex") || normalized.ends_with("/codex") {
+    } else if normalized.ends_with("/api/codex")
+        || normalized.ends_with("/backend-api/codex")
+        || normalized.ends_with("/codex")
+    {
         format!("{normalized}/alpha/search")
     } else if normalized.ends_with("/api") || normalized.ends_with("/backend-api") {
         format!("{normalized}/codex/alpha/search")
@@ -211,7 +343,10 @@ fn alpha_search_url_from_base(base: &str) -> String {
 
 fn headers(token: &str, account_id: &str) -> anyhow::Result<HeaderMap> {
     let mut headers = HeaderMap::new();
-    headers.insert("Authorization", HeaderValue::from_str(&format!("Bearer {token}"))?);
+    headers.insert(
+        "Authorization",
+        HeaderValue::from_str(&format!("Bearer {token}"))?,
+    );
     headers.insert("ChatGPT-Account-ID", HeaderValue::from_str(account_id)?);
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
     headers.insert(ACCEPT, HeaderValue::from_static("application/json"));
@@ -220,7 +355,8 @@ fn headers(token: &str, account_id: &str) -> anyhow::Result<HeaderMap> {
 
 fn default_headers() -> HeaderMap {
     let mut headers = HeaderMap::new();
-    let originator = env::var("CODEX_INTERNAL_ORIGINATOR_OVERRIDE").unwrap_or_else(|_| DEFAULT_ORIGINATOR.to_string());
+    let originator = env::var("CODEX_INTERNAL_ORIGINATOR_OVERRIDE")
+        .unwrap_or_else(|_| DEFAULT_ORIGINATOR.to_string());
     if let Ok(value) = HeaderValue::from_str(&originator) {
         headers.insert("originator", value);
     } else {
@@ -237,9 +373,18 @@ fn codex_user_agent(originator: &str) -> String {
     let terminal = env::var("TERM_PROGRAM")
         .ok()
         .filter(|value| !value.trim().is_empty())
-        .or_else(|| env::var("TERM").ok().filter(|value| !value.trim().is_empty()))
+        .or_else(|| {
+            env::var("TERM")
+                .ok()
+                .filter(|value| !value.trim().is_empty())
+        })
         .unwrap_or_else(|| "unknown".to_string());
-    format!("{originator}/0.0.0 ({} {}; {}) {terminal}", std::env::consts::OS, "unknown", std::env::consts::ARCH)
+    format!(
+        "{originator}/0.0.0 ({} {}; {}) {terminal}",
+        std::env::consts::OS,
+        "unknown",
+        std::env::consts::ARCH
+    )
 }
 
 fn build_codex_http_client() -> anyhow::Result<reqwest::Client> {
@@ -275,7 +420,7 @@ fn build_search_request(args: &WebRunArgs, model: String) -> SearchRequest {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = parse_args()?;
-    let auth = read_codex_auth()?;
+    let auth = read_codex_auth().await?;
     let model = args
         .model
         .clone()
@@ -303,14 +448,22 @@ async fn main() -> anyhow::Result<()> {
         .get("server")
         .and_then(|value| value.to_str().ok())
         .is_some_and(|value| value.eq_ignore_ascii_case("cloudflare"));
-    let body = response.text().await.context("failed to read web_run response")?;
-    let cloudflare_challenge = cloudflare_mitigated || (cloudflare_server && body.trim_start().starts_with("<html"));
+    let body = response
+        .text()
+        .await
+        .context("failed to read web_run response")?;
+    let cloudflare_challenge =
+        cloudflare_mitigated || (cloudflare_server && body.trim_start().starts_with("<html"));
     if !status.is_success() {
-        if status.as_u16() == 403 && (cloudflare_challenge || body.to_ascii_lowercase().contains("cloudflare")) {
+        if status.as_u16() == 403
+            && (cloudflare_challenge || body.to_ascii_lowercase().contains("cloudflare"))
+        {
             anyhow::bail!("web_run alpha/search failed for `{url}`: HTTP 403 Cloudflare challenge");
         }
         if status.as_u16() == 404 && body.contains("\"Not Found\"") {
-            anyhow::bail!("web_run alpha/search failed for `{url}`: HTTP 404 Not Found (Codex alpha/search endpoint unavailable for this account/backend)");
+            anyhow::bail!(
+                "web_run alpha/search failed for `{url}`: HTTP 404 Not Found (Codex alpha/search endpoint unavailable for this account/backend)"
+            );
         }
         anyhow::bail!("web_run alpha/search failed for `{url}`: HTTP {status} {body}");
     }
@@ -325,10 +478,14 @@ async fn main() -> anyhow::Result<()> {
         anyhow::bail!("web_run alpha/search failed for `{url}`: expected JSON response");
     }
 
-    let parsed: SearchResponse = serde_json::from_str(&body).context("failed to decode web_run alpha/search response")?;
-    println!("{}", json!({
-        "text": "[encrypted web search output]",
-        "encrypted_output": parsed.encrypted_output,
-    }));
+    let parsed: SearchResponse =
+        serde_json::from_str(&body).context("failed to decode web_run alpha/search response")?;
+    println!(
+        "{}",
+        json!({
+            "text": "[encrypted web search output]",
+            "encrypted_output": parsed.encrypted_output,
+        })
+    );
     Ok(())
 }

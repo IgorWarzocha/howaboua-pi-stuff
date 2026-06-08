@@ -48,38 +48,111 @@ pub struct SearchCommands {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct SearchQuery { pub q: String, #[serde(skip_serializing_if = "Option::is_none")] pub recency: Option<u64>, #[serde(skip_serializing_if = "Option::is_none")] pub domains: Option<Vec<String>> }
+pub struct SearchQuery {
+    pub q: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub recency: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub domains: Option<Vec<String>>,
+}
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct OpenOperation { pub ref_id: String, #[serde(skip_serializing_if = "Option::is_none")] pub lineno: Option<u64> }
+pub struct OpenOperation {
+    pub ref_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lineno: Option<u64>,
+}
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ClickOperation { pub ref_id: String, pub id: u64 }
+pub struct ClickOperation {
+    pub ref_id: String,
+    pub id: u64,
+}
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct FindOperation { pub ref_id: String, pub pattern: String }
+pub struct FindOperation {
+    pub ref_id: String,
+    pub pattern: String,
+}
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ScreenshotOperation { pub ref_id: String, pub pageno: u64 }
+pub struct ScreenshotOperation {
+    pub ref_id: String,
+    pub pageno: u64,
+}
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct FinanceOperation { pub ticker: String, pub r#type: FinanceAssetType, #[serde(skip_serializing_if = "Option::is_none")] pub market: Option<String> }
+pub struct FinanceOperation {
+    pub ticker: String,
+    pub r#type: FinanceAssetType,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub market: Option<String>,
+}
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
-pub enum FinanceAssetType { Equity, Fund, Crypto, Index }
+pub enum FinanceAssetType {
+    Equity,
+    Fund,
+    Crypto,
+    Index,
+}
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct WeatherOperation { pub location: String, #[serde(skip_serializing_if = "Option::is_none")] pub start: Option<String>, #[serde(skip_serializing_if = "Option::is_none")] pub duration: Option<u64> }
+pub struct WeatherOperation {
+    pub location: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration: Option<u64>,
+}
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct SportsOperation { #[serde(skip_serializing_if = "Option::is_none")] pub tool: Option<SportsToolName>, pub r#fn: SportsFunction, pub league: SportsLeague, #[serde(skip_serializing_if = "Option::is_none")] pub team: Option<String>, #[serde(skip_serializing_if = "Option::is_none")] pub opponent: Option<String>, #[serde(skip_serializing_if = "Option::is_none")] pub date_from: Option<String>, #[serde(skip_serializing_if = "Option::is_none")] pub date_to: Option<String>, #[serde(skip_serializing_if = "Option::is_none")] pub num_games: Option<u64>, #[serde(skip_serializing_if = "Option::is_none")] pub locale: Option<String> }
+pub struct SportsOperation {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool: Option<SportsToolName>,
+    pub r#fn: SportsFunction,
+    pub league: SportsLeague,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub team: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub opponent: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub date_from: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub date_to: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub num_games: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub locale: Option<String>,
+}
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
-pub enum SportsToolName { Sports }
+pub enum SportsToolName {
+    Sports,
+}
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
-pub enum SportsFunction { Schedule, Standings }
+pub enum SportsFunction {
+    Schedule,
+    Standings,
+}
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
-pub enum SportsLeague { Nba, Wnba, Nfl, Nhl, Mlb, Epl, Ncaamb, Ncaawb, Ipl }
+pub enum SportsLeague {
+    Nba,
+    Wnba,
+    Nfl,
+    Nhl,
+    Mlb,
+    Epl,
+    Ncaamb,
+    Ncaawb,
+    Ipl,
+}
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct TimeOperation { pub utc_offset: String }
+pub struct TimeOperation {
+    pub utc_offset: String,
+}
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
-pub enum SearchResponseLength { Short, Medium, Long }
+pub enum SearchResponseLength {
+    Short,
+    Medium,
+    Long,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct SearchSettings {
@@ -99,23 +172,49 @@ pub struct SearchSettings {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ApproximateLocation {
     pub r#type: LocationType,
-    #[serde(skip_serializing_if = "Option::is_none")] pub country: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")] pub region: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")] pub city: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")] pub timezone: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub country: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub region: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub city: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timezone: Option<String>,
 }
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-pub enum LocationType { Approximate }
+pub enum LocationType {
+    Approximate,
+}
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
-pub enum SearchContextSize { Low, Medium, High }
+pub enum SearchContextSize {
+    Low,
+    Medium,
+    High,
+}
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
-pub struct SearchFilters { #[serde(skip_serializing_if = "Option::is_none")] pub allowed_domains: Option<Vec<String>>, #[serde(skip_serializing_if = "Option::is_none")] pub blocked_domains: Option<Vec<String>> }
+pub struct SearchFilters {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allowed_domains: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blocked_domains: Option<Vec<String>>,
+}
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
-pub struct SearchImageSettings { #[serde(skip_serializing_if = "Option::is_none")] pub max_results: Option<u64>, #[serde(skip_serializing_if = "Option::is_none")] pub caption: Option<bool> }
+pub struct SearchImageSettings {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_results: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub caption: Option<bool>,
+}
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-pub enum AllowedCaller { Direct, Shell, CodeInterpreter }
+pub enum AllowedCaller {
+    Direct,
+    Shell,
+    CodeInterpreter,
+}
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
-pub struct SearchResponse { pub encrypted_output: String }
+pub struct SearchResponse {
+    pub encrypted_output: String,
+}
