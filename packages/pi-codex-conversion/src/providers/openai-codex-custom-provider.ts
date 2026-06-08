@@ -21,6 +21,7 @@ import { finalizeUsage } from "./openai-codex/usage.ts";
 import { closeOpenAICodexWebSocketSessions, validateWebSocketTimeoutOptions } from "./openai-codex/websocket.ts";
 import { processCodexResponsesStream } from "./openai-codex/stream-events.ts";
 import { processWebSocketStream } from "./openai-codex/websocket-stream.ts";
+import { openaiCodexNativeOAuthProvider } from "./openai-codex/oauth.ts";
 
 export { buildProviderErrorMessage } from "./openai-codex/errors.ts";
 export { buildRequestBody } from "./openai-codex/request-body.ts";
@@ -213,6 +214,7 @@ function createCodexStream<TApi extends Api>(
 export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: { getCurrentCwd: () => string; getConfig?: () => Pick<CodexConversionConfig["openai"], "forceCachedWebSockets"> | undefined }): void {
 	pi.registerProvider("openai-codex", {
 		api: "openai-codex-responses",
+		oauth: openaiCodexNativeOAuthProvider,
 		streamSimple: (model, context, streamOptions) => createCodexStream(model, context, streamOptions, {
 			getCurrentCwd: options.getCurrentCwd,
 			...(options.getConfig ? { getConfig: options.getConfig } : {}),
