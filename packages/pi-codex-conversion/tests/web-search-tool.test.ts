@@ -60,9 +60,9 @@ test("buildRecentWebSearchInput mirrors Codex standalone web search context tail
 		{ role: "user", content: [{ type: "input_text", text: "current user" }] },
 	] as never);
 	assert.deepEqual(input, [
-		{ role: "user", content: [{ type: "input_text", text: "previous user" }] },
+		{ type: "message", role: "user", content: [{ type: "input_text", text: "previous user" }] },
 		{ type: "message", role: "assistant", content: [{ type: "output_text", text: "previous assistant", annotations: [] }], status: "completed" },
-		{ role: "user", content: [{ type: "input_text", text: "current user" }] },
+		{ type: "message", role: "user", content: [{ type: "input_text", text: "current user" }] },
 	]);
 });
 
@@ -79,7 +79,7 @@ test("buildCodexWebSearchRequest matches Codex alpha/search request defaults", (
 
 test("buildCodexWebSearchRequest includes recent input when no explicit input is passed", () => {
 	const provider = { baseUrl: "https://chatgpt.com/backend-api/codex", model: "gpt-5.4-mini", token: fakeJwt("acct"), accountId: "acct" };
-	const recentInput = [{ role: "user", content: [{ type: "input_text", text: "current user" }] }];
+	const recentInput = [{ type: "message", role: "user", content: [{ type: "input_text", text: "current user" }] }];
 	const request = buildCodexWebSearchRequest({ search_query: [{ q: "OpenAI" }] }, provider, recentInput as never);
 	assert.equal(request["input"], recentInput);
 });

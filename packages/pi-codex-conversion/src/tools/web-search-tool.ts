@@ -42,7 +42,7 @@ export function buildRecentWebSearchInput(items: ResponseInput): ResponseInput |
 		}
 		if (item.role !== "user" || !Array.isArray(item.content)) continue;
 		const content = item.content.filter((block) => block?.type === "input_text" && typeof block.text === "string" && !isContextualUserText(block.text));
-		if (content.length > 0) visible.push({ ...item, content } as ResponseInput[number]);
+		if (content.length > 0) visible.push({ ...item, type: "message", content } as ResponseInput[number]);
 	}
 
 	let userCount = 0;
