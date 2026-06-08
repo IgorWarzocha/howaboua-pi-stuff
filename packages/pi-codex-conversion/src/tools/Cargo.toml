@@ -55,3 +55,8 @@ tree-sitter = "0.25"
 tree-sitter-bash = "0.25"
 ts-rs = { version = "11", features = ["serde-json-impl", "no-serde-warnings"] }
 uuid = { version = "1", features = ["v4"] }
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1

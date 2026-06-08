@@ -54,10 +54,10 @@
     "publish:dev": "npm publish --tag dev",
     "release:dev": "npm version prerelease --preid dev && npm publish --tag dev",
     "prepack": "bun run check",
-    "prepublishOnly": "bun run verify:apply-patch-binaries",
+    "prepublishOnly": "bun run verify:codex-tool-binaries",
     "build:apply-patch": "node scripts/build-apply-patch-binary.mjs",
     "sync:apply-patch-source": "node scripts/sync-apply-patch-source.mjs",
-    "verify:apply-patch-binaries": "node scripts/verify-apply-patch-binaries.mjs",
+    "verify:codex-tool-binaries": "node scripts/verify-codex-tool-binaries.mjs",
     "build:path-tool": "node scripts/build-path-tool-binary.mjs"
   },
   "publishConfig": {

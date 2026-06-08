@@ -1,0 +1,58 @@
+name: Build Codex tool binaries
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'packages/pi-codex-conversion/src/tools/**/rust/**'
+      - 'packages/pi-codex-conversion/src/tools/rust/**'
+      - 'packages/pi-codex-conversion/src/tools/Cargo.toml'
+      - 'packages/pi-codex-conversion/src/tools/Cargo.lock'
+      - 'packages/pi-codex-conversion/scripts/build-apply-patch-binary.mjs'
+      - 'packages/pi-codex-conversion/scripts/build-path-tool-binary.mjs'
+      - 'packages/pi-codex-conversion/scripts/verify-codex-tool-binaries.mjs'
+      - 'packages/pi-codex-conversion/bin/**'
+      - '.github/workflows/codex-tool-binaries.yml'
+
+jobs:
+  build:
+    name: ${{ matrix.platform_arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform_arch: linux-x64
+          - os: ubuntu-24.04-arm
+            platform_arch: linux-arm64
+          - os: macos-13
+            platform_arch: darwin-x64
+          - os: macos-latest
+            platform_arch: darwin-arm64
+          - os: windows-latest
+            platform_arch: win32-x64
+          - os: windows-11-arm
+            platform_arch: win32-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install
+      - name: Build bundled tools
+        working-directory: packages/pi-codex-conversion
+        run: |
+          bun run build:apply-patch
+          bun run build:path-tool codex-view-image view_image
+          bun run build:path-tool codex-web-run web_run
+          bun run build:path-tool codex-imagegen imagegen
+          bun run build:path-tool codex-exec-shim exec_bridge
+      - uses: actions/upload-artifact@v7
+        with:
+          name: codex-tool-binaries-${{ matrix.platform_arch }}
+          path: |
+            packages/pi-codex-conversion/src/tools/apply-patch/bin/${{ matrix.platform_arch }}/
+            packages/pi-codex-conversion/src/tools/view-image/bin/${{ matrix.platform_arch }}/
+            packages/pi-codex-conversion/src/tools/web-run/bin/${{ matrix.platform_arch }}/
+            packages/pi-codex-conversion/src/tools/imagegen/bin/${{ matrix.platform_arch }}/
+            packages/pi-codex-conversion/src/tools/exec/bin/${{ matrix.platform_arch }}/
