@@ -7,6 +7,7 @@ export interface RunBundledToolOptions {
 	env?: NodeJS.ProcessEnv | undefined;
 	maxBuffer?: number | undefined;
 	signal?: AbortSignal | undefined;
+	label?: string | undefined;
 }
 
 export interface BundledToolResult {
@@ -17,10 +18,11 @@ export interface BundledToolResult {
 
 const DEFAULT_MAX_BUFFER = 64 * 1024 * 1024;
 
-export function runBundledTool({ binary, args, cwd, env, maxBuffer, signal }: RunBundledToolOptions): Promise<BundledToolResult> {
+export function runBundledTool({ binary, args, cwd, env, maxBuffer, signal, label }: RunBundledToolOptions): Promise<BundledToolResult> {
 	return new Promise((resolve, reject) => {
+		const toolLabel = label ?? "tool";
 		if (signal?.aborted) {
-			reject(new Error(`${binary} aborted`));
+			reject(new Error("Operation aborted"));
 			return;
 		}
 
@@ -49,7 +51,7 @@ export function runBundledTool({ binary, args, cwd, env, maxBuffer, signal }: Ru
 			outputBytes += Buffer.byteLength(text, "utf8");
 			if (outputBytes > outputLimit) {
 				child.kill();
-				finish(() => reject(new Error(`${binary} output exceeded ${outputLimit} bytes`)));
+				finish(() => reject(new Error(`${toolLabel} output exceeded ${outputLimit} bytes`)));
 				return;
 			}
 			if (target === "stdout") stdout += text;
@@ -57,7 +59,7 @@ export function runBundledTool({ binary, args, cwd, env, maxBuffer, signal }: Ru
 		};
 		const onAbort = () => {
 			child.kill();
-			finish(() => reject(new Error(`${binary} aborted`)));
+			finish(() => reject(new Error("Operation aborted")));
 		};
 
 		child.stdout?.setEncoding("utf8");

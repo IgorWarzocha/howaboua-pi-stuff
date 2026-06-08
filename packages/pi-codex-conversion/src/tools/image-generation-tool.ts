@@ -77,6 +77,7 @@ async function executeRustImagegen(args: ImagegenArgs, signal: AbortSignal | und
 		cwd: ctx.cwd,
 		env: await imagegenEnv(ctx),
 		signal,
+		label: IMAGE_GENERATION_TOOL_NAME,
 	});
 	if (child.status !== 0) throw new Error((child.stderr || child.stdout || "imagegen failed").trim());
 	const parsed = pathImagegenOutputFromJson(child.stdout);

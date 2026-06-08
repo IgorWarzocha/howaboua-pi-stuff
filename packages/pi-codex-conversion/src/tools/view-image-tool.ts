@@ -85,6 +85,7 @@ async function executeRustViewImage(params: ViewImageParams, cwd: string, signal
 		args: [JSON.stringify(params)],
 		cwd,
 		signal,
+		label: "view_image",
 	});
 	if (child.status !== 0) {
 		throw new Error((child.stderr || child.stdout || "view_image failed").trim());

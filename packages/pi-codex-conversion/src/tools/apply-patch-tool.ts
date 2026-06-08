@@ -266,6 +266,7 @@ async function executePatchWithRust({ cwd, patchText, signal }: { cwd: string; p
 		cwd,
 		env: { ...process.env, PI_APPLY_PATCH_JSON: "1" },
 		signal,
+		label: "apply_patch",
 	});
 	const parsed = parseRustApplyPatchJson(child.stdout);
 	if (parsed.status === "success" && child.status === 0) {
