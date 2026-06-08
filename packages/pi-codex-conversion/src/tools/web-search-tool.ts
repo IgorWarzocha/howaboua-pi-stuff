@@ -3,6 +3,7 @@ import { Type } from "typebox";
 import { Container, Text } from "@earendil-works/pi-tui";
 import { WEB_SEARCH_TOOL_NAME } from "../adapter/tool-set.ts";
 import { extractAccountId } from "../providers/openai-codex/headers.ts";
+import { attachChatGptCloudflareCookies, storeChatGptCloudflareCookies } from "./chatgpt-cloudflare-cookies.ts";
 
 export const WEB_SEARCH_UNSUPPORTED_MESSAGE = "web_run requires an OpenAI Codex-compatible Responses provider";
 export const WEB_SEARCH_SESSION_NOTE_TYPE = "codex-web-search-session-note";
@@ -128,12 +129,16 @@ export function createWebSearchTool(name: string = WEB_SEARCH_TOOL_NAME): ToolDe
 		prepareArguments: (args) => args && typeof args === "object" ? args as Record<string, unknown> : {},
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
 			if (!supportsExecutableWebSearch(ctx.model)) throw new Error(WEB_SEARCH_UNSUPPORTED_MESSAGE);
-			const response = await fetch(resolveAlphaSearchUrl(ctx.model?.baseUrl), {
+			const url = resolveAlphaSearchUrl(ctx.model?.baseUrl);
+			const headers = await resolveAuth(ctx);
+			attachChatGptCloudflareCookies(url, headers);
+			const response = await fetch(url, {
 				method: "POST",
-				headers: await resolveAuth(ctx),
+				headers,
 				signal: signal ?? null,
 				body: JSON.stringify(buildAlphaSearchRequest(params, ctx)),
 			});
+			storeChatGptCloudflareCookies(url, response.headers);
 			const body = await response.text();
 			if (!response.ok) throw webRunHttpError(response.status, body);
 			const encryptedOutput = parseEncryptedOutput(body);
