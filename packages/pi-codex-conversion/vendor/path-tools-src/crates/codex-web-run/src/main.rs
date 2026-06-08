@@ -309,6 +309,9 @@ async fn main() -> anyhow::Result<()> {
         if status.as_u16() == 403 && (cloudflare_challenge || body.to_ascii_lowercase().contains("cloudflare")) {
             anyhow::bail!("web_run alpha/search failed for `{url}`: HTTP 403 Cloudflare challenge");
         }
+        if status.as_u16() == 404 && body.contains("\"Not Found\"") {
+            anyhow::bail!("web_run alpha/search failed for `{url}`: HTTP 404 Not Found (Codex alpha/search endpoint unavailable for this account/backend)");
+        }
         anyhow::bail!("web_run alpha/search failed for `{url}`: HTTP {status} {body}");
     }
     if !body.trim_start().starts_with('{') {

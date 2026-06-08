@@ -172,6 +172,7 @@ export async function executeCodexWebSearchFetch(params: Record<string, unknown>
 	const cloudflareChallenge = response.headers.get("cf-mitigated") === "challenge" || (response.headers.get("server") ?? "").toLowerCase() === "cloudflare" && body.trimStart().startsWith("<html");
 	if (!response.ok) {
 		if (response.status === 403 && (cloudflareChallenge || body.toLowerCase().includes("cloudflare"))) throw new Error(`web_run alpha/search failed for \`${url}\`: HTTP 403 Cloudflare challenge`);
+		if (response.status === 404 && body.includes('"Not Found"')) throw new Error(`web_run alpha/search failed for \`${url}\`: HTTP 404 Not Found (Codex alpha/search endpoint unavailable for this account/backend)`);
 		throw new Error(`web_run alpha/search failed for \`${url}\`: HTTP ${response.status} ${body}`);
 	}
 	if (!body.trimStart().startsWith("{")) {

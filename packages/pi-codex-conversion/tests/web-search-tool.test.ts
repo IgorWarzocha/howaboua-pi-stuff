@@ -166,6 +166,8 @@ test("executeCodexWebSearch reports Cloudflare and non-JSON failures", async () 
 		await assert.rejects(() => executeCodexWebSearchFetch({}, createContext(), undefined), /HTTP 403 Cloudflare challenge/);
 		globalThis.fetch = (async () => new Response("<html>challenge</html>", { status: 200, headers: { "cf-mitigated": "challenge", server: "cloudflare" } })) as typeof fetch;
 		await assert.rejects(() => executeCodexWebSearchFetch({}, createContext(), undefined), /Cloudflare challenge/);
+		globalThis.fetch = (async () => new Response(JSON.stringify({ detail: "Not Found" }), { status: 404 })) as typeof fetch;
+		await assert.rejects(() => executeCodexWebSearchFetch({}, createContext(), undefined), /Codex alpha\/search endpoint unavailable/);
 	} finally {
 		globalThis.fetch = originalFetch;
 	}
