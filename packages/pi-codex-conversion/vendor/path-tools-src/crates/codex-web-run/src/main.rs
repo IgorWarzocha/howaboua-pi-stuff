@@ -87,72 +87,6 @@ fn pi_agent_dir() -> PathBuf {
     PathBuf::from(home).join(".pi").join("agent")
 }
 
-fn codex_home() -> PathBuf {
-    if let Ok(path) = env::var("CODEX_HOME") {
-        return PathBuf::from(path);
-    }
-    let home = env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    PathBuf::from(home).join(".codex")
-}
-
-fn toml_string_value(value: &str) -> Option<String> {
-    let trimmed = value.trim();
-    let first = trimmed.chars().next()?;
-    let last = trimmed.chars().last()?;
-    if (first != '"' && first != '\'') || last != first || trimmed.len() < 2 {
-        return None;
-    }
-    Some(trimmed[1..trimmed.len() - 1].to_string())
-}
-
-fn codex_provider_base_url() -> Option<String> {
-    let config_path = codex_home().join("config.toml");
-    let source = fs::read_to_string(config_path).ok()?;
-    let mut section = String::new();
-    let mut root_provider = None;
-    let mut root_openai_base_url = None;
-    let mut active_profile = None;
-    let mut profile_provider = None;
-    let mut provider_bases = std::collections::HashMap::<String, String>::new();
-    for raw_line in source.lines() {
-        let line = raw_line.split('#').next().unwrap_or_default().trim();
-        if line.is_empty() {
-            continue;
-        }
-        if line.starts_with('[') && line.ends_with(']') {
-            section = line[1..line.len() - 1].trim().to_string();
-            continue;
-        }
-        let Some((key, raw_value)) = line.split_once('=') else {
-            continue;
-        };
-        let key = key.trim();
-        let Some(value) = toml_string_value(raw_value) else {
-            continue;
-        };
-        if section.is_empty() {
-            match key {
-                "model_provider" => root_provider = Some(value),
-                "openai_base_url" => root_openai_base_url = Some(value),
-                "profile" => active_profile = Some(value),
-                _ => {}
-            }
-        } else if let Some(profile_name) = section.strip_prefix("profiles.") {
-            if active_profile.as_deref() == Some(profile_name) && key == "model_provider" {
-                profile_provider = Some(value);
-            }
-        } else if let Some(provider_id) = section.strip_prefix("model_providers.") {
-            if key == "base_url" {
-                provider_bases.insert(provider_id.to_string(), value);
-            }
-        }
-    }
-    let provider_id = profile_provider.or(root_provider).unwrap_or_else(|| "openai".to_string());
-    provider_bases
-        .remove(&provider_id)
-        .or_else(|| (provider_id == "openai").then_some(root_openai_base_url).flatten())
-}
-
 fn read_codex_auth() -> anyhow::Result<CodexAuth> {
     if let (Ok(token), Ok(account_id)) = (env::var("PI_CODEX_ACCESS_TOKEN"), env::var("PI_CODEX_ACCOUNT_ID")) {
         return Ok(CodexAuth { token, account_id });
@@ -184,10 +118,7 @@ fn alpha_search_url() -> String {
     if let Ok(server_uri) = env::var("PI_CODEX_SERVER_URI") {
         return format!("{}/api/codex/alpha/search", server_uri.trim_end_matches('/'));
     }
-    let base = env::var("PI_CODEX_BASE_URL")
-        .ok()
-        .or_else(codex_provider_base_url)
-        .unwrap_or_else(|| DEFAULT_BASE_URL.to_string());
+    let base = env::var("PI_CODEX_BASE_URL").unwrap_or_else(|_| DEFAULT_BASE_URL.to_string());
     alpha_search_url_from_base(&base)
 }
 

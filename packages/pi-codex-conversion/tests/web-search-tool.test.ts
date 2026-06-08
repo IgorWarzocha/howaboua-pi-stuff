@@ -1,9 +1,5 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { discoverCodexProviderBaseUrl } from "../src/tools/codex-config-discovery.ts";
 import { createWebSearchTool, resolveAlphaSearchUrlFromBase, supportsMultimodalNativeWebSearch, supportsNativeWebSearch } from "../src/tools/web-search-tool.ts";
 
 test("web_run is a valid flat Pi tool name", () => {
@@ -23,32 +19,4 @@ test("resolveAlphaSearchUrlFromBase treats bare server URI as app-server root", 
 	assert.equal(resolveAlphaSearchUrlFromBase("http://127.0.0.1:8061"), "http://127.0.0.1:8061/api/codex/alpha/search");
 	assert.equal(resolveAlphaSearchUrlFromBase("http://127.0.0.1:8061/api/codex"), "http://127.0.0.1:8061/api/codex/alpha/search");
 	assert.equal(resolveAlphaSearchUrlFromBase("https://chatgpt.com/backend-api/codex/responses"), "https://chatgpt.com/backend-api/codex/alpha/search");
-});
-
-test("discoverCodexProviderBaseUrl reads Codex model provider base_url", () => {
-	const dir = mkdtempSync(join(tmpdir(), "pi-codex-config-"));
-	const configPath = join(dir, "config.toml");
-	writeFileSync(configPath, `
-model_provider = "openai-custom"
-
-[model_providers.openai-custom]
-base_url = "http://127.0.0.1:8061/api/codex"
-`, "utf-8");
-	assert.equal(discoverCodexProviderBaseUrl(configPath), "http://127.0.0.1:8061/api/codex");
-});
-
-test("discoverCodexProviderBaseUrl applies active Codex profile", () => {
-	const dir = mkdtempSync(join(tmpdir(), "pi-codex-config-profile-"));
-	const configPath = join(dir, "config.toml");
-	writeFileSync(configPath, `
-model_provider = "openai"
-profile = "apps"
-
-[profiles.apps]
-model_provider = "openai-custom"
-
-[model_providers.openai-custom]
-base_url = "http://127.0.0.1:8061/api/codex"
-`, "utf-8");
-	assert.equal(discoverCodexProviderBaseUrl(configPath), "http://127.0.0.1:8061/api/codex");
 });
