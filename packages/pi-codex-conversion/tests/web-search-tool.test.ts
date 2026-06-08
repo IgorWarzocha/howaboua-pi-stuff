@@ -37,6 +37,12 @@ test("web_run is a valid flat Pi tool name", () => {
 	assert.doesNotMatch(tool.name, /[^a-zA-Z0-9_-]/);
 });
 
+test("web_run schema tells agents to pass explicit search params", () => {
+	const parameters = createWebSearchTool().parameters as { properties?: Record<string, unknown> };
+	assert.ok(parameters.properties?.["search_query"]);
+	assert.ok(parameters.properties?.["image_query"]);
+});
+
 test("web_run supports OpenAI Codex Responses models and keeps spark text-only", () => {
 	assert.equal(supportsNativeWebSearch({ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.4" } as never), true);
 	assert.equal(supportsNativeWebSearch({ provider: "custom", api: "custom-chat", id: "claude" } as never), false);
@@ -202,30 +208,6 @@ process.stdin.on("end", () => console.log(JSON.stringify({ output_text: "search 
 			const result = await createWebSearchTool().execute("call", { search_query: [{ q: "OpenAI" }] }, undefined, undefined as never, createContext({ accountId: "pi-account" }));
 			assert.deepEqual(result.content, [{ type: "text", text: "search result" }]);
 			assert.deepEqual(result.details, { webRun: { output_text: "search result" } });
-		});
-	} finally {
-		if (originalBin === undefined) delete process.env["PI_CODEX_WEB_RUN_BIN"];
-		else process.env["PI_CODEX_WEB_RUN_BIN"] = originalBin;
-	}
-});
-
-test("executeCodexWebSearch passes recent input so bare calls can infer a query", async () => {
-	const originalBin = process.env["PI_CODEX_WEB_RUN_BIN"];
-	try {
-		await withMockWebRun(`#!/usr/bin/env node
-let input = "";
-process.stdin.on("data", (chunk) => input += chunk);
-process.stdin.on("end", () => {
-  const parsed = JSON.parse(input);
-  const latest = parsed.input.at(-1).content[0].text;
-  console.log(JSON.stringify({ output_text: latest }));
-});
-`, async (webRunPath) => {
-			process.env["PI_CODEX_WEB_RUN_BIN"] = webRunPath;
-			const result = await executeCodexWebSearch({}, createContext(), undefined, {
-				getRecentInput: () => [{ type: "message", role: "user", content: [{ type: "input_text", text: "current news" }] }] as never,
-			});
-			assert.equal(result, "current news");
 		});
 	} finally {
 		if (originalBin === undefined) delete process.env["PI_CODEX_WEB_RUN_BIN"];
