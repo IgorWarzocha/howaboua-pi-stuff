@@ -13,20 +13,7 @@ import { WEB_SEARCH_TOOL_NAME } from "../adapter/tool-set.ts";
 export const WEB_SEARCH_UNSUPPORTED_MESSAGE = CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE;
 export const WEB_SEARCH_SESSION_NOTE_TYPE = "codex-web-search-session-note";
 
-const SearchQueryParameters = Type.Object({
-	q: Type.String({ description: "Search query text." }),
-	recency: Type.Optional(Type.Number({ description: "Only include results from this many recent days." })),
-	domains: Type.Optional(Type.Array(Type.String(), { description: "Restrict results to these domains." })),
-}, { additionalProperties: true });
-
-const WEB_SEARCH_PARAMETERS = Type.Object({
-	search_query: Type.Optional(Type.Array(SearchQueryParameters, { description: "Web searches to run. Use this for normal web search." })),
-	image_query: Type.Optional(Type.Array(SearchQueryParameters, { description: "Image-oriented web searches to run." })),
-	response_length: Type.Optional(Type.Union([Type.Literal("short"), Type.Literal("medium"), Type.Literal("long")], { description: "Desired response length." })),
-	settings: Type.Optional(Type.Object({
-		search_context_size: Type.Optional(Type.Union([Type.Literal("low"), Type.Literal("medium"), Type.Literal("high")])),
-	}, { additionalProperties: true })),
-}, { additionalProperties: true });
+const WEB_SEARCH_PARAMETERS = Type.Unsafe<Record<string, unknown>>({ type: "object", additionalProperties: true });
 const DEFAULT_WEB_SEARCH_MODEL = "gpt-5.4-mini";
 const ASSISTANT_CONTEXT_CHAR_LIMIT = 4_000;
 function createEmptyResultComponent(): Container { return new Container(); }
@@ -144,7 +131,8 @@ export async function executeCodexWebSearch(params: Record<string, unknown>, ctx
 	const scriptDir = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 	const webRunPath = process.env["PI_CODEX_WEB_RUN_BIN"]?.trim() || join(scriptDir, "bin", process.platform === "win32" ? "web_run.cmd" : "web_run");
 	try {
-		const stdout = await runWebRunBinary(webRunPath, { id: options.sessionId, ...params }, codexToolProviderEnv(provider), signal);
+		const recentInput = options.getRecentInput?.();
+		const stdout = await runWebRunBinary(webRunPath, { id: options.sessionId, ...(recentInput && params["input"] === undefined ? { input: recentInput } : {}), ...params }, codexToolProviderEnv(provider), signal);
 		const parsed = JSON.parse(stdout) as Record<string, unknown>;
 		const encryptedOutput = parsed["encrypted_output"];
 		if (typeof encryptedOutput === "string" && encryptedOutput.trim()) return encryptedOutput;
@@ -164,8 +152,8 @@ export function createWebSearchTool(name: string = WEB_SEARCH_TOOL_NAME, options
 	return {
 		name,
 		label: name,
-		description: "Search the web for sources relevant to the current task. Call with search_query: [{ q: \"...\" }] or image_query: [{ q: \"...\" }].",
-		promptSnippet: "Search the web. Always provide explicit arguments, usually { search_query: [{ q: \"...\" }], response_length: \"short\" }. Do not call with empty arguments.",
+		description: "Search the web for sources relevant to the current task. Use it when you need up-to-date information, external references, or broader context beyond the workspace.",
+		promptSnippet: "Search the web for sources relevant to the current task. Use it when you need up-to-date information, external references, or broader context beyond the workspace.",
 		parameters: WEB_SEARCH_PARAMETERS,
 		prepareArguments: (args) => args && typeof args === "object" ? args as Record<string, unknown> : {},
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
