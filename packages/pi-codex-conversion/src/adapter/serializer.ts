@@ -28,7 +28,12 @@ type ResponsesImageInputItem = {
 	image_url: string;
 };
 
-export type ResponsesInputContentItem = ResponsesTextInputItem | ResponsesImageInputItem;
+type ResponsesEncryptedContentItem = {
+	type: "encrypted_content";
+	encrypted_content: string;
+};
+
+export type ResponsesInputContentItem = ResponsesTextInputItem | ResponsesImageInputItem | ResponsesEncryptedContentItem;
 
 export type ResponsesInputMessageItem = {
 	role: "user" | "developer" | "system";

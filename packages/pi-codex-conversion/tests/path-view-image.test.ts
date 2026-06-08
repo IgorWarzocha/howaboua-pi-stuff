@@ -156,7 +156,7 @@ test("exec_command parses PATH view_image output when model input metadata is ab
 	}
 });
 
-test("exec_command compacts PATH web.run JSON output", async () => {
+test("exec_command compacts PATH web_run JSON output", async () => {
 	const sessions = createExecSessionManager();
 	try {
 		let tool: any;
@@ -168,7 +168,7 @@ test("exec_command compacts PATH web.run JSON output", async () => {
 		});
 		const result = await tool.execute(
 			"call-1",
-			{ cmd: `printf '%s' ${JSON.stringify(json)} # web.run`, max_output_tokens: 1 },
+			{ cmd: `printf '%s' ${JSON.stringify(json)} # web_run`, max_output_tokens: 1 },
 			new AbortController().signal,
 			undefined,
 			{ cwd: packageRoot, model: {} } as never,
@@ -183,7 +183,7 @@ test("exec_command compacts PATH web.run JSON output", async () => {
 	}
 });
 
-test("exec_command compacts PATH image_gen.imagegen output and displays image content", async () => {
+test("exec_command compacts PATH imagegen output and displays image content", async () => {
 	const cwd = mkdtempSync(join(tmpdir(), "path-imagegen-"));
 	const imagePath = join(cwd, "generated.png");
 	writeFileSync(imagePath, Buffer.from(PNG_BASE64, "base64"));
@@ -201,7 +201,7 @@ test("exec_command compacts PATH image_gen.imagegen output and displays image co
 		});
 		const result = await tool.execute(
 			"call-1",
-			{ cmd: `printf '%s' ${JSON.stringify(json)} # image_gen.imagegen`, max_output_tokens: 1 },
+			{ cmd: `printf '%s' ${JSON.stringify(json)} # imagegen`, max_output_tokens: 1 },
 			new AbortController().signal,
 			undefined,
 			{ cwd, model: { input: ["text", "image"] } } as never,

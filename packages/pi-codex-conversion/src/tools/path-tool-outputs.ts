@@ -47,7 +47,7 @@ export function convertPathToolExecResult(command: string, result: UnifiedExecRe
 			const details = sanitizeExecResult(result, formatPathWebRunOutput(parsed), { webRun: parsed });
 			return { content: [{ type: "text", text: formatUnifiedExecResult(details, command) }], details };
 		}
-		const details = sanitizeExecResult(result, "web.run returned output, but Pi could not parse it. Raw output hidden.");
+		const details = sanitizeExecResult(result, "web_run returned output, but Pi could not parse it. Raw output hidden.");
 		return { content: [{ type: "text", text: formatUnifiedExecResult(details, command) }], details };
 	}
 	if (policy.parseImagegenOutput) {
@@ -57,7 +57,7 @@ export function convertPathToolExecResult(command: string, result: UnifiedExecRe
 			const details = sanitizeExecResult(result, formatPathImagegenOutput(parsed), { imagegen: parsed });
 			return { content: [{ type: "text", text: formatUnifiedExecResult(details, command) }, ...imageContents], details };
 		}
-		const details = sanitizeExecResult(result, "image_gen.imagegen returned output, but Pi could not parse it. Raw output hidden.");
+		const details = sanitizeExecResult(result, "imagegen returned output, but Pi could not parse it. Raw output hidden.");
 		return { content: [{ type: "text", text: formatUnifiedExecResult(details, command) }], details };
 	}
 	return undefined;
@@ -95,11 +95,11 @@ function isPathViewImageCommand(command: string): boolean {
 }
 
 function isPathWebRunCommand(command: string): boolean {
-	return !isPathToolDiscoveryCommand(command, "web.run") && /(?:^|[;&|()\s])web\.run(?:\s|$)/.test(command);
+	return !isPathToolDiscoveryCommand(command, "web_run") && /(?:^|[;&|()\s])web_run(?:\s|$)/.test(command);
 }
 
 function isPathImagegenCommand(command: string): boolean {
-	return !isPathToolDiscoveryCommand(command, "image_gen.imagegen") && /(?:^|[;&|()\s])image_gen\.imagegen(?:\s|$)/.test(command);
+	return !isPathToolDiscoveryCommand(command, "imagegen") && /(?:^|[;&|()\s])imagegen(?:\s|$)/.test(command);
 }
 
 function isPathToolDiscoveryCommand(command: string, toolName: string): boolean {

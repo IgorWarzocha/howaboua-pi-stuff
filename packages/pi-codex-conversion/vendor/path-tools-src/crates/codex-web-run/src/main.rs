@@ -49,30 +49,30 @@ fn parse_args() -> anyhow::Result<WebRunArgs> {
             let mut stdin = String::new();
             std::io::stdin()
                 .read_to_string(&mut stdin)
-                .context("failed to read web.run JSON arguments from stdin")?;
+                .context("failed to read web_run JSON arguments from stdin")?;
             stdin
         }
         Some(first) if first == "-" => {
             if args.next().is_some() {
-                anyhow::bail!("web.run accepts a single JSON argument or stdin");
+                anyhow::bail!("web_run accepts a single JSON argument or stdin");
             }
             let mut stdin = String::new();
             std::io::stdin()
                 .read_to_string(&mut stdin)
-                .context("failed to read web.run JSON arguments from stdin")?;
+                .context("failed to read web_run JSON arguments from stdin")?;
             stdin
         }
         Some(first) => {
             if args.next().is_some() {
-                anyhow::bail!("web.run accepts a single JSON argument or stdin");
+                anyhow::bail!("web_run accepts a single JSON argument or stdin");
             }
             first
         }
     };
     if input.trim().is_empty() {
-        anyhow::bail!("web.run requires JSON arguments");
+        anyhow::bail!("web_run requires JSON arguments");
     }
-    serde_json::from_str(input.trim()).context("failed to parse web.run JSON arguments")
+    serde_json::from_str(input.trim()).context("failed to parse web_run JSON arguments")
 }
 
 fn pi_agent_dir() -> PathBuf {
@@ -124,7 +124,7 @@ fn headers(token: &str, account_id: &str) -> anyhow::Result<HeaderMap> {
     headers.insert("OpenAI-Beta", HeaderValue::from_static("responses=experimental"));
     headers.insert("content-type", HeaderValue::from_static("application/json"));
     headers.insert("accept", HeaderValue::from_static("text/event-stream"));
-    headers.insert("User-Agent", HeaderValue::from_static("pi-codex-conversion web.run path-tool"));
+    headers.insert("User-Agent", HeaderValue::from_static("pi-codex-conversion web_run path-tool"));
     Ok(headers)
 }
 
@@ -266,12 +266,12 @@ async fn main() -> anyhow::Result<()> {
         .json(&request)
         .send()
         .await
-        .context("web.run responses request failed")?;
+        .context("web_run responses request failed")?;
 
     let status = response.status();
-    let body = response.text().await.context("failed to read web.run response")?;
+    let body = response.text().await.context("failed to read web_run response")?;
     if !status.is_success() {
-        anyhow::bail!("web.run responses failed: HTTP {status} {body}");
+        anyhow::bail!("web_run responses failed: HTTP {status} {body}");
     }
 
     let events = parse_sse_text(&body);
@@ -280,7 +280,7 @@ async fn main() -> anyhow::Result<()> {
             .get("error")
             .and_then(|error| error.get("message").or_else(|| error.get("code")))
             .and_then(Value::as_str)
-            .unwrap_or("web.run responses failed");
+            .unwrap_or("web_run responses failed");
         anyhow::bail!("{message}");
     }
     println!("{}", collect_response(&events));

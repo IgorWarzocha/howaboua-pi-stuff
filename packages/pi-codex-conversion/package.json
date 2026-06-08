@@ -39,10 +39,10 @@
     "README.md",
     "LICENSE",
     "bin/view_image",
-    "bin/web.run",
+    "bin/web_run",
     "vendor/path-tools/**",
     "vendor/path-tools-src/**",
-    "bin/image_gen.imagegen"
+    "bin/imagegen"
   ],
   "scripts": {
     "typecheck": "tsgo -p tsconfig.json",
@@ -86,7 +86,7 @@
   "bin": {
     "apply_patch": "./bin/apply_patch",
     "view_image": "./bin/view_image",
-    "web.run": "./bin/web.run",
-    "image_gen.imagegen": "./bin/image_gen.imagegen"
+    "web_run": "./bin/web_run",
+    "imagegen": "./bin/imagegen"
   }
 }

@@ -101,6 +101,10 @@ function isResponsesInputContentItem(value: unknown): value is ResponsesInputCon
 		return value["detail"] === "auto" && typeof value["image_url"]! === "string";
 	}
 
+	if (value["type"] === "encrypted_content") {
+		return typeof value["encrypted_content"]! === "string";
+	}
+
 	return false;
 }
 
@@ -122,16 +126,17 @@ function isResponsesInputMessageItem(value: unknown): value is ResponsesInputMes
 }
 
 function cloneResponsesInputContentItem(item: ResponsesInputContentItem): ResponsesInputContentItem {
-	return item.type === "input_text"
-		? {
-			type: "input_text",
-			text: item.text,
-		}
-		: {
-			type: "input_image",
-			detail: "auto",
-			image_url: item.image_url,
-		};
+	if (item.type === "input_text") {
+		return { type: "input_text", text: item.text };
+	}
+	if (item.type === "encrypted_content") {
+		return { type: "encrypted_content", encrypted_content: item.encrypted_content };
+	}
+	return {
+		type: "input_image",
+		detail: "auto",
+		image_url: item.image_url,
+	};
 }
 
 function cloneResponsesInputMessageItem(item: ResponsesInputMessageItem): ResponsesInputMessageItem {

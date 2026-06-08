@@ -25,7 +25,7 @@ To use this tool efficiently:
 * Use "response_length" to control the number of results returned by this tool, omit it if you intend to pass "short" in
 * Only write required parameters; do not write empty lists or nulls where they could be omitted.
 * `search_query` must have length at most 4 in each call. If it has length > 3, response_length must be medium or long
-* If you find yourself in a situation where you accidentally call the `web.run` tool, it's best just to send an empty query: {"search_query": [{"q": ""}]}.
+* If you find yourself in a situation where you accidentally call the `web_run` tool, it's best just to send an empty query: {"search_query": [{"q": ""}]}.
 
 ---
 

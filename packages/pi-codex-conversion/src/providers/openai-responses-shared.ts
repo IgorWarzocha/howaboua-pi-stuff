@@ -82,6 +82,14 @@ function parseStreamingJson(partialJson: string): Record<string, unknown> {
 	}
 }
 
+function encryptedWebRunOutputFromDetails(details: unknown): string | undefined {
+	if (!details || typeof details !== "object") return undefined;
+	const webRun = (details as Record<string, unknown>)["webRun"];
+	if (!webRun || typeof webRun !== "object") return undefined;
+	const encryptedOutput = (webRun as Record<string, unknown>)["encrypted_output"];
+	return typeof encryptedOutput === "string" && encryptedOutput.trim() ? encryptedOutput : undefined;
+}
+
 function sanitizeSurrogates(text: string): string {
 	return text.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "");
 }
@@ -383,19 +391,22 @@ export function convertResponsesMessages<TApi extends Api>(
 			const hasImages = msg.content.some((c) => c.type === "image");
 			const hasText = textResult.length > 0;
 			const [callId] = msg.toolCallId.split("|");
-			const output = hasImages && model.input.includes("image")
-				? [
-						...(hasText ? [{ type: "input_text" as const, text: sanitizeSurrogates(textResult) }] : []),
-						...msg.content
-							.filter((block): block is ImageContentWithDetail => block.type === "image")
-							.map((block) => ({
-								type: "input_image" as const,
-								detail: imageDetailForResponses(block),
-								image_url: `data:${block.mimeType};base64,${block.data}`,
-							})),
-					]
-				: sanitizeSurrogates(hasText ? textResult : "(see attached image)");
-			messages.push({ type: "function_call_output", call_id: callId!, output });
+			const encryptedWebRunOutput = encryptedWebRunOutputFromDetails(msg.details);
+			const output = encryptedWebRunOutput
+				? [{ type: "encrypted_content" as const, encrypted_content: encryptedWebRunOutput }]
+				: hasImages && model.input.includes("image")
+					? [
+							...(hasText ? [{ type: "input_text" as const, text: sanitizeSurrogates(textResult) }] : []),
+							...msg.content
+								.filter((block): block is ImageContentWithDetail => block.type === "image")
+								.map((block) => ({
+									type: "input_image" as const,
+									detail: imageDetailForResponses(block),
+									image_url: `data:${block.mimeType};base64,${block.data}`,
+								})),
+						]
+					: sanitizeSurrogates(hasText ? textResult : "(see attached image)");
+			messages.push({ type: "function_call_output", call_id: callId!, output: output as any });
 		}
 		msgIndex++;
 	}

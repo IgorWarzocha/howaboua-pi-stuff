@@ -5,8 +5,8 @@ import { fileURLToPath } from "node:url";
 const PATH_TOOL_WRAPPERS = [
 	process.platform === "win32" ? "apply_patch.cmd" : "apply_patch",
 	"view_image",
-	"web.run",
-	"image_gen.imagegen",
+	"web_run",
+	"imagegen",
 ];
 
 export function getBundledPathToolsBinDir(): string {

@@ -24,23 +24,18 @@ const ctx = {
 	model: { provider: "my-provider", api: "custom-responses", id: "gpt-5", input: ["text", "image"] },
 } as never;
 
-test("rewriteCodexProviderRequest rewrites optional native tools for proxied providers", async () => {
+test("rewriteCodexProviderRequest leaves normal TS tools as function tools", async () => {
 	const payload = {
 		model: "gpt-5",
 		tools: [
-			{ type: "function", name: "web.run", parameters: { type: "object" } },
-			{ type: "function", name: "image_generation", parameters: { type: "object" } },
+			{ type: "function", name: "web_run", parameters: { type: "object" } },
+			{ type: "function", name: "imagegen", parameters: { type: "object" } },
 		],
 	};
 
 	assert.deepEqual(await rewriteCodexProviderRequest(payload, ctx, createState()), {
-		model: "gpt-5",
-		include: ["web_search_call.action.sources", "web_search_call.results"],
+		...payload,
 		text: { verbosity: "low" },
-		tools: [
-			{ type: "web_search", external_web_access: true, search_content_types: ["text", "image"] },
-			{ type: "image_generation", output_format: "png" },
-		],
 	});
 });
 
@@ -55,7 +50,7 @@ test("rewriteCodexProviderRequest applies fast mode to proxied providers when pr
 });
 
 test("rewriteCodexProviderRequest leaves optional native tools alone in path mode", async () => {
-	const payload = { model: "gpt-5", tools: [{ type: "function", name: "web.run", parameters: { type: "object" } }] };
+	const payload = { model: "gpt-5", tools: [{ type: "function", name: "web_run", parameters: { type: "object" } }] };
 
 	assert.deepEqual(await rewriteCodexProviderRequest(payload, ctx, createState("path", true)), {
 		...payload,

@@ -119,30 +119,30 @@ fn parse_args() -> anyhow::Result<ImagegenArgs> {
             let mut stdin = String::new();
             std::io::stdin()
                 .read_to_string(&mut stdin)
-                .context("failed to read image_gen.imagegen JSON arguments from stdin")?;
+                .context("failed to read imagegen JSON arguments from stdin")?;
             stdin
         }
         Some(first) if first == "-" => {
             if args.next().is_some() {
-                anyhow::bail!("image_gen.imagegen accepts a single JSON argument or stdin");
+                anyhow::bail!("imagegen accepts a single JSON argument or stdin");
             }
             let mut stdin = String::new();
             std::io::stdin()
                 .read_to_string(&mut stdin)
-                .context("failed to read image_gen.imagegen JSON arguments from stdin")?;
+                .context("failed to read imagegen JSON arguments from stdin")?;
             stdin
         }
         Some(first) => {
             if args.next().is_some() {
-                anyhow::bail!("image_gen.imagegen accepts a single JSON argument or stdin");
+                anyhow::bail!("imagegen accepts a single JSON argument or stdin");
             }
             first
         }
     };
     if input.trim().is_empty() {
-        anyhow::bail!("image_gen.imagegen requires JSON arguments");
+        anyhow::bail!("imagegen requires JSON arguments");
     }
-    serde_json::from_str(input.trim()).context("failed to parse image_gen.imagegen JSON arguments")
+    serde_json::from_str(input.trim()).context("failed to parse imagegen JSON arguments")
 }
 
 fn pi_agent_dir() -> PathBuf {
@@ -182,7 +182,7 @@ fn headers(token: &str, account_id: &str) -> anyhow::Result<HeaderMap> {
     headers.insert("OpenAI-Beta", HeaderValue::from_static("responses=experimental"));
     headers.insert("accept", HeaderValue::from_static("text/event-stream"));
     headers.insert("content-type", HeaderValue::from_static("application/json"));
-    headers.insert("User-Agent", HeaderValue::from_static("pi-codex-conversion image_gen.imagegen path-tool"));
+    headers.insert("User-Agent", HeaderValue::from_static("pi-codex-conversion imagegen path-tool"));
     Ok(headers)
 }
 

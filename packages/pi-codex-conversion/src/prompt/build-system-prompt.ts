@@ -41,10 +41,10 @@ function buildCodexGuidelines(mode: "normal" | "path" = "normal", tools: CodexPr
 	if (mode !== "path") return [...NORMAL_CODEX_GUIDELINES];
 	const guidelines = [...PATH_CODEX_GUIDELINES];
 	const examples = [`- view_image '{"path":"/x.png"}'`];
-	if (tools.webRun !== false) examples.push(`- web.run '{"search_query":[{"q":"..."}]}'`);
+	if (tools.webRun !== false) examples.push(`- web_run '{"search_query":[{"q":"..."}]}'`);
 	if (tools.imageGeneration !== false) {
-		examples.push(`- image_gen.imagegen '{"prompt":"..."}'`);
-		examples.push(`- image_gen.imagegen '{"action":"edit","prompt":"...","images":["https://... or /x.png"]}'`);
+		examples.push(`- imagegen '{"prompt":"..."}'`);
+		examples.push(`- imagegen '{"action":"edit","prompt":"...","images":["https://... or /x.png"]}'`);
 	}
 	guidelines.splice(4, 0, `PATH tools use one JSON string arg. Parameters accepted:\n${examples.join("\n")}`);
 	return guidelines;

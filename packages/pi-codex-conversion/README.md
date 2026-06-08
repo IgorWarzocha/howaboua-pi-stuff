@@ -21,8 +21,8 @@ Normal mode keeps the familiar Pi function-tool surface:
 - `write_stdin` — continue or poll a running exec session
 - `apply_patch` — patch edits
 - `view_image` — inspect local images when the model supports image input
-- `web.run` — native Codex web search when enabled and supported
-- `image_generation` — native Codex image generation when enabled and supported
+- `web_run` — TS Codex web search when enabled and supported
+- `imagegen` — TS Codex image generation when enabled and supported
 
 PATH mode narrows the structured tool surface to shell control only:
 
@@ -33,8 +33,8 @@ In PATH mode, Codex-style extras live on `PATH`:
 
 - `apply_patch` — patch edits
 - `view_image` — inspect local images
-- `web.run` — Codex-backed web search
-- `image_gen.imagegen` — Codex-backed image generation and image edits
+- `web_run` — Codex-backed web search
+- `imagegen` — Codex-backed image generation and image edits
 
 Notably:
 
@@ -48,15 +48,15 @@ Notably:
 
 ```bash
 view_image '{"path":"/x.png"}'
-web.run '{"search_query":[{"q":"..."}]}'
-image_gen.imagegen '{"prompt":"..."}'
-image_gen.imagegen '{"action":"edit","prompt":"...","images":["https://... or /x.png"]}'
+web_run '{"search_query":[{"q":"..."}]}'
+imagegen '{"prompt":"..."}'
+imagegen '{"action":"edit","prompt":"...","images":["https://... or /x.png"]}'
 ```
 
 For quote-heavy JSON, pass JSON through stdin:
 
 ```bash
-image_gen.imagegen <<'JSON'
+imagegen <<'JSON'
 {"prompt":"keep the creature's original style"}
 JSON
 ```
@@ -106,7 +106,7 @@ Codex adapter V: low • fast
 - Adapter mode activates automatically for OpenAI `gpt*` and `codex*` models, then restores the previous tool set when you switch away.
 - Pi's composed prompt is preserved; the extension only adds a small Codex-style tool-use nudge.
 - Shell activity is rendered with Codex-like labels such as `Ran`, `Explored`, `Read`, and background-terminal status.
-- PATH image outputs from `view_image` and `image_gen.imagegen` render inline in chat.
+- PATH image outputs from `view_image` and `imagegen` render inline in chat.
 - Raw command output is still available by expanding the tool result.
 
 ## Command rendering examples
@@ -122,7 +122,7 @@ Codex adapter V: low • fast
 
 - `exec_command` and `write_stdin` use a PTY-backed session manager for interactive commands and long-running processes.
 - The package prepends its `bin` directory to `PATH` so bundled Codex tools are available in shell commands.
-- `image_gen.imagegen` waits up to five minutes in a foreground `exec_command` call before falling back to a resumable session.
+- `imagegen` waits up to five minutes in a foreground `exec_command` call before falling back to a resumable session.
 - The package includes bundled binaries and vendored Rust source for the PATH tools.
 
 ## Development checkout

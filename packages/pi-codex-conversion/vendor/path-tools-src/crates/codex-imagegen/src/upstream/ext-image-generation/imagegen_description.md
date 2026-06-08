@@ -1,4 +1,4 @@
-The `image_gen.imagegen` tool enables image generation from descriptions and editing of existing images based on specific instructions. Use it when:
+The `imagegen` tool enables image generation from descriptions and editing of existing images based on specific instructions. Use it when:
 
 - The user requests an image based on a scene description, such as a diagram, portrait, comic, meme, or any other visual.
 - The user wants to modify an attached or previously generated image with specific changes, including adding or removing elements, altering colors, improving quality/resolution, or transforming the style (e.g., cartoon, oil painting).
