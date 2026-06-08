@@ -67,8 +67,8 @@ test("buildRecentWebSearchInput mirrors Codex standalone web search context tail
 });
 
 test("buildCodexWebSearchRequest matches Codex alpha/search request defaults", () => {
-	const body = buildCodexWebSearchRequest({ id: "session-123", search_query: [{ q: "OpenAI", recency: 7 }], response_length: "short" }, { baseUrl: "https://chatgpt.com/api/codex", model: "gpt-5.4", token: "token", accountId: "acct" });
-	assert.equal(body["id"], "session-123");
+	const body = buildCodexWebSearchRequest({ search_query: [{ q: "OpenAI", recency: 7 }], response_length: "short" }, { baseUrl: "https://chatgpt.com/api/codex", model: "gpt-5.4", token: "token", accountId: "acct" });
+	assert.match(body["id"] as string, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 	assert.equal(body["model"], "gpt-5.4");
 	assert.deepEqual(body["commands"], { search_query: [{ q: "OpenAI", recency: 7 }], response_length: "short" });
 	assert.deepEqual(body["settings"], { allowed_callers: ["direct"], external_web_access: true });

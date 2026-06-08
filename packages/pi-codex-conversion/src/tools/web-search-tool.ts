@@ -130,7 +130,7 @@ export function buildCodexWebSearchRequest(params: Record<string, unknown>, prov
 	const { id, model, input, settings, max_output_tokens, ...commands } = params;
 	const explicitInput = typeof input === "string" || Array.isArray(input) ? input : undefined;
 	return {
-		id: typeof id === "string" && id.trim() ? id : `pi-web-run-${randomUUID()}`,
+		id: typeof id === "string" && id.trim() ? id : randomUUID(),
 		model: typeof model === "string" && model.trim() ? model : provider.model ?? DEFAULT_WEB_SEARCH_MODEL,
 		...(explicitInput !== undefined ? { input: explicitInput } : recentInput ? { input: recentInput } : {}),
 		commands,
@@ -188,7 +188,7 @@ export async function executeCodexWebSearchFetch(params: Record<string, unknown>
 
 
 export function createWebSearchTool(name: string = WEB_SEARCH_TOOL_NAME, options: WebSearchToolOptions = {}): ToolDefinition<typeof WEB_SEARCH_PARAMETERS> {
-	const toolOptions = { sessionId: `pi-web-run-${randomUUID()}`, ...options };
+	const toolOptions = { sessionId: randomUUID(), ...options };
 	return {
 		name,
 		label: name,

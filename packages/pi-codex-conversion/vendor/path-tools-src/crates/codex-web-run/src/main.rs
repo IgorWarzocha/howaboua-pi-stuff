@@ -439,7 +439,7 @@ fn build_search_request(args: &WebRunArgs, model: String) -> SearchRequest {
             .as_ref()
             .filter(|id| !id.trim().is_empty())
             .cloned()
-            .unwrap_or_else(|| format!("pi-web-run-{}", Uuid::new_v4())),
+            .unwrap_or_else(|| Uuid::new_v4().to_string()),
         model,
         input: args.input.clone(),
         commands: Some(args.commands.clone()),
