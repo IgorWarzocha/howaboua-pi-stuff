@@ -77,11 +77,12 @@ async function executeRustImagegen(args: ImagegenArgs, signal: AbortSignal | und
 	if (signal?.aborted) throw new Error("imagegen aborted");
 	const binary = getBundledPathToolBinaryPath("imagegen");
 	if (!binary) throw new Error(`imagegen binary is not bundled for ${process.platform}-${process.arch}`);
-	const child = runBundledTool({
+	const child = await runBundledTool({
 		binary,
 		args: [JSON.stringify({ ...args, model: ctx.model?.id, cwd: ctx.cwd })],
 		cwd: ctx.cwd,
 		env: await imagegenEnv(ctx),
+		signal,
 	});
 	if (child.status !== 0) throw new Error((child.stderr || child.stdout || "imagegen failed").trim());
 	const parsed = pathImagegenOutputFromJson(child.stdout);

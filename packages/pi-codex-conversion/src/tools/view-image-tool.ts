@@ -75,15 +75,16 @@ function prepareViewImageArguments(args: unknown): Record<string, unknown> {
 	return prepared;
 }
 
-function executeRustViewImage(params: ViewImageParams, cwd: string): AgentToolResult<unknown> {
+async function executeRustViewImage(params: ViewImageParams, cwd: string, signal: AbortSignal | undefined): Promise<AgentToolResult<unknown>> {
 	const binary = getBundledPathToolBinaryPath("view_image");
 	if (!binary) {
 		throw new Error(`view_image binary is not bundled for ${process.platform}-${process.arch}`);
 	}
-	const child = runBundledTool({
+	const child = await runBundledTool({
 		binary,
 		args: [JSON.stringify(params)],
 		cwd,
+		signal,
 	});
 	if (child.status !== 0) {
 		throw new Error((child.stderr || child.stdout || "view_image failed").trim());
@@ -120,7 +121,7 @@ export function createViewImageTool(options: CreateViewImageToolOptions = {}): T
 		promptSnippet: "View a local image from the filesystem.",
 		parameters,
 		prepareArguments: prepareViewImageArguments,
-		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
 			if (!supportsImageInputs(ctx.model)) {
 				throw new Error(VIEW_IMAGE_UNSUPPORTED_MESSAGE);
 			}
@@ -128,7 +129,7 @@ export function createViewImageTool(options: CreateViewImageToolOptions = {}): T
 			if (typedParams.detail === "original" && !allowOriginalDetail) {
 				throw new Error("view_image.detail is not available for the current model");
 			}
-			return executeRustViewImage(typedParams, ctx.cwd);
+			return executeRustViewImage(typedParams, ctx.cwd, signal);
 		},
 		renderCall(args, theme) {
 			return new Text(

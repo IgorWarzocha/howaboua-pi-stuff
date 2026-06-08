@@ -255,16 +255,17 @@ function parseRustApplyPatchJson(stdout: string): RustApplyPatchJson {
 	return parsed;
 }
 
-function executePatchWithRust({ cwd, patchText }: { cwd: string; patchText: string }): ExecutePatchResult {
+async function executePatchWithRust({ cwd, patchText, signal }: { cwd: string; patchText: string; signal?: AbortSignal | undefined }): Promise<ExecutePatchResult> {
 	const binary = getBundledApplyPatchBinaryPath();
 	if (!binary) {
 		throw new Error(`apply_patch binary is not bundled for ${process.platform}-${process.arch}`);
 	}
-	const child = runBundledTool({
+	const child = await runBundledTool({
 		binary,
 		args: [patchText],
 		cwd,
 		env: { ...process.env, PI_APPLY_PATCH_JSON: "1" },
+		signal,
 	});
 	const parsed = parseRustApplyPatchJson(child.stdout);
 	if (parsed.status === "success" && child.status === 0) {
@@ -356,7 +357,7 @@ export function registerApplyPatchTool(pi: ExtensionAPI): void {
 			setApplyPatchRenderState(toolCallId, typedParams.patchText, ctx.cwd);
 			let result: ExecutePatchResult;
 			try {
-				result = executePatchWithRust({ cwd: ctx.cwd, patchText: typedParams.patchText });
+				result = await executePatchWithRust({ cwd: ctx.cwd, patchText: typedParams.patchText, signal });
 			} catch (error) {
 				if (error instanceof ExecutePatchError) {
 					const partial = error.hasPartialSuccess();
