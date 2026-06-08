@@ -141,6 +141,28 @@ test("executeCodexWebSearch accepts case-insensitive auth headers from Pi model 
 	}
 });
 
+test("createWebSearchTool does not fall back when standalone alpha/search is unavailable", async () => {
+	const originalFetch = globalThis.fetch;
+	const originalFetchEnv = process.env["PI_CODEX_WEB_RUN_TS_FETCH"];
+	let calls = 0;
+	try {
+		process.env["PI_CODEX_WEB_RUN_TS_FETCH"] = "1";
+		globalThis.fetch = (async () => {
+			calls += 1;
+			return new Response(JSON.stringify({ detail: "Not Found" }), { status: 404, headers: { "content-type": "application/json" } });
+		}) as typeof fetch;
+		await assert.rejects(
+			() => createWebSearchTool().execute("call", { search_query: [{ q: "OpenAI" }] }, undefined, undefined as never, createContext({ accountId: "pi-account" })),
+			/Codex alpha\/search endpoint unavailable/,
+		);
+		assert.equal(calls, 1);
+	} finally {
+		globalThis.fetch = originalFetch;
+		if (originalFetchEnv === undefined) delete process.env["PI_CODEX_WEB_RUN_TS_FETCH"];
+		else process.env["PI_CODEX_WEB_RUN_TS_FETCH"] = originalFetchEnv;
+	}
+});
+
 test("createWebSearchTool returns encrypted web_run details through Pi's tool system", async () => {
 	const originalFetch = globalThis.fetch;
 	const originalFetchEnv = process.env["PI_CODEX_WEB_RUN_TS_FETCH"];
