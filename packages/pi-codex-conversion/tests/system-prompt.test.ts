@@ -37,6 +37,9 @@ Current date: 2026-03-14`, { mode: "path" });
 	assert.match(prompt, /- apply_patch <<'PATCH'\n  \*\*\* Begin Patch\n  \.\.\.\n  \*\*\* End Patch\n  PATCH/);
 	assert.match(prompt, /- view_image '\{"path":"\/x\.png"\}'/);
 	assert.match(prompt, /- web_run '\{"search_query":\[\{"q":"\.\.\."\}\]\}'/);
+	assert.match(prompt, /- web_run '\{"open":\[\{"ref_id":"turn0search0 or https:\/\/\.\.\."\}\]\}'/);
+	assert.match(prompt, /- web_run '\{"click":\[\{"ref_id":"turn0view0","id":1\}\]\}'/);
+	assert.match(prompt, /- web_run '\{"find":\[\{"ref_id":"turn0view0","pattern":"\.\.\."\}\]\}'/);
 	assert.match(prompt, /- imagegen '\{"prompt":"\.\.\."\}'/);
 });
 

@@ -41,7 +41,12 @@ function buildCodexGuidelines(mode: "normal" | "path" = "normal", tools: CodexPr
 	if (mode !== "path") return [...NORMAL_CODEX_GUIDELINES];
 	const guidelines = [...PATH_CODEX_GUIDELINES];
 	const examples = [`- apply_patch <<'PATCH'`, `  *** Begin Patch`, `  ...`, `  *** End Patch`, `  PATCH`, `- view_image '{"path":"/x.png"}'`];
-	if (tools.webRun !== false) examples.push(`- web_run '{"search_query":[{"q":"..."}]}'`);
+	if (tools.webRun !== false) {
+		examples.push(`- web_run '{"search_query":[{"q":"..."}]}'`);
+		examples.push(`- web_run '{"open":[{"ref_id":"turn0search0 or https://..."}]}'`);
+		examples.push(`- web_run '{"click":[{"ref_id":"turn0view0","id":1}]}'`);
+		examples.push(`- web_run '{"find":[{"ref_id":"turn0view0","pattern":"..."}]}'`);
+	}
 	if (tools.imageGeneration !== false) {
 		examples.push(`- imagegen '{"prompt":"..."}'`);
 		examples.push(`- imagegen '{"action":"edit","prompt":"...","images":["https://... or /x.png"]}'`);
