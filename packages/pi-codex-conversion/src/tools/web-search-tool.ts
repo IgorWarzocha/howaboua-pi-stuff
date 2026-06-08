@@ -21,6 +21,7 @@ function createEmptyResultComponent(): Container { return new Container(); }
 
 export interface WebSearchToolOptions {
 	getRecentInput?: (() => ResponseInput | undefined) | undefined;
+	sessionId?: string | undefined;
 }
 
 function isResponseMessage(item: ResponseInput[number]): item is Extract<ResponseInput[number], { type?: "message"; role?: string }> {
@@ -126,10 +127,10 @@ function mergeSearchSettings(settings: unknown): Record<string, unknown> {
 }
 
 export function buildCodexWebSearchRequest(params: Record<string, unknown>, provider: CodexToolProvider, recentInput?: ResponseInput | undefined): Record<string, unknown> {
-	const { model, input, settings, max_output_tokens, ...commands } = params;
+	const { id, model, input, settings, max_output_tokens, ...commands } = params;
 	const explicitInput = typeof input === "string" || Array.isArray(input) ? input : undefined;
 	return {
-		id: `pi-web-run-${randomUUID()}`,
+		id: typeof id === "string" && id.trim() ? id : `pi-web-run-${randomUUID()}`,
 		model: typeof model === "string" && model.trim() ? model : provider.model ?? DEFAULT_WEB_SEARCH_MODEL,
 		...(explicitInput !== undefined ? { input: explicitInput } : recentInput ? { input: recentInput } : {}),
 		commands,
@@ -145,7 +146,7 @@ export async function executeCodexWebSearch(params: Record<string, unknown>, ctx
 	const webRunPath = join(scriptDir, "bin", process.platform === "win32" ? "web_run.cmd" : "web_run");
 	try {
 		const recentInput = options.getRecentInput?.();
-		const stdout = await runWebRunBinary(webRunPath, { ...(recentInput && params["input"] === undefined ? { input: recentInput } : {}), ...params }, codexToolProviderEnv(provider), signal);
+		const stdout = await runWebRunBinary(webRunPath, { id: options.sessionId, ...(recentInput && params["input"] === undefined ? { input: recentInput } : {}), ...params }, codexToolProviderEnv(provider), signal);
 		const parsed = JSON.parse(stdout) as Record<string, unknown>;
 		const encryptedOutput = parsed["encrypted_output"];
 		if (typeof encryptedOutput !== "string" || !encryptedOutput.trim()) throw new Error("web_run search returned no encrypted output");
@@ -166,7 +167,7 @@ export async function executeCodexWebSearchFetch(params: Record<string, unknown>
 		method: "POST",
 		headers,
 		signal: signal ?? null,
-		body: JSON.stringify(buildCodexWebSearchRequest(params, provider, options.getRecentInput?.())),
+		body: JSON.stringify(buildCodexWebSearchRequest({ id: options.sessionId, ...params }, provider, options.getRecentInput?.())),
 	});
 	storeChatGptCloudflareCookies(url, response.headers);
 	const body = await response.text();
@@ -187,6 +188,7 @@ export async function executeCodexWebSearchFetch(params: Record<string, unknown>
 
 
 export function createWebSearchTool(name: string = WEB_SEARCH_TOOL_NAME, options: WebSearchToolOptions = {}): ToolDefinition<typeof WEB_SEARCH_PARAMETERS> {
+	const toolOptions = { sessionId: `pi-web-run-${randomUUID()}`, ...options };
 	return {
 		name,
 		label: name,
@@ -196,7 +198,7 @@ export function createWebSearchTool(name: string = WEB_SEARCH_TOOL_NAME, options
 		prepareArguments: (args) => args && typeof args === "object" ? args as Record<string, unknown> : {},
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
 			if (!supportsExecutableWebSearch(ctx.model)) throw new Error(WEB_SEARCH_UNSUPPORTED_MESSAGE);
-			const encryptedOutput = await executeCodexWebSearch(params, ctx, signal, options);
+			const encryptedOutput = await executeCodexWebSearch(params, ctx, signal, toolOptions);
 			return { content: [{ type: "text", text: "[encrypted web search output]" }], details: { webRun: { encrypted_output: encryptedOutput } } };
 		},
 		renderCall(_args, theme) { return new Text(`${theme.fg("toolTitle", theme.bold(name))}`, 0, 0); },

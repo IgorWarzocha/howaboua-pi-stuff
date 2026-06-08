@@ -67,8 +67,8 @@ test("buildRecentWebSearchInput mirrors Codex standalone web search context tail
 });
 
 test("buildCodexWebSearchRequest matches Codex alpha/search request defaults", () => {
-	const body = buildCodexWebSearchRequest({ search_query: [{ q: "OpenAI", recency: 7 }], response_length: "short" }, { baseUrl: "https://chatgpt.com/api/codex", model: "gpt-5.4", token: "token", accountId: "acct" });
-	assert.match(body["id"] as string, /^pi-web-run-/);
+	const body = buildCodexWebSearchRequest({ id: "session-123", search_query: [{ q: "OpenAI", recency: 7 }], response_length: "short" }, { baseUrl: "https://chatgpt.com/api/codex", model: "gpt-5.4", token: "token", accountId: "acct" });
+	assert.equal(body["id"], "session-123");
 	assert.equal(body["model"], "gpt-5.4");
 	assert.deepEqual(body["commands"], { search_query: [{ q: "OpenAI", recency: 7 }], response_length: "short" });
 	assert.deepEqual(body["settings"], { allowed_callers: ["direct"], external_web_access: true });
@@ -105,7 +105,7 @@ test("executeCodexWebSearch uses Pi-owned model auth and Codex-compatible header
 			return new Response(JSON.stringify({ encrypted_output: "ciphertext" }), { status: 200, headers: { "content-type": "application/json" } });
 		}) as typeof fetch;
 
-		const encrypted = await executeCodexWebSearchFetch({ search_query: [{ q: "OpenAI" }] }, createContext({ accountId: "pi-account" }), undefined);
+		const encrypted = await executeCodexWebSearchFetch({ search_query: [{ q: "OpenAI" }] }, createContext({ accountId: "pi-account" }), undefined, { sessionId: "session-123" });
 		assert.equal(encrypted, "ciphertext");
 		assert.equal(captured?.url, "https://chatgpt.com/backend-api/codex/alpha/search");
 		const headers = captured!.init.headers as Headers;
@@ -115,6 +115,8 @@ test("executeCodexWebSearch uses Pi-owned model auth and Codex-compatible header
 		assert.match(headers.get("user-agent") ?? "", /^codex_cli_rs\/0\.0\.0 /);
 		assert.equal(headers.get("version"), "0.0.0");
 		assert.equal(headers.get("accept"), null);
+		const requestBody = JSON.parse(captured!.init.body as string) as Record<string, unknown>;
+		assert.equal(requestBody["id"], "session-123");
 		assert.equal(headers.get("content-type"), "application/json");
 		assert.deepEqual(JSON.parse(String(captured!.init.body)).commands, { search_query: [{ q: "OpenAI" }] });
 	} finally {

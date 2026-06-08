@@ -217,6 +217,8 @@ async fn refresh_pi_codex_auth(
 
 #[derive(Debug, Deserialize)]
 struct WebRunArgs {
+    #[serde(default)]
+    id: Option<String>,
     #[serde(flatten)]
     commands: SearchCommands,
     #[serde(default)]
@@ -408,7 +410,12 @@ fn merge_settings(settings: Option<SearchSettings>) -> SearchSettings {
 
 fn build_search_request(args: &WebRunArgs, model: String) -> SearchRequest {
     SearchRequest {
-        id: format!("pi-web-run-{}", Uuid::new_v4()),
+        id: args
+            .id
+            .as_ref()
+            .filter(|id| !id.trim().is_empty())
+            .cloned()
+            .unwrap_or_else(|| format!("pi-web-run-{}", Uuid::new_v4())),
         model,
         input: args.input.clone(),
         commands: Some(args.commands.clone()),
