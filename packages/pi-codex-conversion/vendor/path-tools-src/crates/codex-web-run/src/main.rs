@@ -111,7 +111,7 @@ struct WebRunArgs {
     #[serde(default)]
     model: Option<String>,
     #[serde(default)]
-    input: Option<String>,
+    input: Option<serde_json::Value>,
     #[serde(default)]
     settings: Option<SearchSettings>,
     #[serde(default)]

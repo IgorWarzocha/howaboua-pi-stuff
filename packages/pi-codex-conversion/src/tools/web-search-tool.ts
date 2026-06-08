@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
+import type { ResponseInput } from "openai/resources/responses/responses.js";
 import { Type } from "typebox";
 import { Container, Text } from "@earendil-works/pi-tui";
 import { codexToolProviderEnv, codexToolProviderHeaders, CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE, resolveCodexAlphaSearchUrl, resolveCodexToolProvider, type CodexToolProvider } from "../adapter/codex-tool-provider.ts";
@@ -15,7 +16,59 @@ export const WEB_SEARCH_SESSION_NOTE_TYPE = "codex-web-search-session-note";
 
 const WEB_SEARCH_PARAMETERS = Type.Unsafe<Record<string, unknown>>({ type: "object", additionalProperties: true });
 const DEFAULT_WEB_SEARCH_MODEL = "gpt-5.4-mini";
+const ASSISTANT_CONTEXT_CHAR_LIMIT = 4_000;
 function createEmptyResultComponent(): Container { return new Container(); }
+
+export interface WebSearchToolOptions {
+	getRecentInput?: (() => ResponseInput | undefined) | undefined;
+}
+
+function isResponseMessage(item: ResponseInput[number]): item is Extract<ResponseInput[number], { type?: "message"; role?: string }> {
+	return Boolean(item && typeof item === "object" && (!("type" in item) || item.type === "message") && "role" in item);
+}
+
+function isContextualUserText(text: string): boolean {
+	const trimmed = text.trimStart();
+	return trimmed.startsWith("<environment_context>") || trimmed.startsWith("The conversation history before this point was compacted");
+}
+
+export function buildRecentWebSearchInput(items: ResponseInput): ResponseInput | undefined {
+	const visible: ResponseInput = [];
+	for (const item of items) {
+		if (!isResponseMessage(item)) continue;
+		if (item.role === "assistant") {
+			visible.push(item);
+			continue;
+		}
+		if (item.role !== "user" || !Array.isArray(item.content)) continue;
+		const content = item.content.filter((block) => block?.type === "input_text" && typeof block.text === "string" && !isContextualUserText(block.text));
+		if (content.length > 0) visible.push({ ...item, content } as ResponseInput[number]);
+	}
+
+	let userCount = 0;
+	let start = visible.length;
+	for (let index = visible.length - 1; index >= 0; index--) {
+		const item = visible[index]!;
+		if (isResponseMessage(item) && item.role === "user") userCount++;
+		if (userCount >= 2) {
+			start = index;
+			break;
+		}
+	}
+	const recent = visible.slice(userCount >= 2 ? start : 0);
+	for (const item of recent) {
+		if (!isResponseMessage(item) || item.role !== "assistant" || !Array.isArray(item.content)) continue;
+		let remaining = ASSISTANT_CONTEXT_CHAR_LIMIT;
+		item.content = item.content.map((block) => {
+			if (block?.type !== "output_text" || typeof block.text !== "string") return block;
+			const text = block.text.slice(0, Math.max(0, remaining));
+			remaining -= text.length;
+			return { ...block, text };
+		}).filter((block) => block?.type !== "output_text" || block.text.length > 0) as never;
+	}
+	return recent.length > 0 ? recent : undefined;
+}
+
 
 async function runWebRunBinary(webRunPath: string, params: Record<string, unknown>, env: NodeJS.ProcessEnv, signal: AbortSignal | undefined | null): Promise<string> {
 	return new Promise((resolve, reject) => {
@@ -72,25 +125,26 @@ function mergeSearchSettings(settings: unknown): Record<string, unknown> {
 	return merged;
 }
 
-export function buildCodexWebSearchRequest(params: Record<string, unknown>, provider: CodexToolProvider): Record<string, unknown> {
+export function buildCodexWebSearchRequest(params: Record<string, unknown>, provider: CodexToolProvider, recentInput?: ResponseInput | undefined): Record<string, unknown> {
 	const { model, input, settings, max_output_tokens, ...commands } = params;
 	return {
 		id: `pi-web-run-${randomUUID()}`,
 		model: typeof model === "string" && model.trim() ? model : provider.model ?? DEFAULT_WEB_SEARCH_MODEL,
-		...(typeof input === "string" ? { input } : {}),
+		...(typeof input === "string" ? { input } : recentInput ? { input: recentInput } : {}),
 		commands,
 		settings: mergeSearchSettings(settings),
 		...(typeof max_output_tokens === "number" ? { max_output_tokens } : {}),
 	};
 }
 
-export async function executeCodexWebSearch(params: Record<string, unknown>, ctx: ExtensionContext, signal: AbortSignal | undefined | null): Promise<string> {
-	if (process.env["PI_CODEX_WEB_RUN_TS_FETCH"] === "1") return executeCodexWebSearchFetch(params, ctx, signal);
+export async function executeCodexWebSearch(params: Record<string, unknown>, ctx: ExtensionContext, signal: AbortSignal | undefined | null, options: WebSearchToolOptions = {}): Promise<string> {
+	if (process.env["PI_CODEX_WEB_RUN_TS_FETCH"] === "1") return executeCodexWebSearchFetch(params, ctx, signal, options);
 	const provider = await resolveCodexToolProvider(ctx);
 	const scriptDir = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 	const webRunPath = join(scriptDir, "bin", process.platform === "win32" ? "web_run.cmd" : "web_run");
 	try {
-		const stdout = await runWebRunBinary(webRunPath, params, codexToolProviderEnv(provider), signal);
+		const recentInput = options.getRecentInput?.();
+		const stdout = await runWebRunBinary(webRunPath, { ...(recentInput && params["input"] === undefined ? { input: recentInput } : {}), ...params }, codexToolProviderEnv(provider), signal);
 		const parsed = JSON.parse(stdout) as Record<string, unknown>;
 		const encryptedOutput = parsed["encrypted_output"];
 		if (typeof encryptedOutput !== "string" || !encryptedOutput.trim()) throw new Error("web_run search returned no encrypted output");
@@ -102,7 +156,7 @@ export async function executeCodexWebSearch(params: Record<string, unknown>, ctx
 	}
 }
 
-export async function executeCodexWebSearchFetch(params: Record<string, unknown>, ctx: ExtensionContext, signal: AbortSignal | undefined | null): Promise<string> {
+export async function executeCodexWebSearchFetch(params: Record<string, unknown>, ctx: ExtensionContext, signal: AbortSignal | undefined | null, options: WebSearchToolOptions = {}): Promise<string> {
 	const provider = await resolveCodexToolProvider(ctx);
 	const url = resolveCodexAlphaSearchUrl(provider.baseUrl);
 	const headers = codexToolProviderHeaders(provider);
@@ -111,7 +165,7 @@ export async function executeCodexWebSearchFetch(params: Record<string, unknown>
 		method: "POST",
 		headers,
 		signal: signal ?? null,
-		body: JSON.stringify(buildCodexWebSearchRequest(params, provider)),
+		body: JSON.stringify(buildCodexWebSearchRequest(params, provider, options.getRecentInput?.())),
 	});
 	storeChatGptCloudflareCookies(url, response.headers);
 	const body = await response.text();
@@ -130,7 +184,7 @@ export async function executeCodexWebSearchFetch(params: Record<string, unknown>
 }
 
 
-export function createWebSearchTool(name: string = WEB_SEARCH_TOOL_NAME): ToolDefinition<typeof WEB_SEARCH_PARAMETERS> {
+export function createWebSearchTool(name: string = WEB_SEARCH_TOOL_NAME, options: WebSearchToolOptions = {}): ToolDefinition<typeof WEB_SEARCH_PARAMETERS> {
 	return {
 		name,
 		label: name,
@@ -140,7 +194,7 @@ export function createWebSearchTool(name: string = WEB_SEARCH_TOOL_NAME): ToolDe
 		prepareArguments: (args) => args && typeof args === "object" ? args as Record<string, unknown> : {},
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
 			if (!supportsExecutableWebSearch(ctx.model)) throw new Error(WEB_SEARCH_UNSUPPORTED_MESSAGE);
-			const encryptedOutput = await executeCodexWebSearch(params, ctx, signal);
+			const encryptedOutput = await executeCodexWebSearch(params, ctx, signal, options);
 			return { content: [{ type: "text", text: "[encrypted web search output]" }], details: { webRun: { encrypted_output: encryptedOutput } } };
 		},
 		renderCall(_args, theme) { return new Text(`${theme.fg("toolTitle", theme.bold(name))}`, 0, 0); },
@@ -152,4 +206,4 @@ export function createWebSearchTool(name: string = WEB_SEARCH_TOOL_NAME): ToolDe
 	};
 }
 
-export function registerWebSearchTool(pi: ExtensionAPI, name: string = WEB_SEARCH_TOOL_NAME): void { pi.registerTool(createWebSearchTool(name)); }
+export function registerWebSearchTool(pi: ExtensionAPI, name: string = WEB_SEARCH_TOOL_NAME, options: WebSearchToolOptions = {}): void { pi.registerTool(createWebSearchTool(name, options)); }

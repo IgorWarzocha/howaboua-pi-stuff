@@ -5,13 +5,14 @@
 // Edited for a standalone PATH binary.
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct SearchRequest {
     pub id: String,
     pub model: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub input: Option<String>,
+    pub input: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub commands: Option<SearchCommands>,
     #[serde(skip_serializing_if = "Option::is_none")]

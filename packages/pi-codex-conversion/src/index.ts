@@ -10,7 +10,7 @@ import { registerOpenAICodexCustomProvider } from "./providers/openai-codex-cust
 import { registerImageGenerationTool } from "./tools/image-generation-tool.ts";
 import { buildCodexSystemPrompt, extractPiPromptSkills, resolvePromptSkills } from "./prompt/build-system-prompt.ts";
 import { registerViewImageTool } from "./tools/view-image-tool.ts";
-import { registerWebSearchTool } from "./tools/web-search-tool.ts";
+import { buildRecentWebSearchInput, registerWebSearchTool } from "./tools/web-search-tool.ts";
 import { registerWriteStdinTool } from "./tools/write-stdin-tool.ts";
 import { ensureBundledPathToolsOnPath } from "./tools/path-tools-binary.ts";
 import { readCodexConversionConfig } from "./adapter/config.ts";
@@ -25,6 +25,8 @@ import { registerCodexCommand } from "./codex-settings/command.ts";
 import { WEB_SEARCH_TOOL_NAME } from "./adapter/tool-set.ts";
 import { applyCodexContextBudgetToModel, readPiCompactionReserveTokens } from "./adapter/codex-context-budget.ts";
 import { BACKGROUND_BASH_WIDGET_ID, registerBackgroundBashWidgetShortcuts, renderBackgroundBashWidget, type BackgroundBashWidgetState } from "./tools/background-bash-widget.ts";
+import { CODEX_TOOL_CALL_PROVIDERS, convertResponsesMessages } from "./providers/openai-responses-shared.ts";
+import type { ResponseInput } from "openai/resources/responses/responses.js";
 
 function getCommandArg(args: unknown): string | undefined {
 	if (!args || typeof args !== "object" || !("cmd" in args) || typeof args.cmd !== "string") {
@@ -50,6 +52,7 @@ export default function codexConversion(pi: ExtensionAPI) {
 	const sessions = createExecSessionManager();
 	const backgroundBashWidget: BackgroundBashWidgetState = { folded: true };
 	const registeredNativeWebSearchTools = new Set<string>();
+	let latestRecentWebSearchInput: ResponseInput | undefined;
 	let nativeImageGenerationRegistered = false;
 	let backgroundWidgetRenderTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -57,7 +60,7 @@ export default function codexConversion(pi: ExtensionAPI) {
 		if (config.tools.webRun) {
 			const webSearchToolName = WEB_SEARCH_TOOL_NAME;
 			if (!registeredNativeWebSearchTools.has(webSearchToolName)) {
-				registerWebSearchTool(pi, webSearchToolName);
+				registerWebSearchTool(pi, webSearchToolName, { getRecentInput: () => latestRecentWebSearchInput });
 				registeredNativeWebSearchTools.add(webSearchToolName);
 			}
 		}
@@ -233,7 +236,11 @@ export default function codexConversion(pi: ExtensionAPI) {
 		);
 	});
 
-	pi.on("context", async (event) => ({ messages: event.messages.filter((message) => !isAdapterContextExcludedCustomMessage(message)) }));
+	pi.on("context", async (event, ctx) => {
+		const messages = event.messages.filter((message) => !isAdapterContextExcludedCustomMessage(message));
+		latestRecentWebSearchInput = ctx.model ? buildRecentWebSearchInput(convertResponsesMessages(ctx.model as never, { messages: messages as never }, CODEX_TOOL_CALL_PROVIDERS, { includeSystemPrompt: false })) : undefined;
+		return { messages };
+	});
 }
 
 export { getCodexSkillPaths, mergeAdapterTools, restoreTools, stripAdapterTools };

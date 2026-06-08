@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildCodexWebSearchRequest, createWebSearchTool, executeCodexWebSearchFetch, resolveAlphaSearchUrlFromBase, supportsMultimodalNativeWebSearch, supportsNativeWebSearch } from "../src/tools/web-search-tool.ts";
+import { buildCodexWebSearchRequest, buildRecentWebSearchInput, createWebSearchTool, executeCodexWebSearchFetch, resolveAlphaSearchUrlFromBase, supportsMultimodalNativeWebSearch, supportsNativeWebSearch } from "../src/tools/web-search-tool.ts";
 
 function fakeJwt(accountId: string): string {
 	return ["header", Buffer.from(JSON.stringify({ "https://api.openai.com/auth": { chatgpt_account_id: accountId } })).toString("base64url"), "signature"].join(".");
@@ -47,6 +47,25 @@ test("resolveAlphaSearchUrlFromBase treats bare server URI as app-server root", 
 	assert.equal(resolveAlphaSearchUrlFromBase("https://chatgpt.com/backend-api/codex/responses"), "https://chatgpt.com/backend-api/codex/alpha/search");
 });
 
+
+
+test("buildRecentWebSearchInput mirrors Codex standalone web search context tail", () => {
+	const input = buildRecentWebSearchInput([
+		{ role: "user", content: [{ type: "input_text", text: "old user" }] },
+		{ type: "message", role: "assistant", content: [{ type: "output_text", text: "old assistant", annotations: [] }], status: "completed" },
+		{ role: "user", content: [{ type: "input_text", text: "previous user" }, { type: "input_image", image_url: "data:image/png;base64,x" } as never] },
+		{ type: "function_call", name: "tool", arguments: "{}", call_id: "call-1" },
+		{ type: "message", role: "assistant", content: [{ type: "output_text", text: "previous assistant", annotations: [] }], status: "completed" },
+		{ role: "user", content: [{ type: "input_text", text: "<environment_context>ignore</environment_context>" }] },
+		{ role: "user", content: [{ type: "input_text", text: "current user" }] },
+	] as never);
+	assert.deepEqual(input, [
+		{ role: "user", content: [{ type: "input_text", text: "previous user" }] },
+		{ type: "message", role: "assistant", content: [{ type: "output_text", text: "previous assistant", annotations: [] }], status: "completed" },
+		{ role: "user", content: [{ type: "input_text", text: "current user" }] },
+	]);
+});
+
 test("buildCodexWebSearchRequest matches Codex alpha/search request defaults", () => {
 	const body = buildCodexWebSearchRequest({ search_query: [{ q: "OpenAI", recency: 7 }], response_length: "short" }, { baseUrl: "https://chatgpt.com/api/codex", model: "gpt-5.4", token: "token", accountId: "acct" });
 	assert.match(body["id"] as string, /^pi-web-run-/);
@@ -54,6 +73,15 @@ test("buildCodexWebSearchRequest matches Codex alpha/search request defaults", (
 	assert.deepEqual(body["commands"], { search_query: [{ q: "OpenAI", recency: 7 }], response_length: "short" });
 	assert.deepEqual(body["settings"], { allowed_callers: ["direct"], external_web_access: true });
 	assert.equal(body["input"], undefined);
+});
+
+
+
+test("buildCodexWebSearchRequest includes recent input when no explicit input is passed", () => {
+	const provider = { baseUrl: "https://chatgpt.com/backend-api/codex", model: "gpt-5.4-mini", token: fakeJwt("acct"), accountId: "acct" };
+	const recentInput = [{ role: "user", content: [{ type: "input_text", text: "current user" }] }];
+	const request = buildCodexWebSearchRequest({ search_query: [{ q: "OpenAI" }] }, provider, recentInput as never);
+	assert.equal(request["input"], recentInput);
 });
 
 test("executeCodexWebSearch uses Pi-owned model auth and Codex-compatible headers", async () => {
