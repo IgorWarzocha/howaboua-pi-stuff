@@ -21,6 +21,7 @@ interface ViewImageParams {
 
 interface CreateViewImageToolOptions {
 	allowOriginalDetail?: boolean | undefined;
+	customRendering?: boolean | undefined;
 }
 
 type ViewImageParameters = ReturnType<typeof createViewImageParameters>;
@@ -132,6 +133,7 @@ export function createViewImageTool(options: CreateViewImageToolOptions = {}): T
 			}
 			return executeRustViewImage(typedParams, ctx.cwd, signal);
 		},
+		...(options.customRendering === false ? {} : {
 		renderCall(args, theme) {
 			return new Text(
 				`${theme.fg("toolTitle", theme.bold("view_image"))} ${theme.fg("accent", typeof args["path"]! === "string" ? args["path"]! : "")}`,
@@ -150,6 +152,7 @@ export function createViewImageTool(options: CreateViewImageToolOptions = {}): T
 			}
 			return new Text(text, 0, 0);
 		},
+		}),
 	};
 }
 

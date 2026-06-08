@@ -22,6 +22,7 @@ test("old flat config migrates to grouped config and preserves providers", () =>
 	assert.equal(config.mode, "normal");
 	assert.deepEqual(config.scope, { allProviders: true, additionalProviders: ["my-provider"] });
 	assert.equal(config.ui.statusLine, false);
+	assert.equal(config.ui.toolRendering, true);
 	assert.equal(config.ui.backgroundShellWidget, false);
 	assert.equal(config.compaction.responsesCompaction, true);
 	assert.equal(config.openai.fast, true);
@@ -34,4 +35,9 @@ test("old flat config migrates to grouped config and preserves providers", () =>
 test("new default compaction model is gpt-5.4-mini", () => {
 	assert.equal(DEFAULT_CODEX_CONVERSION_CONFIG.openai.compactionModel, "gpt-5.4-mini");
 	assert.equal(normalizeCodexConversionConfig({}).openai.compactionModel, "gpt-5.4-mini");
+});
+
+test("tool rendering defaults on and can be disabled", () => {
+	assert.equal(DEFAULT_CODEX_CONVERSION_CONFIG.ui.toolRendering, true);
+	assert.equal(normalizeCodexConversionConfig({ ui: { toolRendering: false } }).ui.toolRendering, false);
 });

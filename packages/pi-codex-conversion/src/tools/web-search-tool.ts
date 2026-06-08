@@ -36,6 +36,7 @@ function createEmptyResultComponent(): Container { return new Container(); }
 export interface WebSearchToolOptions {
 	getRecentInput?: (() => ResponseInput | undefined) | undefined;
 	sessionId?: string | undefined;
+	customRendering?: boolean | undefined;
 }
 
 function safeSessionId(id: string): string {
@@ -172,12 +173,14 @@ export function createWebSearchTool(name: string = WEB_SEARCH_TOOL_NAME, options
 			const encryptedOutput = await executeCodexWebSearch(params, ctx, signal, toolOptions);
 			return { content: [{ type: "text", text: encryptedOutput }], details: { webRun: { output_text: encryptedOutput } } };
 		},
+		...(toolOptions.customRendering === false ? {} : {
 		renderCall(_args, theme) { return new Text(`${theme.fg("toolTitle", theme.bold(name))}`, 0, 0); },
 		renderResult(result, { expanded }, theme) {
 			if (!expanded) return createEmptyResultComponent();
 			const textBlock = result.content.find((item) => item.type === "text");
 			return new Text(theme.fg("dim", textBlock?.type === "text" ? textBlock.text : "(no output)"), 0, 0);
 		},
+		}),
 	};
 }
 

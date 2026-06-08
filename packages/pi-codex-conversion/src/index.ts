@@ -53,20 +53,27 @@ export default function codexConversion(pi: ExtensionAPI) {
 	const backgroundBashWidget: BackgroundBashWidgetState = { folded: true };
 	const registeredNativeWebSearchTools = new Set<string>();
 	let latestRecentWebSearchInput: ResponseInput | undefined;
-	let nativeImageGenerationRegistered = false;
 	let backgroundWidgetRenderTimer: ReturnType<typeof setTimeout> | undefined;
+
+	function customRenderingOptions(config = state.config): { customRendering: boolean } {
+		return { customRendering: config.ui.toolRendering };
+	}
+
+	function registerCoreTools(config = state.config): void {
+		registerApplyPatchTool(pi);
+		registerExecCommandTool(pi, tracker, sessions, customRenderingOptions(config));
+		registerWriteStdinTool(pi, sessions);
+		registerViewImageTool(pi, { allowOriginalDetail: true, ...customRenderingOptions(config) });
+	}
 
 	function ensureOptionalNativeToolsRegistered(config = state.config): void {
 		if (config.tools.webRun) {
 			const webSearchToolName = WEB_SEARCH_TOOL_NAME;
-			if (!registeredNativeWebSearchTools.has(webSearchToolName)) {
-				registerWebSearchTool(pi, webSearchToolName, { getRecentInput: () => latestRecentWebSearchInput });
-				registeredNativeWebSearchTools.add(webSearchToolName);
-			}
+			registerWebSearchTool(pi, webSearchToolName, { getRecentInput: () => latestRecentWebSearchInput, ...customRenderingOptions(config) });
+			registeredNativeWebSearchTools.add(webSearchToolName);
 		}
-		if (config.tools.imageGeneration && !nativeImageGenerationRegistered) {
-			registerImageGenerationTool(pi);
-			nativeImageGenerationRegistered = true;
+		if (config.tools.imageGeneration) {
+			registerImageGenerationTool(pi, customRenderingOptions(config));
 		}
 	}
 
@@ -78,10 +85,7 @@ export default function codexConversion(pi: ExtensionAPI) {
 		getCurrentCwd: () => state.cwd,
 		getConfig: () => state.config.openai,
 	});
-	registerApplyPatchTool(pi);
-	registerExecCommandTool(pi, tracker, sessions);
-	registerWriteStdinTool(pi, sessions);
-	registerViewImageTool(pi, { allowOriginalDetail: true });
+	registerCoreTools();
 	ensureOptionalNativeToolsRegistered();
 	function clearBackgroundShellWidget(): void {
 		if (backgroundWidgetRenderTimer) {
@@ -101,6 +105,7 @@ export default function codexConversion(pi: ExtensionAPI) {
 	}
 
 	function applyConfig(config: typeof state.config): void {
+		registerCoreTools(config);
 		ensureOptionalNativeToolsRegistered(config);
 		if (!config.ui.backgroundShellWidget) clearBackgroundShellWidget();
 		else renderBackgroundShellWidget();

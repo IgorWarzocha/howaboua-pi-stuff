@@ -8,10 +8,21 @@ import { fileURLToPath } from "node:url";
 import { imageContentFromCodexViewImageOutput, imageContentsFromCodexViewImageOutput, registerExecCommandTool } from "../src/tools/exec-command-tool.ts";
 import { createExecCommandTracker } from "../src/tools/exec-command-state.ts";
 import { createExecSessionManager } from "../src/tools/exec-session-manager.ts";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const PNG_BASE64 =
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==";
 const packageRoot = dirname(dirname(fileURLToPath(import.meta.url)));
+
+test("exec_command can opt out of custom rendering", () => {
+	let tool: { renderCall?: unknown; renderResult?: unknown } | undefined;
+	const pi = { registerTool(definition: typeof tool) { tool = definition; } } as unknown as ExtensionAPI;
+	registerExecCommandTool(pi, createExecCommandTracker(), createExecSessionManager(), { customRendering: false });
+
+	assert.ok(tool);
+	assert.equal("renderCall" in tool, false);
+	assert.equal("renderResult" in tool, false);
+});
 
 test("bundled view_image emits Codex code-mode result JSON", () => {
 	const cwd = mkdtempSync(join(tmpdir(), "path-view-image-"));

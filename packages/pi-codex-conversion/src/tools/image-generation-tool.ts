@@ -97,7 +97,7 @@ function renderResultWithImages(text: string, details: ImagegenDetails, theme: {
 	return box;
 }
 
-export function createImageGenerationTool(): ToolDefinition<typeof IMAGE_GENERATION_PARAMETERS, ImagegenDetails> {
+export function createImageGenerationTool(options: { customRendering?: boolean | undefined } = {}): ToolDefinition<typeof IMAGE_GENERATION_PARAMETERS, ImagegenDetails> {
 	const description = "Generate an image. Outputs are saved under `.pi/openai-codex-images/` and mirrored to `.pi/openai-codex-images/latest.png`.";
 	return {
 		name: IMAGE_GENERATION_TOOL_NAME,
@@ -111,6 +111,7 @@ export function createImageGenerationTool(): ToolDefinition<typeof IMAGE_GENERAT
 			const details = await executeRustImagegen(params, signal, ctx);
 			return { content: [{ type: "text", text: formatPathImagegenOutput(details) }, ...imageContentsFromPathImagegenOutput(details)], details };
 		},
+		...(options.customRendering === false ? {} : {
 		renderCall(_args, theme) { return new Text(`${theme.fg("toolTitle", theme.bold(IMAGE_GENERATION_TOOL_NAME))}`, 0, 0); },
 		renderResult(result, { expanded }, theme) {
 			if (!expanded) return createEmptyResultComponent();
@@ -118,7 +119,8 @@ export function createImageGenerationTool(): ToolDefinition<typeof IMAGE_GENERAT
 			const text = theme.fg("dim", textBlock?.type === "text" ? textBlock.text : "(no output)");
 			return result.details ? renderResultWithImages(text, result.details, theme) : new Text(text, 0, 0);
 		},
+		}),
 	};
 }
 
-export function registerImageGenerationTool(pi: ExtensionAPI): void { pi.registerTool(createImageGenerationTool()); }
+export function registerImageGenerationTool(pi: ExtensionAPI, options: { customRendering?: boolean | undefined } = {}): void { pi.registerTool(createImageGenerationTool(options)); }

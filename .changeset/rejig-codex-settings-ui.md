@@ -2,4 +2,4 @@
 "@howaboua/pi-codex-conversion": patch
 ---
 
-Rejig Codex settings into General, Tools, OpenAI, Usage, and About tabs with grouped config migration, wire PATH mode to the shell-only Codex tool surface, expose web/image tools as flat `web_run` and `imagegen` tools, and route `web_run` through Pi-owned OpenAI Codex auth using Codex-compatible reqwest transport, headers, endpoint resolution, request shape, recent-input context, PATH credential refresh, and failure classification.
+Rejig Codex settings into General, Tools, OpenAI, Usage, and About tabs with grouped config migration, add a General-tab opt-out for Codex-style non-patch tool rendering, wire PATH mode to the shell-only Codex tool surface, expose web/image tools as flat `web_run` and `imagegen` tools, and route `web_run` through Pi-owned OpenAI Codex auth using Codex-compatible reqwest transport, headers, endpoint resolution, request shape, recent-input context, PATH credential refresh, and failure classification.

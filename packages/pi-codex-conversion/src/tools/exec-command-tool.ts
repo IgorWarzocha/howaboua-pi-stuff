@@ -136,7 +136,7 @@ const renderExecCommandResultWithOptionalContext: any = (
 	return renderTextWithImages(text, result.content, theme);
 };
 
-export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTracker, sessions: ExecSessionManager): void {
+export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTracker, sessions: ExecSessionManager, options: { customRendering?: boolean | undefined } = {}): void {
 	pi.registerTool({
 		name: "exec_command",
 		label: "exec_command",
@@ -174,13 +174,15 @@ export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTr
 				details: result,
 			};
 		},
-		renderCall: ((args: { cmd?: unknown | undefined }, theme: { fg(role: string, text: string): string; bold(text: string): string }, context?: ExecCommandRenderContextLike) =>
+		...(options.customRendering === false ? {} : {
+			renderCall: ((args: { cmd?: unknown | undefined }, theme: { fg(role: string, text: string): string; bold(text: string): string }, context?: ExecCommandRenderContextLike) =>
 			renderExecCommandCallWithOptionalContext(args, theme, context, tracker)) as any,
-		renderResult: ((
+			renderResult: ((
 			result: { content: Array<{ type: string; text?: string | undefined }>; details?: unknown | undefined },
-			options: { expanded: boolean; isPartial: boolean },
+			renderOptions: { expanded: boolean; isPartial: boolean },
 			theme: { fg(role: string, text: string): string },
 			context?: ExecCommandRenderContextLike,
-		) => renderExecCommandResultWithOptionalContext(result, options, theme, context, tracker)) as any,
+		) => renderExecCommandResultWithOptionalContext(result, renderOptions, theme, context, tracker)) as any,
+		}),
 	});
 }

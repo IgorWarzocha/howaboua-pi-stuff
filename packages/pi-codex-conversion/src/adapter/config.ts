@@ -17,6 +17,7 @@ export interface CodexConversionConfig {
 	tools: { webRun: boolean; imageGeneration: boolean; applyPatchForStandardGpt: boolean };
 	ui: {
 		statusLine: boolean;
+		toolRendering: boolean;
 		backgroundShellWidget: boolean;
 		backgroundShellToggleShortcut: string;
 		backgroundShellPrevShortcut: string;
@@ -40,6 +41,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	tools: { webRun: true, imageGeneration: true, applyPatchForStandardGpt: false },
 	ui: {
 		statusLine: true,
+		toolRendering: true,
 		backgroundShellWidget: true,
 		backgroundShellToggleShortcut: "alt+w",
 		backgroundShellPrevShortcut: "alt+q",
@@ -116,6 +118,7 @@ export function normalizeCodexConversionConfig(value: unknown): CodexConversionC
 		},
 		ui: {
 			statusLine: bool(ui["statusLine"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["statusLine"]),
+			toolRendering: bool(ui["toolRendering"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["toolRendering"]),
 			backgroundShellWidget: bool(ui["backgroundShellWidget"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellWidget"]),
 			backgroundShellToggleShortcut: stringValue(ui["backgroundShellToggleShortcut"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellToggleShortcut"]),
 			backgroundShellPrevShortcut: stringValue(ui["backgroundShellPrevShortcut"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellPrevShortcut"]),
