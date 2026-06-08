@@ -196,11 +196,6 @@ fn alpha_search_url() -> String {
 
 fn alpha_search_url_from_base(base: &str) -> String {
     let normalized = base.trim_end_matches('/');
-    if let Ok(url) = reqwest::Url::parse(normalized) {
-        if matches!(url.path(), "/backend-api" | "/backend-api/codex" | "/backend-api/codex/responses") {
-            return format!("{}/api/codex/alpha/search", url.origin().ascii_serialization().trim_end_matches('/'));
-        }
-    }
     if normalized.ends_with("/alpha/search") {
         normalized.to_string()
     } else if normalized.ends_with("/codex/responses") {
@@ -234,6 +229,7 @@ fn default_headers() -> HeaderMap {
     if let Ok(value) = HeaderValue::from_str(&codex_user_agent(&originator)) {
         headers.insert(USER_AGENT, value);
     }
+    headers.insert("version", HeaderValue::from_static("0.0.0"));
     headers
 }
 

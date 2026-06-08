@@ -18,9 +18,6 @@ export function resolveCodexApiProviderBaseUrl(modelBaseUrl: string | undefined)
 	const normalized = base.replace(/\/+$/, "");
 	try {
 		const url = new URL(normalized);
-		if (url.pathname === "/backend-api" || url.pathname === "/backend-api/codex" || url.pathname === "/backend-api/codex/responses") {
-			return `${url.origin}/api/codex`;
-		}
 		if (url.pathname === "" || url.pathname === "/") return `${normalized}/api/codex`;
 	} catch {
 		// Keep string-only fallback below.
@@ -57,6 +54,7 @@ export function codexToolProviderHeaders(provider: CodexToolProvider): Headers {
 	headers.set("chatgpt-account-id", provider.accountId);
 	headers.set("originator", CODEX_ORIGINATOR);
 	headers.set("User-Agent", codexWebRunUserAgent(CODEX_ORIGINATOR));
+	headers.set("version", "0.0.0");
 	headers.set("content-type", "application/json");
 	headers.set("accept", "application/json");
 	return headers;

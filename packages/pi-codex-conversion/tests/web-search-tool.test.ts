@@ -44,7 +44,7 @@ test("web_run supports OpenAI Codex Responses models and keeps spark text-only",
 test("resolveAlphaSearchUrlFromBase treats bare server URI as app-server root", () => {
 	assert.equal(resolveAlphaSearchUrlFromBase("http://127.0.0.1:8061"), "http://127.0.0.1:8061/api/codex/alpha/search");
 	assert.equal(resolveAlphaSearchUrlFromBase("http://127.0.0.1:8061/api/codex"), "http://127.0.0.1:8061/api/codex/alpha/search");
-	assert.equal(resolveAlphaSearchUrlFromBase("https://chatgpt.com/backend-api/codex/responses"), "https://chatgpt.com/api/codex/alpha/search");
+	assert.equal(resolveAlphaSearchUrlFromBase("https://chatgpt.com/backend-api/codex/responses"), "https://chatgpt.com/backend-api/codex/alpha/search");
 });
 
 test("buildCodexWebSearchRequest matches Codex alpha/search request defaults", () => {
@@ -71,12 +71,13 @@ test("executeCodexWebSearch uses Pi-owned model auth and Codex-compatible header
 
 		const encrypted = await executeCodexWebSearchFetch({ search_query: [{ q: "OpenAI" }] }, createContext({ accountId: "pi-account" }), undefined);
 		assert.equal(encrypted, "ciphertext");
-		assert.equal(captured?.url, "https://chatgpt.com/api/codex/alpha/search");
+		assert.equal(captured?.url, "https://chatgpt.com/backend-api/codex/alpha/search");
 		const headers = captured!.init.headers as Headers;
 		assert.equal(headers.get("authorization")?.startsWith("Bearer poison-token"), false);
 		assert.equal(headers.get("chatgpt-account-id"), "pi-account");
 		assert.equal(headers.get("originator"), "codex_cli_rs");
 		assert.match(headers.get("user-agent") ?? "", /^codex_cli_rs\/0\.0\.0 /);
+		assert.equal(headers.get("version"), "0.0.0");
 		assert.equal(headers.get("accept"), "application/json");
 		assert.equal(headers.get("content-type"), "application/json");
 		assert.deepEqual(JSON.parse(String(captured!.init.body)).commands, { search_query: [{ q: "OpenAI" }] });
