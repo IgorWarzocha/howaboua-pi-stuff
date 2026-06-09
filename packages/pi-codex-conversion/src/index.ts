@@ -70,7 +70,7 @@ export default function codexConversion(pi: ExtensionAPI) {
 		registerApplyPatchTool(pi, promptSnippetOptions(config));
 		registerExecCommandTool(pi, tracker, sessions, { ...customRenderingOptions(config), ...promptSnippetOptions(config) });
 		registerWriteStdinTool(pi, sessions, promptSnippetOptions(config));
-		registerViewImageTool(pi, { allowOriginalDetail: true, ...customRenderingOptions(config), ...promptSnippetOptions(config) });
+		registerViewImageTool(pi, { ...customRenderingOptions(config), ...promptSnippetOptions(config) });
 	}
 
 	function ensureOptionalNativeToolsRegistered(config = state.config): void {

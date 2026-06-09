@@ -12,29 +12,19 @@ import { runBundledTool } from "../path/runner.ts";
 import { renderCodexToolCell } from "../../ui/tool-rendering/codex-tool-cell.ts";
 
 const VIEW_IMAGE_UNSUPPORTED_MESSAGE = "view_image is not allowed because you do not support image inputs";
-const DETAIL_DESCRIPTION =
-	"Use `original` to preserve the file's original resolution; omit for default resized behavior.";
-
 interface ViewImageParams {
 	path: string;
-	detail?: string | undefined;
 }
 
 interface CreateViewImageToolOptions {
-	allowOriginalDetail?: boolean | undefined;
 	customRendering?: boolean | undefined;
 	promptSnippet?: boolean | undefined;
 }
 
 type ViewImageParameters = ReturnType<typeof createViewImageParameters>;
 
-function createViewImageParameters(allowOriginalDetail: boolean) {
-	const properties: Record<string, TSchema> = {
-		path: Type.String({ description: "Local image file path." }),
-	};
-	if (allowOriginalDetail) {
-		properties["detail"] = Type.Optional(Type.String({ description: DETAIL_DESCRIPTION }));
-	}
+function createViewImageParameters() {
+	const properties: Record<string, TSchema> = { path: Type.String() };
 	return Type.Object(properties);
 }
 
@@ -42,23 +32,16 @@ export function parseViewImageParams(params: unknown): ViewImageParams {
 	if (!params || typeof params !== "object" || !("path" in params) || typeof params.path !== "string") {
 		throw new Error("view_image requires a string 'path' parameter");
 	}
-	let detail: string | undefined;
 	if ("detail" in params) {
 		const rawDetail = params.detail;
-		if (rawDetail === null || rawDetail === undefined) {
-			detail = undefined;
-		} else if (typeof rawDetail !== "string") {
+		if (rawDetail !== null && rawDetail !== undefined && typeof rawDetail !== "string") {
 			throw new Error("view_image.detail must be a string when provided");
-		} else {
-			detail = rawDetail;
+		}
+		if (typeof rawDetail === "string" && rawDetail !== "original") {
+			throw new Error(`view_image.detail only supports \`original\`, got \`${rawDetail}\``);
 		}
 	}
-	if (detail !== undefined && detail !== "original") {
-		throw new Error(
-			`view_image.detail only supports \`original\`; omit \`detail\` for default resized behavior, got \`${detail}\``,
-		);
-	}
-	return { path: params.path, detail };
+	return { path: params.path };
 }
 
 function prepareViewImageArguments(args: unknown): Record<string, unknown> {
@@ -104,19 +87,8 @@ function supportsImageInputs(model: ExtensionContext["model"]): boolean {
 	return Array.isArray(model?.input) && model.input.includes("image");
 }
 
-// Pi exposes image input support on models, but not Codex's finer-grained
-// original-detail capability flag. Keep the heuristic narrow to image-capable
-// Codex-family models until Pi surfaces an explicit capability.
-export function supportsOriginalImageDetail(model: ExtensionContext["model"]): boolean {
-	const provider = (model?.provider ?? "").toLowerCase();
-	const api = (model?.api ?? "").toLowerCase();
-	const id = (model?.id ?? "").toLowerCase();
-	return supportsImageInputs(model) && (provider.includes("codex") || api.includes("codex") || id.includes("codex"));
-}
-
 export function createViewImageTool(options: CreateViewImageToolOptions = {}): ToolDefinition<ViewImageParameters> {
-	const allowOriginalDetail = options.allowOriginalDetail ?? false;
-	const parameters = createViewImageParameters(allowOriginalDetail);
+	const parameters = createViewImageParameters();
 
 	return {
 		name: "view_image",
@@ -130,9 +102,6 @@ export function createViewImageTool(options: CreateViewImageToolOptions = {}): T
 				throw new Error(VIEW_IMAGE_UNSUPPORTED_MESSAGE);
 			}
 			const typedParams = parseViewImageParams(params);
-			if (typedParams.detail === "original" && !allowOriginalDetail) {
-				throw new Error("view_image.detail is not available for the current model");
-			}
 			return executeRustViewImage(typedParams, ctx.cwd, signal);
 		},
 		...(options.customRendering === false ? {} : {

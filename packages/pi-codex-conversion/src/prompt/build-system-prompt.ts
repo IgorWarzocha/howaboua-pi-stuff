@@ -12,29 +12,27 @@ export interface StructuredPromptSkill {
 }
 
 const NORMAL_CODEX_GUIDELINES = [
-	"Use `exec_command` for shell commands, file inspection, builds, and tests; prefer `rg` / `rg --files` for discovery and focused commands over truncation.",
+	"Use exec_command for shell commands, file inspection, builds, and tests; prefer rg / rg --files for discovery and focused commands over truncation.",
 	"Use tty=true for dev servers, watchers, REPLs, and prompts.",
-	"Use `apply_patch` for text-file changes, including creates/deletes/moves; group related multi-file edits into one patch.",
-	"Prefer the `apply_patch` tool; use shell `apply_patch` only when chaining edits with other shell steps.",
-	"Use `write_stdin` only for running `exec_command` sessions; poll sparingly.",
+	"Use apply_patch for text-file changes, including creates/deletes/moves; group related multi-file edits into one patch.",
+	"Prefer the apply_patch tool; use shell apply_patch only when chaining edits with other shell steps.",
+	"Use write_stdin only for running exec_command sessions; poll sparingly.",
 	"Run independent tool calls in parallel when practical.",
 ];
 
 const PATH_CODEX_GUIDELINES = [
-	"Use `exec_command` for shell commands, file inspection, builds, and tests; prefer `rg` / `rg --files` for discovery and focused commands over truncation.",
-	"Use tty=true for dev servers, watchers, REPLs, and prompts.",
-	"Use shell apply_patch for text-file changes, including creates/deletes/moves; group related multi-file edits into one patch.",
-	"Prefer apply_patch over ad-hoc file rewrite commands.",
-	"Listed PATH tools are available; do not check with command -v, which, help, or version.",
-	"For PATH args with quotes/newlines, use stdin/heredoc.",
-	"Use `write_stdin` only for running `exec_command` sessions; poll sparingly.",
-	"Chain short dependent shell commands in one exec_command with &&.",
+	"Use exec_command for shell/file/build/test; prefer rg/rg --files.",
+	"Use tty=true for interactive commands.",
+	"Use apply_patch for file edits; group related edits.",
+	"Do not probe listed PATH tools.",
+	"Use stdin/heredoc for quoted or multiline PATH args.",
+	"Chain dependent shell commands with &&.",
 	"Run independent exec_command calls in parallel when practical.",
 ];
 
 const PATH_MODE_REMOVED_GUIDELINES = new Set([
-	"Use `apply_patch` for text-file changes, including creates/deletes/moves; group related multi-file edits into one patch.",
-	"Prefer the `apply_patch` tool; use shell `apply_patch` only when chaining edits with other shell steps.",
+	"Use apply_patch for text-file changes, including creates/deletes/moves; group related multi-file edits into one patch.",
+	"Prefer the apply_patch tool; use shell apply_patch only when chaining edits with other shell steps.",
 	"Run independent tool calls in parallel when practical.",
 ]);
 
@@ -48,7 +46,7 @@ function buildCodexGuidelines(mode: "normal" | "path" = "normal", tools: CodexPr
 	const guidelines = [...PATH_CODEX_GUIDELINES];
 	const examples = [`- apply_patch <<'PATCH'`, `  *** Begin Patch`, `  ...`, `  *** End Patch`, `  PATCH`, `- view_image '{"path":"/x.png"}'`];
 	if (tools.webRun !== false) {
-		examples.push(`- web_run '{"search_query":[{"q":"..."}],"response_length":"short"}'`);
+		examples.push(`- web_run '{"search_query":[{"q":"..."}],"response_length":"short|medium|long"}'`);
 		examples.push(`- web_run '{"open":[{"ref_id":"turn0search0 or https://..."}]}'`);
 		examples.push(`- web_run '{"click":[{"ref_id":"turn0view0","id":1}]}'`);
 		examples.push(`- web_run '{"find":[{"ref_id":"turn0view0","pattern":"..."}]}'`);

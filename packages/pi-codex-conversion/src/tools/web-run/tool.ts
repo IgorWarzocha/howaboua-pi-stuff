@@ -194,7 +194,7 @@ export function createWebSearchTool(name: string = WEB_SEARCH_TOOL_NAME, options
 	return {
 		name,
 		label: name,
-		description: "Search/open web sources.",
+		description: "Search/open web.",
 		...(toolOptions.promptSnippet === false ? {} : { promptSnippet: "Use explicit args." }),
 		parameters: WEB_SEARCH_PARAMETERS,
 		prepareArguments: (args) => args && typeof args === "object" ? args as Record<string, unknown> : {},

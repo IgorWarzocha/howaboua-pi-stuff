@@ -14,11 +14,6 @@ struct ViewImageArgs {
     detail: Option<String>,
 }
 
-enum ViewImageDetail {
-    High,
-    Original,
-}
-
 fn parse_args() -> anyhow::Result<ViewImageArgs> {
     let mut args = env::args().skip(1);
     let input = match args.next() {
@@ -54,14 +49,12 @@ fn parse_args() -> anyhow::Result<ViewImageArgs> {
 
 fn main() -> anyhow::Result<()> {
     let ViewImageArgs { path, detail } = parse_args()?;
-    let detail = match detail.as_deref() {
-        None => ViewImageDetail::High,
-        Some("high") => ViewImageDetail::High,
-        Some("original") => ViewImageDetail::Original,
+    match detail.as_deref() {
+        None | Some("original") => {}
         Some(detail) => anyhow::bail!(
-            "view_image.detail only supports `high` or `original`; omit `detail` for default high resized behavior, got `{detail}`"
+            "view_image.detail only supports `original`, got `{detail}`"
         ),
-    };
+    }
 
     let path = PathBuf::from(path);
     let abs_path = if path.is_absolute() {
@@ -76,16 +69,8 @@ fn main() -> anyhow::Result<()> {
     }
     let file_bytes = fs::read(&abs_path)
         .with_context(|| format!("unable to read image at `{}`", abs_path.display()))?;
-    let image_mode = match detail {
-        ViewImageDetail::High => PromptImageMode::ResizeToFit,
-        ViewImageDetail::Original => PromptImageMode::Original,
-    };
-    let image = load_for_prompt_bytes(abs_path.as_path(), file_bytes, image_mode)
+    let image = load_for_prompt_bytes(abs_path.as_path(), file_bytes, PromptImageMode::Original)
         .with_context(|| format!("unable to process image at `{}`", abs_path.display()))?;
-    let detail = match detail {
-        ViewImageDetail::High => "high",
-        ViewImageDetail::Original => "original",
-    };
-    println!("{}", json!({ "image_url": image.into_data_url(), "detail": detail }));
+    println!("{}", json!({ "image_url": image.into_data_url(), "detail": "original" }));
     Ok(())
 }

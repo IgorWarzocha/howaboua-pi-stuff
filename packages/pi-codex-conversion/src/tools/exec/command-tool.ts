@@ -11,17 +11,17 @@ import { webRunSessionStatePath } from "../web-run/tool.ts";
 export { imageContentFromCodexViewImageOutput, imageContentsFromCodexViewImageOutput } from "../path/outputs.ts";
 
 const EXEC_COMMAND_PARAMETERS = Type.Object({
-	cmd: Type.String({ description: "Shell command to execute." }),
-	workdir: Type.Optional(Type.String({ description: "Defaults to current cwd." })),
-	shell: Type.Optional(Type.String({ description: "Defaults to the user's shell." })),
+	cmd: Type.String(),
+	workdir: Type.Optional(Type.String({ description: "Cwd." })),
+	shell: Type.Optional(Type.String()),
 	tty: Type.Optional(
 		Type.Boolean({
-			description: "Allocate a TTY. Defaults to false.",
+			description: "TTY.",
 		}),
 	),
-	yield_time_ms: Type.Optional(Type.Number({ description: "Wait before yielding. Max 30000." })),
-	max_output_tokens: Type.Optional(Type.Number({ description: "Truncate excess output." })),
-	login: Type.Optional(Type.Boolean({ description: "Login shell. Defaults true." })),
+	yield_time_ms: Type.Optional(Type.Number({ description: "Wait ms." })),
+	max_output_tokens: Type.Optional(Type.Number({ description: "Truncate." })),
+	login: Type.Optional(Type.Boolean({ description: "Login shell." })),
 });
 
 interface ExecCommandParams {
@@ -140,7 +140,7 @@ export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTr
 	pi.registerTool({
 		name: "exec_command",
 		label: "exec_command",
-		description: "Runs a shell command, returning output or a session ID for ongoing interaction.",
+		description: "Run shell commands; may return session_id.",
 		...(options.promptSnippet === false ? {} : { promptSnippet: "Run a command." }),
 		parameters: EXEC_COMMAND_PARAMETERS,
 		prepareArguments: prepareExecCommandArguments as (args: unknown) => { cmd: string; workdir?: string; shell?: string; tty?: boolean; yield_time_ms?: number; max_output_tokens?: number; login?: boolean },

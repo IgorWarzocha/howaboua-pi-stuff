@@ -95,7 +95,7 @@ export function registerApplyPatchTool(pi: ExtensionAPI, options: { promptSnippe
 	pi.registerTool({
 		name: "apply_patch",
 		label: "apply_patch",
-		description: "Create/edit/delete/move files with a patch.",
+		description: "Patch files.",
 		...(options.promptSnippet === false ? {} : { promptSnippet: "Edit files with a patch." }),
 		parameters: APPLY_PATCH_PARAMETERS,
 		prepareArguments: prepareApplyPatchArguments,

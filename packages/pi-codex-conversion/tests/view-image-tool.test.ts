@@ -10,24 +10,22 @@ const PNG_BASE64 =
 
 
 test("parseViewImageParams accepts omitted and null detail, but rejects invalid detail values", () => {
-	assert.deepEqual(parseViewImageParams({ path: "assets/example.png" }), { path: "assets/example.png", detail: undefined });
-	assert.deepEqual(parseViewImageParams({ path: "assets/example.png", detail: null }), {
-		path: "assets/example.png",
-		detail: undefined,
-	});
+	assert.deepEqual(parseViewImageParams({ path: "assets/example.png" }), { path: "assets/example.png" });
+	assert.deepEqual(parseViewImageParams({ path: "assets/example.png", detail: null }), { path: "assets/example.png" });
+	assert.deepEqual(parseViewImageParams({ path: "assets/example.png", detail: "original" }), { path: "assets/example.png" });
 	assert.throws(
 		() => parseViewImageParams({ path: "assets/example.png", detail: "low" }),
-		/view_image\.detail only supports `original`; omit `detail` for default resized behavior, got `low`/,
+		/view_image\.detail only supports `original`, got `low`/,
 	);
 	assert.throws(() => parseViewImageParams({ path: "assets/example.png", detail: 1 }), /view_image\.detail must be a string/);
 });
 
-test("createViewImageTool uses Rust view_image resized mode by default", async () => {
+test("createViewImageTool returns original image content", async () => {
 	const cwd = await mkdtemp(join(tmpdir(), "view-image-tool-"));
 	const imagePath = join(cwd, "image.png");
 	await writeFile(imagePath, Buffer.from(PNG_BASE64, "base64"));
 
-	const tool = createViewImageTool({ allowOriginalDetail: true });
+	const tool = createViewImageTool();
 
 	const result = await tool.execute("call-1", { path: "image.png" }, undefined, undefined, {
 		cwd,
@@ -35,7 +33,7 @@ test("createViewImageTool uses Rust view_image resized mode by default", async (
 	} as never);
 
 	assert.equal(result.content.length, 1);
-	assert.deepEqual(result.content[0]!, { type: "image", data: PNG_BASE64, mimeType: "image/png", detail: "high" });
+	assert.deepEqual(result.content[0]!, { type: "image", data: PNG_BASE64, mimeType: "image/png", detail: "original" });
 });
 
 test("createViewImageTool rejects models without image input support", async () => {
