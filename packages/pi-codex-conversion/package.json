@@ -62,6 +62,7 @@
     "build:apply-patch": "node scripts/build-apply-patch-binary.mjs",
     "sync:apply-patch-source": "node scripts/sync-apply-patch-source.mjs",
     "verify:codex-tool-binaries": "node scripts/verify-codex-tool-binaries.mjs",
+    "build:changed-path-tools": "node scripts/build-changed-path-tool-binaries.mjs",
     "build:path-tool": "node scripts/build-path-tool-binary.mjs"
   },
   "publishConfig": {

@@ -9,6 +9,7 @@ on:
       - 'packages/pi-codex-conversion/src/tools/Cargo.toml'
       - 'packages/pi-codex-conversion/src/tools/Cargo.lock'
       - 'packages/pi-codex-conversion/scripts/build-apply-patch-binary.mjs'
+      - 'packages/pi-codex-conversion/scripts/build-changed-path-tool-binaries.mjs'
       - 'packages/pi-codex-conversion/scripts/build-path-tool-binary.mjs'
       - 'packages/pi-codex-conversion/scripts/verify-codex-tool-binaries.mjs'
       - 'packages/pi-codex-conversion/bin/**'
@@ -36,17 +37,18 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - uses: oven-sh/setup-bun@v2
       - run: bun install
       - name: Build bundled tools
         working-directory: packages/pi-codex-conversion
+        env:
+          GITHUB_EVENT_BEFORE: ${{ github.event.before }}
+          FORCE_ALL_CODEX_TOOL_BUILDS: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
         run: |
-          bun run build:apply-patch
-          bun run build:path-tool codex-view-image view_image
-          bun run build:path-tool codex-web-run web_run
-          bun run build:path-tool codex-imagegen imagegen
-          bun run build:path-tool codex-exec-shim exec_bridge
+          bun run build:changed-path-tools
       - uses: actions/upload-artifact@v7
         with:
           name: codex-tool-binaries-${{ matrix.platform_arch }}
