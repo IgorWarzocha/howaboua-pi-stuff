@@ -1,4 +1,4 @@
-use serde_json::json;
+use serde_json::{json, Value};
 
 use crate::cli::{WebRunArgs, WebRunSearchResult};
 use crate::types;
@@ -17,33 +17,89 @@ fn search_context_size(settings: &Option<SearchSettings>) -> &'static str {
 
 fn search_prompt(args: &WebRunArgs) -> anyhow::Result<String> {
     if let Some(queries) = args.commands.search_query.as_ref()
-        && let Some(query) = queries.first()
-        && !query.q.trim().is_empty()
+        && !queries.is_empty()
     {
-        return Ok(query.q.clone());
+        let prompts = queries
+            .iter()
+            .filter(|query| !query.q.trim().is_empty())
+            .map(format_search_query)
+            .collect::<Vec<_>>();
+        if !prompts.is_empty() {
+            return Ok(prompts.join("\n"));
+        }
     }
     if let Some(queries) = args.commands.image_query.as_ref()
-        && let Some(query) = queries.first()
-        && !query.q.trim().is_empty()
+        && !queries.is_empty()
     {
-        return Ok(format!("Find images and current sources for: {}", query.q));
+        let prompts = queries
+            .iter()
+            .filter(|query| !query.q.trim().is_empty())
+            .map(|query| format!("Find images and current sources for: {}", format_search_query(query)))
+            .collect::<Vec<_>>();
+        if !prompts.is_empty() {
+            return Ok(prompts.join("\n"));
+        }
     }
     anyhow::bail!("web_run requires search_query or image_query")
+}
+
+fn response_length_instruction(args: &WebRunArgs) -> Option<&'static str> {
+    match args.commands.response_length.as_ref() {
+        Some(types::SearchResponseLength::Short) => Some("Keep the answer short and focused."),
+        Some(types::SearchResponseLength::Medium) => Some("Use a medium-length answer with enough detail to be useful."),
+        Some(types::SearchResponseLength::Long) => Some("Use a longer answer with fuller detail and source coverage."),
+        None => None,
+    }
+}
+
+fn format_search_query(query: &types::SearchQuery) -> String {
+    let mut parts = vec![query.q.clone()];
+    if let Some(recency) = query.recency {
+        parts.push(format!("Only include results from the last {recency} days."));
+    }
+    if let Some(domains) = query.domains.as_ref() {
+        let domains = domains
+            .iter()
+            .filter(|domain| !domain.trim().is_empty())
+            .cloned()
+            .collect::<Vec<_>>();
+        if !domains.is_empty() {
+            parts.push(format!("Restrict results to these domains: {}.", domains.join(", ")));
+        }
+    }
+    parts.join(" ")
+}
+
+fn request_input(args: &WebRunArgs, prompt: String) -> Value {
+    let search_message = json!({
+        "type": "message",
+        "role": "user",
+        "content": [{ "type": "input_text", "text": prompt }]
+    });
+    if let Some(input) = args.input.as_ref()
+        && let Some(items) = input.as_array()
+    {
+        let mut items = items.clone();
+        items.push(search_message);
+        return Value::Array(items);
+    }
+    Value::Array(vec![search_message])
 }
 
 pub fn build_responses_web_search_request(
     args: &WebRunArgs,
     model: String,
 ) -> anyhow::Result<serde_json::Value> {
-    let prompt = search_prompt(args)?;
-    Ok(json!({
+    let mut prompt = search_prompt(args)?;
+    if let Some(instruction) = response_length_instruction(args) {
+        prompt.push('\n');
+        prompt.push_str(instruction);
+    }
+    let input = request_input(args, prompt);
+    let mut request = json!({
         "model": model,
         "instructions": "You are a concise web search assistant. Use web search, answer the query, and preserve source citations from annotations.",
-        "input": [{
-            "type": "message",
-            "role": "user",
-            "content": [{ "type": "input_text", "text": prompt }]
-        }],
+        "input": input,
         "tools": [{
             "type": "web_search",
             "external_web_access": true,
@@ -54,7 +110,13 @@ pub fn build_responses_web_search_request(
         "store": false,
         "stream": true,
         "include": []
-    }))
+    });
+    if let Some(max_output_tokens) = args.max_output_tokens
+        && let Some(object) = request.as_object_mut()
+    {
+        object.insert("max_output_tokens".to_string(), json!(max_output_tokens));
+    }
+    Ok(request)
 }
 
 pub fn output_from_sse(body: &str) -> anyhow::Result<(String, Vec<WebRunSearchResult>)> {

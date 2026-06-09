@@ -16,7 +16,7 @@ export const COMPACTION_REASONING_LEVELS: readonly CompactionReasoning[] = ["cur
 export interface CodexConversionConfig {
 	mode: CodexAdapterMode;
 	scope: { allProviders: boolean; additionalProviders: string[] };
-	tools: { webRun: boolean; imageGeneration: boolean; applyPatchForStandardGpt: boolean };
+	tools: { webRun: boolean; imageGeneration: boolean; applyPatchForStandardGpt: boolean; applyPatchOnly: boolean };
 	ui: {
 		statusLine: boolean;
 		toolRendering: boolean;
@@ -41,7 +41,7 @@ export const CODEX_CONVERSION_CONFIG_BASENAME = "pi-codex-conversion.json";
 export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	mode: "normal",
 	scope: { allProviders: false, additionalProviders: [] },
-	tools: { webRun: true, imageGeneration: true, applyPatchForStandardGpt: false },
+	tools: { webRun: true, imageGeneration: true, applyPatchForStandardGpt: false, applyPatchOnly: false },
 	ui: {
 		statusLine: true,
 		toolRendering: true,
@@ -124,6 +124,7 @@ export function normalizeCodexConversionConfig(value: unknown): CodexConversionC
 			webRun: bool(tools["webRun"], DEFAULT_CODEX_CONVERSION_CONFIG.tools["webRun"]),
 			imageGeneration: bool(tools["imageGeneration"], DEFAULT_CODEX_CONVERSION_CONFIG.tools["imageGeneration"]),
 			applyPatchForStandardGpt: bool(tools["applyPatchForStandardGpt"], DEFAULT_CODEX_CONVERSION_CONFIG.tools["applyPatchForStandardGpt"]),
+			applyPatchOnly: bool(tools["applyPatchOnly"], DEFAULT_CODEX_CONVERSION_CONFIG.tools["applyPatchOnly"]),
 		},
 		ui: {
 			statusLine: bool(ui["statusLine"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["statusLine"]),

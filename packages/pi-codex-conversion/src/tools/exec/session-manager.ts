@@ -283,20 +283,24 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			const session = createRustSession(input, workdir, shell);
 			sessions.set(session.id, session);
 			rememberCommand(session.id, session.command);
-			registerAbortHandler(signal, () => {
+			const abortCleanup = registerAbortHandler(signal, () => {
 				if (session.exitCode === undefined || session.exitCode === null) {
 					void bridge.request({ op: "terminate", process_id: session.processId }).catch(() => {});
 				}
 			});
 
-			onUpdate?.(makeSnapshotResult(session, 0, input.max_output_tokens, true));
-			const waitedMs = await waitForExitOrTimeout(
-				session,
-				clampExecYieldTime(input.yield_time_ms, defaultExecYieldTimeMs, session.interactive, minNonInteractiveExecYieldTimeMs, input.max_yield_time_ms),
-				undefined,
-				onUpdate ? (elapsedMs) => onUpdate(makeSnapshotResult(session, elapsedMs, input.max_output_tokens)) : undefined,
-			);
-			return makeExecResult(session, waitedMs, input.max_output_tokens, exposeSession, (sessionId) => sessions.delete(sessionId));
+			try {
+				onUpdate?.(makeSnapshotResult(session, 0, input.max_output_tokens, true));
+				const waitedMs = await waitForExitOrTimeout(
+					session,
+					clampExecYieldTime(input.yield_time_ms, defaultExecYieldTimeMs, session.interactive, minNonInteractiveExecYieldTimeMs, input.max_yield_time_ms),
+					signal,
+					onUpdate ? (elapsedMs) => onUpdate(makeSnapshotResult(session, elapsedMs, input.max_output_tokens)) : undefined,
+				);
+				return makeExecResult(session, waitedMs, input.max_output_tokens, exposeSession, (sessionId) => sessions.delete(sessionId));
+			} finally {
+				abortCleanup();
+			}
 		},
 		write: async (input, signal, onUpdate) => {
 			if (signal?.aborted) {

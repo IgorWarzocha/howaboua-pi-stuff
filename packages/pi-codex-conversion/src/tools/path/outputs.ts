@@ -91,15 +91,21 @@ function imageContentFromCodexViewImageJson(json: string): PathViewImageContent 
 }
 
 function isPathViewImageCommand(command: string): boolean {
-	return !isPathToolDiscoveryCommand(command, "view_image") && /(?:^|[;&|()\s])view_image(?:\s|$)/.test(command);
+	return hasPathToolCommand(command, "view_image");
 }
 
 function isPathWebRunCommand(command: string): boolean {
-	return !isPathToolDiscoveryCommand(command, "web_run") && /(?:^|[;&|()\s])web_run(?:\s|$)/.test(command);
+	return hasPathToolCommand(command, "web_run");
 }
 
 function isPathImagegenCommand(command: string): boolean {
-	return !isPathToolDiscoveryCommand(command, "imagegen") && /(?:^|[;&|()\s])imagegen(?:\s|$)/.test(command);
+	return hasPathToolCommand(command, "imagegen");
+}
+
+function hasPathToolCommand(command: string, toolName: string): boolean {
+	if (isPathToolDiscoveryCommand(command, toolName)) return false;
+	const escaped = toolName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+	return new RegExp(`(?:^|[;&|()\r\n])\\s*(?:[A-Za-z_][A-Za-z0-9_]*=[^\\s;&|()]+\\s+)*(?:env\\s+(?:[A-Za-z_][A-Za-z0-9_]*=[^\\s;&|()]+\\s+)*)?(?:[^\\s;&|()]+/)?${escaped}(?:\\s|$)`).test(command);
 }
 
 function isPathToolDiscoveryCommand(command: string, toolName: string): boolean {

@@ -10,7 +10,7 @@ use crate::{ExecBackend, ExecProcess, ExecProcessEvent, ExecProcessEventReceiver
 use crate::process::ExecProcessEventLog;
 use crate::protocol::{ExecOutputStream, ExecParams, ExecResponse, ProcessOutputChunk, ReadParams, ReadResponse, TerminateParams, TerminateResponse, WriteParams, WriteResponse, WriteStatus};
 
-const RETAINED_OUTPUT_BYTES_PER_PROCESS: usize = 1024 * 1024;
+const RETAINED_OUTPUT_BYTES_PER_PROCESS: usize = 8 * 1024 * 1024;
 const PROCESS_EVENT_CHANNEL_CAPACITY: usize = 256;
 #[cfg(test)]
 const EXITED_PROCESS_RETENTION: Duration = Duration::from_millis(25);

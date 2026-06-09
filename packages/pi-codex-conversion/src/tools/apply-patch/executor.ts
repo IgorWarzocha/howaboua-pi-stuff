@@ -38,7 +38,8 @@ export async function executePatchWithRust({ cwd, patchText, signal }: { cwd: st
 	}
 	const child = await runBundledTool({
 		binary,
-		args: [patchText],
+		args: [],
+		stdin: patchText,
 		cwd,
 		env: { ...process.env, PI_APPLY_PATCH_JSON: "1" },
 		signal,

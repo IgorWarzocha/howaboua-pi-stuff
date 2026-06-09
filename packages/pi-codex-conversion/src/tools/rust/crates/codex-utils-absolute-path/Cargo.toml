@@ -13,3 +13,8 @@ ts-rs = { workspace = true }
 
 [lib]
 path = "lib.rs"
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }

@@ -265,8 +265,11 @@ version = "0.0.0"
 dependencies = [
  "dirs",
  "dunce",
+ "pretty_assertions",
  "schemars",
  "serde",
+ "serde_json",
+ "tempfile",
  "ts-rs",
 ]
 

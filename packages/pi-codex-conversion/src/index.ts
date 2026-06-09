@@ -70,13 +70,17 @@ export default function codexConversion(pi: ExtensionAPI) {
 	}
 
 	function ensureOptionalNativeToolsRegistered(config = state.config): void {
+		const allowConfiguredProvider = (model: Model<any> | undefined): boolean => {
+			const provider = model?.provider?.trim().toLowerCase();
+			return Boolean(provider && config.scope.additionalProviders.includes(provider));
+		};
 		if (config.tools.webRun) {
 			const webSearchToolName = WEB_SEARCH_TOOL_NAME;
-			registerWebSearchTool(pi, webSearchToolName, { getRecentInput: () => latestRecentWebSearchInput, model: () => state.config.openai.webSearchModel, ...customRenderingOptions(config) });
+			registerWebSearchTool(pi, webSearchToolName, { getRecentInput: () => latestRecentWebSearchInput, model: () => state.config.openai.webSearchModel, allowConfiguredProvider, ...customRenderingOptions(config) });
 			registeredNativeWebSearchTools.add(webSearchToolName);
 		}
 		if (config.tools.imageGeneration) {
-			registerImageGenerationTool(pi, customRenderingOptions(config));
+			registerImageGenerationTool(pi, { allowConfiguredProvider, ...customRenderingOptions(config) });
 		}
 	}
 

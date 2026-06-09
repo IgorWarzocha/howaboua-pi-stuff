@@ -10,7 +10,7 @@ function fakeJwt(accountId: string): string {
 	return ["header", Buffer.from(JSON.stringify({ "https://api.openai.com/auth": { chatgpt_account_id: accountId } })).toString("base64url"), "signature"].join(".");
 }
 
-function createContext(options: { token?: string; accountId?: string; baseUrl?: string; model?: string; headers?: Record<string, string>; sessionFile?: string; sessionId?: string } = {}) {
+function createContext(options: { token?: string; accountId?: string; baseUrl?: string; model?: string; provider?: string; api?: string; headers?: Record<string, string>; sessionFile?: string; sessionId?: string } = {}) {
 	const token = options.token ?? fakeJwt(options.accountId ?? "acct-from-token");
 	return {
 		cwd: process.cwd(),
@@ -19,8 +19,8 @@ function createContext(options: { token?: string; accountId?: string; baseUrl?: 
 			getSessionId: () => options.sessionId,
 		} } : {}),
 		model: {
-			provider: "openai-codex",
-			api: "openai-codex-responses",
+			provider: options.provider ?? "openai-codex",
+			api: options.api ?? "openai-codex-responses",
 			id: options.model ?? "gpt-live",
 			baseUrl: options.baseUrl ?? "https://chatgpt.com/backend-api/codex/responses",
 		},
@@ -51,10 +51,21 @@ test("buildRecentWebSearchInput mirrors Codex standalone web search context tail
 		{ type: "message", role: "assistant", content: [{ type: "output_text", text: "previous assistant", annotations: [] }], status: "completed" },
 		{ role: "user", content: [{ type: "input_text", text: "<environment_context>ignore</environment_context>" }] },
 		{ role: "user", content: [{ type: "input_text", text: "current user" }] },
+		{ type: "message", role: "assistant", content: [{ type: "output_text", text: "draft assistant must not bias search", annotations: [] }], status: "in_progress" },
 	] as never);
 	assert.deepEqual(input, [
 		{ type: "message", role: "user", content: [{ type: "input_text", text: "previous user" }] },
 		{ type: "message", role: "assistant", content: [{ type: "output_text", text: "previous assistant", annotations: [] }], status: "completed" },
+		{ type: "message", role: "user", content: [{ type: "input_text", text: "current user" }] },
+	]);
+});
+
+test("buildRecentWebSearchInput drops first-turn assistant draft", () => {
+	const input = buildRecentWebSearchInput([
+		{ role: "user", content: [{ type: "input_text", text: "current user" }] },
+		{ type: "message", role: "assistant", content: [{ type: "output_text", text: "draft assistant must not bias search", annotations: [] }], status: "in_progress" },
+	] as never);
+	assert.deepEqual(input, [
 		{ type: "message", role: "user", content: [{ type: "input_text", text: "current user" }] },
 	]);
 });
@@ -87,7 +98,8 @@ process.stdin.on("end", () => {
 			const capturePath = join(tmpdir(), `pi-web-run-capture-${Date.now()}.json`);
 			process.env["PI_CODEX_WEB_RUN_BIN"] = webRunPath;
 			process.env["CAPTURE_PATH"] = capturePath;
-			const encrypted = await executeCodexWebSearch({ search_query: [{ q: "OpenAI" }] }, createContext({ accountId: "pi-account" }), undefined, { sessionId: "session-123", model: "gpt-5.5" });
+			const recentInput = [{ type: "message", role: "user", content: [{ type: "input_text", text: "context" }] }];
+			const encrypted = await executeCodexWebSearch({ id: "model-session", model: "wrong-model", input: [{ bad: true }], search_query: [{ q: "OpenAI" }] }, createContext({ accountId: "pi-account" }), undefined, { sessionId: "session-123", model: "gpt-5.5", getRecentInput: () => recentInput as never });
 			assert.equal(encrypted, "ciphertext");
 			const captured = JSON.parse(await readFile(capturePath, "utf8")) as { env: Record<string, string>; input: Record<string, unknown> };
 			assert.equal(captured.env["PI_CODEX_ACCESS_TOKEN"]?.startsWith("poison-token"), false);
@@ -95,6 +107,7 @@ process.stdin.on("end", () => {
 			assert.equal(captured.env["PI_CODEX_RESPONSES_URL"], "https://chatgpt.com/backend-api/codex/responses");
 			assert.equal(captured.input["id"], "session-123");
 			assert.equal(captured.input["model"], "gpt-5.5");
+			assert.deepEqual(captured.input["input"], recentInput);
 			assert.deepEqual(captured.input["search_query"], [{ q: "OpenAI" }]);
 		});
 	} finally {
@@ -102,6 +115,28 @@ process.stdin.on("end", () => {
 			if (value === undefined) delete process.env[key];
 			else process.env[key] = value;
 		}
+	}
+});
+
+test("web_run executes for explicitly configured renamed Codex providers only", async () => {
+	const originalBin = process.env["PI_CODEX_WEB_RUN_BIN"];
+	try {
+		await withMockWebRun(`#!/usr/bin/env node
+process.stdin.resume();
+process.stdin.on("end", () => console.log(JSON.stringify({ encrypted_output: "ok" })));
+`, async (webRunPath) => {
+			process.env["PI_CODEX_WEB_RUN_BIN"] = webRunPath;
+			await assert.rejects(
+				() => createWebSearchTool().execute("call", { search_query: [{ q: "OpenAI" }] }, undefined, undefined as never, createContext({ provider: "custom-codex", api: "openai-codex-responses" })),
+				/requires an OpenAI Codex-compatible Responses provider/,
+			);
+			const tool = createWebSearchTool("web_run", { allowConfiguredProvider: (model) => model?.provider === "custom-codex" });
+			const result = await tool.execute("call", { search_query: [{ q: "OpenAI" }] }, undefined, undefined as never, createContext({ provider: "custom-codex", api: "openai-codex-responses" }));
+			assert.equal(result.content[0]?.type === "text" ? result.content[0].text : "", "ok");
+		});
+	} finally {
+		if (originalBin === undefined) delete process.env["PI_CODEX_WEB_RUN_BIN"];
+		else process.env["PI_CODEX_WEB_RUN_BIN"] = originalBin;
 	}
 });
 

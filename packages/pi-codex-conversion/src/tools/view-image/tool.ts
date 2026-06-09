@@ -120,8 +120,8 @@ export function createViewImageTool(options: CreateViewImageToolOptions = {}): T
 	return {
 		name: "view_image",
 		label: "view_image",
-		description: "View a local image file.",
-		promptSnippet: "View a local image from the filesystem.",
+		description: "View image.",
+		promptSnippet: "View image.",
 		parameters,
 		prepareArguments: prepareViewImageArguments,
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {

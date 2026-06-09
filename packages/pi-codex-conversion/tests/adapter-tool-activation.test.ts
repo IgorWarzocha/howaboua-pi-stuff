@@ -64,3 +64,14 @@ test("syncAdapter leaves PATH tools to shell for configured custom providers", (
 
 	assert.deepEqual(pi.activeTools(), ["exec_command", "write_stdin", "parallel"]);
 });
+
+test("applyPatchOnly overlays only apply_patch without Codex toolkit rewrites", () => {
+	const pi = createToolHarness(["read", "bash", "edit", "write", "parallel"]);
+	const ctx = createContext({ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5" });
+	const state = createAdapterState({ tools: { ...DEFAULT_CODEX_CONVERSION_CONFIG.tools, applyPatchOnly: true } });
+
+	syncAdapter(pi as never, ctx as never, state);
+
+	assert.deepEqual(pi.activeTools(), ["read", "bash", "edit", "write", "parallel", "apply_patch"]);
+});
+

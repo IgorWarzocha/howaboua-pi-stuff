@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 export interface RunBundledToolOptions {
 	binary: string;
 	args: string[];
+	stdin?: string | undefined;
 	cwd: string;
 	env?: NodeJS.ProcessEnv | undefined;
 	maxBuffer?: number | undefined;
@@ -18,7 +19,7 @@ export interface BundledToolResult {
 
 const DEFAULT_MAX_BUFFER = 64 * 1024 * 1024;
 
-export function runBundledTool({ binary, args, cwd, env, maxBuffer, signal, label }: RunBundledToolOptions): Promise<BundledToolResult> {
+export function runBundledTool({ binary, args, stdin, cwd, env, maxBuffer, signal, label }: RunBundledToolOptions): Promise<BundledToolResult> {
 	return new Promise((resolve, reject) => {
 		const toolLabel = label ?? "tool";
 		if (signal?.aborted) {
@@ -34,7 +35,7 @@ export function runBundledTool({ binary, args, cwd, env, maxBuffer, signal, labe
 		const child = spawn(binary, args, {
 			cwd,
 			env: env ?? process.env,
-			stdio: ["ignore", "pipe", "pipe"],
+			stdio: [stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"],
 		});
 
 		const cleanup = () => {
@@ -69,6 +70,7 @@ export function runBundledTool({ binary, args, cwd, env, maxBuffer, signal, labe
 		child.on("error", (error) => finish(() => reject(error)));
 		child.on("close", (status) => finish(() => resolve({ stdout, stderr, status })));
 		signal?.addEventListener("abort", onAbort, { once: true });
+		if (stdin !== undefined) child.stdin?.end(stdin);
 	});
 }
 

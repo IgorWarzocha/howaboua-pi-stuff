@@ -13,12 +13,19 @@ export function migrateCodexConversionConfigIfNeeded(value: unknown): { migrated
 	if (isObject(value["scope"]) || isObject(value["tools"]) || isObject(value["ui"]) || isObject(value["openai"])) {
 		return { migrated: false, config: value };
 	}
+	const adapterProviderCodexToolsDisabled = value["adapterProviderCodexTools"] === false;
 
 	const config: CodexConversionConfig = {
 		...structuredClone(DEFAULT_CODEX_CONVERSION_CONFIG),
 		scope: {
 			allProviders: typeof value["useOnAllModels"] === "boolean" ? value["useOnAllModels"] : DEFAULT_CODEX_CONVERSION_CONFIG.scope["allProviders"],
-			additionalProviders: normalizeProviderList(value["adapterProviders"]),
+			additionalProviders: value["useAdapterProviders"] === true ? normalizeProviderList(value["adapterProviders"]) : [],
+		},
+		tools: {
+			webRun: adapterProviderCodexToolsDisabled ? false : typeof value["webSearch"] === "boolean" ? value["webSearch"] : DEFAULT_CODEX_CONVERSION_CONFIG.tools["webRun"],
+			imageGeneration: adapterProviderCodexToolsDisabled ? false : typeof value["imageGeneration"] === "boolean" ? value["imageGeneration"] : DEFAULT_CODEX_CONVERSION_CONFIG.tools["imageGeneration"],
+			applyPatchForStandardGpt: DEFAULT_CODEX_CONVERSION_CONFIG.tools["applyPatchForStandardGpt"],
+			applyPatchOnly: typeof value["applyPatchOnly"] === "boolean" ? value["applyPatchOnly"] : DEFAULT_CODEX_CONVERSION_CONFIG.tools["applyPatchOnly"],
 		},
 		ui: {
 			statusLine: typeof value["statusLine"] === "boolean" ? value["statusLine"] : DEFAULT_CODEX_CONVERSION_CONFIG.ui["statusLine"],

@@ -48,7 +48,7 @@ Notably:
 
 ```bash
 view_image '{"path":"/x.png"}'
-web_run '{"search_query":[{"q":"..."}]}'
+web_run '{"search_query":[{"q":"..."}],"response_length":"short"}'
 imagegen '{"prompt":"..."}'
 imagegen '{"action":"edit","prompt":"...","images":["https://... or /x.png"]}'
 ```

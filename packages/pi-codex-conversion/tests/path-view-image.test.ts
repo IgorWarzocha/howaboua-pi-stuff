@@ -46,21 +46,24 @@ test("exec_command converts multiple PATH view_image calls in one shell command"
 });
 
 test("exec_command compacts PATH web_run JSON output", async () => {
+	const cwd = mkdtempSync(join(tmpdir(), "path-web-run-"));
+	const webRunPath = join(cwd, "web_run");
+	const json = JSON.stringify({
+		text: "Answer from search.",
+		citations: [{ title: "Docs", url: "https://example.com/docs" }],
+		web_search_calls: [{ rawSearchData: "hidden" }],
+	});
+	writeFileSync(webRunPath, `#!/usr/bin/env node\nconsole.log(${JSON.stringify(json)})\n`, { mode: 0o755 });
 	const sessions = createExecSessionManager();
 	try {
 		let tool: any;
 		registerExecCommandTool({ registerTool(definition: unknown) { tool = definition; } } as never, createExecCommandTracker(), sessions);
-		const json = JSON.stringify({
-			text: "Answer from search.",
-			citations: [{ title: "Docs", url: "https://example.com/docs" }],
-			web_search_calls: [{ rawSearchData: "hidden" }],
-		});
 		const result = await tool.execute(
 			"call-1",
-			{ cmd: `printf '%s' ${JSON.stringify(json)} # web_run`, max_output_tokens: 1 },
+			{ cmd: `PATH=${JSON.stringify(cwd)}:$PATH web_run`, max_output_tokens: 1 },
 			new AbortController().signal,
 			undefined,
-			{ cwd: packageRoot, model: {} } as never,
+			{ cwd, model: {} } as never,
 		);
 		const text = result.content[0]?.type === "text" ? result.content[0].text : "";
 		assert.match(text, /Answer from search\./);
@@ -72,9 +75,24 @@ test("exec_command compacts PATH web_run JSON output", async () => {
 	}
 });
 
+
+test("exec_command does not convert harmless mentions of PATH tool names", async () => {
+	const sessions = createExecSessionManager();
+	try {
+		let tool: any;
+		registerExecCommandTool({ registerTool(definition: unknown) { tool = definition; } } as never, createExecCommandTracker(), sessions);
+		const result = await tool.execute("call-1", { cmd: "echo web_run" }, new AbortController().signal, undefined, { cwd: packageRoot, model: {} } as never);
+		assert.match(result.details.output, /web_run/);
+		assert.doesNotMatch(result.details.output, /could not parse/);
+	} finally {
+		sessions.shutdown();
+	}
+});
+
 test("exec_command compacts PATH imagegen output and displays image content", async () => {
 	const cwd = mkdtempSync(join(tmpdir(), "path-imagegen-"));
 	const imagePath = join(cwd, "generated.png");
+	const imagegenPath = join(cwd, "imagegen");
 	writeFileSync(imagePath, Buffer.from(PNG_BASE64, "base64"));
 	const sessions = createExecSessionManager();
 	try {
@@ -88,9 +106,10 @@ test("exec_command compacts PATH imagegen output and displays image content", as
 			quality: "medium",
 			size: "1254x1254",
 		});
+		writeFileSync(imagegenPath, `#!/usr/bin/env node\nconsole.log(${JSON.stringify(json)})\n`, { mode: 0o755 });
 		const result = await tool.execute(
 			"call-1",
-			{ cmd: `printf '%s' ${JSON.stringify(json)} # imagegen`, max_output_tokens: 1 },
+			{ cmd: `PATH=${JSON.stringify(cwd)}:$PATH imagegen`, max_output_tokens: 1 },
 			new AbortController().signal,
 			undefined,
 			{ cwd, model: { input: ["text", "image"] } } as never,

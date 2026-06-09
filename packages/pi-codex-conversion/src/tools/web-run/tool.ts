@@ -1,8 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
-import { join } from "node:path";
-import { dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import type { ResponseInput } from "openai/resources/responses/responses.js";
 import { Type } from "typebox";
@@ -10,23 +8,24 @@ import { Container, Text } from "@earendil-works/pi-tui";
 import { codexToolProviderEnv, CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE, resolveCodexToolProvider } from "../../adapter/codex-tool-provider.ts";
 import { WEB_SEARCH_TOOL_NAME } from "../../adapter/activation/tool-set.ts";
 import { renderCodexToolCell } from "../../ui/tool-rendering/codex-tool-cell.ts";
+import { getBundledPathToolsBinDir } from "../path/binary.ts";
 
 export const WEB_SEARCH_UNSUPPORTED_MESSAGE = CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE;
 export const WEB_SEARCH_SESSION_NOTE_TYPE = "codex-web-search-session-note";
 
 const SearchQueryParameters = Type.Object({
-	q: Type.String({ description: "Search query text." }),
-	recency: Type.Optional(Type.Number({ description: "Only include results from this many recent days." })),
-	domains: Type.Optional(Type.Array(Type.String(), { description: "Restrict results to these domains." })),
+	q: Type.String(),
+	recency: Type.Optional(Type.Number({ description: "Recent days." })),
+	domains: Type.Optional(Type.Array(Type.String(), { description: "Domains." })),
 }, { additionalProperties: true });
 
 const WEB_SEARCH_PARAMETERS = Type.Object({
-	search_query: Type.Optional(Type.Array(SearchQueryParameters, { description: "Web searches to run. Use this for normal web search." })),
-	image_query: Type.Optional(Type.Array(SearchQueryParameters, { description: "Image-oriented web searches to run." })),
-	open: Type.Optional(Type.Array(Type.Object({ ref_id: Type.String(), lineno: Type.Optional(Type.Number()) }, { additionalProperties: true }), { description: "Open a search result ref_id or URL." })),
-	click: Type.Optional(Type.Array(Type.Object({ ref_id: Type.String(), id: Type.Number() }, { additionalProperties: true }), { description: "Open a link id from an opened page." })),
-	find: Type.Optional(Type.Array(Type.Object({ ref_id: Type.String(), pattern: Type.String() }, { additionalProperties: true }), { description: "Find text in an opened page." })),
-	response_length: Type.Optional(Type.Union([Type.Literal("short"), Type.Literal("medium"), Type.Literal("long")], { description: "Desired response length." })),
+	search_query: Type.Optional(Type.Array(SearchQueryParameters)),
+	image_query: Type.Optional(Type.Array(SearchQueryParameters)),
+	open: Type.Optional(Type.Array(Type.Object({ ref_id: Type.String(), lineno: Type.Optional(Type.Number()) }, { additionalProperties: true }), { description: "ref_id or URL." })),
+	click: Type.Optional(Type.Array(Type.Object({ ref_id: Type.String(), id: Type.Number() }, { additionalProperties: true }))),
+	find: Type.Optional(Type.Array(Type.Object({ ref_id: Type.String(), pattern: Type.String() }, { additionalProperties: true }))),
+	response_length: Type.Optional(Type.Union([Type.Literal("short"), Type.Literal("medium"), Type.Literal("long")], { description: "Answer length." })),
 	settings: Type.Optional(Type.Object({
 		search_context_size: Type.Optional(Type.Union([Type.Literal("low"), Type.Literal("medium"), Type.Literal("high")])),
 	}, { additionalProperties: true })),
@@ -59,6 +58,7 @@ export interface WebSearchToolOptions {
 	getRecentInput?: (() => ResponseInput | undefined) | undefined;
 	sessionId?: string | undefined;
 	model?: string | (() => string | undefined) | undefined;
+	allowConfiguredProvider?: ((model: ExtensionContext["model"]) => boolean) | undefined;
 	customRendering?: boolean | undefined;
 }
 
@@ -98,15 +98,20 @@ export function buildRecentWebSearchInput(items: ResponseInput): ResponseInput |
 
 	let userCount = 0;
 	let start = visible.length;
+	let latestUser = -1;
 	for (let index = visible.length - 1; index >= 0; index--) {
 		const item = visible[index]!;
-		if (isResponseMessage(item) && item.role === "user") userCount++;
+		if (isResponseMessage(item) && item.role === "user") {
+			if (latestUser === -1) latestUser = index;
+			userCount++;
+		}
 		if (userCount >= 2) {
 			start = index;
 			break;
 		}
 	}
-	const recent = visible.slice(userCount >= 2 ? start : 0);
+	const end = latestUser === -1 ? visible.length : latestUser + 1;
+	const recent = visible.slice(userCount >= 2 ? start : 0, end);
 	for (const item of recent) {
 		if (!isResponseMessage(item) || item.role !== "assistant" || !Array.isArray(item.content)) continue;
 		let remaining = ASSISTANT_CONTEXT_CHAR_LIMIT;
@@ -152,8 +157,8 @@ export function supportsNativeWebSearch(model: ExtensionContext["model"]): boole
 	return (model?.provider ?? "").toLowerCase() === "openai-codex" && Boolean(model?.api?.includes("responses"));
 }
 
-function supportsExecutableWebSearch(model: ExtensionContext["model"]): boolean {
-	return supportsNativeWebSearch(model);
+function supportsExecutableWebSearch(model: ExtensionContext["model"], options: WebSearchToolOptions): boolean {
+	return supportsNativeWebSearch(model) || Boolean(options.allowConfiguredProvider?.(model) && model?.api?.includes("responses"));
 }
 
 export function supportsMultimodalNativeWebSearch(model: ExtensionContext["model"], options: { force?: boolean | undefined } = {}): boolean {
@@ -163,14 +168,14 @@ export function supportsMultimodalNativeWebSearch(model: ExtensionContext["model
 
 export async function executeCodexWebSearch(params: Record<string, unknown>, ctx: ExtensionContext, signal: AbortSignal | undefined | null, options: WebSearchToolOptions = {}): Promise<string> {
 	const provider = await resolveCodexToolProvider(ctx);
-	const scriptDir = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
-	const webRunPath = process.env["PI_CODEX_WEB_RUN_BIN"]?.trim() || join(scriptDir, "bin", process.platform === "win32" ? "web_run.cmd" : "web_run");
+	const webRunPath = process.env["PI_CODEX_WEB_RUN_BIN"]?.trim() || join(getBundledPathToolsBinDir(), process.platform === "win32" ? "web_run.cmd" : "web_run");
 	const sessionId = ctx.sessionManager?.getSessionId?.() || options.sessionId;
 	const model = typeof options.model === "function" ? options.model() : options.model;
 	const statePath = webRunSessionStatePath(ctx);
 	const env = { ...codexToolProviderEnv(provider), ...(statePath ? { PI_WEB_RUN_STATE_PATH: statePath } : {}) };
 	try {
-		const stdout = await runWebRunBinary(webRunPath, { id: sessionId, ...(model ? { model } : {}), ...params }, env, signal);
+		const input = options.getRecentInput?.();
+		const stdout = await runWebRunBinary(webRunPath, { ...params, id: sessionId, ...(model ? { model } : {}), ...(input ? { input } : {}) }, env, signal);
 		const parsed = JSON.parse(stdout) as Record<string, unknown>;
 		const output = formatWebRunOutput(parsed);
 		if (output) return output;
@@ -188,12 +193,12 @@ export function createWebSearchTool(name: string = WEB_SEARCH_TOOL_NAME, options
 	return {
 		name,
 		label: name,
-		description: "Search the web for sources relevant to the current task. Call with search_query: [{ q: \"...\" }], open: [{ ref_id: \"turn0search0\" }], click, or find. Returns JSON.",
-		promptSnippet: "Search the web. Always provide explicit arguments, usually { search_query: [{ q: \"...\" }], response_length: \"short\" }. Do not call with empty arguments.",
+		description: "Search/open web sources.",
+		promptSnippet: "Use explicit args.",
 		parameters: WEB_SEARCH_PARAMETERS,
 		prepareArguments: (args) => args && typeof args === "object" ? args as Record<string, unknown> : {},
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-			if (!supportsExecutableWebSearch(ctx.model)) throw new Error(WEB_SEARCH_UNSUPPORTED_MESSAGE);
+			if (!supportsExecutableWebSearch(ctx.model, toolOptions)) throw new Error(WEB_SEARCH_UNSUPPORTED_MESSAGE);
 			const encryptedOutput = await executeCodexWebSearch(params, ctx, signal, toolOptions);
 			return { content: [{ type: "text", text: encryptedOutput }], details: { webRun: { output_text: encryptedOutput } } };
 		},
