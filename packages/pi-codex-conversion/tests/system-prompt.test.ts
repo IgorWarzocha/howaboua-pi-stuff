@@ -57,8 +57,8 @@ Current working directory: /tmp/example-workspace`,
 	assert.match(prompt, /^### Available skills$/m);
 	assert.match(prompt, /- agent-native-hardening: Hardening workflow for JS and TS repos \(file: \/skills\/agent-native-hardening\/SKILL\.md\)/);
 	assert.match(prompt, /^### How to use skills$/m);
-	assert.match(prompt, /- Use a skill when the user names it/);
+	assert.match(prompt, /- Use skill when user names it/);
 	assert.match(prompt, /^### Fallback$/m);
-	assert.match(prompt, /- If a skill is missing or its path cannot be read/);
+	assert.match(prompt, /- If skill is missing or path cannot be read/);
 	assert.match(prompt, /<\/skills_instructions>/);
 });

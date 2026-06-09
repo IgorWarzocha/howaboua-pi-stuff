@@ -96,7 +96,7 @@ export function registerApplyPatchTool(pi: ExtensionAPI, options: { promptSnippe
 		name: "apply_patch",
 		label: "apply_patch",
 		description: "Patch files.",
-		...(options.promptSnippet === false ? {} : { promptSnippet: "Edit files with a patch." }),
+		...(options.promptSnippet === false ? {} : { promptSnippet: "Edit files with patch." }),
 		parameters: APPLY_PATCH_PARAMETERS,
 		prepareArguments: prepareApplyPatchArguments,
 		async execute(toolCallId, params, signal, _onUpdate, ctx) {

@@ -141,7 +141,7 @@ export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTr
 		name: "exec_command",
 		label: "exec_command",
 		description: "Run shell commands; may return session_id.",
-		...(options.promptSnippet === false ? {} : { promptSnippet: "Run a command." }),
+		...(options.promptSnippet === false ? {} : { promptSnippet: "Run command." }),
 		parameters: EXEC_COMMAND_PARAMETERS,
 		prepareArguments: prepareExecCommandArguments as (args: unknown) => { cmd: string; workdir?: string; shell?: string; tty?: boolean; yield_time_ms?: number; max_output_tokens?: number; login?: boolean },
 		async execute(toolCallId, params, signal, onUpdate, ctx) {

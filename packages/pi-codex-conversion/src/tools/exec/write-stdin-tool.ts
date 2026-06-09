@@ -111,7 +111,7 @@ export function registerWriteStdinTool(pi: ExtensionAPI, sessions: ExecSessionMa
 		name: "write_stdin",
 		label: "write_stdin",
 		description: "Write/poll exec session.",
-		...(options.promptSnippet === false ? {} : { promptSnippet: "Write to an exec session." }),
+		...(options.promptSnippet === false ? {} : { promptSnippet: "Write to exec session." }),
 		parameters: WRITE_STDIN_PARAMETERS,
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {
 			const typed = parseWriteStdinParams(params);

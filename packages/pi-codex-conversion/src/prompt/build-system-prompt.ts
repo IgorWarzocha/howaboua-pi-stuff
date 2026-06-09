@@ -132,7 +132,7 @@ function injectSkills(prompt: string, skills: PromptSkill[]): string {
 	const lines = [
 		"<skills_instructions>",
 		"## Skills",
-		"A skill is a set of local instructions in a `SKILL.md` file.",
+		"Skill: local instructions in `SKILL.md` file.",
 		"### Available skills",
 	];
 
@@ -141,11 +141,11 @@ function injectSkills(prompt: string, skills: PromptSkill[]): string {
 	}
 
 	lines.push("### How to use skills");
-	lines.push("- Use a skill when the user names it (`$SkillName` or plain text) or when the request clearly matches its description.");
+	lines.push("- Use skill when user names it (`$SkillName` or plain text) or request clearly matches its description.");
 	lines.push("- Use the minimal required set of skills. If multiple apply, use them together and state the order briefly.");
 	lines.push("- For each selected skill, open its `SKILL.md`, resolve relative paths from the skill directory first, load only the files you need, and prefer existing scripts/assets/templates over recreating them.");
 	lines.push("### Fallback");
-	lines.push("- If a skill is missing or its path cannot be read, say so briefly and continue with the best fallback approach.");
+	lines.push("- If skill is missing or path cannot be read, say so briefly and continue with best fallback approach.");
 	lines.push("</skills_instructions>");
 
 	return insertBeforeTrailingContext(prompt, lines.join("\n"));
