@@ -9,13 +9,21 @@ export const REVIEW_LOOP_PREFACE_MESSAGE_TYPE = "subagent-review-preface";
 export const REVIEW_FINDINGS_MESSAGE_TYPE = "subagent-review-findings";
 
 export const REVIEW_LOOP_PREFACE_MESSAGE = [
-	"Review advisory note.",
+	"A review subagent is about to inspect the repository in isolation. Its findings are advisory only and may be wrong, overbroad, or missing session context.",
 	"",
-	"A review subagent is about to inspect the repository in isolation. Treat its findings as advisory review input, not direct implementation instructions.",
+	"Do not treat review findings as a TODO list. Do not implement review findings automatically.",
 	"",
-	"When findings come back, triage before coding. Check each item against the current task, prior conversation, accepted architectural decisions, and any intentional tradeoffs from this session.",
+	"When findings return, compare each one against the user’s actual request, prior conversation, accepted decisions, intentional tradeoffs from this session, and the current implementation.",
 	"",
-	"Act directly only on clearly worthwhile issues: correctness bugs, security risks, data loss, broken builds, or serious regressions. For context-dependent, stylistic, architectural, low-impact, or preference-based findings, discuss the tradeoff first and say whether you would address, defer, or skip it.",
+	"Default response: summarize and triage, not code.",
+	"",
+	"For each finding, mark one of:",
+	"",
+	"- address: concrete, in-scope, necessary for the current implementation",
+	"- defer: plausible but outside the current work",
+	"- skip: stylistic, speculative, preference-based, overengineered, or not useful",
+	"",
+	"Only after triage, explain what you recommend doing next. If a finding is not obviously required for the current implementation, do not change code for it.",
 ].join("\n");
 
 function getReviewPrefaceMessageId(
@@ -82,9 +90,11 @@ export function buildReviewUserMessage(
 		"",
 		"These findings are advisory output from an isolated review subagent.",
 		"",
-		"Triage before coding. Weigh each item against the current task, prior conversation, accepted architectural decisions, and intentional tradeoffs from this session.",
+		"Do not treat review findings as a TODO list. Default response: summarize and triage, not code.",
 		"",
-		"If you address, skip, or defer findings, briefly say why.",
+		"Compare each finding against the user’s actual request, prior conversation, accepted decisions, intentional tradeoffs from this session, and the current implementation.",
+		"",
+		"Mark each finding as address, defer, or skip. Only change code for findings that are obviously required for the current implementation.",
 	].join("\n");
 }
 

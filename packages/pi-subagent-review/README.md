@@ -23,7 +23,7 @@ It runs an isolated review subagent against your current repo, optionally prepar
 
 `/review loop` starts a review loop. It sets a review-specific marker at the current conversation point, strips the `loop` word from the review guidance, and then runs the normal review.
 
-The first `/review` in a session branch also adds a visible advisory preface without starting an agent turn. The preface reminds the main agent that review findings are advisory and should be triaged against the current task, prior conversation, architectural decisions, and accepted tradeoffs before coding.
+The first `/review` in a session branch also adds a visible advisory preface without starting an agent turn. The preface tells the main agent not to treat review findings as a TODO list, and to summarize and triage them against session context and the current implementation before changing code.
 
 After that, plain `/review` detects the active review marker, summarizes the work since that marker back into a compact review-fix increment, advances the review marker, and then runs the next isolated review pass from the compacted point. If the stored marker is gone, `/review` simply behaves like a normal review.
 
