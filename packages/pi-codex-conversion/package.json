@@ -32,11 +32,23 @@
     "src/**/*.md",
     "bin/apply_patch",
     "bin/apply_patch.cmd",
-    "vendor/apply-patch/**",
+    "bin/view_image.cmd",
+    "bin/web_run.cmd",
+    "bin/imagegen.cmd",
     "available-tools.png",
     "CHANGELOG.md",
+    "PATH_TOOLS.md",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "bin/view_image",
+    "bin/web_run",
+    "bin/imagegen",
+    "src/tools/**/bin/**",
+    "src/tools/**/*.rs",
+    "src/tools/**/Cargo.toml",
+    "src/tools/Cargo.lock",
+    "src/tools/rust/UPSTREAM.*",
+    "!src/tools/target/**"
   ],
   "scripts": {
     "typecheck": "tsgo -p tsconfig.json",
@@ -46,10 +58,12 @@
     "publish:dev": "npm publish --tag dev",
     "release:dev": "npm version prerelease --preid dev && npm publish --tag dev",
     "prepack": "bun run check",
-    "prepublishOnly": "bun run verify:apply-patch-binaries",
+    "prepublishOnly": "bun run verify:codex-tool-binaries",
     "build:apply-patch": "node scripts/build-apply-patch-binary.mjs",
     "sync:apply-patch-source": "node scripts/sync-apply-patch-source.mjs",
-    "verify:apply-patch-binaries": "node scripts/verify-apply-patch-binaries.mjs"
+    "verify:codex-tool-binaries": "node scripts/verify-codex-tool-binaries.mjs",
+    "build:changed-path-tools": "node scripts/build-changed-path-tool-binaries.mjs",
+    "build:path-tool": "node scripts/build-path-tool-binary.mjs"
   },
   "publishConfig": {
     "access": "public"
@@ -70,13 +84,15 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "node-pty": "^1.1.0",
     "partial-json": "^0.1.7",
     "proxy-from-env": "1.1.0",
     "tree-sitter-bash": "^0.25.1",
     "web-tree-sitter": "^0.26.7"
   },
   "bin": {
-    "apply_patch": "./bin/apply_patch"
+    "apply_patch": "./bin/apply_patch",
+    "view_image": "./bin/view_image",
+    "web_run": "./bin/web_run",
+    "imagegen": "./bin/imagegen"
   }
 }

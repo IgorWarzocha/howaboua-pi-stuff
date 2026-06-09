@@ -1,9 +1,5 @@
 export const DEFAULT_CODEX_BASE_URL = "https://chatgpt.com/backend-api";
 export const JWT_CLAIM_PATH = "https://api.openai.com/auth";
-export const IMAGE_SAVE_DISPLAY_MESSAGE_TYPE = "codex-image-generation-display";
-export const WEB_SEARCH_ACTIVITY_MESSAGE_TYPE = "codex-web-search-activity";
-export const OPENAI_CODEX_IMAGE_DIR = ".pi/openai-codex-images";
-export const OPENAI_CODEX_LATEST_IMAGE_NAME = "latest.png";
 export const MAX_RETRIES = 3;
 export const BASE_DELAY_MS = 1000;
 export const DEFAULT_SSE_HEADER_TIMEOUT_MS = 10_000;

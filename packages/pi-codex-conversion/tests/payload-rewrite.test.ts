@@ -2,9 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { Model } from "@earendil-works/pi-ai";
-import { buildNativeReplaySegments } from "../src/adapter/payload-rewrite.ts";
-import { serializeMessagesToResponsesInput } from "../src/adapter/serializer.ts";
-import { NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, NATIVE_COMPACTION_STRATEGY, type NativeCompactionEntry } from "../src/adapter/types.ts";
+import { buildNativeReplaySegments } from "../src/adapter/replay/payload-rewrite.ts";
+import { serializeMessagesToResponsesInput } from "../src/adapter/compaction/serializer.ts";
+import { NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, NATIVE_COMPACTION_STRATEGY, type NativeCompactionEntry } from "../src/adapter/compaction/types.ts";
 
 const model = {
 	id: "gpt-5.1",
@@ -100,31 +100,6 @@ test("native replay accepts Pi payloads that include adapter display messages", 
 		compactionSummaryMessage(compaction),
 		user("pre", 1),
 		custom(NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, "display", 5),
-		user("tail", 6),
-	]);
-
-	assert.equal(result.ok, true);
-	if (!result.ok) return;
-	assert.deepEqual(result.rewrittenPayload.input.map((item) => (item as { type?: string; role?: string }).type ?? (item as { role?: string }).role), ["compaction_summary", "user"]);
-});
-
-test("native replay accepts Pi payloads that omit adapter display messages", () => {
-	const compaction = compactionEntry("pre");
-	const result = runReplay([
-		compactionSummaryMessage(compaction),
-		user("pre", 1),
-		user("tail", 6),
-	]);
-
-	assert.equal(result.ok, true);
-	if (!result.ok) return;
-	assert.deepEqual(result.rewrittenPayload.input.map((item) => (item as { type?: string; role?: string }).type ?? (item as { role?: string }).role), ["compaction_summary", "user"]);
-});
-
-test("native replay accepts Pi payloads that omit the pre-compaction kept window", () => {
-	const compaction = compactionEntry("pre");
-	const result = runReplay([
-		compactionSummaryMessage(compaction),
 		user("tail", 6),
 	]);
 

@@ -3,18 +3,14 @@ import { copyFileSync, mkdirSync, chmodSync, existsSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 
-const sourceRoot = resolve(process.env.APPLY_PATCH_SOURCE_DIR ?? process.argv[2] ?? "vendor/apply-patch-src");
+const sourceRoot = resolve(process.env.APPLY_PATCH_SOURCE_DIR ?? process.argv[2] ?? "src/tools");
 const platform = process.platform;
 const arch = process.arch;
 const exe = platform === "win32" ? "apply_patch.exe" : "apply_patch";
-const outDir = resolve("vendor", "apply-patch", `${platform}-${arch}`);
+const outDir = resolve("src", "tools", "apply-patch", "bin", `${platform}-${arch}`);
 const source = join(sourceRoot, "target", "release", exe);
 
-const cargo = spawnSync("cargo", ["build", "--release", "-p", "codex-apply-patch"], {
-	cwd: sourceRoot,
-	stdio: "inherit",
-	env: process.env,
-});
+const cargo = spawnSync("cargo", ["build", "--release", "-p", "codex-apply-patch"], { cwd: sourceRoot, stdio: "inherit", env: process.env });
 if (cargo.status !== 0) process.exit(cargo.status ?? 1);
 if (!existsSync(source)) {
 	console.error(`Expected ${source} after cargo build`);

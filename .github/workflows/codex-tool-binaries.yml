@@ -1,0 +1,54 @@
+name: Build Codex tool binaries
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'packages/pi-codex-conversion/src/tools/**/rust/**'
+      - 'packages/pi-codex-conversion/src/tools/rust/**'
+      - 'packages/pi-codex-conversion/src/tools/Cargo.toml'
+      - 'packages/pi-codex-conversion/src/tools/Cargo.lock'
+
+jobs:
+  build:
+    name: ${{ matrix.platform_arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform_arch: linux-x64
+          - os: ubuntu-24.04-arm
+            platform_arch: linux-arm64
+          - os: macos-15-intel
+            platform_arch: darwin-x64
+          - os: macos-latest
+            platform_arch: darwin-arm64
+          - os: windows-latest
+            platform_arch: win32-x64
+          - os: windows-11-arm
+            platform_arch: win32-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install
+      - name: Build bundled tools
+        working-directory: packages/pi-codex-conversion
+        env:
+          GITHUB_EVENT_BEFORE: ${{ github.event.before }}
+          FORCE_ALL_CODEX_TOOL_BUILDS: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
+        run: |
+          bun run build:changed-path-tools
+      - uses: actions/upload-artifact@v7
+        with:
+          name: codex-tool-binaries-${{ matrix.platform_arch }}
+          path: |
+            packages/pi-codex-conversion/src/tools/apply-patch/bin/${{ matrix.platform_arch }}/
+            packages/pi-codex-conversion/src/tools/view-image/bin/${{ matrix.platform_arch }}/
+            packages/pi-codex-conversion/src/tools/web-run/bin/${{ matrix.platform_arch }}/
+            packages/pi-codex-conversion/src/tools/imagegen/bin/${{ matrix.platform_arch }}/
+            packages/pi-codex-conversion/src/tools/exec/bin/${{ matrix.platform_arch }}/

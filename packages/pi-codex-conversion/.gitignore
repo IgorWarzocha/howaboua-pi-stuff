@@ -3,6 +3,6 @@ node_modules
 .pi/semantic-grep.sqlite
 .pi/semantic-grep.sqlite-*
 .pi/openai-codex-images/
-vendor/apply-patch-src/target/
+src/tools/target/
 
 .pi/semantic-grep.sync-conflict-*.sqlite

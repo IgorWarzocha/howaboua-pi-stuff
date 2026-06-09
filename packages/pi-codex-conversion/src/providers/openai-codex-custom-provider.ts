@@ -1,5 +1,4 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Box, Image, Spacer, Text } from "@earendil-works/pi-tui";
 import {
 	createAssistantMessageEventStream,
 	appendAssistantMessageDiagnostic,
@@ -10,36 +9,30 @@ import {
 	type Model,
 	type Transport,
 } from "@earendil-works/pi-ai";
-import type { CodexConversionConfig } from "../adapter/config.ts";
-import { rewriteNativeImageGenerationTool } from "../tools/image-generation-tool.ts";
-import { rewriteNativeWebSearchTool } from "../tools/web-search-tool.ts";
-import { BASE_DELAY_MS, DEFAULT_SSE_HEADER_TIMEOUT_MS, MAX_RETRIES, IMAGE_SAVE_DISPLAY_MESSAGE_TYPE, WEB_SEARCH_ACTIVITY_MESSAGE_TYPE } from "./openai-codex/constants.ts";
+import type { CodexConversionConfig } from "../adapter/activation/config.ts";
+import { BASE_DELAY_MS, DEFAULT_SSE_HEADER_TIMEOUT_MS, MAX_RETRIES } from "./openai-codex/constants.ts";
 import { createErrorMessage, isRetryableError, NonRetryableProviderError, parseErrorResponse } from "./openai-codex/errors.ts";
-import { buildGeneratedImageDisplayText } from "./openai-codex/image-output.ts";
 import { createCodexRequestId, extractAccountId, buildSSEHeaders, buildWebSocketHeaders, headersToRecord, resolveCodexUrl, resolveCodexWebSocketUrl } from "./openai-codex/headers.ts";
 import { buildRequestBody } from "./openai-codex/request-body.ts";
 import { combineAbortSignals, createSSEHeaderTimeout, parseSSE, sleep } from "./openai-codex/sse.ts";
-import type { CodexProviderStreamOptions, OpenAICodexStreamOptions, PendingActivity, ResponsesBody, SavedGeneratedImage, SurfacedWebSearch, ImageDisplayMessageDetails } from "./openai-codex/types.ts";
+import type { CodexProviderStreamOptions, OpenAICodexStreamOptions, ResponsesBody } from "./openai-codex/types.ts";
 import { createInitialAssistantMessage } from "./openai-codex/types.ts";
 import { finalizeUsage } from "./openai-codex/usage.ts";
-import { buildWebSearchSummaryText, createActivityMessageDispatcher, loadCachedImagePreview } from "./openai-codex/activity.ts";
 import { closeOpenAICodexWebSocketSessions, validateWebSocketTimeoutOptions } from "./openai-codex/websocket.ts";
-import { getLatestUserText, processCapturedResponsesStream } from "./openai-codex/stream-events.ts";
+import { processCodexResponsesStream } from "./openai-codex/stream-events.ts";
 import { processWebSocketStream } from "./openai-codex/websocket-stream.ts";
+import { openaiCodexNativeOAuthProvider } from "./openai-codex/oauth.ts";
 
-export { IMAGE_SAVE_DISPLAY_MESSAGE_TYPE, WEB_SEARCH_ACTIVITY_MESSAGE_TYPE } from "./openai-codex/constants.ts";
 export { buildProviderErrorMessage } from "./openai-codex/errors.ts";
-export { buildGeneratedImageDisplayText, getOpenAICodexImageDirectory, getOpenAICodexImagePath, getOpenAICodexLatestImagePath, saveOpenAICodexGeneratedImage } from "./openai-codex/image-output.ts";
 export { buildRequestBody } from "./openai-codex/request-body.ts";
 export { parseSSE } from "./openai-codex/sse.ts";
 export { buildCachedWebSocketRequestBody, requestBodyForWebSocketContinuationComparison } from "./openai-codex/websocket-continuation.ts";
-export { buildWebSearchActivityMessage, buildWebSearchSummaryText, createActivityMessageDispatcher } from "./openai-codex/activity.ts";
 export { closeOpenAICodexWebSocketSessions } from "./openai-codex/websocket.ts";
 export type { CachedWebSocketContinuationState, CachedWebSocketRequestBodyResult, ResponsesBody, WebSocketContinuationDecision } from "./openai-codex/types.ts";
 
 export function getEffectiveCodexTransport(
 	transport: Transport | undefined,
-	config: Pick<CodexConversionConfig, "forceCachedWebSockets"> | undefined,
+	config: Pick<CodexConversionConfig["openai"], "forceCachedWebSockets"> | undefined,
 ): Transport {
 	const configuredTransport = transport ?? "auto";
 	if (config?.forceCachedWebSockets === false) return configuredTransport;
@@ -53,10 +46,7 @@ function createCodexStream<TApi extends Api>(
 	options: CodexProviderStreamOptions | undefined,
 	deps: {
 		getCurrentCwd: () => string;
-		getConfig?: () => Pick<CodexConversionConfig, "forceCachedWebSockets"> | undefined;
-		getNativeToolRewriteConfig?: () => { webSearch: boolean; imageGeneration: boolean } | undefined;
-		onImageSaved?: (savedImage: SavedGeneratedImage, imageData: { data: string; mimeType: string }) => void | undefined;
-		onWebSearchCaptured?: (search: SurfacedWebSearch) => void | undefined;
+		getConfig?: () => Pick<CodexConversionConfig["openai"], "forceCachedWebSockets"> | undefined;
 		onStreamSettled?: () => void | undefined;
 	},
 ): AssistantMessageEventStream {
@@ -65,12 +55,10 @@ function createCodexStream<TApi extends Api>(
 		? { ...options, transport: effectiveTransport }
 		: { transport: effectiveTransport };
 	const stream = createAssistantMessageEventStream();
-	const requestCwd = deps.getCurrentCwd();
+	void deps.getCurrentCwd;
 
 	(async () => {
 		const output = createInitialAssistantMessage(model);
-		const requestPrompt = getLatestUserText(context);
-
 		try {
 			const apiKey = effectiveOptions?.apiKey;
 			if (!apiKey) {
@@ -83,14 +71,6 @@ function createCodexStream<TApi extends Api>(
 			if (nextBody !== undefined) {
 				body = nextBody as ResponsesBody;
 			}
-			const nativeToolRewriteConfig = deps.getNativeToolRewriteConfig?.();
-			if (nativeToolRewriteConfig?.webSearch) {
-				body = rewriteNativeWebSearchTool(body, model) as ResponsesBody;
-			}
-			if (nativeToolRewriteConfig?.imageGeneration) {
-				body = rewriteNativeImageGenerationTool(body, model) as ResponsesBody;
-			}
-
 			const websocketRequestId = effectiveOptions?.sessionId || createCodexRequestId();
 			const sseHeaders = buildSSEHeaders(model.headers, effectiveOptions?.headers, accountId, apiKey, effectiveOptions?.sessionId);
 			const websocketHeaders = buildWebSocketHeaders(model.headers, effectiveOptions?.headers, accountId, apiKey, websocketRequestId);
@@ -112,9 +92,6 @@ function createCodexStream<TApi extends Api>(
 							websocketStarted = true;
 						},
 						effectiveOptions,
-						deps,
-						requestCwd,
-						requestPrompt,
 					);
 					if (effectiveOptions?.signal?.aborted) {
 						throw new Error("Request was aborted");
@@ -210,7 +187,7 @@ function createCodexStream<TApi extends Api>(
 			}
 
 			stream.push({ type: "start", partial: output });
-			await processCapturedResponsesStream(parseSSE(response, effectiveOptions?.signal), output, stream, model, effectiveOptions, deps, requestCwd, requestPrompt);
+			await processCodexResponsesStream(parseSSE(response, effectiveOptions?.signal), output, stream, model, effectiveOptions);
 			finalizeUsage(output);
 
 			if (effectiveOptions?.signal?.aborted) {
@@ -234,87 +211,17 @@ function createCodexStream<TApi extends Api>(
 	return stream;
 }
 
-export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: { getCurrentCwd: () => string; getConfig?: () => Pick<CodexConversionConfig, "forceCachedWebSockets"> | undefined; getNativeToolRewriteConfig?: () => { webSearch: boolean; imageGeneration: boolean } | undefined }): void {
-	const activityDispatcher = createActivityMessageDispatcher(pi.sendMessage.bind(pi));
-
-	const clearPendingMessages = () => {
-		activityDispatcher.clear();
-	};
-
+export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: { getCurrentCwd: () => string; getConfig?: () => Pick<CodexConversionConfig["openai"], "forceCachedWebSockets"> | undefined }): void {
 	pi.registerProvider("openai-codex", {
 		api: "openai-codex-responses",
-		streamSimple: (model, context, streamOptions) => {
-			const turnActivities: PendingActivity[] = [];
-			return createCodexStream(model, context, streamOptions, {
-				getCurrentCwd: options.getCurrentCwd,
-				...(options.getConfig ? { getConfig: options.getConfig } : {}),
-				...(options.getNativeToolRewriteConfig ? { getNativeToolRewriteConfig: options.getNativeToolRewriteConfig } : {}),
-				onImageSaved: (savedImage, imageData) => {
-					turnActivities.push({ kind: "image", savedImage, imageData });
-				},
-				onWebSearchCaptured: (search) => {
-					turnActivities.push({ kind: "web-search", search });
-				},
-				onStreamSettled: () => {
-					const activities = turnActivities.splice(0, turnActivities.length);
-					if (activities.length > 0) activityDispatcher.enqueueSettledActivities(activities);
-				},
-			});
-		},
-	});
-
-	pi.on("session_start", async () => {
-		clearPendingMessages();
+		oauth: openaiCodexNativeOAuthProvider,
+		streamSimple: (model, context, streamOptions) => createCodexStream(model, context, streamOptions, {
+			getCurrentCwd: options.getCurrentCwd,
+			...(options.getConfig ? { getConfig: options.getConfig } : {}),
+		}),
 	});
 
 	pi.on("session_shutdown", async () => {
-		activityDispatcher.flushNow();
-		clearPendingMessages();
 		closeOpenAICodexWebSocketSessions();
-	});
-
-	pi.on("agent_end", async () => {
-		activityDispatcher.scheduleFlush();
-	});
-
-	pi.registerMessageRenderer<ImageDisplayMessageDetails>(IMAGE_SAVE_DISPLAY_MESSAGE_TYPE, (message, options, theme) => {
-		const box = new Box(1, 1, (text) => theme.bg("customMessageBg", text));
-		box.addChild(new Text(theme.fg("customMessageLabel", theme.bold("[image_generation]")), 0, 0));
-		const savedImage = message.details?.savedImages?.[0];
-		const textContent = savedImage
-			? buildGeneratedImageDisplayText(savedImage, { expanded: options.expanded })
-			: typeof message.content === "string"
-				? message.content
-				: message.content
-						.filter((item) => item.type === "text")
-						.map((item) => item.text)
-						.join("\n");
-		box.addChild(new Text(`\n${theme.fg("customMessageText", textContent)}`, 0, 0));
-		if (savedImage) {
-			const preview = loadCachedImagePreview(savedImage, activityDispatcher.imagePreviewCache);
-			if (preview) {
-				box.addChild(new Spacer(1));
-				box.addChild(
-					new Image(preview.data, preview.mimeType, { fallbackColor: (text) => theme.fg("customMessageText", text) }, { maxWidthCells: 60 }),
-				);
-			}
-		}
-		return box;
-	});
-
-	pi.registerMessageRenderer<{ searches?: SurfacedWebSearch[] | undefined }>(WEB_SEARCH_ACTIVITY_MESSAGE_TYPE, (message, options, theme) => {
-		const box = new Box(1, 1, (text) => theme.bg("customMessageBg", text));
-		const searches = message.details?.searches ?? [];
-		box.addChild(new Text(theme.fg("customMessageLabel", theme.bold(buildWebSearchSummaryText(searches))), 0, 0));
-		if (options.expanded) {
-			const content = typeof message.content === "string"
-				? message.content
-				: message.content
-						.filter((item) => item.type === "text")
-						.map((item) => item.text)
-						.join("\n");
-			box.addChild(new Text(`\n${theme.fg("customMessageText", content)}`, 0, 0));
-		}
-		return box;
 	});
 }

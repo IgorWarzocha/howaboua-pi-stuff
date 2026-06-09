@@ -1,0 +1,14 @@
+[package]
+name = "codex-utils-cache"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+lru = { workspace = true }
+sha1 = { workspace = true }
+tokio = { workspace = true, features = ["sync", "rt", "rt-multi-thread"] }
+
+[lib]
+path = "lib.rs"
+doctest = false

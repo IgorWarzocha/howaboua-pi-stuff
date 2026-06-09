@@ -1,6 +1,5 @@
 import { clampThinkingLevel, type Api, type Context, type Model } from "@earendil-works/pi-ai";
-import { CODEX_TOOL_CALL_PROVIDERS, convertResponsesMessages, convertResponsesTools } from "../openai-responses-shared.ts";
-import { WEB_SEARCH_TOOL_NAME } from "../../adapter/tool-set.ts";
+import { CODEX_TOOL_CALL_PROVIDERS, convertResponsesMessages, convertResponsesTools } from "../openai-responses/shared.ts";
 import { OPENAI_PROMPT_CACHE_KEY_MAX_LENGTH } from "./constants.ts";
 import type { OpenAICodexStreamOptions, ResponsesBody } from "./types.ts";
 
@@ -56,10 +55,6 @@ export function buildRequestBody<TApi extends Api>(model: Model<TApi>, context: 
 
 	if (context.tools && context.tools.length > 0) {
 		body.tools = convertResponsesTools(context.tools, { strict: null });
-		const hasWebSearchTool = context.tools.some((tool) => tool.name === WEB_SEARCH_TOOL_NAME);
-		if (hasWebSearchTool) {
-			body.include.push("web_search_call.action.sources", "web_search_call.results");
-		}
 	}
 
 	const clampedReasoning = options?.reasoning ? clampThinkingLevel(model, options.reasoning) : undefined;

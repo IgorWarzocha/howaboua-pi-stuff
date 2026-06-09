@@ -1,10 +1,10 @@
 import type { Api, AssistantMessage, AssistantMessageEventStream, Model, SimpleStreamOptions } from "@earendil-works/pi-ai";
-import { CODEX_TOOL_CALL_PROVIDERS, convertResponsesMessages } from "../openai-responses-shared.ts";
+import { CODEX_TOOL_CALL_PROVIDERS, convertResponsesMessages } from "../openai-responses/shared.ts";
 import { normalizeTimeoutMs } from "./sse.ts";
 import { buildCachedWebSocketRequestBody } from "./websocket-continuation.ts";
 import { acquireWebSocket, countWebSocketEvents, isRetryableEarlyWebSocketError, parseWebSocket, startWebSocketOutputOnFirstEvent } from "./websocket.ts";
-import { processCapturedResponsesStream } from "./stream-events.ts";
-import type { CachedWebSocketRequestBodyResult, ResponsesBody, SavedGeneratedImage, SurfacedWebSearch } from "./types.ts";
+import { processCodexResponsesStream } from "./stream-events.ts";
+import type { CachedWebSocketRequestBodyResult, ResponsesBody } from "./types.ts";
 
 export async function processWebSocketStream<TApi extends Api>(
 	url: string,
@@ -15,12 +15,6 @@ export async function processWebSocketStream<TApi extends Api>(
 	model: Model<TApi>,
 	onStart: () => void,
 	options: SimpleStreamOptions | undefined,
-	deps: {
-		onImageSaved?: (savedImage: SavedGeneratedImage, imageData: { data: string; mimeType: string }) => void | undefined;
-		onWebSearchCaptured?: (search: SurfacedWebSearch) => void | undefined;
-	},
-	cwd: string,
-	requestPrompt: string | undefined,
 ): Promise<void> {
 	let streamStarted = false;
 	const idleTimeoutMs = normalizeTimeoutMs(options?.timeoutMs, "timeoutMs");
@@ -49,7 +43,7 @@ export async function processWebSocketStream<TApi extends Api>(
 
 		try {
 			socket.send(JSON.stringify({ type: "response.create", ...requestBody }));
-			await processCapturedResponsesStream(
+			await processCodexResponsesStream(
 				startWebSocketOutputOnFirstEvent(
 					countWebSocketEvents(parseWebSocket(socket, options?.signal, idleTimeoutMs), () => {
 						eventCount++;
@@ -65,9 +59,6 @@ export async function processWebSocketStream<TApi extends Api>(
 				stream,
 				model,
 				options,
-				deps,
-				cwd,
-				requestPrompt,
 			);
 			if (options?.signal?.aborted) {
 				keepConnection = false;

@@ -1,0 +1,18 @@
+[package]
+name = "codex-utils-image"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+base64 = { workspace = true }
+image = { workspace = true, features = ["jpeg", "png", "gif", "webp"] }
+codex-utils-cache = { workspace = true }
+mime_guess = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["fs", "rt", "rt-multi-thread", "macros"] }
+
+[lib]
+path = "lib.rs"
+doctest = false
+

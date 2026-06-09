@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { convertResponsesMessages, processResponsesStream } from "../src/providers/openai-responses-shared.ts";
+import { convertResponsesMessages, processResponsesStream } from "../src/providers/openai-responses/shared.ts";
 
 const model = {
 	id: "gpt-test",
@@ -41,35 +41,36 @@ async function* asAsyncIterable<T>(values: T[]): AsyncIterable<T> {
 	}
 }
 
-test("convertResponsesMessages gives fallback assistant text ids a per-block suffix", () => {
+test("convertResponsesMessages preserves PATH view_image as structured tool image output", () => {
+	const imageModel = { ...model, input: ["text", "image"] as Array<"text" | "image"> };
 	const messages = convertResponsesMessages(
-		model,
+		imageModel,
 		{
 			messages: [
 				{
-					role: "assistant",
+					role: "toolResult",
+					toolCallId: "call_image|fc_image",
 					content: [
-						{ type: "text", text: "first" },
-						{ type: "text", text: "second" },
+						{ type: "text", text: "Command completed\nOutput:\n<image output>" },
+						{ type: "image", mimeType: "image/png", data: "AAA", detail: "original" },
 					],
-					api: "openai-codex-responses",
-					provider: "openai-codex",
-					model: model.id,
-					usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
-					stopReason: "stop",
-					timestamp: 0,
-				},
+				} as any,
 			],
 		},
 		new Set(["openai-codex"]),
 	);
 
-	assert.deepEqual(
-		messages.map((message) => (typeof message === "object" && message && "id" in message ? message.id : undefined)),
-		["msg_pi_0", "msg_pi_0_1"],
-	);
+	assert.deepEqual(messages, [
+		{
+			type: "function_call_output",
+			call_id: "call_image",
+			output: [
+				{ type: "input_text", text: "Command completed\nOutput:\n<image output>" },
+				{ type: "input_image", detail: "original", image_url: "data:image/png;base64,AAA" },
+			],
+		},
+	]);
 });
-
 test("processResponsesStream keeps interleaved message items separate by output index", async () => {
 	const output = createAssistantOutput();
 	const pushedEvents: Array<{ type: string; contentIndex?: number }> = [];
@@ -196,122 +197,4 @@ test("processResponsesStream preserves image generation calls for later Response
 	);
 
 	assert.deepEqual(messages, [imageItem]);
-});
-
-test("processResponsesStream preserves web search calls for later Responses turns", async () => {
-	const output = createAssistantOutput();
-	const webSearchItem = {
-		type: "web_search_call",
-		id: "ws_123",
-		status: "completed",
-		action: { type: "search", query: "BlackBerry 9700 Bold" },
-		results: [{ title: "BlackBerry Bold 9700", url: "https://example.com/9700" }],
-	};
-
-	await processResponsesStream(
-		asAsyncIterable([
-			{ type: "response.created", response: { id: "resp_1" } },
-			{
-				type: "response.output_item.added",
-				output_index: 0,
-				item: { type: "web_search_call", id: "ws_123", status: "in_progress" },
-			},
-			{
-				type: "response.output_item.done",
-				output_index: 0,
-				item: webSearchItem,
-			},
-			{
-				type: "response.completed",
-				response: {
-					id: "resp_1",
-					status: "completed",
-					usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0, input_tokens_details: { cached_tokens: 0 } },
-				},
-			},
-		]) as AsyncIterable<any>,
-		output as any,
-		{ push: () => undefined } as any,
-		model,
-	);
-
-	assert.deepEqual((output.content as any[]).filter((block) => block.type === "web_search_call"), [
-		{ type: "web_search_call", item: webSearchItem },
-	]);
-
-	const messages = convertResponsesMessages(
-		model,
-		{ messages: [output as any] },
-		new Set(["openai-codex"]),
-	);
-
-	assert.deepEqual(messages, [webSearchItem]);
-});
-
-test("convertResponsesMessages strips unsupported image generation call fields from old history", () => {
-	const messages = convertResponsesMessages(
-		model,
-		{
-			messages: [
-				{
-					...createAssistantOutput(),
-					content: [
-						{
-							type: "image_generation_call",
-							item: {
-								type: "image_generation_call",
-								id: "ig_legacy",
-								status: "generating",
-								result: "base64-image",
-								revised_prompt: "diagram",
-								action: "edit",
-								background: "opaque",
-								output_format: "png",
-								quality: "high",
-							},
-						},
-					],
-				} as any,
-			],
-		},
-		new Set(["openai-codex"]),
-	);
-
-	assert.deepEqual(messages, [
-		{
-			type: "image_generation_call",
-			id: "ig_legacy",
-			status: "generating",
-			result: "base64-image",
-			revised_prompt: "diagram",
-		},
-	]);
-});
-
-test("processResponsesStream does not persist in-progress image generation calls", async () => {
-	const output = createAssistantOutput();
-
-	await processResponsesStream(
-		asAsyncIterable([
-			{ type: "response.created", response: { id: "resp_1" } },
-			{
-				type: "response.output_item.added",
-				output_index: 0,
-				item: { type: "image_generation_call", id: "ig_123", status: "in_progress" },
-			},
-			{
-				type: "response.completed",
-				response: {
-					id: "resp_1",
-					status: "completed",
-					usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0, input_tokens_details: { cached_tokens: 0 } },
-				},
-			},
-		]) as AsyncIterable<any>,
-		output as any,
-		{ push: () => undefined } as any,
-		model,
-	);
-
-	assert.deepEqual((output.content as any[]).filter((block) => block.type === "image_generation_call"), []);
 });

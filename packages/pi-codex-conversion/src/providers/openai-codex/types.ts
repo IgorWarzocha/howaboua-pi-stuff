@@ -1,51 +1,5 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { AssistantMessage, SimpleStreamOptions } from "@earendil-works/pi-ai";
 import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
-
-export interface SavedGeneratedImage {
-	absolutePath: string;
-	relativePath: string;
-	latestAbsolutePath: string;
-	latestRelativePath: string;
-	responseId: string | undefined;
-	callId: string;
-	outputFormat: string;
-	revisedPrompt?: string | undefined;
-}
-
-export interface ImageDisplayMessageDetails {
-	savedImages: SavedGeneratedImage[];
-}
-
-export interface PendingImageDisplay {
-	savedImage: SavedGeneratedImage;
-	imageData: { data: string; mimeType: string };
-}
-
-export interface QueuedImageActivity extends PendingImageDisplay {
-	kind: "image";
-}
-
-export interface SurfacedWebSearch {
-	callId: string;
-	status?: string | undefined;
-	query?: string | undefined;
-	queries: string[];
-	sources: Array<{ title?: string | undefined; url: string }>;
-}
-
-export interface QueuedWebSearchActivity {
-	kind: "web-search";
-	search: SurfacedWebSearch;
-}
-
-export type PendingActivity = QueuedImageActivity | QueuedWebSearchActivity;
-export type SendActivityMessage = ExtensionAPI["sendMessage"];
-
-export interface CachedImagePreview {
-	data: string;
-	mimeType: string;
-}
 
 export interface WebSocketLike {
 	readyState?: number | undefined;

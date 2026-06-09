@@ -1,0 +1,62 @@
+[workspace]
+members = [
+  "apply-patch/rust",
+  "exec/rust",
+  "view-image/rust",
+  "web-run/rust",
+  "imagegen/rust",
+  "rust/crates/codex-utils-cache",
+  "rust/crates/codex-utils-image",
+  "rust/crates/codex-utils-pty",
+  "rust/crates/codex-utils-absolute-path",
+  "rust/crates/codex-exec-server",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+license = "Apache-2.0"
+version = "0.0.0"
+
+[workspace.dependencies]
+anyhow = "1"
+assert_matches = "1"
+async-trait = "0.1"
+base64 = "0.22.1"
+chrono = "0.4"
+codex-utils-absolute-path = { path = "rust/crates/codex-utils-absolute-path" }
+codex-utils-cache = { path = "rust/crates/codex-utils-cache" }
+codex-utils-image = { path = "rust/crates/codex-utils-image" }
+codex-utils-pty = { path = "rust/crates/codex-utils-pty" }
+crypto_box = { version = "0.9", features = ["seal"] }
+dirs = "6"
+dunce = "1"
+ed25519-dalek = { version = "2", features = ["pkcs8"] }
+image = { version = "^0.25.9", default-features = false }
+lazy_static = "1"
+libc = "0.2"
+log = "0.4"
+lru = "0.16.3"
+mime_guess = "2.0.5"
+os_info = "3.12.0"
+portable-pty = "0.9"
+pretty_assertions = "1"
+reqwest = { version = "0.12", features = ["cookies", "json", "rustls-tls-native-roots", "stream"] }
+schemars = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha1 = "0.10"
+sha2 = "0.10"
+similar = "2"
+tempfile = "3"
+thiserror = "2"
+tokio = { version = "1", features = ["fs", "macros", "rt", "rt-multi-thread", "sync"] }
+tree-sitter = "0.25"
+tree-sitter-bash = "0.25"
+ts-rs = { version = "11", features = ["serde-json-impl", "no-serde-warnings"] }
+uuid = { version = "1", features = ["v4"] }
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1

@@ -55,12 +55,14 @@
     },
     "packages/pi-codex-conversion": {
       "name": "@howaboua/pi-codex-conversion",
-      "version": "1.5.19",
+      "version": "1.5.21",
       "bin": {
         "apply_patch": "./bin/apply_patch",
+        "view_image": "./bin/view_image",
+        "web_run": "./bin/web_run",
+        "imagegen": "./bin/imagegen",
       },
       "dependencies": {
-        "node-pty": "^1.1.0",
         "partial-json": "^0.1.7",
         "proxy-from-env": "1.1.0",
         "tree-sitter-bash": "^0.25.1",
