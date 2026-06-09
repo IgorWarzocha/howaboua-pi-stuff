@@ -10,6 +10,8 @@ Slash commands are for users, not agents; agents use tools. For extensions with 
 
 When a change is meant to ship, add a changeset for the package(s). On merge to `main`, the version PR and publish workflow turn that into the next concrete version immediately.
 
+Before opening or updating a PR from long-lived `dev` to `main`, fetch/prune, reset `dev` onto `origin/main`, and cherry-pick only the intended pending commits. Do not merge `main` into `dev`; it leaves already-merged history in the PR.
+
 Use concrete version language only:
 
 - good: `0.0.1 initial release`
