@@ -1,8 +1,13 @@
 # pi-codex-conversion
 
+> [!NOTE]
+> This version is a major rewrite. If you hit regressions, reinstall the last pre-rewrite build with `pi install npm:@howaboua/pi-codex-conversion@1.5.21` and please report the issue.
+
 GPT/Codex models are strongest when the tool surface looks like the Codex CLI they were trained around: shell commands, resumable terminal sessions, and patch-based edits. This extension brings that workflow to Pi while keeping Pi's runtime, sessions, project context, skills, and UI. For the brave, PATH mode shifts the toolkit into Pi's internal PATH, instead of the JSON-defined tool schema.
 
 Tool execution uses bundled Rust helpers for better process isolation and lower Pi runtime blast radius; see [Why bundled Rust tools?](#why-bundled-rust-tools). PATH mode exposes extra Codex tools as shell commands on an extension-injected internal PATH; see [PATH_TOOLS.md](./PATH_TOOLS.md).
+
+PATH mode is very likely to consume less tokens, but YMMV. The system prompt has been tweaked to enable GPT models to one-shot call tools, even when they don't have a JSON schema definition. Any suggestions or tweaks are welcome! The whole point is that if the agent fails a tool call because it "didn't know the tool", this mode loses its advantages. It's been tested and it's working, but edge cases may still exist.
 
 ## Install
 
