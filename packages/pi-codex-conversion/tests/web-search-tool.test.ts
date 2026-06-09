@@ -99,8 +99,9 @@ process.stdin.on("end", () => {
 			process.env["PI_CODEX_WEB_RUN_BIN"] = webRunPath;
 			process.env["CAPTURE_PATH"] = capturePath;
 			const recentInput = [{ type: "message", role: "user", content: [{ type: "input_text", text: "context" }] }];
-			const encrypted = await executeCodexWebSearch({ id: "model-session", model: "wrong-model", input: [{ bad: true }], search_query: [{ q: "OpenAI" }] }, createContext({ accountId: "pi-account" }), undefined, { sessionId: "session-123", model: "gpt-5.5", getRecentInput: () => recentInput as never });
-			assert.equal(encrypted, "ciphertext");
+			const output = await executeCodexWebSearch({ id: "model-session", model: "wrong-model", input: [{ bad: true }], search_query: [{ q: "OpenAI" }] }, createContext({ accountId: "pi-account" }), undefined, { sessionId: "session-123", model: "gpt-5.5", getRecentInput: () => recentInput as never });
+			assert.equal(output.text, "ciphertext");
+			assert.equal(output.details.encrypted_output, "ciphertext");
 			const captured = JSON.parse(await readFile(capturePath, "utf8")) as { env: Record<string, string>; input: Record<string, unknown> };
 			assert.equal(captured.env["PI_CODEX_ACCESS_TOKEN"]?.startsWith("poison-token"), false);
 			assert.equal(captured.env["PI_CODEX_ACCOUNT_ID"], "pi-account");
@@ -133,6 +134,7 @@ process.stdin.on("end", () => console.log(JSON.stringify({ encrypted_output: "ok
 			const tool = createWebSearchTool("web_run", { allowConfiguredProvider: (model) => model?.provider === "custom-codex" });
 			const result = await tool.execute("call", { search_query: [{ q: "OpenAI" }] }, undefined, undefined as never, createContext({ provider: "custom-codex", api: "openai-codex-responses" }));
 			assert.equal(result.content[0]?.type === "text" ? result.content[0].text : "", "ok");
+			assert.deepEqual(result.details, { webRun: { encrypted_output: "ok" } });
 		});
 	} finally {
 		if (originalBin === undefined) delete process.env["PI_CODEX_WEB_RUN_BIN"];

@@ -2,6 +2,7 @@ import type { Model } from "@earendil-works/pi-ai";
 import { readFileSync } from "node:fs";
 import type { UnifiedExecResult } from "../exec/session-manager.ts";
 import { formatUnifiedExecResult } from "../exec/format.ts";
+import { shellSplit, splitOnConnectors } from "../../shell/tokenize.ts";
 
 export type PathViewImageContent = { type: "image"; data: string; mimeType: string; detail: "high" | "original" };
 
@@ -22,6 +23,7 @@ export interface PathToolPolicy {
 }
 
 export function getPathToolPolicy(command: string, model: Model<any> | undefined): PathToolPolicy | undefined {
+	if (getPathToolNamesFromParts(splitCommandParts(command), ["apply_patch", "view_image", "web_run", "imagegen"]).length > 1) return undefined;
 	const modelInput = model?.input;
 	const parseImageOutput = isPathViewImageCommand(command) && (!Array.isArray(modelInput) || modelInput.includes("image"));
 	const parseWebRunOutput = isPathWebRunCommand(command);
@@ -102,15 +104,45 @@ function isPathImagegenCommand(command: string): boolean {
 	return hasPathToolCommand(command, "imagegen");
 }
 
+export function getCodexBackedPathToolNames(command: string): string[] {
+	return [
+		...(isPathWebRunCommand(command) ? ["web_run"] : []),
+		...(isPathImagegenCommand(command) ? ["imagegen"] : []),
+	];
+}
+
 function hasPathToolCommand(command: string, toolName: string): boolean {
-	if (isPathToolDiscoveryCommand(command, toolName)) return false;
+	return getPathToolNamesFromParts(splitCommandParts(command), [toolName]).includes(toolName);
+}
+
+function getPathToolNamesFromParts(parts: string[][], toolNames: string[]): string[] {
+	const found = new Set<string>();
+	for (const part of parts) {
+		if (isPathToolDiscoveryPart(part)) continue;
+		for (const toolName of toolNames) {
+			if (partHasPathToolCommand(part, toolName)) found.add(toolName);
+		}
+	}
+	return [...found];
+}
+
+function splitCommandParts(command: string): string[][] {
+	try {
+		return splitOnConnectors(shellSplit(command)).filter((part) => part.length > 0);
+	} catch {
+		return [[command]];
+	}
+}
+
+function partHasPathToolCommand(part: string[], toolName: string): boolean {
+	const command = part.join(" ");
 	const escaped = toolName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 	return new RegExp(`(?:^|[;&|()\r\n])\\s*(?:[A-Za-z_][A-Za-z0-9_]*=[^\\s;&|()]+\\s+)*(?:env\\s+(?:[A-Za-z_][A-Za-z0-9_]*=[^\\s;&|()]+\\s+)*)?(?:[^\\s;&|()]+/)?${escaped}(?:\\s|$)`).test(command);
 }
 
-function isPathToolDiscoveryCommand(command: string, toolName: string): boolean {
-	const escaped = toolName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-	return new RegExp(`(?:^|[;&|()\\s])(?:command\\s+-v|which)\\s+${escaped}(?:\\s|$)`).test(command);
+function isPathToolDiscoveryPart(part: string[]): boolean {
+	if (part[0] === "which") return part.length >= 2 && ["apply_patch", "view_image", "web_run", "imagegen"].includes(part[1]!);
+	return part[0] === "command" && part[1] === "-v" && part.length >= 3 && ["apply_patch", "view_image", "web_run", "imagegen"].includes(part[2]!);
 }
 
 interface PathWebRunOutput {
@@ -136,7 +168,7 @@ function pathWebRunOutputFromJson(output: string): PathWebRunOutput | undefined 
 	if (!parsed || typeof parsed !== "object") return undefined;
 	const record = parsed as Record<string, unknown>;
 	const text = record["text"] ?? record["output_text"];
-	if (typeof text !== "string" && !Array.isArray(record["search_results"]) && !Array.isArray(record["content"]) && !Array.isArray(record["open"])) return undefined;
+	if (typeof text !== "string" && typeof record["encrypted_output"] !== "string" && !Array.isArray(record["search_results"]) && !Array.isArray(record["content"]) && !Array.isArray(record["open"])) return undefined;
 	return parsed as PathWebRunOutput;
 }
 

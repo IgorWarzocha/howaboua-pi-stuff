@@ -12,6 +12,18 @@ const PNG_BASE64 =
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==";
 const packageRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
+function codexPathContext(cwd: string, model: Record<string, unknown> = {}) {
+	return {
+		cwd,
+		model: { id: "gpt-5.5", provider: "openai-codex", api: "openai-codex-responses", baseUrl: "https://chatgpt.com/backend-api/codex", ...model },
+		modelRegistry: {
+			async getApiKeyAndHeaders() {
+				return { ok: true, apiKey: "token", headers: { "chatgpt-account-id": "account" } };
+			},
+		},
+	} as never;
+}
+
 
 test("exec_command converts multiple PATH view_image calls in one shell command", async () => {
 	const cwd = mkdtempSync(join(tmpdir(), "path-view-image-"));
@@ -63,7 +75,7 @@ test("exec_command compacts PATH web_run JSON output", async () => {
 			{ cmd: `PATH=${JSON.stringify(cwd)}:$PATH web_run`, max_output_tokens: 1 },
 			new AbortController().signal,
 			undefined,
-			{ cwd, model: {} } as never,
+			codexPathContext(cwd),
 		);
 		const text = result.content[0]?.type === "text" ? result.content[0].text : "";
 		assert.match(text, /Answer from search\./);
@@ -112,7 +124,7 @@ test("exec_command compacts PATH imagegen output and displays image content", as
 			{ cmd: `PATH=${JSON.stringify(cwd)}:$PATH imagegen`, max_output_tokens: 1 },
 			new AbortController().signal,
 			undefined,
-			{ cwd, model: { input: ["text", "image"] } } as never,
+			codexPathContext(cwd, { input: ["text", "image"] }),
 		);
 
 		const text = result.content[0]?.type === "text" ? result.content[0].text : "";

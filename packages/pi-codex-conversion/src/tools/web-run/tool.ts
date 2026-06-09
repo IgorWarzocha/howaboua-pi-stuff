@@ -33,6 +33,14 @@ const WEB_SEARCH_PARAMETERS = Type.Object({
 const ASSISTANT_CONTEXT_CHAR_LIMIT = 4_000;
 function createEmptyResultComponent(): Container { return new Container(); }
 
+type WebRunOutput = Record<string, unknown> & {
+	encrypted_output?: string | undefined;
+	output_text?: string | undefined;
+	text?: string | undefined;
+};
+
+type WebRunExecutionResult = { text: string; details: WebRunOutput };
+
 function firstString(value: unknown, key: string): string | undefined {
 	if (!value || typeof value !== "object") return undefined;
 	const field = (value as Record<string, unknown>)[key];
@@ -167,7 +175,7 @@ export function supportsMultimodalNativeWebSearch(model: ExtensionContext["model
 	return !(model?.id ?? "").toLowerCase().includes("spark");
 }
 
-export async function executeCodexWebSearch(params: Record<string, unknown>, ctx: ExtensionContext, signal: AbortSignal | undefined | null, options: WebSearchToolOptions = {}): Promise<string> {
+export async function executeCodexWebSearch(params: Record<string, unknown>, ctx: ExtensionContext, signal: AbortSignal | undefined | null, options: WebSearchToolOptions = {}): Promise<WebRunExecutionResult> {
 	const provider = await resolveCodexToolProvider(ctx);
 	const webRunPath = process.env["PI_CODEX_WEB_RUN_BIN"]?.trim() || join(getBundledPathToolsBinDir(), process.platform === "win32" ? "web_run.cmd" : "web_run");
 	const sessionId = ctx.sessionManager?.getSessionId?.() || options.sessionId;
@@ -177,9 +185,9 @@ export async function executeCodexWebSearch(params: Record<string, unknown>, ctx
 	try {
 		const input = options.getRecentInput?.();
 		const stdout = await runWebRunBinary(webRunPath, { ...params, id: sessionId, ...(model ? { model } : {}), ...(input ? { input } : {}) }, env, signal);
-		const parsed = JSON.parse(stdout) as Record<string, unknown>;
+		const parsed = JSON.parse(stdout) as WebRunOutput;
 		const output = formatWebRunOutput(parsed);
-		if (output) return output;
+		if (output) return { text: output, details: parsed };
 		throw new Error("web_run search returned no output");
 	} catch (error) {
 		const stderr = error && typeof error === "object" && "stderr" in error ? String((error as { stderr?: unknown }).stderr ?? "") : "";
@@ -200,8 +208,8 @@ export function createWebSearchTool(name: string = WEB_SEARCH_TOOL_NAME, options
 		prepareArguments: (args) => args && typeof args === "object" ? args as Record<string, unknown> : {},
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
 			if (!supportsExecutableWebSearch(ctx.model, toolOptions)) throw new Error(WEB_SEARCH_UNSUPPORTED_MESSAGE);
-			const encryptedOutput = await executeCodexWebSearch(params, ctx, signal, toolOptions);
-			return { content: [{ type: "text", text: encryptedOutput }], details: { webRun: { output_text: encryptedOutput } } };
+			const output = await executeCodexWebSearch(params, ctx, signal, toolOptions);
+			return { content: [{ type: "text", text: output.text }], details: { webRun: output.details } };
 		},
 		...(toolOptions.customRendering === false ? {} : {
 		renderCall(args, theme) { return renderCodexToolCell("Searched the web", webSearchCallDetail(args as Record<string, unknown>), theme); },

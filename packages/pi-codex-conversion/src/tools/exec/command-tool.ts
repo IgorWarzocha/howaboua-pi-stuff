@@ -1,13 +1,14 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { Container, Text } from "@earendil-works/pi-tui";
 import { renderExecCommandCall, renderGroupedExecCommandCall } from "../../ui/tool-rendering/codex-rendering.ts";
 import type { ExecCommandTracker } from "./command-state.ts";
 import type { ExecSessionManager, UnifiedExecResult } from "./session-manager.ts";
 import { formatUnifiedExecResult } from "./format.ts";
-import { convertPathToolExecResult, getPathToolPolicy } from "../path/outputs.ts";
+import { convertPathToolExecResult, getCodexBackedPathToolNames, getPathToolPolicy } from "../path/outputs.ts";
 import { renderTextWithImages } from "../path/rendering.ts";
 import { webRunSessionStatePath } from "../web-run/tool.ts";
+import { codexToolProviderEnv, resolveCodexToolProvider } from "../../adapter/codex-tool-provider.ts";
 export { imageContentFromCodexViewImageOutput, imageContentsFromCodexViewImageOutput } from "../path/outputs.ts";
 
 const EXEC_COMMAND_PARAMETERS = Type.Object({
@@ -84,6 +85,24 @@ function createEmptyResultComponent(): Container {
 	return new Container();
 }
 
+async function resolveCodexBackedPathToolEnv(command: string, ctx: ExtensionContext): Promise<NodeJS.ProcessEnv | undefined> {
+	const toolNames = getCodexBackedPathToolNames(command);
+	if (toolNames.length === 0) return undefined;
+	try {
+		const env = codexToolProviderEnv(await resolveCodexToolProvider(ctx));
+		return {
+			PI_CODEX_ACCESS_TOKEN: env["PI_CODEX_ACCESS_TOKEN"],
+			PI_CODEX_ACCOUNT_ID: env["PI_CODEX_ACCOUNT_ID"],
+			PI_CODEX_BASE_URL: env["PI_CODEX_BASE_URL"],
+			PI_CODEX_RESPONSES_URL: env["PI_CODEX_RESPONSES_URL"],
+			...(env["PI_CODEX_MODEL"] ? { PI_CODEX_MODEL: env["PI_CODEX_MODEL"] } : {}),
+		};
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		throw new Error(`${toolNames.join("/")} requires Pi model auth: ${message}`);
+	}
+}
+
 interface ExecCommandRenderContextLike {
 	toolCallId?: string | undefined;
 	invalidate?: () => void | undefined;
@@ -155,14 +174,15 @@ export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTr
 			});
 			const pathToolPolicy = getPathToolPolicy(typedParams.cmd, ctx.model);
 			const webRunStatePath = pathToolPolicy?.parseWebRunOutput ? webRunSessionStatePath(ctx) : undefined;
+			const codexBackedPathToolEnv = await resolveCodexBackedPathToolEnv(typedParams.cmd, ctx);
 			const execParams = pathToolPolicy
 				? {
 					...typedParams,
-					...(webRunStatePath ? { env: { PI_WEB_RUN_STATE_PATH: webRunStatePath } } : {}),
+					...(webRunStatePath || codexBackedPathToolEnv ? { env: { ...codexBackedPathToolEnv, ...(webRunStatePath ? { PI_WEB_RUN_STATE_PATH: webRunStatePath } : {}) } } : {}),
 					...(pathToolPolicy.disableTruncation ? { max_output_tokens: Number.MAX_SAFE_INTEGER } : {}),
 					...(pathToolPolicy.yieldTimeMs !== undefined ? { yield_time_ms: pathToolPolicy.yieldTimeMs, max_yield_time_ms: pathToolPolicy.yieldTimeMs } : {}),
 				}
-				: typedParams;
+				: codexBackedPathToolEnv ? { ...typedParams, env: codexBackedPathToolEnv } : typedParams;
 			const result = await sessions.exec(execParams, ctx.cwd, signal, pathToolPolicy?.suppressPartials ? undefined : onUpdate ? (partial) => onUpdate(toToolResult(partial)) : undefined);
 			if (result.session_id !== undefined) {
 				tracker.recordPersistentSession(toolCallId, result.session_id);
