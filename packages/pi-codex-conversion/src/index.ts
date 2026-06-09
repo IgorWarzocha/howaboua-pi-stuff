@@ -58,15 +58,19 @@ export default function codexConversion(pi: ExtensionAPI) {
 		return { customRendering: config.ui.toolRendering };
 	}
 
+	function promptSnippetOptions(config = state.config): { promptSnippet: boolean } {
+		return { promptSnippet: config.mode === "path" };
+	}
+
 	function bundledPathToolsEnv(config = state.config): NodeJS.ProcessEnv {
 		return createBundledPathToolsEnv({ ...process.env, PI_CODEX_MODEL: config.openai.webSearchModel });
 	}
 
 	function registerCoreTools(config = state.config): void {
-		registerApplyPatchTool(pi);
-		registerExecCommandTool(pi, tracker, sessions, customRenderingOptions(config));
-		registerWriteStdinTool(pi, sessions);
-		registerViewImageTool(pi, { allowOriginalDetail: true, ...customRenderingOptions(config) });
+		registerApplyPatchTool(pi, promptSnippetOptions(config));
+		registerExecCommandTool(pi, tracker, sessions, { ...customRenderingOptions(config), ...promptSnippetOptions(config) });
+		registerWriteStdinTool(pi, sessions, promptSnippetOptions(config));
+		registerViewImageTool(pi, { allowOriginalDetail: true, ...customRenderingOptions(config), ...promptSnippetOptions(config) });
 	}
 
 	function ensureOptionalNativeToolsRegistered(config = state.config): void {
@@ -76,11 +80,11 @@ export default function codexConversion(pi: ExtensionAPI) {
 		};
 		if (config.tools.webRun) {
 			const webSearchToolName = WEB_SEARCH_TOOL_NAME;
-			registerWebSearchTool(pi, webSearchToolName, { getRecentInput: () => latestRecentWebSearchInput, model: () => state.config.openai.webSearchModel, allowConfiguredProvider, ...customRenderingOptions(config) });
+			registerWebSearchTool(pi, webSearchToolName, { getRecentInput: () => latestRecentWebSearchInput, model: () => state.config.openai.webSearchModel, allowConfiguredProvider, ...customRenderingOptions(config), ...promptSnippetOptions(config) });
 			registeredNativeWebSearchTools.add(webSearchToolName);
 		}
 		if (config.tools.imageGeneration) {
-			registerImageGenerationTool(pi, { allowConfiguredProvider, ...customRenderingOptions(config) });
+			registerImageGenerationTool(pi, { allowConfiguredProvider, ...customRenderingOptions(config), ...promptSnippetOptions(config) });
 		}
 	}
 

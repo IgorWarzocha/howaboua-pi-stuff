@@ -106,12 +106,12 @@ function createEmptyResultComponent(): Container {
 	return new Container();
 }
 
-export function registerWriteStdinTool(pi: ExtensionAPI, sessions: ExecSessionManager): void {
+export function registerWriteStdinTool(pi: ExtensionAPI, sessions: ExecSessionManager, options: { promptSnippet?: boolean | undefined } = {}): void {
 	pi.registerTool({
 		name: "write_stdin",
 		label: "write_stdin",
 		description: "Writes to or polls a running exec session.",
-		promptSnippet: "Write to an exec session.",
+		...(options.promptSnippet === false ? {} : { promptSnippet: "Write to an exec session." }),
 		parameters: WRITE_STDIN_PARAMETERS,
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {
 			const typed = parseWriteStdinParams(params);

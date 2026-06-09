@@ -60,6 +60,7 @@ export interface WebSearchToolOptions {
 	model?: string | (() => string | undefined) | undefined;
 	allowConfiguredProvider?: ((model: ExtensionContext["model"]) => boolean) | undefined;
 	customRendering?: boolean | undefined;
+	promptSnippet?: boolean | undefined;
 }
 
 function safeSessionId(id: string): string {
@@ -194,7 +195,7 @@ export function createWebSearchTool(name: string = WEB_SEARCH_TOOL_NAME, options
 		name,
 		label: name,
 		description: "Search/open web sources.",
-		promptSnippet: "Use explicit args.",
+		...(toolOptions.promptSnippet === false ? {} : { promptSnippet: "Use explicit args." }),
 		parameters: WEB_SEARCH_PARAMETERS,
 		prepareArguments: (args) => args && typeof args === "object" ? args as Record<string, unknown> : {},
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {

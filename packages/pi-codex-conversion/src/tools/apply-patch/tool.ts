@@ -91,12 +91,12 @@ const renderApplyPatchCallWithOptionalContext: any = (
 	context?: ApplyPatchRenderContextLike,
 ) => new Text(renderApplyPatchCallFromState(args, theme, context), 0, 0);
 
-export function registerApplyPatchTool(pi: ExtensionAPI): void {
+export function registerApplyPatchTool(pi: ExtensionAPI, options: { promptSnippet?: boolean | undefined } = {}): void {
 	pi.registerTool({
 		name: "apply_patch",
 		label: "apply_patch",
 		description: "Create/edit/delete/move files with a patch.",
-		promptSnippet: "Edit files with a patch.",
+		...(options.promptSnippet === false ? {} : { promptSnippet: "Edit files with a patch." }),
 		parameters: APPLY_PATCH_PARAMETERS,
 		prepareArguments: prepareApplyPatchArguments,
 		async execute(toolCallId, params, signal, _onUpdate, ctx) {

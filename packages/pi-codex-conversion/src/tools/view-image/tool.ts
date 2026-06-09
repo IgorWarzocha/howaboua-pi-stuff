@@ -23,6 +23,7 @@ interface ViewImageParams {
 interface CreateViewImageToolOptions {
 	allowOriginalDetail?: boolean | undefined;
 	customRendering?: boolean | undefined;
+	promptSnippet?: boolean | undefined;
 }
 
 type ViewImageParameters = ReturnType<typeof createViewImageParameters>;
@@ -121,7 +122,7 @@ export function createViewImageTool(options: CreateViewImageToolOptions = {}): T
 		name: "view_image",
 		label: "view_image",
 		description: "View image.",
-		promptSnippet: "View image.",
+		...(options.promptSnippet === false ? {} : { promptSnippet: "View image." }),
 		parameters,
 		prepareArguments: prepareViewImageArguments,
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {

@@ -112,6 +112,7 @@ function renderResultWithImages(text: string, details: ImagegenDetails, theme: {
 export interface ImageGenerationToolOptions {
 	allowConfiguredProvider?: ((model: ExtensionContext["model"]) => boolean) | undefined;
 	customRendering?: boolean | undefined;
+	promptSnippet?: boolean | undefined;
 }
 
 export function createImageGenerationTool(options: ImageGenerationToolOptions = {}): ToolDefinition<typeof IMAGE_GENERATION_PARAMETERS, ImagegenDetails> {
@@ -120,7 +121,7 @@ export function createImageGenerationTool(options: ImageGenerationToolOptions = 
 		name: IMAGE_GENERATION_TOOL_NAME,
 		label: IMAGE_GENERATION_TOOL_NAME,
 		description,
-		promptSnippet: description,
+		...(options.promptSnippet === false ? {} : { promptSnippet: description }),
 		parameters: IMAGE_GENERATION_PARAMETERS,
 		prepareArguments: (args) => args as any,
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {

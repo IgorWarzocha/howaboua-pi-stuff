@@ -136,12 +136,12 @@ const renderExecCommandResultWithOptionalContext: any = (
 	return renderTextWithImages(text, result.content, theme, { paddingX: 4 });
 };
 
-export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTracker, sessions: ExecSessionManager, options: { customRendering?: boolean | undefined } = {}): void {
+export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTracker, sessions: ExecSessionManager, options: { customRendering?: boolean | undefined; promptSnippet?: boolean | undefined } = {}): void {
 	pi.registerTool({
 		name: "exec_command",
 		label: "exec_command",
 		description: "Runs a shell command, returning output or a session ID for ongoing interaction.",
-		promptSnippet: "Run a command.",
+		...(options.promptSnippet === false ? {} : { promptSnippet: "Run a command." }),
 		parameters: EXEC_COMMAND_PARAMETERS,
 		prepareArguments: prepareExecCommandArguments as (args: unknown) => { cmd: string; workdir?: string; shell?: string; tty?: boolean; yield_time_ms?: number; max_output_tokens?: number; login?: boolean },
 		async execute(toolCallId, params, signal, onUpdate, ctx) {
