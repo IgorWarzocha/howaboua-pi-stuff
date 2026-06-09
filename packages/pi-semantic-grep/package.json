@@ -54,8 +54,8 @@
 		"@biomejs/biome": "^2.4.16"
 	},
 	"peerDependencies": {
-		"@earendil-works/pi-coding-agent": "^0.78.0",
-		"@earendil-works/pi-tui": "^0.78.0"
+		"@earendil-works/pi-coding-agent": "^0.79.0",
+		"@earendil-works/pi-tui": "^0.79.0"
 	},
 	"publishConfig": {
 		"access": "public"
