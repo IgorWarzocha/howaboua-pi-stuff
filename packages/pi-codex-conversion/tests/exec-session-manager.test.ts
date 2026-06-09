@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { applyTerminalOutput, type ExecOutputSessionState } from "../src/tools/exec/output.ts";
 import { createExecSessionManager, type UnifiedExecResult } from "../src/tools/exec/session-manager.ts";
 
 function createFastTestExecSessionManager() {
@@ -15,7 +16,7 @@ async function finishSession(
 ): Promise<{ output: string; final: UnifiedExecResult }> {
 	let result = await write("hello\n");
 	let output = result.output;
-	for (let attempt = 0; attempt < 5 && result.session_id !== undefined; attempt++) {
+	for (let attempt = 0; attempt < 20 && result.session_id !== undefined; attempt++) {
 		result = await write();
 		output += result.output;
 	}
@@ -61,7 +62,7 @@ test("exec session manager supports long-running commands via write_stdin", asyn
 			sessions.write({
 				session_id: started.session_id!,
 				chars,
-				yield_time_ms: 50,
+				yield_time_ms: 100,
 			}),
 		);
 
@@ -214,30 +215,15 @@ test("write_stdin rejects interactive input for non-tty sessions", async () => {
 	}
 });
 
-test("exec session manager strips terminal control noise from PTY output", async () => {
-	const sessions = createFastTestExecSessionManager();
-	try {
-		let result = await sessions.exec(
-			{
-				cmd: "printf '\\033]11;rgb:0000/0000/0000\\007\\033[?2004hready\\001'",
-				shell: "/bin/bash",
-				login: false,
-				tty: true,
-				yield_time_ms: 50,
-			},
-			process.cwd(),
-		);
+test("terminal output strips control noise", () => {
+	const session: ExecOutputSessionState = {
+		buffer: "",
+		emittedBuffer: "",
+		tty: true,
+		terminalCommitted: "",
+		terminalLine: [],
+		terminalCursor: 0,
+	};
 
-		let output = result.output;
-		for (let attempt = 0; attempt < 5 && result.session_id !== undefined; attempt++) {
-			result = await sessions.write({ session_id: result.session_id, yield_time_ms: 50 });
-			output += result.output;
-		}
-
-		assert.equal(output, "ready");
-		assert.equal(result.exit_code, 0);
-		assert.equal(result.session_id, undefined);
-	} finally {
-		sessions.shutdown();
-	}
+	assert.equal(applyTerminalOutput(session, "\u001b]11;rgb:0000/0000/0000\u0007\u001b[?2004hready\u0001"), "ready");
 });

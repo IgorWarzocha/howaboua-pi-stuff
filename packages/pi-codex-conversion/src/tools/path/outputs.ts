@@ -20,20 +20,27 @@ export interface PathToolPolicy {
 	parseImageOutput: boolean;
 	parseWebRunOutput: boolean;
 	parseImagegenOutput: boolean;
+	parseApplyPatchOutput: boolean;
 }
 
 export function getPathToolPolicy(command: string, model: Model<any> | undefined): PathToolPolicy | undefined {
 	if (getPathToolNamesFromParts(splitCommandParts(command), ["apply_patch", "view_image", "web_run", "imagegen"]).length > 1) return undefined;
 	const modelInput = model?.input;
+	const parseApplyPatchOutput = isPathApplyPatchCommand(command);
 	const parseImageOutput = isPathViewImageCommand(command) && (!Array.isArray(modelInput) || modelInput.includes("image"));
 	const parseWebRunOutput = isPathWebRunCommand(command);
 	const parseImagegenOutput = isPathImagegenCommand(command) && (!Array.isArray(modelInput) || modelInput.includes("image"));
-	if (!parseImageOutput && !parseWebRunOutput && !parseImagegenOutput) return undefined;
-	return { disableTruncation: true, suppressPartials: true, ...(parseImagegenOutput ? { yieldTimeMs: 300_000 } : {}), parseImageOutput, parseWebRunOutput, parseImagegenOutput };
+	if (!parseApplyPatchOutput && !parseImageOutput && !parseWebRunOutput && !parseImagegenOutput) return undefined;
+	return { disableTruncation: true, suppressPartials: true, ...(parseWebRunOutput || parseImagegenOutput ? { yieldTimeMs: 300_000 } : {}), parseApplyPatchOutput, parseImageOutput, parseWebRunOutput, parseImagegenOutput };
 }
 
 export function convertPathToolExecResult(command: string, result: UnifiedExecResult, policy: PathToolPolicy | undefined): ToolResultLike | undefined {
-	if (!policy || result.exit_code !== 0 || result.session_id !== undefined) return undefined;
+	if (!policy || result.session_id !== undefined) return undefined;
+	if (policy.parseApplyPatchOutput) {
+		const details = sanitizeExecResult(result, result.output);
+		return { content: [{ type: "text", text: formatPathApplyPatchOutput(details) }], details };
+	}
+	if (result.exit_code !== 0) return undefined;
 	if (policy.parseImageOutput) {
 		const imageContents = imageContentsFromCodexViewImageOutput(result.output);
 		if (imageContents.length) {
@@ -94,6 +101,10 @@ function imageContentFromCodexViewImageJson(json: string): PathViewImageContent 
 
 function isPathViewImageCommand(command: string): boolean {
 	return hasPathToolCommand(command, "view_image");
+}
+
+function isPathApplyPatchCommand(command: string): boolean {
+	return hasPathToolCommand(command, "apply_patch");
 }
 
 function isPathWebRunCommand(command: string): boolean {
@@ -238,6 +249,12 @@ export function formatPathImagegenOutput(output: PathImagegenOutput): string {
 	const lines = [`Generated image: ${output.path}`];
 	if (output.latest_path) lines.push(`Latest: ${output.latest_path}`);
 	return lines.join("\n");
+}
+
+function formatPathApplyPatchOutput(result: UnifiedExecResult): string {
+	const output = result.output.trimEnd();
+	if (result.exit_code === undefined || result.exit_code === 0) return output;
+	return [`Process exited with code ${result.exit_code}`, output].filter(Boolean).join("\n");
 }
 
 function sanitizeExecResult(result: UnifiedExecResult, output: string, pathTool?: unknown): UnifiedExecResult & { pathTool?: unknown } {

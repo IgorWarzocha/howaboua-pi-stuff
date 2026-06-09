@@ -154,4 +154,3 @@ export function resultFromSnapshot(args: {
 	else result.exit_code = args.exitCode;
 	return result;
 }
-

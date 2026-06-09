@@ -297,6 +297,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 					signal,
 					onUpdate ? (elapsedMs) => onUpdate(makeSnapshotResult(session, elapsedMs, input.max_output_tokens)) : undefined,
 				);
+				await pollSession(session, 0);
 				return makeExecResult(session, waitedMs, input.max_output_tokens, exposeSession, (sessionId) => sessions.delete(sessionId));
 			} finally {
 				abortCleanup();
@@ -331,8 +332,9 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 							),
 							signal,
 							onUpdate ? (elapsedMs) => onUpdate(makeSnapshotSince(session, elapsedMs, updateBaseline, input.max_output_tokens)) : undefined,
-						)
+					)
 					: 0;
+			await pollSession(session, 0);
 			return makeExecResult(session, waitedMs, input.max_output_tokens, exposeSession, (sessionId) => sessions.delete(sessionId));
 		},
 		hasSession: (sessionId) => sessions.has(sessionId),
