@@ -52,9 +52,7 @@ export function isEffectiveOpenAICodexContext(ctx: ExtensionContext, config: Cod
 
 export function shouldUseApplyPatchOnly(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
 	if (config.mode !== "normal") return false;
-	if (config.tools.applyPatchOnly) return shouldUseCodexAdapterByScope(ctx, config) || (ctx.model?.id ?? "").toLowerCase().includes("gpt");
-	if (!config.tools.applyPatchForStandardGpt || shouldUseCodexAdapterByScope(ctx, config)) return false;
-	return (ctx.model?.id ?? "").toLowerCase().includes("gpt");
+	return config.tools.applyPatchOnly && shouldUseCodexAdapterByScope(ctx, config);
 }
 
 function shouldUseCodexAdapterByScope(ctx: ExtensionContext, config: CodexConversionConfig): boolean {

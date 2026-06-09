@@ -186,7 +186,6 @@ function buildItems(tab: SettingsTab, draft: CodexConversionConfig, theme: Theme
 			{ id: "webRun", label: "Web search", currentValue: draft.tools.webRun ? "on" : "off", values: ["off", "on"] },
 			{ id: "imageGeneration", label: "Image generation", currentValue: draft.tools.imageGeneration ? "on" : "off", values: ["off", "on"] },
 			{ id: "applyPatchOnly", label: "Only add apply_patch", currentValue: draft.tools.applyPatchOnly ? "on" : "off", values: ["off", "on"] },
-			{ id: "applyPatchForStandardGpt", label: "Apply patch for ALL GPT", currentValue: draft.tools.applyPatchForStandardGpt ? "on" : "off", values: ["off", "on"] },
 		];
 	}
 
@@ -229,7 +228,6 @@ function applySettingChange(id: string, value: string, draft: CodexConversionCon
 	if (id === "webRun") return { ...draft, tools: { ...draft.tools, webRun: value === "on" } };
 	if (id === "imageGeneration") return { ...draft, tools: { ...draft.tools, imageGeneration: value === "on" } };
 	if (id === "applyPatchOnly") return { ...draft, tools: { ...draft.tools, applyPatchOnly: value === "on" } };
-	if (id === "applyPatchForStandardGpt") return { ...draft, tools: { ...draft.tools, applyPatchForStandardGpt: value === "on" } };
 	if (id === "fast") return { ...draft, openai: { ...draft.openai, fast: value === "on" } };
 	if (id === "forceCachedWebSockets") return { ...draft, openai: { ...draft.openai, forceCachedWebSockets: value === "on" } };
 	if (id === "webSearchModel") return { ...draft, openai: { ...draft.openai, webSearchModel: normalizeWebSearchModel(value) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai.webSearchModel } };
