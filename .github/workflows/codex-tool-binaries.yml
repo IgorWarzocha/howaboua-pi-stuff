@@ -8,12 +8,6 @@ on:
       - 'packages/pi-codex-conversion/src/tools/rust/**'
       - 'packages/pi-codex-conversion/src/tools/Cargo.toml'
       - 'packages/pi-codex-conversion/src/tools/Cargo.lock'
-      - 'packages/pi-codex-conversion/scripts/build-apply-patch-binary.mjs'
-      - 'packages/pi-codex-conversion/scripts/build-changed-path-tool-binaries.mjs'
-      - 'packages/pi-codex-conversion/scripts/build-path-tool-binary.mjs'
-      - 'packages/pi-codex-conversion/scripts/verify-codex-tool-binaries.mjs'
-      - 'packages/pi-codex-conversion/bin/**'
-      - '.github/workflows/codex-tool-binaries.yml'
 
 jobs:
   build:

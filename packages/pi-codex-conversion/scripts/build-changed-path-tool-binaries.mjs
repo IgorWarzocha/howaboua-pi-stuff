@@ -13,11 +13,6 @@ const allToolKeys = new Set(tools.map((tool) => tool.key));
 const allRoots = [
 	"src/tools/Cargo.toml",
 	"src/tools/Cargo.lock",
-	"src/tools/rust/UPSTREAM",
-	"scripts/build-apply-patch-binary.mjs",
-	"scripts/build-path-tool-binary.mjs",
-	"scripts/build-changed-path-tool-binaries.mjs",
-	".github/workflows/codex-tool-binaries.yml",
 ];
 
 function run(command, args, options = {}) {
