@@ -31,6 +31,14 @@ function sanitizeSurrogates(text: string): string {
 	return text.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "");
 }
 
+function parseResponsesThinkingSignature(signature: string): ResponseInput[number] | undefined {
+	try {
+		return JSON.parse(signature) as ResponseInput[number];
+	} catch {
+		return undefined;
+	}
+}
+
 const NON_VISION_USER_IMAGE_PLACEHOLDER = "(image omitted: model does not support images)";
 const NON_VISION_TOOL_IMAGE_PLACEHOLDER = "(tool image omitted: model does not support images)";
 
@@ -226,7 +234,8 @@ export function convertResponsesMessages<TApi extends Api>(
 					const webSearchCall = sanitizeWebSearchCallItem(block.item);
 					if (webSearchCall) output.push(webSearchCall as ResponseInput[number]);
 				} else if (block.type === "thinking") {
-					if (block.thinkingSignature) output.push(JSON.parse(block.thinkingSignature));
+					const thinkingItem = block.thinkingSignature ? parseResponsesThinkingSignature(block.thinkingSignature) : undefined;
+					if (thinkingItem) output.push(thinkingItem);
 				} else if (block.type === "text") {
 					const parsedSignature = parseTextSignature(block.textSignature);
 					const fallbackMessageId = textBlockIndex === 0 ? `msg_pi_${msgIndex}` : `msg_pi_${msgIndex}_${textBlockIndex}`;
