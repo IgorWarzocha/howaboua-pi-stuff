@@ -19,18 +19,29 @@ export async function searchDb(
 	signal?: AbortSignal,
 ): Promise<SearchMatch[]> {
 	const q = await embed(query, config, signal);
-	const rows = db
-		.prepare("select id, file, start_line, end_line, text, vector from chunks")
-		.all() as ChunkRow[];
-	const scored = rows.map((r) => ({
-		file: r.file,
-		startLine: r.start_line,
-		endLine: r.end_line,
-		text: r.text,
-		score: cosine(q, JSON.parse(r.vector) as number[]),
-	}));
-	scored.sort((a, b) => b.score - a.score);
-	return scored.slice(0, topK);
+	const best: SearchMatch[] = [];
+	let minBestScore = Number.NEGATIVE_INFINITY;
+
+	for (const row of db
+		.prepare("select file, start_line, end_line, text, vector from chunks")
+		.iterate() as Iterable<ChunkRow>) {
+		signal?.throwIfAborted();
+		const score = cosine(q, JSON.parse(row.vector) as number[]);
+		if (best.length >= topK && score <= minBestScore) continue;
+
+		best.push({
+			file: row.file,
+			startLine: row.start_line,
+			endLine: row.end_line,
+			text: row.text,
+			score,
+		});
+		best.sort((a, b) => b.score - a.score);
+		if (best.length > topK) best.pop();
+		minBestScore = best.at(-1)?.score ?? Number.NEGATIVE_INFINITY;
+	}
+
+	return best;
 }
 
 export function formatMatches(matches: SearchMatch[]): string {

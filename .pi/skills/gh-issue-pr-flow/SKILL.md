@@ -24,6 +24,7 @@ Use this instead of the global generic PR flow in this repository.
 ## Hard rules
 
 - Do not manually bump package versions for normal feature/fix PRs. Use `bun changeset`.
+- Treat stale changesets as expected on long-lived `dev`; verify and remove consumed changesets before adding new ones or opening a PR.
 - Do not manually edit aggregate package versions. The release workflow handles them.
 - Do not manually add changesets for `@howaboua/pi-stuff`, `@howaboua/pi-extensions`, or `@howaboua/pi-skills` unless the aggregate package itself changed.
 - Keep changes scoped to the relevant `packages/<name>` directory plus any required repo-level workflow/docs/scripts.
@@ -64,28 +65,36 @@ SKIP_HOOKS=1 git commit -m "wip"
 ## Workflow for implementing a package change
 
 1. Inspect state:
-   ```bash
-   git status --short --branch
-   ```
+	```bash
+	git fetch --prune origin && git status --short --branch
+	```
 2. Create or switch to a focused branch from `main` unless the user says otherwise.
-3. Make scoped edits.
-4. Run:
-   ```bash
-   bun run check:changed
-   ```
-5. If the change should ship, create a changeset:
-   ```bash
-   bun changeset
-   ```
-   - Select only the directly changed individual package(s).
-   - Usually choose `patch`.
-   - Use `minor` for user-visible new capability.
-   - Use `major` only for breaking changes.
-6. Do not create aggregate changesets manually. The release workflow runs:
-   ```bash
-   bun run changeset:aggregates
-   ```
-7. Commit all relevant files, including the `.changeset/*.md` file.
+3. Check for stale changesets before making release edits:
+	```bash
+	ls .changeset
+	git diff --name-status origin/main...HEAD -- .changeset
+	```
+	- `config.json` is not a release changeset.
+	- Remove changesets already consumed by `origin/main` version/publish commits.
+	- Keep only changesets for changes intentionally pending in this branch.
+4. Make scoped edits.
+5. Run:
+	```bash
+	bun run check:changed
+	```
+6. If the change should ship, create a changeset:
+	```bash
+	bun changeset
+	```
+	- Select only the directly changed individual package(s).
+	- Usually choose `patch`.
+	- Use `minor` for user-visible new capability.
+	- Use `major` only for breaking changes.
+7. Do not create aggregate changesets manually. The release workflow runs:
+	```bash
+	bun run changeset:aggregates
+	```
+8. Commit all relevant files, including the intended `.changeset/*.md` file.
 
 ## Workflow for docs/tooling-only changes
 
@@ -165,5 +174,5 @@ Do not re-post on every update unless explicitly asked.
 - Branch and working tree state known.
 - Changed packages listed.
 - Validation command and result listed.
-- Changeset status stated.
+- Changeset status stated, including stale changesets removed/kept.
 - PR/issue links included if created.
