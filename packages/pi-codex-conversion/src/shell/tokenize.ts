@@ -69,6 +69,12 @@ export function shellSplit(input: string): string[] {
 			tokens.push(char);
 			continue;
 		}
+		if (char === "\r" || char === "\n") {
+			pushCurrent();
+			if (char === "\r" && next === "\n") index += 1;
+			tokens.push(";");
+			continue;
+		}
 
 		if (/\s/.test(char)) {
 			pushCurrent();

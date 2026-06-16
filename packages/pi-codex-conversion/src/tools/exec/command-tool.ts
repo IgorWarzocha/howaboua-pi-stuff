@@ -8,7 +8,7 @@ import type { ExecSessionManager, UnifiedExecResult } from "./session-manager.ts
 import { formatUnifiedExecResult } from "./format.ts";
 import { convertPathToolExecResult, getCodexBackedPathToolNames, getPathToolPolicy } from "../path/outputs.ts";
 import { renderTextWithImages } from "../path/rendering.ts";
-import { renderPathApplyPatchPreviewFromState, setPathApplyPatchPreviewState } from "../path/apply-patch-preview.ts";
+import { extractPathApplyPatchPreviewPlan, getPathApplyPatchRenderState, renderPathApplyPatchPreviewFromState, setPathApplyPatchPreviewState } from "../path/apply-patch-preview.ts";
 import { webRunSessionStatePath } from "../web-run/tool.ts";
 import { codexToolProviderEnv, resolveCodexToolProvider } from "../../adapter/codex-tool-provider.ts";
 export { imageContentFromCodexViewImageOutput, imageContentsFromCodexViewImageOutput } from "../path/outputs.ts";
@@ -164,6 +164,13 @@ const renderExecCommandCallWithOptionalContext: any = (
 	if (renderInfo.hidden) {
 		return new Text("", 0, 0);
 	}
+	const pathApplyPatchPlan = extractPathApplyPatchPreviewPlan(command, process.cwd());
+	if (pathApplyPatchPlan) {
+		const firstSegment = pathApplyPatchPlan.segments[0];
+		return firstSegment?.kind === "command"
+			? new Text(renderExecCommandCall(firstSegment.command, renderInfo.status, theme), 0, 0)
+			: new Text("", 0, 0);
+	}
 	const text = renderInfo.actionGroups
 		? renderGroupedExecCommandCall(renderInfo.actionGroups, renderInfo.status, theme)
 		: renderExecCommandCall(command, renderInfo.status, theme);
@@ -173,7 +180,7 @@ const renderExecCommandCallWithOptionalContext: any = (
 const renderExecCommandResultWithOptionalContext: any = (
 	result: { content: Array<{ type: string; text?: string | undefined }>; details?: unknown | undefined },
 	_options: { expanded: boolean; isPartial: boolean },
-	theme: { fg(role: string, text: string): string },
+	theme: { fg(role: string, text: string): string; bold(text: string): string },
 	context: ExecCommandRenderContextLike | undefined,
 	tracker: ExecCommandTracker,
 	options: ExecCommandToolOptions = {},
@@ -185,17 +192,29 @@ const renderExecCommandResultWithOptionalContext: any = (
 
 	const details = isUnifiedExecResult(result.details) ? result.details : undefined;
 	if (!_options.expanded) {
-		const pathApplyPatchPreview = renderPathApplyPatchPreviewFromState(context?.toolCallId, false);
-		if (pathApplyPatchPreview && details?.exit_code !== undefined && details.exit_code !== 0) {
+		const pathApplyPatchState = getPathApplyPatchRenderState(context?.toolCallId);
+		if (pathApplyPatchState && details?.exit_code !== undefined && details.exit_code !== 0) {
 			return renderCollapsedExecOutputPreview(details, theme);
 		}
-		if (pathApplyPatchPreview) return new Text(pathApplyPatchPreview, 0, 0);
+		if (pathApplyPatchState) {
+			const visibleSegments = pathApplyPatchState.segments[0]?.kind === "command"
+				? pathApplyPatchState.segments.slice(1)
+				: pathApplyPatchState.segments;
+			const text = visibleSegments.map((segment) => segment.kind === "patch"
+				? segment.collapsed
+				: renderExecCommandCall(segment.command, "done", theme)).filter(Boolean).join("\n");
+			return text ? new Text(text, 0, 0) : createEmptyResultComponent();
+		}
 		return options.showOutputWhenCollapsed && details ? renderCollapsedExecOutputPreview(details, theme) : createEmptyResultComponent();
 	}
 
 	const content = result.content.find((item) => item.type === "text");
 	const output = details?.output ?? (content?.type === "text" ? content.text : "");
 	let text = theme.fg("dim", output || "(no output)");
+	const pathApplyPatchPreview = renderPathApplyPatchPreviewFromState(context?.toolCallId, true);
+	if (pathApplyPatchPreview && (details?.exit_code === undefined || details.exit_code === 0)) {
+		text = `${pathApplyPatchPreview}\n${text}`;
+	}
 	if (details?.session_id !== undefined) {
 		text += `\n${theme.fg("accent", `Session ${details.session_id} still running`)}`;
 	}
@@ -253,7 +272,7 @@ export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTr
 			renderResult: ((
 			result: { content: Array<{ type: string; text?: string | undefined }>; details?: unknown | undefined },
 			renderOptions: { expanded: boolean; isPartial: boolean },
-			theme: { fg(role: string, text: string): string },
+			theme: { fg(role: string, text: string): string; bold(text: string): string },
 			context?: ExecCommandRenderContextLike,
 		) => renderExecCommandResultWithOptionalContext(result, renderOptions, theme, context, tracker, options)) as any,
 		}),

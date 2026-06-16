@@ -101,6 +101,11 @@ PATCH`;
 	let tool:
 		| {
 				execute?: (...args: any[]) => Promise<{ content: Array<{ type: string; text?: string }>; details?: unknown }>;
+				renderCall?: (
+					args: { cmd?: unknown },
+					theme: ReturnType<typeof createTheme>,
+					context?: { toolCallId?: string },
+				) => { render(width: number): string[] };
 				renderResult?: (
 					result: { content: Array<{ type: string; text?: string }>; details?: unknown },
 					options: { expanded: boolean; isPartial: boolean },
@@ -133,6 +138,184 @@ PATCH`;
 		assert.match(rendered, /-old/);
 		assert.match(rendered, /\+new/);
 		assert.doesNotMatch(rendered, /Success\. Updated/);
+	} finally {
+		await rm(cwd, { recursive: true, force: true });
+	}
+});
+
+test("exec_command orders PATH apply_patch preview before following shell commands", async () => {
+	const cwd = mkdtempSync(join(tmpdir(), "path-apply-patch-order-"));
+	writeFileSync(join(cwd, "notes.md"), "old\n", "utf8");
+	const command = `apply_patch <<'PATCH'
+*** Begin Patch
+*** Update File: notes.md
+@@
+-old
++new
+*** End Patch
+PATCH
+python3 -m json.tool config.json`;
+	let tool:
+		| {
+				execute?: (...args: any[]) => Promise<{ content: Array<{ type: string; text?: string }>; details?: unknown }>;
+				renderCall?: (
+					args: { cmd?: unknown },
+					theme: ReturnType<typeof createTheme>,
+					context?: { toolCallId?: string },
+				) => { render(width: number): string[] };
+				renderResult?: (
+					result: { content: Array<{ type: string; text?: string }>; details?: unknown },
+					options: { expanded: boolean; isPartial: boolean },
+					theme: ReturnType<typeof createTheme>,
+					context?: { toolCallId?: string; args?: { cmd?: string } },
+				) => { render(width: number): string[] };
+		  }
+		| undefined;
+	const sessions = {
+		async exec() {
+			return { chunk_id: "chunk", wall_time_seconds: 0.1, exit_code: 0, output: "Success. Updated the following files:\nM notes.md\n" };
+		},
+	} as never;
+	const pi = { registerTool(definition: typeof tool) { tool = definition; } } as unknown as ExtensionAPI;
+	registerExecCommandTool(pi, createExecCommandTracker(), sessions, { showOutputWhenCollapsed: false });
+
+	try {
+		assert.ok(tool?.execute);
+		const result = await tool.execute("path-patch-order", { cmd: command }, undefined, undefined, { cwd, model: {} });
+		const callText = renderComponentText(tool.renderCall?.({ cmd: command }, createTheme(), { toolCallId: "path-patch-order" }));
+		const resultText = renderComponentText(
+			tool.renderResult?.(result, { expanded: false, isPartial: false }, createTheme(), {
+				toolCallId: "path-patch-order",
+				args: { cmd: command },
+			}),
+		);
+
+		assert.equal(callText, "");
+		assert.doesNotMatch(resultText, /Begin Patch/);
+		assert.ok(resultText.indexOf("• Edited notes.md") < resultText.indexOf("• Ran"));
+		assert.match(resultText, /python3 -m json\.tool config\.json/);
+	} finally {
+		await rm(cwd, { recursive: true, force: true });
+	}
+});
+
+test("exec_command keeps commands before PATH apply_patch in the call area", async () => {
+	const cwd = mkdtempSync(join(tmpdir(), "path-apply-patch-before-"));
+	writeFileSync(join(cwd, "notes.md"), "old\n", "utf8");
+	const command = `echo before
+apply_patch <<'PATCH'
+*** Begin Patch
+*** Update File: notes.md
+@@
+-old
++new
+*** End Patch
+PATCH`;
+	let tool:
+		| {
+				execute?: (...args: any[]) => Promise<{ content: Array<{ type: string; text?: string }>; details?: unknown }>;
+				renderCall?: (
+					args: { cmd?: unknown },
+					theme: ReturnType<typeof createTheme>,
+					context?: { toolCallId?: string },
+				) => { render(width: number): string[] };
+				renderResult?: (
+					result: { content: Array<{ type: string; text?: string }>; details?: unknown },
+					options: { expanded: boolean; isPartial: boolean },
+					theme: ReturnType<typeof createTheme>,
+					context?: { toolCallId?: string; args?: { cmd?: string } },
+				) => { render(width: number): string[] };
+		  }
+		| undefined;
+	const sessions = {
+		async exec() {
+			return { chunk_id: "chunk", wall_time_seconds: 0.1, exit_code: 0, output: "before\nSuccess. Updated the following files:\nM notes.md\n" };
+		},
+	} as never;
+	const pi = { registerTool(definition: typeof tool) { tool = definition; } } as unknown as ExtensionAPI;
+	registerExecCommandTool(pi, createExecCommandTracker(), sessions, { showOutputWhenCollapsed: false });
+
+	try {
+		assert.ok(tool?.execute);
+		const result = await tool.execute("path-patch-before", { cmd: command }, undefined, undefined, { cwd, model: {} });
+		const callText = renderComponentText(tool.renderCall?.({ cmd: command }, createTheme(), { toolCallId: "path-patch-before" }));
+		const resultText = renderComponentText(
+			tool.renderResult?.(result, { expanded: false, isPartial: false }, createTheme(), {
+				toolCallId: "path-patch-before",
+				args: { cmd: command },
+			}),
+		);
+
+		assert.match(callText, /• Ran/);
+		assert.match(callText, /echo before/);
+		assert.doesNotMatch(callText, /Begin Patch/);
+		assert.match(resultText, /^• Edited notes\.md \(\+1 -1\)/);
+	} finally {
+		await rm(cwd, { recursive: true, force: true });
+	}
+});
+
+test("exec_command renders multiple PATH apply_patch heredocs without duplicated patch commands", async () => {
+	const cwd = mkdtempSync(join(tmpdir(), "path-apply-patch-multiple-"));
+	writeFileSync(join(cwd, "first.md"), "old first\n", "utf8");
+	writeFileSync(join(cwd, "second.md"), "old second\n", "utf8");
+	const command = `apply_patch <<'PATCH1'
+*** Begin Patch
+*** Update File: first.md
+@@
+-old first
++new first
+*** End Patch
+PATCH1
+echo between
+apply_patch <<'PATCH2'
+*** Begin Patch
+*** Update File: second.md
+@@
+-old second
++new second
+*** End Patch
+PATCH2`;
+	let tool:
+		| {
+				execute?: (...args: any[]) => Promise<{ content: Array<{ type: string; text?: string }>; details?: unknown }>;
+				renderCall?: (
+					args: { cmd?: unknown },
+					theme: ReturnType<typeof createTheme>,
+					context?: { toolCallId?: string },
+				) => { render(width: number): string[] };
+				renderResult?: (
+					result: { content: Array<{ type: string; text?: string }>; details?: unknown },
+					options: { expanded: boolean; isPartial: boolean },
+					theme: ReturnType<typeof createTheme>,
+					context?: { toolCallId?: string; args?: { cmd?: string } },
+				) => { render(width: number): string[] };
+		  }
+		| undefined;
+	const sessions = {
+		async exec() {
+			return { chunk_id: "chunk", wall_time_seconds: 0.1, exit_code: 0, output: "Success. Updated the following files:\nM first.md\nbetween\nSuccess. Updated the following files:\nM second.md\n" };
+		},
+	} as never;
+	const pi = { registerTool(definition: typeof tool) { tool = definition; } } as unknown as ExtensionAPI;
+	registerExecCommandTool(pi, createExecCommandTracker(), sessions, { showOutputWhenCollapsed: false });
+
+	try {
+		assert.ok(tool?.execute);
+		const result = await tool.execute("path-patch-multiple", { cmd: command }, undefined, undefined, { cwd, model: {} });
+		const callText = renderComponentText(tool.renderCall?.({ cmd: command }, createTheme(), { toolCallId: "path-patch-multiple" }));
+		const resultText = renderComponentText(
+			tool.renderResult?.(result, { expanded: false, isPartial: false }, createTheme(), {
+				toolCallId: "path-patch-multiple",
+				args: { cmd: command },
+			}),
+		);
+
+		assert.equal(callText, "");
+		assert.doesNotMatch(resultText, /Begin Patch/);
+		assert.equal(resultText.match(/• Edited/g)?.length, 2);
+		assert.ok(resultText.indexOf("first.md") < resultText.indexOf("echo between"));
+		assert.ok(resultText.indexOf("echo between") < resultText.indexOf("second.md"));
 	} finally {
 		await rm(cwd, { recursive: true, force: true });
 	}

@@ -1,45 +1,109 @@
 import { resolve } from "node:path";
 import { formatApplyPatchCollapsedDiff, renderApplyPatchCall } from "../apply-patch/rendering.ts";
 
-interface PathApplyPatchPreviewState {
-	cwd: string;
-	patchText: string;
-	collapsed: string;
-	expanded: string;
-}
-
 export interface PathApplyPatchPreviewInput {
 	cwd: string;
 	patchText: string;
+	beforeCommand?: string | undefined;
+	afterCommand?: string | undefined;
 }
 
-const pathApplyPatchPreviewStates = new Map<string, PathApplyPatchPreviewState>();
+export type PathApplyPatchRenderSegment =
+	| { kind: "command"; command: string }
+	| { kind: "patch"; cwd: string; patchText: string; collapsed: string; expanded: string };
+
+export interface PathApplyPatchRenderState {
+	segments: PathApplyPatchRenderSegment[];
+}
+
+export interface PathApplyPatchPreviewPlan {
+	segments: PathApplyPatchRenderSegment[];
+}
+
+const pathApplyPatchPreviewStates = new Map<string, PathApplyPatchRenderState>();
 
 export function clearPathApplyPatchPreviewStates(): void {
 	pathApplyPatchPreviewStates.clear();
 }
 
 export function setPathApplyPatchPreviewState(toolCallId: string, command: string, cwd: string): void {
-	const input = extractPathApplyPatchPreviewInput(command, cwd);
-	if (!input) return;
-	pathApplyPatchPreviewStates.set(toolCallId, {
-		cwd: input.cwd,
-		patchText: input.patchText,
-		collapsed: formatApplyPatchCollapsedDiff(input.patchText, input.cwd),
-		expanded: renderApplyPatchCall(input.patchText, input.cwd),
-	});
+	const plan = extractPathApplyPatchPreviewPlan(command, cwd);
+	if (!plan) return;
+	pathApplyPatchPreviewStates.set(toolCallId, { segments: plan.segments });
+}
+
+export function getPathApplyPatchRenderState(toolCallId: string | undefined): PathApplyPatchRenderState | undefined {
+	if (!toolCallId) return undefined;
+	return pathApplyPatchPreviewStates.get(toolCallId);
 }
 
 export function renderPathApplyPatchPreviewFromState(toolCallId: string | undefined, expanded: boolean): string | undefined {
-	if (!toolCallId) return undefined;
-	const state = pathApplyPatchPreviewStates.get(toolCallId);
+	const state = getPathApplyPatchRenderState(toolCallId);
 	if (!state) return undefined;
-	const text = expanded ? state.expanded : state.collapsed;
+	const text = state.segments
+		.filter((segment) => segment.kind === "patch")
+		.map((segment) => expanded ? segment.expanded : segment.collapsed)
+		.filter((value) => value.trim().length > 0)
+		.join("\n");
 	return text.trim().length > 0 ? text : undefined;
+}
+
+export function extractPathApplyPatchPreviewPlan(command: string, cwd: string): PathApplyPatchPreviewPlan | undefined {
+	return extractHeredocApplyPatchPlan(command, cwd) ?? extractArgumentApplyPatchPlan(command, cwd);
 }
 
 export function extractPathApplyPatchPreviewInput(command: string, cwd: string): PathApplyPatchPreviewInput | undefined {
 	return extractHeredocApplyPatchInput(command, cwd) ?? extractArgumentApplyPatchInput(command, cwd);
+}
+
+function extractHeredocApplyPatchPlan(command: string, cwd: string): PathApplyPatchPreviewPlan | undefined {
+	const lines = command.split(/\r?\n/);
+	const segments: PathApplyPatchRenderSegment[] = [];
+	let commandStartIndex = 0;
+	let foundPatch = false;
+
+	for (let index = 0; index < lines.length; index += 1) {
+		const parsed = parseApplyPatchHeredocLine(lines[index]!);
+		if (!parsed) continue;
+		const endIndex = findHeredocEnd(lines, index + 1, parsed.delimiter, parsed.stripLeadingTabs);
+		if (endIndex === -1) return undefined;
+		const commandBeforePatch = cleanCommand(lines.slice(commandStartIndex, index).join("\n"));
+		if (commandBeforePatch) segments.push({ kind: "command", command: commandBeforePatch });
+		const bodyLines = lines.slice(index + 1, endIndex);
+		const patchText = parsed.stripLeadingTabs
+			? bodyLines.map((line) => line.replace(/^\t+/, "")).join("\n")
+			: bodyLines.join("\n");
+		const patchCwd = parsed.cdPath ? resolve(cwd, parsed.cdPath) : cwd;
+		segments.push({
+			kind: "patch",
+			cwd: patchCwd,
+			patchText,
+			collapsed: formatApplyPatchCollapsedDiff(patchText, patchCwd),
+			expanded: renderApplyPatchCall(patchText, patchCwd),
+		});
+		foundPatch = true;
+		commandStartIndex = endIndex + 1;
+		index = endIndex;
+	}
+
+	if (!foundPatch) return undefined;
+	const remainingCommand = cleanCommand(lines.slice(commandStartIndex).join("\n"));
+	if (remainingCommand) segments.push({ kind: "command", command: remainingCommand });
+	return { segments };
+}
+
+function extractArgumentApplyPatchPlan(command: string, cwd: string): PathApplyPatchPreviewPlan | undefined {
+	const input = extractArgumentApplyPatchInput(command, cwd);
+	if (!input) return undefined;
+	return {
+		segments: [{
+			kind: "patch",
+			cwd: input.cwd,
+			patchText: input.patchText,
+			collapsed: formatApplyPatchCollapsedDiff(input.patchText, input.cwd),
+			expanded: renderApplyPatchCall(input.patchText, input.cwd),
+		}],
+	};
 }
 
 function extractHeredocApplyPatchInput(command: string, cwd: string): PathApplyPatchPreviewInput | undefined {
@@ -53,7 +117,12 @@ function extractHeredocApplyPatchInput(command: string, cwd: string): PathApplyP
 		const patchText = parsed.stripLeadingTabs
 			? bodyLines.map((line) => line.replace(/^\t+/, "")).join("\n")
 			: bodyLines.join("\n");
-		return { cwd: parsed.cdPath ? resolve(cwd, parsed.cdPath) : cwd, patchText };
+		return {
+			cwd: parsed.cdPath ? resolve(cwd, parsed.cdPath) : cwd,
+			patchText,
+			beforeCommand: cleanCommand(lines.slice(0, index).join("\n")),
+			afterCommand: cleanCommand(lines.slice(endIndex + 1).join("\n")),
+		};
 	}
 	return undefined;
 }
@@ -82,6 +151,11 @@ function extractArgumentApplyPatchInput(command: string, cwd: string): PathApply
 	const patchText = unquoteShellToken(match[2]!.trim());
 	if (!patchText.startsWith("*** Begin Patch")) return undefined;
 	return { cwd: cdPath ? resolve(cwd, cdPath) : cwd, patchText };
+}
+
+function cleanCommand(command: string): string | undefined {
+	const trimmed = command.trim();
+	return trimmed.length > 0 ? trimmed : undefined;
 }
 
 function unquoteShellToken(token: string): string {

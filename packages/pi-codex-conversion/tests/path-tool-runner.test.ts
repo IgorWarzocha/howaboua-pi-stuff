@@ -78,5 +78,7 @@ sed -n '1,20p' notes.md`, "/repo");
 	assert.deepEqual(extracted, {
 		cwd: "/repo/docs",
 		patchText: "*** Begin Patch\n*** Add File: notes.md\n+hello\n*** End Patch",
+		afterCommand: "sed -n '1,20p' notes.md",
+		beforeCommand: undefined,
 	});
 });
