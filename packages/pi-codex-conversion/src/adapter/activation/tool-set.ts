@@ -1,9 +1,20 @@
 export const STATUS_KEY = "codex-adapter";
-export const STATUS_TEXT = "\u001b[38;2;0;76;255mCodex adapter\u001b[0m";
+export const STATUS_TEXT = "Codex adapter";
 
-export const APPLY_PATCH_ONLY_STATUS_TEXT = `${STATUS_TEXT} • apply patch only`;
+interface StatusTheme {
+	fg(role: string, text: string): string;
+}
 
-export function buildStatusText(options: { mode?: "normal" | "path" | undefined; verbosity?: string | undefined; webSearch?: boolean | undefined; imageGeneration?: boolean | undefined; fast: boolean; useOnAllModels: boolean; additionalProvider?: boolean | undefined; compaction?: { enabled: boolean; model: string; reasoning: string } | undefined }): string {
+function formatStatusText(suffix: string, theme?: StatusTheme | undefined): string {
+	if (!theme) return `${STATUS_TEXT}${suffix}`;
+	return `${theme.fg("accent", STATUS_TEXT)}${suffix ? theme.fg("dim", suffix) : ""}`;
+}
+
+export function buildApplyPatchOnlyStatusText(theme?: StatusTheme | undefined): string {
+	return formatStatusText(" • apply patch only", theme);
+}
+
+export function buildStatusText(options: { mode?: "normal" | "path" | undefined; verbosity?: string | undefined; webSearch?: boolean | undefined; imageGeneration?: boolean | undefined; fast: boolean; useOnAllModels: boolean; additionalProvider?: boolean | undefined; compaction?: { enabled: boolean; model: string; reasoning: string } | undefined }, theme?: StatusTheme | undefined): string {
 	const extras = [
 		options.mode === "path" ? "PATH mode" : undefined,
 		options.useOnAllModels ? "all models" : undefined,
@@ -16,7 +27,7 @@ export function buildStatusText(options: { mode?: "normal" | "path" | undefined;
 		.filter(Boolean)
 		.join(" • ");
 	const verbosity = options.verbosity === "medium" ? "mid" : options.verbosity === "high" ? "hi" : options.verbosity;
-	return `${STATUS_TEXT}${verbosity ? ` V: ${verbosity}` : ""}${extras ? ` • ${extras}` : ""}`;
+	return formatStatusText(`${verbosity ? ` V: ${verbosity}` : ""}${extras ? ` • ${extras}` : ""}`, theme);
 }
 
 export const DEFAULT_TOOL_NAMES = ["read", "bash", "edit", "write"];

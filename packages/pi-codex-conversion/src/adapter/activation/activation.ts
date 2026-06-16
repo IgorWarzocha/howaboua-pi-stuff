@@ -3,7 +3,6 @@ import { isCodexLikeContext, isOpenAICodexContext, isResponsesContext } from "..
 import type { CodexConversionConfig } from "./config.ts";
 import type { AdapterState } from "./state.ts";
 import {
-	APPLY_PATCH_ONLY_STATUS_TEXT,
 	APPLY_PATCH_TOOL_NAME,
 	CORE_ADAPTER_TOOL_NAMES,
 	DEFAULT_TOOL_NAMES,
@@ -13,6 +12,7 @@ import {
 	SHELL_ADAPTER_TOOL_NAMES,
 	VIEW_IMAGE_TOOL_NAME,
 	WEB_SEARCH_TOOL_NAME,
+	buildApplyPatchOnlyStatusText,
 	buildStatusText,
 } from "./tool-set.ts";
 import { supportsNativeImageGeneration } from "../../tools/imagegen/tool.ts";
@@ -110,7 +110,7 @@ function setStatus(ctx: ExtensionContext, enabled: boolean, config: CodexConvers
 		return;
 	}
 	const statusConfig = getStatusConfig(ctx, config);
-	ctx.ui.setStatus(STATUS_KEY, enabled ? buildStatusText(statusConfig) : undefined);
+	ctx.ui.setStatus(STATUS_KEY, enabled ? buildStatusText(statusConfig, ctx.ui.theme) : undefined);
 }
 
 function getStatusConfig(ctx: ExtensionContext, config: CodexConversionConfig): Parameters<typeof buildStatusText>[0] {
@@ -152,7 +152,7 @@ function getAdapterOwnedToolNames(config: CodexConversionConfig): string[] {
 
 function setApplyPatchOnlyStatus(ctx: ExtensionContext, config: CodexConversionConfig): void {
 	if (!ctx.hasUI) return;
-	ctx.ui.setStatus(STATUS_KEY, config.ui.statusLine ? APPLY_PATCH_ONLY_STATUS_TEXT : undefined);
+	ctx.ui.setStatus(STATUS_KEY, config.ui.statusLine ? buildApplyPatchOnlyStatusText(ctx.ui.theme) : undefined);
 }
 
 function mergeToolNames(...toolNameGroups: string[][]): string[] {

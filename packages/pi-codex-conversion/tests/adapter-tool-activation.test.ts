@@ -74,4 +74,3 @@ test("applyPatchOnly overlays only apply_patch without Codex toolkit rewrites", 
 
 	assert.deepEqual(pi.activeTools(), ["read", "bash", "edit", "write", "parallel", "apply_patch"]);
 });
-
