@@ -19,7 +19,4 @@ export interface AdapterState {
 	promptSkills: PromptSkill[];
 	config: CodexConversionConfig;
 	pendingPiCompactionNativeWindow?: PendingPiCompactionNativeWindow | undefined;
-	codexContextBudgetRawWindows?: Record<string, number> | undefined;
-	codexContextBudgetAdjustedWindows?: Record<string, number> | undefined;
-	codexContextBudgetReserveTokens?: number | undefined;
 }

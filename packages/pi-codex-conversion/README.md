@@ -126,7 +126,6 @@ That matters most for process control, PTYs, patch application, image handling, 
 - PATH mode prepends the package `bin` directory to exec session `PATH` so bundled Codex tools are available in shell commands.
 - `imagegen` waits up to five minutes in a foreground `exec_command` call before falling back to a resumable session.
 - The package includes bundled binaries and vendored Rust source for the PATH tools.
-- For OpenAI Codex subscription models, the extension adjusts Pi's registered model context windows so Pi's fixed reserve-token compaction heuristic trips at roughly Codex's native auto-compact budget: 90% of Pi's resolved model window.
 - If native compaction fails, the extension falls back to Pi's normal compaction flow. When an older native compacted window exists, it is included in that Pi fallback summarization request so OpenAI can still use the prior opaque context server-side.
 
 ## Command rendering examples

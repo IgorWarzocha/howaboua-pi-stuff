@@ -24,7 +24,6 @@ import { getCodexSkillPaths, hasNoSkillsFlag } from "./adapter/prompt/skills.ts"
 import type { AdapterState } from "./adapter/activation/state.ts";
 import { registerCodexCommand } from "./ui/settings/command.ts";
 import { WEB_SEARCH_TOOL_NAME } from "./adapter/activation/tool-set.ts";
-import { applyCodexContextBudgetToModel, readPiCompactionReserveTokens } from "./adapter/prompt/codex-context-budget.ts";
 import { BACKGROUND_BASH_WIDGET_ID, registerBackgroundBashWidgetShortcuts, renderBackgroundBashWidget, type BackgroundBashWidgetState } from "./ui/background-bash-widget.ts";
 import { CODEX_TOOL_CALL_PROVIDERS, convertResponsesMessages } from "./providers/openai-responses/shared.ts";
 import type { ResponseInput } from "openai/resources/responses/responses.js";
@@ -87,10 +86,6 @@ export default function codexConversion(pi: ExtensionAPI) {
 		if (config.tools.imageGeneration) {
 			registerImageGenerationTool(pi, { allowConfiguredProvider, ...customRenderingOptions(config), ...promptSnippetOptions(config) });
 		}
-	}
-
-	function ensureCodexContextBudgetModel(ctx: { model: Model<any> | undefined }): void {
-		applyCodexContextBudgetToModel(ctx.model, state);
 	}
 
 	registerOpenAICodexCustomProvider(pi, {
@@ -164,8 +159,6 @@ export default function codexConversion(pi: ExtensionAPI) {
 		state.cwd = ctx.cwd;
 		state.config = readCodexConversionConfig();
 		sessions.setBaseEnv(bundledPathToolsEnv());
-		state.codexContextBudgetReserveTokens = readPiCompactionReserveTokens(ctx.cwd);
-		ensureCodexContextBudgetModel(ctx);
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 		tracker.clear();
 		clearApplyPatchRenderState();
@@ -183,8 +176,6 @@ export default function codexConversion(pi: ExtensionAPI) {
 
 	pi.on("model_select", async (_event, ctx) => {
 		state.cwd = ctx.cwd;
-		state.codexContextBudgetReserveTokens = readPiCompactionReserveTokens(ctx.cwd);
-		ensureCodexContextBudgetModel(ctx);
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 		ensureOptionalNativeToolsRegistered();
 		syncAdapter(pi, ctx, state);

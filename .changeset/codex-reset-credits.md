@@ -11,3 +11,5 @@ Show collapsed shell output previews and capped patch diffs, including PATH-mode
 Surface captured `exec_bridge` startup stderr in `exec_command` failures.
 
 Document building bundled Codex tools from a Git checkout for older Linux compatibility.
+
+Update Pi development dependencies to 0.79.4, match Pi's Codex SSE timeout, and stop shrinking Codex model context windows.
