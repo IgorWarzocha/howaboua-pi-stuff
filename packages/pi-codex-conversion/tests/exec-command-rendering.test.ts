@@ -320,3 +320,31 @@ PATCH2`;
 		await rm(cwd, { recursive: true, force: true });
 	}
 });
+
+test("exec_command renders known PATH tool calls without raw JSON", () => {
+	const cases = [
+		{ cmd: `view_image '{"path":"/tmp/image.png"}'`, title: "Viewed Image", detail: "/tmp/image.png" },
+		{ cmd: `web_run '{"search_query":[{"q":"pi agent docs"}]}'`, title: "Searched the web", detail: "pi agent docs" },
+		{ cmd: `imagegen '{"prompt":"a small brass robot"}'`, title: "Generated Image:", detail: "a small brass robot" },
+		{ cmd: `imagegen <<'JSON'\n{"action":"edit","prompt":"make it rainy","images":["/tmp/a.png"]}\nJSON`, title: "Edited Image:", detail: "make it rainy" },
+	];
+	for (const item of cases) {
+		let tool:
+			| {
+					renderCall?: (
+						args: { cmd?: unknown },
+						theme: ReturnType<typeof createTheme>,
+						context?: { toolCallId?: string },
+					) => { render(width: number): string[] };
+			  }
+			| undefined;
+		const pi = { registerTool(definition: typeof tool) { tool = definition; } } as unknown as ExtensionAPI;
+		registerExecCommandTool(pi, createExecCommandTracker(), {} as never, { showOutputWhenCollapsed: false });
+		const rendered = renderComponentText(tool?.renderCall?.({ cmd: item.cmd }, createTheme(), { toolCallId: item.title }));
+
+		assert.match(rendered, new RegExp(item.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+		assert.match(rendered, new RegExp(item.detail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+		assert.doesNotMatch(rendered, /\{"/);
+		assert.doesNotMatch(rendered, /JSON/);
+	}
+});

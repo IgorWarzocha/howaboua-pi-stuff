@@ -9,6 +9,7 @@ import { formatUnifiedExecResult } from "./format.ts";
 import { convertPathToolExecResult, getCodexBackedPathToolNames, getPathToolPolicy } from "../path/outputs.ts";
 import { renderTextWithImages } from "../path/rendering.ts";
 import { extractPathApplyPatchPreviewPlan, getPathApplyPatchRenderState, renderPathApplyPatchPreviewFromState, setPathApplyPatchPreviewState } from "../path/apply-patch-preview.ts";
+import { renderPathToolCommandCall } from "../path/render-call.ts";
 import { webRunSessionStatePath } from "../web-run/tool.ts";
 import { codexToolProviderEnv, resolveCodexToolProvider } from "../../adapter/codex-tool-provider.ts";
 export { imageContentFromCodexViewImageOutput, imageContentsFromCodexViewImageOutput } from "../path/outputs.ts";
@@ -171,6 +172,8 @@ const renderExecCommandCallWithOptionalContext: any = (
 			? new Text(renderExecCommandCall(firstSegment.command, renderInfo.status, theme), 0, 0)
 			: new Text("", 0, 0);
 	}
+	const pathToolCall = renderPathToolCommandCall(command, theme);
+	if (pathToolCall) return new Text(pathToolCall, 0, 0);
 	const text = renderInfo.actionGroups
 		? renderGroupedExecCommandCall(renderInfo.actionGroups, renderInfo.status, theme)
 		: renderExecCommandCall(command, renderInfo.status, theme);
