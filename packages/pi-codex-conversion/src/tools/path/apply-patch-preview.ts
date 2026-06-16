@@ -14,6 +14,7 @@ export type PathApplyPatchRenderSegment =
 
 export interface PathApplyPatchRenderState {
 	segments: PathApplyPatchRenderSegment[];
+	exitCode?: number | undefined;
 }
 
 export interface PathApplyPatchPreviewPlan {
@@ -35,6 +36,12 @@ export function setPathApplyPatchPreviewState(toolCallId: string, command: strin
 export function getPathApplyPatchRenderState(toolCallId: string | undefined): PathApplyPatchRenderState | undefined {
 	if (!toolCallId) return undefined;
 	return pathApplyPatchPreviewStates.get(toolCallId);
+}
+
+export function markPathApplyPatchPreviewExit(toolCallId: string, exitCode: number | undefined): void {
+	const state = pathApplyPatchPreviewStates.get(toolCallId);
+	if (!state) return;
+	state.exitCode = exitCode;
 }
 
 export function renderPathApplyPatchPreviewFromState(toolCallId: string | undefined, expanded: boolean): string | undefined {

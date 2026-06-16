@@ -1,5 +1,7 @@
 import { basename } from "node:path";
-import { shellSplit, splitOnConnectors } from "../../shell/tokenize.ts";
+import { joinCommandTokens, shellSplit } from "../../shell/tokenize.ts";
+import { renderExecCommandCall } from "../../ui/tool-rendering/codex-rendering.ts";
+import type { ExecCommandStatus } from "../exec/command-state.ts";
 
 interface RenderTheme {
 	fg(role: string, text: string): string;
@@ -8,41 +10,82 @@ interface RenderTheme {
 
 type PathToolName = "view_image" | "web_run" | "imagegen";
 
-export function renderPathToolCommandCall(command: string, theme: RenderTheme): string | undefined {
-	const parsed = parsePathToolJsonCall(command);
-	if (!parsed) return undefined;
-	if (parsed.toolName === "view_image") {
-		return renderPathToolCell("Viewed Image", firstString(parsed.params, "path") ?? firstString(parsed.params, "file_path") ?? firstString(parsed.params, "image_path"), theme);
-	}
-	if (parsed.toolName === "web_run") {
-		const detail = webRunCallDetail(parsed.params);
-		return renderPathToolCell(webRunCallTitle(parsed.params), detail, theme);
-	}
-	const action = firstString(parsed.params, "action");
-	return renderPathToolCell(action === "edit" ? "Edited Image:" : "Generated Image:", firstString(parsed.params, "prompt"), theme);
+type PathToolRenderSegment =
+	| { kind: "command"; command: string }
+	| { kind: "tool"; toolName: PathToolName; params: Record<string, unknown>; shellSuffix?: string | undefined };
+
+export function renderPathToolCommandCall(command: string, theme: RenderTheme, status: ExecCommandStatus = "done"): string | undefined {
+	const segments = parsePathToolRenderSegments(command);
+	if (!segments) return undefined;
+	const text = segments.map((segment) => renderPathToolSegment(segment, theme, status)).filter(Boolean).join("\n");
+	return text.trim().length > 0 ? text : undefined;
 }
 
-function renderPathToolCell(title: string, detail: string | undefined, theme: RenderTheme): string {
+function renderPathToolSegment(segment: PathToolRenderSegment, theme: RenderTheme, status: ExecCommandStatus): string {
+	if (segment.kind === "command") return renderExecCommandCall(segment.command, status, theme);
+	if (segment.toolName === "view_image") {
+		return renderPathToolCell("Viewed Image", firstString(segment.params, "path") ?? firstString(segment.params, "file_path") ?? firstString(segment.params, "image_path"), theme, segment.shellSuffix);
+	}
+	if (segment.toolName === "web_run") {
+		const detail = webRunCallDetail(segment.params);
+		return renderPathToolCell(webRunCallTitle(segment.params), detail, theme, segment.shellSuffix);
+	}
+	const action = firstString(segment.params, "action");
+	return renderPathToolCell(action === "edit" ? "Edited Image:" : "Generated Image:", firstString(segment.params, "prompt"), theme, segment.shellSuffix);
+}
+
+function renderPathToolCell(title: string, detail: string | undefined, theme: RenderTheme, shellSuffix?: string | undefined): string {
 	let text = `${theme.fg("dim", "•")} ${theme.bold(title)}`;
 	if (detail?.trim()) {
 		text += `\n${theme.fg("dim", "  └ ")}${theme.fg("accent", detail.trim())}`;
 	}
+	if (shellSuffix?.trim()) {
+		text += `\n${theme.fg("dim", "  └ ")}${theme.fg("muted", `shell: ${shellSuffix.trim()}`)}`;
+	}
 	return text;
 }
 
-function parsePathToolJsonCall(command: string): { toolName: PathToolName; params: Record<string, unknown> } | undefined {
-	return parseHeredocPathToolJsonCall(command) ?? parseArgvPathToolJsonCall(command);
+function parsePathToolRenderSegments(command: string): PathToolRenderSegment[] | undefined {
+	return parseHeredocPathToolRenderSegments(command) ?? parseArgvPathToolRenderSegments(command);
 }
 
-function parseArgvPathToolJsonCall(command: string): { toolName: PathToolName; params: Record<string, unknown> } | undefined {
-	let parts: string[][];
+function parseArgvPathToolRenderSegments(command: string): PathToolRenderSegment[] | undefined {
+	let tokens: string[];
 	try {
-		parts = splitOnConnectors(shellSplit(command));
+		tokens = shellSplit(command);
 	} catch {
 		return undefined;
 	}
-	if (parts.length !== 1) return undefined;
-	const part = parts[0]!;
+
+	const segments: PathToolRenderSegment[] = [];
+	let current: string[] = [];
+	let found = false;
+
+	const flushPart = () => {
+		if (current.length === 0) return;
+		const segment = parseArgvPathToolPart(current);
+		if (segment) {
+			segments.push(segment);
+			found = true;
+		} else {
+			segments.push({ kind: "command", command: joinCommandTokens(current) });
+		}
+		current = [];
+	};
+
+	for (const token of tokens) {
+		if (isConnector(token)) {
+			flushPart();
+			continue;
+		}
+		current.push(token);
+	}
+	flushPart();
+
+	return found ? segments : undefined;
+}
+
+function parseArgvPathToolPart(part: string[]): PathToolRenderSegment | undefined {
 	const commandIndex = findPathToolCommandIndex(part);
 	if (commandIndex === -1) return undefined;
 	const toolName = pathToolNameFromToken(part[commandIndex]!);
@@ -50,24 +93,45 @@ function parseArgvPathToolJsonCall(command: string): { toolName: PathToolName; p
 	const arg = part[commandIndex + 1];
 	if (!arg) return undefined;
 	const params = parseJsonObject(arg);
-	return params ? { toolName, params } : undefined;
+	if (!params) return undefined;
+	const suffixTokens = part.slice(commandIndex + 2);
+	return {
+		kind: "tool",
+		toolName,
+		params,
+		...(suffixTokens.length > 0 ? { shellSuffix: joinCommandTokens(suffixTokens) } : {}),
+	};
 }
 
-function parseHeredocPathToolJsonCall(command: string): { toolName: PathToolName; params: Record<string, unknown> } | undefined {
+function parseHeredocPathToolRenderSegments(command: string): PathToolRenderSegment[] | undefined {
 	const lines = command.split(/\r?\n/);
+	const segments: PathToolRenderSegment[] = [];
+	let commandStartIndex = 0;
+	let found = false;
+
 	for (let index = 0; index < lines.length; index += 1) {
 		const parsed = parsePathToolHeredocLine(lines[index]!);
 		if (!parsed) continue;
 		const endIndex = findHeredocEnd(lines, index + 1, parsed.delimiter, parsed.stripLeadingTabs);
 		if (endIndex === -1) return undefined;
+		const commandBeforeTool = cleanCommand(lines.slice(commandStartIndex, index).join("\n"));
+		if (commandBeforeTool) segments.push({ kind: "command", command: commandBeforeTool });
 		const bodyLines = lines.slice(index + 1, endIndex);
 		const body = parsed.stripLeadingTabs
 			? bodyLines.map((line) => line.replace(/^\t+/, "")).join("\n")
 			: bodyLines.join("\n");
 		const params = parseJsonObject(body.trim());
-		return params ? { toolName: parsed.toolName, params } : undefined;
+		if (!params) return undefined;
+		segments.push({ kind: "tool", toolName: parsed.toolName, params });
+		found = true;
+		commandStartIndex = endIndex + 1;
+		index = endIndex;
 	}
-	return undefined;
+
+	if (!found) return undefined;
+	const remainingCommand = cleanCommand(lines.slice(commandStartIndex).join("\n"));
+	if (remainingCommand) segments.push({ kind: "command", command: remainingCommand });
+	return segments;
 }
 
 function parsePathToolHeredocLine(line: string): { toolName: PathToolName; delimiter: string; stripLeadingTabs: boolean } | undefined {
@@ -100,6 +164,10 @@ function isEnvAssignment(token: string): boolean {
 	return /^[A-Za-z_][A-Za-z0-9_]*=/.test(token);
 }
 
+function isConnector(token: string): boolean {
+	return token === "&&" || token === "||" || token === "|" || token === ";";
+}
+
 function pathToolNameFromToken(token: string): PathToolName | undefined {
 	const name = basename(token.replace(/\\/g, "/"));
 	return name === "view_image" || name === "web_run" || name === "imagegen" ? name : undefined;
@@ -112,6 +180,11 @@ function parseJsonObject(text: string): Record<string, unknown> | undefined {
 	} catch {
 		return undefined;
 	}
+}
+
+function cleanCommand(command: string): string | undefined {
+	const trimmed = command.trim();
+	return trimmed.length > 0 ? trimmed : undefined;
 }
 
 function firstString(value: unknown, key: string): string | undefined {

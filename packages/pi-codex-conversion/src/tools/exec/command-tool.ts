@@ -8,7 +8,7 @@ import type { ExecSessionManager, UnifiedExecResult } from "./session-manager.ts
 import { formatUnifiedExecResult } from "./format.ts";
 import { convertPathToolExecResult, getCodexBackedPathToolNames, getPathToolPolicy } from "../path/outputs.ts";
 import { renderTextWithImages } from "../path/rendering.ts";
-import { extractPathApplyPatchPreviewPlan, getPathApplyPatchRenderState, renderPathApplyPatchPreviewFromState, setPathApplyPatchPreviewState } from "../path/apply-patch-preview.ts";
+import { extractPathApplyPatchPreviewPlan, getPathApplyPatchRenderState, markPathApplyPatchPreviewExit, renderPathApplyPatchPreviewFromState, setPathApplyPatchPreviewState, type PathApplyPatchRenderSegment } from "../path/apply-patch-preview.ts";
 import { renderPathToolCommandCall } from "../path/render-call.ts";
 import { webRunSessionStatePath } from "../web-run/tool.ts";
 import { codexToolProviderEnv, resolveCodexToolProvider } from "../../adapter/codex-tool-provider.ts";
@@ -153,6 +153,18 @@ function renderCollapsedExecOutputPreview(result: UnifiedExecResult, theme: { fg
 	};
 }
 
+function renderPathApplyPatchSegments(
+	segments: PathApplyPatchRenderSegment[],
+	status: Parameters<typeof renderExecCommandCall>[1],
+	theme: { fg(role: string, text: string): string; bold(text: string): string },
+): string | undefined {
+	const text = segments
+		.map((segment) => segment.kind === "patch" ? segment.collapsed : renderExecCommandCall(segment.command, status, theme))
+		.filter((value) => value.trim().length > 0)
+		.join("\n");
+	return text.trim().length > 0 ? text : undefined;
+}
+
 const renderExecCommandCallWithOptionalContext: any = (
 	args: { cmd?: unknown | undefined },
 	theme: { fg(role: string, text: string): string; bold(text: string): string },
@@ -167,12 +179,14 @@ const renderExecCommandCallWithOptionalContext: any = (
 	}
 	const pathApplyPatchPlan = extractPathApplyPatchPreviewPlan(command, process.cwd());
 	if (pathApplyPatchPlan) {
-		const firstSegment = pathApplyPatchPlan.segments[0];
-		return firstSegment?.kind === "command"
-			? new Text(renderExecCommandCall(firstSegment.command, renderInfo.status, theme), 0, 0)
-			: new Text("", 0, 0);
+		const pathApplyPatchState = getPathApplyPatchRenderState(context?.toolCallId);
+		if (pathApplyPatchState?.exitCode !== undefined && pathApplyPatchState.exitCode !== 0) {
+			return new Text(renderExecCommandCall(command, renderInfo.status, theme), 0, 0);
+		}
+		const text = renderPathApplyPatchSegments(pathApplyPatchState?.segments ?? pathApplyPatchPlan.segments, renderInfo.status, theme);
+		return text ? new Text(text, 0, 0) : new Text(renderExecCommandCall(command, renderInfo.status, theme), 0, 0);
 	}
-	const pathToolCall = renderPathToolCommandCall(command, theme);
+	const pathToolCall = renderPathToolCommandCall(command, theme, renderInfo.status);
 	if (pathToolCall) return new Text(pathToolCall, 0, 0);
 	const text = renderInfo.actionGroups
 		? renderGroupedExecCommandCall(renderInfo.actionGroups, renderInfo.status, theme)
@@ -200,13 +214,7 @@ const renderExecCommandResultWithOptionalContext: any = (
 			return renderCollapsedExecOutputPreview(details, theme);
 		}
 		if (pathApplyPatchState) {
-			const visibleSegments = pathApplyPatchState.segments[0]?.kind === "command"
-				? pathApplyPatchState.segments.slice(1)
-				: pathApplyPatchState.segments;
-			const text = visibleSegments.map((segment) => segment.kind === "patch"
-				? segment.collapsed
-				: renderExecCommandCall(segment.command, "done", theme)).filter(Boolean).join("\n");
-			return text ? new Text(text, 0, 0) : createEmptyResultComponent();
+			return createEmptyResultComponent();
 		}
 		return options.showOutputWhenCollapsed && details ? renderCollapsedExecOutputPreview(details, theme) : createEmptyResultComponent();
 	}
@@ -259,6 +267,9 @@ export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTr
 				}
 				: codexBackedPathToolEnv ? { ...typedParams, env: codexBackedPathToolEnv } : typedParams;
 			const result = await sessions.exec(execParams, ctx.cwd, signal, pathToolPolicy?.suppressPartials ? undefined : onUpdate ? (partial) => onUpdate(toToolResult(partial)) : undefined);
+			if (pathToolPolicy?.parseApplyPatchOutput) {
+				markPathApplyPatchPreviewExit(toolCallId, result.exit_code);
+			}
 			if (result.session_id !== undefined) {
 				tracker.recordPersistentSession(toolCallId, result.session_id);
 			}
