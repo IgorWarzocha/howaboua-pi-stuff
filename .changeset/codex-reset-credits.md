@@ -9,3 +9,5 @@ Theme the Codex adapter status label with Pi's active accent color and dim the s
 Show collapsed shell output previews and capped patch diffs, including PATH-mode `apply_patch` previews and native-style PATH tool call labels inside `exec_command`.
 
 Surface captured `exec_bridge` startup stderr in `exec_command` failures.
+
+Document building bundled Codex tools from a Git checkout for older Linux compatibility.

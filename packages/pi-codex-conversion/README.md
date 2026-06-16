@@ -142,6 +142,15 @@ That matters most for process control, PTYs, patch application, image handling, 
 
 The Git checkout is mostly for development and mirrors the maintainer workflow. It uses committed binaries; rebuild local-platform binaries only after changing Rust source.
 
+Published installs include prebuilt native binaries. For best compatibility on older Linux systems, or if a bundled tool fails with a loader error such as `GLIBC_2.39 not found`, use a Git checkout and build the tools on that machine instead of upgrading glibc manually:
+
+```bash
+cd /path/to/howaboua-pi-stuff
+bun install
+cd packages/pi-codex-conversion
+bun run build:changed-path-tools --all
+```
+
 Run the current checkout without installing globally:
 
 ```bash
