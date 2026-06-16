@@ -28,6 +28,11 @@ interface ApplyPatchRenderContextLike {
 	argsComplete?: boolean | undefined;
 }
 
+interface ApplyPatchToolOptions {
+	promptSnippet?: boolean | undefined;
+	showDiffWhenCollapsed?: boolean | undefined;
+}
+
 function parseApplyPatchParams(params: unknown): { patchText: string } {
 	if (!params || typeof params !== "object" || !("input" in params) || typeof params.input !== "string") {
 		throw new Error("apply_patch requires a string 'input' parameter");
@@ -85,13 +90,14 @@ function describeFailedActions(error: ExecutePatchError, cwd: string): string[] 
 export type { ExecutePatchResult } from "../../patch/types.ts";
 export { clearApplyPatchRenderState };
 
-const renderApplyPatchCallWithOptionalContext: any = (
+const renderApplyPatchCallWithOptionalContext = (
 	args: { input?: unknown | undefined },
 	theme: { fg(role: string, text: string): string; bold(text: string): string },
 	context?: ApplyPatchRenderContextLike,
-) => new Text(renderApplyPatchCallFromState(args, theme, context), 0, 0);
+	options: ApplyPatchToolOptions = {},
+) => new Text(renderApplyPatchCallFromState(args, theme, { ...context, showCollapsedDiff: options.showDiffWhenCollapsed }), 0, 0);
 
-export function registerApplyPatchTool(pi: ExtensionAPI, options: { promptSnippet?: boolean | undefined } = {}): void {
+export function registerApplyPatchTool(pi: ExtensionAPI, options: ApplyPatchToolOptions = {}): void {
 	pi.registerTool({
 		name: "apply_patch",
 		label: "apply_patch",
@@ -149,7 +155,7 @@ export function registerApplyPatchTool(pi: ExtensionAPI, options: { promptSnippe
 
 			return { content: [{ type: "text", text: summary }], details: { status: "success", result } satisfies ApplyPatchSuccessDetails };
 		},
-		renderCall: renderApplyPatchCallWithOptionalContext,
+		renderCall: ((args: { input?: unknown | undefined }, theme: { fg(role: string, text: string): string; bold(text: string): string }, context?: ApplyPatchRenderContextLike) => renderApplyPatchCallWithOptionalContext(args, theme, context, options)) as any,
 		renderResult(result, { isPartial }, theme) {
 			if (isPartial) return new Text(`${theme.fg("dim", "•")} ${theme.bold("Patching")}`, 0, 0);
 			if (!isApplyPatchToolDetails(result.details)) return new Container();

@@ -1,12 +1,14 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { Container, Text } from "@earendil-works/pi-tui";
+import { keyHint, truncateToVisualLines } from "@earendil-works/pi-coding-agent";
+import { Container, Text, truncateToWidth } from "@earendil-works/pi-tui";
 import { renderExecCommandCall, renderGroupedExecCommandCall } from "../../ui/tool-rendering/codex-rendering.ts";
 import type { ExecCommandTracker } from "./command-state.ts";
 import type { ExecSessionManager, UnifiedExecResult } from "./session-manager.ts";
 import { formatUnifiedExecResult } from "./format.ts";
 import { convertPathToolExecResult, getCodexBackedPathToolNames, getPathToolPolicy } from "../path/outputs.ts";
 import { renderTextWithImages } from "../path/rendering.ts";
+import { renderPathApplyPatchPreviewFromState, setPathApplyPatchPreviewState } from "../path/apply-patch-preview.ts";
 import { webRunSessionStatePath } from "../web-run/tool.ts";
 import { codexToolProviderEnv, resolveCodexToolProvider } from "../../adapter/codex-tool-provider.ts";
 export { imageContentFromCodexViewImageOutput, imageContentsFromCodexViewImageOutput } from "../path/outputs.ts";
@@ -108,6 +110,48 @@ interface ExecCommandRenderContextLike {
 	invalidate?: () => void | undefined;
 }
 
+interface ExecCommandToolOptions {
+	customRendering?: boolean | undefined;
+	promptSnippet?: boolean | undefined;
+	showOutputWhenCollapsed?: boolean | undefined;
+}
+
+const COLLAPSED_OUTPUT_MAX_VISUAL_LINES = 5;
+
+function formatDuration(seconds: number): string {
+	return `${seconds.toFixed(1)}s`;
+}
+
+function expandHint(): string {
+	try {
+		return keyHint("app.tools.expand", "to expand");
+	} catch {
+		return "ctrl+o to expand";
+	}
+}
+
+function formatCollapsedOutput(result: UnifiedExecResult, theme: { fg(role: string, text: string): string }): string {
+	const lines = [result.output.trimEnd()];
+	if (result.session_id !== undefined) lines.push(theme.fg("accent", `Session ${result.session_id} still running`));
+	if (result.exit_code !== undefined && result.exit_code !== 0) lines.push(theme.fg("muted", `Exit code: ${result.exit_code}`));
+	if (lines.some((line) => line.length > 0)) lines.push(theme.fg("muted", `Took ${formatDuration(result.wall_time_seconds)}`));
+	return lines.filter((line) => line.length > 0).join("\n");
+}
+
+function renderCollapsedExecOutputPreview(result: UnifiedExecResult, theme: { fg(role: string, text: string): string }) {
+	return {
+		render(width: number): string[] {
+			const output = formatCollapsedOutput(result, theme);
+			if (!output) return [];
+			const preview = truncateToVisualLines(theme.fg("dim", output), COLLAPSED_OUTPUT_MAX_VISUAL_LINES, width, 4);
+			if (preview.skippedCount <= 0) return preview.visualLines;
+			const hint = `    ${theme.fg("muted", `... (${preview.skippedCount} earlier lines,`)} ${expandHint()}${theme.fg("muted", ")")}`;
+			return [truncateToWidth(hint, width, "..."), ...preview.visualLines];
+		},
+		invalidate(): void {},
+	};
+}
+
 const renderExecCommandCallWithOptionalContext: any = (
 	args: { cmd?: unknown | undefined },
 	theme: { fg(role: string, text: string): string; bold(text: string): string },
@@ -132,17 +176,23 @@ const renderExecCommandResultWithOptionalContext: any = (
 	theme: { fg(role: string, text: string): string },
 	context: ExecCommandRenderContextLike | undefined,
 	tracker: ExecCommandTracker,
+	options: ExecCommandToolOptions = {},
 ) => {
-	if (!_options.expanded) {
-		return createEmptyResultComponent();
-	}
-
 	const command = context && "args" in context && context.args && typeof (context as any).args.cmd === "string" ? (context as any).args.cmd : undefined;
 	if (tracker.getRenderInfo(context?.toolCallId, command ?? "").hidden) {
 		return createEmptyResultComponent();
 	}
 
 	const details = isUnifiedExecResult(result.details) ? result.details : undefined;
+	if (!_options.expanded) {
+		const pathApplyPatchPreview = renderPathApplyPatchPreviewFromState(context?.toolCallId, false);
+		if (pathApplyPatchPreview && details?.exit_code !== undefined && details.exit_code !== 0) {
+			return renderCollapsedExecOutputPreview(details, theme);
+		}
+		if (pathApplyPatchPreview) return new Text(pathApplyPatchPreview, 0, 0);
+		return options.showOutputWhenCollapsed && details ? renderCollapsedExecOutputPreview(details, theme) : createEmptyResultComponent();
+	}
+
 	const content = result.content.find((item) => item.type === "text");
 	const output = details?.output ?? (content?.type === "text" ? content.text : "");
 	let text = theme.fg("dim", output || "(no output)");
@@ -155,7 +205,7 @@ const renderExecCommandResultWithOptionalContext: any = (
 	return renderTextWithImages(text, result.content, theme, { paddingX: 4 });
 };
 
-export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTracker, sessions: ExecSessionManager, options: { customRendering?: boolean | undefined; promptSnippet?: boolean | undefined } = {}): void {
+export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTracker, sessions: ExecSessionManager, options: ExecCommandToolOptions = {}): void {
 	pi.registerTool({
 		name: "exec_command",
 		label: "exec_command",
@@ -173,6 +223,9 @@ export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTr
 				details: partial,
 			});
 			const pathToolPolicy = getPathToolPolicy(typedParams.cmd, ctx.model);
+			if (pathToolPolicy?.parseApplyPatchOutput) {
+				setPathApplyPatchPreviewState(toolCallId, typedParams.cmd, ctx.cwd);
+			}
 			const webRunStatePath = pathToolPolicy?.parseWebRunOutput ? webRunSessionStatePath(ctx) : undefined;
 			const codexBackedPathToolEnv = await resolveCodexBackedPathToolEnv(typedParams.cmd, ctx);
 			const execParams = pathToolPolicy
@@ -202,7 +255,7 @@ export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTr
 			renderOptions: { expanded: boolean; isPartial: boolean },
 			theme: { fg(role: string, text: string): string },
 			context?: ExecCommandRenderContextLike,
-		) => renderExecCommandResultWithOptionalContext(result, renderOptions, theme, context, tracker)) as any,
+		) => renderExecCommandResultWithOptionalContext(result, renderOptions, theme, context, tracker, options)) as any,
 		}),
 	});
 }

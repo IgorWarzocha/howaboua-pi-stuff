@@ -3,6 +3,7 @@ import type { Model } from "@earendil-works/pi-ai";
 import { Box, Text, truncateToWidth } from "@earendil-works/pi-tui";
 import { getDefaultCodexRuntimeShell } from "./adapter/prompt/runtime-shell.ts";
 import { clearApplyPatchRenderState, registerApplyPatchTool } from "./tools/apply-patch/tool.ts";
+import { clearPathApplyPatchPreviewStates } from "./tools/path/apply-patch-preview.ts";
 import { createExecCommandTracker } from "./tools/exec/command-state.ts";
 import { registerExecCommandTool } from "./tools/exec/command-tool.ts";
 import { createExecSessionManager } from "./tools/exec/session-manager.ts";
@@ -67,8 +68,8 @@ export default function codexConversion(pi: ExtensionAPI) {
 	}
 
 	function registerCoreTools(config = state.config): void {
-		registerApplyPatchTool(pi, promptSnippetOptions(config));
-		registerExecCommandTool(pi, tracker, sessions, { ...customRenderingOptions(config), ...promptSnippetOptions(config) });
+		registerApplyPatchTool(pi, { ...promptSnippetOptions(config), showDiffWhenCollapsed: config.mode === "normal" });
+		registerExecCommandTool(pi, tracker, sessions, { ...customRenderingOptions(config), ...promptSnippetOptions(config), showOutputWhenCollapsed: config.mode === "normal" });
 		registerWriteStdinTool(pi, sessions, promptSnippetOptions(config));
 		registerViewImageTool(pi, { ...customRenderingOptions(config), ...promptSnippetOptions(config) });
 	}
@@ -168,6 +169,7 @@ export default function codexConversion(pi: ExtensionAPI) {
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 		tracker.clear();
 		clearApplyPatchRenderState();
+		clearPathApplyPatchPreviewStates();
 		ensureOptionalNativeToolsRegistered();
 		renderBackgroundShellWidget(ctx);
 		syncAdapter(pi, ctx, state);

@@ -135,6 +135,66 @@ test("apply_patch renderCall shows partial failure inline after some hunks alrea
 	}
 });
 
+test("apply_patch can show a capped diff when global tool expansion is collapsed", () => {
+	const { pi, getTool } = createRegisteredTool();
+	registerApplyPatchTool(pi, { showDiffWhenCollapsed: true });
+	const theme = createTheme();
+	const patch = `*** Begin Patch
+*** Add File: created.txt
++one
++two
++three
++four
++five
++six
++seven
++eight
++nine
++ten
++eleven
++twelve
+*** End Patch`;
+
+	try {
+		const rendered = renderComponentText(
+			getTool().renderCall?.({ input: patch }, theme, { toolCallId: "call-show-diff", expanded: false }),
+		);
+
+		assert.match(rendered, /^• Added created\.txt \(\+12 -0\)/);
+		assert.match(rendered, /1 \+one/);
+		assert.match(rendered, /10 \+ten/);
+		assert.doesNotMatch(rendered, /11 \+eleven/);
+		assert.match(rendered, /\.\.\. \(2 more lines, .*to expand\)/);
+	} finally {
+		clearApplyPatchRenderState();
+	}
+});
+
+test("apply_patch collapsed diff does not duplicate multi-file summary rows", () => {
+	const { pi, getTool } = createRegisteredTool();
+	registerApplyPatchTool(pi, { showDiffWhenCollapsed: true });
+	const theme = createTheme();
+	const patch = `*** Begin Patch
+*** Add File: first.txt
++one
++two
+*** Add File: second.txt
++three
+*** End Patch`;
+
+	try {
+		const rendered = renderComponentText(
+			getTool().renderCall?.({ input: patch }, theme, { toolCallId: "call-multi-show-diff", expanded: false }),
+		);
+
+		assert.equal(rendered.match(/first\.txt/g)?.length, 1);
+		assert.equal(rendered.match(/second\.txt/g)?.length, 1);
+		assert.match(rendered, /1 \+one/);
+	} finally {
+		clearApplyPatchRenderState();
+	}
+});
+
 test("apply_patch move succeeds through the Rust shim", async () => {
 	const cwd = mkdtempSync(join(tmpdir(), "pi-codex-conversion-"));
 	const sourcePath = join(cwd, "source.txt");
