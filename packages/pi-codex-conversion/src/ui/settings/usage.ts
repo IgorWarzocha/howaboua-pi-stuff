@@ -29,9 +29,14 @@ export interface CodexUsageSnapshot {
 
 export interface CodexRateLimitResetCredit {
 	id?: string | undefined;
+	resetType?: string | undefined;
 	status?: string | undefined;
+	grantedAt?: string | undefined;
 	expiresAt?: string | undefined;
+	redeemStartedAt?: string | undefined;
+	redeemedAt?: string | undefined;
 	title?: string | undefined;
+	description?: string | undefined;
 }
 
 export interface CodexRateLimitResetCredits {
@@ -119,9 +124,14 @@ function parseResetCredit(value: unknown): CodexRateLimitResetCredit | undefined
 	if (!isRecord(value)) return undefined;
 	return {
 		id: stringValue(value["id"]!),
+		resetType: stringValue(value["reset_type"]!),
 		status: stringValue(value["status"]!),
+		grantedAt: stringValue(value["granted_at"]!),
 		expiresAt: stringValue(value["expires_at"]!),
+		redeemStartedAt: stringValue(value["redeem_started_at"]!),
+		redeemedAt: stringValue(value["redeemed_at"]!),
 		title: stringValue(value["title"]!),
+		description: stringValue(value["description"]!),
 	};
 }
 
@@ -207,11 +217,12 @@ export async function fetchCodexUsage(ctx: ExtensionContext): Promise<CodexUsage
 	const text = await response.text();
 	if (!response.ok) throw new Error(`Usage request failed (${response.status}): ${text || response.statusText}`);
 	const snapshot = parseCodexUsagePayload(JSON.parse(text));
-	if (!snapshot.resetCredits) {
+	if (!snapshot.resetCredits || snapshot.resetCredits.availableCount > 0) {
 		try {
-			snapshot.resetCredits = await fetchCodexRateLimitResetCreditsWithHeaders(headers, ctx.signal);
+			const detailedResetCredits = await fetchCodexRateLimitResetCreditsWithHeaders(headers, ctx.signal);
+			if (detailedResetCredits) snapshot.resetCredits = detailedResetCredits;
 		} catch {
-			// Reset-credit availability is additive; usage still renders if this endpoint fails.
+			// Detailed reset-credit metadata is additive; usage still renders if this endpoint fails.
 		}
 	}
 	return snapshot;

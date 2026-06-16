@@ -15,7 +15,7 @@ import {
 } from "../../adapter/activation/config.ts";
 import { editorCommand, openCodexConfigInExternalEditor } from "./config-editor.ts";
 import { CHANGELOG_URL, DISCORD_URL, GITHUB_URL, ISSUE_URL, openExternalUrl } from "./links.ts";
-import { consumeCodexRateLimitResetCredit, createCodexRateLimitResetRedeemRequestId, fetchCodexUsage, type CodexRateLimitResetConsumeResult, type CodexUsageSnapshot } from "./usage.ts";
+import { consumeCodexRateLimitResetCredit, createCodexRateLimitResetRedeemRequestId, fetchCodexUsage, type CodexRateLimitResetConsumeResult, type CodexRateLimitResetCredit, type CodexUsageSnapshot } from "./usage.ts";
 
 export interface CodexSettingsScreenOptions {
 	initialConfig: CodexConversionConfig;
@@ -339,8 +339,28 @@ function formatResetCreditLines(theme: Theme, usageState: CodexUsageSnapshot, re
 	const lines = [
 		`  Banked resets: ${theme.bold(count === undefined ? "unknown" : String(count))}${hint}${resetLoading ? theme.fg("dim", "  resetting…") : ""}`,
 	];
+	if (count && count > 0) lines.push(theme.fg("dim", `  Expires: ${formatResetCreditExpiries(usageState.resetCredits?.credits ?? [])}`));
 	if (resetMessage) lines.push(resetMessage.kind === "error" ? theme.fg("error", `  ${resetMessage.text}`) : theme.fg("accent", `  ${resetMessage.text}`));
 	return lines;
+}
+
+function formatResetCreditExpiries(credits: CodexRateLimitResetCredit[]): string {
+	const expiringCredits = credits
+		.map((credit) => ({ credit, expiresAtMs: credit.expiresAt ? Date.parse(credit.expiresAt) : Number.NaN }))
+		.filter((item) => Number.isFinite(item.expiresAtMs) && (!item.credit.status || item.credit.status === "available"))
+		.sort((left, right) => left.expiresAtMs - right.expiresAtMs);
+	if (expiringCredits.length === 0) return "unknown";
+	const shown = expiringCredits.slice(0, 3).map((item, index) => `#${index + 1} ${formatResetCreditExpiry(item.expiresAtMs)}`);
+	const hiddenCount = expiringCredits.length - shown.length;
+	return `${shown.join(" · ")}${hiddenCount > 0 ? ` · +${hiddenCount} more` : ""}`;
+}
+
+function formatResetCreditExpiry(expiresAtMs: number): string {
+	const minutes = Math.round((expiresAtMs - Date.now()) / 60000);
+	if (minutes <= 0) return "expired";
+	if (minutes < 90) return `in ~${minutes}m`;
+	if (minutes < 60 * 48) return `in ~${Math.round(minutes / 60)}h`;
+	return `in ~${Math.round(minutes / 1440)}d`;
 }
 
 function formatResetConsumeResult(result: CodexRateLimitResetConsumeResult): string {
