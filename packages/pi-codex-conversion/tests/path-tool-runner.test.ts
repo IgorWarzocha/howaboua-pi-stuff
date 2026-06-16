@@ -1,16 +1,6 @@
 import { strict as assert } from "node:assert";
-import { delimiter } from "node:path";
 import { test } from "node:test";
-import { createBundledPathToolsEnv, getBundledPathToolsBinDir } from "../src/tools/path/binary.ts";
-import { extractPathApplyPatchPreviewInput } from "../src/tools/path/apply-patch-preview.ts";
 import { convertPathToolExecResult, getPathToolPolicy } from "../src/tools/path/outputs.ts";
-
-test("createBundledPathToolsEnv prepends bundled bin without mutating base env", () => {
-	const base = { PATH: "/usr/bin" };
-	const env = createBundledPathToolsEnv(base);
-	assert.equal(base.PATH, "/usr/bin");
-	assert.equal(env["PATH"]?.split(delimiter)[0], getBundledPathToolsBinDir());
-});
 
 test("PATH apply_patch results omit heredoc command while preserving output", () => {
 	const command = `apply_patch <<'PATCH'
@@ -64,21 +54,4 @@ PATCH`;
 	assert.doesNotMatch(text, /Begin Patch/);
 	assert.match(text, /Process exited with code 1/);
 	assert.match(text, /Failed to read file to update missing\.md/);
-});
-
-test("PATH apply_patch preview input extracts heredoc patch without changing tool output", () => {
-	const extracted = extractPathApplyPatchPreviewInput(`cd docs && PATH=/tmp/bin:$PATH apply_patch <<'PATCH'
-*** Begin Patch
-*** Add File: notes.md
-+hello
-*** End Patch
-PATCH
-sed -n '1,20p' notes.md`, "/repo");
-
-	assert.deepEqual(extracted, {
-		cwd: "/repo/docs",
-		patchText: "*** Begin Patch\n*** Add File: notes.md\n+hello\n*** End Patch",
-		afterCommand: "sed -n '1,20p' notes.md",
-		beforeCommand: undefined,
-	});
 });

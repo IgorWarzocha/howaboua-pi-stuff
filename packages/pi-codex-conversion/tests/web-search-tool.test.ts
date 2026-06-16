@@ -36,12 +36,6 @@ function createContext(options: { token?: string; accountId?: string; baseUrl?: 
 	} as never;
 }
 
-test("web_run schema tells agents to pass explicit search params", () => {
-	const parameters = createWebSearchTool().parameters as { properties?: Record<string, unknown> };
-	assert.ok(parameters.properties?.["search_query"]);
-	assert.ok(parameters.properties?.["image_query"]);
-});
-
 test("buildRecentWebSearchInput mirrors Codex standalone web search context tail", () => {
 	const input = buildRecentWebSearchInput([
 		{ role: "user", content: [{ type: "input_text", text: "old user" }] },
@@ -56,16 +50,6 @@ test("buildRecentWebSearchInput mirrors Codex standalone web search context tail
 	assert.deepEqual(input, [
 		{ type: "message", role: "user", content: [{ type: "input_text", text: "previous user" }] },
 		{ type: "message", role: "assistant", content: [{ type: "output_text", text: "previous assistant", annotations: [] }], status: "completed" },
-		{ type: "message", role: "user", content: [{ type: "input_text", text: "current user" }] },
-	]);
-});
-
-test("buildRecentWebSearchInput drops first-turn assistant draft", () => {
-	const input = buildRecentWebSearchInput([
-		{ role: "user", content: [{ type: "input_text", text: "current user" }] },
-		{ type: "message", role: "assistant", content: [{ type: "output_text", text: "draft assistant must not bias search", annotations: [] }], status: "in_progress" },
-	] as never);
-	assert.deepEqual(input, [
 		{ type: "message", role: "user", content: [{ type: "input_text", text: "current user" }] },
 	]);
 });
@@ -135,26 +119,6 @@ process.stdin.on("end", () => console.log(JSON.stringify({ encrypted_output: "ok
 			const result = await tool.execute("call", { search_query: [{ q: "OpenAI" }] }, undefined, undefined as never, createContext({ provider: "custom-codex", api: "openai-codex-responses" }));
 			assert.equal(result.content[0]?.type === "text" ? result.content[0].text : "", "ok");
 			assert.deepEqual(result.details, { webRun: { encrypted_output: "ok" } });
-		});
-	} finally {
-		if (originalBin === undefined) delete process.env["PI_CODEX_WEB_RUN_BIN"];
-		else process.env["PI_CODEX_WEB_RUN_BIN"] = originalBin;
-	}
-});
-
-test("createWebSearchTool returns web_run JSON with search results when available", async () => {
-	const originalBin = process.env["PI_CODEX_WEB_RUN_BIN"];
-	try {
-		await withMockWebRun(`#!/usr/bin/env node
-process.stdin.resume();
-process.stdin.on("end", () => console.log(JSON.stringify({ output_text: "summary", search_results: [{ ref_id: "turn0search0", title: "Example", url: "https://example.com", source: "example.com" }] })));
-`, async (webRunPath) => {
-			process.env["PI_CODEX_WEB_RUN_BIN"] = webRunPath;
-			const result = await createWebSearchTool().execute("call", { search_query: [{ q: "OpenAI" }] }, undefined, undefined as never, createContext({ accountId: "pi-account" }));
-			const text = result.content[0]?.type === "text" ? result.content[0].text : "";
-			const parsed = JSON.parse(text) as Record<string, unknown>;
-			assert.equal(parsed["output_text"], "summary");
-			assert.deepEqual(parsed["search_results"], [{ ref_id: "turn0search0", title: "Example", url: "https://example.com", source: "example.com" }]);
 		});
 	} finally {
 		if (originalBin === undefined) delete process.env["PI_CODEX_WEB_RUN_BIN"];

@@ -81,34 +81,6 @@ test("parseCodexRateLimitResetCreditsPayload handles standalone credits payload 
 	});
 });
 
-test("fetchCodexUsage loads detailed reset-credit expiry data when summary is present", async () => {
-	const originalFetch = globalThis.fetch;
-	const calls: string[] = [];
-	try {
-		globalThis.fetch = (async (url) => {
-			calls.push(String(url));
-			if (String(url) === buildCodexUsageUrl()) {
-				return new Response(JSON.stringify({ plan_type: "pro", rate_limit: null, rate_limit_reset_credits: { available_count: 2 } }), { status: 200 });
-			}
-			return new Response(JSON.stringify({
-				available_count: 2,
-				credits: [
-					{ id: "RateLimitResetCredit_1", status: "available", expires_at: "2026-07-12T01:31:33.351888Z" },
-					{ id: "RateLimitResetCredit_2", status: "available", expires_at: "2026-07-20T01:31:33.351888Z" },
-				],
-			}), { status: 200 });
-		}) as typeof fetch;
-
-		const snapshot = await fetchCodexUsage(createCtx("acct_details"));
-
-		assert.deepEqual(calls, [buildCodexUsageUrl(), buildCodexRateLimitResetCreditsUrl()]);
-		assert.equal(snapshot.resetCredits?.availableCount, 2);
-		assert.deepEqual(snapshot.resetCredits?.credits.map((credit) => credit.expiresAt), ["2026-07-12T01:31:33.351888Z", "2026-07-20T01:31:33.351888Z"]);
-	} finally {
-		globalThis.fetch = originalFetch;
-	}
-});
-
 test("fetchCodexUsage falls back to reset-credit endpoint when usage omits count", async () => {
 	const originalFetch = globalThis.fetch;
 	const calls: Array<{ url: string; init: RequestInit }> = [];

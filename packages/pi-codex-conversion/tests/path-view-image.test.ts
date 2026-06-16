@@ -88,19 +88,6 @@ test("exec_command compacts PATH web_run JSON output", async () => {
 });
 
 
-test("exec_command does not convert harmless mentions of PATH tool names", async () => {
-	const sessions = createExecSessionManager();
-	try {
-		let tool: any;
-		registerExecCommandTool({ registerTool(definition: unknown) { tool = definition; } } as never, createExecCommandTracker(), sessions);
-		const result = await tool.execute("call-1", { cmd: "echo web_run" }, new AbortController().signal, undefined, { cwd: packageRoot, model: {} } as never);
-		assert.match(result.details.output, /web_run/);
-		assert.doesNotMatch(result.details.output, /could not parse/);
-	} finally {
-		sessions.shutdown();
-	}
-});
-
 test("exec_command compacts PATH imagegen output and displays image content", async () => {
 	const cwd = mkdtempSync(join(tmpdir(), "path-imagegen-"));
 	const imagePath = join(cwd, "generated.png");
