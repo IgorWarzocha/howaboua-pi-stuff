@@ -1,4 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { resolve } from "node:path";
 import { Type } from "typebox";
 import { keyHint, truncateToVisualLines } from "@earendil-works/pi-coding-agent";
 import { Container, Text, truncateToWidth } from "@earendil-works/pi-tui";
@@ -108,6 +109,8 @@ async function resolveCodexBackedPathToolEnv(command: string, ctx: ExtensionCont
 
 interface ExecCommandRenderContextLike {
 	toolCallId?: string | undefined;
+	cwd?: string | undefined;
+	args?: { workdir?: unknown; cwd?: unknown; working_directory?: unknown } | undefined;
 	invalidate?: () => void | undefined;
 }
 
@@ -121,6 +124,28 @@ const COLLAPSED_OUTPUT_MAX_VISUAL_LINES = 5;
 
 function formatDuration(seconds: number): string {
 	return `${seconds.toFixed(1)}s`;
+}
+
+function resolveExecCommandWorkdir(cwd: string, workdir: string | undefined): string {
+	return workdir ? resolve(cwd, workdir) : cwd;
+}
+
+function resolveRenderWorkdir(args: { workdir?: unknown; cwd?: unknown; working_directory?: unknown }, context: ExecCommandRenderContextLike | undefined): string {
+	const baseCwd = typeof context?.cwd === "string" && context.cwd ? context.cwd : process.cwd();
+	const workdir = typeof args.workdir === "string"
+		? args.workdir
+		: typeof args.cwd === "string"
+			? args.cwd
+			: typeof args.working_directory === "string"
+				? args.working_directory
+				: typeof context?.args?.workdir === "string"
+					? context.args.workdir
+					: typeof context?.args?.cwd === "string"
+						? context.args.cwd
+						: typeof context?.args?.working_directory === "string"
+							? context.args.working_directory
+							: undefined;
+	return resolveExecCommandWorkdir(baseCwd, workdir);
 }
 
 function expandHint(): string {
@@ -157,16 +182,19 @@ function renderPathApplyPatchSegments(
 	segments: PathApplyPatchRenderSegment[],
 	status: Parameters<typeof renderExecCommandCall>[1],
 	theme: { fg(role: string, text: string): string; bold(text: string): string },
+	options: { failed?: boolean | undefined } = {},
 ): string | undefined {
 	const text = segments
-		.map((segment) => segment.kind === "patch" ? segment.collapsed : renderExecCommandCall(segment.command, status, theme))
+		.map((segment) => segment.kind === "patch"
+			? options.failed ? renderExecCommandCall("apply_patch", status, theme) : segment.collapsed
+			: renderExecCommandCall(segment.command, status, theme))
 		.filter((value) => value.trim().length > 0)
 		.join("\n");
 	return text.trim().length > 0 ? text : undefined;
 }
 
 const renderExecCommandCallWithOptionalContext: any = (
-	args: { cmd?: unknown | undefined },
+	args: { cmd?: unknown | undefined; workdir?: unknown; cwd?: unknown; working_directory?: unknown },
 	theme: { fg(role: string, text: string): string; bold(text: string): string },
 	context: ExecCommandRenderContextLike | undefined,
 	tracker: ExecCommandTracker,
@@ -177,13 +205,11 @@ const renderExecCommandCallWithOptionalContext: any = (
 	if (renderInfo.hidden) {
 		return new Text("", 0, 0);
 	}
-	const pathApplyPatchPlan = extractPathApplyPatchPreviewPlan(command, process.cwd());
+	const pathApplyPatchPlan = extractPathApplyPatchPreviewPlan(command, resolveRenderWorkdir(args, context));
 	if (pathApplyPatchPlan) {
 		const pathApplyPatchState = getPathApplyPatchRenderState(context?.toolCallId);
-		if (pathApplyPatchState?.exitCode !== undefined && pathApplyPatchState.exitCode !== 0) {
-			return new Text(renderExecCommandCall(command, renderInfo.status, theme), 0, 0);
-		}
-		const text = renderPathApplyPatchSegments(pathApplyPatchState?.segments ?? pathApplyPatchPlan.segments, renderInfo.status, theme);
+		const failed = pathApplyPatchState?.exitCode !== undefined && pathApplyPatchState.exitCode !== 0;
+		const text = renderPathApplyPatchSegments(pathApplyPatchState?.segments ?? pathApplyPatchPlan.segments, renderInfo.status, theme, { failed });
 		return text ? new Text(text, 0, 0) : new Text(renderExecCommandCall(command, renderInfo.status, theme), 0, 0);
 	}
 	const pathToolCall = renderPathToolCommandCall(command, theme, renderInfo.status);
@@ -254,7 +280,7 @@ export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTr
 			});
 			const pathToolPolicy = getPathToolPolicy(typedParams.cmd, ctx.model);
 			if (pathToolPolicy?.parseApplyPatchOutput) {
-				setPathApplyPatchPreviewState(toolCallId, typedParams.cmd, ctx.cwd);
+				setPathApplyPatchPreviewState(toolCallId, typedParams.cmd, resolveExecCommandWorkdir(ctx.cwd, typedParams.workdir));
 			}
 			const webRunStatePath = pathToolPolicy?.parseWebRunOutput ? webRunSessionStatePath(ctx) : undefined;
 			const codexBackedPathToolEnv = await resolveCodexBackedPathToolEnv(typedParams.cmd, ctx);

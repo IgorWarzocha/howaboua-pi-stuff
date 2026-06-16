@@ -75,6 +75,7 @@ function extractHeredocApplyPatchPlan(command: string, cwd: string): PathApplyPa
 		const endIndex = findHeredocEnd(lines, index + 1, parsed.delimiter, parsed.stripLeadingTabs);
 		if (endIndex === -1) return undefined;
 		const commandBeforePatch = cleanCommand(lines.slice(commandStartIndex, index).join("\n"));
+		if (hasDanglingConnector(commandBeforePatch)) return undefined;
 		if (commandBeforePatch) segments.push({ kind: "command", command: commandBeforePatch });
 		const bodyLines = lines.slice(index + 1, endIndex);
 		const patchText = parsed.stripLeadingTabs
@@ -120,6 +121,8 @@ function extractHeredocApplyPatchInput(command: string, cwd: string): PathApplyP
 		if (!parsed) continue;
 		const endIndex = findHeredocEnd(lines, index + 1, parsed.delimiter, parsed.stripLeadingTabs);
 		if (endIndex === -1) return undefined;
+		const beforeCommand = cleanCommand(lines.slice(0, index).join("\n"));
+		if (hasDanglingConnector(beforeCommand)) return undefined;
 		const bodyLines = lines.slice(index + 1, endIndex);
 		const patchText = parsed.stripLeadingTabs
 			? bodyLines.map((line) => line.replace(/^\t+/, "")).join("\n")
@@ -127,7 +130,7 @@ function extractHeredocApplyPatchInput(command: string, cwd: string): PathApplyP
 		return {
 			cwd: parsed.cdPath ? resolve(cwd, parsed.cdPath) : cwd,
 			patchText,
-			beforeCommand: cleanCommand(lines.slice(0, index).join("\n")),
+			beforeCommand,
 			afterCommand: cleanCommand(lines.slice(endIndex + 1).join("\n")),
 		};
 	}
@@ -163,6 +166,10 @@ function extractArgumentApplyPatchInput(command: string, cwd: string): PathApply
 function cleanCommand(command: string): string | undefined {
 	const trimmed = command.trim();
 	return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function hasDanglingConnector(command: string | undefined): boolean {
+	return Boolean(command && /(?:&&|\|\||\|)\s*$/.test(command));
 }
 
 function unquoteShellToken(token: string): string {

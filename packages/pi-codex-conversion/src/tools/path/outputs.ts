@@ -27,9 +27,9 @@ export function getPathToolPolicy(command: string, model: Model<any> | undefined
 	if (getPathToolNamesFromParts(splitCommandParts(command), ["apply_patch", "view_image", "web_run", "imagegen"]).length > 1) return undefined;
 	const modelInput = model?.input;
 	const parseApplyPatchOutput = isPathApplyPatchCommand(command);
-	const parseImageOutput = isPathViewImageCommand(command) && (!Array.isArray(modelInput) || modelInput.includes("image"));
-	const parseWebRunOutput = isPathWebRunCommand(command);
-	const parseImagegenOutput = isPathImagegenCommand(command) && (!Array.isArray(modelInput) || modelInput.includes("image"));
+	const parseImageOutput = isSimplePathToolOutputCommand(command, "view_image") && (!Array.isArray(modelInput) || modelInput.includes("image"));
+	const parseWebRunOutput = isSimplePathToolOutputCommand(command, "web_run");
+	const parseImagegenOutput = isSimplePathToolOutputCommand(command, "imagegen") && (!Array.isArray(modelInput) || modelInput.includes("image"));
 	if (!parseApplyPatchOutput && !parseImageOutput && !parseWebRunOutput && !parseImagegenOutput) return undefined;
 	return { disableTruncation: true, suppressPartials: true, ...(parseWebRunOutput || parseImagegenOutput ? { yieldTimeMs: 300_000 } : {}), parseApplyPatchOutput, parseImageOutput, parseWebRunOutput, parseImagegenOutput };
 }
@@ -47,8 +47,7 @@ export function convertPathToolExecResult(command: string, result: UnifiedExecRe
 			const details = sanitizeExecResult(result, "<image output>");
 			return { content: [{ type: "text", text: formatUnifiedExecResult(details, command) }, ...imageContents], details };
 		}
-		const details = sanitizeExecResult(result, "view_image returned image-like output, but Pi could not convert it to structured image content. Raw output hidden.");
-		return { content: [{ type: "text", text: formatUnifiedExecResult(details, command) }], details };
+		return undefined;
 	}
 	if (policy.parseWebRunOutput) {
 		const parsed = pathWebRunOutputFromJson(result.output);
@@ -56,8 +55,7 @@ export function convertPathToolExecResult(command: string, result: UnifiedExecRe
 			const details = sanitizeExecResult(result, formatPathWebRunOutput(parsed), { webRun: parsed });
 			return { content: [{ type: "text", text: formatUnifiedExecResult(details, command) }], details };
 		}
-		const details = sanitizeExecResult(result, "web_run returned output, but Pi could not parse it. Raw output hidden.");
-		return { content: [{ type: "text", text: formatUnifiedExecResult(details, command) }], details };
+		return undefined;
 	}
 	if (policy.parseImagegenOutput) {
 		const parsed = pathImagegenOutputFromJson(result.output);
@@ -66,8 +64,7 @@ export function convertPathToolExecResult(command: string, result: UnifiedExecRe
 			const details = sanitizeExecResult(result, formatPathImagegenOutput(parsed), { imagegen: parsed });
 			return { content: [{ type: "text", text: formatUnifiedExecResult(details, command) }, ...imageContents], details };
 		}
-		const details = sanitizeExecResult(result, "imagegen returned output, but Pi could not parse it. Raw output hidden.");
-		return { content: [{ type: "text", text: formatUnifiedExecResult(details, command) }], details };
+		return undefined;
 	}
 	return undefined;
 }
@@ -99,10 +96,6 @@ function imageContentFromCodexViewImageJson(json: string): PathViewImageContent 
 	return { type: "image", mimeType: match[1]!, data: match[2]!, detail };
 }
 
-function isPathViewImageCommand(command: string): boolean {
-	return hasPathToolCommand(command, "view_image");
-}
-
 function isPathApplyPatchCommand(command: string): boolean {
 	return hasPathToolCommand(command, "apply_patch");
 }
@@ -113,6 +106,62 @@ function isPathWebRunCommand(command: string): boolean {
 
 function isPathImagegenCommand(command: string): boolean {
 	return hasPathToolCommand(command, "imagegen");
+}
+
+function isSimplePathToolOutputCommand(command: string, toolName: "view_image" | "web_run" | "imagegen"): boolean {
+	let tokens: string[];
+	try {
+		tokens = shellSplit(command);
+	} catch {
+		return false;
+	}
+	if (tokens.some((token) => token === "|" || token === "||")) return false;
+
+	let found = 0;
+	for (const part of splitOnConnectors(tokens).filter((item) => item.length > 0)) {
+		const commandIndex = findPathToolCommandIndex(part, toolName);
+		if (commandIndex === -1) {
+			if (!isEnvironmentOnlyPart(part)) return false;
+			continue;
+		}
+		if (getPathToolNamesFromParts([part], ["view_image", "web_run", "imagegen"]).length !== 1) return false;
+		const tail = part.slice(commandIndex + 1);
+		if (!isSimplePathToolTail(tail)) return false;
+		found += 1;
+	}
+
+	if (toolName !== "view_image" && found > 1) return false;
+	return found > 0;
+}
+
+function findPathToolCommandIndex(part: string[], toolName: string): number {
+	let index = 0;
+	while (index < part.length && isEnvAssignment(part[index]!)) index += 1;
+	if (part[index] === "env") {
+		index += 1;
+		while (index < part.length && isEnvAssignment(part[index]!)) index += 1;
+	}
+	return pathToolTokenName(part[index] ?? "") === toolName ? index : -1;
+}
+
+function isEnvironmentOnlyPart(part: string[]): boolean {
+	return part.length > 0 && part.every(isEnvAssignment);
+}
+
+function isSimplePathToolTail(tokens: string[]): boolean {
+	if (tokens.length === 0) return true;
+	if (tokens.length !== 1) return false;
+	const token = tokens[0]!;
+	if (/^(?:\d*)[<>]/.test(token) || token.includes(">") || token.includes("<")) return false;
+	return true;
+}
+
+function isEnvAssignment(token: string): boolean {
+	return /^[A-Za-z_][A-Za-z0-9_]*=/.test(token);
+}
+
+function pathToolTokenName(token: string): string | undefined {
+	return token.replace(/\\/g, "/").split("/").pop();
 }
 
 export function getCodexBackedPathToolNames(command: string): string[] {

@@ -56,6 +56,7 @@ function parseArgvPathToolRenderSegments(command: string): PathToolRenderSegment
 	} catch {
 		return undefined;
 	}
+	if (tokens.some((token) => token === "&&" || token === "||" || token === "|")) return undefined;
 
 	const segments: PathToolRenderSegment[] = [];
 	let current: string[] = [];
@@ -115,6 +116,7 @@ function parseHeredocPathToolRenderSegments(command: string): PathToolRenderSegm
 		const endIndex = findHeredocEnd(lines, index + 1, parsed.delimiter, parsed.stripLeadingTabs);
 		if (endIndex === -1) return undefined;
 		const commandBeforeTool = cleanCommand(lines.slice(commandStartIndex, index).join("\n"));
+		if (hasDanglingConnector(commandBeforeTool)) return undefined;
 		if (commandBeforeTool) segments.push({ kind: "command", command: commandBeforeTool });
 		const bodyLines = lines.slice(index + 1, endIndex);
 		const body = parsed.stripLeadingTabs
@@ -132,6 +134,10 @@ function parseHeredocPathToolRenderSegments(command: string): PathToolRenderSegm
 	const remainingCommand = cleanCommand(lines.slice(commandStartIndex).join("\n"));
 	if (remainingCommand) segments.push({ kind: "command", command: remainingCommand });
 	return segments;
+}
+
+function hasDanglingConnector(command: string | undefined): boolean {
+	return Boolean(command && /(?:&&|\|\||\|)\s*$/.test(command));
 }
 
 function parsePathToolHeredocLine(line: string): { toolName: PathToolName; delimiter: string; stripLeadingTabs: boolean } | undefined {
@@ -165,7 +171,7 @@ function isEnvAssignment(token: string): boolean {
 }
 
 function isConnector(token: string): boolean {
-	return token === "&&" || token === "||" || token === "|" || token === ";";
+	return token === ";";
 }
 
 function pathToolNameFromToken(token: string): PathToolName | undefined {
