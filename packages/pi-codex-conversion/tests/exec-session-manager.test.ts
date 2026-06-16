@@ -4,11 +4,18 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { applyTerminalOutput, type ExecOutputSessionState } from "../src/tools/exec/output.ts";
+import { formatExecBridgeExitError } from "../src/tools/exec/bridge-client.ts";
 import { createExecSessionManager, type UnifiedExecResult } from "../src/tools/exec/session-manager.ts";
 
 function createFastTestExecSessionManager() {
 	return createExecSessionManager({ minNonInteractiveExecYieldTimeMs: 50, minEmptyWriteYieldTimeMs: 50, maxSessionBufferChars: 4096 });
 }
+
+test("exec_bridge startup failures include stderr", () => {
+	const message = formatExecBridgeExitError("/lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.39' not found\n", 127);
+	assert.match(message, /exec_bridge exited \(code 127\)/);
+	assert.match(message, /GLIBC_2\.39/);
+});
 
 async function finishSession(
 	_sessionId: number,

@@ -22,11 +22,31 @@ export interface ExecBridgeClient {
 	shutdown(): void;
 }
 
+const MAX_BRIDGE_STDERR_CHARS = 16_000;
+
+function appendBoundedText(current: string, next: Buffer): string {
+	const combined = `${current}${next.toString("utf8")}`;
+	return combined.length > MAX_BRIDGE_STDERR_CHARS ? combined.slice(-MAX_BRIDGE_STDERR_CHARS) : combined;
+}
+
+export function formatExecBridgeExitError(stderr: string, code?: number | null | undefined, signal?: NodeJS.Signals | null | undefined): string {
+	const detail = stderr.trim();
+	const status = typeof code === "number" ? `code ${code}` : signal ? `signal ${signal}` : undefined;
+	const prefix = status ? `exec_bridge exited (${status})` : "exec_bridge exited";
+	return detail ? `${prefix}: ${detail}` : prefix;
+}
+
+function formatExecBridgeWriteError(error: Error, stderr: string): string {
+	const detail = stderr.trim();
+	return detail ? `${error.message}: ${detail}` : error.message;
+}
+
 export function createExecBridgeClient(): ExecBridgeClient {
 	let bridge: ChildProcessWithoutNullStreams | undefined;
 	let nextBridgeRequestId = 1;
 	const pendingBridgeRequests = new Map<number, { resolve: (value: BridgeResponse) => void; reject: (error: Error) => void }>();
 	let bridgeLineBuffer = "";
+	let bridgeStderr = "";
 	let bridgeClosing = false;
 
 	function rejectPending(error: Error): void {
@@ -56,12 +76,16 @@ export function createExecBridgeClient(): ExecBridgeClient {
 		const binary = getBundledPathToolBinaryPath("exec_bridge");
 		if (!binary) throw new Error(`exec_bridge binary is not bundled for ${process.platform}-${process.arch}`);
 		bridgeClosing = false;
+		bridgeStderr = "";
 		bridge = spawn(binary, [], { stdio: "pipe", env: process.env });
 		bridge.stdout.on("data", handleStdout);
-		bridge.stderr.on("data", (data: Buffer) => { void data; });
-		bridge.on("close", () => {
-			rejectPending(new Error(bridgeClosing ? "exec_bridge closed" : "exec_bridge exited"));
+		bridge.stderr.on("data", (data: Buffer) => {
+			bridgeStderr = appendBoundedText(bridgeStderr, data);
+		});
+		bridge.on("close", (code, signal) => {
+			rejectPending(new Error(bridgeClosing ? "exec_bridge closed" : formatExecBridgeExitError(bridgeStderr, code, signal)));
 			bridge = undefined;
+			bridgeStderr = "";
 		});
 		bridge.on("error", rejectPending);
 		return bridge;
@@ -76,7 +100,7 @@ export function createExecBridgeClient(): ExecBridgeClient {
 				child.stdin.write(`${JSON.stringify({ ...request, request_id: requestId })}\n`, (error) => {
 					if (!error) return;
 					pendingBridgeRequests.delete(requestId);
-					reject(error);
+					reject(new Error(formatExecBridgeWriteError(error, bridgeStderr)));
 				});
 			});
 			if (!response.ok) throw new Error(response.error ?? "exec_bridge request failed");
@@ -94,4 +118,3 @@ export function createExecBridgeClient(): ExecBridgeClient {
 export function chunkToText(chunk: string): string {
 	return Buffer.from(chunk, "base64").toString("utf8");
 }
-
