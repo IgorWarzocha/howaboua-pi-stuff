@@ -8,13 +8,13 @@ import {
 import { syncAdapter } from "../../adapter/activation/activation.ts";
 import type { AdapterState } from "../../adapter/activation/state.ts";
 import { openCodexSettingsScreen } from "./ui.ts";
-import { fetchCodexUsage, formatCodexUsage } from "./usage.ts";
+import { consumeCodexRateLimitResetCredit, fetchCodexUsage, formatCodexUsage } from "./usage.ts";
 import type { BackgroundBashWidgetState } from "../background-bash-widget.ts";
 import { renderBackgroundBashWidget } from "../background-bash-widget.ts";
 import type { ExecSessionManager } from "../../tools/exec/session-manager.ts";
 
-const CODEX_COMMAND_COMPLETIONS = ["all", "status", "fast", "compact", "usage", "ps", "low", "medium", "high"] as const;
-const CODEX_USAGE = "Usage: /codex, /codex all, /codex status, /codex fast, /codex compact, /codex usage, /codex ps, /codex low|medium|high";
+const CODEX_COMMAND_COMPLETIONS = ["all", "status", "fast", "compact", "usage", "reset", "ps", "low", "medium", "high"] as const;
+const CODEX_USAGE = "Usage: /codex, /codex all, /codex status, /codex fast, /codex compact, /codex usage, /codex reset, /codex ps, /codex low|medium|high";
 
 export function registerCodexCommand(
 	pi: ExtensionAPI,
@@ -55,7 +55,7 @@ export function registerCodexCommand(
 				renderBackgroundBashWidget(ctx, backgroundShells.widget, backgroundShells.sessions);
 				return;
 			}
-			if (arg === "usage") {
+			if (arg === "usage" || arg === "reset") {
 				let usage;
 				try {
 					usage = await fetchCodexUsage(ctx);
@@ -81,6 +81,7 @@ export function registerCodexCommand(
 					initialConfig: state.config,
 					initialTab: "usage",
 					initialUsage: usage,
+					onConsumeResetCredit: (redeemRequestId) => consumeCodexRateLimitResetCredit(ctx, redeemRequestId),
 					onChange: (config) => saveAndApply(ctx, config),
 				});
 				return;

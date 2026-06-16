@@ -84,12 +84,13 @@ Use `/codex` to change adapter settings.
 - `/codex fast` — toggle priority service tier for the OpenAI Codex provider
 - `/codex compact` — open native compaction settings
 - `/codex usage` — show Codex subscription usage windows for the active OpenAI Codex model
+- `/codex reset` — open the Usage tab, where banked rate-limit resets can be used with Ctrl+R
 - `/codex low`, `/codex medium`, `/codex high` — set Responses API verbosity
 - `/codex ps` — show the background shell widget
 
 Settings are saved globally in `~/.pi/agent/pi-codex-conversion.json`.
 
-The settings UI has **General**, **Tools**, **OpenAI**, **Usage**, and **About** tabs. **Usage** refreshes automatically when opened and can be refreshed manually with `r`.
+The settings UI has **General**, **Tools**, **OpenAI**, **Usage**, and **About** tabs. **Usage** refreshes automatically when opened, can be refreshed manually with `R`, and shows any banked Codex rate-limit resets above the usage windows. When resets are available, press `Ctrl+R` in the Usage tab to use one. After a reset attempt, press `R` before using another reset.
 
 **General** controls PATH mode, scope, status UI, background shells, and whether native Responses compaction is enabled. PATH mode switches the adapter to the shell-only surface above.
 

@@ -1,5 +1,5 @@
 import { getSettingsListTheme, type ExtensionContext, type Theme } from "@earendil-works/pi-coding-agent";
-import { Container, type Focusable, Input, SettingsList, Spacer, Text, truncateToWidth, type SettingItem } from "@earendil-works/pi-tui";
+import { Container, type Focusable, Input, matchesKey, SettingsList, Spacer, Text, truncateToWidth, type SettingItem } from "@earendil-works/pi-tui";
 import {
 	COMPACTION_MODELS,
 	COMPACTION_REASONING_LEVELS,
@@ -15,7 +15,7 @@ import {
 } from "../../adapter/activation/config.ts";
 import { editorCommand, openCodexConfigInExternalEditor } from "./config-editor.ts";
 import { CHANGELOG_URL, DISCORD_URL, GITHUB_URL, ISSUE_URL, openExternalUrl } from "./links.ts";
-import { fetchCodexUsage, type CodexUsageSnapshot } from "./usage.ts";
+import { consumeCodexRateLimitResetCredit, createCodexRateLimitResetRedeemRequestId, fetchCodexUsage, type CodexRateLimitResetConsumeResult, type CodexUsageSnapshot } from "./usage.ts";
 
 export interface CodexSettingsScreenOptions {
 	initialConfig: CodexConversionConfig;
@@ -23,6 +23,7 @@ export interface CodexSettingsScreenOptions {
 	initialTab?: SettingsTab | undefined;
 	initialUsage?: CodexUsageSnapshot | { error: string } | undefined;
 	onRefreshUsage?: () => Promise<CodexUsageSnapshot>;
+	onConsumeResetCredit?: (redeemRequestId: string) => Promise<CodexRateLimitResetConsumeResult>;
 }
 
 type SettingsTab = "general" | "tools" | "openai" | "usage" | "about";
@@ -67,15 +68,49 @@ export async function openCodexSettingsScreen(ctx: ExtensionContext, options: Co
 	let activeTab: SettingsTab = options.initialTab ?? "general";
 	let usageState: CodexUsageSnapshot | { error: string } | undefined = options.initialUsage;
 	let usageLoading = false;
+	let resetLoading = false;
+	let resetLockedUntilRefresh = false;
+	let resetRedeemRequestId: string | undefined;
+	let resetMessage: { kind: "info" | "error"; text: string } | undefined;
 
-	const loadUsage = (requestRender: () => void) => {
+	const loadUsage = (requestRender: () => void, loadOptions?: { unlockReset?: boolean }) => {
 		if (usageLoading) return;
+		if (loadOptions?.unlockReset) {
+			resetLockedUntilRefresh = false;
+			resetRedeemRequestId = undefined;
+			resetMessage = undefined;
+		}
 		usageLoading = true;
 		requestRender();
 		(options.onRefreshUsage ?? (() => fetchCodexUsage(ctx)))()
 			.then((usage) => { usageState = usage; })
 			.catch((error) => { usageState = { error: error instanceof Error ? error.message : String(error) }; })
 			.finally(() => { usageLoading = false; requestRender(); });
+	};
+
+	const consumeResetCredit = (requestRender: () => void) => {
+		if (resetLoading) return;
+		if (resetLockedUntilRefresh) {
+			resetMessage = { kind: "info", text: "Press R to refresh before using another reset." };
+			requestRender();
+			return;
+		}
+		if (!canConsumeResetCredit(usageState)) return;
+		resetLoading = true;
+		resetMessage = undefined;
+		resetRedeemRequestId ??= createCodexRateLimitResetRedeemRequestId();
+		const redeemRequestId = resetRedeemRequestId;
+		requestRender();
+		(options.onConsumeResetCredit ?? ((id) => consumeCodexRateLimitResetCredit(ctx, id)))(redeemRequestId)
+			.then((result) => {
+				resetMessage = { kind: result.outcome === "reset" || result.outcome === "already_redeemed" ? "info" : "error", text: formatResetConsumeResult(result) };
+				resetLockedUntilRefresh = true;
+				resetRedeemRequestId = undefined;
+				usageState = undefined;
+				loadUsage(requestRender);
+			})
+			.catch((error) => { resetMessage = { kind: "error", text: `${error instanceof Error ? error.message : String(error)} Press Ctrl+R to retry the same reset request, or R to refresh.` }; })
+			.finally(() => { resetLoading = false; requestRender(); });
 	};
 
 	await ctx.ui.custom<void>((tui, theme, _kb, done) => {
@@ -115,7 +150,7 @@ export async function openCodexSettingsScreen(ctx: ExtensionContext, options: Co
 					rule(width, theme, "accent"),
 					formatTabs(activeTab, theme),
 					rule(width, theme, "borderMuted"),
-					...(activeTab === "usage" ? formatUsageLines(theme, usageState, usageLoading) : []),
+					...(activeTab === "usage" ? formatUsageLines(theme, usageState, usageLoading, resetLoading, resetLockedUntilRefresh, resetMessage) : []),
 					...(activeTab === "about" ? formatLinks(theme) : []),
 					"",
 					...(hasSettingsList ? withSettingsFooter(settingsList.render(width), theme) : [theme.fg("dim", formatFooter(activeTab))]),
@@ -130,7 +165,11 @@ export async function openCodexSettingsScreen(ctx: ExtensionContext, options: Co
 				}
 				if (activeTab === "about" && handleLinkKey(data, ctx)) return;
 				if (activeTab === "usage" && data.toLowerCase() === "r") {
-					loadUsage(() => tui.requestRender());
+					if (!resetLoading) loadUsage(() => tui.requestRender(), { unlockReset: true });
+					return;
+				}
+				if (activeTab === "usage" && matchesKey(data, "ctrl+r")) {
+					consumeResetCredit(() => tui.requestRender());
 					return;
 				}
 				settingsList.handleInput?.(data);
@@ -251,8 +290,8 @@ function formatTabs(activeTab: SettingsTab, theme: Theme): string {
 }
 
 function formatFooter(activeTab: SettingsTab): string {
-	if (activeTab === "usage") return "  Tab to switch sections · r refresh";
-	if (activeTab === "about") return "  Tab to switch sections · g/c/d/i open links · Esc to close";
+	if (activeTab === "usage") return "  Tab to switch sections · R to refresh · Ctrl+R to use reset";
+	if (activeTab === "about") return "  Tab to switch sections · G/C/D/I to open links · Esc to close";
 	return "  Tab to switch sections · Esc to close";
 }
 
@@ -267,10 +306,10 @@ function withSettingsFooter(lines: string[], theme: Theme): string[] {
 	return next;
 }
 
-function formatUsageLines(theme: Theme, usageState: CodexUsageSnapshot | { error: string } | undefined, loading: boolean): string[] {
+function formatUsageLines(theme: Theme, usageState: CodexUsageSnapshot | { error: string } | undefined, loading: boolean, resetLoading: boolean, resetLockedUntilRefresh: boolean, resetMessage: { kind: "info" | "error"; text: string } | undefined): string[] {
 	if (loading && !usageState) return [theme.fg("dim", "  Loading Codex usage…")];
 	if (!usageState) return [theme.fg("dim", "  Loading Codex usage…")];
-	if ("error" in usageState) return [theme.fg("error", `  ${usageState.error}`), theme.fg("dim", "  Press r to retry.")];
+	if ("error" in usageState) return [theme.fg("error", `  ${usageState.error}`), theme.fg("dim", "  Press R to retry.")];
 
 	const rows = usageState.limits.map((limit) => {
 		const primary = usageColumns(limit.primary);
@@ -279,13 +318,37 @@ function formatUsageLines(theme: Theme, usageState: CodexUsageSnapshot | { error
 	});
 	const headers = ["Limit", "5h left", "", "Reset", "Weekly left", "", "Reset"];
 	const widths = columnWidths([headers, ...rows]);
+	const resetLines = formatResetCreditLines(theme, usageState, resetLoading, resetLockedUntilRefresh, resetMessage);
 	return [
 		`  ${theme.bold(`Codex usage${usageState.planType ? ` · ${usageState.planType}` : ""}`)}${loading ? theme.fg("dim", "  refreshing…") : ""}`,
+		...resetLines,
 		"",
 		formatUsageRow(headers.map((header) => theme.fg("dim", header)), widths),
 		theme.fg("borderMuted", `  ${"─".repeat(widths.reduce((sum, width) => sum + width, 0) + (2 * (widths.length - 1)))}`),
 		...rows.map((row) => formatUsageRow(row, widths)),
 	];
+}
+
+function canConsumeResetCredit(usageState: CodexUsageSnapshot | { error: string } | undefined): boolean {
+	return Boolean(usageState && !("error" in usageState) && (usageState.resetCredits?.availableCount ?? 0) > 0);
+}
+
+function formatResetCreditLines(theme: Theme, usageState: CodexUsageSnapshot, resetLoading: boolean, resetLockedUntilRefresh: boolean, resetMessage: { kind: "info" | "error"; text: string } | undefined): string[] {
+	const count = usageState.resetCredits?.availableCount;
+	const hint = count && count > 0 ? theme.fg("dim", resetLockedUntilRefresh ? "  R to refresh before another reset" : "  Ctrl+R to use one") : "";
+	const lines = [
+		`  Banked resets: ${theme.bold(count === undefined ? "unknown" : String(count))}${hint}${resetLoading ? theme.fg("dim", "  resetting…") : ""}`,
+	];
+	if (resetMessage) lines.push(resetMessage.kind === "error" ? theme.fg("error", `  ${resetMessage.text}`) : theme.fg("accent", `  ${resetMessage.text}`));
+	return lines;
+}
+
+function formatResetConsumeResult(result: CodexRateLimitResetConsumeResult): string {
+	if (result.outcome === "reset") return "Codex rate limits reset.";
+	if (result.outcome === "already_redeemed") return "Reset already applied; refreshed usage.";
+	if (result.outcome === "nothing_to_reset") return "No active Codex limit to reset.";
+	if (result.outcome === "no_credit") return "No banked resets available.";
+	return "Reset response was not recognized; refreshed usage.";
 }
 
 function columnWidths(rows: string[][]): number[] {
@@ -347,7 +410,7 @@ function handleLinkKey(data: string, ctx: ExtensionContext): boolean {
 }
 
 function getLinkTarget(data: string): { url: string; message: string } | undefined {
-	switch (data) {
+	switch (data.toLowerCase()) {
 		case "g":
 			return { url: GITHUB_URL, message: "Opened GitHub" };
 		case "c":

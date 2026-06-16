@@ -3,6 +3,7 @@ import type { Api, Model } from "@earendil-works/pi-ai";
 
 const DEFAULT_CODEX_BASE_URL = "https://chatgpt.com/backend-api";
 const JWT_CLAIM_PATH = "https://api.openai.com/auth";
+const RESET_CREDITS_CACHE_MS = 5_000;
 
 type RuntimeModel = Model<Api>;
 
@@ -22,8 +23,32 @@ export interface CodexUsageLimit {
 export interface CodexUsageSnapshot {
 	planType?: string | undefined;
 	limits: CodexUsageLimit[];
+	resetCredits?: CodexRateLimitResetCredits | undefined;
 	raw: unknown;
 }
+
+export interface CodexRateLimitResetCredit {
+	id?: string | undefined;
+	status?: string | undefined;
+	expiresAt?: string | undefined;
+	title?: string | undefined;
+}
+
+export interface CodexRateLimitResetCredits {
+	availableCount: number;
+	credits: CodexRateLimitResetCredit[];
+	raw: unknown;
+}
+
+export type CodexRateLimitResetConsumeOutcome = "reset" | "already_redeemed" | "nothing_to_reset" | "no_credit" | "unknown";
+
+export interface CodexRateLimitResetConsumeResult {
+	outcome: CodexRateLimitResetConsumeOutcome;
+	windowsReset?: number | undefined;
+	raw: unknown;
+}
+
+let resetCreditsCache: { key: string; expiresAt: number; promise: Promise<CodexRateLimitResetCredits | undefined> } | undefined;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -37,8 +62,23 @@ function stringValue(value: unknown): string | undefined {
 	return typeof value === "string" && value.trim().length > 0 ? value : undefined;
 }
 
+function integerValue(value: unknown): number | undefined {
+	if (typeof value === "number" && Number.isFinite(value)) return Math.max(0, Math.trunc(value));
+	if (typeof value !== "string" || value.trim().length === 0) return undefined;
+	const parsed = Number(value);
+	return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : undefined;
+}
+
 export function buildCodexUsageUrl(): string {
 	return `${DEFAULT_CODEX_BASE_URL}/wham/usage`;
+}
+
+export function buildCodexRateLimitResetCreditsUrl(): string {
+	return `${DEFAULT_CODEX_BASE_URL}/wham/rate-limit-reset-credits`;
+}
+
+export function buildCodexRateLimitResetConsumeUrl(): string {
+	return `${DEFAULT_CODEX_BASE_URL}/wham/rate-limit-reset-credits/consume`;
 }
 
 function extractBearerToken(headers: Headers): string | undefined {
@@ -70,8 +110,34 @@ async function buildCodexUsageHeaders(ctx: ExtensionContext, model: RuntimeModel
 	const accountId = token ? extractAccountId(token) : undefined;
 	if (accountId) headers.set("chatgpt-account-id", accountId);
 	headers.set("accept", "application/json");
+	headers.set("OAI-Language", "en");
 	headers.set("originator", "pi");
 	return headers;
+}
+
+function parseResetCredit(value: unknown): CodexRateLimitResetCredit | undefined {
+	if (!isRecord(value)) return undefined;
+	return {
+		id: stringValue(value["id"]!),
+		status: stringValue(value["status"]!),
+		expiresAt: stringValue(value["expires_at"]!),
+		title: stringValue(value["title"]!),
+	};
+}
+
+export function parseCodexRateLimitResetCreditsPayload(payload: unknown): CodexRateLimitResetCredits | undefined {
+	const root = isRecord(payload) ? payload : undefined;
+	if (!root) return undefined;
+	const availableCount = integerValue(root["available_count"]!);
+	if (availableCount === undefined) return undefined;
+	const credits = Array.isArray(root["credits"]!) ? root["credits"]!.map(parseResetCredit).filter((credit): credit is CodexRateLimitResetCredit => Boolean(credit)) : [];
+	return { availableCount, credits, raw: payload };
+}
+
+function parseCodexRateLimitResetCreditsSummary(value: unknown): CodexRateLimitResetCredits | undefined {
+	if (!isRecord(value)) return undefined;
+	const availableCount = integerValue(value["available_count"]!);
+	return availableCount === undefined ? undefined : { availableCount, credits: [], raw: value };
 }
 
 function parseWindow(value: unknown): CodexUsageWindow | undefined {
@@ -111,7 +177,23 @@ export function parseCodexUsagePayload(payload: unknown): CodexUsageSnapshot {
 			addLimit(stringValue(item["metered_feature"]!) ?? "additional", stringValue(item["limit_name"]!), item);
 		}
 	}
-	return { planType: stringValue(root["plan_type"]!), limits, raw: payload };
+	return { planType: stringValue(root["plan_type"]!), limits, resetCredits: parseCodexRateLimitResetCreditsSummary(root["rate_limit_reset_credits"]!), raw: payload };
+}
+
+function resetCreditsCacheKey(headers: Headers): string | undefined {
+	return headers.get("chatgpt-account-id")?.trim() || undefined;
+}
+
+async function fetchCodexRateLimitResetCreditsWithHeaders(headers: Headers, signal?: AbortSignal | undefined): Promise<CodexRateLimitResetCredits | undefined> {
+	const cacheKey = resetCreditsCacheKey(headers);
+	if (cacheKey && resetCreditsCache && resetCreditsCache.key === cacheKey && resetCreditsCache.expiresAt > Date.now()) return resetCreditsCache.promise;
+	const promise = (async () => {
+		const response = await fetch(buildCodexRateLimitResetCreditsUrl(), { method: "GET", headers, ...(signal ? { signal } : {}) });
+		if (!response.ok) return undefined;
+		return parseCodexRateLimitResetCreditsPayload(JSON.parse(await response.text()));
+	})();
+	if (cacheKey) resetCreditsCache = { key: cacheKey, expiresAt: Date.now() + RESET_CREDITS_CACHE_MS, promise };
+	return promise;
 }
 
 export async function fetchCodexUsage(ctx: ExtensionContext): Promise<CodexUsageSnapshot> {
@@ -120,10 +202,51 @@ export async function fetchCodexUsage(ctx: ExtensionContext): Promise<CodexUsage
 	if (model.provider !== "openai-codex") {
 		throw new Error("Codex usage is only available for OpenAI Codex subscription models.");
 	}
-	const response = await fetch(buildCodexUsageUrl(), { method: "GET", headers: await buildCodexUsageHeaders(ctx, model), ...(ctx.signal ? { signal: ctx.signal } : {}) });
+	const headers = await buildCodexUsageHeaders(ctx, model);
+	const response = await fetch(buildCodexUsageUrl(), { method: "GET", headers, ...(ctx.signal ? { signal: ctx.signal } : {}) });
 	const text = await response.text();
 	if (!response.ok) throw new Error(`Usage request failed (${response.status}): ${text || response.statusText}`);
-	return parseCodexUsagePayload(JSON.parse(text));
+	const snapshot = parseCodexUsagePayload(JSON.parse(text));
+	if (!snapshot.resetCredits) {
+		try {
+			snapshot.resetCredits = await fetchCodexRateLimitResetCreditsWithHeaders(headers, ctx.signal);
+		} catch {
+			// Reset-credit availability is additive; usage still renders if this endpoint fails.
+		}
+	}
+	return snapshot;
+}
+
+export function createCodexRateLimitResetRedeemRequestId(): string {
+	return typeof globalThis.crypto?.randomUUID === "function" ? globalThis.crypto.randomUUID() : `pi_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+}
+
+function parseCodexRateLimitResetConsumePayload(payload: unknown): CodexRateLimitResetConsumeResult {
+	const root = isRecord(payload) ? payload : {};
+	const code = stringValue(root["code"]!);
+	const outcome: CodexRateLimitResetConsumeOutcome = code === "reset" || code === "already_redeemed" || code === "nothing_to_reset" || code === "no_credit" ? code : "unknown";
+	return { outcome, windowsReset: integerValue(root["windows_reset"]!), raw: payload };
+}
+
+export async function consumeCodexRateLimitResetCredit(ctx: ExtensionContext, redeemRequestId = createCodexRateLimitResetRedeemRequestId()): Promise<CodexRateLimitResetConsumeResult> {
+	const model = ctx.model;
+	if (!model) throw new Error("No active model selected.");
+	if (model.provider !== "openai-codex") {
+		throw new Error("Codex reset credits are only available for OpenAI Codex subscription models.");
+	}
+	const headers = await buildCodexUsageHeaders(ctx, model);
+	headers.set("content-type", "application/json");
+	resetCreditsCache = undefined;
+	const response = await fetch(buildCodexRateLimitResetConsumeUrl(), {
+		method: "POST",
+		headers,
+		body: JSON.stringify({ redeem_request_id: redeemRequestId }),
+		...(ctx.signal ? { signal: ctx.signal } : {}),
+	});
+	const text = await response.text();
+	if (!response.ok) throw new Error(`Reset request failed (${response.status}): ${text || response.statusText}`);
+	resetCreditsCache = undefined;
+	return parseCodexRateLimitResetConsumePayload(JSON.parse(text));
 }
 
 function formatReset(timestampSeconds: number | undefined): string {
@@ -143,6 +266,7 @@ function formatWindow(label: string, window: CodexUsageWindow | undefined): stri
 
 export function formatCodexUsage(snapshot: CodexUsageSnapshot): string {
 	const lines = [`Codex usage${snapshot.planType ? ` (${snapshot.planType})` : ""}:`];
+	if (snapshot.resetCredits) lines.push(`- resets available: ${snapshot.resetCredits.availableCount}`);
 	for (const limit of snapshot.limits) {
 		const title = limit.limitName ?? limit.limitId;
 		const parts = [formatWindow("5h", limit.primary), formatWindow("weekly", limit.secondary)].filter(Boolean);
