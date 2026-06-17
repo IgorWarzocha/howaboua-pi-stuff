@@ -10,7 +10,8 @@ import { parseSSE } from "../../providers/openai-codex/sse.ts";
 import { codexToolProviderHeaders, resolveCodexResponsesUrl, resolveCodexToolProvider } from "../../adapter/codex-tool-provider.ts";
 import { getBundledPathToolBinaryPath } from "../path/binary.ts";
 import { formatUnifiedExecResult } from "../exec/format.ts";
-import { imageContentFromCodexViewImageOutput, type PathViewImageContent, type ToolResultLike } from "../path/outputs.ts";
+import { imageContentFromCodexViewImageOutput, imageContentsFromPathToolDetails, type PathViewImageContent, type ToolResultLike } from "../path/outputs.ts";
+import { renderTextWithImages } from "../path/rendering.ts";
 import { runBundledTool } from "../path/runner.ts";
 import { renderCodexToolCell } from "../../ui/tool-rendering/codex-tool-cell.ts";
 import type { UnifiedExecResult } from "../exec/session-manager.ts";
@@ -160,7 +161,7 @@ export async function describePathViewImageOutput(command: string, result: Unifi
 	const image = imageContentFromCodexViewImageOutput(result.output);
 	if (!image) return undefined;
 	const description = await describeImageContentForTextModel(image, ctx, signal);
-	const details = { ...result, output: description, original_token_count: undefined, pathTool: { viewImageDescription: true } };
+	const details = { ...result, output: description, original_token_count: undefined, pathTool: { viewImageDescription: { image } } };
 	return { content: [{ type: "text", text: formatUnifiedExecResult(details, command) }], details };
 }
 
@@ -186,7 +187,7 @@ export function createViewImageTool(options: CreateViewImageToolOptions = {}): T
 			if (!supportsViewImageInputs(ctx.model)) {
 				const image = await executeRustViewImageContent(typedParams, ctx.cwd, signal);
 				const description = await describeImageContentForTextModel(image, ctx, signal);
-				return { content: [{ type: "text", text: description }], details: { pathTool: { viewImageDescription: true, path: typedParams.path } } };
+				return { content: [{ type: "text", text: description }], details: { pathTool: { viewImageDescription: { image, path: typedParams.path } } } };
 			}
 			return executeRustViewImage(typedParams, ctx.cwd, signal);
 		},
@@ -202,7 +203,9 @@ export function createViewImageTool(options: CreateViewImageToolOptions = {}): T
 				return new Text("", 0, 0);
 			}
 			const textBlock = result.content.find((item) => item.type === "text");
-			return new Text(theme.fg("dim", textBlock?.type === "text" ? textBlock.text : ""), 0, 0);
+			const text = theme.fg("dim", textBlock?.type === "text" ? textBlock.text : "");
+			const content = result.content.some((item) => item.type === "image") ? result.content : [...result.content, ...imageContentsFromPathToolDetails(result.details)];
+			return renderTextWithImages(text, content, theme);
 		},
 		}),
 	};

@@ -309,9 +309,22 @@ export function imageContentsFromPathToolDetails(details: unknown): PathViewImag
 	if (!details || typeof details !== "object") return [];
 	const pathTool = (details as { pathTool?: unknown }).pathTool;
 	if (!pathTool || typeof pathTool !== "object") return [];
+	const viewImageDescription = (pathTool as { viewImageDescription?: unknown }).viewImageDescription;
+	if (viewImageDescription && typeof viewImageDescription === "object") {
+		const image = (viewImageDescription as { image?: unknown }).image;
+		if (isPathViewImageContent(image)) return [image];
+	}
 	const imagegen = (pathTool as { imagegen?: unknown }).imagegen;
 	if (!imagegen || typeof imagegen !== "object") return [];
 	return imageContentsFromPathImagegenOutput(imagegen as PathImagegenOutput);
+}
+
+function isPathViewImageContent(value: unknown): value is PathViewImageContent {
+	return Boolean(value && typeof value === "object"
+		&& (value as { type?: unknown }).type === "image"
+		&& typeof (value as { data?: unknown }).data === "string"
+		&& typeof (value as { mimeType?: unknown }).mimeType === "string"
+		&& ((value as { detail?: unknown }).detail === "high" || (value as { detail?: unknown }).detail === "original"));
 }
 
 export function formatPathImagegenOutput(output: PathImagegenOutput): string {
