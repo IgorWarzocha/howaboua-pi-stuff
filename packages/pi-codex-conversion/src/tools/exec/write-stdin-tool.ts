@@ -4,7 +4,7 @@ import { Container, Text } from "@earendil-works/pi-tui";
 import { renderWriteStdinCall } from "../../ui/tool-rendering/codex-rendering.ts";
 import type { ExecSessionManager, UnifiedExecResult } from "./session-manager.ts";
 import { formatUnifiedExecResult } from "./format.ts";
-import { convertPathToolExecResult, getPathToolPolicy, imageContentsFromPathToolDetails } from "../path/outputs.ts";
+import { convertPathToolExecResult, getPathToolPolicy, imageContentsFromPathToolDetails, viewImageDescriptionFromPathToolDetails } from "../path/outputs.ts";
 import { renderTextWithImages } from "../path/rendering.ts";
 
 const WRITE_STDIN_PARAMETERS = Type.Object({
@@ -143,12 +143,12 @@ export function registerWriteStdinTool(pi: ExtensionAPI, sessions: ExecSessionMa
 			const command = typeof sessionId === "number" ? sessions.getSessionCommand(sessionId) : undefined;
 			return new Text(renderWriteStdinCall(sessionId, input, command, theme), 0, 0);
 		},
-		renderResult(result, { expanded }, theme) {
-			const state = getResultState(result);
-			if (!expanded) {
-				const content = result.content.some((item) => item.type === "image") ? result.content : imageContentsFromPathToolDetails(result.details);
-				return content.some((item) => item.type === "image") ? renderTextWithImages("", content, theme) : createEmptyResultComponent();
-			}
+			renderResult(result, { expanded }, theme) {
+				const state = getResultState(result);
+				if (!expanded) {
+					const content = result.content.some((item) => item.type === "image") ? result.content : imageContentsFromPathToolDetails(result.details);
+					return content.some((item) => item.type === "image") ? renderTextWithImages(theme.fg("dim", viewImageDescriptionFromPathToolDetails(result.details) ?? ""), content, theme) : createEmptyResultComponent();
+				}
 			const output = renderTerminalText(state.output);
 			let text = theme.fg("dim", output || "(no output)");
 			if (state.sessionId !== undefined) {

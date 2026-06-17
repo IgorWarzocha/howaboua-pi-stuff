@@ -7,7 +7,7 @@ import { renderExecCommandCall, renderGroupedExecCommandCall } from "../../ui/to
 import type { ExecCommandTracker } from "./command-state.ts";
 import type { ExecSessionManager, UnifiedExecResult } from "./session-manager.ts";
 import { formatUnifiedExecResult } from "./format.ts";
-import { convertPathToolExecResult, getCodexBackedPathToolNames, getPathToolPolicy, imageContentsFromPathToolDetails } from "../path/outputs.ts";
+import { convertPathToolExecResult, getCodexBackedPathToolNames, getPathToolPolicy, imageContentsFromPathToolDetails, viewImageDescriptionFromPathToolDetails } from "../path/outputs.ts";
 import { renderTextWithImages } from "../path/rendering.ts";
 import { extractPathApplyPatchPreviewPlan, getPathApplyPatchRenderState, markPathApplyPatchPreviewExit, renderPathApplyPatchPreviewFromState, setPathApplyPatchPreviewState, type PathApplyPatchRenderSegment } from "../path/apply-patch-preview.ts";
 import { renderPathToolCommandCall } from "../path/render-call.ts";
@@ -238,7 +238,7 @@ const renderExecCommandResultWithOptionalContext: any = (
 	const details = isUnifiedExecResult(result.details) ? result.details : undefined;
 	if (!_options.expanded) {
 		const compactImages = result.content.some((item) => item.type === "image") ? result.content : imageContentsFromPathToolDetails(details);
-		if (compactImages.some((item) => item.type === "image")) return renderTextWithImages("", compactImages, theme, { paddingX: 4 });
+		if (compactImages.some((item) => item.type === "image")) return renderTextWithImages(theme.fg("dim", viewImageDescriptionFromPathToolDetails(details) ?? ""), compactImages, theme, { paddingX: 4 });
 		const pathApplyPatchState = getPathApplyPatchRenderState(context?.toolCallId);
 		if (pathApplyPatchState && details?.exit_code !== undefined && details.exit_code !== 0) {
 			return renderCollapsedExecOutputPreview(details, theme);

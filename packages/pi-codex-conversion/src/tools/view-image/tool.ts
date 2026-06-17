@@ -210,7 +210,7 @@ export function createViewImageTool(options: CreateViewImageToolOptions = {}): T
 			if (!supportsViewImageInputs(ctx.model)) {
 				const image = await executeRustViewImageContent(typedParams, ctx.cwd, signal);
 				const description = await describeImageContentForTextModel(image, ctx, signal);
-				return { content: [{ type: "text", text: description }], details: { pathTool: { viewImageDescription: { image, path: typedParams.path } } } };
+				return { content: [{ type: "text", text: description }], details: { pathTool: { viewImageDescription: { image, path: typedParams.path, description } } } };
 			}
 			return executeRustViewImage(typedParams, ctx.cwd, signal);
 		},

@@ -65,7 +65,7 @@ export function convertPathToolExecResult(command: string, result: UnifiedExecRe
 		const parsed = pathViewImageDescriptionOutputFromJson(result.output);
 		if (parsed) {
 			const image = imageContentFromCodexViewImageJson(JSON.stringify({ image_url: parsed.image_url, detail: parsed.detail ?? "high" }));
-			const details = sanitizeExecResult(result, parsed.description, { viewImageDescription: image ? { image } : true });
+			const details = sanitizeExecResult(result, parsed.description, { viewImageDescription: image ? { image, description: parsed.description } : { description: parsed.description } });
 			return { content: [{ type: "text", text: formatUnifiedExecResult(details, command) }], details };
 		}
 		return undefined;
@@ -365,6 +365,16 @@ export function imageContentsFromPathToolDetails(details: unknown): PathViewImag
 	const imagegen = (pathTool as { imagegen?: unknown }).imagegen;
 	if (!imagegen || typeof imagegen !== "object") return [];
 	return imageContentsFromPathImagegenOutput(imagegen as PathImagegenOutput);
+}
+
+export function viewImageDescriptionFromPathToolDetails(details: unknown): string | undefined {
+	if (!details || typeof details !== "object") return undefined;
+	const pathTool = (details as { pathTool?: unknown }).pathTool;
+	if (!pathTool || typeof pathTool !== "object") return undefined;
+	const viewImageDescription = (pathTool as { viewImageDescription?: unknown }).viewImageDescription;
+	if (!viewImageDescription || typeof viewImageDescription !== "object") return undefined;
+	const description = (viewImageDescription as { description?: unknown }).description;
+	return typeof description === "string" && description.trim() ? description.trim() : undefined;
 }
 
 function isPathViewImageContent(value: unknown): value is PathViewImageContent {
