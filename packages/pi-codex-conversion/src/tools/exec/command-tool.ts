@@ -293,14 +293,15 @@ export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTr
 			const viewImageDescriptionEnv = options.describeImagesForTextModels && !(Array.isArray(ctx.model?.input) && ctx.model.input.includes("image"))
 				? { PI_CODEX_VIEW_IMAGE_DESCRIBE: "1", PI_CODEX_VIEW_IMAGE_MODEL: resolveImageDescriptionModel(ctx), ...(pathToolPolicy?.describeImageOutput ? { PI_CODEX_VIEW_IMAGE_STRUCTURED: "1" } : {}) }
 				: undefined;
+			const pathToolEnv = webRunStatePath || codexBackedPathToolEnv || viewImageDescriptionEnv ? { ...codexBackedPathToolEnv, ...viewImageDescriptionEnv, ...(webRunStatePath ? { PI_WEB_RUN_STATE_PATH: webRunStatePath } : {}) } : undefined;
 			const execParams = pathToolPolicy
 				? {
 					...typedParams,
-					...(webRunStatePath || codexBackedPathToolEnv || viewImageDescriptionEnv ? { env: { ...codexBackedPathToolEnv, ...viewImageDescriptionEnv, ...(webRunStatePath ? { PI_WEB_RUN_STATE_PATH: webRunStatePath } : {}) } } : {}),
+					...(pathToolEnv ? { env: pathToolEnv } : {}),
 					...(pathToolPolicy.disableTruncation ? { max_output_tokens: Number.MAX_SAFE_INTEGER } : {}),
 					...(pathToolPolicy.yieldTimeMs !== undefined ? { yield_time_ms: pathToolPolicy.yieldTimeMs, max_yield_time_ms: pathToolPolicy.yieldTimeMs } : {}),
 				}
-				: codexBackedPathToolEnv ? { ...typedParams, env: codexBackedPathToolEnv } : typedParams;
+				: pathToolEnv ? { ...typedParams, env: pathToolEnv } : typedParams;
 			const result = await sessions.exec(execParams, ctx.cwd, signal, pathToolPolicy?.suppressPartials ? undefined : onUpdate ? (partial) => onUpdate(toToolResult(partial)) : undefined);
 			if (pathToolPolicy?.parseApplyPatchOutput) {
 				markPathApplyPatchPreviewExit(toolCallId, result.exit_code);
