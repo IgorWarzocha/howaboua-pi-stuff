@@ -17,6 +17,7 @@ import {
 } from "./tool-set.ts";
 import { supportsNativeImageGeneration } from "../../tools/imagegen/tool.ts";
 import { supportsNativeWebSearch } from "../../tools/web-run/tool.ts";
+import { supportsViewImageInputs } from "../../tools/view-image/tool.ts";
 
 const ADAPTER_TOOL_NAMES = [...CORE_ADAPTER_TOOL_NAMES, WEB_SEARCH_TOOL_NAME, IMAGE_GENERATION_TOOL_NAME, VIEW_IMAGE_TOOL_NAME];
 
@@ -139,7 +140,7 @@ function getAdapterToolNames(ctx: ExtensionContext, config: CodexConversionConfi
 	const toolNames = [...CORE_ADAPTER_TOOL_NAMES];
 	if (config.tools.webRun && (supportsNativeWebSearch(ctx.model) || useCodexBackedNativeTools)) toolNames.push(WEB_SEARCH_TOOL_NAME);
 	if (config.tools.imageGeneration && (supportsNativeImageGeneration(ctx.model) || useCodexBackedNativeTools)) toolNames.push(IMAGE_GENERATION_TOOL_NAME);
-	if (Array.isArray(ctx.model?.input) && ctx.model.input.includes("image")) toolNames.push(VIEW_IMAGE_TOOL_NAME);
+	if (supportsViewImageInputs(ctx.model)) toolNames.push(VIEW_IMAGE_TOOL_NAME);
 	return toolNames;
 }
 

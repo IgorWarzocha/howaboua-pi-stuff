@@ -83,7 +83,7 @@ async function executeRustViewImage(params: ViewImageParams, cwd: string, signal
 	return { content: [imageContent], details: { pathTool: { viewImage: true } } };
 }
 
-function supportsImageInputs(model: ExtensionContext["model"]): boolean {
+export function supportsViewImageInputs(model: ExtensionContext["model"]): boolean {
 	return Array.isArray(model?.input) && model.input.includes("image");
 }
 
@@ -98,7 +98,7 @@ export function createViewImageTool(options: CreateViewImageToolOptions = {}): T
 		parameters,
 		prepareArguments: prepareViewImageArguments,
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-			if (!supportsImageInputs(ctx.model)) {
+			if (!supportsViewImageInputs(ctx.model)) {
 				throw new Error(VIEW_IMAGE_UNSUPPORTED_MESSAGE);
 			}
 			const typedParams = parseViewImageParams(params);

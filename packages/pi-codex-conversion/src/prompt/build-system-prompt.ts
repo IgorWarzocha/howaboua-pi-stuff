@@ -37,6 +37,7 @@ const PATH_MODE_REMOVED_GUIDELINES = new Set([
 ]);
 
 export interface CodexPromptToolOptions {
+	viewImage?: boolean | undefined;
 	webRun?: boolean | undefined;
 	imageGeneration?: boolean | undefined;
 }
@@ -44,7 +45,8 @@ export interface CodexPromptToolOptions {
 function buildCodexGuidelines(mode: "normal" | "path" = "normal", tools: CodexPromptToolOptions = {}): string[] {
 	if (mode !== "path") return [...NORMAL_CODEX_GUIDELINES];
 	const guidelines = [...PATH_CODEX_GUIDELINES];
-	const examples = [`- apply_patch <<'PATCH'`, `  *** Begin Patch`, `  ...`, `  *** End Patch`, `  PATCH`, `- view_image '{"path":"/x.png"}'`];
+	const examples = [`- apply_patch <<'PATCH'`, `  *** Begin Patch`, `  ...`, `  *** End Patch`, `  PATCH`];
+	if (tools.viewImage !== false) examples.push(`- view_image '{"path":"/x.png"}'`);
 	if (tools.webRun !== false) {
 		examples.push(`- web_run '{"search_query":[{"q":"..."}],"response_length":"short|medium|long"}'`);
 		examples.push(`- web_run '{"open":[{"ref_id":"turn0search0 or https://..."}]}'`);

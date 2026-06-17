@@ -10,7 +10,7 @@ import { createExecSessionManager } from "./tools/exec/session-manager.ts";
 import { registerOpenAICodexCustomProvider } from "./providers/openai-codex-custom-provider.ts";
 import { registerImageGenerationTool } from "./tools/imagegen/tool.ts";
 import { buildCodexSystemPrompt, extractPiPromptSkills, resolvePromptSkills } from "./prompt/build-system-prompt.ts";
-import { registerViewImageTool } from "./tools/view-image/tool.ts";
+import { registerViewImageTool, supportsViewImageInputs } from "./tools/view-image/tool.ts";
 import { buildRecentWebSearchInput, registerWebSearchTool } from "./tools/web-run/tool.ts";
 import { registerWriteStdinTool } from "./tools/exec/write-stdin-tool.ts";
 import { createBundledPathToolsEnv } from "./tools/path/binary.ts";
@@ -219,7 +219,7 @@ export default function codexConversion(pi: ExtensionAPI) {
 				skills,
 				shell: getDefaultCodexRuntimeShell(),
 				mode: state.config.mode,
-				tools: state.config.mode === "path" ? state.config.tools : undefined,
+				tools: state.config.mode === "path" ? { ...state.config.tools, viewImage: supportsViewImageInputs(ctx.model) } : undefined,
 			}),
 		};
 	});

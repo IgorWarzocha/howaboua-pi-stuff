@@ -117,6 +117,7 @@ export function registerWriteStdinTool(pi: ExtensionAPI, sessions: ExecSessionMa
 			const typed = parseWriteStdinParams(params);
 			const command = sessions.getSessionCommand(typed.session_id) ?? "";
 			const pathToolPolicy = getPathToolPolicy(command, ctx?.model);
+			if (pathToolPolicy?.unsupportedMessage) throw new Error(pathToolPolicy.unsupportedMessage);
 			const writeParams = pathToolPolicy?.disableTruncation ? { ...typed, max_output_tokens: Number.MAX_SAFE_INTEGER } : typed;
 			let result: UnifiedExecResult;
 			try {

@@ -280,6 +280,7 @@ export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTr
 				details: partial,
 			});
 			const pathToolPolicy = getPathToolPolicy(typedParams.cmd, ctx.model);
+			if (pathToolPolicy?.unsupportedMessage) throw new Error(pathToolPolicy.unsupportedMessage);
 			if (pathToolPolicy?.parseApplyPatchOutput) {
 				setPathApplyPatchPreviewState(toolCallId, typedParams.cmd, resolveExecCommandWorkdir(ctx.cwd, typedParams.workdir));
 			}
