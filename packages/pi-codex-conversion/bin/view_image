@@ -12,6 +12,7 @@ const platformArch = `${platform}-${arch}`;
 const binary = join(root, "src", "tools", "view-image", "bin", platformArch, exe);
 const DEFAULT_BASE_URL = "https://chatgpt.com/backend-api/codex";
 const DEFAULT_MODEL = "gpt-5.4-mini";
+const VIEW_IMAGE_MAX_BUFFER = 64 * 1024 * 1024;
 const PROMPT = "Describe this image in detail. Output only the image description, no other commentary.";
 
 if (!existsSync(binary)) {
@@ -34,6 +35,7 @@ function runViewImage(capture) {
     env: process.env,
     cwd: process.cwd(),
     encoding: capture ? "utf8" : undefined,
+    maxBuffer: VIEW_IMAGE_MAX_BUFFER,
   });
 }
 
