@@ -17,12 +17,30 @@ const allRoots = [
 
 function run(command, args, options = {}) {
 	const result = spawnSync(command, args, { stdio: options.capture ? "pipe" : "inherit", encoding: "utf8", env: process.env });
-	if (result.status !== 0) process.exit(result.status ?? 1);
+	if (result.status !== 0) {
+		if (options.capture) {
+			if (result.stdout) process.stdout.write(result.stdout);
+			if (result.stderr) process.stderr.write(result.stderr);
+		}
+		if (options.optional) return undefined;
+		process.exit(result.status ?? 1);
+	}
 	return result.stdout ?? "";
 }
 
-function git(args) {
-	return run("git", args, { capture: true }).split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+function git(args, options = {}) {
+	const output = run("git", args, { capture: true, optional: options.optional });
+	return output?.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+}
+
+function hasCommit(rev) {
+	if (!rev) return false;
+	const result = spawnSync("git", ["cat-file", "-e", `${rev}^{commit}`], { stdio: "ignore", env: process.env });
+	return result.status === 0;
+}
+
+function diffNames(base, head) {
+	return git(["diff", "--name-only", `${base}...${head}`], { optional: true });
 }
 
 function changedFiles() {
@@ -31,10 +49,23 @@ function changedFiles() {
 
 	const base = process.env.BASE_SHA || process.env.GITHUB_EVENT_BEFORE;
 	const head = process.env.HEAD_SHA || process.env.GITHUB_SHA || "HEAD";
-	if (base && !/^0+$/.test(base)) return git(["diff", "--name-only", `${base}...${head}`]);
+	if (base && !/^0+$/.test(base)) {
+		if (hasCommit(base)) {
+			const changed = diffNames(base, head);
+			if (changed) return changed;
+		} else {
+			console.warn(`Base commit ${base} is not available in this checkout; falling back to default branch diff.`);
+		}
+	}
 
-	const local = git(["diff", "--name-only", "HEAD"]);
-	const staged = git(["diff", "--cached", "--name-only", "HEAD"]);
+	const fallbackBase = process.env.FALLBACK_BASE_REF || (process.env.GITHUB_BASE_REF ? `origin/${process.env.GITHUB_BASE_REF}` : "origin/main");
+	if (hasCommit(fallbackBase)) {
+		const changed = diffNames(fallbackBase, head);
+		if (changed) return changed;
+	}
+
+	const local = git(["diff", "--name-only", "HEAD"]) ?? [];
+	const staged = git(["diff", "--cached", "--name-only", "HEAD"]) ?? [];
 	return [...new Set([...local, ...staged])];
 }
 
