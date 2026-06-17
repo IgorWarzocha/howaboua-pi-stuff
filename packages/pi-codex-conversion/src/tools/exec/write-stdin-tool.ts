@@ -99,7 +99,7 @@ function parseWriteStdinParams(params: unknown): WriteStdinParams {
 }
 
 function isUnifiedExecResult(details: unknown): details is UnifiedExecResult {
-	return typeof details === "object" && details !== null;
+	return typeof details === "object" && details !== null && typeof (details as { output?: unknown }).output === "string";
 }
 
 function createEmptyResultComponent(): Container {

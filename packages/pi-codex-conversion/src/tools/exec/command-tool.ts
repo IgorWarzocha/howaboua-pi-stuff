@@ -83,7 +83,7 @@ function parseExecCommandParams(params: unknown): ExecCommandParams {
 }
 
 function isUnifiedExecResult(details: unknown): details is UnifiedExecResult {
-	return typeof details === "object" && details !== null;
+	return typeof details === "object" && details !== null && typeof (details as { output?: unknown }).output === "string";
 }
 
 function createEmptyResultComponent(): Container {
@@ -124,6 +124,8 @@ interface ExecCommandToolOptions {
 
 const COLLAPSED_OUTPUT_MAX_VISUAL_LINES = 5;
 
+type CollapsedExecOutput = Pick<UnifiedExecResult, "output"> & Partial<Pick<UnifiedExecResult, "exit_code" | "session_id" | "wall_time_seconds">>;
+
 function formatDuration(seconds: number): string {
 	return `${seconds.toFixed(1)}s`;
 }
@@ -158,15 +160,15 @@ function expandHint(): string {
 	}
 }
 
-function formatCollapsedOutput(result: UnifiedExecResult, theme: { fg(role: string, text: string): string }): string {
+function formatCollapsedOutput(result: CollapsedExecOutput, theme: { fg(role: string, text: string): string }): string {
 	const lines = [result.output.trimEnd()];
 	if (result.session_id !== undefined) lines.push(theme.fg("accent", `Session ${result.session_id} still running`));
 	if (result.exit_code !== undefined && result.exit_code !== 0) lines.push(theme.fg("muted", `Exit code: ${result.exit_code}`));
-	if (lines.some((line) => line.length > 0)) lines.push(theme.fg("muted", `Took ${formatDuration(result.wall_time_seconds)}`));
+	if (typeof result.wall_time_seconds === "number" && lines.some((line) => line.length > 0)) lines.push(theme.fg("muted", `Took ${formatDuration(result.wall_time_seconds)}`));
 	return lines.filter((line) => line.length > 0).join("\n");
 }
 
-function renderCollapsedExecOutputPreview(result: UnifiedExecResult, theme: { fg(role: string, text: string): string }) {
+function renderCollapsedExecOutputPreview(result: CollapsedExecOutput, theme: { fg(role: string, text: string): string }) {
 	return {
 		render(width: number): string[] {
 			const output = formatCollapsedOutput(result, theme);
@@ -236,6 +238,8 @@ const renderExecCommandResultWithOptionalContext: any = (
 	}
 
 	const details = isUnifiedExecResult(result.details) ? result.details : undefined;
+	const textContent = result.content.find((item) => item.type === "text");
+	const textOutput = textContent?.type === "text" ? textContent.text ?? "" : "";
 	if (!_options.expanded) {
 		const compactImages = result.content.some((item) => item.type === "image") ? result.content : imageContentsFromPathToolDetails(details);
 		if (compactImages.some((item) => item.type === "image")) return renderTextWithImages(theme.fg("dim", viewImageDescriptionFromPathToolDetails(details) ?? ""), compactImages, theme, { paddingX: 4 });
@@ -246,10 +250,10 @@ const renderExecCommandResultWithOptionalContext: any = (
 		if (pathApplyPatchState) {
 			return createEmptyResultComponent();
 		}
-		return options.showOutputWhenCollapsed && details ? renderCollapsedExecOutputPreview(details, theme) : createEmptyResultComponent();
+		const collapsedResult = details ?? (textOutput ? { output: textOutput } : undefined);
+		return options.showOutputWhenCollapsed && collapsedResult ? renderCollapsedExecOutputPreview(collapsedResult, theme) : createEmptyResultComponent();
 	}
 
-	const textContent = result.content.find((item) => item.type === "text");
 	const output = details?.output ?? (textContent?.type === "text" ? textContent.text : "");
 	let text = theme.fg("dim", output || "(no output)");
 	const pathApplyPatchPreview = renderPathApplyPatchPreviewFromState(context?.toolCallId, true);
