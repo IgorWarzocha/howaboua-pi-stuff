@@ -12,6 +12,7 @@ import { renderTextWithImages } from "../path/rendering.ts";
 import { extractPathApplyPatchPreviewPlan, getPathApplyPatchRenderState, markPathApplyPatchPreviewExit, renderPathApplyPatchPreviewFromState, setPathApplyPatchPreviewState, type PathApplyPatchRenderSegment } from "../path/apply-patch-preview.ts";
 import { renderPathToolCommandCall } from "../path/render-call.ts";
 import { webRunSessionStatePath } from "../web-run/tool.ts";
+import { describePathViewImageOutput } from "../view-image/tool.ts";
 import { codexToolProviderEnv, resolveCodexToolProvider } from "../../adapter/codex-tool-provider.ts";
 export { imageContentFromCodexViewImageOutput, imageContentsFromCodexViewImageOutput } from "../path/outputs.ts";
 
@@ -118,6 +119,7 @@ interface ExecCommandToolOptions {
 	customRendering?: boolean | undefined;
 	promptSnippet?: boolean | undefined;
 	showOutputWhenCollapsed?: boolean | undefined;
+	describeImagesForTextModels?: boolean | undefined;
 }
 
 const COLLAPSED_OUTPUT_MAX_VISUAL_LINES = 5;
@@ -279,7 +281,7 @@ export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTr
 				content: [{ type: "text" as const, text: formatUnifiedExecResult(partial, typedParams.cmd) }],
 				details: partial,
 			});
-			const pathToolPolicy = getPathToolPolicy(typedParams.cmd, ctx.model);
+			const pathToolPolicy = getPathToolPolicy(typedParams.cmd, ctx.model, { describeImages: options.describeImagesForTextModels });
 			if (pathToolPolicy?.unsupportedMessage) throw new Error(pathToolPolicy.unsupportedMessage);
 			if (pathToolPolicy?.parseApplyPatchOutput) {
 				setPathApplyPatchPreviewState(toolCallId, typedParams.cmd, resolveExecCommandWorkdir(ctx.cwd, typedParams.workdir));
@@ -300,6 +302,10 @@ export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTr
 			}
 			if (result.session_id !== undefined) {
 				tracker.recordPersistentSession(toolCallId, result.session_id);
+			}
+			if (pathToolPolicy?.describeImageOutput) {
+				const described = await describePathViewImageOutput(typedParams.cmd, result, ctx, signal);
+				if (described) return described;
 			}
 			const pathToolResult = convertPathToolExecResult(typedParams.cmd, result, pathToolPolicy);
 			if (pathToolResult) return pathToolResult;

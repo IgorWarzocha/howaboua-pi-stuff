@@ -6,6 +6,7 @@ import type { ExecSessionManager, UnifiedExecResult } from "./session-manager.ts
 import { formatUnifiedExecResult } from "./format.ts";
 import { convertPathToolExecResult, getPathToolPolicy, imageContentsFromPathToolDetails } from "../path/outputs.ts";
 import { renderTextWithImages } from "../path/rendering.ts";
+import { describePathViewImageOutput } from "../view-image/tool.ts";
 
 const WRITE_STDIN_PARAMETERS = Type.Object({
 	session_id: Type.Number({ description: "Session ID." }),
@@ -106,7 +107,7 @@ function createEmptyResultComponent(): Container {
 	return new Container();
 }
 
-export function registerWriteStdinTool(pi: ExtensionAPI, sessions: ExecSessionManager, options: { promptSnippet?: boolean | undefined } = {}): void {
+export function registerWriteStdinTool(pi: ExtensionAPI, sessions: ExecSessionManager, options: { promptSnippet?: boolean | undefined; describeImagesForTextModels?: boolean | undefined } = {}): void {
 	pi.registerTool({
 		name: "write_stdin",
 		label: "write_stdin",
@@ -116,7 +117,7 @@ export function registerWriteStdinTool(pi: ExtensionAPI, sessions: ExecSessionMa
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {
 			const typed = parseWriteStdinParams(params);
 			const command = sessions.getSessionCommand(typed.session_id) ?? "";
-			const pathToolPolicy = getPathToolPolicy(command, ctx?.model);
+			const pathToolPolicy = getPathToolPolicy(command, ctx?.model, { describeImages: options.describeImagesForTextModels });
 			if (pathToolPolicy?.unsupportedMessage) throw new Error(pathToolPolicy.unsupportedMessage);
 			const writeParams = pathToolPolicy?.disableTruncation ? { ...typed, max_output_tokens: Number.MAX_SAFE_INTEGER } : typed;
 			let result: UnifiedExecResult;
@@ -129,6 +130,10 @@ export function registerWriteStdinTool(pi: ExtensionAPI, sessions: ExecSessionMa
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				throw new Error(`write_stdin failed: ${message}`);
+			}
+			if (pathToolPolicy?.describeImageOutput && ctx) {
+				const described = await describePathViewImageOutput(command, result, ctx, signal);
+				if (described) return described;
 			}
 			const pathToolResult = convertPathToolExecResult(command, result, pathToolPolicy);
 			if (pathToolResult) return pathToolResult;

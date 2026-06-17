@@ -68,9 +68,9 @@ export default function codexConversion(pi: ExtensionAPI) {
 
 	function registerCoreTools(config = state.config): void {
 		registerApplyPatchTool(pi, { ...promptSnippetOptions(config), showDiffWhenCollapsed: config.mode === "normal" });
-		registerExecCommandTool(pi, tracker, sessions, { ...customRenderingOptions(config), ...promptSnippetOptions(config), showOutputWhenCollapsed: config.mode === "normal" });
-		registerWriteStdinTool(pi, sessions, promptSnippetOptions(config));
-		registerViewImageTool(pi, { ...customRenderingOptions(config), ...promptSnippetOptions(config) });
+		registerExecCommandTool(pi, tracker, sessions, { describeImagesForTextModels: config.tools.viewImageFallback, ...customRenderingOptions(config), ...promptSnippetOptions(config), showOutputWhenCollapsed: config.mode === "normal" });
+		registerWriteStdinTool(pi, sessions, { describeImagesForTextModels: config.tools.viewImageFallback, ...promptSnippetOptions(config) });
+		registerViewImageTool(pi, { describeForTextModels: config.tools.viewImageFallback, ...customRenderingOptions(config), ...promptSnippetOptions(config) });
 	}
 
 	function ensureOptionalNativeToolsRegistered(config = state.config): void {
@@ -219,7 +219,7 @@ export default function codexConversion(pi: ExtensionAPI) {
 				skills,
 				shell: getDefaultCodexRuntimeShell(),
 				mode: state.config.mode,
-				tools: state.config.mode === "path" ? { ...state.config.tools, viewImage: supportsViewImageInputs(ctx.model) } : undefined,
+				tools: state.config.mode === "path" ? { ...state.config.tools, viewImage: supportsViewImageInputs(ctx.model) || state.config.tools.viewImageFallback } : undefined,
 			}),
 		};
 	});

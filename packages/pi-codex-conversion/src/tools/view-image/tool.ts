@@ -6,17 +6,24 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { Type, type TSchema } from "typebox";
 import { Text } from "@earendil-works/pi-tui";
+import { parseSSE } from "../../providers/openai-codex/sse.ts";
+import { codexToolProviderHeaders, resolveCodexResponsesUrl, resolveCodexToolProvider } from "../../adapter/codex-tool-provider.ts";
 import { getBundledPathToolBinaryPath } from "../path/binary.ts";
-import { imageContentFromCodexViewImageOutput } from "../path/outputs.ts";
+import { formatUnifiedExecResult } from "../exec/format.ts";
+import { imageContentFromCodexViewImageOutput, type PathViewImageContent, type ToolResultLike } from "../path/outputs.ts";
 import { runBundledTool } from "../path/runner.ts";
 import { renderCodexToolCell } from "../../ui/tool-rendering/codex-tool-cell.ts";
+import type { UnifiedExecResult } from "../exec/session-manager.ts";
 
 const VIEW_IMAGE_UNSUPPORTED_MESSAGE = "view_image is not allowed because you do not support image inputs";
+const IMAGE_DESCRIPTION_MODEL = "gpt-5.4-mini";
+const IMAGE_DESCRIPTION_PROMPT = "Describe this image in detail. Output only the image description, no other commentary.";
 interface ViewImageParams {
 	path: string;
 }
 
 interface CreateViewImageToolOptions {
+	describeForTextModels?: boolean | undefined;
 	customRendering?: boolean | undefined;
 	promptSnippet?: boolean | undefined;
 }
@@ -61,7 +68,7 @@ function prepareViewImageArguments(args: unknown): Record<string, unknown> {
 	return prepared;
 }
 
-async function executeRustViewImage(params: ViewImageParams, cwd: string, signal: AbortSignal | undefined): Promise<AgentToolResult<unknown>> {
+async function executeRustViewImageContent(params: ViewImageParams, cwd: string, signal: AbortSignal | undefined): Promise<PathViewImageContent> {
 	const binary = getBundledPathToolBinaryPath("view_image");
 	if (!binary) {
 		throw new Error(`view_image binary is not bundled for ${process.platform}-${process.arch}`);
@@ -80,7 +87,81 @@ async function executeRustViewImage(params: ViewImageParams, cwd: string, signal
 	if (!imageContent) {
 		throw new Error("view_image expected an image file. Use exec_command for text files.");
 	}
+	return imageContent;
+}
+
+async function executeRustViewImage(params: ViewImageParams, cwd: string, signal: AbortSignal | undefined): Promise<AgentToolResult<unknown>> {
+	const imageContent = await executeRustViewImageContent(params, cwd, signal);
 	return { content: [imageContent], details: { pathTool: { viewImage: true } } };
+}
+
+function extractOutputText(value: unknown): string | undefined {
+	if (!value || typeof value !== "object") return undefined;
+	const record = value as Record<string, unknown>;
+	const outputText = record["output_text"];
+	if (typeof outputText === "string" && outputText.trim()) return outputText;
+	const output = record["output"];
+	if (!Array.isArray(output)) return undefined;
+	const parts: string[] = [];
+	for (const item of output) {
+		if (!item || typeof item !== "object") continue;
+		const content = (item as Record<string, unknown>)["content"];
+		if (!Array.isArray(content)) continue;
+		for (const block of content) {
+			if (!block || typeof block !== "object") continue;
+			const text = (block as Record<string, unknown>)["text"];
+			if (typeof text === "string") parts.push(text);
+		}
+	}
+	const text = parts.join("").trim();
+	return text || undefined;
+}
+
+export async function describeImageContentForTextModel(image: PathViewImageContent, ctx: ExtensionContext, signal: AbortSignal | undefined): Promise<string> {
+	const provider = await resolveCodexToolProvider(ctx);
+	const headers = codexToolProviderHeaders(provider);
+	headers.set("accept", "text/event-stream");
+	headers.set("OpenAI-Beta", "responses=experimental");
+	const response = await fetch(resolveCodexResponsesUrl(provider.baseUrl), {
+		method: "POST",
+		headers,
+		signal: signal ?? null,
+		body: JSON.stringify({
+			model: IMAGE_DESCRIPTION_MODEL,
+			store: false,
+			stream: true,
+			instructions: IMAGE_DESCRIPTION_PROMPT,
+			text: { verbosity: "low" },
+			reasoning: { effort: "low", summary: "auto" },
+			input: [{
+				role: "user",
+				content: [
+					{ type: "input_text", text: "Describe the image." },
+					{ type: "input_image", image_url: `data:${image.mimeType};base64,${image.data}`, detail: image.detail },
+				],
+			}],
+		}),
+	});
+	if (!response.ok) throw new Error(`view_image description failed: HTTP ${response.status} ${await response.text()}`);
+	let text = "";
+	for await (const event of parseSSE(response, signal)) {
+		const record = event as Record<string, unknown>;
+		if (record["type"] === "response.output_text.delta" && typeof record["delta"] === "string") text += record["delta"];
+		if (record["type"] === "response.output_text.done" && !text.trim() && typeof record["text"] === "string") text = record["text"];
+		if (record["type"] === "response.completed" && !text.trim()) text = extractOutputText(record["response"]) ?? "";
+	}
+	const trimmed = text.trim();
+	if (!trimmed) throw new Error("view_image description returned no text");
+	return trimmed;
+}
+
+export async function describePathViewImageOutput(command: string, result: UnifiedExecResult, ctx: ExtensionContext, signal: AbortSignal | undefined): Promise<ToolResultLike | undefined> {
+	if (result.session_id !== undefined || result.exit_code !== 0) return undefined;
+	const image = imageContentFromCodexViewImageOutput(result.output);
+	if (!image) return undefined;
+	const description = await describeImageContentForTextModel(image, ctx, signal);
+	const details = { ...result, output: description, original_token_count: undefined, pathTool: { viewImageDescription: true } };
+	return { content: [{ type: "text", text: formatUnifiedExecResult(details, command) }], details };
 }
 
 export function supportsViewImageInputs(model: ExtensionContext["model"]): boolean {
@@ -98,10 +179,15 @@ export function createViewImageTool(options: CreateViewImageToolOptions = {}): T
 		parameters,
 		prepareArguments: prepareViewImageArguments,
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-			if (!supportsViewImageInputs(ctx.model)) {
+			if (!supportsViewImageInputs(ctx.model) && !options.describeForTextModels) {
 				throw new Error(VIEW_IMAGE_UNSUPPORTED_MESSAGE);
 			}
 			const typedParams = parseViewImageParams(params);
+			if (!supportsViewImageInputs(ctx.model)) {
+				const image = await executeRustViewImageContent(typedParams, ctx.cwd, signal);
+				const description = await describeImageContentForTextModel(image, ctx, signal);
+				return { content: [{ type: "text", text: description }], details: { pathTool: { viewImageDescription: true, path: typedParams.path } } };
+			}
 			return executeRustViewImage(typedParams, ctx.cwd, signal);
 		},
 		...(options.customRendering === false ? {} : {

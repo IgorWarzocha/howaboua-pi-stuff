@@ -18,6 +18,7 @@ export interface PathToolPolicy {
 	suppressPartials: boolean;
 	yieldTimeMs?: number | undefined;
 	unsupportedMessage?: string | undefined;
+	describeImageOutput: boolean;
 	parseImageOutput: boolean;
 	parseWebRunOutput: boolean;
 	parseImagegenOutput: boolean;
@@ -25,22 +26,23 @@ export interface PathToolPolicy {
 	parseApplyPatchOutput: boolean;
 }
 
-export function getPathToolPolicy(command: string, model: Model<any> | undefined): PathToolPolicy | undefined {
+export function getPathToolPolicy(command: string, model: Model<any> | undefined, options: { describeImages?: boolean | undefined } = {}): PathToolPolicy | undefined {
 	const supportsImages = Array.isArray(model?.input) && model.input.includes("image");
-	if (hasPathToolCommand(command, "view_image") && !supportsImages) {
-		return { disableTruncation: true, suppressPartials: true, unsupportedMessage: "view_image requires an image-capable model", parseApplyPatchOutput: false, parseImageOutput: false, parseWebRunOutput: false, parseImagegenOutput: false, includeImagegenImageContent: false };
+	if (hasPathToolCommand(command, "view_image") && !supportsImages && !options.describeImages) {
+		return { disableTruncation: true, suppressPartials: true, unsupportedMessage: "view_image requires an image-capable model", parseApplyPatchOutput: false, describeImageOutput: false, parseImageOutput: false, parseWebRunOutput: false, parseImagegenOutput: false, includeImagegenImageContent: false };
 	}
 	if (getPathToolNamesFromParts(splitCommandParts(command), ["apply_patch", "view_image", "web_run", "imagegen"]).length > 1) return undefined;
 	const isWebRun = isSimplePathToolOutputCommand(command, "web_run");
 	const isImagegen = isSimplePathToolOutputCommand(command, "imagegen");
+	const describeImageOutput = isSimplePathToolOutputCommand(command, "view_image") && !supportsImages && Boolean(options.describeImages);
 	const modelInput = model?.input;
 	const parseApplyPatchOutput = isPathApplyPatchCommand(command);
 	const parseImageOutput = isSimplePathToolOutputCommand(command, "view_image") && supportsImages;
 	const parseWebRunOutput = isWebRun;
 	const parseImagegenOutput = isImagegen;
 	const includeImagegenImageContent = isImagegen && (!Array.isArray(modelInput) || modelInput.includes("image"));
-	if (!parseApplyPatchOutput && !parseImageOutput && !parseWebRunOutput && !isImagegen) return undefined;
-	return { disableTruncation: true, suppressPartials: true, ...(isWebRun || isImagegen ? { yieldTimeMs: 3_600_000 } : {}), parseApplyPatchOutput, parseImageOutput, parseWebRunOutput, parseImagegenOutput, includeImagegenImageContent };
+	if (!parseApplyPatchOutput && !parseImageOutput && !describeImageOutput && !parseWebRunOutput && !isImagegen) return undefined;
+	return { disableTruncation: true, suppressPartials: true, ...(isWebRun || isImagegen ? { yieldTimeMs: 3_600_000 } : {}), parseApplyPatchOutput, describeImageOutput, parseImageOutput, parseWebRunOutput, parseImagegenOutput, includeImagegenImageContent };
 }
 
 export function convertPathToolExecResult(command: string, result: UnifiedExecResult, policy: PathToolPolicy | undefined): ToolResultLike | undefined {

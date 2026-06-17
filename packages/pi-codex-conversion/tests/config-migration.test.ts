@@ -25,7 +25,7 @@ test("old flat config migrates to grouped config and respects disabled provider 
 	const config = normalizeCodexConversionConfig(migration.config);
 	assert.equal(config.mode, "normal");
 	assert.deepEqual(config.scope, { allProviders: true, additionalProviders: [] });
-	assert.deepEqual(config.tools, { webRun: false, imageGeneration: false, applyPatchOnly: true });
+	assert.deepEqual(config.tools, { webRun: false, imageGeneration: false, viewImageFallback: false, applyPatchOnly: true });
 	assert.equal(config.ui.statusLine, false);
 	assert.equal(config.ui.toolRendering, true);
 	assert.equal(config.ui.backgroundShellWidget, false);

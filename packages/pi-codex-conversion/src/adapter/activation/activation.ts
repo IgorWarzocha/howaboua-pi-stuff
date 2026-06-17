@@ -140,7 +140,7 @@ function getAdapterToolNames(ctx: ExtensionContext, config: CodexConversionConfi
 	const toolNames = [...CORE_ADAPTER_TOOL_NAMES];
 	if (config.tools.webRun && (supportsNativeWebSearch(ctx.model) || useCodexBackedNativeTools)) toolNames.push(WEB_SEARCH_TOOL_NAME);
 	if (config.tools.imageGeneration && (supportsNativeImageGeneration(ctx.model) || useCodexBackedNativeTools)) toolNames.push(IMAGE_GENERATION_TOOL_NAME);
-	if (supportsViewImageInputs(ctx.model)) toolNames.push(VIEW_IMAGE_TOOL_NAME);
+	if (supportsViewImageInputs(ctx.model) || config.tools.viewImageFallback) toolNames.push(VIEW_IMAGE_TOOL_NAME);
 	return toolNames;
 }
 
