@@ -9,12 +9,10 @@ import { Text } from "@earendil-works/pi-tui";
 import { parseSSE } from "../../providers/openai-codex/sse.ts";
 import { codexToolProviderHeaders, resolveCodexResponsesUrl, resolveCodexToolProvider } from "../../adapter/codex-tool-provider.ts";
 import { getBundledPathToolBinaryPath } from "../path/binary.ts";
-import { formatUnifiedExecResult } from "../exec/format.ts";
-import { imageContentFromCodexViewImageOutput, imageContentsFromPathToolDetails, type PathViewImageContent, type ToolResultLike } from "../path/outputs.ts";
+import { imageContentFromCodexViewImageOutput, imageContentsFromPathToolDetails, type PathViewImageContent } from "../path/outputs.ts";
 import { renderTextWithImages } from "../path/rendering.ts";
 import { runBundledTool } from "../path/runner.ts";
 import { renderCodexToolCell } from "../../ui/tool-rendering/codex-tool-cell.ts";
-import type { UnifiedExecResult } from "../exec/session-manager.ts";
 
 const VIEW_IMAGE_UNSUPPORTED_MESSAGE = "view_image is not allowed because you do not support image inputs";
 const IMAGE_DESCRIPTION_MODEL = "gpt-5.4-mini";
@@ -118,8 +116,42 @@ function extractOutputText(value: unknown): string | undefined {
 	return text || undefined;
 }
 
+function isUsableDescriptionModel(model: ExtensionContext["model"]): boolean {
+	return (model?.provider ?? "").toLowerCase() === "openai-codex"
+		&& Boolean(model?.api?.includes("responses"))
+		&& (!Array.isArray(model?.input) || model.input.includes("image"));
+}
+
+function modelVersionScore(id: string): number[] {
+	return [...id.matchAll(/\d+/g)].map((match) => Number.parseInt(match[0]!, 10));
+}
+
+function compareModelIdsDescending(left: string, right: string): number {
+	const a = modelVersionScore(left);
+	const b = modelVersionScore(right);
+	const length = Math.max(a.length, b.length);
+	for (let index = 0; index < length; index += 1) {
+		const diff = (b[index] ?? 0) - (a[index] ?? 0);
+		if (diff !== 0) return diff;
+	}
+	return right.localeCompare(left);
+}
+
+export function resolveImageDescriptionModel(ctx: ExtensionContext): string {
+	const registry = ctx.modelRegistry as { getAvailable?: () => ExtensionContext["model"][]; getAll?: () => ExtensionContext["model"][]; find?: (provider: string, modelId: string) => ExtensionContext["model"] | undefined };
+	const models = [...(registry.getAvailable?.() ?? []), ...(registry.getAll?.() ?? [])]
+		.filter(isUsableDescriptionModel);
+	const mini = models
+		.filter((model) => model?.id?.toLowerCase().includes("mini"))
+		.sort((left, right) => compareModelIdsDescending(left!.id, right!.id))[0];
+	if (mini?.id) return mini.id;
+	const direct = registry.find?.("openai-codex", IMAGE_DESCRIPTION_MODEL);
+	return isUsableDescriptionModel(direct) && direct?.id ? direct.id : IMAGE_DESCRIPTION_MODEL;
+}
+
 export async function describeImageContentForTextModel(image: PathViewImageContent, ctx: ExtensionContext, signal: AbortSignal | undefined): Promise<string> {
 	const provider = await resolveCodexToolProvider(ctx);
+	const model = resolveImageDescriptionModel(ctx);
 	const headers = codexToolProviderHeaders(provider);
 	headers.set("accept", "text/event-stream");
 	headers.set("OpenAI-Beta", "responses=experimental");
@@ -128,7 +160,7 @@ export async function describeImageContentForTextModel(image: PathViewImageConte
 		headers,
 		signal: signal ?? null,
 		body: JSON.stringify({
-			model: IMAGE_DESCRIPTION_MODEL,
+			model,
 			store: false,
 			stream: true,
 			instructions: IMAGE_DESCRIPTION_PROMPT,
@@ -154,15 +186,6 @@ export async function describeImageContentForTextModel(image: PathViewImageConte
 	const trimmed = text.trim();
 	if (!trimmed) throw new Error("view_image description returned no text");
 	return trimmed;
-}
-
-export async function describePathViewImageOutput(command: string, result: UnifiedExecResult, ctx: ExtensionContext, signal: AbortSignal | undefined): Promise<ToolResultLike | undefined> {
-	if (result.session_id !== undefined || result.exit_code !== 0) return undefined;
-	const image = imageContentFromCodexViewImageOutput(result.output);
-	if (!image) return undefined;
-	const description = await describeImageContentForTextModel(image, ctx, signal);
-	const details = { ...result, output: description, original_token_count: undefined, pathTool: { viewImageDescription: { image } } };
-	return { content: [{ type: "text", text: formatUnifiedExecResult(details, command) }], details };
 }
 
 export function supportsViewImageInputs(model: ExtensionContext["model"]): boolean {

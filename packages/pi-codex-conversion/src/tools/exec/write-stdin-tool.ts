@@ -6,7 +6,6 @@ import type { ExecSessionManager, UnifiedExecResult } from "./session-manager.ts
 import { formatUnifiedExecResult } from "./format.ts";
 import { convertPathToolExecResult, getPathToolPolicy, imageContentsFromPathToolDetails } from "../path/outputs.ts";
 import { renderTextWithImages } from "../path/rendering.ts";
-import { describePathViewImageOutput } from "../view-image/tool.ts";
 
 const WRITE_STDIN_PARAMETERS = Type.Object({
 	session_id: Type.Number({ description: "Session ID." }),
@@ -130,10 +129,6 @@ export function registerWriteStdinTool(pi: ExtensionAPI, sessions: ExecSessionMa
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				throw new Error(`write_stdin failed: ${message}`);
-			}
-			if (pathToolPolicy?.describeImageOutput && ctx) {
-				const described = await describePathViewImageOutput(command, result, ctx, signal);
-				if (described) return described;
 			}
 			const pathToolResult = convertPathToolExecResult(command, result, pathToolPolicy);
 			if (pathToolResult) return pathToolResult;

@@ -28,16 +28,17 @@ export interface PathToolPolicy {
 
 export function getPathToolPolicy(command: string, model: Model<any> | undefined, options: { describeImages?: boolean | undefined } = {}): PathToolPolicy | undefined {
 	const supportsImages = Array.isArray(model?.input) && model.input.includes("image");
-	if (hasPathToolCommand(command, "view_image") && !supportsImages && !options.describeImages) {
+	if (getPathToolNamesFromParts(splitCommandParts(command), ["apply_patch", "view_image", "web_run", "imagegen"]).length > 1) return undefined;
+	const isViewImage = isSimplePathToolOutputCommand(command, "view_image");
+	if (isViewImage && !supportsImages && !options.describeImages) {
 		return { disableTruncation: true, suppressPartials: true, unsupportedMessage: "view_image requires an image-capable model", parseApplyPatchOutput: false, describeImageOutput: false, parseImageOutput: false, parseWebRunOutput: false, parseImagegenOutput: false, includeImagegenImageContent: false };
 	}
-	if (getPathToolNamesFromParts(splitCommandParts(command), ["apply_patch", "view_image", "web_run", "imagegen"]).length > 1) return undefined;
 	const isWebRun = isSimplePathToolOutputCommand(command, "web_run");
 	const isImagegen = isSimplePathToolOutputCommand(command, "imagegen");
-	const describeImageOutput = isSimplePathToolOutputCommand(command, "view_image") && !supportsImages && Boolean(options.describeImages);
+	const describeImageOutput = isViewImage && !supportsImages && Boolean(options.describeImages);
 	const modelInput = model?.input;
 	const parseApplyPatchOutput = isPathApplyPatchCommand(command);
-	const parseImageOutput = isSimplePathToolOutputCommand(command, "view_image") && supportsImages;
+	const parseImageOutput = isViewImage && supportsImages;
 	const parseWebRunOutput = isWebRun;
 	const parseImagegenOutput = isImagegen;
 	const includeImagegenImageContent = isImagegen && (!Array.isArray(modelInput) || modelInput.includes("image"));
@@ -57,6 +58,15 @@ export function convertPathToolExecResult(command: string, result: UnifiedExecRe
 		if (imageContents.length) {
 			const details = sanitizeExecResult(result, "<image output>");
 			return { content: [{ type: "text", text: formatUnifiedExecResult(details, command) }, ...imageContents], details };
+		}
+		return undefined;
+	}
+	if (policy.describeImageOutput) {
+		const parsed = pathViewImageDescriptionOutputFromJson(result.output);
+		if (parsed) {
+			const image = imageContentFromCodexViewImageJson(JSON.stringify({ image_url: parsed.image_url, detail: parsed.detail ?? "high" }));
+			const details = sanitizeExecResult(result, parsed.description, { viewImageDescription: image ? { image } : true });
+			return { content: [{ type: "text", text: formatUnifiedExecResult(details, command) }], details };
 		}
 		return undefined;
 	}
@@ -281,6 +291,23 @@ export interface PathImagegenOutput {
 	background?: string | undefined;
 	quality?: string | undefined;
 	size?: string | undefined;
+}
+
+interface PathViewImageDescriptionOutput {
+	description: string;
+	image_url?: string | undefined;
+	detail?: "high" | "original" | undefined;
+}
+
+function pathViewImageDescriptionOutputFromJson(output: string): PathViewImageDescriptionOutput | undefined {
+	let parsed: unknown;
+	try { parsed = JSON.parse(output.trim()); } catch { return undefined; }
+	if (!parsed || typeof parsed !== "object") return undefined;
+	const description = (parsed as Record<string, unknown>)["description"];
+	if (typeof description !== "string" || !description.trim()) return undefined;
+	const imageUrl = (parsed as Record<string, unknown>)["image_url"];
+	const detail = (parsed as Record<string, unknown>)["detail"];
+	return { description: description.trim(), ...(typeof imageUrl === "string" ? { image_url: imageUrl } : {}), ...(detail === "high" || detail === "original" ? { detail } : {}) };
 }
 
 export function pathImagegenOutputFromJson(output: string): PathImagegenOutput | undefined {

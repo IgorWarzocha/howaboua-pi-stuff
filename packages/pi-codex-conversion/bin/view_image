@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync } from "node:fs";
+import { chmodSync, existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -10,6 +10,9 @@ const arch = process.arch;
 const exe = platform === "win32" ? "view_image.exe" : "view_image";
 const platformArch = `${platform}-${arch}`;
 const binary = join(root, "src", "tools", "view-image", "bin", platformArch, exe);
+const DEFAULT_BASE_URL = "https://chatgpt.com/backend-api/codex";
+const DEFAULT_MODEL = "gpt-5.4-mini";
+const PROMPT = "Describe this image in detail. Output only the image description, no other commentary.";
 
 if (!existsSync(binary)) {
   console.error(`view_image binary is not bundled for ${platformArch}.`);
@@ -25,14 +28,143 @@ if (platform !== "win32") {
   }
 }
 
-const result = spawnSync(binary, process.argv.slice(2), {
-  stdio: "inherit",
-  env: process.env,
-  cwd: process.cwd(),
-});
+function runViewImage(capture) {
+  return spawnSync(binary, process.argv.slice(2), {
+    stdio: capture ? ["inherit", "pipe", "pipe"] : "inherit",
+    env: process.env,
+    cwd: process.cwd(),
+    encoding: capture ? "utf8" : undefined,
+  });
+}
 
-if (result.error) {
-  console.error(result.error.message);
+function authFromEnv() {
+  const token = process.env.PI_CODEX_ACCESS_TOKEN;
+  const accountId = process.env.PI_CODEX_ACCOUNT_ID;
+  return token && accountId ? { token, accountId } : undefined;
+}
+
+function authFromFile() {
+  const authPath = process.env.PI_AUTH_PATH || join(process.env.HOME || "", ".pi", "agent", "auth.json");
+  const auth = JSON.parse(readFileSync(authPath, "utf8"));
+  const credential = auth["openai-codex"];
+  if (!credential?.access || !credential?.accountId) return undefined;
+  return { token: credential.access, accountId: credential.accountId };
+}
+
+function codexAuth() {
+  return authFromEnv() || authFromFile();
+}
+
+function responsesUrl() {
+  if (process.env.PI_CODEX_RESPONSES_URL) return process.env.PI_CODEX_RESPONSES_URL;
+  const normalized = (process.env.PI_CODEX_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, "");
+  if (normalized.endsWith("/codex/responses")) return normalized;
+  if (normalized.endsWith("/codex")) return `${normalized}/responses`;
+  if (normalized.endsWith("/backend-api") || normalized.endsWith("/api")) return `${normalized}/codex/responses`;
+  return `${normalized}/codex/responses`;
+}
+
+function imageFromOutput(output) {
+  const parsed = JSON.parse(output.trim());
+  if (typeof parsed.image_url !== "string") throw new Error("view_image did not return an image_url");
+  return { image_url: parsed.image_url, detail: parsed.detail === "original" ? "original" : "high" };
+}
+
+async function readSseText(response) {
+  const reader = response.body?.getReader();
+  if (!reader) return "";
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let text = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let index;
+    while ((index = buffer.indexOf("\n\n")) !== -1) {
+      const frame = buffer.slice(0, index);
+      buffer = buffer.slice(index + 2);
+      const data = frame.split(/\r?\n/).filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trimStart()).join("\n");
+      if (!data || data === "[DONE]") continue;
+      const event = JSON.parse(data);
+      if (event.type === "response.output_text.delta" && typeof event.delta === "string") text += event.delta;
+      if (event.type === "response.output_text.done" && !text.trim() && typeof event.text === "string") text = event.text;
+      if (event.type === "response.completed" && !text.trim()) text = outputText(event.response) || "";
+    }
+  }
+  return text.trim();
+}
+
+function outputText(response) {
+  if (typeof response?.output_text === "string") return response.output_text;
+  if (!Array.isArray(response?.output)) return undefined;
+  const parts = [];
+  for (const item of response.output) {
+    if (!Array.isArray(item?.content)) continue;
+    for (const block of item.content) if (typeof block?.text === "string") parts.push(block.text);
+  }
+  return parts.join("").trim() || undefined;
+}
+
+async function describeImage(image) {
+  const auth = codexAuth();
+  if (!auth) throw new Error("view_image descriptions require /login openai-codex");
+  const response = await fetch(responsesUrl(), {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${auth.token}`,
+      "ChatGPT-Account-ID": auth.accountId,
+      originator: "codex_cli_rs",
+      "User-Agent": "pi-codex-conversion view_image",
+      version: "0.0.0",
+      "content-type": "application/json",
+      accept: "text/event-stream",
+      "OpenAI-Beta": "responses=experimental",
+    },
+    body: JSON.stringify({
+      model: process.env.PI_CODEX_VIEW_IMAGE_MODEL || DEFAULT_MODEL,
+      store: false,
+      stream: true,
+      instructions: PROMPT,
+      text: { verbosity: "low" },
+      reasoning: { effort: "low", summary: "auto" },
+      input: [{
+        role: "user",
+        content: [
+          { type: "input_text", text: "Describe the image." },
+          { type: "input_image", image_url: image.image_url, detail: image.detail },
+        ],
+      }],
+    }),
+  });
+  if (!response.ok) throw new Error(`view_image description failed: HTTP ${response.status} ${await response.text()}`);
+  const description = await readSseText(response);
+  if (!description) throw new Error("view_image description returned no text");
+  return description;
+}
+
+if (process.env.PI_CODEX_VIEW_IMAGE_DESCRIBE !== "1") {
+  const result = runViewImage(false);
+  if (result.error) {
+    console.error(result.error.message);
+    process.exit(1);
+  }
+  process.exit(result.status ?? 0);
+}
+
+try {
+  const result = runViewImage(true);
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    process.stderr.write(result.stderr || result.stdout || "view_image failed\n");
+    process.exit(result.status ?? 1);
+  }
+  const image = imageFromOutput(result.stdout);
+  const description = await describeImage(image);
+  console.log(process.env.PI_CODEX_VIEW_IMAGE_STRUCTURED === "1"
+    ? JSON.stringify({ description, image_url: image.image_url, detail: image.detail })
+    : description);
+} catch (error) {
+  console.error(error instanceof Error ? error.message : String(error));
   process.exit(1);
 }
-process.exit(result.status ?? 0);

@@ -12,7 +12,7 @@ import { renderTextWithImages } from "../path/rendering.ts";
 import { extractPathApplyPatchPreviewPlan, getPathApplyPatchRenderState, markPathApplyPatchPreviewExit, renderPathApplyPatchPreviewFromState, setPathApplyPatchPreviewState, type PathApplyPatchRenderSegment } from "../path/apply-patch-preview.ts";
 import { renderPathToolCommandCall } from "../path/render-call.ts";
 import { webRunSessionStatePath } from "../web-run/tool.ts";
-import { describePathViewImageOutput } from "../view-image/tool.ts";
+import { resolveImageDescriptionModel } from "../view-image/tool.ts";
 import { codexToolProviderEnv, resolveCodexToolProvider } from "../../adapter/codex-tool-provider.ts";
 export { imageContentFromCodexViewImageOutput, imageContentsFromCodexViewImageOutput } from "../path/outputs.ts";
 
@@ -290,10 +290,13 @@ export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTr
 			}
 			const webRunStatePath = pathToolPolicy?.parseWebRunOutput ? webRunSessionStatePath(ctx) : undefined;
 			const codexBackedPathToolEnv = await resolveCodexBackedPathToolEnv(typedParams.cmd, ctx);
+			const viewImageDescriptionEnv = options.describeImagesForTextModels && !(Array.isArray(ctx.model?.input) && ctx.model.input.includes("image"))
+				? { PI_CODEX_VIEW_IMAGE_DESCRIBE: "1", PI_CODEX_VIEW_IMAGE_MODEL: resolveImageDescriptionModel(ctx), ...(pathToolPolicy?.describeImageOutput ? { PI_CODEX_VIEW_IMAGE_STRUCTURED: "1" } : {}) }
+				: undefined;
 			const execParams = pathToolPolicy
 				? {
 					...typedParams,
-					...(webRunStatePath || codexBackedPathToolEnv ? { env: { ...codexBackedPathToolEnv, ...(webRunStatePath ? { PI_WEB_RUN_STATE_PATH: webRunStatePath } : {}) } } : {}),
+					...(webRunStatePath || codexBackedPathToolEnv || viewImageDescriptionEnv ? { env: { ...codexBackedPathToolEnv, ...viewImageDescriptionEnv, ...(webRunStatePath ? { PI_WEB_RUN_STATE_PATH: webRunStatePath } : {}) } } : {}),
 					...(pathToolPolicy.disableTruncation ? { max_output_tokens: Number.MAX_SAFE_INTEGER } : {}),
 					...(pathToolPolicy.yieldTimeMs !== undefined ? { yield_time_ms: pathToolPolicy.yieldTimeMs, max_yield_time_ms: pathToolPolicy.yieldTimeMs } : {}),
 				}
@@ -304,10 +307,6 @@ export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTr
 			}
 			if (result.session_id !== undefined) {
 				tracker.recordPersistentSession(toolCallId, result.session_id);
-			}
-			if (pathToolPolicy?.describeImageOutput) {
-				const described = await describePathViewImageOutput(typedParams.cmd, result, ctx, signal);
-				if (described) return described;
 			}
 			const pathToolResult = convertPathToolExecResult(typedParams.cmd, result, pathToolPolicy);
 			if (pathToolResult) return pathToolResult;
