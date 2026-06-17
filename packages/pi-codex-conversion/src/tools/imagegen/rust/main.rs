@@ -1,6 +1,6 @@
-use std::{env, fs};
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::{env, fs};
 
 use anyhow::Context;
 use base64::Engine;
@@ -12,6 +12,7 @@ use uuid::Uuid;
 const DEFAULT_BASE_URL: &str = "https://chatgpt.com/backend-api";
 const IMAGE_DIR: &str = ".pi/openai-codex-images";
 const LATEST_IMAGE_NAME: &str = "latest.png";
+const IMAGE_MODEL: &str = "gpt-image-2";
 
 #[derive(Debug, Deserialize)]
 struct PiAuthFile {
@@ -148,7 +149,10 @@ fn pi_agent_dir() -> PathBuf {
 }
 
 fn read_codex_auth() -> anyhow::Result<CodexAuth> {
-    if let (Ok(token), Ok(account_id)) = (env::var("PI_CODEX_ACCESS_TOKEN"), env::var("PI_CODEX_ACCOUNT_ID")) {
+    if let (Ok(token), Ok(account_id)) = (
+        env::var("PI_CODEX_ACCESS_TOKEN"),
+        env::var("PI_CODEX_ACCOUNT_ID"),
+    ) {
         return Ok(CodexAuth { token, account_id });
     }
     let auth_path = env::var("PI_AUTH_PATH")
@@ -160,23 +164,37 @@ fn read_codex_auth() -> anyhow::Result<CodexAuth> {
     )
     .with_context(|| format!("failed to parse Pi auth file `{}`", auth_path.display()))?;
     let Some(credential) = auth.openai_codex else {
-        anyhow::bail!("Pi auth file `{}` has no openai-codex credential; run /login openai-codex", auth_path.display());
+        anyhow::bail!(
+            "Pi auth file `{}` has no openai-codex credential; run /login openai-codex",
+            auth_path.display()
+        );
     };
     if credential.access.is_empty() || credential.account_id.is_empty() {
-        anyhow::bail!("Pi openai-codex credential is missing access token or account id; run /login openai-codex");
+        anyhow::bail!(
+            "Pi openai-codex credential is missing access token or account id; run /login openai-codex"
+        );
     }
-    Ok(CodexAuth { token: credential.access, account_id: credential.account_id })
+    Ok(CodexAuth {
+        token: credential.access,
+        account_id: credential.account_id,
+    })
 }
 
 fn headers(token: &str, account_id: &str) -> anyhow::Result<HeaderMap> {
     let mut headers = HeaderMap::new();
-    headers.insert("Authorization", HeaderValue::from_str(&format!("Bearer {token}"))?);
+    headers.insert(
+        "Authorization",
+        HeaderValue::from_str(&format!("Bearer {token}"))?,
+    );
     headers.insert("chatgpt-account-id", HeaderValue::from_str(account_id)?);
-    headers.insert("originator", HeaderValue::from_static("pi"));
-    headers.insert("OpenAI-Beta", HeaderValue::from_static("responses=experimental"));
-    headers.insert("accept", HeaderValue::from_static("text/event-stream"));
+    headers.insert("originator", HeaderValue::from_static("codex_cli_rs"));
+    headers.insert("accept", HeaderValue::from_static("application/json"));
     headers.insert("content-type", HeaderValue::from_static("application/json"));
-    headers.insert("User-Agent", HeaderValue::from_static("pi-codex-conversion imagegen path-tool"));
+    headers.insert("version", HeaderValue::from_static("0.0.0"));
+    headers.insert(
+        "User-Agent",
+        HeaderValue::from_static("pi-codex-conversion imagegen path-tool"),
+    );
     Ok(headers)
 }
 
@@ -186,8 +204,12 @@ fn workspace_root(cwd: &Path) -> PathBuf {
         if current.join(".git").exists() {
             return current;
         }
-        let Some(parent) = current.parent() else { return cwd.to_path_buf(); };
-        if parent == current { return cwd.to_path_buf(); }
+        let Some(parent) = current.parent() else {
+            return cwd.to_path_buf();
+        };
+        if parent == current {
+            return cwd.to_path_buf();
+        }
         current = parent.to_path_buf();
     }
 }
@@ -199,132 +221,85 @@ fn relative_path(root: &Path, path: &Path) -> String {
 }
 
 fn image_url_from_arg(value: &str) -> anyhow::Result<String> {
-    if value.starts_with("data:image/") || value.starts_with("http://") || value.starts_with("https://") {
+    if value.starts_with("data:image/")
+        || value.starts_with("http://")
+        || value.starts_with("https://")
+    {
         return Ok(value.to_string());
     }
     let bytes = fs::read(value).with_context(|| format!("failed to read edit image `{value}`"))?;
-    let mime = mime_guess::from_path(value).first_or_octet_stream().to_string();
+    let mime = mime_guess::from_path(value)
+        .first_or_octet_stream()
+        .to_string();
     let b64 = base64::engine::general_purpose::STANDARD.encode(bytes);
     Ok(format!("data:{mime};base64,{b64}"))
 }
 
-fn responses_url() -> String {
+fn codex_base_url() -> String {
     let base = env::var("PI_CODEX_BASE_URL").unwrap_or_else(|_| DEFAULT_BASE_URL.to_string());
     let normalized = base.trim_end_matches('/');
     if normalized.ends_with("/codex/responses") {
-        normalized.to_string()
+        normalized.trim_end_matches("/responses").to_string()
     } else if normalized.ends_with("/codex") {
-        format!("{normalized}/responses")
+        normalized.to_string()
+    } else if normalized.ends_with("/backend-api") || normalized.ends_with("/api") {
+        format!("{normalized}/codex")
     } else {
-        format!("{normalized}/codex/responses")
+        normalized.to_string()
     }
 }
 
-fn response_input(args: &ImagegenArgs) -> anyhow::Result<serde_json::Value> {
+fn image_endpoint_url(action: &ImagegenAction) -> String {
+    let operation = match action {
+        ImagegenAction::Generate => "generations",
+        ImagegenAction::Edit => "edits",
+    };
+    format!("{}/images/{operation}", codex_base_url())
+}
+
+fn build_request(args: &ImagegenArgs) -> anyhow::Result<serde_json::Value> {
+    let model = args
+        .model
+        .clone()
+        .unwrap_or_else(|| IMAGE_MODEL.to_string());
     match args.action {
-        ImagegenAction::Generate => Ok(json!([{
-            "type": "message",
-            "role": "user",
-            "content": [{ "type": "input_text", "text": args.prompt }]
-        }])),
+        ImagegenAction::Generate => Ok(json!({
+            "prompt": args.prompt,
+            "model": model,
+            "background": "auto",
+            "quality": "auto",
+            "size": "auto",
+        })),
         ImagegenAction::Edit => {
             if args.images.is_empty() {
                 anyhow::bail!("image edit requires an images array of paths or image URLs");
             }
-            let mut content = vec![json!({ "type": "input_text", "text": args.prompt })];
+            let mut images = Vec::with_capacity(args.images.len());
             for image in &args.images {
-                content.push(json!({
-                    "type": "input_image",
-                    "image_url": image_url_from_arg(image)?,
-                    "detail": "auto",
-                }));
+                images.push(json!({ "image_url": image_url_from_arg(image)? }));
             }
-            Ok(json!([{ "type": "message", "role": "user", "content": content }]))
+            Ok(json!({
+                "images": images,
+                "prompt": args.prompt,
+                "model": model,
+                "background": "auto",
+                "quality": "auto",
+                "size": "auto",
+            }))
         }
     }
-}
-
-fn build_request(args: &ImagegenArgs) -> anyhow::Result<serde_json::Value> {
-    let model = args.model.clone().unwrap_or_else(|| "gpt-5.4-mini".to_string());
-    let tool = json!({
-        "type": "image_generation",
-        "output_format": "png",
-    });
-    Ok(json!({
-        "model": model,
-        "instructions": "Use image_generation to satisfy the request. Do not answer with text only.",
-        "text": { "verbosity": "low" },
-        "input": response_input(args)?,
-        "tools": [tool],
-        "tool_choice": "required",
-        "parallel_tool_calls": true,
-        "store": false,
-        "stream": true,
-    }))
-}
-
-fn parse_sse_text(text: &str) -> Vec<serde_json::Value> {
-    let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
-    let mut events = Vec::new();
-    for frame in normalized.split("\n\n") {
-        let mut data = String::new();
-        for line in frame.lines() {
-            if let Some(rest) = line.strip_prefix("data:") {
-                if !data.is_empty() { data.push('\n'); }
-                data.push_str(rest.trim_start());
-            }
-        }
-        if data.is_empty() || data == "[DONE]" { continue; }
-        if let Ok(value) = serde_json::from_str::<serde_json::Value>(&data) {
-            events.push(value);
-        }
-    }
-    events
-}
-
-fn collect_image_response(events: &[serde_json::Value]) -> anyhow::Result<ImageResponse> {
-    let mut data = Vec::new();
-    let mut background = None;
-    let mut quality = None;
-    let mut size = None;
-    for event in events {
-        if event.get("type").and_then(serde_json::Value::as_str) == Some("response.failed") {
-            let message = event
-                .get("error")
-                .and_then(|error| error.get("message").or_else(|| error.get("code")))
-                .and_then(serde_json::Value::as_str)
-                .unwrap_or("image generation responses failed");
-            anyhow::bail!("{message}");
-        }
-        if event.get("type").and_then(serde_json::Value::as_str) != Some("response.output_item.done") {
-            continue;
-        }
-        let Some(item) = event.get("item") else { continue; };
-        if item.get("type").and_then(serde_json::Value::as_str) != Some("image_generation_call") {
-            continue;
-        }
-        if let Some(result) = item.get("result").and_then(serde_json::Value::as_str) {
-            if !result.is_empty() {
-                data.push(ImageData { b64_json: result.to_string() });
-            }
-        }
-        background = item.get("background").cloned().and_then(|v| serde_json::from_value(v).ok()).or(background);
-        quality = item.get("quality").cloned().and_then(|v| serde_json::from_value(v).ok()).or(quality);
-        size = item.get("size").and_then(serde_json::Value::as_str).map(str::to_string).or(size);
-    }
-    if data.is_empty() {
-        anyhow::bail!("image generation returned no image data");
-    }
-    Ok(ImageResponse { data, background, quality, size })
 }
 
 fn save_images(args: &ImagegenArgs, response: ImageResponse) -> anyhow::Result<ImagegenOutput> {
-    let cwd = args.cwd.as_ref()
+    let cwd = args
+        .cwd
+        .as_ref()
         .map(PathBuf::from)
         .unwrap_or(env::current_dir().context("failed to read current directory")?);
     let root = workspace_root(&cwd);
     let out_dir = root.join(IMAGE_DIR);
-    fs::create_dir_all(&out_dir).with_context(|| format!("failed to create `{}`", out_dir.display()))?;
+    fs::create_dir_all(&out_dir)
+        .with_context(|| format!("failed to create `{}`", out_dir.display()))?;
 
     let latest = out_dir.join(LATEST_IMAGE_NAME);
     let mut saved = Vec::new();
@@ -338,9 +313,11 @@ fn save_images(args: &ImagegenArgs, response: ImageResponse) -> anyhow::Result<I
             format!("ig_{}_{}.png", Uuid::new_v4().simple(), index + 1)
         };
         let path = out_dir.join(name);
-        fs::write(&path, &bytes).with_context(|| format!("failed to write `{}`", path.display()))?;
+        fs::write(&path, &bytes)
+            .with_context(|| format!("failed to write `{}`", path.display()))?;
         if index == 0 {
-            fs::write(&latest, &bytes).with_context(|| format!("failed to write `{}`", latest.display()))?;
+            fs::write(&latest, &bytes)
+                .with_context(|| format!("failed to write `{}`", latest.display()))?;
         }
         saved.push(SavedImage {
             path: relative_path(&root, &path),
@@ -368,19 +345,22 @@ async fn main() -> anyhow::Result<()> {
     let auth = read_codex_auth()?;
     let body = build_request(&args)?;
     let response = reqwest::Client::new()
-        .post(responses_url())
+        .post(image_endpoint_url(&args.action))
         .headers(headers(&auth.token, &auth.account_id)?)
         .json(&body)
         .send()
         .await
         .context("image generation request failed")?;
     let status = response.status();
-    let text = response.text().await.context("failed to read image generation response")?;
+    let text = response
+        .text()
+        .await
+        .context("failed to read image generation response")?;
     if !status.is_success() {
         anyhow::bail!("image generation failed: HTTP {status} {text}");
     }
-    let events = parse_sse_text(&text);
-    let image_response = collect_image_response(&events)?;
+    let image_response: ImageResponse =
+        serde_json::from_str(&text).context("failed to decode image generation response")?;
     let output = save_images(&args, image_response)?;
     println!("{}", serde_json::to_string(&output)?);
     Ok(())

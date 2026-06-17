@@ -2,8 +2,7 @@ import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-w
 import { Type } from "typebox";
 import { Container, Image, Spacer, Text } from "@earendil-works/pi-tui";
 import { readFileSync } from "node:fs";
-import { extractAccountId } from "../../providers/openai-codex/headers.ts";
-import { resolveCodexApiProviderBaseUrl } from "../../adapter/codex-tool-provider.ts";
+import { codexToolProviderEnv, resolveCodexToolProvider } from "../../adapter/codex-tool-provider.ts";
 import { IMAGE_GENERATION_TOOL_NAME } from "../../adapter/activation/tool-set.ts";
 import { getBundledPathToolBinaryPath } from "../path/binary.ts";
 import { formatPathImagegenOutput, imageContentsFromPathImagegenOutput, pathImagegenOutputFromJson } from "../path/outputs.ts";
@@ -36,58 +35,21 @@ export function supportsNativeImageGeneration(model: ExtensionContext["model"]):
 }
 
 function supportsExecutableImageGeneration(model: ExtensionContext["model"], options: ImageGenerationToolOptions): boolean {
-	return supportsNativeImageGeneration(model) || Boolean(options.allowConfiguredProvider?.(model) && model?.api?.includes("responses") && supportsImageInputs(model));
+	return supportsNativeImageGeneration(model) || Boolean(options.allowConfiguredProvider?.(model));
 }
 
 function createEmptyResultComponent(): Container { return new Container(); }
-
-async function resolveAuth(ctx: ExtensionContext): Promise<Headers> {
-	if (!ctx.model) throw new Error(IMAGE_GENERATION_UNSUPPORTED_MESSAGE);
-	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(ctx.model);
-	if (!auth.ok) throw new Error(auth.error);
-	const apiKey = auth.apiKey ?? headerValue(auth.headers, "Authorization")?.replace(/^Bearer\s+/i, "");
-	if (!apiKey) throw new Error(IMAGE_GENERATION_UNSUPPORTED_MESSAGE);
-	const headers = new Headers();
-	for (const [key, value] of Object.entries(auth.headers ?? {})) headers.set(key, value);
-	headers.set("Authorization", `Bearer ${apiKey}`);
-	if (!headers.has("chatgpt-account-id")) headers.set("chatgpt-account-id", extractAccountId(apiKey));
-	headers.set("originator", "pi");
-	headers.set("OpenAI-Beta", "responses=experimental");
-	headers.set("content-type", "application/json");
-	headers.set("accept", "text/event-stream");
-	return headers;
-}
-
-function headerValue(headers: Record<string, string> | undefined, name: string): string | undefined {
-	if (!headers) return undefined;
-	const lowerName = name.toLowerCase();
-	for (const [key, value] of Object.entries(headers)) {
-		if (key.toLowerCase() === lowerName) return value;
-	}
-	return undefined;
-}
-
-async function imagegenEnv(ctx: ExtensionContext): Promise<NodeJS.ProcessEnv> {
-	const headers = await resolveAuth(ctx);
-	const authorization = headers.get("authorization") ?? "";
-	const token = authorization.replace(/^Bearer\s+/i, "");
-	return {
-		...process.env,
-		PI_CODEX_ACCESS_TOKEN: token,
-		PI_CODEX_ACCOUNT_ID: headers.get("chatgpt-account-id") ?? extractAccountId(token),
-		PI_CODEX_BASE_URL: resolveCodexApiProviderBaseUrl(ctx.model?.baseUrl),
-	};
-}
 
 async function executeRustImagegen(args: ImagegenArgs, signal: AbortSignal | undefined, ctx: ExtensionContext): Promise<ImagegenDetails> {
 	if (signal?.aborted) throw new Error("imagegen aborted");
 	const binary = getBundledPathToolBinaryPath("imagegen");
 	if (!binary) throw new Error(`imagegen binary is not bundled for ${process.platform}-${process.arch}`);
+	const provider = await resolveCodexToolProvider(ctx);
 	const child = await runBundledTool({
 		binary,
-		args: [JSON.stringify({ ...args, model: ctx.model?.id, cwd: ctx.cwd })],
+		args: [JSON.stringify({ ...args, cwd: ctx.cwd })],
 		cwd: ctx.cwd,
-		env: await imagegenEnv(ctx),
+		env: codexToolProviderEnv(provider),
 		signal,
 		label: IMAGE_GENERATION_TOOL_NAME,
 	});
@@ -127,7 +89,8 @@ export function createImageGenerationTool(options: ImageGenerationToolOptions = 
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
 			if (!supportsExecutableImageGeneration(ctx.model, options)) throw new Error(IMAGE_GENERATION_UNSUPPORTED_MESSAGE);
 			const details = await executeRustImagegen(params, signal, ctx);
-			return { content: [{ type: "text", text: formatPathImagegenOutput(details) }, ...imageContentsFromPathImagegenOutput(details)], details };
+			const imageContent = supportsImageInputs(ctx.model) ? imageContentsFromPathImagegenOutput(details) : [];
+			return { content: [{ type: "text", text: formatPathImagegenOutput(details) }, ...imageContent], details };
 		},
 		...(options.customRendering === false ? {} : {
 		renderCall(args, theme) { return renderCodexToolCell("Generated Image:", typeof args.prompt === "string" ? args.prompt : undefined, theme); },

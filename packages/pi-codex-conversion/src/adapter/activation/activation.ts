@@ -46,6 +46,10 @@ export function shouldUseProxyNativeTools(ctx: ExtensionContext, config: CodexCo
 	return config.mode === "normal" && isConfiguredAdapterProvider(ctx, config);
 }
 
+function shouldUseCodexBackedNativeTools(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
+	return config.mode === "normal" && (config.scope.allProviders || isConfiguredAdapterProvider(ctx, config));
+}
+
 export function isEffectiveOpenAICodexContext(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
 	return isOpenAICodexContext(ctx) || shouldUseProxyNativeTools(ctx, config);
 }
@@ -116,14 +120,14 @@ function setStatus(ctx: ExtensionContext, enabled: boolean, config: CodexConvers
 function getStatusConfig(ctx: ExtensionContext, config: CodexConversionConfig): Parameters<typeof buildStatusText>[0] {
 	const showOpenAICodexFlags = isEffectiveOpenAICodexContext(ctx, config);
 	const showResponsesVerbosity = isResponsesContext(ctx);
-	const useProxyNativeTools = shouldUseProxyNativeTools(ctx, config);
+	const useCodexBackedNativeTools = shouldUseCodexBackedNativeTools(ctx, config);
 	return {
 		mode: config.mode,
 		useOnAllModels: config.scope.allProviders,
 		additionalProvider: isConfiguredAdapterProvider(ctx, config),
 		fast: showOpenAICodexFlags && config.openai.fast,
-		webSearch: config.mode === "normal" && showOpenAICodexFlags && config.tools.webRun && (supportsNativeWebSearch(ctx.model) || useProxyNativeTools),
-		imageGeneration: config.mode === "normal" && showOpenAICodexFlags && config.tools.imageGeneration && (supportsNativeImageGeneration(ctx.model) || useProxyNativeTools),
+		webSearch: config.mode === "normal" && config.tools.webRun && (supportsNativeWebSearch(ctx.model) || useCodexBackedNativeTools),
+		imageGeneration: config.mode === "normal" && config.tools.imageGeneration && (supportsNativeImageGeneration(ctx.model) || useCodexBackedNativeTools),
 		compaction: { enabled: Boolean(config.compaction.responsesCompaction), model: config.openai.compactionModel, reasoning: config.openai.compactionReasoning },
 		...(showResponsesVerbosity ? { verbosity: config.openai.verbosity } : {}),
 	};
@@ -131,10 +135,10 @@ function getStatusConfig(ctx: ExtensionContext, config: CodexConversionConfig): 
 
 function getAdapterToolNames(ctx: ExtensionContext, config: CodexConversionConfig): string[] {
 	if (config.mode === "path") return [...PATH_MODE_TOOL_NAMES];
-	const useProxyNativeTools = shouldUseProxyNativeTools(ctx, config);
+	const useCodexBackedNativeTools = shouldUseCodexBackedNativeTools(ctx, config);
 	const toolNames = [...CORE_ADAPTER_TOOL_NAMES];
-	if (config.tools.webRun && (supportsNativeWebSearch(ctx.model) || useProxyNativeTools)) toolNames.push(WEB_SEARCH_TOOL_NAME);
-	if (config.tools.imageGeneration && (supportsNativeImageGeneration(ctx.model) || useProxyNativeTools)) toolNames.push(IMAGE_GENERATION_TOOL_NAME);
+	if (config.tools.webRun && (supportsNativeWebSearch(ctx.model) || useCodexBackedNativeTools)) toolNames.push(WEB_SEARCH_TOOL_NAME);
+	if (config.tools.imageGeneration && (supportsNativeImageGeneration(ctx.model) || useCodexBackedNativeTools)) toolNames.push(IMAGE_GENERATION_TOOL_NAME);
 	if (Array.isArray(ctx.model?.input) && ctx.model.input.includes("image")) toolNames.push(VIEW_IMAGE_TOOL_NAME);
 	return toolNames;
 }

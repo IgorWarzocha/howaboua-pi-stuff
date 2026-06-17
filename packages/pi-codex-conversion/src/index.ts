@@ -75,6 +75,7 @@ export default function codexConversion(pi: ExtensionAPI) {
 
 	function ensureOptionalNativeToolsRegistered(config = state.config): void {
 		const allowConfiguredProvider = (model: Model<any> | undefined): boolean => {
+			if (config.scope.allProviders) return true;
 			const provider = model?.provider?.trim().toLowerCase();
 			return Boolean(provider && config.scope.additionalProviders.includes(provider));
 		};

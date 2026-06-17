@@ -7,7 +7,7 @@ import { renderExecCommandCall, renderGroupedExecCommandCall } from "../../ui/to
 import type { ExecCommandTracker } from "./command-state.ts";
 import type { ExecSessionManager, UnifiedExecResult } from "./session-manager.ts";
 import { formatUnifiedExecResult } from "./format.ts";
-import { convertPathToolExecResult, getCodexBackedPathToolNames, getPathToolPolicy } from "../path/outputs.ts";
+import { convertPathToolExecResult, getCodexBackedPathToolNames, getPathToolPolicy, imageContentsFromPathToolDetails } from "../path/outputs.ts";
 import { renderTextWithImages } from "../path/rendering.ts";
 import { extractPathApplyPatchPreviewPlan, getPathApplyPatchRenderState, markPathApplyPatchPreviewExit, renderPathApplyPatchPreviewFromState, setPathApplyPatchPreviewState, type PathApplyPatchRenderSegment } from "../path/apply-patch-preview.ts";
 import { renderPathToolCommandCall } from "../path/render-call.ts";
@@ -245,8 +245,8 @@ const renderExecCommandResultWithOptionalContext: any = (
 		return options.showOutputWhenCollapsed && details ? renderCollapsedExecOutputPreview(details, theme) : createEmptyResultComponent();
 	}
 
-	const content = result.content.find((item) => item.type === "text");
-	const output = details?.output ?? (content?.type === "text" ? content.text : "");
+	const textContent = result.content.find((item) => item.type === "text");
+	const output = details?.output ?? (textContent?.type === "text" ? textContent.text : "");
 	let text = theme.fg("dim", output || "(no output)");
 	const pathApplyPatchPreview = renderPathApplyPatchPreviewFromState(context?.toolCallId, true);
 	if (pathApplyPatchPreview && (details?.exit_code === undefined || details.exit_code === 0)) {
@@ -258,7 +258,8 @@ const renderExecCommandResultWithOptionalContext: any = (
 	if (details?.exit_code !== undefined) {
 		text += `\n${theme.fg("muted", `Exit code: ${details.exit_code}`)}`;
 	}
-	return renderTextWithImages(text, result.content, theme, { paddingX: 4 });
+	const renderContent = result.content.some((item) => item.type === "image") ? result.content : [...result.content, ...imageContentsFromPathToolDetails(details)];
+	return renderTextWithImages(text, renderContent, theme, { paddingX: 4 });
 };
 
 export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTracker, sessions: ExecSessionManager, options: ExecCommandToolOptions = {}): void {

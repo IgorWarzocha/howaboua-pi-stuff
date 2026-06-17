@@ -9,6 +9,9 @@ on:
       - 'packages/pi-codex-conversion/src/tools/Cargo.toml'
       - 'packages/pi-codex-conversion/src/tools/Cargo.lock'
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: ${{ matrix.platform_arch }}
@@ -52,3 +55,29 @@ jobs:
             packages/pi-codex-conversion/src/tools/web-run/bin/${{ matrix.platform_arch }}/
             packages/pi-codex-conversion/src/tools/imagegen/bin/${{ matrix.platform_arch }}/
             packages/pi-codex-conversion/src/tools/exec/bin/${{ matrix.platform_arch }}/
+
+  bundle:
+    name: Commit bundled binaries
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: codex-tool-binaries-*
+          merge-multiple: true
+          path: packages/pi-codex-conversion/src/tools
+      - name: Commit bundled binaries
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/pi-codex-conversion/src/tools/*/bin
+          if git diff --cached --quiet; then
+            echo "No bundled binary changes."
+            exit 0
+          fi
+          git commit -m "Bundle Codex tool binaries"
+          git push origin HEAD:${{ github.ref_name }}

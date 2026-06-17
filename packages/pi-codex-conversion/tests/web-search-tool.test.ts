@@ -103,7 +103,7 @@ process.stdin.on("end", () => {
 	}
 });
 
-test("web_run executes for explicitly configured renamed Codex providers only", async () => {
+test("web_run rejects renamed Codex providers without canonical Codex auth", async () => {
 	const originalBin = process.env["PI_CODEX_WEB_RUN_BIN"];
 	try {
 		await withMockWebRun(`#!/usr/bin/env node
@@ -116,9 +116,10 @@ process.stdin.on("end", () => console.log(JSON.stringify({ encrypted_output: "ok
 				/requires an OpenAI Codex-compatible Responses provider/,
 			);
 			const tool = createWebSearchTool("web_run", { allowConfiguredProvider: (model) => model?.provider === "custom-codex" });
-			const result = await tool.execute("call", { search_query: [{ q: "OpenAI" }] }, undefined, undefined as never, createContext({ provider: "custom-codex", api: "openai-codex-responses" }));
-			assert.equal(result.content[0]?.type === "text" ? result.content[0].text : "", "ok");
-			assert.deepEqual(result.details, { webRun: { encrypted_output: "ok" } });
+			await assert.rejects(
+				() => tool.execute("call", { search_query: [{ q: "OpenAI" }] }, undefined, undefined as never, createContext({ provider: "custom-codex", api: "openai-codex-responses" })),
+				/requires an OpenAI Codex-compatible Responses provider/,
+			);
 		});
 	} finally {
 		if (originalBin === undefined) delete process.env["PI_CODEX_WEB_RUN_BIN"];

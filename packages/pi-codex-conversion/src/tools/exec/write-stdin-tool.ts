@@ -4,7 +4,7 @@ import { Container, Text } from "@earendil-works/pi-tui";
 import { renderWriteStdinCall } from "../../ui/tool-rendering/codex-rendering.ts";
 import type { ExecSessionManager, UnifiedExecResult } from "./session-manager.ts";
 import { formatUnifiedExecResult } from "./format.ts";
-import { convertPathToolExecResult, getPathToolPolicy } from "../path/outputs.ts";
+import { convertPathToolExecResult, getPathToolPolicy, imageContentsFromPathToolDetails } from "../path/outputs.ts";
 import { renderTextWithImages } from "../path/rendering.ts";
 
 const WRITE_STDIN_PARAMETERS = Type.Object({
@@ -153,7 +153,8 @@ export function registerWriteStdinTool(pi: ExtensionAPI, sessions: ExecSessionMa
 			if (state.exitCode !== undefined) {
 				text += `\n${theme.fg("muted", `Exit code: ${state.exitCode}`)}`;
 			}
-			return renderTextWithImages(text, result.content, theme);
+			const content = result.content.some((item) => item.type === "image") ? result.content : [...result.content, ...imageContentsFromPathToolDetails(result.details)];
+			return renderTextWithImages(text, content, theme);
 		},
 	});
 }

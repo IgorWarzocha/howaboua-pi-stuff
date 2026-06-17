@@ -20,18 +20,22 @@ export interface PathToolPolicy {
 	parseImageOutput: boolean;
 	parseWebRunOutput: boolean;
 	parseImagegenOutput: boolean;
+	includeImagegenImageContent: boolean;
 	parseApplyPatchOutput: boolean;
 }
 
 export function getPathToolPolicy(command: string, model: Model<any> | undefined): PathToolPolicy | undefined {
 	if (getPathToolNamesFromParts(splitCommandParts(command), ["apply_patch", "view_image", "web_run", "imagegen"]).length > 1) return undefined;
+	const isWebRun = isSimplePathToolOutputCommand(command, "web_run");
+	const isImagegen = isSimplePathToolOutputCommand(command, "imagegen");
 	const modelInput = model?.input;
 	const parseApplyPatchOutput = isPathApplyPatchCommand(command);
 	const parseImageOutput = isSimplePathToolOutputCommand(command, "view_image") && (!Array.isArray(modelInput) || modelInput.includes("image"));
-	const parseWebRunOutput = isSimplePathToolOutputCommand(command, "web_run");
-	const parseImagegenOutput = isSimplePathToolOutputCommand(command, "imagegen") && (!Array.isArray(modelInput) || modelInput.includes("image"));
-	if (!parseApplyPatchOutput && !parseImageOutput && !parseWebRunOutput && !parseImagegenOutput) return undefined;
-	return { disableTruncation: true, suppressPartials: true, ...(parseWebRunOutput || parseImagegenOutput ? { yieldTimeMs: 300_000 } : {}), parseApplyPatchOutput, parseImageOutput, parseWebRunOutput, parseImagegenOutput };
+	const parseWebRunOutput = isWebRun;
+	const parseImagegenOutput = isImagegen;
+	const includeImagegenImageContent = isImagegen && (!Array.isArray(modelInput) || modelInput.includes("image"));
+	if (!parseApplyPatchOutput && !parseImageOutput && !parseWebRunOutput && !isImagegen) return undefined;
+	return { disableTruncation: true, suppressPartials: true, ...(isWebRun || isImagegen ? { yieldTimeMs: 3_600_000 } : {}), parseApplyPatchOutput, parseImageOutput, parseWebRunOutput, parseImagegenOutput, includeImagegenImageContent };
 }
 
 export function convertPathToolExecResult(command: string, result: UnifiedExecResult, policy: PathToolPolicy | undefined): ToolResultLike | undefined {
@@ -60,7 +64,7 @@ export function convertPathToolExecResult(command: string, result: UnifiedExecRe
 	if (policy.parseImagegenOutput) {
 		const parsed = pathImagegenOutputFromJson(result.output);
 		if (parsed) {
-			const imageContents = imageContentsFromPathImagegenOutput(parsed);
+			const imageContents = policy.includeImagegenImageContent ? imageContentsFromPathImagegenOutput(parsed) : [];
 			const details = sanitizeExecResult(result, formatPathImagegenOutput(parsed), { imagegen: parsed });
 			return { content: [{ type: "text", text: formatUnifiedExecResult(details, command) }, ...imageContents], details };
 		}
@@ -292,6 +296,15 @@ export function imageContentsFromPathImagegenOutput(output: PathImagegenOutput):
 			return [];
 		}
 	});
+}
+
+export function imageContentsFromPathToolDetails(details: unknown): PathViewImageContent[] {
+	if (!details || typeof details !== "object") return [];
+	const pathTool = (details as { pathTool?: unknown }).pathTool;
+	if (!pathTool || typeof pathTool !== "object") return [];
+	const imagegen = (pathTool as { imagegen?: unknown }).imagegen;
+	if (!imagegen || typeof imagegen !== "object") return [];
+	return imageContentsFromPathImagegenOutput(imagegen as PathImagegenOutput);
 }
 
 export function formatPathImagegenOutput(output: PathImagegenOutput): string {

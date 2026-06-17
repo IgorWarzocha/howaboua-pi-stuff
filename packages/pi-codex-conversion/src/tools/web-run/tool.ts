@@ -167,7 +167,7 @@ export function supportsNativeWebSearch(model: ExtensionContext["model"]): boole
 }
 
 function supportsExecutableWebSearch(model: ExtensionContext["model"], options: WebSearchToolOptions): boolean {
-	return supportsNativeWebSearch(model) || Boolean(options.allowConfiguredProvider?.(model) && model?.api?.includes("responses"));
+	return supportsNativeWebSearch(model) || Boolean(options.allowConfiguredProvider?.(model));
 }
 
 export function supportsMultimodalNativeWebSearch(model: ExtensionContext["model"], options: { force?: boolean | undefined } = {}): boolean {
