@@ -58,6 +58,12 @@ function codexAuth() {
 function responsesUrl() {
   if (process.env.PI_CODEX_RESPONSES_URL) return process.env.PI_CODEX_RESPONSES_URL;
   const normalized = (process.env.PI_CODEX_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, "");
+  try {
+    const url = new URL(normalized);
+    if (url.pathname === "" || url.pathname === "/") return `${normalized}/api/codex/responses`;
+  } catch {
+    // Keep string-only fallback below.
+  }
   if (normalized.endsWith("/codex/responses")) return normalized;
   if (normalized.endsWith("/codex")) return `${normalized}/responses`;
   if (normalized.endsWith("/backend-api") || normalized.endsWith("/api")) return `${normalized}/codex/responses`;
@@ -76,22 +82,29 @@ async function readSseText(response) {
   const decoder = new TextDecoder();
   let buffer = "";
   let text = "";
+  const processFrame = (frame) => {
+    const data = frame.split(/\n/).filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trimStart()).join("\n");
+    if (!data || data === "[DONE]") return;
+    const event = JSON.parse(data);
+    if (event.type === "response.output_text.delta" && typeof event.delta === "string") text += event.delta;
+    if (event.type === "response.output_text.done" && !text.trim() && typeof event.text === "string") text = event.text;
+    if (event.type === "response.completed" && !text.trim()) text = outputText(event.response) || "";
+  };
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
+    buffer = buffer.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
     let index;
     while ((index = buffer.indexOf("\n\n")) !== -1) {
       const frame = buffer.slice(0, index);
       buffer = buffer.slice(index + 2);
-      const data = frame.split(/\r?\n/).filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trimStart()).join("\n");
-      if (!data || data === "[DONE]") continue;
-      const event = JSON.parse(data);
-      if (event.type === "response.output_text.delta" && typeof event.delta === "string") text += event.delta;
-      if (event.type === "response.output_text.done" && !text.trim() && typeof event.text === "string") text = event.text;
-      if (event.type === "response.completed" && !text.trim()) text = outputText(event.response) || "";
+      processFrame(frame);
     }
   }
+  buffer += decoder.decode();
+  buffer = buffer.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+  if (buffer) processFrame(buffer);
   return text.trim();
 }
 

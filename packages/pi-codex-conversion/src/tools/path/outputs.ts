@@ -28,7 +28,7 @@ export interface PathToolPolicy {
 
 export function getPathToolPolicy(command: string, model: Model<any> | undefined, options: { describeImages?: boolean | undefined } = {}): PathToolPolicy | undefined {
 	const supportsImages = Array.isArray(model?.input) && model.input.includes("image");
-	if (getPathToolNamesFromParts(splitCommandParts(command), ["apply_patch", "view_image", "web_run", "imagegen"]).length > 1) return undefined;
+	if (getPathToolNamesFromParts(commandPartsForDetection(command), ["apply_patch", "view_image", "web_run", "imagegen"]).length > 1) return undefined;
 	const isViewImage = isSimplePathToolOutputCommand(command, "view_image");
 	if (isViewImage && !supportsImages && !options.describeImages) {
 		return { disableTruncation: true, suppressPartials: true, unsupportedMessage: "view_image requires an image-capable model", parseApplyPatchOutput: false, describeImageOutput: false, parseImageOutput: false, parseWebRunOutput: false, parseImagegenOutput: false, includeImagegenImageContent: false };
@@ -157,11 +157,13 @@ function isSimplePathToolOutputCommand(command: string, toolName: "view_image" |
 
 function findPathToolCommandIndex(part: string[], toolName: string): number {
 	let index = 0;
+	while (["if", "then", "else", "elif", "do", "while", "until", "time", "!"].includes(part[index]!)) index += 1;
 	while (index < part.length && isEnvAssignment(part[index]!)) index += 1;
 	if (part[index] === "env") {
 		index += 1;
 		while (index < part.length && isEnvAssignment(part[index]!)) index += 1;
 	}
+	if (part[index] === "command" && part[index + 1] !== "-v") index += 1;
 	return pathToolTokenName(part[index] ?? "") === toolName ? index : -1;
 }
 
@@ -185,15 +187,16 @@ function pathToolTokenName(token: string): string | undefined {
 	return token.replace(/\\/g, "/").split("/").pop();
 }
 
-export function getCodexBackedPathToolNames(command: string): string[] {
+export function getCodexBackedPathToolNames(command: string, options: { includeViewImageDescription?: boolean | undefined } = {}): string[] {
 	return [
 		...(isPathWebRunCommand(command) ? ["web_run"] : []),
 		...(isPathImagegenCommand(command) ? ["imagegen"] : []),
+		...(options.includeViewImageDescription && hasPathToolCommand(command, "view_image") ? ["view_image"] : []),
 	];
 }
 
 function hasPathToolCommand(command: string, toolName: string): boolean {
-	return getPathToolNamesFromParts(splitCommandParts(command), [toolName]).includes(toolName);
+	return getPathToolNamesFromParts(commandPartsForDetection(command), [toolName]).includes(toolName);
 }
 
 function getPathToolNamesFromParts(parts: string[][], toolNames: string[]): string[] {
@@ -209,16 +212,34 @@ function getPathToolNamesFromParts(parts: string[][], toolNames: string[]): stri
 
 function splitCommandParts(command: string): string[][] {
 	try {
-		return splitOnConnectors(shellSplit(command)).filter((part) => part.length > 0);
+		return splitOnConnectors(shellSplit(stripHeredocBodies(command))).filter((part) => part.length > 0);
 	} catch {
 		return [[command]];
 	}
 }
 
+function commandPartsForDetection(command: string): string[][] {
+	return splitCommandParts(command);
+}
+
+function stripHeredocBodies(command: string): string {
+	const lines = command.split(/\r?\n/);
+	const kept: string[] = [];
+	let heredocEnd: string | undefined;
+	for (const line of lines) {
+		if (heredocEnd) {
+			if (line.replace(/^\t+/, "") === heredocEnd) heredocEnd = undefined;
+			continue;
+		}
+		kept.push(line);
+		const match = line.match(/<<-?\s*(?:"([^"]+)"|'([^']+)'|([A-Za-z0-9_.-]+))\s*$/);
+		if (match) heredocEnd = match[1] ?? match[2] ?? match[3];
+	}
+	return kept.join("\n");
+}
+
 function partHasPathToolCommand(part: string[], toolName: string): boolean {
-	const command = part.join(" ");
-	const escaped = toolName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-	return new RegExp(`(?:^|[;&|()\r\n])\\s*(?:[A-Za-z_][A-Za-z0-9_]*=[^\\s;&|()]+\\s+)*(?:env\\s+(?:[A-Za-z_][A-Za-z0-9_]*=[^\\s;&|()]+\\s+)*)?(?:[^\\s;&|()]+/)?${escaped}(?:\\s|$)`).test(command);
+	return findPathToolCommandIndex(part, toolName) !== -1;
 }
 
 function isPathToolDiscoveryPart(part: string[]): boolean {

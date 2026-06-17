@@ -90,8 +90,8 @@ function createEmptyResultComponent(): Container {
 	return new Container();
 }
 
-async function resolveCodexBackedPathToolEnv(command: string, ctx: ExtensionContext): Promise<NodeJS.ProcessEnv | undefined> {
-	const toolNames = getCodexBackedPathToolNames(command);
+async function resolveCodexBackedPathToolEnv(command: string, ctx: ExtensionContext, options: { includeViewImageDescription?: boolean | undefined } = {}): Promise<NodeJS.ProcessEnv | undefined> {
+	const toolNames = getCodexBackedPathToolNames(command, options);
 	if (toolNames.length === 0) return undefined;
 	try {
 		const env = codexToolProviderEnv(await resolveCodexToolProvider(ctx));
@@ -289,8 +289,10 @@ export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTr
 				setPathApplyPatchPreviewState(toolCallId, typedParams.cmd, resolveExecCommandWorkdir(ctx.cwd, typedParams.workdir));
 			}
 			const webRunStatePath = pathToolPolicy?.parseWebRunOutput ? webRunSessionStatePath(ctx) : undefined;
-			const codexBackedPathToolEnv = await resolveCodexBackedPathToolEnv(typedParams.cmd, ctx);
-			const viewImageDescriptionEnv = options.describeImagesForTextModels && !(Array.isArray(ctx.model?.input) && ctx.model.input.includes("image"))
+			const describeImagesForTextModel = options.describeImagesForTextModels && !(Array.isArray(ctx.model?.input) && ctx.model.input.includes("image"));
+			const codexBackedPathToolEnv = await resolveCodexBackedPathToolEnv(typedParams.cmd, ctx, { includeViewImageDescription: describeImagesForTextModel });
+			const hasViewImageDescriptionCommand = getCodexBackedPathToolNames(typedParams.cmd, { includeViewImageDescription: true }).includes("view_image");
+			const viewImageDescriptionEnv = describeImagesForTextModel && hasViewImageDescriptionCommand
 				? { PI_CODEX_VIEW_IMAGE_DESCRIBE: "1", PI_CODEX_VIEW_IMAGE_MODEL: resolveImageDescriptionModel(ctx), ...(pathToolPolicy?.describeImageOutput ? { PI_CODEX_VIEW_IMAGE_STRUCTURED: "1" } : {}) }
 				: undefined;
 			const pathToolEnv = webRunStatePath || codexBackedPathToolEnv || viewImageDescriptionEnv ? { ...codexBackedPathToolEnv, ...viewImageDescriptionEnv, ...(webRunStatePath ? { PI_WEB_RUN_STATE_PATH: webRunStatePath } : {}) } : undefined;

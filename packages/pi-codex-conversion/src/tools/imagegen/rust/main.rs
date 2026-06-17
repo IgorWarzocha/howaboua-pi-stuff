@@ -238,6 +238,11 @@ fn image_url_from_arg(value: &str) -> anyhow::Result<String> {
 fn codex_base_url() -> String {
     let base = env::var("PI_CODEX_BASE_URL").unwrap_or_else(|_| DEFAULT_BASE_URL.to_string());
     let normalized = base.trim_end_matches('/');
+    if let Ok(url) = reqwest::Url::parse(normalized) {
+        if url.path().is_empty() || url.path() == "/" {
+            return format!("{normalized}/api/codex");
+        }
+    }
     if normalized.ends_with("/codex/responses") {
         normalized.trim_end_matches("/responses").to_string()
     } else if normalized.ends_with("/codex") {
