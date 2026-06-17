@@ -38,8 +38,6 @@ function supportsExecutableImageGeneration(model: ExtensionContext["model"], opt
 	return supportsNativeImageGeneration(model) || Boolean(options.allowConfiguredProvider?.(model));
 }
 
-function createEmptyResultComponent(): Container { return new Container(); }
-
 async function executeRustImagegen(args: ImagegenArgs, signal: AbortSignal | undefined, ctx: ExtensionContext): Promise<ImagegenDetails> {
 	if (signal?.aborted) throw new Error("imagegen aborted");
 	const binary = getBundledPathToolBinaryPath("imagegen");
@@ -94,8 +92,7 @@ export function createImageGenerationTool(options: ImageGenerationToolOptions = 
 		},
 		...(options.customRendering === false ? {} : {
 		renderCall(args, theme) { return renderCodexToolCell("Generated Image:", typeof args.prompt === "string" ? args.prompt : undefined, theme); },
-		renderResult(result, { expanded }, theme) {
-			if (!expanded) return createEmptyResultComponent();
+		renderResult(result, _options, theme) {
 			const textBlock = result.content.find((item) => item.type === "text");
 			const text = theme.fg("dim", textBlock?.type === "text" ? textBlock.text : "(no output)");
 			return result.details ? renderResultWithImages(text, result.details, theme) : new Text(text, 0, 0);

@@ -237,6 +237,8 @@ const renderExecCommandResultWithOptionalContext: any = (
 
 	const details = isUnifiedExecResult(result.details) ? result.details : undefined;
 	if (!_options.expanded) {
+		const compactImages = result.content.some((item) => item.type === "image") ? result.content : imageContentsFromPathToolDetails(details);
+		if (compactImages.some((item) => item.type === "image")) return renderTextWithImages("", compactImages, theme, { paddingX: 4 });
 		const pathApplyPatchState = getPathApplyPatchRenderState(context?.toolCallId);
 		if (pathApplyPatchState && details?.exit_code !== undefined && details.exit_code !== 0) {
 			return renderCollapsedExecOutputPreview(details, theme);
