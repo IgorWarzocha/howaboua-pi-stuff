@@ -123,8 +123,22 @@ interface ExecCommandToolOptions {
 }
 
 const COLLAPSED_OUTPUT_MAX_VISUAL_LINES = 5;
+const COLLAPSED_OUTPUT_MAX_RAW_CHARS = 16_000;
+const COLLAPSED_OUTPUT_MAX_RAW_LINES = 160;
 
 type CollapsedExecOutput = Pick<UnifiedExecResult, "output"> & Partial<Pick<UnifiedExecResult, "exit_code" | "session_id" | "wall_time_seconds">>;
+
+interface CollapsedExecOutputRenderState {
+	cachedLines?: string[] | undefined;
+	cachedSkipped?: number | undefined;
+	cachedWidth?: number | undefined;
+	cachedRawTruncated?: boolean | undefined;
+}
+
+interface CollapsedExecOutputText {
+	text: string;
+	rawTruncated: boolean;
+}
 
 function formatDuration(seconds: number): string {
 	return `${seconds.toFixed(1)}s`;
@@ -160,25 +174,58 @@ function expandHint(): string {
 	}
 }
 
-function formatCollapsedOutput(result: CollapsedExecOutput, theme: { fg(role: string, text: string): string }): string {
-	const lines = [result.output.trimEnd()];
+function tailCollapsedOutput(output: string): { output: string; truncated: boolean } {
+	let text = output.trimEnd();
+	let truncated = false;
+	if (text.length > COLLAPSED_OUTPUT_MAX_RAW_CHARS) {
+		text = text.slice(-COLLAPSED_OUTPUT_MAX_RAW_CHARS);
+		truncated = true;
+		const firstNewline = text.indexOf("\n");
+		if (firstNewline !== -1) text = text.slice(firstNewline + 1);
+	}
+	const lines = text.split("\n");
+	if (lines.length > COLLAPSED_OUTPUT_MAX_RAW_LINES) {
+		text = lines.slice(-COLLAPSED_OUTPUT_MAX_RAW_LINES).join("\n");
+		truncated = true;
+	}
+	return { output: text, truncated };
+}
+
+function formatCollapsedOutput(result: CollapsedExecOutput, theme: { fg(role: string, text: string): string }): CollapsedExecOutputText {
+	const tail = tailCollapsedOutput(result.output);
+	const lines = [tail.output];
 	if (result.session_id !== undefined) lines.push(theme.fg("accent", `Session ${result.session_id} still running`));
 	if (result.exit_code !== undefined && result.exit_code !== 0) lines.push(theme.fg("muted", `Exit code: ${result.exit_code}`));
 	if (typeof result.wall_time_seconds === "number" && lines.some((line) => line.length > 0)) lines.push(theme.fg("muted", `Took ${formatDuration(result.wall_time_seconds)}`));
-	return lines.filter((line) => line.length > 0).join("\n");
+	return { text: lines.filter((line) => line.length > 0).join("\n"), rawTruncated: tail.truncated };
 }
 
 function renderCollapsedExecOutputPreview(result: CollapsedExecOutput, theme: { fg(role: string, text: string): string }) {
+	const state: CollapsedExecOutputRenderState = {};
 	return {
 		render(width: number): string[] {
-			const output = formatCollapsedOutput(result, theme);
-			if (!output) return [];
-			const preview = truncateToVisualLines(theme.fg("dim", output), COLLAPSED_OUTPUT_MAX_VISUAL_LINES, width, 4);
-			if (preview.skippedCount <= 0) return preview.visualLines;
-			const hint = `    ${theme.fg("muted", `... (${preview.skippedCount} earlier lines,`)} ${expandHint()}${theme.fg("muted", ")")}`;
-			return [truncateToWidth(hint, width, "..."), ...preview.visualLines];
+			if (state.cachedLines === undefined || state.cachedWidth !== width) {
+				const output = formatCollapsedOutput(result, theme);
+				if (!output.text) return [];
+				const preview = truncateToVisualLines(theme.fg("dim", output.text), COLLAPSED_OUTPUT_MAX_VISUAL_LINES, width, 4);
+				state.cachedLines = preview.visualLines;
+				state.cachedSkipped = preview.skippedCount;
+				state.cachedRawTruncated = output.rawTruncated;
+				state.cachedWidth = width;
+			}
+			const rawTruncated = state.cachedRawTruncated === true;
+			const skipped = state.cachedSkipped ?? 0;
+			if (!rawTruncated && skipped <= 0) return state.cachedLines ?? [];
+			const hintText = rawTruncated ? "... (earlier output hidden," : `... (${skipped} earlier lines,`;
+			const hint = `    ${theme.fg("muted", hintText)} ${expandHint()}${theme.fg("muted", ")")}`;
+			return [truncateToWidth(hint, width, "..."), ...(state.cachedLines ?? [])];
 		},
-		invalidate(): void {},
+		invalidate(): void {
+			state.cachedLines = undefined;
+			state.cachedSkipped = undefined;
+			state.cachedRawTruncated = undefined;
+			state.cachedWidth = undefined;
+		},
 	};
 }
 
