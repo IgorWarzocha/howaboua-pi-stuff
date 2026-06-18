@@ -124,12 +124,28 @@ export function registerCodexCommand(
 
 function getCommandConfigUpdate(arg: string, config: CodexConversionConfig): CodexConversionConfig | undefined {
 	if (arg === "fast") return { ...config, openai: { ...config.openai, fast: !config.openai.fast } };
-	if (arg === "all") return { ...config, scope: { ...config.scope, allProviders: !config.scope.allProviders } };
+	if (arg === "all") return { ...config, scope: { ...config.scope, allProviders: nextAllProvidersMode(config.scope.allProviders) } };
 	if (arg === "status") return { ...config, ui: { ...config.ui, statusLine: !config.ui.statusLine } };
 	const verbosity = normalizeCodexVerbosity(arg);
 	return verbosity ? { ...config, openai: { ...config.openai, verbosity } } : undefined;
 }
 
+function nextAllProvidersMode(value: CodexConversionConfig["scope"]["allProviders"]): CodexConversionConfig["scope"]["allProviders"] {
+	if (value === "off") return "on";
+	if (value === "on") return "extras";
+	return "off";
+}
+
+function formatAllProvidersMode(value: CodexConversionConfig["scope"]["allProviders"]): string {
+	return value === "extras" ? "only extras" : value;
+}
+
 function formatCodexSettings(config: CodexConversionConfig): string {
-	return `Codex settings: all models ${config.scope.allProviders ? "on" : "off"}, additional providers ${config.scope.additionalProviders.length > 0 ? config.scope.additionalProviders.join(", ") : "none"}, statusline ${config.ui.statusLine ? "on" : "off"}, tool rendering ${config.ui.toolRendering ? "on" : "off"}, background shells widget ${config.ui.backgroundShellWidget ? "on" : "off"}, image descriptions ${config.tools.viewImageFallback ? "on" : "off"}, fast ${config.openai.fast ? "on" : "off"}, cached websocket upgrade ${config.openai.forceCachedWebSockets === false ? "off" : "on"}, responses compaction ${(config.compaction.responsesCompaction ?? false) ? "on" : "off"} (${config.openai.compactionModel}/${config.openai.compactionReasoning}), verbosity ${config.openai.verbosity}`;
+	const extraTools = [
+		config.tools.applyPatchOnly ? "apply_patch" : undefined,
+		config.tools.viewImageOnly ? "view_image" : undefined,
+		config.tools.webRunOnly ? "web_run" : undefined,
+		config.tools.imageGenerationOnly ? "imagegen" : undefined,
+	].filter(Boolean).join(", ") || "off";
+	return `Codex settings: all models ${formatAllProvidersMode(config.scope.allProviders)}, additional providers ${config.scope.additionalProviders.length > 0 ? config.scope.additionalProviders.join(", ") : "none"}, statusline ${config.ui.statusLine ? "on" : "off"}, tool rendering ${config.ui.toolRendering ? "on" : "off"}, background shells widget ${config.ui.backgroundShellWidget ? "on" : "off"}, image descriptions ${config.tools.viewImageFallback ? "on" : "off"}, extra tools only ${extraTools}, fast ${config.openai.fast ? "on" : "off"}, cached websocket upgrade ${config.openai.forceCachedWebSockets === false ? "off" : "on"}, responses compaction ${(config.compaction.responsesCompaction ?? false) ? "on" : "off"} (${config.openai.compactionModel}/${config.openai.compactionReasoning}), verbosity ${config.openai.verbosity}`;
 }

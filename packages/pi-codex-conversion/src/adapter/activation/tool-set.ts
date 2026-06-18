@@ -10,8 +10,8 @@ function formatStatusText(suffix: string, theme?: StatusTheme | undefined): stri
 	return `${theme.fg("accent", STATUS_TEXT)}${suffix ? theme.fg("dim", suffix) : ""}`;
 }
 
-export function buildApplyPatchOnlyStatusText(theme?: StatusTheme | undefined): string {
-	return formatStatusText(" • apply patch only", theme);
+export function buildExtraToolsOnlyStatusText(tools: string[], theme?: StatusTheme | undefined): string {
+	return formatStatusText(` • extra tools${tools.length > 0 ? `: ${tools.join(", ")}` : ""}`, theme);
 }
 
 export function buildStatusText(options: { mode?: "normal" | "path" | undefined; verbosity?: string | undefined; webSearch?: boolean | undefined; imageGeneration?: boolean | undefined; fast: boolean; useOnAllModels: boolean; additionalProvider?: boolean | undefined; compaction?: { enabled: boolean; model: string; reasoning: string } | undefined }, theme?: StatusTheme | undefined): string {

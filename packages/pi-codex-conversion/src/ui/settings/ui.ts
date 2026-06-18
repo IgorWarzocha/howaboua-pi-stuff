@@ -226,6 +226,9 @@ function buildItems(tab: SettingsTab, draft: CodexConversionConfig, theme: Theme
 			{ id: "webRun", label: "Web search", currentValue: draft.tools.webRun ? "on" : "off", values: ["off", "on"] },
 			{ id: "imageGeneration", label: "Image generation", currentValue: draft.tools.imageGeneration ? "on" : "off", values: ["off", "on"] },
 			{ id: "applyPatchOnly", label: "Only add apply_patch", currentValue: draft.tools.applyPatchOnly ? "on" : "off", values: ["off", "on"] },
+			{ id: "viewImageOnly", label: "Only add view_image", currentValue: draft.tools.viewImageOnly ? "on" : "off", values: ["off", "on"] },
+			{ id: "webRunOnly", label: "Only add web_run", currentValue: draft.tools.webRunOnly ? "on" : "off", values: ["off", "on"] },
+			{ id: "imageGenerationOnly", label: "Only add imagegen", currentValue: draft.tools.imageGenerationOnly ? "on" : "off", values: ["off", "on"] },
 		];
 	}
 
@@ -242,7 +245,7 @@ function buildItems(tab: SettingsTab, draft: CodexConversionConfig, theme: Theme
 
 	return [
 		{ id: "mode", label: "PATH mode", currentValue: draft.mode === "path" ? "on" : "off", values: ["off", "on"] },
-		{ id: "allProviders", label: "Use for all providers/models", currentValue: draft.scope.allProviders ? "on" : "off", values: ["off", "on"] },
+		{ id: "allProviders", label: "Use for all providers/models", currentValue: formatAllProvidersMode(draft.scope.allProviders), values: ["off", "on", "only extras"] },
 		{
 			id: "additionalProviders",
 			label: "Additional providers",
@@ -259,7 +262,7 @@ function buildItems(tab: SettingsTab, draft: CodexConversionConfig, theme: Theme
 
 function applySettingChange(id: string, value: string, draft: CodexConversionConfig): CodexConversionConfig {
 	if (id === "mode") return { ...draft, mode: value === "on" ? "path" : "normal" };
-	if (id === "allProviders") return { ...draft, scope: { ...draft.scope, allProviders: value === "on" } };
+	if (id === "allProviders") return { ...draft, scope: { ...draft.scope, allProviders: parseAllProvidersMode(value) } };
 	if (id === "additionalProviders") return { ...draft, scope: { ...draft.scope, additionalProviders: normalizeProviderListFromText(value) } };
 	if (id === "statusLine") return { ...draft, ui: { ...draft.ui, statusLine: value === "on" } };
 	if (id === "toolRendering") return { ...draft, ui: { ...draft.ui, toolRendering: value === "on" } };
@@ -269,6 +272,9 @@ function applySettingChange(id: string, value: string, draft: CodexConversionCon
 	if (id === "imageGeneration") return { ...draft, tools: { ...draft.tools, imageGeneration: value === "on" } };
 	if (id === "viewImageFallback") return { ...draft, tools: { ...draft.tools, viewImageFallback: value === "on" } };
 	if (id === "applyPatchOnly") return { ...draft, tools: { ...draft.tools, applyPatchOnly: value === "on" } };
+	if (id === "viewImageOnly") return { ...draft, tools: { ...draft.tools, viewImageOnly: value === "on" } };
+	if (id === "webRunOnly") return { ...draft, tools: { ...draft.tools, webRunOnly: value === "on" } };
+	if (id === "imageGenerationOnly") return { ...draft, tools: { ...draft.tools, imageGenerationOnly: value === "on" } };
 	if (id === "fast") return { ...draft, openai: { ...draft.openai, fast: value === "on" } };
 	if (id === "forceCachedWebSockets") return { ...draft, openai: { ...draft.openai, forceCachedWebSockets: value === "on" } };
 	if (id === "webSearchModel") return { ...draft, openai: { ...draft.openai, webSearchModel: normalizeWebSearchModel(value) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai.webSearchModel } };
@@ -280,6 +286,14 @@ function applySettingChange(id: string, value: string, draft: CodexConversionCon
 
 function formatProviderList(providers: string[]): string {
 	return providers.join(", ");
+}
+
+function formatAllProvidersMode(value: CodexConversionConfig["scope"]["allProviders"]): string {
+	return value === "extras" ? "only extras" : value;
+}
+
+function parseAllProvidersMode(value: string): CodexConversionConfig["scope"]["allProviders"] {
+	return value === "only extras" ? "extras" : value === "on" ? "on" : "off";
 }
 
 function normalizeProviderListFromText(value: string): string[] {

@@ -75,16 +75,16 @@ export default function codexConversion(pi: ExtensionAPI) {
 
 	function ensureOptionalNativeToolsRegistered(config = state.config): void {
 		const allowConfiguredProvider = (model: Model<any> | undefined): boolean => {
-			if (config.scope.allProviders) return true;
+			if (config.scope.allProviders !== "off") return true;
 			const provider = model?.provider?.trim().toLowerCase();
 			return Boolean(provider && config.scope.additionalProviders.includes(provider));
 		};
-		if (config.tools.webRun) {
+		if (config.tools.webRun || config.tools.webRunOnly) {
 			const webSearchToolName = WEB_SEARCH_TOOL_NAME;
 			registerWebSearchTool(pi, webSearchToolName, { getRecentInput: () => latestRecentWebSearchInput, model: () => state.config.openai.webSearchModel, allowConfiguredProvider, ...customRenderingOptions(config), ...promptSnippetOptions(config) });
 			registeredNativeWebSearchTools.add(webSearchToolName);
 		}
-		if (config.tools.imageGeneration) {
+		if (config.tools.imageGeneration || config.tools.imageGenerationOnly) {
 			registerImageGenerationTool(pi, { allowConfiguredProvider, ...customRenderingOptions(config), ...promptSnippetOptions(config) });
 		}
 	}

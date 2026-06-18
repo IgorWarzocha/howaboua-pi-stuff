@@ -5,6 +5,7 @@ import { migrateCodexConversionConfigIfNeeded } from "./config-migration.ts";
 
 export type CodexVerbosity = "low" | "medium" | "high";
 export type CodexAdapterMode = "normal" | "path";
+export type AllProvidersMode = "off" | "on" | "extras";
 export type CompactionModel = "gpt-5.5" | "gpt-5.3-codex-spark" | "gpt-5.4-mini";
 export type WebSearchModel = "gpt-5.5" | "gpt-5.4-mini" | "gpt-5.3-codex-spark";
 export type CompactionReasoning = "current" | "minimal" | "low" | "medium" | "high" | "xhigh";
@@ -15,8 +16,16 @@ export const COMPACTION_REASONING_LEVELS: readonly CompactionReasoning[] = ["cur
 
 export interface CodexConversionConfig {
 	mode: CodexAdapterMode;
-	scope: { allProviders: boolean; additionalProviders: string[] };
-	tools: { webRun: boolean; imageGeneration: boolean; viewImageFallback: boolean; applyPatchOnly: boolean };
+	scope: { allProviders: AllProvidersMode; additionalProviders: string[] };
+	tools: {
+		webRun: boolean;
+		imageGeneration: boolean;
+		viewImageFallback: boolean;
+		applyPatchOnly: boolean;
+		viewImageOnly: boolean;
+		webRunOnly: boolean;
+		imageGenerationOnly: boolean;
+	};
 	ui: {
 		statusLine: boolean;
 		toolRendering: boolean;
@@ -40,8 +49,8 @@ export interface CodexConversionConfig {
 export const CODEX_CONVERSION_CONFIG_BASENAME = "pi-codex-conversion.json";
 export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	mode: "normal",
-	scope: { allProviders: false, additionalProviders: [] },
-	tools: { webRun: true, imageGeneration: true, viewImageFallback: false, applyPatchOnly: false },
+	scope: { allProviders: "off", additionalProviders: [] },
+	tools: { webRun: true, imageGeneration: true, viewImageFallback: false, applyPatchOnly: false, viewImageOnly: false, webRunOnly: false, imageGenerationOnly: false },
 	ui: {
 		statusLine: true,
 		toolRendering: true,
@@ -68,6 +77,12 @@ export function isObject(value: unknown): value is Record<string, unknown> {
 
 export function normalizeCodexAdapterMode(value: unknown): CodexAdapterMode | undefined {
 	return value === "normal" || value === "path" ? value : undefined;
+}
+
+export function normalizeAllProvidersMode(value: unknown): AllProvidersMode | undefined {
+	if (value === true) return "on";
+	if (value === false) return "off";
+	return value === "off" || value === "on" || value === "extras" ? value : undefined;
 }
 
 export function normalizeCodexVerbosity(value: unknown): CodexVerbosity | undefined {
@@ -117,7 +132,7 @@ export function normalizeCodexConversionConfig(value: unknown): CodexConversionC
 	return {
 		mode: normalizeCodexAdapterMode(value["mode"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.mode,
 		scope: {
-			allProviders: bool(scope["allProviders"], DEFAULT_CODEX_CONVERSION_CONFIG.scope["allProviders"]),
+			allProviders: normalizeAllProvidersMode(scope["allProviders"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.scope["allProviders"],
 			additionalProviders: normalizeProviderList(scope["additionalProviders"]),
 		},
 		tools: {
@@ -125,6 +140,9 @@ export function normalizeCodexConversionConfig(value: unknown): CodexConversionC
 			imageGeneration: bool(tools["imageGeneration"], DEFAULT_CODEX_CONVERSION_CONFIG.tools["imageGeneration"]),
 			viewImageFallback: bool(tools["viewImageFallback"], DEFAULT_CODEX_CONVERSION_CONFIG.tools["viewImageFallback"]),
 			applyPatchOnly: bool(tools["applyPatchOnly"], DEFAULT_CODEX_CONVERSION_CONFIG.tools["applyPatchOnly"]),
+			viewImageOnly: bool(tools["viewImageOnly"], DEFAULT_CODEX_CONVERSION_CONFIG.tools["viewImageOnly"]),
+			webRunOnly: bool(tools["webRunOnly"], DEFAULT_CODEX_CONVERSION_CONFIG.tools["webRunOnly"]),
+			imageGenerationOnly: bool(tools["imageGenerationOnly"], DEFAULT_CODEX_CONVERSION_CONFIG.tools["imageGenerationOnly"]),
 		},
 		ui: {
 			statusLine: bool(ui["statusLine"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["statusLine"]),

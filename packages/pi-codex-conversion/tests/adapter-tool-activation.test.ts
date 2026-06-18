@@ -58,7 +58,7 @@ test("syncAdapter preserves unrelated tools across repeated syncs", () => {
 test("syncAdapter leaves PATH tools to shell for configured custom providers", () => {
 	const pi = createToolHarness(["read", "bash", "edit", "write", "parallel"]);
 	const ctx = createContext({ provider: "my-provider", api: "custom-responses", id: "gpt-5" });
-	const state = createAdapterState({ mode: "path", scope: { allProviders: false, additionalProviders: ["my-provider"] } });
+	const state = createAdapterState({ mode: "path", scope: { allProviders: "off", additionalProviders: ["my-provider"] } });
 
 	syncAdapter(pi as never, ctx as never, state);
 

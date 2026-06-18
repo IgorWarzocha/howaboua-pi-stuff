@@ -17,8 +17,8 @@ export function migrateCodexConversionConfigIfNeeded(value: unknown): { migrated
 
 	const config: CodexConversionConfig = {
 		...structuredClone(DEFAULT_CODEX_CONVERSION_CONFIG),
-		scope: {
-			allProviders: typeof value["useOnAllModels"] === "boolean" ? value["useOnAllModels"] : DEFAULT_CODEX_CONVERSION_CONFIG.scope["allProviders"],
+	scope: {
+			allProviders: value["useOnAllModels"] === true ? "on" : value["useOnAllModels"] === false ? "off" : DEFAULT_CODEX_CONVERSION_CONFIG.scope["allProviders"],
 			additionalProviders: value["useAdapterProviders"] === true ? normalizeProviderList(value["adapterProviders"]) : [],
 		},
 		tools: {
@@ -26,6 +26,9 @@ export function migrateCodexConversionConfigIfNeeded(value: unknown): { migrated
 			imageGeneration: adapterProviderCodexToolsDisabled ? false : typeof value["imageGeneration"] === "boolean" ? value["imageGeneration"] : DEFAULT_CODEX_CONVERSION_CONFIG.tools["imageGeneration"],
 			viewImageFallback: DEFAULT_CODEX_CONVERSION_CONFIG.tools["viewImageFallback"],
 			applyPatchOnly: typeof value["applyPatchOnly"] === "boolean" ? value["applyPatchOnly"] : DEFAULT_CODEX_CONVERSION_CONFIG.tools["applyPatchOnly"],
+			viewImageOnly: DEFAULT_CODEX_CONVERSION_CONFIG.tools["viewImageOnly"],
+			webRunOnly: DEFAULT_CODEX_CONVERSION_CONFIG.tools["webRunOnly"],
+			imageGenerationOnly: DEFAULT_CODEX_CONVERSION_CONFIG.tools["imageGenerationOnly"],
 		},
 		ui: {
 			statusLine: typeof value["statusLine"] === "boolean" ? value["statusLine"] : DEFAULT_CODEX_CONVERSION_CONFIG.ui["statusLine"],
