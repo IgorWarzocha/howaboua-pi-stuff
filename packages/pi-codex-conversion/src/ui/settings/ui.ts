@@ -253,7 +253,8 @@ function buildItems(tab: SettingsTab, draft: CodexConversionConfig, theme: Theme
 			submenu: (currentValue, done) => new TextSettingSubmenu("Additional providers", "Comma-separated provider ids that should also use the selected adapter mode.", currentValue, (value) => done(formatProviderList(normalizeProviderListFromText(value))), () => done(), theme),
 		},
 		{ id: "statusLine", label: "Statusline", currentValue: draft.ui.statusLine ? "on" : "off", values: ["off", "on"] },
-		{ id: "toolRendering", label: "Tool rendering", currentValue: draft.ui.toolRendering ? "on" : "off", values: ["off", "on"] },
+		{ id: "toolRenaming", label: "Tool renaming", currentValue: draft.ui.toolRenaming ? "on" : "off", values: ["off", "on"] },
+		{ id: "compactTools", label: "Compact tools", currentValue: draft.ui.compactTools ? "on" : "off", values: ["off", "on"] },
 		{ id: "backgroundShellWidget", label: "Background shells widget", currentValue: draft.ui.backgroundShellWidget ? "on" : "off", values: ["off", "on"] },
 		{ id: "responsesCompaction", label: "Responses compaction", currentValue: draft.compaction.responsesCompaction ? "on" : "off", values: ["off", "on"] },
 		{ id: "editConfig", label: "Edit config", currentValue: editorCommand() ? "Opens in default editor (please /reload)" : "Set $EDITOR", values: editorCommand() ? ["Open"] : ["Unavailable"] },
@@ -265,7 +266,8 @@ function applySettingChange(id: string, value: string, draft: CodexConversionCon
 	if (id === "allProviders") return { ...draft, scope: { ...draft.scope, allProviders: parseAllProvidersMode(value) } };
 	if (id === "additionalProviders") return { ...draft, scope: { ...draft.scope, additionalProviders: normalizeProviderListFromText(value) } };
 	if (id === "statusLine") return { ...draft, ui: { ...draft.ui, statusLine: value === "on" } };
-	if (id === "toolRendering") return { ...draft, ui: { ...draft.ui, toolRendering: value === "on" } };
+	if (id === "toolRenaming") return { ...draft, ui: { ...draft.ui, toolRenaming: value === "on" } };
+	if (id === "compactTools") return { ...draft, ui: { ...draft.ui, compactTools: value === "on" } };
 	if (id === "backgroundShellWidget") return { ...draft, ui: { ...draft.ui, backgroundShellWidget: value === "on" } };
 	if (id === "responsesCompaction") return { ...draft, compaction: { ...draft.compaction, responsesCompaction: value === "on" } };
 	if (id === "webRun") return { ...draft, tools: { ...draft.tools, webRun: value === "on" } };

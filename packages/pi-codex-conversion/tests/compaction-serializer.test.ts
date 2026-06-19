@@ -4,7 +4,8 @@ import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/confi
 import { injectPendingNativeWindowIntoPiCompactionRequest } from "../src/adapter/compaction/compaction.ts";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
 import type { Model } from "@earendil-works/pi-ai";
-import { serializeMessagesToCompactRequest } from "../src/adapter/compaction/serializer.ts";
+import { serializeMessagesToCompactRequest, type NativeCompactionRequestBody } from "../src/adapter/compaction/serializer.ts";
+import { COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE, shrinkNativeCompactionRequestForEndpoint } from "../src/adapter/compaction/request-shrink.ts";
 
 const model = {
 	id: "gpt-5.1",
@@ -23,6 +24,40 @@ test("native compaction requests use Codex-compatible compact payload shape", ()
 	});
 
 	assert.deepEqual(Object.keys(request).sort(), ["input", "instructions", "model"]);
+});
+
+test("native compaction shrinks tool outputs when request exceeds context window", () => {
+	const request: NativeCompactionRequestBody = {
+		model: model.id,
+		instructions: "compact",
+		input: [
+			{ role: "user", content: [{ type: "input_text", text: "keep" }] },
+			{ type: "function_call", call_id: "call-1", name: "exec_command", arguments: "{}" },
+			{ type: "function_call_output", call_id: "call-1", output: "x".repeat(800) },
+			{ type: "function_call", call_id: "call-2", name: "exec_command", arguments: "{}" },
+			{ type: "function_call_output", call_id: "call-2", output: "y".repeat(800) },
+		],
+	};
+
+	const result = shrinkNativeCompactionRequestForEndpoint(request, { contextWindow: 450 });
+
+	assert.equal(result.rewrittenOutputs, 1);
+	assert.equal((result.request.input[2] as { output: string }).output, COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE);
+	assert.equal((result.request.input[4] as { output: string }).output, "y".repeat(800));
+	assert.ok(result.estimatedTokensAfter < result.estimatedTokensBefore);
+});
+
+test("native compaction leaves compact requests unchanged under context window", () => {
+	const request: NativeCompactionRequestBody = {
+		model: model.id,
+		instructions: "compact",
+		input: [{ type: "function_call_output", call_id: "call-1", output: "small" }],
+	};
+
+	const result = shrinkNativeCompactionRequestForEndpoint(request, { contextWindow: 10_000 });
+
+	assert.equal(result.rewrittenOutputs, 0);
+	assert.equal(result.request, request);
 });
 
 test("injects pending native compacted window into Pi compaction summarization payload", async () => {

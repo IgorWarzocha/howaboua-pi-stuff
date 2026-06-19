@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { formatApplyPatchCollapsedDiff, renderApplyPatchCall } from "../apply-patch/rendering.ts";
+import { formatApplyPatchCollapsedDiff, formatApplyPatchSummary, renderApplyPatchCall } from "../apply-patch/rendering.ts";
 
 export interface PathApplyPatchPreviewInput {
 	cwd: string;
@@ -10,7 +10,7 @@ export interface PathApplyPatchPreviewInput {
 
 export type PathApplyPatchRenderSegment =
 	| { kind: "command"; command: string }
-	| { kind: "patch"; cwd: string; patchText: string; collapsed: string; expanded: string };
+	| { kind: "patch"; cwd: string; patchText: string; summary: string; collapsed: string; expanded: string };
 
 export interface PathApplyPatchRenderState {
 	segments: PathApplyPatchRenderSegment[];
@@ -86,6 +86,7 @@ function extractHeredocApplyPatchPlan(command: string, cwd: string): PathApplyPa
 			kind: "patch",
 			cwd: patchCwd,
 			patchText,
+			summary: formatApplyPatchSummary(patchText, patchCwd),
 			collapsed: formatApplyPatchCollapsedDiff(patchText, patchCwd),
 			expanded: renderApplyPatchCall(patchText, patchCwd),
 		});
@@ -108,6 +109,7 @@ function extractArgumentApplyPatchPlan(command: string, cwd: string): PathApplyP
 			kind: "patch",
 			cwd: input.cwd,
 			patchText: input.patchText,
+			summary: formatApplyPatchSummary(input.patchText, input.cwd),
 			collapsed: formatApplyPatchCollapsedDiff(input.patchText, input.cwd),
 			expanded: renderApplyPatchCall(input.patchText, input.cwd),
 		}],

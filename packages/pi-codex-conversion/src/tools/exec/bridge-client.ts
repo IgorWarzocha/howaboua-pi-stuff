@@ -23,6 +23,7 @@ export interface ExecBridgeClient {
 }
 
 const MAX_BRIDGE_STDERR_CHARS = 16_000;
+const LOCAL_BUILD_GUIDANCE = "Bundled exec_bridge is incompatible with this Linux runtime. From a pi-codex-conversion Git checkout, run: bun install && bun run build:path-tool codex-exec-shim exec_bridge, then load that checkout's src/index.ts as the Pi extension.";
 
 function appendBoundedText(current: string, next: Buffer): string {
 	const combined = `${current}${next.toString("utf8")}`;
@@ -33,12 +34,22 @@ export function formatExecBridgeExitError(stderr: string, code?: number | null |
 	const detail = stderr.trim();
 	const status = typeof code === "number" ? `code ${code}` : signal ? `signal ${signal}` : undefined;
 	const prefix = status ? `exec_bridge exited (${status})` : "exec_bridge exited";
-	return detail ? `${prefix}: ${detail}` : prefix;
+	const message = detail ? `${prefix}: ${detail}` : prefix;
+	return withNativeBinaryGuidance(message);
 }
 
 function formatExecBridgeWriteError(error: Error, stderr: string): string {
 	const detail = stderr.trim();
-	return detail ? `${error.message}: ${detail}` : error.message;
+	return withNativeBinaryGuidance(detail ? `${error.message}: ${detail}` : error.message);
+}
+
+function withNativeBinaryGuidance(message: string): string {
+	if (!isLinuxNativeLoaderFailure(message)) return message;
+	return message.includes(LOCAL_BUILD_GUIDANCE) ? message : `${message}\n${LOCAL_BUILD_GUIDANCE}`;
+}
+
+function isLinuxNativeLoaderFailure(message: string): boolean {
+	return /GLIBC_[0-9.]+.*not found|version [`']GLIBC_[0-9.]+[`'] not found|ld-linux|libc\.so/i.test(message);
 }
 
 export function createExecBridgeClient(): ExecBridgeClient {
@@ -81,6 +92,9 @@ export function createExecBridgeClient(): ExecBridgeClient {
 		bridge.stdout.on("data", handleStdout);
 		bridge.stderr.on("data", (data: Buffer) => {
 			bridgeStderr = appendBoundedText(bridgeStderr, data);
+		});
+		bridge.stdin.on("error", (error: Error) => {
+			rejectPending(new Error(formatExecBridgeWriteError(error, bridgeStderr)));
 		});
 		bridge.on("close", (code, signal) => {
 			rejectPending(new Error(bridgeClosing ? "exec_bridge closed" : formatExecBridgeExitError(bridgeStderr, code, signal)));

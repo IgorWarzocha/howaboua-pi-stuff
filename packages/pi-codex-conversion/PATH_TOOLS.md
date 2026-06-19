@@ -45,7 +45,26 @@ Rust source lives next to the owning tool in `src/tools/<tool>/rust/`. Shared Ru
 
 Published installs use committed binaries. Most changes do not need a local rebuild.
 
-If Rust source changed, rebuild affected local-platform binaries from `packages/pi-codex-conversion`:
+For older Linux runtimes where a bundled binary fails with a loader error such as `GLIBC_2.39 not found`, run a Git checkout and rebuild the failing local-platform binary instead of replacing files inside an installed npm package. For `exec_bridge`:
+
+```bash
+cd /path/to/pi-codex-conversion
+bun install
+bun run build:path-tool codex-exec-shim exec_bridge
+```
+
+Then load the checkout as the Pi extension. For a persistent global config, edit `~/.pi/agent/settings.json`: remove `npm:@howaboua/pi-codex-conversion` from `packages`, and add the checkout entrypoint to `extensions`:
+
+```json
+{
+  "packages": [],
+  "extensions": ["/path/to/pi-codex-conversion/src/index.ts"]
+}
+```
+
+Keep existing unrelated `packages` and `extensions` entries; only replace the Codex conversion npm package. Restart Pi or use `/reload` after editing.
+
+If Rust source changed, rebuild affected local-platform binaries from the `pi-codex-conversion` package root:
 
 ```bash
 bun run build:changed-path-tools

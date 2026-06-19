@@ -1,7 +1,13 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { convertPathToolExecResult, getPathToolPolicy } from "../src/tools/path/outputs.ts";
 import { renderPathToolCommandCall } from "../src/tools/path/render-call.ts";
+import { registerExecCommandTool } from "../src/tools/exec/command-tool.ts";
+import { createExecCommandTracker } from "../src/tools/exec/command-state.ts";
+import { createExecSessionManager } from "../src/tools/exec/session-manager.ts";
 
 const theme = {
 	fg: (_role: string, text: string) => text,
@@ -80,4 +86,56 @@ test("PATH native-style rendering falls back for conditional tool calls", () => 
 	const rendered = renderPathToolCommandCall(`false && view_image '{"path":"/tmp/example.png"}'`, theme);
 
 	assert.equal(rendered, undefined);
+});
+
+test("PATH apply_patch call rendering expands with tool output expansion", () => {
+	const cwd = mkdtempSync(join(tmpdir(), "path-apply-patch-render-"));
+	const addedLines = Array.from({ length: 20 }, (_, index) => `+line ${String(index + 1).padStart(2, "0")}`).join("\n");
+	const command = `apply_patch <<'PATCH'
+*** Begin Patch
+*** Add File: long.txt
+${addedLines}
+*** End Patch
+PATCH`;
+	const sessions = createExecSessionManager();
+	try {
+		let tool: any;
+		registerExecCommandTool({ registerTool(definition: unknown) { tool = definition; } } as never, createExecCommandTracker(), sessions);
+
+		const collapsed = tool.renderCall({ cmd: command }, theme, { toolCallId: "call-1", cwd, expanded: false }).render(200).join("\n");
+		const expanded = tool.renderCall({ cmd: command }, theme, { toolCallId: "call-1", cwd, expanded: true }).render(200).join("\n");
+
+		assert.match(collapsed, /more lines/);
+		assert.doesNotMatch(collapsed, /line 20/);
+		assert.doesNotMatch(expanded, /more lines/);
+		assert.match(expanded, /line 20/);
+	} finally {
+		sessions.shutdown();
+	}
+});
+
+test("PATH apply_patch compact tools rendering hides collapsed diff preview", () => {
+	const cwd = mkdtempSync(join(tmpdir(), "path-apply-patch-compact-render-"));
+	const addedLines = Array.from({ length: 20 }, (_, index) => `+line ${String(index + 1).padStart(2, "0")}`).join("\n");
+	const command = `apply_patch <<'PATCH'
+*** Begin Patch
+*** Add File: long.txt
+${addedLines}
+*** End Patch
+PATCH`;
+	const sessions = createExecSessionManager();
+	try {
+		let tool: any;
+		registerExecCommandTool({ registerTool(definition: unknown) { tool = definition; } } as never, createExecCommandTracker(), sessions, { compactTools: true });
+
+		const collapsed = tool.renderCall({ cmd: command }, theme, { toolCallId: "call-compact", cwd, expanded: false }).render(200).join("\n");
+		const expanded = tool.renderCall({ cmd: command }, theme, { toolCallId: "call-compact", cwd, expanded: true }).render(200).join("\n");
+
+		assert.match(collapsed, /Added long\.txt \(\+20 -0\)/);
+		assert.doesNotMatch(collapsed, /line 01/);
+		assert.doesNotMatch(collapsed, /more lines/);
+		assert.match(expanded, /line 20/);
+	} finally {
+		sessions.shutdown();
+	}
 });

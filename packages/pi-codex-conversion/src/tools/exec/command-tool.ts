@@ -9,7 +9,7 @@ import type { ExecSessionManager, UnifiedExecResult } from "./session-manager.ts
 import { formatUnifiedExecResult } from "./format.ts";
 import { convertPathToolExecResult, getCodexBackedPathToolNames, getPathToolPolicy, imageContentsFromPathToolDetails, viewImageDescriptionFromPathToolDetails } from "../path/outputs.ts";
 import { renderTextWithImages } from "../path/rendering.ts";
-import { extractPathApplyPatchPreviewPlan, getPathApplyPatchRenderState, markPathApplyPatchPreviewExit, renderPathApplyPatchPreviewFromState, setPathApplyPatchPreviewState, type PathApplyPatchRenderSegment } from "../path/apply-patch-preview.ts";
+import { extractPathApplyPatchPreviewPlan, getPathApplyPatchRenderState, markPathApplyPatchPreviewExit, setPathApplyPatchPreviewState, type PathApplyPatchRenderSegment } from "../path/apply-patch-preview.ts";
 import { renderPathToolCommandCall } from "../path/render-call.ts";
 import { webRunSessionStatePath } from "../web-run/tool.ts";
 import { resolveImageDescriptionModel } from "../view-image/tool.ts";
@@ -111,6 +111,7 @@ async function resolveCodexBackedPathToolEnv(command: string, ctx: ExtensionCont
 interface ExecCommandRenderContextLike {
 	toolCallId?: string | undefined;
 	cwd?: string | undefined;
+	expanded?: boolean | undefined;
 	args?: { workdir?: unknown; cwd?: unknown; working_directory?: unknown } | undefined;
 	invalidate?: () => void | undefined;
 }
@@ -119,6 +120,7 @@ interface ExecCommandToolOptions {
 	customRendering?: boolean | undefined;
 	promptSnippet?: boolean | undefined;
 	showOutputWhenCollapsed?: boolean | undefined;
+	compactTools?: boolean | undefined;
 	describeImagesForTextModels?: boolean | undefined;
 }
 
@@ -233,11 +235,11 @@ function renderPathApplyPatchSegments(
 	segments: PathApplyPatchRenderSegment[],
 	status: Parameters<typeof renderExecCommandCall>[1],
 	theme: { fg(role: string, text: string): string; bold(text: string): string },
-	options: { failed?: boolean | undefined } = {},
+	options: { failed?: boolean | undefined; expanded?: boolean | undefined; compactTools?: boolean | undefined } = {},
 ): string | undefined {
 	const text = segments
 		.map((segment) => segment.kind === "patch"
-			? options.failed ? renderExecCommandCall("apply_patch", status, theme) : segment.collapsed
+			? options.failed && !options.expanded ? renderExecCommandCall("apply_patch", status, theme) : options.expanded ? segment.expanded : options.compactTools ? segment.summary : segment.collapsed
 			: renderExecCommandCall(segment.command, status, theme))
 		.filter((value) => value.trim().length > 0)
 		.join("\n");
@@ -249,6 +251,7 @@ const renderExecCommandCallWithOptionalContext: any = (
 	theme: { fg(role: string, text: string): string; bold(text: string): string },
 	context: ExecCommandRenderContextLike | undefined,
 	tracker: ExecCommandTracker,
+	options: ExecCommandToolOptions = {},
 ) => {
 	const command = typeof args.cmd === "string" ? args.cmd : "";
 	tracker.registerRenderContext(context?.toolCallId, context?.invalidate ?? (() => {}));
@@ -260,7 +263,7 @@ const renderExecCommandCallWithOptionalContext: any = (
 	if (pathApplyPatchPlan) {
 		const pathApplyPatchState = getPathApplyPatchRenderState(context?.toolCallId);
 		const failed = pathApplyPatchState?.exitCode !== undefined && pathApplyPatchState.exitCode !== 0;
-		const text = renderPathApplyPatchSegments(pathApplyPatchState?.segments ?? pathApplyPatchPlan.segments, renderInfo.status, theme, { failed });
+		const text = renderPathApplyPatchSegments(pathApplyPatchState?.segments ?? pathApplyPatchPlan.segments, renderInfo.status, theme, { failed, expanded: context?.expanded, compactTools: options.compactTools });
 		return text ? new Text(text, 0, 0) : new Text(renderExecCommandCall(command, renderInfo.status, theme), 0, 0);
 	}
 	const pathToolCall = renderPathToolCommandCall(command, theme, renderInfo.status);
@@ -303,10 +306,6 @@ const renderExecCommandResultWithOptionalContext: any = (
 
 	const output = details?.output ?? (textContent?.type === "text" ? textContent.text : "");
 	let text = theme.fg("dim", output || "(no output)");
-	const pathApplyPatchPreview = renderPathApplyPatchPreviewFromState(context?.toolCallId, true);
-	if (pathApplyPatchPreview && (details?.exit_code === undefined || details.exit_code === 0)) {
-		text = `${pathApplyPatchPreview}\n${text}`;
-	}
 	if (details?.session_id !== undefined) {
 		text += `\n${theme.fg("accent", `Session ${details.session_id} still running`)}`;
 	}
@@ -371,7 +370,7 @@ export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTr
 		},
 		...(options.customRendering === false ? {} : {
 			renderCall: ((args: { cmd?: unknown | undefined }, theme: { fg(role: string, text: string): string; bold(text: string): string }, context?: ExecCommandRenderContextLike) =>
-			renderExecCommandCallWithOptionalContext(args, theme, context, tracker)) as any,
+			renderExecCommandCallWithOptionalContext(args, theme, context, tracker, options)) as any,
 			renderResult: ((
 			result: { content: Array<{ type: string; text?: string | undefined }>; details?: unknown | undefined },
 			renderOptions: { expanded: boolean; isPartial: boolean },

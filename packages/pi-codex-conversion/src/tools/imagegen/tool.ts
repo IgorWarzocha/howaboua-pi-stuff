@@ -1,11 +1,11 @@
 import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { Container, Image, Spacer, Text } from "@earendil-works/pi-tui";
-import { readFileSync } from "node:fs";
+import { Text } from "@earendil-works/pi-tui";
 import { codexToolProviderEnv, resolveCodexToolProvider } from "../../adapter/codex-tool-provider.ts";
 import { IMAGE_GENERATION_TOOL_NAME } from "../../adapter/activation/tool-set.ts";
 import { getBundledPathToolBinaryPath } from "../path/binary.ts";
 import { formatPathImagegenOutput, imageContentsFromPathImagegenOutput, pathImagegenOutputFromJson } from "../path/outputs.ts";
+import { renderTextWithImages } from "../path/rendering.ts";
 import { runBundledTool } from "../path/runner.ts";
 import { renderCodexToolCell } from "../../ui/tool-rendering/codex-tool-cell.ts";
 
@@ -57,18 +57,6 @@ async function executeRustImagegen(args: ImagegenArgs, signal: AbortSignal | und
 	return parsed as ImagegenDetails;
 }
 
-function renderResultWithImages(text: string, details: ImagegenDetails, theme: { fg(role: string, text: string): string }): Container {
-	const box = new Container();
-	box.addChild(new Text(text, 0, 0));
-	for (const image of details.images) {
-		try {
-			box.addChild(new Spacer(1));
-			box.addChild(new Image(readFileSync(image.absolute_path).toString("base64"), "image/png", { fallbackColor: (value) => theme.fg("dim", value) }, { maxWidthCells: 60 }));
-		} catch {}
-	}
-	return box;
-}
-
 export interface ImageGenerationToolOptions {
 	allowConfiguredProvider?: ((model: ExtensionContext["model"]) => boolean) | undefined;
 	customRendering?: boolean | undefined;
@@ -95,7 +83,7 @@ export function createImageGenerationTool(options: ImageGenerationToolOptions = 
 		renderResult(result, _options, theme) {
 			const textBlock = result.content.find((item) => item.type === "text");
 			const text = theme.fg("dim", textBlock?.type === "text" ? textBlock.text : "(no output)");
-			return result.details ? renderResultWithImages(text, result.details, theme) : new Text(text, 0, 0);
+			return result.content.some((item) => item.type === "image") ? renderTextWithImages(text, result.content, theme) : new Text(text, 0, 0);
 		},
 		}),
 	};

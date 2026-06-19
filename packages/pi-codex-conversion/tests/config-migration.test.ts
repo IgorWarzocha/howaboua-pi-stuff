@@ -27,7 +27,8 @@ test("old flat config migrates to grouped config and respects disabled provider 
 	assert.deepEqual(config.scope, { allProviders: "on", additionalProviders: [] });
 	assert.deepEqual(config.tools, { webRun: false, imageGeneration: false, viewImageFallback: false, applyPatchOnly: true, viewImageOnly: false, webRunOnly: false, imageGenerationOnly: false });
 	assert.equal(config.ui.statusLine, false);
-	assert.equal(config.ui.toolRendering, true);
+	assert.equal(config.ui.toolRenaming, true);
+	assert.equal(config.ui.compactTools, false);
 	assert.equal(config.ui.backgroundShellWidget, false);
 	assert.equal(config.compaction.responsesCompaction, true);
 	assert.equal(config.openai.fast, true);
@@ -59,4 +60,10 @@ test("old flat config preserves disabled adapter provider Codex tools", () => {
 	assert.deepEqual(config.scope.additionalProviders, ["renamed-codex"]);
 	assert.equal(config.tools.webRun, false);
 	assert.equal(config.tools.imageGeneration, false);
+});
+
+test("grouped config accepts old toolRendering key", () => {
+	const config = normalizeCodexConversionConfig({ ui: { toolRendering: false, compactTools: true } });
+	assert.equal(config.ui.toolRenaming, false);
+	assert.equal(config.ui.compactTools, true);
 });

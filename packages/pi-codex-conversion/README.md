@@ -144,10 +144,9 @@ The Git checkout is mostly for development and mirrors the maintainer workflow. 
 Published installs include prebuilt native binaries. For best compatibility on older Linux systems, or if a bundled tool fails with a loader error such as `GLIBC_2.39 not found`, use a Git checkout and build the tools on that machine instead of upgrading glibc manually:
 
 ```bash
-cd /path/to/howaboua-pi-stuff
+cd /path/to/pi-codex-conversion
 bun install
-cd packages/pi-codex-conversion
-bun run build:changed-path-tools --all
+bun run build:path-tool codex-exec-shim exec_bridge
 ```
 
 Run the current checkout without installing globally:

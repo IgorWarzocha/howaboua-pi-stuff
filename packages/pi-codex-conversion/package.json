@@ -84,6 +84,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "js-tiktoken": "^1.0.21",
     "partial-json": "^0.1.7",
     "proxy-from-env": "1.1.0",
     "tree-sitter-bash": "^0.25.1",

@@ -26,6 +26,7 @@ import { registerCodexCommand } from "./ui/settings/command.ts";
 import { WEB_SEARCH_TOOL_NAME } from "./adapter/activation/tool-set.ts";
 import { BACKGROUND_BASH_WIDGET_ID, registerBackgroundBashWidgetShortcuts, renderBackgroundBashWidget, type BackgroundBashWidgetState } from "./ui/background-bash-widget.ts";
 import { CODEX_TOOL_CALL_PROVIDERS, convertResponsesMessages } from "./providers/openai-responses/shared.ts";
+import { maybeWarnLocalCheckoutVersion } from "./adapter/local-version-warning.ts";
 import type { ResponseInput } from "openai/resources/responses/responses.js";
 
 function getCommandArg(args: unknown): string | undefined {
@@ -55,7 +56,11 @@ export default function codexConversion(pi: ExtensionAPI) {
 	let backgroundWidgetRenderTimer: ReturnType<typeof setTimeout> | undefined;
 
 	function customRenderingOptions(config = state.config): { customRendering: boolean } {
-		return { customRendering: config.ui.toolRendering };
+		return { customRendering: config.ui.toolRenaming };
+	}
+
+	function showCollapsedPatchDiff(config = state.config): boolean {
+		return config.mode === "normal" && !config.ui.compactTools;
 	}
 
 	function promptSnippetOptions(config = state.config): { promptSnippet: boolean } {
@@ -67,8 +72,8 @@ export default function codexConversion(pi: ExtensionAPI) {
 	}
 
 	function registerCoreTools(config = state.config): void {
-		registerApplyPatchTool(pi, { ...promptSnippetOptions(config), showDiffWhenCollapsed: config.mode === "normal" });
-		registerExecCommandTool(pi, tracker, sessions, { describeImagesForTextModels: config.tools.viewImageFallback, ...customRenderingOptions(config), ...promptSnippetOptions(config), showOutputWhenCollapsed: config.mode === "normal" });
+		registerApplyPatchTool(pi, { ...promptSnippetOptions(config), showDiffWhenCollapsed: showCollapsedPatchDiff(config) });
+		registerExecCommandTool(pi, tracker, sessions, { describeImagesForTextModels: config.tools.viewImageFallback, ...customRenderingOptions(config), ...promptSnippetOptions(config), showOutputWhenCollapsed: config.mode === "normal", compactTools: config.ui.compactTools });
 		registerWriteStdinTool(pi, sessions, { describeImagesForTextModels: config.tools.viewImageFallback, ...promptSnippetOptions(config) });
 		registerViewImageTool(pi, { describeForTextModels: config.tools.viewImageFallback, ...customRenderingOptions(config), ...promptSnippetOptions(config) });
 	}
@@ -155,7 +160,7 @@ export default function codexConversion(pi: ExtensionAPI) {
 		tracker.recordSessionFinished(sessionId);
 	});
 
-	pi.on("session_start", async (_event, ctx) => {
+	pi.on("session_start", async (event, ctx) => {
 		backgroundBashWidget.ctx = ctx;
 		state.cwd = ctx.cwd;
 		state.config = readCodexConversionConfig();
@@ -167,6 +172,7 @@ export default function codexConversion(pi: ExtensionAPI) {
 		ensureOptionalNativeToolsRegistered();
 		renderBackgroundShellWidget(ctx);
 		syncAdapter(pi, ctx, state);
+		if (event.reason === "startup") await maybeWarnLocalCheckoutVersion(ctx);
 	});
 
 	pi.on("resources_discover", async (event) => {

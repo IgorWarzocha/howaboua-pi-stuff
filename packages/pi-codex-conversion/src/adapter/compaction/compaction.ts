@@ -3,6 +3,7 @@ import { clampThinkingLevel, type ModelThinkingLevel, type Tool } from "@earendi
 import { executeNativeCompaction } from "./compact-client.ts";
 import { extractCompactionSummaryText, hasCompactionOutputItem, sanitizeCompactedWindow, summarizeCompactionOutputForDiagnostics } from "./compaction-output.ts";
 import { findLatestNativeCompactionEntry, findLatestNativeCompactionEntryIndex, resolveLatestNativeCompactionEntry } from "./details-store.ts";
+import { shrinkNativeCompactionRequestForEndpoint } from "./request-shrink.ts";
 import { rewriteResponsesPayloadWithNativeReplay, serializeLiveTailToResponsesInput } from "../replay/payload-rewrite.ts";
 import { DEFAULT_SUPPORTED_PROVIDERS, isResponsesCompatiblePayload, resolveNativeCompactionEnvironment, type ResponsesCompatibleRequestPayload } from "./compaction-runtime.ts";
 import { formatCodexUsageLimitError } from "../../providers/openai-codex/errors.ts";
@@ -262,6 +263,8 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 		ctx.ui.notify("OpenAI native compaction had no serializable conversation items; Pi compaction was not run.", "error");
 		return { cancel: true };
 	}
+
+	request = shrinkNativeCompactionRequestForEndpoint(request, { contextWindow: compactionTargetModel.contextWindow }).request;
 
 	const compactResult = await executeNativeCompaction({ runtime, request, signal: event.signal });
 	if (!compactResult.ok) {
