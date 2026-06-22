@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
-import { syncAdapter } from "../src/adapter/activation/activation.ts";
+import { shouldUseNativeResponsesCompaction, syncAdapter } from "../src/adapter/activation/activation.ts";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
 import { mergeAdapterTools } from "../src/index.ts";
 
@@ -73,4 +73,18 @@ test("applyPatchOnly overlays only apply_patch without Codex toolkit rewrites", 
 	syncAdapter(pi as never, ctx as never, state);
 
 	assert.deepEqual(pi.activeTools(), ["read", "bash", "edit", "write", "parallel", "apply_patch"]);
+});
+
+test("all-model mode does not opt non-Codex models into native Responses compaction", () => {
+	const ctx = createContext({ provider: "openai", api: "openai-responses", id: "gpt-5" });
+	const state = createAdapterState({ scope: { allProviders: "on", additionalProviders: [] }, compaction: { responsesCompaction: true } });
+
+	assert.equal(shouldUseNativeResponsesCompaction(ctx as never, state.config), false);
+});
+
+test("native Responses compaction stays scoped to OpenAI Codex and explicit providers", () => {
+	const config = createAdapterState({ scope: { allProviders: "on", additionalProviders: ["my-provider"] }, compaction: { responsesCompaction: true } }).config;
+
+	assert.equal(shouldUseNativeResponsesCompaction(createContext({ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5" }) as never, config), true);
+	assert.equal(shouldUseNativeResponsesCompaction(createContext({ provider: "my-provider", api: "openai-codex-responses", id: "gpt-5" }) as never, config), true);
 });

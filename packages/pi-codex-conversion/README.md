@@ -92,7 +92,7 @@ Settings are saved globally in `~/.pi/agent/pi-codex-conversion.json`.
 
 The settings UI has **General**, **Tools**, **OpenAI**, **Usage**, and **About** tabs. **Usage** refreshes automatically when opened, can be refreshed manually with `R`, and shows banked Codex rate-limit resets with their expiry above the usage windows. When resets are available, press `Ctrl+R` in the Usage tab to use one. After a reset attempt, press `R` before using another reset.
 
-**General** controls PATH mode, scope, status UI, background shells, and whether native Responses compaction is enabled. PATH mode switches the adapter to the shell-only surface above.
+**General** controls PATH mode, scope, status UI, background shells, and whether native Responses compaction is enabled. Native compaction applies to OpenAI Codex and explicitly added providers; all-model scope only changes the tool and prompt adapter. PATH mode switches the adapter to the shell-only surface above.
 
 Advanced users with custom Codex-compatible providers can add provider ids in General, or by editing `~/.pi/agent/pi-codex-conversion.json`:
 

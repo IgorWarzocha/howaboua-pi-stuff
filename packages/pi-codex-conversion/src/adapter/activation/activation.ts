@@ -38,6 +38,11 @@ export function shouldUseCodexAdapter(ctx: ExtensionContext, config: CodexConver
 	return usesFullAdapterOnAllProviders(config) || isConfiguredAdapterProvider(ctx, config) || isCodexLikeContext(ctx);
 }
 
+export function shouldUseNativeResponsesCompaction(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
+	if (!config.compaction.responsesCompaction || shouldUseExtraToolsOnly(ctx, config)) return false;
+	return isOpenAICodexContext(ctx) || isConfiguredAdapterProvider(ctx, config);
+}
+
 export function isConfiguredAdapterProvider(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
 	const provider = ctx.model?.provider?.trim().toLowerCase();
 	return Boolean(provider && config.scope.additionalProviders.includes(provider));
@@ -143,7 +148,7 @@ function getStatusConfig(ctx: ExtensionContext, config: CodexConversionConfig): 
 		fast: showOpenAICodexFlags && config.openai.fast,
 		webSearch: config.mode === "normal" && config.tools.webRun && (supportsNativeWebSearch(ctx.model) || useCodexBackedNativeTools),
 		imageGeneration: config.mode === "normal" && config.tools.imageGeneration && (supportsNativeImageGeneration(ctx.model) || useCodexBackedNativeTools),
-		compaction: { enabled: Boolean(config.compaction.responsesCompaction), model: config.openai.compactionModel, reasoning: config.openai.compactionReasoning },
+		compaction: { enabled: shouldUseNativeResponsesCompaction(ctx, config), model: config.openai.compactionModel, reasoning: config.openai.compactionReasoning },
 		...(showResponsesVerbosity ? { verbosity: config.openai.verbosity } : {}),
 	};
 }

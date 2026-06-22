@@ -16,7 +16,7 @@ import {
 } from "./serializer.ts";
 import { createNativeCompactionDetails, createNativeCompactionShimResult, isNativeCompactionDetails, NATIVE_COMPACTION_SHIM_SUMMARY, type NativeCompactionEntry } from "../compaction/types.ts";
 import { isResponsesContext } from "../prompt/codex-model.ts";
-import { isEffectiveOpenAICodexContext, shouldUseCodexAdapter } from "../activation/activation.ts";
+import { isEffectiveOpenAICodexContext, shouldUseNativeResponsesCompaction } from "../activation/activation.ts";
 import type { AdapterState } from "../activation/state.ts";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -166,7 +166,7 @@ function getSupportedNativeCompactionProviders(state: AdapterState): string[] {
 }
 
 export async function handleCodexSessionBeforeCompact(event: SessionBeforeCompactEvent, ctx: ExtensionContext, state: AdapterState, pi: ExtensionAPI) {
-	if (!state.config.compaction.responsesCompaction || !shouldUseCodexAdapter(ctx, state.config)) {
+	if (!shouldUseNativeResponsesCompaction(ctx, state.config)) {
 		return undefined;
 	}
 
@@ -306,7 +306,7 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 }
 
 export async function rewriteCodexCompactedProviderRequest(payload: unknown, ctx: ExtensionContext, state: AdapterState): Promise<unknown | undefined> {
-	if (!state.config.compaction.responsesCompaction || !shouldUseCodexAdapter(ctx, state.config) || (!isEffectiveOpenAICodexContext(ctx, state.config) && !isResponsesContext(ctx))) return undefined;
+	if (!shouldUseNativeResponsesCompaction(ctx, state.config) || (!isEffectiveOpenAICodexContext(ctx, state.config) && !isResponsesContext(ctx))) return undefined;
 	const resolution = await resolveNativeCompactionEnvironment(ctx, { enabled: true, supportedProviders: getSupportedNativeCompactionProviders(state) }, payload);
 	if (!resolution.ok) return undefined;
 	const runtime = resolution.runtime;
