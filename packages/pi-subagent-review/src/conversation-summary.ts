@@ -6,15 +6,7 @@ import type {
 	Model,
 	SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
-import { streamSimple as streamAnthropicMessages } from "@earendil-works/pi-ai/api/anthropic-messages";
-import { streamSimple as streamAzureOpenAIResponses } from "@earendil-works/pi-ai/api/azure-openai-responses";
-import { streamSimple as streamBedrockConverseStream } from "@earendil-works/pi-ai/api/bedrock-converse-stream";
-import { streamSimple as streamGoogleGenerativeAI } from "@earendil-works/pi-ai/api/google-generative-ai";
-import { streamSimple as streamGoogleVertex } from "@earendil-works/pi-ai/api/google-vertex";
-import { streamSimple as streamMistralConversations } from "@earendil-works/pi-ai/api/mistral-conversations";
-import { streamSimple as streamOpenAICodexResponses } from "@earendil-works/pi-ai/api/openai-codex-responses";
-import { streamSimple as streamOpenAICompletions } from "@earendil-works/pi-ai/api/openai-completions";
-import { streamSimple as streamOpenAIResponses } from "@earendil-works/pi-ai/api/openai-responses";
+import * as piAiRuntime from "@earendil-works/pi-ai";
 import type {
 	ExtensionCommandContext,
 	SessionEntry,
@@ -38,6 +30,17 @@ type ModelRegistryInternals = {
 	>;
 	registeredProviders?: Map<string, RegisteredProviderConfig>;
 };
+
+type PiAiRuntime = {
+	completeSimple(
+		model: Model<Api>,
+		context: Context,
+		options?: SimpleStreamOptions,
+	): Promise<AssistantMessage>;
+};
+
+const { completeSimple: completeWithPiRuntime } =
+	piAiRuntime as unknown as PiAiRuntime;
 
 function getModelRegistryInternals(
 	modelRegistry: ExtensionCommandContext["modelRegistry"],
@@ -111,65 +114,7 @@ async function completeSummaryWithModelApi(
 	if (registeredStreamSimple) {
 		return registeredStreamSimple(model, context, options).result();
 	}
-
-	switch (model.api) {
-		case "anthropic-messages":
-			return streamAnthropicMessages(
-				model as Model<"anthropic-messages">,
-				context,
-				options,
-			).result();
-		case "azure-openai-responses":
-			return streamAzureOpenAIResponses(
-				model as Model<"azure-openai-responses">,
-				context,
-				options,
-			).result();
-		case "bedrock-converse-stream":
-			return streamBedrockConverseStream(
-				model as Model<"bedrock-converse-stream">,
-				context,
-				options,
-			).result();
-		case "google-generative-ai":
-			return streamGoogleGenerativeAI(
-				model as Model<"google-generative-ai">,
-				context,
-				options,
-			).result();
-		case "google-vertex":
-			return streamGoogleVertex(
-				model as Model<"google-vertex">,
-				context,
-				options,
-			).result();
-		case "mistral-conversations":
-			return streamMistralConversations(
-				model as Model<"mistral-conversations">,
-				context,
-				options,
-			).result();
-		case "openai-codex-responses":
-			return streamOpenAICodexResponses(
-				model as Model<"openai-codex-responses">,
-				context,
-				options,
-			).result();
-		case "openai-completions":
-			return streamOpenAICompletions(
-				model as Model<"openai-completions">,
-				context,
-				options,
-			).result();
-		case "openai-responses":
-			return streamOpenAIResponses(
-				model as Model<"openai-responses">,
-				context,
-				options,
-			).result();
-		default:
-			throw new Error(`Summary model API is unsupported: ${model.api}`);
-	}
+	return completeWithPiRuntime(model, context, options);
 }
 
 function textFromContent(content: unknown): string {
