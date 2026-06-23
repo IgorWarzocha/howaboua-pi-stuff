@@ -281,9 +281,13 @@ test("registered Codex provider lets null request headers delete model headers",
 	}
 });
 
-test("resolveWebSocketProxyForTarget honors provider-scoped env", () => {
-	assert.equal(resolveWebSocketProxyForTarget("wss://chatgpt.example/codex", { HTTPS_PROXY: "http://proxy.example:8080" }), "http://proxy.example:8080");
-	assert.equal(resolveWebSocketProxyForTarget("wss://chatgpt.example/codex", { HTTPS_PROXY: "http://proxy.example:8080", NO_PROXY: "chatgpt.example" }), undefined);
+test("resolveWebSocketProxyForTarget honors provider-scoped env with proxy-from-env semantics", async () => {
+	assert.equal(await resolveWebSocketProxyForTarget("wss://chatgpt.example/codex", { npm_config_https_proxy: "proxy.example:8080" }), "https://proxy.example:8080");
+	assert.equal(await resolveWebSocketProxyForTarget("wss://chatgpt.example/codex", { HTTPS_PROXY: "http://proxy.example:8080" }), "http://proxy.example:8080");
+	assert.equal(await resolveWebSocketProxyForTarget("wss://chatgpt.example/codex", { HTTPS_PROXY: "http://proxy.example:8080", NO_PROXY: "chatgpt.example" }), undefined);
+	assert.equal(await resolveWebSocketProxyForTarget("wss://chatgpt.example/codex", { HTTPS_PROXY: "http://proxy.example:8080", NO_PROXY: "chatgpt.example:443" }), undefined);
+	assert.equal(await resolveWebSocketProxyForTarget("wss://api.example.com/codex", { HTTPS_PROXY: "http://proxy.example:8080", NO_PROXY: "example.com" }), "http://proxy.example:8080");
+	assert.equal(await resolveWebSocketProxyForTarget("wss://api.example.com/codex", { HTTPS_PROXY: "http://proxy.example:8080", NO_PROXY: ".example.com" }), undefined);
 });
 
 test("cached websocket request body reuses continuation across reasoning changes", () => {

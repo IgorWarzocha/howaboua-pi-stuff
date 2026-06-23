@@ -2,13 +2,35 @@ import { DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS, WEBSOCKET_MESSAGE_TOO_BIG_CLOSE_C
 import { headersToRecord } from "./headers.ts";
 import type { ProviderEnv, WebSocketConstructorLike, WebSocketLike } from "./types.ts";
 
+const dynamicImport = (specifier: string) => import(specifier);
+
+const PROXY_ENV_KEYS = new Set([
+	"all_proxy",
+	"http_proxy",
+	"https_proxy",
+	"no_proxy",
+	"npm_config_http_proxy",
+	"npm_config_https_proxy",
+	"npm_config_no_proxy",
+	"npm_config_proxy",
+]);
+
+type GetProxyForUrl = (url: string | object | URL) => string;
+
+let proxyFromEnvPromise: Promise<GetProxyForUrl> | undefined;
+async function getProxyFromEnv(): Promise<GetProxyForUrl> {
+	proxyFromEnvPromise ??= dynamicImport("proxy-from-env").then((module) => (module as { getProxyForUrl: GetProxyForUrl }).getProxyForUrl);
+	return proxyFromEnvPromise;
+}
+
 let _cachedWebSocket: WebSocketConstructorLike | null = null;
 async function getWebSocketConstructor(env?: ProviderEnv): Promise<WebSocketConstructorLike | null> {
 	if (!env && _cachedWebSocket) return _cachedWebSocket;
 	if (typeof process !== "undefined" && process.versions["bun"]!) {
+		const getProxyForUrl = await getProxyFromEnv();
 		const WebSocketWithProxy = class extends WebSocket {
 			constructor(url: string, options?: { headers?: Record<string, string> | undefined } | string | string[]) {
-				const proxy = resolveWebSocketProxyForTarget(url, env);
+				const proxy = resolveWebSocketProxyForTargetSync(getProxyForUrl, url, env);
 				const baseOptions = Array.isArray(options) || typeof options === "string" ? { protocols: options } : { ...options };
 				super(url, { ...baseOptions, ...(proxy ? { proxy } : {}) } as never);
 			}
@@ -20,35 +42,51 @@ async function getWebSocketConstructor(env?: ProviderEnv): Promise<WebSocketCons
 	return typeof ctor === "function" ? ctor : null;
 }
 
-function envValue(env: ProviderEnv | undefined, name: string): string | undefined {
-	return env?.[name] ?? (typeof process !== "undefined" ? process.env[name] : undefined);
+function proxyTargetUrl(url: string): string {
+	return url.replace(/^wss:/, "https:").replace(/^ws:/, "http:");
 }
 
-function noProxyMatches(noProxy: string | undefined, target: URL): boolean {
-	if (!noProxy) return false;
-	for (const raw of noProxy.split(",")) {
-		const entry = raw.trim().toLowerCase();
-		if (!entry) continue;
-		if (entry === "*") return true;
-		const [hostPattern, port] = entry.split(":", 2);
-		if (port && port !== target.port) continue;
-		const hostname = target.hostname.toLowerCase();
-		if (hostPattern?.startsWith(".")) {
-			if (hostname.endsWith(hostPattern)) return true;
-		} else if (hostname === hostPattern || hostname.endsWith(`.${hostPattern}`)) {
-			return true;
+function scopedProxyEnv(env: ProviderEnv | undefined): Map<string, string> {
+	const scoped = new Map<string, string>();
+	for (const [key, value] of Object.entries(env ?? {})) {
+		const normalized = key.toLowerCase();
+		if (PROXY_ENV_KEYS.has(normalized)) scoped.set(normalized, value);
+	}
+	return scoped;
+}
+
+function withScopedProxyEnv<T>(env: ProviderEnv | undefined, run: () => T): T {
+	if (typeof process === "undefined") return run();
+	const scoped = scopedProxyEnv(env);
+	if (scoped.size === 0) return run();
+
+	const previous = new Map<string, string | undefined>();
+	for (const [key, value] of scoped.entries()) {
+		const upper = key.toUpperCase();
+		previous.set(key, process.env[key]);
+		previous.set(upper, process.env[upper]);
+		delete process.env[key];
+		delete process.env[upper];
+		process.env[key] = value;
+	}
+
+	try {
+		return run();
+	} finally {
+		for (const [key, value] of previous.entries()) {
+			if (value === undefined) delete process.env[key];
+			else process.env[key] = value;
 		}
 	}
-	return false;
 }
 
-export function resolveWebSocketProxyForTarget(url: string, env?: ProviderEnv): string | undefined {
-	const target = new URL(url.replace(/^wss:/, "https:").replace(/^ws:/, "http:"));
-	if (noProxyMatches(envValue(env, "NO_PROXY") ?? envValue(env, "no_proxy"), target)) return undefined;
-	const proxy = target.protocol === "https:"
-		? envValue(env, "HTTPS_PROXY") ?? envValue(env, "https_proxy") ?? envValue(env, "ALL_PROXY") ?? envValue(env, "all_proxy")
-		: envValue(env, "HTTP_PROXY") ?? envValue(env, "http_proxy") ?? envValue(env, "ALL_PROXY") ?? envValue(env, "all_proxy");
-	return proxy && proxy.trim() ? proxy.trim() : undefined;
+function resolveWebSocketProxyForTargetSync(getProxyForUrl: GetProxyForUrl, url: string, env?: ProviderEnv): string | undefined {
+	const proxy = withScopedProxyEnv(env, () => getProxyForUrl(proxyTargetUrl(url)));
+	return proxy || undefined;
+}
+
+export async function resolveWebSocketProxyForTarget(url: string, env?: ProviderEnv): Promise<string | undefined> {
+	return resolveWebSocketProxyForTargetSync(await getProxyFromEnv(), url, env);
 }
 
 function getWebSocketReadyState(socket: WebSocketLike): number | undefined {
