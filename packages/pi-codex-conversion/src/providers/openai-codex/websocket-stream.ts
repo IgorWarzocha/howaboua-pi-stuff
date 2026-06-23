@@ -1,10 +1,10 @@
-import type { Api, AssistantMessage, AssistantMessageEventStream, Model, SimpleStreamOptions } from "@earendil-works/pi-ai";
+import type { Api, AssistantMessage, AssistantMessageEventStream, Model } from "@earendil-works/pi-ai";
 import { CODEX_TOOL_CALL_PROVIDERS, convertResponsesMessages } from "../openai-responses/shared.ts";
 import { normalizeTimeoutMs } from "./sse.ts";
 import { buildCachedWebSocketRequestBody } from "./websocket-continuation.ts";
 import { acquireWebSocket, countWebSocketEvents, isRetryableEarlyWebSocketError, parseWebSocket, startWebSocketOutputOnFirstEvent } from "./websocket.ts";
-import { processCodexResponsesStream } from "./stream-events.ts";
-import type { CachedWebSocketRequestBodyResult, ResponsesBody } from "./types.ts";
+import { isWebSocketConnectionLimitReachedError, mapCodexEvents, processMappedCodexResponsesStream } from "./stream-events.ts";
+import type { CachedWebSocketRequestBodyResult, OpenAICodexStreamOptions, ResponsesBody } from "./types.ts";
 
 export async function processWebSocketStream<TApi extends Api>(
 	url: string,
@@ -14,14 +14,14 @@ export async function processWebSocketStream<TApi extends Api>(
 	stream: AssistantMessageEventStream,
 	model: Model<TApi>,
 	onStart: () => void,
-	options: SimpleStreamOptions | undefined,
+	options: OpenAICodexStreamOptions | undefined,
 ): Promise<void> {
 	let streamStarted = false;
 	const idleTimeoutMs = normalizeTimeoutMs(options?.timeoutMs, "timeoutMs");
 	const websocketConnectTimeoutMs = normalizeTimeoutMs(options?.websocketConnectTimeoutMs, "websocketConnectTimeoutMs");
 
 	for (let attempt = 0; attempt < 2; attempt++) {
-		const { socket, entry, release } = await acquireWebSocket(url, headers, options?.sessionId, options?.signal, websocketConnectTimeoutMs);
+		const { socket, entry, release } = await acquireWebSocket(url, headers, options?.sessionId, options?.signal, websocketConnectTimeoutMs, options?.env);
 		let keepConnection = true;
 		let released = false;
 		let eventCount = 0;
@@ -43,11 +43,11 @@ export async function processWebSocketStream<TApi extends Api>(
 
 		try {
 			socket.send(JSON.stringify({ type: "response.create", ...requestBody }));
-			await processCodexResponsesStream(
+			await processMappedCodexResponsesStream(
 				startWebSocketOutputOnFirstEvent(
-					countWebSocketEvents(parseWebSocket(socket, options?.signal, idleTimeoutMs), () => {
+					mapCodexEvents(countWebSocketEvents(parseWebSocket(socket, options?.signal, idleTimeoutMs), () => {
 						eventCount++;
-					}),
+					})),
 					output,
 					stream,
 					() => {
@@ -83,7 +83,7 @@ export async function processWebSocketStream<TApi extends Api>(
 			// If WebSocket fails before the first response event, nothing has been
 			// emitted to the UI/history yet. Retry once on a fresh WebSocket; if that
 			// also fails, the caller can fall back to SSE for `auto` transport.
-			if (attempt === 0 && eventCount === 0 && !streamStarted && !options?.signal?.aborted && isRetryableEarlyWebSocketError(error)) {
+			if (attempt === 0 && !streamStarted && !options?.signal?.aborted && (isWebSocketConnectionLimitReachedError(error) || (eventCount === 0 && isRetryableEarlyWebSocketError(error)))) {
 				continue;
 			}
 			throw error;

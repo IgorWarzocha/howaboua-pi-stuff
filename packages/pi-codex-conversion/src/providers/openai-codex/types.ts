@@ -49,11 +49,13 @@ export interface CachedWebSocketRequestBodyResult {
 }
 
 export type ServiceTier = ResponseCreateParamsStreaming["service_tier"];
+export type ProviderEnv = Record<string, string>;
 export type CodexProviderStreamOptions = SimpleStreamOptions & { serviceTier?: ServiceTier | undefined; textVerbosity?: string | undefined; reasoningSummary?: string | undefined };
 export type CodexReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
 export type OpenAICodexStreamOptions = CodexProviderStreamOptions & {
 	reasoningEffort?: CodexReasoningEffort | undefined;
 	websocketConnectTimeoutMs?: number | undefined;
+	env?: ProviderEnv | undefined;
 };
 
 export interface ResponsesBody {

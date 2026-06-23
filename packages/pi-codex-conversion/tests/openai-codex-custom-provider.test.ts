@@ -6,6 +6,7 @@ import {
 	parseSSE,
 	registerOpenAICodexCustomProvider,
 } from "../src/providers/openai-codex-custom-provider.ts";
+import { resolveWebSocketProxyForTarget } from "../src/providers/openai-codex/websocket-connection.ts";
 
 const exampleTool = {
 	name: "example_tool",
@@ -189,6 +190,100 @@ test("registered Codex provider converts non-retryable SSE errors into error eve
 	} finally {
 		globalThis.fetch = originalFetch;
 	}
+});
+
+test("registered Codex provider falls back to SSE after WebSocket connection-limit retries", async () => {
+	const originalFetch = globalThis.fetch;
+	const originalWebSocket = globalThis.WebSocket;
+	const registered = createRegisteredCodexProvider();
+	const fetchCalls: Array<{ url: string; init: RequestInit }> = [];
+	let websocketSends = 0;
+
+	class LimitWebSocket {
+		readyState = 1;
+		private listeners = new Map<string, Set<(event: unknown) => void>>();
+
+		constructor(_url: string, _options?: unknown) {
+			queueMicrotask(() => this.emit("open", {}));
+		}
+
+		send(_data: string) {
+			websocketSends++;
+			queueMicrotask(() => this.emit("message", {
+				data: JSON.stringify({
+					type: "error",
+					error: { code: "websocket_connection_limit_reached", message: "too many websocket connections" },
+				}),
+			}));
+		}
+
+		close() {}
+
+		addEventListener(type: string, listener: (event: unknown) => void) {
+			this.listeners.set(type, new Set([...(this.listeners.get(type) ?? []), listener]));
+		}
+
+		removeEventListener(type: string, listener: (event: unknown) => void) {
+			this.listeners.get(type)?.delete(listener);
+		}
+
+		private emit(type: string, event: unknown) {
+			for (const listener of this.listeners.get(type) ?? []) listener(event);
+		}
+	}
+
+	try {
+		globalThis.WebSocket = LimitWebSocket as never;
+		globalThis.fetch = (async (url, init) => {
+			fetchCalls.push({ url: String(url), init: init as RequestInit });
+			return sseResponse([{ type: "response.completed", response: { id: "resp_sse", status: "completed", usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 } } }]);
+		}) as typeof fetch;
+
+		const events = await collectStream(registered.provider.streamSimple(
+			{ ...(codexModel as object), baseUrl: "https://chatgpt.example/backend-api", cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } } as never,
+			{ systemPrompt: "Instructions", messages: [] } as never,
+			{ apiKey: fakeJwt({ "https://api.openai.com/auth": { chatgpt_account_id: "acct_1" } }), transport: "auto", sessionId: "session-limit" } as never,
+		));
+
+		assert.equal(websocketSends, 2);
+		assert.equal(fetchCalls.length, 1);
+		assert.equal(fetchCalls[0]!.url, "https://chatgpt.example/backend-api/codex/responses");
+		assert.equal((events.at(-1) as { type?: string; message?: { responseId?: string } }).type, "done");
+		assert.equal((events.at(-1) as { message?: { responseId?: string } }).message?.responseId, "resp_sse");
+	} finally {
+		globalThis.fetch = originalFetch;
+		globalThis.WebSocket = originalWebSocket;
+	}
+});
+
+test("registered Codex provider lets null request headers delete model headers", async () => {
+	const originalFetch = globalThis.fetch;
+	const registered = createRegisteredCodexProvider();
+	let capturedHeaders: Headers | undefined;
+
+	try {
+		globalThis.fetch = (async (_url, init) => {
+			capturedHeaders = init?.headers as Headers;
+			return sseResponse([{ type: "response.completed", response: { id: "resp_1", status: "completed", usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 } } }]);
+		}) as typeof fetch;
+
+		await collectStream(registered.provider.streamSimple(
+			{ ...(codexModel as object), headers: { "X-Remove": "model", "X-Keep": "model" }, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } } as never,
+			{ systemPrompt: "Instructions", messages: [] } as never,
+			{ apiKey: fakeJwt({ "https://api.openai.com/auth": { chatgpt_account_id: "acct_1" } }), transport: "sse", headers: { "X-Remove": null, "X-Add": "request" } } as never,
+		));
+
+		assert.equal(capturedHeaders?.get("X-Remove"), null);
+		assert.equal(capturedHeaders?.get("X-Keep"), "model");
+		assert.equal(capturedHeaders?.get("X-Add"), "request");
+	} finally {
+		globalThis.fetch = originalFetch;
+	}
+});
+
+test("resolveWebSocketProxyForTarget honors provider-scoped env", () => {
+	assert.equal(resolveWebSocketProxyForTarget("wss://chatgpt.example/codex", { HTTPS_PROXY: "http://proxy.example:8080" }), "http://proxy.example:8080");
+	assert.equal(resolveWebSocketProxyForTarget("wss://chatgpt.example/codex", { HTTPS_PROXY: "http://proxy.example:8080", NO_PROXY: "chatgpt.example" }), undefined);
 });
 
 test("cached websocket request body reuses continuation across reasoning changes", () => {

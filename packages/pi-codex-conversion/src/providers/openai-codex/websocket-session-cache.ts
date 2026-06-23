@@ -1,5 +1,5 @@
 import { SESSION_WEBSOCKET_CACHE_TTL_MS } from "./constants.ts";
-import type { AcquiredWebSocket, SessionWebSocketCacheEntry } from "./types.ts";
+import type { AcquiredWebSocket, ProviderEnv, SessionWebSocketCacheEntry } from "./types.ts";
 import { closeWebSocketSilently, connectWebSocket, isWebSocketReusable } from "./websocket-connection.ts";
 
 const websocketSessionCache = new Map<string, SessionWebSocketCacheEntry>();
@@ -43,9 +43,10 @@ export async function acquireWebSocket(
 	sessionId: string | undefined,
 	signal: AbortSignal | undefined,
 	connectTimeoutMs?: number,
+	env?: ProviderEnv,
 ): Promise<AcquiredWebSocket> {
 	if (!sessionId) {
-		const socket = await connectWebSocket(url, headers, signal, connectTimeoutMs);
+		const socket = await connectWebSocket(url, headers, signal, connectTimeoutMs, env);
 		return {
 			socket,
 			reused: false,
@@ -85,7 +86,7 @@ export async function acquireWebSocket(
 		}
 
 		if (cached.busy) {
-			const socket = await connectWebSocket(url, headers, signal, connectTimeoutMs);
+			const socket = await connectWebSocket(url, headers, signal, connectTimeoutMs, env);
 			return {
 				socket,
 				reused: false,
@@ -101,7 +102,7 @@ export async function acquireWebSocket(
 		}
 	}
 
-	const socket = await connectWebSocket(url, headers, signal, connectTimeoutMs);
+	const socket = await connectWebSocket(url, headers, signal, connectTimeoutMs, env);
 	const entry: SessionWebSocketCacheEntry = { socket, busy: true };
 	websocketSessionCache.set(sessionId, entry);
 	return {

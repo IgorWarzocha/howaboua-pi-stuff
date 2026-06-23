@@ -1,6 +1,8 @@
 import { DEFAULT_CODEX_BASE_URL, JWT_CLAIM_PATH, OPENAI_BETA_RESPONSES_WEBSOCKETS } from "./constants.ts";
 import { osInfo } from "./node-runtime.ts";
 
+type ProviderHeaders = Record<string, string | null>;
+
 export function extractAccountId(token: string): string {
 	try {
 		const parts = token.split(".");
@@ -42,13 +44,17 @@ export function createCodexRequestId(): string {
 
 function buildBaseCodexHeaders(
 	modelHeaders: Record<string, string> | undefined,
-	additionalHeaders: Record<string, string> | undefined,
+	additionalHeaders: ProviderHeaders | undefined,
 	accountId: string,
 	token: string,
 ): Headers {
 	const headers = new Headers(modelHeaders);
 	for (const [key, value] of Object.entries(additionalHeaders ?? {})) {
-		headers.set(key, value);
+		if (value === null) {
+			headers.delete(key);
+		} else {
+			headers.set(key, value);
+		}
 	}
 
 	headers.set("Authorization", `Bearer ${token}`);
@@ -61,7 +67,7 @@ function buildBaseCodexHeaders(
 
 export function buildSSEHeaders(
 	modelHeaders: Record<string, string> | undefined,
-	additionalHeaders: Record<string, string> | undefined,
+	additionalHeaders: ProviderHeaders | undefined,
 	accountId: string,
 	token: string,
 	sessionId: string | undefined,
@@ -81,7 +87,7 @@ export function buildSSEHeaders(
 
 export function buildWebSocketHeaders(
 	modelHeaders: Record<string, string> | undefined,
-	additionalHeaders: Record<string, string> | undefined,
+	additionalHeaders: ProviderHeaders | undefined,
 	accountId: string,
 	token: string,
 	requestId: string,
