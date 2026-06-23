@@ -1,9 +1,176 @@
-import { completeSimple } from "@earendil-works/pi-ai";
+import type {
+	Api,
+	AssistantMessage,
+	AssistantMessageEventStream,
+	Context,
+	Model,
+	SimpleStreamOptions,
+} from "@earendil-works/pi-ai";
+import { streamSimple as streamAnthropicMessages } from "@earendil-works/pi-ai/api/anthropic-messages";
+import { streamSimple as streamAzureOpenAIResponses } from "@earendil-works/pi-ai/api/azure-openai-responses";
+import { streamSimple as streamBedrockConverseStream } from "@earendil-works/pi-ai/api/bedrock-converse-stream";
+import { streamSimple as streamGoogleGenerativeAI } from "@earendil-works/pi-ai/api/google-generative-ai";
+import { streamSimple as streamGoogleVertex } from "@earendil-works/pi-ai/api/google-vertex";
+import { streamSimple as streamMistralConversations } from "@earendil-works/pi-ai/api/mistral-conversations";
+import { streamSimple as streamOpenAICodexResponses } from "@earendil-works/pi-ai/api/openai-codex-responses";
+import { streamSimple as streamOpenAICompletions } from "@earendil-works/pi-ai/api/openai-completions";
+import { streamSimple as streamOpenAIResponses } from "@earendil-works/pi-ai/api/openai-responses";
 import type {
 	ExtensionCommandContext,
 	SessionEntry,
 } from "@earendil-works/pi-coding-agent";
 import type { ResolvedReviewConfig } from "./types.js";
+
+type RegisteredProviderConfig = {
+	api?: Api;
+	authHeader?: boolean;
+	streamSimple?: (
+		model: Model<Api>,
+		context: Context,
+		options?: SimpleStreamOptions,
+	) => AssistantMessageEventStream;
+};
+
+type ModelRegistryInternals = {
+	providerRequestConfigs?: Map<
+		string,
+		Pick<RegisteredProviderConfig, "authHeader">
+	>;
+	registeredProviders?: Map<string, RegisteredProviderConfig>;
+};
+
+function getModelRegistryInternals(
+	modelRegistry: ExtensionCommandContext["modelRegistry"],
+): ModelRegistryInternals {
+	return modelRegistry as unknown as ModelRegistryInternals;
+}
+
+function getRegisteredStreamSimple(
+	modelRegistry: ExtensionCommandContext["modelRegistry"],
+	model: Model<Api>,
+): RegisteredProviderConfig["streamSimple"] {
+	const providerConfig = getModelRegistryInternals(
+		modelRegistry,
+	).registeredProviders?.get(model.provider);
+	if (providerConfig?.api !== model.api) return undefined;
+	return providerConfig.streamSimple;
+}
+
+function isMissingApiKeyError(error: string, provider: string): boolean {
+	return error === `No API key found for "${provider}"`;
+}
+
+async function getSummaryOptions(
+	ctx: ExtensionCommandContext,
+	model: Model<Api>,
+	config: ResolvedReviewConfig,
+): Promise<SimpleStreamOptions> {
+	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
+	const fallbackApiKey =
+		auth.ok && auth.apiKey
+			? undefined
+			: await ctx.modelRegistry.getApiKeyForProvider(model.provider);
+	if (!auth.ok && !isMissingApiKeyError(auth.error, model.provider)) {
+		throw new Error(`Summary model unavailable: ${auth.error}`);
+	}
+	if (!auth.ok && !fallbackApiKey) {
+		throw new Error(`Summary model unavailable: ${auth.error}`);
+	}
+
+	let headers = auth.ok ? auth.headers : undefined;
+	if (
+		fallbackApiKey &&
+		getModelRegistryInternals(ctx.modelRegistry).providerRequestConfigs?.get(
+			model.provider,
+		)?.authHeader
+	) {
+		headers = { ...headers, Authorization: `Bearer ${fallbackApiKey}` };
+	}
+
+	const options: SimpleStreamOptions = {};
+	const apiKey = auth.ok && auth.apiKey ? auth.apiKey : fallbackApiKey;
+	const env = auth.ok
+		? auth.env
+		: ctx.modelRegistry.authStorage.getProviderEnv(model.provider);
+	if (apiKey) options.apiKey = apiKey;
+	if (headers) options.headers = headers;
+	if (env) options.env = env;
+	if (model.reasoning && config.summary.thinking !== "off") {
+		options.reasoning = config.summary.thinking;
+	}
+	if (ctx.signal) options.signal = ctx.signal;
+	return options;
+}
+
+async function completeSummaryWithModelApi(
+	model: Model<Api>,
+	context: Context,
+	options: SimpleStreamOptions,
+	registeredStreamSimple: RegisteredProviderConfig["streamSimple"],
+): Promise<AssistantMessage> {
+	if (registeredStreamSimple) {
+		return registeredStreamSimple(model, context, options).result();
+	}
+
+	switch (model.api) {
+		case "anthropic-messages":
+			return streamAnthropicMessages(
+				model as Model<"anthropic-messages">,
+				context,
+				options,
+			).result();
+		case "azure-openai-responses":
+			return streamAzureOpenAIResponses(
+				model as Model<"azure-openai-responses">,
+				context,
+				options,
+			).result();
+		case "bedrock-converse-stream":
+			return streamBedrockConverseStream(
+				model as Model<"bedrock-converse-stream">,
+				context,
+				options,
+			).result();
+		case "google-generative-ai":
+			return streamGoogleGenerativeAI(
+				model as Model<"google-generative-ai">,
+				context,
+				options,
+			).result();
+		case "google-vertex":
+			return streamGoogleVertex(
+				model as Model<"google-vertex">,
+				context,
+				options,
+			).result();
+		case "mistral-conversations":
+			return streamMistralConversations(
+				model as Model<"mistral-conversations">,
+				context,
+				options,
+			).result();
+		case "openai-codex-responses":
+			return streamOpenAICodexResponses(
+				model as Model<"openai-codex-responses">,
+				context,
+				options,
+			).result();
+		case "openai-completions":
+			return streamOpenAICompletions(
+				model as Model<"openai-completions">,
+				context,
+				options,
+			).result();
+		case "openai-responses":
+			return streamOpenAIResponses(
+				model as Model<"openai-responses">,
+				context,
+				options,
+			).result();
+		default:
+			throw new Error(`Summary model API is unsupported: ${model.api}`);
+	}
+}
 
 function textFromContent(content: unknown): string {
 	if (typeof content === "string") return content;
@@ -113,19 +280,9 @@ export async function buildReviewConversationSummary(
 	const model = ctx.modelRegistry.find(parsed.provider, parsed.modelId);
 	if (!model)
 		throw new Error(`Summary model not found: ${config.summary.model}`);
-	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
-	if (!auth.ok) throw new Error(`Summary model unavailable: ${auth.error}`);
+	const options = await getSummaryOptions(ctx, model, config);
 
-	const options = {
-		...(auth.apiKey ? { apiKey: auth.apiKey } : {}),
-		...(auth.headers ? { headers: auth.headers } : {}),
-		...(model.reasoning && config.summary.thinking !== "off"
-			? { reasoning: config.summary.thinking }
-			: {}),
-		...(ctx.signal ? { signal: ctx.signal } : {}),
-	};
-
-	const response = await completeSimple(
+	const response = await completeSummaryWithModelApi(
 		model,
 		{
 			messages: [
@@ -137,6 +294,7 @@ export async function buildReviewConversationSummary(
 			],
 		},
 		options,
+		getRegisteredStreamSimple(ctx.modelRegistry, model),
 	);
 
 	const summary = response.content

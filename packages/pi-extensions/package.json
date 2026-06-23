@@ -44,5 +44,11 @@
 	},
 	"scripts": {
 		"prepack": "bun run ../../scripts/prepare-aggregate-package.mjs"
+	},
+	"peerDependencies": {
+		"@earendil-works/pi-coding-agent": "*"
+	},
+	"devDependencies": {
+		"@earendil-works/pi-coding-agent": "0.80.1"
 	}
 }

@@ -44,18 +44,21 @@
 		"format": "biome check --write ."
 	},
 	"dependencies": {
-		"better-sqlite3": "^12.10.0",
-		"typebox": "^1.0.55"
+		"better-sqlite3": "^12.10.0"
 	},
 	"devDependencies": {
 		"@types/better-sqlite3": "^7.6.13",
 		"@types/node": "^24.0.0",
 		"typescript": "^5.8.3",
-		"@biomejs/biome": "^2.4.16"
+		"@biomejs/biome": "^2.4.16",
+		"@earendil-works/pi-coding-agent": "0.80.1",
+		"@earendil-works/pi-tui": "0.80.1",
+		"typebox": "1.1.38"
 	},
 	"peerDependencies": {
-		"@earendil-works/pi-coding-agent": "^0.79.0",
-		"@earendil-works/pi-tui": "^0.79.0"
+		"@earendil-works/pi-coding-agent": "*",
+		"@earendil-works/pi-tui": "*",
+		"typebox": "*"
 	},
 	"publishConfig": {
 		"access": "public"

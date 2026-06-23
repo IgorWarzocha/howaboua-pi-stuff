@@ -41,16 +41,16 @@
 	},
 	"devDependencies": {
 		"@types/node": "^24.10.0",
-		"typebox": "^1.0.55",
+		"typebox": "1.1.38",
 		"typescript": "^5.9.3",
-		"@earendil-works/pi-coding-agent": "^0.79.0",
-		"@earendil-works/pi-tui": "^0.79.0",
+		"@earendil-works/pi-coding-agent": "0.80.1",
+		"@earendil-works/pi-tui": "0.80.1",
 		"@biomejs/biome": "^2.4.16"
 	},
 	"peerDependencies": {
 		"typebox": "*",
-		"@earendil-works/pi-coding-agent": "^0.79.0",
-		"@earendil-works/pi-tui": "^0.79.0"
+		"@earendil-works/pi-coding-agent": "*",
+		"@earendil-works/pi-tui": "*"
 	},
 	"pi": {
 		"extensions": [

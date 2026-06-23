@@ -21,17 +21,19 @@
 		"pack:dry": "npm pack --dry-run"
 	},
 	"peerDependencies": {
-		"@earendil-works/pi-ai": "^0.79.0",
-		"@earendil-works/pi-coding-agent": "^0.79.0",
-		"@earendil-works/pi-tui": "^0.79.0"
+		"@earendil-works/pi-ai": "*",
+		"@earendil-works/pi-coding-agent": "*",
+		"@earendil-works/pi-tui": "*",
+		"@earendil-works/pi-agent-core": "*"
 	},
 	"devDependencies": {
-		"@earendil-works/pi-ai": "^0.79.0",
-		"@earendil-works/pi-coding-agent": "^0.79.0",
-		"@earendil-works/pi-tui": "^0.79.0",
+		"@earendil-works/pi-ai": "0.80.1",
+		"@earendil-works/pi-coding-agent": "0.80.1",
+		"@earendil-works/pi-tui": "0.80.1",
 		"@types/node": "^24.10.0",
 		"typescript": "^5.9.3",
-		"@biomejs/biome": "^2.4.16"
+		"@biomejs/biome": "^2.4.16",
+		"@earendil-works/pi-agent-core": "0.80.1"
 	},
 	"pi": {
 		"extensions": [
