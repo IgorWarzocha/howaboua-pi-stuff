@@ -28,22 +28,27 @@ export interface PathToolPolicy {
 
 export function getPathToolPolicy(command: string, model: Model<any> | undefined, options: { describeImages?: boolean | undefined } = {}): PathToolPolicy | undefined {
 	const supportsImages = Array.isArray(model?.input) && model.input.includes("image");
-	if (getPathToolNamesFromParts(commandPartsForDetection(command), ["apply_patch", "view_image", "web_run", "imagegen"]).length > 1) return undefined;
+	const pathToolNames = getPathToolNamesFromParts(commandPartsForDetection(command), ["apply_patch", "view_image", "web_run", "imagegen"]);
+	const hasWebRun = pathToolNames.includes("web_run");
+	const hasImagegen = pathToolNames.includes("imagegen");
+	const hasMultiplePathTools = pathToolNames.length > 1;
 	const isViewImage = isSimplePathToolOutputCommand(command, "view_image");
 	if (isViewImage && !supportsImages && !options.describeImages) {
 		return { disableTruncation: true, suppressPartials: true, unsupportedMessage: "view_image requires an image-capable model", parseApplyPatchOutput: false, describeImageOutput: false, parseImageOutput: false, parseWebRunOutput: false, parseImagegenOutput: false, includeImagegenImageContent: false };
 	}
-	const isWebRun = isSimplePathToolOutputCommand(command, "web_run");
-	const isImagegen = isSimplePathToolOutputCommand(command, "imagegen");
+	const isWebRun = !hasMultiplePathTools && isSimplePathToolOutputCommand(command, "web_run");
+	const isImagegen = !hasMultiplePathTools && isSimplePathToolOutputCommand(command, "imagegen");
 	const describeImageOutput = isViewImage && !supportsImages && Boolean(options.describeImages);
 	const modelInput = model?.input;
-	const parseApplyPatchOutput = isPathApplyPatchCommand(command);
+	const parseApplyPatchOutput = !hasMultiplePathTools && isPathApplyPatchCommand(command);
 	const parseImageOutput = isViewImage && supportsImages;
 	const parseWebRunOutput = isWebRun;
 	const parseImagegenOutput = isImagegen;
 	const includeImagegenImageContent = isImagegen && (!Array.isArray(modelInput) || modelInput.includes("image"));
-	if (!parseApplyPatchOutput && !parseImageOutput && !describeImageOutput && !parseWebRunOutput && !isImagegen) return undefined;
-	return { disableTruncation: true, suppressPartials: true, ...(isWebRun || isImagegen ? { yieldTimeMs: 3_600_000 } : {}), parseApplyPatchOutput, describeImageOutput, parseImageOutput, parseWebRunOutput, parseImagegenOutput, includeImagegenImageContent };
+	const waitForLongPathTool = hasWebRun || hasImagegen;
+	if (!parseApplyPatchOutput && !parseImageOutput && !describeImageOutput && !parseWebRunOutput && !parseImagegenOutput && !waitForLongPathTool) return undefined;
+	const disableTruncation = parseApplyPatchOutput || parseImageOutput || describeImageOutput || parseWebRunOutput || parseImagegenOutput;
+	return { disableTruncation, suppressPartials: true, ...(waitForLongPathTool ? { yieldTimeMs: 3_600_000 } : {}), parseApplyPatchOutput, describeImageOutput, parseImageOutput, parseWebRunOutput, parseImagegenOutput, includeImagegenImageContent };
 }
 
 export function convertPathToolExecResult(command: string, result: UnifiedExecResult, policy: PathToolPolicy | undefined): ToolResultLike | undefined {
@@ -130,6 +135,8 @@ function isPathImagegenCommand(command: string): boolean {
 }
 
 function isSimplePathToolOutputCommand(command: string, toolName: "view_image" | "web_run" | "imagegen"): boolean {
+	if (isSimplePathToolHeredocCommand(command, toolName)) return true;
+
 	let tokens: string[];
 	try {
 		tokens = shellSplit(command);
@@ -153,6 +160,65 @@ function isSimplePathToolOutputCommand(command: string, toolName: "view_image" |
 
 	if (toolName !== "view_image" && found > 1) return false;
 	return found > 0;
+}
+
+function isSimplePathToolHeredocCommand(command: string, toolName: "view_image" | "web_run" | "imagegen"): boolean {
+	const lines = command.split(/\r?\n/);
+	let found = 0;
+	let commandStartIndex = 0;
+
+	for (let index = 0; index < lines.length; index += 1) {
+		const parsed = parsePathToolHeredocLine(lines[index]!, toolName);
+		if (!parsed) continue;
+		if (parsed.afterCommand) return false;
+		const beforeCommand = cleanCommand(lines.slice(commandStartIndex, index).join("\n"));
+		if (beforeCommand && !isEnvironmentOnlyCommand(beforeCommand)) return false;
+		const endIndex = findHeredocEnd(lines, index + 1, parsed.delimiter, parsed.stripLeadingTabs);
+		if (endIndex === -1) return false;
+		found += 1;
+		commandStartIndex = endIndex + 1;
+		index = endIndex;
+	}
+
+	if (found === 0) return false;
+	const afterCommand = cleanCommand(lines.slice(commandStartIndex).join("\n"));
+	return !afterCommand && (toolName === "view_image" || found === 1);
+}
+
+function parsePathToolHeredocLine(line: string, toolName: "view_image" | "web_run" | "imagegen"): { delimiter: string; stripLeadingTabs: boolean; afterCommand?: string | undefined } | undefined {
+	const match = line.match(/^\s*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s;&|()]+\s+)*(?:env\s+(?:[A-Za-z_][A-Za-z0-9_]*=[^\s;&|()]+\s+)*)?(?:[^\s;&|()]+\/)?(view_image|web_run|imagegen)\s+<<(-?)\s*(?:"([^"]+)"|'([^']+)'|([A-Za-z0-9_.-]+))(?:\s*((?:&&|\|\||;)\s+.+))?\s*$/);
+	if (!match || match[1] !== toolName) return undefined;
+	const delimiter = match[3] ?? match[4] ?? match[5];
+	if (!delimiter) return undefined;
+	return { delimiter, stripLeadingTabs: match[2] === "-", afterCommand: cleanTrailingCommand(match[6]) };
+}
+
+function findHeredocEnd(lines: string[], startIndex: number, delimiter: string, stripLeadingTabs: boolean): number {
+	for (let index = startIndex; index < lines.length; index += 1) {
+		const line = stripLeadingTabs ? lines[index]!.replace(/^\t+/, "") : lines[index]!;
+		if (line === delimiter) return index;
+	}
+	return -1;
+}
+
+function isEnvironmentOnlyCommand(command: string): boolean {
+	let tokens: string[];
+	try {
+		tokens = shellSplit(command);
+	} catch {
+		return false;
+	}
+	return splitOnConnectors(tokens).filter((item) => item.length > 0).every(isEnvironmentOnlyPart);
+}
+
+function cleanCommand(command: string): string | undefined {
+	const trimmed = command.trim();
+	return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function cleanTrailingCommand(command: string | undefined): string | undefined {
+	if (!command) return undefined;
+	return cleanCommand(command.replace(/^(?:&&|\|\||;)\s*/, ""));
 }
 
 function findPathToolCommandIndex(part: string[], toolName: string): number {
@@ -232,7 +298,7 @@ function stripHeredocBodies(command: string): string {
 			continue;
 		}
 		kept.push(line);
-		const match = line.match(/<<-?\s*(?:"([^"]+)"|'([^']+)'|([A-Za-z0-9_.-]+))\s*$/);
+		const match = line.match(/<<-?\s*(?:"([^"]+)"|'([^']+)'|([A-Za-z0-9_.-]+))(?:\s*(?:&&|\|\||;)\s+.+)?\s*$/);
 		if (match) heredocEnd = match[1] ?? match[2] ?? match[3];
 	}
 	return kept.join("\n");

@@ -90,6 +90,7 @@ function extractHeredocApplyPatchPlan(command: string, cwd: string): PathApplyPa
 			collapsed: formatApplyPatchCollapsedDiff(patchText, patchCwd),
 			expanded: renderApplyPatchCall(patchText, patchCwd),
 		});
+		if (parsed.afterCommand) segments.push({ kind: "command", command: parsed.afterCommand });
 		foundPatch = true;
 		commandStartIndex = endIndex + 1;
 		index = endIndex;
@@ -133,19 +134,19 @@ function extractHeredocApplyPatchInput(command: string, cwd: string): PathApplyP
 			cwd: parsed.cdPath ? resolve(cwd, parsed.cdPath) : cwd,
 			patchText,
 			beforeCommand,
-			afterCommand: cleanCommand(lines.slice(endIndex + 1).join("\n")),
+			afterCommand: cleanCommand([parsed.afterCommand, lines.slice(endIndex + 1).join("\n")].filter(Boolean).join("\n")),
 		};
 	}
 	return undefined;
 }
 
-function parseApplyPatchHeredocLine(line: string): { delimiter: string; cdPath?: string | undefined; stripLeadingTabs: boolean } | undefined {
-	const match = line.match(/^\s*(?:(?:cd\s+("[^"]+"|'[^']+'|[^&;\s]+)\s*&&\s*)?)(?:[A-Za-z_][A-Za-z0-9_]*=[^\s;&|()]+\s+)*(?:env\s+(?:[A-Za-z_][A-Za-z0-9_]*=[^\s;&|()]+\s+)*)?(?:[^\s;&|()]+\/)?apply_patch\s+<<(-?)\s*(?:"([^"]+)"|'([^']+)'|([A-Za-z0-9_.-]+))\s*$/);
+function parseApplyPatchHeredocLine(line: string): { delimiter: string; cdPath?: string | undefined; stripLeadingTabs: boolean; afterCommand?: string | undefined } | undefined {
+	const match = line.match(/^\s*(?:(?:cd\s+("[^"]+"|'[^']+'|[^&;\s]+)\s*&&\s*)?)(?:[A-Za-z_][A-Za-z0-9_]*=[^\s;&|()]+\s+)*(?:env\s+(?:[A-Za-z_][A-Za-z0-9_]*=[^\s;&|()]+\s+)*)?(?:[^\s;&|()]+\/)?apply_patch\s+<<(-?)\s*(?:"([^"]+)"|'([^']+)'|([A-Za-z0-9_.-]+))(?:\s*((?:&&|\|\||;)\s+.+))?\s*$/);
 	if (!match) return undefined;
 	const cdPath = match[1] ? unquoteShellToken(match[1]) : undefined;
 	const delimiter = match[3] ?? match[4] ?? match[5];
 	if (!delimiter) return undefined;
-	return { delimiter, cdPath, stripLeadingTabs: match[2] === "-" };
+	return { delimiter, cdPath, stripLeadingTabs: match[2] === "-", afterCommand: cleanTrailingCommand(match[6]) };
 }
 
 function findHeredocEnd(lines: string[], startIndex: number, delimiter: string, stripLeadingTabs: boolean): number {
@@ -168,6 +169,11 @@ function extractArgumentApplyPatchInput(command: string, cwd: string): PathApply
 function cleanCommand(command: string): string | undefined {
 	const trimmed = command.trim();
 	return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function cleanTrailingCommand(command: string | undefined): string | undefined {
+	if (!command) return undefined;
+	return cleanCommand(command.replace(/^(?:&&|\|\||;)\s*/, ""));
 }
 
 function hasDanglingConnector(command: string | undefined): boolean {

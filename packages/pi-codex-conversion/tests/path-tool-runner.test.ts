@@ -78,7 +78,9 @@ test("PATH output conversion preserves shell pipeline output", () => {
 		output: "Answer from jq\n",
 	}, policy);
 
-	assert.equal(policy, undefined);
+	assert.ok(policy);
+	assert.equal(policy.yieldTimeMs, 3_600_000);
+	assert.equal(policy.parseWebRunOutput, false);
 	assert.equal(converted, undefined);
 });
 
