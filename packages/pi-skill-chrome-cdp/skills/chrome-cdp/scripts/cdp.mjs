@@ -4,8 +4,8 @@
 // Requires Node 22+ (built-in WebSocket).
 //
 // Per-tab persistent daemon: page commands go through a daemon that holds
-// the CDP session open. Chrome's "Allow debugging" modal fires once per
-// daemon (= once per tab). Daemons auto-exit after 20min idle.
+// the CDP session open. Chrome may show an "Allow debugging" modal for a
+// newly attached tab. Daemons auto-exit after 20min idle.
 
 import { readFileSync, writeFileSync, unlinkSync, existsSync, mkdirSync } from 'fs';
 import { homedir } from 'os';
@@ -170,8 +170,9 @@ class CDP {
       this.#ws.onmessage = (ev) => {
         const msg = JSON.parse(ev.data);
         if (msg.id && this.#pending.has(msg.id)) {
-          const { resolve, reject } = this.#pending.get(msg.id);
+          const { resolve, reject, timer } = this.#pending.get(msg.id);
           this.#pending.delete(msg.id);
+          clearTimeout(timer);
           if (msg.error) reject(new Error(msg.error.message));
           else resolve(msg.result);
         } else if (msg.method && this.#eventHandlers.has(msg.method)) {
@@ -186,16 +187,22 @@ class CDP {
   send(method, params = {}, sessionId) {
     const id = ++this.#id;
     return new Promise((resolve, reject) => {
-      this.#pending.set(id, { resolve, reject });
-      const msg = { id, method, params };
-      if (sessionId) msg.sessionId = sessionId;
-      this.#ws.send(JSON.stringify(msg));
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         if (this.#pending.has(id)) {
           this.#pending.delete(id);
           reject(new Error(`Timeout: ${method}`));
         }
       }, TIMEOUT);
+      this.#pending.set(id, { resolve, reject, timer });
+      const msg = { id, method, params };
+      if (sessionId) msg.sessionId = sessionId;
+      try {
+        this.#ws.send(JSON.stringify(msg));
+      } catch (error) {
+        clearTimeout(timer);
+        this.#pending.delete(id);
+        reject(error);
+      }
     });
   }
 
@@ -250,6 +257,18 @@ class CDP {
 async function getPages(cdp) {
   const { targetInfos } = await cdp.send('Target.getTargets');
   return targetInfos.filter(t => t.type === 'page' && !t.url.startsWith('chrome://'));
+}
+
+async function waitForOpenedTarget(cdp, targetId, requestedUrl, timeout = 5000) {
+  if (requestedUrl === 'about:blank') return { targetId, title: requestedUrl, url: requestedUrl };
+  const deadline = Date.now() + timeout;
+  let targetInfo = { targetId, title: requestedUrl, url: requestedUrl };
+  while (Date.now() < deadline) {
+    ({ targetInfo } = await cdp.send('Target.getTargetInfo', { targetId }));
+    if (targetInfo.url && targetInfo.url !== 'about:blank') return targetInfo;
+    await sleep(100);
+  }
+  throw new Error(`New tab did not begin navigating to ${requestedUrl}`);
 }
 
 function formatPageList(pages) {
@@ -492,17 +511,44 @@ async function clickStr(cdp, sid, selector) {
   if (!selector) throw new Error('CSS selector required');
   const expr = `
     (function() {
-      const el = document.querySelector(${JSON.stringify(selector)});
-      if (!el) return { ok: false, error: 'Element not found: ' + ${JSON.stringify(selector)} };
+      const selector = ${JSON.stringify(selector)};
+      const matches = document.querySelectorAll(selector);
+      if (matches.length === 0) return { ok: false, error: 'Element not found: ' + selector };
+      if (matches.length > 1) return { ok: false, error: 'Selector matched ' + matches.length + ' elements: ' + selector };
+      const el = matches[0];
       el.scrollIntoView({ block: 'center' });
+      const rect = el.getBoundingClientRect();
+      const style = getComputedStyle(el);
+      const disabled = el.matches(':disabled') || el.getAttribute('aria-disabled') === 'true';
+      const hidden = rect.width <= 0 || rect.height <= 0 || style.display === 'none' ||
+        style.visibility === 'hidden' || style.visibility === 'collapse' ||
+        style.pointerEvents === 'none' || Number(style.opacity) === 0 ||
+        el.closest('[inert]') !== null;
+      if (hidden) return { ok: false, error: 'Element is not visible or interactable: ' + selector };
+      if (disabled) return { ok: false, error: 'Element is disabled: ' + selector };
+
+      const textInputTypes = new Set(['text', 'search', 'email', 'url', 'tel', 'password', 'number']);
+      const textControl = el.tagName === 'TEXTAREA' || el.isContentEditable ||
+        (el.tagName === 'INPUT' && textInputTypes.has((el.type || 'text').toLowerCase()));
+      if (textControl) {
+        el.focus({ preventScroll: true });
+        if (document.activeElement !== el) {
+          return { ok: false, error: 'Element could not receive focus: ' + selector };
+        }
+      }
       el.click();
-      return { ok: true, tag: el.tagName, text: el.textContent.trim().substring(0, 80) };
+      return {
+        ok: true,
+        tag: el.tagName,
+        text: el.textContent.trim().substring(0, 80),
+        focused: document.activeElement === el
+      };
     })()
   `;
   const result = await evalStr(cdp, sid, expr);
   const r = JSON.parse(result);
   if (!r.ok) throw new Error(r.error);
-  return `Clicked <${r.tag}> "${r.text}"`;
+  return `Clicked <${r.tag}> "${r.text}"${r.focused ? ' and focused it' : ''}`;
 }
 
 // Click at CSS pixel coordinates using Input.dispatchMouseEvent
@@ -521,8 +567,56 @@ async function clickXyStr(cdp, sid, x, y) {
 // Type text using Input.insertText (works in cross-origin iframes, unlike eval)
 async function typeStr(cdp, sid, text) {
   if (text == null || text === '') throw new Error('text required');
+  const focusState = JSON.parse(await evalStr(cdp, sid, `
+    (() => {
+      const el = document.activeElement;
+      if (!el || el === document.body || el === document.documentElement) {
+        return { ok: false, error: 'No editable element is focused' };
+      }
+      const tag = el.tagName;
+      const inputTypes = new Set(['text', 'search', 'email', 'url', 'tel', 'password', 'number']);
+      const input = tag === 'INPUT' && inputTypes.has((el.type || 'text').toLowerCase());
+      const textarea = tag === 'TEXTAREA';
+      const contentEditable = el.isContentEditable;
+      const iframe = tag === 'IFRAME';
+      if (!input && !textarea && !contentEditable && !iframe) {
+        return { ok: false, error: 'Focused <' + tag + '> is not editable' };
+      }
+      if ((input || textarea) && (el.disabled || el.readOnly)) {
+        return { ok: false, error: 'Focused <' + tag + '> is disabled or read-only' };
+      }
+      return {
+        ok: true,
+        tag,
+        iframe,
+        inspectable: !iframe,
+        before: input || textarea ? el.value : contentEditable ? el.textContent : null
+      };
+    })()
+  `));
+  if (!focusState.ok) throw new Error(focusState.error);
+
   await cdp.send('Input.insertText', { text }, sid);
-  return `Typed ${text.length} characters`;
+  if (!focusState.inspectable) {
+    return `Sent ${text.length} characters to focused <${focusState.tag}>; cross-origin result is not inspectable`;
+  }
+
+  const after = JSON.parse(await evalStr(cdp, sid, `
+    (() => {
+      const el = document.activeElement;
+      if (!el) return { focused: false, value: null };
+      const tag = el.tagName;
+      const value = tag === 'INPUT' || tag === 'TEXTAREA' ? el.value : el.isContentEditable ? el.textContent : null;
+      return { focused: true, tag, value };
+    })()
+  `));
+  if (!after.focused || after.tag !== focusState.tag) {
+    throw new Error('Focus changed while typing; input result could not be verified');
+  }
+  if (after.value === focusState.before) {
+    throw new Error(`Input.insertText completed but focused <${focusState.tag}> did not change`);
+  }
+  return `Typed ${text.length} characters into focused <${focusState.tag}>`;
 }
 
 // Load-more: repeatedly click a button/selector until it disappears
@@ -651,7 +745,10 @@ async function runDaemon(targetId) {
       }
       return { ok: true, result: result ?? '' };
     } catch (e) {
-      return { ok: false, error: e.message };
+      const error = e.message.startsWith('Timeout:')
+        ? `${e.message}. Chrome may be waiting for "Allow debugging" approval, or the tab may be sleeping.`
+        : e.message;
+      return { ok: false, error };
     }
   }
 
@@ -818,16 +915,16 @@ Usage: cdp <command> [args]
   html  <target> [selector]         Get HTML (full page or CSS selector)
   nav   <target> <url>              Navigate to URL and wait for load completion
   net   <target>                    Network performance entries
-  click   <target> <selector>       Click an element by CSS selector
+  click   <target> <selector>       Click one visible element by unique CSS selector
   clickxy <target> <x> <y>          Click at CSS pixel coordinates (see coordinate note below)
-  type    <target> <text>           Type text at current focus via Input.insertText
+  type    <target> <text>           Type at verified editable focus via Input.insertText
                                     Works in cross-origin iframes unlike eval-based approaches
   loadall <target> <selector> [ms]  Repeatedly click a "load more" button until it disappears
                                     Optional interval in ms between clicks (default 1500)
   evalraw <target> <method> [json]  Send a raw CDP command; returns JSON result
                                     e.g. evalraw <t> "DOM.getDocument" '{}'
   open  [url]                       Open a new tab (default: about:blank)
-                                    Note: each new tab triggers a fresh "Allow debugging?" prompt
+                                    Chrome may show an "Allow debugging?" prompt on first access
   stop  [target]                    Stop daemon(s)
 
 <target> is a unique targetId prefix from "cdp list". If a prefix is ambiguous,
@@ -893,15 +990,16 @@ async function main() {
     const cdp = new CDP();
     await cdp.connect(await getWsUrl());
     const { targetId } = await cdp.send('Target.createTarget', { url });
-    // Refresh cache; new tab may not appear in getTargets immediately, so add it manually
+    const openedTarget = await waitForOpenedTarget(cdp, targetId, url);
+    // Refresh cache; new tab may not appear in getTargets immediately, so add it manually.
     const pages = await getPages(cdp);
     if (!pages.some(p => p.targetId === targetId)) {
-      pages.push({ targetId, title: url, url });
+      pages.push(openedTarget);
     }
     cdp.close();
     writeFileSync(PAGES_CACHE, JSON.stringify(pages), { mode: 0o600 });
     console.log(`Opened new tab: ${targetId.slice(0, 8)}  ${url}`);
-    console.log('Note: this tab will need "Allow debugging?" approval on first access.');
+    console.log('Note: Chrome may request "Allow debugging?" approval on first access.');
     return;
   }
 
