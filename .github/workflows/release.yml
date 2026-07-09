@@ -48,7 +48,10 @@ jobs:
             exit 0
           fi
 
-          gh pr merge "$pr_number" --merge --auto
+          # PRs created with GITHUB_TOKEN do not trigger the normal PR checks.
+          # Auto-merge also requires a blocking branch rule, so merge this
+          # workflow-generated version PR directly once Changesets has created it.
+          gh pr merge "$pr_number" --merge
 
           for attempt in {1..40}; do
             state=$(gh pr view "$pr_number" --json state --jq '.state')
