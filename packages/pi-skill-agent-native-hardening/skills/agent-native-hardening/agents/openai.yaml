@@ -1,3 +1,3 @@
 display_name: Agent Native Hardening
-short_description: Score and harden a codebase for agent-safe evolution with swarm/worktrees.
-default_prompt: Review and improve this codebase using a scored agent-native hardening pass.
+short_description: Audit and improve codebase architecture for safe human and agent changes.
+default_prompt: Review this codebase for agent-native maintainability and recommend the highest-leverage improvements.

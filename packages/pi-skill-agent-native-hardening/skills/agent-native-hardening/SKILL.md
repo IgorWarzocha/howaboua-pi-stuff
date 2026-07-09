@@ -1,194 +1,108 @@
 ---
 name: agent-native-hardening
-description: "Hardens codebases for agent-native maintainability across languages. Use when asked to audit, score, refactor, or plan cleanup for architecture, godfiles, godfunctions, feature folders, duplication, type/contract safety, traversability, feedback loops, worktrees, or subagent-friendly structure."
+description: "Audits and improves codebase architecture for safe human and agent changes. Use for structural reviews or refactors involving ownership, godfiles/functions, feature boundaries, duplication, contract or state safety, traversability, feedback loops, test fit, work decomposition, or parallel-change readiness. Not for ordinary bug fixes or feature work with no architecture concern."
 ---
 
-# Agent Native Hardening
+# Agent-Native Hardening
 
-## Purpose
+Make a codebase easier to understand and safer to change by clarifying ownership, reducing mixed responsibilities, strengthening contracts, and shortening reliable feedback loops. Optimize for humans and agents without imposing architecture theater.
 
-Harden a codebase so humans and agents can change it safely: clear ownership, small focused modules, explicit contracts, deterministic checks, and low reread cost.
+## Reference map
 
-## Must-Read References
+Read only the references relevant to the task:
 
-Read supporting files before applying the relevant part of the workflow:
-- `references/scoring-rubric.md` before any scorecard, findings list, or severity ranking.
-- `references/swarm-lanes.md` before planning discovery lanes, implementation lanes, worktrees, or subagent splits.
-- `references/js-ts.md` when the target repo uses JavaScript, TypeScript, Node package scripts, or JS/TS tooling.
-- `references/python.md` when the target repo uses Python, Python packaging, Python type checkers, or Python test/lint tooling.
-- `references/rust.md` when the target repo uses Rust, Cargo workspaces, Rust async runtimes, FFI, or Rust lint/test tooling.
-- `references/go.md` when the target repo uses Go, Go modules/workspaces, goroutines/channels, or Go lint/test/security tooling.
+- `references/scoring-rubric.md` before assigning scores or producing a formal scorecard.
+- `references/work-lanes.md` before splitting broad discovery or implementation across lanes, agents, branches, or worktrees.
+- `references/dependency-safety.md` when dependency changes, installers, lockfiles, toolchains, package scripts, or supply-chain recommendations are in scope.
+- `references/js-ts.md`, `references/python.md`, `references/rust.md`, or `references/go.md` for languages present in the target repo.
 
-If a reference file is missing or unreadable, say so and continue with the closest fallback, but do not silently skip it.
+If no bundled language reference fits, use the general workflow and verify ecosystem-specific advice against the repo and current official documentation. Repo evidence and host constraints outrank generic guidance.
 
-If the repo uses a language, framework, or ecosystem that has no bundled reference, or if a bundled reference does not fit the repo, infer best practices from the general rules in this skill and the repo's own tooling/docs. Do not force an irrelevant language reference onto the repo.
+## Operating principles
 
-## Core Principles
+1. **Evidence before prescription.** Inspect the real ownership, change paths, tooling, and failure modes before recommending a target architecture.
+2. **Clear ownership over arbitrary size limits.** A large file is not automatically a godfile; the problem is unrelated responsibilities, hidden coupling, or repeated central-path edits.
+3. **Feature ownership over catch-alls.** Prefer modules with clear domain or platform owners. Do not replace one godfile with `utils`, `helpers`, `common`, or excessive micro-files.
+4. **Explicit contracts at boundaries.** Validate external data once, preserve named domain shapes internally, model state transitions, and derive contracts from a source of truth where practical.
+5. **Stable reuse over premature DRY.** Extract duplication when the behavior is genuinely shared and has a clear owner; tolerate local duplication when semantics are still diverging.
+6. **The shortest correct change path should be obvious.** Entry points, extension points, state owners, and validation commands should be discoverable without rereading the whole system.
+7. **Tests follow risk.** Match the repo's established testing intent and protect consequential behavior; do not manufacture coverage, fixtures, mocks, snapshots, or end-to-end scaffolding by default.
+8. **Failures stay visible.** Fix root causes instead of weakening checks, suppressing diagnostics, swallowing errors, or adding silent fallback behavior.
 
-1. Fail fast. Do not hide errors.
-2. Prefer in-code discoverability over markdown sprawl.
-3. Keep tests light and deterministic; avoid flaky integration tests unless requested.
-4. Use lanes to separate evidence gathering and implementation. A lane can be a read-only exploration task, a direct coding pass, a subagent task, or a worktree branch depending on scope and risk.
-5. Keep each lane focused, low-overlap, and easy to verify.
-6. Prefer feature-owned modules over catch-all files; godfiles and godfunctions must be extracted into clear feature-owned modules and small contract-driven flows.
-7. Push toward DRY and separation of concerns; remove copy-paste and mixed-responsibility modules without replacing them with new junk drawers.
-8. Treat feature velocity as a risk signal: cheap-feeling additions still spend finite complexity budget. Prefer explicit scope boundaries and reject bloat that does not serve the product's core job.
-9. Make the shortest agent path the correct path by writing concrete architecture invariants before adding features: ownership rules, extension points, message/event contracts, state-transition rules, and forbidden shortcuts.
+## Workflow
 
-## Required Scorecard
+### 1. Establish scope and mode
 
-Always score these categories from 0-10 and explain evidence with file references:
-1. `agent_native`
-2. `contract_safety`
-3. `traversable`
-4. `test_coverage`
-5. `feedback_loops`
-6. `self_documenting`
+- Determine whether the user wants a review, scorecard, plan, implementation, or combination.
+- Respect the requested scope. Do not turn a focused module cleanup into a repo-wide program.
+- For edits, inspect git state and repo instructions before changing files. A dirty tree does not block read-only review, but report it and do not overwrite unrelated work.
+- Identify active format, lint/static-analysis, type/contract, test, build, and aggregate check commands.
 
-Use rubric: `references/scoring-rubric.md`. Read it fully before assigning scores.
-Always call out godfiles, godfunctions, mixed-concern modules, duplication hotspots, and feature-boundary violations in the evidence.
+### 2. Map the relevant system
 
-## Contract Safety Policy
+- Trace entry points, feature owners, state mutation, IO boundaries, contracts, and affected checks.
+- Inspect hotspots for mixed concerns, central-handler growth, hidden side effects, positional data, duplicated contracts, manual lifecycle resets, and broad cross-feature coupling.
+- Distinguish generated/framework-required structure from code humans are expected to maintain.
+- For broad or unfamiliar repos, use focused read-only discovery lanes when they reduce rereading. Direct inspection is sufficient when the scope fits one coherent context.
 
-1. Make impossible states unrepresentable: prefer explicit variants/state models over boolean flag bags and optional-field state objects.
-2. Use domain-specific value types or validators for primitives that are easy to mix up, such as IDs, emails, paths, slugs, amounts, units, and external references.
-3. Validate at IO boundaries, then pass trusted domain values internally.
-4. Derive contracts from the source of truth instead of restating shapes by hand.
-5. Preserve contracts across storage, server, client, process, and event/queue boundaries when project tooling supports it.
-6. Prefer named fields or object-like parameters over positional arguments for calls with multiple ambiguous values.
-7. Penalize unchecked dynamic values, unsafe conversions, manually duplicated data shapes, and drift between layers.
-8. Penalize positional data models: arrays/tuples/string lists where field identity is implied by index, magic column numbers, parallel arrays, or flattened display rows passed through domain logic. Keep named domain objects until the render/serialization boundary.
+### 3. Form evidence-backed findings
 
-## State + Control-Flow Ownership Policy
+- Cite concrete files, symbols, flows, or commands.
+- Explain the change risk, not merely the aesthetic preference.
+- Separate observed defects from inference and optional modernization.
+- Rank only material findings. Mention healthy boundaries where they affect the recommendation.
+- Score only when the user requested scoring or a broad audit would clearly benefit from it; then read `references/scoring-rubric.md` first.
 
-1. Application/root objects should route, compose, and own only truly global lifecycle state; feature/view-specific state belongs to feature/view-owned modules.
-2. Avoid global dispatch functions that accumulate per-feature conditionals. Prefer polymorphic handlers, feature-local keymaps/actions, reducers/state machines, command registries, or message handlers with explicit contracts.
-3. Adding a feature should usually mean adding a feature-owned file/folder, not adding branches to central handlers. If central changes are required, they should be small registration or routing changes.
-4. State transitions should be explicit and modeled. Background/async work produces messages/events/results with clear shapes; one owner applies mutations in a predictable place.
-5. Render/view functions should be pure where the framework allows it: no I/O, channel operations, hidden mutation, or background task coordination.
-6. Watch for manual cleanup/reset patterns (`= null`, `= none`, `= nil`, `= undefined`, `= []`, empty string sentinels) scattered across handlers; they often indicate missing state isolation or unmodeled lifecycle transitions.
+### 4. Choose the smallest coherent intervention
 
-## Godfile, Godfunction + Boundary Policy
+- Prefer one owned extraction or contract boundary over a speculative architecture rewrite.
+- Split by feature ownership first, then by concern where the feature needs it.
+- Keep central paths as small routers, registries, or composition roots; move feature behavior behind explicit boundaries.
+- Model impossible or ambiguous states with variants, enums, validators, domain values, or named objects appropriate to the language.
+- For broad multi-area work, read `references/work-lanes.md` and create only as many lanes as have independent objectives and validation.
 
-1. Treat a file or folder as a godfile hotspot when it acts as a catch-all for unrelated responsibilities, mixes layers, or keeps absorbing unrelated edits.
-2. Godfiles must be broken apart into feature folders/modules with clear ownership and small entrypoints.
-3. Treat a function/method/procedure as a godfunction when it handles unrelated responsibilities, mixes orchestration/domain logic/IO/rendering/mutation, grows feature-specific branches, or requires large local context to change safely.
-4. Godfunctions must be split into named steps with owned responsibilities: feature-local handlers, pure domain transforms, explicit command/event boundaries, IO adapters, and small orchestration functions.
-5. Extract by feature first, then by concern inside the feature: keep orchestration, domain logic, IO, schemas/contracts, UI, and tests separated when the codebase shape allows it.
-6. Enforce DRY by pulling repeated logic into the nearest stable shared boundary with a clear owner.
-7. Do not fix duplication by creating a generic `utils`, `helpers`, `common`, or `misc` dumping ground; shared code still needs an explicit domain or platform owner.
-8. Penalize codebases that retain godfiles, godfunctions, mixed-responsibility modules, or broad cross-feature coupling even if tests still pass.
+### 5. Implement without laundering failures
 
-## Execution Workflow
+- Preserve behavior unless behavior change is explicitly in scope.
+- Keep edits owned and traversable; avoid parallel abstractions that leave the old path alive.
+- Run relevant checks during the work and the repo's appropriate aggregate check at the end.
+- Do not make checks pass through broad ignores, weaker strictness, unsafe casts, blanket suppressions, skipped files, or unrelated test deletion.
+- Do not upgrade dependencies, runtimes, compilers, package managers, or lint policy unless the user accepted that work.
 
-1. Baseline
-- Confirm clean git state.
-- Identify active check commands: format, lint/static analysis, contract/type/schema checks, tests, build, and any repo-specific verification command.
+### 6. Stabilize and report
 
-2. Evidence Sweep
-- For non-trivial repos, use read-only discovery lanes first. These may be explore-style subagents or your own direct inspection.
-- Discovery lanes return evidence only: files, commands, risks, ownership boundaries, and proposed next lanes.
-- Verify discovery findings yourself before edits.
-- Identify hotspots: oversized files, oversized/mixed-responsibility functions, godfiles, godfunctions, missing feature boundaries, duplication, weak tests, stale docs.
+- Verify the final ownership and call path, not only compilation.
+- If parallel lanes or branches were used, integrate centrally and resolve overlap before final checks.
+- Report what changed, why the new boundary is safer, validation run, and remaining material risks.
+- For review-only work, lead with severity-ordered findings and stop without implementation.
 
-3. Plan Lanes
-- Split work into 3-6 lanes with minimal overlap.
-- Read `references/swarm-lanes.md` before finalizing lanes.
-- Choose the lightest lane mechanism that fits: direct edit, explore subagent, coding subagent, worktree, or integration branch.
-- Worktrees and commits are recommended for parallel/high-risk implementation, not mandatory for every lane.
-- Each implementation lane has one atomic objective and a clear validation command.
-- During recommendations, include optional modernization lanes when evidence supports them, such as stricter lint/static-analysis structure, stronger formatting gates, newer compiler/runtime versions, or updated contract-check tooling. Present these as suggestions only; do not perform toolchain upgrades or stricter rule adoption unless the user accepts.
+## Architecture and contract checks
 
-4. Implement or Coordinate
-- Use subagents when they reduce context load or parallelize cleanly; otherwise implement directly.
-- Require each implementation lane to run only relevant checks.
-- Track exact changed files. If using worker agents or worktrees, require a commit message or merge summary.
-- If the user accepts a modernization lane, implement it honestly. Do not make checks pass by hiding errors, weakening rules, broad-ignore patterns, suppressing diagnostics, adding obscure exemptions, or avoiding needed refactors. Keep repo principles intact and fix the real incompatibilities the upgrade reveals.
+Evaluate these where relevant:
 
-5. Merge + Stabilize
-- If worktrees/branches were used, merge lane branches into an integration branch.
-- Resolve conflicts centrally.
-- Run full repo checks.
-- Fix only real breakages introduced by the hardening pass or lane merges.
+- root objects route and compose rather than own feature-local state
+- feature additions primarily touch feature-owned modules, with small registration changes in central paths
+- orchestration, domain rules, IO, rendering, and mutation are separated where mixing them raises change risk
+- async/background work has a clear owner, result/message shape, cancellation or shutdown path, and state mutation boundary
+- render/view functions avoid hidden IO or mutation where the framework permits
+- named objects survive until serialization/render boundaries instead of becoming magic indexes, tuples, parallel arrays, or string lists
+- reset/cleanup behavior is owned rather than scattered through null, empty, or sentinel assignments
+- shared code has a stable owner and does not become a dumping ground
+- comments explain invariants, ordering, side effects, or non-obvious ownership rather than restating code
 
-6. Final Report
-- Report findings first by severity.
-- Provide updated scorecard.
-- Provide concise change log and remaining risks.
+## Scope, documentation, and modernization
 
-## Strategic Comment Policy
+- Add documentation only when it reduces future discovery cost. Prefer accurate entry-point maps and local invariant comments over broad prose.
+- Do not rewrite user-facing README material unless it is part of the requested hardening scope.
+- Treat toolchain, dependency, lint-policy, and runtime changes as opt-in modernization. Explain evidence, benefit, migration cost, and risk before implementation.
+- Do not use “agent-friendly” to justify product scope expansion, framework churn, new infrastructure, or unfamiliar dependencies.
+- Read `references/dependency-safety.md` before dependency or installer changes.
 
-Add comments only where they reduce agent/human reread cost:
-1. Invariants and assumptions.
-2. Non-obvious control flow.
-3. Side effects, ordering constraints, idempotency behavior.
-4. Boundary ownership for modular lanes.
+## Output by task
 
-Avoid comments that restate obvious code.
+- **Focused review:** material findings with evidence, impact, and a specific recommendation.
+- **Scorecard:** severity-ordered findings, rubric scores with evidence, and the highest-leverage next steps.
+- **Plan:** ordered interventions, ownership boundaries, affected files, dependencies between steps, and validation.
+- **Implementation:** concise change summary, new ownership/contract shape, checks run, and remaining risks.
 
-## Structural Refactor Policy
-
-1. Default repo shape should favor feature folders/modules over layerless file piles.
-2. When a file or function mixes multiple concerns, split it before adding more behavior.
-3. When duplication appears across features, first check whether the behavior is truly shared and stable; if yes, extract it into an owned shared module, otherwise keep it feature-local.
-4. Prefer small, composable modules with obvious ownership over giant central files.
-5. In findings and final scoring, explicitly say whether the repo is moving toward or away from DRY and separation of concerns.
-6. Before implementing net-new features during hardening, identify the product/core-user scope boundary. Defer features that widen scope without strengthening architecture or the core workflow.
-7. Replace “special-case in the central path” changes with owned extension points: feature registration, message contracts, local handlers, or strategy objects.
-
-## Minimal Documentation Policy
-
-1. Prefer one lane map doc over many docs.
-2. Keep architecture docs short and file-reference-heavy.
-3. If `README` is stale/template text, replace with project-specific quick map.
-4. Do not create broad prose docs when comments + one map are sufficient.
-
-## Test Policy
-
-1. First inspect the existing test package, test style, fixture complexity, runtime cost, and how much behavior the repo already protects. Derive the repo's testing complexity intent from evidence instead of assuming more tests are always better.
-2. Add tests only where they matter: high-risk behavior, recently extracted logic, bug-prone state transitions, contract boundaries, or deterministic core units that would otherwise be easy to regress.
-3. Prefer matching the existing test complexity and conventions over introducing a heavier testing style. Do not dismiss an established test suite as insufficient just because it is small, integration-light, or intentionally pragmatic.
-4. Do not grow the test suite by default during a hardening pass. Avoid broad coverage campaigns, snapshot sprawl, fixture factories, mocks, or E2E scaffolding unless the user explicitly asks or the evidence clearly warrants it.
-5. Good candidates are deterministic units:
-- pure transforms
-- state machines/reducers
-- schema/contract validation
-- handler guards
-6. Skip flaky E2E unless explicitly requested.
-7. Wire any added tests into the existing check pipeline, using the repo's current test runner and style unless there is a strong reason to suggest a separate opt-in modernization lane.
-
-## Modernization Recommendation Policy
-
-1. After inspection, recommend lint/static-analysis hardening, formatter gates, compiler/runtime upgrades, dependency modernization, or stricter contract checks only when there is evidence they would improve safety or feedback loops.
-2. Keep these as opt-in recommendations. Do not upgrade toolchains, add stricter rules, or rewrite configs unless the user accepts that lane.
-3. When a user accepts a modernization lane, follow the current best-practice path for the ecosystem instead of preserving weak legacy behavior for agent convenience.
-4. Never use “agent-friendly” as an excuse for hacks: no blanket ignores, no broad suppression comments, no watered-down rules, no fake green checks, and no avoiding a real refactor because the stricter tool exposed it.
-
-## Dependency Safety Policy
-
-1. Never bulk-update dependencies, runtimes, lockfiles, generated dependency metadata, or package-manager configs automatically. No “update everything to latest” behavior unless the user explicitly asks for that exact lane and accepts the risk.
-2. Treat dependency changes as opt-in modernization lanes. Recommend them with scope, reason, and risk; wait for user acceptance before changing package manifests or lockfiles.
-3. Prefer minimal, targeted updates that serve the accepted lane. Keep dependency and lockfile diffs reviewable, and avoid unrelated transitive churn when the package manager allows it.
-4. Prefer deterministic installs and validation commands that respect lockfiles or equivalent resolver state. Do not delete, regenerate, or normalize lockfiles casually.
-5. Treat install/build/lifecycle hooks, package-manager plugins, code generators, native binaries, and newly introduced CLIs as code execution surfaces. Do not run untrusted package code, global installers, generators, or post-install hooks just to inspect a repo.
-6. Before adding a new dependency, check for typosquatting/name confusion, surprising install scripts, opaque binaries, abandoned or suddenly revived packages, unexpected maintainers, suspicious repository/source links, and whether the dependency is actually necessary.
-7. Security scanners and audits are useful signals, not proof of safety. Do not claim a dependency is safe only because an audit passes; known-vulnerability tools often miss fresh supply-chain malware.
-8. If a package ecosystem has current guidance for script blocking, provenance, signatures, checksums, vendoring, sandboxed installs, or private mirrors, suggest those as optional hardening lanes instead of silently changing the workflow.
-9. Treat signed/provenance-attested packages as stronger signals, not automatic trust. A compromised maintainer account or CI pipeline can still publish malicious artifacts with apparently valid provenance.
-10. Treat dependency installs in developer machines and CI as possible credential-theft events. Avoid running new dependency code in environments with broad secrets, cloud credentials, publish tokens, SSH keys, or production access.
-11. For worm-like package campaigns, assume blast radius matters: one compromised package or maintainer can republish across many packages quickly. Prefer staged updates, review windows, and narrow allowlists over fresh-release chasing.
-
-## Missing or Incorrect Language Guidance
-
-1. If no bundled reference exists for the repo's language/ecosystem, proceed from the language-agnostic policies in this skill and adapt to the repo's discovered tools, conventions, and official docs when current external confirmation is needed.
-2. If a bundled reference conflicts with the repo's reality, prefer the repo evidence and general hardening principles over the stale or mismatched reference.
-3. In the final report, briefly mention that language-specific guidance was missing or mismatched when it affected recommendations.
-4. Suggest that the user may submit missing or incorrect language guidance at `https://github.com/IgorWarzocha/howaboua-pi-stuff/issues`.
-5. Do not open that issues link or browse it unless the user explicitly asks you to.
-
-## Deliverable Format
-
-1. Findings (severity ordered)
-2. Scorecard (before/after)
-3. Refactor/implementation summary
-4. Remaining risks and next step options
+Do not emit every format for every task. Match the deliverable to what the user asked for.

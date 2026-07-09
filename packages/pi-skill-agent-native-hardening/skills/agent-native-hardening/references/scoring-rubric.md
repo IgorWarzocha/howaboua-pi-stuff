@@ -1,12 +1,14 @@
 # Scoring Rubric (0-10)
 
-Apply an explicit godfile/godfunction penalty during scoring. A repo with unresolved godfiles, godfunctions, catch-all folders, or persistent mixed-concern modules should not receive a high structure score just because it is typed or tested.
+Use this rubric only when the user requested scoring or a broad audit genuinely benefits from a scorecard. Scores summarize evidence; they are not objective measurements. State the inspected scope, cite files/commands, and use `not assessed` rather than inventing precision where evidence is missing.
+
+Apply explicit godfile/godfunction penalties when the hotspot is material to the inspected system. A repo should not receive a high structure score merely because it is typed or tested while central paths remain mixed, but one isolated hotspot in a large codebase should not erase otherwise strong architecture.
 
 ## 1) agent_native
 0-2: monoliths/godfiles/godfunctions, unclear ownership, no guardrails
 3-5: partial modularization, weak lane boundaries, mixed concerns still central
 6-8: clear feature modules, low duplication, boundaries enforced by scripts/lint
-9-10: lane-safe architecture, deterministic extension points, feature ownership is obvious and DRY
+9-10: independent changes are low-overlap, extension points are explicit, and feature ownership is obvious with little unstable duplication
 
 ## 2) contract_safety
 0-2: contracts are mostly implicit, unchecked dynamic data is pervasive, or validation is absent
@@ -38,7 +40,7 @@ Score test coverage by fitness, not volume. A small pragmatic suite can score 9-
 0-2: stale docs, no strategic comments, structure hides ownership
 3-5: partial comments/docs, weak discoverability, mixed concerns still require rereads
 6-8: strategic comments + concise lane map + feature ownership mostly obvious
-9-10: high signal comments, accurate map, no stale docs, file/folder layout explains the system
+9-10: high-signal comments, accurate material docs, and file/folder layout explain the system with little rereading
 
 ## Godfile / Godfunction / Boundary Criteria
 
@@ -66,9 +68,11 @@ Treat these as strong positive signals:
 - async/background work communicates through explicit messages/events/results, with one clear state mutation owner
 - domain data keeps named fields until render/serialization boundaries
 
-Suggested score caps:
-- any active godfile hotspot: cap `agent_native` and `traversable` at 5
-- any active godfunction hotspot in a central path: cap `agent_native` and `traversable` at 6
-- multiple godfiles or godfolders: cap `agent_native`, `traversable`, and `self_documenting` at 4
-- multiple godfunctions in central feature paths: cap `agent_native`, `traversable`, and `self_documenting` at 5
-- persistent duplication plus mixed concerns: cap `agent_native` at 6 until shared ownership is clarified
+Calibration guardrails for material central-path problems:
+
+- a godfile that owns several unrelated core responsibilities usually keeps `agent_native` and `traversable` at 5 or below
+- a central godfunction that mixes orchestration, domain rules, IO, and mutation usually keeps `agent_native` and `traversable` at 6 or below
+- multiple central godfiles/godfolders usually keep `agent_native`, `traversable`, and `self_documenting` at 4 or below
+- persistent duplication combined with mixed ownership usually keeps `agent_native` at 6 or below until an owner boundary is clear
+
+Treat these as calibration, not arithmetic. Explain any cap applied and adjust for repository size, generated/framework structure, inspected scope, and whether the hotspot is central or isolated.
