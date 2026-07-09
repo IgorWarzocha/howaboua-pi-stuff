@@ -1,133 +1,129 @@
 ---
 name: model-facing-api-design
-description: "Writes and reviews Pi tool APIs: tool names, descriptions, argument schemas, `promptSnippet`, and `promptGuidelines`. Use when adding/refining tools or making tool descriptions/arguments more effective."
+description: "Designs and reviews model-facing Pi tool contracts: names, descriptions, schemas, prompt snippets/guidelines, results, errors, and truncation. Use when adding or refining tools, or improving tool selection, calls, recovery, or prompt cost."
 ---
 
-# Pi tool API design
+# Model-facing Pi tool design
 
-## Purpose
+Design tool contracts that models select, call, and recover from correctly. Optimize task success first; compress only after the behavior is clear.
 
-Write tool definitions that models call correctly without wasting prompt tokens.
+## Contract surfaces
 
-## Setup
+Treat both halves of a tool as model-facing:
 
-Before running scripts in this skill, install script-local deps once from this skill's `scripts/` directory, using the user's package manager:
+- **Before a call:** `name`, `description`, `parameters`, `promptSnippet`, and `promptGuidelines` shape selection and arguments.
+- **After a call:** returned `content`, thrown errors, truncation notices, and continuation handles shape the next decision.
 
-```sh
-cd .pi/skills/model-facing-api-design/scripts
-npm install
-```
+`label`, renderers, and most `details` fields are user/state surfaces, not substitutes for text the model needs. Pi sends result `content` to the model; keep `details` for rendering, persistence, and structured extension state.
 
-`bun install`, `pnpm install`, or `yarn install` are also fine. For packaged installs, use the installed skill path's `scripts/` directory. Do not add these deps to the repo root.
+## Current-API gate
 
-## Rules
+Do not optimize a legacy Pi tool surface as if it were current.
 
-- Tool text is behavior, not copy.
-- Optimize for the shortest text that prevents likely misuse.
-- Count token-ish cost: punctuation, backticks, extra spaces, repeated prefixes, and long identifiers all add prompt weight.
-- Prefer clear tool/argument names over explanatory prose.
-- Encode constraints in the schema when possible.
-- Add `promptGuidelines` only for non-obvious use rules the model is likely to miss.
-- Keep tools universal: no local paths, personal names, private workflow assumptions, or machine-specific defaults.
+- Current extension tools use `pi.registerTool({...})`; standalone or SDK tool definitions may use `defineTool({...})`.
+- Current schemas depend on and import from `typebox` 1.x. `@sinclair/typebox` compatibility is temporary and MUST be migrated.
+- Current Pi packages use the `@earendil-works/pi-*` scope. Old package scopes and removed custom-tool types MUST be migrated.
+- Do not add compatibility fields or shims merely to preserve a checked-in legacy API. If `prepareArguments()` translates removed public fields or shapes, require migration and removal of that shim; current normalization unrelated to an obsolete API may remain.
+
+If legacy markers are present, stop the normal wording/token review. If edits are authorized, port the extension first; otherwise return the files and required replacements as a blocker. Do not certify or tune the old surface.
 
 ## Workflow
 
-1. Define the tool contract.
-   - What action does it perform?
-   - What inputs are required?
-   - What defaults matter?
-   - What should make the model choose another tool instead?
+1. **Inspect behavior before wording.**
+   - Run the current-API gate first. Treat migration as prerequisite work, not an optional recommendation.
+   - Read the registration, schema, `execute()` path, result formatting, and relevant neighboring tools.
+   - Identify the action, required inputs, defaults, side effects, output limits, success evidence, and recoverable failures.
+   - Check real misuse or traces when available. Do not redesign around imagined model weakness when the current contract already works.
 
-2. Pick names.
-   - Tool name: short, verb/noun, model-familiar, stable; use snake_case for tools.
-   - Argument names: match common model vocabulary (`cmd`, `workdir`, `query`, `path`).
-   - Avoid clever product names unless the user explicitly invokes that product surface.
+2. **Choose the tool boundary and name.**
+   - Give one tool one coherent job. Split unrelated operations when doing so removes invalid argument combinations or unclear selection.
+   - Keep related modes together when an action enum and shared inputs are easier to call correctly.
+   - Use short, familiar `snake_case` names. Prefer common verbs and nouns over product lore or clever branding.
+   - Compare nearby tools: the model should be able to explain why this tool is the right one.
 
-3. Write the description.
-   - One sentence.
-   - Say what the tool does and the important result/side effect.
-   - Do not repeat every argument.
-   - Do not include implementation details unless they change use.
+3. **Write the description and Pi prompt metadata.**
+   - State what the tool does and any result, side effect, limit, or selection boundary needed before calling it.
+   - Keep the description compact, but use a second sentence when it prevents a realistic wrong choice.
+   - Add `promptSnippet` when the tool should appear in Pi's one-line `Available tools` inventory. Use a short capability phrase; it need not repeat the full description.
+   - Add `promptGuidelines` only for non-obvious timing, tool choice, safety, or repeated misuse.
+   - Every Pi guideline MUST name the tool because Pi appends all guideline bullets into one flat section.
 
-4. Write `promptSnippet`.
-   - Shorter than the description.
-   - Imperative or capability phrase.
-   - Examples: `Run a command.`, `Edit files with a patch.`, `Search code and docs by meaning.`
+4. **Design the argument schema.**
+   - Prefer model-familiar argument names such as `cmd`, `workdir`, `query`, and `path` when they match the domain.
+   - Require inputs that every valid call needs. Make fields optional only when omission has a useful, deterministic meaning.
+   - Put defaults, units, limits, and mutually dependent requirements where the model sees them.
+   - Use schema constraints instead of prose where practical. For Pi string enums, use `StringEnum` from `@earendil-works/pi-ai` for Google compatibility.
+   - Avoid exposing implementation knobs, deprecated aliases, speculative options, or compatibility fields for removed schemas.
 
-5. Write argument schemas.
-   - Required fields only unless optional fields change common behavior.
-   - Field descriptions should be fragments, not paragraphs.
-   - Mention defaults and limits: `Defaults to current cwd.`, `Max 30000.`, `Truncate excess output.`
-   - Use enums/closed schemas instead of prose when possible.
+5. **Design success, failure, and large-output results.**
+   - Return concise `content` that states what happened and includes the identity, path, handle, or state needed for the next action.
+   - Do not rely on `details` to tell the model whether the call succeeded or what to do next.
+   - Throw an error when execution failed; returning an error-shaped value does not set Pi's tool error flag.
+   - Make errors actionable: name the bad input or failed condition, preserve useful state, and state a valid retry path when one exists.
+   - Truncate potentially large output. Tell the model what was omitted and where or how to retrieve the remainder.
+   - Keep cancellation distinct from success and ordinary failure when the distinction changes the next action.
 
-6. Decide whether `promptGuidelines` are needed.
-   - Omit them when name + description + schema are enough.
-   - Add them for timing, tool-vs-tool choice, safety, or repeated misuse.
-   - Prefix each line with the tool name if multiple tools share prompt space.
-   - Keep each line independently useful; no motivational filler.
+6. **Remove duplication and accidental cost.**
+   - Prefer clear names over prose that repeatedly explains those names.
+   - Do not restate schema facts in guidelines unless the restatement changes tool choice or sequencing.
+   - Remove marketing language, implementation trivia, decorative formatting, and examples that do not prevent real misuse.
+   - Do not compress away required evidence, caveats, recovery information, or trigger boundaries merely to improve a token count.
 
-7. Compress and de-duplicate.
-   - If a rule appears in the schema, do not repeat it in guidelines.
-   - Move rare edge cases to runtime errors or README docs.
-   - Delete obvious stack facts and marketing language.
-   - Avoid backticks in model-facing text unless literal syntax matters.
-   - Avoid filler punctuation and decorative formatting.
-   - Trim extra spaces; they still cost tokens.
-   - Prefer one compact line over multi-clause explanations.
+7. **Validate the complete loop.**
+   - Check representative selection, valid calls, invalid calls, empty results, failures, and truncated results as relevant to the tool.
+   - Confirm the model can distinguish neighboring tools and continue correctly from both success and failure output.
+   - Run repository checks for the changed extension. Use the token helper as a comparison aid, not a quality score.
 
-8. For repo tools, inspect token cost with:
-   - `node .pi/skills/model-facing-api-design/scripts/tool-token-lines.mjs <extension-cwd>`
-   - If the tokenizer dependency is missing, run `bun install` inside this skill's `scripts/` directory first.
-   - It reports o200k_base token counts for all detected tool-facing lines; do not filter the output.
+## Token helper
 
-## Token gotchas
+The bundled script first rejects known legacy Pi tool markers with a migration-required message. For current code, it reports an o200k token proxy over detected tool-declaration and schema source lines. The count is heuristic: dynamic strings, imported schemas, and provider serialization can differ from the report.
 
-- Backticks often tokenize separately; use them only for literal commands, values, or field names.
-- `tool_name: ...` guideline prefixes help disambiguate, but repeated prefixes cost tokens. Use only when the prompt mixes several tools.
-- Long enum values and argument names cost every time the schema is shown; keep names short but clear.
-- Repeating the tool name inside every field description is usually waste.
-- Examples are expensive; include only examples that prevent real misuse.
+Install its local dependency once:
 
-## Codex=>Pi style reference
-
-- `exec_command`: description says it runs a shell command and may return a session ID; snippet is `Run a command.`
-- `apply_patch`: description says create/edit/delete/move files; schema explains the required patch wrapper.
-- `write_stdin`: field descriptions carry the behavior: session id, chars, wait, truncation.
-- `view_image`: optional detail exists only when supported; description stays simple.
-- Native web/image tools use empty schemas when arguments are forbidden.
-
-## Good shapes
-
-```ts
-description: "Runs a shell command, returning output or a session ID for ongoing interaction."
-promptSnippet: "Run a command."
-cmd: Type.String({ description: "Shell command to execute." })
-workdir: Type.Optional(Type.String({ description: "Defaults to current cwd." }))
+```sh
+cd <this-skill-directory>/scripts
+bun install --frozen-lockfile
 ```
 
+Then inspect an extension file or directory:
+
+```sh
+node <this-skill-directory>/scripts/tool-token-lines.mjs <extension-path>
+```
+
+Use `--json` for machine-readable output. Review all reported lines; compare totals before and after only when prompt cost is part of the task.
+
+## Good shape
+
 ```ts
-description: "Append workflow-friction feedback to VENT.md."
-promptSnippet: "Log repeated workflow friction."
-promptGuidelines: [
-  "vent: Use for repeated or systemic workflow friction, especially when the same manual workaround happens more than once.",
-  "vent: Do not use for one-off lint/type errors or ordinary coding mistakes.",
-]
+pi.registerTool({
+  name: "fetch_job",
+  description: "Fetch a job and return its current state. Use poll_job for an already-running request.",
+  promptSnippet: "Fetch a job by ID.",
+  parameters: Type.Object({
+    id: Type.String({ description: "Job ID." }),
+  }),
+  async execute(_id, params) {
+    const job = await fetchJob(params.id);
+    if (!job) throw new Error(`Job not found: ${params.id}. Check the ID and retry.`);
+    return {
+      content: [{ type: "text", text: `Job ${job.id}: ${job.status}` }],
+      details: job,
+    };
+  },
+});
 ```
 
 ## Smells
 
-- Description starts with “This tool allows you to…”
-- Description explains internals before behavior.
-- Optional args exist because they were easy to expose, not because the model needs them.
-- Guidelines restate the schema.
-- Tool name is cute but not guessable.
-- Text assumes the maintainer's machine, repo path, or private workflow.
+- The description starts with “This tool allows you to…” or explains internals before behavior.
+- Several optional fields permit calls that can never be valid.
+- Guidelines say “this tool” instead of naming the tool.
+- The model receives “Done” without the changed target, resulting state, or next handle.
+- Failure is returned as successful content instead of thrown as a tool error.
+- Output can grow without a visible cap and truncation notice.
+- UI labels or `details` contain information absent from model-visible text.
 
-## Output contract
+## Finish
 
-Return:
-
-- tool surfaces reviewed
-- proposed wording
-- what was compressed or removed
-- behavior risks or changed assumptions
+For implementation work, update the tool and run relevant checks. For review-only work, return the exact surfaces examined, proposed wording or schema changes, and any behavior assumptions that need confirmation. Do not force a scorecard or table when direct edits or concise findings are clearer.
