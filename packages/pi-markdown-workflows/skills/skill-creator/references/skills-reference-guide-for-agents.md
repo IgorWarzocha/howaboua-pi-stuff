@@ -1,8 +1,18 @@
-# Skills Reference Guide for AI Agents
+# Skills Reference Guide for Agents
 
-This document is a vendor neutral rewrite of a product specific skills guide. It is written for AI agents that need to design, write, test, and package skills well.
+Use this guide to design, write, test, and package skills built around `SKILL.md` with optional `references/`, `scripts/`, and `assets/`.
 
-It assumes a skill format built around a single `SKILL.md` file with YAML frontmatter and optional supporting folders such as `scripts/`, `references/`, and `assets/`.
+This is deliberately more detailed than the main skill. It carries reusable judgment for new sessions, unfamiliar models, and substantial skill work. It is not a mandatory template: use the sections that match the task and target host.
+
+## Reading map
+
+- **Creating or substantially restructuring a skill:** read sections 1–14, then the relevant patterns and testing guidance.
+- **Fixing triggering:** read sections 7–8, 17.1, and 19.1–19.2.
+- **Splitting supporting material:** read sections 5 and 12–14.
+- **Debugging execution:** read sections 11, 15, and 19.
+- **Packaging or final review:** read sections 20–22.
+
+Host rules outrank this guide. Verify format limits, discovery behavior, supported frontmatter, and tool names against the host rather than assuming every agent surface is identical.
 
 ## 1. What a skill is
 
@@ -34,7 +44,7 @@ Do not create a skill for a one off task, an empty abstraction, or a workflow th
 
 ## 3. Conformance language
 
-The keywords **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** are used in the RFC 2119 sense.
+The keywords **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** are used in the RFC 2119 sense. Use hard requirements for host constraints, safety boundaries, or behavior the workflow cannot succeed without; use guidance for strong defaults that still require judgment.
 
 ## 4. Core design principles
 
@@ -93,22 +103,24 @@ A good skill makes critical behaviour as deterministic as possible by defining:
 
 If a check can be performed by code, a script is often better than prose.
 
-### 4.6 Low context footprint
+### 4.6 Deliberate context
 
-A skill SHOULD carry the minimum amount of text required to execute well.
+A skill should carry the smallest body that reliably preserves its job and judgment. Shorter is not automatically better: removing trigger coverage, edge cases, or domain rules can make a skill cheaper and worse.
 
-Keep `SKILL.md` focused on instructions. Put encyclopaedic detail in `references/` and call it only when needed.
+Keep `SKILL.md` focused on instructions needed for normal execution. Put conditional depth in `references/`. Remove repeated reminders and examples before removing material that helps weaker or context-poor models act correctly.
 
-### 4.7 Fail safe behaviour
+### 4.7 Proportionate failure behaviour
 
-A skill SHOULD fail closed on critical uncertainty.
+Block only when uncertainty affects correctness, safety, external side effects, or the ability to complete the requested result.
 
 Examples:
 
-- Missing required inputs -> ask for them or stop.
-- Validation failure -> report it and do not proceed.
-- Tool connection issue -> diagnose and halt before side effects.
+- Missing load-bearing inputs -> ask for them or stop.
+- Validation failure that makes the output unsafe or invalid -> report it and do not proceed.
+- Tool connection issue -> report the concrete failure before dependent side effects.
 - Ambiguous destructive action -> request confirmation if the host or policy requires it.
+
+Do not turn every normal run into preflight diagnostics. Try the ordinary, low-risk path first when availability can be established by using it.
 
 ## 5. Skill anatomy
 
@@ -189,7 +201,7 @@ Bad:
 - `project_sprint_planning`
 - `Project Sprint Planning`
 
-The frontmatter `name` field SHOULD match the folder name.
+The frontmatter `name` field should match the folder name when the host requires it. Pi permits a mismatch for compatibility with shared skill directories.
 
 ## 7. Frontmatter specification
 
@@ -198,7 +210,7 @@ The minimal viable frontmatter is:
 ```yaml
 ---
 name: your-skill-name
-description: What it does. Use when the user asks to [specific tasks or phrases].
+description: "What it does. Use when the user asks to [specific tasks or phrases]."
 ---
 ```
 
@@ -212,6 +224,7 @@ It MUST:
 
 - be present
 - use kebab case
+- stay within the host's length limit; Pi allows 1–64 characters
 - be concise
 - describe the domain or workflow
 
@@ -234,6 +247,10 @@ It SHOULD:
 - mention exclusions if over triggering is a risk
 - stay within the host limit if one exists
 
+Pi allows descriptions up to 1024 characters. Treat that as a compatibility ceiling, not a target. Descriptions in the upper end of the range deserve another editing pass, but reliable trigger coverage matters more than reaching an arbitrary minimum length.
+
+Quote descriptions by default. Plain YAML scalars can break on punctuation such as `: ` or an inline comment marker, while a quoted description remains unambiguous.
+
 It MUST NOT:
 
 - be vague
@@ -241,6 +258,12 @@ It MUST NOT:
 - turn into a long tutorial
 
 ### 7.2 Useful optional fields
+
+Pi supports `license`, `compatibility`, `metadata`, `allowed-tools`, and `disable-model-invocation`. Other hosts may support a different subset; unknown fields may be ignored.
+
+#### `license`
+
+Use a license name or a reference to a bundled license file when the skill's distribution requires it.
 
 #### `compatibility`
 
@@ -294,6 +317,10 @@ metadata:
   maturity: stable
 ```
 
+#### `disable-model-invocation`
+
+On Pi, set this to `true` only when users must invoke the skill explicitly and its description should not appear in the model's available-skill inventory.
+
 ### 7.3 Frontmatter safety rules
 
 Frontmatter is usually loaded earlier and more broadly than the body. Treat it as high sensitivity text.
@@ -324,36 +351,26 @@ A stronger format is:
 ### 8.1 Good descriptions
 
 ```yaml
-description: Plans project sprints, prioritises work, and creates task breakdowns. Use when the user asks to plan a sprint, break work into tickets, estimate scope, or organise backlog items.
+description: "Plans project sprints, prioritises work, and creates task breakdowns. Use when the user asks to plan a sprint, break work into tickets, estimate scope, or organise backlog items."
 ```
 
 ```yaml
-description: Reviews PDF contracts and extracts obligations, risks, renewal terms, and missing clauses. Use when the user uploads contract PDFs or asks for contract review, clause extraction, or legal document summarisation. Do not use for general PDF summarisation.
-```
-
-```yaml
-description: Cleans and validates CSV datasets for downstream analysis. Use when the user uploads CSV files, asks to normalise columns, fix date formats, deduplicate rows, or prepare data for reporting.
+description: "Reviews PDF contracts and extracts obligations, risks, renewal terms, and missing clauses. Use when the user uploads contract PDFs or asks for contract review, clause extraction, or legal document summarisation. Do not use for general PDF summarisation."
 ```
 
 ### 8.2 Bad descriptions
 
 ```yaml
-description: Helps with projects.
+description: "Helps with projects."
 ```
 
 Problem: too vague.
 
 ```yaml
-description: Implements the project entity model with hierarchical relationships and storage abstractions.
+description: "Implements the project entity model with hierarchical relationships and storage abstractions."
 ```
 
 Problem: tool or architecture centric, not user trigger centric.
-
-```yaml
-description: Creates documents.
-```
-
-Problem: missing scope, trigger conditions, and output type.
 
 ### 8.3 Under triggering and over triggering
 
@@ -364,7 +381,7 @@ If the skill loads too often, tighten scope and add exclusions.
 Example tightening:
 
 ```yaml
-description: Performs advanced statistical analysis on CSV files, including regression, clustering, and significance testing. Use when the user asks for modelling, inferential analysis, or clustering. Do not use for simple charting or spreadsheet cleanup.
+description: "Performs advanced statistical analysis on CSV files, including regression, clustering, and significance testing. Use when the user asks for modelling, inferential analysis, or clustering. Do not use for simple charting or spreadsheet cleanup."
 ```
 
 ## 9. The body of `SKILL.md`
@@ -373,7 +390,9 @@ The body is where the workflow lives.
 
 A good body is operational, not promotional.
 
-It SHOULD answer:
+As an authoring convention, keep `When to use`, `Do not use when`, `Activation`, `Triggers`, and similar selection sections out of the body. Trigger guidance belongs in the frontmatter `description`, because the host chooses whether to load the body from that description. Operational scope, safety limits, prerequisites, and handoff rules may still belong in the body.
+
+Every body should explain its purpose, workflow, and critical constraints. Consider the remaining questions and answer them when they change execution:
 
 - What is the goal?
 - What are the prerequisites?
@@ -383,39 +402,30 @@ It SHOULD answer:
 - What should the output contain?
 - What common failures exist and what should happen next?
 
-### 9.1 Recommended section layout
+### 9.1 Adaptable section layout
 
 ```markdown
 # Skill Title
 
 ## Purpose
-## When to use
-## Do not use when
-## Inputs expected
-## Prerequisites
 ## Workflow
+
+<!-- Add only when useful: -->
+## Inputs
+## Prerequisites
 ## Validation
-## Error handling
-## Output contract
+## Recovery
+## Output
 ## Examples
-## References
 ```
 
-This is a recommendation, not a law. What matters is clarity.
+Do not manufacture empty ceremony. Inputs, prerequisites, validation, recovery, output contracts, and examples are valuable when they remove ambiguity or alter behavior; they are not compulsory headings.
 
 ### 9.2 What each section should contain
 
 #### Purpose
 
 A one paragraph summary of the skill's job.
-
-#### When to use
-
-A compact list of situations, user requests, or uploaded artefacts that fit.
-
-#### Do not use when
-
-Optional but strongly recommended when adjacent skills may overlap.
 
 #### Inputs expected
 
@@ -440,7 +450,7 @@ Examples:
 
 This is the core. It SHOULD use numbered steps and explicit sequencing.
 
-Each step SHOULD define:
+For complex or failure-prone stages, define:
 
 - the action
 - the input
@@ -449,7 +459,7 @@ Each step SHOULD define:
 
 #### Validation
 
-List checks that MUST pass before finalisation or side effects.
+List checks that must pass before finalisation or side effects when invalid output is plausible or consequential.
 
 #### Error handling
 
@@ -468,7 +478,7 @@ Examples:
 
 #### Examples
 
-Include 2 to 5 realistic examples. Examples are often the difference between a mediocre and strong skill.
+Include a small number of realistic examples when they teach decisions, boundaries, or output shape that prose does not make obvious. Do not add several examples that merely restate the workflow.
 
 #### References
 
@@ -522,7 +532,7 @@ Useful stage types:
 - save or publish
 - confirm
 
-A skill MUST define where the workflow stops if a stage fails.
+Define stop or recovery behavior where a failed stage would otherwise cause incorrect continuation, repeated work, or unsafe side effects.
 
 ### Phase 4: Define the output contract
 
@@ -570,9 +580,7 @@ Move heavy detail into:
 
 ### Phase 8: Test and tighten
 
-Test triggering, execution, output quality, and failure handling.
-
-Tighten the description and instructions until the skill behaves reliably.
+Start with a few representative trigger, non-trigger, execution, and failure cases. Tighten the description and instructions around observed gaps. Build a larger evaluation only when repeated use, risk, or distribution scale justifies it.
 
 ## 11. Instruction writing rules
 
@@ -632,9 +640,9 @@ A skill SHOULD say when to stop iterating.
 
 Example:
 
-- stop when all required sections exist and validation passes
-- stop after three refinement passes if quality still does not improve
-- stop immediately on connection or authentication failure
+- stop when the required result exists and relevant validation passes
+- set an iteration cap when the workflow could otherwise repeat without new evidence
+- stop before dependent side effects when connection or authentication fails
 
 ### 11.5 Define idempotence where relevant
 
@@ -846,9 +854,9 @@ Best for:
 - financial review
 - safety screening
 
-### 15.6 Validator first pattern
+### 15.6 Validate before consequential work
 
-Use when bad input is common.
+Use when bad input is common and proceeding would waste substantial work, create invalid output, or cause side effects.
 
 Pattern:
 
@@ -856,7 +864,7 @@ Pattern:
 2. summarise issues clearly
 3. only continue when the input is fit
 
-This pattern prevents the agent from doing expensive or destructive work on broken input.
+This pattern prevents expensive or destructive work on broken input. Do not apply it as a universal diagnostics-first ritual when the ordinary action is cheap, safe, and self-validating.
 
 ### 15.7 Extract transform generate pattern
 
@@ -898,13 +906,13 @@ Without exclusions, adjacent skills collide.
 
 If the skill assumes a connected service, installed runtime, or available file without saying so, it will fail unpredictably.
 
-### 16.6 No output contract
+### 16.6 Unclear success
 
-If the skill never states what success looks like, the agent improvises.
+If the workflow has a specific artifact or completion condition but never states it, the agent improvises. Simple conversational skills do not need ceremonial output contracts.
 
-### 16.7 No examples
+### 16.7 Missing decision examples
 
-Skills without examples are harder for agents to internalise.
+When prose leaves a judgment point or output shape ambiguous, a well-chosen example can resolve it. Examples that teach nothing new only consume context.
 
 ### 16.8 Decorative prose
 
@@ -912,13 +920,13 @@ Do not waste context on sales language, reassurance, or motivational filler.
 
 ## 17. Testing strategy
 
-A skill should be tested along four axes.
+Choose tests according to the skill's risk, complexity, and observed failure modes. These four axes are a menu, not a mandatory harness for every edit.
 
 ### 17.1 Trigger tests
 
 Goal: verify that the skill loads when relevant and does not load when irrelevant.
 
-Create at least three groups:
+Useful groups include:
 
 - obvious trigger cases
 - paraphrased trigger cases
@@ -942,7 +950,7 @@ Should not trigger:
 
 Goal: verify the workflow works.
 
-Test:
+Depending on the workflow, test:
 
 - happy path
 - missing input path
@@ -967,7 +975,7 @@ Check:
 
 Goal: ensure the skill reduces friction rather than increasing it.
 
-Compare with and without the skill:
+When efficiency is a real concern, compare with and without the skill:
 
 - number of tool calls
 - number of retries
@@ -985,101 +993,33 @@ This works because:
 - it shows what the agent needed to know
 - it makes the first version grounded rather than imagined
 
-After one hard case works, broaden the test set.
+After one hard case works, broaden the test set only enough to cover materially different requests and failures.
 
 ## 19. Troubleshooting
 
 ### 19.1 Skill does not load
 
-Likely causes:
-
-- vague description
-- invalid frontmatter
-- incorrect `SKILL.md` file name
-- mismatched folder and skill naming
-
-Fixes:
-
-- make the description more trigger specific
-- validate YAML syntax
-- ensure `SKILL.md` is exact
-- simplify the frontmatter
+Check that the description names the concrete job and likely request language. Then validate frontmatter, discovery location, exact `SKILL.md` naming, host naming rules, and name collisions.
 
 ### 19.2 Skill loads too often
 
-Likely causes:
-
-- description too broad
-- no negative scope
-- overlap with another skill
-
-Fixes:
-
-- narrow the description
-- add explicit exclusions
-- mention exact artefacts or outputs
+Narrow broad category language to the actual task, artifacts, and outcomes. Add negative scope only for plausible neighboring requests, and compare the description with overlapping skills.
 
 ### 19.3 Skill loads but instructions are ignored
 
-Likely causes:
-
-- instructions too long
-- critical rules buried
-- ambiguous verbs like “handle properly” or “validate carefully”
-- no explicit order
-
-Fixes:
-
-- tighten the body
-- move critical rules to the top
-- replace vague language with checklists
-- add examples and output contracts
+Move critical rules near the action they govern, make ordering explicit, and replace vague verbs with observable conditions. Add an example or output shape only when the ambiguity remains.
 
 ### 19.4 Tool calls fail
 
-Likely causes:
-
-- unavailable connection
-- wrong tool names
-- missing permissions
-- bad assumptions about inputs
-
-Fixes:
-
-- document prerequisites
-- verify exact tool names
-- add preflight checks
-- fail before side effects if the tool is unavailable
+Verify exact tool names, permissions, inputs, and documented return shapes. Record load-bearing prerequisites, but avoid diagnostics-first preflights when trying the safe operation reveals availability directly.
 
 ### 19.5 Output is inconsistent
 
-Likely causes:
-
-- weak examples
-- missing validation
-- unclear stop conditions
-- too much room for interpretation
-
-Fixes:
-
-- add a validation section
-- add examples of correct output
-- define stop conditions
-- offload critical checks to scripts
+Clarify the success condition and decision rules. Add targeted validation, one representative example, or a deterministic script according to the actual source of variation.
 
 ### 19.6 Context bloat or slowness
 
-Likely causes:
-
-- oversized `SKILL.md`
-- too many always needed examples
-- reference material inlined into the main file
-
-Fixes:
-
-- move detail to `references/`
-- shrink examples to the most representative ones
-- keep the main file operational only
+Remove repeated guidance and examples first. Keep normal execution in `SKILL.md`, move conditional depth into references, and preserve material that still changes agent judgment.
 
 ## 20. Packaging guidance
 
@@ -1091,18 +1031,16 @@ For this skill format:
 
 Keep the skill folder clean.
 
-A separate human facing repository README may exist outside the skill folder, but the skill itself SHOULD keep agent relevant documentation in `SKILL.md` and `references/`.
+A separate human facing repository README MAY exist outside the skill folder, but the skill itself SHOULD keep agent relevant documentation in `SKILL.md` and `references/`.
 
-## 21. Minimal skill template
+## 21. Adaptable skill skeleton
+
+Start with the frontmatter, purpose, and workflow. Add the commented sections only when they change behavior or remove ambiguity.
 
 ```markdown
 ---
 name: example-skill
-description: Performs [specific job]. Use when the user asks to [specific tasks or phrases].
-compatibility: [optional environment notes]
-metadata:
-  version: 0.1.0
-  category: [category]
+description: "Performs [specific job]. Use when the user asks to [specific tasks or phrases]."
 ---
 
 # Example Skill
@@ -1110,190 +1048,29 @@ metadata:
 ## Purpose
 Describe the job of the skill in one paragraph.
 
-## When to use
-- trigger case 1
-- trigger case 2
-- trigger case 3
-
-## Do not use when
-- adjacent case 1
-- adjacent case 2
-
-## Inputs expected
-- required input 1
-- required input 2
-- optional input 3
-
-## Prerequisites
-- dependency 1
-- dependency 2
-
 ## Workflow
-1. Inspect the input.
-2. Validate required fields.
-3. Perform the core transformation or tool call.
-4. Validate the result.
-5. Produce the final output.
+1. Inspect [relevant inputs or existing state].
+2. Decide [load-bearing judgment].
+3. Perform [core action].
+4. Verify [observable success condition].
 
+<!-- Add only when useful:
+## Inputs
+## Prerequisites
 ## Validation
-- check 1
-- check 2
-- check 3
-
-## Error handling
-### Error: missing required input
-Action: stop and ask for the missing input.
-
-### Error: tool unavailable
-Action: report the issue and do not continue.
-
-## Output contract
-Return:
-- artefact 1
-- summary 2
-- machine readable result 3 if applicable
-
+## Recovery
+## Output
 ## Examples
-### Example 1
-User says: "[example request]"
-Expected behaviour:
-1. [step]
-2. [step]
-3. [result]
-
-## References
-- `references/[file].md`
-- `assets/[template].md`
-- `scripts/[script].py`
+-->
 ```
 
-## 22. Robust skill template
-
-Use this when the workflow is non trivial.
-
-```markdown
----
-name: robust-skill
-description: [What it does]. Use when the user asks to [trigger A], [trigger B], [trigger C], uploads [artefact type], or needs [outcome]. Do not use for [nearby out of scope tasks].
-compatibility: Requires [runtime], [network/tool access], and [specific dependencies if any].
-allowed-tools: "[optional host specific allow list]"
-metadata:
-  author: [team]
-  version: 1.0.0
-  category: [domain]
-  tags: [[tag-1], [tag-2], [tag-3]]
-  maturity: stable
----
-
-# Robust Skill
-
-## Purpose
-One paragraph describing the workflow and final outcome.
-
-## Scope
-### In scope
-- item 1
-- item 2
-- item 3
-
-### Out of scope
-- item 1
-- item 2
-
-## Inputs expected
-### Required
-- input 1
-- input 2
-
-### Optional
-- input 3
-- input 4
-
-## Prerequisites
-- dependency or connection 1
-- dependency or runtime 2
-
-## Workflow
-### Step 1: Inspect
-- gather input facts
-- identify missing data
-
-### Step 2: Validate
-- run checks
-- stop if validation fails
-
-### Step 3: Execute
-- call tools or perform transformation
-- record outputs needed for later steps
-
-### Step 4: Review
-- compare result against checklist
-- fix defects if needed
-
-### Step 5: Finalise
-- produce final artefact
-- summarise actions taken
-
-## Validation policy
-- must rule 1
-- must rule 2
-- must rule 3
-
-## Iteration rules
-- iterate only when a validation defect exists
-- stop after [n] passes or when all checks pass
-
-## Error handling
-### Error: validation failure
-Cause: [reason]
-Action: [recovery]
-
-### Error: tool failure
-Cause: [reason]
-Action: [recovery]
-
-### Error: ambiguous input
-Cause: [reason]
-Action: [recovery]
-
-## Output contract
-The final result MUST include:
-- artefact 1
-- summary 2
-- references or paths 3
-
-The final result MUST NOT include:
-- forbidden item 1
-- forbidden item 2
-
-## Examples
-### Example 1
-User says: "[request]"
-Agent should:
-1. [action]
-2. [action]
-3. [result]
-
-### Example 2
-User uploads: `[file type]`
-Agent should:
-1. [action]
-2. [action]
-3. [result]
-
-## Supporting files
-- `references/[file].md`: [purpose]
-- `scripts/[file].py`: [purpose]
-- `assets/[file].md`: [purpose]
-```
-
-## 23. Quick evaluation checklist
+## 22. Final review
 
 Before shipping a skill, verify all of the following.
 
 ### Structure
 
-- folder name uses kebab case
+- name follows the target host's format and length limits
 - `SKILL.md` exists at root
 - frontmatter is valid YAML
 - required fields exist
@@ -1302,22 +1079,21 @@ Before shipping a skill, verify all of the following.
 
 - description states what the skill does
 - description states when to use it
-- description includes real trigger phrasing
+- description includes concrete request language or trigger conditions
 - description is not too broad
 - exclusions are added if needed
 
 ### Instruction quality
 
 - workflow is ordered
-- validation is explicit
-- errors are handled
-- output contract is defined
-- examples are realistic
-- references use exact paths
+- consequential validation and failures are handled
+- success is clear where the workflow needs a defined result
+- examples teach distinct decisions where prose is insufficient
+- supporting paths resolve
 
 ### Operational quality
 
-- prerequisites are documented
+- load-bearing prerequisites are documented
 - scripts have clear contracts
 - deterministic checks use code where appropriate
 - no critical assumption is left unstated
@@ -1327,18 +1103,8 @@ Before shipping a skill, verify all of the following.
 - obvious trigger cases work
 - paraphrased trigger cases work
 - unrelated cases do not trigger
-- invalid input is handled safely
-- repeated runs do not create uncontrolled duplicates
+- invalid or missing input is handled in proportion to its consequences
+- repeated runs avoid uncontrolled duplicates where side effects are possible
+- repeated advice, examples, and generic reassurance were trimmed before useful judgment
 
-## 24. Final advice for agent authors
-
-When creating a skill, optimise for activation quality and execution clarity.
-
-Most weak skills fail in one of two places:
-
-- the description is too vague, so the skill does not activate reliably
-- the body is too abstract, so the agent improvises the workflow badly
-
-Fix those two things first.
-
-A very good skill is usually not the longest one. It is the one with the clearest trigger boundary, the most explicit workflow, the strongest validation, and the least wasted text.
+Optimise first for reliable activation and execution. Then remove accumulated text that no longer changes behavior.
