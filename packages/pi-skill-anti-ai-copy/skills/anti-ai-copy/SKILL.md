@@ -1,181 +1,91 @@
 ---
 name: anti-ai-copy
-description: Edits any writing so it sounds specific, human, and not AI-polished. Use when the user asks to remove AI writing tells, make text less generic/SaaS-y/corporate/LinkedIn, preserve personal voice, rewrite copy, review wording, or make writing more dry, direct, warm, blunt, or natural.
+description: "Writes, rewrites, and reviews prose so it sounds specific, natural, and appropriate to its author and context. Use for drafting or editing product copy, docs, READMEs, emails, posts, bios, essays, UI text, and other writing; removing AI/ChatGPT, SaaS, corporate, or LinkedIn tells; preserving voice; or making prose more direct, warm, dry, blunt, clear, or human. Not for AI-detector analysis or purely mechanical proofreading with no voice work."
 ---
 
-# Anti-AI Copy
+# Anti-AI Writing
 
-## Purpose
-Edit writing so it sounds like a real person with a context, taste, and point of view wrote it. This skill is universal: use it for product pages, docs, READMEs, emails, social posts, bios, UI labels, articles, internal notes, and personal writing.
+Write prose that has a real job, context, and point of view. Remove generic model polish without forcing every writer into the same dry, quirky, or aggressively casual voice.
 
-The goal is not to make text quirky. The goal is to remove model-polish: generic claims, soft transitions, smooth sameness, and words that make every topic sound like the same brochure.
+## Principles
 
-## Core rules
-1. **Preserve the writer’s voice.** Do not sand the text into a new house style unless asked.
-2. **Do not synonym-swap banned words.** Rewrite the sentence around concrete meaning.
-3. **Specific beats polished.** Prefer nouns, examples, constraints, numbers, names, and lived details.
-4. **Do not over-humanize.** Forced slang, fake jokes, and random sentence fragments are also AI tells now.
-5. **AI detection is not the goal.** Detectors are unreliable. The goal is better writing.
+1. **Meaning before polish.** Know what the writing needs to say before tuning how it sounds.
+2. **Preserve the author.** Keep their stance, confidence, uncertainty, vocabulary, humour, restraint, and regional conventions unless asked to change them.
+3. **Respect the genre.** An email, technical guide, essay, product page, personal note, and UI label should not share one house voice.
+4. **Never invent specificity.** Ground details in supplied context, source material, or verified facts. Invent only when the task is explicitly creative and invention fits it.
+5. **Prefer clear construction.** Give one main idea to a sentence. Split stacked clauses, nested qualifications, and ornamental detours unless their relationship genuinely needs one sentence.
+6. **Treat tropes as evidence, not verdicts.** A suspicious word may be exact. A sentence with no suspicious words may still be empty, repetitive, or synthetic.
+7. **Do not perform humanity.** Random slang, fragments, profanity, fake jokes, and deliberate roughness are not substitutes for voice.
 
-Bad fix:
-- “unlock your workflow” → “open up your workflow”
+## Inputs
 
-Good fix:
-- “unlock your workflow” → “keep the issue, diff, terminal, and review notes in one place”
+Work from whichever material the user has:
 
-## Scope notes
-- The user asks for copywriting, editing, rewriting, wording, tone, tagline, messaging, or voice.
-- The user says the text feels “AI”, “SaaS-y”, “generic”, “too polished”, “corporate”, “LinkedIn”, “marketing”, “soulless”, “not human”, “not me”, or “written by ChatGPT”.
-- The user asks to make text more natural, dry, direct, blunt, warm, personal, specific, founder-written, less cringe, or less try-hard.
-- You are reviewing public or identity-bearing text where trust depends on voice.
+- a topic, brief, argument, or desired outcome
+- facts, examples, experiences, and constraints
+- an existing draft or file
+- audience, venue, voice references, or phrases that must remain
 
-## Boundaries
-- The task is only strict grammar/spelling cleanup and the user did not ask for voice changes.
-- The writing is legal, medical, regulatory, safety, or compliance text where convention matters more than voice.
-- The user wants academic style, citations, or formal precision rather than naturalness.
-- The user explicitly asks for conventional corporate polish.
-
-## Inputs expected
-Required:
-- the text to review, or the file/page containing it
-- the intended audience/context, if not obvious
-
-Optional:
-- desired voice words, e.g. dry, kind, blunt, careful, playful
-- phrases that must stay
-- examples of the writer’s existing voice
-- where the text will appear, e.g. landing page, email, README, tweet, issue, UI
+Infer ordinary context when it is clear. Ask only when a missing choice would materially change the piece; otherwise make the smallest reasonable assumption and write.
 
 ## Workflow
-1. **Identify the job of the text.**
-   - What should the reader know, feel, or do?
-   - What relationship does the writer have with the reader?
-   - What level of polish is appropriate for the venue?
 
-2. **Detect the current voice.**
-   Preserve useful traits before editing:
-   - sentence length and rhythm
-   - formality level
-   - humour or restraint
-   - technical density
-   - warmth, irritation, uncertainty, confidence
+1. **Identify the job.**
+   - Determine whether the user wants a draft, rewrite, or review.
+   - Establish what the reader should understand, believe, feel, or do.
+   - Note the relationship between writer and reader and the amount of formality the venue expects.
 
-3. **Scan for AI tells.**
-   Use `references/trope-checklist.md` for a full pass.
-   Look for:
-   - hype verbs: unlock, unleash, elevate, empower, transform
-   - abstraction fog: landscape, ecosystem, journey, solution, capabilities
-   - synthetic transitions: furthermore, additionally, it is important to note
-   - symmetrical slogans: not just X but Y, more than X, where X meets Y
-   - vague adjective stacks: seamless, powerful, robust, intuitive, innovative
-   - cadence sameness: every paragraph has the same smooth shape
+2. **Find the substance.**
+   - Separate known facts, supplied opinions, assumptions, open questions, and creative material.
+   - Find the actual point rather than opening with a generic statement about the topic.
+   - Preserve caveats and unresolved judgment. Cleaner prose MUST NOT imply stronger evidence or confidence.
+   - If support for a broad claim is missing, narrow the claim or ask for the missing fact instead of fabricating proof.
 
-4. **Replace claims with evidence.**
-   - Name the thing, not the vibe.
-   - Add one concrete example where the text currently makes a broad claim.
-   - Keep caveats if they make the text more trustworthy.
+3. **Choose a fitting voice and shape.**
+   - For an existing draft, notice its useful rhythm, diction, technical density, humour, irritation, warmth, and odd phrases before editing.
+   - For a new draft, derive voice from the writer, audience, purpose, venue, and any examples—not from a generic “human” persona.
+   - Choose only as much structure as the material needs. Do not turn a short thought into a framework of headings and bullets.
 
-5. **Break the rhythm deliberately.**
-   AI-ish writing is often too even. Vary sentence length. Let a short sentence stand. Cut throat-clearing. Keep one odd phrase if it belongs to the writer.
+4. **Write the direct version first.**
+   - Lead with the point, event, question, or concrete observation.
+   - Prefer nouns and mechanisms over claims about vibes, value, or importance.
+   - Keep sentences easy to hold in working memory. Use a long sentence when the ideas belong together, not to sound thoughtful.
+   - Let paragraphs perform distinct work. Do not summarize a point immediately after making it.
 
-6. **Tune attitude to the context.**
-   - Product/README: concrete, useful, lightly opinionated.
-   - Email: direct, kind, not over-explained.
-   - Social post: one point, less setup, more human rhythm.
-   - Docs: clear first; personality only where it helps.
-   - Bio/about: specific details over self-description.
+5. **Run the anti-AI pass.**
+   - Consult `references/trope-checklist.md` for a full review, difficult diagnosis, genre-specific risks, or a broader phrase scan.
+   - Fix the underlying problem before changing vocabulary. Do not synonym-swap one brochure phrase for another.
+   - Check for generic setup, inflated stakes, fake contrasts, rhetorical signposting, rule-of-three cadence, repeated conclusions, clause-heavy sentences, abstraction fog, canned empathy, and unsupported certainty.
+   - Then scan the phrase blacklist. Keep a listed word when it is precise and natural in context.
 
-7. **Return edits in the right format.**
-   - Small text: provide a rewritten version directly.
-   - Review: use a table with `Current`, `Issue`, and `Rewrite`.
-   - File edit: edit the file, then summarize what changed.
-   - If the user asks “what’s wrong”, diagnose first before rewriting.
+6. **Read for cadence and voice.**
+   - Remove monotony where it makes the prose feel generated or hard to follow.
+   - Preserve natural variation already present. Smooth prose is allowed; uniform prose is the warning sign.
+   - Keep quirks that carry voice without obscuring meaning. Do not inject quirks the writer never had.
+   - Read aloud when rhythm matters. Split sentences that run out of breath or lose their subject.
 
-## Validation
-Before finalising, check:
-- No “unlock”, “unleash”, “seamless”, “revolutionary”, “game-changing”, “in today’s landscape”, or similar phrases unless quoted, mocked, or genuinely required.
-- No “not just X, but Y” structure unless it is intentionally preserved.
-- No abstract value claim is left unsupported by concrete detail.
-- Sentence rhythm is not uniformly smooth.
-- The rewrite still sounds like the same writer, unless the user asked for a new voice.
-- The text still tells the reader what to do next, when action is needed.
-- The attitude does not obscure the message.
+7. **Finish in the form requested.**
+   - When asked to write or rewrite, lead with the finished prose.
+   - When asked for diagnosis, explain the important patterns naturally and quote only what helps.
+   - Mention assumptions or consequential choices briefly when useful.
+   - Use before/after comparisons or tables only when they make several edits easier to judge.
 
-## Error handling
-### Error: no text provided
-Ask for the text, file, or page to review.
+## Genre notes
 
-### Error: audience/context unclear
-Make the smallest useful edit and state the assumption. Ask only if the rewrite would change drastically based on context.
+- **Technical writing and docs:** clarity and correctness first; keep necessary repetition, terminology, warnings, and qualifications.
+- **Essays and articles:** retain argument, tension, transitions, and deliberate style; do not reduce everything to short declarative sentences.
+- **Emails and messages:** lead with the reason, ask the real question, and keep genuine warmth without ceremonial padding.
+- **Product and marketing writing:** replace broad value claims with behavior, mechanism, evidence, or a narrower honest promise.
+- **Social and personal writing:** preserve the writer's natural roughness and timing; avoid launch-thread cadence and manufactured vulnerability.
+- **UI writing:** prefer the shortest label that remains clear in context. Do not explain the interface inside every control.
+- **Creative writing:** invention and stylization are allowed; continuity, intentional voice, and the requested form matter more than anti-AI vocabulary rules.
 
-### Error: requested voice conflicts with venue
-Explain the tradeoff briefly. Example: “I can make this drier, but for a customer apology I’d keep the jokes out.”
+## Final read
 
-### Error: a high-risk phrase is actually precise
-Keep it. This is not a blind blacklist. Explain only if useful.
+Read once for meaning, once for truthfulness, and once for sound when rhythm matters. Remove repeated ideas, conclusions, transitions, headings, adjectives, and complexity that do no work. Make sure the result belongs to this writer, subject, audience, and venue rather than any interchangeable product or person.
 
-### Error: user wants “humanized” text to evade detection
-Do not frame the work as evasion. Offer to improve clarity, specificity, rhythm, and voice.
+Then stop. Repeated polishing can remove the voice the skill is meant to protect.
 
-## Output contract
-When reviewing text, return:
-- the main issues
-- specific phrases to cut or rewrite
-- replacement copy
-- any remaining risks, e.g. too cute, too vague, too negative, too formal
+## Supporting reference
 
-When editing files, return:
-- changed file paths
-- a short before/after summary
-- validation performed
-
-## Examples
-### Example 1: product fog
-User says: “Make this less AI: Unlock seamless collaboration for modern developer teams.”
-
-Expected behaviour:
-1. Identify “unlock”, “seamless”, “modern”, and generic audience fog.
-2. Ask what the product actually does if needed.
-3. Rewrite concretely.
-
-Possible rewrite:
-> Keep review comments, terminal state, and project sessions in one place. Less tab archaeology.
-
-### Example 2: email polish
-User says: “Make this email sound less ChatGPT.”
-
-Input:
-> I hope this email finds you well. I wanted to reach out to discuss the possibility of collaborating on an exciting opportunity.
-
-Possible rewrite:
-> Hey Sam — I’ve got an idea for a small collaboration. Worth a quick look?
-
-### Example 3: social post
-User says: “This post feels LinkedIn.”
-
-Bad:
-> In today’s rapidly evolving AI landscape, adaptability is no longer optional.
-
-Better:
-> The weird part of AI work is how fast yesterday’s clever trick becomes plumbing.
-
-### Example 4: too much sass
-User says: “Make this sassy but not annoying.”
-
-Bad:
-> Your IDE could never. Ship code like a caffeinated raccoon.
-
-Better:
-> Not an IDE. Not a dashboard. A shell for the parts of agent work that keep getting lost.
-
-### Example 5: personal bio
-User says: “Make this bio less generic.”
-
-Bad:
-> Passionate technologist building innovative solutions at the intersection of design and engineering.
-
-Better:
-> I build small, opinionated tools for people who would rather ship than babysit dashboards.
-
-## Supporting files
-- `references/trope-checklist.md`: common AI/corporate copy tells, safer rewrite moves, and source notes.
+- `references/trope-checklist.md` — structural tells, phrase blacklist, genre-specific risks, and concrete rewrite moves.
