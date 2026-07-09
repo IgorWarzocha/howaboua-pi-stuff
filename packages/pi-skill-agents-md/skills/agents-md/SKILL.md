@@ -1,191 +1,80 @@
 ---
 name: agents-md
-description: How to write, audit and edit AGENTS.md files.
+description: "Writes, audits, and maintains AGENTS.md files. Use for repository agent instructions, nested scope guidance, global or personal agent context, pruning bloated rules, or separating agent-facing instructions from README documentation."
 ---
 
 # AGENTS.md Authoring
 
-## Purpose
-
-Create and improve AGENTS.md files that are short, scoped, and useful to coding agents. Preserve intent and non-obvious rules; do not summarize the repo.
+Create terse, scoped operating context for agents modifying a workspace. Preserve user intent and stable local knowledge that cannot be inferred cheaply from the repository.
 
 ## Critical rules
 
-- Suggest changes before editing; discuss first unless the user explicitly asks for direct edits.
-- Normal repo/brownfield AGENTS.md should aim for ~20 lines or less.
-- Do not restate what an agent can infer from code, package files, folder names, or a quick search.
-- Prefer compressed, high-signal half-sentences over full prose, except for greenfield/founder notes and personal/global files.
-- Nested AGENTS.md files should mostly contain local edge cases, local pointers, or skill/doc routing.
-- Use RFC2119 caps (`MUST`, `SHOULD`, `REQUIRED`) sparingly for true non-negotiables.
-- Do not use XML-ish wrappers by default.
+- An `AGENTS.md` MUST NOT start with `# AGENTS.md`, `# Agent reference`, a description of the file, or another filename/purpose preamble. Start with the first useful rule, scope statement, or meaningful section.
+- Normal brownfield root files SHOULD aim for roughly 20 lines or fewer. Nested files SHOULD aim for 1–10 lines. Treat 40+ normal repo lines as suspicious and 100+ as misplaced documentation unless strong context proves otherwise.
+- Optimize for machine reading: compact bullets and unambiguous fragments are preferable to explanatory prose. Do not add warmth, sales language, or reader onboarding.
+- Do not restate stack facts, ordinary commands, folder names, or behavior cheaply visible in code and configuration.
+- Include a command only when its selection, timing, wrapper, exception, or danger is non-obvious and changes agent behavior.
+- Use RFC 2119 capitals (`MUST`, `SHOULD`, `REQUIRED`) sparingly and deliberately.
+- Do not add frontmatter or XML-like wrappers unless the target harness explicitly requires them.
 
-## Inputs expected
+## AGENTS.md versus README
 
-- Target path or repo/folder scope.
-- Desired mode: audit, suggest, draft, rewrite, split, or create missing root guidance.
-- Project type when known: greenfield, brownfield, nested, or personal/global.
-- User intent, preferences, or comments about tone/strictness.
+- `README.md` is human-facing: project purpose, installation, usage, examples, public configuration, and publishable explanation.
+- `AGENTS.md` is agent-facing: non-obvious intent, modification constraints, architecture boundaries, hazards, and scoped edge cases.
+- Put contributor detail, long runbooks, architecture explanation, and reference material in appropriate docs. Point from `AGENTS.md` only when the pointer changes what the agent should load or do.
+- Do not rewrite a README as terse agent policy or an `AGENTS.md` as human onboarding.
 
-If the target or project type is unclear, inspect briefly and infer. Ask only when the edit direction or blast radius is ambiguous.
+## Inputs
 
-## Workflow
+- target path or requested scope
+- mode: audit, suggest, create, edit, prune, split, or maintain
+- user direction about tone, policy, permissions, or strictness when supplied
 
-1. **Scope the work.**
-   - Identify whether the target is repo-level, nested, greenfield, brownfield, or personal/global.
-   - Stay inside the user-requested scope. Do not wander into unrelated dependencies or archives just because they contain AGENTS.md.
-
-2. **Inspect only what matters.**
-   - Read existing AGENTS.md files in scope and nearest parent/child scopes when relevant.
-   - Read README/package/Cargo/build files only enough to find non-obvious commands, boundaries, and hazards.
-   - Use targeted search for repeated patterns instead of copying repo documentation.
-
-3. **Classify useful content.**
-   - Keep rules that change agent behaviour.
-   - Drop generic language, obvious stack summaries, motivational filler, duplicated docs, and stale boilerplate.
-   - Preserve founder/product intent when the project is greenfield and the code cannot express it yet.
-
-4. **Suggest before editing.**
-   - Present proposed changes as a short list or compact draft.
-   - Explain what will be removed, kept, or added.
-   - Wait for user direction unless the user already asked for direct edits.
-
-5. **Edit if approved or explicitly requested.**
-   - Prefer editing existing AGENTS.md over creating duplicates.
-   - For nested files, write only the local delta.
-   - For bloated files, compress first; suggest splitting runbook/spec material into docs only when needed.
-
-6. **Validate the result.**
-   - Scoped, short, non-verbose, actionable.
-   - No duplication of obvious codebase facts.
-   - Root and nested files do not repeat each other.
-
-## Variant guidance
-
-### Repo-level brownfield
-
-Include only non-obvious deltas:
-
-- direction not encoded in code
-- non-negotiables agents might violate
-- verification exceptions, not obvious package scripts
-- architecture seams agents are likely to bypass
-- nested AGENTS / skill / doc routing
-
-Template:
-
-```md
-# AGENTS.md
-
-- <Non-obvious project direction or current migration state>.
-- <MUST/SHOULD non-negotiable agents are likely to violate>.
-- <Verification exception: command, when to run, or what not to run>.
-- <Architecture seam: use X, do not bypass Y>.
-- <Nested AGENTS / skill / doc routing if relevant>.
-```
-
-### Nested folder
-
-Use for local edge cases:
-
-- folder ownership
-- import/public API boundary
-- generated/frozen/stable area rules
-- platform/tool wrappers
-- “do not put X here” traps
-- “load X skill/doc first” pointers
-
-Template:
-
-```md
-# <Folder/module> rules
-
-- This folder owns <specific responsibility>.
-- Public access goes through <path/import/API>.
-- Keep internal imports/changes inside <boundary>.
-- Do not put <wrong concern> here.
-- Load/read <skill/doc> before changing <area>.
-```
-
-### Greenfield
-
-Can be prose. A founder/developer braindump is valid when it carries mission, product taste, anti-goals, and direction that the codebase cannot contain yet. Generic corporate inspiration is not useful.
-
-Template:
-
-```md
-# AGENTS.md
-
-This project is early. <Mission / product taste / what this should become>.
-
-- Optimize for <goal> over <non-goal>.
-- Avoid <premature complexity> until repeated patterns appear.
-- <What “good” feels like>.
-- <What not to waste time on yet>.
-- <Known starting paths, if any>.
-```
-
-### Personal/global
-
-Can be longer. It may include communication style, permission boundaries, memory, collaboration preferences, and identity. Do not copy personal guidance into project repos.
-
-Template:
-
-```md
-# Personal agent guidance
-
-## Communication
-- <How to answer this user.>
+Infer project type and scope from the workspace when clear. Ask only when user-controlled direction or edit scope is genuinely ambiguous.
 
 ## Workflow
-- <How to plan, ask, commit, finish.>
 
-## Boundaries
-- <What requires explicit approval.>
+1. **Establish scope.**
+   - Identify root, nested, greenfield, brownfield, or personal/global context.
+   - Read existing applicable `AGENTS.md` files and nearby parent or child files relevant to the requested scope.
+   - Do not wander into dependencies, archives, generated trees, or unrelated scopes merely because they contain instruction files.
 
-## Memory / continuity
-- <What to remember and where.>
-```
+2. **Gather only load-bearing evidence.**
+   - Inspect code, config, package metadata, and docs only enough to verify boundaries, hazards, non-obvious workflow choices, and stale claims.
+   - Prefer repository truth over inherited prose.
+   - Do not copy discoveries that future agents can recover immediately from normal inspection.
 
-## Length defaults
+3. **Sort content by audience and scope.**
+   - Keep stable rules that change agent decisions.
+   - Move human-facing explanation to README/docs.
+   - Keep local deltas nested; do not repeat root guidance.
+   - Preserve greenfield product intent and personal collaboration guidance when code cannot encode them.
 
-- Nested local file: 1–10 lines.
-- Normal repo/brownfield root: up to ~20 lines.
-- Greenfield/founder note: may be longer if it carries product intent.
-- Personal/global file: may be longer if it carries relationship and operating style.
-- Over ~40 lines for a normal repo: suspicious; trim hard.
-- Over ~100 lines: probably docs/spec/runbook content.
+4. **Match the requested action.**
+   - For review, audit, or planning requests: inspect and report; do not edit.
+   - For create, fix, rewrite, prune, or update requests: make the in-scope edit directly.
+   - Discuss first only when changing ambiguous root/global policy, personal preferences, permission boundaries, or other user-authored direction.
 
-## Compression moves
+5. **Write or revise.**
+   - Integrate new knowledge into the smallest relevant rule; replace stale guidance instead of appending history.
+   - Prefer editing an existing file over creating parallel guidance.
+   - Preserve meaningful intent while deleting generic reminders, obvious facts, duplicated docs, and obsolete instructions.
+   - Use `references/agents-md-guide.md` for variant-specific decisions when creating or substantially restructuring a file.
 
-- Delete stack facts already visible in package/config files.
-- Replace paragraphs with direct bullets.
-- Replace “always be careful” with the specific forbidden action.
-- Replace copied docs with a pointer plus the decision rule.
-- Move local edge cases into nested AGENTS.md.
-- Keep RFC2119 caps only for true non-negotiables.
+6. **Validate.**
+   - Every line changes agent behavior, preserves intent, or routes to necessary context.
+   - Scope is correct; root and nested files do not repeat each other.
+   - Terse wording remains unambiguous.
+   - Paths, constraints, and non-obvious commands match current repository truth.
+   - No filename heading, purpose preamble, task diary, or human-facing README copy remains.
 
-## Scoring rubric
+## Nested maintenance
 
-Score out of 20:
+Treat nested `AGENTS.md` as future-agent orientation for that subtree. During related work, update it directly when ownership, boundaries, generated areas, wrappers, hazards, or recurring local edge cases change. Remove invalidated rules in the same pass. Record current durable truth, not what happened during the task.
 
-1. Local specificity / 5 — unique to this repo/folder/person.
-2. Actionability / 5 — commands, paths, boundaries, forbidden moves, or clear intent.
-3. Non-verbosity / 4 — compact rules; no prose unless prose carries intent.
-4. Source-of-truth hygiene / 3 — links or points instead of duplicating docs/code.
-5. Scope fit / 3 — repo, nested, greenfield, brownfield, or personal style matches the file.
+Treat root, global, and personal files as stronger user-controlled policy surfaces. Direct requests authorize edits; otherwise preserve ambiguous direction and ask before changing it.
 
-## Output contract
+## Output
 
-For audits or suggestions, return:
-
-- score or quality signal
-- what to keep
-- what to remove/compress
-- proposed replacement or bullet-level diff
-- questions only where user intent is genuinely needed
-
-For edits, return:
-
-- changed path(s)
-- brief summary of what changed
-- any follow-up decisions left to the user
+- Audits: concise findings, useful retained rules, removals, and proposed wording; scoring only when requested or materially useful for comparison.
+- Edits: changed paths, brief rationale, and unresolved user decisions only when any remain.
