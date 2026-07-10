@@ -34,6 +34,9 @@ async function completeSummary(
 	config: ResolvedReviewConfig,
 	prompt: string,
 ): Promise<AssistantMessage> {
+	const signal = ctx.signal;
+	if (signal?.aborted) throw new Error("Summary model was aborted");
+
 	const parsed = config.summary.modelParsed;
 	const model = ctx.modelRegistry.find(parsed.provider, parsed.modelId);
 	if (!model)
@@ -66,8 +69,17 @@ async function completeSummary(
 		sessionManager: SessionManager.inMemory(ctx.cwd),
 		settingsManager,
 	});
+	let abortPromise: Promise<void> | undefined;
+	const abortSummary = () => {
+		abortPromise ??= session.abort();
+	};
+	signal?.addEventListener("abort", abortSummary, { once: true });
 
 	try {
+		if (signal?.aborted) {
+			abortSummary();
+			throw new Error("Summary model was aborted");
+		}
 		await session.prompt(prompt, {
 			expandPromptTemplates: false,
 			source: "extension",
@@ -83,6 +95,8 @@ async function completeSummary(
 		}
 		return response;
 	} finally {
+		signal?.removeEventListener("abort", abortSummary);
+		await abortPromise;
 		session.dispose();
 	}
 }

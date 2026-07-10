@@ -63,6 +63,41 @@ function responseStream(options: SimpleStreamOptions | undefined) {
 	return { stream, options };
 }
 
+function abortedResponseStream(
+	options: SimpleStreamOptions | undefined,
+	onStart: () => void,
+) {
+	const stream = createAssistantMessageEventStream();
+	const message: AssistantMessage = {
+		role: "assistant",
+		content: [],
+		api: API,
+		provider: PROVIDER,
+		model: "summary-model",
+		usage: {
+			input: 0,
+			output: 0,
+			cacheRead: 0,
+			cacheWrite: 0,
+			totalTokens: 0,
+			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+		},
+		stopReason: "aborted",
+		timestamp: Date.now(),
+	};
+	options?.signal?.addEventListener(
+		"abort",
+		() => {
+			stream.push({ type: "start", partial: message });
+			stream.push({ type: "done", reason: "aborted", message });
+			stream.end();
+		},
+		{ once: true },
+	);
+	onStart();
+	return stream;
+}
+
 async function summarizeWithAuth(
 	authStorage: AuthStorage,
 	authConfig: Pick<
@@ -176,4 +211,63 @@ test("resolves OAuth provider auth", async () => {
 
 	expect(result.summary).toBe("Review context summary");
 	expect(result.receivedOptions?.apiKey).toBe("oauth-access-token");
+});
+
+test("aborts an in-flight summary when the review is cancelled", async () => {
+	const controller = new AbortController();
+	let markStarted: () => void = () => {};
+	const started = new Promise<void>((resolve) => {
+		markStarted = resolve;
+	});
+	registry = ModelRegistry.inMemory(AuthStorage.inMemory());
+	registry.registerProvider(PROVIDER, {
+		baseUrl: "https://summary.invalid/v1",
+		api: API,
+		apiKey: "configured-key",
+		streamSimple(_model, _context, options) {
+			return abortedResponseStream(options, markStarted);
+		},
+		models: [
+			{
+				id: "summary-model",
+				name: "Summary Model",
+				reasoning: true,
+				input: ["text"],
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+				contextWindow: 128_000,
+				maxTokens: 4_096,
+			},
+		],
+	});
+
+	const sessionManager = SessionManager.inMemory(process.cwd());
+	sessionManager.appendMessage({
+		role: "user",
+		content: "Please review this change",
+		timestamp: Date.now(),
+	});
+	const ctx = {
+		cwd: process.cwd(),
+		modelRegistry: registry,
+		sessionManager,
+		signal: controller.signal,
+	} as unknown as ExtensionCommandContext;
+	const config: ResolvedReviewConfig = {
+		model: `${PROVIDER}/summary-model`,
+		thinking: "medium",
+		source: "configured",
+		summary: {
+			enabled: true,
+			model: `${PROVIDER}/summary-model`,
+			modelParsed: { provider: PROVIDER, modelId: "summary-model" },
+			thinking: "low",
+			source: "configured",
+		},
+	};
+
+	const summary = buildReviewConversationSummary(ctx, config);
+	await started;
+	controller.abort();
+
+	await expect(summary).rejects.toThrow("Summary model was aborted");
 });
