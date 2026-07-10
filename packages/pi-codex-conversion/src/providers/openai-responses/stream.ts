@@ -271,15 +271,18 @@ export async function processResponsesStream<TApi extends Api>(
 			const response = event.response;
 			if (response?.id) output.responseId = response.id;
 			if (response?.usage) {
-				const cachedTokens = response.usage.input_tokens_details?.cached_tokens || 0;
+				const inputDetails = response.usage.input_tokens_details as { cached_tokens?: number; cache_write_tokens?: number } | undefined;
+				const cachedTokens = inputDetails?.cached_tokens || 0;
+				const cacheWriteTokens = inputDetails?.cache_write_tokens || 0;
 				output.usage = {
-					input: (response.usage.input_tokens || 0) - cachedTokens,
+					input: Math.max(0, (response.usage.input_tokens || 0) - cachedTokens - cacheWriteTokens),
 					output: response.usage.output_tokens || 0,
 					cacheRead: cachedTokens,
-					cacheWrite: 0,
+					cacheWrite: cacheWriteTokens,
 					totalTokens: response.usage.total_tokens || 0,
 					cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
 				};
+				(output.usage as { reasoning?: number }).reasoning = response.usage.output_tokens_details?.reasoning_tokens || 0;
 			}
 			calculateCost(model, output.usage);
 			if (options?.applyServiceTierPricing) {

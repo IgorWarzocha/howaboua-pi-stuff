@@ -6,13 +6,15 @@ import { migrateCodexConversionConfigIfNeeded } from "./config-migration.ts";
 export type CodexVerbosity = "low" | "medium" | "high";
 export type CodexAdapterMode = "normal" | "path";
 export type AllProvidersMode = "off" | "on" | "extras";
-export type CompactionModel = "gpt-5.5" | "gpt-5.3-codex-spark" | "gpt-5.4-mini";
-export type WebSearchModel = "gpt-5.5" | "gpt-5.4-mini" | "gpt-5.3-codex-spark";
-export type CompactionReasoning = "current" | "minimal" | "low" | "medium" | "high" | "xhigh";
+export type HelperModel = "gpt-5.6-luna" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.5" | "gpt-5.4-mini" | "gpt-5.3-codex-spark";
+export type CompactionModel = HelperModel;
+export type WebSearchModel = HelperModel;
+export type CompactionReasoning = "current" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 
-export const COMPACTION_MODELS: readonly CompactionModel[] = ["gpt-5.5", "gpt-5.3-codex-spark", "gpt-5.4-mini"];
-export const WEB_SEARCH_MODELS: readonly WebSearchModel[] = ["gpt-5.5", "gpt-5.4-mini", "gpt-5.3-codex-spark"];
-export const COMPACTION_REASONING_LEVELS: readonly CompactionReasoning[] = ["current", "minimal", "low", "medium", "high", "xhigh"];
+export const HELPER_MODELS: readonly HelperModel[] = ["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.5", "gpt-5.4-mini", "gpt-5.3-codex-spark"];
+export const COMPACTION_MODELS: readonly CompactionModel[] = HELPER_MODELS;
+export const WEB_SEARCH_MODELS: readonly WebSearchModel[] = HELPER_MODELS;
+export const COMPACTION_REASONING_LEVELS: readonly CompactionReasoning[] = ["current", "minimal", "low", "medium", "high", "xhigh", "max"];
 
 export interface CodexConversionConfig {
 	mode: CodexAdapterMode;
@@ -67,8 +69,8 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 		fast: false,
 		verbosity: "low",
 		forceCachedWebSockets: true,
-		webSearchModel: "gpt-5.4-mini",
-		compactionModel: "gpt-5.4-mini",
+		webSearchModel: "gpt-5.6-luna",
+		compactionModel: "gpt-5.6-luna",
 		compactionReasoning: "current",
 	},
 };

@@ -70,7 +70,7 @@ function resolveOpenAICodexAuthModel(ctx: ExtensionContext): Model<any> | undefi
 	const currentId = ctx.model?.id;
 	const direct = currentId ? registry.find?.(OPENAI_CODEX_PROVIDER, currentId) : undefined;
 	if (isUsableOpenAICodexModel(direct)) return direct;
-	const preferred = ["gpt-5.4-mini", "gpt-5.5", "gpt-5.3-codex-spark"]
+	const preferred = ["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.5", "gpt-5.4-mini", "gpt-5.3-codex-spark"]
 		.map((id) => registry.find?.(OPENAI_CODEX_PROVIDER, id))
 		.find((model): model is Model<any> => isUsableOpenAICodexModel(model));
 	if (preferred) return preferred;

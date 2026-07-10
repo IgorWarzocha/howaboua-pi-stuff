@@ -3,6 +3,11 @@ import type { AcquiredWebSocket, ProviderEnv, SessionWebSocketCacheEntry } from 
 import { closeWebSocketSilently, connectWebSocket, isWebSocketReusable } from "./websocket-connection.ts";
 
 const websocketSessionCache = new Map<string, SessionWebSocketCacheEntry>();
+const SESSION_WEBSOCKET_MAX_AGE_MS = 55 * 60 * 1000;
+
+function isWebSocketSessionExpired(entry: SessionWebSocketCacheEntry): boolean {
+	return Date.now() - entry.createdAt >= SESSION_WEBSOCKET_MAX_AGE_MS;
+}
 
 function scheduleSessionWebSocketExpiry(cacheKey: string, entry: SessionWebSocketCacheEntry): void {
 	if (entry.idleTimer) {
@@ -67,7 +72,10 @@ export async function acquireWebSocket(
 			cached.idleTimer = undefined;
 		}
 
-		if (!cached.busy && isWebSocketReusable(cached.socket)) {
+		if (!cached.busy && isWebSocketSessionExpired(cached)) {
+			closeWebSocketSilently(cached.socket, 1000, "connection_age_limit");
+			websocketSessionCache.delete(sessionId);
+		} else if (!cached.busy && isWebSocketReusable(cached.socket)) {
 			cached.busy = true;
 			return {
 				socket: cached.socket,
@@ -103,7 +111,7 @@ export async function acquireWebSocket(
 	}
 
 	const socket = await connectWebSocket(url, headers, signal, connectTimeoutMs, env);
-	const entry: SessionWebSocketCacheEntry = { socket, busy: true };
+	const entry: SessionWebSocketCacheEntry = { socket, busy: true, createdAt: Date.now() };
 	websocketSessionCache.set(sessionId, entry);
 	return {
 		socket,

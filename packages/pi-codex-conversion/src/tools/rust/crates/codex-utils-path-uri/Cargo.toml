@@ -1,0 +1,23 @@
+[package]
+name = "codex-utils-path-uri"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+base64 = { workspace = true }
+codex-utils-absolute-path = { workspace = true }
+schemars = "0.8.22"
+serde = { workspace = true }
+thiserror = { workspace = true }
+ts-rs = { workspace = true }
+url = { workspace = true }
+urlencoding = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+serde_json = { workspace = true }
+
+[lib]
+path = "lib.rs"
+doctest = false

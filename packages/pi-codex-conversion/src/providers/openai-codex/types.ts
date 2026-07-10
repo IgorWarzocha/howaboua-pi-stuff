@@ -16,6 +16,7 @@ export interface WebSocketConstructorLike {
 export interface SessionWebSocketCacheEntry {
 	socket: WebSocketLike;
 	busy: boolean;
+	createdAt: number;
 	idleTimer?: ReturnType<typeof setTimeout> | undefined;
 	continuation?: CachedWebSocketContinuationState | undefined;
 }
@@ -51,7 +52,7 @@ export interface CachedWebSocketRequestBodyResult {
 export type ServiceTier = ResponseCreateParamsStreaming["service_tier"];
 export type ProviderEnv = Record<string, string>;
 export type CodexProviderStreamOptions = SimpleStreamOptions & { serviceTier?: ServiceTier | undefined; textVerbosity?: string | undefined; reasoningSummary?: string | undefined };
-export type CodexReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+export type CodexReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 export type OpenAICodexStreamOptions = CodexProviderStreamOptions & {
 	reasoningEffort?: CodexReasoningEffort | undefined;
 	websocketConnectTimeoutMs?: number | undefined;
@@ -87,7 +88,8 @@ export interface ResponseEnvelope {
 		input_tokens?: number | undefined;
 		output_tokens?: number | undefined;
 		total_tokens?: number | undefined;
-		input_tokens_details?: { cached_tokens?: number | undefined } | undefined;
+		input_tokens_details?: { cached_tokens?: number | undefined; cache_write_tokens?: number | undefined } | undefined;
+		output_tokens_details?: { reasoning_tokens?: number | undefined } | undefined;
 	} | undefined;
 	service_tier?: string | undefined;
 	error?: { message?: string | undefined } | undefined;

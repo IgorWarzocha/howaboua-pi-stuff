@@ -14,8 +14,9 @@ path = "main.rs"
 
 [dependencies]
 anyhow = { workspace = true }
-codex-exec-server = { path = "../../rust/crates/codex-exec-server" }
+codex-exec-server = { package = "pi-apply-patch-fs", path = "../../rust/crates/pi-apply-patch-fs" }
 codex-utils-absolute-path = { workspace = true }
+codex-utils-path-uri = { workspace = true }
 serde_json = { workspace = true }
 similar = { workspace = true }
 thiserror = { workspace = true }

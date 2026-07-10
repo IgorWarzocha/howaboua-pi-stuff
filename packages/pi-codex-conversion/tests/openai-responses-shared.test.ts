@@ -138,6 +138,39 @@ test("processResponsesStream keeps interleaved message items separate by output 
 	);
 });
 
+test("processResponsesStream records cache writes and reasoning tokens", async () => {
+	const output = createAssistantOutput();
+	await processResponsesStream(
+		asAsyncIterable([{
+			type: "response.completed",
+			response: {
+				id: "resp_usage",
+				status: "completed",
+				usage: {
+					input_tokens: 20,
+					output_tokens: 8,
+					total_tokens: 28,
+					input_tokens_details: { cached_tokens: 5, cache_write_tokens: 3 },
+					output_tokens_details: { reasoning_tokens: 6 },
+				},
+			},
+		}]) as AsyncIterable<any>,
+		output as any,
+		{ push: () => undefined } as any,
+		model,
+	);
+
+	assert.deepEqual(output.usage, {
+		input: 12,
+		output: 8,
+		cacheRead: 5,
+		cacheWrite: 3,
+		reasoning: 6,
+		totalTokens: 28,
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+	});
+});
+
 test("processResponsesStream preserves image generation calls for later Responses turns", async () => {
 	const output = createAssistantOutput();
 	const rawImageItem = {

@@ -1,5 +1,5 @@
 [package]
-name = "codex-exec-server"
+name = "pi-apply-patch-fs"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -7,6 +7,11 @@ license.workspace = true
 [dependencies]
 async-trait = { workspace = true }
 codex-utils-absolute-path = { workspace = true }
+codex-utils-path-uri = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+tokio = { workspace = true }
 
 [lib]
 path = "lib.rs"

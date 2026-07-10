@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { zstdDecompressSync } from "node:zlib";
 import {
 	buildRequestBody,
 	buildCachedWebSocketRequestBody,
@@ -38,6 +39,10 @@ function sseResponse(events: unknown[]): Response {
 		status: 200,
 		headers: { "content-type": "text/event-stream" },
 	});
+}
+
+function requestBodyText(init: RequestInit): string {
+	return init.body instanceof Uint8Array ? zstdDecompressSync(init.body).toString("utf8") : String(init.body);
 }
 
 async function collectStream(stream: AsyncIterable<unknown>): Promise<unknown[]> {
@@ -158,14 +163,15 @@ test("registered Codex provider retries retryable SSE failures and streams the f
 		assert.equal(fetchCalls[0]!.url, "https://chatgpt.example/backend-api/codex/responses");
 		assert.equal((fetchCalls[1]!.init.headers as Headers).get("session-id"), "session-1");
 		assert.equal((fetchCalls[1]!.init.headers as Headers).get("chatgpt-account-id"), "acct_1");
-		assert.equal(JSON.parse(fetchCalls[1]!.init.body as string).instructions, "Instructions");
+		assert.equal((fetchCalls[1]!.init.headers as Headers).get("content-encoding"), "zstd");
+		assert.equal(JSON.parse(requestBodyText(fetchCalls[1]!.init)).instructions, "Instructions");
 		assert.deepEqual(onResponses.map((response) => (response as { status: number }).status), [500, 200]);
 		assert.equal(events.some((event) => (event as { type?: string }).type === "start"), true);
 		assert.equal(events.some((event) => (event as { type?: string; delta?: string }).type === "text_delta" && (event as { delta?: string }).delta === "Hello"), true);
 		assert.equal(done.type, "done");
 		assert.equal(done.message.responseId, "resp_1");
 		assert.deepEqual(done.message.content, [{ type: "text", text: "Hello", textSignature: JSON.stringify({ v: 1, id: "msg_1" }) }]);
-		assert.deepEqual(done.message.usage, { input: 7, output: 3, cacheRead: 5, cacheWrite: 0, totalTokens: 15, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } });
+		assert.deepEqual(done.message.usage, { input: 7, output: 3, cacheRead: 5, cacheWrite: 0, reasoning: 0, totalTokens: 15, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } });
 	} finally {
 		globalThis.fetch = originalFetch;
 	}

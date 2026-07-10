@@ -9,7 +9,8 @@ members = [
   "rust/crates/codex-utils-image",
   "rust/crates/codex-utils-pty",
   "rust/crates/codex-utils-absolute-path",
-  "rust/crates/codex-exec-server",
+  "rust/crates/codex-utils-path-uri",
+  "rust/crates/pi-apply-patch-fs",
 ]
 resolver = "2"
 
@@ -25,6 +26,7 @@ async-trait = "0.1"
 base64 = "0.22.1"
 chrono = "0.4"
 codex-utils-absolute-path = { path = "rust/crates/codex-utils-absolute-path" }
+codex-utils-path-uri = { path = "rust/crates/codex-utils-path-uri" }
 codex-utils-cache = { path = "rust/crates/codex-utils-cache" }
 codex-utils-image = { path = "rust/crates/codex-utils-image" }
 codex-utils-pty = { path = "rust/crates/codex-utils-pty" }
@@ -55,6 +57,8 @@ tree-sitter = "0.25"
 tree-sitter-bash = "0.25"
 ts-rs = { version = "11", features = ["serde-json-impl", "no-serde-warnings"] }
 uuid = { version = "1", features = ["v4"] }
+url = "2"
+urlencoding = "2"
 
 [profile.release]
 strip = true

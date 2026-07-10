@@ -14,7 +14,7 @@ use serde_json::json;
 use std::env;
 
 const DEFAULT_BASE_URL: &str = "https://chatgpt.com/backend-api/codex";
-const DEFAULT_MODEL: &str = "gpt-5.4-mini";
+const DEFAULT_MODEL: &str = "gpt-5.6-luna";
 const DEFAULT_ORIGINATOR: &str = "codex_cli_rs";
 
 #[tokio::main]

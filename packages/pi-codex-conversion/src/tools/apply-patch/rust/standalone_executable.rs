@@ -3,6 +3,7 @@ use std::io::Write;
 use std::path::Path;
 
 use codex_utils_absolute_path::AbsolutePathBuf;
+use codex_utils_path_uri::PathUri;
 use serde_json::json;
 
 use crate::AppliedPatchDelta;
@@ -55,13 +56,14 @@ pub fn run_main() -> i32 {
 
     let mut stdout = std::io::stdout();
     let mut stderr = std::io::stderr();
-    let cwd = match codex_utils_absolute_path::AbsolutePathBuf::current_dir() {
+    let native_cwd = match codex_utils_absolute_path::AbsolutePathBuf::current_dir() {
         Ok(cwd) => cwd,
         Err(err) => {
             eprintln!("Error: Failed to determine current directory.\n{err}");
             return 1;
         }
     };
+    let cwd = PathUri::from_abs_path(&native_cwd);
     let runtime = match tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -83,7 +85,7 @@ pub fn run_main() -> i32 {
     )) {
         Ok(delta) => {
             if json_output {
-                let _ = write_json_result(&mut stdout, "success", None, &cwd, &delta);
+                let _ = write_json_result(&mut stdout, "success", None, &native_cwd, &delta);
             }
             // Flush to ensure output ordering when used in pipelines.
             let _ = stdout.flush();
@@ -93,7 +95,8 @@ pub fn run_main() -> i32 {
             if json_output {
                 let message = error.to_string();
                 let (_, delta) = error.into_parts();
-                let _ = write_json_result(&mut stdout, "failure", Some(&message), &cwd, &delta);
+                let _ =
+                    write_json_result(&mut stdout, "failure", Some(&message), &native_cwd, &delta);
                 let _ = stdout.flush();
             }
             1
@@ -174,7 +177,9 @@ fn summarize_delta(cwd: &AbsolutePathBuf, delta: &AppliedPatchDelta) -> DeltaSum
                 new_content,
             } => {
                 push_unique(&mut changed_files, path.clone());
-                let move_path_display = move_path.as_ref().map(|move_path| display_path(cwd, move_path));
+                let move_path_display = move_path
+                    .as_ref()
+                    .map(|move_path| display_path(cwd, move_path));
                 if let Some(move_path) = &move_path_display {
                     push_unique(&mut changed_files, move_path.clone());
                     push_unique(&mut deleted_files, path.clone());

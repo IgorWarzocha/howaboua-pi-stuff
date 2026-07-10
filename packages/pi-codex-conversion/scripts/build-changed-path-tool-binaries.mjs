@@ -2,7 +2,7 @@
 import { spawnSync } from "node:child_process";
 
 const tools = [
-	{ key: "apply-patch", packageName: "codex-apply-patch", binName: "apply_patch", script: "build:apply-patch", roots: ["src/tools/apply-patch/rust/", "src/tools/rust/crates/codex-exec-server/", "src/tools/rust/crates/codex-utils-absolute-path/"] },
+	{ key: "apply-patch", packageName: "codex-apply-patch", binName: "apply_patch", script: "build:apply-patch", roots: ["src/tools/apply-patch/rust/", "src/tools/rust/crates/pi-apply-patch-fs/", "src/tools/rust/crates/codex-utils-absolute-path/", "src/tools/rust/crates/codex-utils-path-uri/"] },
 	{ key: "exec", packageName: "codex-exec-shim", binName: "exec_bridge", script: "build:path-tool", roots: ["src/tools/exec/rust/", "src/tools/rust/crates/codex-utils-pty/"] },
 	{ key: "view-image", packageName: "codex-view-image", binName: "view_image", script: "build:path-tool", roots: ["src/tools/view-image/rust/", "src/tools/rust/crates/codex-utils-cache/", "src/tools/rust/crates/codex-utils-image/"] },
 	{ key: "web-run", packageName: "codex-web-run", binName: "web_run", script: "build:path-tool", roots: ["src/tools/web-run/rust/"] },

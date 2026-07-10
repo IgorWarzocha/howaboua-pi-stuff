@@ -14,7 +14,7 @@ import { BASE_DELAY_MS, DEFAULT_SSE_HEADER_TIMEOUT_MS, MAX_RETRIES } from "./ope
 import { createErrorMessage, isRetryableError, NonRetryableProviderError, parseErrorResponse } from "./openai-codex/errors.ts";
 import { createCodexRequestId, extractAccountId, buildSSEHeaders, buildWebSocketHeaders, headersToRecord, resolveCodexUrl, resolveCodexWebSocketUrl } from "./openai-codex/headers.ts";
 import { buildRequestBody } from "./openai-codex/request-body.ts";
-import { combineAbortSignals, createSSEHeaderTimeout, parseSSE, sleep } from "./openai-codex/sse.ts";
+import { combineAbortSignals, compressRequestBodyZstd, createSSEHeaderTimeout, parseSSE, sleep } from "./openai-codex/sse.ts";
 import type { CodexProviderStreamOptions, OpenAICodexStreamOptions, ResponsesBody } from "./openai-codex/types.ts";
 import { createInitialAssistantMessage } from "./openai-codex/types.ts";
 import { finalizeUsage } from "./openai-codex/usage.ts";
@@ -75,6 +75,9 @@ function createCodexStream<TApi extends Api>(
 			const sseHeaders = buildSSEHeaders(model.headers, effectiveOptions?.headers, accountId, apiKey, effectiveOptions?.sessionId);
 			const websocketHeaders = buildWebSocketHeaders(model.headers, effectiveOptions?.headers, accountId, apiKey, websocketRequestId);
 			const bodyJson = JSON.stringify(body);
+			const compressedBody = compressRequestBodyZstd(bodyJson);
+			if (compressedBody) sseHeaders.set("content-encoding", "zstd");
+			const sseBody = compressedBody ?? bodyJson;
 			const transport = effectiveOptions.transport ?? "auto";
 
 			if (transport !== "sse") {
@@ -132,7 +135,7 @@ function createCodexStream<TApi extends Api>(
 						response = await fetch(resolveCodexUrl(model.baseUrl), {
 							method: "POST",
 							headers: sseHeaders,
-							body: bodyJson,
+							body: sseBody,
 							signal: combinedSignal.signal,
 						});
 					} catch (error) {

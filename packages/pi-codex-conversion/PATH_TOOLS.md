@@ -29,6 +29,10 @@ Rust owns command execution. TypeScript owns Pi integration:
 
 Use `src/tools/path/runner.ts` when TypeScript needs to run a bundled binary directly.
 
+### Updating apply_patch
+
+`bun run sync:apply-patch-source -- <path-to-openai-codex>` refreshes the apply-patch engine, path-uri, and absolute-path Rust sources from one clean Codex commit. Pi's structured-output CLI adapter remains in `standalone_executable.rs`; local-only filesystem behavior lives in `src/tools/rust/crates/pi-apply-patch-fs/`. Sandbox contexts are rejected there instead of being removed from upstream engine code.
+
 Bundled binaries live beside each tool:
 
 ```txt

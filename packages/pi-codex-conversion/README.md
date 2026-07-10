@@ -104,7 +104,7 @@ Advanced users with custom Codex-compatible providers can add provider ids in Ge
 }
 ```
 
-**Tools** shows required adapter behavior and optional web/image/apply-patch prompt features. **OpenAI** controls fast mode, verbosity, cached WebSocket upgrade, web search model, and compaction model/reasoning. Web search defaults to `gpt-5.4-mini`.
+**Tools** shows required adapter behavior and optional web/image/apply-patch prompt features. **OpenAI** controls fast mode, verbosity, cached WebSocket upgrade, web search model, and compaction model/reasoning. Web search and compaction default to `gpt-5.6-luna`.
 
 The footer shows the active state, for example:
 

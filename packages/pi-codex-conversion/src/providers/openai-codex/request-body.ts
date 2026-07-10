@@ -60,7 +60,8 @@ export function buildRequestBody<TApi extends Api>(model: Model<TApi>, context: 
 	const clampedReasoning = options?.reasoning ? clampThinkingLevel(model, options.reasoning) : undefined;
 	const reasoningEffort = options?.reasoningEffort ?? (clampedReasoning === "off" ? undefined : clampedReasoning);
 	if (reasoningEffort !== undefined) {
-		const effort = reasoningEffort === "none" ? (model.thinkingLevelMap?.off ?? "none") : (model.thinkingLevelMap?.[reasoningEffort] ?? reasoningEffort);
+		const thinkingLevelMap = model.thinkingLevelMap as Record<string, string | null | undefined> | undefined;
+		const effort = reasoningEffort === "none" ? (thinkingLevelMap?.["off"] ?? "none") : (thinkingLevelMap?.[reasoningEffort] ?? reasoningEffort);
 		if (effort === null) return body;
 		body.reasoning = {
 			effort: clampReasoningEffort(model.id, effort),

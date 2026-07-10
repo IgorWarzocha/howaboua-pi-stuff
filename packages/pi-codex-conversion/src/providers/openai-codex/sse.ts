@@ -1,4 +1,24 @@
+import type * as NodeZlib from "node:zlib";
 import type { StreamEventShape } from "./types.ts";
+
+const REQUEST_COMPRESSION_ZSTD_LEVEL = 3;
+
+type ProcessWithBuiltinModule = typeof process & {
+	getBuiltinModule?: (id: "node:zlib") => typeof NodeZlib;
+};
+
+export function compressRequestBodyZstd(bodyJson: string): Uint8Array | null {
+	const zlib = (process as ProcessWithBuiltinModule).getBuiltinModule?.("node:zlib");
+	if (!zlib || typeof zlib.zstdCompressSync !== "function") return null;
+	try {
+		const compressed = zlib.zstdCompressSync(bodyJson, {
+			params: { [zlib.constants.ZSTD_c_compressionLevel]: REQUEST_COMPRESSION_ZSTD_LEVEL },
+		});
+		return new Uint8Array(compressed.buffer, compressed.byteOffset, compressed.byteLength);
+	} catch {
+		return null;
+	}
+}
 
 export function sleep(ms: number, signal: AbortSignal | undefined): Promise<void> {
 	return new Promise((resolve, reject) => {
