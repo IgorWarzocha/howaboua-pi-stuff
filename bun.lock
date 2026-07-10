@@ -39,8 +39,8 @@
         "typescript": "^5.9.3",
       },
       "peerDependencies": {
-        "@earendil-works/pi-ai": "*",
-        "@earendil-works/pi-coding-agent": "*",
+        "@earendil-works/pi-ai": ">=0.80.6",
+        "@earendil-works/pi-coding-agent": ">=0.80.6",
       },
     },
     "packages/pi-auto-trees": {
@@ -100,9 +100,9 @@
         "typescript": "^6.0.3",
       },
       "peerDependencies": {
-        "@earendil-works/pi-ai": "*",
-        "@earendil-works/pi-coding-agent": "*",
-        "@earendil-works/pi-tui": "*",
+        "@earendil-works/pi-ai": ">=0.80.6",
+        "@earendil-works/pi-coding-agent": ">=0.80.6",
+        "@earendil-works/pi-tui": ">=0.80.6",
         "typebox": "*",
       },
     },
@@ -245,10 +245,10 @@
         "typescript": "^5.9.3",
       },
       "peerDependencies": {
-        "@earendil-works/pi-agent-core": "*",
-        "@earendil-works/pi-ai": "*",
-        "@earendil-works/pi-coding-agent": "*",
-        "@earendil-works/pi-tui": "*",
+        "@earendil-works/pi-agent-core": ">=0.80.6",
+        "@earendil-works/pi-ai": ">=0.80.6",
+        "@earendil-works/pi-coding-agent": ">=0.80.6",
+        "@earendil-works/pi-tui": ">=0.80.6",
       },
     },
     "packages/pi-stuff": {
@@ -291,8 +291,8 @@
         "typescript": "^5.9.3",
       },
       "peerDependencies": {
-        "@earendil-works/pi-ai": "*",
-        "@earendil-works/pi-coding-agent": "*",
+        "@earendil-works/pi-ai": ">=0.80.6",
+        "@earendil-works/pi-coding-agent": ">=0.80.6",
       },
     },
     "packages/pi-vent": {
