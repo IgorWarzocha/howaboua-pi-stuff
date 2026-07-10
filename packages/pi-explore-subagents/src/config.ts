@@ -15,7 +15,7 @@ import type {
 	UsageStats,
 } from "./types.js";
 
-function normalizeConfig(
+export function normalizeConfig(
 	parsed: ExploreConfig | undefined,
 	fallback: Required<ExploreConfig>,
 ): Required<ExploreConfig> {

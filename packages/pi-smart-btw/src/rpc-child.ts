@@ -1,11 +1,7 @@
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
+import { StringDecoder } from "node:string_decoder";
 import { modelRef, readConfig } from "./config.js";
-import {
-	POLL_MS,
-	QUIET_MS,
-	READY_TIMEOUT,
-	RESPONSE_TIMEOUT,
-} from "./constants.js";
+import { READY_TIMEOUT, RESPONSE_TIMEOUT } from "./constants.js";
 import type { ChildDetails } from "./types.js";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -25,6 +21,7 @@ export class BtwChild {
 	private proc: ChildProcessWithoutNullStreams;
 	private requestId = 0;
 	private stdoutBuffer = "";
+	private readonly stdoutDecoder = new StringDecoder("utf8");
 	private pending = new Map<
 		string,
 		{
@@ -33,9 +30,12 @@ export class BtwChild {
 			timeout: ReturnType<typeof setTimeout>;
 		}
 	>();
-	private lastEventAt = Date.now();
-	private agentEndCount = 0;
-	private lastAgentMessages: any[] = [];
+	private settledCount = 0;
+	private settleWaiters = new Set<{
+		after: number;
+		resolve: () => void;
+		reject: (error: Error) => void;
+	}>();
 	private currentPartial = "";
 	private onPartial: ((text: string) => void) | undefined;
 	private closed = false;
@@ -71,7 +71,7 @@ export class BtwChild {
 			stdio: ["pipe", "pipe", "pipe"],
 			env: { ...process.env, PI_SMART_BTW_CHILD: "1" },
 		});
-		this.proc.stdout.on("data", (chunk) => this.onStdout(chunk.toString()));
+		this.proc.stdout.on("data", (chunk) => this.onStdout(chunk));
 		this.proc.stderr.on("data", (chunk) => {
 			this.details.stderr += chunk.toString();
 			this.onUpdate?.();
@@ -79,11 +79,17 @@ export class BtwChild {
 		this.proc.on("close", (code) => {
 			this.closed = true;
 			this.exitCode = code ?? 0;
-			this.rejectAll(new Error(`btw child exited with code ${this.exitCode}`));
+			this.flushStdout();
+			const error = new Error(`btw child exited with code ${this.exitCode}`);
+			this.rejectAll(error);
+			this.rejectSettlementWaiters(error);
 		});
-		this.proc.on("error", (error) =>
-			this.rejectAll(error instanceof Error ? error : new Error(String(error))),
-		);
+		this.proc.on("error", (error) => {
+			const processError =
+				error instanceof Error ? error : new Error(String(error));
+			this.rejectAll(processError);
+			this.rejectSettlementWaiters(processError);
+		});
 	}
 
 	async ready() {
@@ -97,30 +103,31 @@ export class BtwChild {
 		onPartial?: (text: string) => void,
 		promptMessage?: string,
 	) {
-		const before = this.agentEndCount;
+		const before = this.settledCount;
 		const beforeMessages = this.details.messages.length;
-		this.lastAgentMessages = [];
 		this.currentPartial = "";
 		this.onPartial = onPartial;
-		await this.send({
-			type: "prompt",
-			message:
-				promptMessage ??
-				[
-					"Answer the user's question directly.",
-					"Use available tools only if they are needed to answer accurately.",
-					"Be concise unless the question requires detail.",
-					`Question: ${question}`,
-				].join("\n\n"),
-			streamingBehavior: "followUp",
-		});
-		await this.waitForAnswer(before);
-		this.onPartial = undefined;
-		return (
-			getFinalOutput(this.lastAgentMessages) ||
-			getFinalOutput(this.details.messages.slice(beforeMessages)) ||
-			this.currentPartial
-		).trim();
+		try {
+			await this.send({
+				type: "prompt",
+				message:
+					promptMessage ??
+					[
+						"Answer the user's question directly.",
+						"Use available tools only if they are needed to answer accurately.",
+						"Be concise unless the question requires detail.",
+						`Question: ${question}`,
+					].join("\n\n"),
+				streamingBehavior: "followUp",
+			});
+			await this.waitForSettlement(before);
+			return (
+				getFinalOutput(this.details.messages.slice(beforeMessages)) ||
+				this.currentPartial
+			).trim();
+		} finally {
+			this.onPartial = undefined;
+		}
 	}
 
 	async stop() {
@@ -134,15 +141,18 @@ export class BtwChild {
 		]);
 	}
 
-	private async waitForAnswer(beforeCount: number) {
-		while (!this.closed) {
-			await sleep(POLL_MS);
-			const quiet = Date.now() - this.lastEventAt >= QUIET_MS;
-			if (this.agentEndCount > beforeCount && quiet) return;
+	private waitForSettlement(after: number): Promise<void> {
+		if (this.settledCount > after) return Promise.resolve();
+		if (this.closed) {
+			return Promise.reject(
+				new Error(
+					`btw child closed.${this.details.stderr ? ` Stderr: ${this.details.stderr.trim()}` : ""}`,
+				),
+			);
 		}
-		throw new Error(
-			`btw child closed.${this.details.stderr ? ` Stderr: ${this.details.stderr.trim()}` : ""}`,
-		);
+		return new Promise<void>((resolve, reject) => {
+			this.settleWaiters.add({ after, resolve, reject });
+		});
 	}
 
 	private send<T = unknown>(
@@ -174,11 +184,24 @@ export class BtwChild {
 		});
 	}
 
-	private onStdout(chunk: string) {
-		this.stdoutBuffer += chunk;
+	private onStdout(chunk: Buffer) {
+		this.stdoutBuffer += this.stdoutDecoder.write(chunk);
 		const lines = this.stdoutBuffer.split("\n");
 		this.stdoutBuffer = lines.pop() ?? "";
-		for (const line of lines) this.handleLine(line);
+		for (const line of lines)
+			this.handleLine(line.endsWith("\r") ? line.slice(0, -1) : line);
+	}
+
+	private flushStdout() {
+		this.stdoutBuffer += this.stdoutDecoder.end();
+		if (this.stdoutBuffer.trim()) {
+			this.handleLine(
+				this.stdoutBuffer.endsWith("\r")
+					? this.stdoutBuffer.slice(0, -1)
+					: this.stdoutBuffer,
+			);
+		}
+		this.stdoutBuffer = "";
 	}
 
 	private handleLine(line: string) {
@@ -190,8 +213,7 @@ export class BtwChild {
 			return;
 		}
 		if (this.handleResponse(data)) return;
-		this.lastEventAt = Date.now();
-		if (data.type === "agent_end") this.handleAgentEnd(data);
+		if (data.type === "agent_settled") this.handleAgentSettled();
 		if (data.type === "message_end" && data.message)
 			this.handleMessageEnd(data.message);
 		if (data.type === "message_update") this.handleMessageUpdate(data);
@@ -217,9 +239,13 @@ export class BtwChild {
 		return true;
 	}
 
-	private handleAgentEnd(data: any) {
-		this.agentEndCount++;
-		this.lastAgentMessages = Array.isArray(data.messages) ? data.messages : [];
+	private handleAgentSettled() {
+		this.settledCount++;
+		for (const waiter of this.settleWaiters) {
+			if (this.settledCount <= waiter.after) continue;
+			this.settleWaiters.delete(waiter);
+			waiter.resolve();
+		}
 	}
 
 	private handleMessageUpdate(event: any) {
@@ -258,5 +284,10 @@ export class BtwChild {
 			p.reject(error);
 		}
 		this.pending.clear();
+	}
+
+	private rejectSettlementWaiters(error: Error) {
+		for (const waiter of this.settleWaiters) waiter.reject(error);
+		this.settleWaiters.clear();
 	}
 }

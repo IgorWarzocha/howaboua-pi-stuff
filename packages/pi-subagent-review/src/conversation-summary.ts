@@ -1,120 +1,90 @@
-import type {
-	Api,
-	AssistantMessage,
-	AssistantMessageEventStream,
-	Context,
-	Model,
-	SimpleStreamOptions,
-} from "@earendil-works/pi-ai";
-import * as piAiRuntime from "@earendil-works/pi-ai";
-import type {
-	ExtensionCommandContext,
-	SessionEntry,
+import type { AssistantMessage } from "@earendil-works/pi-ai";
+import {
+	createAgentSession,
+	DefaultResourceLoader,
+	type ExtensionCommandContext,
+	getAgentDir,
+	type SessionEntry,
+	SessionManager,
+	SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 import type { ResolvedReviewConfig } from "./types.js";
 
-type RegisteredProviderConfig = {
-	api?: Api;
-	authHeader?: boolean;
-	streamSimple?: (
-		model: Model<Api>,
-		context: Context,
-		options?: SimpleStreamOptions,
-	) => AssistantMessageEventStream;
-};
+const SUMMARY_SYSTEM_PROMPT =
+	"Summarize supplied conversation context for a separate code-review agent. Follow the user's summary format exactly and do not use tools.";
 
-type ModelRegistryInternals = {
-	providerRequestConfigs?: Map<
-		string,
-		Pick<RegisteredProviderConfig, "authHeader">
-	>;
-	registeredProviders?: Map<string, RegisteredProviderConfig>;
-};
-
-type PiAiRuntime = {
-	completeSimple(
-		model: Model<Api>,
-		context: Context,
-		options?: SimpleStreamOptions,
-	): Promise<AssistantMessage>;
-};
-
-const { completeSimple: completeWithPiRuntime } =
-	piAiRuntime as unknown as PiAiRuntime;
-
-function getModelRegistryInternals(
-	modelRegistry: ExtensionCommandContext["modelRegistry"],
-): ModelRegistryInternals {
-	return modelRegistry as unknown as ModelRegistryInternals;
+function lastAssistantMessage(
+	messages: readonly unknown[],
+): AssistantMessage | undefined {
+	for (let index = messages.length - 1; index >= 0; index--) {
+		const message = messages[index];
+		if (
+			message &&
+			typeof message === "object" &&
+			(message as { role?: unknown }).role === "assistant"
+		) {
+			return message as AssistantMessage;
+		}
+	}
+	return undefined;
 }
 
-function getRegisteredStreamSimple(
-	modelRegistry: ExtensionCommandContext["modelRegistry"],
-	model: Model<Api>,
-): RegisteredProviderConfig["streamSimple"] {
-	const providerConfig = getModelRegistryInternals(
-		modelRegistry,
-	).registeredProviders?.get(model.provider);
-	if (providerConfig?.api !== model.api) return undefined;
-	return providerConfig.streamSimple;
-}
-
-function isMissingApiKeyError(error: string, provider: string): boolean {
-	return error === `No API key found for "${provider}"`;
-}
-
-async function getSummaryOptions(
+async function completeSummary(
 	ctx: ExtensionCommandContext,
-	model: Model<Api>,
 	config: ResolvedReviewConfig,
-): Promise<SimpleStreamOptions> {
-	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
-	const fallbackApiKey =
-		auth.ok && auth.apiKey
-			? undefined
-			: await ctx.modelRegistry.getApiKeyForProvider(model.provider);
-	if (!auth.ok && !isMissingApiKeyError(auth.error, model.provider)) {
-		throw new Error(`Summary model unavailable: ${auth.error}`);
-	}
-	if (!auth.ok && !fallbackApiKey) {
-		throw new Error(`Summary model unavailable: ${auth.error}`);
-	}
-
-	let headers = auth.ok ? auth.headers : undefined;
-	if (
-		fallbackApiKey &&
-		getModelRegistryInternals(ctx.modelRegistry).providerRequestConfigs?.get(
-			model.provider,
-		)?.authHeader
-	) {
-		headers = { ...headers, Authorization: `Bearer ${fallbackApiKey}` };
-	}
-
-	const options: SimpleStreamOptions = {};
-	const apiKey = auth.ok && auth.apiKey ? auth.apiKey : fallbackApiKey;
-	const env = auth.ok
-		? auth.env
-		: ctx.modelRegistry.authStorage.getProviderEnv(model.provider);
-	if (apiKey) options.apiKey = apiKey;
-	if (headers) options.headers = headers;
-	if (env) options.env = env;
-	if (model.reasoning && config.summary.thinking !== "off") {
-		options.reasoning = config.summary.thinking;
-	}
-	if (ctx.signal) options.signal = ctx.signal;
-	return options;
-}
-
-async function completeSummaryWithModelApi(
-	model: Model<Api>,
-	context: Context,
-	options: SimpleStreamOptions,
-	registeredStreamSimple: RegisteredProviderConfig["streamSimple"],
+	prompt: string,
 ): Promise<AssistantMessage> {
-	if (registeredStreamSimple) {
-		return registeredStreamSimple(model, context, options).result();
+	const parsed = config.summary.modelParsed;
+	const model = ctx.modelRegistry.find(parsed.provider, parsed.modelId);
+	if (!model)
+		throw new Error(`Summary model not found: ${config.summary.model}`);
+
+	const settingsManager = SettingsManager.inMemory({
+		compaction: { enabled: false },
+	});
+	const resourceLoader = new DefaultResourceLoader({
+		cwd: ctx.cwd,
+		agentDir: getAgentDir(),
+		settingsManager,
+		noExtensions: true,
+		noSkills: true,
+		noPromptTemplates: true,
+		noThemes: true,
+		noContextFiles: true,
+		systemPrompt: SUMMARY_SYSTEM_PROMPT,
+	});
+	await resourceLoader.reload();
+
+	const { session } = await createAgentSession({
+		cwd: ctx.cwd,
+		model,
+		thinkingLevel: config.summary.thinking,
+		authStorage: ctx.modelRegistry.authStorage,
+		modelRegistry: ctx.modelRegistry,
+		noTools: "all",
+		resourceLoader,
+		sessionManager: SessionManager.inMemory(ctx.cwd),
+		settingsManager,
+	});
+
+	try {
+		await session.prompt(prompt, {
+			expandPromptTemplates: false,
+			source: "extension",
+		});
+		const response = lastAssistantMessage(session.messages);
+		if (!response)
+			throw new Error("Summary model returned no assistant message");
+		if (response.stopReason === "error") {
+			throw new Error(response.errorMessage || "Summary model failed");
+		}
+		if (response.stopReason === "aborted") {
+			throw new Error("Summary model was aborted");
+		}
+		return response;
+	} finally {
+		session.dispose();
 	}
-	return completeWithPiRuntime(model, context, options);
 }
 
 function textFromContent(content: unknown): string {
@@ -221,25 +191,10 @@ export async function buildReviewConversationSummary(
 	const conversation = buildSummaryInput(ctx.sessionManager.getBranch());
 	if (!conversation.trim()) return undefined;
 
-	const parsed = config.summary.modelParsed;
-	const model = ctx.modelRegistry.find(parsed.provider, parsed.modelId);
-	if (!model)
-		throw new Error(`Summary model not found: ${config.summary.model}`);
-	const options = await getSummaryOptions(ctx, model, config);
-
-	const response = await completeSummaryWithModelApi(
-		model,
-		{
-			messages: [
-				{
-					role: "user" as const,
-					content: [{ type: "text" as const, text: buildPrompt(conversation) }],
-					timestamp: Date.now(),
-				},
-			],
-		},
-		options,
-		getRegisteredStreamSimple(ctx.modelRegistry, model),
+	const response = await completeSummary(
+		ctx,
+		config,
+		buildPrompt(conversation),
 	);
 
 	const summary = response.content

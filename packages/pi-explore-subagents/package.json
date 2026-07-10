@@ -17,8 +17,9 @@
 		"biome.json"
 	],
 	"scripts": {
-		"check": "bun run lint && bun run typecheck",
+		"check": "bun run lint && bun run typecheck && bun run test",
 		"prepack": "bun run check",
+		"test": "bun test",
 		"typecheck": "tsgo --noEmit",
 		"lint": "biome check .",
 		"format": "biome check --write ."
@@ -27,9 +28,9 @@
 		"access": "public"
 	},
 	"devDependencies": {
-		"@earendil-works/pi-ai": "0.80.1",
-		"@earendil-works/pi-coding-agent": "0.80.1",
-		"@earendil-works/pi-tui": "0.80.1",
+		"@earendil-works/pi-ai": "0.80.6",
+		"@earendil-works/pi-coding-agent": "0.80.6",
+		"@earendil-works/pi-tui": "0.80.6",
 		"@types/node": "^25.9.1",
 		"typebox": "1.1.38",
 		"typescript": "^6.0.3",

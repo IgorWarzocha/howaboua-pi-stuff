@@ -17,11 +17,21 @@ import type {
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
 const NATIVE_COMPACTION_STRATEGY = "openai-native-compact-v1";
+type ThinkingLevel = ReturnType<ExtensionAPI["getThinkingLevel"]>;
+const THINKING_LEVELS = new Set<ThinkingLevel>([
+	"off",
+	"minimal",
+	"low",
+	"medium",
+	"high",
+	"xhigh",
+	"max",
+]);
 
 type Config = {
 	enabled: boolean;
 	model: string;
-	thinking?: "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
+	thinking?: ThinkingLevel;
 	inboxPath: string;
 	prompt?: string;
 	timeoutMs: number;
@@ -108,6 +118,20 @@ function writeDefaultConfig(path: string, config: Config): void {
 	writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`, "utf8");
 }
 
+export function normalizeThinkingLevel(
+	value: unknown,
+	fallback: ThinkingLevel = "low",
+): ThinkingLevel {
+	return typeof value === "string" &&
+		THINKING_LEVELS.has(value as ThinkingLevel)
+		? (value as ThinkingLevel)
+		: fallback;
+}
+
+export function shouldDistillOnShutdown(reason: string): boolean {
+	return reason === "quit";
+}
+
 function loadConfig(): Config {
 	const base = defaultConfig();
 	const path = configPath();
@@ -116,8 +140,12 @@ function loadConfig(): Config {
 		return base;
 	}
 	try {
-		const raw = JSON.parse(readFileSync(path, "utf8"));
-		return { ...base, ...raw };
+		const raw = JSON.parse(readFileSync(path, "utf8")) as Partial<Config>;
+		return {
+			...base,
+			...raw,
+			thinking: normalizeThinkingLevel(raw.thinking, base.thinking),
+		};
 	} catch {
 		return base;
 	}
@@ -259,8 +287,7 @@ function runPiMemorySession(args: {
 		"--model",
 		args.config.model,
 	];
-	if (args.config.thinking && args.config.thinking !== "off")
-		cliArgs.push("--thinking", args.config.thinking);
+	if (args.config.thinking) cliArgs.push("--thinking", args.config.thinking);
 	if (!args.config.includeProjectContext) cliArgs.push("--no-context-files");
 	cliArgs.push("-p", "Run the shutdown memory distiller now.");
 
@@ -316,8 +343,9 @@ function appendInbox(
 export default function piMemories(pi: ExtensionAPI) {
 	loadConfig();
 
-	pi.on("session_shutdown", async (_event, ctx) => {
+	pi.on("session_shutdown", async (event, ctx) => {
 		if (process.env["PI_MEMORIES_CHILD"] === "1") return;
+		if (!shouldDistillOnShutdown(event.reason)) return;
 		const config = loadConfig();
 		if (!config.enabled) return;
 		logDebug(config, `shutdown cwd=${ctx.cwd}`);

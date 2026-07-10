@@ -4,8 +4,6 @@ export const LEGACY_MESSAGE_TYPE = "smart-btw-result";
 
 export const READY_TIMEOUT = 10_000;
 export const RESPONSE_TIMEOUT = 30_000;
-export const QUIET_MS = 500;
-export const POLL_MS = 150;
 
 export const NUMBERED_SESSION_PATTERN = /^(\d+)(?:\s+(.*))?$/u;
 export const MAX_BTW_SESSIONS = 9;

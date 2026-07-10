@@ -2,7 +2,6 @@ import type {
 	ExtensionAPI,
 	ExtensionCommandContext,
 	ExtensionContext,
-	SessionEntry,
 } from "@earendil-works/pi-coding-agent";
 import { Box, Text } from "@earendil-works/pi-tui";
 import { ensureConfig, readConfig } from "./src/config.js";
@@ -44,17 +43,21 @@ function activate(state: BtwState, ctx: ExtensionContext) {
 	const branch = ctx.sessionManager.getBranch();
 	restoreStateFromMessages(
 		state,
-		branch
-			.filter(
-				(entry): entry is Extract<SessionEntry, { type: "custom_message" }> =>
-					entry.type === "custom_message",
-			)
-			.filter((entry) => isBtwContextMessage(entry))
-			.map((entry) => ({
-				customType: entry.customType,
-				details: entry.details,
-				content: entry.content,
-			})),
+		branch.flatMap((entry) => {
+			if (entry.type === "custom" && entry.customType === MESSAGE_TYPE) {
+				return [{ customType: entry.customType, details: entry.data }];
+			}
+			if (entry.type === "custom_message" && isBtwContextMessage(entry)) {
+				return [
+					{
+						customType: entry.customType,
+						details: entry.details,
+						content: entry.content,
+					},
+				];
+			}
+			return [];
+		}),
 	);
 }
 
@@ -252,12 +255,12 @@ function registerBtwCommand(pi: ExtensionAPI, state: BtwState) {
 	});
 }
 
-function renderBtwMessage(
-	message: { content?: unknown; details?: unknown },
-	_options: unknown,
+function renderBtwRecord(
+	detailsValue: unknown,
+	content: unknown,
 	theme: Parameters<Parameters<ExtensionAPI["registerMessageRenderer"]>[1]>[2],
 ) {
-	const details = (message.details ?? {}) as BtwMessageDetails;
+	const details = (detailsValue ?? {}) as BtwMessageDetails;
 	if (details.kind === "cleared") return undefined;
 	const box = new Box(1, 1, (value) => theme.bg("customMessageBg", value));
 	const label = details.label ?? MESSAGE_TYPE;
@@ -265,7 +268,7 @@ function renderBtwMessage(
 		? theme.fg("error", `${label} failed`)
 		: theme.fg("accent", label);
 	const question = details.question ?? "";
-	const body = details.answer ?? details.error ?? String(message.content ?? "");
+	const body = details.answer ?? details.error ?? String(content ?? "");
 	box.addChild(
 		new Text(
 			`${status} ${theme.fg("muted", "Q")} ${question}\n\n${body}`,
@@ -276,6 +279,22 @@ function renderBtwMessage(
 	return box;
 }
 
+function renderBtwMessage(
+	message: { content?: unknown; details?: unknown },
+	_options: unknown,
+	theme: Parameters<Parameters<ExtensionAPI["registerMessageRenderer"]>[1]>[2],
+) {
+	return renderBtwRecord(message.details, message.content, theme);
+}
+
+function renderBtwEntry(
+	entry: { data?: unknown },
+	_options: unknown,
+	theme: Parameters<Parameters<ExtensionAPI["registerEntryRenderer"]>[1]>[2],
+) {
+	return renderBtwRecord(entry.data, undefined, theme);
+}
+
 export default function (pi: ExtensionAPI) {
 	if (process.env["PI_SMART_BTW_CHILD"] === "1") return;
 	ensureConfig();
@@ -283,23 +302,27 @@ export default function (pi: ExtensionAPI) {
 
 	pi.registerMessageRenderer(MESSAGE_TYPE, renderBtwMessage);
 	pi.registerMessageRenderer(LEGACY_MESSAGE_TYPE, renderBtwMessage);
+	pi.registerEntryRenderer(MESSAGE_TYPE, renderBtwEntry);
 
+	// Old sessions stored display-only BTW state as model-facing custom messages.
+	// Keep only the read/filter path; new state uses custom entries.
 	pi.on("context", async (event) => {
-		restoreStateFromMessages(
-			state,
-			btwRestoreInputsFromAgentMessages(event.messages),
+		const legacyMessages = btwRestoreInputsFromAgentMessages(event.messages);
+		if (legacyMessages.length > 0)
+			restoreStateFromMessages(state, legacyMessages);
+		const messages = event.messages.filter(
+			(message) =>
+				!isBtwContextMessage(
+					message as {
+						role?: string;
+						customType?: string;
+						details?: unknown;
+					},
+				),
 		);
+		if (messages.length === event.messages.length) return undefined;
 		return {
-			messages: event.messages.filter(
-				(message) =>
-					!isBtwContextMessage(
-						message as {
-							role?: string;
-							customType?: string;
-							details?: unknown;
-						},
-					),
-			),
+			messages,
 		};
 	});
 

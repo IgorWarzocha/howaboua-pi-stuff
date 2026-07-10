@@ -1,89 +1,69 @@
-import {
-	type AssistantMessage,
-	isContextOverflow,
-	StringEnum,
-	Type,
-} from "@earendil-works/pi-ai";
+import { StringEnum, Type } from "@earendil-works/pi-ai";
 import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 
 type ToolReasoningLevel = "low" | "medium" | "high";
-type AppliedReasoningLevel = "off" | "minimal" | ToolReasoningLevel | "xhigh";
+type AppliedReasoningLevel = ReturnType<ExtensionAPI["getThinkingLevel"]>;
 
 type LastSelection = {
 	requestedLevel: ToolReasoningLevel;
 	appliedLevel: AppliedReasoningLevel;
 	previousLevel: AppliedReasoningLevel;
+	baselineLevel: AppliedReasoningLevel;
 };
 
 const TOOL_REASONING_LEVELS = ["low", "medium", "high"] as const;
-const FALLBACK_BASELINE_REASONING_LEVEL = "low" satisfies ToolReasoningLevel;
-const RETRYABLE_ERROR_PATTERNS = [
-	/\boverloaded\b/i,
-	/\brate.?limit(?:ed)?\b|\btoo many requests\b/i,
-	/\b(?:http(?: status)?|status|status code)[:= ]+(?:429|500|502|503|504)\b/i,
-	/\b(?:service.?unavailable|server.?error|internal.?error)\b/i,
-	/\b(?:network|connection).?error\b/i,
-	/\bconnection.?(?:refused|lost)\b/i,
-	/\bwebsocket.?(?:closed|error)\b/i,
-	/\bother side closed\b/i,
-	/\bfetch failed\b/i,
-	/\bupstream.?connect\b/i,
-	/\breset before headers\b/i,
-	/\bsocket hang up\b/i,
-	/\bended without\b/i,
-	/\bstream ended before message_stop\b/i,
-	/\bhttp2 request did not get a response\b/i,
-	/\btimed? out\b|\btimeout\b/i,
-	/\bterminated\b/i,
-	/\bretry delay\b/i,
-] as const;
+const REASONING_LEVELS = [
+	"off",
+	"minimal",
+	"low",
+	"medium",
+	"high",
+	"xhigh",
+	"max",
+] as const satisfies readonly AppliedReasoningLevel[];
+export function applyReasoningFloor(
+	requestedLevel: ToolReasoningLevel,
+	baselineLevel: AppliedReasoningLevel,
+): AppliedReasoningLevel {
+	return REASONING_LEVELS.indexOf(requestedLevel) <
+		REASONING_LEVELS.indexOf(baselineLevel)
+		? baselineLevel
+		: requestedLevel;
+}
 
 function formatModelNote(
 	ctx: ExtensionContext,
 	requestedLevel: ToolReasoningLevel,
 	appliedLevel: AppliedReasoningLevel,
+	effectiveLevel: AppliedReasoningLevel,
+	baselineLevel: AppliedReasoningLevel,
 ): string | undefined {
-	if (!ctx.model)
-		return "No model is selected yet; Pi may clamp this level after a model is selected.";
+	const notes: string[] = [];
+	if (effectiveLevel !== requestedLevel)
+		notes.push(
+			`Kept the user-selected ${baselineLevel} baseline instead of lowering it to ${requestedLevel}.`,
+		);
+	if (!ctx.model) {
+		notes.push(
+			"No model is selected yet; Pi may clamp this level after a model is selected.",
+		);
+		return notes.join("\n");
+	}
 	if (!ctx.model.reasoning && appliedLevel === "off") {
-		return `Current model ${ctx.model.provider}/${ctx.model.id} does not advertise reasoning support, so Pi clamped the level to off.`;
+		notes.push(
+			`Current model ${ctx.model.provider}/${ctx.model.id} does not advertise reasoning support, so Pi clamped the level to off.`,
+		);
+		return notes.join("\n");
 	}
-	if (requestedLevel !== appliedLevel) {
-		return `Pi clamped ${requestedLevel} to ${appliedLevel} for ${ctx.model.provider}/${ctx.model.id}.`;
+	if (effectiveLevel !== appliedLevel) {
+		notes.push(
+			`Pi clamped ${effectiveLevel} to ${appliedLevel} for ${ctx.model.provider}/${ctx.model.id}.`,
+		);
 	}
-	return undefined;
-}
-
-function isAssistantMessage(message: unknown): message is AssistantMessage {
-	return (
-		typeof message === "object" &&
-		message !== null &&
-		(message as { role?: unknown }).role === "assistant"
-	);
-}
-
-function getLastAssistantMessage(
-	messages: unknown[],
-): AssistantMessage | undefined {
-	for (let index = messages.length - 1; index >= 0; index--) {
-		const message = messages[index];
-		if (isAssistantMessage(message)) return message;
-	}
-	return undefined;
-}
-
-function isRetryableAssistantError(
-	message: AssistantMessage | undefined,
-	contextWindow: number | undefined,
-): boolean {
-	if (!message || message.stopReason !== "error" || !message.errorMessage)
-		return false;
-	if (isContextOverflow(message, contextWindow)) return false;
-	const { errorMessage } = message;
-	return RETRYABLE_ERROR_PATTERNS.some((pattern) => pattern.test(errorMessage));
+	return notes.length > 0 ? notes.join("\n") : undefined;
 }
 
 export default function autoReasoningSelector(pi: ExtensionAPI) {
@@ -93,11 +73,12 @@ export default function autoReasoningSelector(pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "change_reasoning",
 		label: "Change Reasoning",
-		description: "Change reasoning level.",
-		promptSnippet: "Change reasoning effort when task complexity changes.",
+		description:
+			"Temporarily adjust reasoning up to high without lowering below the user's turn baseline.",
+		promptSnippet: "Adjust reasoning effort within the user's safe baseline.",
 		promptGuidelines: [
-			"change_reasoning: You start on low by default; do not call with level=low unless lowering after a prior increase.",
-			"change_reasoning: You may change reasoning level during your turn if task complexity changes.",
+			"change_reasoning: Treat the user's current turn level as the baseline; call only to increase effort for harder work or return after an earlier increase.",
+			"change_reasoning: Autonomous choices are low, medium, and high; the extension never lowers below the user baseline or selects xhigh/max.",
 			"change_reasoning: Use sparingly; avoid standalone calls when another useful tool call can run in parallel.",
 			"change_reasoning: Use medium for complex single tasks, feature planning, or multi-step implementation.",
 			"change_reasoning: Use high for multi-area architecture work, hard debugging, or unexpectedly difficult tasks.",
@@ -108,23 +89,33 @@ export default function autoReasoningSelector(pi: ExtensionAPI) {
 			}),
 		}),
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+			const baselineLevel = turnBaselineReasoningLevel ?? pi.getThinkingLevel();
 			const previousLevel = pi.getThinkingLevel();
-			pi.setThinkingLevel(params.level);
+			const effectiveLevel = applyReasoningFloor(params.level, baselineLevel);
+			pi.setThinkingLevel(effectiveLevel);
 			const appliedLevel = pi.getThinkingLevel();
 
 			lastSelection = {
 				requestedLevel: params.level,
 				appliedLevel,
 				previousLevel,
+				baselineLevel,
 			};
 
-			const note = formatModelNote(ctx, params.level, appliedLevel);
+			const note = formatModelNote(
+				ctx,
+				params.level,
+				appliedLevel,
+				effectiveLevel,
+				baselineLevel,
+			);
 			return {
 				content: [
 					{
 						type: "text",
 						text: [
 							`Reasoning level: ${previousLevel} → ${appliedLevel}${params.level !== appliedLevel ? ` (requested ${params.level})` : ""}.`,
+							`Turn baseline: ${baselineLevel}.`,
 							"The new level applies to subsequent model calls.",
 							note,
 						]
@@ -138,21 +129,15 @@ export default function autoReasoningSelector(pi: ExtensionAPI) {
 	});
 
 	pi.on("before_agent_start", async () => {
-		turnBaselineReasoningLevel = pi.getThinkingLevel();
+		turnBaselineReasoningLevel ??= pi.getThinkingLevel();
 	});
 
 	pi.on("agent_start", async () => {
 		turnBaselineReasoningLevel ??= pi.getThinkingLevel();
 	});
 
-	pi.on("agent_end", async (event, ctx) => {
-		const lastAssistant = getLastAssistantMessage(event.messages);
-		if (isRetryableAssistantError(lastAssistant, ctx.model?.contextWindow)) {
-			return;
-		}
-
-		const levelToRestore =
-			turnBaselineReasoningLevel ?? FALLBACK_BASELINE_REASONING_LEVEL;
+	pi.on("agent_settled", async () => {
+		const levelToRestore = turnBaselineReasoningLevel ?? pi.getThinkingLevel();
 		turnBaselineReasoningLevel = undefined;
 		pi.setThinkingLevel(levelToRestore);
 	});

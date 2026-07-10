@@ -1,21 +1,43 @@
 import { existsSync } from "node:fs";
-import { type ExtensionAPI, keyHint } from "@earendil-works/pi-coding-agent";
+import {
+	type ExtensionAPI,
+	type ExtensionContext,
+	keyHint,
+} from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
-import { Type } from "typebox";
+import { type Static, Type } from "typebox";
 import { ensureConfig } from "./config.js";
 import { dbPathFor, openDb } from "./db.js";
 import { syncIndex } from "./indexer.js";
 import { denyReason, findProjectRoot } from "./root.js";
-import { formatMatches, searchDb } from "./search.js";
+import { formatMatches, type SearchMatch, searchDb } from "./search.js";
 
-function cwdFromCtx(ctx: any): string {
-	return ctx?.cwd ?? process.cwd();
+const semanticGrepSchema = Type.Object({
+	query: Type.String({ description: "Natural-language search query." }),
+	top_k: Type.Optional(
+		Type.Number({ description: "Maximum matches to return." }),
+	),
+});
+
+type SemanticGrepParams = Static<typeof semanticGrepSchema>;
+type SemanticGrepDetails = {
+	error?: string;
+	reason?: string;
+	root?: string;
+	dbFile?: string;
+	query?: string;
+	matches?: SearchMatch[];
+};
+
+function cwdFromCtx(ctx: ExtensionContext): string {
+	return ctx.cwd;
 }
 
 export default function semanticGrepExtension(pi: ExtensionAPI) {
 	ensureConfig();
+	let indexingController: AbortController | undefined;
 
-	pi.registerTool({
+	pi.registerTool<typeof semanticGrepSchema, SemanticGrepDetails>({
 		name: "semantic_grep",
 		label: "Semantic Grep",
 		description: "Search code and docs by meaning.",
@@ -26,13 +48,8 @@ export default function semanticGrepExtension(pi: ExtensionAPI) {
 			"semantic_grep: Inspect returned locations with file-reading tools before making precise claims or edits.",
 			"semantic_grep: Use exact text search instead when you need literal string occurrences.",
 		],
-		parameters: Type.Object({
-			query: Type.String({ description: "Natural-language search query." }),
-			top_k: Type.Optional(
-				Type.Number({ description: "Maximum matches to return." }),
-			),
-		}),
-		renderCall(args: any, theme: any, _context: any) {
+		parameters: semanticGrepSchema,
+		renderCall(args, theme) {
 			const query = typeof args.query === "string" ? args.query : "";
 			const shown = query.length > 90 ? `${query.slice(0, 87)}...` : query;
 			let text = theme.fg("toolTitle", theme.bold("semantic_grep "));
@@ -41,20 +58,20 @@ export default function semanticGrepExtension(pi: ExtensionAPI) {
 			return new Text(text, 0, 0);
 		},
 
-		renderResult(
-			result: any,
-			{ expanded, isPartial }: any,
-			theme: any,
-			_context: any,
-		) {
+		renderResult(result, { expanded, isPartial }, theme) {
 			if (isPartial)
 				return new Text(theme.fg("warning", "Searching semantic index…"), 0, 0);
-			if (result.details?.error)
+			if (result.details?.error) {
+				const errorText = result.content.find(
+					(item): item is { type: "text"; text: string } =>
+						item.type === "text",
+				)?.text;
 				return new Text(
-					theme.fg("error", result.content?.[0]?.text ?? result.details.error),
+					theme.fg("error", errorText ?? result.details.error),
 					0,
 					0,
 				);
+			}
 
 			const matches = result.details?.matches ?? [];
 			if (!matches.length)
@@ -82,11 +99,11 @@ export default function semanticGrepExtension(pi: ExtensionAPI) {
 		},
 
 		async execute(
-			_toolCallId: string,
-			params: any,
-			signal: AbortSignal,
-			_onUpdate: any,
-			ctx: any,
+			_toolCallId,
+			params: SemanticGrepParams,
+			signal,
+			_onUpdate,
+			ctx,
 		) {
 			const baseConfig = ensureConfig();
 			const root = findProjectRoot(cwdFromCtx(ctx), baseConfig);
@@ -140,7 +157,7 @@ export default function semanticGrepExtension(pi: ExtensionAPI) {
 		},
 	});
 
-	pi.on("session_start", async (_event: any, ctx: any) => {
+	pi.on("session_start", async (_event, ctx) => {
 		const baseConfig = ensureConfig();
 		if (!baseConfig.autoIndex.enabled) return;
 
@@ -164,6 +181,9 @@ export default function semanticGrepExtension(pi: ExtensionAPI) {
 		if (config.autoIndex.mode === "missing" && existsSync(dbFile)) return;
 		const forceFullRebuild = config.autoIndex.mode === "always";
 
+		indexingController?.abort();
+		const controller = new AbortController();
+		indexingController = controller;
 		const db = openDb(root);
 		ctx.ui.setStatus("semantic-grep", "indexing…");
 		try {
@@ -172,21 +192,28 @@ export default function semanticGrepExtension(pi: ExtensionAPI) {
 				root,
 				config,
 				forceFullRebuild,
-				undefined,
+				controller.signal,
 				(msg) => ctx.ui.setStatus("semantic-grep", msg),
 			);
 			ctx.ui.notify(
 				`Semantic grep synced ${stats.files} files: +${stats.added} ~${stats.changed} -${stats.deleted}, ${stats.unchanged} unchanged${stats.fullRebuild ? " (full rebuild)" : ""}`,
-				"success",
+				"info",
 			);
 		} catch (err) {
+			if (controller.signal.aborted) return;
 			ctx.ui.notify(
 				`Semantic grep indexing failed: ${err instanceof Error ? err.message : String(err)}`,
 				"error",
 			);
 		} finally {
-			ctx.ui.setStatus("semantic-grep", "");
+			if (indexingController === controller) indexingController = undefined;
+			ctx.ui.setStatus("semantic-grep", undefined);
 			db.close();
 		}
+	});
+
+	pi.on("session_shutdown", () => {
+		indexingController?.abort();
+		indexingController = undefined;
 	});
 }

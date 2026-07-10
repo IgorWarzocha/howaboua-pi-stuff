@@ -8,15 +8,16 @@
 		]
 	},
 	"scripts": {
-		"check": "bun run lint && bun run typecheck",
+		"check": "bun run lint && bun run typecheck && bun run test",
+		"test": "bun test",
 		"typecheck": "tsgo --noEmit",
 		"lint": "biome check .",
 		"format": "biome check --write ."
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.16",
-		"@earendil-works/pi-coding-agent": "0.80.1",
-		"@earendil-works/pi-tui": "0.80.1",
+		"@earendil-works/pi-coding-agent": "0.80.6",
+		"@earendil-works/pi-tui": "0.80.6",
 		"@types/node": "^25.9.1",
 		"typebox": "^1.1.38",
 		"typescript": "^5.9.3"

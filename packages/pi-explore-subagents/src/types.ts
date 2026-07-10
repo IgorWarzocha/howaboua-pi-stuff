@@ -1,12 +1,6 @@
-import type { Message } from "@earendil-works/pi-ai";
+import type { Message, ModelThinkingLevel } from "@earendil-works/pi-ai";
 
-export type ThinkingLevel =
-	| "off"
-	| "minimal"
-	| "low"
-	| "medium"
-	| "high"
-	| "xhigh";
+export type ThinkingLevel = ModelThinkingLevel;
 export type ExploreMode = "shallow" | "deep";
 
 export interface ExploreConfig {

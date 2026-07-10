@@ -1,14 +1,9 @@
+import type { ThinkingLevel as PiThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { Message } from "@earendil-works/pi-ai";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { BtwChild } from "./rpc-child.js";
 
-export type ThinkingLevel =
-	| "off"
-	| "minimal"
-	| "low"
-	| "medium"
-	| "high"
-	| "xhigh";
+export type ThinkingLevel = PiThinkingLevel;
 
 export interface BtwConfig {
 	provider: string;

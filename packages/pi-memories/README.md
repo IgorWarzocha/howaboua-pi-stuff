@@ -1,6 +1,6 @@
 # pi-memories
 
-A tiny Pi extension that writes memory candidates when a session ends.
+A tiny Pi extension that writes memory candidates when Pi exits.
 
 pi-memories expects you to use Pi's global `AGENTS.md` as your long-term memory file. If you do not have one yet, see [Recommended AGENTS.md setup](#recommended-agentsmd-setup).
 
@@ -10,7 +10,7 @@ You review the inbox later and decide what, if anything, belongs in `AGENTS.md`.
 
 ## How it works
 
-On `session_shutdown`, pi-memories collects the best context it can find:
+On an actual Pi shutdown (`session_shutdown` with reason `quit`), pi-memories collects the best context it can find. Reloading, switching, creating, or forking sessions does not run the memory worker.
 
 1. OpenAI native compaction blob, if the session has one.
 2. Normal Pi compaction summary, if the session has one.
@@ -76,7 +76,7 @@ Example:
 |---|---:|---|
 | `enabled` | `true` | Turn the extension on/off. |
 | `model` | `gpt-5.4` | Model used for the shutdown memory pass. |
-| `thinking` | `low` | Thinking level for the memory pass. Use `off`, `minimal`, `low`, `medium`, `high`, or `xhigh`. |
+| `thinking` | `low` | Thinking level for the memory pass. Use `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. |
 | `inboxPath` | `~/.pi/agent/memory-inbox.md` | Where memory candidates are appended. |
 | `timeoutMs` | `120000` | Max time to wait for the ephemeral Pi run. |
 | `includeProjectContext` | `true` | Keep project `AGENTS.md` / `CLAUDE.md` context. Set false to use only the explicit memory prompt. |

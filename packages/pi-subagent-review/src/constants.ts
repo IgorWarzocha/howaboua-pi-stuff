@@ -30,11 +30,10 @@ export const ALLOWED_THINKING = new Set([
 	"medium",
 	"high",
 	"xhigh",
+	"max",
 ] as const);
 export const RPC_READY_TIMEOUT_MS = 10_000;
 export const RPC_RESPONSE_TIMEOUT_MS = 30_000;
-export const RPC_POLL_MS = 150;
-export const RPC_QUIESCENCE_MS = 500;
 
 export function getAgentDir(): string {
 	const configured = process.env["PI_CODING_AGENT_DIR"]?.trim();

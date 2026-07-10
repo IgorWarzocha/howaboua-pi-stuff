@@ -1,13 +1,14 @@
 import { spawn } from "node:child_process";
+import { StringDecoder } from "node:string_decoder";
 import { createChildRunDetails, readConfig } from "./config.js";
 import {
 	CHILD_ENV,
 	MODE_SPECS,
-	RPC_POLL_MS,
-	RPC_QUIESCENCE_MS,
+	RPC_READY_TIMEOUT_MS,
+	RPC_RESPONSE_TIMEOUT_MS,
 	TOOL_LABEL,
 } from "./constants.js";
-import { getFinalOutput, getToolCalls, sleep } from "./messages.js";
+import { getFinalOutput, getToolCalls } from "./messages.js";
 import type { ExploreMode } from "./types.js";
 
 export async function runSubagent(
@@ -39,15 +40,20 @@ export async function runSubagent(
 		`Task: ${task}`,
 	].join("\n\n");
 
-	let lastEventAt = Date.now();
-	let agentEndCount = 0;
-	let promptSent = false;
 	let wasAborted = false;
 	let processClosed = false;
 	let processExitCode: number | undefined;
 	let requestId = 0;
 	let stoppedAfterCompletion = false;
 	let stdoutBuffer = "";
+	const stdoutDecoder = new StringDecoder("utf8");
+	let resolveSettled!: () => void;
+	let rejectSettled!: (error: Error) => void;
+	const settledPromise = new Promise<void>((resolve, reject) => {
+		resolveSettled = resolve;
+		rejectSettled = reject;
+	});
+	void settledPromise.catch(() => undefined);
 	const pendingRequests = new Map<
 		string,
 		{
@@ -100,6 +106,7 @@ export async function runSubagent(
 
 	const sendCommand = <T = unknown>(
 		command: Record<string, unknown>,
+		timeoutMs = RPC_RESPONSE_TIMEOUT_MS,
 	): Promise<T> => {
 		if (processClosed || !proc.stdin.writable) {
 			throw new Error(
@@ -111,18 +118,36 @@ export async function runSubagent(
 		const payload = JSON.stringify({ ...command, id }) + "\n";
 
 		return new Promise<T>((resolve, reject) => {
-			pendingRequests.set(id, { resolve, reject });
+			const timeout = setTimeout(() => {
+				pendingRequests.delete(id);
+				reject(
+					new Error(
+						`Timed out waiting for RPC response to ${String(command["type"])}.${details.stderr ? ` Stderr: ${details.stderr.trim()}` : ""}`,
+					),
+				);
+			}, timeoutMs);
+			pendingRequests.set(id, {
+				resolve: (value) => {
+					clearTimeout(timeout);
+					resolve(value);
+				},
+				reject: (error) => {
+					clearTimeout(timeout);
+					reject(error);
+				},
+			});
 			proc.stdin.write(payload, (error) => {
 				if (!error) return;
+				const pending = pendingRequests.get(id);
 				pendingRequests.delete(id);
-				reject(error instanceof Error ? error : new Error(String(error)));
+				pending?.reject(
+					error instanceof Error ? error : new Error(String(error)),
+				);
 			});
 		});
 	};
 
 	const handleEvent = (event: any) => {
-		lastEventAt = Date.now();
-
 		if (event.type === "message_end" && event.message) {
 			const message = event.message;
 			details.messages.push(message);
@@ -144,9 +169,7 @@ export async function runSubagent(
 			return;
 		}
 
-		if (event.type === "agent_end") {
-			agentEndCount++;
-		}
+		if (event.type === "agent_settled") resolveSettled();
 	};
 
 	const handleLine = (line: string) => {
@@ -186,14 +209,26 @@ export async function runSubagent(
 		if (processClosed) return;
 		stoppedAfterCompletion = true;
 		signalProcess("SIGTERM");
-		await new Promise<void>((resolve) => proc.once("close", () => resolve()));
+		await Promise.race([
+			new Promise<void>((resolve) => proc.once("close", () => resolve())),
+			new Promise<void>((resolve) =>
+				setTimeout(() => {
+					if (!processClosed) signalProcess("SIGKILL");
+					resolve();
+				}, 1_000),
+			),
+		]);
 	};
 
 	proc.stdout.on("data", (chunk) => {
-		stdoutBuffer += chunk.toString();
+		stdoutBuffer += stdoutDecoder.write(chunk);
 		const lines = stdoutBuffer.split("\n");
 		stdoutBuffer = lines.pop() || "";
-		for (const line of lines) handleLine(line);
+		for (const line of lines)
+			handleLine(line.endsWith("\r") ? line.slice(0, -1) : line);
+	});
+	proc.stdout.on("end", () => {
+		stdoutBuffer += stdoutDecoder.end();
 	});
 
 	proc.stderr.on("data", (chunk) => {
@@ -204,7 +239,9 @@ export async function runSubagent(
 		processClosed = true;
 		processExitCode = code ?? 0;
 		if (stdoutBuffer.trim()) {
-			handleLine(stdoutBuffer);
+			handleLine(
+				stdoutBuffer.endsWith("\r") ? stdoutBuffer.slice(0, -1) : stdoutBuffer,
+			);
 			stdoutBuffer = "";
 		}
 		rejectPendingRequests(
@@ -212,18 +249,28 @@ export async function runSubagent(
 				`Subagent RPC process exited with code ${processExitCode}.${details.stderr ? ` Stderr: ${details.stderr.trim()}` : ""}`,
 			),
 		);
+		if (!stoppedAfterCompletion) {
+			rejectSettled(
+				new Error(
+					`Subagent RPC process exited before agent_settled.${details.stderr ? ` Stderr: ${details.stderr.trim()}` : ""}`,
+				),
+			);
+		}
 	});
 
 	proc.on("error", (error) => {
-		rejectPendingRequests(
-			error instanceof Error ? error : new Error(String(error)),
-		);
+		const processError =
+			error instanceof Error ? error : new Error(String(error));
+		rejectPendingRequests(processError);
+		rejectSettled(processError);
 	});
 
 	const abort = async () => {
 		if (wasAborted) return;
 		wasAborted = true;
-		rejectPendingRequests(new Error(`${TOOL_LABEL} aborted`));
+		const error = new Error(`${TOOL_LABEL} aborted`);
+		rejectPendingRequests(error);
+		rejectSettled(error);
 
 		if (!processClosed && proc.stdin.writable) {
 			const id = `req_${++requestId}`;
@@ -237,53 +284,23 @@ export async function runSubagent(
 		signalProcess("SIGKILL");
 	};
 
+	const handleAbort = () => {
+		void abort();
+	};
 	if (signal) {
 		if (signal.aborted) await abort();
-		else
-			signal.addEventListener(
-				"abort",
-				() => {
-					void abort();
-				},
-				{ once: true },
-			);
+		else signal.addEventListener("abort", handleAbort, { once: true });
 	}
 
 	try {
-		await sendCommand({ type: "get_state" });
+		if (wasAborted) throw new Error(`${TOOL_LABEL} aborted`);
+		await sendCommand({ type: "get_state" }, RPC_READY_TIMEOUT_MS);
 		await sendCommand({ type: "set_auto_compaction", enabled: true });
 		await sendCommand({ type: "set_auto_retry", enabled: true });
 		await sendCommand({ type: "prompt", message: promptText });
-		promptSent = true;
-
-		while (true) {
-			if (wasAborted || processClosed) break;
-
-			await sleep(RPC_POLL_MS);
-
-			let state: {
-				isStreaming: boolean;
-				isCompacting: boolean;
-				pendingMessageCount: number;
-			};
-			try {
-				state = await sendCommand({ type: "get_state" });
-			} catch (error) {
-				if (processClosed) break;
-				throw error;
-			}
-
-			const isIdle =
-				!state.isStreaming &&
-				!state.isCompacting &&
-				state.pendingMessageCount === 0;
-			const isQuiet = Date.now() - lastEventAt >= RPC_QUIESCENCE_MS;
-
-			if (promptSent && agentEndCount > 0 && isIdle && isQuiet) {
-				break;
-			}
-		}
+		await settledPromise;
 	} finally {
+		signal?.removeEventListener("abort", handleAbort);
 		await stopProcess();
 	}
 

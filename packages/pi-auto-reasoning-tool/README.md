@@ -2,13 +2,15 @@
 
 A small [Pi](https://pi.dev) package that lets agents adjust their own reasoning level with a `change_reasoning` tool.
 
-The tool is intentionally minimal: the agent directly chooses `low`, `medium`, or `high`, and the extension calls Pi's `setThinkingLevel` API. No scoring rubric, no UI, no commands.
+The tool is intentionally minimal: the agent chooses `low`, `medium`, or `high`. The user's level at the start of the turn is the floor, so an agent can spend more effort but cannot quietly reduce a user-selected `high`, `xhigh`, or `max` level.
 
-After every successful/non-retryable agent run, the extension restores reasoning to the session's starting level. Retryable transport/provider failures keep the current level so Pi's auto-retry does not accidentally drop the agent back to the baseline.
+Pi restores the original level after the full run settles, including retries, overflow compaction, and queued continuations.
 
 ## Why
 
-Pi already supports reasoning levels. This package exposes a narrow agent-callable tool so the agent can raise or lower its budget when a prompt or in-progress discovery actually needs it, while returning to the user's starting level afterward.
+Pi already supports reasoning levels. This package exposes a narrow agent-callable tool so the agent can raise its budget when work becomes harder, return after an earlier increase, and then hand control back to the user's baseline.
+
+Agents cannot select `xhigh` or `max`. Users can still select either level themselves, and the extension preserves it.
 
 The prompt is conservative: agents are told to use the tool sparingly and preferably in parallel with other useful tool calls, avoiding standalone reasoning-change turns.
 
@@ -45,33 +47,33 @@ level: low | medium | high
 Behavior:
 
 1. Agent chooses `level`.
-2. Extension calls `pi.setThinkingLevel(level)`.
-3. Tool result reports the previous and applied level.
-4. If Pi clamps the requested level because of model capability, the result says so.
-5. On the first `agent_start`, the extension captures the session's starting reasoning level.
-6. On `agent_end`, the extension restores reasoning to that starting level unless the last assistant message is a retryable error.
+2. Extension keeps the higher of the requested level and the user's turn baseline.
+3. Extension calls `pi.setThinkingLevel()` with that safe level.
+4. Tool result reports the requested, previous, baseline, and applied levels.
+5. If Pi clamps the level because of model capability, the result says so.
+6. On `agent_settled`, the extension restores the original baseline.
 
 ## Agent-facing prompt copy
 
 Description:
 
-> Set your reasoning level for the current task.
+> Temporarily adjust reasoning up to high without lowering below the user's turn baseline.
 
 Prompt snippet:
 
-> Set reasoning level sparingly: low default/simple/back-and-forth/cleanup; medium complex single task or feature planning; high multiple tasks, architecture-spanning work, or unexpectedly hard issues.
+> Adjust reasoning effort within the user's safe baseline.
 
 Guidelines:
 
-> Use change_reasoning sparingly; it is often unnecessary because low is the default operating mode.
+> Treat the user's current turn level as the baseline; call only to increase effort for harder work or return after an earlier increase.
 
-> Prefer calling change_reasoning in parallel with other useful tool calls so you do not waste a turn only changing reasoning.
+> Autonomous choices are low, medium, and high; the extension never lowers below the user baseline or selects xhigh/max.
 
-> Use low for single simple tasks, back-and-forth conversations, or simple cleanup after harder tasks.
+> Use change_reasoning sparingly; avoid standalone calls when another useful tool call can run in parallel.
 
-> Use medium for complex single tasks or planning features.
+> Use medium for complex single tasks, feature planning, or multi-step implementation.
 
-> Use high for handling multiple tasks in one turn, work spanning different architecture elements, or unexpected hard-to-solve issues during a turn.
+> Use high for multi-area architecture work, hard debugging, or unexpectedly difficult tasks.
 
 Parameter:
 

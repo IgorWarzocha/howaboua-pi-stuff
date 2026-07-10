@@ -67,7 +67,7 @@ On first use, the package creates `~/.pi/agent/pi-explore-subagents.json` with s
 }
 ```
 
-Edit that user-local file to tune models or thinking levels. It lives outside the installed package, so reinstalls and updates will not wipe your changes.
+Edit that user-local file to tune models or thinking levels. Pi levels through `max` are accepted and clamped to the selected model's capabilities. The file lives outside the installed package, so reinstalls and updates will not wipe your changes.
 
 ## Usage
 

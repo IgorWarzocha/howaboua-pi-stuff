@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import path from "node:path";
+import { CONFIG_DIR_NAME, getAgentDir } from "@earendil-works/pi-coding-agent";
 
 export interface SemanticGrepConfig {
 	embeddings: {
@@ -35,13 +35,11 @@ export interface SemanticGrepConfig {
 	};
 }
 
-export const CONFIG_PATH = path.join(
-	homedir(),
-	".pi",
-	"agent",
+export const CONFIG_PATH = path.join(getAgentDir(), "semantic-grep.json");
+export const PROJECT_CONFIG_BASENAME = path.join(
+	CONFIG_DIR_NAME,
 	"semantic-grep.json",
 );
-export const PROJECT_CONFIG_BASENAME = path.join(".pi", "semantic-grep.json");
 
 export const DEFAULT_CONFIG: SemanticGrepConfig = {
 	embeddings: {

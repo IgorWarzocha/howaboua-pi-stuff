@@ -18,8 +18,9 @@
 		]
 	},
 	"scripts": {
-		"check": "bun run lint && bun run typecheck",
+		"check": "bun run lint && bun run typecheck && bun run test",
 		"prepack": "bun run check",
+		"test": "bun test",
 		"typecheck": "tsgo --noEmit",
 		"lint": "biome check .",
 		"format": "biome check --write ."
@@ -49,9 +50,9 @@
 	"devDependencies": {
 		"@types/node": "^24.10.0",
 		"typescript": "^5.9.3",
-		"@earendil-works/pi-coding-agent": "0.80.1",
+		"@earendil-works/pi-coding-agent": "0.80.6",
 		"@biomejs/biome": "^2.4.16",
-		"@earendil-works/pi-ai": "0.80.1"
+		"@earendil-works/pi-ai": "0.80.6"
 	},
 	"peerDependencies": {
 		"@earendil-works/pi-ai": "*",

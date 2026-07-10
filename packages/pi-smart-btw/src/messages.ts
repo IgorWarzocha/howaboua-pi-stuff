@@ -63,37 +63,27 @@ export function sendResultMessage(
 	turn: BtwTurn,
 ) {
 	const label = getResultLabel(session, turn);
-	pi.sendMessage({
-		customType: MESSAGE_TYPE,
-		content: turn.answer || turn.error || "(no answer)",
-		display: true,
-		details: {
-			kind: "result",
-			label,
-			slot: session.index + 1,
-			generation: session.generationId,
-			turn: turn.turnIndex ?? session.turns.indexOf(turn) + 1,
-			question: turn.question,
-			answer: turn.answer,
-			error: turn.error,
-			startedAt: turn.startedAt,
-			finishedAt: turn.finishedAt,
-		},
+	pi.appendEntry(MESSAGE_TYPE, {
+		kind: "result",
+		label,
+		slot: session.index + 1,
+		generation: session.generationId,
+		turn: turn.turnIndex ?? session.turns.indexOf(turn) + 1,
+		question: turn.question,
+		answer: turn.answer,
+		error: turn.error,
+		startedAt: turn.startedAt,
+		finishedAt: turn.finishedAt,
 	});
 }
 
 export function sendClearedMessage(pi: ExtensionAPI, session: BtwSession) {
-	pi.sendMessage({
-		customType: MESSAGE_TYPE,
-		content: "cleared",
-		display: false,
-		details: {
-			kind: "cleared",
-			label: getClearedLabel(session),
-			slot: session.index + 1,
-			generation: session.generationId,
-			clearedAt: Date.now(),
-		},
+	pi.appendEntry(MESSAGE_TYPE, {
+		kind: "cleared",
+		label: getClearedLabel(session),
+		slot: session.index + 1,
+		generation: session.generationId,
+		clearedAt: Date.now(),
 	});
 }
 

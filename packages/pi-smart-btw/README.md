@@ -5,9 +5,9 @@
 - Fresh context per slot: `pi --mode rpc --no-session` (full tools/extensions; this extension disables itself in the child).
 - Multiple numbered slots: `/btw 1 …`, `/btw 2 …`, `/btw` to open the panel, `/btw 1` to switch.
 - Per-slot queue and child: a slow slot 1 does not block slot 2.
-- Transcript is canonical: `BTW SESSION` custom messages with generation tombstones on clear/inject.
+- Transcript is canonical: display-only `BTW SESSION` entries with generation tombstones on clear/inject.
 - Restore from JSONL after restart; restored follow-ups seed the child with prior Q&A when needed.
-- Main LLM context filters BTW messages until you inject.
+- BTW entries stay out of the main LLM context until you inject. Old custom-message sessions remain readable.
 
 ## Install
 
@@ -61,6 +61,8 @@ In **General**: **Edit shortcuts** opens `~/.pi/agent/pi-smart-btw.json` in `$VI
   "nextShortcut": "alt+l"
 }
 ```
+
+`thinking` accepts Pi levels through `max` and is clamped to the selected model's capabilities.
 
 ## Development
 

@@ -19,7 +19,7 @@ import type {
 	UsageStats,
 } from "./types.js";
 
-function normalizeThinking(
+export function normalizeThinking(
 	value: ThinkingLevel | undefined,
 	fallback: ThinkingLevel = DEFAULT_CONFIG.thinking,
 ): ThinkingLevel {
