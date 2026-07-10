@@ -75,11 +75,11 @@ Edit that file to change the default review model or thinking level, and the mod
 
 ```json
 {
-  "model": "openai-codex/gpt-5.5",
+  "model": "openai-codex/gpt-5.6-sol",
   "thinking": "medium",
   "summary": {
     "enabled": true,
-    "model": "openai/gpt-5.4-mini",
+    "model": "openai-codex/gpt-5.6-luna",
     "thinking": "low"
   }
 }

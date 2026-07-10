@@ -49,7 +49,7 @@ In **General**: **Edit shortcuts** opens `~/.pi/agent/pi-smart-btw.json` in `$VI
 ```json
 {
   "provider": "openai-codex",
-  "modelId": "gpt-5.4-mini",
+  "modelId": "gpt-5.6-luna",
   "command": "pi",
   "thinking": "low",
   "injectShortcut": "alt+c",

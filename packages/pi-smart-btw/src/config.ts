@@ -27,7 +27,7 @@ export function normalizeThinkingLevel(
 
 const DEFAULT_CONFIG: ResolvedBtwConfig = {
 	provider: "openai-codex",
-	modelId: "gpt-5.4-mini",
+	modelId: "gpt-5.6-luna",
 	command: "pi",
 	thinking: "low",
 	composeShortcut: DEFAULT_SHORTCUTS.compose,

@@ -1,7 +1,7 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { splitModelRef } from "../config.js";
 
-const FALLBACK_REF = "openai-codex/gpt-5.4-mini";
+const FALLBACK_REF = "openai-codex/gpt-5.6-luna";
 
 export function modelRef(provider: string, modelId: string) {
 	return `${provider}/${modelId}`;
