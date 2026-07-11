@@ -31,6 +31,7 @@ test("old flat config migrates to grouped config and respects disabled provider 
 	assert.equal(config.ui.compactTools, false);
 	assert.equal(config.ui.backgroundShellWidget, false);
 	assert.equal(config.compaction.responsesCompaction, true);
+	assert.equal(config.beta.responsesLite, false);
 	assert.equal(config.openai.fast, true);
 	assert.equal(config.openai.verbosity, "high");
 	assert.equal(config.openai.forceCachedWebSockets, false);
@@ -73,4 +74,9 @@ test("grouped config accepts old toolRendering key", () => {
 	const config = normalizeCodexConversionConfig({ ui: { toolRendering: false, compactTools: true } });
 	assert.equal(config.ui.toolRenaming, false);
 	assert.equal(config.ui.compactTools, true);
+});
+
+test("Responses Lite is opt-in", () => {
+	assert.equal(normalizeCodexConversionConfig({}).beta.responsesLite, false);
+	assert.equal(normalizeCodexConversionConfig({ beta: { responsesLite: true } }).beta.responsesLite, true);
 });

@@ -55,6 +55,7 @@ export type CodexProviderStreamOptions = SimpleStreamOptions & { serviceTier?: S
 export type CodexReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 export type OpenAICodexStreamOptions = CodexProviderStreamOptions & {
 	reasoningEffort?: CodexReasoningEffort | undefined;
+	responsesLite?: boolean | undefined;
 	websocketConnectTimeoutMs?: number | undefined;
 	env?: ProviderEnv | undefined;
 };
@@ -75,9 +76,11 @@ export interface ResponsesBody {
 	service_tier?: string | undefined;
 	tools?: unknown[] | undefined;
 	reasoning?: {
-		effort: string;
-		summary: string;
+		effort?: string | undefined;
+		summary?: string | undefined;
+		context?: "all_turns" | undefined;
 	} | undefined;
+	client_metadata?: Record<string, string> | undefined;
 	[key: string]: unknown;
 }
 

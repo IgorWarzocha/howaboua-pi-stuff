@@ -26,9 +26,9 @@ export interface CodexSettingsScreenOptions {
 	onConsumeResetCredit?: (redeemRequestId: string) => Promise<CodexRateLimitResetConsumeResult>;
 }
 
-type SettingsTab = "general" | "tools" | "openai" | "usage" | "about";
+type SettingsTab = "general" | "tools" | "openai" | "beta" | "usage" | "about";
 
-const TAB_ORDER: readonly SettingsTab[] = ["general", "tools", "openai", "usage", "about"];
+const TAB_ORDER: readonly SettingsTab[] = ["general", "tools", "openai", "beta", "usage", "about"];
 
 class TextSettingSubmenu extends Container implements Focusable {
 	private input: Input;
@@ -243,6 +243,12 @@ function buildItems(tab: SettingsTab, draft: CodexConversionConfig, theme: Theme
 		];
 	}
 
+	if (tab === "beta") {
+		return [
+			{ id: "responsesLite", label: "Responses Lite (GPT-5.6)", currentValue: draft.beta.responsesLite ? "on" : "off", values: ["off", "on"] },
+		];
+	}
+
 	return [
 		{ id: "mode", label: "PATH mode", currentValue: draft.mode === "path" ? "on" : "off", values: ["off", "on"] },
 		{ id: "allProviders", label: "Use for all providers/models", currentValue: formatAllProvidersMode(draft.scope.allProviders), values: ["off", "on", "only extras"] },
@@ -270,6 +276,7 @@ function applySettingChange(id: string, value: string, draft: CodexConversionCon
 	if (id === "compactTools") return { ...draft, ui: { ...draft.ui, compactTools: value === "on" } };
 	if (id === "backgroundShellWidget") return { ...draft, ui: { ...draft.ui, backgroundShellWidget: value === "on" } };
 	if (id === "responsesCompaction") return { ...draft, compaction: { ...draft.compaction, responsesCompaction: value === "on" } };
+	if (id === "responsesLite") return { ...draft, beta: { ...draft.beta, responsesLite: value === "on" } };
 	if (id === "webRun") return { ...draft, tools: { ...draft.tools, webRun: value === "on" } };
 	if (id === "imageGeneration") return { ...draft, tools: { ...draft.tools, imageGeneration: value === "on" } };
 	if (id === "viewImageFallback") return { ...draft, tools: { ...draft.tools, viewImageFallback: value === "on" } };
@@ -304,7 +311,7 @@ function normalizeProviderListFromText(value: string): string[] {
 
 function formatTabs(activeTab: SettingsTab, theme: Theme): string {
 	const renderTab = (tab: SettingsTab, label: string) => activeTab === tab ? theme.bold(label) : theme.fg("dim", label);
-	return `  ${renderTab("general", "General")}  ${theme.fg("dim", "/")}  ${renderTab("tools", "Tools")}  ${theme.fg("dim", "/")}  ${renderTab("openai", "OpenAI")}  ${theme.fg("dim", "/")}  ${renderTab("usage", "Usage")}  ${theme.fg("dim", "/")}  ${renderTab("about", "About")}`;
+	return `  ${renderTab("general", "General")}  ${theme.fg("dim", "/")}  ${renderTab("tools", "Tools")}  ${theme.fg("dim", "/")}  ${renderTab("openai", "OpenAI")}  ${theme.fg("dim", "/")}  ${renderTab("beta", "Beta")}  ${theme.fg("dim", "/")}  ${renderTab("usage", "Usage")}  ${theme.fg("dim", "/")}  ${renderTab("about", "About")}`;
 }
 
 function formatFooter(activeTab: SettingsTab): string {

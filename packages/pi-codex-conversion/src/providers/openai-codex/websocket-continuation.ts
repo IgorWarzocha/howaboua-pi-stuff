@@ -9,6 +9,9 @@ export function requestBodyForWebSocketContinuationComparison(body: ResponsesBod
 		// follow-up request alongside previous_response_id. Keep WebSocket
 		// continuation reuse when the user only changes thinking level.
 		reasoning: _reasoning,
+		// Request metadata may carry per-turn transport fields such as the
+		// Responses Lite marker. It does not change conversation continuity.
+		client_metadata: _clientMetadata,
 		...rest
 	} = body;
 	return rest as ResponsesBody;

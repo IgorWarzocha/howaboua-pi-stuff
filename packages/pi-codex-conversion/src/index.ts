@@ -96,7 +96,7 @@ export default function codexConversion(pi: ExtensionAPI) {
 
 	registerOpenAICodexCustomProvider(pi, {
 		getCurrentCwd: () => state.cwd,
-		getConfig: () => state.config.openai,
+		getConfig: () => ({ openai: state.config.openai, beta: state.config.beta }),
 	});
 	registerCoreTools();
 	ensureOptionalNativeToolsRegistered();

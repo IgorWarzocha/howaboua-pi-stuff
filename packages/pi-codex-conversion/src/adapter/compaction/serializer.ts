@@ -79,7 +79,7 @@ export type ResponsesInputItem =
 export type NativeCompactionRequestBody = {
 	model: string;
 	input: ResponsesInputItem[];
-	instructions: string;
+	instructions?: string | undefined;
 	parallel_tool_calls?: boolean | undefined;
 	prompt_cache_key?: string | undefined;
 	service_tier?: string | undefined;

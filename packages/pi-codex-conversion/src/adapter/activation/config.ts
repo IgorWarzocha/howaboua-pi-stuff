@@ -39,6 +39,7 @@ export interface CodexConversionConfig {
 		backgroundShellCloseShortcut: string;
 	};
 	compaction: { responsesCompaction: boolean };
+	beta: { responsesLite: boolean };
 	openai: {
 		fast: boolean;
 		verbosity: CodexVerbosity;
@@ -65,6 +66,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 		backgroundShellCloseShortcut: "alt+r",
 	},
 	compaction: { responsesCompaction: false },
+	beta: { responsesLite: false },
 	openai: {
 		fast: false,
 		verbosity: "low",
@@ -132,6 +134,7 @@ export function normalizeCodexConversionConfig(value: unknown): CodexConversionC
 	const tools = isObject(value["tools"]) ? value["tools"] : {};
 	const ui = isObject(value["ui"]) ? value["ui"] : {};
 	const compaction = isObject(value["compaction"]) ? value["compaction"] : {};
+	const beta = isObject(value["beta"]) ? value["beta"] : {};
 	const openai = isObject(value["openai"]) ? value["openai"] : {};
 	return {
 		mode: normalizeCodexAdapterMode(value["mode"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.mode,
@@ -159,6 +162,7 @@ export function normalizeCodexConversionConfig(value: unknown): CodexConversionC
 			backgroundShellCloseShortcut: stringValue(ui["backgroundShellCloseShortcut"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellCloseShortcut"]),
 		},
 		compaction: { responsesCompaction: bool(compaction["responsesCompaction"], DEFAULT_CODEX_CONVERSION_CONFIG.compaction["responsesCompaction"]) },
+		beta: { responsesLite: bool(beta["responsesLite"], DEFAULT_CODEX_CONVERSION_CONFIG.beta["responsesLite"]) },
 		openai: {
 			fast: bool(openai["fast"], DEFAULT_CODEX_CONVERSION_CONFIG.openai["fast"]),
 			verbosity: normalizeCodexVerbosity(openai["verbosity"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai["verbosity"],

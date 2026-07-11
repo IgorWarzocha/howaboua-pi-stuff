@@ -7,6 +7,7 @@ import {
 	parseSSE,
 	registerOpenAICodexCustomProvider,
 } from "../src/providers/openai-codex-custom-provider.ts";
+import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 
 const exampleTool = {
 	name: "example_tool",
@@ -51,7 +52,7 @@ async function collectStream(stream: AsyncIterable<unknown>): Promise<unknown[]>
 	return events;
 }
 
-function createRegisteredCodexProvider(options?: { cwd?: string | undefined }) {
+function createRegisteredCodexProvider(options?: { cwd?: string | undefined; responsesLite?: boolean | undefined }) {
 	const providers = new Map<string, { streamSimple: (...args: never[]) => AsyncIterable<unknown> }>();
 	const handlers = new Map<string, Array<(...args: never[]) => unknown>>();
 	const renderers = new Map<string, unknown>();
@@ -71,7 +72,13 @@ function createRegisteredCodexProvider(options?: { cwd?: string | undefined }) {
 		},
 	};
 
-	registerOpenAICodexCustomProvider(pi as never, { getCurrentCwd: () => options?.cwd ?? process.cwd() });
+	registerOpenAICodexCustomProvider(pi as never, {
+		getCurrentCwd: () => options?.cwd ?? process.cwd(),
+		getConfig: () => ({
+			openai: DEFAULT_CODEX_CONVERSION_CONFIG.openai,
+			beta: { responsesLite: options?.responsesLite ?? false },
+		}),
+	});
 	return { provider: providers.get("openai-codex")!, handlers, renderers, sentMessages };
 }
 
@@ -121,6 +128,40 @@ test("buildRequestBody keeps Codex request shape stable for common options", () 
 	]);
 	assert.equal("max_output_tokens" in body, false, "Codex ChatGPT backend rejects max_output_tokens");
 	assert.equal("max_completion_tokens" in body, false, "Codex ChatGPT backend rejects max token aliases here");
+});
+
+test("opt-in Responses Lite sends the GPT-5.6 input-item contract", async () => {
+	const originalFetch = globalThis.fetch;
+	const registered = createRegisteredCodexProvider({ responsesLite: true });
+	let captured: RequestInit | undefined;
+	try {
+		globalThis.fetch = (async (_url, init) => {
+			captured = init;
+			return sseResponse([
+				{ type: "response.created", response: { id: "resp_lite" } },
+				{ type: "response.completed", response: { id: "resp_lite", status: "completed", usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 } } },
+			]);
+		}) as typeof fetch;
+
+		await collectStream(registered.provider.streamSimple(
+			{ ...(codexModel as object), id: "gpt-5.6-luna", baseUrl: "https://chatgpt.example/backend-api" } as never,
+			{ systemPrompt: "Lite instructions", messages: [{ role: "user", content: "Hello" } as never], tools: [exampleTool] } as never,
+			{ apiKey: fakeJwt({ "https://api.openai.com/auth": { chatgpt_account_id: "acct_1" } }), transport: "sse", reasoning: "medium" } as never,
+		));
+
+		assert.ok(captured);
+		assert.equal((captured.headers as Headers).get("x-openai-internal-codex-responses-lite"), "true");
+		const body = JSON.parse(requestBodyText(captured));
+		assert.equal("instructions" in body, false);
+		assert.equal("tools" in body, false);
+		assert.equal(body.parallel_tool_calls, false);
+		assert.equal(body.reasoning.context, "all_turns");
+		assert.equal(body.input[0].type, "additional_tools");
+		assert.equal(body.input[0].tools[0].name, "example_tool");
+		assert.deepEqual(body.input[1], { type: "message", role: "developer", content: [{ type: "input_text", text: "Lite instructions" }] });
+	} finally {
+		globalThis.fetch = originalFetch;
+	}
 });
 
 test("registered Codex provider retries retryable SSE failures and streams the final response", async () => {
@@ -212,6 +253,16 @@ test("cached websocket request body reuses continuation across reasoning changes
 			decision: "delta",
 		},
 	);
+});
+
+test("cached websocket request body ignores per-request client metadata", () => {
+	const previousBody = buildRequestBody(codexModel, { systemPrompt: "Instructions", messages: [] }, { sessionId: "session-1", reasoning: "low" });
+	previousBody.input = [{ type: "message", role: "user", content: [{ type: "input_text", text: "first" }] }];
+	previousBody.client_metadata = { marker: "old" };
+	const responseItems = [{ type: "message", role: "assistant", content: [{ type: "output_text", text: "first response" }] }];
+	const fullBody = { ...previousBody, client_metadata: { marker: "new" }, input: [...previousBody.input, ...responseItems, { type: "message", role: "user", content: [{ type: "input_text", text: "next" }] }] };
+
+	assert.equal(buildCachedWebSocketRequestBody({ lastRequestBody: previousBody, lastResponseId: "resp_1", lastResponseItems: responseItems }, fullBody).decision, "delta");
 });
 
 test("parseSSE accepts CRLF chunks, joined data lines, and ignores done sentinel", async () => {

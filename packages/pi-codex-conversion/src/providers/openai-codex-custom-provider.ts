@@ -14,6 +14,7 @@ import { BASE_DELAY_MS, DEFAULT_SSE_HEADER_TIMEOUT_MS, MAX_RETRIES } from "./ope
 import { createErrorMessage, isRetryableError, NonRetryableProviderError, parseErrorResponse } from "./openai-codex/errors.ts";
 import { createCodexRequestId, extractAccountId, buildSSEHeaders, buildWebSocketHeaders, headersToRecord, resolveCodexUrl, resolveCodexWebSocketUrl } from "./openai-codex/headers.ts";
 import { buildRequestBody } from "./openai-codex/request-body.ts";
+import { applyResponsesLiteRequest, applyResponsesLiteWebSocketMetadata, isResponsesLiteRequest, supportsResponsesLiteModel } from "./openai-codex/responses-lite.ts";
 import { combineAbortSignals, compressRequestBodyZstd, createSSEHeaderTimeout, parseSSE, sleep } from "./openai-codex/sse.ts";
 import type { CodexProviderStreamOptions, OpenAICodexStreamOptions, ResponsesBody } from "./openai-codex/types.ts";
 import { createInitialAssistantMessage } from "./openai-codex/types.ts";
@@ -46,11 +47,12 @@ function createCodexStream<TApi extends Api>(
 	options: CodexProviderStreamOptions | undefined,
 	deps: {
 		getCurrentCwd: () => string;
-		getConfig?: () => Pick<CodexConversionConfig["openai"], "forceCachedWebSockets"> | undefined;
+		getConfig?: () => Pick<CodexConversionConfig, "openai" | "beta"> | undefined;
 		onStreamSettled?: () => void | undefined;
 	},
 ): AssistantMessageEventStream {
-	const effectiveTransport = getEffectiveCodexTransport(options?.transport, deps.getConfig?.());
+	const runtimeConfig = deps.getConfig?.();
+	const effectiveTransport = getEffectiveCodexTransport(options?.transport, runtimeConfig?.openai);
 	const effectiveOptions: OpenAICodexStreamOptions | undefined = options
 		? { ...options, transport: effectiveTransport }
 		: { transport: effectiveTransport };
@@ -60,6 +62,7 @@ function createCodexStream<TApi extends Api>(
 	(async () => {
 		const output = createInitialAssistantMessage(model);
 		try {
+			const responsesLite = runtimeConfig?.beta.responsesLite === true && supportsResponsesLiteModel(model.id);
 			const apiKey = effectiveOptions?.apiKey;
 			if (!apiKey) {
 				throw new Error(`No API key for provider: ${model.provider}`);
@@ -71,10 +74,12 @@ function createCodexStream<TApi extends Api>(
 			if (nextBody !== undefined) {
 				body = nextBody as ResponsesBody;
 			}
+			if (responsesLite && !isResponsesLiteRequest(body)) body = applyResponsesLiteRequest(body);
 			const websocketRequestId = effectiveOptions?.sessionId || createCodexRequestId();
-			const sseHeaders = buildSSEHeaders(model.headers, effectiveOptions?.headers, accountId, apiKey, effectiveOptions?.sessionId);
+			const sseHeaders = buildSSEHeaders(model.headers, effectiveOptions?.headers, accountId, apiKey, effectiveOptions?.sessionId, responsesLite);
 			const websocketHeaders = buildWebSocketHeaders(model.headers, effectiveOptions?.headers, accountId, apiKey, websocketRequestId);
 			const bodyJson = JSON.stringify(body);
+			const websocketBody = responsesLite ? applyResponsesLiteWebSocketMetadata(body) : body;
 			const compressedBody = compressRequestBodyZstd(bodyJson);
 			if (compressedBody) sseHeaders.set("content-encoding", "zstd");
 			const sseBody = compressedBody ?? bodyJson;
@@ -86,7 +91,7 @@ function createCodexStream<TApi extends Api>(
 				try {
 					await processWebSocketStream(
 						resolveCodexWebSocketUrl(model.baseUrl),
-						body,
+						websocketBody,
 						websocketHeaders,
 						output,
 						stream,
@@ -214,7 +219,7 @@ function createCodexStream<TApi extends Api>(
 	return stream;
 }
 
-export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: { getCurrentCwd: () => string; getConfig?: () => Pick<CodexConversionConfig["openai"], "forceCachedWebSockets"> | undefined }): void {
+export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: { getCurrentCwd: () => string; getConfig?: () => Pick<CodexConversionConfig, "openai" | "beta"> | undefined }): void {
 	pi.registerProvider("openai-codex", {
 		api: "openai-codex-responses",
 		oauth: openaiCodexNativeOAuthProvider,

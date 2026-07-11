@@ -15,6 +15,7 @@ import {
 	type ResponsesInputItem,
 } from "./serializer.ts";
 import { createNativeCompactionDetails, createNativeCompactionShimResult, isNativeCompactionDetails, NATIVE_COMPACTION_SHIM_SUMMARY, type NativeCompactionEntry } from "../compaction/types.ts";
+import { applyResponsesLiteRequest, supportsResponsesLiteModel } from "../../providers/openai-codex/responses-lite.ts";
 import { isResponsesContext } from "../prompt/codex-model.ts";
 import { isEffectiveOpenAICodexContext, shouldUseNativeResponsesCompaction } from "../activation/activation.ts";
 import type { AdapterState } from "../activation/state.ts";
@@ -263,10 +264,12 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 		ctx.ui.notify("OpenAI native compaction had no serializable conversation items; Pi compaction was not run.", "error");
 		return { cancel: true };
 	}
+	const responsesLite = state.config.beta.responsesLite && runtime.provider === "openai-codex" && supportsResponsesLiteModel(compactionModel);
+	if (responsesLite) request = applyResponsesLiteRequest(request);
 
 	request = shrinkNativeCompactionRequestForEndpoint(request, { contextWindow: compactionTargetModel.contextWindow }).request;
 
-	const compactResult = await executeNativeCompaction({ runtime, request, signal: event.signal });
+	const compactResult = await executeNativeCompaction({ runtime, request, signal: event.signal, responsesLite });
 	if (!compactResult.ok) {
 		if (compactResult.reason !== "aborted") {
 			notifyNativeCompactionFallback(ctx, state, branchEntries, runtime, formatCompactFailureMessage(compactResult));

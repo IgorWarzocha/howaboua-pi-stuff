@@ -25,6 +25,7 @@ function createAdapterState(overrides: Partial<AdapterState["config"]> = {}): Ad
 			...overrides,
 			scope: { ...DEFAULT_CODEX_CONVERSION_CONFIG.scope, ...overrides.scope },
 			tools: { ...DEFAULT_CODEX_CONVERSION_CONFIG.tools, ...overrides.tools },
+			beta: { ...DEFAULT_CODEX_CONVERSION_CONFIG.beta, ...overrides.beta },
 		},
 	};
 }
