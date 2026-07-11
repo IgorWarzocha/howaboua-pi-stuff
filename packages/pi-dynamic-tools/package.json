@@ -1,0 +1,86 @@
+{
+	"name": "@howaboua/pi-dynamic-tools",
+	"version": "0.0.0",
+	"description": "Expose TOML-defined commands through Codex-style JavaScript code mode in Pi.",
+	"type": "module",
+	"license": "MIT",
+	"author": "Igor Warzocha",
+	"files": [
+		"index.ts",
+		"src",
+		"examples",
+		"scripts/install-host.mjs",
+		"scripts/host-assets.mjs",
+		"scripts/verify-host-assets.mjs",
+		"scripts/build-host.mjs",
+		"scripts/sync-code-mode-source.mjs",
+		"vendor/code-mode-src/Cargo.toml",
+		"vendor/code-mode-src/Cargo.lock",
+		"vendor/code-mode-src/UPSTREAM",
+		"vendor/code-mode-src/LICENSE",
+		"vendor/code-mode-src/NOTICE",
+		"vendor/code-mode-src/crates",
+		"DYNAMIC-TOOLS.md",
+		"README.md",
+		"UPSTREAM_SYNC.md",
+		"LICENSE",
+		"THIRD_PARTY_LICENSES.md",
+		"tsconfig.json",
+		"biome.json"
+	],
+	"scripts": {
+		"check": "bun run lint && bun run typecheck && bun run test",
+		"prepack": "bun run check",
+		"test": "bun test",
+		"typecheck": "tsgo --noEmit",
+		"lint": "biome check .",
+		"format": "biome check --write .",
+		"install:host": "node scripts/install-host.mjs",
+		"verify:host-assets": "node scripts/verify-host-assets.mjs",
+		"build:host": "node scripts/build-host.mjs",
+		"sync:codex": "node scripts/sync-code-mode-source.mjs"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"dependencies": {
+		"smol-toml": "^1.6.0"
+	},
+	"devDependencies": {
+		"@earendil-works/pi-coding-agent": "0.80.6",
+		"@earendil-works/pi-tui": "0.80.6",
+		"@types/node": "^25.9.1",
+		"typebox": "1.1.38",
+		"typescript": "^6.0.3",
+		"@biomejs/biome": "^2.4.16"
+	},
+	"peerDependencies": {
+		"@earendil-works/pi-coding-agent": ">=0.80.6",
+		"@earendil-works/pi-tui": ">=0.80.6",
+		"typebox": "*"
+	},
+	"pi": {
+		"extensions": [
+			"./index.ts"
+		]
+	},
+	"keywords": [
+		"pi-package",
+		"pi",
+		"pi-extension",
+		"codex",
+		"code-mode",
+		"dynamic-tools"
+	],
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
+		"directory": "packages/pi-dynamic-tools"
+	},
+	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-dynamic-tools#readme",
+	"bugs": {
+		"url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
+	},
+	"main": "index.ts",
+	"exports": "./index.ts"
+}

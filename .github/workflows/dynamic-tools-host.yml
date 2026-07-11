@@ -1,0 +1,33 @@
+name: Dynamic tools host
+
+on:
+  pull_request:
+    paths:
+      - 'packages/pi-dynamic-tools/**'
+      - '.github/workflows/dynamic-tools-host.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'packages/pi-dynamic-tools/**'
+      - '.github/workflows/dynamic-tools-host.yml'
+
+jobs:
+  build-vendored-host:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - run: bun install
+      - name: Build vendored code-mode host
+        run: bun run --cwd packages/pi-dynamic-tools build:host
+      - name: Check package against built host
+        run: bun run --cwd packages/pi-dynamic-tools check
+
+  verify-upstream-assets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+      - name: Verify all platform downloads and checksums
+        run: bun run --cwd packages/pi-dynamic-tools verify:host-assets

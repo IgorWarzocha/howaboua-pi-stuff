@@ -1,0 +1,2 @@
+description = "Inspect a local TCP or UDP port. Input: port number. Returns normalized JSON with listeners, connections, owning processes, parent processes, and service or container attribution when available."
+command = "./port-info/port-info.mjs"

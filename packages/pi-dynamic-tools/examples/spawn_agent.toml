@@ -1,0 +1,3 @@
+description = """Spawn an isolated explorer or reviewer. Input JSON fields: agent_type ("explorer" or "reviewer"), message (string), and optional cwd (string). Relative cwd resolves from Pi's working directory."""
+command = "./spawn-agent/spawn-agent.mjs"
+input = "stdin"
