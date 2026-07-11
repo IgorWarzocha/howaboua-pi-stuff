@@ -39,6 +39,7 @@
     "CHANGELOG.md",
     "PATH_TOOLS.md",
     "README.md",
+    "UPSTREAM_SYNC.md",
     "LICENSE",
     "bin/view_image",
     "bin/web_run",

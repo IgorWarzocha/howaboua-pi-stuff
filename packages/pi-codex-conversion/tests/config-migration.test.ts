@@ -32,6 +32,7 @@ test("old flat config migrates to grouped config and respects disabled provider 
 	assert.equal(config.ui.backgroundShellWidget, false);
 	assert.equal(config.compaction.responsesCompaction, true);
 	assert.equal(config.beta.responsesLite, false);
+	assert.equal(config.beta.parallelLiteToolCalls, false);
 	assert.equal(config.openai.fast, true);
 	assert.equal(config.openai.verbosity, "high");
 	assert.equal(config.openai.forceCachedWebSockets, false);
@@ -78,5 +79,7 @@ test("grouped config accepts old toolRendering key", () => {
 
 test("Responses Lite is opt-in", () => {
 	assert.equal(normalizeCodexConversionConfig({}).beta.responsesLite, false);
+	assert.equal(normalizeCodexConversionConfig({}).beta.parallelLiteToolCalls, false);
 	assert.equal(normalizeCodexConversionConfig({ beta: { responsesLite: true } }).beta.responsesLite, true);
+	assert.equal(normalizeCodexConversionConfig({ beta: { parallelLiteToolCalls: true } }).beta.parallelLiteToolCalls, true);
 });
