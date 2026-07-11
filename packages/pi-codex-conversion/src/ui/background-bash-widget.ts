@@ -47,6 +47,7 @@ function resolveActiveSessionId(state: BackgroundBashWidgetState, snapshots: Exe
 }
 
 export function renderBackgroundBashWidget(ctx: ExtensionContext, state: BackgroundBashWidgetState, sessions: ExecSessionManager): void {
+	if (ctx.mode !== "tui") return;
 	const snapshots = sessions.listSessions(OUTPUT_TAIL_CHARS);
 	if (snapshots.length === 0) {
 		state.activeSessionId = undefined;
@@ -138,4 +139,3 @@ export function registerBackgroundBashWidgetShortcuts(
 		},
 	});
 }
-
