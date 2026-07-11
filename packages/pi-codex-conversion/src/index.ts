@@ -7,7 +7,7 @@ import { clearPathApplyPatchPreviewStates } from "./tools/path/apply-patch-previ
 import { createExecCommandTracker } from "./tools/exec/command-state.ts";
 import { registerExecCommandTool } from "./tools/exec/command-tool.ts";
 import { createExecSessionManager } from "./tools/exec/session-manager.ts";
-import { prewarmOpenAICodexWebSocket, registerOpenAICodexCustomProvider } from "./providers/openai-codex-custom-provider.ts";
+import { closeOpenAICodexWebSocketSessions, prewarmOpenAICodexWebSocket, registerOpenAICodexCustomProvider } from "./providers/openai-codex-custom-provider.ts";
 import { registerImageGenerationTool } from "./tools/imagegen/tool.ts";
 import { buildCodexSystemPrompt, extractPiPromptSkills, resolvePromptSkills } from "./prompt/build-system-prompt.ts";
 import { registerViewImageTool, supportsViewImageInputs } from "./tools/view-image/tool.ts";
@@ -237,7 +237,13 @@ export default function codexConversion(pi: ExtensionAPI) {
 	});
 
 	pi.on("model_select", async (_event, ctx) => {
+		prewarmController?.abort();
+		prewarmController = undefined;
+		prewarmPromise = undefined;
 		websocketPrewarmed = false;
+		state.codexTurnState.reset();
+		const sessionId = ctx.sessionManager.getSessionId();
+		if (sessionId) closeOpenAICodexWebSocketSessions(sessionId);
 		state.cwd = ctx.cwd;
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 		ensureOptionalNativeToolsRegistered();
