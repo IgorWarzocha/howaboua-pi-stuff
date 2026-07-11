@@ -200,6 +200,7 @@ export async function processResponsesStream<TApi extends Api>(
 			}
 		} else if (event.type === "response.output_item.done") {
 			const item = event.item;
+			options?.onOutputItemDone?.(item);
 			if (item.type === "reasoning") {
 				let state = outputStates.get(event.output_index);
 				if (!state || state.kind !== "reasoning") {

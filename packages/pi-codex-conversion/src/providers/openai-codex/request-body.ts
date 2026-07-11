@@ -37,6 +37,7 @@ export function buildRequestBody<TApi extends Api>(model: Model<TApi>, context: 
 		prompt_cache_key: clampOpenAIPromptCacheKey(options?.sessionId),
 		tool_choice: "auto",
 		parallel_tool_calls: true,
+		...(options?.sessionId ? { client_metadata: { session_id: options.sessionId, thread_id: options.sessionId } } : {}),
 	};
 
 	// The Codex ChatGPT-backed endpoint rejects output-token cap fields with

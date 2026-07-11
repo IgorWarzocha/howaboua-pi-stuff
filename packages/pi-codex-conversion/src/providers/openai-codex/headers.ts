@@ -82,6 +82,7 @@ export function buildSSEHeaders(
 
 	if (sessionId) {
 		headers.set("session-id", sessionId);
+		headers.set("thread-id", sessionId);
 		headers.set("x-client-request-id", sessionId);
 	}
 
@@ -103,5 +104,6 @@ export function buildWebSocketHeaders(
 	headers.set("OpenAI-Beta", OPENAI_BETA_RESPONSES_WEBSOCKETS);
 	headers.set("x-client-request-id", requestId);
 	headers.set("session-id", requestId);
+	headers.set("thread-id", requestId);
 	return headers;
 }

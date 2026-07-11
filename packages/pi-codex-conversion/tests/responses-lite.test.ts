@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyResponsesLiteRequest, applyResponsesLiteWebSocketMetadata, supportsResponsesLiteModel } from "../src/providers/openai-codex/responses-lite.ts";
+import { applyResponsesLiteRequest, applyResponsesLiteWebSocketMetadata, prepareResponsesLiteRequestImages, supportsResponsesLiteModel } from "../src/providers/openai-codex/responses-lite.ts";
 
 test("Responses Lite is limited to the GPT-5.6 Codex family", () => {
 	assert.equal(supportsResponsesLiteModel("gpt-5.6-luna"), true);
@@ -42,4 +42,19 @@ test("Responses Lite moves instructions and tools into input and prepares images
 test("Responses Lite carries its transport flag in WebSocket metadata", () => {
 	const body = applyResponsesLiteWebSocketMetadata({ model: "gpt-5.6-sol", input: [] });
 	assert.equal(body.client_metadata?.["ws_request_header_x_openai_internal_codex_responses_lite"], "true");
+});
+
+test("Responses Lite validates inline images before transport", async () => {
+	const validPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==";
+	const body = await prepareResponsesLiteRequestImages(applyResponsesLiteRequest({
+		model: "gpt-5.6-luna",
+		input: [{ type: "message", role: "user", content: [
+			{ type: "input_image", image_url: `data:image/png;base64,${validPng}`, detail: "high" },
+			{ type: "input_image", image_url: "data:image/png;base64,not-valid" },
+		] }],
+	}));
+	const content = (body.input[1] as { content: Array<{ type: string; image_url?: string; text?: string }> }).content;
+	assert.equal(content[0]?.type, "input_image");
+	assert.match(content[0]?.image_url ?? "", /^data:image\/(?:png|jpeg);base64,/);
+	assert.deepEqual(content[1], { type: "input_text", text: "image content omitted because it could not be processed" });
 });

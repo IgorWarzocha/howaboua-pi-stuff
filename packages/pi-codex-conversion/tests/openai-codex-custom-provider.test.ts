@@ -110,6 +110,10 @@ test("buildRequestBody keeps Codex request shape stable for common options", () 
 	assert.equal(body.instructions, "Instructions");
 	assert.deepEqual(body.text, { verbosity: "medium" });
 	assert.equal(body.prompt_cache_key, "session-" + "x".repeat(56));
+	assert.deepEqual(body.client_metadata, {
+		session_id: "session-" + "x".repeat(80),
+		thread_id: "session-" + "x".repeat(80),
+	});
 	assert.equal(body.tool_choice, "auto");
 	assert.equal(body.parallel_tool_calls, true);
 	assert.equal(body.service_tier, "priority");
@@ -206,6 +210,7 @@ test("registered Codex provider retries retryable SSE failures and streams the f
 		assert.equal(fetchCalls.length, 2);
 		assert.equal(fetchCalls[0]!.url, "https://chatgpt.example/backend-api/codex/responses");
 		assert.equal((fetchCalls[1]!.init.headers as Headers).get("session-id"), "session-1");
+		assert.equal((fetchCalls[1]!.init.headers as Headers).get("thread-id"), "session-1");
 		assert.equal((fetchCalls[1]!.init.headers as Headers).get("chatgpt-account-id"), "acct_1");
 		assert.equal((fetchCalls[1]!.init.headers as Headers).get("content-encoding"), "zstd");
 		assert.equal(JSON.parse(requestBodyText(fetchCalls[1]!.init)).instructions, "Instructions");
@@ -219,6 +224,15 @@ test("registered Codex provider retries retryable SSE failures and streams the f
 	} finally {
 		globalThis.fetch = originalFetch;
 	}
+});
+
+test("dynamic tools retain the session prompt-cache identity", () => {
+	const options = { sessionId: "session-tools" } as never;
+	const first = buildRequestBody(codexModel, { systemPrompt: "Instructions", messages: [], tools: [exampleTool] }, options);
+	const second = buildRequestBody(codexModel, { systemPrompt: "Instructions", messages: [], tools: [] }, options);
+	assert.equal(first.prompt_cache_key, second.prompt_cache_key);
+	assert.deepEqual(first.client_metadata, second.client_metadata);
+	assert.notDeepEqual(first.tools, second.tools);
 });
 
 test("Codex turn state is captured and replayed on SSE follow-ups", async () => {
@@ -294,6 +308,16 @@ test("cached websocket request body ignores per-request client metadata", () => 
 	const fullBody = { ...previousBody, client_metadata: { marker: "new" }, input: [...previousBody.input, ...responseItems, { type: "message", role: "user", content: [{ type: "input_text", text: "next" }] }] };
 
 	assert.equal(buildCachedWebSocketRequestBody({ lastRequestBody: previousBody, lastResponseId: "resp_1", lastResponseItems: responseItems }, fullBody).decision, "delta");
+});
+
+test("cached websocket continuation falls back when the tool set changes", () => {
+	const previousBody = buildRequestBody(codexModel, { systemPrompt: "Instructions", messages: [], tools: [exampleTool] }, { sessionId: "session-1" });
+	const currentBody = buildRequestBody(codexModel, { systemPrompt: "Instructions", messages: [], tools: [] }, { sessionId: "session-1" });
+	assert.equal(buildCachedWebSocketRequestBody({
+		lastRequestBody: previousBody,
+		lastResponseId: "resp_1",
+		lastResponseItems: [],
+	}, currentBody).decision, "body_mismatch");
 });
 
 test("parseSSE accepts CRLF chunks, joined data lines, and ignores done sentinel", async () => {

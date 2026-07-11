@@ -15,6 +15,7 @@ export interface OpenAIResponsesStreamOptions {
 		requestServiceTier: ResponseCreateParamsStreaming["service_tier"] | undefined,
 	) => ResponseCreateParamsStreaming["service_tier"] | undefined;
 	applyServiceTierPricing?: (usage: Usage, serviceTier: ResponseCreateParamsStreaming["service_tier"] | undefined) => void;
+	onOutputItemDone?: (item: unknown) => void;
 }
 
 interface ConvertResponsesMessagesOptions {

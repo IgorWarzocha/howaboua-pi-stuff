@@ -14,14 +14,14 @@ import { BASE_DELAY_MS, DEFAULT_SSE_HEADER_TIMEOUT_MS, MAX_RETRIES } from "./ope
 import { createErrorMessage, isRetryableError, NonRetryableProviderError, parseErrorResponse } from "./openai-codex/errors.ts";
 import { createCodexRequestId, extractAccountId, buildSSEHeaders, buildWebSocketHeaders, headersToRecord, resolveCodexUrl, resolveCodexWebSocketUrl } from "./openai-codex/headers.ts";
 import { buildRequestBody } from "./openai-codex/request-body.ts";
-import { applyResponsesLiteRequest, applyResponsesLiteWebSocketMetadata, isResponsesLiteRequest, supportsResponsesLiteModel } from "./openai-codex/responses-lite.ts";
+import { applyResponsesLiteRequest, applyResponsesLiteWebSocketMetadata, isResponsesLiteRequest, prepareResponsesLiteRequestImages, supportsResponsesLiteModel } from "./openai-codex/responses-lite.ts";
 import { combineAbortSignals, compressRequestBodyZstd, createSSEHeaderTimeout, parseSSE, sleep } from "./openai-codex/sse.ts";
 import type { CodexProviderStreamOptions, OpenAICodexStreamOptions, ResponsesBody } from "./openai-codex/types.ts";
 import { createInitialAssistantMessage } from "./openai-codex/types.ts";
 import { finalizeUsage } from "./openai-codex/usage.ts";
 import { closeOpenAICodexWebSocketSessions, validateWebSocketTimeoutOptions } from "./openai-codex/websocket.ts";
 import { processCodexResponsesStream } from "./openai-codex/stream-events.ts";
-import { processWebSocketStream } from "./openai-codex/websocket-stream.ts";
+import { prewarmWebSocket, processWebSocketStream } from "./openai-codex/websocket-stream.ts";
 import { openaiCodexNativeOAuthProvider } from "./openai-codex/oauth.ts";
 import { CODEX_TURN_STATE_HEADER, type CodexTurnState } from "./openai-codex/turn-state.ts";
 
@@ -40,6 +40,49 @@ export function getEffectiveCodexTransport(
 	if (config?.forceCachedWebSockets === false) return configuredTransport;
 	if (configuredTransport === "websocket") return "websocket-cached";
 	return configuredTransport;
+}
+
+async function prepareCodexRequestBody<TApi extends Api>(
+	model: Model<TApi>,
+	context: Context,
+	options: OpenAICodexStreamOptions | undefined,
+	responsesLite: boolean,
+): Promise<ResponsesBody> {
+	let body = buildRequestBody(model, context, options);
+	const nextBody = await options?.onPayload?.(body, model);
+	if (nextBody !== undefined) body = nextBody as ResponsesBody;
+	if (responsesLite) {
+		if (!isResponsesLiteRequest(body)) body = applyResponsesLiteRequest(body);
+		body = await prepareResponsesLiteRequestImages(body);
+	}
+	return body;
+}
+
+export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
+	model: Model<TApi>,
+	context: Context,
+	options: OpenAICodexStreamOptions,
+	deps: {
+		getConfig?: () => Pick<CodexConversionConfig, "openai" | "beta"> | undefined;
+		turnState?: CodexTurnState | undefined;
+	},
+): Promise<void> {
+	const runtimeConfig = deps.getConfig?.();
+	if (getEffectiveCodexTransport(options.transport, runtimeConfig?.openai) === "sse") return;
+	if (!options.apiKey || !options.sessionId) return;
+	const responsesLite = runtimeConfig?.beta.responsesLite === true && supportsResponsesLiteModel(model.id);
+	const body = await prepareCodexRequestBody(model, context, options, responsesLite);
+	const accountId = extractAccountId(options.apiKey);
+	const headers = buildWebSocketHeaders(model.headers, options.headers, accountId, options.apiKey, options.sessionId);
+	let websocketBody = responsesLite ? applyResponsesLiteWebSocketMetadata(body) : body;
+	const currentTurnState = deps.turnState?.current();
+	if (currentTurnState) {
+		websocketBody = {
+			...websocketBody,
+			client_metadata: { ...(websocketBody.client_metadata ?? {}), [CODEX_TURN_STATE_HEADER]: currentTurnState },
+		};
+	}
+	await prewarmWebSocket(resolveCodexWebSocketUrl(model.baseUrl), websocketBody, headers, options, deps.turnState);
 }
 
 function createCodexStream<TApi extends Api>(
@@ -71,12 +114,7 @@ function createCodexStream<TApi extends Api>(
 			}
 
 			const accountId = extractAccountId(apiKey);
-			let body = buildRequestBody(model, context, effectiveOptions);
-			const nextBody = await effectiveOptions?.onPayload?.(body, model);
-			if (nextBody !== undefined) {
-				body = nextBody as ResponsesBody;
-			}
-			if (responsesLite && !isResponsesLiteRequest(body)) body = applyResponsesLiteRequest(body);
+			const body = await prepareCodexRequestBody(model, context, effectiveOptions, responsesLite);
 			const websocketRequestId = effectiveOptions?.sessionId || createCodexRequestId();
 			const sseHeaders = buildSSEHeaders(model.headers, effectiveOptions?.headers, accountId, apiKey, effectiveOptions?.sessionId, responsesLite);
 			const websocketHeaders = buildWebSocketHeaders(model.headers, effectiveOptions?.headers, accountId, apiKey, websocketRequestId);

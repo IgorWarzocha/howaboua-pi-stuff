@@ -15,7 +15,7 @@ import {
 	type ResponsesInputItem,
 } from "./serializer.ts";
 import { createNativeCompactionDetails, createNativeCompactionShimResult, isNativeCompactionDetails, NATIVE_COMPACTION_SHIM_SUMMARY, type NativeCompactionEntry } from "../compaction/types.ts";
-import { applyResponsesLiteRequest, supportsResponsesLiteModel } from "../../providers/openai-codex/responses-lite.ts";
+import { applyResponsesLiteRequest, prepareResponsesLiteRequestImages, supportsResponsesLiteModel } from "../../providers/openai-codex/responses-lite.ts";
 import { isResponsesContext } from "../prompt/codex-model.ts";
 import { isEffectiveOpenAICodexContext, shouldUseNativeResponsesCompaction } from "../activation/activation.ts";
 import type { AdapterState } from "../activation/state.ts";
@@ -265,11 +265,18 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 		return { cancel: true };
 	}
 	const responsesLite = state.config.beta.responsesLite && runtime.provider === "openai-codex" && supportsResponsesLiteModel(compactionModel);
-	if (responsesLite) request = applyResponsesLiteRequest(request);
+	if (responsesLite) request = await prepareResponsesLiteRequestImages(applyResponsesLiteRequest(request));
 
 	request = shrinkNativeCompactionRequestForEndpoint(request, { contextWindow: compactionTargetModel.contextWindow }).request;
 
-	const compactResult = await executeNativeCompaction({ runtime, request, signal: event.signal, responsesLite, turnState: state.codexTurnState });
+	const compactResult = await executeNativeCompaction({
+		runtime,
+		request,
+		signal: event.signal,
+		responsesLite,
+		turnState: state.codexTurnState,
+		sessionId: ctx.sessionManager.getSessionId(),
+	});
 	if (!compactResult.ok) {
 		if (compactResult.reason !== "aborted") {
 			notifyNativeCompactionFallback(ctx, state, branchEntries, runtime, formatCompactFailureMessage(compactResult));

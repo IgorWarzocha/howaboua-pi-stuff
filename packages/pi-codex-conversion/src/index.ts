@@ -7,7 +7,7 @@ import { clearPathApplyPatchPreviewStates } from "./tools/path/apply-patch-previ
 import { createExecCommandTracker } from "./tools/exec/command-state.ts";
 import { registerExecCommandTool } from "./tools/exec/command-tool.ts";
 import { createExecSessionManager } from "./tools/exec/session-manager.ts";
-import { registerOpenAICodexCustomProvider } from "./providers/openai-codex-custom-provider.ts";
+import { prewarmOpenAICodexWebSocket, registerOpenAICodexCustomProvider } from "./providers/openai-codex-custom-provider.ts";
 import { registerImageGenerationTool } from "./tools/imagegen/tool.ts";
 import { buildCodexSystemPrompt, extractPiPromptSkills, resolvePromptSkills } from "./prompt/build-system-prompt.ts";
 import { registerViewImageTool, supportsViewImageInputs } from "./tools/view-image/tool.ts";
@@ -55,6 +55,9 @@ export default function codexConversion(pi: ExtensionAPI) {
 	const registeredNativeWebSearchTools = new Set<string>();
 	let latestRecentWebSearchInput: ResponseInput | undefined;
 	let backgroundWidgetRenderTimer: ReturnType<typeof setTimeout> | undefined;
+	let prewarmController: AbortController | undefined;
+	let prewarmPromise: Promise<void> | undefined;
+	let websocketPrewarmed = false;
 
 	function customRenderingOptions(config = state.config): { customRendering: boolean } {
 		return { customRendering: config.ui.toolRenaming };
@@ -70,6 +73,53 @@ export default function codexConversion(pi: ExtensionAPI) {
 
 	function bundledPathToolsEnv(config = state.config): NodeJS.ProcessEnv {
 		return createBundledPathToolsEnv({ ...process.env, PI_CODEX_MODEL: config.openai.webSearchModel });
+	}
+
+	function codexSystemPrompt(basePrompt: string, ctx: Parameters<typeof shouldUseCodexAdapter>[0], skills = state.promptSkills): string {
+		return buildCodexSystemPrompt(basePrompt, {
+			skills,
+			shell: getDefaultCodexRuntimeShell(),
+			mode: state.config.mode,
+			tools: state.config.mode === "path" ? { ...state.config.tools, viewImage: supportsViewImageInputs(ctx.model) || state.config.tools.viewImageFallback } : undefined,
+		});
+	}
+
+	function startWebSocketPrewarm(ctx: Parameters<typeof shouldUseCodexAdapter>[0], systemPrompt = ctx.getSystemPrompt()): Promise<void> | undefined {
+		const model = ctx.model;
+		if (websocketPrewarmed || !model || model.provider !== "openai-codex" || !shouldUseCodexAdapter(ctx, state.config) || !state.config.openai.forceCachedWebSockets) return undefined;
+		prewarmController?.abort();
+		const controller = new AbortController();
+		prewarmController = controller;
+		const activeTools = new Set(pi.getActiveTools());
+		const tools = pi.getAllTools()
+			.filter((tool) => activeTools.has(tool.name))
+			.map((tool) => ({ name: tool.name, description: tool.description, parameters: tool.parameters })) as never;
+		const promise = (async () => {
+			const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
+			if (!auth.ok || !auth.apiKey || controller.signal.aborted) return;
+			await prewarmOpenAICodexWebSocket(
+				model,
+				{ systemPrompt: codexSystemPrompt(systemPrompt, ctx), messages: [], tools },
+				{
+					apiKey: auth.apiKey,
+					...(auth.headers ? { headers: auth.headers } : {}),
+					...(auth.env ? { env: auth.env } : {}),
+					sessionId: ctx.sessionManager.getSessionId(),
+					signal: controller.signal,
+					reasoning: pi.getThinkingLevel() as never,
+					textVerbosity: state.config.openai.verbosity,
+					...(state.config.openai.fast ? { serviceTier: "priority" as const } : {}),
+					onPayload: (body) => rewriteCodexProviderRequest(body, ctx, state),
+				},
+				{ getConfig: () => ({ openai: state.config.openai, beta: state.config.beta }), turnState: state.codexTurnState },
+			);
+			if (!controller.signal.aborted) websocketPrewarmed = true;
+		})().catch(() => undefined).finally(() => {
+			if (prewarmPromise === promise) prewarmPromise = undefined;
+			if (prewarmController === controller) prewarmController = undefined;
+		});
+		prewarmPromise = promise;
+		return promise;
 	}
 
 	function registerCoreTools(config = state.config): void {
@@ -163,6 +213,7 @@ export default function codexConversion(pi: ExtensionAPI) {
 	});
 
 	pi.on("session_start", async (event, ctx) => {
+		websocketPrewarmed = false;
 		state.codexTurnState.reset();
 		backgroundBashWidget.ctx = ctx;
 		state.cwd = ctx.cwd;
@@ -175,6 +226,7 @@ export default function codexConversion(pi: ExtensionAPI) {
 		ensureOptionalNativeToolsRegistered();
 		renderBackgroundShellWidget(ctx);
 		syncAdapter(pi, ctx, state);
+		void startWebSocketPrewarm(ctx);
 		if (event.reason === "startup") await maybeWarnLocalCheckoutVersion(ctx);
 	});
 
@@ -185,10 +237,12 @@ export default function codexConversion(pi: ExtensionAPI) {
 	});
 
 	pi.on("model_select", async (_event, ctx) => {
+		websocketPrewarmed = false;
 		state.cwd = ctx.cwd;
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 		ensureOptionalNativeToolsRegistered();
 		syncAdapter(pi, ctx, state);
+		void startWebSocketPrewarm(ctx);
 	});
 
 	pi.on("message_start", async (event) => {
@@ -213,6 +267,10 @@ export default function codexConversion(pi: ExtensionAPI) {
 	});
 
 	pi.on("session_shutdown", async () => {
+		prewarmController?.abort();
+		prewarmController = undefined;
+		prewarmPromise = undefined;
+		websocketPrewarmed = false;
 		state.codexTurnState.reset();
 		clearBackgroundShellWidget();
 		backgroundBashWidget.ctx = undefined;
@@ -221,7 +279,7 @@ export default function codexConversion(pi: ExtensionAPI) {
 
 	pi.on("input", async (event) => {
 		// Keep state across model/tool continuations, but never across separate idle prompts.
-		if (event.streamingBehavior === undefined) state.codexTurnState.reset();
+		if (event.streamingBehavior === undefined) state.codexTurnState.beginTurn();
 	});
 
 	pi.on("before_agent_start", async (event, ctx) => {
@@ -229,13 +287,9 @@ export default function codexConversion(pi: ExtensionAPI) {
 			return undefined;
 		}
 		const skills = resolvePromptSkills(event.systemPromptOptions?.skills, hasNoSkillsFlag() ? [] : state.promptSkills);
+		await (prewarmPromise ?? startWebSocketPrewarm(ctx, event.systemPrompt));
 		return {
-			systemPrompt: buildCodexSystemPrompt(event.systemPrompt, {
-				skills,
-				shell: getDefaultCodexRuntimeShell(),
-				mode: state.config.mode,
-				tools: state.config.mode === "path" ? { ...state.config.tools, viewImage: supportsViewImageInputs(ctx.model) || state.config.tools.viewImageFallback } : undefined,
-			}),
+			systemPrompt: codexSystemPrompt(event.systemPrompt, ctx, skills),
 		};
 	});
 

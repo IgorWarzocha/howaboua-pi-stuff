@@ -1,11 +1,11 @@
 import type { Api, AssistantMessage, AssistantMessageEventStream, Model } from "@earendil-works/pi-ai";
-import { CODEX_TOOL_CALL_PROVIDERS, convertResponsesMessages } from "../openai-responses/shared.ts";
 import { normalizeTimeoutMs } from "./sse.ts";
 import { buildCachedWebSocketRequestBody } from "./websocket-continuation.ts";
 import { acquireWebSocket, countWebSocketEvents, isRetryableEarlyWebSocketError, parseWebSocket, startWebSocketOutputOnFirstEvent } from "./websocket.ts";
 import { isWebSocketConnectionLimitReachedError, mapCodexEvents, processMappedCodexResponsesStream } from "./stream-events.ts";
 import type { CachedWebSocketRequestBodyResult, OpenAICodexStreamOptions, ResponsesBody } from "./types.ts";
 import type { CodexTurnState } from "./turn-state.ts";
+import { DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS } from "./constants.ts";
 
 export async function processWebSocketStream<TApi extends Api>(
 	url: string,
@@ -27,6 +27,7 @@ export async function processWebSocketStream<TApi extends Api>(
 		let keepConnection = true;
 		let released = false;
 		let eventCount = 0;
+		const responseItems: unknown[] = [];
 		const transport = (options as { transport?: string | undefined } | undefined)?.transport ?? "auto";
 		const useCachedContext = transport === "websocket-cached" || transport === "auto";
 		// ChatGPT Codex Responses rejects `store: true` ("Store must be set to false").
@@ -60,14 +61,11 @@ export async function processWebSocketStream<TApi extends Api>(
 				output,
 				stream,
 				model,
-				options,
+				{ ...options, onOutputItemDone: (item) => responseItems.push(item) },
 			);
 			if (options?.signal?.aborted) {
 				keepConnection = false;
 			} else if (useCachedContext && entry && output.responseId) {
-				const responseItems = convertResponsesMessages(model, { messages: [output] }, CODEX_TOOL_CALL_PROVIDERS, {
-					includeSystemPrompt: false,
-				}).filter((item) => typeof item === "object" && item !== null && (item as { type?: unknown | undefined }).type !== "function_call_output");
 				entry.continuation = {
 					lastRequestBody: fullBody,
 					lastResponseId: output.responseId,
@@ -92,5 +90,36 @@ export async function processWebSocketStream<TApi extends Api>(
 		} finally {
 			releaseOnce({ keep: keepConnection });
 		}
+	}
+}
+
+export async function prewarmWebSocket(
+	url: string,
+	body: ResponsesBody,
+	headers: Headers,
+	options: OpenAICodexStreamOptions,
+	turnState?: CodexTurnState,
+): Promise<void> {
+	const websocketConnectTimeoutMs = normalizeTimeoutMs(options.websocketConnectTimeoutMs, "websocketConnectTimeoutMs");
+	const { socket, entry, release } = await acquireWebSocket(url, headers, options.sessionId, options.signal, websocketConnectTimeoutMs, options.env);
+	let keepConnection = true;
+	const responseItems: unknown[] = [];
+	let responseId: string | undefined;
+	const idleTimeoutMs = normalizeTimeoutMs(options.timeoutMs ?? options.websocketConnectTimeoutMs ?? DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS, "timeoutMs");
+	try {
+		socket.send(JSON.stringify({ type: "response.create", ...body, generate: false }));
+		for await (const event of mapCodexEvents(parseWebSocket(socket, options.signal, idleTimeoutMs, (value) => turnState?.capturePrewarm(value)))) {
+			if (event.type === "response.created" && event.response?.id) responseId = event.response.id;
+			if (event.type === "response.output_item.done" && event.item) responseItems.push(event.item);
+			if (event.type === "response.completed" && event.response?.id) responseId = event.response.id;
+		}
+		if (entry && responseId) {
+			entry.continuation = { lastRequestBody: body, lastResponseId: responseId, lastResponseItems: responseItems };
+		}
+	} catch (error) {
+		keepConnection = false;
+		throw error;
+	} finally {
+		release({ keep: keepConnection });
 	}
 }

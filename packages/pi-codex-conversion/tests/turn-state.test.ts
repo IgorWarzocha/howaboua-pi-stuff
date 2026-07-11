@@ -11,6 +11,15 @@ test("turn state keeps the first server token until the logical turn resets", ()
 	assert.equal(state.current(), undefined);
 });
 
+test("a prewarm token seeds exactly one logical turn", () => {
+	const state = createCodexTurnState();
+	state.capturePrewarm("ts-warm");
+	state.beginTurn();
+	assert.equal(state.current(), "ts-warm");
+	state.beginTurn();
+	assert.equal(state.current(), undefined);
+});
+
 test("turn state reads WebSocket response metadata headers", () => {
 	for (const type of ["response.metadata", "codex.response.metadata"]) {
 		assert.equal(extractCodexTurnStateFromWebSocketEvent({

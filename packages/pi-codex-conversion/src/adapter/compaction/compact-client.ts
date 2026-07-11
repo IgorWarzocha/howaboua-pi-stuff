@@ -47,6 +47,7 @@ export type ExecuteNativeCompactionOptions = {
 	signal?: AbortSignal | undefined;
 	responsesLite?: boolean | undefined;
 	turnState?: CodexTurnState | undefined;
+	sessionId?: string | undefined;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -157,6 +158,10 @@ export async function executeNativeCompaction(
 	const headers = toHeaders(runtime, options.responsesLite);
 	const currentTurnState = options.turnState?.current();
 	if (currentTurnState && runtime.provider === "openai-codex") headers[CODEX_TURN_STATE_HEADER] = currentTurnState;
+	if (options.sessionId && runtime.provider === "openai-codex") {
+		headers["session-id"] = options.sessionId;
+		headers["thread-id"] = options.sessionId;
+	}
 
 	if (signal?.aborted) {
 		const aborted: NativeCompactionClientFailure = {
