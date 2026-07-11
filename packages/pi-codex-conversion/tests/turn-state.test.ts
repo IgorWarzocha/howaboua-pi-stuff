@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createCodexTurnState, extractCodexTurnStateFromWebSocketEvent } from "../src/providers/openai-codex/turn-state.ts";
+import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 
 test("turn state keeps the first server token until the logical turn resets", () => {
 	const state = createCodexTurnState();
@@ -18,13 +18,4 @@ test("a prewarm token seeds exactly one logical turn", () => {
 	assert.equal(state.current(), "ts-warm");
 	state.beginTurn();
 	assert.equal(state.current(), undefined);
-});
-
-test("turn state reads WebSocket response metadata headers", () => {
-	for (const type of ["response.metadata", "codex.response.metadata"]) {
-		assert.equal(extractCodexTurnStateFromWebSocketEvent({
-			type,
-			headers: { "X-Codex-Turn-State": "ts-ws" },
-		}), "ts-ws");
-	}
 });

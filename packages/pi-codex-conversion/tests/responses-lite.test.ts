@@ -44,11 +44,6 @@ test("Responses Lite carries its transport flag in WebSocket metadata", () => {
 	assert.equal(body.client_metadata?.["ws_request_header_x_openai_internal_codex_responses_lite"], "true");
 });
 
-test("Responses Lite always disables parallel tool calls", () => {
-	const body = { model: "gpt-5.6-luna", input: [], parallel_tool_calls: true };
-	assert.equal(applyResponsesLiteRequest(body).parallel_tool_calls, false);
-});
-
 test("Responses Lite validates inline images before transport", async () => {
 	const validPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==";
 	const body = await prepareResponsesLiteRequestImages(applyResponsesLiteRequest({

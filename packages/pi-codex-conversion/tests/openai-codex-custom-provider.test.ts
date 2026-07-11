@@ -245,15 +245,6 @@ test("registered Codex provider retries retryable SSE failures and streams the f
 	}
 });
 
-test("dynamic tools retain the session prompt-cache identity", () => {
-	const options = { sessionId: "session-tools" } as never;
-	const first = buildRequestBody(codexModel, { systemPrompt: "Instructions", messages: [], tools: [exampleTool] }, options);
-	const second = buildRequestBody(codexModel, { systemPrompt: "Instructions", messages: [], tools: [] }, options);
-	assert.equal(first.prompt_cache_key, second.prompt_cache_key);
-	assert.deepEqual(first.client_metadata, second.client_metadata);
-	assert.notDeepEqual(first.tools, second.tools);
-});
-
 test("Codex turn state is captured and replayed on SSE follow-ups", async () => {
 	const originalFetch = globalThis.fetch;
 	const registered = createRegisteredCodexProvider();

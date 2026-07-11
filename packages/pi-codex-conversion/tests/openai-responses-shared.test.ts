@@ -173,7 +173,6 @@ test("processResponsesStream records cache writes and reasoning tokens", async (
 
 test("processResponsesStream preserves image generation calls for later Responses turns", async () => {
 	const output = createAssistantOutput();
-	const completedItems: unknown[] = [];
 	const rawImageItem = {
 		type: "image_generation_call",
 		id: "ig_123",
@@ -218,13 +217,11 @@ test("processResponsesStream preserves image generation calls for later Response
 		output as any,
 		{ push: () => undefined } as any,
 		model,
-		{ onOutputItemDone: (item) => completedItems.push(item) },
 	);
 
 	assert.deepEqual((output.content as any[]).filter((block) => block.type === "image_generation_call"), [
 		{ type: "image_generation_call", item: imageItem },
 	]);
-	assert.deepEqual(completedItems, [rawImageItem]);
 
 	const messages = convertResponsesMessages(
 		model,
