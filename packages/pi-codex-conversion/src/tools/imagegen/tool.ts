@@ -71,7 +71,6 @@ export function createImageGenerationTool(options: ImageGenerationToolOptions = 
 		description,
 		...(options.promptSnippet === false ? {} : { promptSnippet: description }),
 		parameters: IMAGE_GENERATION_PARAMETERS,
-		prepareArguments: (args) => args as any,
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
 			if (!supportsExecutableImageGeneration(ctx.model, options)) throw new Error(IMAGE_GENERATION_UNSUPPORTED_MESSAGE);
 			const details = await executeRustImagegen(params, signal, ctx);

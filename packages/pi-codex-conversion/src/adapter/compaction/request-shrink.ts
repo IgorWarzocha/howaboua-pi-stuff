@@ -1,9 +1,7 @@
-import { getEncoding } from "js-tiktoken";
 import type { NativeCompactionRequestBody, ResponsesInputItem } from "./serializer.ts";
 
 export const COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE = "[truncated]";
 
-const COMPACTION_TOKEN_ENCODING = getEncoding("o200k_base");
 const COMPACTION_BUDGET_RATIO = 0.8;
 
 export type NativeCompactionShrinkResult = {
@@ -22,10 +20,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
-function estimateTokenCount(value: unknown): number {
+type TokenEncoder = { encode(value: string): ArrayLike<unknown> };
+let tokenEncoderPromise: Promise<TokenEncoder> | undefined;
+
+function getTokenEncoder(): Promise<TokenEncoder> {
+	tokenEncoderPromise ??= import("js-tiktoken").then(({ getEncoding }) => getEncoding("o200k_base"));
+	return tokenEncoderPromise;
+}
+
+function estimateTokenCount(value: unknown, encoding: TokenEncoder): number {
 	const serialized = typeof value === "string" ? value : JSON.stringify(value) ?? "";
 	try {
-		return COMPACTION_TOKEN_ENCODING.encode(serialized).length;
+		return encoding.encode(serialized).length;
 	} catch {
 		return Math.ceil(serialized.length / 2);
 	}
@@ -50,12 +56,13 @@ function compactRequestBudget(options: ShrinkNativeCompactionRequestOptions): nu
 	return Math.floor(contextWindow * COMPACTION_BUDGET_RATIO);
 }
 
-export function shrinkNativeCompactionRequestForEndpoint(
+export async function shrinkNativeCompactionRequestForEndpoint(
 	request: NativeCompactionRequestBody,
 	options: ShrinkNativeCompactionRequestOptions = {},
-): NativeCompactionShrinkResult {
+): Promise<NativeCompactionShrinkResult> {
+	const encoding = await getTokenEncoder();
 	const budgetTokens = compactRequestBudget(options);
-	const estimatedTokensBefore = estimateTokenCount(request);
+	const estimatedTokensBefore = estimateTokenCount(request, encoding);
 	if (budgetTokens === undefined || estimatedTokensBefore <= budgetTokens) {
 		return {
 			request,
@@ -78,7 +85,7 @@ export function shrinkNativeCompactionRequestForEndpoint(
 		const rewrittenItem = rewriteToolOutputItem(item);
 		input[index] = rewrittenItem;
 		rewrittenOutputs++;
-		estimatedTokensAfter += estimateTokenCount(rewrittenItem) - estimateTokenCount(item);
+		estimatedTokensAfter += estimateTokenCount(rewrittenItem, encoding) - estimateTokenCount(item, encoding);
 	}
 
 	return {

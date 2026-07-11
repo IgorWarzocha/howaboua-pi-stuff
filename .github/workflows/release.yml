@@ -20,6 +20,8 @@ jobs:
           fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
       - run: bun install
+      - name: Build pi-codex-conversion extension
+        run: bun run --cwd packages/pi-codex-conversion build
       - name: Add aggregate package changesets
         run: bun run changeset:aggregates
       - name: Changesets release

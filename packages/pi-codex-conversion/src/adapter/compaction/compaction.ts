@@ -267,7 +267,7 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 	const responsesLite = state.config.beta.responsesLite && runtime.provider === "openai-codex" && supportsResponsesLiteModel(compactionModel);
 	if (responsesLite) request = await prepareResponsesLiteRequestImages(applyResponsesLiteRequest(request));
 
-	request = shrinkNativeCompactionRequestForEndpoint(request, { contextWindow: compactionTargetModel.contextWindow }).request;
+	request = (await shrinkNativeCompactionRequestForEndpoint(request, { contextWindow: compactionTargetModel.contextWindow })).request;
 
 	const compactResult = await executeNativeCompaction({
 		runtime,

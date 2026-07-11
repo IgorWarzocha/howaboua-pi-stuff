@@ -92,7 +92,6 @@ function createCodexStream<TApi extends Api>(
 	context: Context,
 	options: CodexProviderStreamOptions | undefined,
 	deps: {
-		getCurrentCwd: () => string;
 		getConfig?: () => Pick<CodexConversionConfig, "openai" | "beta"> | undefined;
 		turnState?: CodexTurnState | undefined;
 		onStreamSettled?: () => void | undefined;
@@ -104,7 +103,6 @@ function createCodexStream<TApi extends Api>(
 		? { ...options, transport: effectiveTransport }
 		: { transport: effectiveTransport };
 	const stream = createAssistantMessageEventStream();
-	void deps.getCurrentCwd;
 
 	(async () => {
 		const output = createInitialAssistantMessage(model);
@@ -271,12 +269,11 @@ function createCodexStream<TApi extends Api>(
 	return stream;
 }
 
-export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: { getCurrentCwd: () => string; getConfig?: () => Pick<CodexConversionConfig, "openai" | "beta"> | undefined; turnState?: CodexTurnState | undefined }): void {
+export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: { getConfig?: () => Pick<CodexConversionConfig, "openai" | "beta"> | undefined; turnState?: CodexTurnState | undefined }): void {
 	pi.registerProvider("openai-codex", {
 		api: "openai-codex-responses",
 		oauth: openaiCodexNativeOAuthProvider,
 		streamSimple: (model, context, streamOptions) => createCodexStream(model, context, streamOptions, {
-			getCurrentCwd: options.getCurrentCwd,
 			...(options.getConfig ? { getConfig: options.getConfig } : {}),
 			...(options.turnState ? { turnState: options.turnState } : {}),
 		}),

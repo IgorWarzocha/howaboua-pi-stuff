@@ -27,7 +27,7 @@ test("native compaction requests use Codex-compatible compact payload shape", ()
 	assert.deepEqual(Object.keys(request).sort(), ["input", "instructions", "model"]);
 });
 
-test("native compaction shrinks tool outputs when request exceeds context window", () => {
+test("native compaction shrinks tool outputs when request exceeds context window", async () => {
 	const request: NativeCompactionRequestBody = {
 		model: model.id,
 		instructions: "compact",
@@ -40,7 +40,7 @@ test("native compaction shrinks tool outputs when request exceeds context window
 		],
 	};
 
-	const result = shrinkNativeCompactionRequestForEndpoint(request, { contextWindow: 450 });
+	const result = await shrinkNativeCompactionRequestForEndpoint(request, { contextWindow: 450 });
 
 	assert.equal(result.rewrittenOutputs, 1);
 	assert.equal((result.request.input[2] as { output: string }).output, COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE);
@@ -48,14 +48,14 @@ test("native compaction shrinks tool outputs when request exceeds context window
 	assert.ok(result.estimatedTokensAfter < result.estimatedTokensBefore);
 });
 
-test("native compaction leaves compact requests unchanged under context window", () => {
+test("native compaction leaves compact requests unchanged under context window", async () => {
 	const request: NativeCompactionRequestBody = {
 		model: model.id,
 		instructions: "compact",
 		input: [{ type: "function_call_output", call_id: "call-1", output: "small" }],
 	};
 
-	const result = shrinkNativeCompactionRequestForEndpoint(request, { contextWindow: 10_000 });
+	const result = await shrinkNativeCompactionRequestForEndpoint(request, { contextWindow: 10_000 });
 
 	assert.equal(result.rewrittenOutputs, 0);
 	assert.equal(result.request, request);

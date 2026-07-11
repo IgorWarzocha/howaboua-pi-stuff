@@ -1,6 +1,5 @@
 import { calculateCost, type Api, type AssistantMessage, type Model } from "@earendil-works/pi-ai";
 import type { ResponseStreamEvent } from "openai/resources/responses/responses.js";
-import { parse as partialParse } from "partial-json";
 import type { AssistantMessageEventStream } from "@earendil-works/pi-ai";
 import { encodeTextSignatureV1 } from "./signatures.ts";
 import { sanitizeImageGenerationCallItem, sanitizeWebSearchCallItem, type ImageGenerationCallBlock, type WebSearchCallBlock } from "./native-items.ts";
@@ -8,7 +7,9 @@ import type { OpenAIResponsesStreamOptions } from "./shared.ts";
 
 type InternalAssistantContent = AssistantMessage["content"][number] | ImageGenerationCallBlock | WebSearchCallBlock;
 
-function parseStreamingJson(partialJson: string): Record<string, unknown> {
+type PartialJsonParser = (value: string) => unknown;
+
+function parseStreamingJson(partialJson: string, partialParse: PartialJsonParser): Record<string, unknown> {
 	if (!partialJson || partialJson.trim() === "") return {};
 	try {
 		return JSON.parse(partialJson) as Record<string, unknown>;
@@ -28,6 +29,7 @@ export async function processResponsesStream<TApi extends Api>(
 	model: Model<TApi>,
 	options?: OpenAIResponsesStreamOptions,
 ): Promise<void> {
+	const { parse: partialParse } = await import("partial-json");
 	const blocks = output.content;
 	const blockIndex = () => blocks.length - 1;
 	type ThinkingBlock = Extract<AssistantMessage["content"][number], { type: "thinking" }>;
@@ -182,7 +184,7 @@ export async function processResponsesStream<TApi extends Api>(
 			const state = outputStates.get(event.output_index);
 			if (state?.kind === "function_call") {
 				state.block.partialJson = (state.block.partialJson ?? "") + event.delta;
-				state.block.arguments = parseStreamingJson(state.block.partialJson ?? "");
+				state.block.arguments = parseStreamingJson(state.block.partialJson ?? "", partialParse);
 				stream.push({ type: "toolcall_delta", contentIndex: state.blockIndex, delta: event.delta, partial: output });
 			}
 		} else if (event.type === "response.function_call_arguments.done") {
@@ -190,7 +192,7 @@ export async function processResponsesStream<TApi extends Api>(
 			if (state?.kind === "function_call") {
 				const previousPartialJson = state.block.partialJson ?? "";
 				state.block.partialJson = event.arguments;
-				state.block.arguments = parseStreamingJson(state.block.partialJson ?? "");
+				state.block.arguments = parseStreamingJson(state.block.partialJson ?? "", partialParse);
 				if (event.arguments.startsWith(previousPartialJson)) {
 					const delta = event.arguments.slice(previousPartialJson.length);
 					if (delta.length > 0) {
@@ -228,8 +230,8 @@ export async function processResponsesStream<TApi extends Api>(
 			} else if (item.type === "function_call") {
 				const state = outputStates.get(event.output_index);
 				const args = state?.kind === "function_call" && state.block.partialJson
-					? parseStreamingJson(state.block.partialJson)
-					: parseStreamingJson(item.arguments || "{}");
+					? parseStreamingJson(state.block.partialJson, partialParse)
+					: parseStreamingJson(item.arguments || "{}", partialParse);
 				const toolCall = state?.kind === "function_call"
 					? (() => {
 						state.block.arguments = args;

@@ -98,5 +98,8 @@
     "view_image": "./bin/view_image",
     "web_run": "./bin/web_run",
     "imagegen": "./bin/imagegen"
+  },
+  "engines": {
+    "node": ">=22.19.0"
   }
 }

@@ -72,7 +72,7 @@ async function collectStream(stream: AsyncIterable<unknown>): Promise<unknown[]>
 	return events;
 }
 
-function createRegisteredCodexProvider(options?: { cwd?: string | undefined; responsesLite?: boolean | undefined }) {
+function createRegisteredCodexProvider(options?: { responsesLite?: boolean | undefined }) {
 	const turnState = createCodexTurnState();
 	const providers = new Map<string, { streamSimple: (...args: never[]) => AsyncIterable<unknown> }>();
 	const handlers = new Map<string, Array<(...args: never[]) => unknown>>();
@@ -94,7 +94,6 @@ function createRegisteredCodexProvider(options?: { cwd?: string | undefined; res
 	};
 
 	registerOpenAICodexCustomProvider(pi as never, {
-		getCurrentCwd: () => options?.cwd ?? process.cwd(),
 		getConfig: () => ({
 			openai: DEFAULT_CODEX_CONVERSION_CONFIG.openai,
 			beta: { responsesLite: options?.responsesLite ?? false },
