@@ -9,6 +9,8 @@ import {
 } from "../src/providers/openai-codex-custom-provider.ts";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
+import { processMappedCodexResponsesStream } from "../src/providers/openai-codex/stream-events.ts";
+import { createInitialAssistantMessage } from "../src/providers/openai-codex/types.ts";
 
 const exampleTool = {
 	name: "example_tool",
@@ -42,6 +44,23 @@ function sseResponse(events: unknown[]): Response {
 		headers: { "content-type": "text/event-stream" },
 	});
 }
+
+test("Codex stream forwarding retains exact completed response items", async () => {
+	const item = { type: "function_call", id: "fc_1", call_id: "call_1", name: "example_tool", arguments: "{}" };
+	const captured: unknown[] = [];
+	async function* events() {
+		yield { type: "response.output_item.done", output_index: 0, item };
+		yield { type: "response.completed", response: { id: "resp_1", status: "completed", usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 } } };
+	}
+	await processMappedCodexResponsesStream(
+		events() as never,
+		createInitialAssistantMessage(codexModel),
+		{ push() {} } as never,
+		codexModel,
+		{ onOutputItemDone: (value) => captured.push(value) },
+	);
+	assert.deepEqual(captured, [item]);
+});
 
 function requestBodyText(init: RequestInit): string {
 	return init.body instanceof Uint8Array ? zstdDecompressSync(init.body).toString("utf8") : String(init.body);

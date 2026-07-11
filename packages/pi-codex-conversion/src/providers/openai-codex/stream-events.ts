@@ -73,6 +73,7 @@ function normalizeCodexStatus(status: string | undefined): string | undefined {
 function responseStreamOptions<TApi extends Api>(options: OpenAICodexStreamOptions | undefined, model: Model<TApi>) {
 	return {
 		serviceTier: (options as { serviceTier?: ServiceTier | undefined } | undefined)?.serviceTier,
+		...(options?.onOutputItemDone ? { onOutputItemDone: options.onOutputItemDone } : {}),
 		resolveServiceTier: resolveCodexServiceTier,
 		applyServiceTierPricing: (usage, serviceTier) => applyServiceTierPricing(usage, serviceTier, model as Model<Api>),
 	} satisfies Parameters<typeof processResponsesStream>[4];
