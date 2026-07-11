@@ -28,6 +28,7 @@ import { BACKGROUND_BASH_WIDGET_ID, registerBackgroundBashWidgetShortcuts, rende
 import { CODEX_TOOL_CALL_PROVIDERS, convertResponsesMessages } from "./providers/openai-responses/shared.ts";
 import { maybeWarnLocalCheckoutVersion } from "./adapter/local-version-warning.ts";
 import type { ResponseInput } from "openai/resources/responses/responses.js";
+import { createCodexTurnState } from "./providers/openai-codex/turn-state.ts";
 
 function getCommandArg(args: unknown): string | undefined {
 	if (!args || typeof args !== "object" || !("cmd" in args) || typeof args.cmd !== "string") {
@@ -48,7 +49,7 @@ function isToolCallOnlyAssistantMessage(message: unknown): boolean {
 
 export default function codexConversion(pi: ExtensionAPI) {
 	const tracker = createExecCommandTracker();
-	const state: AdapterState = { enabled: false, cwd: process.cwd(), promptSkills: [], config: readCodexConversionConfig() };
+	const state: AdapterState = { enabled: false, cwd: process.cwd(), promptSkills: [], config: readCodexConversionConfig(), codexTurnState: createCodexTurnState() };
 	const sessions = createExecSessionManager({ env: createBundledPathToolsEnv({ ...process.env, PI_CODEX_MODEL: state.config.openai.webSearchModel }) });
 	const backgroundBashWidget: BackgroundBashWidgetState = { folded: true };
 	const registeredNativeWebSearchTools = new Set<string>();
@@ -97,6 +98,7 @@ export default function codexConversion(pi: ExtensionAPI) {
 	registerOpenAICodexCustomProvider(pi, {
 		getCurrentCwd: () => state.cwd,
 		getConfig: () => ({ openai: state.config.openai, beta: state.config.beta }),
+		turnState: state.codexTurnState,
 	});
 	registerCoreTools();
 	ensureOptionalNativeToolsRegistered();
@@ -161,6 +163,7 @@ export default function codexConversion(pi: ExtensionAPI) {
 	});
 
 	pi.on("session_start", async (event, ctx) => {
+		state.codexTurnState.reset();
 		backgroundBashWidget.ctx = ctx;
 		state.cwd = ctx.cwd;
 		state.config = readCodexConversionConfig();
@@ -210,9 +213,15 @@ export default function codexConversion(pi: ExtensionAPI) {
 	});
 
 	pi.on("session_shutdown", async () => {
+		state.codexTurnState.reset();
 		clearBackgroundShellWidget();
 		backgroundBashWidget.ctx = undefined;
 		sessions.shutdown();
+	});
+
+	pi.on("input", async (event) => {
+		// Keep state across model/tool continuations, but never across separate idle prompts.
+		if (event.streamingBehavior === undefined) state.codexTurnState.reset();
 	});
 
 	pi.on("before_agent_start", async (event, ctx) => {
@@ -228,6 +237,10 @@ export default function codexConversion(pi: ExtensionAPI) {
 				tools: state.config.mode === "path" ? { ...state.config.tools, viewImage: supportsViewImageInputs(ctx.model) || state.config.tools.viewImageFallback } : undefined,
 			}),
 		};
+	});
+
+	pi.on("agent_settled", async () => {
+		state.codexTurnState.reset();
 	});
 
 	pi.on("before_provider_request", async (event, ctx) => {

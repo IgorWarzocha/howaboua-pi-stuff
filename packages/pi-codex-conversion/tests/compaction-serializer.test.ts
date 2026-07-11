@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { injectPendingNativeWindowIntoPiCompactionRequest } from "../src/adapter/compaction/compaction.ts";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
+import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 import type { Model } from "@earendil-works/pi-ai";
 import { serializeMessagesToCompactRequest, type NativeCompactionRequestBody } from "../src/adapter/compaction/serializer.ts";
 import { COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE, shrinkNativeCompactionRequestForEndpoint } from "../src/adapter/compaction/request-shrink.ts";
@@ -70,6 +71,7 @@ test("injects pending native compacted window into Pi compaction summarization p
 		enabled: true,
 		cwd: process.cwd(),
 		promptSkills: [],
+		codexTurnState: createCodexTurnState(),
 		config: { ...DEFAULT_CODEX_CONVERSION_CONFIG, compaction: { ...DEFAULT_CODEX_CONVERSION_CONFIG.compaction, responsesCompaction: true } },
 		pendingPiCompactionNativeWindow: {
 			window: [{ type: "compaction_summary", encrypted_content: "sealed" }],

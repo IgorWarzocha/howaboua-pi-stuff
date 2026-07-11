@@ -1,6 +1,7 @@
 import type { AssistantMessage, AssistantMessageEventStream } from "@earendil-works/pi-ai";
 import type { StreamEventShape, WebSocketLike } from "./types.ts";
 import { extractWebSocketCloseError, extractWebSocketError } from "./websocket-connection.ts";
+import { extractCodexTurnStateFromWebSocketEvent } from "./turn-state.ts";
 
 async function decodeWebSocketData(data: unknown): Promise<string | null> {
 	if (typeof data === "string") return data;
@@ -17,7 +18,7 @@ async function decodeWebSocketData(data: unknown): Promise<string | null> {
 	return null;
 }
 
-export async function* parseWebSocket(socket: WebSocketLike, signal: AbortSignal | undefined, idleTimeoutMs?: number): AsyncIterable<StreamEventShape> {
+export async function* parseWebSocket(socket: WebSocketLike, signal: AbortSignal | undefined, idleTimeoutMs?: number, onTurnState?: (value: string) => void): AsyncIterable<StreamEventShape> {
 	const queue: StreamEventShape[] = [];
 	let pending: (() => void) | null = null;
 	let done = false;
@@ -44,6 +45,8 @@ export async function* parseWebSocket(socket: WebSocketLike, signal: AbortSignal
 				if (!text) return;
 				try {
 					const parsed = JSON.parse(text) as StreamEventShape;
+					const turnState = extractCodexTurnStateFromWebSocketEvent(parsed);
+					if (turnState) onTurnState?.(turnState);
 					const type = typeof parsed.type === "string" ? parsed.type : "";
 					if (type === "response.completed" || type === "response.done" || type === "response.incomplete") {
 						sawCompletion = true;

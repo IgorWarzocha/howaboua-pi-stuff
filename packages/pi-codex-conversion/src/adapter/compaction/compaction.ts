@@ -269,7 +269,7 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 
 	request = shrinkNativeCompactionRequestForEndpoint(request, { contextWindow: compactionTargetModel.contextWindow }).request;
 
-	const compactResult = await executeNativeCompaction({ runtime, request, signal: event.signal, responsesLite });
+	const compactResult = await executeNativeCompaction({ runtime, request, signal: event.signal, responsesLite, turnState: state.codexTurnState });
 	if (!compactResult.ok) {
 		if (compactResult.reason !== "aborted") {
 			notifyNativeCompactionFallback(ctx, state, branchEntries, runtime, formatCompactFailureMessage(compactResult));

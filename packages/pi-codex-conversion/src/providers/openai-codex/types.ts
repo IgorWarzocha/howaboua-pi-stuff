@@ -101,6 +101,7 @@ export interface ResponseEnvelope {
 
 export interface StreamEventShape {
 	type?: string | undefined;
+	headers?: Record<string, unknown> | undefined;
 	response?: ResponseEnvelope | undefined;
 	item?: {
 		id?: string | undefined;

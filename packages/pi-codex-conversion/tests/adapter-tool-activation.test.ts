@@ -4,6 +4,7 @@ import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/confi
 import { shouldUseNativeResponsesCompaction, syncAdapter } from "../src/adapter/activation/activation.ts";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
 import { mergeAdapterTools } from "../src/index.ts";
+import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 
 function createToolHarness(activeTools: string[]) {
 	return {
@@ -20,6 +21,7 @@ function createAdapterState(overrides: Partial<AdapterState["config"]> = {}): Ad
 		enabled: false,
 		cwd: process.cwd(),
 		promptSkills: [],
+		codexTurnState: createCodexTurnState(),
 		config: {
 			...DEFAULT_CODEX_CONVERSION_CONFIG,
 			...overrides,

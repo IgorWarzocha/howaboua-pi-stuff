@@ -1,6 +1,7 @@
 import type { NativeCompactionRuntime } from "./compaction-runtime.ts";
 import type { NativeCompactionRequestBody } from "./serializer.ts";
 import { RESPONSES_LITE_HEADER } from "../../providers/openai-codex/responses-lite.ts";
+import { CODEX_TURN_STATE_HEADER, type CodexTurnState } from "../../providers/openai-codex/turn-state.ts";
 
 const JSON_CONTENT_TYPE = "application/json";
 
@@ -45,6 +46,7 @@ export type ExecuteNativeCompactionOptions = {
 	request: NativeCompactionRequestBody;
 	signal?: AbortSignal | undefined;
 	responsesLite?: boolean | undefined;
+	turnState?: CodexTurnState | undefined;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -153,6 +155,8 @@ export async function executeNativeCompaction(
 ): Promise<NativeCompactionClientResult> {
 	const { runtime, request, signal } = options;
 	const headers = toHeaders(runtime, options.responsesLite);
+	const currentTurnState = options.turnState?.current();
+	if (currentTurnState && runtime.provider === "openai-codex") headers[CODEX_TURN_STATE_HEADER] = currentTurnState;
 
 	if (signal?.aborted) {
 		const aborted: NativeCompactionClientFailure = {
@@ -169,6 +173,9 @@ export async function executeNativeCompaction(
 			body: JSON.stringify(request),
 			...(signal ? { signal } : {}),
 		});
+		if (response.ok && runtime.provider === "openai-codex") {
+			options.turnState?.capture(response.headers.get(CODEX_TURN_STATE_HEADER));
+		}
 		const responseText = await response.text();
 
 		if (!response.ok) {

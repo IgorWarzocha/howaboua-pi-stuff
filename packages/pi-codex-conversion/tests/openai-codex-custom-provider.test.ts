@@ -8,6 +8,7 @@ import {
 	registerOpenAICodexCustomProvider,
 } from "../src/providers/openai-codex-custom-provider.ts";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
+import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 
 const exampleTool = {
 	name: "example_tool",
@@ -53,6 +54,7 @@ async function collectStream(stream: AsyncIterable<unknown>): Promise<unknown[]>
 }
 
 function createRegisteredCodexProvider(options?: { cwd?: string | undefined; responsesLite?: boolean | undefined }) {
+	const turnState = createCodexTurnState();
 	const providers = new Map<string, { streamSimple: (...args: never[]) => AsyncIterable<unknown> }>();
 	const handlers = new Map<string, Array<(...args: never[]) => unknown>>();
 	const renderers = new Map<string, unknown>();
@@ -78,8 +80,9 @@ function createRegisteredCodexProvider(options?: { cwd?: string | undefined; res
 			openai: DEFAULT_CODEX_CONVERSION_CONFIG.openai,
 			beta: { responsesLite: options?.responsesLite ?? false },
 		}),
+		turnState,
 	});
-	return { provider: providers.get("openai-codex")!, handlers, renderers, sentMessages };
+	return { provider: providers.get("openai-codex")!, handlers, renderers, sentMessages, turnState };
 }
 
 test("buildRequestBody keeps Codex request shape stable for common options", () => {
@@ -213,6 +216,34 @@ test("registered Codex provider retries retryable SSE failures and streams the f
 		assert.equal(done.message.responseId, "resp_1");
 		assert.deepEqual(done.message.content, [{ type: "text", text: "Hello", textSignature: JSON.stringify({ v: 1, id: "msg_1" }) }]);
 		assert.deepEqual(done.message.usage, { input: 7, output: 3, cacheRead: 5, cacheWrite: 0, reasoning: 0, totalTokens: 15, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } });
+	} finally {
+		globalThis.fetch = originalFetch;
+	}
+});
+
+test("Codex turn state is captured and replayed on SSE follow-ups", async () => {
+	const originalFetch = globalThis.fetch;
+	const registered = createRegisteredCodexProvider();
+	const capturedHeaders: Headers[] = [];
+	try {
+		globalThis.fetch = (async (_url, init) => {
+			capturedHeaders.push(new Headers(init?.headers));
+			return new Response('data: {"type":"response.completed","response":{"id":"resp_1","status":"completed","usage":{"input_tokens":0,"output_tokens":0,"total_tokens":0}}}\n\n', {
+				status: 200,
+				headers: capturedHeaders.length === 1
+					? { "content-type": "text/event-stream", "x-codex-turn-state": "ts-1" }
+					: { "content-type": "text/event-stream" },
+			});
+		}) as typeof fetch;
+
+		const options = { apiKey: fakeJwt({ "https://api.openai.com/auth": { chatgpt_account_id: "acct_1" } }), transport: "sse" } as never;
+		const model = { ...(codexModel as object), baseUrl: "https://chatgpt.example/backend-api" } as never;
+		await collectStream(registered.provider.streamSimple(model, { systemPrompt: "Instructions", messages: [] } as never, options));
+		await collectStream(registered.provider.streamSimple(model, { systemPrompt: "Instructions", messages: [] } as never, options));
+
+		assert.equal(capturedHeaders[0]!.get("x-codex-turn-state"), null);
+		assert.equal(capturedHeaders[1]!.get("x-codex-turn-state"), "ts-1");
+		assert.equal(registered.turnState.current(), "ts-1");
 	} finally {
 		globalThis.fetch = originalFetch;
 	}

@@ -5,6 +5,7 @@ import { buildCachedWebSocketRequestBody } from "./websocket-continuation.ts";
 import { acquireWebSocket, countWebSocketEvents, isRetryableEarlyWebSocketError, parseWebSocket, startWebSocketOutputOnFirstEvent } from "./websocket.ts";
 import { isWebSocketConnectionLimitReachedError, mapCodexEvents, processMappedCodexResponsesStream } from "./stream-events.ts";
 import type { CachedWebSocketRequestBodyResult, OpenAICodexStreamOptions, ResponsesBody } from "./types.ts";
+import type { CodexTurnState } from "./turn-state.ts";
 
 export async function processWebSocketStream<TApi extends Api>(
 	url: string,
@@ -15,6 +16,7 @@ export async function processWebSocketStream<TApi extends Api>(
 	model: Model<TApi>,
 	onStart: () => void,
 	options: OpenAICodexStreamOptions | undefined,
+	turnState?: CodexTurnState,
 ): Promise<void> {
 	let streamStarted = false;
 	const idleTimeoutMs = normalizeTimeoutMs(options?.timeoutMs, "timeoutMs");
@@ -45,7 +47,7 @@ export async function processWebSocketStream<TApi extends Api>(
 			socket.send(JSON.stringify({ type: "response.create", ...requestBody }));
 			await processMappedCodexResponsesStream(
 				startWebSocketOutputOnFirstEvent(
-					mapCodexEvents(countWebSocketEvents(parseWebSocket(socket, options?.signal, idleTimeoutMs), () => {
+					mapCodexEvents(countWebSocketEvents(parseWebSocket(socket, options?.signal, idleTimeoutMs, (value) => turnState?.capture(value)), () => {
 						eventCount++;
 					})),
 					output,

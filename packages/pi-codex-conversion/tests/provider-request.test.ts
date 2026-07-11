@@ -3,12 +3,14 @@ import assert from "node:assert/strict";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { rewriteCodexProviderRequest } from "../src/adapter/provider-request.ts";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
+import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 
 function state(responsesLite: boolean): AdapterState {
 	return {
 		enabled: true,
 		cwd: process.cwd(),
 		promptSkills: [],
+		codexTurnState: createCodexTurnState(),
 		config: {
 			...DEFAULT_CODEX_CONVERSION_CONFIG,
 			beta: { responsesLite },
