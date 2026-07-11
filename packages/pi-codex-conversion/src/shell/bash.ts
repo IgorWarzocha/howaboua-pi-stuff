@@ -1,9 +1,16 @@
 import { createRequire } from "node:module";
-import { Language, Parser, type Node, type Tree } from "web-tree-sitter";
+import type { Node, Parser, Tree } from "web-tree-sitter";
 
 const require = createRequire(import.meta.url);
 
-const parser = await createBashParser();
+let parser: Parser | undefined;
+let parserPromise: Promise<void> | undefined;
+
+export function initializeBashParser(): void {
+	parserPromise ??= createBashParser().then((created) => {
+		parser = created;
+	});
+}
 
 export function hasBashAstSupport(): boolean {
 	return parser !== undefined;
@@ -19,6 +26,7 @@ export function extractBashCommand(command: string[]): [shell: string, script: s
 }
 
 export function tryParseShell(shellLcArg: string): Tree | undefined {
+	if (!parser) initializeBashParser();
 	return parser?.parse(shellLcArg) ?? undefined;
 }
 
@@ -97,6 +105,7 @@ export function parseShellLcSingleCommandPrefix(command: string[]): string[] | u
 
 async function createBashParser(): Promise<Parser | undefined> {
 	try {
+		const { Language, Parser } = await import("web-tree-sitter");
 		await Parser.init();
 		const language = await Language.load(require.resolve("tree-sitter-bash/tree-sitter-bash.wasm"));
 		const parser = new Parser();

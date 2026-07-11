@@ -1,0 +1,11 @@
+export const DEFAULT_CODEX_BASE_URL = "https://chatgpt.com/backend-api";
+export const JWT_CLAIM_PATH = "https://api.openai.com/auth";
+export const MAX_RETRIES = 3;
+export const BASE_DELAY_MS = 1000;
+export const DEFAULT_SSE_HEADER_TIMEOUT_MS = 20_000;
+export const DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS = 15_000;
+export const CODEX_RESPONSE_STATUSES = new Set(["completed", "incomplete", "failed", "cancelled", "queued", "in_progress"]);
+export const OPENAI_BETA_RESPONSES_WEBSOCKETS = "responses_websockets=2026-02-06";
+export const WEBSOCKET_MESSAGE_TOO_BIG_CLOSE_CODE = 1009;
+export const SESSION_WEBSOCKET_CACHE_TTL_MS = 5 * 60 * 1000;
+export const OPENAI_PROMPT_CACHE_KEY_MAX_LENGTH = 64;

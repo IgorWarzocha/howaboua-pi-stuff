@@ -24,10 +24,11 @@
   "license": "MIT",
   "pi": {
     "extensions": [
-      "./src/index.ts"
+      "./dist/index.js"
     ]
   },
   "files": [
+    "dist/**/*.js",
     "src/**/*.ts",
     "src/**/*.md",
     "bin/apply_patch",
@@ -52,13 +53,14 @@
     "!src/tools/target/**"
   ],
   "scripts": {
+    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsgo -p tsconfig.build.json",
     "typecheck": "tsgo -p tsconfig.json",
     "test": "tsx --test tests/**/*.test.ts",
     "check": "bun run typecheck && bun run test",
     "publish:dry-run": "npm publish --dry-run",
     "publish:dev": "npm publish --tag dev",
     "release:dev": "npm version prerelease --preid dev && npm publish --tag dev",
-    "prepack": "bun run check",
+    "prepack": "bun run check && bun run build",
     "prepublishOnly": "bun run verify:codex-tool-binaries",
     "build:apply-patch": "node scripts/build-apply-patch-binary.mjs",
     "sync:apply-patch-source": "node scripts/sync-apply-patch-source.mjs",

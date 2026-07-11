@@ -29,6 +29,7 @@ import { CODEX_TOOL_CALL_PROVIDERS, convertResponsesMessages } from "./providers
 import { maybeWarnLocalCheckoutVersion } from "./adapter/local-version-warning.ts";
 import type { ResponseInput } from "openai/resources/responses/responses.js";
 import { createCodexTurnState } from "./providers/openai-codex/turn-state.ts";
+import { initializeBashParser } from "./shell/bash.ts";
 
 function getCommandArg(args: unknown): string | undefined {
 	if (!args || typeof args !== "object" || !("cmd" in args) || typeof args.cmd !== "string") {
@@ -213,6 +214,7 @@ export default function codexConversion(pi: ExtensionAPI) {
 	});
 
 	pi.on("session_start", async (event, ctx) => {
+		initializeBashParser();
 		websocketPrewarmed = false;
 		state.codexTurnState.reset();
 		backgroundBashWidget.ctx = ctx;
