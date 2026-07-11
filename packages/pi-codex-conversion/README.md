@@ -106,7 +106,7 @@ Advanced users with custom Codex-compatible providers can add provider ids in Ge
 
 **Tools** shows required adapter behavior and optional web/image/apply-patch prompt features. **OpenAI** controls fast mode, verbosity, cached WebSocket upgrade, web search model, and compaction model/reasoning. Cached WebSockets are prewarmed at session startup. Web search and compaction default to `gpt-5.6-luna`.
 
-**Beta** contains opt-in provider experiments. Responses Lite is off by default and applies only to OpenAI Codex GPT-5.6 Luna, Terra, and Sol. It sends instructions and client tools as input items, uses all-turn reasoning context, and applies the same transport contract to native compaction. Parallel Lite tool calls have a separate experimental toggle and remain off by default.
+**Beta** contains opt-in provider experiments. Responses Lite is off by default and applies only to OpenAI Codex GPT-5.6 Luna, Terra, and Sol. It sends instructions and client tools as input items, uses all-turn reasoning context, disables parallel tool calls as required by the backend, and applies the same transport contract to native compaction.
 
 Maintainers: see [`UPSTREAM_SYNC.md`](UPSTREAM_SYNC.md) for the provider parity checklist and intentional exclusions.
 

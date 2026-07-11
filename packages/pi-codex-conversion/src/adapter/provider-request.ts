@@ -24,7 +24,7 @@ export async function rewriteCodexProviderRequest(payload: unknown, ctx: Extensi
 		&& isResponsesLiteCompatibleBody(rewrittenPayload)
 		&& supportsResponsesLiteModel(rewrittenPayload.model)
 	) {
-		return applyResponsesLiteRequest(rewrittenPayload, { parallelToolCalls: state.config.beta.parallelLiteToolCalls });
+		return applyResponsesLiteRequest(rewrittenPayload);
 	}
 	return rewrittenPayload;
 }

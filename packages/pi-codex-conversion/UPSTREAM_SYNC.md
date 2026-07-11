@@ -17,7 +17,7 @@ This is the maintainer checklist for syncing the bundled provider with Pi and Op
 - Lite all-turn reasoning context and standalone tools
 - Lite image validation and resizing
 - Lite-aware native compaction
-- Optional parallel Lite tool calls, disabled by default
+- Serial Lite tool calls as required by the backend
 - Session/thread identity in headers and client metadata
 - Per-turn `x-codex-turn-state` capture and replay
 - Cached WebSocket continuation using raw `response.output_item.done` items
@@ -40,9 +40,9 @@ Check:
 
 ### Parallel Lite tool calls
 
-Official Codex forces `parallel_tool_calls: false` under Lite. This package exposes an experimental Beta override because the wire contract still contains the field and Pi can execute parallel calls. Keep it off by default until Codex enables parallelism or real backend usage establishes that it is reliable.
+Official Codex forces `parallel_tool_calls: false` under Lite. Live backend verification confirmed that requests carrying the Lite marker are rejected when this field is `true`, so the package always disables it under Lite.
 
-When checking upstream, inspect the request builder and `responses_lite_sets_all_turns_context_and_disables_parallel_tool_calls` coverage. If Codex enables parallel calls, remove the warning-grade treatment before considering a default change.
+When checking upstream, inspect the request builder and `responses_lite_sets_all_turns_context_and_disables_parallel_tool_calls` coverage. Reconsider only if Codex and the backend both enable parallel Lite calls.
 
 ### Tool namespaces
 

@@ -47,15 +47,14 @@ async function prepareCodexRequestBody<TApi extends Api>(
 	context: Context,
 	options: OpenAICodexStreamOptions | undefined,
 	responsesLite: boolean,
-	parallelLiteToolCalls: boolean,
 ): Promise<ResponsesBody> {
 	let body = buildRequestBody(model, context, options);
 	const nextBody = await options?.onPayload?.(body, model);
 	if (nextBody !== undefined) body = nextBody as ResponsesBody;
 	if (responsesLite) {
 		body = isResponsesLiteRequest(body)
-			? { ...body, parallel_tool_calls: parallelLiteToolCalls }
-			: applyResponsesLiteRequest(body, { parallelToolCalls: parallelLiteToolCalls });
+			? { ...body, parallel_tool_calls: false }
+			: applyResponsesLiteRequest(body);
 		body = await prepareResponsesLiteRequestImages(body);
 	}
 	return body;
@@ -74,7 +73,7 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 	if (getEffectiveCodexTransport(options.transport, runtimeConfig?.openai) === "sse") return;
 	if (!options.apiKey || !options.sessionId) return;
 	const responsesLite = runtimeConfig?.beta.responsesLite === true && supportsResponsesLiteModel(model.id);
-	const body = await prepareCodexRequestBody(model, context, options, responsesLite, runtimeConfig?.beta.parallelLiteToolCalls === true);
+	const body = await prepareCodexRequestBody(model, context, options, responsesLite);
 	const accountId = extractAccountId(options.apiKey);
 	const headers = buildWebSocketHeaders(model.headers, options.headers, accountId, options.apiKey, options.sessionId);
 	let websocketBody = responsesLite ? applyResponsesLiteWebSocketMetadata(body) : body;
@@ -111,14 +110,13 @@ function createCodexStream<TApi extends Api>(
 		const output = createInitialAssistantMessage(model);
 		try {
 			const responsesLite = runtimeConfig?.beta.responsesLite === true && supportsResponsesLiteModel(model.id);
-			const parallelLiteToolCalls = runtimeConfig?.beta.parallelLiteToolCalls === true;
 			const apiKey = effectiveOptions?.apiKey;
 			if (!apiKey) {
 				throw new Error(`No API key for provider: ${model.provider}`);
 			}
 
 			const accountId = extractAccountId(apiKey);
-			const body = await prepareCodexRequestBody(model, context, effectiveOptions, responsesLite, parallelLiteToolCalls);
+			const body = await prepareCodexRequestBody(model, context, effectiveOptions, responsesLite);
 			const websocketRequestId = effectiveOptions?.sessionId || createCodexRequestId();
 			const sseHeaders = buildSSEHeaders(model.headers, effectiveOptions?.headers, accountId, apiKey, effectiveOptions?.sessionId, responsesLite);
 			const websocketHeaders = buildWebSocketHeaders(model.headers, effectiveOptions?.headers, accountId, apiKey, websocketRequestId);

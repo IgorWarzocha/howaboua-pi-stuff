@@ -118,7 +118,7 @@ export async function prepareResponsesLiteRequestImages<TBody extends ResponsesL
 	return { ...body, input };
 }
 
-export function applyResponsesLiteRequest<TBody extends ResponsesLiteCompatibleBody>(body: TBody, options: { parallelToolCalls?: boolean | undefined } = {}): TBody {
+export function applyResponsesLiteRequest<TBody extends ResponsesLiteCompatibleBody>(body: TBody): TBody {
 	const instructions = body.instructions?.trim();
 	const prefix: unknown[] = [
 		{ type: "additional_tools", role: "developer", tools: [...(body.tools ?? [])] },
@@ -128,7 +128,7 @@ export function applyResponsesLiteRequest<TBody extends ResponsesLiteCompatibleB
 	return {
 		...rest,
 		input: [...prefix, ...prepareLiteInput(body.input)],
-		parallel_tool_calls: options.parallelToolCalls === true,
+		parallel_tool_calls: false,
 		reasoning: { ...(isRecord(body.reasoning) ? body.reasoning : {}), context: "all_turns" },
 	} as TBody;
 }

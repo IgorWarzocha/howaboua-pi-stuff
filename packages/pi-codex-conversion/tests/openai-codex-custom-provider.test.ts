@@ -53,7 +53,7 @@ async function collectStream(stream: AsyncIterable<unknown>): Promise<unknown[]>
 	return events;
 }
 
-function createRegisteredCodexProvider(options?: { cwd?: string | undefined; responsesLite?: boolean | undefined; parallelLiteToolCalls?: boolean | undefined }) {
+function createRegisteredCodexProvider(options?: { cwd?: string | undefined; responsesLite?: boolean | undefined }) {
 	const turnState = createCodexTurnState();
 	const providers = new Map<string, { streamSimple: (...args: never[]) => AsyncIterable<unknown> }>();
 	const handlers = new Map<string, Array<(...args: never[]) => unknown>>();
@@ -78,7 +78,7 @@ function createRegisteredCodexProvider(options?: { cwd?: string | undefined; res
 		getCurrentCwd: () => options?.cwd ?? process.cwd(),
 		getConfig: () => ({
 			openai: DEFAULT_CODEX_CONVERSION_CONFIG.openai,
-			beta: { responsesLite: options?.responsesLite ?? false, parallelLiteToolCalls: options?.parallelLiteToolCalls ?? false },
+			beta: { responsesLite: options?.responsesLite ?? false },
 		}),
 		turnState,
 	});
@@ -166,26 +166,6 @@ test("opt-in Responses Lite sends the GPT-5.6 input-item contract", async () => 
 		assert.equal(body.input[0].type, "additional_tools");
 		assert.equal(body.input[0].tools[0].name, "example_tool");
 		assert.deepEqual(body.input[1], { type: "message", role: "developer", content: [{ type: "input_text", text: "Lite instructions" }] });
-	} finally {
-		globalThis.fetch = originalFetch;
-	}
-});
-
-test("opt-in Responses Lite can experimentally enable parallel tool calls", async () => {
-	const originalFetch = globalThis.fetch;
-	const registered = createRegisteredCodexProvider({ responsesLite: true, parallelLiteToolCalls: true });
-	let captured: RequestInit | undefined;
-	try {
-		globalThis.fetch = (async (_url, init) => {
-			captured = init;
-			return sseResponse([{ type: "response.completed", response: { id: "resp_parallel", status: "completed", usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 } } }]);
-		}) as typeof fetch;
-		await collectStream(registered.provider.streamSimple(
-			{ ...(codexModel as object), id: "gpt-5.6-luna", baseUrl: "https://chatgpt.example/backend-api" } as never,
-			{ systemPrompt: "Instructions", messages: [], tools: [exampleTool] } as never,
-			{ apiKey: fakeJwt({ "https://api.openai.com/auth": { chatgpt_account_id: "acct_1" } }), transport: "sse" } as never,
-		));
-		assert.equal(JSON.parse(requestBodyText(captured!)).parallel_tool_calls, true);
 	} finally {
 		globalThis.fetch = originalFetch;
 	}

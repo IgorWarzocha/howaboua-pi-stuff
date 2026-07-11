@@ -5,7 +5,7 @@ import { rewriteCodexProviderRequest } from "../src/adapter/provider-request.ts"
 import type { AdapterState } from "../src/adapter/activation/state.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 
-function state(responsesLite: boolean, parallelLiteToolCalls = false): AdapterState {
+function state(responsesLite: boolean): AdapterState {
 	return {
 		enabled: true,
 		cwd: process.cwd(),
@@ -13,7 +13,7 @@ function state(responsesLite: boolean, parallelLiteToolCalls = false): AdapterSt
 		codexTurnState: createCodexTurnState(),
 		config: {
 			...DEFAULT_CODEX_CONVERSION_CONFIG,
-			beta: { responsesLite, parallelLiteToolCalls },
+			beta: { responsesLite },
 		},
 	};
 }
@@ -47,13 +47,8 @@ test("provider request rewriting applies Responses Lite after adapter replay wor
 	assert.equal(rewritten["reasoning"].context, "all_turns");
 });
 
-test("provider request rewriting can opt Lite into parallel tool calls", async () => {
-	const rewritten = await rewriteCodexProviderRequest(payload, ctx, state(true, true)) as Record<string, any>;
-	assert.equal(rewritten["parallel_tool_calls"], true);
-});
-
 test("Responses Lite never rewrites configured non-OpenAI-Codex providers", async () => {
-	const adapterState = state(true, true);
+	const adapterState = state(true);
 	adapterState.config = {
 		...adapterState.config,
 		scope: { allProviders: "off", additionalProviders: ["my-provider"] },
