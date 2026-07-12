@@ -44,7 +44,7 @@ GPT-5.6 Code Mode, available as an opt-in beta for Luna, Terra, and Sol, narrows
 - `exec` — run isolated JavaScript that composes nested tools
 - `wait` — resume or terminate a yielded JavaScript cell
 
-Inside `exec`, `tools.apply_patch(patch)` invokes the native patch engine directly while `tools.exec_command(...)` and `tools.write_stdin(...)` use the same shell implementation as normal and PATH modes. Other Codex extras remain schema-free PATH commands behind `tools.exec_command`, and TOML tools from `~/.pi/agent/dynamic-tools/` remain callable through `tools.*`. Definitions are deferred by default and can be promoted with `defer_loading = false`.
+Inside `exec`, Codex extras are nested native calls: `tools.apply_patch(patch)`, `tools.view_image(...)`, `tools.web__run(...)`, and `tools.image_gen__imagegen(...)`. `tools.exec_command(...)` and `tools.write_stdin(...)` use the same shell implementation as normal and PATH modes. Only outer `exec` and `wait` reach the provider, so nested schemas remain local to the V8 host. TOML tools from `~/.pi/agent/dynamic-tools/` remain callable through `tools.*`; definitions are deferred by default and can be promoted with `defer_loading = false`.
 
 Nested calls retain their structured Pi rendering—shell summaries, parallel outputs, patch diffs, resumable sessions, web/image results, partial updates, and generic TOML-tool output—without exposing extra provider tools.
 

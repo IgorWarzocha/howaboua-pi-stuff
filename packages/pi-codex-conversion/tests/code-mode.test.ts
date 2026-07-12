@@ -78,6 +78,7 @@ test("GPT-5.6 Code Mode invokes the conversion shell through V8", async () => {
 					provider: "openai-codex",
 					api: "openai-codex-responses",
 					id: "gpt-5.6-luna",
+					input: ["text", "image"],
 				},
 			},
 		) as { systemPrompt?: string } | undefined;
@@ -89,6 +90,36 @@ test("GPT-5.6 Code Mode invokes the conversion shell through V8", async () => {
 			promptResult?.systemPrompt ?? "",
 			/apply_patch: await tools\.apply_patch\(patch\)/,
 		);
+		assert.match(promptResult?.systemPrompt ?? "", /view_image: const result = await tools\.view_image/);
+		assert.match(promptResult?.systemPrompt ?? "", /web__run: await tools\.web__run/);
+		assert.match(promptResult?.systemPrompt ?? "", /image_gen__imagegen: await tools\.image_gen__imagegen/);
+		const textOnlyPrompt = promptHandler?.(
+			{ systemPrompt: "Base" },
+			{
+				model: {
+					provider: "openai-codex",
+					api: "openai-codex-responses",
+					id: "gpt-5.6-luna",
+					input: ["text"],
+				},
+			},
+		) as { systemPrompt?: string } | undefined;
+		assert.doesNotMatch(textOnlyPrompt?.systemPrompt ?? "", /view_image:/);
+		assert.doesNotMatch(textOnlyPrompt?.systemPrompt ?? "", /image_gen__imagegen:/);
+		(runtime as any).state.config.tools.viewImageFallback = true;
+		const fallbackPrompt = promptHandler?.(
+			{ systemPrompt: "Base" },
+			{
+				model: {
+					provider: "openai-codex",
+					api: "openai-codex-responses",
+					id: "gpt-5.6-luna",
+					input: ["text"],
+				},
+			},
+		) as { systemPrompt?: string } | undefined;
+		assert.match(fallbackPrompt?.systemPrompt ?? "", /view_image: const description = await tools\.view_image/);
+		(runtime as any).state.config.tools.viewImageFallback = false;
 		const exec = harness.tools.get("exec");
 		assert.ok(exec);
 		const updates: Array<{ details?: { traces?: Array<{ status: string }> } }> =
@@ -228,6 +259,29 @@ test("GPT-5.6 Code Mode invokes the conversion shell through V8", async () => {
 				.join("\n"),
 			/Edited seed\.txt/,
 		);
+		const imagePath = join(patchDir, "pixel.png");
+		await writeFile(
+			imagePath,
+			Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==", "base64"),
+		);
+		const viewed = await exec.execute(
+			"exec-view-image",
+			{ code: `image(await tools.view_image({ path: ${JSON.stringify(imagePath)}, detail: "original" }));` },
+			undefined,
+			undefined,
+			{
+				cwd: patchDir,
+				model: {
+					provider: "openai-codex",
+					api: "openai-codex-responses",
+					id: "gpt-5.6-luna",
+					input: ["text", "image"],
+				},
+			} as never,
+		);
+		assert.equal(viewed.details.traces[0].name, "view_image");
+		assert.equal(viewed.details.traces[0].status, "done");
+		assert.ok(viewed.content.some((item: { type: string }) => item.type === "image"));
 		const partialPatch = `*** Begin Patch
 *** Add File: created.txt
 +created

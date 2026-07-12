@@ -34,7 +34,7 @@ const MAX_OUTPUT_IMAGE_CHARS = 16 * 1024 * 1024;
 const REGISTRATION_KEY = Symbol.for("@howaboua/pi-codex-conversion.code-mode");
 
 interface CodeModeToolProvider {
-	getTools(): CodeModeToolDefinition[];
+	getTools(ctx?: unknown): CodeModeToolDefinition[];
 	documentationPath?: string | undefined;
 	isActive?(ctx: unknown): boolean;
 	providesRenderers?: boolean | undefined;
@@ -48,7 +48,7 @@ interface SharedCodeModeRuntime {
 }
 
 export interface RegisterCodeModeToolsOptions {
-	getTools(): CodeModeToolDefinition[];
+	getTools(ctx?: unknown): CodeModeToolDefinition[];
 	documentationPath?: string | undefined;
 	isActive?(ctx: unknown): boolean;
 	providesRenderers?: boolean | undefined;
@@ -118,8 +118,9 @@ function createSharedCodeModeRuntime(pi: ExtensionAPI): SharedCodeModeRuntime {
 	};
 	const collectToolsFrom = (
 		providers: CodeModeToolProvider[],
+		ctx?: unknown,
 	): CodeModeToolDefinition[] => {
-		const tools = providers.flatMap((provider) => provider.getTools());
+		const tools = providers.flatMap((provider) => provider.getTools(ctx));
 		const byName = new Map<string, CodeModeToolDefinition>();
 		const unique: CodeModeToolDefinition[] = [];
 		for (const tool of tools) {
@@ -143,6 +144,7 @@ function createSharedCodeModeRuntime(pi: ExtensionAPI): SharedCodeModeRuntime {
 			[...runtime.providers.values()].filter(
 				(provider) => !provider.isActive || provider.isActive(ctx),
 			),
+			ctx,
 		);
 	const collectRenderTools = (): CodeModeToolDefinition[] =>
 		collectToolsFrom(

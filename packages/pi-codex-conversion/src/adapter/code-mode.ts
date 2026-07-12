@@ -2,7 +2,9 @@ import type {
 	AgentToolResult,
 	ExtensionAPI,
 	ExtensionContext,
+	ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
+import type { TSchema } from "typebox";
 import type { CodexExtensionRuntime } from "../extension/runtime.ts";
 import {
 	registerCodeModeTools,
@@ -15,6 +17,9 @@ import type {
 import { createApplyPatchTool } from "../tools/apply-patch/tool.ts";
 import { createExecCommandTool } from "../tools/exec/command-tool.ts";
 import { createWriteStdinTool } from "../tools/exec/write-stdin-tool.ts";
+import { createImageGenerationTool, supportsNativeImageGeneration } from "../tools/imagegen/tool.ts";
+import { createViewImageTool, supportsViewImageInputs } from "../tools/view-image/tool.ts";
+import { createWebSearchTool } from "../tools/web-run/tool.ts";
 import { shouldUseGpt56CodeMode } from "./activation/activation.ts";
 
 export const CODE_MODE_TOOL_NAMES = ["exec", "wait"] as const;
@@ -29,7 +34,7 @@ export async function registerCodexCodeMode(
 		isActive,
 	});
 	const programmaticRuntime = await registerCodeModeTools(pi, {
-		getTools: () => createNestedTools(runtime),
+		getTools: (ctx) => createNestedTools(runtime, ctx as ExtensionContext | undefined),
 		isActive,
 		providesRenderers: true,
 		richRendering: () => runtime.state.config.ui.codeModeDetails,
@@ -44,6 +49,7 @@ export async function registerCodexCodeMode(
 
 function createNestedTools(
 	runtime: CodexExtensionRuntime,
+	ctx?: ExtensionContext,
 ): ProgrammaticCodeModeToolDefinition[] {
 	const options = {
 		describeImagesForTextModels: runtime.state.config.tools.viewImageFallback,
@@ -52,7 +58,7 @@ function createNestedTools(
 		showOutputWhenCollapsed: true,
 		compactTools: runtime.state.config.ui.compactTools,
 	};
-	return [
+	const tools: ProgrammaticCodeModeToolDefinition[] = [
 		toNestedTool(
 			createApplyPatchTool({
 				promptSnippet: false,
@@ -104,10 +110,57 @@ function createNestedTools(
 			"await tools.write_stdin({ session_id: number, chars?: string, yield_time_ms?: number, max_output_tokens?: number })",
 		),
 	];
+	if (!ctx || supportsViewImageInputs(ctx.model) || runtime.state.config.tools.viewImageFallback) {
+		const imageCapable = !ctx || supportsViewImageInputs(ctx.model);
+		tools.push(toNestedTool(
+			createViewImageTool({
+				describeForTextModels: runtime.state.config.tools.viewImageFallback,
+				promptSnippet: false,
+				customRendering: runtime.state.config.ui.toolRenaming,
+			}),
+			imageCapable
+				? "const result = await tools.view_image({ path: string, detail?: \"original\" }); image(result)"
+				: "const description = await tools.view_image({ path: string }); text(description)",
+			{},
+			{ ...(imageCapable ? { resultValue: codeModeImageResult } : {}) },
+		));
+	}
+	if (runtime.state.config.tools.webRun) {
+		tools.push(toNestedTool(
+			createWebSearchTool("web__run", {
+				getRecentInput: () => runtime.latestRecentWebSearchInput,
+				model: () => runtime.state.config.openai.webSearchModel,
+				promptSnippet: false,
+				customRendering: runtime.state.config.ui.toolRenaming,
+			}),
+			"await tools.web__run({ search_query?: [{ q: string, recency?: number, domains?: string[] }], image_query?: [{ q: string }], open?: [{ ref_id: string, lineno?: number }], click?: [{ ref_id: string, id: number }], find?: [{ ref_id: string, pattern: string }], response_length?: \"short\" | \"medium\" | \"long\" })",
+		));
+	}
+	if (runtime.state.config.tools.imageGeneration && (!ctx || supportsNativeImageGeneration(ctx.model))) {
+		const imagegen = createImageGenerationTool({
+			promptSnippet: false,
+			customRendering: runtime.state.config.ui.toolRenaming,
+		});
+		tools.push(toNestedTool(
+			{ ...imagegen, name: "image_gen__imagegen", label: "image_gen__imagegen" },
+			"await tools.image_gen__imagegen({ prompt: string, action?: \"generate\" | \"edit\", images?: string[] })",
+			{},
+			{
+				resultValue(result) {
+					const outputHint = result.content
+						.filter((item) => item.type === "text")
+						.map((item) => item.text)
+						.join("\n") || undefined;
+					return codeModeImageResult(result, outputHint);
+				},
+			},
+		));
+	}
+	return tools;
 }
 
-function toNestedTool(
-	tool: Parameters<ExtensionAPI["registerTool"]>[0],
+function toNestedTool<TParams extends TSchema, TDetails, TState>(
+	tool: ToolDefinition<TParams, TDetails, TState>,
 	usage: string,
 	lifecycle: {
 		start?(id: string, input: unknown): void;
@@ -117,6 +170,7 @@ function toNestedTool(
 		kind?: "function" | "freeform";
 		prepareInput?(input: unknown): unknown;
 		resultError?(result: AgentToolResult<unknown>): string | undefined;
+		resultValue?(result: AgentToolResult<unknown>): unknown;
 	} = {},
 ): ProgrammaticCodeModeToolDefinition {
 	const kind = contract.kind ?? "function";
@@ -160,7 +214,7 @@ function toNestedTool(
 			try {
 				const result = await tool.execute(
 					toolCallId,
-					prepared,
+					prepared as never,
 					signal,
 					(update) => forwardUpdate(update, context),
 					extensionContext,
@@ -168,11 +222,27 @@ function toNestedTool(
 				context.captureResult?.(result);
 				const resultError = contract.resultError?.(result);
 				if (resultError) throw new Error(resultError);
-				return compactNestedResult(result);
+				return contract.resultValue?.(result) ?? compactNestedResult(result);
 			} finally {
 				lifecycle.end?.(toolCallId);
 			}
 		},
+	};
+}
+
+function codeModeImageResult(
+	result: AgentToolResult<unknown>,
+	outputHint?: string,
+): unknown {
+	const image = result.content.find((item) => item.type === "image");
+	if (!image || image.type !== "image") return compactNestedResult(result);
+	const detail = "detail" in image && typeof image.detail === "string"
+		? image.detail
+		: "high";
+	return {
+		image_url: `data:${image.mimeType};base64,${image.data}`,
+		detail,
+		...(outputHint ? { output_hint: outputHint } : {}),
 	};
 }
 

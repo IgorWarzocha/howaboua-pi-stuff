@@ -59,7 +59,8 @@ type CodexPromptMode = "normal" | "path" | "code";
 function buildCodexGuidelines(mode: CodexPromptMode = "normal", tools: CodexPromptToolOptions = {}): string[] {
 	if (mode === "normal") return [...NORMAL_CODEX_GUIDELINES];
 	const guidelines = mode === "code" ? [...CODE_MODE_GUIDELINES] : [...PATH_CODEX_GUIDELINES];
-	const examples = mode === "code" ? [] : [`- apply_patch <<'PATCH'`, `  *** Begin Patch`, `  ...`, `  *** End Patch`, `  PATCH`];
+	if (mode === "code") return guidelines;
+	const examples = [`- apply_patch <<'PATCH'`, `  *** Begin Patch`, `  ...`, `  *** End Patch`, `  PATCH`];
 	if (tools.viewImage !== false) examples.push(`- view_image '{"path":"/x.png"}'`);
 	if (tools.webRun !== false) {
 		examples.push(`- web_run '{"search_query":[{"q":"..."}],"response_length":"short|medium|long"}'`);
