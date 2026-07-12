@@ -13,7 +13,7 @@ function state(): AdapterState {
 		codexTurnState: createCodexTurnState(),
 		config: {
 			...DEFAULT_CODEX_CONVERSION_CONFIG,
-			beta: { responsesLite: true },
+			beta: { codeMode: true },
 		},
 	};
 }
@@ -37,4 +37,25 @@ test("Responses Lite never rewrites configured non-OpenAI-Codex providers", asyn
 	} as never, adapterState) as typeof payload;
 	assert.equal(rewritten.instructions, "Instructions");
 	assert.equal(rewritten.parallel_tool_calls, true);
+});
+
+test("GPT-5.6 Code Mode sends only freeform exec and function wait", async () => {
+	const rewritten = await rewriteCodexProviderRequest({
+		...payload,
+		tools: [
+			{ type: "function", name: "exec", description: "Compose tools", parameters: { type: "object" } },
+			{ type: "function", name: "wait", parameters: { type: "object" } },
+		],
+	}, {
+		model: { provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.6-luna" },
+	} as never, state()) as { input: Array<Record<string, unknown>>; tools?: unknown };
+
+	assert.equal(rewritten.tools, undefined);
+	const additionalTools = rewritten.input[0]?.["tools"] as Array<Record<string, unknown>>;
+	assert.deepEqual(additionalTools.map((tool) => [tool["type"], tool["name"]]), [["custom", "exec"], ["function", "wait"]]);
+	assert.equal("parameters" in additionalTools[0]!, false);
+	const format = additionalTools[0]?.["format"] as Record<string, unknown>;
+	assert.equal(format["type"], "grammar");
+	assert.equal(format["syntax"], "lark");
+	assert.match(String(format["definition"]), /plain_source/);
 });

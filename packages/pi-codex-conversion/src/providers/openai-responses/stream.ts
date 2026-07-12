@@ -53,7 +53,13 @@ export async function processResponsesStream<TApi extends Api>(
 		blockIndex: number;
 		block: ToolCallBlock;
 	};
-	type OutputState = ReasoningState | MessageState | FunctionCallState;
+	type CustomToolCallState = {
+		kind: "custom_tool_call";
+		blockIndex: number;
+		block: ToolCallBlock;
+		input: string;
+	};
+	type OutputState = ReasoningState | MessageState | FunctionCallState | CustomToolCallState;
 
 	const outputStates = new Map<number, OutputState>();
 
@@ -84,11 +90,33 @@ export async function processResponsesStream<TApi extends Api>(
 	};
 
 	for await (const event of openaiStream) {
+		const customEvent = event as unknown as Record<string, any>;
+		if (customEvent["type"] === "response.custom_tool_call_input.delta") {
+			const state = outputStates.get(customEvent["output_index"]);
+			if (state?.kind === "custom_tool_call") {
+				state.input += String(customEvent["delta"] ?? "");
+				state.block.arguments = { code: state.input };
+				stream.push({ type: "toolcall_delta", contentIndex: state.blockIndex, delta: String(customEvent["delta"] ?? ""), partial: output });
+			}
+			continue;
+		}
 		if (event.type === "response.created") {
 			output.responseId = event.response.id;
 		} else if (event.type === "response.output_item.added") {
 			const item = event.item;
-			if (item.type === "reasoning") {
+			if ((item as unknown as { type?: string }).type === "custom_tool_call") {
+				const customItem = item as unknown as { id?: string; call_id: string; name: string; input?: string };
+				const input = customItem.input ?? "";
+				const currentBlock: ToolCallBlock = {
+					type: "toolCall",
+					id: `${customItem.call_id}|${customItem.id ?? ""}`,
+					name: customItem.name,
+					arguments: { code: input },
+				};
+				output.content.push(currentBlock);
+				outputStates.set(event.output_index, { kind: "custom_tool_call", blockIndex: blockIndex(), block: currentBlock, input });
+				stream.push({ type: "toolcall_start", contentIndex: blockIndex(), partial: output });
+			} else if (item.type === "reasoning") {
 				const currentBlock: ThinkingBlock = { type: "thinking", thinking: "" };
 				output.content.push(currentBlock);
 				outputStates.set(event.output_index, {
@@ -203,7 +231,18 @@ export async function processResponsesStream<TApi extends Api>(
 		} else if (event.type === "response.output_item.done") {
 			const item = event.item;
 			options?.onOutputItemDone?.(item);
-			if (item.type === "reasoning") {
+			if ((item as unknown as { type?: string }).type === "custom_tool_call") {
+				const customItem = item as unknown as { id?: string; call_id: string; name: string; input: string };
+				const state = outputStates.get(event.output_index);
+				const toolCall: ToolCallBlock = state?.kind === "custom_tool_call"
+					? { ...state.block, arguments: { code: customItem.input } }
+					: { type: "toolCall", id: `${customItem.call_id}|${customItem.id ?? ""}`, name: customItem.name, arguments: { code: customItem.input } };
+				if (state?.kind !== "custom_tool_call") output.content.push(toolCall);
+				else output.content[state.blockIndex] = toolCall;
+				const toolCallIndex = state?.kind === "custom_tool_call" ? state.blockIndex : blockIndex();
+				stream.push({ type: "toolcall_end", contentIndex: toolCallIndex, toolCall, partial: output });
+				outputStates.delete(event.output_index);
+			} else if (item.type === "reasoning") {
 				let state = outputStates.get(event.output_index);
 				if (!state || state.kind !== "reasoning") {
 					const currentBlock: ThinkingBlock = { type: "thinking", thinking: "" };

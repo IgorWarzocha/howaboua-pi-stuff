@@ -1,0 +1,27 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/codex-protocol",
+  "crates/code-mode-protocol",
+  "crates/code-mode",
+  "crates/code-mode-host",
+]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+license = "Apache-2.0"
+
+[workspace.dependencies]
+anyhow = "1"
+codex-protocol = { path = "crates/codex-protocol" }
+codex-code-mode-protocol = { path = "crates/code-mode-protocol" }
+codex-code-mode = { path = "crates/code-mode" }
+deno_core_icudata = "0.77.0"
+futures = { version = "0.3", default-features = false }
+serde = { version = "1", features = ["rc"] }
+serde_json = "1"
+tokio = "1"
+tokio-util = "0.7.18"
+tracing = "0.1.44"
+v8 = "=149.2.0"

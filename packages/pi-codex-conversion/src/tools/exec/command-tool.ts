@@ -316,8 +316,8 @@ const renderExecCommandResultWithOptionalContext: any = (
 	return renderTextWithImages(text, renderContent, theme, { paddingX: 4 });
 };
 
-export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTracker, sessions: ExecSessionManager, options: ExecCommandToolOptions = {}): void {
-	pi.registerTool({
+export function createExecCommandTool(tracker: ExecCommandTracker, sessions: ExecSessionManager, options: ExecCommandToolOptions = {}) {
+	const tool: Parameters<ExtensionAPI["registerTool"]>[0] = {
 		name: "exec_command",
 		label: "exec_command",
 		description: "Run shell commands; may return session_id.",
@@ -378,5 +378,10 @@ export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTr
 			context?: ExecCommandRenderContextLike,
 		) => renderExecCommandResultWithOptionalContext(result, renderOptions, theme, context, tracker, options)) as any,
 		}),
-	});
+	};
+	return tool;
+}
+
+export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTracker, sessions: ExecSessionManager, options: ExecCommandToolOptions = {}): void {
+	pi.registerTool(createExecCommandTool(tracker, sessions, options) as any);
 }

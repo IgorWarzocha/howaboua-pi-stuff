@@ -50,6 +50,9 @@
     "src/tools/**/Cargo.toml",
     "src/tools/Cargo.lock",
     "src/tools/rust/UPSTREAM.*",
+    "code-mode",
+    "scripts/code-mode",
+    "!src/**/AGENTS.md",
     "!src/tools/target/**"
   ],
   "scripts": {
@@ -62,12 +65,14 @@
     "release:dev": "npm version prerelease --preid dev && npm publish --tag dev",
     "prepack": "bun run check && bun run build",
     "prepare": "bun run build",
-    "prepublishOnly": "bun run verify:codex-tool-binaries",
+    "prepublishOnly": "bun run verify:codex-tool-binaries && bun run verify:code-mode-host-assets",
     "build:apply-patch": "node scripts/build-apply-patch-binary.mjs",
     "sync:apply-patch-source": "node scripts/sync-apply-patch-source.mjs",
     "verify:codex-tool-binaries": "node scripts/verify-codex-tool-binaries.mjs",
     "build:changed-path-tools": "node scripts/build-changed-path-tool-binaries.mjs",
-    "build:path-tool": "node scripts/build-path-tool-binary.mjs"
+    "build:path-tool": "node scripts/build-path-tool-binary.mjs",
+    "build:code-mode-host": "node scripts/code-mode/build-host.mjs",
+    "verify:code-mode-host-assets": "node scripts/code-mode/verify-host-assets.mjs"
   },
   "publishConfig": {
     "access": "public"
@@ -92,6 +97,7 @@
     "js-tiktoken": "^1.0.21",
     "partial-json": "^0.1.7",
     "proxy-from-env": "1.1.0",
+    "smol-toml": "^1.6.0",
     "tree-sitter-bash": "^0.25.1",
     "web-tree-sitter": "^0.26.7"
   },

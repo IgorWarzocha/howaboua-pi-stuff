@@ -2,7 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { Context } from "@earendil-works/pi-ai";
 import type { ResponseInput } from "openai/resources/responses/responses.js";
 import { readCodexConversionConfig, type CodexConversionConfig } from "../adapter/activation/config.ts";
-import { shouldUseCodexAdapter } from "../adapter/activation/activation.ts";
+import { shouldUseCodexAdapter, shouldUseGpt56CodeMode } from "../adapter/activation/activation.ts";
 import type { AdapterState } from "../adapter/activation/state.ts";
 import { rewriteCodexProviderRequest } from "../adapter/provider-request.ts";
 import { getDefaultCodexRuntimeShell } from "../adapter/prompt/runtime-shell.ts";
@@ -71,11 +71,13 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 			return createBundledPathToolsEnv({ ...process.env, PI_CODEX_MODEL: config.openai.webSearchModel });
 		},
 		codexSystemPrompt(basePrompt, ctx, skills = state.promptSkills) {
+			const codeMode = shouldUseGpt56CodeMode(ctx, state.config);
+			const pathShaped = state.config.mode === "path" || codeMode;
 			return buildCodexSystemPrompt(basePrompt, {
 				skills,
 				shell: getDefaultCodexRuntimeShell(),
-				mode: state.config.mode,
-				tools: state.config.mode === "path"
+				mode: codeMode ? "code" : pathShaped ? "path" : "normal",
+				tools: pathShaped
 					? { ...state.config.tools, viewImage: supportsViewImageInputs(ctx.model) || state.config.tools.viewImageFallback }
 					: undefined,
 			});

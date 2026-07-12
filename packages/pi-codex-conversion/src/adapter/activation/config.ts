@@ -39,7 +39,7 @@ export interface CodexConversionConfig {
 		backgroundShellCloseShortcut: string;
 	};
 	compaction: { responsesCompaction: boolean };
-	beta: { responsesLite: boolean };
+	beta: { codeMode: boolean };
 	openai: {
 		fast: boolean;
 		verbosity: CodexVerbosity;
@@ -66,7 +66,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 		backgroundShellCloseShortcut: "alt+r",
 	},
 	compaction: { responsesCompaction: false },
-	beta: { responsesLite: false },
+	beta: { codeMode: false },
 	openai: {
 		fast: false,
 		verbosity: "low",
@@ -162,7 +162,7 @@ export function normalizeCodexConversionConfig(value: unknown): CodexConversionC
 			backgroundShellCloseShortcut: stringValue(ui["backgroundShellCloseShortcut"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellCloseShortcut"]),
 		},
 		compaction: { responsesCompaction: bool(compaction["responsesCompaction"], DEFAULT_CODEX_CONVERSION_CONFIG.compaction["responsesCompaction"]) },
-		beta: { responsesLite: bool(beta["responsesLite"], DEFAULT_CODEX_CONVERSION_CONFIG.beta["responsesLite"]) },
+		beta: { codeMode: bool(beta["codeMode"], bool(beta["responsesLite"], DEFAULT_CODEX_CONVERSION_CONFIG.beta["codeMode"])) },
 		openai: {
 			fast: bool(openai["fast"], DEFAULT_CODEX_CONVERSION_CONFIG.openai["fast"]),
 			verbosity: normalizeCodexVerbosity(openai["verbosity"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai["verbosity"],

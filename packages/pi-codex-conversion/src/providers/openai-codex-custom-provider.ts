@@ -10,6 +10,7 @@ import {
 	type Transport,
 } from "@earendil-works/pi-ai";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
+import { applyCodeModeFreeformContract } from "../adapter/code-mode-contract.ts";
 import { BASE_DELAY_MS, DEFAULT_SSE_HEADER_TIMEOUT_MS, MAX_RETRIES } from "./openai-codex/constants.ts";
 import { createErrorMessage, isRetryableError, NonRetryableProviderError, parseErrorResponse } from "./openai-codex/errors.ts";
 import { createCodexRequestId, extractAccountId, buildSSEHeaders, buildWebSocketHeaders, headersToRecord, resolveCodexUrl, resolveCodexWebSocketUrl } from "./openai-codex/headers.ts";
@@ -52,6 +53,7 @@ async function prepareCodexRequestBody<TApi extends Api>(
 	const nextBody = await options?.onPayload?.(body, model);
 	if (nextBody !== undefined) body = nextBody as ResponsesBody;
 	if (responsesLite) {
+		body = applyCodeModeFreeformContract(body);
 		body = isResponsesLiteRequest(body)
 			? { ...body, parallel_tool_calls: false }
 			: applyResponsesLiteRequest(body);
@@ -72,7 +74,7 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 	const runtimeConfig = deps.getConfig?.();
 	if (getEffectiveCodexTransport(options.transport, runtimeConfig?.openai) === "sse") return;
 	if (!options.apiKey || !options.sessionId) return;
-	const responsesLite = runtimeConfig?.beta.responsesLite === true && supportsResponsesLiteModel(model.id);
+	const responsesLite = runtimeConfig?.beta.codeMode === true && supportsResponsesLiteModel(model.id);
 	const body = await prepareCodexRequestBody(model, context, options, responsesLite);
 	const accountId = extractAccountId(options.apiKey);
 	const headers = buildWebSocketHeaders(model.headers, options.headers, accountId, options.apiKey, options.sessionId);
@@ -107,7 +109,7 @@ function createCodexStream<TApi extends Api>(
 	(async () => {
 		const output = createInitialAssistantMessage(model);
 		try {
-			const responsesLite = runtimeConfig?.beta.responsesLite === true && supportsResponsesLiteModel(model.id);
+			const responsesLite = runtimeConfig?.beta.codeMode === true && supportsResponsesLiteModel(model.id);
 			const apiKey = effectiveOptions?.apiKey;
 			if (!apiKey) {
 				throw new Error(`No API key for provider: ${model.provider}`);

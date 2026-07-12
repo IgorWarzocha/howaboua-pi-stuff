@@ -26,13 +26,13 @@ function requestBodiesMatchExceptInput(a: ResponsesBody, b: ResponsesBody): bool
 }
 
 function getFunctionCallId(item: unknown): string | undefined {
-	return item && typeof item === "object" && (item as { type?: unknown }).type === "function_call" && typeof (item as { call_id?: unknown }).call_id === "string"
+	return item && typeof item === "object" && ((item as { type?: unknown }).type === "function_call" || (item as { type?: unknown }).type === "custom_tool_call") && typeof (item as { call_id?: unknown }).call_id === "string"
 		? (item as { call_id: string }).call_id
 		: undefined;
 }
 
 function getFunctionCallOutputId(item: unknown): string | undefined {
-	return item && typeof item === "object" && (item as { type?: unknown }).type === "function_call_output" && typeof (item as { call_id?: unknown }).call_id === "string"
+	return item && typeof item === "object" && ((item as { type?: unknown }).type === "function_call_output" || (item as { type?: unknown }).type === "custom_tool_call_output") && typeof (item as { call_id?: unknown }).call_id === "string"
 		? (item as { call_id: string }).call_id
 		: undefined;
 }

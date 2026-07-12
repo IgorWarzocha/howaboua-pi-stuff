@@ -39,6 +39,13 @@ PATH mode narrows the structured tool surface to shell control only:
 - `exec_command` — shell execution with Codex-style `cmd` parameters and resumable sessions
 - `write_stdin` — continue or poll a running exec session
 
+GPT-5.6 Code Mode, available as an opt-in beta for Luna, Terra, and Sol, narrows the provider-visible surface further:
+
+- `exec` — run isolated JavaScript that composes nested tools
+- `wait` — resume or terminate a yielded JavaScript cell
+
+Inside `exec`, `tools.exec_command(...)` and `tools.write_stdin(...)` use the same shell implementation as normal and PATH modes. Codex extras remain schema-free PATH commands behind `tools.exec_command`, and TOML tools from `~/.pi/agent/dynamic-tools/` remain callable through `tools.*`. Definitions are deferred by default and can be promoted with `defer_loading = false`.
+
 In PATH mode, Codex-style extras live on the extension-injected internal PATH:
 
 - `apply_patch` — patch edits
@@ -106,7 +113,7 @@ Advanced users with custom Codex-compatible providers can add provider ids in Ge
 
 **Tools** shows required adapter behavior and optional web/image/apply-patch prompt features. **OpenAI** controls fast mode, verbosity, cached WebSocket upgrade, web search model, and compaction model/reasoning. Cached WebSockets are prewarmed at session startup. Web search and compaction default to `gpt-5.6-luna`.
 
-**Beta** contains opt-in provider experiments. Responses Lite is off by default and applies only to OpenAI Codex GPT-5.6 Luna, Terra, and Sol. It sends instructions and client tools as input items, uses all-turn reasoning context, disables parallel tool calls as required by the backend, and applies the same transport contract to native compaction.
+**Beta** contains GPT-5.6 Code Mode, off by default and limited to OpenAI Codex Luna, Terra, and Sol. It atomically enables Codex's Responses Lite transport and code-mode-only toolkit: instructions and client tools become input items, `exec` and `wait` are the only provider-visible tools, and JavaScript restores parallel composition through nested calls. The same Responses Lite transport applies to native compaction.
 
 Maintainers: see [`UPSTREAM_SYNC.md`](UPSTREAM_SYNC.md) for the provider parity checklist and intentional exclusions.
 
@@ -127,6 +134,7 @@ That matters most for process control, PTYs, patch application, image handling, 
 ## Details worth knowing
 
 - `exec_command` and `write_stdin` use a bundled Rust exec bridge; `tty: true` runs through a PTY for interactive commands.
+- GPT-5.6 Code Mode starts its isolated V8 host lazily; the first `exec` downloads and verifies the pinned host binary when needed.
 - PATH mode prepends the package `bin` directory to exec session `PATH` so bundled Codex tools are available in shell commands.
 - `imagegen` waits up to five minutes in a foreground `exec_command` call before falling back to a resumable session.
 - The package includes bundled binaries and vendored Rust source for the PATH tools.

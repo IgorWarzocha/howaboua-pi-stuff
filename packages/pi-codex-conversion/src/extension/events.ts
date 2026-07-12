@@ -35,7 +35,13 @@ function responsesContext(messages: unknown[]): Context {
 	return { messages: messages as Context["messages"] };
 }
 
-export function registerCodexEvents(pi: ExtensionAPI, runtime: CodexExtensionRuntime, tools: CodexToolRegistration, ui: CodexUiController): void {
+export function registerCodexEvents(
+	pi: ExtensionAPI,
+	runtime: CodexExtensionRuntime,
+	tools: CodexToolRegistration,
+	ui: CodexUiController,
+	codeMode: { shutdown(): Promise<void> },
+): void {
 	const { state, tracker, sessions } = runtime;
 	sessions.onSessionExit((sessionId) => tracker.recordSessionFinished(sessionId));
 
@@ -92,6 +98,7 @@ export function registerCodexEvents(pi: ExtensionAPI, runtime: CodexExtensionRun
 		ui.clearBackgroundWidget();
 		runtime.backgroundWidget.ctx = undefined;
 		sessions.shutdown();
+		await codeMode.shutdown();
 	});
 	pi.on("input", async (event) => {
 		if (event.streamingBehavior === undefined) state.codexTurnState.beginTurn();

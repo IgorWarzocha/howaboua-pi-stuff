@@ -106,8 +106,8 @@ function createEmptyResultComponent(): Container {
 	return new Container();
 }
 
-export function registerWriteStdinTool(pi: ExtensionAPI, sessions: ExecSessionManager, options: { promptSnippet?: boolean | undefined; describeImagesForTextModels?: boolean | undefined } = {}): void {
-	pi.registerTool({
+export function createWriteStdinTool(sessions: ExecSessionManager, options: { promptSnippet?: boolean | undefined; describeImagesForTextModels?: boolean | undefined } = {}) {
+	const tool: Parameters<ExtensionAPI["registerTool"]>[0] = {
 		name: "write_stdin",
 		label: "write_stdin",
 		description: "Write/poll exec session.",
@@ -138,8 +138,9 @@ export function registerWriteStdinTool(pi: ExtensionAPI, sessions: ExecSessionMa
 			};
 		},
 		renderCall(args, theme) {
-			const sessionId = typeof args.session_id === "number" ? args.session_id : "?";
-			const input = typeof args.chars === "string" ? args.chars : undefined;
+			const inputArgs = args as Partial<WriteStdinParams>;
+			const sessionId = typeof inputArgs.session_id === "number" ? inputArgs.session_id : "?";
+			const input = typeof inputArgs.chars === "string" ? inputArgs.chars : undefined;
 			const command = typeof sessionId === "number" ? sessions.getSessionCommand(sessionId) : undefined;
 			return new Text(renderWriteStdinCall(sessionId, input, command, theme), 0, 0);
 		},
@@ -160,5 +161,10 @@ export function registerWriteStdinTool(pi: ExtensionAPI, sessions: ExecSessionMa
 			const content = result.content.some((item) => item.type === "image") ? result.content : [...result.content, ...imageContentsFromPathToolDetails(result.details)];
 			return renderTextWithImages(text, content, theme);
 		},
-	});
+	};
+	return tool;
+}
+
+export function registerWriteStdinTool(pi: ExtensionAPI, sessions: ExecSessionManager, options: { promptSnippet?: boolean | undefined; describeImagesForTextModels?: boolean | undefined } = {}): void {
+	pi.registerTool(createWriteStdinTool(sessions, options) as any);
 }

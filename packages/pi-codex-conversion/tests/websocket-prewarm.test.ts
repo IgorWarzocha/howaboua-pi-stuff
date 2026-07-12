@@ -71,7 +71,7 @@ test("WebSocket prewarm sends generate=false and seeds cached continuation", asy
 			} as never,
 			{ systemPrompt: "Instructions", messages: [], tools: [] },
 			{ apiKey: "eyJhbGciOiJub25lIn0.eyJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiYWNjdF8xIn19.sig", sessionId },
-			{ getConfig: () => ({ openai: { forceCachedWebSockets: true }, beta: { responsesLite: false } } as never), turnState },
+			{ getConfig: () => ({ openai: { forceCachedWebSockets: true }, beta: { codeMode: false } } as never), turnState },
 		);
 
 		const socket = FakeWebSocket.instances[0]!;

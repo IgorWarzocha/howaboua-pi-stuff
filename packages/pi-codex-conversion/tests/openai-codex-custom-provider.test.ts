@@ -22,6 +22,11 @@ const exampleTool = {
 	},
 } as never;
 
+const codeModeTools = [
+	{ name: "exec", description: "Compose tools", parameters: { type: "object", properties: { code: { type: "string" } }, required: ["code"] } },
+	{ name: "wait", description: "Wait for code", parameters: { type: "object", properties: { cell_id: { type: "string" } }, required: ["cell_id"] } },
+] as never;
+
 const codexModel = {
 	provider: "openai-codex",
 	api: "openai-codex-responses",
@@ -72,7 +77,7 @@ async function collectStream(stream: AsyncIterable<unknown>): Promise<unknown[]>
 	return events;
 }
 
-function createRegisteredCodexProvider(options?: { responsesLite?: boolean | undefined }) {
+function createRegisteredCodexProvider(options?: { codeMode?: boolean | undefined }) {
 	const turnState = createCodexTurnState();
 	const providers = new Map<string, { streamSimple: (...args: never[]) => AsyncIterable<unknown> }>();
 	const handlers = new Map<string, Array<(...args: never[]) => unknown>>();
@@ -96,7 +101,7 @@ function createRegisteredCodexProvider(options?: { responsesLite?: boolean | und
 	registerOpenAICodexCustomProvider(pi as never, {
 		getConfig: () => ({
 			openai: DEFAULT_CODEX_CONVERSION_CONFIG.openai,
-			beta: { responsesLite: options?.responsesLite ?? false },
+			beta: { codeMode: options?.codeMode ?? false },
 		}),
 		turnState,
 	});
@@ -155,9 +160,9 @@ test("buildRequestBody keeps Codex request shape stable for common options", () 
 	assert.equal("max_completion_tokens" in body, false, "Codex ChatGPT backend rejects max token aliases here");
 });
 
-test("opt-in Responses Lite sends the GPT-5.6 input-item contract", async () => {
+test("GPT-5.6 Code Mode sends the GPT-5.6 input-item contract", async () => {
 	const originalFetch = globalThis.fetch;
-	const registered = createRegisteredCodexProvider({ responsesLite: true });
+	const registered = createRegisteredCodexProvider({ codeMode: true });
 	let captured: RequestInit | undefined;
 	try {
 		globalThis.fetch = (async (_url, init) => {
@@ -170,7 +175,7 @@ test("opt-in Responses Lite sends the GPT-5.6 input-item contract", async () => 
 
 		await collectStream(registered.provider.streamSimple(
 			{ ...(codexModel as object), id: "gpt-5.6-luna", baseUrl: "https://chatgpt.example/backend-api" } as never,
-			{ systemPrompt: "Lite instructions", messages: [{ role: "user", content: "Hello" } as never], tools: [exampleTool] } as never,
+			{ systemPrompt: "Lite instructions", messages: [{ role: "user", content: "Hello" } as never], tools: codeModeTools } as never,
 			{ apiKey: fakeJwt({ "https://api.openai.com/auth": { chatgpt_account_id: "acct_1" } }), transport: "sse", reasoning: "medium" } as never,
 		));
 
@@ -182,7 +187,8 @@ test("opt-in Responses Lite sends the GPT-5.6 input-item contract", async () => 
 		assert.equal(body.parallel_tool_calls, false);
 		assert.equal(body.reasoning.context, "all_turns");
 		assert.equal(body.input[0].type, "additional_tools");
-		assert.equal(body.input[0].tools[0].name, "example_tool");
+		assert.deepEqual(body.input[0].tools.map((tool: { type: string; name: string }) => [tool.type, tool.name]), [["custom", "exec"], ["function", "wait"]]);
+		assert.equal("parameters" in body.input[0].tools[0], false);
 		assert.deepEqual(body.input[1], { type: "message", role: "developer", content: [{ type: "input_text", text: "Lite instructions" }] });
 	} finally {
 		globalThis.fetch = originalFetch;

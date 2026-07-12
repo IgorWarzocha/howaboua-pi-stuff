@@ -68,6 +68,30 @@ test("syncAdapter leaves PATH tools to shell for configured custom providers", (
 	assert.deepEqual(pi.activeTools(), ["exec_command", "write_stdin", "parallel"]);
 });
 
+test("GPT-5.6 Code Mode exposes only exec and wait while preserving unrelated tools", () => {
+	const pi = createToolHarness(["read", "bash", "edit", "write", "exec", "wait", "parallel"]);
+	const ctx = createContext({ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.6-luna" });
+	const state = createAdapterState({ beta: { codeMode: true } });
+
+	syncAdapter(pi as never, ctx as never, state);
+
+	assert.deepEqual(pi.activeTools(), ["exec", "wait", "parallel"]);
+});
+
+test("GPT-5.6 Code Mode does not apply to older or non-Codex models", () => {
+	for (const model of [
+		{ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.5" },
+		{ provider: "openai", api: "openai-responses", id: "gpt-5.6-luna" },
+	]) {
+		const pi = createToolHarness(["read", "bash", "edit", "write", "exec", "wait"]);
+		const state = createAdapterState({ beta: { codeMode: true } });
+		syncAdapter(pi as never, createContext(model) as never, state);
+		assert.deepEqual(pi.activeTools().slice(0, 3), ["exec_command", "write_stdin", "apply_patch"]);
+		assert.equal(pi.activeTools().includes("exec"), false);
+		assert.equal(pi.activeTools().includes("wait"), false);
+	}
+});
+
 test("applyPatchOnly overlays only apply_patch without Codex toolkit rewrites", () => {
 	const pi = createToolHarness(["read", "bash", "edit", "write", "parallel"]);
 	const ctx = createContext({ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5" });

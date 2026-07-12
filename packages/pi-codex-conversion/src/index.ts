@@ -3,8 +3,8 @@ import { mergeAdapterTools, restoreTools, stripAdapterTools } from "./adapter/ac
 import { getCodexSkillPaths } from "./adapter/prompt/skills.ts";
 import { registerCodexConversion } from "./extension/register.ts";
 
-export default function codexConversion(pi: ExtensionAPI): void {
-	registerCodexConversion(pi);
+export default async function codexConversion(pi: ExtensionAPI): Promise<void> {
+	await registerCodexConversion(pi);
 }
 
 export { getCodexSkillPaths, mergeAdapterTools, restoreTools, stripAdapterTools };

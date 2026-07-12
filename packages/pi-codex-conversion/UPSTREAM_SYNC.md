@@ -12,7 +12,7 @@ This is the maintainer checklist for syncing the bundled provider with Pi and Op
 
 - Standard Responses request, retry, error, usage, and terminal-stream handling
 - GPT-5.6 Luna, Terra, and Sol model support
-- Responses Lite as an opt-in GPT-5.6-only Beta setting
+- GPT-5.6 Code Mode as an opt-in Beta setting backed by Responses Lite
 - Lite instructions and tools represented as input items
 - Lite all-turn reasoning context and standalone tools
 - Lite image validation and resizing
@@ -126,15 +126,17 @@ Do not fabricate these values. Add one only when Pi owns the corresponding lifec
 
 ## Live smoke checks
 
+Code-mode host source and protocol are tracked separately in [`code-mode/UPSTREAM_SYNC.md`](code-mode/UPSTREAM_SYNC.md). The conversion package owns its copied TypeScript bridge and activation boundary; do not replace them with a runtime dependency on another Pi extension.
+
 After a material transport sync, verify against OpenAI Codex OAuth:
 
 1. Classic Responses over SSE.
 2. Classic Responses over cached WebSockets.
-3. Lite over SSE with parallel calls off.
-4. Lite over cached WebSockets with parallel calls off.
-5. Lite with the parallel Beta override.
-6. A tool call followed by its result in the same user turn.
-7. Native compaction under Lite.
+3. GPT-5.6 Code Mode over SSE with freeform `exec` and function `wait`.
+4. GPT-5.6 Code Mode over cached WebSockets.
+5. A nested shell call followed by its custom-tool result in the same user turn.
+6. A yielded code cell resumed through `wait`.
+7. Native compaction under the Code Mode transport.
 8. A valid, oversized, malformed, and remote image.
 9. WebSocket prewarm followed by `previous_response_id` continuation.
 10. Cache-read usage before and after changing the active tool set.
