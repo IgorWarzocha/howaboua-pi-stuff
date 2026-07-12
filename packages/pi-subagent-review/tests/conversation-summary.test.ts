@@ -2,6 +2,7 @@ import { afterEach, expect, test } from "bun:test";
 import {
 	type Api,
 	type AssistantMessage,
+	type Context,
 	createAssistantMessageEventStream,
 	type SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
@@ -104,14 +105,17 @@ async function summarizeWithAuth(
 		Parameters<ModelRegistry["registerProvider"]>[1],
 		"apiKey" | "authHeader" | "oauth"
 	>,
+	prepareSession?: (sessionManager: SessionManager) => void,
 ) {
 	registry = ModelRegistry.inMemory(authStorage);
+	let receivedContext: Context | undefined;
 	let receivedOptions: SimpleStreamOptions | undefined;
 	registry.registerProvider(PROVIDER, {
 		baseUrl: "https://summary.invalid/v1",
 		api: API,
 		...authConfig,
-		streamSimple(_model, _context, options) {
+		streamSimple(_model, context, options) {
+			receivedContext = context;
 			receivedOptions = options;
 			return responseStream(options).stream;
 		},
@@ -134,6 +138,7 @@ async function summarizeWithAuth(
 		content: "Please review this change",
 		timestamp: Date.now(),
 	});
+	prepareSession?.(sessionManager);
 	const ctx = {
 		cwd: process.cwd(),
 		modelRegistry: registry,
@@ -153,7 +158,7 @@ async function summarizeWithAuth(
 	};
 
 	const summary = await buildReviewConversationSummary(ctx, config);
-	return { summary, receivedOptions };
+	return { summary, receivedContext, receivedOptions };
 }
 
 test("uses the public Pi session path for extension-registered providers", async () => {
@@ -211,6 +216,72 @@ test("resolves OAuth provider auth", async () => {
 
 	expect(result.summary).toBe("Review context summary");
 	expect(result.receivedOptions?.apiKey).toBe("oauth-access-token");
+});
+
+test("summarizes only the active compaction-aware session entries", async () => {
+	const result = await summarizeWithAuth(
+		AuthStorage.inMemory({
+			[PROVIDER]: { type: "api_key", key: "stored-key" },
+		}),
+		{ apiKey: "configured-key" },
+		(sessionManager) => {
+			sessionManager.appendMessage({
+				role: "user",
+				content: "superseded pre-compaction history",
+				timestamp: Date.now(),
+			});
+			const firstKeptEntryId = sessionManager.appendMessage({
+				role: "assistant",
+				content: [{ type: "text", text: "retained recent context" }],
+				api: API,
+				provider: PROVIDER,
+				model: "summary-model",
+				usage: {
+					input: 1,
+					output: 1,
+					cacheRead: 0,
+					cacheWrite: 0,
+					totalTokens: 2,
+					cost: {
+						input: 0,
+						output: 0,
+						cacheRead: 0,
+						cacheWrite: 0,
+						total: 0,
+					},
+				},
+				stopReason: "stop",
+				timestamp: Date.now(),
+			});
+			sessionManager.appendCompaction(
+				"durable compaction summary",
+				firstKeptEntryId,
+				100_000,
+			);
+			sessionManager.appendMessage({
+				role: "user",
+				content: "post-compaction request",
+				timestamp: Date.now(),
+			});
+		},
+	);
+
+	const prompt = result.receivedContext?.messages
+		.map((message) =>
+			typeof message.content === "string"
+				? message.content
+				: message.content
+						.filter((part) => part.type === "text")
+						.map((part) => part.text)
+						.join("\n"),
+		)
+		.join("\n");
+
+	expect(prompt).toContain("durable compaction summary");
+	expect(prompt).toContain("retained recent context");
+	expect(prompt).toContain("post-compaction request");
+	expect(prompt).not.toContain("superseded pre-compaction history");
+	expect(prompt).not.toContain("Please review this change");
 });
 
 test("aborts an in-flight summary when the review is cancelled", async () => {

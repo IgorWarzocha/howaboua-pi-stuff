@@ -202,7 +202,9 @@ export async function buildReviewConversationSummary(
 ): Promise<string | undefined> {
 	if (!config.summary.enabled) return undefined;
 
-	const conversation = buildSummaryInput(ctx.sessionManager.getBranch());
+	const conversation = buildSummaryInput(
+		ctx.sessionManager.buildContextEntries(),
+	);
 	if (!conversation.trim()) return undefined;
 
 	const response = await completeSummary(
