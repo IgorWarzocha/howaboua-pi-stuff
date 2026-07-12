@@ -1,19 +1,10 @@
-import type {
-	AgentToolResult,
-	ExtensionAPI,
-	ExtensionContext,
-	ToolDefinition,
-} from "@earendil-works/pi-coding-agent";
-import type { TSchema } from "typebox";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { CodexExtensionRuntime } from "../extension/runtime.ts";
 import {
 	registerCodeModeTools,
 	registerDynamicTools,
 } from "../tools/code-mode/tools.ts";
-import type {
-	ProgrammaticCodeModeToolDefinition,
-	ToolExecutionContext,
-} from "../tools/code-mode/types.ts";
+import type { ProgrammaticCodeModeToolDefinition } from "../tools/code-mode/types.ts";
 import { createApplyPatchTool } from "../tools/apply-patch/tool.ts";
 import { createExecCommandTool } from "../tools/exec/command-tool.ts";
 import { createWriteStdinTool } from "../tools/exec/write-stdin-tool.ts";
@@ -21,6 +12,7 @@ import { createImageGenerationTool, supportsNativeImageGeneration } from "../too
 import { createViewImageTool, supportsViewImageInputs } from "../tools/view-image/tool.ts";
 import { createWebSearchTool } from "../tools/web-run/tool.ts";
 import { shouldUseGpt56CodeMode } from "./activation/activation.ts";
+import { codeModeImageResult, toNestedTool } from "./code-mode/nested-tool-adapter.ts";
 
 export const CODE_MODE_TOOL_NAMES = ["exec", "wait"] as const;
 
@@ -157,128 +149,4 @@ function createNestedTools(
 		));
 	}
 	return tools;
-}
-
-function toNestedTool<TParams extends TSchema, TDetails, TState>(
-	tool: ToolDefinition<TParams, TDetails, TState>,
-	usage: string,
-	lifecycle: {
-		start?(id: string, input: unknown): void;
-		end?(id: string): void;
-	} = {},
-	contract: {
-		kind?: "function" | "freeform";
-		prepareInput?(input: unknown): unknown;
-		resultError?(result: AgentToolResult<unknown>): string | undefined;
-		resultValue?(result: AgentToolResult<unknown>): unknown;
-	} = {},
-): ProgrammaticCodeModeToolDefinition {
-	const kind = contract.kind ?? "function";
-	const prepareInput = (input: unknown) =>
-		contract.prepareInput ? contract.prepareInput(input) : input;
-	return {
-		name: tool.name,
-		usage,
-		description: tool.description,
-		deferLoading: false,
-		kind,
-		...(kind === "function" ? { inputSchema: tool.parameters } : {}),
-		...(tool.renderCall
-			? {
-				renderCall: (input, theme, context) =>
-					tool.renderCall!(prepareInput(input) as never, theme as never, context as never),
-				}
-			: {}),
-		...(tool.renderResult
-			? {
-					renderResult: (result, options, theme, context) =>
-						tool.renderResult!(
-							result as never,
-							options,
-							theme as never,
-							context as never,
-						),
-				}
-			: {}),
-		async invoke(input, context, signal) {
-			if (signal.aborted) throw new Error(`${tool.name} aborted`);
-			const extensionContext = requireExtensionContext(context);
-			const toolInput = prepareInput(input);
-			const prepared = tool.prepareArguments
-				? tool.prepareArguments(toolInput)
-				: toolInput;
-			if (signal.aborted) throw new Error(`${tool.name} aborted`);
-			const toolCallId = context.toolCallId ?? `code-mode-${tool.name}`;
-			lifecycle.start?.(toolCallId, prepared);
-			context.refreshTrace?.();
-			try {
-				const result = await tool.execute(
-					toolCallId,
-					prepared as never,
-					signal,
-					(update) => forwardUpdate(update, context),
-					extensionContext,
-				);
-				context.captureResult?.(result);
-				const resultError = contract.resultError?.(result);
-				if (resultError) throw new Error(resultError);
-				return contract.resultValue?.(result) ?? compactNestedResult(result);
-			} finally {
-				lifecycle.end?.(toolCallId);
-			}
-		},
-	};
-}
-
-function codeModeImageResult(
-	result: AgentToolResult<unknown>,
-	outputHint?: string,
-): unknown {
-	const image = result.content.find((item) => item.type === "image");
-	if (!image || image.type !== "image") return compactNestedResult(result);
-	const detail = "detail" in image && typeof image.detail === "string"
-		? image.detail
-		: "high";
-	return {
-		image_url: `data:${image.mimeType};base64,${image.data}`,
-		detail,
-		...(outputHint ? { output_hint: outputHint } : {}),
-	};
-}
-
-function requireExtensionContext(
-	context: ToolExecutionContext,
-): ExtensionContext {
-	if (!context.extensionContext)
-		throw new Error("Code-mode Pi context is unavailable");
-	return context.extensionContext;
-}
-
-function forwardUpdate(
-	update: AgentToolResult<unknown>,
-	context: ToolExecutionContext,
-): void {
-	const content = update.content
-		.filter((item) => item.type === "text" || item.type === "image")
-		.map((item) => ({ ...item }));
-	context.onUpdate?.({ content, details: update.details });
-}
-
-function compactNestedResult(result: AgentToolResult<unknown>): unknown {
-	const images = result.content.filter((item) => item.type === "image");
-	if (images.length > 0)
-		return { content: result.content, details: result.details };
-	if (
-		result.details &&
-		typeof result.details === "object" &&
-		"output" in result.details
-	)
-		return result.details;
-	const text = result.content
-		.filter(
-			(item): item is { type: "text"; text: string } => item.type === "text",
-		)
-		.map((item) => item.text)
-		.join("\n");
-	return text || "(no output)";
 }

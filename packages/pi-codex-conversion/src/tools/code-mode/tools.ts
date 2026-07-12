@@ -4,33 +4,27 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { ensureCodeModeHostBinary } from "./binary.js";
 import { discoverDynamicTools, getDynamicToolsDir } from "./config.js";
-import {
-	CodeModeHostClient,
-	MAX_CODE_MODE_OUTPUT_TOKENS,
-} from "./host-client.js";
+import { CodeModeHostClient } from "./host-client.js";
+import { MAX_CODE_MODE_OUTPUT_TOKENS } from "./host-protocol.js";
 import {
 	EXEC_DESCRIPTION,
 	injectDynamicToolsPrompt,
 	WAIT_DESCRIPTION,
 } from "./prompt.js";
 import {
-	createCodeModeRenderTracker,
 	type RenderContext,
 	type RenderTheme,
 	renderExecCall,
 	renderTrackedCodeModeResult,
 	renderWaitCall,
 } from "./rendering.js";
-import type {
-	CodeModeToolDefinition,
-	RuntimeContentItem,
-	RuntimeResponse,
-} from "./types.js";
+import { createCodeModeRenderTracker } from "./render-tracker.js";
+import type { CodeModeToolDefinition } from "./types.js";
+import { toCodeModeToolResult } from "./tool-result.js";
 
 const DEFAULT_WAIT_MS = 10_000;
-const DEFAULT_MAX_TOKENS = 10_000;
-const MAX_OUTPUT_IMAGE_COUNT = 4;
-const MAX_OUTPUT_IMAGE_CHARS = 16 * 1024 * 1024;
+// Pi event handlers cannot be unregistered. Keep one process-lifetime runtime
+// on pi.events so extension re-registration reuses listeners instead of stacking them.
 const REGISTRATION_KEY = Symbol.for("@howaboua/pi-codex-conversion.code-mode");
 
 interface CodeModeToolProvider {
@@ -237,7 +231,7 @@ function createSharedCodeModeRuntime(pi: ExtensionAPI): SharedCodeModeRuntime {
 					id,
 					response.kind === "yielded" ? "yielded" : "done",
 				);
-				return toToolResult(response);
+				return toCodeModeToolResult(response);
 			} catch (error) {
 				renderTracker.finish(id);
 				throw error;
@@ -286,19 +280,20 @@ function createSharedCodeModeRuntime(pi: ExtensionAPI): SharedCodeModeRuntime {
 			renderTracker.start(id);
 			try {
 				const client = await getClient();
+				const context = { cwd: ctx.cwd, extensionContext: ctx, onUpdate };
 				const response = params.terminate
-					? await client.terminate(params.cell_id)
+					? await client.terminate(params.cell_id, context, signal)
 					: await client.wait(
 							params.cell_id,
 							params.yield_time_ms ?? DEFAULT_WAIT_MS,
-							{ cwd: ctx.cwd, extensionContext: ctx, onUpdate },
+							context,
 							signal,
 						);
 				renderTracker.finish(
 					id,
 					response.kind === "yielded" ? "yielded" : "done",
 				);
-				return toToolResult(response, params.max_tokens);
+				return toCodeModeToolResult(response, params.max_tokens);
 			} catch (error) {
 				renderTracker.finish(id);
 				throw error;
@@ -319,105 +314,4 @@ function createSharedCodeModeRuntime(pi: ExtensionAPI): SharedCodeModeRuntime {
 		renderResult: renderResult as any,
 	});
 	return runtime;
-}
-
-function toToolResult(response: RuntimeResponse, maxTokens?: number) {
-	const scriptError =
-		response.kind === "result" ? response.errorText : undefined;
-	const status = scriptError
-		? `Script error: ${scriptError}`
-		: response.kind === "yielded"
-			? `Script running with cell ID ${response.cellId}`
-			: response.kind === "terminated"
-				? "Script terminated"
-				: "Script completed";
-	let imageChars = 0;
-	let imageCount = 0;
-	let omittedImages = 0;
-	const output = response.contentItems
-		.map((item) => {
-			const content = toPiContent(item);
-			if (content?.type !== "image") return content;
-			if (
-				imageCount >= MAX_OUTPUT_IMAGE_COUNT ||
-				imageChars + content.data.length > MAX_OUTPUT_IMAGE_CHARS
-			) {
-				omittedImages += 1;
-				return undefined;
-			}
-			imageCount += 1;
-			imageChars += content.data.length;
-			return content;
-		})
-		.filter((item): item is NonNullable<typeof item> => Boolean(item));
-	if (omittedImages > 0)
-		output.push({
-			type: "text",
-			text: `[${omittedImages} code-mode image${omittedImages === 1 ? "" : "s"} omitted]`,
-		});
-	const outputTokens = Math.min(
-		MAX_CODE_MODE_OUTPUT_TOKENS,
-		Math.max(1, maxTokens ?? response.maxOutputTokens ?? DEFAULT_MAX_TOKENS),
-	);
-	return {
-		content: [
-			{ type: "text" as const, text: status },
-			...truncateTextContent(output, outputTokens * 4),
-		],
-		details: {
-			codeMode: true,
-			cellId: response.cellId,
-			status: response.kind,
-			...(response.traces ? { traces: response.traces } : {}),
-			...(response.droppedTraceCount
-				? { droppedTraceCount: response.droppedTraceCount }
-				: {}),
-			...(scriptError ? { scriptError } : {}),
-		},
-	};
-}
-
-function toPiContent(
-	item: RuntimeContentItem,
-):
-	| { type: "text"; text: string }
-	| { type: "image"; data: string; mimeType: string }
-	| undefined {
-	if (item.type === "input_text" && typeof item.text === "string")
-		return { type: "text", text: item.text };
-	if (item.type === "input_image" && typeof item.image_url === "string") {
-		const match = item.image_url.match(/^data:([^;,]+);base64,(.+)$/s);
-		if (match) return { type: "image", mimeType: match[1]!, data: match[2]! };
-	}
-	return undefined;
-}
-
-function truncateTextContent<T extends { type: string; text?: string }>(
-	content: T[],
-	maxChars: number,
-): T[] {
-	let remaining = maxChars;
-	let truncated = false;
-	const output: T[] = [];
-	for (const item of content) {
-		if (item.type !== "text" || typeof item.text !== "string") {
-			output.push(item);
-			continue;
-		}
-		if (remaining <= 0) {
-			if (!truncated) output.push({ ...item, text: "[Output truncated]" });
-			truncated = true;
-			continue;
-		}
-		if (item.text.length <= remaining) {
-			remaining -= item.text.length;
-			output.push(item);
-			continue;
-		}
-		const text = `${item.text.slice(0, remaining)}\n[Output truncated]`;
-		remaining = 0;
-		truncated = true;
-		output.push({ ...item, text });
-	}
-	return output;
 }
