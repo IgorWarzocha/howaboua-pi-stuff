@@ -38,6 +38,7 @@ const CODE_MODE_GUIDELINES = [
 	"Do not probe listed PATH tools.",
 	"Use stdin/heredoc for quoted or multiline PATH args.",
 	"Compose independent nested calls with Promise.all.",
+	"With async work, await dependencies; overlap only independent work.",
 	"Use text() only for concise values needed after exec; do not dump complete nested tool results.",
 ];
 

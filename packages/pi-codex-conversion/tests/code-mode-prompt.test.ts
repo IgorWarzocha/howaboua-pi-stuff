@@ -9,6 +9,7 @@ test("Code Mode guidance keeps shell and PATH tools behind exec", () => {
 	});
 	assert.match(prompt, /tools\.exec_command inside exec/);
 	assert.match(prompt, /Promise\.all/);
+	assert.match(prompt, /await dependencies; overlap only independent work/);
 	assert.match(prompt, /text\(\) only for concise values/);
 	assert.match(prompt, /apply_patch <<'PATCH'/);
 	assert.doesNotMatch(prompt, /Run independent exec_command calls in parallel/);
