@@ -1,18 +1,27 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { parseDynamicTool } from "../src/tools/code-mode/config.ts";
-import { buildPromotedToolsPrompt } from "../src/tools/code-mode/prompt.ts";
-import { registerDynamicTools } from "../src/tools/code-mode/tools.ts";
+import {
+	discoverCustomTools,
+	getCustomToolsDir,
+	parseCustomTool,
+} from "../src/tools/code-mode/custom-tools.ts";
+import { buildPromotedToolsPrompt } from "../src/tools/code-mode/custom-tool-prompt.ts";
+import { registerCustomTools } from "../src/tools/code-mode/tools.ts";
 
 test("Code Mode keeps TOML tools deferred unless promoted", () => {
-	const deferred = parseDynamicTool(
+	assert.equal(
+		getCustomToolsDir("/agent"),
+		join("/agent", "codex-conversion-custom-tools"),
+	);
+	const deferred = parseCustomTool(
 		"/tmp/rare_tool.toml",
 		'usage = "await tools.rare_tool(input)"\ncommand = "rare-tool"\n',
 	);
-	const promoted = parseDynamicTool(
+	const promoted = parseCustomTool(
 		"/tmp/common_tool.toml",
 		'usage = "await tools.common_tool(input)"\ncommand = "common-tool"\ndefer_loading = false\n',
 	);
@@ -20,15 +29,32 @@ test("Code Mode keeps TOML tools deferred unless promoted", () => {
 	assert.equal(promoted.deferLoading, false);
 	assert.equal(
 		buildPromotedToolsPrompt([deferred, promoted]),
-		"Dynamic tools available in exec:\n- common_tool: await tools.common_tool(input)",
+		"Custom tools available in exec:\n- common_tool: await tools.common_tool(input)",
 	);
+});
+
+test("Code Mode bundles working custom tool templates", () => {
+	const examplesDir = join(import.meta.dirname, "..", "examples", "custom-tools");
+	const examples = discoverCustomTools(examplesDir);
+	assert.deepEqual(
+		examples.map((tool) => tool.name),
+		["port_info", "semantic_grep", "spawn_agent", "vent", "workflows_create"],
+	);
+	for (const tool of examples) {
+		assert.equal(tool.command, process.execPath);
+		assert.ok(tool.args[0] && existsSync(tool.args[0]));
+	}
 });
 
 test("Code Mode invokes a deferred TOML tool without exposing its schema", async () => {
 	const dir = await mkdtemp(join(tmpdir(), "pi-codex-code-mode-"));
 	await writeFile(
+		join(dir, "echo.mjs"),
+		'process.stdout.write(`custom:${process.argv[2]}`);\n',
+	);
+	await writeFile(
 		join(dir, "echo.toml"),
-		'usage = "await tools.echo(input)"\ncommand = "printf"\nargs = ["dynamic:%s"]\n',
+		'usage = "await tools.echo(input)"\ncommand = "./echo.mjs"\n',
 	);
 	const tools = new Map<string, any>();
 	const pi = {
@@ -38,12 +64,12 @@ test("Code Mode invokes a deferred TOML tool without exposing its schema", async
 		},
 		on() {},
 	};
-	const runtime = await registerDynamicTools(pi as never, dir);
+	const runtime = await registerCustomTools(pi as never, dir);
 	try {
 		const exec = tools.get("exec");
 		assert.ok(exec);
 		const result = await exec.execute(
-			"exec-dynamic",
+			"exec-custom",
 			{ code: 'text(await tools.echo("ok"));' },
 			undefined,
 			undefined,
@@ -53,7 +79,7 @@ test("Code Mode invokes a deferred TOML tool without exposing its schema", async
 			result.content
 				.map((item: { text?: string }) => item.text ?? "")
 				.join("\n"),
-			/dynamic:ok/,
+			/custom:ok/,
 		);
 		assert.deepEqual(
 			result.details.traces.map((trace: { name: string; status: string }) => [
@@ -69,9 +95,9 @@ test("Code Mode invokes a deferred TOML tool without exposing its schema", async
 				fg: (_role: string, text: string) => text,
 				bold: (text: string) => text,
 			},
-			{ toolCallId: "exec-dynamic", cwd: process.cwd() },
+			{ toolCallId: "exec-custom", cwd: process.cwd() },
 		);
-		assert.match(rendered.render(120).join("\n"), /dynamic:ok/);
+		assert.match(rendered.render(120).join("\n"), /custom:ok/);
 
 		const truncated = await exec.execute(
 			"exec-truncated",
@@ -124,9 +150,9 @@ test("Code Mode reuses its registered tool and event surface", async () => {
 			eventRegistrations += 1;
 		},
 	};
-	const first = await registerDynamicTools(pi as never, "/missing");
+	const first = await registerCustomTools(pi as never, "/missing");
 	await first.shutdown();
-	const second = await registerDynamicTools(pi as never, "/missing");
+	const second = await registerCustomTools(pi as never, "/missing");
 	await second.shutdown();
 	assert.equal(toolRegistrations, 2);
 	assert.equal(eventRegistrations, 2);
@@ -141,14 +167,14 @@ test("Code Mode keeps providers registered when its host shuts down", async () =
 			handlers.set(event, handler);
 		},
 	};
-	const registration = await registerDynamicTools(pi as never, "/missing");
+	const registration = await registerCustomTools(pi as never, "/missing");
 	try {
 		await registration.shutdownHost();
 		const result = handlers.get("before_agent_start")?.(
 			{ systemPrompt: "Base" },
 			{},
 		) as { systemPrompt?: string } | undefined;
-		assert.match(result?.systemPrompt ?? "", /DYNAMIC-TOOLS\.md/);
+		assert.match(result?.systemPrompt ?? "", /CUSTOM-TOOLS\.md/);
 	} finally {
 		await registration.shutdown();
 	}

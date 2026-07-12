@@ -1,7 +1,7 @@
-import { formatDynamicToolHelp } from "./prompt.js";
+import { formatCustomToolHelp } from "./custom-tool-prompt.js";
 import type {
 	CodeModeToolDefinition,
-	DynamicToolDefinition,
+	CustomToolDefinition,
 	RuntimeContentItem,
 	RuntimeResponse,
 } from "./types.js";
@@ -10,7 +10,7 @@ export const MAX_CODE_MODE_OUTPUT_TOKENS = 100_000;
 
 export function toWireToolDefinition(tool: CodeModeToolDefinition) {
 	if (
-		!isDynamicToolDefinition(tool) &&
+		!isCustomToolDefinition(tool) &&
 		tool.kind === "function" &&
 		!tool.inputSchema
 	)
@@ -20,19 +20,19 @@ export function toWireToolDefinition(tool: CodeModeToolDefinition) {
 	return {
 		name: tool.name,
 		tool_name: { name: tool.name, namespace: null },
-		description: formatDynamicToolHelp(tool),
-		kind: isDynamicToolDefinition(tool) ? "freeform" : tool.kind,
+		description: formatCustomToolHelp(tool),
+		kind: isCustomToolDefinition(tool) ? "freeform" : tool.kind,
 		input_schema:
-			isDynamicToolDefinition(tool) || tool.kind === "freeform"
+			isCustomToolDefinition(tool) || tool.kind === "freeform"
 				? null
 				: (tool.inputSchema ?? null),
 		output_schema: null,
 	};
 }
 
-export function isDynamicToolDefinition(
+export function isCustomToolDefinition(
 	tool: CodeModeToolDefinition,
-): tool is DynamicToolDefinition {
+): tool is CustomToolDefinition {
 	return "command" in tool;
 }
 

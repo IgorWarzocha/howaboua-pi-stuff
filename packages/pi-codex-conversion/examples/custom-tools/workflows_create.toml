@@ -1,0 +1,5 @@
+usage = '''await tools.workflows_create(JSON.stringify({ name: string, description: string, body: string })) // confirmed repeatable SOPs only; update rather than duplicate'''
+description = "Creates or updates .pi/workflows/<slug>/SKILL.md in Pi's working directory."
+command = "./workflows-create/workflows-create.mjs"
+input = "stdin"
+defer_loading = false

@@ -4,7 +4,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
 
-export type DynamicToolInputMode = "arg" | "stdin";
+export type CustomToolInputMode = "arg" | "stdin";
 
 export interface CodeModeToolMetadata {
 	name: string;
@@ -14,10 +14,10 @@ export interface CodeModeToolMetadata {
 	deferLoading: boolean;
 }
 
-export interface DynamicToolDefinition extends CodeModeToolMetadata {
+export interface CustomToolDefinition extends CodeModeToolMetadata {
 	command: string;
 	args: string[];
-	input: DynamicToolInputMode;
+	input: CustomToolInputMode;
 	sourcePath: string;
 }
 
@@ -44,7 +44,7 @@ export interface ProgrammaticCodeModeToolDefinition
 }
 
 export type CodeModeToolDefinition =
-	| DynamicToolDefinition
+	| CustomToolDefinition
 	| ProgrammaticCodeModeToolDefinition;
 
 export interface ToolExecutionContext {

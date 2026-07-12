@@ -20,7 +20,7 @@ test("Code Mode advertises only model-compatible nested tools", async () => {
 		) as { systemPrompt?: string } | undefined;
 		assert.match(
 			promptResult?.systemPrompt ?? "",
-			/src\/tools\/code-mode\/DYNAMIC-TOOLS\.md/,
+			/src\/tools\/code-mode\/CUSTOM-TOOLS\.md/,
 		);
 		assert.match(
 			promptResult?.systemPrompt ?? "",

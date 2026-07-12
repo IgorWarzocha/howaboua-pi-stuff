@@ -37,6 +37,7 @@
     "bin/web_run.cmd",
     "bin/imagegen.cmd",
     "available-tools.png",
+    "examples/custom-tools",
     "CHANGELOG.md",
     "PATH_TOOLS.md",
     "README.md",

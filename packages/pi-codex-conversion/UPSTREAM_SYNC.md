@@ -105,7 +105,7 @@ Track both:
 
 Also check `x-codex-turn-state`, WebSocket metadata event names, session/thread headers, prewarm `generate`, and `previous_response_id` behavior.
 
-### Prompt caching and dynamic tools
+### Prompt caching and custom tools
 
 `prompt_cache_key` remains stable for a Pi session. Changing the tool set changes request content and intentionally disables cached WebSocket continuation when the previous request is no longer an exact compatible prefix. Do not claim server-side cache hits from local tests; measure `cached_tokens` against the real backend.
 

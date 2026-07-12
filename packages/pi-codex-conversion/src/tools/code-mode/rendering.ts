@@ -61,7 +61,7 @@ export function renderExecCall(
 	const verb =
 		status === "running" ? "Running" : status === "yielded" ? "Started" : "Ran";
 	let text = `${theme.fg("dim", "•")} ${theme.bold(`${verb} code`)}`;
-	const names = dynamicToolNames(code);
+	const names = customToolNames(code);
 	if (names.length > 0) {
 		text += `\n${theme.fg("dim", "  └ ")}${theme.fg("accent", names.join(" · "))}`;
 	}
@@ -333,7 +333,7 @@ function safeRenderString(value: unknown): string {
 	}
 }
 
-function dynamicToolNames(code: string): string[] {
+function customToolNames(code: string): string[] {
 	const names: string[] = [];
 	const seen = new Set<string>();
 	for (const match of code.matchAll(

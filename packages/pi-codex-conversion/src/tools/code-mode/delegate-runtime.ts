@@ -1,5 +1,5 @@
-import { runDynamicTool } from "./runner.js";
-import { isDynamicToolDefinition, type DelegateRequestMessage } from "./host-protocol.js";
+import { runCustomTool } from "./custom-tool-runner.js";
+import { isCustomToolDefinition, type DelegateRequestMessage } from "./host-protocol.js";
 import { CodeModeTraceStore } from "./trace-store.js";
 import { toolResultFromValue, truncateTraceText } from "./trace-values.js";
 import type {
@@ -113,7 +113,7 @@ export class CodeModeDelegateRuntime {
 			this.respond(message.id, {
 				status: "error",
 				message: !tool
-					? `Unknown dynamic tool: ${toolName}`
+					? `Unknown custom tool: ${toolName}`
 					: "Code-mode cell context is unavailable",
 			});
 			this.controllers.delete(message.id);
@@ -139,9 +139,9 @@ export class CodeModeDelegateRuntime {
 			refreshTrace: () => this.traces.emitUpdate(cellId, context),
 		};
 		try {
-			if (isDynamicToolDefinition(tool)) this.traces.emitUpdate(cellId, context);
-			const result = isDynamicToolDefinition(tool)
-				? await runDynamicTool(
+			if (isCustomToolDefinition(tool)) this.traces.emitUpdate(cellId, context);
+			const result = isCustomToolDefinition(tool)
+				? await runCustomTool(
 						tool,
 							input,
 						invocationContext.cwd,

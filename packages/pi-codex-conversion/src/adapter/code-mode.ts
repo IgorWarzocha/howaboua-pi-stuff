@@ -3,7 +3,7 @@ import type { CodexExtensionRuntime } from "../extension/runtime.ts";
 import {
 	type CodeModeRegistration,
 	registerCodeModeTools,
-	registerDynamicTools,
+	registerCustomTools,
 } from "../tools/code-mode/tools.ts";
 import type { ProgrammaticCodeModeToolDefinition } from "../tools/code-mode/types.ts";
 import { createApplyPatchTool } from "../tools/apply-patch/tool.ts";
@@ -23,7 +23,7 @@ export async function registerCodexCodeMode(
 ): Promise<CodeModeRegistration> {
 	const isActive = (ctx: unknown) =>
 		shouldUseGpt56CodeMode(ctx as ExtensionContext, runtime.state.config);
-	const dynamicRuntime = await registerDynamicTools(pi, undefined, {
+	const customToolsRuntime = await registerCustomTools(pi, undefined, {
 		isActive,
 	});
 	const programmaticRuntime = await registerCodeModeTools(pi, {
@@ -36,7 +36,7 @@ export async function registerCodexCodeMode(
 		shutdownHost: () => programmaticRuntime.shutdownHost(),
 		async shutdown() {
 			await programmaticRuntime.shutdown();
-			await dynamicRuntime.shutdown();
+			await customToolsRuntime.shutdown();
 		},
 	};
 }

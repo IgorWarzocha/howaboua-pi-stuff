@@ -4,7 +4,7 @@ import { MAX_CODE_MODE_OUTPUT_TOKENS } from "./host-protocol.js";
 import {
 	EXEC_DESCRIPTION,
 	WAIT_DESCRIPTION,
-} from "./prompt.js";
+} from "./custom-tool-prompt.js";
 import { createCodeModeRenderTracker } from "./render-tracker.js";
 import {
 	type RenderContext,

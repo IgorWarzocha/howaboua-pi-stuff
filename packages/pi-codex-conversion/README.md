@@ -44,11 +44,17 @@ GPT-5.6 Code Mode, available as an opt-in beta for Luna, Terra, and Sol, narrows
 - `exec` — run isolated JavaScript that composes nested tools
 - `wait` — resume or terminate a yielded JavaScript cell
 
-Inside `exec`, Codex extras are nested native calls: `tools.apply_patch(patch)`, `tools.view_image(...)`, `tools.web__run(...)`, and `tools.image_gen__imagegen(...)`. `tools.exec_command(...)` and `tools.write_stdin(...)` use the same shell implementation as normal and PATH modes. Only outer `exec` and `wait` reach the provider, so nested schemas remain local to the V8 host. TOML tools from `~/.pi/agent/dynamic-tools/` remain callable through `tools.*`; definitions are deferred by default and can be promoted with `defer_loading = false`.
+Inside `exec`, Codex extras are nested native calls: `tools.apply_patch(patch)`, `tools.view_image(...)`, `tools.web__run(...)`, and `tools.image_gen__imagegen(...)`. `tools.exec_command(...)` and `tools.write_stdin(...)` use the same shell implementation as normal and PATH modes. Only outer `exec` and `wait` reach the provider, so nested schemas remain local to the V8 host. TOML tools from `~/.pi/agent/codex-conversion-custom-tools/` remain callable through `tools.*`; definitions are deferred by default and can be promoted with `defer_loading = false`. Working opt-in templates ship under `examples/custom-tools/`.
 
 Nested calls retain their structured Pi rendering—shell summaries, parallel outputs, patch diffs, resumable sessions, web/image results, partial updates, and generic TOML-tool output—without exposing extra provider tools.
 
 By default, Code Mode keeps the JavaScript machinery transparent and renders nested operations like direct Pi tools. Turn on **Code Mode details** for the outer `exec`/`wait` cells, expandable JavaScript, and printed runtime output. **Tool renaming** independently controls whether nested operations use polished Codex-style cells or their generic tool names.
+
+### Code Mode custom tools
+
+Put custom tool definitions in `~/.pi/agent/codex-conversion-custom-tools/`, or under `$PI_CODING_AGENT_DIR/codex-conversion-custom-tools/` when configured. Each top-level TOML filename becomes a method on `tools`. Definitions stay deferred unless they set `defer_loading = false`.
+
+The package includes disabled templates under `examples/custom-tools/` for `port_info`, `semantic_grep`, `spawn_agent`, `vent`, and `workflows_create`. To enable one, copy its TOML and matching companion directory into the custom-tools directory without changing their relative layout. Installing the package does not enable any example.
 
 In PATH mode, Codex-style extras live on the extension-injected internal PATH:
 

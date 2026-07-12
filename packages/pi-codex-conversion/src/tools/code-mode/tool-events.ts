@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { injectDynamicToolsPrompt } from "./prompt.js";
+import { injectCustomToolsPrompt } from "./custom-tool-prompt.js";
 import type { SharedCodeModeRuntime } from "./shared-runtime.js";
 
 export function registerCodeModeEvents(
@@ -13,7 +13,7 @@ export function registerCodeModeEvents(
 			(provider) => provider.documentationPath,
 		)?.documentationPath;
 		if (!documentationPath) return undefined;
-		const systemPrompt = injectDynamicToolsPrompt(
+		const systemPrompt = injectCustomToolsPrompt(
 			event.systemPrompt,
 			runtime.collectTools(ctx),
 			documentationPath,

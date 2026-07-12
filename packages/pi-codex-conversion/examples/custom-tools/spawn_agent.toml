@@ -1,0 +1,5 @@
+usage = '''await tools.spawn_agent(JSON.stringify({ agent_type: "explorer" | "reviewer", message: string, cwd?: string }))'''
+description = "Relative cwd resolves from Pi's working directory."
+command = "./spawn-agent/spawn-agent.mjs"
+input = "stdin"
+defer_loading = false

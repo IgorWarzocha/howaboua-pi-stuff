@@ -9,14 +9,14 @@ import {
 } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { parse } from "smol-toml";
-import type { DynamicToolDefinition, DynamicToolInputMode } from "./types.js";
+import type { CustomToolDefinition, CustomToolInputMode } from "./types.js";
 
-export const DYNAMIC_TOOLS_DIRNAME = "dynamic-tools";
+export const CUSTOM_TOOLS_DIRNAME = "codex-conversion-custom-tools";
 const TOOL_NAME_PATTERN = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/;
 const NODE_SCRIPT_PATTERN = /\.(?:cjs|mjs|js)$/i;
 
-export function getDynamicToolsDir(agentDir: string = getAgentDir()): string {
-	return join(agentDir, DYNAMIC_TOOLS_DIRNAME);
+export function getCustomToolsDir(agentDir: string = getAgentDir()): string {
+	return join(agentDir, CUSTOM_TOOLS_DIRNAME);
 }
 
 function requiredString(value: unknown, field: string, path: string): string {
@@ -41,7 +41,7 @@ function stringArray(value: unknown, field: string, path: string): string[] {
 	return [...value];
 }
 
-function inputMode(value: unknown, path: string): DynamicToolInputMode {
+function inputMode(value: unknown, path: string): CustomToolInputMode {
 	if (value === undefined) return "arg";
 	if (value === "arg" || value === "stdin") return value;
 	throw new Error(`${path}: input must be "arg" or "stdin"`);
@@ -53,10 +53,10 @@ function deferLoading(value: unknown, path: string): boolean {
 	throw new Error(`${path}: defer_loading must be a boolean`);
 }
 
-export function parseDynamicTool(
+export function parseCustomTool(
 	path: string,
 	text: string,
-): DynamicToolDefinition {
+): CustomToolDefinition {
 	const name = basename(path, extname(path));
 	if (!TOOL_NAME_PATTERN.test(name))
 		throw new Error(
@@ -97,15 +97,15 @@ export function parseDynamicTool(
 	};
 }
 
-export function discoverDynamicTools(
-	dir: string = getDynamicToolsDir(),
-): DynamicToolDefinition[] {
+export function discoverCustomTools(
+	dir: string = getCustomToolsDir(),
+): CustomToolDefinition[] {
 	if (!existsSync(dir)) return [];
 	return readdirSync(dir, { withFileTypes: true })
 		.filter((entry) => entry.isFile() && entry.name.endsWith(".toml"))
 		.sort((left, right) => left.name.localeCompare(right.name))
 		.map((entry) => {
 			const path = join(dir, entry.name);
-			return parseDynamicTool(path, readFileSync(path, "utf8"));
+			return parseCustomTool(path, readFileSync(path, "utf8"));
 		});
 }

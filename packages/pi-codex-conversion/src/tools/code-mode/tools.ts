@@ -1,7 +1,7 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { discoverDynamicTools, getDynamicToolsDir } from "./config.js";
+import { discoverCustomTools, getCustomToolsDir } from "./custom-tools.js";
 import { registerPublicCodeModeTools } from "./public-tools.js";
 import {
 	SharedCodeModeRuntime,
@@ -20,14 +20,14 @@ export interface CodeModeRegistration {
 	shutdown(): Promise<void>;
 }
 
-export async function registerDynamicTools(
+export async function registerCustomTools(
 	pi: ExtensionAPI,
-	toolsDir: string = getDynamicToolsDir(),
+	toolsDir: string = getCustomToolsDir(),
 	options: { isActive?(ctx: unknown): boolean } = {},
 ): Promise<CodeModeRegistration> {
 	return registerCodeModeTools(pi, {
-		getTools: () => discoverDynamicTools(toolsDir),
-		documentationPath: dynamicToolsDocumentationPath(),
+		getTools: () => discoverCustomTools(toolsDir),
+		documentationPath: customToolsDocumentationPath(),
 		...options,
 	});
 }
@@ -63,8 +63,8 @@ function getOrCreateRuntime(pi: ExtensionAPI): SharedCodeModeRuntime {
 	return runtime;
 }
 
-function dynamicToolsDocumentationPath(): string {
+function customToolsDocumentationPath(): string {
 	const modulePath = fileURLToPath(import.meta.url);
 	const packageRoot = dirname(dirname(dirname(dirname(modulePath))));
-	return join(packageRoot, "src", "tools", "code-mode", "DYNAMIC-TOOLS.md");
+	return join(packageRoot, "src", "tools", "code-mode", "CUSTOM-TOOLS.md");
 }

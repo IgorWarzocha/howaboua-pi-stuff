@@ -1,11 +1,11 @@
 import { spawn } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
-import type { DynamicToolDefinition } from "./types.js";
+import type { CustomToolDefinition } from "./types.js";
 
 const MAX_OUTPUT_BYTES = 50 * 1024;
 
-export async function runDynamicTool(
-	tool: DynamicToolDefinition,
+export async function runCustomTool(
+	tool: CustomToolDefinition,
 	input: unknown,
 	cwd: string,
 	signal?: AbortSignal,
