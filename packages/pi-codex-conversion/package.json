@@ -56,8 +56,8 @@
     "!src/tools/target/**"
   ],
   "scripts": {
-    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsgo -p tsconfig.build.json",
-    "typecheck": "tsgo -p tsconfig.json",
+    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
     "test": "tsx --test tests/**/*.test.ts",
     "check": "bun run typecheck && bun run test",
     "publish:dry-run": "npm publish --dry-run",
@@ -88,10 +88,9 @@
     "@earendil-works/pi-ai": "0.80.6",
     "@earendil-works/pi-coding-agent": "0.80.6",
     "@earendil-works/pi-tui": "0.80.6",
-    "@typescript/native-preview": "^7.0.0-dev.20260519.1",
     "tsx": "^4.20.5",
     "typebox": "^1.1.24",
-    "typescript": "^5.9.3"
+    "typescript": "^7.0.2"
   },
   "dependencies": {
     "js-tiktoken": "^1.0.21",
