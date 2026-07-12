@@ -17,13 +17,17 @@ All dynamic tools remain callable on \`tools\`. When a needed tool is unknown, s
 export const WAIT_DESCRIPTION =
 	"Wait for new output or terminate a yielded exec cell. Returns only output since the previous yield; call wait again if still running.";
 
-const PROMOTED_TOOLS_HEADING = "Dynamic tools available in `exec`:";
+const PROMOTED_TOOLS_HEADING = "Dynamic tools available in exec:";
 const DOCUMENTATION_PREFIX = "Dynamic tools documentation: read ";
 const DYNAMIC_TOOLS_GUIDANCE =
 	"Prefer a dynamic tool over a Pi extension for a command-backed capability.";
 
 export function formatDynamicToolHelp(tool: DynamicToolDefinition): string {
-	return [tool.description, tool.output ? `Output: ${tool.output}` : undefined]
+	return [
+		tool.usage ? `Usage: ${tool.usage}` : undefined,
+		tool.description,
+		tool.output ? `Output: ${tool.output}` : undefined,
+	]
 		.filter(Boolean)
 		.join("\n");
 }
@@ -31,18 +35,22 @@ export function formatDynamicToolHelp(tool: DynamicToolDefinition): string {
 export function buildPromotedToolsPrompt(
 	tools: DynamicToolDefinition[],
 ): string {
-	const names = tools
+	const promoted = tools
 		.filter((tool) => !tool.deferLoading)
-		.map((tool) => tool.name)
-		.sort((left, right) => left.localeCompare(right));
-	if (names.length === 0) return "";
-	return `${PROMOTED_TOOLS_HEADING}\n${names.map((name) => `- \`await tools.${name}(input)\``).join("\n")}`;
+		.sort((left, right) => left.name.localeCompare(right.name));
+	if (promoted.length === 0) return "";
+	return `${PROMOTED_TOOLS_HEADING}\n${promoted
+		.map(
+			(tool) =>
+				`- ${tool.name}: ${tool.usage ?? `await tools.${tool.name}(input)`}`,
+		)
+		.join("\n")}`;
 }
 
 export function buildDynamicToolsDocumentationPrompt(
 	documentationPath: string,
 ): string {
-	return `${DOCUMENTATION_PREFIX}\`${documentationPath}\` before adding, changing, or answering questions about dynamic tools.\n${DYNAMIC_TOOLS_GUIDANCE}`;
+	return `${DOCUMENTATION_PREFIX}${documentationPath} before adding, changing, or answering questions about dynamic tools.\n${DYNAMIC_TOOLS_GUIDANCE}`;
 }
 
 export function injectDynamicToolsPrompt(

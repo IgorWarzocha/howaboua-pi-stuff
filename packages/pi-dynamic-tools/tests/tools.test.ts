@@ -66,9 +66,11 @@ describe("dynamic tool registration", () => {
 		expect(first.systemPrompt).not.toContain("late_tool");
 		writeFileSync(
 			join(dir, "late_tool.toml"),
-			'defer_loading = false\ncommand = "late-tool"\n',
+			'defer_loading = false\nusage = "await tools.late_tool(query)"\ncommand = "late-tool"\n',
 		);
 		const second = handler!({ systemPrompt: "Base" });
-		expect(second.systemPrompt).toContain("await tools.late_tool(input)");
+		expect(second.systemPrompt).toContain(
+			"late_tool: await tools.late_tool(query)",
+		);
 	});
 });

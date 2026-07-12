@@ -8,6 +8,7 @@ describe("dynamic tool TOML", () => {
 				"/tmp/subagent.toml",
 				`
  description = "Run a discovery agent."
+ usage = 'await tools.subagent(task)'
  command = "pi-subagent"
  args = ["--mode", "deep"]
  input = "stdin"
@@ -15,6 +16,7 @@ describe("dynamic tool TOML", () => {
 			),
 		).toEqual({
 			name: "subagent",
+			usage: "await tools.subagent(task)",
 			description: "Run a discovery agent.",
 			output: undefined,
 			deferLoading: true,
@@ -33,6 +35,7 @@ describe("dynamic tool TOML", () => {
 			),
 		).toEqual({
 			name: "repo_snapshot",
+			usage: undefined,
 			description: undefined,
 			output: "JSON with files and git_status.",
 			deferLoading: false,

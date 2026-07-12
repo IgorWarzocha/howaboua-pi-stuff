@@ -19,7 +19,7 @@ The JavaScript cell is isolated V8 with no direct filesystem, network, or Node a
 
 ## Dynamic tool or Pi extension?
 
-Consider a dynamic tool first when the capability is command-backed, tool-shaped, and useful only occasionally. Deferred tools add no tool-specific system-prompt or provider-schema cost. A stable promoted tool adds only its terse invocation form rather than a full provider-visible JSON schema.
+Consider a dynamic tool first when the capability is command-backed, tool-shaped, and useful only occasionally. Deferred tools add no tool-specific system-prompt or provider-schema cost. A stable promoted tool adds only its name and usage rather than a full provider-visible JSON schema.
 
 Use a dynamic tool when:
 
@@ -50,7 +50,7 @@ A complex tool still receives one string. Encode structured input as JSON and va
 
 ```toml
 # inspect_repo.toml
-description = 'Inspect a repository. Input JSON fields: query (string) and optional cwd (string).'
+usage = 'await tools.inspect_repo(JSON.stringify({ query: string, cwd?: string }))'
 command = "./inspect-repo/inspect-repo.mjs"
 input = "stdin"
 ```
@@ -72,7 +72,8 @@ text(result);
 - `command`: executable name or path.
 - `args`: fixed string arguments placed before the model-provided input. Defaults to `[]`.
 - `input`: `"arg"` appends the input as the final argument; `"stdin"` writes it to standard input. Defaults to `"arg"`.
-- `description`: discovery help. State the action and any input contract the caller must know.
+- `usage`: exact JavaScript invocation contract, without Markdown formatting. For structured input, show the object passed to `JSON.stringify`.
+- `description`: optional discovery help not already clear from the name and usage.
 - `output`: optional discovery help about a reliable result contract. It does not control, validate, or transform command output. Omit it when the result is free-form.
 - `defer_loading`: defaults to `true`. Set to `false` only when the user wants the tool named in the system prompt.
 
@@ -108,7 +109,7 @@ defer_loading = false
 command = "common-tool"
 ```
 
-Promotion adds a terse `await tools.<name>(input)` form to the system prompt. Changing the promoted set or names changes that prompt and can invalidate its cache. Descriptions and `output` help remain available through `ALL_TOOLS` rather than being copied into the system prompt.
+Promotion adds the tool name and `usage` to the system prompt. If `usage` is omitted, it falls back to `await tools.<name>(input)`. Changing the promoted set, names, or usage changes that prompt and can invalidate its cache. Descriptions and `output` help remain available through `ALL_TOOLS` rather than being copied into the system prompt.
 
 ## Execution and failures
 

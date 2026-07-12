@@ -2,6 +2,7 @@ export type DynamicToolInputMode = "arg" | "stdin";
 
 export interface DynamicToolDefinition {
 	name: string;
+	usage?: string | undefined;
 	description?: string | undefined;
 	output?: string | undefined;
 	deferLoading: boolean;

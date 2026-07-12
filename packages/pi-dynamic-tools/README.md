@@ -15,12 +15,12 @@ The first startup with at least one definition downloads OpenAI Codex's code-mod
 Create `~/.pi/agent/dynamic-tools/summarize.toml`:
 
 ```toml
-description = "Summarize text."
+usage = "await tools.summarize(text)"
 command = "summary-cli"
 input = "stdin"
 ```
 
-The filename becomes the JavaScript method name, so use letters, numbers, `_`, or `$`. `description` and `output` are optional on-demand help text; `output` documents a reliable contract but does not control the command's result. Tools are deferred by default; set `defer_loading = false` to add a commonly used tool's terse invocation form to the system prompt. Full help remains local until requested through `ALL_TOOLS`.
+The filename becomes the JavaScript method name, so use letters, numbers, `_`, or `$`. `usage` records the exact invocation contract. `description` and `output` are optional on-demand help text; `output` documents a reliable contract but does not control the command's result. Tools are deferred by default; set `defer_loading = false` to add a commonly used tool's name and usage to the system prompt. Full help remains local until requested through `ALL_TOOLS`.
 
 `input` can be:
 

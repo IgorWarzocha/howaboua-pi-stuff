@@ -19,6 +19,7 @@ afterEach(async () => {
 function client(): CodeModeHostClient {
 	const echo: DynamicToolDefinition = {
 		name: "echo",
+		usage: "await tools.echo(text)",
 		description: "Echo text.",
 		output: "The same text.",
 		deferLoading: true,
@@ -56,7 +57,7 @@ describe("Codex code-mode host", () => {
 		expect(response.contentItems).toEqual([
 			{
 				type: "input_text",
-				text: '{"name":"echo","description":"Echo text.\\nOutput: The same text."}',
+				text: '{"name":"echo","description":"Usage: await tools.echo(text)\\nEcho text.\\nOutput: The same text."}',
 			},
 		]);
 	});
