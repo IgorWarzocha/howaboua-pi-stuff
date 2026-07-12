@@ -61,6 +61,29 @@ describe("Codex code-mode host", () => {
 		]);
 	});
 
+	test("accepts tools discovered after the host starts", async () => {
+		const host = client();
+		await host.execute(`text(ALL_TOOLS.length);`, { cwd: process.cwd() });
+		const lateTool: DynamicToolDefinition = {
+			name: "late_tool",
+			description: "Added during the session.",
+			deferLoading: true,
+			command: process.execPath,
+			args: ["-e", "process.stdout.write(process.argv[1])"],
+			input: "arg",
+			sourcePath: "late_tool.toml",
+		};
+		const response = await host.execute(
+			`const value = await tools.late_tool("available"); text(value);`,
+			{ cwd: process.cwd() },
+			undefined,
+			[lateTool],
+		);
+		expect(response.contentItems).toEqual([
+			{ type: "input_text", text: "available" },
+		]);
+	});
+
 	test("shares store values between exec cells", async () => {
 		const host = client();
 		await host.execute(`store("answer", 42);`, { cwd: process.cwd() });

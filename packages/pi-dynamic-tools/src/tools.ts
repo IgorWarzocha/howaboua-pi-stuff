@@ -21,28 +21,43 @@ import type { RuntimeContentItem, RuntimeResponse } from "./types.js";
 
 const DEFAULT_WAIT_MS = 10_000;
 const DEFAULT_MAX_TOKENS = 10_000;
+const REGISTRATION_KEY = Symbol.for("@howaboua/pi-dynamic-tools.registered");
+const NOOP_RUNTIME = { async shutdown() {} };
 
 export async function registerDynamicTools(
 	pi: ExtensionAPI,
-): Promise<{ shutdown(): Promise<void> } | undefined> {
-	const toolsDir = getDynamicToolsDir();
+	toolsDir: string = getDynamicToolsDir(),
+): Promise<{ shutdown(): Promise<void> }> {
+	const sharedState = pi.events as typeof pi.events & {
+		[REGISTRATION_KEY]?: object;
+	};
+	if (sharedState[REGISTRATION_KEY]) return NOOP_RUNTIME;
+	const owner = {};
 	const documentationPath = fileURLToPath(
 		new URL("../DYNAMIC-TOOLS.md", import.meta.url),
 	);
-	const tools = discoverDynamicTools(toolsDir);
 	pi.on("before_agent_start", (event) => {
 		const systemPrompt = injectDynamicToolsPrompt(
 			event.systemPrompt,
-			tools,
+			discoverDynamicTools(toolsDir),
 			documentationPath,
 		);
 		return systemPrompt === event.systemPrompt ? undefined : { systemPrompt };
 	});
-	if (tools.length === 0) return undefined;
-	const client = new CodeModeHostClient({
-		binary: await ensureCodeModeHostBinary(),
-		tools,
-	});
+	sharedState[REGISTRATION_KEY] = owner;
+	let clientPromise: Promise<CodeModeHostClient> | undefined;
+	const getClient = async () => {
+		if (!clientPromise) {
+			const pending = ensureCodeModeHostBinary().then(
+				(binary) => new CodeModeHostClient({ binary, tools: [] }),
+			);
+			clientPromise = pending;
+			void pending.catch(() => {
+				if (clientPromise === pending) clientPromise = undefined;
+			});
+		}
+		return clientPromise;
+	};
 	const renderTracker = createCodeModeRenderTracker();
 	const renderResult = (
 		result: Parameters<typeof renderTrackedCodeModeResult>[0],
@@ -64,10 +79,13 @@ export async function registerDynamicTools(
 		async execute(id, params, signal, onUpdate, ctx) {
 			renderTracker.start(id);
 			try {
+				const tools = discoverDynamicTools(toolsDir);
+				const client = await getClient();
 				const response = await client.execute(
 					params.code,
 					{ cwd: ctx.cwd, onUpdate },
 					signal,
+					tools,
 				);
 				renderTracker.finish(
 					id,
@@ -112,6 +130,7 @@ export async function registerDynamicTools(
 		async execute(id, params, signal, onUpdate, ctx) {
 			renderTracker.start(id);
 			try {
+				const client = await getClient();
 				const response = params.terminate
 					? await client.terminate(params.cell_id)
 					: await client.wait(
@@ -137,7 +156,20 @@ export async function registerDynamicTools(
 		) => renderWaitCall(args, theme, context, renderTracker)) as any,
 		renderResult: renderResult as any,
 	});
-	return { shutdown: () => client.shutdown() };
+	return {
+		async shutdown() {
+			if (sharedState[REGISTRATION_KEY] === owner)
+				delete sharedState[REGISTRATION_KEY];
+			const pending = clientPromise;
+			clientPromise = undefined;
+			if (!pending) return;
+			try {
+				await (await pending).shutdown();
+			} catch {
+				// Startup failure already reached the caller.
+			}
+		},
+	};
 }
 
 function toToolResult(response: RuntimeResponse, maxTokens?: number) {

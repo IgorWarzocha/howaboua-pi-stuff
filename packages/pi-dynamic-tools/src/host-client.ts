@@ -15,6 +15,7 @@ type Pending = {
 	resolve: (value: any) => void;
 	reject: (error: Error) => void;
 	context?: ToolExecutionContext | undefined;
+	tools?: Map<string, DynamicToolDefinition> | undefined;
 };
 
 type HostClientOptions = {
@@ -33,6 +34,7 @@ export class CodeModeHostClient {
 	private pending = new Map<number, Pending>();
 	private initial = new Map<number, Pending>();
 	private cellContexts = new Map<string, ToolExecutionContext>();
+	private cellTools = new Map<string, Map<string, DynamicToolDefinition>>();
 	private delegates = new Map<number, AbortController>();
 	private notifications = new Map<string, string[]>();
 	private stderr = "";
@@ -83,6 +85,7 @@ export class CodeModeHostClient {
 		source: string,
 		context: ToolExecutionContext,
 		signal?: AbortSignal,
+		tools: DynamicToolDefinition[] = [...this.tools.values()],
 	): Promise<RuntimeResponse> {
 		await this.start();
 		const { code, yieldTimeMs, maxOutputTokens } = parseExecSource(source);
@@ -90,6 +93,7 @@ export class CodeModeHostClient {
 		const initial = new Promise<any>((resolve, reject) =>
 			this.initial.set(id, { resolve, reject }),
 		);
+		const toolSet = new Map(tools.map((tool) => [tool.name, tool]));
 		const started = this.requestWithId(
 			id,
 			{
@@ -97,13 +101,14 @@ export class CodeModeHostClient {
 				sessionId: this.sessionId,
 				request: {
 					tool_call_id: `exec-${id}`,
-					enabled_tools: [...this.tools.values()].map(toWireToolDefinition),
+					enabled_tools: tools.map(toWireToolDefinition),
 					source: code,
 					yield_time_ms: yieldTimeMs,
 					max_output_tokens: maxOutputTokens,
 				},
 			},
 			context,
+			toolSet,
 		);
 		const abort = () => {
 			this.send({ type: "operation/cancel", id });
@@ -194,9 +199,10 @@ export class CodeModeHostClient {
 		id: number,
 		request: Record<string, unknown>,
 		context?: ToolExecutionContext,
+		tools?: Map<string, DynamicToolDefinition>,
 	): Promise<any> {
 		return new Promise((resolve, reject) => {
-			this.pending.set(id, { resolve, reject, context });
+			this.pending.set(id, { resolve, reject, context, tools });
 			this.send({ type: "operation/request", id, request });
 		});
 	}
@@ -256,8 +262,10 @@ export class CodeModeHostClient {
 			if (message.result?.status === "error")
 				return pending.reject(new Error(message.result.message));
 			const value = message.result?.value;
-			if (value?.type === "execution/started" && pending.context)
+			if (value?.type === "execution/started" && pending.context) {
 				this.cellContexts.set(value.cellId, pending.context);
+				if (pending.tools) this.cellTools.set(value.cellId, pending.tools);
+			}
 			pending.resolve(value);
 			return;
 		}
@@ -280,6 +288,7 @@ export class CodeModeHostClient {
 		}
 		if (message.type === "cell/closed") {
 			this.cellContexts.delete(message.cellId);
+			this.cellTools.delete(message.cellId);
 		}
 	}
 
@@ -313,7 +322,9 @@ export class CodeModeHostClient {
 			return;
 		}
 		const invocation = request.invocation;
-		const tool = this.tools.get(invocation?.tool_name?.name);
+		const tool = this.cellTools
+			.get(invocation?.cell_id)
+			?.get(invocation?.tool_name?.name);
 		const context = this.cellContexts.get(invocation?.cell_id);
 		if (!tool || !context) {
 			this.send({

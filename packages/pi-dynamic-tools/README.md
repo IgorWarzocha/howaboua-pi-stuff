@@ -29,7 +29,7 @@ The filename becomes the JavaScript method name, so use letters, numbers, `_`, o
 
 Bare command names resolve through `PATH`. Relative command paths resolve from the TOML file's directory.
 
-Run `/reload` or restart Pi after adding, changing, or removing definitions.
+Definitions are rediscovered before every `exec`, so deferred tools can be added, changed, or removed during a session. Promoted tools enter the system prompt on the next agent turn.
 
 The extension adds the resolved bundled `DYNAMIC-TOOLS.md` path to the system prompt. Agents read that file only when asked to configure or explain dynamic tools.
 

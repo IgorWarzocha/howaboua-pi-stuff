@@ -13,7 +13,7 @@ tools.<filename>(input string)
   → string result
 ```
 
-Definitions are top-level `*.toml` files under the Pi agent directory's `dynamic-tools/` folder (`~/.pi/agent/dynamic-tools/` by default, or `$PI_CODING_AGENT_DIR/dynamic-tools/` when configured). Companion scripts may live in subdirectories. Pi reads definitions when it starts or reloads.
+Definitions are top-level `*.toml` files under the Pi agent directory's `dynamic-tools/` folder (`~/.pi/agent/dynamic-tools/` by default, or `$PI_CODING_AGENT_DIR/dynamic-tools/` when configured). Companion scripts may live in subdirectories. Pi rediscovers definitions before every `exec`; already-running cells keep the definitions they started with.
 
 The JavaScript cell is isolated V8 with no direct filesystem, network, or Node access. The delegated command is not sandboxed by code mode: it runs locally with the user's permissions, Pi's working directory, and inherited environment.
 
@@ -37,7 +37,7 @@ Build a Pi extension when the capability needs lifecycle events, custom TUI, Pi 
 3. Create or update only the relevant TOML and companion files.
 4. Keep the tool deferred unless the user explicitly wants it named in every system prompt.
 5. Validate the command independently when practical.
-6. Tell the user that Pi must reload before the changed definition is available. Do not send slash commands as agent tool calls.
+6. The changed catalog is available on the next `exec`. Do not send slash commands as agent tool calls.
 
 Minimal definition:
 
@@ -93,7 +93,7 @@ Deferred is the cache-safe default:
 command = "rare-tool"
 ```
 
-A deferred tool remains callable but its name and help do not enter the system prompt or provider tool schema. Its metadata stays local in `ALL_TOOLS` until requested. Once at least one definition has activated the outer `exec` and `wait` tools, adding, removing, or editing deferred definitions does not change that stable provider contract.
+A deferred tool remains callable but its name and help do not enter the system prompt or provider tool schema. Its metadata stays local in `ALL_TOOLS` until requested. The outer `exec` and `wait` tools are always registered, even with an empty catalog, so adding, removing, or editing deferred definitions during a session does not change that stable provider contract.
 
 Inspect only the metadata needed:
 
