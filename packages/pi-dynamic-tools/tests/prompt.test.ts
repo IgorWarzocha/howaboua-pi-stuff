@@ -10,7 +10,7 @@ import type { DynamicToolDefinition } from "../src/types.js";
 function tool(
 	name: string,
 	deferLoading: boolean,
-	usage?: string,
+	usage = `await tools.${name}(input)`,
 ): DynamicToolDefinition {
 	return {
 		name,

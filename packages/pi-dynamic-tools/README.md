@@ -12,15 +12,16 @@ The first startup with at least one definition downloads OpenAI Codex's code-mod
 
 ## Define a tool
 
-Create `~/.pi/agent/dynamic-tools/summarize.toml`:
+Each definition must state the exact invocation contract. The bundled `spawn_agent` example uses:
 
 ```toml
-usage = "await tools.summarize(text)"
-command = "summary-cli"
+usage = '''await tools.spawn_agent(JSON.stringify({ agent_type: "explorer" | "reviewer", message: string, cwd?: string }))'''
+description = "Relative cwd resolves from Pi's working directory."
+command = "./spawn-agent/spawn-agent.mjs"
 input = "stdin"
 ```
 
-The filename becomes the JavaScript method name, so use letters, numbers, `_`, or `$`. `usage` records the exact invocation contract. `description` and `output` are optional on-demand help text; `output` documents a reliable contract but does not control the command's result. Tools are deferred by default; set `defer_loading = false` to add a commonly used tool's name and usage to the system prompt. Full help remains local until requested through `ALL_TOOLS`.
+The filename becomes the JavaScript method name, so use letters, numbers, `_`, or `$`. `usage` is required; the agent should never need to guess the input. `description` and `output` are optional on-demand help text for details not already clear from the name and usage. `output` documents a reliable contract but does not control the command's result. Tools are deferred by default; set `defer_loading = false` to add a commonly used tool's name and usage to the system prompt. Full help remains local until requested through `ALL_TOOLS`.
 
 `input` can be:
 
@@ -47,24 +48,20 @@ Tools are discovered on demand without changing the stable `exec` schema:
 
 ```js
 text(ALL_TOOLS.map(({ name }) => name));
-text(ALL_TOOLS.find(({ name }) => name === "summarize"));
+text(ALL_TOOLS.find(({ name }) => name === "spawn_agent"));
 ```
 
-With the definition above, `exec` exposes:
+With both bundled examples enabled, `exec` can compose unrelated system and agent work without intermediate model turns:
 
 ```js
-const result = await tools.summarize("Long text to summarize...");
-text(result);
-```
-
-Multiple tools can be composed without returning intermediate output to the model:
-
-```js
-const [auth, config] = await Promise.all([
-  tools.summarize("Long authentication report..."),
-  tools.summarize("Long configuration report..."),
+const [port, review] = await Promise.all([
+  tools.port_info("3000"),
+  tools.spawn_agent(JSON.stringify({
+    agent_type: "reviewer",
+    message: "Review the current branch.",
+  })),
 ]);
-text({ auth, config });
+text({ port, review });
 ```
 
 The runtime is OpenAI Codex's isolated V8 code-mode host. It provides `text`, `image`, `store`, `load`, `notify`, `yield_control`, timers, resumable cells, and the companion `wait` tool. It does not expose Node, filesystem, network, or console APIs to JavaScript.

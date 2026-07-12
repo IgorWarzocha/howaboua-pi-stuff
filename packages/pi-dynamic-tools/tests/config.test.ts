@@ -27,15 +27,15 @@ describe("dynamic tool TOML", () => {
 		});
 	});
 
-	test("allows self-explanatory tools and optional output help", () => {
+	test("requires usage and allows optional output help", () => {
 		expect(
 			parseDynamicTool(
 				"/tmp/repo_snapshot.toml",
-				`command = "repo-snapshot"\noutput = "JSON with files and git_status."\ndefer_loading = false`,
+				`usage = "await tools.repo_snapshot(path)"\ncommand = "repo-snapshot"\noutput = "JSON with files and git_status."\ndefer_loading = false`,
 			),
 		).toEqual({
 			name: "repo_snapshot",
-			usage: undefined,
+			usage: "await tools.repo_snapshot(path)",
 			description: undefined,
 			output: "JSON with files and git_status.",
 			deferLoading: false,
@@ -46,9 +46,18 @@ describe("dynamic tool TOML", () => {
 		});
 	});
 
+	test("rejects tools without an invocation contract", () => {
+		expect(() =>
+			parseDynamicTool("repo_snapshot.toml", `command = "repo-snapshot"`),
+		).toThrow("usage must be a non-empty string");
+	});
+
 	test("requires filenames that are directly callable JavaScript names", () => {
 		expect(() =>
-			parseDynamicTool("semantic-grep.toml", `command = "semantic-grep"`),
+			parseDynamicTool(
+				"semantic-grep.toml",
+				`usage = "await tools.semantic_grep(query)"\ncommand = "semantic-grep"`,
+			),
 		).toThrow("filename must be a JavaScript-compatible tool name");
 	});
 
@@ -56,7 +65,7 @@ describe("dynamic tool TOML", () => {
 		expect(() =>
 			parseDynamicTool(
 				"tool.toml",
-				`description = "x"\ncommand = "x"\nmagic = true`,
+				`usage = "await tools.tool(input)"\ndescription = "x"\ncommand = "x"\nmagic = true`,
 			),
 		).toThrow("unknown field: magic");
 	});
@@ -64,7 +73,7 @@ describe("dynamic tool TOML", () => {
 	test("runs a relative JavaScript command with the current runtime", () => {
 		const parsed = parseDynamicTool(
 			"/tmp/spawn_agent.toml",
-			`command = "./spawn-agent/spawn-agent.mjs"\ninput = "stdin"`,
+			`usage = "await tools.spawn_agent(input)"\ncommand = "./spawn-agent/spawn-agent.mjs"\ninput = "stdin"`,
 		);
 		expect(parsed.command).toBe(process.execPath);
 		expect(parsed.args).toHaveLength(1);

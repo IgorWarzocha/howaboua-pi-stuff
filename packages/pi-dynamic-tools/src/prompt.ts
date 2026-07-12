@@ -24,7 +24,7 @@ const DYNAMIC_TOOLS_GUIDANCE =
 
 export function formatDynamicToolHelp(tool: DynamicToolDefinition): string {
 	return [
-		tool.usage ? `Usage: ${tool.usage}` : undefined,
+		`Usage: ${tool.usage}`,
 		tool.description,
 		tool.output ? `Output: ${tool.output}` : undefined,
 	]
@@ -40,10 +40,7 @@ export function buildPromotedToolsPrompt(
 		.sort((left, right) => left.name.localeCompare(right.name));
 	if (promoted.length === 0) return "";
 	return `${PROMOTED_TOOLS_HEADING}\n${promoted
-		.map(
-			(tool) =>
-				`- ${tool.name}: ${tool.usage ?? `await tools.${tool.name}(input)`}`,
-		)
+		.map((tool) => `- ${tool.name}: ${tool.usage}`)
 		.join("\n")}`;
 }
 

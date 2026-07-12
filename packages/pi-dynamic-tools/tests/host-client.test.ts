@@ -67,6 +67,7 @@ describe("Codex code-mode host", () => {
 		await host.execute(`text(ALL_TOOLS.length);`, { cwd: process.cwd() });
 		const lateTool: DynamicToolDefinition = {
 			name: "late_tool",
+			usage: "await tools.late_tool(input)",
 			description: "Added during the session.",
 			deferLoading: true,
 			command: process.execPath,

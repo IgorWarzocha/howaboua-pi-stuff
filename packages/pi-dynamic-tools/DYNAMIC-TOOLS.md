@@ -39,27 +39,29 @@ Build a Pi extension when the capability needs lifecycle events, custom TUI, Pi 
 5. Validate the command independently when practical.
 6. The changed catalog is available on the next `exec`. Do not send slash commands as agent tool calls.
 
-Minimal definition:
+The bundled `port_info` definition shows the required invocation contract and optional discovery detail:
 
 ```toml
-# repo_snapshot.toml
-command = "repo-snapshot"
+usage = 'await tools.port_info(port_number)'
+description = "Returns normalized JSON with listeners, connections, owning processes, parent processes, and service or container attribution when available."
+command = "./port-info/port-info.mjs"
 ```
 
-A complex tool still receives one string. Encode structured input as JSON and validate it in the CLI:
+A structured tool still receives one string. The bundled `spawn_agent` example encodes its input as JSON and validates it in the CLI:
 
 ```toml
-# inspect_repo.toml
-usage = 'await tools.inspect_repo(JSON.stringify({ query: string, cwd?: string }))'
-command = "./inspect-repo/inspect-repo.mjs"
+usage = '''await tools.spawn_agent(JSON.stringify({ agent_type: "explorer" | "reviewer", message: string, cwd?: string }))'''
+description = "Relative cwd resolves from Pi's working directory."
+command = "./spawn-agent/spawn-agent.mjs"
 input = "stdin"
 ```
 
 The model calls it with:
 
 ```js
-const result = await tools.inspect_repo(JSON.stringify({
-  query: "Find the authentication entry points",
+const result = await tools.spawn_agent(JSON.stringify({
+  agent_type: "explorer",
+  message: "Find the authentication entry points and cite the relevant files.",
   cwd: "../another-repo",
 }));
 text(result);
@@ -67,12 +69,12 @@ text(result);
 
 ## TOML fields
 
-`command` is required. These fields are accepted; unknown fields, invalid TOML, and invalid filename identifiers prevent the extension from loading its tool catalog until corrected.
+`usage` and `command` are required. Unknown fields, invalid TOML, missing contracts, and invalid filename identifiers prevent the extension from loading its tool catalog until corrected.
 
 - `command`: executable name or path.
 - `args`: fixed string arguments placed before the model-provided input. Defaults to `[]`.
 - `input`: `"arg"` appends the input as the final argument; `"stdin"` writes it to standard input. Defaults to `"arg"`.
-- `usage`: exact JavaScript invocation contract, without Markdown formatting. For structured input, show the object passed to `JSON.stringify`.
+- `usage`: required exact JavaScript invocation contract, without Markdown formatting. For structured input, show the object passed to `JSON.stringify`.
 - `description`: optional discovery help not already clear from the name and usage.
 - `output`: optional discovery help about a reliable result contract. It does not control, validate, or transform command output. Omit it when the result is free-form.
 - `defer_loading`: defaults to `true`. Set to `false` only when the user wants the tool named in the system prompt.
@@ -91,7 +93,8 @@ Command resolution:
 Deferred is the cache-safe default:
 
 ```toml
-command = "rare-tool"
+usage = 'await tools.port_info(port_number)'
+command = "./port-info/port-info.mjs"
 ```
 
 A deferred tool remains callable but its name and help do not enter the system prompt or provider tool schema. Its metadata stays local in `ALL_TOOLS` until requested. The outer `exec` and `wait` tools are always registered, even with an empty catalog, so adding, removing, or editing deferred definitions during a session does not change that stable provider contract.
@@ -99,17 +102,18 @@ A deferred tool remains callable but its name and help do not enter the system p
 Inspect only the metadata needed:
 
 ```js
-text(ALL_TOOLS.find(({ name }) => name === "rare_tool"));
+text(ALL_TOOLS.find(({ name }) => name === "port_info"));
 ```
 
 Promote a stable, frequently used tool only by explicit choice:
 
 ```toml
 defer_loading = false
-command = "common-tool"
+usage = 'await tools.port_info(port_number)'
+command = "./port-info/port-info.mjs"
 ```
 
-Promotion adds the tool name and `usage` to the system prompt. If `usage` is omitted, it falls back to `await tools.<name>(input)`. Changing the promoted set, names, or usage changes that prompt and can invalidate its cache. Descriptions and `output` help remain available through `ALL_TOOLS` rather than being copied into the system prompt.
+Promotion adds the tool name and `usage` to the system prompt. Changing the promoted set, names, or usage changes that prompt and can invalidate its cache. Descriptions and `output` help remain available through `ALL_TOOLS` rather than being copied into the system prompt.
 
 ## Execution and failures
 

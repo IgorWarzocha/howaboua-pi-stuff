@@ -86,7 +86,7 @@ export function parseDynamicTool(
 		isAbsolute(resolvedCommand) && NODE_SCRIPT_PATTERN.test(resolvedCommand);
 	return {
 		name,
-		usage: optionalString(value["usage"], "usage", path),
+		usage: requiredString(value["usage"], "usage", path),
 		description: optionalString(value["description"], "description", path),
 		output: optionalString(value["output"], "output", path),
 		deferLoading: deferLoading(value["defer_loading"], path),
