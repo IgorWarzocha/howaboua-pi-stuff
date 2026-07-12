@@ -19,4 +19,4 @@ CODEX_SOURCE_DIR=/path/to/codex bun run sync:codex
 bun run build:host
 ```
 
-CI builds the vendored host on Linux and verifies every pinned upstream platform asset. Published installs lazily download the matching verified asset; they do not compile Rust on the user's machine.
+CI verifies every pinned upstream platform asset when the asset metadata changes. Published installs lazily download the matching verified asset; they do not compile Rust on the user's machine. Build the vendored source manually only while updating the upstream pin.
