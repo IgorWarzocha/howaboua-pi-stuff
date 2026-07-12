@@ -206,10 +206,10 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			session.lastSeq = Math.max(session.lastSeq, chunk.seq);
 		}
 		session.lastSeq = Math.max(session.lastSeq, response.nextSeq - 1);
-		if (typeof response.exitCode === "number") {
+		// Process exit can race ahead of the stdout/stderr readers. Only publish
+		// the terminal state once the bridge confirms every output stream closed.
+		if (response.closed) {
 			setClosedExitCode(session, response.exitCode);
-		}
-		if (response.closed || response.exited) {
 			finalizeSession(session);
 		}
 	}
