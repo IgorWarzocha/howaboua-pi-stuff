@@ -31,6 +31,7 @@ export async function registerCodexCodeMode(
 		getTools: () => createNestedTools(runtime),
 		isActive,
 		providesRenderers: true,
+		richRendering: () => runtime.state.config.ui.codeModeDetails,
 	});
 	return {
 		async shutdown() {

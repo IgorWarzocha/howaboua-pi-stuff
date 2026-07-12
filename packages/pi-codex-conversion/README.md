@@ -46,7 +46,9 @@ GPT-5.6 Code Mode, available as an opt-in beta for Luna, Terra, and Sol, narrows
 
 Inside `exec`, `tools.exec_command(...)` and `tools.write_stdin(...)` use the same shell implementation as normal and PATH modes. Codex extras remain schema-free PATH commands behind `tools.exec_command`, and TOML tools from `~/.pi/agent/dynamic-tools/` remain callable through `tools.*`. Definitions are deferred by default and can be promoted with `defer_loading = false`.
 
-Nested calls retain their structured Pi rendering: shell summaries, parallel outputs, patch diffs, resumable sessions, web/image results, partial updates, and generic TOML-tool output appear inside the outer code cell without exposing extra provider tools.
+Nested calls retain their structured Pi rendering—shell summaries, parallel outputs, patch diffs, resumable sessions, web/image results, partial updates, and generic TOML-tool output—without exposing extra provider tools.
+
+By default, Code Mode keeps the JavaScript machinery transparent and renders nested operations like direct Pi tools. Turn on **Code Mode details** for the outer `exec`/`wait` cells, expandable JavaScript, and printed runtime output. **Tool renaming** independently controls whether nested operations use polished Codex-style cells or their generic tool names.
 
 In PATH mode, Codex-style extras live on the extension-injected internal PATH:
 
@@ -113,7 +115,7 @@ Advanced users with custom Codex-compatible providers can add provider ids in Ge
 }
 ```
 
-**Tools** shows required adapter behavior and optional web/image/apply-patch prompt features. **OpenAI** controls fast mode, verbosity, cached WebSocket upgrade, web search model, and compaction model/reasoning. Cached WebSockets are prewarmed at session startup. Web search and compaction default to `gpt-5.6-luna`.
+**Tools** shows required adapter behavior and optional web/image/apply-patch prompt features. General settings control tool renaming, compact tools, Code Mode details, and the background shell widget. **OpenAI** controls fast mode, verbosity, cached WebSocket upgrade, web search model, and compaction model/reasoning. Cached WebSockets are prewarmed at session startup. Web search and compaction default to `gpt-5.6-luna`.
 
 **Beta** contains GPT-5.6 Code Mode, off by default and limited to OpenAI Codex Luna, Terra, and Sol. It atomically enables Codex's Responses Lite transport and code-mode-only toolkit: instructions and client tools become input items, `exec` and `wait` are the only provider-visible tools, and JavaScript restores parallel composition through nested calls. The same Responses Lite transport applies to native compaction.
 

@@ -2,6 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { registerCodexCodeMode } from "../src/adapter/code-mode.ts";
+import {
+	createCodeModeRenderTracker,
+	renderExecCall,
+	renderWaitCall,
+} from "../src/tools/code-mode/rendering.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 import { createExecCommandTracker } from "../src/tools/exec/command-state.ts";
 import { createExecSessionManager } from "../src/tools/exec/session-manager.ts";
@@ -20,6 +25,30 @@ function createHarness() {
 	};
 	return { pi, tools, handlers };
 }
+
+test("transparent Code Mode calls retain live invalidation", () => {
+	const tracker = createCodeModeRenderTracker();
+	tracker.start("call-1");
+	let invalidations = 0;
+	renderExecCall(
+		{ code: "await tools.exec_command({ cmd: 'true' })" },
+		{ fg: (_role, text) => text, bold: (text) => text },
+		{ toolCallId: "call-1", invalidate: () => (invalidations += 1) },
+		tracker,
+		false,
+	);
+	tracker.finish("call-1");
+	tracker.start("call-2");
+	renderWaitCall(
+		{ cell_id: "2" },
+		{ fg: (_role, text) => text, bold: (text) => text },
+		{ toolCallId: "call-2", invalidate: () => (invalidations += 1) },
+		tracker,
+		false,
+	);
+	tracker.finish("call-2");
+	assert.equal(invalidations, 2);
+});
 
 test("GPT-5.6 Code Mode invokes the conversion shell through V8", async () => {
 	const harness = createHarness();
@@ -105,6 +134,55 @@ test("GPT-5.6 Code Mode invokes the conversion shell through V8", async () => {
 		assert.match(renderedText, /Ran/);
 		assert.match(renderedText, /printf code-mode-ok/);
 		assert.match(renderedText, /code-mode-ok/);
+		assert.doesNotMatch(renderedText, /chunk_id/);
+		assert.deepEqual(
+			exec
+				.renderCall(
+					{
+						code: 'text(await tools.exec_command({ cmd: "printf code-mode-ok" }));',
+					},
+					{
+						fg: (_role: string, text: string) => text,
+						bold: (text: string) => text,
+					},
+					{ toolCallId: "exec-1" },
+				)
+				.render(120),
+			[],
+		);
+		(runtime as any).state.config.ui.codeModeDetails = true;
+		assert.match(
+			exec
+				.renderCall(
+					{
+						code: 'text(await tools.exec_command({ cmd: "printf code-mode-ok" }));',
+					},
+					{
+						fg: (_role: string, text: string) => text,
+						bold: (text: string) => text,
+					},
+					{ toolCallId: "exec-1" },
+				)
+				.render(120)
+				.join("\n"),
+			/Ran code/,
+		);
+		assert.match(
+			exec
+				.renderResult(
+					result,
+					{ expanded: false, isPartial: false },
+					{
+						fg: (_role: string, text: string) => text,
+						bold: (text: string) => text,
+					},
+					{ toolCallId: "exec-1", cwd: process.cwd() },
+				)
+				.render(120)
+				.join("\n"),
+			/chunk_id/,
+		);
+		(runtime as any).state.config.ui.codeModeDetails = false;
 
 		const resumed = await exec.execute(
 			"exec-2",

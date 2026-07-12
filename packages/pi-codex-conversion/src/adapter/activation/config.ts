@@ -32,6 +32,7 @@ export interface CodexConversionConfig {
 		statusLine: boolean;
 		toolRenaming: boolean;
 		compactTools: boolean;
+		codeModeDetails: boolean;
 		backgroundShellWidget: boolean;
 		backgroundShellToggleShortcut: string;
 		backgroundShellPrevShortcut: string;
@@ -59,6 +60,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 		statusLine: true,
 		toolRenaming: true,
 		compactTools: false,
+		codeModeDetails: false,
 		backgroundShellWidget: true,
 		backgroundShellToggleShortcut: "alt+w",
 		backgroundShellPrevShortcut: "alt+q",
@@ -155,6 +157,7 @@ export function normalizeCodexConversionConfig(value: unknown): CodexConversionC
 			statusLine: bool(ui["statusLine"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["statusLine"]),
 			toolRenaming: bool(ui["toolRenaming"], bool(ui["toolRendering"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["toolRenaming"])),
 			compactTools: bool(ui["compactTools"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["compactTools"]),
+			codeModeDetails: bool(ui["codeModeDetails"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["codeModeDetails"]),
 			backgroundShellWidget: bool(ui["backgroundShellWidget"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellWidget"]),
 			backgroundShellToggleShortcut: stringValue(ui["backgroundShellToggleShortcut"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellToggleShortcut"]),
 			backgroundShellPrevShortcut: stringValue(ui["backgroundShellPrevShortcut"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellPrevShortcut"]),

@@ -261,6 +261,7 @@ function buildItems(tab: SettingsTab, draft: CodexConversionConfig, theme: Theme
 		{ id: "statusLine", label: "Statusline", currentValue: draft.ui.statusLine ? "on" : "off", values: ["off", "on"] },
 		{ id: "toolRenaming", label: "Tool renaming", currentValue: draft.ui.toolRenaming ? "on" : "off", values: ["off", "on"] },
 		{ id: "compactTools", label: "Compact tools", currentValue: draft.ui.compactTools ? "on" : "off", values: ["off", "on"] },
+		{ id: "codeModeDetails", label: "Code Mode details", currentValue: draft.ui.codeModeDetails ? "on" : "off", values: ["off", "on"] },
 		{ id: "backgroundShellWidget", label: "Background shells widget", currentValue: draft.ui.backgroundShellWidget ? "on" : "off", values: ["off", "on"] },
 		{ id: "responsesCompaction", label: "Responses compaction", currentValue: draft.compaction.responsesCompaction ? "on" : "off", values: ["off", "on"] },
 		{ id: "editConfig", label: "Edit config", currentValue: editorCommand() ? "Opens in default editor (please /reload)" : "Set $EDITOR", values: editorCommand() ? ["Open"] : ["Unavailable"] },
@@ -274,6 +275,7 @@ function applySettingChange(id: string, value: string, draft: CodexConversionCon
 	if (id === "statusLine") return { ...draft, ui: { ...draft.ui, statusLine: value === "on" } };
 	if (id === "toolRenaming") return { ...draft, ui: { ...draft.ui, toolRenaming: value === "on" } };
 	if (id === "compactTools") return { ...draft, ui: { ...draft.ui, compactTools: value === "on" } };
+	if (id === "codeModeDetails") return { ...draft, ui: { ...draft.ui, codeModeDetails: value === "on" } };
 	if (id === "backgroundShellWidget") return { ...draft, ui: { ...draft.ui, backgroundShellWidget: value === "on" } };
 	if (id === "responsesCompaction") return { ...draft, compaction: { ...draft.compaction, responsesCompaction: value === "on" } };
 	if (id === "codeMode") return { ...draft, beta: { ...draft.beta, codeMode: value === "on" } };

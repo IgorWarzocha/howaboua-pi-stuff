@@ -100,8 +100,10 @@ export function renderExecCall(
 	theme: RenderTheme,
 	context: RenderContext | undefined,
 	tracker: CodeModeRenderTracker,
+	richRendering = true,
 ): Text {
 	tracker.register(context?.toolCallId, context?.invalidate);
+	if (!richRendering) return new Text("", 0, 0);
 	const code = typeof args.code === "string" ? args.code : "";
 	const status = tracker.status(context?.toolCallId);
 	const verb =
@@ -122,8 +124,10 @@ export function renderWaitCall(
 	theme: RenderTheme,
 	context: RenderContext | undefined,
 	tracker: CodeModeRenderTracker,
+	richRendering = true,
 ): Text {
 	tracker.register(context?.toolCallId, context?.invalidate);
+	if (!richRendering) return new Text("", 0, 0);
 	const done = tracker.status(context?.toolCallId) !== "running";
 	const terminate = args.terminate === true;
 	const title = terminate
@@ -147,6 +151,7 @@ export function renderCodeModeResult(
 	theme: RenderTheme,
 	context?: RenderContext,
 	tools: CodeModeToolDefinition[] = [],
+	richRendering = true,
 ): Component {
 	const details = asDetails(result.details);
 	const content =
@@ -172,16 +177,23 @@ export function renderCodeModeResult(
 			typeof item.mimeType === "string",
 	);
 
+	const showOutput =
+		richRendering ||
+		Boolean(details.scriptError) ||
+		details.notification === true ||
+		images.length > 0;
 	const output =
-		options.expanded || options.isPartial
+		showOutput && (options.expanded || options.isPartial)
 			? renderTextAndImages(renderedText, images, theme)
-			: renderTextAndImages(previewText(renderedText, theme), images, theme);
+			: showOutput
+				? renderTextAndImages(previewText(renderedText, theme), images, theme)
+				: new Container();
 	return renderTraceAndOutput(
 		details.traces ?? [],
 		details.droppedTraceCount ?? 0,
 		tools,
 		output,
-		Boolean(renderedText || images.length > 0),
+		showOutput && Boolean(renderedText || images.length > 0),
 		options,
 		theme,
 		context,
@@ -195,6 +207,7 @@ export function renderTrackedCodeModeResult(
 	context: RenderContext | undefined,
 	tracker: CodeModeRenderTracker,
 	tools: CodeModeToolDefinition[] = [],
+	richRendering = true,
 ): Component {
 	if (!options.isPartial && context?.toolCallId) {
 		const details = asDetails(result.details);
@@ -203,7 +216,14 @@ export function renderTrackedCodeModeResult(
 			details.status === "yielded" ? "yielded" : "done",
 		);
 	}
-	return renderCodeModeResult(result, options, theme, context, tools);
+	return renderCodeModeResult(
+		result,
+		options,
+		theme,
+		context,
+		tools,
+		richRendering,
+	);
 }
 
 function renderTraceAndOutput(

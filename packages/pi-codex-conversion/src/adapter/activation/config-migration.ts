@@ -10,7 +10,7 @@ import {
 
 export function migrateCodexConversionConfigIfNeeded(value: unknown): { migrated: boolean; config: unknown } {
 	if (!isObject(value)) return { migrated: false, config: value };
-	if (isObject(value["scope"]) || isObject(value["tools"]) || isObject(value["ui"]) || isObject(value["openai"])) {
+	if (isObject(value["scope"]) || isObject(value["tools"]) || isObject(value["ui"]) || isObject(value["compaction"]) || isObject(value["beta"]) || isObject(value["openai"])) {
 		const beta = isObject(value["beta"]) ? value["beta"] : undefined;
 		if (beta && typeof beta["responsesLite"] === "boolean" && typeof beta["codeMode"] !== "boolean") {
 			const { responsesLite, ...rest } = beta;
@@ -39,6 +39,7 @@ export function migrateCodexConversionConfigIfNeeded(value: unknown): { migrated
 			statusLine: typeof value["statusLine"] === "boolean" ? value["statusLine"] : DEFAULT_CODEX_CONVERSION_CONFIG.ui["statusLine"],
 			toolRenaming: DEFAULT_CODEX_CONVERSION_CONFIG.ui["toolRenaming"],
 			compactTools: DEFAULT_CODEX_CONVERSION_CONFIG.ui["compactTools"],
+			codeModeDetails: DEFAULT_CODEX_CONVERSION_CONFIG.ui["codeModeDetails"],
 			backgroundShellWidget: typeof value["backgroundShellWidget"] === "boolean" ? value["backgroundShellWidget"] : DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellWidget"],
 			backgroundShellToggleShortcut: stringValue(value["backgroundShellToggleShortcut"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellToggleShortcut"]),
 			backgroundShellPrevShortcut: stringValue(value["backgroundShellPrevShortcut"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellPrevShortcut"]),

@@ -38,6 +38,7 @@ interface CodeModeToolProvider {
 	documentationPath?: string | undefined;
 	isActive?(ctx: unknown): boolean;
 	providesRenderers?: boolean | undefined;
+	richRendering?(): boolean;
 }
 
 interface SharedCodeModeRuntime {
@@ -51,6 +52,7 @@ export interface RegisterCodeModeToolsOptions {
 	documentationPath?: string | undefined;
 	isActive?(ctx: unknown): boolean;
 	providesRenderers?: boolean | undefined;
+	richRendering?(): boolean;
 }
 
 export async function registerDynamicTools(
@@ -148,6 +150,9 @@ function createSharedCodeModeRuntime(pi: ExtensionAPI): SharedCodeModeRuntime {
 				(provider) => provider.providesRenderers,
 			),
 		);
+	const useRichRendering = (): boolean =>
+		[...runtime.providers.values()].find((provider) => provider.richRendering)
+			?.richRendering?.() ?? true;
 	const getClient = async () => {
 		if (!runtime.clientPromise) {
 			const pending = ensureCodeModeHostBinary().then(
@@ -205,6 +210,7 @@ function createSharedCodeModeRuntime(pi: ExtensionAPI): SharedCodeModeRuntime {
 			context,
 			renderTracker,
 			collectRenderTools(),
+			useRichRendering(),
 		);
 	pi.registerTool({
 		name: "exec",
@@ -239,7 +245,14 @@ function createSharedCodeModeRuntime(pi: ExtensionAPI): SharedCodeModeRuntime {
 			args: { code?: unknown },
 			theme: RenderTheme,
 			context: RenderContext,
-		) => renderExecCall(args, theme, context, renderTracker)) as any,
+		) =>
+			renderExecCall(
+				args,
+				theme,
+				context,
+				renderTracker,
+				useRichRendering(),
+			)) as any,
 		renderResult: renderResult as any,
 	});
 	pi.registerTool({
@@ -293,7 +306,14 @@ function createSharedCodeModeRuntime(pi: ExtensionAPI): SharedCodeModeRuntime {
 			args: { cell_id?: unknown; terminate?: unknown },
 			theme: RenderTheme,
 			context: RenderContext,
-		) => renderWaitCall(args, theme, context, renderTracker)) as any,
+		) =>
+			renderWaitCall(
+				args,
+				theme,
+				context,
+				renderTracker,
+				useRichRendering(),
+			)) as any,
 		renderResult: renderResult as any,
 	});
 	return runtime;
