@@ -114,7 +114,8 @@ export async function registerDynamicTools(
 			yield_time_ms: Type.Optional(
 				Type.Number({
 					minimum: 0,
-					description: "Wait ms (default 10000).",
+					description:
+						"Wait duration in ms. Match the expected remaining runtime; use 60000 or more for long tasks. Default 10000.",
 				}),
 			),
 			max_tokens: Type.Optional(

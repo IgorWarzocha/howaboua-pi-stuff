@@ -4,6 +4,7 @@ import {
 	buildPromotedToolsPrompt,
 	EXEC_DESCRIPTION,
 	injectDynamicToolsPrompt,
+	WAIT_DESCRIPTION,
 } from "../src/prompt.js";
 import type { DynamicToolDefinition } from "../src/types.js";
 
@@ -29,6 +30,17 @@ describe("dynamic tool prompt tiers", () => {
 	test("keeps exec stable regardless of configured tools", () => {
 		expect(EXEC_DESCRIPTION).not.toContain("common_tool");
 		expect(EXEC_DESCRIPTION).toContain("ALL_TOOLS");
+	});
+
+	test("steers long-running cells away from frequent polling", () => {
+		expect(EXEC_DESCRIPTION).toContain(
+			"use 60000 or more for subagents and long commands",
+		);
+		expect(EXEC_DESCRIPTION).toContain("Long waits remain cancellable");
+		expect(WAIT_DESCRIPTION).toContain(
+			"Prefer one long wait over repeated short waits",
+		);
+		expect(WAIT_DESCRIPTION).toContain("notify progress remains visible");
 	});
 
 	test("promotes exact usage without cosmetic markdown", () => {

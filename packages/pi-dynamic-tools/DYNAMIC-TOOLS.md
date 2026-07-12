@@ -128,6 +128,8 @@ Every dynamic method accepts one string and resolves to one string.
 
 The `exec` cell can compose calls with normal JavaScript, including `Promise.all`, `store`/`load`, progress notifications, images, yielding, and resumable `wait` cells. Read the `exec` tool contract for those runtime details rather than duplicating it here.
 
+For long-running commands, set `yield_time_ms` near the expected runtime and prefer one long `wait` over repeated short waits. Long waits remain cancellable, and `notify()` progress remains visible.
+
 ## Bundled examples
 
 Examples are documentation and working reference code. Installing the package does not register or enable them. Do not copy an example merely because you read this file.
