@@ -131,3 +131,25 @@ test("Code Mode reuses its registered tool and event surface", async () => {
 	assert.equal(toolRegistrations, 2);
 	assert.equal(eventRegistrations, 2);
 });
+
+test("Code Mode keeps providers registered when its host shuts down", async () => {
+	const handlers = new Map<string, (...args: any[]) => unknown>();
+	const pi = {
+		events: {},
+		registerTool() {},
+		on(event: string, handler: (...args: any[]) => unknown) {
+			handlers.set(event, handler);
+		},
+	};
+	const registration = await registerDynamicTools(pi as never, "/missing");
+	try {
+		await registration.shutdownHost();
+		const result = handlers.get("before_agent_start")?.(
+			{ systemPrompt: "Base" },
+			{},
+		) as { systemPrompt?: string } | undefined;
+		assert.match(result?.systemPrompt ?? "", /DYNAMIC-TOOLS\.md/);
+	} finally {
+		await registration.shutdown();
+	}
+});

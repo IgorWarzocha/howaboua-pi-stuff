@@ -15,11 +15,16 @@ const REGISTRATION_KEY = Symbol.for("@howaboua/pi-codex-conversion.code-mode");
 
 export interface RegisterCodeModeToolsOptions extends CodeModeToolProvider {}
 
+export interface CodeModeRegistration {
+	shutdownHost(): Promise<void>;
+	shutdown(): Promise<void>;
+}
+
 export async function registerDynamicTools(
 	pi: ExtensionAPI,
 	toolsDir: string = getDynamicToolsDir(),
 	options: { isActive?(ctx: unknown): boolean } = {},
-): Promise<{ shutdown(): Promise<void> }> {
+): Promise<CodeModeRegistration> {
 	return registerCodeModeTools(pi, {
 		getTools: () => discoverDynamicTools(toolsDir),
 		documentationPath: dynamicToolsDocumentationPath(),
@@ -30,11 +35,12 @@ export async function registerDynamicTools(
 export async function registerCodeModeTools(
 	pi: ExtensionAPI,
 	options: RegisterCodeModeToolsOptions,
-): Promise<{ shutdown(): Promise<void> }> {
+): Promise<CodeModeRegistration> {
 	const runtime = getOrCreateRuntime(pi);
 	const providerId = runtime.addProvider(options);
 	let active = true;
 	return {
+		shutdownHost: () => runtime.shutdownHost(),
 		async shutdown() {
 			if (!active) return;
 			active = false;

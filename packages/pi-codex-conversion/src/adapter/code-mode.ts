@@ -1,6 +1,7 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { CodexExtensionRuntime } from "../extension/runtime.ts";
 import {
+	type CodeModeRegistration,
 	registerCodeModeTools,
 	registerDynamicTools,
 } from "../tools/code-mode/tools.ts";
@@ -19,7 +20,7 @@ export const CODE_MODE_TOOL_NAMES = ["exec", "wait"] as const;
 export async function registerCodexCodeMode(
 	pi: ExtensionAPI,
 	runtime: CodexExtensionRuntime,
-): Promise<{ shutdown(): Promise<void> }> {
+): Promise<CodeModeRegistration> {
 	const isActive = (ctx: unknown) =>
 		shouldUseGpt56CodeMode(ctx as ExtensionContext, runtime.state.config);
 	const dynamicRuntime = await registerDynamicTools(pi, undefined, {
@@ -32,6 +33,7 @@ export async function registerCodexCodeMode(
 		richRendering: () => runtime.state.config.ui.codeModeDetails,
 	});
 	return {
+		shutdownHost: () => programmaticRuntime.shutdownHost(),
 		async shutdown() {
 			await programmaticRuntime.shutdown();
 			await dynamicRuntime.shutdown();
