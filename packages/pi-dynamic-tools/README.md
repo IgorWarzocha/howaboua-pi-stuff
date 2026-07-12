@@ -38,9 +38,15 @@ For command-backed capabilities, dynamic tools are the lightweight default: keep
 
 ## Bundled examples
 
-`examples/spawn_agent.toml` and `examples/spawn-agent/` demonstrate a deferred, dual-role subagent without enabling it. The example accepts JSON containing a required `agent_type` (`explorer` or `reviewer`), required `message`, and optional `cwd`. Explorer uses GPT-5.6 Luna at low reasoning. Reviewer uses GPT-5.6 Sol at medium reasoning and prepares Git base, merge-base, status, and diff context before starting Pi. See `DYNAMIC-TOOLS.md` for the invocation and opt-in copy step.
+`examples/spawn_agent.toml` and `examples/spawn-agent/` demonstrate a promoted, dual-role subagent without enabling it. The example accepts JSON containing a required `agent_type` (`explorer` or `reviewer`), required `message`, and optional `cwd`. Explorer uses GPT-5.6 Luna at low reasoning. Reviewer uses GPT-5.6 Sol at medium reasoning and prepares Git base, merge-base, status, and diff context before starting Pi. See `DYNAMIC-TOOLS.md` for the invocation and opt-in copy step.
 
 `examples/port_info.toml` and `examples/port-info/` demonstrate a one-argument system integration without enabling it. The example turns a port number into normalized listener, connection, process, service, and container diagnostics across Linux, macOS, and Windows.
+
+Three promoted examples package common agent operations without enabling them:
+
+- `vent` appends batched workflow-friction notes to `VENT.md`.
+- `workflows_create` writes repo-local `.pi/workflows/<slug>/SKILL.md` procedures.
+- `semantic_grep` searches an index maintained by `@howaboua/pi-semantic-grep`; that package remains responsible for configuration and indexing lifecycle.
 
 ## Model-facing shape
 

@@ -2,3 +2,4 @@ usage = '''await tools.spawn_agent(JSON.stringify({ agent_type: "explorer" | "re
 description = "Relative cwd resolves from Pi's working directory."
 command = "./spawn-agent/spawn-agent.mjs"
 input = "stdin"
+defer_loading = false

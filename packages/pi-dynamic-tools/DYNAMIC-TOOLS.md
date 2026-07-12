@@ -148,7 +148,7 @@ examples/spawn-agent/
 
 When the user explicitly asks to enable the example, copy `examples/spawn_agent.toml` into the definitions directory and copy `examples/spawn-agent/` beside it, preserving that layout. The TOML's relative command then resolves to `spawn-agent/spawn-agent.mjs`.
 
-The example demonstrates a deferred tool with JSON input:
+The example demonstrates a promoted tool with JSON input:
 
 ```js
 const result = await tools.spawn_agent(JSON.stringify({
@@ -169,7 +169,7 @@ Its contract is:
 
 `reviewer` runs GPT-5.6 Sol with medium reasoning and the same rubric as the review extension. Before starting Pi, the example resolves the Git repository root and prepares a user message with the current ref, selected local base branch, merge base, working-tree status, appropriate diff commands, and the caller's instructions. The rubric is appended to Pi's normal system prompt; project context remains loaded.
 
-Both roles disable child extensions, skills, and prompt templates. This avoids recursive dynamic tools and machine-specific behavior while retaining project context files and Pi's built-in discovery tools.
+Both roles disable child extensions, skills, and prompt templates. Their appended prompts prohibit further subagent delegation, while project context files and Pi's built-in discovery tools remain available.
 
 ### `port_info`
 
@@ -196,3 +196,36 @@ It returns normalized JSON containing TCP/UDP listeners, active connections, own
 Process command lines and working directories can contain sensitive information. Enable or invoke this example only when that system inspection is appropriate.
 
 When the user explicitly asks to enable it, copy `examples/port_info.toml` into the definitions directory and copy `examples/port-info/` beside it, preserving the layout.
+
+### `vent`
+
+The package also contains:
+
+```text
+examples/vent.toml
+examples/vent/vent.mjs
+```
+
+This promoted tool validates JSON containing `thought` and optional `trigger`, then appends one timestamped entry to `VENT.md`. It creates the file with a short purpose heading when needed. Copy the TOML and companion directory into `dynamic-tools/`, preserving the layout, only when the user asks to enable it.
+
+### `workflows_create`
+
+The package also contains:
+
+```text
+examples/workflows_create.toml
+examples/workflows-create/workflows-create.mjs
+```
+
+This promoted tool validates `name`, `description`, and Markdown `body`, then atomically creates or updates `.pi/workflows/<slug>/SKILL.md`. Copy the TOML and companion directory into `dynamic-tools/`, preserving the layout, only when the user asks to enable it.
+
+### `semantic_grep`
+
+The package also contains:
+
+```text
+examples/semantic_grep.toml
+examples/semantic-grep/semantic-grep.mjs
+```
+
+This promoted tool searches an existing semantic-grep SQLite index with bounded output. It requires `@howaboua/pi-semantic-grep` to remain installed: that extension owns global/project configuration and session-start indexing, while the dynamic tool owns query execution. Copy the TOML and companion directory into `dynamic-tools/`, preserving the layout, only when the user asks to enable it.
