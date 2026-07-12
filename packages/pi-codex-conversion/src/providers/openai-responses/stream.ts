@@ -90,13 +90,27 @@ export async function processResponsesStream<TApi extends Api>(
 	};
 
 	for await (const event of openaiStream) {
-		const customEvent = event as unknown as Record<string, any>;
-		if (customEvent["type"] === "response.custom_tool_call_input.delta") {
-			const state = outputStates.get(customEvent["output_index"]);
+		if (event.type === "response.custom_tool_call_input.delta") {
+			const state = outputStates.get(event.output_index);
 			if (state?.kind === "custom_tool_call") {
-				state.input += String(customEvent["delta"] ?? "");
+				state.input += event.delta;
 				state.block.arguments = { code: state.input };
-				stream.push({ type: "toolcall_delta", contentIndex: state.blockIndex, delta: String(customEvent["delta"] ?? ""), partial: output });
+				stream.push({ type: "toolcall_delta", contentIndex: state.blockIndex, delta: event.delta, partial: output });
+			}
+			continue;
+		}
+		if (event.type === "response.custom_tool_call_input.done") {
+			const state = outputStates.get(event.output_index);
+			if (state?.kind === "custom_tool_call") {
+				const previousInput = state.input;
+				state.input = event.input;
+				state.block.arguments = { code: event.input };
+				if (event.input.startsWith(previousInput)) {
+					const delta = event.input.slice(previousInput.length);
+					if (delta.length > 0) {
+						stream.push({ type: "toolcall_delta", contentIndex: state.blockIndex, delta, partial: output });
+					}
+				}
 			}
 			continue;
 		}
@@ -230,13 +244,19 @@ export async function processResponsesStream<TApi extends Api>(
 			}
 		} else if (event.type === "response.output_item.done") {
 			const item = event.item;
-			options?.onOutputItemDone?.(item);
-			if ((item as unknown as { type?: string }).type === "custom_tool_call") {
-				const customItem = item as unknown as { id?: string; call_id: string; name: string; input: string };
-				const state = outputStates.get(event.output_index);
+			const customItem = (item as unknown as { type?: string }).type === "custom_tool_call"
+				? item as unknown as { type: "custom_tool_call"; id?: string; call_id: string; name: string; input?: string }
+				: undefined;
+			const customState = customItem ? outputStates.get(event.output_index) : undefined;
+			const customInput = customItem
+				? customItem.input ?? (customState?.kind === "custom_tool_call" ? customState.input : "")
+				: undefined;
+			options?.onOutputItemDone?.(customItem ? { ...customItem, input: customInput } : item);
+			if (customItem) {
+				const state = customState;
 				const toolCall: ToolCallBlock = state?.kind === "custom_tool_call"
-					? { ...state.block, arguments: { code: customItem.input } }
-					: { type: "toolCall", id: `${customItem.call_id}|${customItem.id ?? ""}`, name: customItem.name, arguments: { code: customItem.input } };
+					? { ...state.block, arguments: { code: customInput } }
+					: { type: "toolCall", id: `${customItem.call_id}|${customItem.id ?? ""}`, name: customItem.name, arguments: { code: customInput } };
 				if (state?.kind !== "custom_tool_call") output.content.push(toolCall);
 				else output.content[state.blockIndex] = toolCall;
 				const toolCallIndex = state?.kind === "custom_tool_call" ? state.blockIndex : blockIndex();

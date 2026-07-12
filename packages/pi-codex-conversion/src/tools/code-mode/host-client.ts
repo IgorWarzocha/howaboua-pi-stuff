@@ -18,6 +18,7 @@ import {
 
 const MAX_FRAME_BYTES = 64 * 1024 * 1024;
 const MAX_QUEUED_WRITE_BYTES = 128 * 1024 * 1024;
+const DEFAULT_SHUTDOWN_GRACE_MS = 250;
 
 type Pending = {
 	resolve: (value: unknown) => void;
@@ -29,11 +30,13 @@ type Pending = {
 type HostClientOptions = {
 	binary: string;
 	tools: CodeModeToolDefinition[];
+	shutdownGraceMs?: number | undefined;
 };
 
 export class CodeModeHostClient {
 	private readonly binary: string;
 	private readonly tools: Map<string, CodeModeToolDefinition>;
+	private readonly shutdownGraceMs: number;
 	private readonly sessionId = randomUUID();
 	private child: ChildProcessWithoutNullStreams | undefined;
 	private buffer = Buffer.alloc(0);
@@ -50,6 +53,7 @@ export class CodeModeHostClient {
 	constructor(options: HostClientOptions) {
 		this.binary = options.binary;
 		this.tools = new Map(options.tools.map((tool) => [tool.name, tool]));
+		this.shutdownGraceMs = options.shutdownGraceMs ?? DEFAULT_SHUTDOWN_GRACE_MS;
 	}
 
 	async start(): Promise<void> {
@@ -250,10 +254,13 @@ export class CodeModeHostClient {
 		const child = this.child;
 		if (!child) return;
 		try {
-			await this.request({
-				method: "session/shutdown",
-				sessionId: this.sessionId,
-			});
+			await Promise.race([
+				this.request({
+					method: "session/shutdown",
+					sessionId: this.sessionId,
+				}),
+				shutdownDeadline(this.shutdownGraceMs),
+			]);
 		} catch {
 			// Process teardown below is authoritative.
 		}
@@ -402,6 +409,13 @@ export class CodeModeHostClient {
 		if (child && !child.killed) child.kill();
 	}
 
+}
+
+function shutdownDeadline(delayMs: number): Promise<void> {
+	return new Promise((resolve) => {
+		const timer = setTimeout(resolve, delayMs);
+		timer.unref();
+	});
 }
 
 function abortError(): Error {
