@@ -46,6 +46,8 @@ GPT-5.6 Code Mode, available as an opt-in beta for Luna, Terra, and Sol, narrows
 
 Inside `exec`, `tools.exec_command(...)` and `tools.write_stdin(...)` use the same shell implementation as normal and PATH modes. Codex extras remain schema-free PATH commands behind `tools.exec_command`, and TOML tools from `~/.pi/agent/dynamic-tools/` remain callable through `tools.*`. Definitions are deferred by default and can be promoted with `defer_loading = false`.
 
+Nested calls retain their structured Pi rendering: shell summaries, parallel outputs, patch diffs, resumable sessions, web/image results, partial updates, and generic TOML-tool output appear inside the outer code cell without exposing extra provider tools.
+
 In PATH mode, Codex-style extras live on the extension-injected internal PATH:
 
 - `apply_patch` — patch edits

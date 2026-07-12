@@ -7,11 +7,21 @@ import type {
 	DynamicToolDefinition,
 	RuntimeContentItem,
 	RuntimeResponse,
+	RuntimeToolResult,
+	RuntimeToolTrace,
 	ToolExecutionContext,
 } from "./types.js";
 
 const MAX_FRAME_BYTES = 64 * 1024 * 1024;
 const MAX_QUEUED_WRITE_BYTES = 128 * 1024 * 1024;
+const MAX_TRACE_COUNT = 50;
+const MAX_TRACE_INPUT_CHARS = 16_384;
+const MAX_TRACE_TEXT_CHARS = 32_768;
+const MAX_TRACE_DETAILS_CHARS = 65_536;
+const MAX_TRACE_IMAGE_CHARS = 16 * 1024 * 1024;
+const MAX_TRACE_ERROR_CHARS = 16_384;
+const MAX_SERIALIZED_NODES = 4_096;
+export const MAX_CODE_MODE_OUTPUT_TOKENS = 100_000;
 
 type Pending = {
 	resolve: (value: any) => void;
@@ -37,6 +47,8 @@ export class CodeModeHostClient {
 	private initial = new Map<number, Pending>();
 	private cellContexts = new Map<string, ToolExecutionContext>();
 	private cellTools = new Map<string, Map<string, CodeModeToolDefinition>>();
+	private cellTraces = new Map<string, RuntimeToolTrace[]>();
+	private droppedTraceCounts = new Map<string, number>();
 	private delegates = new Map<number, AbortController>();
 	private notifications = new Map<string, string[]>();
 	private stderr = "";
@@ -227,6 +239,8 @@ export class CodeModeHostClient {
 		this.failAll(new Error("Code-mode host shut down"));
 		this.cellContexts.clear();
 		this.cellTools.clear();
+		this.cellTraces.clear();
+		this.droppedTraceCounts.clear();
 		this.notifications.clear();
 		this.child = undefined;
 		this.ready = undefined;
@@ -404,10 +418,9 @@ export class CodeModeHostClient {
 			return;
 		}
 		const invocation = request.invocation;
-		const tool = this.cellTools
-			.get(invocation?.cell_id)
-			?.get(invocation?.tool_name?.name);
-		const context = this.cellContexts.get(invocation?.cell_id);
+		const cellId = invocation?.cell_id;
+		const tool = this.cellTools.get(cellId)?.get(invocation?.tool_name?.name);
+		const context = this.cellContexts.get(cellId);
 		if (!tool || !context) {
 			this.send({
 				type: "delegate/response",
@@ -422,28 +435,61 @@ export class CodeModeHostClient {
 			this.delegates.delete(message.id);
 			return;
 		}
+		const trace = this.startTrace(
+			cellId,
+			String(invocation?.runtime_tool_call_id ?? message.id),
+			tool.name,
+			invocation.input,
+		);
+		const invocationContext: ToolExecutionContext = {
+			...context,
+			toolCallId: trace.id,
+			onUpdate: (update) => {
+				trace.result = this.boundToolResult(cellId, trace, update);
+				this.emitTraceUpdate(cellId, context);
+			},
+			captureResult: (result) => {
+				trace.result = this.boundToolResult(cellId, trace, result);
+				this.emitTraceUpdate(cellId, context);
+			},
+			refreshTrace: () => this.emitTraceUpdate(cellId, context),
+		};
 		try {
+			if (isDynamicToolDefinition(tool)) this.emitTraceUpdate(cellId, context);
 			const result = isDynamicToolDefinition(tool)
 				? await runDynamicTool(
 						tool,
 						invocation.input,
-						context.cwd,
+						invocationContext.cwd,
 						controller.signal,
 					)
-				: await tool.invoke(invocation.input, context, controller.signal);
-			this.send({
-				type: "delegate/response",
-				id: message.id,
-				result: { status: "ok", value: { type: "tool/result", result } },
+				: await tool.invoke(
+						invocation.input,
+						invocationContext,
+						controller.signal,
+					);
+			if (!trace.result)
+				trace.result = this.boundToolResult(
+					cellId,
+					trace,
+					toolResultFromValue(result),
+				);
+			trace.status = "done";
+			this.emitTraceUpdate(cellId, context);
+			this.sendDelegateResponse(message.id, {
+				status: "ok",
+				value: { type: "tool/result", result },
 			});
 		} catch (error) {
-			this.send({
-				type: "delegate/response",
-				id: message.id,
-				result: {
-					status: "error",
-					message: error instanceof Error ? error.message : String(error),
-				},
+			trace.status = "error";
+			trace.error = truncateTraceText(
+				error instanceof Error ? error.message : String(error),
+				MAX_TRACE_ERROR_CHARS,
+			);
+			this.emitTraceUpdate(cellId, context);
+			this.sendDelegateResponse(message.id, {
+				status: "error",
+				message: error instanceof Error ? error.message : String(error),
 			});
 		} finally {
 			this.delegates.delete(message.id);
@@ -459,6 +505,8 @@ export class CodeModeHostClient {
 		this.delegates.clear();
 		this.cellContexts.clear();
 		this.cellTools.clear();
+		this.cellTraces.clear();
+		this.droppedTraceCounts.clear();
 		this.notifications.clear();
 		this.queuedWriteBytes = 0;
 		const child = this.child;
@@ -470,14 +518,271 @@ export class CodeModeHostClient {
 	private withNotifications(response: RuntimeResponse): RuntimeResponse {
 		const notifications = this.notifications.get(response.cellId) ?? [];
 		this.notifications.delete(response.cellId);
-		if (notifications.length === 0) return response;
+		const traces = this.cellTraces.get(response.cellId)?.map(cloneTrace);
+		const droppedTraceCount = this.droppedTraceCounts.get(response.cellId) ?? 0;
+		if (response.kind !== "yielded") {
+			this.cellTraces.delete(response.cellId);
+			this.droppedTraceCounts.delete(response.cellId);
+		}
+		const withTraces =
+			traces && traces.length > 0
+				? {
+						...response,
+						traces,
+						...(droppedTraceCount > 0 ? { droppedTraceCount } : {}),
+					}
+				: response;
+		if (notifications.length === 0) return withTraces;
 		return {
-			...response,
+			...withTraces,
 			contentItems: [
 				...notifications.map((text) => ({ type: "input_text" as const, text })),
 				...response.contentItems,
 			],
 		};
+	}
+
+	private startTrace(
+		cellId: string,
+		id: string,
+		name: string,
+		input: unknown,
+	): RuntimeToolTrace {
+		const traces = this.cellTraces.get(cellId) ?? [];
+		if (traces.length >= MAX_TRACE_COUNT) {
+			traces.shift();
+			this.droppedTraceCounts.set(
+				cellId,
+				(this.droppedTraceCounts.get(cellId) ?? 0) + 1,
+			);
+		}
+		const trace: RuntimeToolTrace = {
+			id,
+			name,
+			input: sanitizeValue(input, { remaining: MAX_TRACE_INPUT_CHARS }),
+			status: "running",
+		};
+		traces.push(trace);
+		this.cellTraces.set(cellId, traces);
+		return trace;
+	}
+
+	private emitTraceUpdate(cellId: string, context: ToolExecutionContext): void {
+		try {
+			context.onUpdate?.({
+				content: [],
+				details: {
+					cellId,
+					status: "running",
+					traces: (this.cellTraces.get(cellId) ?? []).map(cloneTrace),
+					...(this.droppedTraceCounts.get(cellId)
+						? { droppedTraceCount: this.droppedTraceCounts.get(cellId) }
+						: {}),
+				},
+			});
+		} catch {
+			// Rendering updates must not change nested tool execution.
+		}
+	}
+
+	private sendDelegateResponse(
+		id: number,
+		result: Record<string, unknown>,
+	): void {
+		try {
+			this.send({ type: "delegate/response", id, result });
+		} catch (error) {
+			try {
+				this.send({
+					type: "delegate/response",
+					id,
+					result: {
+						status: "error",
+						message: `Failed to serialize nested tool result: ${error instanceof Error ? error.message : String(error)}`,
+					},
+				});
+			} catch {
+				// Host teardown will reject the owning operation.
+			}
+		}
+	}
+
+	private boundToolResult(
+		cellId: string,
+		current: RuntimeToolTrace,
+		result: RuntimeToolResult,
+	): RuntimeToolResult {
+		const usedImageChars = (this.cellTraces.get(cellId) ?? [])
+			.filter((trace) => trace !== current)
+			.flatMap((trace) => trace.result?.content ?? [])
+			.reduce(
+				(total, item) =>
+					total + (item.type === "image" && item.data ? item.data.length : 0),
+				0,
+			);
+		return boundRuntimeToolResult(
+			result,
+			Math.max(0, MAX_TRACE_IMAGE_CHARS - usedImageChars),
+		);
+	}
+}
+
+function toolResultFromValue(value: unknown): RuntimeToolResult {
+	return {
+		content: [
+			{
+				type: "text",
+				text:
+					typeof value === "string"
+						? value
+						: safeStringify(value, "(non-serializable tool result)"),
+			},
+		],
+	};
+}
+
+function cloneTrace(trace: RuntimeToolTrace): RuntimeToolTrace {
+	return sanitizeValue(trace, {
+		remaining: Number.MAX_SAFE_INTEGER,
+	}) as RuntimeToolTrace;
+}
+
+function boundRuntimeToolResult(
+	result: RuntimeToolResult,
+	imageCharsRemaining: number,
+): RuntimeToolResult {
+	let textRemaining = MAX_TRACE_TEXT_CHARS;
+	let imageRemaining = imageCharsRemaining;
+	let omittedImages = 0;
+	const content: RuntimeToolResult["content"] = [];
+	for (const item of result.content) {
+		if (item.type === "text" && typeof item.text === "string") {
+			const text = truncateTraceText(item.text, textRemaining);
+			textRemaining = Math.max(0, textRemaining - text.length);
+			if (text) content.push({ ...item, text });
+			continue;
+		}
+		if (item.type === "image" && typeof item.data === "string") {
+			if (item.data.length <= imageRemaining) {
+				imageRemaining -= item.data.length;
+				content.push({ ...item });
+			} else {
+				omittedImages += 1;
+			}
+			continue;
+		}
+		content.push(
+			sanitizeValue(item, {
+				remaining: MAX_TRACE_TEXT_CHARS,
+			}) as RuntimeToolResult["content"][number],
+		);
+	}
+	if (omittedImages > 0) {
+		content.push({
+			type: "text",
+			text: `[${omittedImages} nested image${omittedImages === 1 ? "" : "s"} omitted from trace]`,
+		});
+	}
+	return {
+		content,
+		...(result.details === undefined
+			? {}
+			: {
+					details: sanitizeValue(result.details, {
+						remaining: MAX_TRACE_DETAILS_CHARS,
+					}),
+				}),
+	};
+}
+
+function truncateTraceText(text: string, remaining: number): string {
+	if (remaining <= 0) return "";
+	if (text.length <= remaining) return text;
+	const marker = "\n[Trace output truncated]";
+	return `${text.slice(0, Math.max(0, remaining - marker.length))}${marker}`;
+}
+
+interface SerializationBudget {
+	remaining: number;
+	nodesRemaining?: number;
+	seen?: WeakSet<object>;
+	depth?: number;
+}
+
+function sanitizeValue(value: unknown, budget: SerializationBudget): unknown {
+	const depth = budget.depth ?? 0;
+	const nodesRemaining = budget.nodesRemaining ?? MAX_SERIALIZED_NODES;
+	if (nodesRemaining <= 0 || budget.remaining <= 0) return "[value limit]";
+	budget.nodesRemaining = nodesRemaining - 1;
+	budget.remaining = Math.max(0, budget.remaining - 1);
+	if (value === null || value === undefined || typeof value === "boolean")
+		return value;
+	if (typeof value === "number") {
+		budget.remaining = Math.max(0, budget.remaining - 8);
+		return Number.isFinite(value) ? value : String(value);
+	}
+	if (
+		typeof value === "bigint" ||
+		typeof value === "symbol" ||
+		typeof value === "function"
+	)
+		return sanitizeValue(String(value), budget);
+	if (typeof value === "string") {
+		const available = Math.max(0, budget.remaining);
+		budget.remaining -= Math.min(value.length, available);
+		return value.length <= available
+			? value
+			: `${value.slice(0, Math.max(0, available - 21))}[value truncated]`;
+	}
+	if (depth >= 12) return "[depth limit]";
+	if (typeof value !== "object") return String(value);
+	const seen = budget.seen ?? new WeakSet<object>();
+	if (seen.has(value)) return "[circular]";
+	seen.add(value);
+	const childBudget = { ...budget, seen, depth: depth + 1 };
+	if (Array.isArray(value)) {
+		const output: unknown[] = [];
+		for (const item of value) {
+			if (budget.remaining <= 0) {
+				output.push("[values omitted]");
+				break;
+			}
+			output.push(sanitizeValue(item, childBudget));
+			budget.remaining = childBudget.remaining;
+			budget.nodesRemaining = childBudget.nodesRemaining ?? 0;
+		}
+		return output;
+	}
+	if (value instanceof Date) return value.toISOString();
+	const output: Record<string, unknown> = {};
+	let entries: Array<[string, unknown]>;
+	try {
+		entries = Object.entries(value);
+	} catch {
+		return "[unavailable object]";
+	}
+	for (const [key, entry] of entries) {
+		if (budget.remaining <= 0) {
+			output["trace_truncated"] = true;
+			break;
+		}
+		childBudget.remaining = Math.max(0, childBudget.remaining - key.length - 1);
+		output[key] = sanitizeValue(entry, childBudget);
+		budget.remaining = childBudget.remaining;
+		budget.nodesRemaining = childBudget.nodesRemaining ?? 0;
+	}
+	return output;
+}
+
+function safeStringify(value: unknown, fallback: string): string {
+	try {
+		return (
+			JSON.stringify(
+				sanitizeValue(value, { remaining: MAX_TRACE_TEXT_CHARS }),
+			) ?? fallback
+		);
+	} catch {
+		return fallback;
 	}
 }
 
@@ -532,10 +837,17 @@ function parseExecSource(source: string): {
 		value: unknown,
 		name: string,
 		minimum = 0,
+		maximum = Number.MAX_SAFE_INTEGER,
 	): number | null => {
 		if (value === undefined) return null;
-		if (!Number.isSafeInteger(value) || Number(value) < minimum)
-			throw new Error(`${name} must be a safe integer of at least ${minimum}`);
+		if (
+			!Number.isSafeInteger(value) ||
+			Number(value) < minimum ||
+			Number(value) > maximum
+		)
+			throw new Error(
+				`${name} must be a safe integer from ${minimum} to ${maximum}`,
+			);
 		return Number(value);
 	};
 	return {
@@ -545,6 +857,7 @@ function parseExecSource(source: string): {
 			options["max_output_tokens"],
 			"max_output_tokens",
 			1,
+			MAX_CODE_MODE_OUTPUT_TOKENS,
 		),
 	};
 }

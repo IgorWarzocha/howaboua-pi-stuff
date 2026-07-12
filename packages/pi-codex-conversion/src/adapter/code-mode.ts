@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import type {
 	AgentToolResult,
 	ExtensionAPI,
@@ -31,6 +30,7 @@ export async function registerCodexCodeMode(
 	const programmaticRuntime = await registerCodeModeTools(pi, {
 		getTools: () => createNestedTools(runtime),
 		isActive,
+		providesRenderers: true,
 	});
 	return {
 		async shutdown() {
@@ -46,14 +46,27 @@ function createNestedTools(
 	const options = {
 		describeImagesForTextModels: runtime.state.config.tools.viewImageFallback,
 		promptSnippet: false,
-		customRendering: false,
-		showOutputWhenCollapsed: false,
-		compactTools: true,
+		customRendering: runtime.state.config.ui.toolRenaming,
+		showOutputWhenCollapsed: true,
+		compactTools: runtime.state.config.ui.compactTools,
 	};
 	return [
 		toNestedTool(
 			createExecCommandTool(runtime.tracker, runtime.sessions, options),
 			"await tools.exec_command({ cmd: string, workdir?: string, shell?: string, tty?: boolean, yield_time_ms?: number, max_output_tokens?: number, login?: boolean })",
+			{
+				start(id, input) {
+					const cmd =
+						input &&
+						typeof input === "object" &&
+						"cmd" in input &&
+						typeof input.cmd === "string"
+							? input.cmd
+							: "";
+					if (cmd) runtime.tracker.recordStart(id, cmd);
+				},
+				end: (id) => runtime.tracker.recordEnd(id),
+			},
 		),
 		toNestedTool(
 			createWriteStdinTool(runtime.sessions, options),
@@ -65,6 +78,10 @@ function createNestedTools(
 function toNestedTool(
 	tool: Parameters<ExtensionAPI["registerTool"]>[0],
 	usage: string,
+	lifecycle: {
+		start?(id: string, input: unknown): void;
+		end?(id: string): void;
+	} = {},
 ): ProgrammaticCodeModeToolDefinition {
 	return {
 		name: tool.name,
@@ -73,6 +90,23 @@ function toNestedTool(
 		deferLoading: false,
 		kind: "function",
 		inputSchema: tool.parameters,
+		...(tool.renderCall
+			? {
+					renderCall: (input, theme, context) =>
+						tool.renderCall!(input as never, theme as never, context as never),
+				}
+			: {}),
+		...(tool.renderResult
+			? {
+					renderResult: (result, options, theme, context) =>
+						tool.renderResult!(
+							result as never,
+							options,
+							theme as never,
+							context as never,
+						),
+				}
+			: {}),
 		async invoke(input, context, signal) {
 			if (signal.aborted) throw new Error(`${tool.name} aborted`);
 			const extensionContext = requireExtensionContext(context);
@@ -80,14 +114,22 @@ function toNestedTool(
 				? tool.prepareArguments(input)
 				: input;
 			if (signal.aborted) throw new Error(`${tool.name} aborted`);
-			const result = await tool.execute(
-				`code-mode-${randomUUID()}`,
-				prepared,
-				signal,
-				(update) => forwardUpdate(update, context),
-				extensionContext,
-			);
-			return compactNestedResult(result);
+			const toolCallId = context.toolCallId ?? `code-mode-${tool.name}`;
+			lifecycle.start?.(toolCallId, prepared);
+			context.refreshTrace?.();
+			try {
+				const result = await tool.execute(
+					toolCallId,
+					prepared,
+					signal,
+					(update) => forwardUpdate(update, context),
+					extensionContext,
+				);
+				context.captureResult?.(result);
+				return compactNestedResult(result);
+			} finally {
+				lifecycle.end?.(toolCallId);
+			}
 		},
 	};
 }
@@ -105,12 +147,9 @@ function forwardUpdate(
 	context: ToolExecutionContext,
 ): void {
 	const content = update.content
-		.filter(
-			(item): item is { type: "text"; text: string } => item.type === "text",
-		)
-		.map((item) => ({ type: "text" as const, text: item.text }));
-	if (content.length > 0)
-		context.onUpdate?.({ content, details: update.details });
+		.filter((item) => item.type === "text" || item.type === "image")
+		.map((item) => ({ ...item }));
+	context.onUpdate?.({ content, details: update.details });
 }
 
 function compactNestedResult(result: AgentToolResult<unknown>): unknown {

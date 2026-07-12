@@ -4,7 +4,10 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { ensureCodeModeHostBinary } from "./binary.js";
 import { discoverDynamicTools, getDynamicToolsDir } from "./config.js";
-import { CodeModeHostClient } from "./host-client.js";
+import {
+	CodeModeHostClient,
+	MAX_CODE_MODE_OUTPUT_TOKENS,
+} from "./host-client.js";
 import {
 	EXEC_DESCRIPTION,
 	injectDynamicToolsPrompt,
@@ -26,12 +29,15 @@ import type {
 
 const DEFAULT_WAIT_MS = 10_000;
 const DEFAULT_MAX_TOKENS = 10_000;
+const MAX_OUTPUT_IMAGE_COUNT = 4;
+const MAX_OUTPUT_IMAGE_CHARS = 16 * 1024 * 1024;
 const REGISTRATION_KEY = Symbol.for("@howaboua/pi-codex-conversion.code-mode");
 
 interface CodeModeToolProvider {
 	getTools(): CodeModeToolDefinition[];
 	documentationPath?: string | undefined;
 	isActive?(ctx: unknown): boolean;
+	providesRenderers?: boolean | undefined;
 }
 
 interface SharedCodeModeRuntime {
@@ -44,6 +50,7 @@ export interface RegisterCodeModeToolsOptions {
 	getTools(): CodeModeToolDefinition[];
 	documentationPath?: string | undefined;
 	isActive?(ctx: unknown): boolean;
+	providesRenderers?: boolean | undefined;
 }
 
 export async function registerDynamicTools(
@@ -107,10 +114,10 @@ function createSharedCodeModeRuntime(pi: ExtensionAPI): SharedCodeModeRuntime {
 			}
 		},
 	};
-	const collectTools = (ctx?: unknown): CodeModeToolDefinition[] => {
-		const tools = [...runtime.providers.values()]
-			.filter((provider) => !provider.isActive || provider.isActive(ctx))
-			.flatMap((provider) => provider.getTools());
+	const collectToolsFrom = (
+		providers: CodeModeToolProvider[],
+	): CodeModeToolDefinition[] => {
+		const tools = providers.flatMap((provider) => provider.getTools());
 		const byName = new Map<string, CodeModeToolDefinition>();
 		const unique: CodeModeToolDefinition[] = [];
 		for (const tool of tools) {
@@ -129,6 +136,18 @@ function createSharedCodeModeRuntime(pi: ExtensionAPI): SharedCodeModeRuntime {
 		}
 		return unique;
 	};
+	const collectTools = (ctx?: unknown): CodeModeToolDefinition[] =>
+		collectToolsFrom(
+			[...runtime.providers.values()].filter(
+				(provider) => !provider.isActive || provider.isActive(ctx),
+			),
+		);
+	const collectRenderTools = (): CodeModeToolDefinition[] =>
+		collectToolsFrom(
+			[...runtime.providers.values()].filter(
+				(provider) => provider.providesRenderers,
+			),
+		);
 	const getClient = async () => {
 		if (!runtime.clientPromise) {
 			const pending = ensureCodeModeHostBinary().then(
@@ -159,6 +178,19 @@ function createSharedCodeModeRuntime(pi: ExtensionAPI): SharedCodeModeRuntime {
 		);
 		return systemPrompt === event.systemPrompt ? undefined : { systemPrompt };
 	});
+	pi.on("tool_result", (event) => {
+		if (
+			(event.toolName === "exec" || event.toolName === "wait") &&
+			event.details &&
+			typeof event.details === "object" &&
+			"codeMode" in event.details &&
+			event.details.codeMode === true &&
+			"scriptError" in event.details &&
+			typeof event.details.scriptError === "string"
+		)
+			return { isError: true };
+		return undefined;
+	});
 	const renderTracker = createCodeModeRenderTracker();
 	const renderResult = (
 		result: Parameters<typeof renderTrackedCodeModeResult>[0],
@@ -166,7 +198,14 @@ function createSharedCodeModeRuntime(pi: ExtensionAPI): SharedCodeModeRuntime {
 		theme: RenderTheme,
 		context: RenderContext,
 	) =>
-		renderTrackedCodeModeResult(result, options, theme, context, renderTracker);
+		renderTrackedCodeModeResult(
+			result,
+			options,
+			theme,
+			context,
+			renderTracker,
+			collectRenderTools(),
+		);
 	pi.registerTool({
 		name: "exec",
 		label: "Exec",
@@ -220,6 +259,7 @@ function createSharedCodeModeRuntime(pi: ExtensionAPI): SharedCodeModeRuntime {
 			max_tokens: Type.Optional(
 				Type.Integer({
 					minimum: 1,
+					maximum: MAX_CODE_MODE_OUTPUT_TOKENS,
 					description: "Output token limit (default 10000).",
 				}),
 			),
@@ -260,26 +300,58 @@ function createSharedCodeModeRuntime(pi: ExtensionAPI): SharedCodeModeRuntime {
 }
 
 function toToolResult(response: RuntimeResponse, maxTokens?: number) {
-	if (response.kind === "result" && response.errorText)
-		throw new Error(`Script error: ${response.errorText}`);
-	const status =
-		response.kind === "yielded"
+	const scriptError =
+		response.kind === "result" ? response.errorText : undefined;
+	const status = scriptError
+		? `Script error: ${scriptError}`
+		: response.kind === "yielded"
 			? `Script running with cell ID ${response.cellId}`
 			: response.kind === "terminated"
 				? "Script terminated"
 				: "Script completed";
+	let imageChars = 0;
+	let imageCount = 0;
+	let omittedImages = 0;
 	const output = response.contentItems
-		.map(toPiContent)
+		.map((item) => {
+			const content = toPiContent(item);
+			if (content?.type !== "image") return content;
+			if (
+				imageCount >= MAX_OUTPUT_IMAGE_COUNT ||
+				imageChars + content.data.length > MAX_OUTPUT_IMAGE_CHARS
+			) {
+				omittedImages += 1;
+				return undefined;
+			}
+			imageCount += 1;
+			imageChars += content.data.length;
+			return content;
+		})
 		.filter((item): item is NonNullable<typeof item> => Boolean(item));
+	if (omittedImages > 0)
+		output.push({
+			type: "text",
+			text: `[${omittedImages} code-mode image${omittedImages === 1 ? "" : "s"} omitted]`,
+		});
+	const outputTokens = Math.min(
+		MAX_CODE_MODE_OUTPUT_TOKENS,
+		Math.max(1, maxTokens ?? response.maxOutputTokens ?? DEFAULT_MAX_TOKENS),
+	);
 	return {
 		content: [
 			{ type: "text" as const, text: status },
-			...truncateTextContent(
-				output,
-				(maxTokens ?? response.maxOutputTokens ?? DEFAULT_MAX_TOKENS) * 4,
-			),
+			...truncateTextContent(output, outputTokens * 4),
 		],
-		details: { cellId: response.cellId, status: response.kind },
+		details: {
+			codeMode: true,
+			cellId: response.cellId,
+			status: response.kind,
+			...(response.traces ? { traces: response.traces } : {}),
+			...(response.droppedTraceCount
+				? { droppedTraceCount: response.droppedTraceCount }
+				: {}),
+			...(scriptError ? { scriptError } : {}),
+		},
 	};
 }
 
