@@ -97,8 +97,8 @@ const renderApplyPatchCallWithOptionalContext = (
 	options: ApplyPatchToolOptions = {},
 ) => new Text(renderApplyPatchCallFromState(args, theme, { ...context, showCollapsedDiff: options.showDiffWhenCollapsed }), 0, 0);
 
-export function registerApplyPatchTool(pi: ExtensionAPI, options: ApplyPatchToolOptions = {}): void {
-	pi.registerTool({
+export function createApplyPatchTool(options: ApplyPatchToolOptions = {}) {
+	return {
 		name: "apply_patch",
 		label: "apply_patch",
 		description: "Patch files.",
@@ -162,5 +162,9 @@ export function registerApplyPatchTool(pi: ExtensionAPI, options: ApplyPatchTool
 			if (result.details.status === "partial_failure") return new Container();
 			return new Container();
 		},
-	});
+	} satisfies Parameters<ExtensionAPI["registerTool"]>[0];
+}
+
+export function registerApplyPatchTool(pi: ExtensionAPI, options: ApplyPatchToolOptions = {}): void {
+	pi.registerTool(createApplyPatchTool(options));
 }

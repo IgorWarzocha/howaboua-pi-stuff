@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { registerCodexCodeMode } from "../src/adapter/code-mode.ts";
@@ -65,6 +68,7 @@ test("GPT-5.6 Code Mode invokes the conversion shell through V8", async () => {
 		sessions,
 	} as never;
 	const codeMode = await registerCodexCodeMode(harness.pi as never, runtime);
+	const patchDir = await mkdtemp(join(tmpdir(), "pi-code-mode-patch-"));
 	try {
 		const promptHandler = harness.handlers.get("before_agent_start")?.[0];
 		const promptResult = promptHandler?.(
@@ -80,6 +84,10 @@ test("GPT-5.6 Code Mode invokes the conversion shell through V8", async () => {
 		assert.match(
 			promptResult?.systemPrompt ?? "",
 			/src\/tools\/code-mode\/DYNAMIC-TOOLS\.md/,
+		);
+		assert.match(
+			promptResult?.systemPrompt ?? "",
+			/apply_patch: await tools\.apply_patch\(patch\)/,
 		);
 		const exec = harness.tools.get("exec");
 		assert.ok(exec);
@@ -183,6 +191,98 @@ test("GPT-5.6 Code Mode invokes the conversion shell through V8", async () => {
 			/chunk_id/,
 		);
 		(runtime as any).state.config.ui.codeModeDetails = false;
+
+		await writeFile(join(patchDir, "seed.txt"), "BEFORE\n");
+		const patched = await exec.execute(
+			"exec-patch",
+			{
+				code: `await tools.apply_patch("*** Begin Patch\\n*** Update File: seed.txt\\n@@\\n-BEFORE\\n+AFTER\\n*** End Patch");`,
+			},
+			undefined,
+			undefined,
+			{
+				cwd: patchDir,
+				model: {
+					provider: "openai-codex",
+					api: "openai-codex-responses",
+					id: "gpt-5.6-luna",
+					input: ["text"],
+				},
+			} as never,
+		);
+		assert.equal(await readFile(join(patchDir, "seed.txt"), "utf8"), "AFTER\n");
+		assert.equal(patched.details.traces[0].name, "apply_patch");
+		assert.equal(typeof patched.details.traces[0].input, "string");
+		assert.match(
+			exec
+				.renderResult(
+					patched,
+					{ expanded: false, isPartial: false },
+					{
+						fg: (_role: string, text: string) => text,
+						bold: (text: string) => text,
+					},
+					{ toolCallId: "exec-patch", cwd: patchDir },
+				)
+				.render(120)
+				.join("\n"),
+			/Edited seed\.txt/,
+		);
+		const partialPatch = `*** Begin Patch
+*** Add File: created.txt
++created
+*** Update File: missing.txt
+@@
+-missing
++updated
+*** End Patch`;
+		const partial = await exec.execute(
+			"exec-patch-partial",
+			{ code: `await tools.apply_patch(${JSON.stringify(partialPatch)});` },
+			undefined,
+			undefined,
+			{
+				cwd: patchDir,
+				model: {
+					provider: "openai-codex",
+					api: "openai-codex-responses",
+					id: "gpt-5.6-luna",
+					input: ["text"],
+				},
+			} as never,
+		);
+		assert.match(partial.details.scriptError, /partially failed/i);
+		assert.equal(partial.details.traces[0].status, "error");
+		assert.equal(
+			partial.details.traces[0].result.details.status,
+			"partial_failure",
+		);
+		assert.equal(
+			await readFile(join(patchDir, "created.txt"), "utf8"),
+			"created\n",
+		);
+		const malformedPatch = await exec.execute(
+			"exec-patch-malformed",
+			{ code: "await tools.apply_patch({ patch: 'nope' });" },
+			undefined,
+			undefined,
+			{
+				cwd: patchDir,
+				model: {
+					provider: "openai-codex",
+					api: "openai-codex-responses",
+					id: "gpt-5.6-luna",
+					input: ["text"],
+				},
+			} as never,
+		);
+		assert.match(malformedPatch.details.scriptError, /expects a patch string/);
+		assert.deepEqual(
+			malformedPatch.details.traces.map(
+				(trace: { name: string; status: string }) => [trace.name, trace.status],
+			),
+			[["apply_patch", "error"]],
+		);
 
 		const resumed = await exec.execute(
 			"exec-2",
@@ -343,5 +443,6 @@ throw new Error("expected-wait-boom");`,
 	} finally {
 		await codeMode.shutdown();
 		sessions.shutdown();
+		await rm(patchDir, { recursive: true, force: true });
 	}
 });

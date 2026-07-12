@@ -34,7 +34,7 @@ const CODE_MODE_GUIDELINES = [
 	"Use tools.exec_command inside exec for shell/file/build/test; prefer rg/rg --files.",
 	"Use tools.write_stdin only for running shell sessions.",
 	"Use tty=true for interactive commands.",
-	"Use apply_patch for file edits; group related edits.",
+	"Use tools.apply_patch(patch) for file edits; group related edits.",
 	"Do not probe listed PATH tools.",
 	"Use stdin/heredoc for quoted or multiline PATH args.",
 	"Compose independent nested calls with Promise.all.",
@@ -59,7 +59,7 @@ type CodexPromptMode = "normal" | "path" | "code";
 function buildCodexGuidelines(mode: CodexPromptMode = "normal", tools: CodexPromptToolOptions = {}): string[] {
 	if (mode === "normal") return [...NORMAL_CODEX_GUIDELINES];
 	const guidelines = mode === "code" ? [...CODE_MODE_GUIDELINES] : [...PATH_CODEX_GUIDELINES];
-	const examples = [`- apply_patch <<'PATCH'`, `  *** Begin Patch`, `  ...`, `  *** End Patch`, `  PATCH`];
+	const examples = mode === "code" ? [] : [`- apply_patch <<'PATCH'`, `  *** Begin Patch`, `  ...`, `  *** End Patch`, `  PATCH`];
 	if (tools.viewImage !== false) examples.push(`- view_image '{"path":"/x.png"}'`);
 	if (tools.webRun !== false) {
 		examples.push(`- web_run '{"search_query":[{"q":"..."}],"response_length":"short|medium|long"}'`);
@@ -71,7 +71,8 @@ function buildCodexGuidelines(mode: CodexPromptMode = "normal", tools: CodexProm
 		examples.push(`- imagegen '{"prompt":"..."}'`);
 		examples.push(`- imagegen '{"action":"edit","prompt":"...","images":["https://... or /x.png"]}'`);
 	}
-	guidelines.splice(4, 0, `PATH tool accepted forms:\n${examples.join("\n")}`);
+	if (examples.length > 0)
+		guidelines.splice(4, 0, `PATH tool accepted forms:\n${examples.join("\n")}`);
 	return guidelines;
 }
 

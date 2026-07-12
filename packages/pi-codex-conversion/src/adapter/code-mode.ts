@@ -12,6 +12,7 @@ import type {
 	ProgrammaticCodeModeToolDefinition,
 	ToolExecutionContext,
 } from "../tools/code-mode/types.ts";
+import { createApplyPatchTool } from "../tools/apply-patch/tool.ts";
 import { createExecCommandTool } from "../tools/exec/command-tool.ts";
 import { createWriteStdinTool } from "../tools/exec/write-stdin-tool.ts";
 import { shouldUseGpt56CodeMode } from "./activation/activation.ts";
@@ -53,6 +54,35 @@ function createNestedTools(
 	};
 	return [
 		toNestedTool(
+			createApplyPatchTool({
+				promptSnippet: false,
+				showDiffWhenCollapsed: !runtime.state.config.ui.compactTools,
+			}),
+			"await tools.apply_patch(patch)",
+			{},
+			{
+				kind: "freeform",
+				prepareInput(input) {
+					if (typeof input !== "string")
+						throw new Error("apply_patch expects a patch string");
+					return { input };
+				},
+				resultError(result) {
+					if (
+						result.details &&
+						typeof result.details === "object" &&
+						"status" in result.details &&
+						result.details.status === "partial_failure"
+					)
+						return result.content
+							.filter((item) => item.type === "text")
+							.map((item) => item.text)
+							.join("\n") || "apply_patch partially failed";
+					return undefined;
+				},
+			},
+		),
+		toNestedTool(
 			createExecCommandTool(runtime.tracker, runtime.sessions, options),
 			"await tools.exec_command({ cmd: string, workdir?: string, shell?: string, tty?: boolean, yield_time_ms?: number, max_output_tokens?: number, login?: boolean })",
 			{
@@ -83,18 +113,26 @@ function toNestedTool(
 		start?(id: string, input: unknown): void;
 		end?(id: string): void;
 	} = {},
+	contract: {
+		kind?: "function" | "freeform";
+		prepareInput?(input: unknown): unknown;
+		resultError?(result: AgentToolResult<unknown>): string | undefined;
+	} = {},
 ): ProgrammaticCodeModeToolDefinition {
+	const kind = contract.kind ?? "function";
+	const prepareInput = (input: unknown) =>
+		contract.prepareInput ? contract.prepareInput(input) : input;
 	return {
 		name: tool.name,
 		usage,
 		description: tool.description,
 		deferLoading: false,
-		kind: "function",
-		inputSchema: tool.parameters,
+		kind,
+		...(kind === "function" ? { inputSchema: tool.parameters } : {}),
 		...(tool.renderCall
 			? {
-					renderCall: (input, theme, context) =>
-						tool.renderCall!(input as never, theme as never, context as never),
+				renderCall: (input, theme, context) =>
+					tool.renderCall!(prepareInput(input) as never, theme as never, context as never),
 				}
 			: {}),
 		...(tool.renderResult
@@ -111,9 +149,10 @@ function toNestedTool(
 		async invoke(input, context, signal) {
 			if (signal.aborted) throw new Error(`${tool.name} aborted`);
 			const extensionContext = requireExtensionContext(context);
+			const toolInput = prepareInput(input);
 			const prepared = tool.prepareArguments
-				? tool.prepareArguments(input)
-				: input;
+				? tool.prepareArguments(toolInput)
+				: toolInput;
 			if (signal.aborted) throw new Error(`${tool.name} aborted`);
 			const toolCallId = context.toolCallId ?? `code-mode-${tool.name}`;
 			lifecycle.start?.(toolCallId, prepared);
@@ -127,6 +166,8 @@ function toNestedTool(
 					extensionContext,
 				);
 				context.captureResult?.(result);
+				const resultError = contract.resultError?.(result);
+				if (resultError) throw new Error(resultError);
 				return compactNestedResult(result);
 			} finally {
 				lifecycle.end?.(toolCallId);
