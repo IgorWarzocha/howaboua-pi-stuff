@@ -412,10 +412,7 @@ export class CodeModeHostClient {
 }
 
 function shutdownDeadline(delayMs: number): Promise<void> {
-	return new Promise((resolve) => {
-		const timer = setTimeout(resolve, delayMs);
-		timer.unref();
-	});
+	return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
 function abortError(): Error {
