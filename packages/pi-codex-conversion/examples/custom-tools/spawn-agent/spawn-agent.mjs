@@ -261,11 +261,8 @@ export function buildPiArgs(request, message) {
 	return [
 		"--print",
 		"--no-session",
-		"--no-extensions",
 		"--no-skills",
 		"--no-prompt-templates",
-		"--tools",
-		"read,bash,grep,find,ls",
 		"--model",
 		config.model,
 		"--thinking",
