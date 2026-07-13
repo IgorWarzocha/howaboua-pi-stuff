@@ -9,9 +9,14 @@ import {
 } from "./shared-runtime.js";
 import { registerCodeModeEvents } from "./tool-events.js";
 
-// Pi event handlers cannot be unregistered. Keep one process-lifetime runtime
-// on pi.events so extension re-registration reuses listeners instead of stacking them.
+// Providers in one extension instance share a process-lifetime host runtime.
+// Pi replaces ExtensionAPI registrations on reload, so each API binds its own surface.
 const REGISTRATION_KEY = Symbol.for("@howaboua/pi-codex-conversion.code-mode");
+
+interface CodeModeProcessState {
+	runtime: SharedCodeModeRuntime;
+	boundApis: WeakSet<object>;
+}
 
 export interface RegisterCodeModeToolsOptions extends CodeModeToolProvider {}
 
@@ -36,7 +41,7 @@ export async function registerCodeModeTools(
 	pi: ExtensionAPI,
 	options: RegisterCodeModeToolsOptions,
 ): Promise<CodeModeRegistration> {
-	const runtime = getOrCreateRuntime(pi);
+	const runtime = await getOrCreateRuntime(pi);
 	const providerId = runtime.addProvider(options);
 	let active = true;
 	return {
@@ -50,17 +55,51 @@ export async function registerCodeModeTools(
 	};
 }
 
-function getOrCreateRuntime(pi: ExtensionAPI): SharedCodeModeRuntime {
+async function getOrCreateRuntime(pi: ExtensionAPI): Promise<SharedCodeModeRuntime> {
 	const state = pi.events as typeof pi.events & {
-		[REGISTRATION_KEY]?: SharedCodeModeRuntime;
+		[REGISTRATION_KEY]?: CodeModeProcessState | SharedCodeModeRuntime;
 	};
 	const existing = state[REGISTRATION_KEY];
-	if (existing) return existing;
-	const runtime = new SharedCodeModeRuntime();
-	state[REGISTRATION_KEY] = runtime;
-	registerCodeModeEvents(pi, runtime);
-	registerPublicCodeModeTools(pi, runtime);
-	return runtime;
+	const processState = isProcessState(existing)
+		? existing
+		: await replaceLegacyState(existing);
+	state[REGISTRATION_KEY] = processState;
+	if (!processState.boundApis.has(pi)) {
+		processState.boundApis.add(pi);
+		registerCodeModeEvents(pi, processState.runtime);
+		registerPublicCodeModeTools(pi, processState.runtime);
+	}
+	return processState.runtime;
+}
+
+function isProcessState(value: unknown): value is CodeModeProcessState {
+	return Boolean(
+		value &&
+		typeof value === "object" &&
+		"runtime" in value &&
+		isSharedRuntime(value.runtime) &&
+		"boundApis" in value &&
+		value.boundApis instanceof WeakSet,
+	);
+}
+
+async function replaceLegacyState(
+	legacy: unknown,
+): Promise<CodeModeProcessState> {
+	// 2.2.0 stored the runtime directly and retained stale providers across reloads.
+	if (isSharedRuntime(legacy)) await legacy.shutdownHost();
+	return { runtime: new SharedCodeModeRuntime(), boundApis: new WeakSet() };
+}
+
+function isSharedRuntime(value: unknown): value is SharedCodeModeRuntime {
+	return Boolean(
+		value &&
+		typeof value === "object" &&
+		"providers" in value &&
+		value.providers instanceof Map &&
+		"shutdownHost" in value &&
+		typeof value.shutdownHost === "function",
+	);
 }
 
 function customToolsDocumentationPath(): string {

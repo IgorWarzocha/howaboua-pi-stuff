@@ -7,7 +7,10 @@ import {
 	parseCustomTool,
 } from "../src/tools/code-mode/custom-tools.ts";
 import { buildPromotedToolsPrompt } from "../src/tools/code-mode/custom-tool-prompt.ts";
-import { registerCustomTools } from "../src/tools/code-mode/tools.ts";
+import {
+	registerCodeModeTools,
+	registerCustomTools,
+} from "../src/tools/code-mode/tools.ts";
 
 test("Code Mode keeps TOML tools deferred unless promoted", () => {
 	const deferred = parseCustomTool(
@@ -84,24 +87,84 @@ test("Code Mode invokes a deferred TOML tool without exposing its schema", async
 	}
 });
 
-test("Code Mode reuses its registered tool and event surface", async () => {
-	let toolRegistrations = 0;
-	let eventRegistrations = 0;
-	const pi = {
-		events: {},
-		registerTool() {
-			toolRegistrations += 1;
-		},
-		on() {
-			eventRegistrations += 1;
-		},
+test("Code Mode rebinds its tool and event surface after reload", async () => {
+	const events = {};
+	const registrations = () => {
+		let tools = 0;
+		let handlers = 0;
+		return {
+			pi: {
+				events,
+				registerTool() {
+					tools += 1;
+				},
+				on() {
+					handlers += 1;
+				},
+			},
+			counts: () => ({ tools, handlers }),
+		};
 	};
-	const first = await registerCustomTools(pi as never, "/missing");
+	const firstApi = registrations();
+	const first = await registerCustomTools(firstApi.pi as never, "/missing");
 	await first.shutdown();
-	const second = await registerCustomTools(pi as never, "/missing");
+	const secondApi = registrations();
+	const second = await registerCustomTools(secondApi.pi as never, "/missing");
 	await second.shutdown();
-	assert.equal(toolRegistrations, 2);
-	assert.equal(eventRegistrations, 2);
+	assert.deepEqual(firstApi.counts(), { tools: 2, handlers: 2 });
+	assert.deepEqual(secondApi.counts(), { tools: 2, handlers: 2 });
+});
+
+test("Code Mode removes stale providers before rebinding after reload", async () => {
+	const events = {};
+	const createApi = () => {
+		const tools = new Map<string, any>();
+		return {
+			pi: {
+				events,
+				registerTool(tool: { name: string }) {
+					tools.set(tool.name, tool);
+				},
+				on() {},
+			},
+			tools,
+		};
+	};
+	const nestedTool = (name: string) => ({
+		name,
+		usage: `await tools.${name}({})`,
+		deferLoading: false,
+		kind: "function" as const,
+		inputSchema: { type: "object", properties: {} },
+		async invoke() {
+			return name;
+		},
+	});
+	const firstApi = createApi();
+	const first = await registerCodeModeTools(firstApi.pi as never, {
+		getTools: () => [nestedTool("old_tool")],
+	});
+	await first.shutdown();
+
+	const secondApi = createApi();
+	const second = await registerCodeModeTools(secondApi.pi as never, {
+		getTools: () => [nestedTool("new_tool")],
+	});
+	try {
+		const result = await secondApi.tools.get("exec").execute(
+			"exec-after-reload",
+			{ code: "text(`${typeof tools.old_tool}:${typeof tools.new_tool}`);" },
+			undefined,
+			undefined,
+			{ cwd: process.cwd() },
+		);
+		assert.match(
+			result.content.map((item: { text?: string }) => item.text ?? "").join("\n"),
+			/undefined:function/,
+		);
+	} finally {
+		await second.shutdown();
+	}
 });
 
 test("Code Mode keeps providers registered when its host shuts down", async () => {

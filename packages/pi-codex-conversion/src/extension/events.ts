@@ -95,11 +95,14 @@ export function registerCodexEvents(
 	});
 
 	pi.on("session_shutdown", async () => {
-		runtime.shutdownTransport();
-		ui.clearBackgroundWidget();
-		runtime.backgroundWidget.ctx = undefined;
-		sessions.shutdown();
-		await codeMode.shutdownHost();
+		try {
+			runtime.shutdownTransport();
+			ui.clearBackgroundWidget();
+			runtime.backgroundWidget.ctx = undefined;
+			sessions.shutdown();
+		} finally {
+			await codeMode.shutdown();
+		}
 	});
 	pi.on("input", async (event) => {
 		if (event.streamingBehavior === undefined) state.codexTurnState.beginTurn();
