@@ -82,6 +82,10 @@ test("WebSocket prewarm sends generate=false and seeds cached continuation", asy
 		assert.equal(socket.options?.headers?.["session-id"], sessionId);
 		assert.equal(socket.options?.headers?.["thread-id"], sessionId);
 		assert.equal(turnState.current(), "ts-warm");
+		turnState.beginTurn();
+		assert.equal(turnState.current(), "ts-warm");
+		turnState.beginTurn();
+		assert.equal(turnState.current(), undefined);
 
 		const acquired = await acquireWebSocket("wss://chatgpt.example/backend-api/codex/responses", new Headers(), sessionId, undefined);
 		assert.equal(acquired.reused, true);

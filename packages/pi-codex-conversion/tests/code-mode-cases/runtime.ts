@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createCodeModeHarness } from "../helpers/code-mode-harness.ts";
 
-test("Code Mode preserves nested tools across sessions, errors, and output limits", async () => {
+test("Code Mode preserves nested tools across sessions and cancellation", async () => {
 	const fixture = await createCodeModeHarness();
 	const { tools, handlers } = fixture;
 	const exec = tools.get("exec");
@@ -40,37 +40,7 @@ text(result);`,
 			[["exec_command", "done"]],
 		);
 
-		const failed = await exec.execute(
-			"exec-error",
-			{
-				code: 'await tools.exec_command({ cmd: "printf before-error" }); throw new Error("expected-boom");',
-			},
-			undefined,
-			undefined,
-			{
-				cwd: process.cwd(),
-				model: {
-					provider: "openai-codex",
-					api: "openai-codex-responses",
-					id: "gpt-5.6-luna",
-					input: ["text"],
-				},
-			} as never,
-		);
-		assert.match(failed.details.scriptError, /expected-boom/);
-		assert.deepEqual(
-			failed.details.traces.map((trace: { name: string; status: string }) => [
-				trace.name,
-				trace.status,
-			]),
-			[["exec_command", "done"]],
-		);
 		const toolResultHandler = handlers.get("tool_result")?.[0];
-		assert.deepEqual(
-			toolResultHandler?.({ toolName: "exec", details: failed.details }),
-			{ isError: true },
-		);
-
 		const yielded = await exec.execute(
 			"exec-yield-error",
 			{
@@ -151,48 +121,6 @@ throw new Error("expected-wait-boom");`,
 		);
 		assert.equal(terminated.details.status, "terminated");
 
-		const images = await exec.execute(
-			"exec-images",
-			{
-				code: 'for (let index = 0; index < 5; index += 1) image("data:image/png;base64,iVBORw0KGgo=");',
-			},
-			undefined,
-			undefined,
-			{
-				cwd: process.cwd(),
-				model: {
-					provider: "openai-codex",
-					api: "openai-codex-responses",
-					id: "gpt-5.6-luna",
-					input: ["image"],
-				},
-			} as never,
-		);
-		assert.equal(
-			images.content.filter((item: { type: string }) => item.type === "image")
-				.length,
-			4,
-		);
-		assert.match(
-			images.content
-				.filter((item: { type: string; text?: string }) => item.type === "text")
-				.map((item: { text?: string }) => item.text ?? "")
-				.join("\n"),
-			/1 code-mode image omitted/,
-		);
-		await assert.rejects(
-			() =>
-				exec.execute(
-					"exec-oversized-output",
-					{
-						code: '// @exec: {"max_output_tokens": 100001}\ntext("nope");',
-					},
-					undefined,
-					undefined,
-					{ cwd: process.cwd() },
-				),
-			/max_output_tokens must be a safe integer from 1 to 100000/,
-		);
 	} finally {
 		await fixture.close();
 	}

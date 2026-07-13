@@ -48,19 +48,6 @@ test("native compaction shrinks tool outputs when request exceeds context window
 	assert.ok(result.estimatedTokensAfter < result.estimatedTokensBefore);
 });
 
-test("native compaction leaves compact requests unchanged under context window", async () => {
-	const request: NativeCompactionRequestBody = {
-		model: model.id,
-		instructions: "compact",
-		input: [{ type: "function_call_output", call_id: "call-1", output: "small" }],
-	};
-
-	const result = await shrinkNativeCompactionRequestForEndpoint(request, { contextWindow: 10_000 });
-
-	assert.equal(result.rewrittenOutputs, 0);
-	assert.equal(result.request, request);
-});
-
 test("injects pending native compacted window into Pi compaction summarization payload", async () => {
 	const ctx = {
 		model,

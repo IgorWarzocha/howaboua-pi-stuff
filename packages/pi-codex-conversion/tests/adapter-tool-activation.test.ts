@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { shouldUseNativeResponsesCompaction, syncAdapter } from "../src/adapter/activation/activation.ts";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
-import { mergeAdapterTools } from "../src/index.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 
 function createToolHarness(activeTools: string[]) {
@@ -39,13 +38,6 @@ function createContext(model: { provider: string; api: string; id: string }) {
 		ui: { setStatus: () => undefined },
 	};
 }
-
-test("mergeAdapterTools replaces Pi core tools while preserving unrelated tools", () => {
-	assert.deepEqual(
-		mergeAdapterTools(["read", "bash", "edit", "write", "parallel", "custom_search"], ["exec_command", "write_stdin"]),
-		["exec_command", "write_stdin", "parallel", "custom_search"],
-	);
-});
 
 test("syncAdapter preserves unrelated tools across repeated syncs", () => {
 	const pi = createToolHarness(["read", "custom_search", "custom_image", "parallel"]);

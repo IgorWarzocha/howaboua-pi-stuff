@@ -45,7 +45,7 @@ test("Responses Lite moves instructions and tools into input and prepares images
 	]);
 });
 
-test("Responses Lite carries its transport flag in WebSocket metadata", () => {
+test("Responses Lite marks WebSocket requests for the Codex transport", () => {
 	const body = applyResponsesLiteWebSocketMetadata({ model: "gpt-5.6-sol", input: [] });
 	assert.equal(body.client_metadata?.["ws_request_header_x_openai_internal_codex_responses_lite"], "true");
 });

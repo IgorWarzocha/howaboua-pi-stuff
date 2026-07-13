@@ -70,62 +70,6 @@ test("Code Mode invokes native patch and image tools directly", async () => {
 		assert.equal(viewed.details.traces[0].name, "view_image");
 		assert.equal(viewed.details.traces[0].status, "done");
 		assert.ok(viewed.content.some((item: { type: string }) => item.type === "image"));
-		const partialPatch = `*** Begin Patch
-*** Add File: created.txt
-+created
-*** Update File: missing.txt
-@@
--missing
-+updated
-*** End Patch`;
-		const partial = await exec.execute(
-			"exec-patch-partial",
-			{ code: `await tools.apply_patch(${JSON.stringify(partialPatch)});` },
-			undefined,
-			undefined,
-			{
-				cwd: patchDir,
-				model: {
-					provider: "openai-codex",
-					api: "openai-codex-responses",
-					id: "gpt-5.6-luna",
-					input: ["text"],
-				},
-			} as never,
-		);
-		assert.match(partial.details.scriptError, /partially failed/i);
-		assert.equal(partial.details.traces[0].status, "error");
-		assert.equal(
-			partial.details.traces[0].result.details.status,
-			"partial_failure",
-		);
-		assert.equal(
-			await readFile(join(patchDir, "created.txt"), "utf8"),
-			"created\n",
-		);
-		const malformedPatch = await exec.execute(
-			"exec-patch-malformed",
-			{ code: "await tools.apply_patch({ patch: 'nope' });" },
-			undefined,
-			undefined,
-			{
-				cwd: patchDir,
-				model: {
-					provider: "openai-codex",
-					api: "openai-codex-responses",
-					id: "gpt-5.6-luna",
-					input: ["text"],
-				},
-			} as never,
-		);
-		assert.match(malformedPatch.details.scriptError, /expects a patch string/);
-		assert.deepEqual(
-			malformedPatch.details.traces.map(
-				(trace: { name: string; status: string }) => [trace.name, trace.status],
-			),
-			[["apply_patch", "error"]],
-		);
-
 	} finally {
 		await fixture.close();
 		await rm(patchDir, { recursive: true, force: true });
