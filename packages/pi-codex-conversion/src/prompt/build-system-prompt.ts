@@ -31,7 +31,7 @@ const PATH_CODEX_GUIDELINES = [
 ];
 
 const CODE_MODE_GUIDELINES = [
-	"Use `tools.exec_command` for shell commands, file inspection, builds, and tests; prefer `rg` and `rg --files`.",
+	"Use `tools.exec_command` for shell commands; prefer `rg` and `rg --files` for search.",
 	"Use tools.write_stdin only for running shell sessions.",
 	"Use tty=true for interactive commands.",
 	"Use tools.apply_patch(patch) for file edits; group related edits.",
