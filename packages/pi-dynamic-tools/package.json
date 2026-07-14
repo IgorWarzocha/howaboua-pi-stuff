@@ -47,8 +47,8 @@
 		"smol-toml": "^1.6.0"
 	},
 	"devDependencies": {
-		"@earendil-works/pi-coding-agent": "0.80.6",
-		"@earendil-works/pi-tui": "0.80.6",
+		"@earendil-works/pi-coding-agent": "0.80.7",
+		"@earendil-works/pi-tui": "0.80.7",
 		"@types/node": "^25.9.1",
 		"typebox": "1.1.38",
 		"typescript": "^6.0.3",

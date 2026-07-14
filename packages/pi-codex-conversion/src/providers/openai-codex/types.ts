@@ -51,7 +51,12 @@ export interface CachedWebSocketRequestBodyResult {
 
 export type ServiceTier = ResponseCreateParamsStreaming["service_tier"];
 export type ProviderEnv = Record<string, string>;
-export type CodexProviderStreamOptions = SimpleStreamOptions & { serviceTier?: ServiceTier | undefined; textVerbosity?: string | undefined; reasoningSummary?: string | undefined };
+export type CodexProviderStreamOptions = SimpleStreamOptions & {
+	serviceTier?: ServiceTier | undefined;
+	textVerbosity?: string | undefined;
+	reasoningSummary?: string | undefined;
+	toolChoice?: "auto" | "none" | "required" | undefined;
+};
 export type CodexReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 export type OpenAICodexStreamOptions = CodexProviderStreamOptions & {
 	reasoningEffort?: CodexReasoningEffort | undefined;
@@ -71,7 +76,7 @@ export interface ResponsesBody {
 	text: { verbosity: string };
 	include: string[];
 	prompt_cache_key?: string | undefined;
-	tool_choice: "auto";
+	tool_choice: "auto" | "none" | "required";
 	parallel_tool_calls: boolean;
 	temperature?: number | undefined;
 	service_tier?: string | undefined;

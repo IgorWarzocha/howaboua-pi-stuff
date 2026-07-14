@@ -1,5 +1,11 @@
 import type { Api, Context, Model, Tool, Usage } from "@earendil-works/pi-ai";
-import type { ResponseCreateParamsStreaming, ResponseInput, Tool as OpenAITool } from "openai/resources/responses/responses.js";
+import type {
+	ResponseCreateParamsStreaming,
+	ResponseInput,
+	ResponseInputItem,
+	ResponseToolSearchOutputItemParam,
+	Tool as OpenAITool,
+} from "openai/resources/responses/responses.js";
 import { parseTextSignature, shortHash } from "./signatures.ts";
 import { encryptedWebRunOutputFromDetails, imageDetailForResponses, isImageGenerationCallBlock, isWebSearchCallBlock, sanitizeImageGenerationCallItem, sanitizeWebSearchCallItem, type ImageDetail, type ImageGenerationCallBlock, type WebSearchCallBlock } from "./native-items.ts";
 
@@ -20,13 +26,45 @@ export interface OpenAIResponsesStreamOptions {
 
 interface ConvertResponsesMessagesOptions {
 	includeSystemPrompt?: boolean | undefined;
+	deferredTools?: ReadonlyMap<string, Tool> | undefined;
 }
 
 interface ConvertResponsesToolsOptions {
 	strict?: boolean | null | undefined;
+	deferLoading?: boolean | undefined;
 }
 
+type OpenAIFunctionTool = Extract<OpenAITool, { type: "function" }>;
+
 export const CODEX_TOOL_CALL_PROVIDERS = new Set(["openai", "openai-codex", "opencode"]);
+
+export function splitDeferredTools(context: Context, enabled: boolean): { immediate: Tool[]; deferred: Map<string, Tool> } {
+	const uniqueTools = new Map<string, Tool>();
+	for (const tool of context.tools ?? []) uniqueTools.set(tool.name, tool);
+	if (!enabled) return { immediate: [...uniqueTools.values()], deferred: new Map() };
+
+	const deferredNames = new Set<string>();
+	const usedNames = new Set<string>();
+	for (const message of context.messages) {
+		if (message.role === "assistant") {
+			for (const block of message.content) {
+				if (block.type === "toolCall") usedNames.add(block.name);
+			}
+		} else if (message.role === "toolResult") {
+			for (const name of message.addedToolNames ?? []) {
+				if (!usedNames.has(name)) deferredNames.add(name);
+			}
+		}
+	}
+
+	const immediate: Tool[] = [];
+	const deferred = new Map<string, Tool>();
+	for (const [name, tool] of uniqueTools) {
+		if (deferredNames.has(name)) deferred.set(name, tool);
+		else immediate.push(tool);
+	}
+	return { immediate, deferred };
+}
 
 function sanitizeSurrogates(text: string): string {
 	return text.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "");
@@ -184,6 +222,7 @@ export function convertResponsesMessages<TApi extends Api>(
 	options?: ConvertResponsesMessagesOptions,
 ): ResponseInput {
 	const messages: ResponseInput = [];
+	const loadedToolNames = new Set<string>();
 	const normalizeIdPart = (part: string) => {
 		const sanitized = part.replace(/[^a-zA-Z0-9_-]/g, "_");
 		const normalized = sanitized.length > 64 ? sanitized.slice(0, 64) : sanitized;
@@ -286,6 +325,32 @@ export function convertResponsesMessages<TApi extends Api>(
 						]
 					: sanitizeSurrogates(hasText ? textResult : "(see attached image)");
 			messages.push({ type: "function_call_output", call_id: callId!, output: output as any });
+
+			const deferredTools: Tool[] = [];
+			for (const name of msg.addedToolNames ?? []) {
+				const tool = options?.deferredTools?.get(name);
+				if (!tool || loadedToolNames.has(name)) continue;
+				loadedToolNames.add(name);
+				deferredTools.push(tool);
+			}
+			if (deferredTools.length > 0) {
+				const names = deferredTools.map((tool) => tool.name);
+				const searchCallId = `pi_tool_load_${shortHash(`${msg.toolCallId}:${names.join(",")}`)}`;
+				messages.push({
+					type: "tool_search_call",
+					call_id: searchCallId,
+					execution: "client",
+					status: "completed",
+					arguments: { query: names.join(" "), limit: names.length },
+				} satisfies ResponseInputItem);
+				messages.push({
+					type: "tool_search_output",
+					call_id: searchCallId,
+					execution: "client",
+					status: "completed",
+					tools: convertResponsesTools(deferredTools, { deferLoading: true }),
+				} satisfies ResponseToolSearchOutputItemParam);
+			}
 		}
 		msgIndex++;
 	}
@@ -293,15 +358,18 @@ export function convertResponsesMessages<TApi extends Api>(
 	return messages;
 }
 
-export function convertResponsesTools(tools: Tool[], options?: ConvertResponsesToolsOptions): OpenAITool[] {
+export function convertResponsesTools(tools: readonly Tool[], options?: ConvertResponsesToolsOptions): OpenAITool[] {
 	const strict = options?.strict === undefined ? false : options.strict;
-	return tools.map((tool) => ({
-		type: "function",
-		name: tool.name,
-		description: tool.description,
-		parameters: tool.parameters as unknown as Record<string, unknown>,
-		strict,
-	}));
+	return tools.map(
+		(tool): OpenAIFunctionTool => ({
+			type: "function",
+			name: tool.name,
+			description: tool.description,
+			parameters: tool.parameters as unknown as Record<string, unknown>,
+			strict,
+			...(options?.deferLoading ? { defer_loading: true } : {}),
+		}),
+	);
 }
 
 
