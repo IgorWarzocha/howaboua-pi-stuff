@@ -1,6 +1,7 @@
 import type { CodeModeToolMetadata } from "./types.js";
 
 export const EXEC_DESCRIPTION = `Run JavaScript to compose custom tool calls.
+- Pass raw JavaScript source, not a JSON-escaped string.
 - Nested tools take the string or object shown in their usage and return a string or object.
 - Code runs as an async module in isolated V8: no Node, filesystem, network, or console. Await all work; unawaited promises are discarded.
 - Optional first line: \`// @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}\`. Defaults are 10000 ms and 10000 tokens. Set \`yield_time_ms\` near the expected runtime; use 60000 or more for subagents and long commands to avoid repeated waits. Long waits remain cancellable, and \`notify()\` still emits progress.

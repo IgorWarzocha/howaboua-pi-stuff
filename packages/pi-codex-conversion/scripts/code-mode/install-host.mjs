@@ -10,13 +10,19 @@ import {
 	readdirSync,
 	renameSync,
 	rmSync,
+	statSync,
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
+import { EnvHttpProxyAgent, fetch } from "undici";
 
 import { HOST_ASSETS, hostAssetUrl } from "./host-assets.mjs";
 
+const DOWNLOAD_TIMEOUT_MS = 120_000;
+const INSTALL_LOCK_POLL_MS = 200;
+const INSTALL_LOCK_TIMEOUT_MS = 125_000;
+const INSTALL_LOCK_STALE_MS = 180_000;
 const platform = `${process.platform}-${process.arch}`;
 const asset = HOST_ASSETS[platform];
 if (!asset) {
@@ -35,19 +41,37 @@ if (!destination || basename(destination) !== binaryName) {
 }
 const outDir = resolve(destination, "..");
 if (existsSync(destination)) process.exit(0);
+mkdirSync(outDir, { recursive: true });
+const lockPath = `${destination}.lock`;
+if (!(await acquireInstallLock(lockPath, destination))) process.exit(0);
 
 const temporary = mkdtempSync(join(tmpdir(), "pi-codex-code-mode-"));
 try {
-	const response = await fetch(hostAssetUrl(assetName), { redirect: "follow" });
-	if (!response.ok)
+	const assetUrl = hostAssetUrl(assetName);
+	const dispatcher = new EnvHttpProxyAgent();
+	let bytes;
+	try {
+		const response = await fetch(assetUrl, {
+			dispatcher,
+			redirect: "follow",
+			signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
+		});
+		if (!response.ok)
+			throw new Error(
+				`download failed: ${response.status} ${response.statusText}`,
+			);
+		bytes = Buffer.from(await response.arrayBuffer());
+	} catch (error) {
 		throw new Error(
-			`download failed: ${response.status} ${response.statusText}`,
+			`failed to download ${assetUrl}: ${error instanceof Error ? error.message : String(error)}`,
+			{ cause: error },
 		);
-	const bytes = Buffer.from(await response.arrayBuffer());
+	} finally {
+		await dispatcher.close();
+	}
 	const actual = createHash("sha256").update(bytes).digest("hex");
 	if (actual !== expectedSha256)
 		throw new Error(`checksum mismatch for ${assetName}`);
-	mkdirSync(outDir, { recursive: true });
 	const staged = `${destination}.${process.pid}.tmp`;
 	if (process.platform === "win32") {
 		writeFileSync(staged, bytes);
@@ -75,6 +99,33 @@ try {
 	console.log(`[pi-codex-conversion] Installed ${destination}`);
 } finally {
 	rmSync(temporary, { recursive: true, force: true });
+	rmSync(lockPath, { recursive: true, force: true });
+}
+
+async function acquireInstallLock(lockPath, destination) {
+	const deadline = Date.now() + INSTALL_LOCK_TIMEOUT_MS;
+	while (Date.now() < deadline) {
+		if (existsSync(destination)) return false;
+		try {
+			mkdirSync(lockPath);
+			return true;
+		} catch (error) {
+			if (!error || typeof error !== "object" || error.code !== "EEXIST")
+				throw error;
+			try {
+				if (Date.now() - statSync(lockPath).mtimeMs > INSTALL_LOCK_STALE_MS) {
+					rmSync(lockPath, { recursive: true, force: true });
+					continue;
+				}
+			} catch (statError) {
+				if (!statError || typeof statError !== "object" || statError.code !== "ENOENT")
+					throw statError;
+			}
+			await new Promise((resolve) => setTimeout(resolve, INSTALL_LOCK_POLL_MS));
+		}
+	}
+	if (existsSync(destination)) return false;
+	throw new Error(`timed out waiting for code-mode host install lock: ${lockPath}`);
 }
 
 function walk(dir) {

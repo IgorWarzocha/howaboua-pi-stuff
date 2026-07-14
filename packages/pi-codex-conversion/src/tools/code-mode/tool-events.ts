@@ -9,6 +9,7 @@ export function registerCodeModeEvents(
 	pi.on("before_agent_start", (event, ctx) => {
 		const activeProviders = runtime.activeProviders(ctx);
 		if (activeProviders.length === 0) return undefined;
+		void runtime.prepare(ctx)?.catch(() => undefined);
 		const documentationPath = activeProviders.find(
 			(provider) => provider.documentationPath,
 		)?.documentationPath;

@@ -1,4 +1,4 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { Context } from "@earendil-works/pi-ai";
 import { readCodexConversionConfig } from "../adapter/activation/config.ts";
 import { shouldUseCodexAdapter, syncAdapter } from "../adapter/activation/activation.ts";
@@ -36,6 +36,12 @@ function responsesContext(messages: unknown[]): Context {
 	return { messages: messages as Context["messages"] };
 }
 
+function prepareCodeModeHost(codeMode: CodeModeRegistration, ctx: ExtensionContext): void {
+	void codeMode.prepare(ctx)?.catch((error: unknown) => {
+		ctx.ui.notify(`Code Mode host setup failed: ${error instanceof Error ? error.message : String(error)}`, "error");
+	});
+}
+
 export function registerCodexEvents(
 	pi: ExtensionAPI,
 	runtime: CodexExtensionRuntime,
@@ -60,6 +66,7 @@ export function registerCodexEvents(
 		tools.ensureOptionalTools();
 		ui.renderBackgroundWidget();
 		syncAdapter(pi, ctx, state);
+		prepareCodeModeHost(codeMode, ctx);
 		void runtime.startPrewarm(ctx);
 		if (event.reason === "startup") await maybeWarnLocalCheckoutVersion(ctx);
 	});
@@ -70,6 +77,7 @@ export function registerCodexEvents(
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 		tools.ensureOptionalTools();
 		syncAdapter(pi, ctx, state);
+		prepareCodeModeHost(codeMode, ctx);
 		void runtime.startPrewarm(ctx);
 	});
 

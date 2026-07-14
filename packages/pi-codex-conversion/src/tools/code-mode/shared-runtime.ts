@@ -58,14 +58,20 @@ export class SharedCodeModeRuntime {
 		return this.clientPromise;
 	}
 
+	prepare(ctx?: unknown): Promise<void> | undefined {
+		if (this.activeProviders(ctx).length === 0) return undefined;
+		return this.getClient().then(() => undefined);
+	}
+
 	async shutdownHost(): Promise<void> {
-		const pending = this.clientPromise;
-		this.clientPromise = undefined;
-		if (!pending) return;
-		try {
-			await (await pending).shutdown();
-		} catch {
-			// Startup failure already reached the caller.
+		while (this.clientPromise) {
+			const pending = this.clientPromise;
+			this.clientPromise = undefined;
+			try {
+				await (await pending).shutdown();
+			} catch {
+				// Startup failure already reached the caller.
+			}
 		}
 	}
 }

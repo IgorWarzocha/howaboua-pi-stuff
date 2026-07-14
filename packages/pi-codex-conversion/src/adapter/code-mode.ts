@@ -33,6 +33,7 @@ export async function registerCodexCodeMode(
 		richRendering: () => runtime.state.config.ui.codeModeDetails,
 	});
 	return {
+		prepare: (ctx) => programmaticRuntime.prepare(ctx),
 		shutdownHost: () => programmaticRuntime.shutdownHost(),
 		async shutdown() {
 			await programmaticRuntime.shutdown();

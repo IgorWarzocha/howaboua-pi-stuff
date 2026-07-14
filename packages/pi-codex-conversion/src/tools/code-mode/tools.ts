@@ -21,6 +21,7 @@ interface CodeModeProcessState {
 export interface RegisterCodeModeToolsOptions extends CodeModeToolProvider {}
 
 export interface CodeModeRegistration {
+	prepare(ctx?: unknown): Promise<void> | undefined;
 	shutdownHost(): Promise<void>;
 	shutdown(): Promise<void>;
 }
@@ -45,6 +46,7 @@ export async function registerCodeModeTools(
 	const providerId = runtime.addProvider(options);
 	let active = true;
 	return {
+		prepare: (ctx) => runtime.prepare(ctx),
 		shutdownHost: () => runtime.shutdownHost(),
 		async shutdown() {
 			if (!active) return;

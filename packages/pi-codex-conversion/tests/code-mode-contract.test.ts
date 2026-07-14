@@ -23,7 +23,11 @@ test("Code Mode rewrites exec history to custom tool items", () => {
 			{ type: "function_call_output", call_id: "call_1", output: "42" },
 		],
 	});
-	assert.equal((body.tools?.[0] as { type: string }).type, "custom");
+	assert.deepEqual(body.tools?.[0], {
+		type: "custom",
+		name: "exec",
+		description: "Compose",
+	});
 	assert.deepEqual(body.input, [
 		{
 			type: "custom_tool_call",
