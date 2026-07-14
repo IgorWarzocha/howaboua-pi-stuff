@@ -1,33 +1,10 @@
-This repo publishes with Changesets. Do not write "upcoming release", "unreleased", or speculative future release notes.
+This repo publishes through Changesets; every merge to `main` feeds the version and npm publish workflow.
 
-Agent-facing text is behavior: tool/command names, descriptions, schemas, skill files, `promptSnippet`, `promptGuidelines`, and subagent prompts. Keep it token-efficient and non-verbose.
-
-Skills and extensions must be universal for any user; do not ship hardcoded local paths, personal names, machine-specific assumptions, or private workflow details.
-
-Slash commands are for users, not agents; agents use tools. For extensions with commands, default to one entry command that opens UI or routes subactions (for example `/foo` plus `/foo bar` handling) unless the user explicitly asks for multiple command names.
-
-Installed extensions have real users. Treat related package work from one session as one release unit: consolidate it into one branch and PR before merging; do not create serial PRs for iterative fixes, tests, cleanup, or discoveries from that session. Every `main` merge feeds an npm release users must absorb.
-
-When a change is meant to ship, add a changeset for the package(s). On merge to `main`, the version PR and publish workflow turn that into the next concrete version immediately.
-
-Before opening or updating a PR from long-lived `dev` to `main`, fetch/prune, reset `dev` onto `origin/main`, and cherry-pick only the intended pending commits. Do not merge `main` into `dev`; it leaves already-merged history in the PR.
-
-Use concrete version language only:
-
-- good: `0.0.1 initial release`
-- good: `adds a patch changeset for @howaboua/pi-vent`
-- bad: `upcoming release`
-- bad: `unreleased changes`
-
-For package work, prefer:
-
-```bash
-bun run check:changed
-bun changeset
-```
-
-Do not manually bump aggregate package versions. CI derives aggregate changesets with:
-
-```bash
-bun run changeset:aggregates
-```
+- Agent-facing text is behavior: keep tool contracts, skill files, prompt metadata, and subagent prompts compact.
+- Skills and extensions must work for any user. Never ship local paths, personal names, machine assumptions, or private workflow details.
+- Slash commands are for users; agents use tools. Prefer one routed entry command over several command names unless explicitly requested.
+- Treat related package work from one session as one release unit and one PR. Installed users should not absorb serial cleanup releases.
+- Shipped package changes require a changeset. Use concrete release language; never write “upcoming release”, “unreleased”, or speculative notes.
+- Before a `dev` → `main` PR, fetch/prune, reset `dev` onto `origin/main`, then cherry-pick only intended commits. Never merge `main` into `dev`.
+- Prefer `bun run check:changed` and `bun changeset` for package work.
+- Do not bump aggregate package versions or add their changesets manually; CI runs `bun run changeset:aggregates`.

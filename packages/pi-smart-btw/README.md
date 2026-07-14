@@ -1,24 +1,11 @@
-# pi-smart-btw
+# @howaboua/pi-smart-btw
 
-`@howaboua/pi-smart-btw` adds `/btw` side sessions to Pi: async, ephemeral child Pi RPC processes for questions you do not want to derail the main chat. Answers live in the transcript; the widget is status and controls only.
-
-- Fresh context per slot: `pi --mode rpc --no-session` (full tools/extensions; this extension disables itself in the child).
-- Multiple numbered slots: `/btw 1 …`, `/btw 2 …`, `/btw` to open the panel, `/btw 1` to switch.
-- Per-slot queue and child: a slow slot 1 does not block slot 2.
-- Transcript is canonical: display-only `BTW SESSION` entries with generation tombstones on clear/inject.
-- Restore from JSONL after restart; restored follow-ups seed the child with prior Q&A when needed.
-- BTW entries stay out of the main LLM context until you inject. Old custom-message sessions remain readable.
+Adds `/btw` for questions you do not want to derail the main chat. Each numbered slot runs an async, ephemeral child Pi RPC process. Its answers stay out of the main model context until you inject them.
 
 ## Install
 
 ```bash
 pi install npm:@howaboua/pi-smart-btw
-```
-
-One-off:
-
-```bash
-pi -e npm:@howaboua/pi-smart-btw
 ```
 
 ## Usage
@@ -30,44 +17,23 @@ pi -e npm:@howaboua/pi-smart-btw
 /btw
 ```
 
-While a slot is active:
+- `/btw N <question>` sends to slot N.
+- `/btw <question>` sends to the active slot.
+- `/btw N` switches slots; `/btw` opens the panel.
+- Each slot has its own queue and child, so a slow answer in one does not block another.
 
-- another `/btw …` (or `/btw N …`) continues that slot's child when targeted
-- **alt+c** — inject answers into the main chat and clear the slot
-- **alt+x** — clear the slot (hidden tombstone in JSONL)
-- **alt+z** — prefill `/btw ` in the editor
-- **alt+h/l** — previous/next slot; **alt+1..9** — jump to slot
-- **alt+j/k** — fold/unfold the widget
-- **/btw config** — settings UI (model, thinking, shortcuts, links)
+Answers live in the transcript and survive restarts, but stay outside the main model context until injected. The widget only shows status and controls.
 
-In **General**: **Edit shortcuts** opens `~/.pi/agent/pi-smart-btw.json` in `$VISUAL` or `$EDITOR`. Use it for shortcuts and advanced JSON-only settings like `command`. Run `/reload` after editing shortcuts. **Esc** closes and saves (merges file + provider/model/thinking).
+## Controls
+
+- `Alt+C` — inject the active slot's answers into the main chat, then clear it
+- `Alt+X` — clear the active slot without injection
+- `Alt+Z` — prefill `/btw `
+- `Alt+H` / `Alt+L` — previous/next slot
+- `Alt+1` … `Alt+9` — jump to a slot
+- `Alt+J` / `Alt+K` — fold/unfold the widget
+- `/btw config` — model, thinking, shortcut, and link settings
 
 ## Configuration
 
-`~/.pi/agent/pi-smart-btw.json`:
-
-```json
-{
-  "provider": "openai-codex",
-  "modelId": "gpt-5.6-luna",
-  "command": "pi",
-  "thinking": "low",
-  "injectShortcut": "alt+c",
-  "dismissShortcut": "alt+x",
-  "composeShortcut": "alt+z",
-  "foldShortcut": "alt+j",
-  "unfoldShortcut": "alt+k",
-  "previousShortcut": "alt+h",
-  "nextShortcut": "alt+l"
-}
-```
-
-`thinking` accepts Pi levels through `max` and is clamped to the selected model's capabilities.
-
-## Development
-
-```bash
-npm install
-npm run check
-npm run pack:dry-run
-```
+Settings live at `~/.pi/agent/pi-smart-btw.json`. `/btw config` edits provider, model, and thinking. **Edit shortcuts** opens the JSON file in `$VISUAL` or `$EDITOR`; reload after changing shortcuts or advanced options such as `command`. Thinking is clamped to the selected model.

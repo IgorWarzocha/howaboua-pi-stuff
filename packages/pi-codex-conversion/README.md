@@ -1,13 +1,6 @@
-# pi-codex-conversion
+# @howaboua/pi-codex-conversion
 
-> [!NOTE]
-> This version is a major rewrite. If you hit regressions, reinstall the last pre-rewrite build with `pi install npm:@howaboua/pi-codex-conversion@1.5.21` and please report the issue.
-
-GPT/Codex models are strongest when the tool surface looks like the Codex CLI they were trained around: shell commands, resumable terminal sessions, and patch-based edits. This extension brings that workflow to Pi while keeping Pi's runtime, sessions, project context, skills, and UI. For the brave, PATH mode shifts the toolkit into Pi's internal PATH, instead of the JSON-defined tool schema.
-
-Tool execution uses bundled Rust helpers for better process isolation and lower Pi runtime blast radius; see [Why bundled Rust tools?](#why-bundled-rust-tools). PATH mode exposes extra Codex tools as shell commands on an extension-injected internal PATH; see [PATH_TOOLS.md](./PATH_TOOLS.md).
-
-PATH mode is very likely to consume less tokens, but YMMV. The system prompt has been tweaked to enable GPT models to one-shot call tools, even when they don't have a JSON schema definition. Any suggestions or tweaks are welcome! The whole point is that if the agent fails a tool call because it "didn't know the tool", this mode loses its advantages. It's been tested and it's working, but edge cases may still exist.
+Adapts Pi's tools and prompt for GPT/Codex models. It keeps Pi's sessions, project context, skills, and UI while presenting the shell, patch, image, and web operations those models expect.
 
 ## Install
 
@@ -15,103 +8,62 @@ PATH mode is very likely to consume less tokens, but YMMV. The system prompt has
 pi install npm:@howaboua/pi-codex-conversion
 ```
 
-## What changes in Pi
+Requires Node.js 22.19 or newer. Native helpers are bundled. The adapter activates for OpenAI `gpt*` and `codex*` models and restores Pi's previous tools when you switch away.
 
-- Adapter mode activates automatically for OpenAI `gpt*` and `codex*` models, then restores the previous tool set when you switch away.
-- Pi's composed prompt is preserved; the extension only adds a small Codex-style tool-use nudge.
-- Shell activity is rendered with Codex-like labels such as `Ran`, `Explored`, `Read`, and background-terminal status.
-- PATH image outputs from `view_image` and `imagegen` render inline in chat.
-- Raw command output is still available by expanding the tool result.
+## Tool modes
 
-## Active tools in adapter mode
+### Normal mode
 
-Normal mode keeps the familiar Pi function-tool surface:
+Normal mode exposes Codex-shaped Pi tools:
 
-- `exec_command` — shell execution with Codex-style `cmd` parameters and resumable sessions
-- `write_stdin` — continue or poll a running exec session
-- `apply_patch` — patch edits through the bundled Rust patch tool
-- `view_image` — inspect local images through the bundled Rust image tool when the model supports image input
-- `web_run` — Codex-backed web search through the bundled Rust web tool when enabled and supported
-- `imagegen` — Codex-backed image generation and image edits through the bundled Rust image generation tool when enabled and supported
+- `exec_command` — shell execution with resumable sessions and optional PTY support
+- `write_stdin` — poll or interact with a running shell session
+- `apply_patch` — patch-based file edits
+- `view_image` — local image inspection when the model supports image input
+- `web_run` — Codex-backed web search when enabled and supported
+- `imagegen` — Codex-backed image generation and editing when enabled and supported
 
-PATH mode narrows the structured tool surface to shell control only:
+There is no separate text `read`, `edit`, or `write` tool. Use `exec_command` for file inspection and `apply_patch` for edits.
 
-- `exec_command` — shell execution with Codex-style `cmd` parameters and resumable sessions
-- `write_stdin` — continue or poll a running exec session
+### PATH mode
 
-GPT-5.6 Code Mode, available as an opt-in beta for Luna, Terra, and Sol, narrows the provider-visible surface further:
+PATH mode exposes only `exec_command` and `write_stdin` as structured adapter tools. `apply_patch`, `view_image`, `web_run`, and `imagegen` become commands on an extension-injected internal `PATH`.
 
-- `exec` — run isolated JavaScript that composes nested tools
-- `wait` — resume or terminate a yielded JavaScript cell
-
-Inside `exec`, Codex extras are nested native calls: `tools.apply_patch(patch)`, `tools.view_image(...)`, `tools.web__run(...)`, and `tools.image_gen__imagegen(...)`. `tools.exec_command(...)` and `tools.write_stdin(...)` use the same shell implementation as normal and PATH modes. Only outer `exec` and `wait` reach the provider, so nested schemas remain local to the V8 host. TOML tools from `~/.pi/agent/codex-conversion-custom-tools/` remain callable through `tools.*`; definitions are deferred by default and can be promoted with `defer_loading = false`. Working opt-in templates ship under `examples/custom-tools/`.
-
-Nested calls retain their structured Pi rendering—shell summaries, parallel outputs, patch diffs, resumable sessions, web/image results, partial updates, and generic TOML-tool output—without exposing extra provider tools.
-
-By default, Code Mode keeps the JavaScript machinery transparent and renders nested operations like direct Pi tools. Turn on **Code Mode details** for the outer `exec`/`wait` cells, expandable JavaScript, and printed runtime output. **Tool renaming** independently controls whether nested operations use polished Codex-style cells or their generic tool names.
-
-### Code Mode custom tools
-
-Put custom tool definitions in `~/.pi/agent/codex-conversion-custom-tools/`, or under `$PI_CODING_AGENT_DIR/codex-conversion-custom-tools/` when configured. Each top-level TOML filename becomes a method on `tools`. Definitions stay deferred unless they set `defer_loading = false`.
-
-The package includes disabled templates under `examples/custom-tools/` for `port_info`, `semantic_grep`, `spawn_agent`, `vent`, and `workflows_create`. To enable one, copy its TOML and matching companion directory into the custom-tools directory without changing their relative layout. Installing the package does not enable any example.
-
-In PATH mode, Codex-style extras live on the extension-injected internal PATH:
-
-- `apply_patch` — patch edits
-- `view_image` — inspect local images
-- `web_run` — Codex-backed web search
-- `imagegen` — Codex-backed image generation and image edits
-
-Notably:
-
-- there is **no** dedicated `read`, `edit`, or `write` tool in adapter mode
-- local text-file inspection should happen through `exec_command`
-- file creation and edits should default to `apply_patch`; in PATH mode that is the shell command
-- in PATH mode, image/web tools run through `exec_command` as PATH tools, not Pi function tools
-- Pi may still expose additional runtime tools such as `parallel`; the prompt is written to tolerate that
-
-## PATH mode examples
-
-These commands run inside `exec_command` when PATH mode is enabled.
+Run them inside `exec_command`:
 
 ```bash
 view_image '{"path":"/x.png"}'
 web_run '{"search_query":[{"q":"..."}],"response_length":"short"}'
 imagegen '{"prompt":"..."}'
-imagegen '{"action":"edit","prompt":"...","images":["https://... or /x.png"]}'
+imagegen '{"action":"edit","prompt":"...","images":["/x.png"]}'
 ```
 
-For quote-heavy JSON, pass JSON through stdin:
+Generated images are saved under `.pi/openai-codex-images/` at the workspace root, with the newest image mirrored to `latest.png`.
 
-```bash
-imagegen <<'JSON'
-{"prompt":"keep the creature's original style"}
-JSON
+### GPT-5.6 Code Mode
+
+Code Mode is an opt-in beta for OpenAI Codex Luna, Terra, and Sol. Only `exec` and `wait` reach the provider. `exec` composes nested tools locally:
+
+```js
+const status = await tools.exec_command({ cmd: "git status --short" });
+text(status);
 ```
 
-Generated images are saved under `.pi/openai-codex-images/` at the workspace/repo root, with the latest image mirrored to `latest.png`.
+Nested `apply_patch`, `view_image`, `web__run`, `image_gen__imagegen`, `exec_command`, and `write_stdin` calls keep normal Pi rendering without exposing their schemas to the provider. The first `exec` downloads and verifies the pinned V8 host.
+
+## Code Mode custom tools
+
+Put top-level TOML definitions in `~/.pi/agent/codex-conversion-custom-tools/`, or `$PI_CODING_AGENT_DIR/codex-conversion-custom-tools/`. Each filename becomes a method on `tools`.
+
+Definitions are deferred by default; set `defer_loading = false` to add one to the prompt. Disabled examples for `port_info`, `semantic_grep`, `spawn_agent`, `vent`, and `workflows_create` ship under `examples/custom-tools/`.
 
 ## Settings
 
-Use `/codex` to change adapter settings.
+Open `/codex` for the full settings UI. Settings are saved in `~/.pi/agent/pi-codex-conversion.json`.
 
-- `/codex all` — use the Codex tool and prompt adapter on every model
-- `/codex status` — toggle the footer/statusline entry
-- `/codex fast` — toggle priority service tier for the OpenAI Codex provider
-- `/codex compact` — open native compaction settings
-- `/codex usage` — show Codex subscription usage windows for the active OpenAI Codex model
-- `/codex reset` — open the Usage tab, where banked rate-limit resets can be used with Ctrl+R
-- `/codex low`, `/codex medium`, `/codex high` — set Responses API verbosity
-- `/codex ps` — show the background shell widget
+Direct routes include `/codex all` (cycle full adapter, extra tools only, and off), `/codex fast`, `/codex compact`, `/codex usage`, `/codex reset`, `/codex low|medium|high`, and `/codex ps` for background shells.
 
-Settings are saved globally in `~/.pi/agent/pi-codex-conversion.json`.
-
-The settings UI has **General**, **Tools**, **OpenAI**, **Beta**, **Usage**, and **About** tabs. **Usage** refreshes automatically when opened, can be refreshed manually with `R`, and shows banked Codex rate-limit resets with their expiry above the usage windows. When resets are available, press `Ctrl+R` in the Usage tab to use one. After a reset attempt, press `R` before using another reset.
-
-**General** controls PATH mode, scope, status UI, background shells, and whether native Responses compaction is enabled. Native compaction applies to OpenAI Codex and explicitly added providers; all-model scope only changes the tool and prompt adapter. PATH mode switches the adapter to the shell-only surface above.
-
-Advanced users with custom Codex-compatible providers can add provider ids in General, or by editing `~/.pi/agent/pi-codex-conversion.json`:
+To adapt an additional Codex-compatible provider without enabling all-model scope:
 
 ```json
 {
@@ -121,62 +73,25 @@ Advanced users with custom Codex-compatible providers can add provider ids in Ge
 }
 ```
 
-**Tools** shows required adapter behavior and optional web/image/apply-patch prompt features. General settings control tool renaming, compact tools, Code Mode details, and the background shell widget. **OpenAI** controls fast mode, verbosity, cached WebSocket upgrade, web search model, and compaction model/reasoning. Cached WebSockets are prewarmed at session startup. Web search and compaction default to `gpt-5.6-luna`.
+Native compaction applies to OpenAI Codex and providers listed in `additionalProviders`; the built-in OpenAI Responses endpoint is supported when added. Failed endpoint requests and invalid compaction outputs fall back to Pi's normal compaction. Unsupported preparation or compatibility states cancel compaction and report the error instead of silently discarding context.
 
-**Beta** contains GPT-5.6 Code Mode, off by default and limited to OpenAI Codex Luna, Terra, and Sol. It atomically enables Codex's Responses Lite transport and code-mode-only toolkit: instructions and client tools become input items, `exec` and `wait` are the only provider-visible tools, and JavaScript restores parallel composition through nested calls. The same Responses Lite transport applies to native compaction.
+Process control, PTYs, patching, images, and large outputs run through bundled Rust helpers, so failures normally become tool errors instead of crashing Pi. PATH image results render inline; recognized `web_run` and `imagegen` calls wait up to one hour before becoming resumable.
 
-Maintainers: see [`UPSTREAM_SYNC.md`](UPSTREAM_SYNC.md) for the provider parity checklist and intentional exclusions.
+## Binary compatibility
 
-The footer shows the active state, for example:
-
-```text
-Codex adapter V: low • fast
-```
-
-## Why bundled Rust tools?
-
-The bundled tools are not only for Codex-shaped PATH mode. They also reduce the blast radius of heavy tool work.
-
-If a Pi-native TypeScript tool allocates too much memory, blocks the runtime, or crashes badly, it can take the Pi process with it. When a bundled Rust tool fails, it usually fails as a child process: TypeScript reports a tool error, Pi stays alive, and the agent can retry or choose another path.
-
-That matters most for process control, PTYs, patch application, image handling, and large command outputs. TypeScript still owns the Pi-facing parts: JSON schemas, model/auth gating, result conversion, rendering, and deciding what enters chat history.
-
-## Details worth knowing
-
-- `exec_command` and `write_stdin` use a bundled Rust exec bridge; `tty: true` runs through a PTY for interactive commands.
-- GPT-5.6 Code Mode starts its isolated V8 host lazily; the first `exec` downloads and verifies the pinned host binary when needed.
-- PATH mode prepends the package `bin` directory to exec session `PATH` so bundled Codex tools are available in shell commands.
-- `imagegen` waits up to five minutes in a foreground `exec_command` call before falling back to a resumable session.
-- The package includes bundled binaries and vendored Rust source for the PATH tools.
-- If native compaction fails, the extension falls back to Pi's normal compaction flow. When an older native compacted window exists, it is included in that Pi fallback summarization request so OpenAI can still use the prior opaque context server-side.
-
-## Command rendering examples
-
-- `rg -n foo src` -> `Explored / Search foo in src`
-- `rg --files src | head -n 50` -> `Explored / List src`
-- `cat README.md` -> `Explored / Read README.md`
-- `npm test` -> `Ran npm test`
-- `write_stdin({ session_id, chars: "" })` -> `Waited for background terminal`
-- `write_stdin({ session_id, chars: "y\n" })` -> `Interacted with background terminal`
-
-## Development checkout
-
-The Git checkout is mostly for development and mirrors the maintainer workflow. It uses committed binaries; rebuild local-platform binaries only after changing Rust source.
-
-Published installs include prebuilt native binaries. For best compatibility on older Linux systems, or if a bundled tool fails with a loader error such as `GLIBC_2.39 not found`, use a Git checkout and build the tools on that machine instead of upgrading glibc manually:
+If a published binary fails with `GLIBC_* not found`, a loader error, or an `exec_bridge` startup failure, use a checkout and rebuild that helper on the target machine rather than changing system glibc or patching the installed package:
 
 ```bash
-cd /path/to/pi-codex-conversion
+git clone https://github.com/IgorWarzocha/howaboua-pi-stuff.git
+cd howaboua-pi-stuff
 bun install
-bun run build:path-tool codex-exec-shim exec_bridge
+bun run --cwd packages/pi-codex-conversion build:path-tool codex-exec-shim exec_bridge
+bun run --cwd packages/pi-codex-conversion build
+pi --no-extensions --no-skills -e ./packages/pi-codex-conversion
 ```
 
-Run the current checkout without installing globally:
-
-```bash
-pi --no-extensions --no-skills -e /path/to/pi-codex-conversion
-```
+See [`PATH_TOOLS.md`](./PATH_TOOLS.md) for helper details and [`UPSTREAM_SYNC.md`](./UPSTREAM_SYNC.md) for provider and vendored-source parity.
 
 ## License
 
-MIT
+MIT. Bundled and vendored third-party components retain their own licenses and notices.

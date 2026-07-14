@@ -1,122 +1,44 @@
-# pi-memories
+# @howaboua/pi-memories
 
-A tiny Pi extension that writes memory candidates when Pi exits.
-
-pi-memories expects you to use Pi's global `AGENTS.md` as your long-term memory file. If you do not have one yet, see [Recommended AGENTS.md setup](#recommended-agentsmd-setup).
-
-It does not try to maintain a database, vector store, or hidden profile. It runs one short, no-tools/no-skills Pi session after shutdown, asks for a few durable things worth remembering, and appends the result to a plain markdown inbox.
-
-You review the inbox later and decide what, if anything, belongs in `AGENTS.md`.
-
-## How it works
-
-On an actual Pi shutdown (`session_shutdown` with reason `quit`), pi-memories collects the best context it can find. Reloading, switching, creating, or forking sessions does not run the memory worker.
-
-1. OpenAI native compaction blob, if the session has one.
-2. Normal Pi compaction summary, if the session has one.
-3. Recent conversation tail, if there is no compaction.
-
-Then it starts an ephemeral Pi run with:
-
-```txt
---no-session --no-skills --no-tools
-```
-
-That run still gets your normal Pi context files, so global/project `AGENTS.md` can help it decide what is actually new. The output is appended to:
-
-```txt
-~/.pi/agent/memory-inbox.md
-```
-
-Short no-compaction sessions are skipped by default, so opening Pi for one quick question should not create memory noise.
+Writes a small set of memory candidates when Pi exits, then leaves the final decision to you. There is no database, vector store, or hidden profile: candidates go to a plain Markdown inbox for manual review.
 
 ## Install
 
-Clone or install this package, then add it to your Pi packages list.
-
-For a local checkout:
-
-```json
-{
-  "packages": [
-    "/path/to/pi-memories"
-  ]
-}
+```bash
+pi install npm:@howaboua/pi-memories
 ```
 
-Pi will load the extension from the package manifest.
+## How it works
 
-## Config
+The worker runs only for a real Pi shutdown (`session_shutdown` with reason `quit`), not reloads, new sessions, resumes, or forks. It uses the best context available:
 
-The extension creates this file on first load:
+1. an OpenAI native compaction window
+2. a normal Pi compaction summary
+3. the recent conversation when no compaction exists
 
-```txt
-~/.pi/agent/pi-memories.json
-```
+It starts an ephemeral Pi process with `--no-session --no-skills --no-tools`. Normal context files remain available unless disabled in config, which lets the worker compare candidates with existing global and project instructions.
 
-Edit it if you want to change the defaults.
+Candidates are appended to `~/.pi/agent/memory-inbox.md`. Short sessions without compaction are skipped by default, and output equal to `No durable memories.` is not written.
 
-Example:
+## Review
 
-```json
-{
-  "enabled": true,
-  "model": "openai-codex/gpt-5.4-mini",
-  "thinking": "low",
-  "inboxPath": "/home/you/.pi/agent/memory-inbox.md",
-  "timeoutMs": 120000,
-  "includeProjectContext": true,
-  "minUserMessagesWithoutBlob": 3
-}
-```
+Run `/memory-review`. The command fills the editor with a review prompt that asks the agent to promote only durable, non-sensitive information into the appropriate global or project `AGENTS.md`, merge duplicates, and empty the inbox when finished.
 
-### Options
+The review is deliberately manual. Inbox entries are candidates, not truth.
 
-| Option | Default | What it does |
-|---|---:|---|
-| `enabled` | `true` | Turn the extension on/off. |
-| `model` | `gpt-5.4` | Model used for the shutdown memory pass. |
-| `thinking` | `low` | Thinking level for the memory pass. Use `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. |
-| `inboxPath` | `~/.pi/agent/memory-inbox.md` | Where memory candidates are appended. |
-| `timeoutMs` | `120000` | Max time to wait for the ephemeral Pi run. |
-| `includeProjectContext` | `true` | Keep project `AGENTS.md` / `CLAUDE.md` context. Set false to use only the explicit memory prompt. |
-| `minUserMessagesWithoutBlob` | `3` | If there is no compaction, skip sessions with fewer user messages than this. |
+## Configuration
 
-## Recommended AGENTS.md setup
+The extension creates `~/.pi/agent/pi-memories.json` on first load.
 
-pi-memories is designed around Pi's global `AGENTS.md`. It can still append candidates to the inbox without one, but `/memory-review` is meant to promote useful memories into this file.
+| Option | Default | Purpose |
+|---|---|---|
+| `enabled` | `true` | Enable shutdown distillation. |
+| `model` | `gpt-5.4` | Model passed to the ephemeral Pi process. |
+| `thinking` | `low` | Thinking level, from `off` through `max`. |
+| `inboxPath` | `~/.pi/agent/memory-inbox.md` | Destination for candidates and failure comments. |
+| `prompt` | built-in distillation prompt | Replace the worker prompt. |
+| `timeoutMs` | `120000` | Maximum worker runtime. |
+| `includeProjectContext` | `true` | Include Pi's normal context files; `false` passes `--no-context-files`. |
+| `minUserMessagesWithoutBlob` | `3` | Skip shorter sessions when no compaction exists. |
 
-Pi loads global instructions from:
-
-```txt
-~/.pi/agent/AGENTS.md
-```
-
-The shutdown worker receives those instructions too. That means it can use your existing preferences when deciding what belongs in the inbox, and `/memory-review` can use them when deciding what to promote.
-
-A starter section is included here:
-
-```txt
-templates/AGENTS.memory-template.md
-```
-
-Copy the parts you like into your global `AGENTS.md`. Keep it short. The inbox is allowed to be messy; `AGENTS.md` should not be.
-
-## Review memories
-
-Run:
-
-```txt
-/memory-review
-```
-
-This fills the editor with a prompt to review `memory-inbox.md` and promote only the useful bits into global or project `AGENTS.md`.
-
-The review step is intentionally manual. The inbox can have duplicates. That is fine. The point is to avoid silently poisoning your long-term instructions.
-
-## Notes
-
-- The shutdown worker runs without tools and without skills.
-- It uses existing compaction context when available, but does not store compaction blobs.
-- If `pi-codex-conversion` native compaction is present, the opaque OpenAI blob is used only for that one ephemeral run.
-- If there is no compaction, the extension falls back to conversation text and applies the short-session gate.
+Use a provider/model string available in your Pi setup when overriding `model`.

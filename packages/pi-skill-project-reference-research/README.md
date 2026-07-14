@@ -1,11 +1,11 @@
 # @howaboua/pi-skill-project-reference-research
 
-Pi skill package for `project-reference-research`.
+Researches local or external codebases as reference context and returns evidence-backed findings.
 
-Install:
+## Install
 
-```sh
+```bash
 pi install npm:@howaboua/pi-skill-project-reference-research
 ```
 
-This package is part of the [Howaboua Pi Stuff](https://github.com/IgorWarzocha/howaboua-pi-stuff) monorepo.
+Use it to inspect, compare, or learn from another repository or project. The skill resolves existing checkouts or GitHub references, updates clean repositories when useful, preserves dirty worktrees, and verifies important findings in source before making precise claims.

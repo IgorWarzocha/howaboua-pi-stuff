@@ -1,11 +1,11 @@
 # @howaboua/pi-skill-anti-ai-copy
 
-Pi skill package for `anti-ai-copy`.
+Writes and rewrites specific, natural prose while preserving the author's stance, voice, and uncertainty.
 
-Install:
+## Install
 
-```sh
+```bash
 pi install npm:@howaboua/pi-skill-anti-ai-copy
 ```
 
-This package is part of the [Howaboua Pi Stuff](https://github.com/IgorWarzocha/howaboua-pi-stuff) monorepo.
+Use it for documentation, product copy, emails, posts, bios, essays, and UI text that feels generic, inflated, corporate, or model-polished. It is not an AI detector or a mechanical proofreading skill.

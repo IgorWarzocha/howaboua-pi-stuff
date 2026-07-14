@@ -1,11 +1,13 @@
 # @howaboua/pi-skill-gh-issue-pr-flow
 
-Pi skill package for `gh-issue-pr-flow`.
+Runs an opinionated GitHub workflow with `gh`: issues, branches, commits, pushes, PR creation and updates, release hygiene, review requests, and feedback triage.
 
-Install:
+## Install
 
-```sh
+```bash
 pi install npm:@howaboua/pi-skill-gh-issue-pr-flow
 ```
 
-This package is part of the [Howaboua Pi Stuff](https://github.com/IgorWarzocha/howaboua-pi-stuff) monorepo.
+Use it as a portable fallback. Repository instructions and explicit user direction take precedence.
+
+The skill checks branch and worktree state before history operations, keeps unrelated changes out of PRs, avoids unsafe force pushes, and reads its release-hygiene reference when package work is meant to ship.

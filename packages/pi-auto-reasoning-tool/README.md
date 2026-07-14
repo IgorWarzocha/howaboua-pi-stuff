@@ -1,18 +1,6 @@
-# pi-auto-reasoning-tool
+# @howaboua/pi-auto-reasoning-tool
 
-A small [Pi](https://pi.dev) package that lets agents adjust their own reasoning level with a `change_reasoning` tool.
-
-The tool is intentionally minimal: the agent chooses `low`, `medium`, or `high`. The user's level at the start of the turn is the floor, so an agent can spend more effort but cannot quietly reduce a user-selected `high`, `xhigh`, or `max` level.
-
-Pi restores the original level after the full run settles, including retries, overflow compaction, and queued continuations.
-
-## Why
-
-Pi already supports reasoning levels. This package exposes a narrow agent-callable tool so the agent can raise its budget when work becomes harder, return after an earlier increase, and then hand control back to the user's baseline.
-
-Agents cannot select `xhigh` or `max`. Users can still select either level themselves, and the extension preserves it.
-
-The prompt tells agents to adjust reasoning by work phase rather than micromanaging individual tool calls.
+Adds an agent-callable `change_reasoning` tool. The agent may raise its reasoning effort when the work gets harder, but the user's level at the start of the turn remains the minimum.
 
 ## Install
 
@@ -20,71 +8,25 @@ The prompt tells agents to adjust reasoning by work phase rather than micromanag
 pi install npm:@howaboua/pi-auto-reasoning-tool
 ```
 
-Or add it to your Pi settings:
+## Behavior
 
-```json
-{
-  "packages": ["npm:@howaboua/pi-auto-reasoning-tool"]
-}
+The tool accepts one parameter:
+
+```ts
+change_reasoning({ level: "low" | "medium" | "high" })
 ```
 
-Then restart Pi or run `/reload`.
+- Requests below the user's turn baseline keep the baseline.
+- Users may select `xhigh` or `max`; agents cannot select those levels or lower them.
+- Pi may clamp a requested level when the current model does not support it. The result reports the applied level.
+- After the full agent run settles—including retries, compaction recovery, and queued follow-ups—the extension restores the user's turn baseline.
 
-## Tool
+The model guidance asks agents to change reasoning by work phase, not around individual tool calls.
 
-Registers one tool:
-
-```text
-change_reasoning
-```
-
-Parameters:
-
-```text
-level: low | medium | high
-```
-
-Behavior:
-
-1. Agent chooses `level`.
-2. Extension keeps the higher of the requested level and the user's turn baseline.
-3. Extension calls `pi.setThinkingLevel()` with that safe level.
-4. Tool result reports the requested, previous, baseline, and applied levels.
-5. If Pi clamps the level because of model capability, the result says so.
-6. On `agent_settled`, the extension restores the original baseline.
-
-## Agent-facing prompt copy
-
-Description:
-
-> Adjust reasoning effort for the work ahead.
-
-Prompt snippet:
-
-> Adjust reasoning effort.
-
-Guidelines:
-
-> change_reasoning: Adjust by work phase, not per tool call.
-
-Parameter:
-
-`level: low | medium | high`
-
-## Development
+## Local development
 
 ```bash
-npm install
-npm run check
+bun install
+bun run check
 pi -e ./src/index.ts
 ```
-
-## Publish
-
-```bash
-npm publish --access public
-```
-
-## License
-
-MIT

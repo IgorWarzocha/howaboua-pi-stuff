@@ -1,11 +1,13 @@
 # @howaboua/pi-skill-skill-creator
 
-Pi skill package for `skill-creator`.
+Designs, audits, refactors, validates, and packages reusable agent skills.
 
-Install:
+## Install
 
-```sh
+```bash
 pi install npm:@howaboua/pi-skill-skill-creator
 ```
 
-This package is part of the [Howaboua Pi Stuff](https://github.com/IgorWarzocha/howaboua-pi-stuff) monorepo.
+Use it for `SKILL.md` trigger descriptions, progressive disclosure, supporting references/scripts/assets, consolidation, or porting between agent harnesses. It is not for one-off prompt edits or passive documentation with no repeatable workflow.
+
+The package includes a full authoring reference and `scripts/skill-efficiency-check.py` for validating a skill directory.

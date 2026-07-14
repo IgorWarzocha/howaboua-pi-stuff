@@ -1,9 +1,6 @@
-# Code mode runtime
-
-- This is a self-contained copy of the Pi-owned code-mode bridge from `pi-dynamic-tools`; do not add a runtime dependency on that extension package.
-- Keep the copied runtime behavior aligned deliberately, but conversion-specific activation and nested tools belong outside this directory.
-- Codex host source and protocol remain pinned under `code-mode/vendor/code-mode-src/`.
-- `host-client.ts` owns process/session transport; `host-protocol.ts` validates wire data; `delegate-runtime.ts` owns nested execution; `trace-*` owns bounded trace state.
-- `tools.ts` is the registration entrypoint; `shared-runtime.ts`, `public-tools.ts`, and `tool-events.ts` own provider state, Pi tools, and hooks respectively.
-- `custom-tools.ts`, `custom-tool-runner.ts`, and `custom-tool-prompt.ts` own TOML discovery, delegated commands, and prompt guidance.
-- `tool-result.ts`, `render-tracker.ts`, and `rendering.ts` own their respective output boundaries.
+- Keep this runtime self-contained; do not add a dependency on `pi-dynamic-tools`.
+- Conversion-specific activation and nested tool definitions stay outside this directory.
+- Codex host source stays pinned under `vendor/code-mode-src/`; keep Pi-owned changes outside its upstream source tree.
+- `host-client.ts` owns process/session transport; `host-protocol.ts` wire validation; `delegate-runtime.ts` nested execution; `trace-*` bounded trace state.
+- `tools.ts` registers the runtime. `shared-runtime.ts`, `public-tools.ts`, and `tool-events.ts` own provider state, Pi tools, and hooks.
+- `custom-tool-*` owns TOML discovery and execution. `tool-result.ts`, `render-tracker.ts`, and `rendering.ts` own output and rendering boundaries.

@@ -1,13 +1,20 @@
 # @howaboua/pi-skill-chrome-cdp
 
-Pi skill package for `chrome-cdp`.
+Controls a local Chrome-family browser through the Chrome DevTools Protocol. It can inspect rendered pages and authenticated tabs, navigate, click, type, evaluate JavaScript, and capture screenshots.
 
-Install:
+## Install
 
-```sh
+```bash
 pi install npm:@howaboua/pi-skill-chrome-cdp
 ```
 
-This skill is based on [`pasky/chrome-cdp-skill`](https://github.com/pasky/chrome-cdp-skill), with local changes for this Pi package.
+## Requirements
 
-This package is part of the [Howaboua Pi Stuff](https://github.com/IgorWarzocha/howaboua-pi-stuff) monorepo.
+- Node.js 22 or newer
+- Chrome, Chromium, Brave, Edge, or Vivaldi with remote debugging enabled at `chrome://inspect/#remote-debugging`
+
+The bundled CLI is `scripts/cdp.mjs`. It discovers Chrome on `CDP_PORT` or port `9222`, then falls back to `DevToolsActivePort`; set `CDP_PORT_FILE` for a non-standard port-file location.
+
+Use the skill when an agent needs a real rendered page or existing browser state. It includes commands for tab listing, accessibility snapshots, HTML, navigation, network timing, clicks, typing, screenshots, and raw CDP calls.
+
+Based on [`pasky/chrome-cdp-skill`](https://github.com/pasky/chrome-cdp-skill), with Pi packaging and local changes.
