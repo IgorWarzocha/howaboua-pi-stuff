@@ -1,3 +1,13 @@
+const CODE_MODE_EXEC_GRAMMAR = String.raw`
+start: pragma_source | plain_source
+pragma_source: PRAGMA_LINE NEWLINE SOURCE
+plain_source: SOURCE
+
+PRAGMA_LINE: /[ \t]*\/\/ @exec:[^\r\n]*/
+NEWLINE: /\r?\n/
+SOURCE: /[\s\S]+/
+`;
+
 interface ResponsesLikeBody {
 	tools?: unknown[] | undefined;
 	input?: unknown[] | undefined;
@@ -55,6 +65,11 @@ function toCodeModeTool(tool: unknown): unknown {
 			typeof tool["description"] === "string"
 				? tool["description"]
 				: "Run JavaScript to compose tools.",
+		format: {
+			type: "grammar",
+			syntax: "lark",
+			definition: CODE_MODE_EXEC_GRAMMAR,
+		},
 	};
 }
 
