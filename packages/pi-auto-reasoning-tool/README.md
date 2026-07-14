@@ -12,7 +12,7 @@ Pi already supports reasoning levels. This package exposes a narrow agent-callab
 
 Agents cannot select `xhigh` or `max`. Users can still select either level themselves, and the extension preserves it.
 
-The prompt is conservative: agents are told to use the tool sparingly and preferably in parallel with other useful tool calls, avoiding standalone reasoning-change turns.
+The prompt tells agents to adjust reasoning by work phase rather than micromanaging individual tool calls.
 
 ## Install
 
@@ -57,29 +57,19 @@ Behavior:
 
 Description:
 
-> Temporarily adjust reasoning up to high without lowering below the user's turn baseline.
+> Adjust reasoning effort for the work ahead.
 
 Prompt snippet:
 
-> Adjust reasoning effort within the user's safe baseline.
+> Adjust reasoning effort.
 
 Guidelines:
 
-> Treat the user's current turn level as the baseline; call only to increase effort for harder work or return after an earlier increase.
-
-> Autonomous choices are low, medium, and high; the extension never lowers below the user baseline or selects xhigh/max.
-
-> Use change_reasoning sparingly; avoid standalone calls when another useful tool call can run in parallel.
-
-> Use medium for complex single tasks, feature planning, or multi-step implementation.
-
-> Use high for multi-area architecture work, hard debugging, or unexpectedly difficult tasks.
+> change_reasoning: Adjust by work phase, not per tool call.
 
 Parameter:
 
-`level`
-
-> Reasoning level to use for this task: low, medium, or high.
+`level: low | medium | high`
 
 ## Development
 
