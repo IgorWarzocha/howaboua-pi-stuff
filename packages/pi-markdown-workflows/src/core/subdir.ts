@@ -18,6 +18,10 @@ import {
 	shellOutputToolName,
 	shellTargets,
 } from "./subdir/shell-targets.js";
+import {
+	codeModeDiscoveryEvents,
+	type DiscoveryEvent,
+} from "./subdir/tool-events.js";
 
 export function registerSubdirContextAutoload(pi: ExtensionAPI): void {
 	const loadedAgents = new Set<string>();
@@ -54,13 +58,14 @@ export function registerSubdirContextAutoload(pi: ExtensionAPI): void {
 		}
 	}
 
-	function targetsForEvent(event: {
-		toolName: string;
-		input: Record<string, unknown>;
-		content: Array<{ type: string; text?: string }>;
-	}): string[] {
+	function targetsForEvent(event: DiscoveryEvent): string[] {
 		const isRead = event.toolName === "read";
 		const isPathDiscoveryTool = ["grep", "find", "ls"].includes(event.toolName);
+		const workdir = ["workdir", "cwd", "working_directory"]
+			.map((key) => event.input[key])
+			.find((value): value is string => typeof value === "string");
+		const eventCwd =
+			workdir !== undefined ? resolvePath(workdir, currentCwd) : currentCwd;
 		const shellInput =
 			typeof event.input["command"] === "string"
 				? event.input["command"]
@@ -81,17 +86,17 @@ export function registerSubdirContextAutoload(pi: ExtensionAPI): void {
 		if (!isRead && !isPathDiscoveryTool && !isDiscoveryShell) return [];
 
 		if (isRead)
-			return pathInput ? [resolvePath(pathInput, currentCwd)] : [currentCwd];
+			return pathInput ? [resolvePath(pathInput, eventCwd)] : [eventCwd];
 		if (isPathDiscoveryTool) {
-			const base = pathInput ? resolvePath(pathInput, currentCwd) : currentCwd;
+			const base = pathInput ? resolvePath(pathInput, eventCwd) : eventCwd;
 			return [base, ...pathsFromToolText(event.content, base, event.toolName)];
 		}
 		if (!shellInput) return [];
-		const base = shellOutputBase(shellInput, currentCwd);
+		const base = shellOutputBase(shellInput, eventCwd);
 		const outputPaths = isPathOutputShellCommand(shellInput)
 			? pathsFromToolText(event.content, base, shellOutputToolName(shellInput))
 			: [];
-		return [...shellTargets(shellInput, currentCwd), ...outputPaths];
+		return [...shellTargets(shellInput, eventCwd), ...outputPaths];
 	}
 
 	function pathsFromToolText(
@@ -198,10 +203,11 @@ export function registerSubdirContextAutoload(pi: ExtensionAPI): void {
 	pi.on("session_tree", handleSessionChange);
 
 	pi.on("tool_result", async (event, ctx) => {
-		if (event.isError) return undefined;
 		ensureSession(ctx.cwd);
 
-		const targets = targetsForEvent(event);
+		const discoveryEvents = codeModeDiscoveryEvents(event);
+		if (event.isError) discoveryEvents.shift();
+		const targets = discoveryEvents.flatMap(targetsForEvent);
 		if (!targets.length) return undefined;
 
 		const branchContext = collectBranchContext(ctx, currentCwd, cwdAgentsPath);

@@ -530,6 +530,109 @@ async function run() {
 	);
 	assert.match(textContent(escapedAppendix), /&lt;\/agents_file&gt;/);
 
+	await fs.mkdir(path.join(cwd, "a", "code-mode"), { recursive: true });
+	await fs.writeFile(
+		path.join(cwd, "a", "code-mode", "AGENTS.md"),
+		"CODE MODE",
+	);
+	await fs.writeFile(
+		path.join(cwd, "a", "code-mode", "file.ts"),
+		"export const codeMode = 1;\n",
+	);
+
+	const codeModeTrace = {
+		id: "nested-exec-command",
+		name: "exec_command",
+		status: "done",
+		input: {
+			cmd: "sed -n '1,5p' file.ts",
+			workdir: "./a/code-mode",
+		},
+		result: {
+			content: [{ type: "text", text: "export const codeMode = 1;" }],
+			details: { output: "export const codeMode = 1;", exit_code: 0 },
+		},
+	};
+	const freshNestedViaCodeMode = await toolResult(
+		{
+			toolName: "exec",
+			isError: false,
+			input: { code: "await tools.exec_command(...)" },
+			content: [{ type: "text", text: "Script completed" }],
+			details: { codeMode: true, traces: [codeModeTrace] },
+		},
+		ctx,
+	);
+
+	assert.ok(
+		freshNestedViaCodeMode,
+		"Code Mode exec_command traces should persist nested AGENTS updates",
+	);
+	assert.equal(persistedFiles(freshNestedViaCodeMode.details).length, 1);
+	assert.equal(
+		persistedFiles(freshNestedViaCodeMode.details)[0].path,
+		"a/code-mode/AGENTS.md",
+	);
+	assert.deepEqual(
+		freshNestedViaCodeMode.details.traces,
+		[codeModeTrace],
+		"persisted context should preserve Code Mode trace details",
+	);
+	assert.match(
+		textContent(freshNestedViaCodeMode),
+		/<agents_file path="a\/code-mode\/AGENTS\.md">/,
+	);
+
+	await fs.mkdir(path.join(cwd, "a", "code-mode-error"), {
+		recursive: true,
+	});
+	await fs.writeFile(
+		path.join(cwd, "a", "code-mode-error", "AGENTS.md"),
+		"CODE MODE ERROR",
+	);
+	await fs.writeFile(
+		path.join(cwd, "a", "code-mode-error", "file.ts"),
+		"export const beforeError = true;\n",
+	);
+
+	const codeModeScriptError = await toolResult(
+		{
+			toolName: "exec",
+			isError: true,
+			input: { code: "await tools.exec_command(...); throw new Error(...)" },
+			content: [{ type: "text", text: "Script error: expected" }],
+			details: {
+				codeMode: true,
+				scriptError: "expected",
+				traces: [
+					{
+						...codeModeTrace,
+						id: "nested-before-script-error",
+						input: {
+							cmd: "cat file.ts",
+							working_directory: "./a/code-mode-error",
+						},
+					},
+				],
+			},
+		},
+		ctx,
+	);
+
+	assert.ok(
+		codeModeScriptError,
+		"successful nested traces should load AGENTS after a Code Mode script error",
+	);
+	assert.equal(persistedFiles(codeModeScriptError.details).length, 1);
+	assert.equal(
+		persistedFiles(codeModeScriptError.details)[0].path,
+		"a/code-mode-error/AGENTS.md",
+	);
+	assert.match(
+		textContent(codeModeScriptError),
+		/<agents_file path="a\/code-mode-error\/AGENTS\.md">/,
+	);
+
 	await fs.rm(root, { recursive: true, force: true });
 	console.log("subdir-context test passed");
 }
