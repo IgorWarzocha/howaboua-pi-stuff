@@ -6,7 +6,7 @@ import { handleCodexSessionBeforeCompact } from "../adapter/compaction/compactio
 import { isNativeCompactionDetails, NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, NATIVE_COMPACTION_DISPLAY_TEXT } from "../adapter/compaction/types.ts";
 import { rewriteCodexProviderRequest } from "../adapter/provider-request.ts";
 import { isAdapterContextExcludedCustomMessage } from "../adapter/prompt/context-filter.ts";
-import { getCodexSkillPaths, hasNoSkillsFlag } from "../adapter/prompt/skills.ts";
+import { hasNoSkillsFlag } from "../adapter/prompt/skills.ts";
 import { extractPiPromptSkills, resolvePromptSkills } from "../prompt/build-system-prompt.ts";
 import { CODEX_TOOL_CALL_PROVIDERS, convertResponsesMessages } from "../providers/openai-responses/shared.ts";
 import { maybeWarnLocalCheckoutVersion } from "../adapter/local-version-warning.ts";
@@ -62,12 +62,6 @@ export function registerCodexEvents(
 		syncAdapter(pi, ctx, state);
 		void runtime.startPrewarm(ctx);
 		if (event.reason === "startup") await maybeWarnLocalCheckoutVersion(ctx);
-	});
-
-	pi.on("resources_discover", async (event) => {
-		if (hasNoSkillsFlag()) return undefined;
-		const skillPaths = getCodexSkillPaths(event.cwd);
-		return skillPaths.length > 0 ? { skillPaths } : undefined;
 	});
 
 	pi.on("model_select", async (_event, ctx) => {
