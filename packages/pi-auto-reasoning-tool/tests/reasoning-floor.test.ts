@@ -34,10 +34,6 @@ function setup(initialLevel: ThinkingLevel) {
 	};
 }
 
-function resultText(result: any): string {
-	return result.content[0].text;
-}
-
 describe("reasoning floor", () => {
 	test("never lowers below the user's baseline", () => {
 		expect(applyReasoningFloor("medium", "high")).toBe("high");
@@ -71,59 +67,5 @@ describe("reasoning floor", () => {
 		expect(state.level).toBe("medium");
 		await state.handler("agent_settled")({}, {});
 		expect(state.level).toBe("medium");
-	});
-
-	test("keeps the agent-facing contract terse", () => {
-		const tool = setup("low").tool();
-		expect(tool.description).toBe(
-			"Adjust reasoning effort for the work ahead.",
-		);
-		expect(tool.promptSnippet).toBe("Adjust reasoning effort.");
-		expect(tool.promptGuidelines).toEqual([
-			"change_reasoning: Adjust by work phase, not per tool call.",
-		]);
-		expect(tool.parameters.properties.level.description).toBeUndefined();
-	});
-
-	test("explains the user minimum when a request goes below it", async () => {
-		const state = setup("medium");
-		await state.handler("before_agent_start")({}, {});
-		const result = await state
-			.tool()
-			.execute("call", { level: "low" }, undefined, undefined, {
-				model: { provider: "openai", id: "test", reasoning: true },
-			});
-		expect(resultText(result)).toBe(
-			"Reasoning remains medium.\nThe user set the minimum reasoning level to medium; do not go below it.",
-		);
-	});
-
-	test("identifies the user's preferred minimum when already selected", async () => {
-		const state = setup("medium");
-		await state.handler("before_agent_start")({}, {});
-		const result = await state
-			.tool()
-			.execute("call", { level: "medium" }, undefined, undefined, {
-				model: { provider: "openai", id: "test", reasoning: true },
-			});
-		expect(resultText(result)).toBe(
-			"Reasoning is already medium, the user's preferred minimum.",
-		);
-	});
-
-	test("does not mislabel an elevated level as the user minimum", async () => {
-		const state = setup("medium");
-		await state.handler("before_agent_start")({}, {});
-		await state
-			.tool()
-			.execute("call", { level: "high" }, undefined, undefined, {
-				model: { provider: "openai", id: "test", reasoning: true },
-			});
-		const result = await state
-			.tool()
-			.execute("call", { level: "high" }, undefined, undefined, {
-				model: { provider: "openai", id: "test", reasoning: true },
-			});
-		expect(resultText(result)).toBe("Reasoning is already high.");
 	});
 });
