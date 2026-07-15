@@ -58,8 +58,11 @@ test("configured Responses providers stream raw Code Mode exec calls", async () 
 				tools: [{ name: "exec", description: "Run JavaScript", parameters: { type: "object" } }],
 			} as never,
 			{
-				apiKey: "test-key",
-				headers: { "x-openai-internal-codex-responses-lite": "true" },
+				headers: {
+					Authorization: "Bearer proxy-key",
+					"x-openai-internal-codex-responses-lite": "true",
+					"x-stainless-lang": null,
+				},
 				onPayload: (payload: unknown) => applyResponsesLiteRequest(applyCodeModeFreeformContract(payload as never)),
 			} as never,
 		));
@@ -72,6 +75,8 @@ test("configured Responses providers stream raw Code Mode exec calls", async () 
 			text: "image content omitted because it could not be processed",
 		});
 		assert.equal(requestHeaders?.get("x-openai-internal-codex-responses-lite"), "true");
+		assert.equal(requestHeaders?.get("authorization"), "Bearer proxy-key");
+		assert.equal(requestHeaders?.has("x-stainless-lang"), false);
 		const toolCallEnd = events.find((event) => (event as { type?: string }).type === "toolcall_end") as {
 			toolCall: { name: string; arguments: { code: string } };
 		};
@@ -115,6 +120,8 @@ test("the proxy bridge delegates ordinary Responses models without recursion", a
 			},
 		} as never, () => config);
 
+		assert.equal(providers.size, 0);
+		registration.applyConfig(config);
 		assert.equal(providers.size, 1);
 		const provider = [...providers.values()][0]!;
 		const events = await collect(provider.streamSimple(
@@ -126,7 +133,8 @@ test("the proxy bridge delegates ordinary Responses models without recursion", a
 		assert.equal(done.type, "done");
 		assert.deepEqual(done.message.content, [{ type: "text", text: "fallback", textSignature: "{\"v\":1,\"id\":\"msg_1\"}" }]);
 
-		registration.applyConfig({ ...config, beta: { codeMode: false } });
+		registration.shutdown();
+		registration.shutdown();
 		assert.equal(providers.size, 0);
 		assert.equal(unregistered.length, 1);
 	} finally {

@@ -121,16 +121,10 @@ function createNestedTools(
 		));
 	}
 	if (runtime.state.config.tools.webRun) {
-		const useConfiguredProvider = Boolean(
-			ctx
-			&& ctx.model?.provider.toLowerCase() !== "openai-codex"
-			&& shouldUseGpt56CodeMode(ctx, runtime.state.config),
-		);
 		tools.push(toNestedTool(
 			createWebSearchTool("web__run", {
 				getRecentInput: () => runtime.latestRecentWebSearchInput,
-				model: () => useConfiguredProvider ? ctx?.model?.id : runtime.state.config.openai.webSearchModel,
-				allowConfiguredProvider: (model) => shouldUseGpt56CodeMode({ model }, runtime.state.config),
+				model: () => runtime.state.config.openai.webSearchModel,
 				promptSnippet: false,
 				customRendering: runtime.state.config.ui.toolRenaming,
 			}),

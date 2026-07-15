@@ -84,21 +84,19 @@ test("GPT-5.6 Code Mode supports the base model alias on configured Responses pr
 });
 
 test("Code Mode requires the Responses API for configured providers", () => {
-	const pi = createToolHarness(["read", "bash", "edit", "write", "exec", "wait"]);
-	const ctx = createContext({
-		provider: "litellm",
-		api: "openai-completions",
-		id: "gpt-5.6",
-	});
-	const state = createAdapterState({
-		beta: { codeMode: true },
-		scope: { allProviders: "off", additionalProviders: ["litellm"] },
-	});
+	for (const api of ["openai-completions", "azure-openai-responses"]) {
+		const pi = createToolHarness(["read", "bash", "edit", "write", "exec", "wait"]);
+		const ctx = createContext({ provider: "litellm", api, id: "gpt-5.6" });
+		const state = createAdapterState({
+			beta: { codeMode: true },
+			scope: { allProviders: "off", additionalProviders: ["litellm"] },
+		});
 
-	syncAdapter(pi as never, ctx as never, state);
+		syncAdapter(pi as never, ctx as never, state);
 
-	assert.equal(pi.activeTools().includes("exec"), false);
-	assert.equal(pi.activeTools().includes("wait"), false);
+		assert.equal(pi.activeTools().includes("exec"), false);
+		assert.equal(pi.activeTools().includes("wait"), false);
+	}
 });
 
 test("GPT-5.6 Code Mode does not apply to older or non-Codex models", () => {

@@ -11,12 +11,14 @@ import { registerCodexUi } from "./ui.ts";
 export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 	const runtime = createCodexExtensionRuntime(pi);
 	const codeMode = await registerCodexCodeMode(pi, runtime);
+	let cleanupProxyProvider: ReturnType<typeof registerCodeModeProxyProvider> | undefined;
 	try {
 		registerOpenAICodexCustomProvider(pi, {
 			getConfig: () => ({ openai: runtime.state.config.openai, beta: runtime.state.config.beta }),
 			turnState: runtime.state.codexTurnState,
 		});
 		const proxyProvider = registerCodeModeProxyProvider(pi, () => runtime.state.config);
+		cleanupProxyProvider = proxyProvider;
 		const tools = registerCodexTools(pi, runtime);
 		const ui = registerCodexUi(pi, runtime);
 		registerCodexCommand(pi, runtime.state, (config) => {
@@ -24,10 +26,14 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 			tools.applyConfig(config);
 			ui.applyConfig(config);
 		}, { sessions: runtime.sessions, widget: runtime.backgroundWidget });
-		registerCodexEvents(pi, runtime, tools, ui, codeMode);
+		registerCodexEvents(pi, runtime, tools, ui, codeMode, proxyProvider);
 	} catch (registrationError) {
 		try {
-			await codeMode.shutdown();
+			try {
+				cleanupProxyProvider?.shutdown();
+			} finally {
+				await codeMode.shutdown();
+			}
 		} catch (shutdownError) {
 			throw new AggregateError(
 				[registrationError, shutdownError],

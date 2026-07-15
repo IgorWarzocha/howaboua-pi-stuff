@@ -50,7 +50,6 @@ text(status);
 ```
 
 Nested `apply_patch`, `view_image`, `web__run`, `image_gen__imagegen`, `exec_command`, and `write_stdin` calls keep normal Pi rendering without exposing their schemas to the provider. When Code Mode becomes active, Pi starts downloading and verifying the pinned V8 host instead of waiting for the first `exec`. Downloads respect standard proxy environment variables and fail instead of hanging indefinitely.
-For configured Responses providers, `web__run` uses the active provider's Responses endpoint; that endpoint must support the Responses `web_search` tool.
 
 ## Code Mode custom tools
 

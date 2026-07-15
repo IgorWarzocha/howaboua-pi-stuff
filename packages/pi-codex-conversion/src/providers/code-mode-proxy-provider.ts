@@ -1,14 +1,15 @@
 import OpenAI from "openai";
 import {
 	createAssistantMessageEventStream,
-	openAIResponsesApi,
 	type Api,
 	type AssistantMessage,
 	type Context,
 	type Model,
 	type ProviderHeaders,
 	type SimpleStreamOptions,
-} from "@earendil-works/pi-ai/compat";
+} from "@earendil-works/pi-ai";
+import { getApiProvider } from "@earendil-works/pi-ai/compat";
+import { streamSimple as standardResponsesStream } from "@earendil-works/pi-ai/api/openai-responses";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
@@ -19,7 +20,6 @@ import { processCodexResponsesStream } from "./openai-codex/stream-events.ts";
 import type { OpenAICodexStreamOptions, ResponsesBody, StreamEventShape } from "./openai-codex/types.ts";
 
 const BRIDGE_PROVIDER = "@howaboua/pi-codex-conversion:responses-proxy";
-const standardResponsesStream = openAIResponsesApi().streamSimple;
 
 function initialAssistantMessage<TApi extends Api>(model: Model<TApi>): AssistantMessage {
 	return {
@@ -41,15 +41,27 @@ function initialAssistantMessage<TApi extends Api>(model: Model<TApi>): Assistan
 	};
 }
 
-function mergeHeaders(...groups: Array<ProviderHeaders | undefined>): Record<string, string> {
-	const headers = new Headers();
+function mergeHeaders(...groups: Array<ProviderHeaders | undefined>): ProviderHeaders {
+	const headers = new Map<string, { name: string; value: string | null }>();
 	for (const group of groups) {
 		for (const [name, value] of Object.entries(group ?? {})) {
-			if (value === null) headers.delete(name);
-			else headers.set(name, value);
+			headers.set(name.toLowerCase(), { name, value });
 		}
 	}
-	return Object.fromEntries(headers.entries());
+	return Object.fromEntries([...headers.values()].map(({ name, value }) => [name, value]));
+}
+
+function hasHeader(headers: ProviderHeaders | undefined, name: string): boolean {
+	const expected = name.toLowerCase();
+	return Object.entries(headers ?? {}).some(
+		([key, value]) => key.toLowerCase() === expected && value !== null && value.trim() !== "",
+	);
+}
+
+function clientApiKey(provider: string, apiKey: string | undefined, headers: ProviderHeaders): string {
+	if (apiKey) return apiKey;
+	if (hasHeader(headers, "authorization") || hasHeader(headers, "cf-aig-authorization")) return "unused";
+	throw new Error(`No API key for provider: ${provider}`);
 }
 
 export function streamCodeModeResponsesProxy<TApi extends Api>(
@@ -62,26 +74,26 @@ export function streamCodeModeResponsesProxy<TApi extends Api>(
 
 	void (async () => {
 		try {
-			if (!options?.apiKey) throw new Error(`No API key for provider: ${model.provider}`);
+			const headers = mergeHeaders(model.headers, options?.headers);
 			let body: ResponsesBody = buildRequestBody(model, context, options);
-			const rewritten = await options.onPayload?.(body, model);
+			const rewritten = await options?.onPayload?.(body, model);
 			if (rewritten !== undefined) body = rewritten as ResponsesBody;
 			body = await prepareResponsesLiteRequestImages(body);
 
 			const client = new OpenAI({
-				apiKey: options.apiKey,
+				apiKey: clientApiKey(model.provider, options?.apiKey, headers),
 				baseURL: model.baseUrl,
-				defaultHeaders: mergeHeaders(model.headers, options.headers),
+				defaultHeaders: headers,
 			});
 			const response = await client.responses.create(
 				body as unknown as ResponseCreateParamsStreaming,
 				{
-					...(options.signal ? { signal: options.signal } : {}),
-					...(options.timeoutMs !== undefined ? { timeout: options.timeoutMs } : {}),
-					maxRetries: options.maxRetries ?? 0,
+					...(options?.signal ? { signal: options.signal } : {}),
+					...(options?.timeoutMs !== undefined ? { timeout: options.timeoutMs } : {}),
+					maxRetries: options?.maxRetries ?? 0,
 				},
 			).withResponse();
-			await options.onResponse?.({
+			await options?.onResponse?.({
 				status: response.response.status,
 				headers: Object.fromEntries(response.response.headers.entries()),
 			}, model);
@@ -94,13 +106,16 @@ export function streamCodeModeResponsesProxy<TApi extends Api>(
 				model,
 				options as OpenAICodexStreamOptions | undefined,
 			);
-			if (options.signal?.aborted) throw new Error("Request was aborted");
+			if (options?.signal?.aborted) throw new Error("Request was aborted");
 			if (output.stopReason === "aborted" || output.stopReason === "error") {
 				throw new Error("Responses stream ended without a successful result");
 			}
 			stream.push({ type: "done", reason: output.stopReason, message: output });
 			stream.end();
 		} catch (error) {
+			for (const block of output.content) {
+				if (typeof block === "object" && block !== null) delete (block as { partialJson?: unknown }).partialJson;
+			}
 			output.stopReason = options?.signal?.aborted ? "aborted" : "error";
 			output.errorMessage = error instanceof Error ? error.message : String(error);
 			stream.push({ type: "error", reason: output.stopReason, error: output });
@@ -113,6 +128,7 @@ export function streamCodeModeResponsesProxy<TApi extends Api>(
 
 export interface CodeModeProxyProviderRegistration {
 	applyConfig(config: CodexConversionConfig): void;
+	shutdown(): void;
 }
 
 export function registerCodeModeProxyProvider(
@@ -120,6 +136,12 @@ export function registerCodeModeProxyProvider(
 	getConfig: () => CodexConversionConfig,
 ): CodeModeProxyProviderRegistration {
 	let registered = false;
+	let fallbackStream = standardResponsesStream;
+	const shutdown = () => {
+		if (!registered) return;
+		pi.unregisterProvider(BRIDGE_PROVIDER);
+		registered = false;
+	};
 	const applyConfig = (config: CodexConversionConfig) => {
 		const needed = config.beta.codeMode && config.scope.additionalProviders.some((provider) => {
 			const normalized = provider.trim().toLowerCase();
@@ -127,20 +149,19 @@ export function registerCodeModeProxyProvider(
 		});
 		if (needed === registered) return;
 		if (!needed) {
-			pi.unregisterProvider(BRIDGE_PROVIDER);
-			registered = false;
+			shutdown();
 			return;
 		}
+		fallbackStream = getApiProvider("openai-responses")?.streamSimple ?? standardResponsesStream;
 		pi.registerProvider(BRIDGE_PROVIDER, {
 			api: "openai-responses",
 			streamSimple: (model, context, options) =>
 				shouldUseGpt56CodeMode({ model }, getConfig())
 					? streamCodeModeResponsesProxy(model, context, options)
-					: standardResponsesStream(model as never, context, options),
+					: fallbackStream(model as never, context, options),
 		});
 		registered = true;
 	};
 
-	applyConfig(getConfig());
-	return { applyConfig };
+	return { applyConfig, shutdown };
 }

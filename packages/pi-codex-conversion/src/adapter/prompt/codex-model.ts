@@ -39,3 +39,7 @@ export function isOpenAICodexContext(ctx: Pick<ExtensionContext, "model">): bool
 export function isResponsesContext(ctx: Pick<ExtensionContext, "model">): boolean {
 	return isResponsesModel(ctx.model);
 }
+
+export function isOpenAIResponsesContext(ctx: Pick<ExtensionContext, "model">): boolean {
+	return (ctx.model?.api ?? "").trim().toLowerCase() === "openai-responses";
+}

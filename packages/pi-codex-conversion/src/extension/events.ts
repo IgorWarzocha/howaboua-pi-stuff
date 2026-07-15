@@ -9,6 +9,7 @@ import { isAdapterContextExcludedCustomMessage } from "../adapter/prompt/context
 import { hasNoSkillsFlag } from "../adapter/prompt/skills.ts";
 import { extractPiPromptSkills, resolvePromptSkills } from "../prompt/build-system-prompt.ts";
 import { CODEX_TOOL_CALL_PROVIDERS, convertResponsesMessages } from "../providers/openai-responses/shared.ts";
+import type { CodeModeProxyProviderRegistration } from "../providers/code-mode-proxy-provider.ts";
 import { maybeWarnLocalCheckoutVersion } from "../adapter/local-version-warning.ts";
 import { clearApplyPatchRenderState } from "../tools/apply-patch/tool.ts";
 import type { CodeModeRegistration } from "../tools/code-mode/tools.ts";
@@ -48,6 +49,7 @@ export function registerCodexEvents(
 	tools: CodexToolRegistration,
 	ui: CodexUiController,
 	codeMode: CodeModeRegistration,
+	proxyProvider: CodeModeProxyProviderRegistration,
 ): void {
 	const { state, tracker, sessions } = runtime;
 	sessions.onSessionExit((sessionId) => tracker.recordSessionFinished(sessionId));
@@ -58,6 +60,7 @@ export function registerCodexEvents(
 		runtime.backgroundWidget.ctx = ctx;
 		state.cwd = ctx.cwd;
 		state.config = readCodexConversionConfig();
+		proxyProvider.applyConfig(state.config);
 		sessions.setBaseEnv(runtime.bundledPathToolsEnv());
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 		tracker.clear();
@@ -103,7 +106,11 @@ export function registerCodexEvents(
 			runtime.backgroundWidget.ctx = undefined;
 			sessions.shutdown();
 		} finally {
-			await codeMode.shutdown();
+			try {
+				proxyProvider.shutdown();
+			} finally {
+				await codeMode.shutdown();
+			}
 		}
 	});
 	pi.on("input", async (event) => {
