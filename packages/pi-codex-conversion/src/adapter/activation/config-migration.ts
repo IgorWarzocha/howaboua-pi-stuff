@@ -13,7 +13,8 @@ export function migrateCodexConversionConfigIfNeeded(value: unknown): { migrated
 	if (isObject(value["scope"]) || isObject(value["tools"]) || isObject(value["ui"]) || isObject(value["compaction"]) || isObject(value["beta"]) || isObject(value["openai"])) {
 		const beta = isObject(value["beta"]) ? value["beta"] : undefined;
 		if (beta && typeof beta["responsesLite"] === "boolean" && typeof beta["codeMode"] !== "boolean") {
-			return { migrated: true, config: { ...value, beta: { ...beta, codeMode: beta["responsesLite"] } } };
+			const { responsesLite, ...rest } = beta;
+			return { migrated: true, config: { ...value, beta: { ...rest, codeMode: responsesLite, responsesLite: false } } };
 		}
 		return { migrated: false, config: value };
 	}

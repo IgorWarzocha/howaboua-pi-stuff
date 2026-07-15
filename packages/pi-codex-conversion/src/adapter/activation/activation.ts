@@ -53,9 +53,10 @@ export function shouldUseGpt56CodeMode(ctx: Pick<ExtensionContext, "model">, con
 		&& supportsProxiedGpt56CodeModeModel(ctx.model);
 }
 
-function supportsProxiedGpt56CodeModeModel(model: { id: string } | undefined): boolean {
-	if (!model?.id) return false;
-	const id = model.id.includes("/") ? (model.id.split("/").pop() ?? model.id) : model.id;
+export function supportsProxiedGpt56CodeModeModel(model: string | { id: string } | undefined): boolean {
+	const modelId = typeof model === "string" ? model : model?.id;
+	if (!modelId) return false;
+	const id = modelId.includes("/") ? (modelId.split("/").pop() ?? modelId) : modelId;
 	return /^gpt-5\.6(?:-(?:luna|terra|sol))?$/.test(id.toLowerCase());
 }
 

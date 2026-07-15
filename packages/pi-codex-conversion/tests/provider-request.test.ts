@@ -39,6 +39,16 @@ test("Code Mode keeps raw exec tools in standard Responses requests", async () =
 	assert.equal((rewritten.input[0] as { role: string }).role, "user");
 });
 
+test("Code Mode leaves a rewritten request for another model untouched", async () => {
+	const rewritten = await rewriteCodexProviderRequest({ ...payload, model: "gpt-5.5" }, {
+		model: { provider: "litellm", api: "openai-responses", id: "gpt-5.6" },
+	} as never, state(["litellm"], true)) as typeof payload;
+
+	assert.equal(rewritten.model, "gpt-5.5");
+	assert.equal(rewritten.tools[0]?.type, "function");
+	assert.equal(rewritten.instructions, "Instructions");
+});
+
 test("Responses Lite rewrites the GPT-5.6 alias when enabled for configured providers", async () => {
 	const rewritten = await rewriteCodexProviderRequest({ ...payload, model: "gpt-5.6" }, {
 		model: { provider: "litellm", api: "openai-responses", id: "gpt-5.6" },

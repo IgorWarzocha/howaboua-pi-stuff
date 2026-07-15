@@ -90,12 +90,12 @@ test("Code Mode details are optional", () => {
 	assert.equal(normalizeCodexConversionConfig({ ui: { codeModeDetails: true } }).ui.codeModeDetails, true);
 });
 
-test("legacy Responses Lite config keeps both transport and Code Mode enabled", () => {
+test("legacy Responses Lite config enables Code Mode without opting proxies into Lite", () => {
 	const migration = migrateCodexConversionConfigIfNeeded({
 		beta: { responsesLite: true },
 	});
 	assert.equal(migration.migrated, true);
-	assert.deepEqual((migration.config as { beta: unknown }).beta, { responsesLite: true, codeMode: true });
+	assert.deepEqual((migration.config as { beta: unknown }).beta, { codeMode: true, responsesLite: false });
 });
 
 test("beta-only Code Mode config stays grouped", () => {

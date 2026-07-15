@@ -166,7 +166,7 @@ export function normalizeCodexConversionConfig(value: unknown): CodexConversionC
 		},
 		compaction: { responsesCompaction: bool(compaction["responsesCompaction"], DEFAULT_CODEX_CONVERSION_CONFIG.compaction["responsesCompaction"]) },
 		beta: {
-			codeMode: bool(beta["codeMode"], bool(beta["responsesLite"], DEFAULT_CODEX_CONVERSION_CONFIG.beta["codeMode"])),
+			codeMode: bool(beta["codeMode"], DEFAULT_CODEX_CONVERSION_CONFIG.beta["codeMode"]),
 			responsesLite: bool(beta["responsesLite"], DEFAULT_CODEX_CONVERSION_CONFIG.beta["responsesLite"]),
 		},
 		openai: {
