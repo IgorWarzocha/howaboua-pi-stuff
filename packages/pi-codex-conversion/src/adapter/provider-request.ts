@@ -4,7 +4,7 @@ import { applyCodexRequestParams } from "./activation/config.ts";
 import type { AdapterState } from "./activation/state.ts";
 import { isEffectiveOpenAICodexContext, shouldUseCodexAdapter, shouldUseGpt56CodeMode } from "./activation/activation.ts";
 import { injectPendingNativeWindowIntoPiCompactionRequest, rewriteCodexCompactedProviderRequest } from "./compaction/compaction.ts";
-import { applyResponsesLiteRequest, RESPONSES_LITE_HEADER, supportsProxiedResponsesLiteModel, supportsResponsesLiteModel, type ResponsesLiteCompatibleBody } from "../providers/openai-codex/responses-lite.ts";
+import { applyResponsesLiteRequest, prepareResponsesLiteRequestImages, RESPONSES_LITE_HEADER, supportsProxiedResponsesLiteModel, supportsResponsesLiteModel, type ResponsesLiteCompatibleBody } from "../providers/openai-codex/responses-lite.ts";
 import { applyCodeModeFreeformContract } from "./code-mode-contract.ts";
 
 export async function rewriteCodexProviderRequest(payload: unknown, ctx: ExtensionContext, state: AdapterState): Promise<unknown | undefined> {
@@ -29,19 +29,32 @@ export async function rewriteCodexProviderRequest(payload: unknown, ctx: Extensi
 		const codeModePayload = isOpenAICodexContext(ctx)
 			? applyCodeModeFreeformContract(rewrittenPayload)
 			: rewrittenPayload;
-		return applyResponsesLiteRequest(codeModePayload);
+		const responsesLitePayload = applyResponsesLiteRequest(codeModePayload);
+		return isOpenAICodexContext(ctx)
+			? responsesLitePayload
+			: prepareResponsesLiteRequestImages(responsesLitePayload);
 	}
 	return rewrittenPayload;
 }
 
-export function applyCodeModeProviderHeaders(
+export function applyProxiedCodeModeProviderHeaders(
 	headers: Record<string, string | null | undefined>,
 	ctx: ExtensionContext,
 	state: AdapterState,
 ): void {
-	if (shouldUseGpt56CodeMode(ctx, state.config)) {
-		headers[RESPONSES_LITE_HEADER] = "true";
+	if (
+		!shouldUseCodexAdapter(ctx, state.config)
+		|| isOpenAICodexContext(ctx)
+		|| !shouldUseGpt56CodeMode(ctx, state.config)
+	) {
+		return;
 	}
+	for (const key of Object.keys(headers)) {
+		if (key !== RESPONSES_LITE_HEADER && key.toLowerCase() === RESPONSES_LITE_HEADER) {
+			headers[key] = null;
+		}
+	}
+	headers[RESPONSES_LITE_HEADER] = "true";
 }
 
 function isResponsesLiteCompatibleBody(value: unknown): value is ResponsesLiteCompatibleBody {

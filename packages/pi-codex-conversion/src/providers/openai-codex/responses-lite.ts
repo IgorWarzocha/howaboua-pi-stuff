@@ -113,7 +113,7 @@ async function prepareLiteImageContent(content: unknown): Promise<unknown> {
 export async function prepareResponsesLiteRequestImages<TBody extends ResponsesLiteCompatibleBody>(body: TBody): Promise<TBody> {
 	const input = await Promise.all(body.input.map(async (item) => {
 		if (!isRecord(item)) return item;
-		if (item["type"] === "message" || item["role"] === "user" || item["role"] === "developer" || item["role"] === "system") {
+		if ((item["type"] === "message" || item["role"] === "user" || item["role"] === "developer" || item["role"] === "system") && "content" in item) {
 			return { ...item, content: await prepareLiteImageContent(item["content"]) };
 		}
 		if ((item["type"] === "function_call_output" || item["type"] === "custom_tool_call_output") && isRecord(item["output"])) {
