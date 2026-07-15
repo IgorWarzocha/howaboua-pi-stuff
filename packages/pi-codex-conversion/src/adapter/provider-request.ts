@@ -4,7 +4,7 @@ import { applyCodexRequestParams } from "./activation/config.ts";
 import type { AdapterState } from "./activation/state.ts";
 import { isEffectiveOpenAICodexContext, shouldUseCodexAdapter, shouldUseGpt56CodeMode } from "./activation/activation.ts";
 import { injectPendingNativeWindowIntoPiCompactionRequest, rewriteCodexCompactedProviderRequest } from "./compaction/compaction.ts";
-import { applyResponsesLiteRequest, prepareResponsesLiteRequestImages, RESPONSES_LITE_HEADER, supportsProxiedResponsesLiteModel, supportsResponsesLiteModel, type ResponsesLiteCompatibleBody } from "../providers/openai-codex/responses-lite.ts";
+import { applyResponsesLiteRequest, RESPONSES_LITE_HEADER, supportsProxiedResponsesLiteModel, supportsResponsesLiteModel, type ResponsesLiteCompatibleBody } from "../providers/openai-codex/responses-lite.ts";
 import { applyCodeModeFreeformContract } from "./code-mode-contract.ts";
 
 export async function rewriteCodexProviderRequest(payload: unknown, ctx: ExtensionContext, state: AdapterState): Promise<unknown | undefined> {
@@ -24,15 +24,9 @@ export async function rewriteCodexProviderRequest(payload: unknown, ctx: Extensi
 		&& isResponsesLiteCompatibleBody(rewrittenPayload)
 		&& (isOpenAICodexContext(ctx)
 			? supportsResponsesLiteModel(rewrittenPayload.model)
-			: supportsProxiedResponsesLiteModel(rewrittenPayload.model))
+			: supportsProxiedResponsesLiteModel(ctx.model))
 	) {
-		const codeModePayload = isOpenAICodexContext(ctx)
-			? applyCodeModeFreeformContract(rewrittenPayload)
-			: rewrittenPayload;
-		const responsesLitePayload = applyResponsesLiteRequest(codeModePayload);
-		return isOpenAICodexContext(ctx)
-			? responsesLitePayload
-			: prepareResponsesLiteRequestImages(responsesLitePayload);
+		return applyResponsesLiteRequest(applyCodeModeFreeformContract(rewrittenPayload));
 	}
 	return rewrittenPayload;
 }

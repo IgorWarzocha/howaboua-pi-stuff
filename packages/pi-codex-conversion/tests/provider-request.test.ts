@@ -27,25 +27,27 @@ const payload = {
 	parallel_tool_calls: true,
 };
 
-test("Responses Lite prepares the GPT-5.6 alias for configured Responses providers", async () => {
-	const rewritten = await rewriteCodexProviderRequest({
-		...payload,
-		model: "gpt-5.6",
-		input: [{ role: "user", content: [{ type: "input_image", image_url: "data:image/png;base64,not-valid" }] }],
-	}, {
+test("Responses Lite rewrites the GPT-5.6 alias for configured Responses providers", async () => {
+	const rewritten = await rewriteCodexProviderRequest({ ...payload, model: "gpt-5.6" }, {
 		model: { provider: "litellm", api: "openai-responses", id: "gpt-5.6" },
 	} as never, state(["litellm"])) as typeof payload;
 
 	assert.equal("instructions" in rewritten, false);
 	assert.equal("tools" in rewritten, false);
 	assert.equal(rewritten.parallel_tool_calls, false);
-	assert.deepEqual(rewritten.input.slice(0, 2), [
-		{ type: "additional_tools", role: "developer", tools: payload.tools },
-		{ type: "message", role: "developer", content: [{ type: "input_text", text: "Instructions" }] },
-	]);
-	assert.deepEqual(rewritten.input[2], {
-		role: "user",
-		content: [{ type: "input_text", text: "image content omitted because it could not be processed" }],
+	const additionalTools = rewritten.input[0] as unknown as {
+		type: string;
+		tools: Array<{ type: string; name: string; format: { type: string; syntax: string; definition: string } }>;
+	};
+	assert.equal(additionalTools.type, "additional_tools");
+	assert.equal(additionalTools.tools[0]?.type, "custom");
+	assert.equal(additionalTools.tools[0]?.name, "exec");
+	assert.equal(additionalTools.tools[0]?.format.syntax, "lark");
+	assert.match(additionalTools.tools[0]?.format.definition ?? "", /pragma_source/);
+	assert.deepEqual(rewritten.input[1], {
+		type: "message",
+		role: "developer",
+		content: [{ type: "input_text", text: "Instructions" }],
 	});
 });
 

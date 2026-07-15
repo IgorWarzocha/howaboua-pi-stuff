@@ -20,16 +20,19 @@ export interface ResponsesLiteCompatibleBody {
 	[key: string]: unknown;
 }
 
-export function supportsResponsesLiteModel(modelId: string | undefined): boolean {
-	return /^gpt-5\.6-(?:luna|terra|sol)$/.test(normalizeModelId(modelId));
+type ResponsesLiteModel = string | { id: string } | undefined;
+
+export function supportsResponsesLiteModel(model: ResponsesLiteModel): boolean {
+	return /^gpt-5\.6-(?:luna|terra|sol)$/.test(normalizeModelId(model));
 }
 
-export function supportsProxiedResponsesLiteModel(modelId: string | undefined): boolean {
-	const id = normalizeModelId(modelId);
+export function supportsProxiedResponsesLiteModel(model: ResponsesLiteModel): boolean {
+	const id = normalizeModelId(model);
 	return id === "gpt-5.6" || supportsResponsesLiteModel(id);
 }
 
-function normalizeModelId(modelId: string | undefined): string {
+function normalizeModelId(model: ResponsesLiteModel): string {
+	const modelId = typeof model === "string" ? model : model?.id;
 	if (!modelId) return "";
 	const id = modelId.includes("/") ? (modelId.split("/").pop() ?? modelId) : modelId;
 	return id.toLowerCase();

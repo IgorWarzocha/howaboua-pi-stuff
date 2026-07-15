@@ -32,10 +32,10 @@ export function isCodexLikeContext(ctx: ExtensionContext): boolean {
 	return isCodexLikeModel(ctx.model);
 }
 
-export function isOpenAICodexContext(ctx: ExtensionContext): boolean {
+export function isOpenAICodexContext(ctx: Pick<ExtensionContext, "model">): boolean {
 	return isOpenAICodexModel(ctx.model);
 }
 
-export function isResponsesContext(ctx: ExtensionContext): boolean {
+export function isResponsesContext(ctx: Pick<ExtensionContext, "model">): boolean {
 	return isResponsesModel(ctx.model);
 }

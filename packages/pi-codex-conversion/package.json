@@ -95,6 +95,7 @@
   },
   "dependencies": {
     "js-tiktoken": "^1.0.21",
+    "openai": "6.26.0",
     "partial-json": "^0.1.7",
     "proxy-from-env": "1.1.0",
     "smol-toml": "^1.6.0",

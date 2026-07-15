@@ -45,15 +45,15 @@ export function shouldUseNativeResponsesCompaction(ctx: ExtensionContext, config
 	return isOpenAICodexContext(ctx) || isConfiguredAdapterProvider(ctx, config);
 }
 
-export function shouldUseGpt56CodeMode(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
+export function shouldUseGpt56CodeMode(ctx: Pick<ExtensionContext, "model">, config: CodexConversionConfig): boolean {
 	if (!config.beta.codeMode) return false;
 	if (isOpenAICodexContext(ctx)) return supportsResponsesLiteModel(ctx.model?.id);
 	return isConfiguredAdapterProvider(ctx, config)
 		&& isResponsesContext(ctx)
-		&& supportsProxiedResponsesLiteModel(ctx.model?.id);
+		&& supportsProxiedResponsesLiteModel(ctx.model);
 }
 
-export function isConfiguredAdapterProvider(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
+export function isConfiguredAdapterProvider(ctx: Pick<ExtensionContext, "model">, config: CodexConversionConfig): boolean {
 	const provider = ctx.model?.provider?.trim().toLowerCase();
 	return Boolean(provider && config.scope.additionalProviders.includes(provider));
 }

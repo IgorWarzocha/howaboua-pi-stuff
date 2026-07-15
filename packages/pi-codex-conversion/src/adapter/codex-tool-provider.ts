@@ -7,10 +7,13 @@ export const CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE = "web_run/imagegen require
 
 export interface CodexToolProvider {
 	baseUrl: string;
+	responsesUrl: string;
 	model: string | undefined;
 	token: string;
 	accountId: string;
 }
+
+export type AllowConfiguredCodexToolProvider = (model: ExtensionContext["model"]) => boolean;
 
 const CODEX_ORIGINATOR = "codex_cli_rs";
 const OPENAI_CODEX_PROVIDER = "openai-codex";
@@ -80,24 +83,45 @@ function resolveOpenAICodexAuthModel(ctx: ExtensionContext): Model<any> | undefi
 	return all ? firstOpenAICodexModel(all) : undefined;
 }
 
-function resolveCodexToolAuthModel(ctx: ExtensionContext): Model<any> {
+function resolveCodexToolAuthModel(
+	ctx: ExtensionContext,
+	allowConfiguredProvider?: AllowConfiguredCodexToolProvider,
+): Model<any> {
 	if (isUsableOpenAICodexModel(ctx.model)) return ctx.model as Model<any>;
+	if (isResponsesModel(ctx.model) && allowConfiguredProvider?.(ctx.model)) return ctx.model as Model<any>;
 	const openAICodexModel = resolveOpenAICodexAuthModel(ctx);
 	if (openAICodexModel) return openAICodexModel;
 	throw new Error(`${CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE}; run /login openai-codex or select an OpenAI Codex-compatible provider`);
 }
 
-export async function resolveCodexToolProvider(ctx: ExtensionContext): Promise<CodexToolProvider> {
-	const model = resolveCodexToolAuthModel(ctx);
+function resolveConfiguredResponsesUrl(modelBaseUrl: string | undefined): string {
+	const base = modelBaseUrl?.trim().replace(/\/+$/, "");
+	if (!base) throw new Error("Configured Responses provider is missing a base URL");
+	return base.endsWith("/responses") ? base : `${base}/responses`;
+}
+
+export async function resolveCodexToolProvider(
+	ctx: ExtensionContext,
+	allowConfiguredProvider?: AllowConfiguredCodexToolProvider,
+): Promise<CodexToolProvider> {
+	const model = resolveCodexToolAuthModel(ctx, allowConfiguredProvider);
 	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
 	if (!auth.ok) throw new Error(auth.error);
 	const token = auth.apiKey ?? headerValue(auth.headers, "Authorization")?.replace(/^Bearer\s+/i, "");
 	if (!token) throw new Error(CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE);
+	const openAICodex = isOpenAICodexModel(model);
+	const baseUrl = openAICodex
+		? resolveCodexApiProviderBaseUrl(model.baseUrl)
+		: model.baseUrl?.trim().replace(/\/+$/, "");
+	if (!baseUrl) throw new Error("Configured Responses provider is missing a base URL");
 	return {
-		baseUrl: resolveCodexApiProviderBaseUrl(model.baseUrl),
+		baseUrl,
+		responsesUrl: openAICodex
+			? resolveCodexResponsesUrl(baseUrl)
+			: resolveConfiguredResponsesUrl(model.baseUrl),
 		model: model.id,
 		token,
-		accountId: headerValue(auth.headers, "chatgpt-account-id") ?? extractAccountId(token),
+		accountId: headerValue(auth.headers, "chatgpt-account-id") ?? (openAICodex ? extractAccountId(token) : ""),
 	};
 }
 
@@ -126,7 +150,7 @@ export function codexToolProviderEnv(provider: CodexToolProvider): NodeJS.Proces
 		PI_CODEX_ACCESS_TOKEN: provider.token,
 		PI_CODEX_ACCOUNT_ID: provider.accountId,
 		PI_CODEX_BASE_URL: provider.baseUrl,
-		PI_CODEX_RESPONSES_URL: resolveCodexResponsesUrl(provider.baseUrl),
+		PI_CODEX_RESPONSES_URL: provider.responsesUrl,
 		...(provider.model ? { PI_CODEX_MODEL: provider.model } : {}),
 	};
 }
