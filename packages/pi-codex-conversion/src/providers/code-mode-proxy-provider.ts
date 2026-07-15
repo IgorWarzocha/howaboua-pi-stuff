@@ -15,7 +15,7 @@ import type { ResponseCreateParamsStreaming } from "openai/resources/responses/r
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import { shouldUseGpt56CodeMode } from "../adapter/activation/activation.ts";
 import { buildRequestBody } from "./openai-codex/request-body.ts";
-import { isResponsesLiteRequest, prepareResponsesLiteRequestImages } from "./openai-codex/responses-lite.ts";
+import { isResponsesLiteRequest, prepareResponsesLiteRequestImages, RESPONSES_LITE_HEADER } from "./openai-codex/responses-lite.ts";
 import { processCodexResponsesStream } from "./openai-codex/stream-events.ts";
 import type { OpenAICodexStreamOptions, ResponsesBody, StreamEventShape } from "./openai-codex/types.ts";
 
@@ -74,11 +74,14 @@ export function streamCodeModeResponsesProxy<TApi extends Api>(
 
 	void (async () => {
 		try {
-			const headers = mergeHeaders(model.headers, options?.headers);
+			let headers = mergeHeaders(model.headers, options?.headers);
 			let body: ResponsesBody = buildRequestBody(model, context, options);
 			const rewritten = await options?.onPayload?.(body, model);
 			if (rewritten !== undefined) body = rewritten as ResponsesBody;
-			if (isResponsesLiteRequest(body)) body = await prepareResponsesLiteRequestImages(body);
+			if (isResponsesLiteRequest(body)) {
+				body = await prepareResponsesLiteRequestImages(body);
+				headers = mergeHeaders(headers, { [RESPONSES_LITE_HEADER]: "true" });
+			}
 
 			const client = new OpenAI({
 				apiKey: clientApiKey(model.provider, options?.apiKey, headers),

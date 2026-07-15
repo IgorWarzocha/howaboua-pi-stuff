@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
-import { applyProxiedCodeModeProviderHeaders, rewriteCodexProviderRequest } from "../src/adapter/provider-request.ts";
+import { rewriteCodexProviderRequest } from "../src/adapter/provider-request.ts";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 
@@ -71,41 +71,4 @@ test("Responses Lite rewrites the GPT-5.6 alias when enabled for configured prov
 		role: "developer",
 		content: [{ type: "input_text", text: "Instructions" }],
 	});
-});
-
-test("Responses Lite marks configured provider requests only when enabled", () => {
-	const standardHeaders: Record<string, string | null> = {};
-	applyProxiedCodeModeProviderHeaders(standardHeaders, {
-		model: { provider: "litellm", api: "openai-responses", id: "gpt-5.6" },
-	} as never, state(["litellm"]));
-	assert.deepEqual(standardHeaders, {});
-
-	const headers: Record<string, string | null> = {
-		"X-OpenAI-Internal-Codex-Responses-Lite": "false",
-	};
-	applyProxiedCodeModeProviderHeaders(headers, {
-		model: { provider: "litellm", api: "openai-responses", id: "gpt-5.6" },
-	} as never, state(["litellm"], true));
-
-	assert.equal(headers["x-openai-internal-codex-responses-lite"], "true");
-	assert.equal(headers["X-OpenAI-Internal-Codex-Responses-Lite"], null);
-});
-
-test("Responses Lite headers stay off built-in and extras-only requests", () => {
-	const builtInHeaders: Record<string, string | null> = {};
-	applyProxiedCodeModeProviderHeaders(builtInHeaders, {
-		model: { provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.6-sol" },
-	} as never, state());
-	assert.deepEqual(builtInHeaders, {});
-
-	const extrasOnlyState = state(["litellm"], true);
-	extrasOnlyState.config = {
-		...extrasOnlyState.config,
-		tools: { ...extrasOnlyState.config.tools, applyPatchOnly: true },
-	};
-	const extrasOnlyHeaders: Record<string, string | null> = {};
-	applyProxiedCodeModeProviderHeaders(extrasOnlyHeaders, {
-		model: { provider: "litellm", api: "openai-responses", id: "gpt-5.6" },
-	} as never, extrasOnlyState);
-	assert.deepEqual(extrasOnlyHeaders, {});
 });

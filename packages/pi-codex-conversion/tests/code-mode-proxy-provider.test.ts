@@ -60,7 +60,7 @@ test("configured Responses providers stream raw Code Mode exec calls", async () 
 			{
 				headers: {
 					Authorization: "Bearer proxy-key",
-					"x-openai-internal-codex-responses-lite": "true",
+					"X-OpenAI-Internal-Codex-Responses-Lite": "false",
 					"x-stainless-lang": null,
 				},
 				onPayload: (payload: unknown) => applyResponsesLiteRequest(applyCodeModeFreeformContract(payload as never)),
@@ -86,6 +86,33 @@ test("configured Responses providers stream raw Code Mode exec calls", async () 
 			name: "exec",
 			arguments: { code: "text(\"ok\");" },
 		});
+	} finally {
+		globalThis.fetch = originalFetch;
+	}
+});
+
+test("the proxy stream marks only actual Responses Lite bodies", async () => {
+	const originalFetch = globalThis.fetch;
+	let requestHeaders: Headers | undefined;
+	try {
+		globalThis.fetch = (async (_url, init) => {
+			requestHeaders = new Headers(init?.headers);
+			return sseResponse([
+				{ type: "response.created", response: { id: "resp_standard" } },
+				{ type: "response.completed", response: { id: "resp_standard", status: "completed", usage: { input_tokens: 1, output_tokens: 0, total_tokens: 1 } } },
+			]);
+		}) as typeof fetch;
+
+		await collect(streamCodeModeResponsesProxy(
+			proxyModel as never,
+			{ systemPrompt: "Use Code Mode", messages: [], tools: [] } as never,
+			{
+				headers: { Authorization: "Bearer proxy-key" },
+				onPayload: (payload: unknown) => applyCodeModeFreeformContract(payload as never),
+			} as never,
+		));
+
+		assert.equal(requestHeaders?.has("x-openai-internal-codex-responses-lite"), false);
 	} finally {
 		globalThis.fetch = originalFetch;
 	}
