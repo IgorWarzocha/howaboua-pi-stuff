@@ -37,8 +37,17 @@ function responsesContext(messages: unknown[]): Context {
 	return { messages: messages as Context["messages"] };
 }
 
-function prepareCodeModeHost(codeMode: CodeModeRegistration, ctx: ExtensionContext): void {
+function isAbortError(error: unknown): boolean {
+	return error instanceof Error && (
+		error.name === "AbortError"
+		|| error.name === "ABORT_ERR"
+		|| (error as Error & { code?: unknown }).code === "ABORT_ERR"
+	);
+}
+
+export function prepareCodeModeHost(codeMode: CodeModeRegistration, ctx: ExtensionContext): void {
 	void codeMode.prepare(ctx)?.catch((error: unknown) => {
+		if (isAbortError(error)) return;
 		ctx.ui.notify(`Code Mode host setup failed: ${error instanceof Error ? error.message : String(error)}`, "error");
 	});
 }

@@ -107,7 +107,10 @@ test("the proxy stream marks only actual Responses Lite bodies", async () => {
 			proxyModel as never,
 			{ systemPrompt: "Use Code Mode", messages: [], tools: [] } as never,
 			{
-				headers: { Authorization: "Bearer proxy-key" },
+				headers: {
+					Authorization: "Bearer proxy-key",
+					"X-OpenAI-Internal-Codex-Responses-Lite": "true",
+				},
 				onPayload: (payload: unknown) => applyCodeModeFreeformContract(payload as never),
 			} as never,
 		));

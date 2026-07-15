@@ -89,6 +89,7 @@ export function streamCodeModeResponsesProxy<TApi extends Api>(
 			let body: ResponsesBody = buildRequestBody(model, context, options);
 			const rewritten = await options?.onPayload?.(body, model);
 			if (rewritten !== undefined) body = rewritten as ResponsesBody;
+			headers = mergeHeaders(headers, { [RESPONSES_LITE_HEADER]: null });
 			if (isResponsesLiteRequest(body)) {
 				body = await prepareResponsesLiteRequestImages(body);
 				headers = mergeHeaders(headers, { [RESPONSES_LITE_HEADER]: "true" });
