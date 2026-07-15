@@ -118,6 +118,60 @@ test("the proxy stream marks only actual Responses Lite bodies", async () => {
 	}
 });
 
+test("the proxy stream preserves Cloudflare header-only authentication", async () => {
+	const originalFetch = globalThis.fetch;
+	let requestHeaders: Headers | undefined;
+	try {
+		globalThis.fetch = (async (_url, init) => {
+			requestHeaders = new Headers(init?.headers);
+			return sseResponse([
+				{ type: "response.created", response: { id: "resp_cf" } },
+				{ type: "response.completed", response: { id: "resp_cf", status: "completed", usage: { input_tokens: 1, output_tokens: 0, total_tokens: 1 } } },
+			]);
+		}) as typeof fetch;
+
+		await collect(streamCodeModeResponsesProxy(
+			proxyModel as never,
+			{ systemPrompt: "Use Code Mode", messages: [], tools: [] } as never,
+			{ headers: { "cf-aig-authorization": "Bearer cf-token" } } as never,
+		));
+
+		assert.equal(requestHeaders?.get("cf-aig-authorization"), "Bearer cf-token");
+		assert.equal(requestHeaders?.has("authorization"), false);
+	} finally {
+		globalThis.fetch = originalFetch;
+	}
+});
+
+test("the proxy stream reports failed HTTP responses", async () => {
+	const originalFetch = globalThis.fetch;
+	const responses: Array<{ status: number; headers: Record<string, string> }> = [];
+	try {
+		globalThis.fetch = (async () => new Response(
+			JSON.stringify({ error: { message: "proxy rejected request" } }),
+			{ status: 401, headers: { "content-type": "application/json", "x-request-id": "req_proxy" } },
+		)) as typeof fetch;
+
+		const events = await collect(streamCodeModeResponsesProxy(
+			proxyModel as never,
+			{ systemPrompt: "Use Code Mode", messages: [], tools: [] } as never,
+			{
+				apiKey: "test-key",
+				onResponse: (response: { status: number; headers: Record<string, string> }) => responses.push(response),
+			} as never,
+		));
+
+		assert.equal(responses.length, 1);
+		assert.equal(responses[0]?.status, 401);
+		assert.equal(responses[0]?.headers["x-request-id"], "req_proxy");
+		const error = events.at(-1) as { type: string; error: { errorMessage?: string } };
+		assert.equal(error.type, "error");
+		assert.match(error.error.errorMessage ?? "", /401.*proxy rejected request/);
+	} finally {
+		globalThis.fetch = originalFetch;
+	}
+});
+
 test("the proxy bridge delegates ordinary Responses models without recursion", async () => {
 	const originalFetch = globalThis.fetch;
 	const providers = new Map<string, { streamSimple: (...args: never[]) => AsyncIterable<unknown> }>();

@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import OpenAI, { APIError } from "openai";
 import {
 	createAssistantMessageEventStream,
 	type Api,
@@ -58,10 +58,21 @@ function hasHeader(headers: ProviderHeaders | undefined, name: string): boolean 
 	);
 }
 
-function clientApiKey(provider: string, apiKey: string | undefined, headers: ProviderHeaders): string {
-	if (apiKey) return apiKey;
-	if (hasHeader(headers, "authorization") || hasHeader(headers, "cf-aig-authorization")) return "unused";
+function clientAuth(provider: string, apiKey: string | undefined, headers: ProviderHeaders): { apiKey: string; headers: ProviderHeaders } {
+	if (apiKey) return { apiKey, headers };
+	if (hasHeader(headers, "authorization")) return { apiKey: "unused", headers };
+	if (hasHeader(headers, "cf-aig-authorization")) {
+		return { apiKey: "unused", headers: mergeHeaders(headers, { Authorization: null }) };
+	}
 	throw new Error(`No API key for provider: ${provider}`);
+}
+
+async function reportErrorResponse<TApi extends Api>(error: unknown, options: SimpleStreamOptions | undefined, model: Model<TApi>): Promise<void> {
+	if (!(error instanceof APIError) || error.status === undefined || !error.headers) return;
+	await options?.onResponse?.({
+		status: error.status,
+		headers: Object.fromEntries(error.headers.entries()),
+	}, model);
 }
 
 export function streamCodeModeResponsesProxy<TApi extends Api>(
@@ -83,19 +94,26 @@ export function streamCodeModeResponsesProxy<TApi extends Api>(
 				headers = mergeHeaders(headers, { [RESPONSES_LITE_HEADER]: "true" });
 			}
 
+			const auth = clientAuth(model.provider, options?.apiKey, headers);
 			const client = new OpenAI({
-				apiKey: clientApiKey(model.provider, options?.apiKey, headers),
+				apiKey: auth.apiKey,
 				baseURL: model.baseUrl,
-				defaultHeaders: headers,
+				defaultHeaders: auth.headers,
 			});
-			const response = await client.responses.create(
-				body as unknown as ResponseCreateParamsStreaming,
-				{
-					...(options?.signal ? { signal: options.signal } : {}),
-					...(options?.timeoutMs !== undefined ? { timeout: options.timeoutMs } : {}),
-					maxRetries: options?.maxRetries ?? 0,
-				},
-			).withResponse();
+			let response;
+			try {
+				response = await client.responses.create(
+					body as unknown as ResponseCreateParamsStreaming,
+					{
+						...(options?.signal ? { signal: options.signal } : {}),
+						...(options?.timeoutMs !== undefined ? { timeout: options.timeoutMs } : {}),
+						maxRetries: options?.maxRetries ?? 0,
+					},
+				).withResponse();
+			} catch (error) {
+				await reportErrorResponse(error, options, model);
+				throw error;
+			}
 			await options?.onResponse?.({
 				status: response.response.status,
 				headers: Object.fromEntries(response.response.headers.entries()),

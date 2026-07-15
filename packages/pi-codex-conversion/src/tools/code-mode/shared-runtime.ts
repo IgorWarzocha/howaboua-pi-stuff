@@ -13,6 +13,7 @@ export interface CodeModeToolProvider {
 export class SharedCodeModeRuntime {
 	readonly providers = new Map<object, CodeModeToolProvider>();
 	private clientPromise: Promise<CodeModeHostClient> | undefined;
+	private clientStartupAbort: AbortController | undefined;
 
 	addProvider(provider: CodeModeToolProvider): object {
 		const id = {};
@@ -47,13 +48,22 @@ export class SharedCodeModeRuntime {
 
 	async getClient(): Promise<CodeModeHostClient> {
 		if (!this.clientPromise) {
-			const pending = ensureCodeModeHostBinary().then(
+			const startupAbort = new AbortController();
+			const pending = ensureCodeModeHostBinary(startupAbort.signal).then(
 				(binary) => new CodeModeHostClient({ binary, tools: [] }),
 			);
 			this.clientPromise = pending;
-			void pending.catch(() => {
-				if (this.clientPromise === pending) this.clientPromise = undefined;
-			});
+			this.clientStartupAbort = startupAbort;
+			void pending.then(
+				() => {
+					if (this.clientPromise === pending) this.clientStartupAbort = undefined;
+				},
+				() => {
+					if (this.clientPromise !== pending) return;
+					this.clientPromise = undefined;
+					this.clientStartupAbort = undefined;
+				},
+			);
 		}
 		return this.clientPromise;
 	}
@@ -67,6 +77,8 @@ export class SharedCodeModeRuntime {
 		while (this.clientPromise) {
 			const pending = this.clientPromise;
 			this.clientPromise = undefined;
+			this.clientStartupAbort?.abort();
+			this.clientStartupAbort = undefined;
 			try {
 				await (await pending).shutdown();
 			} catch {

@@ -43,7 +43,7 @@ export function codeModeHostBinaryPath(): string {
 	);
 }
 
-export async function ensureCodeModeHostBinary(): Promise<string> {
+export async function ensureCodeModeHostBinary(signal?: AbortSignal): Promise<string> {
 	try {
 		return codeModeHostBinaryPath();
 	} catch {
@@ -60,7 +60,7 @@ export async function ensureCodeModeHostBinary(): Promise<string> {
 		await execFileAsync(
 			process.execPath,
 			[script, codeModeHostCachePath(name)],
-			{ timeout: HOST_INSTALL_TIMEOUT_MS },
+			{ timeout: HOST_INSTALL_TIMEOUT_MS, signal },
 		);
 		return codeModeHostBinaryPath();
 	}

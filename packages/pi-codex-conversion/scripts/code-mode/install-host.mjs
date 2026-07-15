@@ -15,6 +15,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { EnvHttpProxyAgent, fetch } from "undici";
 
 import { HOST_ASSETS, hostAssetUrl } from "./host-assets.mjs";
@@ -23,6 +24,10 @@ const DOWNLOAD_TIMEOUT_MS = 120_000;
 const INSTALL_LOCK_POLL_MS = 200;
 const INSTALL_LOCK_TIMEOUT_MS = 125_000;
 const INSTALL_LOCK_STALE_MS = 180_000;
+const shutdownController = new AbortController();
+const cancelInstall = () => shutdownController.abort(new Error("code-mode host install cancelled"));
+process.once("SIGINT", cancelInstall);
+process.once("SIGTERM", cancelInstall);
 const platform = `${process.platform}-${process.arch}`;
 const asset = HOST_ASSETS[platform];
 if (!asset) {
@@ -43,7 +48,7 @@ const outDir = resolve(destination, "..");
 if (existsSync(destination)) process.exit(0);
 mkdirSync(outDir, { recursive: true });
 const lockPath = `${destination}.lock`;
-if (!(await acquireInstallLock(lockPath, destination))) process.exit(0);
+if (!(await acquireInstallLock(lockPath, destination, shutdownController.signal))) process.exit(0);
 
 const temporary = mkdtempSync(join(tmpdir(), "pi-codex-code-mode-"));
 try {
@@ -54,7 +59,7 @@ try {
 		const response = await fetch(assetUrl, {
 			dispatcher,
 			redirect: "follow",
-			signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
+			signal: AbortSignal.any([shutdownController.signal, AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS)]),
 		});
 		if (!response.ok)
 			throw new Error(
@@ -83,6 +88,7 @@ try {
 		const result = spawnSync("tar", ["-xzf", archive, "-C", extracted], {
 			stdio: "inherit",
 		});
+		shutdownController.signal.throwIfAborted();
 		if (result.status !== 0)
 			throw new Error("failed to extract code-mode host archive");
 		const candidates = walk(extracted).filter((path) =>
@@ -100,11 +106,14 @@ try {
 } finally {
 	rmSync(temporary, { recursive: true, force: true });
 	rmSync(lockPath, { recursive: true, force: true });
+	process.off("SIGINT", cancelInstall);
+	process.off("SIGTERM", cancelInstall);
 }
 
-async function acquireInstallLock(lockPath, destination) {
+async function acquireInstallLock(lockPath, destination, signal) {
 	const deadline = Date.now() + INSTALL_LOCK_TIMEOUT_MS;
 	while (Date.now() < deadline) {
+		signal.throwIfAborted();
 		if (existsSync(destination)) return false;
 		try {
 			mkdirSync(lockPath);
@@ -121,7 +130,7 @@ async function acquireInstallLock(lockPath, destination) {
 				if (!statError || typeof statError !== "object" || statError.code !== "ENOENT")
 					throw statError;
 			}
-			await new Promise((resolve) => setTimeout(resolve, INSTALL_LOCK_POLL_MS));
+			await delay(INSTALL_LOCK_POLL_MS, undefined, { signal });
 		}
 	}
 	if (existsSync(destination)) return false;
