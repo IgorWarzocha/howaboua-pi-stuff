@@ -108,9 +108,9 @@ export function registerCodexEvents(
 		if (event.toolName === "exec_command") tracker.recordEnd(event.toolCallId);
 	});
 
-	pi.on("session_shutdown", async () => {
+	pi.on("session_shutdown", async (_event, ctx) => {
 		try {
-			runtime.shutdownTransport();
+			runtime.shutdownTransport(ctx.sessionManager.getSessionId());
 			ui.clearBackgroundWidget();
 			runtime.backgroundWidget.ctx = undefined;
 			sessions.shutdown();

@@ -29,7 +29,7 @@ export interface CodexExtensionRuntime {
 	codexSystemPrompt(basePrompt: string, ctx: CodexContext, skills?: AdapterState["promptSkills"]): string;
 	startPrewarm(ctx: CodexContext, systemPrompt?: string): Promise<void> | undefined;
 	resetTransport(sessionId?: string): void;
-	shutdownTransport(): void;
+	shutdownTransport(sessionId: string): void;
 	waitForPrewarm(ctx: CodexContext, systemPrompt: string): Promise<void> | undefined;
 }
 
@@ -127,9 +127,8 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 			state.codexTurnState.reset();
 			if (sessionId) closeOpenAICodexWebSocketSessions(sessionId);
 		},
-		shutdownTransport() {
-			runtime.resetTransport();
-			closeOpenAICodexWebSocketSessions();
+		shutdownTransport(sessionId) {
+			runtime.resetTransport(sessionId);
 		},
 		waitForPrewarm(ctx, systemPrompt) {
 			return prewarmPromise ?? runtime.startPrewarm(ctx, systemPrompt);

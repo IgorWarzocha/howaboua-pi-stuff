@@ -20,7 +20,7 @@ import { combineAbortSignals, compressRequestBodyZstd, createSSEHeaderTimeout, p
 import type { CodexProviderStreamOptions, OpenAICodexStreamOptions, ResponsesBody } from "./openai-codex/types.ts";
 import { createInitialAssistantMessage } from "./openai-codex/types.ts";
 import { finalizeUsage } from "./openai-codex/usage.ts";
-import { closeOpenAICodexWebSocketSessions, validateWebSocketTimeoutOptions } from "./openai-codex/websocket.ts";
+import { validateWebSocketTimeoutOptions } from "./openai-codex/websocket.ts";
 import { processCodexResponsesStream } from "./openai-codex/stream-events.ts";
 import { prewarmWebSocket, processWebSocketStream } from "./openai-codex/websocket-stream.ts";
 import { openaiCodexNativeOAuthProvider } from "./openai-codex/oauth.ts";
@@ -279,9 +279,5 @@ export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: { g
 			...(options.getConfig ? { getConfig: options.getConfig } : {}),
 			...(options.turnState ? { turnState: options.turnState } : {}),
 		}),
-	});
-
-	pi.on("session_shutdown", async () => {
-		closeOpenAICodexWebSocketSessions();
 	});
 }
