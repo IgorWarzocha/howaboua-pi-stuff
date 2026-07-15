@@ -1,22 +1,11 @@
 import type { CodeModeToolMetadata } from "./types.js";
 
-export const EXEC_DESCRIPTION = `Run JavaScript to compose custom tool calls.
-- Pass raw JavaScript source, not a JSON-escaped string.
-- Nested tools take the string or object shown in their usage and return a string or object.
-- Code runs as an async module in isolated V8: no Node, filesystem, network, or console. Await all work; unawaited promises are discarded.
-- Optional first line: \`// @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}\`. Defaults are 10000 ms and 10000 tokens. Set \`yield_time_ms\` near the expected runtime; use 60000 or more for subagents and long commands to avoid repeated waits. Long waits remain cancellable, and \`notify()\` still emits progress.
-
-Helpers:
-- \`text(value)\` appends output and JSON-stringifies non-strings; \`image(dataUrl, detail?)\` and \`generatedImage(result)\` append images.
-- \`store(key, value)\` / \`load(key)\` share serializable values in this live session.
-- \`notify(value)\` emits progress; \`yield_control()\` yields output while work continues; \`exit()\` ends successfully.
-- \`setTimeout\` / \`clearTimeout\` manage timers; pending timers do not keep exec alive.
-- \`ALL_TOOLS\` contains \`{ name, description }\` metadata.
-
-All custom tools remain callable on \`tools\`. When a needed tool is unknown, search \`ALL_TOOLS\` by name or description. List names with \`text(ALL_TOOLS.map(({ name }) => name))\`; inspect one with \`text(ALL_TOOLS.find(({ name }) => name === "tool_name"))\`.`;
+export const EXEC_DESCRIPTION = `Run raw JavaScript to compose tool calls.
+Optional first line: // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}
+Globals: tools, text, image, generatedImage, store, load, notify, yield_control, exit, setTimeout, clearTimeout, ALL_TOOLS.`;
 
 export const WAIT_DESCRIPTION =
-	"Wait for new output or terminate a yielded exec cell. Prefer one long wait over repeated short waits: set yield_time_ms near the expected remaining runtime, using 60000 or more for long tasks. Long waits remain cancellable and notify progress remains visible. Returns only output since the previous yield; call wait again if still running.";
+	"Resume a yielded exec cell.";
 
 const PROMOTED_TOOLS_HEADING = "Custom tools available in exec:";
 const DOCUMENTATION_PREFIX = "Custom tools documentation: read ";

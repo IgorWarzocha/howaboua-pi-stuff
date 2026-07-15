@@ -1,7 +1,9 @@
-import { MAX_CODE_MODE_OUTPUT_TOKENS } from "./host-protocol.js";
+import {
+	DEFAULT_CODE_MODE_OUTPUT_TOKENS,
+	MAX_CODE_MODE_OUTPUT_TOKENS,
+} from "./host-protocol.js";
 import type { RuntimeContentItem, RuntimeResponse } from "./types.js";
 
-const DEFAULT_MAX_TOKENS = 10_000;
 const MAX_OUTPUT_IMAGE_COUNT = 4;
 const MAX_OUTPUT_IMAGE_CHARS = 16 * 1024 * 1024;
 
@@ -44,7 +46,10 @@ export function toCodeModeToolResult(
 		});
 	const outputTokens = Math.min(
 		MAX_CODE_MODE_OUTPUT_TOKENS,
-		Math.max(1, maxTokens ?? response.maxOutputTokens ?? DEFAULT_MAX_TOKENS),
+		Math.max(
+			1,
+			maxTokens ?? response.maxOutputTokens ?? DEFAULT_CODE_MODE_OUTPUT_TOKENS,
+		),
 	);
 	return {
 		content: [

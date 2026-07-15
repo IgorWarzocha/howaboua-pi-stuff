@@ -31,12 +31,10 @@ const PATH_CODEX_GUIDELINES = [
 ];
 
 const CODE_MODE_GUIDELINES = [
-	"Use `tools.exec_command` for shell commands; prefer `rg` and `rg --files` for search.",
+	"Use tools.exec_command for shell commands; prefer rg and rg --files for search.",
 	"Use tools.write_stdin only for running shell sessions.",
 	"Use tty=true for interactive commands.",
 	"Use tools.apply_patch(patch) for file edits; group related edits.",
-	"Do not probe listed PATH tools.",
-	"Use stdin/heredoc for quoted or multiline PATH args.",
 	"Compose independent nested calls with Promise.all.",
 	"With async work, await dependencies; overlap only independent work.",
 	"Use text() only for concise values needed after exec; do not dump complete nested tool results.",

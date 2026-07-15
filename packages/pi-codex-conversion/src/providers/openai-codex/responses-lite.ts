@@ -21,9 +21,18 @@ export interface ResponsesLiteCompatibleBody {
 }
 
 export function supportsResponsesLiteModel(modelId: string | undefined): boolean {
-	if (!modelId) return false;
+	return /^gpt-5\.6-(?:luna|terra|sol)$/.test(normalizeModelId(modelId));
+}
+
+export function supportsProxiedResponsesLiteModel(modelId: string | undefined): boolean {
+	const id = normalizeModelId(modelId);
+	return id === "gpt-5.6" || supportsResponsesLiteModel(id);
+}
+
+function normalizeModelId(modelId: string | undefined): string {
+	if (!modelId) return "";
 	const id = modelId.includes("/") ? (modelId.split("/").pop() ?? modelId) : modelId;
-	return /^gpt-5\.6-(?:luna|terra|sol)$/.test(id.toLowerCase());
+	return id.toLowerCase();
 }
 
 export function isResponsesLiteRequest(body: ResponsesLiteCompatibleBody): boolean {

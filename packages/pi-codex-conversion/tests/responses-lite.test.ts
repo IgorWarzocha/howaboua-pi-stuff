@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyResponsesLiteRequest, applyResponsesLiteWebSocketMetadata, prepareResponsesLiteRequestImages, supportsResponsesLiteModel } from "../src/providers/openai-codex/responses-lite.ts";
+import { applyResponsesLiteRequest, applyResponsesLiteWebSocketMetadata, prepareResponsesLiteRequestImages, supportsProxiedResponsesLiteModel, supportsResponsesLiteModel } from "../src/providers/openai-codex/responses-lite.ts";
 
 test("Responses Lite is limited to the GPT-5.6 Codex family", () => {
 	assert.equal(supportsResponsesLiteModel("gpt-5.6-luna"), true);
@@ -8,6 +8,9 @@ test("Responses Lite is limited to the GPT-5.6 Codex family", () => {
 	assert.equal(supportsResponsesLiteModel("gpt-5.6-sol"), true);
 	assert.equal(supportsResponsesLiteModel("gpt-5.5"), false);
 	assert.equal(supportsResponsesLiteModel("gpt-5.6"), false);
+	assert.equal(supportsProxiedResponsesLiteModel("gpt-5.6"), true);
+	assert.equal(supportsProxiedResponsesLiteModel("openai/gpt-5.6-sol"), true);
+	assert.equal(supportsProxiedResponsesLiteModel("gpt-5.5"), false);
 });
 
 test("Responses Lite moves instructions and tools into input and prepares images", () => {

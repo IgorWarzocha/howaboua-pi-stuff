@@ -1,6 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { isCodexLikeContext, isOpenAICodexContext, isResponsesContext } from "../prompt/codex-model.ts";
-import { supportsResponsesLiteModel } from "../../providers/openai-codex/responses-lite.ts";
+import { supportsProxiedResponsesLiteModel, supportsResponsesLiteModel } from "../../providers/openai-codex/responses-lite.ts";
 import type { CodexConversionConfig } from "./config.ts";
 import type { AdapterState } from "./state.ts";
 import {
@@ -46,7 +46,11 @@ export function shouldUseNativeResponsesCompaction(ctx: ExtensionContext, config
 }
 
 export function shouldUseGpt56CodeMode(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
-	return config.beta.codeMode && isOpenAICodexContext(ctx) && supportsResponsesLiteModel(ctx.model?.id ?? "");
+	if (!config.beta.codeMode) return false;
+	if (isOpenAICodexContext(ctx)) return supportsResponsesLiteModel(ctx.model?.id);
+	return isConfiguredAdapterProvider(ctx, config)
+		&& isResponsesContext(ctx)
+		&& supportsProxiedResponsesLiteModel(ctx.model?.id);
 }
 
 export function isConfiguredAdapterProvider(ctx: ExtensionContext, config: CodexConversionConfig): boolean {

@@ -7,6 +7,7 @@ import type {
 } from "./types.js";
 
 export const MAX_CODE_MODE_OUTPUT_TOKENS = 100_000;
+export const DEFAULT_CODE_MODE_OUTPUT_TOKENS = 10_000;
 
 export function toWireToolDefinition(tool: CodeModeToolDefinition) {
 	if (

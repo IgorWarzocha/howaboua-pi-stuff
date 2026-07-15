@@ -1,6 +1,9 @@
 import type { ExtensionAPI, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { MAX_CODE_MODE_OUTPUT_TOKENS } from "./host-protocol.js";
+import {
+	DEFAULT_CODE_MODE_OUTPUT_TOKENS,
+	MAX_CODE_MODE_OUTPUT_TOKENS,
+} from "./host-protocol.js";
 import {
 	EXEC_DESCRIPTION,
 	WAIT_DESCRIPTION,
@@ -19,27 +22,24 @@ import { toCodeModeToolResult } from "./tool-result.js";
 const DEFAULT_WAIT_MS = 10_000;
 type RenderTracker = ReturnType<typeof createCodeModeRenderTracker>;
 const EXEC_PARAMETERS = Type.Object({
-	code: Type.String({ description: "JavaScript source; no markdown fences." }),
+	code: Type.String(),
 });
 const WAIT_PARAMETERS = Type.Object({
-	cell_id: Type.String({ description: "Yielded exec cell ID." }),
+	cell_id: Type.String(),
 	yield_time_ms: Type.Optional(
 		Type.Integer({
 			minimum: 0,
-			description:
-				"Wait duration in ms. Match the expected remaining runtime; use 60000 or more for long tasks. Default 10000.",
+			default: DEFAULT_WAIT_MS,
 		}),
 	),
 	max_tokens: Type.Optional(
 		Type.Integer({
 			minimum: 1,
 			maximum: MAX_CODE_MODE_OUTPUT_TOKENS,
-			description: "Output token limit (default 10000).",
+			default: DEFAULT_CODE_MODE_OUTPUT_TOKENS,
 		}),
 	),
-	terminate: Type.Optional(
-		Type.Boolean({ description: "Stop the cell instead of waiting." }),
-	),
+	terminate: Type.Optional(Type.Boolean()),
 });
 
 export function registerPublicCodeModeTools(

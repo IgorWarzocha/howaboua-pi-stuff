@@ -4,7 +4,7 @@ import { readCodexConversionConfig } from "../adapter/activation/config.ts";
 import { shouldUseCodexAdapter, syncAdapter } from "../adapter/activation/activation.ts";
 import { handleCodexSessionBeforeCompact } from "../adapter/compaction/compaction.ts";
 import { isNativeCompactionDetails, NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, NATIVE_COMPACTION_DISPLAY_TEXT } from "../adapter/compaction/types.ts";
-import { rewriteCodexProviderRequest } from "../adapter/provider-request.ts";
+import { applyCodeModeProviderHeaders, rewriteCodexProviderRequest } from "../adapter/provider-request.ts";
 import { isAdapterContextExcludedCustomMessage } from "../adapter/prompt/context-filter.ts";
 import { hasNoSkillsFlag } from "../adapter/prompt/skills.ts";
 import { extractPiPromptSkills, resolvePromptSkills } from "../prompt/build-system-prompt.ts";
@@ -116,6 +116,9 @@ export function registerCodexEvents(
 		return { systemPrompt: runtime.codexSystemPrompt(event.systemPrompt, ctx, skills) };
 	});
 	pi.on("agent_settled", async () => state.codexTurnState.reset());
+	pi.on("before_provider_headers", (event, ctx) => {
+		applyCodeModeProviderHeaders(event.headers, ctx, state);
+	});
 	pi.on("before_provider_request", async (event, ctx) => {
 		state.cwd = ctx.cwd;
 		return rewriteCodexProviderRequest(event.payload, ctx, state);
