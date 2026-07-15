@@ -5,7 +5,7 @@ import { applyProxiedCodeModeProviderHeaders, rewriteCodexProviderRequest } from
 import type { AdapterState } from "../src/adapter/activation/state.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 
-function state(additionalProviders: string[] = []): AdapterState {
+function state(additionalProviders: string[] = [], responsesLite = false): AdapterState {
 	return {
 		enabled: true,
 		cwd: process.cwd(),
@@ -13,7 +13,7 @@ function state(additionalProviders: string[] = []): AdapterState {
 		codexTurnState: createCodexTurnState(),
 		config: {
 			...DEFAULT_CODEX_CONVERSION_CONFIG,
-			beta: { codeMode: true },
+			beta: { codeMode: true, responsesLite },
 			scope: { allProviders: "off", additionalProviders },
 		},
 	};
@@ -27,10 +27,22 @@ const payload = {
 	parallel_tool_calls: true,
 };
 
-test("Responses Lite rewrites the GPT-5.6 alias for configured Responses providers", async () => {
+test("Code Mode keeps raw exec tools in standard Responses requests", async () => {
 	const rewritten = await rewriteCodexProviderRequest({ ...payload, model: "gpt-5.6" }, {
 		model: { provider: "litellm", api: "openai-responses", id: "gpt-5.6" },
 	} as never, state(["litellm"])) as typeof payload;
+
+	assert.equal(rewritten.instructions, "Instructions");
+	assert.equal(rewritten.tools[0]?.type, "custom");
+	assert.equal(rewritten.tools[0]?.name, "exec");
+	assert.equal((rewritten.tools[0] as unknown as { format: { syntax: string } }).format.syntax, "lark");
+	assert.equal((rewritten.input[0] as { role: string }).role, "user");
+});
+
+test("Responses Lite rewrites the GPT-5.6 alias when enabled for configured providers", async () => {
+	const rewritten = await rewriteCodexProviderRequest({ ...payload, model: "gpt-5.6" }, {
+		model: { provider: "litellm", api: "openai-responses", id: "gpt-5.6" },
+	} as never, state(["litellm"], true)) as typeof payload;
 
 	assert.equal("instructions" in rewritten, false);
 	assert.equal("tools" in rewritten, false);
@@ -51,13 +63,19 @@ test("Responses Lite rewrites the GPT-5.6 alias for configured Responses provide
 	});
 });
 
-test("Responses Lite marks requests for configured Responses providers", () => {
+test("Responses Lite marks configured provider requests only when enabled", () => {
+	const standardHeaders: Record<string, string | null> = {};
+	applyProxiedCodeModeProviderHeaders(standardHeaders, {
+		model: { provider: "litellm", api: "openai-responses", id: "gpt-5.6" },
+	} as never, state(["litellm"]));
+	assert.deepEqual(standardHeaders, {});
+
 	const headers: Record<string, string | null> = {
 		"X-OpenAI-Internal-Codex-Responses-Lite": "false",
 	};
 	applyProxiedCodeModeProviderHeaders(headers, {
 		model: { provider: "litellm", api: "openai-responses", id: "gpt-5.6" },
-	} as never, state(["litellm"]));
+	} as never, state(["litellm"], true));
 
 	assert.equal(headers["x-openai-internal-codex-responses-lite"], "true");
 	assert.equal(headers["X-OpenAI-Internal-Codex-Responses-Lite"], null);
@@ -70,7 +88,7 @@ test("Responses Lite headers stay off built-in and extras-only requests", () => 
 	} as never, state());
 	assert.deepEqual(builtInHeaders, {});
 
-	const extrasOnlyState = state(["litellm"]);
+	const extrasOnlyState = state(["litellm"], true);
 	extrasOnlyState.config = {
 		...extrasOnlyState.config,
 		tools: { ...extrasOnlyState.config.tools, applyPatchOnly: true },

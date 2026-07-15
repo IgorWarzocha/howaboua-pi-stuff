@@ -63,7 +63,7 @@ test("syncAdapter leaves PATH tools to shell for configured custom providers", (
 test("GPT-5.6 Code Mode exposes only exec and wait while preserving unrelated tools", () => {
 	const pi = createToolHarness(["read", "bash", "edit", "write", "exec", "wait", "parallel"]);
 	const ctx = createContext({ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.6-luna" });
-	const state = createAdapterState({ beta: { codeMode: true } });
+	const state = createAdapterState({ beta: { codeMode: true, responsesLite: false } });
 
 	syncAdapter(pi as never, ctx as never, state);
 
@@ -74,7 +74,7 @@ test("GPT-5.6 Code Mode supports the base model alias on configured Responses pr
 	const pi = createToolHarness(["read", "bash", "edit", "write", "parallel"]);
 	const ctx = createContext({ provider: "litellm", api: "openai-responses", id: "gpt-5.6" });
 	const state = createAdapterState({
-		beta: { codeMode: true },
+		beta: { codeMode: true, responsesLite: false },
 		scope: { allProviders: "off", additionalProviders: ["litellm"] },
 	});
 
@@ -88,7 +88,7 @@ test("Code Mode requires the Responses API for configured providers", () => {
 		const pi = createToolHarness(["read", "bash", "edit", "write", "exec", "wait"]);
 		const ctx = createContext({ provider: "litellm", api, id: "gpt-5.6" });
 		const state = createAdapterState({
-			beta: { codeMode: true },
+			beta: { codeMode: true, responsesLite: false },
 			scope: { allProviders: "off", additionalProviders: ["litellm"] },
 		});
 
@@ -106,7 +106,7 @@ test("GPT-5.6 Code Mode does not apply to older or non-Codex models", () => {
 		{ provider: "openai", api: "openai-responses", id: "gpt-5.6-luna" },
 	]) {
 		const pi = createToolHarness(["read", "bash", "edit", "write", "exec", "wait"]);
-		const state = createAdapterState({ beta: { codeMode: true } });
+		const state = createAdapterState({ beta: { codeMode: true, responsesLite: false } });
 		syncAdapter(pi as never, createContext(model) as never, state);
 		assert.deepEqual(pi.activeTools().slice(0, 3), ["exec_command", "write_stdin", "apply_patch"]);
 		assert.equal(pi.activeTools().includes("exec"), false);
@@ -116,7 +116,7 @@ test("GPT-5.6 Code Mode does not apply to older or non-Codex models", () => {
 
 test("GPT-5.6 Code Mode does not apply to unconfigured Responses providers", () => {
 	const pi = createToolHarness(["read", "bash", "edit", "write", "exec", "wait"]);
-	const state = createAdapterState({ beta: { codeMode: true } });
+	const state = createAdapterState({ beta: { codeMode: true, responsesLite: false } });
 
 	syncAdapter(pi as never, createContext({ provider: "litellm", api: "openai-responses", id: "gpt-5.6" }) as never, state);
 

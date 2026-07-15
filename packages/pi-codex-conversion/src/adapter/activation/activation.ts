@@ -1,6 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { isCodexLikeContext, isOpenAICodexContext, isOpenAIResponsesContext, isResponsesContext } from "../prompt/codex-model.ts";
-import { supportsProxiedResponsesLiteModel, supportsResponsesLiteModel } from "../../providers/openai-codex/responses-lite.ts";
+import { supportsResponsesLiteModel } from "../../providers/openai-codex/responses-lite.ts";
 import type { CodexConversionConfig } from "./config.ts";
 import type { AdapterState } from "./state.ts";
 import {
@@ -50,7 +50,18 @@ export function shouldUseGpt56CodeMode(ctx: Pick<ExtensionContext, "model">, con
 	if (isOpenAICodexContext(ctx)) return supportsResponsesLiteModel(ctx.model?.id);
 	return isConfiguredAdapterProvider(ctx, config)
 		&& isOpenAIResponsesContext(ctx)
-		&& supportsProxiedResponsesLiteModel(ctx.model);
+		&& supportsProxiedGpt56CodeModeModel(ctx.model);
+}
+
+function supportsProxiedGpt56CodeModeModel(model: { id: string } | undefined): boolean {
+	if (!model?.id) return false;
+	const id = model.id.includes("/") ? (model.id.split("/").pop() ?? model.id) : model.id;
+	return /^gpt-5\.6(?:-(?:luna|terra|sol))?$/.test(id.toLowerCase());
+}
+
+export function shouldUseResponsesLiteForCodeMode(ctx: Pick<ExtensionContext, "model">, config: CodexConversionConfig): boolean {
+	if (!shouldUseGpt56CodeMode(ctx, config)) return false;
+	return isOpenAICodexContext(ctx) || config.beta.responsesLite;
 }
 
 export function isConfiguredAdapterProvider(ctx: Pick<ExtensionContext, "model">, config: CodexConversionConfig): boolean {

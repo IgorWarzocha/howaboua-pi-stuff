@@ -133,7 +133,7 @@ function createRegisteredCodexProvider(options?: { codeMode?: boolean | undefine
 	registerOpenAICodexCustomProvider(pi as never, {
 		getConfig: () => ({
 			openai: DEFAULT_CODEX_CONVERSION_CONFIG.openai,
-			beta: { codeMode: options?.codeMode ?? false },
+			beta: { ...DEFAULT_CODEX_CONVERSION_CONFIG.beta, codeMode: options?.codeMode ?? false },
 		}),
 		turnState,
 	});

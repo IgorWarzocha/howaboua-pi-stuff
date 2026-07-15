@@ -246,6 +246,7 @@ function buildItems(tab: SettingsTab, draft: CodexConversionConfig, theme: Theme
 	if (tab === "beta") {
 		return [
 			{ id: "codeMode", label: "GPT-5.6 Code Mode", currentValue: draft.beta.codeMode ? "on" : "off", values: ["off", "on"] },
+			{ id: "responsesLite", label: "Proxy Responses Lite", currentValue: draft.beta.responsesLite ? "on" : "off", values: ["off", "on"] },
 		];
 	}
 
@@ -279,6 +280,7 @@ function applySettingChange(id: string, value: string, draft: CodexConversionCon
 	if (id === "backgroundShellWidget") return { ...draft, ui: { ...draft.ui, backgroundShellWidget: value === "on" } };
 	if (id === "responsesCompaction") return { ...draft, compaction: { ...draft.compaction, responsesCompaction: value === "on" } };
 	if (id === "codeMode") return { ...draft, beta: { ...draft.beta, codeMode: value === "on" } };
+	if (id === "responsesLite") return { ...draft, beta: { ...draft.beta, responsesLite: value === "on" } };
 	if (id === "webRun") return { ...draft, tools: { ...draft.tools, webRun: value === "on" } };
 	if (id === "imageGeneration") return { ...draft, tools: { ...draft.tools, imageGeneration: value === "on" } };
 	if (id === "viewImageFallback") return { ...draft, tools: { ...draft.tools, viewImageFallback: value === "on" } };

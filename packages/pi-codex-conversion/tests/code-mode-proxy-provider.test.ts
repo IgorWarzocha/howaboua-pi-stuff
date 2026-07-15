@@ -97,7 +97,7 @@ test("the proxy bridge delegates ordinary Responses models without recursion", a
 	const unregistered: string[] = [];
 	const config = {
 		...DEFAULT_CODEX_CONVERSION_CONFIG,
-		beta: { codeMode: true },
+		beta: { codeMode: true, responsesLite: false },
 		scope: { allProviders: "off" as const, additionalProviders: ["proxy"] },
 	};
 	try {

@@ -2,9 +2,9 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { isOpenAICodexContext, isResponsesContext } from "./prompt/codex-model.ts";
 import { applyCodexRequestParams } from "./activation/config.ts";
 import type { AdapterState } from "./activation/state.ts";
-import { isEffectiveOpenAICodexContext, shouldUseCodexAdapter, shouldUseGpt56CodeMode } from "./activation/activation.ts";
+import { isEffectiveOpenAICodexContext, shouldUseCodexAdapter, shouldUseGpt56CodeMode, shouldUseResponsesLiteForCodeMode } from "./activation/activation.ts";
 import { injectPendingNativeWindowIntoPiCompactionRequest, rewriteCodexCompactedProviderRequest } from "./compaction/compaction.ts";
-import { applyResponsesLiteRequest, RESPONSES_LITE_HEADER, supportsProxiedResponsesLiteModel, supportsResponsesLiteModel, type ResponsesLiteCompatibleBody } from "../providers/openai-codex/responses-lite.ts";
+import { applyResponsesLiteRequest, RESPONSES_LITE_HEADER, type ResponsesLiteCompatibleBody } from "../providers/openai-codex/responses-lite.ts";
 import { applyCodeModeFreeformContract } from "./code-mode-contract.ts";
 
 export async function rewriteCodexProviderRequest(payload: unknown, ctx: ExtensionContext, state: AdapterState): Promise<unknown | undefined> {
@@ -21,12 +21,12 @@ export async function rewriteCodexProviderRequest(payload: unknown, ctx: Extensi
 	const rewrittenPayload = piCompactionPayload ?? (await rewriteCodexCompactedProviderRequest(configuredPayload, ctx, state)) ?? configuredPayload;
 	if (
 		shouldUseGpt56CodeMode(ctx, state.config)
-		&& isResponsesLiteCompatibleBody(rewrittenPayload)
-		&& (isOpenAICodexContext(ctx)
-			? supportsResponsesLiteModel(rewrittenPayload.model)
-			: supportsProxiedResponsesLiteModel(ctx.model))
+		&& isCodeModeCompatibleBody(rewrittenPayload)
 	) {
-		return applyResponsesLiteRequest(applyCodeModeFreeformContract(rewrittenPayload));
+		const codeModePayload = applyCodeModeFreeformContract(rewrittenPayload);
+		return shouldUseResponsesLiteForCodeMode(ctx, state.config)
+			? applyResponsesLiteRequest(codeModePayload)
+			: codeModePayload;
 	}
 	return rewrittenPayload;
 }
@@ -39,7 +39,7 @@ export function applyProxiedCodeModeProviderHeaders(
 	if (
 		!shouldUseCodexAdapter(ctx, state.config)
 		|| isOpenAICodexContext(ctx)
-		|| !shouldUseGpt56CodeMode(ctx, state.config)
+		|| !shouldUseResponsesLiteForCodeMode(ctx, state.config)
 	) {
 		return;
 	}
@@ -51,7 +51,7 @@ export function applyProxiedCodeModeProviderHeaders(
 	headers[RESPONSES_LITE_HEADER] = "true";
 }
 
-function isResponsesLiteCompatibleBody(value: unknown): value is ResponsesLiteCompatibleBody {
+function isCodeModeCompatibleBody(value: unknown): value is ResponsesLiteCompatibleBody {
 	return typeof value === "object" && value !== null
 		&& typeof (value as { model?: unknown }).model === "string"
 		&& Array.isArray((value as { input?: unknown }).input);

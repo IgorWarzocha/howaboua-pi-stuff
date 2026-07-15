@@ -33,6 +33,7 @@ test("old flat config migrates to grouped config and respects disabled provider 
 	assert.equal(config.ui.backgroundShellWidget, false);
 	assert.equal(config.compaction.responsesCompaction, true);
 	assert.equal(config.beta.codeMode, false);
+	assert.equal(config.beta.responsesLite, false);
 	assert.equal(config.openai.fast, true);
 	assert.equal(config.openai.verbosity, "high");
 	assert.equal(config.openai.forceCachedWebSockets, false);
@@ -80,6 +81,8 @@ test("grouped config accepts old toolRendering key", () => {
 test("GPT-5.6 Code Mode is opt-in", () => {
 	assert.equal(normalizeCodexConversionConfig({}).beta.codeMode, false);
 	assert.equal(normalizeCodexConversionConfig({ beta: { codeMode: true } }).beta.codeMode, true);
+	assert.equal(normalizeCodexConversionConfig({}).beta.responsesLite, false);
+	assert.equal(normalizeCodexConversionConfig({ beta: { codeMode: true, responsesLite: true } }).beta.responsesLite, true);
 });
 
 test("Code Mode details are optional", () => {
@@ -87,12 +90,12 @@ test("Code Mode details are optional", () => {
 	assert.equal(normalizeCodexConversionConfig({ ui: { codeModeDetails: true } }).ui.codeModeDetails, true);
 });
 
-test("Responses Lite config migrates to the complete GPT-5.6 Code Mode", () => {
+test("legacy Responses Lite config keeps both transport and Code Mode enabled", () => {
 	const migration = migrateCodexConversionConfigIfNeeded({
 		beta: { responsesLite: true },
 	});
 	assert.equal(migration.migrated, true);
-	assert.deepEqual((migration.config as { beta: unknown }).beta, { codeMode: true });
+	assert.deepEqual((migration.config as { beta: unknown }).beta, { responsesLite: true, codeMode: true });
 });
 
 test("beta-only Code Mode config stays grouped", () => {
