@@ -50,9 +50,9 @@
 	"devDependencies": {
 		"@types/node": "^24.10.0",
 		"typescript": "^5.9.3",
-		"@earendil-works/pi-coding-agent": "0.80.7",
+		"@earendil-works/pi-coding-agent": "0.80.8",
 		"@biomejs/biome": "^2.4.16",
-		"@earendil-works/pi-ai": "0.80.7"
+		"@earendil-works/pi-ai": "0.80.8"
 	},
 	"peerDependencies": {
 		"@earendil-works/pi-ai": ">=0.80.6",

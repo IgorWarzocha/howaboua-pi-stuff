@@ -2,13 +2,15 @@ import { afterEach, expect, test } from "bun:test";
 import {
 	type Api,
 	type AssistantMessage,
+	type Credential,
+	type CredentialStore,
 	createAssistantMessageEventStream,
 	type SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
 import {
-	AuthStorage,
 	type ExtensionCommandContext,
 	ModelRegistry,
+	ModelRuntime,
 	SessionManager,
 } from "@earendil-works/pi-coding-agent";
 import { buildReviewConversationSummary } from "../src/conversation-summary.js";
@@ -17,6 +19,32 @@ import type { ResolvedReviewConfig } from "../src/types.js";
 const PROVIDER = "summary-sdk-test";
 const API = "summary-sdk-test-api" as Api;
 let registry: ModelRegistry | undefined;
+
+function credentialStore(
+	initial: Record<string, Credential> = {},
+): CredentialStore {
+	const credentials = new Map(Object.entries(initial));
+	return {
+		async read(providerId) {
+			return credentials.get(providerId);
+		},
+		async list() {
+			return [...credentials].map(([providerId, credential]) => ({
+				providerId,
+				type: credential.type,
+			}));
+		},
+		async modify(providerId, update) {
+			const current = credentials.get(providerId);
+			const next = await update(current);
+			if (next) credentials.set(providerId, next);
+			return next ?? current;
+		},
+		async delete(providerId) {
+			credentials.delete(providerId);
+		},
+	};
+}
 
 afterEach(() => {
 	registry?.unregisterProvider(PROVIDER);
@@ -99,13 +127,19 @@ function abortedResponseStream(
 }
 
 async function summarizeWithAuth(
-	authStorage: AuthStorage,
+	credentials: CredentialStore,
 	authConfig: Pick<
 		Parameters<ModelRegistry["registerProvider"]>[1],
 		"apiKey" | "authHeader" | "oauth"
 	>,
 ) {
-	registry = ModelRegistry.inMemory(authStorage);
+	registry = new ModelRegistry(
+		await ModelRuntime.create({
+			credentials,
+			modelsPath: null,
+			allowModelNetwork: false,
+		}),
+	);
 	let receivedOptions: SimpleStreamOptions | undefined;
 	registry.registerProvider(PROVIDER, {
 		baseUrl: "https://summary.invalid/v1",
@@ -158,8 +192,12 @@ async function summarizeWithAuth(
 
 test("uses the public Pi session path for extension-registered providers", async () => {
 	const result = await summarizeWithAuth(
-		AuthStorage.inMemory({
-			[PROVIDER]: { type: "api_key", key: "stored-key" },
+		credentialStore({
+			[PROVIDER]: {
+				type: "api_key",
+				key: "stored-key",
+				env: { SUMMARY_ACCOUNT: "account-123" },
+			},
 		}),
 		{ apiKey: "configured-key", authHeader: true },
 	);
@@ -169,12 +207,13 @@ test("uses the public Pi session path for extension-registered providers", async
 	expect(result.receivedOptions?.headers?.Authorization).toBe(
 		"Bearer stored-key",
 	);
+	expect(result.receivedOptions?.env?.SUMMARY_ACCOUNT).toBe("account-123");
 });
 
 test("resolves environment-backed provider auth", async () => {
 	process.env["SUMMARY_SDK_TEST_KEY"] = "environment-key";
 	try {
-		const result = await summarizeWithAuth(AuthStorage.inMemory(), {
+		const result = await summarizeWithAuth(credentialStore(), {
 			apiKey: "$SUMMARY_SDK_TEST_KEY",
 		});
 		expect(result.summary).toBe("Review context summary");
@@ -192,7 +231,7 @@ test("resolves OAuth provider auth", async () => {
 		expires: Date.now() + 60_000,
 	};
 	const result = await summarizeWithAuth(
-		AuthStorage.inMemory({ [PROVIDER]: credentials }),
+		credentialStore({ [PROVIDER]: credentials }),
 		{
 			oauth: {
 				name: "Summary OAuth",
@@ -219,7 +258,13 @@ test("aborts an in-flight summary when the review is cancelled", async () => {
 	const started = new Promise<void>((resolve) => {
 		markStarted = resolve;
 	});
-	registry = ModelRegistry.inMemory(AuthStorage.inMemory());
+	registry = new ModelRegistry(
+		await ModelRuntime.create({
+			credentials: credentialStore(),
+			modelsPath: null,
+			allowModelNetwork: false,
+		}),
+	);
 	registry.registerProvider(PROVIDER, {
 		baseUrl: "https://summary.invalid/v1",
 		api: API,

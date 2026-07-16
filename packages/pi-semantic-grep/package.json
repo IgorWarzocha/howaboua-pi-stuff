@@ -51,8 +51,8 @@
 		"@types/node": "^24.0.0",
 		"typescript": "^5.8.3",
 		"@biomejs/biome": "^2.4.16",
-		"@earendil-works/pi-coding-agent": "0.80.7",
-		"@earendil-works/pi-tui": "0.80.7",
+		"@earendil-works/pi-coding-agent": "0.80.8",
+		"@earendil-works/pi-tui": "0.80.8",
 		"typebox": "1.1.38"
 	},
 	"peerDependencies": {

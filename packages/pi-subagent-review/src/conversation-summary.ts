@@ -1,9 +1,14 @@
-import type { AssistantMessage } from "@earendil-works/pi-ai";
+import type {
+	AssistantMessage,
+	Credential,
+	CredentialStore,
+} from "@earendil-works/pi-ai";
 import {
 	createAgentSession,
 	DefaultResourceLoader,
 	type ExtensionCommandContext,
 	getAgentDir,
+	ModelRuntime,
 	type SessionEntry,
 	SessionManager,
 	SettingsManager,
@@ -12,6 +17,41 @@ import type { ResolvedReviewConfig } from "./types.js";
 
 const SUMMARY_SYSTEM_PROMPT =
 	"Summarize supplied conversation context for a separate code-review agent. Follow the user's summary format exactly and do not use tools.";
+
+function summaryCredentialStore(
+	providerId: string,
+	apiKey: string | undefined,
+	env: Record<string, string> | undefined,
+): CredentialStore {
+	const credentials = new Map<string, Credential>();
+	if (apiKey || env) {
+		credentials.set(providerId, {
+			type: "api_key",
+			...(apiKey ? { key: apiKey } : {}),
+			...(env ? { env } : {}),
+		});
+	}
+	return {
+		async read(id) {
+			return credentials.get(id);
+		},
+		async list() {
+			return [...credentials].map(([id, credential]) => ({
+				providerId: id,
+				type: credential.type,
+			}));
+		},
+		async modify(id, update) {
+			const current = credentials.get(id);
+			const next = await update(current);
+			if (next) credentials.set(id, next);
+			return next ?? current;
+		},
+		async delete(id) {
+			credentials.delete(id);
+		},
+	};
+}
 
 function lastAssistantMessage(
 	messages: readonly unknown[],
@@ -41,6 +81,32 @@ async function completeSummary(
 	const model = ctx.modelRegistry.find(parsed.provider, parsed.modelId);
 	if (!model)
 		throw new Error(`Summary model not found: ${config.summary.model}`);
+	const requestAuth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
+	if (!requestAuth.ok) throw new Error(requestAuth.error);
+	const modelRuntime = await ModelRuntime.create({
+		credentials: summaryCredentialStore(
+			model.provider,
+			requestAuth.apiKey,
+			requestAuth.env,
+		),
+		allowModelNetwork: false,
+	});
+	const registeredProvider = ctx.modelRegistry.getRegisteredProviderConfig(
+		model.provider,
+	);
+	if (registeredProvider || requestAuth.apiKey || requestAuth.headers) {
+		const { oauth, ...providerConfig } = registeredProvider ?? {};
+		modelRuntime.registerProvider(model.provider, {
+			...providerConfig,
+			...(requestAuth.apiKey ? { apiKey: requestAuth.apiKey } : {}),
+			headers: {
+				...registeredProvider?.headers,
+				...requestAuth.headers,
+			},
+			...(!requestAuth.apiKey && oauth ? { oauth } : {}),
+		});
+	}
+	const summaryModel = modelRuntime.getModel(model.provider, model.id) ?? model;
 
 	const settingsManager = SettingsManager.inMemory({
 		compaction: { enabled: false },
@@ -60,10 +126,9 @@ async function completeSummary(
 
 	const { session } = await createAgentSession({
 		cwd: ctx.cwd,
-		model,
+		model: summaryModel,
 		thinkingLevel: config.summary.thinking,
-		authStorage: ctx.modelRegistry.authStorage,
-		modelRegistry: ctx.modelRegistry,
+		modelRuntime,
 		noTools: "all",
 		resourceLoader,
 		sessionManager: SessionManager.inMemory(ctx.cwd),
