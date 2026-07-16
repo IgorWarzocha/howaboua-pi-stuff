@@ -6,7 +6,7 @@ const MINIMUM_INTERVAL_MS = 1000;
 const DEFAULT_POLL_INTERVAL_SECONDS = 5;
 const SLOW_DOWN_INTERVAL_INCREMENT_MS = 5000;
 
-type OAuthDeviceCodePollResult<T> =
+export type OAuthDeviceCodePollResult<T> =
 	| { status: "pending" }
 	| { status: "slow_down"; intervalSeconds?: number }
 	| { status: "failed"; message: string }

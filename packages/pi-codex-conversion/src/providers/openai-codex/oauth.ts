@@ -2,7 +2,10 @@ import { createServer, type Server } from "node:http";
 import { randomBytes, createHash } from "node:crypto";
 import type { OAuthDeviceCodeInfo } from "@earendil-works/pi-ai/oauth";
 import type { ProviderConfig } from "@earendil-works/pi-coding-agent";
-import { pollOAuthDeviceCodeFlow } from "./device-code.ts";
+import {
+	type OAuthDeviceCodePollResult,
+	pollOAuthDeviceCodeFlow,
+} from "./device-code.ts";
 
 const CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann";
 const AUTH_BASE_URL = "https://auth.openai.com";
@@ -21,6 +24,7 @@ export const OPENAI_CODEX_NATIVE_SCOPE = "openid profile email offline_access ap
 
 type OAuthCredentials = { access: string; refresh: string; expires: number; accountId: string };
 type OAuthCallbacks = Parameters<NonNullable<ProviderConfig["oauth"]>["login"]>[0];
+type DeviceAuthToken = { authorization_code: string; code_verifier: string };
 
 function getCallbackHost(): string { return process.env["PI_OAUTH_CALLBACK_HOST"] || "127.0.0.1"; }
 function base64Url(bytes: Buffer): string { return bytes.toString("base64url"); }
@@ -144,6 +148,33 @@ async function loginBrowser(callbacks: OAuthCallbacks): Promise<OAuthCredentials
 	} finally { server.close(); }
 }
 
+export async function parseOpenAICodexDeviceAuthPollResponse(
+	response: Response,
+): Promise<OAuthDeviceCodePollResult<DeviceAuthToken>> {
+	if (response.ok) {
+		const json = await response.json() as Partial<DeviceAuthToken> | null;
+		return json?.authorization_code && json.code_verifier
+			? { status: "complete", value: { authorization_code: json.authorization_code, code_verifier: json.code_verifier } }
+			: { status: "failed", message: `Invalid OpenAI Codex device auth token response: ${JSON.stringify(json)}` };
+	}
+	if (response.status === 403 || response.status === 404) return { status: "pending" };
+
+	const responseBody = await response.text().catch(() => "");
+	let errorCode: unknown;
+	try {
+		const json = JSON.parse(responseBody) as { error?: string | { code?: string } } | null;
+		const error = json?.error;
+		errorCode = typeof error === "object" ? error?.code : error;
+	} catch {}
+	if (errorCode === "deviceauth_authorization_pending") return { status: "pending" };
+	if (errorCode === "slow_down") return { status: "slow_down" };
+
+	return {
+		status: "failed",
+		message: `OpenAI Codex device auth failed with status ${response.status}${responseBody ? `: ${responseBody}` : ""}`,
+	};
+}
+
 async function loginDeviceCode(callbacks: OAuthCallbacks): Promise<OAuthCredentials> {
 	const response = await fetch(DEVICE_USER_CODE_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ client_id: CLIENT_ID }), signal: callbacks.signal ?? null });
 	if (!response.ok) throw new Error(`OpenAI Codex device code request failed with status ${response.status}: ${await response.text().catch(() => response.statusText)}`);
@@ -157,12 +188,7 @@ async function loginDeviceCode(callbacks: OAuthCallbacks): Promise<OAuthCredenti
 		signal: callbacks.signal ?? new AbortController().signal,
 		poll: async () => {
 			const pollResponse = await fetch(DEVICE_TOKEN_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ device_auth_id: json.device_auth_id, user_code: json.user_code }), signal: callbacks.signal ?? null });
-			if (pollResponse.ok) {
-				const pollJson = await pollResponse.json() as { authorization_code?: string; code_verifier?: string };
-				return pollJson.authorization_code && pollJson.code_verifier ? { status: "complete", value: pollJson } : { status: "failed", message: `Invalid OpenAI Codex device auth token response: ${JSON.stringify(pollJson)}` };
-			}
-			if (pollResponse.status === 403 || pollResponse.status === 404) return { status: "pending" };
-			return { status: "failed", message: `OpenAI Codex device auth failed with status ${pollResponse.status}: ${await pollResponse.text().catch(() => pollResponse.statusText)}` };
+			return parseOpenAICodexDeviceAuthPollResponse(pollResponse);
 		},
 	});
 	if (!code.authorization_code || !code.code_verifier) throw new Error("Invalid OpenAI Codex device auth token response");

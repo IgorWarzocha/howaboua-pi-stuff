@@ -11,6 +11,7 @@ import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/confi
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 import { processMappedCodexResponsesStream } from "../src/providers/openai-codex/stream-events.ts";
 import { createInitialAssistantMessage } from "../src/providers/openai-codex/types.ts";
+import { parseOpenAICodexDeviceAuthPollResponse } from "../src/providers/openai-codex/oauth.ts";
 
 const exampleTool = {
 	name: "example_tool",
@@ -97,6 +98,26 @@ test("Codex stream forwarding retains exact completed response items", async () 
 		{ onOutputItemDone: (value) => captured.push(value) },
 	);
 	assert.deepEqual(captured, [item]);
+});
+
+test("Codex device auth preserves pending and slow-down responses", async () => {
+	assert.deepEqual(
+		await parseOpenAICodexDeviceAuthPollResponse(
+			new Response(JSON.stringify({ error: "slow_down" }), { status: 400 }),
+		),
+		{ status: "slow_down" },
+	);
+	assert.deepEqual(
+		await parseOpenAICodexDeviceAuthPollResponse(
+			new Response(
+				JSON.stringify({
+					error: { code: "deviceauth_authorization_pending" },
+				}),
+				{ status: 400 },
+			),
+		),
+		{ status: "pending" },
+	);
 });
 
 function requestBodyText(init: RequestInit): string {
