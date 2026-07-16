@@ -1,8 +1,9 @@
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import {
+	type ExtensionContext,
+	type KeybindingsManager,
+} from "@earendil-works/pi-coding-agent";
 import {
 	Editor,
-	Key,
-	matchesKey,
 	truncateToWidth,
 	wrapTextWithAnsi,
 } from "@earendil-works/pi-tui";
@@ -24,6 +25,7 @@ import {
 } from "./state.js";
 
 type AskTheme = ExtensionContext["ui"]["theme"];
+type AskKeybinding = Parameters<KeybindingsManager["getKeys"]>[0];
 type AddLine = (line?: string) => void;
 type EditingKind = "other" | "comment";
 
@@ -44,6 +46,7 @@ interface RenderTabsOptions {
 interface RenderReviewOptions {
 	add: AddLine;
 	handoff: boolean;
+	keybindings: KeybindingsManager;
 	promptStates: PromptState[];
 	prompts: AskPrompt[];
 	theme: AskTheme;
@@ -64,6 +67,7 @@ interface RenderPromptOptions {
 	editor: Editor;
 	handoff: boolean;
 	isEditing: EditingKind | null;
+	keybindings: KeybindingsManager;
 	choices: PromptChoice[];
 	prompt: AskPrompt;
 	promptState: PromptState | undefined;
@@ -84,6 +88,18 @@ function addWrapped(
 	)) {
 		add(`${indent}${line}`);
 	}
+}
+
+function renderKeyHint(
+	theme: AskTheme,
+	keybindings: KeybindingsManager,
+	action: AskKeybinding,
+	description: string,
+): string {
+	return (
+		theme.fg("dim", keybindings.getKeys(action).join("/")) +
+		theme.fg("muted", ` ${description}`)
+	);
 }
 
 function renderAskTabs({
@@ -110,17 +126,13 @@ function renderAskTabs({
 function renderAskReview({
 	add,
 	handoff,
+	keybindings,
 	promptStates,
 	prompts,
 	theme,
 	width,
 }: RenderReviewOptions): void {
-	add(
-		theme.fg(
-			handoff ? "warning" : "accent",
-			handoff ? " Resume agent" : " Review",
-		),
-	);
+	add(theme.fg("accent", handoff ? " Resume agent" : " Review"));
 	add();
 	prompts.forEach((prompt, index) => {
 		const promptState = promptStates[index];
@@ -147,13 +159,32 @@ function renderAskReview({
 		}
 	});
 	add();
-	add(
-		theme.fg(
-			"dim",
-			handoff
-				? " Enter returns control • ←/→ prompts • Esc dismisses"
-				: " Enter submits • ←/→ prompts • Esc dismisses",
-		),
+	addWrapped(
+		add,
+		" " +
+			renderKeyHint(
+				theme,
+				keybindings,
+				"tui.select.confirm",
+				handoff ? "return control" : "submit",
+			) +
+			" • " +
+			renderKeyHint(
+				theme,
+				keybindings,
+				"tui.editor.cursorLeft",
+				"previous prompt",
+			) +
+			" • " +
+			renderKeyHint(
+				theme,
+				keybindings,
+				"tui.editor.cursorRight",
+				"next prompt",
+			) +
+			" • " +
+			renderKeyHint(theme, keybindings, "tui.select.cancel", "dismiss"),
+		width,
 	);
 }
 
@@ -178,6 +209,7 @@ function renderAskPrompt({
 	editor,
 	handoff,
 	isEditing,
+	keybindings,
 	choices,
 	prompt,
 	promptState,
@@ -186,7 +218,7 @@ function renderAskPrompt({
 	width,
 }: RenderPromptOptions): void {
 	if (handoff) {
-		add(theme.fg("warning", " Human action needed"));
+		add(theme.fg("accent", " Human action needed"));
 		add();
 	}
 	addWrapped(add, theme.fg("text", prompt.title), width, " ");
@@ -237,17 +269,26 @@ function renderAskPrompt({
 		for (const line of editor.render(width - 2)) add(` ${line}`);
 	}
 	add();
-	add(
-		theme.fg(
-			"dim",
-			" ↑↓ select • Enter choose/type • Tab next/default • blank Other/rephrase = follow-up • Esc close",
-		),
+	addWrapped(
+		add,
+		" " +
+			renderKeyHint(theme, keybindings, "tui.select.up", "up") +
+			" • " +
+			renderKeyHint(theme, keybindings, "tui.select.down", "down") +
+			" • " +
+			renderKeyHint(theme, keybindings, "tui.select.confirm", "choose/type") +
+			" • " +
+			renderKeyHint(theme, keybindings, "tui.input.tab", "next/default") +
+			" • blank Other/rephrase = follow-up • " +
+			renderKeyHint(theme, keybindings, "tui.select.cancel", "close"),
+		width,
 	);
 }
 
 interface EditingInputOptions {
 	advance: () => void;
 	editor: Editor;
+	keybindings: KeybindingsManager;
 	refresh: () => void;
 	saveEditing: (submittedText?: string) => void;
 	state: AskUiState;
@@ -255,15 +296,22 @@ interface EditingInputOptions {
 
 function handleAskEditingInput(
 	data: string,
-	{ advance, editor, refresh, saveEditing, state }: EditingInputOptions,
+	{
+		advance,
+		editor,
+		keybindings,
+		refresh,
+		saveEditing,
+		state,
+	}: EditingInputOptions,
 ): void {
-	if (matchesKey(data, Key.tab)) {
+	if (keybindings.matches(data, "tui.input.tab")) {
 		saveEditing(editor.getText());
 		state.editing = null;
 		advance();
 		return;
 	}
-	if (matchesKey(data, Key.escape)) {
+	if (keybindings.matches(data, "tui.select.cancel")) {
 		state.editing = null;
 		refresh();
 		return;
@@ -276,6 +324,7 @@ interface PromptInputOptions {
 	advanceWithDefault: () => void;
 	choices: () => PromptChoice[];
 	count: () => number;
+	keybindings: KeybindingsManager;
 	pick: (index: number) => void;
 	refresh: () => void;
 	selectOther: () => void;
@@ -289,6 +338,7 @@ function handleAskPromptInput(
 		advanceWithDefault,
 		choices,
 		count,
+		keybindings,
 		pick,
 		refresh,
 		selectOther,
@@ -296,21 +346,21 @@ function handleAskPromptInput(
 		state,
 	}: PromptInputOptions,
 ): void {
-	if (matchesKey(data, Key.up)) {
+	if (keybindings.matches(data, "tui.select.up")) {
 		state.focus = Math.max(0, state.focus - 1);
 		refresh();
 		return;
 	}
-	if (matchesKey(data, Key.down)) {
+	if (keybindings.matches(data, "tui.select.down")) {
 		state.focus = Math.min(count() - 1, state.focus + 1);
 		refresh();
 		return;
 	}
-	if (matchesKey(data, Key.tab)) {
+	if (keybindings.matches(data, "tui.input.tab")) {
 		advanceWithDefault();
 		return;
 	}
-	if (!matchesKey(data, Key.enter)) return;
+	if (!keybindings.matches(data, "tui.select.confirm")) return;
 	if (state.focus === choices().length) {
 		selectOther();
 		return;
@@ -325,6 +375,7 @@ function handleAskPromptInput(
 interface NavigationInputOptions {
 	done: (responses: AskResponse[] | null) => void;
 	isReview: () => boolean;
+	keybindings: KeybindingsManager;
 	promptStates: PromptState[];
 	prompts: AskPrompt[];
 	setTab: (next: number) => void;
@@ -336,26 +387,27 @@ function handleAskNavigationInput(
 	{
 		done,
 		isReview,
+		keybindings,
 		promptStates,
 		prompts,
 		setTab,
 		state,
 	}: NavigationInputOptions,
 ): boolean {
-	if (matchesKey(data, Key.escape)) {
+	if (keybindings.matches(data, "tui.select.cancel")) {
 		done(null);
 		return true;
 	}
-	if (matchesKey(data, Key.left)) {
+	if (keybindings.matches(data, "tui.editor.cursorLeft")) {
 		setTab(state.tab - 1);
 		return true;
 	}
-	if (matchesKey(data, Key.right)) {
+	if (keybindings.matches(data, "tui.editor.cursorRight")) {
 		setTab(state.tab + 1);
 		return true;
 	}
 	if (!isReview()) return false;
-	if (matchesKey(data, Key.enter)) {
+	if (keybindings.matches(data, "tui.select.confirm")) {
 		done(promptStatesToResponses(prompts, promptStates));
 	}
 	return true;
@@ -367,7 +419,7 @@ export async function askInTui(
 	{ handoff = false, signal }: { handoff?: boolean; signal?: AbortSignal } = {},
 ): Promise<AskResponse[] | null> {
 	if (!ctx.hasUI || signal?.aborted) return null;
-	return await ctx.ui.custom<AskResponse[] | null>((tui, theme, _kb, done) => {
+	return await ctx.ui.custom<AskResponse[] | null>((tui, theme, kb, done) => {
 		let settled = false;
 		const finish = (result: AskResponse[] | null) => {
 			if (settled) return;
@@ -384,13 +436,13 @@ export async function askInTui(
 		// transitions easy to desynchronise as this tool grows.
 		const promptStates = prompts.map(createPromptState);
 		const editor = new Editor(tui, {
-			borderColor: (text) => theme.fg(handoff ? "warning" : "accent", text),
+			borderColor: (text) => theme.fg("accent", text),
 			selectList: {
 				selectedPrefix: (text) => theme.fg("accent", text),
 				selectedText: (text) => theme.fg("accent", text),
 				description: (text) => theme.fg("muted", text),
 				scrollInfo: (text) => theme.fg("dim", text),
-				noMatch: (text) => theme.fg("warning", text),
+				noMatch: (text) => theme.fg("muted", text),
 			},
 		});
 
@@ -468,6 +520,7 @@ export async function askInTui(
 				handleAskEditingInput(data, {
 					advance,
 					editor,
+					keybindings: kb,
 					refresh,
 					saveEditing,
 					state,
@@ -478,6 +531,7 @@ export async function askInTui(
 				handleAskNavigationInput(data, {
 					done: finish,
 					isReview,
+					keybindings: kb,
 					promptStates,
 					prompts,
 					setTab,
@@ -490,6 +544,7 @@ export async function askInTui(
 				advanceWithDefault,
 				count,
 				choices,
+				keybindings: kb,
 				pick,
 				refresh,
 				selectOther,
@@ -502,13 +557,21 @@ export async function askInTui(
 			const lines: string[] = [];
 			const add: AddLine = (line = "") =>
 				lines.push(truncateToWidth(line, width));
-			add(theme.fg(handoff ? "warning" : "accent", "─".repeat(width)));
+			add(theme.fg("accent", "─".repeat(width)));
 			add(
 				renderAskTabs({ handoff, prompts, responded, tab: state.tab, theme }),
 			);
 			add();
 			if (isReview()) {
-				renderAskReview({ add, handoff, promptStates, prompts, theme, width });
+				renderAskReview({
+					add,
+					handoff,
+					keybindings: kb,
+					promptStates,
+					prompts,
+					theme,
+					width,
+				});
 			} else {
 				const prompt = current();
 				if (prompt) {
@@ -517,6 +580,7 @@ export async function askInTui(
 						editor,
 						handoff,
 						isEditing: state.editing,
+						keybindings: kb,
 						choices: choices(),
 						prompt,
 						promptState: currentPromptState(),
@@ -526,7 +590,7 @@ export async function askInTui(
 					});
 				}
 			}
-			add(theme.fg(handoff ? "warning" : "accent", "─".repeat(width)));
+			add(theme.fg("accent", "─".repeat(width)));
 			cached = lines;
 			return lines;
 		};

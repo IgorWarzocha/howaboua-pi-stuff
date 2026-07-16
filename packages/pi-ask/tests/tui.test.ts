@@ -47,4 +47,93 @@ describe("TUI ask cancellation", () => {
 
 		expect(result).toBeNull();
 	});
+
+	test("uses configured navigation keys and theme-native colors", async () => {
+		const colors: string[] = [];
+		const theme = {
+			fg: (color: string, value: string) => {
+				colors.push(color);
+				return value;
+			},
+			bg: (color: string, value: string) => {
+				colors.push(color);
+				return value;
+			},
+		};
+		const bindings = new Map<string, string[]>([
+			["tui.select.up", ["k"]],
+			["tui.select.down", ["j"]],
+			["tui.select.confirm", ["x"]],
+			["tui.select.cancel", ["q"]],
+			["tui.editor.cursorLeft", ["h"]],
+			["tui.editor.cursorRight", ["l"]],
+			["tui.input.tab", ["t"]],
+		]);
+		const keybindings = {
+			matches: (data: string, action: string) =>
+				bindings.get(action)?.includes(data) ?? false,
+			getKeys: (action: string) => bindings.get(action) ?? [],
+		};
+		const ctx = {
+			hasUI: true,
+			ui: {
+				custom: async <T>(
+					factory: (
+						tui: { requestRender(): void },
+						theme: unknown,
+						keybindings: unknown,
+						done: (result: T) => void,
+					) => Component,
+				) =>
+					await new Promise<T>((resolve) => {
+						const component = factory(
+							{ requestRender() {} },
+							theme,
+							keybindings,
+							resolve,
+						);
+						component.render(100);
+						for (const data of [
+							"j",
+							"k",
+							"j",
+							"x",
+							"l",
+							"x",
+							"l",
+							"h",
+							"l",
+							"x",
+						]) {
+							component.handleInput?.(data);
+						}
+					}),
+			},
+		} as unknown as ExtensionContext;
+
+		const result = await askInTui(
+			ctx,
+			[
+				{
+					id: "p1",
+					title: "First",
+					multiple: false,
+					choices: [{ label: "A" }, { label: "B" }],
+				},
+				{
+					id: "p2",
+					title: "Second",
+					multiple: false,
+					choices: [{ label: "C" }, { label: "D" }],
+				},
+			],
+			{ handoff: true },
+		);
+
+		expect(result?.map((response) => response.selections)).toEqual([
+			["B"],
+			["C"],
+		]);
+		expect(colors).not.toContain("warning");
+	});
 });
