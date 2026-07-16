@@ -52,17 +52,17 @@ The keywords **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** are
 
 A skill SHOULD reveal information in layers.
 
-- **Layer 1: frontmatter** tells the host what the skill does and when to load it.
+- **Layer 1: frontmatter** indexes the job, activation conditions, and boundaries.
 - **Layer 2: main body** tells the agent how to execute the workflow.
 - **Layer 3: linked files** hold detailed references, scripts, schemas, examples, templates, or assets.
 
-The frontmatter must stay short and trigger focused. The body must stay operational. Dense material belongs in supporting files.
+The frontmatter must stay terse and trigger focused. The body must stay operational. Dense conditional material belongs in supporting files.
 
 ### 4.2 Explicit triggering
 
 A skill is only useful if it loads when needed and stays quiet when irrelevant.
 
-The description in frontmatter MUST describe:
+The description in frontmatter MUST encode:
 
 - what the skill does
 - when to use it
@@ -70,6 +70,7 @@ The description in frontmatter MUST describe:
 - file types or artefacts, if relevant
 
 Where confusion is likely, the description SHOULD also say when **not** to use the skill.
+Descriptions are semantic indexes, not prose introductions. Compress intent into concrete job, trigger, artifact, outcome, and boundary terms.
 
 ### 4.3 Composability
 
@@ -232,7 +233,7 @@ It SHOULD match the folder name.
 
 #### `description`
 
-This is the single most important field.
+This is the skill's semantic index and selection contract.
 
 It MUST:
 
@@ -247,13 +248,15 @@ It SHOULD:
 - mention exclusions if over triggering is a risk
 - stay within the host limit if one exists
 
-Pi allows descriptions up to 1024 characters. Treat that as a compatibility ceiling, not a target. Descriptions in the upper end of the range deserve another editing pass, but reliable trigger coverage matters more than reaching an arbitrary minimum length.
+Pi allows descriptions up to 1024 characters. That is a compatibility ceiling, not a target. Use one or two dense clauses where possible; models match semantics without tutorial prose. Preserve trigger coverage, not complete sentences.
 
 Quote descriptions by default. Plain YAML scalars can break on punctuation such as `: ` or an inline comment marker, while a quoted description remains unambiguous.
 
 It MUST NOT:
 
 - be vague
+- be literary, promotional, reassuring, or atmospheric
+- explain why the workflow matters
 - contain markup intended to inject instructions
 - turn into a long tutorial
 
@@ -278,9 +281,7 @@ Examples:
 
 #### `allowed-tools`
 
-Use only if the host supports explicit tool allow lists.
-
-Purpose:
+Use only if the host supports explicit tool allow lists:
 
 - limit tool access
 - reduce accidental misuse
@@ -338,24 +339,26 @@ Frontmatter MUST NOT:
 - include hidden prompt injection content
 - contain bloated prose that wastes context
 
-## 8. Writing the description field properly
+## 8. Writing descriptions
 
-The easiest reliable format is:
+Reliable shape:
 
-> **[What it does]. Use when the user asks to [tasks, phrases, situations].**
+> **[Job or outcome]. Use for/when [triggers, artifacts, situations].**
 
-A stronger format is:
+Add a boundary only for likely collisions:
 
-> **[What it does]. Use when the user asks to [task A], [task B], [task C], uploads [file type], or needs [outcome]. Do not use for [nearby but out of scope tasks].**
+> **[Job]. Use for [trigger A], [trigger B], [artifact]. Not for [adjacent task].**
+
+Sentence fragments are valid. Optimize for semantic coverage per token, not conversational flow.
 
 ### 8.1 Good descriptions
 
 ```yaml
-description: "Plans project sprints, prioritises work, and creates task breakdowns. Use when the user asks to plan a sprint, break work into tickets, estimate scope, or organise backlog items."
+description: "Sprint planning and backlog breakdown. Use for prioritization, ticket decomposition, scope estimates, or capacity planning."
 ```
 
 ```yaml
-description: "Reviews PDF contracts and extracts obligations, risks, renewal terms, and missing clauses. Use when the user uploads contract PDFs or asks for contract review, clause extraction, or legal document summarisation. Do not use for general PDF summarisation."
+description: "PDF contract review: obligations, risks, renewals, missing clauses. Use for contract analysis or clause extraction. Not general PDF summaries."
 ```
 
 ### 8.2 Bad descriptions
@@ -372,6 +375,12 @@ description: "Implements the project entity model with hierarchical relationship
 
 Problem: tool or architecture centric, not user trigger centric.
 
+```yaml
+description: "Transforms messy ideas into powerful, crystal-clear plans that unlock confident execution."
+```
+
+Problem: atmospheric and promotional; weak retrieval terms.
+
 ### 8.3 Under triggering and over triggering
 
 If the skill does not load when it should, expand the description with more concrete tasks and wording variants.
@@ -381,20 +390,21 @@ If the skill loads too often, tighten scope and add exclusions.
 Example tightening:
 
 ```yaml
-description: "Performs advanced statistical analysis on CSV files, including regression, clustering, and significance testing. Use when the user asks for modelling, inferential analysis, or clustering. Do not use for simple charting or spreadsheet cleanup."
+description: "CSV statistical analysis: regression, clustering, significance tests. Use for modelling or inference. Not charting or spreadsheet cleanup."
 ```
 
 ## 9. The body of `SKILL.md`
 
-The body is where the workflow lives.
+The body starts where execution starts. Never add `Purpose`, `When to use`, `Do not use when`, `Activation`, `Triggers`, or equivalent restatements. The frontmatter description already owns job and selection semantics.
 
-A good body is operational, not promotional.
+Match register to task:
 
-As an authoring convention, keep `When to use`, `Do not use when`, `Activation`, `Triggers`, and similar selection sections out of the body. Trigger guidance belongs in the frontmatter `description`, because the host chooses whether to load the body from that description. Operational scope, safety limits, prerequisites, and handoff rules may still belong in the body.
+- **SOP, coding, tooling, review:** terse imperatives, decisions, constraints, commands, and checks. Fragments are acceptable. Remove mood and explanation.
+- **Creative generation:** evocative body language is useful when it steers voice, imagery, taste, or ideation. Keep operational boundaries clear.
+- **Descriptions:** always denotative and terse, including creative skills.
 
-Every body should explain its purpose, workflow, and critical constraints. Consider the remaining questions and answer them when they change execution:
+Consider these questions only when they change execution:
 
-- What is the goal?
 - What are the prerequisites?
 - What inputs are expected?
 - What exact steps should the agent perform?
@@ -407,7 +417,6 @@ Every body should explain its purpose, workflow, and critical constraints. Consi
 ```markdown
 # Skill Title
 
-## Purpose
 ## Workflow
 
 <!-- Add only when useful: -->
@@ -422,10 +431,6 @@ Every body should explain its purpose, workflow, and critical constraints. Consi
 Do not manufacture empty ceremony. Inputs, prerequisites, validation, recovery, output contracts, and examples are valuable when they remove ambiguity or alter behavior; they are not compulsory headings.
 
 ### 9.2 What each section should contain
-
-#### Purpose
-
-A one paragraph summary of the skill's job.
 
 #### Inputs expected
 
@@ -549,11 +554,11 @@ Examples:
 
 Write the `name` and `description` only after the use cases are clear.
 
-The description MUST be trigger oriented, not architecture oriented.
+The description MUST carry the job, triggers, artifacts/outcomes, and only necessary exclusions. Compress for semantic matching; do not write an introduction.
 
 ### Phase 6: Draft the main body
 
-Write concise, imperative instructions.
+Choose the register before drafting. Operational skills use concise imperatives. Creative skills may use evocative language where it directly improves generation.
 
 Prefer:
 
@@ -567,8 +572,9 @@ Avoid:
 
 - abstract advice
 - buried constraints
-- decorative prose
+- decorative prose in operational skills
 - long justifications
+- any body section that restates the description
 
 ### Phase 7: Add support files
 
@@ -916,7 +922,7 @@ When prose leaves a judgment point or output shape ambiguous, a well-chosen exam
 
 ### 16.8 Decorative prose
 
-Do not waste context on sales language, reassurance, or motivational filler.
+Descriptions never need voice: remove sales language, reassurance, imagery, and motivational filler. Operational bodies should be equally direct. Creative bodies may be evocative when language itself steers the output.
 
 ## 17. Testing strategy
 
@@ -1035,18 +1041,15 @@ A separate human facing repository README MAY exist outside the skill folder, bu
 
 ## 21. Adaptable skill skeleton
 
-Start with the frontmatter, purpose, and workflow. Add the commented sections only when they change behavior or remove ambiguity.
+Start with frontmatter and workflow. Add the commented sections only when they change behavior or remove ambiguity.
 
 ```markdown
 ---
 name: example-skill
-description: "Performs [specific job]. Use when the user asks to [specific tasks or phrases]."
+description: "[Job/outcome]. Use for [triggers, artifacts, situations]."
 ---
 
 # Example Skill
-
-## Purpose
-Describe the job of the skill in one paragraph.
 
 ## Workflow
 1. Inspect [relevant inputs or existing state].
@@ -1082,6 +1085,7 @@ Before shipping a skill, verify all of the following.
 - description includes concrete request language or trigger conditions
 - description is not too broad
 - exclusions are added if needed
+- description is terse, denotative, and free of introductory prose
 
 ### Instruction quality
 
@@ -1090,6 +1094,8 @@ Before shipping a skill, verify all of the following.
 - success is clear where the workflow needs a defined result
 - examples teach distinct decisions where prose is insufficient
 - supporting paths resolve
+- body does not restate job or activation semantics
+- register is terse for operational skills; creative language appears only when it steers creative output
 
 ### Operational quality
 

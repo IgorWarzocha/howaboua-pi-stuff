@@ -1,13 +1,13 @@
 ---
 name: model-facing-api-design
-description: "Designs and reviews model-facing Pi tool contracts: names, descriptions, schemas, prompt snippets/guidelines, results, errors, and truncation. Use when adding or refining tools, or improving tool selection, calls, recovery, or prompt cost."
+description: "Model-facing Pi tool contracts: names, descriptions, schemas, prompt metadata, results, errors, truncation, recovery, token cost. Use for tool design, review, or selection/call failures."
 ---
 
 # Model-facing Pi tool design
 
-Design tool contracts that models select, call, and recover from correctly. Optimize task success first; compress only after the behavior is clear.
-
 ## Contract surfaces
+
+Optimize task success first; compress only after behaviour is clear.
 
 Treat both halves of a tool as model-facing:
 

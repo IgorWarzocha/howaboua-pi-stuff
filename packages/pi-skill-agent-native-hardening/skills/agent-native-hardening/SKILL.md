@@ -1,11 +1,9 @@
 ---
 name: agent-native-hardening
-description: "Audits and improves codebase architecture for safe human and agent changes. Use for structural reviews or refactors involving ownership, godfiles/functions, feature boundaries, duplication, contract or state safety, traversability, feedback loops, test fit, work decomposition, or parallel-change readiness. Not for ordinary bug fixes or feature work with no architecture concern."
+description: "Architecture hardening: ownership, boundaries, contracts, state safety, duplication, traversability, feedback loops, test fit, change decomposition. Use for structural reviews, scorecards, plans, or refactors; not ordinary fixes."
 ---
 
 # Agent-Native Hardening
-
-Make a codebase easier to understand and safer to change by clarifying ownership, reducing mixed responsibilities, strengthening contracts, and shortening reliable feedback loops. Optimize for humans and agents without imposing architecture theater.
 
 ## Reference map
 

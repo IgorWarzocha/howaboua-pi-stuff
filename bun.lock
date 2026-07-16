@@ -223,6 +223,10 @@
         "typebox": "*",
       },
     },
+    "packages/pi-skill-adversarial-qa": {
+      "name": "@howaboua/pi-skill-adversarial-qa",
+      "version": "0.0.0",
+    },
     "packages/pi-skill-agent-native-hardening": {
       "name": "@howaboua/pi-skill-agent-native-hardening",
       "version": "0.0.3",
@@ -550,6 +554,8 @@
     "@howaboua/pi-memories": ["@howaboua/pi-memories@workspace:packages/pi-memories"],
 
     "@howaboua/pi-semantic-grep": ["@howaboua/pi-semantic-grep@workspace:packages/pi-semantic-grep"],
+
+    "@howaboua/pi-skill-adversarial-qa": ["@howaboua/pi-skill-adversarial-qa@workspace:packages/pi-skill-adversarial-qa"],
 
     "@howaboua/pi-skill-agent-native-hardening": ["@howaboua/pi-skill-agent-native-hardening@workspace:packages/pi-skill-agent-native-hardening"],
 

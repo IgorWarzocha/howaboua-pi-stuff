@@ -10,9 +10,9 @@ Pi packages run with your local permissions. You can obviously trust me, a stran
 
 | Package | Includes | Deliberate exclusions |
 |---|---|---|
-| [`@howaboua/pi-stuff`](./packages/pi-stuff) | 11 general extensions and 8 shareable skills | Codex conversion and Omarchy support |
+| [`@howaboua/pi-stuff`](./packages/pi-stuff) | 11 general extensions and 9 shareable skills | Codex conversion and Omarchy support |
 | [`@howaboua/pi-extensions`](./packages/pi-extensions) | 11 general extensions | Codex conversion |
-| [`@howaboua/pi-skills`](./packages/pi-skills) | 8 shareable skills | Omarchy support |
+| [`@howaboua/pi-skills`](./packages/pi-skills) | 9 shareable skills | Omarchy support |
 
 ```bash
 pi install npm:@howaboua/pi-stuff
@@ -44,6 +44,7 @@ pi install npm:@howaboua/pi-skills
 
 | Package | Use it for |
 |---|---|
+| [`pi-skill-adversarial-qa`](./packages/pi-skill-adversarial-qa) | Falsifying code behaviour with properties, differential checks, mutation, and fuzzing |
 | [`pi-skill-agent-native-hardening`](./packages/pi-skill-agent-native-hardening) | Architecture reviews and refactors for clearer ownership and safer changes |
 | [`pi-skill-agents-md`](./packages/pi-skill-agents-md) | Creating, auditing, and pruning scoped `AGENTS.md` files |
 | [`pi-skill-anti-ai-copy`](./packages/pi-skill-anti-ai-copy) | Specific, natural prose that preserves the author's voice |

@@ -10,6 +10,7 @@ pi install npm:@howaboua/pi-skills
 
 ## Included skills
 
+- `adversarial-qa` — executable attempts to falsify code behaviour
 - `agent-native-hardening` — architecture reviews and structural refactors
 - `agents-md` — scoped `AGENTS.md` authoring and maintenance
 - `anti-ai-copy` — specific, natural prose that preserves voice

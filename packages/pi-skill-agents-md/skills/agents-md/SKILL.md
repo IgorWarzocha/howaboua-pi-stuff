@@ -1,11 +1,9 @@
 ---
 name: agents-md
-description: "Writes, audits, and maintains AGENTS.md files. Use for repository agent instructions, nested scope guidance, global or personal agent context, pruning bloated rules, or separating agent-facing instructions from README documentation."
+description: "Scoped AGENTS.md authoring and maintenance. Use for repo, nested, global, or personal instructions; rule pruning; scope placement; or separating agent guidance from README/docs."
 ---
 
 # AGENTS.md Authoring
-
-Create terse, scoped operating context for agents modifying a workspace. Preserve user intent and stable local knowledge that cannot be inferred cheaply from the repository.
 
 ## Critical rules
 

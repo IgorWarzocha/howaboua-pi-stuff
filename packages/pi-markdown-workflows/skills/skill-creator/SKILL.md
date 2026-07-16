@@ -1,11 +1,9 @@
 ---
 name: skill-creator
-description: "Designs, audits, refactors, and packages reusable agent skills. Use for creating or improving SKILL.md files, trigger descriptions, supporting references/scripts/assets, validation, consolidation, or porting skills between agents. Not for one-off prompt edits or passive documentation with no repeatable workflow."
+description: "Reusable skill design and maintenance. Use for SKILL.md creation, trigger design, body structure, supporting files, validation, consolidation, or cross-agent ports. Not for one-off prompt edits or passive documentation."
 ---
 
 # Skill Creator
-
-Create skills that remain useful across sessions and models. Preserve the judgment an agent may not infer on its own, but do not repeat generic behavior already supplied by the host or target workspace.
 
 ## Inputs
 
@@ -37,10 +35,10 @@ Read `references/skills-reference-guide-for-agents.md` before creating a skill o
    - A tool runbook can be a skill when its commands, failure handling, or result interpretation change agent behavior. A rigid project procedure may belong in the workspace's workflow or SOP system instead.
 
 3. **Set the trigger boundary.**
-   - Describe the job from user intent, not internal architecture.
-   - Include likely request language and important artifacts or outcomes.
-   - Add negative scope only where a nearby task could trigger the skill incorrectly.
-   - Prefer the shortest description that preserves reliable triggering; do not trade away important trigger coverage merely to reduce characters.
+   - Treat the description as a semantic index: job, activation conditions, likely request language, key artifacts/outcomes, and only necessary exclusions.
+   - Compress for reliable model selection. Dense phrases beat explanatory sentences.
+   - No mood, rationale, promotion, or tutorial prose. Creative skills do not get creative descriptions.
+   - Prefer the shortest description that preserves reliable triggering.
    - Quote the description by default so YAML punctuation cannot change its meaning.
 
 4. **Choose the smallest complete structure.**
@@ -51,7 +49,10 @@ Read `references/skills-reference-guide-for-agents.md` before creating a skill o
    - Do not create supporting folders without useful content, but actively consider whether each would make the skill more complete or dependable.
 
 5. **Write the operational body.**
-   - Always provide the purpose, ordered workflow, and critical constraints.
+   - Do not add `Purpose`, `When to use`, `Activation`, `Triggers`, or equivalent restatements. The description owns job and selection semantics.
+   - For SOP, coding, tooling, and review skills, use terse commands, decisions, constraints, and observable checks. Fragments are fine.
+   - For creative skills, the body may use evocative language when tone changes generation quality. Descriptions remain denotative and terse.
+   - Provide the ordered workflow and critical constraints.
    - Consider inputs, prerequisites, validation, error handling, output contract, and examples; include each when it changes behavior or removes meaningful ambiguity.
    - State important autonomy, approval, and safety boundaries once, near the action they govern.
    - Prefer observable instructions—commands, conditions, paths, thresholds, outputs, or forbidden actions—over generic quality reminders.
@@ -76,8 +77,9 @@ Read `references/skills-reference-guide-for-agents.md` before creating a skill o
 ## Validation checklist
 
 - The skill teaches a recurring workflow rather than merely naming a topic.
-- The description explains what the skill does and when it applies.
+- The description fully carries the job, activation conditions, and necessary boundaries.
 - The body contains judgment and procedure that materially guide execution.
+- Body register fits the task: terse for operational skills; evocative only where creative generation benefits.
 - Supporting files are useful, local, and loaded at the right time.
 - Required host constraints and runtime assumptions are accurate.
 - Generic quality prose and repeated examples have been removed before useful detail.
@@ -87,6 +89,8 @@ Read `references/skills-reference-guide-for-agents.md` before creating a skill o
 
 - **Workflow is vague:** reduce it to concrete requests, inputs, decisions, and results before drafting.
 - **Triggering is unreliable:** revise the description using real user language and adjacent non-trigger cases.
+- **Description is flowery:** replace voice and explanation with job, trigger, artifact, and outcome terms.
+- **Body repeats the description:** delete the restatement and begin with operational content.
 - **Body is unwieldy:** separate conditional detail into references, then remove repetition rather than merely moving it.
 - **Many skills overlap:** compare their real workflows; merge fake separations and keep distinct jobs separate.
 - **A deterministic rule remains fuzzy:** encode it in a script when doing so is simpler and more reliable than prose.

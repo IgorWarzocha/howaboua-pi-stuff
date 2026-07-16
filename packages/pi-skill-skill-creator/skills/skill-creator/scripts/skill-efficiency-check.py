@@ -10,11 +10,12 @@ from pathlib import Path
 
 
 FORBIDDEN_HEADINGS = re.compile(
-    r"^#{1,6}\s+(when to use|do not use when|activation|triggers?)\b", re.I | re.M
+    r"^#{1,6}\s+(purpose|when to use|do not use when|activation|triggers?)\b",
+    re.I | re.M,
 )
 FIELD_RE = re.compile(r"^([A-Za-z0-9_-]+):(?:\s*(.*))?$")
 NAME_RE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
-DESCRIPTION_HIGH_END = 812
+DESCRIPTION_HIGH_END = 500
 DESCRIPTION_LIMIT = 1024
 NAME_LIMIT = 64
 
@@ -99,6 +100,31 @@ def has_files(directory: Path) -> bool:
     return directory.is_dir() and any(path.is_file() for path in directory.rglob("*"))
 
 
+def strip_fenced_code(text: str) -> str:
+    """Remove fenced blocks before checking Markdown structure."""
+    visible: list[str] = []
+    fence_char = ""
+    fence_length = 0
+
+    for line in text.splitlines():
+        marker = re.match(r"^[ \t]{0,3}(`{3,}|~{3,})", line)
+        if not fence_char:
+            if marker:
+                fence_char = marker.group(1)[0]
+                fence_length = len(marker.group(1))
+            else:
+                visible.append(line)
+            continue
+
+        if re.fullmatch(
+            rf"[ \t]{{0,3}}{re.escape(fence_char)}{{{fence_length},}}[ \t]*", line
+        ):
+            fence_char = ""
+            fence_length = 0
+
+    return "\n".join(visible)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Run lightweight structural and prompt-efficiency checks on a SKILL.md."
@@ -153,12 +179,12 @@ def main() -> int:
                 )
             elif len(description) > DESCRIPTION_HIGH_END:
                 warnings.append(
-                    f"description is on the higher end of Pi's allowed range: {len(description)} chars; "
-                    "consider trimming without losing trigger coverage"
+                    f"description is long for agent-facing retrieval: {len(description)} chars; "
+                    "compress job, triggers, artifacts, outcomes, and boundaries"
                 )
 
-    if FORBIDDEN_HEADINGS.search(body):
-        issues.append("body contains trigger-selection headings; keep selection guidance in description")
+    if FORBIDDEN_HEADINGS.search(strip_fenced_code(body)):
+        issues.append("body contains job/selection headings; keep those semantics in description")
 
     if not has_files(root / "references"):
         suggestions.append(

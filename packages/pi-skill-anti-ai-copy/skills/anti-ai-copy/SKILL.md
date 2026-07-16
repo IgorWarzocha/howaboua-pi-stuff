@@ -1,6 +1,6 @@
 ---
 name: anti-ai-copy
-description: "Writes, rewrites, and reviews prose so it sounds specific, natural, and appropriate to its author and context. Use for drafting or editing product copy, docs, READMEs, emails, posts, bios, essays, UI text, and other writing; removing AI/ChatGPT, SaaS, corporate, or LinkedIn tells; preserving voice; or making prose more direct, warm, dry, blunt, clear, or human. Not for AI-detector analysis or purely mechanical proofreading with no voice work."
+description: "Voice-preserving prose drafting, rewriting, and review. Use for product copy, docs, READMEs, emails, posts, bios, essays, UI text, or removing AI/SaaS/corporate tells. Not detector analysis or mechanical proofreading."
 ---
 
 # Anti-AI Writing

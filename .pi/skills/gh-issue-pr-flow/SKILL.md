@@ -1,14 +1,13 @@
 ---
 name: gh-issue-pr-flow
-description: "Runs this repository's GitHub issue, branch, PR, Changesets, release, and review workflow. Use when filing or implementing issues, preparing package changes, opening or updating PRs, or handling review feedback."
+description: "This repo's GitHub/Changesets workflow: issues, branches, commits, PRs, review, release hygiene. Use for filing or implementing issues, package changes, PR delivery, or feedback."
 ---
 
 # GitHub Issue and PR Flow
 
-Use this repository-specific workflow instead of the generic fallback. Explicit user direction and `AGENTS.md` still take precedence.
-
 ## Operating rules
 
+- Explicit user direction and `AGENTS.md` take precedence.
 - Use `gh` for GitHub operations.
 - Read the relevant issue, PR, comments, reviews, repository instructions, and current implementation before acting.
 - Inspect the working tree, current branch, upstream, `origin/main`, and intended PR base before branch or history operations.

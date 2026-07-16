@@ -1,14 +1,13 @@
 ---
 name: gh-issue-pr-flow
-description: "Runs an opinionated GitHub issue and PR workflow with gh. Use when filing or implementing issues, creating branches, pushing changes, opening or updating PRs, requesting Codex review, or handling review feedback. Repository-specific instructions override this fallback."
+description: "GitHub issue/PR delivery via gh: issues, branches, commits, pushes, PRs, Codex review, feedback, release hygiene. Use for issue/PR work as portable fallback; repo rules override."
 ---
 
 # GitHub Issue and PR Flow
 
-Use this as a portable fallback SOP for GitHub work. It standardizes the places agents commonly create mess: wrong branches, malformed bodies, unrelated commits, weak review requests, unsafe history edits, and improvised release handling. Repository instructions and explicit user direction take precedence.
-
 ## Operating rules
 
+- Explicit user direction and repository instructions take precedence.
 - Use `gh` for GitHub operations when available.
 - Read relevant repository instructions and the supplied issue, PR, comments, or reviews before acting.
 - Inspect the working tree, current branch, upstream, remote default branch, and intended PR base before branch or history operations.

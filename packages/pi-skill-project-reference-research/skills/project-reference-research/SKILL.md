@@ -1,12 +1,9 @@
 ---
 name: project-reference-research
-description: "Researches local or external codebases as reference context. Use when the user asks to inspect, compare, or learn from another repository or project, including a GitHub URL or local checkout."
+description: "Evidence-backed research in local or external repositories. Use for inspecting, comparing, or learning from a project, checkout, or GitHub URL."
 ---
 
 # Project Reference Research
-
-## Purpose
-Resolve the referenced repository, inspect it to the depth the current task needs, and return evidence-backed findings. Choose direct inspection or delegated exploration by task shape; another repository does not automatically justify a subagent.
 
 ## Repository homes
 - Prefer an existing local checkout when one is obvious from the current workspace or user-provided path.

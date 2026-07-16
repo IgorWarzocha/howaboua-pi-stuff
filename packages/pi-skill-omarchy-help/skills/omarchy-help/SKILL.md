@@ -1,14 +1,13 @@
 ---
 name: omarchy-help
-description: "Maintains Arch Linux desktops configured with Omarchy. Use for user-level Hyprland, Waybar, Walker, Mako, terminals, themes, keybindings, displays, screenshots, updates, packages, Bluetooth, audio, reminders, or Omarchy troubleshooting. Not for developing or patching Omarchy itself."
+description: "Omarchy workstation maintenance: Hyprland, Waybar, Walker, Mako, terminals, themes, keybindings, displays, updates, packages, devices, audio. Use for user/system troubleshooting; not Omarchy development."
 ---
 
 # Omarchy Help
 
-Maintain a live Omarchy workstation from the user and system administration layers. Complete the requested task directly; do not turn a focused config change or routine restart into a general health audit.
-
 ## Operating boundaries
 
+- Do not turn a focused config change or routine restart into a general health audit.
 - Treat `~/.local/share/omarchy/` as read-only reference and upstream-managed state. Official Omarchy update or reinstall commands may manage it; never patch it manually for workstation customization.
 - Read existing user config before editing. Preserve local structure, includes, overrides, and unrelated changes.
 - Discover device names, services, installed applications, theme names, and command availability from the machine. Do not assume them.

@@ -1,15 +1,9 @@
 ---
 name: chrome-cdp
-description: "Controls a local Chrome-family browser through CDP. Use when a task needs rendered-page inspection or debugging, authenticated browser state, navigation, clicks, typing, or screenshots."
+description: "Chrome CDP inspection/control: rendered pages, authenticated tabs, navigation, interaction, DOM/accessibility state, network, screenshots. Use when browser-rendered evidence or existing browser state matters."
 ---
 
 # Chrome CDP
-
-Lightweight Chrome DevTools Protocol CLI. Connects directly via WebSocket — no Puppeteer, works with 100+ tabs, instant connection.
-
-## Purpose
-
-Use this skill when the task benefits from a real rendered page, an existing tab, or the user's authenticated browser context.
 
 ## Authorization
 
