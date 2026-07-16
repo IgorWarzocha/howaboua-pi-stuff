@@ -42,10 +42,16 @@ Set either value to `false`, then run `/reload`, to hide that template. The same
 
 ## TUI controls
 
+The panel uses Pi's active keybindings. The defaults are:
+
 - `Up` / `Down` — move through choices, free text, and comments
-- `Enter` — choose or edit the focused item
+- `Enter` — choose or edit the focused item, or save an edit
 - `Left` / `Right` — move between prompts and the review tab
 - `Tab` — advance, using `Other/rephrase` when the current prompt is unanswered
 - `Esc` — dismiss the panel
+
+Configure the corresponding `tui.select.*`, `tui.editor.cursorLeft`,
+`tui.editor.cursorRight`, and `tui.input.*` actions in Pi's
+`keybindings.json`.
 
 The tool requires Pi's interactive TUI or RPC UI. It returns dismissal as a distinct result so the agent can stop asking rather than guessing.

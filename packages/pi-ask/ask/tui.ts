@@ -269,6 +269,19 @@ function renderAskPrompt({
 		for (const line of editor.render(width - 2)) add(` ${line}`);
 	}
 	add();
+	if (isEditing) {
+		addWrapped(
+			add,
+			" " +
+				renderKeyHint(theme, keybindings, "tui.input.submit", "save") +
+				" • " +
+				renderKeyHint(theme, keybindings, "tui.input.tab", "next/default") +
+				" • " +
+				renderKeyHint(theme, keybindings, "tui.select.cancel", "cancel edit"),
+			width,
+		);
+		return;
+	}
 	addWrapped(
 		add,
 		" " +

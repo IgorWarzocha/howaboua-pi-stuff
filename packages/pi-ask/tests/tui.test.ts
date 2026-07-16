@@ -50,6 +50,7 @@ describe("TUI ask cancellation", () => {
 
 	test("uses configured navigation keys and theme-native colors", async () => {
 		const colors: string[] = [];
+		const screens: string[] = [];
 		const theme = {
 			fg: (color: string, value: string) => {
 				colors.push(color);
@@ -67,6 +68,7 @@ describe("TUI ask cancellation", () => {
 			["tui.select.cancel", ["q"]],
 			["tui.editor.cursorLeft", ["h"]],
 			["tui.editor.cursorRight", ["l"]],
+			["tui.input.submit", ["s"]],
 			["tui.input.tab", ["t"]],
 		]);
 		const keybindings = {
@@ -79,7 +81,10 @@ describe("TUI ask cancellation", () => {
 			ui: {
 				custom: async <T>(
 					factory: (
-						tui: { requestRender(): void },
+						tui: {
+							requestRender(): void;
+							terminal: { rows: number };
+						},
 						theme: unknown,
 						keybindings: unknown,
 						done: (result: T) => void,
@@ -87,26 +92,23 @@ describe("TUI ask cancellation", () => {
 				) =>
 					await new Promise<T>((resolve) => {
 						const component = factory(
-							{ requestRender() {} },
+							{ requestRender() {}, terminal: { rows: 40 } },
 							theme,
 							keybindings,
 							resolve,
 						);
-						component.render(100);
-						for (const data of [
-							"j",
-							"k",
-							"j",
-							"x",
-							"l",
-							"x",
-							"l",
-							"h",
-							"l",
-							"x",
-						]) {
+						const render = () => screens.push(component.render(160).join("\n"));
+						render();
+						for (const data of ["j", "k", "j", "x", "t", "j", "j", "x"]) {
 							component.handleInput?.(data);
 						}
+						render();
+						component.handleInput?.("q");
+						for (const data of ["k", "k", "x", "l", "h", "l"]) {
+							component.handleInput?.(data);
+						}
+						render();
+						component.handleInput?.("x");
 					}),
 			},
 		} as unknown as ExtensionContext;
@@ -134,6 +136,12 @@ describe("TUI ask cancellation", () => {
 			["B"],
 			["C"],
 		]);
+		expect(screens[0]).toContain("j down");
+		expect(screens[0]).toContain("x choose/type");
+		expect(screens[1]).toContain("s save");
+		expect(screens[1]).toContain("q cancel edit");
+		expect(screens[2]).toContain("h previous prompt");
+		expect(screens[2]).toContain("l next prompt");
 		expect(colors).not.toContain("warning");
 	});
 });
