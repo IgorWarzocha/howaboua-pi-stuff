@@ -1,10 +1,14 @@
 import { afterEach, expect, test } from "bun:test";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
 	type Api,
 	type AssistantMessage,
 	type Credential,
 	type CredentialStore,
 	createAssistantMessageEventStream,
+	type Model,
 	type SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
 import {
@@ -51,14 +55,21 @@ afterEach(() => {
 	registry = undefined;
 });
 
-function responseStream(options: SimpleStreamOptions | undefined) {
+function responseStream(
+	options: SimpleStreamOptions | undefined,
+	model: Pick<Model<Api>, "api" | "id" | "provider"> = {
+		api: API,
+		id: "summary-model",
+		provider: PROVIDER,
+	},
+) {
 	const stream = createAssistantMessageEventStream();
 	const message: AssistantMessage = {
 		role: "assistant",
 		content: [{ type: "text", text: "Review context summary" }],
-		api: API,
-		provider: PROVIDER,
-		model: "summary-model",
+		api: model.api,
+		provider: model.provider,
+		model: model.id,
 		usage: {
 			input: 10,
 			output: 3,
@@ -126,6 +137,39 @@ function abortedResponseStream(
 	return stream;
 }
 
+function summarize(
+	modelRegistry: ModelRegistry,
+	provider = PROVIDER,
+	modelId = "summary-model",
+	signal?: AbortSignal,
+) {
+	const sessionManager = SessionManager.inMemory(process.cwd());
+	sessionManager.appendMessage({
+		role: "user",
+		content: "Please review this change",
+		timestamp: Date.now(),
+	});
+	const ctx = {
+		cwd: process.cwd(),
+		modelRegistry,
+		sessionManager,
+		signal,
+	} as unknown as ExtensionCommandContext;
+	const config: ResolvedReviewConfig = {
+		model: `${provider}/${modelId}`,
+		thinking: "medium",
+		source: "configured",
+		summary: {
+			enabled: true,
+			model: `${provider}/${modelId}`,
+			modelParsed: { provider, modelId },
+			thinking: "low",
+			source: "configured",
+		},
+	};
+	return buildReviewConversationSummary(ctx, config);
+}
+
 async function summarizeWithAuth(
 	credentials: CredentialStore,
 	authConfig: Pick<
@@ -133,21 +177,22 @@ async function summarizeWithAuth(
 		"apiKey" | "authHeader" | "oauth"
 	>,
 ) {
-	registry = new ModelRegistry(
-		await ModelRuntime.create({
-			credentials,
-			modelsPath: null,
-			allowModelNetwork: false,
-		}),
-	);
+	const runtime = await ModelRuntime.create({
+		credentials,
+		modelsPath: null,
+		allowModelNetwork: false,
+	});
+	registry = new ModelRegistry(runtime);
 	let receivedOptions: SimpleStreamOptions | undefined;
+	let receivedModel: Model<Api> | undefined;
 	registry.registerProvider(PROVIDER, {
 		baseUrl: "https://summary.invalid/v1",
 		api: API,
 		...authConfig,
-		streamSimple(_model, _context, options) {
+		streamSimple(model, _context, options) {
+			receivedModel = model;
 			receivedOptions = options;
-			return responseStream(options).stream;
+			return responseStream(options, model).stream;
 		},
 		models: [
 			{
@@ -161,33 +206,10 @@ async function summarizeWithAuth(
 			},
 		],
 	});
+	await runtime.refresh({ allowNetwork: false });
 
-	const sessionManager = SessionManager.inMemory(process.cwd());
-	sessionManager.appendMessage({
-		role: "user",
-		content: "Please review this change",
-		timestamp: Date.now(),
-	});
-	const ctx = {
-		cwd: process.cwd(),
-		modelRegistry: registry,
-		sessionManager,
-	} as unknown as ExtensionCommandContext;
-	const config: ResolvedReviewConfig = {
-		model: `${PROVIDER}/summary-model`,
-		thinking: "medium",
-		source: "configured",
-		summary: {
-			enabled: true,
-			model: `${PROVIDER}/summary-model`,
-			modelParsed: { provider: PROVIDER, modelId: "summary-model" },
-			thinking: "low",
-			source: "configured",
-		},
-	};
-
-	const summary = await buildReviewConversationSummary(ctx, config);
-	return { summary, receivedOptions };
+	const summary = await summarize(registry);
+	return { summary, receivedModel, receivedOptions };
 }
 
 test("uses the public Pi session path for extension-registered providers", async () => {
@@ -244,12 +266,68 @@ test("resolves OAuth provider auth", async () => {
 				getApiKey(current) {
 					return current.access;
 				},
+				modifyModels(models) {
+					return models.map((model) => ({
+						...model,
+						baseUrl: "https://projected.invalid/v1",
+					}));
+				},
 			},
 		},
 	);
 
 	expect(result.summary).toBe("Review context summary");
 	expect(result.receivedOptions?.apiKey).toBe("oauth-access-token");
+	expect(result.receivedModel?.baseUrl).toBe("https://projected.invalid/v1");
+});
+
+test("preserves credential-derived OAuth endpoints", async () => {
+	const agentDir = await mkdtemp(join(tmpdir(), "pi-review-auth-"));
+	const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+	const provider = "github-copilot";
+	const modelId = "claude-fable-5";
+	const credentials: Credential = {
+		type: "oauth",
+		refresh: "github-token",
+		access: "tid=test;exp=9999999999;proxy-ep=proxy.enterprise.example;",
+		expires: Date.now() + 60 * 60 * 1000,
+		availableModelIds: [modelId],
+	};
+	await writeFile(
+		join(agentDir, "auth.json"),
+		JSON.stringify({ [provider]: credentials }),
+	);
+	process.env.PI_CODING_AGENT_DIR = agentDir;
+
+	try {
+		const runtime = await ModelRuntime.create({
+			credentials: credentialStore({ [provider]: credentials }),
+			modelsPath: null,
+			allowModelNetwork: false,
+		});
+		registry = new ModelRegistry(runtime);
+		let receivedModel: Model<Api> | undefined;
+		registry.registerProvider(provider, {
+			api: "openai-completions",
+			streamSimple(model, _context, options) {
+				receivedModel = model;
+				return responseStream(options, model).stream;
+			},
+		});
+		await runtime.refresh({ allowNetwork: false });
+
+		expect(await summarize(registry, provider, modelId)).toBe(
+			"Review context summary",
+		);
+		expect(receivedModel?.baseUrl).toBe("https://api.enterprise.example");
+	} finally {
+		if (previousAgentDir === undefined) {
+			delete process.env.PI_CODING_AGENT_DIR;
+		} else {
+			process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+		}
+		await rm(agentDir, { recursive: true, force: true });
+	}
 });
 
 test("aborts an in-flight summary when the review is cancelled", async () => {
@@ -285,32 +363,12 @@ test("aborts an in-flight summary when the review is cancelled", async () => {
 		],
 	});
 
-	const sessionManager = SessionManager.inMemory(process.cwd());
-	sessionManager.appendMessage({
-		role: "user",
-		content: "Please review this change",
-		timestamp: Date.now(),
-	});
-	const ctx = {
-		cwd: process.cwd(),
-		modelRegistry: registry,
-		sessionManager,
-		signal: controller.signal,
-	} as unknown as ExtensionCommandContext;
-	const config: ResolvedReviewConfig = {
-		model: `${PROVIDER}/summary-model`,
-		thinking: "medium",
-		source: "configured",
-		summary: {
-			enabled: true,
-			model: `${PROVIDER}/summary-model`,
-			modelParsed: { provider: PROVIDER, modelId: "summary-model" },
-			thinking: "low",
-			source: "configured",
-		},
-	};
-
-	const summary = buildReviewConversationSummary(ctx, config);
+	const summary = summarize(
+		registry,
+		PROVIDER,
+		"summary-model",
+		controller.signal,
+	);
 	await started;
 	controller.abort();
 

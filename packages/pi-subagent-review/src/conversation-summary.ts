@@ -9,6 +9,7 @@ import {
 	type ExtensionCommandContext,
 	getAgentDir,
 	ModelRuntime,
+	readStoredCredential,
 	type SessionEntry,
 	SessionManager,
 	SettingsManager,
@@ -20,17 +21,10 @@ const SUMMARY_SYSTEM_PROMPT =
 
 function summaryCredentialStore(
 	providerId: string,
-	apiKey: string | undefined,
-	env: Record<string, string> | undefined,
+	credential: Credential | undefined,
 ): CredentialStore {
 	const credentials = new Map<string, Credential>();
-	if (apiKey || env) {
-		credentials.set(providerId, {
-			type: "api_key",
-			...(apiKey ? { key: apiKey } : {}),
-			...(env ? { env } : {}),
-		});
-	}
+	if (credential) credentials.set(providerId, credential);
 	return {
 		async read(id) {
 			return credentials.get(id);
@@ -83,11 +77,24 @@ async function completeSummary(
 		throw new Error(`Summary model not found: ${config.summary.model}`);
 	const requestAuth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
 	if (!requestAuth.ok) throw new Error(requestAuth.error);
+	const persistedCredential = readStoredCredential(model.provider);
+	const storedCredential =
+		persistedCredential?.type === "oauth" &&
+		persistedCredential.access === requestAuth.apiKey
+			? persistedCredential
+			: undefined;
+	const resolvedCredential =
+		requestAuth.apiKey || requestAuth.env
+			? {
+					type: "api_key" as const,
+					...(requestAuth.apiKey ? { key: requestAuth.apiKey } : {}),
+					...(requestAuth.env ? { env: requestAuth.env } : {}),
+				}
+			: undefined;
 	const modelRuntime = await ModelRuntime.create({
 		credentials: summaryCredentialStore(
 			model.provider,
-			requestAuth.apiKey,
-			requestAuth.env,
+			storedCredential ?? resolvedCredential,
 		),
 		allowModelNetwork: false,
 	});
@@ -98,15 +105,16 @@ async function completeSummary(
 		const { oauth, ...providerConfig } = registeredProvider ?? {};
 		modelRuntime.registerProvider(model.provider, {
 			...providerConfig,
-			...(requestAuth.apiKey ? { apiKey: requestAuth.apiKey } : {}),
+			...(storedCredential?.type !== "oauth" && requestAuth.apiKey
+				? { apiKey: requestAuth.apiKey }
+				: {}),
 			headers: {
 				...registeredProvider?.headers,
 				...requestAuth.headers,
 			},
-			...(!requestAuth.apiKey && oauth ? { oauth } : {}),
+			...(storedCredential?.type === "oauth" && oauth ? { oauth } : {}),
 		});
 	}
-	const summaryModel = modelRuntime.getModel(model.provider, model.id) ?? model;
 
 	const settingsManager = SettingsManager.inMemory({
 		compaction: { enabled: false },
@@ -126,7 +134,7 @@ async function completeSummary(
 
 	const { session } = await createAgentSession({
 		cwd: ctx.cwd,
-		model: summaryModel,
+		model,
 		thinkingLevel: config.summary.thinking,
 		modelRuntime,
 		noTools: "all",
