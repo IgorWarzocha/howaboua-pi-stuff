@@ -32,7 +32,7 @@ const PATH_CODEX_GUIDELINES = [
 
 const CODE_MODE_GUIDELINES = [
 	"Use tools.exec_command for shell commands; prefer rg and rg --files for search.",
-	"Use tools.write_stdin only for running shell sessions.",
+	"Continue exec cell_id with wait; continue exec_command session_id by calling tools.write_stdin inside exec.",
 	"Use tty=true for interactive commands.",
 	"Use tools.apply_patch(patch) for file edits; group related edits.",
 	"Compose independent nested calls with Promise.all.",
