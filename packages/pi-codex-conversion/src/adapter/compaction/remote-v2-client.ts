@@ -5,7 +5,6 @@ import type { NativeCompactionRequestOptions, ResponsesInputItem } from "./seria
 import { shrinkNativeCompactionRequestForEndpoint } from "./request-shrink.ts";
 import { canonicalCompactionOutput, normalizeRemoteCompactionV2PromptInput } from "./remote-v2-history.ts";
 import { withRemoteCompactionV2Feature } from "../../providers/openai-responses/compaction-v2-feature.ts";
-import { closeOpenAICodexWebSocketSessions } from "../../providers/openai-codex-custom-provider.ts";
 import type { OpenAICodexStreamOptions, ResponsesBody } from "../../providers/openai-codex/types.ts";
 import { sleep } from "../../providers/openai-codex/sse.ts";
 import { streamCodeModeResponsesProxy } from "../../providers/code-mode-proxy-provider.ts";
@@ -114,17 +113,11 @@ export async function executeRemoteCompactionV2(options: ExecuteRemoteCompaction
 	const transports: Transport[] = options.runtime.provider === "openai-codex" && initialTransport !== "sse"
 		? [initialTransport, "sse"]
 		: [initialTransport];
-	if (options.runtime.provider === "openai-codex" && initialTransport !== "sse") closeOpenAICodexWebSocketSessions(options.sessionId);
 	const delayMs = Math.max(0, options.retryDelayMs ?? 500);
 	let lastFailure: Extract<RemoteCompactionV2Result, { ok: false }> | undefined;
 	for (const transport of transports) {
 		for (let attempt = 0; attempt <= MAX_STREAM_RETRIES; attempt++) {
-			let result: RemoteCompactionV2Result;
-			try {
-				result = await runAttempt({ ...options, transport }, streamSimple);
-			} finally {
-				if (options.runtime.provider === "openai-codex") closeOpenAICodexWebSocketSessions(options.sessionId);
-			}
+			const result = await runAttempt({ ...options, transport }, streamSimple);
 			if (result.ok) return result;
 			if (result.reason === "aborted" || result.reason === "unavailable" || result.reason === "invalid-output" || !shouldRetry(result)) return result;
 			lastFailure = result;
