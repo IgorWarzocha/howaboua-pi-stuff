@@ -103,6 +103,12 @@ function createNestedTools(
 			{
 				resultValue(result) {
 					const details = result.details;
+					if (result.content.some((item) => item.type === "image")) {
+						const outputHint = isExecResult(details)
+							? details.output
+							: result.content.filter((item) => item.type === "text").map((item) => item.text).join("\n") || undefined;
+						return codeModeImageResult(result, outputHint);
+					}
 					if (isRunningExecResult(details))
 						return {
 							...details,

@@ -338,7 +338,7 @@ export function createExecCommandTool(tracker: ExecCommandTracker, sessions: Exe
 			const patchInput = interceptedApplyPatch
 				? extractPathApplyPatchPreviewInput(typedParams.cmd, commandCwd)
 				: undefined;
-			if (patchInput && !patchInput.beforeCommand && !patchInput.afterCommand) {
+			if (patchInput && !patchInput.beforeCommand && !patchInput.afterCommand && !patchInput.shellExpansion) {
 				setPathApplyPatchPreviewState(toolCallId, typedParams.cmd, commandCwd);
 				try {
 					const result = await interceptedApplyPatch!.execute(

@@ -6,6 +6,7 @@ export interface PathApplyPatchPreviewInput {
 	patchText: string;
 	beforeCommand?: string | undefined;
 	afterCommand?: string | undefined;
+	shellExpansion?: boolean | undefined;
 }
 
 export type PathApplyPatchRenderSegment =
@@ -135,18 +136,19 @@ function extractHeredocApplyPatchInput(command: string, cwd: string): PathApplyP
 			patchText,
 			beforeCommand,
 			afterCommand: cleanCommand([parsed.afterCommand, lines.slice(endIndex + 1).join("\n")].filter(Boolean).join("\n")),
+			shellExpansion: parsed.shellExpansion,
 		};
 	}
 	return undefined;
 }
 
-function parseApplyPatchHeredocLine(line: string): { delimiter: string; cdPath?: string | undefined; stripLeadingTabs: boolean; afterCommand?: string | undefined } | undefined {
+function parseApplyPatchHeredocLine(line: string): { delimiter: string; cdPath?: string | undefined; stripLeadingTabs: boolean; afterCommand?: string | undefined; shellExpansion: boolean } | undefined {
 	const match = line.match(/^\s*(?:(?:cd\s+("[^"]+"|'[^']+'|[^&;\s]+)\s*&&\s*)?)(?:[A-Za-z_][A-Za-z0-9_]*=[^\s;&|()]+\s+)*(?:env\s+(?:[A-Za-z_][A-Za-z0-9_]*=[^\s;&|()]+\s+)*)?(?:[^\s;&|()]+\/)?apply_patch\s+<<(-?)\s*(?:"([^"]+)"|'([^']+)'|([A-Za-z0-9_.-]+))(?:\s*((?:&&|\|\||;)\s+.+))?\s*$/);
 	if (!match) return undefined;
 	const cdPath = match[1] ? unquoteShellToken(match[1]) : undefined;
 	const delimiter = match[3] ?? match[4] ?? match[5];
 	if (!delimiter) return undefined;
-	return { delimiter, cdPath, stripLeadingTabs: match[2] === "-", afterCommand: cleanTrailingCommand(match[6]) };
+	return { delimiter, cdPath, stripLeadingTabs: match[2] === "-", afterCommand: cleanTrailingCommand(match[6]), shellExpansion: match[5] !== undefined };
 }
 
 function findHeredocEnd(lines: string[], startIndex: number, delimiter: string, stripLeadingTabs: boolean): number {
@@ -161,9 +163,10 @@ function extractArgumentApplyPatchInput(command: string, cwd: string): PathApply
 	const match = command.match(/^\s*(?:(?:cd\s+("[^"]+"|'[^']+'|[^&;\s]+)\s*&&\s*)?)(?:[A-Za-z_][A-Za-z0-9_]*=[^\s;&|()]+\s+)*(?:env\s+(?:[A-Za-z_][A-Za-z0-9_]*=[^\s;&|()]+\s+)*)?(?:[^\s;&|()]+\/)?apply_patch\s+([\s\S]+?)\s*$/);
 	if (!match) return undefined;
 	const cdPath = match[1] ? unquoteShellToken(match[1]) : undefined;
-	const patchText = unquoteShellToken(match[2]!.trim());
+	const argument = match[2]!.trim();
+	const patchText = unquoteShellToken(argument);
 	if (!patchText.startsWith("*** Begin Patch")) return undefined;
-	return { cwd: cdPath ? resolve(cwd, cdPath) : cwd, patchText };
+	return { cwd: cdPath ? resolve(cwd, cdPath) : cwd, patchText, shellExpansion: !(argument.startsWith("'") && argument.endsWith("'")) };
 }
 
 function cleanCommand(command: string): string | undefined {

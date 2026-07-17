@@ -24,7 +24,7 @@ function validMetadata(value: unknown): boolean {
 
 export function canonicalCompactionOutput(item: unknown): Record<string, unknown> | undefined {
 	if (!isRecord(item) || (item["type"] !== "compaction" && item["type"] !== "compaction_summary")) return undefined;
-	if (typeof item["encrypted_content"] !== "string") return undefined;
+	if (typeof item["encrypted_content"] !== "string" || item["encrypted_content"].trim() === "") return undefined;
 	if (item["id"] !== undefined && item["id"] !== null && typeof item["id"] !== "string") return undefined;
 	if (!validMetadata(item["internal_chat_message_metadata_passthrough"])) return undefined;
 	const metadata = item["internal_chat_message_metadata_passthrough"];
