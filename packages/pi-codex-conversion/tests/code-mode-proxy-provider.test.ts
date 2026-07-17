@@ -306,6 +306,38 @@ test("provider overlays ignore configured providers without Responses models", (
 	assert.equal(providers.size, 0);
 });
 
+test("mixed-API providers preserve an existing non-Responses custom stream", () => {
+	const originalStream = (() => "anthropic") as never;
+	const originalProvider = {
+		api: "anthropic-messages" as const,
+		streamSimple: originalStream,
+	};
+	const provider = originalProvider;
+	const config = {
+		...DEFAULT_CODEX_CONVERSION_CONFIG,
+		beta: { codeMode: true, responsesLite: false },
+		scope: { allProviders: "off" as const, additionalProviders: ["mixed-proxy"] },
+	};
+	const registration = registerCodeModeProxyProvider({
+		registerProvider() {
+			throw new Error("must not replace the provider's non-Responses stream");
+		},
+		unregisterProvider() {
+			throw new Error("must not unregister the provider's non-Responses stream");
+		},
+	} as never, () => config);
+
+	registration.applyConfig(config, {
+		getAll: () => [
+			{ provider: "mixed-proxy", api: "anthropic-messages" },
+			{ provider: "mixed-proxy", api: "openai-responses" },
+		] as never,
+		getRegisteredProviderConfig: () => provider,
+	});
+
+	assert.equal(provider.streamSimple, originalStream);
+});
+
 test("provider teardown preserves later registrations and never restores stale streams", () => {
 	const originalStream = (() => "original") as never;
 	const replacementStream = (() => "replacement") as never;

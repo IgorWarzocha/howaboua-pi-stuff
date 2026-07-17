@@ -227,7 +227,8 @@ export function registerCodeModeProxyProvider(
 		for (const provider of desiredProviders) {
 			if (registeredProviders.has(provider)) continue;
 			const previous = modelRegistry.getRegisteredProviderConfig(provider) as RegisteredProviderConfig | undefined;
-			const fallbackStream = (previous?.api === undefined || previous.api === "openai-responses") && previous?.streamSimple
+			if (previous?.streamSimple && previous.api !== "openai-responses") continue;
+			const fallbackStream = previous?.api === "openai-responses" && previous.streamSimple
 				? previous.streamSimple
 				: standardResponsesStream;
 			const overlayStream: NonNullable<RegisteredProviderConfig["streamSimple"]> = (model, context, options) =>
