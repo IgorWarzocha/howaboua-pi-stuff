@@ -47,6 +47,18 @@ test("Code Mode invokes native patch and image tools directly", async () => {
 				.join("\n"),
 			/Edited seed\.txt/,
 		);
+		const shellPatched = await exec.execute(
+			"exec-shell-patch",
+			{
+				code: `const result = await tools.exec_command({ cmd: "apply_patch <<'PATCH'\\n*** Begin Patch\\n*** Update File: seed.txt\\n@@\\n-AFTER\\n+SHELL_AFTER\\n*** End Patch\\nPATCH" });\nif (typeof result !== "string") throw new Error("apply_patch was not intercepted");`,
+			},
+			undefined,
+			undefined,
+			{ cwd: patchDir, model: { provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.6-luna", input: ["text"] } } as never,
+		);
+		assert.equal(await readFile(join(patchDir, "seed.txt"), "utf8"), "SHELL_AFTER\n");
+		assert.equal(shellPatched.details.traces[0].name, "exec_command");
+		assert.equal(shellPatched.details.traces[0].status, "done");
 		const imagePath = join(patchDir, "pixel.png");
 		await writeFile(
 			imagePath,

@@ -9,8 +9,9 @@ import type { ExecSessionManager, UnifiedExecResult } from "./session-manager.ts
 import { formatUnifiedExecResult } from "./format.ts";
 import { convertPathToolExecResult, getCodexBackedPathToolNames, getPathToolPolicy, imageContentsFromPathToolDetails, viewImageDescriptionFromPathToolDetails } from "../path/outputs.ts";
 import { renderTextWithImages } from "../path/rendering.ts";
-import { extractPathApplyPatchPreviewPlan, getPathApplyPatchRenderState, markPathApplyPatchPreviewExit, setPathApplyPatchPreviewState, type PathApplyPatchRenderSegment } from "../path/apply-patch-preview.ts";
+import { extractPathApplyPatchPreviewInput, extractPathApplyPatchPreviewPlan, getPathApplyPatchRenderState, markPathApplyPatchPreviewExit, setPathApplyPatchPreviewState, type PathApplyPatchRenderSegment } from "../path/apply-patch-preview.ts";
 import { renderPathToolCommandCall } from "../path/render-call.ts";
+import { createApplyPatchTool } from "../apply-patch/tool.ts";
 import { webRunSessionStatePath } from "../web-run/tool.ts";
 import { resolveImageDescriptionModel } from "../view-image/tool.ts";
 import { codexToolProviderEnv, resolveCodexToolProvider } from "../../adapter/codex-tool-provider.ts";
@@ -122,6 +123,7 @@ interface ExecCommandToolOptions {
 	showOutputWhenCollapsed?: boolean | undefined;
 	compactTools?: boolean | undefined;
 	describeImagesForTextModels?: boolean | undefined;
+	interceptApplyPatch?: boolean | undefined;
 }
 
 const COLLAPSED_OUTPUT_MAX_VISUAL_LINES = 5;
@@ -317,6 +319,9 @@ const renderExecCommandResultWithOptionalContext: any = (
 };
 
 export function createExecCommandTool(tracker: ExecCommandTracker, sessions: ExecSessionManager, options: ExecCommandToolOptions = {}) {
+	const interceptedApplyPatch = options.interceptApplyPatch
+		? createApplyPatchTool({ promptSnippet: false, showDiffWhenCollapsed: !options.compactTools })
+		: undefined;
 	const tool: Parameters<ExtensionAPI["registerTool"]>[0] = {
 		name: "exec_command",
 		label: "exec_command",
@@ -329,6 +334,30 @@ export function createExecCommandTool(tracker: ExecCommandTracker, sessions: Exe
 				throw new Error("exec_command aborted");
 			}
 			const typedParams = parseExecCommandParams(params);
+			const commandCwd = resolveExecCommandWorkdir(ctx.cwd, typedParams.workdir);
+			const patchInput = interceptedApplyPatch
+				? extractPathApplyPatchPreviewInput(typedParams.cmd, commandCwd)
+				: undefined;
+			if (patchInput && !patchInput.beforeCommand && !patchInput.afterCommand) {
+				setPathApplyPatchPreviewState(toolCallId, typedParams.cmd, commandCwd);
+				try {
+					const result = await interceptedApplyPatch!.execute(
+						toolCallId,
+						{ input: patchInput.patchText },
+						signal,
+						undefined,
+						{ ...ctx, cwd: patchInput.cwd },
+					);
+					if (result.details && typeof result.details === "object" && "status" in result.details && result.details.status === "partial_failure") {
+						throw new Error(result.content.filter((item) => item.type === "text").map((item) => item.text).join("\n") || "apply_patch partially failed");
+					}
+					markPathApplyPatchPreviewExit(toolCallId, 0);
+					return result;
+				} catch (error) {
+					markPathApplyPatchPreviewExit(toolCallId, 1);
+					throw error;
+				}
+			}
 			const toToolResult = (partial: UnifiedExecResult) => ({
 				content: [{ type: "text" as const, text: formatUnifiedExecResult(partial, typedParams.cmd) }],
 				details: partial,
@@ -336,7 +365,7 @@ export function createExecCommandTool(tracker: ExecCommandTracker, sessions: Exe
 			const pathToolPolicy = getPathToolPolicy(typedParams.cmd, ctx.model, { describeImages: options.describeImagesForTextModels });
 			if (pathToolPolicy?.unsupportedMessage) throw new Error(pathToolPolicy.unsupportedMessage);
 			if (pathToolPolicy?.parseApplyPatchOutput) {
-				setPathApplyPatchPreviewState(toolCallId, typedParams.cmd, resolveExecCommandWorkdir(ctx.cwd, typedParams.workdir));
+					setPathApplyPatchPreviewState(toolCallId, typedParams.cmd, commandCwd);
 			}
 			const webRunStatePath = pathToolPolicy?.parseWebRunOutput ? webRunSessionStatePath(ctx) : undefined;
 			const describeImagesForTextModel = options.describeImagesForTextModels && !(Array.isArray(ctx.model?.input) && ctx.model.input.includes("image"));

@@ -52,6 +52,7 @@ function createNestedTools(
 		customRendering: runtime.state.config.ui.toolRenaming,
 		showOutputWhenCollapsed: true,
 		compactTools: runtime.state.config.ui.compactTools,
+		interceptApplyPatch: true,
 	};
 	const tools: ProgrammaticCodeModeToolDefinition[] = [
 		toNestedTool(
@@ -102,11 +103,16 @@ function createNestedTools(
 			{
 				resultValue(result) {
 					const details = result.details;
-					if (!isRunningExecResult(details)) return details;
-					return {
-						...details,
-						continuation: `Still running. Call exec with tools.write_stdin({ session_id: ${details.session_id} })`,
-					};
+					if (isRunningExecResult(details))
+						return {
+							...details,
+							continuation: `Still running. Call exec with tools.write_stdin({ session_id: ${details.session_id} })`,
+						};
+					if (isExecResult(details)) return details;
+					return result.content
+						.filter((item): item is { type: "text"; text: string } => item.type === "text")
+						.map((item) => item.text)
+						.join("\n") || "(no output)";
 				},
 			},
 		),
@@ -167,4 +173,8 @@ function createNestedTools(
 
 function isRunningExecResult(details: AgentToolResult<unknown>["details"]): details is Record<string, unknown> & { session_id: number } {
 	return Boolean(details && typeof details === "object" && "session_id" in details && typeof details.session_id === "number");
+}
+
+function isExecResult(details: AgentToolResult<unknown>["details"]): details is Record<string, unknown> & { output: string } {
+	return Boolean(details && typeof details === "object" && "output" in details && typeof details.output === "string");
 }
