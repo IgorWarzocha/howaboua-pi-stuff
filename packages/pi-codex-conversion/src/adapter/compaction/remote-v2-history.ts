@@ -124,68 +124,12 @@ function approxTokenCount(value: string): number {
 	return Math.ceil(utf8Bytes(value) / APPROX_BYTES_PER_TOKEN);
 }
 
-function splitUtf8(value: string, leftBytes: number, rightBytes: number): { left: string; right: string } {
-	const parts = Array.from(value);
-	let used = 0;
-	let leftEnd = 0;
-	for (let index = 0; index < parts.length; index++) {
-		const bytes = utf8Bytes(parts[index]!);
-		if (used + bytes > leftBytes) break;
-		used += bytes;
-		leftEnd = index + 1;
-	}
-
-	used = 0;
-	let rightStart = parts.length;
-	for (let index = parts.length - 1; index >= leftEnd; index--) {
-		const bytes = utf8Bytes(parts[index]!);
-		if (used + bytes > rightBytes) break;
-		used += bytes;
-		rightStart = index;
-	}
-	return { left: parts.slice(0, leftEnd).join(""), right: parts.slice(rightStart).join("") };
-}
-
-function truncateTextToTokenBudget(value: string, maxTokens: number): string {
-	const maxBytes = maxTokens * APPROX_BYTES_PER_TOKEN;
-	const totalBytes = utf8Bytes(value);
-	if (totalBytes <= maxBytes) return value;
-	if (maxBytes === 0) return `…${approxTokenCount(value)} tokens truncated…`;
-	const leftBytes = Math.floor(maxBytes / 2);
-	const { left, right } = splitUtf8(value, leftBytes, maxBytes - leftBytes);
-	const removedTokens = Math.ceil((totalBytes - maxBytes) / APPROX_BYTES_PER_TOKEN);
-	return `${left}…${removedTokens} tokens truncated…${right}`;
-}
-
 function messageTextTokenCount(item: Record<string, unknown>): number {
 	if (!Array.isArray(item["content"])) return 0;
 	return item["content"].reduce((tokens, part) => {
 		if (!isRecord(part) || (part["type"] !== "input_text" && part["type"] !== "output_text") || typeof part["text"] !== "string") return tokens;
 		return tokens + approxTokenCount(part["text"]);
 	}, 0);
-}
-
-function truncateMessageToTokenBudget(item: Record<string, unknown>, maxTokens: number): Record<string, unknown> | undefined {
-	if (!Array.isArray(item["content"])) return structuredClone(item);
-	let remaining = maxTokens;
-	const content: unknown[] = [];
-	for (const sourcePart of item["content"]) {
-		const part = structuredClone(sourcePart);
-		if (!isRecord(part)) continue;
-		if ((part["type"] === "input_text" || part["type"] === "output_text") && typeof part["text"] === "string") {
-			if (remaining === 0) continue;
-			const tokens = approxTokenCount(part["text"]);
-			if (tokens <= remaining) remaining -= tokens;
-			else {
-				part["text"] = truncateTextToTokenBudget(part["text"], remaining);
-				remaining = 0;
-			}
-			if (part["text"] !== "") content.push(part);
-		} else if (part["type"] === "input_image") {
-			content.push(part);
-		}
-	}
-	return content.length > 0 ? { ...structuredClone(item), content } : undefined;
 }
 
 export function buildRemoteCompactionV2Window(
@@ -200,17 +144,12 @@ export function buildRemoteCompactionV2Window(
 	let remaining = Math.max(0, Math.floor(maxTokens));
 	const reversed: Record<string, unknown>[] = [];
 	for (let index = retained.length - 1; index >= 0; index--) {
-		if (remaining === 0) continue;
 		const item = retained[index]!;
 		const tokens = Math.max(1, messageTextTokenCount(item));
-		if (tokens <= remaining) {
+		if (tokens <= remaining || reversed.length === 0) {
 			reversed.push(item);
-			remaining -= tokens;
-		} else {
-			const truncated = truncateMessageToTokenBudget(item, remaining);
-			if (truncated) reversed.push(truncated);
-			remaining = 0;
-		}
+			remaining = Math.max(0, remaining - tokens);
+		} else break;
 	}
 	reversed.reverse();
 	return [...reversed, structuredClone(compactionOutput)];

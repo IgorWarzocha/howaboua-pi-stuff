@@ -4,12 +4,14 @@ import {
 	COMPACTION_MODELS,
 	COMPACTION_REASONING_LEVELS,
 	DEFAULT_CODEX_CONVERSION_CONFIG,
+	V2_USER_MESSAGE_RETENTION_OPTIONS,
 	WEB_SEARCH_MODELS,
 	normalizeCodexVerbosity,
 	normalizeCompactionModel,
 	normalizeCompactionReasoning,
 	normalizeProviderList,
 	normalizeWebSearchModel,
+	normalizeV2UserMessageRetention,
 	readCodexConversionConfig,
 	type CodexConversionConfig,
 } from "../../adapter/activation/config.ts";
@@ -247,6 +249,7 @@ function buildItems(tab: SettingsTab, draft: CodexConversionConfig, theme: Theme
 		return [
 			{ id: "codeMode", label: "GPT-5.6 Code Mode", currentValue: draft.beta.codeMode ? "on" : "off", values: ["off", "on"] },
 			{ id: "responsesLite", label: "Proxy Responses Lite", currentValue: draft.beta.responsesLite ? "on" : "off", values: ["off", "on"] },
+			{ id: "v2UserMessageRetention", label: "V2 preserved user messages", currentValue: `${draft.beta.v2UserMessageRetention ?? 64}k${(draft.beta.v2UserMessageRetention ?? 64) === 64 ? " (Codex native)" : ""}`, values: V2_USER_MESSAGE_RETENTION_OPTIONS.map((value) => `${value}k${value === 64 ? " (Codex native)" : ""}`) },
 		];
 	}
 
@@ -283,6 +286,7 @@ function applySettingChange(id: string, value: string, draft: CodexConversionCon
 	if (id === "compactionVersion") return { ...draft, compaction: { ...draft.compaction, version: value === "v2" ? "v2" : "v1" } };
 	if (id === "codeMode") return { ...draft, beta: { ...draft.beta, codeMode: value === "on" } };
 	if (id === "responsesLite") return { ...draft, beta: { ...draft.beta, responsesLite: value === "on" } };
+	if (id === "v2UserMessageRetention") return { ...draft, beta: { ...draft.beta, v2UserMessageRetention: normalizeV2UserMessageRetention(Number.parseInt(value, 10)) ?? 64 } };
 	if (id === "webRun") return { ...draft, tools: { ...draft.tools, webRun: value === "on" } };
 	if (id === "imageGeneration") return { ...draft, tools: { ...draft.tools, imageGeneration: value === "on" } };
 	if (id === "viewImageFallback") return { ...draft, tools: { ...draft.tools, viewImageFallback: value === "on" } };

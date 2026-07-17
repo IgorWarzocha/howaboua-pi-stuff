@@ -11,12 +11,14 @@ export type CompactionModel = HelperModel;
 export type WebSearchModel = HelperModel;
 export type CompactionReasoning = "current" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 export type CompactionVersion = "v1" | "v2";
+export type V2UserMessageRetention = 16 | 32 | 64;
 
 export const HELPER_MODELS: readonly HelperModel[] = ["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.5", "gpt-5.4-mini", "gpt-5.3-codex-spark"];
 export const COMPACTION_MODELS: readonly CompactionModel[] = HELPER_MODELS;
 export const WEB_SEARCH_MODELS: readonly WebSearchModel[] = HELPER_MODELS;
 export const COMPACTION_REASONING_LEVELS: readonly CompactionReasoning[] = ["current", "minimal", "low", "medium", "high", "xhigh", "max"];
 export const COMPACTION_VERSIONS: readonly CompactionVersion[] = ["v1", "v2"];
+export const V2_USER_MESSAGE_RETENTION_OPTIONS: readonly V2UserMessageRetention[] = [16, 32, 64];
 
 export interface CodexConversionConfig {
 	mode: CodexAdapterMode;
@@ -42,7 +44,7 @@ export interface CodexConversionConfig {
 		backgroundShellCloseShortcut: string;
 	};
 	compaction: { responsesCompaction: boolean; version?: CompactionVersion | undefined };
-	beta: { codeMode: boolean; responsesLite: boolean };
+	beta: { codeMode: boolean; responsesLite: boolean; v2UserMessageRetention?: V2UserMessageRetention | undefined };
 	openai: {
 		fast: boolean;
 		verbosity: CodexVerbosity;
@@ -70,7 +72,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 		backgroundShellCloseShortcut: "alt+r",
 	},
 	compaction: { responsesCompaction: false, version: "v1" },
-	beta: { codeMode: false, responsesLite: false },
+	beta: { codeMode: false, responsesLite: false, v2UserMessageRetention: 64 },
 	openai: {
 		fast: false,
 		verbosity: "low",
@@ -118,6 +120,10 @@ export function normalizeCompactionReasoning(value: unknown): CompactionReasonin
 
 export function normalizeCompactionVersion(value: unknown): CompactionVersion | undefined {
 	return value === "v1" || value === "v2" ? value : undefined;
+}
+
+export function normalizeV2UserMessageRetention(value: unknown): V2UserMessageRetention | undefined {
+	return value === 16 || value === 32 || value === 64 ? value : undefined;
 }
 
 export function normalizeProviderList(value: unknown): string[] {
@@ -177,6 +183,8 @@ export function normalizeCodexConversionConfig(value: unknown): CodexConversionC
 		beta: {
 			codeMode: bool(beta["codeMode"], DEFAULT_CODEX_CONVERSION_CONFIG.beta["codeMode"]),
 			responsesLite: bool(beta["responsesLite"], DEFAULT_CODEX_CONVERSION_CONFIG.beta["responsesLite"]),
+			v2UserMessageRetention: normalizeV2UserMessageRetention(beta["v2UserMessageRetention"])
+				?? DEFAULT_CODEX_CONVERSION_CONFIG.beta.v2UserMessageRetention,
 		},
 		openai: {
 			fast: bool(openai["fast"], DEFAULT_CODEX_CONVERSION_CONFIG.openai["fast"]),

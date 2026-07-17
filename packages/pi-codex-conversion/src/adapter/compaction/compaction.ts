@@ -328,7 +328,11 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 			}
 			return compactResult.reason === "aborted" ? { cancel: true } : undefined;
 		}
-		const compactedWindow = buildRemoteCompactionV2Window(request.input, compactResult.compaction);
+		const compactedWindow = buildRemoteCompactionV2Window(
+			request.input,
+			compactResult.compaction,
+			(state.config.beta.v2UserMessageRetention ?? 64) * 1_000,
+		);
 		try {
 			const details = createNativeCompactionDetails({
 				strategy: NATIVE_COMPACTION_V2_STRATEGY,
