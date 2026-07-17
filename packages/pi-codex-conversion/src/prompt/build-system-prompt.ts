@@ -14,7 +14,7 @@ export interface StructuredPromptSkill {
 const NORMAL_CODEX_GUIDELINES = [
 	"Use exec_command for shell commands, file inspection, builds, and tests; prefer rg / rg --files for discovery and focused commands over truncation.",
 	"Use tty=true for dev servers, watchers, REPLs, and prompts.",
-	"Use apply_patch for text-file changes, including creates/deletes/moves; group related multi-file edits into one patch.",
+	"Use apply_patch for text-file changes, including creates/deletes/moves; split oversized patches.",
 	"Prefer the apply_patch tool; use shell apply_patch only when chaining edits with other shell steps.",
 	"Use write_stdin only for running exec_command sessions; poll sparingly.",
 	"Run independent tool calls in parallel when practical.",
@@ -23,7 +23,7 @@ const NORMAL_CODEX_GUIDELINES = [
 const PATH_CODEX_GUIDELINES = [
 	"Use exec_command for shell/file/build/test; prefer rg/rg --files.",
 	"Use tty=true for interactive commands.",
-	"Use apply_patch for file edits; group related edits.",
+	"Use apply_patch for file edits; split oversized patches.",
 	"Do not probe listed PATH tools.",
 	"Use stdin/heredoc for quoted or multiline PATH args.",
 	"Chain dependent shell commands with &&.",
@@ -35,14 +35,14 @@ const CODE_MODE_GUIDELINES = [
 	"Continue exec cell_id with wait; continue exec_command session_id by calling tools.write_stdin inside exec.",
 	"Wait proportionally to expected runtime; back off repeated polls.",
 	"Use tty=true for interactive commands.",
-	"Use tools.apply_patch(patch) for file edits; group related edits.",
+	"Use tools.apply_patch(patch) for file edits; split oversized patches.",
 	"Compose independent nested calls with Promise.all.",
 	"With async work, await dependencies; overlap only independent work.",
 	"Use text() only for concise values needed after exec; do not dump complete nested tool results.",
 ];
 
 const PATH_MODE_REMOVED_GUIDELINES = new Set([
-	"Use apply_patch for text-file changes, including creates/deletes/moves; group related multi-file edits into one patch.",
+	"Use apply_patch for text-file changes, including creates/deletes/moves; split oversized patches.",
 	"Prefer the apply_patch tool; use shell apply_patch only when chaining edits with other shell steps.",
 	"Run independent tool calls in parallel when practical.",
 ]);
