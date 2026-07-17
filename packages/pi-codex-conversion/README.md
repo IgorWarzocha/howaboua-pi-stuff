@@ -74,7 +74,9 @@ To adapt an additional Codex-compatible provider without enabling all-model scop
 }
 ```
 
-Native compaction applies to OpenAI Codex and providers listed in `additionalProviders`; the built-in OpenAI Responses endpoint is supported when added. Failed endpoint requests and invalid compaction outputs fall back to Pi's normal compaction. Unsupported preparation or compatibility states cancel compaction and report the error instead of silently discarding context.
+Native compaction applies to OpenAI Codex and explicitly configured passthrough providers listed in `additionalProviders`; the built-in OpenAI Responses endpoint is supported when added. Additional providers must forward the OpenAI/Codex Responses and compaction contracts, such as a renamed provider or compatible LiteLLM route. Enable compaction and choose protocol `v1` or `v2` in `/codex`. V1 remains the default and uses the configured helper model. V2 uses the active model's ordinary streamed Responses transport, retains up to roughly 64k tokens of recent real user messages beside the encrypted checkpoint, and excludes injected context messages. Protocols cannot recursively compact each other's checkpoints; switch back or start a new session.
+
+The first compact request sends the full active transcript, and later requests send the previous opaque checkpoint plus its exact live tail. Oversized requests preserve the cached history prefix by only rewriting contiguous trailing tool and tool-search outputs when the transcript exceeds Codex's effective context window. Failed endpoint requests and invalid compaction outputs fall back to Pi's normal compaction. Unsupported preparation or compatibility states cancel compaction and report the error instead of silently discarding context.
 
 Process control, PTYs, patching, images, and large outputs run through bundled Rust helpers, so failures normally become tool errors instead of crashing Pi. PATH image results render inline; recognized `web_run` and `imagegen` calls wait up to one hour before becoming resumable.
 

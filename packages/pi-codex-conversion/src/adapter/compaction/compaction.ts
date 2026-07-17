@@ -1,25 +1,27 @@
-import type { ExtensionAPI, ExtensionContext, SessionBeforeCompactEvent } from "@earendil-works/pi-coding-agent";
-import { clampThinkingLevel, type Api, type Model, type ModelThinkingLevel, type Tool } from "@earendil-works/pi-ai";
+import type { ExtensionAPI, ExtensionContext, SessionBeforeCompactEvent, SessionEntry } from "@earendil-works/pi-coding-agent";
+import { clampThinkingLevel, type Api, type Context, type Model, type ModelThinkingLevel, type Tool } from "@earendil-works/pi-ai";
 import { executeNativeCompaction } from "./compact-client.ts";
 import { extractCompactionSummaryText, hasCompactionOutputItem, sanitizeCompactedWindow, summarizeCompactionOutputForDiagnostics } from "./compaction-output.ts";
-import { findLatestNativeCompactionEntry, findLatestNativeCompactionEntryIndex, resolveLatestNativeCompactionEntry } from "./details-store.ts";
+import { findLatestNativeCompactionEntry, findLatestNativeCompactionEntryIndex, resolveLatestNativeCompactionEntry, type LatestNativeCompactionResolution } from "./details-store.ts";
 import { shrinkNativeCompactionRequestForEndpoint } from "./request-shrink.ts";
 import { rewriteResponsesPayloadWithNativeReplay, serializeLiveTailToResponsesInput } from "../replay/payload-rewrite.ts";
 import { DEFAULT_SUPPORTED_PROVIDERS, isResponsesCompatiblePayload, resolveNativeCompactionEnvironment, type ResponsesCompatibleRequestPayload } from "./compaction-runtime.ts";
 import { formatCodexUsageLimitError } from "../../providers/openai-codex/errors.ts";
 import { convertResponsesTools } from "../../providers/openai-responses/shared.ts";
 import {
-	serializeCompactionPreparationToRequest,
+	serializeActiveSessionToCompactRequest,
 	type NativeCompactionRequestBody,
 	type NativeCompactionRequestOptions,
 	type ResponsesInputItem,
 } from "./serializer.ts";
-import { createNativeCompactionDetails, createNativeCompactionShimResult, isNativeCompactionDetails, NATIVE_COMPACTION_SHIM_SUMMARY, type NativeCompactionEntry } from "../compaction/types.ts";
+import { createNativeCompactionDetails, createNativeCompactionShimResult, NATIVE_COMPACTION_SHIM_SUMMARY, NATIVE_COMPACTION_STRATEGY, NATIVE_COMPACTION_V2_STRATEGY, type NativeCompactionEntry } from "../compaction/types.ts";
 import { applyResponsesLiteRequest, prepareResponsesLiteRequestImages, supportsResponsesLiteModel } from "../../providers/openai-codex/responses-lite.ts";
 import { applyCodeModeFreeformContract } from "../code-mode-contract.ts";
 import { isResponsesContext } from "../prompt/codex-model.ts";
 import { isEffectiveOpenAICodexContext, shouldUseNativeResponsesCompaction } from "../activation/activation.ts";
 import type { AdapterState } from "../activation/state.ts";
+import { executeRemoteCompactionV2 } from "./remote-v2-client.ts";
+import { buildRemoteCompactionV2Window } from "./remote-v2-history.ts";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === "object" && !Array.isArray(value);
@@ -28,13 +30,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function stashLatestNativeWindowForPiCompactionFallback(
 	ctx: ExtensionContext,
 	branchEntries: ReturnType<ExtensionContext["sessionManager"]["getBranch"]>,
-	runtime: { provider: string; api: string; baseUrl: string },
+	runtime: { provider: string; api: string; model?: string | undefined; baseUrl: string },
 	state: AdapterState,
 ): boolean {
 	state.pendingPiCompactionNativeWindow = undefined;
 	const nativeEntry = findLatestNativeCompactionEntry(branchEntries, {
 		provider: runtime.provider,
 		api: runtime.api,
+		...(state.config.compaction.version === "v2" && runtime.model ? { model: runtime.model } : {}),
 		baseUrl: runtime.baseUrl,
 	});
 	const compactedWindow = cloneCompactedWindow(nativeEntry?.details?.compactedWindow ?? []);
@@ -43,6 +46,7 @@ function stashLatestNativeWindowForPiCompactionFallback(
 		window: compactedWindow,
 		provider: runtime.provider,
 		api: runtime.api,
+		...(state.config.compaction.version === "v2" && runtime.model ? { model: runtime.model } : {}),
 		baseUrl: runtime.baseUrl,
 		sessionId: ctx.sessionManager.getSessionId(),
 		sourceCompactionEntryId: nativeEntry?.id,
@@ -60,14 +64,18 @@ function buildCompactionInstructions(systemPrompt: string, customInstructions?: 
 	return guidance ? `${systemPrompt}\n\nAdditional user guidance for this manual /compact request:\n${guidance}` : systemPrompt;
 }
 
-function buildCompactionTools(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState): unknown[] | undefined {
-	void ctx;
-	void state;
+function getActiveCompactionTools(pi: ExtensionAPI): Tool[] {
 	const activeToolNames = new Set(pi.getActiveTools());
-	const tools = pi
+	return pi
 		.getAllTools()
 		.filter((tool) => activeToolNames.has(tool.name))
 		.map((tool): Tool => ({ name: tool.name, description: tool.description, parameters: tool.parameters }));
+}
+
+function buildCompactionTools(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState): unknown[] | undefined {
+	void ctx;
+	void state;
+	const tools = getActiveCompactionTools(pi);
 	if (tools.length === 0) return undefined;
 	return convertResponsesTools(tools, { strict: null });
 }
@@ -121,12 +129,6 @@ function buildCompactionRequestOptions(pi: ExtensionAPI, ctx: ExtensionContext, 
 	};
 }
 
-function getCompactionIdentity(entry: { details?: unknown | undefined } | undefined) {
-	return isNativeCompactionDetails(entry?.details)
-		? { provider: entry.details.provider, api: entry.details.api, model: entry.details.model, baseUrl: entry.details.baseUrl }
-		: undefined;
-}
-
 function formatCompactFailureMessage(compactResult: Awaited<ReturnType<typeof executeNativeCompaction>>): string {
 	if (compactResult.ok) return "OpenAI native compaction succeeded";
 	const status = compactResult.status ? ` HTTP ${compactResult.status}` : "";
@@ -144,7 +146,7 @@ function formatCompactRequestDiagnostics(request: NativeCompactionRequestBody): 
 	return `model=${request.model}, input=${request.input.length}, tools=${tools}, reasoning=${reasoning}, service_tier=${serviceTier}`;
 }
 
-function notifyNativeCompactionFallback(ctx: ExtensionContext, state: AdapterState, branchEntries: ReturnType<ExtensionContext["sessionManager"]["getBranch"]>, runtime: { provider: string; api: string; baseUrl: string }, message: string): void {
+function notifyNativeCompactionFallback(ctx: ExtensionContext, state: AdapterState, branchEntries: ReturnType<ExtensionContext["sessionManager"]["getBranch"]>, runtime: { provider: string; api: string; model?: string | undefined; baseUrl: string }, message: string): void {
 	const stashed = stashLatestNativeWindowForPiCompactionFallback(ctx, branchEntries, runtime, state);
 	ctx.ui.notify(`${message}; Pi compaction will run.${stashed ? " Previous native compacted window will be included in Pi compaction fallback." : ""}`, "error");
 }
@@ -173,6 +175,46 @@ function isPiCompactionSummarizationPayload(payload: ResponsesCompatibleRequestP
 
 function getSupportedNativeCompactionProviders(state: AdapterState): string[] {
 	return [...new Set([...DEFAULT_SUPPORTED_PROVIDERS, ...state.config.scope.additionalProviders])];
+}
+
+export function buildNativeCompactionRequest(args: {
+	model: Model<Api>;
+	compactionModel: string;
+	branchEntries: SessionEntry[];
+	allEntries: SessionEntry[];
+	leafId?: string | null | undefined;
+	latestNativeCompaction: LatestNativeCompactionResolution;
+	instructions: string;
+	requestOptions: NativeCompactionRequestOptions;
+}): { request: NativeCompactionRequestBody; compactedKeptWindow: boolean } | undefined {
+	if (args.latestNativeCompaction.ok) {
+		const compactedWindow = cloneCompactedWindow(args.latestNativeCompaction.entry.details?.compactedWindow ?? []);
+		if (!compactedWindow) return undefined;
+		const liveTailEntries = args.branchEntries.slice(args.latestNativeCompaction.index + 1);
+		return {
+			request: {
+				model: args.compactionModel,
+				input: [
+					...compactedWindow,
+					...serializeLiveTailToResponsesInput({ model: args.model, entries: liveTailEntries }),
+				],
+				instructions: args.instructions,
+				...args.requestOptions,
+			},
+			compactedKeptWindow: false,
+		};
+	}
+
+	return {
+		request: serializeActiveSessionToCompactRequest({
+			model: args.model,
+			entries: args.allEntries,
+			leafId: args.leafId,
+			instructions: args.instructions,
+			requestOptions: args.requestOptions,
+		}),
+		compactedKeptWindow: true,
+	};
 }
 
 export async function handleCodexSessionBeforeCompact(event: SessionBeforeCompactEvent, ctx: ExtensionContext, state: AdapterState, pi: ExtensionAPI) {
@@ -206,10 +248,12 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 	}
 
 	const runtime = resolution.runtime;
+	const compactionVersion = state.config.compaction.version ?? "v1";
+	const useV2 = compactionVersion === "v2";
 	const compactionModel = state.config.openai.compactionModel;
 	const catalogModel = ctx.modelRegistry.find(runtime.provider, compactionModel)
 		?? ctx.modelRegistry.find("openai-codex", compactionModel);
-	const compactionTargetModel: Model<Api> = {
+	const v1CompactionTargetModel: Model<Api> = {
 		...runtime.currentModel,
 		...catalogModel,
 		id: compactionModel,
@@ -217,70 +261,91 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 		api: runtime.api,
 		baseUrl: runtime.currentModel.baseUrl,
 	};
+	const compactionTargetModel = useV2 ? runtime.currentModel : v1CompactionTargetModel;
 	const requestOptions = buildCompactionRequestOptions(pi, ctx, state, compactionTargetModel);
 	const branchEntries = ctx.sessionManager.getBranch();
 	const latestNativeCompaction = resolveLatestNativeCompactionEntry(branchEntries, {
 		provider: runtime.provider,
 		api: runtime.api,
+		...(useV2 ? { model: runtime.model } : {}),
 		baseUrl: runtime.baseUrl,
 	});
-
-	let request: NativeCompactionRequestBody;
-	let compactedKeptWindow = false;
+	if (!latestNativeCompaction.ok && latestNativeCompaction.reason === "latest-native-compaction-mismatch") {
+		ctx.ui.notify("OpenAI native compaction cannot reuse the latest checkpoint with this provider, endpoint, or active model; compaction was cancelled to preserve its encrypted history.", "error");
+		return { cancel: true };
+	}
 	if (latestNativeCompaction.ok) {
-		const compactedWindow = cloneCompactedWindow(latestNativeCompaction.entry.details?.compactedWindow ?? []);
-		if (!compactedWindow) {
-			ctx.ui.notify("OpenAI native compaction could not clone the previous compacted window; Pi compaction was not run.", "error");
+		const expectedStrategy = useV2 ? NATIVE_COMPACTION_V2_STRATEGY : NATIVE_COMPACTION_STRATEGY;
+		if (latestNativeCompaction.entry.details?.strategy !== expectedStrategy) {
+			ctx.ui.notify(`Responses compaction ${compactionVersion} cannot recursively compact a checkpoint created by another protocol; switch back or start a new session.`, "error");
 			return { cancel: true };
 		}
-		const liveTailEntries = branchEntries.slice(latestNativeCompaction.index + 1);
-		request = {
-			model: compactionModel,
-			input: [
-				...compactedWindow,
-				...serializeLiveTailToResponsesInput({ model: compactionTargetModel, entries: liveTailEntries }),
-			],
-			instructions: buildCompactionInstructions(ctx.getSystemPrompt(), event.customInstructions),
-			...requestOptions,
-		};
-	} else if (latestNativeCompaction.reason === "no-compaction") {
-		request = serializeCompactionPreparationToRequest({
-			model: compactionTargetModel,
-			preparation: event.preparation,
-			instructions: buildCompactionInstructions(ctx.getSystemPrompt(), event.customInstructions),
-			requestOptions,
-		});
-		if (request.input.length === 0) {
-			request = {
-				model: compactionModel,
-				input: serializeLiveTailToResponsesInput({ model: compactionTargetModel, entries: branchEntries }),
-				instructions: buildCompactionInstructions(ctx.getSystemPrompt(), event.customInstructions),
-				...requestOptions,
-			};
-			compactedKeptWindow = true;
-		}
-	} else {
-		void getCompactionIdentity(latestNativeCompaction.latestCompaction);
-		request = serializeCompactionPreparationToRequest({
-			model: compactionTargetModel,
-			preparation: event.preparation,
-			instructions: buildCompactionInstructions(ctx.getSystemPrompt(), event.customInstructions),
-			requestOptions,
-		});
-		if (request.input.length === 0) {
-			request = {
-				model: compactionModel,
-				input: serializeLiveTailToResponsesInput({ model: compactionTargetModel, entries: branchEntries }),
-				instructions: buildCompactionInstructions(ctx.getSystemPrompt(), event.customInstructions),
-				...requestOptions,
-			};
-			compactedKeptWindow = true;
-		}
 	}
+
+	const builtRequest = buildNativeCompactionRequest({
+		model: compactionTargetModel,
+		compactionModel: useV2 ? runtime.model : compactionModel,
+		branchEntries,
+		allEntries: ctx.sessionManager.getEntries(),
+		leafId: ctx.sessionManager.getLeafId(),
+		latestNativeCompaction,
+		instructions: buildCompactionInstructions(ctx.getSystemPrompt(), event.customInstructions),
+		requestOptions,
+	});
+	if (!builtRequest) {
+		ctx.ui.notify("OpenAI native compaction could not clone the previous compacted window; Pi compaction was not run.", "error");
+		return { cancel: true };
+	}
+	let { request } = builtRequest;
+	const { compactedKeptWindow } = builtRequest;
 
 	if (request.input.length === 0) {
 		ctx.ui.notify("OpenAI native compaction had no serializable conversation items; Pi compaction was not run.", "error");
 		return { cancel: true };
+	}
+	if (useV2) {
+		if (event.customInstructions?.trim()) {
+			ctx.ui.notify("Responses compaction v2 uses the active model instructions and ignores custom /compact guidance.", "warning");
+		}
+		const tools = getActiveCompactionTools(pi);
+		const context: Context = {
+			systemPrompt: ctx.getSystemPrompt(),
+			messages: [],
+			...(tools.length > 0 ? { tools } : {}),
+		};
+		const compactResult = await executeRemoteCompactionV2({
+			runtime,
+			modelRegistry: ctx.modelRegistry,
+			context,
+			promptInput: request.input,
+			requestOptions,
+			sessionId: ctx.sessionManager.getSessionId(),
+			signal: event.signal,
+		});
+		if (!compactResult.ok) {
+			if (compactResult.reason !== "aborted") {
+				notifyNativeCompactionFallback(ctx, state, branchEntries, runtime, `Responses compaction v2 failed (${compactResult.reason}): ${compactResult.errorMessage}`);
+			}
+			return compactResult.reason === "aborted" ? { cancel: true } : undefined;
+		}
+		const compactedWindow = buildRemoteCompactionV2Window(request.input, compactResult.compaction);
+		try {
+			const details = createNativeCompactionDetails({
+				strategy: NATIVE_COMPACTION_V2_STRATEGY,
+				provider: runtime.provider,
+				api: runtime.api,
+				model: runtime.model,
+				baseUrl: runtime.baseUrl,
+				compactedWindow,
+				compactResponseId: compactResult.responseId,
+				createdAt: compactResult.createdAt,
+				requestMeta: { tokensBefore: event.preparation.tokensBefore, previousSummaryPresent: Boolean(event.preparation.previousSummary), compactedKeptWindow },
+			});
+			return { compaction: createNativeCompactionShimResult({ summary: NATIVE_COMPACTION_SHIM_SUMMARY, firstKeptEntryId: event.preparation.firstKeptEntryId, tokensBefore: event.preparation.tokensBefore, details }) };
+		} catch {
+			notifyNativeCompactionFallback(ctx, state, branchEntries, runtime, "Responses compaction v2 produced details Pi could not store");
+			return undefined;
+		}
 	}
 	const responsesLite = state.config.beta.codeMode && runtime.provider === "openai-codex" && supportsResponsesLiteModel(compactionModel);
 	if (responsesLite) request = await prepareResponsesLiteRequestImages(applyResponsesLiteRequest(applyCodeModeFreeformContract(request)));
@@ -346,7 +411,13 @@ export async function rewriteCodexCompactedProviderRequest(payload: unknown, ctx
 	});
 	if (latestNativeCompactionIndex === undefined) return undefined;
 	if (!runtime.payload) return undefined;
-	const rewrite = rewriteResponsesPayloadWithNativeReplay({ model: runtime.currentModel, payload: runtime.payload, branchEntries, compactionEntry: branchEntries[latestNativeCompactionIndex]! as NativeCompactionEntry });
+	const compactionEntry = branchEntries[latestNativeCompactionIndex]! as NativeCompactionEntry;
+	if (compactionEntry.details?.strategy === NATIVE_COMPACTION_V2_STRATEGY && compactionEntry.details.model !== runtime.model) {
+		const message = "Responses compaction v2 checkpoint belongs to a different model; request was not sent with placeholder compaction context.";
+		ctx.ui.notify(message, "error");
+		throw new Error(message);
+	}
+	const rewrite = rewriteResponsesPayloadWithNativeReplay({ model: runtime.currentModel, payload: runtime.payload, branchEntries, compactionEntry });
 	if (rewrite.ok) return rewrite.rewrittenPayload;
 	const detail = rewrite.parity?.mismatches.slice(0, 3).join("; ");
 	const message = `OpenAI native compaction replay failed (${rewrite.reason})${detail ? `: ${detail}` : ""}; request was not sent with placeholder compaction context.`;
@@ -367,7 +438,7 @@ export async function injectPendingNativeWindowIntoPiCompactionRequest(payload: 
 	const resolution = await resolveNativeCompactionEnvironment(ctx, { enabled: true, supportedProviders: getSupportedNativeCompactionProviders(state) }, payload);
 	if (!resolution.ok) return undefined;
 	const runtime = resolution.runtime;
-	if (pending.provider !== runtime.provider || pending.api !== runtime.api || pending.baseUrl !== runtime.baseUrl) {
+	if (pending.provider !== runtime.provider || pending.api !== runtime.api || (pending.model !== undefined && pending.model !== runtime.model) || pending.baseUrl !== runtime.baseUrl) {
 		state.pendingPiCompactionNativeWindow = undefined;
 		return undefined;
 	}

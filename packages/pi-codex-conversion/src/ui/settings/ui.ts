@@ -238,7 +238,7 @@ function buildItems(tab: SettingsTab, draft: CodexConversionConfig, theme: Theme
 			{ id: "verbosity", label: "Verbosity", currentValue: draft.openai.verbosity, values: ["low", "medium", "high"] },
 			{ id: "forceCachedWebSockets", label: "Cached websocket upgrade", currentValue: draft.openai.forceCachedWebSockets ? "on" : "off", values: ["off", "on"] },
 			{ id: "webSearchModel", label: "Web search model", currentValue: draft.openai.webSearchModel, values: [...WEB_SEARCH_MODELS] },
-			{ id: "compactionModel", label: "Compaction model", currentValue: draft.openai.compactionModel, values: [...COMPACTION_MODELS] },
+			{ id: "compactionModel", label: "V1 compaction model", currentValue: draft.openai.compactionModel, values: [...COMPACTION_MODELS] },
 			{ id: "compactionReasoning", label: "Compaction reasoning", currentValue: draft.openai.compactionReasoning, values: [...COMPACTION_REASONING_LEVELS] },
 		];
 	}
@@ -265,6 +265,7 @@ function buildItems(tab: SettingsTab, draft: CodexConversionConfig, theme: Theme
 		{ id: "codeModeDetails", label: "Code Mode details", currentValue: draft.ui.codeModeDetails ? "on" : "off", values: ["off", "on"] },
 		{ id: "backgroundShellWidget", label: "Background shells widget", currentValue: draft.ui.backgroundShellWidget ? "on" : "off", values: ["off", "on"] },
 		{ id: "responsesCompaction", label: "Responses compaction", currentValue: draft.compaction.responsesCompaction ? "on" : "off", values: ["off", "on"] },
+		{ id: "compactionVersion", label: "Compaction protocol", currentValue: draft.compaction.version ?? "v1", values: ["v1", "v2"] },
 		{ id: "editConfig", label: "Edit config", currentValue: editorCommand() ? "Opens in default editor (please /reload)" : "Set $EDITOR", values: editorCommand() ? ["Open"] : ["Unavailable"] },
 	];
 }
@@ -279,6 +280,7 @@ function applySettingChange(id: string, value: string, draft: CodexConversionCon
 	if (id === "codeModeDetails") return { ...draft, ui: { ...draft.ui, codeModeDetails: value === "on" } };
 	if (id === "backgroundShellWidget") return { ...draft, ui: { ...draft.ui, backgroundShellWidget: value === "on" } };
 	if (id === "responsesCompaction") return { ...draft, compaction: { ...draft.compaction, responsesCompaction: value === "on" } };
+	if (id === "compactionVersion") return { ...draft, compaction: { ...draft.compaction, version: value === "v2" ? "v2" : "v1" } };
 	if (id === "codeMode") return { ...draft, beta: { ...draft.beta, codeMode: value === "on" } };
 	if (id === "responsesLite") return { ...draft, beta: { ...draft.beta, responsesLite: value === "on" } };
 	if (id === "webRun") return { ...draft, tools: { ...draft.tools, webRun: value === "on" } };

@@ -61,7 +61,13 @@ export async function processWebSocketStream<TApi extends Api>(
 				output,
 				stream,
 				model,
-				{ ...options, onOutputItemDone: (item) => responseItems.push(item) },
+				{
+					...options,
+					onOutputItemDone: (item) => {
+						responseItems.push(item);
+						options?.onOutputItemDone?.(item);
+					},
+				},
 			);
 			if (options?.signal?.aborted) {
 				keepConnection = false;

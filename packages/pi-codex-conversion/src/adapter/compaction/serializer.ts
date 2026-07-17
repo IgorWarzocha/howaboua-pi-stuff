@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
-import { convertToLlm, getAgentDir } from "@earendil-works/pi-coding-agent";
+import { buildSessionContext, convertToLlm, getAgentDir, type SessionEntry } from "@earendil-works/pi-coding-agent";
 import type { Api, ImageContent, Message, Model, TextContent, ToolResultMessage, UserMessage } from "@earendil-works/pi-ai";
 import type { ResponsesCompatibleRequestPayload } from "./compaction-runtime.ts";
 import { CODEX_TOOL_CALL_PROVIDERS, convertResponsesMessages } from "../../providers/openai-responses/shared.ts";
+import { isAdapterContextExcludedCustomMessage } from "../prompt/context-filter.ts";
 
 /**
  * Decision for native compaction: reuse the provider's Responses serializer.
@@ -189,6 +190,23 @@ export function serializeMessagesToCompactRequest<TApi extends Api>(args: {
 		instructions: sanitizeSurrogates(args.instructions),
 		...args.requestOptions,
 	};
+}
+
+export function serializeActiveSessionToCompactRequest<TApi extends Api>(args: {
+	model: Model<TApi>;
+	entries: SessionEntry[];
+	leafId?: string | null | undefined;
+	instructions: string;
+	requestOptions?: NativeCompactionRequestOptions | undefined;
+}): NativeCompactionRequestBody {
+	const messages = buildSessionContext(args.entries, args.leafId).messages
+		.filter((message) => !isAdapterContextExcludedCustomMessage(message));
+	return serializeMessagesToCompactRequest({
+		model: args.model,
+		messages,
+		instructions: args.instructions,
+		requestOptions: args.requestOptions,
+	});
 }
 
 export function serializeMessagesToResponsesInput<TApi extends Api>(

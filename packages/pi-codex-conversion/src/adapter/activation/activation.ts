@@ -170,7 +170,7 @@ function getStatusConfig(ctx: ExtensionContext, config: CodexConversionConfig): 
 		fast: showOpenAICodexFlags && config.openai.fast,
 		webSearch: config.mode === "normal" && config.tools.webRun && (supportsNativeWebSearch(ctx.model) || useCodexBackedNativeTools),
 		imageGeneration: config.mode === "normal" && config.tools.imageGeneration && (supportsNativeImageGeneration(ctx.model) || useCodexBackedNativeTools),
-		compaction: { enabled: shouldUseNativeResponsesCompaction(ctx, config), model: config.openai.compactionModel, reasoning: config.openai.compactionReasoning },
+		compaction: { enabled: shouldUseNativeResponsesCompaction(ctx, config), version: config.compaction.version ?? "v1", model: config.openai.compactionModel, reasoning: config.openai.compactionReasoning },
 		...(showResponsesVerbosity ? { verbosity: config.openai.verbosity } : {}),
 	};
 }

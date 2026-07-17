@@ -1,8 +1,7 @@
 import type { NativeCompactionRequestBody, ResponsesInputItem } from "./serializer.ts";
 
-export const COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE = "[truncated]";
-
-const COMPACTION_BUDGET_RATIO = 0.8;
+export const COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE = "Output exceeded the available model context and was truncated";
+const CODEX_EFFECTIVE_CONTEXT_WINDOW_PERCENT = 95;
 
 export type NativeCompactionShrinkResult = {
 	request: NativeCompactionRequestBody;
@@ -37,23 +36,28 @@ function estimateTokenCount(value: unknown, encoding: TokenEncoder): number {
 	}
 }
 
-function isRewritableToolOutputItem(item: ResponsesInputItem): item is ResponsesInputItem & { type: string; output: unknown } {
-	if (!isRecord(item)) return false;
+function rewriteToolOutputItem(item: ResponsesInputItem): { recognized: boolean; item: ResponsesInputItem } {
+	if (!isRecord(item)) return { recognized: false, item };
 	const record: Record<string, unknown> = item;
-	return record["type"] === "function_call_output" && record["output"] !== COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE;
-}
-
-function rewriteToolOutputItem(item: ResponsesInputItem & { output: unknown }): ResponsesInputItem {
-	return {
-		...item,
-		output: COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE,
-	} as ResponsesInputItem;
+	if (record["type"] === "function_call_output" || record["type"] === "custom_tool_call_output") {
+		if (record["output"] === COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE) return { recognized: true, item };
+		return { recognized: true, item: { ...record, output: COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE } as ResponsesInputItem };
+	}
+	if (record["type"] === "tool_search_output") {
+		if (Array.isArray(record["tools"]) && record["tools"].length === 0) return { recognized: true, item };
+		return { recognized: true, item: { ...record, tools: [] } as unknown as ResponsesInputItem };
+	}
+	return { recognized: false, item };
 }
 
 function compactRequestBudget(options: ShrinkNativeCompactionRequestOptions): number | undefined {
 	const contextWindow = options.contextWindow;
 	if (typeof contextWindow !== "number" || !Number.isFinite(contextWindow) || contextWindow <= 0) return undefined;
-	return Math.floor(contextWindow * COMPACTION_BUDGET_RATIO);
+	return Math.floor((contextWindow * CODEX_EFFECTIVE_CONTEXT_WINDOW_PERCENT) / 100);
+}
+
+function estimateCompactContextTokens(request: NativeCompactionRequestBody, encoding: TokenEncoder): number {
+	return estimateTokenCount(request.instructions ?? "", encoding) + estimateTokenCount(request.input, encoding);
 }
 
 export async function shrinkNativeCompactionRequestForEndpoint(
@@ -62,7 +66,7 @@ export async function shrinkNativeCompactionRequestForEndpoint(
 ): Promise<NativeCompactionShrinkResult> {
 	const encoding = await getTokenEncoder();
 	const budgetTokens = compactRequestBudget(options);
-	const estimatedTokensBefore = estimateTokenCount(request, encoding);
+	const estimatedTokensBefore = estimateCompactContextTokens(request, encoding);
 	if (budgetTokens === undefined || estimatedTokensBefore <= budgetTokens) {
 		return {
 			request,
@@ -77,15 +81,16 @@ export async function shrinkNativeCompactionRequestForEndpoint(
 	let estimatedTokensAfter = estimatedTokensBefore;
 	let input: ResponsesInputItem[] | undefined;
 
-	for (let index = 0; index < request.input.length && estimatedTokensAfter > budgetTokens; index++) {
+	for (let index = request.input.length - 1; index >= 0 && estimatedTokensAfter > budgetTokens; index--) {
 		const item = (input ?? request.input)[index]!;
-		if (!isRewritableToolOutputItem(item)) continue;
+		const rewrite = rewriteToolOutputItem(item);
+		if (!rewrite.recognized) break;
+		if (rewrite.item === item) continue;
 
 		input ??= [...request.input];
-		const rewrittenItem = rewriteToolOutputItem(item);
-		input[index] = rewrittenItem;
+		input[index] = rewrite.item;
 		rewrittenOutputs++;
-		estimatedTokensAfter += estimateTokenCount(rewrittenItem, encoding) - estimateTokenCount(item, encoding);
+		estimatedTokensAfter += estimateTokenCount(rewrite.item, encoding) - estimateTokenCount(item, encoding);
 	}
 
 	return {

@@ -14,7 +14,7 @@ export function buildExtraToolsOnlyStatusText(tools: string[], theme?: StatusThe
 	return formatStatusText(` • extra tools${tools.length > 0 ? `: ${tools.join(", ")}` : ""}`, theme);
 }
 
-export function buildStatusText(options: { mode?: "normal" | "path" | "code" | undefined; verbosity?: string | undefined; webSearch?: boolean | undefined; imageGeneration?: boolean | undefined; fast: boolean; useOnAllModels: boolean; additionalProvider?: boolean | undefined; compaction?: { enabled: boolean; model: string; reasoning: string } | undefined }, theme?: StatusTheme | undefined): string {
+export function buildStatusText(options: { mode?: "normal" | "path" | "code" | undefined; verbosity?: string | undefined; webSearch?: boolean | undefined; imageGeneration?: boolean | undefined; fast: boolean; useOnAllModels: boolean; additionalProvider?: boolean | undefined; compaction?: { enabled: boolean; version: "v1" | "v2"; model: string; reasoning: string } | undefined }, theme?: StatusTheme | undefined): string {
 	const extras = [
 		options.mode === "path" ? "PATH mode" : undefined,
 		options.mode === "code" ? "code mode" : undefined,
@@ -22,7 +22,7 @@ export function buildStatusText(options: { mode?: "normal" | "path" | "code" | u
 		options.additionalProvider ? "additional provider" : undefined,
 		options.webSearch ? "web search" : undefined,
 		options.imageGeneration ? "image gen" : undefined,
-		options.compaction?.enabled ? `compact ${options.compaction.model}/${options.compaction.reasoning}` : undefined,
+		options.compaction?.enabled ? `compact ${options.compaction.version} ${options.compaction.version === "v1" ? `${options.compaction.model}/` : ""}${options.compaction.reasoning}` : undefined,
 		options.fast ? "fast" : undefined,
 	]
 		.filter(Boolean)

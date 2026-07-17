@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
-import { buildCompactionReasoning, injectPendingNativeWindowIntoPiCompactionRequest } from "../src/adapter/compaction/compaction.ts";
+import { buildCompactionReasoning, buildNativeCompactionRequest, injectPendingNativeWindowIntoPiCompactionRequest } from "../src/adapter/compaction/compaction.ts";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 import type { Model } from "@earendil-works/pi-ai";
-import { serializeMessagesToCompactRequest, type NativeCompactionRequestBody } from "../src/adapter/compaction/serializer.ts";
+import { serializeActiveSessionToCompactRequest, serializeMessagesToCompactRequest, type NativeCompactionRequestBody } from "../src/adapter/compaction/serializer.ts";
 import { COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE, shrinkNativeCompactionRequestForEndpoint } from "../src/adapter/compaction/request-shrink.ts";
 
 const model = {
@@ -27,6 +27,86 @@ test("native compaction requests use Codex-compatible compact payload shape", ()
 	assert.deepEqual(Object.keys(request).sort(), ["input", "instructions", "model"]);
 });
 
+test("first native compaction sends the full active Pi context", () => {
+	const entry = (id: string, parentId: string | null, content: string) => ({
+		type: "message",
+		id,
+		parentId,
+		timestamp: new Date(1).toISOString(),
+		message: { role: "user", content, timestamp: 1 },
+	});
+	const old = entry("old", null, "superseded old context");
+	const kept = entry("kept", "old", "exact kept context");
+	const compaction = {
+		type: "compaction",
+		id: "pi-compaction",
+		parentId: "kept",
+		timestamp: new Date(2).toISOString(),
+		summary: "Pi summary",
+		firstKeptEntryId: "kept",
+		tokensBefore: 100,
+	};
+	const tail = entry("tail", "pi-compaction", "exact live tail");
+
+	const request = serializeActiveSessionToCompactRequest({
+		model,
+		entries: [old, kept, compaction, tail] as never,
+		leafId: "tail",
+		instructions: "compact",
+	});
+	const serialized = JSON.stringify(request.input);
+
+	assert.match(serialized, /Pi summary/);
+	assert.match(serialized, /exact kept context/);
+	assert.match(serialized, /exact live tail/);
+	assert.doesNotMatch(serialized, /superseded old context/);
+});
+
+test("native compaction request routing reuses only the latest matching checkpoint", () => {
+	const tailEntry = {
+		type: "message",
+		id: "tail",
+		parentId: "checkpoint",
+		timestamp: new Date(2).toISOString(),
+		message: { role: "user", content: "exact live tail", timestamp: 2 },
+	} as never;
+	const checkpoint = {
+		type: "compaction",
+		id: "checkpoint",
+		parentId: null,
+		timestamp: new Date(1).toISOString(),
+		summary: "shim",
+		firstKeptEntryId: "tail",
+		tokensBefore: 100,
+		details: { compactedWindow: [{ type: "compaction", encrypted_content: "sealed" }] },
+	} as never;
+	const common = {
+		model,
+		compactionModel: model.id,
+		branchEntries: [checkpoint, tailEntry],
+		allEntries: [checkpoint, tailEntry],
+		leafId: "tail",
+		instructions: "compact",
+		requestOptions: {},
+	};
+
+	const matching = buildNativeCompactionRequest({
+		...common,
+		latestNativeCompaction: { ok: true, entry: checkpoint, index: 0, latestCompactionIndex: 0 },
+	});
+	assert.equal(matching?.compactedKeptWindow, false);
+	assert.equal((matching?.request.input[0] as { encrypted_content: string }).encrypted_content, "sealed");
+	assert.match(JSON.stringify(matching?.request.input), /exact live tail/);
+
+	const mismatched = buildNativeCompactionRequest({
+		...common,
+		latestNativeCompaction: { ok: false, reason: "latest-native-compaction-mismatch", latestCompactionIndex: 0, latestCompaction: checkpoint },
+	});
+	assert.equal(mismatched?.compactedKeptWindow, true);
+	assert.doesNotMatch(JSON.stringify(mismatched?.request.input), /sealed/);
+	assert.match(JSON.stringify(mismatched?.request.input), /exact live tail/);
+});
+
 test("native compaction shrinks tool outputs when request exceeds context window", async () => {
 	const request: NativeCompactionRequestBody = {
 		model: model.id,
@@ -34,18 +114,88 @@ test("native compaction shrinks tool outputs when request exceeds context window
 		input: [
 			{ role: "user", content: [{ type: "input_text", text: "keep" }] },
 			{ type: "function_call", call_id: "call-1", name: "exec_command", arguments: "{}" },
-			{ type: "function_call_output", call_id: "call-1", output: "x".repeat(800) },
+			{ type: "function_call_output", call_id: "call-1", output: "x".repeat(3000) },
 			{ type: "function_call", call_id: "call-2", name: "exec_command", arguments: "{}" },
-			{ type: "function_call_output", call_id: "call-2", output: "y".repeat(800) },
+			{ type: "function_call_output", call_id: "call-2", output: "y".repeat(3000) },
 		],
 	};
 
 	const result = await shrinkNativeCompactionRequestForEndpoint(request, { contextWindow: 450 });
 
 	assert.equal(result.rewrittenOutputs, 1);
-	assert.equal((result.request.input[2] as { output: string }).output, COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE);
-	assert.equal((result.request.input[4] as { output: string }).output, "y".repeat(800));
+	assert.equal(result.budgetTokens, 427);
+	assert.equal((result.request.input[2] as { output: string }).output, "x".repeat(3000));
+	assert.equal((result.request.input[4] as { output: string }).output, COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE);
 	assert.ok(result.estimatedTokensAfter < result.estimatedTokensBefore);
+});
+
+test("native compaction keeps the cached prefix when one frontier rewrite is not enough", async () => {
+	const request: NativeCompactionRequestBody = {
+		model: model.id,
+		instructions: "compact",
+		input: [
+			{ type: "function_call_output", call_id: "old", output: "x".repeat(6_000) },
+			{ type: "function_call", call_id: "new", name: "exec_command", arguments: "{}" },
+			{ type: "function_call_output", call_id: "new", output: "y".repeat(3_000) },
+		],
+	};
+
+	const result = await shrinkNativeCompactionRequestForEndpoint(request, { contextWindow: 450 });
+
+	assert.equal(result.rewrittenOutputs, 1);
+	assert.ok(result.estimatedTokensAfter > 450);
+	assert.equal((result.request.input[0] as { output: string }).output, "x".repeat(6_000));
+	assert.equal((result.request.input[2] as { output: string }).output, COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE);
+});
+
+test("native compaction walks past already-truncated contiguous outputs", async () => {
+	const request: NativeCompactionRequestBody = {
+		model: model.id,
+		input: [
+			{ type: "function_call_output", call_id: "older", output: "x".repeat(6_000) },
+			{ type: "function_call_output", call_id: "newer", output: COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE },
+		],
+	};
+
+	const result = await shrinkNativeCompactionRequestForEndpoint(request, { contextWindow: 450 });
+
+	assert.equal(result.rewrittenOutputs, 1);
+	assert.equal((result.request.input[0] as { output: string }).output, COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE);
+	assert.equal((result.request.input[1] as { output: string }).output, COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE);
+});
+
+test("native compaction trims Codex custom and tool-search frontier outputs", async () => {
+	const cases = [
+		{
+			item: { type: "custom_tool_call_output", call_id: "custom", output: "large output" },
+			assertRewritten: (item: Record<string, unknown>) => assert.equal(item["output"], COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE),
+		},
+		{
+			item: { type: "tool_search_output", call_id: "search", tools: [{ type: "function", name: "example" }] },
+			assertRewritten: (item: Record<string, unknown>) => assert.deepEqual(item["tools"], []),
+		},
+	];
+
+	for (const testCase of cases) {
+		const result = await shrinkNativeCompactionRequestForEndpoint(
+			{ model: model.id, input: [testCase.item as never] },
+			{ contextWindow: 1 },
+		);
+		assert.equal(result.rewrittenOutputs, 1);
+		testCase.assertRewritten(result.request.input[0] as unknown as Record<string, unknown>);
+	}
+});
+
+test("native compaction budgets transcript and instructions without tool schemas", async () => {
+	const result = await shrinkNativeCompactionRequestForEndpoint({
+		model: model.id,
+		instructions: "compact",
+		input: [{ role: "user", content: [{ type: "input_text", text: "keep" }] }],
+		tools: [{ type: "function", name: "huge", description: "x".repeat(10_000) }],
+	}, { contextWindow: 100 });
+
+	assert.equal(result.rewrittenOutputs, 0);
+	assert.ok(result.estimatedTokensBefore < 100);
 });
 
 test("injects pending native compacted window into Pi compaction summarization payload", async () => {

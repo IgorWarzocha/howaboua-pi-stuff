@@ -5,3 +5,4 @@
 - Read `PATH_TOOLS.md` for PATH tool builds and binary failures. Rebuild for the local platform and use the checkout; never patch installed npm files.
 - Vendored apply-patch engine, path-uri, and absolute-path sources track one Codex commit. Pi-owned changes belong only in `standalone_executable.rs` and the `pi-apply-patch-fs` adapter.
 - Do not accept review-driven drift from stock Pi behavior unless backend-verified or intentional.
+- Native compaction supports only OpenAI Codex and explicitly configured OpenAI/Codex passthrough proxies; V2 must preserve raw Responses output-item access rather than delegate to arbitrary registered provider streams.

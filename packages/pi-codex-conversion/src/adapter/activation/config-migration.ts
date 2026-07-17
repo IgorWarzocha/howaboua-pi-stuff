@@ -4,6 +4,7 @@ import {
 	normalizeCodexVerbosity,
 	normalizeCompactionModel,
 	normalizeCompactionReasoning,
+	normalizeCompactionVersion,
 	normalizeProviderList,
 	type CodexConversionConfig,
 } from "./config.ts";
@@ -48,6 +49,7 @@ export function migrateCodexConversionConfigIfNeeded(value: unknown): { migrated
 		},
 		compaction: {
 			responsesCompaction: typeof value["responsesCompaction"] === "boolean" ? value["responsesCompaction"] : DEFAULT_CODEX_CONVERSION_CONFIG.compaction["responsesCompaction"],
+			version: normalizeCompactionVersion(value["compactionVersion"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.compaction.version,
 		},
 		beta: { ...DEFAULT_CODEX_CONVERSION_CONFIG.beta },
 		openai: {

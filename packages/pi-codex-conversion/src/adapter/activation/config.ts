@@ -10,11 +10,13 @@ export type HelperModel = "gpt-5.6-luna" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gp
 export type CompactionModel = HelperModel;
 export type WebSearchModel = HelperModel;
 export type CompactionReasoning = "current" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+export type CompactionVersion = "v1" | "v2";
 
 export const HELPER_MODELS: readonly HelperModel[] = ["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.5", "gpt-5.4-mini", "gpt-5.3-codex-spark"];
 export const COMPACTION_MODELS: readonly CompactionModel[] = HELPER_MODELS;
 export const WEB_SEARCH_MODELS: readonly WebSearchModel[] = HELPER_MODELS;
 export const COMPACTION_REASONING_LEVELS: readonly CompactionReasoning[] = ["current", "minimal", "low", "medium", "high", "xhigh", "max"];
+export const COMPACTION_VERSIONS: readonly CompactionVersion[] = ["v1", "v2"];
 
 export interface CodexConversionConfig {
 	mode: CodexAdapterMode;
@@ -39,7 +41,7 @@ export interface CodexConversionConfig {
 		backgroundShellNextShortcut: string;
 		backgroundShellCloseShortcut: string;
 	};
-	compaction: { responsesCompaction: boolean };
+	compaction: { responsesCompaction: boolean; version?: CompactionVersion | undefined };
 	beta: { codeMode: boolean; responsesLite: boolean };
 	openai: {
 		fast: boolean;
@@ -67,7 +69,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 		backgroundShellNextShortcut: "alt+e",
 		backgroundShellCloseShortcut: "alt+r",
 	},
-	compaction: { responsesCompaction: false },
+	compaction: { responsesCompaction: false, version: "v1" },
 	beta: { codeMode: false, responsesLite: false },
 	openai: {
 		fast: false,
@@ -112,6 +114,10 @@ export function normalizeWebSearchModel(value: unknown): WebSearchModel | undefi
 export function normalizeCompactionReasoning(value: unknown): CompactionReasoning | undefined {
 	if (typeof value !== "string") return undefined;
 	return (COMPACTION_REASONING_LEVELS as readonly string[]).includes(value) ? (value as CompactionReasoning) : undefined;
+}
+
+export function normalizeCompactionVersion(value: unknown): CompactionVersion | undefined {
+	return value === "v1" || value === "v2" ? value : undefined;
 }
 
 export function normalizeProviderList(value: unknown): string[] {
@@ -164,7 +170,10 @@ export function normalizeCodexConversionConfig(value: unknown): CodexConversionC
 			backgroundShellNextShortcut: stringValue(ui["backgroundShellNextShortcut"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellNextShortcut"]),
 			backgroundShellCloseShortcut: stringValue(ui["backgroundShellCloseShortcut"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellCloseShortcut"]),
 		},
-		compaction: { responsesCompaction: bool(compaction["responsesCompaction"], DEFAULT_CODEX_CONVERSION_CONFIG.compaction["responsesCompaction"]) },
+		compaction: {
+			responsesCompaction: bool(compaction["responsesCompaction"], DEFAULT_CODEX_CONVERSION_CONFIG.compaction["responsesCompaction"]),
+			version: normalizeCompactionVersion(compaction["version"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.compaction.version,
+		},
 		beta: {
 			codeMode: bool(beta["codeMode"], DEFAULT_CODEX_CONVERSION_CONFIG.beta["codeMode"]),
 			responsesLite: bool(beta["responsesLite"], DEFAULT_CODEX_CONVERSION_CONFIG.beta["responsesLite"]),
