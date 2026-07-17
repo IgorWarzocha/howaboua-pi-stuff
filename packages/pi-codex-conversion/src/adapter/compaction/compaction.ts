@@ -78,18 +78,16 @@ function buildCompactionTools(pi: ExtensionAPI, ctx: ExtensionContext, state: Ad
 	return convertResponsesTools(tools, { strict: null });
 }
 
-export function buildCompactionReasoning(
+function buildCompactionReasoning(
 	pi: Pick<ExtensionAPI, "getThinkingLevel">,
 	ctx: ExtensionContext,
 	state: AdapterState,
 	compactionTargetModel: Model<Api>,
 ): NativeCompactionRequestOptions["reasoning"] {
-	const useCurrentReasoning = state.config.openai.compactionReasoning === "current";
-	const reasoningModel = useCurrentReasoning ? ctx.model : compactionTargetModel;
-	const level = useCurrentReasoning ? pi.getThinkingLevel() : state.config.openai.compactionReasoning;
-	if (!reasoningModel?.reasoning || level === "off") return undefined;
-	const clampedLevel = clampThinkingLevel(reasoningModel, level as ModelThinkingLevel);
-	const rawEffort = reasoningModel.thinkingLevelMap?.[clampedLevel] ?? clampedLevel;
+	const level = pi.getThinkingLevel();
+	if (!compactionTargetModel.reasoning || level === "off") return undefined;
+	const clampedLevel = clampThinkingLevel(compactionTargetModel, level as ModelThinkingLevel);
+	const rawEffort = compactionTargetModel.thinkingLevelMap?.[clampedLevel] ?? clampedLevel;
 	const effort = typeof rawEffort === "string" && isEffectiveOpenAICodexContext(ctx, state.config)
 		? clampCodexReasoningEffort(compactionTargetModel.id, rawEffort)
 		: rawEffort;
@@ -177,7 +175,6 @@ function getSupportedNativeCompactionProviders(state: AdapterState): string[] {
 
 export function buildNativeCompactionRequest(args: {
 	model: Model<Api>;
-	compactionModel: string;
 	branchEntries: SessionEntry[];
 	allEntries: SessionEntry[];
 	leafId?: string | null | undefined;
@@ -191,7 +188,7 @@ export function buildNativeCompactionRequest(args: {
 		const liveTailEntries = args.branchEntries.slice(args.latestNativeCompaction.index + 1);
 		return {
 			request: {
-				model: args.compactionModel,
+				model: args.model.id,
 				input: [
 					...compactedWindow,
 					...serializeLiveTailToResponsesInput({ model: args.model, entries: liveTailEntries }),
@@ -248,17 +245,7 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 	const runtime = resolution.runtime;
 	const compactionVersion = state.config.compaction.version ?? "v1";
 	const useV2 = compactionVersion === "v2";
-	const compactionModel = state.config.openai.compactionModel;
-	const catalogModel = ctx.modelRegistry.find(runtime.provider, compactionModel)
-		?? ctx.modelRegistry.find("openai-codex", compactionModel);
-	const compactionTargetModel: Model<Api> = {
-		...runtime.currentModel,
-		...catalogModel,
-		id: compactionModel,
-		provider: runtime.provider,
-		api: runtime.api,
-		baseUrl: runtime.currentModel.baseUrl,
-	};
+	const compactionTargetModel = runtime.currentModel;
 	const requestOptions = buildCompactionRequestOptions(pi, ctx, state, compactionTargetModel);
 	const branchEntries = ctx.sessionManager.getBranch();
 	const latestNativeCompaction = resolveLatestNativeCompactionEntry(branchEntries, {
@@ -272,7 +259,6 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 	}
 	const builtRequest = buildNativeCompactionRequest({
 		model: compactionTargetModel,
-		compactionModel,
 		branchEntries,
 		allEntries: ctx.sessionManager.getEntries(),
 		leafId: ctx.sessionManager.getLeafId(),
@@ -303,7 +289,6 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 		};
 		const compactResult = await executeRemoteCompactionV2({
 			runtime,
-			model: compactionTargetModel,
 			modelRegistry: ctx.modelRegistry,
 			context,
 			promptInput: request.input,
@@ -327,7 +312,7 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 				strategy: NATIVE_COMPACTION_V2_STRATEGY,
 				provider: runtime.provider,
 				api: runtime.api,
-				model: compactionModel,
+				model: runtime.model,
 				baseUrl: runtime.baseUrl,
 				compactedWindow,
 				compactResponseId: compactResult.responseId,
@@ -340,7 +325,7 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 			return undefined;
 		}
 	}
-	const responsesLite = state.config.beta.codeMode && runtime.provider === "openai-codex" && supportsResponsesLiteModel(compactionModel);
+	const responsesLite = state.config.beta.codeMode && runtime.provider === "openai-codex" && supportsResponsesLiteModel(runtime.model);
 	if (responsesLite) request = await prepareResponsesLiteRequestImages(applyResponsesLiteRequest(applyCodeModeFreeformContract(request)));
 
 	request = (await shrinkNativeCompactionRequestForEndpoint(request, { contextWindow: compactionTargetModel.contextWindow })).request;
@@ -377,7 +362,7 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 		const details = createNativeCompactionDetails({
 			provider: runtime.provider,
 			api: runtime.api,
-			model: compactionModel,
+			model: runtime.model,
 			baseUrl: runtime.baseUrl,
 			compactedWindow,
 			compactResponseId: compactResult.compactResponseId,

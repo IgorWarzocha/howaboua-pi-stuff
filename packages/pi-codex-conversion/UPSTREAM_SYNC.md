@@ -107,7 +107,7 @@ Also check `x-codex-turn-state`, WebSocket metadata event names, session/thread 
 
 ### Prompt caching and custom tools
 
-`prompt_cache_key` remains stable for a Pi session. Changing the tool set changes request content and intentionally disables cached WebSocket continuation when the previous request is no longer an exact compatible prefix. Do not claim server-side cache hits from local tests; measure `cached_tokens` against the real backend.
+`prompt_cache_key` remains stable for a Pi session. Live backend checks confirmed that one Codex WebSocket can continue across model and reasoning changes with `previous_response_id`, so this package excludes those generation settings from its continuation comparison while still requiring every other request property and the serialized input prefix to match. This reduces transport latency but does not transfer prompt-cache discounts: models and reasoning levels maintain separately warmed cache lanes. Changing the tool set changes request content and disables continuation when the previous request is no longer an exact compatible prefix. Measure `cached_tokens` against the real backend rather than inferring server cache hits from local request shape.
 
 ### Responses compaction v1
 
@@ -125,11 +125,11 @@ Keep these request invariants aligned:
 - emergency trimming walks backward from the newest item, rewrites only a contiguous trailing `function_call_output`, `custom_tool_call_output`, or `tool_search_output`, and stops at the first other item so the cached prefix remains byte-stable;
 - rewritten outputs use Codex's `Output exceeded the available model context and was truncated` marker.
 
-Pi owns the checkpoint entry and provider-payload replay, so this package deliberately differs by supporting a separately configured compaction model/reasoning level for both protocols and by validating the opaque output before falling back to Pi summarization. Pi also decides when `session_before_compact` fires. Pi 0.80.8 checks automatic compaction after the agent run, unlike Codex's inline between-turn compaction; do not disguise that lifecycle difference with model-window mutation.
+Pi owns the checkpoint entry and provider-payload replay and validates opaque output before falling back to Pi summarization. Both protocols inherit the active model and reasoning level, matching Codex and keeping the compaction request on the warm cache lane. Pi also decides when `session_before_compact` fires. Pi 0.80.8 checks automatic compaction after the agent run, unlike Codex's inline between-turn compaction; do not disguise that lifecycle difference with model-window mutation.
 
 ### Responses compaction v2
 
-V2 is opt-in and uses the configured compaction model's ordinary streamed Responses provider. Live backend checks confirmed every model in the shared compaction-model menu can return an encrypted V2 checkpoint. Codex normally uses the active model, but also deliberately attempts previous-model V2 compaction during model transitions. Keep these invariants aligned with Codex:
+V2 is opt-in and uses the active model's ordinary streamed Responses provider. Codex also deliberately attempts previous-model V2 compaction during model transitions. Keep these invariants aligned with Codex:
 
 - merge the `remote_compaction_v2` feature header and append `compaction_trigger` as the final input item;
 - require a completed stream with exactly one canonical encrypted compaction item;

@@ -2,8 +2,6 @@ import {
 	DEFAULT_CODEX_CONVERSION_CONFIG,
 	isObject,
 	normalizeCodexVerbosity,
-	normalizeCompactionModel,
-	normalizeCompactionReasoning,
 	normalizeCompactionVersion,
 	normalizeProviderList,
 	type CodexConversionConfig,
@@ -57,8 +55,6 @@ export function migrateCodexConversionConfigIfNeeded(value: unknown): { migrated
 			verbosity: normalizeCodexVerbosity(value["verbosity"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai["verbosity"],
 			forceCachedWebSockets: typeof value["forceCachedWebSockets"] === "boolean" ? value["forceCachedWebSockets"] : DEFAULT_CODEX_CONVERSION_CONFIG.openai["forceCachedWebSockets"],
 			webSearchModel: DEFAULT_CODEX_CONVERSION_CONFIG.openai["webSearchModel"],
-			compactionModel: normalizeCompactionModel(value["compactionModel"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai["compactionModel"],
-			compactionReasoning: normalizeCompactionReasoning(value["compactionReasoning"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai["compactionReasoning"],
 		},
 	};
 	return { migrated: true, config };

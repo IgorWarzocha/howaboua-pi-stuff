@@ -21,8 +21,6 @@ test("old flat config migrates to grouped config and respects disabled provider 
 		verbosity: "high",
 		forceCachedWebSockets: false,
 		responsesCompaction: true,
-		compactionModel: "gpt-5.5",
-		compactionReasoning: "medium",
 	});
 	assert.equal(migration.migrated, true);
 	const config = normalizeCodexConversionConfig(migration.config);
@@ -41,8 +39,6 @@ test("old flat config migrates to grouped config and respects disabled provider 
 	assert.equal(config.openai.verbosity, "high");
 	assert.equal(config.openai.forceCachedWebSockets, false);
 	assert.equal(config.openai.webSearchModel, "gpt-5.6-luna");
-	assert.equal(config.openai.compactionModel, "gpt-5.5");
-	assert.equal(config.openai.compactionReasoning, "medium");
 });
 
 test("legacy Responses Lite config enables Code Mode without opting proxies into Lite", () => {

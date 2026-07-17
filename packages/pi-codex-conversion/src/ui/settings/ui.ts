@@ -1,14 +1,10 @@
 import { getSettingsListTheme, type ExtensionContext, type Theme } from "@earendil-works/pi-coding-agent";
 import { Container, type Focusable, Input, matchesKey, SettingsList, Spacer, Text, truncateToWidth, type SettingItem } from "@earendil-works/pi-tui";
 import {
-	COMPACTION_MODELS,
-	COMPACTION_REASONING_LEVELS,
 	DEFAULT_CODEX_CONVERSION_CONFIG,
 	V2_USER_MESSAGE_RETENTION_OPTIONS,
 	WEB_SEARCH_MODELS,
 	normalizeCodexVerbosity,
-	normalizeCompactionModel,
-	normalizeCompactionReasoning,
 	normalizeProviderList,
 	normalizeWebSearchModel,
 	normalizeV2UserMessageRetention,
@@ -240,8 +236,6 @@ function buildItems(tab: SettingsTab, draft: CodexConversionConfig, theme: Theme
 			{ id: "verbosity", label: "Verbosity", currentValue: draft.openai.verbosity, values: ["low", "medium", "high"] },
 			{ id: "forceCachedWebSockets", label: "Cached websocket upgrade", currentValue: draft.openai.forceCachedWebSockets ? "on" : "off", values: ["off", "on"] },
 			{ id: "webSearchModel", label: "Web search model", currentValue: draft.openai.webSearchModel, values: [...WEB_SEARCH_MODELS] },
-			{ id: "compactionModel", label: "Compaction model", currentValue: draft.openai.compactionModel, values: [...COMPACTION_MODELS] },
-			{ id: "compactionReasoning", label: "Compaction reasoning", currentValue: draft.openai.compactionReasoning, values: [...COMPACTION_REASONING_LEVELS] },
 		];
 	}
 
@@ -297,8 +291,6 @@ function applySettingChange(id: string, value: string, draft: CodexConversionCon
 	if (id === "fast") return { ...draft, openai: { ...draft.openai, fast: value === "on" } };
 	if (id === "forceCachedWebSockets") return { ...draft, openai: { ...draft.openai, forceCachedWebSockets: value === "on" } };
 	if (id === "webSearchModel") return { ...draft, openai: { ...draft.openai, webSearchModel: normalizeWebSearchModel(value) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai.webSearchModel } };
-	if (id === "compactionModel") return { ...draft, openai: { ...draft.openai, compactionModel: normalizeCompactionModel(value) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai.compactionModel } };
-	if (id === "compactionReasoning") return { ...draft, openai: { ...draft.openai, compactionReasoning: normalizeCompactionReasoning(value) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai.compactionReasoning } };
 	if (id === "verbosity") return { ...draft, openai: { ...draft.openai, verbosity: normalizeCodexVerbosity(value) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai.verbosity } };
 	return draft;
 }

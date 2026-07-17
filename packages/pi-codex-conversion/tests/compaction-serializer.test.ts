@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
-import { buildCompactionReasoning, buildNativeCompactionRequest, injectPendingNativeWindowIntoPiCompactionRequest } from "../src/adapter/compaction/compaction.ts";
+import { buildNativeCompactionRequest, injectPendingNativeWindowIntoPiCompactionRequest } from "../src/adapter/compaction/compaction.ts";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 import type { Model } from "@earendil-works/pi-ai";
@@ -72,7 +72,6 @@ test("native compaction request routing reuses only the latest matching checkpoi
 	} as never;
 	const common = {
 		model,
-		compactionModel: model.id,
 		branchEntries: [checkpoint, tailEntry],
 		allEntries: [checkpoint, tailEntry],
 		leafId: "tail",
@@ -173,25 +172,4 @@ test("injects pending native compacted window into Pi compaction summarization p
 	const rewritten = await injectPendingNativeWindowIntoPiCompactionRequest(payload, ctx, state) as typeof payload;
 	assert.deepEqual(rewritten.input.map((item) => (item as { type?: string; role?: string }).type ?? (item as { role?: string }).role), ["developer", "compaction_summary", "user"]);
 	assert.equal(state.pendingPiCompactionNativeWindow, undefined);
-});
-
-test("explicit compaction reasoning is clamped against the compaction model", () => {
-	const state: AdapterState = {
-		enabled: true,
-		cwd: process.cwd(),
-		promptSkills: [],
-		codexTurnState: createCodexTurnState(),
-		config: {
-			...DEFAULT_CODEX_CONVERSION_CONFIG,
-			openai: { ...DEFAULT_CODEX_CONVERSION_CONFIG.openai, compactionReasoning: "max" },
-		},
-	};
-	const chatModel = { ...model, id: "gpt-5.4", thinkingLevelMap: { high: "high" } } as Model<any>;
-	const compactionModel = { ...model, id: "gpt-5.6-luna", thinkingLevelMap: { max: "max" }, contextWindow: 373_000 } as Model<any>;
-	const ctx = { model: chatModel } as never;
-
-	assert.deepEqual(buildCompactionReasoning({ getThinkingLevel: () => "high" }, ctx, state, compactionModel), {
-		effort: "max",
-		summary: "auto",
-	});
 });

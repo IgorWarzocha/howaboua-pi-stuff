@@ -7,16 +7,12 @@ export type CodexVerbosity = "low" | "medium" | "high";
 export type CodexAdapterMode = "normal" | "path";
 export type AllProvidersMode = "off" | "on" | "extras";
 export type HelperModel = "gpt-5.6-luna" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.5" | "gpt-5.4-mini" | "gpt-5.3-codex-spark";
-export type CompactionModel = HelperModel;
 export type WebSearchModel = HelperModel;
-export type CompactionReasoning = "current" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 export type CompactionVersion = "v1" | "v2";
 export type V2UserMessageRetention = 16 | 32 | 64;
 
 export const HELPER_MODELS: readonly HelperModel[] = ["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.5", "gpt-5.4-mini", "gpt-5.3-codex-spark"];
-export const COMPACTION_MODELS: readonly CompactionModel[] = HELPER_MODELS;
 export const WEB_SEARCH_MODELS: readonly WebSearchModel[] = HELPER_MODELS;
-export const COMPACTION_REASONING_LEVELS: readonly CompactionReasoning[] = ["current", "minimal", "low", "medium", "high", "xhigh", "max"];
 export const COMPACTION_VERSIONS: readonly CompactionVersion[] = ["v1", "v2"];
 export const V2_USER_MESSAGE_RETENTION_OPTIONS: readonly V2UserMessageRetention[] = [16, 32, 64];
 
@@ -50,8 +46,6 @@ export interface CodexConversionConfig {
 		verbosity: CodexVerbosity;
 		forceCachedWebSockets: boolean;
 		webSearchModel: WebSearchModel;
-		compactionModel: CompactionModel;
-		compactionReasoning: CompactionReasoning;
 	};
 }
 
@@ -78,8 +72,6 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 		verbosity: "low",
 		forceCachedWebSockets: true,
 		webSearchModel: "gpt-5.6-luna",
-		compactionModel: "gpt-5.6-luna",
-		compactionReasoning: "current",
 	},
 };
 
@@ -103,19 +95,9 @@ export function normalizeCodexVerbosity(value: unknown): CodexVerbosity | undefi
 	return normalized === "low" || normalized === "medium" || normalized === "high" ? normalized : undefined;
 }
 
-export function normalizeCompactionModel(value: unknown): CompactionModel | undefined {
-	if (typeof value !== "string") return undefined;
-	return (COMPACTION_MODELS as readonly string[]).includes(value) ? (value as CompactionModel) : undefined;
-}
-
 export function normalizeWebSearchModel(value: unknown): WebSearchModel | undefined {
 	if (typeof value !== "string") return undefined;
 	return (WEB_SEARCH_MODELS as readonly string[]).includes(value) ? (value as WebSearchModel) : undefined;
-}
-
-export function normalizeCompactionReasoning(value: unknown): CompactionReasoning | undefined {
-	if (typeof value !== "string") return undefined;
-	return (COMPACTION_REASONING_LEVELS as readonly string[]).includes(value) ? (value as CompactionReasoning) : undefined;
 }
 
 export function normalizeCompactionVersion(value: unknown): CompactionVersion | undefined {
@@ -191,8 +173,6 @@ export function normalizeCodexConversionConfig(value: unknown): CodexConversionC
 			verbosity: normalizeCodexVerbosity(openai["verbosity"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai["verbosity"],
 			forceCachedWebSockets: bool(openai["forceCachedWebSockets"], DEFAULT_CODEX_CONVERSION_CONFIG.openai["forceCachedWebSockets"]),
 			webSearchModel: normalizeWebSearchModel(openai["webSearchModel"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai["webSearchModel"],
-			compactionModel: normalizeCompactionModel(openai["compactionModel"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai["compactionModel"],
-			compactionReasoning: normalizeCompactionReasoning(openai["compactionReasoning"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai["compactionReasoning"],
 		},
 	};
 }
