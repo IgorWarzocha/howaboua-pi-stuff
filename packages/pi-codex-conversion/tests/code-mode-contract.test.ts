@@ -40,10 +40,12 @@ test("function-tool replay drops Code Mode item ids", () => {
 		input: [
 			{ type: "function_call", id: "ctc_1", call_id: "call_1", name: "exec", arguments: "{}" },
 			{ type: "function_call", id: "fc_2", call_id: "call_2", name: "wait", arguments: "{}" },
+			{ type: "function_call", id: "vendor_3", call_id: "call_3", name: "search", arguments: "{}" },
 		],
 	});
 	assert.deepEqual(body.input, [
 		{ type: "function_call", call_id: "call_1", name: "exec", arguments: "{}" },
 		{ type: "function_call", id: "fc_2", call_id: "call_2", name: "wait", arguments: "{}" },
+		{ type: "function_call", id: "vendor_3", call_id: "call_3", name: "search", arguments: "{}" },
 	]);
 });

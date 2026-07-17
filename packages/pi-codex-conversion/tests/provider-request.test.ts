@@ -70,6 +70,22 @@ test("turning Code Mode off safely replays stored custom-tool history", async ()
 	});
 });
 
+test("stored Code Mode history is sanitized after its provider leaves adapter scope", async () => {
+	const rewritten = await rewriteCodexProviderRequest({
+		...payload,
+		input: [{ type: "function_call", id: "ctc_02c506", call_id: "call_1", name: "exec", arguments: "{}" }],
+	}, {
+		model: { provider: "litellm", api: "openai-responses", id: "gpt-5.6" },
+	} as never, state()) as typeof payload;
+
+	assert.deepEqual(rewritten.input[0], {
+		type: "function_call",
+		call_id: "call_1",
+		name: "exec",
+		arguments: "{}",
+	});
+});
+
 test("Responses Lite rewrites the GPT-5.6 alias when enabled for configured providers", async () => {
 	const rewritten = await rewriteCodexProviderRequest({ ...payload, model: "gpt-5.6" }, {
 		model: { provider: "litellm", api: "openai-responses", id: "gpt-5.6" },

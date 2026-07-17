@@ -217,7 +217,11 @@ export function writeCodexConversionConfig(
 		renameSync(temporaryPath, configPath);
 		return { ok: true };
 	} catch (error) {
-		rmSync(temporaryPath, { force: true });
+		try {
+			rmSync(temporaryPath, { force: true });
+		} catch {
+			// Keep the original write error.
+		}
 		const message = error instanceof Error ? error.message : String(error);
 		console.warn(`[pi-codex-conversion] Failed to write ${configPath}: ${message}`);
 		return { ok: false, error: message };

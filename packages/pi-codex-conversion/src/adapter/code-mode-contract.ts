@@ -60,19 +60,23 @@ export function sanitizeCodeModeHistoryForFunctionTools<T extends ResponsesLikeB
 	body: T,
 ): T {
 	if (!body.input) return body;
+	let changed = false;
+	const input = body.input.map((item) => {
+		if (
+			!isRecord(item)
+			|| item["type"] !== "function_call"
+			|| typeof item["id"] !== "string"
+			|| !item["id"].startsWith("ctc_")
+		)
+			return item;
+		changed = true;
+		const { id: _id, ...rest } = item;
+		return rest;
+	});
+	if (!changed) return body;
 	return {
 		...body,
-		input: body.input.map((item) => {
-			if (
-				!isRecord(item)
-				|| item["type"] !== "function_call"
-				|| typeof item["id"] !== "string"
-				|| item["id"].startsWith("fc_")
-			)
-				return item;
-			const { id: _id, ...rest } = item;
-			return rest;
-		}),
+		input,
 	};
 }
 

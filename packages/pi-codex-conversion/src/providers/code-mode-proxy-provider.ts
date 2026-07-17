@@ -169,7 +169,7 @@ function configuredProxyProviders(config: CodexConversionConfig): Set<string> {
 function resolveProviderIds(configuredProviders: Set<string>, modelRegistry: CodeModeModelRegistry): Set<string> {
 	const resolved = new Set<string>();
 	for (const model of modelRegistry.getAll()) {
-		if (configuredProviders.has(model.provider.trim().toLowerCase())) resolved.add(model.provider);
+		if (model.api === "openai-responses" && configuredProviders.has(model.provider.trim().toLowerCase())) resolved.add(model.provider);
 	}
 	return resolved;
 }
@@ -178,18 +178,29 @@ export function registerCodeModeProxyProvider(
 	pi: ExtensionAPI,
 	getConfig: () => CodexConversionConfig,
 ): CodeModeProxyProviderRegistration {
-	const registeredProviders = new Map<string, RegisteredProviderConfig | undefined>();
+	const registeredProviders = new Map<string, {
+		previous: RegisteredProviderConfig | undefined;
+		overlayStream: NonNullable<RegisteredProviderConfig["streamSimple"]>;
+		modelRegistry: CodeModeModelRegistry;
+	}>();
 	let legacyBridgeRegistered = false;
-	const restoreProvider = (provider: string, previous: RegisteredProviderConfig | undefined) => {
+	const restoreProvider = (provider: string, registration: NonNullable<ReturnType<typeof registeredProviders.get>>) => {
+		const current = registration.modelRegistry.getRegisteredProviderConfig?.(provider) as RegisteredProviderConfig | undefined;
+		if (!current || current.streamSimple !== registration.overlayStream) return;
+		const restored = { ...current } as RegisteredProviderConfig;
+		if (registration.previous?.streamSimple) restored.streamSimple = registration.previous.streamSimple;
+		else delete restored.streamSimple;
+		if (registration.previous?.api) restored.api = registration.previous.api;
+		else if (!registration.previous?.streamSimple && current.api === "openai-responses") delete restored.api;
 		pi.unregisterProvider(provider);
-		if (previous) pi.registerProvider(provider, previous);
+		if (Object.keys(restored).length > 0) pi.registerProvider(provider, restored);
 	};
 	const shutdown = () => {
 		if (legacyBridgeRegistered) {
 			pi.unregisterProvider(LEGACY_BRIDGE_PROVIDER);
 			legacyBridgeRegistered = false;
 		}
-		for (const [provider, previous] of registeredProviders) restoreProvider(provider, previous);
+		for (const [provider, registration] of registeredProviders) restoreProvider(provider, registration);
 		registeredProviders.clear();
 	};
 	const applyConfig = (config: CodexConversionConfig, modelRegistry: CodeModeModelRegistry) => {
@@ -216,21 +227,22 @@ export function registerCodeModeProxyProvider(
 		for (const provider of desiredProviders) {
 			if (registeredProviders.has(provider)) continue;
 			const previous = modelRegistry.getRegisteredProviderConfig(provider) as RegisteredProviderConfig | undefined;
-			const fallbackStream = previous?.api === "openai-responses" && previous.streamSimple
+			const fallbackStream = (previous?.api === undefined || previous.api === "openai-responses") && previous?.streamSimple
 				? previous.streamSimple
 				: standardResponsesStream;
+			const overlayStream: NonNullable<RegisteredProviderConfig["streamSimple"]> = (model, context, options) =>
+				shouldUseGpt56CodeMode({ model }, getConfig())
+					? streamCodeModeResponsesProxy(model, context, options)
+					: fallbackStream(model as never, context, options);
 			pi.registerProvider(provider, {
 				api: "openai-responses",
-				streamSimple: (model, context, options) =>
-					shouldUseGpt56CodeMode({ model }, getConfig())
-						? streamCodeModeResponsesProxy(model, context, options)
-						: fallbackStream(model as never, context, options),
+				streamSimple: overlayStream,
 			});
-			registeredProviders.set(provider, previous);
+			registeredProviders.set(provider, { previous, overlayStream, modelRegistry });
 		}
-		for (const [provider, previous] of registeredProviders) {
+		for (const [provider, registration] of registeredProviders) {
 			if (desiredProviders.has(provider)) continue;
-			restoreProvider(provider, previous);
+			restoreProvider(provider, registration);
 			registeredProviders.delete(provider);
 		}
 	};

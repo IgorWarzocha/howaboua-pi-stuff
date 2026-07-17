@@ -210,8 +210,8 @@ test("the provider-scoped proxy stream delegates ordinary Responses models witho
 
 		assert.equal(providers.size, 0);
 		registration.applyConfig(config, {
-			getAll: () => [{ provider: "proxy" }] as never,
-			getRegisteredProviderConfig: () => undefined,
+			getAll: () => [{ provider: "proxy", api: "openai-responses" }] as never,
+			getRegisteredProviderConfig: (name: string) => providers.get(name) as never,
 		});
 		assert.equal(providers.size, 1);
 		assert.ok(providers.has("proxy"));
@@ -266,7 +266,7 @@ test("the provider-scoped proxy stream preserves an existing extension provider"
 		},
 	} as never, () => config);
 	const modelRegistry = {
-		getAll: () => [{ provider: "ExtensionProxy" }] as never,
+		getAll: () => [{ provider: "ExtensionProxy", api: "openai-responses" }] as never,
 		getRegisteredProviderConfig: () => provider,
 	};
 
@@ -281,6 +281,66 @@ test("the provider-scoped proxy stream preserves an existing extension provider"
 
 	registration.shutdown();
 	assert.deepEqual(provider, originalProvider);
+});
+
+test("provider overlays ignore configured providers without Responses models", () => {
+	const providers = new Map<string, unknown>();
+	const config = {
+		...DEFAULT_CODEX_CONVERSION_CONFIG,
+		beta: { codeMode: true, responsesLite: false },
+		scope: { allProviders: "off" as const, additionalProviders: ["anthropic-proxy"] },
+	};
+	const registration = registerCodeModeProxyProvider({
+		registerProvider(name: string, provider: unknown) {
+			providers.set(name, provider);
+		},
+		unregisterProvider(name: string) {
+			providers.delete(name);
+		},
+	} as never, () => config);
+
+	registration.applyConfig(config, {
+		getAll: () => [{ provider: "anthropic-proxy", api: "anthropic-messages" }] as never,
+		getRegisteredProviderConfig: () => undefined,
+	});
+	assert.equal(providers.size, 0);
+});
+
+test("provider teardown preserves later registrations and never restores stale streams", () => {
+	const originalStream = (() => "original") as never;
+	const replacementStream = (() => "replacement") as never;
+	let provider: Parameters<ModelRegistry["registerProvider"]>[1] | undefined = {
+		api: "openai-responses",
+		streamSimple: originalStream,
+	};
+	const config = {
+		...DEFAULT_CODEX_CONVERSION_CONFIG,
+		beta: { codeMode: true, responsesLite: false },
+		scope: { allProviders: "off" as const, additionalProviders: ["proxy"] },
+	};
+	const registration = registerCodeModeProxyProvider({
+		registerProvider(_name: string, overlay: Parameters<ModelRegistry["registerProvider"]>[1]) {
+			provider = { ...provider, ...overlay };
+		},
+		unregisterProvider() {
+			provider = undefined;
+		},
+	} as never, () => config);
+	const modelRegistry = {
+		getAll: () => [{ provider: "proxy", api: "openai-responses" }] as never,
+		getRegisteredProviderConfig: () => provider,
+	};
+
+	registration.applyConfig(config, modelRegistry);
+	provider = { ...provider, headers: { "x-later-extension": "true" } };
+	registration.applyConfig({ ...config, beta: { ...config.beta, codeMode: false } }, modelRegistry);
+	assert.equal(provider?.streamSimple, originalStream);
+	assert.deepEqual(provider?.headers, { "x-later-extension": "true" });
+
+	registration.applyConfig(config, modelRegistry);
+	provider = { ...provider, streamSimple: replacementStream };
+	registration.shutdown();
+	assert.equal(provider?.streamSimple, replacementStream);
 });
 
 test("Pi 0.80.7 keeps using the API-level compatibility bridge", () => {
