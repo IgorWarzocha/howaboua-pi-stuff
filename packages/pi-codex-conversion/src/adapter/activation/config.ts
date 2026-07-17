@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { migrateCodexConversionConfigIfNeeded } from "./config-migration.ts";
@@ -206,11 +206,18 @@ export function writeCodexConversionConfig(
 	config: CodexConversionConfig,
 	configPath: string = getCodexConversionConfigPath(),
 ): { ok: true } | { ok: false; error: string } {
+	const temporaryPath = `${configPath}.${process.pid}.${Date.now()}.tmp`;
 	try {
 		mkdirSync(dirname(configPath), { recursive: true });
-		writeFileSync(configPath, `${JSON.stringify(normalizeCodexConversionConfig(config), null, 2)}\n`, "utf-8");
+		writeFileSync(
+			temporaryPath,
+			`${JSON.stringify(normalizeCodexConversionConfig(config), null, 2)}\n`,
+			{ encoding: "utf-8", mode: 0o600 },
+		);
+		renameSync(temporaryPath, configPath);
 		return { ok: true };
 	} catch (error) {
+		rmSync(temporaryPath, { force: true });
 		const message = error instanceof Error ? error.message : String(error);
 		console.warn(`[pi-codex-conversion] Failed to write ${configPath}: ${message}`);
 		return { ok: false, error: message };

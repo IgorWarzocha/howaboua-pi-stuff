@@ -49,6 +49,27 @@ test("Code Mode leaves a rewritten request for another model untouched", async (
 	assert.equal(rewritten.instructions, "Instructions");
 });
 
+test("turning Code Mode off safely replays stored custom-tool history", async () => {
+	const adapterState = state();
+	adapterState.config.beta.codeMode = false;
+	const rewritten = await rewriteCodexProviderRequest({
+		...payload,
+		input: [
+			{ type: "function_call", id: "ctc_02c506", call_id: "call_1", name: "exec", arguments: JSON.stringify({ code: "text(42);" }) },
+			{ type: "function_call_output", call_id: "call_1", output: "42" },
+		],
+	}, {
+		model: { provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.6-luna" },
+	} as never, adapterState) as typeof payload;
+
+	assert.deepEqual(rewritten.input[0], {
+		type: "function_call",
+		call_id: "call_1",
+		name: "exec",
+		arguments: JSON.stringify({ code: "text(42);" }),
+	});
+});
+
 test("Responses Lite rewrites the GPT-5.6 alias when enabled for configured providers", async () => {
 	const rewritten = await rewriteCodexProviderRequest({ ...payload, model: "gpt-5.6" }, {
 		model: { provider: "litellm", api: "openai-responses", id: "gpt-5.6" },

@@ -5,7 +5,7 @@ import type { AdapterState } from "./activation/state.ts";
 import { isEffectiveOpenAICodexContext, shouldUseCodexAdapter, shouldUseGpt56CodeMode, shouldUseResponsesLiteForCodeMode, supportsProxiedGpt56CodeModeModel } from "./activation/activation.ts";
 import { injectPendingNativeWindowIntoPiCompactionRequest, rewriteCodexCompactedProviderRequest } from "./compaction/compaction.ts";
 import { applyResponsesLiteRequest, supportsResponsesLiteModel, type ResponsesLiteCompatibleBody } from "../providers/openai-codex/responses-lite.ts";
-import { applyCodeModeFreeformContract } from "./code-mode-contract.ts";
+import { applyCodeModeFreeformContract, sanitizeCodeModeHistoryForFunctionTools } from "./code-mode-contract.ts";
 
 export async function rewriteCodexProviderRequest(payload: unknown, ctx: ExtensionContext, state: AdapterState): Promise<unknown | undefined> {
 	if (!shouldUseCodexAdapter(ctx, state.config) || (!isEffectiveOpenAICodexContext(ctx, state.config) && !isResponsesContext(ctx))) {
@@ -31,7 +31,9 @@ export async function rewriteCodexProviderRequest(payload: unknown, ctx: Extensi
 			? applyResponsesLiteRequest(codeModePayload)
 			: codeModePayload;
 	}
-	return rewrittenPayload;
+	return isCodeModeCompatibleBody(rewrittenPayload)
+		? sanitizeCodeModeHistoryForFunctionTools(rewrittenPayload)
+		: rewrittenPayload;
 }
 
 function isCodeModeCompatibleBody(value: unknown): value is ResponsesLiteCompatibleBody {

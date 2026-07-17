@@ -32,9 +32,10 @@ export function applyCodeModeFreeformContract<T extends ResponsesLikeBody>(
 		const callId =
 			typeof item["call_id"] === "string" ? item["call_id"] : undefined;
 		if (callId) execCallIds.add(callId);
-		const { arguments: _arguments, ...rest } = item;
+		const { arguments: _arguments, id, ...rest } = item;
 		return {
 			...rest,
+			...(typeof id === "string" && id.startsWith("ctc_") ? { id } : {}),
 			type: "custom_tool_call",
 			input: execSourceFromArguments(item["arguments"]),
 		};
@@ -52,6 +53,26 @@ export function applyCodeModeFreeformContract<T extends ResponsesLikeBody>(
 		...body,
 		...(body.tools ? { tools: body.tools.map(toCodeModeTool) } : {}),
 		...(body.input ? { input: rewrittenInput } : {}),
+	};
+}
+
+export function sanitizeCodeModeHistoryForFunctionTools<T extends ResponsesLikeBody>(
+	body: T,
+): T {
+	if (!body.input) return body;
+	return {
+		...body,
+		input: body.input.map((item) => {
+			if (
+				!isRecord(item)
+				|| item["type"] !== "function_call"
+				|| typeof item["id"] !== "string"
+				|| item["id"].startsWith("fc_")
+			)
+				return item;
+			const { id: _id, ...rest } = item;
+			return rest;
+		}),
 	};
 }
 

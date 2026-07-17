@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applyCodeModeFreeformContract } from "../src/adapter/code-mode-contract.ts";
+import { applyCodeModeFreeformContract, sanitizeCodeModeHistoryForFunctionTools } from "../src/adapter/code-mode-contract.ts";
 
 test("Code Mode rewrites exec history to custom tool items", () => {
 	const body = applyCodeModeFreeformContract({
@@ -27,11 +27,23 @@ test("Code Mode rewrites exec history to custom tool items", () => {
 	assert.deepEqual(body.input, [
 		{
 			type: "custom_tool_call",
-			id: "fc_1",
 			call_id: "call_1",
 			name: "exec",
 			input: "text(42);",
 		},
 		{ type: "custom_tool_call_output", call_id: "call_1", output: "42" },
+	]);
+});
+
+test("function-tool replay drops Code Mode item ids", () => {
+	const body = sanitizeCodeModeHistoryForFunctionTools({
+		input: [
+			{ type: "function_call", id: "ctc_1", call_id: "call_1", name: "exec", arguments: "{}" },
+			{ type: "function_call", id: "fc_2", call_id: "call_2", name: "wait", arguments: "{}" },
+		],
+	});
+	assert.deepEqual(body.input, [
+		{ type: "function_call", call_id: "call_1", name: "exec", arguments: "{}" },
+		{ type: "function_call", id: "fc_2", call_id: "call_2", name: "wait", arguments: "{}" },
 	]);
 });
