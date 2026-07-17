@@ -1,11 +1,13 @@
 import { createServer, type Server } from "node:http";
 import { randomBytes, createHash } from "node:crypto";
 import type { OAuthDeviceCodeInfo } from "@earendil-works/pi-ai/oauth";
+import type { Api, Model } from "@earendil-works/pi-ai";
 import type { ProviderConfig } from "@earendil-works/pi-coding-agent";
 import {
 	type OAuthDeviceCodePollResult,
 	pollOAuthDeviceCodeFlow,
 } from "./device-code.ts";
+import { supportsResponsesLiteModel } from "./responses-lite.ts";
 
 const CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann";
 const AUTH_BASE_URL = "https://auth.openai.com";
@@ -18,6 +20,7 @@ const DEVICE_VERIFICATION_URI = `${AUTH_BASE_URL}/codex/device`;
 const DEVICE_REDIRECT_URI = `${AUTH_BASE_URL}/deviceauth/callback`;
 const DEVICE_CODE_TIMEOUT_SECONDS = 15 * 60;
 const JWT_CLAIM_PATH = "https://api.openai.com/auth";
+const GPT_56_PRODUCTION_CONTEXT_WINDOW = 272_000;
 function oauthSuccessHtml(message: string): string { return `<!doctype html><meta charset="utf-8"><title>Login complete</title><body>${message}</body>`; }
 function oauthErrorHtml(message: string): string { return `<!doctype html><meta charset="utf-8"><title>Login error</title><body>${message}</body>`; }
 export const OPENAI_CODEX_NATIVE_SCOPE = "openid profile email offline_access api.connectors.read api.connectors.invoke";
@@ -42,6 +45,16 @@ function decodeJwt(token: string): Record<string, unknown> | null {
 export function getOpenAICodexAccountId(accessToken: string): string | null {
 	const auth = decodeJwt(accessToken)?.[JWT_CLAIM_PATH] as { chatgpt_account_id?: unknown } | undefined;
 	return typeof auth?.chatgpt_account_id === "string" && auth.chatgpt_account_id ? auth.chatgpt_account_id : null;
+}
+
+export function clampOpenAICodexModelWindows(models: Model<Api>[]): Model<Api>[] {
+	return models.map((model) =>
+		// Temporary: remove this clamp as soon as OpenAI confirms 372k production
+		// context caching is fixed. Overestimating currently delays Pi compaction.
+		supportsResponsesLiteModel(model) && model.contextWindow > GPT_56_PRODUCTION_CONTEXT_WINDOW
+			? { ...model, contextWindow: GPT_56_PRODUCTION_CONTEXT_WINDOW }
+			: model,
+	);
 }
 
 function compactCodeState(code: string | null | undefined, state?: string | null | undefined): { code?: string; state?: string } {
@@ -206,4 +219,5 @@ export const openaiCodexNativeOAuthProvider: NonNullable<ProviderConfig["oauth"]
 	},
 	refreshToken(credentials) { return tokenRequest(new URLSearchParams({ grant_type: "refresh_token", refresh_token: credentials.refresh, client_id: CLIENT_ID }), "refresh"); },
 	getApiKey(credentials) { return credentials.access; },
+	modifyModels(models) { return clampOpenAICodexModelWindows(models); },
 };

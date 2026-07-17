@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createOpenAICodexNativeAuthorizationFlow, OPENAI_CODEX_NATIVE_SCOPE } from "../src/providers/openai-codex/oauth.ts";
+import { clampOpenAICodexModelWindows, createOpenAICodexNativeAuthorizationFlow, OPENAI_CODEX_NATIVE_SCOPE } from "../src/providers/openai-codex/oauth.ts";
 
 test("Codex OAuth authorization flow requests native connector scopes", async () => {
 	const flow = await createOpenAICodexNativeAuthorizationFlow("pi-test");
@@ -15,4 +15,21 @@ test("Codex OAuth authorization flow requests native connector scopes", async ()
 	assert.ok(url.searchParams.get("code_challenge"));
 	assert.ok(flow.verifier);
 	assert.ok(flow.state);
+});
+
+test("Codex provider conservatively clamps GPT-5.6 production windows", () => {
+	const models = [
+		{ id: "gpt-5.6-sol", contextWindow: 372_000 },
+		{ id: "gpt-5.6-luna", contextWindow: 250_000 },
+		{ id: "gpt-5.5", contextWindow: 372_000 },
+	] as never;
+
+	assert.deepEqual(
+		clampOpenAICodexModelWindows(models).map(({ id, contextWindow }) => ({ id, contextWindow })),
+		[
+			{ id: "gpt-5.6-sol", contextWindow: 272_000 },
+			{ id: "gpt-5.6-luna", contextWindow: 250_000 },
+			{ id: "gpt-5.5", contextWindow: 372_000 },
+		],
+	);
 });
