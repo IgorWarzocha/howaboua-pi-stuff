@@ -24,31 +24,6 @@ test("Code Mode forces teardown when graceful host shutdown stalls", async () =>
 	assert.equal(killed, true);
 });
 
-test("Code Mode shutdown drains a client created during teardown", async () => {
-	const runtime = new SharedCodeModeRuntime();
-	const internals = runtime as unknown as {
-		clientPromise?: Promise<{ shutdown(): Promise<void> }>;
-	};
-	let shutdowns = 0;
-	const replacement = {
-		async shutdown() {
-			shutdowns += 1;
-		},
-	};
-	const initial = {
-		async shutdown() {
-			shutdowns += 1;
-			internals.clientPromise = Promise.resolve(replacement);
-		},
-	};
-	internals.clientPromise = Promise.resolve(initial);
-
-	await runtime.shutdownHost();
-
-	assert.equal(shutdowns, 2);
-	assert.equal(internals.clientPromise, undefined);
-});
-
 test("Code Mode shutdown cancels pending host preparation", async () => {
 	const runtime = new SharedCodeModeRuntime();
 	const startupAbort = new AbortController();

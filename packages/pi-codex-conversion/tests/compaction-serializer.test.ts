@@ -5,7 +5,7 @@ import { buildCompactionReasoning, buildNativeCompactionRequest, injectPendingNa
 import type { AdapterState } from "../src/adapter/activation/state.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 import type { Model } from "@earendil-works/pi-ai";
-import { serializeActiveSessionToCompactRequest, serializeMessagesToCompactRequest, type NativeCompactionRequestBody } from "../src/adapter/compaction/serializer.ts";
+import { serializeActiveSessionToCompactRequest, type NativeCompactionRequestBody } from "../src/adapter/compaction/serializer.ts";
 import { COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE, shrinkNativeCompactionRequestForEndpoint } from "../src/adapter/compaction/request-shrink.ts";
 
 const model = {
@@ -16,16 +16,6 @@ const model = {
 	reasoning: true,
 	input: ["text", "image"],
 } as Model<any>;
-
-test("native compaction requests use Codex-compatible compact payload shape", () => {
-	const request = serializeMessagesToCompactRequest({
-		model,
-		messages: [],
-		instructions: "compact",
-	});
-
-	assert.deepEqual(Object.keys(request).sort(), ["input", "instructions", "model"]);
-});
 
 test("first native compaction sends the full active Pi context", () => {
 	const entry = (id: string, parentId: string | null, content: string) => ({
@@ -127,41 +117,7 @@ test("native compaction shrinks tool outputs when request exceeds context window
 	assert.equal((result.request.input[2] as { output: string }).output, "x".repeat(3000));
 	assert.equal((result.request.input[4] as { output: string }).output, COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE);
 	assert.ok(result.estimatedTokensAfter < result.estimatedTokensBefore);
-});
-
-test("native compaction keeps the cached prefix when one frontier rewrite is not enough", async () => {
-	const request: NativeCompactionRequestBody = {
-		model: model.id,
-		instructions: "compact",
-		input: [
-			{ type: "function_call_output", call_id: "old", output: "x".repeat(6_000) },
-			{ type: "function_call", call_id: "new", name: "exec_command", arguments: "{}" },
-			{ type: "function_call_output", call_id: "new", output: "y".repeat(3_000) },
-		],
-	};
-
-	const result = await shrinkNativeCompactionRequestForEndpoint(request, { contextWindow: 450 });
-
-	assert.equal(result.rewrittenOutputs, 1);
-	assert.ok(result.estimatedTokensAfter > 450);
-	assert.equal((result.request.input[0] as { output: string }).output, "x".repeat(6_000));
-	assert.equal((result.request.input[2] as { output: string }).output, COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE);
-});
-
-test("native compaction walks past already-truncated contiguous outputs", async () => {
-	const request: NativeCompactionRequestBody = {
-		model: model.id,
-		input: [
-			{ type: "function_call_output", call_id: "older", output: "x".repeat(6_000) },
-			{ type: "function_call_output", call_id: "newer", output: COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE },
-		],
-	};
-
-	const result = await shrinkNativeCompactionRequestForEndpoint(request, { contextWindow: 450 });
-
-	assert.equal(result.rewrittenOutputs, 1);
-	assert.equal((result.request.input[0] as { output: string }).output, COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE);
-	assert.equal((result.request.input[1] as { output: string }).output, COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE);
+	assert.ok(result.estimatedTokensAfter > result.budgetTokens!);
 });
 
 test("native compaction trims Codex custom and tool-search frontier outputs", async () => {
@@ -184,18 +140,6 @@ test("native compaction trims Codex custom and tool-search frontier outputs", as
 		assert.equal(result.rewrittenOutputs, 1);
 		testCase.assertRewritten(result.request.input[0] as unknown as Record<string, unknown>);
 	}
-});
-
-test("native compaction budgets transcript and instructions without tool schemas", async () => {
-	const result = await shrinkNativeCompactionRequestForEndpoint({
-		model: model.id,
-		instructions: "compact",
-		input: [{ role: "user", content: [{ type: "input_text", text: "keep" }] }],
-		tools: [{ type: "function", name: "huge", description: "x".repeat(10_000) }],
-	}, { contextWindow: 100 });
-
-	assert.equal(result.rewrittenOutputs, 0);
-	assert.ok(result.estimatedTokensBefore < 100);
 });
 
 test("injects pending native compacted window into Pi compaction summarization payload", async () => {

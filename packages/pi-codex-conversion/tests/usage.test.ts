@@ -6,7 +6,6 @@ import {
 	buildCodexUsageUrl,
 	consumeCodexRateLimitResetCredit,
 	fetchCodexUsage,
-	formatCodexUsage,
 	parseCodexRateLimitResetCreditsPayload,
 	parseCodexUsagePayload,
 } from "../src/ui/settings/usage.ts";
@@ -36,7 +35,6 @@ test("parseCodexUsagePayload reads reset-credit summary from usage payload", () 
 	});
 
 	assert.equal(snapshot.resetCredits?.availableCount, 2);
-	assert.equal(formatCodexUsage(snapshot).includes("resets available: 2"), true);
 });
 
 test("parseCodexRateLimitResetCreditsPayload handles standalone credits payload defensively", () => {

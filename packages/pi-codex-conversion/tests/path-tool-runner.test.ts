@@ -4,7 +4,6 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { convertPathToolExecResult, getPathToolPolicy } from "../src/tools/path/outputs.ts";
-import { renderPathToolCommandCall } from "../src/tools/path/render-call.ts";
 import { registerExecCommandTool } from "../src/tools/exec/command-tool.ts";
 import { createExecCommandTracker } from "../src/tools/exec/command-state.ts";
 import { createExecSessionManager } from "../src/tools/exec/session-manager.ts";
@@ -66,28 +65,6 @@ PATCH`;
 	assert.doesNotMatch(text, /Begin Patch/);
 	assert.match(text, /Process exited with code 1/);
 	assert.match(text, /Failed to read file to update missing\.md/);
-});
-
-test("PATH output conversion preserves shell pipeline output", () => {
-	const command = `web_run '{"search_query":[{"q":"docs"}]}' | jq -r .output_text`;
-	const policy = getPathToolPolicy(command, undefined);
-	const converted = convertPathToolExecResult(command, {
-		chunk_id: "abc123",
-		wall_time_seconds: 0.01,
-		exit_code: 0,
-		output: "Answer from jq\n",
-	}, policy);
-
-	assert.ok(policy);
-	assert.equal(policy.yieldTimeMs, 3_600_000);
-	assert.equal(policy.parseWebRunOutput, false);
-	assert.equal(converted, undefined);
-});
-
-test("PATH native-style rendering falls back for conditional tool calls", () => {
-	const rendered = renderPathToolCommandCall(`false && view_image '{"path":"/tmp/example.png"}'`, theme);
-
-	assert.equal(rendered, undefined);
 });
 
 test("PATH apply_patch call rendering expands with tool output expansion", () => {

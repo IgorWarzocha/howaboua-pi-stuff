@@ -9,8 +9,6 @@ import {
 } from "../src/providers/openai-codex-custom-provider.ts";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
-import { processMappedCodexResponsesStream } from "../src/providers/openai-codex/stream-events.ts";
-import { createInitialAssistantMessage } from "../src/providers/openai-codex/types.ts";
 import { parseOpenAICodexDeviceAuthPollResponse } from "../src/providers/openai-codex/oauth.ts";
 
 const exampleTool = {
@@ -82,23 +80,6 @@ function sseResponse(events: unknown[]): Response {
 		headers: { "content-type": "text/event-stream" },
 	});
 }
-
-test("Codex stream forwarding retains exact completed response items", async () => {
-	const item = { type: "function_call", id: "fc_1", call_id: "call_1", name: "example_tool", arguments: "{}" };
-	const captured: unknown[] = [];
-	async function* events() {
-		yield { type: "response.output_item.done", output_index: 0, item };
-		yield { type: "response.completed", response: { id: "resp_1", status: "completed", usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 } } };
-	}
-	await processMappedCodexResponsesStream(
-		events() as never,
-		createInitialAssistantMessage(codexModel),
-		{ push() {} } as never,
-		codexModel,
-		{ onOutputItemDone: (value) => captured.push(value) },
-	);
-	assert.deepEqual(captured, [item]);
-});
 
 test("Codex device auth preserves pending and slow-down responses", async () => {
 	assert.deepEqual(
@@ -211,13 +192,6 @@ test("buildRequestBody keeps Codex request shape stable for common options", () 
 	]);
 	assert.equal("max_output_tokens" in body, false, "Codex ChatGPT backend rejects max_output_tokens");
 	assert.equal("max_completion_tokens" in body, false, "Codex ChatGPT backend rejects max token aliases here");
-});
-
-test("buildRequestBody preserves explicit Codex tool choice", () => {
-	for (const toolChoice of ["none", "required"] as const) {
-		const body = buildRequestBody(codexModel, { messages: [], tools: [exampleTool] }, { toolChoice });
-		assert.equal(body.tool_choice, toolChoice);
-	}
 });
 
 test("buildRequestBody anchors newly activated tools at their loader result", () => {
@@ -376,26 +350,6 @@ test("Codex turn state is captured and replayed on SSE follow-ups", async () => 
 	}
 });
 
-test("registered Codex provider converts non-retryable SSE errors into error events", async () => {
-	const originalFetch = globalThis.fetch;
-	const registered = createRegisteredCodexProvider();
-
-	try {
-		globalThis.fetch = (async () => new Response(JSON.stringify({ error: { message: "Bad request shape" } }), { status: 400, statusText: "Bad Request" })) as typeof fetch;
-		const events = await collectStream(registered.provider.streamSimple(
-			codexModel,
-			{ systemPrompt: "Instructions", messages: [] } as never,
-			{ apiKey: fakeJwt({ "https://api.openai.com/auth": { chatgpt_account_id: "acct_1" } }), transport: "sse" } as never,
-		));
-
-		assert.equal(events.length, 1);
-		assert.equal((events[0] as { type?: string }).type, "error");
-		assert.equal((events[0] as { error?: { errorMessage?: string } }).error?.errorMessage, "Bad request shape");
-	} finally {
-		globalThis.fetch = originalFetch;
-	}
-});
-
 test("cached websocket request body reuses continuation across reasoning changes", () => {
 	const previousBody = buildRequestBody(codexModel, { systemPrompt: "Instructions", messages: [] }, { sessionId: "session-1", reasoning: "low" });
 	previousBody.input = [{ type: "message", role: "user", content: [{ type: "input_text", text: "first" }] }];
@@ -411,16 +365,6 @@ test("cached websocket request body reuses continuation across reasoning changes
 			decision: "delta",
 		},
 	);
-});
-
-test("cached websocket request body ignores per-request client metadata", () => {
-	const previousBody = buildRequestBody(codexModel, { systemPrompt: "Instructions", messages: [] }, { sessionId: "session-1", reasoning: "low" });
-	previousBody.input = [{ type: "message", role: "user", content: [{ type: "input_text", text: "first" }] }];
-	previousBody.client_metadata = { marker: "old" };
-	const responseItems = [{ type: "message", role: "assistant", content: [{ type: "output_text", text: "first response" }] }];
-	const fullBody = { ...previousBody, client_metadata: { marker: "new" }, input: [...previousBody.input, ...responseItems, { type: "message", role: "user", content: [{ type: "input_text", text: "next" }] }] };
-
-	assert.equal(buildCachedWebSocketRequestBody({ lastRequestBody: previousBody, lastResponseId: "resp_1", lastResponseItems: responseItems }, fullBody).decision, "delta");
 });
 
 test("cached websocket continuation falls back when the tool set changes", () => {

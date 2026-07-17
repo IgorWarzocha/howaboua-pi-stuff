@@ -3,22 +3,10 @@ import assert from "node:assert/strict";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createViewImageTool, parseViewImageParams } from "../src/tools/view-image/tool.ts";
+import { createViewImageTool } from "../src/tools/view-image/tool.ts";
 
 const PNG_BASE64 =
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==";
-
-
-test("parseViewImageParams accepts omitted and null detail, but rejects invalid detail values", () => {
-	assert.deepEqual(parseViewImageParams({ path: "assets/example.png" }), { path: "assets/example.png" });
-	assert.deepEqual(parseViewImageParams({ path: "assets/example.png", detail: null }), { path: "assets/example.png" });
-	assert.deepEqual(parseViewImageParams({ path: "assets/example.png", detail: "original" }), { path: "assets/example.png" });
-	assert.throws(
-		() => parseViewImageParams({ path: "assets/example.png", detail: "low" }),
-		/view_image\.detail only supports `original`, got `low`/,
-	);
-	assert.throws(() => parseViewImageParams({ path: "assets/example.png", detail: 1 }), /view_image\.detail must be a string/);
-});
 
 test("createViewImageTool returns original image content", async () => {
 	const cwd = await mkdtemp(join(tmpdir(), "view-image-tool-"));

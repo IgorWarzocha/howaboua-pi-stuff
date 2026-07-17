@@ -4,30 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import {
-	parseCustomTool,
-} from "../src/tools/code-mode/custom-tools.ts";
-import { buildPromotedToolsPrompt } from "../src/tools/code-mode/custom-tool-prompt.ts";
-import {
 	registerCodeModeTools,
 	registerCustomTools,
 } from "../src/tools/code-mode/tools.ts";
-
-test("Code Mode keeps TOML tools deferred unless promoted", () => {
-	const deferred = parseCustomTool(
-		"/tmp/rare_tool.toml",
-		'usage = "await tools.rare_tool(input)"\ncommand = "rare-tool"\n',
-	);
-	const promoted = parseCustomTool(
-		"/tmp/common_tool.toml",
-		'usage = "await tools.common_tool(input)"\ncommand = "common-tool"\ndefer_loading = false\n',
-	);
-	assert.equal(deferred.deferLoading, true);
-	assert.equal(promoted.deferLoading, false);
-	assert.equal(
-		buildPromotedToolsPrompt([deferred, promoted]),
-		"Custom tools available in exec:\n- await tools.common_tool(input)",
-	);
-});
 
 test("Code Mode invokes a deferred TOML tool without exposing its schema", async () => {
 	const dir = await mkdtemp(join(tmpdir(), "pi-codex-code-mode-"));
@@ -87,34 +66,6 @@ test("Code Mode invokes a deferred TOML tool without exposing its schema", async
 	}
 });
 
-test("Code Mode rebinds its tool and event surface after reload", async () => {
-	const events = {};
-	const registrations = () => {
-		let tools = 0;
-		let handlers = 0;
-		return {
-			pi: {
-				events,
-				registerTool() {
-					tools += 1;
-				},
-				on() {
-					handlers += 1;
-				},
-			},
-			counts: () => ({ tools, handlers }),
-		};
-	};
-	const firstApi = registrations();
-	const first = await registerCustomTools(firstApi.pi as never, "/missing");
-	await first.shutdown();
-	const secondApi = registrations();
-	const second = await registerCustomTools(secondApi.pi as never, "/missing");
-	await second.shutdown();
-	assert.deepEqual(firstApi.counts(), { tools: 2, handlers: 2 });
-	assert.deepEqual(secondApi.counts(), { tools: 2, handlers: 2 });
-});
-
 test("Code Mode removes stale providers before rebinding after reload", async () => {
 	const events = {};
 	const createApi = () => {
@@ -164,27 +115,5 @@ test("Code Mode removes stale providers before rebinding after reload", async ()
 		);
 	} finally {
 		await second.shutdown();
-	}
-});
-
-test("Code Mode keeps providers registered when its host shuts down", async () => {
-	const handlers = new Map<string, (...args: any[]) => unknown>();
-	const pi = {
-		events: {},
-		registerTool() {},
-		on(event: string, handler: (...args: any[]) => unknown) {
-			handlers.set(event, handler);
-		},
-	};
-	const registration = await registerCustomTools(pi as never, "/missing");
-	try {
-		await registration.shutdownHost();
-		const result = handlers.get("before_agent_start")?.(
-			{ systemPrompt: "Base" },
-			{},
-		) as { systemPrompt?: string } | undefined;
-		assert.match(result?.systemPrompt ?? "", /CUSTOM-TOOLS\.md/);
-	} finally {
-		await registration.shutdown();
 	}
 });

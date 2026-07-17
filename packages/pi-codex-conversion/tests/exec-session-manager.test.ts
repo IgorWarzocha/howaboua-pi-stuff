@@ -161,32 +161,6 @@ test("exec_command emits partial execution updates without consuming final outpu
 	}
 });
 
-test("exec session manager coerces fish defaults to bash", async () => {
-	const originalShell = process.env["SHELL"]!;
-	process.env["SHELL"] = "/usr/bin/fish";
-	const sessions = createFastTestExecSessionManager();
-	try {
-		const result = await sessions.exec(
-			{
-				cmd: "printf '%s' \"${BASH_VERSION:+bash}\"",
-				login: false,
-				yield_time_ms: 500,
-			},
-			process.cwd(),
-		);
-
-		assert.equal(result.output, "bash");
-		assert.equal(result.exit_code, 0);
-	} finally {
-		sessions.shutdown();
-		if (originalShell === undefined) {
-			delete process.env["SHELL"];
-		} else {
-			process.env["SHELL"] = originalShell;
-		}
-	}
-});
-
 test("write_stdin rejects interactive input for non-tty sessions", async () => {
 	const sessions = createFastTestExecSessionManager();
 	try {

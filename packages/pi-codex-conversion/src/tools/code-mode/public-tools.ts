@@ -157,7 +157,7 @@ function createWaitTool(
 	};
 }
 
-export function adaptiveWaitMs(requestedMs: number, previousIncompleteWaits: number): number {
+function adaptiveWaitMs(requestedMs: number, previousIncompleteWaits: number): number {
 	const multiplier = 2 ** previousIncompleteWaits;
 	const grown = requestedMs * multiplier * 2;
 	const adaptive = Math.min(MAX_ADAPTIVE_WAIT_MS, Math.max(MIN_ADAPTIVE_WAIT_MS * multiplier, grown));
