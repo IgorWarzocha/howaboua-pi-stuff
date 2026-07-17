@@ -8,15 +8,14 @@ import { applyResponsesLiteRequest, supportsResponsesLiteModel, type ResponsesLi
 import { applyCodeModeFreeformContract, sanitizeCodeModeHistoryForFunctionTools } from "./code-mode-contract.ts";
 
 export async function rewriteCodexProviderRequest(payload: unknown, ctx: ExtensionContext, state: AdapterState): Promise<unknown | undefined> {
-	const sanitizedPayload = isResponsesContext(ctx) && isCodeModeCompatibleBody(payload)
-		? sanitizeCodeModeHistoryForFunctionTools(payload)
-		: payload;
 	if (!shouldUseCodexAdapter(ctx, state.config) || (!isEffectiveOpenAICodexContext(ctx, state.config) && !isResponsesContext(ctx))) {
+		if (!isResponsesContext(ctx) || !isCodeModeCompatibleBody(payload)) return undefined;
+		const sanitizedPayload = sanitizeCodeModeHistoryForFunctionTools(payload);
 		return sanitizedPayload === payload ? undefined : sanitizedPayload;
 	}
 
 	const isEffectiveOpenAICodex = isEffectiveOpenAICodexContext(ctx, state.config);
-	const configuredPayload = applyCodexRequestParams(sanitizedPayload, state.config, {
+	const configuredPayload = applyCodexRequestParams(payload, state.config, {
 		serviceTier: isEffectiveOpenAICodex,
 		verbosity: true,
 	});
