@@ -125,18 +125,18 @@ Keep these request invariants aligned:
 - emergency trimming walks backward from the newest item, rewrites only a contiguous trailing `function_call_output`, `custom_tool_call_output`, or `tool_search_output`, and stops at the first other item so the cached prefix remains byte-stable;
 - rewritten outputs use Codex's `Output exceeded the available model context and was truncated` marker.
 
-Pi owns the checkpoint entry and provider-payload replay, so this package deliberately differs by supporting a separately configured compaction model/reasoning level and by validating the opaque output before falling back to Pi summarization. Pi also decides when `session_before_compact` fires. Pi 0.80.8 checks automatic compaction after the agent run, unlike Codex's inline between-turn compaction; do not disguise that lifecycle difference with model-window mutation.
+Pi owns the checkpoint entry and provider-payload replay, so this package deliberately differs by supporting a separately configured compaction model/reasoning level for both protocols and by validating the opaque output before falling back to Pi summarization. Pi also decides when `session_before_compact` fires. Pi 0.80.8 checks automatic compaction after the agent run, unlike Codex's inline between-turn compaction; do not disguise that lifecycle difference with model-window mutation.
 
 ### Responses compaction v2
 
-V2 is opt-in and uses the active model's ordinary streamed Responses provider. Keep these invariants aligned with Codex:
+V2 is opt-in and uses the configured compaction model's ordinary streamed Responses provider. Live backend checks confirmed every model in the shared compaction-model menu can return an encrypted V2 checkpoint. Codex normally uses the active model, but also deliberately attempts previous-model V2 compaction during model transitions. Keep these invariants aligned with Codex:
 
 - merge the `remote_compaction_v2` feature header and append `compaction_trigger` as the final input item;
 - require a completed stream with exactly one canonical encrypted compaction item;
 - remove orphan tool outputs before transport and preserve the contiguous-tail trimming rule;
 - retain newest real user messages within the shared approximate 64k-token budget while excluding injected context;
 - clear cached continuation state after success and fall back from WebSocket to SSE;
-- persist V1 and V2 strategies distinctly and never recursively compact a checkpoint across protocols without backend evidence.
+- persist V1 and V2 strategies distinctly for diagnostics while allowing either protocol to recursively compact their shared opaque Responses checkpoint item.
 
 The V2 client uses the registered Codex stream or this package's raw-item-aware standard Responses stream, rather than deriving a URL from the V1 compact endpoint. This preserves request shaping and authentication while ensuring V2 can validate the streamed checkpoint. Frontier compaction is not part of this implementation.
 

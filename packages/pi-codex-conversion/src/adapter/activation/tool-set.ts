@@ -22,7 +22,7 @@ export function buildStatusText(options: { mode?: "normal" | "path" | "code" | u
 		options.additionalProvider ? "additional provider" : undefined,
 		options.webSearch ? "web search" : undefined,
 		options.imageGeneration ? "image gen" : undefined,
-		options.compaction?.enabled ? `compact ${options.compaction.version} ${options.compaction.version === "v1" ? `${options.compaction.model}/` : ""}${options.compaction.reasoning}` : undefined,
+		options.compaction?.enabled ? `compact ${options.compaction.version} ${options.compaction.model}/${options.compaction.reasoning}` : undefined,
 		options.fast ? "fast" : undefined,
 	]
 		.filter(Boolean)

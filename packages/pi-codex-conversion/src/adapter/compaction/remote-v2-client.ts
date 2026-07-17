@@ -18,6 +18,7 @@ export type RemoteCompactionV2Result =
 
 export type ExecuteRemoteCompactionV2Options = {
 	runtime: NativeCompactionRuntime;
+	model: Model<Api>;
 	modelRegistry: ModelRegistry;
 	context: Context;
 	promptInput: readonly ResponsesInputItem[];
@@ -69,7 +70,7 @@ async function runAttempt(options: ExecuteRemoteCompactionV2Options, streamSimpl
 				model: body.model,
 				input: promptInput,
 				...(typeof body.instructions === "string" ? { instructions: body.instructions } : {}),
-			}, { contextWindow: options.runtime.currentModel.contextWindow });
+			}, { contextWindow: options.model.contextWindow });
 			return {
 				...body,
 				input: [...request.request.input, { type: "compaction_trigger" }],
@@ -80,7 +81,7 @@ async function runAttempt(options: ExecuteRemoteCompactionV2Options, streamSimpl
 
 	let completed: AssistantMessage | undefined;
 	let completedNormally = false;
-	for await (const rawEvent of streamSimple(options.runtime.currentModel, options.context, streamOptions)) {
+	for await (const rawEvent of streamSimple(options.model, options.context, streamOptions)) {
 		const event = rawEvent as { type?: string; reason?: string; message?: AssistantMessage; error?: AssistantMessage };
 		if (event.type === "done") {
 			completed = event.message;

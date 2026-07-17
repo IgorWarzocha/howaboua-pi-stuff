@@ -46,6 +46,7 @@ test("Responses compaction v2 uses the registered stream and installs one canoni
 			compactUrl: `${model.baseUrl}/codex/responses/compact`,
 			currentModel: model,
 		},
+		model,
 		modelRegistry: {
 			getRegisteredProviderConfig: () => ({ api: model.api, streamSimple }),
 		} as never,

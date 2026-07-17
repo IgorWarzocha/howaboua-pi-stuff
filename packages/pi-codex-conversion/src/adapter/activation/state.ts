@@ -7,7 +7,6 @@ export interface PendingPiCompactionNativeWindow {
 	window: ResponsesInputItem[];
 	provider: string;
 	api: string;
-	model?: string | undefined;
 	baseUrl: string;
 	sessionId: string;
 	sourceCompactionEntryId?: string | undefined;
