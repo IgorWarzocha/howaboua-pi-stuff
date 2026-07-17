@@ -16,7 +16,7 @@ export function toCodeModeToolResult(
 	const status = scriptError
 		? `Script error: ${scriptError}`
 		: response.kind === "yielded"
-			? `Script running with cell ID ${response.cellId}`
+			? `Still running. Call wait({ cell_id: "${response.cellId}" })`
 			: response.kind === "terminated"
 				? "Script terminated"
 				: "Script completed";

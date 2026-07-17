@@ -31,8 +31,9 @@ function parseFormattedExecTranscript(text: string): FormattedExecTranscript {
 	const marker = "\nOutput:\n";
 	const markerIndex = text.indexOf(marker);
 	const output = markerIndex !== -1 ? text.slice(markerIndex + marker.length) : text;
-	const sessionMatch = text.match(/Process running with session ID (\d+)/);
-	const exitCodeMatch = text.match(/Process exited with code (-?\d+)/);
+	const metadata = markerIndex !== -1 ? text.slice(0, markerIndex) : text;
+	const sessionMatch = metadata.match(/(?:Process running with session ID|Call write_stdin\(\{ session_id:) (\d+)(?: \}\))?/);
+	const exitCodeMatch = metadata.match(/Process exited with code (-?\d+)/);
 	return {
 		output,
 		sessionId: sessionMatch ? Number(sessionMatch[1]!) : undefined,

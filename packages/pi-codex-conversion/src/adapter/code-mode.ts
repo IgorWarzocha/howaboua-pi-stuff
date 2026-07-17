@@ -1,4 +1,4 @@
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { AgentToolResult, ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { CodexExtensionRuntime } from "../extension/runtime.ts";
 import {
 	type CodeModeRegistration,
@@ -99,6 +99,16 @@ function createNestedTools(
 				},
 				end: (id) => runtime.tracker.recordEnd(id),
 			},
+			{
+				resultValue(result) {
+					const details = result.details;
+					if (!isRunningExecResult(details)) return details;
+					return {
+						...details,
+						continuation: `Still running. Call exec with tools.write_stdin({ session_id: ${details.session_id} })`,
+					};
+				},
+			},
 		),
 		toNestedTool(
 			createWriteStdinTool(runtime.sessions, options),
@@ -153,4 +163,8 @@ function createNestedTools(
 		));
 	}
 	return tools;
+}
+
+function isRunningExecResult(details: AgentToolResult<unknown>["details"]): details is Record<string, unknown> & { session_id: number } {
+	return Boolean(details && typeof details === "object" && "session_id" in details && typeof details.session_id === "number");
 }

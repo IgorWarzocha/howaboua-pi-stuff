@@ -15,7 +15,7 @@ export function formatUnifiedExecResult(result: UnifiedExecResult, command?: str
 		sections.push(`Process exited with code ${result.exit_code}`);
 	}
 	if (result.session_id !== undefined) {
-		sections.push(`Process running with session ID ${result.session_id}`);
+		sections.push(`Still running. Call write_stdin({ session_id: ${result.session_id} })`);
 	}
 	if (result.original_token_count !== undefined) {
 		sections.push(`Original token count: ${result.original_token_count}`);

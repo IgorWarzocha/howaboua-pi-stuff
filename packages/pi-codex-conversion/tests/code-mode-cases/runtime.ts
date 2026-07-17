@@ -11,6 +11,7 @@ test("Code Mode preserves nested tools across sessions and cancellation", async 
 			"exec-2",
 			{
 				code: `const started = await tools.exec_command({ cmd: "sleep 0.1; printf resumed-ok", yield_time_ms: 10 });
+if (started.session_id && started.continuation !== \`Still running. Call exec with tools.write_stdin({ session_id: \${started.session_id} })\`) throw new Error("missing continuation");
 const result = started.session_id ? await tools.write_stdin({ session_id: started.session_id, yield_time_ms: 1000 }) : started;
 text(result);`,
 			},
@@ -62,6 +63,10 @@ throw new Error("expected-wait-boom");`,
 			} as never,
 		);
 		assert.equal(yielded.details.status, "yielded");
+		assert.equal(
+			yielded.content[0]?.text,
+			`Still running. Call wait({ cell_id: "${yielded.details.cellId}" })`,
+		);
 		const wait = tools.get("wait");
 		const waited = await wait.execute(
 			"wait-error",
