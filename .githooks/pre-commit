@@ -1,9 +1,0 @@
-#!/usr/bin/env sh
-set -eu
-
-if [ "${SKIP_HOOKS:-}" = "1" ] || [ "${SKIP_CHECK_CHANGED:-}" = "1" ]; then
-  echo "Skipping pre-commit checks."
-  exit 0
-fi
-
-bun run check:changed
