@@ -19,7 +19,7 @@ const CODEX_USAGE = "Usage: /codex, /codex all, /codex status, /codex fast, /cod
 export function registerCodexCommand(
 	pi: ExtensionAPI,
 	state: AdapterState,
-	onConfigApplied?: (config: CodexConversionConfig) => void,
+	onConfigApplied?: (config: CodexConversionConfig, ctx: ExtensionContext) => void,
 	backgroundShells?: { sessions: ExecSessionManager; widget: BackgroundBashWidgetState } | undefined,
 ): void {
 	function saveAndApply(ctx: ExtensionContext, nextConfig: CodexConversionConfig): boolean {
@@ -29,7 +29,7 @@ export function registerCodexCommand(
 			return false;
 		}
 		state.config = nextConfig;
-		onConfigApplied?.(nextConfig);
+		onConfigApplied?.(nextConfig, ctx);
 		syncAdapter(pi, ctx, state);
 		return true;
 	}

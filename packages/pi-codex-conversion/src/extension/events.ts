@@ -69,7 +69,7 @@ export function registerCodexEvents(
 		runtime.backgroundWidget.ctx = ctx;
 		state.cwd = ctx.cwd;
 		state.config = readCodexConversionConfig();
-		proxyProvider.applyConfig(state.config);
+		proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 		sessions.setBaseEnv(runtime.bundledPathToolsEnv());
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 		tracker.clear();
@@ -87,6 +87,7 @@ export function registerCodexEvents(
 		runtime.resetTransport(ctx.sessionManager.getSessionId());
 		state.cwd = ctx.cwd;
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
+		proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 		tools.ensureOptionalTools();
 		syncAdapter(pi, ctx, state);
 		prepareCodeModeHost(codeMode, ctx);

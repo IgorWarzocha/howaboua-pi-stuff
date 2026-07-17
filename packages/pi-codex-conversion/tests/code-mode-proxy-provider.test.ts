@@ -1,5 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { ModelRegistry, ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { applyCodeModeFreeformContract } from "../src/adapter/code-mode-contract.ts";
 import {
@@ -175,7 +179,7 @@ test("the proxy stream reports failed HTTP responses", async () => {
 	}
 });
 
-test("the proxy bridge delegates ordinary Responses models without recursion", async () => {
+test("the provider-scoped proxy stream delegates ordinary Responses models without recursion", async () => {
 	const originalFetch = globalThis.fetch;
 	const providers = new Map<string, { streamSimple: (...args: never[]) => AsyncIterable<unknown> }>();
 	const unregistered: string[] = [];
@@ -205,8 +209,12 @@ test("the proxy bridge delegates ordinary Responses models without recursion", a
 		} as never, () => config);
 
 		assert.equal(providers.size, 0);
-		registration.applyConfig(config);
+		registration.applyConfig(config, {
+			getAll: () => [{ provider: "proxy" }] as never,
+			getRegisteredProviderConfig: () => undefined,
+		});
 		assert.equal(providers.size, 1);
+		assert.ok(providers.has("proxy"));
 		const provider = [...providers.values()][0]!;
 		const events = await collect(provider.streamSimple(
 			{ ...proxyModel, id: "gpt-5.5" } as never,
@@ -223,6 +231,151 @@ test("the proxy bridge delegates ordinary Responses models without recursion", a
 		assert.equal(unregistered.length, 1);
 	} finally {
 		globalThis.fetch = originalFetch;
+	}
+});
+
+test("the provider-scoped proxy stream preserves an existing extension provider", async () => {
+	const originalStream = (() => "original") as never;
+	const originalProvider = {
+		api: "openai-responses" as const,
+		baseUrl: "https://extension.example/v1",
+		apiKey: "extension-key",
+		streamSimple: originalStream,
+		models: [{
+			id: "gpt-5.5",
+			name: "Extension model",
+			reasoning: true,
+			input: ["text" as const],
+			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+			contextWindow: 100_000,
+			maxTokens: 10_000,
+		}],
+	};
+	let provider: Parameters<ModelRegistry["registerProvider"]>[1] | undefined = originalProvider;
+	const config = {
+		...DEFAULT_CODEX_CONVERSION_CONFIG,
+		beta: { codeMode: true, responsesLite: false },
+		scope: { allProviders: "off" as const, additionalProviders: ["extensionproxy"] },
+	};
+	const registration = registerCodeModeProxyProvider({
+		registerProvider(_name: string, overlay: Parameters<ModelRegistry["registerProvider"]>[1]) {
+			provider = { ...provider, ...overlay };
+		},
+		unregisterProvider() {
+			provider = undefined;
+		},
+	} as never, () => config);
+	const modelRegistry = {
+		getAll: () => [{ provider: "ExtensionProxy" }] as never,
+		getRegisteredProviderConfig: () => provider,
+	};
+
+	registration.applyConfig(config, modelRegistry);
+	assert.notEqual(provider?.streamSimple, originalStream);
+	assert.equal(provider?.streamSimple?.({ ...proxyModel, provider: "ExtensionProxy", id: "gpt-5.5" } as never, {} as never), "original");
+	registration.applyConfig({ ...config, beta: { ...config.beta, codeMode: false } }, modelRegistry);
+	assert.deepEqual(provider, originalProvider);
+
+	registration.applyConfig(config, modelRegistry);
+	assert.notEqual(provider?.streamSimple, originalStream);
+
+	registration.shutdown();
+	assert.deepEqual(provider, originalProvider);
+});
+
+test("Pi 0.80.7 keeps using the API-level compatibility bridge", () => {
+	const providers = new Map<string, unknown>();
+	const config = {
+		...DEFAULT_CODEX_CONVERSION_CONFIG,
+		beta: { codeMode: true, responsesLite: false },
+		scope: { allProviders: "off" as const, additionalProviders: ["proxy"] },
+	};
+	const registration = registerCodeModeProxyProvider({
+		registerProvider(name: string, provider: unknown) {
+			providers.set(name, provider);
+		},
+		unregisterProvider(name: string) {
+			providers.delete(name);
+		},
+	} as never, () => config);
+
+	registration.applyConfig(config, { getAll: () => [{ provider: "proxy" }] as never });
+	assert.equal(providers.size, 1);
+	assert.equal(providers.has("proxy"), false);
+
+	registration.shutdown();
+	assert.equal(providers.size, 0);
+});
+
+test("configured Responses models route through the Code Mode stream in Pi's model runtime", async () => {
+	const originalFetch = globalThis.fetch;
+	const agentDir = await mkdtemp(join(tmpdir(), "pi-code-mode-proxy-"));
+	let registration: ReturnType<typeof registerCodeModeProxyProvider> | undefined;
+	try {
+		await writeFile(join(agentDir, "models.json"), JSON.stringify({
+			providers: {
+				MyProxy: {
+					baseUrl: "https://proxy.example/v1",
+					apiKey: "test-key",
+					api: "openai-responses",
+					models: [{
+						id: "gpt-5.6",
+						name: "GPT-5.6 Proxy",
+						reasoning: true,
+						input: ["text"],
+						cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+						contextWindow: 100_000,
+						maxTokens: 10_000,
+					}],
+				},
+			},
+		}));
+		globalThis.fetch = (async () => sseResponse([
+			{ type: "response.created", response: { id: "resp_runtime" } },
+			{ type: "response.output_item.added", output_index: 0, item: { type: "custom_tool_call", id: "ctc_1", call_id: "call_1", name: "exec", input: "" } },
+			{ type: "response.custom_tool_call_input.delta", output_index: 0, item_id: "ctc_1", delta: "text(\"runtime\");" },
+			{ type: "response.output_item.done", output_index: 0, item: { type: "custom_tool_call", id: "ctc_1", call_id: "call_1", name: "exec", input: "text(\"runtime\");", status: "completed" } },
+			{ type: "response.completed", response: { id: "resp_runtime", status: "completed", usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 } } },
+		])) as typeof fetch;
+
+		const runtime = await ModelRuntime.create({
+			modelsPath: join(agentDir, "models.json"),
+			allowModelNetwork: false,
+		});
+		const registry = new ModelRegistry(runtime);
+		const config = {
+			...DEFAULT_CODEX_CONVERSION_CONFIG,
+			beta: { codeMode: true, responsesLite: false },
+			scope: { allProviders: "off" as const, additionalProviders: ["myproxy"] },
+		};
+		registration = registerCodeModeProxyProvider({
+			registerProvider: (name: string, provider: Parameters<ModelRegistry["registerProvider"]>[1]) =>
+				registry.registerProvider(name, provider),
+			unregisterProvider: (name: string) => registry.unregisterProvider(name),
+		} as never, () => config);
+		registration.applyConfig(config, registry);
+		await runtime.refresh({ allowNetwork: false });
+
+		const model = registry.find("MyProxy", "gpt-5.6");
+		assert.ok(model);
+		const events = await collect(runtime.streamSimple(
+			model,
+			{ systemPrompt: "Use Code Mode", messages: [], tools: [{ name: "exec", description: "Run JavaScript", parameters: { type: "object" } }] } as never,
+			{ onPayload: (payload: unknown) => applyCodeModeFreeformContract(payload as never) } as never,
+		));
+		const done = events.at(-1) as { type: string; reason: string; message: { content: unknown[] } };
+		assert.equal(done.type, "done");
+		assert.equal(done.reason, "toolUse");
+		assert.deepEqual(done.message.content, [{
+			type: "toolCall",
+			id: "call_1|ctc_1",
+			name: "exec",
+			arguments: { code: "text(\"runtime\");" },
+		}]);
+	} finally {
+		registration?.shutdown();
+		globalThis.fetch = originalFetch;
+		await rm(agentDir, { recursive: true, force: true });
 	}
 });
 

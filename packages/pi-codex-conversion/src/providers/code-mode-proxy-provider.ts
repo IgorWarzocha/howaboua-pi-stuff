@@ -10,7 +10,7 @@ import {
 	type ProviderStreams,
 	type SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import { shouldUseGpt56CodeMode } from "../adapter/activation/activation.ts";
@@ -19,7 +19,7 @@ import { isResponsesLiteRequest, prepareResponsesLiteRequestImages, RESPONSES_LI
 import { processCodexResponsesStream } from "./openai-codex/stream-events.ts";
 import type { OpenAICodexStreamOptions, ResponsesBody, StreamEventShape } from "./openai-codex/types.ts";
 
-const BRIDGE_PROVIDER = "@howaboua/pi-codex-conversion:responses-proxy";
+const LEGACY_BRIDGE_PROVIDER = "@howaboua/pi-codex-conversion:responses-proxy";
 const OPENAI_RESPONSES_API_MODULE = "@earendil-works/pi-ai/api/openai-responses";
 const standardResponsesStream = lazyApi(async () =>
 	await import(OPENAI_RESPONSES_API_MODULE) as ProviderStreams
@@ -153,38 +153,86 @@ export function streamCodeModeResponsesProxy<TApi extends Api>(
 }
 
 export interface CodeModeProxyProviderRegistration {
-	applyConfig(config: CodexConversionConfig): void;
+	applyConfig(config: CodexConversionConfig, modelRegistry: CodeModeModelRegistry): void;
 	shutdown(): void;
+}
+
+type CodeModeModelRegistry = Pick<ModelRegistry, "getAll"> & Partial<Pick<ModelRegistry, "getRegisteredProviderConfig">>;
+type RegisteredProviderConfig = Parameters<ExtensionAPI["registerProvider"]>[1];
+
+function configuredProxyProviders(config: CodexConversionConfig): Set<string> {
+	return new Set(config.beta.codeMode
+		? config.scope.additionalProviders.filter((provider) => provider !== "openai-codex")
+		: []);
+}
+
+function resolveProviderIds(configuredProviders: Set<string>, modelRegistry: CodeModeModelRegistry): Set<string> {
+	const resolved = new Set<string>();
+	for (const model of modelRegistry.getAll()) {
+		if (configuredProviders.has(model.provider.trim().toLowerCase())) resolved.add(model.provider);
+	}
+	return resolved;
 }
 
 export function registerCodeModeProxyProvider(
 	pi: ExtensionAPI,
 	getConfig: () => CodexConversionConfig,
 ): CodeModeProxyProviderRegistration {
-	let registered = false;
-	const shutdown = () => {
-		if (!registered) return;
-		pi.unregisterProvider(BRIDGE_PROVIDER);
-		registered = false;
+	const registeredProviders = new Map<string, RegisteredProviderConfig | undefined>();
+	let legacyBridgeRegistered = false;
+	const restoreProvider = (provider: string, previous: RegisteredProviderConfig | undefined) => {
+		pi.unregisterProvider(provider);
+		if (previous) pi.registerProvider(provider, previous);
 	};
-	const applyConfig = (config: CodexConversionConfig) => {
-		const needed = config.beta.codeMode && config.scope.additionalProviders.some((provider) => {
-			const normalized = provider.trim().toLowerCase();
-			return normalized !== "" && normalized !== "openai-codex";
-		});
-		if (needed === registered) return;
-		if (!needed) {
-			shutdown();
+	const shutdown = () => {
+		if (legacyBridgeRegistered) {
+			pi.unregisterProvider(LEGACY_BRIDGE_PROVIDER);
+			legacyBridgeRegistered = false;
+		}
+		for (const [provider, previous] of registeredProviders) restoreProvider(provider, previous);
+		registeredProviders.clear();
+	};
+	const applyConfig = (config: CodexConversionConfig, modelRegistry: CodeModeModelRegistry) => {
+		const configuredProviders = configuredProxyProviders(config);
+		if (!modelRegistry.getRegisteredProviderConfig) {
+			const needed = configuredProviders.size > 0;
+			if (needed === legacyBridgeRegistered) return;
+			if (!needed) {
+				pi.unregisterProvider(LEGACY_BRIDGE_PROVIDER);
+				legacyBridgeRegistered = false;
+				return;
+			}
+			pi.registerProvider(LEGACY_BRIDGE_PROVIDER, {
+				api: "openai-responses",
+				streamSimple: (model, context, options) =>
+					shouldUseGpt56CodeMode({ model }, getConfig())
+						? streamCodeModeResponsesProxy(model, context, options)
+						: standardResponsesStream(model as never, context, options),
+			});
+			legacyBridgeRegistered = true;
 			return;
 		}
-		pi.registerProvider(BRIDGE_PROVIDER, {
-			api: "openai-responses",
-			streamSimple: (model, context, options) =>
-				shouldUseGpt56CodeMode({ model }, getConfig())
-					? streamCodeModeResponsesProxy(model, context, options)
-					: standardResponsesStream(model as never, context, options),
-		});
-		registered = true;
+		const desiredProviders = resolveProviderIds(configuredProviders, modelRegistry);
+		for (const provider of desiredProviders) {
+			if (registeredProviders.has(provider)) continue;
+			const previous = modelRegistry.getRegisteredProviderConfig(provider) as RegisteredProviderConfig | undefined;
+			const fallbackStream = previous?.api === "openai-responses" && previous.streamSimple
+				? previous.streamSimple
+				: standardResponsesStream;
+			pi.registerProvider(provider, {
+				api: "openai-responses",
+				streamSimple: (model, context, options) =>
+					shouldUseGpt56CodeMode({ model }, getConfig())
+						? streamCodeModeResponsesProxy(model, context, options)
+						: fallbackStream(model as never, context, options),
+			});
+			registeredProviders.set(provider, previous);
+		}
+		for (const [provider, previous] of registeredProviders) {
+			if (desiredProviders.has(provider)) continue;
+			restoreProvider(provider, previous);
+			registeredProviders.delete(provider);
+		}
 	};
 
 	return { applyConfig, shutdown };
