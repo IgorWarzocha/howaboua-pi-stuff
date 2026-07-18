@@ -85,6 +85,16 @@ function formatSelection(
 export default function autoReasoningSelector(pi: ExtensionAPI) {
 	let lastSelection: LastSelection | undefined;
 	let turnBaselineReasoningLevel: AppliedReasoningLevel | undefined;
+	let warnedAboutCacheImpact = false;
+
+	pi.on("session_start", async (_event, ctx) => {
+		if (warnedAboutCacheImpact) return;
+		warnedAboutCacheImpact = true;
+		ctx.ui.notify(
+			"Auto Reasoning switches reasoning levels mid-session. This can cause prompt-cache misses and affect costs or quotas, depending on your provider. Use with caution.",
+			"warning",
+		);
+	});
 
 	pi.registerTool({
 		name: "change_reasoning",

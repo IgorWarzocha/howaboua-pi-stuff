@@ -68,4 +68,24 @@ describe("reasoning floor", () => {
 		await state.handler("agent_settled")({}, {});
 		expect(state.level).toBe("medium");
 	});
+
+	test("warns about cache impact only once", async () => {
+		const state = setup("medium");
+		const notifications: unknown[][] = [];
+		const ctx = {
+			ui: {
+				notify: (...args: unknown[]) => notifications.push(args),
+			},
+		};
+
+		await state.handler("session_start")({}, ctx);
+		await state.handler("session_start")({}, ctx);
+
+		expect(notifications).toEqual([
+			[
+				"Auto Reasoning switches reasoning levels mid-session. This can cause prompt-cache misses and affect costs or quotas, depending on your provider. Use with caution.",
+				"warning",
+			],
+		]);
+	});
 });
