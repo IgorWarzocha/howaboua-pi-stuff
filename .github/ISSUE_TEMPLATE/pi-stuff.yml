@@ -12,6 +12,7 @@ body:
         - pi-codex-conversion
         - pi-auto-reasoning-tool
         - pi-auto-trees
+        - pi-cache-hit-predictor
         - pi-explore-subagents
         - pi-markdown-workflows
         - pi-memories

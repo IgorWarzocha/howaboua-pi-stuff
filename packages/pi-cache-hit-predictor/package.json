@@ -1,0 +1,63 @@
+{
+	"name": "@howaboua/pi-cache-hit-predictor",
+	"version": "0.0.0",
+	"description": "Predicts reusable prompt-cache prefixes when Pi switches model or reasoning lanes.",
+	"type": "module",
+	"license": "MIT",
+	"author": "Igor Warzocha",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
+		"directory": "packages/pi-cache-hit-predictor"
+	},
+	"bugs": {
+		"url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
+	},
+	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-cache-hit-predictor#readme",
+	"keywords": [
+		"pi-package",
+		"pi-extension",
+		"pi-coding-agent",
+		"prompt-cache",
+		"cache-prediction",
+		"model-switching"
+	],
+	"engines": {
+		"node": ">=20.6.0"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"files": [
+		"index.ts",
+		"src",
+		"README.md",
+		"LICENSE",
+		"tsconfig.json",
+		"biome.json"
+	],
+	"pi": {
+		"extensions": [
+			"./index.ts"
+		]
+	},
+	"peerDependencies": {
+		"@earendil-works/pi-coding-agent": ">=0.80.8"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.16",
+		"@earendil-works/pi-coding-agent": "0.80.8",
+		"typescript": "^6.0.3"
+	},
+	"scripts": {
+		"check": "bun run lint && bun run typecheck && bun run test",
+		"test": "bun test",
+		"typecheck": "tsgo --noEmit",
+		"lint": "biome check .",
+		"format": "biome check --write .",
+		"pack:dry": "npm pack --dry-run",
+		"prepublishOnly": "bun run check && bun run pack:dry"
+	},
+	"main": "index.ts",
+	"exports": "./index.ts"
+}

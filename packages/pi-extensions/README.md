@@ -13,6 +13,7 @@ pi install npm:@howaboua/pi-extensions
 - `pi-ask` — interactive decisions, review triage, human handoffs, and optional `/fold` and `/grill` prompts
 - `pi-auto-reasoning-tool` — agent-controlled reasoning levels with the user's level as a floor
 - `pi-auto-trees` — `/marker` and `/end` for incremental long sessions
+- `pi-cache-hit-predictor` — inline prompt-cache hit predictions when switching models or reasoning levels
 - `pi-dynamic-tools` — TOML-defined command tools through JavaScript Code Mode
 - `pi-explore-subagents` — isolated, discovery-only subagents
 - `pi-markdown-workflows` — workflow/skill UI and nested `AGENTS.md` loading

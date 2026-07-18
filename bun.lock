@@ -71,6 +71,18 @@
         "@earendil-works/pi-coding-agent": "*",
       },
     },
+    "packages/pi-cache-hit-predictor": {
+      "name": "@howaboua/pi-cache-hit-predictor",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@biomejs/biome": "^2.4.16",
+        "@earendil-works/pi-coding-agent": "0.80.8",
+        "typescript": "^6.0.3",
+      },
+      "peerDependencies": {
+        "@earendil-works/pi-coding-agent": ">=0.80.8",
+      },
+    },
     "packages/pi-codex-conversion": {
       "name": "@howaboua/pi-codex-conversion",
       "version": "2.2.1",
