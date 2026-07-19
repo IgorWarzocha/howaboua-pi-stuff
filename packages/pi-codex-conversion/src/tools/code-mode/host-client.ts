@@ -9,6 +9,7 @@ import { CodeModeDelegateRuntime } from "./delegate-runtime.js";
 import {
 	executionCellId,
 	type HostMessage,
+	isMissingRuntimeOutcome,
 	parseHostMessage,
 	parseExecSource,
 	parseRuntimeResponse,
@@ -206,7 +207,10 @@ export class CodeModeHostClient {
 			const wrapped = runtimeOutcome(value);
 			if (!wrapped)
 				throw new Error("Code-mode host returned an invalid wait outcome");
-			return this.delegateRuntime.attach(parseRuntimeResponse(wrapped));
+			return {
+				...this.delegateRuntime.attach(parseRuntimeResponse(wrapped)),
+				...(isMissingRuntimeOutcome(value) ? { missingCell: true as const } : {}),
+			};
 		} finally {
 			signal?.removeEventListener("abort", abort);
 		}
@@ -245,7 +249,10 @@ export class CodeModeHostClient {
 			const wrapped = runtimeOutcome(value);
 			if (!wrapped)
 				throw new Error("Code-mode host returned an invalid termination outcome");
-			return this.delegateRuntime.attach(parseRuntimeResponse(wrapped));
+			return {
+				...this.delegateRuntime.attach(parseRuntimeResponse(wrapped)),
+				...(isMissingRuntimeOutcome(value) ? { missingCell: true as const } : {}),
+			};
 		} finally {
 			signal?.removeEventListener("abort", abort);
 		}
@@ -416,17 +423,66 @@ function customToolYieldTime(
 	code: string,
 	tools: CodeModeToolDefinition[],
 ): number | null {
+	const executableCode = maskJavaScriptCommentsAndStrings(code);
 	let forced: number | undefined;
 	for (const tool of tools) {
 		if (!("command" in tool) || tool.yieldTimeMs === undefined) continue;
 		const name = escapeRegExp(tool.name);
 		const directReference = new RegExp(
-			`\\btools\\s*(?:\\.\\s*${name}(?![a-zA-Z0-9_$])|\\[\\s*(["'])${name}\\1\\s*\\])`,
+			`\\btools\\s*\\.\\s*${name}(?![a-zA-Z0-9_$])\\s*\\(`,
 		);
-		if (!directReference.test(code)) continue;
+		if (!directReference.test(executableCode)) continue;
 		forced = forced === undefined ? tool.yieldTimeMs : Math.max(forced, tool.yieldTimeMs);
 	}
 	return forced ?? null;
+}
+
+function maskJavaScriptCommentsAndStrings(code: string): string {
+	const output = code.split("");
+	let state: "code" | "line-comment" | "block-comment" | "string" = "code";
+	let quote = "";
+	for (let index = 0; index < code.length; index += 1) {
+		const current = code[index]!;
+		const next = code[index + 1];
+		if (state === "code") {
+			if (current === "/" && next === "/") {
+				output[index] = output[index + 1] = " ";
+				state = "line-comment";
+				index += 1;
+			} else if (current === "/" && next === "*") {
+				output[index] = output[index + 1] = " ";
+				state = "block-comment";
+				index += 1;
+			} else if (current === '"' || current === "'" || current === "`") {
+				output[index] = " ";
+				quote = current;
+				state = "string";
+			}
+			continue;
+		}
+		if (state === "line-comment") {
+			if (current === "\n" || current === "\r") state = "code";
+			else output[index] = " ";
+			continue;
+		}
+		output[index] = current === "\n" || current === "\r" ? current : " ";
+		if (state === "block-comment") {
+			if (current === "*" && next === "/") {
+				output[index + 1] = " ";
+				state = "code";
+				index += 1;
+			}
+			continue;
+		}
+		if (current === "\\") {
+			if (next !== undefined) output[index + 1] = " ";
+			index += 1;
+		} else if (current === quote) {
+			state = "code";
+			quote = "";
+		}
+	}
+	return output.join("");
 }
 
 function escapeRegExp(value: string): string {

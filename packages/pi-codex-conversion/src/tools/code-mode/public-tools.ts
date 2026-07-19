@@ -130,10 +130,8 @@ function createWaitTool(
 						);
 				const recovered =
 					!params.terminate &&
-					response.kind === "result" &&
-					response.errorText
+					response.missingCell === true
 						? await continueExecSessionFromMistakenWait(
-								response.errorText,
 								params.cell_id,
 								params.yield_time_ms ?? DEFAULT_WAIT_MS,
 								params.max_tokens,
@@ -156,22 +154,6 @@ function createWaitTool(
 				);
 				return toCodeModeToolResult(response, params.max_tokens);
 			} catch (error) {
-				const recovered = params.terminate
-					? undefined
-					: await continueExecSessionFromMistakenWait(
-							error,
-							params.cell_id,
-							params.yield_time_ms ?? DEFAULT_WAIT_MS,
-							params.max_tokens,
-							runtime,
-							{ cwd: ctx.cwd, extensionContext: ctx, onUpdate, toolCallId: id },
-							signal,
-						);
-				if (recovered) {
-					waitAttempts.delete(params.cell_id);
-					tracker.finish(id, recovered.running ? "yielded" : "done");
-					return recovered.result;
-				}
 				waitAttempts.delete(params.cell_id);
 				tracker.finish(id);
 				throw error;
@@ -194,7 +176,6 @@ function createWaitTool(
 }
 
 async function continueExecSessionFromMistakenWait(
-	error: unknown,
 	cellId: string,
 	yieldTimeMs: number,
 	maxOutputTokens: number | undefined,
@@ -211,11 +192,10 @@ async function continueExecSessionFromMistakenWait(
 	  }
 	| undefined
 > {
-	const message = error instanceof Error ? error.message : String(error);
-	if (!/^exec cell \d+ not found$/i.test(message) || !/^\d+$/.test(cellId))
-		return undefined;
+	if (!/^\d+$/.test(cellId)) return undefined;
 	const sessionId = Number(cellId);
-	if (!Number.isSafeInteger(sessionId)) return undefined;
+	if (!Number.isSafeInteger(sessionId) || String(sessionId) !== cellId)
+		return undefined;
 	const writeStdin = runtime
 		.collectTools(context.extensionContext)
 		.find((tool) => tool.name === "write_stdin" && "invoke" in tool);
@@ -244,6 +224,10 @@ async function continueExecSessionFromMistakenWait(
 	if (!value || typeof value !== "object" || !("output" in value))
 		return undefined;
 	const output = typeof value.output === "string" ? value.output : "";
+	const exitCode =
+		"exit_code" in value && typeof value.exit_code === "number"
+			? value.exit_code
+			: undefined;
 	const running =
 		"session_id" in value && typeof value.session_id === "number";
 	return {
@@ -255,6 +239,14 @@ async function continueExecSessionFromMistakenWait(
 					text: `Recovered wait cell_id ${cellId} as exec_command session_id ${sessionId} and continued it with write_stdin.`,
 				},
 				...(output ? [{ type: "text" as const, text: output }] : []),
+				...(exitCode === undefined
+					? []
+					: [
+							{
+								type: "text" as const,
+								text: `Process exited with code ${exitCode}.`,
+							},
+						]),
 				...(running
 					? [
 							{

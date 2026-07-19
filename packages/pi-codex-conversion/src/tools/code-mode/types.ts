@@ -106,6 +106,7 @@ export type RuntimeResponse = (
 	  }
 ) & {
 	maxOutputTokens?: number | undefined;
+	missingCell?: true | undefined;
 	traces?: RuntimeToolTrace[] | undefined;
 	droppedTraceCount?: number | undefined;
 };

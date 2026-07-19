@@ -220,6 +220,14 @@ export function runtimeOutcome(value: unknown): unknown {
 	return value["outcome"]["LiveCell"] ?? value["outcome"]["MissingCell"];
 }
 
+export function isMissingRuntimeOutcome(value: unknown): boolean {
+	return Boolean(
+		isRecord(value) &&
+			isRecord(value["outcome"]) &&
+			"MissingCell" in value["outcome"],
+	);
+}
+
 function parseDelegateRequest(value: Record<string, unknown>): DelegateRequestMessage {
 	const id = parseMessageId(value["id"]);
 	const request = value["request"];
