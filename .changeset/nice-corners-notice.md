@@ -1,5 +1,6 @@
 ---
 "@howaboua/pi-codex-conversion": patch
+"@howaboua/pi-dynamic-tools": patch
 ---
 
-Preserve exec_command startup failures, recover confused process continuations, and add forced per-tool yield times, project-local custom-tool discovery, isolated definition failures, and more bundled custom-tool examples in Code Mode.
+Preserve exec_command startup failures, recover confused process continuations, and align Code Mode command tools around forced per-tool yield times, project-local discovery, isolated definition failures, and expanded bundled examples.

@@ -9,6 +9,7 @@ export interface DynamicToolDefinition {
 	command: string;
 	args: string[];
 	input: DynamicToolInputMode;
+	yieldTimeMs?: number | undefined;
 	sourcePath: string;
 }
 

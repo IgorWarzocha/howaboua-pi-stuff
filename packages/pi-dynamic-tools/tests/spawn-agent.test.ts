@@ -63,14 +63,13 @@ describe("bundled spawn_agent", () => {
 			{ agent_type: "reviewer", message: "Review it." },
 			"Review base:\nInstructions:\nReview it.",
 		);
-		expect(explorer).toContain("openai-codex/gpt-5.6-luna");
+		expect(explorer).toContain("openai-codex/gpt-5.6-terra");
 		expect(explorer).toContain("low");
-		expect(reviewer).toContain("openai-codex/gpt-5.6-sol");
+		expect(reviewer).toContain("openai-codex/gpt-5.6-luna");
 		expect(reviewer).toContain("medium");
 		expect(explorer).toContain("--append-system-prompt");
 		expect(explorer).not.toContain("--system-prompt");
 		expect(explorer).not.toContain("--no-context-files");
-		expect(explorer).toContain("--no-extensions");
 		expect(explorer).toContain("--no-skills");
 	});
 

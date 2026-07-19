@@ -13,7 +13,7 @@ tools.<filename>(input string)
   → string result
 ```
 
-Definitions are top-level `*.toml` files under the Pi agent directory's `dynamic-tools/` folder (`~/.pi/agent/dynamic-tools/` by default, or `$PI_CODING_AGENT_DIR/dynamic-tools/` when configured). Companion scripts may live in subdirectories. Pi rediscovers definitions before every `exec`; already-running cells keep the definitions they started with.
+Definitions are top-level `*.toml` files under the Pi agent directory's `dynamic-tools/` folder (`~/.pi/agent/dynamic-tools/` by default, or `$PI_CODING_AGENT_DIR/dynamic-tools/` when configured) and `<launch-directory>/.pi/dynamic-tools/` for project-only tools. Only the launch directory is checked; parent directories are not searched. Project-local definitions override same-named global definitions. Companion scripts may live in subdirectories. Pi rediscovers definitions before every `exec`; already-running cells keep the definitions they started with.
 
 The JavaScript cell is isolated V8 with no direct filesystem, network, or Node access. The delegated command is not sandboxed by code mode: it runs locally with the user's permissions, Pi's working directory, and inherited environment.
 
@@ -69,7 +69,7 @@ text(result);
 
 ## TOML fields
 
-`usage` and `command` are required. Unknown fields, invalid TOML, missing contracts, and invalid filename identifiers prevent the extension from loading its tool catalog until corrected.
+`usage` and `command` are required. Unknown fields, invalid TOML, missing contracts, invalid filename identifiers, and unreadable directories are reported independently. Invalid definitions are omitted while `exec`, `wait`, and valid tools remain available. An invalid project-local definition still suppresses a same-named global definition rather than silently changing behavior.
 
 - `command`: executable name or path.
 - `args`: fixed string arguments placed before the model-provided input. Defaults to `[]`.
@@ -78,6 +78,7 @@ text(result);
 - `description`: optional discovery help not already clear from the name and usage.
 - `output`: optional discovery help about a reliable result contract. It does not control, validate, or transform command output. Omit it when the result is free-form.
 - `defer_loading`: defaults to `true`. Set to `false` only when the user wants the tool named in the system prompt.
+- `yield_time_ms`: non-negative integer controlling how long `exec` initially waits when the source directly invokes this tool. It overrides the model's `// @exec` value and is not exposed as a model-facing argument. If one cell directly invokes several configured tools, the largest value wins.
 
 Command resolution:
 
@@ -128,11 +129,23 @@ Every dynamic method accepts one string and resolves to one string.
 
 The `exec` cell can compose calls with normal JavaScript, including `Promise.all`, `store`/`load`, progress notifications, images, yielding, and resumable `wait` cells. Read the `exec` tool contract for those runtime details rather than duplicating it here.
 
-For long-running commands, set `yield_time_ms` near the expected runtime and prefer one long `wait` over repeated short waits. Long waits remain cancellable, and `notify()` progress remains visible.
+For long-running commands, set the definition's private `yield_time_ms` near the expected runtime and prefer one long `wait` over repeated short waits. Long waits remain cancellable, and `notify()` progress remains visible.
 
 ## Bundled examples
 
 Examples are documentation and working reference code. Installing the package does not register or enable them. Do not copy an example merely because you read this file.
+
+### `herdr_agent`
+
+`herdr_agent.toml` and `herdr-agent/herdr-agent.mjs` find and coordinate Pi agents in Herdr panels. The calling Pi session must run inside Herdr. The tool handles focused panel discovery, messaging, waits, reads, and answers; use the `herdr` skill from `more_skills` for advanced workspace and pane orchestration.
+
+### `more_skills`
+
+`more_skills.toml` and `more-skills/more-skills.mjs` list additional skill names or return one skill's Markdown body. When copied into a global definitions directory it reads the Pi agent directory's `more-skills/`; from a project-local definitions directory it reads `<launch-directory>/.pi/more-skills/`.
+
+### `sites` and `sites_documentation`
+
+Keep `sites.toml`, `sites_documentation.toml`, and the shared `sites/` directory together. These deferred tools provide a curated private-API bridge to the ChatGPT Sites beta and bounded local/backend documentation. They use Pi's configured OpenAI Codex OAuth, keep credentials and secret values out of output, and require explicit user intent for production effects such as deployment, access, environment, or domain changes.
 
 ### `spawn_agent`
 
@@ -146,7 +159,7 @@ examples/spawn-agent/
   reviewer.prompt.md
 ```
 
-When the user explicitly asks to enable the example, copy `examples/spawn_agent.toml` into the definitions directory and copy `examples/spawn-agent/` beside it, preserving that layout. The TOML's relative command then resolves to `spawn-agent/spawn-agent.mjs`.
+When the user explicitly asks to enable the example, copy `examples/spawn_agent.toml` into the chosen global or project-local definitions directory and copy `examples/spawn-agent/` beside it, preserving that layout. The TOML's relative command then resolves to `spawn-agent/spawn-agent.mjs`.
 
 The example demonstrates a promoted tool with JSON input:
 
@@ -165,11 +178,11 @@ Its contract is:
 - `message`: required standalone instructions.
 - `cwd`: optional; defaults to Pi's working directory and resolves relative to it.
 
-`explorer` runs GPT-5.6 Luna with low reasoning and a discovery-only appended system prompt.
+`explorer` runs GPT-5.6 Terra with low reasoning and a discovery-only appended system prompt.
 
-`reviewer` runs GPT-5.6 Sol with medium reasoning and the same rubric as the review extension. Before starting Pi, the example resolves the Git repository root and prepares a user message with the current ref, selected local base branch, merge base, working-tree status, appropriate diff commands, and the caller's instructions. The rubric is appended to Pi's normal system prompt; project context remains loaded.
+`reviewer` runs GPT-5.6 Luna with medium reasoning and the same rubric as the review extension. Before starting Pi, the example resolves the Git repository root and prepares a user message with the current ref, selected local base branch, merge base, working-tree status, appropriate diff commands, and the caller's instructions. The rubric is appended to Pi's normal system prompt; project context remains loaded.
 
-Both roles disable child extensions, skills, and prompt templates. Their appended prompts prohibit further subagent delegation, while project context files and Pi's built-in discovery tools remain available.
+Both roles disable child skills and prompt templates. Their appended prompts prohibit further subagent delegation, while project context files and Pi's built-in discovery tools remain available.
 
 ### `port_info`
 
@@ -206,7 +219,7 @@ examples/vent.toml
 examples/vent/vent.mjs
 ```
 
-This promoted tool validates JSON containing `thought` and optional `trigger`, then appends one timestamped entry to `VENT.md`. It creates the file with a short purpose heading when needed. Copy the TOML and companion directory into `dynamic-tools/`, preserving the layout, only when the user asks to enable it.
+This tool validates JSON containing `thought` and optional `trigger`, then appends one timestamped entry to `VENT.md`. It creates the file with a short purpose heading when needed. Copy the TOML and companion directory into `dynamic-tools/`, preserving the layout, only when the user asks to enable it.
 
 ### `workflows_create`
 
@@ -217,7 +230,7 @@ examples/workflows_create.toml
 examples/workflows-create/workflows-create.mjs
 ```
 
-This promoted tool validates `name`, `description`, and Markdown `body`, then atomically creates or updates `.pi/workflows/<slug>/SKILL.md`. Copy the TOML and companion directory into `dynamic-tools/`, preserving the layout, only when the user asks to enable it.
+This tool validates `name`, `description`, and Markdown `body`, then atomically creates or updates `.pi/workflows/<slug>/SKILL.md`. Copy the TOML and companion directory into `dynamic-tools/`, preserving the layout, only when the user asks to enable it.
 
 ### `semantic_grep`
 

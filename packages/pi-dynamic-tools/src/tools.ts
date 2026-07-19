@@ -1,8 +1,16 @@
 import { fileURLToPath } from "node:url";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { ensureCodeModeHostBinary } from "./binary.js";
-import { discoverDynamicTools, getDynamicToolsDir } from "./config.js";
+import {
+	type DynamicToolDiscoveryError,
+	discoverDynamicToolsFromDirectories,
+	getDynamicToolsDir,
+	getProjectDynamicToolsDir,
+} from "./config.js";
 import { CodeModeHostClient } from "./host-client.js";
 import {
 	EXEC_DESCRIPTION,
@@ -26,7 +34,7 @@ const NOOP_RUNTIME = { async shutdown() {} };
 
 export async function registerDynamicTools(
 	pi: ExtensionAPI,
-	toolsDir: string = getDynamicToolsDir(),
+	toolsDir?: string | readonly string[],
 ): Promise<{ shutdown(): Promise<void> }> {
 	const sharedState = pi.events as typeof pi.events & {
 		[REGISTRATION_KEY]?: object;
@@ -36,10 +44,26 @@ export async function registerDynamicTools(
 	const documentationPath = fileURLToPath(
 		new URL("../DYNAMIC-TOOLS.md", import.meta.url),
 	);
-	pi.on("before_agent_start", (event) => {
+	const toolsDirs =
+		toolsDir === undefined
+			? [getDynamicToolsDir(), getProjectDynamicToolsDir()]
+			: typeof toolsDir === "string"
+				? [toolsDir]
+				: [...toolsDir];
+	let previousErrors = new Map<string, string>();
+	const discoverTools = (ctx?: unknown) => {
+		const discovery = discoverDynamicToolsFromDirectories(toolsDirs);
+		previousErrors = reportDynamicToolErrors(
+			ctx,
+			discovery.errors,
+			previousErrors,
+		);
+		return discovery.tools;
+	};
+	pi.on("before_agent_start", (event, ctx) => {
 		const systemPrompt = injectDynamicToolsPrompt(
 			event.systemPrompt,
-			discoverDynamicTools(toolsDir),
+			discoverTools(ctx),
 			documentationPath,
 		);
 		return systemPrompt === event.systemPrompt ? undefined : { systemPrompt };
@@ -79,7 +103,7 @@ export async function registerDynamicTools(
 		async execute(id, params, signal, onUpdate, ctx) {
 			renderTracker.start(id);
 			try {
-				const tools = discoverDynamicTools(toolsDir);
+				const tools = discoverTools(ctx);
 				const client = await getClient();
 				const response = await client.execute(
 					params.code,
@@ -171,6 +195,32 @@ export async function registerDynamicTools(
 			}
 		},
 	};
+}
+
+function reportDynamicToolErrors(
+	ctx: unknown,
+	errors: DynamicToolDiscoveryError[],
+	previous: Map<string, string>,
+): Map<string, string> {
+	if (!isExtensionContext(ctx)) return previous;
+	const current = new Map(errors.map((error) => [error.path, error.message]));
+	for (const error of errors) {
+		if (previous.get(error.path) === error.message) continue;
+		ctx.ui.notify(`Dynamic tool disabled: ${error.message}`, "error");
+	}
+	return current;
+}
+
+function isExtensionContext(value: unknown): value is ExtensionContext {
+	return Boolean(
+		value &&
+			typeof value === "object" &&
+			"ui" in value &&
+			value.ui &&
+			typeof value.ui === "object" &&
+			"notify" in value.ui &&
+			typeof value.ui.notify === "function",
+	);
 }
 
 function toToolResult(response: RuntimeResponse, maxTokens?: number) {

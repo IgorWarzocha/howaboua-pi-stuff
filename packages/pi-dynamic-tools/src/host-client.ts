@@ -89,6 +89,8 @@ export class CodeModeHostClient {
 	): Promise<RuntimeResponse> {
 		await this.start();
 		const { code, yieldTimeMs, maxOutputTokens } = parseExecSource(source);
+		const effectiveYieldTimeMs =
+			customToolYieldTime(code, tools) ?? yieldTimeMs;
 		const id = ++this.requestId;
 		const initial = new Promise<any>((resolve, reject) =>
 			this.initial.set(id, { resolve, reject }),
@@ -103,7 +105,7 @@ export class CodeModeHostClient {
 					tool_call_id: `exec-${id}`,
 					enabled_tools: tools.map(toWireToolDefinition),
 					source: code,
-					yield_time_ms: yieldTimeMs,
+					yield_time_ms: effectiveYieldTimeMs,
 					max_output_tokens: maxOutputTokens,
 				},
 			},
@@ -431,6 +433,79 @@ function parseExecSource(source: string): {
 		yieldTimeMs: integer(options["yield_time_ms"], "yield_time_ms"),
 		maxOutputTokens: integer(options["max_output_tokens"], "max_output_tokens"),
 	};
+}
+
+function customToolYieldTime(
+	code: string,
+	tools: DynamicToolDefinition[],
+): number | null {
+	const executableCode = maskJavaScriptCommentsAndStrings(code);
+	let forced: number | undefined;
+	for (const tool of tools) {
+		if (tool.yieldTimeMs === undefined) continue;
+		const name = escapeRegExp(tool.name);
+		const directCall = new RegExp(
+			`\\btools\\s*\\.\\s*${name}(?![a-zA-Z0-9_$])\\s*\\(`,
+		);
+		if (!directCall.test(executableCode)) continue;
+		forced =
+			forced === undefined
+				? tool.yieldTimeMs
+				: Math.max(forced, tool.yieldTimeMs);
+	}
+	return forced ?? null;
+}
+
+function maskJavaScriptCommentsAndStrings(code: string): string {
+	const output = code.split("");
+	let state: "code" | "line-comment" | "block-comment" | "string" = "code";
+	let quote = "";
+	for (let index = 0; index < code.length; index += 1) {
+		const current = code[index]!;
+		const next = code[index + 1];
+		if (state === "code") {
+			if (current === "/" && next === "/") {
+				output[index] = output[index + 1] = " ";
+				state = "line-comment";
+				index += 1;
+			} else if (current === "/" && next === "*") {
+				output[index] = output[index + 1] = " ";
+				state = "block-comment";
+				index += 1;
+			} else if (current === '"' || current === "'" || current === "`") {
+				output[index] = " ";
+				quote = current;
+				state = "string";
+			}
+			continue;
+		}
+		if (state === "line-comment") {
+			if (current === "\n" || current === "\r") state = "code";
+			else output[index] = " ";
+			continue;
+		}
+		output[index] = current === "\n" || current === "\r" ? current : " ";
+		if (state === "block-comment") {
+			if (current === "*" && next === "/") {
+				output[index + 1] = " ";
+				state = "code";
+				index += 1;
+			}
+			continue;
+		}
+		if (current === "\\") {
+			if (next !== undefined) output[index + 1] = " ";
+			index += 1;
+		} else if (current === quote) {
+			state = "code";
+			quote = "";
+		}
+	}
+	return output.join("");
+}
+
+function escapeRegExp(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function parseRuntimeResponse(value: any): RuntimeResponse {

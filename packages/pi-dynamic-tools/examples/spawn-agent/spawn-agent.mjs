@@ -8,12 +8,12 @@ import { fileURLToPath } from "node:url";
 const EXAMPLE_DIR = dirname(fileURLToPath(import.meta.url));
 const AGENT_CONFIG = {
 	explorer: {
-		model: "openai-codex/gpt-5.6-luna",
+		model: "openai-codex/gpt-5.6-terra",
 		thinking: "low",
 		promptPath: resolve(EXAMPLE_DIR, "explorer.prompt.md"),
 	},
 	reviewer: {
-		model: "openai-codex/gpt-5.6-sol",
+		model: "openai-codex/gpt-5.6-luna",
 		thinking: "medium",
 		promptPath: resolve(EXAMPLE_DIR, "reviewer.prompt.md"),
 	},
@@ -261,11 +261,8 @@ export function buildPiArgs(request, message) {
 	return [
 		"--print",
 		"--no-session",
-		"--no-extensions",
 		"--no-skills",
 		"--no-prompt-templates",
-		"--tools",
-		"read,bash,grep,find,ls",
 		"--model",
 		config.model,
 		"--thinking",

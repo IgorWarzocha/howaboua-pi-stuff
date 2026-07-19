@@ -1,4 +1,4 @@
-usage = '''await tools.semantic_grep(JSON.stringify({ query: string, top_k?: number })) // conceptual or cross-file discovery; use exact grep for literals'''
+usage = '''await tools.semantic_grep(JSON.stringify({ query: string, top_k?: number })) // query with terse search intent, pseudocode, or half-sentences—not questions; use exact grep for literals'''
 description = "Searches the current repository's existing semantic-grep index and returns ranked paths, line ranges, scores, and snippets."
 command = "./semantic-grep/semantic-grep.mjs"
 input = "stdin"

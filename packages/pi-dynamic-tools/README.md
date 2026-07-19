@@ -8,7 +8,7 @@ Exposes command-line programs to Pi through Codex-style JavaScript Code Mode. To
 pi install npm:@howaboua/pi-dynamic-tools
 ```
 
-Definitions live in `~/.pi/agent/dynamic-tools/`, or `$PI_CODING_AGENT_DIR/dynamic-tools/` when that variable is set. Installing the package does not enable the bundled examples.
+Definitions live globally in `~/.pi/agent/dynamic-tools/` (or `$PI_CODING_AGENT_DIR/dynamic-tools/`) and per project in `<launch-directory>/.pi/dynamic-tools/`. Only the directory where Pi was launched is checked; project-local definitions override same-named global definitions. Installing the package does not enable the bundled examples.
 
 The first `exec` with at least one definition downloads the pinned OpenAI Codex Code Mode host for the current platform and verifies its SHA-256 checksum. No host is downloaded while the definitions directory is empty.
 
@@ -28,12 +28,13 @@ input = "stdin"
 - `input` is `"arg"` (default) or `"stdin"`.
 - `description` and `output` are optional on-demand help.
 - Set `defer_loading = false` to put a frequent tool in the prompt.
+- Set `yield_time_ms` to force the initial `exec` wait for a directly invoked long-running tool. This private policy overrides the model's `// @exec` value.
 
-Definitions are rediscovered before each `exec`, so additions and edits take effect during the session. Deferred help stays local until the model looks up the tool through `ALL_TOOLS`.
+Definitions are rediscovered before each `exec`, so additions and edits take effect during the session. Invalid definitions are reported and omitted without disabling `exec`, `wait`, or other valid tools. Deferred help stays local until the model looks up the tool through `ALL_TOOLS`.
 
 Use dynamic tools for command-backed capabilities. Use a full Pi extension when the capability needs lifecycle hooks, UI, session state, provider integration, or a provider-visible schema.
 
-Disabled examples cover `spawn_agent`, `port_info`, `semantic_grep`, `vent`, and `workflows_create`. See [`DYNAMIC-TOOLS.md`](./DYNAMIC-TOOLS.md) for setup and troubleshooting.
+Disabled examples cover `herdr_agent`, `more_skills`, `port_info`, `semantic_grep`, `sites`, `sites_documentation`, `spawn_agent`, `vent`, and `workflows_create`. See [`DYNAMIC-TOOLS.md`](./DYNAMIC-TOOLS.md) for setup and troubleshooting.
 
 ## Runtime boundary
 
