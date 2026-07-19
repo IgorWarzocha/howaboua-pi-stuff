@@ -8,7 +8,7 @@ Exposes command-line programs to Pi through Codex-style JavaScript Code Mode. To
 pi install npm:@howaboua/pi-dynamic-tools
 ```
 
-Definitions live globally in `~/.pi/agent/dynamic-tools/` (or `$PI_CODING_AGENT_DIR/dynamic-tools/`) and per project in `<launch-directory>/.pi/dynamic-tools/`. Only the directory where Pi was launched is checked; project-local definitions override same-named global definitions. Installing the package does not enable the bundled examples.
+Definitions live globally in `~/.pi/agent/dynamic-tools/` (or `$PI_CODING_AGENT_DIR/dynamic-tools/`) and in trusted projects at `<launch-directory>/.pi/dynamic-tools/`. Only the directory where Pi was launched is checked; project-local definitions override same-named global definitions. Installing the package does not enable the bundled examples.
 
 The first `exec` with at least one definition downloads the pinned OpenAI Codex Code Mode host for the current platform and verifies its SHA-256 checksum. No host is downloaded while the definitions directory is empty.
 

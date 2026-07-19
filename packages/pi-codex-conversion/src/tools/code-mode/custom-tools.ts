@@ -169,7 +169,7 @@ function customToolPaths(
 ): string[] {
 	try {
 		return readdirSync(dir, { withFileTypes: true })
-			.filter((entry) => entry.isFile() && entry.name.endsWith(".toml"))
+			.filter((entry) => entry.name.endsWith(".toml"))
 			.sort((left, right) => left.name.localeCompare(right.name))
 			.map((entry) => join(dir, entry.name));
 	} catch (error) {

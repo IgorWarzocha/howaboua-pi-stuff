@@ -458,8 +458,10 @@ function customToolYieldTime(
 
 function maskJavaScriptCommentsAndStrings(code: string): string {
 	const output = code.split("");
-	let state: "code" | "line-comment" | "block-comment" | "string" = "code";
+	let state: "code" | "line-comment" | "block-comment" | "string" | "regex" =
+		"code";
 	let quote = "";
+	let regexClass = false;
 	for (let index = 0; index < code.length; index += 1) {
 		const current = code[index]!;
 		const next = code[index + 1];
@@ -472,6 +474,10 @@ function maskJavaScriptCommentsAndStrings(code: string): string {
 				output[index] = output[index + 1] = " ";
 				state = "block-comment";
 				index += 1;
+			} else if (current === "/" && isRegexLiteralStart(code, index)) {
+				output[index] = " ";
+				regexClass = false;
+				state = "regex";
 			} else if (current === '"' || current === "'" || current === "`") {
 				output[index] = " ";
 				quote = current;
@@ -482,6 +488,16 @@ function maskJavaScriptCommentsAndStrings(code: string): string {
 		if (state === "line-comment") {
 			if (current === "\n" || current === "\r") state = "code";
 			else output[index] = " ";
+			continue;
+		}
+		if (state === "regex") {
+			output[index] = current === "\n" || current === "\r" ? current : " ";
+			if (current === "\\") {
+				if (next !== undefined) output[index + 1] = " ";
+				index += 1;
+			} else if (current === "[") regexClass = true;
+			else if (current === "]") regexClass = false;
+			else if (current === "/" && !regexClass) state = "code";
 			continue;
 		}
 		output[index] = current === "\n" || current === "\r" ? current : " ";
@@ -502,6 +518,15 @@ function maskJavaScriptCommentsAndStrings(code: string): string {
 		}
 	}
 	return output.join("");
+}
+
+function isRegexLiteralStart(code: string, index: number): boolean {
+	const previous = code.slice(0, index).trimEnd();
+	if (!previous) return true;
+	if ("([{:;,=!?&|+-*%^~<>".includes(previous.at(-1)!)) return true;
+	return /(?:^|[^\w$])(return|throw|case|delete|void|typeof|instanceof|in|of|yield|await|else|do)$/.test(
+		previous,
+	);
 }
 
 function escapeRegExp(value: string): string {

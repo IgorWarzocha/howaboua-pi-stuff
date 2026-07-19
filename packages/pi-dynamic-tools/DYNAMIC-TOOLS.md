@@ -13,7 +13,7 @@ tools.<filename>(input string)
   → string result
 ```
 
-Definitions are top-level `*.toml` files under the Pi agent directory's `dynamic-tools/` folder (`~/.pi/agent/dynamic-tools/` by default, or `$PI_CODING_AGENT_DIR/dynamic-tools/` when configured) and `<launch-directory>/.pi/dynamic-tools/` for project-only tools. Only the launch directory is checked; parent directories are not searched. Project-local definitions override same-named global definitions. Companion scripts may live in subdirectories. Pi rediscovers definitions before every `exec`; already-running cells keep the definitions they started with.
+Definitions are top-level `*.toml` files under the Pi agent directory's `dynamic-tools/` folder (`~/.pi/agent/dynamic-tools/` by default, or `$PI_CODING_AGENT_DIR/dynamic-tools/` when configured) and `<launch-directory>/.pi/dynamic-tools/` for trusted project-only tools. Only the launch directory is checked; parent directories are not searched. Project-local definitions are ignored unless Pi trusts the project and override same-named global definitions when active. Companion scripts may live in subdirectories. Pi rediscovers definitions before every `exec`; already-running cells keep the definitions they started with.
 
 The JavaScript cell is isolated V8 with no direct filesystem, network, or Node access. The delegated command is not sandboxed by code mode: it runs locally with the user's permissions, Pi's working directory, and inherited environment.
 

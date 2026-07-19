@@ -39,6 +39,7 @@ export async function registerCustomTools(
 	toolsDir?: string | readonly string[],
 	options: { isActive?(ctx: unknown): boolean } = {},
 ): Promise<CodeModeRegistration> {
+	const usesDefaultDirs = toolsDir === undefined;
 	const toolsDirs =
 		toolsDir === undefined
 			? [getCustomToolsDir(), getProjectCustomToolsDir()]
@@ -48,7 +49,11 @@ export async function registerCustomTools(
 	let previousErrors = new Map<string, string>();
 	return registerCodeModeTools(pi, {
 		getTools: (ctx) => {
-			const discovery = discoverCustomToolsFromDirectories(toolsDirs);
+			const activeDirs =
+				usesDefaultDirs && !isTrustedProjectContext(ctx)
+					? toolsDirs.slice(0, 1)
+					: toolsDirs;
+			const discovery = discoverCustomToolsFromDirectories(activeDirs);
 			previousErrors = reportCustomToolErrors(
 				ctx,
 				discovery.errors,
@@ -84,6 +89,16 @@ function isExtensionContext(value: unknown): value is ExtensionContext {
 			typeof value.ui === "object" &&
 			"notify" in value.ui &&
 			typeof value.ui.notify === "function",
+	);
+}
+
+function isTrustedProjectContext(value: unknown): value is ExtensionContext {
+	return Boolean(
+		value &&
+			typeof value === "object" &&
+			"isProjectTrusted" in value &&
+			typeof value.isProjectTrusted === "function" &&
+			value.isProjectTrusted(),
 	);
 }
 

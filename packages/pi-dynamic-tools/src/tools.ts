@@ -44,6 +44,7 @@ export async function registerDynamicTools(
 	const documentationPath = fileURLToPath(
 		new URL("../DYNAMIC-TOOLS.md", import.meta.url),
 	);
+	const usesDefaultDirs = toolsDir === undefined;
 	const toolsDirs =
 		toolsDir === undefined
 			? [getDynamicToolsDir(), getProjectDynamicToolsDir()]
@@ -52,7 +53,11 @@ export async function registerDynamicTools(
 				: [...toolsDir];
 	let previousErrors = new Map<string, string>();
 	const discoverTools = (ctx?: unknown) => {
-		const discovery = discoverDynamicToolsFromDirectories(toolsDirs);
+		const activeDirs =
+			usesDefaultDirs && !isTrustedProjectContext(ctx)
+				? toolsDirs.slice(0, 1)
+				: toolsDirs;
+		const discovery = discoverDynamicToolsFromDirectories(activeDirs);
 		previousErrors = reportDynamicToolErrors(
 			ctx,
 			discovery.errors,
@@ -220,6 +225,16 @@ function isExtensionContext(value: unknown): value is ExtensionContext {
 			typeof value.ui === "object" &&
 			"notify" in value.ui &&
 			typeof value.ui.notify === "function",
+	);
+}
+
+function isTrustedProjectContext(value: unknown): value is ExtensionContext {
+	return Boolean(
+		value &&
+			typeof value === "object" &&
+			"isProjectTrusted" in value &&
+			typeof value.isProjectTrusted === "function" &&
+			value.isProjectTrusted(),
 	);
 }
 
