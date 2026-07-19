@@ -458,15 +458,47 @@ function customToolYieldTime(
 
 function maskJavaScriptCommentsAndStrings(code: string): string {
 	const output = code.split("");
-	let state: "code" | "line-comment" | "block-comment" | "string" | "regex" =
-		"code";
+	let state:
+		| "code"
+		| "line-comment"
+		| "block-comment"
+		| "string"
+		| "regex"
+		| "template" = "code";
 	let quote = "";
 	let regexClass = false;
+	let templateExpressionDepth: number | undefined;
+	const templateReturnDepths: Array<number | undefined> = [];
 	for (let index = 0; index < code.length; index += 1) {
 		const current = code[index]!;
 		const next = code[index + 1];
+		if (state === "template") {
+			output[index] = current === "\n" || current === "\r" ? current : " ";
+			if (current === "\\") {
+				if (next !== undefined) output[index + 1] = " ";
+				index += 1;
+			} else if (current === "$" && next === "{") {
+				output[index + 1] = " ";
+				templateExpressionDepth = 1;
+				state = "code";
+				index += 1;
+			} else if (current === "`") {
+				templateExpressionDepth = templateReturnDepths.pop();
+				state = "code";
+			}
+			continue;
+		}
 		if (state === "code") {
-			if (current === "/" && next === "/") {
+			if (templateExpressionDepth !== undefined && current === "{") {
+				templateExpressionDepth += 1;
+			} else if (templateExpressionDepth !== undefined && current === "}") {
+				templateExpressionDepth -= 1;
+				if (templateExpressionDepth === 0) {
+					output[index] = " ";
+					templateExpressionDepth = undefined;
+					state = "template";
+				}
+			} else if (current === "/" && next === "/") {
 				output[index] = output[index + 1] = " ";
 				state = "line-comment";
 				index += 1;
@@ -478,10 +510,15 @@ function maskJavaScriptCommentsAndStrings(code: string): string {
 				output[index] = " ";
 				regexClass = false;
 				state = "regex";
-			} else if (current === '"' || current === "'" || current === "`") {
+			} else if (current === '"' || current === "'") {
 				output[index] = " ";
 				quote = current;
 				state = "string";
+			} else if (current === "`") {
+				output[index] = " ";
+				templateReturnDepths.push(templateExpressionDepth);
+				templateExpressionDepth = undefined;
+				state = "template";
 			}
 			continue;
 		}

@@ -56,7 +56,7 @@ For configured Responses providers, `web__run` uses the active provider's `/resp
 
 Put top-level TOML definitions in `~/.pi/agent/codex-conversion-custom-tools/` (or `$PI_CODING_AGENT_DIR/codex-conversion-custom-tools/`) and, for trusted project-only tools, `<launch-directory>/.pi/codex-conversion-custom-tools/`. Only the launch directory is checked; project-local definitions override same-named global definitions. Each filename becomes a method on `tools`.
 
-Definitions are deferred by default; set `defer_loading = false` to add one to the prompt. Set `yield_time_ms` to force the initial `exec` wait for a directly invoked long-running tool; this private policy overrides the model's `// @exec` value. Invalid definitions are reported and omitted without disabling other tools. Disabled examples ship under `examples/custom-tools/`.
+Definitions are deferred by default; set `defer_loading = false` to add one to the prompt. Set `yield_time_ms` to force the initial `exec` wait for a directly invoked long-running tool; this private policy overrides the model's `// @exec` value. Invalid definitions with valid tool names remain callable and throw their configuration error; unrepresentable definitions are reported separately without disabling other tools. Disabled examples ship under `examples/custom-tools/`.
 
 ## Settings
 

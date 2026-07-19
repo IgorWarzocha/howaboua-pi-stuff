@@ -30,7 +30,7 @@ input = "stdin"
 - Set `defer_loading = false` to put a frequent tool in the prompt.
 - Set `yield_time_ms` to force the initial `exec` wait for a directly invoked long-running tool. This private policy overrides the model's `// @exec` value.
 
-Definitions are rediscovered before each `exec`, so additions and edits take effect during the session. Invalid definitions are reported and omitted without disabling `exec`, `wait`, or other valid tools. Deferred help stays local until the model looks up the tool through `ALL_TOOLS`.
+Definitions are rediscovered before each `exec`, so additions and edits take effect during the session. Invalid definitions with valid tool names remain callable and throw their configuration error; unrepresentable definitions are reported separately without disabling `exec`, `wait`, or other valid tools. Deferred help stays local until the model looks up the tool through `ALL_TOOLS`.
 
 Use dynamic tools for command-backed capabilities. Use a full Pi extension when the capability needs lifecycle hooks, UI, session state, provider integration, or a provider-visible schema.
 
