@@ -122,11 +122,13 @@ export function renderCodeModeResult(
 			? "accent"
 			: "dim";
 	const renderedText = outputText ? theme.fg(tone, outputText) : "";
+	const tracedImages = traceImages(details.traces ?? []);
 	const images = content.filter(
 		(item): item is ToolContent & { data: string; mimeType: string } =>
 			item.type === "image" &&
 			typeof item.data === "string" &&
-			typeof item.mimeType === "string",
+			typeof item.mimeType === "string" &&
+			!tracedImages.get(item.mimeType)?.has(item.data),
 	);
 
 	const showOutput =
@@ -150,6 +152,24 @@ export function renderCodeModeResult(
 		theme,
 		context,
 	);
+}
+
+function traceImages(traces: RuntimeToolTrace[]): Map<string, Set<string>> {
+	const images = new Map<string, Set<string>>();
+	for (const trace of traces) {
+		for (const item of trace.result?.content ?? []) {
+			if (
+				item.type !== "image" ||
+				typeof item.data !== "string" ||
+				typeof item.mimeType !== "string"
+			)
+				continue;
+			const data = images.get(item.mimeType) ?? new Set<string>();
+			data.add(item.data);
+			images.set(item.mimeType, data);
+		}
+	}
+	return images;
 }
 
 export function renderTrackedCodeModeResult(
