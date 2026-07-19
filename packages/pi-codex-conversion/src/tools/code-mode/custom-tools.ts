@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import {
 	basename,
 	dirname,
@@ -167,13 +167,19 @@ function customToolPaths(
 	dir: string,
 	errors: CustomToolDiscoveryError[],
 ): string[] {
-	if (!existsSync(dir)) return [];
 	try {
 		return readdirSync(dir, { withFileTypes: true })
 			.filter((entry) => entry.isFile() && entry.name.endsWith(".toml"))
 			.sort((left, right) => left.name.localeCompare(right.name))
 			.map((entry) => join(dir, entry.name));
 	} catch (error) {
+		if (
+			error &&
+			typeof error === "object" &&
+			"code" in error &&
+			error.code === "ENOENT"
+		)
+			return [];
 		const detail = error instanceof Error ? error.message : String(error);
 		errors.push({ path: dir, message: `${dir}: ${detail}` });
 		return [];
