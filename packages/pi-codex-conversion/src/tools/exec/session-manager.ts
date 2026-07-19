@@ -64,6 +64,8 @@ interface BaseExecSession {
 interface RustExecSession extends BaseExecSession {
 	kind: "rust";
 	processId: string;
+	startup: Promise<void>;
+	started: boolean;
 	tty: boolean;
 	lastSeq: number;
 	terminalCommitted: string;
@@ -214,11 +216,13 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 		}
 	}
 
-	function createRustSession(input: ExecCommandInput, workdir: string, shell: string): RustExecSession {
+	function createRustSession(input: ExecCommandInput, workdir: string, shell: string, signal?: AbortSignal): RustExecSession {
 		const session: RustExecSession = {
 			kind: "rust",
 			id: nextSessionId++,
 			processId: "",
+			startup: Promise.resolve(),
+			started: false,
 			command: input.cmd,
 			buffer: "",
 			emittedBuffer: "",
@@ -237,7 +241,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			terminalCursor: 0,
 		};
 		session.processId = `pi-${session.id}`;
-		void (async () => {
+		session.startup = (async () => {
 			try {
 				const login = input.login ?? true;
 				const execution = resolveExecution(input.shell, input.cmd, input.env, baseEnv);
@@ -252,6 +256,11 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 					pipe_stdin: Boolean(input.tty),
 					arg0: null,
 				});
+				session.started = true;
+				if (signal?.aborted) {
+					session.terminating = true;
+					await bridge.request({ op: "terminate", process_id: session.processId });
+				}
 				void pollSessionLoop(session);
 			} catch (error) {
 				appendOutput(session, `${error instanceof Error ? error.message : String(error)}\n`);
@@ -260,6 +269,22 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			}
 		})();
 		return session;
+	}
+
+	async function waitForStartup(session: RustExecSession, signal?: AbortSignal): Promise<void> {
+		if (!signal) return session.startup;
+		if (signal.aborted) throw new Error("exec_command aborted");
+		let removeAbortListener = () => {};
+		const aborted = new Promise<never>((_, reject) => {
+			const onAbort = () => reject(new Error("exec_command aborted"));
+			signal.addEventListener("abort", onAbort, { once: true });
+			removeAbortListener = () => signal.removeEventListener("abort", onAbort);
+		});
+		try {
+			await Promise.race([session.startup, aborted]);
+		} finally {
+			removeAbortListener();
+		}
 	}
 
 	async function pollSessionLoop(session: RustExecSession): Promise<void> {
@@ -280,7 +305,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 		exec: async (input, cwd, signal, onUpdate) => {
 			const shell = resolveShell(input.shell);
 			const workdir = resolveWorkdir(cwd, input.workdir);
-			const session = createRustSession(input, workdir, shell);
+			const session = createRustSession(input, workdir, shell, signal);
 			sessions.set(session.id, session);
 			rememberCommand(session.id, session.command);
 			const abortCleanup = registerAbortHandler(signal, () => {
@@ -297,8 +322,12 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 					signal,
 					onUpdate ? (elapsedMs) => onUpdate(makeSnapshotResult(session, elapsedMs, input.max_output_tokens)) : undefined,
 				);
-				await pollSession(session, 0);
+				await waitForStartup(session, signal);
+				if (session.started) await pollSession(session, 0);
 				return makeExecResult(session, waitedMs, input.max_output_tokens, exposeSession, (sessionId) => sessions.delete(sessionId));
+			} catch (error) {
+				if (signal?.aborted) sessions.delete(session.id);
+				throw error;
 			} finally {
 				abortCleanup();
 			}
@@ -334,7 +363,8 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 							onUpdate ? (elapsedMs) => onUpdate(makeSnapshotSince(session, elapsedMs, updateBaseline, input.max_output_tokens)) : undefined,
 					)
 					: 0;
-			await pollSession(session, 0);
+			await waitForStartup(session, signal);
+			if (session.started) await pollSession(session, 0);
 			return makeExecResult(session, waitedMs, input.max_output_tokens, exposeSession, (sessionId) => sessions.delete(sessionId));
 		},
 		hasSession: (sessionId) => sessions.has(sessionId),

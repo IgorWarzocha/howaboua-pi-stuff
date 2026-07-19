@@ -1,7 +1,11 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { discoverCustomTools, getCustomToolsDir } from "./custom-tools.js";
+import {
+	discoverCustomToolsFromDirectories,
+	getCustomToolsDir,
+	getProjectCustomToolsDir,
+} from "./custom-tools.js";
 import { registerPublicCodeModeTools } from "./public-tools.js";
 import {
 	SharedCodeModeRuntime,
@@ -28,11 +32,17 @@ export interface CodeModeRegistration {
 
 export async function registerCustomTools(
 	pi: ExtensionAPI,
-	toolsDir: string = getCustomToolsDir(),
+	toolsDir?: string | readonly string[],
 	options: { isActive?(ctx: unknown): boolean } = {},
 ): Promise<CodeModeRegistration> {
+	const toolsDirs =
+		toolsDir === undefined
+			? [getCustomToolsDir(), getProjectCustomToolsDir()]
+			: typeof toolsDir === "string"
+				? [toolsDir]
+				: [...toolsDir];
 	return registerCodeModeTools(pi, {
-		getTools: () => discoverCustomTools(toolsDir),
+		getTools: () => discoverCustomToolsFromDirectories(toolsDirs),
 		documentationPath: customToolsDocumentationPath(),
 		...options,
 	});

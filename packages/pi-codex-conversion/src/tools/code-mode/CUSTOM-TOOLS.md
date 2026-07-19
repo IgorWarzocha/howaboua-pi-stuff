@@ -4,7 +4,12 @@ Use this reference when asked to add, change, debug, or explain custom tools use
 
 ## Definitions
 
-Definitions are top-level `*.toml` files under `~/.pi/agent/codex-conversion-custom-tools/`, or `$PI_CODING_AGENT_DIR/codex-conversion-custom-tools/` when configured. Each filename becomes a JavaScript method on `tools`, so use a JavaScript-compatible identifier.
+Definitions are top-level `*.toml` files in either location:
+
+- global: `~/.pi/agent/codex-conversion-custom-tools/`, or `$PI_CODING_AGENT_DIR/codex-conversion-custom-tools/` when configured
+- project-local: `<launch-directory>/.pi/codex-conversion-custom-tools/`
+
+Only the directory where Pi was launched is checked; parent directories are not searched. A project-local definition replaces a global definition with the same tool name. Each filename becomes a JavaScript method on `tools`, so use a JavaScript-compatible identifier.
 
 ```toml
 usage = 'await tools.port_info(port_number)'
@@ -13,6 +18,7 @@ output = "Normalized JSON."
 command = "./port-info/port-info.mjs"
 input = "arg"
 defer_loading = true
+yield_time_ms = 30000
 ```
 
 Required fields:
@@ -27,6 +33,7 @@ Optional fields:
 - `args`: fixed string arguments before model input.
 - `input`: `"arg"` (default) or `"stdin"`.
 - `defer_loading`: defaults to `true`.
+- `yield_time_ms`: non-negative integer controlling how long `exec` initially waits when the source directly invokes this tool. It overrides the `// @exec` value and is not exposed as a model-facing argument. If one cell directly invokes several configured tools, the largest value wins.
 
 Unknown fields and invalid definitions fail explicitly. Bare commands resolve through `PATH`; relative commands resolve from the TOML directory. JavaScript commands run with Pi's JavaScript runtime. Commands run directly without shell expansion.
 

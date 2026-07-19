@@ -18,6 +18,7 @@ export interface CustomToolDefinition extends CodeModeToolMetadata {
 	command: string;
 	args: string[];
 	input: CustomToolInputMode;
+	yieldTimeMs?: number | undefined;
 	sourcePath: string;
 }
 

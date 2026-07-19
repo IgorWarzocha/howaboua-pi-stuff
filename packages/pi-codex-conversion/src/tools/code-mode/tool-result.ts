@@ -39,6 +39,12 @@ export function toCodeModeToolResult(
 			return content;
 		})
 		.filter((item): item is NonNullable<typeof item> => Boolean(item));
+	output.unshift(
+		...runningExecSessionGuidance(response.traces ?? []).map((text) => ({
+			type: "text" as const,
+			text,
+		})),
+	);
 	if (omittedImages > 0)
 		output.push({
 			type: "text",
@@ -67,6 +73,41 @@ export function toCodeModeToolResult(
 			...(scriptError ? { scriptError } : {}),
 		},
 	};
+}
+
+function runningExecSessionGuidance(
+	traces: NonNullable<RuntimeResponse["traces"]>,
+): string[] {
+	const sessionIds = new Set<number>();
+	for (const trace of traces) {
+		if (trace.status !== "done") continue;
+		const details = trace.result?.details;
+		const resultSessionId = numericSessionId(details);
+		if (trace.name === "exec_command" && resultSessionId !== undefined) {
+			sessionIds.add(resultSessionId);
+			continue;
+		}
+		if (trace.name !== "write_stdin") continue;
+		const inputSessionId = numericSessionId(trace.input);
+		if (inputSessionId === undefined) continue;
+		if (resultSessionId === undefined) sessionIds.delete(inputSessionId);
+		else sessionIds.add(resultSessionId);
+	}
+	return [...sessionIds].map(
+		(sessionId) =>
+			`exec_command session ${sessionId} is still running. Continue with exec and tools.write_stdin({ session_id: ${sessionId} }); wait is only for a yielded exec cell_id.`,
+	);
+}
+
+function numericSessionId(value: unknown): number | undefined {
+	if (
+		value &&
+		typeof value === "object" &&
+		"session_id" in value &&
+		typeof value.session_id === "number"
+	)
+		return value.session_id;
+	return undefined;
 }
 
 function toPiContent(

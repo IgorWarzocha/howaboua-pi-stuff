@@ -19,6 +19,12 @@ export function getCustomToolsDir(agentDir: string = getAgentDir()): string {
 	return join(agentDir, CUSTOM_TOOLS_DIRNAME);
 }
 
+export function getProjectCustomToolsDir(
+	launchDir: string = process.cwd(),
+): string {
+	return join(launchDir, ".pi", CUSTOM_TOOLS_DIRNAME);
+}
+
 function requiredString(value: unknown, field: string, path: string): string {
 	if (typeof value !== "string" || !value.trim())
 		throw new Error(`${path}: ${field} must be a non-empty string`);
@@ -53,6 +59,17 @@ function deferLoading(value: unknown, path: string): boolean {
 	throw new Error(`${path}: defer_loading must be a boolean`);
 }
 
+function optionalNonNegativeInteger(
+	value: unknown,
+	field: string,
+	path: string,
+): number | undefined {
+	if (value === undefined) return undefined;
+	if (!Number.isSafeInteger(value) || Number(value) < 0)
+		throw new Error(`${path}: ${field} must be a non-negative safe integer`);
+	return Number(value);
+}
+
 export function parseCustomTool(
 	path: string,
 	text: string,
@@ -71,6 +88,7 @@ export function parseCustomTool(
 		"command",
 		"args",
 		"input",
+		"yield_time_ms",
 	]);
 	const unknown = Object.keys(value).filter((key) => !known.has(key));
 	if (unknown.length > 0)
@@ -93,8 +111,24 @@ export function parseCustomTool(
 		command: nodeScript ? process.execPath : resolvedCommand,
 		args: nodeScript ? [resolvedCommand, ...args] : args,
 		input: inputMode(value["input"], path),
+		yieldTimeMs: optionalNonNegativeInteger(
+			value["yield_time_ms"],
+			"yield_time_ms",
+			path,
+		),
 		sourcePath: path,
 	};
+}
+
+export function discoverCustomToolsFromDirectories(
+	dirs: readonly string[],
+): CustomToolDefinition[] {
+	const byName = new Map<string, CustomToolDefinition>();
+	for (const dir of dirs)
+		for (const tool of discoverCustomTools(dir)) byName.set(tool.name, tool);
+	return [...byName.values()].sort((left, right) =>
+		left.name.localeCompare(right.name),
+	);
 }
 
 export function discoverCustomTools(

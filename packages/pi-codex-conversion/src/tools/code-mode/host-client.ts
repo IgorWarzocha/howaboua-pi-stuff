@@ -117,6 +117,7 @@ export class CodeModeHostClient {
 		await this.start();
 		throwIfAborted(signal);
 		const { code, yieldTimeMs, maxOutputTokens } = parseExecSource(source);
+		const effectiveYieldTimeMs = customToolYieldTime(code, tools) ?? yieldTimeMs;
 		const id = ++this.requestId;
 		const initial = new Promise<unknown>((resolve, reject) =>
 			this.initial.set(id, { resolve, reject }),
@@ -132,7 +133,7 @@ export class CodeModeHostClient {
 					tool_call_id: `exec-${id}`,
 					enabled_tools: tools.map(toWireToolDefinition),
 					source: code,
-					yield_time_ms: yieldTimeMs,
+					yield_time_ms: effectiveYieldTimeMs,
 					max_output_tokens: maxOutputTokens,
 				},
 			},
@@ -409,6 +410,27 @@ export class CodeModeHostClient {
 		if (child && !child.killed) child.kill();
 	}
 
+}
+
+function customToolYieldTime(
+	code: string,
+	tools: CodeModeToolDefinition[],
+): number | null {
+	let forced: number | undefined;
+	for (const tool of tools) {
+		if (!("command" in tool) || tool.yieldTimeMs === undefined) continue;
+		const name = escapeRegExp(tool.name);
+		const directReference = new RegExp(
+			`\\btools\\s*(?:\\.\\s*${name}(?![a-zA-Z0-9_$])|\\[\\s*(["'])${name}\\1\\s*\\])`,
+		);
+		if (!directReference.test(code)) continue;
+		forced = forced === undefined ? tool.yieldTimeMs : Math.max(forced, tool.yieldTimeMs);
+	}
+	return forced ?? null;
+}
+
+function escapeRegExp(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function shutdownDeadline(delayMs: number): Promise<void> {
