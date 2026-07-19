@@ -1,7 +1,11 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import {
+	type CustomToolDiscoveryError,
 	discoverCustomToolsFromDirectories,
 	getCustomToolsDir,
 	getProjectCustomToolsDir,
@@ -41,11 +45,46 @@ export async function registerCustomTools(
 			: typeof toolsDir === "string"
 				? [toolsDir]
 				: [...toolsDir];
+	let previousErrors = new Map<string, string>();
 	return registerCodeModeTools(pi, {
-		getTools: () => discoverCustomToolsFromDirectories(toolsDirs),
+		getTools: (ctx) => {
+			const discovery = discoverCustomToolsFromDirectories(toolsDirs);
+			previousErrors = reportCustomToolErrors(
+				ctx,
+				discovery.errors,
+				previousErrors,
+			);
+			return discovery.tools;
+		},
 		documentationPath: customToolsDocumentationPath(),
 		...options,
 	});
+}
+
+function reportCustomToolErrors(
+	ctx: unknown,
+	errors: CustomToolDiscoveryError[],
+	previous: Map<string, string>,
+): Map<string, string> {
+	if (!isExtensionContext(ctx)) return previous;
+	const current = new Map(errors.map((error) => [error.path, error.message]));
+	for (const error of errors) {
+		if (previous.get(error.path) === error.message) continue;
+		ctx.ui.notify(`Code Mode custom tool disabled: ${error.message}`, "error");
+	}
+	return current;
+}
+
+function isExtensionContext(value: unknown): value is ExtensionContext {
+	return Boolean(
+		value &&
+			typeof value === "object" &&
+			"ui" in value &&
+			value.ui &&
+			typeof value.ui === "object" &&
+			"notify" in value.ui &&
+			typeof value.ui.notify === "function",
+	);
 }
 
 export async function registerCodeModeTools(

@@ -3,3 +3,4 @@ description = "Relative cwd resolves from Pi's working directory."
 command = "./spawn-agent/spawn-agent.mjs"
 input = "stdin"
 defer_loading = false
+yield_time_ms = 30000

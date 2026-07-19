@@ -1,0 +1,6 @@
+usage = '''await tools.herdr_agent("help") // Pi-panel messaging; advanced orchestration: await tools.more_skills("herdr")'''
+description = '''Find and coordinate with Pi agents in Herdr panels. send automatically prompts an idle Pi or steers a working Pi; queue=true waits behind current work. It waits by default and returns only the new assistant text. For advanced workspace/tab/pane orchestration, generic command panes, raw terminal input, or output waits, load the extra skill exactly with: await tools.more_skills("herdr")'''
+output = "Compact JSON: pane/status plus only relevant panels, text, ask, acknowledgement, timeout, or truncation fields."
+command = "./herdr-agent/herdr-agent.mjs"
+input = "stdin"
+defer_loading = false

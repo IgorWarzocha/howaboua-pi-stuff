@@ -2,4 +2,3 @@ usage = '''await tools.workflows_create(JSON.stringify({ name: string, descripti
 description = "Creates or updates .pi/workflows/<slug>/SKILL.md in Pi's working directory."
 command = "./workflows-create/workflows-create.mjs"
 input = "stdin"
-defer_loading = false

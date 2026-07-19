@@ -1,0 +1,6 @@
+usage = '''await tools.more_skills("list" | "<exact-skill-name>") // extra categories: design, engineering, media, operations, writing; list when core skills do not fit, then load an exact match'''
+description = "Lists additional skill names and descriptions, or returns one skill's Markdown body by exact name."
+output = "A concise skill list or the selected skill's Markdown instructions."
+command = "./more-skills/more-skills.mjs"
+input = "arg"
+defer_loading = false

@@ -35,7 +35,7 @@ Optional fields:
 - `defer_loading`: defaults to `true`.
 - `yield_time_ms`: non-negative integer controlling how long `exec` initially waits when the source directly invokes this tool. It overrides the `// @exec` value and is not exposed as a model-facing argument. If one cell directly invokes several configured tools, the largest value wins.
 
-Unknown fields and invalid definitions fail explicitly. Bare commands resolve through `PATH`; relative commands resolve from the TOML directory. JavaScript commands run with Pi's JavaScript runtime. Commands run directly without shell expansion.
+Unknown fields and invalid definitions are reported and omitted individually; valid custom tools and built-in Code Mode tools remain available. An invalid project-local definition still suppresses a same-named global definition rather than silently changing behavior. Bare commands resolve through `PATH`; relative commands resolve from the TOML directory. JavaScript commands run with Pi's JavaScript runtime. Commands run directly without shell expansion.
 
 ## Deferred tools
 
@@ -52,8 +52,11 @@ Set `defer_loading = false` only for stable, frequently used tools. Promotion ad
 
 Working, disabled templates ship under the package root's `examples/custom-tools/` directory:
 
+- `herdr_agent`: finds and coordinates Pi agents in Herdr panels; use with `more_skills` for advanced Herdr orchestration.
+- `more_skills`: lists or loads additional skills from the corresponding global or project-local `more-skills/` directory.
 - `port_info`: cross-platform listener and process diagnostics.
 - `semantic_grep`: queries an existing index owned by an installed and configured `@howaboua/pi-semantic-grep`.
+- `sites` and `sites_documentation`: a curated, private-API bridge to the ChatGPT Sites beta using Pi's OpenAI Codex OAuth; keep both definitions together.
 - `spawn_agent`: launches isolated explorer or reviewer Pi processes.
 - `vent`: appends batched workflow-friction notes to `VENT.md`.
 - `workflows_create`: creates or updates repo-local workflow skills.
