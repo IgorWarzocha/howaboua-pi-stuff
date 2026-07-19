@@ -69,7 +69,7 @@ text(result);
 
 ## TOML fields
 
-`usage` and `command` are required. Unknown fields, invalid TOML, missing contracts, invalid filename identifiers, and unreadable directories are reported independently. Invalid definitions are omitted while `exec`, `wait`, and valid tools remain available. An invalid project-local definition still suppresses a same-named global definition rather than silently changing behavior.
+`usage` and `command` are required. Unknown fields, invalid TOML, and missing contracts disable only that named tool. The tool remains visible in `exec` and throws its configuration error when called, while `exec`, `wait`, and valid tools remain available. An invalid project-local definition still suppresses a same-named global definition rather than silently changing behavior. Invalid filename identifiers and unreadable directories, which cannot be represented as named tools, are reported through Pi.
 
 - `command`: executable name or path.
 - `args`: fixed string arguments placed before the model-provided input. Defaults to `[]`.

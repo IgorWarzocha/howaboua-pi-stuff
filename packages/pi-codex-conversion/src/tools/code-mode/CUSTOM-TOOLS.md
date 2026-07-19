@@ -35,7 +35,7 @@ Optional fields:
 - `defer_loading`: defaults to `true`.
 - `yield_time_ms`: non-negative integer controlling how long `exec` initially waits when the source directly invokes this tool. It overrides the `// @exec` value and is not exposed as a model-facing argument. If one cell directly invokes several configured tools, the largest value wins.
 
-Unknown fields and invalid definitions are reported and omitted individually; valid custom tools and built-in Code Mode tools remain available. An invalid project-local definition still suppresses a same-named global definition rather than silently changing behavior. Bare commands resolve through `PATH`; relative commands resolve from the TOML directory. JavaScript commands run with Pi's JavaScript runtime. Commands run directly without shell expansion.
+Unknown fields and invalid definitions disable only that named tool. The tool remains visible in `exec` and throws its configuration error when called, while valid custom tools and built-in Code Mode tools remain available. An invalid project-local definition still suppresses a same-named global definition rather than silently changing behavior. Invalid JavaScript identifiers and unreadable tool directories, which cannot be represented as named tools, are reported through Pi. Bare commands resolve through `PATH`; relative commands resolve from the TOML directory. JavaScript commands run with Pi's JavaScript runtime. Commands run directly without shell expansion.
 
 ## Deferred tools
 

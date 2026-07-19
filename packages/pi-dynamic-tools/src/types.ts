@@ -11,6 +11,7 @@ export interface DynamicToolDefinition {
 	input: DynamicToolInputMode;
 	yieldTimeMs?: number | undefined;
 	sourcePath: string;
+	disabledReason?: string | undefined;
 }
 
 export interface ToolExecutionContext {

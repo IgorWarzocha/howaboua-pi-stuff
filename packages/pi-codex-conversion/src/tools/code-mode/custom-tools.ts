@@ -194,10 +194,24 @@ function loadCustomTool(
 		return parseCustomTool(path, readFileSync(path, "utf8"));
 	} catch (error) {
 		const detail = error instanceof Error ? error.message : String(error);
-		errors.push({
-			path,
-			message: detail.startsWith(`${path}:`) ? detail : `${path}: ${detail}`,
-		});
-		return undefined;
+		const message = detail.startsWith(`${path}:`)
+			? detail
+			: `${path}: ${detail}`;
+		const name = basename(path, extname(path));
+		if (!TOOL_NAME_PATTERN.test(name)) {
+			errors.push({ path, message });
+			return undefined;
+		}
+		return {
+			name,
+			usage: "Disabled: fix this tool's TOML definition before calling it.",
+			description: message,
+			deferLoading: true,
+			command: "",
+			args: [],
+			input: "arg",
+			sourcePath: path,
+			disabledReason: message,
+		};
 	}
 }

@@ -20,6 +20,7 @@ export interface CustomToolDefinition extends CodeModeToolMetadata {
 	input: CustomToolInputMode;
 	yieldTimeMs?: number | undefined;
 	sourcePath: string;
+	disabledReason?: string | undefined;
 }
 
 export interface ProgrammaticCodeModeToolDefinition
