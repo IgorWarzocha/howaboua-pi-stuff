@@ -22,4 +22,3 @@ Sites publishing has two separate stages: save a version, then deploy that saved
 - Prefer the narrowest access mode that fits the audience.
 
 If the backend returns `terms_required`, give the URL to the user. They must accept the ChatGPT Sites publication terms in a browser, then retry the operation.
-

@@ -29,4 +29,3 @@ await tools.sites(JSON.stringify({
   params: { project_dir: "/absolute/project/path" }
 }))
 ```
-

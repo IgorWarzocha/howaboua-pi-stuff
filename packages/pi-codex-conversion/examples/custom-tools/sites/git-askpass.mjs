@@ -6,4 +6,3 @@ if (prompt.includes("username")) {
 } else {
   process.stdout.write(process.env.SITES_GIT_TOKEN || "");
 }
-

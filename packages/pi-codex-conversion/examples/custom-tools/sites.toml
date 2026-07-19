@@ -4,4 +4,3 @@ command = "./sites/sites.mjs"
 args = ["call"]
 input = "stdin"
 defer_loading = true
-

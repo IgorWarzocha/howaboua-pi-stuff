@@ -15,4 +15,3 @@ List event names observed in the requested time range. Use this before querying 
 Query one exact `event_name` over a bounded time range. Event names and IDs are opaque backend values; do not invent or normalize them.
 
 Analytics can contain operational or visitor-derived information. Return only what the task needs and avoid copying large event payloads into model context.
-

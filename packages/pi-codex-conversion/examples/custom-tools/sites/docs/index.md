@@ -32,4 +32,3 @@ await tools.sites(JSON.stringify({
 `project_id` is read from `<project>/.openai/hosting.json` when omitted. Pass `project_dir` when Pi's current directory is not the Site project.
 
 The tool never returns OAuth tokens, source-repository credentials, secret environment values, or SIWC bypass tokens. Unknown operations return one documentation pointer instead of the full catalog.
-

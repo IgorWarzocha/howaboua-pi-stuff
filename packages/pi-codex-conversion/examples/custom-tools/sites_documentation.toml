@@ -4,4 +4,3 @@ command = "./sites/sites.mjs"
 args = ["documentation"]
 input = "stdin"
 defer_loading = true
-
