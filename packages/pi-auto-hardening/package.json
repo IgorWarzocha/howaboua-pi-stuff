@@ -1,0 +1,62 @@
+{
+	"name": "@howaboua/pi-auto-hardening",
+	"version": "0.0.0",
+	"description": "Automatic diff-scoped architecture hardening for Pi.",
+	"type": "module",
+	"main": "index.ts",
+	"exports": "./index.ts",
+	"license": "MIT",
+	"files": [
+		"index.ts",
+		"src",
+		"hardener.prompt.md",
+		"README.md",
+		"LICENSE",
+		"tsconfig.json",
+		"biome.json"
+	],
+	"keywords": [
+		"pi-package",
+		"pi",
+		"pi-extension",
+		"architecture",
+		"refactoring",
+		"subagent"
+	],
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
+		"directory": "packages/pi-auto-hardening"
+	},
+	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-auto-hardening#readme",
+	"bugs": {
+		"url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
+	},
+	"pi": {
+		"extensions": [
+			"./index.ts"
+		]
+	},
+	"peerDependencies": {
+		"@earendil-works/pi-ai": ">=0.80.8",
+		"@earendil-works/pi-coding-agent": ">=0.80.8"
+	},
+	"scripts": {
+		"check": "bun run lint && bun run typecheck && bun run test",
+		"prepack": "bun run check",
+		"test": "bun test",
+		"typecheck": "tsgo --noEmit",
+		"lint": "biome check .",
+		"format": "biome check --write ."
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.16",
+		"@earendil-works/pi-ai": "0.80.8",
+		"@earendil-works/pi-coding-agent": "0.80.8",
+		"@types/node": "^24.10.0",
+		"typescript": "^6.0.3"
+	},
+	"publishConfig": {
+		"access": "public"
+	}
+}

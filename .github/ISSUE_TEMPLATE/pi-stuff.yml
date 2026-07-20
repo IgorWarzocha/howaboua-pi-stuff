@@ -10,6 +10,7 @@ body:
       options:
         - Not sure / general
         - pi-codex-conversion
+        - pi-auto-hardening
         - pi-auto-reasoning-tool
         - pi-auto-trees
         - pi-cache-hit-predictor
