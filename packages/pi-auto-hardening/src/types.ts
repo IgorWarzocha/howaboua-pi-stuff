@@ -17,6 +17,7 @@ export interface ChangedFileFact {
 	lines: number;
 	hunks: number;
 	moduleStatements: number;
+	deleted: boolean;
 	untracked: boolean;
 }
 

@@ -110,6 +110,15 @@ test("inspects the active feature layer and source candidates", async () => {
 			path: "app.ts",
 			additions: 1,
 			deletions: 0,
+			deleted: false,
+			untracked: false,
+		});
+
+		await fs.rm(path.join(root, "app.ts"));
+		const deletedContext = await inspectHardeningContext(pi, root);
+		expect(deletedContext?.candidates[0]).toMatchObject({
+			path: "app.ts",
+			deleted: true,
 			untracked: false,
 		});
 	} finally {

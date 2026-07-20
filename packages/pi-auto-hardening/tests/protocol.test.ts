@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import type { Message } from "@earendil-works/pi-ai";
 import { parseWorkerDisposition } from "../src/protocol.js";
+import { getFinalOutput } from "../src/subagent.js";
 
 describe("worker disposition protocol", () => {
 	test("accepts complete only as the final line", () => {
@@ -30,4 +32,17 @@ describe("worker disposition protocol", () => {
 			status: "incomplete",
 		});
 	});
+});
+
+test("joins every text part in the final assistant message", () => {
+	const messages = [
+		{
+			role: "assistant",
+			content: [
+				{ type: "text", text: "Refactor complete." },
+				{ type: "text", text: "[complete]" },
+			],
+		},
+	] as unknown as Message[];
+	expect(getFinalOutput(messages)).toBe("Refactor complete.\n[complete]");
 });

@@ -1,9 +1,11 @@
 import type { ChangedFileFact, HardeningContext } from "./types.js";
 
 export function formatCandidate(candidate: ChangedFileFact): string {
-	const change = candidate.untracked
-		? "untracked"
-		: `+${candidate.additions}/-${candidate.deletions}`;
+	const change = candidate.deleted
+		? "deleted"
+		: candidate.untracked
+			? "untracked"
+			: `+${candidate.additions}/-${candidate.deletions}`;
 	return `- ${candidate.path}: ${candidate.lines} lines, ${change}, ${candidate.hunks} changed hunks, ${candidate.moduleStatements} module statements`;
 }
 

@@ -212,10 +212,17 @@ async function inspectChangedFile(
 	untracked: boolean,
 ): Promise<ChangedFileFact | undefined> {
 	let content: string;
+	let deleted = false;
 	try {
 		content = await fs.readFile(path.join(repoRoot, relativePath), "utf8");
 	} catch {
-		return undefined;
+		const baseFile = await runGit(pi, repoRoot, [
+			"show",
+			`${mergeBase}:${relativePath}`,
+		]);
+		if (baseFile.code !== 0) return undefined;
+		content = baseFile.stdout;
+		deleted = true;
 	}
 	if (content.includes("\0")) return undefined;
 
@@ -244,6 +251,7 @@ async function inspectChangedFile(
 		lines: content ? content.split("\n").length : 0,
 		hunks,
 		moduleStatements,
+		deleted,
 		untracked,
 	};
 }

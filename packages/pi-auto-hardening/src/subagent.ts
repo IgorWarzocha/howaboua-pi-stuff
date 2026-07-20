@@ -31,9 +31,10 @@ export function getFinalOutput(messages: Message[]): string {
 	for (let index = messages.length - 1; index >= 0; index--) {
 		const message = messages[index];
 		if (message?.role !== "assistant") continue;
-		for (const part of message.content) {
-			if (part.type === "text") return part.text;
-		}
+		return message.content
+			.filter((part) => part.type === "text")
+			.map((part) => part.text)
+			.join("\n");
 	}
 	return "";
 }
@@ -46,6 +47,7 @@ export async function runHardeningWorker(options: {
 	projectTrusted: boolean;
 	signal?: AbortSignal;
 }): Promise<WorkerRunDetails> {
+	if (options.signal?.aborted) throw new Error("Hardening worker aborted.");
 	const details: WorkerRunDetails = {
 		messages: [],
 		stderr: "",
@@ -75,13 +77,37 @@ export async function runHardeningWorker(options: {
 	delete env[DISABLED_ENV];
 
 	let stdoutBuffer = "";
+	let processClosed = false;
+	let killTimer: ReturnType<typeof setTimeout> | undefined;
+	let abortDeadlineTimer: ReturnType<typeof setTimeout> | undefined;
+	let resolveAbortDeadline!: (code: number) => void;
+	const abortDeadline = new Promise<number>((resolve) => {
+		resolveAbortDeadline = resolve;
+	});
 	const decoder = new StringDecoder("utf8");
 	const proc = spawn(invocation.command, invocation.args, {
 		cwd: options.cwd,
 		shell: false,
+		detached: process.platform !== "win32",
 		stdio: ["ignore", "pipe", "pipe"],
 		env,
 	});
+	const signalProcess = (signal: NodeJS.Signals) => {
+		if (processClosed) return;
+		try {
+			if (process.platform !== "win32" && proc.pid) {
+				process.kill(-proc.pid, signal);
+			} else {
+				proc.kill(signal);
+			}
+		} catch {
+			try {
+				proc.kill(signal);
+			} catch {
+				// Process may already be gone.
+			}
+		}
+	};
 
 	const handleLine = (line: string) => {
 		if (!line.trim()) return;
@@ -120,16 +146,30 @@ export async function runHardeningWorker(options: {
 
 	let aborted = false;
 	const abortProcess = () => {
+		if (aborted) return;
 		aborted = true;
-		proc.kill("SIGTERM");
+		signalProcess("SIGTERM");
+		killTimer = setTimeout(() => signalProcess("SIGKILL"), 1_000);
+		killTimer.unref();
+		abortDeadlineTimer = setTimeout(() => resolveAbortDeadline(-1), 2_000);
+		abortDeadlineTimer.unref();
 	};
-	options.signal?.addEventListener("abort", abortProcess, { once: true });
+	if (options.signal?.aborted) abortProcess();
+	else options.signal?.addEventListener("abort", abortProcess, { once: true });
 
 	try {
-		details.exitCode = await new Promise<number>((resolve, reject) => {
-			proc.once("error", reject);
-			proc.once("close", (code) => resolve(code ?? 0));
-		});
+		details.exitCode = await Promise.race([
+			new Promise<number>((resolve, reject) => {
+				proc.once("error", reject);
+				proc.once("close", (code) => {
+					processClosed = true;
+					if (killTimer) clearTimeout(killTimer);
+					if (abortDeadlineTimer) clearTimeout(abortDeadlineTimer);
+					resolve(code ?? 0);
+				});
+			}),
+			abortDeadline,
+		]);
 	} finally {
 		options.signal?.removeEventListener("abort", abortProcess);
 	}
