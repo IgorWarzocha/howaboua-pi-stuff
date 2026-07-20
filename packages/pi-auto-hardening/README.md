@@ -2,6 +2,8 @@
 
 Automatic, diff-scoped architecture hardening for Pi.
 
+> **Prototype:** The worker lifecycle is functional, but its automatic trigger policy is unresolved and currently too eager. See [DESIGN.md](./DESIGN.md).
+
 After an agent changes source on a non-trunk branch, the extension compares the active branch layer against the closest local `dev`, `develop`, `main`, or `master` history and starts one isolated hardening worker. The worker retains the normal global and trusted project extensions, inspects programmatic hotspot evidence, makes its own semantic judgments, and continues in the same context until the diff is clean or work is blocked.
 
 ## Install

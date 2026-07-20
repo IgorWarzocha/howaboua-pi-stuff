@@ -10,6 +10,7 @@
 		"index.ts",
 		"src",
 		"hardener.prompt.md",
+		"DESIGN.md",
 		"README.md",
 		"LICENSE",
 		"tsconfig.json",
