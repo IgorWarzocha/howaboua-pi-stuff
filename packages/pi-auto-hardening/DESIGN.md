@@ -20,9 +20,10 @@ The prototype currently launches after a settled parent run changes source on a 
 
 ## Open trigger question
 
-A future trigger needs an explicit source of semantic judgment. Options worth testing include:
+A future trigger must be programmatic. The unresolved problem is which observable signals or state can justify launching the worker without laundering mechanical activity into an architectural claim. Options worth testing include:
 
-- an opt-in signal from the already-running parent agent
+- programmatic analysis of changed code topology and ownership signals
+- an opt-in signal emitted by the already-running parent agent and consumed by the extension
 - an explicit user command or workflow boundary
 - a separate lightweight semantic evaluator
 - integration with review, handoff, or pre-PR workflows
