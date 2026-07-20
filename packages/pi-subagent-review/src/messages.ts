@@ -30,7 +30,7 @@ function getReviewPrefaceMessageId(
 	ctx: ExtensionCommandContext,
 ): string | undefined {
 	let messageId: string | undefined;
-	for (const entry of ctx.sessionManager.getBranch()) {
+	for (const entry of ctx.sessionManager.buildContextEntries()) {
 		if (
 			entry.type === "custom_message" &&
 			entry.customType === REVIEW_LOOP_PREFACE_MESSAGE_TYPE
