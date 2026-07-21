@@ -215,21 +215,6 @@
         "@earendil-works/pi-coding-agent": "*",
       },
     },
-    "packages/pi-rescue": {
-      "name": "@howaboua/pi-rescue",
-      "version": "0.0.1",
-      "devDependencies": {
-        "@biomejs/biome": "^2.4.16",
-        "@earendil-works/pi-ai": "0.81.0",
-        "@earendil-works/pi-coding-agent": "0.81.0",
-        "@types/node": "^24.10.0",
-        "typescript": "^6.0.3",
-      },
-      "peerDependencies": {
-        "@earendil-works/pi-ai": ">=0.81.0",
-        "@earendil-works/pi-coding-agent": ">=0.81.0",
-      },
-    },
     "packages/pi-semantic-grep": {
       "name": "@howaboua/pi-semantic-grep",
       "version": "0.1.18",
@@ -585,8 +570,6 @@
     "@howaboua/pi-markdown-workflows": ["@howaboua/pi-markdown-workflows@workspace:packages/pi-markdown-workflows"],
 
     "@howaboua/pi-memories": ["@howaboua/pi-memories@workspace:packages/pi-memories"],
-
-    "@howaboua/pi-rescue": ["@howaboua/pi-rescue@workspace:packages/pi-rescue"],
 
     "@howaboua/pi-semantic-grep": ["@howaboua/pi-semantic-grep@workspace:packages/pi-semantic-grep"],
 
