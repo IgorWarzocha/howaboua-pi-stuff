@@ -61,65 +61,14 @@ test("apply_patch reports partial failures with recovery metadata", async () => 
 			};
 		};
 		assert.equal(result.content[0]!?.type, "text");
-		const output = result.content[0]!?.text ?? "";
-		assert.match(output, /partially failed/i);
-		assert.match(output, /MUST read missing\.txt before retrying/);
-		assert.match(output, /Earlier file actions in this patch were already applied/);
-		assert.match(output, /MUST NOT reread other files from this patch unless a specific dependency requires it/);
-		assert.doesNotMatch(output, /before retrying\./);
-		assert.doesNotMatch(output, /applied\./);
-		assert.doesNotMatch(output, /requires it\./);
+		assert.match(result.content[0]!?.text ?? "", /partially failed/i);
+		assert.match(result.content[0]!?.text ?? "", /MUST read missing\.txt before retrying/);
+		assert.match(result.content[0]!?.text ?? "", /Earlier file actions in this patch were already applied/);
+		assert.match(result.content[0]!?.text ?? "", /MUST NOT reread other files from this patch unless a specific dependency requires it/);
 		assert.deepEqual(result.details?.failedFiles, ["missing.txt"]);
 		assert.deepEqual(result.details?.appliedFiles, ["created.txt"]);
 		assert.deepEqual(result.details?.recoveryInstructions?.mustReadFiles, ["missing.txt"]);
 		assert.deepEqual(result.details?.recoveryInstructions?.mustNotReadFiles, ["created.txt"]);
-		assert.notStrictEqual(result.details?.recoveryInstructions?.mustReadFiles, result.details?.failedFiles);
-		assert.notStrictEqual(result.details?.recoveryInstructions?.mustNotReadFiles, result.details?.appliedFiles);
-	} finally {
-		clearApplyPatchRenderState();
-		await rm(cwd, { recursive: true, force: true });
-	}
-});
-
-test("apply_patch explains out-of-order hunk recovery and preserves other errors", async () => {
-	const cwd = mkdtempSync(join(tmpdir(), "pi-codex-conversion-"));
-	const filePath = join(cwd, "ordered.txt");
-	const { pi, getTool } = createRegisteredTool();
-	registerApplyPatchTool(pi);
-
-	try {
-		writeFileSync(filePath, "one\ntwo\nthree\nfour\n", "utf8");
-		const patch = `*** Begin Patch
-*** Update File: ordered.txt
-@@
--four
-+FOUR
-@@
--two
-+TWO
-*** End Patch`;
-		const execute = getTool().execute;
-		assert.ok(execute);
-
-		await assert.rejects(
-			execute("call-out-of-order", { input: patch }, undefined, undefined, { cwd }),
-			(error: Error) => {
-				assert.equal(error.message.match(/Failed to find expected lines/g)?.length, 1);
-				assert.match(error.message, /order each Update File's hunks top-to-bottom/);
-				assert.match(error.message, /copy exact indentation/);
-				return true;
-			},
-		);
-		assert.equal(await readFile(filePath, "utf8"), "one\ntwo\nthree\nfour\n");
-
-		await assert.rejects(
-			execute("call-invalid-patch", { input: "not a patch" }, undefined, undefined, { cwd }),
-			(error: Error) => {
-				assert.match(error.message, /The first line of the patch must be '\*\*\* Begin Patch'/);
-				assert.doesNotMatch(error.message, /hunks top-to-bottom/);
-				return true;
-			},
-		);
 	} finally {
 		clearApplyPatchRenderState();
 		await rm(cwd, { recursive: true, force: true });

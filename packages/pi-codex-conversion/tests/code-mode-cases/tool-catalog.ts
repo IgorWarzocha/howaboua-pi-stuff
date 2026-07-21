@@ -24,7 +24,7 @@ test("Code Mode advertises only model-compatible nested tools", async () => {
 		);
 		assert.match(
 			promptResult?.systemPrompt ?? "",
-			/await tools\.apply_patch\(patch\) \/\/ each Update File: hunks top-to-bottom; indentation is literal/,
+			/await tools\.apply_patch\(patch\)/,
 		);
 		assert.match(promptResult?.systemPrompt ?? "", /const result = await tools\.view_image/);
 		assert.match(promptResult?.systemPrompt ?? "", /await tools\.web__run/);

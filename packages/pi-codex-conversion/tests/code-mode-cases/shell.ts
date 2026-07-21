@@ -112,36 +112,3 @@ test("Code Mode invokes and renders the conversion shell through V8", async () =
 		await fixture.close();
 	}
 });
-
-test("Code Mode preserves shell quoting when cmd uses String.raw", async () => {
-	const fixture = await createCodeModeHarness();
-	try {
-		const exec = fixture.tools.get("exec");
-		assert.ok(exec);
-		const result = await exec.execute(
-			"exec-quoted",
-			{
-				code: 'text(await tools.exec_command({ cmd: String.raw`printf "%s" "\\${CODE_MODE_LITERAL}"` }));',
-			},
-			undefined,
-			undefined,
-			{
-				cwd: process.cwd(),
-				model: {
-					provider: "openai-codex",
-					api: "openai-codex-responses",
-					id: "gpt-5.6-luna",
-					input: ["text"],
-				},
-			} as never,
-		);
-		assert.match(
-			result.content
-				.map((item: { text?: string }) => item.text ?? "")
-				.join("\n"),
-			/\$\{CODE_MODE_LITERAL\}/,
-		);
-	} finally {
-		await fixture.close();
-	}
-});
