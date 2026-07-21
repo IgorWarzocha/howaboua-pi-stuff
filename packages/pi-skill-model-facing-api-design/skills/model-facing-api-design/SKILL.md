@@ -69,6 +69,8 @@ If legacy markers are present, stop the normal wording/token review. If edits ar
    - Remove marketing language, implementation trivia, decorative formatting, and examples that do not prevent real misuse.
    - Do not compress away required evidence, caveats, recovery information, or trigger boundaries merely to improve a token count.
 
+   **Punctuation and token-cost pass:** treat model-facing copy as serialized API payload, not ordinary prose. Omit cosmetic terminal periods from terse labels, one-line fragments, and bullet guidelines when the emitted form saves a token. Preserve structural or meaningful punctuation: quotes, backticks, `${}`, URLs, paths, versions, regexes, decimals, ellipses, code/grammar delimiters, and internal sentence separators. Measure emitted values or serialized schemas rather than TypeScript source lines; compare each mode and conditional tool separately instead of summing mutually exclusive surfaces. Sweep schema descriptions, tool descriptions, `promptSnippet`/guidelines, model-visible results/errors, and secondary-model prompts together, removing duplication before micro-optimizing punctuation
+
 7. **Validate the complete loop.**
    - Check representative selection, valid calls, invalid calls, empty results, failures, and truncated results as relevant to the tool.
    - Confirm the model can distinguish neighboring tools and continue correctly from both success and failure output.
