@@ -61,10 +61,14 @@ test("apply_patch reports partial failures with recovery metadata", async () => 
 			};
 		};
 		assert.equal(result.content[0]!?.type, "text");
-		assert.match(result.content[0]!?.text ?? "", /partially failed/i);
-		assert.match(result.content[0]!?.text ?? "", /MUST read missing\.txt before retrying/);
-		assert.match(result.content[0]!?.text ?? "", /Earlier file actions in this patch were already applied/);
-		assert.match(result.content[0]!?.text ?? "", /MUST NOT reread other files from this patch unless a specific dependency requires it/);
+		const output = result.content[0]!?.text ?? "";
+		assert.match(output, /partially failed/i);
+		assert.match(output, /MUST read missing\.txt before retrying/);
+		assert.match(output, /Earlier file actions in this patch were already applied/);
+		assert.match(output, /MUST NOT reread other files from this patch unless a specific dependency requires it/);
+		assert.doesNotMatch(output, /before retrying\./);
+		assert.doesNotMatch(output, /applied\./);
+		assert.doesNotMatch(output, /requires it\./);
 		assert.deepEqual(result.details?.failedFiles, ["missing.txt"]);
 		assert.deepEqual(result.details?.appliedFiles, ["created.txt"]);
 		assert.deepEqual(result.details?.recoveryInstructions?.mustReadFiles, ["missing.txt"]);
