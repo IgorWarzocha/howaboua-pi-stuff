@@ -1,5 +1,9 @@
-import type { ProviderHeaders, Usage } from "@earendil-works/pi-ai";
-import { completeSimple, type Model } from "@earendil-works/pi-ai/compat";
+import type {
+	Model,
+	ProviderHeaders,
+	SimpleStreamOptions,
+	Usage,
+} from "@earendil-works/pi-ai";
 import {
 	type ExtensionAPI,
 	type ExtensionContext,
@@ -10,6 +14,7 @@ import {
 	buildRescueConversation,
 	buildRescuePrompt,
 	RESCUE_SYSTEM_PROMPT,
+	truncateRescueText,
 } from "./src/summary.js";
 
 interface PendingRescue {
@@ -36,6 +41,7 @@ function notify(
 
 function fileOperationSummary(
 	fileOps: SessionBeforeCompactEvent["preparation"]["fileOps"],
+	maxTokens: number,
 ): string {
 	const modifiedFiles = [
 		...new Set([...fileOps.written, ...fileOps.edited]),
@@ -44,16 +50,89 @@ function fileOperationSummary(
 	const readFiles = [...fileOps.read]
 		.filter((file) => !modified.has(file))
 		.sort();
-	const sections: string[] = [];
-	if (readFiles.length > 0) {
-		sections.push(`<read-files>\n${readFiles.join("\n")}\n</read-files>`);
-	}
-	if (modifiedFiles.length > 0) {
-		sections.push(
-			`<modified-files>\n${modifiedFiles.join("\n")}\n</modified-files>`,
-		);
-	}
-	return sections.length > 0 ? `\n\n${sections.join("\n\n")}` : "";
+	const lists = [
+		readFiles.length > 0 ? { tag: "read-files", files: readFiles } : undefined,
+		modifiedFiles.length > 0
+			? { tag: "modified-files", files: modifiedFiles }
+			: undefined,
+	].filter(
+		(list): list is { tag: string; files: string[] } => list !== undefined,
+	);
+	if (lists.length === 0 || maxTokens <= 0) return "";
+
+	const sectionTokens = Math.max(1, Math.floor(maxTokens / lists.length));
+	return lists
+		.map(({ tag, files }) => {
+			const prefix = `<${tag}>\n`;
+			const suffix = `\n</${tag}>`;
+			const contentTokens = Math.max(
+				1,
+				Math.floor((sectionTokens * 4 - prefix.length - suffix.length) / 4),
+			);
+			const content = truncateRescueText(
+				files.join("\n"),
+				contentTokens,
+				"[More file operation paths omitted]\n",
+			);
+			return `${prefix}${content}${suffix}`;
+		})
+		.join("\n\n")
+		.replace(/^/, "\n\n");
+}
+
+const DEFAULT_CONTEXT_WINDOW = 128_000;
+const MAX_RESCUE_OUTPUT_TOKENS = 8_192;
+const MAX_RESCUE_INSTRUCTION_TOKENS = 2_048;
+const PROMPT_SAFETY_MARGIN_TOKENS = 128;
+
+function estimateTextTokens(text: string): number {
+	return Math.ceil(text.length / 4);
+}
+
+function rescueTokenBudgets(
+	model: Model<any>,
+	instructions: string | undefined,
+): {
+	input: number;
+	output: number;
+	instructions?: string;
+} {
+	const contextWindow = Math.max(
+		1,
+		model.contextWindow || DEFAULT_CONTEXT_WINDOW,
+	);
+	const output = Math.min(
+		Math.max(1, Math.floor(contextWindow * 0.2)),
+		Math.max(1, contextWindow - 1),
+		Math.min(
+			MAX_RESCUE_OUTPUT_TOKENS,
+			model.maxTokens > 0
+				? Math.max(1, Math.floor(model.maxTokens))
+				: MAX_RESCUE_OUTPUT_TOKENS,
+		),
+	);
+	const instructionLimit = Math.min(
+		MAX_RESCUE_INSTRUCTION_TOKENS,
+		Math.max(0, Math.floor(contextWindow * 0.1)),
+	);
+	const boundedInstructions = instructions?.trim()
+		? truncateRescueText(
+				instructions.trim(),
+				instructionLimit,
+				"[Additional focus truncated]\n",
+			)
+		: undefined;
+	const fixedPromptTokens =
+		estimateTextTokens(RESCUE_SYSTEM_PROMPT) +
+		estimateTextTokens(buildRescuePrompt({ text: "" }, boundedInstructions));
+	return {
+		input: Math.max(
+			0,
+			contextWindow - output - fixedPromptTokens - PROMPT_SAFETY_MARGIN_TOKENS,
+		),
+		output,
+		...(boundedInstructions ? { instructions: boundedInstructions } : {}),
+	};
 }
 
 async function rescueSummary(
@@ -71,10 +150,10 @@ async function rescueSummary(
 
 	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
 	if (!auth.ok) throw new Error(`Rescue auth failed: ${auth.error}`);
-	if (!auth.apiKey && !auth.headers && !auth.env)
-		throw new Error(
-			`No usable authentication is available for ${model.provider}/${model.id}`,
-		);
+	const provider = ctx.modelRegistry.getProvider(model.provider);
+	if (!provider)
+		throw new Error(`No provider is registered for ${model.provider}`);
+	const budgets = rescueTokenBudgets(model, pending.instructions);
 
 	const messages = [
 		...event.preparation.messagesToSummarize,
@@ -83,14 +162,16 @@ async function rescueSummary(
 	const conversation = buildRescueConversation(
 		messages,
 		event.preparation.previousSummary,
+		budgets.input,
 	);
 	if (!conversation.text.trim())
 		throw new Error("The session has no text that rescue can summarize");
 
 	notify(ctx, `Rescue: summarizing with ${model.provider}/${model.id}`);
 
-	const requestOptions = {
+	const requestOptions: SimpleStreamOptions = {
 		signal: event.signal,
+		maxTokens: budgets.output,
 		...(auth.apiKey ? { apiKey: auth.apiKey } : {}),
 		...(auth.headers ? { headers: auth.headers as ProviderHeaders } : {}),
 		...(auth.env ? { env: auth.env } : {}),
@@ -99,25 +180,31 @@ async function rescueSummary(
 			: {}),
 	};
 
-	const response = await completeSimple(
-		model,
-		{
-			systemPrompt: RESCUE_SYSTEM_PROMPT,
-			messages: [
-				{
-					role: "user",
-					content: [
-						{
-							type: "text",
-							text: buildRescuePrompt(conversation, pending.instructions),
-						},
-					],
-					timestamp: Date.now(),
-				},
-			],
-		},
-		requestOptions,
-	);
+	const requestModel =
+		provider.baseUrl && !model.baseUrl
+			? { ...model, baseUrl: provider.baseUrl }
+			: model;
+	const response = await provider
+		.streamSimple(
+			requestModel,
+			{
+				systemPrompt: RESCUE_SYSTEM_PROMPT,
+				messages: [
+					{
+						role: "user",
+						content: [
+							{
+								type: "text",
+								text: buildRescuePrompt(conversation, budgets.instructions),
+							},
+						],
+						timestamp: Date.now(),
+					},
+				],
+			},
+			requestOptions,
+		)
+		.result();
 
 	if (response.stopReason === "error") {
 		throw new Error(
@@ -133,9 +220,17 @@ async function rescueSummary(
 		.join("\n")
 		.trim();
 	if (!summary) throw new Error("The rescue model returned an empty summary");
+	const fileOps = fileOperationSummary(
+		event.preparation.fileOps,
+		Math.floor(budgets.output * 0.25),
+	);
+	const boundedSummary = truncateRescueText(
+		summary,
+		Math.max(1, budgets.output - estimateTextTokens(fileOps)),
+	);
 
 	return {
-		summary: summary + fileOperationSummary(event.preparation.fileOps),
+		summary: boundedSummary + fileOps,
 		usage: response.usage,
 	};
 }

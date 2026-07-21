@@ -1,5 +1,5 @@
 import type { Message } from "@earendil-works/pi-ai";
-import { convertToLlm } from "@earendil-works/pi-coding-agent";
+import { convertToLlm, estimateTokens } from "@earendil-works/pi-coding-agent";
 
 type ContextMessages = Parameters<typeof convertToLlm>[0];
 
@@ -26,35 +26,106 @@ function textFromContent(content: unknown): string {
 		.trim();
 }
 
-function messageLabel(message: Message): string {
-	return message.role === "assistant" ? "Assistant" : "User";
+function messageLabel(message: ContextMessages[number]): string {
+	switch (message.role) {
+		case "assistant":
+			return "Assistant";
+		case "custom":
+			return `Extension (${message.customType})`;
+		case "branchSummary":
+			return "Branch summary";
+		case "compactionSummary":
+			return "Previous compaction summary";
+		default:
+			return "User";
+	}
 }
 
 function messageText(message: Message): string {
 	return textFromContent(message.content);
 }
 
-function formatMessages(messages: ContextMessages): string {
-	const llmMessages = convertToLlm(
-		messages.filter((message) =>
-			[
-				"user",
-				"assistant",
-				"custom",
-				"branchSummary",
-				"compactionSummary",
-			].includes(message.role),
-		),
-	);
+interface RescueMessage {
+	text: string;
+	tokens: number;
+}
 
-	return llmMessages
-		.filter(
-			(message) => message.role === "user" || message.role === "assistant",
-		)
-		.map((message) => {
-			const text = messageText(message);
-			return text ? `[${messageLabel(message)}]\n${text}` : "";
-		})
+function formatMessages(messages: ContextMessages): RescueMessage[] {
+	const sourceMessages = messages.filter((message) =>
+		[
+			"user",
+			"assistant",
+			"custom",
+			"branchSummary",
+			"compactionSummary",
+		].includes(message.role),
+	);
+	const llmMessages = convertToLlm(sourceMessages);
+
+	return llmMessages.flatMap((message, index) => {
+		if (message.role !== "user" && message.role !== "assistant") return [];
+		const sourceMessage = sourceMessages[index];
+		if (!sourceMessage) return [];
+		const text = messageText(message);
+		if (!text) return [];
+		return [
+			{
+				text: `[${messageLabel(sourceMessage)}]\n${text}`,
+				tokens: estimateTokens(sourceMessage),
+			},
+		];
+	});
+}
+
+export function truncateRescueText(
+	text: string,
+	maxTokens: number,
+	marker = "[Earlier context omitted]\n",
+): string {
+	const maxChars = Math.max(1, maxTokens * 4);
+	if (text.length <= maxChars) return text;
+	if (maxChars <= marker.length) return marker.slice(0, maxChars);
+	const contentChars = maxChars - marker.length;
+	const beginningChars = Math.ceil(contentChars / 2);
+	const endingChars = contentChars - beginningChars;
+	return (
+		text.slice(0, beginningChars) +
+		marker +
+		(endingChars > 0 ? text.slice(-endingChars) : "")
+	);
+}
+
+function selectRecentMessages(
+	messages: RescueMessage[],
+	maxTokens: number,
+): string {
+	if (!Number.isFinite(maxTokens))
+		return messages.map((message) => message.text).join("\n\n");
+
+	let remaining = Math.max(1, maxTokens);
+	const selected: RescueMessage[] = [];
+	for (let index = messages.length - 1; index >= 0; index--) {
+		const message = messages[index];
+		if (!message) continue;
+		if (message.tokens <= remaining) {
+			selected.unshift(message);
+			remaining -= message.tokens;
+			continue;
+		}
+		if (selected.length === 0 && remaining > 8) {
+			selected.unshift({
+				text: truncateRescueText(message.text, remaining),
+				tokens: remaining,
+			});
+		}
+		break;
+	}
+
+	const omitted = selected.length < messages.length;
+	return [
+		omitted ? "[Earlier conversation omitted]" : "",
+		...selected.map((message) => message.text),
+	]
 		.filter(Boolean)
 		.join("\n\n");
 }
@@ -66,11 +137,23 @@ export interface RescueConversation {
 export function buildRescueConversation(
 	messages: ContextMessages,
 	previousSummary: string | undefined,
+	maxTokens = Number.POSITIVE_INFINITY,
 ): RescueConversation {
-	const history = formatMessages(messages);
-	const previous = previousSummary?.trim()
-		? `<previous-summary>\n${previousSummary.trim()}\n</previous-summary>`
+	const formattedMessages = formatMessages(messages);
+	const previousText = previousSummary?.trim();
+	const previousBudget = Number.isFinite(maxTokens)
+		? Math.max(1, Math.floor(maxTokens * 0.25))
+		: Number.POSITIVE_INFINITY;
+	const previous = previousText
+		? `<previous-summary>\n${truncateRescueText(previousText, previousBudget)}\n</previous-summary>`
 		: "";
+	const previousTokens = previous ? Math.ceil(previous.length / 4) : 0;
+	const history = selectRecentMessages(
+		formattedMessages,
+		Number.isFinite(maxTokens)
+			? Math.max(1, maxTokens - previousTokens)
+			: Number.POSITIVE_INFINITY,
+	);
 	const source = [
 		previous,
 		history ? `<conversation>\n${history}\n</conversation>` : "",

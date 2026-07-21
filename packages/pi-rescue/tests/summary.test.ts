@@ -57,6 +57,52 @@ test("keeps the complete text supplied to rescue", () => {
 	expect(result.text).toContain("x".repeat(4000));
 });
 
+test("trims oldest conversation content to the requested token budget", () => {
+	const result = buildRescueConversation(
+		[
+			{ role: "user", content: "old context ".repeat(100), timestamp: 1 },
+			{ role: "assistant", content: "latest decision", timestamp: 2 },
+		] as never,
+		undefined,
+		20,
+	);
+
+	expect(result.text).toContain("[Earlier conversation omitted]");
+	expect(result.text).toContain("latest decision");
+	expect(result.text).not.toContain("old context");
+});
+
+test("preserves source labels for extension and summary messages", () => {
+	const result = buildRescueConversation(
+		[
+			{
+				role: "custom",
+				customType: "note",
+				content: "extension context",
+				display: true,
+				timestamp: 1,
+			},
+			{
+				role: "branchSummary",
+				summary: "branch context",
+				fromId: "branch-1",
+				timestamp: 2,
+			},
+			{
+				role: "compactionSummary",
+				summary: "compacted context",
+				tokensBefore: 100,
+				timestamp: 3,
+			},
+		] as never,
+		undefined,
+	);
+
+	expect(result.text).toContain("[Extension (note)]");
+	expect(result.text).toContain("[Branch summary]");
+	expect(result.text).toContain("[Previous compaction summary]");
+});
+
 test("adds command guidance without changing the transcript", () => {
 	const conversation = {
 		text: "[User]\nContinue the API work",
