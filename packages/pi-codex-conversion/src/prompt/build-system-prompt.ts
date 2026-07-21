@@ -48,6 +48,28 @@ const PATH_MODE_REMOVED_GUIDELINES = new Set([
 	"Run independent tool calls in parallel when practical",
 ]);
 
+const ALL_STATIC_CODEX_GUIDELINES = [
+	...NORMAL_CODEX_GUIDELINES,
+	...PATH_CODEX_GUIDELINES,
+	...CODE_MODE_GUIDELINES,
+];
+
+function withoutCosmeticTerminalPeriod(value: string): string {
+	return value.endsWith(".") && !value.endsWith("..") ? value.slice(0, -1) : value;
+}
+
+const STATIC_CODEX_GUIDELINES_BY_KEY = new Map(
+	ALL_STATIC_CODEX_GUIDELINES.map((guideline) => [withoutCosmeticTerminalPeriod(guideline), guideline]),
+);
+
+function canonicalizeGuidelineLine(line: string): string {
+	const match = line.match(/^(\s*-\s+)(.*)$/);
+	if (!match) return line;
+	const key = withoutCosmeticTerminalPeriod(match[2]!.trim());
+	const canonical = STATIC_CODEX_GUIDELINES_BY_KEY.get(key);
+	return canonical ? `${match[1]}${canonical}` : line;
+}
+
 export interface CodexPromptToolOptions {
 	viewImage?: boolean | undefined;
 	webRun?: boolean | undefined;
@@ -178,15 +200,16 @@ function injectGuidelines(prompt: string, mode?: CodexPromptMode, tools?: CodexP
 
 	const [, header, body, suffix] = match as RegExpMatchArray & { 1: string; 2: string; 3: string };
 	const bodyLines = body.split("\n");
+	const canonicalBodyLines = bodyLines.map(canonicalizeGuidelineLine);
 	const keptBodyLines = mode === "path" || mode === "code"
-		? bodyLines.filter((line) => !PATH_MODE_REMOVED_GUIDELINES.has(line.trim().replace(/^-\s*/, "")))
-		: bodyLines;
+		? canonicalBodyLines.filter((line) => !PATH_MODE_REMOVED_GUIDELINES.has(withoutCosmeticTerminalPeriod(line.trim().replace(/^-\s*/, ""))))
+		: canonicalBodyLines;
 	const existingLines = keptBodyLines
 		.map((line) => line.trim())
 		.filter((line) => line.startsWith("- "));
 	const existing = new Set(existingLines.map((line) => line.slice(2)));
 	const additions = buildCodexGuidelines(mode, tools).filter((line) => !existing.has(line)).map((line) => `- ${line}`);
-	if (additions.length === 0) {
+	if (additions.length === 0 && keptBodyLines.join("\n") === body) {
 		return prompt;
 	}
 
