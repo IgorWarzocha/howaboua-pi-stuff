@@ -72,6 +72,21 @@ test("trims oldest conversation content to the requested token budget", () => {
 	expect(result.text).not.toContain("old context");
 });
 
+test("prioritizes recent context when a previous summary wrapper cannot fit", () => {
+	const result = buildRescueConversation(
+		[
+			{ role: "user", content: "recent decision", timestamp: 1 },
+			{ role: "assistant", content: "latest next step", timestamp: 2 },
+		] as never,
+		"old summary",
+		20,
+	);
+
+	expect(result.text).toContain("latest");
+	expect(result.text).not.toContain("old summary");
+	expect(result.text.length).toBeLessThanOrEqual(80);
+});
+
 test("preserves source labels for extension and summary messages", () => {
 	const result = buildRescueConversation(
 		[

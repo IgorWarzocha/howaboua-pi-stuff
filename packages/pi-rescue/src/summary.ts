@@ -119,9 +119,9 @@ function selectRecentMessages(
 			remaining -= message.tokens;
 			continue;
 		}
-		if (selected.length === 0 && remaining > 8) {
+		if (selected.length === 0 && remaining > 0) {
 			selected.unshift({
-				text: truncateRescueText(message.text, remaining),
+				text: truncateRescueText(message.text, remaining, ""),
 				tokens: remaining,
 			});
 		}
@@ -129,10 +129,15 @@ function selectRecentMessages(
 	}
 
 	const omitted = selected.length < messages.length;
-	return [
-		omitted ? "[Earlier conversation omitted]" : "",
-		...selected.map((message) => message.text),
-	]
+	const selectedText = selected.map((message) => message.text).join("\n\n");
+	const omittedMarker = "[Earlier conversation omitted]";
+	const selectedTokens = selected.reduce(
+		(total, message) => total + message.tokens,
+		0,
+	);
+	const markerTokens = estimateTextTokens(`${omittedMarker}\n\n`);
+	const includeMarker = omitted && selectedTokens + markerTokens <= maxTokens;
+	return [includeMarker ? omittedMarker : "", selectedText]
 		.filter(Boolean)
 		.join("\n\n");
 }
@@ -148,20 +153,21 @@ export function buildRescueConversation(
 ): RescueConversation {
 	const formattedMessages = formatMessages(messages);
 	const previousText = previousSummary?.trim();
+	const previousWrapperTokens = estimateTextTokens(
+		"<previous-summary>\n\n</previous-summary>",
+	);
 	const previousBudget = Number.isFinite(maxTokens)
-		? Math.max(1, Math.floor(maxTokens * 0.25))
+		? Math.max(0, Math.floor(maxTokens * 0.25) - previousWrapperTokens)
 		: Number.POSITIVE_INFINITY;
-	const previous = previousText
-		? `<previous-summary>\n${truncateRescueText(previousText, previousBudget)}\n</previous-summary>`
-		: "";
+	const previous =
+		previousText && previousBudget > 0
+			? `<previous-summary>\n${truncateRescueText(previousText, previousBudget)}\n</previous-summary>`
+			: "";
 	const previousTokens = estimateTextTokens(previous);
 	const conversationWrapperTokens = estimateTextTokens(
 		"<conversation>\n\n</conversation>",
 	);
 	const separatorTokens = previous ? estimateTextTokens("\n\n") : 0;
-	const omittedMarkerTokens = estimateTextTokens(
-		"[Earlier conversation omitted]\n\n",
-	);
 	const history = selectRecentMessages(
 		formattedMessages,
 		Number.isFinite(maxTokens)
@@ -170,17 +176,16 @@ export function buildRescueConversation(
 					maxTokens -
 						previousTokens -
 						conversationWrapperTokens -
-						separatorTokens -
-						omittedMarkerTokens,
+						separatorTokens,
 				)
 			: Number.POSITIVE_INFINITY,
 	);
-	const source = [
-		previous,
+	const historySource = [
 		history ? `<conversation>\n${history}\n</conversation>` : "",
 	]
 		.filter(Boolean)
 		.join("\n\n");
+	const source = [previous, historySource].filter(Boolean).join("\n\n");
 	return {
 		text: source,
 	};

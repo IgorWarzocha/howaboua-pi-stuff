@@ -68,31 +68,41 @@ function fileOperationSummary(
 		return { text: "", readFiles: [], modifiedFiles: [] };
 	}
 
-	const sectionTokens = Math.max(1, Math.floor(maxTokens / lists.length));
+	const totalChars = Math.max(0, Math.floor(maxTokens * 4));
+	const outerSeparatorChars = 2;
+	const betweenSectionsChars = 2 * Math.max(0, lists.length - 1);
+	const sectionChars = Math.floor(
+		Math.max(0, totalChars - outerSeparatorChars - betweenSectionsChars) /
+			lists.length,
+	);
 	const selected = new Map<string, string[]>();
 	const sections = lists.map(({ tag, files }) => {
 		const prefix = `<${tag}>\n`;
 		const suffix = `\n</${tag}>`;
-		const contentChars = Math.max(
-			1,
-			sectionTokens * 4 - prefix.length - suffix.length,
-		);
+		const contentChars = sectionChars - prefix.length - suffix.length;
+		if (contentChars <= 0) {
+			selected.set(tag, []);
+			return "";
+		}
 		const omittedMarkerReserve = `[${files.length} more paths omitted]`;
+		const markerFits = omittedMarkerReserve.length <= contentChars;
+		const fileContentChars = markerFits
+			? Math.max(0, contentChars - omittedMarkerReserve.length - 1)
+			: contentChars;
 		const boundedFiles: string[] = [];
 		let usedChars = 0;
 		for (const file of files) {
 			const separator = boundedFiles.length > 0 ? 1 : 0;
-			if (
-				usedChars + separator + file.length >
-				contentChars - omittedMarkerReserve.length - 1
-			)
-				break;
+			if (usedChars + separator + file.length > fileContentChars) break;
 			boundedFiles.push(file);
 			usedChars += separator + file.length;
 		}
 		const omitted = boundedFiles.length < files.length;
 		const omittedMarker = `[${files.length - boundedFiles.length} more paths omitted]`;
-		const content = [...boundedFiles, omitted ? omittedMarker : ""]
+		const includeMarker =
+			omitted &&
+			omittedMarker.length + (boundedFiles.length > 0 ? 1 : 0) <= contentChars;
+		const content = [...boundedFiles, includeMarker ? omittedMarker : ""]
 			.filter(Boolean)
 			.join("\n");
 		selected.set(tag, boundedFiles);
@@ -100,8 +110,12 @@ function fileOperationSummary(
 	});
 	const readSelected = selected.get("read-files") ?? [];
 	const modifiedSelected = selected.get("modified-files") ?? [];
+	const textSections = sections.filter(Boolean);
 	return {
-		text: sections.join("\n\n").replace(/^/, "\n\n"),
+		text:
+			textSections.length > 0
+				? textSections.join("\n\n").replace(/^/, "\n\n")
+				: "",
 		readFiles: readSelected,
 		modifiedFiles: modifiedSelected,
 	};
@@ -237,9 +251,11 @@ async function rescueSummary(
 		)
 		.result();
 
-	if (response.stopReason === "error") {
+	if (response.stopReason !== "stop") {
 		throw new Error(
-			response.errorMessage || "The rescue model returned an error",
+			response.stopReason === "error"
+				? response.errorMessage || "The rescue model returned an error"
+				: `The rescue model stopped before completing a summary (${response.stopReason})`,
 		);
 	}
 
@@ -255,10 +271,12 @@ async function rescueSummary(
 		event.preparation.fileOps,
 		Math.floor(budgets.output * 0.25),
 	);
-	const boundedSummary = truncateRescueText(
-		summary,
-		Math.max(1, budgets.output - estimateTextTokens(fileOps.text)),
+	const summaryBudget = Math.max(
+		0,
+		budgets.output - estimateTextTokens(fileOps.text),
 	);
+	const boundedSummary =
+		summaryBudget > 0 ? truncateRescueText(summary, summaryBudget) : "";
 
 	return {
 		summary: boundedSummary + fileOps.text,
@@ -273,6 +291,7 @@ async function rescueSummary(
 
 export default function (pi: ExtensionAPI): void {
 	let pending: PendingRescue | undefined;
+	let rescueRunning = false;
 
 	pi.on("session_before_compact", async (event, ctx) => {
 		if (!pending) return;
@@ -303,13 +322,22 @@ export default function (pi: ExtensionAPI): void {
 		description: "Compact with a tool-free rescue summary",
 		handler: async (args, ctx) => {
 			await ctx.waitForIdle();
+			if (pending || rescueRunning) {
+				notify(ctx, "Rescue compaction already in progress", "warning");
+				return;
+			}
 			const instructions = args.trim();
 			pending = instructions ? { instructions } : {};
+			rescueRunning = true;
 			notify(ctx, "Rescue compaction started");
 			ctx.compact({
-				onComplete: () => notify(ctx, "Rescue compaction completed"),
+				onComplete: () => {
+					rescueRunning = false;
+					notify(ctx, "Rescue compaction completed");
+				},
 				onError: (error) => {
 					pending = undefined;
+					rescueRunning = false;
 					notify(ctx, `Rescue compaction failed: ${error.message}`, "error");
 				},
 			});
