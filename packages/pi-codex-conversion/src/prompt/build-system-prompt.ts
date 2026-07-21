@@ -23,7 +23,7 @@ const NORMAL_CODEX_GUIDELINES = [
 const PATH_CODEX_GUIDELINES = [
 	"Use exec_command for shell/file/build/test; prefer rg/rg --files",
 	"Use tty=true for interactive commands",
-	"Use apply_patch for file edits",
+	"Use apply_patch for file edits; order each file's hunks top-to-bottom; indentation is literal",
 	"Do not probe listed PATH tools",
 	"Use stdin/heredoc for quoted or multiline PATH args",
 	"Chain dependent shell commands with &&",

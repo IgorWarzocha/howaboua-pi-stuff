@@ -73,6 +73,44 @@ test("apply_patch reports partial failures with recovery metadata", async () => 
 		assert.deepEqual(result.details?.appliedFiles, ["created.txt"]);
 		assert.deepEqual(result.details?.recoveryInstructions?.mustReadFiles, ["missing.txt"]);
 		assert.deepEqual(result.details?.recoveryInstructions?.mustNotReadFiles, ["created.txt"]);
+		assert.notStrictEqual(result.details?.recoveryInstructions?.mustReadFiles, result.details?.failedFiles);
+		assert.notStrictEqual(result.details?.recoveryInstructions?.mustNotReadFiles, result.details?.appliedFiles);
+	} finally {
+		clearApplyPatchRenderState();
+		await rm(cwd, { recursive: true, force: true });
+	}
+});
+
+test("apply_patch explains out-of-order hunk recovery without changing the file", async () => {
+	const cwd = mkdtempSync(join(tmpdir(), "pi-codex-conversion-"));
+	const filePath = join(cwd, "ordered.txt");
+	const { pi, getTool } = createRegisteredTool();
+	registerApplyPatchTool(pi);
+
+	try {
+		writeFileSync(filePath, "one\ntwo\nthree\nfour\n", "utf8");
+		const patch = `*** Begin Patch
+*** Update File: ordered.txt
+@@
+-four
++FOUR
+@@
+-two
++TWO
+*** End Patch`;
+		const execute = getTool().execute;
+		assert.ok(execute);
+
+		await assert.rejects(
+			execute("call-out-of-order", { input: patch }, undefined, undefined, { cwd }),
+			(error: Error) => {
+				assert.equal(error.message.match(/Failed to find expected lines/g)?.length, 1);
+				assert.match(error.message, /order each Update File's hunks top-to-bottom/);
+				assert.match(error.message, /copy exact indentation/);
+				return true;
+			},
+		);
+		assert.equal(await readFile(filePath, "utf8"), "one\ntwo\nthree\nfour\n");
 	} finally {
 		clearApplyPatchRenderState();
 		await rm(cwd, { recursive: true, force: true });

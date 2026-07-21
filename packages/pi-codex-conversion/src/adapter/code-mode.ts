@@ -60,7 +60,7 @@ function createNestedTools(
 				promptSnippet: false,
 				showDiffWhenCollapsed: !runtime.state.config.ui.compactTools,
 			}),
-			"await tools.apply_patch(patch)",
+			"await tools.apply_patch(patch) // each Update File: hunks top-to-bottom; indentation is literal",
 			{},
 			{
 				kind: "freeform",
