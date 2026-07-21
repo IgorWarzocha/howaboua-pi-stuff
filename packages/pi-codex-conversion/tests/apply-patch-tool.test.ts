@@ -81,7 +81,7 @@ test("apply_patch reports partial failures with recovery metadata", async () => 
 	}
 });
 
-test("apply_patch explains out-of-order hunk recovery without changing the file", async () => {
+test("apply_patch explains out-of-order hunk recovery and preserves other errors", async () => {
 	const cwd = mkdtempSync(join(tmpdir(), "pi-codex-conversion-"));
 	const filePath = join(cwd, "ordered.txt");
 	const { pi, getTool } = createRegisteredTool();
@@ -111,6 +111,15 @@ test("apply_patch explains out-of-order hunk recovery without changing the file"
 			},
 		);
 		assert.equal(await readFile(filePath, "utf8"), "one\ntwo\nthree\nfour\n");
+
+		await assert.rejects(
+			execute("call-invalid-patch", { input: "not a patch" }, undefined, undefined, { cwd }),
+			(error: Error) => {
+				assert.match(error.message, /The first line of the patch must be '\*\*\* Begin Patch'/);
+				assert.doesNotMatch(error.message, /hunks top-to-bottom/);
+				return true;
+			},
+		);
 	} finally {
 		clearApplyPatchRenderState();
 		await rm(cwd, { recursive: true, force: true });

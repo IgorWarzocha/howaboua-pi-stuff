@@ -83,8 +83,8 @@ function buildPartialFailureMessage(message: string, failedFiles: string[], appl
 	return lines.join("\n");
 }
 
-function addPatchRetryHint(message: string): string {
-	if (!message.includes("Failed to find expected lines")) return message;
+function addPatchRetryHint(message: string, cause: string): string {
+	if (!cause.startsWith("Failed to find expected lines")) return message;
 	return `${message}\nRecovery: order each Update File's hunks top-to-bottom and copy exact indentation before retrying`;
 }
 
@@ -125,7 +125,7 @@ export function createApplyPatchTool(options: ApplyPatchToolOptions = {}) {
 					const failedTargetSummary = failedTargets.join(", ");
 					const prefix = partial ? `apply_patch partially failed after ${summarizePatchCounts(error.result)}` : "apply_patch failed";
 					const rawMessage = failedTargetSummary ? `${prefix} while patching ${failedTargetSummary}: ${error.message}` : `${prefix}: ${error.message}`;
-					const message = addPatchRetryHint(rawMessage);
+					const message = addPatchRetryHint(rawMessage, error.message);
 					if (partial) {
 						const failedFiles = getFailedPaths(error);
 						const appliedFiles = getAppliedPaths(error.result, failedFiles);
