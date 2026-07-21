@@ -1,6 +1,6 @@
 import type { CodeModeToolMetadata } from "./types.js";
 
-export const EXEC_DESCRIPTION = `Run raw JavaScript to compose tool calls.
+export const EXEC_DESCRIPTION = `Run raw JavaScript to compose tool calls. Pass tools.exec_command cmd as a raw shell string, not a whole shell-quoted command; use String.raw\`...\` when embedded shell quotes would make the JavaScript string noisy.
 Optional first line: // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}
 Emit output with text(value); console is unavailable.
 Globals: tools, text, image, generatedImage, store, load, notify, yield_control, exit, setTimeout, clearTimeout, ALL_TOOLS.`;

@@ -18,7 +18,7 @@ import { codexToolProviderEnv, resolveCodexToolProvider } from "../../adapter/co
 export { imageContentFromCodexViewImageOutput, imageContentsFromCodexViewImageOutput } from "../path/outputs.ts";
 
 const EXEC_COMMAND_PARAMETERS = Type.Object({
-	cmd: Type.String(),
+	cmd: Type.String({ description: "Raw command string interpreted by the current shell; do not quote the entire command." }),
 	workdir: Type.Optional(Type.String({ description: "Cwd." })),
 	shell: Type.Optional(Type.String()),
 	tty: Type.Optional(
@@ -325,7 +325,7 @@ export function createExecCommandTool(tracker: ExecCommandTracker, sessions: Exe
 	const tool: Parameters<ExtensionAPI["registerTool"]>[0] = {
 		name: "exec_command",
 		label: "exec_command",
-		description: "Run shell commands; may return session_id.",
+		description: "Run a raw command string in the current shell; may return session_id. Do not wrap the entire cmd in shell quotes.",
 		...(options.promptSnippet === false ? {} : { promptSnippet: "Run command." }),
 		parameters: EXEC_COMMAND_PARAMETERS,
 		prepareArguments: prepareExecCommandArguments as (args: unknown) => { cmd: string; workdir?: string; shell?: string; tty?: boolean; yield_time_ms?: number; max_output_tokens?: number; login?: boolean },
