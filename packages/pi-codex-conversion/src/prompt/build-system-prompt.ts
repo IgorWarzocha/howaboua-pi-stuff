@@ -32,7 +32,7 @@ const PATH_CODEX_GUIDELINES = [
 
 const CODE_MODE_GUIDELINES = [
 	"Use tools.exec_command for shell commands; prefer rg and rg --files for search.",
-	"Pass tools.exec_command cmd as a raw shell string; do not wrap the entire command in quotes. String.raw`...` only avoids JavaScript backslash escapes; it does not shell-escape, and ${...}/backticks still need JavaScript escaping.",
+	"When calling tools.exec_command from JavaScript, String.raw`...` only avoids JavaScript backslash escapes; it does not shell-escape.",
 	"Continue exec cell_id with wait; continue exec_command session_id by calling tools.write_stdin inside exec.",
 	"Wait proportionally to expected runtime; back off repeated polls.",
 	"Use tty=true for interactive commands.",
