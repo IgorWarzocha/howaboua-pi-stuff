@@ -8,10 +8,10 @@ import { convertPathToolExecResult, getPathToolPolicy, imageContentsFromPathTool
 import { renderTextWithImages } from "../path/rendering.ts";
 
 const WRITE_STDIN_PARAMETERS = Type.Object({
-	session_id: Type.Number({ description: "Session ID." }),
-	chars: Type.Optional(Type.String({ description: "Input. Empty polls." })),
-	yield_time_ms: Type.Optional(Type.Number({ description: "Wait ms." })),
-	max_output_tokens: Type.Optional(Type.Number({ description: "Truncate." })),
+	session_id: Type.Number({ description: "Session ID" }),
+	chars: Type.Optional(Type.String({ description: "Input. Empty polls" })),
+	yield_time_ms: Type.Optional(Type.Number({ description: "Wait ms" })),
+	max_output_tokens: Type.Optional(Type.Number({ description: "Truncate" })),
 });
 
 interface WriteStdinParams {
@@ -111,8 +111,8 @@ export function createWriteStdinTool(sessions: ExecSessionManager, options: { pr
 	const tool: Parameters<ExtensionAPI["registerTool"]>[0] = {
 		name: "write_stdin",
 		label: "write_stdin",
-		description: "Write/poll exec session.",
-		...(options.promptSnippet === false ? {} : { promptSnippet: "Write to exec session." }),
+		description: "Write/poll exec session",
+		...(options.promptSnippet === false ? {} : { promptSnippet: "Write to exec session" }),
 		parameters: WRITE_STDIN_PARAMETERS,
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {
 			const typed = parseWriteStdinParams(params);

@@ -23,7 +23,7 @@ export interface ExecBridgeClient {
 }
 
 const MAX_BRIDGE_STDERR_CHARS = 16_000;
-const LOCAL_BUILD_GUIDANCE = "Bundled exec_bridge is incompatible with this Linux runtime. From a pi-codex-conversion Git checkout, run: bun install && bun run build:path-tool codex-exec-shim exec_bridge, then load that checkout's src/index.ts as the Pi extension.";
+const LOCAL_BUILD_GUIDANCE = "Bundled exec_bridge is incompatible with this Linux runtime. From a pi-codex-conversion Git checkout, run: bun install && bun run build:path-tool codex-exec-shim exec_bridge, then load that checkout's src/index.ts as the Pi extension";
 
 function appendBoundedText(current: string, next: Buffer): string {
 	const combined = `${current}${next.toString("utf8")}`;

@@ -12,8 +12,8 @@ import { renderCodexToolCell } from "../../ui/tool-rendering/codex-tool-cell.ts"
 export const IMAGE_GENERATION_UNSUPPORTED_MESSAGE = "imagegen requires an image-capable OpenAI Codex-compatible Responses provider";
 const IMAGE_GENERATION_PARAMETERS = Type.Object({
 	prompt: Type.String(),
-	action: Type.Optional(Type.Union([Type.Literal("generate"), Type.Literal("edit")], { description: "Default generate." })),
-	images: Type.Optional(Type.Array(Type.String(), { description: "Edit inputs." })),
+	action: Type.Optional(Type.Union([Type.Literal("generate"), Type.Literal("edit")], { description: "Default generate" })),
+	images: Type.Optional(Type.Array(Type.String(), { description: "Edit inputs" })),
 });
 
 type ImagegenArgs = {
@@ -64,7 +64,7 @@ export interface ImageGenerationToolOptions {
 }
 
 export function createImageGenerationTool(options: ImageGenerationToolOptions = {}): ToolDefinition<typeof IMAGE_GENERATION_PARAMETERS, ImagegenDetails> {
-	const description = "Generate/edit images.";
+	const description = "Generate/edit images";
 	return {
 		name: IMAGE_GENERATION_TOOL_NAME,
 		label: IMAGE_GENERATION_TOOL_NAME,

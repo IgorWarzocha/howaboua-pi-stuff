@@ -39,7 +39,7 @@ export function codeModeHostBinaryPath(): string {
 	const cached = codeModeHostCachePath(name);
 	if (existsSync(cached)) return cached;
 	throw new Error(
-		`No code-mode host binary for ${process.platform}-${process.arch}. Reinstall the package or build it with \`bun run build:code-mode-host\`.`,
+		`No code-mode host binary for ${process.platform}-${process.arch}. Reinstall the package or build it with \`bun run build:code-mode-host\``,
 	);
 }
 

@@ -15,17 +15,17 @@ export const WEB_SEARCH_SESSION_NOTE_TYPE = "codex-web-search-session-note";
 
 const SearchQueryParameters = Type.Object({
 	q: Type.String(),
-	recency: Type.Optional(Type.Number({ description: "Recent days." })),
-	domains: Type.Optional(Type.Array(Type.String(), { description: "Domains." })),
+	recency: Type.Optional(Type.Number({ description: "Recent days" })),
+	domains: Type.Optional(Type.Array(Type.String(), { description: "Domains" })),
 }, { additionalProperties: true });
 
 const WEB_SEARCH_PARAMETERS = Type.Object({
 	search_query: Type.Optional(Type.Array(SearchQueryParameters)),
 	image_query: Type.Optional(Type.Array(SearchQueryParameters)),
-	open: Type.Optional(Type.Array(Type.Object({ ref_id: Type.String(), lineno: Type.Optional(Type.Number()) }, { additionalProperties: true }), { description: "ref_id or URL." })),
+	open: Type.Optional(Type.Array(Type.Object({ ref_id: Type.String(), lineno: Type.Optional(Type.Number()) }, { additionalProperties: true }), { description: "ref_id or URL" })),
 	click: Type.Optional(Type.Array(Type.Object({ ref_id: Type.String(), id: Type.Number() }, { additionalProperties: true }))),
 	find: Type.Optional(Type.Array(Type.Object({ ref_id: Type.String(), pattern: Type.String() }, { additionalProperties: true }))),
-	response_length: Type.Optional(Type.Union([Type.Literal("short"), Type.Literal("medium"), Type.Literal("long")], { description: "Answer length." })),
+	response_length: Type.Optional(Type.Union([Type.Literal("short"), Type.Literal("medium"), Type.Literal("long")], { description: "Answer length" })),
 	settings: Type.Optional(Type.Object({
 		search_context_size: Type.Optional(Type.Union([Type.Literal("low"), Type.Literal("medium"), Type.Literal("high")])),
 	}, { additionalProperties: true })),
@@ -203,8 +203,8 @@ export function createWebSearchTool(name: string = WEB_SEARCH_TOOL_NAME, options
 	return {
 		name,
 		label: name,
-		description: "Search/open web.",
-		...(toolOptions.promptSnippet === false ? {} : { promptSnippet: "Use explicit args." }),
+		description: "Search/open web",
+		...(toolOptions.promptSnippet === false ? {} : { promptSnippet: "Use explicit args" }),
 		parameters: WEB_SEARCH_PARAMETERS,
 		prepareArguments: (args) => args && typeof args === "object" ? args as Record<string, unknown> : {},
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {

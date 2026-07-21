@@ -17,7 +17,7 @@ import {
 
 const APPLY_PATCH_PARAMETERS = Type.Object({
 	input: Type.String({
-		description: "Full patch text. Use *** Begin Patch / *** End Patch with Add/Update/Delete File sections.",
+		description: "Full patch text. Use *** Begin Patch / *** End Patch with Add/Update/Delete File sections",
 	}),
 });
 
@@ -74,11 +74,11 @@ function buildPartialFailureMessage(message: string, failedFiles: string[], appl
 	const lines = [message];
 	if (failedFiles.length > 0) {
 		lines.push(`Failed file${failedFiles.length === 1 ? "" : "s"}: ${failedFiles.join(", ")}`);
-		lines.push(`Recovery: MUST read ${failedFiles.join(", ")} before retrying.`);
+		lines.push(`Recovery: MUST read ${failedFiles.join(", ")} before retrying`);
 	}
 	if (appliedFiles.length > 0) {
-		lines.push("Earlier file actions in this patch were already applied.");
-		lines.push("Recovery: MUST NOT reread other files from this patch unless a specific dependency requires it.");
+		lines.push("Earlier file actions in this patch were already applied");
+		lines.push("Recovery: MUST NOT reread other files from this patch unless a specific dependency requires it");
 	}
 	return lines.join("\n");
 }
@@ -101,8 +101,8 @@ export function createApplyPatchTool(options: ApplyPatchToolOptions = {}) {
 	return {
 		name: "apply_patch",
 		label: "apply_patch",
-		description: "Patch files.",
-		...(options.promptSnippet === false ? {} : { promptSnippet: "Edit files with patch." }),
+		description: "Patch files",
+		...(options.promptSnippet === false ? {} : { promptSnippet: "Edit files with patch" }),
 		parameters: APPLY_PATCH_PARAMETERS,
 		prepareArguments: prepareApplyPatchArguments,
 		async execute(toolCallId, params, signal, _onUpdate, ctx) {
@@ -145,7 +145,7 @@ export function createApplyPatchTool(options: ApplyPatchToolOptions = {}) {
 				throw error;
 			}
 			const summary = [
-				"Applied patch successfully.",
+				"Applied patch successfully",
 				`Changed files: ${result.changedFiles.length}`,
 				`Created files: ${result.createdFiles.length}`,
 				`Deleted files: ${result.deletedFiles.length}`,

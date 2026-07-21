@@ -12,40 +12,40 @@ export interface StructuredPromptSkill {
 }
 
 const NORMAL_CODEX_GUIDELINES = [
-	"Use exec_command for shell commands, file inspection, builds, and tests; prefer rg / rg --files for discovery and focused commands over truncation.",
-	"Use tty=true for dev servers, watchers, REPLs, and prompts.",
-	"Use apply_patch for text-file changes, including creates/deletes/moves; split oversized patches.",
-	"Prefer the apply_patch tool; use shell apply_patch only when chaining edits with other shell steps.",
-	"Use write_stdin only for running exec_command sessions; poll sparingly.",
-	"Run independent tool calls in parallel when practical.",
+	"Use exec_command for shell commands, file inspection, builds, and tests; prefer rg / rg --files for discovery and focused commands over truncation",
+	"Use tty=true for dev servers, watchers, REPLs, and prompts",
+	"Use apply_patch for text-file changes, including creates/deletes/moves; split oversized patches",
+	"Prefer the apply_patch tool; use shell apply_patch only when chaining edits with other shell steps",
+	"Use write_stdin only for running exec_command sessions; poll sparingly",
+	"Run independent tool calls in parallel when practical",
 ];
 
 const PATH_CODEX_GUIDELINES = [
-	"Use exec_command for shell/file/build/test; prefer rg/rg --files.",
-	"Use tty=true for interactive commands.",
-	"Use apply_patch for file edits; split oversized patches.",
-	"Do not probe listed PATH tools.",
-	"Use stdin/heredoc for quoted or multiline PATH args.",
-	"Chain dependent shell commands with &&.",
-	"Run independent exec_command calls in parallel when practical.",
+	"Use exec_command for shell/file/build/test; prefer rg/rg --files",
+	"Use tty=true for interactive commands",
+	"Use apply_patch for file edits",
+	"Do not probe listed PATH tools",
+	"Use stdin/heredoc for quoted or multiline PATH args",
+	"Chain dependent shell commands with &&",
+	"Run independent exec_command calls in parallel when practical",
 ];
 
 const CODE_MODE_GUIDELINES = [
-	"Use tools.exec_command for shell commands; prefer rg and rg --files for search.",
-	"When calling tools.exec_command from JavaScript, String.raw`...` only avoids JavaScript backslash escapes; it does not shell-escape.",
-	"Continue exec cell_id with wait; continue exec_command session_id by calling tools.write_stdin inside exec.",
-	"Wait proportionally to expected runtime; back off repeated polls.",
-	"Use tty=true for interactive commands.",
-	"Use tools.apply_patch(patch) for file edits; split oversized patches.",
-	"Compose independent nested calls with Promise.all.",
-	"With async work, await dependencies; overlap only independent work.",
-	"Use text() only for concise values needed after exec; do not dump complete nested tool results.",
+	"Use tools.exec_command for shell commands; prefer rg and rg --files for search",
+	"When calling tools.exec_command from JavaScript, String.raw`...` only avoids JavaScript backslash escapes; it does not shell-escape",
+	"Continue exec cell_id with wait; continue exec_command session_id by calling tools.write_stdin inside exec",
+	"Wait proportionally to expected runtime; back off repeated polls",
+	"Use tty=true for interactive commands",
+	"Use tools.apply_patch(patch) for file edits; split oversized patches",
+	"Compose independent nested calls with Promise.all",
+	"With async work, await dependencies; overlap only independent work",
+	"Use text() only for concise values needed after exec; do not dump complete nested tool results",
 ];
 
 const PATH_MODE_REMOVED_GUIDELINES = new Set([
-	"Use apply_patch for text-file changes, including creates/deletes/moves; split oversized patches.",
-	"Prefer the apply_patch tool; use shell apply_patch only when chaining edits with other shell steps.",
-	"Run independent tool calls in parallel when practical.",
+	"Use apply_patch for text-file changes, including creates/deletes/moves; split oversized patches",
+	"Prefer the apply_patch tool; use shell apply_patch only when chaining edits with other shell steps",
+	"Run independent tool calls in parallel when practical",
 ]);
 
 export interface CodexPromptToolOptions {
@@ -150,7 +150,7 @@ function injectSkills(prompt: string, skills: PromptSkill[]): string {
 	const lines = [
 		"<skills_instructions>",
 		"## Skills",
-		"Skill: local instructions in `SKILL.md` file.",
+		"Skill: local instructions in `SKILL.md` file",
 		"### Available skills",
 	];
 
@@ -159,11 +159,11 @@ function injectSkills(prompt: string, skills: PromptSkill[]): string {
 	}
 
 	lines.push("### How to use skills");
-	lines.push("- Use skill when user names it (`$SkillName` or plain text) or request clearly matches its description.");
-	lines.push("- Use the minimal required set of skills. If multiple apply, use them together and state the order briefly.");
-	lines.push("- For each selected skill, open its `SKILL.md`, resolve relative paths from the skill directory first, load only the files you need, and prefer existing scripts/assets/templates over recreating them.");
+	lines.push("- Use skill when user names it (`$SkillName` or plain text) or request clearly matches its description");
+	lines.push("- Use the minimal required set of skills. If multiple apply, use them together and state the order briefly");
+	lines.push("- For each selected skill, open its `SKILL.md`, resolve relative paths from the skill directory first, load only the files you need, and prefer existing scripts/assets/templates over recreating them");
 	lines.push("### Fallback");
-	lines.push("- If skill is missing or path cannot be read, say so briefly and continue with best fallback approach.");
+	lines.push("- If skill is missing or path cannot be read, say so briefly and continue with best fallback approach");
 	lines.push("</skills_instructions>");
 
 	return insertBeforeTrailingContext(prompt, lines.join("\n"));

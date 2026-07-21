@@ -65,7 +65,7 @@ function createExecTool(
 		name: "exec",
 		label: "Exec",
 		description: EXEC_DESCRIPTION,
-		promptSnippet: "Compose tools with JavaScript.",
+		promptSnippet: "Compose tools with JavaScript",
 		parameters: EXEC_PARAMETERS,
 		async execute(id, params, signal, onUpdate, ctx) {
 			tracker.start(id);
@@ -112,7 +112,7 @@ function createWaitTool(
 		name: "wait",
 		label: "Wait",
 		description: WAIT_DESCRIPTION,
-		promptSnippet: "Resume or terminate an exec cell.",
+		promptSnippet: "Resume or terminate an exec cell",
 		parameters: WAIT_PARAMETERS,
 		async execute(id, params, signal, onUpdate, ctx) {
 			tracker.start(id);
@@ -236,7 +236,7 @@ async function continueExecSessionFromMistakenWait(
 			content: [
 				{
 					type: "text",
-					text: `Recovered wait cell_id ${cellId} as exec_command session_id ${sessionId} and continued it with write_stdin.`,
+					text: `Recovered wait cell_id ${cellId} as exec_command session_id ${sessionId} and continued it with write_stdin`,
 				},
 				...(output ? [{ type: "text" as const, text: output }] : []),
 				...(exitCode === undefined
@@ -244,14 +244,14 @@ async function continueExecSessionFromMistakenWait(
 					: [
 							{
 								type: "text" as const,
-								text: `Process exited with code ${exitCode}.`,
+								text: `Process exited with code ${exitCode}`,
 							},
 						]),
 				...(running
 					? [
 							{
 								type: "text" as const,
-								text: `exec_command session ${sessionId} is still running. Continue with exec and tools.write_stdin({ session_id: ${sessionId} }).`,
+								text: `exec_command session ${sessionId} is still running. Continue with exec and tools.write_stdin({ session_id: ${sessionId} })`,
 							},
 						]
 					: []),

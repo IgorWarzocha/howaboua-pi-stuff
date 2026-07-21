@@ -89,7 +89,7 @@ function toCodeModeTool(tool: unknown): unknown {
 		description:
 			typeof tool["description"] === "string"
 				? tool["description"]
-				: "Run JavaScript to compose tools.",
+				: "Run JavaScript to compose tools",
 		format: {
 			type: "grammar",
 			syntax: "lark",

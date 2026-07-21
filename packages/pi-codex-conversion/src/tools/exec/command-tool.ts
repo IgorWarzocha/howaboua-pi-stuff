@@ -18,17 +18,17 @@ import { codexToolProviderEnv, resolveCodexToolProvider } from "../../adapter/co
 export { imageContentFromCodexViewImageOutput, imageContentsFromCodexViewImageOutput } from "../path/outputs.ts";
 
 const EXEC_COMMAND_PARAMETERS = Type.Object({
-	cmd: Type.String({ description: "Raw command string interpreted by the current shell; do not quote the entire command." }),
-	workdir: Type.Optional(Type.String({ description: "Cwd." })),
+	cmd: Type.String({ description: "Raw command string interpreted by the current shell; do not quote the entire command" }),
+	workdir: Type.Optional(Type.String({ description: "Cwd" })),
 	shell: Type.Optional(Type.String()),
 	tty: Type.Optional(
 		Type.Boolean({
-			description: "TTY.",
+			description: "TTY",
 		}),
 	),
-	yield_time_ms: Type.Optional(Type.Number({ description: "Wait ms." })),
-	max_output_tokens: Type.Optional(Type.Number({ description: "Truncate." })),
-	login: Type.Optional(Type.Boolean({ description: "Login shell." })),
+	yield_time_ms: Type.Optional(Type.Number({ description: "Wait ms" })),
+	max_output_tokens: Type.Optional(Type.Number({ description: "Truncate" })),
+	login: Type.Optional(Type.Boolean({ description: "Login shell" })),
 });
 
 interface ExecCommandParams {
@@ -325,8 +325,8 @@ export function createExecCommandTool(tracker: ExecCommandTracker, sessions: Exe
 	const tool: Parameters<ExtensionAPI["registerTool"]>[0] = {
 		name: "exec_command",
 		label: "exec_command",
-		description: "Run shell commands; may return session_id.",
-		...(options.promptSnippet === false ? {} : { promptSnippet: "Run command." }),
+		description: "Run shell commands; may return session_id",
+		...(options.promptSnippet === false ? {} : { promptSnippet: "Run command" }),
 		parameters: EXEC_COMMAND_PARAMETERS,
 		prepareArguments: prepareExecCommandArguments as (args: unknown) => { cmd: string; workdir?: string; shell?: string; tty?: boolean; yield_time_ms?: number; max_output_tokens?: number; login?: boolean },
 		async execute(toolCallId, params, signal, onUpdate, ctx) {

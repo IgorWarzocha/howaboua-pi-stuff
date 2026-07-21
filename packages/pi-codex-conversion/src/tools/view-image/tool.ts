@@ -16,7 +16,7 @@ import { renderCodexToolCell } from "../../ui/tool-rendering/codex-tool-cell.ts"
 
 const VIEW_IMAGE_UNSUPPORTED_MESSAGE = "view_image is not allowed because you do not support image inputs";
 const IMAGE_DESCRIPTION_MODEL = "gpt-5.6-luna";
-const IMAGE_DESCRIPTION_PROMPT = "Describe this image in detail. Output only the image description, no other commentary.";
+const IMAGE_DESCRIPTION_PROMPT = "Describe this image in detail. Output only the image description, no other commentary";
 interface ViewImageParams {
 	path: string;
 }
@@ -84,7 +84,7 @@ async function executeRustViewImageContent(params: ViewImageParams, cwd: string,
 	}
 	const imageContent = imageContentFromCodexViewImageOutput(child.stdout);
 	if (!imageContent) {
-		throw new Error("view_image expected an image file. Use exec_command for text files.");
+		throw new Error("view_image expected an image file. Use exec_command for text files");
 	}
 	return imageContent;
 }
@@ -169,7 +169,7 @@ export async function describeImageContentForTextModel(image: PathViewImageConte
 			input: [{
 				role: "user",
 				content: [
-					{ type: "input_text", text: "Describe the image." },
+					{ type: "input_text", text: "Describe the image" },
 					{ type: "input_image", image_url: `data:${image.mimeType};base64,${image.data}`, detail: image.detail },
 				],
 			}],
@@ -198,8 +198,8 @@ export function createViewImageTool(options: CreateViewImageToolOptions = {}): T
 	return {
 		name: "view_image",
 		label: "view_image",
-		description: "View image.",
-		...(options.promptSnippet === false ? {} : { promptSnippet: "View image." }),
+		description: "View image",
+		...(options.promptSnippet === false ? {} : { promptSnippet: "View image" }),
 		parameters,
 		prepareArguments: prepareViewImageArguments,
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {

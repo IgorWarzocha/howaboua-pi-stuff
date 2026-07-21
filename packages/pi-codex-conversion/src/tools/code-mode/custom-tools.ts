@@ -204,7 +204,7 @@ function loadCustomTool(
 		}
 		return {
 			name,
-			usage: "Disabled: fix this tool's TOML definition before calling it.",
+			usage: "Disabled: fix this tool's TOML definition before calling it",
 			description: message,
 			deferLoading: true,
 			command: "",

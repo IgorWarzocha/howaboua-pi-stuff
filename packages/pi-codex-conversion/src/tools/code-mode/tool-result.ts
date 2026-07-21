@@ -95,7 +95,7 @@ function runningExecSessionGuidance(
 	}
 	return [...sessionIds].map(
 		(sessionId) =>
-			`exec_command session ${sessionId} is still running. Continue with exec and tools.write_stdin({ session_id: ${sessionId} }); wait is only for a yielded exec cell_id.`,
+			`exec_command session ${sessionId} is still running. Continue with exec and tools.write_stdin({ session_id: ${sessionId} }); wait is only for a yielded exec cell_id`,
 	);
 }
 
