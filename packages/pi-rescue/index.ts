@@ -1,4 +1,4 @@
-import type { ProviderHeaders } from "@earendil-works/pi-ai";
+import type { ProviderHeaders, Usage } from "@earendil-works/pi-ai";
 import { completeSimple, type Model } from "@earendil-works/pi-ai/compat";
 import {
 	type ExtensionAPI,
@@ -61,7 +61,7 @@ async function rescueSummary(
 	ctx: ExtensionContext,
 	config: RescueConfig,
 	pending: PendingRescue,
-): Promise<string> {
+): Promise<{ summary: string; usage: Usage }> {
 	const model = configuredModel(ctx, config);
 	if (!model) {
 		throw new Error(
@@ -71,7 +71,7 @@ async function rescueSummary(
 
 	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
 	if (!auth.ok) throw new Error(`Rescue auth failed: ${auth.error}`);
-	if (!auth.apiKey && !auth.headers)
+	if (!auth.apiKey && !auth.headers && !auth.env)
 		throw new Error(
 			`No usable authentication is available for ${model.provider}/${model.id}`,
 		);
@@ -94,7 +94,9 @@ async function rescueSummary(
 		...(auth.apiKey ? { apiKey: auth.apiKey } : {}),
 		...(auth.headers ? { headers: auth.headers as ProviderHeaders } : {}),
 		...(auth.env ? { env: auth.env } : {}),
-		...(config.reasoning !== "off" ? { reasoning: config.reasoning } : {}),
+		...(model.reasoning && config.reasoning !== "off"
+			? { reasoning: config.reasoning }
+			: {}),
 	};
 
 	const response = await completeSimple(
@@ -132,7 +134,10 @@ async function rescueSummary(
 		.trim();
 	if (!summary) throw new Error("The rescue model returned an empty summary");
 
-	return summary + fileOperationSummary(event.preparation.fileOps);
+	return {
+		summary: summary + fileOperationSummary(event.preparation.fileOps),
+		usage: response.usage,
+	};
 }
 
 export default function (pi: ExtensionAPI): void {
@@ -146,12 +151,13 @@ export default function (pi: ExtensionAPI): void {
 		let config: RescueConfig;
 		try {
 			config = readRescueConfig();
-			const summary = await rescueSummary(event, ctx, config, request);
+			const result = await rescueSummary(event, ctx, config, request);
 			return {
 				compaction: {
-					summary,
+					summary: result.summary,
 					firstKeptEntryId: event.preparation.firstKeptEntryId,
 					tokensBefore: event.preparation.tokensBefore,
+					usage: result.usage,
 					details: { strategy: "rescue" },
 				},
 			};

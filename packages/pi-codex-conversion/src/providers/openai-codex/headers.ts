@@ -36,11 +36,48 @@ export function headersToRecord(headers: Headers): Record<string, string> {
 	return Object.fromEntries(headers.entries());
 }
 
+let lastRequestTimestamp = -Infinity;
+let requestSequence = 0;
+
 export function createCodexRequestId(): string {
-	if (typeof globalThis.crypto?.randomUUID === "function") {
-		return globalThis.crypto.randomUUID();
+	const random = new Uint8Array(16);
+	if (globalThis.crypto?.getRandomValues) {
+		globalThis.crypto.getRandomValues(random);
+	} else {
+		for (let index = 0; index < random.length; index++) {
+			random[index] = Math.floor(Math.random() * 256);
+		}
 	}
-	return `codex_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+
+	const timestamp = Date.now();
+	if (timestamp > lastRequestTimestamp) {
+		requestSequence =
+			random[6]! * 0x1000000 +
+			random[7]! * 0x10000 +
+			random[8]! * 0x100 +
+			random[9]!;
+		lastRequestTimestamp = timestamp;
+	} else {
+		requestSequence = (requestSequence + 1) >>> 0;
+		if (requestSequence === 0) lastRequestTimestamp++;
+	}
+
+	const bytes = new Uint8Array(16);
+	bytes[0] = (lastRequestTimestamp / 0x10000000000) & 0xff;
+	bytes[1] = (lastRequestTimestamp / 0x100000000) & 0xff;
+	bytes[2] = (lastRequestTimestamp / 0x1000000) & 0xff;
+	bytes[3] = (lastRequestTimestamp / 0x10000) & 0xff;
+	bytes[4] = (lastRequestTimestamp / 0x100) & 0xff;
+	bytes[5] = lastRequestTimestamp & 0xff;
+	bytes[6] = 0x70 | ((requestSequence >>> 28) & 0x0f);
+	bytes[7] = (requestSequence >>> 20) & 0xff;
+	bytes[8] = 0x80 | ((requestSequence >>> 14) & 0x3f);
+	bytes[9] = (requestSequence >>> 6) & 0xff;
+	bytes[10] = ((requestSequence & 0x3f) << 2) | (random[10]! & 0x03);
+	bytes.set(random.subarray(11), 11);
+
+	const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0"));
+	return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10, 16).join("")}`;
 }
 
 function buildBaseCodexHeaders(

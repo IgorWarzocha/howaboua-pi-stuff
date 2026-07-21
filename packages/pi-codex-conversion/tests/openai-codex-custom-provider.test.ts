@@ -9,6 +9,7 @@ import {
 } from "../src/providers/openai-codex-custom-provider.ts";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
+import { createCodexRequestId } from "../src/providers/openai-codex/headers.ts";
 import { parseOpenAICodexDeviceAuthPollResponse } from "../src/providers/openai-codex/oauth.ts";
 
 const exampleTool = {
@@ -99,6 +100,11 @@ test("Codex device auth preserves pending and slow-down responses", async () => 
 		),
 		{ status: "pending" },
 	);
+});
+
+test("sessionless Codex WebSocket request IDs are UUIDv7", () => {
+	const requestId = createCodexRequestId();
+	assert.match(requestId, /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 });
 
 function requestBodyText(init: RequestInit): string {
