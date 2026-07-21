@@ -121,7 +121,7 @@ test("Code Mode preserves shell quoting when cmd uses String.raw", async () => {
 		const result = await exec.execute(
 			"exec-quoted",
 			{
-				code: 'text(await tools.exec_command({ cmd: String.raw`printf "%s" "code-mode-quoted"` }));',
+				code: 'text(await tools.exec_command({ cmd: String.raw`printf "%s" "\\${CODE_MODE_LITERAL}"` }));',
 			},
 			undefined,
 			undefined,
@@ -139,7 +139,7 @@ test("Code Mode preserves shell quoting when cmd uses String.raw", async () => {
 			result.content
 				.map((item: { text?: string }) => item.text ?? "")
 				.join("\n"),
-			/code-mode-quoted/,
+			/\$\{CODE_MODE_LITERAL\}/,
 		);
 	} finally {
 		await fixture.close();
