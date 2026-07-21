@@ -27,6 +27,8 @@ interface RescueFileOperations {
 	modifiedFiles: string[];
 }
 
+const RESCUE_COMPACTION_MARKER = "<pi-rescue-exclusive-compaction />";
+
 async function rescueRuntime(ctx: ExtensionContext, config: RescueConfig) {
 	const model = configuredModel(ctx, config);
 	if (!model) {
@@ -345,6 +347,7 @@ export default function (pi: ExtensionAPI): void {
 			pending = instructions ? { instructions } : {};
 			notify(ctx, "Rescue compaction started");
 			ctx.compact({
+				customInstructions: RESCUE_COMPACTION_MARKER,
 				onComplete: () => {
 					rescueRunning = false;
 					notify(ctx, "Rescue compaction completed");

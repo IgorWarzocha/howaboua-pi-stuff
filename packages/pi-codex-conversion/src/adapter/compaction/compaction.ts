@@ -23,6 +23,8 @@ import type { AdapterState } from "../activation/state.ts";
 import { executeRemoteCompactionV2 } from "./remote-v2-client.ts";
 import { buildRemoteCompactionV2Window } from "./remote-v2-history.ts";
 
+const RESCUE_COMPACTION_MARKER = "<pi-rescue-exclusive-compaction />";
+
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === "object" && !Array.isArray(value);
 }
@@ -213,6 +215,7 @@ export function buildNativeCompactionRequest(args: {
 }
 
 export async function handleCodexSessionBeforeCompact(event: SessionBeforeCompactEvent, ctx: ExtensionContext, state: AdapterState, pi: ExtensionAPI) {
+	if (event.customInstructions?.trim() === RESCUE_COMPACTION_MARKER) return undefined;
 	if (!shouldUseNativeResponsesCompaction(ctx, state.config)) {
 		return undefined;
 	}
