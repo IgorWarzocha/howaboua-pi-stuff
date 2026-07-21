@@ -1,5 +1,5 @@
 import type { Message } from "@earendil-works/pi-ai";
-import { convertToLlm, estimateTokens } from "@earendil-works/pi-coding-agent";
+import { convertToLlm } from "@earendil-works/pi-coding-agent";
 
 type ContextMessages = Parameters<typeof convertToLlm>[0];
 
@@ -50,6 +50,10 @@ interface RescueMessage {
 	tokens: number;
 }
 
+function estimateTextTokens(text: string): number {
+	return Math.ceil(text.length / 4);
+}
+
 function formatMessages(messages: ContextMessages): RescueMessage[] {
 	const sourceMessages = messages.filter((message) =>
 		[
@@ -71,7 +75,9 @@ function formatMessages(messages: ContextMessages): RescueMessage[] {
 		return [
 			{
 				text: `[${messageLabel(sourceMessage)}]\n${text}`,
-				tokens: estimateTokens(sourceMessage),
+				tokens: estimateTextTokens(
+					`[${messageLabel(sourceMessage)}]\n${text}\n\n`,
+				),
 			},
 		];
 	});
@@ -101,8 +107,9 @@ function selectRecentMessages(
 ): string {
 	if (!Number.isFinite(maxTokens))
 		return messages.map((message) => message.text).join("\n\n");
+	if (maxTokens <= 0 || messages.length === 0) return "";
 
-	let remaining = Math.max(1, maxTokens);
+	let remaining = maxTokens;
 	const selected: RescueMessage[] = [];
 	for (let index = messages.length - 1; index >= 0; index--) {
 		const message = messages[index];
@@ -147,11 +154,25 @@ export function buildRescueConversation(
 	const previous = previousText
 		? `<previous-summary>\n${truncateRescueText(previousText, previousBudget)}\n</previous-summary>`
 		: "";
-	const previousTokens = previous ? Math.ceil(previous.length / 4) : 0;
+	const previousTokens = estimateTextTokens(previous);
+	const conversationWrapperTokens = estimateTextTokens(
+		"<conversation>\n\n</conversation>",
+	);
+	const separatorTokens = previous ? estimateTextTokens("\n\n") : 0;
+	const omittedMarkerTokens = estimateTextTokens(
+		"[Earlier conversation omitted]\n\n",
+	);
 	const history = selectRecentMessages(
 		formattedMessages,
 		Number.isFinite(maxTokens)
-			? Math.max(1, maxTokens - previousTokens)
+			? Math.max(
+					0,
+					maxTokens -
+						previousTokens -
+						conversationWrapperTokens -
+						separatorTokens -
+						omittedMarkerTokens,
+				)
 			: Number.POSITIVE_INFINITY,
 	);
 	const source = [

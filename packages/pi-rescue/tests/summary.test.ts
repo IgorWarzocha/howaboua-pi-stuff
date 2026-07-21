@@ -64,7 +64,7 @@ test("trims oldest conversation content to the requested token budget", () => {
 			{ role: "assistant", content: "latest decision", timestamp: 2 },
 		] as never,
 		undefined,
-		20,
+		80,
 	);
 
 	expect(result.text).toContain("[Earlier conversation omitted]");

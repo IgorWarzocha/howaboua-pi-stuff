@@ -21,6 +21,12 @@ interface PendingRescue {
 	instructions?: string;
 }
 
+interface RescueFileOperations {
+	text: string;
+	readFiles: string[];
+	modifiedFiles: string[];
+}
+
 function configuredModel(
 	ctx: ExtensionContext,
 	config: RescueConfig,
@@ -42,7 +48,7 @@ function notify(
 function fileOperationSummary(
 	fileOps: SessionBeforeCompactEvent["preparation"]["fileOps"],
 	maxTokens: number,
-): string {
+): RescueFileOperations {
 	const modifiedFiles = [
 		...new Set([...fileOps.written, ...fileOps.edited]),
 	].sort();
@@ -58,26 +64,47 @@ function fileOperationSummary(
 	].filter(
 		(list): list is { tag: string; files: string[] } => list !== undefined,
 	);
-	if (lists.length === 0 || maxTokens <= 0) return "";
+	if (lists.length === 0 || maxTokens <= 0) {
+		return { text: "", readFiles: [], modifiedFiles: [] };
+	}
 
 	const sectionTokens = Math.max(1, Math.floor(maxTokens / lists.length));
-	return lists
-		.map(({ tag, files }) => {
-			const prefix = `<${tag}>\n`;
-			const suffix = `\n</${tag}>`;
-			const contentTokens = Math.max(
-				1,
-				Math.floor((sectionTokens * 4 - prefix.length - suffix.length) / 4),
-			);
-			const content = truncateRescueText(
-				files.join("\n"),
-				contentTokens,
-				"[More file operation paths omitted]\n",
-			);
-			return `${prefix}${content}${suffix}`;
-		})
-		.join("\n\n")
-		.replace(/^/, "\n\n");
+	const selected = new Map<string, string[]>();
+	const sections = lists.map(({ tag, files }) => {
+		const prefix = `<${tag}>\n`;
+		const suffix = `\n</${tag}>`;
+		const contentChars = Math.max(
+			1,
+			sectionTokens * 4 - prefix.length - suffix.length,
+		);
+		const omittedMarkerReserve = `[${files.length} more paths omitted]`;
+		const boundedFiles: string[] = [];
+		let usedChars = 0;
+		for (const file of files) {
+			const separator = boundedFiles.length > 0 ? 1 : 0;
+			if (
+				usedChars + separator + file.length >
+				contentChars - omittedMarkerReserve.length - 1
+			)
+				break;
+			boundedFiles.push(file);
+			usedChars += separator + file.length;
+		}
+		const omitted = boundedFiles.length < files.length;
+		const omittedMarker = `[${files.length - boundedFiles.length} more paths omitted]`;
+		const content = [...boundedFiles, omitted ? omittedMarker : ""]
+			.filter(Boolean)
+			.join("\n");
+		selected.set(tag, boundedFiles);
+		return `${prefix}${content}${suffix}`;
+	});
+	const readSelected = selected.get("read-files") ?? [];
+	const modifiedSelected = selected.get("modified-files") ?? [];
+	return {
+		text: sections.join("\n\n").replace(/^/, "\n\n"),
+		readFiles: readSelected,
+		modifiedFiles: modifiedSelected,
+	};
 }
 
 const DEFAULT_CONTEXT_WINDOW = 128_000;
@@ -140,7 +167,11 @@ async function rescueSummary(
 	ctx: ExtensionContext,
 	config: RescueConfig,
 	pending: PendingRescue,
-): Promise<{ summary: string; usage: Usage }> {
+): Promise<{
+	summary: string;
+	usage: Usage;
+	details: { strategy: string; readFiles: string[]; modifiedFiles: string[] };
+}> {
 	const model = configuredModel(ctx, config);
 	if (!model) {
 		throw new Error(
@@ -226,12 +257,17 @@ async function rescueSummary(
 	);
 	const boundedSummary = truncateRescueText(
 		summary,
-		Math.max(1, budgets.output - estimateTextTokens(fileOps)),
+		Math.max(1, budgets.output - estimateTextTokens(fileOps.text)),
 	);
 
 	return {
-		summary: boundedSummary + fileOps,
+		summary: boundedSummary + fileOps.text,
 		usage: response.usage,
+		details: {
+			strategy: "rescue",
+			readFiles: fileOps.readFiles,
+			modifiedFiles: fileOps.modifiedFiles,
+		},
 	};
 }
 
@@ -253,7 +289,7 @@ export default function (pi: ExtensionAPI): void {
 					firstKeptEntryId: event.preparation.firstKeptEntryId,
 					tokensBefore: event.preparation.tokensBefore,
 					usage: result.usage,
-					details: { strategy: "rescue" },
+					details: result.details,
 				},
 			};
 		} catch (error) {
