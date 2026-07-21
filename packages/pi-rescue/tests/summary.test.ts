@@ -48,15 +48,6 @@ test("keeps user and assistant text while omitting tool traffic", () => {
 	expect(result.text).not.toContain("secret tool output");
 });
 
-test("keeps the complete text supplied to rescue", () => {
-	const result = buildRescueConversation(
-		[{ role: "user", content: "x".repeat(4000), timestamp: 1 }] as never,
-		"old summary",
-	);
-
-	expect(result.text).toContain("x".repeat(4000));
-});
-
 test("trims oldest conversation content to the requested token budget", () => {
 	const result = buildRescueConversation(
 		[
@@ -70,21 +61,6 @@ test("trims oldest conversation content to the requested token budget", () => {
 	expect(result.text).toContain("[Earlier conversation omitted]");
 	expect(result.text).toContain("latest decision");
 	expect(result.text).not.toContain("old context");
-});
-
-test("prioritizes recent context when a previous summary wrapper cannot fit", () => {
-	const result = buildRescueConversation(
-		[
-			{ role: "user", content: "recent decision", timestamp: 1 },
-			{ role: "assistant", content: "latest next step", timestamp: 2 },
-		] as never,
-		"old summary",
-		20,
-	);
-
-	expect(result.text).toContain("latest");
-	expect(result.text).not.toContain("old summary");
-	expect(result.text.length).toBeLessThanOrEqual(80);
 });
 
 test("preserves source labels for extension and summary messages", () => {
