@@ -27,6 +27,23 @@ interface RescueFileOperations {
 	modifiedFiles: string[];
 }
 
+async function rescueRuntime(ctx: ExtensionContext, config: RescueConfig) {
+	const model = configuredModel(ctx, config);
+	if (!model) {
+		throw new Error(
+			"No rescue model is available. Configure rescue.provider and rescue.model in settings.json",
+		);
+	}
+
+	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
+	if (!auth.ok) throw new Error(`Rescue auth failed: ${auth.error}`);
+	const provider = ctx.modelRegistry.getProvider(model.provider);
+	if (!provider)
+		throw new Error(`No provider is registered for ${model.provider}`);
+
+	return { model, auth, provider };
+}
+
 function configuredModel(
 	ctx: ExtensionContext,
 	config: RescueConfig,
@@ -186,18 +203,7 @@ async function rescueSummary(
 	usage: Usage;
 	details: { strategy: string; readFiles: string[]; modifiedFiles: string[] };
 }> {
-	const model = configuredModel(ctx, config);
-	if (!model) {
-		throw new Error(
-			"No rescue model is available. Configure rescue.provider and rescue.model in settings.json",
-		);
-	}
-
-	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
-	if (!auth.ok) throw new Error(`Rescue auth failed: ${auth.error}`);
-	const provider = ctx.modelRegistry.getProvider(model.provider);
-	if (!provider)
-		throw new Error(`No provider is registered for ${model.provider}`);
+	const { model, auth, provider } = await rescueRuntime(ctx, config);
 	const budgets = rescueTokenBudgets(model, pending.instructions);
 
 	const messages = [
@@ -326,9 +332,17 @@ export default function (pi: ExtensionAPI): void {
 				notify(ctx, "Rescue compaction already in progress", "warning");
 				return;
 			}
+			rescueRunning = true;
+			try {
+				await rescueRuntime(ctx, readRescueConfig());
+			} catch (error) {
+				rescueRunning = false;
+				const message = error instanceof Error ? error.message : String(error);
+				notify(ctx, message, "error");
+				return;
+			}
 			const instructions = args.trim();
 			pending = instructions ? { instructions } : {};
-			rescueRunning = true;
 			notify(ctx, "Rescue compaction started");
 			ctx.compact({
 				onComplete: () => {

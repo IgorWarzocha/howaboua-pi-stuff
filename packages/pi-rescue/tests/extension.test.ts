@@ -44,7 +44,7 @@ function event(): SessionBeforeCompactEvent {
 	};
 }
 
-function setup(stopReason: "length" | "stop") {
+function setup(stopReason: "length" | "stop", authOk = true) {
 	const handlers = new Map<
 		string,
 		(event: never, ctx: ExtensionContext) => unknown
@@ -104,7 +104,11 @@ function setup(stopReason: "length" | "stop") {
 		waitForIdle: async () => {},
 		ui: { notify: (message: string) => notifications.push(message) },
 		modelRegistry: {
-			getApiKeyAndHeaders: async () => ({ ok: true as const, apiKey: "test" }),
+			find: () => model,
+			getApiKeyAndHeaders: async () =>
+				authOk
+					? { ok: true as const, apiKey: "test" }
+					: { ok: false as const, error: "no auth" },
 			getProvider: () => ({ streamSimple }),
 		},
 		compact: () => {
@@ -133,6 +137,17 @@ test("cancels rescue when the model response is truncated", async () => {
 	);
 
 	expect(result).toEqual({ cancel: true });
+});
+
+test("does not start compaction when rescue auth is unavailable", async () => {
+	const testSetup = setup("stop", false);
+	const command = testSetup.commands.get("rescue");
+	if (!command) throw new Error("rescue command was not registered");
+
+	await command.handler("", testSetup.ctx);
+
+	expect(testSetup.compactCalls()).toBe(0);
+	expect(testSetup.notifications).toContain("Rescue auth failed: no auth");
 });
 
 test("does not queue overlapping rescue requests", async () => {
