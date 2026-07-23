@@ -4,6 +4,7 @@ node_modules
 .pi/semantic-grep.sqlite-*
 .pi/openai-codex-images/
 src/tools/target/
+src/voice/rust/target/
 dist/
 
 .pi/semantic-grep.sync-conflict-*.sqlite

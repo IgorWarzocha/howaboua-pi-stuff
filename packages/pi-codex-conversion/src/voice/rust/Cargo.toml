@@ -1,0 +1,23 @@
+[package]
+name = "pi-codex-voice"
+version = "0.0.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[dependencies]
+anyhow = "1"
+base64 = "0.22.1"
+bytes = "1"
+cpal = "0.18.1"
+crossbeam-queue = "0.3"
+opus = "0.3.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["io-std", "io-util", "macros", "rt-multi-thread", "sync", "time"] }
+webrtc = "0.17.2"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1

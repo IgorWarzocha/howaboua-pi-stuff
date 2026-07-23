@@ -84,6 +84,7 @@ export function registerCodexEvents(
 	});
 
 	pi.on("model_select", async (_event, ctx) => {
+		await runtime.voice.stop();
 		runtime.resetTransport(ctx.sessionManager.getSessionId());
 		state.cwd = ctx.cwd;
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
@@ -111,6 +112,7 @@ export function registerCodexEvents(
 
 	pi.on("session_shutdown", async (_event, ctx) => {
 		try {
+			await runtime.voice.stop();
 			runtime.shutdownTransport(ctx.sessionManager.getSessionId());
 			ui.clearBackgroundWidget();
 			runtime.backgroundWidget.ctx = undefined;
@@ -127,12 +129,18 @@ export function registerCodexEvents(
 		if (event.streamingBehavior === undefined) state.codexTurnState.beginTurn();
 	});
 	pi.on("before_agent_start", async (event, ctx) => {
-		if (!shouldUseCodexAdapter(ctx, state.config)) return undefined;
+		const voicePrompt = runtime.voice.beforeAgentStart();
+		const systemPrompt = voicePrompt ? `${event.systemPrompt}\n\n${voicePrompt}` : event.systemPrompt;
+		if (!shouldUseCodexAdapter(ctx, state.config)) return voicePrompt ? { systemPrompt } : undefined;
 		const skills = resolvePromptSkills(event.systemPromptOptions?.skills, hasNoSkillsFlag() ? [] : state.promptSkills);
-		await runtime.waitForPrewarm(ctx, event.systemPrompt);
-		return { systemPrompt: runtime.codexSystemPrompt(event.systemPrompt, ctx, skills) };
+		await runtime.waitForPrewarm(ctx, systemPrompt);
+		return { systemPrompt: runtime.codexSystemPrompt(systemPrompt, ctx, skills) };
 	});
-	pi.on("agent_settled", async () => state.codexTurnState.reset());
+	pi.on("message_update", async (event) => {
+		const update = event.assistantMessageEvent;
+		if ((update.type === "text_delta" || update.type === "thinking_delta") && typeof update.delta === "string") runtime.voice.streamDelta(update.type, update.delta);
+	});
+	pi.on("agent_settled", async () => { state.codexTurnState.reset(); runtime.voice.settleTurn(); });
 	pi.on("before_provider_request", async (event, ctx) => {
 		state.cwd = ctx.cwd;
 		return rewriteCodexProviderRequest(event.payload, ctx, state);

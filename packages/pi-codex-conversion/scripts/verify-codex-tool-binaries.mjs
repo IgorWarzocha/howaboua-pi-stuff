@@ -4,6 +4,7 @@ import { join } from "node:path";
 
 const platforms = ["linux-x64", "linux-arm64", "darwin-x64", "darwin-arm64", "win32-x64", "win32-arm64"];
 const tools = [
+	{ dir: "../voice", unix: "pi-codex-voice", win: "pi-codex-voice.exe" },
 	{ dir: "apply-patch", unix: "apply_patch", win: "apply_patch.exe" },
 	{ dir: "exec", unix: "exec_bridge", win: "exec_bridge.exe" },
 	{ dir: "view-image", unix: "view_image", win: "view_image.exe" },
@@ -15,7 +16,9 @@ const missing = [];
 for (const platformArch of platforms) {
 	for (const tool of tools) {
 		const exe = platformArch.startsWith("win32-") ? tool.win : tool.unix;
-		const path = join("src", "tools", tool.dir, "bin", platformArch, exe);
+		const path = tool.dir === "../voice"
+			? join("src", "voice", "bin", platformArch, exe)
+			: join("src", "tools", tool.dir, "bin", platformArch, exe);
 		if (!existsSync(path)) missing.push(path);
 	}
 }

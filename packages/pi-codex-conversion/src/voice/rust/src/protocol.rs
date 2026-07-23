@@ -1,0 +1,116 @@
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+
+pub const PROTOCOL_VERSION: u8 = 1;
+pub const MAX_SDP_BYTES: usize = 256 * 1024;
+pub const MAX_DATA_MESSAGE_BYTES: usize = 64 * 1024;
+
+pub fn parse_command(input: &str) -> anyhow::Result<Command> {
+    let value: Value = serde_json::from_str(input)?;
+    let object = value
+        .as_object()
+        .ok_or_else(|| anyhow::anyhow!("voice helper command must be an object"))?;
+    let command_type = object
+        .get("type")
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow::anyhow!("voice helper command requires a string type"))?;
+    let allowed: &[&str] = match command_type {
+        "list_devices" | "stop" | "shutdown" => &["type"],
+        "start_v3" => &["type", "microphone", "speaker"],
+        "apply_answer" => &["type", "sdp"],
+        "start_dictation" => &["type", "microphone"],
+        "send_data" => &["type", "message"],
+        _ => anyhow::bail!("unknown voice helper command type {command_type}"),
+    };
+    if let Some(key) = object.keys().find(|key| !allowed.contains(&key.as_str())) {
+        anyhow::bail!("unknown {command_type} field {key}");
+    }
+    Ok(serde_json::from_value(value)?)
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum Command {
+    ListDevices,
+    StartV3 {
+        microphone: Option<String>,
+        speaker: Option<String>,
+    },
+    ApplyAnswer {
+        sdp: String,
+    },
+    StartDictation {
+        microphone: Option<String>,
+    },
+    SendData {
+        message: Value,
+    },
+    Stop,
+    Shutdown,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum Event {
+    Ready {
+        version: u8,
+    },
+    Devices {
+        inputs: Vec<String>,
+        outputs: Vec<String>,
+    },
+    Offer {
+        sdp: String,
+    },
+    State {
+        state: &'static str,
+    },
+    Data {
+        message: Value,
+    },
+    Pcm {
+        audio: String,
+        sample_rate: u32,
+        num_channels: u16,
+    },
+    Error {
+        message: String,
+    },
+    Stopped,
+}
+
+impl Command {
+    pub fn validate(&self) -> anyhow::Result<()> {
+        match self {
+            Self::ApplyAnswer { sdp } if sdp.len() > MAX_SDP_BYTES => {
+                anyhow::bail!("answer SDP exceeds {MAX_SDP_BYTES} bytes")
+            }
+            Self::SendData { message } => {
+                let size = serde_json::to_vec(message)?.len();
+                if size > MAX_DATA_MESSAGE_BYTES {
+                    anyhow::bail!("data-channel message exceeds {MAX_DATA_MESSAGE_BYTES} bytes");
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn commands_are_closed_and_bounded() {
+        assert!(parse_command(r#"{"type":"unknown"}"#).is_err());
+        assert!(parse_command(r#"{"type":"stop","extra":true}"#).is_err());
+        assert!(
+            Command::ApplyAnswer {
+                sdp: "x".repeat(MAX_SDP_BYTES + 1)
+            }
+            .validate()
+            .is_err()
+        );
+    }
+}

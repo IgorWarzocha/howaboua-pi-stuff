@@ -35,10 +35,23 @@ test("old flat config migrates to grouped config and respects disabled provider 
 	assert.equal(config.compaction.responsesCompaction, true);
 	assert.equal(config.beta.codeMode, false);
 	assert.equal(config.beta.responsesLite, false);
+	assert.deepEqual(config.voice, { protocol: "v3", mode: "conversational", v2Voice: "marin", v3Voice: "cove" });
 	assert.equal(config.openai.fast, true);
 	assert.equal(config.openai.verbosity, "high");
 	assert.equal(config.openai.forceCachedWebSockets, false);
 	assert.equal(config.openai.webSearchModel, "gpt-5.6-luna");
+});
+
+test("voice preferences normalize protocol and mode independently", () => {
+	const config = normalizeCodexConversionConfig({
+		voice: { protocol: "v2", mode: "transcription", v2Voice: "cedar", v3Voice: "sol" },
+	});
+	assert.deepEqual(config.voice, { protocol: "v2", mode: "transcription", v2Voice: "cedar", v3Voice: "sol" });
+
+	const invalid = normalizeCodexConversionConfig({
+		voice: { protocol: "v1", mode: "voice", v2Voice: "cove", v3Voice: "marin" },
+	});
+	assert.deepEqual(invalid.voice, { protocol: "v3", mode: "conversational", v2Voice: "marin", v3Voice: "cove" });
 });
 
 test("legacy Responses Lite config enables Code Mode without opting proxies into Lite", () => {

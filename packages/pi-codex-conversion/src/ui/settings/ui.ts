@@ -2,14 +2,17 @@ import { getSettingsListTheme, type ExtensionContext, type Theme } from "@earend
 import { Container, type Focusable, Input, matchesKey, SettingsList, Spacer, Text, truncateToWidth, type SettingItem } from "@earendil-works/pi-tui";
 import {
 	DEFAULT_CODEX_CONVERSION_CONFIG,
+	REALTIME_V3_VOICES,
 	V2_USER_MESSAGE_RETENTION_OPTIONS,
 	WEB_SEARCH_MODELS,
 	normalizeCodexVerbosity,
 	normalizeProviderList,
+	normalizeRealtimeV3Voice,
 	normalizeWebSearchModel,
 	normalizeV2UserMessageRetention,
 	readCodexConversionConfig,
 	type CodexConversionConfig,
+	type RealtimeProtocol,
 } from "../../adapter/activation/config.ts";
 import { editorCommand, openCodexConfigInExternalEditor } from "./config-editor.ts";
 import { CHANGELOG_URL, DISCORD_URL, GITHUB_URL, ISSUE_URL, openExternalUrl } from "./links.ts";
@@ -24,9 +27,9 @@ export interface CodexSettingsScreenOptions {
 	onConsumeResetCredit?: (redeemRequestId: string) => Promise<CodexRateLimitResetConsumeResult>;
 }
 
-type SettingsTab = "general" | "tools" | "openai" | "beta" | "usage" | "about";
+type SettingsTab = "general" | "tools" | "openai" | "voice" | "beta" | "usage" | "about";
 
-const TAB_ORDER: readonly SettingsTab[] = ["general", "tools", "openai", "beta", "usage", "about"];
+const TAB_ORDER: readonly SettingsTab[] = ["general", "tools", "openai", "voice", "beta", "usage", "about"];
 
 class TextSettingSubmenu extends Container implements Focusable {
 	private input: Input;
@@ -150,6 +153,7 @@ export async function openCodexSettingsScreen(ctx: ExtensionContext, options: Co
 					rule(width, theme, "borderMuted"),
 					...(activeTab === "usage" ? formatUsageLines(theme, usageState, usageLoading, resetLoading, resetLockedUntilRefresh, resetMessage) : []),
 					...(activeTab === "about" ? formatLinks(theme) : []),
+					...(activeTab === "voice" ? formatVoiceLines(theme) : []),
 					"",
 					...(hasSettingsList ? withSettingsFooter(settingsList.render(width), theme) : [theme.fg("dim", formatFooter(activeTab))]),
 					rule(width, theme, "accent"),
@@ -239,6 +243,15 @@ function buildItems(tab: SettingsTab, draft: CodexConversionConfig, theme: Theme
 		];
 	}
 
+	if (tab === "voice") {
+		const transport = draft.voice.mode === "transcription" ? formatVoiceProtocol("v2") : formatVoiceProtocol("v3");
+		return [
+			{ id: "voiceMode", label: "Experience", currentValue: formatVoiceMode(draft.voice.mode), values: ["voice conversation", "dictation"] },
+			{ id: "voiceTransport", label: "Transport", currentValue: transport, values: [transport] },
+			{ id: "v3Voice", label: "Codex voice (v3)", currentValue: formatVoiceName(draft.voice.v3Voice), values: REALTIME_V3_VOICES.map(formatVoiceName) },
+		];
+	}
+
 	if (tab === "beta") {
 		return [
 			{ id: "codeMode", label: "GPT-5.6 Code Mode", currentValue: draft.beta.codeMode ? "on" : "off", values: ["off", "on"] },
@@ -281,6 +294,8 @@ function applySettingChange(id: string, value: string, draft: CodexConversionCon
 	if (id === "codeMode") return { ...draft, beta: { ...draft.beta, codeMode: value === "on" } };
 	if (id === "responsesLite") return { ...draft, beta: { ...draft.beta, responsesLite: value === "on" } };
 	if (id === "v2UserMessageRetention") return { ...draft, beta: { ...draft.beta, v2UserMessageRetention: normalizeV2UserMessageRetention(Number.parseInt(value, 10)) ?? 64 } };
+	if (id === "voiceMode") return { ...draft, voice: { ...draft.voice, mode: value === "dictation" ? "transcription" : "conversational", protocol: value === "dictation" ? "v2" : "v3" } };
+	if (id === "v3Voice") return { ...draft, voice: { ...draft.voice, v3Voice: normalizeRealtimeV3Voice(value.toLowerCase()) ?? draft.voice.v3Voice } };
 	if (id === "webRun") return { ...draft, tools: { ...draft.tools, webRun: value === "on" } };
 	if (id === "imageGeneration") return { ...draft, tools: { ...draft.tools, imageGeneration: value === "on" } };
 	if (id === "viewImageFallback") return { ...draft, tools: { ...draft.tools, viewImageFallback: value === "on" } };
@@ -313,7 +328,26 @@ function normalizeProviderListFromText(value: string): string[] {
 
 function formatTabs(activeTab: SettingsTab, theme: Theme): string {
 	const renderTab = (tab: SettingsTab, label: string) => activeTab === tab ? theme.bold(label) : theme.fg("dim", label);
-	return `  ${renderTab("general", "General")}  ${theme.fg("dim", "/")}  ${renderTab("tools", "Tools")}  ${theme.fg("dim", "/")}  ${renderTab("openai", "OpenAI")}  ${theme.fg("dim", "/")}  ${renderTab("beta", "Beta")}  ${theme.fg("dim", "/")}  ${renderTab("usage", "Usage")}  ${theme.fg("dim", "/")}  ${renderTab("about", "About")}`;
+	return `  ${renderTab("general", "General")}  ${theme.fg("dim", "/")}  ${renderTab("tools", "Tools")}  ${theme.fg("dim", "/")}  ${renderTab("openai", "OpenAI")}  ${theme.fg("dim", "/")}  ${renderTab("voice", "Voice")}  ${theme.fg("dim", "/")}  ${renderTab("beta", "Beta")}  ${theme.fg("dim", "/")}  ${renderTab("usage", "Usage")}  ${theme.fg("dim", "/")}  ${renderTab("about", "About")}`;
+}
+
+function formatVoiceLines(theme: Theme): string[] {
+	return [
+		theme.fg("dim", "  Voice conversation is realtime dialogue; dictation is transcription mode, not a protocol."),
+		theme.fg("dim", "  /codex voice starts or stops the selected native microphone session."),
+	];
+}
+
+function formatVoiceMode(mode: CodexConversionConfig["voice"]["mode"]): string {
+	return mode === "transcription" ? "dictation" : "voice conversation";
+}
+
+function formatVoiceProtocol(protocol: RealtimeProtocol): string {
+	return protocol === "v2" ? "v2 · Realtime transcription" : "v3 · Codex voice delegation";
+}
+
+function formatVoiceName(voice: string): string {
+	return `${voice.slice(0, 1).toUpperCase()}${voice.slice(1)}`;
 }
 
 function formatFooter(activeTab: SettingsTab): string {

@@ -10,6 +10,13 @@ export type HelperModel = "gpt-5.6-luna" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gp
 export type WebSearchModel = HelperModel;
 export type CompactionVersion = "v1" | "v2";
 export type V2UserMessageRetention = 16 | 32 | 64;
+export type RealtimeProtocol = "v2" | "v3";
+export type RealtimeSessionMode = "conversational" | "transcription";
+
+export const REALTIME_V2_VOICES = ["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin", "cedar"] as const;
+export const REALTIME_V3_VOICES = ["juniper", "maple", "spruce", "ember", "vale", "breeze", "arbor", "sol", "cove"] as const;
+export type RealtimeV2Voice = typeof REALTIME_V2_VOICES[number];
+export type RealtimeV3Voice = typeof REALTIME_V3_VOICES[number];
 
 export const HELPER_MODELS: readonly HelperModel[] = ["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.5", "gpt-5.4-mini", "gpt-5.3-codex-spark"];
 export const WEB_SEARCH_MODELS: readonly WebSearchModel[] = HELPER_MODELS;
@@ -41,6 +48,12 @@ export interface CodexConversionConfig {
 	};
 	compaction: { responsesCompaction: boolean; version?: CompactionVersion | undefined };
 	beta: { codeMode: boolean; responsesLite: boolean; v2UserMessageRetention?: V2UserMessageRetention | undefined };
+	voice: {
+		protocol: RealtimeProtocol;
+		mode: RealtimeSessionMode;
+		v2Voice: RealtimeV2Voice;
+		v3Voice: RealtimeV3Voice;
+	};
 	openai: {
 		fast: boolean;
 		verbosity: CodexVerbosity;
@@ -67,6 +80,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	},
 	compaction: { responsesCompaction: false, version: "v1" },
 	beta: { codeMode: false, responsesLite: false, v2UserMessageRetention: 64 },
+	voice: { protocol: "v3", mode: "conversational", v2Voice: "marin", v3Voice: "cove" },
 	openai: {
 		fast: false,
 		verbosity: "low",
@@ -108,6 +122,22 @@ export function normalizeV2UserMessageRetention(value: unknown): V2UserMessageRe
 	return value === 16 || value === 32 || value === 64 ? value : undefined;
 }
 
+export function normalizeRealtimeProtocol(value: unknown): RealtimeProtocol | undefined {
+	return value === "v2" || value === "v3" ? value : undefined;
+}
+
+export function normalizeRealtimeSessionMode(value: unknown): RealtimeSessionMode | undefined {
+	return value === "conversational" || value === "transcription" ? value : undefined;
+}
+
+export function normalizeRealtimeV2Voice(value: unknown): RealtimeV2Voice | undefined {
+	return typeof value === "string" ? REALTIME_V2_VOICES.find((voice) => voice === value) : undefined;
+}
+
+export function normalizeRealtimeV3Voice(value: unknown): RealtimeV3Voice | undefined {
+	return typeof value === "string" ? REALTIME_V3_VOICES.find((voice) => voice === value) : undefined;
+}
+
 export function normalizeProviderList(value: unknown): string[] {
 	if (!Array.isArray(value)) return [];
 	return [...new Set(value
@@ -131,6 +161,7 @@ export function normalizeCodexConversionConfig(value: unknown): CodexConversionC
 	const ui = isObject(value["ui"]) ? value["ui"] : {};
 	const compaction = isObject(value["compaction"]) ? value["compaction"] : {};
 	const beta = isObject(value["beta"]) ? value["beta"] : {};
+	const voice = isObject(value["voice"]) ? value["voice"] : {};
 	const openai = isObject(value["openai"]) ? value["openai"] : {};
 	return {
 		mode: normalizeCodexAdapterMode(value["mode"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.mode,
@@ -167,6 +198,12 @@ export function normalizeCodexConversionConfig(value: unknown): CodexConversionC
 			responsesLite: bool(beta["responsesLite"], DEFAULT_CODEX_CONVERSION_CONFIG.beta["responsesLite"]),
 			v2UserMessageRetention: normalizeV2UserMessageRetention(beta["v2UserMessageRetention"])
 				?? DEFAULT_CODEX_CONVERSION_CONFIG.beta.v2UserMessageRetention,
+		},
+		voice: {
+			protocol: normalizeRealtimeProtocol(voice["protocol"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.voice.protocol,
+			mode: normalizeRealtimeSessionMode(voice["mode"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.voice.mode,
+			v2Voice: normalizeRealtimeV2Voice(voice["v2Voice"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.voice.v2Voice,
+			v3Voice: normalizeRealtimeV3Voice(voice["v3Voice"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.voice.v3Voice,
 		},
 		openai: {
 			fast: bool(openai["fast"], DEFAULT_CODEX_CONVERSION_CONFIG.openai["fast"]),

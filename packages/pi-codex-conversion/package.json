@@ -50,6 +50,9 @@
     "src/tools/**/*.rs",
     "src/tools/**/Cargo.toml",
     "src/tools/Cargo.lock",
+    "src/voice/bin/**",
+    "src/voice/rust/Cargo.toml",
+    "src/voice/rust/Cargo.lock",
     "src/tools/rust/UPSTREAM.*",
     "code-mode",
     "scripts/code-mode",
@@ -73,6 +76,7 @@
     "build:changed-path-tools": "node scripts/build-changed-path-tool-binaries.mjs",
     "build:path-tool": "node scripts/build-path-tool-binary.mjs",
     "build:code-mode-host": "node scripts/code-mode/build-host.mjs",
+    "build:voice-helper": "node scripts/build-voice-helper.mjs",
     "verify:code-mode-host-assets": "node scripts/code-mode/verify-host-assets.mjs"
   },
   "publishConfig": {

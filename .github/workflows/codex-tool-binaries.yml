@@ -8,6 +8,7 @@ on:
       - 'packages/pi-codex-conversion/src/tools/rust/**'
       - 'packages/pi-codex-conversion/src/tools/Cargo.toml'
       - 'packages/pi-codex-conversion/src/tools/Cargo.lock'
+      - 'packages/pi-codex-conversion/src/voice/rust/**'
 
 permissions:
   contents: write
@@ -49,6 +50,7 @@ jobs:
           FORCE_ALL_CODEX_TOOL_BUILDS: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
         run: |
           bun run build:changed-path-tools
+          bun run build:voice-helper
       - uses: actions/upload-artifact@v7
         with:
           name: codex-tool-binaries-${{ matrix.platform_arch }}
@@ -58,6 +60,7 @@ jobs:
             packages/pi-codex-conversion/src/tools/web-run/bin/${{ matrix.platform_arch }}/
             packages/pi-codex-conversion/src/tools/imagegen/bin/${{ matrix.platform_arch }}/
             packages/pi-codex-conversion/src/tools/exec/bin/${{ matrix.platform_arch }}/
+            packages/pi-codex-conversion/src/voice/bin/${{ matrix.platform_arch }}/
 
   bundle:
     name: Commit bundled binaries
@@ -72,12 +75,13 @@ jobs:
         with:
           pattern: codex-tool-binaries-*
           merge-multiple: true
-          path: packages/pi-codex-conversion/src/tools
+          path: packages/pi-codex-conversion/src
       - name: Commit bundled binaries
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add packages/pi-codex-conversion/src/tools/*/bin
+          git add packages/pi-codex-conversion/src/voice/bin
           if git diff --cached --quiet; then
             echo "No bundled binary changes."
             exit 0
