@@ -80,16 +80,16 @@
     "access": "public"
   },
   "peerDependencies": {
-    "@earendil-works/pi-ai": "*",
-    "@earendil-works/pi-coding-agent": ">=0.80.7",
-    "@earendil-works/pi-tui": "*",
+    "@earendil-works/pi-ai": ">=0.82.0",
+    "@earendil-works/pi-coding-agent": ">=0.82.0",
+    "@earendil-works/pi-tui": ">=0.82.0",
     "typebox": "*"
   },
   "devDependencies": {
-    "@earendil-works/pi-agent-core": "0.81.1",
-    "@earendil-works/pi-ai": "0.81.1",
-    "@earendil-works/pi-coding-agent": "0.81.1",
-    "@earendil-works/pi-tui": "0.81.1",
+    "@earendil-works/pi-agent-core": "0.82.0",
+    "@earendil-works/pi-ai": "0.82.0",
+    "@earendil-works/pi-coding-agent": "0.82.0",
+    "@earendil-works/pi-tui": "0.82.0",
     "tsx": "^4.20.5",
     "typebox": "^1.1.24",
     "typescript": "^7.0.2"
