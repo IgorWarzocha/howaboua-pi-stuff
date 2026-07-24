@@ -8,6 +8,8 @@ Require Pi 0.82, keep voice-only mode from rewriting provider requests, honor pr
 
 Recover cached Codex WebSocket sessions when the backend loses their previous-response continuation.
 
+Clarify when shell commands need a TTY so long-running builds and tests remain interruptible.
+
 Load native voice transports and command-only usage networking only when used.
 
 Fix native web search on Windows by launching the bundled executable directly instead of spawning its command wrapper.

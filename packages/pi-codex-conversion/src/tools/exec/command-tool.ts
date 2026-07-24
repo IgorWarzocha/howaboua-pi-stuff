@@ -23,7 +23,7 @@ const EXEC_COMMAND_PARAMETERS = Type.Object({
 	shell: Type.Optional(Type.String()),
 	tty: Type.Optional(
 		Type.Boolean({
-			description: "TTY",
+			description: "Keep stdin open for input or interruption",
 		}),
 	),
 	yield_time_ms: Type.Optional(Type.Number({ description: "Wait ms" })),

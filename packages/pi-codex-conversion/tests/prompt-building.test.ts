@@ -12,8 +12,8 @@ Guidelines:
 Pi documentation follows`;
 
 	const normalPrompt = buildCodexSystemPrompt(basePrompt, { mode: "normal" });
-	assert.equal(normalPrompt.match(/Use tty=true for dev servers, watchers, REPLs, and prompts/g)?.length, 1);
-	assert.doesNotMatch(normalPrompt, /Use tty=true for dev servers, watchers, REPLs, and prompts\./);
+	assert.equal(normalPrompt.match(/Use tty=true when a command may need input or interruption, including long-running builds\/tests/g)?.length, 1);
+	assert.doesNotMatch(normalPrompt, /Use tty=true for dev servers/);
 
 	const pathPrompt = buildCodexSystemPrompt(basePrompt, { mode: "path", tools: {} });
 	assert.doesNotMatch(pathPrompt, /Use apply_patch for text-file changes/);
