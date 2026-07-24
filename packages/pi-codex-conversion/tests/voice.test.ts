@@ -8,7 +8,7 @@ import { setKittyProtocolActive } from "@earendil-works/pi-tui";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { CodexVoiceController } from "../src/voice/controller.ts";
 import { CodexRealtimeConversation, realtimePeerStateFailure, utf8Chunks } from "../src/voice/conversation/session.ts";
-import { buildDictationSessionUpdate, decodedBase64ByteLength } from "../src/voice/dictation/session.ts";
+import { CodexDictationSession, buildDictationSessionUpdate, decodedBase64ByteLength } from "../src/voice/dictation/session.ts";
 import { parseVoiceHelperEvent, type VoiceHelperClient, type VoiceHelperCommand, type VoiceHelperEvent } from "../src/voice/helper.ts";
 import { renderRealtimeConversationInput, renderRealtimeDelegation } from "../src/voice/prompts.ts";
 import { buildVoiceSetupInstructions, missingVoiceAudioSettings } from "../src/voice/setup.ts";
@@ -45,6 +45,36 @@ test("dictation uses manual commit audio instead of VAD", () => {
 	assert.equal(update.session.audio.input.turn_detection, null);
 	assert.equal(decodedBase64ByteLength("AA=="), 1);
 	assert.equal(decodedBase64ByteLength("AAAA"), 3);
+});
+
+test("stopping dictation aborts only an in-flight WebSocket setup", async () => {
+	const helper = {
+		onEvent: () => () => {},
+		onExit: () => () => {},
+		start: async () => {},
+		stop: async () => {},
+		close: async () => {},
+	} as unknown as VoiceHelperClient;
+	const session = new CodexDictationSession({ onError: () => {}, onStatus: () => {}, onTranscript: () => {} });
+	const internal = session as unknown as {
+		helper: VoiceHelperClient;
+		connector: (_url: string, _headers: Headers, signal: AbortSignal | undefined) => Promise<never>;
+	};
+	internal.helper = helper;
+	const setupStarted = Promise.withResolvers<AbortSignal>();
+	internal.connector = (_url, _headers, signal) => new Promise((_resolve, reject) => {
+		assert.ok(signal);
+		setupStarted.resolve(signal);
+		signal.addEventListener("abort", () => reject(new Error("setup aborted")), { once: true });
+	});
+	const starting = session.start(
+		{ headers: new Headers(), baseUrl: "https://api.openai.com/v1", officialCodex: true },
+		DEFAULT_CODEX_CONVERSION_CONFIG,
+	);
+	const signal = await setupStarted.promise;
+	await session.finish();
+	assert.equal(signal.aborted, true);
+	await assert.rejects(starting, /setup aborted/);
 });
 
 test("voice shortcuts route push release, toggle dictation, and realtime independently", async () => {

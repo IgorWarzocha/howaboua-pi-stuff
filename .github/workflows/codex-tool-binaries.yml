@@ -85,6 +85,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          find packages/pi-codex-conversion/src/tools packages/pi-codex-conversion/src/voice/bin -path '*/bin/*' -type f ! -name '*.exe' -exec chmod 755 {} +
           git add packages/pi-codex-conversion/src/tools/*/bin
           git add packages/pi-codex-conversion/src/voice/bin
           if git diff --cached --quiet; then

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 const platforms = ["linux-x64", "linux-arm64", "darwin-x64", "darwin-arm64", "win32-x64", "win32-arm64"];
@@ -13,6 +13,7 @@ const tools = [
 ];
 
 const missing = [];
+const notExecutable = [];
 for (const platformArch of platforms) {
 	for (const tool of tools) {
 		const exe = platformArch.startsWith("win32-") ? tool.win : tool.unix;
@@ -20,13 +21,20 @@ for (const platformArch of platforms) {
 			? join("src", "voice", "bin", platformArch, exe)
 			: join("src", "tools", tool.dir, "bin", platformArch, exe);
 		if (!existsSync(path)) missing.push(path);
+		else if (!platformArch.startsWith("win32-") && (statSync(path).mode & 0o111) === 0) notExecutable.push(path);
 	}
 }
 
-if (missing.length > 0) {
+if (missing.length > 0 || notExecutable.length > 0) {
 	console.error("Refusing to publish: bundled Codex tool binaries are incomplete.");
-	console.error("Missing:");
-	for (const path of missing) console.error(`  - ${path}`);
+	if (missing.length > 0) {
+		console.error("Missing:");
+		for (const path of missing) console.error(`  - ${path}`);
+	}
+	if (notExecutable.length > 0) {
+		console.error("Not executable:");
+		for (const path of notExecutable) console.error(`  - ${path}`);
+	}
 	console.error("Run the GitHub Actions binary workflow and commit the downloaded artifacts.");
 	process.exit(1);
 }

@@ -22,6 +22,8 @@ export class CodexDictationSession {
 	private socket: WebSocketLike | undefined;
 	private audioBytes = 0;
 	private completion: ReturnType<typeof Promise.withResolvers<void>> | undefined;
+	private setupAbortController: AbortController | undefined;
+	private connector = connectWebSocket;
 
 	constructor(callbacks: CodexDictationCallbacks) {
 		this.callbacks = callbacks;
@@ -34,7 +36,14 @@ export class CodexDictationSession {
 		this.state = "starting";
 		await this.helper.start();
 		if (this.state !== "starting") return;
-		const socket = await connectWebSocket("wss://api.openai.com/v1/realtime?intent=transcription", new Headers(auth.headers), undefined, 10_000, auth.env);
+		const setupAbortController = new AbortController();
+		this.setupAbortController = setupAbortController;
+		let socket: WebSocketLike;
+		try {
+			socket = await this.connector("wss://api.openai.com/v1/realtime?intent=transcription", new Headers(auth.headers), setupAbortController.signal, 10_000, auth.env);
+		} finally {
+			if (this.setupAbortController === setupAbortController) this.setupAbortController = undefined;
+		}
 		if (this.state !== "starting") { closeWebSocketSilently(socket); return; }
 		this.socket = socket;
 		socket.addEventListener("message", (event) => this.handleSocketMessage(event));
@@ -53,6 +62,7 @@ export class CodexDictationSession {
 	async finish(): Promise<void> {
 		if (this.state === "closed" || this.state === "failed" || this.state === "idle") return;
 		this.state = "finishing";
+		this.abortSetup();
 		this.callbacks.onStatus("transcribing");
 		try {
 			await this.helper.stop();
@@ -67,6 +77,7 @@ export class CodexDictationSession {
 	async close(): Promise<void> {
 		if (this.state === "closed") return;
 		this.state = "closed";
+		this.abortSetup();
 		this.completion?.resolve();
 		this.completion = undefined;
 		if (this.socket) closeWebSocketSilently(this.socket);
@@ -119,12 +130,18 @@ export class CodexDictationSession {
 	private fail(error: Error): void {
 		if (this.state === "idle" || this.state === "closed" || this.state === "failed") return;
 		this.state = "failed";
+		this.abortSetup();
 		this.completion?.reject(error);
 		this.completion = undefined;
 		if (this.socket) closeWebSocketSilently(this.socket);
 		this.socket = undefined;
 		this.callbacks.onError(error);
 		void this.helper.close();
+	}
+
+	private abortSetup(): void {
+		this.setupAbortController?.abort();
+		this.setupAbortController = undefined;
 	}
 }
 
