@@ -130,6 +130,7 @@ export function registerCodexEvents(
 	});
 	pi.on("before_agent_start", async (event, ctx) => {
 		const voicePrompt = runtime.voice.beforeAgentStart();
+		if (voicePrompt) state.codexTurnState.beginTurn();
 		const systemPrompt = voicePrompt ? `${event.systemPrompt}\n\n${voicePrompt}` : event.systemPrompt;
 		if (!shouldUseCodexAdapter(ctx, state.config)) return voicePrompt ? { systemPrompt } : undefined;
 		const skills = resolvePromptSkills(event.systemPromptOptions?.skills, hasNoSkillsFlag() ? [] : state.promptSkills);
@@ -140,6 +141,7 @@ export function registerCodexEvents(
 		const update = event.assistantMessageEvent;
 		if ((update.type === "text_delta" || update.type === "thinking_delta") && typeof update.delta === "string") runtime.voice.streamDelta(update.type, update.delta);
 	});
+	pi.on("agent_start", async () => { runtime.voice.agentStarted(); });
 	pi.on("agent_settled", async () => { state.codexTurnState.reset(); runtime.voice.settleTurn(); });
 	pi.on("before_provider_request", async (event, ctx) => {
 		state.cwd = ctx.cwd;

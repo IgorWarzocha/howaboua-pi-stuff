@@ -7,8 +7,10 @@ import { registerCodexEvents } from "./events.ts";
 import { createCodexExtensionRuntime } from "./runtime.ts";
 import { registerCodexTools } from "./tools.ts";
 import { registerCodexUi } from "./ui.ts";
+import { registerCodexVoiceRenderer } from "../voice/ui.ts";
 
 export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
+	registerCodexVoiceRenderer(pi);
 	const runtime = createCodexExtensionRuntime(pi);
 	const codeMode = await registerCodexCodeMode(pi, runtime);
 	let cleanupProxyProvider: ReturnType<typeof registerCodeModeProxyProvider> | undefined;
