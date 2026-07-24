@@ -105,6 +105,7 @@ test("voice setup identifies missing devices and constructs a turn-visible messa
 		configPath: "/agent/pi-codex-conversion.json",
 		helperPath: "/package/pi-codex-voice",
 		missing,
+		realtimePromptPath: "/agent/REALTIME-SYSTEM-PROMPT.md",
 		retryCommand: "/codex voice realtime",
 	});
 	const message = codexVoiceSetupMessage(instructions);
@@ -115,6 +116,7 @@ test("voice setup identifies missing devices and constructs a turn-visible messa
 	assert.match(instructions, /voice\.inputDevice, voice\.outputDevice/);
 	assert.match(instructions, /list_devices/);
 	assert.match(instructions, /ask the user which one to use/);
+	assert.match(instructions, /Read the Realtime System Prompt at \/agent\/REALTIME-SYSTEM-PROMPT\.md/);
 });
 
 test("voice prompt creation preserves existing customization and strips visible guidance", () => {

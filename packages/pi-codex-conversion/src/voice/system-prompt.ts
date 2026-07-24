@@ -10,7 +10,9 @@ export const REQUIRED_CODEX_VOICE_SECTIONS = [
 	"Backend results",
 ] as const;
 
-const DEFAULT_CODEX_VOICE_SYSTEM_PROMPT = `<!-- Codex Realtime Voice reads this file. HTML comments are visible guidance and are not sent to the model. -->
+const DEFAULT_CODEX_VOICE_SYSTEM_PROMPT = `<!-- This file controls the spoken assistant's personality, conversation style, and delegation behavior. -->
+<!-- The spoken assistant cannot access tools or files. Coding, project, and tool instructions remain with Pi and local AGENTS.md files; do not duplicate them here. -->
+<!-- HTML comments are visible guidance and are not sent to the model. -->
 <!-- Required sections keep routing functional. Tweak them if needed, but do not remove them. -->
 
 ## Identity and tone

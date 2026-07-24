@@ -13,6 +13,7 @@ export function buildVoiceSetupInstructions(options: {
 	configPath: string;
 	helperPath: string | undefined;
 	missing: VoiceAudioSetting[];
+	realtimePromptPath: string;
 	retryCommand: string;
 }): string {
 	const lines = [
@@ -33,6 +34,8 @@ export function buildVoiceSetupInstructions(options: {
 		"Use device id values, not display names. If multiple usable devices exist for a missing setting, show the names and IDs and ask the user which one to use. Do not choose for them.",
 		"Set voice.inputDevice to the selected input id and voice.outputDevice to the selected output id, but only when that setting is missing.",
 		"Update only the missing settings under voice. Preserve every other config value.",
+		`Read the Realtime System Prompt at ${options.realtimePromptPath} before finishing.`,
+		"After device setup, mention that the Realtime System Prompt can be customized and ask whether the user wants you to open it. Do not edit it unless asked.",
 		`After saving, tell the user to run ${options.retryCommand} again.`,
 	].join("\n");
 }
