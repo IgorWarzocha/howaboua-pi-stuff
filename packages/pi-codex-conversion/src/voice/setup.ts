@@ -2,10 +2,10 @@ import { DEFAULT_CODEX_CONVERSION_CONFIG, type CodexConversionConfig } from "../
 
 export type VoiceAudioSetting = "voice.inputDevice" | "voice.outputDevice";
 
-export function missingVoiceAudioSettings(config: CodexConversionConfig): VoiceAudioSetting[] {
+export function missingVoiceAudioSettings(config: CodexConversionConfig, mode: "realtime" | "dictation"): VoiceAudioSetting[] {
 	return [
 		...(!config.voice.inputDevice ? ["voice.inputDevice" as const] : []),
-		...(!config.voice.outputDevice ? ["voice.outputDevice" as const] : []),
+		...(mode === "realtime" && !config.voice.outputDevice ? ["voice.outputDevice" as const] : []),
 	];
 }
 
@@ -30,7 +30,7 @@ export function buildVoiceSetupInstructions(options: {
 	return [...lines,
 		`Audio helper: ${options.helperPath}`,
 		'Use its {"type":"list_devices"} JSONL command to inspect available devices.',
-		"Configure missing input and output settings with exact device id values. If multiple plausible devices are available, ask the user which they prefer. Investigate ambiguity as needed; do not guess.",
+		"Configure the missing audio settings with exact device id values. If multiple plausible devices are available, ask the user which they prefer. Investigate ambiguity as needed; do not guess.",
 		"Preserve every other config value.",
 		`Explain the default controls: hold ${formatShortcut(DEFAULT_CODEX_CONVERSION_CONFIG.voice.dictationShortcut)} to dictate and release to transcribe into Pi; ${formatShortcut(DEFAULT_CODEX_CONVERSION_CONFIG.voice.realtimeShortcut)} toggles realtime voice. Dictation push mode needs terminal key-release support; toggle behavior is selectable in /codex voice. Keybinds and behavior can also be changed in ${options.configPath} with voice.dictationShortcut, voice.realtimeShortcut, and voice.dictationShortcutMode.`,
 		`Read the Realtime System Prompt at ${options.realtimePromptPath} before finishing.`,

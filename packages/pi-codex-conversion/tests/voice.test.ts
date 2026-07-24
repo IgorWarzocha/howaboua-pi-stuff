@@ -6,7 +6,7 @@ import test from "node:test";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { setKittyProtocolActive } from "@earendil-works/pi-tui";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
-import { utf8Chunks } from "../src/voice/conversation/session.ts";
+import { realtimePeerStateFailure, utf8Chunks } from "../src/voice/conversation/session.ts";
 import { buildDictationSessionUpdate, decodedBase64ByteLength } from "../src/voice/dictation/session.ts";
 import { parseVoiceHelperEvent } from "../src/voice/helper.ts";
 import { renderRealtimeConversationInput, renderRealtimeDelegation } from "../src/voice/prompts.ts";
@@ -146,6 +146,12 @@ test("realtime handoff chunks preserve Unicode under the byte limit", () => {
 	assert.equal(chunks.every((chunk) => Buffer.byteLength(chunk) <= 500), true);
 });
 
+test("realtime peer terminal states fail the session", () => {
+	assert.equal(realtimePeerStateFailure("failed"), "Codex realtime connection failed");
+	assert.equal(realtimePeerStateFailure("closed"), "Codex realtime connection closed");
+	assert.equal(realtimePeerStateFailure("disconnected"), undefined);
+});
+
 test("realtime delegations use the Codex envelope and escape transcripts", () => {
 	assert.equal(
 		renderRealtimeDelegation("inspect a < b && c > d"),
@@ -201,12 +207,17 @@ test("voice mode messages separate model context from their system-style display
 });
 
 test("voice setup identifies missing devices and constructs a turn-visible message", () => {
-	const missing = missingVoiceAudioSettings(DEFAULT_CODEX_CONVERSION_CONFIG);
+	const missing = missingVoiceAudioSettings(DEFAULT_CODEX_CONVERSION_CONFIG, "realtime");
 	assert.deepEqual(missing, ["voice.inputDevice", "voice.outputDevice"]);
+	assert.deepEqual(missingVoiceAudioSettings(DEFAULT_CODEX_CONVERSION_CONFIG, "dictation"), ["voice.inputDevice"]);
 	assert.deepEqual(missingVoiceAudioSettings({
 		...DEFAULT_CODEX_CONVERSION_CONFIG,
 		voice: { ...DEFAULT_CODEX_CONVERSION_CONFIG.voice, inputDevice: "mic-1", outputDevice: "speaker-1" },
-	}), []);
+	}, "realtime"), []);
+	assert.deepEqual(missingVoiceAudioSettings({
+		...DEFAULT_CODEX_CONVERSION_CONFIG,
+		voice: { ...DEFAULT_CODEX_CONVERSION_CONFIG.voice, inputDevice: "mic-1" },
+	}, "dictation"), []);
 
 	const instructions = buildVoiceSetupInstructions({
 		configPath: "/agent/pi-codex-conversion.json",

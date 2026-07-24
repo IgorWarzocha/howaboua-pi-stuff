@@ -104,6 +104,8 @@ export class CodexRealtimeConversation {
 	}
 
 	private handleHelperState(state: string): void {
+		const failure = realtimePeerStateFailure(state);
+		if (failure) { this.fail(new Error(failure)); return; }
 		if (state === "ready" || state === "listening") this.callbacks.onStatus("listening");
 		else if (state === "connecting" || state === "connected") this.callbacks.onStatus("connecting…");
 		else if (state === "disconnected") this.callbacks.onStatus("reconnecting…");
@@ -197,4 +199,10 @@ export function utf8Chunks(input: string, maxBytes: number): string[] {
 	}
 	if (current) chunks.push(current);
 	return chunks;
+}
+
+export function realtimePeerStateFailure(state: string): string | undefined {
+	if (state === "failed") return "Codex realtime connection failed";
+	if (state === "closed") return "Codex realtime connection closed";
+	return undefined;
 }

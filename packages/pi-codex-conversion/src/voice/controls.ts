@@ -23,7 +23,7 @@ export function createCodexVoiceControls(options: {
 
 	const start = async (mode: CodexVoiceMode, ctx: ExtensionContext): Promise<void> => {
 		if (voice.activeMode === mode) return;
-		const missingAudioSettings = missingVoiceAudioSettings(state.config);
+		const missingAudioSettings = missingVoiceAudioSettings(state.config, mode);
 		if (missingAudioSettings.length > 0) {
 			if (!ctx.isIdle()) {
 				ctx.ui.notify("Wait for the current turn before setting up Codex voice.", "info");

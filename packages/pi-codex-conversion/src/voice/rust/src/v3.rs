@@ -31,6 +31,7 @@ pub struct V3Session {
     peer: Arc<RTCPeerConnection>,
     data_channel: Arc<RTCDataChannel>,
     capture_task: tokio::task::JoinHandle<()>,
+    encoder_task: tokio::task::JoinHandle<()>,
     _capture: Capture,
     _playback: Playback,
 }
@@ -149,7 +150,7 @@ impl V3Session {
 
         let capture_queue = Arc::clone(&capture.samples);
         let capture_rate = capture.sample_rate;
-        tokio::spawn(async move {
+        let encoder_task = tokio::spawn(async move {
             let mut encoder = match opus::Encoder::new(
                 OPUS_RATE,
                 opus::Channels::Mono,
@@ -205,6 +206,7 @@ impl V3Session {
                 peer,
                 data_channel,
                 capture_task,
+                encoder_task,
                 _capture: capture,
                 _playback: playback,
             },
@@ -228,7 +230,9 @@ impl V3Session {
 
     pub async fn close(self) -> Result<()> {
         self.capture_task.abort();
+        self.encoder_task.abort();
         let _ = self.capture_task.await;
+        let _ = self.encoder_task.await;
         self.peer.close().await?;
         Ok(())
     }
