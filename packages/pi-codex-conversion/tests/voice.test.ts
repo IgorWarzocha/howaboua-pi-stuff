@@ -6,9 +6,10 @@ import test from "node:test";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { setKittyProtocolActive } from "@earendil-works/pi-tui";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
-import { realtimePeerStateFailure, utf8Chunks } from "../src/voice/conversation/session.ts";
+import { CodexVoiceController } from "../src/voice/controller.ts";
+import { CodexRealtimeConversation, realtimePeerStateFailure, utf8Chunks } from "../src/voice/conversation/session.ts";
 import { buildDictationSessionUpdate, decodedBase64ByteLength } from "../src/voice/dictation/session.ts";
-import { parseVoiceHelperEvent } from "../src/voice/helper.ts";
+import { parseVoiceHelperEvent, type VoiceHelperClient, type VoiceHelperCommand, type VoiceHelperEvent } from "../src/voice/helper.ts";
 import { renderRealtimeConversationInput, renderRealtimeDelegation } from "../src/voice/prompts.ts";
 import { buildVoiceSetupInstructions, missingVoiceAudioSettings } from "../src/voice/setup.ts";
 import { registerCodexVoiceShortcuts } from "../src/voice/shortcuts.ts";
@@ -152,6 +153,76 @@ test("realtime peer terminal states fail the session", () => {
 	assert.equal(realtimePeerStateFailure("disconnected"), undefined);
 });
 
+test("closing realtime voice aborts an in-flight call setup", async () => {
+	const listeners = new Set<(event: VoiceHelperEvent) => void>();
+	const helper = {
+		onEvent: (listener: (event: VoiceHelperEvent) => void) => { listeners.add(listener); return () => listeners.delete(listener); },
+		onExit: () => () => {},
+		start: async () => {},
+		send: (command: VoiceHelperCommand) => {
+			if (command.type === "start_v3") queueMicrotask(() => {
+				for (const listener of listeners) listener({ type: "offer", sdp: "offer" });
+			});
+		},
+		close: async () => {},
+	} as unknown as VoiceHelperClient;
+	const session = new CodexRealtimeConversation({ onError: () => {}, onStatus: () => {}, onTurn: () => {} });
+	const internal = session as unknown as { helper: VoiceHelperClient };
+	internal.helper = helper;
+	const fetchStarted = Promise.withResolvers<AbortSignal>();
+	const originalFetch = globalThis.fetch;
+	globalThis.fetch = ((_input, init) => new Promise<Response>((_resolve, reject) => {
+		const signal = init?.signal;
+		assert.ok(signal);
+		fetchStarted.resolve(signal);
+		signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+	})) as typeof fetch;
+	try {
+		const starting = session.start(
+			{ headers: new Headers(), baseUrl: "https://example.test", officialCodex: false },
+			DEFAULT_CODEX_CONVERSION_CONFIG,
+			"instructions",
+		);
+		const signal = await fetchStarted.promise;
+		await session.close();
+		assert.equal(signal.aborted, true);
+		await assert.rejects(starting, { name: "AbortError" });
+	} finally {
+		globalThis.fetch = originalFetch;
+	}
+});
+
+test("invalid realtime prompts leave the current voice session untouched", async () => {
+	const directory = mkdtempSync(join(tmpdir(), "codex-voice-controller-prompt-"));
+	const previousAgentDir = process.env["PI_CODING_AGENT_DIR"];
+	const notifications: string[] = [];
+	let finishes = 0;
+	try {
+		process.env["PI_CODING_AGENT_DIR"] = directory;
+		writeFileSync(join(directory, "REALTIME-SYSTEM-PROMPT.md"), "## Identity and tone\nHello");
+		const controller = new CodexVoiceController({} as ExtensionAPI);
+		const internal = controller as unknown as { state: unknown; announcedMode: unknown };
+		internal.state = { type: "dictation", session: { finish: async () => { finishes += 1; } } };
+		internal.announcedMode = "dictation";
+		const ctx = {
+			cwd: directory,
+			isProjectTrusted: () => false,
+			ui: { notify: (message: string) => notifications.push(message) },
+		} as unknown as ExtensionContext;
+		const config = structuredClone(DEFAULT_CODEX_CONVERSION_CONFIG);
+		config.voice.mode = "conversational";
+		await controller.start(ctx, config);
+		assert.equal(controller.status, "dictation");
+		assert.equal(controller.activeMode, "dictation");
+		assert.equal(finishes, 0);
+		assert.match(notifications.join("\n"), /missing required sections/);
+	} finally {
+		if (previousAgentDir === undefined) delete process.env["PI_CODING_AGENT_DIR"];
+		else process.env["PI_CODING_AGENT_DIR"] = previousAgentDir;
+		rmSync(directory, { recursive: true, force: true });
+	}
+});
+
 test("realtime delegations use the Codex envelope and escape transcripts", () => {
 	assert.equal(
 		renderRealtimeDelegation("inspect a < b && c > d"),
@@ -238,6 +309,7 @@ test("voice setup identifies missing devices and constructs a turn-visible messa
 	assert.match(instructions, /hold Ctrl\+Alt\+D to dictate/);
 	assert.match(instructions, /Ctrl\+Alt\+Space toggles realtime voice/);
 	assert.match(instructions, /voice\.dictationShortcutMode/);
+	assert.match(instructions, /keybind changes take effect after \/reload/);
 	assert.match(instructions, /\/agent\/pi-codex-conversion\.json/);
 	assert.match(instructions, /Read the Realtime System Prompt at \/agent\/REALTIME-SYSTEM-PROMPT\.md/);
 	assert.match(instructions, /\/repo\/\.pi\/REALTIME-SYSTEM-PROMPT\.md/);

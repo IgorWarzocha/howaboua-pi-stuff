@@ -37,9 +37,15 @@ export class CodexVoiceController {
 
 	async start(ctx: ExtensionContext, config: CodexConversionConfig): Promise<void> {
 		const mode: CodexVoiceMode = config.voice.mode === "transcription" ? "dictation" : "realtime";
-		const realtimePrompt = mode === "realtime"
-			? loadCodexVoiceSystemPrompt(undefined, ctx.isProjectTrusted() ? getProjectCodexVoiceSystemPromptPath(ctx.cwd) : undefined)
-			: undefined;
+		let realtimePrompt: string | undefined;
+		try {
+			realtimePrompt = mode === "realtime"
+				? loadCodexVoiceSystemPrompt(undefined, ctx.isProjectTrusted() ? getProjectCodexVoiceSystemPromptPath(ctx.cwd) : undefined)
+				: undefined;
+		} catch (error) {
+			ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
+			return;
+		}
 		if (this.state.type === "dictation") await this.finishDictation({ announce: true });
 		else await this.stop({ announce: true });
 		const startGeneration = ++this.startGeneration;

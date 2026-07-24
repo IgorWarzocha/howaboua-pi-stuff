@@ -25,6 +25,7 @@ export class CodexRealtimeConversation {
 	private handoffBuffer = "";
 	private handoffChannel: "commentary" | "speakable" = "speakable";
 	private handoffTimer: ReturnType<typeof setTimeout> | undefined;
+	private setupAbortController: AbortController | undefined;
 
 	constructor(callbacks: CodexConversationCallbacks) {
 		this.callbacks = callbacks;
@@ -54,12 +55,21 @@ export class CodexRealtimeConversation {
 		headers.set("openai-alpha", "quicksilver=v2");
 		headers.set("content-type", "application/json");
 		const endpoint = `${auth.baseUrl.replace(/\/+$/, "")}/realtime/calls?intent=quicksilver&architecture=avas`;
-		const response = await fetch(endpoint, {
-			method: "POST",
-			headers,
-			body: JSON.stringify({ sdp, session: { model: V3_MODEL, instructions, audio: { output: { voice: config.voice.v3Voice } }, delegation: { type: "client" } } }),
-		});
-		const answer = await response.text();
+		const setupAbortController = new AbortController();
+		this.setupAbortController = setupAbortController;
+		let response: Response;
+		let answer: string;
+		try {
+			response = await fetch(endpoint, {
+				method: "POST",
+				headers,
+				signal: setupAbortController.signal,
+				body: JSON.stringify({ sdp, session: { model: V3_MODEL, instructions, audio: { output: { voice: config.voice.v3Voice } }, delegation: { type: "client" } } }),
+			});
+			answer = await response.text();
+		} finally {
+			if (this.setupAbortController === setupAbortController) this.setupAbortController = undefined;
+		}
 		if (this.state !== "starting") return;
 		if (response.status !== 201) throw new Error(`Codex voice call failed (${response.status}): ${answer.slice(0, 1_000)}`);
 		this.state = "active";
@@ -90,6 +100,7 @@ export class CodexRealtimeConversation {
 	async close(): Promise<void> {
 		if (this.state === "closed") return;
 		this.state = "closed";
+		this.abortSetup();
 		this.clearHandoff();
 		this.turnTracker.reset();
 		this.activeDelegationId = undefined;
@@ -168,9 +179,15 @@ export class CodexRealtimeConversation {
 		this.handoffBuffer = "";
 	}
 
+	private abortSetup(): void {
+		this.setupAbortController?.abort();
+		this.setupAbortController = undefined;
+	}
+
 	private fail(error: Error): void {
 		if (this.state === "idle" || this.state === "closed" || this.state === "failed") return;
 		this.state = "failed";
+		this.abortSetup();
 		this.clearHandoff();
 		this.callbacks.onError(error);
 		void this.helper.close();

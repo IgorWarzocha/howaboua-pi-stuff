@@ -340,7 +340,7 @@ function formatTabs(activeTab: SettingsTab, theme: Theme): string {
 function formatVoiceLines(theme: Theme): string[] {
 	return [
 		theme.fg("dim", `  Realtime System Prompt: ${getCodexVoiceSystemPromptPath()}`),
-		theme.fg("dim", `  Keybinds adjustable in ${getCodexConversionConfigPath()}`),
+		theme.fg("dim", `  Keybinds adjustable in ${getCodexConversionConfigPath()} (/reload to apply)`),
 	];
 }
 
