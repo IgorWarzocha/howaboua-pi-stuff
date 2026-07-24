@@ -7,6 +7,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { setKittyProtocolActive } from "@earendil-works/pi-tui";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { resolveWebSocketProxyForTarget } from "../src/providers/openai-codex/websocket-connection.ts";
+import { registerCodexCommand } from "../src/ui/settings/command.ts";
 import { CodexVoiceController } from "../src/voice/controller.ts";
 import { CodexRealtimeConversation, realtimePeerStateFailure, utf8Chunks } from "../src/voice/conversation/session.ts";
 import { CodexDictationSession, buildDictationSessionUpdate, decodedBase64ByteLength } from "../src/voice/dictation/session.ts";
@@ -131,6 +132,39 @@ test("voice shortcuts route push release, toggle dictation, and realtime indepen
 		assert.match(notifications.join("\n"), /key-release support/);
 	} finally {
 		setKittyProtocolActive(false);
+	}
+});
+
+test("voice stop command does not wait for the agent turn", async () => {
+	type CommandHandler = (args: string, ctx: ExtensionContext) => Promise<void>;
+	const directory = mkdtempSync(join(tmpdir(), "codex-voice-stop-command-"));
+	const previousAgentDir = process.env["PI_CODING_AGENT_DIR"];
+	let handler: CommandHandler | undefined;
+	let stops = 0;
+	try {
+		process.env["PI_CODING_AGENT_DIR"] = directory;
+		const pi = {
+			registerCommand: (_name: string, options: { handler: CommandHandler }) => { handler = options.handler; },
+			registerShortcut: () => {},
+			on: () => {},
+		} as unknown as ExtensionAPI;
+		const state = { config: structuredClone(DEFAULT_CODEX_CONVERSION_CONFIG) };
+		const voice = {
+			activeMode: "realtime",
+			stop: async () => { stops += 1; },
+		};
+		registerCodexCommand(pi, state as never, voice as never);
+		assert.ok(handler);
+		await handler("voice stop", {
+			mode: "tui",
+			waitForIdle: async () => { throw new Error("voice stop waited for idle"); },
+			ui: { notify: () => {} },
+		} as unknown as ExtensionContext);
+		assert.equal(stops, 1);
+	} finally {
+		if (previousAgentDir === undefined) delete process.env["PI_CODING_AGENT_DIR"];
+		else process.env["PI_CODING_AGENT_DIR"] = previousAgentDir;
+		rmSync(directory, { recursive: true, force: true });
 	}
 });
 

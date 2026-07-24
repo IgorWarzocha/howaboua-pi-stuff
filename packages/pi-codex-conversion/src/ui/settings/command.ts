@@ -130,7 +130,6 @@ export function registerCodexCommand(
 			}
 			if (arg === "voice stop") {
 				if (ctx.mode !== "tui") { ctx.ui.notify("Codex voice requires interactive TUI mode", "error"); return; }
-				await ctx.waitForIdle();
 				await voiceControls.stop(ctx);
 				return;
 			}
