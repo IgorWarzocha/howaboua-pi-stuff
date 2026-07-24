@@ -8,7 +8,7 @@ import { Container, Text } from "@earendil-works/pi-tui";
 import { codexToolProviderEnv, CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE, resolveCodexToolProvider } from "../../adapter/codex-tool-provider.ts";
 import { WEB_SEARCH_TOOL_NAME } from "../../adapter/activation/tool-set.ts";
 import { renderCodexToolCell } from "../../ui/tool-rendering/codex-tool-cell.ts";
-import { getBundledPathToolsBinDir } from "../path/binary.ts";
+import { getBundledPathToolBinaryPath } from "../path/binary.ts";
 
 export const WEB_SEARCH_UNSUPPORTED_MESSAGE = CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE;
 export const WEB_SEARCH_SESSION_NOTE_TYPE = "codex-web-search-session-note";
@@ -176,8 +176,9 @@ export function supportsMultimodalNativeWebSearch(model: ExtensionContext["model
 }
 
 export async function executeCodexWebSearch(params: Record<string, unknown>, ctx: ExtensionContext, signal: AbortSignal | undefined | null, options: WebSearchToolOptions = {}): Promise<WebRunExecutionResult> {
+	const webRunPath = process.env["PI_CODEX_WEB_RUN_BIN"]?.trim() || getBundledPathToolBinaryPath("web_run");
+	if (!webRunPath) throw new Error(`web_run binary is not bundled for ${process.platform}-${process.arch}`);
 	const provider = await resolveCodexToolProvider(ctx, options.allowConfiguredProvider);
-	const webRunPath = process.env["PI_CODEX_WEB_RUN_BIN"]?.trim() || join(getBundledPathToolsBinDir(), process.platform === "win32" ? "web_run.cmd" : "web_run");
 	const sessionId = ctx.sessionManager?.getSessionId?.() || options.sessionId;
 	const configuredModel = typeof options.model === "function" ? options.model() : options.model;
 	const model = provider.route === "configured-responses" ? provider.model : configuredModel;
