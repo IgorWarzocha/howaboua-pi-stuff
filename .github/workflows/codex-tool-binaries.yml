@@ -42,9 +42,13 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - uses: oven-sh/setup-bun@v2
       - run: bun install
+      - name: Install Linux audio headers
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
       - name: Build bundled tools
         working-directory: packages/pi-codex-conversion
         env:
+          CMAKE_POLICY_VERSION_MINIMUM: '3.5'
           GITHUB_EVENT_BEFORE: ${{ github.event.before }}
           FALLBACK_BASE_REF: origin/${{ github.event.repository.default_branch }}
           FORCE_ALL_CODEX_TOOL_BUILDS: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
