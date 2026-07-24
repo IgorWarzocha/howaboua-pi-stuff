@@ -1,4 +1,5 @@
-import { DEFAULT_CODEX_CONVERSION_CONFIG, type CodexConversionConfig } from "../adapter/activation/config.ts";
+import { DEFAULT_CODEX_CONVERSION_CONFIG, getCodexConversionConfigPath, type CodexConversionConfig } from "../adapter/activation/config.ts";
+import type { CodexVoiceMode } from "./ui.ts";
 
 export type VoiceAudioSetting = "voice.inputDevice" | "voice.outputDevice";
 
@@ -7,6 +8,29 @@ export function missingVoiceAudioSettings(config: CodexConversionConfig, mode: "
 		...(!config.voice.inputDevice ? ["voice.inputDevice" as const] : []),
 		...(mode === "realtime" && !config.voice.outputDevice ? ["voice.outputDevice" as const] : []),
 	];
+}
+
+export function formatVoiceAudioError(error: Error, mode: CodexVoiceMode, config: CodexConversionConfig): string {
+	const direction = audioErrorDirection(error.message, mode);
+	if (!direction) return error.message;
+	const input = direction === "input";
+	const setting = input ? "voice.inputDevice" : "voice.outputDevice";
+	const device = input ? config.voice.inputDevice : config.voice.outputDevice;
+	return [
+		`Codex voice could not open ${direction} device \`${device ?? "default"}\`.`,
+		"It may be busy, unavailable, or the wrong endpoint in a routed or processed audio setup.",
+		"Ask your Pi agent to resolve the audio setup, or paste this message into the prompt.",
+		`Agent: inspect the available audio devices and routes. If multiple endpoints are plausible, ask the user which they want. Update only \`${setting}\` in \`${getCodexConversionConfigPath()}\`. For shared or processed audio, prefer the final virtual/system source rather than opening physical hardware directly. Then ask the user to try using voice features again.`,
+		`Audio backend: ${error.message}`,
+	].join("\n");
+}
+
+function audioErrorDirection(message: string, mode: CodexVoiceMode): "input" | "output" | undefined {
+	const normalized = message.toLowerCase();
+	if (/microphone|default input|input (?:device|stream|format)/.test(normalized)) return "input";
+	if (/speaker|default output|output (?:device|stream|format)/.test(normalized)) return "output";
+	if (mode === "dictation" && /(?:requested )?device|audio (?:device|stream)|capture stream|sample format/.test(normalized)) return "input";
+	return undefined;
 }
 
 export function buildVoiceSetupInstructions(options: {

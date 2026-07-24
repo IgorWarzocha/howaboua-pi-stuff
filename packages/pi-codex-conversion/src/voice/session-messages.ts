@@ -20,6 +20,7 @@ export class CodexVoiceSessionMessages {
 	private pending: PendingVoiceMessage[] = [];
 	private piTurnActive = false;
 	private backendTurnPending = false;
+	private dictationAnnounced = false;
 
 	constructor(pi: ExtensionAPI, callbacks: CodexVoiceSessionMessageCallbacks) {
 		this.pi = pi;
@@ -32,13 +33,21 @@ export class CodexVoiceSessionMessages {
 	}
 
 	modeStarted(mode: CodexVoiceMode): void {
+		if (mode === "dictation") {
+			if (this.dictationAnnounced) return;
+			this.dictationAnnounced = true;
+		}
 		this.enqueueMode(mode, "started");
+	}
+
+	resetContextAnnouncements(): void {
+		this.dictationAnnounced = false;
 	}
 
 	voiceStopped(mode?: CodexVoiceMode): void {
 		this.backendTurnPending = false;
 		this.piTurnActive = this.context ? !this.context.isIdle() : false;
-		if (mode) this.enqueueMode(mode, "ended");
+		if (mode && mode !== "dictation") this.enqueueMode(mode, "ended");
 		else this.flush();
 	}
 

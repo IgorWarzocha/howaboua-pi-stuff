@@ -17,6 +17,7 @@ class FakeWebSocket {
 	readonly options: { headers?: Record<string, string> } | undefined;
 	readyState = 0;
 	private listeners = new Map<string, Set<(event: unknown) => void>>();
+	private pendingResponses: unknown[][] = [];
 
 	constructor(_url: string, options?: { headers?: Record<string, string> }) {
 		this.options = options;
@@ -31,6 +32,7 @@ class FakeWebSocket {
 		const listeners = this.listeners.get(type) ?? new Set();
 		listeners.add(listener);
 		this.listeners.set(type, listeners);
+		if (type === "message") this.deliverResponses();
 	}
 
 	removeEventListener(type: string, listener: (event: unknown) => void): void {
@@ -39,13 +41,12 @@ class FakeWebSocket {
 
 	send(data: string): void {
 		this.sent.push(data);
-		setTimeout(() => {
-			for (const event of FakeWebSocket.responses.shift() ?? [
+		this.pendingResponses.push(FakeWebSocket.responses.shift() ?? [
 				{ type: "codex.response.metadata", headers: { "x-codex-turn-state": "ts-warm" } },
 				{ type: "response.created", response: { id: "resp_warm" } },
 				{ type: "response.completed", response: { id: "resp_warm", status: "completed" } },
-			]) this.emit("message", { data: JSON.stringify(event) });
-		}, 0);
+			]);
+		this.deliverResponses();
 	}
 
 	close(code?: number, reason?: string): void {
@@ -55,6 +56,16 @@ class FakeWebSocket {
 
 	private emit(type: string, event: unknown): void {
 		for (const listener of this.listeners.get(type) ?? []) listener(event);
+	}
+
+	private deliverResponses(): void {
+		if (!this.listeners.get("message")?.size) return;
+		const responses = this.pendingResponses.shift();
+		if (!responses) return;
+		queueMicrotask(() => {
+			for (const event of responses) this.emit("message", { data: JSON.stringify(event) });
+			this.deliverResponses();
+		});
 	}
 }
 
@@ -145,7 +156,7 @@ test("cached WebSocket retries a missing continuation with full context", async 
 		seeded.release({ keep: true });
 		const output = createInitialAssistantMessage(model);
 		let starts = 0;
-		await processWebSocketStream("wss://chatgpt.example/backend-api/codex/responses", body, new Headers(), output, createAssistantMessageEventStream(), model, () => { starts++; }, { sessionId, transport: "websocket-cached" });
+		await processWebSocketStream("wss://chatgpt.example/backend-api/codex/responses", body, new Headers(), output, createAssistantMessageEventStream(), model, () => { starts++; }, { sessionId, timeoutMs: 1_000, transport: "websocket-cached" });
 
 		assert.equal(FakeWebSocket.instances.length, 2);
 		assert.equal(JSON.parse(FakeWebSocket.instances[0]!.sent[0]!).previous_response_id, "resp_warm");

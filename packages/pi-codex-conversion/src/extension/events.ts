@@ -65,6 +65,7 @@ export function registerCodexEvents(
 	sessions.onSessionExit((sessionId) => tracker.recordSessionFinished(sessionId));
 
 	pi.on("session_start", async (event, ctx) => {
+		runtime.voice.resetContextAnnouncements();
 		try {
 			ensureCodexVoiceSystemPrompt();
 		} catch (error) {
@@ -167,6 +168,7 @@ export function registerCodexEvents(
 		return handleCodexSessionBeforeCompact(event, ctx, state, pi);
 	});
 	pi.on("session_compact", async (event) => {
+		runtime.voice.resetContextAnnouncements();
 		state.pendingPiCompactionNativeWindow = undefined;
 		if (!event.fromExtension || !isNativeCompactionDetails(event.compactionEntry.details)) return;
 		pi.sendMessage({
