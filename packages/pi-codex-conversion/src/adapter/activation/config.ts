@@ -12,6 +12,7 @@ export type CompactionVersion = "v1" | "v2";
 export type V2UserMessageRetention = 16 | 32 | 64;
 export type RealtimeProtocol = "v2" | "v3";
 export type RealtimeSessionMode = "conversational" | "transcription";
+export type DictationShortcutMode = "push" | "toggle";
 
 export const REALTIME_V2_VOICES = ["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin", "cedar"] as const;
 export const REALTIME_V3_VOICES = ["juniper", "maple", "spruce", "ember", "vale", "breeze", "arbor", "sol", "cove"] as const;
@@ -54,6 +55,9 @@ export interface CodexConversionConfig {
 		mode: RealtimeSessionMode;
 		v2Voice: RealtimeV2Voice;
 		v3Voice: RealtimeV3Voice;
+		dictationShortcut: string;
+		realtimeShortcut: string;
+		dictationShortcutMode: DictationShortcutMode;
 		inputDevice?: string | undefined;
 		outputDevice?: string | undefined;
 	};
@@ -84,7 +88,15 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	},
 	compaction: { responsesCompaction: false, version: "v1" },
 	beta: { codeMode: false, responsesLite: false, v2UserMessageRetention: 64 },
-	voice: { protocol: "v3", mode: "conversational", v2Voice: "marin", v3Voice: "cove" },
+	voice: {
+		protocol: "v3",
+		mode: "conversational",
+		v2Voice: "marin",
+		v3Voice: "cove",
+		dictationShortcut: "ctrl+alt+d",
+		realtimeShortcut: "ctrl+alt+space",
+		dictationShortcutMode: "push",
+	},
 	openai: {
 		fast: false,
 		verbosity: "low",
@@ -132,6 +144,10 @@ export function normalizeRealtimeProtocol(value: unknown): RealtimeProtocol | un
 
 export function normalizeRealtimeSessionMode(value: unknown): RealtimeSessionMode | undefined {
 	return value === "conversational" || value === "transcription" ? value : undefined;
+}
+
+export function normalizeDictationShortcutMode(value: unknown): DictationShortcutMode | undefined {
+	return value === "push" || value === "toggle" ? value : undefined;
 }
 
 export function normalizeRealtimeV2Voice(value: unknown): RealtimeV2Voice | undefined {
@@ -217,6 +233,10 @@ export function normalizeCodexConversionConfig(value: unknown): CodexConversionC
 			mode: normalizeRealtimeSessionMode(voice["mode"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.voice.mode,
 			v2Voice: normalizeRealtimeV2Voice(voice["v2Voice"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.voice.v2Voice,
 			v3Voice: normalizeRealtimeV3Voice(voice["v3Voice"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.voice.v3Voice,
+			dictationShortcut: stringValue(voice["dictationShortcut"], DEFAULT_CODEX_CONVERSION_CONFIG.voice.dictationShortcut),
+			realtimeShortcut: stringValue(voice["realtimeShortcut"], DEFAULT_CODEX_CONVERSION_CONFIG.voice.realtimeShortcut),
+			dictationShortcutMode: normalizeDictationShortcutMode(voice["dictationShortcutMode"])
+				?? DEFAULT_CODEX_CONVERSION_CONFIG.voice.dictationShortcutMode,
 			...(inputDevice ? { inputDevice } : {}),
 			...(outputDevice ? { outputDevice } : {}),
 		},

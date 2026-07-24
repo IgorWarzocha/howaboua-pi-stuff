@@ -2,6 +2,7 @@ import { getSettingsListTheme, type ExtensionContext, type Theme } from "@earend
 import { Container, type Focusable, Input, matchesKey, SettingsList, Spacer, Text, truncateToWidth, type SettingItem } from "@earendil-works/pi-tui";
 import {
 	DEFAULT_CODEX_CONVERSION_CONFIG,
+	getCodexConversionConfigPath,
 	REALTIME_V3_VOICES,
 	V2_USER_MESSAGE_RETENTION_OPTIONS,
 	WEB_SEARCH_MODELS,
@@ -250,6 +251,7 @@ function buildItems(tab: SettingsTab, draft: CodexConversionConfig, theme: Theme
 			{ id: "voiceMode", label: "Experience", currentValue: formatVoiceMode(draft.voice.mode), values: ["voice conversation", "dictation"] },
 			{ id: "voiceTransport", label: "Transport", currentValue: transport, values: [transport] },
 			{ id: "v3Voice", label: "Codex voice (v3)", currentValue: formatVoiceName(draft.voice.v3Voice), values: REALTIME_V3_VOICES.map(formatVoiceName) },
+			{ id: "dictationShortcutMode", label: "Dictation key behavior", currentValue: draft.voice.dictationShortcutMode === "push" ? "push to dictate" : "toggle", values: ["push to dictate", "toggle"] },
 		];
 	}
 
@@ -299,6 +301,7 @@ function applySettingChange(id: string, value: string, draft: CodexConversionCon
 	if (id === "v2UserMessageRetention") return { ...draft, beta: { ...draft.beta, v2UserMessageRetention: normalizeV2UserMessageRetention(Number.parseInt(value, 10)) ?? 64 } };
 	if (id === "voiceMode") return { ...draft, voice: { ...draft.voice, mode: value === "dictation" ? "transcription" : "conversational", protocol: value === "dictation" ? "v2" : "v3" } };
 	if (id === "v3Voice") return { ...draft, voice: { ...draft.voice, v3Voice: normalizeRealtimeV3Voice(value.toLowerCase()) ?? draft.voice.v3Voice } };
+	if (id === "dictationShortcutMode") return { ...draft, voice: { ...draft.voice, dictationShortcutMode: value === "toggle" ? "toggle" : "push" } };
 	if (id === "webRun") return { ...draft, tools: { ...draft.tools, webRun: value === "on" } };
 	if (id === "imageGeneration") return { ...draft, tools: { ...draft.tools, imageGeneration: value === "on" } };
 	if (id === "viewImageFallback") return { ...draft, tools: { ...draft.tools, viewImageFallback: value === "on" } };
@@ -337,6 +340,7 @@ function formatTabs(activeTab: SettingsTab, theme: Theme): string {
 function formatVoiceLines(theme: Theme): string[] {
 	return [
 		theme.fg("dim", `  Realtime System Prompt: ${getCodexVoiceSystemPromptPath()}`),
+		theme.fg("dim", `  Keybinds adjustable in ${getCodexConversionConfigPath()}`),
 	];
 }
 

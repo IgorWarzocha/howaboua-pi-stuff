@@ -34,6 +34,7 @@ const MAX_TEXT_BYTES = 8 * 1024;
 const MAX_DEVICE_BYTES = 512;
 const MAX_DEVICES = 128;
 const READY_TIMEOUT_MS = 5_000;
+const STOP_TIMEOUT_MS = 2_000;
 
 export class VoiceHelperClient {
 	private child: ChildProcessWithoutNullStreams | undefined;
@@ -101,6 +102,30 @@ export class VoiceHelperClient {
 	send(command: VoiceHelperCommand): void {
 		if (!this.child?.stdin.writable) throw new Error("Codex voice helper is not running");
 		this.child.stdin.write(`${JSON.stringify(command)}\n`);
+	}
+
+	async stop(): Promise<void> {
+		if (!this.child) return;
+		const stopped = Promise.withResolvers<void>();
+		const removeEvent = this.onEvent((event) => {
+			if (event.type === "stopped") stopped.resolve();
+			else if (event.type === "error") stopped.reject(new Error(event.message));
+		});
+		const removeExit = this.onExit((error) => stopped.reject(error));
+		let timeout: ReturnType<typeof setTimeout> | undefined;
+		try {
+			this.send({ type: "stop" });
+			await Promise.race([
+				stopped.promise,
+				new Promise<void>((_resolve, reject) => {
+					timeout = setTimeout(() => reject(new Error("Codex voice helper did not stop")), STOP_TIMEOUT_MS);
+				}),
+			]);
+		} finally {
+			if (timeout) clearTimeout(timeout);
+			removeEvent();
+			removeExit();
+		}
 	}
 
 	async close(): Promise<void> {

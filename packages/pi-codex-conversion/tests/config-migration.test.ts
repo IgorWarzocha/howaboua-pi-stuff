@@ -36,7 +36,15 @@ test("old flat config migrates to grouped config and respects disabled provider 
 	assert.equal(config.compaction.responsesCompaction, true);
 	assert.equal(config.beta.codeMode, false);
 	assert.equal(config.beta.responsesLite, false);
-	assert.deepEqual(config.voice, { protocol: "v3", mode: "conversational", v2Voice: "marin", v3Voice: "cove" });
+	assert.deepEqual(config.voice, {
+		protocol: "v3",
+		mode: "conversational",
+		v2Voice: "marin",
+		v3Voice: "cove",
+		dictationShortcut: "ctrl+alt+d",
+		realtimeShortcut: "ctrl+alt+space",
+		dictationShortcutMode: "push",
+	});
 	assert.equal(config.openai.fast, true);
 	assert.equal(config.openai.verbosity, "high");
 	assert.equal(config.openai.forceCachedWebSockets, false);
@@ -46,15 +54,43 @@ test("old flat config migrates to grouped config and respects disabled provider 
 test("voice preferences normalize protocol and mode independently", () => {
 	const config = normalizeCodexConversionConfig({
 		voiceFeaturesOnly: true,
-		voice: { protocol: "v2", mode: "transcription", v2Voice: "cedar", v3Voice: "sol", inputDevice: "  mic-1  ", outputDevice: "speaker-1" },
+		voice: {
+			protocol: "v2",
+			mode: "transcription",
+			v2Voice: "cedar",
+			v3Voice: "sol",
+			dictationShortcut: " alt+x ",
+			realtimeShortcut: "ctrl+alt+r",
+			dictationShortcutMode: "toggle",
+			inputDevice: "  mic-1  ",
+			outputDevice: "speaker-1",
+		},
 	});
 	assert.equal(config.voiceFeaturesOnly, true);
-	assert.deepEqual(config.voice, { protocol: "v2", mode: "transcription", v2Voice: "cedar", v3Voice: "sol", inputDevice: "mic-1", outputDevice: "speaker-1" });
+	assert.deepEqual(config.voice, {
+		protocol: "v2",
+		mode: "transcription",
+		v2Voice: "cedar",
+		v3Voice: "sol",
+		dictationShortcut: "alt+x",
+		realtimeShortcut: "ctrl+alt+r",
+		dictationShortcutMode: "toggle",
+		inputDevice: "mic-1",
+		outputDevice: "speaker-1",
+	});
 
 	const invalid = normalizeCodexConversionConfig({
 		voice: { protocol: "v1", mode: "voice", v2Voice: "cove", v3Voice: "marin" },
 	});
-	assert.deepEqual(invalid.voice, { protocol: "v3", mode: "conversational", v2Voice: "marin", v3Voice: "cove" });
+	assert.deepEqual(invalid.voice, {
+		protocol: "v3",
+		mode: "conversational",
+		v2Voice: "marin",
+		v3Voice: "cove",
+		dictationShortcut: "ctrl+alt+d",
+		realtimeShortcut: "ctrl+alt+space",
+		dictationShortcutMode: "push",
+	});
 });
 
 test("legacy Responses Lite config enables Code Mode without opting proxies into Lite", () => {

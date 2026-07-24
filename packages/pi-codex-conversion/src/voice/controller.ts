@@ -12,12 +12,14 @@ const V3_MODEL = "gpt-live-1-boulder-alpha";
 const MAX_DELEGATION_BYTES = 32 * 1024;
 const HANDOFF_CHUNK_BYTES = 500;
 const HANDOFF_FLUSH_MS = 200;
+const MIN_DICTATION_AUDIO_BYTES = 4_800;
+const DICTATION_COMPLETION_TIMEOUT_MS = 10_000;
 
 type VoiceState =
 	| { type: "idle" }
 	| { type: "connecting"; mode: "conversation" | "dictation" }
 	| { type: "conversation"; activeDelegationId?: string }
-	| { type: "dictation"; socket: WebSocketLike }
+	| { type: "dictation"; socket: WebSocketLike; audioBytes: number }
 	| { type: "failed"; message: string };
 
 interface ProviderAuth {
@@ -46,6 +48,7 @@ export class CodexVoiceController {
 	private piTurnActive = false;
 	private backendTurnPending = false;
 	private announcedMode: CodexVoiceMode | undefined;
+	private dictationCompletion: ReturnType<typeof Promise.withResolvers<void>> | undefined;
 
 	constructor(pi: ExtensionAPI) {
 		this.pi = pi;
@@ -60,9 +63,10 @@ export class CodexVoiceController {
 	async start(ctx: ExtensionContext, config: CodexConversionConfig): Promise<void> {
 		const mode = config.voice.mode === "transcription" ? "dictation" : "conversation";
 		const realtimePrompt = mode === "conversation"
-			? loadCodexVoiceSystemPrompt(undefined, getProjectCodexVoiceSystemPromptPath(ctx.cwd))
+			? loadCodexVoiceSystemPrompt(undefined, ctx.isProjectTrusted() ? getProjectCodexVoiceSystemPromptPath(ctx.cwd) : undefined)
 			: undefined;
-		await this.stop({ announce: true });
+		if (this.state.type === "dictation") await this.finishDictation({ announce: true });
+		else await this.stop({ announce: true });
 		this.context = ctx;
 		this.state = { type: "connecting", mode };
 		this.renderStatus("connecting…");
@@ -85,8 +89,9 @@ export class CodexVoiceController {
 		this.handoffTimer = undefined;
 		this.handoffBuffer = "";
 		this.turnTracker.reset();
-		this.pendingMessages = [];
 		this.backendTurnPending = false;
+		this.dictationCompletion?.resolve();
+		this.dictationCompletion = undefined;
 		this.piTurnActive = ctx ? !ctx.isIdle() : false;
 		this.announcedMode = undefined;
 		if (this.state.type === "dictation") closeWebSocketSilently(this.state.socket);
@@ -99,6 +104,41 @@ export class CodexVoiceController {
 		} else {
 			this.context = undefined;
 		}
+	}
+
+	async finishDictation(options?: { announce?: boolean }): Promise<void> {
+		if (this.state.type !== "dictation") {
+			await this.stop(options);
+			return;
+		}
+		const active = this.state;
+		this.renderStatus("transcribing");
+		try {
+			await this.helper.stop();
+			if (this.state !== active) return;
+			if (active.audioBytes >= MIN_DICTATION_AUDIO_BYTES) {
+				const completion = Promise.withResolvers<void>();
+				this.dictationCompletion = completion;
+				active.socket.send(JSON.stringify({ type: "input_audio_buffer.commit" }));
+				let timeout: ReturnType<typeof setTimeout> | undefined;
+				try {
+					await Promise.race([
+						completion.promise,
+						new Promise<void>((_resolve, reject) => {
+							timeout = setTimeout(() => reject(new Error("Codex dictation transcription timed out")), DICTATION_COMPLETION_TIMEOUT_MS);
+						}),
+					]);
+				} finally {
+					if (timeout) clearTimeout(timeout);
+					if (this.dictationCompletion === completion) this.dictationCompletion = undefined;
+				}
+			}
+		} catch (error) {
+			const failure = error instanceof Error ? error : new Error(String(error));
+			if (this.state.type === "dictation") this.fail(failure);
+			return;
+		}
+		if (this.state === active) await this.stop(options);
 	}
 
 	consumeDelegatedTurnStart(): boolean {
@@ -178,10 +218,10 @@ export class CodexVoiceController {
 		if (!auth.officialCodex) throw new Error("Codex dictation does not support custom provider base URLs");
 		const headers = new Headers(auth.headers);
 		const socket = await connectWebSocket("wss://api.openai.com/v1/realtime?intent=transcription", headers, undefined, 10_000, auth.env);
-		this.state = { type: "dictation", socket };
+		this.state = { type: "dictation", socket, audioBytes: 0 };
 		socket.addEventListener("message", (event) => this.handleDictationMessage(event));
 		socket.addEventListener("close", (event) => { if (this.state.type === "dictation") this.fail(new Error(`Codex dictation closed${closeReason(event)}`)); });
-		socket.send(JSON.stringify({ type: "session.update", session: { type: "transcription", audio: { input: { format: { type: "audio/pcm", rate: 24_000 }, noise_reduction: { type: "near_field" }, transcription: { model: "gpt-4o-mini-transcribe" }, turn_detection: { type: "server_vad", prefix_padding_ms: 300, silence_duration_ms: 600 } } } } }));
+		socket.send(JSON.stringify(buildDictationSessionUpdate()));
 		this.helper.send({
 			type: "start_dictation",
 			...(config.voice.inputDevice ? { microphone: config.voice.inputDevice } : {}),
@@ -192,6 +232,7 @@ export class CodexVoiceController {
 	private handleHelperEvent(event: VoiceHelperEvent): void {
 		if (event.type === "error") { this.fail(new Error(event.message)); return; }
 		if (event.type === "pcm" && this.state.type === "dictation") {
+			this.state.audioBytes += decodedBase64ByteLength(event.audio);
 			this.state.socket.send(JSON.stringify({ type: "input_audio_buffer.append", audio: event.audio }));
 			return;
 		}
@@ -286,15 +327,13 @@ export class CodexVoiceController {
 		try {
 			const event = JSON.parse(String((raw as { data: unknown }).data)) as Record<string, unknown>;
 			if (event["type"] === "error") { this.fail(new Error(remoteError(event))); return; }
-			if (event["type"] === "input_audio_buffer.speech_started") { this.renderStatus("listening"); return; }
-			if (event["type"] === "input_audio_buffer.speech_stopped") { this.renderStatus("transcribing"); return; }
 			if (event["type"] === "conversation.item.input_audio_transcription.delta" && typeof event["delta"] === "string") {
 				this.renderStatus("transcribing");
 				return;
 			}
-			if ((event["type"] === "conversation.item.input_audio_transcription.completed" || event["type"] === "input_audio_transcription.completed") && typeof event["transcript"] === "string" && event["transcript"].trim()) {
-				this.context?.ui.pasteToEditor(event["transcript"].trim());
-				this.renderStatus("listening");
+			if (event["type"] === "conversation.item.input_audio_transcription.completed" || event["type"] === "input_audio_transcription.completed") {
+				if (typeof event["transcript"] === "string" && event["transcript"].trim()) this.context?.ui.pasteToEditor(event["transcript"].trim());
+				this.dictationCompletion?.resolve();
 			}
 		} catch {}
 	}
@@ -320,13 +359,37 @@ export class CodexVoiceController {
 		const endedMode = this.announcedMode;
 		if (this.state.type === "dictation") closeWebSocketSilently(this.state.socket);
 		this.state = { type: "failed", message: error.message };
+		this.dictationCompletion?.reject(error);
+		this.dictationCompletion = undefined;
 		this.announcedMode = undefined;
-		this.pendingMessages = [];
 		this.context?.ui.setStatus("codex-voice", undefined);
 		this.context?.ui.notify(error.message, "error");
 		if (endedMode) this.enqueueModeMessage(endedMode, "ended");
 		void this.helper.close();
 	}
+}
+
+export function decodedBase64ByteLength(value: string): number {
+	if (!value) return 0;
+	const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
+	return Math.max(0, Math.floor(value.length * 3 / 4) - padding);
+}
+
+export function buildDictationSessionUpdate(): Record<string, unknown> {
+	return {
+		type: "session.update",
+		session: {
+			type: "transcription",
+			audio: {
+				input: {
+					format: { type: "audio/pcm", rate: 24_000 },
+					noise_reduction: { type: "near_field" },
+					transcription: { model: "gpt-4o-mini-transcribe" },
+					turn_detection: null,
+				},
+			},
+		},
+	};
 }
 
 function boundedTranscript(value: unknown): string | "oversized" | undefined {

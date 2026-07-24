@@ -18,6 +18,7 @@ import { resolveVoiceHelperBinary } from "../../voice/binary.ts";
 import { buildVoiceSetupInstructions, missingVoiceAudioSettings } from "../../voice/setup.ts";
 import { getCodexVoiceSystemPromptPath, getProjectCodexVoiceSystemPromptPath } from "../../voice/system-prompt.ts";
 import { codexVoiceSetupMessage } from "../../voice/ui.ts";
+import { registerCodexVoiceShortcuts } from "../../voice/shortcuts.ts";
 
 const CODEX_COMMAND_COMPLETIONS = ["all", "status", "fast", "compact", "voice", "voice realtime", "voice dictation", "voice stop", "usage", "reset", "ps", "low", "medium", "high"] as const;
 const CODEX_USAGE = "Usage: /codex, /codex all, /codex status, /codex fast, /codex compact, /codex voice [realtime|dictation|stop], /codex usage, /codex reset, /codex ps, /codex low|medium|high";
@@ -40,6 +41,50 @@ export function registerCodexCommand(
 		syncAdapter(pi, ctx, state);
 		return true;
 	}
+
+	async function startVoice(requestedMode: "realtime" | "dictation", ctx: ExtensionContext): Promise<void> {
+		const missingAudioSettings = missingVoiceAudioSettings(state.config);
+		if (missingAudioSettings.length > 0) {
+			if (!ctx.isIdle()) {
+				ctx.ui.notify("Wait for the current turn before setting up Codex voice.", "info");
+				return;
+			}
+			state.codexTurnState.beginTurn();
+			pi.sendMessage(codexVoiceSetupMessage(buildVoiceSetupInstructions({
+				configPath: getCodexConversionConfigPath(),
+				helperPath: resolveVoiceHelperBinary(),
+				missing: missingAudioSettings,
+				...(ctx.isProjectTrusted() ? { projectRealtimePromptPath: getProjectCodexVoiceSystemPromptPath(ctx.cwd) } : {}),
+				realtimePromptPath: getCodexVoiceSystemPromptPath(),
+				retryCommand: `/codex voice ${requestedMode}`,
+			})), { triggerTurn: true });
+			return;
+		}
+		const nextConfig = withVoiceMode(state.config, requestedMode);
+		if (!saveAndApply(ctx, nextConfig)) return;
+		try { await voice.start(ctx, nextConfig); }
+		catch (error) { if (voice.status !== "failed") ctx.ui.notify(error instanceof Error ? error.message : String(error), "error"); }
+	}
+
+	async function finishDictation(): Promise<void> {
+		await voice.finishDictation({ announce: true });
+	}
+
+	async function toggleVoice(requestedMode: "realtime" | "dictation", ctx: ExtensionContext): Promise<void> {
+		if (voice.activeMode === requestedMode) {
+			if (requestedMode === "dictation") await finishDictation();
+			else await voice.stop({ announce: true });
+			return;
+		}
+		await startVoice(requestedMode, ctx);
+	}
+
+	registerCodexVoiceShortcuts(pi, state.config, () => state.config, {
+		startDictation: (ctx) => voice.activeMode === "dictation" ? Promise.resolve() : startVoice("dictation", ctx),
+		finishDictation: () => finishDictation(),
+		toggleDictation: (ctx) => toggleVoice("dictation", ctx),
+		toggleRealtime: (ctx) => toggleVoice("realtime", ctx),
+	});
 
 	pi.registerCommand("codex", {
 		description: "Configure Codex adapter settings",
@@ -123,29 +168,14 @@ export function registerCodexCommand(
 				const requestedMode = arg === "voice dictation" ? "dictation" : "realtime";
 				if (voice.activeMode === requestedMode) return;
 				await ctx.waitForIdle();
-				const missingAudioSettings = missingVoiceAudioSettings(state.config);
-				if (missingAudioSettings.length > 0) {
-					state.codexTurnState.beginTurn();
-					pi.sendMessage(codexVoiceSetupMessage(buildVoiceSetupInstructions({
-						configPath: getCodexConversionConfigPath(),
-						helperPath: resolveVoiceHelperBinary(),
-						missing: missingAudioSettings,
-						projectRealtimePromptPath: getProjectCodexVoiceSystemPromptPath(ctx.cwd),
-						realtimePromptPath: getCodexVoiceSystemPromptPath(),
-						retryCommand: `/codex ${arg}`,
-					})), { triggerTurn: true });
-					return;
-				}
-				const nextConfig = withVoiceMode(state.config, requestedMode);
-				if (!saveAndApply(ctx, nextConfig)) return;
-				try { await voice.start(ctx, nextConfig); }
-				catch (error) { if (voice.status !== "failed") ctx.ui.notify(error instanceof Error ? error.message : String(error), "error"); }
+				await startVoice(requestedMode, ctx);
 				return;
 			}
 			if (arg === "voice stop") {
 				if (ctx.mode !== "tui") { ctx.ui.notify("Codex voice requires interactive TUI mode", "error"); return; }
 				await ctx.waitForIdle();
-				await voice.stop({ announce: true });
+				if (voice.activeMode === "dictation") await finishDictation();
+				else await voice.stop({ announce: true });
 				return;
 			}
 			const nextConfig = getCommandConfigUpdate(arg, state.config);

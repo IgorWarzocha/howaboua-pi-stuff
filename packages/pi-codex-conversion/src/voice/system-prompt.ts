@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import { CONFIG_DIR_NAME, getAgentDir } from "@earendil-works/pi-coding-agent";
 
 export const REALTIME_SYSTEM_PROMPT_BASENAME = "REALTIME-SYSTEM-PROMPT.md";
 
@@ -12,7 +12,7 @@ export const REQUIRED_CODEX_VOICE_SECTIONS = [
 
 const DEFAULT_CODEX_VOICE_SYSTEM_PROMPT = `<!-- This file controls the spoken assistant's personality, conversation style, and delegation behavior. -->
 <!-- The spoken assistant only listens, speaks, and routes work to Pi; it cannot access tools or files directly. Actual work and technical instructions remain with Pi and local AGENTS.md files; do not duplicate them here. -->
-<!-- A workspace may add plain Markdown at .pi/REALTIME-SYSTEM-PROMPT.md; it is appended under Project level instructions. -->
+<!-- A workspace may add plain Markdown at ${CONFIG_DIR_NAME}/REALTIME-SYSTEM-PROMPT.md; it is appended under Project level instructions. -->
 <!-- HTML comments are visible guidance and are not sent to the model. -->
 <!-- Required sections keep routing functional. Tweak them if needed, but do not remove them. -->
 
@@ -52,7 +52,7 @@ export function getCodexVoiceSystemPromptPath(agentDir: string = getAgentDir()):
 }
 
 export function getProjectCodexVoiceSystemPromptPath(cwd: string): string {
-	return join(cwd, ".pi", REALTIME_SYSTEM_PROMPT_BASENAME);
+	return join(cwd, CONFIG_DIR_NAME, REALTIME_SYSTEM_PROMPT_BASENAME);
 }
 
 export function ensureCodexVoiceSystemPrompt(promptPath: string = getCodexVoiceSystemPromptPath()): { created: boolean } {
