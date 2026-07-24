@@ -25,6 +25,7 @@ test("old flat config migrates to grouped config and respects disabled provider 
 	assert.equal(migration.migrated, true);
 	const config = normalizeCodexConversionConfig(migration.config);
 	assert.equal(config.mode, "normal");
+	assert.equal(config.voiceFeaturesOnly, false);
 	assert.deepEqual(config.scope, { allProviders: "on", additionalProviders: [] });
 	assert.deepEqual(config.tools, { webRun: false, imageGeneration: false, viewImageFallback: false, applyPatchOnly: true, viewImageOnly: false, webRunOnly: false, imageGenerationOnly: false });
 	assert.equal(config.ui.statusLine, false);
@@ -44,9 +45,11 @@ test("old flat config migrates to grouped config and respects disabled provider 
 
 test("voice preferences normalize protocol and mode independently", () => {
 	const config = normalizeCodexConversionConfig({
-		voice: { protocol: "v2", mode: "transcription", v2Voice: "cedar", v3Voice: "sol" },
+		voiceFeaturesOnly: true,
+		voice: { protocol: "v2", mode: "transcription", v2Voice: "cedar", v3Voice: "sol", inputDevice: "  mic-1  ", outputDevice: "speaker-1" },
 	});
-	assert.deepEqual(config.voice, { protocol: "v2", mode: "transcription", v2Voice: "cedar", v3Voice: "sol" });
+	assert.equal(config.voiceFeaturesOnly, true);
+	assert.deepEqual(config.voice, { protocol: "v2", mode: "transcription", v2Voice: "cedar", v3Voice: "sol", inputDevice: "mic-1", outputDevice: "speaker-1" });
 
 	const invalid = normalizeCodexConversionConfig({
 		voice: { protocol: "v1", mode: "voice", v2Voice: "cove", v3Voice: "marin" },

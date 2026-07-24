@@ -67,7 +67,7 @@ export class CodexVoiceController {
 		try {
 			const auth = await this.resolveAuth(ctx);
 			await this.helper.start();
-			if (mode === "dictation") await this.startDictation(auth);
+			if (mode === "dictation") await this.startDictation(auth, config);
 			else await this.startConversation(auth, config, realtimePrompt!);
 			this.announceModeStarted(mode === "dictation" ? "dictation" : "realtime");
 		} catch (error) {
@@ -151,7 +151,11 @@ export class CodexVoiceController {
 		});
 		const removeExit = this.helper.onExit((error) => offer.reject(error));
 		const timeout = setTimeout(() => offer.reject(new Error("Codex voice helper did not create an offer")), 15_000);
-		this.helper.send({ type: "start_v3" });
+		this.helper.send({
+			type: "start_v3",
+			...(config.voice.inputDevice ? { microphone: config.voice.inputDevice } : {}),
+			...(config.voice.outputDevice ? { speaker: config.voice.outputDevice } : {}),
+		});
 		const sdp = await offer.promise.finally(() => { clearTimeout(timeout); removeEvent(); removeExit(); });
 		const headers = new Headers(auth.headers);
 		headers.set("openai-alpha", "quicksilver=v2");
@@ -168,7 +172,7 @@ export class CodexVoiceController {
 		this.renderStatus("connecting…");
 	}
 
-	private async startDictation(auth: ProviderAuth): Promise<void> {
+	private async startDictation(auth: ProviderAuth, config: CodexConversionConfig): Promise<void> {
 		if (!auth.officialCodex) throw new Error("Codex dictation does not support custom provider base URLs");
 		const headers = new Headers(auth.headers);
 		const socket = await connectWebSocket("wss://api.openai.com/v1/realtime?intent=transcription", headers, undefined, 10_000, auth.env);
@@ -176,7 +180,10 @@ export class CodexVoiceController {
 		socket.addEventListener("message", (event) => this.handleDictationMessage(event));
 		socket.addEventListener("close", (event) => { if (this.state.type === "dictation") this.fail(new Error(`Codex dictation closed${closeReason(event)}`)); });
 		socket.send(JSON.stringify({ type: "session.update", session: { type: "transcription", audio: { input: { format: { type: "audio/pcm", rate: 24_000 }, noise_reduction: { type: "near_field" }, transcription: { model: "gpt-4o-mini-transcribe" }, turn_detection: { type: "server_vad", prefix_padding_ms: 300, silence_duration_ms: 600 } } } } }));
-		this.helper.send({ type: "start_dictation" });
+		this.helper.send({
+			type: "start_dictation",
+			...(config.voice.inputDevice ? { microphone: config.voice.inputDevice } : {}),
+		});
 		this.renderStatus("listening");
 	}
 

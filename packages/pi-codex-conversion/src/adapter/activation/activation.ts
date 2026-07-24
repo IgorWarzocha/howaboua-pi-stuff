@@ -36,17 +36,18 @@ export function syncAdapter(pi: ExtensionAPI, ctx: ExtensionContext, state: Adap
 }
 
 export function shouldUseCodexAdapter(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
+	if (config.voiceFeaturesOnly) return false;
 	if (shouldUseExtraToolsOnly(ctx, config)) return false;
 	return usesFullAdapterOnAllProviders(config) || isConfiguredAdapterProvider(ctx, config) || isCodexLikeContext(ctx);
 }
 
 export function shouldUseNativeResponsesCompaction(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
-	if (!config.compaction.responsesCompaction || shouldUseExtraToolsOnly(ctx, config)) return false;
+	if (config.voiceFeaturesOnly || !config.compaction.responsesCompaction || shouldUseExtraToolsOnly(ctx, config)) return false;
 	return isOpenAICodexContext(ctx) || isConfiguredAdapterProvider(ctx, config);
 }
 
 export function shouldUseGpt56CodeMode(ctx: Pick<ExtensionContext, "model">, config: CodexConversionConfig): boolean {
-	if (!config.beta.codeMode) return false;
+	if (config.voiceFeaturesOnly || !config.beta.codeMode) return false;
 	if (isOpenAICodexContext(ctx)) return supportsResponsesLiteModel(ctx.model?.id);
 	return isConfiguredAdapterProvider(ctx, config)
 		&& isOpenAIResponsesContext(ctx)
@@ -71,7 +72,7 @@ export function isConfiguredAdapterProvider(ctx: Pick<ExtensionContext, "model">
 }
 
 export function shouldUseProxyNativeTools(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
-	return config.mode === "normal" && isConfiguredAdapterProvider(ctx, config);
+	return !config.voiceFeaturesOnly && config.mode === "normal" && isConfiguredAdapterProvider(ctx, config);
 }
 
 function shouldUseCodexBackedNativeTools(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
@@ -83,7 +84,7 @@ export function isEffectiveOpenAICodexContext(ctx: ExtensionContext, config: Cod
 }
 
 export function shouldUseExtraToolsOnly(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
-	if (config.mode !== "normal") return false;
+	if (config.voiceFeaturesOnly || config.mode !== "normal") return false;
 	if (!hasExtraToolsOnlyConfig(config)) return false;
 	if (usesExtraToolsOnlyOnAllProviders(config)) return true;
 	return config.scope.allProviders === "off" && (isConfiguredAdapterProvider(ctx, config) || isCodexLikeContext(ctx));

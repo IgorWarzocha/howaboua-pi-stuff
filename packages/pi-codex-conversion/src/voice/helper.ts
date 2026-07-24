@@ -13,7 +13,7 @@ export type VoiceHelperCommand =
 
 export type VoiceHelperEvent =
 	| { type: "ready"; version: number }
-	| { type: "devices"; inputs: string[]; outputs: string[] }
+	| { type: "devices"; inputs: VoiceDevice[]; outputs: VoiceDevice[] }
 	| { type: "offer"; sdp: string }
 	| { type: "state"; state: string }
 	| { type: "data"; message: unknown }
@@ -21,12 +21,18 @@ export type VoiceHelperEvent =
 	| { type: "error"; message: string }
 	| { type: "stopped" };
 
+export interface VoiceDevice {
+	id: string;
+	name: string;
+	is_default: boolean;
+}
+
 const MAX_HELPER_LINE_BYTES = 512 * 1024;
 const MAX_SDP_BYTES = 256 * 1024;
 const MAX_PCM_BYTES = 64 * 1024;
 const MAX_TEXT_BYTES = 8 * 1024;
-const MAX_DEVICE_BYTES = 1_024;
-const MAX_DEVICES = 256;
+const MAX_DEVICE_BYTES = 512;
+const MAX_DEVICES = 128;
 const READY_TIMEOUT_MS = 5_000;
 
 export class VoiceHelperClient {
@@ -62,7 +68,7 @@ export class VoiceHelperClient {
 			}
 			try {
 				const event = parseVoiceHelperEvent(JSON.parse(line));
-				if (event.type === "ready") event.version === 1 ? ready.resolve() : ready.reject(new Error(`Unsupported Codex voice helper protocol ${event.version}`));
+				if (event.type === "ready") event.version === 2 ? ready.resolve() : ready.reject(new Error(`Unsupported Codex voice helper protocol ${event.version}`));
 				for (const listener of this.listeners) listener(event);
 			} catch (error) {
 				this.fail(error instanceof Error ? error : new Error(String(error)));
@@ -137,8 +143,14 @@ export function parseVoiceHelperEvent(value: unknown): VoiceHelperEvent {
 	throw new Error(`Invalid Codex voice helper ${event["type"]} event`);
 }
 
-function validDevices(value: unknown): value is string[] {
-	return Array.isArray(value) && value.length <= MAX_DEVICES && value.every((item) => boundedString(item, MAX_DEVICE_BYTES));
+function validDevices(value: unknown): value is VoiceDevice[] {
+	return Array.isArray(value) && value.length <= MAX_DEVICES && value.every((item) => {
+		if (!item || typeof item !== "object") return false;
+		const device = item as Record<string, unknown>;
+		return boundedString(device["id"], MAX_DEVICE_BYTES)
+			&& boundedString(device["name"], MAX_DEVICE_BYTES)
+			&& typeof device["is_default"] === "boolean";
+	});
 }
 
 function boundedString(value: unknown, maxBytes: number): value is string {

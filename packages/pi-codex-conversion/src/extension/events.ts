@@ -76,8 +76,13 @@ export function registerCodexEvents(
 		state.cwd = ctx.cwd;
 		state.config = readCodexConversionConfig();
 		proxyProvider.applyConfig(state.config, ctx.modelRegistry);
-		sessions.setBaseEnv(runtime.bundledPathToolsEnv());
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
+		if (state.config.voiceFeaturesOnly) {
+			ui.clearBackgroundWidget();
+			syncAdapter(pi, ctx, state);
+			return;
+		}
+		sessions.setBaseEnv(runtime.bundledPathToolsEnv());
 		tracker.clear();
 		clearApplyPatchRenderState();
 		clearPathApplyPatchPreviewStates();
@@ -95,6 +100,11 @@ export function registerCodexEvents(
 		state.cwd = ctx.cwd;
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 		proxyProvider.applyConfig(state.config, ctx.modelRegistry);
+		if (state.config.voiceFeaturesOnly) {
+			ui.clearBackgroundWidget();
+			syncAdapter(pi, ctx, state);
+			return;
+		}
 		tools.ensureOptionalTools();
 		syncAdapter(pi, ctx, state);
 		prepareCodeModeHost(codeMode, ctx);
@@ -167,6 +177,7 @@ export function registerCodexEvents(
 		}, { triggerTurn: false });
 	});
 	pi.on("context", async (event, ctx) => {
+		if (state.config.voiceFeaturesOnly) return undefined;
 		const messages = event.messages.filter((message) => !isAdapterContextExcludedCustomMessage(message));
 		runtime.latestRecentWebSearchInput = ctx.model
 			? buildRecentWebSearchInput(convertResponsesMessages(ctx.model, responsesContext(messages), CODEX_TOOL_CALL_PROVIDERS, { includeSystemPrompt: false }))

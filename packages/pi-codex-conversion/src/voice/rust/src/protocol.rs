@@ -1,9 +1,11 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-pub const PROTOCOL_VERSION: u8 = 1;
+pub const PROTOCOL_VERSION: u8 = 2;
 pub const MAX_SDP_BYTES: usize = 256 * 1024;
 pub const MAX_DATA_MESSAGE_BYTES: usize = 64 * 1024;
+pub const MAX_DEVICE_BYTES: usize = 512;
+pub const MAX_DEVICES: usize = 128;
 
 pub fn parse_command(input: &str) -> anyhow::Result<Command> {
     let value: Value = serde_json::from_str(input)?;
@@ -56,8 +58,8 @@ pub enum Event {
         version: u8,
     },
     Devices {
-        inputs: Vec<String>,
-        outputs: Vec<String>,
+        inputs: Vec<AudioDevice>,
+        outputs: Vec<AudioDevice>,
     },
     Offer {
         sdp: String,
@@ -79,9 +81,35 @@ pub enum Event {
     Stopped,
 }
 
+#[derive(Clone, Debug, Serialize)]
+pub struct AudioDevice {
+    pub id: String,
+    pub name: String,
+    pub is_default: bool,
+}
+
 impl Command {
     pub fn validate(&self) -> anyhow::Result<()> {
         match self {
+            Self::StartV3 {
+                microphone,
+                speaker,
+            } if microphone
+                .as_ref()
+                .is_some_and(|value| value.len() > MAX_DEVICE_BYTES)
+                || speaker
+                    .as_ref()
+                    .is_some_and(|value| value.len() > MAX_DEVICE_BYTES) =>
+            {
+                anyhow::bail!("audio device id exceeds {MAX_DEVICE_BYTES} bytes")
+            }
+            Self::StartDictation { microphone }
+                if microphone
+                    .as_ref()
+                    .is_some_and(|value| value.len() > MAX_DEVICE_BYTES) =>
+            {
+                anyhow::bail!("audio device id exceeds {MAX_DEVICE_BYTES} bytes")
+            }
             Self::ApplyAnswer { sdp } if sdp.len() > MAX_SDP_BYTES => {
                 anyhow::bail!("answer SDP exceeds {MAX_SDP_BYTES} bytes")
             }
@@ -105,6 +133,13 @@ mod tests {
     fn commands_are_closed_and_bounded() {
         assert!(parse_command(r#"{"type":"unknown"}"#).is_err());
         assert!(parse_command(r#"{"type":"stop","extra":true}"#).is_err());
+        assert!(
+            Command::StartDictation {
+                microphone: Some("x".repeat(MAX_DEVICE_BYTES + 1)),
+            }
+            .validate()
+            .is_err()
+        );
         assert!(
             Command::ApplyAnswer {
                 sdp: "x".repeat(MAX_SDP_BYTES + 1)

@@ -25,6 +25,7 @@ export const V2_USER_MESSAGE_RETENTION_OPTIONS: readonly V2UserMessageRetention[
 
 export interface CodexConversionConfig {
 	mode: CodexAdapterMode;
+	voiceFeaturesOnly: boolean;
 	scope: { allProviders: AllProvidersMode; additionalProviders: string[] };
 	tools: {
 		webRun: boolean;
@@ -53,6 +54,8 @@ export interface CodexConversionConfig {
 		mode: RealtimeSessionMode;
 		v2Voice: RealtimeV2Voice;
 		v3Voice: RealtimeV3Voice;
+		inputDevice?: string | undefined;
+		outputDevice?: string | undefined;
 	};
 	openai: {
 		fast: boolean;
@@ -65,6 +68,7 @@ export interface CodexConversionConfig {
 export const CODEX_CONVERSION_CONFIG_BASENAME = "pi-codex-conversion.json";
 export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	mode: "normal",
+	voiceFeaturesOnly: false,
 	scope: { allProviders: "off", additionalProviders: [] },
 	tools: { webRun: true, imageGeneration: true, viewImageFallback: false, applyPatchOnly: false, viewImageOnly: false, webRunOnly: false, imageGenerationOnly: false },
 	ui: {
@@ -154,6 +158,12 @@ function stringValue(value: unknown, fallback: string): string {
 	return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
 
+function optionalString(value: unknown): string | undefined {
+	if (typeof value !== "string") return undefined;
+	const normalized = value.trim();
+	return normalized && Buffer.byteLength(normalized) <= 512 ? normalized : undefined;
+}
+
 export function normalizeCodexConversionConfig(value: unknown): CodexConversionConfig {
 	if (!isObject(value)) return structuredClone(DEFAULT_CODEX_CONVERSION_CONFIG);
 	const scope = isObject(value["scope"]) ? value["scope"] : {};
@@ -163,8 +173,11 @@ export function normalizeCodexConversionConfig(value: unknown): CodexConversionC
 	const beta = isObject(value["beta"]) ? value["beta"] : {};
 	const voice = isObject(value["voice"]) ? value["voice"] : {};
 	const openai = isObject(value["openai"]) ? value["openai"] : {};
+	const inputDevice = optionalString(voice["inputDevice"]);
+	const outputDevice = optionalString(voice["outputDevice"]);
 	return {
 		mode: normalizeCodexAdapterMode(value["mode"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.mode,
+		voiceFeaturesOnly: bool(value["voiceFeaturesOnly"], DEFAULT_CODEX_CONVERSION_CONFIG.voiceFeaturesOnly),
 		scope: {
 			allProviders: normalizeAllProvidersMode(scope["allProviders"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.scope["allProviders"],
 			additionalProviders: normalizeProviderList(scope["additionalProviders"]),
@@ -204,6 +217,8 @@ export function normalizeCodexConversionConfig(value: unknown): CodexConversionC
 			mode: normalizeRealtimeSessionMode(voice["mode"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.voice.mode,
 			v2Voice: normalizeRealtimeV2Voice(voice["v2Voice"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.voice.v2Voice,
 			v3Voice: normalizeRealtimeV3Voice(voice["v3Voice"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.voice.v3Voice,
+			...(inputDevice ? { inputDevice } : {}),
+			...(outputDevice ? { outputDevice } : {}),
 		},
 		openai: {
 			fast: bool(openai["fast"], DEFAULT_CODEX_CONVERSION_CONFIG.openai["fast"]),

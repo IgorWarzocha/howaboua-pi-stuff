@@ -36,6 +36,7 @@ export function registerCodexTools(pi: ExtensionAPI, runtime: CodexExtensionRunt
 		registerViewImageTool(pi, { describeForTextModels: config.tools.viewImageFallback, ...renderOptions(config), ...promptOptions(config) });
 	};
 	const ensureOptionalTools = (config = runtime.state.config) => {
+		if (config.voiceFeaturesOnly) return;
 		const allowConfiguredProvider = (model: Model<Api> | undefined): boolean =>
 			isExplicitlyConfiguredToolProvider(model, config);
 		if (config.tools.webRun || config.tools.webRunOnly) {
@@ -52,12 +53,12 @@ export function registerCodexTools(pi: ExtensionAPI, runtime: CodexExtensionRunt
 			registerImageGenerationTool(pi, { allowConfiguredProvider, ...renderOptions(config), ...promptOptions(config) });
 		}
 	};
-	registerCore(runtime.state.config);
+	if (!runtime.state.config.voiceFeaturesOnly) registerCore(runtime.state.config);
 	ensureOptionalTools();
 	return {
 		ensureOptionalTools,
 		applyConfig(config) {
-			registerCore(config);
+			if (!config.voiceFeaturesOnly) registerCore(config);
 			ensureOptionalTools(config);
 			runtime.sessions.setBaseEnv(runtime.bundledPathToolsEnv(config));
 		},

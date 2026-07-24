@@ -161,7 +161,7 @@ type CodeModeModelRegistry = Pick<ModelRegistry, "getAll"> & Partial<Pick<ModelR
 type RegisteredProviderConfig = Parameters<ExtensionAPI["registerProvider"]>[1];
 
 function configuredProxyProviders(config: CodexConversionConfig): Set<string> {
-	return new Set(config.beta.codeMode
+	return new Set(!config.voiceFeaturesOnly && config.beta.codeMode
 		? config.scope.additionalProviders.filter((provider) => provider !== "openai-codex")
 		: []);
 }

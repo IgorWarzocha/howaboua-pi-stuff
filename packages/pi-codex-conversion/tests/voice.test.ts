@@ -11,12 +11,22 @@ import { RealtimeVoiceTurnTracker } from "../src/voice/turns.ts";
 import { CODEX_VOICE_MODE_MESSAGE_TYPE, REALTIME_VOICE_MESSAGE_TYPE, codexVoiceModeMessage, realtimeVoiceMessage } from "../src/voice/ui.ts";
 
 test("voice helper events validate their discriminated payload", () => {
-	assert.deepEqual(parseVoiceHelperEvent({ type: "ready", version: 1 }), { type: "ready", version: 1 });
+	assert.deepEqual(parseVoiceHelperEvent({ type: "ready", version: 2 }), { type: "ready", version: 2 });
+	assert.deepEqual(parseVoiceHelperEvent({
+		type: "devices",
+		inputs: [{ id: "input-1", name: "USB microphone", is_default: true }],
+		outputs: [{ id: "output-1", name: "Headphones", is_default: false }],
+	}), {
+		type: "devices",
+		inputs: [{ id: "input-1", name: "USB microphone", is_default: true }],
+		outputs: [{ id: "output-1", name: "Headphones", is_default: false }],
+	});
 	assert.deepEqual(parseVoiceHelperEvent({ type: "pcm", audio: "AA==", sample_rate: 24_000, num_channels: 1 }), {
 		type: "pcm", audio: "AA==", sample_rate: 24_000, num_channels: 1,
 	});
 	assert.throws(() => parseVoiceHelperEvent({ type: "pcm", audio: [], sample_rate: 24_000, num_channels: 1 }), /Invalid Codex voice helper/);
 	assert.throws(() => parseVoiceHelperEvent({ type: "state", state: "x".repeat(129) }), /Invalid Codex voice helper/);
+	assert.throws(() => parseVoiceHelperEvent({ type: "devices", inputs: ["input-1"], outputs: [] }), /Invalid Codex voice helper/);
 	assert.throws(() => parseVoiceHelperEvent({ type: "surprise" }), /Invalid Codex voice helper/);
 });
 

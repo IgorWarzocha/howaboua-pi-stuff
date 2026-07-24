@@ -27,6 +27,12 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 			proxyProvider.applyConfig(config, ctx.modelRegistry);
 			tools.applyConfig(config);
 			ui.applyConfig(config);
+			if (config.voiceFeaturesOnly) {
+				runtime.resetTransport(ctx.sessionManager.getSessionId());
+				void codeMode.shutdownHost().catch((error: unknown) => {
+					ctx.ui.notify(`Could not stop Code Mode host: ${error instanceof Error ? error.message : String(error)}`, "warning");
+				});
+			}
 		}, { sessions: runtime.sessions, widget: runtime.backgroundWidget });
 		registerCodexEvents(pi, runtime, tools, ui, codeMode, proxyProvider);
 	} catch (registrationError) {

@@ -5,6 +5,8 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{Device, FromSample, Sample, SampleFormat, SizedSample, Stream, SupportedStreamConfig};
 use crossbeam_queue::ArrayQueue;
 
+use crate::protocol::{AudioDevice, MAX_DEVICE_BYTES, MAX_DEVICES};
+
 const QUEUE_SECONDS: usize = 2;
 
 pub struct Capture {
@@ -19,17 +21,45 @@ pub struct Playback {
     pub sample_rate: u32,
 }
 
-pub fn devices() -> Result<(Vec<String>, Vec<String>)> {
+pub fn devices() -> Result<(Vec<AudioDevice>, Vec<AudioDevice>)> {
     let host = cpal::default_host();
+    let default_input_id = host
+        .default_input_device()
+        .and_then(|device| device.id().ok());
+    let default_output_id = host
+        .default_output_device()
+        .and_then(|device| device.id().ok());
     let inputs = host
         .input_devices()?
-        .filter_map(|device| device.id().ok().map(|id| id.to_string()))
+        .filter_map(|device| describe_device(device, default_input_id.as_ref()))
+        .take(MAX_DEVICES)
         .collect();
     let outputs = host
         .output_devices()?
-        .filter_map(|device| device.id().ok().map(|id| id.to_string()))
+        .filter_map(|device| describe_device(device, default_output_id.as_ref()))
+        .take(MAX_DEVICES)
         .collect();
     Ok((inputs, outputs))
+}
+
+fn describe_device(device: Device, default_id: Option<&cpal::DeviceId>) -> Option<AudioDevice> {
+    let id = device.id().ok()?;
+    let id = id.to_string();
+    if id.len() > MAX_DEVICE_BYTES {
+        return None;
+    }
+    let mut name = device
+        .description()
+        .map(|description| description.name().to_owned())
+        .unwrap_or_else(|_| id.clone());
+    while name.len() > MAX_DEVICE_BYTES {
+        name.pop();
+    }
+    Some(AudioDevice {
+        is_default: default_id.is_some_and(|candidate| candidate.to_string() == id),
+        name,
+        id,
+    })
 }
 
 pub fn capture(device_id: Option<&str>) -> Result<Capture> {

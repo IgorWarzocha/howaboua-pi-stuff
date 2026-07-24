@@ -67,3 +67,13 @@ test("inactive Code Mode strips custom-tool item IDs before function-tool replay
 		});
 	}
 });
+
+test("voice-only mode does not rewrite provider requests", async () => {
+	const voiceOnly = state(["litellm"]);
+	voiceOnly.config.voiceFeaturesOnly = true;
+	const rewritten = await rewriteCodexProviderRequest(structuredClone(payload), {
+		model: { provider: "litellm", api: "openai-responses", id: "gpt-5.6" },
+	} as never, voiceOnly);
+
+	assert.equal(rewritten, undefined);
+});
