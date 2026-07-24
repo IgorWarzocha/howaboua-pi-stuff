@@ -92,17 +92,20 @@ test("stopping dictation aborts only an in-flight WebSocket setup", async () => 
 test("voice shortcuts route push release, toggle dictation, and realtime independently", async () => {
 	type ShortcutHandler = (ctx: ExtensionContext) => Promise<void> | void;
 	let sessionStart: ((event: unknown, ctx: ExtensionContext) => void) | undefined;
+	let sessionShutdown: (() => void) | undefined;
 	let terminalInput: ((data: string) => { consume?: boolean } | undefined) | undefined;
 	const shortcuts = new Map<string, ShortcutHandler>();
-	const notifications: string[] = [];
 	const pi = {
 		registerShortcut: (shortcut: string, options: { handler: ShortcutHandler }) => shortcuts.set(shortcut, options.handler),
-		on: (event: string, handler: unknown) => { if (event === "session_start") sessionStart = handler as typeof sessionStart; },
+		on: (event: string, handler: unknown) => {
+			if (event === "session_start") sessionStart = handler as typeof sessionStart;
+			if (event === "session_shutdown") sessionShutdown = handler as typeof sessionShutdown;
+		},
 	} as unknown as ExtensionAPI;
 	const ctx = {
 		ui: {
 			onTerminalInput: (handler: typeof terminalInput) => { terminalInput = handler; return () => { terminalInput = undefined; }; },
-			notify: (message: string) => notifications.push(message),
+			notify: () => {},
 		},
 	} as unknown as ExtensionContext;
 	const config = structuredClone(DEFAULT_CODEX_CONVERSION_CONFIG);
@@ -113,28 +116,28 @@ test("voice shortcuts route push release, toggle dictation, and realtime indepen
 		toggleDictation: async () => { calls.toggleDictation += 1; },
 		toggleRealtime: async () => { calls.toggleRealtime += 1; },
 	});
-	sessionStart?.({ type: "session_start" }, ctx);
 
 	try {
 		setKittyProtocolActive(true);
+		sessionStart?.({ type: "session_start" }, ctx);
 		await shortcuts.get("ctrl+alt+d")?.(ctx);
 		assert.equal(calls.start, 1);
 		assert.deepEqual(terminalInput?.("\x1b[100;1:3u"), { consume: true });
 		await new Promise<void>((resolve) => setImmediate(resolve));
 		assert.equal(calls.finish, 1);
 
+		await shortcuts.get("ctrl+alt+d")?.(ctx);
+		assert.deepEqual(terminalInput?.("\x1b[100;7:1u"), { consume: true });
+		await new Promise((resolve) => setTimeout(resolve, 150));
+		assert.equal(calls.finish, 2);
+
 		config.voice.dictationShortcutMode = "toggle";
 		await shortcuts.get("ctrl+alt+d")?.(ctx);
 		assert.equal(calls.toggleDictation, 1);
 		await shortcuts.get("ctrl+alt+space")?.(ctx);
 		assert.equal(calls.toggleRealtime, 1);
-
-		config.voice.dictationShortcutMode = "push";
-		setKittyProtocolActive(false);
-		await shortcuts.get("ctrl+alt+d")?.(ctx);
-		assert.equal(calls.start, 1);
-		assert.match(notifications.join("\n"), /key-release support/);
 	} finally {
+		sessionShutdown?.();
 		setKittyProtocolActive(false);
 	}
 });

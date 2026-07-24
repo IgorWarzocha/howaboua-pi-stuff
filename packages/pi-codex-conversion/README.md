@@ -66,7 +66,7 @@ Direct routes include `/codex all` (cycle full adapter, extra tools only, and of
 
 The Voice tab keeps conversation and dictation separate from the wire protocol. V3 is Codex's delegated voice path, V2 is the Realtime transcription API, and dictation is transcription mode rather than another protocol. Conversation delegates spoken work through the active Pi agent and tools; manually bounded dictation inserts one finalized utterance into the editor. Microphone and speaker audio stay in the bundled native helper, while Pi owns Codex authentication and agent execution. Voice always resolves Pi's `openai-codex` login, independently of the active model or provider.
 
-`Ctrl+Alt+D` is push-to-dictate by default, with toggle behavior available in the Voice tab. `Ctrl+Alt+Space` toggles realtime voice. Push behavior requires a terminal that reports key releases; use toggle behavior otherwise. Keybind changes in JSON take effect after `/reload`.
+`Ctrl+Alt+D` is push-to-dictate by default, with toggle behavior available in the Voice tab. `Ctrl+Alt+Space` toggles realtime voice. Push mode follows key releases when available and key-repeat continuity otherwise; use toggle mode if key repeat is disabled. Keybind changes in JSON take effect after `/reload`.
 
 Pi creates `~/.pi/agent/REALTIME-SYSTEM-PROMPT.md` if absent. This fully visible prompt controls a spoken listener, vocalizer, and router with no direct tool or file access; coding, tool, project instructions, and actual work remain in Pi and AGENTS.md files. HTML comments are editor guidance and are removed before the prompt is sent. Required headings are validated only when realtime voice starts.
 
