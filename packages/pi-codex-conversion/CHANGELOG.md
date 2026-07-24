@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.19
+
+### Changes
+
+- [#162](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/162) [`d60c264`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/d60c264b2044fd7282da0bc1b51caaa7a3e4471b) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Keep dictation context notices to the first use until compaction, refresh device settings from disk before every voice start, and make audio-routing failures actionable for users and their Pi agent.
+
 ## 2.2.18
 
 ### Changes

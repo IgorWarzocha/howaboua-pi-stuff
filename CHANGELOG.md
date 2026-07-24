@@ -57,11 +57,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 2.2.18
+### @howaboua/pi-codex-conversion — 2.2.19
 
 ### Changes
 
-- [#159](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/159) [`d0e4678`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/d0e4678543703ec83f23381e2e52c79ce19ec61b) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Resolve bundled voice helpers from the installed npm package layout.
+- [#162](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/162) [`d60c264`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/d60c264b2044fd7282da0bc1b51caaa7a3e4471b) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Keep dictation context notices to the first use until compaction, refresh device settings from disk before every voice start, and make audio-routing failures actionable for users and their Pi agent.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
