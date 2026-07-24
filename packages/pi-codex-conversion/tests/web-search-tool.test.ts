@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { isExplicitlyConfiguredToolProvider } from "../src/extension/tools.ts";
+import { getBundledPathToolBinaryPath } from "../src/tools/path/binary.ts";
 import { buildRecentWebSearchInput, createWebSearchTool, executeCodexWebSearch } from "../src/tools/web-run/tool.ts";
 
 
@@ -64,6 +65,11 @@ test("proxy tool routing stays limited to explicit providers", () => {
 	assert.equal(isExplicitlyConfiguredToolProvider({ provider: "responses-proxy" } as never, config), true);
 	assert.equal(isExplicitlyConfiguredToolProvider({ provider: "unlisted-proxy" } as never, config), false);
 });
+
+test("bundled Windows web search resolves to a native executable", () => {
+	assert.match(getBundledPathToolBinaryPath("web_run", { platform: "win32", arch: "x64" }) ?? "", /win32-x64[\\/]web_run\.exe$/);
+});
+
 async function withMockWebRun(script: string, run: (path: string) => Promise<void>): Promise<void> {
 	const dir = await mkdtemp(join(tmpdir(), "pi-web-run-test-"));
 	const path = join(dir, "web_run_mock.mjs");

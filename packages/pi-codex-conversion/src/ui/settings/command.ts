@@ -8,17 +8,19 @@ import {
 import { syncAdapter } from "../../adapter/activation/activation.ts";
 import type { AdapterState } from "../../adapter/activation/state.ts";
 import { openCodexSettingsScreen } from "./ui.ts";
-import { consumeCodexRateLimitResetCredit, fetchCodexUsage, formatCodexUsage } from "./usage.ts";
 import type { BackgroundBashWidgetState } from "../background-bash-widget.ts";
 import { renderBackgroundBashWidget } from "../background-bash-widget.ts";
 import type { ExecSessionManager } from "../../tools/exec/session-manager.ts";
+import type { CodexVoiceController } from "../../voice/controller.ts";
+import { createCodexVoiceControls } from "../../voice/controls.ts";
 
-const CODEX_COMMAND_COMPLETIONS = ["all", "status", "fast", "compact", "usage", "reset", "ps", "low", "medium", "high"] as const;
-const CODEX_USAGE = "Usage: /codex, /codex all, /codex status, /codex fast, /codex compact, /codex usage, /codex reset, /codex ps, /codex low|medium|high";
+const CODEX_COMMAND_COMPLETIONS = ["all", "status", "fast", "compact", "voice", "voice realtime", "voice dictation", "voice stop", "usage", "reset", "ps", "low", "medium", "high"] as const;
+const CODEX_USAGE = "Usage: /codex, /codex all, /codex status, /codex fast, /codex compact, /codex voice [realtime|dictation|stop], /codex usage, /codex reset, /codex ps, /codex low|medium|high";
 
 export function registerCodexCommand(
 	pi: ExtensionAPI,
 	state: AdapterState,
+	voice: CodexVoiceController,
 	onConfigApplied?: (config: CodexConversionConfig, ctx: ExtensionContext) => void,
 	backgroundShells?: { sessions: ExecSessionManager; widget: BackgroundBashWidgetState } | undefined,
 ): void {
@@ -34,14 +36,25 @@ export function registerCodexCommand(
 		return true;
 	}
 
+	const voiceControls = createCodexVoiceControls({
+		pi,
+		state,
+		voice,
+		saveAndApply,
+	});
+
 	pi.registerCommand("codex", {
 		description: "Configure Codex adapter settings",
 		getArgumentCompletions: (prefix) =>
 			CODEX_COMMAND_COMPLETIONS.filter((item) => item.startsWith(prefix.trim().toLowerCase())).map((value) => ({ label: value, value })),
-		handler: async (args, ctx) => {
+			handler: async (args, ctx) => {
 			state.config = readCodexConversionConfig();
 			const arg = args.trim().toLowerCase();
 			if (arg === "ps") {
+				if (state.config.voiceFeaturesOnly) {
+					ctx.ui.notify("Background shells are disabled in voice-only mode.", "info");
+					return;
+				}
 				if (!state.config.ui.backgroundShellWidget) {
 					ctx.ui.notify("Background shells widget is off.", "info");
 					return;
@@ -56,6 +69,7 @@ export function registerCodexCommand(
 				return;
 			}
 			if (arg === "usage" || arg === "reset") {
+				const { consumeCodexRateLimitResetCredit, fetchCodexUsage, formatCodexUsage } = await import("./usage.ts");
 				let usage;
 				try {
 					usage = await fetchCodexUsage(ctx);
@@ -96,6 +110,27 @@ export function registerCodexCommand(
 					initialTab: "openai",
 					onChange: (config) => saveAndApply(ctx, config),
 				});
+				return;
+			}
+			if (arg === "voice") {
+				if (!ctx.hasUI) { ctx.ui.notify(formatCodexSettings(state.config), "info"); return; }
+				await openCodexSettingsScreen(ctx, {
+					initialConfig: state.config,
+					initialTab: "voice",
+					onChange: (config) => saveAndApply(ctx, config),
+				});
+				return;
+			}
+			if (arg === "voice realtime" || arg === "voice dictation") {
+				if (ctx.mode !== "tui") { ctx.ui.notify("Codex voice requires interactive TUI mode", "error"); return; }
+				const requestedMode = arg === "voice dictation" ? "dictation" : "realtime";
+				await ctx.waitForIdle();
+				await voiceControls.start(requestedMode, ctx);
+				return;
+			}
+			if (arg === "voice stop") {
+				if (ctx.mode !== "tui") { ctx.ui.notify("Codex voice requires interactive TUI mode", "error"); return; }
+				await voiceControls.stop(ctx);
 				return;
 			}
 			const nextConfig = getCommandConfigUpdate(arg, state.config);
@@ -148,5 +183,5 @@ function formatCodexSettings(config: CodexConversionConfig): string {
 		config.tools.imageGenerationOnly ? "imagegen" : undefined,
 	].filter(Boolean).join(", ") || "off";
 	const compactionVersion = config.compaction.version ?? "v1";
-	return `Codex settings: all models ${formatAllProvidersMode(config.scope.allProviders)}, additional providers ${config.scope.additionalProviders.length > 0 ? config.scope.additionalProviders.join(", ") : "none"}, statusline ${config.ui.statusLine ? "on" : "off"}, tool renaming ${config.ui.toolRenaming ? "on" : "off"}, compact tools ${config.ui.compactTools ? "on" : "off"}, Code Mode details ${config.ui.codeModeDetails ? "on" : "off"}, background shells widget ${config.ui.backgroundShellWidget ? "on" : "off"}, image descriptions ${config.tools.viewImageFallback ? "on" : "off"}, extra tools only ${extraTools}, fast ${config.openai.fast ? "on" : "off"}, cached websocket upgrade ${config.openai.forceCachedWebSockets === false ? "off" : "on"}, GPT-5.6 Code Mode ${config.beta.codeMode ? "on" : "off"}, proxy Responses Lite ${config.beta.responsesLite ? "on" : "off"}, responses compaction ${(config.compaction.responsesCompaction ?? false) ? "on" : "off"} (${compactionVersion}), verbosity ${config.openai.verbosity}`;
+	return `Codex settings: voice only ${config.voiceFeaturesOnly ? "on" : "off"}, all models ${formatAllProvidersMode(config.scope.allProviders)}, additional providers ${config.scope.additionalProviders.length > 0 ? config.scope.additionalProviders.join(", ") : "none"}, statusline ${config.ui.statusLine ? "on" : "off"}, tool renaming ${config.ui.toolRenaming ? "on" : "off"}, compact tools ${config.ui.compactTools ? "on" : "off"}, Code Mode details ${config.ui.codeModeDetails ? "on" : "off"}, background shells widget ${config.ui.backgroundShellWidget ? "on" : "off"}, image descriptions ${config.tools.viewImageFallback ? "on" : "off"}, extra tools only ${extraTools}, fast ${config.openai.fast ? "on" : "off"}, cached websocket upgrade ${config.openai.forceCachedWebSockets === false ? "off" : "on"}, voice preference ${config.voice.mode === "transcription" ? "dictation" : "conversation"} ${config.voice.protocol}/${config.voice.protocol === "v2" ? config.voice.v2Voice : config.voice.v3Voice}, GPT-5.6 Code Mode ${config.beta.codeMode ? "on" : "off"}, proxy Responses Lite ${config.beta.responsesLite ? "on" : "off"}, responses compaction ${(config.compaction.responsesCompaction ?? false) ? "on" : "off"} (${compactionVersion}), verbosity ${config.openai.verbosity}`;
 }

@@ -82,3 +82,19 @@ test("native Responses compaction stays scoped to OpenAI Codex and explicit prov
 	assert.equal(shouldUseNativeResponsesCompaction(createContext({ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5" }) as never, config), true);
 	assert.equal(shouldUseNativeResponsesCompaction(createContext({ provider: "my-provider", api: "openai-codex-responses", id: "gpt-5" }) as never, config), true);
 });
+
+test("voice-only mode leaves the active model's tools and transport features untouched", () => {
+	const pi = createToolHarness(["read", "bash", "edit", "write"]);
+	const state = createAdapterState({
+		voiceFeaturesOnly: true,
+		scope: { allProviders: "on", additionalProviders: ["my-provider"] },
+		beta: { codeMode: true, responsesLite: false },
+		compaction: { responsesCompaction: true },
+	});
+	const ctx = createContext({ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.6-luna" });
+
+	syncAdapter(pi as never, ctx as never, state);
+
+	assert.deepEqual(pi.activeTools(), ["read", "bash", "edit", "write"]);
+	assert.equal(shouldUseNativeResponsesCompaction(ctx as never, state.config), false);
+});

@@ -47,11 +47,11 @@
     "bin/web_run",
     "bin/imagegen",
     "src/tools/**/bin/**",
-    "src/tools/**/*.rs",
-    "src/tools/**/Cargo.toml",
-    "src/tools/Cargo.lock",
-    "src/tools/rust/UPSTREAM.*",
-    "code-mode",
+    "src/voice/bin/**",
+    "code-mode/UPSTREAM_SYNC.md",
+    "code-mode/vendor/code-mode-src/LICENSE",
+    "code-mode/vendor/code-mode-src/NOTICE",
+    "code-mode/vendor/code-mode-src/UPSTREAM",
     "scripts/code-mode",
     "!src/**/AGENTS.md",
     "!src/tools/target/**"
@@ -73,22 +73,23 @@
     "build:changed-path-tools": "node scripts/build-changed-path-tool-binaries.mjs",
     "build:path-tool": "node scripts/build-path-tool-binary.mjs",
     "build:code-mode-host": "node scripts/code-mode/build-host.mjs",
+    "build:voice-helper": "node scripts/build-voice-helper.mjs",
     "verify:code-mode-host-assets": "node scripts/code-mode/verify-host-assets.mjs"
   },
   "publishConfig": {
     "access": "public"
   },
   "peerDependencies": {
-    "@earendil-works/pi-ai": "*",
-    "@earendil-works/pi-coding-agent": ">=0.80.7",
-    "@earendil-works/pi-tui": "*",
+    "@earendil-works/pi-ai": ">=0.82.0",
+    "@earendil-works/pi-coding-agent": ">=0.82.0",
+    "@earendil-works/pi-tui": ">=0.82.0",
     "typebox": "*"
   },
   "devDependencies": {
-    "@earendil-works/pi-agent-core": "0.81.1",
-    "@earendil-works/pi-ai": "0.81.1",
-    "@earendil-works/pi-coding-agent": "0.81.1",
-    "@earendil-works/pi-tui": "0.81.1",
+    "@earendil-works/pi-agent-core": "0.82.0",
+    "@earendil-works/pi-ai": "0.82.0",
+    "@earendil-works/pi-coding-agent": "0.82.0",
+    "@earendil-works/pi-tui": "0.82.0",
     "tsx": "^4.20.5",
     "typebox": "^1.1.24",
     "typescript": "^7.0.2"

@@ -7,8 +7,10 @@ import { registerCodexEvents } from "./events.ts";
 import { createCodexExtensionRuntime } from "./runtime.ts";
 import { registerCodexTools } from "./tools.ts";
 import { registerCodexUi } from "./ui.ts";
+import { registerCodexVoiceRenderer } from "../voice/ui.ts";
 
 export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
+	registerCodexVoiceRenderer(pi);
 	const runtime = createCodexExtensionRuntime(pi);
 	const codeMode = await registerCodexCodeMode(pi, runtime);
 	let cleanupProxyProvider: ReturnType<typeof registerCodeModeProxyProvider> | undefined;
@@ -21,10 +23,16 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 		cleanupProxyProvider = proxyProvider;
 		const tools = registerCodexTools(pi, runtime);
 		const ui = registerCodexUi(pi, runtime);
-		registerCodexCommand(pi, runtime.state, (config, ctx) => {
+		registerCodexCommand(pi, runtime.state, runtime.voice, (config, ctx) => {
 			proxyProvider.applyConfig(config, ctx.modelRegistry);
 			tools.applyConfig(config);
 			ui.applyConfig(config);
+			if (config.voiceFeaturesOnly) {
+				runtime.resetTransport(ctx.sessionManager.getSessionId());
+				void codeMode.shutdownHost().catch((error: unknown) => {
+					ctx.ui.notify(`Could not stop Code Mode host: ${error instanceof Error ? error.message : String(error)}`, "warning");
+				});
+			}
 		}, { sessions: runtime.sessions, widget: runtime.backgroundWidget });
 		registerCodexEvents(pi, runtime, tools, ui, codeMode, proxyProvider);
 	} catch (registrationError) {

@@ -1,13 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";
 import { buildCachedWebSocketRequestBody, buildRequestBody, prewarmOpenAICodexWebSocket } from "../src/providers/openai-codex-custom-provider.ts";
 import { acquireWebSocket, closeOpenAICodexWebSocketSessions } from "../src/providers/openai-codex/websocket.ts";
+import { processWebSocketStream } from "../src/providers/openai-codex/websocket-stream.ts";
+import { createInitialAssistantMessage } from "../src/providers/openai-codex/types.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 import { registerCodexEvents } from "../src/extension/events.ts";
 import { createCodexExtensionRuntime } from "../src/extension/runtime.ts";
 
 class FakeWebSocket {
 	static instances: FakeWebSocket[] = [];
+	static responses: unknown[][] = [];
 	readonly sent: string[] = [];
 	readonly closes: Array<{ code: number | undefined; reason: string | undefined }> = [];
 	readonly options: { headers?: Record<string, string> } | undefined;
@@ -36,7 +40,7 @@ class FakeWebSocket {
 	send(data: string): void {
 		this.sent.push(data);
 		setTimeout(() => {
-			for (const event of [
+			for (const event of FakeWebSocket.responses.shift() ?? [
 				{ type: "codex.response.metadata", headers: { "x-codex-turn-state": "ts-warm" } },
 				{ type: "response.created", response: { id: "resp_warm" } },
 				{ type: "response.completed", response: { id: "resp_warm", status: "completed" } },
@@ -57,6 +61,7 @@ class FakeWebSocket {
 test("WebSocket prewarm sends generate=false and seeds cached continuation", async () => {
 	const originalWebSocket = globalThis.WebSocket;
 	FakeWebSocket.instances = [];
+	FakeWebSocket.responses = [];
 	(globalThis as typeof globalThis & { WebSocket: typeof WebSocket }).WebSocket = FakeWebSocket as never;
 	const turnState = createCodexTurnState();
 	const sessionId = "session-prewarm";
@@ -115,9 +120,49 @@ test("WebSocket prewarm sends generate=false and seeds cached continuation", asy
 	}
 });
 
+test("cached WebSocket retries a missing continuation with full context", async () => {
+	const originalWebSocket = globalThis.WebSocket;
+	FakeWebSocket.instances = [];
+	FakeWebSocket.responses = [
+		[
+			{ type: "codex.rate_limits" },
+			{ type: "error", error: { code: "previous_response_not_found", message: "Previous response not found" } },
+		],
+		[
+			{ type: "response.created", response: { id: "resp_recovered" } },
+			{ type: "response.completed", response: { id: "resp_recovered", status: "completed", usage: { input_tokens: 1, output_tokens: 0, total_tokens: 1 } } },
+		],
+	];
+	(globalThis as typeof globalThis & { WebSocket: typeof WebSocket }).WebSocket = FakeWebSocket as never;
+	const sessionId = "missing-continuation";
+	const model = { provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.4", baseUrl: "https://chatgpt.example/backend-api", reasoning: true, input: ["text"], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 272000, maxTokens: 100000 } as never;
+	const previousBody = buildRequestBody(model, { systemPrompt: "Instructions", messages: [], tools: [] }, { sessionId });
+	const body = buildRequestBody(model, { systemPrompt: "Instructions", messages: [{ role: "user", content: "Hello" } as never], tools: [] }, { sessionId });
+
+	try {
+		const seeded = await acquireWebSocket("wss://chatgpt.example/backend-api/codex/responses", new Headers(), sessionId, undefined);
+		seeded.entry!.continuation = { lastRequestBody: previousBody, lastResponseId: "resp_warm", lastResponseItems: [] };
+		seeded.release({ keep: true });
+		const output = createInitialAssistantMessage(model);
+		let starts = 0;
+		await processWebSocketStream("wss://chatgpt.example/backend-api/codex/responses", body, new Headers(), output, createAssistantMessageEventStream(), model, () => { starts++; }, { sessionId, transport: "websocket-cached" });
+
+		assert.equal(FakeWebSocket.instances.length, 2);
+		assert.equal(JSON.parse(FakeWebSocket.instances[0]!.sent[0]!).previous_response_id, "resp_warm");
+		assert.equal("previous_response_id" in JSON.parse(FakeWebSocket.instances[1]!.sent[0]!), false);
+		assert.equal(starts, 1);
+		assert.equal(output.responseId, "resp_recovered");
+	} finally {
+		closeOpenAICodexWebSocketSessions();
+		if (originalWebSocket) globalThis.WebSocket = originalWebSocket;
+		else delete (globalThis as { WebSocket?: unknown }).WebSocket;
+	}
+});
+
 test("session shutdown leaves sibling cached WebSockets reusable", async () => {
 	const originalWebSocket = globalThis.WebSocket;
 	FakeWebSocket.instances = [];
+	FakeWebSocket.responses = [];
 	(globalThis as typeof globalThis & { WebSocket: typeof WebSocket }).WebSocket = FakeWebSocket as never;
 	try {
 		const handlers = new Map<string, (...args: never[]) => unknown>();

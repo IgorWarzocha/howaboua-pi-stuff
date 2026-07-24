@@ -8,6 +8,7 @@ import { applyResponsesLiteRequest, supportsResponsesLiteModel, type ResponsesLi
 import { applyCodeModeFreeformContract, sanitizeCodeModeHistoryForFunctionTools } from "./code-mode-contract.ts";
 
 export async function rewriteCodexProviderRequest(payload: unknown, ctx: ExtensionContext, state: AdapterState): Promise<unknown | undefined> {
+	if (state.config.voiceFeaturesOnly) return undefined;
 	if (!shouldUseCodexAdapter(ctx, state.config) || (!isEffectiveOpenAICodexContext(ctx, state.config) && !isResponsesContext(ctx))) {
 		if (!isResponsesContext(ctx) || !isCodeModeCompatibleBody(payload)) return undefined;
 		const sanitizedPayload = sanitizeCodeModeHistoryForFunctionTools(payload);

@@ -21,14 +21,14 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 	const renderBackgroundWidget = () => {
 		const ctx = runtime.backgroundWidget.ctx;
 		if (!ctx) return;
-		if (!runtime.state.config.ui.backgroundShellWidget) {
+		if (runtime.state.config.voiceFeaturesOnly || !runtime.state.config.ui.backgroundShellWidget) {
 			clearBackgroundWidget();
 			return;
 		}
 		renderBackgroundBashWidget(ctx, runtime.backgroundWidget, runtime.sessions);
 	};
 
-	registerBackgroundBashWidgetShortcuts(pi, runtime.backgroundWidget, runtime.sessions, runtime.state.config.ui, () => runtime.state.config.ui.backgroundShellWidget);
+	registerBackgroundBashWidgetShortcuts(pi, runtime.backgroundWidget, runtime.sessions, runtime.state.config.ui, () => !runtime.state.config.voiceFeaturesOnly && runtime.state.config.ui.backgroundShellWidget);
 	pi.registerMessageRenderer(NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, (message, _options, theme) => {
 		const box = new Box(1, 1, (text) => theme.bg("customMessageBg", text));
 		box.addChild(new Text(theme.fg("customMessageLabel", theme.bold("[compaction]")), 0, 0));
@@ -39,7 +39,7 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 		return box;
 	});
 	runtime.sessions.onSessionChange((reason) => {
-		if (!runtime.backgroundWidget.ctx || !runtime.state.config.ui.backgroundShellWidget) return;
+		if (!runtime.backgroundWidget.ctx || runtime.state.config.voiceFeaturesOnly || !runtime.state.config.ui.backgroundShellWidget) return;
 		if (reason === "output") {
 			if (renderTimer) return;
 			renderTimer = setTimeout(() => {
@@ -57,7 +57,7 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 		clearBackgroundWidget,
 		renderBackgroundWidget,
 		applyConfig(config) {
-			if (!config.ui.backgroundShellWidget) clearBackgroundWidget();
+			if (config.voiceFeaturesOnly || !config.ui.backgroundShellWidget) clearBackgroundWidget();
 			else renderBackgroundWidget();
 		},
 	};

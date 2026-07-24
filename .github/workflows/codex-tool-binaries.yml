@@ -4,10 +4,12 @@ on:
   workflow_dispatch:
   push:
     paths:
+      - '.github/workflows/codex-tool-binaries.yml'
       - 'packages/pi-codex-conversion/src/tools/**/rust/**'
       - 'packages/pi-codex-conversion/src/tools/rust/**'
       - 'packages/pi-codex-conversion/src/tools/Cargo.toml'
       - 'packages/pi-codex-conversion/src/tools/Cargo.lock'
+      - 'packages/pi-codex-conversion/src/voice/rust/**'
 
 permissions:
   contents: write
@@ -41,14 +43,19 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - uses: oven-sh/setup-bun@v2
       - run: bun install
+      - name: Install Linux audio headers
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
       - name: Build bundled tools
         working-directory: packages/pi-codex-conversion
         env:
+          CMAKE_POLICY_VERSION_MINIMUM: '3.5'
           GITHUB_EVENT_BEFORE: ${{ github.event.before }}
           FALLBACK_BASE_REF: origin/${{ github.event.repository.default_branch }}
           FORCE_ALL_CODEX_TOOL_BUILDS: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
         run: |
           bun run build:changed-path-tools
+          bun run build:voice-helper
       - uses: actions/upload-artifact@v7
         with:
           name: codex-tool-binaries-${{ matrix.platform_arch }}
@@ -58,6 +65,7 @@ jobs:
             packages/pi-codex-conversion/src/tools/web-run/bin/${{ matrix.platform_arch }}/
             packages/pi-codex-conversion/src/tools/imagegen/bin/${{ matrix.platform_arch }}/
             packages/pi-codex-conversion/src/tools/exec/bin/${{ matrix.platform_arch }}/
+            packages/pi-codex-conversion/src/voice/bin/${{ matrix.platform_arch }}/
 
   bundle:
     name: Commit bundled binaries
@@ -72,12 +80,14 @@ jobs:
         with:
           pattern: codex-tool-binaries-*
           merge-multiple: true
-          path: packages/pi-codex-conversion/src/tools
+          path: packages/pi-codex-conversion/src
       - name: Commit bundled binaries
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          find packages/pi-codex-conversion/src/tools packages/pi-codex-conversion/src/voice/bin -path '*/bin/*' -type f ! -name '*.exe' -exec chmod 755 {} +
           git add packages/pi-codex-conversion/src/tools/*/bin
+          git add packages/pi-codex-conversion/src/voice/bin
           if git diff --cached --quiet; then
             echo "No bundled binary changes."
             exit 0

@@ -21,10 +21,12 @@ export function getBundledPathToolsBinDir(): string {
 	return join(packageRoot(), "bin");
 }
 
-export function getBundledPathToolBinaryPath(toolName: string): string | undefined {
+export function getBundledPathToolBinaryPath(toolName: string, target: { platform?: NodeJS.Platform; arch?: string } = {}): string | undefined {
 	const toolDir = TOOL_DIRS[toolName] ?? toolName;
-	const exe = process.platform === "win32" ? `${toolName}.exe` : toolName;
-	const binary = join(packageRoot(), "src", "tools", toolDir, "bin", `${process.platform}-${process.arch}`, exe);
+	const platform = target.platform ?? process.platform;
+	const arch = target.arch ?? process.arch;
+	const exe = platform === "win32" ? `${toolName}.exe` : toolName;
+	const binary = join(packageRoot(), "src", "tools", toolDir, "bin", `${platform}-${arch}`, exe);
 	return existsSync(binary) ? binary : undefined;
 }
 

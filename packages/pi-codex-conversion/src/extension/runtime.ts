@@ -15,6 +15,7 @@ import { createExecSessionManager } from "../tools/exec/session-manager.ts";
 import { createBundledPathToolsEnv } from "../tools/path/binary.ts";
 import type { BackgroundBashWidgetState } from "../ui/background-bash-widget.ts";
 import { supportsViewImageInputs } from "../tools/view-image/tool.ts";
+import { CodexVoiceController } from "../voice/controller.ts";
 
 export type CodexContext = Parameters<typeof shouldUseCodexAdapter>[0];
 
@@ -25,6 +26,7 @@ export interface CodexExtensionRuntime {
 	backgroundWidget: BackgroundBashWidgetState;
 	registeredNativeWebSearchTools: Set<string>;
 	latestRecentWebSearchInput: ResponseInput | undefined;
+	voice: CodexVoiceController;
 	bundledPathToolsEnv(config?: CodexConversionConfig): NodeJS.ProcessEnv;
 	codexSystemPrompt(basePrompt: string, ctx: CodexContext, skills?: AdapterState["promptSkills"]): string;
 	startPrewarm(ctx: CodexContext, systemPrompt?: string): Promise<void> | undefined;
@@ -67,6 +69,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		backgroundWidget: { folded: true },
 		registeredNativeWebSearchTools: new Set<string>(),
 		latestRecentWebSearchInput: undefined,
+		voice: new CodexVoiceController(pi),
 		bundledPathToolsEnv(config = state.config) {
 			return createBundledPathToolsEnv({ ...process.env, PI_CODEX_MODEL: config.openai.webSearchModel });
 		},

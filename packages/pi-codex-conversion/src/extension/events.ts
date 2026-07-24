@@ -16,6 +16,7 @@ import type { CodeModeRegistration } from "../tools/code-mode/tools.ts";
 import { clearPathApplyPatchPreviewStates } from "../tools/path/apply-patch-preview.ts";
 import { buildRecentWebSearchInput } from "../tools/web-run/tool.ts";
 import { initializeBashParser } from "../shell/bash.ts";
+import { ensureCodexVoiceSystemPrompt, getCodexVoiceSystemPromptPath } from "../voice/system-prompt.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
 import type { CodexToolRegistration } from "./tools.ts";
 import type { CodexUiController } from "./ui.ts";
@@ -64,14 +65,24 @@ export function registerCodexEvents(
 	sessions.onSessionExit((sessionId) => tracker.recordSessionFinished(sessionId));
 
 	pi.on("session_start", async (event, ctx) => {
+		try {
+			ensureCodexVoiceSystemPrompt();
+		} catch (error) {
+			console.warn(`[pi-codex-conversion] Failed to create ${getCodexVoiceSystemPromptPath()}: ${error instanceof Error ? error.message : String(error)}`);
+		}
 		initializeBashParser();
 		runtime.resetTransport();
 		runtime.backgroundWidget.ctx = ctx;
 		state.cwd = ctx.cwd;
 		state.config = readCodexConversionConfig();
 		proxyProvider.applyConfig(state.config, ctx.modelRegistry);
-		sessions.setBaseEnv(runtime.bundledPathToolsEnv());
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
+		if (state.config.voiceFeaturesOnly) {
+			ui.clearBackgroundWidget();
+			syncAdapter(pi, ctx, state);
+			return;
+		}
+		sessions.setBaseEnv(runtime.bundledPathToolsEnv());
 		tracker.clear();
 		clearApplyPatchRenderState();
 		clearPathApplyPatchPreviewStates();
@@ -84,10 +95,16 @@ export function registerCodexEvents(
 	});
 
 	pi.on("model_select", async (_event, ctx) => {
+		await runtime.voice.stop({ announce: true });
 		runtime.resetTransport(ctx.sessionManager.getSessionId());
 		state.cwd = ctx.cwd;
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 		proxyProvider.applyConfig(state.config, ctx.modelRegistry);
+		if (state.config.voiceFeaturesOnly) {
+			ui.clearBackgroundWidget();
+			syncAdapter(pi, ctx, state);
+			return;
+		}
 		tools.ensureOptionalTools();
 		syncAdapter(pi, ctx, state);
 		prepareCodeModeHost(codeMode, ctx);
@@ -111,6 +128,7 @@ export function registerCodexEvents(
 
 	pi.on("session_shutdown", async (_event, ctx) => {
 		try {
+			await runtime.voice.stop({ announce: true });
 			runtime.shutdownTransport(ctx.sessionManager.getSessionId());
 			ui.clearBackgroundWidget();
 			runtime.backgroundWidget.ctx = undefined;
@@ -127,12 +145,19 @@ export function registerCodexEvents(
 		if (event.streamingBehavior === undefined) state.codexTurnState.beginTurn();
 	});
 	pi.on("before_agent_start", async (event, ctx) => {
+		if (runtime.voice.consumeDelegatedTurnStart()) state.codexTurnState.beginTurn();
+		const systemPrompt = event.systemPrompt;
 		if (!shouldUseCodexAdapter(ctx, state.config)) return undefined;
 		const skills = resolvePromptSkills(event.systemPromptOptions?.skills, hasNoSkillsFlag() ? [] : state.promptSkills);
-		await runtime.waitForPrewarm(ctx, event.systemPrompt);
-		return { systemPrompt: runtime.codexSystemPrompt(event.systemPrompt, ctx, skills) };
+		await runtime.waitForPrewarm(ctx, systemPrompt);
+		return { systemPrompt: runtime.codexSystemPrompt(systemPrompt, ctx, skills) };
 	});
-	pi.on("agent_settled", async () => state.codexTurnState.reset());
+	pi.on("message_update", async (event) => {
+		const update = event.assistantMessageEvent;
+		if ((update.type === "text_delta" || update.type === "thinking_delta") && typeof update.delta === "string") runtime.voice.streamDelta(update.type, update.delta);
+	});
+	pi.on("agent_start", async () => { runtime.voice.agentStarted(); });
+	pi.on("agent_settled", async () => { state.codexTurnState.reset(); runtime.voice.settleTurn(); });
 	pi.on("before_provider_request", async (event, ctx) => {
 		state.cwd = ctx.cwd;
 		return rewriteCodexProviderRequest(event.payload, ctx, state);
@@ -152,6 +177,7 @@ export function registerCodexEvents(
 		}, { triggerTurn: false });
 	});
 	pi.on("context", async (event, ctx) => {
+		if (state.config.voiceFeaturesOnly) return undefined;
 		const messages = event.messages.filter((message) => !isAdapterContextExcludedCustomMessage(message));
 		runtime.latestRecentWebSearchInput = ctx.model
 			? buildRecentWebSearchInput(convertResponsesMessages(ctx.model, responsesContext(messages), CODEX_TOOL_CALL_PROVIDERS, { includeSystemPrompt: false }))

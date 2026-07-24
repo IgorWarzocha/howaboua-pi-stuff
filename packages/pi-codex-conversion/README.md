@@ -62,7 +62,30 @@ Definitions are deferred by default; set `defer_loading = false` to add one to t
 
 Open `/codex` for the full settings UI. Settings are saved in `~/.pi/agent/pi-codex-conversion.json`.
 
-Direct routes include `/codex all` (cycle full adapter, extra tools only, and off), `/codex fast`, `/codex compact`, `/codex usage`, `/codex reset`, `/codex low|medium|high`, and `/codex ps` for background shells.
+Direct routes include `/codex all` (cycle full adapter, extra tools only, and off), `/codex fast`, `/codex compact`, `/codex voice realtime|dictation|stop`, `/codex usage`, `/codex reset`, `/codex low|medium|high`, and `/codex ps` for background shells. `/codex voice` opens the Voice settings tab.
+
+The Voice tab keeps conversation and dictation separate from the wire protocol. V3 is Codex's delegated voice path, V2 is the Realtime transcription API, and dictation is transcription mode rather than another protocol. Conversation delegates spoken work through the active Pi agent and tools; manually bounded dictation inserts one finalized utterance into the editor. Microphone and speaker audio stay in the bundled native helper, while Pi owns Codex authentication and agent execution. Voice always resolves Pi's `openai-codex` login, independently of the active model or provider.
+
+`Ctrl+Alt+D` is push-to-dictate by default, with toggle behavior available in the Voice tab. `Ctrl+Alt+Space` toggles realtime voice. Push mode follows key releases when available and key-repeat continuity otherwise; use toggle mode if key repeat is disabled. Keybind changes in JSON take effect after `/reload`.
+
+Pi creates `~/.pi/agent/REALTIME-SYSTEM-PROMPT.md` if absent. This fully visible prompt controls a spoken listener, vocalizer, and router with no direct tool or file access; coding, tool, project instructions, and actual work remain in Pi and AGENTS.md files. HTML comments are editor guidance and are removed before the prompt is sent. Required headings are validated only when realtime voice starts.
+
+An optional workspace `.pi/REALTIME-SYSTEM-PROMPT.md` is plain Markdown appended after the global prompt under `# Project level instructions`. It is never created automatically and does not replace or need to repeat the global prompt's required sections.
+
+Set `Voice features only` in the General tab to leave the active model's prompt, tool set, request payloads, compaction, and adapter widgets untouched while retaining `/codex voice`. Optional device IDs live in the same config:
+
+```json
+{
+  "voice": {
+    "dictationShortcut": "ctrl+alt+d",
+    "realtimeShortcut": "ctrl+alt+space",
+    "inputDevice": "<input device id>",
+    "outputDevice": "<output device id>"
+  }
+}
+```
+
+If either key is missing, `/codex voice realtime` or `/codex voice dictation` starts an agent-guided device setup turn instead of voice. After the agent saves exact device IDs, run the command again.
 
 To adapt an additional Codex-compatible provider without enabling all-model scope:
 
