@@ -97,7 +97,7 @@ function readVoicePrompt(promptPath: string, optional = false): string | undefin
 	return prompt;
 }
 
-export function stripMarkdownComments(source: string): string {
+function stripMarkdownComments(source: string): string {
 	let output = "";
 	let cursor = 0;
 	while (cursor < source.length) {

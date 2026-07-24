@@ -10,7 +10,7 @@ Require Pi 0.82, keep voice-only mode from rewriting provider requests, honor pr
 
 Recover cached Codex WebSocket sessions when the backend loses their previous-response continuation.
 
-Clarify when shell commands need a TTY so long-running builds and tests remain interruptible.
+Clarify shell and Code Mode guidance so long-running commands remain interruptible and quote-heavy shell does not become invalid JavaScript.
 
 Load native voice transports and command-only usage networking only when used.
 

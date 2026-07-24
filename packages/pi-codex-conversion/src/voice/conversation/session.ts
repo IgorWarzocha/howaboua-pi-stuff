@@ -241,7 +241,7 @@ export function utf8Chunks(input: string, maxBytes: number): string[] {
 	return chunks;
 }
 
-export function realtimePeerStateFailure(state: string): string | undefined {
+function realtimePeerStateFailure(state: string): string | undefined {
 	if (state === "failed") return "Codex realtime connection failed";
 	if (state === "closed") return "Codex realtime connection closed";
 	return undefined;

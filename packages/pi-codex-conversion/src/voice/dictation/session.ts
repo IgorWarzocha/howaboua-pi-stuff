@@ -145,13 +145,13 @@ export class CodexDictationSession {
 	}
 }
 
-export function decodedBase64ByteLength(value: string): number {
+function decodedBase64ByteLength(value: string): number {
 	if (!value) return 0;
 	const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
 	return Math.max(0, Math.floor(value.length * 3 / 4) - padding);
 }
 
-export function buildDictationSessionUpdate(): Record<string, unknown> {
+function buildDictationSessionUpdate(): Record<string, unknown> {
 	return {
 		type: "session.update",
 		session: {

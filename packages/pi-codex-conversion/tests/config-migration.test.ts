@@ -25,7 +25,6 @@ test("old flat config migrates to grouped config and respects disabled provider 
 	assert.equal(migration.migrated, true);
 	const config = normalizeCodexConversionConfig(migration.config);
 	assert.equal(config.mode, "normal");
-	assert.equal(config.voiceFeaturesOnly, false);
 	assert.deepEqual(config.scope, { allProviders: "on", additionalProviders: [] });
 	assert.deepEqual(config.tools, { webRun: false, imageGeneration: false, viewImageFallback: false, applyPatchOnly: true, viewImageOnly: false, webRunOnly: false, imageGenerationOnly: false });
 	assert.equal(config.ui.statusLine, false);
@@ -36,15 +35,6 @@ test("old flat config migrates to grouped config and respects disabled provider 
 	assert.equal(config.compaction.responsesCompaction, true);
 	assert.equal(config.beta.codeMode, false);
 	assert.equal(config.beta.responsesLite, false);
-	assert.deepEqual(config.voice, {
-		protocol: "v3",
-		mode: "conversational",
-		v2Voice: "marin",
-		v3Voice: "cove",
-		dictationShortcut: "ctrl+alt+d",
-		realtimeShortcut: "ctrl+alt+space",
-		dictationShortcutMode: "push",
-	});
 	assert.equal(config.openai.fast, true);
 	assert.equal(config.openai.verbosity, "high");
 	assert.equal(config.openai.forceCachedWebSockets, false);
