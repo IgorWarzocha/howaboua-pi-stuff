@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import test from "node:test";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { utf8Chunks } from "../src/voice/controller.ts";
@@ -105,6 +105,7 @@ test("voice setup identifies missing devices and constructs a turn-visible messa
 		configPath: "/agent/pi-codex-conversion.json",
 		helperPath: "/package/pi-codex-voice",
 		missing,
+		projectRealtimePromptPath: "/repo/.pi/REALTIME-SYSTEM-PROMPT.md",
 		realtimePromptPath: "/agent/REALTIME-SYSTEM-PROMPT.md",
 		retryCommand: "/codex voice realtime",
 	});
@@ -117,12 +118,14 @@ test("voice setup identifies missing devices and constructs a turn-visible messa
 	assert.match(instructions, /list_devices/);
 	assert.match(instructions, /ask the user which they prefer/);
 	assert.match(instructions, /Read the Realtime System Prompt at \/agent\/REALTIME-SYSTEM-PROMPT\.md/);
+	assert.match(instructions, /\/repo\/\.pi\/REALTIME-SYSTEM-PROMPT\.md/);
 	assert.match(instructions, /run \/codex voice realtime again/);
 });
 
 test("voice prompt creation preserves existing customization and strips visible guidance", () => {
 	const directory = mkdtempSync(join(tmpdir(), "codex-voice-prompt-"));
 	const promptPath = join(directory, "REALTIME-SYSTEM-PROMPT.md");
+	const projectPromptPath = join(directory, ".pi", "REALTIME-SYSTEM-PROMPT.md");
 	try {
 		assert.deepEqual(ensureCodexVoiceSystemPrompt(promptPath), { created: true });
 		assert.match(readFileSync(promptPath, "utf8"), /<!--.+not sent to the model.+-->/);
@@ -131,6 +134,13 @@ test("voice prompt creation preserves existing customization and strips visible 
 		writeFileSync(promptPath, customized);
 		assert.deepEqual(ensureCodexVoiceSystemPrompt(promptPath), { created: false });
 		assert.equal(loadCodexVoiceSystemPrompt(promptPath), "## Interface and role\nOne assistant.\n\n## Delegation\nRoute work.\n\n## Backend results\nSummarize results.");
+
+		mkdirSync(dirname(projectPromptPath), { recursive: true });
+		writeFileSync(projectPromptPath, "<!-- local guidance -->\n## Workspace voice\nCall this project Acme.");
+		assert.equal(
+			loadCodexVoiceSystemPrompt(promptPath, projectPromptPath),
+			"## Interface and role\nOne assistant.\n\n## Delegation\nRoute work.\n\n## Backend results\nSummarize results.\n\n# Project level instructions\n\n## Workspace voice\nCall this project Acme.",
+		);
 	} finally {
 		rmSync(directory, { recursive: true, force: true });
 	}

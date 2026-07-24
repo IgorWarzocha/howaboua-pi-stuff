@@ -4,7 +4,7 @@ import { extractAccountId } from "../providers/openai-codex/headers.ts";
 import { connectWebSocket, closeWebSocketSilently } from "../providers/openai-codex/websocket-connection.ts";
 import type { WebSocketLike } from "../providers/openai-codex/types.ts";
 import { VoiceHelperClient, type VoiceHelperEvent } from "./helper.ts";
-import { loadCodexVoiceSystemPrompt } from "./system-prompt.ts";
+import { getProjectCodexVoiceSystemPromptPath, loadCodexVoiceSystemPrompt } from "./system-prompt.ts";
 import { RealtimeVoiceTurnTracker, type RealtimeVoiceTurn } from "./turns.ts";
 import { codexVoiceModeMessage, realtimeVoiceMessage, type CodexVoiceMode, type CodexVoiceModeState } from "./ui.ts";
 
@@ -59,7 +59,9 @@ export class CodexVoiceController {
 
 	async start(ctx: ExtensionContext, config: CodexConversionConfig): Promise<void> {
 		const mode = config.voice.mode === "transcription" ? "dictation" : "conversation";
-		const realtimePrompt = mode === "conversation" ? loadCodexVoiceSystemPrompt() : undefined;
+		const realtimePrompt = mode === "conversation"
+			? loadCodexVoiceSystemPrompt(undefined, getProjectCodexVoiceSystemPromptPath(ctx.cwd))
+			: undefined;
 		await this.stop({ announce: true });
 		this.context = ctx;
 		this.state = { type: "connecting", mode };

@@ -12,6 +12,7 @@ export const REQUIRED_CODEX_VOICE_SECTIONS = [
 
 const DEFAULT_CODEX_VOICE_SYSTEM_PROMPT = `<!-- This file controls the spoken assistant's personality, conversation style, and delegation behavior. -->
 <!-- The spoken assistant cannot access tools or files. Coding, project, and tool instructions remain with Pi and local AGENTS.md files; do not duplicate them here. -->
+<!-- A workspace may add plain Markdown at .pi/REALTIME-SYSTEM-PROMPT.md; it is appended under Project level instructions. -->
 <!-- HTML comments are visible guidance and are not sent to the model. -->
 <!-- Required sections keep routing functional. Tweak them if needed, but do not remove them. -->
 
@@ -50,6 +51,10 @@ export function getCodexVoiceSystemPromptPath(agentDir: string = getAgentDir()):
 	return join(agentDir, REALTIME_SYSTEM_PROMPT_BASENAME);
 }
 
+export function getProjectCodexVoiceSystemPromptPath(cwd: string): string {
+	return join(cwd, ".pi", REALTIME_SYSTEM_PROMPT_BASENAME);
+}
+
 export function ensureCodexVoiceSystemPrompt(promptPath: string = getCodexVoiceSystemPromptPath()): { created: boolean } {
 	mkdirSync(dirname(promptPath), { recursive: true });
 	try {
@@ -61,11 +66,26 @@ export function ensureCodexVoiceSystemPrompt(promptPath: string = getCodexVoiceS
 	}
 }
 
-export function loadCodexVoiceSystemPrompt(promptPath: string = getCodexVoiceSystemPromptPath()): string {
+export function loadCodexVoiceSystemPrompt(
+	promptPath: string = getCodexVoiceSystemPromptPath(),
+	projectPromptPath?: string,
+): string {
+	const prompt = readVoicePrompt(promptPath)!;
+	const missing = REQUIRED_CODEX_VOICE_SECTIONS.filter((section) => !hasMarkdownSection(prompt, section));
+	if (missing.length > 0) {
+		throw new Error(`Codex voice prompt at ${promptPath} is missing required section${missing.length === 1 ? "" : "s"}: ${missing.join(", ")}`);
+	}
+	if (!projectPromptPath) return prompt;
+	const projectPrompt = readVoicePrompt(projectPromptPath, true);
+	return projectPrompt ? `${prompt}\n\n# Project level instructions\n\n${projectPrompt}` : prompt;
+}
+
+function readVoicePrompt(promptPath: string, optional = false): string | undefined {
 	let source: string;
 	try {
 		source = readFileSync(promptPath, "utf8");
 	} catch (error) {
+		if (optional && isNotFoundError(error)) return undefined;
 		throw new Error(`Could not read Codex voice prompt at ${promptPath}: ${errorMessage(error)}`);
 	}
 	let prompt: string;
@@ -73,10 +93,6 @@ export function loadCodexVoiceSystemPrompt(promptPath: string = getCodexVoiceSys
 		prompt = stripMarkdownComments(source);
 	} catch (error) {
 		throw new Error(`Invalid Codex voice prompt at ${promptPath}: ${errorMessage(error)}`);
-	}
-	const missing = REQUIRED_CODEX_VOICE_SECTIONS.filter((section) => !hasMarkdownSection(prompt, section));
-	if (missing.length > 0) {
-		throw new Error(`Codex voice prompt at ${promptPath} is missing required section${missing.length === 1 ? "" : "s"}: ${missing.join(", ")}`);
 	}
 	return prompt;
 }
@@ -108,6 +124,10 @@ function hasMarkdownSection(prompt: string, section: string): boolean {
 
 function isAlreadyExistsError(error: unknown): boolean {
 	return error instanceof Error && "code" in error && error.code === "EEXIST";
+}
+
+function isNotFoundError(error: unknown): boolean {
+	return error instanceof Error && "code" in error && error.code === "ENOENT";
 }
 
 function errorMessage(error: unknown): string {

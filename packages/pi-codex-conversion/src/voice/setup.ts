@@ -13,6 +13,7 @@ export function buildVoiceSetupInstructions(options: {
 	configPath: string;
 	helperPath: string | undefined;
 	missing: VoiceAudioSetting[];
+	projectRealtimePromptPath: string;
 	realtimePromptPath: string;
 	retryCommand: string;
 }): string {
@@ -32,7 +33,7 @@ export function buildVoiceSetupInstructions(options: {
 		"Configure missing input and output settings with exact device id values. If multiple plausible devices are available, ask the user which they prefer. Investigate ambiguity as needed; do not guess.",
 		"Preserve every other config value.",
 		`Read the Realtime System Prompt at ${options.realtimePromptPath} before finishing.`,
-		"After device setup, mention that the Realtime System Prompt can be customized and ask whether the user wants you to open it. Do not edit it unless asked.",
+		`After device setup, mention that the global Realtime System Prompt can be customized and ask whether the user wants you to open it. Also explain that a workspace can add plain Markdown voice instructions at ${options.projectRealtimePromptPath}; the extension appends it under Project level instructions. Do not create or edit either file unless asked.`,
 		`After saving, tell the user to run ${options.retryCommand} again.`,
 	].join("\n");
 }

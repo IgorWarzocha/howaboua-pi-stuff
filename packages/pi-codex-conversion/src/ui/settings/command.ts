@@ -16,7 +16,7 @@ import type { ExecSessionManager } from "../../tools/exec/session-manager.ts";
 import type { CodexVoiceController } from "../../voice/controller.ts";
 import { resolveVoiceHelperBinary } from "../../voice/binary.ts";
 import { buildVoiceSetupInstructions, missingVoiceAudioSettings } from "../../voice/setup.ts";
-import { getCodexVoiceSystemPromptPath } from "../../voice/system-prompt.ts";
+import { getCodexVoiceSystemPromptPath, getProjectCodexVoiceSystemPromptPath } from "../../voice/system-prompt.ts";
 import { codexVoiceSetupMessage } from "../../voice/ui.ts";
 
 const CODEX_COMMAND_COMPLETIONS = ["all", "status", "fast", "compact", "voice", "voice realtime", "voice dictation", "voice stop", "usage", "reset", "ps", "low", "medium", "high"] as const;
@@ -130,6 +130,7 @@ export function registerCodexCommand(
 						configPath: getCodexConversionConfigPath(),
 						helperPath: resolveVoiceHelperBinary(),
 						missing: missingAudioSettings,
+						projectRealtimePromptPath: getProjectCodexVoiceSystemPromptPath(ctx.cwd),
 						realtimePromptPath: getCodexVoiceSystemPromptPath(),
 						retryCommand: `/codex ${arg}`,
 					})), { triggerTurn: true });

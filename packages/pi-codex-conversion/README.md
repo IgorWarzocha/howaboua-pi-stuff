@@ -68,6 +68,8 @@ The Voice tab keeps conversation and dictation separate from the wire protocol. 
 
 Pi creates `~/.pi/agent/REALTIME-SYSTEM-PROMPT.md` if absent. This fully visible prompt controls the spoken assistant's personality, routing, and delivery; coding, tool, and project instructions remain in Pi and AGENTS.md files. HTML comments are editor guidance and are removed before the prompt is sent. Required headings are validated only when realtime voice starts.
 
+An optional workspace `.pi/REALTIME-SYSTEM-PROMPT.md` is plain Markdown appended after the global prompt under `# Project level instructions`. It is never created automatically and does not replace or need to repeat the global prompt's required sections.
+
 Set `Voice features only` in the General tab to leave the active model's prompt, tool set, request payloads, compaction, and adapter widgets untouched while retaining `/codex voice`. Optional device IDs live in the same config:
 
 ```json
