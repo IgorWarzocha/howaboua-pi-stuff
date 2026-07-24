@@ -6,7 +6,7 @@ Add native Codex voice conversation and manually controlled dictation sessions, 
 
 Stop active voice sessions immediately from `/codex voice stop`, even while the main agent is working.
 
-Require Pi 0.82, keep voice-only mode from rewriting provider requests, honor provider proxy settings during realtime call setup, and validate native helper data and PCM events.
+Require Pi 0.82, keep voice-only mode from rewriting provider requests, honor provider proxy settings during realtime call setup, and validate and byte-bound native helper data and PCM events before buffering.
 
 Recover cached Codex WebSocket sessions when the backend loses their previous-response continuation.
 

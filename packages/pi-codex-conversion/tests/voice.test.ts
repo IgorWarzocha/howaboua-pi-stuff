@@ -11,7 +11,7 @@ import { registerCodexCommand } from "../src/ui/settings/command.ts";
 import { CodexVoiceController } from "../src/voice/controller.ts";
 import { CodexRealtimeConversation, realtimePeerStateFailure, utf8Chunks } from "../src/voice/conversation/session.ts";
 import { CodexDictationSession, buildDictationSessionUpdate, decodedBase64ByteLength } from "../src/voice/dictation/session.ts";
-import { parseVoiceHelperEvent, type VoiceHelperClient, type VoiceHelperCommand, type VoiceHelperEvent } from "../src/voice/helper.ts";
+import { BoundedJsonlReader, parseVoiceHelperEvent, type VoiceHelperClient, type VoiceHelperCommand, type VoiceHelperEvent } from "../src/voice/helper.ts";
 import { renderRealtimeConversationInput, renderRealtimeDelegation } from "../src/voice/prompts.ts";
 import { buildVoiceSetupInstructions, missingVoiceAudioSettings } from "../src/voice/setup.ts";
 import { registerCodexVoiceShortcuts } from "../src/voice/shortcuts.ts";
@@ -44,6 +44,21 @@ test("voice helper events validate their discriminated payload", () => {
 	assert.throws(() => parseVoiceHelperEvent({ type: "state", state: "x".repeat(129) }), /Invalid Codex voice helper/);
 	assert.throws(() => parseVoiceHelperEvent({ type: "devices", inputs: ["input-1"], outputs: [] }), /Invalid Codex voice helper/);
 	assert.throws(() => parseVoiceHelperEvent({ type: "surprise" }), /Invalid Codex voice helper/);
+});
+
+test("voice helper JSONL framing bounds unterminated stdout before buffering", () => {
+	const lines: string[] = [];
+	let oversized = 0;
+	const reader = new BoundedJsonlReader(8, (line) => lines.push(line), () => { oversized += 1; });
+	reader.push(Buffer.from("one\r\ntw"));
+	reader.push(Buffer.from("o\n12345678"));
+	assert.deepEqual(lines, ["one", "two"]);
+	reader.push(Buffer.from("9"));
+	assert.equal(oversized, 1);
+	reader.push(Buffer.from("\nignored"));
+	reader.end();
+	assert.equal(oversized, 1);
+	assert.deepEqual(lines, ["one", "two"]);
 });
 
 test("dictation uses manual commit audio instead of VAD", () => {

@@ -1,5 +1,4 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { createInterface } from "node:readline";
 import { resolveVoiceHelperBinary } from "./binary.ts";
 
 export type VoiceHelperCommand =
@@ -62,12 +61,7 @@ export class VoiceHelperClient {
 		child.stderr.setEncoding("utf8");
 		child.stderr.on("data", (chunk: string) => { stderr = `${stderr}${chunk}`.slice(-8_192); });
 		const ready = Promise.withResolvers<void>();
-		const lines = createInterface({ input: child.stdout, crlfDelay: Infinity });
-		lines.on("line", (line) => {
-			if (Buffer.byteLength(line) > MAX_HELPER_LINE_BYTES) {
-				this.fail(new Error("Codex voice helper emitted an oversized event"));
-				return;
-			}
+		const lines = new BoundedJsonlReader(MAX_HELPER_LINE_BYTES, (line) => {
 			try {
 				const event = parseVoiceHelperEvent(JSON.parse(line));
 				if (event.type === "ready") event.version === 2 ? ready.resolve() : ready.reject(new Error(`Unsupported Codex voice helper protocol ${event.version}`));
@@ -75,7 +69,15 @@ export class VoiceHelperClient {
 			} catch (error) {
 				this.fail(error instanceof Error ? error : new Error(String(error)));
 			}
+		}, () => {
+			const error = new Error("Codex voice helper emitted an oversized event");
+			ready.reject(error);
+			this.fail(error);
+			child.stdout.destroy();
+			void this.close();
 		});
+		child.stdout.on("data", (chunk: Buffer) => lines.push(chunk));
+		child.stdout.once("end", () => lines.end());
 		child.once("error", (error) => { ready.reject(error); this.fail(error); });
 		child.once("exit", (code, signal) => {
 			const detail = stderr.trim();
@@ -143,6 +145,67 @@ export class VoiceHelperClient {
 
 	private fail(error: Error): void {
 		for (const listener of this.exitListeners) listener(error);
+	}
+}
+
+export class BoundedJsonlReader {
+	private readonly chunks: Buffer[] = [];
+	private readonly maxLineBytes: number;
+	private readonly onLine: (line: string) => void;
+	private readonly onOversized: () => void;
+	private byteLength = 0;
+	private failed = false;
+
+	constructor(
+		maxLineBytes: number,
+		onLine: (line: string) => void,
+		onOversized: () => void,
+	) {
+		this.maxLineBytes = maxLineBytes;
+		this.onLine = onLine;
+		this.onOversized = onOversized;
+	}
+
+	push(chunk: Buffer): void {
+		if (this.failed) return;
+		let offset = 0;
+		while (offset < chunk.length) {
+			const newline = chunk.indexOf(0x0a, offset);
+			const end = newline === -1 ? chunk.length : newline;
+			if (!this.append(chunk.subarray(offset, end))) return;
+			if (newline === -1) return;
+			this.emitLine();
+			offset = newline + 1;
+		}
+	}
+
+	end(): void {
+		if (!this.failed && this.byteLength > 0) this.emitLine();
+	}
+
+	private append(chunk: Buffer): boolean {
+		if (this.byteLength + chunk.length > this.maxLineBytes) {
+			this.failed = true;
+			this.chunks.length = 0;
+			this.byteLength = 0;
+			this.onOversized();
+			return false;
+		}
+		if (chunk.length > 0) {
+			this.chunks.push(Buffer.from(chunk));
+			this.byteLength += chunk.length;
+		}
+		return true;
+	}
+
+	private emitLine(): void {
+		let line = this.chunks.length === 1
+			? this.chunks[0]!
+			: Buffer.concat(this.chunks, this.byteLength);
+		this.chunks.length = 0;
+		this.byteLength = 0;
+		if (line.at(-1) === 0x0d) line = line.subarray(0, -1);
+		this.onLine(line.toString("utf8"));
 	}
 }
 
