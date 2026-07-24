@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.18
+
+### Changes
+
+- [#159](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/159) [`d0e4678`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/d0e4678543703ec83f23381e2e52c79ce19ec61b) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Resolve bundled voice helpers from the installed npm package layout.
+
 ## 2.2.17
 
 ### Changes
