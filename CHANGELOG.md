@@ -57,11 +57,27 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 2.2.16
+### @howaboua/pi-codex-conversion — 2.2.17
 
 ### Changes
 
-- [#151](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/151) [`e1f44a2`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/e1f44a25bbc850db6df285e9944c183ce0fbc7e5) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Use UUIDv7 request IDs for sessionless OpenAI Codex WebSocket requests.
+- [#157](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/157) [`2a8e979`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/2a8e979b4d622244a0f58550f4141cfd3bad8f60) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add native Codex voice conversation and manually controlled dictation sessions, with configurable push/toggle shortcuts, persisted protocol, voice, and audio-device preferences, agent-guided device setup, cross-platform native capture and playback, Pi-agent delegation, themed session context, layered global and workspace realtime prompts, explicit lifecycle control, and a voice-only extension mode.
+
+  Keep push-to-dictate tied to real key releases when available and key-repeat continuity in terminals that omit releases.
+
+  Stop active voice sessions immediately from `/codex voice stop`, even while the main agent is working.
+
+  Require Pi 0.82, keep voice-only mode from rewriting provider requests, honor provider proxy settings during realtime call setup, and validate and byte-bound native helper data and PCM events before buffering.
+
+  Recover cached Codex WebSocket sessions when the backend loses their previous-response continuation.
+
+  Clarify shell and Code Mode guidance so long-running commands remain interruptible and quote-heavy shell does not become invalid JavaScript.
+
+  Load native voice transports and command-only usage networking only when used.
+
+  Fix native web search on Windows by launching the bundled executable directly instead of spawning its command wrapper.
+
+  Keep Rust build sources out of the installed npm package while retaining native binaries and third-party notices.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
