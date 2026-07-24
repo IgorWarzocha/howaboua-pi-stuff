@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import { utf8Chunks } from "../src/voice/controller.ts";
 import { parseVoiceHelperEvent } from "../src/voice/helper.ts";
 import { renderRealtimeConversationInput, renderRealtimeDelegation } from "../src/voice/prompts.ts";
+import { ensureCodexVoiceSystemPrompt, loadCodexVoiceSystemPrompt, stripMarkdownComments } from "../src/voice/system-prompt.ts";
 import { RealtimeVoiceTurnTracker } from "../src/voice/turns.ts";
-import { REALTIME_VOICE_MESSAGE_TYPE, realtimeVoiceMessage } from "../src/voice/ui.ts";
+import { CODEX_VOICE_MODE_MESSAGE_TYPE, REALTIME_VOICE_MESSAGE_TYPE, codexVoiceModeMessage, realtimeVoiceMessage } from "../src/voice/ui.ts";
 
 test("voice helper events validate their discriminated payload", () => {
 	assert.deepEqual(parseVoiceHelperEvent({ type: "ready", version: 1 }), { type: "ready", version: 1 });
@@ -62,4 +66,45 @@ test("realtime turn routing handles both protocol event orders without duplicate
 
 	tracker.userFinished("casual conversation");
 	assert.deepEqual(tracker.assistantFinished(), { input: "casual conversation" });
+});
+
+test("voice mode messages separate model context from their system-style display", () => {
+	const realtime = codexVoiceModeMessage("realtime", "started");
+	assert.equal(realtime.customType, CODEX_VOICE_MODE_MESSAGE_TYPE);
+	assert.deepEqual(realtime.details, { mode: "realtime", state: "started" });
+	assert.match(realtime.content, /state="active"/);
+	assert.match(realtime.content, /speech-recognition errors/);
+	assert.equal(realtime.display, true);
+
+	const dictationEnded = codexVoiceModeMessage("dictation", "ended");
+	assert.deepEqual(dictationEnded.details, { mode: "dictation", state: "ended" });
+	assert.match(dictationEnded.content, /ordinary typed input/);
+});
+
+test("voice prompt creation preserves existing customization and strips visible guidance", () => {
+	const directory = mkdtempSync(join(tmpdir(), "codex-voice-prompt-"));
+	const promptPath = join(directory, "CODEX-VOICE-SYSTEM-PROMPT.md");
+	try {
+		assert.deepEqual(ensureCodexVoiceSystemPrompt(promptPath), { created: true });
+		assert.match(readFileSync(promptPath, "utf8"), /<!--.+not sent to the model.+-->/);
+
+		const customized = `<!-- visible guidance -->\n## Interface and role\nOne assistant.\n\n## Delegation\nRoute work.\n\n## Backend results\nSummarize results.`;
+		writeFileSync(promptPath, customized);
+		assert.deepEqual(ensureCodexVoiceSystemPrompt(promptPath), { created: false });
+		assert.equal(loadCodexVoiceSystemPrompt(promptPath), "## Interface and role\nOne assistant.\n\n## Delegation\nRoute work.\n\n## Backend results\nSummarize results.");
+	} finally {
+		rmSync(directory, { recursive: true, force: true });
+	}
+});
+
+test("voice prompt validation reports missing sections and malformed comments only when loaded", () => {
+	const directory = mkdtempSync(join(tmpdir(), "codex-voice-prompt-invalid-"));
+	const promptPath = join(directory, "CODEX-VOICE-SYSTEM-PROMPT.md");
+	try {
+		writeFileSync(promptPath, "## Identity and tone\nHello");
+		assert.throws(() => loadCodexVoiceSystemPrompt(promptPath), /missing required sections: Interface and role, Delegation, Backend results/);
+		assert.throws(() => stripMarkdownComments("hello <!-- unfinished"), /unclosed Markdown comment/);
+	} finally {
+		rmSync(directory, { recursive: true, force: true });
+	}
 });

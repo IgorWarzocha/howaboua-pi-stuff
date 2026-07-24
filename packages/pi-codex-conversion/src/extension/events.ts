@@ -16,6 +16,7 @@ import type { CodeModeRegistration } from "../tools/code-mode/tools.ts";
 import { clearPathApplyPatchPreviewStates } from "../tools/path/apply-patch-preview.ts";
 import { buildRecentWebSearchInput } from "../tools/web-run/tool.ts";
 import { initializeBashParser } from "../shell/bash.ts";
+import { ensureCodexVoiceSystemPrompt, getCodexVoiceSystemPromptPath } from "../voice/system-prompt.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
 import type { CodexToolRegistration } from "./tools.ts";
 import type { CodexUiController } from "./ui.ts";
@@ -64,6 +65,11 @@ export function registerCodexEvents(
 	sessions.onSessionExit((sessionId) => tracker.recordSessionFinished(sessionId));
 
 	pi.on("session_start", async (event, ctx) => {
+		try {
+			ensureCodexVoiceSystemPrompt();
+		} catch (error) {
+			console.warn(`[pi-codex-conversion] Failed to create ${getCodexVoiceSystemPromptPath()}: ${error instanceof Error ? error.message : String(error)}`);
+		}
 		initializeBashParser();
 		runtime.resetTransport();
 		runtime.backgroundWidget.ctx = ctx;
@@ -84,7 +90,7 @@ export function registerCodexEvents(
 	});
 
 	pi.on("model_select", async (_event, ctx) => {
-		await runtime.voice.stop();
+		await runtime.voice.stop({ announce: true });
 		runtime.resetTransport(ctx.sessionManager.getSessionId());
 		state.cwd = ctx.cwd;
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
@@ -112,7 +118,7 @@ export function registerCodexEvents(
 
 	pi.on("session_shutdown", async (_event, ctx) => {
 		try {
-			await runtime.voice.stop();
+			await runtime.voice.stop({ announce: true });
 			runtime.shutdownTransport(ctx.sessionManager.getSessionId());
 			ui.clearBackgroundWidget();
 			runtime.backgroundWidget.ctx = undefined;
@@ -129,10 +135,9 @@ export function registerCodexEvents(
 		if (event.streamingBehavior === undefined) state.codexTurnState.beginTurn();
 	});
 	pi.on("before_agent_start", async (event, ctx) => {
-		const voicePrompt = runtime.voice.beforeAgentStart();
-		if (voicePrompt) state.codexTurnState.beginTurn();
-		const systemPrompt = voicePrompt ? `${event.systemPrompt}\n\n${voicePrompt}` : event.systemPrompt;
-		if (!shouldUseCodexAdapter(ctx, state.config)) return voicePrompt ? { systemPrompt } : undefined;
+		if (runtime.voice.consumeDelegatedTurnStart()) state.codexTurnState.beginTurn();
+		const systemPrompt = event.systemPrompt;
+		if (!shouldUseCodexAdapter(ctx, state.config)) return undefined;
 		const skills = resolvePromptSkills(event.systemPromptOptions?.skills, hasNoSkillsFlag() ? [] : state.promptSkills);
 		await runtime.waitForPrewarm(ctx, systemPrompt);
 		return { systemPrompt: runtime.codexSystemPrompt(systemPrompt, ctx, skills) };

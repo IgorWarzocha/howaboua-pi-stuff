@@ -1,12 +1,21 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, Theme } from "@earendil-works/pi-coding-agent";
 import { Box, Text } from "@earendil-works/pi-tui";
 import { renderRealtimeConversationInput, renderRealtimeDelegation } from "./prompts.ts";
 
 export const REALTIME_VOICE_MESSAGE_TYPE = "codex-realtime-voice";
+export const CODEX_VOICE_MODE_MESSAGE_TYPE = "codex-voice-mode";
+
+export type CodexVoiceMode = "realtime" | "dictation";
+export type CodexVoiceModeState = "started" | "ended";
 
 interface RealtimeVoiceMessageDetails {
 	input: string;
 	route: "conversation" | "delegation";
+}
+
+interface CodexVoiceModeMessageDetails {
+	mode: CodexVoiceMode;
+	state: CodexVoiceModeState;
 }
 
 export function realtimeVoiceMessage(input: string, route: RealtimeVoiceMessageDetails["route"]) {
@@ -18,13 +27,49 @@ export function realtimeVoiceMessage(input: string, route: RealtimeVoiceMessageD
 	};
 }
 
+export function codexVoiceModeMessage(mode: CodexVoiceMode, state: CodexVoiceModeState) {
+	return {
+		customType: CODEX_VOICE_MODE_MESSAGE_TYPE,
+		content: modeStateContent(mode, state),
+		display: true,
+		details: { mode, state } satisfies CodexVoiceModeMessageDetails,
+	};
+}
+
 export function registerCodexVoiceRenderer(pi: ExtensionAPI): void {
 	pi.registerMessageRenderer<RealtimeVoiceMessageDetails>(REALTIME_VOICE_MESSAGE_TYPE, (message, _options, theme) => {
 		const input = typeof message.details?.input === "string" ? message.details.input : "Voice request";
-		const label = theme.bold(theme.fg("customMessageLabel", "Realtime Voice"));
-		const body = theme.fg("customMessageText", input);
-		const box = new Box(1, 1, (text) => theme.bg("customMessageBg", text));
-		box.addChild(new Text(`${label}\n${body}`, 0, 0));
-		return box;
+		return voiceBox(theme, "Realtime Voice", input);
 	});
+	pi.registerMessageRenderer<CodexVoiceModeMessageDetails>(CODEX_VOICE_MODE_MESSAGE_TYPE, (message, _options, theme) => {
+		const mode = message.details?.mode === "dictation" ? "dictation" : "realtime";
+		const state = message.details?.state === "ended" ? "ended" : "started";
+		return voiceBox(theme, mode === "dictation" ? "Codex Dictation" : "Realtime Voice", modeStateDisplay(mode, state));
+	});
+}
+
+function voiceBox(theme: Theme, labelText: string, bodyText: string): Box {
+	const label = theme.bold(theme.fg("customMessageLabel", labelText));
+	const body = theme.fg("customMessageText", bodyText);
+	const box = new Box(1, 1, (text) => theme.bg("customMessageBg", text));
+	box.addChild(new Text(`${label}\n${body}`, 0, 0));
+	return box;
+}
+
+function modeStateContent(mode: CodexVoiceMode, state: CodexVoiceModeState): string {
+	if (state === "ended") {
+		return mode === "dictation"
+			? "<codex_voice_mode mode=\"dictation\" state=\"ended\">Dictation ended. Subsequent user messages are ordinary typed input unless another mode marker says otherwise.</codex_voice_mode>"
+			: "<codex_voice_mode mode=\"realtime\" state=\"ended\">Realtime voice ended. Subsequent user messages are ordinary typed input unless another mode marker says otherwise.</codex_voice_mode>";
+	}
+	return mode === "dictation"
+		? "<codex_voice_mode mode=\"dictation\" state=\"active\">Dictation is active. User messages may contain speech-recognition errors or missing punctuation. Resolve obvious errors from context and clarify only material ambiguity.</codex_voice_mode>"
+		: "<codex_voice_mode mode=\"realtime\" state=\"active\">Realtime voice is active. Routed requests may contain speech-recognition errors or missing punctuation. Responses are consumed by a voice intermediary, so keep updates concise and action-oriented.</codex_voice_mode>";
+}
+
+function modeStateDisplay(mode: CodexVoiceMode, state: CodexVoiceModeState): string {
+	if (state === "ended") return "Ended · Subsequent prompts are ordinary typed input.";
+	return mode === "dictation"
+		? "Active · Dictated prompts may contain recognition errors or missing punctuation."
+		: "Active · Routed prompts may contain recognition errors; Pi responses return for spoken delivery.";
 }

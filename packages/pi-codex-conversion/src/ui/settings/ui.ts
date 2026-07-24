@@ -17,6 +17,7 @@ import {
 import { editorCommand, openCodexConfigInExternalEditor } from "./config-editor.ts";
 import { CHANGELOG_URL, DISCORD_URL, GITHUB_URL, ISSUE_URL, openExternalUrl } from "./links.ts";
 import { consumeCodexRateLimitResetCredit, createCodexRateLimitResetRedeemRequestId, fetchCodexUsage, type CodexRateLimitResetConsumeResult, type CodexRateLimitResetCredit, type CodexUsageSnapshot } from "./usage.ts";
+import { getCodexVoiceSystemPromptPath } from "../../voice/system-prompt.ts";
 
 export interface CodexSettingsScreenOptions {
 	initialConfig: CodexConversionConfig;
@@ -334,7 +335,8 @@ function formatTabs(activeTab: SettingsTab, theme: Theme): string {
 function formatVoiceLines(theme: Theme): string[] {
 	return [
 		theme.fg("dim", "  Voice conversation is realtime dialogue; dictation is transcription mode, not a protocol."),
-		theme.fg("dim", "  /codex voice starts or stops the selected native microphone session."),
+		theme.fg("dim", "  /codex voice realtime|dictation starts a mode; /codex voice stop ends it."),
+		theme.fg("dim", `  Realtime prompt: ${getCodexVoiceSystemPromptPath()}`),
 	];
 }
 

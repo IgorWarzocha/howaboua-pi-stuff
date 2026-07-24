@@ -14,8 +14,8 @@ import { renderBackgroundBashWidget } from "../background-bash-widget.ts";
 import type { ExecSessionManager } from "../../tools/exec/session-manager.ts";
 import type { CodexVoiceController } from "../../voice/controller.ts";
 
-const CODEX_COMMAND_COMPLETIONS = ["all", "status", "fast", "compact", "voice", "usage", "reset", "ps", "low", "medium", "high"] as const;
-const CODEX_USAGE = "Usage: /codex, /codex all, /codex status, /codex fast, /codex compact, /codex voice, /codex usage, /codex reset, /codex ps, /codex low|medium|high";
+const CODEX_COMMAND_COMPLETIONS = ["all", "status", "fast", "compact", "voice", "voice realtime", "voice dictation", "voice stop", "usage", "reset", "ps", "low", "medium", "high"] as const;
+const CODEX_USAGE = "Usage: /codex, /codex all, /codex status, /codex fast, /codex compact, /codex voice [realtime|dictation|stop], /codex usage, /codex reset, /codex ps, /codex low|medium|high";
 
 export function registerCodexCommand(
 	pi: ExtensionAPI,
@@ -101,9 +101,29 @@ export function registerCodexCommand(
 				return;
 			}
 			if (arg === "voice") {
+				if (!ctx.hasUI) { ctx.ui.notify(formatCodexSettings(state.config), "info"); return; }
+				await openCodexSettingsScreen(ctx, {
+					initialConfig: state.config,
+					initialTab: "voice",
+					onChange: (config) => saveAndApply(ctx, config),
+				});
+				return;
+			}
+			if (arg === "voice realtime" || arg === "voice dictation") {
 				if (ctx.mode !== "tui") { ctx.ui.notify("Codex voice requires interactive TUI mode", "error"); return; }
-				try { await voice.toggle(ctx, state.config); }
-				catch (error) { ctx.ui.notify(error instanceof Error ? error.message : String(error), "error"); }
+				const requestedMode = arg === "voice dictation" ? "dictation" : "realtime";
+				if (voice.activeMode === requestedMode) return;
+				await ctx.waitForIdle();
+				const nextConfig = withVoiceMode(state.config, requestedMode);
+				if (!saveAndApply(ctx, nextConfig)) return;
+				try { await voice.start(ctx, nextConfig); }
+				catch (error) { if (voice.status !== "failed") ctx.ui.notify(error instanceof Error ? error.message : String(error), "error"); }
+				return;
+			}
+			if (arg === "voice stop") {
+				if (ctx.mode !== "tui") { ctx.ui.notify("Codex voice requires interactive TUI mode", "error"); return; }
+				await ctx.waitForIdle();
+				await voice.stop({ announce: true });
 				return;
 			}
 			const nextConfig = getCommandConfigUpdate(arg, state.config);
@@ -128,6 +148,17 @@ export function registerCodexCommand(
 			});
 		},
 	});
+}
+
+function withVoiceMode(config: CodexConversionConfig, mode: "realtime" | "dictation"): CodexConversionConfig {
+	return {
+		...config,
+		voice: {
+			...config.voice,
+			mode: mode === "dictation" ? "transcription" : "conversational",
+			protocol: mode === "dictation" ? "v2" : "v3",
+		},
+	};
 }
 
 function getCommandConfigUpdate(arg: string, config: CodexConversionConfig): CodexConversionConfig | undefined {

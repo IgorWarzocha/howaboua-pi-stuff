@@ -62,9 +62,11 @@ Definitions are deferred by default; set `defer_loading = false` to add one to t
 
 Open `/codex` for the full settings UI. Settings are saved in `~/.pi/agent/pi-codex-conversion.json`.
 
-Direct routes include `/codex all` (cycle full adapter, extra tools only, and off), `/codex fast`, `/codex compact`, `/codex voice`, `/codex usage`, `/codex reset`, `/codex low|medium|high`, and `/codex ps` for background shells.
+Direct routes include `/codex all` (cycle full adapter, extra tools only, and off), `/codex fast`, `/codex compact`, `/codex voice realtime|dictation|stop`, `/codex usage`, `/codex reset`, `/codex low|medium|high`, and `/codex ps` for background shells. `/codex voice` opens the Voice settings tab.
 
-The Voice tab keeps conversation and dictation separate from the wire protocol. V3 is Codex's delegated voice path, V2 is the Realtime transcription API, and dictation is transcription mode rather than another protocol. `/codex voice` starts or stops the selected native microphone session. Conversation delegates spoken work through the active Pi agent and tools; dictation inserts finalized speech into the editor. Microphone and speaker audio stay in the bundled native helper, while Pi owns Codex authentication and agent execution.
+The Voice tab keeps conversation and dictation separate from the wire protocol. V3 is Codex's delegated voice path, V2 is the Realtime transcription API, and dictation is transcription mode rather than another protocol. Conversation delegates spoken work through the active Pi agent and tools; dictation inserts finalized speech into the editor. Microphone and speaker audio stay in the bundled native helper, while Pi owns Codex authentication and agent execution.
+
+Pi creates `~/.pi/agent/CODEX-VOICE-SYSTEM-PROMPT.md` if absent. This fully visible prompt controls realtime personality, routing, and spoken delivery; HTML comments are editor guidance and are removed before the prompt is sent. Required headings are validated only when realtime voice starts.
 
 To adapt an additional Codex-compatible provider without enabling all-model scope:
 
