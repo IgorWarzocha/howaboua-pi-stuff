@@ -11,7 +11,7 @@ export const REQUIRED_CODEX_VOICE_SECTIONS = [
 ] as const;
 
 const DEFAULT_CODEX_VOICE_SYSTEM_PROMPT = `<!-- This file controls the spoken assistant's personality, conversation style, and delegation behavior. -->
-<!-- The spoken assistant cannot access tools or files. Coding, project, and tool instructions remain with Pi and local AGENTS.md files; do not duplicate them here. -->
+<!-- The spoken assistant only listens, speaks, and routes work to Pi; it cannot access tools or files directly. Actual work and technical instructions remain with Pi and local AGENTS.md files; do not duplicate them here. -->
 <!-- A workspace may add plain Markdown at .pi/REALTIME-SYSTEM-PROMPT.md; it is appended under Project level instructions. -->
 <!-- HTML comments are visible guidance and are not sent to the model. -->
 <!-- Required sections keep routing functional. Tweak them if needed, but do not remove them. -->

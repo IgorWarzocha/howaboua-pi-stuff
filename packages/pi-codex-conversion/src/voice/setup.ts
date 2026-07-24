@@ -33,6 +33,7 @@ export function buildVoiceSetupInstructions(options: {
 		"Configure missing input and output settings with exact device id values. If multiple plausible devices are available, ask the user which they prefer. Investigate ambiguity as needed; do not guess.",
 		"Preserve every other config value.",
 		`Read the Realtime System Prompt at ${options.realtimePromptPath} before finishing.`,
+		"When explaining customization, clarify that this is not Pi's system prompt or AGENTS.md: voice only listens, speaks, and routes work; it has no direct tool or file access, and actual work remains in the Pi session. Advise against copying technical instructions into it.",
 		`After device setup, mention that the global Realtime System Prompt can be customized and ask whether the user wants you to open it. Also explain that a workspace can add plain Markdown voice instructions at ${options.projectRealtimePromptPath}; the extension appends it under Project level instructions. Do not create or edit either file unless asked.`,
 		`After saving, tell the user to run ${options.retryCommand} again.`,
 	].join("\n");
