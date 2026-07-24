@@ -119,7 +119,7 @@ test("voice shortcuts route push release, toggle dictation, and realtime indepen
 		setKittyProtocolActive(true);
 		await shortcuts.get("ctrl+alt+d")?.(ctx);
 		assert.equal(calls.start, 1);
-		assert.deepEqual(terminalInput?.("\x1b[100;7:3u"), { consume: true });
+		assert.deepEqual(terminalInput?.("\x1b[100;1:3u"), { consume: true });
 		await new Promise<void>((resolve) => setImmediate(resolve));
 		assert.equal(calls.finish, 1);
 

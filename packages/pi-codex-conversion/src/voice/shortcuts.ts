@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { isKeyRelease, isKeyRepeat, isKittyProtocolActive, matchesKey, type KeyId } from "@earendil-works/pi-tui";
+import { isKeyRelease, isKeyRepeat, isKittyProtocolActive, matchesKey, parseKey, type KeyId } from "@earendil-works/pi-tui";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 
 export interface CodexVoiceShortcutActions {
@@ -19,6 +19,7 @@ export function registerCodexVoiceShortcuts(
 	const realtimeShortcut = initialConfig.voice.realtimeShortcut as KeyId;
 	let operation = Promise.resolve();
 	let removeTerminalInput: (() => void) | undefined;
+	let dictationKeyDown: string | undefined;
 	let warnedUnsupportedPush = false;
 
 	const enqueue = (ctx: ExtensionContext, action: () => Promise<void>): Promise<void> => {
@@ -40,8 +41,13 @@ export function registerCodexVoiceShortcuts(
 				}
 				return;
 			}
-			if (mode === "toggle") await actions.toggleDictation(ctx);
-			else await actions.startDictation(ctx);
+			if (mode === "toggle") {
+				dictationKeyDown = undefined;
+				await actions.toggleDictation(ctx);
+			} else {
+				dictationKeyDown = keyIdentity(dictationShortcut);
+				await actions.startDictation(ctx);
+			}
 		}),
 	});
 
@@ -52,15 +58,23 @@ export function registerCodexVoiceShortcuts(
 
 	pi.on("session_start", (_event, ctx) => {
 		removeTerminalInput?.();
+		dictationKeyDown = undefined;
 		removeTerminalInput = ctx.ui.onTerminalInput((data) => {
 			if (matchesKey(data, realtimeShortcut) && isKeyRepeat(data)) return { consume: true };
-			if (!matchesKey(data, dictationShortcut)) return undefined;
-			if (isKeyRepeat(data)) return { consume: true };
-			if (!isKeyRelease(data)) return undefined;
-			if (getConfig().voice.dictationShortcutMode === "push") {
+			const mode = getConfig().voice.dictationShortcutMode;
+			if (mode !== "push") dictationKeyDown = undefined;
+			if (mode === "push" && dictationKeyDown && isKeyRelease(data) && keyIdentity(parseKey(data)) === dictationKeyDown) {
+				dictationKeyDown = undefined;
 				void enqueue(ctx, () => actions.finishDictation(ctx));
+				return { consume: true };
 			}
-			return { consume: true };
+			if (!matchesKey(data, dictationShortcut)) return undefined;
+			if (isKeyRepeat(data) || isKeyRelease(data)) return { consume: true };
+			return undefined;
 		});
 	});
+}
+
+function keyIdentity(key: string | undefined): string | undefined {
+	return key?.replace(/^(?:(?:ctrl|shift|alt|super)\+)+/, "");
 }
