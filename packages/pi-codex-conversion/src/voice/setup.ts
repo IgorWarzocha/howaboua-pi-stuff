@@ -27,13 +27,10 @@ export function buildVoiceSetupInstructions(options: {
 		].join("\n");
 	}
 	return [...lines,
-		`Enumerate devices with this helper: ${options.helperPath}`,
-		"Write these JSONL commands to its standard input:",
-		'{"type":"list_devices"}',
-		'{"type":"shutdown"}',
-		"Use device id values, not display names. If multiple usable devices exist for a missing setting, show the names and IDs and ask the user which one to use. Do not choose for them.",
-		"Set voice.inputDevice to the selected input id and voice.outputDevice to the selected output id, but only when that setting is missing.",
-		"Update only the missing settings under voice. Preserve every other config value.",
+		`Audio helper: ${options.helperPath}`,
+		'Use its {"type":"list_devices"} JSONL command to inspect available devices.',
+		"Configure missing input and output settings with exact device id values. If multiple plausible devices are available, ask the user which they prefer. Investigate ambiguity as needed; do not guess.",
+		"Preserve every other config value.",
 		`Read the Realtime System Prompt at ${options.realtimePromptPath} before finishing.`,
 		"After device setup, mention that the Realtime System Prompt can be customized and ask whether the user wants you to open it. Do not edit it unless asked.",
 		`After saving, tell the user to run ${options.retryCommand} again.`,

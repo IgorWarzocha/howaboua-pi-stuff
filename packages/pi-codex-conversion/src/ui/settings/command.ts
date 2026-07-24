@@ -131,7 +131,7 @@ export function registerCodexCommand(
 						helperPath: resolveVoiceHelperBinary(),
 						missing: missingAudioSettings,
 						realtimePromptPath: getCodexVoiceSystemPromptPath(),
-						retryCommand: `/${arg}`,
+						retryCommand: `/codex ${arg}`,
 					})), { triggerTurn: true });
 					return;
 				}

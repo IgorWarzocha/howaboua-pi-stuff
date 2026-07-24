@@ -115,8 +115,9 @@ test("voice setup identifies missing devices and constructs a turn-visible messa
 	assert.equal(message.display, true);
 	assert.match(instructions, /voice\.inputDevice, voice\.outputDevice/);
 	assert.match(instructions, /list_devices/);
-	assert.match(instructions, /ask the user which one to use/);
+	assert.match(instructions, /ask the user which they prefer/);
 	assert.match(instructions, /Read the Realtime System Prompt at \/agent\/REALTIME-SYSTEM-PROMPT\.md/);
+	assert.match(instructions, /run \/codex voice realtime again/);
 });
 
 test("voice prompt creation preserves existing customization and strips visible guidance", () => {
