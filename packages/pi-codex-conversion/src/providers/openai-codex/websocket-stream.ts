@@ -2,7 +2,7 @@ import type { Api, AssistantMessage, AssistantMessageEventStream, Model } from "
 import { normalizeTimeoutMs } from "./sse.ts";
 import { buildCachedWebSocketRequestBody } from "./websocket-continuation.ts";
 import { acquireWebSocket, countWebSocketEvents, isRetryableEarlyWebSocketError, parseWebSocket, startWebSocketOutputOnFirstEvent } from "./websocket.ts";
-import { isWebSocketConnectionLimitReachedError, mapCodexEvents, processMappedCodexResponsesStream } from "./stream-events.ts";
+import { isPreviousResponseNotFoundError, isWebSocketConnectionLimitReachedError, mapCodexEvents, processMappedCodexResponsesStream } from "./stream-events.ts";
 import type { CachedWebSocketRequestBodyResult, OpenAICodexStreamOptions, ResponsesBody } from "./types.ts";
 import type { CodexTurnState } from "./turn-state.ts";
 import { DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS } from "./constants.ts";
@@ -51,11 +51,12 @@ export async function processWebSocketStream<TApi extends Api>(
 					mapCodexEvents(countWebSocketEvents(parseWebSocket(socket, options?.signal, idleTimeoutMs, (value) => turnState?.capture(value)), () => {
 						eventCount++;
 					})),
-					output,
-					stream,
 					() => {
-						streamStarted = true;
-						onStart();
+						if (!streamStarted) {
+							streamStarted = true;
+							onStart();
+							stream.push({ type: "start", partial: output });
+						}
 					},
 				),
 				output,
@@ -86,10 +87,12 @@ export async function processWebSocketStream<TApi extends Api>(
 			}
 			keepConnection = false;
 			releaseOnce({ keep: false });
-			// If WebSocket fails before the first response event, nothing has been
-			// emitted to the UI/history yet. Retry once on a fresh WebSocket; if that
-			// also fails, the caller can fall back to SSE for `auto` transport.
-			if (attempt === 0 && !streamStarted && !options?.signal?.aborted && (isWebSocketConnectionLimitReachedError(error) || (eventCount === 0 && isRetryableEarlyWebSocketError(error)))) {
+			// A missing continuation retries once with full context. Other transport
+			// failures retry only before output starts, preserving safe SSE fallback.
+			if (attempt === 0 && !options?.signal?.aborted && (
+				isPreviousResponseNotFoundError(error)
+				|| (!streamStarted && (isWebSocketConnectionLimitReachedError(error) || (eventCount === 0 && isRetryableEarlyWebSocketError(error))))
+			)) {
 				continue;
 			}
 			throw error;

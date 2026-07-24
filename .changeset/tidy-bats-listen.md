@@ -6,6 +6,8 @@ Add native Codex voice conversation and manually controlled dictation sessions, 
 
 Require Pi 0.82, keep voice-only mode from rewriting provider requests, honor provider proxy settings during realtime call setup, and validate native helper data and PCM events.
 
+Recover cached Codex WebSocket sessions when the backend loses their previous-response continuation.
+
 Load native voice transports and command-only usage networking only when used.
 
 Fix native web search on Windows by launching the bundled executable directly instead of spawning its command wrapper.

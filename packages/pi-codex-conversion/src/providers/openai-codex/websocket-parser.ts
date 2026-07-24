@@ -1,4 +1,3 @@
-import type { AssistantMessage, AssistantMessageEventStream } from "@earendil-works/pi-ai";
 import type { StreamEventShape, WebSocketLike } from "./types.ts";
 import { extractWebSocketCloseError, extractWebSocketError } from "./websocket-connection.ts";
 import { extractCodexTurnStateFromWebSocketEvent } from "./turn-state.ts";
@@ -149,8 +148,6 @@ export async function* countWebSocketEvents(
 
 export async function* startWebSocketOutputOnFirstEvent(
 	events: AsyncIterable<StreamEventShape>,
-	output: AssistantMessage,
-	stream: AssistantMessageEventStream,
 	onStart: () => void,
 ): AsyncIterable<StreamEventShape> {
 	let started = false;
@@ -158,7 +155,6 @@ export async function* startWebSocketOutputOnFirstEvent(
 		if (!started) {
 			started = true;
 			onStart();
-			stream.push({ type: "start", partial: output });
 		}
 		yield event;
 	}
