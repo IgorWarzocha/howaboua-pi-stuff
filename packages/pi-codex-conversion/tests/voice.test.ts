@@ -6,11 +6,13 @@ import test from "node:test";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { setKittyProtocolActive } from "@earendil-works/pi-tui";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
-import { buildDictationSessionUpdate, decodedBase64ByteLength, utf8Chunks } from "../src/voice/controller.ts";
+import { utf8Chunks } from "../src/voice/conversation/session.ts";
+import { buildDictationSessionUpdate, decodedBase64ByteLength } from "../src/voice/dictation/session.ts";
 import { parseVoiceHelperEvent } from "../src/voice/helper.ts";
 import { renderRealtimeConversationInput, renderRealtimeDelegation } from "../src/voice/prompts.ts";
 import { buildVoiceSetupInstructions, missingVoiceAudioSettings } from "../src/voice/setup.ts";
 import { registerCodexVoiceShortcuts } from "../src/voice/shortcuts.ts";
+import { CodexVoiceSessionMessages } from "../src/voice/session-messages.ts";
 import { ensureCodexVoiceSystemPrompt, loadCodexVoiceSystemPrompt, stripMarkdownComments } from "../src/voice/system-prompt.ts";
 import { RealtimeVoiceTurnTracker } from "../src/voice/turns.ts";
 import { CODEX_VOICE_MODE_MESSAGE_TYPE, CODEX_VOICE_SETUP_MESSAGE_TYPE, REALTIME_VOICE_MESSAGE_TYPE, codexVoiceModeMessage, codexVoiceSetupMessage, realtimeVoiceMessage } from "../src/voice/ui.ts";
@@ -92,6 +94,49 @@ test("voice shortcuts route push release, toggle dictation, and realtime indepen
 	} finally {
 		setKittyProtocolActive(false);
 	}
+});
+
+test("voice session messages wait for Pi idle and preserve delegation ordering", () => {
+	const sent: Array<{ message: { details?: unknown }; triggerTurn: boolean }> = [];
+	let idle = false;
+	let voiceActive = true;
+	const delegated: string[] = [];
+	const pi = {
+		sendMessage: (message: { details?: unknown }, options?: { triggerTurn?: boolean }) => {
+			sent.push({ message, triggerTurn: options?.triggerTurn ?? false });
+		},
+	} as unknown as ExtensionAPI;
+	const ctx = { isIdle: () => idle } as unknown as ExtensionContext;
+	const messages = new CodexVoiceSessionMessages(pi, {
+		canDelegate: () => true,
+		isVoiceActive: () => voiceActive,
+		onDelegation: (id) => delegated.push(id),
+		onWorking: () => {},
+	});
+	messages.setContext(ctx);
+	messages.modeStarted("realtime");
+	messages.voiceTurn({ input: "casual conversation" });
+	messages.voiceTurn({ input: "do the work", delegationId: "delegation-1" });
+	assert.equal(sent.length, 0);
+
+	idle = true;
+	messages.agentSettled();
+	assert.deepEqual(sent.map(({ message, triggerTurn }) => ({ details: message.details, triggerTurn })), [
+		{ details: { mode: "realtime", state: "started" }, triggerTurn: false },
+		{ details: { input: "casual conversation", route: "conversation" }, triggerTurn: false },
+		{ details: { input: "do the work", route: "delegation" }, triggerTurn: true },
+	]);
+	assert.deepEqual(delegated, ["delegation-1"]);
+	assert.equal(messages.consumeDelegatedTurnStart(), true);
+	assert.equal(messages.consumeDelegatedTurnStart(), false);
+
+	voiceActive = false;
+	idle = false;
+	messages.voiceStopped("realtime");
+	assert.notDeepEqual(sent.at(-1)?.message.details, { mode: "realtime", state: "ended" });
+	idle = true;
+	messages.agentSettled();
+	assert.deepEqual(sent.at(-1)?.message.details, { mode: "realtime", state: "ended" });
 });
 
 test("realtime handoff chunks preserve Unicode under the byte limit", () => {

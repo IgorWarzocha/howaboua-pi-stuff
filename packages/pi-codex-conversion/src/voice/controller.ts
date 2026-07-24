@@ -1,59 +1,34 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
-import { extractAccountId } from "../providers/openai-codex/headers.ts";
-import { connectWebSocket, closeWebSocketSilently } from "../providers/openai-codex/websocket-connection.ts";
-import type { WebSocketLike } from "../providers/openai-codex/types.ts";
-import { VoiceHelperClient, type VoiceHelperEvent } from "./helper.ts";
+import { resolveCodexVoiceAuth } from "./auth.ts";
+import { CodexRealtimeConversation } from "./conversation/session.ts";
+import { CodexDictationSession } from "./dictation/session.ts";
+import { CodexVoiceSessionMessages } from "./session-messages.ts";
 import { getProjectCodexVoiceSystemPromptPath, loadCodexVoiceSystemPrompt } from "./system-prompt.ts";
-import { RealtimeVoiceTurnTracker, type RealtimeVoiceTurn } from "./turns.ts";
-import { codexVoiceModeMessage, realtimeVoiceMessage, type CodexVoiceMode, type CodexVoiceModeState } from "./ui.ts";
+import type { CodexVoiceMode } from "./ui.ts";
 
-const V3_MODEL = "gpt-live-1-boulder-alpha";
-const MAX_DELEGATION_BYTES = 32 * 1024;
-const HANDOFF_CHUNK_BYTES = 500;
-const HANDOFF_FLUSH_MS = 200;
-const MIN_DICTATION_AUDIO_BYTES = 4_800;
-const DICTATION_COMPLETION_TIMEOUT_MS = 10_000;
-
+type VoiceSession = CodexRealtimeConversation | CodexDictationSession;
 type VoiceState =
 	| { type: "idle" }
-	| { type: "connecting"; mode: "conversation" | "dictation" }
-	| { type: "conversation"; activeDelegationId?: string }
-	| { type: "dictation"; socket: WebSocketLike; audioBytes: number }
+	| { type: "connecting"; mode: CodexVoiceMode; session?: VoiceSession }
+	| { type: "conversation"; session: CodexRealtimeConversation }
+	| { type: "dictation"; session: CodexDictationSession }
 	| { type: "failed"; message: string };
 
-interface ProviderAuth {
-	token: string;
-	accountId: string;
-	headers: Headers;
-	baseUrl: string;
-	officialCodex: boolean;
-	env?: Record<string, string>;
-}
-
-type PendingVoiceMessage =
-	| { type: "mode"; mode: CodexVoiceMode; state: CodexVoiceModeState }
-	| { type: "turn"; turn: RealtimeVoiceTurn };
-
 export class CodexVoiceController {
-	private readonly pi: ExtensionAPI;
 	private state: VoiceState = { type: "idle" };
-	private helper = new VoiceHelperClient();
 	private context: ExtensionContext | undefined;
-	private handoffBuffer = "";
-	private handoffChannel: "commentary" | "speakable" = "speakable";
-	private handoffTimer: ReturnType<typeof setTimeout> | undefined;
-	private readonly turnTracker = new RealtimeVoiceTurnTracker();
-	private pendingMessages: PendingVoiceMessage[] = [];
-	private piTurnActive = false;
-	private backendTurnPending = false;
 	private announcedMode: CodexVoiceMode | undefined;
-	private dictationCompletion: ReturnType<typeof Promise.withResolvers<void>> | undefined;
+	private startGeneration = 0;
+	private readonly messages: CodexVoiceSessionMessages;
 
 	constructor(pi: ExtensionAPI) {
-		this.pi = pi;
-		this.helper.onEvent((event) => this.handleHelperEvent(event));
-		this.helper.onExit((error) => this.fail(error));
+		this.messages = new CodexVoiceSessionMessages(pi, {
+			canDelegate: () => this.state.type === "conversation",
+			isVoiceActive: () => this.active,
+			onDelegation: (id) => { if (this.state.type === "conversation") this.state.session.activateDelegation(id); },
+			onWorking: () => this.renderStatus("working"),
+		});
 	}
 
 	get status(): string { return this.state.type; }
@@ -61,372 +36,136 @@ export class CodexVoiceController {
 	get activeMode(): CodexVoiceMode | undefined { return this.announcedMode; }
 
 	async start(ctx: ExtensionContext, config: CodexConversionConfig): Promise<void> {
-		const mode = config.voice.mode === "transcription" ? "dictation" : "conversation";
-		const realtimePrompt = mode === "conversation"
+		const mode: CodexVoiceMode = config.voice.mode === "transcription" ? "dictation" : "realtime";
+		const realtimePrompt = mode === "realtime"
 			? loadCodexVoiceSystemPrompt(undefined, ctx.isProjectTrusted() ? getProjectCodexVoiceSystemPromptPath(ctx.cwd) : undefined)
 			: undefined;
 		if (this.state.type === "dictation") await this.finishDictation({ announce: true });
 		else await this.stop({ announce: true });
+		const startGeneration = ++this.startGeneration;
 		this.context = ctx;
+		this.messages.setContext(ctx);
 		this.state = { type: "connecting", mode };
 		this.renderStatus("connecting…");
 		try {
-			const auth = await this.resolveAuth(ctx);
-			await this.helper.start();
+			const auth = await resolveCodexVoiceAuth(ctx);
+			if (startGeneration !== this.startGeneration || this.state.type !== "connecting") return;
 			if (mode === "dictation") await this.startDictation(auth, config);
 			else await this.startConversation(auth, config, realtimePrompt!);
-			this.announceModeStarted(mode === "dictation" ? "dictation" : "realtime");
+			if (!this.modeIsActive(mode)) return;
+			this.announcedMode = mode;
+			this.messages.modeStarted(mode);
 		} catch (error) {
 			this.fail(error instanceof Error ? error : new Error(String(error)));
-			throw error;
 		}
 	}
 
 	async stop(options?: { announce?: boolean }): Promise<void> {
+		this.startGeneration += 1;
 		const endedMode = options?.announce ? this.announcedMode : undefined;
-		const ctx = this.context;
-		if (this.handoffTimer) clearTimeout(this.handoffTimer);
-		this.handoffTimer = undefined;
-		this.handoffBuffer = "";
-		this.turnTracker.reset();
-		this.backendTurnPending = false;
-		this.dictationCompletion?.resolve();
-		this.dictationCompletion = undefined;
-		this.piTurnActive = ctx ? !ctx.isIdle() : false;
-		this.announcedMode = undefined;
-		if (this.state.type === "dictation") closeWebSocketSilently(this.state.socket);
+		const session = this.currentSession();
 		this.state = { type: "idle" };
-		ctx?.ui.setStatus("codex-voice", undefined);
-		await this.helper.close();
-		if (endedMode && ctx) {
-			this.context = ctx;
-			this.enqueueModeMessage(endedMode, "ended");
-		} else {
-			this.context = undefined;
-		}
+		this.announcedMode = undefined;
+		this.context?.ui.setStatus("codex-voice", undefined);
+		await session?.close();
+		this.messages.voiceStopped(endedMode);
 	}
 
 	async finishDictation(options?: { announce?: boolean }): Promise<void> {
-		if (this.state.type !== "dictation") {
-			await this.stop(options);
-			return;
-		}
-		const active = this.state;
-		this.renderStatus("transcribing");
-		try {
-			await this.helper.stop();
-			if (this.state !== active) return;
-			if (active.audioBytes >= MIN_DICTATION_AUDIO_BYTES) {
-				const completion = Promise.withResolvers<void>();
-				this.dictationCompletion = completion;
-				active.socket.send(JSON.stringify({ type: "input_audio_buffer.commit" }));
-				let timeout: ReturnType<typeof setTimeout> | undefined;
-				try {
-					await Promise.race([
-						completion.promise,
-						new Promise<void>((_resolve, reject) => {
-							timeout = setTimeout(() => reject(new Error("Codex dictation transcription timed out")), DICTATION_COMPLETION_TIMEOUT_MS);
-						}),
-					]);
-				} finally {
-					if (timeout) clearTimeout(timeout);
-					if (this.dictationCompletion === completion) this.dictationCompletion = undefined;
-				}
-			}
-		} catch (error) {
-			const failure = error instanceof Error ? error : new Error(String(error));
-			if (this.state.type === "dictation") this.fail(failure);
-			return;
-		}
-		if (this.state === active) await this.stop(options);
+		this.startGeneration += 1;
+		const session = this.state.type === "dictation"
+			? this.state.session
+			: this.state.type === "connecting" && this.state.session instanceof CodexDictationSession
+				? this.state.session
+				: undefined;
+		if (!session) { await this.stop(options); return; }
+		await session.finish();
+		if (this.currentSession() !== session) return;
+		const endedMode = options?.announce ? this.announcedMode : undefined;
+		this.state = { type: "idle" };
+		this.announcedMode = undefined;
+		this.context?.ui.setStatus("codex-voice", undefined);
+		this.messages.voiceStopped(endedMode);
 	}
 
 	consumeDelegatedTurnStart(): boolean {
-		if (!this.backendTurnPending) return false;
-		this.backendTurnPending = false;
-		return true;
+		return this.messages.consumeDelegatedTurnStart();
 	}
 
 	agentStarted(): void {
-		this.piTurnActive = true;
+		this.messages.agentStarted();
 	}
 
 	streamDelta(type: string, delta: string): void {
-		if (this.state.type !== "conversation" || !this.state.activeDelegationId || !delta) return;
-		this.renderStatus("speaking");
-		const channel = type === "thinking_delta" ? "commentary" : "speakable";
-		if (this.handoffBuffer && channel !== this.handoffChannel) this.flushHandoff();
-		this.handoffChannel = channel;
-		this.handoffBuffer += delta;
-		if (!this.handoffTimer) this.handoffTimer = setTimeout(() => this.flushHandoff(), HANDOFF_FLUSH_MS);
+		if (this.state.type === "conversation") this.state.session.streamAgentDelta(type, delta);
 	}
 
 	settleTurn(): void {
-		this.flushHandoff();
-		if (this.state.type === "conversation") delete this.state.activeDelegationId;
-		this.piTurnActive = false;
-		if (this.active) this.renderStatus("listening");
-		this.flushPendingMessages();
+		if (this.state.type === "conversation") this.state.session.settleAgentTurn();
+		this.messages.agentSettled();
 	}
 
-	private async resolveAuth(ctx: ExtensionContext): Promise<ProviderAuth> {
-		const resolved = await ctx.modelRegistry.getProviderAuth("openai-codex");
-		const token = resolved?.auth.apiKey;
-		if (!token) throw new Error("OpenAI Codex login is required before starting voice");
-		const accountId = extractAccountId(token);
-		const headers = new Headers();
-		for (const [name, value] of Object.entries(resolved.auth.headers ?? {})) if (value !== null) headers.set(name, value);
-		headers.set("authorization", `Bearer ${token}`);
-		headers.set("chatgpt-account-id", accountId);
-		headers.set("originator", "pi");
-		headers.set("x-session-id", ctx.sessionManager.getSessionId());
-		headers.set("user-agent", "pi-codex-conversion");
-		const baseUrl = resolved.auth.baseUrl ?? "https://chatgpt.com/backend-api/codex";
-		return { token, accountId, headers, baseUrl, officialCodex: isOfficialCodexBaseUrl(baseUrl), ...(resolved.env ? { env: resolved.env } : {}) };
-	}
-
-	private async startConversation(auth: ProviderAuth, config: CodexConversionConfig, instructions: string): Promise<void> {
-		const offer = Promise.withResolvers<string>();
-		const removeEvent = this.helper.onEvent((event) => {
-			if (event.type === "offer") offer.resolve(event.sdp);
-			else if (event.type === "error") offer.reject(new Error(event.message));
+	private async startConversation(
+		auth: Awaited<ReturnType<typeof resolveCodexVoiceAuth>>,
+		config: CodexConversionConfig,
+		instructions: string,
+	): Promise<void> {
+		let session!: CodexRealtimeConversation;
+		session = new CodexRealtimeConversation({
+			onError: (error) => this.failSession(session, error),
+			onStatus: (status) => this.renderStatus(status),
+			onTurn: (turn) => this.messages.voiceTurn(turn),
 		});
-		const removeExit = this.helper.onExit((error) => offer.reject(error));
-		const timeout = setTimeout(() => offer.reject(new Error("Codex voice helper did not create an offer")), 15_000);
-		this.helper.send({
-			type: "start_v3",
-			...(config.voice.inputDevice ? { microphone: config.voice.inputDevice } : {}),
-			...(config.voice.outputDevice ? { speaker: config.voice.outputDevice } : {}),
+		this.state = { type: "connecting", mode: "realtime", session };
+		await session.start(auth, config, instructions);
+		if (this.currentSession() === session) this.state = { type: "conversation", session };
+		else await session.close();
+	}
+
+	private async startDictation(
+		auth: Awaited<ReturnType<typeof resolveCodexVoiceAuth>>,
+		config: CodexConversionConfig,
+	): Promise<void> {
+		let session!: CodexDictationSession;
+		session = new CodexDictationSession({
+			onError: (error) => this.failSession(session, error),
+			onStatus: (status) => this.renderStatus(status),
+			onTranscript: (transcript) => this.context?.ui.pasteToEditor(transcript),
 		});
-		const sdp = await offer.promise.finally(() => { clearTimeout(timeout); removeEvent(); removeExit(); });
-		const headers = new Headers(auth.headers);
-		headers.set("openai-alpha", "quicksilver=v2");
-		headers.set("content-type", "application/json");
-		const endpoint = `${auth.baseUrl.replace(/\/+$/, "")}/realtime/calls?intent=quicksilver&architecture=avas`;
-		const response = await fetch(endpoint, {
-			method: "POST", headers,
-			body: JSON.stringify({ sdp, session: { model: V3_MODEL, instructions, audio: { output: { voice: config.voice.v3Voice } }, delegation: { type: "client" } } }),
-		});
-		const answer = await response.text();
-		if (response.status !== 201) throw new Error(`Codex voice call failed (${response.status}): ${answer.slice(0, 1_000)}`);
-		this.state = { type: "conversation" };
-		this.helper.send({ type: "apply_answer", sdp: answer });
-		this.renderStatus("connecting…");
+		this.state = { type: "connecting", mode: "dictation", session };
+		await session.start(auth, config);
+		if (this.currentSession() === session) this.state = { type: "dictation", session };
+		else await session.close();
 	}
 
-	private async startDictation(auth: ProviderAuth, config: CodexConversionConfig): Promise<void> {
-		if (!auth.officialCodex) throw new Error("Codex dictation does not support custom provider base URLs");
-		const headers = new Headers(auth.headers);
-		const socket = await connectWebSocket("wss://api.openai.com/v1/realtime?intent=transcription", headers, undefined, 10_000, auth.env);
-		this.state = { type: "dictation", socket, audioBytes: 0 };
-		socket.addEventListener("message", (event) => this.handleDictationMessage(event));
-		socket.addEventListener("close", (event) => { if (this.state.type === "dictation") this.fail(new Error(`Codex dictation closed${closeReason(event)}`)); });
-		socket.send(JSON.stringify(buildDictationSessionUpdate()));
-		this.helper.send({
-			type: "start_dictation",
-			...(config.voice.inputDevice ? { microphone: config.voice.inputDevice } : {}),
-		});
-		this.renderStatus("listening");
+	private currentSession(): VoiceSession | undefined {
+		if (this.state.type === "conversation" || this.state.type === "dictation") return this.state.session;
+		return this.state.type === "connecting" ? this.state.session : undefined;
 	}
 
-	private handleHelperEvent(event: VoiceHelperEvent): void {
-		if (event.type === "error") { this.fail(new Error(event.message)); return; }
-		if (event.type === "pcm" && this.state.type === "dictation") {
-			this.state.audioBytes += decodedBase64ByteLength(event.audio);
-			this.state.socket.send(JSON.stringify({ type: "input_audio_buffer.append", audio: event.audio }));
-			return;
-		}
-		if (event.type === "data") this.handleV3Message(event.message);
-		if (event.type === "state") this.handleHelperState(event.state);
+	private modeIsActive(mode: CodexVoiceMode): boolean {
+		return mode === "dictation" ? this.state.type === "dictation" : this.state.type === "conversation";
 	}
 
-	private handleHelperState(state: string): void {
-		if (state === "ready" || state === "listening") this.renderStatus("listening");
-		else if (state === "connecting" || state === "connected") this.renderStatus("connecting…");
-		else if (state === "disconnected") this.renderStatus("reconnecting…");
-	}
-
-	private handleV3Message(value: unknown): void {
-		if (!value || typeof value !== "object") return;
-		const event = value as Record<string, unknown>;
-		if (event["type"] === "error") { this.fail(new Error(remoteError(event))); return; }
-		if (event["type"] === "input_transcript.added") return;
-		if (event["type"] === "output_transcript.added") { this.renderStatus("speaking"); return; }
-		if (event["type"] === "turn.done") {
-			const turn = event["turn"];
-			if (turn && typeof turn === "object") {
-				const record = turn as Record<string, unknown>;
-				const role = record["role"];
-				if (role === "user") {
-					const input = boundedTranscript(record["transcript"]);
-					if (input === "oversized") { this.fail(new Error("Codex voice transcript was oversized")); return; }
-					if (input) this.turnTracker.userFinished(input);
-					this.renderStatus("responding");
-				} else if (role === "assistant") {
-					const completed = this.turnTracker.assistantFinished();
-					this.renderStatus("listening");
-					if (completed) this.enqueueVoiceTurn(completed);
-				}
-			}
-			return;
-		}
-		if (event["type"] !== "delegation.created" || this.state.type !== "conversation") return;
-		const item = event["item"];
-		if (!item || typeof item !== "object") return;
-		const record = item as Record<string, unknown>;
-		if (record["type"] !== "delegation" || record["target"] !== "client" || typeof record["id"] !== "string" || !Array.isArray(record["content"])) return;
-		const input = record["content"].flatMap((part) => part && typeof part === "object" && (part as Record<string, unknown>)["type"] === "input_text" && typeof (part as Record<string, unknown>)["text"] === "string" ? [(part as Record<string, unknown>)["text"] as string] : []).join("").trim();
-		if (!input || Buffer.byteLength(input) > MAX_DELEGATION_BYTES) { this.fail(new Error("Codex voice delegation was empty or oversized")); return; }
-		this.flushHandoff();
-		this.enqueueVoiceTurn(this.turnTracker.delegated(input, record["id"]));
-	}
-
-	private enqueueVoiceTurn(turn: RealtimeVoiceTurn): void {
-		this.pendingMessages.push({ type: "turn", turn });
-		this.flushPendingMessages();
-	}
-
-	private announceModeStarted(mode: CodexVoiceMode): void {
-		this.announcedMode = mode;
-		this.enqueueModeMessage(mode, "started");
-	}
-
-	private enqueueModeMessage(mode: CodexVoiceMode, state: CodexVoiceModeState): void {
-		this.pendingMessages.push({ type: "mode", mode, state });
-		this.flushPendingMessages();
-	}
-
-	private flushPendingMessages(): void {
-		// Session history stays append-only: hold voice messages while Pi is active,
-		// then append state/conversation cards and stop after one turn-triggering delegation.
-		const ctx = this.context;
-		if (this.piTurnActive || !ctx?.isIdle()) return;
-		while (this.pendingMessages.length > 0) {
-			const message = this.pendingMessages.shift()!;
-			if (message.type === "mode") {
-				this.pi.sendMessage(codexVoiceModeMessage(message.mode, message.state), { triggerTurn: false });
-				continue;
-			}
-			const { turn } = message;
-			if (turn.delegationId) {
-				if (this.state.type !== "conversation") continue;
-				this.state.activeDelegationId = turn.delegationId;
-				this.backendTurnPending = true;
-				this.piTurnActive = true;
-				this.renderStatus("working");
-				this.pi.sendMessage(realtimeVoiceMessage(turn.input, "delegation"), { triggerTurn: true });
-				return;
-			}
-			this.pi.sendMessage(realtimeVoiceMessage(turn.input, "conversation"), { triggerTurn: false });
-		}
-		if (!this.active) this.context = undefined;
-	}
-
-	private handleDictationMessage(raw: unknown): void {
-		if (!raw || typeof raw !== "object" || !("data" in raw)) return;
-		try {
-			const event = JSON.parse(String((raw as { data: unknown }).data)) as Record<string, unknown>;
-			if (event["type"] === "error") { this.fail(new Error(remoteError(event))); return; }
-			if (event["type"] === "conversation.item.input_audio_transcription.delta" && typeof event["delta"] === "string") {
-				this.renderStatus("transcribing");
-				return;
-			}
-			if (event["type"] === "conversation.item.input_audio_transcription.completed" || event["type"] === "input_audio_transcription.completed") {
-				if (typeof event["transcript"] === "string" && event["transcript"].trim()) this.context?.ui.pasteToEditor(event["transcript"].trim());
-				this.dictationCompletion?.resolve();
-			}
-		} catch {}
-	}
-
-	private flushHandoff(): void {
-		if (this.handoffTimer) clearTimeout(this.handoffTimer);
-		this.handoffTimer = undefined;
-		if (this.state.type !== "conversation" || !this.state.activeDelegationId || !this.handoffBuffer) return;
-		for (const text of utf8Chunks(this.handoffBuffer, HANDOFF_CHUNK_BYTES)) {
-			this.helper.send({ type: "send_data", message: { type: "delegation.context.append", delegation_item_id: this.state.activeDelegationId, channel: this.handoffChannel, content: [{ type: "input_text", text }] } });
-		}
-		this.handoffBuffer = "";
-	}
-
-	private renderStatus(status: string): void {
-		const ctx = this.context;
-		if (!ctx) return;
-		ctx.ui.setStatus("codex-voice", ctx.ui.theme.fg("accent", `voice: ${status}`));
+	private failSession(session: VoiceSession, error: Error): void {
+		if (this.currentSession() === session) this.fail(error);
 	}
 
 	private fail(error: Error): void {
 		if (this.state.type === "idle" || this.state.type === "failed") return;
+		this.startGeneration += 1;
 		const endedMode = this.announcedMode;
-		if (this.state.type === "dictation") closeWebSocketSilently(this.state.socket);
+		const session = this.currentSession();
 		this.state = { type: "failed", message: error.message };
-		this.dictationCompletion?.reject(error);
-		this.dictationCompletion = undefined;
 		this.announcedMode = undefined;
 		this.context?.ui.setStatus("codex-voice", undefined);
 		this.context?.ui.notify(error.message, "error");
-		if (endedMode) this.enqueueModeMessage(endedMode, "ended");
-		void this.helper.close();
+		this.messages.voiceStopped(endedMode);
+		void session?.close();
 	}
-}
 
-export function decodedBase64ByteLength(value: string): number {
-	if (!value) return 0;
-	const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
-	return Math.max(0, Math.floor(value.length * 3 / 4) - padding);
-}
-
-export function buildDictationSessionUpdate(): Record<string, unknown> {
-	return {
-		type: "session.update",
-		session: {
-			type: "transcription",
-			audio: {
-				input: {
-					format: { type: "audio/pcm", rate: 24_000 },
-					noise_reduction: { type: "near_field" },
-					transcription: { model: "gpt-4o-mini-transcribe" },
-					turn_detection: null,
-				},
-			},
-		},
-	};
-}
-
-function boundedTranscript(value: unknown): string | "oversized" | undefined {
-	if (typeof value !== "string") return undefined;
-	const input = value.trim();
-	if (!input) return undefined;
-	return Buffer.byteLength(input) > MAX_DELEGATION_BYTES ? "oversized" : input;
-}
-
-function remoteError(event: Record<string, unknown>): string {
-	if (typeof event["message"] === "string") return event["message"];
-	const error = event["error"];
-	return error && typeof error === "object" && typeof (error as Record<string, unknown>)["message"] === "string" ? (error as Record<string, unknown>)["message"] as string : "Codex realtime error";
-}
-
-function closeReason(event: unknown): string {
-	if (!event || typeof event !== "object") return "";
-	const value = event as Record<string, unknown>;
-	return `${typeof value["code"] === "number" ? ` (${value["code"]})` : ""}${typeof value["reason"] === "string" && value["reason"] ? `: ${value["reason"]}` : ""}`;
-}
-
-function isOfficialCodexBaseUrl(value: string): boolean {
-	try {
-		const url = new URL(value);
-		return url.protocol === "https:" && url.hostname === "chatgpt.com" && /^\/backend-api\/codex\/?$/.test(url.pathname);
-	} catch {
-		return false;
+	private renderStatus(status: string): void {
+		const ctx = this.context;
+		if (ctx) ctx.ui.setStatus("codex-voice", ctx.ui.theme.fg("accent", `voice: ${status}`));
 	}
-}
-
-export function utf8Chunks(input: string, maxBytes: number): string[] {
-	const chunks: string[] = [];
-	let current = "";
-	for (const character of input) {
-		if (Buffer.byteLength(current + character) > maxBytes && current) { chunks.push(current); current = character; }
-		else current += character;
-	}
-	if (current) chunks.push(current);
-	return chunks;
 }
