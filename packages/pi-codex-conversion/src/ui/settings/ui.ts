@@ -336,9 +336,8 @@ function formatTabs(activeTab: SettingsTab, theme: Theme): string {
 
 function formatVoiceLines(theme: Theme): string[] {
 	return [
-		theme.fg("dim", "  Voice conversation is realtime dialogue; dictation is transcription mode, not a protocol."),
-		theme.fg("dim", "  /codex voice realtime|dictation starts a mode; /codex voice stop ends it."),
-		theme.fg("dim", `  Realtime prompt: ${getCodexVoiceSystemPromptPath()}`),
+		theme.fg("dim", "  Setup prompt: “Set up Codex voice audio. Show microphone and speaker choices; don't guess.”"),
+		theme.fg("dim", `  Realtime System Prompt: ${getCodexVoiceSystemPromptPath()}`),
 	];
 }
 

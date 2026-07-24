@@ -93,7 +93,7 @@ test("voice mode messages separate model context from their system-style display
 
 test("voice prompt creation preserves existing customization and strips visible guidance", () => {
 	const directory = mkdtempSync(join(tmpdir(), "codex-voice-prompt-"));
-	const promptPath = join(directory, "CODEX-VOICE-SYSTEM-PROMPT.md");
+	const promptPath = join(directory, "REALTIME-SYSTEM-PROMPT.md");
 	try {
 		assert.deepEqual(ensureCodexVoiceSystemPrompt(promptPath), { created: true });
 		assert.match(readFileSync(promptPath, "utf8"), /<!--.+not sent to the model.+-->/);
@@ -109,7 +109,7 @@ test("voice prompt creation preserves existing customization and strips visible 
 
 test("voice prompt validation reports missing sections and malformed comments only when loaded", () => {
 	const directory = mkdtempSync(join(tmpdir(), "codex-voice-prompt-invalid-"));
-	const promptPath = join(directory, "CODEX-VOICE-SYSTEM-PROMPT.md");
+	const promptPath = join(directory, "REALTIME-SYSTEM-PROMPT.md");
 	try {
 		writeFileSync(promptPath, "## Identity and tone\nHello");
 		assert.throws(() => loadCodexVoiceSystemPrompt(promptPath), /missing required sections: Interface and role, Delegation, Backend results/);

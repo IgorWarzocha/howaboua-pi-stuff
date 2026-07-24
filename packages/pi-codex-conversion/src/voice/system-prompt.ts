@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
-export const CODEX_VOICE_SYSTEM_PROMPT_BASENAME = "CODEX-VOICE-SYSTEM-PROMPT.md";
+export const REALTIME_SYSTEM_PROMPT_BASENAME = "REALTIME-SYSTEM-PROMPT.md";
 
 export const REQUIRED_CODEX_VOICE_SECTIONS = [
 	"Interface and role",
@@ -45,7 +45,7 @@ Treat requested verbosity, pacing, update frequency, and presentation style as a
 `;
 
 export function getCodexVoiceSystemPromptPath(agentDir: string = getAgentDir()): string {
-	return join(agentDir, CODEX_VOICE_SYSTEM_PROMPT_BASENAME);
+	return join(agentDir, REALTIME_SYSTEM_PROMPT_BASENAME);
 }
 
 export function ensureCodexVoiceSystemPrompt(promptPath: string = getCodexVoiceSystemPromptPath()): { created: boolean } {
