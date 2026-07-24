@@ -3,12 +3,14 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { utf8Chunks } from "../src/voice/controller.ts";
 import { parseVoiceHelperEvent } from "../src/voice/helper.ts";
 import { renderRealtimeConversationInput, renderRealtimeDelegation } from "../src/voice/prompts.ts";
+import { buildVoiceSetupInstructions, missingVoiceAudioSettings } from "../src/voice/setup.ts";
 import { ensureCodexVoiceSystemPrompt, loadCodexVoiceSystemPrompt, stripMarkdownComments } from "../src/voice/system-prompt.ts";
 import { RealtimeVoiceTurnTracker } from "../src/voice/turns.ts";
-import { CODEX_VOICE_MODE_MESSAGE_TYPE, REALTIME_VOICE_MESSAGE_TYPE, codexVoiceModeMessage, realtimeVoiceMessage } from "../src/voice/ui.ts";
+import { CODEX_VOICE_MODE_MESSAGE_TYPE, CODEX_VOICE_SETUP_MESSAGE_TYPE, REALTIME_VOICE_MESSAGE_TYPE, codexVoiceModeMessage, codexVoiceSetupMessage, realtimeVoiceMessage } from "../src/voice/ui.ts";
 
 test("voice helper events validate their discriminated payload", () => {
 	assert.deepEqual(parseVoiceHelperEvent({ type: "ready", version: 2 }), { type: "ready", version: 2 });
@@ -89,6 +91,30 @@ test("voice mode messages separate model context from their system-style display
 	const dictationEnded = codexVoiceModeMessage("dictation", "ended");
 	assert.deepEqual(dictationEnded.details, { mode: "dictation", state: "ended" });
 	assert.match(dictationEnded.content, /ordinary typed input/);
+});
+
+test("voice setup identifies missing devices and constructs a turn-visible message", () => {
+	const missing = missingVoiceAudioSettings(DEFAULT_CODEX_CONVERSION_CONFIG);
+	assert.deepEqual(missing, ["voice.inputDevice", "voice.outputDevice"]);
+	assert.deepEqual(missingVoiceAudioSettings({
+		...DEFAULT_CODEX_CONVERSION_CONFIG,
+		voice: { ...DEFAULT_CODEX_CONVERSION_CONFIG.voice, inputDevice: "mic-1", outputDevice: "speaker-1" },
+	}), []);
+
+	const instructions = buildVoiceSetupInstructions({
+		configPath: "/agent/pi-codex-conversion.json",
+		helperPath: "/package/pi-codex-voice",
+		missing,
+		retryCommand: "/codex voice realtime",
+	});
+	const message = codexVoiceSetupMessage(instructions);
+	assert.equal(message.customType, CODEX_VOICE_SETUP_MESSAGE_TYPE);
+	assert.equal(message.content, instructions);
+	assert.deepEqual(message.details, { instructions });
+	assert.equal(message.display, true);
+	assert.match(instructions, /voice\.inputDevice, voice\.outputDevice/);
+	assert.match(instructions, /list_devices/);
+	assert.match(instructions, /ask the user which one to use/);
 });
 
 test("voice prompt creation preserves existing customization and strips visible guidance", () => {

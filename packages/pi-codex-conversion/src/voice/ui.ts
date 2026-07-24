@@ -4,6 +4,7 @@ import { renderRealtimeConversationInput, renderRealtimeDelegation } from "./pro
 
 export const REALTIME_VOICE_MESSAGE_TYPE = "codex-realtime-voice";
 export const CODEX_VOICE_MODE_MESSAGE_TYPE = "codex-voice-mode";
+export const CODEX_VOICE_SETUP_MESSAGE_TYPE = "codex-voice-setup";
 
 export type CodexVoiceMode = "realtime" | "dictation";
 export type CodexVoiceModeState = "started" | "ended";
@@ -16,6 +17,10 @@ interface RealtimeVoiceMessageDetails {
 interface CodexVoiceModeMessageDetails {
 	mode: CodexVoiceMode;
 	state: CodexVoiceModeState;
+}
+
+interface CodexVoiceSetupMessageDetails {
+	instructions: string;
 }
 
 export function realtimeVoiceMessage(input: string, route: RealtimeVoiceMessageDetails["route"]) {
@@ -36,6 +41,15 @@ export function codexVoiceModeMessage(mode: CodexVoiceMode, state: CodexVoiceMod
 	};
 }
 
+export function codexVoiceSetupMessage(instructions: string) {
+	return {
+		customType: CODEX_VOICE_SETUP_MESSAGE_TYPE,
+		content: instructions,
+		display: true,
+		details: { instructions } satisfies CodexVoiceSetupMessageDetails,
+	};
+}
+
 export function registerCodexVoiceRenderer(pi: ExtensionAPI): void {
 	pi.registerMessageRenderer<RealtimeVoiceMessageDetails>(REALTIME_VOICE_MESSAGE_TYPE, (message, _options, theme) => {
 		const input = typeof message.details?.input === "string" ? message.details.input : "Voice request";
@@ -45,6 +59,12 @@ export function registerCodexVoiceRenderer(pi: ExtensionAPI): void {
 		const mode = message.details?.mode === "dictation" ? "dictation" : "realtime";
 		const state = message.details?.state === "ended" ? "ended" : "started";
 		return voiceBox(theme, mode === "dictation" ? "Codex Dictation" : "Realtime Voice", modeStateDisplay(mode, state));
+	});
+	pi.registerMessageRenderer<CodexVoiceSetupMessageDetails>(CODEX_VOICE_SETUP_MESSAGE_TYPE, (message, _options, theme) => {
+		const instructions = typeof message.details?.instructions === "string"
+			? message.details.instructions
+			: typeof message.content === "string" ? message.content : "Codex voice audio setup is required.";
+		return voiceBox(theme, "Codex Voice Setup", instructions);
 	});
 }
 

@@ -79,9 +79,7 @@ Set `Voice features only` in the General tab to leave the active model's prompt,
 }
 ```
 
-Omit either key to use the operating system default. For agent-assisted setup, paste:
-
-> Configure Codex voice audio for me. Ask which microphone and speaker I want, enumerate devices with the installed `pi-codex-voice` helper's `list_devices` JSONL command, then set the exact IDs as `voice.inputDevice` and `voice.outputDevice` in Pi's agent-dir `pi-codex-conversion.json`. Preserve every other setting and don't guess.
+If either key is missing, `/codex voice realtime` or `/codex voice dictation` starts an agent-guided device setup turn instead of voice. After the agent saves exact device IDs, run the command again.
 
 To adapt an additional Codex-compatible provider without enabling all-model scope:
 

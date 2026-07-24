@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
+	getCodexConversionConfigPath,
 	normalizeCodexVerbosity,
 	readCodexConversionConfig,
 	writeCodexConversionConfig,
@@ -13,6 +14,9 @@ import type { BackgroundBashWidgetState } from "../background-bash-widget.ts";
 import { renderBackgroundBashWidget } from "../background-bash-widget.ts";
 import type { ExecSessionManager } from "../../tools/exec/session-manager.ts";
 import type { CodexVoiceController } from "../../voice/controller.ts";
+import { resolveVoiceHelperBinary } from "../../voice/binary.ts";
+import { buildVoiceSetupInstructions, missingVoiceAudioSettings } from "../../voice/setup.ts";
+import { codexVoiceSetupMessage } from "../../voice/ui.ts";
 
 const CODEX_COMMAND_COMPLETIONS = ["all", "status", "fast", "compact", "voice", "voice realtime", "voice dictation", "voice stop", "usage", "reset", "ps", "low", "medium", "high"] as const;
 const CODEX_USAGE = "Usage: /codex, /codex all, /codex status, /codex fast, /codex compact, /codex voice [realtime|dictation|stop], /codex usage, /codex reset, /codex ps, /codex low|medium|high";
@@ -118,6 +122,17 @@ export function registerCodexCommand(
 				const requestedMode = arg === "voice dictation" ? "dictation" : "realtime";
 				if (voice.activeMode === requestedMode) return;
 				await ctx.waitForIdle();
+				const missingAudioSettings = missingVoiceAudioSettings(state.config);
+				if (missingAudioSettings.length > 0) {
+					state.codexTurnState.beginTurn();
+					pi.sendMessage(codexVoiceSetupMessage(buildVoiceSetupInstructions({
+						configPath: getCodexConversionConfigPath(),
+						helperPath: resolveVoiceHelperBinary(),
+						missing: missingAudioSettings,
+						retryCommand: `/${arg}`,
+					})), { triggerTurn: true });
+					return;
+				}
 				const nextConfig = withVoiceMode(state.config, requestedMode);
 				if (!saveAndApply(ctx, nextConfig)) return;
 				try { await voice.start(ctx, nextConfig); }
