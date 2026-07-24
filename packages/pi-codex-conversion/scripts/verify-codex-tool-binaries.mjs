@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { existsSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const platforms = ["linux-x64", "linux-arm64", "darwin-x64", "darwin-arm64", "win32-x64", "win32-arm64"];
 const tools = [
@@ -36,6 +37,17 @@ if (missing.length > 0 || notExecutable.length > 0) {
 		for (const path of notExecutable) console.error(`  - ${path}`);
 	}
 	console.error("Run the GitHub Actions binary workflow and commit the downloaded artifacts.");
+	process.exit(1);
+}
+
+const builtResolver = resolve("dist", "voice", "binary.js");
+if (!existsSync(builtResolver)) {
+	console.error("Refusing to publish: built voice helper resolver is missing. Run `bun run build` first.");
+	process.exit(1);
+}
+const { resolveVoiceHelperBinary } = await import(pathToFileURL(builtResolver).href);
+if (!resolveVoiceHelperBinary()) {
+	console.error(`Refusing to publish: built package cannot resolve the bundled voice helper for ${process.platform}-${process.arch}.`);
 	process.exit(1);
 }
 

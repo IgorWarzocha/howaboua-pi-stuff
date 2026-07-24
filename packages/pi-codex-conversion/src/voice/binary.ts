@@ -7,10 +7,11 @@ const EXECUTABLE = process.platform === "win32" ? "pi-codex-voice.exe" : "pi-cod
 
 export function resolveVoiceHelperBinary(): string | undefined {
 	const sourceRoot = dirname(fileURLToPath(import.meta.url));
+	const packageRoot = dirname(dirname(sourceRoot));
 	const candidates = [
-		join(sourceRoot, "bin", PLATFORM_DIR, EXECUTABLE),
-		join(sourceRoot, "rust", "target", "release", EXECUTABLE),
-		join(sourceRoot, "rust", "target", "debug", EXECUTABLE),
+		join(packageRoot, "src", "voice", "bin", PLATFORM_DIR, EXECUTABLE),
+		join(packageRoot, "src", "voice", "rust", "target", "release", EXECUTABLE),
+		join(packageRoot, "src", "voice", "rust", "target", "debug", EXECUTABLE),
 	];
 	for (const candidate of candidates) {
 		try {
