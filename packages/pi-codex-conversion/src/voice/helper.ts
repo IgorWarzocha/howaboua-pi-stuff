@@ -30,6 +30,7 @@ export interface VoiceDevice {
 const MAX_HELPER_LINE_BYTES = 512 * 1024;
 const MAX_SDP_BYTES = 256 * 1024;
 const MAX_PCM_BYTES = 64 * 1024;
+const MAX_DATA_MESSAGE_BYTES = 64 * 1024;
 const MAX_TEXT_BYTES = 8 * 1024;
 const MAX_DEVICE_BYTES = 512;
 const MAX_DEVICES = 128;
@@ -161,8 +162,8 @@ export function parseVoiceHelperEvent(value: unknown): VoiceHelperEvent {
 	if (event["type"] === "devices" && validDevices(event["inputs"]) && validDevices(event["outputs"])) return event as VoiceHelperEvent;
 	if (event["type"] === "offer" && boundedString(event["sdp"], MAX_SDP_BYTES)) return event as VoiceHelperEvent;
 	if (event["type"] === "state" && boundedString(event["state"], 128)) return event as VoiceHelperEvent;
-	if (event["type"] === "data" && "message" in event) return event as VoiceHelperEvent;
-	if (event["type"] === "pcm" && boundedString(event["audio"], MAX_PCM_BYTES) && Number.isSafeInteger(event["sample_rate"]) && Number.isSafeInteger(event["num_channels"])) return event as VoiceHelperEvent;
+	if (event["type"] === "data" && boundedJson(event["message"], MAX_DATA_MESSAGE_BYTES)) return event as VoiceHelperEvent;
+	if (event["type"] === "pcm" && validBase64(event["audio"], MAX_PCM_BYTES) && event["sample_rate"] === 24_000 && event["num_channels"] === 1) return event as VoiceHelperEvent;
 	if (event["type"] === "error" && boundedString(event["message"], MAX_TEXT_BYTES)) return event as VoiceHelperEvent;
 	if (event["type"] === "stopped") return event as VoiceHelperEvent;
 	throw new Error(`Invalid Codex voice helper ${event["type"]} event`);
@@ -180,4 +181,19 @@ function validDevices(value: unknown): value is VoiceDevice[] {
 
 function boundedString(value: unknown, maxBytes: number): value is string {
 	return typeof value === "string" && Buffer.byteLength(value) <= maxBytes;
+}
+
+function boundedJson(value: unknown, maxBytes: number): boolean {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+	try {
+		return Buffer.byteLength(JSON.stringify(value)) <= maxBytes;
+	} catch {
+		return false;
+	}
+}
+
+function validBase64(value: unknown, maxBytes: number): value is string {
+	return boundedString(value, maxBytes)
+		&& value.length > 0
+		&& /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value);
 }

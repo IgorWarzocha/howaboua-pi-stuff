@@ -6,6 +6,7 @@ import test from "node:test";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { setKittyProtocolActive } from "@earendil-works/pi-tui";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
+import { resolveWebSocketProxyForTarget } from "../src/providers/openai-codex/websocket-connection.ts";
 import { CodexVoiceController } from "../src/voice/controller.ts";
 import { CodexRealtimeConversation, realtimePeerStateFailure, utf8Chunks } from "../src/voice/conversation/session.ts";
 import { CodexDictationSession, buildDictationSessionUpdate, decodedBase64ByteLength } from "../src/voice/dictation/session.ts";
@@ -32,7 +33,13 @@ test("voice helper events validate their discriminated payload", () => {
 	assert.deepEqual(parseVoiceHelperEvent({ type: "pcm", audio: "AA==", sample_rate: 24_000, num_channels: 1 }), {
 		type: "pcm", audio: "AA==", sample_rate: 24_000, num_channels: 1,
 	});
+	assert.deepEqual(parseVoiceHelperEvent({ type: "data", message: { type: "turn.done" } }), {
+		type: "data", message: { type: "turn.done" },
+	});
 	assert.throws(() => parseVoiceHelperEvent({ type: "pcm", audio: [], sample_rate: 24_000, num_channels: 1 }), /Invalid Codex voice helper/);
+	assert.throws(() => parseVoiceHelperEvent({ type: "pcm", audio: "not base64", sample_rate: 24_000, num_channels: 1 }), /Invalid Codex voice helper/);
+	assert.throws(() => parseVoiceHelperEvent({ type: "pcm", audio: "AA==", sample_rate: 48_000, num_channels: 2 }), /Invalid Codex voice helper/);
+	assert.throws(() => parseVoiceHelperEvent({ type: "data", message: { transcript: "x".repeat(64 * 1024) } }), /Invalid Codex voice helper/);
 	assert.throws(() => parseVoiceHelperEvent({ type: "state", state: "x".repeat(129) }), /Invalid Codex voice helper/);
 	assert.throws(() => parseVoiceHelperEvent({ type: "devices", inputs: ["input-1"], outputs: [] }), /Invalid Codex voice helper/);
 	assert.throws(() => parseVoiceHelperEvent({ type: "surprise" }), /Invalid Codex voice helper/);
@@ -183,6 +190,23 @@ test("realtime peer terminal states fail the session", () => {
 	assert.equal(realtimePeerStateFailure("disconnected"), undefined);
 });
 
+test("realtime call setup resolves proxy settings from Pi provider env", async () => {
+	assert.equal(
+		await resolveWebSocketProxyForTarget("https://chatgpt.com/backend-api/codex/realtime/calls", {
+			HTTPS_PROXY: "http://proxy.test:8080",
+			NO_PROXY: "",
+		}),
+		"http://proxy.test:8080",
+	);
+	assert.equal(
+		await resolveWebSocketProxyForTarget("https://chatgpt.com/backend-api/codex/realtime/calls", {
+			HTTPS_PROXY: "http://proxy.test:8080",
+			NO_PROXY: "chatgpt.com",
+		}),
+		undefined,
+	);
+});
+
 test("closing realtime voice aborts an in-flight call setup", async () => {
 	const listeners = new Set<(event: VoiceHelperEvent) => void>();
 	const helper = {
@@ -197,29 +221,28 @@ test("closing realtime voice aborts an in-flight call setup", async () => {
 		close: async () => {},
 	} as unknown as VoiceHelperClient;
 	const session = new CodexRealtimeConversation({ onError: () => {}, onStatus: () => {}, onTurn: () => {} });
-	const internal = session as unknown as { helper: VoiceHelperClient };
+	const internal = session as unknown as {
+		helper: VoiceHelperClient;
+		callSetup: (endpoint: string, headers: Headers, signal: AbortSignal, body: string, env?: Record<string, string>) => Promise<never>;
+	};
 	internal.helper = helper;
 	const fetchStarted = Promise.withResolvers<AbortSignal>();
-	const originalFetch = globalThis.fetch;
-	globalThis.fetch = ((_input, init) => new Promise<Response>((_resolve, reject) => {
-		const signal = init?.signal;
-		assert.ok(signal);
+	let setupEnv: Record<string, string> | undefined;
+	internal.callSetup = (_endpoint, _headers, signal, _body, env) => new Promise((_resolve, reject) => {
+		setupEnv = env;
 		fetchStarted.resolve(signal);
 		signal.addEventListener("abort", () => reject(signal.reason), { once: true });
-	})) as typeof fetch;
-	try {
-		const starting = session.start(
-			{ headers: new Headers(), baseUrl: "https://example.test", officialCodex: false },
-			DEFAULT_CODEX_CONVERSION_CONFIG,
-			"instructions",
-		);
-		const signal = await fetchStarted.promise;
-		await session.close();
-		assert.equal(signal.aborted, true);
-		await assert.rejects(starting, { name: "AbortError" });
-	} finally {
-		globalThis.fetch = originalFetch;
-	}
+	});
+	const starting = session.start(
+		{ headers: new Headers(), baseUrl: "https://example.test", officialCodex: false, env: { HTTPS_PROXY: "http://proxy.test" } },
+		DEFAULT_CODEX_CONVERSION_CONFIG,
+		"instructions",
+	);
+	const signal = await fetchStarted.promise;
+	assert.deepEqual(setupEnv, { HTTPS_PROXY: "http://proxy.test" });
+	await session.close();
+	assert.equal(signal.aborted, true);
+	await assert.rejects(starting, { name: "AbortError" });
 });
 
 test("invalid realtime prompts leave the current voice session untouched", async () => {

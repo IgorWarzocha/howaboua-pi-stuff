@@ -71,7 +71,11 @@ test("inactive Code Mode strips custom-tool item IDs before function-tool replay
 test("voice-only mode does not rewrite provider requests", async () => {
 	const voiceOnly = state(["litellm"]);
 	voiceOnly.config.voiceFeaturesOnly = true;
-	const rewritten = await rewriteCodexProviderRequest(structuredClone(payload), {
+	const voiceOnlyPayload = {
+		...payload,
+		input: [{ type: "function_call", id: "ctc_02c506", call_id: "call_1", name: "exec", arguments: "{}" }],
+	};
+	const rewritten = await rewriteCodexProviderRequest(structuredClone(voiceOnlyPayload), {
 		model: { provider: "litellm", api: "openai-responses", id: "gpt-5.6" },
 	} as never, voiceOnly);
 

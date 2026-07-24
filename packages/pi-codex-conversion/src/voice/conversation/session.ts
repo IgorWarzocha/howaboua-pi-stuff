@@ -1,7 +1,9 @@
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
+import { resolveWebSocketProxyForTarget } from "../../providers/openai-codex/websocket-connection.ts";
 import type { CodexVoiceAuth } from "../auth.ts";
 import { VoiceHelperClient, type VoiceHelperEvent } from "../helper.ts";
 import { RealtimeVoiceTurnTracker, type RealtimeVoiceTurn } from "../turns.ts";
+import { fetch as undiciFetch, ProxyAgent } from "undici";
 
 const V3_MODEL = "gpt-live-1-boulder-alpha";
 const MAX_DELEGATION_BYTES = 32 * 1024;
@@ -16,6 +18,9 @@ export interface CodexConversationCallbacks {
 	onTurn(turn: RealtimeVoiceTurn): void;
 }
 
+type RealtimeCallResult = { status: number; answer: string };
+type RealtimeCallSetup = (endpoint: string, headers: Headers, signal: AbortSignal, body: string, env?: Record<string, string>) => Promise<RealtimeCallResult>;
+
 export class CodexRealtimeConversation {
 	private readonly callbacks: CodexConversationCallbacks;
 	private readonly helper = new VoiceHelperClient();
@@ -26,6 +31,7 @@ export class CodexRealtimeConversation {
 	private handoffChannel: "commentary" | "speakable" = "speakable";
 	private handoffTimer: ReturnType<typeof setTimeout> | undefined;
 	private setupAbortController: AbortController | undefined;
+	private callSetup: RealtimeCallSetup = setupRealtimeCall;
 
 	constructor(callbacks: CodexConversationCallbacks) {
 		this.callbacks = callbacks;
@@ -57,21 +63,21 @@ export class CodexRealtimeConversation {
 		const endpoint = `${auth.baseUrl.replace(/\/+$/, "")}/realtime/calls?intent=quicksilver&architecture=avas`;
 		const setupAbortController = new AbortController();
 		this.setupAbortController = setupAbortController;
-		let response: Response;
+		let status: number;
 		let answer: string;
 		try {
-			response = await fetch(endpoint, {
-				method: "POST",
+			({ status, answer } = await this.callSetup(
+				endpoint,
 				headers,
-				signal: setupAbortController.signal,
-				body: JSON.stringify({ sdp, session: { model: V3_MODEL, instructions, audio: { output: { voice: config.voice.v3Voice } }, delegation: { type: "client" } } }),
-			});
-			answer = await response.text();
+				setupAbortController.signal,
+				JSON.stringify({ sdp, session: { model: V3_MODEL, instructions, audio: { output: { voice: config.voice.v3Voice } }, delegation: { type: "client" } } }),
+				auth.env,
+			));
 		} finally {
 			if (this.setupAbortController === setupAbortController) this.setupAbortController = undefined;
 		}
 		if (this.state !== "starting") return;
-		if (response.status !== 201) throw new Error(`Codex voice call failed (${response.status}): ${answer.slice(0, 1_000)}`);
+		if (status !== 201) throw new Error(`Codex voice call failed (${status}): ${answer.slice(0, 1_000)}`);
 		this.state = "active";
 		this.helper.send({ type: "apply_answer", sdp: answer });
 		this.callbacks.onStatus("connecting…");
@@ -191,6 +197,23 @@ export class CodexRealtimeConversation {
 		this.clearHandoff();
 		this.callbacks.onError(error);
 		void this.helper.close();
+	}
+}
+
+async function setupRealtimeCall(endpoint: string, headers: Headers, signal: AbortSignal, body: string, env?: Record<string, string>): Promise<RealtimeCallResult> {
+	const proxy = await resolveWebSocketProxyForTarget(endpoint, env);
+	const dispatcher = proxy ? new ProxyAgent(proxy) : undefined;
+	try {
+		const response = await undiciFetch(endpoint, {
+			method: "POST",
+			headers: Object.fromEntries(headers),
+			signal,
+			body,
+			...(dispatcher ? { dispatcher } : {}),
+		});
+		return { status: response.status, answer: await response.text() };
+	} finally {
+		await dispatcher?.close();
 	}
 }
 
