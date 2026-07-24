@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { getCodexConversionConfigPath, type CodexConversionConfig } from "../adapter/activation/config.ts";
+import { getCodexConversionConfigPath, readCodexConversionConfig, type CodexConversionConfig } from "../adapter/activation/config.ts";
 import type { AdapterState } from "../adapter/activation/state.ts";
 import { resolveVoiceHelperBinary } from "./binary.ts";
 import type { CodexVoiceController } from "./controller.ts";
@@ -23,7 +23,9 @@ export function createCodexVoiceControls(options: {
 
 	const start = async (mode: CodexVoiceMode, ctx: ExtensionContext): Promise<void> => {
 		if (voice.activeMode === mode) return;
-		const missingAudioSettings = missingVoiceAudioSettings(state.config, mode);
+		const currentConfig = readCodexConversionConfig();
+		state.config = currentConfig;
+		const missingAudioSettings = missingVoiceAudioSettings(currentConfig, mode);
 		if (missingAudioSettings.length > 0) {
 			if (!ctx.isIdle()) {
 				ctx.ui.notify("Wait for the current turn before setting up Codex voice.", "info");
@@ -40,7 +42,7 @@ export function createCodexVoiceControls(options: {
 			})), { triggerTurn: true });
 			return;
 		}
-		const nextConfig = withVoiceMode(state.config, mode);
+		const nextConfig = withVoiceMode(currentConfig, mode);
 		if (saveAndApply(ctx, nextConfig)) await voice.start(ctx, nextConfig);
 	};
 

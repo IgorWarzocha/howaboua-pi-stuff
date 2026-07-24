@@ -4,6 +4,7 @@ import { resolveCodexVoiceAuth } from "./auth.ts";
 import type { CodexRealtimeConversation } from "./conversation/session.ts";
 import type { CodexDictationSession } from "./dictation/session.ts";
 import { CodexVoiceSessionMessages } from "./session-messages.ts";
+import { formatVoiceAudioError } from "./setup.ts";
 import { getProjectCodexVoiceSystemPromptPath, loadCodexVoiceSystemPrompt } from "./system-prompt.ts";
 import type { CodexVoiceMode } from "./ui.ts";
 
@@ -18,6 +19,7 @@ type VoiceState =
 export class CodexVoiceController {
 	private state: VoiceState = { type: "idle" };
 	private context: ExtensionContext | undefined;
+	private config: CodexConversionConfig | undefined;
 	private announcedMode: CodexVoiceMode | undefined;
 	private startGeneration = 0;
 	private readonly messages: CodexVoiceSessionMessages;
@@ -34,6 +36,7 @@ export class CodexVoiceController {
 	get status(): string { return this.state.type; }
 	get active(): boolean { return this.state.type !== "idle" && this.state.type !== "failed"; }
 	get activeMode(): CodexVoiceMode | undefined { return this.announcedMode; }
+	resetContextAnnouncements(): void { this.messages.resetContextAnnouncements(); }
 
 	async start(ctx: ExtensionContext, config: CodexConversionConfig): Promise<void> {
 		const mode: CodexVoiceMode = config.voice.mode === "transcription" ? "dictation" : "realtime";
@@ -50,6 +53,7 @@ export class CodexVoiceController {
 		else await this.stop({ announce: true });
 		const startGeneration = ++this.startGeneration;
 		this.context = ctx;
+		this.config = config;
 		this.messages.setContext(ctx);
 		this.state = { type: "connecting", mode };
 		this.renderStatus("connecting…");
@@ -72,6 +76,7 @@ export class CodexVoiceController {
 		const session = this.currentSession();
 		this.state = { type: "idle" };
 		this.announcedMode = undefined;
+		this.config = undefined;
 		this.context?.ui.setStatus("codex-voice", undefined);
 		await session?.close();
 		this.messages.voiceStopped(endedMode);
@@ -90,6 +95,7 @@ export class CodexVoiceController {
 		const endedMode = options?.announce ? this.announcedMode : undefined;
 		this.state = { type: "idle" };
 		this.announcedMode = undefined;
+		this.config = undefined;
 		this.context?.ui.setStatus("codex-voice", undefined);
 		this.messages.voiceStopped(endedMode);
 	}
@@ -167,13 +173,18 @@ export class CodexVoiceController {
 
 	private fail(error: Error): void {
 		if (this.state.type === "idle" || this.state.type === "failed") return;
+		const mode = this.state.type === "connecting"
+			? this.state.mode
+			: this.state.type === "dictation" ? "dictation" : "realtime";
+		const message = this.config ? formatVoiceAudioError(error, mode, this.config) : error.message;
 		this.startGeneration += 1;
 		const endedMode = this.announcedMode;
 		const session = this.currentSession();
-		this.state = { type: "failed", message: error.message };
+		this.state = { type: "failed", message };
 		this.announcedMode = undefined;
+		this.config = undefined;
 		this.context?.ui.setStatus("codex-voice", undefined);
-		this.context?.ui.notify(error.message, "error");
+		this.context?.ui.notify(message, "error");
 		this.messages.voiceStopped(endedMode);
 		void session?.close();
 	}

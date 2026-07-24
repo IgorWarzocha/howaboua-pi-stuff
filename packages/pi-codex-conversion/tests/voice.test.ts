@@ -216,6 +216,19 @@ test("voice session messages wait for Pi idle and preserve delegation ordering",
 	idle = true;
 	messages.agentSettled();
 	assert.deepEqual(sent.at(-1)?.message.details, { mode: "realtime", state: "ended" });
+
+	voiceActive = true;
+	messages.setContext(ctx);
+	messages.modeStarted("dictation");
+	messages.voiceStopped("dictation");
+	messages.modeStarted("dictation");
+	messages.voiceStopped("dictation");
+	assert.equal(sent.filter(({ message }) => JSON.stringify(message.details) === JSON.stringify({ mode: "dictation", state: "started" })).length, 1);
+	assert.equal(sent.some(({ message }) => JSON.stringify(message.details) === JSON.stringify({ mode: "dictation", state: "ended" })), false);
+
+	messages.resetContextAnnouncements();
+	messages.modeStarted("dictation");
+	assert.equal(sent.filter(({ message }) => JSON.stringify(message.details) === JSON.stringify({ mode: "dictation", state: "started" })).length, 2);
 });
 
 test("realtime handoff chunks preserve Unicode under the byte limit", () => {
