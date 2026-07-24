@@ -8,7 +8,6 @@ import {
 import { syncAdapter } from "../../adapter/activation/activation.ts";
 import type { AdapterState } from "../../adapter/activation/state.ts";
 import { openCodexSettingsScreen } from "./ui.ts";
-import { consumeCodexRateLimitResetCredit, fetchCodexUsage, formatCodexUsage } from "./usage.ts";
 import type { BackgroundBashWidgetState } from "../background-bash-widget.ts";
 import { renderBackgroundBashWidget } from "../background-bash-widget.ts";
 import type { ExecSessionManager } from "../../tools/exec/session-manager.ts";
@@ -70,6 +69,7 @@ export function registerCodexCommand(
 				return;
 			}
 			if (arg === "usage" || arg === "reset") {
+				const { consumeCodexRateLimitResetCredit, fetchCodexUsage, formatCodexUsage } = await import("./usage.ts");
 				let usage;
 				try {
 					usage = await fetchCodexUsage(ctx);
