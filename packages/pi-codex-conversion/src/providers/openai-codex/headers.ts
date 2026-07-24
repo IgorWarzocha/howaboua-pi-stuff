@@ -1,6 +1,7 @@
 import { DEFAULT_CODEX_BASE_URL, JWT_CLAIM_PATH, OPENAI_BETA_RESPONSES_WEBSOCKETS } from "./constants.ts";
 import { osInfo } from "./node-runtime.ts";
 import { RESPONSES_LITE_HEADER } from "./responses-lite.ts";
+export { headersToRecord } from "./header-record.ts";
 
 type ProviderHeaders = Record<string, string | null>;
 
@@ -30,10 +31,6 @@ export function resolveCodexWebSocketUrl(baseUrl: string | undefined): string {
 	if (url.protocol === "https:") url.protocol = "wss:";
 	if (url.protocol === "http:") url.protocol = "ws:";
 	return url.toString();
-}
-
-export function headersToRecord(headers: Headers): Record<string, string> {
-	return Object.fromEntries(headers.entries());
 }
 
 let lastRequestTimestamp = -Infinity;

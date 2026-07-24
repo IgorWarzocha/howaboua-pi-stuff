@@ -1,8 +1,8 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import { resolveCodexVoiceAuth } from "./auth.ts";
-import { CodexRealtimeConversation } from "./conversation/session.ts";
-import { CodexDictationSession } from "./dictation/session.ts";
+import type { CodexRealtimeConversation } from "./conversation/session.ts";
+import type { CodexDictationSession } from "./dictation/session.ts";
 import { CodexVoiceSessionMessages } from "./session-messages.ts";
 import { getProjectCodexVoiceSystemPromptPath, loadCodexVoiceSystemPrompt } from "./system-prompt.ts";
 import type { CodexVoiceMode } from "./ui.ts";
@@ -81,8 +81,8 @@ export class CodexVoiceController {
 		this.startGeneration += 1;
 		const session = this.state.type === "dictation"
 			? this.state.session
-			: this.state.type === "connecting" && this.state.session instanceof CodexDictationSession
-				? this.state.session
+			: this.state.type === "connecting" && this.state.mode === "dictation"
+				? this.state.session as CodexDictationSession | undefined
 				: undefined;
 		if (!session) { await this.stop(options); return; }
 		await session.finish();
@@ -116,6 +116,10 @@ export class CodexVoiceController {
 		config: CodexConversionConfig,
 		instructions: string,
 	): Promise<void> {
+		const connecting = this.state;
+		if (connecting.type !== "connecting" || connecting.mode !== "realtime") return;
+		const { CodexRealtimeConversation } = await import("./conversation/session.ts");
+		if (this.state !== connecting) return;
 		let session!: CodexRealtimeConversation;
 		session = new CodexRealtimeConversation({
 			onError: (error) => this.failSession(session, error),
@@ -132,6 +136,10 @@ export class CodexVoiceController {
 		auth: Awaited<ReturnType<typeof resolveCodexVoiceAuth>>,
 		config: CodexConversionConfig,
 	): Promise<void> {
+		const connecting = this.state;
+		if (connecting.type !== "connecting" || connecting.mode !== "dictation") return;
+		const { CodexDictationSession } = await import("./dictation/session.ts");
+		if (this.state !== connecting) return;
 		let session!: CodexDictationSession;
 		session = new CodexDictationSession({
 			onError: (error) => this.failSession(session, error),
