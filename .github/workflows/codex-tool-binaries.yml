@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   push:
     paths:
+      - '.github/workflows/codex-tool-binaries.yml'
       - 'packages/pi-codex-conversion/src/tools/**/rust/**'
       - 'packages/pi-codex-conversion/src/tools/rust/**'
       - 'packages/pi-codex-conversion/src/tools/Cargo.toml'
