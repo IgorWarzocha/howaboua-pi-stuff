@@ -87,6 +87,7 @@ export function createExecBridgeClient(): ExecBridgeClient {
 		const binary = getBundledPathToolBinaryPath("exec_bridge");
 		if (!binary) throw new Error(`exec_bridge binary is not bundled for ${process.platform}-${process.arch}`);
 		bridgeClosing = false;
+		bridgeLineBuffer = "";
 		bridgeStderr = "";
 		bridge = spawn(binary, [], { stdio: "pipe", env: process.env });
 		bridge.stdout.on("data", handleStdout);
@@ -99,6 +100,7 @@ export function createExecBridgeClient(): ExecBridgeClient {
 		bridge.on("close", (code, signal) => {
 			rejectPending(new Error(bridgeClosing ? "exec_bridge closed" : formatExecBridgeExitError(bridgeStderr, code, signal)));
 			bridge = undefined;
+			bridgeLineBuffer = "";
 			bridgeStderr = "";
 		});
 		bridge.on("error", rejectPending);

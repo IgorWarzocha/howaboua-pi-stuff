@@ -107,7 +107,8 @@ export function parseCustomTool(
 		);
 	const command = requiredString(value["command"], "command", path);
 	const args = stringArray(value["args"], "args", path);
-	const resolvedCommand = command.startsWith(".")
+	const resolvedCommand =
+		!isAbsolute(command) && (command.includes("/") || command.includes("\\"))
 		? resolve(dirname(path), command)
 		: command;
 	const nodeScript =
