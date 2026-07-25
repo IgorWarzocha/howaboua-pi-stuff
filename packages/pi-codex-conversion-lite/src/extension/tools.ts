@@ -40,7 +40,6 @@ export function registerCodexTools(pi: ExtensionAPI, runtime: CodexExtensionRunt
 		const allowCodexProviderFallback = usesCodexProviderFallback(config);
 		if (config.tools.webRun || config.tools.webRunOnly) {
 			registerWebSearchTool(pi, WEB_SEARCH_TOOL_NAME, {
-				getRecentInput: () => runtime.latestRecentWebSearchInput,
 				model: () => runtime.state.config.openai.webSearchModel,
 				allowConfiguredProvider,
 				allowCodexProviderFallback,
