@@ -1,5 +1,11 @@
 # @howaboua/pi-skill-gh-issue-pr-flow
 
+## 0.0.7
+
+### Changes
+
+- [#168](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/168) [`70c9973`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/70c9973b8509d2ebefc26acef5c25d1e01b47d47) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Cull feature-existence and implementation-coupled tests before final PR submission, retaining only independently justified contract coverage.
+
 ## 0.0.6
 
 ### Changes
