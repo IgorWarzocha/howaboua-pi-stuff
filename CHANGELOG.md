@@ -81,18 +81,23 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.31
+### @howaboua/pi-extensions — 0.0.32
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-subagent-review: Reinjects the review advisory preface when compaction has removed the earlier preface from active session context.
-
-- Updated dependencies [[`799a4b2`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/799a4b24e5b49a1020c95524209c01112625aa6b)]:
-  - @howaboua/pi-subagent-review@0.2.12
+  - @howaboua/pi-gpt-switcher: Add `/sol`, `/terra`, and `/luna` commands for switching GPT-5.6 Codex models and reasoning levels.
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
+
+### @howaboua/pi-gpt-switcher — 0.1.0
+
+### Changes
+
+- [#164](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/164) [`b8731f6`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/b8731f68c8b6cbfb167e29728aad07fb59e560bb) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add `/sol`, `/terra`, and `/luna` commands for switching GPT-5.6 Codex models and reasoning levels.
+
+[Full changelog](./packages/pi-gpt-switcher/CHANGELOG.md)
 
 ### @howaboua/pi-markdown-workflows — 0.2.20
 
@@ -219,16 +224,13 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.32
+### @howaboua/pi-stuff — 0.0.33
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-skill-model-facing-api-design: Document model-facing punctuation and token-cost hygiene.
-
-- Updated dependencies [[`94b2252`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/94b225295be07e04206460963fd3da754a74565e)]:
-  - @howaboua/pi-skill-model-facing-api-design@0.0.5
+  - @howaboua/pi-gpt-switcher: Add `/sol`, `/terra`, and `/luna` commands for switching GPT-5.6 Codex models and reasoning levels.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 
