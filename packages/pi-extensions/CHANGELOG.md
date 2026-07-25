@@ -1,5 +1,13 @@
 # @howaboua/pi-extensions
 
+## 0.0.32
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-gpt-switcher: Add `/sol`, `/terra`, and `/luna` commands for switching GPT-5.6 Codex models and reasoning levels.
+
 ## 0.0.31
 
 ### Changes

@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-stuff",
-	"version": "0.0.32",
+	"version": "0.0.33",
 	"description": "all Howaboua Pi extensions and skills",
 	"type": "module",
 	"keywords": [
@@ -19,6 +19,7 @@
 		"@howaboua/pi-cache-hit-predictor": "0.0.1",
 		"@howaboua/pi-dynamic-tools": "0.0.7",
 		"@howaboua/pi-explore-subagents": "0.1.13",
+		"@howaboua/pi-gpt-switcher": "0.1.0",
 		"@howaboua/pi-markdown-workflows": "0.2.20",
 		"@howaboua/pi-memories": "0.1.4",
 		"@howaboua/pi-semantic-grep": "0.1.18",
