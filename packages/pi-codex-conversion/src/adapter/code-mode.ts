@@ -149,7 +149,6 @@ function createNestedTools(
 	if (runtime.state.config.tools.webRun) {
 		tools.push(toNestedTool(
 			createWebSearchTool("web__run", {
-				getRecentInput: () => runtime.latestRecentWebSearchInput,
 				model: () => runtime.state.config.openai.webSearchModel,
 				allowConfiguredProvider: (model) => shouldUseGpt56CodeMode({ model }, runtime.state.config),
 				promptSnippet: false,

@@ -1,6 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { Context } from "@earendil-works/pi-ai";
-import type { ResponseInput } from "openai/resources/responses/responses.js";
 import { readCodexConversionConfig, type CodexConversionConfig } from "../adapter/activation/config.ts";
 import { shouldUseCodexAdapter, shouldUseGpt56CodeMode } from "../adapter/activation/activation.ts";
 import type { AdapterState } from "../adapter/activation/state.ts";
@@ -25,7 +24,6 @@ export interface CodexExtensionRuntime {
 	sessions: ReturnType<typeof createExecSessionManager>;
 	backgroundWidget: BackgroundBashWidgetState;
 	registeredNativeWebSearchTools: Set<string>;
-	latestRecentWebSearchInput: ResponseInput | undefined;
 	voice: CodexVoiceController;
 	bundledPathToolsEnv(config?: CodexConversionConfig): NodeJS.ProcessEnv;
 	codexSystemPrompt(basePrompt: string, ctx: CodexContext, skills?: AdapterState["promptSkills"]): string;
@@ -68,7 +66,6 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		sessions,
 		backgroundWidget: { folded: true },
 		registeredNativeWebSearchTools: new Set<string>(),
-		latestRecentWebSearchInput: undefined,
 		voice: new CodexVoiceController(pi),
 		bundledPathToolsEnv(config = state.config) {
 			return createBundledPathToolsEnv({ ...process.env, PI_CODEX_MODEL: config.openai.webSearchModel });

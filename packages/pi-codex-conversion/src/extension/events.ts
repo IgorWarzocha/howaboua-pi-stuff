@@ -1,5 +1,4 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import type { Context } from "@earendil-works/pi-ai";
 import { readCodexConversionConfig } from "../adapter/activation/config.ts";
 import { shouldUseCodexAdapter, syncAdapter } from "../adapter/activation/activation.ts";
 import { handleCodexSessionBeforeCompact } from "../adapter/compaction/compaction.ts";
@@ -8,13 +7,11 @@ import { rewriteCodexProviderRequest } from "../adapter/provider-request.ts";
 import { isAdapterContextExcludedCustomMessage } from "../adapter/prompt/context-filter.ts";
 import { hasNoSkillsFlag } from "../adapter/prompt/skills.ts";
 import { extractPiPromptSkills, resolvePromptSkills } from "../prompt/build-system-prompt.ts";
-import { CODEX_TOOL_CALL_PROVIDERS, convertResponsesMessages } from "../providers/openai-responses/shared.ts";
 import type { CodeModeProxyProviderRegistration } from "../providers/code-mode-proxy-provider.ts";
 import { maybeWarnLocalCheckoutVersion } from "../adapter/local-version-warning.ts";
 import { clearApplyPatchRenderState } from "../tools/apply-patch/tool.ts";
 import type { CodeModeRegistration } from "../tools/code-mode/tools.ts";
 import { clearPathApplyPatchPreviewStates } from "../tools/path/apply-patch-preview.ts";
-import { buildRecentWebSearchInput } from "../tools/web-run/tool.ts";
 import { initializeBashParser } from "../shell/bash.ts";
 import { ensureCodexVoiceSystemPrompt, getCodexVoiceSystemPromptPath } from "../voice/system-prompt.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
@@ -30,12 +27,6 @@ function isToolCallOnlyAssistantMessage(message: unknown): boolean {
 	if (!message || typeof message !== "object" || !("role" in message) || message.role !== "assistant") return false;
 	if (!("content" in message) || !Array.isArray(message.content) || message.content.length === 0) return false;
 	return message.content.every((item) => typeof item === "object" && item !== null && "type" in item && item.type === "toolCall");
-}
-
-function responsesContext(messages: unknown[]): Context {
-	// Pi context events may include registered custom messages. The Responses
-	// converter owns their normalization through transformMessages().
-	return { messages: messages as Context["messages"] };
 }
 
 function isAbortError(error: unknown): boolean {
@@ -178,12 +169,9 @@ export function registerCodexEvents(
 			details: { compactionEntryId: event.compactionEntry.id },
 		}, { triggerTurn: false });
 	});
-	pi.on("context", async (event, ctx) => {
+	pi.on("context", async (event) => {
 		if (state.config.voiceFeaturesOnly) return undefined;
 		const messages = event.messages.filter((message) => !isAdapterContextExcludedCustomMessage(message));
-		runtime.latestRecentWebSearchInput = ctx.model
-			? buildRecentWebSearchInput(convertResponsesMessages(ctx.model, responsesContext(messages), CODEX_TOOL_CALL_PROVIDERS, { includeSystemPrompt: false }))
-			: undefined;
 		return { messages };
 	});
 }

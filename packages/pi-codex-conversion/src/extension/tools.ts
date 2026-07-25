@@ -41,7 +41,6 @@ export function registerCodexTools(pi: ExtensionAPI, runtime: CodexExtensionRunt
 			isExplicitlyConfiguredToolProvider(model, config);
 		if (config.tools.webRun || config.tools.webRunOnly) {
 			registerWebSearchTool(pi, WEB_SEARCH_TOOL_NAME, {
-				getRecentInput: () => runtime.latestRecentWebSearchInput,
 				model: () => runtime.state.config.openai.webSearchModel,
 				allowConfiguredProvider,
 				...renderOptions(config),

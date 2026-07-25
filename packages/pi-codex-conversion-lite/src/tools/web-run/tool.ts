@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { dirname, join } from "node:path";
 import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
-import type { ResponseInput } from "openai/resources/responses/responses.js";
 import { Type } from "typebox";
 import { Container, Text } from "@earendil-works/pi-tui";
 import { codexToolProviderEnv, CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE, resolveCodexToolProvider } from "../../adapter/codex-tool-provider.ts";
@@ -31,7 +30,6 @@ const WEB_SEARCH_PARAMETERS = Type.Object({
 		search_context_size: Type.Optional(Type.Union([Type.Literal("low"), Type.Literal("medium"), Type.Literal("high")])),
 	}, { additionalProperties: true })),
 }, { additionalProperties: true });
-const ASSISTANT_CONTEXT_CHAR_LIMIT = 4_000;
 function createEmptyResultComponent(): Container { return new Container(); }
 
 type WebRunOutput = Record<string, unknown> & {
@@ -64,7 +62,6 @@ function webSearchCallDetail(params: Record<string, unknown>): string | undefine
 }
 
 export interface WebSearchToolOptions {
-	getRecentInput?: (() => ResponseInput | undefined) | undefined;
 	sessionId?: string | undefined;
 	model?: string | (() => string | undefined) | undefined;
 	allowConfiguredProvider?: ((model: ExtensionContext["model"]) => boolean) | undefined;
@@ -84,58 +81,6 @@ export function webRunSessionStatePath(ctx: ExtensionContext): string | undefine
 	if (typeof sessionFile !== "string" || !sessionFile || typeof sessionId !== "string" || !sessionId) return undefined;
 	return join(dirname(sessionFile), `.web-run-${safeSessionId(sessionId)}.json`);
 }
-
-function isResponseMessage(item: ResponseInput[number]): item is Extract<ResponseInput[number], { type?: "message"; role?: string }> {
-	return Boolean(item && typeof item === "object" && (!("type" in item) || item.type === "message") && "role" in item);
-}
-
-function isContextualUserText(text: string): boolean {
-	const trimmed = text.trimStart();
-	return trimmed.startsWith("<environment_context>") || trimmed.startsWith("The conversation history before this point was compacted");
-}
-
-export function buildRecentWebSearchInput(items: ResponseInput): ResponseInput | undefined {
-	const visible: ResponseInput = [];
-	for (const item of items) {
-		if (!isResponseMessage(item)) continue;
-		if (item.role === "assistant") {
-			visible.push(item);
-			continue;
-		}
-		if (item.role !== "user" || !Array.isArray(item.content)) continue;
-		const content = item.content.filter((block) => block?.type === "input_text" && typeof block.text === "string" && !isContextualUserText(block.text));
-		if (content.length > 0) visible.push({ ...item, type: "message", content } as ResponseInput[number]);
-	}
-
-	let userCount = 0;
-	let start = visible.length;
-	let latestUser = -1;
-	for (let index = visible.length - 1; index >= 0; index--) {
-		const item = visible[index]!;
-		if (isResponseMessage(item) && item.role === "user") {
-			if (latestUser === -1) latestUser = index;
-			userCount++;
-		}
-		if (userCount >= 2) {
-			start = index;
-			break;
-		}
-	}
-	const end = latestUser === -1 ? visible.length : latestUser + 1;
-	const recent = visible.slice(userCount >= 2 ? start : 0, end);
-	for (const item of recent) {
-		if (!isResponseMessage(item) || item.role !== "assistant" || !Array.isArray(item.content)) continue;
-		let remaining = ASSISTANT_CONTEXT_CHAR_LIMIT;
-		item.content = item.content.map((block) => {
-			if (block?.type !== "output_text" || typeof block.text !== "string") return block;
-			const text = block.text.slice(0, Math.max(0, remaining));
-			remaining -= text.length;
-			return { ...block, text };
-		}).filter((block) => block?.type !== "output_text" || block.text.length > 0) as never;
-	}
-	return recent.length > 0 ? recent : undefined;
-}
-
 
 async function runWebRunBinary(webRunPath: string, params: Record<string, unknown>, env: NodeJS.ProcessEnv, signal: AbortSignal | undefined | null): Promise<string> {
 	return new Promise((resolve, reject) => {
@@ -195,8 +140,7 @@ export async function executeCodexWebSearch(params: Record<string, unknown>, ctx
 	const statePath = webRunSessionStatePath(ctx);
 	const env = { ...codexToolProviderEnv(provider), ...(statePath ? { PI_WEB_RUN_STATE_PATH: statePath } : {}) };
 	try {
-		const input = options.getRecentInput?.();
-		const stdout = await runWebRunBinary(webRunPath, { ...params, id: sessionId, ...(model ? { model } : {}), ...(input ? { input } : {}) }, env, signal);
+		const stdout = await runWebRunBinary(webRunPath, { ...params, id: sessionId, ...(model ? { model } : {}) }, env, signal);
 		const parsed = JSON.parse(stdout) as WebRunOutput;
 		const output = formatWebRunOutput(parsed);
 		if (output) return { text: output, details: parsed };

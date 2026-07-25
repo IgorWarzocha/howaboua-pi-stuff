@@ -1,6 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { Context } from "@earendil-works/pi-ai";
-import type { ResponseInput } from "openai/resources/responses/responses.js";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import { readCodexConversionConfig } from "../adapter/activation/config-store.ts";
 import { isAdapterRuntime, resolveCodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
@@ -24,7 +23,6 @@ export interface CodexExtensionRuntime {
 	tracker: ReturnType<typeof createExecCommandTracker>;
 	sessions: ReturnType<typeof createExecSessionManager>;
 	backgroundWidget: BackgroundBashWidgetState;
-	latestRecentWebSearchInput: ResponseInput | undefined;
 	voice: CodexVoiceController;
 	execEnv(config?: CodexConversionConfig): NodeJS.ProcessEnv;
 	codexSystemPrompt(basePrompt: string, ctx: CodexContext, skills?: AdapterState["promptSkills"]): string;
@@ -75,7 +73,6 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		tracker,
 		sessions,
 		backgroundWidget: { folded: true },
-		latestRecentWebSearchInput: undefined,
 		voice: new CodexVoiceController(pi),
 		execEnv(config = state.config) {
 			return { ...process.env, PI_CODEX_MODEL: config.openai.webSearchModel };
