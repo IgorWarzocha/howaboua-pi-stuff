@@ -18,3 +18,14 @@ jobs:
         env:
           CHANGED_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'HEAD~1' }}
         run: bun run check:changed
+      - name: Verify pi-codex-conversion-lite release assets
+        env:
+          CHANGED_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'HEAD~1' }}
+        run: |
+          if git diff --quiet "$CHANGED_BASE...HEAD" -- packages/pi-codex-conversion-lite; then
+            exit 0
+          fi
+          bun run --cwd packages/pi-codex-conversion-lite build
+          bun run --cwd packages/pi-codex-conversion-lite verify:codex-tool-binaries
+          bun run --cwd packages/pi-codex-conversion-lite verify:code-mode-host-assets
+          npm pack --dry-run --ignore-scripts ./packages/pi-codex-conversion-lite

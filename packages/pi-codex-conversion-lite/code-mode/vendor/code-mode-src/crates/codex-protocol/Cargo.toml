@@ -1,0 +1,8 @@
+[package]
+name = "codex-protocol"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }

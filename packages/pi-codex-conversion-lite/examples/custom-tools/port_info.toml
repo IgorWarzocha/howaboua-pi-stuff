@@ -1,0 +1,3 @@
+usage = 'await tools.port_info(port_number)'
+description = "Returns normalized JSON with listeners, connections, owning processes, parent processes, and service or container attribution when available."
+command = "./port-info/port-info.mjs"

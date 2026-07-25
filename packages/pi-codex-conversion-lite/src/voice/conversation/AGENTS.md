@@ -1,0 +1,3 @@
+- Own V3 call setup, realtime wire parsing, turn tracking, and delegation handoff framing here.
+- Keep Pi session mutation and custom-card queueing outside this subtree; emit typed turns and callbacks.
+- VAD and conversational interruption belong here. Never copy them into manual dictation.

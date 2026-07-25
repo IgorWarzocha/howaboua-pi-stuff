@@ -1,0 +1,2 @@
+- Bridge output chunks are arbitrary bytes; decode incrementally per process stream and flush only after bridge closure.
+- TTY bounds apply to parser source state, not only rendered snapshots; carry incomplete control sequences across chunks.

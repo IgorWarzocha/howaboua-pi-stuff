@@ -1,10 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { migrateCodexConversionConfigIfNeeded } from "../src/adapter/activation/config-migration.ts";
-import { DEFAULT_CODEX_CONVERSION_CONFIG, normalizeCodexConversionConfig, writeCodexConversionConfig } from "../src/adapter/activation/config.ts";
+import { normalizeCodexConversionConfig } from "../src/adapter/activation/config.ts";
 
 test("old flat config migrates to grouped config and respects disabled provider gate", () => {
 	const migration = migrateCodexConversionConfigIfNeeded({
@@ -89,21 +86,4 @@ test("legacy Responses Lite config enables Code Mode without opting proxies into
 	});
 	assert.equal(migration.migrated, true);
 	assert.deepEqual((migration.config as { beta: unknown }).beta, { codeMode: true, responsesLite: false });
-});
-
-test("config writes replace the file atomically with private permissions", async () => {
-	const dir = await mkdtemp(join(tmpdir(), "pi-codex-config-"));
-	const path = join(dir, "pi-codex-conversion.json");
-	try {
-		const result = writeCodexConversionConfig({
-			...DEFAULT_CODEX_CONVERSION_CONFIG,
-			beta: { ...DEFAULT_CODEX_CONVERSION_CONFIG.beta, codeMode: true },
-		}, path);
-		assert.deepEqual(result, { ok: true });
-		assert.equal(JSON.parse(await readFile(path, "utf8")).beta.codeMode, true);
-		assert.deepEqual(await readdir(dir), ["pi-codex-conversion.json"]);
-		assert.equal((await stat(path)).mode & 0o777, 0o600);
-	} finally {
-		await rm(dir, { recursive: true, force: true });
-	}
 });

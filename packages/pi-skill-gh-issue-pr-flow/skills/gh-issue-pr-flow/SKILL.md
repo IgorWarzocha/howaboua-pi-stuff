@@ -33,15 +33,16 @@ description: "GitHub issue/PR delivery via gh: issues, branches, commits, pushes
 2. Establish the correct base and branch state. Start a focused branch from the current target branch unless the current branch is already clearly dedicated to this work.
 3. Implement only the agreed scope. If a materially separate problem appears, leave it out or raise it rather than silently expanding the PR.
 4. Run relevant validation chosen from repository guidance and the changed surface.
-5. If the work is intended to ship a package or includes release readiness, read `references/release-and-repository-hygiene.md` and apply the relevant policy.
-6. Review the diff, stage only intended files, and commit the completed outcome.
-7. Push and open the PR against the correct base. Return the PR link.
+5. Before final submission, apply the verification cull below to every added or changed test.
+6. If the work is intended to ship a package or includes release readiness, read `references/release-and-repository-hygiene.md` and apply the relevant policy.
+7. Review the diff, stage only intended files, and commit the completed outcome.
+8. Push and open the PR against the correct base. Return the PR link.
 
 ### Open or update a PR for existing work
 
 1. Inspect the branch history, diff, intended base, and any existing PR before acting.
 2. Confirm that the branch contains only the intended commits. Repair stale or mixed history safely instead of laundering it into the PR.
-3. Validate the actual changed surface, then push and create or update the PR.
+3. Validate the actual changed surface, apply the verification cull to test changes, then push and create or update the PR.
 4. Update the PR body when scope, validation, issue linkage, risk, or follow-up information changed materially.
 
 ### Handle review feedback
@@ -51,7 +52,7 @@ description: "GitHub issue/PR delivery via gh: issues, branches, commits, pushes
 3. Fix required findings unless they are factually wrong or outside the agreed scope.
 4. Fix recommended findings when they are clearly beneficial and in scope.
 5. Avoid optional churn. Ask when an optional or context-dependent change would materially alter scope or product behavior.
-6. Revalidate, commit, and push the in-scope fixes. Summarize what was fixed, rejected, or deferred and why.
+6. Revalidate, recull any test changes, commit, and push the in-scope fixes. Summarize what was fixed, rejected, or deferred and why.
 
 ## Git and branch hygiene
 
@@ -60,6 +61,20 @@ description: "GitHub issue/PR delivery via gh: issues, branches, commits, pushes
 - Do not overwrite, stash, reset, or include unrelated local changes merely to make the workflow convenient.
 - Do not amend or rewrite published shared history. Rewriting your own branch may be appropriate when it produces the intended clean PR and can be pushed safely with lease protection.
 - If a push is rejected, fetch and inspect the divergence before deciding whether to rebase, merge, reset, or push with lease protection.
+
+## Verification cull
+
+Before final PR submission or update, inspect every added or changed test with deletion as the default for weak evidence. Green output and increased coverage do not justify keeping a test.
+
+Keep a permanent test only when it catches a plausible future defect that existing tests or cheaper checks miss, uses an oracle independent of the implementation, and asserts stable observable behavior. For a bug regression, demonstrate fail-before/pass-after when practical. Be able to name the unique failure mode protected by each retained test.
+
+Feature existence is not a failure mode. Delete tests whose only claim is that a feature, fallback, retry, timeout, UI path, or bug fix currently works; calling one a regression test grants no exemption. Verify the change once, then keep only the smallest contract spine—external protocol parsing/serialization, hazardous routing/isolation, persisted-data migration, or model-visible construction—when each case independently clears the gate.
+
+Cull literal or ordinary-copy locks, patch-mirroring expectations, near-duplicates, datatype-derived edge-case confetti, type-system guarantees, weak assertions that merely execute lines, incidental snapshots, private structure or call choreography, tests for impossible inputs, duplicate coverage, and supposed regressions that already passed before the fix. Mock only real external boundaries; never mock the behavior under test. Prefer outcomes over call counts and order.
+
+The cull unit is a complete test case. Do not rescue a theatre test by shaving assertions or sub-scenarios; delete the case unless what remains independently clears the gate. Report complete cases deleted separately from assertions or sub-scenarios removed. If zero complete cases were deleted, say zero; never call assertion cleanup “tests culled.”
+
+Verification does not imply a permanent test. Use the cheapest fitting evidence: existing tests, type check, lint, build, direct invocation, browser or screenshot check, or inspection. No test survives merely because it has already been written.
 
 ## GitHub writing
 

@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "scripts": {
-    "check": "bun run scripts/workspaces.mjs check",
+    "check": "bun run scripts/workspaces.mjs check && bun run knip",
     "typecheck": "bun run scripts/workspaces.mjs typecheck",
     "test": "bun run scripts/workspaces.mjs test",
     "pack:dry": "bun run scripts/workspaces.mjs pack:dry",
@@ -15,6 +15,8 @@
     "version-packages": "changeset version && bun run changelog:polish && bun run aggregate:sync && bun run changelog:sync",
     "release": "changeset publish",
     "check:changed": "bun run scripts/check-changed.mjs",
+    "knip": "knip --workspace @howaboua/pi-codex-conversion-lite --no-progress --include files,dependencies,unlisted,unresolved,cycles",
+    "knip:exports": "knip --workspace @howaboua/pi-codex-conversion-lite --no-progress --exports",
     "changeset:aggregates": "bun run scripts/add-aggregate-changesets.mjs",
     "hooks:install": "git config core.hooksPath .githooks",
     "changeset:check": "bun run scripts/require-changeset.mjs origin/main",
@@ -34,6 +36,7 @@
     "@types/node": "^24.10.0",
     "@typescript/native-preview": "^7.0.0-dev.20260519.1",
     "better-sqlite3": "^12.10.0",
+    "knip": "^6.29.0",
     "node-pty": "^1.1.0",
     "openai": "^6.26.0",
     "oxfmt": "^0.35.0",

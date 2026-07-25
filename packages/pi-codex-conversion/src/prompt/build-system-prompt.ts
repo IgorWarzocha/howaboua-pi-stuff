@@ -13,29 +13,30 @@ export interface StructuredPromptSkill {
 
 const NORMAL_CODEX_GUIDELINES = [
 	"Use exec_command for shell commands, file inspection, builds, and tests; prefer rg / rg --files for discovery and focused commands over truncation",
-	"Use tty=true when a command may need input or interruption, including long-running builds/tests",
+	"Reserve tty=true for input or persistent processes",
 	"Use apply_patch for text-file changes, including creates/deletes/moves; split oversized patches",
 	"Prefer the apply_patch tool; use shell apply_patch only when chaining edits with other shell steps",
-	"Use write_stdin only for running exec_command sessions; poll sparingly",
+	"Give commands time; back off session polls",
 	"Run independent tool calls in parallel when practical",
 ];
 
 const PATH_CODEX_GUIDELINES = [
 	"Use exec_command for shell/file/build/test; prefer rg/rg --files",
-	"Use tty=true when a command may need input or interruption, including long-running builds/tests",
+	"Reserve tty=true for input or persistent processes",
 	"Use apply_patch for file edits; order each file's hunks top-to-bottom; indentation is literal",
 	"Do not probe listed PATH tools",
 	"Use stdin/heredoc for quoted or multiline PATH args",
 	"Chain dependent shell commands with &&",
 	"Run independent exec_command calls in parallel when practical",
+	"Give commands time; back off session polls",
 ];
 
 const CODE_MODE_GUIDELINES = [
 	"Use tools.exec_command for shell commands; prefer rg and rg --files for search",
 	"Use String.raw`...` for multiline or quote-heavy tools.exec_command cmd, or split the call; this prevents JavaScript quoting errors, not shell escaping",
 	"Continue exec cell_id with wait; continue exec_command session_id by calling tools.write_stdin inside exec",
-	"Wait proportionally to expected runtime; back off repeated polls",
-	"Use tty=true when a command may need input or interruption, including long-running builds/tests",
+	"Give commands time; back off session polls",
+	"Reserve tty=true for input or persistent processes",
 	"Use tools.apply_patch(patch) for file edits; split oversized patches",
 	"Compose independent nested calls with Promise.all",
 	"With async work, await dependencies; overlap only independent work",

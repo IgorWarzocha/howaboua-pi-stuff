@@ -1,33 +1,45 @@
-import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { promisify } from "node:util";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import { codeModeHostBinaryName, HOST_RELEASE } from "./host-assets.ts";
+import { installCodeModeHost, type InstallCodeModeHostOptions } from "./install-host.ts";
 
-const execFileAsync = promisify(execFile);
-const HOST_RELEASE = "rust-v0.144.1";
-const HOST_INSTALL_TIMEOUT_MS = 270_000;
+interface CodeModeHostBinaryRuntime {
+	platform: string;
+	arch: string;
+	packageRoot: string;
+	agentDir: string;
+	install(options: InstallCodeModeHostOptions): Promise<void>;
+}
 
 function packageRoot(): string {
 	return dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url)))));
 }
 
-export function codeModeHostBinaryPath(): string {
-	const name =
-		process.platform === "win32"
-			? "codex-code-mode-host.exe"
-			: "codex-code-mode-host";
+function resolveRuntime(overrides: Partial<CodeModeHostBinaryRuntime> = {}): CodeModeHostBinaryRuntime {
+	return {
+		platform: overrides.platform ?? process.platform,
+		arch: overrides.arch ?? process.arch,
+		packageRoot: overrides.packageRoot ?? packageRoot(),
+		agentDir: overrides.agentDir ?? getAgentDir(),
+		install: overrides.install ?? installCodeModeHost,
+	};
+}
+
+export function codeModeHostBinaryPath(overrides: Partial<CodeModeHostBinaryRuntime> = {}): string {
+	const runtime = resolveRuntime(overrides);
+	const name = codeModeHostBinaryName(runtime.platform);
 	const bundled = join(
-		packageRoot(),
+		runtime.packageRoot,
 		"code-mode",
 		"bin",
-		`${process.platform}-${process.arch}`,
+		`${runtime.platform}-${runtime.arch}`,
 		name,
 	);
 	if (existsSync(bundled)) return bundled;
 	const development = join(
-		packageRoot(),
+		runtime.packageRoot,
 		"code-mode",
 		"vendor",
 		"code-mode-src",
@@ -36,44 +48,37 @@ export function codeModeHostBinaryPath(): string {
 		name,
 	);
 	if (existsSync(development)) return development;
-	const cached = codeModeHostCachePath(name);
+	const cached = codeModeHostCachePath(name, runtime);
 	if (existsSync(cached)) return cached;
 	throw new Error(
-		`No code-mode host binary for ${process.platform}-${process.arch}. Reinstall the package or build it with \`bun run build:code-mode-host\``,
+		`No code-mode host binary for ${runtime.platform}-${runtime.arch}. Reinstall the package or build it with \`bun run build:code-mode-host\``,
 	);
 }
 
-export async function ensureCodeModeHostBinary(signal?: AbortSignal): Promise<string> {
+export async function ensureCodeModeHostBinary(signal?: AbortSignal, overrides: Partial<CodeModeHostBinaryRuntime> = {}): Promise<string> {
+	const runtime = resolveRuntime(overrides);
 	try {
-		return codeModeHostBinaryPath();
+		return codeModeHostBinaryPath(runtime);
 	} catch {
-		const script = join(
-			packageRoot(),
-			"scripts",
-			"code-mode",
-			"install-host.mjs",
-		);
-		const name =
-			process.platform === "win32"
-				? "codex-code-mode-host.exe"
-				: "codex-code-mode-host";
-		await execFileAsync(
-			process.execPath,
-			[script, codeModeHostCachePath(name)],
-			{ timeout: HOST_INSTALL_TIMEOUT_MS, signal },
-		);
-		return codeModeHostBinaryPath();
+		const name = codeModeHostBinaryName(runtime.platform);
+		await runtime.install({
+			destination: codeModeHostCachePath(name, runtime),
+			platform: runtime.platform,
+			arch: runtime.arch,
+			...(signal ? { signal } : {}),
+		});
+		return codeModeHostBinaryPath(runtime);
 	}
 }
 
-function codeModeHostCachePath(name: string): string {
+function codeModeHostCachePath(name: string, runtime: CodeModeHostBinaryRuntime): string {
 	return join(
-		getAgentDir(),
+		runtime.agentDir,
 		"cache",
 		"pi-codex-conversion",
 		"code-mode",
 		HOST_RELEASE,
-		`${process.platform}-${process.arch}`,
+		`${runtime.platform}-${runtime.arch}`,
 		name,
 	);
 }

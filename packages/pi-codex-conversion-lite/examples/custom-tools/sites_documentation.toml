@@ -1,0 +1,6 @@
+usage = '''await tools.sites_documentation("index" | "workflow" | "site" | "version" | "deployment" | "access" | "environment" | "domains" | "analytics" | "resource.action")'''
+description = "Return one bounded ChatGPT Sites documentation topic or one operation's current schema."
+command = "./sites/sites.mjs"
+args = ["documentation"]
+input = "stdin"
+defer_loading = true

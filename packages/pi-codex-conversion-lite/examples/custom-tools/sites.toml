@@ -1,0 +1,6 @@
+usage = '''await tools.sites(JSON.stringify({ resource: string, action: string, params?: object }))'''
+description = "Manage ChatGPT Sites through a curated facade. Read sites_documentation before first use."
+command = "./sites/sites.mjs"
+args = ["call"]
+input = "stdin"
+defer_loading = true

@@ -1,0 +1,30 @@
+[package]
+name = "codex-apply-patch"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "codex_apply_patch"
+path = "lib.rs"
+
+[[bin]]
+name = "apply_patch"
+path = "main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+codex-exec-server = { package = "pi-apply-patch-fs", path = "../../rust/crates/pi-apply-patch-fs" }
+codex-utils-absolute-path = { workspace = true }
+codex-utils-path-uri = { workspace = true }
+serde_json = { workspace = true }
+similar = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tree-sitter = { workspace = true }
+tree-sitter-bash = { workspace = true }
+
+[dev-dependencies]
+assert_matches = { workspace = true }
+pretty_assertions = { workspace = true }
+tempfile = { workspace = true }

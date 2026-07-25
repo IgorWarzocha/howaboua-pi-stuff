@@ -1,0 +1,21 @@
+{
+	"$schema": "https://unpkg.com/knip@6/schema.json",
+	"workspaces": {
+		"packages/pi-codex-conversion-lite": {
+			"ignoreExportsUsedInFile": true,
+			"entry": [
+				"src/index.ts",
+				"scripts/**/*.mjs",
+				"examples/custom-tools/**/*.mjs",
+				"tests/**/*.test.ts"
+			],
+			"project": [
+				"src/**/*.ts",
+				"scripts/**/*.mjs",
+				"examples/custom-tools/**/*.mjs",
+				"tests/**/*.ts"
+			],
+			"ignoreDependencies": ["proxy-from-env"]
+		}
+	}
+}

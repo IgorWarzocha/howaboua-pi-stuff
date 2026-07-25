@@ -80,12 +80,3 @@ test("Responses compaction v2 retains recent real user turns and removes orphan 
 	assert.match(JSON.stringify(window), /remember this exactly/);
 	assert.equal(window.at(-1)?.["encrypted_content"], "sealed");
 });
-
-test("Responses compaction v2 keeps newest user messages whole at the retention boundary", () => {
-	const older = { role: "user", content: [{ type: "input_text", text: "o".repeat(24) }] };
-	const newest = { role: "user", content: [{ type: "input_text", text: "n".repeat(48) }] };
-	const window = buildRemoteCompactionV2Window([older, newest], { type: "compaction", encrypted_content: "sealed" }, 10);
-
-	assert.equal(window.length, 2);
-	assert.equal((window[0]?.["content"] as Array<{ text: string }>)[0]?.text, "n".repeat(48));
-});

@@ -1,0 +1,5 @@
+usage = '''await tools.vent(JSON.stringify({ thought: string, trigger?: string })) // repeated/systemic workflow friction only; use after finishing the task'''
+description = "Appends one batched workflow-friction entry to VENT.md in Pi's working directory."
+command = "./vent/vent.mjs"
+input = "stdin"
+defer_loading = false
