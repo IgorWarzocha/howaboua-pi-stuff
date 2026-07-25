@@ -30,15 +30,16 @@ description: "This repo's GitHub/Changesets workflow: issues, branches, commits,
 
 1. Establish a clean focused branch from current `main`, unless the current branch is already dedicated to the work.
 2. Implement only the agreed scope and run validation chosen from the changed surface.
-3. For shipped package work, read `references/release-and-repository-hygiene.md` before finalizing release artifacts.
-4. Review the diff and branch history, stage only intended files, and commit the completed result.
-5. Push and open the PR against `main`; return the link.
+3. Before final submission, apply the verification cull below to every added or changed test.
+4. For shipped package work, read `references/release-and-repository-hygiene.md` before finalizing release artifacts.
+5. Review the diff and branch history, stage only intended files, and commit the completed result.
+6. Push and open the PR against `main`; return the link.
 
 ### Open or update a PR for existing work
 
 1. Inspect the intended diff, commit history, base, and any existing PR.
 2. Repair stale or mixed history before presenting it. Do not launder already-merged commits into a new PR.
-3. Revalidate the changed surface, push, and create or update the PR.
+3. Revalidate the changed surface, apply the verification cull to test changes, then push and create or update the PR.
 4. Update the body when scope, validation, issue linkage, risk, or follow-up information changed materially.
 
 ### Handle review feedback
@@ -46,7 +47,7 @@ description: "This repo's GitHub/Changesets workflow: issues, branches, commits,
 1. Read all feedback and current code; verify each finding against the PR goal and repository rules.
 2. Fix required findings unless factually wrong or out of scope. Apply recommended findings when clearly beneficial and in scope.
 3. Avoid optional churn. Ask when a suggestion would materially change product behavior or agreed scope.
-4. Revalidate, commit, push, and summarize what was fixed, rejected, or deferred and why.
+4. Revalidate, recull any test changes, commit, push, and summarize what was fixed, rejected, or deferred and why.
 
 ## Branch and history hygiene
 
@@ -54,6 +55,16 @@ description: "This repo's GitHub/Changesets workflow: issues, branches, commits,
 - Before using long-lived `dev` for a PR, reset it onto `origin/main` and cherry-pick only intended pending commits. Never merge `main` into `dev`.
 - Do not stash, reset, overwrite, or include unrelated local changes merely for convenience.
 - Do not amend or rewrite published shared history. If a push is rejected, inspect divergence before choosing rebase, reset, merge, or lease-protected force push.
+
+## Verification cull
+
+Before final PR submission or update, inspect every added or changed test with deletion as the default for weak evidence. Green output and increased coverage do not justify keeping a test.
+
+Keep a permanent test only when it catches a plausible future defect that existing tests or cheaper checks miss, uses an oracle independent of the implementation, and asserts stable observable behavior. For a bug regression, demonstrate fail-before/pass-after when practical. Be able to name the unique failure mode protected by each retained test.
+
+Cull literal or ordinary-copy locks, patch-mirroring expectations, near-duplicates, datatype-derived edge-case confetti, type-system guarantees, weak assertions that merely execute lines, incidental snapshots, private structure or call choreography, tests for impossible inputs, duplicate coverage, and supposed regressions that already passed before the fix. Mock only real external boundaries; never mock the behavior under test. Prefer outcomes over call counts and order.
+
+Verification does not imply a permanent test. Use the cheapest fitting evidence: existing tests, type check, lint, build, direct invocation, browser or screenshot check, or inspection. No test survives merely because it has already been written.
 
 ## GitHub writing
 
