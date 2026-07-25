@@ -1,4 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { StringDecoder } from "node:string_decoder";
 import { getBundledToolBinaryPath } from "../native/binary.ts";
 
 interface BridgeResponse<T = unknown> {
@@ -25,8 +26,8 @@ export interface ExecBridgeClient {
 const MAX_BRIDGE_STDERR_CHARS = 16_000;
 const LOCAL_BUILD_GUIDANCE = "Bundled exec_bridge is incompatible with this Linux runtime. From a pi-codex-conversion-lite Git checkout, run: bun install && bun run build:native-tool codex-exec-shim exec_bridge, then load that checkout's src/index.ts as the Pi extension";
 
-function appendBoundedText(current: string, next: Buffer): string {
-	const combined = `${current}${next.toString("utf8")}`;
+function appendBoundedText(current: string, next: string): string {
+	const combined = `${current}${next}`;
 	return combined.length > MAX_BRIDGE_STDERR_CHARS ? combined.slice(-MAX_BRIDGE_STDERR_CHARS) : combined;
 }
 
@@ -58,6 +59,8 @@ export function createExecBridgeClient(): ExecBridgeClient {
 	const pendingBridgeRequests = new Map<number, { resolve: (value: BridgeResponse) => void; reject: (error: Error) => void }>();
 	let bridgeLineBuffer = "";
 	let bridgeStderr = "";
+	let bridgeStdoutDecoder = new StringDecoder("utf8");
+	let bridgeStderrDecoder = new StringDecoder("utf8");
 	let bridgeClosing = false;
 
 	function rejectPending(error: Error): void {
@@ -66,7 +69,7 @@ export function createExecBridgeClient(): ExecBridgeClient {
 	}
 
 	function handleStdout(data: Buffer): void {
-		bridgeLineBuffer += data.toString("utf8");
+		bridgeLineBuffer += bridgeStdoutDecoder.write(data);
 		for (;;) {
 			const newline = bridgeLineBuffer.indexOf("\n");
 			if (newline === -1) break;
@@ -89,15 +92,19 @@ export function createExecBridgeClient(): ExecBridgeClient {
 		bridgeClosing = false;
 		bridgeLineBuffer = "";
 		bridgeStderr = "";
+		bridgeStdoutDecoder = new StringDecoder("utf8");
+		bridgeStderrDecoder = new StringDecoder("utf8");
 		bridge = spawn(binary, [], { stdio: "pipe", env: process.env });
 		bridge.stdout.on("data", handleStdout);
 		bridge.stderr.on("data", (data: Buffer) => {
-			bridgeStderr = appendBoundedText(bridgeStderr, data);
+			bridgeStderr = appendBoundedText(bridgeStderr, bridgeStderrDecoder.write(data));
 		});
 		bridge.stdin.on("error", (error: Error) => {
 			rejectPending(new Error(formatExecBridgeWriteError(error, bridgeStderr)));
 		});
 		bridge.on("close", (code, signal) => {
+			bridgeLineBuffer += bridgeStdoutDecoder.end();
+			bridgeStderr = appendBoundedText(bridgeStderr, bridgeStderrDecoder.end());
 			rejectPending(new Error(bridgeClosing ? "exec_bridge closed" : formatExecBridgeExitError(bridgeStderr, code, signal)));
 			bridge = undefined;
 			bridgeLineBuffer = "";

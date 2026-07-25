@@ -309,11 +309,18 @@ test("Codex turn state is captured and replayed on SSE follow-ups", async () => 
 });
 
 test("parseSSE accepts CRLF chunks, joined data lines, and ignores done sentinel", async () => {
-	const response = new Response([
-		'data: {"type":"response.created",\r\n',
-		'data: "response":{"id":"resp_1"}}\r\n\r\n',
-		"data: [DONE]\r\n\r\n",
-	].join(""));
+	const encoder = new TextEncoder();
+	const response = new Response(new ReadableStream({
+		start(controller) {
+			for (const chunk of [
+				'data: {"type":"response.created",\r',
+				'\ndata: "response":{"id":"resp_1"}}\r',
+				"\n\r",
+				"\ndata: [DONE]\r\n\r\n",
+			]) controller.enqueue(encoder.encode(chunk));
+			controller.close();
+		},
+	}));
 
 	const events = [];
 	for await (const event of parseSSE(response)) events.push(event);

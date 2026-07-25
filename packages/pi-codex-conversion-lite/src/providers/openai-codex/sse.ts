@@ -105,7 +105,10 @@ export async function* parseSSE(response: Response, signal?: AbortSignal): Async
 			if (done) break;
 
 			buffer += decoder.decode(value, { stream: true });
-			buffer = buffer.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+			const trailingCarriageReturn = buffer.endsWith("\r");
+			const complete = trailingCarriageReturn ? buffer.slice(0, -1) : buffer;
+			buffer = complete.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
+				+ (trailingCarriageReturn ? "\r" : "");
 			let idx = buffer.indexOf("\n\n");
 			while (idx !== -1) {
 				const chunk = buffer.slice(0, idx);
