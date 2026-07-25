@@ -1,5 +1,11 @@
 # @howaboua/pi-codex-conversion-lite
 
+## 0.1.1
+
+### Changes
+
+- [`3647fc2`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/3647fc296f4f5ea70c355f43b080383382f7b0d7) - Make published Codex extension artifacts reuse Pi's provider streams and verify packed extensions load before release.
+
 ## 0.1.0
 
 ### Changes

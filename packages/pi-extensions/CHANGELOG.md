@@ -1,5 +1,13 @@
 # @howaboua/pi-extensions
 
+## 0.0.34
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-codex-conversion-lite: Make published Codex extension artifacts reuse Pi's provider streams and verify packed extensions load before release.
+
 ## 0.0.33
 
 ### Changes

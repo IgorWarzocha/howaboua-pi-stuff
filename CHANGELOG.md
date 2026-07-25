@@ -57,19 +57,19 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 2.2.20
+### @howaboua/pi-codex-conversion — 2.2.21
 
 ### Changes
 
-- [#168](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/168) [`70c9973`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/70c9973b8509d2ebefc26acef5c25d1e01b47d47) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add the lite Codex adapter with structured standard Responses tools, GPT-5.6 Responses Lite Code Mode, a routed and lazily loaded settings UI, shared config compatibility, native helpers, V2-only Responses compaction, and voice. Both Codex adapters now show active Code Mode executions immediately, keep non-TTY foreground commands attached, back off yielded shell sessions for up to 30 minutes, preserve transport policy during compaction and voice-only use, decode bounded terminal output across byte and control-sequence boundaries, and install the Code Mode host in-process so standalone Pi binaries work on Windows. Lite remains excluded from aggregate bundles and preserves full-adapter fields in the shared config.
+- [`3647fc2`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/3647fc296f4f5ea70c355f43b080383382f7b0d7) - Make published Codex extension artifacts reuse Pi's provider streams and verify packed extensions load before release.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion-lite — 0.1.0
+### @howaboua/pi-codex-conversion-lite — 0.1.1
 
 ### Changes
 
-- [#168](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/168) [`70c9973`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/70c9973b8509d2ebefc26acef5c25d1e01b47d47) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add the lite Codex adapter with structured standard Responses tools, GPT-5.6 Responses Lite Code Mode, a routed and lazily loaded settings UI, shared config compatibility, native helpers, V2-only Responses compaction, and voice. Both Codex adapters now show active Code Mode executions immediately, keep non-TTY foreground commands attached, back off yielded shell sessions for up to 30 minutes, preserve transport policy during compaction and voice-only use, decode bounded terminal output across byte and control-sequence boundaries, and install the Code Mode host in-process so standalone Pi binaries work on Windows. Lite remains excluded from aggregate bundles and preserves full-adapter fields in the shared config.
+- [`3647fc2`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/3647fc296f4f5ea70c355f43b080383382f7b0d7) - Make published Codex extension artifacts reuse Pi's provider streams and verify packed extensions load before release.
 
 [Full changelog](./packages/pi-codex-conversion-lite/CHANGELOG.md)
 
@@ -89,13 +89,13 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.33
+### @howaboua/pi-extensions — 0.0.34
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-codex-conversion-lite: Add the lite Codex adapter with structured standard Responses tools, GPT-5.6 Responses Lite Code Mode, a routed and lazily loaded settings UI, shared config compatibility, native helpers, V2-only Responses compaction, and voice. Both Codex adapters now show active Code Mode executions immediately, keep non-TTY foreground commands attached, back off yielded shell sessions for up to 30 minutes, preserve transport policy during compaction and voice-only use, decode bounded terminal output across byte and control-sequence boundaries, and install the Code Mode host in-process so standalone Pi binaries work on Windows. Lite remains excluded from aggregate bundles and preserves full-adapter fields in the shared config.
+  - @howaboua/pi-codex-conversion-lite: Make published Codex extension artifacts reuse Pi's provider streams and verify packed extensions load before release.
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
@@ -232,17 +232,13 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.35
+### @howaboua/pi-stuff — 0.0.36
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-codex-conversion-lite: Add the lite Codex adapter with structured standard Responses tools, GPT-5.6 Responses Lite Code Mode, a routed and lazily loaded settings UI, shared config compatibility, native helpers, V2-only Responses compaction, and voice. Both Codex adapters now show active Code Mode executions immediately, keep non-TTY foreground commands attached, back off yielded shell sessions for up to 30 minutes, preserve transport policy during compaction and voice-only use, decode bounded terminal output across byte and control-sequence boundaries, and install the Code Mode host in-process so standalone Pi binaries work on Windows. Lite remains excluded from aggregate bundles and preserves full-adapter fields in the shared config.
-  - @howaboua/pi-skill-gh-issue-pr-flow: Cull feature-existence and implementation-coupled tests before final PR submission, retaining only independently justified contract coverage.
-
-- Updated dependencies [[`70c9973`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/70c9973b8509d2ebefc26acef5c25d1e01b47d47)]:
-  - @howaboua/pi-skill-gh-issue-pr-flow@0.0.7
+  - @howaboua/pi-codex-conversion-lite: Make published Codex extension artifacts reuse Pi's provider streams and verify packed extensions load before release.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 
