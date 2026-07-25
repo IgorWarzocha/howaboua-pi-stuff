@@ -181,6 +181,18 @@
         "@earendil-works/pi-coding-agent": "*",
       },
     },
+    "packages/pi-gpt-switcher": {
+      "name": "@howaboua/pi-gpt-switcher",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@biomejs/biome": "^2.4.16",
+        "@earendil-works/pi-coding-agent": "0.82.0",
+        "typescript": "^6.0.3",
+      },
+      "peerDependencies": {
+        "@earendil-works/pi-coding-agent": ">=0.80.6",
+      },
+    },
     "packages/pi-markdown-workflows": {
       "name": "@howaboua/pi-markdown-workflows",
       "version": "0.2.20",
@@ -564,6 +576,8 @@
     "@howaboua/pi-explore-subagents": ["@howaboua/pi-explore-subagents@workspace:packages/pi-explore-subagents"],
 
     "@howaboua/pi-extensions": ["@howaboua/pi-extensions@workspace:packages/pi-extensions"],
+
+    "@howaboua/pi-gpt-switcher": ["@howaboua/pi-gpt-switcher@workspace:packages/pi-gpt-switcher"],
 
     "@howaboua/pi-howaboua-extensions-primitives-sdk": ["@howaboua/pi-howaboua-extensions-primitives-sdk@0.3.2", "", { "peerDependencies": { "@earendil-works/pi-coding-agent": "*", "@earendil-works/pi-tui": "*" } }, "sha512-HVTZJh6wX4G+C6eFKEEnb7/tj5AY9oIINyHl6cgcRLRnoHZpEU5Mv5aDwGc5rJofjhiWGpB+jZOYYSHgPtCZGA=="],
 

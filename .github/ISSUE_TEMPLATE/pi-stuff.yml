@@ -14,6 +14,7 @@ body:
         - pi-auto-trees
         - pi-cache-hit-predictor
         - pi-explore-subagents
+        - pi-gpt-switcher
         - pi-markdown-workflows
         - pi-memories
         - pi-semantic-grep
