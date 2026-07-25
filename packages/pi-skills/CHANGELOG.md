@@ -1,5 +1,16 @@
 # @howaboua/pi-skills
 
+## 0.0.13
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-skill-gh-issue-pr-flow: Cull feature-existence and implementation-coupled tests before final PR submission, retaining only independently justified contract coverage.
+
+- Updated dependencies [[`70c9973`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/70c9973b8509d2ebefc26acef5c25d1e01b47d47)]:
+  - @howaboua/pi-skill-gh-issue-pr-flow@0.0.7
+
 ## 0.0.12
 
 ### Changes

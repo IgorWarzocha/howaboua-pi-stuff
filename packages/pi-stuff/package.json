@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-stuff",
-	"version": "0.0.34",
+	"version": "0.0.35",
 	"description": "all Howaboua Pi extensions and skills",
 	"type": "module",
 	"keywords": [
@@ -28,7 +28,7 @@
 		"@howaboua/pi-skill-agents-md": "0.0.4",
 		"@howaboua/pi-skill-anti-ai-copy": "0.0.4",
 		"@howaboua/pi-skill-chrome-cdp": "0.0.4",
-		"@howaboua/pi-skill-gh-issue-pr-flow": "0.0.6",
+		"@howaboua/pi-skill-gh-issue-pr-flow": "0.0.7",
 		"@howaboua/pi-skill-model-facing-api-design": "0.0.5",
 		"@howaboua/pi-skill-project-reference-research": "0.0.4",
 		"@howaboua/pi-skill-skill-creator": "0.0.5",
