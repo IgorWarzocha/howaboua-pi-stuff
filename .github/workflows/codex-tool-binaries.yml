@@ -3,6 +3,7 @@ name: Build Codex tool binaries
 on:
   workflow_dispatch:
   push:
+    branches-ignore: [main]
     paths:
       - '.github/workflows/codex-tool-binaries.yml'
       - 'packages/pi-codex-conversion/src/tools/**/rust/**'

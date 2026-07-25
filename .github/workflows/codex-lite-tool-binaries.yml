@@ -3,6 +3,7 @@ name: Build Codex lite tool binaries
 on:
   workflow_dispatch:
   push:
+    branches-ignore: [main]
     paths:
       - '.github/workflows/codex-lite-tool-binaries.yml'
       - 'packages/pi-codex-conversion-lite/src/tools/**/rust/**'
