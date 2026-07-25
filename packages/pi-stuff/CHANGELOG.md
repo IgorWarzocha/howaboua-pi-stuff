@@ -1,5 +1,16 @@
 # @howaboua/pi-stuff
 
+## 0.0.34
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-skill-agent-native-hardening: Add execution-topology hardening guidance for agent-navigable call stacks and measured import, initialization, startup, and bundle performance.
+
+- Updated dependencies [[`5118fd9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/5118fd9c29c050316a4fa1cf9122b501710e7056)]:
+  - @howaboua/pi-skill-agent-native-hardening@0.0.6
+
 ## 0.0.33
 
 ### Changes

@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-skills",
-	"version": "0.0.11",
+	"version": "0.0.12",
 	"description": "all Howaboua Pi skills",
 	"type": "module",
 	"keywords": [
@@ -14,7 +14,7 @@
 	},
 	"dependencies": {
 		"@howaboua/pi-skill-adversarial-qa": "0.0.1",
-		"@howaboua/pi-skill-agent-native-hardening": "0.0.5",
+		"@howaboua/pi-skill-agent-native-hardening": "0.0.6",
 		"@howaboua/pi-skill-agents-md": "0.0.4",
 		"@howaboua/pi-skill-anti-ai-copy": "0.0.4",
 		"@howaboua/pi-skill-chrome-cdp": "0.0.4",
