@@ -1,0 +1,22 @@
+[package]
+name = "codex-code-mode"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+doctest = false
+
+[features]
+sandbox = ["v8/v8_enable_sandbox"]
+
+[dependencies]
+codex-code-mode-protocol.workspace = true
+codex-protocol.workspace = true
+deno_core_icudata.workspace = true
+futures.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["io-util", "macros", "process", "rt", "sync", "time"] }
+tokio-util = { workspace = true, features = ["rt"] }
+tracing.workspace = true
+v8.workspace = true

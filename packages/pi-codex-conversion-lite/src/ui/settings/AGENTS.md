@@ -1,0 +1,4 @@
+- Settings writes are explicit user actions; session startup and resume only read configuration.
+- `/codex` arguments route to named tabs; do not add quick-toggle or action aliases for settings.
+- Keep persistence synchronous and simple. Do not add process locks or concurrency machinery without a reproduced background writer or realistic overlapping-write path.
+- For apparent setting flips, trace the config source, read lifecycle, and UI draft first; do not promote a theoretical write race into the cause.

@@ -1,0 +1,3 @@
+- Own V2 transcription capture, manual commit, transcript completion, and socket cleanup here.
+- Dictation boundaries are user-controlled; do not add VAD. Realtime conversation detection belongs under `conversation/`.
+- Keep auth resolution, Pi editor mutation, and session cards outside this subtree; expose callbacks.

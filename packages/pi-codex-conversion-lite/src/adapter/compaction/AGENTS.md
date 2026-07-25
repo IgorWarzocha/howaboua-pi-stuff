@@ -1,0 +1,3 @@
+- `compaction.ts` owns native compaction, fallback-window injection, and replay orchestration behind lazy request/event entrypoints.
+- Keep this graph cold unless the runtime plan enables native compaction or a pending fallback window must be injected.
+- V2 is the only executable protocol. Legacy V1 checkpoint strategy strings are accepted only to replay existing shared sessions.

@@ -1,0 +1,3 @@
+- `runtime-plan.ts` is the sole model/provider activation, tool-surface, prompt, transport, and compaction policy; consumers execute its plan rather than reconstructing predicates.
+- Runtime variants are only `inactive`, `extras`, `normal`, and `code`. Legacy `mode: "path"` is ignored during normalization; never restore PATH injection or shell interception.
+- Startup/resume may read and normalize config in memory; persistence belongs only to explicit settings actions.

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 
@@ -17,6 +17,11 @@ for (const dir of packages) {
   if (!pkg.scripts?.check) continue;
   console.log(`\n==> ${pkg.name}: check`);
   const result = spawnSync("bun", ["run", "check"], { cwd, stdio: "inherit" });
+  if (result.status !== 0) failed = true;
+}
+if (packages.includes("pi-codex-conversion-lite")) {
+  console.log("\n==> @howaboua/pi-codex-conversion-lite: knip");
+  const result = spawnSync("bun", ["run", "knip"], { stdio: "inherit" });
   if (result.status !== 0) failed = true;
 }
 process.exit(failed ? 1 : 0);
