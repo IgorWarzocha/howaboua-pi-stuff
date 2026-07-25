@@ -66,7 +66,16 @@ export default function (pi: ExtensionAPI) {
 				const alreadySelected =
 					ctx.model?.provider === "openai-codex" && ctx.model.id === modelId;
 				if (!alreadySelected) {
-					const switched = await pi.setModel(model);
+					let switched: boolean;
+					try {
+						switched = await pi.setModel(model);
+					} catch (error) {
+						ctx.ui.notify(
+							`Could not switch to ${model.name}: ${error instanceof Error ? error.message : String(error)}`,
+							"error",
+						);
+						return;
+					}
 					if (!switched) {
 						ctx.ui.notify(
 							`Could not switch to ${model.name}: no OpenAI Codex credentials`,
