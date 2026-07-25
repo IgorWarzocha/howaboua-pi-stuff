@@ -4,7 +4,7 @@ import type { AssistantMessageEventStream } from "@earendil-works/pi-ai";
 import {
 	appendGrammarToolInputJsonDelta,
 	type GrammarToolInputJsonBuffer,
-} from "@earendil-works/pi-ai/api/constrained-sampling";
+} from "../constrained-sampling.js";
 import { encodeTextSignatureV1 } from "./signatures.ts";
 import { sanitizeImageGenerationCallItem, sanitizeWebSearchCallItem, type ImageGenerationCallBlock, type WebSearchCallBlock } from "./native-items.ts";
 import type { OpenAIResponsesStreamOptions } from "./shared.ts";

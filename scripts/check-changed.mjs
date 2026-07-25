@@ -14,10 +14,20 @@ let failed = false;
 for (const dir of packages) {
   const cwd = join(process.cwd(), "packages", dir);
   const pkg = JSON.parse(readFileSync(join(cwd, "package.json"), "utf8"));
-  if (!pkg.scripts?.check) continue;
-  console.log(`\n==> ${pkg.name}: check`);
-  const result = spawnSync("bun", ["run", "check"], { cwd, stdio: "inherit" });
-  if (result.status !== 0) failed = true;
+  if (pkg.scripts?.check) {
+    console.log(`\n==> ${pkg.name}: check`);
+    const result = spawnSync("bun", ["run", "check"], { cwd, stdio: "inherit" });
+    if (result.status !== 0) failed = true;
+  }
+  if (pkg.scripts?.build && Array.isArray(pkg.pi?.extensions)) {
+    console.log(`\n==> ${pkg.name}: extension artifact`);
+    const result = spawnSync(
+      "node",
+      ["scripts/verify-pi-extension-artifact.mjs", join("packages", dir)],
+      { stdio: "inherit" },
+    );
+    if (result.status !== 0) failed = true;
+  }
 }
 if (packages.includes("pi-codex-conversion-lite")) {
   console.log("\n==> @howaboua/pi-codex-conversion-lite: knip");

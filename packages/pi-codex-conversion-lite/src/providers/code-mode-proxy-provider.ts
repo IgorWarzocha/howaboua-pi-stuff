@@ -1,15 +1,13 @@
 import {
 	createAssistantMessageEventStream,
-	lazyApi,
 	type Api,
 	type AssistantMessage,
 	type Context,
 	type Model,
 	type ProviderHeaders,
-	type ProviderStreams,
 	type SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
-import { createGrammarToolInputProperties } from "@earendil-works/pi-ai/api/constrained-sampling";
+import { createGrammarToolInputProperties } from "./constrained-sampling.js";
 import type { ExtensionAPI, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
@@ -18,12 +16,6 @@ import { buildRequestBody } from "./openai-codex/request-body.ts";
 import { applyResponsesLiteRequest, isResponsesLiteRequest, prepareResponsesLiteRequestImages, RESPONSES_LITE_HEADER } from "./openai-codex/responses-lite.ts";
 import { processCodexResponsesStream } from "./openai-codex/stream-events.ts";
 import type { OpenAICodexStreamOptions, ResponsesBody, StreamEventShape } from "./openai-codex/types.ts";
-
-const LEGACY_BRIDGE_PROVIDER = "@howaboua/pi-codex-conversion-lite:responses-proxy";
-const OPENAI_RESPONSES_API_MODULE = "@earendil-works/pi-ai/api/openai-responses";
-const standardResponsesStream = lazyApi(async () =>
-	await import(OPENAI_RESPONSES_API_MODULE) as ProviderStreams
-).streamSimple;
 
 function initialAssistantMessage<TApi extends Api>(model: Model<TApi>): AssistantMessage {
 	return {
@@ -165,7 +157,7 @@ export interface CodeModeProxyProviderRegistration {
 	shutdown(): void;
 }
 
-type CodeModeModelRegistry = Pick<ModelRegistry, "getAll"> & Partial<Pick<ModelRegistry, "getRegisteredProviderConfig">>;
+type CodeModeModelRegistry = Pick<ModelRegistry, "getAll" | "getProvider" | "getRegisteredProviderConfig">;
 type RegisteredProviderConfig = Parameters<ExtensionAPI["registerProvider"]>[1];
 
 function configuredProxyProviders(config: CodexConversionConfig): Set<string> {
@@ -191,7 +183,6 @@ export function registerCodeModeProxyProvider(
 		overlayStream: NonNullable<RegisteredProviderConfig["streamSimple"]>;
 		modelRegistry: CodeModeModelRegistry;
 	}>();
-	let legacyBridgeRegistered = false;
 	const restoreProvider = (provider: string, registration: NonNullable<ReturnType<typeof registeredProviders.get>>) => {
 		const current = registration.modelRegistry.getRegisteredProviderConfig?.(provider) as RegisteredProviderConfig | undefined;
 		if (!current || current.streamSimple !== registration.overlayStream) return;
@@ -204,45 +195,22 @@ export function registerCodeModeProxyProvider(
 		if (Object.keys(restored).length > 0) pi.registerProvider(provider, restored);
 	};
 	const shutdown = () => {
-		if (legacyBridgeRegistered) {
-			pi.unregisterProvider(LEGACY_BRIDGE_PROVIDER);
-			legacyBridgeRegistered = false;
-		}
 		for (const [provider, registration] of registeredProviders) restoreProvider(provider, registration);
 		registeredProviders.clear();
 	};
 	const applyConfig = (config: CodexConversionConfig, modelRegistry: CodeModeModelRegistry) => {
 		const configuredProviders = configuredProxyProviders(config);
-		if (!modelRegistry.getRegisteredProviderConfig) {
-			const needed = configuredProviders.size > 0;
-			if (needed === legacyBridgeRegistered) return;
-			if (!needed) {
-				pi.unregisterProvider(LEGACY_BRIDGE_PROVIDER);
-				legacyBridgeRegistered = false;
-				return;
-			}
-			pi.registerProvider(LEGACY_BRIDGE_PROVIDER, {
-				api: "openai-responses",
-				streamSimple: (model, context, options) =>
-					resolveCodexRuntimePlan({ model }, getConfig()).kind === "code"
-						? streamCodeModeResponsesProxy(model, context, options)
-						: standardResponsesStream(model as never, context, options),
-			});
-			legacyBridgeRegistered = true;
-			return;
-		}
 		const desiredProviders = resolveProviderIds(configuredProviders, modelRegistry);
 		for (const provider of desiredProviders) {
 			if (registeredProviders.has(provider)) continue;
 			const previous = modelRegistry.getRegisteredProviderConfig(provider) as RegisteredProviderConfig | undefined;
 			if (previous?.streamSimple && previous.api !== "openai-responses") continue;
-			const fallbackStream = previous?.api === "openai-responses" && previous.streamSimple
-				? previous.streamSimple
-				: standardResponsesStream;
+			const fallbackProvider = modelRegistry.getProvider(provider);
+			if (!fallbackProvider) throw new Error(`Cannot overlay missing provider: ${provider}`);
 			const overlayStream: NonNullable<RegisteredProviderConfig["streamSimple"]> = (model, context, options) =>
 				resolveCodexRuntimePlan({ model }, getConfig()).kind === "code"
 					? streamCodeModeResponsesProxy(model, context, options)
-					: fallbackStream(model as never, context, options);
+					: fallbackProvider.streamSimple(model as never, context, options);
 			pi.registerProvider(provider, {
 				api: "openai-responses",
 				streamSimple: overlayStream,

@@ -9,7 +9,7 @@ import type {
 import {
 	getGrammarToolInput,
 	resolveGrammarConstrainedSampling,
-} from "@earendil-works/pi-ai/api/constrained-sampling";
+} from "../constrained-sampling.js";
 import { parseTextSignature, shortHash } from "./signatures.ts";
 import { encryptedWebRunOutputFromDetails, imageDetailForResponses, isImageGenerationCallBlock, isWebSearchCallBlock, sanitizeImageGenerationCallItem, sanitizeWebSearchCallItem, type ImageDetail, type ImageGenerationCallBlock, type WebSearchCallBlock } from "./native-items.ts";
 
