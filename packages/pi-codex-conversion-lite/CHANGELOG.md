@@ -1,5 +1,11 @@
 # @howaboua/pi-codex-conversion-lite
 
+## 0.1.3
+
+### Changes
+
+- [`620baba`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/620baba32dad1a1e3f70bf0cd30e4960584f52c4) - Keep web_run requests isolated to explicit search and navigation arguments instead of leaking conversation context into search answers.
+
 ## 0.1.2
 
 ### Changes
