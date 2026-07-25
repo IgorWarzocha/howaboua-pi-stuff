@@ -1,3 +1,5 @@
+import { resizeImage } from "@earendil-works/pi-coding-agent";
+
 export const RESPONSES_LITE_HEADER = "x-openai-internal-codex-responses-lite";
 export const RESPONSES_LITE_WS_METADATA_KEY = "ws_request_header_x_openai_internal_codex_responses_lite";
 
@@ -60,7 +62,6 @@ async function prepareDataImageUrl(imageUrl: string): Promise<string | undefined
 	if (!match?.[1] || !match[2] || !match[1].toLowerCase().startsWith("image/")) return undefined;
 	if (Buffer.byteLength(match[2], "utf8") > IMAGE_MAX_BASE64_BYTES) return undefined;
 	try {
-		const { resizeImage } = await import("@earendil-works/pi-coding-agent");
 		const bytes = Buffer.from(match[2], "base64");
 		if (bytes.length === 0) return undefined;
 		let resized = await resizeImage(bytes, match[1], {

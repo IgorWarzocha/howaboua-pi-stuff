@@ -6,6 +6,7 @@ import type { AdapterState } from "../../adapter/activation/state.ts";
 import type { CodexVoiceController } from "../../voice/controller.ts";
 import { createCodexVoiceControls } from "../../voice/controls.ts";
 import { SETTINGS_TABS, parseSettingsTab, type SettingsTab } from "./tabs.ts";
+import { openCodexSettingsScreen } from "./screen.ts";
 
 const VOICE_ACTIONS = ["voice realtime", "voice dictation", "voice stop"] as const;
 const CODEX_COMMAND_COMPLETIONS = [...SETTINGS_TABS.map(({ id }) => id), ...VOICE_ACTIONS];
@@ -45,7 +46,6 @@ export function registerCodexCommand(
 			ctx.ui.notify(formatCodexSettings(state.config), "info");
 			return;
 		}
-		const { openCodexSettingsScreen } = await import("./screen.ts");
 		await openCodexSettingsScreen(ctx, {
 			initialConfig: state.config,
 			initialTab: tab,

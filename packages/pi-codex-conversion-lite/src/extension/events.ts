@@ -4,6 +4,7 @@ import { readCodexConversionConfig } from "../adapter/activation/config-store.ts
 import { syncAdapter } from "../adapter/activation/activation.ts";
 import { isAdapterRuntime, resolveCodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
 import { isNativeCompactionDetails, NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, NATIVE_COMPACTION_DISPLAY_TEXT } from "../adapter/compaction/types.ts";
+import { handleCodexSessionBeforeCompact } from "../adapter/compaction/compaction.ts";
 import { rewriteCodexProviderRequest } from "../adapter/provider-request.ts";
 import { isAdapterContextExcludedCustomMessage } from "../adapter/prompt/context-filter.ts";
 import { hasNoSkillsFlag } from "../adapter/prompt/skills.ts";
@@ -164,7 +165,6 @@ export function registerCodexEvents(
 	pi.on("session_before_compact", async (event, ctx) => {
 		state.cwd = ctx.cwd;
 		if (!resolveCodexRuntimePlan(ctx, state.config).nativeCompaction) return undefined;
-		const { handleCodexSessionBeforeCompact } = await import("../adapter/compaction/compaction.ts");
 		return handleCodexSessionBeforeCompact(event, ctx, state, pi);
 	});
 	pi.on("session_compact", async (event) => {

@@ -2,7 +2,7 @@
 import { cpSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 
 const args = process.argv.slice(2);
@@ -63,18 +63,61 @@ function verifyLoaderImports(packageRoot) {
 		throw error;
 	}
 	const failures = [];
-	const specifierPattern = /["'](@earendil-works\/pi-[^"']+|typebox\/[^"']+)["']/g;
+	const sources = new Map(files.map((path) => [path, readFileSync(path, "utf8")]));
+	const peerSpecifierPattern = /["'](@earendil-works\/pi-[^"']+|typebox(?:\/[^"']+)?)["']/g;
+	const staticSpecifierPattern = /^\s*(?:import|export)\s+(?:[^"'\n]*?\sfrom\s*)?["']([^"']+)["']/gm;
+	const dynamicSpecifierPattern = /\bimport\(\s*["']([^"']+)["']\s*\)/g;
+	const peerSpecifiers = (source) => [...source.matchAll(peerSpecifierPattern)].map((match) => match[1]).filter(Boolean);
+	const staticSpecifiers = (source) => [...source.matchAll(staticSpecifierPattern)].map((match) => match[1]).filter(Boolean);
+	const dynamicSpecifiers = (source) => [...source.matchAll(dynamicSpecifierPattern)].map((match) => match[1]).filter(Boolean);
+	const localModule = (from, specifier) => {
+		if (!specifier.startsWith(".")) return undefined;
+		const path = resolve(dirname(from), specifier);
+		return sources.has(path) ? path : undefined;
+	};
 	for (const path of files) {
-		const source = readFileSync(path, "utf8");
-		for (const match of source.matchAll(specifierPattern)) {
-			const specifier = match[1];
+		const source = sources.get(path) ?? "";
+		for (const specifier of peerSpecifiers(source)) {
 			if (specifier && !allowedLoaderModules.has(specifier)) failures.push({ path, specifier });
+		}
+		for (const specifier of dynamicSpecifiers(source)) {
+			if (allowedLoaderModules.has(specifier)) {
+				failures.push({ path, specifier, reason: "native dynamic import bypasses Pi loader aliases" });
+				continue;
+			}
+			if (!specifier.startsWith(".")) continue;
+			const root = localModule(path, specifier);
+			if (!root) {
+				failures.push({ path, specifier, reason: "unresolved local dynamic import" });
+				continue;
+			}
+			const pending = [root];
+			const visited = new Set();
+			while (pending.length > 0) {
+				const current = pending.pop();
+				if (!current || visited.has(current)) continue;
+				visited.add(current);
+				const currentSource = sources.get(current) ?? "";
+				for (const peer of peerSpecifiers(currentSource)) {
+					if (allowedLoaderModules.has(peer)) {
+						failures.push({
+							path,
+							specifier,
+							reason: `lazy graph reaches Pi loader alias ${peer} in ${current}`,
+						});
+					}
+				}
+				for (const childSpecifier of staticSpecifiers(currentSource)) {
+					const child = localModule(current, childSpecifier);
+					if (child) pending.push(child);
+				}
+			}
 		}
 	}
 	if (failures.length === 0) return;
-	console.error("Pi extension artifact imports modules its loader does not expose:");
+	console.error("Pi extension artifact violates its loader module boundary:");
 	for (const failure of failures) {
-		console.error(`  ${failure.path}: ${failure.specifier}`);
+		console.error(`  ${failure.path}: ${failure.specifier}${failure.reason ? ` (${failure.reason})` : ""}`);
 	}
 	process.exit(1);
 }
@@ -116,6 +159,20 @@ function installRuntimeDependencies(packageRoot, isolatedRoot) {
 	});
 }
 
+async function loadLazyLocalModules(packageRoot) {
+	const dist = join(packageRoot, "dist");
+	const files = filesUnder(dist, (path) => /\.(?:c|m)?js$/.test(path));
+	const dynamicSpecifierPattern = /\bimport\(\s*["'](\.[^"']+)["']\s*\)/g;
+	const modules = new Set();
+	for (const path of files) {
+		const source = readFileSync(path, "utf8");
+		for (const match of source.matchAll(dynamicSpecifierPattern)) {
+			if (match[1]) modules.add(resolve(dirname(path), match[1]));
+		}
+	}
+	for (const path of modules) await import(pathToFileURL(path).href);
+}
+
 async function loadPackedExtensions(packageRoot, isolatedRoot) {
 	const packageJson = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8"));
 	const extensionPaths = packageJson.pi?.extensions;
@@ -153,6 +210,7 @@ for (const packageArg of packageArgs) {
 			: packPackage(packageRoot, tempRoot);
 		installRuntimeDependencies(isolatedPackage, tempRoot);
 		await loadPackedExtensions(isolatedPackage, tempRoot);
+		await loadLazyLocalModules(isolatedPackage);
 		console.log(`Verified Pi extension artifact: ${packageJson.name}`);
 	} finally {
 		rmSync(tempRoot, { recursive: true, force: true });
