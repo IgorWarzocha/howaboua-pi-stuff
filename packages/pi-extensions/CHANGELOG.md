@@ -1,5 +1,13 @@
 # @howaboua/pi-extensions
 
+## 0.0.35
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-codex-conversion-lite: Prevent native dynamic imports from escaping Pi's loader aliases and verify every packed lazy module can load.
+
 ## 0.0.34
 
 ### Changes

@@ -65,11 +65,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion-lite — 0.1.1
+### @howaboua/pi-codex-conversion-lite — 0.1.2
 
 ### Changes
 
-- [`3647fc2`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/3647fc296f4f5ea70c355f43b080383382f7b0d7) - Make published Codex extension artifacts reuse Pi's provider streams and verify packed extensions load before release.
+- [`2bfaf4c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/2bfaf4c7bc1f847b5e155747cc0774843792fef7) - Prevent native dynamic imports from escaping Pi's loader aliases and verify every packed lazy module can load.
 
 [Full changelog](./packages/pi-codex-conversion-lite/CHANGELOG.md)
 
@@ -89,13 +89,13 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.34
+### @howaboua/pi-extensions — 0.0.35
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-codex-conversion-lite: Make published Codex extension artifacts reuse Pi's provider streams and verify packed extensions load before release.
+  - @howaboua/pi-codex-conversion-lite: Prevent native dynamic imports from escaping Pi's loader aliases and verify every packed lazy module can load.
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
@@ -232,13 +232,13 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.36
+### @howaboua/pi-stuff — 0.0.37
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-codex-conversion-lite: Make published Codex extension artifacts reuse Pi's provider streams and verify packed extensions load before release.
+  - @howaboua/pi-codex-conversion-lite: Prevent native dynamic imports from escaping Pi's loader aliases and verify every packed lazy module can load.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 

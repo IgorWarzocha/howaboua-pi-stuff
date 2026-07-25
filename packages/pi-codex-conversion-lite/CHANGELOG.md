@@ -1,5 +1,11 @@
 # @howaboua/pi-codex-conversion-lite
 
+## 0.1.2
+
+### Changes
+
+- [`2bfaf4c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/2bfaf4c7bc1f847b5e155747cc0774843792fef7) - Prevent native dynamic imports from escaping Pi's loader aliases and verify every packed lazy module can load.
+
 ## 0.1.1
 
 ### Changes
