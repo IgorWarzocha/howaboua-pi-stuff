@@ -57,6 +57,15 @@ Prefer these when hardening Rust code:
 - narrow trait boundaries introduced for real polymorphism, test seams, or external adapters, not preemptive genericity
 - documented `unsafe` invariants and safe APIs that prevent callers from violating them
 
+## Execution and dependency topology
+
+- Rust modules and crate imports are not runtime module loading. Dependency and feature topology primarily affects compile/link time, binary size, code generation, and ownership; measure those separately from runtime call cost.
+- Inspect proc macros, generated dispatch, blanket trait implementations, feature-selected implementations, and `dyn Trait` boundaries when source navigation cannot reveal the selected call path directly.
+- Treat broad preludes and re-exports as navigation or cycle concerns unless compiler output, build timing, or binary analysis shows a performance cost.
+- Keep application construction explicit. Avoid distributed registration mechanisms whose active implementations can be known only after macro expansion or runtime inventory without a source-level manifest.
+- Compare monomorphization/code-size and dynamic-dispatch tradeoffs with representative builds or benchmarks; do not prescribe generics or trait objects from theory alone.
+- Collapse adapter or combinator chains that merely forward values, but preserve frames that own pinning/lifetime boundaries, cancellation, effects, error context, resilience, or stable public contracts.
+
 ## Error handling guidance
 
 Rust's standard docs distinguish anticipated runtime failures from bugs: use `Result` and error types for expected failures; reserve panic paths for bugs or impossible states.

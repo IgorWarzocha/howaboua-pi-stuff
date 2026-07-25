@@ -1,6 +1,6 @@
 ---
 name: agent-native-hardening
-description: "Architecture hardening: ownership, boundaries, contracts, state safety, duplication, traversability, feedback loops, test fit, change decomposition. Use for structural reviews, scorecards, plans, or refactors; not ordinary fixes."
+description: "Architecture hardening: ownership, boundaries, contracts, state safety, duplication, execution/import topology, traversability, feedback loops, test fit, change decomposition. Use for structural reviews, scorecards, plans, refactors, or startup/import-path analysis; not ordinary fixes or unmeasured micro-optimization."
 ---
 
 # Agent-Native Hardening
@@ -12,6 +12,7 @@ Read only the references relevant to the task:
 - `references/scoring-rubric.md` before assigning scores or producing a formal scorecard.
 - `references/work-lanes.md` before splitting broad discovery or implementation across lanes, agents, branches, or worktrees.
 - `references/dependency-safety.md` when dependency changes, installers, lockfiles, toolchains, package scripts, or supply-chain recommendations are in scope.
+- `references/execution-topology.md` when call stacks, dispatch, middleware, callbacks, async continuations, imports, initialization, startup, bundle cost, or runtime-path navigability are in scope.
 - `references/js-ts.md`, `references/python.md`, `references/rust.md`, or `references/go.md` for languages present in the target repo.
 
 If no bundled language reference fits, use the general workflow and verify ecosystem-specific advice against the repo and current official documentation. Repo evidence and host constraints outrank generic guidance.
@@ -24,8 +25,10 @@ If no bundled language reference fits, use the general workflow and verify ecosy
 4. **Explicit contracts at boundaries.** Validate external data once, preserve named domain shapes internally, model state transitions, and derive contracts from a source of truth where practical.
 5. **Stable reuse over premature DRY.** Extract duplication when the behavior is genuinely shared and has a clear owner; tolerate local duplication when semantics are still diverging.
 6. **The shortest correct change path should be obvious.** Entry points, extension points, state owners, and validation commands should be discoverable without rereading the whole system.
-7. **Tests follow risk.** Match the repo's established testing intent and protect consequential behavior; do not manufacture coverage, fixtures, mocks, snapshots, or end-to-end scaffolding by default.
-8. **Failures stay visible.** Fix root causes instead of weakening checks, suppressing diagnostics, swallowing errors, or adding silent fallback behavior.
+7. **Every execution hop earns its place.** Preserve calls that own decisions, contracts, effects, lifecycle, resilience, or observability; collapse pass-through indirection and prefer control transfers an agent can resolve from code.
+8. **Performance claims require runtime evidence.** Distinguish semantic navigability from measured call, import, initialization, startup, or bundle cost. Optimize the relevant hot or cold path for the repo's actual runtime and toolchain.
+9. **Tests follow risk.** Match the repo's established testing intent and protect consequential behavior; do not manufacture coverage, fixtures, mocks, snapshots, or end-to-end scaffolding by default.
+10. **Failures stay visible.** Fix root causes instead of weakening checks, suppressing diagnostics, swallowing errors, or adding silent fallback behavior.
 
 ## Workflow
 
@@ -38,8 +41,9 @@ If no bundled language reference fits, use the general workflow and verify ecosy
 
 ### 2. Map the relevant system
 
-- Trace entry points, feature owners, state mutation, IO boundaries, contracts, and affected checks.
-- Inspect hotspots for mixed concerns, central-handler growth, hidden side effects, positional data, duplicated contracts, manual lifecycle resets, and broad cross-feature coupling.
+- Trace entry points, the real synchronous call stack, dynamic dispatch, async continuations, feature owners, state mutation, IO boundaries, contracts, and affected checks. Do not infer runtime flow from folders alone.
+- When startup, imports, or runtime efficiency matter, map the relevant import/initialization path and collect representative measurements before attributing cost.
+- Inspect hotspots for mixed concerns, central-handler growth, no-value frames, generic dispatch, callback or middleware tunnels, hidden side effects, positional data, duplicated contracts, manual lifecycle resets, and broad cross-feature coupling.
 - Distinguish generated/framework-required structure from code humans are expected to maintain.
 - For broad or unfamiliar repos, use focused read-only discovery lanes when they reduce rereading. Direct inspection is sufficient when the scope fits one coherent context.
 
@@ -55,7 +59,8 @@ If no bundled language reference fits, use the general workflow and verify ecosy
 
 - Prefer one owned extraction or contract boundary over a speculative architecture rewrite.
 - Split by feature ownership first, then by concern where the feature needs it.
-- Keep central paths as small routers, registries, or composition roots; move feature behavior behind explicit boundaries.
+- Keep central paths as small, statically enumerable routers, registries, or composition roots; move feature behavior behind explicit boundaries without hiding the selected implementation.
+- Collapse pass-through wrappers and single-use microfunctions only when they own no decision, translation, contract, effect, lifecycle, resilience, or observability boundary.
 - Model impossible or ambiguous states with variants, enums, validators, domain values, or named objects appropriate to the language.
 - For broad multi-area work, read `references/work-lanes.md` and create only as many lanes as have independent objectives and validation.
 
@@ -80,6 +85,9 @@ Evaluate these where relevant:
 
 - root objects route and compose rather than own feature-local state
 - feature additions primarily touch feature-owned modules, with small registration changes in central paths
+- important execution paths use recognisable feature terminology and each hop has an explainable role
+- dynamic dispatch, decorators, middleware, callbacks, generated bindings, and async hand-offs remain inspectable in both directions
+- imports and module initialization avoid hidden IO, surprising global mutation, cycles, or eager cold-path work where the runtime makes those costs material
 - orchestration, domain rules, IO, rendering, and mutation are separated where mixing them raises change risk
 - async/background work has a clear owner, result/message shape, cancellation or shutdown path, and state mutation boundary
 - render/view functions avoid hidden IO or mutation where the framework permits
@@ -92,7 +100,7 @@ Evaluate these where relevant:
 
 - Add documentation only when it reduces future discovery cost. Prefer accurate entry-point maps and local invariant comments over broad prose.
 - Do not rewrite user-facing README material unless it is part of the requested hardening scope.
-- Treat toolchain, dependency, lint-policy, and runtime changes as opt-in modernization. Explain evidence, benefit, migration cost, and risk before implementation.
+- Treat toolchain, dependency, lint-policy, lazy-loading, bundling, and runtime changes as opt-in modernization. Explain evidence, benefit, migration cost, and risk before implementation.
 - Do not use “agent-friendly” to justify product scope expansion, framework churn, new infrastructure, or unfamiliar dependencies.
 - Read `references/dependency-safety.md` before dependency or installer changes.
 

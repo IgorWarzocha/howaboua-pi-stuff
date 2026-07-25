@@ -50,6 +50,14 @@ Common active checks:
 - Use explicit result/error shapes for operations with expected failure modes instead of returning `None`, `{}`, `False`, or magic strings.
 - Keep imports boring: avoid path mutation, import-time connection setup, and side effects that make tests or agents depend on execution order.
 
+## Execution and import topology
+
+- Use `python -X importtime ...` or `PYTHONPROFILEIMPORTTIME=1` on the representative CLI, worker, test, or service startup before attributing latency to imports. Compare like-for-like cold runs and inspect cumulative rather than only self time.
+- Treat package `__init__.py` re-exports, plugin discovery, module-level registries, and import-time decorators as runtime edges. Keep active registrations enumerable and initialization ownership explicit.
+- Break cycles by clarifying ownership rather than scattering local imports. A local import is reasonable for a measured cold optional path or unavoidable framework boundary, but document the reason when it hides a dependency.
+- Avoid module-level construction of clients, model loads, filesystem scans, large data parsing, and environment-dependent state. Own them in application lifespan, factories, commands, or explicit caches.
+- Collapse forwarding wrappers and decorator layers that add no decision, contract, lifecycle, resilience, effect, or diagnostic value; preserve frames that give exceptions useful domain context.
+
 ## Async Python guidance
 
 Watch async code for hidden lifecycle and ownership problems:
