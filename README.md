@@ -10,8 +10,8 @@ Pi packages run with your local permissions. You can obviously trust me, a stran
 
 | Package | Includes | Deliberate exclusions |
 |---|---|---|
-| [`@howaboua/pi-stuff`](./packages/pi-stuff) | 12 general extensions and 9 shareable skills | Codex conversion and Omarchy support |
-| [`@howaboua/pi-extensions`](./packages/pi-extensions) | 12 general extensions | Codex conversion |
+| [`@howaboua/pi-stuff`](./packages/pi-stuff) | 13 general extensions and 9 shareable skills | Codex conversion and Omarchy support |
+| [`@howaboua/pi-extensions`](./packages/pi-extensions) | 13 general extensions | Codex conversion |
 | [`@howaboua/pi-skills`](./packages/pi-skills) | 9 shareable skills | Omarchy support |
 
 ```bash
@@ -34,6 +34,7 @@ pi install npm:@howaboua/pi-skills
 | [`pi-codex-conversion`](./packages/pi-codex-conversion) | Codex-shaped shell, patch, image, web, and Code Mode tools for GPT/Codex models |
 | [`pi-dynamic-tools`](./packages/pi-dynamic-tools) | TOML-defined command-line tools exposed through JavaScript Code Mode |
 | [`pi-explore-subagents`](./packages/pi-explore-subagents) | Isolated, discovery-only shallow and deep subagents |
+| [`pi-gpt-switcher`](./packages/pi-gpt-switcher) | `/sol`, `/terra`, and `/luna` commands for GPT-5.6 Codex models |
 | [`pi-markdown-workflows`](./packages/pi-markdown-workflows) | Workflow/skill UI, `/learn`, workflow capture, and nested `AGENTS.md` loading |
 | [`pi-memories`](./packages/pi-memories) | Shutdown memory candidates in a plain Markdown inbox |
 | [`pi-semantic-grep`](./packages/pi-semantic-grep) | Meaning-based code and docs search backed by repo-local SQLite indexes |
