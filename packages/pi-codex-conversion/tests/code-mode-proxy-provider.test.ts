@@ -21,6 +21,12 @@ async function collect(stream: AsyncIterable<unknown>): Promise<unknown[]> {
 	return events;
 }
 
+function fallbackResponsesStream() {
+	return (async function* () {
+		yield { type: "done", message: { content: [{ type: "text", text: "fallback", textSignature: '{"v":1,"id":"msg_1"}' }] } };
+	})();
+}
+
 const proxyModel = {
 	provider: "proxy",
 	api: "openai-responses",
@@ -34,7 +40,6 @@ const proxyModel = {
 } as const;
 
 test("the provider-scoped proxy stream delegates ordinary Responses models without recursion", async () => {
-	const originalFetch = globalThis.fetch;
 	const providers = new Map<string, { streamSimple: (...args: never[]) => AsyncIterable<unknown> }>();
 	const unregistered: string[] = [];
 	const config = {
@@ -42,57 +47,46 @@ test("the provider-scoped proxy stream delegates ordinary Responses models witho
 		beta: { codeMode: true, responsesLite: false },
 		scope: { allProviders: "off" as const, additionalProviders: ["proxy"] },
 	};
-	try {
-		globalThis.fetch = (async () => sseResponse([
-			{ type: "response.created", response: { id: "resp_fallback" } },
-			{ type: "response.output_item.added", output_index: 0, item: { type: "message", id: "msg_1", role: "assistant", content: [] } },
-			{ type: "response.content_part.added", output_index: 0, content_index: 0, part: { type: "output_text", text: "" } },
-			{ type: "response.output_text.delta", output_index: 0, content_index: 0, delta: "fallback" },
-			{ type: "response.output_item.done", output_index: 0, item: { type: "message", id: "msg_1", role: "assistant", content: [{ type: "output_text", text: "fallback", annotations: [] }], status: "completed" } },
-			{ type: "response.completed", response: { id: "resp_fallback", status: "completed", usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 } } },
-		])) as typeof fetch;
+	const registration = registerCodeModeProxyProvider({
+		registerProvider(name: string, provider: { streamSimple: (...args: never[]) => AsyncIterable<unknown> }) {
+			providers.set(name, provider);
+		},
+		unregisterProvider(name: string) {
+			unregistered.push(name);
+			providers.delete(name);
+		},
+	} as never, () => config);
 
-		const registration = registerCodeModeProxyProvider({
-			registerProvider(name: string, provider: { streamSimple: (...args: never[]) => AsyncIterable<unknown> }) {
-				providers.set(name, provider);
-			},
-			unregisterProvider(name: string) {
-				unregistered.push(name);
-				providers.delete(name);
-			},
-		} as never, () => config);
+	assert.equal(providers.size, 0);
+	registration.applyConfig(config, {
+		getAll: () => [{ provider: "proxy", api: "openai-responses" }] as never,
+		getProvider: () => ({ streamSimple: fallbackResponsesStream }) as never,
+		getRegisteredProviderConfig: (name: string) => providers.get(name) as never,
+	});
+	assert.equal(providers.size, 1);
+	assert.ok(providers.has("proxy"));
+	const provider = [...providers.values()][0]!;
+	const events = await collect(provider.streamSimple(
+		{ ...proxyModel, id: "gpt-5.5" } as never,
+		{ systemPrompt: "Be useful", messages: [{ role: "user", content: "Hello", timestamp: Date.now() }] } as never,
+		{ apiKey: "test-key" } as never,
+	));
+	const done = events.at(-1) as { type: string; message: { content: Array<{ type: string; text?: string }> } };
+	assert.equal(done.type, "done");
+	assert.deepEqual(done.message.content, [{ type: "text", text: "fallback", textSignature: "{\"v\":1,\"id\":\"msg_1\"}" }]);
 
-		assert.equal(providers.size, 0);
-		registration.applyConfig(config, {
-			getAll: () => [{ provider: "proxy", api: "openai-responses" }] as never,
-			getRegisteredProviderConfig: (name: string) => providers.get(name) as never,
-		});
-		assert.equal(providers.size, 1);
-		assert.ok(providers.has("proxy"));
-		const provider = [...providers.values()][0]!;
-		const events = await collect(provider.streamSimple(
-			{ ...proxyModel, id: "gpt-5.5" } as never,
-			{ systemPrompt: "Be useful", messages: [{ role: "user", content: "Hello", timestamp: Date.now() }] } as never,
-			{ apiKey: "test-key" } as never,
-		));
-		const done = events.at(-1) as { type: string; message: { content: Array<{ type: string; text?: string }> } };
-		assert.equal(done.type, "done");
-		assert.deepEqual(done.message.content, [{ type: "text", text: "fallback", textSignature: "{\"v\":1,\"id\":\"msg_1\"}" }]);
+	config.voiceFeaturesOnly = true;
+	registration.applyConfig(config, {
+		getAll: () => [{ provider: "proxy", api: "openai-responses" }] as never,
+		getProvider: () => ({ streamSimple: fallbackResponsesStream }) as never,
+		getRegisteredProviderConfig: (name: string) => providers.get(name) as never,
+	});
+	assert.equal(providers.size, 0);
 
-		config.voiceFeaturesOnly = true;
-		registration.applyConfig(config, {
-			getAll: () => [{ provider: "proxy", api: "openai-responses" }] as never,
-			getRegisteredProviderConfig: (name: string) => providers.get(name) as never,
-		});
-		assert.equal(providers.size, 0);
-
-		registration.shutdown();
-		registration.shutdown();
-		assert.equal(providers.size, 0);
-		assert.equal(unregistered.length, 1);
-	} finally {
-		globalThis.fetch = originalFetch;
-	}
+	registration.shutdown();
+	registration.shutdown();
+	assert.equal(providers.size, 0);
+	assert.equal(unregistered.length, 1);
 });
 
 test("configured Responses models route through the Code Mode stream in Pi's model runtime", async () => {
