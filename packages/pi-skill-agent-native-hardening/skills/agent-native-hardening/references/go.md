@@ -80,6 +80,13 @@ Prefer these when hardening Go code:
 - Avoid package-level mutable state for configuration, clients, caches, or test toggles. Prefer explicit constructors and dependency injection at composition boundaries.
 - Avoid circular dependency workarounds that create abstract `common` packages. Break cycles by clarifying ownership and moving contracts to the smallest stable boundary.
 
+## Execution and initialization topology
+
+- Go imports are compile-time package dependencies, not per-request dynamic loading. Runtime startup concerns usually come from package `init` functions, package-level variable initialization, registration, and dependency construction; inspect those before proposing import-path performance work.
+- Prefer explicit startup wiring over import-for-side-effect registration. When framework/plugin constraints require blank imports or `init`, keep the active set in one searchable manifest.
+- Measure representative startup, binary size, profiles, allocations, or request latency before changing package boundaries for performance. Do not infer runtime savings from fewer imports alone.
+- Keep middleware and interface call chains semantically dense. Collapse pure forwarding adapters; retain frames that own cancellation, contracts, effects, retries, security, or useful error context.
+
 ## Error handling guidance
 
 - Do not ignore returned errors unless the ignored case is intentional and documented locally.

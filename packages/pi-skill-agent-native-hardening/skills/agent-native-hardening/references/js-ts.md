@@ -54,6 +54,15 @@ Record the installed TypeScript version and whether build/lint/framework tooling
 - Avoid refactors that move generated files, framework conventions, or build outputs unless the framework requires it.
 - When splitting React/UI code, keep render components mostly pure and move effects, IO, state transitions, and data shaping into owned hooks/modules where that improves clarity.
 
+## Execution and import topology
+
+- Inspect the emitted runtime or bundle rather than treating source import syntax as cost. Bundler, module target, package `sideEffects`, tree-shaking, and server/client boundaries change what loads and executes.
+- Use `import type` for type-only edges where supported and consistent with the repo; it clarifies the runtime graph and prevents accidental emitted imports.
+- Treat barrel/package-root imports as suspects only when they obscure ownership, create cycles, defeat tree-shaking, or eagerly evaluate broad module graphs. Verify with the active bundler or startup measurement.
+- Keep top-level modules cheap and deterministic. Move client construction, filesystem/network work, registration, and mutable setup into visible composition or lifecycle owners.
+- Use dynamic `import()` for measured cold or optional boundaries, not as a generic cycle workaround. Account for chunking, first-use latency, error timing, SSR/runtime support, and reduced static navigability.
+- For deep middleware, hook, decorator, or callback stacks, identify which frames own policy or effects and collapse forwarding layers that add no contract, lifecycle, resilience, or observability value.
+
 ## TypeScript 7 guidance
 
 TypeScript 7.0 is the stable native Go-based compiler, distributed through the standard `typescript` package and invoked with `tsc`. Do not recommend the old `@typescript/native-preview` / `tsgo` path for stable adoption.

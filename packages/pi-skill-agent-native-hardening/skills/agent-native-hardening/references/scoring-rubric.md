@@ -17,10 +17,10 @@ Apply explicit godfile/godfunction penalties when the hotspot is material to the
 9-10: contracts are strict across boundaries, invalid states are modeled out, and end-to-end data flow is preserved where tooling supports it
 
 ## 3) traversable
-0-2: hard to locate ownership and flows, godfiles/godfunctions dominate navigation
-3-5: partial structure, large hotspots remain, feature boundaries blurry
-6-8: clear feature folders, reduced hotspots, entrypoints mostly obvious
-9-10: small focused modules with stable entrypoints and crisp separation of concerns
+0-2: ownership and execution paths disappear into godfiles, generic dispatch, hidden registration, callback tunnels, or import side effects
+3-5: partial structure and traceable happy paths exist, but hotspots, no-value frames, dynamic edges, or initialization surprises require broad exploration
+6-8: feature ownership and entrypoints are clear; important call stacks, async continuations, and imports are mostly inspectable with limited no-value indirection
+9-10: important runtime paths are statically discoverable where practical, every semantic hop has a clear role, initialization is deliberate, and changes require little rereading
 
 ## 4) test_coverage
 0-2: no tests
@@ -50,6 +50,9 @@ Treat these as strong negative signals:
 - broad `utils`/`helpers`/`misc` dumping grounds with weak ownership
 - copy-paste logic across features where a stable shared abstraction should exist
 - hidden side effects or mixed layers that make extraction risky
+- pass-through wrapper piles, one-use microfunction confetti, callback tunnels, or generic dispatch that add semantic hops without ownership
+- runtime selection, decorators, middleware order, generated bindings, or import-time registration with no inspectable manifest
+- import cycles, hidden initialization work, or eager cold-path loading that materially harms startup, bundles, tests, or navigation
 - godfunctions that mix unrelated responsibilities, such as validation, orchestration, IO, mutation, rendering, and error handling in one long flow
 - central handlers or lifecycle methods that keep absorbing feature-specific branches instead of delegating to feature-owned code
 - root app/controller objects owning feature-local state, input handling, async task coordination, and rendering decisions
@@ -59,12 +62,13 @@ Treat these as strong negative signals:
 
 Treat these as strong positive signals:
 - godfiles decomposed into feature folders with clear ownership
-- godfunctions decomposed into small named steps with clear ownership and explicit inputs/outputs
+- godfunctions decomposed into coherent named steps whose frames own decisions, contracts, effects, lifecycle, resilience, or observability
 - feature-local modules separated by concern where needed (`index`/entrypoint, domain logic, IO, types/schema, tests)
 - shared abstractions extracted only when genuinely cross-feature and stable
 - explicit state variants, domain-specific value types, validators, and derived contracts replace ambiguous primitives or manually duplicated shapes
 - lower fan-in/fan-out per module and fewer unrelated edits per lane
-- central paths are small routers/registries; feature behavior lives behind explicit, contracted extension points
+- central paths are small, statically enumerable routers/registries; feature behavior and selected implementations remain discoverable behind explicit, contracted extension points
+- runtime and import topology claims are supported by traces, profiles, bundle reports, or representative startup measurements where performance is material
 - async/background work communicates through explicit messages/events/results, with one clear state mutation owner
 - domain data keeps named fields until render/serialization boundaries
 
@@ -72,6 +76,7 @@ Calibration guardrails for material central-path problems:
 
 - a godfile that owns several unrelated core responsibilities usually keeps `agent_native` and `traversable` at 5 or below
 - a central godfunction that mixes orchestration, domain rules, IO, and mutation usually keeps `agent_native` and `traversable` at 6 or below
+- a central execution path dominated by opaque dispatch, no-value frames, or hidden initialization usually keeps `traversable` at 5 or below
 - multiple central godfiles/godfolders usually keep `agent_native`, `traversable`, and `self_documenting` at 4 or below
 - persistent duplication combined with mixed ownership usually keeps `agent_native` at 6 or below until an owner boundary is clear
 
