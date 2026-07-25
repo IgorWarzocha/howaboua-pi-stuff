@@ -25,6 +25,8 @@ export interface RenderTheme {
 export interface RenderContext {
 	toolCallId?: string | undefined;
 	expanded?: boolean | undefined;
+	executionStarted?: boolean | undefined;
+	isPartial?: boolean | undefined;
 	isError?: boolean | undefined;
 	invalidate?: (() => void) | undefined;
 	cwd?: string | undefined;
@@ -55,8 +57,18 @@ export function renderExecCall(
 	richRendering = true,
 ): Text {
 	tracker.register(context?.toolCallId, context?.invalidate);
-	if (!richRendering) return new Text("", 0, 0);
 	const code = typeof args.code === "string" ? args.code : "";
+	if (!richRendering) {
+		if (!context?.executionStarted || !context.isPartial)
+			return new Text("", 0, 0);
+		const names = customToolNames(code);
+		const suffix = names.length > 0 ? ` · ${names.join(" · ")}` : "";
+		return new Text(
+			`${theme.fg("dim", "•")} ${theme.bold(`Running code${suffix}`)}`,
+			0,
+			0,
+		);
+	}
 	const status = tracker.status(context?.toolCallId);
 	const verb =
 		status === "running" ? "Running" : status === "yielded" ? "Started" : "Ran";
