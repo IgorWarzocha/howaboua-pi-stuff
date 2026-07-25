@@ -4,11 +4,40 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { applyTerminalOutput, type ExecOutputSessionState } from "../src/tools/exec/output.ts";
+import { createExecCommandTool } from "../src/tools/exec/command-tool.ts";
+import { createExecCommandTracker } from "../src/tools/exec/command-state.ts";
 import { createExecSessionManager, type UnifiedExecResult } from "../src/tools/exec/session-manager.ts";
+import { DEFAULT_MAX_EMPTY_WRITE_YIELD_TIME_MS, clampExecYieldTime, clampWriteYieldTime, normalizeMinEmptyWriteYieldTime } from "../src/tools/exec/shell.ts";
 
 function createFastTestExecSessionManager() {
 	return createExecSessionManager({ minNonInteractiveExecYieldTimeMs: 50, minEmptyWriteYieldTimeMs: 50, maxSessionBufferChars: 4096 });
 }
+
+test("shell wait policy permits long work and rejects impatient empty polling", () => {
+	const emptyPollFloor = normalizeMinEmptyWriteYieldTime(undefined);
+
+	assert.equal(emptyPollFloor, 30_000);
+	assert.equal(clampExecYieldTime(600_000, 10_000, false, 5_000), 600_000);
+	assert.equal(clampWriteYieldTime(600_000, 250, true, emptyPollFloor, DEFAULT_MAX_EMPTY_WRITE_YIELD_TIME_MS), 600_000);
+});
+
+test("exec_command keeps non-TTY foreground work attached without mutating model arguments", async () => {
+	const sessions = createFastTestExecSessionManager();
+	const tool = createExecCommandTool(createExecCommandTracker(), sessions);
+	const args = { cmd: "sleep 0.6", shell: "/bin/bash", login: false, yield_time_ms: 1 };
+	try {
+		const result = await tool.execute("foreground", args, undefined, undefined, {
+			cwd: process.cwd(),
+			model: { provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.6" },
+		} as never);
+
+		assert.deepEqual(args, { cmd: "sleep 0.6", shell: "/bin/bash", login: false, yield_time_ms: 1 });
+		assert.equal((result.details as UnifiedExecResult).exit_code, 0);
+		assert.equal((result.details as UnifiedExecResult).session_id, undefined);
+	} finally {
+		sessions.shutdown();
+	}
+});
 
 async function finishSession(
 	_sessionId: number,
@@ -69,6 +98,28 @@ test("exec session manager supports long-running commands via write_stdin", asyn
 		assert.equal(resumed.output, "hello\n:hello");
 		assert.equal(resumed.final.session_id, undefined);
 		assert.equal(resumed.final.exit_code, 0);
+	} finally {
+		sessions.shutdown();
+	}
+});
+
+test("empty write_stdin polls inherit exponential session backoff", async () => {
+	const sessions = createExecSessionManager({
+		minNonInteractiveExecYieldTimeMs: 20,
+		minEmptyWriteYieldTimeMs: 20,
+		maxEmptyWriteYieldTimeMs: 200,
+	});
+	try {
+		const started = await sessions.exec(
+			{ cmd: "sleep 3", shell: "/bin/bash", login: false, yield_time_ms: 20 },
+			process.cwd(),
+		);
+		const first = await sessions.write({ session_id: started.session_id!, yield_time_ms: 20 });
+		const second = await sessions.write({ session_id: started.session_id!, yield_time_ms: 20 });
+
+		assert.equal(typeof second.session_id, "number");
+		assert.ok(first.wall_time_seconds >= 0.03, `first poll waited ${first.wall_time_seconds}s`);
+		assert.ok(second.wall_time_seconds >= 0.07, `second poll waited ${second.wall_time_seconds}s`);
 	} finally {
 		sessions.shutdown();
 	}

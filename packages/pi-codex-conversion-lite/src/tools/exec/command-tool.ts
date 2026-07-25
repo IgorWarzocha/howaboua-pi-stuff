@@ -6,6 +6,7 @@ import { renderExecCommandCall, renderGroupedExecCommandCall } from "../../ui/to
 import type { ExecCommandTracker } from "./command-state.ts";
 import { formatUnifiedExecResult } from "./format.ts";
 import type { ExecSessionManager, UnifiedExecResult } from "./session-manager.ts";
+import { MAX_EXEC_YIELD_TIME_MS } from "./shell.ts";
 
 const EXEC_COMMAND_PARAMETERS = Type.Object({
 	cmd: Type.String({ description: "Raw command string interpreted by the current shell; do not quote the entire command" }),
@@ -172,7 +173,10 @@ export function createExecCommandTool(tracker: ExecCommandTracker, sessions: Exe
 				content: [{ type: "text" as const, text: formatUnifiedExecResult(partial, input.cmd) }],
 				details: partial,
 			});
-			const result = await sessions.exec(input, ctx.cwd, signal, onUpdate ? (partial) => onUpdate(toToolResult(partial)) : undefined);
+			const execInput = input.tty
+				? input
+				: { ...input, yield_time_ms: MAX_EXEC_YIELD_TIME_MS, max_yield_time_ms: MAX_EXEC_YIELD_TIME_MS };
+			const result = await sessions.exec(execInput, ctx.cwd, signal, onUpdate ? (partial) => onUpdate(toToolResult(partial)) : undefined);
 			if (result.session_id !== undefined) tracker.recordPersistentSession(toolCallId, result.session_id);
 			return toToolResult(result);
 		},

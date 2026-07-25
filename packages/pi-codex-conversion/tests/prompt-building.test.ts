@@ -12,7 +12,7 @@ Guidelines:
 Pi documentation follows`;
 
 	const normalPrompt = buildCodexSystemPrompt(basePrompt, { mode: "normal" });
-	assert.equal(normalPrompt.match(/Use tty=true when a command may need input or interruption, including long-running builds\/tests/g)?.length, 1);
+	assert.equal(normalPrompt.match(/Reserve tty=true for input or persistent processes/g)?.length, 1);
 	assert.doesNotMatch(normalPrompt, /Use tty=true for dev servers/);
 
 	const pathPrompt = buildCodexSystemPrompt(basePrompt, { mode: "path", tools: {} });

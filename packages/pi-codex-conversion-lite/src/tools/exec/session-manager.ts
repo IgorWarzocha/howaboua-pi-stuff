@@ -59,6 +59,7 @@ interface BaseExecSession {
 	terminating: boolean;
 	listeners: Set<() => void>;
 	interactive: boolean;
+	nextEmptyPollYieldMs?: number | undefined;
 }
 
 interface RustExecSession extends BaseExecSession {
@@ -316,14 +317,17 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 
 			try {
 				onUpdate?.(makeSnapshotResult(session, 0, input.max_output_tokens, true));
+				const execYieldMs = clampExecYieldTime(input.yield_time_ms, defaultExecYieldTimeMs, session.interactive, minNonInteractiveExecYieldTimeMs, input.max_yield_time_ms);
 				const waitedMs = await waitForExitOrTimeout(
 					session,
-					clampExecYieldTime(input.yield_time_ms, defaultExecYieldTimeMs, session.interactive, minNonInteractiveExecYieldTimeMs, input.max_yield_time_ms),
+					execYieldMs,
 					signal,
 					onUpdate ? (elapsedMs) => onUpdate(makeSnapshotResult(session, elapsedMs, input.max_output_tokens)) : undefined,
 				);
 				await waitForStartup(session, signal);
 				if (session.started) await pollSession(session, 0);
+				if (session.exitCode === undefined || session.exitCode === null)
+					session.nextEmptyPollYieldMs = growEmptyPollYield(execYieldMs, maxEmptyWriteYieldTimeMs);
 				return makeExecResult(session, waitedMs, input.max_output_tokens, exposeSession, (sessionId) => sessions.delete(sessionId));
 			} catch (error) {
 				if (signal?.aborted) sessions.delete(session.id);
@@ -341,30 +345,39 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 				throw new Error(`Unknown process id ${input.session_id}`);
 			}
 			const updateBaseline = session.buffer;
-			if (input.chars && input.chars.length > 0) {
+			const chars = input.chars ?? "";
+			const isEmptyPoll = chars.length === 0;
+			if (!isEmptyPoll) {
 				if (!session.interactive) {
 					throw new Error("stdin is closed for this session; rerun exec_command with tty=true to keep stdin open");
 				}
-				await bridge.request({ op: "write", process_id: session.processId, chunk: Array.from(Buffer.from(input.chars, "utf8")) });
+				await bridge.request({ op: "write", process_id: session.processId, chunk: Array.from(Buffer.from(chars, "utf8")) });
+				session.nextEmptyPollYieldMs = undefined;
 			}
 			onUpdate?.(makeSnapshotSince(session, 0, updateBaseline, input.max_output_tokens));
+			const requestedYieldMs = clampWriteYieldTime(
+				input.yield_time_ms,
+				defaultWriteYieldTimeMs,
+				isEmptyPoll,
+				minEmptyWriteYieldTimeMs,
+				maxEmptyWriteYieldTimeMs,
+			);
+			const effectiveYieldMs = isEmptyPoll
+				? Math.max(requestedYieldMs, session.nextEmptyPollYieldMs ?? 0)
+				: requestedYieldMs;
 			const waitedMs =
 				session.exitCode === undefined
 					? await waitForExitOrTimeout(
 							session,
-							clampWriteYieldTime(
-								input.yield_time_ms,
-								defaultWriteYieldTimeMs,
-								!input.chars || input.chars.length === 0,
-								minEmptyWriteYieldTimeMs,
-								maxEmptyWriteYieldTimeMs,
-							),
+							effectiveYieldMs,
 							signal,
 							onUpdate ? (elapsedMs) => onUpdate(makeSnapshotSince(session, elapsedMs, updateBaseline, input.max_output_tokens)) : undefined,
 					)
 					: 0;
 			await waitForStartup(session, signal);
 			if (session.started) await pollSession(session, 0);
+			if (isEmptyPoll && (session.exitCode === undefined || session.exitCode === null))
+				session.nextEmptyPollYieldMs = growEmptyPollYield(effectiveYieldMs, maxEmptyWriteYieldTimeMs);
 			return makeExecResult(session, waitedMs, input.max_output_tokens, exposeSession, (sessionId) => sessions.delete(sessionId));
 		},
 		hasSession: (sessionId) => sessions.has(sessionId),
@@ -406,4 +419,8 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			commandHistory.clear();
 		},
 	};
+}
+
+function growEmptyPollYield(currentMs: number, maximumMs: number): number {
+	return Math.min(maximumMs, currentMs * 2);
 }

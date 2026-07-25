@@ -3,11 +3,12 @@ import { CODEX_FALLBACK_SHELL, getCodexRuntimeShell, getDefaultCodexRuntimeShell
 
 const MIN_YIELD_TIME_MS = 250;
 const MIN_NON_INTERACTIVE_EXEC_YIELD_TIME_MS = 5_000;
-const MIN_EMPTY_WRITE_YIELD_TIME_MS = 5_000;
+const MIN_EMPTY_WRITE_YIELD_TIME_MS = 30_000;
 const MAX_YIELD_TIME_MS = 30_000;
+export const MAX_EXEC_YIELD_TIME_MS = 1_800_000;
 export const DEFAULT_EXEC_YIELD_TIME_MS = 10_000;
 export const DEFAULT_WRITE_YIELD_TIME_MS = 250;
-export const DEFAULT_MAX_EMPTY_WRITE_YIELD_TIME_MS = 300_000;
+export const DEFAULT_MAX_EMPTY_WRITE_YIELD_TIME_MS = 1_800_000;
 
 const BASH_SYNC_ENV_KEYS = [
 	"PATH", "SHELL", "HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "BUN_INSTALL", "PNPM_HOME",
@@ -54,14 +55,14 @@ function clampYieldTime(yieldTimeMs: number | undefined, fallback: number): numb
 }
 
 export function normalizeMinNonInteractiveExecYieldTime(value: number | undefined): number {
-	return Math.min(MAX_YIELD_TIME_MS, Math.max(MIN_YIELD_TIME_MS, value ?? MIN_NON_INTERACTIVE_EXEC_YIELD_TIME_MS));
+	return Math.min(MAX_EXEC_YIELD_TIME_MS, Math.max(MIN_YIELD_TIME_MS, value ?? MIN_NON_INTERACTIVE_EXEC_YIELD_TIME_MS));
 }
 
 export function normalizeMinEmptyWriteYieldTime(value: number | undefined): number {
 	return Math.min(MAX_YIELD_TIME_MS, Math.max(MIN_YIELD_TIME_MS, value ?? MIN_EMPTY_WRITE_YIELD_TIME_MS));
 }
 
-export function clampExecYieldTime(yieldTimeMs: number | undefined, fallback: number, isInteractive: boolean, minNonInteractiveExecYieldTimeMs: number, maxYieldTimeMs = MAX_YIELD_TIME_MS): number {
+export function clampExecYieldTime(yieldTimeMs: number | undefined, fallback: number, isInteractive: boolean, minNonInteractiveExecYieldTimeMs: number, maxYieldTimeMs = MAX_EXEC_YIELD_TIME_MS): number {
 	const value = Math.min(maxYieldTimeMs, Math.max(MIN_YIELD_TIME_MS, yieldTimeMs ?? fallback));
 	return isInteractive ? value : Math.min(maxYieldTimeMs, Math.max(minNonInteractiveExecYieldTimeMs, value));
 }

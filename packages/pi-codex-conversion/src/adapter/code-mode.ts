@@ -16,6 +16,7 @@ import { shouldUseGpt56CodeMode } from "./activation/activation.ts";
 import { codeModeImageResult, toNestedTool } from "./code-mode/nested-tool-adapter.ts";
 
 export const CODE_MODE_TOOL_NAMES = ["exec", "wait"] as const;
+const LONG_RUNNING_TOOL_OUTER_YIELD_MS = 1_800_000;
 
 export async function registerCodexCodeMode(
 	pi: ExtensionAPI,
@@ -101,6 +102,7 @@ function createNestedTools(
 				end: (id) => runtime.tracker.recordEnd(id),
 			},
 			{
+				yieldTimeMs: LONG_RUNNING_TOOL_OUTER_YIELD_MS,
 				resultValue(result) {
 					const details = result.details;
 					if (result.content.some((item) => item.type === "image")) {
@@ -125,6 +127,8 @@ function createNestedTools(
 		toNestedTool(
 			createWriteStdinTool(runtime.sessions, options),
 			"await tools.write_stdin({ session_id: number, chars?: string, yield_time_ms?: number, max_output_tokens?: number })",
+			{},
+			{ yieldTimeMs: LONG_RUNNING_TOOL_OUTER_YIELD_MS },
 		),
 	];
 	if (!ctx || supportsViewImageInputs(ctx.model) || runtime.state.config.tools.viewImageFallback) {

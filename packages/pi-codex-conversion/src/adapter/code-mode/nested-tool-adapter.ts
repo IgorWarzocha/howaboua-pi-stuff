@@ -16,6 +16,7 @@ interface NestedToolLifecycle {
 
 interface NestedToolContract {
 	kind?: "function" | "freeform";
+	yieldTimeMs?: number;
 	prepareInput?(input: unknown): unknown;
 	resultError?(result: AgentToolResult<unknown>): string | undefined;
 	resultValue?(result: AgentToolResult<unknown>): unknown;
@@ -36,6 +37,7 @@ export function toNestedTool<TParams extends TSchema, TDetails, TState>(
 		description: tool.description,
 		deferLoading: false,
 		kind,
+		...(contract.yieldTimeMs === undefined ? {} : { yieldTimeMs: contract.yieldTimeMs }),
 		...(kind === "function" ? { inputSchema: tool.parameters } : {}),
 		...(tool.renderCall
 			? {

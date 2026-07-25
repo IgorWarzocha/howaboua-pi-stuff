@@ -12,13 +12,13 @@ export interface CodeModeToolMetadata {
 	description?: string | undefined;
 	output?: string | undefined;
 	deferLoading: boolean;
+	yieldTimeMs?: number | undefined;
 }
 
 export interface CustomToolDefinition extends CodeModeToolMetadata {
 	command: string;
 	args: string[];
 	input: CustomToolInputMode;
-	yieldTimeMs?: number | undefined;
 	sourcePath: string;
 	disabledReason?: string | undefined;
 }

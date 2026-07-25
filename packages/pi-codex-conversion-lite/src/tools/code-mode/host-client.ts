@@ -119,7 +119,7 @@ export class CodeModeHostClient {
 		await this.start();
 		throwIfAborted(signal);
 		const { code, yieldTimeMs, maxOutputTokens } = parseExecSource(source);
-		const effectiveYieldTimeMs = customToolYieldTime(code, tools) ?? yieldTimeMs ?? DEFAULT_CODE_MODE_EXEC_YIELD_MS;
+		const effectiveYieldTimeMs = directToolYieldTime(code, tools) ?? yieldTimeMs ?? DEFAULT_CODE_MODE_EXEC_YIELD_MS;
 		const id = ++this.requestId;
 		const initial = new Promise<unknown>((resolve, reject) =>
 			this.initial.set(id, { resolve, reject }),
@@ -420,22 +420,41 @@ export class CodeModeHostClient {
 
 }
 
-function customToolYieldTime(
+function directToolYieldTime(
 	code: string,
 	tools: CodeModeToolDefinition[],
 ): number | null {
 	const executableCode = maskJavaScriptCommentsAndStrings(code);
 	let forced: number | undefined;
 	for (const tool of tools) {
-		if (!("command" in tool) || tool.yieldTimeMs === undefined) continue;
+		if (tool.yieldTimeMs === undefined) continue;
 		const name = escapeRegExp(tool.name);
 		const directReference = new RegExp(
 			`\\btools\\s*\\.\\s*${name}(?![a-zA-Z0-9_$])\\s*\\(`,
 		);
-		if (!directReference.test(executableCode)) continue;
+		const bracketReference = new RegExp(
+			`\\btools\\s*\\[\\s*(["'])${name}\\1\\s*\\]\\s*\\(`,
+			"g",
+		);
+		if (
+			!directReference.test(executableCode) &&
+			!hasExecutableBracketReference(code, executableCode, bracketReference)
+		) continue;
 		forced = forced === undefined ? tool.yieldTimeMs : Math.max(forced, tool.yieldTimeMs);
 	}
 	return forced ?? null;
+}
+
+function hasExecutableBracketReference(
+	code: string,
+	executableCode: string,
+	pattern: RegExp,
+): boolean {
+	for (const match of code.matchAll(pattern)) {
+		if (match.index !== undefined && executableCode.slice(match.index, match.index + 5) === "tools")
+			return true;
+	}
+	return false;
 }
 
 function maskJavaScriptCommentsAndStrings(code: string): string {

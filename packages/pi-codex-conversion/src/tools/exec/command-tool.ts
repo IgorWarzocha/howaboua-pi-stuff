@@ -15,6 +15,7 @@ import { createApplyPatchTool } from "../apply-patch/tool.ts";
 import { webRunSessionStatePath } from "../web-run/tool.ts";
 import { resolveImageDescriptionModel } from "../view-image/tool.ts";
 import { codexToolProviderEnv, resolveCodexToolProvider } from "../../adapter/codex-tool-provider.ts";
+import { MAX_EXEC_YIELD_TIME_MS } from "./shell.ts";
 export { imageContentFromCodexViewImageOutput, imageContentsFromCodexViewImageOutput } from "../path/outputs.ts";
 
 const EXEC_COMMAND_PARAMETERS = Type.Object({
@@ -375,14 +376,15 @@ export function createExecCommandTool(tracker: ExecCommandTracker, sessions: Exe
 				? { PI_CODEX_VIEW_IMAGE_DESCRIBE: "1", PI_CODEX_VIEW_IMAGE_MODEL: resolveImageDescriptionModel(ctx), ...(pathToolPolicy?.describeImageOutput ? { PI_CODEX_VIEW_IMAGE_STRUCTURED: "1" } : {}) }
 				: undefined;
 			const pathToolEnv = webRunStatePath || codexBackedPathToolEnv || viewImageDescriptionEnv ? { ...codexBackedPathToolEnv, ...viewImageDescriptionEnv, ...(webRunStatePath ? { PI_WEB_RUN_STATE_PATH: webRunStatePath } : {}) } : undefined;
-			const execParams = pathToolPolicy
-				? {
-					...typedParams,
-					...(pathToolEnv ? { env: pathToolEnv } : {}),
-					...(pathToolPolicy.disableTruncation ? { max_output_tokens: Number.MAX_SAFE_INTEGER } : {}),
-					...(pathToolPolicy.yieldTimeMs !== undefined ? { yield_time_ms: pathToolPolicy.yieldTimeMs, max_yield_time_ms: pathToolPolicy.yieldTimeMs } : {}),
-				}
-				: pathToolEnv ? { ...typedParams, env: pathToolEnv } : typedParams;
+			const execParams = {
+				...typedParams,
+				...(pathToolEnv ? { env: pathToolEnv } : {}),
+				...(pathToolPolicy?.disableTruncation ? { max_output_tokens: Number.MAX_SAFE_INTEGER } : {}),
+				...(!typedParams.tty && pathToolPolicy?.yieldTimeMs === undefined
+					? { yield_time_ms: MAX_EXEC_YIELD_TIME_MS, max_yield_time_ms: MAX_EXEC_YIELD_TIME_MS }
+					: {}),
+				...(pathToolPolicy?.yieldTimeMs !== undefined ? { yield_time_ms: pathToolPolicy.yieldTimeMs, max_yield_time_ms: pathToolPolicy.yieldTimeMs } : {}),
+			};
 			const result = await sessions.exec(execParams, ctx.cwd, signal, pathToolPolicy?.suppressPartials ? undefined : onUpdate ? (partial) => onUpdate(toToolResult(partial)) : undefined);
 			if (pathToolPolicy?.parseApplyPatchOutput) {
 				markPathApplyPatchPreviewExit(toolCallId, result.exit_code);

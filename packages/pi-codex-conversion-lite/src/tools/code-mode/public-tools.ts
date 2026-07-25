@@ -23,7 +23,7 @@ import { CODE_MODE_EXEC_CONSTRAINED_SAMPLING } from "./exec-contract.js";
 
 const DEFAULT_WAIT_MS = 10_000;
 const MIN_ADAPTIVE_WAIT_MS = 5_000;
-const MAX_ADAPTIVE_WAIT_MS = 300_000;
+const MAX_ADAPTIVE_WAIT_MS = 1_800_000;
 type RenderTracker = ReturnType<typeof createCodeModeRenderTracker>;
 const EXEC_PARAMETERS = Type.Object({
 	code: Type.String(),

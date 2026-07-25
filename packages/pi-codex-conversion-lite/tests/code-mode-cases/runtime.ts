@@ -45,8 +45,9 @@ text(result);`,
 			"exec-yield-error",
 			{
 				code: `// @exec: {"yield_time_ms": 10}
+const runCommand = tools.exec_command;
 await new Promise((resolve) => setTimeout(resolve, 50));
-await tools.exec_command({ cmd: "printf before-wait-error" });
+await runCommand({ cmd: "printf before-wait-error" });
 throw new Error("expected-wait-boom");`,
 			},
 			undefined,
