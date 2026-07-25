@@ -10,6 +10,7 @@ export interface ExecOutputSessionState {
 	terminalCommitted: string;
 	terminalLine: string[];
 	terminalCursor: number;
+	terminalPendingControl: string;
 }
 
 function maxCharsForTokens(maxOutputTokens = DEFAULT_MAX_OUTPUT_TOKENS): number {
@@ -49,7 +50,8 @@ function writeTerminalChar(session: ExecOutputSessionState, char: string): void 
 }
 
 export function applyTerminalOutput(session: ExecOutputSessionState, text: string): string {
-	const sanitized = stripTerminalControlSequences(text, true);
+	const sanitized = stripTerminalControlSequences(`${session.terminalPendingControl}${text}`, true);
+	session.terminalPendingControl = "";
 	if (sanitized.length === 0) return session.terminalCommitted + session.terminalLine.join("");
 
 	for (let index = 0; index < sanitized.length; index += 1) {
@@ -62,7 +64,10 @@ export function applyTerminalOutput(session: ExecOutputSessionState, text: strin
 					if (code >= 0x40 && code <= 0x7e) break;
 					sequenceEnd += 1;
 				}
-				if (sequenceEnd >= sanitized.length) break;
+				if (sequenceEnd >= sanitized.length) {
+					session.terminalPendingControl = sanitized.slice(index);
+					break;
+				}
 				const params = sanitized.slice(index + 2, sequenceEnd);
 				const finalByte = sanitized[sequenceEnd]!;
 				if (finalByte === "K") {
@@ -104,6 +109,26 @@ export function applyTerminalOutput(session: ExecOutputSessionState, text: strin
 	}
 
 	return session.terminalCommitted + session.terminalLine.join("");
+}
+
+export function boundTerminalOutput(session: ExecOutputSessionState, maxChars: number): { output: string; rebased: boolean } {
+	const lineLength = session.terminalLine.length;
+	let rebased = false;
+	if (lineLength >= maxChars) {
+		const removed = lineLength - maxChars;
+		session.terminalLine = session.terminalLine.slice(removed);
+		session.terminalCursor = Math.max(0, Math.min(session.terminalLine.length, session.terminalCursor - removed));
+		if (session.terminalCommitted.length > 0) rebased = true;
+		session.terminalCommitted = "";
+		rebased ||= removed > 0;
+	} else {
+		const committedLimit = maxChars - lineLength;
+		if (session.terminalCommitted.length > committedLimit) {
+			session.terminalCommitted = session.terminalCommitted.slice(-committedLimit);
+			rebased = true;
+		}
+	}
+	return { output: session.terminalCommitted + session.terminalLine.join(""), rebased };
 }
 
 function computePtyDelta(previous: string, current: string): string {

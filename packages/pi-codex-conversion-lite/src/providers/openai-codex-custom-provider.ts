@@ -68,13 +68,14 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 	options: OpenAICodexStreamOptions,
 	deps: {
 		getConfig?: () => Pick<CodexConversionConfig, "openai" | "beta"> | undefined;
+		useResponsesLite?: (model: Model<Api>) => boolean;
 		turnState?: CodexTurnState | undefined;
 	},
 ): Promise<void> {
 	const runtimeConfig = deps.getConfig?.();
 	if (getEffectiveCodexTransport(options.transport, runtimeConfig?.openai) === "sse") return;
 	if (!options.apiKey || !options.sessionId) return;
-	const responsesLite = runtimeConfig?.beta.codeMode === true && supportsResponsesLiteModel(model.id);
+	const responsesLite = deps.useResponsesLite?.(model) ?? (runtimeConfig?.beta.codeMode === true && supportsResponsesLiteModel(model.id));
 	const grammarToolInputProperties = createGrammarToolInputProperties(context.tools, responsesLite);
 	const effectiveOptions = { ...options, grammarToolInputProperties };
 	const body = await prepareCodexRequestBody(model, context, effectiveOptions, responsesLite);
@@ -97,12 +98,13 @@ function createCodexStream<TApi extends Api>(
 	options: CodexProviderStreamOptions | undefined,
 	deps: {
 		getConfig?: () => Pick<CodexConversionConfig, "openai" | "beta"> | undefined;
+		useResponsesLite?: (model: Model<Api>) => boolean;
 		turnState?: CodexTurnState | undefined;
 		onStreamSettled?: () => void | undefined;
 	},
 ): AssistantMessageEventStream {
 	const runtimeConfig = deps.getConfig?.();
-	const responsesLite = runtimeConfig?.beta.codeMode === true && supportsResponsesLiteModel(model.id);
+	const responsesLite = deps.useResponsesLite?.(model) ?? (runtimeConfig?.beta.codeMode === true && supportsResponsesLiteModel(model.id));
 	const grammarToolInputProperties = createGrammarToolInputProperties(context.tools, responsesLite);
 	const effectiveTransport = getEffectiveCodexTransport(options?.transport, runtimeConfig?.openai);
 	const effectiveOptions: OpenAICodexStreamOptions | undefined = options
@@ -274,12 +276,13 @@ function createCodexStream<TApi extends Api>(
 	return stream;
 }
 
-export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: { getConfig?: () => Pick<CodexConversionConfig, "openai" | "beta"> | undefined; turnState?: CodexTurnState | undefined }): void {
+export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: { getConfig?: () => Pick<CodexConversionConfig, "openai" | "beta"> | undefined; useResponsesLite?: (model: Model<Api>) => boolean; turnState?: CodexTurnState | undefined }): void {
 	pi.registerProvider("openai-codex", {
 		api: "openai-codex-responses",
 		oauth: openaiCodexNativeOAuthProvider,
 		streamSimple: (model, context, streamOptions) => createCodexStream(model, context, streamOptions, {
 			...(options.getConfig ? { getConfig: options.getConfig } : {}),
+			...(options.useResponsesLite ? { useResponsesLite: options.useResponsesLite } : {}),
 			...(options.turnState ? { turnState: options.turnState } : {}),
 		}),
 	});

@@ -94,6 +94,7 @@ export type SerializeResponsesMessagesOptions = {
 	instructions?: string | undefined;
 	includeInstructionsInInput?: boolean | undefined;
 	blockImages?: boolean | undefined;
+	grammarToolInputProperties?: ReadonlyMap<string, string> | undefined;
 };
 
 export type ResponsesParityReport = {
@@ -144,10 +145,11 @@ export function serializeActiveSessionToResponsesInput<TApi extends Api>(args: {
 	model: Model<TApi>;
 	entries: SessionEntry[];
 	leafId?: string | null | undefined;
+	options?: SerializeResponsesMessagesOptions | undefined;
 }): ResponsesInputItem[] {
 	const messages = buildSessionContext(args.entries, args.leafId).messages
 		.filter((message) => !isAdapterContextExcludedCustomMessage(message));
-	return serializeMessagesToResponsesInput(args.model, messages);
+	return serializeMessagesToResponsesInput(args.model, messages, args.options);
 }
 
 export function serializeMessagesToResponsesInput<TApi extends Api>(
@@ -163,7 +165,10 @@ export function serializeMessagesToResponsesInput<TApi extends Api>(
 			...(options.includeInstructionsInInput && options.instructions ? { systemPrompt: options.instructions } : {}),
 		},
 		CODEX_TOOL_CALL_PROVIDERS,
-		{ includeSystemPrompt: options.includeInstructionsInInput ?? false },
+		{
+			includeSystemPrompt: options.includeInstructionsInInput ?? false,
+			...(options.grammarToolInputProperties ? { grammarToolInputProperties: options.grammarToolInputProperties } : {}),
+		},
 	) as ResponsesInputItem[];
 }
 

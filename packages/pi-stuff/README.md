@@ -13,6 +13,6 @@ This installs:
 - extensions: `pi-ask`, `pi-auto-reasoning-tool`, `pi-auto-trees`, `pi-cache-hit-predictor`, `pi-dynamic-tools`, `pi-explore-subagents`, `pi-gpt-switcher`, `pi-markdown-workflows`, `pi-memories`, `pi-semantic-grep`, `pi-smart-btw`, `pi-subagent-review`, and `pi-vent`
 - skills: `adversarial-qa`, `agent-native-hardening`, `agents-md`, `anti-ai-copy`, `chrome-cdp`, `gh-issue-pr-flow`, `model-facing-api-design`, `project-reference-research`, and `skill-creator`
 
-`pi-codex-conversion` and `omarchy-help` are intentionally separate because they depend on model and workstation choices.
+The Codex conversion packages and `omarchy-help` are intentionally separate because they depend on model and workstation choices.
 
 Install `@howaboua/pi-extensions`, `@howaboua/pi-skills`, or an individual package when you want a smaller setup.

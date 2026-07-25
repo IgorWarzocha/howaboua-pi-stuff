@@ -7,7 +7,6 @@ import { canonicalCompactionOutput, normalizeRemoteCompactionV2PromptInput } fro
 import { withRemoteCompactionV2Feature } from "../../providers/openai-responses/compaction-v2-feature.ts";
 import type { OpenAICodexStreamOptions, ResponsesBody } from "../../providers/openai-codex/types.ts";
 import { sleep } from "../../providers/openai-codex/sse.ts";
-import { streamCodeModeResponsesProxy } from "../../providers/code-mode-proxy-provider.ts";
 
 const MAX_STREAM_RETRIES = 2;
 type V2Stream = (model: Model<Api>, context: Context, options?: SimpleStreamOptions) => AsyncIterable<unknown>;
@@ -35,8 +34,11 @@ function resolveStream(options: ExecuteRemoteCompactionV2Options): V2Stream | un
 			? registration.streamSimple as V2Stream
 			: undefined;
 	}
-	if (options.runtime.api !== "openai-responses") return undefined;
-	return streamCodeModeResponsesProxy as V2Stream;
+	return options.runtime.api === "openai-responses"
+		&& registration?.api === "openai-responses"
+		&& registration.streamSimple
+		? registration.streamSimple as V2Stream
+		: undefined;
 }
 
 function isAborted(signal: AbortSignal | undefined, message: string): boolean {

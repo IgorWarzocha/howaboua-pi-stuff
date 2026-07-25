@@ -2,7 +2,7 @@ import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 import type { ResponsesCompatibleRequestPayload } from "../compaction/compaction-runtime.ts";
-import { serializeMessagesToResponsesInput, type ResponsesInputItem } from "../compaction/serializer.js";
+import { serializeMessagesToResponsesInput, type ResponsesInputItem, type SerializeResponsesMessagesOptions } from "../compaction/serializer.js";
 import { areEquivalentValues, cloneResponsesInputSlice } from "./payload-structured.ts";
 import type { FreshAuthoritativePreamble } from "./payload-preamble.ts";
 import type { NativeCompactionEntry } from "../compaction/types.js";
@@ -70,22 +70,23 @@ export function createReplaySlice(
 	};
 }
 
-function createReplayMessageSet<TApi extends Api>(model: Model<TApi>, messages: AgentMessage[]): ReplayMessageSet {
+function createReplayMessageSet<TApi extends Api>(model: Model<TApi>, messages: AgentMessage[], options?: SerializeResponsesMessagesOptions): ReplayMessageSet {
 	return {
 		messages,
-		input: serializeMessagesToResponsesInput(model, messages),
+		input: serializeMessagesToResponsesInput(model, messages, options),
 	};
 }
 
 function createReplayVariants<TApi extends Api>(args: {
 	model: Model<TApi>;
 	entries: readonly SessionEntry[];
+	serializationOptions?: SerializeResponsesMessagesOptions | undefined;
 }): ReplayMessageSet[] {
 	const contextMessages = collectReplayMessages(args.entries);
 	const piMessages = collectPiReplayMessages(args.entries);
-	const contextSet = createReplayMessageSet(args.model, contextMessages);
+	const contextSet = createReplayMessageSet(args.model, contextMessages, args.serializationOptions);
 	if (areEquivalentValues(contextMessages, piMessages)) return [contextSet];
-	return [contextSet, createReplayMessageSet(args.model, piMessages)];
+	return [contextSet, createReplayMessageSet(args.model, piMessages, args.serializationOptions)];
 }
 
 function clonePayloadConversationInput(args: {
@@ -135,13 +136,14 @@ export function findReplayMatch<TApi extends Api>(args: {
 	compactionSummaryMessage: AgentMessage;
 	preCompactionEntries: readonly SessionEntry[];
 	postCompactionEntries: readonly SessionEntry[];
+	serializationOptions?: SerializeResponsesMessagesOptions | undefined;
 }): ReplayMatch | undefined {
-	const compactionSummaryInput = serializeMessagesToResponsesInput(args.model, [args.compactionSummaryMessage]);
+	const compactionSummaryInput = serializeMessagesToResponsesInput(args.model, [args.compactionSummaryMessage], args.serializationOptions);
 	const preCompactionVariants = [
-		...createReplayVariants({ model: args.model, entries: args.preCompactionEntries }),
-		createReplayMessageSet(args.model, []),
+		...createReplayVariants({ model: args.model, entries: args.preCompactionEntries, serializationOptions: args.serializationOptions }),
+		createReplayMessageSet(args.model, [], args.serializationOptions),
 	];
-	const postCompactionVariants = createReplayVariants({ model: args.model, entries: args.postCompactionEntries });
+	const postCompactionVariants = createReplayVariants({ model: args.model, entries: args.postCompactionEntries, serializationOptions: args.serializationOptions });
 
 	for (const preCompactionKept of preCompactionVariants) {
 		for (const postCompactionTail of postCompactionVariants) {

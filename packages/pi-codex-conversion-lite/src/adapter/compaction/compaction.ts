@@ -8,6 +8,7 @@ import {
 	serializeActiveSessionToResponsesInput,
 	type NativeCompactionRequestOptions,
 	type ResponsesInputItem,
+	type SerializeResponsesMessagesOptions,
 } from "./serializer.ts";
 import { createNativeCompactionDetails, createNativeCompactionShimResult, NATIVE_COMPACTION_SHIM_SUMMARY, type NativeCompactionEntry } from "../compaction/types.ts";
 import { isResponsesContext } from "../prompt/codex-model.ts";
@@ -15,6 +16,7 @@ import { resolveCodexRuntimePlan } from "../activation/runtime-plan.ts";
 import type { AdapterState } from "../activation/state.ts";
 import { executeRemoteCompactionV2 } from "./remote-v2-client.ts";
 import { buildRemoteCompactionV2Window } from "./remote-v2-history.ts";
+import { CODE_MODE_EXEC_CONSTRAINED_SAMPLING, CODE_MODE_EXEC_GRAMMAR_INPUTS } from "../../tools/code-mode/exec-contract.ts";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === "object" && !Array.isArray(value);
@@ -50,16 +52,21 @@ function cloneCompactedWindow(window: readonly unknown[]): ResponsesInputItem[] 
 	return window.map((item) => structuredClone(item));
 }
 
-function getActiveCompactionTools(pi: ExtensionAPI): Tool[] {
+function getActiveCompactionTools(pi: ExtensionAPI, codeMode = false): Tool[] {
 	const activeToolNames = new Set(pi.getActiveTools());
 	return pi
 		.getAllTools()
 		.filter((tool) => activeToolNames.has(tool.name))
-		.map((tool): Tool => ({ name: tool.name, description: tool.description, parameters: tool.parameters }));
+		.map((tool): Tool => ({
+			name: tool.name,
+			description: tool.description,
+			parameters: tool.parameters,
+			...(codeMode && tool.name === "exec" ? { constrainedSampling: CODE_MODE_EXEC_CONSTRAINED_SAMPLING } : {}),
+		}));
 }
 
-function buildCompactionTools(pi: ExtensionAPI): unknown[] | undefined {
-	const tools = getActiveCompactionTools(pi);
+function buildCompactionTools(pi: ExtensionAPI, codeMode: boolean): unknown[] | undefined {
+	const tools = getActiveCompactionTools(pi, codeMode);
 	if (tools.length === 0) return undefined;
 	return convertResponsesTools(tools, { strict: null });
 }
@@ -98,8 +105,8 @@ function clampOpenAIPromptCacheKey(key: string): string {
 	return chars.slice(0, OPENAI_PROMPT_CACHE_KEY_MAX_LENGTH).join("");
 }
 
-function buildCompactionRequestOptions(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState, compactionTargetModel: Model<Api>): NativeCompactionRequestOptions {
-	const tools = buildCompactionTools(pi);
+function buildCompactionRequestOptions(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState, compactionTargetModel: Model<Api>, codeMode: boolean): NativeCompactionRequestOptions {
+	const tools = buildCompactionTools(pi, codeMode);
 	const reasoning = buildCompactionReasoning(pi, ctx, state, compactionTargetModel);
 	return {
 		parallel_tool_calls: true,
@@ -148,6 +155,7 @@ export function buildNativeCompactionInput(args: {
 	allEntries: SessionEntry[];
 	leafId?: string | null | undefined;
 	latestNativeCompaction: LatestNativeCompactionResolution;
+	serializationOptions?: SerializeResponsesMessagesOptions | undefined;
 }): { input: ResponsesInputItem[]; compactedKeptWindow: boolean } | undefined {
 	if (args.latestNativeCompaction.ok) {
 		const compactedWindow = cloneCompactedWindow(args.latestNativeCompaction.entry.details?.compactedWindow ?? []);
@@ -156,7 +164,7 @@ export function buildNativeCompactionInput(args: {
 		return {
 			input: [
 				...compactedWindow,
-				...serializeLiveTailToResponsesInput({ model: args.model, entries: liveTailEntries }),
+				...serializeLiveTailToResponsesInput({ model: args.model, entries: liveTailEntries, serializationOptions: args.serializationOptions }),
 			],
 			compactedKeptWindow: false,
 		};
@@ -167,6 +175,7 @@ export function buildNativeCompactionInput(args: {
 			model: args.model,
 			entries: args.allEntries,
 			leafId: args.leafId,
+			options: args.serializationOptions,
 		}),
 		compactedKeptWindow: true,
 	};
@@ -187,7 +196,8 @@ export async function handleCodexSessionBeforeCompact(event: SessionBeforeCompac
 }
 
 async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactEvent, ctx: ExtensionContext, state: AdapterState, pi: ExtensionAPI) {
-	if (!resolveCodexRuntimePlan(ctx, state.config).effectiveOpenAICodex && !isResponsesContext(ctx)) {
+	const plan = resolveCodexRuntimePlan(ctx, state.config);
+	if (!plan.effectiveOpenAICodex && !isResponsesContext(ctx)) {
 		ctx.ui.notify("OpenAI native compaction is enabled, but the current model is not Responses-compatible; Pi compaction was not run.", "error");
 		return { cancel: true };
 	}
@@ -204,7 +214,9 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 
 	const runtime = resolution.runtime;
 	const compactionTargetModel = runtime.currentModel;
-	const requestOptions = buildCompactionRequestOptions(pi, ctx, state, compactionTargetModel);
+	const codeMode = plan.kind === "code";
+	const serializationOptions = codeMode ? { grammarToolInputProperties: CODE_MODE_EXEC_GRAMMAR_INPUTS } : undefined;
+	const requestOptions = buildCompactionRequestOptions(pi, ctx, state, compactionTargetModel, codeMode);
 	const branchEntries = ctx.sessionManager.getBranch();
 	const latestNativeCompaction = resolveLatestNativeCompactionEntry(branchEntries, {
 		provider: runtime.provider,
@@ -221,6 +233,7 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 		allEntries: ctx.sessionManager.getEntries(),
 		leafId: ctx.sessionManager.getLeafId(),
 		latestNativeCompaction,
+		serializationOptions,
 	});
 	if (!builtInput) {
 		ctx.ui.notify("OpenAI native compaction could not clone the previous compacted window; Pi compaction was not run.", "error");
@@ -235,7 +248,7 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 	if (event.customInstructions?.trim()) {
 		ctx.ui.notify("Responses compaction v2 uses the active session instructions and ignores custom /compact guidance.", "warning");
 	}
-	const tools = getActiveCompactionTools(pi);
+	const tools = getActiveCompactionTools(pi, codeMode);
 	const context: Context = {
 		systemPrompt: ctx.getSystemPrompt(),
 		messages: [],
@@ -294,7 +307,13 @@ export async function rewriteCodexCompactedProviderRequest(payload: unknown, ctx
 	if (latestNativeCompactionIndex === undefined) return undefined;
 	if (!runtime.payload) return undefined;
 	const compactionEntry = branchEntries[latestNativeCompactionIndex]! as NativeCompactionEntry;
-	const rewrite = rewriteResponsesPayloadWithNativeReplay({ model: runtime.currentModel, payload: runtime.payload, branchEntries, compactionEntry });
+	const rewrite = rewriteResponsesPayloadWithNativeReplay({
+		model: runtime.currentModel,
+		payload: runtime.payload,
+		branchEntries,
+		compactionEntry,
+		serializationOptions: plan.kind === "code" ? { grammarToolInputProperties: CODE_MODE_EXEC_GRAMMAR_INPUTS } : undefined,
+	});
 	if (rewrite.ok) return rewrite.rewrittenPayload;
 	const detail = rewrite.parity?.mismatches.slice(0, 3).join("; ");
 	const message = `OpenAI native compaction replay failed (${rewrite.reason})${detail ? `: ${detail}` : ""}; request was not sent with placeholder compaction context.`;

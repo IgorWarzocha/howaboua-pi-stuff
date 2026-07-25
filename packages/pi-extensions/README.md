@@ -24,6 +24,6 @@ pi install npm:@howaboua/pi-extensions
 - `pi-subagent-review` — isolated review subagents through `/review`
 - `pi-vent` — repeated workflow-friction notes in `VENT.md`
 
-`pi-codex-conversion` is not included because it changes the tool surface for GPT/Codex models. Install it separately when you want that behavior.
+The Codex conversion packages are not included because they change the GPT/Codex tool surface. Install one separately when you want that behavior.
 
 Installing this bundle loads every extension above. Install individual packages instead if you only want part of the set.

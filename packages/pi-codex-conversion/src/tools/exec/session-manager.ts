@@ -1,6 +1,7 @@
+import { StringDecoder } from "node:string_decoder";
 import { getCodexShellArgs } from "../../adapter/prompt/runtime-shell.ts";
-import { applyTerminalOutput, normalizePipeOutput } from "./output.ts";
-import { chunkToText, createExecBridgeClient, type BridgeReadResponse } from "./bridge-client.ts";
+import { applyTerminalOutput, boundTerminalOutput, normalizePipeOutput } from "./output.ts";
+import { chunkToBytes, createExecBridgeClient, type BridgeReadResponse } from "./bridge-client.ts";
 import { DEFAULT_EXEC_YIELD_TIME_MS, DEFAULT_MAX_EMPTY_WRITE_YIELD_TIME_MS, DEFAULT_WRITE_YIELD_TIME_MS, clampExecYieldTime, clampWriteYieldTime, normalizeMinEmptyWriteYieldTime, normalizeMinNonInteractiveExecYieldTime, resolveExecution, resolveShell, resolveWorkdir } from "./shell.ts";
 import { registerAbortHandler, waitForExitOrTimeout } from "./wait.ts";
 import { makeExecResult, makeSnapshotResult, makeSnapshotSince, snapshotSession } from "./results.ts";
@@ -72,6 +73,9 @@ interface RustExecSession extends BaseExecSession {
 	terminalCommitted: string;
 	terminalLine: string[];
 	terminalCursor: number;
+	terminalPendingControl: string;
+	outputDecoders: Record<"stdout" | "stderr" | "pty", StringDecoder>;
+	outputDecodersFlushed: boolean;
 }
 
 type ExecSession = RustExecSession;
@@ -183,9 +187,15 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 
 	function appendOutput(session: ExecSession, text: string): void {
 		if (text.length === 0) return;
-		session.buffer =
-			session.tty ? applyTerminalOutput(session, text) : `${session.buffer}${normalizePipeOutput(text)}`;
-		if (session.buffer.length > maxSessionBufferChars) {
+		if (session.tty) {
+			applyTerminalOutput(session, text);
+			const bounded = boundTerminalOutput(session, maxSessionBufferChars);
+			session.buffer = bounded.output;
+			if (bounded.rebased) session.emittedBuffer = "";
+		} else {
+			session.buffer += normalizePipeOutput(text);
+		}
+		if (!session.tty && session.buffer.length > maxSessionBufferChars) {
 			session.buffer = session.buffer.slice(-maxSessionBufferChars);
 			session.emittedBuffer = "";
 		}
@@ -205,13 +215,17 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			wait_ms: waitMs,
 		});
 		for (const chunk of response.chunks ?? []) {
-			appendOutput(session, chunkToText(chunk.chunk));
+			appendOutput(session, session.outputDecoders[chunk.stream].write(chunkToBytes(chunk.chunk)));
 			session.lastSeq = Math.max(session.lastSeq, chunk.seq);
 		}
 		session.lastSeq = Math.max(session.lastSeq, response.nextSeq - 1);
 		// Process exit can race ahead of the stdout/stderr readers. Only publish
 		// the terminal state once the bridge confirms every output stream closed.
 		if (response.closed) {
+			if (!session.outputDecodersFlushed) {
+				session.outputDecodersFlushed = true;
+				for (const decoder of Object.values(session.outputDecoders)) appendOutput(session, decoder.end());
+			}
 			setClosedExitCode(session, response.exitCode);
 			finalizeSession(session);
 		}
@@ -240,6 +254,13 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			terminalCommitted: "",
 			terminalLine: [],
 			terminalCursor: 0,
+			terminalPendingControl: "",
+			outputDecoders: {
+				stdout: new StringDecoder("utf8"),
+				stderr: new StringDecoder("utf8"),
+				pty: new StringDecoder("utf8"),
+			},
+			outputDecodersFlushed: false,
 		};
 		session.processId = `pi-${session.id}`;
 		session.startup = (async () => {

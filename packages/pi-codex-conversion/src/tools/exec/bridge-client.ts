@@ -129,6 +129,6 @@ export function createExecBridgeClient(): ExecBridgeClient {
 	};
 }
 
-export function chunkToText(chunk: string): string {
-	return Buffer.from(chunk, "base64").toString("utf8");
+export function chunkToBytes(chunk: string): Buffer {
+	return Buffer.from(chunk, "base64");
 }

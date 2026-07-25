@@ -2,3 +2,4 @@
 - Code Mode `exec` uses Pi grammar constrained sampling end-to-end; keep normal mode function-only for parallel tool calls and never restore request-payload contract surgery.
 - Cross-provider replay keeps stable type-correct item IDs (`ctc_*` custom, `fc_*` function) for model switching and cache continuity.
 - Configured Code Mode proxies own idempotent Responses Lite relocation/header; never depend on `onPayload`.
+- Configured-provider compaction uses its registered plan-aware stream; Code Mode compaction/replay carries the owned `exec` grammar contract.

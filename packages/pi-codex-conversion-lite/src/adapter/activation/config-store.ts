@@ -8,6 +8,21 @@ import { DEFAULT_CODEX_CONVERSION_CONFIG, normalizeCodexConversionConfig, type C
 // package does not require a reset or a second settings file.
 export const CODEX_CONVERSION_CONFIG_BASENAME = "pi-codex-conversion.json";
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function mergeConfigDocument(existing: Record<string, unknown>, owned: Record<string, unknown>): Record<string, unknown> {
+	const merged = { ...existing };
+	for (const [key, value] of Object.entries(owned)) {
+		const previous = merged[key];
+		merged[key] = isRecord(previous) && isRecord(value)
+			? mergeConfigDocument(previous, value)
+			: value;
+	}
+	return merged;
+}
+
 export function getCodexConversionConfigPath(agentDir: string = getAgentDir()): string {
 	return join(agentDir, CODEX_CONVERSION_CONFIG_BASENAME);
 }
@@ -32,7 +47,17 @@ export function writeCodexConversionConfig(
 	const temporaryPath = `${configPath}.${process.pid}.${Date.now()}.tmp`;
 	try {
 		mkdirSync(dirname(configPath), { recursive: true });
-		writeFileSync(temporaryPath, `${JSON.stringify(normalizeCodexConversionConfig(config), null, 2)}\n`, {
+		const normalized = normalizeCodexConversionConfig(config) as unknown as Record<string, unknown>;
+		let document = normalized;
+		if (existsSync(configPath)) {
+			try {
+				const existing = JSON.parse(readFileSync(configPath, "utf-8")) as unknown;
+				if (isRecord(existing)) document = mergeConfigDocument(existing, normalized);
+			} catch {
+				// A valid explicit settings write replaces an unreadable document.
+			}
+		}
+		writeFileSync(temporaryPath, `${JSON.stringify(document, null, 2)}\n`, {
 			encoding: "utf-8",
 			mode: 0o600,
 		});

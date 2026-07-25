@@ -8,6 +8,7 @@ import { createCodexExtensionRuntime } from "./runtime.ts";
 import { registerCodexTools } from "./tools.ts";
 import { registerCodexUi } from "./ui.ts";
 import { registerCodexVoiceRenderer } from "../voice/ui.ts";
+import { shouldUseGpt56CodeMode } from "../adapter/activation/activation.ts";
 
 export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 	registerCodexVoiceRenderer(pi);
@@ -17,6 +18,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 	try {
 		registerOpenAICodexCustomProvider(pi, {
 			getConfig: () => ({ openai: runtime.state.config.openai, beta: runtime.state.config.beta }),
+			useResponsesLite: (model) => shouldUseGpt56CodeMode({ model }, runtime.state.config),
 			turnState: runtime.state.codexTurnState,
 		});
 		const proxyProvider = registerCodeModeProxyProvider(pi, () => runtime.state.config);

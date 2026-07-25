@@ -111,7 +111,11 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 						...(state.config.openai.fast ? { serviceTier: "priority" as const } : {}),
 						onPayload: (body) => rewriteCodexProviderRequest(body, ctx, state),
 					},
-					{ getConfig: () => ({ openai: state.config.openai, beta: state.config.beta }), turnState: state.codexTurnState },
+					{
+						getConfig: () => ({ openai: state.config.openai, beta: state.config.beta }),
+						useResponsesLite: (currentModel) => resolveCodexRuntimePlan({ model: currentModel }, state.config).kind === "code",
+						turnState: state.codexTurnState,
+					},
 				);
 				if (!controller.signal.aborted) websocketPrewarmed = true;
 			})().catch((error: unknown) => {
