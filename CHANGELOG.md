@@ -131,11 +131,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-skill-adversarial-qa/CHANGELOG.md)
 
-### @howaboua/pi-skill-agent-native-hardening — 0.0.5
+### @howaboua/pi-skill-agent-native-hardening — 0.0.6
 
 ### Changes
 
-- [#126](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/126) [`8983df4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8983df436423fdc2933863611285946dd0319cf5) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Make skill descriptions terse semantic indexes and remove redundant job restatements from operational bodies.
+- [#166](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/166) [`5118fd9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/5118fd9c29c050316a4fa1cf9122b501710e7056) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add execution-topology hardening guidance for agent-navigable call stacks and measured import, initialization, startup, and bundle performance.
 
 [Full changelog](./packages/pi-skill-agent-native-hardening/CHANGELOG.md)
 
@@ -203,16 +203,16 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-skill-skill-creator/CHANGELOG.md)
 
-### @howaboua/pi-skills — 0.0.11
+### @howaboua/pi-skills — 0.0.12
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-skill-model-facing-api-design: Document model-facing punctuation and token-cost hygiene.
+  - @howaboua/pi-skill-agent-native-hardening: Add execution-topology hardening guidance for agent-navigable call stacks and measured import, initialization, startup, and bundle performance.
 
-- Updated dependencies [[`94b2252`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/94b225295be07e04206460963fd3da754a74565e)]:
-  - @howaboua/pi-skill-model-facing-api-design@0.0.5
+- Updated dependencies [[`5118fd9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/5118fd9c29c050316a4fa1cf9122b501710e7056)]:
+  - @howaboua/pi-skill-agent-native-hardening@0.0.6
 
 [Full changelog](./packages/pi-skills/CHANGELOG.md)
 
@@ -224,13 +224,16 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.33
+### @howaboua/pi-stuff — 0.0.34
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-gpt-switcher: Add `/sol`, `/terra`, and `/luna` commands for switching GPT-5.6 Codex models and reasoning levels.
+  - @howaboua/pi-skill-agent-native-hardening: Add execution-topology hardening guidance for agent-navigable call stacks and measured import, initialization, startup, and bundle performance.
+
+- Updated dependencies [[`5118fd9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/5118fd9c29c050316a4fa1cf9122b501710e7056)]:
+  - @howaboua/pi-skill-agent-native-hardening@0.0.6
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 

@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-stuff",
-	"version": "0.0.33",
+	"version": "0.0.34",
 	"description": "all Howaboua Pi extensions and skills",
 	"type": "module",
 	"keywords": [
@@ -24,7 +24,7 @@
 		"@howaboua/pi-memories": "0.1.4",
 		"@howaboua/pi-semantic-grep": "0.1.18",
 		"@howaboua/pi-skill-adversarial-qa": "0.0.1",
-		"@howaboua/pi-skill-agent-native-hardening": "0.0.5",
+		"@howaboua/pi-skill-agent-native-hardening": "0.0.6",
 		"@howaboua/pi-skill-agents-md": "0.0.4",
 		"@howaboua/pi-skill-anti-ai-copy": "0.0.4",
 		"@howaboua/pi-skill-chrome-cdp": "0.0.4",
