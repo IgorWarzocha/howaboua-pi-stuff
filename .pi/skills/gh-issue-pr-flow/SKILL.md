@@ -64,6 +64,8 @@ Keep a permanent test only when it catches a plausible future defect that existi
 
 Cull literal or ordinary-copy locks, patch-mirroring expectations, near-duplicates, datatype-derived edge-case confetti, type-system guarantees, weak assertions that merely execute lines, incidental snapshots, private structure or call choreography, tests for impossible inputs, duplicate coverage, and supposed regressions that already passed before the fix. Mock only real external boundaries; never mock the behavior under test. Prefer outcomes over call counts and order.
 
+The cull unit is a complete test case. Do not rescue a theatre test by shaving assertions or sub-scenarios; delete the case unless what remains independently clears the gate. Report complete cases deleted separately from assertions or sub-scenarios removed. If zero complete cases were deleted, say zero; never call assertion cleanup “tests culled.”
+
 Verification does not imply a permanent test. Use the cheapest fitting evidence: existing tests, type check, lint, build, direct invocation, browser or screenshot check, or inspection. No test survives merely because it has already been written.
 
 ## GitHub writing
