@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-stuff",
-	"version": "0.0.37",
+	"version": "0.0.38",
 	"description": "all Howaboua Pi extensions and skills",
 	"type": "module",
 	"keywords": [

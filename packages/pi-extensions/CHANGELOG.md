@@ -1,5 +1,13 @@
 # @howaboua/pi-extensions
 
+## 0.0.36
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-codex-conversion-lite: Keep web_run requests isolated to explicit search and navigation arguments instead of leaking conversation context into search answers.
+
 ## 0.0.35
 
 ### Changes
