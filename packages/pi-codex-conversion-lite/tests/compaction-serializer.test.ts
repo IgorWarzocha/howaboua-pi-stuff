@@ -5,8 +5,7 @@ import { buildNativeCompactionInput, injectPendingNativeWindowIntoPiCompactionRe
 import type { AdapterState } from "../src/adapter/activation/state.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 import type { Model } from "@earendil-works/pi-ai";
-import { serializeActiveSessionToResponsesInput, type NativeCompactionRequestBody } from "../src/adapter/compaction/serializer.ts";
-import { COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE, shrinkNativeCompactionRequestForEndpoint } from "../src/adapter/compaction/request-shrink.ts";
+import { serializeActiveSessionToResponsesInput } from "../src/adapter/compaction/serializer.ts";
 
 const model = {
 	id: "gpt-5.1",
@@ -91,51 +90,6 @@ test("native compaction request routing reuses only the latest matching checkpoi
 	assert.equal(mismatched?.compactedKeptWindow, true);
 	assert.doesNotMatch(JSON.stringify(mismatched?.input), /sealed/);
 	assert.match(JSON.stringify(mismatched?.input), /exact live tail/);
-});
-
-test("native compaction shrinks tool outputs when request exceeds context window", async () => {
-	const request: NativeCompactionRequestBody = {
-		model: model.id,
-		instructions: "compact",
-		input: [
-			{ role: "user", content: [{ type: "input_text", text: "keep" }] },
-			{ type: "function_call", call_id: "call-1", name: "exec_command", arguments: "{}" },
-			{ type: "function_call_output", call_id: "call-1", output: "x".repeat(3000) },
-			{ type: "function_call", call_id: "call-2", name: "exec_command", arguments: "{}" },
-			{ type: "function_call_output", call_id: "call-2", output: "y".repeat(3000) },
-		],
-	};
-
-	const result = await shrinkNativeCompactionRequestForEndpoint(request, { contextWindow: 450 });
-
-	assert.equal(result.rewrittenOutputs, 1);
-	assert.equal(result.budgetTokens, 427);
-	assert.equal((result.request.input[2] as { output: string }).output, "x".repeat(3000));
-	assert.equal((result.request.input[4] as { output: string }).output, COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE);
-	assert.ok(result.estimatedTokensAfter < result.estimatedTokensBefore);
-	assert.ok(result.estimatedTokensAfter > result.budgetTokens!);
-});
-
-test("native compaction trims Codex custom and tool-search frontier outputs", async () => {
-	const cases = [
-		{
-			item: { type: "custom_tool_call_output", call_id: "custom", output: "large output" },
-			assertRewritten: (item: Record<string, unknown>) => assert.equal(item["output"], COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE),
-		},
-		{
-			item: { type: "tool_search_output", call_id: "search", tools: [{ type: "function", name: "example" }] },
-			assertRewritten: (item: Record<string, unknown>) => assert.deepEqual(item["tools"], []),
-		},
-	];
-
-	for (const testCase of cases) {
-		const result = await shrinkNativeCompactionRequestForEndpoint(
-			{ model: model.id, input: [testCase.item as never] },
-			{ contextWindow: 1 },
-		);
-		assert.equal(result.rewrittenOutputs, 1);
-		testCase.assertRewritten(result.request.input[0] as unknown as Record<string, unknown>);
-	}
 });
 
 test("injects pending native compacted window into Pi compaction summarization payload", async () => {

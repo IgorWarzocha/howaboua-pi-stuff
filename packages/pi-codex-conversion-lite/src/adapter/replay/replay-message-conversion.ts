@@ -23,11 +23,9 @@ export function toReplayAgentMessage(entry: SessionEntry): AgentMessage | undefi
 	if (entry.type === "branch_summary") return toBranchSummaryMessage(entry);
 	return undefined;
 }
-
 export function toPiReplayAgentMessage(entry: SessionEntry): AgentMessage | undefined {
 	if (entry.type === "message") return toSessionMessage(entry);
 	if (entry.type === "custom_message") return toCustomMessage(entry);
 	if (entry.type === "branch_summary") return toBranchSummaryMessage(entry);
 	return undefined;
 }
-

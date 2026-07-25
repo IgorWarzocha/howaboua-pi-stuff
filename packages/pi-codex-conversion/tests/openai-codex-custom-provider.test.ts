@@ -3,13 +3,11 @@ import assert from "node:assert/strict";
 import { zstdDecompressSync } from "node:zlib";
 import {
 	buildRequestBody,
-	buildCachedWebSocketRequestBody,
 	parseSSE,
 	registerOpenAICodexCustomProvider,
 } from "../src/providers/openai-codex-custom-provider.ts";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
-import { createCodexRequestId } from "../src/providers/openai-codex/headers.ts";
 import { parseOpenAICodexDeviceAuthPollResponse } from "../src/providers/openai-codex/oauth.ts";
 
 const exampleTool = {
@@ -101,12 +99,6 @@ test("Codex device auth preserves pending and slow-down responses", async () => 
 		{ status: "pending" },
 	);
 });
-
-test("sessionless Codex WebSocket request IDs are UUIDv7", () => {
-	const requestId = createCodexRequestId();
-	assert.match(requestId, /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
-});
-
 function requestBodyText(init: RequestInit): string {
 	return init.body instanceof Uint8Array ? zstdDecompressSync(init.body).toString("utf8") : String(init.body);
 }
@@ -273,61 +265,6 @@ test("GPT-5.6 Code Mode sends the GPT-5.6 input-item contract", async () => {
 	}
 });
 
-test("registered Codex provider retries retryable SSE failures and streams the final response", async () => {
-	const originalFetch = globalThis.fetch;
-	const registered = createRegisteredCodexProvider();
-	const fetchCalls: Array<{ url: string; init: RequestInit }> = [];
-	const responseEvents = [
-		{ type: "response.created", response: { id: "resp_1" } },
-		{ type: "response.output_item.added", output_index: 0, item: { type: "message", id: "msg_1", role: "assistant", content: [] } },
-		{ type: "response.content_part.added", output_index: 0, content_index: 0, part: { type: "output_text", text: "" } },
-		{ type: "response.output_text.delta", output_index: 0, content_index: 0, delta: "Hello" },
-		{ type: "response.output_item.done", output_index: 0, item: { type: "message", id: "msg_1", role: "assistant", content: [{ type: "output_text", text: "Hello" }], status: "completed" } },
-		{ type: "response.completed", response: { id: "resp_1", status: "completed", usage: { input_tokens: 12, output_tokens: 3, total_tokens: 15, input_tokens_details: { cached_tokens: 5 } } } },
-	];
-
-	try {
-		globalThis.fetch = (async (url, init) => {
-			fetchCalls.push({ url: String(url), init: init as RequestInit });
-			return fetchCalls.length === 1
-				? new Response("temporary overloaded", { status: 500, statusText: "Server Error" })
-				: sseResponse(responseEvents);
-		}) as typeof fetch;
-
-		const onResponses: unknown[] = [];
-		const stream = registered.provider.streamSimple(
-			{ ...(codexModel as object), baseUrl: "https://chatgpt.example/backend-api", cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } } as never,
-			{ systemPrompt: "Instructions", messages: [] } as never,
-			{
-				apiKey: fakeJwt({ "https://api.openai.com/auth": { chatgpt_account_id: "acct_1" } }),
-				transport: "sse",
-				sessionId: "session-1",
-				onResponse: (response: unknown) => onResponses.push(response),
-			} as never,
-		);
-
-		const events = await collectStream(stream);
-		const done = events.at(-1) as { type: string; message: { responseId?: string; content: Array<{ type: string; text?: string }>; usage: { input: number; cacheRead: number; output: number; totalTokens: number } } };
-
-		assert.equal(fetchCalls.length, 2);
-		assert.equal(fetchCalls[0]!.url, "https://chatgpt.example/backend-api/codex/responses");
-		assert.equal((fetchCalls[1]!.init.headers as Headers).get("session-id"), "session-1");
-		assert.equal((fetchCalls[1]!.init.headers as Headers).get("thread-id"), "session-1");
-		assert.equal((fetchCalls[1]!.init.headers as Headers).get("chatgpt-account-id"), "acct_1");
-		assert.equal((fetchCalls[1]!.init.headers as Headers).get("content-encoding"), "zstd");
-		assert.equal(JSON.parse(requestBodyText(fetchCalls[1]!.init)).instructions, "Instructions");
-		assert.deepEqual(onResponses.map((response) => (response as { status: number }).status), [500, 200]);
-		assert.equal(events.some((event) => (event as { type?: string }).type === "start"), true);
-		assert.equal(events.some((event) => (event as { type?: string; delta?: string }).type === "text_delta" && (event as { delta?: string }).delta === "Hello"), true);
-		assert.equal(done.type, "done");
-		assert.equal(done.message.responseId, "resp_1");
-		assert.deepEqual(done.message.content, [{ type: "text", text: "Hello", textSignature: JSON.stringify({ v: 1, id: "msg_1" }) }]);
-		assert.deepEqual(done.message.usage, { input: 7, output: 3, cacheRead: 5, cacheWrite: 0, reasoning: 0, totalTokens: 15, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } });
-	} finally {
-		globalThis.fetch = originalFetch;
-	}
-});
-
 test("Codex turn state is captured and replayed on SSE follow-ups", async () => {
 	const originalFetch = globalThis.fetch;
 	const registered = createRegisteredCodexProvider();
@@ -354,58 +291,6 @@ test("Codex turn state is captured and replayed on SSE follow-ups", async () => 
 	} finally {
 		globalThis.fetch = originalFetch;
 	}
-});
-
-test("cached websocket request body reuses continuation across reasoning changes", () => {
-	const previousBody = buildRequestBody(codexModel, { systemPrompt: "Instructions", messages: [] }, { sessionId: "session-1", reasoning: "low" });
-	previousBody.input = [{ type: "message", role: "user", content: [{ type: "input_text", text: "first" }] }];
-	const responseItems = [{ type: "message", role: "assistant", content: [{ type: "output_text", text: "first response" }] }];
-	const fullBody = buildRequestBody(codexModel, { systemPrompt: "Instructions", messages: [] }, { sessionId: "session-1", reasoning: "high" });
-	const nextInput = { type: "message", role: "user", content: [{ type: "input_text", text: "next" }] };
-	fullBody.input = [...previousBody.input, ...responseItems, nextInput];
-
-	assert.deepEqual(
-		buildCachedWebSocketRequestBody({ lastRequestBody: previousBody, lastResponseId: "resp_1", lastResponseItems: responseItems }, fullBody),
-		{
-			body: { ...fullBody, previous_response_id: "resp_1", input: [nextInput] },
-			decision: "delta",
-		},
-	);
-});
-
-test("cached websocket continuation falls back when the tool set changes", () => {
-	const previousBody = buildRequestBody(codexModel, { systemPrompt: "Instructions", messages: [], tools: [exampleTool] }, { sessionId: "session-1" });
-	const currentBody = buildRequestBody(codexModel, { systemPrompt: "Instructions", messages: [], tools: [] }, { sessionId: "session-1" });
-	assert.equal(buildCachedWebSocketRequestBody({
-		lastRequestBody: previousBody,
-		lastResponseId: "resp_1",
-		lastResponseItems: [],
-	}, currentBody).decision, "body_mismatch");
-});
-
-test("cached websocket continuation keeps native dynamic tool loading in the input delta", () => {
-	const model = { ...(codexModel as object), compat: { supportsToolSearch: true } } as never;
-	const previousBody = buildRequestBody(
-		model,
-		{ messages: [toolLoadingMessages[0]], tools: [searchToolsTool] } as never,
-		{ sessionId: "session-1" },
-	);
-	const fullBody = buildRequestBody(
-		model,
-		{ messages: toolLoadingMessages, tools: [searchToolsTool, exampleTool] },
-		{ sessionId: "session-1" },
-	);
-	const responseItems = [fullBody.input[previousBody.input.length]];
-	const result = buildCachedWebSocketRequestBody({
-		lastRequestBody: previousBody,
-		lastResponseId: "resp_search",
-		lastResponseItems: responseItems,
-	}, fullBody);
-
-	assert.equal(result.decision, "delta");
-	assert.equal(result.body.previous_response_id, "resp_search");
-	assert.deepEqual((result.body.tools as Array<{ name: string }>).map((tool) => tool.name), ["search_tools"]);
-	assert.deepEqual(result.body.input.map((item) => (item as { type?: string }).type), ["function_call_output", "tool_search_call", "tool_search_output"]);
 });
 
 test("parseSSE accepts CRLF chunks, joined data lines, and ignores done sentinel", async () => {

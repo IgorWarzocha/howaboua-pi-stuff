@@ -68,6 +68,8 @@ Before final PR submission or update, inspect every added or changed test with d
 
 Keep a permanent test only when it catches a plausible future defect that existing tests or cheaper checks miss, uses an oracle independent of the implementation, and asserts stable observable behavior. For a bug regression, demonstrate fail-before/pass-after when practical. Be able to name the unique failure mode protected by each retained test.
 
+Feature existence is not a failure mode. Delete tests whose only claim is that a feature, fallback, retry, timeout, UI path, or bug fix currently works; calling one a regression test grants no exemption. Verify the change once, then keep only the smallest contract spine—external protocol parsing/serialization, hazardous routing/isolation, persisted-data migration, or model-visible construction—when each case independently clears the gate.
+
 Cull literal or ordinary-copy locks, patch-mirroring expectations, near-duplicates, datatype-derived edge-case confetti, type-system guarantees, weak assertions that merely execute lines, incidental snapshots, private structure or call choreography, tests for impossible inputs, duplicate coverage, and supposed regressions that already passed before the fix. Mock only real external boundaries; never mock the behavior under test. Prefer outcomes over call counts and order.
 
 The cull unit is a complete test case. Do not rescue a theatre test by shaving assertions or sub-scenarios; delete the case unless what remains independently clears the gate. Report complete cases deleted separately from assertions or sub-scenarios removed. If zero complete cases were deleted, say zero; never call assertion cleanup “tests culled.”

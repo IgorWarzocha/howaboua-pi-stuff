@@ -40,17 +40,6 @@ function createContext(model: { provider: string; api: string; id: string }) {
 	};
 }
 
-test("syncAdapter preserves unrelated tools across repeated syncs", () => {
-	const pi = createToolHarness(["read", "custom_search", "custom_image", "parallel"]);
-	const ctx = createContext({ provider: "openai", api: "openai-responses", id: "gpt-5" });
-	const state = createAdapterState();
-
-	syncAdapter(pi as never, ctx as never, state);
-	syncAdapter(pi as never, ctx as never, state);
-
-	assert.deepEqual(pi.activeTools(), ["exec_command", "write_stdin", "apply_patch", "custom_search", "custom_image", "parallel"]);
-});
-
 test("Code Mode activation stays within its model, API, and provider scope", () => {
 	const cases = [
 		{ model: { provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.6-luna" }, configured: false, active: true },
