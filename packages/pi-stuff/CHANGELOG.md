@@ -1,5 +1,16 @@
 # @howaboua/pi-stuff
 
+## 0.0.40
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-auto-trees: Add /prime command with automatic settled-agent markers.
+
+- Updated dependencies [[`bf58bdc`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/bf58bdce157ca9c3c7869b629ad148bd05a3a100)]:
+  - @howaboua/pi-auto-trees@0.1.10
+
 ## 0.0.39
 
 ### Changes
