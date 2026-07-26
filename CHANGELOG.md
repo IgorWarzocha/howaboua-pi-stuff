@@ -39,11 +39,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-auto-reasoning-tool/CHANGELOG.md)
 
-### @howaboua/pi-auto-trees — 0.1.9
+### @howaboua/pi-auto-trees — 0.1.10
 
 ### Changes
 
-- [#106](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/106) [`c423031`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/c4230312f24db0e49c95eafff959109d74017c3d) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Rewrite package documentation around current installation, configuration, usage, and behavior.
+- [#177](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/177) [`bf58bdc`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/bf58bdce157ca9c3c7869b629ad148bd05a3a100) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add /prime command with automatic settled-agent markers
 
 [Full changelog](./packages/pi-auto-trees/CHANGELOG.md)
 
@@ -89,13 +89,16 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.37
+### @howaboua/pi-extensions — 0.0.38
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-codex-conversion-lite: Use bounded raw PTY output instead of terminal emulation while preserving large pipe payloads and reporting omitted PTY output in token counts. Clarify safe JavaScript quoting for multiline Code Mode commands.
+  - @howaboua/pi-auto-trees: Add /prime command with automatic settled-agent markers.
+
+- Updated dependencies [[`bf58bdc`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/bf58bdce157ca9c3c7869b629ad148bd05a3a100)]:
+  - @howaboua/pi-auto-trees@0.1.10
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
@@ -232,13 +235,16 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.39
+### @howaboua/pi-stuff — 0.0.40
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-codex-conversion-lite: Use bounded raw PTY output instead of terminal emulation while preserving large pipe payloads and reporting omitted PTY output in token counts. Clarify safe JavaScript quoting for multiline Code Mode commands.
+  - @howaboua/pi-auto-trees: Add /prime command with automatic settled-agent markers.
+
+- Updated dependencies [[`bf58bdc`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/bf58bdce157ca9c3c7869b629ad148bd05a3a100)]:
+  - @howaboua/pi-auto-trees@0.1.10
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 

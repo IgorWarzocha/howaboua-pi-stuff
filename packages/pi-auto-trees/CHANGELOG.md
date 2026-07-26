@@ -1,5 +1,11 @@
 # @howaboua/pi-auto-trees
 
+## 0.1.10
+
+### Changes
+
+- [#177](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/177) [`bf58bdc`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/bf58bdce157ca9c3c7869b629ad148bd05a3a100) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add /prime command with automatic settled-agent markers
+
 ## 0.1.9
 
 ### Changes
