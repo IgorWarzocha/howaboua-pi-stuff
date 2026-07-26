@@ -41,6 +41,7 @@ export const INCREMENTAL_WORKFLOW_PRIME_PROMPT = [
 	"Trace the main call flow, identify ownership, state, and effects, and note the important files and boundaries.",
 	"Stay repo-local; do not inspect dependencies.",
 	"Finish with a concise orientation briefing and stop. Do not implement anything unless explicitly asked.",
+	"Skip README.md unless the scoped source and configuration contain no useful priming material; read it when the scope explicitly targets documentation.",
 ].join("\n");
 export const INCREMENTAL_WORKFLOW_GIT_END_PROMPT = [
 	INCREMENTAL_WORKFLOW_DEFAULT_END_PROMPT,
