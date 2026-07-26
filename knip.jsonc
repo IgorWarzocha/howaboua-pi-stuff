@@ -13,7 +13,7 @@
 				"src/**/*.ts",
 				"scripts/**/*.mjs",
 				"examples/custom-tools/**/*.mjs",
-				"tests/**/*.ts"
+			"tests/**/*.ts"
 			],
 			"ignoreDependencies": ["proxy-from-env"]
 		}
