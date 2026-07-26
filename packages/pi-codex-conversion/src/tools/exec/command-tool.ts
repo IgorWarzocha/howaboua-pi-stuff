@@ -27,7 +27,7 @@ const EXEC_COMMAND_PARAMETERS = Type.Object({
 			description: "Keep stdin open for input or interruption",
 		}),
 	),
-	yield_time_ms: Type.Optional(Type.Number({ description: "Wait ms" })),
+	yield_time_ms: Type.Optional(Type.Number({ description: "Yield after idle ms" })),
 	max_output_tokens: Type.Optional(Type.Number({ description: "Truncate" })),
 	login: Type.Optional(Type.Boolean({ description: "Login shell" })),
 });
@@ -381,7 +381,7 @@ export function createExecCommandTool(tracker: ExecCommandTracker, sessions: Exe
 				...(pathToolEnv ? { env: pathToolEnv } : {}),
 				...(pathToolPolicy?.disableTruncation ? { max_output_tokens: Number.MAX_SAFE_INTEGER } : {}),
 				...(!typedParams.tty && pathToolPolicy?.yieldTimeMs === undefined
-					? { yield_time_ms: MAX_EXEC_YIELD_TIME_MS, max_yield_time_ms: MAX_EXEC_YIELD_TIME_MS }
+					? { max_yield_time_ms: MAX_EXEC_YIELD_TIME_MS }
 					: {}),
 				...(pathToolPolicy?.yieldTimeMs !== undefined ? { yield_time_ms: pathToolPolicy.yieldTimeMs, max_yield_time_ms: pathToolPolicy.yieldTimeMs } : {}),
 			};

@@ -13,7 +13,7 @@ const EXEC_COMMAND_PARAMETERS = Type.Object({
 	workdir: Type.Optional(Type.String({ description: "Cwd" })),
 	shell: Type.Optional(Type.String()),
 	tty: Type.Optional(Type.Boolean({ description: "Keep stdin open for input or interruption" })),
-	yield_time_ms: Type.Optional(Type.Number({ description: "Wait ms" })),
+	yield_time_ms: Type.Optional(Type.Number({ description: "Yield after idle ms" })),
 	max_output_tokens: Type.Optional(Type.Number({ description: "Truncate" })),
 	login: Type.Optional(Type.Boolean({ description: "Login shell" })),
 });
@@ -175,7 +175,7 @@ export function createExecCommandTool(tracker: ExecCommandTracker, sessions: Exe
 			});
 			const execInput = input.tty
 				? input
-				: { ...input, yield_time_ms: MAX_EXEC_YIELD_TIME_MS, max_yield_time_ms: MAX_EXEC_YIELD_TIME_MS };
+				: { ...input, max_yield_time_ms: MAX_EXEC_YIELD_TIME_MS };
 			const result = await sessions.exec(execInput, ctx.cwd, signal, onUpdate ? (partial) => onUpdate(toToolResult(partial)) : undefined);
 			if (result.session_id !== undefined) tracker.recordPersistentSession(toolCallId, result.session_id);
 			return toToolResult(result);
