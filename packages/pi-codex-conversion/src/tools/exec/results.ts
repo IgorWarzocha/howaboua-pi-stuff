@@ -23,7 +23,7 @@ export function makeExecResult<TSession extends ExecResultSessionState>(session:
 	const result = fromSnapshot(session, waitMs, consumed);
 	if (session.exitCode === undefined || session.exitCode === null) {
 		exposeSession(session);
-	} else if (session.emittedBuffer === session.buffer) {
+	} else if (session.emittedOffset === session.bufferStartOffset + session.buffer.length) {
 		deleteSessionIfDrained(session.id);
 	}
 	return result;
@@ -47,6 +47,6 @@ export function makeSnapshotResult(session: ExecResultSessionState, waitMs: numb
 	return fromSnapshot(session, waitMs, snapshot);
 }
 
-export function makeSnapshotSince(session: ExecResultSessionState, waitMs: number, baseline: string, maxOutputTokens?: number): UnifiedExecResult {
-	return fromSnapshot(session, waitMs, peekOutputSince(session, baseline, maxOutputTokens));
+export function makeSnapshotSince(session: ExecResultSessionState, waitMs: number, baselineOffset: number, maxOutputTokens?: number): UnifiedExecResult {
+	return fromSnapshot(session, waitMs, peekOutputSince(session, baselineOffset, maxOutputTokens));
 }

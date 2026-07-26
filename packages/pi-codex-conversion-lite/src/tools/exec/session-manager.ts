@@ -1,6 +1,6 @@
 import { StringDecoder } from "node:string_decoder";
 import { getCodexShellArgs } from "../../adapter/prompt/runtime-shell.ts";
-import { applyTerminalOutput, boundTerminalOutput, normalizePipeOutput } from "./output.ts";
+import { normalizePipeOutput, truncateToTail } from "./output.ts";
 import { chunkToBytes, createExecBridgeClient, type BridgeReadResponse } from "./bridge-client.ts";
 import { DEFAULT_EXEC_YIELD_TIME_MS, DEFAULT_MAX_EMPTY_WRITE_YIELD_TIME_MS, DEFAULT_WRITE_YIELD_TIME_MS, clampExecYieldTime, clampWriteYieldTime, normalizeMinEmptyWriteYieldTime, normalizeMinNonInteractiveExecYieldTime, resolveExecution, resolveShell, resolveWorkdir } from "./shell.ts";
 import { registerAbortHandler, waitForExitOrTimeout } from "./wait.ts";
@@ -51,7 +51,8 @@ interface BaseExecSession {
 	id: number;
 	command: string;
 	buffer: string;
-	emittedBuffer: string;
+	bufferStartOffset: number;
+	emittedOffset: number;
 	exitCode: number | null | undefined;
 	startedAt: number;
 	updatedAt: number;
@@ -70,10 +71,6 @@ interface RustExecSession extends BaseExecSession {
 	started: boolean;
 	tty: boolean;
 	lastSeq: number;
-	terminalCommitted: string;
-	terminalLine: string[];
-	terminalCursor: number;
-	terminalPendingControl: string;
 	outputDecoders: Record<"stdout" | "stderr" | "pty", StringDecoder>;
 	outputDecodersFlushed: boolean;
 }
@@ -106,7 +103,7 @@ export interface ExecSessionManagerOptions {
 }
 
 const MAX_COMMAND_HISTORY = 256;
-const DEFAULT_MAX_SESSION_BUFFER_CHARS = 256 * 1024 * 1024;
+const DEFAULT_MAX_SESSION_BUFFER_CHARS = 1024 * 1024;
 const TERMINATE_ESCALATE_MS = 2_000;
 
 export function createExecSessionManager(options: ExecSessionManagerOptions = {}): ExecSessionManager {
@@ -187,17 +184,12 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 
 	function appendOutput(session: ExecSession, text: string): void {
 		if (text.length === 0) return;
-		if (session.tty) {
-			applyTerminalOutput(session, text);
-			const bounded = boundTerminalOutput(session, maxSessionBufferChars);
+		const output = session.tty ? text : normalizePipeOutput(text);
+		session.buffer += output;
+		if (session.buffer.length > maxSessionBufferChars) {
+			const bounded = truncateToTail(session.buffer, maxSessionBufferChars);
 			session.buffer = bounded.output;
-			if (bounded.rebased) session.emittedBuffer = "";
-		} else {
-			session.buffer += normalizePipeOutput(text);
-		}
-		if (!session.tty && session.buffer.length > maxSessionBufferChars) {
-			session.buffer = session.buffer.slice(-maxSessionBufferChars);
-			session.emittedBuffer = "";
+			session.bufferStartOffset += bounded.removed;
 		}
 		notify(session);
 	}
@@ -238,23 +230,20 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			processId: "",
 			startup: Promise.resolve(),
 			started: false,
+			tty: Boolean(input.tty),
 			command: input.cmd,
 			buffer: "",
-			emittedBuffer: "",
+			bufferStartOffset: 0,
+			emittedOffset: 0,
 			exitCode: undefined,
 			listeners: new Set(),
 			interactive: Boolean(input.tty),
-			tty: Boolean(input.tty),
 			lastSeq: 0,
 			startedAt: Date.now(),
 			updatedAt: Date.now(),
 			finalized: false,
 			exposed: false,
 			terminating: false,
-			terminalCommitted: "",
-			terminalLine: [],
-			terminalCursor: 0,
-			terminalPendingControl: "",
 			outputDecoders: {
 				stdout: new StringDecoder("utf8"),
 				stderr: new StringDecoder("utf8"),
@@ -365,7 +354,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			if (!session) {
 				throw new Error(`Unknown process id ${input.session_id}`);
 			}
-			const updateBaseline = session.buffer;
+			const updateBaseline = session.bufferStartOffset + session.buffer.length;
 			const chars = input.chars ?? "";
 			const isEmptyPoll = chars.length === 0;
 			if (!isEmptyPoll) {

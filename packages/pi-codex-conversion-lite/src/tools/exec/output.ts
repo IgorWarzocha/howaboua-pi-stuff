@@ -5,32 +5,26 @@ const DEFAULT_MAX_OUTPUT_TOKENS = 10_000;
 
 export interface ExecOutputSessionState {
 	buffer: string;
-	emittedBuffer: string;
-	tty: boolean;
-	terminalCommitted: string;
-	terminalLine: string[];
-	terminalCursor: number;
-	terminalPendingControl: string;
+	bufferStartOffset: number;
+	emittedOffset: number;
 }
 
 function maxCharsForTokens(maxOutputTokens = DEFAULT_MAX_OUTPUT_TOKENS): number {
 	return Math.max(256, maxOutputTokens * 4);
 }
 
-function stripTerminalControlSequences(text: string, preserveCsi = false): string {
+function stripTerminalControlSequences(text: string): string {
 	const withoutOscAndDcs = text
 		.replace(/\u001B\][^\u0007\u001B]*(?:\u0007|\u001B\\)/g, "")
 		.replace(/\u001B[P_X^][\s\S]*?\u001B\\/g, "");
-	if (preserveCsi) return withoutOscAndDcs;
 	return withoutOscAndDcs.replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, "").replace(/\u001B[@-_]/g, "");
 }
 
-function sanitizeBinaryOutput(text: string, preserveBackspace = false): string {
+function sanitizeBinaryOutput(text: string): string {
 	return Array.from(text).filter((char) => {
 		const code = char.codePointAt(0);
 		if (code === undefined) return false;
 		if (code === 0x09 || code === 0x0a || code === 0x0d) return true;
-		if (preserveBackspace && code === 0x08) return true;
 		if (code <= 0x1f) return false;
 		if (code >= 0xfff9 && code <= 0xfffb) return false;
 		return true;
@@ -41,102 +35,10 @@ export function normalizePipeOutput(text: string): string {
 	return sanitizeBinaryOutput(stripTerminalControlSequences(text)).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 }
 
-function writeTerminalChar(session: ExecOutputSessionState, char: string): void {
-	if (session.terminalCursor > session.terminalLine.length) {
-		session.terminalLine.push(...Array.from({ length: session.terminalCursor - session.terminalLine.length }, () => " "));
-	}
-	session.terminalLine[session.terminalCursor] = char;
-	session.terminalCursor += 1;
-}
-
-export function applyTerminalOutput(session: ExecOutputSessionState, text: string): string {
-	const sanitized = stripTerminalControlSequences(`${session.terminalPendingControl}${text}`, true);
-	session.terminalPendingControl = "";
-	if (sanitized.length === 0) return session.terminalCommitted + session.terminalLine.join("");
-
-	for (let index = 0; index < sanitized.length; index += 1) {
-		const char = sanitized[index]!;
-		if (char === "\u001b") {
-			if (sanitized[index + 1] === "[") {
-				let sequenceEnd = index + 2;
-				while (sequenceEnd < sanitized.length) {
-					const code = sanitized.charCodeAt(sequenceEnd);
-					if (code >= 0x40 && code <= 0x7e) break;
-					sequenceEnd += 1;
-				}
-				if (sequenceEnd >= sanitized.length) {
-					session.terminalPendingControl = sanitized.slice(index);
-					break;
-				}
-				const params = sanitized.slice(index + 2, sequenceEnd);
-				const finalByte = sanitized[sequenceEnd]!;
-				if (finalByte === "K") {
-					const mode = Number(params || "0");
-					if (mode === 0) session.terminalLine = session.terminalLine.slice(0, session.terminalCursor);
-					else if (mode === 1) {
-						session.terminalLine = [
-							...Array.from({ length: Math.min(session.terminalCursor, session.terminalLine.length) }, () => " "),
-							...session.terminalLine.slice(session.terminalCursor),
-						];
-					} else if (mode === 2) session.terminalLine = [];
-				}
-				index = sequenceEnd;
-				continue;
-			}
-
-			const next = sanitized[index + 1]!;
-			if (next && /[()*+,\-./]/.test(next) && index + 2 < sanitized.length) {
-				index += 2;
-				continue;
-			}
-			if (next) index += 1;
-			continue;
-		}
-
-		const code = char.codePointAt(0);
-		if (code !== undefined && code <= 0x1f && char !== "\t" && char !== "\n" && char !== "\r" && char !== "\b") continue;
-
-		switch (char) {
-			case "\r": session.terminalCursor = 0; break;
-			case "\n":
-				session.terminalCommitted += `${session.terminalLine.join("")}\n`;
-				session.terminalLine = [];
-				session.terminalCursor = 0;
-				break;
-			case "\b": session.terminalCursor = Math.max(0, session.terminalCursor - 1); break;
-			default: writeTerminalChar(session, char); break;
-		}
-	}
-
-	return session.terminalCommitted + session.terminalLine.join("");
-}
-
-export function boundTerminalOutput(session: ExecOutputSessionState, maxChars: number): { output: string; rebased: boolean } {
-	const lineLength = session.terminalLine.length;
-	let rebased = false;
-	if (lineLength >= maxChars) {
-		const removed = lineLength - maxChars;
-		session.terminalLine = session.terminalLine.slice(removed);
-		session.terminalCursor = Math.max(0, Math.min(session.terminalLine.length, session.terminalCursor - removed));
-		if (session.terminalCommitted.length > 0) rebased = true;
-		session.terminalCommitted = "";
-		rebased ||= removed > 0;
-	} else {
-		const committedLimit = maxChars - lineLength;
-		if (session.terminalCommitted.length > committedLimit) {
-			session.terminalCommitted = session.terminalCommitted.slice(-committedLimit);
-			rebased = true;
-		}
-	}
-	return { output: session.terminalCommitted + session.terminalLine.join(""), rebased };
-}
-
-function computePtyDelta(previous: string, current: string): string {
-	if (current.startsWith(previous)) return current.slice(previous.length);
-	const lineStart = previous.lastIndexOf("\n") + 1;
-	const stablePrefix = previous.slice(0, lineStart);
-	if (current.startsWith(stablePrefix)) return `\r${current.slice(lineStart)}`;
-	return current;
+export function truncateToTail(text: string, maxChars: number): { output: string; removed: number } {
+	let start = Math.max(0, text.length - maxChars);
+	if (start > 0 && start < text.length && /[\uDC00-\uDFFF]/.test(text[start]!)) start += 1;
+	return { output: text.slice(start), removed: start };
 }
 
 export function generateChunkId(): string {
@@ -148,22 +50,26 @@ export function truncateOutput(text: string, maxOutputTokens?: number): { output
 	const maxChars = maxCharsForTokens(maxOutputTokens);
 	const originalTokenCount = Math.ceil(text.length / 4);
 	if (text.length <= maxChars) return { output: text, original_token_count: originalTokenCount };
-	return { output: text.slice(-maxChars), original_token_count: originalTokenCount };
+	return { output: truncateToTail(text, maxChars).output, original_token_count: originalTokenCount };
 }
 
 export function consumeOutput(session: ExecOutputSessionState, maxOutputTokens?: number): { output: string; original_token_count?: number | undefined } {
-	const text = session.tty ? computePtyDelta(session.emittedBuffer, session.buffer) : session.buffer.slice(session.emittedBuffer.length);
-	session.emittedBuffer = session.buffer;
+	const endOffset = session.bufferStartOffset + session.buffer.length;
+	const startOffset = Math.max(session.emittedOffset, session.bufferStartOffset);
+	const text = session.buffer.slice(startOffset - session.bufferStartOffset);
+	session.emittedOffset = endOffset;
 	return truncateOutput(text, maxOutputTokens);
 }
 
 export function peekUnconsumedOutput(session: ExecOutputSessionState, maxOutputTokens?: number): { output: string; original_token_count?: number | undefined } {
-	const text = session.tty ? computePtyDelta(session.emittedBuffer, session.buffer) : session.buffer.slice(session.emittedBuffer.length);
+	const startOffset = Math.max(session.emittedOffset, session.bufferStartOffset);
+	const text = session.buffer.slice(startOffset - session.bufferStartOffset);
 	return truncateOutput(text, maxOutputTokens);
 }
 
-export function peekOutputSince(session: ExecOutputSessionState, baseline: string, maxOutputTokens?: number): { output: string; original_token_count?: number | undefined } {
-	const text = session.tty ? computePtyDelta(baseline, session.buffer) : session.buffer.slice(baseline.length);
+export function peekOutputSince(session: ExecOutputSessionState, baselineOffset: number, maxOutputTokens?: number): { output: string; original_token_count?: number | undefined } {
+	const startOffset = Math.max(baselineOffset, session.bufferStartOffset);
+	const text = session.buffer.slice(startOffset - session.bufferStartOffset);
 	return truncateOutput(text, maxOutputTokens);
 }
 
