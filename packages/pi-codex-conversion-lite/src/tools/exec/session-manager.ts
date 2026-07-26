@@ -3,7 +3,7 @@ import { getCodexShellArgs } from "../../adapter/prompt/runtime-shell.ts";
 import { normalizePipeOutput, truncateToTail } from "./output.ts";
 import { chunkToBytes, createExecBridgeClient, type BridgeReadResponse } from "./bridge-client.ts";
 import { DEFAULT_EXEC_YIELD_TIME_MS, DEFAULT_MAX_EMPTY_WRITE_YIELD_TIME_MS, DEFAULT_WRITE_YIELD_TIME_MS, clampExecYieldTime, clampWriteYieldTime, normalizeMinEmptyWriteYieldTime, normalizeMinNonInteractiveExecYieldTime, resolveExecution, resolveShell, resolveWorkdir } from "./shell.ts";
-import { registerAbortHandler, waitForExitOrTimeout } from "./wait.ts";
+import { registerAbortHandler, waitForExitOrInactivity } from "./wait.ts";
 import { makeExecResult, makeSnapshotResult, makeSnapshotSince, snapshotSession } from "./results.ts";
 
 export interface UnifiedExecResult {
@@ -53,6 +53,7 @@ interface BaseExecSession {
 	buffer: string;
 	bufferStartOffset: number;
 	emittedOffset: number;
+	outputVersion: number;
 	exitCode: number | null | undefined;
 	startedAt: number;
 	updatedAt: number;
@@ -187,6 +188,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 		if (text.length === 0) return;
 		const output = session.tty ? text : normalizePipeOutput(text);
 		session.buffer += output;
+		session.outputVersion += 1;
 		const maxSessionBufferChars = configuredMaxSessionBufferChars ?? (session.tty ? DEFAULT_MAX_TTY_SESSION_BUFFER_CHARS : DEFAULT_MAX_PIPE_SESSION_BUFFER_CHARS);
 		if (session.buffer.length > maxSessionBufferChars) {
 			const bounded = truncateToTail(session.buffer, maxSessionBufferChars);
@@ -237,6 +239,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			buffer: "",
 			bufferStartOffset: 0,
 			emittedOffset: 0,
+			outputVersion: 0,
 			exitCode: undefined,
 			listeners: new Set(),
 			interactive: Boolean(input.tty),
@@ -330,9 +333,11 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			try {
 				onUpdate?.(makeSnapshotResult(session, 0, input.max_output_tokens, true));
 				const execYieldMs = clampExecYieldTime(input.yield_time_ms, defaultExecYieldTimeMs, session.interactive, minNonInteractiveExecYieldTimeMs, input.max_yield_time_ms);
-				const waitedMs = await waitForExitOrTimeout(
+				const maxExecWaitMs = Math.max(execYieldMs, input.max_yield_time_ms ?? execYieldMs);
+				const waitedMs = await waitForExitOrInactivity(
 					session,
 					execYieldMs,
+					maxExecWaitMs,
 					signal,
 					onUpdate ? (elapsedMs) => onUpdate(makeSnapshotResult(session, elapsedMs, input.max_output_tokens)) : undefined,
 				);
@@ -357,6 +362,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 				throw new Error(`Unknown process id ${input.session_id}`);
 			}
 			const updateBaseline = session.bufferStartOffset + session.buffer.length;
+			const outputVersionBaseline = session.outputVersion;
 			const chars = input.chars ?? "";
 			const isEmptyPoll = chars.length === 0;
 			if (!isEmptyPoll) {
@@ -379,9 +385,10 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 				: requestedYieldMs;
 			const waitedMs =
 				session.exitCode === undefined
-					? await waitForExitOrTimeout(
+					? await waitForExitOrInactivity(
 							session,
 							effectiveYieldMs,
+							isEmptyPoll ? maxEmptyWriteYieldTimeMs : effectiveYieldMs,
 							signal,
 							onUpdate ? (elapsedMs) => onUpdate(makeSnapshotSince(session, elapsedMs, updateBaseline, input.max_output_tokens)) : undefined,
 					)
@@ -389,7 +396,9 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			await waitForStartup(session, signal);
 			if (session.started) await pollSession(session, 0);
 			if (isEmptyPoll && (session.exitCode === undefined || session.exitCode === null))
-				session.nextEmptyPollYieldMs = growEmptyPollYield(effectiveYieldMs, maxEmptyWriteYieldTimeMs);
+				session.nextEmptyPollYieldMs = session.outputVersion === outputVersionBaseline
+					? growEmptyPollYield(effectiveYieldMs, maxEmptyWriteYieldTimeMs)
+					: minEmptyWriteYieldTimeMs;
 			return makeExecResult(session, waitedMs, input.max_output_tokens, exposeSession, (sessionId) => sessions.delete(sessionId));
 		},
 		hasSession: (sessionId) => sessions.has(sessionId),

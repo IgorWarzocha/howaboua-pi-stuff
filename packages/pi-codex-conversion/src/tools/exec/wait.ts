@@ -1,5 +1,6 @@
 export interface WaitableSession {
 	exitCode: number | null | undefined;
+	outputVersion: number;
 	listeners: Set<() => void>;
 }
 
@@ -14,18 +15,23 @@ export function registerAbortHandler(signal: AbortSignal | undefined, onAbort: (
 	return () => signal.removeEventListener("abort", abortListener);
 }
 
-export function waitForExitOrTimeout(session: WaitableSession, yieldTimeMs: number, signal?: AbortSignal, onUpdate?: (elapsedMs: number) => void): Promise<number> {
+export function waitForExitOrInactivity(session: WaitableSession, idleTimeMs: number, maxWaitMs = idleTimeMs, signal?: AbortSignal, onUpdate?: (elapsedMs: number) => void): Promise<number> {
 	if (session.exitCode !== undefined && session.exitCode !== null) return Promise.resolve(0);
 	if (signal?.aborted) return Promise.resolve(0);
 
 	const startedAt = Date.now();
+	const hardLimitMs = Math.max(idleTimeMs, maxWaitMs);
 	let updateTimer: ReturnType<typeof setInterval> | undefined;
+	let idleTimer: ReturnType<typeof setTimeout> | undefined;
+	let hardTimer: ReturnType<typeof setTimeout> | undefined;
 	let lastUpdateAt = 0;
+	let outputVersion = session.outputVersion;
 	return new Promise((resolvePromise) => {
 		let abortCleanup: (() => void) | undefined;
 		let done = false;
 		const cleanup = () => {
-			clearTimeout(timeout);
+			if (idleTimer) clearTimeout(idleTimer);
+			if (hardTimer) clearTimeout(hardTimer);
 			if (updateTimer) clearInterval(updateTimer);
 			abortCleanup?.();
 			session.listeners.delete(onWake);
@@ -44,13 +50,19 @@ export function waitForExitOrTimeout(session: WaitableSession, yieldTimeMs: numb
 		};
 		const onWake = () => {
 			if (session.exitCode === undefined || session.exitCode === null) {
+				if (session.outputVersion !== outputVersion) {
+					outputVersion = session.outputVersion;
+					if (idleTimer) clearTimeout(idleTimer);
+					idleTimer = setTimeout(finish, idleTimeMs);
+				}
 				emitUpdate();
 				return;
 			}
 			emitUpdate(true);
 			finish();
 		};
-		const timeout = setTimeout(finish, yieldTimeMs);
+		idleTimer = setTimeout(finish, idleTimeMs);
+		hardTimer = setTimeout(finish, hardLimitMs);
 		abortCleanup = registerAbortHandler(signal, finish);
 		if (onUpdate) updateTimer = setInterval(emitUpdate, 250);
 		session.listeners.add(onWake);

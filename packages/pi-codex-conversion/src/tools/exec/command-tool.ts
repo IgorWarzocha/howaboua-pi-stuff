@@ -381,7 +381,9 @@ export function createExecCommandTool(tracker: ExecCommandTracker, sessions: Exe
 				...(pathToolEnv ? { env: pathToolEnv } : {}),
 				...(pathToolPolicy?.disableTruncation ? { max_output_tokens: Number.MAX_SAFE_INTEGER } : {}),
 				...(!typedParams.tty && pathToolPolicy?.yieldTimeMs === undefined
-					? { yield_time_ms: MAX_EXEC_YIELD_TIME_MS, max_yield_time_ms: MAX_EXEC_YIELD_TIME_MS }
+					? pathToolPolicy
+						? { yield_time_ms: MAX_EXEC_YIELD_TIME_MS, max_yield_time_ms: MAX_EXEC_YIELD_TIME_MS }
+						: { max_yield_time_ms: MAX_EXEC_YIELD_TIME_MS }
 					: {}),
 				...(pathToolPolicy?.yieldTimeMs !== undefined ? { yield_time_ms: pathToolPolicy.yieldTimeMs, max_yield_time_ms: pathToolPolicy.yieldTimeMs } : {}),
 			};

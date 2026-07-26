@@ -175,7 +175,7 @@ export function createExecCommandTool(tracker: ExecCommandTracker, sessions: Exe
 			});
 			const execInput = input.tty
 				? input
-				: { ...input, yield_time_ms: MAX_EXEC_YIELD_TIME_MS, max_yield_time_ms: MAX_EXEC_YIELD_TIME_MS };
+				: { ...input, max_yield_time_ms: MAX_EXEC_YIELD_TIME_MS };
 			const result = await sessions.exec(execInput, ctx.cwd, signal, onUpdate ? (partial) => onUpdate(toToolResult(partial)) : undefined);
 			if (result.session_id !== undefined) tracker.recordPersistentSession(toolCallId, result.session_id);
 			return toToolResult(result);
