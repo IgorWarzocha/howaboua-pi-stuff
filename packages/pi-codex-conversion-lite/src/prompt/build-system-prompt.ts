@@ -21,7 +21,7 @@ const NORMAL_CODEX_GUIDELINES = [
 
 const CODE_MODE_GUIDELINES = [
 	"Use tools.exec_command for shell commands; prefer rg and rg --files for search",
-	"Keep tools.exec_command cmd valid JavaScript: use String.raw templates only when shell text has no backticks or `${...}`; otherwise use quoted line arrays or split the call",
+	"Keep tools.exec_command cmd valid JavaScript: use String.raw templates only when shell text has no backticks or ${...}; otherwise use quoted line arrays or split the call",
 	"Continue exec cell_id with wait; continue exec_command session_id by calling tools.write_stdin inside exec",
 	"Give commands time; back off session polls",
 	"Reserve tty=true for input or persistent processes",
