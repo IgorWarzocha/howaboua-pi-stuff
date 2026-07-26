@@ -25,6 +25,8 @@ import type {
 export const INCREMENTAL_WORKFLOW_STATE_ENTRY = "incremental-workflow-state";
 export const INCREMENTAL_WORKFLOW_MARKER_LABEL = "marker";
 export const INCREMENTAL_WORKFLOW_END_WIDGET = "auto-trees-end";
+export const INCREMENTAL_WORKFLOW_DEFAULT_PRIME_SCOPE =
+	"the current repository";
 export const INCREMENTAL_WORKFLOW_DEFAULT_END_PROMPT = [
 	"Treat this as a finished work increment that should become durable context for continuing the same repository session.",
 	"Focus on the final accepted outcome, not dead ends or step-by-step implementation noise.",
@@ -32,6 +34,13 @@ export const INCREMENTAL_WORKFLOW_DEFAULT_END_PROMPT = [
 	"Mention relevant files, commands, commits, PR outcomes, or review feedback only when they change future work.",
 	"Omit temporary debugging details, abandoned attempts, and incidental churn that no longer matters.",
 	"Write the summary so a future agent can continue from the repo familiarization and planning context plus this completed increment.",
+].join("\n");
+export const INCREMENTAL_WORKFLOW_PRIME_PROMPT = [
+	"Prime yourself on the requested scope.",
+	"Work directly and do not use subagents.",
+	"Trace the main call flow, identify ownership, state, and effects, and note the important files and boundaries.",
+	"Stay repo-local; do not inspect dependencies.",
+	"Finish with a concise orientation briefing and stop. Do not implement anything unless explicitly asked.",
 ].join("\n");
 export const INCREMENTAL_WORKFLOW_GIT_END_PROMPT = [
 	INCREMENTAL_WORKFLOW_DEFAULT_END_PROMPT,
@@ -102,6 +111,10 @@ function parseEndMode(args: string): EndMode {
 	return { mode: "custom", prompt: trimmed };
 }
 
+function buildPrimePrompt(scope: string): string {
+	return `${INCREMENTAL_WORKFLOW_PRIME_PROMPT}\n\nScope: ${scope}`;
+}
+
 function buildEndNavigationOptions(mode: EndMode): {
 	summarize: true;
 	customInstructions?: string;
@@ -133,6 +146,7 @@ function buildEndNavigationOptions(mode: EndMode): {
 
 export default function (pi: ExtensionAPI) {
 	let markerId: string | undefined;
+	let pendingPrimeCount = 0;
 
 	const refreshState = (ctx: ExtensionContext) => {
 		markerId = readStateFromBranch(ctx)?.markerId;
@@ -176,6 +190,33 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("session_start", async (_event, ctx) => refreshState(ctx));
 	pi.on("session_tree", async (_event, ctx) => refreshState(ctx));
+	pi.on("agent_settled", async (_event, ctx) => {
+		if (pendingPrimeCount === 0) return;
+		pendingPrimeCount -= 1;
+
+		const targetId = getSemanticLeafId(ctx);
+		if (!targetId) {
+			ctx.ui.notify(
+				"Priming completed but no conversation point was found to mark",
+				"warning",
+			);
+			return;
+		}
+
+		if (markerId === targetId) {
+			ctx.ui.notify("Priming completed; marker already points here", "info");
+			return;
+		}
+
+		try {
+			applyMarker(ctx, targetId, "Priming completed and marker set");
+		} catch (error) {
+			ctx.ui.notify(
+				`Could not set marker after priming: ${error instanceof Error ? error.message : String(error)}`,
+				"error",
+			);
+		}
+	});
 
 	pi.registerCommand("marker", {
 		description:
@@ -195,6 +236,26 @@ export default function (pi: ExtensionAPI) {
 			}
 
 			applyMarker(ctx, targetId, "Marker set");
+		},
+	});
+
+	pi.registerCommand("prime", {
+		description:
+			"Prime the agent on a scope and set a marker when it fully settles",
+		handler: async (args, ctx) => {
+			await ctx.waitForIdle();
+
+			const scope = args.trim() || INCREMENTAL_WORKFLOW_DEFAULT_PRIME_SCOPE;
+			pendingPrimeCount += 1;
+			try {
+				pi.sendUserMessage(buildPrimePrompt(scope));
+			} catch (error) {
+				pendingPrimeCount -= 1;
+				ctx.ui.notify(
+					`Could not start priming: ${error instanceof Error ? error.message : String(error)}`,
+					"error",
+				);
+			}
 		},
 	});
 

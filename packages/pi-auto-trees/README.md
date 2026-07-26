@@ -1,6 +1,6 @@
 # @howaboua/pi-auto-trees
 
-Adds two commands for carrying useful context through long Pi sessions without keeping every dead end and debugging turn.
+Adds three commands for carrying useful context through long Pi sessions without keeping every dead end and debugging turn.
 
 ## Install
 
@@ -16,9 +16,13 @@ pi -e npm:@howaboua/pi-auto-trees
 
 ## Usage
 
-1. Run `/marker` after repo exploration, planning, or another stable checkpoint.
+1. Run `/prime <scope>` to orient the agent on a repository area. When the agent fully settles, the extension marks the resulting conversation point automatically.
 2. Complete a coherent chunk of work.
 3. Run `/end`.
+
+`/prime` defaults to the current repository when no scope is supplied. It can be repeated for different scopes; each completed priming turn gets its own marker.
+
+`/prime` asks the agent for a concise orientation briefing and does not ask it to implement anything. The automatic marker is set only after Pi reports that the agent is fully settled, including any retry or compaction work.
 
 `/end` summarizes the branch since the marker, navigates back to that point, carries the summary forward, and advances the marker to the new compact point. The summary keeps accepted changes, decisions, constraints, and relevant follow-up while dropping temporary implementation noise.
 
