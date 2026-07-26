@@ -40,6 +40,7 @@ export const INCREMENTAL_WORKFLOW_PRIME_PROMPT = [
 	"Work directly and do not use subagents.",
 	"Trace the main call flow, identify ownership, state, and effects, and note the important files and boundaries.",
 	"Stay repo-local; do not inspect dependencies.",
+	"For broad scopes, list paths first; narrow search paths before tight queries, follow direct references only, and stop once the scoped boundary is clear.",
 	"Finish with a concise orientation briefing and stop. Do not implement anything unless explicitly asked.",
 	"Skip README.md unless the scoped source and configuration contain no useful priming material; read it when the scope explicitly targets documentation.",
 ].join("\n");
