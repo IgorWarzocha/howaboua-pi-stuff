@@ -1,5 +1,13 @@
 # @howaboua/pi-extensions
 
+## 0.0.37
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-codex-conversion-lite: Use bounded raw PTY output instead of terminal emulation while preserving large pipe payloads and reporting omitted PTY output in token counts. Clarify safe JavaScript quoting for multiline Code Mode commands.
+
 ## 0.0.36
 
 ### Changes

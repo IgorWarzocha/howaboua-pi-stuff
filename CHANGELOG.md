@@ -57,19 +57,19 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 2.2.22
+### @howaboua/pi-codex-conversion — 2.2.23
 
 ### Changes
 
-- [`620baba`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/620baba32dad1a1e3f70bf0cd30e4960584f52c4) - Keep web_run requests isolated to explicit search and navigation arguments instead of leaking conversation context into search answers.
+- [#175](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/175) [`2e7c7e9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/2e7c7e90201a16b51215857b453d001cb3318605) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Use bounded raw PTY output instead of terminal emulation while preserving large pipe payloads and reporting omitted PTY output in token counts. Clarify safe JavaScript quoting for multiline Code Mode commands
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion-lite — 0.1.3
+### @howaboua/pi-codex-conversion-lite — 0.1.4
 
 ### Changes
 
-- [`620baba`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/620baba32dad1a1e3f70bf0cd30e4960584f52c4) - Keep web_run requests isolated to explicit search and navigation arguments instead of leaking conversation context into search answers.
+- [#175](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/175) [`2e7c7e9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/2e7c7e90201a16b51215857b453d001cb3318605) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Use bounded raw PTY output instead of terminal emulation while preserving large pipe payloads and reporting omitted PTY output in token counts. Clarify safe JavaScript quoting for multiline Code Mode commands
 
 [Full changelog](./packages/pi-codex-conversion-lite/CHANGELOG.md)
 
@@ -89,13 +89,13 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.36
+### @howaboua/pi-extensions — 0.0.37
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-codex-conversion-lite: Keep web_run requests isolated to explicit search and navigation arguments instead of leaking conversation context into search answers.
+  - @howaboua/pi-codex-conversion-lite: Use bounded raw PTY output instead of terminal emulation while preserving large pipe payloads and reporting omitted PTY output in token counts. Clarify safe JavaScript quoting for multiline Code Mode commands.
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
@@ -232,13 +232,13 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.38
+### @howaboua/pi-stuff — 0.0.39
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-codex-conversion-lite: Keep web_run requests isolated to explicit search and navigation arguments instead of leaking conversation context into search answers.
+  - @howaboua/pi-codex-conversion-lite: Use bounded raw PTY output instead of terminal emulation while preserving large pipe payloads and reporting omitted PTY output in token counts. Clarify safe JavaScript quoting for multiline Code Mode commands.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 
