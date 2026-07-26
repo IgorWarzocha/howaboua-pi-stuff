@@ -1,5 +1,13 @@
 # @howaboua/pi-stuff
 
+## 0.0.41
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-codex-conversion-lite: Yield silent shell commands as sessions while active commands continue waiting. Encourage concise intermediary progress updates during longer realtime voice work.
+
 ## 0.0.40
 
 ### Changes

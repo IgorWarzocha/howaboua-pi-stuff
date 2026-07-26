@@ -1,5 +1,11 @@
 # @howaboua/pi-codex-conversion-lite
 
+## 0.1.5
+
+### Changes
+
+- [#179](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/179) [`ffa9c25`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ffa9c25f1cbe4e9a23b18a6122f468dc6e8a42e4) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Yield silent shell commands as sessions while active commands continue waiting. Encourage concise intermediary progress updates during longer realtime voice work
+
 ## 0.1.4
 
 ### Changes
