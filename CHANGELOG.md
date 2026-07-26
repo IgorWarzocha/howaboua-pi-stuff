@@ -57,19 +57,19 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 2.2.23
+### @howaboua/pi-codex-conversion — 2.2.24
 
 ### Changes
 
-- [#175](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/175) [`2e7c7e9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/2e7c7e90201a16b51215857b453d001cb3318605) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Use bounded raw PTY output instead of terminal emulation while preserving large pipe payloads and reporting omitted PTY output in token counts. Clarify safe JavaScript quoting for multiline Code Mode commands
+- [#179](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/179) [`ffa9c25`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ffa9c25f1cbe4e9a23b18a6122f468dc6e8a42e4) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Yield silent shell commands as sessions while active commands continue waiting. Encourage concise intermediary progress updates during longer realtime voice work
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion-lite — 0.1.4
+### @howaboua/pi-codex-conversion-lite — 0.1.5
 
 ### Changes
 
-- [#175](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/175) [`2e7c7e9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/2e7c7e90201a16b51215857b453d001cb3318605) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Use bounded raw PTY output instead of terminal emulation while preserving large pipe payloads and reporting omitted PTY output in token counts. Clarify safe JavaScript quoting for multiline Code Mode commands
+- [#179](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/179) [`ffa9c25`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ffa9c25f1cbe4e9a23b18a6122f468dc6e8a42e4) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Yield silent shell commands as sessions while active commands continue waiting. Encourage concise intermediary progress updates during longer realtime voice work
 
 [Full changelog](./packages/pi-codex-conversion-lite/CHANGELOG.md)
 
@@ -89,16 +89,13 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.38
+### @howaboua/pi-extensions — 0.0.39
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-auto-trees: Add /prime command with automatic settled-agent markers.
-
-- Updated dependencies [[`bf58bdc`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/bf58bdce157ca9c3c7869b629ad148bd05a3a100)]:
-  - @howaboua/pi-auto-trees@0.1.10
+  - @howaboua/pi-codex-conversion-lite: Yield silent shell commands as sessions while active commands continue waiting. Encourage concise intermediary progress updates during longer realtime voice work.
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
@@ -235,16 +232,13 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.40
+### @howaboua/pi-stuff — 0.0.41
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-auto-trees: Add /prime command with automatic settled-agent markers.
-
-- Updated dependencies [[`bf58bdc`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/bf58bdce157ca9c3c7869b629ad148bd05a3a100)]:
-  - @howaboua/pi-auto-trees@0.1.10
+  - @howaboua/pi-codex-conversion-lite: Yield silent shell commands as sessions while active commands continue waiting. Encourage concise intermediary progress updates during longer realtime voice work.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 

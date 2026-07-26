@@ -1,5 +1,13 @@
 # @howaboua/pi-extensions
 
+## 0.0.39
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-codex-conversion-lite: Yield silent shell commands as sessions while active commands continue waiting. Encourage concise intermediary progress updates during longer realtime voice work.
+
 ## 0.0.38
 
 ### Changes
