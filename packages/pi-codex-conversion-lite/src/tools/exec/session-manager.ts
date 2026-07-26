@@ -103,7 +103,8 @@ export interface ExecSessionManagerOptions {
 }
 
 const MAX_COMMAND_HISTORY = 256;
-const DEFAULT_MAX_SESSION_BUFFER_CHARS = 1024 * 1024;
+const DEFAULT_MAX_TTY_SESSION_BUFFER_CHARS = 1024 * 1024;
+const DEFAULT_MAX_PIPE_SESSION_BUFFER_CHARS = 256 * 1024 * 1024;
 const TERMINATE_ESCALATE_MS = 2_000;
 
 export function createExecSessionManager(options: ExecSessionManagerOptions = {}): ExecSessionManager {
@@ -122,7 +123,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 		minEmptyWriteYieldTimeMs,
 		options.maxEmptyWriteYieldTimeMs ?? DEFAULT_MAX_EMPTY_WRITE_YIELD_TIME_MS,
 	);
-	const maxSessionBufferChars = Math.max(1024, options.maxSessionBufferChars ?? DEFAULT_MAX_SESSION_BUFFER_CHARS);
+	const configuredMaxSessionBufferChars = options.maxSessionBufferChars === undefined ? undefined : Math.max(1024, options.maxSessionBufferChars);
 
 	function rememberCommand(sessionId: number, command: string): void {
 		commandHistory.set(sessionId, command);
@@ -186,6 +187,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 		if (text.length === 0) return;
 		const output = session.tty ? text : normalizePipeOutput(text);
 		session.buffer += output;
+		const maxSessionBufferChars = configuredMaxSessionBufferChars ?? (session.tty ? DEFAULT_MAX_TTY_SESSION_BUFFER_CHARS : DEFAULT_MAX_PIPE_SESSION_BUFFER_CHARS);
 		if (session.buffer.length > maxSessionBufferChars) {
 			const bounded = truncateToTail(session.buffer, maxSessionBufferChars);
 			session.buffer = bounded.output;

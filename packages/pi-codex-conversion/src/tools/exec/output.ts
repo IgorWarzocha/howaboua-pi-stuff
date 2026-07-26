@@ -46,32 +46,38 @@ export function generateChunkId(): string {
 	return randomBytes(3).toString("hex");
 }
 
-export function truncateOutput(text: string, maxOutputTokens?: number): { output: string; original_token_count?: number | undefined } {
-	if (text.length === 0) return { output: "" };
+export function truncateOutput(text: string, maxOutputTokens?: number, originalCharCount = text.length): { output: string; original_token_count?: number | undefined } {
+	if (text.length === 0 && originalCharCount === 0) return { output: "" };
 	const maxChars = maxCharsForTokens(maxOutputTokens);
-	const originalTokenCount = Math.ceil(text.length / 4);
+	const originalTokenCount = Math.ceil(Math.max(text.length, originalCharCount) / 4);
 	if (text.length <= maxChars) return { output: text, original_token_count: originalTokenCount };
 	return { output: truncateToTail(text, maxChars).output, original_token_count: originalTokenCount };
 }
 
-export function consumeOutput(session: ExecOutputSessionState, maxOutputTokens?: number): { output: string; original_token_count?: number | undefined } {
+function outputSince(session: ExecOutputSessionState, offset: number): { text: string; originalCharCount: number; endOffset: number } {
 	const endOffset = session.bufferStartOffset + session.buffer.length;
-	const startOffset = Math.max(session.emittedOffset, session.bufferStartOffset);
-	const text = session.buffer.slice(startOffset - session.bufferStartOffset);
-	session.emittedOffset = endOffset;
-	return truncateOutput(text, maxOutputTokens);
+	const startOffset = Math.max(offset, session.bufferStartOffset);
+	return {
+		text: session.buffer.slice(startOffset - session.bufferStartOffset),
+		originalCharCount: Math.max(0, endOffset - offset),
+		endOffset,
+	};
+}
+
+export function consumeOutput(session: ExecOutputSessionState, maxOutputTokens?: number): { output: string; original_token_count?: number | undefined } {
+	const output = outputSince(session, session.emittedOffset);
+	session.emittedOffset = output.endOffset;
+	return truncateOutput(output.text, maxOutputTokens, output.originalCharCount);
 }
 
 export function peekUnconsumedOutput(session: ExecOutputSessionState, maxOutputTokens?: number): { output: string; original_token_count?: number | undefined } {
-	const startOffset = Math.max(session.emittedOffset, session.bufferStartOffset);
-	const text = session.buffer.slice(startOffset - session.bufferStartOffset);
-	return truncateOutput(text, maxOutputTokens);
+	const output = outputSince(session, session.emittedOffset);
+	return truncateOutput(output.text, maxOutputTokens, output.originalCharCount);
 }
 
 export function peekOutputSince(session: ExecOutputSessionState, baselineOffset: number, maxOutputTokens?: number): { output: string; original_token_count?: number | undefined } {
-	const startOffset = Math.max(baselineOffset, session.bufferStartOffset);
-	const text = session.buffer.slice(startOffset - session.bufferStartOffset);
-	return truncateOutput(text, maxOutputTokens);
+	const output = outputSince(session, baselineOffset);
+	return truncateOutput(output.text, maxOutputTokens, output.originalCharCount);
 }
 
 export function resultFromSnapshot(args: {

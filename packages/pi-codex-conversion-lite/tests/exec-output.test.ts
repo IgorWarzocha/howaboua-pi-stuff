@@ -13,10 +13,10 @@ test("bounded raw output resumes deltas after rollover", () => {
 	assert.equal(peekOutputSince(session, baselineOffset).output, "klm");
 	assert.equal(consumeOutput(session).output, "klm");
 
-	const secondRollover = truncateToTail(`${session.buffer}nopqrstuv`, 10);
+	const secondRollover = truncateToTail(`${session.buffer}nopqrstuvwxyzABCDEFG`, 10);
 	session.buffer = secondRollover.output;
 	session.bufferStartOffset += secondRollover.removed;
-	assert.equal(consumeOutput(session).output, "nopqrstuv");
+	assert.deepEqual(consumeOutput(session), { output: "xyzABCDEFG", original_token_count: 5 });
 	assert.equal(truncateToTail(`${"x".repeat(4)}😀z`, 2).output, "z");
 	assert.equal(truncateOutput(`x😀${"y".repeat(255)}`, 1).output, "y".repeat(255));
 });
