@@ -1,5 +1,11 @@
 # @howaboua/pi-codex-conversion-lite
 
+## 0.1.4
+
+### Changes
+
+- [#175](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/175) [`2e7c7e9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/2e7c7e90201a16b51215857b453d001cb3318605) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Use bounded raw PTY output instead of terminal emulation while preserving large pipe payloads and reporting omitted PTY output in token counts. Clarify safe JavaScript quoting for multiline Code Mode commands
+
 ## 0.1.3
 
 ### Changes
