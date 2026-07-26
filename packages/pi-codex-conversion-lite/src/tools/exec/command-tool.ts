@@ -13,7 +13,7 @@ const EXEC_COMMAND_PARAMETERS = Type.Object({
 	workdir: Type.Optional(Type.String({ description: "Cwd" })),
 	shell: Type.Optional(Type.String()),
 	tty: Type.Optional(Type.Boolean({ description: "Keep stdin open for input or interruption" })),
-	yield_time_ms: Type.Optional(Type.Number({ description: "Non-TTY idle ms; TTY wait ms" })),
+	yield_time_ms: Type.Optional(Type.Number({ description: "Wait ms" })),
 	max_output_tokens: Type.Optional(Type.Number({ description: "Truncate" })),
 	login: Type.Optional(Type.Boolean({ description: "Login shell" })),
 });
