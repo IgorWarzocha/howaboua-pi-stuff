@@ -57,19 +57,19 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 2.2.26
+### @howaboua/pi-codex-conversion — 2.2.27
 
 ### Changes
 
-- [#186](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/186) [`b77e6d2`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/b77e6d2474cebdb91a1b8ab52ff69297c930b314) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Migrate legacy function-shaped exec history to native custom-tool IDs so existing Code Mode sessions resume across the tool-contract upgrade
+- [#188](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/188) [`e9f30ea`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/e9f30ea4455057e4c32b697043b107a97bcbcf88) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Keep Codex WebSocket continuations alive through the backend cache window so delayed compaction can reuse the hot context.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion-lite — 0.1.7
+### @howaboua/pi-codex-conversion-lite — 0.1.8
 
 ### Changes
 
-- [#186](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/186) [`b77e6d2`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/b77e6d2474cebdb91a1b8ab52ff69297c930b314) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Migrate legacy function-shaped exec history to native custom-tool IDs so existing Code Mode sessions resume across the tool-contract upgrade
+- [#188](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/188) [`e9f30ea`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/e9f30ea4455057e4c32b697043b107a97bcbcf88) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Keep Codex WebSocket continuations alive through the backend cache window so delayed compaction can reuse the hot context.
 
 [Full changelog](./packages/pi-codex-conversion-lite/CHANGELOG.md)
 
@@ -89,13 +89,13 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.41
+### @howaboua/pi-extensions — 0.0.42
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-codex-conversion-lite: Migrate legacy function-shaped exec history to native custom-tool IDs so existing Code Mode sessions resume across the tool-contract upgrade.
+  - @howaboua/pi-codex-conversion-lite: Keep Codex WebSocket continuations alive through the backend cache window so delayed compaction can reuse the hot context.
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
@@ -232,13 +232,13 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.43
+### @howaboua/pi-stuff — 0.0.44
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-codex-conversion-lite: Migrate legacy function-shaped exec history to native custom-tool IDs so existing Code Mode sessions resume across the tool-contract upgrade.
+  - @howaboua/pi-codex-conversion-lite: Keep Codex WebSocket continuations alive through the backend cache window so delayed compaction can reuse the hot context.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 

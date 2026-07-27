@@ -1,5 +1,13 @@
 # @howaboua/pi-stuff
 
+## 0.0.44
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-codex-conversion-lite: Keep Codex WebSocket continuations alive through the backend cache window so delayed compaction can reuse the hot context.
+
 ## 0.0.43
 
 ### Changes
