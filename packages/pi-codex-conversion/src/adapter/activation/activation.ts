@@ -76,7 +76,8 @@ export function shouldUseProxyNativeTools(ctx: ExtensionContext, config: CodexCo
 }
 
 function shouldUseCodexBackedNativeTools(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
-	return config.mode === "normal" && (usesAnyAdapterModeOnAllProviders(config) || isConfiguredAdapterProvider(ctx, config));
+	return (config.mode === "normal" || config.voiceFeaturesOnly)
+		&& (usesAnyAdapterModeOnAllProviders(config) || isConfiguredAdapterProvider(ctx, config));
 }
 
 export function isEffectiveOpenAICodexContext(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
@@ -84,9 +85,10 @@ export function isEffectiveOpenAICodexContext(ctx: ExtensionContext, config: Cod
 }
 
 export function shouldUseExtraToolsOnly(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
-	if (config.voiceFeaturesOnly || config.mode !== "normal") return false;
+	if (!config.voiceFeaturesOnly && config.mode !== "normal") return false;
 	if (!hasExtraToolsOnlyConfig(config)) return false;
 	if (usesExtraToolsOnlyOnAllProviders(config)) return true;
+	if (config.voiceFeaturesOnly && usesFullAdapterOnAllProviders(config)) return true;
 	return config.scope.allProviders === "off" && (isConfiguredAdapterProvider(ctx, config) || isCodexLikeContext(ctx));
 }
 
@@ -211,7 +213,7 @@ function getAdapterOwnedToolNames(config: CodexConversionConfig): string[] {
 
 function setExtraToolsOnlyStatus(ctx: ExtensionContext, config: CodexConversionConfig, toolNames: string[]): void {
 	if (!ctx.hasUI) return;
-	ctx.ui.setStatus(STATUS_KEY, config.ui.statusLine ? buildExtraToolsOnlyStatusText(toolNames, ctx.ui.theme) : undefined);
+	ctx.ui.setStatus(STATUS_KEY, !config.voiceFeaturesOnly && config.ui.statusLine ? buildExtraToolsOnlyStatusText(toolNames, ctx.ui.theme) : undefined);
 }
 
 function mergeToolNames(...toolNameGroups: string[][]): string[] {

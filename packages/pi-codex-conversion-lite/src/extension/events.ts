@@ -70,6 +70,8 @@ export function registerCodexEvents(
 		proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 		if (state.config.voiceFeaturesOnly) {
+			clearApplyPatchRenderState();
+			tools.ensureOptionalTools();
 			ui.clearBackgroundWidget();
 			syncAdapter(pi, ctx, state);
 			return;
@@ -92,6 +94,7 @@ export function registerCodexEvents(
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 		proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 		if (state.config.voiceFeaturesOnly) {
+			tools.ensureOptionalTools();
 			ui.clearBackgroundWidget();
 			syncAdapter(pi, ctx, state);
 			return;

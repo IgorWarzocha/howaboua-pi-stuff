@@ -64,6 +64,7 @@ export interface WebSearchToolOptions {
 	sessionId?: string | undefined;
 	model?: string | (() => string | undefined) | undefined;
 	allowConfiguredProvider?: ((model: ExtensionContext["model"]) => boolean) | undefined;
+	allowCodexProviderFallback?: boolean | undefined;
 	customRendering?: boolean | undefined;
 	promptSnippet?: boolean | undefined;
 }
@@ -112,7 +113,9 @@ export function supportsNativeWebSearch(model: ExtensionContext["model"]): boole
 }
 
 function supportsExecutableWebSearch(model: ExtensionContext["model"], options: WebSearchToolOptions): boolean {
-	return supportsNativeWebSearch(model) || Boolean(options.allowConfiguredProvider?.(model));
+	return supportsNativeWebSearch(model)
+		|| Boolean(options.allowConfiguredProvider?.(model))
+		|| options.allowCodexProviderFallback === true;
 }
 
 export function supportsMultimodalNativeWebSearch(model: ExtensionContext["model"], options: { force?: boolean | undefined } = {}): boolean {

@@ -21,7 +21,7 @@ function enableExtraTools(pi: ExtensionAPI, ctx: ExtensionContext, state: Adapte
 	}
 	state.adapterOwnedToolNames = plan.toolNames;
 	pi.setActiveTools(mergeToolNames(state.previousToolNames ?? DEFAULT_TOOL_NAMES, plan.toolNames));
-	if (ctx.hasUI) ctx.ui.setStatus(STATUS_KEY, state.config.ui.statusLine ? buildExtraToolsOnlyStatusText(plan.toolNames, ctx.ui.theme) : undefined);
+	if (ctx.hasUI) ctx.ui.setStatus(STATUS_KEY, !state.config.voiceFeaturesOnly && state.config.ui.statusLine ? buildExtraToolsOnlyStatusText(plan.toolNames, ctx.ui.theme) : undefined);
 }
 
 function enableAdapter(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState, plan: Extract<CodexRuntimePlan, { kind: "normal" | "code" }>): void {

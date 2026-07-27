@@ -24,21 +24,28 @@ export function isExplicitlyConfiguredToolProvider(model: Model<Api> | undefined
 
 export function registerCodexTools(pi: ExtensionAPI, runtime: CodexExtensionRuntime): CodexToolRegistration {
 	const renderOptions = (config: CodexConversionConfig) => ({ customRendering: config.ui.toolRenaming });
-	const registerCore = (config: CodexConversionConfig) => {
+	const registerApplyPatch = (config: CodexConversionConfig) =>
 		registerApplyPatchTool(pi, { showDiffWhenCollapsed: !config.ui.compactTools });
+	const registerViewImage = (config: CodexConversionConfig) =>
+		registerViewImageTool(pi, { describeForTextModels: config.tools.viewImageFallback, ...renderOptions(config) });
+	const registerCore = (config: CodexConversionConfig) => {
+		registerApplyPatch(config);
 		registerExecCommandTool(pi, runtime.tracker, runtime.sessions, {
 			...renderOptions(config),
 			showOutputWhenCollapsed: true,
 		});
 		registerWriteStdinTool(pi, runtime.sessions);
-		registerViewImageTool(pi, { describeForTextModels: config.tools.viewImageFallback, ...renderOptions(config) });
+		registerViewImage(config);
 	};
 	const ensureOptionalTools = (config = runtime.state.config) => {
-		if (config.voiceFeaturesOnly) return;
+		if (config.voiceFeaturesOnly) {
+			if (config.tools.applyPatchOnly) registerApplyPatch(config);
+			if (config.tools.viewImageOnly) registerViewImage(config);
+		}
 		const allowConfiguredProvider = (model: Model<Api> | undefined): boolean =>
 			isExplicitlyConfiguredToolProvider(model, config);
 		const allowCodexProviderFallback = usesCodexProviderFallback(config);
-		if (config.tools.webRun || config.tools.webRunOnly) {
+		if ((!config.voiceFeaturesOnly && config.tools.webRun) || config.tools.webRunOnly) {
 			registerWebSearchTool(pi, WEB_SEARCH_TOOL_NAME, {
 				model: () => runtime.state.config.openai.webSearchModel,
 				allowConfiguredProvider,
@@ -46,7 +53,7 @@ export function registerCodexTools(pi: ExtensionAPI, runtime: CodexExtensionRunt
 				...renderOptions(config),
 			});
 		}
-		if (config.tools.imageGeneration || config.tools.imageGenerationOnly) {
+		if ((!config.voiceFeaturesOnly && config.tools.imageGeneration) || config.tools.imageGenerationOnly) {
 			registerImageGenerationTool(pi, { allowConfiguredProvider, allowCodexProviderFallback, ...renderOptions(config) });
 		}
 	};
