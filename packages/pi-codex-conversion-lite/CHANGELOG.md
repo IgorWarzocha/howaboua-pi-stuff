@@ -1,5 +1,11 @@
 # @howaboua/pi-codex-conversion-lite
 
+## 0.1.7
+
+### Changes
+
+- [#186](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/186) [`b77e6d2`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/b77e6d2474cebdb91a1b8ab52ff69297c930b314) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Migrate legacy function-shaped exec history to native custom-tool IDs so existing Code Mode sessions resume across the tool-contract upgrade
+
 ## 0.1.6
 
 ### Changes
