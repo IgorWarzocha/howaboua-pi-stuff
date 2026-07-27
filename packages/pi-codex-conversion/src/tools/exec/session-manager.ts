@@ -1,6 +1,6 @@
 import { StringDecoder } from "node:string_decoder";
 import { getCodexShellArgs } from "../../adapter/prompt/runtime-shell.ts";
-import { normalizePipeOutput, truncateToTail } from "./output.ts";
+import { normalizePipeOutput, truncateOutput, truncateToTail } from "./output.ts";
 import { chunkToBytes, createExecBridgeClient, type BridgeReadResponse } from "./bridge-client.ts";
 import { DEFAULT_EXEC_YIELD_TIME_MS, DEFAULT_MAX_EMPTY_WRITE_YIELD_TIME_MS, DEFAULT_WRITE_YIELD_TIME_MS, clampExecYieldTime, clampWriteYieldTime, normalizeMinEmptyWriteYieldTime, normalizeMinNonInteractiveExecYieldTime, resolveExecution, resolveShell, resolveWorkdir } from "./shell.ts";
 import { registerAbortHandler, waitForExitOrInactivity } from "./wait.ts";
@@ -150,6 +150,14 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 		if (completedResults.size <= MAX_COMPLETED_SESSION_HISTORY) return;
 		const oldest = completedResults.keys().next().value;
 		if (oldest !== undefined) completedResults.delete(oldest);
+	}
+
+	function replayCompletedResult(result: UnifiedExecResult, maxOutputTokens?: number): UnifiedExecResult {
+		if (maxOutputTokens === undefined) return result;
+		const originalCharCount = result.original_token_count === undefined
+			? result.output.length
+			: result.original_token_count * 4;
+		return { ...result, ...truncateOutput(result.output, maxOutputTokens, originalCharCount) };
 	}
 
 	function finishResult(session: ExecSession, waitMs: number, maxOutputTokens?: number): UnifiedExecResult {
@@ -385,7 +393,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 					if ((input.chars ?? "").length > 0) {
 						throw new Error(`Process id ${input.session_id} already exited with code ${completed.exit_code}; cannot write stdin`);
 					}
-					return completed;
+					return replayCompletedResult(completed, input.max_output_tokens);
 				}
 				throw new Error(`Unknown process id ${input.session_id}`);
 			}

@@ -21,7 +21,7 @@ export function registerCodexCommand(
 	pi: ExtensionAPI,
 	state: AdapterState,
 	voice: CodexVoiceController,
-	onConfigApplied?: (config: CodexConversionConfig, ctx: ExtensionContext) => void,
+	onConfigApplied?: (config: CodexConversionConfig, ctx: ExtensionContext, previousConfig: CodexConversionConfig) => void,
 	backgroundShells?: { sessions: ExecSessionManager; widget: BackgroundBashWidgetState } | undefined,
 ): void {
 	function saveAndApply(ctx: ExtensionContext, nextConfig: CodexConversionConfig): boolean {
@@ -30,8 +30,9 @@ export function registerCodexCommand(
 			ctx.ui.notify(`Failed to save Codex settings: ${writeResult.error}`, "error");
 			return false;
 		}
+		const previousConfig = state.config;
 		state.config = nextConfig;
-		onConfigApplied?.(nextConfig, ctx);
+		onConfigApplied?.(nextConfig, ctx, previousConfig);
 		syncAdapter(pi, ctx, state);
 		return true;
 	}

@@ -14,6 +14,7 @@ export const WAIT_DESCRIPTION =
 
 const BUNDLED_TOOLS_HEADING = "Tools available in exec:";
 const CUSTOM_TOOLS_HEADING = "Configured custom tools:";
+const DEFERRED_CUSTOM_TOOLS_GUIDANCE = "Deferred custom tools: find by name in ALL_TOOLS";
 const CUSTOM_TOOL_DOCUMENTATION_MARKER = "only to work on custom-tool definitions";
 const CUSTOM_TOOLS_GUIDANCE =
 	"Prefer custom tools for command-backed capabilities";
@@ -48,6 +49,7 @@ function buildUsageSection(
 export function buildCodeModeToolsPrompt(
 	tools: CodeModeToolDefinition[],
 	documentationPath?: string,
+	existingPrompt = "",
 ): string {
 	const bundled = tools.filter(
 		(tool) => !isConfiguredCustomTool(tool) && !tool.deferLoading,
@@ -55,15 +57,19 @@ export function buildCodeModeToolsPrompt(
 	const custom = tools.filter(isConfiguredCustomTool);
 	const promotedCustom = custom.filter((tool) => !tool.deferLoading);
 	const sections = [
-		buildUsageSection(BUNDLED_TOOLS_HEADING, bundled),
-		buildUsageSection(CUSTOM_TOOLS_HEADING, promotedCustom),
-		custom.some((tool) => tool.deferLoading)
-			? "Deferred custom tools: find by name in ALL_TOOLS"
+		existingPrompt.includes(BUNDLED_TOOLS_HEADING)
+			? undefined
+			: buildUsageSection(BUNDLED_TOOLS_HEADING, bundled),
+		existingPrompt.includes(CUSTOM_TOOLS_HEADING)
+			? undefined
+			: buildUsageSection(CUSTOM_TOOLS_HEADING, promotedCustom),
+		custom.some((tool) => tool.deferLoading) && !existingPrompt.includes(DEFERRED_CUSTOM_TOOLS_GUIDANCE)
+			? DEFERRED_CUSTOM_TOOLS_GUIDANCE
 			: undefined,
-		custom.length > 0 && documentationPath
+		custom.length > 0 && documentationPath && !existingPrompt.includes(CUSTOM_TOOL_DOCUMENTATION_MARKER)
 			? `Read ${documentationPath} ${CUSTOM_TOOL_DOCUMENTATION_MARKER}, not to call them`
 			: undefined,
-		custom.length > 0 ? CUSTOM_TOOLS_GUIDANCE : undefined,
+		custom.length > 0 && !existingPrompt.includes(CUSTOM_TOOLS_GUIDANCE) ? CUSTOM_TOOLS_GUIDANCE : undefined,
 	].filter(Boolean);
 	return sections.join("\n");
 }
@@ -73,13 +79,7 @@ export function injectCodeModeToolsPrompt(
 	tools: CodeModeToolDefinition[],
 	documentationPath?: string,
 ): string {
-	if (
-		systemPrompt.includes(BUNDLED_TOOLS_HEADING) ||
-		systemPrompt.includes(CUSTOM_TOOLS_HEADING) ||
-		systemPrompt.includes(CUSTOM_TOOL_DOCUMENTATION_MARKER)
-	)
-		return systemPrompt;
-	const section = buildCodeModeToolsPrompt(tools, documentationPath);
+	const section = buildCodeModeToolsPrompt(tools, documentationPath, systemPrompt);
 	if (!section) return systemPrompt;
 	const markers = ["\nCurrent shell:", "\nCurrent date:"]
 		.map((marker) => systemPrompt.indexOf(marker))

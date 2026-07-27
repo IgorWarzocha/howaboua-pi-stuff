@@ -62,6 +62,13 @@ test("Code Mode separates bundled, promoted custom, and deferred custom expositi
 		injectCodeModeToolsPrompt(withoutCustom, [bundled], "/custom-tools.md"),
 		withoutCustom,
 	);
+
+	const withCustom = injectCodeModeToolsPrompt(withoutCustom, tools, "/custom-tools.md");
+	assert.equal(withCustom.match(/Tools available in exec:/g)?.length, 1);
+	assert.match(withCustom, /Configured custom tools:\n- await tools\.promoted_tool/);
+	assert.match(withCustom, /Deferred custom tools: find by name in ALL_TOOLS/);
+	assert.match(withCustom, /only to work on custom-tool definitions/);
+	assert.equal(injectCodeModeToolsPrompt(withCustom, tools, "/custom-tools.md"), withCustom);
 });
 
 test("ALL_TOOLS exposes only deferred configured custom tools", () => {

@@ -33,7 +33,7 @@ test("exec waits through output activity but yields on silence or the hard limit
 test("late empty polls replay a completed process result", async () => {
 	const sessions = createExecSessionManager({ minNonInteractiveExecYieldTimeMs: 1 });
 	try {
-		const command = `${JSON.stringify(process.execPath)} -e ${JSON.stringify("setTimeout(() => process.stdout.write('final output'), 500)")}`;
+		const command = `${JSON.stringify(process.execPath)} -e ${JSON.stringify("setTimeout(() => process.stdout.write('final output' + 'x'.repeat(400)), 500)")}`;
 		const started = await sessions.exec({ cmd: command, yield_time_ms: 1, max_yield_time_ms: 1, login: false }, process.cwd());
 		assert.equal(started.session_id, 1);
 
@@ -41,6 +41,9 @@ test("late empty polls replay a completed process result", async () => {
 		assert.equal(completed.exit_code, 0);
 		assert.match(completed.output, /final output/);
 		assert.deepEqual(await sessions.write({ session_id: 1 }), completed);
+		const cappedReplay = await sessions.write({ session_id: 1, max_output_tokens: 1 });
+		assert.equal(cappedReplay.exit_code, 0);
+		assert.equal(cappedReplay.output.length, 256);
 		await assert.rejects(
 			sessions.write({ session_id: 1, chars: "x" }),
 			/Process id 1 already exited with code 0; cannot write stdin/,

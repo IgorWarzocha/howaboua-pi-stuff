@@ -29,7 +29,11 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 			proxyProvider.applyConfig(config, ctx.modelRegistry);
 			tools.applyConfig(config);
 			ui.applyConfig(config);
-			if (config.voiceFeaturesOnly || config.openai.harnessIdentifierHeader !== previousConfig.openai.harnessIdentifierHeader) {
+			if (
+				config.voiceFeaturesOnly
+				|| config.prompt.heavySystemPromptOverwrite !== previousConfig.prompt.heavySystemPromptOverwrite
+				|| config.openai.harnessIdentifierHeader !== previousConfig.openai.harnessIdentifierHeader
+			) {
 				runtime.resetTransport(ctx.sessionManager.getSessionId());
 			}
 			if (config.voiceFeaturesOnly) {

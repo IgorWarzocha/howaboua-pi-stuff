@@ -25,12 +25,14 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 		cleanupProxyProvider = proxyProvider;
 		const tools = registerCodexTools(pi, runtime);
 		const ui = registerCodexUi(pi, runtime);
-		registerCodexCommand(pi, runtime.state, runtime.voice, (config, ctx) => {
+		registerCodexCommand(pi, runtime.state, runtime.voice, (config, ctx, previousConfig) => {
 			proxyProvider.applyConfig(config, ctx.modelRegistry);
 			tools.applyConfig(config);
 			ui.applyConfig(config);
-			if (config.voiceFeaturesOnly) {
+			if (config.voiceFeaturesOnly || config.prompt.heavySystemPromptOverwrite !== previousConfig.prompt.heavySystemPromptOverwrite) {
 				runtime.resetTransport(ctx.sessionManager.getSessionId());
+			}
+			if (config.voiceFeaturesOnly) {
 				void codeMode.shutdownHost().catch((error: unknown) => {
 					ctx.ui.notify(`Could not stop Code Mode host: ${error instanceof Error ? error.message : String(error)}`, "warning");
 				});
