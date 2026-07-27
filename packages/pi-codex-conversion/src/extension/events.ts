@@ -82,7 +82,7 @@ export function registerCodexEvents(
 		ui.renderBackgroundWidget();
 		syncAdapter(pi, ctx, state);
 		prepareCodeModeHost(codeMode, ctx);
-		void runtime.startPrewarm(ctx);
+		if (!state.config.prompt.heavySystemPromptOverwrite) void runtime.startPrewarm(ctx);
 		if (event.reason === "startup") await maybeWarnLocalCheckoutVersion(ctx);
 	});
 
@@ -100,7 +100,7 @@ export function registerCodexEvents(
 		tools.ensureOptionalTools();
 		syncAdapter(pi, ctx, state);
 		prepareCodeModeHost(codeMode, ctx);
-		void runtime.startPrewarm(ctx);
+		if (!state.config.prompt.heavySystemPromptOverwrite) void runtime.startPrewarm(ctx);
 	});
 
 	pi.on("message_start", async (event) => {
@@ -141,8 +141,9 @@ export function registerCodexEvents(
 		const systemPrompt = event.systemPrompt;
 		if (!shouldUseCodexAdapter(ctx, state.config)) return undefined;
 		const skills = resolvePromptSkills(event.systemPromptOptions?.skills, hasNoSkillsFlag() ? [] : state.promptSkills);
-		await runtime.waitForPrewarm(ctx, systemPrompt);
-		return { systemPrompt: runtime.codexSystemPrompt(systemPrompt, ctx, skills) };
+		const codexSystemPrompt = runtime.codexSystemPrompt(systemPrompt, ctx, skills, event.systemPromptOptions);
+		await runtime.waitForPrewarm(ctx, codexSystemPrompt);
+		return { systemPrompt: codexSystemPrompt };
 	});
 	pi.on("message_update", async (event) => {
 		const update = event.assistantMessageEvent;

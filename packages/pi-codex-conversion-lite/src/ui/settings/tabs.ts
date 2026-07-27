@@ -1,5 +1,5 @@
 export const SETTINGS_TABS = [
-	{ id: "adapter", label: "Adapter" },
+	{ id: "adapter", label: "General" },
 	{ id: "tools", label: "Tools" },
 	{ id: "openai", label: "OpenAI" },
 	{ id: "display", label: "Display" },

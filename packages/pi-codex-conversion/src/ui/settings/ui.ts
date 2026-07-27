@@ -266,6 +266,7 @@ function buildItems(tab: SettingsTab, draft: CodexConversionConfig, theme: Theme
 	return [
 		{ id: "mode", label: "PATH mode", currentValue: draft.mode === "path" ? "on" : "off", values: ["off", "on"] },
 		{ id: "voiceFeaturesOnly", label: "Voice features only", currentValue: draft.voiceFeaturesOnly ? "on" : "off", values: ["off", "on"] },
+		{ id: "heavySystemPromptOverwrite", label: "Heavy system prompt overwrite (40% smaller)", currentValue: draft.prompt.heavySystemPromptOverwrite ? "on" : "off", values: ["off", "on"] },
 		{ id: "allProviders", label: "Use for all providers/models", currentValue: formatAllProvidersMode(draft.scope.allProviders), values: ["off", "on", "only extras"] },
 		{
 			id: "additionalProviders",
@@ -287,6 +288,7 @@ function buildItems(tab: SettingsTab, draft: CodexConversionConfig, theme: Theme
 function applySettingChange(id: string, value: string, draft: CodexConversionConfig): CodexConversionConfig {
 	if (id === "mode") return { ...draft, mode: value === "on" ? "path" : "normal" };
 	if (id === "voiceFeaturesOnly") return { ...draft, voiceFeaturesOnly: value === "on" };
+	if (id === "heavySystemPromptOverwrite") return { ...draft, prompt: { ...draft.prompt, heavySystemPromptOverwrite: value === "on" } };
 	if (id === "allProviders") return { ...draft, scope: { ...draft.scope, allProviders: parseAllProvidersMode(value) } };
 	if (id === "additionalProviders") return { ...draft, scope: { ...draft.scope, additionalProviders: normalizeProviderListFromText(value) } };
 	if (id === "statusLine") return { ...draft, ui: { ...draft.ui, statusLine: value === "on" } };

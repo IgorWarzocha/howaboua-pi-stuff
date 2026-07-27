@@ -104,6 +104,8 @@ export interface ExecSessionManagerOptions {
 }
 
 const MAX_COMMAND_HISTORY = 256;
+const MAX_COMPLETED_SESSION_HISTORY = 32;
+const MAX_COMPLETED_SESSION_OUTPUT_CHARS = 64 * 1024;
 const DEFAULT_MAX_TTY_SESSION_BUFFER_CHARS = 1024 * 1024;
 const DEFAULT_MAX_PIPE_SESSION_BUFFER_CHARS = 256 * 1024 * 1024;
 const TERMINATE_ESCALATE_MS = 2_000;
@@ -112,6 +114,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 	let nextSessionId = 1;
 	const sessions = new Map<number, ExecSession>();
 	const commandHistory = new Map<number, string>();
+	const completedResults = new Map<number, UnifiedExecResult>();
 	const changeListeners = new Set<(reason: ExecSessionChangeReason) => void>();
 	const exitListeners = new Set<(sessionId: number, command: string) => void>();
 	const bridge = createExecBridgeClient();
@@ -135,6 +138,23 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 		if (oldest !== undefined) {
 			commandHistory.delete(oldest);
 		}
+	}
+
+	function rememberCompletedResult(sessionId: number, result: UnifiedExecResult): void {
+		const bounded = truncateToTail(result.output, MAX_COMPLETED_SESSION_OUTPUT_CHARS);
+		completedResults.set(sessionId, {
+			...result,
+			output: bounded.removed > 0 ? `[Earlier completed output omitted]\n${bounded.output}` : bounded.output,
+		});
+		if (completedResults.size <= MAX_COMPLETED_SESSION_HISTORY) return;
+		const oldest = completedResults.keys().next().value;
+		if (oldest !== undefined) completedResults.delete(oldest);
+	}
+
+	function finishResult(session: ExecSession, waitMs: number, maxOutputTokens?: number): UnifiedExecResult {
+		const result = makeExecResult(session, waitMs, maxOutputTokens, exposeSession, (sessionId) => sessions.delete(sessionId));
+		if (result.exit_code !== undefined && !sessions.has(session.id)) rememberCompletedResult(session.id, result);
+		return result;
 	}
 
 	function notify(session: ExecSession, reason: ExecSessionChangeReason = "output"): void {
@@ -345,7 +365,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 				if (session.started) await pollSession(session, 0);
 				if (session.exitCode === undefined || session.exitCode === null)
 					session.nextEmptyPollYieldMs = growEmptyPollYield(execYieldMs, maxEmptyWriteYieldTimeMs);
-				return makeExecResult(session, waitedMs, input.max_output_tokens, exposeSession, (sessionId) => sessions.delete(sessionId));
+				return finishResult(session, waitedMs, input.max_output_tokens);
 			} catch (error) {
 				if (signal?.aborted) sessions.delete(session.id);
 				throw error;
@@ -359,6 +379,13 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			}
 			const session = sessions.get(input.session_id);
 			if (!session) {
+				const completed = completedResults.get(input.session_id);
+				if (completed) {
+					if ((input.chars ?? "").length > 0) {
+						throw new Error(`Process id ${input.session_id} already exited with code ${completed.exit_code}; cannot write stdin`);
+					}
+					return completed;
+				}
 				throw new Error(`Unknown process id ${input.session_id}`);
 			}
 			const updateBaseline = session.bufferStartOffset + session.buffer.length;
@@ -399,7 +426,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 				session.nextEmptyPollYieldMs = session.outputVersion === outputVersionBaseline
 					? growEmptyPollYield(effectiveYieldMs, maxEmptyWriteYieldTimeMs)
 					: minEmptyWriteYieldTimeMs;
-			return makeExecResult(session, waitedMs, input.max_output_tokens, exposeSession, (sessionId) => sessions.delete(sessionId));
+			return finishResult(session, waitedMs, input.max_output_tokens);
 		},
 		hasSession: (sessionId) => sessions.has(sessionId),
 		getSessionCommand: (sessionId) => sessions.get(sessionId)?.command ?? commandHistory.get(sessionId),
@@ -438,6 +465,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			bridge.shutdown();
 			sessions.clear();
 			commandHistory.clear();
+			completedResults.clear();
 		},
 	};
 }

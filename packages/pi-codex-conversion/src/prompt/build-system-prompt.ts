@@ -11,6 +11,13 @@ export interface StructuredPromptSkill {
 	disableModelInvocation?: boolean | undefined;
 }
 
+export interface PiSystemPromptOptions {
+	customPrompt?: string | undefined;
+	appendSystemPrompt?: string | undefined;
+	cwd: string;
+	contextFiles?: Array<{ path: string; content: string }> | undefined;
+}
+
 const NORMAL_CODEX_GUIDELINES = [
 	"Use exec_command for shell commands, file inspection, builds, and tests; prefer rg / rg --files for discovery and focused commands over truncation",
 	"Reserve tty=true for input or persistent processes",
@@ -85,24 +92,31 @@ export interface CodexPromptToolOptions {
 
 type CodexPromptMode = "normal" | "path" | "code";
 
-function buildCodexGuidelines(mode: CodexPromptMode = "normal", tools: CodexPromptToolOptions = {}): string[] {
-	if (mode === "normal") return [...NORMAL_CODEX_GUIDELINES];
-	const guidelines = mode === "code" ? [...CODE_MODE_GUIDELINES] : [...PATH_CODEX_GUIDELINES];
-	if (mode === "code") return guidelines;
-	const examples = [`- apply_patch <<'PATCH'`, `  *** Begin Patch`, `  ...`, `  *** End Patch`, `  PATCH`];
-	if (tools.viewImage !== false) examples.push(`- view_image '{"path":"/x.png"}'`);
-	if (tools.webRun !== false) {
-		examples.push(`- web_run '{"search_query":[{"q":"..."}],"response_length":"short|medium|long"}'`);
-		examples.push(`- web_run '{"open":[{"ref_id":"turn0search0 or https://..."}]}'`);
-		examples.push(`- web_run '{"click":[{"ref_id":"turn0view0","id":1}]}'`);
-		examples.push(`- web_run '{"find":[{"ref_id":"turn0view0","pattern":"..."}]}'`);
+function buildCodexGuidelines(mode: CodexPromptMode = "normal", tools: CodexPromptToolOptions = {}, piPackageRoot?: string): string[] {
+	const guidelines = mode === "normal"
+		? [...NORMAL_CODEX_GUIDELINES]
+		: mode === "code"
+			? [...CODE_MODE_GUIDELINES]
+			: [...PATH_CODEX_GUIDELINES];
+	if (mode !== "normal" && mode !== "code") {
+		const examples = [`- apply_patch <<'PATCH'`, `  *** Begin Patch`, `  ...`, `  *** End Patch`, `  PATCH`];
+		if (tools.viewImage !== false) examples.push(`- view_image '{"path":"/x.png"}'`);
+		if (tools.webRun !== false) {
+			examples.push(`- web_run '{"search_query":[{"q":"..."}],"response_length":"short|medium|long"}'`);
+			examples.push(`- web_run '{"open":[{"ref_id":"turn0search0 or https://..."}]}'`);
+			examples.push(`- web_run '{"click":[{"ref_id":"turn0view0","id":1}]}'`);
+			examples.push(`- web_run '{"find":[{"ref_id":"turn0view0","pattern":"..."}]}'`);
+		}
+		if (tools.imageGeneration !== false) {
+			examples.push(`- imagegen '{"prompt":"..."}'`);
+			examples.push(`- imagegen '{"action":"edit","prompt":"...","images":["https://... or /x.png"]}'`);
+		}
+		if (examples.length > 0)
+			guidelines.splice(4, 0, `PATH tool accepted forms:\n${examples.join("\n")}`);
 	}
-	if (tools.imageGeneration !== false) {
-		examples.push(`- imagegen '{"prompt":"..."}'`);
-		examples.push(`- imagegen '{"action":"edit","prompt":"...","images":["https://... or /x.png"]}'`);
+	if (piPackageRoot) {
+		guidelines.push(`For questions about Pi, Pi configuration, or anything built with its SDK, first list README.md, docs/, and examples/ under ${piPackageRoot}; read relevant files and follow references before implementing`);
 	}
-	if (examples.length > 0)
-		guidelines.splice(4, 0, `PATH tool accepted forms:\n${examples.join("\n")}`);
 	return guidelines;
 }
 
@@ -171,11 +185,8 @@ export function resolvePromptSkills(
 	return structuredSkills === undefined ? [...fallbackSkills] : promptSkillsFromStructuredSkills(structuredSkills);
 }
 
-function injectSkills(prompt: string, skills: PromptSkill[]): string {
-	if (skills.length === 0 || /\n## Skills\b/.test(prompt) || /<skills_instructions>/.test(prompt)) {
-		return prompt;
-	}
-
+function buildSkillsSection(skills: PromptSkill[]): string {
+	if (skills.length === 0) return "";
 	const lines = [
 		"<skills_instructions>",
 		"## Skills",
@@ -194,8 +205,14 @@ function injectSkills(prompt: string, skills: PromptSkill[]): string {
 	lines.push("### Fallback");
 	lines.push("- If skill is missing or path cannot be read, say so briefly and continue with best fallback approach");
 	lines.push("</skills_instructions>");
+	return lines.join("\n");
+}
 
-	return insertBeforeTrailingContext(prompt, lines.join("\n"));
+function injectSkills(prompt: string, skills: PromptSkill[]): string {
+	if (skills.length === 0 || /\n## Skills\b/.test(prompt) || /<skills_instructions>/.test(prompt)) {
+		return prompt;
+	}
+	return insertBeforeTrailingContext(prompt, buildSkillsSection(skills));
 }
 
 function injectGuidelines(prompt: string, mode?: CodexPromptMode, tools?: CodexPromptToolOptions): string {
@@ -229,6 +246,72 @@ function injectGuidelines(prompt: string, mode?: CodexPromptMode, tools?: CodexP
 	return `${prompt.slice(0, match.index)}${replacement}${prompt.slice(match.index + match[0]!.length)}`;
 }
 
-export function buildCodexSystemPrompt(basePrompt: string, options: { skills?: PromptSkill[] | undefined; shell?: string | undefined; mode?: CodexPromptMode | undefined; tools?: CodexPromptToolOptions | undefined } = {}): string {
+function extractPiPackageRoot(prompt: string): string | undefined {
+	const readmePath = prompt.match(/^- Main documentation: (.+[\\/]README\.md)$/m)?.[1]?.trim();
+	return readmePath?.replace(/[\\/][^\\/]+$/, "");
+}
+
+function extractCodeModeToolsSection(prompt: string): string | undefined {
+	const start = prompt.indexOf("\n\nTools available in exec:");
+	if (start === -1) return undefined;
+	const section = prompt.slice(start + 2);
+	const endMarkers = ["\nCurrent date:", "\nCurrent shell:"]
+		.map((marker) => section.indexOf(marker))
+		.filter((index) => index !== -1);
+	return section.slice(0, endMarkers.length > 0 ? Math.min(...endMarkers) : undefined).trimEnd();
+}
+
+function buildProjectContext(contextFiles: PiSystemPromptOptions["contextFiles"]): string | undefined {
+	if (!contextFiles || contextFiles.length === 0) return undefined;
+	const files = contextFiles
+		.map(({ path, content }) => `<project_instructions path="${path}">\n${content}\n</project_instructions>`)
+		.join("\n\n");
+	return `<project_context>\n\nProject-specific instructions and guidelines:\n\n${files}\n\n</project_context>`;
+}
+
+function buildHeavyCodexSystemPrompt(
+	basePrompt: string,
+	options: {
+		skills: PromptSkill[];
+		shell?: string | undefined;
+		mode?: CodexPromptMode | undefined;
+		tools?: CodexPromptToolOptions | undefined;
+		systemPromptOptions: PiSystemPromptOptions;
+	},
+): string {
+	const source = options.systemPromptOptions;
+	const sections = [
+		source.customPrompt,
+		source.appendSystemPrompt,
+		`Guidelines:\n${buildCodexGuidelines(options.mode, options.tools, source.customPrompt ? undefined : extractPiPackageRoot(basePrompt)).map((line) => `- ${line}`).join("\n")}`,
+		buildProjectContext(source.contextFiles),
+		buildSkillsSection(options.skills),
+		extractCodeModeToolsSection(basePrompt),
+		`Current working directory: ${source.cwd.replace(/\\/g, "/")}`,
+		options.shell ? `Current shell: ${options.shell}` : undefined,
+	].filter((section): section is string => Boolean(section));
+	return sections.join("\n\n");
+}
+
+export function buildCodexSystemPrompt(
+	basePrompt: string,
+	options: {
+		skills?: PromptSkill[] | undefined;
+		shell?: string | undefined;
+		mode?: CodexPromptMode | undefined;
+		tools?: CodexPromptToolOptions | undefined;
+		heavySystemPromptOverwrite?: boolean | undefined;
+		systemPromptOptions?: PiSystemPromptOptions | undefined;
+	} = {},
+): string {
+	if (options.heavySystemPromptOverwrite && options.systemPromptOptions) {
+		return buildHeavyCodexSystemPrompt(basePrompt, {
+			skills: options.skills ?? [],
+			shell: options.shell,
+			mode: options.mode,
+			tools: options.tools,
+			systemPromptOptions: options.systemPromptOptions,
+		});
+	}
 	return injectShell(injectSkills(injectGuidelines(basePrompt, options.mode, options.tools), options.skills ?? []), options.shell);
 }

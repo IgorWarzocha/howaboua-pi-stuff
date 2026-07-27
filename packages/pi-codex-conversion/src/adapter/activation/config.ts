@@ -27,6 +27,7 @@ export const V2_USER_MESSAGE_RETENTION_OPTIONS: readonly V2UserMessageRetention[
 export interface CodexConversionConfig {
 	mode: CodexAdapterMode;
 	voiceFeaturesOnly: boolean;
+	prompt: { heavySystemPromptOverwrite: boolean };
 	scope: { allProviders: AllProvidersMode; additionalProviders: string[] };
 	tools: {
 		webRun: boolean;
@@ -73,6 +74,7 @@ export const CODEX_CONVERSION_CONFIG_BASENAME = "pi-codex-conversion.json";
 export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	mode: "normal",
 	voiceFeaturesOnly: false,
+	prompt: { heavySystemPromptOverwrite: false },
 	scope: { allProviders: "off", additionalProviders: [] },
 	tools: { webRun: true, imageGeneration: true, viewImageFallback: false, applyPatchOnly: false, viewImageOnly: false, webRunOnly: false, imageGenerationOnly: false },
 	ui: {
@@ -182,6 +184,7 @@ function optionalString(value: unknown): string | undefined {
 
 export function normalizeCodexConversionConfig(value: unknown): CodexConversionConfig {
 	if (!isObject(value)) return structuredClone(DEFAULT_CODEX_CONVERSION_CONFIG);
+	const prompt = isObject(value["prompt"]) ? value["prompt"] : {};
 	const scope = isObject(value["scope"]) ? value["scope"] : {};
 	const tools = isObject(value["tools"]) ? value["tools"] : {};
 	const ui = isObject(value["ui"]) ? value["ui"] : {};
@@ -194,6 +197,9 @@ export function normalizeCodexConversionConfig(value: unknown): CodexConversionC
 	return {
 		mode: normalizeCodexAdapterMode(value["mode"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.mode,
 		voiceFeaturesOnly: bool(value["voiceFeaturesOnly"], DEFAULT_CODEX_CONVERSION_CONFIG.voiceFeaturesOnly),
+		prompt: {
+			heavySystemPromptOverwrite: bool(prompt["heavySystemPromptOverwrite"], DEFAULT_CODEX_CONVERSION_CONFIG.prompt.heavySystemPromptOverwrite),
+		},
 		scope: {
 			allProviders: normalizeAllProvidersMode(scope["allProviders"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.scope["allProviders"],
 			additionalProviders: normalizeProviderList(scope["additionalProviders"]),

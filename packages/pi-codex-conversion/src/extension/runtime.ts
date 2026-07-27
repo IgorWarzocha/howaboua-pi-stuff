@@ -5,7 +5,7 @@ import { shouldUseCodexAdapter, shouldUseGpt56CodeMode } from "../adapter/activa
 import type { AdapterState } from "../adapter/activation/state.ts";
 import { rewriteCodexProviderRequest } from "../adapter/provider-request.ts";
 import { getDefaultCodexRuntimeShell } from "../adapter/prompt/runtime-shell.ts";
-import { buildCodexSystemPrompt } from "../prompt/build-system-prompt.ts";
+import { buildCodexSystemPrompt, type PiSystemPromptOptions } from "../prompt/build-system-prompt.ts";
 import { closeOpenAICodexWebSocketSessions, prewarmOpenAICodexWebSocket } from "../providers/openai-codex-custom-provider.ts";
 import { createCodexTurnState } from "../providers/openai-codex/turn-state.ts";
 import type { OpenAICodexStreamOptions } from "../providers/openai-codex/types.ts";
@@ -26,8 +26,8 @@ export interface CodexExtensionRuntime {
 	registeredNativeWebSearchTools: Set<string>;
 	voice: CodexVoiceController;
 	bundledPathToolsEnv(config?: CodexConversionConfig): NodeJS.ProcessEnv;
-	codexSystemPrompt(basePrompt: string, ctx: CodexContext, skills?: AdapterState["promptSkills"]): string;
-	startPrewarm(ctx: CodexContext, systemPrompt?: string): Promise<void> | undefined;
+	codexSystemPrompt(basePrompt: string, ctx: CodexContext, skills?: AdapterState["promptSkills"], systemPromptOptions?: PiSystemPromptOptions): string;
+	startPrewarm(ctx: CodexContext, systemPrompt?: string, prepared?: boolean): Promise<void> | undefined;
 	resetTransport(sessionId?: string): void;
 	shutdownTransport(sessionId: string): void;
 	waitForPrewarm(ctx: CodexContext, systemPrompt: string): Promise<void> | undefined;
@@ -70,7 +70,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		bundledPathToolsEnv(config = state.config) {
 			return createBundledPathToolsEnv({ ...process.env, PI_CODEX_MODEL: config.openai.webSearchModel });
 		},
-		codexSystemPrompt(basePrompt, ctx, skills = state.promptSkills) {
+		codexSystemPrompt(basePrompt, ctx, skills = state.promptSkills, systemPromptOptions) {
 			const codeMode = shouldUseGpt56CodeMode(ctx, state.config);
 			const pathShaped = state.config.mode === "path" || codeMode;
 			return buildCodexSystemPrompt(basePrompt, {
@@ -80,9 +80,11 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 				tools: pathShaped
 					? { ...state.config.tools, viewImage: supportsViewImageInputs(ctx.model) || state.config.tools.viewImageFallback }
 					: undefined,
+				heavySystemPromptOverwrite: state.config.prompt.heavySystemPromptOverwrite,
+				systemPromptOptions,
 			});
 		},
-		startPrewarm(ctx, systemPrompt = ctx.getSystemPrompt()) {
+		startPrewarm(ctx, systemPrompt = ctx.getSystemPrompt(), prepared = false) {
 			const model = ctx.model;
 			if (websocketPrewarmed || !model || model.provider !== "openai-codex" || !shouldUseCodexAdapter(ctx, state.config) || !state.config.openai.forceCachedWebSockets) return undefined;
 			prewarmController?.abort();
@@ -93,7 +95,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 				if (!auth.ok || !auth.apiKey || controller.signal.aborted) return;
 				await prewarmOpenAICodexWebSocket(
 					model,
-					{ systemPrompt: runtime.codexSystemPrompt(systemPrompt, ctx), messages: [], tools: activeToolContext(pi) },
+						{ systemPrompt: prepared ? systemPrompt : runtime.codexSystemPrompt(systemPrompt, ctx), messages: [], tools: activeToolContext(pi) },
 					{
 						apiKey: auth.apiKey,
 						...(auth.headers ? { headers: auth.headers } : {}),
@@ -135,7 +137,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 			runtime.resetTransport(sessionId);
 		},
 		waitForPrewarm(ctx, systemPrompt) {
-			return prewarmPromise ?? runtime.startPrewarm(ctx, systemPrompt);
+			return prewarmPromise ?? runtime.startPrewarm(ctx, systemPrompt, true);
 		},
 	};
 	return runtime;

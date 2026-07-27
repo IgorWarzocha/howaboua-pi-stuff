@@ -68,6 +68,7 @@ export function buildConfigSettings(tab: SettingsTab, config: CodexConversionCon
 				{ id: "extensionMode", label: "Extension mode", currentValue: config.voiceFeaturesOnly ? "voice only" : "adapter and voice", values: ["adapter and voice", "voice only"] },
 				(value, current) => ({ ...current, voiceFeaturesOnly: value === "voice only" }),
 			),
+			toggle("heavySystemPromptOverwrite", "Heavy system prompt overwrite (40% smaller)", config.prompt.heavySystemPromptOverwrite, (enabled, current) => ({ ...current, prompt: { ...current.prompt, heavySystemPromptOverwrite: enabled } })),
 			setting(
 				{ id: "allProviders", label: "Provider scope", currentValue: formatAllProvidersMode(config.scope.allProviders), values: ["Codex and configured", "all providers", "extra tools only"] },
 				(value, current) => ({ ...current, scope: { ...current.scope, allProviders: parseAllProvidersMode(value) } }),
