@@ -5,12 +5,12 @@ import { syncAdapter } from "../../adapter/activation/activation.ts";
 import type { AdapterState } from "../../adapter/activation/state.ts";
 import type { CodexVoiceController } from "../../voice/controller.ts";
 import { createCodexVoiceControls } from "../../voice/controls.ts";
-import { SETTINGS_TABS, parseSettingsTab, type SettingsTab } from "./tabs.ts";
+import { ROUTABLE_SETTINGS_TABS, parseSettingsTab, type SettingsTab } from "./tabs.ts";
 import { openCodexSettingsScreen } from "./screen.ts";
 
 const VOICE_ACTIONS = ["voice realtime", "voice dictation", "voice stop"] as const;
-const CODEX_COMMAND_COMPLETIONS = [...SETTINGS_TABS.map(({ id }) => id), ...VOICE_ACTIONS];
-const CODEX_USAGE = "Usage: /codex [adapter|tools|openai|display|voice|usage|about]";
+const CODEX_COMMAND_COMPLETIONS = [...ROUTABLE_SETTINGS_TABS.map(({ id }) => id), ...VOICE_ACTIONS];
+const CODEX_USAGE = "Usage: /codex [tools|openai|display|voice|usage|about]";
 
 export function registerCodexCommand(
 	pi: ExtensionAPI,

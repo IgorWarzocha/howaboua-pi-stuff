@@ -58,6 +58,7 @@ function createNestedTools(
 	const tools: ProgrammaticCodeModeToolDefinition[] = [
 		toNestedTool(
 			createApplyPatchTool({
+				customRustBinariesDir: runtime.state.config.tools.customRustBinariesDir,
 				promptSnippet: false,
 				showDiffWhenCollapsed: !runtime.state.config.ui.compactTools,
 			}),
@@ -135,6 +136,7 @@ function createNestedTools(
 		const imageCapable = !ctx || supportsViewImageInputs(ctx.model);
 		tools.push(toNestedTool(
 			createViewImageTool({
+				customRustBinariesDir: runtime.state.config.tools.customRustBinariesDir,
 				describeForTextModels: runtime.state.config.tools.viewImageFallback,
 				promptSnippet: false,
 				customRendering: runtime.state.config.ui.toolRenaming,
@@ -149,6 +151,7 @@ function createNestedTools(
 	if (runtime.state.config.tools.webRun) {
 		tools.push(toNestedTool(
 			createWebSearchTool("web__run", {
+				customRustBinariesDir: runtime.state.config.tools.customRustBinariesDir,
 				model: () => runtime.state.config.openai.webSearchModel,
 				allowConfiguredProvider: (model) => shouldUseGpt56CodeMode({ model }, runtime.state.config),
 				promptSnippet: false,
@@ -159,6 +162,7 @@ function createNestedTools(
 	}
 	if (runtime.state.config.tools.imageGeneration && (!ctx || supportsNativeImageGeneration(ctx.model))) {
 		const imagegen = createImageGenerationTool({
+			customRustBinariesDir: runtime.state.config.tools.customRustBinariesDir,
 			promptSnippet: false,
 			customRendering: runtime.state.config.ui.toolRenaming,
 		});
