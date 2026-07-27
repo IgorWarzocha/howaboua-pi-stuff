@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.27
+
+### Changes
+
+- [#188](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/188) [`e9f30ea`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/e9f30ea4455057e4c32b697043b107a97bcbcf88) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Keep Codex WebSocket continuations alive through the backend cache window so delayed compaction can reuse the hot context.
+
 ## 2.2.26
 
 ### Changes
