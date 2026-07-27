@@ -5,10 +5,10 @@ import type {
 import { REVIEW_COMMAND } from "./constants.js";
 import type { ReviewContext } from "./types.js";
 
-export const REVIEW_LOOP_PREFACE_MESSAGE_TYPE = "subagent-review-preface";
-export const REVIEW_FINDINGS_MESSAGE_TYPE = "subagent-review-findings";
+const REVIEW_LOOP_PREFACE_MESSAGE_TYPE = "subagent-review-preface";
+const REVIEW_FINDINGS_MESSAGE_TYPE = "subagent-review-findings";
 
-export const REVIEW_LOOP_PREFACE_MESSAGE = [
+const REVIEW_LOOP_PREFACE_MESSAGE = [
 	"A review subagent is about to inspect the repository in isolation. Its findings are advisory only and may be wrong, overbroad, or missing session context.",
 	"",
 	"Do not treat review findings as a TODO list. Do not implement review findings automatically.",
@@ -67,7 +67,7 @@ export function sendReviewPrefaceOnce(
 	return { inserted: true };
 }
 
-export function buildReviewScopeText(review: ReviewContext): string {
+function buildReviewScopeText(review: ReviewContext): string {
 	if (review.scope === "latest-commit") {
 		return `for latest commit \`${review.latestCommit ?? "HEAD"}\` in \`${review.repoRoot}\` because no changes were found against the selected base`;
 	}
@@ -79,7 +79,7 @@ export function buildReviewScopeText(review: ReviewContext): string {
 	return `for current repository state in \`${review.repoRoot}\` with no usable base branch or merge base`;
 }
 
-export function buildReviewUserMessage(
+function buildReviewUserMessage(
 	review: ReviewContext,
 	findings: string,
 ): string {

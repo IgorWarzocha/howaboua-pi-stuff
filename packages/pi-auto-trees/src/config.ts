@@ -2,8 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
-export const CONFIG_FILENAME = "pi-auto-trees.json";
-export const DEFAULT_SUMMARY_CONFIG = {
+const CONFIG_FILENAME = "pi-auto-trees.json";
+const DEFAULT_SUMMARY_CONFIG = {
 	enabled: true,
 	model: "openai-codex/gpt-5.6-luna",
 	thinking: "low",
@@ -19,7 +19,7 @@ const ALLOWED_THINKING = new Set([
 	"max",
 ] as const);
 
-export type SummaryThinking =
+type SummaryThinking =
 	| "off"
 	| "minimal"
 	| "low"
@@ -42,7 +42,7 @@ interface AutoTreesConfig {
 	};
 }
 
-export function getConfigPath(): string {
+function getConfigPath(): string {
 	return path.join(getAgentDir(), CONFIG_FILENAME);
 }
 

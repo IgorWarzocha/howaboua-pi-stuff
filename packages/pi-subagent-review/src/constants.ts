@@ -7,7 +7,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const CHILD_ENV = "PI_REVIEW_EXTENSION_CHILD";
 export const REVIEW_COMMAND = "review";
 export const REVIEW_LABEL = "Review";
-export const CONFIG_FILENAME = "pi-subagent-review.json";
+const CONFIG_FILENAME = "pi-subagent-review.json";
 export const REVIEW_PROMPT_PATH = path.join(
 	path.resolve(__dirname, ".."),
 	"review.prompt.md",

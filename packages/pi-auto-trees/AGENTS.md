@@ -1,0 +1,3 @@
+- Keep `index.ts` a composition root; prompts, marker persistence, summary routing, and command orchestration retain separate owners.
+- Marker state lives in branch custom entries; semantic-leaf lookup MUST skip custom/label metadata.
+- Summary hooks handle only navigation armed by this extension; unavailable configured models fall back visibly to Pi's current model.

@@ -5,7 +5,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import type { SummaryModelConfig } from "./config.js";
 
-interface TreeNavigationOptions {
+export interface TreeNavigationOptions {
 	summarize: true;
 	customInstructions?: string;
 	replaceInstructions?: boolean;

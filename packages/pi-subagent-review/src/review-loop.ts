@@ -5,11 +5,11 @@ import type {
 import type { NavigateWithSummaryModel } from "./tree-summary.js";
 import type { ResolvedSummaryConfig } from "./types.js";
 
-export const REVIEW_LOOP_STATE_ENTRY = "subagent-review-loop-state";
-export const REVIEW_LOOP_BOUNDARY_ENTRY = "subagent-review-loop-boundary";
-export const REVIEW_LOOP_MARKER_LABEL = "review";
-export const REVIEW_LOOP_WIDGET = "subagent-review-loop";
-export const REVIEW_LOOP_SUMMARY_PROMPT = [
+const REVIEW_LOOP_STATE_ENTRY = "subagent-review-loop-state";
+const REVIEW_LOOP_BOUNDARY_ENTRY = "subagent-review-loop-boundary";
+const REVIEW_LOOP_MARKER_LABEL = "review";
+const REVIEW_LOOP_WIDGET = "subagent-review-loop";
+const REVIEW_LOOP_SUMMARY_PROMPT = [
 	"Treat this as a completed review-fix increment that should become durable context before the next isolated review pass.",
 	"Focus on the final accepted outcome, not dead ends or step-by-step implementation noise.",
 	"Capture which review findings were addressed, which were intentionally skipped or deferred, concrete files changed, key decisions, tests/checks run, and any remaining risks that matter for the next review.",

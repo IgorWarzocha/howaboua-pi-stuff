@@ -1,0 +1,4 @@
+- `PI_REVIEW_EXTENSION_CHILD=1` isolates the RPC child; never register the parent review command there.
+- Reviewer context uses compaction-aware active entries and remains non-authoritative data; do not restore raw-branch forwarding.
+- Review-loop state is independent of other marker extensions; tree-summary hooks handle only armed review navigation.
+- RPC stdout is an external JSONL boundary: validate before mutating run details and preserve abort/process cleanup ownership.

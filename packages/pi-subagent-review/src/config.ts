@@ -8,15 +8,12 @@ import {
 	DEFAULT_CONFIG,
 	getAgentDir,
 	getConfigPath,
-	REVIEW_COMMAND,
 } from "./constants.js";
 import type {
-	ChildRunDetails,
 	ParsedModelRef,
 	ResolvedReviewConfig,
 	ReviewConfig,
 	ThinkingLevel,
-	UsageStats,
 } from "./types.js";
 
 export function normalizeThinking(
@@ -71,7 +68,7 @@ export function ensureConfigFile(): string {
 	return configPath;
 }
 
-export function readConfig(): Omit<ResolvedReviewConfig, "source"> {
+function readConfig(): Omit<ResolvedReviewConfig, "source"> {
 	let parsed: ReviewConfig | undefined;
 	const configPath = ensureConfigFile();
 	try {
@@ -115,47 +112,6 @@ export function readConfig(): Omit<ResolvedReviewConfig, "source"> {
 			source: "configured",
 		},
 	};
-}
-
-function emptyUsage(): UsageStats {
-	return {
-		input: 0,
-		output: 0,
-		cacheRead: 0,
-		cacheWrite: 0,
-		cost: 0,
-		contextTokens: 0,
-		turns: 0,
-	};
-}
-
-export function createChildRunDetails(
-	task: string,
-	cwd: string,
-	config = readConfig(),
-): ChildRunDetails {
-	return {
-		mode: "review",
-		toolName: REVIEW_COMMAND,
-		task,
-		cwd,
-		model: config.model,
-		thinking: config.thinking,
-		messages: [],
-		stderr: "",
-		exitCode: 0,
-		usage: emptyUsage(),
-	};
-}
-
-export function isSubagentFailure(
-	details: Pick<ChildRunDetails, "exitCode" | "stopReason">,
-): boolean {
-	return (
-		details.exitCode !== 0 ||
-		details.stopReason === "error" ||
-		details.stopReason === "aborted"
-	);
 }
 
 function splitModelRef(modelRef: string): ParsedModelRef | undefined {

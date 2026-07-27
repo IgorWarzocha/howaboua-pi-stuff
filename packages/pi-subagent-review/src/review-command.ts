@@ -1,13 +1,9 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import {
-	createChildRunDetails,
-	isSubagentFailure,
-	resolveReviewConfig,
-} from "./config.js";
+import { resolveReviewConfig } from "./config.js";
 import { REVIEW_COMMAND } from "./constants.js";
 import { buildReviewConversationSummary } from "./conversation-summary.js";
 import { sendReviewFindings, sendReviewPrefaceOnce } from "./messages.js";
-import { buildReviewTask, detectReviewContext } from "./review.js";
+import { detectReviewContext } from "./review-context.js";
 import {
 	appendReviewLoopBoundary,
 	applyReviewLoopMarker,
@@ -16,7 +12,10 @@ import {
 	readReviewLoopState,
 	summarizeReviewLoopIncrement,
 } from "./review-loop.js";
-import { getFinalOutput, runReviewSubagent } from "./subagent.js";
+import { buildReviewTask } from "./review-task.js";
+import { getFinalOutput } from "./rpc-protocol.js";
+import { createChildRunDetails, isSubagentFailure } from "./run-details.js";
+import { runReviewSubagent } from "./subagent.js";
 import type { NavigateWithSummaryModel } from "./tree-summary.js";
 
 export function registerReviewCommand(
