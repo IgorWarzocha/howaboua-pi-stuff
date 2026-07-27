@@ -1,6 +1,6 @@
 # Code Mode custom tools
 
-Use this reference when asked to add, change, debug, or explain custom tools used by GPT-5.6 Code Mode. Do not enable bundled examples unless the user asks.
+Read this only to work on custom-tool definitions, not to call them. Do not enable bundled examples unless the user asks.
 
 ## Definitions
 
@@ -39,7 +39,7 @@ Unknown fields and invalid definitions disable only that named tool. The tool re
 
 ## Deferred tools
 
-Deferred tools remain callable but add nothing tool-specific to the provider schema or system prompt. Their metadata is available through `ALL_TOOLS`:
+Deferred tools remain callable but add nothing tool-specific to the provider schema or system prompt. Their metadata is available through `ALL_TOOLS`; bundled and promoted tools are excluded:
 
 ```js
 text(ALL_TOOLS.map(({ name }) => name));

@@ -21,7 +21,7 @@ export function registerCodexCommand(
 	pi: ExtensionAPI,
 	state: AdapterState,
 	voice: CodexVoiceController,
-	onConfigApplied?: (config: CodexConversionConfig, ctx: ExtensionContext) => void,
+	onConfigApplied?: (config: CodexConversionConfig, ctx: ExtensionContext, previousConfig: CodexConversionConfig) => void,
 	backgroundShells?: { sessions: ExecSessionManager; widget: BackgroundBashWidgetState } | undefined,
 ): void {
 	function saveAndApply(ctx: ExtensionContext, nextConfig: CodexConversionConfig): boolean {
@@ -30,8 +30,9 @@ export function registerCodexCommand(
 			ctx.ui.notify(`Failed to save Codex settings: ${writeResult.error}`, "error");
 			return false;
 		}
+		const previousConfig = state.config;
 		state.config = nextConfig;
-		onConfigApplied?.(nextConfig, ctx);
+		onConfigApplied?.(nextConfig, ctx, previousConfig);
 		syncAdapter(pi, ctx, state);
 		return true;
 	}
@@ -183,5 +184,5 @@ function formatCodexSettings(config: CodexConversionConfig): string {
 		config.tools.imageGenerationOnly ? "imagegen" : undefined,
 	].filter(Boolean).join(", ") || "off";
 	const compactionVersion = config.compaction.version ?? "v1";
-	return `Codex settings: voice only ${config.voiceFeaturesOnly ? "on" : "off"}, all models ${formatAllProvidersMode(config.scope.allProviders)}, additional providers ${config.scope.additionalProviders.length > 0 ? config.scope.additionalProviders.join(", ") : "none"}, statusline ${config.ui.statusLine ? "on" : "off"}, tool renaming ${config.ui.toolRenaming ? "on" : "off"}, compact tools ${config.ui.compactTools ? "on" : "off"}, Code Mode details ${config.ui.codeModeDetails ? "on" : "off"}, background shells widget ${config.ui.backgroundShellWidget ? "on" : "off"}, image descriptions ${config.tools.viewImageFallback ? "on" : "off"}, extra tools only ${extraTools}, fast ${config.openai.fast ? "on" : "off"}, cached websocket upgrade ${config.openai.forceCachedWebSockets === false ? "off" : "on"}, voice preference ${config.voice.mode === "transcription" ? "dictation" : "conversation"} ${config.voice.protocol}/${config.voice.protocol === "v2" ? config.voice.v2Voice : config.voice.v3Voice}, GPT-5.6 Code Mode ${config.beta.codeMode ? "on" : "off"}, proxy Responses Lite ${config.beta.responsesLite ? "on" : "off"}, responses compaction ${(config.compaction.responsesCompaction ?? false) ? "on" : "off"} (${compactionVersion}), verbosity ${config.openai.verbosity}`;
+	return `Codex settings: voice only ${config.voiceFeaturesOnly ? "on" : "off"}, Rust binaries ${config.tools.customRustBinariesDir || "bundled"}, heavy prompt overwrite ${config.prompt.heavySystemPromptOverwrite ? "on" : "off"}, all models ${formatAllProvidersMode(config.scope.allProviders)}, additional providers ${config.scope.additionalProviders.length > 0 ? config.scope.additionalProviders.join(", ") : "none"}, statusline ${config.ui.statusLine ? "on" : "off"}, tool renaming ${config.ui.toolRenaming ? "on" : "off"}, compact tools ${config.ui.compactTools ? "on" : "off"}, Code Mode details ${config.ui.codeModeDetails ? "on" : "off"}, background shells widget ${config.ui.backgroundShellWidget ? "on" : "off"}, image descriptions ${config.tools.viewImageFallback ? "on" : "off"}, extra tools only ${extraTools}, fast ${config.openai.fast ? "on" : "off"}, cached websocket upgrade ${config.openai.forceCachedWebSockets === false ? "off" : "on"}, voice preference ${config.voice.mode === "transcription" ? "dictation" : "conversation"} ${config.voice.protocol}/${config.voice.protocol === "v2" ? config.voice.v2Voice : config.voice.v3Voice}, GPT-5.6 Code Mode ${config.beta.codeMode ? "on" : "off"}, proxy Responses Lite ${config.beta.responsesLite ? "on" : "off"}, responses compaction ${(config.compaction.responsesCompaction ?? false) ? "on" : "off"} (${compactionVersion}), verbosity ${config.openai.verbosity}`;
 }

@@ -1,6 +1,5 @@
 import { spawn } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
-import { createChildRunDetails } from "./config.js";
 import {
 	CHILD_ENV,
 	REVIEW_LABEL,
@@ -8,21 +7,12 @@ import {
 	RPC_READY_TIMEOUT_MS,
 	RPC_RESPONSE_TIMEOUT_MS,
 } from "./constants.js";
+import { parseReviewRpcFrame, type ReviewRpcFrame } from "./rpc-protocol.js";
+import { createChildRunDetails } from "./run-details.js";
 import type { ResolvedReviewConfig } from "./types.js";
 
 const sleep = (ms: number) =>
 	new Promise<void>((resolve) => setTimeout(resolve, ms));
-
-export function getFinalOutput(messages: any[]): string {
-	for (let i = messages.length - 1; i >= 0; i--) {
-		const message = messages[i];
-		if (message.role !== "assistant") continue;
-		for (const part of message.content) {
-			if (part.type === "text") return part.text;
-		}
-	}
-	return "";
-}
 
 export async function runReviewSubagent(
 	task: string,
@@ -125,8 +115,8 @@ export async function runReviewSubagent(
 		});
 	};
 
-	const handleEvent = (event: any) => {
-		if (event["type"] === "message_end" && event.message) {
+	const handleEvent = (event: ReviewRpcFrame) => {
+		if (event.type === "message_end") {
 			const message = event.message;
 			details.messages.push(message);
 			if (message.role === "assistant") {
@@ -146,39 +136,29 @@ export async function runReviewSubagent(
 			return;
 		}
 
-		if (event["type"] === "agent_settled") resolveSettled();
+		if (event.type === "agent_settled") resolveSettled();
 	};
 
 	const handleLine = (line: string) => {
-		if (!line.trim()) return;
-		let data: any;
-		try {
-			data = JSON.parse(line);
-		} catch {
-			return;
-		}
+		const frame = parseReviewRpcFrame(line);
+		if (!frame) return;
 
-		if (
-			data.type === "response" &&
-			typeof data.id === "string" &&
-			pendingRequests.has(data.id)
-		) {
-			const pending = pendingRequests.get(data.id)!;
+		if (frame.type === "response" && pendingRequests.has(frame.id)) {
+			const pending = pendingRequests.get(frame.id);
+			if (!pending) return;
 			clearTimeout(pending.timeout);
-			pendingRequests.delete(data.id);
-			if (data.success === false)
+			pendingRequests.delete(frame.id);
+			if (!frame.success)
 				pending.reject(
 					new Error(
-						typeof data.error === "string"
-							? data.error
-							: `RPC ${data.command ?? "command"} failed`,
+						frame.error ?? `RPC ${String(frame.command ?? "command")} failed`,
 					),
 				);
-			else pending.resolve(data.data as unknown);
+			else pending.resolve(frame.data);
 			return;
 		}
 
-		handleEvent(data);
+		handleEvent(frame);
 	};
 
 	const stopProcess = async () => {

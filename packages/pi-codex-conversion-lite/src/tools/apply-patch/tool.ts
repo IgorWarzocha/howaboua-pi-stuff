@@ -29,6 +29,7 @@ interface ApplyPatchRenderContextLike {
 }
 
 interface ApplyPatchToolOptions {
+	customRustBinariesDir?: string | undefined;
 	promptSnippet?: boolean | undefined;
 	showDiffWhenCollapsed?: boolean | undefined;
 }
@@ -117,7 +118,7 @@ export function createApplyPatchTool(options: ApplyPatchToolOptions = {}) {
 			setApplyPatchRenderState(toolCallId, typedParams.patchText, ctx.cwd);
 			let result: ExecutePatchResult;
 			try {
-				result = await executePatchWithRust({ cwd: ctx.cwd, patchText: typedParams.patchText, signal });
+				result = await executePatchWithRust({ cwd: ctx.cwd, patchText: typedParams.patchText, signal, customRustBinariesDir: options.customRustBinariesDir });
 			} catch (error) {
 				if (error instanceof ExecutePatchError) {
 					const partial = error.hasPartialSuccess();

@@ -1,19 +1,31 @@
-import type { CodeModeToolMetadata } from "./types.js";
+import type {
+	CodeModeToolDefinition,
+	CodeModeToolMetadata,
+	CustomToolDefinition,
+} from "./types.js";
 
-export const EXEC_DESCRIPTION = `Run raw JavaScript to compose tool calls
-Optional first line: // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}
-Emit output with text(value); console is unavailable
-Globals: tools, text, image, generatedImage, store, load, notify, yield_control, exit, setTimeout, clearTimeout, ALL_TOOLS`;
+export const EXEC_DESCRIPTION = `Run JavaScript to compose tools; source only, no JSON or fences
+Use tools for I/O; no console, imports, Node, or browser APIs
+Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults 30000 ms/10000 tokens
+Await work; bare values are discarded; globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS; text(value) serializes output, notify(value) emits, yield_control() yields`;
 
 export const WAIT_DESCRIPTION =
-	"Resume or terminate an exec cell; use tools.write_stdin for session_id";
+	"Resume or terminate a yielded exec cell";
 
-const PROMOTED_TOOLS_HEADING = "Custom tools available in exec:";
-const DOCUMENTATION_PREFIX = "Custom tools documentation: read ";
+const BUNDLED_TOOLS_HEADING = "Tools available in exec:";
+const CUSTOM_TOOLS_HEADING = "Configured custom tools:";
+const DEFERRED_CUSTOM_TOOLS_GUIDANCE = "Deferred custom tools: find by name in ALL_TOOLS";
+const CUSTOM_TOOL_DOCUMENTATION_MARKER = "only to work on custom-tool definitions";
 const CUSTOM_TOOLS_GUIDANCE =
-	"Prefer a custom tool over a Pi extension for a command-backed capability";
+	"Prefer custom tools for command-backed capabilities";
 
-export function formatCustomToolHelp(tool: CodeModeToolMetadata): string {
+function isConfiguredCustomTool(
+	tool: CodeModeToolDefinition,
+): tool is CustomToolDefinition {
+	return "command" in tool;
+}
+
+export function formatCodeModeToolHelp(tool: CodeModeToolMetadata): string {
 	return [
 		`Usage: ${tool.usage}`,
 		tool.description,
@@ -23,35 +35,52 @@ export function formatCustomToolHelp(tool: CodeModeToolMetadata): string {
 		.join("\n");
 }
 
-export function buildPromotedToolsPrompt(
+function buildUsageSection(
+	heading: string,
 	tools: CodeModeToolMetadata[],
 ): string {
-	const promoted = tools
-		.filter((tool) => !tool.deferLoading)
-		.sort((left, right) => left.name.localeCompare(right.name));
-	if (promoted.length === 0) return "";
-	return `${PROMOTED_TOOLS_HEADING}\n${promoted
+	if (tools.length === 0) return "";
+	return `${heading}\n${[...tools]
+		.sort((left, right) => left.name.localeCompare(right.name))
 		.map((tool) => `- ${tool.usage}`)
 		.join("\n")}`;
 }
 
-export function buildCustomToolsDocumentationPrompt(
-	documentationPath: string,
+export function buildCodeModeToolsPrompt(
+	tools: CodeModeToolDefinition[],
+	documentationPath?: string,
+	existingPrompt = "",
 ): string {
-	return `${DOCUMENTATION_PREFIX}${documentationPath} before adding, changing, or answering questions about custom tools.\n${CUSTOM_TOOLS_GUIDANCE}`;
+	const bundled = tools.filter(
+		(tool) => !isConfiguredCustomTool(tool) && !tool.deferLoading,
+	);
+	const custom = tools.filter(isConfiguredCustomTool);
+	const promotedCustom = custom.filter((tool) => !tool.deferLoading);
+	const sections = [
+		existingPrompt.includes(BUNDLED_TOOLS_HEADING)
+			? undefined
+			: buildUsageSection(BUNDLED_TOOLS_HEADING, bundled),
+		existingPrompt.includes(CUSTOM_TOOLS_HEADING)
+			? undefined
+			: buildUsageSection(CUSTOM_TOOLS_HEADING, promotedCustom),
+		custom.some((tool) => tool.deferLoading) && !existingPrompt.includes(DEFERRED_CUSTOM_TOOLS_GUIDANCE)
+			? DEFERRED_CUSTOM_TOOLS_GUIDANCE
+			: undefined,
+		custom.length > 0 && documentationPath && !existingPrompt.includes(CUSTOM_TOOL_DOCUMENTATION_MARKER)
+			? `Read ${documentationPath} ${CUSTOM_TOOL_DOCUMENTATION_MARKER}, not to call them`
+			: undefined,
+		custom.length > 0 && !existingPrompt.includes(CUSTOM_TOOLS_GUIDANCE) ? CUSTOM_TOOLS_GUIDANCE : undefined,
+	].filter(Boolean);
+	return sections.join("\n");
 }
 
-export function injectCustomToolsPrompt(
+export function injectCodeModeToolsPrompt(
 	systemPrompt: string,
-	tools: CodeModeToolMetadata[],
-	documentationPath: string,
+	tools: CodeModeToolDefinition[],
+	documentationPath?: string,
 ): string {
-	if (systemPrompt.includes(DOCUMENTATION_PREFIX)) return systemPrompt;
-	const sections = [
-		buildCustomToolsDocumentationPrompt(documentationPath),
-		buildPromotedToolsPrompt(tools),
-	].filter(Boolean);
-	const section = sections.join("\n");
+	const section = buildCodeModeToolsPrompt(tools, documentationPath, systemPrompt);
+	if (!section) return systemPrompt;
 	const markers = ["\nCurrent shell:", "\nCurrent date:"]
 		.map((marker) => systemPrompt.indexOf(marker))
 		.filter((index) => index !== -1);

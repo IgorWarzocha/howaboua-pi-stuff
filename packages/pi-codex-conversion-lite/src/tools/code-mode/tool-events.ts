@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { injectCustomToolsPrompt } from "./custom-tool-prompt.js";
+import { injectCodeModeToolsPrompt } from "./custom-tool-prompt.js";
 import type { SharedCodeModeRuntime } from "./shared-runtime.js";
 
 export function registerCodeModeEvents(
@@ -13,8 +13,7 @@ export function registerCodeModeEvents(
 		const documentationPath = activeProviders.find(
 			(provider) => provider.documentationPath,
 		)?.documentationPath;
-		if (!documentationPath) return undefined;
-		const systemPrompt = injectCustomToolsPrompt(
+		const systemPrompt = injectCodeModeToolsPrompt(
 			event.systemPrompt,
 			runtime.collectTools(ctx),
 			documentationPath,

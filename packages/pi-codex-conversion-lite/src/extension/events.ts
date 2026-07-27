@@ -2,7 +2,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { readCodexConversionConfig } from "../adapter/activation/config-store.ts";
 import { syncAdapter } from "../adapter/activation/activation.ts";
 import { isAdapterRuntime, resolveCodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
-import { isNativeCompactionDetails, NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, NATIVE_COMPACTION_DISPLAY_TEXT } from "../adapter/compaction/types.ts";
+import { isNativeCompactionDetails, NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, NATIVE_COMPACTION_DISPLAY_TEXT, NATIVE_COMPACTION_STRATEGY, type NativeCompactionUsage } from "../adapter/compaction/types.ts";
 import { handleCodexSessionBeforeCompact } from "../adapter/compaction/compaction.ts";
 import { rewriteCodexProviderRequest } from "../adapter/provider-request.ts";
 import { isAdapterContextExcludedCustomMessage } from "../adapter/prompt/context-filter.ts";
@@ -17,6 +17,12 @@ import { ensureCodexVoiceSystemPrompt, getCodexVoiceSystemPromptPath } from "../
 import type { CodexExtensionRuntime } from "./runtime.ts";
 import type { CodexToolRegistration } from "./tools.ts";
 import type { CodexUiController } from "./ui.ts";
+
+function formatCompactionUsage(usage: NativeCompactionUsage): string {
+	const ratio = usage.inputTokens > 0 ? `${((usage.cachedInputTokens / usage.inputTokens) * 100).toFixed(1)}%` : "0%";
+	const tokens = (value: number) => Math.round(value).toLocaleString("en-US");
+	return `Compaction V2 · input ${tokens(usage.inputTokens)} · cache read ${tokens(usage.cachedInputTokens)} (${ratio}) · cache write ${tokens(usage.cacheWriteInputTokens)} · output ${tokens(usage.outputTokens)}`;
+}
 
 function commandArg(args: unknown): string | undefined {
 	if (!args || typeof args !== "object" || !("cmd" in args) || typeof args.cmd !== "string") return undefined;
@@ -70,6 +76,8 @@ export function registerCodexEvents(
 		proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 		if (state.config.voiceFeaturesOnly) {
+			clearApplyPatchRenderState();
+			tools.ensureOptionalTools();
 			ui.clearBackgroundWidget();
 			syncAdapter(pi, ctx, state);
 			return;
@@ -81,7 +89,7 @@ export function registerCodexEvents(
 		ui.renderBackgroundWidget();
 		syncAdapter(pi, ctx, state);
 		prepareCodeModeHost(codeMode, ctx);
-		void runtime.startPrewarm(ctx);
+		if (!state.config.prompt.heavySystemPromptOverwrite) void runtime.startPrewarm(ctx);
 		if (event.reason === "startup") await maybeWarnLocalCheckoutVersion(ctx);
 	});
 
@@ -92,6 +100,7 @@ export function registerCodexEvents(
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 		proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 		if (state.config.voiceFeaturesOnly) {
+			tools.ensureOptionalTools();
 			ui.clearBackgroundWidget();
 			syncAdapter(pi, ctx, state);
 			return;
@@ -99,7 +108,7 @@ export function registerCodexEvents(
 		tools.ensureOptionalTools();
 		syncAdapter(pi, ctx, state);
 		prepareCodeModeHost(codeMode, ctx);
-		void runtime.startPrewarm(ctx);
+		if (!state.config.prompt.heavySystemPromptOverwrite) void runtime.startPrewarm(ctx);
 	});
 
 	pi.on("message_start", async (event) => {
@@ -140,8 +149,9 @@ export function registerCodexEvents(
 		const systemPrompt = event.systemPrompt;
 		if (!isAdapterRuntime(resolveCodexRuntimePlan(ctx, state.config))) return undefined;
 		const skills = resolvePromptSkills(event.systemPromptOptions?.skills, hasNoSkillsFlag() ? [] : state.promptSkills);
-		await runtime.waitForPrewarm(ctx, systemPrompt);
-		return { systemPrompt: runtime.codexSystemPrompt(systemPrompt, ctx, skills) };
+		const codexSystemPrompt = runtime.codexSystemPrompt(systemPrompt, ctx, skills, event.systemPromptOptions);
+		await runtime.waitForPrewarm(ctx, codexSystemPrompt);
+		return { systemPrompt: codexSystemPrompt };
 	});
 	pi.on("message_update", async (event) => {
 		const update = event.assistantMessageEvent;
@@ -162,12 +172,21 @@ export function registerCodexEvents(
 		runtime.voice.resetContextAnnouncements();
 		state.pendingPiCompactionNativeWindow = undefined;
 		if (!event.fromExtension || !isNativeCompactionDetails(event.compactionEntry.details)) return;
+		const details = event.compactionEntry.details;
 		pi.sendMessage({
 			customType: NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE,
 			content: NATIVE_COMPACTION_DISPLAY_TEXT,
 			display: true,
 			details: { compactionEntryId: event.compactionEntry.id },
 		}, { triggerTurn: false });
+		if (details.strategy === NATIVE_COMPACTION_STRATEGY && details.usage) {
+			pi.sendMessage({
+				customType: NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE,
+				content: formatCompactionUsage(details.usage),
+				display: true,
+				details: { compactionEntryId: event.compactionEntry.id, kind: "usage" },
+			}, { triggerTurn: false });
+		}
 	});
 	pi.on("context", async (event) => {
 		if (state.config.voiceFeaturesOnly) return undefined;

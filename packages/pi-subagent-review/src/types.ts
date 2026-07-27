@@ -2,7 +2,7 @@ import type { Message, ModelThinkingLevel } from "@earendil-works/pi-ai";
 
 export type ThinkingLevel = ModelThinkingLevel;
 
-export interface SummaryConfig {
+interface SummaryConfig {
 	enabled?: boolean;
 	model?: string;
 	thinking?: ThinkingLevel;

@@ -1,17 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
-import { shouldUseNativeResponsesCompaction, syncAdapter } from "../src/adapter/activation/activation.ts";
+import { shouldUseCodexAdapter, shouldUseNativeResponsesCompaction, syncAdapter } from "../src/adapter/activation/activation.ts";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
+import { registerCodexTools } from "../src/extension/tools.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 
 function createToolHarness(activeTools: string[]) {
+	const registeredTools = new Set(activeTools);
 	return {
 		getActiveTools: () => activeTools,
 		setActiveTools: (nextTools: string[]) => {
 			activeTools = nextTools;
 		},
+		registerTool: (tool: { name: string }) => registeredTools.add(tool.name),
 		activeTools: () => activeTools,
+		registeredTools: () => registeredTools,
 	};
 }
 
@@ -31,11 +35,11 @@ function createAdapterState(overrides: Partial<AdapterState["config"]> = {}): Ad
 	};
 }
 
-function createContext(model: { provider: string; api: string; id: string }) {
+function createContext(model: { provider: string; api: string; id: string; input?: string[] }, statuses?: unknown[]) {
 	return {
-		hasUI: false,
+		hasUI: Boolean(statuses),
 		model,
-		ui: { setStatus: () => undefined },
+		ui: { setStatus: (_key: string, value: unknown) => statuses?.push(value) },
 	};
 }
 
@@ -72,18 +76,39 @@ test("native Responses compaction stays scoped to OpenAI Codex and explicit prov
 	assert.equal(shouldUseNativeResponsesCompaction(createContext({ provider: "my-provider", api: "openai-codex-responses", id: "gpt-5" }) as never, config), true);
 });
 
-test("voice-only mode leaves the active model's tools and transport features untouched", () => {
-	const pi = createToolHarness(["read", "bash", "edit", "write"]);
-	const state = createAdapterState({
-		voiceFeaturesOnly: true,
-		scope: { allProviders: "on", additionalProviders: ["my-provider"] },
-		beta: { codeMode: true, responsesLite: false },
-		compaction: { responsesCompaction: true },
-	});
-	const ctx = createContext({ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.6-luna" });
+test("voice-only honors selected extras by provider scope without enabling the adapter", () => {
+	const codexModel = { provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.6-luna", input: ["text", "image"] };
+	const otherModel = { provider: "other", api: "openai-responses", id: "other-model", input: ["text"] };
+	const extraTools = ["apply_patch", "view_image", "web_run", "imagegen"];
+	const cases = [
+		{ name: "off outside Codex scope", mode: "normal", scope: { allProviders: "off", additionalProviders: [] }, model: otherModel, expected: [] },
+		{ name: "off on Codex", mode: "normal", scope: { allProviders: "off", additionalProviders: [] }, model: codexModel, expected: extraTools },
+		{ name: "extra tools only", mode: "normal", scope: { allProviders: "extras", additionalProviders: [] }, model: otherModel, expected: extraTools },
+		{ name: "all providers with inactive PATH config", mode: "path", scope: { allProviders: "on", additionalProviders: [] }, model: otherModel, expected: extraTools },
+	] as const;
 
-	syncAdapter(pi as never, ctx as never, state);
+	for (const item of cases) {
+		const state = createAdapterState({
+			mode: item.mode,
+			voiceFeaturesOnly: true,
+			scope: { allProviders: item.scope.allProviders, additionalProviders: [...item.scope.additionalProviders] },
+			tools: { customRustBinariesDir: "", webRun: false, imageGeneration: false, applyPatchOnly: true, viewImageOnly: true, webRunOnly: true, imageGenerationOnly: true, viewImageFallback: true },
+			beta: { codeMode: true, responsesLite: false },
+			compaction: { responsesCompaction: true },
+		});
+		const pi = createToolHarness(["read", "bash", "edit", "write", "parallel"]);
+		registerCodexTools(pi as never, { state, registeredNativeWebSearchTools: new Set<string>() } as never);
+		const statuses: unknown[] = [];
+		const ctx = createContext(item.model, statuses);
 
-	assert.deepEqual(pi.activeTools(), ["read", "bash", "edit", "write"]);
-	assert.equal(shouldUseNativeResponsesCompaction(ctx as never, state.config), false);
+		syncAdapter(pi as never, ctx as never, state);
+
+		assert.deepEqual(pi.activeTools().filter((name) => extraTools.includes(name)), item.expected, item.name);
+		assert.ok(item.expected.every((name) => pi.registeredTools().has(name)), `${item.name}: selected extras registered`);
+		assert.ok(["read", "bash", "edit", "write", "parallel"].every((name) => pi.activeTools().includes(name)), `${item.name}: unrelated tools preserved`);
+		assert.ok(["exec_command", "write_stdin", "exec", "wait"].every((name) => !pi.activeTools().includes(name)), `${item.name}: adapter tools suppressed`);
+		assert.equal(shouldUseCodexAdapter(ctx as never, state.config), false, item.name);
+		assert.equal(shouldUseNativeResponsesCompaction(ctx as never, state.config), false, item.name);
+		assert.equal(statuses.at(-1), undefined, `${item.name}: adapter status suppressed`);
+	}
 });

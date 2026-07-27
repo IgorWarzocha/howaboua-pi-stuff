@@ -283,6 +283,7 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 			compactedWindow,
 			compactResponseId: compactResult.responseId,
 			createdAt: compactResult.createdAt,
+			usage: compactResult.usage,
 			requestMeta: { tokensBefore: event.preparation.tokensBefore, previousSummaryPresent: Boolean(event.preparation.previousSummary), compactedKeptWindow },
 		});
 		return { compaction: createNativeCompactionShimResult({ summary: NATIVE_COMPACTION_SHIM_SUMMARY, firstKeptEntryId: event.preparation.firstKeptEntryId, tokensBefore: event.preparation.tokensBefore, details }) };

@@ -9,7 +9,8 @@ const platform = process.platform;
 const arch = process.arch;
 const exe = platform === "win32" ? "web_run.exe" : "web_run";
 const platformArch = `${platform}-${arch}`;
-const binary = join(root, "src", "tools", "web-run", "bin", platformArch, exe);
+const customBinary = process.env.PI_CODEX_CUSTOM_RUST_BINARIES_DIR ? join(process.env.PI_CODEX_CUSTOM_RUST_BINARIES_DIR, exe) : undefined;
+const binary = customBinary && existsSync(customBinary) ? customBinary : join(root, "src", "tools", "web-run", "bin", platformArch, exe);
 
 if (!existsSync(binary)) {
   console.error(`web_run binary is not bundled for ${platformArch}.`);

@@ -61,10 +61,11 @@ function createNestedTools(
 	const tools: ProgrammaticCodeModeToolDefinition[] = [
 		toNestedTool(
 			createApplyPatchTool({
+				customRustBinariesDir: runtime.state.config.tools.customRustBinariesDir,
 				promptSnippet: false,
 				showDiffWhenCollapsed: !runtime.state.config.ui.compactTools,
 			}),
-			"await tools.apply_patch(patch) // freeform patch string, not JSON; Update File hunks top-to-bottom; indentation literal",
+			"await tools.apply_patch(patch) // *** Begin Patch / *** End Patch; actions: *** Add File: path | *** Update File: path | *** Delete File: path; *** Move to: path immediately follows the Update File header; Update hunks MUST follow file order; copy exact context; @@ text is context, not a line range",
 			{},
 			{
 				kind: "freeform",
@@ -138,6 +139,7 @@ function createNestedTools(
 		const imageCapable = !ctx || supportsViewImageInputs(ctx.model);
 		tools.push(toNestedTool(
 			createViewImageTool({
+				customRustBinariesDir: runtime.state.config.tools.customRustBinariesDir,
 				describeForTextModels: runtime.state.config.tools.viewImageFallback,
 				promptSnippet: false,
 				customRendering: runtime.state.config.ui.toolRenaming,
@@ -152,6 +154,7 @@ function createNestedTools(
 	if (runtime.state.config.tools.webRun) {
 		tools.push(toNestedTool(
 			createWebSearchTool("web__run", {
+				customRustBinariesDir: runtime.state.config.tools.customRustBinariesDir,
 				model: () => runtime.state.config.openai.webSearchModel,
 				allowConfiguredProvider,
 				promptSnippet: false,
@@ -162,6 +165,7 @@ function createNestedTools(
 	}
 	if (runtime.state.config.tools.imageGeneration && (!ctx || supportsNativeImageGeneration(ctx.model) || allowConfiguredProvider(ctx.model))) {
 		const imagegen = createImageGenerationTool({
+			customRustBinariesDir: runtime.state.config.tools.customRustBinariesDir,
 			allowConfiguredProvider,
 			promptSnippet: false,
 			customRendering: runtime.state.config.ui.toolRenaming,

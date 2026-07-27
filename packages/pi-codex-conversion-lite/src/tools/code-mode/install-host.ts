@@ -15,13 +15,13 @@ import {
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { EnvHttpProxyAgent, fetch } from "undici";
 import { codeModeHostBinaryName, hostAssetUrl, resolveCodeModeHostAsset } from "./host-assets.ts";
 
 const DOWNLOAD_TIMEOUT_MS = 120_000;
 const INSTALL_LOCK_POLL_MS = 200;
 const INSTALL_LOCK_TIMEOUT_MS = 125_000;
 const INSTALL_LOCK_STALE_MS = 180_000;
+const dynamicImport = (specifier: string) => import(specifier);
 
 export interface InstallCodeModeHostOptions {
 	destination: string;
@@ -47,21 +47,20 @@ export async function installCodeModeHost(options: InstallCodeModeHostOptions): 
 	const staged = `${destination}.${process.pid}.tmp`;
 	try {
 		const assetUrl = hostAssetUrl(assetName);
-		const dispatcher = new EnvHttpProxyAgent();
 		let bytes: Buffer;
 		try {
 			const timeoutSignal = AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS);
-			const response = await fetch(assetUrl, {
-				dispatcher,
+			const { getProxyForUrl } = await dynamicImport("proxy-from-env") as { getProxyForUrl(url: string): string };
+			const proxy = getProxyForUrl(assetUrl);
+			const response = await globalThis.fetch(assetUrl, {
 				redirect: "follow",
 				signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal,
-			});
+				...(proxy ? { proxy } : {}),
+			} as RequestInit & { proxy?: string });
 			if (!response.ok) throw new Error(`download failed: ${response.status} ${response.statusText}`);
 			bytes = Buffer.from(await response.arrayBuffer());
 		} catch (error) {
 			throw new Error(`failed to download ${assetUrl}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
-		} finally {
-			await dispatcher.close();
 		}
 		if (createHash("sha256").update(bytes).digest("hex") !== expectedSha256) {
 			throw new Error(`checksum mismatch for ${assetName}`);

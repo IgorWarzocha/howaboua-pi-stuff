@@ -39,7 +39,7 @@ function supportsExecutableImageGeneration(model: ExtensionContext["model"], opt
 
 async function executeRustImagegen(args: ImagegenArgs, signal: AbortSignal | undefined, ctx: ExtensionContext, options: ImageGenerationToolOptions): Promise<ImagegenDetails> {
 	if (signal?.aborted) throw new Error("imagegen aborted");
-	const binary = getBundledToolBinaryPath("imagegen");
+	const binary = getBundledToolBinaryPath("imagegen", {}, options.customRustBinariesDir);
 	if (!binary) throw new Error(`imagegen binary is not bundled for ${process.platform}-${process.arch}`);
 	const provider = await resolveCodexToolProvider(ctx, options.allowConfiguredProvider);
 	const child = await runBundledTool({
@@ -57,6 +57,7 @@ async function executeRustImagegen(args: ImagegenArgs, signal: AbortSignal | und
 }
 
 export interface ImageGenerationToolOptions {
+	customRustBinariesDir?: string | undefined;
 	allowConfiguredProvider?: ((model: ExtensionContext["model"]) => boolean) | undefined;
 	allowCodexProviderFallback?: boolean | undefined;
 	customRendering?: boolean | undefined;

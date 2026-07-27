@@ -122,15 +122,15 @@ export function resolveCodexRuntimePlan(ctx: RuntimeContext, config: CodexConver
 		effectiveOpenAICodex,
 		nativeCompaction: false,
 	};
-	if (config.voiceFeaturesOnly) return { ...base, kind: "inactive", toolNames: [], prompt: undefined, transport: undefined };
-
 	const extras = hasExtras(config)
 		&& (config.scope.allProviders === "extras"
+			|| (config.voiceFeaturesOnly && config.scope.allProviders === "on")
 			|| (config.scope.allProviders === "off" && (isConfigured || isCodexLikeModel(ctx.model))));
 	const codexBacked = usesCodexProviderFallback(config) || isConfigured;
 	if (extras) {
 		return { ...base, kind: "extras", toolNames: extraToolNames(ctx, config, codexBacked), prompt: undefined, transport: "responses" };
 	}
+	if (config.voiceFeaturesOnly) return { ...base, kind: "inactive", toolNames: [], prompt: undefined, transport: undefined };
 
 	const active = config.scope.allProviders === "on" || isConfigured || isCodexLikeModel(ctx.model);
 	if (!active) return { ...base, kind: "inactive", toolNames: [], prompt: undefined, transport: undefined };

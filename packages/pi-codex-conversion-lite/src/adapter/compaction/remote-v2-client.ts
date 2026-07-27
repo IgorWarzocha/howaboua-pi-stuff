@@ -2,7 +2,7 @@ import { type Api, type AssistantMessage, type Context, type Model, type SimpleS
 import type { ModelRegistry } from "@earendil-works/pi-coding-agent";
 import type { NativeCompactionRuntime } from "./compaction-runtime.ts";
 import type { NativeCompactionRequestOptions, ResponsesInputItem } from "./serializer.ts";
-import { shrinkNativeCompactionRequestForEndpoint } from "./request-shrink.ts";
+import { resolveNativeCompactionRequestBudget, shrinkNativeCompactionRequestForEndpoint } from "./request-shrink.ts";
 import { canonicalCompactionOutput, normalizeRemoteCompactionV2PromptInput } from "./remote-v2-history.ts";
 import { withRemoteCompactionV2Feature } from "../../providers/openai-responses/compaction-v2-feature.ts";
 import type { OpenAICodexStreamOptions, ResponsesBody } from "../../providers/openai-codex/types.ts";
@@ -12,8 +12,15 @@ const MAX_STREAM_RETRIES = 2;
 type V2Stream = (model: Model<Api>, context: Context, options?: SimpleStreamOptions) => AsyncIterable<unknown>;
 
 export type RemoteCompactionV2Result =
-	| { ok: true; compaction: Record<string, unknown>; responseId: string; createdAt: string }
+	| { ok: true; compaction: Record<string, unknown>; responseId: string; createdAt: string; usage?: RemoteCompactionV2Usage | undefined }
 	| { ok: false; reason: "aborted" | "unavailable" | "stream-error" | "invalid-output"; errorMessage: string; status?: number | undefined };
+
+export type RemoteCompactionV2Usage = {
+	inputTokens: number;
+	cachedInputTokens: number;
+	cacheWriteInputTokens: number;
+	outputTokens: number;
+};
 
 export type ExecuteRemoteCompactionV2Options = {
 	runtime: NativeCompactionRuntime;
@@ -50,6 +57,16 @@ function shouldRetry(result: Extract<RemoteCompactionV2Result, { ok: false }>): 
 	return !/\b(?:401|403)\b|unauthori[sz]ed|forbidden|usage limit|quota|not included|invalid request|context window|unsupported parameter/i.test(result.errorMessage);
 }
 
+function compactionUsage(message: AssistantMessage): RemoteCompactionV2Usage | undefined {
+	const inputTokens = message.usage.input + message.usage.cacheRead + message.usage.cacheWrite;
+	const cachedInputTokens = message.usage.cacheRead;
+	const cacheWriteInputTokens = message.usage.cacheWrite;
+	const outputTokens = message.usage.output;
+	if (![inputTokens, cachedInputTokens, cacheWriteInputTokens, outputTokens].every((value) => Number.isFinite(value) && value >= 0)) return undefined;
+	if (inputTokens + outputTokens === 0) return undefined;
+	return { inputTokens, cachedInputTokens, cacheWriteInputTokens, outputTokens };
+}
+
 async function runAttempt(options: ExecuteRemoteCompactionV2Options, streamSimple: V2Stream): Promise<RemoteCompactionV2Result> {
 	const outputItems: unknown[] = [];
 	let responseStatus: number | undefined;
@@ -71,7 +88,11 @@ async function runAttempt(options: ExecuteRemoteCompactionV2Options, streamSimpl
 				model: body.model,
 				input: promptInput,
 				...(typeof body.instructions === "string" ? { instructions: body.instructions } : {}),
-			}, { contextWindow: options.runtime.currentModel.contextWindow });
+			}, { budgetTokens: resolveNativeCompactionRequestBudget({
+				provider: options.runtime.provider,
+				model: options.runtime.model,
+				contextWindow: options.runtime.currentModel.contextWindow,
+			}) });
 			return {
 				...body,
 				input: [...request.request.input, { type: "compaction_trigger" }],
@@ -105,7 +126,7 @@ async function runAttempt(options: ExecuteRemoteCompactionV2Options, streamSimpl
 	if (compactions.length !== 1) {
 		return { ok: false, reason: "invalid-output", errorMessage: `Responses compaction v2 expected exactly one compaction output item, got ${compactions.length} from ${outputItems.length} output items` };
 	}
-	return { ok: true, compaction: compactions[0]!, responseId: completed.responseId, createdAt: new Date().toISOString() };
+	return { ok: true, compaction: compactions[0]!, responseId: completed.responseId, createdAt: new Date().toISOString(), usage: compactionUsage(completed) };
 }
 
 export async function executeRemoteCompactionV2(options: ExecuteRemoteCompactionV2Options): Promise<RemoteCompactionV2Result> {

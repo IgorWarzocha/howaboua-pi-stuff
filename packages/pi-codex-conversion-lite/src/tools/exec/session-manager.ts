@@ -1,6 +1,6 @@
 import { StringDecoder } from "node:string_decoder";
 import { getCodexShellArgs } from "../../adapter/prompt/runtime-shell.ts";
-import { normalizePipeOutput, truncateToTail } from "./output.ts";
+import { normalizePipeOutput, truncateOutput, truncateToTail } from "./output.ts";
 import { chunkToBytes, createExecBridgeClient, type BridgeReadResponse } from "./bridge-client.ts";
 import { DEFAULT_EXEC_YIELD_TIME_MS, DEFAULT_MAX_EMPTY_WRITE_YIELD_TIME_MS, DEFAULT_WRITE_YIELD_TIME_MS, clampExecYieldTime, clampWriteYieldTime, normalizeMinEmptyWriteYieldTime, normalizeMinNonInteractiveExecYieldTime, resolveExecution, resolveShell, resolveWorkdir } from "./shell.ts";
 import { registerAbortHandler, waitForExitOrInactivity } from "./wait.ts";
@@ -95,6 +95,7 @@ export interface ExecSessionManager {
 
 export interface ExecSessionManagerOptions {
 	env?: NodeJS.ProcessEnv | undefined;
+	bridgeBinaryPath?: (() => string | undefined) | undefined;
 	defaultExecYieldTimeMs?: number | undefined;
 	defaultWriteYieldTimeMs?: number | undefined;
 	minNonInteractiveExecYieldTimeMs?: number | undefined;
@@ -104,6 +105,9 @@ export interface ExecSessionManagerOptions {
 }
 
 const MAX_COMMAND_HISTORY = 256;
+const MAX_COMPLETED_SESSION_HISTORY = 32;
+const MAX_COMPLETED_SESSION_OUTPUT_CHARS = 64 * 1024;
+const MAX_COMPLETED_SESSION_OUTPUT_TOKENS = MAX_COMPLETED_SESSION_OUTPUT_CHARS / 4;
 const DEFAULT_MAX_TTY_SESSION_BUFFER_CHARS = 1024 * 1024;
 const DEFAULT_MAX_PIPE_SESSION_BUFFER_CHARS = 256 * 1024 * 1024;
 const TERMINATE_ESCALATE_MS = 2_000;
@@ -112,9 +116,10 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 	let nextSessionId = 1;
 	const sessions = new Map<number, ExecSession>();
 	const commandHistory = new Map<number, string>();
+	const completedResults = new Map<number, UnifiedExecResult>();
 	const changeListeners = new Set<(reason: ExecSessionChangeReason) => void>();
 	const exitListeners = new Set<(sessionId: number, command: string) => void>();
-	const bridge = createExecBridgeClient();
+	const bridge = createExecBridgeClient(options.bridgeBinaryPath);
 	let baseEnv: NodeJS.ProcessEnv = { ...(options.env ?? process.env) };
 	const defaultExecYieldTimeMs = options.defaultExecYieldTimeMs ?? DEFAULT_EXEC_YIELD_TIME_MS;
 	const defaultWriteYieldTimeMs = options.defaultWriteYieldTimeMs ?? DEFAULT_WRITE_YIELD_TIME_MS;
@@ -135,6 +140,33 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 		if (oldest !== undefined) {
 			commandHistory.delete(oldest);
 		}
+	}
+
+	function rememberCompletedResult(sessionId: number, result: UnifiedExecResult): void {
+		const bounded = truncateToTail(result.output, MAX_COMPLETED_SESSION_OUTPUT_CHARS);
+		completedResults.set(sessionId, {
+			...result,
+			output: bounded.removed > 0 ? `[Earlier completed output omitted]\n${bounded.output}` : bounded.output,
+		});
+		if (completedResults.size <= MAX_COMPLETED_SESSION_HISTORY) return;
+		const oldest = completedResults.keys().next().value;
+		if (oldest !== undefined) completedResults.delete(oldest);
+	}
+
+	function replayCompletedResult(result: UnifiedExecResult, maxOutputTokens?: number): UnifiedExecResult {
+		const originalCharCount = result.original_token_count === undefined
+			? result.output.length
+			: result.original_token_count * 4;
+		return { ...result, ...truncateOutput(result.output, maxOutputTokens, originalCharCount) };
+	}
+
+	function finishResult(session: ExecSession, waitMs: number, maxOutputTokens?: number): UnifiedExecResult {
+		const completed = session.exitCode !== undefined && session.exitCode !== null;
+		const replaySnapshot = completed ? makeSnapshotResult(session, waitMs, MAX_COMPLETED_SESSION_OUTPUT_TOKENS, true) : undefined;
+		const result = makeExecResult(session, waitMs, maxOutputTokens, exposeSession, (sessionId) => sessions.delete(sessionId));
+		if (!replaySnapshot || sessions.has(session.id)) return result;
+		rememberCompletedResult(session.id, { ...replaySnapshot, chunk_id: result.chunk_id, wall_time_seconds: result.wall_time_seconds });
+		return result;
 	}
 
 	function notify(session: ExecSession, reason: ExecSessionChangeReason = "output"): void {
@@ -345,7 +377,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 				if (session.started) await pollSession(session, 0);
 				if (session.exitCode === undefined || session.exitCode === null)
 					session.nextEmptyPollYieldMs = growEmptyPollYield(execYieldMs, maxEmptyWriteYieldTimeMs);
-				return makeExecResult(session, waitedMs, input.max_output_tokens, exposeSession, (sessionId) => sessions.delete(sessionId));
+				return finishResult(session, waitedMs, input.max_output_tokens);
 			} catch (error) {
 				if (signal?.aborted) sessions.delete(session.id);
 				throw error;
@@ -359,6 +391,13 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			}
 			const session = sessions.get(input.session_id);
 			if (!session) {
+				const completed = completedResults.get(input.session_id);
+				if (completed) {
+					if ((input.chars ?? "").length > 0) {
+						throw new Error(`Process id ${input.session_id} already exited with code ${completed.exit_code}; cannot write stdin`);
+					}
+					return replayCompletedResult(completed, input.max_output_tokens);
+				}
 				throw new Error(`Unknown process id ${input.session_id}`);
 			}
 			const updateBaseline = session.bufferStartOffset + session.buffer.length;
@@ -399,7 +438,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 				session.nextEmptyPollYieldMs = session.outputVersion === outputVersionBaseline
 					? growEmptyPollYield(effectiveYieldMs, maxEmptyWriteYieldTimeMs)
 					: minEmptyWriteYieldTimeMs;
-			return makeExecResult(session, waitedMs, input.max_output_tokens, exposeSession, (sessionId) => sessions.delete(sessionId));
+			return finishResult(session, waitedMs, input.max_output_tokens);
 		},
 		hasSession: (sessionId) => sessions.has(sessionId),
 		getSessionCommand: (sessionId) => sessions.get(sessionId)?.command ?? commandHistory.get(sessionId),
@@ -438,6 +477,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			bridge.shutdown();
 			sessions.clear();
 			commandHistory.clear();
+			completedResults.clear();
 		},
 	};
 }

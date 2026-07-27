@@ -1,4 +1,4 @@
-import { formatCustomToolHelp } from "./custom-tool-prompt.js";
+import { formatCodeModeToolHelp } from "./custom-tool-prompt.js";
 import type {
 	CodeModeToolDefinition,
 	CustomToolDefinition,
@@ -21,7 +21,7 @@ export function toWireToolDefinition(tool: CodeModeToolDefinition) {
 	return {
 		name: tool.name,
 		tool_name: { name: tool.name, namespace: null },
-		description: formatCustomToolHelp(tool),
+		description: formatCodeModeToolHelp(tool),
 		kind: isCustomToolDefinition(tool) ? "freeform" : tool.kind,
 		input_schema:
 			isCustomToolDefinition(tool) || tool.kind === "freeform"

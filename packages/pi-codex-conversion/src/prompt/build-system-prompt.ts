@@ -11,6 +11,24 @@ export interface StructuredPromptSkill {
 	disableModelInvocation?: boolean | undefined;
 }
 
+export interface PiSystemPromptOptions {
+	customPrompt?: string | undefined;
+	selectedTools?: string[] | undefined;
+	toolSnippets?: Record<string, string> | undefined;
+	promptGuidelines?: string[] | undefined;
+	appendSystemPrompt?: string | undefined;
+	cwd: string;
+	contextFiles?: Array<{ path: string; content: string }> | undefined;
+}
+
+const PI_DEFAULT_INTRO = "You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.";
+const PI_CUSTOM_TOOLS_NOTE = "In addition to the tools above, you may have access to other custom tools depending on the project.";
+const PI_DEFAULT_GUIDELINES = new Set([
+	"Use bash for file operations like ls, rg, find",
+	"Be concise in your responses",
+	"Show file paths clearly when working with files",
+]);
+
 const NORMAL_CODEX_GUIDELINES = [
 	"Use exec_command for shell commands, file inspection, builds, and tests; prefer rg / rg --files for discovery and focused commands over truncation",
 	"Reserve tty=true for input or persistent processes",
@@ -32,21 +50,23 @@ const PATH_CODEX_GUIDELINES = [
 ];
 
 const CODE_MODE_GUIDELINES = [
-	"Use tools.exec_command for shell commands; prefer rg and rg --files for search",
-	"Keep tools.exec_command cmd valid JavaScript: use String.raw templates only when shell text has no backticks or ${...}; otherwise use quoted line arrays or split the call",
-	"Continue exec cell_id with wait; continue exec_command session_id by calling tools.write_stdin inside exec",
-	"Give commands time; back off session polls",
-	"Reserve tty=true for input or persistent processes",
-	"Use tools.apply_patch(patch) for file edits; split oversized patches",
-	"Compose independent nested calls with Promise.all",
-	"With async work, await dependencies; overlap only independent work",
-	"Use text() only for concise values needed after exec; do not dump complete nested tool results",
+	"Use tools.exec_command for shell commands; prefer rg and rg --files",
+	"Use String.raw for cmd only when shell text has no backticks or ${}; otherwise use quoted lines or split the call",
+	"Continue exec cell_id with wait; continue exec_command session_id with tools.write_stdin",
+	"Give commands time; back off polls; use tty=true only for input or persistent processes",
+	"Use tools.apply_patch(patch) for file edits; split large patches; reserve shell/Python for formatting or bulk rewrites",
+	"Await dependencies; use Promise.all for independent calls",
+	"Use text() only for concise final output",
 ];
 
 const PATH_MODE_REMOVED_GUIDELINES = new Set([
 	"Use apply_patch for text-file changes, including creates/deletes/moves; split oversized patches",
 	"Prefer the apply_patch tool; use shell apply_patch only when chaining edits with other shell steps",
 	"Run independent tool calls in parallel when practical",
+]);
+
+const CODE_MODE_REPLACED_GUIDELINES = new Set([
+	"Reserve tty=true for input or persistent processes",
 ]);
 
 const ALL_STATIC_CODEX_GUIDELINES = [
@@ -63,7 +83,7 @@ const STATIC_CODEX_GUIDELINES_BY_KEY = new Map(
 	[
 		...ALL_STATIC_CODEX_GUIDELINES.map((guideline) => [withoutCosmeticTerminalPeriod(guideline), guideline] as const),
 		["Use tty=true for dev servers, watchers, REPLs, and prompts", NORMAL_CODEX_GUIDELINES[1]!],
-		["Use tty=true for interactive commands", CODE_MODE_GUIDELINES[4]!],
+		["Use tty=true for interactive commands", NORMAL_CODEX_GUIDELINES[1]!],
 	],
 );
 
@@ -83,24 +103,31 @@ export interface CodexPromptToolOptions {
 
 type CodexPromptMode = "normal" | "path" | "code";
 
-function buildCodexGuidelines(mode: CodexPromptMode = "normal", tools: CodexPromptToolOptions = {}): string[] {
-	if (mode === "normal") return [...NORMAL_CODEX_GUIDELINES];
-	const guidelines = mode === "code" ? [...CODE_MODE_GUIDELINES] : [...PATH_CODEX_GUIDELINES];
-	if (mode === "code") return guidelines;
-	const examples = [`- apply_patch <<'PATCH'`, `  *** Begin Patch`, `  ...`, `  *** End Patch`, `  PATCH`];
-	if (tools.viewImage !== false) examples.push(`- view_image '{"path":"/x.png"}'`);
-	if (tools.webRun !== false) {
-		examples.push(`- web_run '{"search_query":[{"q":"..."}],"response_length":"short|medium|long"}'`);
-		examples.push(`- web_run '{"open":[{"ref_id":"turn0search0 or https://..."}]}'`);
-		examples.push(`- web_run '{"click":[{"ref_id":"turn0view0","id":1}]}'`);
-		examples.push(`- web_run '{"find":[{"ref_id":"turn0view0","pattern":"..."}]}'`);
+function buildCodexGuidelines(mode: CodexPromptMode = "normal", tools: CodexPromptToolOptions = {}, piPackageRoot?: string): string[] {
+	const guidelines = mode === "normal"
+		? [...NORMAL_CODEX_GUIDELINES]
+		: mode === "code"
+			? [...CODE_MODE_GUIDELINES]
+			: [...PATH_CODEX_GUIDELINES];
+	if (mode !== "normal" && mode !== "code") {
+		const examples = [`- apply_patch <<'PATCH'`, `  *** Begin Patch`, `  ...`, `  *** End Patch`, `  PATCH`];
+		if (tools.viewImage !== false) examples.push(`- view_image '{"path":"/x.png"}'`);
+		if (tools.webRun !== false) {
+			examples.push(`- web_run '{"search_query":[{"q":"..."}],"response_length":"short|medium|long"}'`);
+			examples.push(`- web_run '{"open":[{"ref_id":"turn0search0 or https://..."}]}'`);
+			examples.push(`- web_run '{"click":[{"ref_id":"turn0view0","id":1}]}'`);
+			examples.push(`- web_run '{"find":[{"ref_id":"turn0view0","pattern":"..."}]}'`);
+		}
+		if (tools.imageGeneration !== false) {
+			examples.push(`- imagegen '{"prompt":"..."}'`);
+			examples.push(`- imagegen '{"action":"edit","prompt":"...","images":["https://... or /x.png"]}'`);
+		}
+		if (examples.length > 0)
+			guidelines.splice(4, 0, `PATH tool accepted forms:\n${examples.join("\n")}`);
 	}
-	if (tools.imageGeneration !== false) {
-		examples.push(`- imagegen '{"prompt":"..."}'`);
-		examples.push(`- imagegen '{"action":"edit","prompt":"...","images":["https://... or /x.png"]}'`);
+	if (piPackageRoot) {
+		guidelines.push(`For questions about Pi, Pi configuration, or anything built with its SDK, first list README.md, docs/, and examples/ under ${piPackageRoot}; read relevant files and follow references before implementing`);
 	}
-	if (examples.length > 0)
-		guidelines.splice(4, 0, `PATH tool accepted forms:\n${examples.join("\n")}`);
 	return guidelines;
 }
 
@@ -169,11 +196,8 @@ export function resolvePromptSkills(
 	return structuredSkills === undefined ? [...fallbackSkills] : promptSkillsFromStructuredSkills(structuredSkills);
 }
 
-function injectSkills(prompt: string, skills: PromptSkill[]): string {
-	if (skills.length === 0 || /\n## Skills\b/.test(prompt) || /<skills_instructions>/.test(prompt)) {
-		return prompt;
-	}
-
+function buildSkillsSection(skills: PromptSkill[]): string {
+	if (skills.length === 0) return "";
 	const lines = [
 		"<skills_instructions>",
 		"## Skills",
@@ -192,8 +216,14 @@ function injectSkills(prompt: string, skills: PromptSkill[]): string {
 	lines.push("### Fallback");
 	lines.push("- If skill is missing or path cannot be read, say so briefly and continue with best fallback approach");
 	lines.push("</skills_instructions>");
+	return lines.join("\n");
+}
 
-	return insertBeforeTrailingContext(prompt, lines.join("\n"));
+function injectSkills(prompt: string, skills: PromptSkill[]): string {
+	if (skills.length === 0 || /\n## Skills\b/.test(prompt) || /<skills_instructions>/.test(prompt)) {
+		return prompt;
+	}
+	return insertBeforeTrailingContext(prompt, buildSkillsSection(skills));
 }
 
 function injectGuidelines(prompt: string, mode?: CodexPromptMode, tools?: CodexPromptToolOptions): string {
@@ -207,7 +237,11 @@ function injectGuidelines(prompt: string, mode?: CodexPromptMode, tools?: CodexP
 	const bodyLines = body.split("\n");
 	const canonicalBodyLines = bodyLines.map(canonicalizeGuidelineLine);
 	const keptBodyLines = mode === "path" || mode === "code"
-		? canonicalBodyLines.filter((line) => !PATH_MODE_REMOVED_GUIDELINES.has(withoutCosmeticTerminalPeriod(line.trim().replace(/^-\s*/, ""))))
+		? canonicalBodyLines.filter((line) => {
+			const key = withoutCosmeticTerminalPeriod(line.trim().replace(/^-\s*/, ""));
+			return !PATH_MODE_REMOVED_GUIDELINES.has(key)
+				&& (mode !== "code" || !CODE_MODE_REPLACED_GUIDELINES.has(key));
+		})
 		: canonicalBodyLines;
 	const existingLines = keptBodyLines
 		.map((line) => line.trim())
@@ -219,10 +253,133 @@ function injectGuidelines(prompt: string, mode?: CodexPromptMode, tools?: CodexP
 	}
 
 	const normalizedBody = keptBodyLines.join("\n").trimEnd();
-	const replacement = `${header}${normalizedBody}\n${additions.join("\n")}${suffix}`;
+	const replacement = `${header}${normalizedBody}${normalizedBody ? "\n" : ""}${additions.join("\n")}${suffix}`;
 	return `${prompt.slice(0, match.index)}${replacement}${prompt.slice(match.index + match[0]!.length)}`;
 }
 
-export function buildCodexSystemPrompt(basePrompt: string, options: { skills?: PromptSkill[] | undefined; shell?: string | undefined; mode?: CodexPromptMode | undefined; tools?: CodexPromptToolOptions | undefined } = {}): string {
+function extractPiPackageRoot(prompt: string): string | undefined {
+	const readmePath = prompt.match(/^- Main documentation: (.+[\\/]README\.md)$/m)?.[1]?.trim();
+	return readmePath?.replace(/[\\/][^\\/]+$/, "");
+}
+
+function stripPiToolScaffold(prompt: string, options: PiSystemPromptOptions): string {
+	const tools = options.selectedTools ?? ["read", "bash", "edit", "write"];
+	const visibleTools = tools.filter((name) => Boolean(options.toolSnippets?.[name]));
+	const toolsList = visibleTools.length > 0
+		? visibleTools.map((name) => `- ${name}: ${options.toolSnippets![name]}`).join("\n")
+		: "(none)";
+	const scaffold = `${PI_DEFAULT_INTRO}\n\nAvailable tools:\n${toolsList}\n\n${PI_CUSTOM_TOOLS_NOTE}`;
+	return prompt.includes(scaffold) ? prompt.replace(scaffold, "").trimStart() : prompt;
+}
+
+function stripPiDocumentation(prompt: string): string {
+	const readmePath = prompt.match(/^- Main documentation: (.+[\\/]README\.md)$/m)?.[1]?.trim();
+	const docsPath = prompt.match(/^- Additional docs: (.+)$/m)?.[1]?.trim();
+	const examplesPath = prompt.match(/^- Examples: (.+) \(extensions, custom tools, SDK\)$/m)?.[1]?.trim();
+	if (!readmePath || !docsPath || !examplesPath) return prompt;
+	const block = `Pi documentation (read only when the user asks about pi itself, its SDK, extensions, themes, skills, or TUI):
+- Main documentation: ${readmePath}
+- Additional docs: ${docsPath}
+- Examples: ${examplesPath} (extensions, custom tools, SDK)
+- When reading pi docs or examples, resolve docs/... under Additional docs and examples/... under Examples, not the current working directory
+- When asked about: extensions (docs/extensions.md, examples/extensions/), themes (docs/themes.md), skills (docs/skills.md), prompt templates (docs/prompt-templates.md), TUI components (docs/tui.md), keybindings (docs/keybindings.md), SDK integrations (docs/sdk.md), custom providers (docs/custom-provider.md), adding models (docs/models.md), pi packages (docs/packages.md), environment variables (docs/environment-variables.md)
+- When working on pi topics, read the docs and examples, and follow .md cross-references before implementing
+- Always read pi .md files completely and follow links to related docs (e.g., tui.md for TUI API details)`;
+	return prompt.includes(block) ? prompt.replace(block, "").replace(/\n{3,}/g, "\n\n").trim() : prompt;
+}
+
+function replaceHeavyGuidelines(prompt: string, guidelines: string[]): string {
+	const match = prompt.match(/(^Guidelines:\n)([\s\S]*?)(?=\n\n(?:Pi documentation\b|<project_context>|The following skills\b|<skills_instructions>|<available_skills>|Current working directory:|Current date:))/m);
+	const additions = guidelines.map((line) => `- ${line}`);
+	if (!match || match.index === undefined) {
+		const section = `Guidelines:\n${additions.join("\n")}`;
+		const markers = ["\n\n<project_context>", "\n\nThe following skills", "\n\n<skills_instructions>", "\n\n<available_skills>", "\nCurrent working directory:"]
+			.map((marker) => prompt.indexOf(marker))
+			.filter((index) => index !== -1);
+		const insertAt = markers.length > 0 ? Math.min(...markers) : prompt.length;
+		return `${prompt.slice(0, insertAt).trimEnd()}\n\n${section}\n${prompt.slice(insertAt)}`;
+	}
+	const kept = match[2]!.split("\n")
+		.map(canonicalizeGuidelineLine)
+		.filter((line) => !PI_DEFAULT_GUIDELINES.has(withoutCosmeticTerminalPeriod(line.trim().replace(/^-\s*/, ""))));
+	const existing = new Set(kept.map((line) => line.trim().replace(/^-\s*/, "")));
+	const merged = [...kept, ...additions.filter((line) => !existing.has(line.slice(2)))].join("\n");
+	const replacement = `${match[1]}${merged}`;
+	return `${prompt.slice(0, match.index)}${replacement}${prompt.slice(match.index + match[0]!.length)}`;
+}
+
+function replaceSkills(prompt: string, skills: PromptSkill[]): string {
+	const compact = buildSkillsSection(skills);
+	const availableStart = prompt.indexOf("<available_skills>");
+	if (availableStart !== -1) {
+		const preambleStart = prompt.lastIndexOf("\n\nThe following skills provide specialized instructions for specific tasks.", availableStart);
+		const sectionStart = preambleStart === -1 ? availableStart : preambleStart;
+		const close = "</available_skills>";
+		const sectionEnd = prompt.indexOf(close, availableStart);
+		if (sectionEnd !== -1) {
+			return `${prompt.slice(0, sectionStart).trimEnd()}${compact ? `\n\n${compact}` : ""}${prompt.slice(sectionEnd + close.length)}`;
+		}
+	}
+	const compactStart = prompt.indexOf("<skills_instructions>");
+	if (compactStart !== -1) {
+		const close = "</skills_instructions>";
+		const sectionEnd = prompt.indexOf(close, compactStart);
+		if (sectionEnd !== -1) {
+			return `${prompt.slice(0, compactStart).trimEnd()}${compact ? `\n\n${compact}` : ""}${prompt.slice(sectionEnd + close.length)}`;
+		}
+	}
+	if (!compact) return prompt;
+	const cwdIndex = prompt.indexOf("\nCurrent working directory:");
+	const insertAt = cwdIndex === -1 ? prompt.length : cwdIndex;
+	return `${prompt.slice(0, insertAt).trimEnd()}\n\n${compact}${prompt.slice(insertAt)}`;
+}
+
+function buildHeavyCodexSystemPrompt(
+	basePrompt: string,
+	options: {
+		skills: PromptSkill[];
+		shell?: string | undefined;
+		mode?: CodexPromptMode | undefined;
+		tools?: CodexPromptToolOptions | undefined;
+		systemPromptOptions: PiSystemPromptOptions;
+	},
+): string {
+	const source = options.systemPromptOptions;
+	let prompt = stripPiToolScaffold(basePrompt, source);
+	const piPackageRoot = !source.customPrompt && stripPiDocumentation(prompt) !== prompt
+		? extractPiPackageRoot(prompt)
+		: undefined;
+	prompt = replaceHeavyGuidelines(prompt, buildCodexGuidelines(options.mode, options.tools, piPackageRoot));
+	prompt = stripPiDocumentation(prompt);
+	prompt = replaceSkills(prompt, options.skills);
+	prompt = injectShell(prompt, options.shell);
+	prompt = prompt.replace(/^Current date:\s*(\d{4}-\d{2}).*$/m, "Date: $1");
+	const cwd = `Current working directory: ${source.cwd.replace(/\\/g, "/")}`;
+	prompt = /^Current working directory:.*$/m.test(prompt)
+		? prompt.replace(/^Current working directory:.*$/m, cwd)
+		: `${prompt.trimEnd()}\n\n${cwd}`;
+	return prompt.replace(/\n{3,}/g, "\n\n").trim();
+}
+
+export function buildCodexSystemPrompt(
+	basePrompt: string,
+	options: {
+		skills?: PromptSkill[] | undefined;
+		shell?: string | undefined;
+		mode?: CodexPromptMode | undefined;
+		tools?: CodexPromptToolOptions | undefined;
+		heavySystemPromptOverwrite?: boolean | undefined;
+		systemPromptOptions?: PiSystemPromptOptions | undefined;
+	} = {},
+): string {
+	if (options.heavySystemPromptOverwrite && options.systemPromptOptions) {
+		return buildHeavyCodexSystemPrompt(basePrompt, {
+			skills: options.skills ?? [],
+			shell: options.shell,
+			mode: options.mode,
+			tools: options.tools,
+			systemPromptOptions: options.systemPromptOptions,
+		});
+	}
 	return injectShell(injectSkills(injectGuidelines(basePrompt, options.mode, options.tools), options.skills ?? []), options.shell);
 }

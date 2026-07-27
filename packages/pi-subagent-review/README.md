@@ -30,7 +30,7 @@ When enabled, a separate model summarizes the current Pi branch for the reviewer
 
 ## Review loops
 
-`/review loop` records a review-specific marker. The next `/review` compacts fixes since that point, advances the marker, and starts another pass. It does not conflict with `pi-auto-trees`' `/marker`.
+`/review loop` records a review-specific marker. The next `/review` summarizes fixes since that point with the configured `summary` model, advances the marker, and starts another pass. It does not conflict with `pi-auto-trees`' `/marker`.
 
 ## Configuration
 
@@ -49,5 +49,7 @@ On first load, the extension creates `~/.pi/agent/pi-subagent-review.json`, or t
 ```
 
 Models use Pi's `provider/model` format. Thinking levels through `max` are accepted and clamped. If a configured model is unavailable, the command falls back to the current session model.
+
+The `summary` model prepares both reviewer conversation context and review-loop increment summaries.
 
 Do not load another extension that registers `/review` unless the command collision is intentional.

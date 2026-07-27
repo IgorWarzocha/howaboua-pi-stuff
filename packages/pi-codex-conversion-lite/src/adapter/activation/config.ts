@@ -18,8 +18,10 @@ export const V2_USER_MESSAGE_RETENTION_OPTIONS: readonly V2UserMessageRetention[
 
 export interface CodexConversionConfig {
 	voiceFeaturesOnly: boolean;
+	prompt: { heavySystemPromptOverwrite: boolean };
 	scope: { allProviders: AllProvidersMode; additionalProviders: string[] };
 	tools: {
+		customRustBinariesDir: string;
 		webRun: boolean;
 		imageGeneration: boolean;
 		viewImageFallback: boolean;
@@ -56,14 +58,16 @@ export interface CodexConversionConfig {
 		fast: boolean;
 		verbosity: CodexVerbosity;
 		forceCachedWebSockets: boolean;
+		harnessIdentifierHeader: boolean;
 		webSearchModel: WebSearchModel;
 	};
 }
 
 export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	voiceFeaturesOnly: false,
+	prompt: { heavySystemPromptOverwrite: false },
 	scope: { allProviders: "off", additionalProviders: [] },
-	tools: { webRun: true, imageGeneration: true, viewImageFallback: false, applyPatchOnly: false, viewImageOnly: false, webRunOnly: false, imageGenerationOnly: false },
+	tools: { customRustBinariesDir: "", webRun: true, imageGeneration: true, viewImageFallback: false, applyPatchOnly: false, viewImageOnly: false, webRunOnly: false, imageGenerationOnly: false },
 	ui: {
 		statusLine: true,
 		toolRenaming: true,
@@ -90,6 +94,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 		fast: false,
 		verbosity: "low",
 		forceCachedWebSockets: true,
+		harnessIdentifierHeader: false,
 		webSearchModel: "gpt-5.6-luna",
 	},
 };
@@ -161,8 +166,13 @@ function optionalString(value: unknown): string | undefined {
 	return normalized && Buffer.byteLength(normalized) <= 512 ? normalized : undefined;
 }
 
+export function normalizeCustomRustBinariesDir(value: unknown): string {
+	return optionalString(value) ?? "";
+}
+
 export function normalizeCodexConversionConfig(value: unknown): CodexConversionConfig {
 	if (!isObject(value)) return structuredClone(DEFAULT_CODEX_CONVERSION_CONFIG);
+	const prompt = isObject(value["prompt"]) ? value["prompt"] : {};
 	const scope = isObject(value["scope"]) ? value["scope"] : {};
 	const tools = isObject(value["tools"]) ? value["tools"] : {};
 	const ui = isObject(value["ui"]) ? value["ui"] : {};
@@ -174,11 +184,15 @@ export function normalizeCodexConversionConfig(value: unknown): CodexConversionC
 	const outputDevice = optionalString(voice["outputDevice"]);
 	return {
 		voiceFeaturesOnly: bool(value["voiceFeaturesOnly"], DEFAULT_CODEX_CONVERSION_CONFIG.voiceFeaturesOnly),
+		prompt: {
+			heavySystemPromptOverwrite: bool(prompt["heavySystemPromptOverwrite"], DEFAULT_CODEX_CONVERSION_CONFIG.prompt.heavySystemPromptOverwrite),
+		},
 		scope: {
 			allProviders: normalizeAllProvidersMode(scope["allProviders"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.scope["allProviders"],
 			additionalProviders: normalizeProviderList(scope["additionalProviders"]),
 		},
 		tools: {
+			customRustBinariesDir: normalizeCustomRustBinariesDir(tools["customRustBinariesDir"]),
 			webRun: bool(tools["webRun"], DEFAULT_CODEX_CONVERSION_CONFIG.tools["webRun"]),
 			imageGeneration: bool(tools["imageGeneration"], DEFAULT_CODEX_CONVERSION_CONFIG.tools["imageGeneration"]),
 			viewImageFallback: bool(tools["viewImageFallback"], DEFAULT_CODEX_CONVERSION_CONFIG.tools["viewImageFallback"]),
@@ -223,6 +237,7 @@ export function normalizeCodexConversionConfig(value: unknown): CodexConversionC
 			fast: bool(openai["fast"], DEFAULT_CODEX_CONVERSION_CONFIG.openai["fast"]),
 			verbosity: normalizeCodexVerbosity(openai["verbosity"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai["verbosity"],
 			forceCachedWebSockets: bool(openai["forceCachedWebSockets"], DEFAULT_CODEX_CONVERSION_CONFIG.openai["forceCachedWebSockets"]),
+			harnessIdentifierHeader: bool(openai["harnessIdentifierHeader"], DEFAULT_CODEX_CONVERSION_CONFIG.openai["harnessIdentifierHeader"]),
 			webSearchModel: normalizeWebSearchModel(openai["webSearchModel"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai["webSearchModel"],
 		},
 	};

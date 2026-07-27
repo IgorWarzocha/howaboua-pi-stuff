@@ -1,5 +1,5 @@
 export const SETTINGS_TABS = [
-	{ id: "adapter", label: "Adapter" },
+	{ id: "adapter", label: "General" },
 	{ id: "tools", label: "Tools" },
 	{ id: "openai", label: "OpenAI" },
 	{ id: "display", label: "Display" },
@@ -10,6 +10,8 @@ export const SETTINGS_TABS = [
 
 export type SettingsTab = typeof SETTINGS_TABS[number]["id"];
 
+export const ROUTABLE_SETTINGS_TABS = SETTINGS_TABS.slice(1);
+
 export function parseSettingsTab(value: string): SettingsTab | undefined {
-	return SETTINGS_TABS.find((tab) => tab.id === value)?.id;
+	return ROUTABLE_SETTINGS_TABS.find((tab) => tab.id === value)?.id;
 }

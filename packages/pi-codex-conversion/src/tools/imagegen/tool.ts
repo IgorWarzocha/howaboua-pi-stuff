@@ -35,14 +35,16 @@ export function supportsNativeImageGeneration(model: ExtensionContext["model"]):
 }
 
 function supportsExecutableImageGeneration(model: ExtensionContext["model"], options: ImageGenerationToolOptions): boolean {
-	return supportsNativeImageGeneration(model) || Boolean(options.allowConfiguredProvider?.(model));
+	return supportsNativeImageGeneration(model)
+		|| Boolean(options.allowConfiguredProvider?.(model))
+		|| options.allowCodexProviderFallback === true;
 }
 
-async function executeRustImagegen(args: ImagegenArgs, signal: AbortSignal | undefined, ctx: ExtensionContext): Promise<ImagegenDetails> {
+async function executeRustImagegen(args: ImagegenArgs, signal: AbortSignal | undefined, ctx: ExtensionContext, options: ImageGenerationToolOptions): Promise<ImagegenDetails> {
 	if (signal?.aborted) throw new Error("imagegen aborted");
-	const binary = getBundledPathToolBinaryPath("imagegen");
+	const binary = getBundledPathToolBinaryPath("imagegen", {}, options.customRustBinariesDir);
 	if (!binary) throw new Error(`imagegen binary is not bundled for ${process.platform}-${process.arch}`);
-	const provider = await resolveCodexToolProvider(ctx);
+	const provider = await resolveCodexToolProvider(ctx, options.allowConfiguredProvider);
 	const child = await runBundledTool({
 		binary,
 		args: [JSON.stringify({ ...args, cwd: ctx.cwd })],
@@ -58,7 +60,9 @@ async function executeRustImagegen(args: ImagegenArgs, signal: AbortSignal | und
 }
 
 export interface ImageGenerationToolOptions {
+	customRustBinariesDir?: string | undefined;
 	allowConfiguredProvider?: ((model: ExtensionContext["model"]) => boolean) | undefined;
+	allowCodexProviderFallback?: boolean | undefined;
 	customRendering?: boolean | undefined;
 	promptSnippet?: boolean | undefined;
 }
@@ -73,7 +77,7 @@ export function createImageGenerationTool(options: ImageGenerationToolOptions = 
 		parameters: IMAGE_GENERATION_PARAMETERS,
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
 			if (!supportsExecutableImageGeneration(ctx.model, options)) throw new Error(IMAGE_GENERATION_UNSUPPORTED_MESSAGE);
-			const details = await executeRustImagegen(params, signal, ctx);
+			const details = await executeRustImagegen(params, signal, ctx, options);
 			const imageContent = supportsImageInputs(ctx.model) ? imageContentsFromPathImagegenOutput(details) : [];
 			return { content: [{ type: "text", text: formatPathImagegenOutput(details) }, ...imageContent], details };
 		},

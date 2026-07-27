@@ -23,8 +23,12 @@ export function isExplicitlyConfiguredToolProvider(model: Model<Api> | undefined
 export function registerCodexTools(pi: ExtensionAPI, runtime: CodexExtensionRuntime): CodexToolRegistration {
 	const renderOptions = (config: CodexConversionConfig) => ({ customRendering: config.ui.toolRenaming });
 	const promptOptions = (config: CodexConversionConfig) => ({ promptSnippet: config.mode === "path" });
+	const registerApplyPatch = (config: CodexConversionConfig) =>
+		registerApplyPatchTool(pi, { customRustBinariesDir: config.tools.customRustBinariesDir, ...promptOptions(config), showDiffWhenCollapsed: config.mode === "normal" && !config.ui.compactTools });
+	const registerViewImage = (config: CodexConversionConfig) =>
+		registerViewImageTool(pi, { customRustBinariesDir: config.tools.customRustBinariesDir, describeForTextModels: config.tools.viewImageFallback, ...renderOptions(config), ...promptOptions(config) });
 	const registerCore = (config: CodexConversionConfig) => {
-		registerApplyPatchTool(pi, { ...promptOptions(config), showDiffWhenCollapsed: config.mode === "normal" && !config.ui.compactTools });
+		registerApplyPatch(config);
 		registerExecCommandTool(pi, runtime.tracker, runtime.sessions, {
 			describeImagesForTextModels: config.tools.viewImageFallback,
 			...renderOptions(config),
@@ -33,23 +37,29 @@ export function registerCodexTools(pi: ExtensionAPI, runtime: CodexExtensionRunt
 			compactTools: config.ui.compactTools,
 		});
 		registerWriteStdinTool(pi, runtime.sessions, { describeImagesForTextModels: config.tools.viewImageFallback, ...promptOptions(config) });
-		registerViewImageTool(pi, { describeForTextModels: config.tools.viewImageFallback, ...renderOptions(config), ...promptOptions(config) });
+		registerViewImage(config);
 	};
 	const ensureOptionalTools = (config = runtime.state.config) => {
-		if (config.voiceFeaturesOnly) return;
+		if (config.voiceFeaturesOnly) {
+			if (config.tools.applyPatchOnly) registerApplyPatch(config);
+			if (config.tools.viewImageOnly) registerViewImage(config);
+		}
 		const allowConfiguredProvider = (model: Model<Api> | undefined): boolean =>
 			isExplicitlyConfiguredToolProvider(model, config);
-		if (config.tools.webRun || config.tools.webRunOnly) {
+		const allowCodexProviderFallback = config.scope.allProviders !== "off";
+		if ((!config.voiceFeaturesOnly && config.tools.webRun) || config.tools.webRunOnly) {
 			registerWebSearchTool(pi, WEB_SEARCH_TOOL_NAME, {
+				customRustBinariesDir: config.tools.customRustBinariesDir,
 				model: () => runtime.state.config.openai.webSearchModel,
 				allowConfiguredProvider,
+				allowCodexProviderFallback,
 				...renderOptions(config),
 				...promptOptions(config),
 			});
 			runtime.registeredNativeWebSearchTools.add(WEB_SEARCH_TOOL_NAME);
 		}
-		if (config.tools.imageGeneration || config.tools.imageGenerationOnly) {
-			registerImageGenerationTool(pi, { allowConfiguredProvider, ...renderOptions(config), ...promptOptions(config) });
+		if ((!config.voiceFeaturesOnly && config.tools.imageGeneration) || config.tools.imageGenerationOnly) {
+			registerImageGenerationTool(pi, { customRustBinariesDir: config.tools.customRustBinariesDir, allowConfiguredProvider, allowCodexProviderFallback, ...renderOptions(config), ...promptOptions(config) });
 		}
 	};
 	if (!runtime.state.config.voiceFeaturesOnly) registerCore(runtime.state.config);

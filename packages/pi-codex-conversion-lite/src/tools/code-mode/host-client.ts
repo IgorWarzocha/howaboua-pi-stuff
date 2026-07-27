@@ -10,6 +10,7 @@ import {
 	DEFAULT_CODE_MODE_EXEC_YIELD_MS,
 	executionCellId,
 	type HostMessage,
+	isCustomToolDefinition,
 	isMissingRuntimeOutcome,
 	parseHostMessage,
 	parseExecSource,
@@ -120,6 +121,7 @@ export class CodeModeHostClient {
 		throwIfAborted(signal);
 		const { code, yieldTimeMs, maxOutputTokens } = parseExecSource(source);
 		const effectiveYieldTimeMs = directToolYieldTime(code, tools) ?? yieldTimeMs ?? DEFAULT_CODE_MODE_EXEC_YIELD_MS;
+		const runtimeSource = scopeAllToolsToDeferredCustom(code, tools);
 		const id = ++this.requestId;
 		const initial = new Promise<unknown>((resolve, reject) =>
 			this.initial.set(id, { resolve, reject }),
@@ -134,7 +136,7 @@ export class CodeModeHostClient {
 				request: {
 					tool_call_id: `exec-${id}`,
 					enabled_tools: tools.map(toWireToolDefinition),
-					source: code,
+					source: runtimeSource,
 					yield_time_ms: effectiveYieldTimeMs,
 					max_output_tokens: maxOutputTokens,
 				},
@@ -418,6 +420,17 @@ export class CodeModeHostClient {
 		if (child && !child.killed) child.kill();
 	}
 
+}
+
+export function scopeAllToolsToDeferredCustom(
+	source: string,
+	tools: CodeModeToolDefinition[],
+): string {
+	const names = tools
+		.filter(isCustomToolDefinition)
+		.filter((tool) => tool.deferLoading)
+		.map((tool) => tool.name);
+	return `globalThis.ALL_TOOLS=globalThis.ALL_TOOLS.filter(({name})=>${JSON.stringify(names)}.includes(name));${source}`;
 }
 
 function directToolYieldTime(
