@@ -107,6 +107,7 @@ export interface ExecSessionManagerOptions {
 const MAX_COMMAND_HISTORY = 256;
 const MAX_COMPLETED_SESSION_HISTORY = 32;
 const MAX_COMPLETED_SESSION_OUTPUT_CHARS = 64 * 1024;
+const MAX_COMPLETED_SESSION_OUTPUT_TOKENS = MAX_COMPLETED_SESSION_OUTPUT_CHARS / 4;
 const DEFAULT_MAX_TTY_SESSION_BUFFER_CHARS = 1024 * 1024;
 const DEFAULT_MAX_PIPE_SESSION_BUFFER_CHARS = 256 * 1024 * 1024;
 const TERMINATE_ESCALATE_MS = 2_000;
@@ -153,7 +154,6 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 	}
 
 	function replayCompletedResult(result: UnifiedExecResult, maxOutputTokens?: number): UnifiedExecResult {
-		if (maxOutputTokens === undefined) return result;
 		const originalCharCount = result.original_token_count === undefined
 			? result.output.length
 			: result.original_token_count * 4;
@@ -161,8 +161,11 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 	}
 
 	function finishResult(session: ExecSession, waitMs: number, maxOutputTokens?: number): UnifiedExecResult {
+		const completed = session.exitCode !== undefined && session.exitCode !== null;
+		const replaySnapshot = completed ? makeSnapshotResult(session, waitMs, MAX_COMPLETED_SESSION_OUTPUT_TOKENS, true) : undefined;
 		const result = makeExecResult(session, waitMs, maxOutputTokens, exposeSession, (sessionId) => sessions.delete(sessionId));
-		if (result.exit_code !== undefined && !sessions.has(session.id)) rememberCompletedResult(session.id, result);
+		if (!replaySnapshot || sessions.has(session.id)) return result;
+		rememberCompletedResult(session.id, { ...replaySnapshot, chunk_id: result.chunk_id, wall_time_seconds: result.wall_time_seconds });
 		return result;
 	}
 
