@@ -1,5 +1,19 @@
 # @howaboua/pi-extensions
 
+## 0.0.40
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-subagent-review: Use the configurable lightweight summary model for tree summaries. Clarify workflow, review-context, summary-session, and RPC protocol ownership.
+  - @howaboua/pi-auto-trees: Use the configurable lightweight summary model for tree summaries. Clarify workflow, review-context, summary-session, and RPC protocol ownership.
+  - @howaboua/pi-codex-conversion-lite: Clarify Code Mode tool exposition as configured tools change, limit ALL_TOOLS to deferred configured custom tools, add an opt-in heavy system prompt overwrite that preserves chained extension additions and refreshes cached transport state, install the Code Mode host correctly under Pi's Bun runtime, replay completed exec results on late polls with per-poll output caps, keep selected extra tools available in voice-only mode, support locally built Rust tool binaries across flat and Code Mode tools, preserve GPT-5.6 tool history up to the native compaction endpoint budget, report V2 compaction cache usage inline, and let Lite identify requests as pi-codex-conversion.
+
+- Updated dependencies [[`18868c1`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/18868c1ba0257f7d6ddeeb7dfc51f3af467e4633)]:
+  - @howaboua/pi-auto-trees@0.1.11
+  - @howaboua/pi-subagent-review@0.2.13
+
 ## 0.0.39
 
 ### Changes

@@ -39,11 +39,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-auto-reasoning-tool/CHANGELOG.md)
 
-### @howaboua/pi-auto-trees — 0.1.10
+### @howaboua/pi-auto-trees — 0.1.11
 
 ### Changes
 
-- [#177](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/177) [`bf58bdc`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/bf58bdce157ca9c3c7869b629ad148bd05a3a100) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add /prime command with automatic settled-agent markers
+- [#184](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/184) [`18868c1`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/18868c1ba0257f7d6ddeeb7dfc51f3af467e4633) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Use the configurable lightweight summary model for tree summaries. Clarify workflow, review-context, summary-session, and RPC protocol ownership.
 
 [Full changelog](./packages/pi-auto-trees/CHANGELOG.md)
 
@@ -57,19 +57,19 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 2.2.24
+### @howaboua/pi-codex-conversion — 2.2.25
 
 ### Changes
 
-- [#179](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/179) [`ffa9c25`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ffa9c25f1cbe4e9a23b18a6122f468dc6e8a42e4) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Yield silent shell commands as sessions while active commands continue waiting. Encourage concise intermediary progress updates during longer realtime voice work
+- [#184](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/184) [`18868c1`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/18868c1ba0257f7d6ddeeb7dfc51f3af467e4633) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Clarify Code Mode tool exposition as configured tools change, limit ALL_TOOLS to deferred configured custom tools, add an opt-in heavy system prompt overwrite that preserves chained extension additions and refreshes cached transport state, install the Code Mode host correctly under Pi's Bun runtime, replay completed exec results on late polls with per-poll output caps, keep selected extra tools available in voice-only mode, support locally built Rust tool binaries across flat and Code Mode tools, preserve GPT-5.6 tool history up to the native compaction endpoint budget, report V2 compaction cache usage inline, and let Lite identify requests as pi-codex-conversion
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion-lite — 0.1.5
+### @howaboua/pi-codex-conversion-lite — 0.1.6
 
 ### Changes
 
-- [#179](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/179) [`ffa9c25`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ffa9c25f1cbe4e9a23b18a6122f468dc6e8a42e4) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Yield silent shell commands as sessions while active commands continue waiting. Encourage concise intermediary progress updates during longer realtime voice work
+- [#184](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/184) [`18868c1`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/18868c1ba0257f7d6ddeeb7dfc51f3af467e4633) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Clarify Code Mode tool exposition as configured tools change, limit ALL_TOOLS to deferred configured custom tools, add an opt-in heavy system prompt overwrite that preserves chained extension additions and refreshes cached transport state, install the Code Mode host correctly under Pi's Bun runtime, replay completed exec results on late polls with per-poll output caps, keep selected extra tools available in voice-only mode, support locally built Rust tool binaries across flat and Code Mode tools, preserve GPT-5.6 tool history up to the native compaction endpoint budget, report V2 compaction cache usage inline, and let Lite identify requests as pi-codex-conversion
 
 [Full changelog](./packages/pi-codex-conversion-lite/CHANGELOG.md)
 
@@ -89,13 +89,19 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.39
+### @howaboua/pi-extensions — 0.0.40
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-codex-conversion-lite: Yield silent shell commands as sessions while active commands continue waiting. Encourage concise intermediary progress updates during longer realtime voice work.
+  - @howaboua/pi-subagent-review: Use the configurable lightweight summary model for tree summaries. Clarify workflow, review-context, summary-session, and RPC protocol ownership.
+  - @howaboua/pi-auto-trees: Use the configurable lightweight summary model for tree summaries. Clarify workflow, review-context, summary-session, and RPC protocol ownership.
+  - @howaboua/pi-codex-conversion-lite: Clarify Code Mode tool exposition as configured tools change, limit ALL_TOOLS to deferred configured custom tools, add an opt-in heavy system prompt overwrite that preserves chained extension additions and refreshes cached transport state, install the Code Mode host correctly under Pi's Bun runtime, replay completed exec results on late polls with per-poll output caps, keep selected extra tools available in voice-only mode, support locally built Rust tool binaries across flat and Code Mode tools, preserve GPT-5.6 tool history up to the native compaction endpoint budget, report V2 compaction cache usage inline, and let Lite identify requests as pi-codex-conversion.
+
+- Updated dependencies [[`18868c1`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/18868c1ba0257f7d6ddeeb7dfc51f3af467e4633)]:
+  - @howaboua/pi-auto-trees@0.1.11
+  - @howaboua/pi-subagent-review@0.2.13
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
@@ -232,21 +238,27 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.41
+### @howaboua/pi-stuff — 0.0.42
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-codex-conversion-lite: Yield silent shell commands as sessions while active commands continue waiting. Encourage concise intermediary progress updates during longer realtime voice work.
+  - @howaboua/pi-subagent-review: Use the configurable lightweight summary model for tree summaries. Clarify workflow, review-context, summary-session, and RPC protocol ownership.
+  - @howaboua/pi-auto-trees: Use the configurable lightweight summary model for tree summaries. Clarify workflow, review-context, summary-session, and RPC protocol ownership.
+  - @howaboua/pi-codex-conversion-lite: Clarify Code Mode tool exposition as configured tools change, limit ALL_TOOLS to deferred configured custom tools, add an opt-in heavy system prompt overwrite that preserves chained extension additions and refreshes cached transport state, install the Code Mode host correctly under Pi's Bun runtime, replay completed exec results on late polls with per-poll output caps, keep selected extra tools available in voice-only mode, support locally built Rust tool binaries across flat and Code Mode tools, preserve GPT-5.6 tool history up to the native compaction endpoint budget, report V2 compaction cache usage inline, and let Lite identify requests as pi-codex-conversion.
+
+- Updated dependencies [[`18868c1`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/18868c1ba0257f7d6ddeeb7dfc51f3af467e4633)]:
+  - @howaboua/pi-auto-trees@0.1.11
+  - @howaboua/pi-subagent-review@0.2.13
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 
-### @howaboua/pi-subagent-review — 0.2.12
+### @howaboua/pi-subagent-review — 0.2.13
 
 ### Changes
 
-- [#146](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/146) [`799a4b2`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/799a4b24e5b49a1020c95524209c01112625aa6b) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Reinjects the review advisory preface when compaction has removed the earlier preface from active session context.
+- [#184](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/184) [`18868c1`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/18868c1ba0257f7d6ddeeb7dfc51f3af467e4633) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Use the configurable lightweight summary model for tree summaries. Clarify workflow, review-context, summary-session, and RPC protocol ownership.
 
 [Full changelog](./packages/pi-subagent-review/CHANGELOG.md)
 
