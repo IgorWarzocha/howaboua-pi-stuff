@@ -3,7 +3,7 @@ import { clampThinkingLevel, type Api, type Context, type Model, type ModelThink
 import { executeNativeCompaction } from "./compact-client.ts";
 import { extractCompactionSummaryText, hasCompactionOutputItem, sanitizeCompactedWindow, summarizeCompactionOutputForDiagnostics } from "./compaction-output.ts";
 import { findLatestNativeCompactionEntry, findLatestNativeCompactionEntryIndex, resolveLatestNativeCompactionEntry, type LatestNativeCompactionResolution } from "./details-store.ts";
-import { shrinkNativeCompactionRequestForEndpoint } from "./request-shrink.ts";
+import { resolveNativeCompactionRequestBudget, shrinkNativeCompactionRequestForEndpoint } from "./request-shrink.ts";
 import { rewriteResponsesPayloadWithNativeReplay, serializeLiveTailToResponsesInput } from "../replay/payload-rewrite.ts";
 import { DEFAULT_SUPPORTED_PROVIDERS, isResponsesCompatiblePayload, resolveNativeCompactionEnvironment, type ResponsesCompatibleRequestPayload } from "./compaction-runtime.ts";
 import { formatCodexUsageLimitError } from "../../providers/openai-codex/errors.ts";
@@ -317,6 +317,7 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 				compactedWindow,
 				compactResponseId: compactResult.responseId,
 				createdAt: compactResult.createdAt,
+				usage: compactResult.usage,
 				requestMeta: { tokensBefore: event.preparation.tokensBefore, previousSummaryPresent: Boolean(event.preparation.previousSummary), compactedKeptWindow },
 			});
 			return { compaction: createNativeCompactionShimResult({ summary: NATIVE_COMPACTION_SHIM_SUMMARY, firstKeptEntryId: event.preparation.firstKeptEntryId, tokensBefore: event.preparation.tokensBefore, details }) };
@@ -328,7 +329,11 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 	const responsesLite = state.config.beta.codeMode && runtime.provider === "openai-codex" && supportsResponsesLiteModel(runtime.model);
 	if (responsesLite) request = await prepareResponsesLiteRequestImages(applyResponsesLiteRequest(applyCodeModeFreeformContract(request)));
 
-	request = (await shrinkNativeCompactionRequestForEndpoint(request, { contextWindow: compactionTargetModel.contextWindow })).request;
+	request = (await shrinkNativeCompactionRequestForEndpoint(request, { budgetTokens: resolveNativeCompactionRequestBudget({
+		provider: runtime.provider,
+		model: runtime.model,
+		contextWindow: compactionTargetModel.contextWindow,
+	}) })).request;
 
 	const compactResult = await executeNativeCompaction({
 		runtime,

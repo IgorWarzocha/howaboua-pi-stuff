@@ -23,6 +23,13 @@ export type NativeCompactionRequestMeta = {
 	compactedKeptWindow?: boolean | undefined;
 };
 
+export type NativeCompactionUsage = {
+	inputTokens: number;
+	cachedInputTokens: number;
+	cacheWriteInputTokens: number;
+	outputTokens: number;
+};
+
 export type NativeCompactionIdentity = {
 	provider: string;
 	api: string;
@@ -36,6 +43,7 @@ export type NativeCompactionDetails = NativeCompactionIdentity & {
 	compactResponseId?: string | undefined;
 	createdAt: string;
 	requestMeta?: NativeCompactionRequestMeta | undefined;
+	usage?: NativeCompactionUsage | undefined;
 };
 
 export type NativeCompactionEntry = CompactionEntry<NativeCompactionDetails>;
@@ -45,6 +53,7 @@ export type CreateNativeCompactionDetailsInput = NativeCompactionIdentity & {
 	compactResponseId?: string | undefined;
 	createdAt?: string | undefined;
 	requestMeta?: NativeCompactionRequestMeta | undefined;
+	usage?: NativeCompactionUsage | undefined;
 };
 
 export type CreateNativeCompactionShimResultInput = {
@@ -141,6 +150,11 @@ export function isNativeCompactionRequestMeta(value: unknown): value is NativeCo
 	return true;
 }
 
+export function isNativeCompactionUsage(value: unknown): value is NativeCompactionUsage {
+	if (!isRecord(value)) return false;
+	return [value["inputTokens"], value["cachedInputTokens"], value["cacheWriteInputTokens"], value["outputTokens"]].every(isFiniteNonNegativeNumber);
+}
+
 export function isNativeCompactionIdentity(value: unknown): value is NativeCompactionIdentity {
 	if (!isRecord(value)) {
 		return false;
@@ -170,7 +184,8 @@ export function isNativeCompactionDetails(value: unknown): value is NativeCompac
 		candidate["compactedWindow"]!.every(isCompactedWindowItem) &&
 		isNonEmptyString(candidate["createdAt"]!) &&
 		(candidate["compactResponseId"] === undefined || isNonEmptyString(candidate["compactResponseId"]!)) &&
-		(candidate["requestMeta"] === undefined || isNativeCompactionRequestMeta(candidate["requestMeta"]!))
+		(candidate["requestMeta"] === undefined || isNativeCompactionRequestMeta(candidate["requestMeta"]!)) &&
+		(candidate["usage"] === undefined || isNativeCompactionUsage(candidate["usage"]!))
 	);
 }
 
@@ -203,6 +218,7 @@ export function createNativeCompactionDetails(input: CreateNativeCompactionDetai
 					: {}),
 			}
 			: undefined,
+		usage: input.usage ? { ...input.usage } : undefined,
 	};
 }
 

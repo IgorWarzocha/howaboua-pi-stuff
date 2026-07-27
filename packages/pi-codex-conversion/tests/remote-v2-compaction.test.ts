@@ -31,7 +31,15 @@ test("Responses compaction v2 uses the registered stream and installs one canoni
 			parallel_tool_calls: true,
 		});
 		options.onOutputItemDone({ type: "compaction_summary", id: "cmp", encrypted_content: "sealed" });
-		yield { type: "done", reason: "stop", message: { responseId: "resp", stopReason: "stop" } };
+		yield {
+			type: "done",
+			reason: "stop",
+			message: {
+				responseId: "resp",
+				stopReason: "stop",
+				usage: { input: 100, cacheRead: 900, cacheWrite: 20, output: 30 },
+			},
+		};
 	})();
 	const result = await executeRemoteCompactionV2({
 		runtime: {
@@ -61,6 +69,7 @@ test("Responses compaction v2 uses the registered stream and installs one canoni
 	assert.equal(headers?.["x-codex-beta-features"], "other,remote_compaction_v2");
 	assert.equal((request?.["input"] as Array<{ type?: string }>).at(-1)?.type, "compaction_trigger");
 	assert.deepEqual(result.ok && result.compaction, { type: "compaction", id: "cmp", encrypted_content: "sealed" });
+	assert.deepEqual(result.ok && result.usage, { inputTokens: 1_020, cachedInputTokens: 900, cacheWriteInputTokens: 20, outputTokens: 30 });
 });
 
 test("Responses compaction v2 retains recent real user turns and removes orphan outputs", () => {

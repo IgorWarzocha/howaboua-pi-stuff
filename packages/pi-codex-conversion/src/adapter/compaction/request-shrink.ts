@@ -1,6 +1,8 @@
 import type { NativeCompactionRequestBody, ResponsesInputItem } from "./serializer.ts";
+import { supportsResponsesLiteModel } from "../../providers/openai-codex/responses-lite.ts";
 
 export const COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE = "Output exceeded the available model context and was truncated";
+export const OPENAI_CODEX_COMPACTION_ENDPOINT_BUDGET_TOKENS = 372_000;
 const CODEX_EFFECTIVE_CONTEXT_WINDOW_PERCENT = 95;
 
 export type NativeCompactionShrinkResult = {
@@ -12,6 +14,12 @@ export type NativeCompactionShrinkResult = {
 };
 
 export type ShrinkNativeCompactionRequestOptions = {
+	budgetTokens?: number | null | undefined;
+};
+
+export type NativeCompactionBudgetOptions = {
+	provider: string;
+	model: string;
 	contextWindow?: number | null | undefined;
 };
 
@@ -50,10 +58,19 @@ function rewriteToolOutputItem(item: ResponsesInputItem): { recognized: boolean;
 	return { recognized: false, item };
 }
 
-function compactRequestBudget(options: ShrinkNativeCompactionRequestOptions): number | undefined {
+export function resolveNativeCompactionRequestBudget(options: NativeCompactionBudgetOptions): number | undefined {
+	if (options.provider === "openai-codex" && supportsResponsesLiteModel(options.model)) {
+		return OPENAI_CODEX_COMPACTION_ENDPOINT_BUDGET_TOKENS;
+	}
 	const contextWindow = options.contextWindow;
 	if (typeof contextWindow !== "number" || !Number.isFinite(contextWindow) || contextWindow <= 0) return undefined;
 	return Math.floor((contextWindow * CODEX_EFFECTIVE_CONTEXT_WINDOW_PERCENT) / 100);
+}
+
+function compactRequestBudget(options: ShrinkNativeCompactionRequestOptions): number | undefined {
+	const budgetTokens = options.budgetTokens;
+	if (typeof budgetTokens !== "number" || !Number.isFinite(budgetTokens) || budgetTokens <= 0) return undefined;
+	return Math.floor(budgetTokens);
 }
 
 function estimateCompactContextTokens(request: NativeCompactionRequestBody, encoding: TokenEncoder): number {
