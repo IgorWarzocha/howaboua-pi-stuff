@@ -267,6 +267,7 @@ function buildItems(tab: SettingsTab, draft: CodexConversionConfig, theme: Theme
 		{ id: "mode", label: "PATH mode", currentValue: draft.mode === "path" ? "on" : "off", values: ["off", "on"] },
 		{ id: "voiceFeaturesOnly", label: "Voice features only", currentValue: draft.voiceFeaturesOnly ? "on" : "off", values: ["off", "on"] },
 		{ id: "heavySystemPromptOverwrite", label: "Heavy system prompt overwrite (40% smaller)", currentValue: draft.prompt.heavySystemPromptOverwrite ? "on" : "off", values: ["off", "on"] },
+		{ id: "customRustBinariesDirHelp", label: "For compatibility custom Rust binaries, edit", currentValue: getCodexConversionConfigPath(), values: [getCodexConversionConfigPath()] },
 		{ id: "allProviders", label: "Use for all providers/models", currentValue: formatAllProvidersMode(draft.scope.allProviders), values: ["off", "on", "only extras"] },
 		{
 			id: "additionalProviders",

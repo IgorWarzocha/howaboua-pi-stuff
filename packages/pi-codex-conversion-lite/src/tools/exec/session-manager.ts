@@ -95,6 +95,7 @@ export interface ExecSessionManager {
 
 export interface ExecSessionManagerOptions {
 	env?: NodeJS.ProcessEnv | undefined;
+	bridgeBinaryPath?: (() => string | undefined) | undefined;
 	defaultExecYieldTimeMs?: number | undefined;
 	defaultWriteYieldTimeMs?: number | undefined;
 	minNonInteractiveExecYieldTimeMs?: number | undefined;
@@ -117,7 +118,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 	const completedResults = new Map<number, UnifiedExecResult>();
 	const changeListeners = new Set<(reason: ExecSessionChangeReason) => void>();
 	const exitListeners = new Set<(sessionId: number, command: string) => void>();
-	const bridge = createExecBridgeClient();
+	const bridge = createExecBridgeClient(options.bridgeBinaryPath);
 	let baseEnv: NodeJS.ProcessEnv = { ...(options.env ?? process.env) };
 	const defaultExecYieldTimeMs = options.defaultExecYieldTimeMs ?? DEFAULT_EXEC_YIELD_TIME_MS;
 	const defaultWriteYieldTimeMs = options.defaultWriteYieldTimeMs ?? DEFAULT_WRITE_YIELD_TIME_MS;

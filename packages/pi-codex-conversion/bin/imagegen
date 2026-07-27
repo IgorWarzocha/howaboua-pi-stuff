@@ -9,7 +9,8 @@ const platform = process.platform;
 const arch = process.arch;
 const exe = platform === "win32" ? "imagegen.exe" : "imagegen";
 const platformArch = `${platform}-${arch}`;
-const binary = join(root, "src", "tools", "imagegen", "bin", platformArch, exe);
+const customBinary = process.env.PI_CODEX_CUSTOM_RUST_BINARIES_DIR ? join(process.env.PI_CODEX_CUSTOM_RUST_BINARIES_DIR, exe) : undefined;
+const binary = customBinary && existsSync(customBinary) ? customBinary : join(root, "src", "tools", "imagegen", "bin", platformArch, exe);
 
 if (!existsSync(binary)) {
   console.error(`imagegen binary is not bundled for ${platformArch}.`);

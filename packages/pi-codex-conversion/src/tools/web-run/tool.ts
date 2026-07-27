@@ -61,6 +61,7 @@ function webSearchCallDetail(params: Record<string, unknown>): string | undefine
 }
 
 export interface WebSearchToolOptions {
+	customRustBinariesDir?: string | undefined;
 	sessionId?: string | undefined;
 	model?: string | (() => string | undefined) | undefined;
 	allowConfiguredProvider?: ((model: ExtensionContext["model"]) => boolean) | undefined;
@@ -124,7 +125,7 @@ export function supportsMultimodalNativeWebSearch(model: ExtensionContext["model
 }
 
 export async function executeCodexWebSearch(params: Record<string, unknown>, ctx: ExtensionContext, signal: AbortSignal | undefined | null, options: WebSearchToolOptions = {}): Promise<WebRunExecutionResult> {
-	const webRunPath = process.env["PI_CODEX_WEB_RUN_BIN"]?.trim() || getBundledPathToolBinaryPath("web_run");
+	const webRunPath = process.env["PI_CODEX_WEB_RUN_BIN"]?.trim() || getBundledPathToolBinaryPath("web_run", {}, options.customRustBinariesDir);
 	if (!webRunPath) throw new Error(`web_run binary is not bundled for ${process.platform}-${process.arch}`);
 	const provider = await resolveCodexToolProvider(ctx, options.allowConfiguredProvider);
 	const sessionId = ctx.sessionManager?.getSessionId?.() || options.sessionId;

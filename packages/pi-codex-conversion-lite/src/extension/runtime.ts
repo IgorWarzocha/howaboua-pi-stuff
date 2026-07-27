@@ -13,6 +13,7 @@ import type { OpenAICodexStreamOptions } from "../providers/openai-codex/types.t
 import { CODE_MODE_EXEC_CONSTRAINED_SAMPLING } from "../tools/code-mode/exec-contract.ts";
 import { createExecCommandTracker } from "../tools/exec/command-state.ts";
 import { createExecSessionManager } from "../tools/exec/session-manager.ts";
+import { getBundledToolBinaryPath } from "../tools/native/binary.ts";
 import type { BackgroundBashWidgetState } from "../ui/background-bash-widget.ts";
 import { CodexVoiceController } from "../voice/controller.ts";
 
@@ -63,6 +64,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 	const tracker = createExecCommandTracker();
 	const sessions = createExecSessionManager({
 		env: { ...process.env, PI_CODEX_MODEL: state.config.openai.webSearchModel },
+		bridgeBinaryPath: () => getBundledToolBinaryPath("exec_bridge", {}, state.config.tools.customRustBinariesDir),
 	});
 	let prewarmController: AbortController | undefined;
 	let prewarmPromise: Promise<void> | undefined;

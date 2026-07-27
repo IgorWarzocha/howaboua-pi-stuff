@@ -22,6 +22,7 @@ interface ViewImageParams {
 }
 
 interface CreateViewImageToolOptions {
+	customRustBinariesDir?: string | undefined;
 	describeForTextModels?: boolean | undefined;
 	customRendering?: boolean | undefined;
 	promptSnippet?: boolean | undefined;
@@ -67,8 +68,8 @@ function prepareViewImageArguments(args: unknown): Record<string, unknown> {
 	return prepared;
 }
 
-async function executeRustViewImageContent(params: ViewImageParams, cwd: string, signal: AbortSignal | undefined): Promise<PathViewImageContent> {
-	const binary = getBundledPathToolBinaryPath("view_image");
+async function executeRustViewImageContent(params: ViewImageParams, cwd: string, signal: AbortSignal | undefined, customRustBinariesDir?: string | undefined): Promise<PathViewImageContent> {
+	const binary = getBundledPathToolBinaryPath("view_image", {}, customRustBinariesDir);
 	if (!binary) {
 		throw new Error(`view_image binary is not bundled for ${process.platform}-${process.arch}`);
 	}
@@ -89,8 +90,8 @@ async function executeRustViewImageContent(params: ViewImageParams, cwd: string,
 	return imageContent;
 }
 
-async function executeRustViewImage(params: ViewImageParams, cwd: string, signal: AbortSignal | undefined): Promise<AgentToolResult<unknown>> {
-	const imageContent = await executeRustViewImageContent(params, cwd, signal);
+async function executeRustViewImage(params: ViewImageParams, cwd: string, signal: AbortSignal | undefined, customRustBinariesDir?: string | undefined): Promise<AgentToolResult<unknown>> {
+	const imageContent = await executeRustViewImageContent(params, cwd, signal, customRustBinariesDir);
 	return { content: [imageContent], details: { pathTool: { viewImage: true } } };
 }
 
@@ -208,11 +209,11 @@ export function createViewImageTool(options: CreateViewImageToolOptions = {}): T
 			}
 			const typedParams = parseViewImageParams(params);
 			if (!supportsViewImageInputs(ctx.model)) {
-				const image = await executeRustViewImageContent(typedParams, ctx.cwd, signal);
+				const image = await executeRustViewImageContent(typedParams, ctx.cwd, signal, options.customRustBinariesDir);
 				const description = await describeImageContentForTextModel(image, ctx, signal);
 				return { content: [{ type: "text", text: description }], details: { pathTool: { viewImageDescription: { image, path: typedParams.path, description } } } };
 			}
-			return executeRustViewImage(typedParams, ctx.cwd, signal);
+			return executeRustViewImage(typedParams, ctx.cwd, signal, options.customRustBinariesDir);
 		},
 		...(options.customRendering === false ? {} : {
 		renderCall(args, theme) {

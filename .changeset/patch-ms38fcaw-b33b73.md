@@ -3,4 +3,4 @@
 "@howaboua/pi-codex-conversion": patch
 ---
 
-Clarify Code Mode tool exposition, limit ALL_TOOLS to deferred configured custom tools, add an opt-in heavy system prompt overwrite that preserves dynamic instructions, replay completed exec results on late polls, keep selected extra tools available in voice-only mode, and let Lite identify requests as pi-codex-conversion
+Clarify Code Mode tool exposition, limit ALL_TOOLS to deferred configured custom tools, add an opt-in heavy system prompt overwrite that preserves dynamic instructions, replay completed exec results on late polls, keep selected extra tools available in voice-only mode, support locally built Rust tool binaries from a configured directory, and let Lite identify requests as pi-codex-conversion

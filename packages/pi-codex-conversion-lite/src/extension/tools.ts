@@ -25,9 +25,9 @@ export function isExplicitlyConfiguredToolProvider(model: Model<Api> | undefined
 export function registerCodexTools(pi: ExtensionAPI, runtime: CodexExtensionRuntime): CodexToolRegistration {
 	const renderOptions = (config: CodexConversionConfig) => ({ customRendering: config.ui.toolRenaming });
 	const registerApplyPatch = (config: CodexConversionConfig) =>
-		registerApplyPatchTool(pi, { showDiffWhenCollapsed: !config.ui.compactTools });
+		registerApplyPatchTool(pi, { customRustBinariesDir: config.tools.customRustBinariesDir, showDiffWhenCollapsed: !config.ui.compactTools });
 	const registerViewImage = (config: CodexConversionConfig) =>
-		registerViewImageTool(pi, { describeForTextModels: config.tools.viewImageFallback, ...renderOptions(config) });
+		registerViewImageTool(pi, { customRustBinariesDir: config.tools.customRustBinariesDir, describeForTextModels: config.tools.viewImageFallback, ...renderOptions(config) });
 	const registerCore = (config: CodexConversionConfig) => {
 		registerApplyPatch(config);
 		registerExecCommandTool(pi, runtime.tracker, runtime.sessions, {
@@ -47,6 +47,7 @@ export function registerCodexTools(pi: ExtensionAPI, runtime: CodexExtensionRunt
 		const allowCodexProviderFallback = usesCodexProviderFallback(config);
 		if ((!config.voiceFeaturesOnly && config.tools.webRun) || config.tools.webRunOnly) {
 			registerWebSearchTool(pi, WEB_SEARCH_TOOL_NAME, {
+				customRustBinariesDir: config.tools.customRustBinariesDir,
 				model: () => runtime.state.config.openai.webSearchModel,
 				allowConfiguredProvider,
 				allowCodexProviderFallback,
@@ -54,7 +55,7 @@ export function registerCodexTools(pi: ExtensionAPI, runtime: CodexExtensionRunt
 			});
 		}
 		if ((!config.voiceFeaturesOnly && config.tools.imageGeneration) || config.tools.imageGenerationOnly) {
-			registerImageGenerationTool(pi, { allowConfiguredProvider, allowCodexProviderFallback, ...renderOptions(config) });
+			registerImageGenerationTool(pi, { customRustBinariesDir: config.tools.customRustBinariesDir, allowConfiguredProvider, allowCodexProviderFallback, ...renderOptions(config) });
 		}
 	};
 	if (!runtime.state.config.voiceFeaturesOnly) registerCore(runtime.state.config);

@@ -111,7 +111,7 @@ test("voice-only honors selected extras by provider scope without enabling the a
 		const state = createAdapterState({
 			voiceFeaturesOnly: true,
 			scope: { allProviders: item.scope.allProviders, additionalProviders: [...item.scope.additionalProviders] },
-			tools: { webRun: false, imageGeneration: false, applyPatchOnly: true, viewImageOnly: true, webRunOnly: true, imageGenerationOnly: true, viewImageFallback: true },
+			tools: { customRustBinariesDir: "", webRun: false, imageGeneration: false, applyPatchOnly: true, viewImageOnly: true, webRunOnly: true, imageGenerationOnly: true, viewImageFallback: true },
 			beta: { codeMode: true, responsesLite: true },
 			compaction: { responsesCompaction: true },
 		});

@@ -41,8 +41,8 @@ function collapseDuplicatedError(message: string): string {
 		: message;
 }
 
-export async function executePatchWithRust({ cwd, patchText, signal }: { cwd: string; patchText: string; signal?: AbortSignal | undefined }): Promise<ExecutePatchResult> {
-	const binary = getBundledApplyPatchBinaryPath();
+export async function executePatchWithRust({ cwd, patchText, signal, customRustBinariesDir }: { cwd: string; patchText: string; signal?: AbortSignal | undefined; customRustBinariesDir?: string | undefined }): Promise<ExecutePatchResult> {
+	const binary = getBundledApplyPatchBinaryPath(customRustBinariesDir);
 	if (!binary) {
 		throw new Error(`apply_patch binary is not bundled for ${process.platform}-${process.arch}`);
 	}

@@ -49,7 +49,7 @@ Rust source lives next to the owning tool in `src/tools/<tool>/rust/`. Shared Ru
 
 Published installs use committed binaries. Most changes do not need a local rebuild.
 
-For older Linux runtimes where a bundled binary fails with a loader error such as `GLIBC_2.39 not found`, run a Git checkout and rebuild the failing local-platform binary instead of replacing files inside an installed npm package. For `exec_bridge`:
+For older Linux runtimes where a bundled binary fails with a loader error such as `GLIBC_2.39 not found`, build the failing binary in a Git checkout:
 
 ```bash
 cd /path/to/pi-codex-conversion
@@ -57,16 +57,17 @@ bun install
 bun run build:path-tool codex-exec-shim exec_bridge
 ```
 
-Then load the checkout as the Pi extension. For a persistent global config, edit `~/.pi/agent/settings.json`: remove `npm:@howaboua/pi-codex-conversion` from `packages`, and add the checkout entrypoint to `extensions`:
+Keep the npm package installed. In `/codex` General, follow the compatibility row to the shared `pi-codex-conversion.json` config and point `tools.customRustBinariesDir` at the checkout's Cargo release directory:
 
 ```json
 {
-  "packages": [],
-  "extensions": ["/path/to/pi-codex-conversion/src/index.ts"]
+  "tools": {
+    "customRustBinariesDir": "/path/to/pi-codex-conversion/src/tools/target/release"
+  }
 }
 ```
 
-Keep existing unrelated `packages` and `extensions` entries; only replace the Codex conversion npm package. Restart Pi or use `/reload` after editing.
+Restart Pi or use `/reload` after editing. Executables found directly in this directory override their bundled counterpart; missing names continue using bundled binaries. This permits rebuilding only `exec_bridge`.
 
 If Rust source changed, rebuild affected local-platform binaries from the `pi-codex-conversion` package root:
 

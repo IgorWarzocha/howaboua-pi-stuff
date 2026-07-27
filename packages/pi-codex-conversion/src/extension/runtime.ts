@@ -11,7 +11,7 @@ import { createCodexTurnState } from "../providers/openai-codex/turn-state.ts";
 import type { OpenAICodexStreamOptions } from "../providers/openai-codex/types.ts";
 import { createExecCommandTracker } from "../tools/exec/command-state.ts";
 import { createExecSessionManager } from "../tools/exec/session-manager.ts";
-import { createBundledPathToolsEnv } from "../tools/path/binary.ts";
+import { createBundledPathToolsEnv, getBundledPathToolBinaryPath } from "../tools/path/binary.ts";
 import type { BackgroundBashWidgetState } from "../ui/background-bash-widget.ts";
 import { supportsViewImageInputs } from "../tools/view-image/tool.ts";
 import { CodexVoiceController } from "../voice/controller.ts";
@@ -54,7 +54,8 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 	};
 	const tracker = createExecCommandTracker();
 	const sessions = createExecSessionManager({
-		env: createBundledPathToolsEnv({ ...process.env, PI_CODEX_MODEL: state.config.openai.webSearchModel }),
+		env: createBundledPathToolsEnv({ ...process.env, PI_CODEX_MODEL: state.config.openai.webSearchModel }, state.config.tools.customRustBinariesDir),
+		bridgeBinaryPath: () => getBundledPathToolBinaryPath("exec_bridge", {}, state.config.tools.customRustBinariesDir),
 	});
 	let prewarmController: AbortController | undefined;
 	let prewarmPromise: Promise<void> | undefined;
@@ -68,7 +69,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		registeredNativeWebSearchTools: new Set<string>(),
 		voice: new CodexVoiceController(pi),
 		bundledPathToolsEnv(config = state.config) {
-			return createBundledPathToolsEnv({ ...process.env, PI_CODEX_MODEL: config.openai.webSearchModel });
+			return createBundledPathToolsEnv({ ...process.env, PI_CODEX_MODEL: config.openai.webSearchModel }, config.tools.customRustBinariesDir);
 		},
 		codexSystemPrompt(basePrompt, ctx, skills = state.promptSkills, systemPromptOptions) {
 			const codeMode = shouldUseGpt56CodeMode(ctx, state.config);

@@ -21,6 +21,7 @@ export interface CodexConversionConfig {
 	prompt: { heavySystemPromptOverwrite: boolean };
 	scope: { allProviders: AllProvidersMode; additionalProviders: string[] };
 	tools: {
+		customRustBinariesDir: string;
 		webRun: boolean;
 		imageGeneration: boolean;
 		viewImageFallback: boolean;
@@ -66,7 +67,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	voiceFeaturesOnly: false,
 	prompt: { heavySystemPromptOverwrite: false },
 	scope: { allProviders: "off", additionalProviders: [] },
-	tools: { webRun: true, imageGeneration: true, viewImageFallback: false, applyPatchOnly: false, viewImageOnly: false, webRunOnly: false, imageGenerationOnly: false },
+	tools: { customRustBinariesDir: "", webRun: true, imageGeneration: true, viewImageFallback: false, applyPatchOnly: false, viewImageOnly: false, webRunOnly: false, imageGenerationOnly: false },
 	ui: {
 		statusLine: true,
 		toolRenaming: true,
@@ -165,6 +166,10 @@ function optionalString(value: unknown): string | undefined {
 	return normalized && Buffer.byteLength(normalized) <= 512 ? normalized : undefined;
 }
 
+export function normalizeCustomRustBinariesDir(value: unknown): string {
+	return optionalString(value) ?? "";
+}
+
 export function normalizeCodexConversionConfig(value: unknown): CodexConversionConfig {
 	if (!isObject(value)) return structuredClone(DEFAULT_CODEX_CONVERSION_CONFIG);
 	const prompt = isObject(value["prompt"]) ? value["prompt"] : {};
@@ -187,6 +192,7 @@ export function normalizeCodexConversionConfig(value: unknown): CodexConversionC
 			additionalProviders: normalizeProviderList(scope["additionalProviders"]),
 		},
 		tools: {
+			customRustBinariesDir: normalizeCustomRustBinariesDir(tools["customRustBinariesDir"]),
 			webRun: bool(tools["webRun"], DEFAULT_CODEX_CONVERSION_CONFIG.tools["webRun"]),
 			imageGeneration: bool(tools["imageGeneration"], DEFAULT_CODEX_CONVERSION_CONFIG.tools["imageGeneration"]),
 			viewImageFallback: bool(tools["viewImageFallback"], DEFAULT_CODEX_CONVERSION_CONFIG.tools["viewImageFallback"]),
