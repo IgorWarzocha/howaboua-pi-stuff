@@ -70,7 +70,7 @@ export function buildConfigSettings(tab: SettingsTab, config: CodexConversionCon
 				(value, current) => ({ ...current, voiceFeaturesOnly: value === "voice only" }),
 			),
 			toggle("heavySystemPromptOverwrite", "Heavy system prompt overwrite (40% smaller)", config.prompt.heavySystemPromptOverwrite, (enabled, current) => ({ ...current, prompt: { ...current.prompt, heavySystemPromptOverwrite: enabled } })),
-			toggle("harnessIdentifierHeader", "pi-codex-conversion harness identifier header", config.openai.harnessIdentifierHeader, (enabled, current) => ({ ...current, openai: { ...current.openai, harnessIdentifierHeader: enabled } })),
+			toggle("harnessIdentifierHeader", "pi-codex-conversion harness identifier header <3", config.openai.harnessIdentifierHeader, (enabled, current) => ({ ...current, openai: { ...current.openai, harnessIdentifierHeader: enabled } })),
 			setting({ id: "customRustBinariesDirHelp", label: "For compatibility custom Rust binaries, edit", currentValue: getCodexConversionConfigPath(), values: [getCodexConversionConfigPath()] }),
 			setting(
 				{ id: "allProviders", label: "Provider scope", currentValue: formatAllProvidersMode(config.scope.allProviders), values: ["Codex and configured", "all providers", "extra tools only"] },
