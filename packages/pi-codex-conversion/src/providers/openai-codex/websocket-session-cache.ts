@@ -1,4 +1,3 @@
-import { SESSION_WEBSOCKET_CACHE_TTL_MS } from "./constants.ts";
 import type { AcquiredWebSocket, ProviderEnv, SessionWebSocketCacheEntry } from "./types.ts";
 import { closeWebSocketSilently, connectWebSocket, isWebSocketReusable } from "./websocket-connection.ts";
 
@@ -13,11 +12,12 @@ function scheduleSessionWebSocketExpiry(cacheKey: string, entry: SessionWebSocke
 	if (entry.idleTimer) {
 		clearTimeout(entry.idleTimer);
 	}
+	const remainingLifetimeMs = Math.max(0, SESSION_WEBSOCKET_MAX_AGE_MS - (Date.now() - entry.createdAt));
 	entry.idleTimer = setTimeout(() => {
 		if (entry.busy) return;
-		closeWebSocketSilently(entry.socket, 1000, "idle_timeout");
+		closeWebSocketSilently(entry.socket, 1000, "connection_age_limit");
 		websocketSessionCache.delete(cacheKey);
-	}, SESSION_WEBSOCKET_CACHE_TTL_MS);
+	}, remainingLifetimeMs);
 }
 
 export function closeOpenAICodexWebSocketSessions(sessionId?: string): void {
