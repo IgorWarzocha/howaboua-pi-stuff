@@ -1,5 +1,13 @@
 # @howaboua/pi-stuff
 
+## 0.0.43
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-codex-conversion-lite: Migrate legacy function-shaped exec history to native custom-tool IDs so existing Code Mode sessions resume across the tool-contract upgrade.
+
 ## 0.0.42
 
 ### Changes
