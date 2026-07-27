@@ -35,6 +35,22 @@ pi -e npm:@howaboua/pi-auto-trees
 
 The marker is stored in the session branch and restored when you return to it. Existing labels are preserved if the checkpoint already has one.
 
+## Configuration
+
+On first load, the extension creates `~/.pi/agent/pi-auto-trees.json`, or the equivalent path under `$PI_CODING_AGENT_DIR`.
+
+```json
+{
+  "summary": {
+    "enabled": true,
+    "model": "openai-codex/gpt-5.6-luna",
+    "thinking": "low"
+  }
+}
+```
+
+`/end` uses the configured lightweight model for branch summaries. If that model or its credentials are unavailable, the extension reports the fallback and uses Pi's current session model.
+
 ## Local development
 
 ```bash

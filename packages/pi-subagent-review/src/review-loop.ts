@@ -2,6 +2,8 @@ import type {
 	ExtensionAPI,
 	ExtensionCommandContext,
 } from "@earendil-works/pi-coding-agent";
+import type { NavigateWithSummaryModel } from "./tree-summary.js";
+import type { ResolvedSummaryConfig } from "./types.js";
 
 export const REVIEW_LOOP_STATE_ENTRY = "subagent-review-loop-state";
 export const REVIEW_LOOP_BOUNDARY_ENTRY = "subagent-review-loop-boundary";
@@ -121,6 +123,8 @@ export async function summarizeReviewLoopIncrement(
 	pi: ExtensionAPI,
 	ctx: ExtensionCommandContext,
 	markerId: string,
+	summaryConfig: ResolvedSummaryConfig,
+	navigateWithSummaryModel: NavigateWithSummaryModel,
 ): Promise<"summarized" | "skipped" | "cancelled"> {
 	if (!ctx.sessionManager.getEntry(markerId)) return "skipped";
 
@@ -145,11 +149,16 @@ export async function summarizeReviewLoopIncrement(
 
 	let result: Awaited<ReturnType<typeof ctx.navigateTree>>;
 	try {
-		result = await ctx.navigateTree(markerId, {
-			summarize: true,
-			customInstructions: REVIEW_LOOP_SUMMARY_PROMPT,
-			replaceInstructions: false,
-		});
+		result = await navigateWithSummaryModel(
+			ctx,
+			markerId,
+			{
+				summarize: true,
+				customInstructions: REVIEW_LOOP_SUMMARY_PROMPT,
+				replaceInstructions: false,
+			},
+			summaryConfig,
+		);
 	} finally {
 		clearLoopFeedback();
 	}

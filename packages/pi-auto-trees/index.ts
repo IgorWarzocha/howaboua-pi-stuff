@@ -21,6 +21,8 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { ensureConfigFile, readSummaryConfig } from "./src/config.js";
+import { registerTreeSummaryModel } from "./src/tree-summary.js";
 
 export const INCREMENTAL_WORKFLOW_STATE_ENTRY = "incremental-workflow-state";
 export const INCREMENTAL_WORKFLOW_MARKER_LABEL = "marker";
@@ -147,6 +149,8 @@ function buildEndNavigationOptions(mode: EndMode): {
 }
 
 export default function (pi: ExtensionAPI) {
+	ensureConfigFile();
+	const navigateWithSummaryModel = registerTreeSummaryModel(pi);
 	let markerId: string | undefined;
 	let pendingPrimeCount = 0;
 
@@ -306,10 +310,26 @@ export default function (pi: ExtensionAPI) {
 
 			let result: Awaited<ReturnType<typeof ctx.navigateTree>>;
 			try {
-				result = await ctx.navigateTree(
-					markerId,
-					buildEndNavigationOptions(parseEndMode(args)),
-				);
+				const navigationOptions = buildEndNavigationOptions(parseEndMode(args));
+				let summaryConfig;
+				try {
+					summaryConfig = readSummaryConfig();
+				} catch (error) {
+					ctx.ui.notify(
+						`Summary configuration unavailable: ${error instanceof Error ? error.message : String(error)}; falling back to the current session model.`,
+						"warning",
+					);
+				}
+				if (summaryConfig) {
+					result = await navigateWithSummaryModel(
+						ctx,
+						markerId,
+						navigationOptions,
+						summaryConfig,
+					);
+				} else {
+					result = await ctx.navigateTree(markerId, navigationOptions);
+				}
 			} finally {
 				clearEndFeedback();
 			}

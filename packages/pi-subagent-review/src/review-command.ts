@@ -17,8 +17,12 @@ import {
 	summarizeReviewLoopIncrement,
 } from "./review-loop.js";
 import { getFinalOutput, runReviewSubagent } from "./subagent.js";
+import type { NavigateWithSummaryModel } from "./tree-summary.js";
 
-export function registerReviewCommand(pi: ExtensionAPI) {
+export function registerReviewCommand(
+	pi: ExtensionAPI,
+	navigateWithSummaryModel: NavigateWithSummaryModel,
+) {
 	pi.registerCommand(REVIEW_COMMAND, {
 		description:
 			"Run an isolated code-review subagent against the current repo and send advisory findings back as custom review output",
@@ -45,14 +49,26 @@ export function registerReviewCommand(pi: ExtensionAPI) {
 				);
 				await ctx.waitForIdle();
 			}
+			let reviewConfig;
+			let summaryFallbackNotified = false;
 
 			if (!parsedArgs.startLoop) {
 				const markerId = readReviewLoopState(ctx)?.markerId;
 				if (markerId) {
+					reviewConfig = await resolveReviewConfig(pi, ctx);
+					if (reviewConfig.summary.source === "current") {
+						ctx.ui.notify(
+							`Configured summary model unavailable; falling back to current session model ${reviewConfig.summary.model}.`,
+							"warning",
+						);
+						summaryFallbackNotified = true;
+					}
 					const loopResult = await summarizeReviewLoopIncrement(
 						pi,
 						ctx,
 						markerId,
+						reviewConfig.summary,
+						navigateWithSummaryModel,
 					);
 					if (loopResult === "cancelled") {
 						ctx.ui.notify("/review cancelled", "warning");
@@ -102,13 +118,16 @@ export function registerReviewCommand(pi: ExtensionAPI) {
 				return;
 			}
 
-			const reviewConfig = await resolveReviewConfig(pi, ctx);
+			reviewConfig ??= await resolveReviewConfig(pi, ctx);
 			let conversationSummary: string | undefined;
 			let details = createChildRunDetails("", review.repoRoot, reviewConfig);
 			try {
 				try {
 					if (reviewConfig.summary.enabled) {
-						if (reviewConfig.summary.source === "current")
+						if (
+							reviewConfig.summary.source === "current" &&
+							!summaryFallbackNotified
+						)
 							ctx.ui.notify(
 								`Configured summary model unavailable; falling back to current session model ${reviewConfig.summary.model}.`,
 								"warning",
