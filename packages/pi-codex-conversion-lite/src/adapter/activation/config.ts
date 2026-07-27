@@ -57,6 +57,7 @@ export interface CodexConversionConfig {
 		fast: boolean;
 		verbosity: CodexVerbosity;
 		forceCachedWebSockets: boolean;
+		harnessIdentifierHeader: boolean;
 		webSearchModel: WebSearchModel;
 	};
 }
@@ -92,6 +93,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 		fast: false,
 		verbosity: "low",
 		forceCachedWebSockets: true,
+		harnessIdentifierHeader: false,
 		webSearchModel: "gpt-5.6-luna",
 	},
 };
@@ -229,6 +231,7 @@ export function normalizeCodexConversionConfig(value: unknown): CodexConversionC
 			fast: bool(openai["fast"], DEFAULT_CODEX_CONVERSION_CONFIG.openai["fast"]),
 			verbosity: normalizeCodexVerbosity(openai["verbosity"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai["verbosity"],
 			forceCachedWebSockets: bool(openai["forceCachedWebSockets"], DEFAULT_CODEX_CONVERSION_CONFIG.openai["forceCachedWebSockets"]),
+			harnessIdentifierHeader: bool(openai["harnessIdentifierHeader"], DEFAULT_CODEX_CONVERSION_CONFIG.openai["harnessIdentifierHeader"]),
 			webSearchModel: normalizeWebSearchModel(openai["webSearchModel"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai["webSearchModel"],
 		},
 	};
