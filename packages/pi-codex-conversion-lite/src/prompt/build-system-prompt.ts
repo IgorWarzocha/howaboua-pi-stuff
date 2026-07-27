@@ -20,18 +20,17 @@ const NORMAL_CODEX_GUIDELINES = [
 ];
 
 const CODE_MODE_GUIDELINES = [
-	"Use tools.exec_command for shell commands; prefer rg and rg --files for search",
-	"Keep tools.exec_command cmd valid JavaScript: use String.raw templates only when shell text has no backticks or ${...}; otherwise use quoted line arrays or split the call",
-	"Continue exec cell_id with wait; continue exec_command session_id by calling tools.write_stdin inside exec",
-	"Give commands time; back off session polls",
-	"Reserve tty=true for input or persistent processes",
-	"Use tools.apply_patch(patch) for local file edits; split large patches; reserve shell/Python writes for formatting or bulk rewrites",
-	"Compose independent nested calls with Promise.all",
-	"With async work, await dependencies; overlap only independent work",
-	"Use text() only for concise values needed after exec; do not dump complete nested tool results",
+	"Use tools.exec_command for shell commands; prefer rg and rg --files",
+	"Use String.raw for cmd only when shell text has no backticks or ${}; otherwise use quoted lines or split the call",
+	"Continue exec cell_id with wait; continue exec_command session_id with tools.write_stdin",
+	"Give commands time; back off polls; use tty=true only for input or persistent processes",
+	"Use tools.apply_patch(patch) for file edits; split large patches; reserve shell/Python for formatting or bulk rewrites",
+	"Await dependencies; use Promise.all for independent calls",
+	"Use text() only for concise final output",
 ];
 
 const CODE_MODE_REPLACED_GUIDELINES = new Set([
+	"Reserve tty=true for input or persistent processes",
 	"Use apply_patch for text-file changes, including creates/deletes/moves; split oversized patches",
 	"Run independent tool calls in parallel when practical",
 ]);
@@ -53,7 +52,7 @@ const STATIC_CODEX_GUIDELINES_BY_KEY = new Map(
 	[
 		...ALL_STATIC_CODEX_GUIDELINES.map((guideline) => [withoutCosmeticTerminalPeriod(guideline), guideline] as const),
 		["Use tty=true for dev servers, watchers, REPLs, and prompts", NORMAL_CODEX_GUIDELINES[1]!],
-		["Use tty=true for interactive commands", CODE_MODE_GUIDELINES[4]!],
+		["Use tty=true for interactive commands", NORMAL_CODEX_GUIDELINES[1]!],
 	],
 );
 
@@ -188,7 +187,7 @@ function injectGuidelines(prompt: string, mode?: CodexPromptMode): string {
 	}
 
 	const normalizedBody = keptBodyLines.join("\n").trimEnd();
-	const replacement = `${header}${normalizedBody}\n${additions.join("\n")}${suffix}`;
+	const replacement = `${header}${normalizedBody}${normalizedBody ? "\n" : ""}${additions.join("\n")}${suffix}`;
 	return `${prompt.slice(0, match.index)}${replacement}${prompt.slice(match.index + match[0]!.length)}`;
 }
 
