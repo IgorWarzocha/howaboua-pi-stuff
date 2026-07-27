@@ -93,6 +93,36 @@ test("native grammar metadata controls custom replay and function fallback", () 
 			{ type: "custom_tool_call_output", call_id: "call_1", output: "42" },
 		],
 	);
+	const legacyFunctionContext = {
+		messages: [
+			{
+				content: [{ type: "toolCall", id: "call_1|fc_1", name: "exec", arguments: { code: "text(42);" } }],
+				role: "assistant",
+				provider: "openai-codex",
+				api: "openai-codex-responses",
+				model: "gpt-5.6",
+				stopReason: "toolUse",
+				timestamp: 1,
+			},
+			{
+				role: "toolResult",
+				toolCallId: "call_1|fc_1",
+				toolName: "exec",
+				content: [{ type: "text", text: "42" }],
+				isError: false,
+				timestamp: 2,
+			},
+		],
+	} as never;
+	assert.deepEqual(
+		convertResponsesMessages(model, legacyFunctionContext, new Set(["openai-codex"]), {
+			grammarToolInputProperties: new Map([["exec", "code"]]),
+		}),
+		[
+			{ type: "custom_tool_call", id: "ctc_1", call_id: "call_1", name: "exec", input: "text(42);" },
+			{ type: "custom_tool_call_output", call_id: "call_1", output: "42" },
+		],
+	);
 	assert.deepEqual(
 		convertResponsesMessages(model, context, new Set(["openai-codex"])),
 		[

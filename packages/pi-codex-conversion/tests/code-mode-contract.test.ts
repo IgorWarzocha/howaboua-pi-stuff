@@ -15,7 +15,7 @@ test("Code Mode rewrites exec history to custom tool items", () => {
 		input: [
 			{
 				type: "function_call",
-				id: "ctc_1",
+				id: "fc_1",
 				call_id: "call_1",
 				name: "exec",
 				arguments: JSON.stringify({ code: "text(42);" }),

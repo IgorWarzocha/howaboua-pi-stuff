@@ -270,7 +270,6 @@ export function convertResponsesMessages<TApi extends Api>(
 			}
 		} else if (msg.role === "assistant") {
 			const output: ResponseInput = [];
-			const isForeignProvider = msg.provider !== model.provider || msg.api !== model.api;
 			const isDifferentModel = msg.model !== model.id && msg.provider === model.provider && msg.api === model.api;
 			let textBlockIndex = 0;
 			for (const block of msg.content as InternalAssistantContent[]) {
@@ -301,7 +300,7 @@ export function convertResponsesMessages<TApi extends Api>(
 					const [callId, itemIdRaw] = block.id.split("|");
 					const customInputProperty = options?.grammarToolInputProperties?.get(block.name);
 					let itemId: string | undefined = itemIdRaw;
-					if (isForeignProvider && customInputProperty !== undefined && itemId?.startsWith("fc_")) {
+					if (customInputProperty !== undefined && itemId?.startsWith("fc_")) {
 						itemId = `ctc_${itemId.slice(3)}`;
 					}
 					if (
