@@ -7,8 +7,7 @@ import type {
 export const EXEC_DESCRIPTION = `Run JavaScript to compose tools; source only, no JSON or fences
 Use tools for I/O; no console, imports, Node, or browser APIs
 Optional // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}; defaults 30000 ms/10000 tokens
-Await work; text(value) serializes output; bare values are discarded; notify(value) emits; yield_control() yields
-Globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS`;
+Await work; bare values are discarded; globals: tools, image, generatedImage, store, load, exit, setTimeout, clearTimeout, ALL_TOOLS; text(value) serializes output, notify(value) emits, yield_control() yields`;
 
 export const WAIT_DESCRIPTION =
 	"Resume or terminate a yielded exec cell";

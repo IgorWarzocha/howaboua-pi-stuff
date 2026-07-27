@@ -23,7 +23,9 @@ Pi documentation (read only when the user asks about pi itself):
 Current working directory: /old
 
 Tools available in exec:
-- await tools.exec_command({ cmd: string })`;
+- await tools.exec_command({ cmd: string })
+
+Current date: 2026-03-21`;
 
 test("heavy prompt overwrite removes Pi scaffold and preserves dynamic instructions", () => {
 	assert.equal(DEFAULT_CODEX_CONVERSION_CONFIG.prompt.heavySystemPromptOverwrite, false);
@@ -49,7 +51,8 @@ test("heavy prompt overwrite removes Pi scaffold and preserves dynamic instructi
 	assert.match(prompt, /<project_instructions path="\/repo\/AGENTS\.md">\nProject instructions/);
 	assert.match(prompt, /- release: Ship releases \(file: \/skills\/release\/SKILL\.md\)/);
 	assert.match(prompt, /Tools available in exec:\n- await tools\.exec_command/);
-	assert.match(prompt, /Current working directory: C:\/work\/repo\n\nCurrent shell: \/bin\/zsh$/);
+	assert.match(prompt, /Date: 2026-03\n\nCurrent working directory: C:\/work\/repo\n\nCurrent shell: \/bin\/zsh$/);
+	assert.doesNotMatch(prompt, /2026-03-21/);
 });
 
 test("heavy prompt overwrite leaves explicit custom prompts authoritative", () => {

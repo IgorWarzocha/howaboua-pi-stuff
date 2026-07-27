@@ -251,6 +251,11 @@ function extractPiPackageRoot(prompt: string): string | undefined {
 	return readmePath?.replace(/[\\/][^\\/]+$/, "");
 }
 
+function extractCurrentMonth(prompt: string): string | undefined {
+	const month = prompt.match(/^Current date:\s*(\d{4}-\d{2})/m)?.[1];
+	return month ? `Date: ${month}` : undefined;
+}
+
 function extractCodeModeToolsSection(prompt: string): string | undefined {
 	const start = prompt.indexOf("\n\nTools available in exec:");
 	if (start === -1) return undefined;
@@ -287,6 +292,7 @@ function buildHeavyCodexSystemPrompt(
 		buildProjectContext(source.contextFiles),
 		buildSkillsSection(options.skills),
 		extractCodeModeToolsSection(basePrompt),
+		extractCurrentMonth(basePrompt),
 		`Current working directory: ${source.cwd.replace(/\\/g, "/")}`,
 		options.shell ? `Current shell: ${options.shell}` : undefined,
 	].filter((section): section is string => Boolean(section));
