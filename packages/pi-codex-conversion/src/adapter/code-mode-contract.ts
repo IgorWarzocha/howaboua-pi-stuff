@@ -33,9 +33,12 @@ export function applyCodeModeFreeformContract<T extends ResponsesLikeBody>(
 			typeof item["call_id"] === "string" ? item["call_id"] : undefined;
 		if (callId) execCallIds.add(callId);
 		const { arguments: _arguments, id, ...rest } = item;
+		const customId = typeof id === "string" && id.startsWith("fc_")
+			? `ctc_${id.slice(3)}`
+			: id;
 		return {
 			...rest,
-			...(typeof id === "string" && id.startsWith("ctc_") ? { id } : {}),
+			...(typeof customId === "string" && customId.startsWith("ctc_") ? { id: customId } : {}),
 			type: "custom_tool_call",
 			input: execSourceFromArguments(item["arguments"]),
 		};
