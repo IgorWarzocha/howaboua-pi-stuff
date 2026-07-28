@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { LanVoiceBrowserClients } from "./browser-clients.ts";
+import type { LanVoiceActivity } from "./activity.ts";
 import type { LanVoiceDiagnostics } from "./diagnostics.ts";
 import { LanVoiceDraftError, type LanVoiceDraft } from "./draft.ts";
 
@@ -7,6 +8,7 @@ const MAX_REQUEST_BYTES = 300 * 1024;
 
 export interface LanVoiceHttpHandlers {
 	diagnostics: LanVoiceDiagnostics;
+	activity: LanVoiceActivity;
 	clients: LanVoiceBrowserClients;
 	draft: LanVoiceDraft;
 	renderPage(): string;
@@ -43,6 +45,7 @@ export async function handleLanVoiceHttpRequest(
 			response.write("event: ready\ndata: {}\n\n");
 			handlers.clients.connectEvents(clientId, response);
 			handlers.clients.sendControl(clientId, handlers.draft.snapshot());
+			handlers.clients.sendControl(clientId, handlers.activity.snapshot());
 			return;
 		}
 		if (request.method !== "POST") {

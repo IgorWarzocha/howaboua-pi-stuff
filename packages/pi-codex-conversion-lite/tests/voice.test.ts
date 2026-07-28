@@ -9,6 +9,7 @@ import type { WebSocketLike } from "../src/providers/openai-codex/types.ts";
 import { BoundedJsonlReader, parseVoiceHelperEvent, type VoiceHelperCommand, type VoiceHelperEvent } from "../src/voice/helper.ts";
 import { CodexVoiceController } from "../src/voice/controller.ts";
 import { CodexDictationTranscriber } from "../src/voice/dictation/transcriber.ts";
+import { LanVoiceActivity, type LanVoiceActivityMessage } from "../src/voice/lan/activity.ts";
 import { LanVoiceDraft, LanVoiceDraftConflictError } from "../src/voice/lan/draft.ts";
 import { startCodexLanVoiceServer } from "../src/voice/lan/server.ts";
 import { LanVoiceBridgePeer } from "../src/voice/lan/bridge-peer.ts";
@@ -203,6 +204,22 @@ test("LAN companion converts Pi semantic theme colors into CSS", () => {
 	assert.doesNotMatch(page, /#(?:171713|d8ff72|d35d43)/i);
 });
 
+test("LAN activity retains the latest settled response for reconnecting browsers", () => {
+	const published: LanVoiceActivityMessage[] = [];
+	const activity = new LanVoiceActivity({
+		diagnostics: { path: "", write: () => {}, close: async () => {} },
+		initialWorking: false,
+		publish: (message) => published.push(message),
+	});
+	activity.working();
+	activity.settled("Finished the requested work.");
+	assert.deepEqual(published, [
+		{ type: "activity", state: "working" },
+		{ type: "activity", state: "settled", text: "Finished the requested work." },
+	]);
+	assert.deepEqual(activity.snapshot(), { type: "activity", state: "settled", text: "Finished the requested work." });
+});
+
 test("LAN voice transfers audio ownership without restarting its realtime session", async () => {
 	const agentDir = await mkdtemp(join(tmpdir(), "pi-lan-voice-clients-"));
 	let upstreamStarts = 0;
@@ -210,7 +227,7 @@ test("LAN voice transfers audio ownership without restarting its realtime sessio
 	const activity: boolean[] = [];
 	const conversation = {};
 	const server = await startCodexLanVoiceServer({
-		ctx: { sessionManager: { getSessionId: () => "owner" } } as never,
+		ctx: { isIdle: () => true, sessionManager: { getSessionId: () => "owner" } } as never,
 		getConfig: () => ({}) as never,
 		voice: {
 			startRealtimeWithPeer: async (_ctx: unknown, _config: unknown, peer: LanVoiceBridgePeer) => {
@@ -269,7 +286,7 @@ test("LAN voice server rejects control after its owning session changes", async 
 	let activeSessionId = "owner";
 	const sentMessages: string[] = [];
 	const server = await startCodexLanVoiceServer({
-		ctx: { sessionManager: { getSessionId: () => activeSessionId }, ui: { theme: fakePiTheme() } } as never,
+		ctx: { isIdle: () => true, sessionManager: { getSessionId: () => activeSessionId }, ui: { theme: fakePiTheme() } } as never,
 		getConfig: () => ({}) as never,
 		voice: {
 			startRealtimeWithPeer: async () => undefined,
@@ -286,7 +303,7 @@ test("LAN voice server rejects control after its owning session changes", async 
 		url.hostname = "127.0.0.1";
 		const page = await requestText(url);
 		assert.equal(page.status, 200);
-		assert.match(page.body, /Pi voice/);
+		assert.match(page.body, /Gip<span class="brand-accent">Pi<\/span>ty/);
 		assert.match(page.body, /new Blob\(\[/);
 		assert.match(page.body, /registerProcessor\('pi-lan-voice'/);
 		const sent = await requestText(new URL("/api/send", url), {

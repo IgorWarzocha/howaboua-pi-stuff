@@ -115,6 +115,9 @@ export function registerCodexEvents(
 	pi.on("message_start", async (event) => {
 		if (event.message.role !== "toolResult" && !isToolCallOnlyAssistantMessage(event.message)) tracker.resetExplorationGroup();
 	});
+	pi.on("message_end", async (event) => {
+		if (event.message.role === "assistant") runtime.lanVoice.assistantMessage(event.message);
+	});
 	pi.on("tool_execution_start", async (event) => {
 		if (event.toolName !== "exec_command") {
 			tracker.resetExplorationGroup();
@@ -159,8 +162,8 @@ export function registerCodexEvents(
 		const update = event.assistantMessageEvent;
 		if ((update.type === "text_delta" || update.type === "thinking_delta") && typeof update.delta === "string") runtime.voice.streamDelta(update.type, update.delta);
 	});
-	pi.on("agent_start", async () => { runtime.voice.agentStarted(); });
-	pi.on("agent_settled", async () => { state.codexTurnState.reset(); runtime.voice.settleTurn(); });
+	pi.on("agent_start", async () => { runtime.voice.agentStarted(); runtime.lanVoice.agentStarted(); });
+	pi.on("agent_settled", async () => { state.codexTurnState.reset(); runtime.voice.settleTurn(); runtime.lanVoice.agentSettled(); });
 	pi.on("before_provider_request", async (event, ctx) => {
 		state.cwd = ctx.cwd;
 		return rewriteCodexProviderRequest(event.payload, ctx, state);

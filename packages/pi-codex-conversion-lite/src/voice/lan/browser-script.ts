@@ -4,11 +4,15 @@ const AUDIO_WORKLET_SOURCE = JSON.stringify(LAN_VOICE_AUDIO_WORKLET);
 
 export const LAN_VOICE_BROWSER_SCRIPT = String.raw`
 const button = document.querySelector('#voice');
-const state = document.querySelector('#state');
-const detail = document.querySelector('#detail');
+const audioState = document.querySelector('#audio-state');
+const audioDetail = document.querySelector('#audio-detail');
 const connection = document.querySelector('#connection');
 const draft = document.querySelector('#draft');
 const send = document.querySelector('#send');
+const composerStatus = document.querySelector('#composer-status');
+const activity = document.querySelector('#activity');
+const activityState = document.querySelector('#activity-state');
+const activityText = document.querySelector('#activity-text');
 const modeButtons = [...document.querySelectorAll('[data-mode]')];
 const clientId = globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2) + Date.now().toString(36);
 let socket;
@@ -18,13 +22,16 @@ let source;
 let processor;
 let mode = 'conversation';
 let active = false;
-let busy = false;
+let audioBusy = false;
+let sendBusy = false;
 let draftTimer;
 let draftRevision = -1;
 let draftDirty = false;
 let draftSyncing = false;
+let draftSyncPromise;
 
-const setStatus = (title, message) => { state.textContent = title; detail.textContent = message; };
+const setAudioStatus = (title, message = '') => { audioState.textContent = title; audioDetail.textContent = message; };
+const setComposerStatus = (message = '') => { composerStatus.textContent = message; };
 const errorData = (error) => error instanceof Error ? { name:error.name, message:error.message, stack:error.stack, cause:error.cause } : { value:String(error) };
 const report = (event, data) => {
   void fetch('/api/debug', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ clientId, event, data }), keepalive:true }).catch(() => {});
@@ -36,10 +43,11 @@ const post = async (path, body) => {
   return result;
 };
 const updateControls = () => {
-  button.disabled = busy;
-  modeButtons.forEach((item) => { item.disabled = busy || active; });
-  draft.disabled = busy || draftRevision < 0;
-  send.disabled = busy || draftRevision < 0 || !draft.value.trim();
+  button.disabled = audioBusy;
+  button.setAttribute('aria-busy', String(audioBusy));
+  modeButtons.forEach((item) => { item.disabled = audioBusy || active; });
+  draft.disabled = sendBusy || draftRevision < 0;
+  send.disabled = sendBusy || draftRevision < 0 || !draft.value.trim();
 };
 const syncDraft = () => {
   draftDirty = true;
@@ -47,31 +55,37 @@ const syncDraft = () => {
   draftTimer = setTimeout(() => { void flushDraft(); }, 180);
 };
 async function flushDraft() {
-  if (draftSyncing || !draftDirty || draftRevision < 0) return;
+  if (draftSyncing) return draftSyncPromise;
+  if (!draftDirty || draftRevision < 0) return true;
   draftSyncing = true;
-  draftDirty = false;
-  const text = draft.value;
-  try {
-    const result = await post('/api/draft', { text, revision:draftRevision });
-    if (typeof result.revision === 'number') draftRevision = Math.max(draftRevision, result.revision);
-  } catch (error) {
-    report('draft.sync_error', errorData(error));
-    setStatus('Draft changed', error instanceof Error ? error.message : String(error));
-  } finally {
-    draftSyncing = false;
-    if (draftDirty) void flushDraft();
-  }
+  draftSyncPromise = (async () => {
+    while (draftDirty) {
+      draftDirty = false;
+      const text = draft.value;
+      try {
+        const result = await post('/api/draft', { text, revision:draftRevision });
+        if (typeof result.revision === 'number') draftRevision = Math.max(draftRevision, result.revision);
+      } catch (error) {
+        report('draft.sync_error', errorData(error));
+        setComposerStatus(error instanceof Error ? error.message : String(error));
+        return false;
+      }
+    }
+    return true;
+  })();
+  try { return await draftSyncPromise; }
+  finally { draftSyncing = false; draftSyncPromise = undefined; }
 }
 
 const events = new EventSource('/api/events?client=' + encodeURIComponent(clientId));
-events.onopen = () => { connection.classList.add('online'); connection.lastElementChild.textContent = 'Connected to Pi'; report('sse.open'); };
-events.onerror = () => { connection.classList.remove('online'); connection.lastElementChild.textContent = 'Reconnecting to Pi'; report('sse.error', { readyState:events.readyState }); };
+events.onopen = () => { connection.classList.add('online'); connection.lastElementChild.textContent = 'Connected'; report('sse.open'); };
+events.onerror = () => { connection.classList.remove('online'); connection.lastElementChild.textContent = 'Reconnecting'; report('sse.error', { readyState:events.readyState }); };
 events.onmessage = (event) => {
   try {
     const command = JSON.parse(event.data);
     report('sse.message', command);
     if (command.type === 'stop') void stop(false, command.reason || 'server');
-    if (command.type === 'error') { void stop(false, 'server-error'); setStatus('Voice stopped', command.message); }
+    if (command.type === 'error') { void stop(false, 'server-error'); setAudioStatus('Voice stopped', command.message); }
     if (command.type === 'draft' && typeof command.text === 'string' && typeof command.revision === 'number' && command.revision >= draftRevision) {
       const preserveLocal = command.sourceClientId === clientId && command.reason === 'update' && (draftDirty || draftSyncing) && draft.value !== command.text;
       draftRevision = command.revision;
@@ -86,15 +100,30 @@ events.onmessage = (event) => {
       if (document.activeElement === draft) draft.setSelectionRange(Math.min(start, draft.value.length), Math.min(end, draft.value.length));
       updateControls();
     }
-    if (command.type === 'sent') setStatus('Sent to Pi', 'Your message is running in the connected session.');
+    if (command.type === 'sent') setComposerStatus('Sent');
+    if (command.type === 'activity') {
+      if (command.state === 'working') {
+        activity.hidden = false;
+        activityState.textContent = 'Working…';
+        activityText.textContent = '';
+      } else if (command.state === 'settled' && typeof command.text === 'string' && command.text) {
+        activity.hidden = false;
+        activityState.textContent = '';
+        activityText.textContent = command.text;
+      } else {
+        activity.hidden = true;
+        activityState.textContent = '';
+        activityText.textContent = '';
+      }
+    }
   } catch (error) { report('sse.message_error', errorData(error)); }
 };
 
 async function start() {
-  if (busy || active) return;
-  busy = true;
+  if (audioBusy || active) return;
+  audioBusy = true;
   updateControls();
-  setStatus('Opening microphone…', 'Use the browser prompt to allow audio.');
+  setAudioStatus('Opening microphone…', 'Allow microphone access if asked.');
   report('call.start_requested', { mode });
   try {
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) throw new Error('Microphone access needs HTTPS and certificate acceptance.');
@@ -115,7 +144,7 @@ async function start() {
     const connectTimer = setTimeout(() => {
       if (socket !== currentSocket || currentSocket.readyState !== WebSocket.CONNECTING) return;
       void stop(false, 'connect-timeout');
-      setStatus('Could not start', 'Timed out connecting to Pi. Tap to retry.');
+      setAudioStatus('Could not start', 'Connection timed out. Tap to retry.');
     }, 10000);
     processor.port.onmessage = (event) => {
       if (active && socket === currentSocket && currentSocket.readyState === WebSocket.OPEN && currentSocket.bufferedAmount < 65536) currentSocket.send(event.data);
@@ -124,7 +153,7 @@ async function start() {
       clearTimeout(connectTimer);
       report('audio_socket.open', { mode, sampleRate:context.sampleRate });
       currentSocket.send(JSON.stringify({ type:'start', mode }));
-      setStatus('Connecting…', mode === 'dictation' ? 'Opening transcription.' : 'Keeping your existing voice conversation.');
+      setAudioStatus('Connecting…');
     };
     currentSocket.onmessage = (event) => receiveAudioMessage(currentSocket, event);
     currentSocket.onerror = (event) => report('audio_socket.error', { type:event.type });
@@ -137,9 +166,9 @@ async function start() {
   } catch (error) {
     report('call.start_error', errorData(error));
     await stop(false, 'start-error');
-    setStatus('Could not start', error instanceof Error ? error.message : String(error));
+    setAudioStatus('Could not start', error instanceof Error ? error.message : String(error));
   } finally {
-    if (!socket) busy = false;
+    if (!socket) audioBusy = false;
     updateControls();
   }
 }
@@ -151,19 +180,20 @@ function receiveAudioMessage(currentSocket, event) {
     report('audio_socket.message', message);
     if (message.type === 'active') {
       active = true;
-      busy = false;
+      audioBusy = false;
       button.setAttribute('aria-pressed', 'true');
       button.setAttribute('aria-label', mode === 'dictation' ? 'Finish dictation' : 'Stop voice');
-      setStatus(mode === 'dictation' ? 'Dictating' : 'Listening', mode === 'dictation' ? 'Tap again to transcribe into the draft.' : 'Speak naturally. Tap again to stop.');
+      setAudioStatus(mode === 'dictation' ? 'Recording' : 'Listening', mode === 'dictation' ? 'Tap to finish' : 'Tap to stop');
       updateControls();
     }
     if (message.type === 'dictation.complete') {
-      busy = false;
+      audioBusy = false;
       currentSocket.close(1000, 'dictation-complete');
-      setStatus('Draft ready', 'Edit the transcript, then send it to Pi.');
+      setAudioStatus('Tap to start dictation');
+      setComposerStatus('Transcript ready');
       updateControls();
     }
-    if (message.type === 'error') { void stop(false, 'upstream-error'); setStatus('Could not start', message.message); }
+    if (message.type === 'error') { void stop(false, 'upstream-error'); setAudioStatus('Could not start', message.message); }
   } catch (error) { report('audio_socket.message_error', errorData(error)); }
 }
 
@@ -171,12 +201,12 @@ async function stop(notify = true, reason = 'user') {
   report('call.stop', { notify, reason, active, mode });
   if (notify && active && mode === 'dictation' && socket?.readyState === WebSocket.OPEN) {
     active = false;
-    busy = true;
+    audioBusy = true;
     socket.send(JSON.stringify({ type:'finish', draft:draft.value, revision:draftRevision, selectionStart:draft.selectionStart, selectionEnd:draft.selectionEnd }));
     await closeAudioHardware();
     button.setAttribute('aria-pressed', 'false');
     button.setAttribute('aria-label', 'Start dictation');
-    setStatus('Transcribing…', 'Your recording will appear in the draft.');
+    setAudioStatus('Transcribing…');
     updateControls();
     return;
   }
@@ -186,11 +216,13 @@ async function stop(notify = true, reason = 'user') {
   if (notify && currentSocket?.readyState === WebSocket.OPEN) currentSocket.send(JSON.stringify({ type:'release' }));
   currentSocket?.close(1000, reason);
   await closeAudioHardware();
-  busy = false;
+  audioBusy = false;
   button.setAttribute('aria-pressed', 'false');
   button.setAttribute('aria-label', mode === 'dictation' ? 'Start dictation' : 'Start voice');
-  if (reason !== 'upstream-error' && reason !== 'server-error' && reason !== 'dictation-complete') {
-    setStatus('Ready', mode === 'dictation' ? 'Tap to dictate into the draft.' : 'Tap to speak with this Pi session.');
+  if (reason === 'replaced') {
+    setAudioStatus('Moved to another device', 'Tap to take control here');
+  } else if (reason !== 'upstream-error' && reason !== 'server-error' && reason !== 'dictation-complete') {
+    setAudioStatus(mode === 'dictation' ? 'Tap to start dictation' : 'Tap to start voice');
   }
   updateControls();
 }
@@ -204,36 +236,41 @@ async function closeAudioHardware() {
 }
 
 function selectMode(nextMode) {
-  if (active || busy || (nextMode !== 'conversation' && nextMode !== 'dictation')) return;
+  if (active || audioBusy || (nextMode !== 'conversation' && nextMode !== 'dictation')) return;
   mode = nextMode;
-  modeButtons.forEach((item) => item.setAttribute('aria-selected', String(item.dataset.mode === mode)));
+  modeButtons.forEach((item) => item.setAttribute('aria-pressed', String(item.dataset.mode === mode)));
+  button.dataset.mode = mode;
   button.setAttribute('aria-label', mode === 'dictation' ? 'Start dictation' : 'Start voice');
-  setStatus('Ready', mode === 'dictation' ? 'Tap to dictate into the draft.' : 'Tap to speak with this Pi session.');
+  setAudioStatus(mode === 'dictation' ? 'Tap to start dictation' : 'Tap to start voice');
 }
 
 async function sendDraft() {
-  if (busy || !draft.value.trim()) return;
-  busy = true;
+  if (sendBusy || !draft.value.trim()) return;
+  sendBusy = true;
+  send.textContent = 'Sending…';
   updateControls();
-  setStatus('Sending…', 'Routing this message through the connected Pi session.');
+  setComposerStatus('Sending…');
   try {
     clearTimeout(draftTimer);
+    if (!await flushDraft()) throw new Error('Draft could not sync. Try sending again.');
     const text = draft.value;
     await post('/api/send', { text, revision:draftRevision });
     draft.value = '';
-    setStatus('Sent to Pi', 'Your message is running in the connected session.');
+    setComposerStatus('Sent');
   } catch (error) {
     report('draft.send_error', errorData(error));
-    setStatus('Could not send', error instanceof Error ? error.message : String(error));
+    setComposerStatus(error instanceof Error ? error.message : String(error));
   } finally {
-    busy = false;
+    sendBusy = false;
+    send.textContent = 'Send';
     updateControls();
   }
 }
 
 button.addEventListener('click', () => active ? void stop() : void start());
 modeButtons.forEach((item) => item.addEventListener('click', () => selectMode(item.dataset.mode)));
-draft.addEventListener('input', () => { syncDraft(); updateControls(); });
+draft.addEventListener('input', () => { setComposerStatus(); syncDraft(); updateControls(); });
+draft.addEventListener('keydown', (event) => { if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); void sendDraft(); } });
 send.addEventListener('click', () => void sendDraft());
 window.addEventListener('error', (event) => report('window.error', { message:event.message, error:errorData(event.error) }));
 window.addEventListener('unhandledrejection', (event) => report('window.unhandled_rejection', errorData(event.reason)));

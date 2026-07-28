@@ -6,6 +6,7 @@ import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import type { CodexVoiceAuth } from "../auth.ts";
 import type { CodexVoiceController } from "../controller.ts";
 import type { CodexRealtimeConversation } from "../conversation/session.ts";
+import { LanVoiceActivity } from "./activity.ts";
 import { LanVoiceBridgePeer } from "./bridge-peer.ts";
 import { LanVoiceBrowserClients, MAX_PCM_BYTES } from "./browser-clients.ts";
 import { resolveLanVoiceCertificate } from "./certificate.ts";
@@ -22,6 +23,8 @@ export interface CodexLanVoiceServer {
 	readonly ownerSessionId: string;
 	readonly urls: string[];
 	readonly logPath: string;
+	agentStarted(): void;
+	agentSettled(text?: string): void;
 	close(): Promise<void>;
 }
 
@@ -42,6 +45,11 @@ export async function startCodexLanVoiceServer(options: {
 	let conversation: CodexRealtimeConversation | undefined;
 	let closing = false;
 	let clients!: LanVoiceBrowserClients;
+	const activity = new LanVoiceActivity({
+		diagnostics,
+		initialWorking: !options.ctx.isIdle(),
+		publish: (message) => clients.broadcastControl(message),
+	});
 	const draft = new LanVoiceDraft({
 		diagnostics,
 		publish: (message) => clients.broadcastControl(message),
@@ -107,6 +115,7 @@ export async function startCodexLanVoiceServer(options: {
 	const server = createServer({ cert: certificate.cert, key: certificate.key }, (request, response) => {
 		void handleLanVoiceHttpRequest(request, response, {
 			diagnostics,
+			activity,
 			clients,
 			draft,
 			renderPage: () => createLanVoiceWebUi(options.ctx.ui.theme),
@@ -149,6 +158,8 @@ export async function startCodexLanVoiceServer(options: {
 		ownerSessionId: options.ownerSessionId,
 		urls,
 		logPath: diagnostics.path,
+		agentStarted: () => activity.working(),
+		agentSettled: (text) => activity.settled(text),
 		async close() {
 			if (closing) return;
 			closing = true;

@@ -21,10 +21,12 @@ export function resolveLanVoiceWebTheme(theme: Theme): LanVoiceWebTheme {
 		muted: resolveAnsiColor(theme.getFgAnsi("muted"), "GrayText"),
 		success: resolveAnsiColor(theme.getFgAnsi("success"), "CanvasText"),
 		text: resolveAnsiColor(theme.getFgAnsi("text"), "CanvasText"),
+		warning: resolveAnsiColor(theme.getFgAnsi("warning"), "CanvasText"),
 		customMessageBg: resolveAnsiColor(theme.getBgAnsi("customMessageBg"), "Canvas"),
 		selectedBg: resolveAnsiColor(theme.getBgAnsi("selectedBg"), "Canvas"),
 		toolErrorBg: resolveAnsiColor(theme.getBgAnsi("toolErrorBg"), "Canvas"),
 		toolPendingBg: resolveAnsiColor(theme.getBgAnsi("toolPendingBg"), "Canvas"),
+		toolSuccessBg: resolveAnsiColor(theme.getBgAnsi("toolSuccessBg"), "Canvas"),
 		userMessageBg: resolveAnsiColor(theme.getBgAnsi("userMessageBg"), "Canvas"),
 	};
 	const page = colors.userMessageBg;
