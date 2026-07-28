@@ -14,9 +14,9 @@ export function createLanVoiceWebUi(piTheme: Theme): string {
   <style>
     :root { ${theme.variables}; color-scheme:${theme.colorScheme}; font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:var(--pi-user-message-bg); color:var(--pi-text); }
     * { box-sizing:border-box; }
-    body { margin:0; min-height:100svh; padding:max(20px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left)); background:var(--pi-user-message-bg); }
-    main { width:min(100%,440px); margin:0 auto; display:grid; gap:24px; }
-    .app-header { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; }
+    body { margin:0; min-height:100svh; display:flex; padding:max(20px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left)); background:var(--pi-user-message-bg); }
+    main { width:min(100%,440px); margin:auto; display:grid; gap:24px; }
+    .app-header { display:flex; align-items:center; justify-content:space-between; gap:16px; }
     .brand { display:grid; gap:3px; }
     h1 { margin:0; font:650 clamp(27px,8vw,34px)/1 ui-monospace,SFMono-Regular,Menlo,monospace; letter-spacing:-.055em; }
     .brand-accent { color:var(--pi-accent); }
@@ -26,7 +26,7 @@ export function createLanVoiceWebUi(piTheme: Theme): string {
     .connection.online .dot { background:var(--pi-success); box-shadow:0 0 10px color-mix(in srgb,var(--pi-success) 55%,transparent); }
     .connection.online { color:var(--pi-muted); }
     .voice-control { display:grid; justify-items:center; gap:16px; text-align:center; }
-    .modes { display:grid; grid-template-columns:1fr 1fr; gap:4px; width:216px; padding:4px; border:1px solid var(--pi-border-muted); border-radius:14px; background:var(--pi-tool-pending-bg); }
+    .modes { display:grid; grid-template-columns:1fr 1fr; gap:4px; width:184px; padding:4px; border:1px solid var(--pi-border-muted); border-radius:12px; background:var(--pi-tool-pending-bg); }
     .modes button { min-height:36px; border:0; border-radius:9px; padding:8px 14px; color:var(--pi-muted); background:transparent; font:650 13px/1 system-ui,sans-serif; cursor:pointer; }
     .modes button[aria-pressed="true"] { color:var(--pi-accent); background:var(--pi-selected-bg); }
     .modes button:disabled { cursor:default; opacity:.65; }
@@ -54,11 +54,13 @@ export function createLanVoiceWebUi(piTheme: Theme): string {
     #draft:focus { border-color:var(--pi-accent); box-shadow:0 0 0 3px color-mix(in srgb,var(--pi-accent) 15%,transparent); }
     .composer-actions { min-height:44px; display:flex; align-items:center; justify-content:space-between; gap:16px; }
     #composer-status { margin:0; color:var(--pi-muted); font-size:12px; line-height:1.35; }
+    #composer-status:empty { display:none; }
     #send { min-width:84px; min-height:44px; border:1px solid var(--pi-border); border-radius:10px; padding:10px 18px; color:var(--pi-accent); background:var(--pi-selected-bg); font-weight:700; cursor:pointer; }
     #send:disabled { opacity:.4; cursor:default; }
     button:focus-visible,#draft:focus-visible { outline:2px solid var(--pi-accent); outline-offset:3px; }
     @media (hover:hover) { #voice:not(:disabled):hover { transform:translateY(-2px); box-shadow:0 0 0 7px color-mix(in srgb,var(--pi-accent) 14%,transparent); } #send:not(:disabled):hover { border-color:var(--pi-accent); } }
     @media (pointer:coarse) { .modes button { min-height:44px; } }
+    @media (max-width:360px) { .app-header { gap:12px; } h1 { font-size:25px; } .modes { width:160px; } }
     @media (orientation:landscape) and (max-height:520px) and (min-width:600px) { main { width:min(100%,720px); grid-template-columns:280px 1fr; align-items:start; } .app-header { grid-column:1/-1; } .voice-control { grid-column:1; grid-row:2 / span 2; } .activity,.composer { grid-column:2; } #voice { width:112px; height:112px; } }
     @keyframes spin { to { transform:rotate(360deg); } }
     @media (prefers-reduced-motion:reduce) { #voice { transition:none; } #voice[aria-busy="true"]::after { animation:none; border-color:var(--pi-accent); } }
@@ -68,13 +70,12 @@ export function createLanVoiceWebUi(piTheme: Theme): string {
   <main>
     <header class="app-header">
       <div class="brand"><h1>Gip<span class="brand-accent">Pi</span>ty</h1><p class="tagline">remote control</p></div>
-      <div id="connection" class="connection" role="status"><span class="dot"></span><span>Connecting</span></div>
-    </header>
-    <section class="voice-control" aria-label="Audio control">
       <nav class="modes" aria-label="Input mode">
         <button type="button" data-mode="conversation" aria-pressed="true">Voice</button>
         <button type="button" data-mode="dictation" aria-pressed="false">Dictate</button>
       </nav>
+    </header>
+    <section class="voice-control" aria-label="Audio control">
       <button id="voice" type="button" data-mode="conversation" aria-busy="false" aria-pressed="false" aria-label="Start voice">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 0 0 3.5-3.5V5a3.5 3.5 0 1 0-7 0v7a3.5 3.5 0 0 0 3.5 3.5Zm-1-10.5a1 1 0 0 1 2 0v7a1 1 0 1 1-2 0V5Zm7 6a1 1 0 0 1 1 1 7 7 0 0 1-6 6.92V21h3a1 1 0 1 1 0 2H8a1 1 0 1 1 0-2h3v-2.08A7 7 0 0 1 5 12a1 1 0 1 1 2 0 5 5 0 0 0 10 0 1 1 0 0 1 1-1Z"/></svg>
       </button>
@@ -87,7 +88,8 @@ export function createLanVoiceWebUi(piTheme: Theme): string {
     <section class="composer">
       <label for="draft">Message</label>
       <textarea id="draft" placeholder="Type or dictate…"></textarea>
-      <div class="composer-actions"><p id="composer-status" aria-live="polite"></p><button id="send" type="button" disabled>Send</button></div>
+      <p id="composer-status" aria-live="polite"></p>
+      <div class="composer-actions"><div id="connection" class="connection" role="status"><span class="dot"></span><span>Connecting</span></div><button id="send" type="button" disabled>Send</button></div>
     </section>
   </main>
   <script>${LAN_VOICE_BROWSER_SCRIPT}</script>
