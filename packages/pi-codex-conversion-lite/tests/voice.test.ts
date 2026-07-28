@@ -182,6 +182,7 @@ test("LAN voice transfers audio ownership without restarting its realtime sessio
 	const agentDir = await mkdtemp(join(tmpdir(), "pi-lan-voice-clients-"));
 	let upstreamStarts = 0;
 	const audio: Buffer[] = [];
+	const activity: boolean[] = [];
 	const conversation = {};
 	const server = await startCodexLanVoiceServer({
 		ctx: { sessionManager: { getSessionId: () => "owner" } } as never,
@@ -192,6 +193,7 @@ test("LAN voice transfers audio ownership without restarting its realtime sessio
 				peer.sendAudio = (pcm) => audio.push(pcm);
 				return conversation;
 			},
+			setConversationInputActive: (_conversation: unknown, active: boolean) => activity.push(active),
 			stopConversation: async () => {},
 			stop: async () => {},
 		} as never,
@@ -216,10 +218,19 @@ test("LAN voice transfers audio ownership without restarting its realtime sessio
 		second.send(JSON.stringify({ type: "start" }));
 		assert.deepEqual(await secondActive, { type: "active", mode: "conversation" });
 		assert.equal((await firstClosed).code, 4001);
+		assert.deepEqual(activity, [true]);
 		second.send(Buffer.from([1, 0, 2, 0]));
 		await new Promise((resolve) => setTimeout(resolve, 20));
 		assert.equal(upstreamStarts, 1);
 		assert.deepEqual(audio, [Buffer.from([1, 0, 2, 0])]);
+		second.send(JSON.stringify({ type: "release" }));
+		await waitFor(() => activity.length === 2);
+		assert.deepEqual(activity, [true, false]);
+		const resumed = nextSocketJson(second);
+		second.send(JSON.stringify({ type: "start" }));
+		assert.deepEqual(await resumed, { type: "active", mode: "conversation" });
+		assert.equal(upstreamStarts, 1);
+		assert.deepEqual(activity, [true, false, true]);
 	} finally {
 		first?.close();
 		second?.close();
@@ -343,6 +354,14 @@ function nextSocketJson(socket: WebSocket): Promise<unknown> {
 
 function socketClosed(socket: WebSocket): Promise<{ code: number; reason: string }> {
 	return new Promise((resolve) => socket.once("close", (code, reason) => resolve({ code, reason: reason.toString() })));
+}
+
+async function waitFor(predicate: () => boolean): Promise<void> {
+	const deadline = Date.now() + 1_000;
+	while (!predicate()) {
+		if (Date.now() >= deadline) throw new Error("Timed out waiting for condition");
+		await new Promise((resolve) => setTimeout(resolve, 5));
+	}
 }
 
 class FakeVoiceHelper {

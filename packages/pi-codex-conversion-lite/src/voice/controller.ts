@@ -56,6 +56,19 @@ export class CodexVoiceController {
 		if (this.currentSession() === session) await this.stop(options);
 	}
 
+	setConversationInputActive(session: CodexRealtimeConversation, active: boolean): void {
+		if (this.currentSession() !== session) return;
+		if (active) {
+			if (this.announcedMode === "realtime") return;
+			this.announcedMode = "realtime";
+			this.messages.modeStarted("realtime");
+			return;
+		}
+		if (this.announcedMode !== "realtime") return;
+		this.announcedMode = undefined;
+		this.messages.voiceStopped("realtime");
+	}
+
 	private async startMode(ctx: ExtensionContext, config: CodexConversionConfig, mode: CodexVoiceMode, peer?: CodexRealtimePeer): Promise<CodexRealtimeConversation | undefined> {
 		let realtimePrompt: string | undefined;
 		try {

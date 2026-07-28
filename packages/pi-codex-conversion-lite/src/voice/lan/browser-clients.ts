@@ -13,6 +13,7 @@ interface LanVoiceBrowserClientsOptions {
 	ensureConversation(): Promise<void>;
 	startDictation(clientId: string): Promise<void>;
 	finishDictation(clientId: string, draft?: string, revision?: number, selection?: LanVoiceDraftSelection): Promise<void>;
+	onConversationActivity(active: boolean): void;
 	onConversationAudio(pcm: Buffer): void;
 	onDictationAudio(clientId: string, pcm: Buffer): void;
 }
@@ -73,6 +74,7 @@ export class LanVoiceBrowserClients {
 			if (!active || active.clientId !== clientId || (socket && active.socket !== socket)) return;
 			this.active = undefined;
 			this.options.diagnostics.write("server", "audio.release", { clientId, mode: active.mode });
+			if (active.mode === "conversation") this.options.onConversationActivity(false);
 			if (active.mode === "dictation") await this.options.finishDictation(clientId);
 		}).catch((error: unknown) => {
 			this.options.diagnostics.write("server", "audio.release_error", { clientId, error });
@@ -85,6 +87,7 @@ export class LanVoiceBrowserClients {
 	}
 
 	close(): void {
+		if (this.active?.mode === "conversation") this.options.onConversationActivity(false);
 		this.active = undefined;
 		for (const socket of this.audioSockets.values()) socket.terminate();
 		this.audioSockets.clear();
@@ -134,10 +137,12 @@ export class LanVoiceBrowserClients {
 				this.sendControl(previous.clientId, { type: "stop", reason: "replaced" });
 				previous.socket.close(4001, "replaced");
 			}
+			if (previous?.mode === "conversation" && mode !== "conversation") this.options.onConversationActivity(false);
 			if (previous?.mode === "dictation") await this.options.finishDictation(previous.clientId);
 			if (mode === "conversation") await this.options.ensureConversation();
 			else await this.options.startDictation(clientId);
 			this.active = { clientId, socket, mode };
+			if (previous?.mode !== "conversation" && mode === "conversation") this.options.onConversationActivity(true);
 			this.options.diagnostics.write("server", "audio.claim", { clientId, mode, previousClientId: previous?.clientId });
 			socket.send(JSON.stringify({ type: "active", mode }));
 		});

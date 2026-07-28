@@ -92,6 +92,10 @@ export async function startCodexLanVoiceServer(options: {
 			}
 			if (transcript) draft.insertTranscript(clientId, transcript, insertion);
 		},
+		onConversationActivity(active) {
+			const activeConversation = conversation;
+			if (activeConversation) options.voice.setConversationInputActive(activeConversation, active);
+		},
 		onConversationAudio(pcm) {
 			const peer = upstreamPeer;
 			if (peer) peer.sendAudio(pcm);
