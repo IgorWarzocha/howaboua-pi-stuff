@@ -92,7 +92,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           find packages/pi-codex-conversion/src/tools packages/pi-codex-conversion/src/voice/bin -path '*/bin/*' -type f ! -name '*.exe' -exec chmod 755 {} +
-          for tool in apply-patch view-image web-run imagegen exec; do
+          # imagegen embeds the package identity; keep Lite's own build.
+          for tool in apply-patch view-image web-run exec; do
             rm -rf "packages/pi-codex-conversion-lite/src/tools/$tool/bin"
             cp -a "packages/pi-codex-conversion/src/tools/$tool/bin" "packages/pi-codex-conversion-lite/src/tools/$tool/bin"
           done
