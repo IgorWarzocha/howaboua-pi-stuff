@@ -107,6 +107,7 @@ export class LanVoiceBrowserClients {
 	}
 
 	private receive(clientId: string, socket: WebSocket, data: RawData, isBinary: boolean): void {
+		if (this.audioSockets.get(clientId) !== socket) return;
 		try {
 			if (isBinary) { this.receiveAudio(clientId, socket, rawBuffer(data)); return; }
 			const text = rawBuffer(data).toString("utf8");
