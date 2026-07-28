@@ -1,8 +1,9 @@
-import { getSettingsListTheme, type ExtensionContext, type Theme } from "@earendil-works/pi-coding-agent";
+import { CONFIG_DIR_NAME, getSettingsListTheme, type ExtensionContext, type Theme } from "@earendil-works/pi-coding-agent";
 import { SettingsList, truncateToWidth } from "@earendil-works/pi-tui";
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import { getCodexConversionConfigPath, readCodexConversionConfig } from "../../adapter/activation/config-store.ts";
-import { getCodexVoiceSystemPromptPath } from "../../voice/system-prompt.ts";
+import { formatVoiceShortcut } from "../../voice/setup.ts";
+import { getCodexVoiceSystemPromptPath, REALTIME_SYSTEM_PROMPT_BASENAME } from "../../voice/system-prompt.ts";
 import type { CodexLanVoiceServerStatus } from "../../voice/lan/controller.ts";
 import { handleAboutTabInput, renderAboutTab } from "./about-tab.ts";
 import { buildConfigSettings, type ConfigSetting } from "./config-items.ts";
@@ -106,7 +107,7 @@ export async function openCodexSettingsScreen(ctx: ExtensionContext, options: Co
 					rule(width, theme, "borderMuted"),
 					...(activeTab === "usage" ? usageTab.render(theme) : []),
 					...(activeTab === "about" ? renderAboutTab(theme) : []),
-					...(activeTab === "voice" ? formatVoiceLines(theme, options.lanVoiceServer?.status()) : []),
+					...(activeTab === "voice" ? formatVoiceLines(theme, draft, options.lanVoiceServer?.status()) : []),
 					"",
 					...(hasSettingsList ? withSettingsFooter(settingsList.render(width), theme) : [theme.fg("dim", formatFooter(activeTab))]),
 					rule(width, theme, "accent"),
@@ -136,12 +137,16 @@ function formatTabs(activeTab: SettingsTab, theme: Theme): string {
 	return `  ${SETTINGS_TABS.map(({ id, label }) => id === activeTab ? theme.bold(label) : theme.fg("dim", label)).join(`  ${theme.fg("dim", "/")}  `)}`;
 }
 
-function formatVoiceLines(theme: Theme, lanVoice?: CodexLanVoiceServerStatus): string[] {
+function formatVoiceLines(theme: Theme, config: CodexConversionConfig, lanVoice?: CodexLanVoiceServerStatus): string[] {
 	return [
 		...(lanVoice?.running
 			? [theme.fg("accent", "  LAN voice is running"), ...lanVoice.urls.map((url) => theme.fg("dim", `  ${url}`)), theme.fg("dim", "  First visit: accept the local HTTPS certificate")]
 			: [theme.fg("dim", "  LAN voice serves this session only and stops when the session changes")]),
+		theme.fg("dim", "  Hotkeys"),
+		theme.fg("dim", `  Realtime voice: ${formatVoiceShortcut(config.voice.realtimeShortcut)}`),
+		theme.fg("dim", `  Dictation: ${formatVoiceShortcut(config.voice.dictationShortcut)}`),
 		theme.fg("dim", `  Realtime System Prompt: ${getCodexVoiceSystemPromptPath()}`),
+		theme.fg("dim", `  Folder-level: create ${CONFIG_DIR_NAME}/${REALTIME_SYSTEM_PROMPT_BASENAME} (appends to global)`),
 		theme.fg("dim", `  Keybinds adjustable in ${getCodexConversionConfigPath()} (/reload to apply)`),
 	];
 }

@@ -11,7 +11,6 @@ import {
 	normalizeV2UserMessageRetention,
 	normalizeWebSearchModel,
 	type CodexConversionConfig,
-	type RealtimeProtocol,
 } from "../../adapter/activation/config.ts";
 import { getCodexConversionConfigPath } from "../../adapter/activation/config-store.ts";
 import { editorCommand } from "./config-editor.ts";
@@ -139,11 +138,8 @@ export function buildConfigSettings(tab: SettingsTab, config: CodexConversionCon
 	}
 
 	if (tab === "voice") {
-		const transport = config.voice.mode === "transcription" ? formatVoiceProtocol("v2") : formatVoiceProtocol("v3");
 		return [
-			setting({ id: "voiceMode", label: "Experience", currentValue: config.voice.mode === "transcription" ? "dictation" : "voice conversation", values: ["voice conversation", "dictation"] }, (value, current) => ({ ...current, voice: { ...current.voice, mode: value === "dictation" ? "transcription" : "conversational", protocol: value === "dictation" ? "v2" : "v3" } })),
-			setting({ id: "voiceTransport", label: "Transport", currentValue: transport, values: [transport] }),
-			setting({ id: "v3Voice", label: "Codex voice (v3)", currentValue: formatVoiceName(config.voice.v3Voice), values: REALTIME_V3_VOICES.map(formatVoiceName) }, (value, current) => ({ ...current, voice: { ...current.voice, v3Voice: normalizeRealtimeV3Voice(value.toLowerCase()) ?? current.voice.v3Voice } })),
+			setting({ id: "v3Voice", label: "Codex voice", currentValue: formatVoiceName(config.voice.v3Voice), values: REALTIME_V3_VOICES.map(formatVoiceName) }, (value, current) => ({ ...current, voice: { ...current.voice, v3Voice: normalizeRealtimeV3Voice(value.toLowerCase()) ?? current.voice.v3Voice } })),
 			setting({ id: "dictationShortcutMode", label: "Dictation key behavior", currentValue: config.voice.dictationShortcutMode === "push" ? "push to dictate" : "toggle", values: ["push to dictate", "toggle"] }, (value, current) => ({ ...current, voice: { ...current.voice, dictationShortcutMode: value === "toggle" ? "toggle" : "push" } })),
 		];
 	}
@@ -165,10 +161,6 @@ function parseAllProvidersMode(value: string): CodexConversionConfig["scope"]["a
 
 function normalizeCodexProviderText(value: string): string {
 	return normalizeProviderList(value.split(",")).join(", ");
-}
-
-function formatVoiceProtocol(protocol: RealtimeProtocol): string {
-	return protocol === "v2" ? "v2 · Realtime transcription" : "v3 · Codex voice delegation";
 }
 
 function formatVoiceName(voice: string): string {
