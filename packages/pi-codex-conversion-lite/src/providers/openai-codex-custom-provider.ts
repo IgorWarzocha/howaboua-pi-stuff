@@ -190,8 +190,8 @@ function createCodexStream<TApi extends Api>(
 							requestBytes: new TextEncoder().encode(bodyJson).byteLength,
 						}),
 					);
-					recordWebSocketSseFallback(effectiveOptions?.sessionId);
 					if (websocketStarted) throw error;
+					recordWebSocketSseFallback(effectiveOptions?.sessionId);
 				}
 			}
 

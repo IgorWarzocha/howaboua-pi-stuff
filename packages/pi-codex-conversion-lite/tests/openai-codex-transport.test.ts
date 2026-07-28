@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { closeOpenAICodexWebSocketSessions, parseSSE } from "../src/providers/openai-codex-custom-provider.ts";
+import { parseSSE } from "../src/providers/openai-codex-custom-provider.ts";
 import {
 	ScriptedWebSocket,
 	codexStreamRequest,
@@ -31,13 +31,12 @@ test("parseSSE accepts CRLF chunks, joined data lines, and ignores done sentinel
 	assert.deepEqual(events, [{ type: "response.created", response: { id: "resp_1" } }]);
 });
 
-test("a post-start WebSocket failure makes SSE sticky only for that session until reset", async () => {
+test("a post-start WebSocket failure retries on a fresh WebSocket", async () => {
 	const restoreWebSocket = installScriptedWebSocket([
 		(socket) => {
 			socket.emitJson({ type: "response.created", response: { id: "resp_failed" } });
 			socket.emit("error", { error: new Error("socket reset by peer") });
 		},
-		websocketSuccess,
 		websocketSuccess,
 	]);
 	const originalFetch = globalThis.fetch;
@@ -54,16 +53,8 @@ test("a post-start WebSocket failure makes SSE sticky only for that session unti
 		assert.equal(fetchCalls, 0);
 
 		await collectStream(registered.provider.streamSimple(sessionA.model, sessionA.context, sessionA.options));
-		assert.equal(fetchCalls, 1);
-		assert.equal(ScriptedWebSocket.opened, 1);
-
-		const sessionB = codexStreamRequest("session-b");
-		await collectStream(registered.provider.streamSimple(sessionB.model, sessionB.context, sessionB.options));
 		assert.equal(ScriptedWebSocket.opened, 2);
-
-		closeOpenAICodexWebSocketSessions("session-a");
-		await collectStream(registered.provider.streamSimple(sessionA.model, sessionA.context, sessionA.options));
-		assert.equal(ScriptedWebSocket.opened, 3);
+		assert.equal(fetchCalls, 0);
 	} finally {
 		globalThis.fetch = originalFetch;
 		restoreWebSocket();
