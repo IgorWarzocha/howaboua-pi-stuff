@@ -52,7 +52,8 @@ Set `defer_loading = false` only for stable, frequently used tools. Promotion ad
 
 Working, disabled templates ship under the package root's `examples/custom-tools/` directory:
 
-- `herdr_agent`: finds and coordinates Pi agents in Herdr panels; use with `more_skills` for advanced Herdr orchestration.
+- `herdr_agent`: finds and coordinates Pi agents in Herdr panels; use with `skills` for advanced Herdr orchestration.
+- `skills`: lazily queries a general workflow catalog from the corresponding global or project-local `lazy-skills/` directory.
 - `more_skills`: lists or loads additional skills from the corresponding global or project-local `more-skills/` directory.
 - `port_info`: cross-platform listener and process diagnostics.
 - `semantic_grep`: queries an existing index owned by an installed and configured `@howaboua/pi-semantic-grep`.
@@ -62,6 +63,8 @@ Working, disabled templates ship under the package root's `examples/custom-tools
 - `workflows_create`: creates or updates repo-local workflow skills.
 
 To enable one, copy its top-level TOML and matching companion directory into `codex-conversion-custom-tools/`, preserving their relative layout. Examples are references, not defaults; never copy or enable one merely because it exists.
+
+For `skills`, keep general workflows in global `lazy-skills/` and repository SOPs in normal `.pi/skills/`. The nonstandard name is deliberate: otherwise Pi discovers and advertises the global library at startup before the custom tool can load it lazily. Native skills remain enabled unless Pi is started with `--no-skills`.
 
 ## Execution
 
