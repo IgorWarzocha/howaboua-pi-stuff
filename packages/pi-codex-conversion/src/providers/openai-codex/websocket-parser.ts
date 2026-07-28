@@ -1,6 +1,7 @@
 import type { StreamEventShape, WebSocketLike } from "./types.ts";
 import { extractWebSocketCloseError, extractWebSocketError } from "./websocket-connection.ts";
 import { extractCodexTurnStateFromWebSocketEvent } from "./turn-state.ts";
+import { CodexProtocolError } from "./stream-events.ts";
 
 async function decodeWebSocketData(data: unknown): Promise<string | null> {
 	if (typeof data === "string") return data;
@@ -54,7 +55,7 @@ export async function* parseWebSocket(socket: WebSocketLike, signal: AbortSignal
 					}
 					queue.push(parsed);
 				} catch (error) {
-					failed = new Error(`Invalid Codex WebSocket JSON: ${error instanceof Error ? error.message : String(error)}`);
+					failed = new CodexProtocolError(`Invalid Codex WebSocket JSON: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
 					done = true;
 				}
 			})
@@ -163,5 +164,5 @@ export async function* startWebSocketOutputOnFirstEvent(
 export function isRetryableEarlyWebSocketError(error: unknown): boolean {
 	const message = error instanceof Error ? error.message : String(error);
 	if (/message too big/i.test(message)) return false;
-	return /^(?:WebSocket (?:error|closed|connect timeout)(?:\s|$)|Invalid Codex WebSocket JSON)/.test(message);
+	return /^WebSocket (?:error|closed|connect timeout)(?:\s|$)/.test(message);
 }

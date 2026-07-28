@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import type { Model } from "@earendil-works/pi-ai";
 import { executeRemoteCompactionV2 } from "../src/adapter/compaction/remote-v2-client.ts";
 import { buildRemoteCompactionV2Window, normalizeRemoteCompactionV2PromptInput } from "../src/adapter/compaction/remote-v2-history.ts";
+import { closeOpenAICodexWebSocketSessions, recordWebSocketSseFallback } from "../src/providers/openai-codex/websocket.ts";
 
 const model = {
 	id: "gpt-5.6-luna",
@@ -18,8 +19,10 @@ const model = {
 test("Responses compaction v2 uses the registered stream and installs one canonical checkpoint", async () => {
 	let request: Record<string, unknown> | undefined;
 	let headers: Record<string, string | null> | undefined;
+	let transport: string | undefined;
 	const streamSimple = (_model: unknown, _context: unknown, options: any) => (async function* () {
 		headers = options.headers;
+		transport = options.transport;
 		request = await options.onPayload({
 			model: model.id,
 			store: false,
@@ -41,6 +44,7 @@ test("Responses compaction v2 uses the registered stream and installs one canoni
 			},
 		};
 	})();
+	recordWebSocketSseFallback("session");
 	const result = await executeRemoteCompactionV2({
 		runtime: {
 			provider: model.provider,
@@ -61,12 +65,13 @@ test("Responses compaction v2 uses the registered stream and installs one canoni
 		promptInput: [{ role: "user", content: [{ type: "input_text", text: "hello" }] }],
 		requestOptions: { reasoning: { effort: "high", summary: "auto" } },
 		sessionId: "session",
-		transport: "sse",
 		retryDelayMs: 0,
 	});
+	closeOpenAICodexWebSocketSessions("session");
 
 	assert.equal(result.ok, true);
 	assert.equal(headers?.["x-codex-beta-features"], "other,remote_compaction_v2");
+	assert.equal(transport, "sse");
 	assert.equal((request?.["input"] as Array<{ type?: string }>).at(-1)?.type, "compaction_trigger");
 	assert.deepEqual(result.ok && result.compaction, { type: "compaction", id: "cmp", encrypted_content: "sealed" });
 	assert.deepEqual(result.ok && result.usage, { inputTokens: 1_020, cachedInputTokens: 900, cacheWriteInputTokens: 20, outputTokens: 30 });

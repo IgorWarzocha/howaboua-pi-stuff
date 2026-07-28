@@ -168,25 +168,28 @@ export function registerCodexEvents(
 		if (!resolveCodexRuntimePlan(ctx, state.config).nativeCompaction) return undefined;
 		return handleCodexSessionBeforeCompact(event, ctx, state, pi);
 	});
-	pi.on("session_compact", async (event) => {
+	pi.on("session_compact", async (event, ctx) => {
 		runtime.voice.resetContextAnnouncements();
 		state.pendingPiCompactionNativeWindow = undefined;
-		if (!event.fromExtension || !isNativeCompactionDetails(event.compactionEntry.details)) return;
-		const details = event.compactionEntry.details;
-		pi.sendMessage({
-			customType: NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE,
-			content: NATIVE_COMPACTION_DISPLAY_TEXT,
-			display: true,
-			details: { compactionEntryId: event.compactionEntry.id },
-		}, { triggerTurn: false });
-		if (details.strategy === NATIVE_COMPACTION_STRATEGY && details.usage) {
+		if (event.fromExtension && isNativeCompactionDetails(event.compactionEntry.details)) {
+			const details = event.compactionEntry.details;
 			pi.sendMessage({
 				customType: NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE,
-				content: formatCompactionUsage(details.usage),
+				content: NATIVE_COMPACTION_DISPLAY_TEXT,
 				display: true,
-				details: { compactionEntryId: event.compactionEntry.id, kind: "usage" },
+				details: { compactionEntryId: event.compactionEntry.id },
 			}, { triggerTurn: false });
+			if (details.strategy === NATIVE_COMPACTION_STRATEGY && details.usage) {
+				pi.sendMessage({
+					customType: NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE,
+					content: formatCompactionUsage(details.usage),
+					display: true,
+					details: { compactionEntryId: event.compactionEntry.id, kind: "usage" },
+				}, { triggerTurn: false });
+			}
 		}
+		runtime.resetTransport(ctx.sessionManager.getSessionId());
+		await runtime.startPrewarm(ctx);
 	});
 	pi.on("context", async (event) => {
 		if (state.config.voiceFeaturesOnly) return undefined;

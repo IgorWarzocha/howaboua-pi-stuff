@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { zstdDecompressSync } from "node:zlib";
 import {
 	buildRequestBody,
+	closeOpenAICodexWebSocketSessions,
 	parseSSE,
 	registerOpenAICodexCustomProvider,
 } from "../src/providers/openai-codex-custom-provider.ts";
@@ -113,6 +114,82 @@ async function collectStream(stream: AsyncIterable<unknown>): Promise<unknown[]>
 	const events: unknown[] = [];
 	for await (const event of stream) events.push(event);
 	return events;
+}
+
+type WebSocketScript = (socket: ScriptedWebSocket) => void;
+
+class ScriptedWebSocket {
+	static scripts: WebSocketScript[] = [];
+	static opened = 0;
+	readonly listeners = new Map<string, Set<(event: unknown) => void>>();
+	readonly script: WebSocketScript;
+	readyState = 0;
+
+	constructor() {
+		const script = ScriptedWebSocket.scripts.shift();
+		if (!script) throw new Error("No scripted WebSocket behavior");
+		this.script = script;
+		ScriptedWebSocket.opened++;
+		queueMicrotask(() => {
+			this.readyState = 1;
+			this.emit("open", {});
+		});
+	}
+
+	addEventListener(type: string, listener: (event: unknown) => void): void {
+		const listeners = this.listeners.get(type) ?? new Set();
+		listeners.add(listener);
+		this.listeners.set(type, listeners);
+	}
+
+	removeEventListener(type: string, listener: (event: unknown) => void): void {
+		this.listeners.get(type)?.delete(listener);
+	}
+
+	send(): void {
+		this.script(this);
+	}
+
+	close(): void {
+		this.readyState = 3;
+	}
+
+	emit(type: string, event: unknown): void {
+		for (const listener of this.listeners.get(type) ?? []) listener(event);
+	}
+
+	emitJson(event: unknown): void {
+		this.emit("message", { data: JSON.stringify(event) });
+	}
+}
+
+const websocketSuccess: WebSocketScript = (socket) => setTimeout(() => {
+	socket.emitJson({ type: "response.created", response: { id: "resp_ws" } });
+	socket.emitJson({ type: "response.completed", response: { id: "resp_ws", status: "completed", usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 } } });
+});
+
+function installScriptedWebSocket(scripts: WebSocketScript[]): () => void {
+	const original = globalThis.WebSocket;
+	ScriptedWebSocket.scripts = [...scripts];
+	ScriptedWebSocket.opened = 0;
+	globalThis.WebSocket = ScriptedWebSocket as never;
+	return () => {
+		globalThis.WebSocket = original;
+		ScriptedWebSocket.scripts = [];
+		closeOpenAICodexWebSocketSessions();
+	};
+}
+
+function codexStreamRequest(sessionId: string) {
+	return {
+		model: { ...(codexModel as object), baseUrl: "https://chatgpt.example/backend-api" } as never,
+		context: { systemPrompt: "Instructions", messages: [] } as never,
+		options: {
+			apiKey: fakeJwt({ "https://api.openai.com/auth": { chatgpt_account_id: "acct_1" } }),
+			transport: "auto",
+			sessionId,
+		} as never,
+	};
 }
 
 function createRegisteredCodexProvider(options?: { codeMode?: boolean | undefined; harnessIdentifierHeader?: boolean | undefined }) {
@@ -347,4 +424,75 @@ test("parseSSE accepts CRLF chunks, joined data lines, and ignores done sentinel
 	for await (const event of parseSSE(response)) events.push(event);
 
 	assert.deepEqual(events, [{ type: "response.created", response: { id: "resp_1" } }]);
+});
+
+test("a post-start WebSocket failure makes SSE sticky only for that session until reset", async () => {
+	const restoreWebSocket = installScriptedWebSocket([
+		(socket) => setTimeout(() => {
+			socket.emitJson({ type: "response.created", response: { id: "resp_failed" } });
+			socket.emit("error", { error: new Error("socket reset by peer") });
+		}),
+		websocketSuccess,
+		websocketSuccess,
+	]);
+	const originalFetch = globalThis.fetch;
+	let fetchCalls = 0;
+	globalThis.fetch = (async () => {
+		fetchCalls++;
+		return sseResponse([{ type: "response.completed", response: { id: "resp_sse", status: "completed", usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 } } }]);
+	}) as typeof fetch;
+	try {
+		const registered = createRegisteredCodexProvider();
+		const sessionA = codexStreamRequest("session-a");
+		const failed = await collectStream(registered.provider.streamSimple(sessionA.model, sessionA.context, sessionA.options));
+		assert.match((failed.at(-1) as { error: { errorMessage: string } }).error.errorMessage, /Connection error: WebSocket error: socket reset by peer/);
+		assert.equal(fetchCalls, 0);
+
+		await collectStream(registered.provider.streamSimple(sessionA.model, sessionA.context, sessionA.options));
+		assert.equal(fetchCalls, 1);
+		assert.equal(ScriptedWebSocket.opened, 1);
+
+		const sessionB = codexStreamRequest("session-b");
+		await collectStream(registered.provider.streamSimple(sessionB.model, sessionB.context, sessionB.options));
+		assert.equal(ScriptedWebSocket.opened, 2);
+
+		closeOpenAICodexWebSocketSessions("session-a");
+		await collectStream(registered.provider.streamSimple(sessionA.model, sessionA.context, sessionA.options));
+		assert.equal(ScriptedWebSocket.opened, 3);
+	} finally {
+		globalThis.fetch = originalFetch;
+		restoreWebSocket();
+	}
+});
+
+test("Codex API and protocol errors do not arm SSE fallback", async () => {
+	const restoreWebSocket = installScriptedWebSocket([
+		(socket) => setTimeout(() => socket.emitJson({ type: "error", code: "invalid_request", message: "bad request" }), 0),
+		websocketSuccess,
+		(socket) => setTimeout(() => socket.emit("message", { data: "not-json" }), 0),
+		websocketSuccess,
+	]);
+	const originalFetch = globalThis.fetch;
+	let fetchCalls = 0;
+	globalThis.fetch = (async () => {
+		fetchCalls++;
+		return sseResponse([]);
+	}) as typeof fetch;
+	try {
+		const registered = createRegisteredCodexProvider();
+		const request = codexStreamRequest("api-error-session");
+		const failed = await collectStream(registered.provider.streamSimple(request.model, request.context, request.options));
+		assert.match(JSON.stringify(failed), /bad request/);
+		await collectStream(registered.provider.streamSimple(request.model, request.context, request.options));
+
+		const protocolRequest = codexStreamRequest("protocol-error-session");
+		const malformed = await collectStream(registered.provider.streamSimple(protocolRequest.model, protocolRequest.context, protocolRequest.options));
+		assert.match(JSON.stringify(malformed), /Invalid Codex WebSocket JSON/);
+		await collectStream(registered.provider.streamSimple(protocolRequest.model, protocolRequest.context, protocolRequest.options));
+		assert.equal(ScriptedWebSocket.opened, 4);
+		assert.equal(fetchCalls, 0);
+	} finally {
+		globalThis.fetch = originalFetch;
+		restoreWebSocket();
+	}
 });

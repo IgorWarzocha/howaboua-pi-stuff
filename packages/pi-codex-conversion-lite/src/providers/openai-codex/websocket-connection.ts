@@ -106,16 +106,40 @@ export function closeWebSocketSilently(socket: WebSocketLike, code = 1000, reaso
 	}
 }
 
-
+function nestedWebSocketError(error: Error): Error {
+	const wrapped = new Error(`WebSocket error: ${error.message}`, { cause: error }) as Error & { code?: string | number | undefined };
+	wrapped.name = "WebSocketError";
+	const code = (error as Error & { code?: unknown }).code;
+	if (typeof code === "string" || typeof code === "number") wrapped.code = code;
+	return wrapped;
+}
 
 export function extractWebSocketError(event: unknown): Error {
-	if (event && typeof event === "object" && "message" in event) {
-		const message = (event as { message?: unknown | undefined }).message;
+	if (event && typeof event === "object") {
+		const message = "message" in event ? (event as { message?: unknown | undefined }).message : undefined;
 		if (typeof message === "string" && message.length > 0) {
 			return new Error(message);
 		}
+		const nestedError = "error" in event ? (event as { error?: unknown | undefined }).error : undefined;
+		if (nestedError instanceof Error && nestedError.message.length > 0) return nestedWebSocketError(nestedError);
+		if (nestedError && typeof nestedError === "object" && "message" in nestedError) {
+			const nestedMessage = (nestedError as { message?: unknown | undefined }).message;
+			if (typeof nestedMessage === "string" && nestedMessage.length > 0) return nestedWebSocketError(new Error(nestedMessage));
+		}
 	}
 	return new Error("WebSocket error");
+}
+
+export class WebSocketCloseError extends Error {
+	readonly code?: number | undefined;
+	readonly reason?: string | undefined;
+
+	constructor(message: string, options?: { code?: number | undefined; reason?: string | undefined }) {
+		super(message);
+		this.name = "WebSocketCloseError";
+		this.code = options?.code;
+		this.reason = options?.reason;
+	}
 }
 
 export function extractWebSocketCloseError(event: unknown): Error {
@@ -127,7 +151,10 @@ export function extractWebSocketCloseError(event: unknown): Error {
 		if (!reasonText && code === WEBSOCKET_MESSAGE_TOO_BIG_CLOSE_CODE) {
 			reasonText = " message too big";
 		}
-		return new Error(`WebSocket closed${codeText}${reasonText}`.trim());
+		return new WebSocketCloseError(`WebSocket closed${codeText}${reasonText}`.trim(), {
+			code: typeof code === "number" ? code : undefined,
+			reason: typeof reason === "string" && reason.length > 0 ? reason : undefined,
+		});
 	}
 	return new Error("WebSocket closed");
 }
