@@ -149,4 +149,3 @@ export function createGrammarToolInputProperties(
 	}
 	return properties;
 }
-
