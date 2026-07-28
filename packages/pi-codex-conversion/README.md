@@ -106,6 +106,7 @@ Defaults:
 
 - `Ctrl+Alt+Space` toggles realtime voice
 - `Ctrl+Alt+D` is push-to-dictate; toggle behaviour is available in the Voice tab
+- `Ctrl+Alt+G` toggles the GipPity LAN server
 
 If audio devices are not configured, the first start asks the Pi agent to inspect the available endpoints and save the selected IDs. Dictation returns one editable transcript to Pi's input.
 

@@ -47,8 +47,7 @@ export class CodexVoiceController {
 		this.messages.modeStarted("dictation");
 	}
 
-	async start(ctx: ExtensionContext, config: CodexConversionConfig): Promise<void> {
-		const mode: CodexVoiceMode = config.voice.mode === "transcription" ? "dictation" : "realtime";
+	async start(ctx: ExtensionContext, config: CodexConversionConfig, mode: CodexVoiceMode): Promise<void> {
 		await this.startMode(ctx, config, mode);
 	}
 

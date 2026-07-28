@@ -33,7 +33,7 @@ export function registerCodexCommand(
 		return true;
 	}
 
-	const voiceControls = createCodexVoiceControls({ pi, state, voice, saveAndApply });
+	const voiceControls = createCodexVoiceControls({ pi, state, voice, lanVoice });
 
 	async function openSettings(ctx: ExtensionContext, tab: SettingsTab): Promise<void> {
 		if (!ctx.hasUI) {

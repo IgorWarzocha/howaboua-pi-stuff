@@ -1,0 +1,4 @@
+- `controller.ts` owns mode replacement and lazy mode imports; `controls.ts` owns commands/shortcut policy.
+- Realtime conversation is V3 only. Dictation owns its separate transcription connection.
+- LAN takeover changes the active browser microphone without restarting the warm realtime conversation.
+- Every async resource has one cleanup owner; session shutdown stops LAN before voice.

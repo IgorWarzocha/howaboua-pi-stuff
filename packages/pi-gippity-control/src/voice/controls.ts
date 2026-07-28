@@ -1,0 +1,103 @@
+import type {
+	ExtensionAPI,
+	ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
+import type { GippityControlConfig } from "../config.ts";
+import {
+	getGippityControlConfigPath,
+	readGippityControlConfig,
+} from "../config-store.ts";
+import { resolveVoiceHelperBinary } from "./binary.ts";
+import type { CodexVoiceController } from "./controller.ts";
+import type { CodexLanVoiceServerController } from "./lan/controller.ts";
+import {
+	buildVoiceSetupInstructions,
+	missingVoiceAudioSettings,
+} from "./setup.ts";
+import { registerCodexVoiceShortcuts } from "./shortcuts.ts";
+import {
+	getCodexVoiceSystemPromptPath,
+	getProjectCodexVoiceSystemPromptPath,
+} from "./system-prompt.ts";
+import { type CodexVoiceMode, codexVoiceSetupMessage } from "./ui.ts";
+
+export interface CodexVoiceControls {
+	start(mode: CodexVoiceMode, ctx: ExtensionContext): Promise<void>;
+	stop(ctx: ExtensionContext): Promise<void>;
+}
+
+export function createCodexVoiceControls(options: {
+	pi: ExtensionAPI;
+	state: { config: GippityControlConfig };
+	voice: CodexVoiceController;
+	lanVoice: CodexLanVoiceServerController;
+}): CodexVoiceControls {
+	const { pi, state, voice, lanVoice } = options;
+
+	const start = async (
+		mode: CodexVoiceMode,
+		ctx: ExtensionContext,
+	): Promise<void> => {
+		if (voice.activeMode === mode) return;
+		const currentConfig = readGippityControlConfig();
+		state.config = currentConfig;
+		const missingAudioSettings = missingVoiceAudioSettings(currentConfig, mode);
+		if (missingAudioSettings.length > 0) {
+			if (!ctx.isIdle()) {
+				ctx.ui.notify(
+					"Wait for the current turn before setting up GipPity voice.",
+					"info",
+				);
+				return;
+			}
+			pi.sendMessage(
+				codexVoiceSetupMessage(
+					buildVoiceSetupInstructions({
+						configPath: getGippityControlConfigPath(),
+						helperPath: resolveVoiceHelperBinary(),
+						missing: missingAudioSettings,
+						...(ctx.isProjectTrusted()
+							? {
+									projectRealtimePromptPath:
+										getProjectCodexVoiceSystemPromptPath(ctx.cwd),
+								}
+							: {}),
+						realtimePromptPath: getCodexVoiceSystemPromptPath(),
+						retryCommand: `/gippity ${mode}`,
+					}),
+				),
+				{ triggerTurn: true },
+			);
+			return;
+		}
+		await voice.start(ctx, currentConfig, mode);
+	};
+
+	const stop = async (_ctx: ExtensionContext): Promise<void> => {
+		if (voice.activeMode === "dictation")
+			await voice.finishDictation({ announce: true });
+		else await voice.stop({ announce: true });
+	};
+
+	const toggle = async (
+		mode: CodexVoiceMode,
+		ctx: ExtensionContext,
+	): Promise<void> => {
+		if (voice.activeMode === mode) await stop(ctx);
+		else await start(mode, ctx);
+	};
+
+	registerCodexVoiceShortcuts(pi, state.config, () => state.config, {
+		startDictation: (ctx) => start("dictation", ctx),
+		finishDictation: (ctx) => stop(ctx),
+		toggleDictation: (ctx) => toggle("dictation", ctx),
+		toggleRealtime: (ctx) => toggle("realtime", ctx),
+		toggleServer: async (ctx) => {
+			const enabled = !lanVoice.status().running;
+			await lanVoice.setEnabled(enabled, ctx);
+			if (!enabled) ctx.ui.notify("GipPity control server stopped", "info");
+		},
+	});
+
+	return { start, stop };
+}
