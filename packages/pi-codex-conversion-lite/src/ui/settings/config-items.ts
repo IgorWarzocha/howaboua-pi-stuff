@@ -94,18 +94,16 @@ export function buildConfigSettings(tab: SettingsTab, config: CodexConversionCon
 	if (tab === "tools") {
 		return [
 			toggle("codeMode", "GPT-5.6 Code Mode", config.beta.codeMode, (enabled, current) => ({ ...current, beta: { ...current.beta, codeMode: enabled } })),
-			setting({ id: "shellCommands", label: "Shell commands", currentValue: "required", values: ["required"] }),
-			setting({ id: "applyPatch", label: "Apply patch", currentValue: "required", values: ["required"] }),
-			setting({ id: "viewImage", label: "View image", currentValue: "required", values: ["required"] }),
-			toggle("viewImageFallback", "Image descriptions", config.tools.viewImageFallback, (enabled, current) => ({ ...current, tools: { ...current.tools, viewImageFallback: enabled } })),
+			toggle("viewImageFallback", "Text Image Descriptions", config.tools.viewImageFallback, (enabled, current) => ({ ...current, tools: { ...current.tools, viewImageFallback: enabled } })),
 			toggle("webRun", "Web search", config.tools.webRun, (enabled, current) => ({ ...current, tools: { ...current.tools, webRun: enabled } })),
 			toggle("imageGeneration", "Image generation", config.tools.imageGeneration, (enabled, current) => ({ ...current, tools: { ...current.tools, imageGeneration: enabled } })),
-			setting({ id: "extraToolsHeader", label: theme.fg("dim", "── Extra tools"), currentValue: "" }),
+			setting({ id: "activateOnlyHeader", label: theme.fg("dim", "Activate Only"), currentValue: "" }),
 			toggle("applyPatchOnly", "apply_patch", config.tools.applyPatchOnly, (enabled, current) => ({ ...current, tools: { ...current.tools, applyPatchOnly: enabled } })),
 			toggle("viewImageOnly", "view_image", config.tools.viewImageOnly, (enabled, current) => ({ ...current, tools: { ...current.tools, viewImageOnly: enabled } })),
 			toggle("webRunOnly", "web_run", config.tools.webRunOnly, (enabled, current) => ({ ...current, tools: { ...current.tools, webRunOnly: enabled } })),
 			toggle("imageGenerationOnly", "imagegen", config.tools.imageGenerationOnly, (enabled, current) => ({ ...current, tools: { ...current.tools, imageGenerationOnly: enabled } })),
-			setting({ id: "customRustBinariesDirHelp", label: "For compatibility custom Rust binaries, edit", currentValue: getCodexConversionConfigPath(), values: [getCodexConversionConfigPath()] }),
+			setting({ id: "customRustBinariesHelp", label: theme.fg("dim", "For compatibility with custom Rust binaries, edit:"), currentValue: "" }),
+			setting({ id: "customRustBinariesPath", label: theme.fg("dim", getCodexConversionConfigPath()), currentValue: "" }),
 		];
 	}
 
