@@ -1,5 +1,13 @@
 # @howaboua/pi-stuff
 
+## 0.0.45
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-codex-conversion-lite: Recover failed Codex WebSocket sessions through SSE until successful compaction restores cached WebSockets. Serialize patch mutations, retain partial patch errors, and accept model-style image paths.
+
 ## 0.0.44
 
 ### Changes
