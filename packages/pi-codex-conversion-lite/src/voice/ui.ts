@@ -84,7 +84,7 @@ function modeStateContent(mode: CodexVoiceMode, state: CodexVoiceModeState): str
 	}
 	return mode === "dictation"
 		? "<codex_voice_mode mode=\"dictation\" state=\"active\">Dictation is active. User messages may contain speech-recognition errors or missing punctuation. Resolve obvious errors from context and clarify only material ambiguity.</codex_voice_mode>"
-		: "<codex_voice_mode mode=\"realtime\" state=\"active\">Realtime voice is active. Routed requests may contain speech-recognition errors or missing punctuation. Responses are consumed by a voice intermediary, so keep updates concise and action-oriented. During longer work, use brief assistant messages between tool calls to report meaningful progress instead of waiting until the final result. The user may ask about progress in this session. Answer naturally from the conversation so far; do not call tools merely to reconstruct it.</codex_voice_mode>";
+			: "<codex_voice_mode mode=\"realtime\" state=\"active\">Realtime voice is active. Routed requests may contain speech-recognition errors or missing punctuation. Responses are consumed by a voice intermediary, so keep updates concise and concrete. During longer work, keep the user informed with brief assistant messages between tool calls. State what changed or what you are doing next; do not wait until the final result, but do not narrate every routine command. The user may ask about progress in this session. Answer naturally from the conversation so far; do not call tools merely to reconstruct it.</codex_voice_mode>";
 }
 
 function modeStateDisplay(mode: CodexVoiceMode, state: CodexVoiceModeState): string {
