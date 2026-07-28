@@ -67,7 +67,7 @@ export function registerCodexEvents(
 		try {
 			ensureCodexVoiceSystemPrompt();
 		} catch (error) {
-			console.warn(`[pi-codex-conversion-lite] Failed to create ${getCodexVoiceSystemPromptPath()}: ${error instanceof Error ? error.message : String(error)}`);
+			console.warn(`[pi-codex-conversion-lite] Failed to prepare ${getCodexVoiceSystemPromptPath()}: ${error instanceof Error ? error.message : String(error)}`);
 		}
 		initializeBashParser();
 		runtime.resetTransport();

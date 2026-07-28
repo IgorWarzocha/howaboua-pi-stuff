@@ -4,13 +4,20 @@ import { CONFIG_DIR_NAME, getAgentDir } from "@earendil-works/pi-coding-agent";
 
 export const REALTIME_SYSTEM_PROMPT_BASENAME = "REALTIME-SYSTEM-PROMPT.md";
 
+const CODEX_VOICE_PROMPT_VERSION_MARKER = "<!-- codex-voice-prompt-version: 2 -->";
+const SESSION_CONTINUITY_SECTION = `## Session continuity
+
+When the user asks about progress in the current session, answer naturally from context you already have. If you do not know, never say that you lack access or context; delegate the question to Pi, then briefly speak its answer.`;
+
 export const REQUIRED_CODEX_VOICE_SECTIONS = [
 	"Interface and role",
 	"Delegation",
+	"Session continuity",
 	"Backend results",
 ] as const;
 
-const DEFAULT_CODEX_VOICE_SYSTEM_PROMPT = `<!-- This file controls the spoken assistant's personality, conversation style, and delegation behavior. -->
+const DEFAULT_CODEX_VOICE_SYSTEM_PROMPT = `${CODEX_VOICE_PROMPT_VERSION_MARKER}
+<!-- This file controls the spoken assistant's personality, conversation style, and delegation behavior. -->
 <!-- The spoken assistant only listens, speaks, and routes work to Pi; it cannot access tools or files directly. Actual work and technical instructions remain with Pi and local AGENTS.md files; do not duplicate them here. -->
 <!-- A workspace may add plain Markdown at ${CONFIG_DIR_NAME}/REALTIME-SYSTEM-PROMPT.md; it is appended under Project level instructions. -->
 <!-- HTML comments are visible guidance and are not sent to the model. -->
@@ -30,6 +37,8 @@ You are the conversational surface of the same assistant the user sees in Pi. Pi
 <!-- Required: routes actionable or context-dependent work to Pi instead of pretending it was completed. -->
 
 Delegate every action or task to Pi, including coding, files, tools, project or session context, research, browsing, troubleshooting, and nontrivial reasoning. If uncertain whether Pi would help, delegate. Never claim work is complete before receiving its output. Respond directly only to clearly self-contained conversation where Pi would not meaningfully help. Clarify only to avoid a material mistake; otherwise make a reasonable assumption and proceed.
+
+${SESSION_CONTINUITY_SECTION}
 
 ## Backend results
 <!-- Required: keeps spoken responses aligned with the primary output already visible in Pi. -->
@@ -65,7 +74,10 @@ export function ensureCodexVoiceSystemPrompt(promptPath: string = getCodexVoiceS
 		writeFileSync(promptPath, DEFAULT_CODEX_VOICE_SYSTEM_PROMPT, { encoding: "utf8", flag: "wx", mode: 0o600 });
 		return { created: true };
 	} catch (error) {
-		if (isAlreadyExistsError(error)) return { created: false };
+		if (isAlreadyExistsError(error)) {
+			migrateCodexVoiceSystemPrompt(promptPath);
+			return { created: false };
+		}
 		throw error;
 	}
 }
@@ -74,6 +86,7 @@ export function loadCodexVoiceSystemPrompt(
 	promptPath: string = getCodexVoiceSystemPromptPath(),
 	projectPromptPath?: string,
 ): string {
+	ensureCodexVoiceSystemPrompt(promptPath);
 	const prompt = readVoicePrompt(promptPath)!;
 	const missing = REQUIRED_CODEX_VOICE_SECTIONS.filter((section) => !hasMarkdownSection(prompt, section));
 	if (missing.length > 0) {
@@ -83,6 +96,20 @@ export function loadCodexVoiceSystemPrompt(
 	const projectPrompt = readVoicePrompt(projectPromptPath, true);
 	const customized = projectPrompt ? `${prompt}\n\n# Project level instructions\n\n${projectPrompt}` : prompt;
 	return `${customized}\n\n${CONNECTED_PI_RUNTIME_CONTRACT}`;
+}
+
+function migrateCodexVoiceSystemPrompt(promptPath: string): void {
+	const source = readFileSync(promptPath, "utf8");
+	if (source.includes(CODEX_VOICE_PROMPT_VERSION_MARKER)) return;
+	const newline = source.includes("\r\n") ? "\r\n" : "\n";
+	const prompt = stripMarkdownComments(source);
+	const section = hasMarkdownSection(prompt, "Session continuity") ? "" : appendSection(source, newline);
+	writeFileSync(promptPath, `${CODEX_VOICE_PROMPT_VERSION_MARKER}${newline}${source}${section}`, "utf8");
+}
+
+function appendSection(source: string, newline: string): string {
+	const separator = source.length === 0 ? "" : source.endsWith(`${newline}${newline}`) ? "" : source.endsWith(newline) ? newline : `${newline}${newline}`;
+	return `${separator}${SESSION_CONTINUITY_SECTION.replaceAll("\n", newline)}${newline}`;
 }
 
 function readVoicePrompt(promptPath: string, optional = false): string | undefined {
