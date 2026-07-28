@@ -10,6 +10,12 @@ export function createLanVoiceWebUi(piTheme: Theme): string {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="${theme.pageColor}">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="GipPity">
+  <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2">
+  <link rel="manifest" href="/manifest.webmanifest">
   <title>GipPity remote control</title>
   <style>
     :root { ${theme.variables}; color-scheme:${theme.colorScheme}; font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:var(--pi-user-message-bg); color:var(--pi-text); }

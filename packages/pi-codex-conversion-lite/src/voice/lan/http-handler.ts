@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { LanVoiceBrowserClients } from "./browser-clients.ts";
 import type { LanVoiceActivity } from "./activity.ts";
+import { getLanVoiceAppAsset } from "./app-assets.ts";
 import { LanVoiceDraftError, type LanVoiceDraft } from "./draft.ts";
 
 const MAX_REQUEST_BYTES = 300 * 1024;
@@ -9,6 +10,7 @@ export interface LanVoiceHttpHandlers {
 	activity: LanVoiceActivity;
 	clients: LanVoiceBrowserClients;
 	draft: LanVoiceDraft;
+	renderManifest(): string;
 	renderPage(): string;
 	ownerIsActive(): boolean;
 	readonly closing: boolean;
@@ -25,6 +27,15 @@ export async function handleLanVoiceHttpRequest(
 		path = url.pathname;
 		if (request.method === "GET" && path === "/") {
 			sendText(response, "text/html; charset=utf-8", handlers.renderPage(), true);
+			return;
+		}
+		if (request.method === "GET" && path === "/manifest.webmanifest") {
+			sendText(response, "application/manifest+json; charset=utf-8", handlers.renderManifest());
+			return;
+		}
+		const appAsset = request.method === "GET" ? getLanVoiceAppAsset(path) : undefined;
+		if (appAsset) {
+			sendBinary(response, appAsset.contentType, appAsset.body);
 			return;
 		}
 		if (!handlers.ownerIsActive() || handlers.closing) {
@@ -135,4 +146,14 @@ function sendJson(response: ServerResponse, status: number, value: unknown): voi
 		"x-content-type-options": "nosniff",
 	});
 	response.end(JSON.stringify(value));
+}
+
+function sendBinary(response: ServerResponse, contentType: string, body: Buffer): void {
+	response.writeHead(200, {
+		"cache-control": "public, max-age=86400",
+		"content-length": body.byteLength,
+		"content-type": contentType,
+		"x-content-type-options": "nosniff",
+	});
+	response.end(body);
 }

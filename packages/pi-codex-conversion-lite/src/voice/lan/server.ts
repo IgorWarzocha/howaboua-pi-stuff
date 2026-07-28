@@ -7,6 +7,7 @@ import type { CodexVoiceAuth } from "../auth.ts";
 import type { CodexVoiceController } from "../controller.ts";
 import type { CodexRealtimeConversation } from "../conversation/session.ts";
 import { LanVoiceActivity } from "./activity.ts";
+import { createLanVoiceWebManifest } from "./app-assets.ts";
 import { LanVoiceBridgePeer } from "./bridge-peer.ts";
 import { LanVoiceBrowserClients, MAX_CONTROL_BYTES } from "./browser-clients.ts";
 import { resolveLanVoiceCertificate } from "./certificate.ts";
@@ -118,6 +119,7 @@ export async function startCodexLanVoiceServer(options: {
 			activity,
 			clients,
 			draft,
+			renderManifest: () => createLanVoiceWebManifest(options.ctx.ui.theme),
 			renderPage: () => createLanVoiceWebUi(options.ctx.ui.theme),
 			ownerIsActive,
 			get closing() { return closing; },
