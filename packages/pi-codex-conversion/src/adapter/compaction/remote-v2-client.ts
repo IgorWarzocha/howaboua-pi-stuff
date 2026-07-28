@@ -7,6 +7,7 @@ import { canonicalCompactionOutput, normalizeRemoteCompactionV2PromptInput } fro
 import { withRemoteCompactionV2Feature } from "../../providers/openai-responses/compaction-v2-feature.ts";
 import type { OpenAICodexStreamOptions, ResponsesBody } from "../../providers/openai-codex/types.ts";
 import { sleep } from "../../providers/openai-codex/sse.ts";
+import { isWebSocketSseFallbackActive } from "../../providers/openai-codex/websocket.ts";
 
 const MAX_STREAM_RETRIES = 2;
 type V2Stream = (model: Model<Api>, context: Context, options?: SimpleStreamOptions) => AsyncIterable<unknown>;
@@ -132,7 +133,9 @@ async function runAttempt(options: ExecuteRemoteCompactionV2Options, streamSimpl
 export async function executeRemoteCompactionV2(options: ExecuteRemoteCompactionV2Options): Promise<RemoteCompactionV2Result> {
 	const streamSimple = resolveStream(options);
 	if (!streamSimple) return { ok: false, reason: "unavailable", errorMessage: "No compatible Responses stream is registered for this provider" };
-	const initialTransport = options.transport ?? (options.runtime.provider === "openai-codex" ? "websocket-cached" : "sse");
+	const initialTransport = options.runtime.provider === "openai-codex" && isWebSocketSseFallbackActive(options.sessionId)
+		? "sse"
+		: options.transport ?? (options.runtime.provider === "openai-codex" ? "websocket-cached" : "sse");
 	const transports: Transport[] = options.runtime.provider === "openai-codex" && initialTransport !== "sse"
 		? [initialTransport, "sse"]
 		: [initialTransport];

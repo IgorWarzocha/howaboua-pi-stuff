@@ -1,6 +1,8 @@
 import { Type } from "typebox";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { type ExtensionAPI, withFileMutationQueue } from "@earendil-works/pi-coding-agent";
 import { Container, Text } from "@earendil-works/pi-tui";
+import { parsePatchActions } from "../../patch/parser.ts";
+import { resolvePatchPath } from "../../patch/paths.ts";
 import { ExecutePatchError, type ExecutePatchResult } from "../../patch/types.ts";
 import { formatPatchTarget } from "./rendering.ts";
 import { executePatchWithRust } from "./executor.ts";
@@ -71,6 +73,24 @@ function getAppliedPaths(result: ExecutePatchResult, failedFiles: string[]): str
 	return result.changedFiles.filter((path) => !failedFiles.includes(path));
 }
 
+function touchedPatchPaths(cwd: string, patchText: string): string[] {
+	try {
+		const paths = parsePatchActions({ text: patchText }).flatMap((action) => [action.path, action.movePath]);
+		return [...new Set(paths.filter((path): path is string => !!path).map((patchPath) => resolvePatchPath({ cwd, patchPath })))].sort();
+	} catch {
+		// The Rust helper remains authoritative for malformed patch errors.
+		return [];
+	}
+}
+
+async function withTouchedFileMutationQueues<T>(cwd: string, patchText: string, fn: () => Promise<T>): Promise<T> {
+	const paths = touchedPatchPaths(cwd, patchText);
+	const run = (index: number): Promise<T> => index >= paths.length
+		? fn()
+		: withFileMutationQueue(paths[index]!, () => run(index + 1));
+	return run(0);
+}
+
 function buildPartialFailureMessage(message: string, failedFiles: string[], appliedFiles: string[]): string {
 	const lines = [message];
 	if (failedFiles.length > 0) {
@@ -110,6 +130,7 @@ export function createApplyPatchTool(options: ApplyPatchToolOptions = {}) {
 		description: "Patch files",
 		...(options.promptSnippet === false ? {} : { promptSnippet: "Edit files with patch" }),
 		parameters: APPLY_PATCH_PARAMETERS,
+		executionMode: "sequential",
 		prepareArguments: prepareApplyPatchArguments,
 		async execute(toolCallId, params, signal, _onUpdate, ctx) {
 			if (signal?.aborted) throw new Error("apply_patch aborted");
@@ -118,7 +139,9 @@ export function createApplyPatchTool(options: ApplyPatchToolOptions = {}) {
 			setApplyPatchRenderState(toolCallId, typedParams.patchText, ctx.cwd);
 			let result: ExecutePatchResult;
 			try {
-				result = await executePatchWithRust({ cwd: ctx.cwd, patchText: typedParams.patchText, signal, customRustBinariesDir: options.customRustBinariesDir });
+				result = await withTouchedFileMutationQueues(ctx.cwd, typedParams.patchText, () =>
+					executePatchWithRust({ cwd: ctx.cwd, patchText: typedParams.patchText, signal, customRustBinariesDir: options.customRustBinariesDir }),
+				);
 			} catch (error) {
 				if (error instanceof ExecutePatchError) {
 					const partial = error.hasPartialSuccess();
@@ -174,4 +197,13 @@ export function createApplyPatchTool(options: ApplyPatchToolOptions = {}) {
 
 export function registerApplyPatchTool(pi: ExtensionAPI, options: ApplyPatchToolOptions = {}): void {
 	pi.registerTool(createApplyPatchTool(options));
+}
+
+export function registerApplyPatchResultEvent(pi: ExtensionAPI): void {
+	pi.on("tool_result", (event) => {
+		if (event.toolName === "apply_patch" && isApplyPatchToolDetails(event.details) && event.details.status === "partial_failure") {
+			return { isError: true };
+		}
+		return undefined;
+	});
 }

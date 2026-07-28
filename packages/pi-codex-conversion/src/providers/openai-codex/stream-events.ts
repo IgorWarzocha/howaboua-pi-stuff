@@ -19,6 +19,17 @@ export class CodexApiError extends Error {
 	}
 }
 
+export class CodexProtocolError extends Error {
+	constructor(message: string, options?: { cause?: unknown }) {
+		super(message, options);
+		this.name = "CodexProtocolError";
+	}
+}
+
+export function isCodexNonTransportError(error: unknown): boolean {
+	return error instanceof CodexApiError || error instanceof CodexProtocolError;
+}
+
 export function isWebSocketConnectionLimitReachedError(error: unknown): boolean {
 	return error instanceof CodexApiError && error.code === WEBSOCKET_CONNECTION_LIMIT_REACHED_CODE;
 }

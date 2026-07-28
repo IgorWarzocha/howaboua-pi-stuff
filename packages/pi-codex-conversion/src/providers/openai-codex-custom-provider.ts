@@ -20,8 +20,8 @@ import { combineAbortSignals, compressRequestBodyZstd, createSSEHeaderTimeout, p
 import type { CodexProviderStreamOptions, OpenAICodexStreamOptions, ResponsesBody } from "./openai-codex/types.ts";
 import { createInitialAssistantMessage } from "./openai-codex/types.ts";
 import { finalizeUsage } from "./openai-codex/usage.ts";
-import { validateWebSocketTimeoutOptions } from "./openai-codex/websocket.ts";
-import { processCodexResponsesStream } from "./openai-codex/stream-events.ts";
+import { isWebSocketSseFallbackActive, recordWebSocketSseFallback, validateWebSocketTimeoutOptions } from "./openai-codex/websocket.ts";
+import { isCodexNonTransportError, isWebSocketConnectionLimitReachedError, processCodexResponsesStream } from "./openai-codex/stream-events.ts";
 import { prewarmWebSocket, processWebSocketStream } from "./openai-codex/websocket-stream.ts";
 import { openaiCodexNativeOAuthProvider } from "./openai-codex/oauth.ts";
 import { CODEX_TURN_STATE_HEADER, type CodexTurnState } from "./openai-codex/turn-state.ts";
@@ -36,11 +36,13 @@ export type { CachedWebSocketContinuationState, CachedWebSocketRequestBodyResult
 export function getEffectiveCodexTransport(
 	transport: Transport | undefined,
 	config: Pick<CodexConversionConfig["openai"], "forceCachedWebSockets"> | undefined,
+	sessionId?: string | undefined,
 ): Transport {
 	const configuredTransport = transport ?? "auto";
-	if (config?.forceCachedWebSockets === false) return configuredTransport;
-	if (configuredTransport === "websocket") return "websocket-cached";
-	return configuredTransport;
+	const preferredTransport = config?.forceCachedWebSockets !== false && configuredTransport === "websocket"
+		? "websocket-cached"
+		: configuredTransport;
+	return preferredTransport !== "sse" && isWebSocketSseFallbackActive(sessionId) ? "sse" : preferredTransport;
 }
 
 async function prepareCodexRequestBody<TApi extends Api>(
@@ -73,7 +75,7 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 	},
 ): Promise<void> {
 	const runtimeConfig = deps.getConfig?.();
-	if (getEffectiveCodexTransport(options.transport, runtimeConfig?.openai) === "sse") return;
+	if (getEffectiveCodexTransport(options.transport, runtimeConfig?.openai, options.sessionId) === "sse") return;
 	if (!options.apiKey || !options.sessionId) return;
 	const responsesLite = deps.useResponsesLite?.(model) ?? (runtimeConfig?.beta.codeMode === true && supportsResponsesLiteModel(model.id));
 	const body = await prepareCodexRequestBody(model, context, options, responsesLite);
@@ -87,7 +89,14 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 			client_metadata: { ...(websocketBody.client_metadata ?? {}), [CODEX_TURN_STATE_HEADER]: currentTurnState },
 		};
 	}
-	await prewarmWebSocket(resolveCodexWebSocketUrl(model.baseUrl), websocketBody, headers, options, deps.turnState);
+	try {
+		await prewarmWebSocket(resolveCodexWebSocketUrl(model.baseUrl), websocketBody, headers, options, deps.turnState);
+	} catch (error) {
+		if (!options.signal?.aborted && (!isCodexNonTransportError(error) || isWebSocketConnectionLimitReachedError(error))) {
+			recordWebSocketSseFallback(options.sessionId);
+		}
+		throw error;
+	}
 }
 
 function createCodexStream<TApi extends Api>(
@@ -102,7 +111,8 @@ function createCodexStream<TApi extends Api>(
 	},
 ): AssistantMessageEventStream {
 	const runtimeConfig = deps.getConfig?.();
-	const effectiveTransport = getEffectiveCodexTransport(options?.transport, runtimeConfig?.openai);
+	const preferredTransport = getEffectiveCodexTransport(options?.transport, runtimeConfig?.openai);
+	const effectiveTransport = getEffectiveCodexTransport(options?.transport, runtimeConfig?.openai, options?.sessionId);
 	const effectiveOptions: OpenAICodexStreamOptions | undefined = options
 		? { ...options, transport: effectiveTransport }
 		: { transport: effectiveTransport };
@@ -162,19 +172,21 @@ function createCodexStream<TApi extends Api>(
 					stream.end();
 					return;
 				} catch (error) {
+					const aborted = effectiveOptions?.signal?.aborted === true;
+					const connectionLimitBeforeStart = !websocketStarted && isWebSocketConnectionLimitReachedError(error);
+					if (aborted || (isCodexNonTransportError(error) && !connectionLimitBeforeStart)) throw error;
 					appendAssistantMessageDiagnostic(
 						output,
 						createAssistantMessageDiagnostic("provider_transport_failure", error, {
-							configuredTransport: transport,
+							configuredTransport: preferredTransport,
 							fallbackTransport: websocketStarted ? undefined : "sse",
 							eventsEmitted: websocketStarted,
 							phase: websocketStarted ? "after_message_stream_start" : "before_message_stream_start",
 							requestBytes: new TextEncoder().encode(bodyJson).byteLength,
 						}),
 					);
-					if (transport === "websocket" || transport === "websocket-cached" || websocketStarted) {
-						throw error;
-					}
+					recordWebSocketSseFallback(effectiveOptions?.sessionId);
+					if (websocketStarted) throw error;
 				}
 			}
 

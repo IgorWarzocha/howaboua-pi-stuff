@@ -4,7 +4,7 @@ import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import { usesCodexProviderFallback } from "../adapter/activation/runtime-plan.ts";
 import { WEB_SEARCH_TOOL_NAME } from "../adapter/activation/tool-set.ts";
 import { isResponsesModel } from "../adapter/prompt/codex-model.ts";
-import { registerApplyPatchTool } from "../tools/apply-patch/tool.ts";
+import { registerApplyPatchResultEvent, registerApplyPatchTool } from "../tools/apply-patch/tool.ts";
 import { registerExecCommandTool } from "../tools/exec/command-tool.ts";
 import { registerWriteStdinTool } from "../tools/exec/write-stdin-tool.ts";
 import { registerImageGenerationTool } from "../tools/imagegen/tool.ts";
@@ -23,6 +23,7 @@ export function isExplicitlyConfiguredToolProvider(model: Model<Api> | undefined
 }
 
 export function registerCodexTools(pi: ExtensionAPI, runtime: CodexExtensionRuntime): CodexToolRegistration {
+	registerApplyPatchResultEvent(pi);
 	const renderOptions = (config: CodexConversionConfig) => ({ customRendering: config.ui.toolRenaming });
 	const registerApplyPatch = (config: CodexConversionConfig) =>
 		registerApplyPatchTool(pi, { customRustBinariesDir: config.tools.customRustBinariesDir, showDiffWhenCollapsed: !config.ui.compactTools });

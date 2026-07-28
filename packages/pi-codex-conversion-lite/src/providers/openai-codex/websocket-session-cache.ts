@@ -2,7 +2,16 @@ import type { AcquiredWebSocket, ProviderEnv, SessionWebSocketCacheEntry } from 
 import { closeWebSocketSilently, connectWebSocket, isWebSocketReusable } from "./websocket-connection.ts";
 
 const websocketSessionCache = new Map<string, SessionWebSocketCacheEntry>();
+const websocketSseFallbackSessions = new Set<string>();
 const SESSION_WEBSOCKET_MAX_AGE_MS = 55 * 60 * 1000;
+
+export function isWebSocketSseFallbackActive(sessionId: string | undefined): boolean {
+	return sessionId ? websocketSseFallbackSessions.has(sessionId) : false;
+}
+
+export function recordWebSocketSseFallback(sessionId: string | undefined): void {
+	if (sessionId) websocketSseFallbackSessions.add(sessionId);
+}
 
 function isWebSocketSessionExpired(entry: SessionWebSocketCacheEntry): boolean {
 	return Date.now() - entry.createdAt >= SESSION_WEBSOCKET_MAX_AGE_MS;
@@ -33,6 +42,7 @@ export function closeOpenAICodexWebSocketSessions(sessionId?: string): void {
 		const entry = websocketSessionCache.get(sessionId);
 		if (entry) closeEntry(entry);
 		websocketSessionCache.delete(sessionId);
+		websocketSseFallbackSessions.delete(sessionId);
 		return;
 	}
 
@@ -40,6 +50,7 @@ export function closeOpenAICodexWebSocketSessions(sessionId?: string): void {
 		closeEntry(entry);
 	}
 	websocketSessionCache.clear();
+	websocketSseFallbackSessions.clear();
 }
 
 export async function acquireWebSocket(
