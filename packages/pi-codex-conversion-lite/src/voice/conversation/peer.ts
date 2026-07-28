@@ -8,6 +8,7 @@ export type CodexRealtimePeerEvent =
 export interface CodexRealtimePeer {
 	onEvent(listener: (event: CodexRealtimePeerEvent) => void): () => void;
 	onExit(listener: (error: Error) => void): () => void;
+	trace?(event: string, data?: unknown): void;
 	start(config: CodexConversionConfig): Promise<string>;
 	applyAnswer(sdp: string): void;
 	sendData(message: unknown): void;

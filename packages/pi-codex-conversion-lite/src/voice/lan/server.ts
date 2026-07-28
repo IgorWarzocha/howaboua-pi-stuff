@@ -10,6 +10,7 @@ import {
 	type LanVoiceBrowserCommand,
 } from "./browser-peer.ts";
 import { resolveLanVoiceCertificate } from "./certificate.ts";
+import { createLanVoiceDiagnostics, type LanVoiceDiagnostics } from "./diagnostics.ts";
 import { LAN_VOICE_WEB_UI } from "./web-ui.ts";
 
 const PORT = 43_120;
@@ -21,6 +22,7 @@ const HEARTBEAT_MS = 15_000;
 export interface CodexLanVoiceServer {
 	readonly ownerSessionId: string;
 	readonly urls: string[];
+	readonly logPath: string;
 	close(): Promise<void>;
 }
 
@@ -32,7 +34,16 @@ export async function startCodexLanVoiceServer(options: {
 	port?: number | undefined;
 	certificateAgentDir: string;
 }): Promise<CodexLanVoiceServer> {
+	const diagnostics = createLanVoiceDiagnostics(options.certificateAgentDir);
 	const certificate = resolveLanVoiceCertificate(options.certificateAgentDir);
+	diagnostics.write("server", "starting", {
+		ownerSessionId: options.ownerSessionId,
+		port: options.port ?? PORT,
+		certificate: {
+			hostnames: certificate.hostnames,
+			ipAddresses: certificate.ipAddresses,
+		},
+	});
 	let eventResponse: ServerResponse | undefined;
 	let heartbeat: ReturnType<typeof setInterval> | undefined;
 	let peer: LanVoiceBrowserPeer | undefined;
@@ -44,6 +55,7 @@ export async function startCodexLanVoiceServer(options: {
 	const sendBrowserCommand = (command: LanVoiceBrowserCommand): void => {
 		if (!eventResponse || eventResponse.writableEnded)
 			throw new Error("LAN voice browser is not connected");
+		diagnostics.write("server", "sse.command", command);
 		eventResponse.write(`data: ${JSON.stringify(command)}\n\n`);
 	};
 	const stopConversation = async (): Promise<void> => {
@@ -51,6 +63,10 @@ export async function startCodexLanVoiceServer(options: {
 		const activePeer = peer;
 		conversation = undefined;
 		peer = undefined;
+		diagnostics.write("server", "conversation.stop", {
+			hadConversation: Boolean(activeConversation),
+			hadPeer: Boolean(activePeer),
+		});
 		if (activeConversation) {
 			await options.voice.stopConversation(activeConversation, {
 				announce: true,
@@ -66,6 +82,7 @@ export async function startCodexLanVoiceServer(options: {
 		{ cert: certificate.cert, key: certificate.key },
 		(request, response) => {
 			void handleRequest(request, response, {
+				diagnostics,
 				ownerIsActive,
 				get closing() {
 					return closing;
@@ -74,6 +91,10 @@ export async function startCodexLanVoiceServer(options: {
 					return eventResponse;
 				},
 				setEventResponse(next) {
+					diagnostics.write("server", "sse.set", {
+						connected: Boolean(next),
+						replacing: Boolean(eventResponse && eventResponse !== next),
+					});
 					eventResponse = next;
 					if (heartbeat) clearInterval(heartbeat);
 					heartbeat = next
@@ -86,12 +107,14 @@ export async function startCodexLanVoiceServer(options: {
 					return peer;
 				},
 				async startCall(offer) {
+					diagnostics.write("server", "call.start", { offer });
 					await stopConversation();
 					if (!eventResponse || eventResponse.writableEnded)
 						throw new Error("Open the LAN voice page before starting a call");
 					const browserPeer = new LanVoiceBrowserPeer(
 						offer,
 						sendBrowserCommand,
+						diagnostics,
 					);
 					peer = browserPeer;
 					const started = await options.voice.startRealtimeWithPeer(
@@ -100,18 +123,33 @@ export async function startCodexLanVoiceServer(options: {
 						browserPeer,
 					);
 					if (!started) {
+						diagnostics.write("server", "call.start_failed");
 						if (peer === browserPeer) peer = undefined;
 						await browserPeer.close();
 						throw new Error("Codex voice could not start");
 					}
 					conversation = started;
-					return browserPeer.takeAnswer();
+					const answer = browserPeer.takeAnswer();
+					diagnostics.write("server", "call.started", { answer });
+					return answer;
 				},
 				stopConversation,
 			});
 		},
 	);
 	server.keepAliveTimeout = 20_000;
+	server.on("tlsClientError", (error, socket) => {
+		diagnostics.write("server", "tls.client_error", {
+			error,
+			remoteAddress: socket.remoteAddress,
+			remotePort: socket.remotePort,
+		});
+	});
+	server.on("clientError", (error, socket) => {
+		diagnostics.write("server", "http.client_error", { error });
+		socket.destroy();
+	});
+	server.on("error", (error) => diagnostics.write("server", "https.error", error));
 	await listen(server, options.port ?? PORT);
 	const address = server.address() as AddressInfo;
 	const displayHosts = [
@@ -122,13 +160,16 @@ export async function startCodexLanVoiceServer(options: {
 	const urls = [
 		...new Set(displayHosts.map((host) => `https://${host}:${address.port}`)),
 	];
+	diagnostics.write("server", "listening", { address, urls });
 
 	return {
 		ownerSessionId: options.ownerSessionId,
 		urls,
+		logPath: diagnostics.path,
 		async close() {
 			if (closing) return;
 			closing = true;
+			diagnostics.write("server", "closing");
 			await stopConversation();
 			if (heartbeat) clearInterval(heartbeat);
 			heartbeat = undefined;
@@ -138,11 +179,13 @@ export async function startCodexLanVoiceServer(options: {
 				server.close(() => resolve());
 				server.closeAllConnections();
 			});
+			diagnostics.write("server", "closed");
 		},
 	};
 }
 
 interface RequestHandlers {
+	readonly diagnostics: LanVoiceDiagnostics;
 	ownerIsActive(): boolean;
 	readonly closing: boolean;
 	readonly eventResponse: ServerResponse | undefined;
@@ -157,9 +200,19 @@ async function handleRequest(
 	response: ServerResponse,
 	handlers: RequestHandlers,
 ): Promise<void> {
+	let path = "/";
 	try {
-		const path = new URL(request.url ?? "/", "https://lan-voice.local")
+		path = new URL(request.url ?? "/", "https://lan-voice.local")
 			.pathname;
+		if (path !== "/api/debug") {
+			handlers.diagnostics.write("server", "http.request", {
+				method: request.method,
+				path,
+				remoteAddress: request.socket.remoteAddress,
+				remotePort: request.socket.remotePort,
+				userAgent: request.headers["user-agent"],
+			});
+		}
 		if (request.method === "GET" && path === "/") {
 			response.writeHead(200, {
 				"cache-control": "no-store",
@@ -173,6 +226,7 @@ async function handleRequest(
 			return;
 		}
 		if (!handlers.ownerIsActive() || handlers.closing) {
+			handlers.diagnostics.write("server", "request.rejected_owner", { path });
 			sendJson(response, 409, {
 				error:
 					"The Pi session that started this voice server is no longer active",
@@ -180,6 +234,7 @@ async function handleRequest(
 			return;
 		}
 		if (request.method === "GET" && path === "/api/events") {
+			handlers.diagnostics.write("server", "sse.open");
 			await handlers.stopConversation();
 			handlers.eventResponse?.end();
 			response.writeHead(200, {
@@ -191,6 +246,10 @@ async function handleRequest(
 			response.write("event: ready\ndata: {}\n\n");
 			handlers.setEventResponse(response);
 			response.once("close", () => {
+				handlers.diagnostics.write("server", "sse.close", {
+					writableEnded: response.writableEnded,
+					destroyed: response.destroyed,
+				});
 				if (handlers.eventResponse === response) {
 					handlers.setEventResponse(undefined);
 					void handlers.stopConversation();
@@ -203,12 +262,21 @@ async function handleRequest(
 			return;
 		}
 		if (path === "/api/stop") {
+			handlers.diagnostics.write("server", "stop.request");
 			await handlers.stopConversation();
 			sendJson(response, 200, { ok: true });
 			return;
 		}
 		const body = await readJson(request);
+		if (path === "/api/debug") {
+			const event = boundedString(body["event"], 256);
+			if (!event) throw new RequestError(400, "Invalid browser diagnostic event");
+			handlers.diagnostics.write("browser", event, body["data"]);
+			sendJson(response, 200, { ok: true });
+			return;
+		}
 		if (path === "/api/call") {
+			handlers.diagnostics.write("server", "call.request", body);
 			const offer = boundedString(body["offer"], MAX_SDP_BYTES);
 			if (!offer)
 				throw new RequestError(400, "A bounded WebRTC offer is required");
@@ -216,22 +284,28 @@ async function handleRequest(
 			const stopOnDisconnect = () => {
 				if (response.writableEnded) return;
 				disconnected = true;
+				handlers.diagnostics.write("server", "call.request_disconnected", {
+					destroyed: response.destroyed,
+				});
 				void handlers.stopConversation();
 			};
 			response.once("close", stopOnDisconnect);
 			try {
 				const answer = await handlers.startCall(offer);
 				if (disconnected || response.destroyed) {
+					handlers.diagnostics.write("server", "call.answer_abandoned", { answer });
 					await handlers.stopConversation();
 					return;
 				}
 				sendJson(response, 200, { answer });
+				handlers.diagnostics.write("server", "call.answer_sent", { answer });
 			} finally {
 				response.off("close", stopOnDisconnect);
 			}
 			return;
 		}
 		if (path === "/api/data") {
+			handlers.diagnostics.write("server", "data.request", body);
 			if (
 				!("message" in body) ||
 				jsonBytes(body["message"]) > MAX_MESSAGE_BYTES
@@ -244,6 +318,7 @@ async function handleRequest(
 			return;
 		}
 		if (path === "/api/state") {
+			handlers.diagnostics.write("server", "state.request", body);
 			const state = boundedString(body["state"], 128);
 			if (!state) throw new RequestError(400, "Invalid peer state");
 			if (!handlers.peer)
@@ -256,6 +331,12 @@ async function handleRequest(
 	} catch (error) {
 		const status = error instanceof RequestError ? error.status : 500;
 		const message = error instanceof Error ? error.message : String(error);
+		handlers.diagnostics.write("server", "request.error", {
+			method: request.method,
+			path,
+			status,
+			error,
+		});
 		if (!response.headersSent) sendJson(response, status, { error: message });
 		else response.end();
 	}

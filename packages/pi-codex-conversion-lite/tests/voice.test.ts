@@ -88,7 +88,11 @@ test("realtime prompt always exposes the connected Pi runtime", async () => {
 test("LAN browser peer preserves realtime data in both directions", async () => {
 	const commands: unknown[] = [];
 	const events: unknown[] = [];
-	const peer = new LanVoiceBrowserPeer("offer-sdp", (command) => commands.push(command));
+	const peer = new LanVoiceBrowserPeer(
+		"offer-sdp",
+		(command) => commands.push(command),
+		{ path: "", write: () => {} },
+	);
 	peer.onEvent((event) => events.push(event));
 	assert.equal(await peer.start({} as never), "offer-sdp");
 	peer.applyAnswer("answer-sdp");
@@ -117,7 +121,11 @@ test("browser realtime uses its peer instead of configured host audio devices", 
 	});
 	const address = setupServer.address() as AddressInfo;
 	const commands: unknown[] = [];
-	const peer = new LanVoiceBrowserPeer("browser-offer", (command) => commands.push(command));
+	const peer = new LanVoiceBrowserPeer(
+		"browser-offer",
+		(command) => commands.push(command),
+		{ path: "", write: () => {} },
+	);
 	const conversation = new CodexRealtimeConversation({
 		onError: (error) => { throw error; },
 		onStatus: () => {},

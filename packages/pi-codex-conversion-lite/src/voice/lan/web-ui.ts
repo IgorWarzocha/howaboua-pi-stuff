@@ -48,69 +48,169 @@ export const LAN_VOICE_WEB_UI = String.raw`<!doctype html>
     let peer;
     let channel;
     let stream;
+    let statsTimer;
     let active = false;
     let busy = false;
 
     const setStatus = (title, message) => { state.textContent = title; detail.textContent = message; };
-    const post = async (path, body = {}) => {
-      const response = await fetch(path, { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify(body) });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.error || 'Pi voice request failed');
-      return payload;
+    const errorData = (error) => error instanceof Error
+      ? { name:error.name, message:error.message, stack:error.stack, cause:error.cause }
+      : { value:String(error) };
+    const report = (event, data) => {
+      const body = JSON.stringify({ event, data });
+      void fetch('/api/debug', { method:'POST', headers:{'content-type':'application/json'}, body, keepalive:true }).catch(() => {});
     };
-    const sendState = (value) => { void post('/api/state', { state:value }).catch(() => {}); };
+    const post = async (path, body = {}) => {
+      report('fetch.request', { path, body });
+      try {
+        const response = await fetch(path, { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify(body) });
+        const text = await response.text();
+        let payload = {};
+        try { payload = text ? JSON.parse(text) : {}; } catch { payload = { raw:text }; }
+        report('fetch.response', { path, status:response.status, headers:Object.fromEntries(response.headers), payload });
+        if (!response.ok) throw new Error(payload.error || 'Pi voice request failed');
+        return payload;
+      } catch (error) {
+        report('fetch.error', { path, error:errorData(error) });
+        throw error;
+      }
+    };
+    const sendState = (value) => { void post('/api/state', { state:value }).catch((error) => report('state.send_error', errorData(error))); };
+    const collectStats = async (label) => {
+      const current = peer;
+      if (!current) return;
+      try {
+        const reports = [];
+        (await current.getStats()).forEach((entry) => reports.push(typeof entry.toJSON === 'function' ? entry.toJSON() : Object.assign({}, entry)));
+        report('webrtc.stats', { label, reports });
+      } catch (error) { report('webrtc.stats_error', { label, error:errorData(error) }); }
+    };
+
+    report('page.loaded', {
+      href:location.href,
+      secureContext:window.isSecureContext,
+      userAgent:navigator.userAgent,
+      platform:navigator.platform,
+      language:navigator.language,
+      online:navigator.onLine,
+      visibility:document.visibilityState,
+      mediaDevices:Boolean(navigator.mediaDevices),
+      getUserMedia:Boolean(navigator.mediaDevices?.getUserMedia),
+    });
+    window.addEventListener('error', (event) => report('window.error', { message:event.message, filename:event.filename, lineno:event.lineno, colno:event.colno, error:errorData(event.error) }));
+    window.addEventListener('unhandledrejection', (event) => report('window.unhandled_rejection', errorData(event.reason)));
+    window.addEventListener('online', () => report('network.online'));
+    window.addEventListener('offline', () => report('network.offline'));
+    document.addEventListener('visibilitychange', () => report('page.visibility', { state:document.visibilityState }));
 
     const events = new EventSource('/api/events');
-    events.onopen = () => { connection.classList.add('online'); connection.lastElementChild.textContent = 'Connected to Pi'; };
-    events.onerror = () => { connection.classList.remove('online'); connection.lastElementChild.textContent = 'Reconnecting to Pi'; if (active) void stop(false); };
+    events.onopen = () => { report('sse.open', { readyState:events.readyState }); connection.classList.add('online'); connection.lastElementChild.textContent = 'Connected to Pi'; };
+    events.onerror = (event) => { report('sse.error', { readyState:events.readyState, eventType:event.type }); connection.classList.remove('online'); connection.lastElementChild.textContent = 'Reconnecting to Pi'; if (active) void stop(false, 'sse-error'); };
     events.onmessage = (event) => {
-      const command = JSON.parse(event.data);
-      if (command.type === 'send_data' && channel?.readyState === 'open') channel.send(JSON.stringify(command.message));
-      if (command.type === 'stop') void stop(false);
+      report('sse.message', { data:event.data, lastEventId:event.lastEventId });
+      try {
+        const command = JSON.parse(event.data);
+        if (command.type === 'send_data' && channel?.readyState === 'open') {
+          report('data_channel.send', command.message);
+          channel.send(JSON.stringify(command.message));
+        } else if (command.type === 'send_data') {
+          report('data_channel.send_dropped', { readyState:channel?.readyState, message:command.message });
+        }
+        if (command.type === 'stop') void stop(false, 'server-stop');
+      } catch (error) { report('sse.message_error', { error:errorData(error), data:event.data }); }
     };
 
     const waitForIce = (pc) => pc.iceGatheringState === 'complete' ? Promise.resolve() : new Promise((resolve) => {
-      const changed = () => { if (pc.iceGatheringState === 'complete') { pc.removeEventListener('icegatheringstatechange', changed); resolve(); } };
+      let settled = false;
+      const finish = (reason) => { if (settled) return; settled = true; pc.removeEventListener('icegatheringstatechange', changed); report('ice.gathering_finished', { reason, state:pc.iceGatheringState, localDescription:pc.localDescription }); resolve(); };
+      const changed = () => { report('ice.gathering_state', { state:pc.iceGatheringState }); if (pc.iceGatheringState === 'complete') finish('complete'); };
       pc.addEventListener('icegatheringstatechange', changed);
-      setTimeout(resolve, 5000);
+      setTimeout(() => finish('timeout'), 5000);
     });
 
     async function start() {
       if (busy || active) return;
+      report('call.start_requested');
       busy = true; button.disabled = true; setStatus('Opening microphone…', 'Use the browser prompt to allow audio.');
       try {
         if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) throw new Error('Microphone access needs HTTPS. Open the https:// address shown by Pi and accept its local certificate.');
+        if (navigator.permissions?.query) {
+          try { report('microphone.permission', { state:(await navigator.permissions.query({ name:'microphone' })).state }); }
+          catch (error) { report('microphone.permission_error', errorData(error)); }
+        }
         stream = await navigator.mediaDevices.getUserMedia({ audio:true });
+        report('microphone.opened', { tracks:stream.getAudioTracks().map((track) => ({
+          id:track.id,
+          label:track.label,
+          enabled:track.enabled,
+          muted:track.muted,
+          readyState:track.readyState,
+          settings:track.getSettings?.(),
+          constraints:track.getConstraints?.(),
+          capabilities:track.getCapabilities?.(),
+        })) });
+        stream.getAudioTracks().forEach((track) => {
+          track.addEventListener('mute', () => report('microphone.track_mute', { id:track.id, readyState:track.readyState }));
+          track.addEventListener('unmute', () => report('microphone.track_unmute', { id:track.id, readyState:track.readyState }));
+          track.addEventListener('ended', () => report('microphone.track_ended', { id:track.id, readyState:track.readyState }));
+        });
         peer = new RTCPeerConnection();
+        report('webrtc.created', { configuration:peer.getConfiguration() });
         stream.getTracks().forEach((track) => peer.addTrack(track, stream));
         channel = peer.createDataChannel('oai-events');
-        channel.onopen = () => { sendState('ready'); setStatus('Listening', 'Speak naturally. Tap again to stop.'); };
-        channel.onmessage = (event) => { try { void post('/api/data', { message:JSON.parse(event.data) }).catch(() => {}); } catch {} };
-        channel.onerror = () => sendState('failed');
-        channel.onclose = () => { if (active) void stop(false); };
-        peer.ontrack = (event) => { audio.srcObject = event.streams[0]; void audio.play().catch(() => setStatus('Tap once more', 'Your browser paused speaker playback.')); };
+        report('data_channel.created', { label:channel.label, id:channel.id, ordered:channel.ordered, protocol:channel.protocol, readyState:channel.readyState });
+        channel.onopen = () => { report('data_channel.open', { id:channel.id, readyState:channel.readyState }); sendState('ready'); setStatus('Listening', 'Speak naturally. Tap again to stop.'); };
+        channel.onmessage = (event) => {
+          report('data_channel.message', { data:event.data });
+          try { void post('/api/data', { message:JSON.parse(event.data) }).catch((error) => report('data.forward_error', errorData(error))); }
+          catch (error) { report('data_channel.message_parse_error', { error:errorData(error), data:event.data }); }
+        };
+        channel.onerror = (event) => { report('data_channel.error', { readyState:channel?.readyState, eventType:event.type, error:event.error ? errorData(event.error) : undefined }); sendState('failed'); };
+        channel.onclosing = () => report('data_channel.closing', { readyState:channel?.readyState });
+        channel.onclose = () => { report('data_channel.close', { active, readyState:channel?.readyState }); if (active) void stop(false, 'data-channel-close'); };
+        peer.ontrack = (event) => {
+          report('webrtc.track', { track:{ id:event.track.id, kind:event.track.kind, label:event.track.label, muted:event.track.muted, readyState:event.track.readyState, settings:event.track.getSettings?.() }, streamIds:event.streams.map((item) => item.id), transceiver:{ direction:event.transceiver.direction, currentDirection:event.transceiver.currentDirection, mid:event.transceiver.mid } });
+          audio.srcObject = event.streams[0];
+          void audio.play().then(() => report('audio.playing')).catch((error) => { report('audio.play_error', errorData(error)); setStatus('Tap once more', 'Your browser paused speaker playback.'); });
+        };
+        peer.onicecandidate = (event) => report('ice.candidate', { candidate:event.candidate?.toJSON?.() ?? event.candidate });
+        peer.onicecandidateerror = (event) => report('ice.candidate_error', { address:event.address, errorCode:event.errorCode, errorText:event.errorText, port:event.port, url:event.url });
+        peer.oniceconnectionstatechange = () => { report('ice.connection_state', { state:peer?.iceConnectionState }); void collectStats('ice-' + peer?.iceConnectionState); };
+        peer.onsignalingstatechange = () => report('webrtc.signaling_state', { state:peer?.signalingState });
+        peer.onnegotiationneeded = () => report('webrtc.negotiation_needed');
         peer.onconnectionstatechange = () => {
           const value = peer?.connectionState;
+          report('webrtc.connection_state', { state:value });
+          void collectStats('connection-' + value);
           if (value) sendState(value);
-          if (value === 'failed' || value === 'closed') void stop(false);
+          if (value === 'failed' || value === 'closed') void stop(false, 'peer-' + value);
         };
         const offer = await peer.createOffer();
+        report('webrtc.offer_created', offer);
         await peer.setLocalDescription(offer);
+        report('webrtc.local_description_set', peer.localDescription);
         await waitForIce(peer);
         const result = await post('/api/call', { offer:peer.localDescription.sdp });
+        report('webrtc.answer_received', { answer:result.answer });
         await peer.setRemoteDescription({ type:'answer', sdp:result.answer });
+        report('webrtc.remote_description_set', peer.remoteDescription);
         active = true;
+        statsTimer = setInterval(() => { void collectStats('interval'); }, 2000);
         button.setAttribute('aria-pressed', 'true');
         button.setAttribute('aria-label', 'Stop voice');
         setStatus('Connecting…', 'Codex voice is joining the call.');
       } catch (error) {
-        await stop(false);
+        report('call.start_error', errorData(error));
+        await stop(false, 'start-error');
         setStatus('Could not start', error instanceof Error ? error.message : String(error));
       } finally { busy = false; button.disabled = false; }
     }
 
-    async function stop(notify = true) {
-      if (notify) void post('/api/stop').catch(() => {});
+    async function stop(notify = true, reason = 'user') {
+      report('call.stop', { notify, reason, active, busy, peerState:peer?.connectionState, iceState:peer?.iceConnectionState, signalingState:peer?.signalingState, channelState:channel?.readyState });
+      if (statsTimer) clearInterval(statsTimer); statsTimer = undefined;
+      await collectStats('stop-' + reason);
+      if (notify) void post('/api/stop').catch((error) => report('stop.send_error', errorData(error)));
       active = false;
       channel?.close(); channel = undefined;
       peer?.close(); peer = undefined;
@@ -122,7 +222,10 @@ export const LAN_VOICE_WEB_UI = String.raw`<!doctype html>
     }
 
     button.addEventListener('click', () => active ? stop() : start());
-    window.addEventListener('pagehide', () => { if (active) navigator.sendBeacon('/api/stop', new Blob(['{}'], {type:'application/json'})); });
+    window.addEventListener('pagehide', (event) => {
+      report('page.hide', { persisted:event.persisted, active });
+      if (active) navigator.sendBeacon('/api/stop', new Blob(['{}'], {type:'application/json'}));
+    });
   </script>
 </body>
 </html>`;

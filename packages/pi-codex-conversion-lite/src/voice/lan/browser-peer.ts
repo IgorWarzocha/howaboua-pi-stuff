@@ -3,6 +3,7 @@ import type {
 	CodexRealtimePeer,
 	CodexRealtimePeerEvent,
 } from "../conversation/peer.ts";
+import type { LanVoiceDiagnostics } from "./diagnostics.ts";
 
 export type LanVoiceBrowserCommand =
 	| { type: "send_data"; message: unknown }
@@ -11,15 +12,25 @@ export type LanVoiceBrowserCommand =
 export class LanVoiceBrowserPeer implements CodexRealtimePeer {
 	private readonly offer: string;
 	private readonly send: (command: LanVoiceBrowserCommand) => void;
+	private readonly diagnostics: LanVoiceDiagnostics;
 	private readonly eventListeners = new Set<
 		(event: CodexRealtimePeerEvent) => void
 	>();
 	private answer: string | undefined;
 	private closed = false;
 
-	constructor(offer: string, send: (command: LanVoiceBrowserCommand) => void) {
+	constructor(
+		offer: string,
+		send: (command: LanVoiceBrowserCommand) => void,
+		diagnostics: LanVoiceDiagnostics,
+	) {
 		this.offer = offer;
 		this.send = send;
+		this.diagnostics = diagnostics;
+	}
+
+	trace(event: string, data?: unknown): void {
+		this.diagnostics.write("realtime", event, data);
 	}
 
 	onEvent(listener: (event: CodexRealtimePeerEvent) => void): () => void {
@@ -33,12 +44,14 @@ export class LanVoiceBrowserPeer implements CodexRealtimePeer {
 
 	async start(_config: CodexConversionConfig): Promise<string> {
 		if (this.closed) throw new Error("LAN voice browser disconnected");
+		this.trace("peer.offer", { sdp: this.offer });
 		return this.offer;
 	}
 
 	applyAnswer(sdp: string): void {
 		if (this.closed) throw new Error("LAN voice browser disconnected");
 		this.answer = sdp;
+		this.trace("peer.answer", { sdp });
 	}
 
 	takeAnswer(): string {
@@ -49,20 +62,24 @@ export class LanVoiceBrowserPeer implements CodexRealtimePeer {
 
 	sendData(message: unknown): void {
 		if (this.closed) throw new Error("LAN voice browser disconnected");
+		this.trace("data.outbound", message);
 		this.send({ type: "send_data", message });
 	}
 
 	receiveData(message: unknown): void {
+		this.trace("data.inbound", message);
 		this.emit({ type: "data", message });
 	}
 
 	receiveState(state: string): void {
+		this.trace("peer.state", { state });
 		this.emit({ type: "state", state });
 	}
 
 	async close(): Promise<void> {
 		if (this.closed) return;
 		this.closed = true;
+		this.trace("peer.close");
 		try {
 			this.send({ type: "stop" });
 		} catch {
