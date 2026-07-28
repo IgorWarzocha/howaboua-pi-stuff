@@ -2,11 +2,16 @@ import type { ServerResponse } from "node:http";
 import { WebSocket, type RawData } from "ws";
 import type { LanVoiceDiagnostics } from "./diagnostics.ts";
 import type { LanVoiceDraftSelection } from "./draft.ts";
+import { decodeLanVoiceAudioCommand } from "./protocol.ts";
 
 const MAX_CONTROL_BYTES = 72 * 1024;
 export const MAX_PCM_BYTES = 24_000 * 2;
 
 type LanVoiceBrowserMode = "conversation" | "dictation";
+type LanVoiceBrowserState =
+	| { type: "idle" }
+	| { type: "active"; clientId: string; socket: WebSocket; mode: LanVoiceBrowserMode }
+	| { type: "closed" };
 
 interface LanVoiceBrowserClientsOptions {
 	diagnostics: LanVoiceDiagnostics;
@@ -23,7 +28,7 @@ export class LanVoiceBrowserClients {
 	private readonly options: LanVoiceBrowserClientsOptions;
 	private readonly eventResponses = new Map<string, ServerResponse>();
 	private readonly audioSockets = new Map<string, WebSocket>();
-	private active: { clientId: string; socket: WebSocket; mode: LanVoiceBrowserMode } | undefined;
+	private state: LanVoiceBrowserState = { type: "idle" };
 	private operation = Promise.resolve();
 
 	constructor(options: LanVoiceBrowserClientsOptions) {
@@ -31,6 +36,7 @@ export class LanVoiceBrowserClients {
 	}
 
 	connectEvents(clientId: string, response: ServerResponse): void {
+		if (this.state.type === "closed") { response.end(); return; }
 		const previous = this.eventResponses.get(clientId);
 		this.eventResponses.set(clientId, response);
 		previous?.end();
@@ -40,6 +46,7 @@ export class LanVoiceBrowserClients {
 	}
 
 	connectAudio(clientId: string, socket: WebSocket): void {
+		if (this.state.type === "closed") { socket.close(1012, "server closing"); return; }
 		const previous = this.audioSockets.get(clientId);
 		this.audioSockets.set(clientId, socket);
 		previous?.close(4001, "replaced");
@@ -54,8 +61,8 @@ export class LanVoiceBrowserClients {
 	}
 
 	sendConversationAudio(pcm: Buffer): void {
-		const active = this.active;
-		if (!active || active.mode !== "conversation" || active.socket.readyState !== WebSocket.OPEN) return;
+		const active = this.state;
+		if (active.type !== "active" || active.mode !== "conversation" || active.socket.readyState !== WebSocket.OPEN) return;
 		this.options.diagnostics.write("server", "audio.out", { clientId: active.clientId, bytes: pcm.byteLength });
 		active.socket.send(pcm, { binary: true });
 	}
@@ -71,9 +78,9 @@ export class LanVoiceBrowserClients {
 
 	release(clientId: string, socket?: WebSocket): void {
 		void this.enqueue(async () => {
-			const active = this.active;
-			if (!active || active.clientId !== clientId || (socket && active.socket !== socket)) return;
-			this.active = undefined;
+			const active = this.state;
+			if (active.type !== "active" || active.clientId !== clientId || (socket && active.socket !== socket)) return;
+			this.state = { type: "idle" };
 			this.options.diagnostics.write("server", "audio.release", { clientId, mode: active.mode });
 			if (active.mode === "conversation") this.options.onConversationActivity(false);
 			if (active.mode === "dictation") await this.options.finishDictation(clientId);
@@ -87,13 +94,16 @@ export class LanVoiceBrowserClients {
 		for (const response of this.eventResponses.values()) if (!response.writableEnded) response.write(": keepalive\n\n");
 	}
 
-	close(): void {
-		if (this.active?.mode === "conversation") this.options.onConversationActivity(false);
-		this.active = undefined;
+	async close(): Promise<void> {
+		const active = this.state;
+		if (active.type === "closed") { await this.operation; return; }
+		this.state = { type: "closed" };
+		if (active.type === "active" && active.mode === "conversation") this.options.onConversationActivity(false);
 		for (const socket of this.audioSockets.values()) socket.terminate();
 		this.audioSockets.clear();
 		for (const response of this.eventResponses.values()) response.end();
 		this.eventResponses.clear();
+		await this.operation;
 	}
 
 	private receive(clientId: string, socket: WebSocket, data: RawData, isBinary: boolean): void {
@@ -101,19 +111,14 @@ export class LanVoiceBrowserClients {
 			if (isBinary) { this.receiveAudio(clientId, socket, rawBuffer(data)); return; }
 			const text = rawBuffer(data).toString("utf8");
 			if (Buffer.byteLength(text) > MAX_CONTROL_BYTES) throw new Error("LAN voice control message is too large");
-			const message = JSON.parse(text) as Record<string, unknown>;
-			if (!message || typeof message !== "object" || Array.isArray(message)) throw new Error("Invalid LAN voice control message");
-			if (message["type"] === "start") {
-				const mode = message["mode"] === "dictation" ? "dictation" : "conversation";
-				void this.claim(clientId, socket, mode).catch((error: unknown) => this.sendSocketError(clientId, socket, error));
-			} else if (message["type"] === "finish") {
-				const draft = typeof message["draft"] === "string" ? message["draft"] : undefined;
-				const revision = typeof message["revision"] === "number" ? message["revision"] : undefined;
-				const selection = draft === undefined ? undefined : parseSelection(message, draft.length);
-				void this.finish(clientId, socket, draft, revision, selection).catch((error: unknown) => this.sendSocketError(clientId, socket, error));
-			} else if (message["type"] === "release") {
+			const message = decodeLanVoiceAudioCommand(JSON.parse(text));
+			if (message.type === "start") {
+				void this.claim(clientId, socket, message.mode).catch((error: unknown) => this.sendSocketError(clientId, socket, error));
+			} else if (message.type === "finish") {
+				void this.finish(clientId, socket, message.draft, message.revision, message.selection).catch((error: unknown) => this.sendSocketError(clientId, socket, error));
+			} else if (message.type === "release") {
 				this.release(clientId, socket);
-			} else if (message["type"] === "cancel") {
+			} else {
 				void this.options.cancelDictation(clientId).catch((error: unknown) => this.sendSocketError(clientId, socket, error));
 			}
 		} catch (error) {
@@ -124,8 +129,8 @@ export class LanVoiceBrowserClients {
 
 	private receiveAudio(clientId: string, socket: WebSocket, pcm: Buffer): void {
 		if (pcm.byteLength === 0 || pcm.byteLength > MAX_PCM_BYTES || pcm.byteLength % 2 !== 0) throw new Error("Invalid LAN voice PCM frame");
-		const active = this.active;
-		if (!active || active.clientId !== clientId || active.socket !== socket) return;
+		const active = this.state;
+		if (active.type !== "active" || active.clientId !== clientId || active.socket !== socket) return;
 		this.options.diagnostics.write("server", "audio.in", { clientId, mode: active.mode, bytes: pcm.byteLength });
 		if (active.mode === "conversation") this.options.onConversationAudio(pcm);
 		else this.options.onDictationAudio(clientId, pcm);
@@ -133,31 +138,37 @@ export class LanVoiceBrowserClients {
 
 	private claim(clientId: string, socket: WebSocket, mode: LanVoiceBrowserMode): Promise<void> {
 		return this.enqueue(async () => {
-			const previous = this.active;
+			if (this.isClosed()) return;
+			const previous = this.state.type === "active" ? this.state : undefined;
 			if (previous?.clientId === clientId && previous.socket === socket && previous.mode === mode) return;
-			this.active = undefined;
+			this.state = { type: "idle" };
 			if (previous && previous.socket !== socket) {
 				this.sendControl(previous.clientId, { type: "stop", reason: "replaced" });
 				previous.socket.close(4001, "replaced");
 			}
 			if (previous?.mode === "conversation" && mode !== "conversation") this.options.onConversationActivity(false);
 			if (previous?.mode === "dictation") await this.options.finishDictation(previous.clientId);
+			if (this.isClosed()) return;
 			if (mode === "conversation") await this.options.ensureConversation();
 			else await this.options.startDictation(clientId);
-			this.active = { clientId, socket, mode };
+			if (this.isClosed()) {
+				if (mode === "dictation") await this.options.cancelDictation(clientId);
+				return;
+			}
+			this.state = { type: "active", clientId, socket, mode };
 			if (previous?.mode !== "conversation" && mode === "conversation") this.options.onConversationActivity(true);
 			this.options.diagnostics.write("server", "audio.claim", { clientId, mode, previousClientId: previous?.clientId });
 			socket.send(JSON.stringify({ type: "active", mode }));
 		});
 	}
 
-	private finish(clientId: string, socket: WebSocket, draft?: string, revision?: number, selection?: LanVoiceDraftSelection): Promise<void> {
+	private finish(clientId: string, socket: WebSocket, draft: string, revision: number, selection: LanVoiceDraftSelection): Promise<void> {
 		return this.enqueue(async () => {
-			const active = this.active;
-			if (!active || active.clientId !== clientId || active.socket !== socket || active.mode !== "dictation") return;
-			this.active = undefined;
+			const active = this.state;
+			if (active.type !== "active" || active.clientId !== clientId || active.socket !== socket || active.mode !== "dictation") return;
+			this.state = { type: "idle" };
 			await this.options.finishDictation(clientId, draft, revision, selection);
-			if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "dictation.complete" }));
+			if (!this.isClosed() && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "dictation.complete" }));
 		});
 	}
 
@@ -167,19 +178,15 @@ export class LanVoiceBrowserClients {
 		if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "error", message }));
 	}
 
+	private isClosed(): boolean {
+		return this.state.type === "closed";
+	}
+
 	private enqueue<T>(action: () => Promise<T>): Promise<T> {
 		const result = this.operation.then(action, action);
 		this.operation = result.then(() => undefined, () => undefined);
 		return result;
 	}
-}
-
-function parseSelection(message: Record<string, unknown>, draftLength: number): LanVoiceDraftSelection | undefined {
-	const start = message["selectionStart"];
-	const end = message["selectionEnd"];
-	if (!Number.isInteger(start) || !Number.isInteger(end)) return undefined;
-	if (typeof start !== "number" || typeof end !== "number" || start < 0 || end < 0 || start > draftLength || end > draftLength) return undefined;
-	return { start, end };
 }
 
 function rawBuffer(data: RawData): Buffer {

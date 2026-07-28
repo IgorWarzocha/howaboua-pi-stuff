@@ -11,6 +11,7 @@ import { CodexVoiceController } from "../src/voice/controller.ts";
 import { CodexDictationTranscriber } from "../src/voice/dictation/transcriber.ts";
 import { LanVoiceActivity, type LanVoiceActivityMessage } from "../src/voice/lan/activity.ts";
 import { LanVoiceDraft, LanVoiceDraftConflictError } from "../src/voice/lan/draft.ts";
+import { decodeLanVoiceAudioCommand } from "../src/voice/lan/protocol.ts";
 import { startCodexLanVoiceServer } from "../src/voice/lan/server.ts";
 import { LanVoiceBridgePeer } from "../src/voice/lan/bridge-peer.ts";
 import { createLanVoiceWebUi } from "../src/voice/lan/web-ui.ts";
@@ -43,6 +44,27 @@ test("voice helper parser validates protocol payloads", () => {
 	assert.throws(() => parseVoiceHelperEvent({ type: "devices", inputs: ["input-1"], outputs: [] }), /Invalid Codex voice helper/);
 	assert.throws(() => parseVoiceHelperEvent({ type: "surprise" }), /Invalid Codex voice helper/);
 });
+
+test("LAN audio command decoder rejects ambiguous browser input", () => {
+	assert.deepEqual(decodeLanVoiceAudioCommand({ type: "start", mode: "conversation" }), { type: "start", mode: "conversation" });
+	assert.deepEqual(decodeLanVoiceAudioCommand({
+		type: "finish",
+		draft: "hello",
+		revision: 2,
+		selectionStart: 1,
+		selectionEnd: 4,
+	}), {
+		type: "finish",
+		draft: "hello",
+		revision: 2,
+		selection: { start: 1, end: 4 },
+	});
+	assert.throws(() => decodeLanVoiceAudioCommand({ type: "start" }), /Invalid LAN voice control message/);
+	assert.throws(() => decodeLanVoiceAudioCommand({ type: "start", mode: "surprise" }), /Invalid LAN voice control message/);
+	assert.throws(() => decodeLanVoiceAudioCommand({ type: "finish", draft: "hello", revision: 2, selectionStart: 0, selectionEnd: 6 }), /Invalid LAN voice control message/);
+	assert.throws(() => decodeLanVoiceAudioCommand({ type: "surprise" }), /Invalid LAN voice control message/);
+});
+
 test("voice helper JSONL parser bounds unterminated frames", () => {
 	const lines: string[] = [];
 	let oversized = 0;
@@ -276,12 +298,12 @@ test("LAN voice transfers audio ownership without restarting its realtime sessio
 		url.hostname = "127.0.0.1";
 		first = await openAudioSocket(new URL("/api/audio?client=first", url));
 		const firstActive = nextSocketJson(first);
-		first.send(JSON.stringify({ type: "start" }));
+		first.send(JSON.stringify({ type: "start", mode: "conversation" }));
 		assert.deepEqual(await firstActive, { type: "active", mode: "conversation" });
 		second = await openAudioSocket(new URL("/api/audio?client=second", url));
 		const firstClosed = socketClosed(first);
 		const secondActive = nextSocketJson(second);
-		second.send(JSON.stringify({ type: "start" }));
+		second.send(JSON.stringify({ type: "start", mode: "conversation" }));
 		assert.deepEqual(await secondActive, { type: "active", mode: "conversation" });
 		assert.equal((await firstClosed).code, 4001);
 		assert.deepEqual(activity, [true]);
@@ -293,13 +315,57 @@ test("LAN voice transfers audio ownership without restarting its realtime sessio
 		await waitFor(() => activity.length === 2);
 		assert.deepEqual(activity, [true, false]);
 		const resumed = nextSocketJson(second);
-		second.send(JSON.stringify({ type: "start" }));
+		second.send(JSON.stringify({ type: "start", mode: "conversation" }));
 		assert.deepEqual(await resumed, { type: "active", mode: "conversation" });
 		assert.equal(upstreamStarts, 1);
 		assert.deepEqual(activity, [true, false, true]);
 	} finally {
 		first?.close();
 		second?.close();
+		await server.close();
+		await rm(agentDir, { recursive: true, force: true });
+	}
+});
+
+test("LAN voice shutdown drains an in-flight browser acquisition", async () => {
+	const agentDir = await mkdtemp(join(tmpdir(), "pi-lan-voice-shutdown-"));
+	const startEntered = Promise.withResolvers<void>();
+	const allowStart = Promise.withResolvers<void>();
+	const conversation = {};
+	let stoppedConversation: unknown;
+	const server = await startCodexLanVoiceServer({
+		ctx: { isIdle: () => true, sessionManager: { getSessionId: () => "owner" } } as never,
+		getConfig: () => ({}) as never,
+		voice: {
+			startRealtimeWithPeer: async () => {
+				startEntered.resolve();
+				await allowStart.promise;
+				return conversation;
+			},
+			setConversationInputActive: () => {},
+			stopConversation: async (active: unknown) => { stoppedConversation = active; },
+		} as never,
+		resolveAuth: async () => ({}) as never,
+		sendUserMessage: () => {},
+		ownerSessionId: "owner",
+		port: 0,
+		certificateAgentDir: agentDir,
+	});
+	const url = new URL(server.urls[0]!);
+	url.hostname = "127.0.0.1";
+	const socket = await openAudioSocket(new URL("/api/audio?client=closing", url));
+	try {
+		socket.send(JSON.stringify({ type: "start", mode: "conversation" }));
+		await startEntered.promise;
+		const firstClose = server.close();
+		const secondClose = server.close();
+		assert.strictEqual(secondClose, firstClose);
+		allowStart.resolve();
+		await firstClose;
+		assert.strictEqual(stoppedConversation, conversation);
+	} finally {
+		allowStart.resolve();
+		socket.close();
 		await server.close();
 		await rm(agentDir, { recursive: true, force: true });
 	}

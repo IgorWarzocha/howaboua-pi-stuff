@@ -38,8 +38,8 @@ export async function startCodexLanVoiceServer(options: {
 	port?: number | undefined;
 	certificateAgentDir: string;
 }): Promise<CodexLanVoiceServer> {
-	const diagnostics = createLanVoiceDiagnostics(options.certificateAgentDir);
 	const certificate = resolveLanVoiceCertificate(options.certificateAgentDir);
+	const diagnostics = createLanVoiceDiagnostics(options.certificateAgentDir);
 	const ownerIsActive = () => options.ctx.sessionManager.getSessionId() === options.ownerSessionId;
 	let upstreamPeer: LanVoiceBridgePeer | undefined;
 	let conversation: CodexRealtimeConversation | undefined;
@@ -144,9 +144,10 @@ export async function startCodexLanVoiceServer(options: {
 	try {
 		await listen(server, options.port ?? PORT);
 	} catch (error) {
-		clients.close();
+		const clientsClosing = clients.close();
 		webSockets.close();
 		server.closeAllConnections();
+		await Promise.allSettled([clientsClosing, dictation.close(), upstreamPeer?.close()]);
 		await diagnostics.close();
 		throw error;
 	}
@@ -154,6 +155,34 @@ export async function startCodexLanVoiceServer(options: {
 	const address = server.address() as AddressInfo;
 	const urls = lanVoiceUrls(certificate.hostnames, certificate.ipAddresses, address.port);
 	diagnostics.write("server", "listening", { address, urls });
+	let closePromise: Promise<void> | undefined;
+	const closeServer = async (): Promise<void> => {
+		closing = true;
+		clearInterval(heartbeat);
+		const firstConversation = conversation;
+		const firstPeer = upstreamPeer;
+		const clientsClosing = clients.close();
+		const upstreamClosing = firstConversation
+			? options.voice.stopConversation(firstConversation, { announce: true })
+			: firstPeer?.close() ?? Promise.resolve();
+		const failures: unknown[] = [];
+		await collectFailures([clientsClosing, dictation.close(), upstreamClosing], failures);
+		const remainingConversation = conversation;
+		const remainingPeer = upstreamPeer;
+		clearUpstream();
+		if (remainingConversation && remainingConversation !== firstConversation) {
+			await collectFailures([options.voice.stopConversation(remainingConversation, { announce: true })], failures);
+		} else if (remainingPeer && remainingPeer !== firstPeer) {
+			await collectFailures([remainingPeer.close()], failures);
+		}
+		await collectFailures([
+			new Promise<void>((resolve) => webSockets.close(() => resolve())),
+			new Promise<void>((resolve) => { server.close(() => resolve()); server.closeAllConnections(); }),
+		], failures);
+		await collectFailures([diagnostics.close()], failures);
+		if (failures.length === 1) throw failures[0];
+		if (failures.length > 1) throw new AggregateError(failures, "LAN voice server cleanup failed");
+	};
 
 	return {
 		ownerSessionId: options.ownerSessionId,
@@ -161,22 +190,16 @@ export async function startCodexLanVoiceServer(options: {
 		logPath: diagnostics.path,
 		agentStarted: () => activity.working(),
 		agentSettled: (text) => activity.settled(text),
-		async close() {
-			if (closing) return;
-			closing = true;
-			clearInterval(heartbeat);
-			const activeConversation = conversation;
-			const peer = upstreamPeer;
-			clearUpstream();
-			if (activeConversation) await options.voice.stopConversation(activeConversation, { announce: true });
-			else await peer?.close();
-			clients.close();
-			await dictation.close();
-			await new Promise<void>((resolve) => webSockets.close(() => resolve()));
-			await new Promise<void>((resolve) => { server.close(() => resolve()); server.closeAllConnections(); });
-			await diagnostics.close();
+		close() {
+			closePromise ??= closeServer();
+			return closePromise;
 		},
 	};
+}
+
+async function collectFailures(promises: ReadonlyArray<Promise<unknown> | undefined>, failures: unknown[]): Promise<void> {
+	const settled = await Promise.allSettled(promises.filter((promise): promise is Promise<unknown> => promise !== undefined));
+	for (const result of settled) if (result.status === "rejected") failures.push(result.reason);
 }
 
 function configureServerDiagnostics(server: HttpsServer, write: (source: "server", event: string, data?: unknown) => void): void {
