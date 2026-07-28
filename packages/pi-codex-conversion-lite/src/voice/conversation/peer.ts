@@ -1,5 +1,4 @@
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
-import type { CodexVoiceAuth } from "../auth.ts";
 
 export type CodexRealtimePeerEvent =
 	| { type: "state"; state: string }
@@ -20,9 +19,4 @@ export interface CodexRealtimeWebRtcPeer extends CodexRealtimePeerBase {
 	applyAnswer(sdp: string): void;
 }
 
-export interface CodexRealtimeSessionPeer extends CodexRealtimePeerBase {
-	readonly kind: "session";
-	startSession(auth: CodexVoiceAuth, config: CodexConversionConfig, instructions: string): Promise<void>;
-}
-
-export type CodexRealtimePeer = CodexRealtimeWebRtcPeer | CodexRealtimeSessionPeer;
+export type CodexRealtimePeer = CodexRealtimeWebRtcPeer;

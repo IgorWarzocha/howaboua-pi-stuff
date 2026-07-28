@@ -6,13 +6,13 @@ import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import type { CodexVoiceAuth } from "../auth.ts";
 import type { CodexVoiceController } from "../controller.ts";
 import type { CodexRealtimeConversation } from "../conversation/session.ts";
+import { LanVoiceBridgePeer } from "./bridge-peer.ts";
 import { LanVoiceBrowserClients, MAX_PCM_BYTES } from "./browser-clients.ts";
 import { resolveLanVoiceCertificate } from "./certificate.ts";
 import { createLanVoiceDiagnostics } from "./diagnostics.ts";
 import { LanVoiceDictation } from "./dictation.ts";
 import { LanVoiceDraft, LanVoiceDraftConflictError } from "./draft.ts";
 import { boundedString, handleLanVoiceHttpRequest } from "./http-handler.ts";
-import { LanVoiceUpstreamPeer } from "./upstream-peer.ts";
 
 const PORT = 43_120;
 const HEARTBEAT_MS = 15_000;
@@ -37,7 +37,7 @@ export async function startCodexLanVoiceServer(options: {
 	const diagnostics = createLanVoiceDiagnostics(options.certificateAgentDir);
 	const certificate = resolveLanVoiceCertificate(options.certificateAgentDir);
 	const ownerIsActive = () => options.ctx.sessionManager.getSessionId() === options.ownerSessionId;
-	let upstreamPeer: LanVoiceUpstreamPeer | undefined;
+	let upstreamPeer: LanVoiceBridgePeer | undefined;
 	let conversation: CodexRealtimeConversation | undefined;
 	let closing = false;
 	let clients!: LanVoiceBrowserClients;
@@ -52,15 +52,15 @@ export async function startCodexLanVoiceServer(options: {
 		onError: (clientId, error) => clients.sendControl(clientId, { type: "error", message: error.message }),
 	});
 
-	const clearUpstream = (peer?: LanVoiceUpstreamPeer): void => {
+	const clearUpstream = (peer?: LanVoiceBridgePeer): void => {
 		if (peer && upstreamPeer !== peer) return;
 		upstreamPeer = undefined;
 		conversation = undefined;
 	};
 	const ensureConversation = async (): Promise<void> => {
 		if (conversation && upstreamPeer) return;
-		let peer!: LanVoiceUpstreamPeer;
-		peer = new LanVoiceUpstreamPeer(diagnostics, (pcm) => clients.sendConversationAudio(pcm));
+		let peer!: LanVoiceBridgePeer;
+		peer = new LanVoiceBridgePeer(diagnostics, (pcm) => clients.sendConversationAudio(pcm));
 		peer.onExit(() => clearUpstream(peer));
 		upstreamPeer = peer;
 		const started = await options.voice.startRealtimeWithPeer(options.ctx, options.getConfig(), peer);

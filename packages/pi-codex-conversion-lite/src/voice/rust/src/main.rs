@@ -67,12 +67,20 @@ async fn main() -> Result<()> {
                             state: "connecting",
                         })
                         .await?;
-                    let (created, sdp) = v3::V3Session::create(
-                        microphone.as_deref(),
-                        speaker.as_deref(),
-                        events_tx.clone(),
-                    )
-                    .await?;
+                    let (created, sdp) =
+                        v3::V3Session::create_devices(microphone, speaker, events_tx.clone())
+                            .await?;
+                    session = Session::V3(created);
+                    events_tx.send(Event::Offer { sdp }).await?;
+                }
+                Command::StartV3Bridge => {
+                    stop(&mut session).await?;
+                    events_tx
+                        .send(Event::State {
+                            state: "connecting",
+                        })
+                        .await?;
+                    let (created, sdp) = v3::V3Session::create_bridge(events_tx.clone()).await?;
                     session = Session::V3(created);
                     events_tx.send(Event::Offer { sdp }).await?;
                 }
@@ -143,6 +151,14 @@ async fn main() -> Result<()> {
                 Command::SendData { message } => match &session {
                     Session::V3(active) => active.send(message).await?,
                     _ => anyhow::bail!("data messages require an active V3 session"),
+                },
+                Command::SendPcm {
+                    audio,
+                    sample_rate,
+                    num_channels,
+                } => match &session {
+                    Session::V3(active) => active.send_pcm(&audio, sample_rate, num_channels)?,
+                    _ => anyhow::bail!("PCM input requires an active V3 session"),
                 },
                 Command::Stop => {
                     stop(&mut session).await?;

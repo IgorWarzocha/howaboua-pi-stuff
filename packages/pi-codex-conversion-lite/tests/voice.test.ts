@@ -6,17 +6,17 @@ import { join } from "node:path";
 import test from "node:test";
 import { WebSocket } from "ws";
 import type { WebSocketLike } from "../src/providers/openai-codex/types.ts";
-import { BoundedJsonlReader, parseVoiceHelperEvent } from "../src/voice/helper.ts";
+import { BoundedJsonlReader, parseVoiceHelperEvent, type VoiceHelperCommand, type VoiceHelperEvent } from "../src/voice/helper.ts";
 import { CodexVoiceController } from "../src/voice/controller.ts";
 import { CodexDictationTranscriber } from "../src/voice/dictation/transcriber.ts";
 import { LanVoiceDraft, LanVoiceDraftConflictError } from "../src/voice/lan/draft.ts";
 import { startCodexLanVoiceServer } from "../src/voice/lan/server.ts";
-import { LanVoiceUpstreamPeer } from "../src/voice/lan/upstream-peer.ts";
+import { LanVoiceBridgePeer } from "../src/voice/lan/bridge-peer.ts";
 import { CodexVoiceSessionMessages } from "../src/voice/session-messages.ts";
 import { loadCodexVoiceSystemPrompt } from "../src/voice/system-prompt.ts";
 
 test("voice helper parser validates protocol payloads", () => {
-	assert.deepEqual(parseVoiceHelperEvent({ type: "ready", version: 2 }), { type: "ready", version: 2 });
+	assert.deepEqual(parseVoiceHelperEvent({ type: "ready", version: 3 }), { type: "ready", version: 3 });
 	assert.deepEqual(parseVoiceHelperEvent({
 		type: "devices",
 		inputs: [{ id: "input-1", name: "USB microphone", is_default: true }],
@@ -102,37 +102,32 @@ test("realtime prompt always exposes the connected Pi runtime", async () => {
 	}
 });
 
-test("LAN upstream keeps audio and realtime events on one V3 WebSocket", async () => {
-	const socket = new FakeWebSocket();
-	const sentAudio: Buffer[] = [];
-	let connectedUrl = "";
-	const peer = new LanVoiceUpstreamPeer(
+test("LAN bridge routes PCM through one helper-owned V3 WebRTC peer", async () => {
+	const helper = new FakeVoiceHelper();
+	const output: Buffer[] = [];
+	const events: unknown[] = [];
+	const peer = new LanVoiceBridgePeer(
 		{ path: "", write: () => {}, close: async () => {} },
-		(pcm) => sentAudio.push(pcm),
-		async (url) => { connectedUrl = url; return socket; },
+		(pcm) => output.push(pcm),
+		helper,
 	);
-	const starting = peer.startSession({
-		headers: new Headers({ authorization: "Bearer test" }),
-		baseUrl: "https://chatgpt.com/backend-api/codex",
-		officialCodex: true,
-	}, { voice: { v3Voice: "maple" } } as never, "voice instructions");
+	peer.onEvent((event) => events.push(event));
+	const starting = peer.start({} as never);
 	await new Promise((resolve) => setTimeout(resolve, 0));
-	assert.equal(connectedUrl, "wss://chatgpt.com/backend-api/codex?model=gpt-live-1-boulder-alpha");
-	assert.deepEqual(JSON.parse(socket.sent[0]!), {
-		type: "session.update",
-		session: {
-			instructions: "voice instructions",
-			audio: { output: { voice: "maple" } },
-			delegation: { type: "client" },
-		},
-	});
-	socket.emit("message", { data: JSON.stringify({ type: "session.started" }) });
-	await starting;
+	assert.deepEqual(helper.sent, [{ type: "start_v3_bridge" }]);
+	helper.emit({ type: "offer", sdp: "offer" });
+	assert.equal(await starting, "offer");
+	peer.applyAnswer("answer");
 	peer.sendAudio(Buffer.from([1, 0, 2, 0]));
-	assert.deepEqual(JSON.parse(socket.sent[1]!), { type: "input_audio.append", audio: "AQACAA==" });
-	socket.emit("message", { data: JSON.stringify({ type: "output_audio.delta", audio: "AwAEAA==" }) });
-	await new Promise((resolve) => setTimeout(resolve, 0));
-	assert.deepEqual(sentAudio, [Buffer.from([3, 0, 4, 0])]);
+	helper.emit({ type: "pcm", audio: "AwAEAA==", sample_rate: 24_000, num_channels: 1 });
+	helper.emit({ type: "data", message: { type: "session.started" } });
+	assert.deepEqual(helper.sent, [
+		{ type: "start_v3_bridge" },
+		{ type: "apply_answer", sdp: "answer" },
+		{ type: "send_pcm", audio: "AQACAA==", sample_rate: 24_000, num_channels: 1 },
+	]);
+	assert.deepEqual(output, [Buffer.from([3, 0, 4, 0])]);
+	assert.deepEqual(events, [{ type: "data", message: { type: "session.started" } }]);
 	await peer.close();
 });
 
@@ -192,7 +187,7 @@ test("LAN voice transfers audio ownership without restarting its realtime sessio
 		ctx: { sessionManager: { getSessionId: () => "owner" } } as never,
 		getConfig: () => ({}) as never,
 		voice: {
-			startRealtimeWithPeer: async (_ctx: unknown, _config: unknown, peer: LanVoiceUpstreamPeer) => {
+			startRealtimeWithPeer: async (_ctx: unknown, _config: unknown, peer: LanVoiceBridgePeer) => {
 				upstreamStarts += 1;
 				peer.sendAudio = (pcm) => audio.push(pcm);
 				return conversation;
@@ -348,6 +343,27 @@ function nextSocketJson(socket: WebSocket): Promise<unknown> {
 
 function socketClosed(socket: WebSocket): Promise<{ code: number; reason: string }> {
 	return new Promise((resolve) => socket.once("close", (code, reason) => resolve({ code, reason: reason.toString() })));
+}
+
+class FakeVoiceHelper {
+	readonly protocolVersion = 3;
+	readonly sent: VoiceHelperCommand[] = [];
+	private readonly eventListeners = new Set<(event: VoiceHelperEvent) => void>();
+	private readonly exitListeners = new Set<(error: Error) => void>();
+	async start(): Promise<void> {}
+	send(command: VoiceHelperCommand): void { this.sent.push(command); }
+	onEvent(listener: (event: VoiceHelperEvent) => void): () => void {
+		this.eventListeners.add(listener);
+		return () => this.eventListeners.delete(listener);
+	}
+	onExit(listener: (error: Error) => void): () => void {
+		this.exitListeners.add(listener);
+		return () => this.exitListeners.delete(listener);
+	}
+	async close(): Promise<void> {}
+	emit(event: VoiceHelperEvent): void {
+		for (const listener of this.eventListeners) listener(event);
+	}
 }
 
 class FakeWebSocket implements WebSocketLike {

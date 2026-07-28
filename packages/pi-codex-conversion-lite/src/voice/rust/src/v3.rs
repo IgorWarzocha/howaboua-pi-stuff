@@ -2,9 +2,13 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64;
 use bytes::Bytes;
+use crossbeam_queue::ArrayQueue;
 use serde_json::Value;
 use tokio::sync::mpsc;
+use tokio::sync::mpsc::error::TrySendError;
 use webrtc::api::APIBuilder;
 use webrtc::api::interceptor_registry::register_default_interceptors;
 use webrtc::api::media_engine::{MIME_TYPE_OPUS, MediaEngine};
@@ -21,29 +25,102 @@ use webrtc::track::track_local::TrackLocal;
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
 
 use crate::audio::{self, Capture, Playback};
-use crate::protocol::{Event, MAX_DATA_MESSAGE_BYTES};
+use crate::protocol::{Event, MAX_DATA_MESSAGE_BYTES, MAX_PCM_BYTES};
 use crate::resample::LinearResampler;
 
 const OPUS_RATE: u32 = 48_000;
 const OPUS_FRAME_SAMPLES: usize = 960;
+const BRIDGE_RATE: u32 = 24_000;
+const BRIDGE_FRAME_SAMPLES: usize = 480;
+const BRIDGE_QUEUE_SAMPLES: usize = BRIDGE_RATE as usize * 2;
+
+enum V3Audio {
+    Devices {
+        microphone: Option<String>,
+        speaker: Option<String>,
+    },
+    Bridge,
+}
+
+enum V3Output {
+    Device {
+        samples: Arc<ArrayQueue<f32>>,
+        sample_rate: u32,
+    },
+    Bridge {
+        events: mpsc::Sender<Event>,
+    },
+}
 
 pub struct V3Session {
     peer: Arc<RTCPeerConnection>,
     data_channel: Arc<RTCDataChannel>,
     capture_task: tokio::task::JoinHandle<()>,
     encoder_task: tokio::task::JoinHandle<()>,
-    _capture: Capture,
-    _playback: Playback,
+    input_samples: Arc<ArrayQueue<f32>>,
+    bridge: bool,
+    _capture: Option<Capture>,
+    _playback: Option<Playback>,
 }
 
 impl V3Session {
-    pub async fn create(
-        microphone: Option<&str>,
-        speaker: Option<&str>,
+    pub async fn create_devices(
+        microphone: Option<String>,
+        speaker: Option<String>,
         events: mpsc::Sender<Event>,
     ) -> Result<(Self, String)> {
-        let capture = audio::capture(microphone)?;
-        let playback = audio::playback(speaker)?;
+        Self::create(
+            V3Audio::Devices {
+                microphone,
+                speaker,
+            },
+            events,
+        )
+        .await
+    }
+
+    pub async fn create_bridge(events: mpsc::Sender<Event>) -> Result<(Self, String)> {
+        Self::create(V3Audio::Bridge, events).await
+    }
+
+    async fn create(audio_mode: V3Audio, events: mpsc::Sender<Event>) -> Result<(Self, String)> {
+        let (capture, playback, input_samples, input_rate, output, bridge) = match audio_mode {
+            V3Audio::Devices {
+                microphone,
+                speaker,
+            } => {
+                let capture = audio::capture(microphone.as_deref())?;
+                let playback = audio::playback(speaker.as_deref())?;
+                let input_samples = Arc::clone(&capture.samples);
+                let input_rate = capture.sample_rate;
+                let output = V3Output::Device {
+                    samples: Arc::clone(&playback.samples),
+                    sample_rate: playback.sample_rate,
+                };
+                (
+                    Some(capture),
+                    Some(playback),
+                    input_samples,
+                    input_rate,
+                    output,
+                    false,
+                )
+            }
+            V3Audio::Bridge => {
+                let input_samples = Arc::new(ArrayQueue::new(BRIDGE_QUEUE_SAMPLES));
+                (
+                    None,
+                    None,
+                    input_samples,
+                    BRIDGE_RATE,
+                    V3Output::Bridge {
+                        events: events.clone(),
+                    },
+                    true,
+                )
+            }
+        };
+
         let mut media_engine = MediaEngine::default();
         media_engine.register_default_codecs()?;
         let registry = register_default_interceptors(Registry::new(), &mut media_engine)?;
@@ -117,18 +194,33 @@ impl V3Session {
             })
         }));
 
-        let playback_queue = Arc::clone(&playback.samples);
-        let playback_rate = playback.sample_rate;
         peer.on_track(Box::new(move |remote, _, _| {
-            let playback_queue = Arc::clone(&playback_queue);
+            let output = match &output {
+                V3Output::Device {
+                    samples,
+                    sample_rate,
+                } => V3Output::Device {
+                    samples: Arc::clone(samples),
+                    sample_rate: *sample_rate,
+                },
+                V3Output::Bridge { events } => V3Output::Bridge {
+                    events: events.clone(),
+                },
+            };
             Box::pin(async move {
                 let Ok(mut decoder) = opus::Decoder::new(OPUS_RATE, opus::Channels::Stereo) else {
                     return;
                 };
-                let Ok(mut resampler) = LinearResampler::new(OPUS_RATE, playback_rate) else {
+                let output_rate = match &output {
+                    V3Output::Device { sample_rate, .. } => *sample_rate,
+                    V3Output::Bridge { .. } => BRIDGE_RATE,
+                };
+                let Ok(mut resampler) = LinearResampler::new(OPUS_RATE, output_rate) else {
                     return;
                 };
                 let mut decoded = vec![0_f32; OPUS_FRAME_SAMPLES * 2 * 6];
+                let mut converted = Vec::new();
+                let mut pending = Vec::new();
                 while let Ok((packet, _)) = remote.read_rtp().await {
                     let Ok(samples_per_channel) =
                         decoder.decode_float(&packet.payload, &mut decoded, false)
@@ -139,17 +231,42 @@ impl V3Session {
                     for pair in decoded[..samples_per_channel * 2].chunks_exact(2) {
                         mono.push((pair[0] + pair[1]) * 0.5);
                     }
-                    let mut converted = Vec::new();
+                    converted.clear();
                     resampler.process(&mono, &mut converted);
-                    for sample in converted {
-                        let _ = playback_queue.push(sample);
+                    match &output {
+                        V3Output::Device { samples, .. } => {
+                            for sample in &converted {
+                                let _ = samples.push(*sample);
+                            }
+                        }
+                        V3Output::Bridge { events } => {
+                            pending.extend_from_slice(&converted);
+                            while pending.len() >= BRIDGE_FRAME_SAMPLES {
+                                let frame: Vec<f32> =
+                                    pending.drain(..BRIDGE_FRAME_SAMPLES).collect();
+                                let mut bytes = Vec::with_capacity(BRIDGE_FRAME_SAMPLES * 2);
+                                for sample in frame {
+                                    bytes.extend_from_slice(
+                                        &((sample.clamp(-1.0, 1.0) * i16::MAX as f32) as i16)
+                                            .to_le_bytes(),
+                                    );
+                                }
+                                match events.try_send(Event::Pcm {
+                                    audio: BASE64.encode(bytes),
+                                    sample_rate: BRIDGE_RATE,
+                                    num_channels: 1,
+                                }) {
+                                    Ok(()) | Err(TrySendError::Full(_)) => {}
+                                    Err(TrySendError::Closed(_)) => return,
+                                }
+                            }
+                        }
                     }
                 }
             })
         }));
 
-        let capture_queue = Arc::clone(&capture.samples);
-        let capture_rate = capture.sample_rate;
+        let encoder_samples = Arc::clone(&input_samples);
         let encoder_task = tokio::spawn(async move {
             let mut encoder = match opus::Encoder::new(
                 OPUS_RATE,
@@ -159,7 +276,7 @@ impl V3Session {
                 Ok(value) => value,
                 Err(_) => return,
             };
-            let mut resampler = match LinearResampler::new(capture_rate, OPUS_RATE) {
+            let mut resampler = match LinearResampler::new(input_rate, OPUS_RATE) {
                 Ok(value) => value,
                 Err(_) => return,
             };
@@ -170,7 +287,7 @@ impl V3Session {
             loop {
                 ticker.tick().await;
                 source.clear();
-                audio::drain(&capture_queue, capture_rate as usize / 50, &mut source);
+                audio::drain(&encoder_samples, input_rate as usize / 50, &mut source);
                 resampler.process(&source, &mut pending);
                 while pending.len() >= OPUS_FRAME_SAMPLES {
                     let frame: Vec<f32> = pending.drain(..OPUS_FRAME_SAMPLES).collect();
@@ -207,6 +324,8 @@ impl V3Session {
                 data_channel,
                 capture_task,
                 encoder_task,
+                input_samples,
+                bridge,
                 _capture: capture,
                 _playback: playback,
             },
@@ -225,6 +344,28 @@ impl V3Session {
         self.data_channel
             .send_text(serde_json::to_string(&message)?)
             .await?;
+        Ok(())
+    }
+
+    pub fn send_pcm(&self, audio: &str, sample_rate: u32, num_channels: u16) -> Result<()> {
+        if !self.bridge {
+            anyhow::bail!("PCM input requires a bridged V3 session");
+        }
+        if sample_rate != BRIDGE_RATE || num_channels != 1 {
+            anyhow::bail!("V3 bridge PCM must be 24 kHz mono audio");
+        }
+        let bytes = BASE64.decode(audio).context("invalid V3 bridge PCM")?;
+        if bytes.is_empty() || bytes.len() > MAX_PCM_BYTES || bytes.len() % 2 != 0 {
+            anyhow::bail!("invalid V3 bridge PCM frame");
+        }
+        for bytes in bytes.chunks_exact(2) {
+            let raw = i16::from_le_bytes([bytes[0], bytes[1]]);
+            let sample = raw as f32 / if raw < 0 { 32_768.0 } else { 32_767.0 };
+            if self.input_samples.push(sample).is_err() {
+                let _ = self.input_samples.pop();
+                let _ = self.input_samples.push(sample);
+            }
+        }
         Ok(())
     }
 
