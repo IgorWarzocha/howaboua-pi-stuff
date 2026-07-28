@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-extensions",
-	"version": "0.0.42",
+	"version": "0.0.43",
 	"description": "all Howaboua Pi extensions",
 	"type": "module",
 	"keywords": [

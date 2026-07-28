@@ -1,5 +1,11 @@
 # @howaboua/pi-codex-conversion-lite
 
+## 0.1.9
+
+### Changes
+
+- [#191](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/191) [`1605b4b`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/1605b4b9caaed055bbd9a0d8a72142b15af29a0f) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Recover failed Codex WebSocket sessions through SSE until successful compaction restores cached WebSockets. Serialize patch mutations, retain partial patch errors, and accept model-style image paths
+
 ## 0.1.8
 
 ### Changes

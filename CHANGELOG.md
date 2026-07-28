@@ -57,19 +57,19 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 2.2.27
+### @howaboua/pi-codex-conversion — 2.2.28
 
 ### Changes
 
-- [#188](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/188) [`e9f30ea`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/e9f30ea4455057e4c32b697043b107a97bcbcf88) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Keep Codex WebSocket continuations alive through the backend cache window so delayed compaction can reuse the hot context.
+- [#191](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/191) [`1605b4b`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/1605b4b9caaed055bbd9a0d8a72142b15af29a0f) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Recover failed Codex WebSocket sessions through SSE until successful compaction restores cached WebSockets. Serialize patch mutations, retain partial patch errors, and accept model-style image paths
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion-lite — 0.1.8
+### @howaboua/pi-codex-conversion-lite — 0.1.9
 
 ### Changes
 
-- [#188](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/188) [`e9f30ea`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/e9f30ea4455057e4c32b697043b107a97bcbcf88) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Keep Codex WebSocket continuations alive through the backend cache window so delayed compaction can reuse the hot context.
+- [#191](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/191) [`1605b4b`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/1605b4b9caaed055bbd9a0d8a72142b15af29a0f) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Recover failed Codex WebSocket sessions through SSE until successful compaction restores cached WebSockets. Serialize patch mutations, retain partial patch errors, and accept model-style image paths
 
 [Full changelog](./packages/pi-codex-conversion-lite/CHANGELOG.md)
 
@@ -89,13 +89,13 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.42
+### @howaboua/pi-extensions — 0.0.43
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-codex-conversion-lite: Keep Codex WebSocket continuations alive through the backend cache window so delayed compaction can reuse the hot context.
+  - @howaboua/pi-codex-conversion-lite: Recover failed Codex WebSocket sessions through SSE until successful compaction restores cached WebSockets. Serialize patch mutations, retain partial patch errors, and accept model-style image paths.
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
@@ -232,13 +232,13 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.44
+### @howaboua/pi-stuff — 0.0.45
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-codex-conversion-lite: Keep Codex WebSocket continuations alive through the backend cache window so delayed compaction can reuse the hot context.
+  - @howaboua/pi-codex-conversion-lite: Recover failed Codex WebSocket sessions through SSE until successful compaction restores cached WebSockets. Serialize patch mutations, retain partial patch errors, and accept model-style image paths.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 
