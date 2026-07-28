@@ -11,6 +11,7 @@ import { CodexVoiceController } from "../src/voice/controller.ts";
 import { CodexDictationTranscriber } from "../src/voice/dictation/transcriber.ts";
 import { LanVoiceActivity, type LanVoiceActivityMessage } from "../src/voice/lan/activity.ts";
 import { LanVoiceDraft, LanVoiceDraftConflictError } from "../src/voice/lan/draft.ts";
+import { LanVoiceDictation } from "../src/voice/lan/dictation.ts";
 import { decodeLanVoiceAudioCommand } from "../src/voice/lan/protocol.ts";
 import { startCodexLanVoiceServer } from "../src/voice/lan/server.ts";
 import { LanVoiceBridgePeer } from "../src/voice/lan/bridge-peer.ts";
@@ -159,6 +160,58 @@ test("LAN realtime acquisition can interrupt stalled provider auth", async () =>
 	assert.equal(await starting, undefined);
 	assert.equal(controller.status, "idle");
 	assert.equal(peerCloses, 1);
+});
+
+test("superseding LAN realtime acquisition closes its supplied peer", async () => {
+	const providerAuth = Promise.withResolvers<unknown>();
+	const authEntered = Promise.withResolvers<void>();
+	let peerCloses = 0;
+	const token = `e30.${Buffer.from(JSON.stringify({ "https://api.openai.com/auth": { chatgpt_account_id: "acct-test" } })).toString("base64url")}.sig`;
+	const controller = new CodexVoiceController({ sendMessage: () => {} } as never);
+	const ctx = {
+		cwd: "/tmp",
+		isIdle: () => true,
+		isProjectTrusted: () => false,
+		modelRegistry: { getProviderAuth: () => { authEntered.resolve(); return providerAuth.promise; } },
+		sessionManager: { getSessionId: () => "owner" },
+		ui: {
+			setStatus: () => {},
+			notify: () => {},
+			theme: { fg: (_color: string, text: string) => text },
+		},
+	} as never;
+	const peer = {
+		kind: "webrtc",
+		onEvent: () => () => {},
+		onExit: () => () => {},
+		sendData: () => {},
+		start: async () => "offer",
+		applyAnswer: () => {},
+		close: async () => { peerCloses += 1; },
+	} as never;
+	const starting = controller.startRealtimeWithPeer(ctx, { voice: {} } as never, peer);
+	await authEntered.promise;
+	await controller.stop();
+	providerAuth.resolve({ auth: { apiKey: token } });
+	assert.equal(await starting, undefined);
+	assert.equal(peerCloses, 1);
+});
+
+test("LAN dictation shutdown interrupts stalled provider auth", async () => {
+	const authEntered = Promise.withResolvers<void>();
+	const dictation = new LanVoiceDictation({
+		resolveAuth: () => {
+			authEntered.resolve();
+			return new Promise<never>(() => {});
+		},
+		diagnostics: { path: "", write: () => {}, close: async () => {} },
+		onError: () => {},
+	});
+	const starting = dictation.start("phone");
+	const rejected = assert.rejects(starting, /cancelled/);
+	await authEntered.promise;
+	await dictation.close();
+	await rejected;
 });
 
 test("realtime prompt always exposes the connected Pi runtime", async () => {

@@ -1,6 +1,7 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import { resolveCodexVoiceAuth } from "./auth.ts";
+import { CANCELLED, interruptible } from "./cancellation.ts";
 import type { CodexRealtimeConversation } from "./conversation/session.ts";
 import type { CodexRealtimePeer } from "./conversation/peer.ts";
 import type { CodexDictationSession } from "./dictation/session.ts";
@@ -10,7 +11,6 @@ import { getProjectCodexVoiceSystemPromptPath, loadCodexVoiceSystemPrompt } from
 import type { CodexVoiceMode } from "./ui.ts";
 
 type VoiceSession = CodexRealtimeConversation | CodexDictationSession;
-const START_CANCELLED = Symbol("voice-start-cancelled");
 type VoiceState =
 	| { type: "idle" }
 	| { type: "connecting"; mode: CodexVoiceMode; session?: VoiceSession }
@@ -92,12 +92,12 @@ export class CodexVoiceController {
 		this.renderStatus("connecting…");
 		try {
 			const auth = await interruptible(resolveCodexVoiceAuth(ctx), signal);
-			if (auth === START_CANCELLED) {
+			if (auth === CANCELLED) {
 				await peer?.close();
 				this.cancelStart(startGeneration);
 				return;
 			}
-			if (startGeneration !== this.startGeneration || this.state.type !== "connecting") return;
+			if (startGeneration !== this.startGeneration || this.state.type !== "connecting") { await peer?.close(); return; }
 			if (mode === "dictation") await this.startDictation(auth, config);
 			else await this.startConversation(auth, config, realtimePrompt!, peer, signal);
 			if (signal?.aborted) {
@@ -105,7 +105,7 @@ export class CodexVoiceController {
 				this.cancelStart(startGeneration);
 				return;
 			}
-			if (!this.modeIsActive(mode)) return;
+			if (!this.modeIsActive(mode)) { await peer?.close(); return; }
 			this.announcedMode = mode;
 			this.messages.modeStarted(mode);
 			return mode === "realtime" ? this.currentSession() as CodexRealtimeConversation : undefined;
@@ -115,7 +115,7 @@ export class CodexVoiceController {
 				this.cancelStart(startGeneration);
 				return;
 			}
-			if (startGeneration !== this.startGeneration) return;
+			if (startGeneration !== this.startGeneration) { await peer?.close(); return; }
 			this.fail(error instanceof Error ? error : new Error(String(error)));
 			return undefined;
 		}
@@ -263,17 +263,4 @@ export class CodexVoiceController {
 		const ctx = this.context;
 		if (ctx) ctx.ui.setStatus("codex-voice", ctx.ui.theme.fg("accent", `voice: ${status}`));
 	}
-}
-
-function interruptible<T>(operation: Promise<T>, signal?: AbortSignal): Promise<T | typeof START_CANCELLED> {
-	if (!signal) return operation;
-	if (signal.aborted) return Promise.resolve(START_CANCELLED);
-	return new Promise((resolve, reject) => {
-		const onAbort = () => { signal.removeEventListener("abort", onAbort); resolve(START_CANCELLED); };
-		signal.addEventListener("abort", onAbort, { once: true });
-		operation.then(
-			(value) => { signal.removeEventListener("abort", onAbort); resolve(value); },
-			(error: unknown) => { signal.removeEventListener("abort", onAbort); reject(error); },
-		);
-	});
 }
