@@ -118,6 +118,8 @@ class ScriptedWebSocket {
 	readonly listeners = new Map<string, Set<(event: unknown) => void>>();
 	readonly script: WebSocketScript;
 	readyState = 0;
+	private sent = false;
+	private scriptStarted = false;
 
 	constructor() {
 		const script = ScriptedWebSocket.scripts.shift();
@@ -134,6 +136,7 @@ class ScriptedWebSocket {
 		const listeners = this.listeners.get(type) ?? new Set();
 		listeners.add(listener);
 		this.listeners.set(type, listeners);
+		this.startScriptWhenReady();
 	}
 
 	removeEventListener(type: string, listener: (event: unknown) => void): void {
@@ -141,6 +144,13 @@ class ScriptedWebSocket {
 	}
 
 	send(): void {
+		this.sent = true;
+		this.startScriptWhenReady();
+	}
+
+	private startScriptWhenReady(): void {
+		if (!this.sent || this.scriptStarted || !["message", "error", "close"].every((type) => (this.listeners.get(type)?.size ?? 0) > 0)) return;
+		this.scriptStarted = true;
 		this.script(this);
 	}
 
@@ -157,10 +167,10 @@ class ScriptedWebSocket {
 	}
 }
 
-const websocketSuccess: WebSocketScript = (socket) => setImmediate(() => {
+const websocketSuccess: WebSocketScript = (socket) => {
 	socket.emitJson({ type: "response.created", response: { id: "resp_ws" } });
 	socket.emitJson({ type: "response.completed", response: { id: "resp_ws", status: "completed", usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 } } });
-});
+};
 
 function installScriptedWebSocket(scripts: WebSocketScript[]): () => void {
 	const original = globalThis.WebSocket;
@@ -392,10 +402,10 @@ test("parseSSE accepts CRLF chunks, joined data lines, and ignores done sentinel
 
 test("a post-start WebSocket failure makes SSE sticky only for that session until reset", async () => {
 	const restoreWebSocket = installScriptedWebSocket([
-		(socket) => setImmediate(() => {
+		(socket) => {
 			socket.emitJson({ type: "response.created", response: { id: "resp_failed" } });
 			socket.emit("error", { error: new Error("socket reset by peer") });
-		}),
+		},
 		websocketSuccess,
 		websocketSuccess,
 	]);
@@ -431,9 +441,9 @@ test("a post-start WebSocket failure makes SSE sticky only for that session unti
 
 test("Codex API and protocol errors do not arm SSE fallback", async () => {
 	const restoreWebSocket = installScriptedWebSocket([
-		(socket) => setImmediate(() => socket.emitJson({ type: "error", code: "invalid_request", message: "bad request" })),
+		(socket) => socket.emitJson({ type: "error", code: "invalid_request", message: "bad request" }),
 		websocketSuccess,
-		(socket) => setImmediate(() => socket.emit("message", { data: "not-json" })),
+		(socket) => socket.emit("message", { data: "not-json" }),
 		websocketSuccess,
 	]);
 	const originalFetch = globalThis.fetch;
