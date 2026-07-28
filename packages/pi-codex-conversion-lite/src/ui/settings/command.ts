@@ -5,6 +5,7 @@ import { syncAdapter } from "../../adapter/activation/activation.ts";
 import type { AdapterState } from "../../adapter/activation/state.ts";
 import type { CodexVoiceController } from "../../voice/controller.ts";
 import { createCodexVoiceControls } from "../../voice/controls.ts";
+import type { CodexLanVoiceServerController } from "../../voice/lan/controller.ts";
 import { ROUTABLE_SETTINGS_TABS, parseSettingsTab, type SettingsTab } from "./tabs.ts";
 import { openCodexSettingsScreen } from "./screen.ts";
 
@@ -16,6 +17,7 @@ export function registerCodexCommand(
 	pi: ExtensionAPI,
 	state: AdapterState,
 	voice: CodexVoiceController,
+	lanVoice: CodexLanVoiceServerController,
 	onConfigApplied?: (config: CodexConversionConfig, ctx: ExtensionContext, previousConfig: CodexConversionConfig) => void,
 ): void {
 	function saveAndApply(ctx: ExtensionContext, nextConfig: CodexConversionConfig): boolean {
@@ -51,6 +53,10 @@ export function registerCodexCommand(
 			initialConfig: state.config,
 			initialTab: tab,
 			onChange: (config) => saveAndApply(ctx, config),
+			lanVoiceServer: {
+				status: () => lanVoice.status(),
+				setEnabled: (enabled) => setLanVoiceServerEnabled(lanVoice, enabled, ctx),
+			},
 		});
 	}
 
@@ -82,6 +88,15 @@ export function registerCodexCommand(
 			ctx.ui.notify(CODEX_USAGE, "warning");
 		},
 	});
+}
+
+async function setLanVoiceServerEnabled(lanVoice: CodexLanVoiceServerController, enabled: boolean, ctx: ExtensionContext) {
+	try {
+		return await lanVoice.setEnabled(enabled, ctx);
+	} catch (error) {
+		ctx.ui.notify(`Could not ${enabled ? "start" : "stop"} LAN voice: ${error instanceof Error ? error.message : String(error)}`, "error");
+		throw error;
+	}
 }
 
 function formatAllProvidersMode(value: CodexConversionConfig["scope"]["allProviders"]): string {

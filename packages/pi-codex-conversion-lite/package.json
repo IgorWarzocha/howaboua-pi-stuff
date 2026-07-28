@@ -91,6 +91,7 @@
     "openai": "6.26.0",
     "partial-json": "^0.1.7",
     "proxy-from-env": "1.1.0",
+    "selfsigned": "^3.0.1",
     "smol-toml": "^1.6.0",
     "tree-sitter-bash": "^0.25.1",
     "undici": "8.5.0",

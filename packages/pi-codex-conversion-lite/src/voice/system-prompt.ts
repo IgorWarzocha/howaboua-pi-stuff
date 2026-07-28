@@ -47,6 +47,10 @@ Use short natural sentences. Avoid filler, repetitive acknowledgements, unnecess
 Treat requested verbosity, pacing, update frequency, and presentation style as active until the task ends or the user changes them.
 `;
 
+const CONNECTED_PI_RUNTIME_CONTRACT = `## Connected Pi runtime
+
+You have a connected Pi agent with the active session's tools and environment. Delegate every request that needs facts, reasoning, current or external state, or any action. This includes questions about the current time or date, machine, network, working directory, files, project, and session. Respond directly only to greetings, acknowledgements, and casual social conversation that needs no facts or work. Never claim tools or host access are unavailable; delegate and use Pi's result.`;
+
 export function getCodexVoiceSystemPromptPath(agentDir: string = getAgentDir()): string {
 	return join(agentDir, REALTIME_SYSTEM_PROMPT_BASENAME);
 }
@@ -75,9 +79,10 @@ export function loadCodexVoiceSystemPrompt(
 	if (missing.length > 0) {
 		throw new Error(`Codex voice prompt at ${promptPath} is missing required section${missing.length === 1 ? "" : "s"}: ${missing.join(", ")}`);
 	}
-	if (!projectPromptPath) return prompt;
+	if (!projectPromptPath) return `${prompt}\n\n${CONNECTED_PI_RUNTIME_CONTRACT}`;
 	const projectPrompt = readVoicePrompt(projectPromptPath, true);
-	return projectPrompt ? `${prompt}\n\n# Project level instructions\n\n${projectPrompt}` : prompt;
+	const customized = projectPrompt ? `${prompt}\n\n# Project level instructions\n\n${projectPrompt}` : prompt;
+	return `${customized}\n\n${CONNECTED_PI_RUNTIME_CONTRACT}`;
 }
 
 function readVoicePrompt(promptPath: string, optional = false): string | undefined {

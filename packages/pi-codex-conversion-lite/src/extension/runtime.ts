@@ -1,7 +1,8 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { Context } from "@earendil-works/pi-ai";
+import { dirname } from "node:path";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
-import { readCodexConversionConfig } from "../adapter/activation/config-store.ts";
+import { getCodexConversionConfigPath, readCodexConversionConfig } from "../adapter/activation/config-store.ts";
 import { isAdapterRuntime, resolveCodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
 import type { AdapterState } from "../adapter/activation/state.ts";
 import { rewriteCodexProviderRequest } from "../adapter/provider-request.ts";
@@ -16,6 +17,7 @@ import { createExecSessionManager } from "../tools/exec/session-manager.ts";
 import { getBundledToolBinaryPath } from "../tools/native/binary.ts";
 import type { BackgroundBashWidgetState } from "../ui/background-bash-widget.ts";
 import { CodexVoiceController } from "../voice/controller.ts";
+import { CodexLanVoiceServerController } from "../voice/lan/controller.ts";
 
 export type CodexContext = ExtensionContext;
 
@@ -25,6 +27,7 @@ export interface CodexExtensionRuntime {
 	sessions: ReturnType<typeof createExecSessionManager>;
 	backgroundWidget: BackgroundBashWidgetState;
 	voice: CodexVoiceController;
+	lanVoice: CodexLanVoiceServerController;
 	execEnv(config?: CodexConversionConfig): NodeJS.ProcessEnv;
 	codexSystemPrompt(basePrompt: string, ctx: CodexContext, skills?: AdapterState["promptSkills"], systemPromptOptions?: PiSystemPromptOptions): string;
 	startPrewarm(ctx: CodexContext, systemPrompt?: string, prepared?: boolean): Promise<void> | undefined;
@@ -69,13 +72,15 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 	let prewarmController: AbortController | undefined;
 	let prewarmPromise: Promise<void> | undefined;
 	let websocketPrewarmed = false;
+	const voice = new CodexVoiceController(pi);
 
 	const runtime: CodexExtensionRuntime = {
 		state,
 		tracker,
 		sessions,
 		backgroundWidget: { folded: true },
-		voice: new CodexVoiceController(pi),
+		voice,
+		lanVoice: new CodexLanVoiceServerController(voice, () => state.config, dirname(getCodexConversionConfigPath())),
 		execEnv(config = state.config) {
 			return { ...process.env, PI_CODEX_MODEL: config.openai.webSearchModel };
 		},

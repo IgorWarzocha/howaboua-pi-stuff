@@ -2,6 +2,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import { resolveCodexVoiceAuth } from "./auth.ts";
 import type { CodexRealtimeConversation } from "./conversation/session.ts";
+import type { CodexRealtimePeer } from "./conversation/peer.ts";
 import type { CodexDictationSession } from "./dictation/session.ts";
 import { CodexVoiceSessionMessages } from "./session-messages.ts";
 import { formatVoiceAudioError } from "./setup.ts";
@@ -40,6 +41,18 @@ export class CodexVoiceController {
 
 	async start(ctx: ExtensionContext, config: CodexConversionConfig): Promise<void> {
 		const mode: CodexVoiceMode = config.voice.mode === "transcription" ? "dictation" : "realtime";
+		await this.startMode(ctx, config, mode);
+	}
+
+	async startRealtimeWithPeer(ctx: ExtensionContext, config: CodexConversionConfig, peer: CodexRealtimePeer): Promise<CodexRealtimeConversation | undefined> {
+		return this.startMode(ctx, config, "realtime", peer);
+	}
+
+	async stopConversation(session: CodexRealtimeConversation, options?: { announce?: boolean }): Promise<void> {
+		if (this.currentSession() === session) await this.stop(options);
+	}
+
+	private async startMode(ctx: ExtensionContext, config: CodexConversionConfig, mode: CodexVoiceMode, peer?: CodexRealtimePeer): Promise<CodexRealtimeConversation | undefined> {
 		let realtimePrompt: string | undefined;
 		try {
 			realtimePrompt = mode === "realtime"
@@ -61,12 +74,14 @@ export class CodexVoiceController {
 			const auth = await resolveCodexVoiceAuth(ctx);
 			if (startGeneration !== this.startGeneration || this.state.type !== "connecting") return;
 			if (mode === "dictation") await this.startDictation(auth, config);
-			else await this.startConversation(auth, config, realtimePrompt!);
+			else await this.startConversation(auth, config, realtimePrompt!, peer);
 			if (!this.modeIsActive(mode)) return;
 			this.announcedMode = mode;
 			this.messages.modeStarted(mode);
+			return mode === "realtime" ? this.currentSession() as CodexRealtimeConversation : undefined;
 		} catch (error) {
 			this.fail(error instanceof Error ? error : new Error(String(error)));
+			return undefined;
 		}
 	}
 
@@ -121,17 +136,20 @@ export class CodexVoiceController {
 		auth: Awaited<ReturnType<typeof resolveCodexVoiceAuth>>,
 		config: CodexConversionConfig,
 		instructions: string,
+		peer?: CodexRealtimePeer,
 	): Promise<void> {
 		const connecting = this.state;
 		if (connecting.type !== "connecting" || connecting.mode !== "realtime") return;
 		const { CodexRealtimeConversation } = await import("./conversation/session.ts");
 		if (this.state !== connecting) return;
+		const realtimePeer = peer ?? new (await import("./conversation/native-peer.ts")).NativeCodexRealtimePeer();
+		if (this.state !== connecting) { await realtimePeer.close(); return; }
 		let session!: CodexRealtimeConversation;
 		session = new CodexRealtimeConversation({
 			onError: (error) => this.failSession(session, error),
 			onStatus: (status) => this.renderStatus(status),
 			onTurn: (turn) => this.messages.voiceTurn(turn),
-		});
+		}, realtimePeer);
 		this.state = { type: "connecting", mode: "realtime", session };
 		await session.start(auth, config, instructions);
 		if (this.currentSession() === session) this.state = { type: "conversation", session };

@@ -1,8 +1,8 @@
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import { resolveWebSocketProxyForTarget } from "../../providers/openai-codex/websocket-connection.ts";
 import type { CodexVoiceAuth } from "../auth.ts";
-import { VoiceHelperClient, type VoiceHelperEvent } from "../helper.ts";
 import { RealtimeVoiceTurnTracker, type RealtimeVoiceTurn } from "../turns.ts";
+import type { CodexRealtimePeer, CodexRealtimePeerEvent } from "./peer.ts";
 import { fetch as undiciFetch, ProxyAgent } from "undici";
 
 const V3_MODEL = "gpt-live-1-boulder-alpha";
@@ -23,7 +23,7 @@ type RealtimeCallSetup = (endpoint: string, headers: Headers, signal: AbortSigna
 
 export class CodexRealtimeConversation {
 	private readonly callbacks: CodexConversationCallbacks;
-	private readonly helper = new VoiceHelperClient();
+	private readonly peer: CodexRealtimePeer;
 	private readonly turnTracker = new RealtimeVoiceTurnTracker();
 	private state: ConversationState = "idle";
 	private activeDelegationId: string | undefined;
@@ -33,29 +33,16 @@ export class CodexRealtimeConversation {
 	private setupAbortController: AbortController | undefined;
 	private callSetup: RealtimeCallSetup = setupRealtimeCall;
 
-	constructor(callbacks: CodexConversationCallbacks) {
+	constructor(callbacks: CodexConversationCallbacks, peer: CodexRealtimePeer) {
 		this.callbacks = callbacks;
-		this.helper.onEvent((event) => this.handleHelperEvent(event));
-		this.helper.onExit((error) => this.fail(error));
+		this.peer = peer;
+		this.peer.onEvent((event) => this.handlePeerEvent(event));
+		this.peer.onExit((error) => this.fail(error));
 	}
 
 	async start(auth: CodexVoiceAuth, config: CodexConversionConfig, instructions: string): Promise<void> {
 		this.state = "starting";
-		await this.helper.start();
-		if (this.state !== "starting") return;
-		const offer = Promise.withResolvers<string>();
-		const removeEvent = this.helper.onEvent((event) => {
-			if (event.type === "offer") offer.resolve(event.sdp);
-			else if (event.type === "error") offer.reject(new Error(event.message));
-		});
-		const removeExit = this.helper.onExit((error) => offer.reject(error));
-		const timeout = setTimeout(() => offer.reject(new Error("Codex voice helper did not create an offer")), 15_000);
-		this.helper.send({
-			type: "start_v3",
-			...(config.voice.inputDevice ? { microphone: config.voice.inputDevice } : {}),
-			...(config.voice.outputDevice ? { speaker: config.voice.outputDevice } : {}),
-		});
-		const sdp = await offer.promise.finally(() => { clearTimeout(timeout); removeEvent(); removeExit(); });
+		const sdp = await this.peer.start(config);
 		if (this.state !== "starting") return;
 		const headers = new Headers(auth.headers);
 		headers.set("openai-alpha", "quicksilver=v2");
@@ -79,7 +66,7 @@ export class CodexRealtimeConversation {
 		if (this.state !== "starting") return;
 		if (status !== 201) throw new Error(`Codex voice call failed (${status}): ${answer.slice(0, 1_000)}`);
 		this.state = "active";
-		this.helper.send({ type: "apply_answer", sdp: answer });
+		this.peer.applyAnswer(answer);
 		this.callbacks.onStatus("connecting…");
 	}
 
@@ -110,10 +97,10 @@ export class CodexRealtimeConversation {
 		this.clearHandoff();
 		this.turnTracker.reset();
 		this.activeDelegationId = undefined;
-		await this.helper.close();
+		await this.peer.close();
 	}
 
-	private handleHelperEvent(event: VoiceHelperEvent): void {
+	private handlePeerEvent(event: CodexRealtimePeerEvent): void {
 		if (this.state === "idle" || this.state === "closed" || this.state === "failed") return;
 		if (event.type === "error") { this.fail(new Error(event.message)); return; }
 		if (event.type === "data") this.handleServerEvent(event.message);
@@ -171,7 +158,7 @@ export class CodexRealtimeConversation {
 		if (this.state !== "active" || !this.activeDelegationId || !this.handoffBuffer) return;
 		try {
 			for (const text of utf8Chunks(this.handoffBuffer, HANDOFF_CHUNK_BYTES)) {
-				this.helper.send({ type: "send_data", message: { type: "delegation.context.append", delegation_item_id: this.activeDelegationId, channel: this.handoffChannel, content: [{ type: "input_text", text }] } });
+				this.peer.sendData({ type: "delegation.context.append", delegation_item_id: this.activeDelegationId, channel: this.handoffChannel, content: [{ type: "input_text", text }] });
 			}
 			this.handoffBuffer = "";
 		} catch (error) {
@@ -196,7 +183,7 @@ export class CodexRealtimeConversation {
 		this.abortSetup();
 		this.clearHandoff();
 		this.callbacks.onError(error);
-		void this.helper.close();
+		void this.peer.close();
 	}
 }
 

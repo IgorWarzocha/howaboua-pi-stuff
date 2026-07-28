@@ -94,7 +94,9 @@ export class CodexVoiceSessionMessages {
 				this.backendTurnPending = true;
 				this.piTurnActive = true;
 				this.callbacks.onWorking();
-				this.pi.sendMessage(realtimeVoiceMessage(turn.input, "delegation"), { triggerTurn: true });
+				// User-message routing runs Pi's normal before_agent_start pipeline. A
+				// triggerTurn custom message bypasses it and can lose per-turn capabilities.
+				this.pi.sendUserMessage(turn.input);
 				return;
 			}
 			this.pi.sendMessage(realtimeVoiceMessage(turn.input, "conversation"), { triggerTurn: false });

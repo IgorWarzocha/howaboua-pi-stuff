@@ -62,6 +62,7 @@ export function registerCodexEvents(
 	sessions.onSessionExit((sessionId) => tracker.recordSessionFinished(sessionId));
 
 	pi.on("session_start", async (event, ctx) => {
+		await runtime.lanVoice.stop(ctx);
 		runtime.voice.resetContextAnnouncements();
 		try {
 			ensureCodexVoiceSystemPrompt();
@@ -128,6 +129,7 @@ export function registerCodexEvents(
 
 	pi.on("session_shutdown", async (_event, ctx) => {
 		try {
+			await runtime.lanVoice.stop(ctx);
 			await runtime.voice.stop({ announce: true });
 			runtime.shutdownTransport(ctx.sessionManager.getSessionId());
 			ui.clearBackgroundWidget();

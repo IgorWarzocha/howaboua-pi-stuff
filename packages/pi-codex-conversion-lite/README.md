@@ -55,7 +55,9 @@ Responses compaction uses V2 through the registered raw-item-aware Responses str
 
 Native Codex voice is retained. `/codex voice realtime` starts delegated V3 conversation; `/codex voice dictation` uses V2 transcription and inserts the finalized text into Pi. `Ctrl+Alt+Space` toggles conversation and `Ctrl+Alt+D` is push-to-dictate by default.
 
-Microphone and speaker IO stay in the bundled helper. Pi owns authentication and agent execution. Optional device IDs and shortcuts are stored under `voice` in the shared config. `Voice features only` leaves model tools, prompts, requests, compaction, and adapter widgets untouched.
+Microphone and speaker IO stay in the bundled helper. Pi owns authentication and agent execution. Routed voice requests enter Pi through the same turn pipeline as typed input, preserving its active tools and per-turn prompt setup. Optional device IDs and shortcuts are stored under `voice` in the shared config. `Voice features only` leaves model tools, prompts, requests, compaction, and adapter widgets untouched.
+
+For a Pi session running on another machine, open `/codex voice` and turn on **LAN voice server**. Pi serves a small HTTPS control page directly on the machine's LAN and Tailscale addresses; open one of the displayed URLs, accept the local certificate on first visit, and tap the microphone. The browser uses its configured default microphone and speaker while Pi keeps Codex login and agent work on the host. LAN voice supports realtime conversation only, has no authentication, and is intended for trusted networks. It stops when disabled, when its owning Pi session changes, or when Pi shuts down.
 
 ## Native helper compatibility
 
