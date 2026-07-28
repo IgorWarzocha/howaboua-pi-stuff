@@ -13,6 +13,7 @@ import { createLanVoiceDiagnostics } from "./diagnostics.ts";
 import { LanVoiceDictation } from "./dictation.ts";
 import { LanVoiceDraft, LanVoiceDraftConflictError } from "./draft.ts";
 import { boundedString, handleLanVoiceHttpRequest } from "./http-handler.ts";
+import { createLanVoiceWebUi } from "./web-ui.ts";
 
 const PORT = 43_120;
 const HEARTBEAT_MS = 15_000;
@@ -108,6 +109,7 @@ export async function startCodexLanVoiceServer(options: {
 			diagnostics,
 			clients,
 			draft,
+			renderPage: () => createLanVoiceWebUi(options.ctx.ui.theme),
 			ownerIsActive,
 			get closing() { return closing; },
 		});

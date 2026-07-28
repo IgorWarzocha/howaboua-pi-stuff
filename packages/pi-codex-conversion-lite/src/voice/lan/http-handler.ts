@@ -2,7 +2,6 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { LanVoiceBrowserClients } from "./browser-clients.ts";
 import type { LanVoiceDiagnostics } from "./diagnostics.ts";
 import { LanVoiceDraftError, type LanVoiceDraft } from "./draft.ts";
-import { LAN_VOICE_WEB_UI } from "./web-ui.ts";
 
 const MAX_REQUEST_BYTES = 300 * 1024;
 
@@ -10,6 +9,7 @@ export interface LanVoiceHttpHandlers {
 	diagnostics: LanVoiceDiagnostics;
 	clients: LanVoiceBrowserClients;
 	draft: LanVoiceDraft;
+	renderPage(): string;
 	ownerIsActive(): boolean;
 	readonly closing: boolean;
 }
@@ -24,7 +24,7 @@ export async function handleLanVoiceHttpRequest(
 		const url = new URL(request.url ?? "/", "https://lan-voice.local");
 		path = url.pathname;
 		if (request.method === "GET" && path === "/") {
-			sendText(response, "text/html; charset=utf-8", LAN_VOICE_WEB_UI, true);
+			sendText(response, "text/html; charset=utf-8", handlers.renderPage(), true);
 			return;
 		}
 		if (!handlers.ownerIsActive() || handlers.closing) {

@@ -12,6 +12,7 @@ import { CodexDictationTranscriber } from "../src/voice/dictation/transcriber.ts
 import { LanVoiceDraft, LanVoiceDraftConflictError } from "../src/voice/lan/draft.ts";
 import { startCodexLanVoiceServer } from "../src/voice/lan/server.ts";
 import { LanVoiceBridgePeer } from "../src/voice/lan/bridge-peer.ts";
+import { createLanVoiceWebUi } from "../src/voice/lan/web-ui.ts";
 import { CodexVoiceSessionMessages } from "../src/voice/session-messages.ts";
 import { loadCodexVoiceSystemPrompt } from "../src/voice/system-prompt.ts";
 
@@ -192,6 +193,16 @@ test("LAN composer starts a new draft when dictation continues after send", () =
 	assert.deepEqual(draft.snapshot(), { type: "draft", text: "and check the weather", revision: 3 });
 });
 
+test("LAN companion converts Pi semantic theme colors into CSS", () => {
+	const page = createLanVoiceWebUi(fakePiTheme());
+	assert.match(page, /--pi-accent:rgb\(12 34 56\)/);
+	assert.match(page, /--pi-muted:rgb\(95 135 175\)/);
+	assert.match(page, /--pi-user-message-bg:rgb\(240 241 242\)/);
+	assert.match(page, /color-scheme:light/);
+	assert.match(page, /<meta name="theme-color" content="rgb\(240 241 242\)">/);
+	assert.doesNotMatch(page, /#(?:171713|d8ff72|d35d43)/i);
+});
+
 test("LAN voice transfers audio ownership without restarting its realtime session", async () => {
 	const agentDir = await mkdtemp(join(tmpdir(), "pi-lan-voice-clients-"));
 	let upstreamStarts = 0;
@@ -258,7 +269,7 @@ test("LAN voice server rejects control after its owning session changes", async 
 	let activeSessionId = "owner";
 	const sentMessages: string[] = [];
 	const server = await startCodexLanVoiceServer({
-		ctx: { sessionManager: { getSessionId: () => activeSessionId } } as never,
+		ctx: { sessionManager: { getSessionId: () => activeSessionId }, ui: { theme: fakePiTheme() } } as never,
 		getConfig: () => ({}) as never,
 		voice: {
 			startRealtimeWithPeer: async () => undefined,
@@ -368,6 +379,15 @@ function nextSocketJson(socket: WebSocket): Promise<unknown> {
 
 function socketClosed(socket: WebSocket): Promise<{ code: number; reason: string }> {
 	return new Promise((resolve) => socket.once("close", (code, reason) => resolve({ code, reason: reason.toString() })));
+}
+
+function fakePiTheme() {
+	return {
+		getFgAnsi: (color: string) => color === "accent"
+			? "\x1b[38;2;12;34;56m"
+			: color === "muted" ? "\x1b[38;5;67m" : "\x1b[39m",
+		getBgAnsi: (color: string) => color === "userMessageBg" ? "\x1b[48;2;240;241;242m" : "\x1b[49m",
+	} as never;
 }
 
 async function waitFor(predicate: () => boolean): Promise<void> {
