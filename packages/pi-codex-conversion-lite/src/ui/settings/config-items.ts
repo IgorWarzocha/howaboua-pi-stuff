@@ -69,9 +69,6 @@ export function buildConfigSettings(tab: SettingsTab, config: CodexConversionCon
 				{ id: "extensionMode", label: "Extension mode", currentValue: config.voiceFeaturesOnly ? "voice only" : "adapter and voice", values: ["adapter and voice", "voice only"] },
 				(value, current) => ({ ...current, voiceFeaturesOnly: value === "voice only" }),
 			),
-			toggle("heavySystemPromptOverwrite", "Heavy system prompt overwrite (40% smaller)", config.prompt.heavySystemPromptOverwrite, (enabled, current) => ({ ...current, prompt: { ...current.prompt, heavySystemPromptOverwrite: enabled } })),
-			toggle("harnessIdentifierHeader", "pi-codex-conversion harness identifier header <3", config.openai.harnessIdentifierHeader, (enabled, current) => ({ ...current, openai: { ...current.openai, harnessIdentifierHeader: enabled } })),
-			setting({ id: "customRustBinariesDirHelp", label: "For compatibility custom Rust binaries, edit", currentValue: getCodexConversionConfigPath(), values: [getCodexConversionConfigPath()] }),
 			setting(
 				{ id: "allProviders", label: "Provider scope", currentValue: formatAllProvidersMode(config.scope.allProviders), values: ["Codex and configured", "all providers", "extra tools only"] },
 				(value, current) => ({ ...current, scope: { ...current.scope, allProviders: parseAllProvidersMode(value) } }),
@@ -89,14 +86,14 @@ export function buildConfigSettings(tab: SettingsTab, config: CodexConversionCon
 					theme,
 				),
 			}, (value, current) => ({ ...current, scope: { ...current.scope, additionalProviders: normalizeProviderList(value.split(",")) } })),
-			toggle("codeMode", "GPT-5.6 Code Mode", config.beta.codeMode, (enabled, current) => ({ ...current, beta: { ...current.beta, codeMode: enabled } })),
-			toggle("responsesLite", "Proxy Responses Lite", config.beta.responsesLite, (enabled, current) => ({ ...current, beta: { ...current.beta, responsesLite: enabled } })),
+			toggle("heavySystemPromptOverwrite", "Heavy system prompt overwrite (40% smaller)", config.prompt.heavySystemPromptOverwrite, (enabled, current) => ({ ...current, prompt: { ...current.prompt, heavySystemPromptOverwrite: enabled } })),
 			{ item: { id: "editConfig", label: "Edit config", currentValue: editorCommand() ? "Opens in default editor (please /reload)" : "Set $EDITOR", values: editorCommand() ? ["Open"] : ["Unavailable"] }, action: "edit-config" },
 		];
 	}
 
 	if (tab === "tools") {
 		return [
+			toggle("codeMode", "GPT-5.6 Code Mode", config.beta.codeMode, (enabled, current) => ({ ...current, beta: { ...current.beta, codeMode: enabled } })),
 			setting({ id: "shellCommands", label: "Shell commands", currentValue: "required", values: ["required"] }),
 			setting({ id: "applyPatch", label: "Apply patch", currentValue: "required", values: ["required"] }),
 			setting({ id: "viewImage", label: "View image", currentValue: "required", values: ["required"] }),
@@ -107,6 +104,7 @@ export function buildConfigSettings(tab: SettingsTab, config: CodexConversionCon
 			toggle("viewImageOnly", "Extra tool · view_image", config.tools.viewImageOnly, (enabled, current) => ({ ...current, tools: { ...current.tools, viewImageOnly: enabled } })),
 			toggle("webRunOnly", "Extra tool · web_run", config.tools.webRunOnly, (enabled, current) => ({ ...current, tools: { ...current.tools, webRunOnly: enabled } })),
 			toggle("imageGenerationOnly", "Extra tool · imagegen", config.tools.imageGenerationOnly, (enabled, current) => ({ ...current, tools: { ...current.tools, imageGenerationOnly: enabled } })),
+			setting({ id: "customRustBinariesDirHelp", label: "For compatibility custom Rust binaries, edit", currentValue: getCodexConversionConfigPath(), values: [getCodexConversionConfigPath()] }),
 		];
 	}
 
@@ -115,6 +113,8 @@ export function buildConfigSettings(tab: SettingsTab, config: CodexConversionCon
 			toggle("fast", "Fast mode", config.openai.fast, (enabled, current) => ({ ...current, openai: { ...current.openai, fast: enabled } })),
 			setting({ id: "verbosity", label: "Verbosity", currentValue: config.openai.verbosity, values: ["low", "medium", "high"] }, (value, current) => ({ ...current, openai: { ...current.openai, verbosity: normalizeCodexVerbosity(value) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai.verbosity } })),
 			toggle("forceCachedWebSockets", "Cached websocket upgrade", config.openai.forceCachedWebSockets, (enabled, current) => ({ ...current, openai: { ...current.openai, forceCachedWebSockets: enabled } })),
+			toggle("responsesLite", "Proxy Responses Lite", config.beta.responsesLite, (enabled, current) => ({ ...current, beta: { ...current.beta, responsesLite: enabled } })),
+			toggle("harnessIdentifierHeader", "pi-codex-conversion harness identifier header <3", config.openai.harnessIdentifierHeader, (enabled, current) => ({ ...current, openai: { ...current.openai, harnessIdentifierHeader: enabled } })),
 			setting({ id: "webSearchModel", label: "Web search model", currentValue: config.openai.webSearchModel, values: [...WEB_SEARCH_MODELS] }, (value, current) => ({ ...current, openai: { ...current.openai, webSearchModel: normalizeWebSearchModel(value) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai.webSearchModel } })),
 			toggle("responsesCompaction", "Responses compaction V2", config.compaction.responsesCompaction, (enabled, current) => ({ ...current, compaction: { ...current.compaction, responsesCompaction: enabled } })),
 			setting({ id: "v2UserMessageRetention", label: "Preserved user messages", currentValue: `${config.beta.v2UserMessageRetention ?? 64}k${(config.beta.v2UserMessageRetention ?? 64) === 64 ? " (Codex native)" : ""}`, values: V2_USER_MESSAGE_RETENTION_OPTIONS.map((value) => `${value}k${value === 64 ? " (Codex native)" : ""}`) }, (value, current) => ({ ...current, beta: { ...current.beta, v2UserMessageRetention: normalizeV2UserMessageRetention(Number.parseInt(value, 10)) ?? 64 } })),
