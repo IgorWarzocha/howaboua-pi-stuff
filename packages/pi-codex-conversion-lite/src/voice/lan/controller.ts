@@ -1,5 +1,6 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
+import { resolveCodexVoiceAuth } from "../auth.ts";
 import type { CodexVoiceController } from "../controller.ts";
 import type { CodexLanVoiceServer } from "./server.ts";
 
@@ -49,6 +50,7 @@ export class CodexLanVoiceServerController {
 				ctx,
 				getConfig: this.getConfig,
 				voice: this.voice,
+				resolveAuth: () => resolveCodexVoiceAuth(ctx),
 				sendUserMessage: (text) => this.sendUserMessage(text, ctx),
 				ownerSessionId: sessionId,
 				certificateAgentDir: this.agentDir,

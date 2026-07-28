@@ -1,20 +1,19 @@
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { resolveCodexVoiceAuth } from "../auth.ts";
+import type { CodexVoiceAuth } from "../auth.ts";
 import { CodexDictationTranscriber } from "../dictation/transcriber.ts";
 import type { LanVoiceDiagnostics } from "./diagnostics.ts";
 
 export class LanVoiceDictation {
-	private readonly ctx: ExtensionContext;
+	private readonly resolveAuth: () => Promise<CodexVoiceAuth>;
 	private readonly diagnostics: LanVoiceDiagnostics;
 	private readonly onError: (clientId: string, error: Error) => void;
 	private current: { clientId: string; transcriber: CodexDictationTranscriber } | undefined;
 
 	constructor(options: {
-		ctx: ExtensionContext;
+		resolveAuth(): Promise<CodexVoiceAuth>;
 		diagnostics: LanVoiceDiagnostics;
 		onError(clientId: string, error: Error): void;
 	}) {
-		this.ctx = options.ctx;
+		this.resolveAuth = options.resolveAuth;
 		this.diagnostics = options.diagnostics;
 		this.onError = options.onError;
 	}
@@ -34,7 +33,7 @@ export class LanVoiceDictation {
 		this.current = { clientId, transcriber };
 		this.diagnostics.write("dictation", "start", { clientId });
 		try {
-			await transcriber.start(await resolveCodexVoiceAuth(this.ctx));
+			await transcriber.start(await this.resolveAuth());
 		} catch (error) {
 			if (this.current?.transcriber === transcriber) this.current = undefined;
 			await transcriber.close();

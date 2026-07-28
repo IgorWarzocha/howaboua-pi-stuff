@@ -3,6 +3,7 @@ import type { AddressInfo } from "node:net";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { WebSocketServer } from "ws";
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
+import type { CodexVoiceAuth } from "../auth.ts";
 import type { CodexVoiceController } from "../controller.ts";
 import type { CodexRealtimeConversation } from "../conversation/session.ts";
 import { LanVoiceBrowserClients, MAX_PCM_BYTES } from "./browser-clients.ts";
@@ -27,6 +28,7 @@ export async function startCodexLanVoiceServer(options: {
 	ctx: ExtensionContext;
 	getConfig: () => CodexConversionConfig;
 	voice: CodexVoiceController;
+	resolveAuth(): Promise<CodexVoiceAuth>;
 	sendUserMessage(text: string): void;
 	ownerSessionId: string;
 	port?: number | undefined;
@@ -45,7 +47,7 @@ export async function startCodexLanVoiceServer(options: {
 		sendMessage: options.sendUserMessage,
 	});
 	const dictation = new LanVoiceDictation({
-		ctx: options.ctx,
+		resolveAuth: options.resolveAuth,
 		diagnostics,
 		onError: (clientId, error) => clients.sendControl(clientId, { type: "error", message: error.message }),
 	});
