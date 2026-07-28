@@ -101,6 +101,7 @@ export async function startCodexLanVoiceServer(options: {
 			}
 			if (transcript) draft.insertTranscript(clientId, transcript, insertion);
 		},
+		cancelDictation: (clientId) => dictation.cancel(clientId),
 		onConversationActivity(active) {
 			const activeConversation = conversation;
 			if (activeConversation) options.voice.setConversationInputActive(activeConversation, active);

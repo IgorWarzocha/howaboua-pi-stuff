@@ -13,6 +13,7 @@ interface LanVoiceBrowserClientsOptions {
 	ensureConversation(): Promise<void>;
 	startDictation(clientId: string): Promise<void>;
 	finishDictation(clientId: string, draft?: string, revision?: number, selection?: LanVoiceDraftSelection): Promise<void>;
+	cancelDictation(clientId: string): Promise<void>;
 	onConversationActivity(active: boolean): void;
 	onConversationAudio(pcm: Buffer): void;
 	onDictationAudio(clientId: string, pcm: Buffer): void;
@@ -112,6 +113,8 @@ export class LanVoiceBrowserClients {
 				void this.finish(clientId, socket, draft, revision, selection).catch((error: unknown) => this.sendSocketError(clientId, socket, error));
 			} else if (message["type"] === "release") {
 				this.release(clientId, socket);
+			} else if (message["type"] === "cancel") {
+				void this.options.cancelDictation(clientId).catch((error: unknown) => this.sendSocketError(clientId, socket, error));
 			}
 		} catch (error) {
 			this.options.diagnostics.write("server", "audio.message_error", { clientId, error });

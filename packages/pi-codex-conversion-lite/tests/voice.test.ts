@@ -16,6 +16,7 @@ import { LanVoiceBridgePeer } from "../src/voice/lan/bridge-peer.ts";
 import { createLanVoiceWebUi } from "../src/voice/lan/web-ui.ts";
 import { CodexVoiceSessionMessages } from "../src/voice/session-messages.ts";
 import { loadCodexVoiceSystemPrompt } from "../src/voice/system-prompt.ts";
+import { RealtimeVoiceTurnTracker } from "../src/voice/turns.ts";
 
 test("voice helper parser validates protocol payloads", () => {
 	assert.deepEqual(parseVoiceHelperEvent({ type: "ready", version: 3 }), { type: "ready", version: 3 });
@@ -74,6 +75,15 @@ test("delegated voice requests use Pi's normal user-turn pipeline", () => {
 	assert.deepEqual(userMessages, ["check the current time"]);
 	assert.deepEqual(customMessages, []);
 	assert.equal(messages.consumeDelegatedTurnStart(), true);
+});
+
+test("voice delegation routing suppresses backend retries without blocking a later repeat", () => {
+	const turns = new RealtimeVoiceTurnTracker();
+	assert.deepEqual(turns.delegated("check the load", "first"), { input: "check the load", delegationId: "first" });
+	assert.deepEqual(turns.delegated("count Pi", "second"), { input: "count Pi", delegationId: "second" });
+	assert.equal(turns.delegated("check the load", "retry-before-settle"), undefined);
+	turns.delegationSettled("first");
+	assert.deepEqual(turns.delegated("check the load", "intentional-repeat"), { input: "check the load", delegationId: "intentional-repeat" });
 });
 
 test("LAN dictation announces recognition context once per Pi session", () => {
@@ -167,6 +177,20 @@ test("dictation transcriber commits 24 kHz PCM through the V2 transcription prot
 	assert.deepEqual(JSON.parse(socket.sent[2]!), { type: "input_audio_buffer.commit" });
 	socket.emit("message", { data: JSON.stringify({ type: "conversation.item.input_audio_transcription.completed", transcript: "  hello Pi  " }) });
 	assert.equal(await finishing, "hello Pi");
+});
+
+test("dictation transcription can be cancelled while awaiting completion", async () => {
+	const socket = new FakeWebSocket();
+	const transcriber = new CodexDictationTranscriber({ onError: () => {}, onStatus: () => {} }, async () => socket);
+	await transcriber.start({
+		headers: new Headers({ authorization: "Bearer test" }),
+		baseUrl: "https://chatgpt.com/backend-api/codex",
+		officialCodex: true,
+	});
+	transcriber.append(Buffer.alloc(4_800, 1));
+	const finishing = transcriber.finish();
+	await transcriber.close();
+	assert.equal(await finishing, undefined);
 });
 
 test("LAN composer rejects stale writes from another browser", () => {

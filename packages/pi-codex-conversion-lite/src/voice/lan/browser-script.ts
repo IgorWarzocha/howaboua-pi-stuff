@@ -23,6 +23,7 @@ let processor;
 let mode = 'conversation';
 let active = false;
 let audioBusy = false;
+let finishingDictation = false;
 let sendBusy = false;
 let draftTimer;
 let draftRevision = -1;
@@ -43,7 +44,7 @@ const post = async (path, body) => {
   return result;
 };
 const updateControls = () => {
-  button.disabled = audioBusy;
+  button.disabled = audioBusy && !socket;
   button.setAttribute('aria-busy', String(audioBusy));
   modeButtons.forEach((item) => { item.disabled = audioBusy || active; });
   draft.disabled = sendBusy || draftRevision < 0;
@@ -141,6 +142,7 @@ async function start() {
     const currentSocket = new WebSocket('wss://' + location.host + '/api/audio?client=' + encodeURIComponent(clientId));
     currentSocket.binaryType = 'arraybuffer';
     socket = currentSocket;
+    updateControls();
     const connectTimer = setTimeout(() => {
       if (socket !== currentSocket || currentSocket.readyState !== WebSocket.CONNECTING) return;
       void stop(false, 'connect-timeout');
@@ -181,6 +183,7 @@ function receiveAudioMessage(currentSocket, event) {
     if (message.type === 'active') {
       active = true;
       audioBusy = false;
+      finishingDictation = false;
       button.setAttribute('aria-pressed', 'true');
       button.setAttribute('aria-label', mode === 'dictation' ? 'Finish dictation' : 'Stop voice');
       setAudioStatus(mode === 'dictation' ? 'Recording' : 'Listening', mode === 'dictation' ? 'Tap to finish' : 'Tap to stop');
@@ -188,6 +191,7 @@ function receiveAudioMessage(currentSocket, event) {
     }
     if (message.type === 'dictation.complete') {
       audioBusy = false;
+      finishingDictation = false;
       currentSocket.close(1000, 'dictation-complete');
       setAudioStatus('Tap to start dictation');
       setComposerStatus('Transcript ready');
@@ -200,17 +204,21 @@ function receiveAudioMessage(currentSocket, event) {
 async function stop(notify = true, reason = 'user') {
   report('call.stop', { notify, reason, active, mode });
   if (notify && active && mode === 'dictation' && socket?.readyState === WebSocket.OPEN) {
+    const finishingSocket = socket;
     active = false;
     audioBusy = true;
+    finishingDictation = true;
     socket.send(JSON.stringify({ type:'finish', draft:draft.value, revision:draftRevision, selectionStart:draft.selectionStart, selectionEnd:draft.selectionEnd }));
     await closeAudioHardware();
+    if (!finishingDictation || socket !== finishingSocket) return;
     button.setAttribute('aria-pressed', 'false');
-    button.setAttribute('aria-label', 'Start dictation');
+    button.setAttribute('aria-label', 'Cancel transcription');
     setAudioStatus('Transcribing…');
     updateControls();
     return;
   }
   active = false;
+  finishingDictation = false;
   const currentSocket = socket;
   socket = undefined;
   if (notify && currentSocket?.readyState === WebSocket.OPEN) currentSocket.send(JSON.stringify({ type:'release' }));
@@ -224,6 +232,23 @@ async function stop(notify = true, reason = 'user') {
   } else if (reason !== 'upstream-error' && reason !== 'server-error' && reason !== 'dictation-complete') {
     setAudioStatus(mode === 'dictation' ? 'Tap to start dictation' : 'Tap to start voice');
   }
+  updateControls();
+}
+
+async function cancelFinishingDictation() {
+  if (!finishingDictation) return;
+  report('call.cancel_transcription');
+  finishingDictation = false;
+  active = false;
+  audioBusy = false;
+  const currentSocket = socket;
+  socket = undefined;
+  if (currentSocket?.readyState === WebSocket.OPEN) currentSocket.send(JSON.stringify({ type:'cancel' }));
+  currentSocket?.close(1000, 'dictation-cancelled');
+  await closeAudioHardware();
+  button.setAttribute('aria-pressed', 'false');
+  button.setAttribute('aria-label', 'Start dictation');
+  setAudioStatus('Tap to start dictation');
   updateControls();
 }
 
@@ -267,7 +292,11 @@ async function sendDraft() {
   }
 }
 
-button.addEventListener('click', () => active ? void stop() : void start());
+button.addEventListener('click', () => {
+  if (finishingDictation) void cancelFinishingDictation();
+  else if (active || (audioBusy && socket)) void stop();
+  else void start();
+});
 modeButtons.forEach((item) => item.addEventListener('click', () => selectMode(item.dataset.mode)));
 draft.addEventListener('input', () => { setComposerStatus(); syncDraft(); updateControls(); });
 draft.addEventListener('keydown', (event) => { if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); void sendDraft(); } });

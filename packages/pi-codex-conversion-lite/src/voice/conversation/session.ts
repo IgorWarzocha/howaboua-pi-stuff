@@ -96,6 +96,7 @@ export class CodexRealtimeConversation {
 
 	settleAgentTurn(): void {
 		this.flushHandoff();
+		if (this.activeDelegationId) this.turnTracker.delegationSettled(this.activeDelegationId);
 		this.activeDelegationId = undefined;
 		if (this.state === "active") this.callbacks.onStatus("listening");
 	}
@@ -142,8 +143,14 @@ export class CodexRealtimeConversation {
 		if (record["type"] !== "delegation" || record["target"] !== "client" || typeof record["id"] !== "string" || !Array.isArray(record["content"])) return;
 		const input = record["content"].flatMap((part) => part && typeof part === "object" && (part as Record<string, unknown>)["type"] === "input_text" && typeof (part as Record<string, unknown>)["text"] === "string" ? [(part as Record<string, unknown>)["text"] as string] : []).join("").trim();
 		if (!input || Buffer.byteLength(input) > MAX_DELEGATION_BYTES) { this.fail(new Error("Codex voice delegation was empty or oversized")); return; }
+		const delegated = this.turnTracker.delegated(input, record["id"]);
+		if (!delegated) {
+			this.peer.trace?.("delegation.duplicate", { id: record["id"], input });
+			return;
+		}
+		this.peer.trace?.("delegation.created", { id: record["id"], input });
 		this.flushHandoff();
-		this.callbacks.onTurn(this.turnTracker.delegated(input, record["id"]));
+		this.callbacks.onTurn(delegated);
 	}
 
 	private handleCompletedTurn(turn: unknown): void {

@@ -7,6 +7,7 @@ export class LanVoiceDictation {
 	private readonly diagnostics: LanVoiceDiagnostics;
 	private readonly onError: (clientId: string, error: Error) => void;
 	private current: { clientId: string; transcriber: CodexDictationTranscriber } | undefined;
+	private finishing: { clientId: string; transcriber: CodexDictationTranscriber } | undefined;
 
 	constructor(options: {
 		resolveAuth(): Promise<CodexVoiceAuth>;
@@ -51,15 +52,34 @@ export class LanVoiceDictation {
 		const current = this.current;
 		if (!current || current.clientId !== clientId) return undefined;
 		this.current = undefined;
+		this.finishing = current;
 		this.diagnostics.write("dictation", "finish", { clientId });
-		const transcript = await current.transcriber.finish();
-		this.diagnostics.write("dictation", "complete", { clientId, transcript });
-		return transcript;
+		try {
+			const transcript = await current.transcriber.finish();
+			this.diagnostics.write("dictation", "complete", { clientId, transcript });
+			return transcript;
+		} finally {
+			if (this.finishing === current) this.finishing = undefined;
+		}
+	}
+
+	async cancel(clientId: string): Promise<void> {
+		const session = this.current?.clientId === clientId
+			? this.current
+			: this.finishing?.clientId === clientId ? this.finishing : undefined;
+		if (!session) return;
+		if (this.current === session) this.current = undefined;
+		if (this.finishing === session) this.finishing = undefined;
+		this.diagnostics.write("dictation", "cancel", { clientId });
+		await session.transcriber.close();
 	}
 
 	async close(): Promise<void> {
 		const current = this.current;
+		const finishing = this.finishing;
 		this.current = undefined;
+		this.finishing = undefined;
 		await current?.transcriber.close();
+		if (finishing?.transcriber !== current?.transcriber) await finishing?.transcriber.close();
 	}
 }
