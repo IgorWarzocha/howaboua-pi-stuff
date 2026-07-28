@@ -161,7 +161,7 @@ function padCell(value: string, width: number): string { return value + " ".repe
 function formatUsageRow(row: string[], widths: number[]): string { return `  ${row.map((cell, index) => padCell(cell, widths[index] ?? 0)).join("  ")}`; }
 
 function usageColumns(window: { usedPercent?: number | undefined; windowMinutes?: number | undefined; resetsAt?: number | undefined } | undefined): { bar: string; percent: string; reset: string } {
-	if (!window) return { bar: "—", percent: "", reset: "" };
+	if (!window) return { bar: "", percent: "", reset: "" };
 	const percent = window.usedPercent === undefined ? undefined : 100 - Math.max(0, Math.min(100, window.usedPercent));
 	return { bar: usageBar(percent), percent: percent === undefined ? "?%" : `${Math.round(percent)}%`, reset: formatResetShort(window.resetsAt) };
 }
