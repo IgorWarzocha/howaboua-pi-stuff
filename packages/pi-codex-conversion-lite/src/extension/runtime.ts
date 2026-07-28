@@ -126,7 +126,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 						onPayload: (body) => rewriteCodexProviderRequest(body, ctx, state),
 					},
 					{
-						getConfig: () => ({ openai: state.config.openai, beta: state.config.beta }),
+						getConfig: () => ({ openai: state.config.openai, beta: state.config.beta, compaction: state.config.compaction }),
 						useResponsesLite: (currentModel) => resolveCodexRuntimePlan({ model: currentModel }, state.config).kind === "code",
 						turnState: state.codexTurnState,
 					},

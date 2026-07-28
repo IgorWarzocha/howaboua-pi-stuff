@@ -1046,7 +1046,7 @@ async function execute(request) {
 	}
 	if (!delivery)
 		throw new Error(
-			`${panel.pane_id} did not accept the message; the text may remain in Pi's editor`,
+			`${panel.pane_id} did not confirm the message; it may already be queued in Pi`,
 		);
 	if (!request.wait)
 		return {

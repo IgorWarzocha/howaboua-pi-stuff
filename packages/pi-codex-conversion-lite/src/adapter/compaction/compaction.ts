@@ -250,7 +250,9 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 	}
 	const tools = getActiveCompactionTools(pi, codeMode);
 	const context: Context = {
-		systemPrompt: ctx.getSystemPrompt(),
+		// Match the active provider lane so cached WebSocket compaction can send
+		// only previous_response_id plus the trigger instead of the full history.
+		systemPrompt: state.activeProviderSystemPrompt ?? ctx.getSystemPrompt(),
 		messages: [],
 		...(tools.length > 0 ? { tools } : {}),
 	};

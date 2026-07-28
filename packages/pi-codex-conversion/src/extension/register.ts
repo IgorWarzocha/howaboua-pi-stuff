@@ -17,7 +17,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 	let cleanupProxyProvider: ReturnType<typeof registerCodeModeProxyProvider> | undefined;
 	try {
 		registerOpenAICodexCustomProvider(pi, {
-			getConfig: () => ({ openai: runtime.state.config.openai, beta: runtime.state.config.beta }),
+			getConfig: () => ({ openai: runtime.state.config.openai, beta: runtime.state.config.beta, compaction: runtime.state.config.compaction }),
 			useResponsesLite: (model) => resolveCodexRuntimePlan({ model }, runtime.state.config).kind === "code",
 			turnState: runtime.state.codexTurnState,
 		});
@@ -33,6 +33,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 				config.voiceFeaturesOnly
 				|| config.prompt.heavySystemPromptOverwrite !== previousConfig.prompt.heavySystemPromptOverwrite
 				|| config.openai.harnessIdentifierHeader !== previousConfig.openai.harnessIdentifierHeader
+				|| config.compaction.responsesCompaction !== previousConfig.compaction.responsesCompaction
 			) {
 				runtime.resetTransport(ctx.sessionManager.getSessionId());
 			}

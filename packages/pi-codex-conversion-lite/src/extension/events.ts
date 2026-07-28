@@ -74,6 +74,7 @@ export function registerCodexEvents(
 		runtime.backgroundWidget.ctx = ctx;
 		state.cwd = ctx.cwd;
 		state.config = readCodexConversionConfig();
+		state.activeProviderSystemPrompt = undefined;
 		proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 		if (state.config.voiceFeaturesOnly) {
@@ -98,6 +99,7 @@ export function registerCodexEvents(
 		await runtime.voice.stop({ announce: true });
 		runtime.resetTransport(ctx.sessionManager.getSessionId());
 		state.cwd = ctx.cwd;
+		state.activeProviderSystemPrompt = undefined;
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 		proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 		if (state.config.voiceFeaturesOnly) {
@@ -152,6 +154,7 @@ export function registerCodexEvents(
 		if (!isAdapterRuntime(resolveCodexRuntimePlan(ctx, state.config))) return undefined;
 		const skills = resolvePromptSkills(event.systemPromptOptions?.skills, hasNoSkillsFlag() ? [] : state.promptSkills);
 		const codexSystemPrompt = runtime.codexSystemPrompt(systemPrompt, ctx, skills, event.systemPromptOptions);
+		state.activeProviderSystemPrompt = codexSystemPrompt;
 		await runtime.waitForPrewarm(ctx, codexSystemPrompt);
 		return { systemPrompt: codexSystemPrompt };
 	});
