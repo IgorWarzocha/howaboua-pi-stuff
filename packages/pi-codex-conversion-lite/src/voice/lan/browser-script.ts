@@ -176,6 +176,7 @@ async function start() {
 }
 
 function receiveAudioMessage(currentSocket, event) {
+  if (socket !== currentSocket) return;
   if (event.data instanceof ArrayBuffer) { if (mode === 'conversation') processor?.port.postMessage(event.data, [event.data]); return; }
   try {
     const message = JSON.parse(event.data);

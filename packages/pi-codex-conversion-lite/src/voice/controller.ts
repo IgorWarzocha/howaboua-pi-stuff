@@ -13,7 +13,10 @@ import type { CodexVoiceMode } from "./ui.ts";
 type VoiceSession = CodexRealtimeConversation | CodexDictationSession;
 type VoiceState =
 	| { type: "idle" }
-	| { type: "connecting"; mode: CodexVoiceMode; session?: VoiceSession }
+	| { type: "connecting"; mode: "realtime"; phase: "authorizing" }
+	| { type: "connecting"; mode: "realtime"; phase: "starting"; session: CodexRealtimeConversation }
+	| { type: "connecting"; mode: "dictation"; phase: "authorizing" }
+	| { type: "connecting"; mode: "dictation"; phase: "starting"; session: CodexDictationSession }
 	| { type: "conversation"; session: CodexRealtimeConversation }
 	| { type: "dictation"; session: CodexDictationSession }
 	| { type: "failed"; message: string };
@@ -88,7 +91,9 @@ export class CodexVoiceController {
 		this.context = ctx;
 		this.config = config;
 		this.messages.setContext(ctx);
-		this.state = { type: "connecting", mode };
+		this.state = mode === "realtime"
+			? { type: "connecting", mode: "realtime", phase: "authorizing" }
+			: { type: "connecting", mode: "dictation", phase: "authorizing" };
 		this.renderStatus("connecting…");
 		try {
 			const auth = await interruptible(resolveCodexVoiceAuth(ctx), signal);
@@ -105,10 +110,17 @@ export class CodexVoiceController {
 				this.cancelStart(startGeneration);
 				return;
 			}
-			if (!this.modeIsActive(mode)) { await peer?.close(); return; }
+			const activeState = this.snapshotState();
+			if (mode === "realtime") {
+				if (activeState.type !== "conversation") { await peer?.close(); return; }
+				this.announcedMode = mode;
+				this.messages.modeStarted(mode);
+				return activeState.session;
+			}
+			if (activeState.type !== "dictation") return;
 			this.announcedMode = mode;
 			this.messages.modeStarted(mode);
-			return mode === "realtime" ? this.currentSession() as CodexRealtimeConversation : undefined;
+			return undefined;
 		} catch (error) {
 			if (signal?.aborted) {
 				await peer?.close();
@@ -137,8 +149,8 @@ export class CodexVoiceController {
 		this.startGeneration += 1;
 		const session = this.state.type === "dictation"
 			? this.state.session
-			: this.state.type === "connecting" && this.state.mode === "dictation"
-				? this.state.session as CodexDictationSession | undefined
+			: this.state.type === "connecting" && this.state.mode === "dictation" && this.state.phase === "starting"
+				? this.state.session
 				: undefined;
 		if (!session) { await this.stop(options); return; }
 		await session.finish();
@@ -176,7 +188,7 @@ export class CodexVoiceController {
 		signal?: AbortSignal,
 	): Promise<void> {
 		const connecting = this.state;
-		if (connecting.type !== "connecting" || connecting.mode !== "realtime") return;
+		if (connecting.type !== "connecting" || connecting.mode !== "realtime" || connecting.phase !== "authorizing") return;
 		if (signal?.aborted) { await peer?.close(); return; }
 		const { CodexRealtimeConversation } = await import("./conversation/session.ts");
 		if (this.state !== connecting || signal?.aborted) { await peer?.close(); return; }
@@ -188,7 +200,7 @@ export class CodexVoiceController {
 			onStatus: (status) => this.renderStatus(status),
 				onTurn: (turn) => this.messages.voiceTurn(turn),
 		}, realtimePeer);
-		this.state = { type: "connecting", mode: "realtime", session };
+		this.state = { type: "connecting", mode: "realtime", phase: "starting", session };
 		if (signal?.aborted) { await session.close(); return; }
 		const closeOnAbort = () => { void session.close(); };
 		signal?.addEventListener("abort", closeOnAbort, { once: true });
@@ -206,7 +218,7 @@ export class CodexVoiceController {
 		config: CodexConversionConfig,
 	): Promise<void> {
 		const connecting = this.state;
-		if (connecting.type !== "connecting" || connecting.mode !== "dictation") return;
+		if (connecting.type !== "connecting" || connecting.mode !== "dictation" || connecting.phase !== "authorizing") return;
 		const { CodexDictationSession } = await import("./dictation/session.ts");
 		if (this.state !== connecting) return;
 		let session!: CodexDictationSession;
@@ -215,7 +227,7 @@ export class CodexVoiceController {
 			onStatus: (status) => this.renderStatus(status),
 			onTranscript: (transcript) => this.context?.ui.pasteToEditor(transcript),
 		});
-		this.state = { type: "connecting", mode: "dictation", session };
+		this.state = { type: "connecting", mode: "dictation", phase: "starting", session };
 		await session.start(auth, config);
 		if (this.currentSession() === session) this.state = { type: "dictation", session };
 		else await session.close();
@@ -223,11 +235,11 @@ export class CodexVoiceController {
 
 	private currentSession(): VoiceSession | undefined {
 		if (this.state.type === "conversation" || this.state.type === "dictation") return this.state.session;
-		return this.state.type === "connecting" ? this.state.session : undefined;
+		return this.state.type === "connecting" && this.state.phase === "starting" ? this.state.session : undefined;
 	}
 
-	private modeIsActive(mode: CodexVoiceMode): boolean {
-		return mode === "dictation" ? this.state.type === "dictation" : this.state.type === "conversation";
+	private snapshotState(): VoiceState {
+		return this.state;
 	}
 
 	private failSession(session: VoiceSession, error: Error): void {

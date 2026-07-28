@@ -4,6 +4,8 @@ import type { CodexVoiceAuth } from "../auth.ts";
 
 const MIN_AUDIO_BYTES = 4_800;
 const COMPLETION_TIMEOUT_MS = 10_000;
+const MAX_TRANSCRIPTION_EVENT_BYTES = 72 * 1024;
+const MAX_TRANSCRIPT_BYTES = 64 * 1024;
 
 type TranscriberState = "idle" | "starting" | "recording" | "finishing" | "failed" | "closed";
 
@@ -94,19 +96,34 @@ export class CodexDictationTranscriber {
 
 	private receive(raw: unknown): void {
 		if (this.state === "idle" || this.state === "closed" || this.state === "failed") return;
-		if (!raw || typeof raw !== "object" || !("data" in raw)) return;
+		if (!raw || typeof raw !== "object" || !("data" in raw) || typeof raw.data !== "string") {
+			this.fail(new Error("Codex dictation emitted an invalid event"));
+			return;
+		}
+		if (Buffer.byteLength(raw.data) > MAX_TRANSCRIPTION_EVENT_BYTES) {
+			this.fail(new Error("Codex dictation emitted an oversized event"));
+			return;
+		}
+		let event: Record<string, unknown>;
 		try {
-			const event = JSON.parse(String((raw as { data: unknown }).data)) as Record<string, unknown>;
-			if (event["type"] === "error") { this.fail(new Error(remoteError(event))); return; }
-			if (event["type"] === "conversation.item.input_audio_transcription.delta" && typeof event["delta"] === "string") {
-				this.callbacks.onStatus("transcribing");
-				return;
-			}
-			if (event["type"] === "conversation.item.input_audio_transcription.completed" || event["type"] === "input_audio_transcription.completed") {
-				const transcript = typeof event["transcript"] === "string" ? event["transcript"].trim() : "";
-				this.completion?.resolve(transcript || undefined);
-			}
-		} catch {}
+			const value = JSON.parse(raw.data) as unknown;
+			if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error();
+			event = value as Record<string, unknown>;
+		} catch {
+			this.fail(new Error("Codex dictation emitted an invalid event"));
+			return;
+		}
+		if (event["type"] === "error") { this.fail(new Error(remoteError(event))); return; }
+		if (event["type"] === "conversation.item.input_audio_transcription.delta" && typeof event["delta"] === "string") {
+			this.callbacks.onStatus("transcribing");
+			return;
+		}
+		if (event["type"] === "conversation.item.input_audio_transcription.completed" || event["type"] === "input_audio_transcription.completed") {
+			if (typeof event["transcript"] !== "string") { this.fail(new Error("Codex dictation returned an invalid transcript")); return; }
+			const transcript = event["transcript"].trim();
+			if (Buffer.byteLength(transcript) > MAX_TRANSCRIPT_BYTES) { this.fail(new Error("Codex dictation returned an oversized transcript")); return; }
+			this.completion?.resolve(transcript || undefined);
+		}
 	}
 
 	private fail(error: Error): void {

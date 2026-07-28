@@ -2,8 +2,8 @@ import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import { resolveWebSocketProxyForTarget } from "../../providers/openai-codex/websocket-connection.ts";
 import type { CodexVoiceAuth } from "../auth.ts";
 import { RealtimeVoiceTurnTracker, type RealtimeVoiceTurn } from "../turns.ts";
-import type { CodexRealtimePeer, CodexRealtimePeerEvent } from "./peer.ts";
-import { fetch as undiciFetch, ProxyAgent } from "undici";
+import { MAX_REALTIME_SDP_BYTES, type CodexRealtimePeer, type CodexRealtimePeerEvent } from "./peer.ts";
+import { fetch as undiciFetch, ProxyAgent, type Response } from "undici";
 
 const V3_MODEL = "gpt-live-1-boulder-alpha";
 const MAX_DELEGATION_BYTES = 32 * 1024;
@@ -223,10 +223,35 @@ async function setupRealtimeCall(endpoint: string, headers: Headers, signal: Abo
 			body,
 			...(dispatcher ? { dispatcher } : {}),
 		});
-		return { status: response.status, answer: await response.text() };
+		return { status: response.status, answer: await readBoundedResponseText(response, MAX_REALTIME_SDP_BYTES) };
 	} finally {
 		await dispatcher?.close();
 	}
+}
+
+async function readBoundedResponseText(response: Response, maxBytes: number): Promise<string> {
+	const declaredBytes = Number(response.headers.get("content-length"));
+	if (Number.isFinite(declaredBytes) && declaredBytes > maxBytes) throw new Error(`Codex voice response exceeded ${maxBytes} bytes`);
+	if (!response.body) return "";
+	const reader = response.body.getReader();
+	const chunks: Buffer[] = [];
+	let bytes = 0;
+	try {
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			const chunk = Buffer.from(value);
+			bytes += chunk.byteLength;
+			if (bytes > maxBytes) {
+				await reader.cancel().catch(() => {});
+				throw new Error(`Codex voice response exceeded ${maxBytes} bytes`);
+			}
+			chunks.push(chunk);
+		}
+	} finally {
+		reader.releaseLock();
+	}
+	return Buffer.concat(chunks, bytes).toString("utf8");
 }
 
 function boundedTranscript(value: unknown): string | "oversized" | undefined {

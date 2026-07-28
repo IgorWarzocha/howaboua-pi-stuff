@@ -1,5 +1,7 @@
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 
+export const MAX_REALTIME_SDP_BYTES = 256 * 1024;
+
 export type CodexRealtimePeerEvent =
 	| { type: "state"; state: string }
 	| { type: "data"; message: unknown }

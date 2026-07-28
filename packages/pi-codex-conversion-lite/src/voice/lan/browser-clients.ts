@@ -4,8 +4,8 @@ import type { LanVoiceDiagnostics } from "./diagnostics.ts";
 import type { LanVoiceDraftSelection } from "./draft.ts";
 import { decodeLanVoiceAudioCommand } from "./protocol.ts";
 
-const MAX_CONTROL_BYTES = 72 * 1024;
-export const MAX_PCM_BYTES = 24_000 * 2;
+export const MAX_CONTROL_BYTES = 72 * 1024;
+const MAX_PCM_BYTES = 24_000 * 2;
 
 type LanVoiceBrowserMode = "conversation" | "dictation";
 type LanVoiceBrowserState =

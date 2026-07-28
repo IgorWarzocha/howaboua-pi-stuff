@@ -8,7 +8,7 @@ import type { CodexVoiceController } from "../controller.ts";
 import type { CodexRealtimeConversation } from "../conversation/session.ts";
 import { LanVoiceActivity } from "./activity.ts";
 import { LanVoiceBridgePeer } from "./bridge-peer.ts";
-import { LanVoiceBrowserClients, MAX_PCM_BYTES } from "./browser-clients.ts";
+import { LanVoiceBrowserClients, MAX_CONTROL_BYTES } from "./browser-clients.ts";
 import { resolveLanVoiceCertificate } from "./certificate.ts";
 import { createLanVoiceDiagnostics } from "./diagnostics.ts";
 import { LanVoiceDictation } from "./dictation.ts";
@@ -132,7 +132,7 @@ export async function startCodexLanVoiceServer(options: {
 			get closing() { return closing; },
 		});
 	});
-	const webSockets = new WebSocketServer({ noServer: true, maxPayload: MAX_PCM_BYTES });
+	const webSockets = new WebSocketServer({ noServer: true, maxPayload: MAX_CONTROL_BYTES });
 	server.on("upgrade", (request, socket, head) => {
 		try {
 			const url = new URL(request.url ?? "/", "https://lan-voice.local");

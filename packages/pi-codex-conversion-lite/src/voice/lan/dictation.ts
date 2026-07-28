@@ -40,6 +40,7 @@ export class LanVoiceDictation {
 			const auth = await interruptible(this.resolveAuth(), startAbort.signal);
 			if (auth === CANCELLED) throw new Error("Codex dictation start was cancelled");
 			await transcriber.start(auth);
+			if (this.current !== current) throw new Error("Codex dictation start was cancelled");
 		} catch (error) {
 			if (this.current?.transcriber === transcriber) this.current = undefined;
 			await transcriber.close();
@@ -61,6 +62,7 @@ export class LanVoiceDictation {
 		this.diagnostics.write("dictation", "finish", { clientId });
 		try {
 			const transcript = await current.transcriber.finish();
+			if (this.finishing !== current) return undefined;
 			this.diagnostics.write("dictation", "complete", { clientId, transcript });
 			return transcript;
 		} finally {

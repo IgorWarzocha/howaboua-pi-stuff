@@ -131,20 +131,17 @@ export function registerCodexEvents(
 	});
 
 	pi.on("session_shutdown", async (_event, ctx) => {
-		try {
-			await runtime.lanVoice.stop(ctx);
-			await runtime.voice.stop({ announce: true });
-			runtime.shutdownTransport(ctx.sessionManager.getSessionId());
-			ui.clearBackgroundWidget();
-			runtime.backgroundWidget.ctx = undefined;
-			sessions.shutdown();
-		} finally {
-			try {
-				proxyProvider.shutdown();
-			} finally {
-				await codeMode.shutdown();
-			}
-		}
+		const failures: unknown[] = [];
+		await runShutdownStep(failures, () => runtime.lanVoice.stop(ctx));
+		await runShutdownStep(failures, () => runtime.voice.stop({ announce: true }));
+		await runShutdownStep(failures, () => runtime.shutdownTransport(ctx.sessionManager.getSessionId()));
+		await runShutdownStep(failures, () => ui.clearBackgroundWidget());
+		runtime.backgroundWidget.ctx = undefined;
+		await runShutdownStep(failures, () => sessions.shutdown());
+		await runShutdownStep(failures, () => proxyProvider.shutdown());
+		await runShutdownStep(failures, () => codeMode.shutdown());
+		if (failures.length === 1) throw failures[0];
+		if (failures.length > 1) throw new AggregateError(failures, "Codex extension shutdown failed");
 	});
 	pi.on("input", async (event) => {
 		if (event.streamingBehavior === undefined) state.codexTurnState.beginTurn();
@@ -201,4 +198,12 @@ export function registerCodexEvents(
 		const messages = event.messages.filter((message) => !isAdapterContextExcludedCustomMessage(message));
 		return { messages };
 	});
+}
+
+async function runShutdownStep(failures: unknown[], action: () => unknown): Promise<void> {
+	try {
+		await action();
+	} catch (error) {
+		failures.push(error);
+	}
 }

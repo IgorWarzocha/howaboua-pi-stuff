@@ -1,5 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { resolveVoiceHelperBinary } from "./binary.ts";
+import { MAX_REALTIME_SDP_BYTES } from "./conversation/peer.ts";
 
 export type VoiceHelperCommand =
 	| { type: "list_devices" }
@@ -29,7 +30,6 @@ export interface VoiceDevice {
 }
 
 const MAX_HELPER_LINE_BYTES = 512 * 1024;
-const MAX_SDP_BYTES = 256 * 1024;
 const MAX_PCM_BYTES = 64 * 1024;
 const MAX_DATA_MESSAGE_BYTES = 64 * 1024;
 const MAX_TEXT_BYTES = 8 * 1024;
@@ -271,7 +271,7 @@ export function parseVoiceHelperEvent(value: unknown): VoiceHelperEvent {
 	const event = value as Record<string, unknown>;
 	if (event["type"] === "ready" && Number.isSafeInteger(event["version"])) return event as VoiceHelperEvent;
 	if (event["type"] === "devices" && validDevices(event["inputs"]) && validDevices(event["outputs"])) return event as VoiceHelperEvent;
-	if (event["type"] === "offer" && boundedString(event["sdp"], MAX_SDP_BYTES)) return event as VoiceHelperEvent;
+	if (event["type"] === "offer" && boundedString(event["sdp"], MAX_REALTIME_SDP_BYTES)) return event as VoiceHelperEvent;
 	if (event["type"] === "state" && boundedString(event["state"], 128)) return event as VoiceHelperEvent;
 	if (event["type"] === "data" && boundedJson(event["message"], MAX_DATA_MESSAGE_BYTES)) return event as VoiceHelperEvent;
 	if (event["type"] === "pcm" && validBase64(event["audio"], MAX_PCM_BYTES) && event["sample_rate"] === 24_000 && event["num_channels"] === 1) return event as VoiceHelperEvent;
