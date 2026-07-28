@@ -8,6 +8,8 @@ import type { CodexRealtimeConversation } from "../conversation/session.ts";
 import { LanVoiceBrowserClients, MAX_PCM_BYTES } from "./browser-clients.ts";
 import { resolveLanVoiceCertificate } from "./certificate.ts";
 import { createLanVoiceDiagnostics } from "./diagnostics.ts";
+import { LanVoiceDictation } from "./dictation.ts";
+import { LanVoiceDraft, LanVoiceDraftConflictError } from "./draft.ts";
 import { boundedString, handleLanVoiceHttpRequest } from "./http-handler.ts";
 import { LanVoiceUpstreamPeer } from "./upstream-peer.ts";
 
@@ -25,6 +27,7 @@ export async function startCodexLanVoiceServer(options: {
 	ctx: ExtensionContext;
 	getConfig: () => CodexConversionConfig;
 	voice: CodexVoiceController;
+	sendUserMessage(text: string): void;
 	ownerSessionId: string;
 	port?: number | undefined;
 	certificateAgentDir: string;
@@ -36,6 +39,16 @@ export async function startCodexLanVoiceServer(options: {
 	let conversation: CodexRealtimeConversation | undefined;
 	let closing = false;
 	let clients!: LanVoiceBrowserClients;
+	const draft = new LanVoiceDraft({
+		diagnostics,
+		publish: (message) => clients.broadcastControl(message),
+		sendMessage: options.sendUserMessage,
+	});
+	const dictation = new LanVoiceDictation({
+		ctx: options.ctx,
+		diagnostics,
+		onError: (clientId, error) => clients.sendControl(clientId, { type: "error", message: error.message }),
+	});
 
 	const clearUpstream = (peer?: LanVoiceUpstreamPeer): void => {
 		if (peer && upstreamPeer !== peer) return;
@@ -45,7 +58,7 @@ export async function startCodexLanVoiceServer(options: {
 	const ensureConversation = async (): Promise<void> => {
 		if (conversation && upstreamPeer) return;
 		let peer!: LanVoiceUpstreamPeer;
-		peer = new LanVoiceUpstreamPeer(diagnostics, (pcm) => clients.sendAudio(pcm));
+		peer = new LanVoiceUpstreamPeer(diagnostics, (pcm) => clients.sendConversationAudio(pcm));
 		peer.onExit(() => clearUpstream(peer));
 		upstreamPeer = peer;
 		const started = await options.voice.startRealtimeWithPeer(options.ctx, options.getConfig(), peer);
@@ -59,16 +72,33 @@ export async function startCodexLanVoiceServer(options: {
 	clients = new LanVoiceBrowserClients({
 		diagnostics,
 		ensureConversation,
-		onAudio(pcm) {
+		startDictation: (clientId) => dictation.start(clientId),
+		async finishDictation(clientId, text, revision, selection) {
+			const transcript = await dictation.finish(clientId);
+			let insertion = selection;
+			if (text !== undefined) {
+				try {
+					draft.update(clientId, text, revision);
+				} catch (error) {
+					if (!(error instanceof LanVoiceDraftConflictError)) throw error;
+					insertion = undefined;
+					diagnostics.write("server", "draft.finish_conflict", { clientId });
+				}
+			}
+			if (transcript) draft.insertTranscript(clientId, transcript, insertion);
+		},
+		onConversationAudio(pcm) {
 			const peer = upstreamPeer;
 			if (peer) peer.sendAudio(pcm);
 		},
+		onDictationAudio: (clientId, pcm) => dictation.append(clientId, pcm),
 	});
 
 	const server = createServer({ cert: certificate.cert, key: certificate.key }, (request, response) => {
 		void handleLanVoiceHttpRequest(request, response, {
 			diagnostics,
 			clients,
+			draft,
 			ownerIsActive,
 			get closing() { return closing; },
 		});
@@ -118,6 +148,7 @@ export async function startCodexLanVoiceServer(options: {
 			if (activeConversation) await options.voice.stopConversation(activeConversation, { announce: true });
 			else await peer?.close();
 			clients.close();
+			await dictation.close();
 			await new Promise<void>((resolve) => webSockets.close(() => resolve()));
 			await new Promise<void>((resolve) => { server.close(() => resolve()); server.closeAllConnections(); });
 			await diagnostics.close();

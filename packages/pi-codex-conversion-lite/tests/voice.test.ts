@@ -7,6 +7,8 @@ import test from "node:test";
 import { WebSocket } from "ws";
 import type { WebSocketLike } from "../src/providers/openai-codex/types.ts";
 import { BoundedJsonlReader, parseVoiceHelperEvent } from "../src/voice/helper.ts";
+import { CodexDictationTranscriber } from "../src/voice/dictation/transcriber.ts";
+import { LanVoiceDraft, LanVoiceDraftConflictError } from "../src/voice/lan/draft.ts";
 import { startCodexLanVoiceServer } from "../src/voice/lan/server.ts";
 import { LanVoiceUpstreamPeer } from "../src/voice/lan/upstream-peer.ts";
 import { CodexVoiceSessionMessages } from "../src/voice/session-messages.ts";
@@ -118,6 +120,53 @@ test("LAN upstream keeps audio and realtime events on one V3 WebSocket", async (
 	await peer.close();
 });
 
+test("dictation transcriber commits 24 kHz PCM through the V2 transcription protocol", async () => {
+	const socket = new FakeWebSocket();
+	let connectedUrl = "";
+	const transcriber = new CodexDictationTranscriber({ onError: () => {}, onStatus: () => {} }, async (url) => {
+		connectedUrl = url;
+		return socket;
+	});
+	await transcriber.start({
+		headers: new Headers({ authorization: "Bearer test" }),
+		baseUrl: "https://chatgpt.com/backend-api/codex",
+		officialCodex: true,
+	});
+	assert.equal(connectedUrl, "wss://api.openai.com/v1/realtime?intent=transcription");
+	assert.deepEqual(JSON.parse(socket.sent[0]!), {
+		type: "session.update",
+		session: {
+			type: "transcription",
+			audio: { input: {
+				format: { type: "audio/pcm", rate: 24_000 },
+				noise_reduction: { type: "near_field" },
+				transcription: { model: "gpt-4o-mini-transcribe" },
+				turn_detection: null,
+			} },
+		},
+	});
+	const pcm = Buffer.alloc(4_800, 1);
+	transcriber.append(pcm);
+	const append = JSON.parse(socket.sent[1]!) as { type: string; audio: string };
+	assert.equal(append.type, "input_audio_buffer.append");
+	assert.deepEqual(Buffer.from(append.audio, "base64"), pcm);
+	const finishing = transcriber.finish();
+	assert.deepEqual(JSON.parse(socket.sent[2]!), { type: "input_audio_buffer.commit" });
+	socket.emit("message", { data: JSON.stringify({ type: "conversation.item.input_audio_transcription.completed", transcript: "  hello Pi  " }) });
+	assert.equal(await finishing, "hello Pi");
+});
+
+test("LAN composer rejects stale writes from another browser", () => {
+	const draft = new LanVoiceDraft({
+		diagnostics: { path: "", write: () => {}, close: async () => {} },
+		publish: () => {},
+		sendMessage: () => {},
+	});
+	assert.equal(draft.update("phone", "first draft", 0), 1);
+	assert.throws(() => draft.update("desktop", "stale draft", 0), LanVoiceDraftConflictError);
+	assert.deepEqual(draft.snapshot(), { type: "draft", text: "first draft", revision: 1 });
+});
+
 test("LAN voice transfers audio ownership without restarting its realtime session", async () => {
 	const agentDir = await mkdtemp(join(tmpdir(), "pi-lan-voice-clients-"));
 	let upstreamStarts = 0;
@@ -135,6 +184,7 @@ test("LAN voice transfers audio ownership without restarting its realtime sessio
 			stopConversation: async () => {},
 			stop: async () => {},
 		} as never,
+		sendUserMessage: () => {},
 		ownerSessionId: "owner",
 		port: 0,
 		certificateAgentDir: agentDir,
@@ -147,12 +197,12 @@ test("LAN voice transfers audio ownership without restarting its realtime sessio
 		first = await openAudioSocket(new URL("/api/audio?client=first", url));
 		const firstActive = nextSocketJson(first);
 		first.send(JSON.stringify({ type: "start" }));
-		assert.deepEqual(await firstActive, { type: "active" });
+		assert.deepEqual(await firstActive, { type: "active", mode: "conversation" });
 		second = await openAudioSocket(new URL("/api/audio?client=second", url));
 		const firstClosed = socketClosed(first);
 		const secondActive = nextSocketJson(second);
 		second.send(JSON.stringify({ type: "start" }));
-		assert.deepEqual(await secondActive, { type: "active" });
+		assert.deepEqual(await secondActive, { type: "active", mode: "conversation" });
 		assert.equal((await firstClosed).code, 4001);
 		second.send(Buffer.from([1, 0, 2, 0]));
 		await new Promise((resolve) => setTimeout(resolve, 20));
@@ -169,6 +219,7 @@ test("LAN voice transfers audio ownership without restarting its realtime sessio
 test("LAN voice server rejects control after its owning session changes", async () => {
 	const agentDir = await mkdtemp(join(tmpdir(), "pi-lan-voice-"));
 	let activeSessionId = "owner";
+	const sentMessages: string[] = [];
 	const server = await startCodexLanVoiceServer({
 		ctx: { sessionManager: { getSessionId: () => activeSessionId } } as never,
 		getConfig: () => ({}) as never,
@@ -176,6 +227,7 @@ test("LAN voice server rejects control after its owning session changes", async 
 			startRealtimeWithPeer: async () => undefined,
 			stop: async () => {},
 		} as never,
+		sendUserMessage: (text) => sentMessages.push(text),
 		ownerSessionId: "owner",
 		port: 0,
 		certificateAgentDir: agentDir,
@@ -188,6 +240,12 @@ test("LAN voice server rejects control after its owning session changes", async 
 		assert.match(page.body, /Pi voice/);
 		assert.match(page.body, /new Blob\(\[/);
 		assert.match(page.body, /registerProcessor\('pi-lan-voice'/);
+		const sent = await requestText(new URL("/api/send", url), {
+			method: "POST",
+			body: JSON.stringify({ clientId: "test-client", text: "check the time", revision: 0 }),
+		});
+		assert.equal(sent.status, 200);
+		assert.deepEqual(sentMessages, ["check the time"]);
 		activeSessionId = "other";
 		const stopped = await requestText(new URL("/api/stop", url), { method: "POST" });
 		assert.equal(stopped.status, 409);

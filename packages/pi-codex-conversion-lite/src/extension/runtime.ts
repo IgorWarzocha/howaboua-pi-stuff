@@ -80,7 +80,15 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		sessions,
 		backgroundWidget: { folded: true },
 		voice,
-		lanVoice: new CodexLanVoiceServerController(voice, () => state.config, dirname(getCodexConversionConfigPath())),
+		lanVoice: new CodexLanVoiceServerController(
+			voice,
+			() => state.config,
+			(text, ctx) => {
+				if (ctx.isIdle()) pi.sendUserMessage(text);
+				else pi.sendUserMessage(text, { deliverAs: "steer" });
+			},
+			dirname(getCodexConversionConfigPath()),
+		),
 		execEnv(config = state.config) {
 			return { ...process.env, PI_CODEX_MODEL: config.openai.webSearchModel };
 		},

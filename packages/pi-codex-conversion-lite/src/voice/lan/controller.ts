@@ -11,6 +11,7 @@ export interface CodexLanVoiceServerStatus {
 export class CodexLanVoiceServerController {
 	private readonly voice: CodexVoiceController;
 	private readonly getConfig: () => CodexConversionConfig;
+	private readonly sendUserMessage: (text: string, ctx: ExtensionContext) => void;
 	private readonly agentDir: string;
 	private server: CodexLanVoiceServer | undefined;
 	private operation = Promise.resolve();
@@ -18,10 +19,12 @@ export class CodexLanVoiceServerController {
 	constructor(
 		voice: CodexVoiceController,
 		getConfig: () => CodexConversionConfig,
+		sendUserMessage: (text: string, ctx: ExtensionContext) => void,
 		agentDir: string,
 	) {
 		this.voice = voice;
 		this.getConfig = getConfig;
+		this.sendUserMessage = sendUserMessage;
 		this.agentDir = agentDir;
 	}
 
@@ -46,6 +49,7 @@ export class CodexLanVoiceServerController {
 				ctx,
 				getConfig: this.getConfig,
 				voice: this.voice,
+				sendUserMessage: (text) => this.sendUserMessage(text, ctx),
 				ownerSessionId: sessionId,
 				certificateAgentDir: this.agentDir,
 			});

@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 export interface LanVoiceDiagnostics {
 	readonly path: string;
-	write(source: "browser" | "server" | "realtime", event: string, data?: unknown): void;
+	write(source: "browser" | "server" | "realtime" | "dictation", event: string, data?: unknown): void;
 	close(): Promise<void>;
 }
 
