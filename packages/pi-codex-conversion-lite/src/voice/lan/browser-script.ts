@@ -39,7 +39,7 @@ const updateControls = () => {
   button.disabled = busy;
   modeButtons.forEach((item) => { item.disabled = busy || active; });
   draft.disabled = busy || draftRevision < 0;
-  send.disabled = busy || active || draftRevision < 0 || !draft.value.trim();
+  send.disabled = busy || draftRevision < 0 || !draft.value.trim();
 };
 const syncDraft = () => {
   draftDirty = true;
@@ -212,7 +212,7 @@ function selectMode(nextMode) {
 }
 
 async function sendDraft() {
-  if (busy || active || !draft.value.trim()) return;
+  if (busy || !draft.value.trim()) return;
   busy = true;
   updateControls();
   setStatus('Sending…', 'Routing this message through the connected Pi session.');

@@ -178,6 +178,20 @@ test("LAN composer rejects stale writes from another browser", () => {
 	assert.deepEqual(draft.snapshot(), { type: "draft", text: "first draft", revision: 1 });
 });
 
+test("LAN composer starts a new draft when dictation continues after send", () => {
+	const sent: string[] = [];
+	const draft = new LanVoiceDraft({
+		diagnostics: { path: "", write: () => {}, close: async () => {} },
+		publish: () => {},
+		sendMessage: (text) => sent.push(text),
+	});
+	assert.equal(draft.update("phone", "check the time", 0), 1);
+	draft.send("phone", "check the time", 1);
+	draft.insertTranscript("phone", "and check the weather");
+	assert.deepEqual(sent, ["check the time"]);
+	assert.deepEqual(draft.snapshot(), { type: "draft", text: "and check the weather", revision: 3 });
+});
+
 test("LAN voice transfers audio ownership without restarting its realtime session", async () => {
 	const agentDir = await mkdtemp(join(tmpdir(), "pi-lan-voice-clients-"));
 	let upstreamStarts = 0;
