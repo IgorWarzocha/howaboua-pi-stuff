@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
-import { buildNativeCompactionRequest, injectPendingNativeWindowIntoPiCompactionRequest } from "../src/adapter/compaction/compaction.ts";
+import { buildNativeCompactionInput, injectPendingNativeWindowIntoPiCompactionRequest } from "../src/adapter/compaction/compaction.ts";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 import type { Model } from "@earendil-works/pi-ai";
-import { serializeActiveSessionToCompactRequest } from "../src/adapter/compaction/serializer.ts";
+import { serializeActiveSessionToResponsesInput } from "../src/adapter/compaction/serializer.ts";
 
 const model = {
 	id: "gpt-5.1",
@@ -37,13 +37,12 @@ test("first native compaction sends the full active Pi context", () => {
 	};
 	const tail = entry("tail", "pi-compaction", "exact live tail");
 
-	const request = serializeActiveSessionToCompactRequest({
+	const input = serializeActiveSessionToResponsesInput({
 		model,
 		entries: [old, kept, compaction, tail] as never,
 		leafId: "tail",
-		instructions: "compact",
 	});
-	const serialized = JSON.stringify(request.input);
+	const serialized = JSON.stringify(input);
 
 	assert.match(serialized, /Pi summary/);
 	assert.match(serialized, /exact kept context/);
@@ -74,25 +73,23 @@ test("native compaction request routing reuses only the latest matching checkpoi
 		branchEntries: [checkpoint, tailEntry],
 		allEntries: [checkpoint, tailEntry],
 		leafId: "tail",
-		instructions: "compact",
-		requestOptions: {},
 	};
 
-	const matching = buildNativeCompactionRequest({
+	const matching = buildNativeCompactionInput({
 		...common,
 		latestNativeCompaction: { ok: true, entry: checkpoint, index: 0, latestCompactionIndex: 0 },
 	});
 	assert.equal(matching?.compactedKeptWindow, false);
-	assert.equal((matching?.request.input[0] as { encrypted_content: string }).encrypted_content, "sealed");
-	assert.match(JSON.stringify(matching?.request.input), /exact live tail/);
+	assert.equal((matching?.input[0] as { encrypted_content: string }).encrypted_content, "sealed");
+	assert.match(JSON.stringify(matching?.input), /exact live tail/);
 
-	const mismatched = buildNativeCompactionRequest({
+	const mismatched = buildNativeCompactionInput({
 		...common,
 		latestNativeCompaction: { ok: false, reason: "latest-native-compaction-mismatch", latestCompactionIndex: 0, latestCompaction: checkpoint },
 	});
 	assert.equal(mismatched?.compactedKeptWindow, true);
-	assert.doesNotMatch(JSON.stringify(mismatched?.request.input), /sealed/);
-	assert.match(JSON.stringify(mismatched?.request.input), /exact live tail/);
+	assert.doesNotMatch(JSON.stringify(mismatched?.input), /sealed/);
+	assert.match(JSON.stringify(mismatched?.input), /exact live tail/);
 });
 
 test("injects pending native compacted window into Pi compaction summarization payload", async () => {

@@ -1,7 +1,9 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { Context } from "@earendil-works/pi-ai";
-import { readCodexConversionConfig, type CodexConversionConfig } from "../adapter/activation/config.ts";
-import { shouldUseCodexAdapter, shouldUseGpt56CodeMode } from "../adapter/activation/activation.ts";
+import { dirname } from "node:path";
+import type { CodexConversionConfig } from "../adapter/activation/config.ts";
+import { getCodexConversionConfigPath, readCodexConversionConfig } from "../adapter/activation/config-store.ts";
+import { isAdapterRuntime, resolveCodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
 import type { AdapterState } from "../adapter/activation/state.ts";
 import { rewriteCodexProviderRequest } from "../adapter/provider-request.ts";
 import { getDefaultCodexRuntimeShell } from "../adapter/prompt/runtime-shell.ts";
@@ -9,23 +11,24 @@ import { buildCodexSystemPrompt, type PiSystemPromptOptions } from "../prompt/bu
 import { closeOpenAICodexWebSocketSessions, prewarmOpenAICodexWebSocket } from "../providers/openai-codex-custom-provider.ts";
 import { createCodexTurnState } from "../providers/openai-codex/turn-state.ts";
 import type { OpenAICodexStreamOptions } from "../providers/openai-codex/types.ts";
+import { CODE_MODE_EXEC_CONSTRAINED_SAMPLING } from "../tools/code-mode/exec-contract.ts";
 import { createExecCommandTracker } from "../tools/exec/command-state.ts";
 import { createExecSessionManager } from "../tools/exec/session-manager.ts";
-import { createBundledPathToolsEnv, getBundledPathToolBinaryPath } from "../tools/path/binary.ts";
+import { getBundledToolBinaryPath } from "../tools/native/binary.ts";
 import type { BackgroundBashWidgetState } from "../ui/background-bash-widget.ts";
-import { supportsViewImageInputs } from "../tools/view-image/tool.ts";
 import { CodexVoiceController } from "../voice/controller.ts";
+import { CodexLanVoiceServerController } from "../voice/lan/controller.ts";
 
-export type CodexContext = Parameters<typeof shouldUseCodexAdapter>[0];
+export type CodexContext = ExtensionContext;
 
 export interface CodexExtensionRuntime {
 	state: AdapterState;
 	tracker: ReturnType<typeof createExecCommandTracker>;
 	sessions: ReturnType<typeof createExecSessionManager>;
 	backgroundWidget: BackgroundBashWidgetState;
-	registeredNativeWebSearchTools: Set<string>;
 	voice: CodexVoiceController;
-	bundledPathToolsEnv(config?: CodexConversionConfig): NodeJS.ProcessEnv;
+	lanVoice: CodexLanVoiceServerController;
+	execEnv(config?: CodexConversionConfig): NodeJS.ProcessEnv;
 	codexSystemPrompt(basePrompt: string, ctx: CodexContext, skills?: AdapterState["promptSkills"], systemPromptOptions?: PiSystemPromptOptions): string;
 	startPrewarm(ctx: CodexContext, systemPrompt?: string, prepared?: boolean): Promise<void> | undefined;
 	resetTransport(sessionId?: string): void;
@@ -35,9 +38,18 @@ export interface CodexExtensionRuntime {
 
 function activeToolContext(pi: ExtensionAPI): NonNullable<Context["tools"]> {
 	const activeTools = new Set(pi.getActiveTools());
+	// Pi ToolInfo omits constrainedSampling; restore our owned exec contract so
+	// prewarm and the real Code Mode turn serialize the same provider tools.
 	return pi.getAllTools()
 		.filter((tool) => activeTools.has(tool.name))
-		.map(({ name, description, parameters }) => ({ name, description, parameters }));
+		.map(({ name, description, parameters }) => ({
+			name,
+			description,
+			parameters,
+			...(name === "exec"
+				? { constrainedSampling: CODE_MODE_EXEC_CONSTRAINED_SAMPLING }
+				: {}),
+		}));
 }
 
 function prewarmReasoningOption(level: ReturnType<ExtensionAPI["getThinkingLevel"]>): Pick<OpenAICodexStreamOptions, "reasoning"> | Record<never, never> {
@@ -54,48 +66,53 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 	};
 	const tracker = createExecCommandTracker();
 	const sessions = createExecSessionManager({
-		env: createBundledPathToolsEnv({ ...process.env, PI_CODEX_MODEL: state.config.openai.webSearchModel }, state.config.tools.customRustBinariesDir),
-		bridgeBinaryPath: () => getBundledPathToolBinaryPath("exec_bridge", {}, state.config.tools.customRustBinariesDir),
+		env: { ...process.env, PI_CODEX_MODEL: state.config.openai.webSearchModel },
+		bridgeBinaryPath: () => getBundledToolBinaryPath("exec_bridge", {}, state.config.tools.customRustBinariesDir),
 	});
 	let prewarmController: AbortController | undefined;
 	let prewarmPromise: Promise<void> | undefined;
 	let websocketPrewarmed = false;
+	const voice = new CodexVoiceController(pi);
 
 	const runtime: CodexExtensionRuntime = {
 		state,
 		tracker,
 		sessions,
 		backgroundWidget: { folded: true },
-		registeredNativeWebSearchTools: new Set<string>(),
-		voice: new CodexVoiceController(pi),
-		bundledPathToolsEnv(config = state.config) {
-			return createBundledPathToolsEnv({ ...process.env, PI_CODEX_MODEL: config.openai.webSearchModel }, config.tools.customRustBinariesDir);
+		voice,
+		lanVoice: new CodexLanVoiceServerController(
+			voice,
+			() => state.config,
+			(text, ctx) => {
+				if (ctx.isIdle()) pi.sendUserMessage(text);
+				else pi.sendUserMessage(text, { deliverAs: "steer" });
+			},
+			dirname(getCodexConversionConfigPath()),
+		),
+		execEnv(config = state.config) {
+			return { ...process.env, PI_CODEX_MODEL: config.openai.webSearchModel };
 		},
 		codexSystemPrompt(basePrompt, ctx, skills = state.promptSkills, systemPromptOptions) {
-			const codeMode = shouldUseGpt56CodeMode(ctx, state.config);
-			const pathShaped = state.config.mode === "path" || codeMode;
+			const plan = resolveCodexRuntimePlan(ctx, state.config);
 			return buildCodexSystemPrompt(basePrompt, {
 				skills,
 				shell: getDefaultCodexRuntimeShell(),
-				mode: codeMode ? "code" : pathShaped ? "path" : "normal",
-				tools: pathShaped
-					? { ...state.config.tools, viewImage: supportsViewImageInputs(ctx.model) || state.config.tools.viewImageFallback }
-					: undefined,
+				mode: plan.prompt ?? "normal",
 				heavySystemPromptOverwrite: state.config.prompt.heavySystemPromptOverwrite,
 				systemPromptOptions,
 			});
 		},
 		startPrewarm(ctx, systemPrompt = ctx.getSystemPrompt(), prepared = false) {
 			const model = ctx.model;
-			if (websocketPrewarmed || !model || model.provider !== "openai-codex" || !shouldUseCodexAdapter(ctx, state.config) || !state.config.openai.forceCachedWebSockets) return undefined;
+			if (websocketPrewarmed || !model || model.provider !== "openai-codex" || !isAdapterRuntime(resolveCodexRuntimePlan(ctx, state.config)) || !state.config.openai.forceCachedWebSockets) return undefined;
 			prewarmController?.abort();
 			const controller = new AbortController();
 			prewarmController = controller;
 			const promise = (async () => {
 				const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
 				if (!auth.ok || !auth.apiKey || controller.signal.aborted) return;
-				await prewarmOpenAICodexWebSocket(
-					model,
+					await prewarmOpenAICodexWebSocket(
+						model,
 						{ systemPrompt: prepared ? systemPrompt : runtime.codexSystemPrompt(systemPrompt, ctx), messages: [], tools: activeToolContext(pi) },
 					{
 						apiKey: auth.apiKey,
@@ -110,7 +127,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 					},
 					{
 						getConfig: () => ({ openai: state.config.openai, beta: state.config.beta }),
-						useResponsesLite: (currentModel) => shouldUseGpt56CodeMode({ model: currentModel }, state.config),
+						useResponsesLite: (currentModel) => resolveCodexRuntimePlan({ model: currentModel }, state.config).kind === "code",
 						turnState: state.codexTurnState,
 					},
 				);

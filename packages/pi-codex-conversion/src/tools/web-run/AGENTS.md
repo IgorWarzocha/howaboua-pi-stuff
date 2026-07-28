@@ -1,0 +1,1 @@
+- `web_run` intentionally has no host-side stdout/stderr cap; do not add speculative output limiting without a reported or reproduced failure.

@@ -1,6 +1,10 @@
 import { calculateCost, type Api, type AssistantMessage, type Model } from "@earendil-works/pi-ai";
 import type { ResponseStreamEvent } from "openai/resources/responses/responses.js";
 import type { AssistantMessageEventStream } from "@earendil-works/pi-ai";
+import {
+	appendGrammarToolInputJsonDelta,
+	type GrammarToolInputJsonBuffer,
+} from "../constrained-sampling.js";
 import { encodeTextSignatureV1 } from "./signatures.ts";
 import { sanitizeImageGenerationCallItem, sanitizeWebSearchCallItem, type ImageGenerationCallBlock, type WebSearchCallBlock } from "./native-items.ts";
 import type { OpenAIResponsesStreamOptions } from "./shared.ts";
@@ -58,10 +62,27 @@ export async function processResponsesStream<TApi extends Api>(
 		blockIndex: number;
 		block: ToolCallBlock;
 		input: string;
+		property: string;
+		jsonBuffer: GrammarToolInputJsonBuffer;
 	};
 	type OutputState = ReasoningState | MessageState | FunctionCallState | CustomToolCallState;
 
 	const outputStates = new Map<number, OutputState>();
+	const appendCustomInput = (
+		state: CustomToolCallState,
+		nextInput: string,
+		close: boolean,
+	): string | undefined => {
+		const delta = appendGrammarToolInputJsonDelta(
+			state.jsonBuffer,
+			state.property,
+			nextInput,
+			close,
+		);
+		state.input = nextInput;
+		state.block.arguments = { [state.property]: nextInput };
+		return delta;
+	};
 
 	const renderReasoningSummary = (summaryParts: Map<number, { text: string }>): string =>
 		Array.from(summaryParts.entries())
@@ -93,24 +114,16 @@ export async function processResponsesStream<TApi extends Api>(
 		if (event.type === "response.custom_tool_call_input.delta") {
 			const state = outputStates.get(event.output_index);
 			if (state?.kind === "custom_tool_call") {
-				state.input += event.delta;
-				state.block.arguments = { code: state.input };
-				stream.push({ type: "toolcall_delta", contentIndex: state.blockIndex, delta: event.delta, partial: output });
+				const delta = appendCustomInput(state, state.input + event.delta, false);
+				if (delta !== undefined) stream.push({ type: "toolcall_delta", contentIndex: state.blockIndex, delta, partial: output });
 			}
 			continue;
 		}
 		if (event.type === "response.custom_tool_call_input.done") {
 			const state = outputStates.get(event.output_index);
 			if (state?.kind === "custom_tool_call") {
-				const previousInput = state.input;
-				state.input = event.input;
-				state.block.arguments = { code: event.input };
-				if (event.input.startsWith(previousInput)) {
-					const delta = event.input.slice(previousInput.length);
-					if (delta.length > 0) {
-						stream.push({ type: "toolcall_delta", contentIndex: state.blockIndex, delta, partial: output });
-					}
-				}
+				const delta = appendCustomInput(state, event.input, true);
+				if (delta !== undefined) stream.push({ type: "toolcall_delta", contentIndex: state.blockIndex, delta, partial: output });
 			}
 			continue;
 		}
@@ -121,14 +134,22 @@ export async function processResponsesStream<TApi extends Api>(
 			if ((item as unknown as { type?: string }).type === "custom_tool_call") {
 				const customItem = item as unknown as { id?: string; call_id: string; name: string; input?: string };
 				const input = customItem.input ?? "";
+				const property = options?.grammarToolInputProperties?.get(customItem.name) ?? "input";
 				const currentBlock: ToolCallBlock = {
 					type: "toolCall",
 					id: `${customItem.call_id}|${customItem.id ?? ""}`,
 					name: customItem.name,
-					arguments: { code: input },
+					arguments: { [property]: input },
 				};
 				output.content.push(currentBlock);
-				outputStates.set(event.output_index, { kind: "custom_tool_call", blockIndex: blockIndex(), block: currentBlock, input });
+				outputStates.set(event.output_index, {
+					kind: "custom_tool_call",
+					blockIndex: blockIndex(),
+					block: currentBlock,
+					input,
+					property,
+					jsonBuffer: { input: "", started: false, closed: false },
+				});
 				stream.push({ type: "toolcall_start", contentIndex: blockIndex(), partial: output });
 			} else if (item.type === "reasoning") {
 				const currentBlock: ThinkingBlock = { type: "thinking", thinking: "" };
@@ -254,9 +275,21 @@ export async function processResponsesStream<TApi extends Api>(
 			options?.onOutputItemDone?.(customItem ? { ...customItem, input: customInput } : item);
 			if (customItem) {
 				const state = customState;
+				if (state?.kind === "custom_tool_call") {
+					const delta = appendCustomInput(state, customInput ?? "", true);
+					if (delta !== undefined) stream.push({
+						type: "toolcall_delta",
+						contentIndex: state.blockIndex,
+						delta,
+						partial: output,
+					});
+				}
+				const property = state?.kind === "custom_tool_call"
+					? state.property
+					: options?.grammarToolInputProperties?.get(customItem.name) ?? "input";
 				const toolCall: ToolCallBlock = state?.kind === "custom_tool_call"
-					? { ...state.block, arguments: { code: customInput } }
-					: { type: "toolCall", id: `${customItem.call_id}|${customItem.id ?? ""}`, name: customItem.name, arguments: { code: customInput } };
+					? { ...state.block, arguments: { [property]: customInput } }
+					: { type: "toolCall", id: `${customItem.call_id}|${customItem.id ?? ""}`, name: customItem.name, arguments: { [property]: customInput } };
 				if (state?.kind !== "custom_tool_call") output.content.push(toolCall);
 				else output.content[state.blockIndex] = toolCall;
 				const toolCallIndex = state?.kind === "custom_tool_call" ? state.blockIndex : blockIndex();

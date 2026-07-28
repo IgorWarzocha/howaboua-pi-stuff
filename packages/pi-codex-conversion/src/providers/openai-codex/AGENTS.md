@@ -1,0 +1,1 @@
+- `responses-lite-model.ts` is the pure model capability gate; `responses-lite.ts` owns request transforms and lazily loads image processing only for inline images.

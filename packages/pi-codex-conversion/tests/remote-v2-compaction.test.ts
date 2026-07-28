@@ -54,8 +54,6 @@ test("Responses compaction v2 uses the registered stream and installs one canoni
 			baseUrl: model.baseUrl!,
 			apiKey: "token",
 			headers: { "x-codex-beta-features": "other" },
-			compactPath: "codex/responses/compact",
-			compactUrl: `${model.baseUrl}/codex/responses/compact`,
 			currentModel: model,
 		},
 		modelRegistry: {

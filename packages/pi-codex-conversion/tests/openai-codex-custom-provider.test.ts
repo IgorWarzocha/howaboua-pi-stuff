@@ -10,6 +10,7 @@ import {
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 import { parseOpenAICodexDeviceAuthPollResponse } from "../src/providers/openai-codex/oauth.ts";
+import { CODE_MODE_EXEC_GRAMMAR } from "../src/tools/code-mode/exec-contract.ts";
 
 const exampleTool = {
 	name: "example_tool",
@@ -32,7 +33,12 @@ const searchToolsTool = {
 } as never;
 
 const codeModeTools = [
-	{ name: "exec", description: "Compose tools", parameters: { type: "object", properties: { code: { type: "string" } }, required: ["code"] } },
+	{
+		name: "exec",
+		description: "Compose tools",
+		parameters: { type: "object", properties: { code: { type: "string" } }, required: ["code"] },
+		constrainedSampling: { type: "grammar", variants: { openai_lark: CODE_MODE_EXEC_GRAMMAR } },
+	},
 	{ name: "wait", description: "Wait for code", parameters: { type: "object", properties: { cell_id: { type: "string" } }, required: ["cell_id"] } },
 ] as never;
 
@@ -196,7 +202,7 @@ function codexStreamRequest(sessionId: string) {
 	};
 }
 
-function createRegisteredCodexProvider(options?: { codeMode?: boolean | undefined }) {
+function createRegisteredCodexProvider(options?: { codeMode?: boolean | undefined; harnessIdentifierHeader?: boolean | undefined }) {
 	const turnState = createCodexTurnState();
 	const providers = new Map<string, { streamSimple: (...args: never[]) => AsyncIterable<unknown> }>();
 	const handlers = new Map<string, Array<(...args: never[]) => unknown>>();
@@ -219,7 +225,7 @@ function createRegisteredCodexProvider(options?: { codeMode?: boolean | undefine
 
 	registerOpenAICodexCustomProvider(pi as never, {
 		getConfig: () => ({
-			openai: DEFAULT_CODEX_CONVERSION_CONFIG.openai,
+			openai: { ...DEFAULT_CODEX_CONVERSION_CONFIG.openai, harnessIdentifierHeader: options?.harnessIdentifierHeader ?? false },
 			beta: { ...DEFAULT_CODEX_CONVERSION_CONFIG.beta, codeMode: options?.codeMode ?? false },
 		}),
 		turnState,
@@ -277,6 +283,15 @@ test("buildRequestBody keeps Codex request shape stable for common options", () 
 	]);
 	assert.equal("max_output_tokens" in body, false, "Codex ChatGPT backend rejects max_output_tokens");
 	assert.equal("max_completion_tokens" in body, false, "Codex ChatGPT backend rejects max token aliases here");
+
+	const normalModeBody = buildRequestBody(codexModel, {
+		messages: [],
+		tools: codeModeTools,
+	});
+	assert.deepEqual(
+		(normalModeBody.tools as Array<{ type: string; name: string }>).map(({ type, name }) => [type, name]),
+		[["function", "exec"], ["function", "wait"]],
+	);
 });
 
 test("buildRequestBody anchors newly activated tools at their loader result", () => {
@@ -347,6 +362,27 @@ test("GPT-5.6 Code Mode sends the GPT-5.6 input-item contract", async () => {
 		assert.equal("parameters" in body.input[0].tools[0], false);
 		assert.deepEqual(body.input[1], { type: "message", role: "developer", content: [{ type: "input_text", text: "Lite instructions" }] });
 		assert.deepEqual(body.input.find((item: { type?: string }) => item.type === "tool_search_output").tools.map((tool: { name: string; defer_loading?: boolean }) => [tool.name, tool.defer_loading]), [["example_tool", true]]);
+	} finally {
+		globalThis.fetch = originalFetch;
+	}
+});
+
+test("pi-codex-conversion originator is opt-in", async () => {
+	const originalFetch = globalThis.fetch;
+	const capturedOriginators: Array<string | null> = [];
+	try {
+		globalThis.fetch = (async (_url, init) => {
+			capturedOriginators.push(new Headers(init?.headers).get("originator"));
+			return sseResponse([{ type: "response.completed", response: { id: "resp_1", status: "completed", usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 } } }]);
+		}) as typeof fetch;
+		const requestOptions = { apiKey: fakeJwt({ "https://api.openai.com/auth": { chatgpt_account_id: "acct_1" } }), transport: "sse" } as never;
+		const model = { ...(codexModel as object), baseUrl: "https://chatgpt.example/backend-api" } as never;
+		for (const harnessIdentifierHeader of [false, true]) {
+			const registered = createRegisteredCodexProvider({ harnessIdentifierHeader });
+			await collectStream(registered.provider.streamSimple(model, { systemPrompt: "Instructions", messages: [] } as never, requestOptions));
+		}
+
+		assert.deepEqual(capturedOriginators, ["pi", "pi-codex-conversion"]);
 	} finally {
 		globalThis.fetch = originalFetch;
 	}

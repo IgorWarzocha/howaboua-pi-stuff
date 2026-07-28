@@ -19,6 +19,7 @@ import {
 import type { SharedCodeModeRuntime } from "./shared-runtime.js";
 import { toCodeModeToolResult } from "./tool-result.js";
 import type { ToolExecutionContext } from "./types.js";
+import { CODE_MODE_EXEC_CONSTRAINED_SAMPLING } from "./exec-contract.js";
 
 const DEFAULT_WAIT_MS = 10_000;
 const MIN_ADAPTIVE_WAIT_MS = 5_000;
@@ -67,6 +68,7 @@ function createExecTool(
 		description: EXEC_DESCRIPTION,
 		promptSnippet: "Compose tools with JavaScript",
 		parameters: EXEC_PARAMETERS,
+		constrainedSampling: CODE_MODE_EXEC_CONSTRAINED_SAMPLING,
 		async execute(id, params, signal, onUpdate, ctx) {
 			tracker.start(id);
 			try {

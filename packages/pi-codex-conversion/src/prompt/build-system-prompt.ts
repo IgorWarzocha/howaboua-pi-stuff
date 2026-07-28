@@ -33,20 +33,8 @@ const NORMAL_CODEX_GUIDELINES = [
 	"Use exec_command for shell commands, file inspection, builds, and tests; prefer rg / rg --files for discovery and focused commands over truncation",
 	"Reserve tty=true for input or persistent processes",
 	"Use apply_patch for text-file changes, including creates/deletes/moves; split oversized patches",
-	"Prefer the apply_patch tool; use shell apply_patch only when chaining edits with other shell steps",
 	"Give commands time; back off session polls",
 	"Run independent tool calls in parallel when practical",
-];
-
-const PATH_CODEX_GUIDELINES = [
-	"Use exec_command for shell/file/build/test; prefer rg/rg --files",
-	"Reserve tty=true for input or persistent processes",
-	"Use apply_patch for file edits; order each file's hunks top-to-bottom; indentation is literal",
-	"Do not probe listed PATH tools",
-	"Use stdin/heredoc for quoted or multiline PATH args",
-	"Chain dependent shell commands with &&",
-	"Run independent exec_command calls in parallel when practical",
-	"Give commands time; back off session polls",
 ];
 
 const CODE_MODE_GUIDELINES = [
@@ -59,19 +47,18 @@ const CODE_MODE_GUIDELINES = [
 	"Use text() only for concise final output",
 ];
 
-const PATH_MODE_REMOVED_GUIDELINES = new Set([
+const CODE_MODE_REPLACED_GUIDELINES = new Set([
+	"Reserve tty=true for input or persistent processes",
 	"Use apply_patch for text-file changes, including creates/deletes/moves; split oversized patches",
-	"Prefer the apply_patch tool; use shell apply_patch only when chaining edits with other shell steps",
 	"Run independent tool calls in parallel when practical",
 ]);
 
-const CODE_MODE_REPLACED_GUIDELINES = new Set([
-	"Reserve tty=true for input or persistent processes",
+const REMOVED_GUIDELINES = new Set([
+	"Prefer the apply_patch tool; use shell apply_patch only when chaining edits with other shell steps",
 ]);
 
 const ALL_STATIC_CODEX_GUIDELINES = [
 	...NORMAL_CODEX_GUIDELINES,
-	...PATH_CODEX_GUIDELINES,
 	...CODE_MODE_GUIDELINES,
 ];
 
@@ -95,36 +82,10 @@ function canonicalizeGuidelineLine(line: string): string {
 	return canonical ? `${match[1]}${canonical}` : line;
 }
 
-export interface CodexPromptToolOptions {
-	viewImage?: boolean | undefined;
-	webRun?: boolean | undefined;
-	imageGeneration?: boolean | undefined;
-}
+type CodexPromptMode = "normal" | "code";
 
-type CodexPromptMode = "normal" | "path" | "code";
-
-function buildCodexGuidelines(mode: CodexPromptMode = "normal", tools: CodexPromptToolOptions = {}, piPackageRoot?: string): string[] {
-	const guidelines = mode === "normal"
-		? [...NORMAL_CODEX_GUIDELINES]
-		: mode === "code"
-			? [...CODE_MODE_GUIDELINES]
-			: [...PATH_CODEX_GUIDELINES];
-	if (mode !== "normal" && mode !== "code") {
-		const examples = [`- apply_patch <<'PATCH'`, `  *** Begin Patch`, `  ...`, `  *** End Patch`, `  PATCH`];
-		if (tools.viewImage !== false) examples.push(`- view_image '{"path":"/x.png"}'`);
-		if (tools.webRun !== false) {
-			examples.push(`- web_run '{"search_query":[{"q":"..."}],"response_length":"short|medium|long"}'`);
-			examples.push(`- web_run '{"open":[{"ref_id":"turn0search0 or https://..."}]}'`);
-			examples.push(`- web_run '{"click":[{"ref_id":"turn0view0","id":1}]}'`);
-			examples.push(`- web_run '{"find":[{"ref_id":"turn0view0","pattern":"..."}]}'`);
-		}
-		if (tools.imageGeneration !== false) {
-			examples.push(`- imagegen '{"prompt":"..."}'`);
-			examples.push(`- imagegen '{"action":"edit","prompt":"...","images":["https://... or /x.png"]}'`);
-		}
-		if (examples.length > 0)
-			guidelines.splice(4, 0, `PATH tool accepted forms:\n${examples.join("\n")}`);
-	}
+function buildCodexGuidelines(mode: CodexPromptMode = "normal", piPackageRoot?: string): string[] {
+	const guidelines = mode === "normal" ? [...NORMAL_CODEX_GUIDELINES] : [...CODE_MODE_GUIDELINES];
 	if (piPackageRoot) {
 		guidelines.push(`For questions about Pi, Pi configuration, or anything built with its SDK, first list README.md, docs/, and examples/ under ${piPackageRoot}; read relevant files and follow references before implementing`);
 	}
@@ -226,28 +187,25 @@ function injectSkills(prompt: string, skills: PromptSkill[]): string {
 	return insertBeforeTrailingContext(prompt, buildSkillsSection(skills));
 }
 
-function injectGuidelines(prompt: string, mode?: CodexPromptMode, tools?: CodexPromptToolOptions): string {
+function injectGuidelines(prompt: string, mode?: CodexPromptMode): string {
 	const match = prompt.match(/(^Guidelines:\n)([\s\S]*?)(\n\n(?=Pi documentation\b|# Project Context|# Skills|Current date:))/m);
 	if (!match || match.index === undefined) {
-		const fallbackSection = `Guidelines:\n${buildCodexGuidelines(mode, tools).map((line) => `- ${line}`).join("\n")}`;
+		const fallbackSection = `Guidelines:\n${buildCodexGuidelines(mode).map((line) => `- ${line}`).join("\n")}`;
 		return insertBeforeTrailingContext(prompt, fallbackSection);
 	}
 
 	const [, header, body, suffix] = match as RegExpMatchArray & { 1: string; 2: string; 3: string };
 	const bodyLines = body.split("\n");
 	const canonicalBodyLines = bodyLines.map(canonicalizeGuidelineLine);
-	const keptBodyLines = mode === "path" || mode === "code"
-		? canonicalBodyLines.filter((line) => {
-			const key = withoutCosmeticTerminalPeriod(line.trim().replace(/^-\s*/, ""));
-			return !PATH_MODE_REMOVED_GUIDELINES.has(key)
-				&& (mode !== "code" || !CODE_MODE_REPLACED_GUIDELINES.has(key));
-		})
-		: canonicalBodyLines;
+	const withoutRemoved = canonicalBodyLines.filter((line) => !REMOVED_GUIDELINES.has(withoutCosmeticTerminalPeriod(line.trim().replace(/^-\s*/, ""))));
+	const keptBodyLines = mode === "code"
+		? withoutRemoved.filter((line) => !CODE_MODE_REPLACED_GUIDELINES.has(withoutCosmeticTerminalPeriod(line.trim().replace(/^-\s*/, ""))))
+		: withoutRemoved;
 	const existingLines = keptBodyLines
 		.map((line) => line.trim())
 		.filter((line) => line.startsWith("- "));
 	const existing = new Set(existingLines.map((line) => line.slice(2)));
-	const additions = buildCodexGuidelines(mode, tools).filter((line) => !existing.has(line)).map((line) => `- ${line}`);
+	const additions = buildCodexGuidelines(mode).filter((line) => !existing.has(line)).map((line) => `- ${line}`);
 	if (additions.length === 0 && keptBodyLines.join("\n") === body) {
 		return prompt;
 	}
@@ -340,7 +298,6 @@ function buildHeavyCodexSystemPrompt(
 		skills: PromptSkill[];
 		shell?: string | undefined;
 		mode?: CodexPromptMode | undefined;
-		tools?: CodexPromptToolOptions | undefined;
 		systemPromptOptions: PiSystemPromptOptions;
 	},
 ): string {
@@ -349,7 +306,7 @@ function buildHeavyCodexSystemPrompt(
 	const piPackageRoot = !source.customPrompt && stripPiDocumentation(prompt) !== prompt
 		? extractPiPackageRoot(prompt)
 		: undefined;
-	prompt = replaceHeavyGuidelines(prompt, buildCodexGuidelines(options.mode, options.tools, piPackageRoot));
+	prompt = replaceHeavyGuidelines(prompt, buildCodexGuidelines(options.mode, piPackageRoot));
 	prompt = stripPiDocumentation(prompt);
 	prompt = replaceSkills(prompt, options.skills);
 	prompt = injectShell(prompt, options.shell);
@@ -367,7 +324,6 @@ export function buildCodexSystemPrompt(
 		skills?: PromptSkill[] | undefined;
 		shell?: string | undefined;
 		mode?: CodexPromptMode | undefined;
-		tools?: CodexPromptToolOptions | undefined;
 		heavySystemPromptOverwrite?: boolean | undefined;
 		systemPromptOptions?: PiSystemPromptOptions | undefined;
 	} = {},
@@ -377,9 +333,8 @@ export function buildCodexSystemPrompt(
 			skills: options.skills ?? [],
 			shell: options.shell,
 			mode: options.mode,
-			tools: options.tools,
 			systemPromptOptions: options.systemPromptOptions,
 		});
 	}
-	return injectShell(injectSkills(injectGuidelines(basePrompt, options.mode, options.tools), options.skills ?? []), options.shell);
+	return injectShell(injectSkills(injectGuidelines(basePrompt, options.mode), options.skills ?? []), options.shell);
 }

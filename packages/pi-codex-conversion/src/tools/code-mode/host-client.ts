@@ -7,6 +7,7 @@ import type {
 } from "./types.js";
 import { CodeModeDelegateRuntime } from "./delegate-runtime.js";
 import {
+	DEFAULT_CODE_MODE_EXEC_YIELD_MS,
 	executionCellId,
 	type HostMessage,
 	isCustomToolDefinition,
@@ -119,7 +120,7 @@ export class CodeModeHostClient {
 		await this.start();
 		throwIfAborted(signal);
 		const { code, yieldTimeMs, maxOutputTokens } = parseExecSource(source);
-		const effectiveYieldTimeMs = directToolYieldTime(code, tools) ?? yieldTimeMs;
+		const effectiveYieldTimeMs = directToolYieldTime(code, tools) ?? yieldTimeMs ?? DEFAULT_CODE_MODE_EXEC_YIELD_MS;
 		const runtimeSource = scopeAllToolsToDeferredCustom(code, tools);
 		const id = ++this.requestId;
 		const initial = new Promise<unknown>((resolve, reject) =>

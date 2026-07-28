@@ -11,7 +11,6 @@ export function isResponsesInputContentItem(value: unknown): value is ResponsesI
 	if (value["type"] === "encrypted_content") return typeof value["encrypted_content"]! === "string";
 	return false;
 }
-
 export function isResponsesInputMessageRole(value: unknown): value is ResponsesInputMessageItem["role"] {
 	return value === "user" || value === "developer" || value === "system";
 }
@@ -85,4 +84,3 @@ export function areEquivalentValues(left: unknown, right: unknown): boolean {
 	}
 	return false;
 }
-

@@ -7,7 +7,7 @@ import {
 	type OAuthDeviceCodePollResult,
 	pollOAuthDeviceCodeFlow,
 } from "./device-code.ts";
-import { supportsResponsesLiteModel } from "./responses-lite.ts";
+import { supportsResponsesLiteModel } from "./responses-lite-model.ts";
 
 const CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann";
 const AUTH_BASE_URL = "https://auth.openai.com";

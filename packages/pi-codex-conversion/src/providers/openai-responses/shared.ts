@@ -6,6 +6,10 @@ import type {
 	ResponseToolSearchOutputItemParam,
 	Tool as OpenAITool,
 } from "openai/resources/responses/responses.js";
+import {
+	getGrammarToolInput,
+	resolveGrammarConstrainedSampling,
+} from "../constrained-sampling.js";
 import { parseTextSignature, shortHash } from "./signatures.ts";
 import { encryptedWebRunOutputFromDetails, imageDetailForResponses, isImageGenerationCallBlock, isWebSearchCallBlock, sanitizeImageGenerationCallItem, sanitizeWebSearchCallItem, type ImageDetail, type ImageGenerationCallBlock, type WebSearchCallBlock } from "./native-items.ts";
 
@@ -16,6 +20,7 @@ type ImageContentWithDetail = { type: "image"; data: string; mimeType: string; d
 
 export interface OpenAIResponsesStreamOptions {
 	serviceTier?: ResponseCreateParamsStreaming["service_tier"] | undefined;
+	grammarToolInputProperties?: ReadonlyMap<string, string> | undefined;
 	resolveServiceTier?: (
 		responseServiceTier: ResponseCreateParamsStreaming["service_tier"] | undefined,
 		requestServiceTier: ResponseCreateParamsStreaming["service_tier"] | undefined,
@@ -26,15 +31,16 @@ export interface OpenAIResponsesStreamOptions {
 
 interface ConvertResponsesMessagesOptions {
 	includeSystemPrompt?: boolean | undefined;
+	grammarToolInputProperties?: ReadonlyMap<string, string> | undefined;
 	deferredTools?: ReadonlyMap<string, Tool> | undefined;
+	toolOptions?: ConvertResponsesToolsOptions | undefined;
 }
 
 interface ConvertResponsesToolsOptions {
 	strict?: boolean | null | undefined;
+	supportsOpenAIGrammarTools?: boolean | undefined;
 	deferLoading?: boolean | undefined;
 }
-
-type OpenAIFunctionTool = Extract<OpenAITool, { type: "function" }>;
 
 export const CODEX_TOOL_CALL_PROVIDERS = new Set(["openai", "openai-codex", "opencode"]);
 
@@ -292,15 +298,30 @@ export function convertResponsesMessages<TApi extends Api>(
 					});
 				} else if (block.type === "toolCall") {
 					const [callId, itemIdRaw] = block.id.split("|");
+					const customInputProperty = options?.grammarToolInputProperties?.get(block.name);
 					let itemId: string | undefined = itemIdRaw;
-					if (isDifferentModel && itemId?.startsWith("fc_")) itemId = undefined;
-					output.push({
-						type: "function_call",
-						...(itemId ? { id: itemId } : {}),
-						call_id: callId,
-						name: block.name,
-						arguments: JSON.stringify(block.arguments),
-					} as ResponseInput[number]);
+					if (customInputProperty !== undefined && itemId?.startsWith("fc_")) {
+						itemId = `ctc_${itemId.slice(3)}`;
+					}
+					if (
+						(isDifferentModel && itemId?.startsWith("fc_"))
+						|| (customInputProperty === undefined && !itemId?.startsWith("fc_"))
+					) itemId = undefined;
+					output.push(customInputProperty === undefined
+						? {
+								type: "function_call",
+								...(itemId ? { id: itemId } : {}),
+								call_id: callId,
+								name: block.name,
+								arguments: JSON.stringify(block.arguments),
+							} as ResponseInput[number]
+						: {
+								type: "custom_tool_call",
+								...(itemId ? { id: itemId } : {}),
+								call_id: callId,
+								name: block.name,
+								input: sanitizeSurrogates(getGrammarToolInput(block.name, block.arguments, customInputProperty)),
+							} as ResponseInput[number]);
 				}
 			}
 			if (output.length > 0) messages.push(...output);
@@ -324,7 +345,13 @@ export function convertResponsesMessages<TApi extends Api>(
 								})),
 						]
 					: sanitizeSurrogates(hasText ? textResult : "(see attached image)");
-			messages.push({ type: "function_call_output", call_id: callId!, output: output as any });
+			messages.push({
+				type: options?.grammarToolInputProperties?.has(msg.toolName)
+					? "custom_tool_call_output"
+					: "function_call_output",
+				call_id: callId!,
+				output: output as any,
+			} as ResponseInput[number]);
 
 			const deferredTools: Tool[] = [];
 			for (const name of msg.addedToolNames ?? []) {
@@ -348,7 +375,10 @@ export function convertResponsesMessages<TApi extends Api>(
 					call_id: searchCallId,
 					execution: "client",
 					status: "completed",
-					tools: convertResponsesTools(deferredTools, { deferLoading: true }),
+					tools: convertResponsesTools(deferredTools, {
+						...options?.toolOptions,
+						deferLoading: true,
+					}),
 				} satisfies ResponseToolSearchOutputItemParam);
 			}
 		}
@@ -360,16 +390,29 @@ export function convertResponsesMessages<TApi extends Api>(
 
 export function convertResponsesTools(tools: readonly Tool[], options?: ConvertResponsesToolsOptions): OpenAITool[] {
 	const strict = options?.strict === undefined ? false : options.strict;
-	return tools.map(
-		(tool): OpenAIFunctionTool => ({
+	const supportsOpenAIGrammarTools = options?.supportsOpenAIGrammarTools ?? false;
+	return tools.map((tool): OpenAITool => {
+		const grammar = resolveGrammarConstrainedSampling(tool, supportsOpenAIGrammarTools);
+		if (grammar) return {
+			type: "custom",
+			name: tool.name,
+			description: tool.description,
+			format: {
+				type: "grammar",
+				syntax: grammar.format,
+				definition: grammar.definition,
+			},
+			...(options?.deferLoading ? { defer_loading: true } : {}),
+		} as OpenAITool;
+		return {
 			type: "function",
 			name: tool.name,
 			description: tool.description,
 			parameters: tool.parameters as unknown as Record<string, unknown>,
 			strict,
 			...(options?.deferLoading ? { defer_loading: true } : {}),
-		}),
-	);
+		} as OpenAITool;
+	});
 }
 
 

@@ -1,4 +1,3 @@
-import OpenAI, { APIError } from "openai";
 import {
 	createAssistantMessageEventStream,
 	type Api,
@@ -8,12 +7,13 @@ import {
 	type ProviderHeaders,
 	type SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
+import { createGrammarToolInputProperties } from "./constrained-sampling.js";
 import type { ExtensionAPI, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
-import { shouldUseGpt56CodeMode } from "../adapter/activation/activation.ts";
+import { resolveCodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
 import { buildRequestBody } from "./openai-codex/request-body.ts";
-import { isResponsesLiteRequest, prepareResponsesLiteRequestImages, RESPONSES_LITE_HEADER } from "./openai-codex/responses-lite.ts";
+import { applyResponsesLiteRequest, isResponsesLiteRequest, prepareResponsesLiteRequestImages, RESPONSES_LITE_HEADER } from "./openai-codex/responses-lite.ts";
 import { processCodexResponsesStream } from "./openai-codex/stream-events.ts";
 import type { OpenAICodexStreamOptions, ResponsesBody, StreamEventShape } from "./openai-codex/types.ts";
 
@@ -63,7 +63,12 @@ function clientAuth(provider: string, apiKey: string | undefined, headers: Provi
 	throw new Error(`No API key for provider: ${provider}`);
 }
 
-async function reportErrorResponse<TApi extends Api>(error: unknown, options: SimpleStreamOptions | undefined, model: Model<TApi>): Promise<void> {
+async function reportErrorResponse<TApi extends Api>(
+	error: unknown,
+	options: SimpleStreamOptions | undefined,
+	model: Model<TApi>,
+	APIError: typeof import("openai").APIError,
+): Promise<void> {
 	if (!(error instanceof APIError) || error.status === undefined || !error.headers) return;
 	await options?.onResponse?.({
 		status: error.status,
@@ -81,15 +86,18 @@ export function streamCodeModeResponsesProxy<TApi extends Api>(
 
 	void (async () => {
 		try {
+			const { default: OpenAI, APIError } = await import("openai");
+			const grammarToolInputProperties = createGrammarToolInputProperties(context.tools, true);
+			const effectiveOptions = { ...options, grammarToolInputProperties };
 			let headers = mergeHeaders(model.headers, options?.headers);
-			let body: ResponsesBody = buildRequestBody(model, context, options);
+			let body: ResponsesBody = buildRequestBody(model, context, effectiveOptions);
 			const rewritten = await options?.onPayload?.(body, model);
 			if (rewritten !== undefined) body = rewritten as ResponsesBody;
-			headers = mergeHeaders(headers, { [RESPONSES_LITE_HEADER]: null });
-			if (isResponsesLiteRequest(body)) {
-				body = await prepareResponsesLiteRequestImages(body);
-				headers = mergeHeaders(headers, { [RESPONSES_LITE_HEADER]: "true" });
-			}
+			body = isResponsesLiteRequest(body)
+				? { ...body, parallel_tool_calls: false }
+				: applyResponsesLiteRequest(body);
+			body = await prepareResponsesLiteRequestImages(body);
+			headers = mergeHeaders(headers, { [RESPONSES_LITE_HEADER]: "true" });
 
 			const auth = clientAuth(model.provider, options?.apiKey, headers);
 			const client = new OpenAI({
@@ -108,7 +116,7 @@ export function streamCodeModeResponsesProxy<TApi extends Api>(
 					},
 				).withResponse();
 			} catch (error) {
-				await reportErrorResponse(error, options, model);
+				await reportErrorResponse(error, options, model, APIError);
 				throw error;
 			}
 			await options?.onResponse?.({
@@ -122,7 +130,7 @@ export function streamCodeModeResponsesProxy<TApi extends Api>(
 				output,
 				stream,
 				model,
-				options as OpenAICodexStreamOptions | undefined,
+				effectiveOptions as OpenAICodexStreamOptions,
 			);
 			if (options?.signal?.aborted) throw new Error("Request was aborted");
 			if (output.stopReason === "aborted" || output.stopReason === "error") {
@@ -153,7 +161,7 @@ type CodeModeModelRegistry = Pick<ModelRegistry, "getAll" | "getProvider" | "get
 type RegisteredProviderConfig = Parameters<ExtensionAPI["registerProvider"]>[1];
 
 function configuredProxyProviders(config: CodexConversionConfig): Set<string> {
-	return new Set(!config.voiceFeaturesOnly && config.beta.codeMode
+	return new Set(!config.voiceFeaturesOnly && config.beta.codeMode && config.beta.responsesLite
 		? config.scope.additionalProviders.filter((provider) => provider !== "openai-codex")
 		: []);
 }
@@ -200,7 +208,7 @@ export function registerCodeModeProxyProvider(
 			const fallbackProvider = modelRegistry.getProvider(provider);
 			if (!fallbackProvider) throw new Error(`Cannot overlay missing provider: ${provider}`);
 			const overlayStream: NonNullable<RegisteredProviderConfig["streamSimple"]> = (model, context, options) =>
-				shouldUseGpt56CodeMode({ model }, getConfig())
+				resolveCodexRuntimePlan({ model }, getConfig()).kind === "code"
 					? streamCodeModeResponsesProxy(model, context, options)
 					: fallbackProvider.streamSimple(model as never, context, options);
 			pi.registerProvider(provider, {

@@ -1,28 +1,24 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import {
-	normalizeCodexVerbosity,
-	readCodexConversionConfig,
-	writeCodexConversionConfig,
-	type CodexConversionConfig,
-} from "../../adapter/activation/config.ts";
+import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
+import { readCodexConversionConfig, writeCodexConversionConfig } from "../../adapter/activation/config-store.ts";
 import { syncAdapter } from "../../adapter/activation/activation.ts";
 import type { AdapterState } from "../../adapter/activation/state.ts";
-import { openCodexSettingsScreen } from "./ui.ts";
-import type { BackgroundBashWidgetState } from "../background-bash-widget.ts";
-import { renderBackgroundBashWidget } from "../background-bash-widget.ts";
-import type { ExecSessionManager } from "../../tools/exec/session-manager.ts";
 import type { CodexVoiceController } from "../../voice/controller.ts";
 import { createCodexVoiceControls } from "../../voice/controls.ts";
+import type { CodexLanVoiceServerController } from "../../voice/lan/controller.ts";
+import { ROUTABLE_SETTINGS_TABS, parseSettingsTab, type SettingsTab } from "./tabs.ts";
+import { openCodexSettingsScreen } from "./screen.ts";
 
-const CODEX_COMMAND_COMPLETIONS = ["all", "status", "fast", "compact", "voice", "voice realtime", "voice dictation", "voice stop", "usage", "reset", "ps", "low", "medium", "high"] as const;
-const CODEX_USAGE = "Usage: /codex, /codex all, /codex status, /codex fast, /codex compact, /codex voice [realtime|dictation|stop], /codex usage, /codex reset, /codex ps, /codex low|medium|high";
+const VOICE_ACTIONS = ["voice realtime", "voice dictation", "voice stop", "voice server"] as const;
+const CODEX_COMMAND_COMPLETIONS = [...ROUTABLE_SETTINGS_TABS.map(({ id }) => id), ...VOICE_ACTIONS];
+const CODEX_USAGE = "Usage: /codex [tools|openai|display|voice [realtime|dictation|stop|server]|usage|about]";
 
 export function registerCodexCommand(
 	pi: ExtensionAPI,
 	state: AdapterState,
 	voice: CodexVoiceController,
+	lanVoice: CodexLanVoiceServerController,
 	onConfigApplied?: (config: CodexConversionConfig, ctx: ExtensionContext, previousConfig: CodexConversionConfig) => void,
-	backgroundShells?: { sessions: ExecSessionManager; widget: BackgroundBashWidgetState } | undefined,
 ): void {
 	function saveAndApply(ctx: ExtensionContext, nextConfig: CodexConversionConfig): boolean {
 		const writeResult = writeCodexConversionConfig(nextConfig);
@@ -37,96 +33,45 @@ export function registerCodexCommand(
 		return true;
 	}
 
-	const voiceControls = createCodexVoiceControls({
-		pi,
-		state,
-		voice,
-		saveAndApply,
-	});
+	const voiceControls = createCodexVoiceControls({ pi, state, voice, saveAndApply });
+
+	async function openSettings(ctx: ExtensionContext, tab: SettingsTab): Promise<void> {
+		if (!ctx.hasUI) {
+			if (tab === "usage") {
+				const { fetchCodexUsage, formatCodexUsage } = await import("./usage.ts");
+				try {
+					ctx.ui.notify(formatCodexUsage(await fetchCodexUsage(ctx)), "info");
+				} catch (error) {
+					ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
+				}
+				return;
+			}
+			ctx.ui.notify(formatCodexSettings(state.config), "info");
+			return;
+		}
+		await openCodexSettingsScreen(ctx, {
+			initialConfig: state.config,
+			initialTab: tab,
+			onChange: (config) => saveAndApply(ctx, config),
+			lanVoiceServer: {
+				status: () => lanVoice.status(),
+				setEnabled: (enabled) => setLanVoiceServerEnabled(lanVoice, enabled, ctx),
+			},
+		});
+	}
 
 	pi.registerCommand("codex", {
 		description: "Configure Codex adapter settings",
 		getArgumentCompletions: (prefix) =>
 			CODEX_COMMAND_COMPLETIONS.filter((item) => item.startsWith(prefix.trim().toLowerCase())).map((value) => ({ label: value, value })),
-			handler: async (args, ctx) => {
+		handler: async (args, ctx) => {
 			state.config = readCodexConversionConfig();
 			const arg = args.trim().toLowerCase();
-			if (arg === "ps") {
-				if (state.config.voiceFeaturesOnly) {
-					ctx.ui.notify("Background shells are disabled in voice-only mode.", "info");
-					return;
-				}
-				if (!state.config.ui.backgroundShellWidget) {
-					ctx.ui.notify("Background shells widget is off.", "info");
-					return;
-				}
-				if (!backgroundShells || backgroundShells.sessions.listSessions().length === 0) {
-					ctx.ui.notify("No background shells running.", "info");
-					return;
-				}
-				backgroundShells.widget.ctx = ctx;
-				backgroundShells.widget.folded = false;
-				renderBackgroundBashWidget(ctx, backgroundShells.widget, backgroundShells.sessions);
-				return;
-			}
-			if (arg === "usage" || arg === "reset") {
-				const { consumeCodexRateLimitResetCredit, fetchCodexUsage, formatCodexUsage } = await import("./usage.ts");
-				let usage;
-				try {
-					usage = await fetchCodexUsage(ctx);
-				} catch (error) {
-					const message = error instanceof Error ? error.message : String(error);
-					if (!ctx.hasUI) {
-						ctx.ui.notify(message, "error");
-						return;
-					}
-					await openCodexSettingsScreen(ctx, {
-						initialConfig: state.config,
-						initialTab: "usage",
-						initialUsage: { error: message },
-						onChange: (config) => saveAndApply(ctx, config),
-					});
-					return;
-				}
-				if (!ctx.hasUI) {
-					ctx.ui.notify(formatCodexUsage(usage), "info");
-					return;
-				}
-				await openCodexSettingsScreen(ctx, {
-					initialConfig: state.config,
-					initialTab: "usage",
-					initialUsage: usage,
-					onConsumeResetCredit: (redeemRequestId) => consumeCodexRateLimitResetCredit(ctx, redeemRequestId),
-					onChange: (config) => saveAndApply(ctx, config),
-				});
-				return;
-			}
-			if (arg === "compact") {
-				if (!ctx.hasUI) {
-					ctx.ui.notify(formatCodexSettings(state.config), "info");
-					return;
-				}
-				await openCodexSettingsScreen(ctx, {
-					initialConfig: state.config,
-					initialTab: "openai",
-					onChange: (config) => saveAndApply(ctx, config),
-				});
-				return;
-			}
-			if (arg === "voice") {
-				if (!ctx.hasUI) { ctx.ui.notify(formatCodexSettings(state.config), "info"); return; }
-				await openCodexSettingsScreen(ctx, {
-					initialConfig: state.config,
-					initialTab: "voice",
-					onChange: (config) => saveAndApply(ctx, config),
-				});
-				return;
-			}
+
 			if (arg === "voice realtime" || arg === "voice dictation") {
 				if (ctx.mode !== "tui") { ctx.ui.notify("Codex voice requires interactive TUI mode", "error"); return; }
-				const requestedMode = arg === "voice dictation" ? "dictation" : "realtime";
 				await ctx.waitForIdle();
-				await voiceControls.start(requestedMode, ctx);
+				await voiceControls.start(arg === "voice dictation" ? "dictation" : "realtime", ctx);
 				return;
 			}
 			if (arg === "voice stop") {
@@ -134,42 +79,35 @@ export function registerCodexCommand(
 				await voiceControls.stop(ctx);
 				return;
 			}
-			const nextConfig = getCommandConfigUpdate(arg, state.config);
-			if (nextConfig) {
-				saveAndApply(ctx, nextConfig);
+			if (arg === "voice server") {
+				if (ctx.mode !== "tui") { ctx.ui.notify("LAN voice server requires interactive TUI mode", "error"); return; }
+				const enabled = !lanVoice.status().running;
+				try {
+					await lanVoice.setEnabled(enabled, ctx);
+					if (!enabled) ctx.ui.notify("LAN voice server stopped", "info");
+				} catch (error) {
+					ctx.ui.notify(`Could not ${enabled ? "start" : "stop"} LAN voice: ${error instanceof Error ? error.message : String(error)}`, "error");
+				}
 				return;
 			}
 
-			if (arg) {
-				ctx.ui.notify(CODEX_USAGE, "warning");
+			const tab = arg ? parseSettingsTab(arg) : "adapter";
+			if (tab) {
+				await openSettings(ctx, tab);
 				return;
 			}
-
-			if (!ctx.hasUI) {
-				ctx.ui.notify(formatCodexSettings(state.config), "info");
-				return;
-			}
-
-			await openCodexSettingsScreen(ctx, {
-				initialConfig: state.config,
-				onChange: (config) => saveAndApply(ctx, config),
-			});
+			ctx.ui.notify(CODEX_USAGE, "warning");
 		},
 	});
 }
 
-function getCommandConfigUpdate(arg: string, config: CodexConversionConfig): CodexConversionConfig | undefined {
-	if (arg === "fast") return { ...config, openai: { ...config.openai, fast: !config.openai.fast } };
-	if (arg === "all") return { ...config, scope: { ...config.scope, allProviders: nextAllProvidersMode(config.scope.allProviders) } };
-	if (arg === "status") return { ...config, ui: { ...config.ui, statusLine: !config.ui.statusLine } };
-	const verbosity = normalizeCodexVerbosity(arg);
-	return verbosity ? { ...config, openai: { ...config.openai, verbosity } } : undefined;
-}
-
-function nextAllProvidersMode(value: CodexConversionConfig["scope"]["allProviders"]): CodexConversionConfig["scope"]["allProviders"] {
-	if (value === "off") return "on";
-	if (value === "on") return "extras";
-	return "off";
+async function setLanVoiceServerEnabled(lanVoice: CodexLanVoiceServerController, enabled: boolean, ctx: ExtensionContext) {
+	try {
+		return await lanVoice.setEnabled(enabled, ctx);
+	} catch (error) {
+		ctx.ui.notify(`Could not ${enabled ? "start" : "stop"} LAN voice: ${error instanceof Error ? error.message : String(error)}`, "error");
+		throw error;
+	}
 }
 
 function formatAllProvidersMode(value: CodexConversionConfig["scope"]["allProviders"]): string {
@@ -177,12 +115,5 @@ function formatAllProvidersMode(value: CodexConversionConfig["scope"]["allProvid
 }
 
 function formatCodexSettings(config: CodexConversionConfig): string {
-	const extraTools = [
-		config.tools.applyPatchOnly ? "apply_patch" : undefined,
-		config.tools.viewImageOnly ? "view_image" : undefined,
-		config.tools.webRunOnly ? "web_run" : undefined,
-		config.tools.imageGenerationOnly ? "imagegen" : undefined,
-	].filter(Boolean).join(", ") || "off";
-	const compactionVersion = config.compaction.version ?? "v1";
-	return `Codex settings: voice only ${config.voiceFeaturesOnly ? "on" : "off"}, Rust binaries ${config.tools.customRustBinariesDir || "bundled"}, heavy prompt overwrite ${config.prompt.heavySystemPromptOverwrite ? "on" : "off"}, all models ${formatAllProvidersMode(config.scope.allProviders)}, additional providers ${config.scope.additionalProviders.length > 0 ? config.scope.additionalProviders.join(", ") : "none"}, statusline ${config.ui.statusLine ? "on" : "off"}, tool renaming ${config.ui.toolRenaming ? "on" : "off"}, compact tools ${config.ui.compactTools ? "on" : "off"}, Code Mode details ${config.ui.codeModeDetails ? "on" : "off"}, background shells widget ${config.ui.backgroundShellWidget ? "on" : "off"}, image descriptions ${config.tools.viewImageFallback ? "on" : "off"}, extra tools only ${extraTools}, fast ${config.openai.fast ? "on" : "off"}, cached websocket upgrade ${config.openai.forceCachedWebSockets === false ? "off" : "on"}, voice preference ${config.voice.mode === "transcription" ? "dictation" : "conversation"} ${config.voice.protocol}/${config.voice.protocol === "v2" ? config.voice.v2Voice : config.voice.v3Voice}, GPT-5.6 Code Mode ${config.beta.codeMode ? "on" : "off"}, proxy Responses Lite ${config.beta.responsesLite ? "on" : "off"}, responses compaction ${(config.compaction.responsesCompaction ?? false) ? "on" : "off"} (${compactionVersion}), verbosity ${config.openai.verbosity}`;
+	return `Codex settings: extension ${config.voiceFeaturesOnly ? "voice only" : "adapter and voice"}, providers ${formatAllProvidersMode(config.scope.allProviders)}, Rust binaries ${config.tools.customRustBinariesDir || "bundled"}, heavy prompt overwrite ${config.prompt.heavySystemPromptOverwrite ? "on" : "off"}, harness identifier ${config.openai.harnessIdentifierHeader ? "on" : "off"}, Code Mode ${config.beta.codeMode ? "on" : "off"}, Responses Lite ${config.beta.responsesLite ? "on" : "off"}, compaction V2 ${config.compaction.responsesCompaction ? "on" : "off"}, fast ${config.openai.fast ? "on" : "off"}, verbosity ${config.openai.verbosity}`;
 }

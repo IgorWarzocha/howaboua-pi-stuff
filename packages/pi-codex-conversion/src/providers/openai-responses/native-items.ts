@@ -35,8 +35,7 @@ export function encryptedOutputFromWebRunLike(value: unknown): string | undefine
 export function encryptedWebRunOutputFromDetails(details: unknown): string | undefined {
 	if (!details || typeof details !== "object") return undefined;
 	const record = details as Record<string, unknown>;
-	return encryptedOutputFromWebRunLike(record["webRun"])
-		?? encryptedOutputFromWebRunLike((record["pathTool"] as Record<string, unknown> | undefined)?.["webRun"]);
+	return encryptedOutputFromWebRunLike(record["webRun"]);
 }
 
 export function isImageGenerationCallBlock(block: { type: string; item?: unknown }): block is ImageGenerationCallBlock {
@@ -83,4 +82,3 @@ export function imageDetailForResponses(block: unknown): ImageDetail {
 	const detail = block && typeof block === "object" ? (block as Record<string, unknown>)["detail"] : undefined;
 	return detail === "high" || detail === "original" ? detail : "auto";
 }
-

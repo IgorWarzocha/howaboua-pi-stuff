@@ -14,15 +14,14 @@ export function buildExtraToolsOnlyStatusText(tools: string[], theme?: StatusThe
 	return formatStatusText(` • extra tools${tools.length > 0 ? `: ${tools.join(", ")}` : ""}`, theme);
 }
 
-export function buildStatusText(options: { mode?: "normal" | "path" | "code" | undefined; verbosity?: string | undefined; webSearch?: boolean | undefined; imageGeneration?: boolean | undefined; fast: boolean; useOnAllModels: boolean; additionalProvider?: boolean | undefined; compaction?: { enabled: boolean; version: "v1" | "v2" } | undefined }, theme?: StatusTheme | undefined): string {
+export function buildStatusText(options: { mode?: "normal" | "code" | undefined; verbosity?: string | undefined; webSearch?: boolean | undefined; imageGeneration?: boolean | undefined; fast: boolean; useOnAllModels: boolean; additionalProvider?: boolean | undefined; compaction?: boolean | undefined }, theme?: StatusTheme | undefined): string {
 	const extras = [
-		options.mode === "path" ? "PATH mode" : undefined,
 		options.mode === "code" ? "code mode" : undefined,
 		options.useOnAllModels ? "all models" : undefined,
 		options.additionalProvider ? "additional provider" : undefined,
 		options.webSearch ? "web search" : undefined,
 		options.imageGeneration ? "image gen" : undefined,
-		options.compaction?.enabled ? `compact ${options.compaction.version}` : undefined,
+		options.compaction ? "compact v2" : undefined,
 		options.fast ? "fast" : undefined,
 	]
 		.filter(Boolean)
@@ -36,7 +35,6 @@ export const DEFAULT_TOOL_NAMES = ["read", "bash", "edit", "write"];
 export const SHELL_ADAPTER_TOOL_NAMES = ["exec_command", "write_stdin"];
 export const APPLY_PATCH_TOOL_NAME = "apply_patch";
 export const CORE_ADAPTER_TOOL_NAMES = [...SHELL_ADAPTER_TOOL_NAMES, APPLY_PATCH_TOOL_NAME];
-export const PATH_MODE_TOOL_NAMES = [...SHELL_ADAPTER_TOOL_NAMES];
 export const CODE_MODE_TOOL_NAMES = ["exec", "wait"];
 export const IMAGE_GENERATION_TOOL_NAME = "imagegen";
 export const VIEW_IMAGE_TOOL_NAME = "view_image";

@@ -1,8 +1,8 @@
 import type { CompactionEntry, CompactionResult } from "@earendil-works/pi-coding-agent";
 
 export const EXTENSION_ID = "openai-native-compaction";
-export const NATIVE_COMPACTION_STRATEGY = "openai-native-compact-v1";
-export const NATIVE_COMPACTION_V2_STRATEGY = "openai-responses-compaction-v2";
+const LEGACY_NATIVE_COMPACTION_STRATEGY = "openai-native-compact-v1";
+export const NATIVE_COMPACTION_STRATEGY = "openai-responses-compaction-v2";
 export const NATIVE_COMPACTION_SHIM_SUMMARY = "[OpenAI native compaction checkpoint]";
 export const NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE = "codex-native-compaction-display";
 export const NATIVE_COMPACTION_DISPLAY_TEXT = [
@@ -13,7 +13,8 @@ export const NATIVE_COMPACTION_DISPLAY_TEXT = [
 	"Warning: do not turn Responses compaction off or switch providers mid-session; old context may be much less reliable.",
 ].join("\n");
 
-export type NativeCompactionStrategy = typeof NATIVE_COMPACTION_STRATEGY | typeof NATIVE_COMPACTION_V2_STRATEGY;
+export type NativeCompactionStrategy = typeof NATIVE_COMPACTION_STRATEGY;
+type PersistedNativeCompactionStrategy = NativeCompactionStrategy | typeof LEGACY_NATIVE_COMPACTION_STRATEGY;
 export type NativeCompactionShimSummary = typeof NATIVE_COMPACTION_SHIM_SUMMARY;
 
 export type NativeCompactionRequestMeta = {
@@ -37,7 +38,7 @@ export type NativeCompactionIdentity = {
 };
 
 export type NativeCompactionDetails = NativeCompactionIdentity & {
-	strategy: NativeCompactionStrategy;
+	strategy: PersistedNativeCompactionStrategy;
 	compactedWindow: unknown[];
 	compactResponseId?: string | undefined;
 	createdAt: string;
@@ -48,7 +49,6 @@ export type NativeCompactionDetails = NativeCompactionIdentity & {
 export type NativeCompactionEntry = CompactionEntry<NativeCompactionDetails>;
 
 export type CreateNativeCompactionDetailsInput = NativeCompactionIdentity & {
-	strategy?: NativeCompactionStrategy | undefined;
 	compactedWindow: unknown[];
 	compactResponseId?: string | undefined;
 	createdAt?: string | undefined;
@@ -175,7 +175,7 @@ export function isNativeCompactionDetails(value: unknown): value is NativeCompac
 	const candidate = value as Record<string, unknown>;
 
 	return (
-		(candidate["strategy"] === NATIVE_COMPACTION_STRATEGY || candidate["strategy"] === NATIVE_COMPACTION_V2_STRATEGY) &&
+		(candidate["strategy"] === NATIVE_COMPACTION_STRATEGY || candidate["strategy"] === LEGACY_NATIVE_COMPACTION_STRATEGY) &&
 		isNonEmptyString(candidate["provider"]!) &&
 		isNonEmptyString(candidate["api"]!) &&
 		isNonEmptyString(candidate["model"]!) &&
@@ -199,7 +199,7 @@ export function isNativeCompactionShimSummary(value: unknown): value is NativeCo
 
 export function createNativeCompactionDetails(input: CreateNativeCompactionDetailsInput): NativeCompactionDetails {
 	return {
-		strategy: input.strategy ?? NATIVE_COMPACTION_STRATEGY,
+		strategy: NATIVE_COMPACTION_STRATEGY,
 		provider: normalizeString(input.provider),
 		api: normalizeString(input.api),
 		model: normalizeString(input.model),

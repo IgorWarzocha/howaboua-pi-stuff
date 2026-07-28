@@ -8,6 +8,7 @@ import type {
 
 export const MAX_CODE_MODE_OUTPUT_TOKENS = 100_000;
 export const DEFAULT_CODE_MODE_OUTPUT_TOKENS = 10_000;
+export const DEFAULT_CODE_MODE_EXEC_YIELD_MS = 30_000;
 
 export function toWireToolDefinition(tool: CodeModeToolDefinition) {
 	if (
@@ -119,6 +120,8 @@ function parseContentItems(value: unknown): RuntimeContentItem[] {
 				image_url: item["image_url"],
 				...(item["detail"] === undefined ? {} : { detail: item["detail"] }),
 			};
+		if (item["type"] === "input_audio")
+			throw new Error("Code-mode audio output is not supported by Pi");
 		throw new Error("Code-mode host returned an invalid content item");
 	});
 }

@@ -33,4 +33,3 @@ export function parseTextSignature(signature: string | undefined): { id: string;
 	}
 	return { id: signature };
 }
-

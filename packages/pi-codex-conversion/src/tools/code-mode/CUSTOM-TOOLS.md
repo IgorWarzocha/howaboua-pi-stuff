@@ -7,9 +7,9 @@ Read this only to work on custom-tool definitions, not to call them. Do not enab
 Definitions are top-level `*.toml` files in either location:
 
 - global: `~/.pi/agent/codex-conversion-custom-tools/`, or `$PI_CODING_AGENT_DIR/codex-conversion-custom-tools/` when configured
-- project-local in trusted projects: `<launch-directory>/.pi/codex-conversion-custom-tools/`
+- project-local in trusted projects: `<session-cwd>/.pi/codex-conversion-custom-tools/`
 
-Only the directory where Pi was launched is checked; parent directories are not searched. Project-local definitions are ignored unless Pi trusts the project. A project-local definition replaces a global definition with the same tool name. Each filename becomes a JavaScript method on `tools`, so use a JavaScript-compatible identifier.
+Only the active session working directory is checked; parent directories are not searched. Project-local definitions are ignored unless Pi trusts the project. A project-local definition replaces a global definition with the same tool name. Each filename becomes a JavaScript method on `tools`, so use a JavaScript-compatible identifier.
 
 ```toml
 usage = 'await tools.port_info(port_number)'

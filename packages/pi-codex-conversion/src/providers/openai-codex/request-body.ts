@@ -21,12 +21,23 @@ function clampReasoningEffort(modelId: string, effort: string): string {
 	return effort;
 }
 
-export function buildRequestBody<TApi extends Api>(model: Model<TApi>, context: Context, options?: OpenAICodexStreamOptions): ResponsesBody {
+export function buildRequestBody<TApi extends Api>(
+	model: Model<TApi>,
+	context: Context,
+	options?: OpenAICodexStreamOptions,
+): ResponsesBody {
 	const supportsToolSearch = (model.compat as { supportsToolSearch?: boolean } | undefined)?.supportsToolSearch ?? false;
+	const grammarToolInputProperties = options?.grammarToolInputProperties ?? new Map<string, string>();
+	const supportsOpenAIGrammarTools = grammarToolInputProperties.size > 0;
+	const allowedToolCallProviders = supportsOpenAIGrammarTools && !CODEX_TOOL_CALL_PROVIDERS.has(model.provider)
+		? new Set([...CODEX_TOOL_CALL_PROVIDERS, model.provider])
+		: CODEX_TOOL_CALL_PROVIDERS;
 	const toolPlacement = splitDeferredTools(context, supportsToolSearch);
-	const messages = convertResponsesMessages(model, context, CODEX_TOOL_CALL_PROVIDERS, {
+	const messages = convertResponsesMessages(model, context, allowedToolCallProviders, {
 		includeSystemPrompt: false,
+		grammarToolInputProperties,
 		deferredTools: toolPlacement.deferred,
+		toolOptions: { supportsOpenAIGrammarTools },
 	});
 
 	const body: ResponsesBody = {
@@ -58,7 +69,10 @@ export function buildRequestBody<TApi extends Api>(model: Model<TApi>, context: 
 	}
 
 	if (toolPlacement.immediate.length > 0) {
-		body.tools = convertResponsesTools(toolPlacement.immediate, { strict: null });
+		body.tools = convertResponsesTools(toolPlacement.immediate, {
+			strict: null,
+			supportsOpenAIGrammarTools,
+		});
 	}
 
 	const clampedReasoning = options?.reasoning ? clampThinkingLevel(model, options.reasoning) : undefined;

@@ -40,19 +40,17 @@ export async function registerCustomTools(
 	options: { isActive?(ctx: unknown): boolean } = {},
 ): Promise<CodeModeRegistration> {
 	const usesDefaultDirs = toolsDir === undefined;
-	const toolsDirs =
-		toolsDir === undefined
-			? [getCustomToolsDir(), getProjectCustomToolsDir()]
-			: typeof toolsDir === "string"
-				? [toolsDir]
-				: [...toolsDir];
+	const toolsDirs = toolsDir === undefined
+		? [getCustomToolsDir()]
+		: typeof toolsDir === "string"
+			? [toolsDir]
+			: [...toolsDir];
 	let previousErrors = new Map<string, string>();
 	return registerCodeModeTools(pi, {
 		getTools: (ctx) => {
-			const activeDirs =
-				usesDefaultDirs && !isTrustedProjectContext(ctx)
-					? toolsDirs.slice(0, 1)
-					: toolsDirs;
+			const activeDirs = usesDefaultDirs && isTrustedProjectContext(ctx)
+				? [...toolsDirs, getProjectCustomToolsDir(ctx.cwd)]
+				: toolsDirs;
 			const discovery = discoverCustomToolsFromDirectories(activeDirs);
 			previousErrors = reportCustomToolErrors(
 				ctx,

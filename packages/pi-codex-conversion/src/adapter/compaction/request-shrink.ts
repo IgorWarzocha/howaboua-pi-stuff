@@ -1,5 +1,5 @@
 import type { NativeCompactionRequestBody, ResponsesInputItem } from "./serializer.ts";
-import { supportsResponsesLiteModel } from "../../providers/openai-codex/responses-lite.ts";
+import { supportsResponsesLiteModel } from "../../providers/openai-codex/responses-lite-model.ts";
 
 export const COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE = "Output exceeded the available model context and was truncated";
 export const OPENAI_CODEX_COMPACTION_ENDPOINT_BUDGET_TOKENS = 372_000;

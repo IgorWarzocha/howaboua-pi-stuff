@@ -82,6 +82,12 @@ export async function runCustomTool(
 			}),
 		);
 		signal?.addEventListener("abort", onAbort, { once: true });
-		if (tool.input === "stdin") child.stdin?.end(input);
+		if (tool.input === "stdin") {
+			child.stdin?.on("error", (error) => {
+				kill();
+				finish(() => reject(error));
+			});
+			child.stdin?.end(input);
+		}
 	});
 }

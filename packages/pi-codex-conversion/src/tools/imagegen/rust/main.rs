@@ -193,7 +193,7 @@ fn headers(token: &str, account_id: &str) -> anyhow::Result<HeaderMap> {
     headers.insert("version", HeaderValue::from_static("0.0.0"));
     headers.insert(
         "User-Agent",
-        HeaderValue::from_static("pi-codex-conversion imagegen path-tool"),
+        HeaderValue::from_static("pi-codex-conversion imagegen"),
     );
     Ok(headers)
 }

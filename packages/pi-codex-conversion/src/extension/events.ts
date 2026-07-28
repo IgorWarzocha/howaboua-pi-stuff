@@ -1,8 +1,9 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { readCodexConversionConfig } from "../adapter/activation/config.ts";
-import { shouldUseCodexAdapter, syncAdapter } from "../adapter/activation/activation.ts";
+import { readCodexConversionConfig } from "../adapter/activation/config-store.ts";
+import { syncAdapter } from "../adapter/activation/activation.ts";
+import { isAdapterRuntime, resolveCodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
+import { isNativeCompactionDetails, NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, NATIVE_COMPACTION_DISPLAY_TEXT, NATIVE_COMPACTION_STRATEGY, type NativeCompactionUsage } from "../adapter/compaction/types.ts";
 import { handleCodexSessionBeforeCompact } from "../adapter/compaction/compaction.ts";
-import { isNativeCompactionDetails, NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, NATIVE_COMPACTION_DISPLAY_TEXT, NATIVE_COMPACTION_V2_STRATEGY, type NativeCompactionUsage } from "../adapter/compaction/types.ts";
 import { rewriteCodexProviderRequest } from "../adapter/provider-request.ts";
 import { isAdapterContextExcludedCustomMessage } from "../adapter/prompt/context-filter.ts";
 import { hasNoSkillsFlag } from "../adapter/prompt/skills.ts";
@@ -11,7 +12,6 @@ import type { CodeModeProxyProviderRegistration } from "../providers/code-mode-p
 import { maybeWarnLocalCheckoutVersion } from "../adapter/local-version-warning.ts";
 import { clearApplyPatchRenderState } from "../tools/apply-patch/tool.ts";
 import type { CodeModeRegistration } from "../tools/code-mode/tools.ts";
-import { clearPathApplyPatchPreviewStates } from "../tools/path/apply-patch-preview.ts";
 import { initializeBashParser } from "../shell/bash.ts";
 import { ensureCodexVoiceSystemPrompt, getCodexVoiceSystemPromptPath } from "../voice/system-prompt.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
@@ -62,11 +62,12 @@ export function registerCodexEvents(
 	sessions.onSessionExit((sessionId) => tracker.recordSessionFinished(sessionId));
 
 	pi.on("session_start", async (event, ctx) => {
+		await runtime.lanVoice.stop(ctx);
 		runtime.voice.resetContextAnnouncements();
 		try {
 			ensureCodexVoiceSystemPrompt();
 		} catch (error) {
-			console.warn(`[pi-codex-conversion] Failed to create ${getCodexVoiceSystemPromptPath()}: ${error instanceof Error ? error.message : String(error)}`);
+			console.warn(`[pi-codex-conversion] Failed to prepare ${getCodexVoiceSystemPromptPath()}: ${error instanceof Error ? error.message : String(error)}`);
 		}
 		initializeBashParser();
 		runtime.resetTransport();
@@ -77,16 +78,14 @@ export function registerCodexEvents(
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 		if (state.config.voiceFeaturesOnly) {
 			clearApplyPatchRenderState();
-			clearPathApplyPatchPreviewStates();
 			tools.ensureOptionalTools();
 			ui.clearBackgroundWidget();
 			syncAdapter(pi, ctx, state);
 			return;
 		}
-		sessions.setBaseEnv(runtime.bundledPathToolsEnv());
+		sessions.setBaseEnv(runtime.execEnv());
 		tracker.clear();
 		clearApplyPatchRenderState();
-		clearPathApplyPatchPreviewStates();
 		tools.ensureOptionalTools();
 		ui.renderBackgroundWidget();
 		syncAdapter(pi, ctx, state);
@@ -116,6 +115,9 @@ export function registerCodexEvents(
 	pi.on("message_start", async (event) => {
 		if (event.message.role !== "toolResult" && !isToolCallOnlyAssistantMessage(event.message)) tracker.resetExplorationGroup();
 	});
+	pi.on("message_end", async (event) => {
+		if (event.message.role === "assistant") runtime.lanVoice.assistantMessage(event.message);
+	});
 	pi.on("tool_execution_start", async (event) => {
 		if (event.toolName !== "exec_command") {
 			tracker.resetExplorationGroup();
@@ -129,19 +131,17 @@ export function registerCodexEvents(
 	});
 
 	pi.on("session_shutdown", async (_event, ctx) => {
-		try {
-			await runtime.voice.stop({ announce: true });
-			runtime.shutdownTransport(ctx.sessionManager.getSessionId());
-			ui.clearBackgroundWidget();
-			runtime.backgroundWidget.ctx = undefined;
-			sessions.shutdown();
-		} finally {
-			try {
-				proxyProvider.shutdown();
-			} finally {
-				await codeMode.shutdown();
-			}
-		}
+		const failures: unknown[] = [];
+		await runShutdownStep(failures, () => runtime.lanVoice.stop(ctx));
+		await runShutdownStep(failures, () => runtime.voice.stop({ announce: true }));
+		await runShutdownStep(failures, () => runtime.shutdownTransport(ctx.sessionManager.getSessionId()));
+		await runShutdownStep(failures, () => ui.clearBackgroundWidget());
+		runtime.backgroundWidget.ctx = undefined;
+		await runShutdownStep(failures, () => sessions.shutdown());
+		await runShutdownStep(failures, () => proxyProvider.shutdown());
+		await runShutdownStep(failures, () => codeMode.shutdown());
+		if (failures.length === 1) throw failures[0];
+		if (failures.length > 1) throw new AggregateError(failures, "Codex extension shutdown failed");
 	});
 	pi.on("input", async (event) => {
 		if (event.streamingBehavior === undefined) state.codexTurnState.beginTurn();
@@ -149,7 +149,7 @@ export function registerCodexEvents(
 	pi.on("before_agent_start", async (event, ctx) => {
 		if (runtime.voice.consumeDelegatedTurnStart()) state.codexTurnState.beginTurn();
 		const systemPrompt = event.systemPrompt;
-		if (!shouldUseCodexAdapter(ctx, state.config)) return undefined;
+		if (!isAdapterRuntime(resolveCodexRuntimePlan(ctx, state.config))) return undefined;
 		const skills = resolvePromptSkills(event.systemPromptOptions?.skills, hasNoSkillsFlag() ? [] : state.promptSkills);
 		const codexSystemPrompt = runtime.codexSystemPrompt(systemPrompt, ctx, skills, event.systemPromptOptions);
 		await runtime.waitForPrewarm(ctx, codexSystemPrompt);
@@ -159,14 +159,15 @@ export function registerCodexEvents(
 		const update = event.assistantMessageEvent;
 		if ((update.type === "text_delta" || update.type === "thinking_delta") && typeof update.delta === "string") runtime.voice.streamDelta(update.type, update.delta);
 	});
-	pi.on("agent_start", async () => { runtime.voice.agentStarted(); });
-	pi.on("agent_settled", async () => { state.codexTurnState.reset(); runtime.voice.settleTurn(); });
+	pi.on("agent_start", async () => { runtime.voice.agentStarted(); runtime.lanVoice.agentStarted(); });
+	pi.on("agent_settled", async () => { state.codexTurnState.reset(); runtime.voice.settleTurn(); runtime.lanVoice.agentSettled(); });
 	pi.on("before_provider_request", async (event, ctx) => {
 		state.cwd = ctx.cwd;
 		return rewriteCodexProviderRequest(event.payload, ctx, state);
 	});
 	pi.on("session_before_compact", async (event, ctx) => {
 		state.cwd = ctx.cwd;
+		if (!resolveCodexRuntimePlan(ctx, state.config).nativeCompaction) return undefined;
 		return handleCodexSessionBeforeCompact(event, ctx, state, pi);
 	});
 	pi.on("session_compact", async (event, ctx) => {
@@ -180,7 +181,7 @@ export function registerCodexEvents(
 				display: true,
 				details: { compactionEntryId: event.compactionEntry.id },
 			}, { triggerTurn: false });
-			if (details.strategy === NATIVE_COMPACTION_V2_STRATEGY && details.usage) {
+			if (details.strategy === NATIVE_COMPACTION_STRATEGY && details.usage) {
 				pi.sendMessage({
 					customType: NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE,
 					content: formatCompactionUsage(details.usage),
@@ -197,4 +198,12 @@ export function registerCodexEvents(
 		const messages = event.messages.filter((message) => !isAdapterContextExcludedCustomMessage(message));
 		return { messages };
 	});
+}
+
+async function runShutdownStep(failures: unknown[], action: () => unknown): Promise<void> {
+	try {
+		await action();
+	} catch (error) {
+		failures.push(error);
+	}
 }

@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { getCodexConversionConfigPath, readCodexConversionConfig, type CodexConversionConfig } from "../adapter/activation/config.ts";
+import type { CodexConversionConfig } from "../adapter/activation/config.ts";
+import { getCodexConversionConfigPath, readCodexConversionConfig } from "../adapter/activation/config-store.ts";
 import type { AdapterState } from "../adapter/activation/state.ts";
 import { resolveVoiceHelperBinary } from "./binary.ts";
 import type { CodexVoiceController } from "./controller.ts";

@@ -9,13 +9,14 @@ import {
 	type Model,
 	type Transport,
 } from "@earendil-works/pi-ai";
+import { createGrammarToolInputProperties } from "./constrained-sampling.js";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
-import { applyCodeModeFreeformContract } from "../adapter/code-mode-contract.ts";
 import { BASE_DELAY_MS, DEFAULT_SSE_HEADER_TIMEOUT_MS, MAX_RETRIES } from "./openai-codex/constants.ts";
 import { createErrorMessage, isRetryableError, NonRetryableProviderError, parseErrorResponse } from "./openai-codex/errors.ts";
-import { createCodexRequestId, extractAccountId, buildSSEHeaders, buildWebSocketHeaders, headersToRecord, resolveCodexUrl, resolveCodexWebSocketUrl } from "./openai-codex/headers.ts";
+import { createCodexRequestId, extractAccountId, buildSSEHeaders, buildWebSocketHeaders, headersToRecord, PI_CODEX_CONVERSION_ORIGINATOR, resolveCodexUrl, resolveCodexWebSocketUrl } from "./openai-codex/headers.ts";
 import { buildRequestBody } from "./openai-codex/request-body.ts";
-import { applyResponsesLiteRequest, applyResponsesLiteWebSocketMetadata, isResponsesLiteRequest, prepareResponsesLiteRequestImages, supportsResponsesLiteModel } from "./openai-codex/responses-lite.ts";
+import { supportsResponsesLiteModel } from "./openai-codex/responses-lite-model.ts";
+import { applyResponsesLiteRequest, applyResponsesLiteWebSocketMetadata, isResponsesLiteRequest, prepareResponsesLiteRequestImages } from "./openai-codex/responses-lite.ts";
 import { combineAbortSignals, compressRequestBodyZstd, createSSEHeaderTimeout, parseSSE, sleep } from "./openai-codex/sse.ts";
 import type { CodexProviderStreamOptions, OpenAICodexStreamOptions, ResponsesBody } from "./openai-codex/types.ts";
 import { createInitialAssistantMessage } from "./openai-codex/types.ts";
@@ -55,7 +56,6 @@ async function prepareCodexRequestBody<TApi extends Api>(
 	const nextBody = await options?.onPayload?.(body, model);
 	if (nextBody !== undefined) body = nextBody as ResponsesBody;
 	if (responsesLite) {
-		body = applyCodeModeFreeformContract(body);
 		body = isResponsesLiteRequest(body)
 			? { ...body, parallel_tool_calls: false }
 			: applyResponsesLiteRequest(body);
@@ -78,9 +78,12 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 	if (getEffectiveCodexTransport(options.transport, runtimeConfig?.openai, options.sessionId) === "sse") return;
 	if (!options.apiKey || !options.sessionId) return;
 	const responsesLite = deps.useResponsesLite?.(model) ?? (runtimeConfig?.beta.codeMode === true && supportsResponsesLiteModel(model.id));
-	const body = await prepareCodexRequestBody(model, context, options, responsesLite);
+	const grammarToolInputProperties = createGrammarToolInputProperties(context.tools, responsesLite);
+	const effectiveOptions = { ...options, grammarToolInputProperties };
+	const body = await prepareCodexRequestBody(model, context, effectiveOptions, responsesLite);
 	const accountId = extractAccountId(options.apiKey);
-	const headers = buildWebSocketHeaders(model.headers, options.headers, accountId, options.apiKey, options.sessionId);
+	const originator = runtimeConfig?.openai.harnessIdentifierHeader ? PI_CODEX_CONVERSION_ORIGINATOR : undefined;
+	const headers = buildWebSocketHeaders(model.headers, options.headers, accountId, options.apiKey, options.sessionId, originator);
 	let websocketBody = responsesLite ? applyResponsesLiteWebSocketMetadata(body) : body;
 	const currentTurnState = deps.turnState?.current();
 	if (currentTurnState) {
@@ -90,7 +93,7 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 		};
 	}
 	try {
-		await prewarmWebSocket(resolveCodexWebSocketUrl(model.baseUrl), websocketBody, headers, options, deps.turnState);
+		await prewarmWebSocket(resolveCodexWebSocketUrl(model.baseUrl), websocketBody, headers, effectiveOptions, deps.turnState);
 	} catch (error) {
 		if (!options.signal?.aborted && (!isCodexNonTransportError(error) || isWebSocketConnectionLimitReachedError(error))) {
 			recordWebSocketSseFallback(options.sessionId);
@@ -111,17 +114,18 @@ function createCodexStream<TApi extends Api>(
 	},
 ): AssistantMessageEventStream {
 	const runtimeConfig = deps.getConfig?.();
+	const responsesLite = deps.useResponsesLite?.(model) ?? (runtimeConfig?.beta.codeMode === true && supportsResponsesLiteModel(model.id));
+	const grammarToolInputProperties = createGrammarToolInputProperties(context.tools, responsesLite);
 	const preferredTransport = getEffectiveCodexTransport(options?.transport, runtimeConfig?.openai);
 	const effectiveTransport = getEffectiveCodexTransport(options?.transport, runtimeConfig?.openai, options?.sessionId);
 	const effectiveOptions: OpenAICodexStreamOptions | undefined = options
-		? { ...options, transport: effectiveTransport }
-		: { transport: effectiveTransport };
+		? { ...options, transport: effectiveTransport, grammarToolInputProperties }
+		: { transport: effectiveTransport, grammarToolInputProperties };
 	const stream = createAssistantMessageEventStream();
 
 	(async () => {
 		const output = createInitialAssistantMessage(model);
 		try {
-	const responsesLite = deps.useResponsesLite?.(model) ?? (runtimeConfig?.beta.codeMode === true && supportsResponsesLiteModel(model.id));
 			const apiKey = effectiveOptions?.apiKey;
 			if (!apiKey) {
 				throw new Error(`No API key for provider: ${model.provider}`);
@@ -130,8 +134,9 @@ function createCodexStream<TApi extends Api>(
 			const accountId = extractAccountId(apiKey);
 			const body = await prepareCodexRequestBody(model, context, effectiveOptions, responsesLite);
 			const websocketRequestId = effectiveOptions?.sessionId || createCodexRequestId();
-			const sseHeaders = buildSSEHeaders(model.headers, effectiveOptions?.headers, accountId, apiKey, effectiveOptions?.sessionId, responsesLite);
-			const websocketHeaders = buildWebSocketHeaders(model.headers, effectiveOptions?.headers, accountId, apiKey, websocketRequestId);
+			const originator = runtimeConfig?.openai.harnessIdentifierHeader ? PI_CODEX_CONVERSION_ORIGINATOR : undefined;
+			const sseHeaders = buildSSEHeaders(model.headers, effectiveOptions?.headers, accountId, apiKey, effectiveOptions?.sessionId, responsesLite, originator);
+			const websocketHeaders = buildWebSocketHeaders(model.headers, effectiveOptions?.headers, accountId, apiKey, websocketRequestId, originator);
 			const currentTurnState = deps.turnState?.current();
 			if (currentTurnState) sseHeaders.set(CODEX_TURN_STATE_HEADER, currentTurnState);
 			const bodyJson = JSON.stringify(body);
