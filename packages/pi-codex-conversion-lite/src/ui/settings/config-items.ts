@@ -100,10 +100,11 @@ export function buildConfigSettings(tab: SettingsTab, config: CodexConversionCon
 			toggle("viewImageFallback", "Image descriptions", config.tools.viewImageFallback, (enabled, current) => ({ ...current, tools: { ...current.tools, viewImageFallback: enabled } })),
 			toggle("webRun", "Web search", config.tools.webRun, (enabled, current) => ({ ...current, tools: { ...current.tools, webRun: enabled } })),
 			toggle("imageGeneration", "Image generation", config.tools.imageGeneration, (enabled, current) => ({ ...current, tools: { ...current.tools, imageGeneration: enabled } })),
-			toggle("applyPatchOnly", "Extra tool · apply_patch", config.tools.applyPatchOnly, (enabled, current) => ({ ...current, tools: { ...current.tools, applyPatchOnly: enabled } })),
-			toggle("viewImageOnly", "Extra tool · view_image", config.tools.viewImageOnly, (enabled, current) => ({ ...current, tools: { ...current.tools, viewImageOnly: enabled } })),
-			toggle("webRunOnly", "Extra tool · web_run", config.tools.webRunOnly, (enabled, current) => ({ ...current, tools: { ...current.tools, webRunOnly: enabled } })),
-			toggle("imageGenerationOnly", "Extra tool · imagegen", config.tools.imageGenerationOnly, (enabled, current) => ({ ...current, tools: { ...current.tools, imageGenerationOnly: enabled } })),
+			setting({ id: "extraToolsHeader", label: theme.fg("dim", "── Extra tools"), currentValue: "" }),
+			toggle("applyPatchOnly", "apply_patch", config.tools.applyPatchOnly, (enabled, current) => ({ ...current, tools: { ...current.tools, applyPatchOnly: enabled } })),
+			toggle("viewImageOnly", "view_image", config.tools.viewImageOnly, (enabled, current) => ({ ...current, tools: { ...current.tools, viewImageOnly: enabled } })),
+			toggle("webRunOnly", "web_run", config.tools.webRunOnly, (enabled, current) => ({ ...current, tools: { ...current.tools, webRunOnly: enabled } })),
+			toggle("imageGenerationOnly", "imagegen", config.tools.imageGenerationOnly, (enabled, current) => ({ ...current, tools: { ...current.tools, imageGenerationOnly: enabled } })),
 			setting({ id: "customRustBinariesDirHelp", label: "For compatibility custom Rust binaries, edit", currentValue: getCodexConversionConfigPath(), values: [getCodexConversionConfigPath()] }),
 		];
 	}
