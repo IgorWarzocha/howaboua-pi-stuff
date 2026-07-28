@@ -23,12 +23,13 @@ const composer = createComposer({
   post,
 });
 const audio = createAudioController({
-  button:document.querySelector('#voice'),
-  audioState:document.querySelector('#audio-state'),
-  audioDetail:document.querySelector('#audio-detail'),
-  modeButtons:[...document.querySelectorAll('[data-mode]')],
-  composer,
-  clientId,
+	button:document.querySelector('#voice'),
+	audioState:document.querySelector('#audio-state'),
+	audioDetail:document.querySelector('#audio-detail'),
+	modeButtons:[...document.querySelectorAll('.modes [data-mode]')],
+	composer,
+	clientId,
+	post,
 });
 connectBrowserEvents({
   clientId,

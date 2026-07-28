@@ -143,7 +143,8 @@ export class LanVoiceBrowserClients {
 			if (this.isClosed()) return;
 			if (mode === "conversation") await this.options.ensureConversation();
 			else await this.options.startDictation(clientId);
-			if (this.isClosed()) {
+			if (this.isClosed() || this.audioSockets.get(clientId) !== socket || socket.readyState !== WebSocket.OPEN) {
+				if (previous?.mode === "conversation" && mode === "conversation") this.options.onConversationActivity(false);
 				if (mode === "dictation") await this.options.cancelDictation(clientId);
 				return;
 			}

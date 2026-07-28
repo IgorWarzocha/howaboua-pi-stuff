@@ -3,7 +3,7 @@ import { LAN_VOICE_AUDIO_WORKLET } from "./audio-worklet.ts";
 const AUDIO_WORKLET_SOURCE = JSON.stringify(LAN_VOICE_AUDIO_WORKLET);
 
 export const LAN_VOICE_BROWSER_AUDIO_SCRIPT = String.raw`
-function createAudioController({ button, audioState, audioDetail, modeButtons, composer, clientId }) {
+function createAudioController({ button, audioState, audioDetail, modeButtons, composer, clientId, post }) {
   let socket;
   let stream;
   let context;
@@ -13,21 +13,24 @@ function createAudioController({ button, audioState, audioDetail, modeButtons, c
   let active = false;
   let busy = false;
   let finishingDictation = false;
+  let starting = false;
+  let startGeneration = 0;
 
   const setStatus = (title, message = '') => { audioState.textContent = title; audioDetail.textContent = message; };
   const updateControls = () => {
-    button.disabled = busy && !socket;
+    button.disabled = false;
     button.setAttribute('aria-busy', String(busy));
     modeButtons.forEach((item) => { item.disabled = busy || active; });
   };
-  const closeHardware = async () => {
+  const closeHardware = () => {
     processor?.disconnect(); processor = undefined;
     source?.disconnect(); source = undefined;
     stream?.getTracks().forEach((track) => track.stop()); stream = undefined;
     const currentContext = context; context = undefined;
-    await currentContext?.close().catch(() => {});
+    void currentContext?.close().catch(() => {});
   };
-  const stop = async (notify = true, reason = 'user') => {
+  const stop = (notify = true, reason = 'user') => {
+    startGeneration += 1;
     if (notify && active && mode === 'dictation' && socket?.readyState === WebSocket.OPEN) {
       const finishingSocket = socket;
       const draft = composer.snapshot();
@@ -35,7 +38,7 @@ function createAudioController({ button, audioState, audioDetail, modeButtons, c
       busy = true;
       finishingDictation = true;
       socket.send(JSON.stringify({ type:'finish', draft:draft.text, revision:draft.revision, selectionStart:draft.selectionStart, selectionEnd:draft.selectionEnd }));
-      await closeHardware();
+      closeHardware();
       if (!finishingDictation || socket !== finishingSocket) return;
       button.setAttribute('aria-pressed', 'false');
       button.setAttribute('aria-label', 'Cancel transcription');
@@ -48,8 +51,9 @@ function createAudioController({ button, audioState, audioDetail, modeButtons, c
     const currentSocket = socket;
     socket = undefined;
     if (notify && currentSocket?.readyState === WebSocket.OPEN) currentSocket.send(JSON.stringify({ type:'release' }));
+    if (notify) void post('/api/stop', {}).catch(() => {});
     currentSocket?.close(1000, reason);
-    await closeHardware();
+    closeHardware();
     busy = false;
     button.setAttribute('aria-pressed', 'false');
     button.setAttribute('aria-label', mode === 'dictation' ? 'Start dictation' : 'Start voice');
@@ -89,7 +93,9 @@ function createAudioController({ button, audioState, audioDetail, modeButtons, c
     } catch {}
   };
   const start = async () => {
-    if (busy || active) return;
+    if (starting || busy || active) return;
+    const generation = ++startGeneration;
+    starting = true;
     busy = true;
     updateControls();
     setStatus('Opening microphone…', 'Allow microphone access if asked.');
@@ -97,11 +103,14 @@ function createAudioController({ button, audioState, audioDetail, modeButtons, c
       if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) throw new Error('Microphone access needs HTTPS and certificate acceptance.');
       if (!globalThis.AudioWorkletNode) throw new Error('This browser does not support the required low-latency audio runtime.');
       stream = await navigator.mediaDevices.getUserMedia({ audio:{ channelCount:1, echoCancellation:true, noiseSuppression:true, autoGainControl:true } });
+      if (generation !== startGeneration) { closeHardware(); return; }
       context = new AudioContext({ latencyHint:'interactive' });
       const workletUrl = URL.createObjectURL(new Blob([${AUDIO_WORKLET_SOURCE}], { type:'text/javascript' }));
       try { await context.audioWorklet.addModule(workletUrl); }
       finally { URL.revokeObjectURL(workletUrl); }
+      if (generation !== startGeneration) { closeHardware(); return; }
       await context.resume();
+      if (generation !== startGeneration) { closeHardware(); return; }
       source = context.createMediaStreamSource(stream);
       processor = new AudioWorkletNode(context, 'pi-lan-voice', { numberOfInputs:1, numberOfOutputs:1, outputChannelCount:[1] });
       source.connect(processor);
@@ -130,14 +139,16 @@ function createAudioController({ button, audioState, audioDetail, modeButtons, c
         if (socket === currentSocket) void stop(false, event.reason || 'connection-closed');
       };
     } catch (error) {
-      await stop(false, 'start-error');
+      if (generation !== startGeneration) return;
+      stop(false, 'start-error');
       setStatus('Could not start', error instanceof Error ? error.message : String(error));
     } finally {
-      if (!socket) busy = false;
+      starting = false;
+      if (generation === startGeneration && !socket) busy = false;
       updateControls();
     }
   };
-  const cancelFinishingDictation = async () => {
+  const cancelFinishingDictation = () => {
     if (!finishingDictation) return;
     finishingDictation = false;
     active = false;
@@ -146,7 +157,7 @@ function createAudioController({ button, audioState, audioDetail, modeButtons, c
     socket = undefined;
     if (currentSocket?.readyState === WebSocket.OPEN) currentSocket.send(JSON.stringify({ type:'cancel' }));
     currentSocket?.close(1000, 'dictation-cancelled');
-    await closeHardware();
+    closeHardware();
     button.setAttribute('aria-pressed', 'false');
     button.setAttribute('aria-label', 'Start dictation');
     setStatus('Tap to start dictation');
@@ -162,8 +173,8 @@ function createAudioController({ button, audioState, audioDetail, modeButtons, c
   };
 
   button.addEventListener('click', () => {
-    if (finishingDictation) void cancelFinishingDictation();
-    else if (active || (busy && socket)) void stop();
+    if (finishingDictation) cancelFinishingDictation();
+    else if (active || busy || socket) stop();
     else void start();
   });
   modeButtons.forEach((item) => item.addEventListener('click', () => selectMode(item.dataset.mode)));
@@ -171,8 +182,8 @@ function createAudioController({ button, audioState, audioDetail, modeButtons, c
 
   return {
     handleServerCommand(command) {
-      if (command.type === 'stop') void stop(false, command.reason || 'server');
-      if (command.type === 'error') { void stop(false, 'server-error'); setStatus('Voice stopped', command.message); }
+      if (command.type === 'stop') stop(false, command.reason || 'server');
+      if (command.type === 'error') { stop(false, 'server-error'); setStatus('Voice stopped', command.message); }
     },
     pagehide() {
       stream?.getTracks().forEach((track) => track.stop());
