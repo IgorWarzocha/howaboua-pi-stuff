@@ -9,9 +9,11 @@ import { registerCodexTools } from "./tools.ts";
 import { registerCodexUi } from "./ui.ts";
 import { registerCodexVoiceRenderer } from "../voice/ui.ts";
 import { resolveCodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
+import { registerLiteGraduationNotice } from "./graduation-notice.ts";
 
 export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 	registerCodexVoiceRenderer(pi);
+	registerLiteGraduationNotice(pi);
 	const runtime = createCodexExtensionRuntime(pi);
 	const codeMode = await registerCodexCodeMode(pi, runtime);
 	let cleanupProxyProvider: ReturnType<typeof registerCodeModeProxyProvider> | undefined;
