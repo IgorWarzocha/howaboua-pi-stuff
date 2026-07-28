@@ -38,6 +38,10 @@ export class CodexVoiceController {
 	get active(): boolean { return this.state.type !== "idle" && this.state.type !== "failed"; }
 	get activeMode(): CodexVoiceMode | undefined { return this.announcedMode; }
 	resetContextAnnouncements(): void { this.messages.resetContextAnnouncements(); }
+	announceDictation(ctx: ExtensionContext): void {
+		this.messages.setContext(ctx);
+		this.messages.modeStarted("dictation");
+	}
 
 	async start(ctx: ExtensionContext, config: CodexConversionConfig): Promise<void> {
 		const mode: CodexVoiceMode = config.voice.mode === "transcription" ? "dictation" : "realtime";

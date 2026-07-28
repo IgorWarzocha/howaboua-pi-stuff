@@ -7,6 +7,7 @@ import test from "node:test";
 import { WebSocket } from "ws";
 import type { WebSocketLike } from "../src/providers/openai-codex/types.ts";
 import { BoundedJsonlReader, parseVoiceHelperEvent } from "../src/voice/helper.ts";
+import { CodexVoiceController } from "../src/voice/controller.ts";
 import { CodexDictationTranscriber } from "../src/voice/dictation/transcriber.ts";
 import { LanVoiceDraft, LanVoiceDraftConflictError } from "../src/voice/lan/draft.ts";
 import { startCodexLanVoiceServer } from "../src/voice/lan/server.ts";
@@ -71,6 +72,21 @@ test("delegated voice requests use Pi's normal user-turn pipeline", () => {
 	assert.deepEqual(userMessages, ["check the current time"]);
 	assert.deepEqual(customMessages, []);
 	assert.equal(messages.consumeDelegatedTurnStart(), true);
+});
+
+test("LAN dictation announces recognition context once per Pi session", () => {
+	const customMessages: unknown[] = [];
+	const controller = new CodexVoiceController({
+		sendMessage: (message: unknown) => { customMessages.push(message); },
+	} as never);
+	const ctx = { isIdle: () => true } as never;
+	controller.announceDictation(ctx);
+	controller.announceDictation(ctx);
+	assert.equal(customMessages.length, 1);
+	assert.match(JSON.stringify(customMessages[0]), /codex_voice_mode.*dictation.*active/);
+	controller.resetContextAnnouncements();
+	controller.announceDictation(ctx);
+	assert.equal(customMessages.length, 2);
 });
 
 test("realtime prompt always exposes the connected Pi runtime", async () => {

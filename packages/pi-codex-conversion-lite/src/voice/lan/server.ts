@@ -74,7 +74,10 @@ export async function startCodexLanVoiceServer(options: {
 	clients = new LanVoiceBrowserClients({
 		diagnostics,
 		ensureConversation,
-		startDictation: (clientId) => dictation.start(clientId),
+		async startDictation(clientId) {
+			await dictation.start(clientId);
+			options.voice.announceDictation(options.ctx);
+		},
 		async finishDictation(clientId, text, revision, selection) {
 			const transcript = await dictation.finish(clientId);
 			let insertion = selection;
