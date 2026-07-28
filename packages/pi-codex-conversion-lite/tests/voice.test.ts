@@ -123,6 +123,44 @@ test("LAN dictation announces recognition context once per Pi session", () => {
 	assert.equal(customMessages.length, 2);
 });
 
+test("LAN realtime acquisition can interrupt stalled provider auth", async () => {
+	const authEntered = Promise.withResolvers<void>();
+	let peerCloses = 0;
+	const controller = new CodexVoiceController({ sendMessage: () => {} } as never);
+	const ctx = {
+		cwd: "/tmp",
+		isIdle: () => true,
+		isProjectTrusted: () => false,
+		modelRegistry: {
+			getProviderAuth: () => {
+				authEntered.resolve();
+				return new Promise<never>(() => {});
+			},
+		},
+		ui: {
+			setStatus: () => {},
+			notify: () => {},
+			theme: { fg: (_color: string, text: string) => text },
+		},
+	} as never;
+	const peer = {
+		kind: "webrtc",
+		onEvent: () => () => {},
+		onExit: () => () => {},
+		sendData: () => {},
+		start: async () => "offer",
+		applyAnswer: () => {},
+		close: async () => { peerCloses += 1; },
+	} as never;
+	const cancellation = new AbortController();
+	const starting = controller.startRealtimeWithPeer(ctx, { voice: {} } as never, peer, cancellation.signal);
+	await authEntered.promise;
+	cancellation.abort();
+	assert.equal(await starting, undefined);
+	assert.equal(controller.status, "idle");
+	assert.equal(peerCloses, 1);
+});
+
 test("realtime prompt always exposes the connected Pi runtime", async () => {
 	const directory = await mkdtemp(join(tmpdir(), "pi-voice-prompt-"));
 	const promptPath = join(directory, "REALTIME-SYSTEM-PROMPT.md");
@@ -327,23 +365,25 @@ test("LAN voice transfers audio ownership without restarting its realtime sessio
 	}
 });
 
-test("LAN voice shutdown drains an in-flight browser acquisition", async () => {
+test("LAN voice shutdown interrupts an in-flight browser acquisition", async () => {
 	const agentDir = await mkdtemp(join(tmpdir(), "pi-lan-voice-shutdown-"));
 	const startEntered = Promise.withResolvers<void>();
-	const allowStart = Promise.withResolvers<void>();
-	const conversation = {};
-	let stoppedConversation: unknown;
+	let startWasAborted = false;
 	const server = await startCodexLanVoiceServer({
 		ctx: { isIdle: () => true, sessionManager: { getSessionId: () => "owner" } } as never,
 		getConfig: () => ({}) as never,
 		voice: {
-			startRealtimeWithPeer: async () => {
+			startRealtimeWithPeer: async (_ctx: unknown, _config: unknown, _peer: unknown, signal: AbortSignal) => {
 				startEntered.resolve();
-				await allowStart.promise;
-				return conversation;
+				await new Promise<void>((resolve) => {
+					const aborted = () => { startWasAborted = true; resolve(); };
+					if (signal.aborted) aborted();
+					else signal.addEventListener("abort", aborted, { once: true });
+				});
+				return undefined;
 			},
 			setConversationInputActive: () => {},
-			stopConversation: async (active: unknown) => { stoppedConversation = active; },
+			stopConversation: async () => {},
 		} as never,
 		resolveAuth: async () => ({}) as never,
 		sendUserMessage: () => {},
@@ -360,11 +400,9 @@ test("LAN voice shutdown drains an in-flight browser acquisition", async () => {
 		const firstClose = server.close();
 		const secondClose = server.close();
 		assert.strictEqual(secondClose, firstClose);
-		allowStart.resolve();
 		await firstClose;
-		assert.strictEqual(stoppedConversation, conversation);
+		assert.equal(startWasAborted, true);
 	} finally {
-		allowStart.resolve();
 		socket.close();
 		await server.close();
 		await rm(agentDir, { recursive: true, force: true });

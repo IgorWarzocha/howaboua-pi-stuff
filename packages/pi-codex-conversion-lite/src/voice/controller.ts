@@ -10,6 +10,7 @@ import { getProjectCodexVoiceSystemPromptPath, loadCodexVoiceSystemPrompt } from
 import type { CodexVoiceMode } from "./ui.ts";
 
 type VoiceSession = CodexRealtimeConversation | CodexDictationSession;
+const START_CANCELLED = Symbol("voice-start-cancelled");
 type VoiceState =
 	| { type: "idle" }
 	| { type: "connecting"; mode: CodexVoiceMode; session?: VoiceSession }
@@ -48,8 +49,8 @@ export class CodexVoiceController {
 		await this.startMode(ctx, config, mode);
 	}
 
-	async startRealtimeWithPeer(ctx: ExtensionContext, config: CodexConversionConfig, peer: CodexRealtimePeer): Promise<CodexRealtimeConversation | undefined> {
-		return this.startMode(ctx, config, "realtime", peer);
+	async startRealtimeWithPeer(ctx: ExtensionContext, config: CodexConversionConfig, peer: CodexRealtimePeer, signal?: AbortSignal): Promise<CodexRealtimeConversation | undefined> {
+		return this.startMode(ctx, config, "realtime", peer, signal);
 	}
 
 	async stopConversation(session: CodexRealtimeConversation, options?: { announce?: boolean }): Promise<void> {
@@ -69,7 +70,8 @@ export class CodexVoiceController {
 		this.messages.voiceStopped("realtime");
 	}
 
-	private async startMode(ctx: ExtensionContext, config: CodexConversionConfig, mode: CodexVoiceMode, peer?: CodexRealtimePeer): Promise<CodexRealtimeConversation | undefined> {
+	private async startMode(ctx: ExtensionContext, config: CodexConversionConfig, mode: CodexVoiceMode, peer?: CodexRealtimePeer, signal?: AbortSignal): Promise<CodexRealtimeConversation | undefined> {
+		if (signal?.aborted) { await peer?.close(); return; }
 		let realtimePrompt: string | undefined;
 		try {
 			realtimePrompt = mode === "realtime"
@@ -81,6 +83,7 @@ export class CodexVoiceController {
 		}
 		if (this.state.type === "dictation") await this.finishDictation({ announce: true });
 		else await this.stop({ announce: true });
+		if (signal?.aborted) { await peer?.close(); return; }
 		const startGeneration = ++this.startGeneration;
 		this.context = ctx;
 		this.config = config;
@@ -88,15 +91,30 @@ export class CodexVoiceController {
 		this.state = { type: "connecting", mode };
 		this.renderStatus("connecting…");
 		try {
-			const auth = await resolveCodexVoiceAuth(ctx);
+			const auth = await interruptible(resolveCodexVoiceAuth(ctx), signal);
+			if (auth === START_CANCELLED) {
+				await peer?.close();
+				this.cancelStart(startGeneration);
+				return;
+			}
 			if (startGeneration !== this.startGeneration || this.state.type !== "connecting") return;
 			if (mode === "dictation") await this.startDictation(auth, config);
-			else await this.startConversation(auth, config, realtimePrompt!, peer);
+			else await this.startConversation(auth, config, realtimePrompt!, peer, signal);
+			if (signal?.aborted) {
+				await peer?.close();
+				this.cancelStart(startGeneration);
+				return;
+			}
 			if (!this.modeIsActive(mode)) return;
 			this.announcedMode = mode;
 			this.messages.modeStarted(mode);
 			return mode === "realtime" ? this.currentSession() as CodexRealtimeConversation : undefined;
 		} catch (error) {
+			if (signal?.aborted) {
+				await peer?.close();
+				this.cancelStart(startGeneration);
+				return;
+			}
 			if (startGeneration !== this.startGeneration) return;
 			this.fail(error instanceof Error ? error : new Error(String(error)));
 			return undefined;
@@ -155,21 +173,30 @@ export class CodexVoiceController {
 		config: CodexConversionConfig,
 		instructions: string,
 		peer?: CodexRealtimePeer,
+		signal?: AbortSignal,
 	): Promise<void> {
 		const connecting = this.state;
 		if (connecting.type !== "connecting" || connecting.mode !== "realtime") return;
+		if (signal?.aborted) { await peer?.close(); return; }
 		const { CodexRealtimeConversation } = await import("./conversation/session.ts");
-		if (this.state !== connecting) return;
+		if (this.state !== connecting || signal?.aborted) { await peer?.close(); return; }
 		const realtimePeer = peer ?? new (await import("./conversation/native-peer.ts")).NativeCodexRealtimePeer();
-		if (this.state !== connecting) { await realtimePeer.close(); return; }
+		if (this.state !== connecting || signal?.aborted) { await realtimePeer.close(); return; }
 		let session!: CodexRealtimeConversation;
 		session = new CodexRealtimeConversation({
 			onError: (error) => this.failSession(session, error),
 			onStatus: (status) => this.renderStatus(status),
-			onTurn: (turn) => this.messages.voiceTurn(turn),
+				onTurn: (turn) => this.messages.voiceTurn(turn),
 		}, realtimePeer);
 		this.state = { type: "connecting", mode: "realtime", session };
-		await session.start(auth, config, instructions);
+		if (signal?.aborted) { await session.close(); return; }
+		const closeOnAbort = () => { void session.close(); };
+		signal?.addEventListener("abort", closeOnAbort, { once: true });
+		try {
+			await session.start(auth, config, instructions);
+		} finally {
+			signal?.removeEventListener("abort", closeOnAbort);
+		}
 		if (this.currentSession() === session) this.state = { type: "conversation", session };
 		else await session.close();
 	}
@@ -207,6 +234,13 @@ export class CodexVoiceController {
 		if (this.currentSession() === session) this.fail(error);
 	}
 
+	private cancelStart(startGeneration: number): void {
+		if (startGeneration !== this.startGeneration) return;
+		this.state = { type: "idle" };
+		this.config = undefined;
+		this.context?.ui.setStatus("codex-voice", undefined);
+	}
+
 	private fail(error: Error): void {
 		if (this.state.type === "idle" || this.state.type === "failed") return;
 		const mode = this.state.type === "connecting"
@@ -229,4 +263,17 @@ export class CodexVoiceController {
 		const ctx = this.context;
 		if (ctx) ctx.ui.setStatus("codex-voice", ctx.ui.theme.fg("accent", `voice: ${status}`));
 	}
+}
+
+function interruptible<T>(operation: Promise<T>, signal?: AbortSignal): Promise<T | typeof START_CANCELLED> {
+	if (!signal) return operation;
+	if (signal.aborted) return Promise.resolve(START_CANCELLED);
+	return new Promise((resolve, reject) => {
+		const onAbort = () => { signal.removeEventListener("abort", onAbort); resolve(START_CANCELLED); };
+		signal.addEventListener("abort", onAbort, { once: true });
+		operation.then(
+			(value) => { signal.removeEventListener("abort", onAbort); resolve(value); },
+			(error: unknown) => { signal.removeEventListener("abort", onAbort); reject(error); },
+		);
+	});
 }

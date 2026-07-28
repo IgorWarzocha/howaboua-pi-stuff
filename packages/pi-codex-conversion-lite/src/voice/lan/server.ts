@@ -43,6 +43,7 @@ export async function startCodexLanVoiceServer(options: {
 	const ownerIsActive = () => options.ctx.sessionManager.getSessionId() === options.ownerSessionId;
 	let upstreamPeer: LanVoiceBridgePeer | undefined;
 	let conversation: CodexRealtimeConversation | undefined;
+	let conversationStartAbort: AbortController | undefined;
 	let closing = false;
 	let clients!: LanVoiceBrowserClients;
 	const activity = new LanVoiceActivity({
@@ -68,11 +69,18 @@ export async function startCodexLanVoiceServer(options: {
 	};
 	const ensureConversation = async (): Promise<void> => {
 		if (conversation && upstreamPeer) return;
+		const startAbort = new AbortController();
 		let peer!: LanVoiceBridgePeer;
 		peer = new LanVoiceBridgePeer(diagnostics, (pcm) => clients.sendConversationAudio(pcm));
 		peer.onExit(() => clearUpstream(peer));
 		upstreamPeer = peer;
-		const started = await options.voice.startRealtimeWithPeer(options.ctx, options.getConfig(), peer);
+		conversationStartAbort = startAbort;
+		let started: CodexRealtimeConversation | undefined;
+		try {
+			started = await options.voice.startRealtimeWithPeer(options.ctx, options.getConfig(), peer, startAbort.signal);
+		} finally {
+			if (conversationStartAbort === startAbort) conversationStartAbort = undefined;
+		}
 		if (!started) {
 			clearUpstream(peer);
 			await peer.close();
@@ -158,6 +166,8 @@ export async function startCodexLanVoiceServer(options: {
 	let closePromise: Promise<void> | undefined;
 	const closeServer = async (): Promise<void> => {
 		closing = true;
+		conversationStartAbort?.abort();
+		conversationStartAbort = undefined;
 		clearInterval(heartbeat);
 		const firstConversation = conversation;
 		const firstPeer = upstreamPeer;
