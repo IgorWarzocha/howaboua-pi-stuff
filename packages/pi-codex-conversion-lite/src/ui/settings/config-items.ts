@@ -86,7 +86,10 @@ export function buildConfigSettings(tab: SettingsTab, config: CodexConversionCon
 					theme,
 				),
 			}, (value, current) => ({ ...current, scope: { ...current.scope, additionalProviders: normalizeProviderList(value.split(",")) } })),
-			toggle("heavySystemPromptOverwrite", "Heavy system prompt overwrite (40% smaller)", config.prompt.heavySystemPromptOverwrite, (enabled, current) => ({ ...current, prompt: { ...current.prompt, heavySystemPromptOverwrite: enabled } })),
+			setting(
+				{ id: "heavySystemPromptOverwrite", label: "Heavy system prompt overwrite", currentValue: config.prompt.heavySystemPromptOverwrite ? "on (40% smaller)" : "off", values: ["off", "on (40% smaller)"] },
+				(value, current) => ({ ...current, prompt: { ...current.prompt, heavySystemPromptOverwrite: value !== "off" } }),
+			),
 			{ item: { id: "editConfig", label: "Edit config", currentValue: editorCommand() ? "Opens in default editor (please /reload)" : "Set $EDITOR", values: editorCommand() ? ["Open"] : ["Unavailable"] }, action: "edit-config" },
 		];
 	}
@@ -96,6 +99,7 @@ export function buildConfigSettings(tab: SettingsTab, config: CodexConversionCon
 			toggle("codeMode", "GPT-5.6 Code Mode", config.beta.codeMode, (enabled, current) => ({ ...current, beta: { ...current.beta, codeMode: enabled } })),
 			toggle("viewImageFallback", "Text Image Descriptions", config.tools.viewImageFallback, (enabled, current) => ({ ...current, tools: { ...current.tools, viewImageFallback: enabled } })),
 			toggle("webRun", "Web search", config.tools.webRun, (enabled, current) => ({ ...current, tools: { ...current.tools, webRun: enabled } })),
+			setting({ id: "webSearchModel", label: "Web search model", currentValue: config.openai.webSearchModel, values: [...WEB_SEARCH_MODELS] }, (value, current) => ({ ...current, openai: { ...current.openai, webSearchModel: normalizeWebSearchModel(value) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai.webSearchModel } })),
 			toggle("imageGeneration", "Image generation", config.tools.imageGeneration, (enabled, current) => ({ ...current, tools: { ...current.tools, imageGeneration: enabled } })),
 			setting({ id: "activateOnlyHeader", label: theme.fg("dim", "Activate Only"), currentValue: "" }),
 			toggle("applyPatchOnly", "apply_patch", config.tools.applyPatchOnly, (enabled, current) => ({ ...current, tools: { ...current.tools, applyPatchOnly: enabled } })),
@@ -111,10 +115,14 @@ export function buildConfigSettings(tab: SettingsTab, config: CodexConversionCon
 		return [
 			toggle("fast", "Fast mode", config.openai.fast, (enabled, current) => ({ ...current, openai: { ...current.openai, fast: enabled } })),
 			setting({ id: "verbosity", label: "Verbosity", currentValue: config.openai.verbosity, values: ["low", "medium", "high"] }, (value, current) => ({ ...current, openai: { ...current.openai, verbosity: normalizeCodexVerbosity(value) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai.verbosity } })),
-			toggle("forceCachedWebSockets", "Cached websocket upgrade", config.openai.forceCachedWebSockets, (enabled, current) => ({ ...current, openai: { ...current.openai, forceCachedWebSockets: enabled } })),
+			setting({ id: "transportHeader", label: theme.fg("dim", "Transport"), currentValue: "" }),
 			toggle("responsesLite", "Proxy Responses Lite", config.beta.responsesLite, (enabled, current) => ({ ...current, beta: { ...current.beta, responsesLite: enabled } })),
-			toggle("harnessIdentifierHeader", "pi-codex-conversion harness identifier header <3", config.openai.harnessIdentifierHeader, (enabled, current) => ({ ...current, openai: { ...current.openai, harnessIdentifierHeader: enabled } })),
-			setting({ id: "webSearchModel", label: "Web search model", currentValue: config.openai.webSearchModel, values: [...WEB_SEARCH_MODELS] }, (value, current) => ({ ...current, openai: { ...current.openai, webSearchModel: normalizeWebSearchModel(value) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai.webSearchModel } })),
+			toggle("forceCachedWebSockets", "Cached WebSocket upgrade", config.openai.forceCachedWebSockets, (enabled, current) => ({ ...current, openai: { ...current.openai, forceCachedWebSockets: enabled } })),
+			setting(
+				{ id: "harnessIdentifierHeader", label: "Harness identifier header", currentValue: config.openai.harnessIdentifierHeader ? "pi-codex-conversion <3" : "off", values: ["off", "pi-codex-conversion <3"] },
+				(value, current) => ({ ...current, openai: { ...current.openai, harnessIdentifierHeader: value !== "off" } }),
+			),
+			setting({ id: "compactionHeader", label: theme.fg("dim", "Compaction"), currentValue: "" }),
 			toggle("responsesCompaction", "Responses compaction V2", config.compaction.responsesCompaction, (enabled, current) => ({ ...current, compaction: { ...current.compaction, responsesCompaction: enabled } })),
 			setting({ id: "v2UserMessageRetention", label: "Preserved user messages", currentValue: `${config.beta.v2UserMessageRetention ?? 64}k${(config.beta.v2UserMessageRetention ?? 64) === 64 ? " (Codex native)" : ""}`, values: V2_USER_MESSAGE_RETENTION_OPTIONS.map((value) => `${value}k${value === 64 ? " (Codex native)" : ""}`) }, (value, current) => ({ ...current, beta: { ...current.beta, v2UserMessageRetention: normalizeV2UserMessageRetention(Number.parseInt(value, 10)) ?? 64 } })),
 		];
