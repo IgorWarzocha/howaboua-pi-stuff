@@ -1,3 +1,7 @@
+import { LAN_VOICE_AUDIO_WORKLET } from "./audio-worklet.ts";
+
+const AUDIO_WORKLET_SOURCE = JSON.stringify(LAN_VOICE_AUDIO_WORKLET);
+
 export const LAN_VOICE_WEB_UI = String.raw`<!doctype html>
 <html lang="en">
 <head>
@@ -80,7 +84,9 @@ export const LAN_VOICE_WEB_UI = String.raw`<!doctype html>
         if (!globalThis.AudioWorkletNode) throw new Error('This browser does not support the required low-latency audio runtime.');
         stream = await navigator.mediaDevices.getUserMedia({ audio:{ channelCount:1, echoCancellation:true, noiseSuppression:true, autoGainControl:true } });
         context = new AudioContext({ latencyHint:'interactive' });
-        await context.audioWorklet.addModule('/audio-worklet.js');
+        const workletUrl = URL.createObjectURL(new Blob([${AUDIO_WORKLET_SOURCE}], { type:'text/javascript' }));
+        try { await context.audioWorklet.addModule(workletUrl); }
+        finally { URL.revokeObjectURL(workletUrl); }
         await context.resume();
         source = context.createMediaStreamSource(stream);
         processor = new AudioWorkletNode(context, 'pi-lan-voice', { numberOfInputs:1, numberOfOutputs:1, outputChannelCount:[1] });

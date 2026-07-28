@@ -1,7 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { LanVoiceBrowserClients } from "./browser-clients.ts";
 import type { LanVoiceDiagnostics } from "./diagnostics.ts";
-import { LAN_VOICE_AUDIO_WORKLET } from "./audio-worklet.ts";
 import { LAN_VOICE_WEB_UI } from "./web-ui.ts";
 
 const MAX_REQUEST_BYTES = 300 * 1024;
@@ -24,10 +23,6 @@ export async function handleLanVoiceHttpRequest(
 		path = url.pathname;
 		if (request.method === "GET" && path === "/") {
 			sendText(response, "text/html; charset=utf-8", LAN_VOICE_WEB_UI, true);
-			return;
-		}
-		if (request.method === "GET" && path === "/audio-worklet.js") {
-			sendText(response, "text/javascript; charset=utf-8", LAN_VOICE_AUDIO_WORKLET);
 			return;
 		}
 		if (!handlers.ownerIsActive() || handlers.closing) {
@@ -116,7 +111,7 @@ function sendText(response: ServerResponse, contentType: string, body: string, h
 		"content-type": contentType,
 		"x-content-type-options": "nosniff",
 		...(html ? {
-			"content-security-policy": "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self' wss:; media-src 'self' blob:; worker-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+			"content-security-policy": "default-src 'self'; script-src 'unsafe-inline' blob:; style-src 'unsafe-inline'; connect-src 'self' wss:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
 			"permissions-policy": "microphone=(self), camera=()",
 		} : {}),
 	});

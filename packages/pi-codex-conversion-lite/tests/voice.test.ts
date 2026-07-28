@@ -186,6 +186,8 @@ test("LAN voice server rejects control after its owning session changes", async 
 		const page = await requestText(url);
 		assert.equal(page.status, 200);
 		assert.match(page.body, /Pi voice/);
+		assert.match(page.body, /new Blob\(\[/);
+		assert.match(page.body, /registerProcessor\('pi-lan-voice'/);
 		activeSessionId = "other";
 		const stopped = await requestText(new URL("/api/stop", url), { method: "POST" });
 		assert.equal(stopped.status, 409);
