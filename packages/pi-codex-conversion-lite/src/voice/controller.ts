@@ -80,6 +80,7 @@ export class CodexVoiceController {
 			this.messages.modeStarted(mode);
 			return mode === "realtime" ? this.currentSession() as CodexRealtimeConversation : undefined;
 		} catch (error) {
+			if (startGeneration !== this.startGeneration) return;
 			this.fail(error instanceof Error ? error : new Error(String(error)));
 			return undefined;
 		}

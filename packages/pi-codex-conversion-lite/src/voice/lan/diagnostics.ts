@@ -1,9 +1,10 @@
-import { appendFileSync, chmodSync, mkdirSync, writeFileSync } from "node:fs";
+import { chmodSync, createWriteStream, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 export interface LanVoiceDiagnostics {
 	readonly path: string;
 	write(source: "browser" | "server" | "realtime", event: string, data?: unknown): void;
+	close(): Promise<void>;
 }
 
 export function createLanVoiceDiagnostics(agentDir: string): LanVoiceDiagnostics {
@@ -14,22 +15,27 @@ export function createLanVoiceDiagnostics(agentDir: string): LanVoiceDiagnostics
 	mkdirSync(directory, { recursive: true, mode: 0o700 });
 	writeFileSync(path, "", { mode: 0o600 });
 	chmodSync(path, 0o600);
+	const stream = createWriteStream(path, { flags: "a", mode: 0o600 });
+	stream.on("error", () => {});
 
 	return {
 		path,
 		write(source, event, data) {
 			try {
-				appendFileSync(path, `${JSON.stringify({
+				stream.write(`${JSON.stringify({
 					sequence: ++sequence,
 					timestamp: new Date().toISOString(),
 					elapsedMs: Date.now() - startedAt,
 					source,
 					event,
 					...(data === undefined ? {} : { data }),
-				}, jsonValue)}\n`, { mode: 0o600 });
+				}, jsonValue)}\n`);
 			} catch {
 				// Diagnostics must not alter the voice path they observe.
 			}
+		},
+		close() {
+			return new Promise((resolve) => stream.end(resolve));
 		},
 	};
 }

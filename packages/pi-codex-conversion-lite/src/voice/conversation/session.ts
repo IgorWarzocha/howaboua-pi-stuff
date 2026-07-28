@@ -42,6 +42,13 @@ export class CodexRealtimeConversation {
 
 	async start(auth: CodexVoiceAuth, config: CodexConversionConfig, instructions: string): Promise<void> {
 		this.state = "starting";
+		if (this.peer.kind === "session") {
+			await this.peer.startSession(auth, config, instructions);
+			if (this.state !== "starting") return;
+			this.state = "active";
+			this.callbacks.onStatus("connecting…");
+			return;
+		}
 		const sdp = await this.peer.start(config);
 		if (this.state !== "starting") return;
 		const headers = new Headers(auth.headers);

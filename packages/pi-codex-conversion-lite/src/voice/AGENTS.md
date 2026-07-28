@@ -4,6 +4,6 @@
 - Helper IPC is versioned JSONL on stdio. Stdout is protocol-only; diagnostics go to stderr. Validate and bound every wire string/blob.
 - V3 conversation and V2 dictation keep independent transport state. No implicit fallback between them.
 - Each mode owns its helper process and idempotent cleanup; the controller owns replacement/reload/shutdown ordering.
-- LAN voice is a runtime-only V3 browser peer: lazy server load, one owning Pi session, trusted-network/no-auth v1, deterministic stop on session change or shutdown.
-- Normal Codex Responses has no usable output-audio channel; keep voice on realtime/WebRTC rather than teaching the provider stream speculative audio events.
+- LAN voice is a lazy, session-owned V3 WebSocket conversation with replaceable browser audio remotes; device takeover must stop the old mic without restarting upstream.
+- Normal Codex Responses has no usable output-audio channel; keep voice on Realtime transport rather than teaching the provider stream speculative audio events.
 - Live network and hardware checks stay opt-in; deterministic tests own parsing, state, framing, resampling, and cleanup.

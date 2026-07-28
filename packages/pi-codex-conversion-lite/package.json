@@ -82,6 +82,7 @@
     "@earendil-works/pi-ai": "0.82.0",
     "@earendil-works/pi-coding-agent": "0.82.0",
     "@earendil-works/pi-tui": "0.82.0",
+    "@types/ws": "^8.18.1",
     "tsx": "^4.20.5",
     "typebox": "^1.1.24",
     "typescript": "^7.0.2"
@@ -95,7 +96,8 @@
     "smol-toml": "^1.6.0",
     "tree-sitter-bash": "^0.25.1",
     "undici": "8.5.0",
-    "web-tree-sitter": "^0.26.7"
+    "web-tree-sitter": "^0.26.7",
+    "ws": "^8.21.0"
   },
   "engines": {
     "node": ">=22.19.0"

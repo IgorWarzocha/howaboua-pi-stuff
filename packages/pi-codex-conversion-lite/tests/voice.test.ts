@@ -1,15 +1,14 @@
 import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { createServer as createHttpServer } from "node:http";
 import { request as httpsRequest, type RequestOptions } from "node:https";
-import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { WebSocket } from "ws";
+import type { WebSocketLike } from "../src/providers/openai-codex/types.ts";
 import { BoundedJsonlReader, parseVoiceHelperEvent } from "../src/voice/helper.ts";
-import { CodexRealtimeConversation } from "../src/voice/conversation/session.ts";
-import { LanVoiceBrowserPeer } from "../src/voice/lan/browser-peer.ts";
 import { startCodexLanVoiceServer } from "../src/voice/lan/server.ts";
+import { LanVoiceUpstreamPeer } from "../src/voice/lan/upstream-peer.ts";
 import { CodexVoiceSessionMessages } from "../src/voice/session-messages.ts";
 import { loadCodexVoiceSystemPrompt } from "../src/voice/system-prompt.ts";
 
@@ -85,119 +84,83 @@ test("realtime prompt always exposes the connected Pi runtime", async () => {
 	}
 });
 
-test("LAN browser peer preserves realtime data in both directions", async () => {
-	const commands: unknown[] = [];
-	const events: unknown[] = [];
-	const peer = new LanVoiceBrowserPeer(
-		"offer-sdp",
-		(command) => commands.push(command),
-		{ path: "", write: () => {} },
+test("LAN upstream keeps audio and realtime events on one V3 WebSocket", async () => {
+	const socket = new FakeWebSocket();
+	const sentAudio: Buffer[] = [];
+	let connectedUrl = "";
+	const peer = new LanVoiceUpstreamPeer(
+		{ path: "", write: () => {}, close: async () => {} },
+		(pcm) => sentAudio.push(pcm),
+		async (url) => { connectedUrl = url; return socket; },
 	);
-	peer.onEvent((event) => events.push(event));
-	assert.equal(await peer.start({} as never), "offer-sdp");
-	peer.applyAnswer("answer-sdp");
-	assert.equal(peer.takeAnswer(), "answer-sdp");
-	peer.receiveData({ type: "turn.done" });
-	peer.receiveState("connected");
-	peer.sendData({ type: "delegation.context.append" });
-	assert.deepEqual(events, [
-		{ type: "data", message: { type: "turn.done" } },
-		{ type: "state", state: "connected" },
-	]);
-	assert.deepEqual(commands, [{ type: "send_data", message: { type: "delegation.context.append" } }]);
+	const starting = peer.startSession({
+		headers: new Headers({ authorization: "Bearer test" }),
+		baseUrl: "https://chatgpt.com/backend-api/codex",
+		officialCodex: true,
+	}, { voice: { v3Voice: "maple" } } as never, "voice instructions");
+	await new Promise((resolve) => setTimeout(resolve, 0));
+	assert.equal(connectedUrl, "wss://chatgpt.com/backend-api/codex?model=gpt-live-1-boulder-alpha");
+	assert.deepEqual(JSON.parse(socket.sent[0]!), {
+		type: "session.update",
+		session: {
+			instructions: "voice instructions",
+			audio: { output: { voice: "maple" } },
+			delegation: { type: "client" },
+		},
+	});
+	socket.emit("message", { data: JSON.stringify({ type: "session.started" }) });
+	await starting;
+	peer.sendAudio(Buffer.from([1, 0, 2, 0]));
+	assert.deepEqual(JSON.parse(socket.sent[1]!), { type: "input_audio.append", audio: "AQACAA==" });
+	socket.emit("message", { data: JSON.stringify({ type: "output_audio.delta", audio: "AwAEAA==" }) });
+	await new Promise((resolve) => setTimeout(resolve, 0));
+	assert.deepEqual(sentAudio, [Buffer.from([3, 0, 4, 0])]);
 	await peer.close();
-	assert.deepEqual(commands.at(-1), { type: "stop" });
 });
 
-test("browser realtime uses its peer instead of configured host audio devices", async () => {
-	let requestBody = "";
-	const setupServer = createHttpServer((request, response) => {
-		request.on("data", (chunk: Buffer) => { requestBody += chunk.toString("utf8"); });
-		request.on("end", () => { response.writeHead(201); response.end("answer-sdp"); });
-	});
-	await new Promise<void>((resolve, reject) => {
-		setupServer.once("error", reject);
-		setupServer.listen(0, "127.0.0.1", resolve);
-	});
-	const address = setupServer.address() as AddressInfo;
-	const commands: unknown[] = [];
-	const peer = new LanVoiceBrowserPeer(
-		"browser-offer",
-		(command) => commands.push(command),
-		{ path: "", write: () => {} },
-	);
-	const conversation = new CodexRealtimeConversation({
-		onError: (error) => { throw error; },
-		onStatus: () => {},
-		onTurn: () => {},
-	}, peer);
-	try {
-		await conversation.start({
-			headers: new Headers(),
-			baseUrl: `http://127.0.0.1:${address.port}`,
-			officialCodex: false,
-			env: { NO_PROXY: "127.0.0.1", no_proxy: "127.0.0.1" },
-		}, {
-			voice: {
-				inputDevice: "alsa:unavailable-host-input",
-				outputDevice: "alsa:unavailable-host-output",
-				v3Voice: "maple",
-			},
-		} as never, "instructions");
-		assert.match(requestBody, /browser-offer/);
-		assert.equal(peer.takeAnswer(), "answer-sdp");
-		assert.equal(commands.some((command) => (command as { type?: string }).type === "send_data"), false);
-	} finally {
-		await conversation.close();
-		await new Promise<void>((resolve) => setupServer.close(() => resolve()));
-	}
-});
-
-test("LAN voice binds an active call to the browser that started it", async () => {
+test("LAN voice transfers audio ownership without restarting its realtime session", async () => {
 	const agentDir = await mkdtemp(join(tmpdir(), "pi-lan-voice-clients-"));
-	let stoppedCalls = 0;
+	let upstreamStarts = 0;
+	const audio: Buffer[] = [];
 	const conversation = {};
 	const server = await startCodexLanVoiceServer({
 		ctx: { sessionManager: { getSessionId: () => "owner" } } as never,
 		getConfig: () => ({}) as never,
 		voice: {
-			startRealtimeWithPeer: async (_ctx: unknown, _config: unknown, peer: LanVoiceBrowserPeer) => {
-				peer.applyAnswer("answer-sdp");
+			startRealtimeWithPeer: async (_ctx: unknown, _config: unknown, peer: LanVoiceUpstreamPeer) => {
+				upstreamStarts += 1;
+				peer.sendAudio = (pcm) => audio.push(pcm);
 				return conversation;
 			},
-			stopConversation: async () => { stoppedCalls += 1; },
+			stopConversation: async () => {},
 			stop: async () => {},
 		} as never,
 		ownerSessionId: "owner",
 		port: 0,
 		certificateAgentDir: agentDir,
 	});
-	let firstEvents: Awaited<ReturnType<typeof openEventStream>> | undefined;
-	let secondEvents: Awaited<ReturnType<typeof openEventStream>> | undefined;
+	let first: WebSocket | undefined;
+	let second: WebSocket | undefined;
 	try {
 		const url = new URL(server.urls[0]!);
 		url.hostname = "127.0.0.1";
-		firstEvents = await openEventStream(new URL("/api/events?client=first", url));
-		const call = await requestText(new URL("/api/call", url), {
-			method: "POST",
-			body: JSON.stringify({ clientId: "first", offer: "browser-offer" }),
-		});
-		assert.equal(call.status, 200);
-		secondEvents = await openEventStream(new URL("/api/events?client=second", url));
-		const secondState = await requestText(new URL("/api/state", url), {
-			method: "POST",
-			body: JSON.stringify({ clientId: "second", state: "connected" }),
-		});
-		assert.equal(secondState.status, 409);
-		const firstState = await requestText(new URL("/api/state", url), {
-			method: "POST",
-			body: JSON.stringify({ clientId: "first", state: "connected" }),
-		});
-		assert.equal(firstState.status, 200);
-		assert.equal(stoppedCalls, 0);
+		first = await openAudioSocket(new URL("/api/audio?client=first", url));
+		const firstActive = nextSocketJson(first);
+		first.send(JSON.stringify({ type: "start" }));
+		assert.deepEqual(await firstActive, { type: "active" });
+		second = await openAudioSocket(new URL("/api/audio?client=second", url));
+		const firstClosed = socketClosed(first);
+		const secondActive = nextSocketJson(second);
+		second.send(JSON.stringify({ type: "start" }));
+		assert.deepEqual(await secondActive, { type: "active" });
+		assert.equal((await firstClosed).code, 4001);
+		second.send(Buffer.from([1, 0, 2, 0]));
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		assert.equal(upstreamStarts, 1);
+		assert.deepEqual(audio, [Buffer.from([1, 0, 2, 0])]);
 	} finally {
-		firstEvents?.close();
-		secondEvents?.close();
+		first?.close();
+		second?.close();
 		await server.close();
 		await rm(agentDir, { recursive: true, force: true });
 	}
@@ -206,16 +169,12 @@ test("LAN voice binds an active call to the browser that started it", async () =
 test("LAN voice server rejects control after its owning session changes", async () => {
 	const agentDir = await mkdtemp(join(tmpdir(), "pi-lan-voice-"));
 	let activeSessionId = "owner";
-	let stoppedCalls = 0;
-	const callStarted = Promise.withResolvers<void>();
-	const callStopped = Promise.withResolvers<void>();
-	const releaseCall = Promise.withResolvers<void>();
 	const server = await startCodexLanVoiceServer({
 		ctx: { sessionManager: { getSessionId: () => activeSessionId } } as never,
 		getConfig: () => ({}) as never,
 		voice: {
-			startRealtimeWithPeer: async () => { callStarted.resolve(); await releaseCall.promise; return undefined; },
-			stop: async () => { stoppedCalls += 1; callStopped.resolve(); },
+			startRealtimeWithPeer: async () => undefined,
+			stop: async () => {},
 		} as never,
 		ownerSessionId: "owner",
 		port: 0,
@@ -237,24 +196,6 @@ test("LAN voice server rejects control after its owning session changes", async 
 		assert.match(events.firstChunk, /event: ready/);
 		await new Promise((resolve) => setTimeout(resolve, 30));
 		assert.equal(events.ended(), false);
-		if (!process.versions["bun"]) {
-			const callAbort = new AbortController();
-			const call = requestText(new URL("/api/call", url), {
-				method: "POST",
-				body: JSON.stringify({ clientId: "test-client", offer: "browser-offer" }),
-				signal: callAbort.signal,
-			}).catch(() => undefined);
-			await callStarted.promise;
-			callAbort.abort();
-			const stoppedBeforeSetupCompleted = await Promise.race([
-				callStopped.promise.then(() => true),
-				new Promise<false>((resolve) => setTimeout(() => resolve(false), 500)),
-			]);
-			releaseCall.resolve();
-			await call;
-			assert.equal(stoppedBeforeSetupCompleted, true);
-			assert.equal(stoppedCalls, 1);
-		}
 		events.close();
 	} finally {
 		await server.close();
@@ -301,4 +242,51 @@ function openEventStream(url: URL): Promise<{ status: number; firstChunk: string
 		request.on("error", reject);
 		request.end();
 	});
+}
+
+function openAudioSocket(url: URL): Promise<WebSocket> {
+	url.protocol = "wss:";
+	return new Promise((resolve, reject) => {
+		const socket = new WebSocket(url, { rejectUnauthorized: false });
+		socket.once("error", reject);
+		socket.once("message", (data) => {
+			try {
+				assert.deepEqual(JSON.parse(data.toString()), { type: "connected" });
+				resolve(socket);
+			} catch (error) { reject(error); }
+		});
+	});
+}
+
+function nextSocketJson(socket: WebSocket): Promise<unknown> {
+	return new Promise((resolve, reject) => {
+		socket.once("error", reject);
+		socket.once("message", (data) => {
+			try { resolve(JSON.parse(data.toString())); }
+			catch (error) { reject(error); }
+		});
+	});
+}
+
+function socketClosed(socket: WebSocket): Promise<{ code: number; reason: string }> {
+	return new Promise((resolve) => socket.once("close", (code, reason) => resolve({ code, reason: reason.toString() })));
+}
+
+class FakeWebSocket implements WebSocketLike {
+	readonly sent: string[] = [];
+	readonly listeners = new Map<string, Set<(event: unknown) => void>>();
+	readyState = 1;
+	send(data: string): void { this.sent.push(data); }
+	close(): void { this.readyState = 3; }
+	addEventListener(type: string, listener: (event: unknown) => void): void {
+		const listeners = this.listeners.get(type) ?? new Set();
+		listeners.add(listener);
+		this.listeners.set(type, listeners);
+	}
+	removeEventListener(type: string, listener: (event: unknown) => void): void {
+		this.listeners.get(type)?.delete(listener);
+	}
+	emit(type: string, event: unknown): void {
+		for (const listener of this.listeners.get(type) ?? []) listener(event);
+	}
 }

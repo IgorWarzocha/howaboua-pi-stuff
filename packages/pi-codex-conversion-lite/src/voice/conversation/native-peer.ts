@@ -1,10 +1,11 @@
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import { VoiceHelperClient, type VoiceHelperEvent } from "../helper.ts";
-import type { CodexRealtimePeer, CodexRealtimePeerEvent } from "./peer.ts";
+import type { CodexRealtimePeerEvent, CodexRealtimeWebRtcPeer } from "./peer.ts";
 
 const OFFER_TIMEOUT_MS = 15_000;
 
-export class NativeCodexRealtimePeer implements CodexRealtimePeer {
+export class NativeCodexRealtimePeer implements CodexRealtimeWebRtcPeer {
+	readonly kind = "webrtc" as const;
 	private readonly helper = new VoiceHelperClient();
 
 	onEvent(listener: (event: CodexRealtimePeerEvent) => void): () => void {
