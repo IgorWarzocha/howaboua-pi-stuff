@@ -9,6 +9,7 @@ const V3_MODEL = "gpt-live-1-boulder-alpha";
 const MAX_DELEGATION_BYTES = 32 * 1024;
 const HANDOFF_CHUNK_BYTES = 500;
 const HANDOFF_FLUSH_MS = 200;
+const PEER_READY_TIMEOUT_MS = 15_000;
 
 type ConversationState = "idle" | "starting" | "active" | "failed" | "closed";
 
@@ -31,6 +32,7 @@ export class CodexRealtimeConversation {
 	private handoffChannel: "commentary" | "speakable" = "speakable";
 	private handoffTimer: ReturnType<typeof setTimeout> | undefined;
 	private setupAbortController: AbortController | undefined;
+	private peerReady: ReturnType<typeof Promise.withResolvers<void>> | undefined;
 	private callSetup: RealtimeCallSetup = setupRealtimeCall;
 
 	constructor(callbacks: CodexConversationCallbacks, peer: CodexRealtimePeer) {
@@ -67,8 +69,22 @@ export class CodexRealtimeConversation {
 		if (this.state !== "starting") return;
 		if (status !== 201) throw new Error(`Codex voice call failed (${status}): ${answer.slice(0, 1_000)}`);
 		this.state = "active";
-		this.peer.applyAnswer(answer);
+		const peerReady = Promise.withResolvers<void>();
+		this.peerReady = peerReady;
 		this.callbacks.onStatus("connecting…");
+		this.peer.applyAnswer(answer);
+		let timeout: ReturnType<typeof setTimeout> | undefined;
+		try {
+			await Promise.race([
+				peerReady.promise,
+				new Promise<void>((_resolve, reject) => {
+					timeout = setTimeout(() => reject(new Error("Codex voice peer did not become ready")), PEER_READY_TIMEOUT_MS);
+				}),
+			]);
+		} finally {
+			if (timeout) clearTimeout(timeout);
+			if (this.peerReady === peerReady) this.peerReady = undefined;
+		}
 	}
 
 	activateDelegation(id: string): void {
@@ -99,6 +115,8 @@ export class CodexRealtimeConversation {
 		this.clearHandoff();
 		this.turnTracker.reset();
 		this.activeDelegationId = undefined;
+		this.peerReady?.resolve();
+		this.peerReady = undefined;
 		await this.peer.close();
 	}
 
@@ -112,7 +130,10 @@ export class CodexRealtimeConversation {
 	private handleHelperState(state: string): void {
 		const failure = realtimePeerStateFailure(state);
 		if (failure) { this.fail(new Error(failure)); return; }
-		if (state === "ready" || state === "listening") this.callbacks.onStatus("listening");
+		if (state === "ready" || state === "listening") {
+			this.peerReady?.resolve();
+			this.callbacks.onStatus("listening");
+		}
 		else if (state === "connecting" || state === "connected") this.callbacks.onStatus("connecting…");
 		else if (state === "disconnected") this.callbacks.onStatus("reconnecting…");
 	}
@@ -186,6 +207,8 @@ export class CodexRealtimeConversation {
 		this.state = "failed";
 		this.abortSetup();
 		this.clearHandoff();
+		this.peerReady?.resolve();
+		this.peerReady = undefined;
 		this.callbacks.onError(error);
 		void this.peer.close();
 	}
