@@ -44,26 +44,30 @@ export async function startCodexLanVoiceServer(options: {
 			ipAddresses: certificate.ipAddresses,
 		},
 	});
-	let eventResponse: ServerResponse | undefined;
+	const eventResponses = new Map<string, ServerResponse>();
 	let heartbeat: ReturnType<typeof setInterval> | undefined;
 	let peer: LanVoiceBrowserPeer | undefined;
 	let conversation: CodexRealtimeConversation | undefined;
+	let activeClientId: string | undefined;
 	let closing = false;
 
 	const ownerIsActive = () =>
 		options.ctx.sessionManager.getSessionId() === options.ownerSessionId;
 	const sendBrowserCommand = (command: LanVoiceBrowserCommand): void => {
+		const eventResponse = activeClientId ? eventResponses.get(activeClientId) : undefined;
 		if (!eventResponse || eventResponse.writableEnded)
 			throw new Error("LAN voice browser is not connected");
-		diagnostics.write("server", "sse.command", command);
+		diagnostics.write("server", "sse.command", { clientId: activeClientId, command });
 		eventResponse.write(`data: ${JSON.stringify(command)}\n\n`);
 	};
 	const stopConversation = async (): Promise<void> => {
 		const activeConversation = conversation;
 		const activePeer = peer;
+		const stoppingClientId = activeClientId;
 		conversation = undefined;
 		peer = undefined;
 		diagnostics.write("server", "conversation.stop", {
+			clientId: stoppingClientId,
 			hadConversation: Boolean(activeConversation),
 			hadPeer: Boolean(activePeer),
 		});
@@ -75,6 +79,7 @@ export async function startCodexLanVoiceServer(options: {
 			await activePeer.close();
 			await options.voice.stop({ announce: true });
 		}
+		if (activeClientId === stoppingClientId) activeClientId = undefined;
 	};
 
 	let server!: HttpsServer;
@@ -87,30 +92,32 @@ export async function startCodexLanVoiceServer(options: {
 				get closing() {
 					return closing;
 				},
-				get eventResponse() {
-					return eventResponse;
-				},
-				setEventResponse(next) {
+				connectEvents(clientId, next) {
+					const previous = eventResponses.get(clientId);
+					eventResponses.set(clientId, next);
 					diagnostics.write("server", "sse.set", {
-						connected: Boolean(next),
-						replacing: Boolean(eventResponse && eventResponse !== next),
+						clientId,
+						replacing: Boolean(previous && previous !== next),
+						clients: eventResponses.size,
 					});
-					eventResponse = next;
-					if (heartbeat) clearInterval(heartbeat);
-					heartbeat = next
-						? setInterval(() => {
-								if (!next.writableEnded) next.write(": keepalive\n\n");
-							}, HEARTBEAT_MS)
-						: undefined;
+					previous?.end();
+				},
+				disconnectEvents(clientId, response) {
+					if (eventResponses.get(clientId) !== response) return false;
+					eventResponses.delete(clientId);
+					return activeClientId === clientId;
 				},
 				get peer() {
 					return peer;
 				},
-				async startCall(offer) {
-					diagnostics.write("server", "call.start", { offer });
+				activeClientIs: (clientId) => activeClientId === clientId,
+				async startCall(clientId, offer) {
+					diagnostics.write("server", "call.start", { clientId, offer });
 					await stopConversation();
+					const eventResponse = eventResponses.get(clientId);
 					if (!eventResponse || eventResponse.writableEnded)
 						throw new Error("Open the LAN voice page before starting a call");
+					activeClientId = clientId;
 					const browserPeer = new LanVoiceBrowserPeer(
 						offer,
 						sendBrowserCommand,
@@ -123,9 +130,10 @@ export async function startCodexLanVoiceServer(options: {
 						browserPeer,
 					);
 					if (!started) {
-						diagnostics.write("server", "call.start_failed");
+						diagnostics.write("server", "call.start_failed", { clientId });
 						if (peer === browserPeer) peer = undefined;
 						await browserPeer.close();
+						if (activeClientId === clientId) activeClientId = undefined;
 						throw new Error("Codex voice could not start");
 					}
 					conversation = started;
@@ -138,6 +146,11 @@ export async function startCodexLanVoiceServer(options: {
 		},
 	);
 	server.keepAliveTimeout = 20_000;
+	heartbeat = setInterval(() => {
+		for (const response of eventResponses.values()) {
+			if (!response.writableEnded) response.write(": keepalive\n\n");
+		}
+	}, HEARTBEAT_MS);
 	server.on("tlsClientError", (error, socket) => {
 		diagnostics.write("server", "tls.client_error", {
 			error,
@@ -173,8 +186,8 @@ export async function startCodexLanVoiceServer(options: {
 			await stopConversation();
 			if (heartbeat) clearInterval(heartbeat);
 			heartbeat = undefined;
-			eventResponse?.end();
-			eventResponse = undefined;
+			for (const response of eventResponses.values()) response.end();
+			eventResponses.clear();
 			await new Promise<void>((resolve) => {
 				server.close(() => resolve());
 				server.closeAllConnections();
@@ -188,10 +201,11 @@ interface RequestHandlers {
 	readonly diagnostics: LanVoiceDiagnostics;
 	ownerIsActive(): boolean;
 	readonly closing: boolean;
-	readonly eventResponse: ServerResponse | undefined;
-	setEventResponse(response: ServerResponse | undefined): void;
+	connectEvents(clientId: string, response: ServerResponse): void;
+	disconnectEvents(clientId: string, response: ServerResponse): boolean;
 	readonly peer: LanVoiceBrowserPeer | undefined;
-	startCall(offer: string): Promise<string>;
+	activeClientIs(clientId: string): boolean;
+	startCall(clientId: string, offer: string): Promise<string>;
 	stopConversation(): Promise<void>;
 }
 
@@ -202,8 +216,8 @@ async function handleRequest(
 ): Promise<void> {
 	let path = "/";
 	try {
-		path = new URL(request.url ?? "/", "https://lan-voice.local")
-			.pathname;
+		const url = new URL(request.url ?? "/", "https://lan-voice.local");
+		path = url.pathname;
 		if (path !== "/api/debug") {
 			handlers.diagnostics.write("server", "http.request", {
 				method: request.method,
@@ -234,9 +248,9 @@ async function handleRequest(
 			return;
 		}
 		if (request.method === "GET" && path === "/api/events") {
-			handlers.diagnostics.write("server", "sse.open");
-			await handlers.stopConversation();
-			handlers.eventResponse?.end();
+			const clientId = boundedString(url.searchParams.get("client"), 128);
+			if (!clientId) throw new RequestError(400, "A browser client ID is required");
+			handlers.diagnostics.write("server", "sse.open", { clientId });
 			response.writeHead(200, {
 				"cache-control": "no-store",
 				connection: "keep-alive",
@@ -244,16 +258,14 @@ async function handleRequest(
 				"x-accel-buffering": "no",
 			});
 			response.write("event: ready\ndata: {}\n\n");
-			handlers.setEventResponse(response);
+			handlers.connectEvents(clientId, response);
 			response.once("close", () => {
 				handlers.diagnostics.write("server", "sse.close", {
+					clientId,
 					writableEnded: response.writableEnded,
 					destroyed: response.destroyed,
 				});
-				if (handlers.eventResponse === response) {
-					handlers.setEventResponse(undefined);
-					void handlers.stopConversation();
-				}
+				if (handlers.disconnectEvents(clientId, response)) void handlers.stopConversation();
 			});
 			return;
 		}
@@ -262,21 +274,25 @@ async function handleRequest(
 			return;
 		}
 		if (path === "/api/stop") {
-			handlers.diagnostics.write("server", "stop.request");
-			await handlers.stopConversation();
+			const body = await readJson(request);
+			const clientId = requiredClientId(body);
+			handlers.diagnostics.write("server", "stop.request", { clientId });
+			if (handlers.activeClientIs(clientId)) await handlers.stopConversation();
 			sendJson(response, 200, { ok: true });
 			return;
 		}
 		const body = await readJson(request);
 		if (path === "/api/debug") {
+			const clientId = requiredClientId(body);
 			const event = boundedString(body["event"], 256);
 			if (!event) throw new RequestError(400, "Invalid browser diagnostic event");
-			handlers.diagnostics.write("browser", event, body["data"]);
+			handlers.diagnostics.write("browser", event, { clientId, data: body["data"] });
 			sendJson(response, 200, { ok: true });
 			return;
 		}
 		if (path === "/api/call") {
 			handlers.diagnostics.write("server", "call.request", body);
+			const clientId = requiredClientId(body);
 			const offer = boundedString(body["offer"], MAX_SDP_BYTES);
 			if (!offer)
 				throw new RequestError(400, "A bounded WebRTC offer is required");
@@ -291,7 +307,7 @@ async function handleRequest(
 			};
 			response.once("close", stopOnDisconnect);
 			try {
-				const answer = await handlers.startCall(offer);
+				const answer = await handlers.startCall(clientId, offer);
 				if (disconnected || response.destroyed) {
 					handlers.diagnostics.write("server", "call.answer_abandoned", { answer });
 					await handlers.stopConversation();
@@ -306,12 +322,13 @@ async function handleRequest(
 		}
 		if (path === "/api/data") {
 			handlers.diagnostics.write("server", "data.request", body);
+			const clientId = requiredClientId(body);
 			if (
 				!("message" in body) ||
 				jsonBytes(body["message"]) > MAX_MESSAGE_BYTES
 			)
 				throw new RequestError(400, "Invalid realtime data message");
-			if (!handlers.peer)
+			if (!handlers.peer || !handlers.activeClientIs(clientId))
 				throw new RequestError(409, "No LAN voice call is active");
 			handlers.peer.receiveData(body["message"]);
 			sendJson(response, 200, { ok: true });
@@ -319,9 +336,10 @@ async function handleRequest(
 		}
 		if (path === "/api/state") {
 			handlers.diagnostics.write("server", "state.request", body);
+			const clientId = requiredClientId(body);
 			const state = boundedString(body["state"], 128);
 			if (!state) throw new RequestError(400, "Invalid peer state");
-			if (!handlers.peer)
+			if (!handlers.peer || !handlers.activeClientIs(clientId))
 				throw new RequestError(409, "No LAN voice call is active");
 			handlers.peer.receiveState(state);
 			sendJson(response, 200, { ok: true });
@@ -409,6 +427,12 @@ function boundedString(value: unknown, maxBytes: number): string | undefined {
 		Buffer.byteLength(value) <= maxBytes
 		? value
 		: undefined;
+}
+
+function requiredClientId(body: Record<string, unknown>): string {
+	const clientId = boundedString(body["clientId"], 128);
+	if (!clientId) throw new RequestError(400, "A browser client ID is required");
+	return clientId;
 }
 
 function jsonBytes(value: unknown): number {

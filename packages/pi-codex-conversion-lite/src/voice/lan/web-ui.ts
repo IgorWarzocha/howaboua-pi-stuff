@@ -45,6 +45,7 @@ export const LAN_VOICE_WEB_UI = String.raw`<!doctype html>
     const detail = document.querySelector('#detail');
     const connection = document.querySelector('#connection');
     const audio = document.querySelector('#audio');
+    const clientId = globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2) + Date.now().toString(36);
     let peer;
     let channel;
     let stream;
@@ -57,13 +58,14 @@ export const LAN_VOICE_WEB_UI = String.raw`<!doctype html>
       ? { name:error.name, message:error.message, stack:error.stack, cause:error.cause }
       : { value:String(error) };
     const report = (event, data) => {
-      const body = JSON.stringify({ event, data });
+      const body = JSON.stringify({ clientId, event, data });
       void fetch('/api/debug', { method:'POST', headers:{'content-type':'application/json'}, body, keepalive:true }).catch(() => {});
     };
     const post = async (path, body = {}) => {
-      report('fetch.request', { path, body });
+      const requestBody = { clientId, ...body };
+      report('fetch.request', { path, body:requestBody });
       try {
-        const response = await fetch(path, { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify(body) });
+        const response = await fetch(path, { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify(requestBody) });
         const text = await response.text();
         let payload = {};
         try { payload = text ? JSON.parse(text) : {}; } catch { payload = { raw:text }; }
@@ -87,6 +89,7 @@ export const LAN_VOICE_WEB_UI = String.raw`<!doctype html>
     };
 
     report('page.loaded', {
+      clientId,
       href:location.href,
       secureContext:window.isSecureContext,
       userAgent:navigator.userAgent,
@@ -103,7 +106,7 @@ export const LAN_VOICE_WEB_UI = String.raw`<!doctype html>
     window.addEventListener('offline', () => report('network.offline'));
     document.addEventListener('visibilitychange', () => report('page.visibility', { state:document.visibilityState }));
 
-    const events = new EventSource('/api/events');
+    const events = new EventSource('/api/events?client=' + encodeURIComponent(clientId));
     events.onopen = () => { report('sse.open', { readyState:events.readyState }); connection.classList.add('online'); connection.lastElementChild.textContent = 'Connected to Pi'; };
     events.onerror = (event) => { report('sse.error', { readyState:events.readyState, eventType:event.type }); connection.classList.remove('online'); connection.lastElementChild.textContent = 'Reconnecting to Pi'; if (active) void stop(false, 'sse-error'); };
     events.onmessage = (event) => {
@@ -224,7 +227,7 @@ export const LAN_VOICE_WEB_UI = String.raw`<!doctype html>
     button.addEventListener('click', () => active ? stop() : start());
     window.addEventListener('pagehide', (event) => {
       report('page.hide', { persisted:event.persisted, active });
-      if (active) navigator.sendBeacon('/api/stop', new Blob(['{}'], {type:'application/json'}));
+      if (active) navigator.sendBeacon('/api/stop', new Blob([JSON.stringify({ clientId })], {type:'application/json'}));
     });
   </script>
 </body>

@@ -153,6 +153,56 @@ test("browser realtime uses its peer instead of configured host audio devices", 
 	}
 });
 
+test("LAN voice binds an active call to the browser that started it", async () => {
+	const agentDir = await mkdtemp(join(tmpdir(), "pi-lan-voice-clients-"));
+	let stoppedCalls = 0;
+	const conversation = {};
+	const server = await startCodexLanVoiceServer({
+		ctx: { sessionManager: { getSessionId: () => "owner" } } as never,
+		getConfig: () => ({}) as never,
+		voice: {
+			startRealtimeWithPeer: async (_ctx: unknown, _config: unknown, peer: LanVoiceBrowserPeer) => {
+				peer.applyAnswer("answer-sdp");
+				return conversation;
+			},
+			stopConversation: async () => { stoppedCalls += 1; },
+			stop: async () => {},
+		} as never,
+		ownerSessionId: "owner",
+		port: 0,
+		certificateAgentDir: agentDir,
+	});
+	let firstEvents: Awaited<ReturnType<typeof openEventStream>> | undefined;
+	let secondEvents: Awaited<ReturnType<typeof openEventStream>> | undefined;
+	try {
+		const url = new URL(server.urls[0]!);
+		url.hostname = "127.0.0.1";
+		firstEvents = await openEventStream(new URL("/api/events?client=first", url));
+		const call = await requestText(new URL("/api/call", url), {
+			method: "POST",
+			body: JSON.stringify({ clientId: "first", offer: "browser-offer" }),
+		});
+		assert.equal(call.status, 200);
+		secondEvents = await openEventStream(new URL("/api/events?client=second", url));
+		const secondState = await requestText(new URL("/api/state", url), {
+			method: "POST",
+			body: JSON.stringify({ clientId: "second", state: "connected" }),
+		});
+		assert.equal(secondState.status, 409);
+		const firstState = await requestText(new URL("/api/state", url), {
+			method: "POST",
+			body: JSON.stringify({ clientId: "first", state: "connected" }),
+		});
+		assert.equal(firstState.status, 200);
+		assert.equal(stoppedCalls, 0);
+	} finally {
+		firstEvents?.close();
+		secondEvents?.close();
+		await server.close();
+		await rm(agentDir, { recursive: true, force: true });
+	}
+});
+
 test("LAN voice server rejects control after its owning session changes", async () => {
 	const agentDir = await mkdtemp(join(tmpdir(), "pi-lan-voice-"));
 	let activeSessionId = "owner";
@@ -182,7 +232,7 @@ test("LAN voice server rejects control after its owning session changes", async 
 		assert.equal(stopped.status, 409);
 		assert.match(stopped.body, /session.*no longer active/i);
 		activeSessionId = "owner";
-		const events = await openEventStream(new URL("/api/events", url));
+		const events = await openEventStream(new URL("/api/events?client=test-client", url));
 		assert.equal(events.status, 200);
 		assert.match(events.firstChunk, /event: ready/);
 		await new Promise((resolve) => setTimeout(resolve, 30));
@@ -191,7 +241,7 @@ test("LAN voice server rejects control after its owning session changes", async 
 			const callAbort = new AbortController();
 			const call = requestText(new URL("/api/call", url), {
 				method: "POST",
-				body: JSON.stringify({ offer: "browser-offer" }),
+				body: JSON.stringify({ clientId: "test-client", offer: "browser-offer" }),
 				signal: callAbort.signal,
 			}).catch(() => undefined);
 			await callStarted.promise;
