@@ -3,7 +3,7 @@ import { LAN_VOICE_AUDIO_WORKLET } from "./audio-worklet.ts";
 const AUDIO_WORKLET_SOURCE = JSON.stringify(LAN_VOICE_AUDIO_WORKLET);
 
 export const LAN_VOICE_BROWSER_AUDIO_SCRIPT = String.raw`
-function createAudioController({ button, audioState, audioDetail, modeButtons, composer, clientId, report, errorData }) {
+function createAudioController({ button, audioState, audioDetail, modeButtons, composer, clientId }) {
   let socket;
   let stream;
   let context;
@@ -28,7 +28,6 @@ function createAudioController({ button, audioState, audioDetail, modeButtons, c
     await currentContext?.close().catch(() => {});
   };
   const stop = async (notify = true, reason = 'user') => {
-    report('call.stop', { notify, reason, active, mode });
     if (notify && active && mode === 'dictation' && socket?.readyState === WebSocket.OPEN) {
       const finishingSocket = socket;
       const draft = composer.snapshot();
@@ -69,7 +68,6 @@ function createAudioController({ button, audioState, audioDetail, modeButtons, c
     }
     try {
       const message = JSON.parse(event.data);
-      report('audio_socket.message', message);
       if (message.type === 'active') {
         active = true;
         busy = false;
@@ -88,16 +86,13 @@ function createAudioController({ button, audioState, audioDetail, modeButtons, c
         updateControls();
       }
       if (message.type === 'error') { void stop(false, 'upstream-error'); setStatus('Could not start', message.message); }
-    } catch (error) {
-      report('audio_socket.message_error', errorData(error));
-    }
+    } catch {}
   };
   const start = async () => {
     if (busy || active) return;
     busy = true;
     updateControls();
     setStatus('Opening microphone…', 'Allow microphone access if asked.');
-    report('call.start_requested', { mode });
     try {
       if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) throw new Error('Microphone access needs HTTPS and certificate acceptance.');
       if (!globalThis.AudioWorkletNode) throw new Error('This browser does not support the required low-latency audio runtime.');
@@ -126,20 +121,15 @@ function createAudioController({ button, audioState, audioDetail, modeButtons, c
       currentSocket.onopen = () => {
         if (socket !== currentSocket || !context) return;
         clearTimeout(connectTimer);
-        report('audio_socket.open', { mode, sampleRate:context.sampleRate });
         currentSocket.send(JSON.stringify({ type:'start', mode }));
         setStatus('Connecting…');
       };
       currentSocket.onmessage = (event) => receiveMessage(currentSocket, event);
-      currentSocket.onerror = (event) => report('audio_socket.error', { type:event.type });
       currentSocket.onclose = (event) => {
         clearTimeout(connectTimer);
-        report('audio_socket.close', { code:event.code, reason:event.reason });
         if (socket === currentSocket) void stop(false, event.reason || 'connection-closed');
       };
-      report('microphone.opened', { mode, sampleRate:context.sampleRate, tracks:stream.getAudioTracks().map((track) => ({ label:track.label, settings:track.getSettings?.() })) });
     } catch (error) {
-      report('call.start_error', errorData(error));
       await stop(false, 'start-error');
       setStatus('Could not start', error instanceof Error ? error.message : String(error));
     } finally {
@@ -149,7 +139,6 @@ function createAudioController({ button, audioState, audioDetail, modeButtons, c
   };
   const cancelFinishingDictation = async () => {
     if (!finishingDictation) return;
-    report('call.cancel_transcription');
     finishingDictation = false;
     active = false;
     busy = false;

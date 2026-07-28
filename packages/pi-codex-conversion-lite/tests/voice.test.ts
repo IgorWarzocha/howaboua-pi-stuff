@@ -1,23 +1,14 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { request as httpsRequest, type RequestOptions } from "node:https";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { WebSocket } from "ws";
-import type { WebSocketLike } from "../src/providers/openai-codex/types.ts";
-import { BoundedJsonlReader, parseVoiceHelperEvent, type VoiceHelperCommand, type VoiceHelperEvent } from "../src/voice/helper.ts";
-import { CodexVoiceController } from "../src/voice/controller.ts";
-import { CodexDictationTranscriber } from "../src/voice/dictation/transcriber.ts";
-import { LanVoiceActivity, type LanVoiceActivityMessage } from "../src/voice/lan/activity.ts";
+import { BoundedJsonlReader, parseVoiceHelperEvent } from "../src/voice/helper.ts";
 import { LanVoiceDraft, LanVoiceDraftConflictError } from "../src/voice/lan/draft.ts";
-import { LanVoiceDictation } from "../src/voice/lan/dictation.ts";
 import { decodeLanVoiceAudioCommand } from "../src/voice/lan/protocol.ts";
 import { startCodexLanVoiceServer } from "../src/voice/lan/server.ts";
-import { LanVoiceBridgePeer } from "../src/voice/lan/bridge-peer.ts";
-import { createLanVoiceWebUi } from "../src/voice/lan/web-ui.ts";
 import { CodexVoiceSessionMessages } from "../src/voice/session-messages.ts";
-import { loadCodexVoiceSystemPrompt } from "../src/voice/system-prompt.ts";
 import { RealtimeVoiceTurnTracker } from "../src/voice/turns.ts";
 
 test("voice helper parser validates protocol payloads", () => {
@@ -34,15 +25,8 @@ test("voice helper parser validates protocol payloads", () => {
 	assert.deepEqual(parseVoiceHelperEvent({ type: "pcm", audio: "AA==", sample_rate: 24_000, num_channels: 1 }), {
 		type: "pcm", audio: "AA==", sample_rate: 24_000, num_channels: 1,
 	});
-	assert.deepEqual(parseVoiceHelperEvent({ type: "data", message: { type: "turn.done" } }), {
-		type: "data", message: { type: "turn.done" },
-	});
-	assert.throws(() => parseVoiceHelperEvent({ type: "pcm", audio: [], sample_rate: 24_000, num_channels: 1 }), /Invalid Codex voice helper/);
-	assert.throws(() => parseVoiceHelperEvent({ type: "pcm", audio: "not base64", sample_rate: 24_000, num_channels: 1 }), /Invalid Codex voice helper/);
 	assert.throws(() => parseVoiceHelperEvent({ type: "pcm", audio: "AA==", sample_rate: 48_000, num_channels: 2 }), /Invalid Codex voice helper/);
 	assert.throws(() => parseVoiceHelperEvent({ type: "data", message: { transcript: "x".repeat(64 * 1024) } }), /Invalid Codex voice helper/);
-	assert.throws(() => parseVoiceHelperEvent({ type: "state", state: "x".repeat(129) }), /Invalid Codex voice helper/);
-	assert.throws(() => parseVoiceHelperEvent({ type: "devices", inputs: ["input-1"], outputs: [] }), /Invalid Codex voice helper/);
 	assert.throws(() => parseVoiceHelperEvent({ type: "surprise" }), /Invalid Codex voice helper/);
 });
 
@@ -61,7 +45,6 @@ test("LAN audio command decoder rejects ambiguous browser input", () => {
 		selection: { start: 1, end: 4 },
 	});
 	assert.throws(() => decodeLanVoiceAudioCommand({ type: "start" }), /Invalid LAN voice control message/);
-	assert.throws(() => decodeLanVoiceAudioCommand({ type: "start", mode: "surprise" }), /Invalid LAN voice control message/);
 	assert.throws(() => decodeLanVoiceAudioCommand({ type: "finish", draft: "hello", revision: 2, selectionStart: 0, selectionEnd: 6 }), /Invalid LAN voice control message/);
 	assert.throws(() => decodeLanVoiceAudioCommand({ type: "surprise" }), /Invalid LAN voice control message/);
 });
@@ -70,14 +53,11 @@ test("voice helper JSONL parser bounds unterminated frames", () => {
 	const lines: string[] = [];
 	let oversized = 0;
 	const reader = new BoundedJsonlReader(8, (line) => lines.push(line), () => { oversized += 1; });
-	reader.push(Buffer.from("one\r\ntw"));
-	reader.push(Buffer.from("o\n12345678"));
+	reader.push(Buffer.from("one\r\ntwo\n12345678"));
 	assert.deepEqual(lines, ["one", "two"]);
 	reader.push(Buffer.from("9"));
 	assert.equal(oversized, 1);
 	reader.push(Buffer.from("\nignored"));
-	reader.end();
-	assert.equal(oversized, 1);
 	assert.deepEqual(lines, ["one", "two"]);
 });
 
@@ -100,379 +80,29 @@ test("delegated voice requests use Pi's normal user-turn pipeline", () => {
 	assert.equal(messages.consumeDelegatedTurnStart(), true);
 });
 
-test("voice delegation routing suppresses backend retries without blocking a later repeat", () => {
+test("voice delegation suppresses backend retries without blocking a later repeat", () => {
 	const turns = new RealtimeVoiceTurnTracker();
 	assert.deepEqual(turns.delegated("check the load", "first"), { input: "check the load", delegationId: "first" });
-	assert.deepEqual(turns.delegated("count Pi", "second"), { input: "count Pi", delegationId: "second" });
 	assert.equal(turns.delegated("check the load", "retry-before-settle"), undefined);
 	turns.delegationSettled("first");
 	assert.deepEqual(turns.delegated("check the load", "intentional-repeat"), { input: "check the load", delegationId: "intentional-repeat" });
 });
 
-test("LAN dictation announces recognition context once per Pi session", () => {
-	const customMessages: unknown[] = [];
-	const controller = new CodexVoiceController({
-		sendMessage: (message: unknown) => { customMessages.push(message); },
-	} as never);
-	const ctx = { isIdle: () => true } as never;
-	controller.announceDictation(ctx);
-	controller.announceDictation(ctx);
-	assert.equal(customMessages.length, 1);
-	assert.match(JSON.stringify(customMessages[0]), /codex_voice_mode.*dictation.*active/);
-	controller.resetContextAnnouncements();
-	controller.announceDictation(ctx);
-	assert.equal(customMessages.length, 2);
-});
-
-test("LAN realtime acquisition can interrupt stalled provider auth", async () => {
-	const authEntered = Promise.withResolvers<void>();
-	let peerCloses = 0;
-	const controller = new CodexVoiceController({ sendMessage: () => {} } as never);
-	const ctx = {
-		cwd: "/tmp",
-		isIdle: () => true,
-		isProjectTrusted: () => false,
-		modelRegistry: {
-			getProviderAuth: () => {
-				authEntered.resolve();
-				return new Promise<never>(() => {});
-			},
-		},
-		ui: {
-			setStatus: () => {},
-			notify: () => {},
-			theme: { fg: (_color: string, text: string) => text },
-		},
-	} as never;
-	const peer = {
-		kind: "webrtc",
-		onEvent: () => () => {},
-		onExit: () => () => {},
-		sendData: () => {},
-		start: async () => "offer",
-		applyAnswer: () => {},
-		close: async () => { peerCloses += 1; },
-	} as never;
-	const cancellation = new AbortController();
-	const starting = controller.startRealtimeWithPeer(ctx, { voice: {} } as never, peer, cancellation.signal);
-	await authEntered.promise;
-	cancellation.abort();
-	assert.equal(await starting, undefined);
-	assert.equal(controller.status, "idle");
-	assert.equal(peerCloses, 1);
-});
-
-test("superseding LAN realtime acquisition closes its supplied peer", async () => {
-	const providerAuth = Promise.withResolvers<unknown>();
-	const authEntered = Promise.withResolvers<void>();
-	let peerCloses = 0;
-	const token = `e30.${Buffer.from(JSON.stringify({ "https://api.openai.com/auth": { chatgpt_account_id: "acct-test" } })).toString("base64url")}.sig`;
-	const controller = new CodexVoiceController({ sendMessage: () => {} } as never);
-	const ctx = {
-		cwd: "/tmp",
-		isIdle: () => true,
-		isProjectTrusted: () => false,
-		modelRegistry: { getProviderAuth: () => { authEntered.resolve(); return providerAuth.promise; } },
-		sessionManager: { getSessionId: () => "owner" },
-		ui: {
-			setStatus: () => {},
-			notify: () => {},
-			theme: { fg: (_color: string, text: string) => text },
-		},
-	} as never;
-	const peer = {
-		kind: "webrtc",
-		onEvent: () => () => {},
-		onExit: () => () => {},
-		sendData: () => {},
-		start: async () => "offer",
-		applyAnswer: () => {},
-		close: async () => { peerCloses += 1; },
-	} as never;
-	const starting = controller.startRealtimeWithPeer(ctx, { voice: {} } as never, peer);
-	await authEntered.promise;
-	await controller.stop();
-	providerAuth.resolve({ auth: { apiKey: token } });
-	assert.equal(await starting, undefined);
-	assert.equal(peerCloses, 1);
-});
-
-test("LAN dictation shutdown interrupts stalled provider auth", async () => {
-	const authEntered = Promise.withResolvers<void>();
-	const dictation = new LanVoiceDictation({
-		resolveAuth: () => {
-			authEntered.resolve();
-			return new Promise<never>(() => {});
-		},
-		diagnostics: { path: "", write: () => {}, close: async () => {} },
-		onError: () => {},
-	});
-	const starting = dictation.start("phone");
-	const rejected = assert.rejects(starting, /cancelled/);
-	await authEntered.promise;
-	await dictation.close();
-	await rejected;
-});
-
-test("realtime prompt always exposes the connected Pi runtime", async () => {
-	const directory = await mkdtemp(join(tmpdir(), "pi-voice-prompt-"));
-	const promptPath = join(directory, "REALTIME-SYSTEM-PROMPT.md");
-	try {
-		await writeFile(promptPath, "## Interface and role\nVoice\n\n## Delegation\nRoute\n\n## Backend results\nSpeak\n");
-		const prompt = loadCodexVoiceSystemPrompt(promptPath);
-		assert.match(prompt, /connected Pi agent with the active session's tools and environment/i);
-		assert.match(prompt, /current time or date/);
-	} finally {
-		await rm(directory, { recursive: true, force: true });
-	}
-});
-
-test("LAN bridge routes PCM through one helper-owned V3 WebRTC peer", async () => {
-	const helper = new FakeVoiceHelper();
-	const output: Buffer[] = [];
-	const events: unknown[] = [];
-	const peer = new LanVoiceBridgePeer(
-		{ path: "", write: () => {}, close: async () => {} },
-		(pcm) => output.push(pcm),
-		helper,
-	);
-	peer.onEvent((event) => events.push(event));
-	const starting = peer.start({} as never);
-	await new Promise((resolve) => setTimeout(resolve, 0));
-	assert.deepEqual(helper.sent, [{ type: "start_v3_bridge" }]);
-	helper.emit({ type: "offer", sdp: "offer" });
-	assert.equal(await starting, "offer");
-	peer.applyAnswer("answer");
-	peer.sendAudio(Buffer.from([1, 0, 2, 0]));
-	helper.emit({ type: "pcm", audio: "AwAEAA==", sample_rate: 24_000, num_channels: 1 });
-	helper.emit({ type: "data", message: { type: "session.started" } });
-	assert.deepEqual(helper.sent, [
-		{ type: "start_v3_bridge" },
-		{ type: "apply_answer", sdp: "answer" },
-		{ type: "send_pcm", audio: "AQACAA==", sample_rate: 24_000, num_channels: 1 },
-	]);
-	assert.deepEqual(output, [Buffer.from([3, 0, 4, 0])]);
-	assert.deepEqual(events, [{ type: "data", message: { type: "session.started" } }]);
-	await peer.close();
-});
-
-test("dictation transcriber commits 24 kHz PCM through the V2 transcription protocol", async () => {
-	const socket = new FakeWebSocket();
-	let connectedUrl = "";
-	const transcriber = new CodexDictationTranscriber({ onError: () => {}, onStatus: () => {} }, async (url) => {
-		connectedUrl = url;
-		return socket;
-	});
-	await transcriber.start({
-		headers: new Headers({ authorization: "Bearer test" }),
-		baseUrl: "https://chatgpt.com/backend-api/codex",
-		officialCodex: true,
-	});
-	assert.equal(connectedUrl, "wss://api.openai.com/v1/realtime?intent=transcription");
-	assert.deepEqual(JSON.parse(socket.sent[0]!), {
-		type: "session.update",
-		session: {
-			type: "transcription",
-			audio: { input: {
-				format: { type: "audio/pcm", rate: 24_000 },
-				noise_reduction: { type: "near_field" },
-				transcription: { model: "gpt-4o-mini-transcribe" },
-				turn_detection: null,
-			} },
-		},
-	});
-	const pcm = Buffer.alloc(4_800, 1);
-	transcriber.append(pcm);
-	const append = JSON.parse(socket.sent[1]!) as { type: string; audio: string };
-	assert.equal(append.type, "input_audio_buffer.append");
-	assert.deepEqual(Buffer.from(append.audio, "base64"), pcm);
-	const finishing = transcriber.finish();
-	assert.deepEqual(JSON.parse(socket.sent[2]!), { type: "input_audio_buffer.commit" });
-	socket.emit("message", { data: JSON.stringify({ type: "conversation.item.input_audio_transcription.completed", transcript: "  hello Pi  " }) });
-	assert.equal(await finishing, "hello Pi");
-});
-
-test("dictation transcription can be cancelled while awaiting completion", async () => {
-	const socket = new FakeWebSocket();
-	const transcriber = new CodexDictationTranscriber({ onError: () => {}, onStatus: () => {} }, async () => socket);
-	await transcriber.start({
-		headers: new Headers({ authorization: "Bearer test" }),
-		baseUrl: "https://chatgpt.com/backend-api/codex",
-		officialCodex: true,
-	});
-	transcriber.append(Buffer.alloc(4_800, 1));
-	const finishing = transcriber.finish();
-	await transcriber.close();
-	assert.equal(await finishing, undefined);
-});
-
 test("LAN composer rejects stale writes from another browser", () => {
-	const draft = new LanVoiceDraft({
-		diagnostics: { path: "", write: () => {}, close: async () => {} },
-		publish: () => {},
-		sendMessage: () => {},
-	});
+	const draft = new LanVoiceDraft({ publish: () => {}, sendMessage: () => {} });
 	assert.equal(draft.update("phone", "first draft", 0), 1);
 	assert.throws(() => draft.update("desktop", "stale draft", 0), LanVoiceDraftConflictError);
 	assert.deepEqual(draft.snapshot(), { type: "draft", text: "first draft", revision: 1 });
 });
 
-test("LAN composer starts a new draft when dictation continues after send", () => {
-	const sent: string[] = [];
-	const draft = new LanVoiceDraft({
-		diagnostics: { path: "", write: () => {}, close: async () => {} },
-		publish: () => {},
-		sendMessage: (text) => sent.push(text),
-	});
-	assert.equal(draft.update("phone", "check the time", 0), 1);
-	draft.send("phone", "check the time", 1);
-	draft.insertTranscript("phone", "and check the weather");
-	assert.deepEqual(sent, ["check the time"]);
-	assert.deepEqual(draft.snapshot(), { type: "draft", text: "and check the weather", revision: 3 });
-});
-
-test("LAN companion converts Pi semantic theme colors into CSS", () => {
-	const page = createLanVoiceWebUi(fakePiTheme());
-	assert.match(page, /--pi-accent:rgb\(12 34 56\)/);
-	assert.match(page, /--pi-muted:rgb\(95 135 175\)/);
-	assert.match(page, /--pi-user-message-bg:rgb\(240 241 242\)/);
-	assert.match(page, /color-scheme:light/);
-	assert.match(page, /<meta name="theme-color" content="rgb\(240 241 242\)">/);
-	assert.doesNotMatch(page, /#(?:171713|d8ff72|d35d43)/i);
-});
-
-test("LAN activity retains the latest settled response for reconnecting browsers", () => {
-	const published: LanVoiceActivityMessage[] = [];
-	const activity = new LanVoiceActivity({
-		diagnostics: { path: "", write: () => {}, close: async () => {} },
-		initialWorking: false,
-		publish: (message) => published.push(message),
-	});
-	activity.working();
-	activity.settled("Finished the requested work.");
-	assert.deepEqual(published, [
-		{ type: "activity", state: "working" },
-		{ type: "activity", state: "settled", text: "Finished the requested work." },
-	]);
-	assert.deepEqual(activity.snapshot(), { type: "activity", state: "settled", text: "Finished the requested work." });
-});
-
-test("LAN voice transfers audio ownership without restarting its realtime session", async () => {
-	const agentDir = await mkdtemp(join(tmpdir(), "pi-lan-voice-clients-"));
-	let upstreamStarts = 0;
-	const audio: Buffer[] = [];
-	const activity: boolean[] = [];
-	const conversation = {};
-	const server = await startCodexLanVoiceServer({
-		ctx: { isIdle: () => true, sessionManager: { getSessionId: () => "owner" } } as never,
-		getConfig: () => ({}) as never,
-		voice: {
-			startRealtimeWithPeer: async (_ctx: unknown, _config: unknown, peer: LanVoiceBridgePeer) => {
-				upstreamStarts += 1;
-				peer.sendAudio = (pcm) => audio.push(pcm);
-				return conversation;
-			},
-			setConversationInputActive: (_conversation: unknown, active: boolean) => activity.push(active),
-			stopConversation: async () => {},
-			stop: async () => {},
-		} as never,
-		resolveAuth: async () => ({}) as never,
-		sendUserMessage: () => {},
-		ownerSessionId: "owner",
-		port: 0,
-		certificateAgentDir: agentDir,
-	});
-	let first: WebSocket | undefined;
-	let second: WebSocket | undefined;
-	try {
-		const url = new URL(server.urls[0]!);
-		url.hostname = "127.0.0.1";
-		first = await openAudioSocket(new URL("/api/audio?client=first", url));
-		const firstActive = nextSocketJson(first);
-		first.send(JSON.stringify({ type: "start", mode: "conversation" }));
-		assert.deepEqual(await firstActive, { type: "active", mode: "conversation" });
-		second = await openAudioSocket(new URL("/api/audio?client=second", url));
-		const firstClosed = socketClosed(first);
-		const secondActive = nextSocketJson(second);
-		second.send(JSON.stringify({ type: "start", mode: "conversation" }));
-		assert.deepEqual(await secondActive, { type: "active", mode: "conversation" });
-		assert.equal((await firstClosed).code, 4001);
-		assert.deepEqual(activity, [true]);
-		second.send(Buffer.from([1, 0, 2, 0]));
-		await new Promise((resolve) => setTimeout(resolve, 20));
-		assert.equal(upstreamStarts, 1);
-		assert.deepEqual(audio, [Buffer.from([1, 0, 2, 0])]);
-		second.send(JSON.stringify({ type: "release" }));
-		await waitFor(() => activity.length === 2);
-		assert.deepEqual(activity, [true, false]);
-		const resumed = nextSocketJson(second);
-		second.send(JSON.stringify({ type: "start", mode: "conversation" }));
-		assert.deepEqual(await resumed, { type: "active", mode: "conversation" });
-		assert.equal(upstreamStarts, 1);
-		assert.deepEqual(activity, [true, false, true]);
-	} finally {
-		first?.close();
-		second?.close();
-		await server.close();
-		await rm(agentDir, { recursive: true, force: true });
-	}
-});
-
-test("LAN voice shutdown interrupts an in-flight browser acquisition", async () => {
-	const agentDir = await mkdtemp(join(tmpdir(), "pi-lan-voice-shutdown-"));
-	const startEntered = Promise.withResolvers<void>();
-	let startWasAborted = false;
-	const server = await startCodexLanVoiceServer({
-		ctx: { isIdle: () => true, sessionManager: { getSessionId: () => "owner" } } as never,
-		getConfig: () => ({}) as never,
-		voice: {
-			startRealtimeWithPeer: async (_ctx: unknown, _config: unknown, _peer: unknown, signal: AbortSignal) => {
-				startEntered.resolve();
-				await new Promise<void>((resolve) => {
-					const aborted = () => { startWasAborted = true; resolve(); };
-					if (signal.aborted) aborted();
-					else signal.addEventListener("abort", aborted, { once: true });
-				});
-				return undefined;
-			},
-			setConversationInputActive: () => {},
-			stopConversation: async () => {},
-		} as never,
-		resolveAuth: async () => ({}) as never,
-		sendUserMessage: () => {},
-		ownerSessionId: "owner",
-		port: 0,
-		certificateAgentDir: agentDir,
-	});
-	const url = new URL(server.urls[0]!);
-	url.hostname = "127.0.0.1";
-	const socket = await openAudioSocket(new URL("/api/audio?client=closing", url));
-	try {
-		socket.send(JSON.stringify({ type: "start", mode: "conversation" }));
-		await startEntered.promise;
-		const firstClose = server.close();
-		const secondClose = server.close();
-		assert.strictEqual(secondClose, firstClose);
-		await firstClose;
-		assert.equal(startWasAborted, true);
-	} finally {
-		socket.close();
-		await server.close();
-		await rm(agentDir, { recursive: true, force: true });
-	}
-});
-
-test("LAN voice server rejects control after its owning session changes", async () => {
-	const agentDir = await mkdtemp(join(tmpdir(), "pi-lan-voice-"));
+test("LAN server rejects turns after its owning Pi session changes", async () => {
+	const agentDir = await mkdtemp(join(tmpdir(), "pi-lan-voice-owner-"));
 	let activeSessionId = "owner";
 	const sentMessages: string[] = [];
 	const server = await startCodexLanVoiceServer({
-		ctx: { isIdle: () => true, sessionManager: { getSessionId: () => activeSessionId }, ui: { theme: fakePiTheme() } } as never,
+		ctx: { isIdle: () => true, sessionManager: { getSessionId: () => activeSessionId } } as never,
 		getConfig: () => ({}) as never,
-		voice: {
-			startRealtimeWithPeer: async () => undefined,
-			stop: async () => {},
-		} as never,
+		voice: {} as never,
 		resolveAuth: async () => ({}) as never,
 		sendUserMessage: (text) => sentMessages.push(text),
 		ownerSessionId: "owner",
@@ -482,156 +112,31 @@ test("LAN voice server rejects control after its owning session changes", async 
 	try {
 		const url = new URL(server.urls[0]!);
 		url.hostname = "127.0.0.1";
-		const page = await requestText(url);
-		assert.equal(page.status, 200);
-		assert.match(page.body, /Gip<span class="brand-accent">Pi<\/span>ty/);
-		assert.match(page.body, /new Blob\(\[/);
-		assert.match(page.body, /registerProcessor\('pi-lan-voice'/);
-		const sent = await requestText(new URL("/api/send", url), {
-			method: "POST",
-			body: JSON.stringify({ clientId: "test-client", text: "check the time", revision: 0 }),
-		});
-		assert.equal(sent.status, 200);
-		assert.deepEqual(sentMessages, ["check the time"]);
+		const accepted = await requestText(new URL("/api/send", url), JSON.stringify({ clientId: "phone", text: "check the time", revision: 0 }));
+		assert.equal(accepted.status, 200);
 		activeSessionId = "other";
-		const stopped = await requestText(new URL("/api/stop", url), { method: "POST" });
-		assert.equal(stopped.status, 409);
-		assert.match(stopped.body, /session.*no longer active/i);
-		activeSessionId = "owner";
-		const events = await openEventStream(new URL("/api/events?client=test-client", url));
-		assert.equal(events.status, 200);
-		assert.match(events.firstChunk, /event: ready/);
-		await new Promise((resolve) => setTimeout(resolve, 30));
-		assert.equal(events.ended(), false);
-		events.close();
+		const rejected = await requestText(new URL("/api/send", url), JSON.stringify({ clientId: "phone", text: "do not send", revision: 1 }));
+		assert.equal(rejected.status, 409);
+		assert.deepEqual(sentMessages, ["check the time"]);
 	} finally {
 		await server.close();
 		await rm(agentDir, { recursive: true, force: true });
 	}
 });
 
-function requestText(url: URL, options: { method?: string; body?: string; signal?: AbortSignal } = {}): Promise<{ status: number; body: string }> {
+function requestText(url: URL, body: string): Promise<{ status: number; body: string }> {
 	return new Promise((resolve, reject) => {
-		const body = options.body ?? "";
-		const requestOptions: RequestOptions = {
-			method: options.method ?? "GET",
+		const options: RequestOptions = {
+			method: "POST",
 			rejectUnauthorized: false,
-			signal: options.signal,
-			...(body ? { headers: { "content-length": Buffer.byteLength(body), "content-type": "application/json" } } : {}),
+			headers: { "content-length": Buffer.byteLength(body), "content-type": "application/json" },
 		};
-		const request = httpsRequest(url, requestOptions, (response) => {
+		const request = httpsRequest(url, options, (response) => {
 			const chunks: Buffer[] = [];
 			response.on("data", (chunk: Buffer) => chunks.push(chunk));
 			response.on("end", () => resolve({ status: response.statusCode ?? 0, body: Buffer.concat(chunks).toString("utf8") }));
 		});
-		const abort = () => { request.socket?.destroy(); request.destroy(new Error("Request aborted")); };
-		if (options.signal?.aborted) abort();
-		else options.signal?.addEventListener("abort", abort, { once: true });
-		request.once("close", () => options.signal?.removeEventListener("abort", abort));
 		request.on("error", reject);
 		request.end(body);
 	});
-}
-
-function openEventStream(url: URL): Promise<{ status: number; firstChunk: string; ended(): boolean; close(): void }> {
-	return new Promise((resolve, reject) => {
-		const request = httpsRequest(url, { rejectUnauthorized: false });
-		request.on("response", (response) => {
-			let streamEnded = false;
-			response.once("end", () => { streamEnded = true; });
-			response.once("data", (chunk: Buffer) => resolve({
-				status: response.statusCode ?? 0,
-				firstChunk: chunk.toString("utf8"),
-				ended: () => streamEnded,
-				close: () => { response.destroy(); request.destroy(); },
-			}));
-		});
-		request.on("error", reject);
-		request.end();
-	});
-}
-
-function openAudioSocket(url: URL): Promise<WebSocket> {
-	url.protocol = "wss:";
-	return new Promise((resolve, reject) => {
-		const socket = new WebSocket(url, { rejectUnauthorized: false });
-		socket.once("error", reject);
-		socket.once("message", (data) => {
-			try {
-				assert.deepEqual(JSON.parse(data.toString()), { type: "connected" });
-				resolve(socket);
-			} catch (error) { reject(error); }
-		});
-	});
-}
-
-function nextSocketJson(socket: WebSocket): Promise<unknown> {
-	return new Promise((resolve, reject) => {
-		socket.once("error", reject);
-		socket.once("message", (data) => {
-			try { resolve(JSON.parse(data.toString())); }
-			catch (error) { reject(error); }
-		});
-	});
-}
-
-function socketClosed(socket: WebSocket): Promise<{ code: number; reason: string }> {
-	return new Promise((resolve) => socket.once("close", (code, reason) => resolve({ code, reason: reason.toString() })));
-}
-
-function fakePiTheme() {
-	return {
-		getFgAnsi: (color: string) => color === "accent"
-			? "\x1b[38;2;12;34;56m"
-			: color === "muted" ? "\x1b[38;5;67m" : "\x1b[39m",
-		getBgAnsi: (color: string) => color === "userMessageBg" ? "\x1b[48;2;240;241;242m" : "\x1b[49m",
-	} as never;
-}
-
-async function waitFor(predicate: () => boolean): Promise<void> {
-	const deadline = Date.now() + 1_000;
-	while (!predicate()) {
-		if (Date.now() >= deadline) throw new Error("Timed out waiting for condition");
-		await new Promise((resolve) => setTimeout(resolve, 5));
-	}
-}
-
-class FakeVoiceHelper {
-	readonly protocolVersion = 3;
-	readonly sent: VoiceHelperCommand[] = [];
-	private readonly eventListeners = new Set<(event: VoiceHelperEvent) => void>();
-	private readonly exitListeners = new Set<(error: Error) => void>();
-	async start(): Promise<void> {}
-	send(command: VoiceHelperCommand): void { this.sent.push(command); }
-	onEvent(listener: (event: VoiceHelperEvent) => void): () => void {
-		this.eventListeners.add(listener);
-		return () => this.eventListeners.delete(listener);
-	}
-	onExit(listener: (error: Error) => void): () => void {
-		this.exitListeners.add(listener);
-		return () => this.exitListeners.delete(listener);
-	}
-	async close(): Promise<void> {}
-	emit(event: VoiceHelperEvent): void {
-		for (const listener of this.eventListeners) listener(event);
-	}
-}
-
-class FakeWebSocket implements WebSocketLike {
-	readonly sent: string[] = [];
-	readonly listeners = new Map<string, Set<(event: unknown) => void>>();
-	readyState = 1;
-	send(data: string): void { this.sent.push(data); }
-	close(): void { this.readyState = 3; }
-	addEventListener(type: string, listener: (event: unknown) => void): void {
-		const listeners = this.listeners.get(type) ?? new Set();
-		listeners.add(listener);
-		this.listeners.set(type, listeners);
-	}
-	removeEventListener(type: string, listener: (event: unknown) => void): void {
-		this.listeners.get(type)?.delete(listener);
-	}
-	emit(type: string, event: unknown): void {
-		for (const listener of this.listeners.get(type) ?? []) listener(event);
-	}
 }

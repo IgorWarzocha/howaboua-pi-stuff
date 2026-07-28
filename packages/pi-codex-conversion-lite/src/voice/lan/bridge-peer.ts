@@ -1,7 +1,6 @@
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import { VoiceHelperClient, type VoiceHelperCommand, type VoiceHelperEvent } from "../helper.ts";
 import type { CodexRealtimePeerEvent, CodexRealtimeWebRtcPeer } from "../conversation/peer.ts";
-import type { LanVoiceDiagnostics } from "./diagnostics.ts";
 
 const OFFER_TIMEOUT_MS = 15_000;
 const MAX_PCM_BYTES = 24_000 * 2;
@@ -17,16 +16,13 @@ interface LanVoiceBridgeHelper {
 
 export class LanVoiceBridgePeer implements CodexRealtimeWebRtcPeer {
 	readonly kind = "webrtc" as const;
-	private readonly diagnostics: LanVoiceDiagnostics;
 	private readonly onAudio: (pcm: Buffer) => void;
 	private readonly helper: LanVoiceBridgeHelper;
 
 	constructor(
-		diagnostics: LanVoiceDiagnostics,
 		onAudio: (pcm: Buffer) => void,
 		helper: LanVoiceBridgeHelper = new VoiceHelperClient(),
 	) {
-		this.diagnostics = diagnostics;
 		this.onAudio = onAudio;
 		this.helper = helper;
 	}
@@ -40,10 +36,6 @@ export class LanVoiceBridgePeer implements CodexRealtimeWebRtcPeer {
 
 	onExit(listener: (error: Error) => void): () => void {
 		return this.helper.onExit(listener);
-	}
-
-	trace(event: string, data?: unknown): void {
-		this.diagnostics.write("realtime", event, data);
 	}
 
 	async start(_config: CodexConversionConfig): Promise<string> {

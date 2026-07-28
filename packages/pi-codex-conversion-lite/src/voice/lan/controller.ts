@@ -63,7 +63,7 @@ export class CodexLanVoiceServerController {
 				ctx.ui.theme.fg("accent", "voice LAN: on"),
 			);
 			ctx.ui.notify(
-				`LAN voice is running:\n${this.server.urls.join("\n")}\nAccept the local certificate on first visit.\nDiagnostics: ${this.server.logPath}`,
+				`LAN voice is running:\n${this.server.urls.join("\n")}\nAccept the local certificate on first visit.`,
 				"info",
 			);
 			return this.status();

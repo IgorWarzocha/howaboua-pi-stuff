@@ -1,13 +1,11 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { LanVoiceBrowserClients } from "./browser-clients.ts";
 import type { LanVoiceActivity } from "./activity.ts";
-import type { LanVoiceDiagnostics } from "./diagnostics.ts";
 import { LanVoiceDraftError, type LanVoiceDraft } from "./draft.ts";
 
 const MAX_REQUEST_BYTES = 300 * 1024;
 
 export interface LanVoiceHttpHandlers {
-	diagnostics: LanVoiceDiagnostics;
 	activity: LanVoiceActivity;
 	clients: LanVoiceBrowserClients;
 	draft: LanVoiceDraft;
@@ -58,13 +56,6 @@ export async function handleLanVoiceHttpRequest(
 			return;
 		}
 		const clientId = requiredClientId(body);
-		if (path === "/api/debug") {
-			const event = boundedString(body["event"], 256);
-			if (!event) throw new LanVoiceRequestError(400, "Invalid browser diagnostic event");
-			handlers.diagnostics.write("browser", event, { clientId, data: body["data"] });
-			sendJson(response, 200, { ok: true });
-			return;
-		}
 		if (path === "/api/stop") {
 			handlers.clients.release(clientId);
 			sendJson(response, 200, { ok: true });
@@ -83,7 +74,6 @@ export async function handleLanVoiceHttpRequest(
 		sendJson(response, 404, { error: "Not found" });
 	} catch (error) {
 		const status = error instanceof LanVoiceRequestError ? error.status : error instanceof LanVoiceDraftError ? 400 : 500;
-		handlers.diagnostics.write("server", "request.error", { method: request.method, path, status, error });
 		if (!response.headersSent) sendJson(response, status, { error: error instanceof Error ? error.message : String(error) });
 		else response.end();
 	}

@@ -10,7 +10,6 @@ import { LanVoiceActivity } from "./activity.ts";
 import { LanVoiceBridgePeer } from "./bridge-peer.ts";
 import { LanVoiceBrowserClients, MAX_CONTROL_BYTES } from "./browser-clients.ts";
 import { resolveLanVoiceCertificate } from "./certificate.ts";
-import { createLanVoiceDiagnostics } from "./diagnostics.ts";
 import { LanVoiceDictation } from "./dictation.ts";
 import { LanVoiceDraft, LanVoiceDraftConflictError } from "./draft.ts";
 import { boundedString, handleLanVoiceHttpRequest } from "./http-handler.ts";
@@ -22,7 +21,6 @@ const HEARTBEAT_MS = 15_000;
 export interface CodexLanVoiceServer {
 	readonly ownerSessionId: string;
 	readonly urls: string[];
-	readonly logPath: string;
 	agentStarted(): void;
 	agentSettled(text?: string): void;
 	close(): Promise<void>;
@@ -39,7 +37,6 @@ export async function startCodexLanVoiceServer(options: {
 	certificateAgentDir: string;
 }): Promise<CodexLanVoiceServer> {
 	const certificate = resolveLanVoiceCertificate(options.certificateAgentDir);
-	const diagnostics = createLanVoiceDiagnostics(options.certificateAgentDir);
 	const ownerIsActive = () => options.ctx.sessionManager.getSessionId() === options.ownerSessionId;
 	let upstreamPeer: LanVoiceBridgePeer | undefined;
 	let conversation: CodexRealtimeConversation | undefined;
@@ -47,18 +44,15 @@ export async function startCodexLanVoiceServer(options: {
 	let closing = false;
 	let clients!: LanVoiceBrowserClients;
 	const activity = new LanVoiceActivity({
-		diagnostics,
 		initialWorking: !options.ctx.isIdle(),
 		publish: (message) => clients.broadcastControl(message),
 	});
 	const draft = new LanVoiceDraft({
-		diagnostics,
 		publish: (message) => clients.broadcastControl(message),
 		sendMessage: options.sendUserMessage,
 	});
 	const dictation = new LanVoiceDictation({
 		resolveAuth: options.resolveAuth,
-		diagnostics,
 		onError: (clientId, error) => clients.sendControl(clientId, { type: "error", message: error.message }),
 	});
 
@@ -71,7 +65,7 @@ export async function startCodexLanVoiceServer(options: {
 		if (conversation && upstreamPeer) return;
 		const startAbort = new AbortController();
 		let peer!: LanVoiceBridgePeer;
-		peer = new LanVoiceBridgePeer(diagnostics, (pcm) => clients.sendConversationAudio(pcm));
+		peer = new LanVoiceBridgePeer((pcm) => clients.sendConversationAudio(pcm));
 		peer.onExit(() => clearUpstream(peer));
 		upstreamPeer = peer;
 		conversationStartAbort = startAbort;
@@ -89,7 +83,6 @@ export async function startCodexLanVoiceServer(options: {
 		conversation = started;
 	};
 	clients = new LanVoiceBrowserClients({
-		diagnostics,
 		ensureConversation,
 		async startDictation(clientId) {
 			await dictation.start(clientId);
@@ -104,7 +97,6 @@ export async function startCodexLanVoiceServer(options: {
 				} catch (error) {
 					if (!(error instanceof LanVoiceDraftConflictError)) throw error;
 					insertion = undefined;
-					diagnostics.write("server", "draft.finish_conflict", { clientId });
 				}
 			}
 			if (transcript) draft.insertTranscript(clientId, transcript, insertion);
@@ -123,7 +115,6 @@ export async function startCodexLanVoiceServer(options: {
 
 	const server = createServer({ cert: certificate.cert, key: certificate.key }, (request, response) => {
 		void handleLanVoiceHttpRequest(request, response, {
-			diagnostics,
 			activity,
 			clients,
 			draft,
@@ -143,12 +134,11 @@ export async function startCodexLanVoiceServer(options: {
 				return;
 			}
 			webSockets.handleUpgrade(request, socket, head, (webSocket) => clients.connectAudio(clientId, webSocket));
-		} catch (error) {
-			diagnostics.write("server", "audio.upgrade_error", error);
+		} catch {
 			socket.destroy();
 		}
 	});
-	configureServerDiagnostics(server, diagnostics.write.bind(diagnostics));
+	configureServer(server);
 	try {
 		await listen(server, options.port ?? PORT);
 	} catch (error) {
@@ -156,13 +146,11 @@ export async function startCodexLanVoiceServer(options: {
 		webSockets.close();
 		server.closeAllConnections();
 		await Promise.allSettled([clientsClosing, dictation.close(), upstreamPeer?.close()]);
-		await diagnostics.close();
 		throw error;
 	}
 	const heartbeat = setInterval(() => clients.heartbeat(), HEARTBEAT_MS);
 	const address = server.address() as AddressInfo;
 	const urls = lanVoiceUrls(certificate.hostnames, certificate.ipAddresses, address.port);
-	diagnostics.write("server", "listening", { address, urls });
 	let closePromise: Promise<void> | undefined;
 	const closeServer = async (): Promise<void> => {
 		closing = true;
@@ -189,7 +177,6 @@ export async function startCodexLanVoiceServer(options: {
 			new Promise<void>((resolve) => webSockets.close(() => resolve())),
 			new Promise<void>((resolve) => { server.close(() => resolve()); server.closeAllConnections(); }),
 		], failures);
-		await collectFailures([diagnostics.close()], failures);
 		if (failures.length === 1) throw failures[0];
 		if (failures.length > 1) throw new AggregateError(failures, "LAN voice server cleanup failed");
 	};
@@ -197,7 +184,6 @@ export async function startCodexLanVoiceServer(options: {
 	return {
 		ownerSessionId: options.ownerSessionId,
 		urls,
-		logPath: diagnostics.path,
 		agentStarted: () => activity.working(),
 		agentSettled: (text) => activity.settled(text),
 		close() {
@@ -212,11 +198,11 @@ async function collectFailures(promises: ReadonlyArray<Promise<unknown> | undefi
 	for (const result of settled) if (result.status === "rejected") failures.push(result.reason);
 }
 
-function configureServerDiagnostics(server: HttpsServer, write: (source: "server", event: string, data?: unknown) => void): void {
+function configureServer(server: HttpsServer): void {
 	server.keepAliveTimeout = 20_000;
-	server.on("tlsClientError", (error, socket) => write("server", "tls.client_error", { error, remoteAddress: socket.remoteAddress, remotePort: socket.remotePort }));
-	server.on("clientError", (error, socket) => { write("server", "http.client_error", { error }); socket.destroy(); });
-	server.on("error", (error) => write("server", "https.error", error));
+	server.on("tlsClientError", () => {});
+	server.on("clientError", (_error, socket) => socket.destroy());
+	server.on("error", () => {});
 }
 
 function listen(server: HttpsServer, port: number): Promise<void> {

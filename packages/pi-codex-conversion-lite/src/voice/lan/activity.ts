@@ -1,5 +1,3 @@
-import type { LanVoiceDiagnostics } from "./diagnostics.ts";
-
 const MAX_ACTIVITY_BYTES = 16 * 1024;
 
 export type LanVoiceActivityMessage =
@@ -7,16 +5,13 @@ export type LanVoiceActivityMessage =
 	| { type: "activity"; state: "settled"; text: string };
 
 export class LanVoiceActivity {
-	private readonly diagnostics: LanVoiceDiagnostics;
 	private readonly publish: (message: LanVoiceActivityMessage) => void;
 	private state: LanVoiceActivityMessage;
 
 	constructor(options: {
-		diagnostics: LanVoiceDiagnostics;
 		initialWorking: boolean;
 		publish(message: LanVoiceActivityMessage): void;
 	}) {
-		this.diagnostics = options.diagnostics;
 		this.publish = options.publish;
 		this.state = { type: "activity", state: options.initialWorking ? "working" : "idle" };
 	}
@@ -27,7 +22,6 @@ export class LanVoiceActivity {
 
 	working(): void {
 		this.state = { type: "activity", state: "working" };
-		this.diagnostics.write("server", "activity.working");
 		this.publish(this.state);
 	}
 
@@ -36,7 +30,6 @@ export class LanVoiceActivity {
 		this.state = bounded
 			? { type: "activity", state: "settled", text: bounded }
 			: { type: "activity", state: "idle" };
-		this.diagnostics.write("server", "activity.settled", { bytes: Buffer.byteLength(bounded) });
 		this.publish(this.state);
 	}
 }

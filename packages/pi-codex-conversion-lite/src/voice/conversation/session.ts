@@ -51,11 +51,6 @@ export class CodexRealtimeConversation {
 		const setupAbortController = new AbortController();
 		this.setupAbortController = setupAbortController;
 		const requestBody = JSON.stringify({ sdp, session: { model: V3_MODEL, instructions, audio: { output: { voice: config.voice.v3Voice } }, delegation: { type: "client" } } });
-		this.peer.trace?.("call.request", {
-			endpoint,
-			headers: traceHeaders(headers),
-			body: JSON.parse(requestBody),
-		});
 		let status: number;
 		let answer: string;
 		try {
@@ -66,10 +61,6 @@ export class CodexRealtimeConversation {
 				requestBody,
 				auth.env,
 			));
-			this.peer.trace?.("call.response", { status, body: answer });
-		} catch (error) {
-			this.peer.trace?.("call.error", error);
-			throw error;
 		} finally {
 			if (this.setupAbortController === setupAbortController) this.setupAbortController = undefined;
 		}
@@ -144,11 +135,7 @@ export class CodexRealtimeConversation {
 		const input = record["content"].flatMap((part) => part && typeof part === "object" && (part as Record<string, unknown>)["type"] === "input_text" && typeof (part as Record<string, unknown>)["text"] === "string" ? [(part as Record<string, unknown>)["text"] as string] : []).join("").trim();
 		if (!input || Buffer.byteLength(input) > MAX_DELEGATION_BYTES) { this.fail(new Error("Codex voice delegation was empty or oversized")); return; }
 		const delegated = this.turnTracker.delegated(input, record["id"]);
-		if (!delegated) {
-			this.peer.trace?.("delegation.duplicate", { id: record["id"], input });
-			return;
-		}
-		this.peer.trace?.("delegation.created", { id: record["id"], input });
+		if (!delegated) return;
 		this.flushHandoff();
 		this.callbacks.onTurn(delegated);
 	}
@@ -196,20 +183,12 @@ export class CodexRealtimeConversation {
 
 	private fail(error: Error): void {
 		if (this.state === "idle" || this.state === "closed" || this.state === "failed") return;
-		this.peer.trace?.("conversation.error", error);
 		this.state = "failed";
 		this.abortSetup();
 		this.clearHandoff();
 		this.callbacks.onError(error);
 		void this.peer.close();
 	}
-}
-
-function traceHeaders(headers: Headers): Record<string, string> {
-	const values = Object.fromEntries(headers);
-	const authorization = values["authorization"];
-	if (authorization) values["authorization"] = `<present:${authorization.length}>`;
-	return values;
 }
 
 async function setupRealtimeCall(endpoint: string, headers: Headers, signal: AbortSignal, body: string, env?: Record<string, string>): Promise<RealtimeCallResult> {

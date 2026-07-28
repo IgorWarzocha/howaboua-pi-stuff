@@ -1,5 +1,3 @@
-import type { LanVoiceDiagnostics } from "./diagnostics.ts";
-
 const MAX_LAN_VOICE_DRAFT_BYTES = 64 * 1024;
 
 export interface LanVoiceDraftSelection {
@@ -11,18 +9,15 @@ export class LanVoiceDraftError extends Error {}
 export class LanVoiceDraftConflictError extends LanVoiceDraftError {}
 
 export class LanVoiceDraft {
-	private readonly diagnostics: LanVoiceDiagnostics;
 	private readonly publish: (message: unknown) => void;
 	private readonly sendMessage: (text: string) => void;
 	private text = "";
 	private revision = 0;
 
 	constructor(options: {
-		diagnostics: LanVoiceDiagnostics;
 		publish(message: unknown): void;
 		sendMessage(text: string): void;
 	}) {
-		this.diagnostics = options.diagnostics;
 		this.publish = options.publish;
 		this.sendMessage = options.sendMessage;
 	}
@@ -41,7 +36,6 @@ export class LanVoiceDraft {
 		this.assertRevision(expectedRevision);
 		this.text = validatedDraft(value);
 		this.revision += 1;
-		this.diagnostics.write("server", "draft.updated", { clientId, revision: this.revision, bytes: Buffer.byteLength(this.text) });
 		this.publish(this.snapshot(clientId, "update"));
 		return this.revision;
 	}
@@ -57,7 +51,6 @@ export class LanVoiceDraft {
 		const rightSpace = after && !/^\s/.test(after) ? " " : "";
 		this.text = validatedDraft(`${before}${leftSpace}${clean}${rightSpace}${after}`);
 		this.revision += 1;
-		this.diagnostics.write("server", "draft.transcribed", { clientId, revision: this.revision, transcript: clean, bytes: Buffer.byteLength(this.text) });
 		this.publish(this.snapshot(clientId, "transcript"));
 	}
 
@@ -69,7 +62,6 @@ export class LanVoiceDraft {
 		this.sendMessage(text);
 		if (this.text === text) this.text = "";
 		this.revision += 1;
-		this.diagnostics.write("server", "draft.sent", { clientId, revision: this.revision, text });
 		this.publish({ type: "sent" });
 		this.publish(this.snapshot(clientId, "sent"));
 	}

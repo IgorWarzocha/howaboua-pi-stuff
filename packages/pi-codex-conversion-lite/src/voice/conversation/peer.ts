@@ -10,7 +10,6 @@ export type CodexRealtimePeerEvent =
 interface CodexRealtimePeerBase {
 	onEvent(listener: (event: CodexRealtimePeerEvent) => void): () => void;
 	onExit(listener: (error: Error) => void): () => void;
-	trace?(event: string, data?: unknown): void;
 	sendData(message: unknown): void;
 	close(): Promise<void>;
 }

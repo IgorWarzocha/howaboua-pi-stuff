@@ -1,6 +1,5 @@
 import type { ServerResponse } from "node:http";
 import { WebSocket, type RawData } from "ws";
-import type { LanVoiceDiagnostics } from "./diagnostics.ts";
 import type { LanVoiceDraftSelection } from "./draft.ts";
 import { decodeLanVoiceAudioCommand } from "./protocol.ts";
 
@@ -14,7 +13,6 @@ type LanVoiceBrowserState =
 	| { type: "closed" };
 
 interface LanVoiceBrowserClientsOptions {
-	diagnostics: LanVoiceDiagnostics;
 	ensureConversation(): Promise<void>;
 	startDictation(clientId: string): Promise<void>;
 	finishDictation(clientId: string, draft?: string, revision?: number, selection?: LanVoiceDraftSelection): Promise<void>;
@@ -50,11 +48,9 @@ export class LanVoiceBrowserClients {
 		const previous = this.audioSockets.get(clientId);
 		this.audioSockets.set(clientId, socket);
 		previous?.close(4001, "replaced");
-		this.options.diagnostics.write("server", "audio.connected", { clientId });
 		socket.send(JSON.stringify({ type: "connected" }));
 		socket.on("message", (data, isBinary) => this.receive(clientId, socket, data, isBinary));
-		socket.once("close", (code, reason) => {
-			this.options.diagnostics.write("server", "audio.closed", { clientId, code, reason: reason.toString() });
+		socket.once("close", () => {
 			if (this.audioSockets.get(clientId) === socket) this.audioSockets.delete(clientId);
 			this.release(clientId, socket);
 		});
@@ -63,7 +59,6 @@ export class LanVoiceBrowserClients {
 	sendConversationAudio(pcm: Buffer): void {
 		const active = this.state;
 		if (active.type !== "active" || active.mode !== "conversation" || active.socket.readyState !== WebSocket.OPEN) return;
-		this.options.diagnostics.write("server", "audio.out", { clientId: active.clientId, bytes: pcm.byteLength });
 		active.socket.send(pcm, { binary: true });
 	}
 
@@ -81,11 +76,9 @@ export class LanVoiceBrowserClients {
 			const active = this.state;
 			if (active.type !== "active" || active.clientId !== clientId || (socket && active.socket !== socket)) return;
 			this.state = { type: "idle" };
-			this.options.diagnostics.write("server", "audio.release", { clientId, mode: active.mode });
 			if (active.mode === "conversation") this.options.onConversationActivity(false);
 			if (active.mode === "dictation") await this.options.finishDictation(clientId);
 		}).catch((error: unknown) => {
-			this.options.diagnostics.write("server", "audio.release_error", { clientId, error });
 			this.sendControl(clientId, { type: "error", message: error instanceof Error ? error.message : String(error) });
 		});
 	}
@@ -114,16 +107,15 @@ export class LanVoiceBrowserClients {
 			if (Buffer.byteLength(text) > MAX_CONTROL_BYTES) throw new Error("LAN voice control message is too large");
 			const message = decodeLanVoiceAudioCommand(JSON.parse(text));
 			if (message.type === "start") {
-				void this.claim(clientId, socket, message.mode).catch((error: unknown) => this.sendSocketError(clientId, socket, error));
+				void this.claim(clientId, socket, message.mode).catch((error: unknown) => this.sendSocketError(socket, error));
 			} else if (message.type === "finish") {
-				void this.finish(clientId, socket, message.draft, message.revision, message.selection).catch((error: unknown) => this.sendSocketError(clientId, socket, error));
+				void this.finish(clientId, socket, message.draft, message.revision, message.selection).catch((error: unknown) => this.sendSocketError(socket, error));
 			} else if (message.type === "release") {
 				this.release(clientId, socket);
 			} else {
-				void this.options.cancelDictation(clientId).catch((error: unknown) => this.sendSocketError(clientId, socket, error));
+				void this.options.cancelDictation(clientId).catch((error: unknown) => this.sendSocketError(socket, error));
 			}
 		} catch (error) {
-			this.options.diagnostics.write("server", "audio.message_error", { clientId, error });
 			socket.close(1003, "invalid message");
 		}
 	}
@@ -132,7 +124,6 @@ export class LanVoiceBrowserClients {
 		if (pcm.byteLength === 0 || pcm.byteLength > MAX_PCM_BYTES || pcm.byteLength % 2 !== 0) throw new Error("Invalid LAN voice PCM frame");
 		const active = this.state;
 		if (active.type !== "active" || active.clientId !== clientId || active.socket !== socket) return;
-		this.options.diagnostics.write("server", "audio.in", { clientId, mode: active.mode, bytes: pcm.byteLength });
 		if (active.mode === "conversation") this.options.onConversationAudio(pcm);
 		else this.options.onDictationAudio(clientId, pcm);
 	}
@@ -158,7 +149,6 @@ export class LanVoiceBrowserClients {
 			}
 			this.state = { type: "active", clientId, socket, mode };
 			if (previous?.mode !== "conversation" && mode === "conversation") this.options.onConversationActivity(true);
-			this.options.diagnostics.write("server", "audio.claim", { clientId, mode, previousClientId: previous?.clientId });
 			socket.send(JSON.stringify({ type: "active", mode }));
 		});
 	}
@@ -173,9 +163,8 @@ export class LanVoiceBrowserClients {
 		});
 	}
 
-	private sendSocketError(clientId: string, socket: WebSocket, error: unknown): void {
+	private sendSocketError(socket: WebSocket, error: unknown): void {
 		const message = error instanceof Error ? error.message : String(error);
-		this.options.diagnostics.write("server", "audio.start_error", { clientId, message });
 		if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "error", message }));
 	}
 

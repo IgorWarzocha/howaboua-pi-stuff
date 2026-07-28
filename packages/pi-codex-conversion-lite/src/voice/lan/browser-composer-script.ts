@@ -1,5 +1,5 @@
 export const LAN_VOICE_BROWSER_COMPOSER_SCRIPT = String.raw`
-function createComposer({ draft, send, status, clientId, post, report, errorData }) {
+function createComposer({ draft, send, status, clientId, post }) {
   let sendBusy = false;
   let timer;
   let revision = -1;
@@ -29,7 +29,6 @@ function createComposer({ draft, send, status, clientId, post, report, errorData
           const result = await post('/api/draft', { text, revision });
           if (typeof result.revision === 'number') revision = Math.max(revision, result.revision);
         } catch (error) {
-          report('draft.sync_error', errorData(error));
           setStatus(error instanceof Error ? error.message : String(error));
           return false;
         }
@@ -53,7 +52,6 @@ function createComposer({ draft, send, status, clientId, post, report, errorData
       draft.value = '';
       setStatus('Sent');
     } catch (error) {
-      report('draft.send_error', errorData(error));
       setStatus(error instanceof Error ? error.message : String(error));
     } finally {
       sendBusy = false;
