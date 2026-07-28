@@ -48,7 +48,7 @@ export function parseViewImageParams(params: unknown): ViewImageParams {
 			throw new Error(`view_image.detail only supports \`original\`, got \`${rawDetail}\``);
 		}
 	}
-	return { path: params.path };
+	return { path: params.path.startsWith("@") ? params.path.slice(1) : params.path };
 }
 
 function prepareViewImageArguments(args: unknown): Record<string, unknown> {

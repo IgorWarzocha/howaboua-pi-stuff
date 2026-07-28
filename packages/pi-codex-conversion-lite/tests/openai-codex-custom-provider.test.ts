@@ -163,7 +163,7 @@ class ScriptedWebSocket {
 	}
 }
 
-const websocketSuccess: WebSocketScript = (socket) => setTimeout(() => {
+const websocketSuccess: WebSocketScript = (socket) => setImmediate(() => {
 	socket.emitJson({ type: "response.created", response: { id: "resp_ws" } });
 	socket.emitJson({ type: "response.completed", response: { id: "resp_ws", status: "completed", usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 } } });
 });
@@ -428,7 +428,7 @@ test("parseSSE accepts CRLF chunks, joined data lines, and ignores done sentinel
 
 test("a post-start WebSocket failure makes SSE sticky only for that session until reset", async () => {
 	const restoreWebSocket = installScriptedWebSocket([
-		(socket) => setTimeout(() => {
+		(socket) => setImmediate(() => {
 			socket.emitJson({ type: "response.created", response: { id: "resp_failed" } });
 			socket.emit("error", { error: new Error("socket reset by peer") });
 		}),
@@ -467,9 +467,9 @@ test("a post-start WebSocket failure makes SSE sticky only for that session unti
 
 test("Codex API and protocol errors do not arm SSE fallback", async () => {
 	const restoreWebSocket = installScriptedWebSocket([
-		(socket) => setTimeout(() => socket.emitJson({ type: "error", code: "invalid_request", message: "bad request" }), 0),
+		(socket) => setImmediate(() => socket.emitJson({ type: "error", code: "invalid_request", message: "bad request" })),
 		websocketSuccess,
-		(socket) => setTimeout(() => socket.emit("message", { data: "not-json" }), 0),
+		(socket) => setImmediate(() => socket.emit("message", { data: "not-json" })),
 		websocketSuccess,
 	]);
 	const originalFetch = globalThis.fetch;

@@ -14,6 +14,7 @@ function createToolHarness(activeTools: string[]) {
 		setActiveTools: (nextTools: string[]) => {
 			activeTools = nextTools;
 		},
+		on: () => undefined,
 		registerTool: (tool: { name: string }) => registeredTools.add(tool.name),
 		activeTools: () => activeTools,
 		registeredTools: () => registeredTools,

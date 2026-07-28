@@ -2,7 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import { WEB_SEARCH_TOOL_NAME } from "../adapter/activation/tool-set.ts";
-import { registerApplyPatchTool } from "../tools/apply-patch/tool.ts";
+import { registerApplyPatchResultEvent, registerApplyPatchTool } from "../tools/apply-patch/tool.ts";
 import { registerExecCommandTool } from "../tools/exec/command-tool.ts";
 import { registerWriteStdinTool } from "../tools/exec/write-stdin-tool.ts";
 import { registerImageGenerationTool } from "../tools/imagegen/tool.ts";
@@ -21,6 +21,7 @@ export function isExplicitlyConfiguredToolProvider(model: Model<Api> | undefined
 }
 
 export function registerCodexTools(pi: ExtensionAPI, runtime: CodexExtensionRuntime): CodexToolRegistration {
+	registerApplyPatchResultEvent(pi);
 	const renderOptions = (config: CodexConversionConfig) => ({ customRendering: config.ui.toolRenaming });
 	const promptOptions = (config: CodexConversionConfig) => ({ promptSnippet: config.mode === "path" });
 	const registerApplyPatch = (config: CodexConversionConfig) =>
