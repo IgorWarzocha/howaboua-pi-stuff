@@ -99,10 +99,13 @@ jobs:
           done
           rm -rf packages/pi-codex-conversion-lite/src/voice/bin
           cp -a packages/pi-codex-conversion/src/voice/bin packages/pi-codex-conversion-lite/src/voice/bin
+          rm -rf packages/pi-gippity-control/src/voice/bin
+          cp -a packages/pi-codex-conversion/src/voice/bin packages/pi-gippity-control/src/voice/bin
           git add packages/pi-codex-conversion/src/tools/*/bin
           git add packages/pi-codex-conversion/src/voice/bin
           git add packages/pi-codex-conversion-lite/src/tools/*/bin
           git add packages/pi-codex-conversion-lite/src/voice/bin
+          git add packages/pi-gippity-control/src/voice/bin
           if git diff --cached --quiet; then
             echo "No bundled binary changes."
             exit 0
