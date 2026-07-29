@@ -13,8 +13,11 @@ import {
 	summarizeReviewLoopIncrement,
 } from "./review-loop.js";
 import { buildReviewTask } from "./review-task.js";
-import { getFinalOutput } from "./rpc-protocol.js";
-import { createChildRunDetails, isSubagentFailure } from "./run-details.js";
+import {
+	createChildRunDetails,
+	getFinalOutput,
+	isSubagentFailure,
+} from "./run-details.js";
 import { runReviewSubagent } from "./subagent.js";
 import type { NavigateWithSummaryModel } from "./tree-summary.js";
 
@@ -183,6 +186,12 @@ export function registerReviewCommand(
 				const message = error instanceof Error ? error.message : String(error);
 				details.exitCode = details.exitCode || 1;
 				details.errorMessage = message;
+				pi.appendEntry("subagent-review-failure", {
+					version: 1,
+					message,
+					model: details.model,
+					cwd: details.cwd,
+				});
 				ctx.ui.notify(`/${REVIEW_COMMAND} failed: ${message}`, "error");
 			} finally {
 				setReviewWidget();

@@ -29,9 +29,7 @@ for (const dir of packages) {
     if (result.status !== 0) failed = true;
   }
 }
-if (packages.includes("pi-codex-conversion")) {
-  console.log("\n==> @howaboua/pi-codex-conversion: knip");
-  const result = spawnSync("bun", ["run", "knip"], { stdio: "inherit" });
-  if (result.status !== 0) failed = true;
-}
+console.log("\n==> changed workspaces: knip");
+const knip = spawnSync("bun", ["run", "knip"], { stdio: "inherit" });
+if (knip.status !== 0) failed = true;
 process.exit(failed ? 1 : 0);
