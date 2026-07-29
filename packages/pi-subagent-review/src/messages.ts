@@ -42,30 +42,20 @@ function getReviewPrefaceMessageId(
 	return messageId;
 }
 
-export function sendReviewPrefaceOnce(
+export function sendReviewPreface(
 	pi: ExtensionAPI,
 	ctx: ExtensionCommandContext,
-	details: { markerId?: string } = {},
-): { inserted: boolean; entryId?: string } {
-	const existingId = getReviewPrefaceMessageId(ctx);
-	if (existingId) return { inserted: false, entryId: existingId };
-
-	const previousLeafId = ctx.sessionManager.getLeafId();
+	options: { freshLoop?: boolean } = {},
+): void {
+	if (!options.freshLoop && getReviewPrefaceMessageId(ctx)) return;
 	pi.sendMessage(
 		{
 			customType: REVIEW_PREFACE_MESSAGE_TYPE,
 			content: REVIEW_LOOP_PREFACE_MESSAGE,
 			display: true,
-			details,
 		},
 		{ triggerTurn: false },
 	);
-
-	const nextLeafId = ctx.sessionManager.getLeafId();
-	if (nextLeafId && nextLeafId !== previousLeafId) {
-		return { inserted: true, entryId: nextLeafId };
-	}
-	return { inserted: true };
 }
 
 function buildReviewScopeText(review: ReviewContext): string {

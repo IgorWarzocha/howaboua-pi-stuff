@@ -2,7 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { resolveReviewConfig } from "./config.js";
 import { REVIEW_COMMAND } from "./constants.js";
 import { buildReviewConversationSummary } from "./conversation-summary.js";
-import { sendReviewFindings, sendReviewPrefaceOnce } from "./messages.js";
+import { sendReviewFindings, sendReviewPreface } from "./messages.js";
 import { detectReviewContext } from "./review-context.js";
 import {
 	appendReviewLoopBoundary,
@@ -90,7 +90,7 @@ export function registerReviewCommand(
 				return;
 			}
 
-			sendReviewPrefaceOnce(pi, ctx);
+			sendReviewPreface(pi, ctx, { freshLoop: parsedArgs.startLoop });
 
 			if (parsedArgs.startLoop) {
 				const targetId =
