@@ -86,39 +86,7 @@
     },
     "packages/pi-codex-conversion": {
       "name": "@howaboua/pi-codex-conversion",
-      "version": "2.2.28",
-      "dependencies": {
-        "js-tiktoken": "^1.0.21",
-        "openai": "6.26.0",
-        "partial-json": "^0.1.7",
-        "proxy-from-env": "1.1.0",
-        "selfsigned": "^3.0.1",
-        "smol-toml": "^1.6.0",
-        "tree-sitter-bash": "^0.25.1",
-        "undici": "8.5.0",
-        "web-tree-sitter": "^0.26.7",
-        "ws": "^8.21.0",
-      },
-      "devDependencies": {
-        "@earendil-works/pi-agent-core": "0.82.0",
-        "@earendil-works/pi-ai": "0.82.0",
-        "@earendil-works/pi-coding-agent": "0.82.0",
-        "@earendil-works/pi-tui": "0.82.0",
-        "@types/ws": "^8.18.1",
-        "tsx": "^4.20.5",
-        "typebox": "^1.1.24",
-        "typescript": "^7.0.2",
-      },
-      "peerDependencies": {
-        "@earendil-works/pi-ai": ">=0.82.0",
-        "@earendil-works/pi-coding-agent": ">=0.82.0",
-        "@earendil-works/pi-tui": ">=0.82.0",
-        "typebox": "*",
-      },
-    },
-    "packages/pi-codex-conversion-lite": {
-      "name": "@howaboua/pi-codex-conversion-lite",
-      "version": "0.1.9",
+      "version": "3.0.0",
       "dependencies": {
         "js-tiktoken": "^1.0.21",
         "openai": "6.26.0",
@@ -150,7 +118,7 @@
     },
     "packages/pi-dynamic-tools": {
       "name": "@howaboua/pi-dynamic-tools",
-      "version": "0.0.7",
+      "version": "0.0.8",
       "dependencies": {
         "smol-toml": "^1.6.0",
       },
@@ -189,14 +157,15 @@
     },
     "packages/pi-extensions": {
       "name": "@howaboua/pi-extensions",
-      "version": "0.0.43",
+      "version": "0.0.44",
       "dependencies": {
         "@howaboua/pi-ask": "0.0.4",
         "@howaboua/pi-auto-reasoning-tool": "0.1.11",
         "@howaboua/pi-auto-trees": "0.1.11",
         "@howaboua/pi-cache-hit-predictor": "0.0.1",
-        "@howaboua/pi-dynamic-tools": "0.0.7",
+        "@howaboua/pi-dynamic-tools": "0.0.8",
         "@howaboua/pi-explore-subagents": "0.1.13",
+        "@howaboua/pi-gippity-control": "0.0.2",
         "@howaboua/pi-gpt-switcher": "0.1.0",
         "@howaboua/pi-markdown-workflows": "0.2.20",
         "@howaboua/pi-memories": "0.1.4",
@@ -214,7 +183,7 @@
     },
     "packages/pi-gippity-control": {
       "name": "@howaboua/pi-gippity-control",
-      "version": "0.0.1",
+      "version": "0.0.2",
       "dependencies": {
         "proxy-from-env": "1.1.0",
         "selfsigned": "^3.0.1",
@@ -379,14 +348,15 @@
     },
     "packages/pi-stuff": {
       "name": "@howaboua/pi-stuff",
-      "version": "0.0.45",
+      "version": "0.0.46",
       "dependencies": {
         "@howaboua/pi-ask": "0.0.4",
         "@howaboua/pi-auto-reasoning-tool": "0.1.11",
         "@howaboua/pi-auto-trees": "0.1.11",
         "@howaboua/pi-cache-hit-predictor": "0.0.1",
-        "@howaboua/pi-dynamic-tools": "0.0.7",
+        "@howaboua/pi-dynamic-tools": "0.0.8",
         "@howaboua/pi-explore-subagents": "0.1.13",
+        "@howaboua/pi-gippity-control": "0.0.2",
         "@howaboua/pi-gpt-switcher": "0.1.0",
         "@howaboua/pi-markdown-workflows": "0.2.20",
         "@howaboua/pi-memories": "0.1.4",
@@ -632,8 +602,6 @@
     "@howaboua/pi-cache-hit-predictor": ["@howaboua/pi-cache-hit-predictor@workspace:packages/pi-cache-hit-predictor"],
 
     "@howaboua/pi-codex-conversion": ["@howaboua/pi-codex-conversion@workspace:packages/pi-codex-conversion"],
-
-    "@howaboua/pi-codex-conversion-lite": ["@howaboua/pi-codex-conversion-lite@workspace:packages/pi-codex-conversion-lite"],
 
     "@howaboua/pi-dynamic-tools": ["@howaboua/pi-dynamic-tools@workspace:packages/pi-dynamic-tools"],
 
@@ -1366,8 +1334,6 @@
     "@howaboua/pi-auto-trees/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
     "@howaboua/pi-codex-conversion/typescript": ["typescript@7.0.2", "", { "optionalDependencies": { "@typescript/typescript-aix-ppc64": "7.0.2", "@typescript/typescript-darwin-arm64": "7.0.2", "@typescript/typescript-darwin-x64": "7.0.2", "@typescript/typescript-freebsd-arm64": "7.0.2", "@typescript/typescript-freebsd-x64": "7.0.2", "@typescript/typescript-linux-arm": "7.0.2", "@typescript/typescript-linux-arm64": "7.0.2", "@typescript/typescript-linux-loong64": "7.0.2", "@typescript/typescript-linux-mips64el": "7.0.2", "@typescript/typescript-linux-ppc64": "7.0.2", "@typescript/typescript-linux-riscv64": "7.0.2", "@typescript/typescript-linux-s390x": "7.0.2", "@typescript/typescript-linux-x64": "7.0.2", "@typescript/typescript-netbsd-arm64": "7.0.2", "@typescript/typescript-netbsd-x64": "7.0.2", "@typescript/typescript-openbsd-arm64": "7.0.2", "@typescript/typescript-openbsd-x64": "7.0.2", "@typescript/typescript-sunos-x64": "7.0.2", "@typescript/typescript-win32-arm64": "7.0.2", "@typescript/typescript-win32-x64": "7.0.2" }, "bin": { "tsc": "bin/tsc" } }, "sha512-8FYau96o3NKOhbjKi/qNvG/W5jhzxkbdm5sj9AbZ/5T5sWqn3hJgLfGx27sRKZWTvyzCP8dLRBTf5tBTSRVUNA=="],
-
-    "@howaboua/pi-codex-conversion-lite/typescript": ["typescript@7.0.2", "", { "optionalDependencies": { "@typescript/typescript-aix-ppc64": "7.0.2", "@typescript/typescript-darwin-arm64": "7.0.2", "@typescript/typescript-darwin-x64": "7.0.2", "@typescript/typescript-freebsd-arm64": "7.0.2", "@typescript/typescript-freebsd-x64": "7.0.2", "@typescript/typescript-linux-arm": "7.0.2", "@typescript/typescript-linux-arm64": "7.0.2", "@typescript/typescript-linux-loong64": "7.0.2", "@typescript/typescript-linux-mips64el": "7.0.2", "@typescript/typescript-linux-ppc64": "7.0.2", "@typescript/typescript-linux-riscv64": "7.0.2", "@typescript/typescript-linux-s390x": "7.0.2", "@typescript/typescript-linux-x64": "7.0.2", "@typescript/typescript-netbsd-arm64": "7.0.2", "@typescript/typescript-netbsd-x64": "7.0.2", "@typescript/typescript-openbsd-arm64": "7.0.2", "@typescript/typescript-openbsd-x64": "7.0.2", "@typescript/typescript-sunos-x64": "7.0.2", "@typescript/typescript-win32-arm64": "7.0.2", "@typescript/typescript-win32-x64": "7.0.2" }, "bin": { "tsc": "bin/tsc" } }, "sha512-8FYau96o3NKOhbjKi/qNvG/W5jhzxkbdm5sj9AbZ/5T5sWqn3hJgLfGx27sRKZWTvyzCP8dLRBTf5tBTSRVUNA=="],
 
     "@howaboua/pi-dynamic-tools/@types/node": ["@types/node@25.9.1", "", { "dependencies": { "undici-types": ">=7.24.0 <7.24.7" } }, "sha512-xfrlY7UD5rMJk3ZVJP8BNzS28J36YJg+xp+LPXV1TdWxr8uMH5A860QNxYDGQe/ylDSgjxE52Q9VnO7p75tJxg=="],
 

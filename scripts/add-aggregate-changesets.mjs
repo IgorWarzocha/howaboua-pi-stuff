@@ -7,6 +7,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import { listActivePackageDirs } from "./active-packages.mjs";
 
 const root = process.cwd();
 const changesetDir = join(root, ".changeset");
@@ -82,8 +83,7 @@ for (const file of readdirSync(changesetDir)) {
 		changesByPackage.set(pkg, changeset.body);
 }
 
-const packageInfos = readdirSync(packagesDir)
-	.filter((dir) => existsSync(join(packagesDir, dir, "package.json")))
+const packageInfos = listActivePackageDirs(root)
 	.map((dir) => ({
 		dir,
 		pkg: readJson(join(packagesDir, dir, "package.json")),

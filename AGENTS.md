@@ -1,5 +1,6 @@
 This repo publishes through Changesets; every merge to `main` feeds the version and npm publish workflow.
 
+- `packages/pi-codex-conversion-lite/**` is archived read-only source: do not inspect, search, edit, test, build, package, publish, sync, or include it in automation unless the user explicitly requests Lite work.
 - Agent-facing text is behavior: keep tool contracts, skill files, prompt metadata, and subagent prompts compact.
 - Agent-facing prose need not perform grammatical polish; optimize semantic signal per token and omit cosmetic punctuation when it saves tokens. Preserve syntax, structural delimiters, meaning, evidence, caveats, and recovery instructions.
 - Contract spine, not feature museum: feature-existence and regression-tour tests die; retain only independent protocol, routing, migration, or model-visible contracts.

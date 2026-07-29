@@ -22,10 +22,8 @@ jobs:
       - run: bun install
       - name: Build pi-codex-conversion extension
         run: bun run --cwd packages/pi-codex-conversion build
-      - name: Build pi-codex-conversion-lite extension
-        run: bun run --cwd packages/pi-codex-conversion-lite build
       - name: Verify packed Pi extensions load in isolation
-        run: node scripts/verify-pi-extension-artifact.mjs --no-build packages/pi-codex-conversion packages/pi-codex-conversion-lite
+        run: node scripts/verify-pi-extension-artifact.mjs --no-build packages/pi-codex-conversion
       - name: Add aggregate package changesets
         run: bun run changeset:aggregates
       - name: Changesets release

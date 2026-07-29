@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { listActivePackageDirs } from "./active-packages.mjs";
 
 const script = process.argv[2];
 if (!script) {
@@ -11,7 +11,7 @@ if (!script) {
 
 const root = process.cwd();
 const packagesDir = join(root, "packages");
-const packages = readdirSync(packagesDir).filter((name) => existsSync(join(packagesDir, name, "package.json"))).sort();
+const packages = listActivePackageDirs(root);
 let failed = false;
 for (const name of packages) {
   const cwd = join(packagesDir, name);
