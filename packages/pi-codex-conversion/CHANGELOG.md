@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.0.3
+
+### Changes
+
+- [#203](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/203) [`67f6fdf`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/67f6fdf98dc3cc3c0349890b28f60aad1f7f3fac) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Capture final provider instructions after downstream prompt extensions so native Codex compaction reuses the active WebSocket cache. Cache settled collapsed exec previews by terminal width to prevent historical command output from consuming CPU on every TUI redraw.
+
 ## 3.0.2
 
 ### Changes
