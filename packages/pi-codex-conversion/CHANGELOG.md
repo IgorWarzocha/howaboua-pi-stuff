@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.0.2
+
+### Changes
+
+- [#200](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/200) [`744b0d5`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/744b0d532ccf2cb41d225b76c367a249debf4a2b) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Preserve Codex WebSocket cache continuations across Pi replay differences, prewarm fresh sockets with native compaction checkpoints, and block automatic full-context replay after a stream has already started.
+
 ## 3.0.1
 
 ### Changes
