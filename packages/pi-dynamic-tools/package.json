@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-dynamic-tools",
-	"version": "0.0.7",
+	"version": "0.0.8",
 	"description": "Expose TOML-defined commands through Codex-style JavaScript code mode in Pi.",
 	"type": "module",
 	"license": "MIT",

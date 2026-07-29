@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-extensions",
-	"version": "0.0.43",
+	"version": "0.0.44",
 	"description": "all Howaboua Pi extensions",
 	"type": "module",
 	"keywords": [
@@ -17,8 +17,9 @@
 		"@howaboua/pi-auto-reasoning-tool": "0.1.11",
 		"@howaboua/pi-auto-trees": "0.1.11",
 		"@howaboua/pi-cache-hit-predictor": "0.0.1",
-		"@howaboua/pi-dynamic-tools": "0.0.7",
+		"@howaboua/pi-dynamic-tools": "0.0.8",
 		"@howaboua/pi-explore-subagents": "0.1.13",
+		"@howaboua/pi-gippity-control": "0.0.2",
 		"@howaboua/pi-gpt-switcher": "0.1.0",
 		"@howaboua/pi-markdown-workflows": "0.2.20",
 		"@howaboua/pi-memories": "0.1.4",

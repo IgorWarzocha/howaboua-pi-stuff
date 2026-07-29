@@ -57,27 +57,27 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 2.2.28
+### @howaboua/pi-codex-conversion — 3.0.0
 
-### Changes
+### Breaking changes
 
-- [#191](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/191) [`1605b4b`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/1605b4b9caaed055bbd9a0d8a72142b15af29a0f) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Recover failed Codex WebSocket sessions through SSE until successful compaction restores cached WebSockets. Serialize patch mutations, retain partial patch errors, and accept model-style image paths
+- [#195](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/195) [`dca7267`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/dca7267730098e7cfcdd068ae8f032008f2033d7) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Make the native structured-tool adapter, Responses Lite Code Mode, settings, compaction, and voice features the canonical pi-codex-conversion implementation. This replaces legacy PATH mode and removes its package binaries; existing `pi-codex-conversion.json` settings continue to load. Add a configurable GipPity control-server shortcut and remove obsolete V2 conversation settings; realtime voice always uses V3 while dictation remains a separate action. Route Realtime delegations into active Pi turns as immediate steering and mirror direct Pi steering back to the owning voice delegation. Keep retries on WebSocket after mid-stream disconnects, route dictation through configured proxies on Node, recover the LAN remote when its upstream helper exits, and let cleared audio devices remain cleared. Preserve the active provider prompt during V2 compaction so prompt caches remain hot, pass V2 feature headers through prewarmed sockets, and reconcile tool calls with their outputs after every history rewrite. Refresh the disabled Herdr example and add a categorized lazy skill loader alongside the existing additive loader. Lite users should remove `@howaboua/pi-codex-conversion-lite` before installing the canonical package.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion-lite — 0.1.9
+### @howaboua/pi-codex-conversion-lite — 0.1.10
 
 ### Changes
 
-- [#191](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/191) [`1605b4b`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/1605b4b9caaed055bbd9a0d8a72142b15af29a0f) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Recover failed Codex WebSocket sessions through SSE until successful compaction restores cached WebSockets. Serialize patch mutations, retain partial patch errors, and accept model-style image paths
+- [#195](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/195) [`dca7267`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/dca7267730098e7cfcdd068ae8f032008f2033d7) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Serve session-scoped Codex voice, editable dictation drafts, and Pi activity from the themed GipPity LAN remote with seamless audio takeover between devices. Add a configurable control-server shortcut and remove obsolete V2 conversation settings; realtime voice always uses V3 while dictation remains a separate action. Route Realtime delegations into active Pi turns as immediate steering and mirror direct Pi steering back to the owning voice delegation. Keep retries on WebSocket after mid-stream disconnects, route dictation through configured proxies on Node, recover the LAN remote when its upstream helper exits, and let cleared audio devices remain cleared. Preserve the active provider prompt during V2 compaction so prompt caches remain hot, pass V2 feature headers through prewarmed sockets, and reconcile tool calls with their outputs after every history rewrite. Refresh the disabled Herdr example and add a categorized lazy skill loader alongside the existing additive loader. Mark this as the final Lite release and show the remove-then-install migration commands on startup.
 
 [Full changelog](./packages/pi-codex-conversion-lite/CHANGELOG.md)
 
-### @howaboua/pi-dynamic-tools — 0.0.7
+### @howaboua/pi-dynamic-tools — 0.0.8
 
 ### Changes
 
-- [#144](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/144) [`5fd1368`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/5fd13686f185d21782db8839ae0d798d32163874) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Preserve exec_command startup failures, recover confused process continuations, avoid duplicate nested image rendering, and align Code Mode command tools around forced per-tool yield times, project-local discovery, named configuration failures, and expanded bundled examples.
+- [#195](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/195) [`dca7267`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/dca7267730098e7cfcdd068ae8f032008f2033d7) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Correct Herdr delivery failures to acknowledge that messages may already be queued
 
 [Full changelog](./packages/pi-dynamic-tools/CHANGELOG.md)
 
@@ -89,15 +89,28 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.43
+### @howaboua/pi-extensions — 0.0.44
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-codex-conversion-lite: Recover failed Codex WebSocket sessions through SSE until successful compaction restores cached WebSockets. Serialize patch mutations, retain partial patch errors, and accept model-style image paths.
+  - @howaboua/pi-gippity-control: Add standalone GipPity voice and LAN control for any Pi model, including synchronized steering between active Pi and Realtime turns. Recover the browser when its upstream helper exits, serialize shutdown cleanup, support configured proxies on Node, and declare the required Node runtime.
+  - @howaboua/pi-dynamic-tools: Correct Herdr delivery failures to acknowledge that messages may already be queued.
+  - @howaboua/pi-codex-conversion-lite: Serve session-scoped Codex voice, editable dictation drafts, and Pi activity from the themed GipPity LAN remote with seamless audio takeover between devices. Add a configurable control-server shortcut and remove obsolete V2 conversation settings; realtime voice always uses V3 while dictation remains a separate action. Route Realtime delegations into active Pi turns as immediate steering and mirror direct Pi steering back to the owning voice delegation. Keep retries on WebSocket after mid-stream disconnects, route dictation through configured proxies on Node, recover the LAN remote when its upstream helper exits, and let cleared audio devices remain cleared. Preserve the active provider prompt during V2 compaction so prompt caches remain hot, pass V2 feature headers through prewarmed sockets, and reconcile tool calls with their outputs after every history rewrite. Refresh the disabled Herdr example and add a categorized lazy skill loader alongside the existing additive loader. Mark this as the final Lite release and show the remove-then-install migration commands on startup.
+
+- Updated dependencies [[`dca7267`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/dca7267730098e7cfcdd068ae8f032008f2033d7)]:
+  - @howaboua/pi-dynamic-tools@0.0.8
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
+
+### @howaboua/pi-gippity-control — 0.0.2
+
+### Changes
+
+- [#195](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/195) [`dca7267`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/dca7267730098e7cfcdd068ae8f032008f2033d7) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add standalone GipPity voice and LAN control for any Pi model, including synchronized steering between active Pi and Realtime turns. Recover the browser when its upstream helper exits, serialize shutdown cleanup, support configured proxies on Node, and declare the required Node runtime.
+
+[Full changelog](./packages/pi-gippity-control/CHANGELOG.md)
 
 ### @howaboua/pi-gpt-switcher — 0.1.0
 
@@ -232,13 +245,18 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.45
+### @howaboua/pi-stuff — 0.0.46
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-codex-conversion-lite: Recover failed Codex WebSocket sessions through SSE until successful compaction restores cached WebSockets. Serialize patch mutations, retain partial patch errors, and accept model-style image paths.
+  - @howaboua/pi-gippity-control: Add standalone GipPity voice and LAN control for any Pi model, including synchronized steering between active Pi and Realtime turns. Recover the browser when its upstream helper exits, serialize shutdown cleanup, support configured proxies on Node, and declare the required Node runtime.
+  - @howaboua/pi-dynamic-tools: Correct Herdr delivery failures to acknowledge that messages may already be queued.
+  - @howaboua/pi-codex-conversion-lite: Serve session-scoped Codex voice, editable dictation drafts, and Pi activity from the themed GipPity LAN remote with seamless audio takeover between devices. Add a configurable control-server shortcut and remove obsolete V2 conversation settings; realtime voice always uses V3 while dictation remains a separate action. Route Realtime delegations into active Pi turns as immediate steering and mirror direct Pi steering back to the owning voice delegation. Keep retries on WebSocket after mid-stream disconnects, route dictation through configured proxies on Node, recover the LAN remote when its upstream helper exits, and let cleared audio devices remain cleared. Preserve the active provider prompt during V2 compaction so prompt caches remain hot, pass V2 feature headers through prewarmed sockets, and reconcile tool calls with their outputs after every history rewrite. Refresh the disabled Herdr example and add a categorized lazy skill loader alongside the existing additive loader. Mark this as the final Lite release and show the remove-then-install migration commands on startup.
+
+- Updated dependencies [[`dca7267`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/dca7267730098e7cfcdd068ae8f032008f2033d7)]:
+  - @howaboua/pi-dynamic-tools@0.0.8
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 

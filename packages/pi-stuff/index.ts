@@ -5,6 +5,7 @@ import howabouaPiAutoTrees from "@howaboua/pi-auto-trees";
 import howabouaPiCacheHitPredictor from "@howaboua/pi-cache-hit-predictor";
 import howabouaPiDynamicTools from "@howaboua/pi-dynamic-tools";
 import howabouaPiExploreSubagents from "@howaboua/pi-explore-subagents";
+import howabouaPiGippityControl from "@howaboua/pi-gippity-control";
 import howabouaPiGptSwitcher from "@howaboua/pi-gpt-switcher";
 import howabouaPiMarkdownWorkflows from "@howaboua/pi-markdown-workflows";
 import howabouaPiMemories from "@howaboua/pi-memories";
@@ -20,6 +21,7 @@ export default async function (pi: ExtensionAPI) {
 	await howabouaPiCacheHitPredictor(pi);
 	await howabouaPiDynamicTools(pi);
 	await howabouaPiExploreSubagents(pi);
+	await howabouaPiGippityControl(pi);
 	await howabouaPiGptSwitcher(pi);
 	await howabouaPiMarkdownWorkflows(pi);
 	await howabouaPiMemories(pi);

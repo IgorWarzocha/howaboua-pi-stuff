@@ -1,5 +1,11 @@
 # @howaboua/pi-dynamic-tools
 
+## 0.0.8
+
+### Changes
+
+- [#195](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/195) [`dca7267`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/dca7267730098e7cfcdd068ae8f032008f2033d7) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Correct Herdr delivery failures to acknowledge that messages may already be queued
+
 ## 0.0.7
 
 ### Changes
