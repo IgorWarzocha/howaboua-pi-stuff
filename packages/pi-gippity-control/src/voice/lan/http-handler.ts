@@ -12,6 +12,7 @@ export interface LanVoiceHttpHandlers {
 	draft: LanVoiceDraft;
 	renderManifest(): string;
 	renderPage(): string;
+	inputMuted(): boolean;
 	ownerIsActive(): boolean;
 	readonly closing: boolean;
 }
@@ -69,6 +70,10 @@ export async function handleLanVoiceHttpRequest(
 			handlers.clients.connectEvents(clientId, response);
 			handlers.clients.sendControl(clientId, handlers.draft.snapshot());
 			handlers.clients.sendControl(clientId, handlers.activity.snapshot());
+			handlers.clients.sendControl(clientId, {
+				type: "mute",
+				muted: handlers.inputMuted(),
+			});
 			return;
 		}
 		if (request.method !== "POST") {

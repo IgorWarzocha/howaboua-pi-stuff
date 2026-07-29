@@ -143,6 +143,7 @@ export async function startCodexLanVoiceServer(options: {
 				activity,
 				clients,
 				draft,
+				inputMuted: () => options.voice.inputMuted,
 				renderManifest: () => createLanVoiceWebManifest(options.ctx.ui.theme),
 				renderPage: () => createLanVoiceWebUi(options.ctx.ui.theme),
 				ownerIsActive,
