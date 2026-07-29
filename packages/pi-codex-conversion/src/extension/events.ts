@@ -152,10 +152,14 @@ export function registerCodexEvents(
 	pi.on("before_agent_start", async (event, ctx) => {
 		if (runtime.voice.consumeDelegatedTurnStart()) state.codexTurnState.beginTurn();
 		const systemPrompt = event.systemPrompt;
-		if (!isAdapterRuntime(resolveCodexRuntimePlan(ctx, state.config))) return undefined;
+		if (!isAdapterRuntime(resolveCodexRuntimePlan(ctx, state.config))) {
+			state.pendingActiveProviderPromptCapture = false;
+			return undefined;
+		}
 		const skills = resolvePromptSkills(event.systemPromptOptions?.skills, hasNoSkillsFlag() ? [] : state.promptSkills);
 		const codexSystemPrompt = runtime.codexSystemPrompt(systemPrompt, ctx, skills, event.systemPromptOptions);
 		state.activeProviderSystemPrompt = codexSystemPrompt;
+		state.pendingActiveProviderPromptCapture = true;
 		await runtime.waitForPrewarm(ctx, codexSystemPrompt);
 		return { systemPrompt: codexSystemPrompt };
 	});
@@ -164,7 +168,12 @@ export function registerCodexEvents(
 		if ((update.type === "text_delta" || update.type === "thinking_delta") && typeof update.delta === "string") runtime.voice.streamDelta(update.type, update.delta);
 	});
 	pi.on("agent_start", async () => { runtime.voice.agentStarted(); runtime.lanVoice.agentStarted(); });
-	pi.on("agent_settled", async () => { state.codexTurnState.reset(); runtime.voice.settleTurn(); runtime.lanVoice.agentSettled(); });
+	pi.on("agent_settled", async () => {
+		state.pendingActiveProviderPromptCapture = false;
+		state.codexTurnState.reset();
+		runtime.voice.settleTurn();
+		runtime.lanVoice.agentSettled();
+	});
 	pi.on("before_provider_request", async (event, ctx) => {
 		state.cwd = ctx.cwd;
 		return rewriteCodexProviderRequest(event.payload, ctx, state);

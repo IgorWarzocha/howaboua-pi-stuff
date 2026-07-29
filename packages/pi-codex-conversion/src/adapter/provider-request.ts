@@ -25,6 +25,12 @@ function applyCodexRuntimePayload(payload: unknown, codeMode: boolean): unknown 
 	return codeMode && isCodeModeCompatibleBody(payload) ? applyResponsesLiteRequest(payload) : payload;
 }
 
+export function captureActiveProviderSystemPrompt(payload: unknown, state: AdapterState): void {
+	if (!isRecord(payload)) return;
+	const instructions = providerSystemPrompt(payload);
+	if (instructions !== undefined) state.activeProviderSystemPrompt = instructions;
+}
+
 export async function rewriteCodexProviderRequest(payload: unknown, ctx: ExtensionContext, state: AdapterState): Promise<unknown | undefined> {
 	const prepared = prepareCodexProviderRequest(payload, ctx, state);
 	if (!prepared) return undefined;
@@ -50,4 +56,22 @@ function isCodeModeCompatibleBody(value: unknown): value is ResponsesLiteCompati
 	return typeof value === "object" && value !== null
 		&& typeof (value as { model?: unknown }).model === "string"
 		&& Array.isArray((value as { input?: unknown }).input);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function providerSystemPrompt(payload: Record<string, unknown>): string | undefined {
+	if (typeof payload["instructions"] === "string") return payload["instructions"];
+	if (!Array.isArray(payload["input"])) return undefined;
+	for (const item of payload["input"]) {
+		if (!isRecord(item) || item["role"] !== "developer" || !Array.isArray(item["content"])) continue;
+		const text = item["content"]
+			.filter((part): part is Record<string, unknown> => isRecord(part) && part["type"] === "input_text" && typeof part["text"] === "string")
+			.map((part) => part["text"] as string)
+			.join("\n");
+		if (text !== "") return text;
+	}
+	return undefined;
 }

@@ -106,16 +106,21 @@ function collapsedOutput(result: CollapsedExecOutput, theme: { fg(role: string, 
 }
 
 function renderCollapsedOutput(result: CollapsedExecOutput, theme: { fg(role: string, text: string): string }) {
+	let cached: { width: number; lines: string[]; skipped: number; rawTruncated: boolean } | undefined;
 	return {
 		render(width: number): string[] {
-			const output = collapsedOutput(result, theme);
-			if (!output.text) return [];
-			const preview = truncateToVisualLines(theme.fg("dim", output.text), COLLAPSED_OUTPUT_MAX_VISUAL_LINES, width, 4);
-			if (!output.truncated && preview.skippedCount <= 0) return preview.visualLines;
-			const hint = output.truncated ? "... (earlier output hidden," : `... (${preview.skippedCount} earlier lines,`;
-			return [truncateToWidth(`    ${theme.fg("muted", hint)} ${expandHint()}${theme.fg("muted", ")")}`, width, "..."), ...preview.visualLines];
+			if (!cached || cached.width !== width) {
+				const output = collapsedOutput(result, theme);
+				const preview = output.text
+					? truncateToVisualLines(theme.fg("dim", output.text), COLLAPSED_OUTPUT_MAX_VISUAL_LINES, width, 4)
+					: { visualLines: [], skippedCount: 0 };
+				cached = { width, lines: preview.visualLines, skipped: preview.skippedCount, rawTruncated: output.truncated };
+			}
+			if (!cached.rawTruncated && cached.skipped <= 0) return cached.lines;
+			const hint = cached.rawTruncated ? "... (earlier output hidden," : `... (${cached.skipped} earlier lines,`;
+			return [truncateToWidth(`    ${theme.fg("muted", hint)} ${expandHint()}${theme.fg("muted", ")")}`, width, "..."), ...cached.lines];
 		},
-		invalidate(): void {},
+		invalidate(): void { cached = undefined; },
 	};
 }
 

@@ -189,7 +189,7 @@ export function codexStreamRequest(sessionId: string) {
 	};
 }
 
-export function createRegisteredCodexProvider(options?: { codeMode?: boolean | undefined }) {
+export function createRegisteredCodexProvider(options?: { codeMode?: boolean | undefined; onPreparedPayload?: ((payload: unknown) => void) | undefined }) {
 	const turnState = createCodexTurnState();
 	const providers = new Map<string, { streamSimple: (...args: never[]) => AsyncIterable<unknown> }>();
 	const handlers = new Map<string, Array<(...args: never[]) => unknown>>();
@@ -216,6 +216,7 @@ export function createRegisteredCodexProvider(options?: { codeMode?: boolean | u
 			beta: { ...DEFAULT_CODEX_CONVERSION_CONFIG.beta, codeMode: options?.codeMode ?? false },
 		}),
 		turnState,
+		...(options?.onPreparedPayload ? { onPreparedPayload: options.onPreparedPayload as never } : {}),
 	});
 	return { provider: providers.get("openai-codex")!, handlers, renderers, sentMessages, turnState };
 }
