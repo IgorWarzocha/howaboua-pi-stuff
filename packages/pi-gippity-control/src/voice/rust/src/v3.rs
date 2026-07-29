@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
@@ -58,6 +59,7 @@ pub struct V3Session {
     capture_task: tokio::task::JoinHandle<()>,
     encoder_task: tokio::task::JoinHandle<()>,
     input_samples: Arc<ArrayQueue<f32>>,
+    input_muted: Arc<AtomicBool>,
     bridge: bool,
     _capture: Option<Capture>,
     _playback: Option<Playback>,
@@ -267,6 +269,8 @@ impl V3Session {
         }));
 
         let encoder_samples = Arc::clone(&input_samples);
+        let input_muted = Arc::new(AtomicBool::new(false));
+        let encoder_muted = Arc::clone(&input_muted);
         let encoder_task = tokio::spawn(async move {
             let mut encoder = match opus::Encoder::new(
                 OPUS_RATE,
@@ -283,11 +287,21 @@ impl V3Session {
             let mut pending = Vec::new();
             let mut source = Vec::new();
             let mut packet = vec![0_u8; 4_000];
+            let mut was_muted = false;
             let mut ticker = tokio::time::interval(Duration::from_millis(10));
             loop {
                 ticker.tick().await;
                 source.clear();
                 audio::drain(&encoder_samples, input_rate as usize / 50, &mut source);
+                if encoder_muted.load(Ordering::Relaxed) {
+                    pending.clear();
+                    if !was_muted {
+                        resampler.reset();
+                        was_muted = true;
+                    }
+                    continue;
+                }
+                was_muted = false;
                 resampler.process(&source, &mut pending);
                 while pending.len() >= OPUS_FRAME_SAMPLES {
                     let frame: Vec<f32> = pending.drain(..OPUS_FRAME_SAMPLES).collect();
@@ -325,6 +339,7 @@ impl V3Session {
                 capture_task,
                 encoder_task,
                 input_samples,
+                input_muted,
                 bridge,
                 _capture: capture,
                 _playback: playback,
@@ -347,6 +362,10 @@ impl V3Session {
         Ok(())
     }
 
+    pub fn set_input_muted(&self, muted: bool) {
+        self.input_muted.store(muted, Ordering::Relaxed);
+    }
+
     pub fn send_pcm(&self, audio: &str, sample_rate: u32, num_channels: u16) -> Result<()> {
         if !self.bridge {
             anyhow::bail!("PCM input requires a bridged V3 session");
@@ -357,6 +376,9 @@ impl V3Session {
         let bytes = BASE64.decode(audio).context("invalid V3 bridge PCM")?;
         if bytes.is_empty() || bytes.len() > MAX_PCM_BYTES || bytes.len() % 2 != 0 {
             anyhow::bail!("invalid V3 bridge PCM frame");
+        }
+        if self.input_muted.load(Ordering::Relaxed) {
+            return Ok(());
         }
         for bytes in bytes.chunks_exact(2) {
             let raw = i16::from_le_bytes([bytes[0], bytes[1]]);

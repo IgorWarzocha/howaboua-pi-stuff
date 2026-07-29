@@ -55,7 +55,7 @@ export class LanVoiceBridgePeer implements CodexRealtimeWebRtcPeer {
 
 	async start(_config: GippityControlConfig): Promise<string> {
 		await this.helper.start();
-		if (this.helper.protocolVersion !== 3) {
+		if (this.helper.protocolVersion !== 4) {
 			await this.helper.close();
 			throw new Error(
 				"Bundled Codex voice helper does not support LAN audio bridging",
@@ -104,6 +104,10 @@ export class LanVoiceBridgePeer implements CodexRealtimeWebRtcPeer {
 			sample_rate: 24_000,
 			num_channels: 1,
 		});
+	}
+
+	setInputMuted(muted: boolean): void {
+		this.helper.send({ type: "set_input_muted", muted });
 	}
 
 	sendData(message: unknown): void {

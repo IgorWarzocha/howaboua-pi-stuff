@@ -43,6 +43,7 @@ export interface CodexConversionConfig {
 		v3Voice: RealtimeV3Voice;
 		dictationShortcut: string;
 		realtimeShortcut: string;
+		muteShortcut: string;
 		serverShortcut: string;
 		dictationShortcutMode: DictationShortcutMode;
 		inputDevice?: string | undefined;
@@ -79,6 +80,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 		v3Voice: "cove",
 		dictationShortcut: "ctrl+alt+d",
 		realtimeShortcut: "ctrl+alt+space",
+		muteShortcut: "ctrl+alt+m",
 		serverShortcut: "ctrl+alt+g",
 		dictationShortcutMode: "push",
 	},
@@ -205,6 +207,7 @@ export function normalizeCodexConversionConfig(value: unknown): CodexConversionC
 			v3Voice: normalizeRealtimeV3Voice(voice["v3Voice"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.voice.v3Voice,
 			dictationShortcut: stringValue(voice["dictationShortcut"], DEFAULT_CODEX_CONVERSION_CONFIG.voice.dictationShortcut),
 			realtimeShortcut: stringValue(voice["realtimeShortcut"], DEFAULT_CODEX_CONVERSION_CONFIG.voice.realtimeShortcut),
+			muteShortcut: stringValue(voice["muteShortcut"], DEFAULT_CODEX_CONVERSION_CONFIG.voice.muteShortcut),
 			serverShortcut: stringValue(voice["serverShortcut"], DEFAULT_CODEX_CONVERSION_CONFIG.voice.serverShortcut),
 			dictationShortcutMode: normalizeDictationShortcutMode(voice["dictationShortcutMode"])
 				?? DEFAULT_CODEX_CONVERSION_CONFIG.voice.dictationShortcutMode,

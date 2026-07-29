@@ -7,7 +7,7 @@ const MAX_PCM_BYTES = 24_000 * 2;
 
 interface LanVoiceBridgeHelper {
 	readonly protocolVersion: number | undefined;
-	start(): Promise<void>;
+	start(customRustBinariesDir?: string | undefined): Promise<void>;
 	send(command: VoiceHelperCommand): void;
 	onEvent(listener: (event: VoiceHelperEvent) => void): () => void;
 	onExit(listener: (error: Error) => void): () => void;
@@ -38,9 +38,9 @@ export class LanVoiceBridgePeer implements CodexRealtimeWebRtcPeer {
 		return this.helper.onExit(listener);
 	}
 
-	async start(_config: CodexConversionConfig): Promise<string> {
-		await this.helper.start();
-		if (this.helper.protocolVersion !== 3) {
+	async start(config: CodexConversionConfig): Promise<string> {
+		await this.helper.start(config.tools.customRustBinariesDir);
+		if (this.helper.protocolVersion !== 4) {
 			await this.helper.close();
 			throw new Error("Bundled Codex voice helper does not support LAN audio bridging");
 		}
@@ -71,6 +71,10 @@ export class LanVoiceBridgePeer implements CodexRealtimeWebRtcPeer {
 	sendAudio(pcm: Buffer): void {
 		if (pcm.byteLength === 0 || pcm.byteLength > MAX_PCM_BYTES || pcm.byteLength % 2 !== 0) throw new Error("Invalid LAN voice PCM frame");
 		this.helper.send({ type: "send_pcm", audio: pcm.toString("base64"), sample_rate: 24_000, num_channels: 1 });
+	}
+
+	setInputMuted(muted: boolean): void {
+		this.helper.send({ type: "set_input_muted", muted });
 	}
 
 	sendData(message: unknown): void {

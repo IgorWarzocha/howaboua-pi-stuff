@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { listActivePackageDirs } from "./active-packages.mjs";
 
 const root = process.cwd();
 const packagesDir = join(root, "packages");
@@ -21,7 +22,7 @@ function firstVersionSection(text) {
 }
 
 const packageSummaries = [];
-for (const dir of readdirSync(packagesDir).sort()) {
+for (const dir of listActivePackageDirs(root)) {
   const packageJsonPath = join(packagesDir, dir, "package.json");
   const packageChangelogPath = join(packagesDir, dir, "CHANGELOG.md");
   if (!existsSync(packageJsonPath) || !existsSync(packageChangelogPath)) continue;

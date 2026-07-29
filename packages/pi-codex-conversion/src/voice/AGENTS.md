@@ -6,5 +6,6 @@
 - Realtime delegations stay on Pi's user-message path; active Pi turns use `deliverAs: "steer"`. Mirror only interactive/RPC Pi steering to the owning delegation, never extension input.
 - Each mode owns its helper process and idempotent cleanup; the controller owns replacement/reload/shutdown ordering.
 - LAN voice is session-owned: one helper-owned WebRTC V3 bridge, short-lived V2 dictation, server draft, latest bounded Pi activity, replaceable browser audio. Never replace supported V3 WebRTC with standalone ChatGPT OAuth WebSocket. Takeover stops the old mic without restarting V3; zero active browser inputs emits the realtime-ended marker while keeping V3 warm.
+- Realtime mic mute keeps V3 warm. Gate browser tracks and the native encoder, drain captured samples while muted, and reset mute when input ownership ends.
 - Normal Codex Responses has no usable output-audio channel; keep voice on Realtime transport rather than teaching the provider stream speculative audio events.
 - Live network and hardware checks stay opt-in; deterministic tests own parsing, state, framing, resampling, and cleanup.

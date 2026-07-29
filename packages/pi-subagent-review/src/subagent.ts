@@ -1,18 +1,27 @@
-import { spawn } from "node:child_process";
-import { StringDecoder } from "node:string_decoder";
-import {
-	CHILD_ENV,
-	REVIEW_LABEL,
-	REVIEW_PROMPT_PATH,
-	RPC_READY_TIMEOUT_MS,
-	RPC_RESPONSE_TIMEOUT_MS,
-} from "./constants.js";
-import { parseReviewRpcFrame, type ReviewRpcFrame } from "./rpc-protocol.js";
+import { join } from "node:path";
+import type { AssistantMessage } from "@earendil-works/pi-ai";
+import { getPackageDir, RpcClient } from "@earendil-works/pi-coding-agent";
+import { CHILD_ENV, REVIEW_LABEL, REVIEW_PROMPT_PATH } from "./constants.js";
 import { createChildRunDetails } from "./run-details.js";
-import type { ResolvedReviewConfig } from "./types.js";
+import type { ChildRunDetails, ResolvedReviewConfig } from "./types.js";
 
-const sleep = (ms: number) =>
-	new Promise<void>((resolve) => setTimeout(resolve, ms));
+const REVIEW_TIMEOUT_MS = 30 * 60 * 1_000;
+
+function recordAssistantMessage(
+	details: ChildRunDetails,
+	message: AssistantMessage,
+): void {
+	details.messages.push(message);
+	details.usage.turns++;
+	details.usage.input += message.usage.input || 0;
+	details.usage.output += message.usage.output || 0;
+	details.usage.cacheRead += message.usage.cacheRead || 0;
+	details.usage.cacheWrite += message.usage.cacheWrite || 0;
+	details.usage.cost += message.usage.cost.total || 0;
+	details.usage.contextTokens = message.usage.totalTokens || 0;
+	details.stopReason = message.stopReason;
+	if (message.errorMessage) details.errorMessage = message.errorMessage;
+}
 
 export async function runReviewSubagent(
 	task: string,
@@ -21,225 +30,60 @@ export async function runReviewSubagent(
 	signal?: AbortSignal,
 ) {
 	const details = createChildRunDetails(task, cwd, config);
-	const args = [
-		"--mode",
-		"rpc",
-		"--no-session",
-		"--no-skills",
-		"--model",
-		config.model,
-		"--thinking",
-		config.thinking,
-		"--append-system-prompt",
-		REVIEW_PROMPT_PATH,
-	];
-	const promptText = [
+	const client = new RpcClient({
+		cliPath: join(getPackageDir(), "dist", "cli.js"),
+		cwd,
+		env: { [CHILD_ENV]: "1" },
+		model: config.model,
+		args: [
+			"--no-session",
+			"--no-skills",
+			"--thinking",
+			config.thinking,
+			"--append-system-prompt",
+			REVIEW_PROMPT_PATH,
+		],
+	});
+	const prompt = [
 		"Run as the Review Subagent inside an isolated no-session RPC subprocess.",
 		"Stay strictly in review mode. Do not edit files or propose implementation plans beyond concise fixes.",
 		"Do not stop after one or two findings; keep looking for additional credible issues, aiming for roughly 10-20 if warranted.",
 		"Mode: review",
 		`Task: ${task}`,
 	].join("\n\n");
-
-	let processClosed = false;
-	let processExitCode: number | undefined;
-	let requestId = 0;
-	let stoppedAfterCompletion = false;
-	let stdoutBuffer = "";
-	const stdoutDecoder = new StringDecoder("utf8");
-	let resolveSettled!: () => void;
-	let rejectSettled!: (error: Error) => void;
-	const settledPromise = new Promise<void>((resolve, reject) => {
-		resolveSettled = resolve;
-		rejectSettled = reject;
-	});
-	void settledPromise.catch(() => undefined);
-	const pendingRequests = new Map<
-		string,
-		{
-			resolve: (value: unknown) => void;
-			reject: (error: Error) => void;
-			timeout: ReturnType<typeof setTimeout>;
-		}
-	>();
-
-	const proc = spawn("pi", args, {
-		cwd,
-		shell: false,
-		stdio: ["pipe", "pipe", "pipe"],
-		env: { ...process.env, [CHILD_ENV]: "1" },
-	});
-
-	const rejectPendingRequests = (error: Error) => {
-		for (const pending of pendingRequests.values()) {
-			clearTimeout(pending.timeout);
-			pending.reject(error);
-		}
-		pendingRequests.clear();
+	const abort = () => {
+		void client.abort().catch(() => undefined);
 	};
-
-	const sendCommand = <T = unknown>(
-		command: Record<string, unknown>,
-		timeoutMs = RPC_RESPONSE_TIMEOUT_MS,
-	): Promise<T> => {
-		if (processClosed || !proc.stdin.writable) {
-			throw new Error(
-				`Review subagent RPC process is not available.${details.stderr ? ` Stderr: ${details.stderr.trim()}` : ""}`,
-			);
-		}
-
-		const id = `req_${++requestId}`;
-		const payload = JSON.stringify({ ...command, id }) + "\n";
-
-		return new Promise<T>((resolve, reject) => {
-			const timeout = setTimeout(() => {
-				pendingRequests.delete(id);
-				reject(
-					new Error(
-						`Timed out waiting for RPC response to ${String(command["type"])}.${details.stderr ? ` Stderr: ${details.stderr.trim()}` : ""}`,
-					),
-				);
-			}, timeoutMs);
-
-			pendingRequests.set(id, {
-				resolve: (value) => resolve(value as T),
-				reject,
-				timeout,
-			});
-			proc.stdin.write(payload, (error) => {
-				if (!error) return;
-				clearTimeout(timeout);
-				pendingRequests.delete(id);
-				reject(error instanceof Error ? error : new Error(String(error)));
-			});
-		});
-	};
-
-	const handleEvent = (event: ReviewRpcFrame) => {
-		if (event.type === "message_end") {
-			const message = event.message;
-			details.messages.push(message);
-			if (message.role === "assistant") {
-				details.usage.turns++;
-				const usage = message.usage;
-				if (usage) {
-					details.usage.input += usage.input || 0;
-					details.usage.output += usage.output || 0;
-					details.usage.cacheRead += usage.cacheRead || 0;
-					details.usage.cacheWrite += usage.cacheWrite || 0;
-					details.usage.cost += usage.cost?.total || 0;
-					details.usage.contextTokens = usage.totalTokens || 0;
-				}
-				if (message.stopReason) details.stopReason = message.stopReason;
-				if (message.errorMessage) details.errorMessage = message.errorMessage;
-			}
-			return;
-		}
-
-		if (event.type === "agent_settled") resolveSettled();
-	};
-
-	const handleLine = (line: string) => {
-		const frame = parseReviewRpcFrame(line);
-		if (!frame) return;
-
-		if (frame.type === "response" && pendingRequests.has(frame.id)) {
-			const pending = pendingRequests.get(frame.id);
-			if (!pending) return;
-			clearTimeout(pending.timeout);
-			pendingRequests.delete(frame.id);
-			if (!frame.success)
-				pending.reject(
-					new Error(
-						frame.error ?? `RPC ${String(frame.command ?? "command")} failed`,
-					),
-				);
-			else pending.resolve(frame.data);
-			return;
-		}
-
-		handleEvent(frame);
-	};
-
-	const stopProcess = async () => {
-		if (processClosed) return;
-		stoppedAfterCompletion = true;
-		proc.kill("SIGTERM");
-		await Promise.race([
-			new Promise<void>((resolve) => proc.once("close", () => resolve())),
-			sleep(1_000).then(() => {
-				if (!processClosed) proc.kill("SIGKILL");
-			}),
-		]);
-	};
-
-	const abortProcess = () => {
-		rejectSettled(new Error(`${REVIEW_LABEL} aborted.`));
-		void stopProcess();
-	};
-	signal?.addEventListener("abort", abortProcess, { once: true });
-
-	proc.stdout.on("data", (chunk) => {
-		stdoutBuffer += stdoutDecoder.write(chunk);
-		const lines = stdoutBuffer.split("\n");
-		stdoutBuffer = lines.pop() || "";
-		for (const line of lines)
-			handleLine(line.endsWith("\r") ? line.slice(0, -1) : line);
-	});
-	proc.stdout.on("end", () => {
-		stdoutBuffer += stdoutDecoder.end();
-	});
-
-	proc.stderr.on("data", (chunk) => {
-		details.stderr += chunk.toString();
-	});
-
-	proc.on("close", (code) => {
-		processClosed = true;
-		processExitCode = code ?? 0;
-		if (stdoutBuffer.trim()) {
-			handleLine(
-				stdoutBuffer.endsWith("\r") ? stdoutBuffer.slice(0, -1) : stdoutBuffer,
-			);
-			stdoutBuffer = "";
-		}
-		rejectPendingRequests(
-			new Error(
-				`Review subagent RPC process exited with code ${processExitCode}.${details.stderr ? ` Stderr: ${details.stderr.trim()}` : ""}`,
-			),
-		);
-		if (!stoppedAfterCompletion) {
-			rejectSettled(
-				new Error(
-					`Review subagent exited before agent_settled.${details.stderr ? ` Stderr: ${details.stderr.trim()}` : ""}`,
-				),
-			);
-		}
-	});
-
-	proc.on("error", (error) => {
-		const processError =
-			error instanceof Error ? error : new Error(String(error));
-		rejectPendingRequests(processError);
-		rejectSettled(processError);
-	});
 
 	try {
 		if (signal?.aborted) throw new Error(`${REVIEW_LABEL} aborted.`);
-		await sendCommand({ type: "get_state" }, RPC_READY_TIMEOUT_MS);
+		await client.start();
+		signal?.addEventListener("abort", abort, { once: true });
 		if (signal?.aborted) throw new Error(`${REVIEW_LABEL} aborted.`);
-		await sendCommand({ type: "set_auto_compaction", enabled: true });
-		await sendCommand({ type: "set_auto_retry", enabled: true });
-		await sendCommand({ type: "prompt", message: promptText });
-		await settledPromise;
+		await client.setAutoCompaction(true);
+		await client.setAutoRetry(true);
+		if (signal?.aborted) throw new Error(`${REVIEW_LABEL} aborted.`);
+		const events = await client.promptAndWait(
+			prompt,
+			undefined,
+			REVIEW_TIMEOUT_MS,
+		);
+		for (const event of events) {
+			if (event.type === "message_end" && event.message.role === "assistant") {
+				recordAssistantMessage(details, event.message);
+			}
+		}
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		const stderr = client.getStderr().trim();
+		if (!stderr || message.includes(stderr)) throw error;
+		throw new Error(`${message}\nStderr: ${stderr}`, { cause: error });
 	} finally {
-		signal?.removeEventListener("abort", abortProcess);
-		await stopProcess();
+		signal?.removeEventListener("abort", abort);
+		await client.stop();
 	}
 
-	details.exitCode = stoppedAfterCompletion ? 0 : (processExitCode ?? 0);
-	if (details.exitCode !== 0 && !details.errorMessage) {
-		details.errorMessage = `${REVIEW_LABEL} subagent exited with code ${details.exitCode}`;
-	}
+	details.stderr = client.getStderr();
+	details.exitCode = 0;
 	return details;
 }

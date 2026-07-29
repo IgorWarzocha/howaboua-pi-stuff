@@ -34,6 +34,7 @@ export class CodexRealtimeConversation {
 	private setupAbortController: AbortController | undefined;
 	private peerReady: ReturnType<typeof Promise.withResolvers<void>> | undefined;
 	private callSetup: RealtimeCallSetup = setupRealtimeCall;
+	private inputMuted = false;
 
 	constructor(callbacks: CodexConversationCallbacks, peer: CodexRealtimePeer) {
 		this.callbacks = callbacks;
@@ -96,6 +97,14 @@ export class CodexRealtimeConversation {
 		this.activeDelegationId = id;
 	}
 
+	get microphoneMuted(): boolean { return this.inputMuted; }
+
+	setInputMuted(muted: boolean): void {
+		if (this.state !== "active" || this.inputMuted === muted) return;
+		this.peer.setInputMuted(muted);
+		this.inputMuted = muted;
+	}
+
 	mirrorPiSteer(input: unknown): boolean {
 		const delegationId = this.activeDelegationId;
 		const frame = renderPiSteer(input);
@@ -137,6 +146,7 @@ export class CodexRealtimeConversation {
 		this.clearHandoff();
 		this.turnTracker.reset();
 		this.activeDelegationId = undefined;
+		this.inputMuted = false;
 		this.peerReady?.resolve();
 		this.peerReady = undefined;
 		await this.peer.close();

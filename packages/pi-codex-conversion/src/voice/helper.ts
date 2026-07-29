@@ -1,4 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { formatNativeBinaryError } from "../native-binary-error.ts";
 import { resolveVoiceHelperBinary } from "./binary.ts";
 import { MAX_REALTIME_SDP_BYTES } from "./conversation/peer.ts";
 
@@ -6,6 +7,7 @@ export type VoiceHelperCommand =
 	| { type: "list_devices" }
 	| { type: "start_v3"; microphone?: string; speaker?: string }
 	| { type: "start_v3_bridge" }
+	| { type: "set_input_muted"; muted: boolean }
 	| { type: "apply_answer"; sdp: string }
 	| { type: "start_dictation"; microphone?: string }
 	| { type: "send_data"; message: unknown }
@@ -58,9 +60,9 @@ export class VoiceHelperClient {
 		return () => this.exitListeners.delete(listener);
 	}
 
-	async start(): Promise<void> {
+	async start(customRustBinariesDir?: string | undefined): Promise<void> {
 		if (this.child) return;
-		const binary = resolveVoiceHelperBinary();
+		const binary = resolveVoiceHelperBinary(customRustBinariesDir);
 		if (!binary) throw new Error(`Codex voice helper is not bundled for ${process.platform}-${process.arch}`);
 		const child = spawn(binary, [], { stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
 		this.child = child;
@@ -69,14 +71,21 @@ export class VoiceHelperClient {
 		child.stderr.setEncoding("utf8");
 		child.stderr.on("data", (chunk: string) => { stderr = `${stderr}${chunk}`.slice(-8_192); });
 		child.stdin.on("error", (error) => {
-			ready.reject(error);
-			this.handleStdinError(child, error);
+			const failure = new Error(formatNativeBinaryError("pi-codex-voice", stderr || error, {
+				startupWriteFailure: this.helperProtocolVersion === undefined,
+			}));
+			ready.reject(failure);
+			this.handleStdinError(child, failure);
 		});
 		const lines = new BoundedJsonlReader(MAX_HELPER_LINE_BYTES, (line) => {
 			try {
 				const event = parseVoiceHelperEvent(JSON.parse(line));
 				if (event.type === "ready") {
-					if (event.version === 2 || event.version === 3) {
+					if (
+						event.version === 2 ||
+						event.version === 3 ||
+						event.version === 4
+					) {
 						this.helperProtocolVersion = event.version;
 						ready.resolve();
 					} else ready.reject(new Error(`Unsupported Codex voice helper protocol ${event.version}`));
@@ -95,12 +104,14 @@ export class VoiceHelperClient {
 		child.stdout.on("data", (chunk: Buffer) => lines.push(chunk));
 		child.stdout.once("end", () => lines.end());
 		child.once("error", (error) => {
-			ready.reject(error);
-			if (!this.stdinFailures.has(child)) this.fail(error);
+			const failure = new Error(formatNativeBinaryError("pi-codex-voice", error, { binaryPath: binary }));
+			ready.reject(failure);
+			if (!this.stdinFailures.has(child)) this.fail(failure);
 		});
 		child.once("exit", (code, signal) => {
 			const detail = stderr.trim();
-			const error = new Error(`Codex voice helper exited (${signal ?? code ?? "unknown"})${detail ? `: ${detail}` : ""}`);
+			const raw = `Codex voice helper exited (${signal ?? code ?? "unknown"})${detail ? `: ${detail}` : ""}`;
+			const error = new Error(formatNativeBinaryError("pi-codex-voice", raw));
 			ready.reject(error);
 			if (this.child === child) {
 				this.child = undefined;

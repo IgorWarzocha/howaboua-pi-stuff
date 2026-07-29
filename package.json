@@ -4,7 +4,8 @@
   "type": "module",
   "packageManager": "bun@1.3.14",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "!packages/pi-codex-conversion-lite"
   ],
   "scripts": {
     "check": "bun run scripts/workspaces.mjs check && bun run knip",

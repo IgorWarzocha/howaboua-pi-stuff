@@ -1,5 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
+import { formatNativeBinaryError } from "../../native-binary-error.ts";
 import { getBundledToolBinaryPath } from "../native/binary.ts";
 
 interface BridgeResponse<T = unknown> {
@@ -24,8 +25,6 @@ export interface ExecBridgeClient {
 }
 
 const MAX_BRIDGE_STDERR_CHARS = 16_000;
-const LOCAL_BUILD_GUIDANCE = "Bundled exec_bridge is incompatible with this Linux runtime. In a pi-codex-conversion Git checkout run: bun install && bun run build:native-tool codex-exec-shim exec_bridge; then set tools.customRustBinariesDir in pi-codex-conversion.json to that checkout's src/tools/target/release and /reload";
-
 function appendBoundedText(current: string, next: string): string {
 	const combined = `${current}${next}`;
 	return combined.length > MAX_BRIDGE_STDERR_CHARS ? combined.slice(-MAX_BRIDGE_STDERR_CHARS) : combined;
@@ -36,21 +35,12 @@ export function formatExecBridgeExitError(stderr: string, code?: number | null |
 	const status = typeof code === "number" ? `code ${code}` : signal ? `signal ${signal}` : undefined;
 	const prefix = status ? `exec_bridge exited (${status})` : "exec_bridge exited";
 	const message = detail ? `${prefix}: ${detail}` : prefix;
-	return withNativeBinaryGuidance(message);
+	return formatNativeBinaryError("exec_bridge", message);
 }
 
-function formatExecBridgeWriteError(error: Error, stderr: string): string {
+function formatExecBridgeWriteError(error: Error, stderr: string, startupWriteFailure: boolean): string {
 	const detail = stderr.trim();
-	return withNativeBinaryGuidance(detail ? `${error.message}: ${detail}` : error.message);
-}
-
-function withNativeBinaryGuidance(message: string): string {
-	if (!isLinuxNativeLoaderFailure(message)) return message;
-	return message.includes(LOCAL_BUILD_GUIDANCE) ? message : `${message}\n${LOCAL_BUILD_GUIDANCE}`;
-}
-
-function isLinuxNativeLoaderFailure(message: string): boolean {
-	return /GLIBC_[0-9.]+.*not found|version [`']GLIBC_[0-9.]+[`'] not found|ld-linux|libc\.so/i.test(message);
+	return formatNativeBinaryError("exec_bridge", detail ? `${error.message}: ${detail}` : error, { startupWriteFailure });
 }
 
 export function createExecBridgeClient(binaryPath: () => string | undefined = () => getBundledToolBinaryPath("exec_bridge")): ExecBridgeClient {
@@ -62,6 +52,7 @@ export function createExecBridgeClient(binaryPath: () => string | undefined = ()
 	let bridgeStdoutDecoder = new StringDecoder("utf8");
 	let bridgeStderrDecoder = new StringDecoder("utf8");
 	let bridgeClosing = false;
+	let bridgeResponded = false;
 
 	function rejectPending(error: Error): void {
 		for (const pending of pendingBridgeRequests.values()) pending.reject(error);
@@ -81,6 +72,7 @@ export function createExecBridgeClient(binaryPath: () => string | undefined = ()
 			const pending = pendingBridgeRequests.get(response.request_id);
 			if (!pending) continue;
 			pendingBridgeRequests.delete(response.request_id);
+			bridgeResponded = true;
 			pending.resolve(response);
 		}
 	}
@@ -92,6 +84,7 @@ export function createExecBridgeClient(binaryPath: () => string | undefined = ()
 		bridgeClosing = false;
 		bridgeLineBuffer = "";
 		bridgeStderr = "";
+		bridgeResponded = false;
 		bridgeStdoutDecoder = new StringDecoder("utf8");
 		bridgeStderrDecoder = new StringDecoder("utf8");
 		bridge = spawn(binary, [], { stdio: "pipe", env: process.env });
@@ -100,7 +93,7 @@ export function createExecBridgeClient(binaryPath: () => string | undefined = ()
 			bridgeStderr = appendBoundedText(bridgeStderr, bridgeStderrDecoder.write(data));
 		});
 		bridge.stdin.on("error", (error: Error) => {
-			rejectPending(new Error(formatExecBridgeWriteError(error, bridgeStderr)));
+			rejectPending(new Error(formatExecBridgeWriteError(error, bridgeStderr, !bridgeResponded)));
 		});
 		bridge.on("close", (code, signal) => {
 			bridgeLineBuffer += bridgeStdoutDecoder.end();
@@ -110,7 +103,7 @@ export function createExecBridgeClient(binaryPath: () => string | undefined = ()
 			bridgeLineBuffer = "";
 			bridgeStderr = "";
 		});
-		bridge.on("error", rejectPending);
+		bridge.on("error", (error) => rejectPending(new Error(formatNativeBinaryError("exec_bridge", error, { binaryPath: binary }))));
 		return bridge;
 	}
 
@@ -123,7 +116,7 @@ export function createExecBridgeClient(binaryPath: () => string | undefined = ()
 				child.stdin.write(`${JSON.stringify({ ...request, request_id: requestId })}\n`, (error) => {
 					if (!error) return;
 					pendingBridgeRequests.delete(requestId);
-					reject(new Error(formatExecBridgeWriteError(error, bridgeStderr)));
+					reject(new Error(formatExecBridgeWriteError(error, bridgeStderr, !bridgeResponded)));
 				});
 			});
 			if (!response.ok) throw new Error(response.error ?? "exec_bridge request failed");

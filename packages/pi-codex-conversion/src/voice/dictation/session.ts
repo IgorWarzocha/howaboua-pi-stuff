@@ -32,7 +32,7 @@ export class CodexDictationSession {
 		this.state = "starting";
 		this.startupFailure = undefined;
 		try {
-			await this.helper.start();
+			await this.helper.start(config.tools.customRustBinariesDir);
 			if (this.state !== "starting") {
 				if (this.startupFailure) throw this.startupFailure;
 				return;

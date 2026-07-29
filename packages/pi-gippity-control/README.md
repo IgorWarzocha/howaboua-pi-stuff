@@ -19,6 +19,7 @@ Do not install this alongside `@howaboua/pi-codex-conversion`; that package alre
 | Action | Default |
 | --- | --- |
 | Realtime voice | `Ctrl+Alt+Space` |
+| Mute realtime microphone | `Ctrl+Alt+M` |
 | Hold to dictate | `Ctrl+Alt+D` |
 | LAN control server | `Ctrl+Alt+G` |
 
@@ -26,10 +27,11 @@ Commands:
 
 - `/gippity` — settings
 - `/gippity realtime`
+- `/gippity mute`
 - `/gippity dictation`
 - `/gippity stop`
 - `/gippity server`
 
 Settings live in `~/.pi/agent/pi-gippity-control.json`. Keybind changes take effect after `/reload`.
 
-The LAN server is unauthenticated by design for trusted networks, uses a local HTTPS certificate, belongs only to the Pi session that started it, and stops when that session changes.
+The LAN server includes a microphone mute button. It is unauthenticated by design for trusted networks, uses a local HTTPS certificate, belongs only to the Pi session that started it, and stops when that session changes.

@@ -70,6 +70,8 @@ Open a tab directly with `/codex tools`, `/codex openai`, `/codex display`, `/co
 
 Settings live in `~/.pi/agent/pi-codex-conversion.json`. **Edit config** opens the file for provider IDs, audio devices, custom binaries and keybinds. Run `/reload` after changing keybinds by hand.
 
+`tools.customRustBinariesDir` can override any bundled native helper by filename, including `exec_bridge`, `apply_patch`, `view_image`, `web_run`, `imagegen` and `pi-codex-voice`. Build helpers on the target machine, collect the needed binaries in one directory, set that directory in the config, then run `/reload`.
+
 The optional **Heavy system prompt overwrite** removes roughly 40% of Pi's known default scaffold while preserving additions from other extensions. It is off by default.
 
 ## Code Mode and custom tools
@@ -105,6 +107,7 @@ Voice uses your Pi OpenAI Codex login independently of the active model. The spo
 Defaults:
 
 - `Ctrl+Alt+Space` toggles realtime voice
+- `Ctrl+Alt+M` mutes or unmutes the realtime microphone without ending the call
 - `Ctrl+Alt+D` is push-to-dictate; toggle behaviour is available in the Voice tab
 - `Ctrl+Alt+G` toggles the GipPity LAN server
 
@@ -116,6 +119,7 @@ Voice commands:
 
 ```text
 /codex voice realtime
+/codex voice mute
 /codex voice dictation
 /codex voice stop
 /codex voice server
@@ -123,7 +127,7 @@ Voice commands:
 
 `/codex voice server` lazily starts GipPity over HTTPS and prints its hostname and LAN addresses. Open one on a different machine (phone, cough, cough) and accept the local certificate on first visit. Amazing when using a devbox without a mic or when you want to Tailscale into Pi and talk to it remotely.
 
-GipPity provides realtime voice, editable dictation drafts, typed prompting, Pi activity, settled assistant results and seamless microphone takeover between devices. It follows the Pi theme and can be saved as a PWA / phone app.
+GipPity provides realtime voice with a microphone mute button, editable dictation drafts, typed prompting, Pi activity, settled assistant results and seamless microphone takeover between devices. It follows the Pi theme and can be saved as a PWA / phone app.
 
 The server belongs only to the Pi session that started it and stops when that session changes. There is intentionally no authentication in v1; it is for a trusted LAN.
 
@@ -155,7 +159,7 @@ This is also a major change for users of the old canonical package. Legacy PATH 
 - **Voice cannot find a device:** let the setup turn inspect the endpoints, save the selected device IDs, then start voice again.
 - **GipPity cannot open the microphone:** use one of Pi's HTTPS URLs and accept its local certificate. Browsers block microphone access on plain LAN HTTP.
 - **Code Mode cannot start:** its pinned host is prepared lazily and honours normal proxy environment variables. Pi reports setup failures instead of hanging the first execution.
-- **A helper fails with a loader or `GLIBC_*` error:** build that helper from a checkout for the target machine and set the custom Rust binaries directory. Do not replace system glibc for this.
+- **A helper cannot run on this system:** build it from a checkout on the target machine, put it in `tools.customRustBinariesDir`, then run `/reload`. Do not replace system glibc for this.
 - **A configured provider fails:** it must implement the OpenAI Responses contracts required by the enabled feature. Code Mode additionally needs Responses Lite compatibility; native compaction needs the Codex compaction contract.
 
 For anything stranger, clone the repository and ask your Clanka:

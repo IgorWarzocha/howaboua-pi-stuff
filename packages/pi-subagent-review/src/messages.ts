@@ -2,11 +2,12 @@ import type {
 	ExtensionAPI,
 	ExtensionCommandContext,
 } from "@earendil-works/pi-coding-agent";
-import { REVIEW_COMMAND } from "./constants.js";
+import {
+	REVIEW_COMMAND,
+	REVIEW_FINDINGS_MESSAGE_TYPE,
+	REVIEW_PREFACE_MESSAGE_TYPE,
+} from "./constants.js";
 import type { ReviewContext } from "./types.js";
-
-const REVIEW_LOOP_PREFACE_MESSAGE_TYPE = "subagent-review-preface";
-const REVIEW_FINDINGS_MESSAGE_TYPE = "subagent-review-findings";
 
 const REVIEW_LOOP_PREFACE_MESSAGE = [
 	"A review subagent is about to inspect the repository in isolation. Its findings are advisory only and may be wrong, overbroad, or missing session context.",
@@ -33,7 +34,7 @@ function getReviewPrefaceMessageId(
 	for (const entry of ctx.sessionManager.buildContextEntries()) {
 		if (
 			entry.type === "custom_message" &&
-			entry.customType === REVIEW_LOOP_PREFACE_MESSAGE_TYPE
+			entry.customType === REVIEW_PREFACE_MESSAGE_TYPE
 		) {
 			messageId = entry.id;
 		}
@@ -41,30 +42,20 @@ function getReviewPrefaceMessageId(
 	return messageId;
 }
 
-export function sendReviewPrefaceOnce(
+export function sendReviewPreface(
 	pi: ExtensionAPI,
 	ctx: ExtensionCommandContext,
-	details: { markerId?: string } = {},
-): { inserted: boolean; entryId?: string } {
-	const existingId = getReviewPrefaceMessageId(ctx);
-	if (existingId) return { inserted: false, entryId: existingId };
-
-	const previousLeafId = ctx.sessionManager.getLeafId();
+	options: { freshLoop?: boolean } = {},
+): void {
+	if (!options.freshLoop && getReviewPrefaceMessageId(ctx)) return;
 	pi.sendMessage(
 		{
-			customType: REVIEW_LOOP_PREFACE_MESSAGE_TYPE,
+			customType: REVIEW_PREFACE_MESSAGE_TYPE,
 			content: REVIEW_LOOP_PREFACE_MESSAGE,
 			display: true,
-			details,
 		},
 		{ triggerTurn: false },
 	);
-
-	const nextLeafId = ctx.sessionManager.getLeafId();
-	if (nextLeafId && nextLeafId !== previousLeafId) {
-		return { inserted: true, entryId: nextLeafId };
-	}
-	return { inserted: true };
 }
 
 function buildReviewScopeText(review: ReviewContext): string {

@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { listActivePackageDirs } from "./active-packages.mjs";
 
 const root = process.cwd();
-const packageDirs = readdirSync(join(root, "packages"));
+const packageDirs = listActivePackageDirs(root);
 
 for (const dir of packageDirs) {
 	const changelogPath = join(root, "packages", dir, "CHANGELOG.md");

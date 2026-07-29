@@ -1,4 +1,7 @@
-import type { Message, ModelThinkingLevel } from "@earendil-works/pi-ai";
+import type {
+	AssistantMessage,
+	ModelThinkingLevel,
+} from "@earendil-works/pi-ai";
 
 export type ThinkingLevel = ModelThinkingLevel;
 
@@ -51,7 +54,7 @@ export interface ChildRunDetails {
 	cwd: string;
 	model: string;
 	thinking?: ThinkingLevel;
-	messages: Message[];
+	messages: AssistantMessage[];
 	stderr: string;
 	exitCode: number;
 	stopReason?: string;

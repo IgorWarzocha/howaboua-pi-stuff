@@ -18,6 +18,7 @@ export interface GippityControlConfig {
 		v3Voice: RealtimeV3Voice;
 		dictationShortcut: string;
 		realtimeShortcut: string;
+		muteShortcut: string;
 		serverShortcut: string;
 		dictationShortcutMode: DictationShortcutMode;
 		inputDevice?: string | undefined;
@@ -30,6 +31,7 @@ export const DEFAULT_GIPPITY_CONTROL_CONFIG: GippityControlConfig = {
 		v3Voice: "cove",
 		dictationShortcut: "ctrl+alt+d",
 		realtimeShortcut: "ctrl+alt+space",
+		muteShortcut: "ctrl+alt+m",
 		serverShortcut: "ctrl+alt+g",
 		dictationShortcutMode: "push",
 	},
@@ -78,6 +80,10 @@ export function normalizeGippityControlConfig(
 			realtimeShortcut: stringValue(
 				voice["realtimeShortcut"],
 				DEFAULT_GIPPITY_CONTROL_CONFIG.voice.realtimeShortcut,
+			),
+			muteShortcut: stringValue(
+				voice["muteShortcut"],
+				DEFAULT_GIPPITY_CONTROL_CONFIG.voice.muteShortcut,
 			),
 			serverShortcut: stringValue(
 				voice["serverShortcut"],

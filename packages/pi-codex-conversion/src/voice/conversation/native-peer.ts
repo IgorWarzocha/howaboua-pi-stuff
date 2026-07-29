@@ -20,7 +20,11 @@ export class NativeCodexRealtimePeer implements CodexRealtimeWebRtcPeer {
 	}
 
 	async start(config: CodexConversionConfig): Promise<string> {
-		await this.helper.start();
+		await this.helper.start(config.tools.customRustBinariesDir);
+		if (this.helper.protocolVersion !== 4) {
+			await this.helper.close();
+			throw new Error("Bundled Codex voice helper does not support realtime microphone muting");
+		}
 		const offer = Promise.withResolvers<string>();
 		const removeEvent = this.helper.onEvent((event) => {
 			if (event.type === "offer") offer.resolve(event.sdp);
@@ -54,6 +58,10 @@ export class NativeCodexRealtimePeer implements CodexRealtimeWebRtcPeer {
 
 	sendData(message: unknown): void {
 		this.helper.send({ type: "send_data", message });
+	}
+
+	setInputMuted(muted: boolean): void {
+		this.helper.send({ type: "set_input_muted", muted });
 	}
 
 	close(): Promise<void> {

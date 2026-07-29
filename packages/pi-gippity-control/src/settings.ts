@@ -151,6 +151,10 @@ function details(
 		),
 		theme.fg(
 			"dim",
+			`  Mute microphone: ${formatVoiceShortcut(config.voice.muteShortcut)}`,
+		),
+		theme.fg(
+			"dim",
 			`  Dictation: ${formatVoiceShortcut(config.voice.dictationShortcut)}`,
 		),
 		theme.fg(

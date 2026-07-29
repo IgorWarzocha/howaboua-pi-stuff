@@ -16,6 +16,10 @@
 			"tests/**/*.ts"
 			],
 			"ignoreDependencies": ["proxy-from-env"]
+		},
+		"packages/pi-subagent-review": {
+			"entry": ["tests/**/*.test.ts"],
+			"project": ["src/**/*.ts", "tests/**/*.ts"]
 		}
 	}
 }

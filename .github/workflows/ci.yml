@@ -14,26 +14,44 @@ jobs:
           fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
       - run: bun install
+      - name: Resolve changed base
+        id: changed-base
+        env:
+          EVENT_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
+        run: |
+          base="$EVENT_BASE"
+          if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            base=$(git rev-parse HEAD^ 2>/dev/null || git rev-parse HEAD)
+          fi
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+      - name: Reject changes to archived Pi-Codex Lite
+        env:
+          CHANGED_BASE: ${{ steps.changed-base.outputs.base }}
+        run: |
+          if git diff --quiet "$CHANGED_BASE...HEAD" -- packages/pi-codex-conversion-lite; then
+            exit 0
+          fi
+          echo "::error::packages/pi-codex-conversion-lite is archived read-only source"
+          git diff --name-only "$CHANGED_BASE...HEAD" -- packages/pi-codex-conversion-lite
+          exit 1
       - name: Check changed workspace packages only
         env:
-          CHANGED_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'HEAD~1' }}
+          CHANGED_BASE: ${{ steps.changed-base.outputs.base }}
         run: bun run check:changed
       - name: Verify Codex extension release assets
         env:
-          CHANGED_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'HEAD~1' }}
+          CHANGED_BASE: ${{ steps.changed-base.outputs.base }}
         run: |
-          for package in pi-codex-conversion pi-codex-conversion-lite; do
-            if git diff --quiet "$CHANGED_BASE...HEAD" -- "packages/$package"; then
-              continue
-            fi
-            bun run --cwd "packages/$package" build
-            bun run --cwd "packages/$package" verify:codex-tool-binaries
-            bun run --cwd "packages/$package" verify:code-mode-host-assets
-            npm pack --dry-run --ignore-scripts "./packages/$package"
-          done
+          if git diff --quiet "$CHANGED_BASE...HEAD" -- packages/pi-codex-conversion; then
+            exit 0
+          fi
+          bun run --cwd packages/pi-codex-conversion build
+          bun run --cwd packages/pi-codex-conversion verify:codex-tool-binaries
+          bun run --cwd packages/pi-codex-conversion verify:code-mode-host-assets
+          npm pack --dry-run --ignore-scripts ./packages/pi-codex-conversion
       - name: Verify GipPity release assets
         env:
-          CHANGED_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'HEAD~1' }}
+          CHANGED_BASE: ${{ steps.changed-base.outputs.base }}
         run: |
           if git diff --quiet "$CHANGED_BASE...HEAD" -- packages/pi-gippity-control; then
             exit 0

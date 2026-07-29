@@ -24,6 +24,7 @@ const composer = createComposer({
 });
 const audio = createAudioController({
 	button:document.querySelector('#voice'),
+	muteButton:document.querySelector('#mute'),
 	audioState:document.querySelector('#audio-state'),
 	audioDetail:document.querySelector('#audio-detail'),
 	modeButtons:[...document.querySelectorAll('.modes [data-mode]')],

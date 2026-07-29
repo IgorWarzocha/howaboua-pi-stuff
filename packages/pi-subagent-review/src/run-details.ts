@@ -45,3 +45,14 @@ export function isSubagentFailure(
 		details.stopReason === "aborted"
 	);
 }
+
+export function getFinalOutput(messages: ChildRunDetails["messages"]): string {
+	for (let index = messages.length - 1; index >= 0; index--) {
+		const message = messages[index];
+		if (!message) continue;
+		for (const part of message.content) {
+			if (part.type === "text") return part.text;
+		}
+	}
+	return "";
+}

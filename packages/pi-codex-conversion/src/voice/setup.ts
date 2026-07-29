@@ -49,7 +49,7 @@ export function buildVoiceSetupInstructions(options: {
 	];
 	if (!options.helperPath) {
 		return [...lines,
-			`No pi-codex-voice helper is bundled for ${process.platform}-${process.arch}. Report this problem and do not edit the config.`,
+			`No pi-codex-voice helper is available for ${process.platform}-${process.arch}. Build it locally, set tools.customRustBinariesDir in ${options.configPath}, then run /reload.`,
 		].join("\n");
 	}
 	return [...lines,
@@ -57,7 +57,7 @@ export function buildVoiceSetupInstructions(options: {
 		'Use its {"type":"list_devices"} JSONL command to inspect available devices.',
 		"Configure the missing audio settings with exact device id values. If multiple plausible devices are available, ask the user which they prefer. Investigate ambiguity as needed; do not guess.",
 		"Preserve every other config value.",
-		`Explain the default controls: hold ${formatVoiceShortcut(DEFAULT_CODEX_CONVERSION_CONFIG.voice.dictationShortcut)} to dictate and release to transcribe into Pi; ${formatVoiceShortcut(DEFAULT_CODEX_CONVERSION_CONFIG.voice.realtimeShortcut)} toggles realtime voice; ${formatVoiceShortcut(DEFAULT_CODEX_CONVERSION_CONFIG.voice.serverShortcut)} toggles the LAN voice server. Push mode follows key releases when available and key-repeat continuity otherwise; toggle behavior is selectable in /codex voice. Keybinds and behavior can also be changed in ${options.configPath}; keybind changes take effect after /reload.`,
+		`Explain the default controls: hold ${formatVoiceShortcut(DEFAULT_CODEX_CONVERSION_CONFIG.voice.dictationShortcut)} to dictate and release to transcribe into Pi; ${formatVoiceShortcut(DEFAULT_CODEX_CONVERSION_CONFIG.voice.realtimeShortcut)} toggles realtime voice; ${formatVoiceShortcut(DEFAULT_CODEX_CONVERSION_CONFIG.voice.muteShortcut)} mutes its microphone; ${formatVoiceShortcut(DEFAULT_CODEX_CONVERSION_CONFIG.voice.serverShortcut)} toggles the LAN voice server. Push mode follows key releases when available and key-repeat continuity otherwise; toggle behavior is selectable in /codex voice. Keybinds and behavior can also be changed in ${options.configPath}; keybind changes take effect after /reload.`,
 		`Read the Realtime System Prompt at ${options.realtimePromptPath} before finishing.`,
 		"When explaining customization, clarify that this is not Pi's system prompt or AGENTS.md: voice only listens, speaks, and routes work; it has no direct tool or file access, and actual work remains in the Pi session. Advise against copying technical instructions into it.",
 		`After device setup, mention that the global Realtime System Prompt can be customized and ask whether the user wants you to open it. Also explain that a trusted workspace can add plain Markdown voice instructions${options.projectRealtimePromptPath ? ` at ${options.projectRealtimePromptPath}` : " in its Pi config directory"}; the extension appends it under Project level instructions. Do not create or edit either file unless asked.`,

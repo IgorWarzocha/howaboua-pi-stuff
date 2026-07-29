@@ -1,7 +1,12 @@
 import type {
 	ExtensionAPI,
 	ExtensionCommandContext,
+	SessionEntry,
 } from "@earendil-works/pi-coding-agent";
+import {
+	REVIEW_FINDINGS_MESSAGE_TYPE,
+	REVIEW_PREFACE_MESSAGE_TYPE,
+} from "./constants.js";
 import type { NavigateWithSummaryModel } from "./tree-summary.js";
 import type { ResolvedSummaryConfig } from "./types.js";
 
@@ -119,6 +124,29 @@ export function appendReviewLoopBoundary(
 	return nextLeafId && nextLeafId !== previousLeafId ? nextLeafId : undefined;
 }
 
+function isReviewLoopIncrementEntry(entry: SessionEntry): boolean {
+	if (entry.type === "message") return true;
+	if (entry.type === "branch_summary" || entry.type === "compaction")
+		return true;
+	return (
+		entry.type === "custom_message" &&
+		entry.customType !== REVIEW_PREFACE_MESSAGE_TYPE &&
+		entry.customType !== REVIEW_FINDINGS_MESSAGE_TYPE
+	);
+}
+
+export function hasReviewLoopIncrement(
+	ctx: ExtensionCommandContext,
+	markerId: string,
+): boolean {
+	const branch = ctx.sessionManager.getBranch();
+	const markerIndex = branch.findIndex((entry) => entry.id === markerId);
+	return (
+		markerIndex >= 0 &&
+		branch.slice(markerIndex + 1).some(isReviewLoopIncrementEntry)
+	);
+}
+
 export async function summarizeReviewLoopIncrement(
 	pi: ExtensionAPI,
 	ctx: ExtensionCommandContext,
@@ -127,11 +155,7 @@ export async function summarizeReviewLoopIncrement(
 	navigateWithSummaryModel: NavigateWithSummaryModel,
 ): Promise<"summarized" | "skipped" | "cancelled"> {
 	if (!ctx.sessionManager.getEntry(markerId)) return "skipped";
-
-	const currentSemanticLeafId = getSemanticLeafId(ctx);
-	if (!currentSemanticLeafId || currentSemanticLeafId === markerId) {
-		return "skipped";
-	}
+	if (!hasReviewLoopIncrement(ctx, markerId)) return "skipped";
 
 	const clearLoopFeedback = () => {
 		if (ctx.hasUI) ctx.ui.setWidget(REVIEW_LOOP_WIDGET, undefined);

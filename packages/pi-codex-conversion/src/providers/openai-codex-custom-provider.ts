@@ -21,7 +21,13 @@ import { combineAbortSignals, compressRequestBodyZstd, createSSEHeaderTimeout, p
 import type { CodexProviderStreamOptions, OpenAICodexStreamOptions, ResponsesBody } from "./openai-codex/types.ts";
 import { createInitialAssistantMessage } from "./openai-codex/types.ts";
 import { finalizeUsage } from "./openai-codex/usage.ts";
-import { isWebSocketSseFallbackActive, recordWebSocketSseFallback, validateWebSocketTimeoutOptions } from "./openai-codex/websocket.ts";
+import {
+	clearWebSocketTransportFailures,
+	isWebSocketSseFallbackActive,
+	recordWebSocketPostStartFailure,
+	recordWebSocketSseFallback,
+	validateWebSocketTimeoutOptions,
+} from "./openai-codex/websocket.ts";
 import { isCodexNonTransportError, isWebSocketConnectionLimitReachedError, processCodexResponsesStream } from "./openai-codex/stream-events.ts";
 import { prewarmWebSocket, processWebSocketStream } from "./openai-codex/websocket-stream.ts";
 import { openaiCodexNativeOAuthProvider } from "./openai-codex/oauth.ts";
@@ -187,6 +193,7 @@ function createCodexStream<TApi extends Api>(
 					if (effectiveOptions?.signal?.aborted) {
 						throw new Error("Request was aborted");
 					}
+					clearWebSocketTransportFailures(effectiveOptions?.sessionId);
 					finalizeUsage(output);
 					stream.push({ type: "done", reason: output.stopReason as "stop" | "length" | "toolUse", message: output });
 					stream.end();
@@ -194,12 +201,19 @@ function createCodexStream<TApi extends Api>(
 				} catch (error) {
 					const aborted = effectiveOptions?.signal?.aborted === true;
 					const connectionLimitBeforeStart = !websocketStarted && isWebSocketConnectionLimitReachedError(error);
-					if (aborted || (isCodexNonTransportError(error) && !connectionLimitBeforeStart)) throw error;
+					if (aborted) throw error;
+					if (isCodexNonTransportError(error) && !connectionLimitBeforeStart) {
+						clearWebSocketTransportFailures(effectiveOptions?.sessionId);
+						throw error;
+					}
+					const fallbackArmed = websocketStarted
+						? recordWebSocketPostStartFailure(effectiveOptions?.sessionId)
+						: true;
 					appendAssistantMessageDiagnostic(
 						output,
 						createAssistantMessageDiagnostic("provider_transport_failure", error, {
 							configuredTransport: preferredTransport,
-							fallbackTransport: websocketStarted ? undefined : "sse",
+							fallbackTransport: fallbackArmed ? "sse" : undefined,
 							eventsEmitted: websocketStarted,
 							phase: websocketStarted ? "after_message_stream_start" : "before_message_stream_start",
 							requestBytes: new TextEncoder().encode(bodyJson).byteLength,
@@ -282,6 +296,7 @@ function createCodexStream<TApi extends Api>(
 
 			stream.push({ type: "start", partial: output });
 			await processCodexResponsesStream(parseSSE(response, effectiveOptions?.signal), output, stream, model, effectiveOptions);
+			clearWebSocketTransportFailures(effectiveOptions?.sessionId);
 			finalizeUsage(output);
 
 			if (effectiveOptions?.signal?.aborted) {

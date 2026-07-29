@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { formatNativeBinaryError, nativeBinaryRecoveryMessage } from "../../native-binary-error.ts";
 
 export interface RunBundledToolOptions {
 	binary: string;
@@ -32,6 +33,8 @@ export function runBundledTool({ binary, args, stdin, cwd, env, maxBuffer, signa
 		let stderr = "";
 		let outputBytes = 0;
 		let settled = false;
+		let stdinError: Error | undefined;
+		let stdinErrorTimer: ReturnType<typeof setTimeout> | undefined;
 		const child = spawn(binary, args, {
 			cwd,
 			env: env ?? process.env,
@@ -39,6 +42,7 @@ export function runBundledTool({ binary, args, stdin, cwd, env, maxBuffer, signa
 		});
 
 		const cleanup = () => {
+			if (stdinErrorTimer) clearTimeout(stdinErrorTimer);
 			signal?.removeEventListener("abort", onAbort);
 		};
 		const finish = (fn: () => void) => {
@@ -67,13 +71,20 @@ export function runBundledTool({ binary, args, stdin, cwd, env, maxBuffer, signa
 		child.stderr?.setEncoding("utf8");
 		child.stdout?.on("data", (chunk) => append("stdout", chunk));
 		child.stderr?.on("data", (chunk) => append("stderr", chunk));
-		child.on("error", (error) => finish(() => reject(error)));
-		child.on("close", (status) => finish(() => resolve({ stdout, stderr, status })));
+		child.on("error", (error) => finish(() => reject(new Error(formatNativeBinaryError(toolLabel, error, { binaryPath: binary })))));
+		child.on("close", (status) => finish(() => {
+			const nativeFailure = status === 0 ? undefined : nativeBinaryRecoveryMessage(toolLabel, stderr || stdout);
+			if (nativeFailure) reject(new Error(nativeFailure));
+			else if (stdinError) reject(stdinError);
+			else resolve({ stdout, stderr, status });
+		}));
 		signal?.addEventListener("abort", onAbort, { once: true });
 		if (stdin !== undefined) {
 			child.stdin?.on("error", (error) => {
+				if (settled) return;
+				stdinError = error;
 				child.kill();
-				finish(() => reject(error));
+				stdinErrorTimer = setTimeout(() => finish(() => reject(error)), 50);
 			});
 			child.stdin?.end(stdin);
 		}
