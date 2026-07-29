@@ -7,10 +7,11 @@ import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/confi
 import { captureActiveProviderSystemPrompt, rewriteCodexProviderRequest } from "../src/adapter/provider-request.ts";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
 import { executeRemoteCompactionV2 } from "../src/adapter/compaction/remote-v2-client.ts";
+import { getActiveCompactionTools } from "../src/adapter/compaction/compaction.ts";
 import { serializeMessagesToResponsesInput } from "../src/adapter/compaction/serializer.ts";
 import { NATIVE_COMPACTION_SHIM_SUMMARY, NATIVE_COMPACTION_STRATEGY } from "../src/adapter/compaction/types.ts";
 import { CODE_MODE_EXEC_GRAMMAR_INPUTS } from "../src/tools/code-mode/exec-contract.ts";
-import { closeOpenAICodexWebSocketSessions } from "../src/providers/openai-codex-custom-provider.ts";
+import { closeOpenAICodexWebSocketSessions, prewarmOpenAICodexWebSocket } from "../src/providers/openai-codex-custom-provider.ts";
 import { createCodexExtensionRuntime } from "../src/extension/runtime.ts";
 import {
 	ScriptedWebSocket,
@@ -18,8 +19,10 @@ import {
 	codexModel,
 	collectStream,
 	createRegisteredCodexProvider,
+	exampleTool,
 	fakeJwt,
 	installScriptedWebSocket,
+	sseResponse,
 	websocketSuccess,
 } from "./openai-codex-test-support.ts";
 
@@ -120,6 +123,16 @@ function missingContinuationBeforeStart(socket: ScriptedWebSocket) {
 	socket.emitJson({ type: "error", code: "previous_response_not_found", message: "previous response not found" });
 }
 
+function unfinishedResponse(responseId: string, status: "queued" | "in_progress") {
+	return (socket: ScriptedWebSocket) => {
+		socket.emitJson({ type: "response.created", response: { id: responseId } });
+		socket.emitJson({
+			type: "response.completed",
+			response: { id: responseId, status, usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 } },
+		});
+	};
+}
+
 function streamOptions(sessionId: string) {
 	return {
 		apiKey,
@@ -152,6 +165,11 @@ test("Code Mode normal turns and V2 compaction share one exact WebSocket continu
 		compactionResponse("resp_compact"),
 	]]);
 	try {
+		const activeTools = [...codeModeTools, exampleTool] as typeof codeModeTools;
+		const rebuiltCompactionTools = getActiveCompactionTools({
+			getActiveTools: () => ["exec", "wait", "example_tool"],
+			getAllTools: () => [exampleTool, ...codeModeTools],
+		}, true);
 		const downstreamPrompt = "Stable instructions\n\nDownstream machine identity";
 		const promptState = { activeProviderSystemPrompt: "Stale pre-extension instructions" } as AdapterState;
 		let captureNextProviderPrompt = true;
@@ -170,7 +188,7 @@ test("Code Mode normal turns and V2 compaction share one exact WebSocket continu
 		};
 		const firstUser = user("first user", 1);
 		const toolCallAssistant = doneMessage(await collectStream(
-				registered.provider.streamSimple(model as never, context([firstUser]) as never, activeTurnOptions as never),
+				registered.provider.streamSimple(model as never, context([firstUser], "Stable instructions", activeTools) as never, activeTurnOptions as never),
 		));
 		const toolCall = toolCallAssistant.content.find((item) => item.type === "toolCall");
 		assert.equal(toolCall?.type, "toolCall");
@@ -184,12 +202,12 @@ test("Code Mode normal turns and V2 compaction share one exact WebSocket continu
 		} as AgentMessage;
 		const firstMessages = [firstUser, toolCallAssistant as AgentMessage, toolResult];
 		const firstAssistant = doneMessage(await collectStream(
-				registered.provider.streamSimple(model as never, context(firstMessages) as never, activeTurnOptions as never),
+				registered.provider.streamSimple(model as never, context(firstMessages, "Stable instructions", activeTools) as never, activeTurnOptions as never),
 		));
 		const secondUser = user("second user", 2);
 		const messages = [...firstMessages, firstAssistant as AgentMessage, secondUser];
 		const secondAssistant = doneMessage(await collectStream(
-				registered.provider.streamSimple(model as never, context(messages) as never, activeTurnOptions as never),
+				registered.provider.streamSimple(model as never, context(messages, "Stable instructions", activeTools) as never, activeTurnOptions as never),
 		));
 		const completeHistory = [...messages, secondAssistant as AgentMessage];
 		const compactResult = await executeRemoteCompactionV2({
@@ -206,7 +224,7 @@ test("Code Mode normal turns and V2 compaction share one exact WebSocket continu
 			modelRegistry: {
 				getRegisteredProviderConfig: () => ({ api: model.api, streamSimple: registered.provider.streamSimple }),
 			} as never,
-			context: context([], promptState.activeProviderSystemPrompt),
+			context: context([], promptState.activeProviderSystemPrompt, rebuiltCompactionTools as typeof codeModeTools),
 			promptInput: serializeMessagesToResponsesInput(model, completeHistory, {
 				grammarToolInputProperties: CODE_MODE_EXEC_GRAMMAR_INPUTS,
 			}),
@@ -328,34 +346,126 @@ test("WebSocket continuations never cross session IDs", async () => {
 	}
 });
 
-test("post-start WebSocket loss blocks automatic replay while an explicit replay stays byte-identical", async () => {
+test("three post-start WebSocket failures reserve Pi's final retry for SSE", async () => {
 	const restoreWebSocket = installScriptedWebSocket([
+		failAfterStart,
+		failAfterStart,
 		failAfterStart,
 		textResponse("resp_retry", "recovered"),
 	]);
+	const originalFetch = globalThis.fetch;
+	let fetchCalls = 0;
+	globalThis.fetch = (async () => {
+		fetchCalls++;
+		return sseResponse([
+			{ type: "response.completed", response: { id: "resp_sse", status: "completed", usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 } } },
+		]);
+	}) as typeof fetch;
 	try {
 		const registered = createRegisteredCodexProvider({ codeMode: true });
 		const sessionId = "post-start-retry";
 		const requestContext = context([user("same user", 1)]);
-		const failed = await collectStream(
+		for (let attempt = 0; attempt < 3; attempt++) {
+			const failed = await collectStream(
 				registered.provider.streamSimple(model as never, requestContext as never, streamOptions(sessionId) as never),
-		);
-		const failedEvent = failed.at(-1) as { type?: string; error?: AssistantMessage };
-		assert.equal(failedEvent.type, "error");
-		assert.ok(failedEvent.error);
-		assert.equal(isRetryableAssistantError(failedEvent.error), false, "Pi must not automatically replay a post-start failure");
-		assert.match(failedEvent.error.errorMessage ?? "", /Automatic full-context replay was blocked/);
-		assert.match(JSON.stringify(failedEvent.error.diagnostics), /socket reset by peer/);
+			);
+			const failedEvent = failed.at(-1) as { type?: string; error?: AssistantMessage };
+			assert.equal(failedEvent.type, "error");
+			assert.ok(failedEvent.error);
+			assert.equal(isRetryableAssistantError(failedEvent.error), true);
+			assert.match(JSON.stringify(failedEvent.error.diagnostics), /socket reset by peer/);
+			assert.equal(fetchCalls, 0);
+		}
+
 		await collectStream(registered.provider.streamSimple(
 			model as never,
-				requestContext as never,
+			requestContext as never,
+			streamOptions(sessionId) as never,
+		));
+		assert.equal(ScriptedWebSocket.opened, 3);
+		assert.equal(fetchCalls, 1);
+
+		await collectStream(registered.provider.streamSimple(
+			model as never,
+			requestContext as never,
 			streamOptions(sessionId) as never,
 		));
 
+		assert.equal(ScriptedWebSocket.opened, 4);
+		assert.equal(fetchCalls, 1);
+		for (const frame of sentFrames()) {
+			assert.equal(frame.previous_response_id, undefined);
+			assert.deepEqual(frame, sentFrames()[0]);
+		}
+	} finally {
+		globalThis.fetch = originalFetch;
+		restoreWebSocket();
+	}
+});
+
+test("unfinished WebSocket responses cannot seed a continuation", async () => {
+	const restoreWebSocket = installScriptedWebSocket([
+		unfinishedResponse("resp_pending", "in_progress"),
+		textResponse("resp_recovered", "recovered"),
+	]);
+	try {
+		const registered = createRegisteredCodexProvider({ codeMode: true });
+		const sessionId = "unfinished-continuation";
+		const requestContext = context([user("same user", 1)]);
+		const failed = await collectStream(registered.provider.streamSimple(
+			model as never,
+			requestContext as never,
+			streamOptions(sessionId) as never,
+		));
+		assert.equal((failed.at(-1) as { type?: string }).type, "error");
+		assert.equal(failed.some((event) => (event as { type?: string }).type === "done"), false);
+		assert.match(JSON.stringify((failed.at(-1) as { error?: AssistantMessage }).error?.diagnostics), /pending result/);
+
+		await collectStream(registered.provider.streamSimple(
+			model as never,
+			requestContext as never,
+			streamOptions(sessionId) as never,
+		));
 		assert.equal(ScriptedWebSocket.opened, 2);
-		assert.equal(sentFrames()[0]?.previous_response_id, undefined);
 		assert.equal(sentFrames()[1]?.previous_response_id, undefined);
-		assert.deepEqual(sentFrames()[1], sentFrames()[0]);
+	} finally {
+		restoreWebSocket();
+	}
+});
+
+test("unfinished WebSocket prewarm cannot seed a continuation", async () => {
+	const restoreWebSocket = installScriptedWebSocket([
+		unfinishedResponse("resp_prewarm_pending", "queued"),
+		websocketSuccess,
+	]);
+	try {
+		const registered = createRegisteredCodexProvider({ codeMode: true });
+		const sessionId = "unfinished-prewarm";
+		const requestContext = context([user("same user", 1)]);
+		await assert.rejects(
+			prewarmOpenAICodexWebSocket(
+				model as never,
+				requestContext as never,
+				streamOptions(sessionId) as never,
+				{
+					getConfig: () => ({
+						openai: DEFAULT_CODEX_CONVERSION_CONFIG.openai,
+						beta: { ...DEFAULT_CODEX_CONVERSION_CONFIG.beta, codeMode: true },
+					}),
+					turnState: registered.turnState,
+				},
+			),
+			/Responses stream ended with a pending result/,
+		);
+
+		await collectStream(registered.provider.streamSimple(
+			model as never,
+			requestContext as never,
+			streamOptions(sessionId) as never,
+		));
+		assert.equal(ScriptedWebSocket.opened, 2);
+		assert.equal((sentFrames()[0] as ResponseCreateFrame & { generate?: boolean }).generate, false);
+		assert.equal(sentFrames()[1]?.previous_response_id, undefined);
 	} finally {
 		restoreWebSocket();
 	}
@@ -373,7 +483,7 @@ test("post-start API failures also block Pi's automatic replay", async () => {
 		const failedEvent = failed.at(-1) as { error?: AssistantMessage };
 		assert.ok(failedEvent.error);
 		assert.equal(isRetryableAssistantError(failedEvent.error), false);
-		assert.match(failedEvent.error.errorMessage ?? "", /Automatic full-context replay was blocked/);
+		assert.match(failedEvent.error.errorMessage ?? "", /cannot be continued/);
 		assert.match(JSON.stringify(failedEvent.error.diagnostics), /internal server error/);
 	} finally {
 		restoreWebSocket();

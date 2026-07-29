@@ -2,7 +2,7 @@ import type { Api, AssistantMessage, AssistantMessageEventStream, Model } from "
 import { normalizeTimeoutMs } from "./sse.ts";
 import { buildCachedWebSocketRequestBody } from "./websocket-continuation.ts";
 import { acquireWebSocket, countWebSocketEvents, isRetryableEarlyWebSocketError, parseWebSocket, startWebSocketOutputOnFirstEvent } from "./websocket.ts";
-import { isPreviousResponseNotFoundError, isWebSocketConnectionLimitReachedError, mapCodexEvents, processMappedCodexResponsesStream } from "./stream-events.ts";
+import { assertSuccessfulCodexOutput, assertSuccessfulCodexStatus, isPreviousResponseNotFoundError, isWebSocketConnectionLimitReachedError, mapCodexEvents, processMappedCodexResponsesStream } from "./stream-events.ts";
 import type { CachedWebSocketRequestBodyResult, OpenAICodexStreamOptions, ResponsesBody } from "./types.ts";
 import type { CodexTurnState } from "./turn-state.ts";
 import { DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS } from "./constants.ts";
@@ -72,12 +72,15 @@ export async function processWebSocketStream<TApi extends Api>(
 			);
 			if (options?.signal?.aborted) {
 				keepConnection = false;
-			} else if (useCachedContext && entry && output.responseId) {
-				entry.continuation = {
-					lastRequestBody: fullBody,
-					lastResponseId: output.responseId,
-					lastResponseItems: responseItems,
-				};
+			} else {
+				assertSuccessfulCodexOutput(output);
+				if (useCachedContext && entry && output.responseId) {
+					entry.continuation = {
+						lastRequestBody: fullBody,
+						lastResponseId: output.responseId,
+						lastResponseItems: responseItems,
+					};
+				}
 			}
 			releaseOnce({ keep: keepConnection });
 			return;
@@ -115,14 +118,19 @@ export async function prewarmWebSocket(
 	let keepConnection = true;
 	const responseItems: unknown[] = [];
 	let responseId: string | undefined;
+	let responseStatus: string | undefined;
 	const idleTimeoutMs = normalizeTimeoutMs(options.timeoutMs ?? options.websocketConnectTimeoutMs ?? DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS, "timeoutMs");
 	try {
 		socket.send(JSON.stringify({ type: "response.create", ...body, generate: false }));
 		for await (const event of mapCodexEvents(parseWebSocket(socket, options.signal, idleTimeoutMs, (value) => turnState?.capturePrewarm(value)))) {
 			if (event.type === "response.created" && event.response?.id) responseId = event.response.id;
 			if (event.type === "response.output_item.done" && event.item) responseItems.push(event.item);
-			if (event.type === "response.completed" && event.response?.id) responseId = event.response.id;
+			if (event.type === "response.completed") {
+				if (event.response?.id) responseId = event.response.id;
+				responseStatus = event.response?.status;
+			}
 		}
+		assertSuccessfulCodexStatus(responseStatus);
 		if (entry && responseId) {
 			entry.continuation = { lastRequestBody: body, lastResponseId: responseId, lastResponseItems: responseItems };
 		}

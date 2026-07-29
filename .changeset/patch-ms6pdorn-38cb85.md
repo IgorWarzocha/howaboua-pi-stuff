@@ -16,4 +16,4 @@
 "@howaboua/pi-vent": patch
 ---
 
-Update active packages for Pi 0.83.0 and TypeBox 1.3.7; reject unfinished Codex Responses results instead of emitting invalid done events.
+Update active packages for Pi 0.83.0 and TypeBox 1.3.7; reject unfinished Codex Responses results without caching them and restore bounded WebSocket recovery.

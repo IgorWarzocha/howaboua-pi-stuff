@@ -42,11 +42,22 @@ export function assertSuccessfulCodexOutput(
 	output: AssistantMessage,
 ): asserts output is AssistantMessage & { stopReason: "stop" | "length" | "toolUse" } {
 	if (output.stopReason === "pending") {
-		throw new Error("Responses stream ended with a pending result");
+		throw new CodexProtocolError("Responses stream ended with a pending result");
 	}
 	if (output.stopReason === "aborted" || output.stopReason === "error") {
-		throw new Error(output.errorMessage || "Responses stream ended without a successful result");
+		throw new CodexProtocolError(output.errorMessage || "Responses stream ended without a successful result");
 	}
+}
+
+export function assertSuccessfulCodexStatus(status: string | undefined): asserts status is "completed" | "incomplete" {
+	if (status === "completed" || status === "incomplete") return;
+	if (!status || status === "queued" || status === "in_progress") {
+		throw new CodexProtocolError("Responses stream ended with a pending result");
+	}
+	if (status === "failed" || status === "cancelled") {
+		throw new CodexProtocolError("Responses stream ended without a successful result");
+	}
+	throw new CodexProtocolError(`Unhandled Codex response status: ${status}`);
 }
 
 function extractCodexEventError(event: StreamEventShape): { code?: string | undefined; message?: string | undefined } {

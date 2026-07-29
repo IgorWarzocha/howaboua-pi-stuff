@@ -3,7 +3,11 @@ import { closeWebSocketSilently, connectWebSocket, isWebSocketReusable } from ".
 
 const websocketSessionCache = new Map<string, SessionWebSocketCacheEntry>();
 const websocketSseFallbackSessions = new Set<string>();
+const websocketPostStartFailures = new Map<string, number>();
 const SESSION_WEBSOCKET_MAX_AGE_MS = 55 * 60 * 1000;
+// Pi makes one initial attempt plus three automatic retries. Preserve the
+// WebSocket lane through the first two retries and reserve the final retry for SSE.
+const POST_START_FAILURES_BEFORE_SSE = 3;
 
 export function isWebSocketSseFallbackActive(sessionId: string | undefined): boolean {
 	return sessionId ? websocketSseFallbackSessions.has(sessionId) : false;
@@ -13,8 +17,18 @@ export function recordWebSocketSseFallback(sessionId: string | undefined): void 
 	if (sessionId) websocketSseFallbackSessions.add(sessionId);
 }
 
+export function recordWebSocketPostStartFailure(sessionId: string | undefined): boolean {
+	if (!sessionId) return false;
+	const failures = (websocketPostStartFailures.get(sessionId) ?? 0) + 1;
+	websocketPostStartFailures.set(sessionId, failures);
+	if (failures < POST_START_FAILURES_BEFORE_SSE) return false;
+	websocketSseFallbackSessions.add(sessionId);
+	return true;
+}
+
 export function clearWebSocketTransportFailures(sessionId: string | undefined): void {
 	if (!sessionId) return;
+	websocketPostStartFailures.delete(sessionId);
 	websocketSseFallbackSessions.delete(sessionId);
 }
 
@@ -48,6 +62,7 @@ export function closeOpenAICodexWebSocketSessions(sessionId?: string): void {
 		if (entry) closeEntry(entry);
 		websocketSessionCache.delete(sessionId);
 		websocketSseFallbackSessions.delete(sessionId);
+		websocketPostStartFailures.delete(sessionId);
 		return;
 	}
 
@@ -56,6 +71,7 @@ export function closeOpenAICodexWebSocketSessions(sessionId?: string): void {
 	}
 	websocketSessionCache.clear();
 	websocketSseFallbackSessions.clear();
+	websocketPostStartFailures.clear();
 }
 
 export async function acquireWebSocket(

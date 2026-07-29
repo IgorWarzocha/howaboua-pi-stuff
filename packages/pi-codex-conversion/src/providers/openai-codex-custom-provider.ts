@@ -24,6 +24,7 @@ import { finalizeUsage } from "./openai-codex/usage.ts";
 import {
 	clearWebSocketTransportFailures,
 	isWebSocketSseFallbackActive,
+	recordWebSocketPostStartFailure,
 	recordWebSocketSseFallback,
 	validateWebSocketTimeoutOptions,
 } from "./openai-codex/websocket.ts";
@@ -209,19 +210,25 @@ function createCodexStream<TApi extends Api>(
 						clearWebSocketTransportFailures(effectiveOptions?.sessionId);
 						throw error;
 					}
+					const fallbackArmed = websocketStarted && !nonTransportError
+						? recordWebSocketPostStartFailure(effectiveOptions?.sessionId)
+						: !websocketStarted;
 					appendAssistantMessageDiagnostic(
 						output,
 						createAssistantMessageDiagnostic(nonTransportError ? "provider_stream_failure" : "provider_transport_failure", error, {
 							configuredTransport: preferredTransport,
-							fallbackTransport: websocketStarted ? undefined : "sse",
+							fallbackTransport: fallbackArmed ? "sse" : undefined,
 							eventsEmitted: websocketStarted,
 							phase: websocketStarted ? "after_message_stream_start" : "before_message_stream_start",
 							requestBytes: new TextEncoder().encode(bodyJson).byteLength,
 						}),
 					);
 					if (websocketStarted) {
-						if (nonTransportError) clearWebSocketTransportFailures(effectiveOptions?.sessionId);
-						throw new NonRetryableProviderError("Codex stream stopped after output began. Automatic full-context replay was blocked to avoid duplicate output and an unconfirmed cache charge. Submit a new message to continue.");
+						if (nonTransportError) {
+							clearWebSocketTransportFailures(effectiveOptions?.sessionId);
+							throw new NonRetryableProviderError("Codex stream ended after output began and cannot be continued from its incomplete response.");
+						}
+						throw error;
 					}
 					recordWebSocketSseFallback(effectiveOptions?.sessionId);
 				}
