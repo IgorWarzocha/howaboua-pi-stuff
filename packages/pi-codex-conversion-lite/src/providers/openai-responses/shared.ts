@@ -11,6 +11,7 @@ import {
 	resolveGrammarConstrainedSampling,
 } from "../constrained-sampling.js";
 import { parseTextSignature, shortHash } from "./signatures.ts";
+import { normalizeResponsesToolHistory } from "./tool-history.ts";
 import { encryptedWebRunOutputFromDetails, imageDetailForResponses, isImageGenerationCallBlock, isWebSearchCallBlock, sanitizeImageGenerationCallItem, sanitizeWebSearchCallItem, type ImageDetail, type ImageGenerationCallBlock, type WebSearchCallBlock } from "./native-items.ts";
 
 type Message = Context["messages"][number];
@@ -181,10 +182,11 @@ function transformMessages(
 					role: "toolResult",
 					toolCallId: toolCall.id,
 					toolName: toolCall.name,
-					content: [{ type: "text", text: "No result provided" }],
+					content: [{ type: "text", text: "aborted" }],
 					isError: true,
 					timestamp: Date.now(),
 				});
+				existingToolResultIds.add(toolCall.id);
 			}
 		}
 		pendingToolCalls = [];
@@ -197,13 +199,19 @@ function transformMessages(
 			if (msg.stopReason === "error" || msg.stopReason === "aborted") continue;
 			const toolCalls = msg.content.filter((block) => block.type === "toolCall");
 			if (toolCalls.length > 0) {
-				pendingToolCalls = toolCalls;
+				const seen = new Set<string>();
+				pendingToolCalls = toolCalls.filter((toolCall) => {
+					if (seen.has(toolCall.id)) return false;
+					seen.add(toolCall.id);
+					return true;
+				});
 				existingToolResultIds = new Set();
 			}
 			result.push(msg);
 			continue;
 		}
 		if (msg.role === "toolResult") {
+			if (!pendingToolCalls.some((toolCall) => toolCall.id === msg.toolCallId) || existingToolResultIds.has(msg.toolCallId)) continue;
 			existingToolResultIds.add(msg.toolCallId);
 			result.push(msg);
 			continue;
@@ -385,7 +393,7 @@ export function convertResponsesMessages<TApi extends Api>(
 		msgIndex++;
 	}
 
-	return messages;
+	return normalizeResponsesToolHistory(messages) as ResponseInput;
 }
 
 export function convertResponsesTools(tools: readonly Tool[], options?: ConvertResponsesToolsOptions): OpenAITool[] {

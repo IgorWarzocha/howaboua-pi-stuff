@@ -18,6 +18,7 @@ export interface AdapterState {
 	adapterOwnedToolNames?: string[] | undefined;
 	previousToolNames?: string[] | undefined;
 	promptSkills: PromptSkill[];
+	activeProviderSystemPrompt?: string | undefined;
 	config: CodexConversionConfig;
 	codexTurnState: CodexTurnState;
 	pendingPiCompactionNativeWindow?: PendingPiCompactionNativeWindow | undefined;

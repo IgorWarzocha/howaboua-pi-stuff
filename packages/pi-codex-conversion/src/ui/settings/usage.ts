@@ -4,6 +4,7 @@ import type { Api, Model } from "@earendil-works/pi-ai";
 const DEFAULT_CODEX_BASE_URL = "https://chatgpt.com/backend-api";
 const JWT_CLAIM_PATH = "https://api.openai.com/auth";
 const RESET_CREDITS_CACHE_MS = 5_000;
+const WEEKLY_WINDOW_MINUTES = 7 * 24 * 60;
 
 type RuntimeModel = Model<Api>;
 
@@ -161,10 +162,10 @@ function parseWindow(value: unknown): CodexUsageWindow | undefined {
 
 function parseRateLimit(value: unknown): { primary?: CodexUsageWindow | undefined; secondary?: CodexUsageWindow | undefined } {
 	if (!isRecord(value)) return {};
-	return {
-		primary: parseWindow(value["primary_window"]!) ?? parseWindow(value["primary"]!),
-		secondary: parseWindow(value["secondary_window"]!) ?? parseWindow(value["secondary"]!),
-	};
+	const primary = parseWindow(value["primary_window"]!) ?? parseWindow(value["primary"]!);
+	const secondary = parseWindow(value["secondary_window"]!) ?? parseWindow(value["secondary"]!);
+	if (primary?.windowMinutes === WEEKLY_WINDOW_MINUTES && !secondary) return { secondary: primary };
+	return { primary, secondary };
 }
 
 export function parseCodexUsagePayload(payload: unknown): CodexUsageSnapshot {

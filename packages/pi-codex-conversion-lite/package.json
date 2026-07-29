@@ -31,6 +31,7 @@
     "dist/**/*.js",
     "src/**/*.ts",
     "src/**/*.md",
+    "src/voice/lan/assets/**",
     "available-tools.png",
     "examples/custom-tools",
     "CHANGELOG.md",
@@ -82,6 +83,7 @@
     "@earendil-works/pi-ai": "0.82.0",
     "@earendil-works/pi-coding-agent": "0.82.0",
     "@earendil-works/pi-tui": "0.82.0",
+    "@types/ws": "^8.18.1",
     "tsx": "^4.20.5",
     "typebox": "^1.1.24",
     "typescript": "^7.0.2"
@@ -91,10 +93,12 @@
     "openai": "6.26.0",
     "partial-json": "^0.1.7",
     "proxy-from-env": "1.1.0",
+    "selfsigned": "^3.0.1",
     "smol-toml": "^1.6.0",
     "tree-sitter-bash": "^0.25.1",
     "undici": "8.5.0",
-    "web-tree-sitter": "^0.26.7"
+    "web-tree-sitter": "^0.26.7",
+    "ws": "^8.21.0"
   },
   "engines": {
     "node": ">=22.19.0"

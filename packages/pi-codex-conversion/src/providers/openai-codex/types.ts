@@ -61,6 +61,7 @@ export type CodexReasoningEffort = "none" | "minimal" | "low" | "medium" | "high
 export type OpenAICodexStreamOptions = CodexProviderStreamOptions & {
 	reasoningEffort?: CodexReasoningEffort | undefined;
 	responsesLite?: boolean | undefined;
+	grammarToolInputProperties?: ReadonlyMap<string, string> | undefined;
 	onOutputItemDone?: ((item: unknown) => void) | undefined;
 	websocketConnectTimeoutMs?: number | undefined;
 	env?: ProviderEnv | undefined;

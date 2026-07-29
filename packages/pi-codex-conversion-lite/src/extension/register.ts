@@ -9,15 +9,17 @@ import { registerCodexTools } from "./tools.ts";
 import { registerCodexUi } from "./ui.ts";
 import { registerCodexVoiceRenderer } from "../voice/ui.ts";
 import { resolveCodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
+import { registerLiteGraduationNotice } from "./graduation-notice.ts";
 
 export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 	registerCodexVoiceRenderer(pi);
+	registerLiteGraduationNotice(pi);
 	const runtime = createCodexExtensionRuntime(pi);
 	const codeMode = await registerCodexCodeMode(pi, runtime);
 	let cleanupProxyProvider: ReturnType<typeof registerCodeModeProxyProvider> | undefined;
 	try {
 		registerOpenAICodexCustomProvider(pi, {
-			getConfig: () => ({ openai: runtime.state.config.openai, beta: runtime.state.config.beta }),
+			getConfig: () => ({ openai: runtime.state.config.openai, beta: runtime.state.config.beta, compaction: runtime.state.config.compaction }),
 			useResponsesLite: (model) => resolveCodexRuntimePlan({ model }, runtime.state.config).kind === "code",
 			turnState: runtime.state.codexTurnState,
 		});
@@ -25,7 +27,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 		cleanupProxyProvider = proxyProvider;
 		const tools = registerCodexTools(pi, runtime);
 		const ui = registerCodexUi(pi, runtime);
-		registerCodexCommand(pi, runtime.state, runtime.voice, (config, ctx, previousConfig) => {
+		registerCodexCommand(pi, runtime.state, runtime.voice, runtime.lanVoice, (config, ctx, previousConfig) => {
 			proxyProvider.applyConfig(config, ctx.modelRegistry);
 			tools.applyConfig(config);
 			ui.applyConfig(config);
@@ -33,6 +35,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 				config.voiceFeaturesOnly
 				|| config.prompt.heavySystemPromptOverwrite !== previousConfig.prompt.heavySystemPromptOverwrite
 				|| config.openai.harnessIdentifierHeader !== previousConfig.openai.harnessIdentifierHeader
+				|| config.compaction.responsesCompaction !== previousConfig.compaction.responsesCompaction
 			) {
 				runtime.resetTransport(ctx.sessionManager.getSessionId());
 			}

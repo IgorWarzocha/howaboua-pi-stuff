@@ -1,8 +1,9 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { getCodexConversionConfigPath, readCodexConversionConfig, type CodexConversionConfig } from "../adapter/activation/config.ts";
+import { getCodexConversionConfigPath, readCodexConversionConfig } from "../adapter/activation/config-store.ts";
 import type { AdapterState } from "../adapter/activation/state.ts";
 import { resolveVoiceHelperBinary } from "./binary.ts";
 import type { CodexVoiceController } from "./controller.ts";
+import type { CodexLanVoiceServerController } from "./lan/controller.ts";
 import { buildVoiceSetupInstructions, missingVoiceAudioSettings } from "./setup.ts";
 import { registerCodexVoiceShortcuts } from "./shortcuts.ts";
 import { getCodexVoiceSystemPromptPath, getProjectCodexVoiceSystemPromptPath } from "./system-prompt.ts";
@@ -17,9 +18,9 @@ export function createCodexVoiceControls(options: {
 	pi: ExtensionAPI;
 	state: AdapterState;
 	voice: CodexVoiceController;
-	saveAndApply(ctx: ExtensionContext, config: CodexConversionConfig): boolean;
+	lanVoice: CodexLanVoiceServerController;
 }): CodexVoiceControls {
-	const { pi, state, voice, saveAndApply } = options;
+	const { pi, state, voice, lanVoice } = options;
 
 	const start = async (mode: CodexVoiceMode, ctx: ExtensionContext): Promise<void> => {
 		if (voice.activeMode === mode) return;
@@ -42,8 +43,7 @@ export function createCodexVoiceControls(options: {
 			})), { triggerTurn: true });
 			return;
 		}
-		const nextConfig = withVoiceMode(currentConfig, mode);
-		if (saveAndApply(ctx, nextConfig)) await voice.start(ctx, nextConfig);
+		await voice.start(ctx, currentConfig, mode);
 	};
 
 	const stop = async (_ctx: ExtensionContext): Promise<void> => {
@@ -61,18 +61,12 @@ export function createCodexVoiceControls(options: {
 		finishDictation: (ctx) => stop(ctx),
 		toggleDictation: (ctx) => toggle("dictation", ctx),
 		toggleRealtime: (ctx) => toggle("realtime", ctx),
+		toggleServer: async (ctx) => {
+			const enabled = !lanVoice.status().running;
+			await lanVoice.setEnabled(enabled, ctx);
+			if (!enabled) ctx.ui.notify("LAN voice server stopped", "info");
+		},
 	});
 
 	return { start, stop };
-}
-
-function withVoiceMode(config: CodexConversionConfig, mode: CodexVoiceMode): CodexConversionConfig {
-	return {
-		...config,
-		voice: {
-			...config.voice,
-			mode: mode === "dictation" ? "transcription" : "conversational",
-			protocol: mode === "dictation" ? "v2" : "v3",
-		},
-	};
 }

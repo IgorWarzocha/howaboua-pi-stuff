@@ -1,31 +1,18 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { migrateCodexConversionConfigIfNeeded } from "./config-migration.ts";
-
 export type CodexVerbosity = "low" | "medium" | "high";
-export type CodexAdapterMode = "normal" | "path";
 export type AllProvidersMode = "off" | "on" | "extras";
 export type HelperModel = "gpt-5.6-luna" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.5" | "gpt-5.4-mini" | "gpt-5.3-codex-spark";
 export type WebSearchModel = HelperModel;
-export type CompactionVersion = "v1" | "v2";
 export type V2UserMessageRetention = 16 | 32 | 64;
-export type RealtimeProtocol = "v2" | "v3";
-export type RealtimeSessionMode = "conversational" | "transcription";
 export type DictationShortcutMode = "push" | "toggle";
 
-export const REALTIME_V2_VOICES = ["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin", "cedar"] as const;
 export const REALTIME_V3_VOICES = ["juniper", "maple", "spruce", "ember", "vale", "breeze", "arbor", "sol", "cove"] as const;
-export type RealtimeV2Voice = typeof REALTIME_V2_VOICES[number];
 export type RealtimeV3Voice = typeof REALTIME_V3_VOICES[number];
 
 export const HELPER_MODELS: readonly HelperModel[] = ["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.5", "gpt-5.4-mini", "gpt-5.3-codex-spark"];
 export const WEB_SEARCH_MODELS: readonly WebSearchModel[] = HELPER_MODELS;
-export const COMPACTION_VERSIONS: readonly CompactionVersion[] = ["v1", "v2"];
 export const V2_USER_MESSAGE_RETENTION_OPTIONS: readonly V2UserMessageRetention[] = [16, 32, 64];
 
 export interface CodexConversionConfig {
-	mode: CodexAdapterMode;
 	voiceFeaturesOnly: boolean;
 	prompt: { heavySystemPromptOverwrite: boolean };
 	scope: { allProviders: AllProvidersMode; additionalProviders: string[] };
@@ -50,15 +37,13 @@ export interface CodexConversionConfig {
 		backgroundShellNextShortcut: string;
 		backgroundShellCloseShortcut: string;
 	};
-	compaction: { responsesCompaction: boolean; version?: CompactionVersion | undefined };
+	compaction: { responsesCompaction: boolean };
 	beta: { codeMode: boolean; responsesLite: boolean; v2UserMessageRetention?: V2UserMessageRetention | undefined };
 	voice: {
-		protocol: RealtimeProtocol;
-		mode: RealtimeSessionMode;
-		v2Voice: RealtimeV2Voice;
 		v3Voice: RealtimeV3Voice;
 		dictationShortcut: string;
 		realtimeShortcut: string;
+		serverShortcut: string;
 		dictationShortcutMode: DictationShortcutMode;
 		inputDevice?: string | undefined;
 		outputDevice?: string | undefined;
@@ -67,13 +52,12 @@ export interface CodexConversionConfig {
 		fast: boolean;
 		verbosity: CodexVerbosity;
 		forceCachedWebSockets: boolean;
+		harnessIdentifierHeader: boolean;
 		webSearchModel: WebSearchModel;
 	};
 }
 
-export const CODEX_CONVERSION_CONFIG_BASENAME = "pi-codex-conversion.json";
 export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
-	mode: "normal",
 	voiceFeaturesOnly: false,
 	prompt: { heavySystemPromptOverwrite: false },
 	scope: { allProviders: "off", additionalProviders: [] },
@@ -89,31 +73,26 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 		backgroundShellNextShortcut: "alt+e",
 		backgroundShellCloseShortcut: "alt+r",
 	},
-	compaction: { responsesCompaction: false, version: "v1" },
+	compaction: { responsesCompaction: false },
 	beta: { codeMode: false, responsesLite: false, v2UserMessageRetention: 64 },
 	voice: {
-		protocol: "v3",
-		mode: "conversational",
-		v2Voice: "marin",
 		v3Voice: "cove",
 		dictationShortcut: "ctrl+alt+d",
 		realtimeShortcut: "ctrl+alt+space",
+		serverShortcut: "ctrl+alt+g",
 		dictationShortcutMode: "push",
 	},
 	openai: {
 		fast: false,
 		verbosity: "low",
 		forceCachedWebSockets: true,
+		harnessIdentifierHeader: false,
 		webSearchModel: "gpt-5.6-luna",
 	},
 };
 
 export function isObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-export function normalizeCodexAdapterMode(value: unknown): CodexAdapterMode | undefined {
-	return value === "normal" || value === "path" ? value : undefined;
 }
 
 export function normalizeAllProvidersMode(value: unknown): AllProvidersMode | undefined {
@@ -133,28 +112,12 @@ export function normalizeWebSearchModel(value: unknown): WebSearchModel | undefi
 	return (WEB_SEARCH_MODELS as readonly string[]).includes(value) ? (value as WebSearchModel) : undefined;
 }
 
-export function normalizeCompactionVersion(value: unknown): CompactionVersion | undefined {
-	return value === "v1" || value === "v2" ? value : undefined;
-}
-
 export function normalizeV2UserMessageRetention(value: unknown): V2UserMessageRetention | undefined {
 	return value === 16 || value === 32 || value === 64 ? value : undefined;
 }
 
-export function normalizeRealtimeProtocol(value: unknown): RealtimeProtocol | undefined {
-	return value === "v2" || value === "v3" ? value : undefined;
-}
-
-export function normalizeRealtimeSessionMode(value: unknown): RealtimeSessionMode | undefined {
-	return value === "conversational" || value === "transcription" ? value : undefined;
-}
-
 export function normalizeDictationShortcutMode(value: unknown): DictationShortcutMode | undefined {
 	return value === "push" || value === "toggle" ? value : undefined;
-}
-
-export function normalizeRealtimeV2Voice(value: unknown): RealtimeV2Voice | undefined {
-	return typeof value === "string" ? REALTIME_V2_VOICES.find((voice) => voice === value) : undefined;
 }
 
 export function normalizeRealtimeV3Voice(value: unknown): RealtimeV3Voice | undefined {
@@ -200,7 +163,6 @@ export function normalizeCodexConversionConfig(value: unknown): CodexConversionC
 	const inputDevice = optionalString(voice["inputDevice"]);
 	const outputDevice = optionalString(voice["outputDevice"]);
 	return {
-		mode: normalizeCodexAdapterMode(value["mode"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.mode,
 		voiceFeaturesOnly: bool(value["voiceFeaturesOnly"], DEFAULT_CODEX_CONVERSION_CONFIG.voiceFeaturesOnly),
 		prompt: {
 			heavySystemPromptOverwrite: bool(prompt["heavySystemPromptOverwrite"], DEFAULT_CODEX_CONVERSION_CONFIG.prompt.heavySystemPromptOverwrite),
@@ -232,7 +194,6 @@ export function normalizeCodexConversionConfig(value: unknown): CodexConversionC
 		},
 		compaction: {
 			responsesCompaction: bool(compaction["responsesCompaction"], DEFAULT_CODEX_CONVERSION_CONFIG.compaction["responsesCompaction"]),
-			version: normalizeCompactionVersion(compaction["version"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.compaction.version,
 		},
 		beta: {
 			codeMode: bool(beta["codeMode"], DEFAULT_CODEX_CONVERSION_CONFIG.beta["codeMode"]),
@@ -241,12 +202,10 @@ export function normalizeCodexConversionConfig(value: unknown): CodexConversionC
 				?? DEFAULT_CODEX_CONVERSION_CONFIG.beta.v2UserMessageRetention,
 		},
 		voice: {
-			protocol: normalizeRealtimeProtocol(voice["protocol"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.voice.protocol,
-			mode: normalizeRealtimeSessionMode(voice["mode"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.voice.mode,
-			v2Voice: normalizeRealtimeV2Voice(voice["v2Voice"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.voice.v2Voice,
 			v3Voice: normalizeRealtimeV3Voice(voice["v3Voice"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.voice.v3Voice,
 			dictationShortcut: stringValue(voice["dictationShortcut"], DEFAULT_CODEX_CONVERSION_CONFIG.voice.dictationShortcut),
 			realtimeShortcut: stringValue(voice["realtimeShortcut"], DEFAULT_CODEX_CONVERSION_CONFIG.voice.realtimeShortcut),
+			serverShortcut: stringValue(voice["serverShortcut"], DEFAULT_CODEX_CONVERSION_CONFIG.voice.serverShortcut),
 			dictationShortcutMode: normalizeDictationShortcutMode(voice["dictationShortcutMode"])
 				?? DEFAULT_CODEX_CONVERSION_CONFIG.voice.dictationShortcutMode,
 			...(inputDevice ? { inputDevice } : {}),
@@ -256,69 +215,8 @@ export function normalizeCodexConversionConfig(value: unknown): CodexConversionC
 			fast: bool(openai["fast"], DEFAULT_CODEX_CONVERSION_CONFIG.openai["fast"]),
 			verbosity: normalizeCodexVerbosity(openai["verbosity"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai["verbosity"],
 			forceCachedWebSockets: bool(openai["forceCachedWebSockets"], DEFAULT_CODEX_CONVERSION_CONFIG.openai["forceCachedWebSockets"]),
+			harnessIdentifierHeader: bool(openai["harnessIdentifierHeader"], DEFAULT_CODEX_CONVERSION_CONFIG.openai["harnessIdentifierHeader"]),
 			webSearchModel: normalizeWebSearchModel(openai["webSearchModel"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai["webSearchModel"],
 		},
-	};
-}
-
-export function getCodexConversionConfigPath(agentDir: string = getAgentDir()): string {
-	return join(agentDir, CODEX_CONVERSION_CONFIG_BASENAME);
-}
-
-export function readCodexConversionConfig(configPath: string = getCodexConversionConfigPath()): CodexConversionConfig {
-	if (!existsSync(configPath)) {
-		writeCodexConversionConfig(DEFAULT_CODEX_CONVERSION_CONFIG, configPath);
-		return structuredClone(DEFAULT_CODEX_CONVERSION_CONFIG);
-	}
-	try {
-		const parsed = JSON.parse(readFileSync(configPath, "utf-8")) as unknown;
-		const migration = migrateCodexConversionConfigIfNeeded(parsed);
-		const config = normalizeCodexConversionConfig(migration.config);
-		if (migration.migrated) writeCodexConversionConfig(config, configPath);
-		return config;
-	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		console.warn(`[pi-codex-conversion] Failed to read ${configPath}: ${message}`);
-		return structuredClone(DEFAULT_CODEX_CONVERSION_CONFIG);
-	}
-}
-
-export function writeCodexConversionConfig(
-	config: CodexConversionConfig,
-	configPath: string = getCodexConversionConfigPath(),
-): { ok: true } | { ok: false; error: string } {
-	const temporaryPath = `${configPath}.${process.pid}.${Date.now()}.tmp`;
-	try {
-		mkdirSync(dirname(configPath), { recursive: true });
-		writeFileSync(
-			temporaryPath,
-			`${JSON.stringify(normalizeCodexConversionConfig(config), null, 2)}\n`,
-			{ encoding: "utf-8", mode: 0o600 },
-		);
-		renameSync(temporaryPath, configPath);
-		return { ok: true };
-	} catch (error) {
-		try {
-			rmSync(temporaryPath, { force: true });
-		} catch {
-			// Keep the original write error.
-		}
-		const message = error instanceof Error ? error.message : String(error);
-		console.warn(`[pi-codex-conversion] Failed to write ${configPath}: ${message}`);
-		return { ok: false, error: message };
-	}
-}
-
-export function applyCodexRequestParams(
-	payload: unknown,
-	config: CodexConversionConfig,
-	options: { serviceTier?: boolean | undefined; verbosity?: boolean | undefined } = { serviceTier: true, verbosity: true },
-): unknown {
-	if (!isObject(payload)) return payload;
-	const text = isObject(payload["text"]!) ? payload["text"]! : {};
-	return {
-		...payload,
-		...(options.serviceTier && config.openai["fast"] ? { service_tier: "priority" } : {}),
-		...(options.verbosity ? { text: { ...text, verbosity: config.openai["verbosity"] } } : {}),
 	};
 }

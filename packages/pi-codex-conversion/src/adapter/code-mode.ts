@@ -9,10 +9,11 @@ import type { ProgrammaticCodeModeToolDefinition } from "../tools/code-mode/type
 import { createApplyPatchTool } from "../tools/apply-patch/tool.ts";
 import { createExecCommandTool } from "../tools/exec/command-tool.ts";
 import { createWriteStdinTool } from "../tools/exec/write-stdin-tool.ts";
-import { createImageGenerationTool, supportsNativeImageGeneration } from "../tools/imagegen/tool.ts";
-import { createViewImageTool, supportsViewImageInputs } from "../tools/view-image/tool.ts";
+import { createImageGenerationTool } from "../tools/imagegen/tool.ts";
+import { createViewImageTool } from "../tools/view-image/tool.ts";
 import { createWebSearchTool } from "../tools/web-run/tool.ts";
-import { shouldUseGpt56CodeMode } from "./activation/activation.ts";
+import { supportsNativeImageGeneration, supportsViewImageInputs } from "./tool-support.ts";
+import { resolveCodexRuntimePlan } from "./activation/runtime-plan.ts";
 import { codeModeImageResult, toNestedTool } from "./code-mode/nested-tool-adapter.ts";
 
 export const CODE_MODE_TOOL_NAMES = ["exec", "wait"] as const;
@@ -23,7 +24,7 @@ export async function registerCodexCodeMode(
 	runtime: CodexExtensionRuntime,
 ): Promise<CodeModeRegistration> {
 	const isActive = (ctx: unknown) =>
-		shouldUseGpt56CodeMode(ctx as ExtensionContext, runtime.state.config);
+		resolveCodexRuntimePlan(ctx as ExtensionContext, runtime.state.config).kind === "code";
 	const customToolsRuntime = await registerCustomTools(pi, undefined, {
 		isActive,
 	});
@@ -53,8 +54,10 @@ function createNestedTools(
 		customRendering: runtime.state.config.ui.toolRenaming,
 		showOutputWhenCollapsed: true,
 		compactTools: runtime.state.config.ui.compactTools,
-		interceptApplyPatch: true,
 	};
+	const allowConfiguredProvider = (model: ExtensionContext["model"]) =>
+		(model?.provider ?? "").trim().toLowerCase() !== "openai-codex"
+		&& resolveCodexRuntimePlan({ model }, runtime.state.config).kind === "code";
 	const tools: ProgrammaticCodeModeToolDefinition[] = [
 		toNestedTool(
 			createApplyPatchTool({
@@ -153,16 +156,17 @@ function createNestedTools(
 			createWebSearchTool("web__run", {
 				customRustBinariesDir: runtime.state.config.tools.customRustBinariesDir,
 				model: () => runtime.state.config.openai.webSearchModel,
-				allowConfiguredProvider: (model) => shouldUseGpt56CodeMode({ model }, runtime.state.config),
+				allowConfiguredProvider,
 				promptSnippet: false,
 				customRendering: runtime.state.config.ui.toolRenaming,
 			}),
 			"await tools.web__run({ search_query?: [{ q: string, recency?: number, domains?: string[] }], image_query?: [{ q: string }], open?: [{ ref_id: string, lineno?: number }], click?: [{ ref_id: string, id: number }], find?: [{ ref_id: string, pattern: string }], response_length?: \"short\" | \"medium\" | \"long\" })",
 		));
 	}
-	if (runtime.state.config.tools.imageGeneration && (!ctx || supportsNativeImageGeneration(ctx.model))) {
+	if (runtime.state.config.tools.imageGeneration && (!ctx || supportsNativeImageGeneration(ctx.model) || allowConfiguredProvider(ctx.model))) {
 		const imagegen = createImageGenerationTool({
 			customRustBinariesDir: runtime.state.config.tools.customRustBinariesDir,
+			allowConfiguredProvider,
 			promptSnippet: false,
 			customRendering: runtime.state.config.ui.toolRenaming,
 		});

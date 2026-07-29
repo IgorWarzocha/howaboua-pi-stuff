@@ -3,19 +3,15 @@ import { join } from "node:path";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { buildSessionContext, convertToLlm, getAgentDir, type SessionEntry } from "@earendil-works/pi-coding-agent";
 import type { Api, ImageContent, Message, Model, TextContent, ToolResultMessage, UserMessage } from "@earendil-works/pi-ai";
-import type { ResponsesCompatibleRequestPayload } from "./compaction-runtime.ts";
 import { CODEX_TOOL_CALL_PROVIDERS, convertResponsesMessages } from "../../providers/openai-responses/shared.ts";
 import { isAdapterContextExcludedCustomMessage } from "../prompt/context-filter.ts";
 
 /**
- * Decision for native compaction: reuse the provider's Responses serializer.
+ * Responses compaction reuses the provider's serializer.
  *
  * Replay parity must match the actual OpenAI Codex provider payload, including
  * tool-call id normalization and cross-model/provider history handling.
  */
-export const COMPACTION_SERIALIZER_STRATEGY = "provider-responses-serializer" as const;
-
-export type CompactionSerializerStrategy = typeof COMPACTION_SERIALIZER_STRATEGY;
 export type AssistantPhase = "commentary" | "final_answer";
 
 type ResponsesTextInputItem = {
@@ -98,6 +94,7 @@ export type SerializeResponsesMessagesOptions = {
 	instructions?: string | undefined;
 	includeInstructionsInInput?: boolean | undefined;
 	blockImages?: boolean | undefined;
+	grammarToolInputProperties?: ReadonlyMap<string, string> | undefined;
 };
 
 export type ResponsesParityReport = {
@@ -107,10 +104,6 @@ export type ResponsesParityReport = {
 	mismatches: string[];
 };
 
-
-function sanitizeSurrogates(text: string): string {
-	return text.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "");
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === "object" && !Array.isArray(value);
@@ -148,65 +141,15 @@ function applyBlockImages(messages: Message[], blockImages: boolean): Message[] 
 	});
 }
 
-type CompactionPreparationLike = { messagesToSummarize: AgentMessage[]; turnPrefixMessages: AgentMessage[]; previousSummary?: string | undefined };
-
-export function collectCompactionWindowMessages(preparation: CompactionPreparationLike): AgentMessage[] {
-	const previousSummary = preparation.previousSummary?.trim();
-	const previousSummaryMessages: AgentMessage[] = previousSummary
-		? [
-				{
-					role: "user",
-					content: `Previous compaction summary:\n${previousSummary}`,
-					timestamp: Date.now(),
-				} as AgentMessage,
-			]
-		: [];
-	return [...previousSummaryMessages, ...preparation.messagesToSummarize, ...preparation.turnPrefixMessages];
-}
-
-export function serializeCompactionPreparationToRequest<TApi extends Api>(args: {
-	model: Model<TApi>;
-	preparation: CompactionPreparationLike;
-	instructions: string;
-	requestOptions?: NativeCompactionRequestOptions | undefined;
-}): NativeCompactionRequestBody {
-	return serializeMessagesToCompactRequest({
-		model: args.model,
-		messages: collectCompactionWindowMessages(args.preparation),
-		instructions: args.instructions,
-		requestOptions: args.requestOptions,
-	});
-}
-
-export function serializeMessagesToCompactRequest<TApi extends Api>(args: {
-	model: Model<TApi>;
-	messages: AgentMessage[];
-	instructions: string;
-	requestOptions?: NativeCompactionRequestOptions | undefined;
-}): NativeCompactionRequestBody {
-	return {
-		model: args.model.id,
-		input: serializeMessagesToResponsesInput(args.model, args.messages),
-		instructions: sanitizeSurrogates(args.instructions),
-		...args.requestOptions,
-	};
-}
-
-export function serializeActiveSessionToCompactRequest<TApi extends Api>(args: {
+export function serializeActiveSessionToResponsesInput<TApi extends Api>(args: {
 	model: Model<TApi>;
 	entries: SessionEntry[];
 	leafId?: string | null | undefined;
-	instructions: string;
-	requestOptions?: NativeCompactionRequestOptions | undefined;
-}): NativeCompactionRequestBody {
+	options?: SerializeResponsesMessagesOptions | undefined;
+}): ResponsesInputItem[] {
 	const messages = buildSessionContext(args.entries, args.leafId).messages
 		.filter((message) => !isAdapterContextExcludedCustomMessage(message));
-	return serializeMessagesToCompactRequest({
-		model: args.model,
-		messages,
-		instructions: args.instructions,
-		requestOptions: args.requestOptions,
-	});
+	return serializeMessagesToResponsesInput(args.model, messages, args.options);
 }
 
 export function serializeMessagesToResponsesInput<TApi extends Api>(
@@ -222,7 +165,10 @@ export function serializeMessagesToResponsesInput<TApi extends Api>(
 			...(options.includeInstructionsInInput && options.instructions ? { systemPrompt: options.instructions } : {}),
 		},
 		CODEX_TOOL_CALL_PROVIDERS,
-		{ includeSystemPrompt: options.includeInstructionsInInput ?? false },
+		{
+			includeSystemPrompt: options.includeInstructionsInInput ?? false,
+			...(options.grammarToolInputProperties ? { grammarToolInputProperties: options.grammarToolInputProperties } : {}),
+		},
 	) as ResponsesInputItem[];
 }
 
@@ -248,29 +194,6 @@ export function compareResponsesInputParity(actual: readonly unknown[], expected
 		ok: mismatches.length === 0,
 		actual: actualSignature,
 		expected: expectedSignature,
-		mismatches,
-	};
-}
-
-export function compareCompactRequestToPayload(
-	request: NativeCompactionRequestBody,
-	payload: Pick<ResponsesCompatibleRequestPayload, "model" | "input" | "instructions">,
-): ResponsesParityReport {
-	const parity = compareResponsesInputParity(request.input, payload.input);
-	const mismatches = [...parity.mismatches];
-
-	if (payload.model !== request.model) {
-		mismatches.unshift(`model: expected ${payload.model}, got ${request.model}`);
-	}
-
-	if ((payload.instructions ?? "") !== request.instructions) {
-		mismatches.unshift("instructions: expected serialized instructions to match payload instructions");
-	}
-
-	return {
-		ok: mismatches.length === 0,
-		actual: parity.actual,
-		expected: parity.expected,
 		mismatches,
 	};
 }

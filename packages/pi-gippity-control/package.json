@@ -1,0 +1,62 @@
+{
+	"name": "@howaboua/pi-gippity-control",
+	"version": "0.0.1",
+	"description": "GipPity voice and LAN remote control for any Pi model",
+	"keywords": [
+		"pi-package",
+		"pi-extension",
+		"voice",
+		"dictation",
+		"lan"
+	],
+	"license": "MIT",
+	"type": "module",
+	"engines": {
+		"node": ">=22.19.0"
+	},
+	"files": [
+		"index.ts",
+		"src",
+		"scripts/build-voice-helper.mjs",
+		"README.md",
+		"LICENSE",
+		"tsconfig.json",
+		"biome.json",
+		"!src/**/AGENTS.md",
+		"!src/voice/rust/target/**"
+	],
+	"pi": {
+		"extensions": [
+			"./index.ts"
+		]
+	},
+	"scripts": {
+		"check": "bun run lint && bun run typecheck",
+		"prepack": "bun run check",
+		"typecheck": "tsgo --noEmit",
+		"lint": "biome check .",
+		"format": "biome check --write .",
+		"pack:dry": "npm pack --dry-run",
+		"build:voice-helper": "node scripts/build-voice-helper.mjs"
+	},
+	"dependencies": {
+		"proxy-from-env": "1.1.0",
+		"selfsigned": "^3.0.1",
+		"undici": "8.5.0",
+		"ws": "^8.21.0"
+	},
+	"peerDependencies": {
+		"@earendil-works/pi-ai": "*",
+		"@earendil-works/pi-coding-agent": "*",
+		"@earendil-works/pi-tui": "*"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.16",
+		"@earendil-works/pi-ai": "0.82.0",
+		"@earendil-works/pi-coding-agent": "0.82.0",
+		"@earendil-works/pi-tui": "0.82.0",
+		"@types/node": "^25.9.1",
+		"@types/ws": "^8.18.1",
+		"typescript": "^6.0.3"
+	}
+}

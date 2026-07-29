@@ -31,13 +31,13 @@ test("Code Mode installs its host in-process for every supported platform", asyn
 					installs += 1;
 					assert.equal(options.platform, platform);
 					assert.equal(options.arch, arch);
-					assert.equal(options.destination, join(agentDir, "cache", "pi-codex-conversion", "code-mode", "rust-v0.144.1", `${platform}-${arch}`, binaryName));
+					assert.equal(options.destination, join(agentDir, "cache", "pi-codex-conversion", "code-mode", "rust-v0.145.0", `${platform}-${arch}`, binaryName));
 					await mkdir(dirname(options.destination), { recursive: true });
 					await writeFile(options.destination, "host");
 				},
 			});
 			assert.equal(installs, 1);
-			assert.equal(binary, join(agentDir, "cache", "pi-codex-conversion", "code-mode", "rust-v0.144.1", `${platform}-${arch}`, binaryName));
+			assert.equal(binary, join(agentDir, "cache", "pi-codex-conversion", "code-mode", "rust-v0.145.0", `${platform}-${arch}`, binaryName));
 			assert.equal(resolveCodeModeHostAsset(platform, arch)[0], assetName);
 		}
 	} finally {

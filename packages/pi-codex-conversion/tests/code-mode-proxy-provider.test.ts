@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ModelRegistry, ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
-import { applyCodeModeFreeformContract } from "../src/adapter/code-mode-contract.ts";
+import { CODE_MODE_EXEC_GRAMMAR } from "../src/tools/code-mode/exec-contract.ts";
 import { registerCodeModeProxyProvider } from "../src/providers/code-mode-proxy-provider.ts";
 
 function sseResponse(events: unknown[]): Response {
@@ -44,7 +44,7 @@ test("the provider-scoped proxy stream delegates ordinary Responses models witho
 	const unregistered: string[] = [];
 	const config = {
 		...DEFAULT_CODEX_CONVERSION_CONFIG,
-		beta: { codeMode: true, responsesLite: false },
+		beta: { codeMode: true, responsesLite: true },
 		scope: { allProviders: "off" as const, additionalProviders: ["proxy"] },
 	};
 	const registration = registerCodeModeProxyProvider({
@@ -92,6 +92,7 @@ test("the provider-scoped proxy stream delegates ordinary Responses models witho
 test("configured Responses models route through the Code Mode stream in Pi's model runtime", async () => {
 	const originalFetch = globalThis.fetch;
 	const agentDir = await mkdtemp(join(tmpdir(), "pi-code-mode-proxy-"));
+	let capturedRequest: RequestInit | undefined;
 	let registration: ReturnType<typeof registerCodeModeProxyProvider> | undefined;
 	try {
 		await writeFile(join(agentDir, "models.json"), JSON.stringify({
@@ -112,13 +113,16 @@ test("configured Responses models route through the Code Mode stream in Pi's mod
 				},
 			},
 		}));
-		globalThis.fetch = (async () => sseResponse([
-			{ type: "response.created", response: { id: "resp_runtime" } },
-			{ type: "response.output_item.added", output_index: 0, item: { type: "custom_tool_call", id: "ctc_1", call_id: "call_1", name: "exec", input: "" } },
-			{ type: "response.custom_tool_call_input.delta", output_index: 0, item_id: "ctc_1", delta: "text(\"runtime\");" },
-			{ type: "response.output_item.done", output_index: 0, item: { type: "custom_tool_call", id: "ctc_1", call_id: "call_1", name: "exec", input: "text(\"runtime\");", status: "completed" } },
-			{ type: "response.completed", response: { id: "resp_runtime", status: "completed", usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 } } },
-		])) as typeof fetch;
+		globalThis.fetch = (async (_url, init) => {
+			capturedRequest = init;
+			return sseResponse([
+				{ type: "response.created", response: { id: "resp_runtime" } },
+				{ type: "response.output_item.added", output_index: 0, item: { type: "custom_tool_call", id: "ctc_1", call_id: "call_1", name: "exec", input: "" } },
+				{ type: "response.custom_tool_call_input.delta", output_index: 0, item_id: "ctc_1", delta: "text(\"runtime\");" },
+				{ type: "response.output_item.done", output_index: 0, item: { type: "custom_tool_call", id: "ctc_1", call_id: "call_1", name: "exec", input: "text(\"runtime\");", status: "completed" } },
+				{ type: "response.completed", response: { id: "resp_runtime", status: "completed", usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 } } },
+			]);
+		}) as typeof fetch;
 
 		const runtime = await ModelRuntime.create({
 			modelsPath: join(agentDir, "models.json"),
@@ -127,7 +131,7 @@ test("configured Responses models route through the Code Mode stream in Pi's mod
 		const registry = new ModelRegistry(runtime);
 		const config = {
 			...DEFAULT_CODEX_CONVERSION_CONFIG,
-			beta: { codeMode: true, responsesLite: false },
+			beta: { codeMode: true, responsesLite: true },
 			scope: { allProviders: "off" as const, additionalProviders: ["myproxy"] },
 		};
 		registration = registerCodeModeProxyProvider({
@@ -142,10 +146,26 @@ test("configured Responses models route through the Code Mode stream in Pi's mod
 		assert.ok(model);
 		const events = await collect(runtime.streamSimple(
 			model,
-			{ systemPrompt: "Use Code Mode", messages: [], tools: [{ name: "exec", description: "Run JavaScript", parameters: { type: "object" } }] } as never,
-			{ onPayload: (payload: unknown) => applyCodeModeFreeformContract(payload as never) } as never,
+			{
+				systemPrompt: "Use Code Mode",
+				messages: [],
+				tools: [{
+					name: "exec",
+					description: "Run JavaScript",
+					parameters: { type: "object", properties: { code: { type: "string" } }, required: ["code"] },
+					constrainedSampling: { type: "grammar", variants: { openai_lark: CODE_MODE_EXEC_GRAMMAR } },
+				}],
+			} as never,
+			undefined,
 		));
 		const done = events.at(-1) as { type: string; reason: string; message: { content: unknown[] } };
+		assert.ok(capturedRequest);
+		assert.equal(new Headers(capturedRequest.headers).get("x-openai-internal-codex-responses-lite"), "true");
+		const requestBody = JSON.parse(String(capturedRequest.body));
+		assert.equal("tools" in requestBody, false);
+		assert.equal(requestBody.parallel_tool_calls, false);
+		assert.equal(requestBody.input[0].type, "additional_tools");
+		assert.equal(requestBody.input[0].tools[0].type, "custom");
 		assert.equal(done.type, "done");
 		assert.equal(done.reason, "toolUse");
 		assert.deepEqual(done.message.content, [{

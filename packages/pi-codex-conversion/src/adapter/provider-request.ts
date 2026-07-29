@@ -1,42 +1,31 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { isOpenAICodexContext, isResponsesContext } from "./prompt/codex-model.ts";
-import { applyCodexRequestParams } from "./activation/config.ts";
+import { isResponsesContext } from "./prompt/codex-model.ts";
+import { applyCodexRequestOptions } from "./request-options.ts";
 import type { AdapterState } from "./activation/state.ts";
-import { isEffectiveOpenAICodexContext, shouldUseCodexAdapter, shouldUseGpt56CodeMode, shouldUseResponsesLiteForCodeMode, supportsProxiedGpt56CodeModeModel } from "./activation/activation.ts";
+import { isAdapterRuntime, resolveCodexRuntimePlan } from "./activation/runtime-plan.ts";
 import { injectPendingNativeWindowIntoPiCompactionRequest, rewriteCodexCompactedProviderRequest } from "./compaction/compaction.ts";
-import { applyResponsesLiteRequest, supportsResponsesLiteModel, type ResponsesLiteCompatibleBody } from "../providers/openai-codex/responses-lite.ts";
-import { applyCodeModeFreeformContract, sanitizeCodeModeHistoryForFunctionTools } from "./code-mode-contract.ts";
+import { applyResponsesLiteRequest, type ResponsesLiteCompatibleBody } from "../providers/openai-codex/responses-lite.ts";
 
 export async function rewriteCodexProviderRequest(payload: unknown, ctx: ExtensionContext, state: AdapterState): Promise<unknown | undefined> {
 	if (state.config.voiceFeaturesOnly) return undefined;
-	if (!shouldUseCodexAdapter(ctx, state.config) || (!isEffectiveOpenAICodexContext(ctx, state.config) && !isResponsesContext(ctx))) {
-		if (!isResponsesContext(ctx) || !isCodeModeCompatibleBody(payload)) return undefined;
-		const sanitizedPayload = sanitizeCodeModeHistoryForFunctionTools(payload);
-		return sanitizedPayload === payload ? undefined : sanitizedPayload;
+	const plan = resolveCodexRuntimePlan(ctx, state.config);
+	if (!isAdapterRuntime(plan) || (!plan.effectiveOpenAICodex && !isResponsesContext(ctx))) {
+		return undefined;
 	}
 
-	const isEffectiveOpenAICodex = isEffectiveOpenAICodexContext(ctx, state.config);
-	const configuredPayload = applyCodexRequestParams(payload, state.config, {
-		serviceTier: isEffectiveOpenAICodex,
+	const configuredPayload = applyCodexRequestOptions(payload, state.config, {
+		serviceTier: plan.effectiveOpenAICodex,
 		verbosity: true,
 	});
-	const piCompactionPayload = await injectPendingNativeWindowIntoPiCompactionRequest(configuredPayload, ctx, state);
-	const rewrittenPayload = piCompactionPayload ?? (await rewriteCodexCompactedProviderRequest(configuredPayload, ctx, state)) ?? configuredPayload;
-	if (
-		shouldUseGpt56CodeMode(ctx, state.config)
-		&& isCodeModeCompatibleBody(rewrittenPayload)
-		&& (isOpenAICodexContext(ctx)
-			? supportsResponsesLiteModel(rewrittenPayload.model)
-			: supportsProxiedGpt56CodeModeModel(rewrittenPayload.model))
-	) {
-		const codeModePayload = applyCodeModeFreeformContract(rewrittenPayload);
-		return shouldUseResponsesLiteForCodeMode(ctx, state.config)
-			? applyResponsesLiteRequest(codeModePayload)
-			: codeModePayload;
+	let rewrittenPayload = configuredPayload;
+	if (plan.nativeCompaction || state.pendingPiCompactionNativeWindow) {
+		const piCompactionPayload = await injectPendingNativeWindowIntoPiCompactionRequest(configuredPayload, ctx, state);
+		rewrittenPayload = piCompactionPayload ?? (await rewriteCodexCompactedProviderRequest(configuredPayload, ctx, state)) ?? configuredPayload;
 	}
-	return isCodeModeCompatibleBody(rewrittenPayload)
-		? sanitizeCodeModeHistoryForFunctionTools(rewrittenPayload)
-		: rewrittenPayload;
+	if (plan.kind === "code" && isCodeModeCompatibleBody(rewrittenPayload)) {
+		return applyResponsesLiteRequest(rewrittenPayload);
+	}
+	return rewrittenPayload;
 }
 
 function isCodeModeCompatibleBody(value: unknown): value is ResponsesLiteCompatibleBody {

@@ -3,10 +3,11 @@ import { Type } from "typebox";
 import { Text } from "@earendil-works/pi-tui";
 import { codexToolProviderEnv, resolveCodexToolProvider } from "../../adapter/codex-tool-provider.ts";
 import { IMAGE_GENERATION_TOOL_NAME } from "../../adapter/activation/tool-set.ts";
-import { getBundledPathToolBinaryPath } from "../path/binary.ts";
-import { formatPathImagegenOutput, imageContentsFromPathImagegenOutput, pathImagegenOutputFromJson } from "../path/outputs.ts";
-import { renderTextWithImages } from "../path/rendering.ts";
-import { runBundledTool } from "../path/runner.ts";
+import { supportsNativeImageGeneration } from "../../adapter/tool-support.ts";
+import { getBundledToolBinaryPath } from "../native/binary.ts";
+import { formatImagegenOutput, imageContentsFromImagegenOutput, imagegenOutputFromJson } from "./output.ts";
+import { renderTextWithImages } from "../../ui/tool-rendering/media.ts";
+import { runBundledTool } from "../native/runner.ts";
 import { renderCodexToolCell } from "../../ui/tool-rendering/codex-tool-cell.ts";
 
 export const IMAGE_GENERATION_UNSUPPORTED_MESSAGE = "imagegen requires an image-capable OpenAI Codex-compatible Responses provider";
@@ -30,10 +31,6 @@ function supportsImageInputs(model: ExtensionContext["model"]): boolean {
 	return !Array.isArray(model?.input) || model.input.includes("image");
 }
 
-export function supportsNativeImageGeneration(model: ExtensionContext["model"]): boolean {
-	return (model?.provider ?? "").toLowerCase() === "openai-codex" && Boolean(model?.api?.includes("responses")) && supportsImageInputs(model);
-}
-
 function supportsExecutableImageGeneration(model: ExtensionContext["model"], options: ImageGenerationToolOptions): boolean {
 	return supportsNativeImageGeneration(model)
 		|| Boolean(options.allowConfiguredProvider?.(model))
@@ -42,7 +39,7 @@ function supportsExecutableImageGeneration(model: ExtensionContext["model"], opt
 
 async function executeRustImagegen(args: ImagegenArgs, signal: AbortSignal | undefined, ctx: ExtensionContext, options: ImageGenerationToolOptions): Promise<ImagegenDetails> {
 	if (signal?.aborted) throw new Error("imagegen aborted");
-	const binary = getBundledPathToolBinaryPath("imagegen", {}, options.customRustBinariesDir);
+	const binary = getBundledToolBinaryPath("imagegen", {}, options.customRustBinariesDir);
 	if (!binary) throw new Error(`imagegen binary is not bundled for ${process.platform}-${process.arch}`);
 	const provider = await resolveCodexToolProvider(ctx, options.allowConfiguredProvider);
 	const child = await runBundledTool({
@@ -54,7 +51,7 @@ async function executeRustImagegen(args: ImagegenArgs, signal: AbortSignal | und
 		label: IMAGE_GENERATION_TOOL_NAME,
 	});
 	if (child.status !== 0) throw new Error((child.stderr || child.stdout || "imagegen failed").trim());
-	const parsed = pathImagegenOutputFromJson(child.stdout);
+	const parsed = imagegenOutputFromJson(child.stdout);
 	if (!parsed) throw new Error("imagegen returned output, but Pi could not parse it");
 	return parsed as ImagegenDetails;
 }
@@ -78,8 +75,8 @@ export function createImageGenerationTool(options: ImageGenerationToolOptions = 
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
 			if (!supportsExecutableImageGeneration(ctx.model, options)) throw new Error(IMAGE_GENERATION_UNSUPPORTED_MESSAGE);
 			const details = await executeRustImagegen(params, signal, ctx, options);
-			const imageContent = supportsImageInputs(ctx.model) ? imageContentsFromPathImagegenOutput(details) : [];
-			return { content: [{ type: "text", text: formatPathImagegenOutput(details) }, ...imageContent], details };
+			const imageContent = supportsImageInputs(ctx.model) ? imageContentsFromImagegenOutput(details) : [];
+			return { content: [{ type: "text", text: formatImagegenOutput(details) }, ...imageContent], details };
 		},
 		...(options.customRendering === false ? {} : {
 		renderCall(args, theme) { return renderCodexToolCell("Generated Image:", typeof args.prompt === "string" ? args.prompt : undefined, theme); },

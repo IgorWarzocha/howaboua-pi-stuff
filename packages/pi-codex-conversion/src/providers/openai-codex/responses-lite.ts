@@ -20,19 +20,6 @@ export interface ResponsesLiteCompatibleBody {
 	[key: string]: unknown;
 }
 
-type ResponsesLiteModel = string | { id: string } | undefined;
-
-export function supportsResponsesLiteModel(model: ResponsesLiteModel): boolean {
-	return /^gpt-5\.6-(?:luna|terra|sol)$/.test(normalizeModelId(model));
-}
-
-function normalizeModelId(model: ResponsesLiteModel): string {
-	const modelId = typeof model === "string" ? model : model?.id;
-	if (!modelId) return "";
-	const id = modelId.includes("/") ? (modelId.split("/").pop() ?? modelId) : modelId;
-	return id.toLowerCase();
-}
-
 export function isResponsesLiteRequest(body: ResponsesLiteCompatibleBody): boolean {
 	return isRecord(body.input[0]) && body.input[0]["type"] === "additional_tools";
 }

@@ -1,0 +1,5 @@
+- `controller.ts` owns mode replacement and lazy mode imports; `controls.ts` owns commands/shortcut policy.
+- Realtime conversation is V3 only. Dictation owns its separate transcription connection.
+- Realtime delegations stay on Pi's user-message path; active Pi turns use `deliverAs: "steer"`. Mirror only interactive/RPC Pi steering to the owning delegation, never extension input.
+- LAN takeover changes the active browser microphone without restarting the warm realtime conversation.
+- Every async resource has one cleanup owner; session shutdown stops LAN before voice.

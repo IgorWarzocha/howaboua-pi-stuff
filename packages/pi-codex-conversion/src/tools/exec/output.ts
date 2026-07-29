@@ -20,12 +20,11 @@ function stripTerminalControlSequences(text: string): string {
 	return withoutOscAndDcs.replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, "").replace(/\u001B[@-_]/g, "");
 }
 
-function sanitizeBinaryOutput(text: string, preserveBackspace = false): string {
+function sanitizeBinaryOutput(text: string): string {
 	return Array.from(text).filter((char) => {
 		const code = char.codePointAt(0);
 		if (code === undefined) return false;
 		if (code === 0x09 || code === 0x0a || code === 0x0d) return true;
-		if (preserveBackspace && code === 0x08) return true;
 		if (code <= 0x1f) return false;
 		if (code >= 0xfff9 && code <= 0xfffb) return false;
 		return true;

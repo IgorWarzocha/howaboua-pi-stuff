@@ -6,8 +6,9 @@ import { Type } from "typebox";
 import { Container, Text } from "@earendil-works/pi-tui";
 import { codexToolProviderEnv, CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE, resolveCodexToolProvider } from "../../adapter/codex-tool-provider.ts";
 import { WEB_SEARCH_TOOL_NAME } from "../../adapter/activation/tool-set.ts";
+import { supportsNativeWebSearch } from "../../adapter/tool-support.ts";
 import { renderCodexToolCell } from "../../ui/tool-rendering/codex-tool-cell.ts";
-import { getBundledPathToolBinaryPath } from "../path/binary.ts";
+import { getBundledToolBinaryPath } from "../native/binary.ts";
 
 export const WEB_SEARCH_UNSUPPORTED_MESSAGE = CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE;
 export const WEB_SEARCH_SESSION_NOTE_TYPE = "codex-web-search-session-note";
@@ -87,14 +88,24 @@ async function runWebRunBinary(webRunPath: string, params: Record<string, unknow
 		const child = spawn(webRunPath, ["-"], { env, signal: signal ?? undefined, stdio: ["pipe", "pipe", "pipe"] });
 		let stdout = "";
 		let stderr = "";
+		let settled = false;
+		const finish = (callback: () => void) => {
+			if (settled) return;
+			settled = true;
+			callback();
+		};
 		child.stdout.setEncoding("utf8");
 		child.stderr.setEncoding("utf8");
 		child.stdout.on("data", (chunk) => { stdout += chunk; });
 		child.stderr.on("data", (chunk) => { stderr += chunk; });
-		child.on("error", reject);
-		child.on("close", (code) => {
+		child.on("error", (error) => finish(() => reject(error)));
+		child.on("close", (code) => finish(() => {
 			if (code === 0) resolve(stdout);
 			else reject(new Error(stderr.trim() || `web_run exited with code ${code ?? "unknown"}`));
+		}));
+		child.stdin.on("error", (error) => {
+			child.kill();
+			finish(() => reject(error));
 		});
 		child.stdin.end(JSON.stringify(params));
 	});
@@ -109,10 +120,6 @@ function formatWebRunOutput(parsed: Record<string, unknown>): string | undefined
 	return typeof outputText === "string" && outputText.trim() ? outputText : undefined;
 }
 
-export function supportsNativeWebSearch(model: ExtensionContext["model"]): boolean {
-	return (model?.provider ?? "").toLowerCase() === "openai-codex" && Boolean(model?.api?.includes("responses"));
-}
-
 function supportsExecutableWebSearch(model: ExtensionContext["model"], options: WebSearchToolOptions): boolean {
 	return supportsNativeWebSearch(model)
 		|| Boolean(options.allowConfiguredProvider?.(model))
@@ -125,7 +132,7 @@ export function supportsMultimodalNativeWebSearch(model: ExtensionContext["model
 }
 
 export async function executeCodexWebSearch(params: Record<string, unknown>, ctx: ExtensionContext, signal: AbortSignal | undefined | null, options: WebSearchToolOptions = {}): Promise<WebRunExecutionResult> {
-	const webRunPath = process.env["PI_CODEX_WEB_RUN_BIN"]?.trim() || getBundledPathToolBinaryPath("web_run", {}, options.customRustBinariesDir);
+	const webRunPath = process.env["PI_CODEX_WEB_RUN_BIN"]?.trim() || getBundledToolBinaryPath("web_run", {}, options.customRustBinariesDir);
 	if (!webRunPath) throw new Error(`web_run binary is not bundled for ${process.platform}-${process.arch}`);
 	const provider = await resolveCodexToolProvider(ctx, options.allowConfiguredProvider);
 	const sessionId = ctx.sessionManager?.getSessionId?.() || options.sessionId;

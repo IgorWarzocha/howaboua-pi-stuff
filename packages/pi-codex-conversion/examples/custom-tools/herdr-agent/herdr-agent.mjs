@@ -166,7 +166,7 @@ class HerdrClient {
 		this.socketPath = socketPath;
 	}
 
-	request(method, params = {}) {
+	request(method, params = {}, timeoutMs = 10_000) {
 		return new Promise((resolve, reject) => {
 			const id = `herdr-agent:${crypto.randomUUID()}`;
 			let buffer = "";
@@ -177,7 +177,7 @@ class HerdrClient {
 			socket.setEncoding("utf8");
 			const timer = setTimeout(
 				() => finish(new Error(`Herdr ${method} timed out`)),
-				10_000,
+				timeoutMs,
 			);
 			timer.unref();
 			function finish(error, result) {
@@ -201,10 +201,15 @@ class HerdrClient {
 				} catch (error) {
 					return finish(new Error(`Herdr returned invalid JSON: ${error.message}`));
 				}
-				if (response.error)
-					return finish(
-						new Error(response.error.message || JSON.stringify(response.error)),
+				if (response.error) {
+					const error = new Error(
+						response.error.message || JSON.stringify(response.error),
 					);
+					error.code = response.error.code;
+					return finish(
+						error,
+					);
+				}
 				if (!("result" in response))
 					return finish(new Error(`Herdr ${method} returned no result`));
 				finish(undefined, response.result);
@@ -385,6 +390,16 @@ async function getAgent(client, target) {
 	return (await client.request("agent.get", { target })).agent;
 }
 
+function assertSameAgent(expected, current) {
+	if (current.terminal_id !== expected.terminal_id)
+		throw new Error(`${expected.pane_id} no longer hosts the targeted Pi agent`);
+	return current;
+}
+
+async function getSameAgent(client, expected) {
+	return assertSameAgent(expected, await getAgent(client, expected.pane_id));
+}
+
 async function getSnapshot(client) {
 	return (await client.request("session.snapshot", {})).snapshot;
 }
@@ -483,7 +498,7 @@ function sessionPath(panel) {
 		: undefined;
 }
 
-async function terminalRead(client, target, source = "visible", lines = 40) {
+async function terminalSnapshot(client, target, source = "visible", lines = 40) {
 	return (
 		await client.request("agent.read", {
 			target,
@@ -492,7 +507,11 @@ async function terminalRead(client, target, source = "visible", lines = 40) {
 			lines,
 			strip_ansi: true,
 		})
-	).read.text;
+	).read;
+}
+
+async function terminalRead(client, target, source = "visible", lines = 40) {
+	return (await terminalSnapshot(client, target, source, lines)).text;
 }
 
 export function isBusyScreen(text) {
@@ -515,6 +534,54 @@ function sleep(milliseconds) {
 function boundText(text) {
 	if (text.length <= MAX_TEXT_CHARS) return { text };
 	return { text: `${text.slice(0, MAX_TEXT_CHARS)}\n…`, truncated: true };
+}
+
+function apiWaitTimeout(timeoutMs) {
+	return timeoutMs + 5_000;
+}
+
+function timeoutOutput(panel) {
+	return {
+		pane: panel.pane_id,
+		status: panel.agent_status,
+		timed_out: true,
+	};
+}
+
+export async function settledOutput(reader, panel, baseline, requireNew) {
+	// Pi writes its transcript before reporting the settled lifecycle state. Keep
+	// a small allowance for filesystem visibility without restoring status polls.
+	const deadline = Date.now() + 500;
+	let view;
+	do {
+		view = await reader.read(sessionPath(panel));
+		const sessionChanged = baseline.path !== view.path;
+		const assistantChanged =
+			sessionChanged || view.assistant_entry?.id !== baseline.assistant_entry_id;
+		if (!requireNew || assistantChanged || (panel.agent_status === "blocked" && view.ask)) {
+			if (assistantChanged && view.assistant_entry?.stop_reason === "error")
+				throw new Error(
+					view.assistant?.text || `${panel.pane_id} assistant stopped with an error`,
+				);
+			const newReply = view.assistant?.id !== baseline.reply_id ? view.assistant : undefined;
+			return {
+				pane: panel.pane_id,
+				status: panel.agent_status,
+				...(panel.agent_status === "blocked" && askOutput(view.ask)
+					? { ask: askOutput(view.ask) }
+					: newReply
+						? boundText(newReply.text)
+						: { completed: true }),
+				...(sessionChanged ? { session_changed: true } : {}),
+			};
+		}
+		await sleep(25);
+	} while (Date.now() < deadline);
+	return {
+		pane: panel.pane_id,
+		status: panel.agent_status,
+		transcript_pending: true,
+	};
 }
 
 function askOutput(ask) {
@@ -579,7 +646,7 @@ export function herdrHelp() {
 			},
 		},
 		advanced: {
-			load: 'await tools.more_skills("herdr")',
+			load: 'await tools.skills("read herdr")',
 			covers: [
 				"workspace/tab/pane lifecycle",
 				"generic command panes",
@@ -604,11 +671,15 @@ function stableKey(panel, view) {
 async function waitForPanel(client, reader, paneId, baseline, timeoutMs, options = {}) {
 	const deadline = Date.now() + timeoutMs;
 	let latestPanel = await getAgent(client, paneId);
+	if (options.expected_terminal_id)
+		assertSameAgent({ pane_id: paneId, terminal_id: options.expected_terminal_id }, latestPanel);
 	let latestView = await reader.read(sessionPath(latestPanel));
 	let candidate;
 	let candidateSince = 0;
 	while (Date.now() < deadline) {
 		latestPanel = await getAgent(client, paneId);
+		if (options.expected_terminal_id)
+			assertSameAgent({ pane_id: paneId, terminal_id: options.expected_terminal_id }, latestPanel);
 		latestView = await reader.read(sessionPath(latestPanel));
 		if (latestPanel.agent_status === "blocked") {
 			const priorAskStillClearing =
@@ -709,12 +780,21 @@ export function resolveSendDisposition({ busy, queue }) {
 	};
 }
 
-async function sendInput(client, paneId, input) {
-	await client.request("pane.send_input", {
-		pane_id: paneId,
-		...(input.text !== undefined ? { text: input.text } : {}),
-		...(input.keys ? { keys: input.keys } : {}),
-	});
+async function sendInput(client, panel, input) {
+	if (input.text !== undefined) {
+		await getSameAgent(client, panel);
+		await client.request("pane.send_input", {
+			pane_id: panel.pane_id,
+			text: input.text,
+		});
+	}
+	if (input.keys) {
+		await getSameAgent(client, panel);
+		await client.request("agent.send_keys", {
+			target: panel.pane_id,
+			keys: input.keys,
+		});
+	}
 }
 
 function normalizeDeliveryText(value) {
@@ -736,13 +816,13 @@ export function detectDelivery(baseline, view, screen, text) {
 	return undefined;
 }
 
-async function waitForDelivery(client, reader, paneId, baseline, text) {
+async function waitForDelivery(client, reader, panel, baseline, text) {
 	const deadline = Date.now() + DELIVERY_TIMEOUT_MS;
 	while (Date.now() < deadline) {
-		const panel = await getAgent(client, paneId);
+		const current = await getSameAgent(client, panel);
 		const [view, screen] = await Promise.all([
-			reader.read(sessionPath(panel)),
-			terminalRead(client, paneId, "visible", 50),
+			reader.read(sessionPath(current)),
+			terminalRead(client, panel.pane_id, "visible", 50),
 		]);
 		const delivery = detectDelivery(baseline, view, screen, text);
 		if (delivery) return delivery;
@@ -866,10 +946,10 @@ async function answerAsk(client, reader, panel, request) {
 		next: keyFor(bindings, "tui.input.tab", "tab"),
 	});
 	for (const step of steps) {
-		await sendInput(client, panel.pane_id, step);
+		await sendInput(client, panel, step);
 		await sleep(35);
 		if (!step.final) {
-			const current = await getAgent(client, panel.pane_id);
+			const current = await getSameAgent(client, panel);
 			if (current.agent_status !== "blocked")
 				throw new Error("ask closed before all requested answers were entered");
 			const currentScreen = await terminalRead(
@@ -900,6 +980,7 @@ async function answerAsk(client, reader, panel, request) {
 			allow_branch_advance: true,
 			ignore_blocked_without_ask: true,
 			ignore_blocked_ask_id: baseline.ask.tool_call_id,
+			expected_terminal_id: panel.terminal_id,
 		},
 	);
 }
@@ -915,10 +996,19 @@ async function execute(request) {
 	const panel = await resolvePanel(client, request.target);
 	if (request.action === "read") {
 		if (request.source !== "latest") {
-			const output = boundText(
-				await terminalRead(client, panel.pane_id, request.source, request.lines),
+			const snapshot = await terminalSnapshot(
+				client,
+				panel.pane_id,
+				request.source,
+				request.lines,
 			);
-			return { pane: panel.pane_id, status: panel.agent_status, ...output };
+			const output = boundText(snapshot.text);
+			return {
+				pane: panel.pane_id,
+				status: panel.agent_status,
+				...output,
+				...(snapshot.truncated || output.truncated ? { truncated: true } : {}),
+			};
 		}
 		const view = await reader.read(sessionPath(panel));
 		return {
@@ -933,19 +1023,31 @@ async function execute(request) {
 	assertRemote(panel);
 	if (request.action === "wait") {
 		const view = await reader.read(sessionPath(panel));
-		return waitForPanel(
-			client,
-			reader,
-			panel.pane_id,
-			{
-				path: view.path,
-				leaf_id: view.leaf_id,
-				assistant_entry_id: view.assistant_entry?.id,
-				reply_id: undefined,
-				require_new: false,
-			},
-			request.timeout_ms,
-		);
+		try {
+			const result = await client.request(
+				"agent.wait",
+				{
+					target: panel.pane_id,
+					until: ["idle", "done", "blocked"],
+					timeout_ms: request.timeout_ms,
+				},
+					apiWaitTimeout(request.timeout_ms),
+				);
+				assertSameAgent(panel, result.agent);
+				return settledOutput(
+				reader,
+				result.agent,
+				{
+					path: view.path,
+					assistant_entry_id: view.assistant_entry?.id,
+					reply_id: undefined,
+				},
+				false,
+			);
+		} catch (error) {
+			if (error?.code !== "timeout") throw error;
+			return timeoutOutput(await getSameAgent(client, panel));
+		}
 	}
 	if (request.action === "answer")
 		return answerAsk(client, reader, panel, request);
@@ -957,6 +1059,62 @@ async function execute(request) {
 		);
 	const busy = await isBusy(client, panel);
 	const disposition = resolveSendDisposition({ busy, queue: request.queue });
+	if (!(busy && request.queue)) {
+		try {
+			const result = await client.request(
+				"agent.prompt",
+				{
+					target: panel.pane_id,
+					text: request.text,
+					...(request.wait && !busy
+						? {
+							wait: {
+								until: ["idle", "done", "blocked"],
+								timeout_ms: request.timeout_ms,
+							},
+						}
+						: {}),
+				},
+					request.wait && !busy ? apiWaitTimeout(request.timeout_ms) : 10_000,
+				);
+				assertSameAgent(panel, result.agent);
+			if (!request.wait)
+				return {
+					pane: panel.pane_id,
+					sent: true,
+					mode: disposition.mode,
+					delivery: "server_prompt",
+				};
+			if (!busy)
+				return settledOutput(
+					reader,
+					result.agent,
+					{
+						path: baseline.path,
+						assistant_entry_id: baseline.assistant_entry?.id,
+						reply_id: baseline.assistant?.id,
+					},
+					true,
+				);
+			return waitForPanel(
+				client,
+				reader,
+				panel.pane_id,
+				{
+					path: baseline.path,
+					leaf_id: baseline.leaf_id,
+					assistant_entry_id: baseline.assistant_entry?.id,
+					reply_id: baseline.assistant?.id,
+					require_new: true,
+					},
+					request.timeout_ms,
+					{ expected_terminal_id: panel.terminal_id },
+				);
+		} catch (error) {
+			if (error?.code !== "timeout") throw error;
+			return timeoutOutput(await getSameAgent(client, panel));
+		}
+	}
 	const bindings = await readKeybindings();
 	const key = keyFor(
 		bindings,
@@ -965,20 +1123,20 @@ async function execute(request) {
 	);
 	// Paste and submit separately. A combined PTY write can hit Pi's
 	// streaming-to-idle transition before the editor has consumed the paste.
-	await sendInput(client, panel.pane_id, { text: request.text });
+	await sendInput(client, panel, { text: request.text });
 	await sleep(40);
-	await sendInput(client, panel.pane_id, { keys: [key] });
+	await sendInput(client, panel, { keys: [key] });
 	let delivery = await waitForDelivery(
 		client,
 		reader,
-		panel.pane_id,
+		panel,
 		baseline,
 		request.text,
 	);
 	if (!delivery) {
 		// Retrying only the submit key is duplicate-safe: if Pi accepted the first
 		// key, its editor is empty; if it missed the key, the pasted text remains.
-		const current = await getAgent(client, panel.pane_id);
+		const current = await getSameAgent(client, panel);
 		const retryDisposition = resolveSendDisposition({
 			busy: await isBusy(client, current),
 			queue: request.queue,
@@ -988,18 +1146,18 @@ async function execute(request) {
 			retryDisposition.keybinding,
 			retryDisposition.fallback,
 		);
-		await sendInput(client, panel.pane_id, { keys: [retryKey] });
+		await sendInput(client, panel, { keys: [retryKey] });
 		delivery = await waitForDelivery(
 			client,
 			reader,
-			panel.pane_id,
+			panel,
 			baseline,
 			request.text,
 		);
 	}
 	if (!delivery)
 		throw new Error(
-			`${panel.pane_id} did not accept the message; the text may remain in Pi's editor`,
+			`${panel.pane_id} did not confirm the message; it may already be queued in Pi`,
 		);
 	if (!request.wait)
 		return { pane: panel.pane_id, sent: true, mode: disposition.mode, delivery };
@@ -1015,6 +1173,7 @@ async function execute(request) {
 			require_new: true,
 		},
 		request.timeout_ms,
+		{ expected_terminal_id: panel.terminal_id },
 	);
 }
 

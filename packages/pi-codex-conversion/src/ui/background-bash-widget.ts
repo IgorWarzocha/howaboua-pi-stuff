@@ -77,7 +77,7 @@ export function renderBackgroundBashWidget(ctx: ExtensionContext, state: Backgro
 		lines.push(`${theme.fg("muted", "│")} ${theme.fg("dim", `session ${active.id} · updated ${ageLabel(active.updatedAt)} ago`)}`);
 	}
 
-	lines.push(`${theme.fg("muted", "╰─")} ${theme.fg("dim", "alt+q/e select · alt+w fold/open · alt+r close · /codex ps")}`);
+	lines.push(`${theme.fg("muted", "╰─")} ${theme.fg("dim", "alt+q/e select · alt+w fold/open · alt+r close")}`);
 	ctx.ui.setWidget(BACKGROUND_BASH_WIDGET_ID, lines, { placement: "aboveEditor" });
 }
 

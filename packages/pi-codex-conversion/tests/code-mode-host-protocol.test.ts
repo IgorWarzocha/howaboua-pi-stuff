@@ -21,4 +21,13 @@ test("Code Mode host protocol rejects malformed runtime content", () => {
 		}),
 		/invalid content item/,
 	);
+	assert.throws(
+		() => parseRuntimeResponse({
+			Result: {
+				cell_id: "cell-1",
+				content_items: [{ type: "input_audio", audio_url: "data:audio/wav;base64,AA==" }],
+			},
+		}),
+		/audio output is not supported by Pi/,
+	);
 });

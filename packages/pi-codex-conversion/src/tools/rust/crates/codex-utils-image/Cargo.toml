@@ -15,4 +15,3 @@ tokio = { workspace = true, features = ["fs", "rt", "rt-multi-thread", "macros"]
 [lib]
 path = "lib.rs"
 doctest = false
-

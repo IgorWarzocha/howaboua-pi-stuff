@@ -13,7 +13,7 @@ function state(additionalProviders: string[] = []): AdapterState {
 		codexTurnState: createCodexTurnState(),
 		config: {
 			...DEFAULT_CODEX_CONVERSION_CONFIG,
-			beta: { codeMode: true, responsesLite: false },
+			beta: { codeMode: true, responsesLite: true },
 			scope: { allProviders: "off", additionalProviders },
 		},
 	};
@@ -23,49 +23,23 @@ const payload = {
 	model: "gpt-5.6-luna",
 	instructions: "Instructions",
 	input: [{ role: "user", content: [{ type: "input_text", text: "Hello" }] }],
-	tools: [{ type: "function", name: "exec", parameters: { type: "object", properties: { code: { type: "string" } } } }],
+	tools: [{ type: "custom", name: "exec", format: { type: "grammar", syntax: "lark", definition: "start: /.+/" } }],
 	parallel_tool_calls: true,
 };
 
-test("Code Mode keeps raw exec tools in standard Responses requests", async () => {
+test("Code Mode relocates native freeform tools into Responses Lite", async () => {
 	const rewritten = await rewriteCodexProviderRequest({ ...payload, model: "gpt-5.6" }, {
 		model: { provider: "litellm", api: "openai-responses", id: "gpt-5.6" },
 	} as never, state(["litellm"])) as typeof payload;
 
-	assert.equal(rewritten.instructions, "Instructions");
-	assert.equal(rewritten.tools[0]?.type, "custom");
-	assert.equal(rewritten.tools[0]?.name, "exec");
-	assert.equal((rewritten.tools[0] as unknown as { format: { syntax: string } }).format.syntax, "lark");
-	assert.equal((rewritten.input[0] as { role: string }).role, "user");
-});
-
-test("inactive Code Mode strips custom-tool item IDs before function-tool replay", async () => {
-	const disabled = state();
-	disabled.config.beta.codeMode = false;
-	const cases = [
-		{
-			adapterState: disabled,
-			model: { provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.6-luna" },
-		},
-		{
-			adapterState: state(),
-			model: { provider: "litellm", api: "openai-responses", id: "gpt-5.6" },
-		},
-	];
-
-	for (const { adapterState, model } of cases) {
-		const rewritten = await rewriteCodexProviderRequest({
-			...payload,
-			input: [{ type: "function_call", id: "ctc_02c506", call_id: "call_1", name: "exec", arguments: "{}" }],
-		}, { model } as never, adapterState) as typeof payload;
-
-		assert.deepEqual(rewritten.input[0], {
-			type: "function_call",
-			call_id: "call_1",
-			name: "exec",
-			arguments: "{}",
-		});
-	}
+	assert.equal("instructions" in rewritten, false);
+	assert.equal((rewritten.input[0] as { type?: string }).type, "additional_tools");
+	const liteTools = (rewritten.input[0] as unknown as { tools: Array<{ type: string; name: string; format: { syntax: string } }> }).tools;
+	assert.equal(liteTools[0]?.type, "custom");
+	assert.equal(liteTools[0]?.name, "exec");
+	assert.equal(liteTools[0]?.format.syntax, "lark");
+	assert.deepEqual((rewritten.input[1] as { content: unknown }).content, [{ type: "input_text", text: "Instructions" }]);
+	assert.equal((rewritten.input[2] as { role: string }).role, "user");
 });
 
 test("voice-only mode does not rewrite provider requests", async () => {

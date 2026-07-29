@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { getCodexConversionConfigPath, readCodexConversionConfig, writeCodexConversionConfig } from "../../adapter/activation/config.ts";
+import { getCodexConversionConfigPath, readCodexConversionConfig, writeCodexConversionConfig } from "../../adapter/activation/config-store.ts";
 
 export function editorCommand(): string | undefined {
 	return process.env["VISUAL"]?.trim() || process.env["EDITOR"]?.trim() || undefined;

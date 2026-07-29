@@ -18,14 +18,33 @@ jobs:
         env:
           CHANGED_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'HEAD~1' }}
         run: bun run check:changed
-      - name: Verify pi-codex-conversion-lite release assets
+      - name: Verify Codex extension release assets
         env:
           CHANGED_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'HEAD~1' }}
         run: |
-          if git diff --quiet "$CHANGED_BASE...HEAD" -- packages/pi-codex-conversion-lite; then
+          for package in pi-codex-conversion pi-codex-conversion-lite; do
+            if git diff --quiet "$CHANGED_BASE...HEAD" -- "packages/$package"; then
+              continue
+            fi
+            bun run --cwd "packages/$package" build
+            bun run --cwd "packages/$package" verify:codex-tool-binaries
+            bun run --cwd "packages/$package" verify:code-mode-host-assets
+            npm pack --dry-run --ignore-scripts "./packages/$package"
+          done
+      - name: Verify GipPity release assets
+        env:
+          CHANGED_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'HEAD~1' }}
+        run: |
+          if git diff --quiet "$CHANGED_BASE...HEAD" -- packages/pi-gippity-control; then
             exit 0
           fi
-          bun run --cwd packages/pi-codex-conversion-lite build
-          bun run --cwd packages/pi-codex-conversion-lite verify:codex-tool-binaries
-          bun run --cwd packages/pi-codex-conversion-lite verify:code-mode-host-assets
-          npm pack --dry-run --ignore-scripts ./packages/pi-codex-conversion-lite
+          manifest=$(npm pack --dry-run --json --ignore-scripts ./packages/pi-gippity-control)
+          for asset in \
+            src/voice/bin/darwin-arm64/pi-codex-voice \
+            src/voice/bin/darwin-x64/pi-codex-voice \
+            src/voice/bin/linux-arm64/pi-codex-voice \
+            src/voice/bin/linux-x64/pi-codex-voice \
+            src/voice/bin/win32-arm64/pi-codex-voice.exe \
+            src/voice/bin/win32-x64/pi-codex-voice.exe; do
+            jq -e --arg asset "$asset" '.[0].files | any(.path == $asset)' <<<"$manifest" >/dev/null
+          done

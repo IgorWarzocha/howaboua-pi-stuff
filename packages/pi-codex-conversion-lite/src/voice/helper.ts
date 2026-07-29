@@ -1,12 +1,15 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { resolveVoiceHelperBinary } from "./binary.ts";
+import { MAX_REALTIME_SDP_BYTES } from "./conversation/peer.ts";
 
 export type VoiceHelperCommand =
 	| { type: "list_devices" }
 	| { type: "start_v3"; microphone?: string; speaker?: string }
+	| { type: "start_v3_bridge" }
 	| { type: "apply_answer"; sdp: string }
 	| { type: "start_dictation"; microphone?: string }
 	| { type: "send_data"; message: unknown }
+	| { type: "send_pcm"; audio: string; sample_rate: 24_000; num_channels: 1 }
 	| { type: "stop" }
 	| { type: "shutdown" };
 
@@ -27,7 +30,6 @@ export interface VoiceDevice {
 }
 
 const MAX_HELPER_LINE_BYTES = 512 * 1024;
-const MAX_SDP_BYTES = 256 * 1024;
 const MAX_PCM_BYTES = 64 * 1024;
 const MAX_DATA_MESSAGE_BYTES = 64 * 1024;
 const MAX_TEXT_BYTES = 8 * 1024;
@@ -35,12 +37,16 @@ const MAX_DEVICE_BYTES = 512;
 const MAX_DEVICES = 128;
 const READY_TIMEOUT_MS = 5_000;
 const STOP_TIMEOUT_MS = 2_000;
+const MAX_HELPER_STDIN_BYTES = 512 * 1024;
 
 export class VoiceHelperClient {
 	private child: ChildProcessWithoutNullStreams | undefined;
 	private listeners = new Set<(event: VoiceHelperEvent) => void>();
 	private exitListeners = new Set<(error: Error) => void>();
 	private stdinFailures = new WeakSet<ChildProcessWithoutNullStreams>();
+	private helperProtocolVersion: number | undefined;
+
+	get protocolVersion(): number | undefined { return this.helperProtocolVersion; }
 
 	onEvent(listener: (event: VoiceHelperEvent) => void): () => void {
 		this.listeners.add(listener);
@@ -69,7 +75,12 @@ export class VoiceHelperClient {
 		const lines = new BoundedJsonlReader(MAX_HELPER_LINE_BYTES, (line) => {
 			try {
 				const event = parseVoiceHelperEvent(JSON.parse(line));
-				if (event.type === "ready") event.version === 2 ? ready.resolve() : ready.reject(new Error(`Unsupported Codex voice helper protocol ${event.version}`));
+				if (event.type === "ready") {
+					if (event.version === 2 || event.version === 3) {
+						this.helperProtocolVersion = event.version;
+						ready.resolve();
+					} else ready.reject(new Error(`Unsupported Codex voice helper protocol ${event.version}`));
+				}
 				for (const listener of this.listeners) listener(event);
 			} catch (error) {
 				this.fail(error instanceof Error ? error : new Error(String(error)));
@@ -91,7 +102,10 @@ export class VoiceHelperClient {
 			const detail = stderr.trim();
 			const error = new Error(`Codex voice helper exited (${signal ?? code ?? "unknown"})${detail ? `: ${detail}` : ""}`);
 			ready.reject(error);
-			if (this.child === child) this.child = undefined;
+			if (this.child === child) {
+				this.child = undefined;
+				this.helperProtocolVersion = undefined;
+			}
 			if (!this.stdinFailures.has(child)) this.fail(error);
 		});
 		let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -113,8 +127,14 @@ export class VoiceHelperClient {
 	send(command: VoiceHelperCommand): void {
 		const child = this.child;
 		if (!child?.stdin.writable) throw new Error("Codex voice helper is not running");
+		const line = `${JSON.stringify(command)}\n`;
+		if (child.stdin.writableLength + Buffer.byteLength(line) > MAX_HELPER_STDIN_BYTES) {
+			const error = new Error("Codex voice helper input is backpressured");
+			this.handleStdinError(child, error);
+			throw error;
+		}
 		try {
-			child.stdin.write(`${JSON.stringify(command)}\n`, (error) => {
+			child.stdin.write(line, (error) => {
 				if (error) this.handleStdinError(child, error);
 			});
 		} catch (error) {
@@ -152,6 +172,7 @@ export class VoiceHelperClient {
 		const child = this.child;
 		if (!child) return;
 		this.child = undefined;
+		this.helperProtocolVersion = undefined;
 		if (child.stdin.writable) child.stdin.end(`${JSON.stringify({ type: "shutdown" })}\n`);
 		if (await waitForExit(child, 2_000)) return;
 		child.kill();
@@ -169,6 +190,7 @@ export class VoiceHelperClient {
 		this.stdinFailures.add(child);
 		if (this.child !== child) return;
 		this.child = undefined;
+		this.helperProtocolVersion = undefined;
 		child.kill();
 		this.fail(error);
 	}
@@ -249,7 +271,7 @@ export function parseVoiceHelperEvent(value: unknown): VoiceHelperEvent {
 	const event = value as Record<string, unknown>;
 	if (event["type"] === "ready" && Number.isSafeInteger(event["version"])) return event as VoiceHelperEvent;
 	if (event["type"] === "devices" && validDevices(event["inputs"]) && validDevices(event["outputs"])) return event as VoiceHelperEvent;
-	if (event["type"] === "offer" && boundedString(event["sdp"], MAX_SDP_BYTES)) return event as VoiceHelperEvent;
+	if (event["type"] === "offer" && boundedString(event["sdp"], MAX_REALTIME_SDP_BYTES)) return event as VoiceHelperEvent;
 	if (event["type"] === "state" && boundedString(event["state"], 128)) return event as VoiceHelperEvent;
 	if (event["type"] === "data" && boundedJson(event["message"], MAX_DATA_MESSAGE_BYTES)) return event as VoiceHelperEvent;
 	if (event["type"] === "pcm" && validBase64(event["audio"], MAX_PCM_BYTES) && event["sample_rate"] === 24_000 && event["num_channels"] === 1) return event as VoiceHelperEvent;

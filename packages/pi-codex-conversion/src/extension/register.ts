@@ -8,7 +8,7 @@ import { createCodexExtensionRuntime } from "./runtime.ts";
 import { registerCodexTools } from "./tools.ts";
 import { registerCodexUi } from "./ui.ts";
 import { registerCodexVoiceRenderer } from "../voice/ui.ts";
-import { shouldUseGpt56CodeMode } from "../adapter/activation/activation.ts";
+import { resolveCodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
 
 export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 	registerCodexVoiceRenderer(pi);
@@ -17,19 +17,24 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 	let cleanupProxyProvider: ReturnType<typeof registerCodeModeProxyProvider> | undefined;
 	try {
 		registerOpenAICodexCustomProvider(pi, {
-			getConfig: () => ({ openai: runtime.state.config.openai, beta: runtime.state.config.beta }),
-			useResponsesLite: (model) => shouldUseGpt56CodeMode({ model }, runtime.state.config),
+			getConfig: () => ({ openai: runtime.state.config.openai, beta: runtime.state.config.beta, compaction: runtime.state.config.compaction }),
+			useResponsesLite: (model) => resolveCodexRuntimePlan({ model }, runtime.state.config).kind === "code",
 			turnState: runtime.state.codexTurnState,
 		});
 		const proxyProvider = registerCodeModeProxyProvider(pi, () => runtime.state.config);
 		cleanupProxyProvider = proxyProvider;
 		const tools = registerCodexTools(pi, runtime);
 		const ui = registerCodexUi(pi, runtime);
-		registerCodexCommand(pi, runtime.state, runtime.voice, (config, ctx, previousConfig) => {
+		registerCodexCommand(pi, runtime.state, runtime.voice, runtime.lanVoice, (config, ctx, previousConfig) => {
 			proxyProvider.applyConfig(config, ctx.modelRegistry);
 			tools.applyConfig(config);
 			ui.applyConfig(config);
-			if (config.voiceFeaturesOnly || config.prompt.heavySystemPromptOverwrite !== previousConfig.prompt.heavySystemPromptOverwrite) {
+			if (
+				config.voiceFeaturesOnly
+				|| config.prompt.heavySystemPromptOverwrite !== previousConfig.prompt.heavySystemPromptOverwrite
+				|| config.openai.harnessIdentifierHeader !== previousConfig.openai.harnessIdentifierHeader
+				|| config.compaction.responsesCompaction !== previousConfig.compaction.responsesCompaction
+			) {
 				runtime.resetTransport(ctx.sessionManager.getSessionId());
 			}
 			if (config.voiceFeaturesOnly) {
@@ -37,7 +42,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 					ctx.ui.notify(`Could not stop Code Mode host: ${error instanceof Error ? error.message : String(error)}`, "warning");
 				});
 			}
-		}, { sessions: runtime.sessions, widget: runtime.backgroundWidget });
+		});
 		registerCodexEvents(pi, runtime, tools, ui, codeMode, proxyProvider);
 	} catch (registrationError) {
 		try {

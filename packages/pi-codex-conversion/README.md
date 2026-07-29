@@ -1,6 +1,10 @@
-# @howaboua/pi-codex-conversion
+# pi-codex-conversion
 
-Adapts Pi's tools and prompt for GPT/Codex models. It keeps Pi's sessions, project context, skills, and UI while presenting the shell, patch, image, and web operations those models expect.
+If you're expecting details about the code, you've come to the wrong place. Clone it and ask your Clanka.
+
+Pi already runs GPT models. This extension gives them Codex-shaped tools and prompt handling, then adds web, images, voice, compaction and OpenAI controls without turning the provider request into a schema landfill.
+
+For the argument and token numbers, read [How I gave Pi 17 tools without loading 17 schemas](https://howaboua.dev/writing/how-i-gave-pi-17-tools-without-loading-17-schemas/). This README is for using the thing.
 
 ## Install
 
@@ -8,116 +12,163 @@ Adapts Pi's tools and prompt for GPT/Codex models. It keeps Pi's sessions, proje
 pi install npm:@howaboua/pi-codex-conversion
 ```
 
-Requires Node.js 22.19 or newer. Native helpers are bundled. The adapter activates for OpenAI `gpt*` and `codex*` models and restores Pi's previous tools when you switch away.
+Requires Pi 0.82 or newer and Node.js 22.19 or newer. Native helpers for macOS, Linux and Windows are bundled for x64 and arm64.
 
-## Tool modes
+Open `/codex` after installation. The defaults give Codex-like GPT models the structured adapter and leave Code Mode, heavy prompt overwrite and native compaction opt-in. All of them are highly recommended, though. That's what I'm daily-driving and fine-tuning towards.
 
-### Normal mode
+## Contents
 
-Normal mode exposes Codex-shaped Pi tools:
+- [What you get](#what-you-get)
+- [Modes](#modes)
+- [Settings](#settings)
+- [Code Mode and custom tools](#code-mode-and-custom-tools)
+- [Voice, dictation and GipPity](#voice-dictation-and-gippity)
+- [Models and providers](#models-and-providers)
+- [Migrating from Lite](#migrating-from-lite)
+- [Troubleshooting](#troubleshooting)
 
-- `exec_command` — shell execution with resumable sessions and optional PTY support
-- `write_stdin` — poll or interact with a running shell session
-- `apply_patch` — patch-based file edits
-- `view_image` — local image inspection when the model supports image input
-- `web_run` — Codex-backed web search when enabled and supported
-- `imagegen` — Codex-backed image generation and editing when enabled and supported
+## What you get
 
-There is no separate text `read`, `edit`, or `write` tool. Use `exec_command` for file inspection and `apply_patch` for edits.
+- Codex-shaped `exec_command`, `write_stdin`, `apply_patch`, `view_image`, `web_run` and `imagegen` tools
+- GPT-5.6 Code Mode with only `exec` and `wait` added by the conversion at provider level
+- foreground, background and interactive shell sessions with resumable output
+- web search, page navigation, image generation/editing and image descriptions for blind models
+- realtime voice, push-to-dictate and the GipPity LAN remote mini WebUI
+- OpenAI verbosity, fast mode, cached transport, usage, reset credits and Responses compaction
+- compact Pi-native rendering, status and background-shell controls
 
-### PATH mode
+Pi keeps its sessions, project context, skills and UI. The model gets the dialect it already knows.
 
-PATH mode exposes only `exec_command` and `write_stdin` as structured adapter tools. `apply_patch`, `view_image`, `web_run`, and `imagegen` become commands on an extension-injected internal `PATH`.
+## Modes
 
-Run them inside `exec_command`:
+| Mode | Behaviour |
+| --- | --- |
+| **Structured adapter** | Replaces Pi's default file and shell tools with the Codex-shaped set. This is the default for Codex-like GPT models and configured providers. |
+| **Code Mode** | Exposes `exec` and `wait`; shell, patch, image, web and custom tools compose locally inside `exec`. |
+| **Extra tools only** | Adds individually selected `apply_patch`, `view_image`, `web_run` or `imagegen` tools without replacing the active model's normal setup. |
+| **Voice only** | Leaves the active model's prompt, tools, requests, compaction and adapter widgets untouched while retaining voice and dictation. |
 
-```bash
-view_image '{"path":"/x.png"}'
-web_run '{"search_query":[{"q":"..."}],"response_length":"short"}'
-imagegen '{"prompt":"..."}'
-imagegen '{"action":"edit","prompt":"...","images":["/x.png"]}'
-```
+Structured mode has no separate text `read`, `edit` or `write` tool. The model inspects files through the shell and edits with `apply_patch`.
 
-Generated images are saved under `.pi/openai-codex-images/` at the workspace root, with the newest image mirrored to `latest.png`.
+Provider scope can stay on **Codex and configured**, expand to **all providers**, or use **extra tools only**.
 
-### GPT-5.6 Code Mode
+## Settings
 
-Code Mode is an opt-in beta for OpenAI Codex Luna, Terra, and Sol. Explicitly configured Responses providers may also use those model IDs or the gpt-5.6 alias. Proxy providers retain raw JavaScript exec calls through a custom Responses stream. Responses Lite is optional for proxies and has a separate Beta setting; built-in Codex models use it automatically. Only `exec` and `wait` reach the provider. `exec` composes nested tools locally:
+`/codex` opens the settings UI:
+
+| Tab | Covers |
+| --- | --- |
+| General | Extension mode, provider scope, configured providers and heavy prompt overwrite |
+| Tools | Code Mode, web, images, text image descriptions and activate-only tools |
+| OpenAI | Fast mode, verbosity, transport, Responses Lite and compaction |
+| Display | Statusline, tool rendering, Code Mode detail and background shells |
+| Voice | LAN server, voice, dictation behaviour, shortcuts and prompt paths |
+| Usage | Codex limits, reset times and banked reset credits |
+| About | GitHub, changelog, Discord and issue links |
+
+Open a tab directly with `/codex tools`, `/codex openai`, `/codex display`, `/codex voice`, `/codex usage` or `/codex about`.
+
+Settings live in `~/.pi/agent/pi-codex-conversion.json`. **Edit config** opens the file for provider IDs, audio devices, custom binaries and keybinds. Run `/reload` after changing keybinds by hand.
+
+The optional **Heavy system prompt overwrite** removes roughly 40% of Pi's known default scaffold while preserving additions from other extensions. It is off by default.
+
+## Code Mode and custom tools
+
+Enable **GPT-5.6 Code Mode** in `/codex` → **Tools**. It currently supports OpenAI Codex Luna, Terra and Sol. Configured OpenAI Responses-compatible providers can also use those model IDs or the GPT-5.6 alias with **Proxy Responses Lite** enabled. Other models stay on structured tools.
+
+The model can compose tools in one freeform JavaScript cell:
 
 ```js
 const status = await tools.exec_command({ cmd: "git status --short" });
 text(status);
 ```
 
-Nested `apply_patch`, `view_image`, `web__run`, `image_gen__imagegen`, `exec_command`, and `write_stdin` calls keep normal Pi rendering without exposing their schemas to the provider. When Code Mode becomes active, Pi starts downloading and verifying the pinned V8 host instead of waiting for the first `exec`. Downloads respect standard proxy environment variables and fail instead of hanging indefinitely.
-For configured Responses providers, `web__run` uses the active provider's `/responses` endpoint; the proxy must support the Responses `web_search` tool.
+Pi tools that genuinely need Pi's UI remain ordinary tools. `ask` is the obvious example; pretending an interactive questionnaire is a shell command would be daft.
 
-## Code Mode custom tools
+Custom tools are top-level TOML definitions plus a command that accepts one string. Put them in:
 
-Put top-level TOML definitions in `~/.pi/agent/codex-conversion-custom-tools/` (or `$PI_CODING_AGENT_DIR/codex-conversion-custom-tools/`) and, for trusted project-only tools, `<launch-directory>/.pi/codex-conversion-custom-tools/`. Only the launch directory is checked; project-local definitions override same-named global definitions. Each filename becomes a method on `tools`.
-
-Definitions are deferred by default; set `defer_loading = false` to add one to the prompt. Set `yield_time_ms` to force the initial `exec` wait for a directly invoked long-running tool; this private policy overrides the model's `// @exec` value. Invalid definitions with valid tool names remain callable and throw their configuration error; unrepresentable definitions are reported separately without disabling other tools. Disabled examples ship under `examples/custom-tools/`.
-
-## Settings
-
-Open `/codex` for the full settings UI. Settings are saved in `~/.pi/agent/pi-codex-conversion.json`.
-
-Direct routes include `/codex all` (cycle full adapter, extra tools only, and off), `/codex fast`, `/codex compact`, `/codex voice realtime|dictation|stop`, `/codex usage`, `/codex reset`, `/codex low|medium|high`, and `/codex ps` for background shells. `/codex voice` opens the Voice settings tab.
-
-The Voice tab keeps conversation and dictation separate from the wire protocol. V3 is Codex's delegated voice path, V2 is the Realtime transcription API, and dictation is transcription mode rather than another protocol. Conversation delegates spoken work through the active Pi agent and tools; manually bounded dictation inserts one finalized utterance into the editor. Microphone and speaker audio stay in the bundled native helper, while Pi owns Codex authentication and agent execution. Voice always resolves Pi's `openai-codex` login, independently of the active model or provider.
-
-`Ctrl+Alt+D` is push-to-dictate by default, with toggle behavior available in the Voice tab. `Ctrl+Alt+Space` toggles realtime voice. Push mode follows key releases when available and key-repeat continuity otherwise; use toggle mode if key repeat is disabled. Keybind changes in JSON take effect after `/reload`.
-
-Pi creates `~/.pi/agent/REALTIME-SYSTEM-PROMPT.md` if absent. This fully visible prompt controls a spoken listener, vocalizer, and router with no direct tool or file access; coding, tool, project instructions, and actual work remain in Pi and AGENTS.md files. HTML comments are editor guidance and are removed before the prompt is sent. Required headings are validated only when realtime voice starts.
-
-An optional workspace `.pi/REALTIME-SYSTEM-PROMPT.md` is plain Markdown appended after the global prompt under `# Project level instructions`. It is never created automatically and does not replace or need to repeat the global prompt's required sections.
-
-Set `Voice features only` in the General tab to leave the active model's prompt, tool set, request payloads, compaction, and adapter widgets untouched while retaining `/codex voice`. Optional device IDs live in the same config:
-
-```json
-{
-  "voice": {
-    "dictationShortcut": "ctrl+alt+d",
-    "realtimeShortcut": "ctrl+alt+space",
-    "inputDevice": "<input device id>",
-    "outputDevice": "<output device id>"
-  }
-}
+```text
+~/.pi/agent/codex-conversion-custom-tools/
+<project>/.pi/codex-conversion-custom-tools/
 ```
 
-If either key is missing, `/codex voice realtime` or `/codex voice dictation` starts an agent-guided device setup turn instead of voice. After the agent saves exact device IDs, run the command again.
+A promoted tool adds one compact usage line to the prompt. A deferred tool adds no tool-specific startup text and remains discoverable through `ALL_TOOLS`. Neither becomes another provider schema. Keep in mind if a tool is deferred, YOU need to remember that it exists and tell your Clanka to invoke it. Otherwise it might never realise it's there.
 
-To adapt an additional Codex-compatible provider without enabling all-model scope:
+Working, disabled examples live in [`examples/custom-tools/`](./examples/custom-tools/). They include Herdr coordination, subagents, semantic search, port diagnostics, workflow creation and two lazy skill loaders. See [`CUSTOM-TOOLS.md`](./src/tools/code-mode/CUSTOM-TOOLS.md) for the definition contract.
 
-```json
-{
-  "scope": {
-    "additionalProviders": ["my-provider"]
-  }
-}
+For skills, keep repository SOPs in normal `.pi/skills/` and general workflows in global `lazy-skills/` behind the example `skills` tool. `--no-skills` is optional. The older additive `more_skills` example remains available if you want to mix & match and still use Pi's skills alongside a bigger catalogue invoked via `more_skills`.
+
+## Voice, dictation and GipPity
+
+Voice uses your Pi OpenAI Codex login independently of the active model. The spoken model handles conversation and routes work; the active Pi session keeps the tools, files and actual job.
+
+Defaults:
+
+- `Ctrl+Alt+Space` toggles realtime voice
+- `Ctrl+Alt+D` is push-to-dictate; toggle behaviour is available in the Voice tab
+- `Ctrl+Alt+G` toggles the GipPity LAN server
+
+If audio devices are not configured, the first start asks the Pi agent to inspect the available endpoints and save the selected IDs. Dictation returns one editable transcript to Pi's input.
+
+The visible realtime prompt lives at `~/.pi/agent/REALTIME-SYSTEM-PROMPT.md`. A trusted project can append `.pi/REALTIME-SYSTEM-PROMPT.md`. Keep coding and project instructions in AGENTS.md rather than duplicating them into the spoken assistant.
+
+Voice commands:
+
+```text
+/codex voice realtime
+/codex voice dictation
+/codex voice stop
+/codex voice server
 ```
 
-Native compaction applies to OpenAI Codex and explicitly configured passthrough providers listed in `additionalProviders`; the built-in OpenAI Responses endpoint is supported when added. Additional providers must forward the OpenAI/Codex Responses and compaction contracts, such as a renamed provider or compatible LiteLLM route. Enable compaction and choose protocol `v1` or `v2` in `/codex`; both inherit the active model and reasoning level so the request stays on the current prompt-cache lane. V1 remains the default. V2 uses the active model's ordinary streamed Responses transport and excludes injected context messages. Its Beta setting retains roughly 16k, 32k, or Codex-native 64k tokens of recent real user messages beside the encrypted checkpoint. Retention stops at message boundaries; an oversized newest message is kept whole. V1 and V2 checkpoints share the same opaque Responses input contract and can be compacted by either protocol.
+`/codex voice server` lazily starts GipPity over HTTPS and prints its hostname and LAN addresses. Open one on a different machine (phone, cough, cough) and accept the local certificate on first visit. Amazing when using a devbox without a mic or when you want to Tailscale into Pi and talk to it remotely.
 
-The first compact request sends the full active transcript, and later requests send the previous opaque checkpoint plus its exact live tail. Oversized requests preserve the cached history prefix by only rewriting contiguous trailing tool and tool-search outputs when the transcript exceeds Codex's effective context window. Failed endpoint requests and invalid compaction outputs fall back to Pi's normal compaction. Unsupported preparation or compatibility states cancel compaction and report the error instead of silently discarding context.
+GipPity provides realtime voice, editable dictation drafts, typed prompting, Pi activity, settled assistant results and seamless microphone takeover between devices. It follows the Pi theme and can be saved as a PWA / phone app.
 
-Process control, PTYs, patching, images, and large outputs run through bundled Rust helpers, so failures normally become tool errors instead of crashing Pi. PATH image results render inline; recognized `web_run` and `imagegen` calls wait up to one hour before becoming resumable.
+The server belongs only to the Pi session that started it and stops when that session changes. There is intentionally no authentication in v1; it is for a trusted LAN.
 
-## Binary compatibility
+## Models and providers
 
-If a published binary fails with `GLIBC_* not found`, a loader error, or an `exec_bridge` startup failure, use a checkout and rebuild that helper on the target machine rather than changing system glibc or patching the installed package:
+The default scope activates conservatively for Codex-like GPT routes and Responses providers listed under **Additional providers**. Switching to an unrelated model restores Pi's ordinary tools.
+
+Voice, usage, web search, image generation and text image descriptions can use the Pi OpenAI Codex login while another provider's model remains active. This is how a text-only model can receive a small vision model's plain-text image description without caring how it got there.
+
+Native Responses compaction is intentionally narrower: OpenAI Codex and explicitly configured OpenAI/Codex-compatible passthrough providers only. Unsupported states fail visibly or fall back to Pi compaction rather than silently discarding context.
+
+## Migrating from Lite
+
+`@howaboua/pi-codex-conversion-lite` has graduated into this package. Lite receives one final release and no further updates.
+
+Remove Lite before installing the canonical package; both use the same command and configuration surfaces.
+
+```bash
+pi remove npm:@howaboua/pi-codex-conversion-lite
+pi install npm:@howaboua/pi-codex-conversion
+```
+
+Your existing `~/.pi/agent/pi-codex-conversion.json` continues to load.
+
+This is also a major change for users of the old canonical package. Legacy PATH mode and its package binaries are gone. Old PATH-mode settings normalize to the structured adapter. Use structured tools or Code Mode custom commands instead.
+
+## Troubleshooting
+
+- **Voice cannot find a device:** let the setup turn inspect the endpoints, save the selected device IDs, then start voice again.
+- **GipPity cannot open the microphone:** use one of Pi's HTTPS URLs and accept its local certificate. Browsers block microphone access on plain LAN HTTP.
+- **Code Mode cannot start:** its pinned host is prepared lazily and honours normal proxy environment variables. Pi reports setup failures instead of hanging the first execution.
+- **A helper fails with a loader or `GLIBC_*` error:** build that helper from a checkout for the target machine and set the custom Rust binaries directory. Do not replace system glibc for this.
+- **A configured provider fails:** it must implement the OpenAI Responses contracts required by the enabled feature. Code Mode additionally needs Responses Lite compatibility; native compaction needs the Codex compaction contract.
+
+For anything stranger, clone the repository and ask your Clanka:
 
 ```bash
 git clone https://github.com/IgorWarzocha/howaboua-pi-stuff.git
 cd howaboua-pi-stuff
 bun install
-bun run --cwd packages/pi-codex-conversion build:path-tool codex-exec-shim exec_bridge
-bun run --cwd packages/pi-codex-conversion build
 pi --no-extensions --no-skills -e ./packages/pi-codex-conversion
 ```
 
-See [`PATH_TOOLS.md`](./PATH_TOOLS.md) for helper details and [`UPSTREAM_SYNC.md`](./UPSTREAM_SYNC.md) for provider and vendored-source parity.
+See [`UPSTREAM_SYNC.md`](./UPSTREAM_SYNC.md), [`CHANGELOG.md`](./CHANGELOG.md) and [GitHub issues](https://github.com/IgorWarzocha/howaboua-pi-stuff/issues).
 
 ## License
 
-MIT. Bundled and vendored third-party components retain their own licenses and notices.
+MIT. Bundled and vendored third-party components retain their own licences and notices.

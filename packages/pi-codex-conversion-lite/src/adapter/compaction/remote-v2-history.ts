@@ -1,3 +1,5 @@
+import { normalizeResponsesToolHistory } from "../../providers/openai-responses/tool-history.ts";
+
 const RETAINED_MESSAGE_TOKEN_BUDGET = 64_000;
 const APPROX_BYTES_PER_TOKEN = 4;
 
@@ -39,29 +41,9 @@ export function canonicalCompactionOutput(item: unknown): Record<string, unknown
 }
 
 export function normalizeRemoteCompactionV2PromptInput(input: readonly unknown[]): Record<string, unknown>[] {
-	const functionCalls = new Set<string>();
-	const localShellCalls = new Set<string>();
-	const customCalls = new Set<string>();
-	const toolSearchCalls = new Set<string>();
-	for (const item of input) {
-		if (!isRecord(item) || typeof item["call_id"] !== "string") continue;
-		if (item["type"] === "function_call") functionCalls.add(item["call_id"]);
-		else if (item["type"] === "local_shell_call") localShellCalls.add(item["call_id"]);
-		else if (item["type"] === "custom_tool_call") customCalls.add(item["call_id"]);
-		else if (item["type"] === "tool_search_call") toolSearchCalls.add(item["call_id"]);
-	}
-	return input.filter((item): item is Record<string, unknown> => {
-		if (!isRecord(item)) return false;
-		const callId = item["call_id"];
-		if (item["type"] === "function_call_output") {
-			return typeof callId === "string" && (functionCalls.has(callId) || localShellCalls.has(callId));
-		}
-		if (item["type"] === "custom_tool_call_output") return typeof callId === "string" && customCalls.has(callId);
-		if (item["type"] === "tool_search_output" && item["execution"] !== "server") {
-			return typeof callId === "string" && toolSearchCalls.has(callId);
-		}
-		return true;
-	}).map((item) => structuredClone(item));
+	return normalizeResponsesToolHistory(input)
+		.filter((item): item is Record<string, unknown> => isRecord(item))
+		.map((item) => structuredClone(item));
 }
 
 function matchesMarkedText(text: string, start: string, end: string): boolean {

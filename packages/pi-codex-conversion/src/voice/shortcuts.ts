@@ -10,6 +10,7 @@ export interface CodexVoiceShortcutActions {
 	finishDictation(ctx: ExtensionContext): Promise<void>;
 	toggleDictation(ctx: ExtensionContext): Promise<void>;
 	toggleRealtime(ctx: ExtensionContext): Promise<void>;
+	toggleServer(ctx: ExtensionContext): Promise<void>;
 }
 
 export function registerCodexVoiceShortcuts(
@@ -20,6 +21,7 @@ export function registerCodexVoiceShortcuts(
 ): void {
 	const dictationShortcut = initialConfig.voice.dictationShortcut as KeyId;
 	const realtimeShortcut = initialConfig.voice.realtimeShortcut as KeyId;
+	const serverShortcut = initialConfig.voice.serverShortcut as KeyId;
 	let operation = Promise.resolve();
 	let removeTerminalInput: (() => void) | undefined;
 	let dictationKeyDown: string | undefined;
@@ -67,13 +69,17 @@ export function registerCodexVoiceShortcuts(
 		description: "Toggle Codex realtime voice",
 		handler: (ctx) => enqueue(ctx, () => actions.toggleRealtime(ctx)),
 	});
+	pi.registerShortcut(serverShortcut, {
+		description: "Toggle Codex LAN voice server",
+		handler: (ctx) => enqueue(ctx, () => actions.toggleServer(ctx)),
+	});
 
 	pi.on("session_start", (_event, ctx) => {
 		removeTerminalInput?.();
 		dictationKeyDown = undefined;
 		clearReleaseFallback();
 		removeTerminalInput = ctx.ui.onTerminalInput((data) => {
-			if (matchesKey(data, realtimeShortcut) && isKeyRepeat(data)) return { consume: true };
+			if ((matchesKey(data, realtimeShortcut) || matchesKey(data, serverShortcut)) && isKeyRepeat(data)) return { consume: true };
 			const mode = getConfig().voice.dictationShortcutMode;
 			if (mode !== "push") {
 				dictationKeyDown = undefined;

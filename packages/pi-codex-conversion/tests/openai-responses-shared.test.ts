@@ -41,12 +41,20 @@ async function* asAsyncIterable<T>(values: T[]): AsyncIterable<T> {
 	}
 }
 
-test("convertResponsesMessages preserves PATH view_image as structured tool image output", () => {
+test("convertResponsesMessages preserves structured view_image output", () => {
 	const imageModel = { ...model, input: ["text", "image"] as Array<"text" | "image"> };
 	const messages = convertResponsesMessages(
 		imageModel,
 		{
 			messages: [
+				{
+					role: "assistant",
+					content: [{ type: "toolCall", id: "call_image|fc_image", name: "view_image", arguments: { path: "image.png" } }],
+					api: imageModel.api,
+					provider: imageModel.provider,
+					model: imageModel.id,
+					stopReason: "toolUse",
+				} as any,
 				{
 					role: "toolResult",
 					toolCallId: "call_image|fc_image",
@@ -61,6 +69,13 @@ test("convertResponsesMessages preserves PATH view_image as structured tool imag
 	);
 
 	assert.deepEqual(messages, [
+		{
+			type: "function_call",
+			id: "fc_image",
+			call_id: "call_image",
+			name: "view_image",
+			arguments: JSON.stringify({ path: "image.png" }),
+		},
 		{
 			type: "function_call_output",
 			call_id: "call_image",
@@ -235,21 +250,30 @@ test("processResponsesStream preserves image generation calls for later Response
 test("processResponsesStream retains finalized freeform input for execution and continuation", async () => {
 	const output = createAssistantOutput();
 	const completedItems: unknown[] = [];
+	const toolCallDeltas: string[] = [];
 	await processResponsesStream(
 		asAsyncIterable([
 			{ type: "response.created", response: { id: "resp_exec" } },
 			{ type: "response.output_item.added", output_index: 0, item: { type: "custom_tool_call", id: "ctc_1", call_id: "call_1", name: "exec", input: "" } },
-			{ type: "response.custom_tool_call_input.delta", output_index: 0, item_id: "ctc_1", delta: "partial", sequence_number: 1 },
+			{ type: "response.custom_tool_call_input.delta", output_index: 0, item_id: "ctc_1", delta: "canonical", sequence_number: 1 },
 			{ type: "response.custom_tool_call_input.done", output_index: 0, item_id: "ctc_1", input: "canonical();", sequence_number: 2 },
 			{ type: "response.output_item.done", output_index: 0, item: { type: "custom_tool_call", id: "ctc_1", call_id: "call_1", name: "exec", status: "completed" } },
 			{ type: "response.completed", response: { id: "resp_exec", status: "completed", usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0, input_tokens_details: { cached_tokens: 0 } } } },
 		]) as AsyncIterable<any>,
 		output as any,
-		{ push() {} } as any,
+		{
+			push(event: { type: string; delta?: string }) {
+				if (event.type === "toolcall_delta" && event.delta) toolCallDeltas.push(event.delta);
+			},
+		} as any,
 		model,
-		{ onOutputItemDone: (item) => completedItems.push(item) },
+		{
+			grammarToolInputProperties: new Map([["exec", "code"]]),
+			onOutputItemDone: (item) => completedItems.push(item),
+		},
 	);
 
 	assert.deepEqual(output.content, [{ type: "toolCall", id: "call_1|ctc_1", name: "exec", arguments: { code: "canonical();" } }]);
+	assert.equal(toolCallDeltas.join(""), JSON.stringify({ code: "canonical();" }));
 	assert.deepEqual(completedItems, [{ type: "custom_tool_call", id: "ctc_1", call_id: "call_1", name: "exec", status: "completed", input: "canonical();" }]);
 });

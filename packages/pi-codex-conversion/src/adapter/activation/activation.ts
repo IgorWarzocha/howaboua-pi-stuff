@@ -1,249 +1,91 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { isCodexLikeContext, isOpenAICodexContext, isOpenAIResponsesContext, isResponsesContext } from "../prompt/codex-model.ts";
-import { supportsResponsesLiteModel } from "../../providers/openai-codex/responses-lite.ts";
-import type { CodexConversionConfig } from "./config.ts";
 import type { AdapterState } from "./state.ts";
-import {
-	APPLY_PATCH_TOOL_NAME,
-	CORE_ADAPTER_TOOL_NAMES,
-	CODE_MODE_TOOL_NAMES,
-	DEFAULT_TOOL_NAMES,
-	IMAGE_GENERATION_TOOL_NAME,
-	PATH_MODE_TOOL_NAMES,
-	STATUS_KEY,
-	SHELL_ADAPTER_TOOL_NAMES,
-	VIEW_IMAGE_TOOL_NAME,
-	WEB_SEARCH_TOOL_NAME,
-	buildExtraToolsOnlyStatusText,
-	buildStatusText,
-} from "./tool-set.ts";
-import { supportsNativeImageGeneration } from "../../tools/imagegen/tool.ts";
-import { supportsNativeWebSearch } from "../../tools/web-run/tool.ts";
-import { supportsViewImageInputs } from "../../tools/view-image/tool.ts";
+import { ALL_CODEX_ADAPTER_TOOL_NAMES, isAdapterRuntime, resolveCodexRuntimePlan, type CodexRuntimePlan } from "./runtime-plan.ts";
+import { DEFAULT_TOOL_NAMES, STATUS_KEY, buildExtraToolsOnlyStatusText, buildStatusText } from "./tool-set.ts";
+import { isResponsesContext } from "../prompt/codex-model.ts";
 
-const ADAPTER_TOOL_NAMES = [...CORE_ADAPTER_TOOL_NAMES, ...CODE_MODE_TOOL_NAMES, WEB_SEARCH_TOOL_NAME, IMAGE_GENERATION_TOOL_NAME, VIEW_IMAGE_TOOL_NAME];
-
-export function syncAdapter(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState): void {
-	if (shouldUseExtraToolsOnly(ctx, state.config)) {
-		enableExtraToolsOnly(pi, ctx, state);
-		return;
-	}
-	if (shouldUseCodexAdapter(ctx, state.config)) {
-		enableAdapter(pi, ctx, state);
-	} else {
-		disableAdapter(pi, ctx, state);
-	}
+export function syncAdapter(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState): CodexRuntimePlan {
+	const plan = resolveCodexRuntimePlan(ctx, state.config);
+	if (plan.kind === "extras") enableExtraTools(pi, ctx, state, plan);
+	else if (isAdapterRuntime(plan)) enableAdapter(pi, ctx, state, plan);
+	else disableAdapter(pi, ctx, state, plan);
+	return plan;
 }
 
-export function shouldUseCodexAdapter(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
-	if (config.voiceFeaturesOnly) return false;
-	if (shouldUseExtraToolsOnly(ctx, config)) return false;
-	return usesFullAdapterOnAllProviders(config) || isConfiguredAdapterProvider(ctx, config) || isCodexLikeContext(ctx);
-}
-
-export function shouldUseNativeResponsesCompaction(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
-	if (config.voiceFeaturesOnly || !config.compaction.responsesCompaction || shouldUseExtraToolsOnly(ctx, config)) return false;
-	return isOpenAICodexContext(ctx) || isConfiguredAdapterProvider(ctx, config);
-}
-
-export function shouldUseGpt56CodeMode(ctx: Pick<ExtensionContext, "model">, config: CodexConversionConfig): boolean {
-	if (config.voiceFeaturesOnly || !config.beta.codeMode) return false;
-	if (isOpenAICodexContext(ctx)) return supportsResponsesLiteModel(ctx.model?.id);
-	return isConfiguredAdapterProvider(ctx, config)
-		&& isOpenAIResponsesContext(ctx)
-		&& supportsProxiedGpt56CodeModeModel(ctx.model);
-}
-
-export function supportsProxiedGpt56CodeModeModel(model: string | { id: string } | undefined): boolean {
-	const modelId = typeof model === "string" ? model : model?.id;
-	if (!modelId) return false;
-	const id = modelId.includes("/") ? (modelId.split("/").pop() ?? modelId) : modelId;
-	return /^gpt-5\.6(?:-(?:luna|terra|sol))?$/.test(id.toLowerCase());
-}
-
-export function shouldUseResponsesLiteForCodeMode(ctx: Pick<ExtensionContext, "model">, config: CodexConversionConfig): boolean {
-	if (!shouldUseGpt56CodeMode(ctx, config)) return false;
-	return isOpenAICodexContext(ctx) || config.beta.responsesLite;
-}
-
-export function isConfiguredAdapterProvider(ctx: Pick<ExtensionContext, "model">, config: CodexConversionConfig): boolean {
-	const provider = ctx.model?.provider?.trim().toLowerCase();
-	return Boolean(provider && config.scope.additionalProviders.includes(provider));
-}
-
-export function shouldUseProxyNativeTools(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
-	return !config.voiceFeaturesOnly && config.mode === "normal" && isConfiguredAdapterProvider(ctx, config);
-}
-
-function shouldUseCodexBackedNativeTools(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
-	return (config.mode === "normal" || config.voiceFeaturesOnly)
-		&& (usesAnyAdapterModeOnAllProviders(config) || isConfiguredAdapterProvider(ctx, config));
-}
-
-export function isEffectiveOpenAICodexContext(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
-	return isOpenAICodexContext(ctx) || shouldUseProxyNativeTools(ctx, config);
-}
-
-export function shouldUseExtraToolsOnly(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
-	if (!config.voiceFeaturesOnly && config.mode !== "normal") return false;
-	if (!hasExtraToolsOnlyConfig(config)) return false;
-	if (usesExtraToolsOnlyOnAllProviders(config)) return true;
-	if (config.voiceFeaturesOnly && usesFullAdapterOnAllProviders(config)) return true;
-	return config.scope.allProviders === "off" && (isConfiguredAdapterProvider(ctx, config) || isCodexLikeContext(ctx));
-}
-
-function hasExtraToolsOnlyConfig(config: CodexConversionConfig): boolean {
-	return config.tools.applyPatchOnly || config.tools.viewImageOnly || config.tools.webRunOnly || config.tools.imageGenerationOnly;
-}
-
-function usesFullAdapterOnAllProviders(config: CodexConversionConfig): boolean {
-	return config.scope.allProviders === "on";
-}
-
-function usesExtraToolsOnlyOnAllProviders(config: CodexConversionConfig): boolean {
-	return config.scope.allProviders === "extras";
-}
-
-function usesAnyAdapterModeOnAllProviders(config: CodexConversionConfig): boolean {
-	return config.scope.allProviders !== "off";
-}
-
-function enableExtraToolsOnly(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState): void {
-	const adapterOwnedTools = getExtraToolsOnlyToolNames(ctx, state.config);
-	if (!state.enabled || !sameToolSet(state.adapterOwnedToolNames ?? [], adapterOwnedTools)) {
-		const restoredBase = state.enabled
-			? restoreTools(state.previousToolNames && state.previousToolNames.length > 0 ? state.previousToolNames : DEFAULT_TOOL_NAMES, pi.getActiveTools(), state.adapterOwnedToolNames ?? ADAPTER_TOOL_NAMES)
-			: stripAdapterTools(pi.getActiveTools(), ADAPTER_TOOL_NAMES);
-		state.previousToolNames = restoredBase;
+function enableExtraTools(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState, plan: CodexRuntimePlan): void {
+	if (!state.enabled || !sameToolSet(state.adapterOwnedToolNames ?? [], plan.toolNames)) {
+		state.previousToolNames = state.enabled
+			? restoreTools(state.previousToolNames?.length ? state.previousToolNames : DEFAULT_TOOL_NAMES, pi.getActiveTools(), state.adapterOwnedToolNames ?? ALL_CODEX_ADAPTER_TOOL_NAMES)
+			: stripAdapterTools(pi.getActiveTools(), ALL_CODEX_ADAPTER_TOOL_NAMES);
 		state.enabled = true;
 	}
-	state.adapterOwnedToolNames = adapterOwnedTools;
-	pi.setActiveTools(mergeToolNames(state.previousToolNames ?? DEFAULT_TOOL_NAMES, adapterOwnedTools));
-	setExtraToolsOnlyStatus(ctx, state.config, adapterOwnedTools);
+	state.adapterOwnedToolNames = plan.toolNames;
+	pi.setActiveTools(mergeToolNames(state.previousToolNames ?? DEFAULT_TOOL_NAMES, plan.toolNames));
+	if (ctx.hasUI) ctx.ui.setStatus(STATUS_KEY, !state.config.voiceFeaturesOnly && state.config.ui.statusLine ? buildExtraToolsOnlyStatusText(plan.toolNames, ctx.ui.theme) : undefined);
 }
 
-function enableAdapter(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState): void {
-	const currentAdapterOwnedTools = getAdapterOwnedToolNames(state.config);
-	const adapterOwnedTools = state.enabled ? mergeToolNames(state.adapterOwnedToolNames ?? currentAdapterOwnedTools, currentAdapterOwnedTools) : currentAdapterOwnedTools;
-	const toolNames = mergeAdapterTools(pi.getActiveTools(), getAdapterToolNames(ctx, state.config), adapterOwnedTools);
+function enableAdapter(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState, plan: Extract<CodexRuntimePlan, { kind: "normal" | "code" }>): void {
+	const owned = state.enabled ? mergeToolNames(state.adapterOwnedToolNames ?? plan.ownedToolNames, plan.ownedToolNames) : plan.ownedToolNames;
+	const tools = mergeAdapterTools(pi.getActiveTools(), plan.toolNames, owned);
 	if (!state.enabled) {
-		// Preserve the previous active set once so switching away from Codex-like
-		// models restores the user's existing Pi tool configuration. Strip adapter
-		// tools in case a fresh session starts from persisted/mixed active tools.
-		state.previousToolNames = stripAdapterTools(pi.getActiveTools(), adapterOwnedTools);
+		state.previousToolNames = stripAdapterTools(pi.getActiveTools(), owned);
 		state.enabled = true;
 	}
-	state.adapterOwnedToolNames = currentAdapterOwnedTools;
-	pi.setActiveTools(toolNames);
-	setStatus(ctx, true, state.config);
+	state.adapterOwnedToolNames = plan.ownedToolNames;
+	pi.setActiveTools(tools);
+	setStatus(ctx, state, plan);
 }
 
-function disableAdapter(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState): void {
-	const previousToolNames = state.previousToolNames && state.previousToolNames.length > 0 ? state.previousToolNames : DEFAULT_TOOL_NAMES;
-	const adapterOwnedTools = state.adapterOwnedToolNames ?? getAdapterOwnedToolNames(state.config);
-	const restoredTools = restoreTools(previousToolNames, pi.getActiveTools(), adapterOwnedTools);
-	if (state.enabled || hasAdapterTools(pi.getActiveTools(), adapterOwnedTools)) {
-		pi.setActiveTools(restoredTools);
+function disableAdapter(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState, plan: CodexRuntimePlan): void {
+	const previous = state.previousToolNames?.length ? state.previousToolNames : DEFAULT_TOOL_NAMES;
+	const owned = state.adapterOwnedToolNames ?? plan.ownedToolNames;
+	if (state.enabled || pi.getActiveTools().some((name) => owned.includes(name))) {
+		pi.setActiveTools(restoreTools(previous, pi.getActiveTools(), owned));
 	}
-	if (state.enabled) {
-		state.enabled = false;
-		delete state.adapterOwnedToolNames;
-	}
-	setStatus(ctx, false, state.config);
+	state.enabled = false;
+	delete state.adapterOwnedToolNames;
+	if (ctx.hasUI) ctx.ui.setStatus(STATUS_KEY, undefined);
 }
 
-function setStatus(ctx: ExtensionContext, enabled: boolean, config: CodexConversionConfig): void {
+function setStatus(ctx: ExtensionContext, state: AdapterState, plan: Extract<CodexRuntimePlan, { kind: "normal" | "code" }>): void {
 	if (!ctx.hasUI) return;
-	if (!config.ui.statusLine) {
+	if (!state.config.ui.statusLine) {
 		ctx.ui.setStatus(STATUS_KEY, undefined);
 		return;
 	}
-	const statusConfig = getStatusConfig(ctx, config);
-	ctx.ui.setStatus(STATUS_KEY, enabled ? buildStatusText(statusConfig, ctx.ui.theme) : undefined);
+	const config = state.config;
+	ctx.ui.setStatus(STATUS_KEY, buildStatusText({
+		mode: plan.kind,
+		useOnAllModels: config.scope.allProviders === "on",
+		additionalProvider: plan.configuredProvider,
+		fast: plan.effectiveOpenAICodex && config.openai.fast,
+		webSearch: plan.toolNames.includes("web_run"),
+		imageGeneration: plan.toolNames.includes("imagegen"),
+		compaction: plan.nativeCompaction,
+		...(isResponsesContext(ctx) ? { verbosity: config.openai.verbosity } : {}),
+	}, ctx.ui.theme));
 }
 
-function getStatusConfig(ctx: ExtensionContext, config: CodexConversionConfig): Parameters<typeof buildStatusText>[0] {
-	const showOpenAICodexFlags = isEffectiveOpenAICodexContext(ctx, config);
-	const showResponsesVerbosity = isResponsesContext(ctx);
-	const useCodexBackedNativeTools = shouldUseCodexBackedNativeTools(ctx, config);
-	return {
-		mode: shouldUseGpt56CodeMode(ctx, config) ? "code" : config.mode,
-		useOnAllModels: usesFullAdapterOnAllProviders(config),
-		additionalProvider: isConfiguredAdapterProvider(ctx, config),
-		fast: showOpenAICodexFlags && config.openai.fast,
-		webSearch: config.mode === "normal" && config.tools.webRun && (supportsNativeWebSearch(ctx.model) || useCodexBackedNativeTools),
-		imageGeneration: config.mode === "normal" && config.tools.imageGeneration && (supportsNativeImageGeneration(ctx.model) || useCodexBackedNativeTools),
-		compaction: { enabled: shouldUseNativeResponsesCompaction(ctx, config), version: config.compaction.version ?? "v1" },
-		...(showResponsesVerbosity ? { verbosity: config.openai.verbosity } : {}),
-	};
-}
-
-function getAdapterToolNames(ctx: ExtensionContext, config: CodexConversionConfig): string[] {
-	if (shouldUseGpt56CodeMode(ctx, config)) return [...CODE_MODE_TOOL_NAMES];
-	if (config.mode === "path") return [...PATH_MODE_TOOL_NAMES];
-	const useCodexBackedNativeTools = shouldUseCodexBackedNativeTools(ctx, config);
-	const toolNames = [...CORE_ADAPTER_TOOL_NAMES];
-	if (config.tools.webRun && (supportsNativeWebSearch(ctx.model) || useCodexBackedNativeTools)) toolNames.push(WEB_SEARCH_TOOL_NAME);
-	if (config.tools.imageGeneration && (supportsNativeImageGeneration(ctx.model) || useCodexBackedNativeTools)) toolNames.push(IMAGE_GENERATION_TOOL_NAME);
-	if (supportsViewImageInputs(ctx.model) || config.tools.viewImageFallback) toolNames.push(VIEW_IMAGE_TOOL_NAME);
-	return toolNames;
-}
-
-function getExtraToolsOnlyToolNames(ctx: ExtensionContext, config: CodexConversionConfig): string[] {
-	const useCodexBackedNativeTools = shouldUseCodexBackedNativeTools(ctx, config);
-	const toolNames: string[] = [];
-	if (config.tools.applyPatchOnly) toolNames.push(APPLY_PATCH_TOOL_NAME);
-	if (config.tools.viewImageOnly && (supportsViewImageInputs(ctx.model) || config.tools.viewImageFallback)) toolNames.push(VIEW_IMAGE_TOOL_NAME);
-	if (config.tools.webRunOnly && (supportsNativeWebSearch(ctx.model) || useCodexBackedNativeTools)) toolNames.push(WEB_SEARCH_TOOL_NAME);
-	if (config.tools.imageGenerationOnly && (supportsNativeImageGeneration(ctx.model) || useCodexBackedNativeTools)) toolNames.push(IMAGE_GENERATION_TOOL_NAME);
-	return toolNames;
-}
-
-function getAdapterOwnedToolNames(config: CodexConversionConfig): string[] {
-	if (config.mode === "path") return [...ADAPTER_TOOL_NAMES];
-	return [
-		...SHELL_ADAPTER_TOOL_NAMES,
-		...CODE_MODE_TOOL_NAMES,
-		APPLY_PATCH_TOOL_NAME,
-		VIEW_IMAGE_TOOL_NAME,
-		...(config.tools.webRun ? [WEB_SEARCH_TOOL_NAME] : []),
-		...(config.tools.imageGeneration ? [IMAGE_GENERATION_TOOL_NAME] : []),
-	];
-}
-
-function setExtraToolsOnlyStatus(ctx: ExtensionContext, config: CodexConversionConfig, toolNames: string[]): void {
-	if (!ctx.hasUI) return;
-	ctx.ui.setStatus(STATUS_KEY, !config.voiceFeaturesOnly && config.ui.statusLine ? buildExtraToolsOnlyStatusText(toolNames, ctx.ui.theme) : undefined);
-}
-
-function mergeToolNames(...toolNameGroups: string[][]): string[] {
-	return [...new Set(toolNameGroups.flat())];
+function mergeToolNames(...groups: string[][]): string[] {
+	return [...new Set(groups.flat())];
 }
 
 export function mergeAdapterTools(activeTools: string[], adapterTools: string[], adapterOwnedTools: string[] = adapterTools): string[] {
-	const ownedTools = new Set([...CORE_ADAPTER_TOOL_NAMES, ...adapterTools, ...adapterOwnedTools]);
-	const preservedTools = activeTools.filter((toolName) => !DEFAULT_TOOL_NAMES.includes(toolName) && !ownedTools.has(toolName));
-	return [...adapterTools, ...preservedTools];
+	const owned = new Set([...adapterTools, ...adapterOwnedTools]);
+	const preserved = activeTools.filter((name) => !DEFAULT_TOOL_NAMES.includes(name) && !owned.has(name));
+	return [...adapterTools, ...preserved];
 }
 
-export function restoreTools(previousTools: string[], activeTools: string[], adapterOwnedTools: string[] = ADAPTER_TOOL_NAMES): string[] {
+export function restoreTools(previousTools: string[], activeTools: string[], adapterOwnedTools: string[] = ALL_CODEX_ADAPTER_TOOL_NAMES): string[] {
 	const restored = stripAdapterTools(previousTools, adapterOwnedTools);
-	for (const toolName of activeTools) {
-		if (!adapterOwnedTools.includes(toolName) && !restored.includes(toolName)) {
-			restored.push(toolName);
-		}
-	}
+	for (const name of activeTools) if (!adapterOwnedTools.includes(name) && !restored.includes(name)) restored.push(name);
 	return restored;
 }
 
-export function stripAdapterTools(toolNames: string[], adapterOwnedTools: string[] = ADAPTER_TOOL_NAMES): string[] {
-	return toolNames.filter((toolName) => !adapterOwnedTools.includes(toolName));
-}
-
-function hasAdapterTools(activeTools: string[], adapterOwnedTools: string[]): boolean {
-	return activeTools.some((toolName) => adapterOwnedTools.includes(toolName));
+export function stripAdapterTools(toolNames: string[], adapterOwnedTools: string[] = ALL_CODEX_ADAPTER_TOOL_NAMES): string[] {
+	return toolNames.filter((name) => !adapterOwnedTools.includes(name));
 }
 
 function sameToolSet(left: string[], right: string[]): boolean {
-	return left.length === right.length && left.every((toolName) => right.includes(toolName));
+	return left.length === right.length && left.every((name) => right.includes(name));
 }

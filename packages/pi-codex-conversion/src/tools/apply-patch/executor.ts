@@ -2,7 +2,7 @@ import { relative } from "node:path";
 import { parsePatchActions } from "../../patch/parser.ts";
 import { ExecutePatchError, type ExecutePatchResult } from "../../patch/types.ts";
 import { getBundledApplyPatchBinaryPath } from "./binary.ts";
-import { parseSingleJsonLine, runBundledTool } from "../path/runner.ts";
+import { parseSingleJsonLine, runBundledTool } from "../native/runner.ts";
 
 interface RustApplyPatchJson {
 	status: "success" | "failure";

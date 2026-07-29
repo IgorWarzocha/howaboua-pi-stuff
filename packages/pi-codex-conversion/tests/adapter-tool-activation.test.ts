@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
-import { shouldUseCodexAdapter, shouldUseNativeResponsesCompaction, syncAdapter } from "../src/adapter/activation/activation.ts";
+import { syncAdapter } from "../src/adapter/activation/activation.ts";
+import { isAdapterRuntime, resolveCodexRuntimePlan } from "../src/adapter/activation/runtime-plan.ts";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
 import { registerCodexTools } from "../src/extension/tools.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
@@ -59,7 +60,7 @@ test("Code Mode activation stays within its model, API, and provider scope", () 
 	for (const { model, configured, active } of cases) {
 		const pi = createToolHarness(["read", "bash", "edit", "write", "exec", "wait", "parallel"]);
 		const state = createAdapterState({
-			beta: { codeMode: true, responsesLite: false },
+			beta: { codeMode: true, responsesLite: true },
 			scope: { allProviders: "off", additionalProviders: configured ? [model.provider] : [] },
 		});
 		syncAdapter(pi as never, createContext(model) as never, state);
@@ -69,12 +70,31 @@ test("Code Mode activation stays within its model, API, and provider scope", () 
 	}
 });
 
+test("runtime plan keeps unsupported and non-Lite models on structured standard Responses", () => {
+	const config = createAdapterState({
+		beta: { codeMode: true, responsesLite: false },
+		scope: { allProviders: "off", additionalProviders: ["litellm"] },
+	}).config;
+	const pre56 = resolveCodexRuntimePlan(createContext({ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.5" }) as never, config);
+	const proxyWithoutLite = resolveCodexRuntimePlan(createContext({ provider: "litellm", api: "openai-responses", id: "gpt-5.6" }) as never, config);
+	const proxyWithLite = resolveCodexRuntimePlan(
+		createContext({ provider: "litellm", api: "openai-responses", id: "gpt-5.6" }) as never,
+		{ ...config, beta: { ...config.beta, responsesLite: true } },
+	);
+
+	assert.deepEqual({ kind: pre56.kind, transport: pre56.transport }, { kind: "normal", transport: "responses" });
+	assert.ok(pre56.kind === "normal");
+	assert.ok(pre56.toolNames.includes("exec_command"));
+	assert.deepEqual({ kind: proxyWithoutLite.kind, transport: proxyWithoutLite.transport }, { kind: "normal", transport: "responses" });
+	assert.deepEqual({ kind: proxyWithLite.kind, transport: proxyWithLite.transport }, { kind: "code", transport: "responses-lite" });
+});
+
 test("native Responses compaction stays scoped to OpenAI Codex and explicit providers", () => {
 	const config = createAdapterState({ scope: { allProviders: "on", additionalProviders: ["my-provider"] }, compaction: { responsesCompaction: true } }).config;
 
-	assert.equal(shouldUseNativeResponsesCompaction(createContext({ provider: "openai", api: "openai-responses", id: "gpt-5" }) as never, config), false);
-	assert.equal(shouldUseNativeResponsesCompaction(createContext({ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5" }) as never, config), true);
-	assert.equal(shouldUseNativeResponsesCompaction(createContext({ provider: "my-provider", api: "openai-codex-responses", id: "gpt-5" }) as never, config), true);
+	assert.equal(resolveCodexRuntimePlan(createContext({ provider: "openai", api: "openai-responses", id: "gpt-5" }) as never, config).nativeCompaction, false);
+	assert.equal(resolveCodexRuntimePlan(createContext({ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5" }) as never, config).nativeCompaction, true);
+	assert.equal(resolveCodexRuntimePlan(createContext({ provider: "my-provider", api: "openai-codex-responses", id: "gpt-5" }) as never, config).nativeCompaction, true);
 });
 
 test("voice-only honors selected extras by provider scope without enabling the adapter", () => {
@@ -82,23 +102,22 @@ test("voice-only honors selected extras by provider scope without enabling the a
 	const otherModel = { provider: "other", api: "openai-responses", id: "other-model", input: ["text"] };
 	const extraTools = ["apply_patch", "view_image", "web_run", "imagegen"];
 	const cases = [
-		{ name: "off outside Codex scope", mode: "normal", scope: { allProviders: "off", additionalProviders: [] }, model: otherModel, expected: [] },
-		{ name: "off on Codex", mode: "normal", scope: { allProviders: "off", additionalProviders: [] }, model: codexModel, expected: extraTools },
-		{ name: "extra tools only", mode: "normal", scope: { allProviders: "extras", additionalProviders: [] }, model: otherModel, expected: extraTools },
-		{ name: "all providers with inactive PATH config", mode: "path", scope: { allProviders: "on", additionalProviders: [] }, model: otherModel, expected: extraTools },
+		{ name: "off outside Codex scope", scope: { allProviders: "off", additionalProviders: [] }, model: otherModel, expected: [] },
+		{ name: "off on Codex", scope: { allProviders: "off", additionalProviders: [] }, model: codexModel, expected: extraTools },
+		{ name: "extra tools only", scope: { allProviders: "extras", additionalProviders: [] }, model: otherModel, expected: extraTools },
+		{ name: "all providers", scope: { allProviders: "on", additionalProviders: [] }, model: otherModel, expected: extraTools },
 	] as const;
 
 	for (const item of cases) {
 		const state = createAdapterState({
-			mode: item.mode,
 			voiceFeaturesOnly: true,
 			scope: { allProviders: item.scope.allProviders, additionalProviders: [...item.scope.additionalProviders] },
 			tools: { customRustBinariesDir: "", webRun: false, imageGeneration: false, applyPatchOnly: true, viewImageOnly: true, webRunOnly: true, imageGenerationOnly: true, viewImageFallback: true },
-			beta: { codeMode: true, responsesLite: false },
+			beta: { codeMode: true, responsesLite: true },
 			compaction: { responsesCompaction: true },
 		});
 		const pi = createToolHarness(["read", "bash", "edit", "write", "parallel"]);
-		registerCodexTools(pi as never, { state, registeredNativeWebSearchTools: new Set<string>() } as never);
+		registerCodexTools(pi as never, { state } as never);
 		const statuses: unknown[] = [];
 		const ctx = createContext(item.model, statuses);
 
@@ -108,8 +127,9 @@ test("voice-only honors selected extras by provider scope without enabling the a
 		assert.ok(item.expected.every((name) => pi.registeredTools().has(name)), `${item.name}: selected extras registered`);
 		assert.ok(["read", "bash", "edit", "write", "parallel"].every((name) => pi.activeTools().includes(name)), `${item.name}: unrelated tools preserved`);
 		assert.ok(["exec_command", "write_stdin", "exec", "wait"].every((name) => !pi.activeTools().includes(name)), `${item.name}: adapter tools suppressed`);
-		assert.equal(shouldUseCodexAdapter(ctx as never, state.config), false, item.name);
-		assert.equal(shouldUseNativeResponsesCompaction(ctx as never, state.config), false, item.name);
+		const plan = resolveCodexRuntimePlan(ctx as never, state.config);
+		assert.equal(isAdapterRuntime(plan), false, item.name);
+		assert.equal(plan.nativeCompaction, false, item.name);
 		assert.equal(statuses.at(-1), undefined, `${item.name}: adapter status suppressed`);
 	}
 });

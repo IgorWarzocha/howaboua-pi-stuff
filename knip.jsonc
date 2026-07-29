@@ -1,7 +1,7 @@
 {
 	"$schema": "https://unpkg.com/knip@6/schema.json",
 	"workspaces": {
-		"packages/pi-codex-conversion-lite": {
+		"packages/pi-codex-conversion": {
 			"ignoreExportsUsedInFile": true,
 			"entry": [
 				"src/index.ts",

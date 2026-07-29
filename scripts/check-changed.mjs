@@ -29,8 +29,8 @@ for (const dir of packages) {
     if (result.status !== 0) failed = true;
   }
 }
-if (packages.includes("pi-codex-conversion-lite")) {
-  console.log("\n==> @howaboua/pi-codex-conversion-lite: knip");
+if (packages.includes("pi-codex-conversion")) {
+  console.log("\n==> @howaboua/pi-codex-conversion: knip");
   const result = spawnSync("bun", ["run", "knip"], { stdio: "inherit" });
   if (result.status !== 0) failed = true;
 }

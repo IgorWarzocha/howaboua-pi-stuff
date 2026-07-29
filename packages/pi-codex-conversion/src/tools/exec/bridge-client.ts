@@ -1,6 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
-import { getBundledPathToolBinaryPath } from "../path/binary.ts";
+import { getBundledToolBinaryPath } from "../native/binary.ts";
 
 interface BridgeResponse<T = unknown> {
 	request_id: number;
@@ -24,7 +24,7 @@ export interface ExecBridgeClient {
 }
 
 const MAX_BRIDGE_STDERR_CHARS = 16_000;
-const LOCAL_BUILD_GUIDANCE = "Bundled exec_bridge is incompatible with this Linux runtime. In a pi-codex-conversion Git checkout run: bun install && bun run build:path-tool codex-exec-shim exec_bridge; then set tools.customRustBinariesDir in pi-codex-conversion.json to that checkout's src/tools/target/release and /reload";
+const LOCAL_BUILD_GUIDANCE = "Bundled exec_bridge is incompatible with this Linux runtime. In a pi-codex-conversion Git checkout run: bun install && bun run build:native-tool codex-exec-shim exec_bridge; then set tools.customRustBinariesDir in pi-codex-conversion.json to that checkout's src/tools/target/release and /reload";
 
 function appendBoundedText(current: string, next: string): string {
 	const combined = `${current}${next}`;
@@ -53,7 +53,7 @@ function isLinuxNativeLoaderFailure(message: string): boolean {
 	return /GLIBC_[0-9.]+.*not found|version [`']GLIBC_[0-9.]+[`'] not found|ld-linux|libc\.so/i.test(message);
 }
 
-export function createExecBridgeClient(binaryPath: () => string | undefined = () => getBundledPathToolBinaryPath("exec_bridge")): ExecBridgeClient {
+export function createExecBridgeClient(binaryPath: () => string | undefined = () => getBundledToolBinaryPath("exec_bridge")): ExecBridgeClient {
 	let bridge: ChildProcessWithoutNullStreams | undefined;
 	let nextBridgeRequestId = 1;
 	const pendingBridgeRequests = new Map<number, { resolve: (value: BridgeResponse) => void; reject: (error: Error) => void }>();
