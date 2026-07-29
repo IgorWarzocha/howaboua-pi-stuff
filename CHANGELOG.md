@@ -57,21 +57,13 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 3.0.0
-
-### Breaking changes
-
-- [#195](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/195) [`dca7267`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/dca7267730098e7cfcdd068ae8f032008f2033d7) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Make the native structured-tool adapter, Responses Lite Code Mode, settings, compaction, and voice features the canonical pi-codex-conversion implementation. This replaces legacy PATH mode and removes its package binaries; existing `pi-codex-conversion.json` settings continue to load. Add a configurable GipPity control-server shortcut and remove obsolete V2 conversation settings; realtime voice always uses V3 while dictation remains a separate action. Route Realtime delegations into active Pi turns as immediate steering and mirror direct Pi steering back to the owning voice delegation. Keep retries on WebSocket after mid-stream disconnects, route dictation through configured proxies on Node, recover the LAN remote when its upstream helper exits, and let cleared audio devices remain cleared. Preserve the active provider prompt during V2 compaction so prompt caches remain hot, pass V2 feature headers through prewarmed sockets, and reconcile tool calls with their outputs after every history rewrite. Refresh the disabled Herdr example and add a categorized lazy skill loader alongside the existing additive loader. Lite users should remove `@howaboua/pi-codex-conversion-lite` before installing the canonical package.
-
-[Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
-
-### @howaboua/pi-codex-conversion-lite — 0.1.10
+### @howaboua/pi-codex-conversion — 3.0.1
 
 ### Changes
 
-- [#195](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/195) [`dca7267`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/dca7267730098e7cfcdd068ae8f032008f2033d7) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Serve session-scoped Codex voice, editable dictation drafts, and Pi activity from the themed GipPity LAN remote with seamless audio takeover between devices. Add a configurable control-server shortcut and remove obsolete V2 conversation settings; realtime voice always uses V3 while dictation remains a separate action. Route Realtime delegations into active Pi turns as immediate steering and mirror direct Pi steering back to the owning voice delegation. Keep retries on WebSocket after mid-stream disconnects, route dictation through configured proxies on Node, recover the LAN remote when its upstream helper exits, and let cleared audio devices remain cleared. Preserve the active provider prompt during V2 compaction so prompt caches remain hot, pass V2 feature headers through prewarmed sockets, and reconcile tool calls with their outputs after every history rewrite. Refresh the disabled Herdr example and add a categorized lazy skill loader alongside the existing additive loader. Mark this as the final Lite release and show the remove-then-install migration commands on startup.
+- [#198](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/198) [`05f2da3`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/05f2da3e7b540d30eaada94c527b6ecbef80f736) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Preserve Codex V2 cache continuations, recover mid-stream WebSocket failures through SSE retries, deliver realtime voice cards during active turns, add reconnect-safe realtime microphone mute controls, and turn native loader failures into concise local-build recovery guidance
 
-[Full changelog](./packages/pi-codex-conversion-lite/CHANGELOG.md)
+[Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
 ### @howaboua/pi-dynamic-tools — 0.0.8
 
@@ -89,26 +81,26 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.44
+### @howaboua/pi-extensions — 0.0.45
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-gippity-control: Add standalone GipPity voice and LAN control for any Pi model, including synchronized steering between active Pi and Realtime turns. Recover the browser when its upstream helper exits, serialize shutdown cleanup, support configured proxies on Node, and declare the required Node runtime.
-  - @howaboua/pi-dynamic-tools: Correct Herdr delivery failures to acknowledge that messages may already be queued.
-  - @howaboua/pi-codex-conversion-lite: Serve session-scoped Codex voice, editable dictation drafts, and Pi activity from the themed GipPity LAN remote with seamless audio takeover between devices. Add a configurable control-server shortcut and remove obsolete V2 conversation settings; realtime voice always uses V3 while dictation remains a separate action. Route Realtime delegations into active Pi turns as immediate steering and mirror direct Pi steering back to the owning voice delegation. Keep retries on WebSocket after mid-stream disconnects, route dictation through configured proxies on Node, recover the LAN remote when its upstream helper exits, and let cleared audio devices remain cleared. Preserve the active provider prompt during V2 compaction so prompt caches remain hot, pass V2 feature headers through prewarmed sockets, and reconcile tool calls with their outputs after every history rewrite. Refresh the disabled Herdr example and add a categorized lazy skill loader alongside the existing additive loader. Mark this as the final Lite release and show the remove-then-install migration commands on startup.
+  - @howaboua/pi-gippity-control: Add reconnect-safe realtime microphone mute controls and native input gating.
+  - @howaboua/pi-subagent-review: Replace the review subprocess transport with Pi's maintained RPC client, preserve failed-run diagnostics, prevent review-loop bookkeeping from creating empty summaries, and reissue guidance for each fresh review loop.
 
-- Updated dependencies [[`dca7267`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/dca7267730098e7cfcdd068ae8f032008f2033d7)]:
-  - @howaboua/pi-dynamic-tools@0.0.8
+- Updated dependencies [[`05f2da3`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/05f2da3e7b540d30eaada94c527b6ecbef80f736), [`05f2da3`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/05f2da3e7b540d30eaada94c527b6ecbef80f736)]:
+  - @howaboua/pi-subagent-review@0.2.14
+  - @howaboua/pi-gippity-control@0.0.3
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
-### @howaboua/pi-gippity-control — 0.0.2
+### @howaboua/pi-gippity-control — 0.0.3
 
 ### Changes
 
-- [#195](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/195) [`dca7267`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/dca7267730098e7cfcdd068ae8f032008f2033d7) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add standalone GipPity voice and LAN control for any Pi model, including synchronized steering between active Pi and Realtime turns. Recover the browser when its upstream helper exits, serialize shutdown cleanup, support configured proxies on Node, and declare the required Node runtime.
+- [#198](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/198) [`05f2da3`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/05f2da3e7b540d30eaada94c527b6ecbef80f736) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add reconnect-safe realtime microphone mute controls and native input gating
 
 [Full changelog](./packages/pi-gippity-control/CHANGELOG.md)
 
@@ -245,26 +237,26 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.46
+### @howaboua/pi-stuff — 0.0.47
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-gippity-control: Add standalone GipPity voice and LAN control for any Pi model, including synchronized steering between active Pi and Realtime turns. Recover the browser when its upstream helper exits, serialize shutdown cleanup, support configured proxies on Node, and declare the required Node runtime.
-  - @howaboua/pi-dynamic-tools: Correct Herdr delivery failures to acknowledge that messages may already be queued.
-  - @howaboua/pi-codex-conversion-lite: Serve session-scoped Codex voice, editable dictation drafts, and Pi activity from the themed GipPity LAN remote with seamless audio takeover between devices. Add a configurable control-server shortcut and remove obsolete V2 conversation settings; realtime voice always uses V3 while dictation remains a separate action. Route Realtime delegations into active Pi turns as immediate steering and mirror direct Pi steering back to the owning voice delegation. Keep retries on WebSocket after mid-stream disconnects, route dictation through configured proxies on Node, recover the LAN remote when its upstream helper exits, and let cleared audio devices remain cleared. Preserve the active provider prompt during V2 compaction so prompt caches remain hot, pass V2 feature headers through prewarmed sockets, and reconcile tool calls with their outputs after every history rewrite. Refresh the disabled Herdr example and add a categorized lazy skill loader alongside the existing additive loader. Mark this as the final Lite release and show the remove-then-install migration commands on startup.
+  - @howaboua/pi-gippity-control: Add reconnect-safe realtime microphone mute controls and native input gating.
+  - @howaboua/pi-subagent-review: Replace the review subprocess transport with Pi's maintained RPC client, preserve failed-run diagnostics, prevent review-loop bookkeeping from creating empty summaries, and reissue guidance for each fresh review loop.
 
-- Updated dependencies [[`dca7267`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/dca7267730098e7cfcdd068ae8f032008f2033d7)]:
-  - @howaboua/pi-dynamic-tools@0.0.8
+- Updated dependencies [[`05f2da3`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/05f2da3e7b540d30eaada94c527b6ecbef80f736), [`05f2da3`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/05f2da3e7b540d30eaada94c527b6ecbef80f736)]:
+  - @howaboua/pi-subagent-review@0.2.14
+  - @howaboua/pi-gippity-control@0.0.3
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 
-### @howaboua/pi-subagent-review — 0.2.13
+### @howaboua/pi-subagent-review — 0.2.14
 
 ### Changes
 
-- [#184](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/184) [`18868c1`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/18868c1ba0257f7d6ddeeb7dfc51f3af467e4633) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Use the configurable lightweight summary model for tree summaries. Clarify workflow, review-context, summary-session, and RPC protocol ownership.
+- [#198](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/198) [`05f2da3`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/05f2da3e7b540d30eaada94c527b6ecbef80f736) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Replace the review subprocess transport with Pi's maintained RPC client, preserve failed-run diagnostics, prevent review-loop bookkeeping from creating empty summaries, and reissue guidance for each fresh review loop
 
 [Full changelog](./packages/pi-subagent-review/CHANGELOG.md)
 

@@ -1,5 +1,18 @@
 # @howaboua/pi-extensions
 
+## 0.0.45
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-gippity-control: Add reconnect-safe realtime microphone mute controls and native input gating.
+  - @howaboua/pi-subagent-review: Replace the review subprocess transport with Pi's maintained RPC client, preserve failed-run diagnostics, prevent review-loop bookkeeping from creating empty summaries, and reissue guidance for each fresh review loop.
+
+- Updated dependencies [[`05f2da3`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/05f2da3e7b540d30eaada94c527b6ecbef80f736), [`05f2da3`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/05f2da3e7b540d30eaada94c527b6ecbef80f736)]:
+  - @howaboua/pi-subagent-review@0.2.14
+  - @howaboua/pi-gippity-control@0.0.3
+
 ## 0.0.44
 
 ### Changes
