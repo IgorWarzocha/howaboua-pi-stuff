@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { ModelRegistry, ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { CODE_MODE_EXEC_GRAMMAR } from "../src/tools/code-mode/exec-contract.ts";
-import { registerCodeModeProxyProvider } from "../src/providers/code-mode-proxy-provider.ts";
+import { registerCodeModeProxyProvider, streamCodeModeResponsesProxy } from "../src/providers/code-mode-proxy-provider.ts";
 
 function sseResponse(events: unknown[]): Response {
 	return new Response(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(""), {
@@ -38,6 +38,35 @@ const proxyModel = {
 	maxTokens: 10_000,
 	cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 } as const;
+
+test("the Code Mode proxy rejects unfinished terminal response statuses", async () => {
+	const originalFetch = globalThis.fetch;
+	try {
+		for (const status of [undefined, "queued", "in_progress"] as const) {
+			globalThis.fetch = (async () => sseResponse([{
+				type: "response.completed",
+				response: {
+					id: `resp_${status ?? "missing"}`,
+					...(status ? { status } : {}),
+					usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 },
+				},
+			}])) as typeof fetch;
+
+			const events = await collect(streamCodeModeResponsesProxy(
+				proxyModel as never,
+				{ systemPrompt: "Use Code Mode", messages: [], tools: [] } as never,
+				{ apiKey: "test-key" },
+			));
+			const terminal = events.at(-1) as { type: string; error: { stopReason: string; errorMessage: string } };
+			assert.equal(terminal.type, "error", status ?? "missing status");
+			assert.equal(terminal.error.stopReason, "error");
+			assert.equal(terminal.error.errorMessage, "Responses stream ended with a pending result");
+			assert.equal(events.some((event) => (event as { type?: string }).type === "done"), false);
+		}
+	} finally {
+		globalThis.fetch = originalFetch;
+	}
+});
 
 test("the provider-scoped proxy stream delegates ordinary Responses models without recursion", async () => {
 	const providers = new Map<string, { streamSimple: (...args: never[]) => AsyncIterable<unknown> }>();

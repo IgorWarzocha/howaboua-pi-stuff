@@ -27,7 +27,7 @@ import {
 	recordWebSocketSseFallback,
 	validateWebSocketTimeoutOptions,
 } from "./openai-codex/websocket.ts";
-import { isCodexNonTransportError, isWebSocketConnectionLimitReachedError, processCodexResponsesStream } from "./openai-codex/stream-events.ts";
+import { assertSuccessfulCodexOutput, isCodexNonTransportError, isWebSocketConnectionLimitReachedError, processCodexResponsesStream } from "./openai-codex/stream-events.ts";
 import { prewarmWebSocket, processWebSocketStream } from "./openai-codex/websocket-stream.ts";
 import { openaiCodexNativeOAuthProvider } from "./openai-codex/oauth.ts";
 import { CODEX_TURN_STATE_HEADER, type CodexTurnState } from "./openai-codex/turn-state.ts";
@@ -196,7 +196,8 @@ function createCodexStream<TApi extends Api>(
 					}
 					clearWebSocketTransportFailures(effectiveOptions?.sessionId);
 					finalizeUsage(output);
-					stream.push({ type: "done", reason: output.stopReason as "stop" | "length" | "toolUse", message: output });
+					assertSuccessfulCodexOutput(output);
+					stream.push({ type: "done", reason: output.stopReason, message: output });
 					stream.end();
 					return;
 				} catch (error) {
@@ -304,8 +305,9 @@ function createCodexStream<TApi extends Api>(
 			if (effectiveOptions?.signal?.aborted) {
 				throw new Error("Request was aborted");
 			}
+			assertSuccessfulCodexOutput(output);
 
-			stream.push({ type: "done", reason: output.stopReason as "stop" | "length" | "toolUse", message: output });
+			stream.push({ type: "done", reason: output.stopReason, message: output });
 			stream.end();
 		} catch (error) {
 			stream.push({

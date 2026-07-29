@@ -38,6 +38,17 @@ export function isPreviousResponseNotFoundError(error: unknown): boolean {
 	return error instanceof CodexApiError && error.code === PREVIOUS_RESPONSE_NOT_FOUND_CODE;
 }
 
+export function assertSuccessfulCodexOutput(
+	output: AssistantMessage,
+): asserts output is AssistantMessage & { stopReason: "stop" | "length" | "toolUse" } {
+	if (output.stopReason === "pending") {
+		throw new Error("Responses stream ended with a pending result");
+	}
+	if (output.stopReason === "aborted" || output.stopReason === "error") {
+		throw new Error(output.errorMessage || "Responses stream ended without a successful result");
+	}
+}
+
 function extractCodexEventError(event: StreamEventShape): { code?: string | undefined; message?: string | undefined } {
 	const nested = event["error"] && typeof event["error"] === "object" ? event["error"] as Record<string, unknown> : undefined;
 	return {

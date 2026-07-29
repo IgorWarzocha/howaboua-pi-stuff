@@ -407,7 +407,7 @@ export async function processResponsesStream<TApi extends Api>(
 }
 
 function mapStopReason(status: string | undefined): AssistantMessage["stopReason"] {
-	if (!status) return "stop";
+	if (!status) return "pending";
 	switch (status) {
 		case "completed":
 			return "stop";
@@ -418,7 +418,7 @@ function mapStopReason(status: string | undefined): AssistantMessage["stopReason
 			return "error";
 		case "in_progress":
 		case "queued":
-			return "stop";
+			return "pending";
 		default:
 			throw new Error(`Unhandled stop reason: ${status}`);
 	}
