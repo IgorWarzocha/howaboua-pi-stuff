@@ -18,7 +18,19 @@ export function requestBodyForWebSocketContinuationComparison(body: ResponsesBod
 }
 
 function responseInputsEqual(a: unknown[] | undefined, b: unknown[] | undefined): boolean {
-	return JSON.stringify(a ?? []) === JSON.stringify(b ?? []);
+	const left = a ?? [];
+	const right = b ?? [];
+	return left.length === right.length && left.every((item, index) => {
+		const candidate = right[index];
+		if (JSON.stringify(item) === JSON.stringify(candidate)) return true;
+		return JSON.stringify(withoutInternalMetadata(item)) === JSON.stringify(withoutInternalMetadata(candidate));
+	});
+}
+
+function withoutInternalMetadata(value: unknown): unknown {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+	const { internal_chat_message_metadata_passthrough: _metadata, ...item } = value as Record<string, unknown>;
+	return item;
 }
 
 function requestBodiesMatchExceptInput(a: ResponsesBody, b: ResponsesBody): boolean {

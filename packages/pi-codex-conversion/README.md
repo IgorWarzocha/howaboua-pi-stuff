@@ -105,6 +105,7 @@ Voice uses your Pi OpenAI Codex login independently of the active model. The spo
 Defaults:
 
 - `Ctrl+Alt+Space` toggles realtime voice
+- `Ctrl+Alt+M` mutes or unmutes the realtime microphone without ending the call
 - `Ctrl+Alt+D` is push-to-dictate; toggle behaviour is available in the Voice tab
 - `Ctrl+Alt+G` toggles the GipPity LAN server
 
@@ -116,6 +117,7 @@ Voice commands:
 
 ```text
 /codex voice realtime
+/codex voice mute
 /codex voice dictation
 /codex voice stop
 /codex voice server
@@ -123,7 +125,7 @@ Voice commands:
 
 `/codex voice server` lazily starts GipPity over HTTPS and prints its hostname and LAN addresses. Open one on a different machine (phone, cough, cough) and accept the local certificate on first visit. Amazing when using a devbox without a mic or when you want to Tailscale into Pi and talk to it remotely.
 
-GipPity provides realtime voice, editable dictation drafts, typed prompting, Pi activity, settled assistant results and seamless microphone takeover between devices. It follows the Pi theme and can be saved as a PWA / phone app.
+GipPity provides realtime voice with a microphone mute button, editable dictation drafts, typed prompting, Pi activity, settled assistant results and seamless microphone takeover between devices. It follows the Pi theme and can be saved as a PWA / phone app.
 
 The server belongs only to the Pi session that started it and stops when that session changes. There is intentionally no authentication in v1; it is for a trusted LAN.
 

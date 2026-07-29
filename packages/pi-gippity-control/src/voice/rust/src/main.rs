@@ -88,6 +88,10 @@ async fn main() -> Result<()> {
                     Session::V3(active) => active.apply_answer(sdp).await?,
                     _ => anyhow::bail!("cannot apply an answer without an active V3 session"),
                 },
+                Command::SetInputMuted { muted } => match &session {
+                    Session::V3(active) => active.set_input_muted(muted),
+                    _ => anyhow::bail!("microphone muting requires an active V3 session"),
+                },
                 Command::StartDictation { microphone } => {
                     stop(&mut session).await?;
                     let capture = audio::capture(microphone.as_deref())?;

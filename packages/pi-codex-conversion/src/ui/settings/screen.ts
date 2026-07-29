@@ -150,6 +150,7 @@ function formatVoiceStatus(theme: Theme, lanVoice?: CodexLanVoiceServerStatus): 
 function formatVoiceDetails(theme: Theme, config: CodexConversionConfig): string[] {
 	return [
 		theme.fg("dim", `  Realtime voice: ${formatVoiceShortcut(config.voice.realtimeShortcut)}`),
+		theme.fg("dim", `  Mute microphone: ${formatVoiceShortcut(config.voice.muteShortcut)}`),
 		theme.fg("dim", `  Dictation: ${formatVoiceShortcut(config.voice.dictationShortcut)}`),
 		theme.fg("dim", `  LAN server: ${formatVoiceShortcut(config.voice.serverShortcut)}`),
 		theme.fg("dim", `  Change keybinds: ${getCodexConversionConfigPath()} (/reload to apply)`),

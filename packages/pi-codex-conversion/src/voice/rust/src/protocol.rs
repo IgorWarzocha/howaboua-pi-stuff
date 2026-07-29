@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-pub const PROTOCOL_VERSION: u8 = 3;
+pub const PROTOCOL_VERSION: u8 = 4;
 pub const MAX_SDP_BYTES: usize = 256 * 1024;
 pub const MAX_DATA_MESSAGE_BYTES: usize = 64 * 1024;
 pub const MAX_PCM_BYTES: usize = 64 * 1024;
@@ -21,6 +21,7 @@ pub fn parse_command(input: &str) -> anyhow::Result<Command> {
         "list_devices" | "stop" | "shutdown" => &["type"],
         "start_v3" => &["type", "microphone", "speaker"],
         "start_v3_bridge" => &["type"],
+        "set_input_muted" => &["type", "muted"],
         "apply_answer" => &["type", "sdp"],
         "start_dictation" => &["type", "microphone"],
         "send_data" => &["type", "message"],
@@ -42,6 +43,9 @@ pub enum Command {
         speaker: Option<String>,
     },
     StartV3Bridge,
+    SetInputMuted {
+        muted: bool,
+    },
     ApplyAnswer {
         sdp: String,
     },
@@ -152,6 +156,8 @@ mod tests {
     fn commands_are_closed_and_bounded() {
         assert!(parse_command(r#"{"type":"unknown"}"#).is_err());
         assert!(parse_command(r#"{"type":"stop","extra":true}"#).is_err());
+        assert!(parse_command(r#"{"type":"set_input_muted","muted":true}"#).is_ok());
+        assert!(parse_command(r#"{"type":"set_input_muted","muted":"yes"}"#).is_err());
         assert!(
             Command::StartDictation {
                 microphone: Some("x".repeat(MAX_DEVICE_BYTES + 1)),

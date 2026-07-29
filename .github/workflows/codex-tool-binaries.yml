@@ -16,8 +16,6 @@ on:
       - 'packages/pi-codex-conversion/scripts/build-native-tool-binary.mjs'
       - 'packages/pi-codex-conversion/scripts/build-voice-helper.mjs'
       - 'packages/pi-codex-conversion/package.json'
-      - 'packages/pi-codex-conversion-lite/src/voice/rust/**'
-      - 'packages/pi-codex-conversion-lite/scripts/build-voice-helper.mjs'
       - 'packages/pi-gippity-control/src/voice/rust/**'
       - 'packages/pi-gippity-control/scripts/build-voice-helper.mjs'
 
@@ -64,8 +62,6 @@ jobs:
           FALLBACK_BASE_REF: origin/${{ github.event.repository.default_branch }}
           FORCE_ALL_CODEX_TOOL_BUILDS: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
         run: |
-          git diff --no-index --quiet -- src/voice/rust ../pi-codex-conversion-lite/src/voice/rust
-          git diff --no-index --quiet -- scripts/build-voice-helper.mjs ../pi-codex-conversion-lite/scripts/build-voice-helper.mjs
           git diff --no-index --quiet -- src/voice/rust ../pi-gippity-control/src/voice/rust
           git diff --no-index --quiet -- scripts/build-voice-helper.mjs ../pi-gippity-control/scripts/build-voice-helper.mjs
           bun run build:changed-native-tools
@@ -105,14 +101,11 @@ jobs:
             rm -rf "packages/pi-codex-conversion-lite/src/tools/$tool/bin"
             cp -a "packages/pi-codex-conversion/src/tools/$tool/bin" "packages/pi-codex-conversion-lite/src/tools/$tool/bin"
           done
-          rm -rf packages/pi-codex-conversion-lite/src/voice/bin
-          cp -a packages/pi-codex-conversion/src/voice/bin packages/pi-codex-conversion-lite/src/voice/bin
           rm -rf packages/pi-gippity-control/src/voice/bin
           cp -a packages/pi-codex-conversion/src/voice/bin packages/pi-gippity-control/src/voice/bin
           git add packages/pi-codex-conversion/src/tools/*/bin
           git add packages/pi-codex-conversion/src/voice/bin
           git add packages/pi-codex-conversion-lite/src/tools/*/bin
-          git add packages/pi-codex-conversion-lite/src/voice/bin
           git add packages/pi-gippity-control/src/voice/bin
           if git diff --cached --quiet; then
             echo "No bundled binary changes."

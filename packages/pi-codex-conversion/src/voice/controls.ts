@@ -12,6 +12,7 @@ import { codexVoiceSetupMessage, type CodexVoiceMode } from "./ui.ts";
 export interface CodexVoiceControls {
 	start(mode: CodexVoiceMode, ctx: ExtensionContext): Promise<void>;
 	stop(ctx: ExtensionContext): Promise<void>;
+	toggleInputMute(ctx: ExtensionContext): void;
 }
 
 export function createCodexVoiceControls(options: {
@@ -56,11 +57,21 @@ export function createCodexVoiceControls(options: {
 		else await start(mode, ctx);
 	};
 
+	const toggleInputMute = (ctx: ExtensionContext): void => {
+		const muted = !voice.inputMuted;
+		if (!voice.setInputMuted(muted)) {
+			ctx.ui.notify("Start realtime voice before muting the microphone", "info");
+			return;
+		}
+		ctx.ui.notify(`Realtime microphone ${muted ? "muted" : "unmuted"}`, "info");
+	};
+
 	registerCodexVoiceShortcuts(pi, state.config, () => state.config, {
 		startDictation: (ctx) => start("dictation", ctx),
 		finishDictation: (ctx) => stop(ctx),
 		toggleDictation: (ctx) => toggle("dictation", ctx),
 		toggleRealtime: (ctx) => toggle("realtime", ctx),
+		toggleInputMute,
 		toggleServer: async (ctx) => {
 			const enabled = !lanVoice.status().running;
 			await lanVoice.setEnabled(enabled, ctx);
@@ -68,5 +79,5 @@ export function createCodexVoiceControls(options: {
 		},
 	});
 
-	return { start, stop };
+	return { start, stop, toggleInputMute };
 }

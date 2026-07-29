@@ -19,6 +19,7 @@ export interface CodexVoiceShortcutActions {
 	finishDictation(ctx: ExtensionContext): Promise<void>;
 	toggleDictation(ctx: ExtensionContext): Promise<void>;
 	toggleRealtime(ctx: ExtensionContext): Promise<void>;
+	toggleInputMute(ctx: ExtensionContext): void;
 	toggleServer(ctx: ExtensionContext): Promise<void>;
 }
 
@@ -30,6 +31,7 @@ export function registerCodexVoiceShortcuts(
 ): void {
 	const dictationShortcut = initialConfig.voice.dictationShortcut as KeyId;
 	const realtimeShortcut = initialConfig.voice.realtimeShortcut as KeyId;
+	const muteShortcut = initialConfig.voice.muteShortcut as KeyId;
 	const serverShortcut = initialConfig.voice.serverShortcut as KeyId;
 	let operation = Promise.resolve();
 	let removeTerminalInput: (() => void) | undefined;
@@ -85,6 +87,10 @@ export function registerCodexVoiceShortcuts(
 		description: "Toggle GipPity realtime voice",
 		handler: (ctx) => enqueue(ctx, () => actions.toggleRealtime(ctx)),
 	});
+	pi.registerShortcut(muteShortcut, {
+		description: "Toggle GipPity realtime microphone mute",
+		handler: (ctx) => enqueue(ctx, async () => actions.toggleInputMute(ctx)),
+	});
 	pi.registerShortcut(serverShortcut, {
 		description: "Toggle GipPity control server",
 		handler: (ctx) => enqueue(ctx, () => actions.toggleServer(ctx)),
@@ -97,6 +103,7 @@ export function registerCodexVoiceShortcuts(
 		removeTerminalInput = ctx.ui.onTerminalInput((data) => {
 			if (
 				(matchesKey(data, realtimeShortcut) ||
+					matchesKey(data, muteShortcut) ||
 					matchesKey(data, serverShortcut)) &&
 				isKeyRepeat(data)
 			)

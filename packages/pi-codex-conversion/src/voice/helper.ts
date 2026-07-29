@@ -6,6 +6,7 @@ export type VoiceHelperCommand =
 	| { type: "list_devices" }
 	| { type: "start_v3"; microphone?: string; speaker?: string }
 	| { type: "start_v3_bridge" }
+	| { type: "set_input_muted"; muted: boolean }
 	| { type: "apply_answer"; sdp: string }
 	| { type: "start_dictation"; microphone?: string }
 	| { type: "send_data"; message: unknown }
@@ -76,7 +77,11 @@ export class VoiceHelperClient {
 			try {
 				const event = parseVoiceHelperEvent(JSON.parse(line));
 				if (event.type === "ready") {
-					if (event.version === 2 || event.version === 3) {
+					if (
+						event.version === 2 ||
+						event.version === 3 ||
+						event.version === 4
+					) {
 						this.helperProtocolVersion = event.version;
 						ready.resolve();
 					} else ready.reject(new Error(`Unsupported Codex voice helper protocol ${event.version}`));

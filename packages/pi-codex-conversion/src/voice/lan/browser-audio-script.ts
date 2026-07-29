@@ -3,7 +3,7 @@ import { LAN_VOICE_AUDIO_WORKLET } from "./audio-worklet.ts";
 const AUDIO_WORKLET_SOURCE = JSON.stringify(LAN_VOICE_AUDIO_WORKLET);
 
 export const LAN_VOICE_BROWSER_AUDIO_SCRIPT = String.raw`
-function createAudioController({ button, audioState, audioDetail, modeButtons, composer, clientId, post }) {
+function createAudioController({ button, muteButton, audioState, audioDetail, modeButtons, composer, clientId, post }) {
   let socket;
   let stream;
   let context;
@@ -11,6 +11,7 @@ function createAudioController({ button, audioState, audioDetail, modeButtons, c
   let processor;
   let mode = 'conversation';
   let active = false;
+  let muted = false;
   let busy = false;
   let finishingDictation = false;
   let starting = false;
@@ -20,7 +21,20 @@ function createAudioController({ button, audioState, audioDetail, modeButtons, c
   const updateControls = () => {
     button.disabled = false;
     button.setAttribute('aria-busy', String(busy));
+    muteButton.hidden = mode !== 'conversation' || !active;
+    muteButton.disabled = busy || !active || mode !== 'conversation';
     modeButtons.forEach((item) => { item.disabled = busy || active; });
+  };
+  const setMuted = (nextMuted, notify = true) => {
+    if ((!active || mode !== 'conversation') && notify) return;
+    muted = Boolean(nextMuted);
+    stream?.getAudioTracks().forEach((track) => { track.enabled = !muted; });
+    muteButton.setAttribute('aria-pressed', String(muted));
+    muteButton.setAttribute('aria-label', muted ? 'Unmute microphone' : 'Mute microphone');
+    muteButton.lastElementChild.textContent = muted ? 'Unmute mic' : 'Mute mic';
+    if (notify && socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type:'mute', muted }));
+    if (active) setStatus(muted ? 'Microphone muted' : 'Listening', muted ? 'Voice remains connected' : 'Tap to stop');
+    updateControls();
   };
   const closeHardware = () => {
     processor?.disconnect(); processor = undefined;
@@ -47,6 +61,8 @@ function createAudioController({ button, audioState, audioDetail, modeButtons, c
       return;
     }
     active = false;
+    muted = false;
+    muteButton.setAttribute('aria-pressed', 'false');
     finishingDictation = false;
     const currentSocket = socket;
     socket = undefined;
@@ -78,6 +94,7 @@ function createAudioController({ button, audioState, audioDetail, modeButtons, c
         finishingDictation = false;
         button.setAttribute('aria-pressed', 'true');
         button.setAttribute('aria-label', mode === 'dictation' ? 'Finish dictation' : 'Stop voice');
+        setMuted(false, false);
         setStatus(mode === 'dictation' ? 'Recording' : 'Listening', mode === 'dictation' ? 'Tap to finish' : 'Tap to stop');
         updateControls();
       }
@@ -125,7 +142,7 @@ function createAudioController({ button, audioState, audioDetail, modeButtons, c
         setStatus('Could not start', 'Connection timed out. Tap to retry.');
       }, 10000);
       processor.port.onmessage = (event) => {
-        if (active && socket === currentSocket && currentSocket.readyState === WebSocket.OPEN && currentSocket.bufferedAmount < 65536) currentSocket.send(event.data);
+        if (active && !muted && socket === currentSocket && currentSocket.readyState === WebSocket.OPEN && currentSocket.bufferedAmount < 65536) currentSocket.send(event.data);
       };
       currentSocket.onopen = () => {
         if (socket !== currentSocket || !context) return;
@@ -177,6 +194,7 @@ function createAudioController({ button, audioState, audioDetail, modeButtons, c
     else if (active || busy || socket) stop();
     else void start();
   });
+  muteButton.addEventListener('click', () => setMuted(!muted));
   modeButtons.forEach((item) => item.addEventListener('click', () => selectMode(item.dataset.mode)));
   updateControls();
 
@@ -184,6 +202,7 @@ function createAudioController({ button, audioState, audioDetail, modeButtons, c
     handleServerCommand(command) {
       if (command.type === 'stop') stop(false, command.reason || 'server');
       if (command.type === 'error') { stop(false, 'server-error'); setStatus('Voice stopped', command.message); }
+      if (command.type === 'mute') setMuted(command.muted, false);
     },
     pagehide() {
       stream?.getTracks().forEach((track) => track.stop());

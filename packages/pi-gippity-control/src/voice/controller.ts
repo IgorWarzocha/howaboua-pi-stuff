@@ -44,6 +44,8 @@ export class CodexVoiceController {
 	private announcedMode: CodexVoiceMode | undefined;
 	private startGeneration = 0;
 	private readonly messages: CodexVoiceSessionMessages;
+	private readonly inputMuteListeners = new Set<(muted: boolean) => void>();
+	private voiceStatus = "";
 
 	constructor(pi: ExtensionAPI) {
 		this.messages = new CodexVoiceSessionMessages(pi, {
@@ -65,6 +67,27 @@ export class CodexVoiceController {
 	}
 	get activeMode(): CodexVoiceMode | undefined {
 		return this.announcedMode;
+	}
+	get inputMuted(): boolean {
+		return (
+			this.state.type === "conversation" && this.state.session.microphoneMuted
+		);
+	}
+	onInputMuteChange(listener: (muted: boolean) => void): () => void {
+		this.inputMuteListeners.add(listener);
+		return () => this.inputMuteListeners.delete(listener);
+	}
+	setInputMuted(muted: boolean): boolean {
+		if (this.state.type !== "conversation" || this.announcedMode !== "realtime")
+			return false;
+		const previous = this.state.session.microphoneMuted;
+		this.state.session.setInputMuted(muted);
+		const current = this.state.session.microphoneMuted;
+		if (previous !== current) {
+			this.renderCurrentStatus();
+			for (const listener of this.inputMuteListeners) listener(current);
+		}
+		return true;
 	}
 	resetContextAnnouncements(): void {
 		this.messages.resetContextAnnouncements();
@@ -109,6 +132,7 @@ export class CodexVoiceController {
 			this.messages.modeStarted("realtime");
 			return;
 		}
+		if (session.microphoneMuted) this.setInputMuted(false);
 		if (this.announcedMode !== "realtime") return;
 		this.announcedMode = undefined;
 		this.messages.voiceStopped("realtime");
@@ -218,13 +242,17 @@ export class CodexVoiceController {
 
 	async stop(options?: { announce?: boolean }): Promise<void> {
 		this.startGeneration += 1;
+		const wasMuted = this.inputMuted;
 		const endedMode = options?.announce ? this.announcedMode : undefined;
 		const session = this.currentSession();
 		this.state = { type: "idle" };
 		this.announcedMode = undefined;
 		this.config = undefined;
+		this.voiceStatus = "";
 		this.context?.ui.setStatus("gippity-voice", undefined);
 		await session?.close();
+		if (wasMuted)
+			for (const listener of this.inputMuteListeners) listener(false);
 		this.messages.voiceStopped(endedMode);
 	}
 
@@ -248,6 +276,7 @@ export class CodexVoiceController {
 		this.state = { type: "idle" };
 		this.announcedMode = undefined;
 		this.config = undefined;
+		this.voiceStatus = "";
 		this.context?.ui.setStatus("gippity-voice", undefined);
 		this.messages.voiceStopped(endedMode);
 	}
@@ -396,6 +425,7 @@ export class CodexVoiceController {
 		if (startGeneration !== this.startGeneration) return;
 		this.state = { type: "idle" };
 		this.config = undefined;
+		this.voiceStatus = "";
 		this.context?.ui.setStatus("gippity-voice", undefined);
 	}
 
@@ -412,22 +442,34 @@ export class CodexVoiceController {
 			: error.message;
 		this.startGeneration += 1;
 		const endedMode = this.announcedMode;
+		const wasMuted = this.inputMuted;
 		const session = this.currentSession();
 		this.state = { type: "failed", message };
 		this.announcedMode = undefined;
 		this.config = undefined;
+		this.voiceStatus = "";
 		this.context?.ui.setStatus("gippity-voice", undefined);
 		this.context?.ui.notify(message, "error");
 		this.messages.voiceStopped(endedMode);
+		if (wasMuted)
+			for (const listener of this.inputMuteListeners) listener(false);
 		void session?.close();
 	}
 
 	private renderStatus(status: string): void {
+		this.voiceStatus = status;
+		this.renderCurrentStatus();
+	}
+
+	private renderCurrentStatus(): void {
 		const ctx = this.context;
-		if (ctx)
-			ctx.ui.setStatus(
-				"gippity-voice",
-				ctx.ui.theme.fg("accent", `voice: ${status}`),
-			);
+		if (!ctx || !this.voiceStatus) return;
+		const mute = this.inputMuted
+			? ctx.ui.theme.fg("warning", " · mic muted")
+			: "";
+		ctx.ui.setStatus(
+			"gippity-voice",
+			`${ctx.ui.theme.fg("accent", `voice: ${this.voiceStatus}`)}${mute}`,
+		);
 	}
 }

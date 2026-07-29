@@ -122,12 +122,19 @@ export async function startCodexLanVoiceServer(options: {
 			if (activeConversation)
 				options.voice.setConversationInputActive(activeConversation, active);
 		},
+		onConversationMute(muted) {
+			if (!options.voice.setInputMuted(muted))
+				throw new Error("Realtime voice is not active");
+		},
 		onConversationAudio(pcm) {
 			const peer = upstreamPeer;
 			if (peer) peer.sendAudio(pcm);
 		},
 		onDictationAudio: (clientId, pcm) => dictation.append(clientId, pcm),
 	});
+	const removeInputMuteListener = options.voice.onInputMuteChange((muted) =>
+		clients.broadcastControl({ type: "mute", muted }),
+	);
 
 	const server = createServer(
 		{ cert: certificate.cert, key: certificate.key },
@@ -174,6 +181,7 @@ export async function startCodexLanVoiceServer(options: {
 	try {
 		await listen(server, options.port ?? PORT);
 	} catch (error) {
+		removeInputMuteListener();
 		const clientsClosing = clients.close();
 		webSockets.close();
 		server.closeAllConnections();
@@ -194,6 +202,7 @@ export async function startCodexLanVoiceServer(options: {
 	let closePromise: Promise<void> | undefined;
 	const closeServer = async (): Promise<void> => {
 		closing = true;
+		removeInputMuteListener();
 		conversationStartAbort?.abort();
 		conversationStartAbort = undefined;
 		clearInterval(heartbeat);

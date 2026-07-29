@@ -11,6 +11,7 @@ interface CodexRealtimePeerBase {
 	onEvent(listener: (event: CodexRealtimePeerEvent) => void): () => void;
 	onExit(listener: (error: Error) => void): () => void;
 	sendData(message: unknown): void;
+	setInputMuted(muted: boolean): void;
 	close(): Promise<void>;
 }
 

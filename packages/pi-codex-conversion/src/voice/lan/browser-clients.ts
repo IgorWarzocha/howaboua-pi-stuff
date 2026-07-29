@@ -18,6 +18,7 @@ interface LanVoiceBrowserClientsOptions {
 	finishDictation(clientId: string, draft?: string, revision?: number, selection?: LanVoiceDraftSelection): Promise<void>;
 	cancelDictation(clientId: string): Promise<void>;
 	onConversationActivity(active: boolean): void;
+	onConversationMute(muted: boolean): void;
 	onConversationAudio(pcm: Buffer): void;
 	onDictationAudio(clientId: string, pcm: Buffer): void;
 }
@@ -122,12 +123,20 @@ export class LanVoiceBrowserClients {
 				void this.finish(clientId, socket, message.draft, message.revision, message.selection).catch((error: unknown) => this.sendSocketError(socket, error));
 			} else if (message.type === "release") {
 				this.release(clientId, socket);
+			} else if (message.type === "mute") {
+				this.mute(clientId, socket, message.muted);
 			} else {
 				void this.options.cancelDictation(clientId).catch((error: unknown) => this.sendSocketError(socket, error));
 			}
 		} catch (error) {
 			socket.close(1003, "invalid message");
 		}
+	}
+
+	private mute(clientId: string, socket: WebSocket, muted: boolean): void {
+		const active = this.state;
+		if (active.type !== "active" || active.clientId !== clientId || active.socket !== socket || active.mode !== "conversation") return;
+		this.options.onConversationMute(muted);
 	}
 
 	private receiveAudio(clientId: string, socket: WebSocket, pcm: Buffer): void {
@@ -148,6 +157,7 @@ export class LanVoiceBrowserClients {
 				this.sendControl(previous.clientId, { type: "stop", reason: "replaced" });
 				previous.socket.close(4001, "replaced");
 			}
+			if (previous?.mode === "conversation" && mode === "conversation") this.options.onConversationMute(false);
 			if (previous?.mode === "conversation" && mode !== "conversation") this.options.onConversationActivity(false);
 			if (previous?.mode === "dictation") await this.options.finishDictation(previous.clientId);
 			if (this.isClosed()) return;

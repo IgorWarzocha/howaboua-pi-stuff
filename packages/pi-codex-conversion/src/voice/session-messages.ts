@@ -82,22 +82,22 @@ export class CodexVoiceSessionMessages {
 	}
 
 	private flush(): void {
-		// Session history stays append-only: hold display messages while Pi is active.
-		// Delegations bypass this queue and steer the active turn immediately.
 		const ctx = this.context;
-		if (this.piTurnActive || !ctx?.isIdle()) return;
+		if (!ctx) return;
+		const deliverAs = this.piTurnActive || !ctx.isIdle() ? "steer" : undefined;
 		while (this.pending.length > 0) {
-			const message = this.pending.shift()!;
+			const message = this.pending.shift();
+			if (!message) break;
 			if (message.type === "mode") {
-				this.pi.sendMessage(codexVoiceModeMessage(message.mode, message.state), { triggerTurn: false });
+				this.pi.sendMessage(codexVoiceModeMessage(message.mode, message.state), { triggerTurn: false, ...(deliverAs ? { deliverAs } : {}) });
 				continue;
 			}
 			const { turn } = message;
 			if (turn.delegationId) {
-				if (!this.deliverDelegation(turn, true)) continue;
+				if (!this.deliverDelegation(turn, !deliverAs)) continue;
 				return;
 			}
-			this.pi.sendMessage(realtimeVoiceMessage(turn.input, "conversation"), { triggerTurn: false });
+			this.pi.sendMessage(realtimeVoiceMessage(turn.input, "conversation"), { triggerTurn: false, ...(deliverAs ? { deliverAs } : {}) });
 		}
 		if (!this.callbacks.isVoiceActive()) this.context = undefined;
 	}

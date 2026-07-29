@@ -43,6 +43,11 @@ impl LinearResampler {
         self.position -= (samples.len() - 1) as f64;
         self.previous = input.last().copied();
     }
+
+    pub fn reset(&mut self) {
+        self.position = 0.0;
+        self.previous = None;
+    }
 }
 
 #[cfg(test)]

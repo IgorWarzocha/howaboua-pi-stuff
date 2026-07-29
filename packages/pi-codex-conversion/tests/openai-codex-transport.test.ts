@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseSSE } from "../src/providers/openai-codex-custom-provider.ts";
+import { buildCachedWebSocketRequestBody, parseSSE, type ResponsesBody } from "../src/providers/openai-codex-custom-provider.ts";
 import {
 	ScriptedWebSocket,
 	codexStreamRequest,
@@ -29,6 +29,40 @@ test("parseSSE accepts CRLF chunks, joined data lines, and ignores done sentinel
 	for await (const event of parseSSE(response)) events.push(event);
 
 	assert.deepEqual(events, [{ type: "response.created", response: { id: "resp_1" } }]);
+});
+
+test("WebSocket continuation ignores response-item transport metadata", () => {
+	const previousInput = { role: "user", content: [{ type: "input_text", text: "hello" }] };
+	const responseItem = {
+		type: "message",
+		id: "msg_1",
+		role: "assistant",
+		content: [{ type: "output_text", text: "Hello", annotations: [] }],
+		status: "completed",
+		internal_chat_message_metadata_passthrough: { turn_id: "turn_1" },
+	};
+	const { internal_chat_message_metadata_passthrough: _metadata, ...persistedResponseItem } = responseItem;
+	const request = {
+		model: "gpt-test",
+		store: false,
+		stream: true,
+		instructions: "instructions",
+		input: [previousInput, persistedResponseItem, { type: "compaction_trigger" }],
+		text: { verbosity: "low" },
+		include: [],
+		tool_choice: "auto",
+		parallel_tool_calls: true,
+	} satisfies ResponsesBody;
+	const result = buildCachedWebSocketRequestBody({
+		lastRequestBody: { ...request, input: [previousInput] },
+		lastResponseId: "resp_1",
+		lastResponseItems: [responseItem],
+	}, request);
+
+	assert.deepEqual(result, {
+		decision: "delta",
+		body: { ...request, previous_response_id: "resp_1", input: [{ type: "compaction_trigger" }] },
+	});
 });
 
 test("a post-start WebSocket failure retries on a fresh WebSocket", async () => {
