@@ -73,6 +73,11 @@ export async function runReviewSubagent(
 				recordAssistantMessage(details, event.message);
 			}
 		}
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		const stderr = client.getStderr().trim();
+		if (!stderr || message.includes(stderr)) throw error;
+		throw new Error(`${message}\nStderr: ${stderr}`, { cause: error });
 	} finally {
 		signal?.removeEventListener("abort", abort);
 		await client.stop();
