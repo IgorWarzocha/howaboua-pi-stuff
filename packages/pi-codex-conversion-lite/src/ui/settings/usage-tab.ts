@@ -31,21 +31,23 @@ export function createUsageTab(ctx: ExtensionContext, options: UsageTabOptions, 
 
 	const load = (unlockReset = false) => {
 		if (usageLoading) return;
-		if (unlockReset) {
-			resetLockedUntilRefresh = false;
-			resetRedeemRequestId = undefined;
-			resetMessage = undefined;
-		}
 		usageLoading = true;
 		requestRender();
 		(options.onRefreshUsage ?? (() => fetchCodexUsage(ctx)))()
-			.then((usage) => { usageState = usage; })
+			.then((usage) => {
+				usageState = usage;
+				if (unlockReset) {
+					resetLockedUntilRefresh = false;
+					resetRedeemRequestId = undefined;
+					resetMessage = undefined;
+				}
+			})
 			.catch((error) => { usageState = { error: error instanceof Error ? error.message : String(error) }; })
 			.finally(() => { usageLoading = false; requestRender(); });
 	};
 
 	const consumeReset = () => {
-		if (resetLoading) return;
+		if (resetLoading || usageLoading) return;
 		if (resetLockedUntilRefresh) {
 			resetMessage = { kind: "info", text: "Press R to refresh before using another reset." };
 			requestRender();

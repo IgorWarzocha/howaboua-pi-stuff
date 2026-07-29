@@ -2,6 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Box, Text } from "@earendil-works/pi-tui";
 
 const ENTRY_TYPE = "pi-codex-conversion-lite-graduation";
+const REMOVE_COMMAND = "pi remove npm:@howaboua/pi-codex-conversion-lite";
 const INSTALL_COMMAND = "pi install npm:@howaboua/pi-codex-conversion";
 
 export function registerLiteGraduationNotice(pi: ExtensionAPI): void {
@@ -10,7 +11,8 @@ export function registerLiteGraduationNotice(pi: ExtensionAPI): void {
 		box.addChild(new Text([
 			theme.bold(theme.fg("customMessageLabel", "pi-codex-conversion-lite has graduated to the main channel")),
 			theme.fg("customMessageText", "No further updates will be provided after this release."),
-			`${theme.fg("customMessageText", "Install: ")}${theme.fg("accent", INSTALL_COMMAND)}`,
+			`${theme.fg("customMessageText", "Remove Lite: ")}${theme.fg("accent", REMOVE_COMMAND)}`,
+			`${theme.fg("customMessageText", "Install main: ")}${theme.fg("accent", INSTALL_COMMAND)}`,
 			theme.fg("customMessageText", "Thank you for testing!"),
 		].join("\n"), 0, 0));
 		return box;

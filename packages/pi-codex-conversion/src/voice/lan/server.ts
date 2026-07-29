@@ -57,17 +57,20 @@ export async function startCodexLanVoiceServer(options: {
 		onError: (clientId, error) => clients.sendControl(clientId, { type: "error", message: error.message }),
 	});
 
-	const clearUpstream = (peer?: LanVoiceBridgePeer): void => {
-		if (peer && upstreamPeer !== peer) return;
+	const clearUpstream = (peer?: LanVoiceBridgePeer): boolean => {
+		if (peer && upstreamPeer !== peer) return false;
 		upstreamPeer = undefined;
 		conversation = undefined;
+		return true;
 	};
 	const ensureConversation = async (): Promise<void> => {
 		if (conversation && upstreamPeer) return;
 		const startAbort = new AbortController();
 		let peer!: LanVoiceBridgePeer;
 		peer = new LanVoiceBridgePeer((pcm) => clients.sendConversationAudio(pcm));
-		peer.onExit(() => clearUpstream(peer));
+		peer.onExit((error) => {
+			if (clearUpstream(peer)) clients.conversationFailed(error);
+		});
 		upstreamPeer = peer;
 		conversationStartAbort = startAbort;
 		let started: CodexRealtimeConversation | undefined;

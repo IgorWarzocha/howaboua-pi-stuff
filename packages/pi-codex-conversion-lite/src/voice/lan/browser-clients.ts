@@ -71,6 +71,16 @@ export class LanVoiceBrowserClients {
 		for (const clientId of this.eventResponses.keys()) this.sendControl(clientId, value);
 	}
 
+	conversationFailed(error: Error): void {
+		void this.enqueue(async () => {
+			const active = this.state;
+			if (active.type !== "active" || active.mode !== "conversation") return;
+			this.state = { type: "idle" };
+			this.options.onConversationActivity(false);
+			this.sendControl(active.clientId, { type: "error", message: error.message });
+		});
+	}
+
 	release(clientId: string, socket?: WebSocket): void {
 		void this.enqueue(async () => {
 			const active = this.state;

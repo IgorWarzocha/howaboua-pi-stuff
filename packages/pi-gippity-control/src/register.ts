@@ -82,16 +82,17 @@ export function registerGippityControl(pi: ExtensionAPI): void {
 		voice.resetContextAnnouncements();
 	});
 	pi.on("session_shutdown", async (_event, ctx) => {
-		const settled = await Promise.allSettled([
-			lanVoice.stop(ctx),
-			voice.stop({ announce: true }),
-		]);
-		const failures = settled
-			.filter(
-				(result): result is PromiseRejectedResult =>
-					result.status === "rejected",
-			)
-			.map((result) => result.reason);
+		const failures: unknown[] = [];
+		try {
+			await lanVoice.stop(ctx);
+		} catch (error) {
+			failures.push(error);
+		}
+		try {
+			await voice.stop({ announce: true });
+		} catch (error) {
+			failures.push(error);
+		}
 		if (failures.length === 1) throw failures[0];
 		if (failures.length > 1)
 			throw new AggregateError(failures, "GipPity shutdown failed");

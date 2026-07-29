@@ -35,6 +35,17 @@ function mergeDocument(
 	return merged;
 }
 
+function clearAbsentOwnedOptionals(
+	document: Record<string, unknown>,
+	owned: Record<string, unknown>,
+): void {
+	const voice = isObject(document["voice"]) ? document["voice"] : undefined;
+	const ownedVoice = isObject(owned["voice"]) ? owned["voice"] : undefined;
+	if (!voice || !ownedVoice) return;
+	for (const key of ["inputDevice", "outputDevice"])
+		if (!(key in ownedVoice)) delete voice[key];
+}
+
 export function getGippityControlConfigPath(
 	agentDir: string = getAgentDir(),
 ): string {
@@ -79,6 +90,7 @@ export function writeGippityControlConfig(
 				// An explicit write replaces an unreadable document.
 			}
 		}
+		clearAbsentOwnedOptionals(document, normalized);
 		writeFileSync(temporaryPath, `${JSON.stringify(document, null, 2)}\n`, {
 			encoding: "utf8",
 			mode: 0o600,

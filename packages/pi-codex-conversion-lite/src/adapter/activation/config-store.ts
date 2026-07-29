@@ -23,6 +23,14 @@ function mergeConfigDocument(existing: Record<string, unknown>, owned: Record<st
 	return merged;
 }
 
+function clearAbsentOwnedOptionals(document: Record<string, unknown>, owned: Record<string, unknown>): void {
+	const voice = isRecord(document["voice"]) ? document["voice"] : undefined;
+	const ownedVoice = isRecord(owned["voice"]) ? owned["voice"] : undefined;
+	if (!voice || !ownedVoice) return;
+	for (const key of ["inputDevice", "outputDevice"])
+		if (!(key in ownedVoice)) delete voice[key];
+}
+
 export function getCodexConversionConfigPath(agentDir: string = getAgentDir()): string {
 	return join(agentDir, CODEX_CONVERSION_CONFIG_BASENAME);
 }
@@ -57,6 +65,7 @@ export function writeCodexConversionConfig(
 				// A valid explicit settings write replaces an unreadable document.
 			}
 		}
+		clearAbsentOwnedOptionals(document, normalized);
 		writeFileSync(temporaryPath, `${JSON.stringify(document, null, 2)}\n`, {
 			encoding: "utf-8",
 			mode: 0o600,

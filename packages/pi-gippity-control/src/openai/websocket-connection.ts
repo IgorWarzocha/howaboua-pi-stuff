@@ -25,10 +25,11 @@ type GetProxyForUrl = typeof getProxyForUrl;
 
 let _cachedWebSocket: WebSocketConstructorLike | null = null;
 async function getWebSocketConstructor(
+	url: string,
 	env?: ProviderEnv,
 ): Promise<WebSocketConstructorLike | null> {
-	if (!env && _cachedWebSocket) return _cachedWebSocket;
 	if (typeof process !== "undefined" && process.versions["bun"]!) {
+		if (!env && _cachedWebSocket) return _cachedWebSocket;
 		const WebSocketWithProxy = class extends WebSocket {
 			constructor(
 				url: string,
@@ -52,12 +53,42 @@ async function getWebSocketConstructor(
 		if (!env) _cachedWebSocket = WebSocketWithProxy;
 		return WebSocketWithProxy;
 	}
-	const ctor = (
-		globalThis as typeof globalThis & {
-			WebSocket?: WebSocketConstructorLike | undefined;
+	const proxy = resolveWebSocketProxyForTargetSync(getProxyForUrl, url, env);
+	if (!proxy) {
+		const ctor = (
+			globalThis as typeof globalThis & {
+				WebSocket?: WebSocketConstructorLike | undefined;
+			}
+		).WebSocket;
+		return typeof ctor === "function" ? ctor : null;
+	}
+	const proxyUrl = proxy;
+	const { ProxyAgent, WebSocket: UndiciWebSocket } = await import("undici");
+	const WebSocketWithProxy = class extends UndiciWebSocket {
+		constructor(
+			socketUrl: string,
+			options?:
+				| { headers?: Record<string, string> | undefined }
+				| string
+				| string[],
+		) {
+			const baseOptions =
+				Array.isArray(options) || typeof options === "string"
+					? { protocols: options }
+					: { ...options };
+			const dispatcher = new ProxyAgent(proxyUrl);
+			super(socketUrl, { ...baseOptions, dispatcher } as never);
+			let dispatcherClosed = false;
+			const closeDispatcher = () => {
+				if (dispatcherClosed) return;
+				dispatcherClosed = true;
+				void dispatcher.close();
+			};
+			this.addEventListener("error", closeDispatcher, { once: true });
+			this.addEventListener("close", closeDispatcher, { once: true });
 		}
-	).WebSocket;
-	return typeof ctor === "function" ? ctor : null;
+	};
+	return WebSocketWithProxy;
 }
 
 function proxyTargetUrl(url: string): string {
@@ -217,7 +248,7 @@ export async function connectWebSocket(
 	connectTimeoutMs = DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS,
 	env?: ProviderEnv,
 ): Promise<WebSocketLike> {
-	const WebSocketCtor = await getWebSocketConstructor(env);
+	const WebSocketCtor = await getWebSocketConstructor(url, env);
 	if (!WebSocketCtor) {
 		throw new Error("WebSocket transport is not available in this runtime");
 	}

@@ -93,7 +93,7 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 	const body = await prepareCodexRequestBody(model, context, effectiveOptions, responsesLite);
 	const accountId = extractAccountId(options.apiKey);
 	const originator = runtimeConfig?.openai.harnessIdentifierHeader ? PI_CODEX_CONVERSION_ORIGINATOR : undefined;
-	const headers = buildWebSocketHeaders(model.headers, options.headers, accountId, options.apiKey, options.sessionId, originator);
+	const headers = buildWebSocketHeaders(model.headers, effectiveOptions.headers, accountId, options.apiKey, options.sessionId, originator);
 	let websocketBody = responsesLite ? applyResponsesLiteWebSocketMetadata(body) : body;
 	const currentTurnState = deps.turnState?.current();
 	if (currentTurnState) {

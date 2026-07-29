@@ -16,6 +16,10 @@ on:
       - 'packages/pi-codex-conversion/scripts/build-native-tool-binary.mjs'
       - 'packages/pi-codex-conversion/scripts/build-voice-helper.mjs'
       - 'packages/pi-codex-conversion/package.json'
+      - 'packages/pi-codex-conversion-lite/src/voice/rust/**'
+      - 'packages/pi-codex-conversion-lite/scripts/build-voice-helper.mjs'
+      - 'packages/pi-gippity-control/src/voice/rust/**'
+      - 'packages/pi-gippity-control/scripts/build-voice-helper.mjs'
 
 permissions:
   contents: write
@@ -60,6 +64,10 @@ jobs:
           FALLBACK_BASE_REF: origin/${{ github.event.repository.default_branch }}
           FORCE_ALL_CODEX_TOOL_BUILDS: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
         run: |
+          diff -qr src/voice/rust ../pi-codex-conversion-lite/src/voice/rust
+          diff -q scripts/build-voice-helper.mjs ../pi-codex-conversion-lite/scripts/build-voice-helper.mjs
+          diff -qr src/voice/rust ../pi-gippity-control/src/voice/rust
+          diff -q scripts/build-voice-helper.mjs ../pi-gippity-control/scripts/build-voice-helper.mjs
           bun run build:changed-native-tools
           bun run build:voice-helper
       - uses: actions/upload-artifact@v7
