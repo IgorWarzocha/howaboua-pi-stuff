@@ -4,7 +4,8 @@ import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { isRetryableAssistantError, type AssistantMessage, type Context, type Model } from "@earendil-works/pi-ai";
 import { buildSessionContext, convertToLlm, type SessionEntry } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
-import { rewriteCodexProviderRequest } from "../src/adapter/provider-request.ts";
+import { captureActiveProviderSystemPrompt, rewriteCodexProviderRequest } from "../src/adapter/provider-request.ts";
+import type { AdapterState } from "../src/adapter/activation/state.ts";
 import { executeRemoteCompactionV2 } from "../src/adapter/compaction/remote-v2-client.ts";
 import { serializeMessagesToResponsesInput } from "../src/adapter/compaction/serializer.ts";
 import { NATIVE_COMPACTION_SHIM_SUMMARY, NATIVE_COMPACTION_STRATEGY } from "../src/adapter/compaction/types.ts";
@@ -151,11 +152,25 @@ test("Code Mode normal turns and V2 compaction share one exact WebSocket continu
 		compactionResponse("resp_compact"),
 	]]);
 	try {
-		const registered = createRegisteredCodexProvider({ codeMode: true });
+		const downstreamPrompt = "Stable instructions\n\nDownstream machine identity";
+		const promptState = { activeProviderSystemPrompt: "Stale pre-extension instructions" } as AdapterState;
+		let captureNextProviderPrompt = true;
+		const registered = createRegisteredCodexProvider({
+			codeMode: true,
+			onPreparedPayload: (payload) => {
+				if (!captureNextProviderPrompt) return;
+				captureActiveProviderSystemPrompt(payload, promptState);
+				captureNextProviderPrompt = false;
+			},
+		});
 		const sessionId = "shared-continuation";
+		const activeTurnOptions = {
+			...streamOptions(sessionId),
+			onPayload: (body: unknown) => ({ ...(body as object), instructions: downstreamPrompt }),
+		};
 		const firstUser = user("first user", 1);
 		const toolCallAssistant = doneMessage(await collectStream(
-				registered.provider.streamSimple(model as never, context([firstUser]) as never, streamOptions(sessionId) as never),
+				registered.provider.streamSimple(model as never, context([firstUser]) as never, activeTurnOptions as never),
 		));
 		const toolCall = toolCallAssistant.content.find((item) => item.type === "toolCall");
 		assert.equal(toolCall?.type, "toolCall");
@@ -169,12 +184,12 @@ test("Code Mode normal turns and V2 compaction share one exact WebSocket continu
 		} as AgentMessage;
 		const firstMessages = [firstUser, toolCallAssistant as AgentMessage, toolResult];
 		const firstAssistant = doneMessage(await collectStream(
-				registered.provider.streamSimple(model as never, context(firstMessages) as never, streamOptions(sessionId) as never),
+				registered.provider.streamSimple(model as never, context(firstMessages) as never, activeTurnOptions as never),
 		));
 		const secondUser = user("second user", 2);
 		const messages = [...firstMessages, firstAssistant as AgentMessage, secondUser];
 		const secondAssistant = doneMessage(await collectStream(
-				registered.provider.streamSimple(model as never, context(messages) as never, streamOptions(sessionId) as never),
+				registered.provider.streamSimple(model as never, context(messages) as never, activeTurnOptions as never),
 		));
 		const completeHistory = [...messages, secondAssistant as AgentMessage];
 		const compactResult = await executeRemoteCompactionV2({
@@ -191,7 +206,7 @@ test("Code Mode normal turns and V2 compaction share one exact WebSocket continu
 			modelRegistry: {
 				getRegisteredProviderConfig: () => ({ api: model.api, streamSimple: registered.provider.streamSimple }),
 			} as never,
-			context: context([], "Stable instructions"),
+			context: context([], promptState.activeProviderSystemPrompt),
 			promptInput: serializeMessagesToResponsesInput(model, completeHistory, {
 				grammarToolInputProperties: CODE_MODE_EXEC_GRAMMAR_INPUTS,
 			}),
@@ -201,6 +216,7 @@ test("Code Mode normal turns and V2 compaction share one exact WebSocket continu
 		});
 
 		assert.equal(compactResult.ok, true);
+		assert.equal(promptState.activeProviderSystemPrompt, downstreamPrompt);
 		assert.equal(ScriptedWebSocket.opened, 1);
 		assert.equal(sentFrames().length, 4);
 		assert.equal(sentFrames()[0]?.previous_response_id, undefined);

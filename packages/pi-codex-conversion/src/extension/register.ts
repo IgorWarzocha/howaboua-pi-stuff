@@ -9,6 +9,7 @@ import { registerCodexTools } from "./tools.ts";
 import { registerCodexUi } from "./ui.ts";
 import { registerCodexVoiceRenderer } from "../voice/ui.ts";
 import { resolveCodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
+import { captureActiveProviderSystemPrompt } from "../adapter/provider-request.ts";
 
 export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 	registerCodexVoiceRenderer(pi);
@@ -20,6 +21,11 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 			getConfig: () => ({ openai: runtime.state.config.openai, beta: runtime.state.config.beta, compaction: runtime.state.config.compaction }),
 			useResponsesLite: (model) => resolveCodexRuntimePlan({ model }, runtime.state.config).kind === "code",
 			turnState: runtime.state.codexTurnState,
+			onPreparedPayload: (payload) => {
+				if (!runtime.state.pendingActiveProviderPromptCapture) return;
+				captureActiveProviderSystemPrompt(payload, runtime.state);
+				runtime.state.pendingActiveProviderPromptCapture = false;
+			},
 		});
 		const proxyProvider = registerCodeModeProxyProvider(pi, () => runtime.state.config);
 		cleanupProxyProvider = proxyProvider;

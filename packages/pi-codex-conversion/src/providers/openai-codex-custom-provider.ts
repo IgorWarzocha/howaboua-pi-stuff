@@ -125,6 +125,7 @@ function createCodexStream<TApi extends Api>(
 		getConfig?: () => CodexProviderRuntimeConfig | undefined;
 		useResponsesLite?: (model: Model<Api>) => boolean;
 		turnState?: CodexTurnState | undefined;
+		onPreparedPayload?: ((payload: ResponsesBody) => void) | undefined;
 		onStreamSettled?: () => void | undefined;
 	},
 ): AssistantMessageEventStream {
@@ -153,6 +154,7 @@ function createCodexStream<TApi extends Api>(
 
 			const accountId = extractAccountId(apiKey);
 			const body = await prepareCodexRequestBody(model, context, effectiveOptions, responsesLite);
+			deps.onPreparedPayload?.(body);
 			const websocketRequestId = effectiveOptions?.sessionId || createCodexRequestId();
 			const originator = runtimeConfig?.openai.harnessIdentifierHeader ? PI_CODEX_CONVERSION_ORIGINATOR : undefined;
 			const sseHeaders = buildSSEHeaders(model.headers, effectiveOptions?.headers, accountId, apiKey, effectiveOptions?.sessionId, responsesLite, originator);
@@ -320,7 +322,12 @@ function createCodexStream<TApi extends Api>(
 	return stream;
 }
 
-export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: { getConfig?: () => CodexProviderRuntimeConfig | undefined; useResponsesLite?: (model: Model<Api>) => boolean; turnState?: CodexTurnState | undefined }): void {
+export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: {
+	getConfig?: () => CodexProviderRuntimeConfig | undefined;
+	useResponsesLite?: (model: Model<Api>) => boolean;
+	turnState?: CodexTurnState | undefined;
+	onPreparedPayload?: ((payload: ResponsesBody) => void) | undefined;
+}): void {
 	pi.registerProvider("openai-codex", {
 		api: "openai-codex-responses",
 		oauth: openaiCodexNativeOAuthProvider,
@@ -328,6 +335,7 @@ export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: { g
 			...(options.getConfig ? { getConfig: options.getConfig } : {}),
 			...(options.useResponsesLite ? { useResponsesLite: options.useResponsesLite } : {}),
 			...(options.turnState ? { turnState: options.turnState } : {}),
+			...(options.onPreparedPayload ? { onPreparedPayload: options.onPreparedPayload } : {}),
 		}),
 	});
 }

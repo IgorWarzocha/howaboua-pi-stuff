@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
-import { rewriteCodexProviderRequest } from "../src/adapter/provider-request.ts";
+import { captureActiveProviderSystemPrompt, rewriteCodexProviderRequest } from "../src/adapter/provider-request.ts";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 
@@ -40,6 +40,16 @@ test("Code Mode relocates native freeform tools into Responses Lite", async () =
 	assert.equal(liteTools[0]?.format.syntax, "lark");
 	assert.deepEqual((rewritten.input[1] as { content: unknown }).content, [{ type: "input_text", text: "Instructions" }]);
 	assert.equal((rewritten.input[2] as { role: string }).role, "user");
+});
+
+test("captures downstream system-prompt additions from the final provider payload", () => {
+	const adapterState = state();
+	adapterState.activeProviderSystemPrompt = "Codex prompt before later extensions";
+	const finalInstructions = "Codex prompt before later extensions\n\nDownstream machine identity";
+
+	captureActiveProviderSystemPrompt({ ...payload, instructions: finalInstructions }, adapterState);
+
+	assert.equal(adapterState.activeProviderSystemPrompt, finalInstructions);
 });
 
 test("voice-only mode does not rewrite provider requests", async () => {
