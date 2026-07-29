@@ -27,6 +27,7 @@ import { prewarmWebSocket, processWebSocketStream } from "./openai-codex/websock
 import { openaiCodexNativeOAuthProvider } from "./openai-codex/oauth.ts";
 import { CODEX_TURN_STATE_HEADER, type CodexTurnState } from "./openai-codex/turn-state.ts";
 import { withRemoteCompactionV2Feature } from "./openai-responses/compaction-v2-feature.ts";
+import { normalizeResponsesToolHistory } from "./openai-responses/tool-history.ts";
 
 type CodexProviderRuntimeConfig = Pick<CodexConversionConfig, "openai" | "beta"> & Partial<Pick<CodexConversionConfig, "compaction">>;
 
@@ -63,6 +64,10 @@ async function prepareCodexRequestBody<TApi extends Api>(
 			? { ...body, parallel_tool_calls: false }
 			: applyResponsesLiteRequest(body);
 		body = await prepareResponsesLiteRequestImages(body);
+	}
+	if (!body.previous_response_id) {
+		const input = normalizeResponsesToolHistory(body.input ?? []);
+		if (input !== body.input) body = { ...body, input };
 	}
 	return body;
 }

@@ -48,6 +48,14 @@ test("convertResponsesMessages preserves structured view_image output", () => {
 		{
 			messages: [
 				{
+					role: "assistant",
+					content: [{ type: "toolCall", id: "call_image|fc_image", name: "view_image", arguments: { path: "image.png" } }],
+					api: imageModel.api,
+					provider: imageModel.provider,
+					model: imageModel.id,
+					stopReason: "toolUse",
+				} as any,
+				{
 					role: "toolResult",
 					toolCallId: "call_image|fc_image",
 					content: [
@@ -61,6 +69,13 @@ test("convertResponsesMessages preserves structured view_image output", () => {
 	);
 
 	assert.deepEqual(messages, [
+		{
+			type: "function_call",
+			id: "fc_image",
+			call_id: "call_image",
+			name: "view_image",
+			arguments: JSON.stringify({ path: "image.png" }),
+		},
 		{
 			type: "function_call_output",
 			call_id: "call_image",
