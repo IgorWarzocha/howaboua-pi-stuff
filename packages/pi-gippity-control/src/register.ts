@@ -63,6 +63,10 @@ export function registerGippityControl(pi: ExtensionAPI): void {
 		)
 			voice.streamDelta(update.type, update.delta);
 	});
+	pi.on("input", async (event) => {
+		if (event.streamingBehavior === "steer" && event.source !== "extension")
+			voice.mirrorPiSteer(event.text);
+	});
 	pi.on("before_agent_start", async () => {
 		voice.consumeDelegatedTurnStart();
 	});

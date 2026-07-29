@@ -147,6 +147,7 @@ export function registerCodexEvents(
 	});
 	pi.on("input", async (event) => {
 		if (event.streamingBehavior === undefined) state.codexTurnState.beginTurn();
+		else if (event.streamingBehavior === "steer" && event.source !== "extension") runtime.voice.mirrorPiSteer(event.text);
 	});
 	pi.on("before_agent_start", async (event, ctx) => {
 		if (runtime.voice.consumeDelegatedTurnStart()) state.codexTurnState.beginTurn();

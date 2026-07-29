@@ -52,6 +52,11 @@ export class CodexVoiceSessionMessages {
 	}
 
 	voiceTurn(turn: RealtimeVoiceTurn): void {
+		const ctx = this.context;
+		if (turn.delegationId && ctx && !ctx.isIdle()) {
+			this.deliverDelegation(turn, false);
+			return;
+		}
 		this.pending.push({ type: "turn", turn });
 		this.flush();
 	}
@@ -77,8 +82,8 @@ export class CodexVoiceSessionMessages {
 	}
 
 	private flush(): void {
-		// Session history stays append-only: hold voice messages while Pi is active,
-		// then append state/conversation cards and stop after one turn-triggering delegation.
+		// Session history stays append-only: hold display messages while Pi is active.
+		// Delegations bypass this queue and steer the active turn immediately.
 		const ctx = this.context;
 		if (this.piTurnActive || !ctx?.isIdle()) return;
 		while (this.pending.length > 0) {
@@ -89,18 +94,23 @@ export class CodexVoiceSessionMessages {
 			}
 			const { turn } = message;
 			if (turn.delegationId) {
-				if (!this.callbacks.canDelegate()) continue;
-				this.callbacks.onDelegation(turn.delegationId);
-				this.backendTurnPending = true;
-				this.piTurnActive = true;
-				this.callbacks.onWorking();
-				// User-message routing runs Pi's normal before_agent_start pipeline. A
-				// triggerTurn custom message bypasses it and can lose per-turn capabilities.
-				this.pi.sendUserMessage(turn.input);
+				if (!this.deliverDelegation(turn, true)) continue;
 				return;
 			}
 			this.pi.sendMessage(realtimeVoiceMessage(turn.input, "conversation"), { triggerTurn: false });
 		}
 		if (!this.callbacks.isVoiceActive()) this.context = undefined;
+	}
+
+	private deliverDelegation(turn: RealtimeVoiceTurn, startsTurn: boolean): boolean {
+		if (!turn.delegationId || !this.callbacks.canDelegate()) return false;
+		this.callbacks.onDelegation(turn.delegationId);
+		if (startsTurn) this.backendTurnPending = true;
+		this.piTurnActive = true;
+		this.callbacks.onWorking();
+		// Keep Pi's user-input pipeline; custom trigger-turn messages bypass
+		// before_agent_start and can lose per-turn capabilities.
+		this.pi.sendUserMessage(turn.input, startsTurn ? undefined : { deliverAs: "steer" });
+		return true;
 	}
 }

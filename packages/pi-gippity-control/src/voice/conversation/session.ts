@@ -2,6 +2,7 @@ import { ProxyAgent, type Response, fetch as undiciFetch } from "undici";
 import type { GippityControlConfig } from "../../config.ts";
 import { resolveWebSocketProxyForTarget } from "../../openai/websocket-connection.ts";
 import type { CodexVoiceAuth } from "../auth.ts";
+import { MAX_REALTIME_VOICE_INPUT_BYTES, renderPiSteer } from "../prompts.ts";
 import { type RealtimeVoiceTurn, RealtimeVoiceTurnTracker } from "../turns.ts";
 import {
 	type CodexRealtimePeer,
@@ -10,7 +11,6 @@ import {
 } from "./peer.ts";
 
 const V3_MODEL = "gpt-live-1-boulder-alpha";
-const MAX_DELEGATION_BYTES = 32 * 1024;
 const HANDOFF_CHUNK_BYTES = 500;
 const HANDOFF_FLUSH_MS = 200;
 const PEER_READY_TIMEOUT_MS = 15_000;
@@ -117,7 +117,36 @@ export class CodexRealtimeConversation {
 	}
 
 	activateDelegation(id: string): void {
-		if (this.state === "active") this.activeDelegationId = id;
+		if (this.state !== "active" || this.activeDelegationId === id) return;
+		const previousDelegationId = this.activeDelegationId;
+		this.flushHandoff();
+		if (this.state !== "active") return;
+		if (previousDelegationId)
+			this.turnTracker.delegationSettled(previousDelegationId);
+		this.activeDelegationId = id;
+	}
+
+	mirrorPiSteer(input: unknown): boolean {
+		const delegationId = this.activeDelegationId;
+		const frame = renderPiSteer(input);
+		if (this.state !== "active" || !delegationId || !frame) return false;
+		this.flushHandoff();
+		if (this.state !== "active" || this.activeDelegationId !== delegationId)
+			return false;
+		try {
+			for (const text of utf8Chunks(frame, HANDOFF_CHUNK_BYTES)) {
+				this.peer.sendData({
+					type: "delegation.context.append",
+					delegation_item_id: delegationId,
+					channel: "commentary",
+					content: [{ type: "input_text", text }],
+				});
+			}
+			return true;
+		} catch (error) {
+			this.fail(error instanceof Error ? error : new Error(String(error)));
+			return false;
+		}
 	}
 
 	streamAgentDelta(type: string, delta: string): void {
@@ -223,7 +252,7 @@ export class CodexRealtimeConversation {
 			)
 			.join("")
 			.trim();
-		if (!input || Buffer.byteLength(input) > MAX_DELEGATION_BYTES) {
+		if (!input || Buffer.byteLength(input) > MAX_REALTIME_VOICE_INPUT_BYTES) {
 			this.fail(new Error("Codex voice delegation was empty or oversized"));
 			return;
 		}
@@ -363,7 +392,9 @@ function boundedTranscript(value: unknown): string | "oversized" | undefined {
 	if (typeof value !== "string") return undefined;
 	const input = value.trim();
 	if (!input) return undefined;
-	return Buffer.byteLength(input) > MAX_DELEGATION_BYTES ? "oversized" : input;
+	return Buffer.byteLength(input) > MAX_REALTIME_VOICE_INPUT_BYTES
+		? "oversized"
+		: input;
 }
 
 function remoteError(event: Record<string, unknown>): string {

@@ -61,12 +61,12 @@ test("voice helper JSONL parser bounds unterminated frames", () => {
 	assert.deepEqual(lines, ["one", "two"]);
 });
 
-test("delegated voice requests use Pi's normal user-turn pipeline", () => {
-	const userMessages: unknown[] = [];
+test("delegated voice requests use Pi's user-turn and active-steering pipeline", () => {
+	const userMessages: Array<{ content: unknown; options: unknown }> = [];
 	const customMessages: unknown[] = [];
 	const messages = new CodexVoiceSessionMessages({
 		sendMessage: (...args: unknown[]) => { customMessages.push(args); },
-		sendUserMessage: (content: unknown) => { userMessages.push(content); },
+		sendUserMessage: (content: unknown, options: unknown) => { userMessages.push({ content, options }); },
 	} as never, {
 		canDelegate: () => true,
 		isVoiceActive: () => true,
@@ -75,9 +75,14 @@ test("delegated voice requests use Pi's normal user-turn pipeline", () => {
 	});
 	messages.setContext({ isIdle: () => true } as never);
 	messages.voiceTurn({ input: "check the current time", delegationId: "delegation-1" });
-	assert.deepEqual(userMessages, ["check the current time"]);
+	assert.deepEqual(userMessages, [{ content: "check the current time", options: undefined }]);
 	assert.deepEqual(customMessages, []);
 	assert.equal(messages.consumeDelegatedTurnStart(), true);
+
+	messages.setContext({ isIdle: () => false } as never);
+	messages.voiceTurn({ input: "use the existing command", delegationId: "delegation-2" });
+	assert.deepEqual(userMessages[1], { content: "use the existing command", options: { deliverAs: "steer" } });
+	assert.equal(messages.consumeDelegatedTurnStart(), false);
 });
 
 test("voice delegation suppresses backend retries without blocking a later repeat", () => {

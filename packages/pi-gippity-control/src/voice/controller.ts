@@ -260,6 +260,13 @@ export class CodexVoiceController {
 		this.messages.agentStarted();
 	}
 
+	mirrorPiSteer(input: unknown): boolean {
+		return (
+			this.state.type === "conversation" &&
+			this.state.session.mirrorPiSteer(input)
+		);
+	}
+
 	streamDelta(type: string, delta: string): void {
 		if (this.state.type === "conversation")
 			this.state.session.streamAgentDelta(type, delta);
