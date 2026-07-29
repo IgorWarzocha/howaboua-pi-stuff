@@ -1,5 +1,11 @@
 # @howaboua/pi-gippity-control
 
+## 0.0.3
+
+### Changes
+
+- [#198](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/198) [`05f2da3`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/05f2da3e7b540d30eaada94c527b6ecbef80f736) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add reconnect-safe realtime microphone mute controls and native input gating
+
 ## 0.0.2
 
 ### Changes

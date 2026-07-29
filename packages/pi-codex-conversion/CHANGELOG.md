@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.0.1
+
+### Changes
+
+- [#198](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/198) [`05f2da3`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/05f2da3e7b540d30eaada94c527b6ecbef80f736) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Preserve Codex V2 cache continuations, recover mid-stream WebSocket failures through SSE retries, deliver realtime voice cards during active turns, add reconnect-safe realtime microphone mute controls, and turn native loader failures into concise local-build recovery guidance
+
 ## 3.0.0
 
 ### Breaking changes
