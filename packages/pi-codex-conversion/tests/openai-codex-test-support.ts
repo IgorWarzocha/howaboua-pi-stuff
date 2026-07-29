@@ -92,18 +92,19 @@ export async function collectStream(stream: AsyncIterable<unknown>): Promise<unk
 type WebSocketScript = (socket: ScriptedWebSocket) => void;
 
 export class ScriptedWebSocket {
-	static scripts: WebSocketScript[] = [];
+	static scripts: Array<WebSocketScript | WebSocketScript[]> = [];
+	static sentFrames: unknown[] = [];
 	static opened = 0;
 	readonly listeners = new Map<string, Set<(event: unknown) => void>>();
-	readonly script: WebSocketScript;
+	readonly scripts: WebSocketScript[];
 	readyState = 0;
-	private sent = false;
-	private scriptStarted = false;
+	private sends = 0;
+	private scriptsStarted = 0;
 
 	constructor() {
-		const script = ScriptedWebSocket.scripts.shift();
-		if (!script) throw new Error("No scripted WebSocket behavior");
-		this.script = script;
+		const scripts = ScriptedWebSocket.scripts.shift();
+		if (!scripts) throw new Error("No scripted WebSocket behavior");
+		this.scripts = Array.isArray(scripts) ? scripts : [scripts];
 		ScriptedWebSocket.opened++;
 		queueMicrotask(() => {
 			this.readyState = 1;
@@ -122,15 +123,26 @@ export class ScriptedWebSocket {
 		this.listeners.get(type)?.delete(listener);
 	}
 
-	send(): void {
-		this.sent = true;
+	send(data?: unknown): void {
+		if (typeof data === "string") {
+			try {
+				ScriptedWebSocket.sentFrames.push(JSON.parse(data));
+			} catch {
+				ScriptedWebSocket.sentFrames.push(data);
+			}
+		} else {
+			ScriptedWebSocket.sentFrames.push(data);
+		}
+		this.sends++;
 		this.startScriptWhenReady();
 	}
 
 	private startScriptWhenReady(): void {
-		if (!this.sent || this.scriptStarted || !["message", "error", "close"].every((type) => (this.listeners.get(type)?.size ?? 0) > 0)) return;
-		this.scriptStarted = true;
-		this.script(this);
+		if (this.scriptsStarted >= this.sends || !["message", "error", "close"].every((type) => (this.listeners.get(type)?.size ?? 0) > 0)) return;
+		const script = this.scripts[this.scriptsStarted];
+		if (!script) throw new Error(`No scripted WebSocket behavior for send ${this.scriptsStarted + 1}`);
+		this.scriptsStarted++;
+		script(this);
 	}
 
 	close(): void {
@@ -151,14 +163,16 @@ export const websocketSuccess: WebSocketScript = (socket) => {
 	socket.emitJson({ type: "response.completed", response: { id: "resp_ws", status: "completed", usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 } } });
 };
 
-export function installScriptedWebSocket(scripts: WebSocketScript[]): () => void {
+export function installScriptedWebSocket(scripts: Array<WebSocketScript | WebSocketScript[]>): () => void {
 	const original = globalThis.WebSocket;
 	ScriptedWebSocket.scripts = [...scripts];
+	ScriptedWebSocket.sentFrames = [];
 	ScriptedWebSocket.opened = 0;
 	globalThis.WebSocket = ScriptedWebSocket as never;
 	return () => {
 		globalThis.WebSocket = original;
 		ScriptedWebSocket.scripts = [];
+		ScriptedWebSocket.sentFrames = [];
 		closeOpenAICodexWebSocketSessions();
 	};
 }

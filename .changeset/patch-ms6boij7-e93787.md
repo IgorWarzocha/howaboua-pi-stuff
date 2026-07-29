@@ -2,4 +2,4 @@
 "@howaboua/pi-codex-conversion": patch
 ---
 
-Preserve Codex WebSocket cache continuations when OpenAI response-item field order and transport-only metadata differ from Pi's persisted replay.
+Preserve Codex WebSocket cache continuations across Pi replay differences, prewarm fresh sockets with native compaction checkpoints, and block automatic full-context replay after a stream has already started.

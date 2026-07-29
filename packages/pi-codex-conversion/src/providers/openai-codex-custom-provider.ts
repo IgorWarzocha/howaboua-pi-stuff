@@ -24,7 +24,6 @@ import { finalizeUsage } from "./openai-codex/usage.ts";
 import {
 	clearWebSocketTransportFailures,
 	isWebSocketSseFallbackActive,
-	recordWebSocketPostStartFailure,
 	recordWebSocketSseFallback,
 	validateWebSocketTimeoutOptions,
 } from "./openai-codex/websocket.ts";
@@ -201,25 +200,26 @@ function createCodexStream<TApi extends Api>(
 				} catch (error) {
 					const aborted = effectiveOptions?.signal?.aborted === true;
 					const connectionLimitBeforeStart = !websocketStarted && isWebSocketConnectionLimitReachedError(error);
+					const nonTransportError = isCodexNonTransportError(error) && !connectionLimitBeforeStart;
 					if (aborted) throw error;
-					if (isCodexNonTransportError(error) && !connectionLimitBeforeStart) {
+					if (nonTransportError && !websocketStarted) {
 						clearWebSocketTransportFailures(effectiveOptions?.sessionId);
 						throw error;
 					}
-					const fallbackArmed = websocketStarted
-						? recordWebSocketPostStartFailure(effectiveOptions?.sessionId)
-						: true;
 					appendAssistantMessageDiagnostic(
 						output,
-						createAssistantMessageDiagnostic("provider_transport_failure", error, {
+						createAssistantMessageDiagnostic(nonTransportError ? "provider_stream_failure" : "provider_transport_failure", error, {
 							configuredTransport: preferredTransport,
-							fallbackTransport: fallbackArmed ? "sse" : undefined,
+							fallbackTransport: websocketStarted ? undefined : "sse",
 							eventsEmitted: websocketStarted,
 							phase: websocketStarted ? "after_message_stream_start" : "before_message_stream_start",
 							requestBytes: new TextEncoder().encode(bodyJson).byteLength,
 						}),
 					);
-					if (websocketStarted) throw error;
+					if (websocketStarted) {
+						if (nonTransportError) clearWebSocketTransportFailures(effectiveOptions?.sessionId);
+						throw new NonRetryableProviderError("Codex stream stopped after output began. Automatic full-context replay was blocked to avoid duplicate output and an unconfirmed cache charge. Submit a new message to continue.");
+					}
 					recordWebSocketSseFallback(effectiveOptions?.sessionId);
 				}
 			}

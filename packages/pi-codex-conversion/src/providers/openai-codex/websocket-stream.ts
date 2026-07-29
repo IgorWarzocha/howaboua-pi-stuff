@@ -89,9 +89,10 @@ export async function processWebSocketStream<TApi extends Api>(
 			releaseOnce({ keep: false });
 			// A missing continuation retries once with full context. Other transport
 			// failures retry only before output starts, preserving safe SSE fallback.
-			if (attempt === 0 && !options?.signal?.aborted && (
+			if (attempt === 0 && !options?.signal?.aborted && !streamStarted && (
 				isPreviousResponseNotFoundError(error)
-				|| (!streamStarted && (isWebSocketConnectionLimitReachedError(error) || (eventCount === 0 && isRetryableEarlyWebSocketError(error))))
+				|| isWebSocketConnectionLimitReachedError(error)
+				|| (eventCount === 0 && isRetryableEarlyWebSocketError(error))
 			)) {
 				continue;
 			}

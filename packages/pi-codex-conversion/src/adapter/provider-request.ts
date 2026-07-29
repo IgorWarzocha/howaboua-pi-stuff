@@ -6,26 +6,44 @@ import { isAdapterRuntime, resolveCodexRuntimePlan } from "./activation/runtime-
 import { injectPendingNativeWindowIntoPiCompactionRequest, rewriteCodexCompactedProviderRequest } from "./compaction/compaction.ts";
 import { applyResponsesLiteRequest, type ResponsesLiteCompatibleBody } from "../providers/openai-codex/responses-lite.ts";
 
-export async function rewriteCodexProviderRequest(payload: unknown, ctx: ExtensionContext, state: AdapterState): Promise<unknown | undefined> {
+function prepareCodexProviderRequest(payload: unknown, ctx: ExtensionContext, state: AdapterState) {
 	if (state.config.voiceFeaturesOnly) return undefined;
 	const plan = resolveCodexRuntimePlan(ctx, state.config);
 	if (!isAdapterRuntime(plan) || (!plan.effectiveOpenAICodex && !isResponsesContext(ctx))) {
 		return undefined;
 	}
+	return {
+		plan,
+		configuredPayload: applyCodexRequestOptions(payload, state.config, {
+			serviceTier: plan.effectiveOpenAICodex,
+			verbosity: true,
+		}),
+	};
+}
 
-	const configuredPayload = applyCodexRequestOptions(payload, state.config, {
-		serviceTier: plan.effectiveOpenAICodex,
-		verbosity: true,
-	});
+function applyCodexRuntimePayload(payload: unknown, codeMode: boolean): unknown {
+	return codeMode && isCodeModeCompatibleBody(payload) ? applyResponsesLiteRequest(payload) : payload;
+}
+
+export async function rewriteCodexProviderRequest(payload: unknown, ctx: ExtensionContext, state: AdapterState): Promise<unknown | undefined> {
+	const prepared = prepareCodexProviderRequest(payload, ctx, state);
+	if (!prepared) return undefined;
+	const { plan, configuredPayload } = prepared;
 	let rewrittenPayload = configuredPayload;
 	if (plan.nativeCompaction || state.pendingPiCompactionNativeWindow) {
 		const piCompactionPayload = await injectPendingNativeWindowIntoPiCompactionRequest(configuredPayload, ctx, state);
 		rewrittenPayload = piCompactionPayload ?? (await rewriteCodexCompactedProviderRequest(configuredPayload, ctx, state)) ?? configuredPayload;
 	}
-	if (plan.kind === "code" && isCodeModeCompatibleBody(rewrittenPayload)) {
-		return applyResponsesLiteRequest(rewrittenPayload);
-	}
-	return rewrittenPayload;
+	return applyCodexRuntimePayload(rewrittenPayload, plan.kind === "code");
+}
+
+export function rewriteCodexPrewarmProviderRequest(
+	payload: unknown,
+	ctx: ExtensionContext,
+	state: AdapterState,
+): unknown | undefined {
+	const prepared = prepareCodexProviderRequest(payload, ctx, state);
+	return prepared ? applyCodexRuntimePayload(prepared.configuredPayload, prepared.plan.kind === "code") : undefined;
 }
 
 function isCodeModeCompatibleBody(value: unknown): value is ResponsesLiteCompatibleBody {
