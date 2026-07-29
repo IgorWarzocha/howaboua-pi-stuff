@@ -1,4 +1,5 @@
 - Keep Pi behavior as close as practical to the Codex toolkit; document intentional differences.
+- Post-start transport recovery intentionally uses three WebSocket attempts, then SSE on Pi's final retry; a successful recovery reopens the WebSocket cache lane for later turns.
 - Before npm, publish, release, or merge work, compare `src/providers/openai-codex-custom-provider.ts` with Pi's stock `openai-codex-responses` provider: request shape, transport/headers, reasoning/service tier, retry, stream termination, and touched behavior.
 - Structured mode uses flat TypeScript tools over standard Responses. GPT-5.6 Code Mode uses `exec`/`wait` over Responses Lite.
 - Keep prompt guidance short and argv-shaped.

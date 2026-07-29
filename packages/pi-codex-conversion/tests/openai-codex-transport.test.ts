@@ -65,12 +65,15 @@ test("WebSocket continuation ignores response-item transport metadata", () => {
 	});
 });
 
-test("a post-start WebSocket failure retries on a fresh WebSocket", async () => {
+test("three post-start WebSocket failures reserve Pi's final retry for SSE", async () => {
+	const failAfterStart = (socket: ScriptedWebSocket) => {
+		socket.emitJson({ type: "response.created", response: { id: "resp_failed" } });
+		socket.emit("error", { error: new Error("socket reset by peer") });
+	};
 	const restoreWebSocket = installScriptedWebSocket([
-		(socket) => {
-			socket.emitJson({ type: "response.created", response: { id: "resp_failed" } });
-			socket.emit("error", { error: new Error("socket reset by peer") });
-		},
+		failAfterStart,
+		failAfterStart,
+		failAfterStart,
 		websocketSuccess,
 	]);
 	const originalFetch = globalThis.fetch;
@@ -82,13 +85,19 @@ test("a post-start WebSocket failure retries on a fresh WebSocket", async () => 
 	try {
 		const registered = createRegisteredCodexProvider();
 		const sessionA = codexStreamRequest("session-a");
-		const failed = await collectStream(registered.provider.streamSimple(sessionA.model, sessionA.context, sessionA.options));
-		assert.match((failed.at(-1) as { error: { errorMessage: string } }).error.errorMessage, /Connection error: WebSocket error: socket reset by peer/);
-		assert.equal(fetchCalls, 0);
+		for (let attempt = 0; attempt < 3; attempt++) {
+			const failed = await collectStream(registered.provider.streamSimple(sessionA.model, sessionA.context, sessionA.options));
+			assert.match((failed.at(-1) as { error: { errorMessage: string } }).error.errorMessage, /Connection error: WebSocket error: socket reset by peer/);
+			assert.equal(fetchCalls, 0);
+		}
 
 		await collectStream(registered.provider.streamSimple(sessionA.model, sessionA.context, sessionA.options));
-		assert.equal(ScriptedWebSocket.opened, 2);
-		assert.equal(fetchCalls, 0);
+		assert.equal(ScriptedWebSocket.opened, 3);
+		assert.equal(fetchCalls, 1);
+
+		await collectStream(registered.provider.streamSimple(sessionA.model, sessionA.context, sessionA.options));
+		assert.equal(ScriptedWebSocket.opened, 4);
+		assert.equal(fetchCalls, 1);
 	} finally {
 		globalThis.fetch = originalFetch;
 		restoreWebSocket();
