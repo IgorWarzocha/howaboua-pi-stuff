@@ -38,7 +38,7 @@ jobs:
           if git diff --quiet "$CHANGED_BASE...HEAD" -- packages/pi-gippity-control; then
             exit 0
           fi
-          manifest=$(npm pack --dry-run --json ./packages/pi-gippity-control)
+          manifest=$(npm pack --dry-run --json --ignore-scripts ./packages/pi-gippity-control)
           for asset in \
             src/voice/bin/darwin-arm64/pi-codex-voice \
             src/voice/bin/darwin-x64/pi-codex-voice \
