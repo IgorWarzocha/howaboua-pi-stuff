@@ -57,11 +57,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 3.0.1
+### @howaboua/pi-codex-conversion — 3.0.2
 
 ### Changes
 
-- [#198](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/198) [`05f2da3`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/05f2da3e7b540d30eaada94c527b6ecbef80f736) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Preserve Codex V2 cache continuations, recover mid-stream WebSocket failures through SSE retries, deliver realtime voice cards during active turns, add reconnect-safe realtime microphone mute controls, and turn native loader failures into concise local-build recovery guidance
+- [#200](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/200) [`744b0d5`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/744b0d532ccf2cb41d225b76c367a249debf4a2b) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Preserve Codex WebSocket cache continuations across Pi replay differences, prewarm fresh sockets with native compaction checkpoints, and block automatic full-context replay after a stream has already started.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
