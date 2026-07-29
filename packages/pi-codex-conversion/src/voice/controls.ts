@@ -36,7 +36,7 @@ export function createCodexVoiceControls(options: {
 			state.codexTurnState.beginTurn();
 			pi.sendMessage(codexVoiceSetupMessage(buildVoiceSetupInstructions({
 				configPath: getCodexConversionConfigPath(),
-				helperPath: resolveVoiceHelperBinary(),
+				helperPath: resolveVoiceHelperBinary(currentConfig.tools.customRustBinariesDir),
 				missing: missingAudioSettings,
 				...(ctx.isProjectTrusted() ? { projectRealtimePromptPath: getProjectCodexVoiceSystemPromptPath(ctx.cwd) } : {}),
 				realtimePromptPath: getCodexVoiceSystemPromptPath(),

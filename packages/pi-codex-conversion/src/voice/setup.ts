@@ -49,7 +49,7 @@ export function buildVoiceSetupInstructions(options: {
 	];
 	if (!options.helperPath) {
 		return [...lines,
-			`No pi-codex-voice helper is bundled for ${process.platform}-${process.arch}. Report this problem and do not edit the config.`,
+			`No pi-codex-voice helper is available for ${process.platform}-${process.arch}. Build it locally, set tools.customRustBinariesDir in ${options.configPath}, then run /reload.`,
 		].join("\n");
 	}
 	return [...lines,

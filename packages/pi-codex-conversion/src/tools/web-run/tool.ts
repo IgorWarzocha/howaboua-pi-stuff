@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
+import { formatNativeBinaryError, nativeBinaryRecoveryMessage } from "../../native-binary-error.ts";
 import { dirname, join } from "node:path";
 import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
@@ -89,23 +90,32 @@ async function runWebRunBinary(webRunPath: string, params: Record<string, unknow
 		let stdout = "";
 		let stderr = "";
 		let settled = false;
+		let stdinError: Error | undefined;
+		let stdinErrorTimer: ReturnType<typeof setTimeout> | undefined;
 		const finish = (callback: () => void) => {
 			if (settled) return;
 			settled = true;
+			if (stdinErrorTimer) clearTimeout(stdinErrorTimer);
 			callback();
 		};
 		child.stdout.setEncoding("utf8");
 		child.stderr.setEncoding("utf8");
 		child.stdout.on("data", (chunk) => { stdout += chunk; });
 		child.stderr.on("data", (chunk) => { stderr += chunk; });
-		child.on("error", (error) => finish(() => reject(error)));
+		child.on("error", (error) => finish(() => reject(new Error(formatNativeBinaryError("web_run", error, { binaryPath: webRunPath })))));
 		child.on("close", (code) => finish(() => {
-			if (code === 0) resolve(stdout);
-			else reject(new Error(stderr.trim() || `web_run exited with code ${code ?? "unknown"}`));
+			const detail = stderr.trim() || `web_run exited with code ${code ?? "unknown"}`;
+			const nativeFailure = code === 0 ? undefined : nativeBinaryRecoveryMessage("web_run", detail);
+			if (nativeFailure) reject(new Error(nativeFailure));
+			else if (stdinError) reject(stdinError);
+			else if (code === 0) resolve(stdout);
+			else reject(new Error(detail));
 		}));
 		child.stdin.on("error", (error) => {
+			if (settled) return;
+			stdinError = error;
 			child.kill();
-			finish(() => reject(error));
+			stdinErrorTimer = setTimeout(() => finish(() => reject(error)), 50);
 		});
 		child.stdin.end(JSON.stringify(params));
 	});

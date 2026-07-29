@@ -4,6 +4,7 @@
 - Structured mode uses flat TypeScript tools over standard Responses. GPT-5.6 Code Mode uses `exec`/`wait` over Responses Lite.
 - Keep prompt guidance short and argv-shaped.
 - Native runners execute bundled helpers directly. Rebuild for the local platform and use the checkout; never patch installed npm files.
+- `tools.customRustBinariesDir` is the shared filename-based override for tool and voice helpers; native startup incompatibilities point there without dumping loader noise.
 - Vendored apply-patch engine, path-uri, and absolute-path sources track one Codex commit. Pi-owned changes belong only in `standalone_executable.rs` and the `pi-apply-patch-fs` adapter.
 - Do not accept review-driven drift from stock Pi behavior unless backend-verified or intentional.
 - Native compaction supports only OpenAI Codex and explicitly configured OpenAI/Codex passthrough proxies; V2 must preserve raw Responses output-item access rather than delegate to arbitrary registered provider streams.
