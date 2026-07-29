@@ -34,20 +34,41 @@ test("parseSSE accepts CRLF chunks, joined data lines, and ignores done sentinel
 test("WebSocket continuation ignores response-item transport metadata", () => {
 	const previousInput = { role: "user", content: [{ type: "input_text", text: "hello" }] };
 	const responseItem = {
-		type: "message",
 		id: "msg_1",
+		type: "message",
+		status: "completed",
+		content: [{ type: "output_text", annotations: [], logprobs: [], text: "Hello" }],
+		role: "assistant",
+		internal_chat_message_metadata_passthrough: { turn_id: "turn_1" },
+	};
+	const persistedResponseItem = {
+		type: "message",
 		role: "assistant",
 		content: [{ type: "output_text", text: "Hello", annotations: [] }],
 		status: "completed",
-		internal_chat_message_metadata_passthrough: { turn_id: "turn_1" },
+		id: "msg_1",
 	};
-	const { internal_chat_message_metadata_passthrough: _metadata, ...persistedResponseItem } = responseItem;
+	const responseToolCall = {
+		id: "ctc_1",
+		type: "custom_tool_call",
+		status: "completed",
+		call_id: "call_1",
+		input: "text('done')",
+		name: "exec",
+	};
+	const persistedToolCall = {
+		type: "custom_tool_call",
+		id: "ctc_1",
+		call_id: "call_1",
+		name: "exec",
+		input: "text('done')",
+	};
 	const request = {
 		model: "gpt-test",
 		store: false,
 		stream: true,
 		instructions: "instructions",
-		input: [previousInput, persistedResponseItem, { type: "compaction_trigger" }],
+		input: [previousInput, persistedResponseItem, persistedToolCall, { type: "compaction_trigger" }],
 		text: { verbosity: "low" },
 		include: [],
 		tool_choice: "auto",
@@ -56,7 +77,7 @@ test("WebSocket continuation ignores response-item transport metadata", () => {
 	const result = buildCachedWebSocketRequestBody({
 		lastRequestBody: { ...request, input: [previousInput] },
 		lastResponseId: "resp_1",
-		lastResponseItems: [responseItem],
+		lastResponseItems: [responseItem, responseToolCall],
 	}, request);
 
 	assert.deepEqual(result, {

@@ -20,21 +20,29 @@ export function requestBodyForWebSocketContinuationComparison(body: ResponsesBod
 function responseInputsEqual(a: unknown[] | undefined, b: unknown[] | undefined): boolean {
 	const left = a ?? [];
 	const right = b ?? [];
-	return left.length === right.length && left.every((item, index) => {
-		const candidate = right[index];
-		if (JSON.stringify(item) === JSON.stringify(candidate)) return true;
-		return JSON.stringify(withoutInternalMetadata(item)) === JSON.stringify(withoutInternalMetadata(candidate));
-	});
+	return left.length === right.length && left.every((item, index) => responsesValuesEqual(item, right[index]));
 }
 
-function withoutInternalMetadata(value: unknown): unknown {
-	if (!value || typeof value !== "object" || Array.isArray(value)) return value;
-	const { internal_chat_message_metadata_passthrough: _metadata, ...item } = value as Record<string, unknown>;
-	return item;
+function canonicalResponseValue(value: unknown): unknown {
+	if (Array.isArray(value)) return value.map(canonicalResponseValue);
+	if (!value || typeof value !== "object") return value;
+	const record = value as Record<string, unknown>;
+	const canonical: Record<string, unknown> = {};
+	for (const key of Object.keys(record).sort()) {
+		if (key === "internal_chat_message_metadata_passthrough") continue;
+		if (key === "logprobs" && record["type"] === "output_text" && Array.isArray(record[key]) && record[key].length === 0) continue;
+		if (key === "status" && record[key] === "completed" && (record["type"] === "function_call" || record["type"] === "custom_tool_call")) continue;
+		canonical[key] = canonicalResponseValue(record[key]);
+	}
+	return canonical;
+}
+
+function responsesValuesEqual(a: unknown, b: unknown): boolean {
+	return JSON.stringify(canonicalResponseValue(a)) === JSON.stringify(canonicalResponseValue(b));
 }
 
 function requestBodiesMatchExceptInput(a: ResponsesBody, b: ResponsesBody): boolean {
-	return JSON.stringify(requestBodyForWebSocketContinuationComparison(a)) === JSON.stringify(requestBodyForWebSocketContinuationComparison(b));
+	return responsesValuesEqual(requestBodyForWebSocketContinuationComparison(a), requestBodyForWebSocketContinuationComparison(b));
 }
 
 function getFunctionCallId(item: unknown): string | undefined {
