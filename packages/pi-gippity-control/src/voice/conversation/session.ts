@@ -180,7 +180,6 @@ export class CodexRealtimeConversation {
 		if (this.activeDelegationId)
 			this.turnTracker.delegationSettled(this.activeDelegationId);
 		this.activeDelegationId = undefined;
-		this.inputMuted = false;
 		if (this.state === "active") this.callbacks.onStatus("listening");
 	}
 
