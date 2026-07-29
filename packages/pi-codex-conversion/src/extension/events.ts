@@ -177,8 +177,10 @@ export function registerCodexEvents(
 	pi.on("session_compact", async (event, ctx) => {
 		runtime.voice.resetContextAnnouncements();
 		state.pendingPiCompactionNativeWindow = undefined;
+		let nativeCompaction = false;
 		if (event.fromExtension && isNativeCompactionDetails(event.compactionEntry.details)) {
 			const details = event.compactionEntry.details;
+			nativeCompaction = true;
 			pi.sendMessage({
 				customType: NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE,
 				content: NATIVE_COMPACTION_DISPLAY_TEXT,
@@ -195,7 +197,7 @@ export function registerCodexEvents(
 			}
 		}
 		runtime.resetTransport(ctx.sessionManager.getSessionId());
-		await runtime.startPrewarm(ctx);
+		await (nativeCompaction ? runtime.startCompactionPrewarm(ctx) : runtime.startPrewarm(ctx));
 	});
 	pi.on("context", async (event) => {
 		if (state.config.voiceFeaturesOnly) return undefined;
