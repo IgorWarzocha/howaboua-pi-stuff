@@ -2,4 +2,4 @@
 "@howaboua/pi-codex-conversion": patch
 ---
 
-Keep new Code Mode custom tools out of the prompt until the session restarts or compacts
+Keep Code Mode custom-tool promotion and its cached prompt stable for the full session

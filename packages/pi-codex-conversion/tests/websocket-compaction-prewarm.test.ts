@@ -17,7 +17,7 @@ import {
 } from "./openai-codex-test-support.ts";
 import { type ResponseCreateFrame, apiKey, context, model, sentFrames, streamOptions, textResponse, user } from "./websocket-test-support.ts";
 
-test("post-compaction prewarm opens a fresh socket with the encrypted checkpoint and makes the next turn delta-only", async () => {
+test("post-compaction prewarm keeps the session prompt and makes the next turn delta-only", async () => {
 	const restoreWebSocket = installScriptedWebSocket([
 		textResponse("resp_old", "before compaction"),
 		[websocketSuccess, textResponse("resp_after", "after compaction")],
@@ -91,16 +91,15 @@ test("post-compaction prewarm opens a fresh socket with the encrypted checkpoint
 			sendUserMessage: () => undefined,
 		} as never);
 		runtime.state.config = config;
-		const preCompactionPrompt = `${runtime.codexSystemPrompt("Stable instructions", extensionContext)}\nPROMOTED: old_tool`;
-		const postCompactionPrompt = preCompactionPrompt.replace("old_tool", "old_tool, late_tool");
-		runtime.state.activeProviderSystemPrompt = postCompactionPrompt;
+		const sessionPrompt = `${runtime.codexSystemPrompt("Stable instructions", extensionContext)}\nPROMOTED: old_tool`;
+		runtime.state.activeProviderSystemPrompt = sessionPrompt;
 		await runtime.startCompactionPrewarm(extensionContext);
 
 		branchEntries = [preEntry, compactionEntry, currentEntry] as SessionEntry[];
 		const postCompactionMessages = convertToLlm(buildSessionContext(branchEntries).messages);
 		await collectStream(registered.provider.streamSimple(
 			model as never,
-			context(postCompactionMessages as never, postCompactionPrompt, activeTools) as never,
+			context(postCompactionMessages as never, sessionPrompt, activeTools) as never,
 			{
 				...streamOptions(sessionId),
 				onPayload: (body: unknown) => rewriteCodexProviderRequest(body, extensionContext, runtime.state),
@@ -111,8 +110,8 @@ test("post-compaction prewarm opens a fresh socket with the encrypted checkpoint
 		const prewarmFrame = sentFrames()[1] as ResponseCreateFrame & { generate?: boolean };
 		assert.equal(prewarmFrame.generate, false);
 		assert.equal(JSON.stringify(prewarmFrame.input).match(/sealed-checkpoint/g)?.length, 1);
-		assert.equal(JSON.stringify(prewarmFrame.input).match(/PROMOTED: old_tool, late_tool/g)?.length, 1);
-		assert.doesNotMatch(JSON.stringify(prewarmFrame.input), /PROMOTED: old_tool"/);
+		assert.equal(JSON.stringify(prewarmFrame.input).match(/PROMOTED: old_tool/g)?.length, 1);
+		assert.doesNotMatch(JSON.stringify(prewarmFrame.input), /late_tool/);
 		assert.doesNotMatch(JSON.stringify(prewarmFrame.input), /before compaction/);
 		assert.equal(sentFrames()[2]?.previous_response_id, "resp_ws");
 		assert.deepEqual(sentFrames()[2]?.input, [{ role: "user", content: [{ type: "input_text", text: "after compaction" }] }]);

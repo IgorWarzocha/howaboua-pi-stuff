@@ -88,20 +88,3 @@ export function injectCodeModeToolsPrompt(
 		markers.length > 0 ? Math.min(...markers) : systemPrompt.length;
 	return `${systemPrompt.slice(0, insertAt).trimEnd()}\n\n${section}${systemPrompt.slice(insertAt)}`;
 }
-
-export function replaceCodeModeToolsPrompt(
-	systemPrompt: string,
-	previousSection: string | undefined,
-	nextTools: CodeModeToolDefinition[],
-	documentationPath?: string,
-): { systemPrompt: string; section: string } {
-	const hasPrevious = Boolean(previousSection && systemPrompt.includes(previousSection));
-	const basePrompt = hasPrevious ? systemPrompt.replace(previousSection!, "") : systemPrompt;
-	const section = buildCodeModeToolsPrompt(nextTools, documentationPath, basePrompt);
-	return {
-		systemPrompt: hasPrevious
-			? systemPrompt.replace(previousSection!, section)
-			: injectCodeModeToolsPrompt(systemPrompt, nextTools, documentationPath),
-		section,
-	};
-}
