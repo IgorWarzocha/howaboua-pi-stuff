@@ -414,6 +414,22 @@ test("Codex transport retries five fresh full WebSockets before sticky SSE fallb
 		));
 		assert.equal((recovered.at(-1) as { type?: string }).type, "done");
 		assert.equal(recovered.filter((event) => (event as { type?: string }).type === "start").length, 1);
+		const failedOutputEnd = recovered.findIndex((event) =>
+			(event as { type?: string; content?: string }).type === "text_end"
+			&& (event as { content?: string }).content === "discarded partial output"
+		);
+		const replacementStart = recovered.findIndex((event, index) =>
+			index > failedOutputEnd
+			&& (event as { type?: string }).type === "text_start"
+			&& !JSON.stringify((event as { partial?: AssistantMessage }).partial).includes("discarded partial output")
+		);
+		assert.ok(failedOutputEnd >= 0);
+		assert.ok(replacementStart > failedOutputEnd, JSON.stringify(recovered));
+		for (const event of recovered.slice(replacementStart)) {
+			if ("partial" in (event as object)) {
+				assert.doesNotMatch(JSON.stringify((event as { partial?: AssistantMessage }).partial), /discarded partial output/);
+			}
+		}
 		const recoveredMessage = doneMessage(recovered);
 		assert.equal(recoveredMessage.content.find((item) => item.type === "text")?.text, "SSE recovery 1");
 		assert.equal(ScriptedWebSocket.opened, 6);

@@ -290,8 +290,10 @@ export async function processResponsesStream<TApi extends Api>(
 				const toolCall: ToolCallBlock = state?.kind === "custom_tool_call"
 					? { ...state.block, arguments: { [property]: customInput } }
 					: { type: "toolCall", id: `${customItem.call_id}|${customItem.id ?? ""}`, name: customItem.name, arguments: { [property]: customInput } };
-				if (state?.kind !== "custom_tool_call") output.content.push(toolCall);
-				else output.content[state.blockIndex] = toolCall;
+				if (state?.kind !== "custom_tool_call") {
+					output.content.push(toolCall);
+					stream.push({ type: "toolcall_start", contentIndex: blockIndex(), partial: output });
+				} else output.content[state.blockIndex] = toolCall;
 				const toolCallIndex = state?.kind === "custom_tool_call" ? state.blockIndex : blockIndex();
 				stream.push({ type: "toolcall_end", contentIndex: toolCallIndex, toolCall, partial: output });
 				outputStates.delete(event.output_index);
@@ -302,6 +304,7 @@ export async function processResponsesStream<TApi extends Api>(
 					output.content.push(currentBlock);
 					state = { kind: "reasoning", blockIndex: blockIndex(), block: currentBlock, summaryParts: new Map() };
 					outputStates.set(event.output_index, state);
+					stream.push({ type: "thinking_start", contentIndex: state.blockIndex, partial: output });
 				}
 				state.block.thinking = item.summary?.map((summary) => summary.text).join("\n\n") || "";
 				state.block.thinkingSignature = JSON.stringify(item);
@@ -314,6 +317,7 @@ export async function processResponsesStream<TApi extends Api>(
 					output.content.push(currentBlock);
 					state = { kind: "message", blockIndex: blockIndex(), block: currentBlock, parts: new Map() };
 					outputStates.set(event.output_index, state);
+					stream.push({ type: "text_start", contentIndex: state.blockIndex, partial: output });
 				}
 				state.block.text = item.content.map((content) => (content.type === "output_text" ? content.text : content.refusal)).join("");
 				state.block.textSignature = encodeTextSignatureV1(item.id, item.phase ?? undefined);
@@ -324,22 +328,21 @@ export async function processResponsesStream<TApi extends Api>(
 				const args = state?.kind === "function_call" && state.block.partialJson
 					? parseStreamingJson(state.block.partialJson, partialParse)
 					: parseStreamingJson(item.arguments || "{}", partialParse);
-				const toolCall = state?.kind === "function_call"
-					? (() => {
-						state.block.arguments = args;
-						delete state.block.partialJson;
-						return state.block;
-					})()
-					: (() => {
-						const fallbackToolCall: ToolCallBlock = {
-							type: "toolCall",
-							id: `${item.call_id}|${item.id}`,
-							name: item.name,
-							arguments: args,
-						};
-						output.content.push(fallbackToolCall);
-						return fallbackToolCall;
-					})();
+				let toolCall: ToolCallBlock;
+				if (state?.kind === "function_call") {
+					state.block.arguments = args;
+					delete state.block.partialJson;
+					toolCall = state.block;
+				} else {
+					toolCall = {
+						type: "toolCall",
+						id: `${item.call_id}|${item.id}`,
+						name: item.name,
+						arguments: args,
+					};
+					output.content.push(toolCall);
+					stream.push({ type: "toolcall_start", contentIndex: blockIndex(), partial: output });
+				}
 				const toolCallIndex = state?.kind === "function_call" ? state.blockIndex : blockIndex();
 				stream.push({ type: "toolcall_end", contentIndex: toolCallIndex, toolCall, partial: output });
 				outputStates.delete(event.output_index);

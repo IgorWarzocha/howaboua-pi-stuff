@@ -188,6 +188,8 @@ function createCodexStream<TApi extends Api>(
 			if (transport !== "sse") {
 				validateWebSocketTimeoutOptions(effectiveOptions);
 				for (let attempt = 0; attempt <= DEFAULT_STREAM_MAX_RETRIES; attempt++) {
+					// Event partials are authoritative snapshots; a fresh partial makes the
+					// next content-start replace failed-attempt output without a second message start.
 					if (attempt > 0) output = createInitialAssistantMessage(model);
 					let websocketStarted = false;
 					try {
