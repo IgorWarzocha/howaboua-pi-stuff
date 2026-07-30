@@ -76,11 +76,11 @@ impl LocalProcess {
 
         let env = params.env.clone();
         let spawned_result = if params.tty {
-            codex_utils_pty::spawn_pty_process(program, args, params.cwd.as_path(), &env, &params.arg0, TerminalSize::default()).await
+            codex_utils_pty::spawn_pty_process(program, args, params.cwd.as_path(), &env, &params.arg0, TerminalSize::default(), /*inherited_fds*/ &[]).await
         } else if params.pipe_stdin {
-            codex_utils_pty::spawn_pipe_process(program, args, params.cwd.as_path(), &env, &params.arg0).await
+            codex_utils_pty::spawn_pipe_process(program, args, params.cwd.as_path(), &env, &params.arg0, /*inherited_fds*/ &[]).await
         } else {
-            codex_utils_pty::spawn_pipe_process_no_stdin(program, args, params.cwd.as_path(), &env, &params.arg0).await
+            codex_utils_pty::spawn_pipe_process_no_stdin(program, args, params.cwd.as_path(), &env, &params.arg0, /*inherited_fds*/ &[]).await
         };
         let spawned = match spawned_result {
             Ok(spawned) => spawned,
