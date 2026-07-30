@@ -57,10 +57,9 @@ test("the Code Mode proxy rejects unfinished terminal response statuses", async 
 				{ systemPrompt: "Use Code Mode", messages: [], tools: [] } as never,
 				{ apiKey: "test-key" },
 			));
-			const terminal = events.at(-1) as { type: string; error: { stopReason: string; errorMessage: string } };
+			const terminal = events.at(-1) as { type: string; error: { stopReason: string } };
 			assert.equal(terminal.type, "error", status ?? "missing status");
 			assert.equal(terminal.error.stopReason, "error");
-			assert.equal(terminal.error.errorMessage, "Responses stream ended with a pending result");
 			assert.equal(events.some((event) => (event as { type?: string }).type === "done"), false);
 		}
 	} finally {

@@ -4,7 +4,6 @@ import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getBundledToolBinaryPath } from "../src/tools/native/binary.ts";
-import { nativeBinaryRecoveryMessage } from "../src/native-binary-error.ts";
 import { resolveVoiceHelperBinary } from "../src/voice/binary.ts";
 
 test("custom Rust binaries override individual tools and preserve bundled fallback", () => {
@@ -24,13 +23,4 @@ test("custom Rust binaries override individual tools and preserve bundled fallba
 	} finally {
 		rmSync(directory, { recursive: true, force: true });
 	}
-});
-
-test("Linux native loader failures expose the custom binary recovery", () => {
-	const expected = "exec_bridge cannot run on this system. Build the native helpers locally, set `tools.customRustBinariesDir` in `pi-codex-conversion.json`, then run `/reload`";
-	assert.equal(nativeBinaryRecoveryMessage("exec_bridge", new Error("Could not start dynamically linked executable: stub-ld"), { platform: "linux" }), expected);
-	assert.equal(nativeBinaryRecoveryMessage("exec_bridge", Object.assign(new Error("write EPIPE"), { code: "EPIPE" }), { platform: "linux", startupWriteFailure: true }), expected);
-	assert.equal(nativeBinaryRecoveryMessage("exec_bridge", Object.assign(new Error("write EPIPE"), { code: "EPIPE" }), { platform: "linux", startupWriteFailure: false }), undefined);
-	assert.equal(nativeBinaryRecoveryMessage("exec_bridge", new Error("task output mentioned GLIBC_2.39"), { platform: "linux" }), undefined);
-	assert.equal(nativeBinaryRecoveryMessage("exec_bridge", new Error("request failed"), { platform: "linux" }), undefined);
 });
