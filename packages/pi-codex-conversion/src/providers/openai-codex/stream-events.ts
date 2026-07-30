@@ -1,6 +1,6 @@
 import { processResponsesStream } from "../openai-responses/shared.ts";
 import type { Api, AssistantMessage, AssistantMessageEventStream, Model } from "@earendil-works/pi-ai";
-import { CODEX_RESPONSE_STATUSES, DEFAULT_MAX_RETRY_DELAY_MS, DEFAULT_OVERLOAD_INITIAL_RETRY_DELAY_MS, DEFAULT_OVERLOAD_RECOVERY_BUDGET_MS, DEFAULT_OVERLOAD_RETRY_DELAY_MS } from "./constants.ts";
+import { CODEX_RESPONSE_STATUSES, DEFAULT_MAX_RETRY_DELAY_MS, DEFAULT_OVERLOAD_INITIAL_RETRY_DELAY_MS, DEFAULT_OVERLOAD_RECOVERY_BUDGET_MS, DEFAULT_OVERLOAD_RETRY_DELAY_MS, DEFAULT_RATE_LIMIT_RECOVERY_BUDGET_MS } from "./constants.ts";
 import { isTerminalRateLimitError } from "./errors.ts";
 import { applyServiceTierPricing, resolveCodexServiceTier } from "./usage.ts";
 import type { OpenAICodexStreamOptions, ServiceTier, StreamEventShape } from "./types.ts";
@@ -72,6 +72,10 @@ export function isCodexOverloadError(error: unknown): boolean {
 	return error instanceof CodexApiError && !!error.code && OVERLOAD_CODEX_ERROR_CODES.has(error.code);
 }
 
+export function isCodexRateLimitError(error: unknown): boolean {
+	return error instanceof CodexApiError && error.code === "rate_limit_exceeded";
+}
+
 export function codexOverloadRetryDelay(error: unknown, retryCount: number, waitedMs: number): number | undefined {
 	if (!isCodexOverloadError(error)) return undefined;
 	const remainingMs = Math.max(0, DEFAULT_OVERLOAD_RECOVERY_BUDGET_MS - waitedMs);
@@ -79,6 +83,13 @@ export function codexOverloadRetryDelay(error: unknown, retryCount: number, wait
 	const defaultDelayMs = retryCount === 0 ? DEFAULT_OVERLOAD_INITIAL_RETRY_DELAY_MS : DEFAULT_OVERLOAD_RETRY_DELAY_MS;
 	const requestedDelayMs = Math.max(defaultDelayMs, codexStreamRetryDelay(error) ?? 0);
 	return Math.min(DEFAULT_MAX_RETRY_DELAY_MS, remainingMs, requestedDelayMs);
+}
+
+export function codexRateLimitRetryDelay(error: unknown, fallbackDelayMs: number, waitedMs: number): number | undefined {
+	if (!isCodexRateLimitError(error)) return undefined;
+	const requestedDelayMs = codexStreamRetryDelay(error) ?? fallbackDelayMs;
+	const remainingMs = Math.max(0, DEFAULT_RATE_LIMIT_RECOVERY_BUDGET_MS - waitedMs);
+	return requestedDelayMs <= remainingMs ? requestedDelayMs : undefined;
 }
 
 export function assertSuccessfulCodexOutput(
@@ -135,7 +146,7 @@ function codexApiRetryDelayMs(code: string | undefined, message: string | undefi
 	const value = Number(match[1]);
 	if (!Number.isFinite(value) || value < 0) return undefined;
 	const delayMs = match[2].toLowerCase() === "ms" ? value : value * 1000;
-	return Math.min(DEFAULT_MAX_RETRY_DELAY_MS, delayMs);
+	return Number.isFinite(delayMs) ? delayMs : undefined;
 }
 
 function extractCodexEventError(event: StreamEventShape): { code?: string | undefined; message?: string | undefined } {

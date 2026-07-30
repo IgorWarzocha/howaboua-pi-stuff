@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { parseSSE } from "../src/providers/openai-codex-custom-provider.ts";
-import { codexOverloadRetryDelay, codexStreamRetryDelay, isCodexOverloadError, mapCodexEvents } from "../src/providers/openai-codex/stream-events.ts";
+import { codexOverloadRetryDelay, codexRateLimitRetryDelay, codexStreamRetryDelay, isCodexOverloadError, isCodexRateLimitError, mapCodexEvents } from "../src/providers/openai-codex/stream-events.ts";
 import { parseWebSocket } from "../src/providers/openai-codex/websocket.ts";
 import {
 	ScriptedWebSocket,
@@ -69,16 +69,20 @@ test("fatal Codex API errors do not arm fallback and malformed frames are ignore
 	}
 });
 
-test("transient streamed failures retry with bounded provider delays", async () => {
+test("streamed failures separate transient, quota, and recovery-budget routing", async () => {
 	const restoreWebSocket = installScriptedWebSocket([
 		(socket) => socket.emitJson({
 			type: "response.failed",
-			response: { status: "failed", error: { code: "server_error", message: "temporary failure" } },
+			response: { status: "failed", error: { code: "rate_limit_exceeded", message: "Transient limit; see billing account guidance" } },
 		}),
 		websocketSuccess,
 		(socket) => socket.emitJson({
 			type: "response.failed",
 			response: { status: "failed", error: { code: "rate_limit_exceeded", message: "Monthly usage limit reached" } },
+		}),
+		(socket) => socket.emitJson({
+			type: "response.failed",
+			response: { status: "failed", error: { code: "rate_limit_exceeded", message: "Please try again in 999999 seconds" } },
 		}),
 	]);
 	const originalFetch = globalThis.fetch;
@@ -100,6 +104,11 @@ test("transient streamed failures retry with bounded provider delays", async () 
 		assert.match(JSON.stringify(quota.at(-1)), /Monthly usage limit reached/);
 		assert.equal(ScriptedWebSocket.opened, 3);
 		assert.equal(fetchCalls, 0);
+		const deferredRequest = codexStreamRequest("deferred-stream-rate-limit");
+		const deferred = await collectStream(registered.provider.streamSimple(deferredRequest.model, deferredRequest.context, deferredRequest.options));
+		assert.match(JSON.stringify(deferred.at(-1)), /three-minute automatic recovery window/);
+		assert.equal(ScriptedWebSocket.opened, 4);
+		assert.equal(fetchCalls, 0);
 
 		const failed = mapCodexEvents((async function* () {
 			yield {
@@ -113,7 +122,9 @@ test("transient streamed failures retry with bounded provider delays", async () 
 		} catch (error) {
 			rateLimitError = error;
 		}
-		assert.equal(codexStreamRetryDelay(rateLimitError), 60_000);
+		assert.equal(isCodexRateLimitError(rateLimitError), true);
+		assert.equal(codexStreamRetryDelay(rateLimitError), 999_999_000);
+		assert.equal(codexRateLimitRetryDelay(rateLimitError, 200, 0), undefined);
 
 		const overloaded = mapCodexEvents((async function* () {
 			yield {

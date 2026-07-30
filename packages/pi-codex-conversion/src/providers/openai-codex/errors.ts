@@ -2,7 +2,7 @@ import type { AssistantMessage } from "@earendil-works/pi-ai";
 
 export class NonRetryableProviderError extends Error {}
 
-const TERMINAL_RATE_LIMIT_PATTERN = /GoUsageLimitError|FreeUsageLimitError|Monthly usage limit reached|usage_limit_reached|usage_not_included|available balance|insufficient_quota|out of budget|quota exceeded|billing/i;
+const TERMINAL_RATE_LIMIT_PATTERN = /GoUsageLimitError|FreeUsageLimitError|Monthly usage limit reached|usage_limit_reached|usage_not_included|available balance|insufficient_quota|out of budget|quota exceeded/i;
 
 type CodexErrorEnvelope = {
 	status_code?: number | undefined;

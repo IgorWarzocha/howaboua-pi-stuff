@@ -27,7 +27,7 @@ import {
 	validateWebSocketTimeoutOptions,
 } from "./openai-codex/websocket.ts";
 import { isPermanentWebSocketError, isWebSocketMessageTooBigError, isWebSocketUnauthorizedError, isWebSocketUpgradeRequiredError } from "./openai-codex/websocket-connection.ts";
-import { assertSuccessfulCodexOutput, codexOverloadRetryDelay, codexStreamRetryDelay, isCodexOverloadError, isRetryableCodexStreamError, processCodexResponsesStream } from "./openai-codex/stream-events.ts";
+import { assertSuccessfulCodexOutput, codexOverloadRetryDelay, codexRateLimitRetryDelay, codexStreamRetryDelay, isCodexOverloadError, isCodexRateLimitError, isRetryableCodexStreamError, processCodexResponsesStream } from "./openai-codex/stream-events.ts";
 import { prewarmWebSocket, processWebSocketStream } from "./openai-codex/websocket-stream.ts";
 import { openaiCodexNativeOAuthProvider } from "./openai-codex/oauth.ts";
 import { CODEX_TURN_STATE_HEADER, type CodexTurnState } from "./openai-codex/turn-state.ts";
@@ -57,24 +57,17 @@ function codexStreamMaxRetries(options: OpenAICodexStreamOptions | undefined): n
 	return Math.min(Math.floor(configured), MAX_STREAM_MAX_RETRIES);
 }
 
+function rateLimitRecoveryBudgetError(error: unknown): NonRetryableProviderError {
+	const requestedDelayMs = codexStreamRetryDelay(error);
+	const detail = requestedDelayMs === undefined ? "" : ` Provider requested a wait of ${Math.ceil(requestedDelayMs / 1000)} seconds.`;
+	return new NonRetryableProviderError(`Codex throttling exceeded the three-minute automatic recovery window.${detail}`);
+}
+
 function withCodexTurnState(body: ResponsesBody, turnState: CodexTurnState | undefined): ResponsesBody {
 	const current = turnState?.current();
 	return current
 		? { ...body, client_metadata: { ...(body.client_metadata ?? {}), [CODEX_TURN_STATE_HEADER]: current } }
 		: body;
-}
-
-function responseRetryDelayMs(headers: Headers): number | undefined {
-	const retryAfterMs = headers.get("retry-after-ms");
-	if (retryAfterMs !== null) {
-		const millis = Number(retryAfterMs);
-		if (Number.isFinite(millis)) return Math.min(DEFAULT_MAX_RETRY_DELAY_MS, Math.max(0, millis));
-	}
-	const retryAfter = headers.get("retry-after");
-	if (!retryAfter) return undefined;
-	const seconds = Number(retryAfter);
-	const delayMs = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(retryAfter) - Date.now();
-	return Number.isFinite(delayMs) ? Math.min(DEFAULT_MAX_RETRY_DELAY_MS, Math.max(0, delayMs)) : undefined;
 }
 
 function withCodexTurnStateHeader(headers: Headers, turnState: CodexTurnState | undefined): Headers {
@@ -165,7 +158,7 @@ async function openCodexSSE<TApi extends Api>(
 		const errorText = await response.text();
 		const requestRetryable = isRetryableRequestStatus(response.status);
 		if (requestRetryable && attempt < MAX_SSE_REQUEST_RETRIES) {
-			await sleep(responseRetryDelayMs(response.headers) ?? codexStreamRetryDelayMs(attempt + 1), options?.signal);
+			await sleep(codexStreamRetryDelayMs(attempt + 1), options?.signal);
 			continue;
 		}
 		const info = await parseErrorResponse(new Response(errorText, { status: response.status, statusText: response.statusText }));
@@ -260,22 +253,29 @@ function createCodexStream<TApi extends Api>(
 			const streamMaxRetries = codexStreamMaxRetries(effectiveOptions);
 			let overloadRetryCount = 0;
 			let overloadWaitedMs = 0;
+			let rateLimitWaitedMs = 0;
 			const planRetry = (error: unknown, retryCount: number) => {
 				const overload = isCodexOverloadError(error);
+				const rateLimit = isCodexRateLimitError(error);
+				const fallbackDelayMs = codexStreamRetryDelayMs(retryCount);
 				return {
 					overload,
+					rateLimit,
 					delayMs: overload
 						? codexOverloadRetryDelay(error, overloadRetryCount, overloadWaitedMs)
-						: codexStreamRetryDelay(error) ?? codexStreamRetryDelayMs(retryCount),
+						: rateLimit
+							? codexRateLimitRetryDelay(error, fallbackDelayMs, rateLimitWaitedMs)
+							: codexStreamRetryDelay(error) ?? fallbackDelayMs,
 				};
 			};
-			const waitBeforeRetry = async (plan: { overload: boolean; delayMs: number | undefined }) => {
+			const waitBeforeRetry = async (plan: { overload: boolean; rateLimit: boolean; delayMs: number | undefined }) => {
 				if (plan.delayMs === undefined) return false;
 				await sleep(plan.delayMs, effectiveOptions?.signal);
 				if (plan.overload) {
 					overloadRetryCount++;
 					overloadWaitedMs += plan.delayMs;
 				}
+				if (plan.rateLimit) rateLimitWaitedMs += plan.delayMs;
 				return true;
 			};
 
@@ -319,6 +319,7 @@ function createCodexStream<TApi extends Api>(
 						const retryableWebSocketError = !isPermanentWebSocketError(error) && isRetryableCodexStreamError(error);
 						const retryPlan = planRetry(error, attempt + 1);
 						const overloadBudgetExhausted = retryPlan.overload && retryPlan.delayMs === undefined;
+						const rateLimitBudgetExhausted = retryPlan.rateLimit && retryPlan.delayMs === undefined;
 						const immediateFallback = upgradeRequired || messageTooBig || unauthorized;
 						const fallbackArmed = immediateFallback || (retryableWebSocketError && (attempt >= streamMaxRetries || overloadBudgetExhausted));
 						appendAssistantMessageDiagnostic(
@@ -331,9 +332,12 @@ function createCodexStream<TApi extends Api>(
 								requestBytes: new TextEncoder().encode(bodyJson).byteLength,
 							}),
 						);
-						if (!immediateFallback && retryableWebSocketError && attempt < streamMaxRetries && !overloadBudgetExhausted) {
+						if (!immediateFallback && retryableWebSocketError && attempt < streamMaxRetries && !overloadBudgetExhausted && !rateLimitBudgetExhausted) {
 							await waitBeforeRetry(retryPlan);
 							continue;
+						}
+						if (rateLimitBudgetExhausted) {
+							throw rateLimitRecoveryBudgetError(error);
 						}
 						if (!fallbackArmed) {
 							if (websocketStarted) {
@@ -380,6 +384,7 @@ function createCodexStream<TApi extends Api>(
 					const retryable = !(error instanceof NonRetryableProviderError) && isRetryableCodexStreamError(error);
 					const retryPlan = planRetry(error, attempt + 1);
 					const overloadBudgetExhausted = retryPlan.overload && retryPlan.delayMs === undefined;
+					const rateLimitBudgetExhausted = retryPlan.rateLimit && retryPlan.delayMs === undefined;
 					appendAssistantMessageDiagnostic(
 						output,
 						createAssistantMessageDiagnostic(retryable ? "provider_transport_failure" : "provider_stream_failure", error, {
@@ -389,9 +394,12 @@ function createCodexStream<TApi extends Api>(
 							requestBytes: new TextEncoder().encode(bodyJson).byteLength,
 						}),
 					);
-					if (retryable && attempt < streamMaxRetries && !overloadBudgetExhausted) {
+					if (retryable && attempt < streamMaxRetries && !overloadBudgetExhausted && !rateLimitBudgetExhausted) {
 						await waitBeforeRetry(retryPlan);
 						continue;
+					}
+					if (rateLimitBudgetExhausted) {
+						throw rateLimitRecoveryBudgetError(error);
 					}
 					if (retryable) throw new NonRetryableProviderError("Codex stream retry budget was exhausted before a response completed.");
 					throw error;
