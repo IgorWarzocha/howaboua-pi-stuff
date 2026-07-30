@@ -2,6 +2,8 @@ import type { AssistantMessage } from "@earendil-works/pi-ai";
 
 export class NonRetryableProviderError extends Error {}
 
+const TERMINAL_RATE_LIMIT_PATTERN = /GoUsageLimitError|FreeUsageLimitError|Monthly usage limit reached|usage_limit_reached|usage_not_included|available balance|insufficient_quota|out of budget|quota exceeded/i;
+
 type CodexErrorEnvelope = {
 	status_code?: number | undefined;
 	error?: {
@@ -96,7 +98,7 @@ export function formatCodexUsageLimitError(value: unknown): string | undefined {
 	const envelope = normalizeCodexErrorEnvelope(typeof value === "string" ? (parseJsonObject(value) ?? extractJsonObjectFromMessage(value)) : value);
 	if (!envelope) return undefined;
 	const code = envelope.error?.code ?? envelope.error?.type ?? "";
-	if (!/usage_limit_reached|usage_not_included|rate_limit_exceeded/i.test(code) && envelope.status_code !== 429) return undefined;
+	if (!isTerminalRateLimitError(`${code} ${envelope.error?.message ?? ""}`)) return undefined;
 
 	const plan = envelope.error?.plan_type ? ` (${envelope.error.plan_type.toLowerCase()} plan)` : "";
 	const reset = formatReset(envelope.error?.resets_in_seconds ?? asNumber(header(envelope.headers, "X-Codex-Primary-Reset-After-Seconds")), envelope.error?.resets_at ?? asNumber(header(envelope.headers, "X-Codex-Primary-Reset-At")));
@@ -112,11 +114,16 @@ export function formatCodexUsageLimitError(value: unknown): string | undefined {
 	].filter(Boolean).join(" ");
 }
 
-export function isRetryableError(status: number, errorText: string): boolean {
-	if (status === 429 || status === 500 || status === 502 || status === 503 || status === 504) {
-		return true;
-	}
-	return /rate.?limit|overloaded|service.?unavailable|upstream.?connect|connection.?refused/i.test(errorText);
+export function isTerminalRateLimitError(errorText: string): boolean {
+	return TERMINAL_RATE_LIMIT_PATTERN.test(errorText);
+}
+
+export function isRetryableRequestStatus(status: number): boolean {
+	return status >= 500 && status <= 599;
+}
+
+export function isRetryableStreamStatus(status: number): boolean {
+	return (status < 200 || status >= 300) && status !== 400 && status !== 401 && status !== 429;
 }
 
 export function buildProviderErrorMessage(error: unknown): string {
@@ -140,18 +147,19 @@ export function createErrorMessage(message: AssistantMessage, error: unknown, ab
 	return message;
 }
 
-export async function parseErrorResponse(response: Response): Promise<{ message: string; friendlyMessage?: string | undefined }> {
+export async function parseErrorResponse(response: Response): Promise<{ message: string; friendlyMessage?: string | undefined; code?: string | undefined }> {
 	const raw = await response.text();
 	let message = raw || response.statusText || "Request failed";
 	let friendlyMessage: string | undefined;
+	let code: string | undefined;
 
 	try {
 		const parsed = JSON.parse(raw) as { error?: { code?: string | undefined; type?: string | undefined; plan_type?: string | undefined; resets_at?: number | undefined; message?: string | undefined } | undefined };
 		friendlyMessage = formatCodexUsageLimitError({ ...parsed, status_code: response.status, headers: Object.fromEntries(response.headers.entries()) });
 		const err = parsed?.error;
 		if (err) {
-			const code = err.code || err.type || "";
-			if (!friendlyMessage && (/usage_limit_reached|usage_not_included|rate_limit_exceeded/i.test(code) || response.status === 429)) {
+			code = err.code || err.type;
+			if (!friendlyMessage && isTerminalRateLimitError(`${code ?? ""} ${err.message ?? ""}`)) {
 				const plan = err.plan_type ? ` (${err.plan_type.toLowerCase()} plan)` : "";
 				const mins = err.resets_at ? Math.max(0, Math.round((err.resets_at * 1000 - Date.now()) / 60000)) : undefined;
 				const when = mins !== undefined ? ` Try again in ~${mins} min.` : "";
@@ -163,5 +171,5 @@ export async function parseErrorResponse(response: Response): Promise<{ message:
 		// ignore malformed error bodies
 	}
 
-	return { message, friendlyMessage };
+	return { message, friendlyMessage, ...(code ? { code } : {}) };
 }

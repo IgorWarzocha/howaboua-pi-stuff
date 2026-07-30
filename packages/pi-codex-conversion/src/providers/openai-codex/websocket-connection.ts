@@ -136,11 +136,64 @@ function nestedWebSocketError(error: Error): Error {
 	return wrapped;
 }
 
+function webSocketHttpStatus(value: unknown, seen = new Set<unknown>()): number | undefined {
+	if (!value || typeof value !== "object" || seen.has(value)) return undefined;
+	seen.add(value);
+	const record = value as Record<string, unknown>;
+	for (const candidate of [record["status"], record["statusCode"], record["status_code"], record["code"]]) {
+		const parsed = typeof candidate === "string" && /^\d+$/.test(candidate) ? Number(candidate) : candidate;
+		if (typeof parsed === "number" && Number.isInteger(parsed) && parsed >= 100 && parsed <= 599) return parsed;
+	}
+	return webSocketHttpStatus(record["error"], seen)
+		?? webSocketHttpStatus(record["cause"], seen)
+		?? webSocketHttpStatus(record["response"], seen);
+}
+
+function webSocketCloseCode(value: unknown, seen = new Set<unknown>()): number | undefined {
+	if (!value || typeof value !== "object" || seen.has(value)) return undefined;
+	seen.add(value);
+	const record = value as Record<string, unknown>;
+	for (const candidate of [record["closeCode"], record["code"]]) {
+		const parsed = typeof candidate === "string" && /^\d+$/.test(candidate) ? Number(candidate) : candidate;
+		if (typeof parsed === "number" && Number.isInteger(parsed) && parsed >= 1000 && parsed <= 4999) return parsed;
+	}
+	return webSocketCloseCode(record["error"], seen) ?? webSocketCloseCode(record["cause"], seen);
+}
+
+function webSocketStatus(error: unknown): number | undefined {
+	const structured = webSocketHttpStatus(error);
+	if (structured !== undefined) return structured;
+	const message = error instanceof Error ? error.message : String(error);
+	const match = /^(?:WebSocket error:\s*)?(?:Unexpected server response:\s*|HTTP(?:\/\d(?:\.\d)?)?\s+|WebSocket (?:handshake|upgrade)\b[^\n]*?\b)(\d{3})(?:\s+[^\n]*)?$/i.exec(message.trim());
+	return match?.[1] ? Number(match[1]) : undefined;
+}
+
+export function isWebSocketUpgradeRequiredError(error: unknown): boolean {
+	return webSocketStatus(error) === 426;
+}
+
+export function isWebSocketMessageTooBigError(error: unknown): boolean {
+	if (webSocketCloseCode(error) === WEBSOCKET_MESSAGE_TOO_BIG_CLOSE_CODE) return true;
+	const message = error instanceof Error ? error.message : String(error);
+	return /(?:\b1009\b|message too big)/i.test(message);
+}
+
+export function isPermanentWebSocketError(error: unknown): boolean {
+	const status = webSocketStatus(error);
+	return status === 400 || status === 429;
+}
+
+export function isWebSocketUnauthorizedError(error: unknown): boolean {
+	return webSocketStatus(error) === 401;
+}
+
 export function extractWebSocketError(event: unknown): Error {
 	if (event && typeof event === "object") {
 		const message = "message" in event ? (event as { message?: unknown | undefined }).message : undefined;
 		if (typeof message === "string" && message.length > 0) {
-			return new Error(message);
+			const error = new Error(message) as Error & { status?: number | undefined };
+			error.status = webSocketHttpStatus(event);
+			return error;
 		}
 		const nestedError = "error" in event ? (event as { error?: unknown | undefined }).error : undefined;
 		if (nestedError instanceof Error && nestedError.message.length > 0) return nestedWebSocketError(nestedError);

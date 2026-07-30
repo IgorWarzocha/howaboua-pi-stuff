@@ -14,7 +14,7 @@ import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import { resolveCodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
 import { buildRequestBody } from "./openai-codex/request-body.ts";
 import { applyResponsesLiteRequest, isResponsesLiteRequest, prepareResponsesLiteRequestImages, RESPONSES_LITE_HEADER } from "./openai-codex/responses-lite.ts";
-import { processCodexResponsesStream } from "./openai-codex/stream-events.ts";
+import { assertSuccessfulCodexOutput, processCodexResponsesStream } from "./openai-codex/stream-events.ts";
 import type { OpenAICodexStreamOptions, ResponsesBody, StreamEventShape } from "./openai-codex/types.ts";
 
 function initialAssistantMessage<TApi extends Api>(model: Model<TApi>): AssistantMessage {
@@ -32,7 +32,7 @@ function initialAssistantMessage<TApi extends Api>(model: Model<TApi>): Assistan
 			totalTokens: 0,
 			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
 		},
-		stopReason: "stop",
+		stopReason: "pending",
 		timestamp: Date.now(),
 	};
 }
@@ -133,9 +133,7 @@ export function streamCodeModeResponsesProxy<TApi extends Api>(
 				effectiveOptions as OpenAICodexStreamOptions,
 			);
 			if (options?.signal?.aborted) throw new Error("Request was aborted");
-			if (output.stopReason === "aborted" || output.stopReason === "error") {
-				throw new Error("Responses stream ended without a successful result");
-			}
+			assertSuccessfulCodexOutput(output);
 			stream.push({ type: "done", reason: output.stopReason, message: output });
 			stream.end();
 		} catch (error) {

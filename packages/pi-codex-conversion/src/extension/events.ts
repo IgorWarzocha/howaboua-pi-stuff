@@ -205,7 +205,7 @@ export function registerCodexEvents(
 				}, { triggerTurn: false });
 			}
 		}
-		runtime.resetTransport(ctx.sessionManager.getSessionId());
+		runtime.resetTransportAfterCompaction(ctx.sessionManager.getSessionId());
 		await (nativeCompaction ? runtime.startCompactionPrewarm(ctx) : runtime.startPrewarm(ctx));
 	});
 	pi.on("context", async (event) => {

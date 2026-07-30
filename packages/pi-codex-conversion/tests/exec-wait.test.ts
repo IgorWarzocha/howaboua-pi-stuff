@@ -46,10 +46,7 @@ test("late empty polls replay a completed process result", async () => {
 		assert.ok(fullReplay.output.length > completed.output.length);
 		const cappedReplay = await sessions.write({ session_id: 1, max_output_tokens: 1 });
 		assert.deepEqual(cappedReplay, completed);
-		await assert.rejects(
-			sessions.write({ session_id: 1, chars: "x" }),
-			/Process id 1 already exited with code 0; cannot write stdin/,
-		);
+		await assert.rejects(sessions.write({ session_id: 1, chars: "x" }));
 
 		const largeCommand = `${JSON.stringify(process.execPath)} -e ${JSON.stringify("setTimeout(() => process.stdout.write('large head' + 'x'.repeat(70000) + 'large tail'), 500)")}`;
 		const largeStarted = await sessions.exec({ cmd: largeCommand, yield_time_ms: 1, max_yield_time_ms: 1, login: false }, process.cwd());

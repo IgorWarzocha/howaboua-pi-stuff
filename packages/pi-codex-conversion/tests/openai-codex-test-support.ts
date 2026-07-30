@@ -150,7 +150,14 @@ export class ScriptedWebSocket {
 	}
 
 	emit(type: string, event: unknown): void {
+		if (type === "error") this.readyState = 2;
+		if (type === "close") this.readyState = 3;
 		for (const listener of this.listeners.get(type) ?? []) listener(event);
+	}
+
+	emitError(event: unknown, closeEvent: unknown = { code: 1006, reason: "" }): void {
+		this.emit("error", event);
+		this.emit("close", closeEvent);
 	}
 
 	emitJson(event: unknown): void {

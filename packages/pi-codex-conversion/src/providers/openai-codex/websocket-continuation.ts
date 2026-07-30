@@ -2,13 +2,8 @@ import type { CachedWebSocketContinuationState, CachedWebSocketRequestBodyResult
 
 export function requestBodyForWebSocketContinuationComparison(body: ResponsesBody): ResponsesBody {
 	const {
-		// The backend accepts model and reasoning changes alongside a
-		// previous_response_id on the same Codex WebSocket. Each setting still
-		// warms its own prompt-cache lane; the delta only keeps transport efficient.
-		model: _model,
 		input: _input,
 		previous_response_id: _previousResponseId,
-		reasoning: _reasoning,
 		// Request metadata may carry per-turn transport fields such as the
 		// Responses Lite marker. It does not change conversation continuity.
 		client_metadata: _clientMetadata,

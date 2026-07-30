@@ -13,11 +13,6 @@ export function recordWebSocketSseFallback(sessionId: string | undefined): void 
 	if (sessionId) websocketSseFallbackSessions.add(sessionId);
 }
 
-export function clearWebSocketTransportFailures(sessionId: string | undefined): void {
-	if (!sessionId) return;
-	websocketSseFallbackSessions.delete(sessionId);
-}
-
 function isWebSocketSessionExpired(entry: SessionWebSocketCacheEntry): boolean {
 	return Date.now() - entry.createdAt >= SESSION_WEBSOCKET_MAX_AGE_MS;
 }
@@ -34,7 +29,7 @@ function scheduleSessionWebSocketExpiry(cacheKey: string, entry: SessionWebSocke
 	}, remainingLifetimeMs);
 }
 
-export function closeOpenAICodexWebSocketSessions(sessionId?: string): void {
+function closeWebSocketSessions(sessionId: string | undefined): void {
 	const closeEntry = (entry: SessionWebSocketCacheEntry) => {
 		if (entry.idleTimer) {
 			clearTimeout(entry.idleTimer);
@@ -47,7 +42,6 @@ export function closeOpenAICodexWebSocketSessions(sessionId?: string): void {
 		const entry = websocketSessionCache.get(sessionId);
 		if (entry) closeEntry(entry);
 		websocketSessionCache.delete(sessionId);
-		websocketSseFallbackSessions.delete(sessionId);
 		return;
 	}
 
@@ -55,6 +49,18 @@ export function closeOpenAICodexWebSocketSessions(sessionId?: string): void {
 		closeEntry(entry);
 	}
 	websocketSessionCache.clear();
+}
+
+export function resetOpenAICodexWebSocketSessions(sessionId?: string): void {
+	closeWebSocketSessions(sessionId);
+}
+
+export function closeOpenAICodexWebSocketSessions(sessionId?: string): void {
+	closeWebSocketSessions(sessionId);
+	if (sessionId) {
+		websocketSseFallbackSessions.delete(sessionId);
+		return;
+	}
 	websocketSseFallbackSessions.clear();
 }
 

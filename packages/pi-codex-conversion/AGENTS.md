@@ -1,5 +1,7 @@
 - Keep Pi behavior as close as practical to the Codex toolkit; document intentional differences.
-- Post-start stream failures must not trigger Pi's automatic full-context replay; preserve the raw cause in diagnostics and require an explicit new message.
+- Responses transport recovery follows Codex: initial generation plus five fresh full-request WebSocket retries, then sticky SSE for the session; 426 and WebSocket close 1009 fall back immediately.
+- Pi intentionally retries `server_is_overloaded` and `slow_down` across WebSocket/SSE with a shared three-minute wait budget.
+- Streamed rate-limit delays are exact within a shared three-minute budget; longer delays fail instead of retrying early.
 - Before npm, publish, release, or merge work, compare `src/providers/openai-codex-custom-provider.ts` with Pi's stock `openai-codex-responses` provider: request shape, transport/headers, reasoning/service tier, retry, stream termination, and touched behavior.
 - Structured mode uses flat TypeScript tools over standard Responses. GPT-5.6 Code Mode uses `exec`/`wait` over Responses Lite.
 - Keep prompt guidance short and argv-shaped.

@@ -20,9 +20,11 @@ test("Responses compaction v2 uses the registered stream and installs one canoni
 	let request: Record<string, unknown> | undefined;
 	let headers: Record<string, string | null> | undefined;
 	let transport: string | undefined;
+	let maxRetries: number | undefined;
 	const streamSimple = (_model: unknown, _context: unknown, options: any) => (async function* () {
 		headers = options.headers;
 		transport = options.transport;
+		maxRetries = options.maxRetries;
 		request = await options.onPayload({
 			model: model.id,
 			store: false,
@@ -70,6 +72,7 @@ test("Responses compaction v2 uses the registered stream and installs one canoni
 	assert.equal(result.ok, true);
 	assert.equal(headers?.["x-codex-beta-features"], "other,remote_compaction_v2");
 	assert.equal(transport, "sse");
+	assert.equal(maxRetries, 2);
 	assert.equal((request?.["input"] as Array<{ type?: string }>).at(-1)?.type, "compaction_trigger");
 	assert.deepEqual(result.ok && result.compaction, { type: "compaction", id: "cmp", encrypted_content: "sealed" });
 	assert.deepEqual(result.ok && result.usage, { inputTokens: 1_020, cachedInputTokens: 900, cacheWriteInputTokens: 20, outputTokens: 30 });

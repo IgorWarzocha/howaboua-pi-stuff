@@ -3,12 +3,12 @@ import { normalizeTimeoutMs } from "./sse.ts";
 
 export {
 	acquireWebSocket,
-	clearWebSocketTransportFailures,
 	closeOpenAICodexWebSocketSessions,
 	isWebSocketSseFallbackActive,
 	recordWebSocketSseFallback,
+	resetOpenAICodexWebSocketSessions,
 } from "./websocket-session-cache.ts";
-export { countWebSocketEvents, isRetryableEarlyWebSocketError, parseWebSocket, startWebSocketOutputOnFirstEvent } from "./websocket-parser.ts";
+export { parseWebSocket, startWebSocketOutputOnFirstEvent } from "./websocket-parser.ts";
 
 export function validateWebSocketTimeoutOptions(options: OpenAICodexStreamOptions | undefined): void {
 	normalizeTimeoutMs(options?.timeoutMs, "timeoutMs");

@@ -10,15 +10,16 @@ import { getDefaultCodexRuntimeShell } from "../adapter/prompt/runtime-shell.ts"
 import { isAdapterContextExcludedCustomMessage } from "../adapter/prompt/context-filter.ts";
 import { buildCodexSystemPrompt, type PiSystemPromptOptions } from "../prompt/build-system-prompt.ts";
 import { closeOpenAICodexWebSocketSessions, prewarmOpenAICodexWebSocket } from "../providers/openai-codex-custom-provider.ts";
+import { resetOpenAICodexWebSocketSessions } from "../providers/openai-codex/websocket.ts";
 import { createCodexTurnState } from "../providers/openai-codex/turn-state.ts";
 import type { OpenAICodexStreamOptions } from "../providers/openai-codex/types.ts";
-import { CODE_MODE_EXEC_CONSTRAINED_SAMPLING } from "../tools/code-mode/exec-contract.ts";
 import { createExecCommandTracker } from "../tools/exec/command-state.ts";
 import { createExecSessionManager } from "../tools/exec/session-manager.ts";
 import { getBundledToolBinaryPath } from "../tools/native/binary.ts";
 import type { BackgroundBashWidgetState } from "../ui/background-bash-widget.ts";
 import { CodexVoiceController } from "../voice/controller.ts";
 import { CodexLanVoiceServerController } from "../voice/lan/controller.ts";
+import { getActiveToolsInActiveOrder } from "../adapter/active-tools.ts";
 
 export type CodexContext = ExtensionContext;
 
@@ -34,24 +35,15 @@ export interface CodexExtensionRuntime {
 	startPrewarm(ctx: CodexContext, systemPrompt?: string, prepared?: boolean): Promise<void> | undefined;
 	startCompactionPrewarm(ctx: CodexContext): Promise<void> | undefined;
 	resetTransport(sessionId?: string): void;
+	resetTransportAfterCompaction(sessionId: string): void;
 	shutdownTransport(sessionId: string): void;
 	waitForPrewarm(ctx: CodexContext, systemPrompt: string): Promise<void> | undefined;
 }
 
 function activeToolContext(pi: ExtensionAPI): NonNullable<Context["tools"]> {
-	const activeTools = new Set(pi.getActiveTools());
 	// Pi ToolInfo omits constrainedSampling; restore our owned exec contract so
 	// prewarm and the real Code Mode turn serialize the same provider tools.
-	return pi.getAllTools()
-		.filter((tool) => activeTools.has(tool.name))
-		.map(({ name, description, parameters }) => ({
-			name,
-			description,
-			parameters,
-			...(name === "exec"
-				? { constrainedSampling: CODE_MODE_EXEC_CONSTRAINED_SAMPLING }
-				: {}),
-		}));
+	return getActiveToolsInActiveOrder(pi, true);
 }
 
 function prewarmReasoningOption(level: ReturnType<ExtensionAPI["getThinkingLevel"]>): Pick<OpenAICodexStreamOptions, "reasoning"> | Record<never, never> {
@@ -174,10 +166,16 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 			prewarmPromise = undefined;
 			websocketPrewarmed = false;
 			state.codexTurnState.reset();
-			if (sessionId) closeOpenAICodexWebSocketSessions(sessionId);
+			if (sessionId) resetOpenAICodexWebSocketSessions(sessionId);
+			else closeOpenAICodexWebSocketSessions();
+		},
+		resetTransportAfterCompaction(sessionId) {
+			runtime.resetTransport(sessionId);
+			closeOpenAICodexWebSocketSessions(sessionId);
 		},
 		shutdownTransport(sessionId) {
 			runtime.resetTransport(sessionId);
+			closeOpenAICodexWebSocketSessions(sessionId);
 		},
 		waitForPrewarm(ctx, systemPrompt) {
 			return prewarmPromise ?? runtime.startPrewarm(ctx, systemPrompt, true);
