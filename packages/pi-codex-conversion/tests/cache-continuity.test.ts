@@ -7,7 +7,7 @@ import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/confi
 import { captureActiveProviderSystemPrompt, rewriteCodexProviderRequest } from "../src/adapter/provider-request.ts";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
 import { executeRemoteCompactionV2 } from "../src/adapter/compaction/remote-v2-client.ts";
-import { getActiveCompactionTools } from "../src/adapter/compaction/compaction.ts";
+import { getActiveToolsInActiveOrder } from "../src/adapter/active-tools.ts";
 import { serializeMessagesToResponsesInput } from "../src/adapter/compaction/serializer.ts";
 import { NATIVE_COMPACTION_SHIM_SUMMARY, NATIVE_COMPACTION_STRATEGY } from "../src/adapter/compaction/types.ts";
 import { CODE_MODE_EXEC_GRAMMAR_INPUTS } from "../src/tools/code-mode/exec-contract.ts";
@@ -166,7 +166,7 @@ test("Code Mode normal turns and V2 compaction share one exact WebSocket continu
 	]]);
 	try {
 		const activeTools = [...codeModeTools, exampleTool] as typeof codeModeTools;
-		const rebuiltCompactionTools = getActiveCompactionTools({
+		const rebuiltCompactionTools = getActiveToolsInActiveOrder({
 			getActiveTools: () => ["exec", "wait", "example_tool"],
 			getAllTools: () => [exampleTool, ...codeModeTools],
 		}, true);
@@ -544,6 +544,7 @@ test("post-compaction prewarm opens a fresh socket with the encrypted checkpoint
 		[websocketSuccess, textResponse("resp_after", "after compaction")],
 	]);
 	try {
+		const activeTools = [...codeModeTools, exampleTool] as typeof codeModeTools;
 		const registered = createRegisteredCodexProvider({ codeMode: true });
 		const sessionId = "post-compaction-prewarm";
 		await collectStream(registered.provider.streamSimple(
@@ -605,8 +606,8 @@ test("post-compaction prewarm opens a fresh socket with the encrypted checkpoint
 			ui: { notify: () => undefined },
 		} as never;
 		const runtime = createCodexExtensionRuntime({
-			getActiveTools: () => ["exec", "wait"],
-			getAllTools: () => codeModeTools,
+			getActiveTools: () => ["exec", "wait", "example_tool"],
+			getAllTools: () => [exampleTool, ...codeModeTools],
 			getThinkingLevel: () => "low",
 			sendUserMessage: () => undefined,
 		} as never);
@@ -619,7 +620,7 @@ test("post-compaction prewarm opens a fresh socket with the encrypted checkpoint
 		const postCompactionMessages = convertToLlm(buildSessionContext(branchEntries).messages);
 		await collectStream(registered.provider.streamSimple(
 			model as never,
-			context(postCompactionMessages as never, activeProviderPrompt) as never,
+			context(postCompactionMessages as never, activeProviderPrompt, activeTools) as never,
 			{
 				...streamOptions(sessionId),
 				onPayload: (body: unknown) => rewriteCodexProviderRequest(body, extensionContext, runtime.state),
