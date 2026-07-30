@@ -12,7 +12,6 @@ const FATAL_CODEX_ERROR_CODES = new Set([
 	"cyber_policy",
 	"insufficient_quota",
 	"invalid_prompt",
-	"invalid_request",
 	"server_is_overloaded",
 	"slow_down",
 	"usage_not_included",
@@ -22,14 +21,16 @@ class CodexApiError extends Error {
 	readonly code?: string | undefined;
 	readonly payload?: StreamEventShape | undefined;
 	readonly retryable: boolean;
+	readonly retryDelayMs?: number | undefined;
 	readonly status?: number | undefined;
 
-	constructor(message: string, options?: { code?: string | undefined; payload?: StreamEventShape | undefined; retryable?: boolean | undefined; status?: number | undefined }) {
+	constructor(message: string, options?: { code?: string | undefined; payload?: StreamEventShape | undefined; retryable?: boolean | undefined; retryDelayMs?: number | undefined; status?: number | undefined }) {
 		super(message);
 		this.name = "CodexApiError";
 		this.code = options?.code;
 		this.payload = options?.payload;
 		this.retryable = options?.retryable ?? false;
+		this.retryDelayMs = options?.retryDelayMs;
 		this.status = options?.status;
 	}
 }
@@ -51,6 +52,10 @@ export class CodexProtocolError extends Error {
 export function isRetryableCodexStreamError(error: unknown): boolean {
 	if (error instanceof CodexApiError) return error.retryable;
 	return !(error instanceof CodexProtocolError);
+}
+
+export function codexStreamRetryDelay(error: unknown): number | undefined {
+	return error instanceof CodexApiError ? error.retryDelayMs : undefined;
 }
 
 export function assertSuccessfulCodexOutput(
@@ -83,8 +88,16 @@ function eventStatus(event: StreamEventShape): number | undefined {
 function isRetryableCodexApiFailure(code: string | undefined, status: number | undefined, defaultRetryable: boolean): boolean {
 	if (code === WEBSOCKET_CONNECTION_LIMIT_REACHED_CODE || code === PREVIOUS_RESPONSE_NOT_FOUND_CODE) return true;
 	if (code && FATAL_CODEX_ERROR_CODES.has(code)) return false;
-	if (status !== undefined) return status === 408 || status === 409 || status === 425 || status === 429 || status >= 500;
+	if (status !== undefined) return status !== 400 && status !== 401 && status !== 403 && status !== 429;
 	return defaultRetryable;
+}
+
+function responseFailedRetryDelayMs(code: string | undefined, message: string | undefined): number | undefined {
+	if (code !== "rate_limit_exceeded" || !message) return undefined;
+	const match = /try again in\s*(\d+(?:\.\d+)?)\s*(s|ms|seconds?)/i.exec(message);
+	if (!match?.[1] || !match[2]) return undefined;
+	const value = Number(match[1]);
+	return match[2].toLowerCase() === "ms" ? value : value * 1000;
 }
 
 function extractCodexEventError(event: StreamEventShape): { code?: string | undefined; message?: string | undefined } {
@@ -114,10 +127,13 @@ export async function* mapCodexEvents(events: AsyncIterable<StreamEventShape>): 
 
 		if (type === "response.failed") {
 			const code = typeof event.response?.error === "object" ? (event.response.error as { code?: string | undefined }).code : undefined;
-			throw new CodexApiError(event.response?.error?.message || "Codex response failed", {
+			const message = event.response?.error?.message;
+			const retryDelayMs = responseFailedRetryDelayMs(code, message);
+			throw new CodexApiError(message || "Codex response failed", {
 				code,
 				payload: event,
 				retryable: isRetryableCodexApiFailure(code, undefined, true),
+				...(retryDelayMs !== undefined ? { retryDelayMs } : {}),
 			});
 		}
 

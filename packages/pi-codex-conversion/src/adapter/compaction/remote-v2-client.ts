@@ -77,7 +77,7 @@ async function runAttempt(options: ExecuteRemoteCompactionV2Options, streamSimpl
 		sessionId: options.sessionId,
 		...(options.signal ? { signal: options.signal } : {}),
 		...(options.transport ? { transport: options.transport } : {}),
-		maxRetries: 0,
+		maxRetries: options.runtime.provider === "openai-codex" ? MAX_STREAM_RETRIES : 0,
 		...(typeof options.requestOptions.service_tier === "string" ? { serviceTier: options.requestOptions.service_tier as never } : {}),
 		...(options.requestOptions.text?.verbosity ? { textVerbosity: options.requestOptions.text.verbosity } : {}),
 		onOutputItemDone: (item) => outputItems.push(item),
@@ -136,9 +136,10 @@ export async function executeRemoteCompactionV2(options: ExecuteRemoteCompaction
 	const initialTransport = options.runtime.provider === "openai-codex" && isWebSocketSseFallbackActive(options.sessionId)
 		? "sse"
 		: options.transport ?? (options.runtime.provider === "openai-codex" ? "websocket-cached" : "sse");
-	const transports: Transport[] = options.runtime.provider === "openai-codex" && initialTransport !== "sse"
-		? [initialTransport, "sse"]
-		: [initialTransport];
+	if (options.runtime.provider === "openai-codex") {
+		return runAttempt({ ...options, transport: initialTransport }, streamSimple);
+	}
+	const transports: Transport[] = [initialTransport];
 	const delayMs = Math.max(0, options.retryDelayMs ?? 500);
 	let lastFailure: Extract<RemoteCompactionV2Result, { ok: false }> | undefined;
 	for (const transport of transports) {

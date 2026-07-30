@@ -1,7 +1,6 @@
 import type { StreamEventShape, WebSocketLike } from "./types.ts";
 import { extractWebSocketCloseError, extractWebSocketError } from "./websocket-connection.ts";
 import { extractCodexTurnStateFromWebSocketEvent } from "./turn-state.ts";
-import { CodexProtocolError } from "./stream-events.ts";
 
 async function decodeWebSocketData(data: unknown): Promise<string | null> {
 	if (typeof data === "string") return data;
@@ -43,21 +42,22 @@ export async function* parseWebSocket(socket: WebSocketLike, signal: AbortSignal
 				if (!event || typeof event !== "object" || !("data" in event)) return;
 				const text = await decodeWebSocketData((event as { data?: unknown | undefined }).data);
 				if (!text) return;
+				let parsed: StreamEventShape;
 				try {
-					const parsed = JSON.parse(text) as StreamEventShape;
-					const turnState = extractCodexTurnStateFromWebSocketEvent(parsed);
-					if (turnState) onTurnState?.(turnState);
-					const type = typeof parsed.type === "string" ? parsed.type : "";
-					if (type === "response.completed" || type === "response.done" || type === "response.incomplete") {
-						sawCompletion = true;
-						closeError = null;
-						done = true;
-					}
-					queue.push(parsed);
-				} catch (error) {
-					failed = new CodexProtocolError(`Invalid Codex WebSocket JSON: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+					parsed = JSON.parse(text) as StreamEventShape;
+				} catch {
+					// Codex ignores malformed individual events and keeps the live stream.
+					return;
+				}
+				const turnState = extractCodexTurnStateFromWebSocketEvent(parsed);
+				if (turnState) onTurnState?.(turnState);
+				const type = typeof parsed.type === "string" ? parsed.type : "";
+				if (type === "response.completed" || type === "response.done" || type === "response.incomplete") {
+					sawCompletion = true;
+					closeError = null;
 					done = true;
 				}
+				queue.push(parsed);
 			})
 			.catch((error: unknown) => {
 				failed = error instanceof Error ? error : new Error(String(error));

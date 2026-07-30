@@ -133,8 +133,8 @@ export async function* parseSSE(response: Response, signal?: AbortSignal, idleTi
 					if (data && data !== "[DONE]") {
 						try {
 							yield JSON.parse(data) as StreamEventShape;
-						} catch (error) {
-							throw new Error(`Invalid Codex SSE JSON: ${error instanceof Error ? error.message : String(error)}`);
+						} catch {
+							// Codex ignores malformed individual events and keeps the live stream.
 						}
 					}
 				}

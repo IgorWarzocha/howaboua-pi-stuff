@@ -31,12 +31,14 @@ test("parseSSE accepts CRLF chunks, joined data lines, and ignores done sentinel
 	assert.deepEqual(events, [{ type: "response.created", response: { id: "resp_1" } }]);
 });
 
-test("Codex API and protocol errors do not arm SSE fallback", async () => {
+test("fatal Codex API errors do not arm fallback and malformed frames are ignored", async () => {
 	const restoreWebSocket = installScriptedWebSocket([
-		(socket) => socket.emitJson({ type: "error", code: "invalid_request", message: "bad request" }),
+		(socket) => socket.emitJson({ type: "error", status: 400, code: "invalid_request", message: "bad request" }),
 		websocketSuccess,
-		(socket) => socket.emit("message", { data: "not-json" }),
-		websocketSuccess,
+		(socket) => {
+			socket.emit("message", { data: "not-json" });
+			websocketSuccess(socket);
+		},
 	]);
 	const originalFetch = globalThis.fetch;
 	let fetchCalls = 0;
@@ -52,10 +54,9 @@ test("Codex API and protocol errors do not arm SSE fallback", async () => {
 		await collectStream(registered.provider.streamSimple(request.model, request.context, request.options));
 
 		const protocolRequest = codexStreamRequest("protocol-error-session");
-		const malformed = await collectStream(registered.provider.streamSimple(protocolRequest.model, protocolRequest.context, protocolRequest.options));
-		assert.match(JSON.stringify(malformed), /Invalid Codex WebSocket JSON/);
-		await collectStream(registered.provider.streamSimple(protocolRequest.model, protocolRequest.context, protocolRequest.options));
-		assert.equal(ScriptedWebSocket.opened, 4);
+		const recovered = await collectStream(registered.provider.streamSimple(protocolRequest.model, protocolRequest.context, protocolRequest.options));
+		assert.equal((recovered.at(-1) as { type?: string }).type, "done");
+		assert.equal(ScriptedWebSocket.opened, 3);
 		assert.equal(fetchCalls, 0);
 	} finally {
 		globalThis.fetch = originalFetch;

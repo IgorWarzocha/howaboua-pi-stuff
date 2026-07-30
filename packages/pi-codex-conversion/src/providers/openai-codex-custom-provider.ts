@@ -11,8 +11,8 @@ import {
 } from "@earendil-works/pi-ai";
 import { createGrammarToolInputProperties } from "./constrained-sampling.js";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
-import { BASE_DELAY_MS, DEFAULT_SSE_HEADER_TIMEOUT_MS, DEFAULT_STREAM_IDLE_TIMEOUT_MS, DEFAULT_STREAM_MAX_RETRIES, INITIAL_STREAM_RETRY_DELAY_MS, MAX_SSE_REQUEST_RETRIES } from "./openai-codex/constants.ts";
-import { createErrorMessage, isRetryableError, NonRetryableProviderError, parseErrorResponse } from "./openai-codex/errors.ts";
+import { DEFAULT_SSE_HEADER_TIMEOUT_MS, DEFAULT_STREAM_IDLE_TIMEOUT_MS, DEFAULT_STREAM_MAX_RETRIES, INITIAL_STREAM_RETRY_DELAY_MS, MAX_SSE_REQUEST_RETRIES, MAX_STREAM_MAX_RETRIES } from "./openai-codex/constants.ts";
+import { createErrorMessage, NonRetryableProviderError, parseErrorResponse } from "./openai-codex/errors.ts";
 import { createCodexRequestId, extractAccountId, buildSSEHeaders, buildWebSocketHeaders, headersToRecord, PI_CODEX_CONVERSION_ORIGINATOR, resolveCodexUrl, resolveCodexWebSocketUrl } from "./openai-codex/headers.ts";
 import { buildRequestBody } from "./openai-codex/request-body.ts";
 import { supportsResponsesLiteModel } from "./openai-codex/responses-lite-model.ts";
@@ -26,7 +26,7 @@ import {
 	recordWebSocketSseFallback,
 	validateWebSocketTimeoutOptions,
 } from "./openai-codex/websocket.ts";
-import { assertSuccessfulCodexOutput, isRetryableCodexStreamError, processCodexResponsesStream } from "./openai-codex/stream-events.ts";
+import { assertSuccessfulCodexOutput, codexStreamRetryDelay, isRetryableCodexStreamError, processCodexResponsesStream } from "./openai-codex/stream-events.ts";
 import { prewarmWebSocket, processWebSocketStream } from "./openai-codex/websocket-stream.ts";
 import { openaiCodexNativeOAuthProvider } from "./openai-codex/oauth.ts";
 import { CODEX_TURN_STATE_HEADER, type CodexTurnState } from "./openai-codex/turn-state.ts";
@@ -45,6 +45,15 @@ export type { CachedWebSocketContinuationState, CachedWebSocketRequestBodyResult
 function codexStreamRetryDelayMs(retryCount: number): number {
 	const base = INITIAL_STREAM_RETRY_DELAY_MS * 2 ** Math.max(0, retryCount - 1);
 	return base * (0.9 + Math.random() * 0.2);
+}
+
+function codexStreamMaxRetries(options: OpenAICodexStreamOptions | undefined): number {
+	const configured = options?.maxRetries;
+	if (configured === undefined) return DEFAULT_STREAM_MAX_RETRIES;
+	if (!Number.isFinite(configured) || configured < 0) {
+		throw new Error(`Invalid maxRetries: ${String(configured)}`);
+	}
+	return Math.min(Math.floor(configured), MAX_STREAM_MAX_RETRIES);
 }
 
 function isWebSocketUpgradeRequiredError(error: unknown): boolean {
@@ -110,10 +119,10 @@ async function openCodexSSE<TApi extends Api>(
 	let lastError: Error | undefined;
 	for (let attempt = 0; attempt <= MAX_SSE_REQUEST_RETRIES; attempt++) {
 		if (options?.signal?.aborted) throw new Error("Request was aborted");
+		let response: Response;
 		try {
 			const headerTimeout = createSSEHeaderTimeout(DEFAULT_SSE_HEADER_TIMEOUT_MS);
 			const combinedSignal = combineAbortSignals([options?.signal, headerTimeout.signal]);
-			let response: Response;
 			try {
 				response = await fetch(resolveCodexUrl(model.baseUrl), {
 					method: "POST",
@@ -128,32 +137,32 @@ async function openCodexSSE<TApi extends Api>(
 				combinedSignal.cleanup();
 				headerTimeout.clear();
 			}
-
-			if (response.ok) turnState?.capture(response.headers.get(CODEX_TURN_STATE_HEADER));
-			await options?.onResponse?.({ status: response.status, headers: headersToRecord(response.headers) }, model);
-			if (response.ok) return response;
-
-			const errorText = await response.text();
-			const retryable = isRetryableError(response.status, errorText);
-			if (retryable && attempt < MAX_SSE_REQUEST_RETRIES) {
-				await sleep(BASE_DELAY_MS * 2 ** attempt, options?.signal);
-				continue;
-			}
-			const info = await parseErrorResponse(new Response(errorText, { status: response.status, statusText: response.statusText }));
-			const message = info.friendlyMessage || info.message;
-			throw retryable ? new Error(message) : new NonRetryableProviderError(message);
 		} catch (error) {
-			if (error instanceof NonRetryableProviderError) throw error;
 			if (error instanceof Error && (error.name === "AbortError" || error.message === "Request was aborted")) {
 				throw new Error("Request was aborted");
 			}
 			lastError = error instanceof Error ? error : new Error(String(error));
-			if (attempt < MAX_SSE_REQUEST_RETRIES && !lastError.message.includes("usage limit")) {
-				await sleep(BASE_DELAY_MS * 2 ** attempt, options?.signal);
+			if (attempt < MAX_SSE_REQUEST_RETRIES) {
+				await sleep(codexStreamRetryDelayMs(attempt + 1), options?.signal);
 				continue;
 			}
 			throw lastError;
 		}
+
+		if (response.ok) turnState?.capture(response.headers.get(CODEX_TURN_STATE_HEADER));
+		await options?.onResponse?.({ status: response.status, headers: headersToRecord(response.headers) }, model);
+		if (response.ok) return response;
+
+		const errorText = await response.text();
+		if (response.status >= 500 && response.status <= 599 && attempt < MAX_SSE_REQUEST_RETRIES) {
+			await sleep(codexStreamRetryDelayMs(attempt + 1), options?.signal);
+			continue;
+		}
+		const info = await parseErrorResponse(new Response(errorText, { status: response.status, statusText: response.statusText }));
+		const message = info.friendlyMessage || info.message;
+		const serverOverloaded = response.status === 503 && /server_is_overloaded|slow_down/i.test(errorText);
+		const terminalStatus = response.status === 400 || response.status === 401 || response.status === 403 || response.status === 429;
+		throw serverOverloaded || terminalStatus ? new NonRetryableProviderError(message) : new Error(message);
 	}
 	throw lastError ?? new Error("Failed after retries");
 }
@@ -240,11 +249,12 @@ function createCodexStream<TApi extends Api>(
 			if (compressedBody) baseSseHeaders.set("content-encoding", "zstd");
 			const sseBody = compressedBody ?? bodyJson;
 			const transport = effectiveOptions.transport ?? "auto";
+			const streamMaxRetries = codexStreamMaxRetries(effectiveOptions);
 
 			let streamStarted = false;
 			if (transport !== "sse") {
 				validateWebSocketTimeoutOptions(effectiveOptions);
-				for (let attempt = 0; attempt <= DEFAULT_STREAM_MAX_RETRIES; attempt++) {
+				for (let attempt = 0; attempt <= streamMaxRetries; attempt++) {
 					// Event partials are authoritative snapshots; a fresh partial makes the
 					// next content-start replace failed-attempt output without a second message start.
 					if (attempt > 0) output = createInitialAssistantMessage(model);
@@ -277,7 +287,7 @@ function createCodexStream<TApi extends Api>(
 						if (effectiveOptions?.signal?.aborted) throw error;
 						const upgradeRequired = isWebSocketUpgradeRequiredError(error);
 						const retryableWebSocketError = isRetryableCodexStreamError(error);
-						const fallbackArmed = upgradeRequired || (retryableWebSocketError && attempt >= DEFAULT_STREAM_MAX_RETRIES);
+						const fallbackArmed = upgradeRequired || (retryableWebSocketError && attempt >= streamMaxRetries);
 						appendAssistantMessageDiagnostic(
 							output,
 							createAssistantMessageDiagnostic(retryableWebSocketError ? "provider_transport_failure" : "provider_stream_failure", error, {
@@ -288,8 +298,8 @@ function createCodexStream<TApi extends Api>(
 								requestBytes: new TextEncoder().encode(bodyJson).byteLength,
 							}),
 						);
-						if (!upgradeRequired && retryableWebSocketError && attempt < DEFAULT_STREAM_MAX_RETRIES) {
-							await sleep(codexStreamRetryDelayMs(attempt + 1), effectiveOptions?.signal);
+						if (!upgradeRequired && retryableWebSocketError && attempt < streamMaxRetries) {
+							await sleep(codexStreamRetryDelay(error) ?? codexStreamRetryDelayMs(attempt + 1), effectiveOptions?.signal);
 							continue;
 						}
 						if (!fallbackArmed) {
@@ -306,7 +316,7 @@ function createCodexStream<TApi extends Api>(
 			}
 
 			const sseIdleTimeoutMs = normalizeTimeoutMs(effectiveOptions?.timeoutMs ?? DEFAULT_STREAM_IDLE_TIMEOUT_MS, "timeoutMs");
-			for (let attempt = 0; attempt <= DEFAULT_STREAM_MAX_RETRIES; attempt++) {
+			for (let attempt = 0; attempt <= streamMaxRetries; attempt++) {
 				if (attempt > 0) output = createInitialAssistantMessage(model);
 				const responseItems: unknown[] = [];
 				try {
@@ -342,8 +352,8 @@ function createCodexStream<TApi extends Api>(
 							requestBytes: new TextEncoder().encode(bodyJson).byteLength,
 						}),
 					);
-					if (retryable && attempt < DEFAULT_STREAM_MAX_RETRIES) {
-						await sleep(codexStreamRetryDelayMs(attempt + 1), effectiveOptions?.signal);
+					if (retryable && attempt < streamMaxRetries) {
+						await sleep(codexStreamRetryDelay(error) ?? codexStreamRetryDelayMs(attempt + 1), effectiveOptions?.signal);
 						continue;
 					}
 					if (retryable) throw new NonRetryableProviderError("Codex stream retry budget was exhausted before a response completed.");

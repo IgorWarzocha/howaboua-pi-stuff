@@ -140,7 +140,7 @@ function apiFailAfterStart(socket: ScriptedWebSocket) {
 
 function fatalApiFailAfterStart(socket: ScriptedWebSocket) {
 	socket.emitJson({ type: "response.created", response: { id: "resp_failed" } });
-	socket.emitJson({ type: "error", code: "invalid_request", message: "bad request" });
+	socket.emitJson({ type: "error", status: 400, code: "invalid_request", message: "bad request" });
 }
 
 function missingContinuationAfterStart(socket: ScriptedWebSocket) {
