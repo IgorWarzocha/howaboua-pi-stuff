@@ -14,6 +14,8 @@ export class SharedCodeModeRuntime {
 	readonly providers = new Map<object, CodeModeToolProvider>();
 	private clientPromise: Promise<CodeModeHostClient> | undefined;
 	private clientStartupAbort: AbortController | undefined;
+	private customPromptToolsSnapshot: CodeModeToolDefinition[] | undefined;
+	private promptSectionSnapshot: string | undefined;
 
 	addProvider(provider: CodeModeToolProvider): object {
 		const id = {};
@@ -32,7 +34,38 @@ export class SharedCodeModeRuntime {
 	}
 
 	collectTools(ctx?: unknown): CodeModeToolDefinition[] {
-		return collectUniqueTools(this.activeProviders(ctx), ctx);
+		const tools = collectUniqueTools(this.activeProviders(ctx), ctx);
+		return this.customPromptToolsSnapshot
+			? applyCustomPromptState(tools, this.customPromptToolsSnapshot)
+			: tools;
+	}
+
+	refreshPromptTools(ctx?: unknown): CodeModeToolDefinition[] {
+		const tools = collectUniqueTools(this.activeProviders(ctx), ctx);
+		this.customPromptToolsSnapshot = tools.filter(isCustomTool);
+		return tools;
+	}
+
+	resetPromptTools(ctx?: unknown): CodeModeToolDefinition[] {
+		this.promptSectionSnapshot = undefined;
+		return this.refreshPromptTools(ctx);
+	}
+
+	collectPromptTools(ctx?: unknown): CodeModeToolDefinition[] {
+		if (!this.customPromptToolsSnapshot) return this.refreshPromptTools(ctx);
+		const liveProgrammaticTools = collectUniqueTools(
+			this.activeProviders(ctx),
+			ctx,
+		).filter((tool) => !isCustomTool(tool));
+		return [...liveProgrammaticTools, ...this.customPromptToolsSnapshot];
+	}
+
+	setPromptSection(section: string): void {
+		this.promptSectionSnapshot = section;
+	}
+
+	getPromptSection(): string | undefined {
+		return this.promptSectionSnapshot;
 	}
 
 	collectRenderTools(): CodeModeToolDefinition[] {
@@ -86,6 +119,27 @@ export class SharedCodeModeRuntime {
 			}
 		}
 	}
+}
+
+function isCustomTool(tool: CodeModeToolDefinition): boolean {
+	return "command" in tool;
+}
+
+function applyCustomPromptState(
+	tools: CodeModeToolDefinition[],
+	customPromptTools: CodeModeToolDefinition[],
+): CodeModeToolDefinition[] {
+	const customPromptState = new Map(
+		customPromptTools.map((tool) => [tool.name, tool.deferLoading]),
+	);
+	return tools.map((tool) =>
+		isCustomTool(tool)
+			? {
+					...tool,
+					deferLoading: customPromptState.get(tool.name) ?? true,
+				}
+			: tool,
+	);
 }
 
 function collectUniqueTools(

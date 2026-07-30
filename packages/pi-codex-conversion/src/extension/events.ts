@@ -205,8 +205,15 @@ export function registerCodexEvents(
 				}, { triggerTurn: false });
 			}
 		}
+		const postCompactionPrompt = codeMode.refreshPromptTools(
+			state.activeProviderSystemPrompt ?? ctx.getSystemPrompt(),
+			ctx,
+		);
+		state.activeProviderSystemPrompt = postCompactionPrompt;
 		runtime.resetTransportAfterCompaction(ctx.sessionManager.getSessionId());
-		await (nativeCompaction ? runtime.startCompactionPrewarm(ctx) : runtime.startPrewarm(ctx));
+		await (nativeCompaction
+			? runtime.startCompactionPrewarm(ctx)
+			: runtime.startPrewarm(ctx, postCompactionPrompt, true));
 	});
 	pi.on("context", async (event) => {
 		if (state.config.voiceFeaturesOnly) return undefined;
