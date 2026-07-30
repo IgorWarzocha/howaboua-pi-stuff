@@ -149,10 +149,39 @@ function webSocketHttpStatus(value: unknown, seen = new Set<unknown>()): number 
 		?? webSocketHttpStatus(record["response"], seen);
 }
 
+function webSocketCloseCode(value: unknown, seen = new Set<unknown>()): number | undefined {
+	if (!value || typeof value !== "object" || seen.has(value)) return undefined;
+	seen.add(value);
+	const record = value as Record<string, unknown>;
+	for (const candidate of [record["closeCode"], record["code"]]) {
+		const parsed = typeof candidate === "string" && /^\d+$/.test(candidate) ? Number(candidate) : candidate;
+		if (typeof parsed === "number" && Number.isInteger(parsed) && parsed >= 1000 && parsed <= 4999) return parsed;
+	}
+	return webSocketCloseCode(record["error"], seen) ?? webSocketCloseCode(record["cause"], seen);
+}
+
 export function isWebSocketUpgradeRequiredError(error: unknown): boolean {
 	if (webSocketHttpStatus(error) === 426) return true;
 	const message = error instanceof Error ? error.message : String(error);
 	return /^(?:WebSocket error:\s*)?(?:Unexpected server response:\s*426(?:\s+Upgrade Required)?|HTTP(?:\/\d(?:\.\d)?)?\s+426(?:\s+Upgrade Required)?|WebSocket (?:handshake|upgrade)\b[^\n]*\b426(?:\s+Upgrade Required)?)$/i.test(message.trim());
+}
+
+export function isWebSocketMessageTooBigError(error: unknown): boolean {
+	if (webSocketCloseCode(error) === WEBSOCKET_MESSAGE_TOO_BIG_CLOSE_CODE) return true;
+	const message = error instanceof Error ? error.message : String(error);
+	return /(?:\b1009\b|message too big)/i.test(message);
+}
+
+export function isPermanentWebSocketError(error: unknown): boolean {
+	const status = webSocketHttpStatus(error);
+	if (status === undefined) return false;
+	return status >= 400
+		&& status <= 499
+		&& status !== 408
+		&& status !== 409
+		&& status !== 425
+		&& status !== 426
+		&& status !== 429;
 }
 
 export function extractWebSocketError(event: unknown): Error {

@@ -1,6 +1,7 @@
 import { processResponsesStream } from "../openai-responses/shared.ts";
 import type { Api, AssistantMessage, AssistantMessageEventStream, Model } from "@earendil-works/pi-ai";
 import { CODEX_RESPONSE_STATUSES, DEFAULT_MAX_RETRY_DELAY_MS } from "./constants.ts";
+import { isTerminalRateLimitError } from "./errors.ts";
 import { applyServiceTierPricing, resolveCodexServiceTier } from "./usage.ts";
 import type { OpenAICodexStreamOptions, ServiceTier, StreamEventShape } from "./types.ts";
 
@@ -70,7 +71,7 @@ export function assertSuccessfulCodexOutput(
 	output: AssistantMessage,
 ): asserts output is AssistantMessage & { stopReason: "stop" | "length" | "toolUse" } {
 	if (output.stopReason === "pending") {
-		throw new CodexProtocolError("Responses stream ended with a pending result");
+		throw new CodexRetryableStreamError("Responses stream ended with a pending result");
 	}
 	if (output.stopReason === "aborted" || output.stopReason === "error") {
 		throw new CodexProtocolError(output.errorMessage || "Responses stream ended without a successful result");
@@ -80,7 +81,7 @@ export function assertSuccessfulCodexOutput(
 export function assertSuccessfulCodexStatus(status: string | undefined): asserts status is "completed" {
 	if (status === "completed") return;
 	if (!status || status === "queued" || status === "in_progress") {
-		throw new CodexProtocolError("Responses stream ended with a pending result");
+		throw new CodexRetryableStreamError("Responses stream ended with a pending result");
 	}
 	if (status === "failed" || status === "cancelled") {
 		throw new CodexProtocolError("Responses stream ended without a successful result");
@@ -105,7 +106,8 @@ function eventStatus(event: StreamEventShape): number | undefined {
 	return recordStatus(event) ?? recordStatus(eventError) ?? recordStatus(responseError) ?? recordStatus(response);
 }
 
-function isRetryableCodexApiFailure(code: string | undefined, status: number | undefined, defaultRetryable: boolean): boolean {
+function isRetryableCodexApiFailure(code: string | undefined, message: string | undefined, status: number | undefined, defaultRetryable: boolean): boolean {
+	if (code === "rate_limit_exceeded" && isTerminalRateLimitError(`${code} ${message ?? ""}`)) return false;
 	if (code && RETRYABLE_CODEX_ERROR_CODES.has(code)) return true;
 	if (code && FATAL_CODEX_ERROR_CODES.has(code)) return false;
 	if (status !== undefined) return status === 408 || status === 409 || status === 425 || status === 429 || (status >= 500 && status <= 599);
@@ -148,7 +150,7 @@ export async function* mapCodexEvents(events: AsyncIterable<StreamEventShape>): 
 			throw new CodexApiError(`Codex error: ${message || code || JSON.stringify(event)}`, {
 				code,
 				payload: event,
-				retryable: isRetryableCodexApiFailure(code, status, true),
+				retryable: isRetryableCodexApiFailure(code, message, status, true),
 				...(status !== undefined ? { status } : {}),
 			});
 		}
@@ -166,7 +168,7 @@ export async function* mapCodexEvents(events: AsyncIterable<StreamEventShape>): 
 			throw new CodexApiError(message || "Codex response failed", {
 				code,
 				payload: event,
-				retryable: isRetryableCodexApiFailure(code, status, true),
+				retryable: isRetryableCodexApiFailure(code, message, status, true),
 				...(retryDelayMs !== undefined ? { retryDelayMs } : {}),
 				...(status !== undefined ? { status } : {}),
 			});

@@ -27,15 +27,22 @@ export function sleep(ms: number, signal: AbortSignal | undefined): Promise<void
 			return;
 		}
 
-		const timeout = setTimeout(resolve, ms);
-		signal?.addEventListener(
-			"abort",
-			() => {
-				clearTimeout(timeout);
-				reject(new Error("Request was aborted"));
-			},
-			{ once: true },
-		);
+		let settled = false;
+		const onAbort = () => {
+			if (settled) return;
+			settled = true;
+			clearTimeout(timeout);
+			signal?.removeEventListener("abort", onAbort);
+			reject(new Error("Request was aborted"));
+		};
+		const timeout = setTimeout(() => {
+			if (settled) return;
+			settled = true;
+			signal?.removeEventListener("abort", onAbort);
+			resolve();
+		}, ms);
+		signal?.addEventListener("abort", onAbort, { once: true });
+		if (signal?.aborted) onAbort();
 	});
 }
 

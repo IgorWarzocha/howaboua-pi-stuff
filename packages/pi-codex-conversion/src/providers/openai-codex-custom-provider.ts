@@ -26,7 +26,7 @@ import {
 	recordWebSocketSseFallback,
 	validateWebSocketTimeoutOptions,
 } from "./openai-codex/websocket.ts";
-import { isWebSocketUpgradeRequiredError } from "./openai-codex/websocket-connection.ts";
+import { isPermanentWebSocketError, isWebSocketMessageTooBigError, isWebSocketUpgradeRequiredError } from "./openai-codex/websocket-connection.ts";
 import { assertSuccessfulCodexOutput, codexStreamRetryDelay, isRetryableCodexStreamError, processCodexResponsesStream } from "./openai-codex/stream-events.ts";
 import { prewarmWebSocket, processWebSocketStream } from "./openai-codex/websocket-stream.ts";
 import { openaiCodexNativeOAuthProvider } from "./openai-codex/oauth.ts";
@@ -45,7 +45,7 @@ export type { CachedWebSocketContinuationState, CachedWebSocketRequestBodyResult
 
 function codexStreamRetryDelayMs(retryCount: number): number {
 	const base = INITIAL_STREAM_RETRY_DELAY_MS * 2 ** Math.max(0, retryCount - 1);
-	return base * (0.9 + Math.random() * 0.2);
+	return Math.min(DEFAULT_MAX_RETRY_DELAY_MS, base * (0.9 + Math.random() * 0.2));
 }
 
 function codexStreamMaxRetries(options: OpenAICodexStreamOptions | undefined): number {
@@ -201,7 +201,7 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 	try {
 		await prewarmWebSocket(resolveCodexWebSocketUrl(model.baseUrl), websocketBody, headers, effectiveOptions, deps.turnState);
 	} catch (error) {
-		if (!options.signal?.aborted && isWebSocketUpgradeRequiredError(error)) {
+		if (!options.signal?.aborted && (isWebSocketUpgradeRequiredError(error) || isWebSocketMessageTooBigError(error))) {
 			recordWebSocketSseFallback(options.sessionId);
 			return;
 		}
@@ -294,8 +294,10 @@ function createCodexStream<TApi extends Api>(
 					} catch (error) {
 						if (effectiveOptions?.signal?.aborted) throw error;
 						const upgradeRequired = isWebSocketUpgradeRequiredError(error);
-						const retryableWebSocketError = isRetryableCodexStreamError(error);
-						const fallbackArmed = upgradeRequired || (retryableWebSocketError && attempt >= streamMaxRetries);
+						const messageTooBig = isWebSocketMessageTooBigError(error);
+						const retryableWebSocketError = !isPermanentWebSocketError(error) && isRetryableCodexStreamError(error);
+						const immediateFallback = upgradeRequired || messageTooBig;
+						const fallbackArmed = immediateFallback || (retryableWebSocketError && attempt >= streamMaxRetries);
 						appendAssistantMessageDiagnostic(
 							output,
 							createAssistantMessageDiagnostic(retryableWebSocketError ? "provider_transport_failure" : "provider_stream_failure", error, {
@@ -306,7 +308,7 @@ function createCodexStream<TApi extends Api>(
 								requestBytes: new TextEncoder().encode(bodyJson).byteLength,
 							}),
 						);
-						if (!upgradeRequired && retryableWebSocketError && attempt < streamMaxRetries) {
+						if (!immediateFallback && retryableWebSocketError && attempt < streamMaxRetries) {
 							await sleep(codexStreamRetryDelay(error) ?? codexStreamRetryDelayMs(attempt + 1), effectiveOptions?.signal);
 							continue;
 						}

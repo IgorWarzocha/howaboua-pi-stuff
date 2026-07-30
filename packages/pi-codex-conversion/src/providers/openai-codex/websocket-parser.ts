@@ -1,6 +1,8 @@
 import type { StreamEventShape, WebSocketLike } from "./types.ts";
-import { extractWebSocketCloseError, extractWebSocketError } from "./websocket-connection.ts";
+import { extractWebSocketCloseError, extractWebSocketError, isWebSocketMessageTooBigError } from "./websocket-connection.ts";
 import { extractCodexTurnStateFromWebSocketEvent } from "./turn-state.ts";
+
+const WEBSOCKET_CLOSE_GRACE_MS = 25;
 
 async function decodeWebSocketData(data: unknown): Promise<string | null> {
 	if (typeof data === "string") return data;
@@ -27,6 +29,8 @@ export async function* parseWebSocket(socket: WebSocketLike, signal: AbortSignal
 	let idleTimedOut = false;
 	let pendingMessages = 0;
 	let messageChain = Promise.resolve();
+	let socketError: Error | null = null;
+	let socketErrorTimer: ReturnType<typeof setTimeout> | undefined;
 
 	const wake = () => {
 		if (!pending) return;
@@ -71,19 +75,32 @@ export async function* parseWebSocket(socket: WebSocketLike, signal: AbortSignal
 	};
 
 	const onError = (event: unknown) => {
-		failed = extractWebSocketError(event);
-		done = true;
-		wake();
+		socketError = extractWebSocketError(event);
+		if (socketErrorTimer) clearTimeout(socketErrorTimer);
+		socketErrorTimer = setTimeout(() => {
+			failed = socketError;
+			done = true;
+			wake();
+		}, WEBSOCKET_CLOSE_GRACE_MS);
 	};
 
 	const onClose = (event: unknown) => {
+		if (socketErrorTimer) clearTimeout(socketErrorTimer);
 		if (sawCompletion) {
 			done = true;
 			wake();
 			return;
 		}
 		if (!closeError) {
-			closeError = extractWebSocketCloseError(event);
+			const error = extractWebSocketCloseError(event);
+			if (isWebSocketMessageTooBigError(error)) {
+				failed = null;
+				closeError = error;
+			} else if (socketError) {
+				failed = socketError;
+			} else {
+				closeError = error;
+			}
 		}
 		done = true;
 		wake();
@@ -133,6 +150,7 @@ export async function* parseWebSocket(socket: WebSocketLike, signal: AbortSignal
 			throw new Error("WebSocket stream closed before response.completed");
 		}
 	} finally {
+		if (socketErrorTimer) clearTimeout(socketErrorTimer);
 		socket.removeEventListener("message", onMessage);
 		socket.removeEventListener("error", onError);
 		socket.removeEventListener("close", onClose);

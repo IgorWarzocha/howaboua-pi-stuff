@@ -667,31 +667,35 @@ test("WebSocket prewarm 426 activates sticky SSE without failing prewarm", async
 	}
 });
 
-test("unfinished WebSocket responses cannot seed a continuation", async () => {
+test("unfinished WebSocket responses retry without seeding a continuation", async () => {
 	const restoreWebSocket = installScriptedWebSocket([
 		unfinishedResponse("resp_pending", "in_progress"),
-		textResponse("resp_recovered", "recovered"),
+		[
+			textResponse("resp_recovered", "recovered"),
+			textResponse("resp_continued", "continued"),
+		],
 	]);
 	try {
 		const registered = createRegisteredCodexProvider({ codeMode: true });
 		const sessionId = "unfinished-continuation";
 		const requestContext = context([user("same user", 1)]);
-		const failed = await collectStream(registered.provider.streamSimple(
+		const recovered = await collectStream(registered.provider.streamSimple(
 			model as never,
 			requestContext as never,
 			streamOptions(sessionId) as never,
 		));
-		assert.equal((failed.at(-1) as { type?: string }).type, "error");
-		assert.equal(failed.some((event) => (event as { type?: string }).type === "done"), false);
-		assert.match(JSON.stringify((failed.at(-1) as { error?: AssistantMessage }).error?.diagnostics), /pending result/);
+		assert.equal((recovered.at(-1) as { type?: string }).type, "done");
+		assert.equal(ScriptedWebSocket.opened, 2);
+		assert.equal(sentFrames()[1]?.previous_response_id, undefined);
+		const recoveredMessage = doneMessage(recovered);
 
 		await collectStream(registered.provider.streamSimple(
 			model as never,
-			requestContext as never,
+			context([user("same user", 1), recoveredMessage as AgentMessage, user("next user", 2)]) as never,
 			streamOptions(sessionId) as never,
 		));
 		assert.equal(ScriptedWebSocket.opened, 2);
-		assert.equal(sentFrames()[1]?.previous_response_id, undefined);
+		assert.equal(sentFrames()[2]?.previous_response_id, "resp_recovered");
 	} finally {
 		restoreWebSocket();
 	}

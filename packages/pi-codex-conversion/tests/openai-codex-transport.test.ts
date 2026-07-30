@@ -76,6 +76,10 @@ test("transient streamed failures retry with bounded provider delays", async () 
 			response: { status: "failed", error: { code: "server_is_overloaded", message: "slow down" } },
 		}),
 		websocketSuccess,
+		(socket) => socket.emitJson({
+			type: "response.failed",
+			response: { status: "failed", error: { code: "rate_limit_exceeded", message: "Monthly usage limit reached" } },
+		}),
 	]);
 	const originalFetch = globalThis.fetch;
 	let fetchCalls = 0;
@@ -89,6 +93,12 @@ test("transient streamed failures retry with bounded provider delays", async () 
 		const recovered = await collectStream(registered.provider.streamSimple(request.model, request.context, request.options));
 		assert.equal((recovered.at(-1) as { type?: string }).type, "done");
 		assert.equal(ScriptedWebSocket.opened, 2);
+		assert.equal(fetchCalls, 0);
+		const quotaRequest = codexStreamRequest("terminal-stream-rate-limit");
+		const quota = await collectStream(registered.provider.streamSimple(quotaRequest.model, quotaRequest.context, quotaRequest.options));
+		assert.equal((quota.at(-1) as { type?: string }).type, "error");
+		assert.match(JSON.stringify(quota.at(-1)), /Monthly usage limit reached/);
+		assert.equal(ScriptedWebSocket.opened, 3);
 		assert.equal(fetchCalls, 0);
 
 		const failed = mapCodexEvents((async function* () {
@@ -104,6 +114,70 @@ test("transient streamed failures retry with bounded provider delays", async () 
 			rateLimitError = error;
 		}
 		assert.equal(codexStreamRetryDelay(rateLimitError), 60_000);
+	} finally {
+		globalThis.fetch = originalFetch;
+		restoreWebSocket();
+	}
+});
+
+test("WebSocket close 1009 continues through sticky SSE without futile WebSocket retries", async () => {
+	const restoreWebSocket = installScriptedWebSocket([
+		(socket) => {
+			socket.emit("error", { error: new Error("WebSocket transport failed") });
+			queueMicrotask(() => socket.emit("close", { code: 1009, reason: "" }));
+		},
+	]);
+	const originalFetch = globalThis.fetch;
+	let fetchCalls = 0;
+	globalThis.fetch = (async () => {
+		fetchCalls++;
+		return sseResponse([{
+			type: "response.completed",
+			response: { id: `resp_sse_${fetchCalls}`, status: "completed", usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 } },
+		}]);
+	}) as typeof fetch;
+	try {
+		const registered = createRegisteredCodexProvider();
+		const request = codexStreamRequest("message-too-big-session");
+		const recovered = await collectStream(registered.provider.streamSimple(request.model, request.context, request.options));
+		assert.equal((recovered.at(-1) as { type?: string }).type, "done");
+		assert.equal(ScriptedWebSocket.opened, 1);
+		assert.equal(fetchCalls, 1);
+
+		const continued = await collectStream(registered.provider.streamSimple(request.model, request.context, request.options));
+		assert.equal((continued.at(-1) as { type?: string }).type, "done");
+		assert.equal(ScriptedWebSocket.opened, 1);
+		assert.equal(fetchCalls, 2);
+	} finally {
+		globalThis.fetch = originalFetch;
+		restoreWebSocket();
+	}
+});
+
+test("permanent WebSocket handshake failures neither retry nor disable WebSockets", async () => {
+	const restoreWebSocket = installScriptedWebSocket([
+		(socket) => socket.emit("error", { message: "Unexpected server response: 401 Unauthorized", status: 401 }),
+		websocketSuccess,
+	]);
+	const originalFetch = globalThis.fetch;
+	let fetchCalls = 0;
+	globalThis.fetch = (async () => {
+		fetchCalls++;
+		return sseResponse([]);
+	}) as typeof fetch;
+	try {
+		const registered = createRegisteredCodexProvider();
+		const request = codexStreamRequest("websocket-auth-session");
+		const failed = await collectStream(registered.provider.streamSimple(request.model, request.context, request.options));
+		assert.equal((failed.at(-1) as { type?: string }).type, "error");
+		assert.match(JSON.stringify(failed.at(-1)), /401 Unauthorized/);
+		assert.equal(ScriptedWebSocket.opened, 1);
+		assert.equal(fetchCalls, 0);
+
+		const recovered = await collectStream(registered.provider.streamSimple(request.model, request.context, request.options));
+		assert.equal((recovered.at(-1) as { type?: string }).type, "done");
+		assert.equal(ScriptedWebSocket.opened, 2);
+		assert.equal(fetchCalls, 0);
 	} finally {
 		globalThis.fetch = originalFetch;
 		restoreWebSocket();
