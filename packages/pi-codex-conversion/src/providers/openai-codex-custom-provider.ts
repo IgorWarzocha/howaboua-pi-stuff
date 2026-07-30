@@ -12,7 +12,7 @@ import {
 import { createGrammarToolInputProperties } from "./constrained-sampling.js";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import { DEFAULT_MAX_RETRY_DELAY_MS, DEFAULT_SSE_HEADER_TIMEOUT_MS, DEFAULT_STREAM_IDLE_TIMEOUT_MS, DEFAULT_STREAM_MAX_RETRIES, INITIAL_STREAM_RETRY_DELAY_MS, MAX_SSE_REQUEST_RETRIES, MAX_STREAM_MAX_RETRIES } from "./openai-codex/constants.ts";
-import { createErrorMessage, isRetryableError, NonRetryableProviderError, parseErrorResponse } from "./openai-codex/errors.ts";
+import { createErrorMessage, isRetryableRequestStatus, isRetryableStreamStatus, NonRetryableProviderError, parseErrorResponse } from "./openai-codex/errors.ts";
 import { createCodexRequestId, extractAccountId, buildSSEHeaders, buildWebSocketHeaders, headersToRecord, PI_CODEX_CONVERSION_ORIGINATOR, resolveCodexUrl, resolveCodexWebSocketUrl } from "./openai-codex/headers.ts";
 import { buildRequestBody } from "./openai-codex/request-body.ts";
 import { supportsResponsesLiteModel } from "./openai-codex/responses-lite-model.ts";
@@ -163,14 +163,14 @@ async function openCodexSSE<TApi extends Api>(
 		if (response.ok) return response;
 
 		const errorText = await response.text();
-		const retryable = isRetryableError(response.status, errorText);
-		if (retryable && attempt < MAX_SSE_REQUEST_RETRIES) {
+		const requestRetryable = isRetryableRequestStatus(response.status);
+		if (requestRetryable && attempt < MAX_SSE_REQUEST_RETRIES) {
 			await sleep(responseRetryDelayMs(response.headers) ?? codexStreamRetryDelayMs(attempt + 1), options?.signal);
 			continue;
 		}
 		const info = await parseErrorResponse(new Response(errorText, { status: response.status, statusText: response.statusText }));
 		const message = info.friendlyMessage || info.message;
-		throw retryable ? new Error(message) : new NonRetryableProviderError(message);
+		throw isRetryableStreamStatus(response.status) ? new Error(message) : new NonRetryableProviderError(message);
 	}
 	throw lastError ?? new Error("Failed after retries");
 }

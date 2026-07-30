@@ -184,30 +184,37 @@ test("permanent WebSocket handshake failures neither retry nor disable WebSocket
 	}
 });
 
-test("SSE HTTP routing retries transient rate limits only", async () => {
+test("SSE HTTP routing keeps request and stream retry budgets separate", async () => {
 	const originalFetch = globalThis.fetch;
 	let responseIndex = 0;
 	const responses = [
-		new Response(JSON.stringify({ error: { code: "rate_limit_exceeded", message: "retry shortly" } }), {
-			status: 429,
+		new Response(JSON.stringify({ error: { code: "request_timeout", message: "request timed out" } }), { status: 408 }),
+		new Response(JSON.stringify({ error: { code: "rate_limit_exceeded", message: "retry shortly" } }), { status: 429 }),
+		new Response(JSON.stringify({ error: { code: "server_error", message: "temporary failure" } }), {
+			status: 500,
 			headers: { "retry-after-ms": "0" },
 		}),
 		sseResponse([{ type: "response.completed", response: { id: "resp_retry", status: "completed" } }]),
-		new Response(JSON.stringify({ error: { code: "unprocessable_entity", message: "invalid body" } }), { status: 422 }),
-		new Response(JSON.stringify({ error: { code: "usage_limit_reached", message: "quota exhausted" } }), { status: 429 }),
 	];
 	globalThis.fetch = (async () => responses[responseIndex++]!) as typeof fetch;
 	try {
 		const registered = createRegisteredCodexProvider();
 		const request = codexStreamRequest("sse-http-routing");
 		const options = { ...(request.options as object), transport: "sse", maxRetries: 0 } as never;
+		const timeout = await collectStream(registered.provider.streamSimple(request.model, request.context, options));
+		assert.match(JSON.stringify(timeout.at(-1)), /stream retry budget was exhausted/i);
+		assert.equal(responseIndex, 1);
+
+		const rateLimit = await collectStream(registered.provider.streamSimple(
+			request.model,
+			request.context,
+			{ ...(request.options as object), transport: "sse", maxRetries: 5 } as never,
+		));
+		assert.match(JSON.stringify(rateLimit.at(-1)), /retry shortly/);
+		assert.equal(responseIndex, 2);
+
 		const recovered = await collectStream(registered.provider.streamSimple(request.model, request.context, options));
 		assert.equal((recovered.at(-1) as { type?: string }).type, "done");
-
-		const permanent = await collectStream(registered.provider.streamSimple(request.model, request.context, options));
-		assert.match(JSON.stringify(permanent.at(-1)), /invalid body/);
-		const quota = await collectStream(registered.provider.streamSimple(request.model, request.context, options));
-		assert.match(JSON.stringify(quota.at(-1)), /usage limit/i);
 		assert.equal(responseIndex, 4);
 	} finally {
 		globalThis.fetch = originalFetch;

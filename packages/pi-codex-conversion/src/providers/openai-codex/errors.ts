@@ -118,9 +118,12 @@ export function isTerminalRateLimitError(errorText: string): boolean {
 	return TERMINAL_RATE_LIMIT_PATTERN.test(errorText);
 }
 
-export function isRetryableError(status: number, errorText: string): boolean {
-	if (status === 429 && isTerminalRateLimitError(errorText)) return false;
-	return status === 408 || status === 409 || status === 425 || status === 429 || (status >= 500 && status <= 599);
+export function isRetryableRequestStatus(status: number): boolean {
+	return status >= 500 && status <= 599;
+}
+
+export function isRetryableStreamStatus(status: number): boolean {
+	return status === 408 || status === 409 || status === 425 || isRetryableRequestStatus(status);
 }
 
 export function buildProviderErrorMessage(error: unknown): string {
