@@ -244,7 +244,7 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "base64",
- "mime_guess",
+ "codex-utils-image",
  "reqwest",
  "serde",
  "serde_json",

@@ -9,6 +9,7 @@ This is the maintainer checklist for syncing the bundled provider with Pi and Op
 - Exact apply-patch source revision: [`src/tools/rust/UPSTREAM.apply-patch`](src/tools/rust/UPSTREAM.apply-patch)
 - Exact image utility source revision: [`src/tools/rust/crates/codex-utils-image/UPSTREAM`](src/tools/rust/crates/codex-utils-image/UPSTREAM)
 - Exact standalone web-search source revision: [`src/tools/web-run/rust/UPSTREAM`](src/tools/web-run/rust/UPSTREAM)
+- Exact standalone image-generation source revision: [`src/tools/imagegen/rust/UPSTREAM`](src/tools/imagegen/rust/UPSTREAM)
 
 ## Implemented portable behavior
 
