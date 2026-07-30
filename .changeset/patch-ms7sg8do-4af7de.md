@@ -2,4 +2,4 @@
 "@howaboua/pi-codex-conversion": patch
 ---
 
-Keep promoted Code Mode custom tools deferred until a cache-safe session or compaction boundary
+Keep new Code Mode custom tools out of the prompt until the session restarts or compacts
