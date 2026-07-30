@@ -36,6 +36,8 @@ export async function registerCodexCodeMode(
 	});
 	return {
 		prepare: (ctx) => programmaticRuntime.prepare(ctx),
+		refreshPromptTools: (systemPrompt, ctx) =>
+			programmaticRuntime.refreshPromptTools(systemPrompt, ctx),
 		shutdownHost: () => programmaticRuntime.shutdownHost(),
 		async shutdown() {
 			await programmaticRuntime.shutdown();

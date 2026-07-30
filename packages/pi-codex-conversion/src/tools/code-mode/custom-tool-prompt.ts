@@ -88,3 +88,18 @@ export function injectCodeModeToolsPrompt(
 		markers.length > 0 ? Math.min(...markers) : systemPrompt.length;
 	return `${systemPrompt.slice(0, insertAt).trimEnd()}\n\n${section}${systemPrompt.slice(insertAt)}`;
 }
+
+export function replaceCodeModeToolsPrompt(
+	systemPrompt: string,
+	previousTools: CodeModeToolDefinition[],
+	nextTools: CodeModeToolDefinition[],
+	documentationPath?: string,
+): string {
+	const previous = buildCodeModeToolsPrompt(previousTools, documentationPath);
+	const next = buildCodeModeToolsPrompt(nextTools, documentationPath);
+	if (previous === next) return systemPrompt;
+	if (!previous || !systemPrompt.includes(previous)) {
+		return injectCodeModeToolsPrompt(systemPrompt, nextTools, documentationPath);
+	}
+	return systemPrompt.replace(previous, next);
+}

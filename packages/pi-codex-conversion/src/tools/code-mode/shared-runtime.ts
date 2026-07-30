@@ -14,6 +14,7 @@ export class SharedCodeModeRuntime {
 	readonly providers = new Map<object, CodeModeToolProvider>();
 	private clientPromise: Promise<CodeModeHostClient> | undefined;
 	private clientStartupAbort: AbortController | undefined;
+	private promptToolsSnapshot: CodeModeToolDefinition[] | undefined;
 
 	addProvider(provider: CodeModeToolProvider): object {
 		const id = {};
@@ -32,7 +33,30 @@ export class SharedCodeModeRuntime {
 	}
 
 	collectTools(ctx?: unknown): CodeModeToolDefinition[] {
-		return collectUniqueTools(this.activeProviders(ctx), ctx);
+		const tools = collectUniqueTools(this.activeProviders(ctx), ctx);
+		if (!this.promptToolsSnapshot) return tools;
+		const customPromptState = new Map(
+			this.promptToolsSnapshot
+				.filter(isCustomTool)
+				.map((tool) => [tool.name, tool.deferLoading]),
+		);
+		return tools.map((tool) =>
+			isCustomTool(tool)
+				? {
+						...tool,
+						deferLoading: customPromptState.get(tool.name) ?? true,
+					}
+				: tool,
+		);
+	}
+
+	refreshPromptTools(ctx?: unknown): CodeModeToolDefinition[] {
+		this.promptToolsSnapshot = collectUniqueTools(this.activeProviders(ctx), ctx);
+		return this.promptToolsSnapshot;
+	}
+
+	collectPromptTools(ctx?: unknown): CodeModeToolDefinition[] {
+		return this.promptToolsSnapshot ?? this.refreshPromptTools(ctx);
 	}
 
 	collectRenderTools(): CodeModeToolDefinition[] {
@@ -86,6 +110,10 @@ export class SharedCodeModeRuntime {
 			}
 		}
 	}
+}
+
+function isCustomTool(tool: CodeModeToolDefinition): boolean {
+	return "command" in tool;
 }
 
 function collectUniqueTools(

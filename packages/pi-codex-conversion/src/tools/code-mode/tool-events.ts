@@ -6,6 +6,12 @@ export function registerCodeModeEvents(
 	pi: ExtensionAPI,
 	runtime: SharedCodeModeRuntime,
 ): void {
+	pi.on("session_start", (_event, ctx) => {
+		runtime.refreshPromptTools(ctx);
+	});
+	pi.on("model_select", (_event, ctx) => {
+		runtime.refreshPromptTools(ctx);
+	});
 	pi.on("before_agent_start", (event, ctx) => {
 		const activeProviders = runtime.activeProviders(ctx);
 		if (activeProviders.length === 0) return undefined;
@@ -15,7 +21,7 @@ export function registerCodeModeEvents(
 		)?.documentationPath;
 		const systemPrompt = injectCodeModeToolsPrompt(
 			event.systemPrompt,
-			runtime.collectTools(ctx),
+			runtime.collectPromptTools(ctx),
 			documentationPath,
 		);
 		return systemPrompt === event.systemPrompt ? undefined : { systemPrompt };

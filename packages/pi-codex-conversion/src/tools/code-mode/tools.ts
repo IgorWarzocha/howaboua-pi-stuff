@@ -10,6 +10,7 @@ import {
 	getCustomToolsDir,
 	getProjectCustomToolsDir,
 } from "./custom-tools.js";
+import { replaceCodeModeToolsPrompt } from "./custom-tool-prompt.js";
 import { registerPublicCodeModeTools } from "./public-tools.js";
 import {
 	SharedCodeModeRuntime,
@@ -30,6 +31,7 @@ export interface RegisterCodeModeToolsOptions extends CodeModeToolProvider {}
 
 export interface CodeModeRegistration {
 	prepare(ctx?: unknown): Promise<void> | undefined;
+	refreshPromptTools(systemPrompt: string, ctx?: unknown): string;
 	shutdownHost(): Promise<void>;
 	shutdown(): Promise<void>;
 }
@@ -109,6 +111,20 @@ export async function registerCodeModeTools(
 	let active = true;
 	return {
 		prepare: (ctx) => runtime.prepare(ctx),
+		refreshPromptTools(systemPrompt, ctx) {
+			const activeProviders = runtime.activeProviders(ctx);
+			const documentationPath = activeProviders.find(
+				(provider) => provider.documentationPath,
+			)?.documentationPath;
+			const previousTools = runtime.collectPromptTools(ctx);
+			const nextTools = runtime.refreshPromptTools(ctx);
+			return replaceCodeModeToolsPrompt(
+				systemPrompt,
+				previousTools,
+				nextTools,
+				documentationPath,
+			);
+		},
 		shutdownHost: () => runtime.shutdownHost(),
 		async shutdown() {
 			if (!active) return;

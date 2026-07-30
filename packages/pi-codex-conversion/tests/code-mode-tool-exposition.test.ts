@@ -3,8 +3,10 @@ import test from "node:test";
 import {
 	buildCodeModeToolsPrompt,
 	injectCodeModeToolsPrompt,
+	replaceCodeModeToolsPrompt,
 } from "../src/tools/code-mode/custom-tool-prompt.ts";
 import { scopeAllToolsToDeferredCustom } from "../src/tools/code-mode/host-client.ts";
+import { SharedCodeModeRuntime } from "../src/tools/code-mode/shared-runtime.ts";
 import type {
 	CodeModeToolDefinition,
 	CustomToolDefinition,
@@ -86,4 +88,30 @@ test("ALL_TOOLS exposes only deferred configured custom tools", () => {
 	assert.deepEqual(state.ALL_TOOLS, [
 		{ name: "deferred_tool", description: "deferred_tool help" },
 	]);
+});
+
+test("late custom-tool promotion stays deferred until the prompt snapshot refreshes", () => {
+	const initial = customTool("initial_tool", false);
+	const late = customTool("late_tool", false);
+	let discovered: CodeModeToolDefinition[] = [bundled, initial];
+	const runtime = new SharedCodeModeRuntime();
+	runtime.addProvider({ getTools: () => discovered });
+
+	const initialSnapshot = runtime.refreshPromptTools();
+	const initialPrompt = injectCodeModeToolsPrompt("Base", initialSnapshot, "/custom-tools.md");
+	discovered = [bundled, initial, late];
+
+	assert.deepEqual(runtime.collectPromptTools().map((tool) => tool.name), ["exec_command", "initial_tool"]);
+	assert.equal(runtime.collectTools().find((tool) => tool.name === "late_tool")?.deferLoading, true);
+	assert.doesNotMatch(initialPrompt, /late_tool/);
+
+	const refreshedSnapshot = runtime.refreshPromptTools();
+	const refreshedPrompt = replaceCodeModeToolsPrompt(
+		initialPrompt,
+		initialSnapshot,
+		refreshedSnapshot,
+		"/custom-tools.md",
+	);
+	assert.equal(runtime.collectTools().find((tool) => tool.name === "late_tool")?.deferLoading, false);
+	assert.match(refreshedPrompt, /Configured custom tools:\n- await tools\.initial_tool\(input\)\n- await tools\.late_tool\(input\)/);
 });
