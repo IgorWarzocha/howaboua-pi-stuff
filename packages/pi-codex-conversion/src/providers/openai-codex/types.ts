@@ -102,7 +102,14 @@ export interface ResponseEnvelope {
 		output_tokens_details?: { reasoning_tokens?: number | undefined } | undefined;
 	} | undefined;
 	service_tier?: string | undefined;
-	error?: { message?: string | undefined } | undefined;
+	error?: {
+		code?: string | undefined;
+		type?: string | undefined;
+		message?: string | undefined;
+		status?: number | string | undefined;
+		status_code?: number | string | undefined;
+		[key: string]: unknown;
+	} | undefined;
 	[key: string]: unknown;
 }
 

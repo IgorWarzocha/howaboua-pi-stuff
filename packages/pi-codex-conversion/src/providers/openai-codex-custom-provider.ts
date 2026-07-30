@@ -11,8 +11,8 @@ import {
 } from "@earendil-works/pi-ai";
 import { createGrammarToolInputProperties } from "./constrained-sampling.js";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
-import { DEFAULT_SSE_HEADER_TIMEOUT_MS, DEFAULT_STREAM_IDLE_TIMEOUT_MS, DEFAULT_STREAM_MAX_RETRIES, INITIAL_STREAM_RETRY_DELAY_MS, MAX_SSE_REQUEST_RETRIES, MAX_STREAM_MAX_RETRIES } from "./openai-codex/constants.ts";
-import { createErrorMessage, NonRetryableProviderError, parseErrorResponse } from "./openai-codex/errors.ts";
+import { DEFAULT_MAX_RETRY_DELAY_MS, DEFAULT_SSE_HEADER_TIMEOUT_MS, DEFAULT_STREAM_IDLE_TIMEOUT_MS, DEFAULT_STREAM_MAX_RETRIES, INITIAL_STREAM_RETRY_DELAY_MS, MAX_SSE_REQUEST_RETRIES, MAX_STREAM_MAX_RETRIES } from "./openai-codex/constants.ts";
+import { createErrorMessage, isRetryableError, NonRetryableProviderError, parseErrorResponse } from "./openai-codex/errors.ts";
 import { createCodexRequestId, extractAccountId, buildSSEHeaders, buildWebSocketHeaders, headersToRecord, PI_CODEX_CONVERSION_ORIGINATOR, resolveCodexUrl, resolveCodexWebSocketUrl } from "./openai-codex/headers.ts";
 import { buildRequestBody } from "./openai-codex/request-body.ts";
 import { supportsResponsesLiteModel } from "./openai-codex/responses-lite-model.ts";
@@ -26,6 +26,7 @@ import {
 	recordWebSocketSseFallback,
 	validateWebSocketTimeoutOptions,
 } from "./openai-codex/websocket.ts";
+import { isWebSocketUpgradeRequiredError } from "./openai-codex/websocket-connection.ts";
 import { assertSuccessfulCodexOutput, codexStreamRetryDelay, isRetryableCodexStreamError, processCodexResponsesStream } from "./openai-codex/stream-events.ts";
 import { prewarmWebSocket, processWebSocketStream } from "./openai-codex/websocket-stream.ts";
 import { openaiCodexNativeOAuthProvider } from "./openai-codex/oauth.ts";
@@ -56,16 +57,24 @@ function codexStreamMaxRetries(options: OpenAICodexStreamOptions | undefined): n
 	return Math.min(Math.floor(configured), MAX_STREAM_MAX_RETRIES);
 }
 
-function isWebSocketUpgradeRequiredError(error: unknown): boolean {
-	const message = error instanceof Error ? error.message : String(error);
-	return /(?:\b426\b|upgrade required)/i.test(message);
-}
-
 function withCodexTurnState(body: ResponsesBody, turnState: CodexTurnState | undefined): ResponsesBody {
 	const current = turnState?.current();
 	return current
 		? { ...body, client_metadata: { ...(body.client_metadata ?? {}), [CODEX_TURN_STATE_HEADER]: current } }
 		: body;
+}
+
+function responseRetryDelayMs(headers: Headers): number | undefined {
+	const retryAfterMs = headers.get("retry-after-ms");
+	if (retryAfterMs !== null) {
+		const millis = Number(retryAfterMs);
+		if (Number.isFinite(millis)) return Math.min(DEFAULT_MAX_RETRY_DELAY_MS, Math.max(0, millis));
+	}
+	const retryAfter = headers.get("retry-after");
+	if (!retryAfter) return undefined;
+	const seconds = Number(retryAfter);
+	const delayMs = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(retryAfter) - Date.now();
+	return Number.isFinite(delayMs) ? Math.min(DEFAULT_MAX_RETRY_DELAY_MS, Math.max(0, delayMs)) : undefined;
 }
 
 function withCodexTurnStateHeader(headers: Headers, turnState: CodexTurnState | undefined): Headers {
@@ -154,15 +163,14 @@ async function openCodexSSE<TApi extends Api>(
 		if (response.ok) return response;
 
 		const errorText = await response.text();
-		if (response.status >= 500 && response.status <= 599 && attempt < MAX_SSE_REQUEST_RETRIES) {
-			await sleep(codexStreamRetryDelayMs(attempt + 1), options?.signal);
+		const retryable = isRetryableError(response.status, errorText);
+		if (retryable && attempt < MAX_SSE_REQUEST_RETRIES) {
+			await sleep(responseRetryDelayMs(response.headers) ?? codexStreamRetryDelayMs(attempt + 1), options?.signal);
 			continue;
 		}
 		const info = await parseErrorResponse(new Response(errorText, { status: response.status, statusText: response.statusText }));
 		const message = info.friendlyMessage || info.message;
-		const serverOverloaded = response.status === 503 && /server_is_overloaded|slow_down/i.test(errorText);
-		const terminalStatus = response.status === 400 || response.status === 401 || response.status === 403 || response.status === 429;
-		throw serverOverloaded || terminalStatus ? new NonRetryableProviderError(message) : new Error(message);
+		throw retryable ? new Error(message) : new NonRetryableProviderError(message);
 	}
 	throw lastError ?? new Error("Failed after retries");
 }

@@ -2,6 +2,8 @@ import type { AssistantMessage } from "@earendil-works/pi-ai";
 
 export class NonRetryableProviderError extends Error {}
 
+const TERMINAL_RATE_LIMIT_PATTERN = /GoUsageLimitError|FreeUsageLimitError|Monthly usage limit reached|usage_limit_reached|usage_not_included|available balance|insufficient_quota|out of budget|quota exceeded|billing/i;
+
 type CodexErrorEnvelope = {
 	status_code?: number | undefined;
 	error?: {
@@ -96,7 +98,7 @@ export function formatCodexUsageLimitError(value: unknown): string | undefined {
 	const envelope = normalizeCodexErrorEnvelope(typeof value === "string" ? (parseJsonObject(value) ?? extractJsonObjectFromMessage(value)) : value);
 	if (!envelope) return undefined;
 	const code = envelope.error?.code ?? envelope.error?.type ?? "";
-	if (!/usage_limit_reached|usage_not_included|rate_limit_exceeded/i.test(code) && envelope.status_code !== 429) return undefined;
+	if (!isTerminalRateLimitError(`${code} ${envelope.error?.message ?? ""}`)) return undefined;
 
 	const plan = envelope.error?.plan_type ? ` (${envelope.error.plan_type.toLowerCase()} plan)` : "";
 	const reset = formatReset(envelope.error?.resets_in_seconds ?? asNumber(header(envelope.headers, "X-Codex-Primary-Reset-After-Seconds")), envelope.error?.resets_at ?? asNumber(header(envelope.headers, "X-Codex-Primary-Reset-At")));
@@ -112,11 +114,13 @@ export function formatCodexUsageLimitError(value: unknown): string | undefined {
 	].filter(Boolean).join(" ");
 }
 
+export function isTerminalRateLimitError(errorText: string): boolean {
+	return TERMINAL_RATE_LIMIT_PATTERN.test(errorText);
+}
+
 export function isRetryableError(status: number, errorText: string): boolean {
-	if (status === 429 || status === 500 || status === 502 || status === 503 || status === 504) {
-		return true;
-	}
-	return /rate.?limit|overloaded|service.?unavailable|upstream.?connect|connection.?refused/i.test(errorText);
+	if (status === 429 && isTerminalRateLimitError(errorText)) return false;
+	return status === 408 || status === 409 || status === 425 || status === 429 || (status >= 500 && status <= 599);
 }
 
 export function buildProviderErrorMessage(error: unknown): string {
@@ -151,7 +155,7 @@ export async function parseErrorResponse(response: Response): Promise<{ message:
 		const err = parsed?.error;
 		if (err) {
 			const code = err.code || err.type || "";
-			if (!friendlyMessage && (/usage_limit_reached|usage_not_included|rate_limit_exceeded/i.test(code) || response.status === 429)) {
+			if (!friendlyMessage && isTerminalRateLimitError(`${code} ${err.message ?? ""}`)) {
 				const plan = err.plan_type ? ` (${err.plan_type.toLowerCase()} plan)` : "";
 				const mins = err.resets_at ? Math.max(0, Math.round((err.resets_at * 1000 - Date.now()) / 60000)) : undefined;
 				const when = mins !== undefined ? ` Try again in ~${mins} min.` : "";

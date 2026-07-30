@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { parseSSE } from "../src/providers/openai-codex-custom-provider.ts";
+import { codexStreamRetryDelay, mapCodexEvents } from "../src/providers/openai-codex/stream-events.ts";
+import { parseWebSocket } from "../src/providers/openai-codex/websocket.ts";
 import {
 	ScriptedWebSocket,
 	codexStreamRequest,
@@ -33,7 +35,10 @@ test("parseSSE accepts CRLF chunks, joined data lines, and ignores done sentinel
 
 test("fatal Codex API errors do not arm fallback and malformed frames are ignored", async () => {
 	const restoreWebSocket = installScriptedWebSocket([
-		(socket) => socket.emitJson({ type: "error", status: 400, code: "invalid_request", message: "bad request" }),
+		(socket) => socket.emitJson({
+			type: "response.failed",
+			response: { status: "failed", error: { type: "invalid_request_error", status_code: 422, message: "bad request" } },
+		}),
 		websocketSuccess,
 		(socket) => {
 			socket.emit("message", { data: "not-json" });
@@ -62,6 +67,104 @@ test("fatal Codex API errors do not arm fallback and malformed frames are ignore
 		globalThis.fetch = originalFetch;
 		restoreWebSocket();
 	}
+});
+
+test("transient streamed failures retry with bounded provider delays", async () => {
+	const restoreWebSocket = installScriptedWebSocket([
+		(socket) => socket.emitJson({
+			type: "response.failed",
+			response: { status: "failed", error: { code: "server_is_overloaded", message: "slow down" } },
+		}),
+		websocketSuccess,
+	]);
+	const originalFetch = globalThis.fetch;
+	let fetchCalls = 0;
+	globalThis.fetch = (async () => {
+		fetchCalls++;
+		return sseResponse([]);
+	}) as typeof fetch;
+	try {
+		const registered = createRegisteredCodexProvider();
+		const request = codexStreamRequest("transient-stream-error");
+		const recovered = await collectStream(registered.provider.streamSimple(request.model, request.context, request.options));
+		assert.equal((recovered.at(-1) as { type?: string }).type, "done");
+		assert.equal(ScriptedWebSocket.opened, 2);
+		assert.equal(fetchCalls, 0);
+
+		const failed = mapCodexEvents((async function* () {
+			yield {
+				type: "response.failed",
+				response: { error: { code: "rate_limit_exceeded", message: "Please try again in 999999 seconds" } },
+			};
+		})());
+		let rateLimitError: unknown;
+		try {
+			await failed[Symbol.asyncIterator]().next();
+		} catch (error) {
+			rateLimitError = error;
+		}
+		assert.equal(codexStreamRetryDelay(rateLimitError), 60_000);
+	} finally {
+		globalThis.fetch = originalFetch;
+		restoreWebSocket();
+	}
+});
+
+test("SSE HTTP routing retries transient rate limits only", async () => {
+	const originalFetch = globalThis.fetch;
+	let responseIndex = 0;
+	const responses = [
+		new Response(JSON.stringify({ error: { code: "rate_limit_exceeded", message: "retry shortly" } }), {
+			status: 429,
+			headers: { "retry-after-ms": "0" },
+		}),
+		sseResponse([{ type: "response.completed", response: { id: "resp_retry", status: "completed" } }]),
+		new Response(JSON.stringify({ error: { code: "unprocessable_entity", message: "invalid body" } }), { status: 422 }),
+		new Response(JSON.stringify({ error: { code: "usage_limit_reached", message: "quota exhausted" } }), { status: 429 }),
+	];
+	globalThis.fetch = (async () => responses[responseIndex++]!) as typeof fetch;
+	try {
+		const registered = createRegisteredCodexProvider();
+		const request = codexStreamRequest("sse-http-routing");
+		const options = { ...(request.options as object), transport: "sse", maxRetries: 0 } as never;
+		const recovered = await collectStream(registered.provider.streamSimple(request.model, request.context, options));
+		assert.equal((recovered.at(-1) as { type?: string }).type, "done");
+
+		const permanent = await collectStream(registered.provider.streamSimple(request.model, request.context, options));
+		assert.match(JSON.stringify(permanent.at(-1)), /invalid body/);
+		const quota = await collectStream(registered.provider.streamSimple(request.model, request.context, options));
+		assert.match(JSON.stringify(quota.at(-1)), /usage limit/i);
+		assert.equal(responseIndex, 4);
+	} finally {
+		globalThis.fetch = originalFetch;
+	}
+});
+
+test("WebSocket idle timeout includes asynchronous frame decoding", async () => {
+	const listeners = new Map<string, Set<(event: unknown) => void>>();
+	const socket = {
+		send() {},
+		close() {},
+		addEventListener(type: string, listener: (event: unknown) => void) {
+			const values = listeners.get(type) ?? new Set();
+			values.add(listener);
+			listeners.set(type, values);
+		},
+		removeEventListener(type: string, listener: (event: unknown) => void) {
+			listeners.get(type)?.delete(listener);
+		},
+	};
+	setTimeout(() => {
+		for (const listener of listeners.get("message") ?? []) {
+			listener({ data: { arrayBuffer: () => new Promise<ArrayBuffer>(() => undefined) } });
+		}
+	}, 0);
+
+	await assert.rejects(async () => {
+		for await (const _event of parseWebSocket(socket, undefined, 25)) {
+			// no decoded event is expected
+		}
+	}, /WebSocket idle timeout after 25ms/);
 });
 
 test("SSE body recovery replays turn state and commits only the completed attempt", async () => {

@@ -24,6 +24,7 @@ export async function* parseWebSocket(socket: WebSocketLike, signal: AbortSignal
 	let failed: Error | null = null;
 	let closeError: Error | null = null;
 	let sawCompletion = false;
+	let idleTimedOut = false;
 	let pendingMessages = 0;
 	let messageChain = Promise.resolve();
 
@@ -108,12 +109,14 @@ export async function* parseWebSocket(socket: WebSocketLike, signal: AbortSignal
 				yield queue.shift() as StreamEventShape;
 				continue;
 			}
+			if (failed && (pendingMessages === 0 || idleTimedOut)) break;
 			if (done && pendingMessages === 0) break;
 			let timeout: ReturnType<typeof setTimeout> | undefined;
 			await new Promise<void>((resolve) => {
 				pending = resolve;
-				if (pendingMessages === 0 && idleTimeoutMs && idleTimeoutMs > 0) {
+				if (idleTimeoutMs && idleTimeoutMs > 0) {
 					timeout = setTimeout(() => {
+						idleTimedOut = true;
 						failed = new Error(`WebSocket idle timeout after ${idleTimeoutMs}ms`);
 						done = true;
 						wake();

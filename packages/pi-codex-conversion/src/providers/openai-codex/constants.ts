@@ -5,6 +5,7 @@ export const DEFAULT_STREAM_MAX_RETRIES = 5;
 export const MAX_STREAM_MAX_RETRIES = 100;
 export const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 300_000;
 export const INITIAL_STREAM_RETRY_DELAY_MS = 200;
+export const DEFAULT_MAX_RETRY_DELAY_MS = 60_000;
 export const DEFAULT_SSE_HEADER_TIMEOUT_MS = 20_000;
 export const DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS = 15_000;
 export const CODEX_RESPONSE_STATUSES = new Set(["completed", "incomplete", "failed", "cancelled", "queued", "in_progress"]);

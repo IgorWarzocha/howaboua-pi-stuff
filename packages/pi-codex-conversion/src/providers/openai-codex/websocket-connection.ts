@@ -136,11 +136,32 @@ function nestedWebSocketError(error: Error): Error {
 	return wrapped;
 }
 
+function webSocketHttpStatus(value: unknown, seen = new Set<unknown>()): number | undefined {
+	if (!value || typeof value !== "object" || seen.has(value)) return undefined;
+	seen.add(value);
+	const record = value as Record<string, unknown>;
+	for (const candidate of [record["status"], record["statusCode"], record["status_code"], record["code"]]) {
+		const parsed = typeof candidate === "string" && /^\d+$/.test(candidate) ? Number(candidate) : candidate;
+		if (typeof parsed === "number" && Number.isInteger(parsed) && parsed >= 100 && parsed <= 599) return parsed;
+	}
+	return webSocketHttpStatus(record["error"], seen)
+		?? webSocketHttpStatus(record["cause"], seen)
+		?? webSocketHttpStatus(record["response"], seen);
+}
+
+export function isWebSocketUpgradeRequiredError(error: unknown): boolean {
+	if (webSocketHttpStatus(error) === 426) return true;
+	const message = error instanceof Error ? error.message : String(error);
+	return /^(?:WebSocket error:\s*)?(?:Unexpected server response:\s*426(?:\s+Upgrade Required)?|HTTP(?:\/\d(?:\.\d)?)?\s+426(?:\s+Upgrade Required)?|WebSocket (?:handshake|upgrade)\b[^\n]*\b426(?:\s+Upgrade Required)?)$/i.test(message.trim());
+}
+
 export function extractWebSocketError(event: unknown): Error {
 	if (event && typeof event === "object") {
 		const message = "message" in event ? (event as { message?: unknown | undefined }).message : undefined;
 		if (typeof message === "string" && message.length > 0) {
-			return new Error(message);
+			const error = new Error(message) as Error & { status?: number | undefined };
+			error.status = webSocketHttpStatus(event);
+			return error;
 		}
 		const nestedError = "error" in event ? (event as { error?: unknown | undefined }).error : undefined;
 		if (nestedError instanceof Error && nestedError.message.length > 0) return nestedWebSocketError(nestedError);

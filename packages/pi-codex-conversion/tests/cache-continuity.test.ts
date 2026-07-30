@@ -533,6 +533,36 @@ test("WebSocket 426 falls back to sticky SSE without retrying", async () => {
 	}
 });
 
+test("unrelated 426 text retries WebSocket instead of arming SSE fallback", async () => {
+	const restoreWebSocket = installScriptedWebSocket([
+		(socket) => socket.emit("error", { message: "Codex protocol item 426 failed" }),
+		websocketSuccess,
+	]);
+	const originalFetch = globalThis.fetch;
+	let fetchCalls = 0;
+	globalThis.fetch = (async () => {
+		fetchCalls++;
+		return sseResponse([]);
+	}) as typeof fetch;
+	try {
+		const registered = createRegisteredCodexProvider({ codeMode: true });
+		const sessionId = "not-upgrade-required";
+		const requestContext = context([user("same user", 1)]);
+		const recovered = await collectStream(registered.provider.streamSimple(
+			model as never,
+			requestContext as never,
+			streamOptions(sessionId) as never,
+		));
+
+		assert.equal((recovered.at(-1) as { type?: string }).type, "done");
+		assert.equal(ScriptedWebSocket.opened, 2);
+		assert.equal(fetchCalls, 0);
+	} finally {
+		globalThis.fetch = originalFetch;
+		restoreWebSocket();
+	}
+});
+
 test("transport reset preserves session-sticky SSE until shutdown", () => {
 	const runtime = createCodexExtensionRuntime({ sendUserMessage: () => undefined } as never);
 	const sessionId = "sticky-reset";
