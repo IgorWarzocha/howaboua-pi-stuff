@@ -93,6 +93,11 @@ test("ALL_TOOLS exposes only deferred configured custom tools", () => {
 test("late custom-tool promotion stays deferred until the prompt snapshot refreshes", () => {
 	const initial = customTool("initial_tool", false);
 	const late = customTool("late_tool", false);
+	const liveBundled = {
+		...bundled,
+		name: "live_programmatic_tool",
+		usage: "await tools.live_programmatic_tool()",
+	};
 	let discovered: CodeModeToolDefinition[] = [bundled, initial];
 	const runtime = new SharedCodeModeRuntime();
 	runtime.addProvider({ getTools: () => discovered });
@@ -101,10 +106,14 @@ test("late custom-tool promotion stays deferred until the prompt snapshot refres
 	const basePrompt = "Tools available in exec:\n- user_owned_tool\n\nBase";
 	const initialSection = buildCodeModeToolsPrompt(initialSnapshot, "/custom-tools.md", basePrompt);
 	const initialPrompt = injectCodeModeToolsPrompt(basePrompt, initialSnapshot, "/custom-tools.md");
-	discovered = [bundled, initial, late];
+	discovered = [bundled, liveBundled, late];
 
-	assert.deepEqual(runtime.collectPromptTools().map((tool) => tool.name), ["exec_command", "initial_tool"]);
+	assert.deepEqual(runtime.collectPromptTools().map((tool) => tool.name), ["exec_command", "live_programmatic_tool", "initial_tool"]);
 	assert.equal(runtime.collectTools().find((tool) => tool.name === "late_tool")?.deferLoading, true);
+	assert.equal(runtime.collectTools().some((tool) => tool.name === "initial_tool"), false);
+	assert.match(buildCodeModeToolsPrompt(runtime.collectPromptTools()), /await tools\.live_programmatic_tool\(\)/);
+	assert.match(buildCodeModeToolsPrompt(runtime.collectPromptTools()), /await tools\.initial_tool\(input\)/);
+	assert.doesNotMatch(buildCodeModeToolsPrompt(runtime.collectPromptTools()), /late_tool/);
 	assert.doesNotMatch(initialPrompt, /late_tool/);
 
 	const refreshedSnapshot = runtime.refreshPromptTools();
@@ -117,5 +126,6 @@ test("late custom-tool promotion stays deferred until the prompt snapshot refres
 	assert.equal(runtime.collectTools().find((tool) => tool.name === "late_tool")?.deferLoading, false);
 	assert.equal(refreshedPrompt.match(/Tools available in exec:/g)?.length, 1);
 	assert.match(refreshedPrompt, /- user_owned_tool/);
-	assert.match(refreshedPrompt, /Configured custom tools:\n- await tools\.initial_tool\(input\)\n- await tools\.late_tool\(input\)/);
+	assert.match(refreshedPrompt, /Configured custom tools:\n- await tools\.late_tool\(input\)/);
+	assert.doesNotMatch(refreshedPrompt, /initial_tool/);
 });
