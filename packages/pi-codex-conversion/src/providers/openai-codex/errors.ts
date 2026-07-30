@@ -123,7 +123,7 @@ export function isRetryableRequestStatus(status: number): boolean {
 }
 
 export function isRetryableStreamStatus(status: number): boolean {
-	return status === 408 || status === 409 || status === 425 || isRetryableRequestStatus(status);
+	return (status < 200 || status >= 300) && status !== 400 && status !== 401 && status !== 429;
 }
 
 export function buildProviderErrorMessage(error: unknown): string {
@@ -147,18 +147,19 @@ export function createErrorMessage(message: AssistantMessage, error: unknown, ab
 	return message;
 }
 
-export async function parseErrorResponse(response: Response): Promise<{ message: string; friendlyMessage?: string | undefined }> {
+export async function parseErrorResponse(response: Response): Promise<{ message: string; friendlyMessage?: string | undefined; code?: string | undefined }> {
 	const raw = await response.text();
 	let message = raw || response.statusText || "Request failed";
 	let friendlyMessage: string | undefined;
+	let code: string | undefined;
 
 	try {
 		const parsed = JSON.parse(raw) as { error?: { code?: string | undefined; type?: string | undefined; plan_type?: string | undefined; resets_at?: number | undefined; message?: string | undefined } | undefined };
 		friendlyMessage = formatCodexUsageLimitError({ ...parsed, status_code: response.status, headers: Object.fromEntries(response.headers.entries()) });
 		const err = parsed?.error;
 		if (err) {
-			const code = err.code || err.type || "";
-			if (!friendlyMessage && isTerminalRateLimitError(`${code} ${err.message ?? ""}`)) {
+			code = err.code || err.type;
+			if (!friendlyMessage && isTerminalRateLimitError(`${code ?? ""} ${err.message ?? ""}`)) {
 				const plan = err.plan_type ? ` (${err.plan_type.toLowerCase()} plan)` : "";
 				const mins = err.resets_at ? Math.max(0, Math.round((err.resets_at * 1000 - Date.now()) / 60000)) : undefined;
 				const when = mins !== undefined ? ` Try again in ~${mins} min.` : "";
@@ -170,5 +171,5 @@ export async function parseErrorResponse(response: Response): Promise<{ message:
 		// ignore malformed error bodies
 	}
 
-	return { message, friendlyMessage };
+	return { message, friendlyMessage, ...(code ? { code } : {}) };
 }

@@ -27,7 +27,7 @@ import {
 	validateWebSocketTimeoutOptions,
 } from "./openai-codex/websocket.ts";
 import { isPermanentWebSocketError, isWebSocketMessageTooBigError, isWebSocketUnauthorizedError, isWebSocketUpgradeRequiredError } from "./openai-codex/websocket-connection.ts";
-import { assertSuccessfulCodexOutput, codexOverloadRetryDelay, codexRateLimitRetryDelay, codexStreamRetryDelay, isCodexOverloadError, isCodexRateLimitError, isRetryableCodexStreamError, processCodexResponsesStream } from "./openai-codex/stream-events.ts";
+import { assertSuccessfulCodexOutput, codexOverloadRetryDelay, codexRateLimitRetryDelay, codexStreamRetryDelay, createCodexHttpError, isCodexApiError, isCodexOverloadError, isCodexRateLimitError, isRetryableCodexStreamError, processCodexResponsesStream } from "./openai-codex/stream-events.ts";
 import { prewarmWebSocket, processWebSocketStream } from "./openai-codex/websocket-stream.ts";
 import { openaiCodexNativeOAuthProvider } from "./openai-codex/oauth.ts";
 import { CODEX_TURN_STATE_HEADER, type CodexTurnState } from "./openai-codex/turn-state.ts";
@@ -156,13 +156,17 @@ async function openCodexSSE<TApi extends Api>(
 		if (response.ok) return response;
 
 		const errorText = await response.text();
+		const info = await parseErrorResponse(new Response(errorText, { status: response.status, statusText: response.statusText }));
+		const message = info.friendlyMessage || info.message;
+		if (info.code === "server_is_overloaded" || info.code === "slow_down") {
+			throw createCodexHttpError(message, info.code, response.status);
+		}
 		const requestRetryable = isRetryableRequestStatus(response.status);
 		if (requestRetryable && attempt < MAX_SSE_REQUEST_RETRIES) {
 			await sleep(codexStreamRetryDelayMs(attempt + 1), options?.signal);
 			continue;
 		}
-		const info = await parseErrorResponse(new Response(errorText, { status: response.status, statusText: response.statusText }));
-		const message = info.friendlyMessage || info.message;
+		if (info.code) throw createCodexHttpError(message, info.code, response.status);
 		throw isRetryableStreamStatus(response.status) ? new Error(message) : new NonRetryableProviderError(message);
 	}
 	throw lastError ?? new Error("Failed after retries");
@@ -316,7 +320,7 @@ function createCodexStream<TApi extends Api>(
 						const upgradeRequired = isWebSocketUpgradeRequiredError(error);
 						const messageTooBig = isWebSocketMessageTooBigError(error);
 						const unauthorized = isWebSocketUnauthorizedError(error);
-						const retryableWebSocketError = !isPermanentWebSocketError(error) && isRetryableCodexStreamError(error);
+						const retryableWebSocketError = (isCodexApiError(error) || !isPermanentWebSocketError(error)) && isRetryableCodexStreamError(error);
 						const retryPlan = planRetry(error, attempt + 1);
 						const overloadBudgetExhausted = retryPlan.overload && retryPlan.delayMs === undefined;
 						const rateLimitBudgetExhausted = retryPlan.rateLimit && retryPlan.delayMs === undefined;

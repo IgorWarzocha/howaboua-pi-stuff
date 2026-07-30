@@ -1,7 +1,7 @@
 import { processResponsesStream } from "../openai-responses/shared.ts";
 import type { Api, AssistantMessage, AssistantMessageEventStream, Model } from "@earendil-works/pi-ai";
 import { CODEX_RESPONSE_STATUSES, DEFAULT_MAX_RETRY_DELAY_MS, DEFAULT_OVERLOAD_INITIAL_RETRY_DELAY_MS, DEFAULT_OVERLOAD_RECOVERY_BUDGET_MS, DEFAULT_OVERLOAD_RETRY_DELAY_MS, DEFAULT_RATE_LIMIT_RECOVERY_BUDGET_MS } from "./constants.ts";
-import { isTerminalRateLimitError } from "./errors.ts";
+import { isRetryableStreamStatus, isTerminalRateLimitError } from "./errors.ts";
 import { applyServiceTierPricing, resolveCodexServiceTier } from "./usage.ts";
 import type { OpenAICodexStreamOptions, ServiceTier, StreamEventShape } from "./types.ts";
 
@@ -64,8 +64,20 @@ export function isRetryableCodexStreamError(error: unknown): boolean {
 	return !(error instanceof CodexProtocolError);
 }
 
+export function isCodexApiError(error: unknown): boolean {
+	return error instanceof CodexApiError;
+}
+
 export function codexStreamRetryDelay(error: unknown): number | undefined {
 	return error instanceof CodexApiError ? error.retryDelayMs : undefined;
+}
+
+export function createCodexHttpError(message: string, code: string | undefined, status: number): Error {
+	return new CodexApiError(message, {
+		...(code ? { code } : {}),
+		status,
+		retryable: !(code && FATAL_CODEX_ERROR_CODES.has(code)) && isRetryableStreamStatus(status),
+	});
 }
 
 export function isCodexOverloadError(error: unknown): boolean {
@@ -135,7 +147,7 @@ function isRetryableCodexApiFailure(code: string | undefined, message: string | 
 	if (code === "rate_limit_exceeded" && isTerminalRateLimitError(`${code} ${message ?? ""}`)) return false;
 	if (code && RETRYABLE_CODEX_ERROR_CODES.has(code)) return true;
 	if (code && FATAL_CODEX_ERROR_CODES.has(code)) return false;
-	if (status !== undefined) return status === 408 || status === 409 || status === 425 || status === 429 || (status >= 500 && status <= 599);
+	if (status !== undefined) return isRetryableStreamStatus(status);
 	return defaultRetryable;
 }
 

@@ -73,7 +73,7 @@ test("streamed failures separate transient, quota, and recovery-budget routing",
 	const restoreWebSocket = installScriptedWebSocket([
 		(socket) => socket.emitJson({
 			type: "response.failed",
-			response: { status: "failed", error: { code: "rate_limit_exceeded", message: "Transient limit; see billing account guidance" } },
+			response: { status: "failed", error: { code: "rate_limit_exceeded", status: 429, message: "Transient limit; see billing account guidance" } },
 		}),
 		websocketSuccess,
 		(socket) => socket.emitJson({
@@ -233,11 +233,14 @@ test("SSE HTTP routing keeps request and stream retry budgets separate", async (
 	const responses = [
 		new Response(JSON.stringify({ error: { code: "request_timeout", message: "request timed out" } }), { status: 408 }),
 		new Response(JSON.stringify({ error: { code: "rate_limit_exceeded", message: "retry shortly" } }), { status: 429 }),
+		new Response(JSON.stringify({ error: { code: "server_is_overloaded", message: "server overloaded" } }), { status: 503 }),
 		new Response(JSON.stringify({ error: { code: "server_error", message: "temporary failure" } }), {
 			status: 500,
 			headers: { "retry-after-ms": "0" },
 		}),
 		sseResponse([{ type: "response.completed", response: { id: "resp_retry", status: "completed" } }]),
+		new Response(JSON.stringify({ error: { code: "unprocessable_entity", message: "unexpected response" } }), { status: 422 }),
+		sseResponse([{ type: "response.completed", response: { id: "resp_unexpected", status: "completed" } }]),
 	];
 	globalThis.fetch = (async () => responses[responseIndex++]!) as typeof fetch;
 	try {
@@ -256,9 +259,21 @@ test("SSE HTTP routing keeps request and stream retry budgets separate", async (
 		assert.match(JSON.stringify(rateLimit.at(-1)), /retry shortly/);
 		assert.equal(responseIndex, 2);
 
+		const overload = await collectStream(registered.provider.streamSimple(request.model, request.context, options));
+		assert.match(JSON.stringify(overload.at(-1)), /stream retry budget was exhausted/i);
+		assert.equal(responseIndex, 3);
+
 		const recovered = await collectStream(registered.provider.streamSimple(request.model, request.context, options));
 		assert.equal((recovered.at(-1) as { type?: string }).type, "done");
-		assert.equal(responseIndex, 4);
+		assert.equal(responseIndex, 5);
+
+		const unexpected = await collectStream(registered.provider.streamSimple(
+			request.model,
+			request.context,
+			{ ...(request.options as object), transport: "sse", maxRetries: 1 } as never,
+		));
+		assert.equal((unexpected.at(-1) as { type?: string }).type, "done");
+		assert.equal(responseIndex, 7);
 	} finally {
 		globalThis.fetch = originalFetch;
 	}
