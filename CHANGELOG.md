@@ -57,11 +57,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 3.0.3
+### @howaboua/pi-codex-conversion — 3.0.4
 
 ### Changes
 
-- [#203](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/203) [`67f6fdf`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/67f6fdf98dc3cc3c0349890b28f60aad1f7f3fac) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Capture final provider instructions after downstream prompt extensions so native Codex compaction reuses the active WebSocket cache. Cache settled collapsed exec previews by terminal width to prevent historical command output from consuming CPU on every TUI redraw.
+- [#205](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/205) [`a7f4e55`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/a7f4e55c7c3e0818dedf6c66d852e6153b026d28) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Align Codex transport recovery and cache continuation with Codex: separate request and stream failure lanes, honor bounded streamed delays and overload budgets, preserve turn state and WebSocket close codes, avoid caching unfinished responses, and isolate continuation state across sessions, models, reasoning levels, tool order, and compaction.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 

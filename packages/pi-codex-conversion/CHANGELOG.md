@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.0.4
+
+### Changes
+
+- [#205](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/205) [`a7f4e55`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/a7f4e55c7c3e0818dedf6c66d852e6153b026d28) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Align Codex transport recovery and cache continuation with Codex: separate request and stream failure lanes, honor bounded streamed delays and overload budgets, preserve turn state and WebSocket close codes, avoid caching unfinished responses, and isolate continuation state across sessions, models, reasoning levels, tool order, and compaction.
+
 ## 3.0.3
 
 ### Changes
