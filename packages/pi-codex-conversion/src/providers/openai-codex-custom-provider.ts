@@ -11,7 +11,7 @@ import {
 } from "@earendil-works/pi-ai";
 import { createGrammarToolInputProperties } from "./constrained-sampling.js";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
-import { BASE_DELAY_MS, DEFAULT_SSE_HEADER_TIMEOUT_MS, MAX_RETRIES } from "./openai-codex/constants.ts";
+import { BASE_DELAY_MS, DEFAULT_SSE_HEADER_TIMEOUT_MS, DEFAULT_STREAM_MAX_RETRIES, INITIAL_STREAM_RETRY_DELAY_MS, MAX_SSE_REQUEST_RETRIES } from "./openai-codex/constants.ts";
 import { createErrorMessage, isRetryableError, NonRetryableProviderError, parseErrorResponse } from "./openai-codex/errors.ts";
 import { createCodexRequestId, extractAccountId, buildSSEHeaders, buildWebSocketHeaders, headersToRecord, PI_CODEX_CONVERSION_ORIGINATOR, resolveCodexUrl, resolveCodexWebSocketUrl } from "./openai-codex/headers.ts";
 import { buildRequestBody } from "./openai-codex/request-body.ts";
@@ -22,13 +22,11 @@ import type { CodexProviderStreamOptions, OpenAICodexStreamOptions, ResponsesBod
 import { createInitialAssistantMessage } from "./openai-codex/types.ts";
 import { finalizeUsage } from "./openai-codex/usage.ts";
 import {
-	clearWebSocketTransportFailures,
 	isWebSocketSseFallbackActive,
-	recordWebSocketPostStartFailure,
 	recordWebSocketSseFallback,
 	validateWebSocketTimeoutOptions,
 } from "./openai-codex/websocket.ts";
-import { assertSuccessfulCodexOutput, isCodexNonTransportError, isWebSocketConnectionLimitReachedError, processCodexResponsesStream } from "./openai-codex/stream-events.ts";
+import { assertSuccessfulCodexOutput, isCodexNonTransportError, isPreviousResponseNotFoundError, isWebSocketConnectionLimitReachedError, processCodexResponsesStream } from "./openai-codex/stream-events.ts";
 import { prewarmWebSocket, processWebSocketStream } from "./openai-codex/websocket-stream.ts";
 import { openaiCodexNativeOAuthProvider } from "./openai-codex/oauth.ts";
 import { CODEX_TURN_STATE_HEADER, type CodexTurnState } from "./openai-codex/turn-state.ts";
@@ -43,6 +41,16 @@ export { parseSSE } from "./openai-codex/sse.ts";
 export { buildCachedWebSocketRequestBody, requestBodyForWebSocketContinuationComparison } from "./openai-codex/websocket-continuation.ts";
 export { closeOpenAICodexWebSocketSessions } from "./openai-codex/websocket.ts";
 export type { CachedWebSocketContinuationState, CachedWebSocketRequestBodyResult, ResponsesBody, WebSocketContinuationDecision } from "./openai-codex/types.ts";
+
+function codexStreamRetryDelayMs(retryCount: number): number {
+	const base = INITIAL_STREAM_RETRY_DELAY_MS * 2 ** Math.max(0, retryCount - 1);
+	return base * (0.9 + Math.random() * 0.2);
+}
+
+function isWebSocketUpgradeRequiredError(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error);
+	return /(?:\b426\b|upgrade required)/i.test(message);
+}
 
 export function getEffectiveCodexTransport(
 	transport: Transport | undefined,
@@ -111,8 +119,9 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 	try {
 		await prewarmWebSocket(resolveCodexWebSocketUrl(model.baseUrl), websocketBody, headers, effectiveOptions, deps.turnState);
 	} catch (error) {
-		if (!options.signal?.aborted && (!isCodexNonTransportError(error) || isWebSocketConnectionLimitReachedError(error))) {
+		if (!options.signal?.aborted && isWebSocketUpgradeRequiredError(error)) {
 			recordWebSocketSseFallback(options.sessionId);
+			return;
 		}
 		throw error;
 	}
@@ -146,7 +155,7 @@ function createCodexStream<TApi extends Api>(
 	const stream = createAssistantMessageEventStream();
 
 	(async () => {
-		const output = createInitialAssistantMessage(model);
+		let output = createInitialAssistantMessage(model);
 		try {
 			const apiKey = effectiveOptions?.apiKey;
 			if (!apiKey) {
@@ -175,69 +184,74 @@ function createCodexStream<TApi extends Api>(
 			const sseBody = compressedBody ?? bodyJson;
 			const transport = effectiveOptions.transport ?? "auto";
 
+			let streamStarted = false;
 			if (transport !== "sse") {
 				validateWebSocketTimeoutOptions(effectiveOptions);
-				let websocketStarted = false;
-				try {
-					await processWebSocketStream(
-						resolveCodexWebSocketUrl(model.baseUrl),
-						websocketBody,
-						websocketHeaders,
-						output,
-						stream,
-						model,
-						() => {
-							websocketStarted = true;
-						},
-						effectiveOptions,
-						deps.turnState,
-					);
-					if (effectiveOptions?.signal?.aborted) {
-						throw new Error("Request was aborted");
-					}
-					clearWebSocketTransportFailures(effectiveOptions?.sessionId);
-					finalizeUsage(output);
-					assertSuccessfulCodexOutput(output);
-					stream.push({ type: "done", reason: output.stopReason, message: output });
-					stream.end();
-					return;
-				} catch (error) {
-					const aborted = effectiveOptions?.signal?.aborted === true;
-					const connectionLimitBeforeStart = !websocketStarted && isWebSocketConnectionLimitReachedError(error);
-					const nonTransportError = isCodexNonTransportError(error) && !connectionLimitBeforeStart;
-					if (aborted) throw error;
-					if (nonTransportError && !websocketStarted) {
-						clearWebSocketTransportFailures(effectiveOptions?.sessionId);
-						throw error;
-					}
-					const fallbackArmed = websocketStarted && !nonTransportError
-						? recordWebSocketPostStartFailure(effectiveOptions?.sessionId)
-						: !websocketStarted;
-					appendAssistantMessageDiagnostic(
-						output,
-						createAssistantMessageDiagnostic(nonTransportError ? "provider_stream_failure" : "provider_transport_failure", error, {
-							configuredTransport: preferredTransport,
-							fallbackTransport: fallbackArmed ? "sse" : undefined,
-							eventsEmitted: websocketStarted,
-							phase: websocketStarted ? "after_message_stream_start" : "before_message_stream_start",
-							requestBytes: new TextEncoder().encode(bodyJson).byteLength,
-						}),
-					);
-					if (websocketStarted) {
-						if (nonTransportError) {
-							clearWebSocketTransportFailures(effectiveOptions?.sessionId);
-							throw new NonRetryableProviderError("Codex stream ended after output began and cannot be continued from its incomplete response.");
+				for (let attempt = 0; attempt <= DEFAULT_STREAM_MAX_RETRIES; attempt++) {
+					if (attempt > 0) output = createInitialAssistantMessage(model);
+					let websocketStarted = false;
+					try {
+						await processWebSocketStream(
+							resolveCodexWebSocketUrl(model.baseUrl),
+							websocketBody,
+							websocketHeaders,
+							output,
+							stream,
+							model,
+							() => {
+								websocketStarted = true;
+								if (!streamStarted) {
+									streamStarted = true;
+									stream.push({ type: "start", partial: output });
+								}
+							},
+							effectiveOptions,
+							deps.turnState,
+						);
+						if (effectiveOptions?.signal?.aborted) throw new Error("Request was aborted");
+						finalizeUsage(output);
+						assertSuccessfulCodexOutput(output);
+						stream.push({ type: "done", reason: output.stopReason, message: output });
+						stream.end();
+						return;
+					} catch (error) {
+						if (effectiveOptions?.signal?.aborted) throw error;
+						const upgradeRequired = isWebSocketUpgradeRequiredError(error);
+						const retryableWebSocketError = !isCodexNonTransportError(error)
+							|| isWebSocketConnectionLimitReachedError(error)
+							|| isPreviousResponseNotFoundError(error);
+						const fallbackArmed = upgradeRequired || (retryableWebSocketError && attempt >= DEFAULT_STREAM_MAX_RETRIES);
+						appendAssistantMessageDiagnostic(
+							output,
+							createAssistantMessageDiagnostic(retryableWebSocketError ? "provider_transport_failure" : "provider_stream_failure", error, {
+								configuredTransport: preferredTransport,
+								fallbackTransport: fallbackArmed ? "sse" : undefined,
+								eventsEmitted: websocketStarted,
+								phase: websocketStarted ? "after_message_stream_start" : "before_message_stream_start",
+								requestBytes: new TextEncoder().encode(bodyJson).byteLength,
+							}),
+						);
+						if (!upgradeRequired && retryableWebSocketError && attempt < DEFAULT_STREAM_MAX_RETRIES) {
+							await sleep(codexStreamRetryDelayMs(attempt + 1), effectiveOptions?.signal);
+							continue;
 						}
-						throw error;
+						if (!fallbackArmed) {
+							if (websocketStarted) {
+								throw new NonRetryableProviderError("Codex stream ended after output began and cannot be continued from its incomplete response.");
+							}
+							throw error;
+						}
+						recordWebSocketSseFallback(effectiveOptions?.sessionId);
+						output = createInitialAssistantMessage(model);
+						break;
 					}
-					recordWebSocketSseFallback(effectiveOptions?.sessionId);
 				}
 			}
 
 			let response: Response | undefined;
 			let lastError: Error | undefined;
 
-			for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+			for (let attempt = 0; attempt <= MAX_SSE_REQUEST_RETRIES; attempt++) {
 				if (effectiveOptions?.signal?.aborted) {
 					throw new Error("Request was aborted");
 				}
@@ -268,7 +282,7 @@ function createCodexStream<TApi extends Api>(
 					}
 
 					const errorText = await response.text();
-					if (attempt < MAX_RETRIES && isRetryableError(response.status, errorText)) {
+					if (attempt < MAX_SSE_REQUEST_RETRIES && isRetryableError(response.status, errorText)) {
 						await sleep(BASE_DELAY_MS * 2 ** attempt, effectiveOptions?.signal);
 						continue;
 					}
@@ -288,7 +302,7 @@ function createCodexStream<TApi extends Api>(
 					}
 
 					lastError = error instanceof Error ? error : new Error(String(error));
-					if (attempt < MAX_RETRIES && !lastError.message.includes("usage limit")) {
+					if (attempt < MAX_SSE_REQUEST_RETRIES && !lastError.message.includes("usage limit")) {
 						await sleep(BASE_DELAY_MS * 2 ** attempt, effectiveOptions?.signal);
 						continue;
 					}
@@ -304,7 +318,10 @@ function createCodexStream<TApi extends Api>(
 				throw new Error("No response body");
 			}
 
-			stream.push({ type: "start", partial: output });
+			if (!streamStarted) {
+				streamStarted = true;
+				stream.push({ type: "start", partial: output });
+			}
 			await processCodexResponsesStream(parseSSE(response, effectiveOptions?.signal), output, stream, model, effectiveOptions);
 			finalizeUsage(output);
 

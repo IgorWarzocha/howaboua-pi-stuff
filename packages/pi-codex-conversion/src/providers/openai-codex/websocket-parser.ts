@@ -137,16 +137,6 @@ export async function* parseWebSocket(socket: WebSocketLike, signal: AbortSignal
 	}
 }
 
-export async function* countWebSocketEvents(
-	events: AsyncIterable<StreamEventShape>,
-	onEvent: () => void,
-): AsyncIterable<StreamEventShape> {
-	for await (const event of events) {
-		onEvent();
-		yield event;
-	}
-}
-
 export async function* startWebSocketOutputOnFirstEvent(
 	events: AsyncIterable<StreamEventShape>,
 	onStart: () => void,
@@ -159,10 +149,4 @@ export async function* startWebSocketOutputOnFirstEvent(
 		}
 		yield event;
 	}
-}
-
-export function isRetryableEarlyWebSocketError(error: unknown): boolean {
-	const message = error instanceof Error ? error.message : String(error);
-	if (/message too big/i.test(message)) return false;
-	return /^WebSocket (?:error|closed|connect timeout)(?:\s|$)/.test(message);
 }

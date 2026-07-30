@@ -109,6 +109,27 @@ function failAfterStart(socket: ScriptedWebSocket) {
 	socket.emit("error", { error: new Error("socket reset by peer") });
 }
 
+function upgradeRequired(socket: ScriptedWebSocket) {
+	socket.emit("error", { error: new Error("Unexpected server response: 426 Upgrade Required") });
+}
+
+function failAfterText(socket: ScriptedWebSocket) {
+	socket.emitJson({ type: "response.created", response: { id: "resp_partial" } });
+	socket.emitJson({
+		type: "response.output_item.done",
+		output_index: 0,
+		item: {
+			id: "msg_resp_partial",
+			type: "message",
+			status: "completed",
+			content: [{ type: "output_text", annotations: [], logprobs: [], text: "discarded partial output" }],
+			phase: "final_answer",
+			role: "assistant",
+		},
+	});
+	socket.emit("error", { error: new Error("socket reset by peer") });
+}
+
 function apiFailAfterStart(socket: ScriptedWebSocket) {
 	socket.emitJson({ type: "response.created", response: { id: "resp_failed" } });
 	socket.emitJson({ type: "error", code: "server_error", message: "internal server error" });
@@ -346,8 +367,11 @@ test("WebSocket continuations never cross session IDs", async () => {
 	}
 });
 
-test("SSE fallback stays sticky after three post-start WebSocket failures", async () => {
+test("Codex transport retries five fresh full WebSockets before sticky SSE fallback", { timeout: 15_000 }, async () => {
 	const restoreWebSocket = installScriptedWebSocket([
+		failAfterText,
+		failAfterStart,
+		failAfterStart,
 		failAfterStart,
 		failAfterStart,
 		failAfterStart,
@@ -358,10 +382,22 @@ test("SSE fallback stays sticky after three post-start WebSocket failures", asyn
 		fetchCalls++;
 		return sseResponse([
 			{
+				type: "response.output_item.done",
+				output_index: 0,
+				item: {
+					id: `msg_sse_${fetchCalls}`,
+					type: "message",
+					status: "completed",
+					content: [{ type: "output_text", annotations: [], logprobs: [], text: `SSE recovery ${fetchCalls}` }],
+					phase: "final_answer",
+					role: "assistant",
+				},
+			},
+			{
 				type: "response.completed",
 				response: {
 					id: `resp_sse_${fetchCalls}`,
-					status: fetchCalls === 1 ? "in_progress" : "completed",
+					status: "completed",
 					usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 },
 				},
 			},
@@ -371,26 +407,16 @@ test("SSE fallback stays sticky after three post-start WebSocket failures", asyn
 		const registered = createRegisteredCodexProvider({ codeMode: true });
 		const sessionId = "post-start-retry";
 		const requestContext = context([user("same user", 1)]);
-		for (let attempt = 0; attempt < 3; attempt++) {
-			const failed = await collectStream(
-				registered.provider.streamSimple(model as never, requestContext as never, streamOptions(sessionId) as never),
-			);
-			const failedEvent = failed.at(-1) as { type?: string; error?: AssistantMessage };
-			assert.equal(failedEvent.type, "error");
-			assert.ok(failedEvent.error);
-			assert.equal(isRetryableAssistantError(failedEvent.error), true);
-			assert.match(JSON.stringify(failedEvent.error.diagnostics), /socket reset by peer/);
-			assert.equal(fetchCalls, 0);
-		}
-
-		const unfinishedSse = await collectStream(registered.provider.streamSimple(
+		const recovered = await collectStream(registered.provider.streamSimple(
 			model as never,
 			requestContext as never,
 			streamOptions(sessionId) as never,
 		));
-		assert.equal((unfinishedSse.at(-1) as { type?: string }).type, "error");
-		assert.match(JSON.stringify(unfinishedSse.at(-1)), /pending result/);
-		assert.equal(ScriptedWebSocket.opened, 3);
+		assert.equal((recovered.at(-1) as { type?: string }).type, "done");
+		assert.equal(recovered.filter((event) => (event as { type?: string }).type === "start").length, 1);
+		const recoveredMessage = doneMessage(recovered);
+		assert.equal(recoveredMessage.content.find((item) => item.type === "text")?.text, "SSE recovery 1");
+		assert.equal(ScriptedWebSocket.opened, 6);
 		assert.equal(fetchCalls, 1);
 
 		await collectStream(registered.provider.streamSimple(
@@ -398,21 +424,133 @@ test("SSE fallback stays sticky after three post-start WebSocket failures", asyn
 			requestContext as never,
 			streamOptions(sessionId) as never,
 		));
-		assert.equal(ScriptedWebSocket.opened, 3);
+		assert.equal(ScriptedWebSocket.opened, 6);
 		assert.equal(fetchCalls, 2);
+		for (const frame of sentFrames()) {
+			assert.equal(frame.previous_response_id, undefined);
+			assert.deepEqual(frame, sentFrames()[0]);
+		}
+	} finally {
+		globalThis.fetch = originalFetch;
+		restoreWebSocket();
+	}
+});
+
+test("WebSocket 426 falls back to sticky SSE without retrying", async () => {
+	const restoreWebSocket = installScriptedWebSocket([upgradeRequired]);
+	const originalFetch = globalThis.fetch;
+	let fetchCalls = 0;
+	globalThis.fetch = (async () => {
+		fetchCalls++;
+		return sseResponse([{
+			type: "response.completed",
+			response: { id: `resp_sse_${fetchCalls}`, status: "completed", usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 } },
+		}]);
+	}) as typeof fetch;
+	try {
+		const registered = createRegisteredCodexProvider({ codeMode: true });
+		const sessionId = "upgrade-required";
+		const requestContext = context([user("same user", 1)]);
 
 		await collectStream(registered.provider.streamSimple(
 			model as never,
 			requestContext as never,
 			streamOptions(sessionId) as never,
 		));
+		await collectStream(registered.provider.streamSimple(
+			model as never,
+			requestContext as never,
+			streamOptions(sessionId) as never,
+		));
 
-		assert.equal(ScriptedWebSocket.opened, 3);
-		assert.equal(fetchCalls, 3);
-		for (const frame of sentFrames()) {
-			assert.equal(frame.previous_response_id, undefined);
-			assert.deepEqual(frame, sentFrames()[0]);
-		}
+		assert.equal(ScriptedWebSocket.opened, 1);
+		assert.equal(fetchCalls, 2);
+	} finally {
+		globalThis.fetch = originalFetch;
+		restoreWebSocket();
+	}
+});
+
+test("failed WebSocket prewarm leaves the generation retry lane enabled", async () => {
+	const restoreWebSocket = installScriptedWebSocket([
+		failAfterStart,
+		textResponse("resp_generation", "generation recovered"),
+	]);
+	const originalFetch = globalThis.fetch;
+	let fetchCalls = 0;
+	globalThis.fetch = (async () => {
+		fetchCalls++;
+		return sseResponse([]);
+	}) as typeof fetch;
+	try {
+		const registered = createRegisteredCodexProvider({ codeMode: true });
+		const sessionId = "prewarm-transport-failure";
+		const requestContext = context([user("same user", 1)]);
+		await assert.rejects(
+			prewarmOpenAICodexWebSocket(
+				model as never,
+				requestContext as never,
+				streamOptions(sessionId) as never,
+				{
+					getConfig: () => ({
+						openai: DEFAULT_CODEX_CONVERSION_CONFIG.openai,
+						beta: { ...DEFAULT_CODEX_CONVERSION_CONFIG.beta, codeMode: true },
+					}),
+					turnState: registered.turnState,
+				},
+			),
+			/socket reset by peer/,
+		);
+
+		const recovered = await collectStream(registered.provider.streamSimple(
+			model as never,
+			requestContext as never,
+			streamOptions(sessionId) as never,
+		));
+		assert.equal((recovered.at(-1) as { type?: string }).type, "done");
+		assert.equal(ScriptedWebSocket.opened, 2);
+		assert.equal(fetchCalls, 0);
+	} finally {
+		globalThis.fetch = originalFetch;
+		restoreWebSocket();
+	}
+});
+
+test("WebSocket prewarm 426 activates sticky SSE without failing prewarm", async () => {
+	const restoreWebSocket = installScriptedWebSocket([upgradeRequired]);
+	const originalFetch = globalThis.fetch;
+	let fetchCalls = 0;
+	globalThis.fetch = (async () => {
+		fetchCalls++;
+		return sseResponse([{
+			type: "response.completed",
+			response: { id: `resp_sse_${fetchCalls}`, status: "completed", usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 } },
+		}]);
+	}) as typeof fetch;
+	try {
+		const registered = createRegisteredCodexProvider({ codeMode: true });
+		const sessionId = "prewarm-upgrade-required";
+		const requestContext = context([user("same user", 1)]);
+		await prewarmOpenAICodexWebSocket(
+			model as never,
+			requestContext as never,
+			streamOptions(sessionId) as never,
+			{
+				getConfig: () => ({
+					openai: DEFAULT_CODEX_CONVERSION_CONFIG.openai,
+					beta: { ...DEFAULT_CODEX_CONVERSION_CONFIG.beta, codeMode: true },
+				}),
+				turnState: registered.turnState,
+			},
+		);
+
+		await collectStream(registered.provider.streamSimple(
+			model as never,
+			requestContext as never,
+			streamOptions(sessionId) as never,
+		));
+		assert.equal(ScriptedWebSocket.opened, 1);
+		assert.equal(fetchCalls, 1);
 	} finally {
 		globalThis.fetch = originalFetch;
 		restoreWebSocket();
@@ -506,20 +644,23 @@ test("post-start API failures also block Pi's automatic replay", async () => {
 	}
 });
 
-test("missing continuation after stream start cannot trigger an internal full replay", async () => {
-	const restoreWebSocket = installScriptedWebSocket([missingContinuationAfterStart]);
+test("missing continuation after stream start reconnects with a full request", async () => {
+	const restoreWebSocket = installScriptedWebSocket([
+		missingContinuationAfterStart,
+		textResponse("resp_recovered", "recovered"),
+	]);
 	try {
 		const registered = createRegisteredCodexProvider({ codeMode: true });
-		const failed = await collectStream(registered.provider.streamSimple(
+		const recovered = await collectStream(registered.provider.streamSimple(
 			model as never,
-			context([user("do not replay", 1)]) as never,
+			context([user("replay full request", 1)]) as never,
 			streamOptions("post-start-missing-continuation") as never,
 		));
-		const failedEvent = failed.at(-1) as { error?: AssistantMessage };
-		assert.ok(failedEvent.error);
-		assert.equal(isRetryableAssistantError(failedEvent.error), false);
-		assert.equal(sentFrames().length, 1);
-		assert.match(JSON.stringify(failedEvent.error.diagnostics), /previous_response_not_found/);
+		assert.equal((recovered.at(-1) as { type?: string }).type, "done");
+		assert.equal(sentFrames().length, 2);
+		assert.equal(sentFrames()[0]?.previous_response_id, undefined);
+		assert.equal(sentFrames()[1]?.previous_response_id, undefined);
+		assert.deepEqual(sentFrames()[1], sentFrames()[0]);
 	} finally {
 		restoreWebSocket();
 	}

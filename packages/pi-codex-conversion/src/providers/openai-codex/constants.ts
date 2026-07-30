@@ -1,7 +1,9 @@
 export const DEFAULT_CODEX_BASE_URL = "https://chatgpt.com/backend-api";
 export const JWT_CLAIM_PATH = "https://api.openai.com/auth";
-export const MAX_RETRIES = 3;
+export const MAX_SSE_REQUEST_RETRIES = 3;
 export const BASE_DELAY_MS = 1000;
+export const DEFAULT_STREAM_MAX_RETRIES = 5;
+export const INITIAL_STREAM_RETRY_DELAY_MS = 200;
 export const DEFAULT_SSE_HEADER_TIMEOUT_MS = 20_000;
 export const DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS = 15_000;
 export const CODEX_RESPONSE_STATUSES = new Set(["completed", "incomplete", "failed", "cancelled", "queued", "in_progress"]);

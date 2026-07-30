@@ -1,8 +1,8 @@
 import type { Api, AssistantMessage, AssistantMessageEventStream, Model } from "@earendil-works/pi-ai";
 import { normalizeTimeoutMs } from "./sse.ts";
 import { buildCachedWebSocketRequestBody } from "./websocket-continuation.ts";
-import { acquireWebSocket, countWebSocketEvents, isRetryableEarlyWebSocketError, parseWebSocket, startWebSocketOutputOnFirstEvent } from "./websocket.ts";
-import { assertSuccessfulCodexOutput, assertSuccessfulCodexStatus, isPreviousResponseNotFoundError, isWebSocketConnectionLimitReachedError, mapCodexEvents, processMappedCodexResponsesStream } from "./stream-events.ts";
+import { acquireWebSocket, parseWebSocket, startWebSocketOutputOnFirstEvent } from "./websocket.ts";
+import { assertSuccessfulCodexOutput, assertSuccessfulCodexStatus, mapCodexEvents, processMappedCodexResponsesStream } from "./stream-events.ts";
 import type { CachedWebSocketRequestBodyResult, OpenAICodexStreamOptions, ResponsesBody } from "./types.ts";
 import type { CodexTurnState } from "./turn-state.ts";
 import { DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS } from "./constants.ts";
@@ -22,87 +22,69 @@ export async function processWebSocketStream<TApi extends Api>(
 	const idleTimeoutMs = normalizeTimeoutMs(options?.timeoutMs, "timeoutMs");
 	const websocketConnectTimeoutMs = normalizeTimeoutMs(options?.websocketConnectTimeoutMs, "websocketConnectTimeoutMs");
 
-	for (let attempt = 0; attempt < 2; attempt++) {
-		const { socket, entry, release } = await acquireWebSocket(url, headers, options?.sessionId, options?.signal, websocketConnectTimeoutMs, options?.env);
-		let keepConnection = true;
-		let released = false;
-		let eventCount = 0;
-		const responseItems: unknown[] = [];
-		const transport = (options as { transport?: string | undefined } | undefined)?.transport ?? "auto";
-		const useCachedContext = transport === "websocket-cached" || transport === "auto";
-		// ChatGPT Codex Responses rejects `store: true` ("Store must be set to false").
-		// WebSocket continuation still works via connection-scoped previous_response_id state.
-		const fullBody = body;
-		const cachedRequest = useCachedContext && entry
-			? buildCachedWebSocketRequestBody(entry.continuation, fullBody)
-			: { body: fullBody, decision: useCachedContext ? "no_session_cache_entry" : "disabled" } satisfies CachedWebSocketRequestBodyResult;
-		const requestBody = cachedRequest.body;
+	const { socket, entry, release } = await acquireWebSocket(url, headers, options?.sessionId, options?.signal, websocketConnectTimeoutMs, options?.env);
+	let keepConnection = true;
+	let released = false;
+	const responseItems: unknown[] = [];
+	const transport = (options as { transport?: string | undefined } | undefined)?.transport ?? "auto";
+	const useCachedContext = transport === "websocket-cached" || transport === "auto";
+	// ChatGPT Codex Responses rejects `store: true` ("Store must be set to false").
+	// WebSocket continuation still works via connection-scoped previous_response_id state.
+	const fullBody = body;
+	const cachedRequest = useCachedContext && entry
+		? buildCachedWebSocketRequestBody(entry.continuation, fullBody)
+		: { body: fullBody, decision: useCachedContext ? "no_session_cache_entry" : "disabled" } satisfies CachedWebSocketRequestBodyResult;
+	const requestBody = cachedRequest.body;
 
-		const releaseOnce = (releaseOptions?: { keep?: boolean | undefined }) => {
-			if (released) return;
-			released = true;
-			release(releaseOptions);
-		};
+	const releaseOnce = (releaseOptions?: { keep?: boolean | undefined }) => {
+		if (released) return;
+		released = true;
+		release(releaseOptions);
+	};
 
-		try {
-			socket.send(JSON.stringify({ type: "response.create", ...requestBody }));
-			await processMappedCodexResponsesStream(
-				startWebSocketOutputOnFirstEvent(
-					mapCodexEvents(countWebSocketEvents(parseWebSocket(socket, options?.signal, idleTimeoutMs, (value) => turnState?.capture(value)), () => {
-						eventCount++;
-					})),
-					() => {
-						if (!streamStarted) {
-							streamStarted = true;
-							onStart();
-							stream.push({ type: "start", partial: output });
-						}
-					},
-				),
-				output,
-				stream,
-				model,
-				{
-					...options,
-					onOutputItemDone: (item) => {
-						responseItems.push(item);
-						options?.onOutputItemDone?.(item);
-					},
+	try {
+		socket.send(JSON.stringify({ type: "response.create", ...requestBody }));
+		await processMappedCodexResponsesStream(
+			startWebSocketOutputOnFirstEvent(
+				mapCodexEvents(parseWebSocket(socket, options?.signal, idleTimeoutMs, (value) => turnState?.capture(value))),
+				() => {
+					if (!streamStarted) {
+						streamStarted = true;
+						onStart();
+					}
 				},
-			);
-			if (options?.signal?.aborted) {
-				keepConnection = false;
-			} else {
-				assertSuccessfulCodexOutput(output);
-				if (useCachedContext && entry && output.responseId) {
-					entry.continuation = {
-						lastRequestBody: fullBody,
-						lastResponseId: output.responseId,
-						lastResponseItems: responseItems,
-					};
-				}
-			}
-			releaseOnce({ keep: keepConnection });
-			return;
-		} catch (error) {
-			if (entry) {
-				entry.continuation = undefined;
-			}
+			),
+			output,
+			stream,
+			model,
+			{
+				...options,
+				onOutputItemDone: (item) => {
+					responseItems.push(item);
+					options?.onOutputItemDone?.(item);
+				},
+			},
+		);
+		if (options?.signal?.aborted) {
 			keepConnection = false;
-			releaseOnce({ keep: false });
-			// A missing continuation retries once with full context. Other transport
-			// failures retry only before output starts, preserving safe SSE fallback.
-			if (attempt === 0 && !options?.signal?.aborted && !streamStarted && (
-				isPreviousResponseNotFoundError(error)
-				|| isWebSocketConnectionLimitReachedError(error)
-				|| (eventCount === 0 && isRetryableEarlyWebSocketError(error))
-			)) {
-				continue;
+		} else {
+			assertSuccessfulCodexOutput(output);
+			if (useCachedContext && entry && output.responseId) {
+				entry.continuation = {
+					lastRequestBody: fullBody,
+					lastResponseId: output.responseId,
+					lastResponseItems: responseItems,
+				};
 			}
-			throw error;
-		} finally {
-			releaseOnce({ keep: keepConnection });
 		}
+		releaseOnce({ keep: keepConnection });
+	} catch (error) {
+		if (entry) entry.continuation = undefined;
+		keepConnection = false;
+		releaseOnce({ keep: false });
+		throw error;
+	} finally {
+		releaseOnce({ keep: keepConnection });
 	}
 }
 
