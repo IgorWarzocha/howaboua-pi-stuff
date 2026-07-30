@@ -35,7 +35,7 @@ export function registerCodexTools(pi: ExtensionAPI, runtime: CodexExtensionRunt
 			...renderOptions(config),
 			showOutputWhenCollapsed: true,
 		});
-		registerWriteStdinTool(pi, runtime.sessions);
+		registerWriteStdinTool(pi, runtime.sessions, { showOutputWhenCollapsed: true });
 		registerViewImage(config);
 	};
 	const ensureOptionalTools = (config = runtime.state.config) => {
