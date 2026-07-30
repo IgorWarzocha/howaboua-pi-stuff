@@ -9,6 +9,7 @@ import { WEB_SEARCH_TOOL_NAME } from "../../adapter/activation/tool-set.ts";
 import { supportsNativeWebSearch } from "../../adapter/tool-support.ts";
 import { renderCodexToolCell } from "../../ui/tool-rendering/codex-tool-cell.ts";
 import { getBundledToolBinaryPath } from "../native/binary.ts";
+import { buildWebSearchInput } from "./history.ts";
 
 export const WEB_SEARCH_UNSUPPORTED_MESSAGE = CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE;
 export const WEB_SEARCH_SESSION_NOTE_TYPE = "codex-web-search-session-note";
@@ -136,8 +137,9 @@ export async function executeCodexWebSearch(params: Record<string, unknown>, ctx
 	const configuredModel = typeof options.model === "function" ? options.model() : options.model;
 	const model = provider.route === "configured-responses" ? provider.model : configuredModel;
 	const env = codexToolProviderEnv(provider);
+	const input = buildWebSearchInput(ctx.sessionManager.buildContextEntries());
 	try {
-		const stdout = await runWebRunBinary(webRunPath, { ...params, id: sessionId, ...(model ? { model } : {}) }, env, signal);
+		const stdout = await runWebRunBinary(webRunPath, { ...params, id: sessionId, ...(model ? { model } : {}), ...(input ? { input } : {}) }, env, signal);
 		const parsed = JSON.parse(stdout) as WebRunOutput;
 		const output = formatWebRunOutput(parsed);
 		if (output) return { text: output, details: parsed };
