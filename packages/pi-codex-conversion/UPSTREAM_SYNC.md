@@ -5,7 +5,7 @@ This is the maintainer checklist for syncing the bundled provider with Pi and Op
 ## Reference baseline
 
 - Pi packages: `0.80.6`
-- Codex checkout used for the provider and apply-patch comparison: `e7d0e14172`
+- Codex checkout used for the provider comparison: `e7d0e14172`
 - Exact apply-patch source revision: [`src/tools/rust/UPSTREAM.apply-patch`](src/tools/rust/UPSTREAM.apply-patch)
 
 ## Implemented portable behavior
