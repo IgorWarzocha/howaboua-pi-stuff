@@ -1,12 +1,13 @@
 import { processResponsesStream } from "../openai-responses/shared.ts";
 import type { Api, AssistantMessage, AssistantMessageEventStream, Model } from "@earendil-works/pi-ai";
-import { CODEX_RESPONSE_STATUSES, DEFAULT_MAX_RETRY_DELAY_MS } from "./constants.ts";
+import { CODEX_RESPONSE_STATUSES, DEFAULT_MAX_RETRY_DELAY_MS, DEFAULT_OVERLOAD_INITIAL_RETRY_DELAY_MS, DEFAULT_OVERLOAD_RECOVERY_BUDGET_MS, DEFAULT_OVERLOAD_RETRY_DELAY_MS } from "./constants.ts";
 import { isTerminalRateLimitError } from "./errors.ts";
 import { applyServiceTierPricing, resolveCodexServiceTier } from "./usage.ts";
 import type { OpenAICodexStreamOptions, ServiceTier, StreamEventShape } from "./types.ts";
 
 const WEBSOCKET_CONNECTION_LIMIT_REACHED_CODE = "websocket_connection_limit_reached";
 const PREVIOUS_RESPONSE_NOT_FOUND_CODE = "previous_response_not_found";
+const OVERLOAD_CODEX_ERROR_CODES = new Set(["server_is_overloaded", "slow_down"]);
 const RETRYABLE_CODEX_ERROR_CODES = new Set([
 	WEBSOCKET_CONNECTION_LIMIT_REACHED_CODE,
 	PREVIOUS_RESPONSE_NOT_FOUND_CODE,
@@ -67,6 +68,19 @@ export function codexStreamRetryDelay(error: unknown): number | undefined {
 	return error instanceof CodexApiError ? error.retryDelayMs : undefined;
 }
 
+export function isCodexOverloadError(error: unknown): boolean {
+	return error instanceof CodexApiError && !!error.code && OVERLOAD_CODEX_ERROR_CODES.has(error.code);
+}
+
+export function codexOverloadRetryDelay(error: unknown, retryCount: number, waitedMs: number): number | undefined {
+	if (!isCodexOverloadError(error)) return undefined;
+	const remainingMs = Math.max(0, DEFAULT_OVERLOAD_RECOVERY_BUDGET_MS - waitedMs);
+	if (remainingMs === 0) return undefined;
+	const defaultDelayMs = retryCount === 0 ? DEFAULT_OVERLOAD_INITIAL_RETRY_DELAY_MS : DEFAULT_OVERLOAD_RETRY_DELAY_MS;
+	const requestedDelayMs = Math.max(defaultDelayMs, codexStreamRetryDelay(error) ?? 0);
+	return Math.min(DEFAULT_MAX_RETRY_DELAY_MS, remainingMs, requestedDelayMs);
+}
+
 export function assertSuccessfulCodexOutput(
 	output: AssistantMessage,
 ): asserts output is AssistantMessage & { stopReason: "stop" | "length" | "toolUse" } {
@@ -114,8 +128,8 @@ function isRetryableCodexApiFailure(code: string | undefined, message: string | 
 	return defaultRetryable;
 }
 
-function responseFailedRetryDelayMs(code: string | undefined, message: string | undefined): number | undefined {
-	if (code !== "rate_limit_exceeded" || !message) return undefined;
+function codexApiRetryDelayMs(code: string | undefined, message: string | undefined): number | undefined {
+	if ((!code || (code !== "rate_limit_exceeded" && !OVERLOAD_CODEX_ERROR_CODES.has(code))) || !message) return undefined;
 	const match = /try again in\s*(\d+(?:\.\d+)?)\s*(s|ms|seconds?)/i.exec(message);
 	if (!match?.[1] || !match[2]) return undefined;
 	const value = Number(match[1]);
@@ -147,10 +161,12 @@ export async function* mapCodexEvents(events: AsyncIterable<StreamEventShape>): 
 		if (type === "error") {
 			const { code, message } = extractCodexEventError(event);
 			const status = eventStatus(event);
+			const retryDelayMs = codexApiRetryDelayMs(code, message);
 			throw new CodexApiError(`Codex error: ${message || code || JSON.stringify(event)}`, {
 				code,
 				payload: event,
 				retryable: isRetryableCodexApiFailure(code, message, status, true),
+				...(retryDelayMs !== undefined ? { retryDelayMs } : {}),
 				...(status !== undefined ? { status } : {}),
 			});
 		}
@@ -164,7 +180,7 @@ export async function* mapCodexEvents(events: AsyncIterable<StreamEventShape>): 
 					: undefined;
 			const message = typeof error?.["message"] === "string" ? error["message"] : undefined;
 			const status = eventStatus(event);
-			const retryDelayMs = responseFailedRetryDelayMs(code, message);
+			const retryDelayMs = codexApiRetryDelayMs(code, message);
 			throw new CodexApiError(message || "Codex response failed", {
 				code,
 				payload: event,

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { parseSSE } from "../src/providers/openai-codex-custom-provider.ts";
-import { codexStreamRetryDelay, mapCodexEvents } from "../src/providers/openai-codex/stream-events.ts";
+import { codexOverloadRetryDelay, codexStreamRetryDelay, isCodexOverloadError, mapCodexEvents } from "../src/providers/openai-codex/stream-events.ts";
 import { parseWebSocket } from "../src/providers/openai-codex/websocket.ts";
 import {
 	ScriptedWebSocket,
@@ -73,7 +73,7 @@ test("transient streamed failures retry with bounded provider delays", async () 
 	const restoreWebSocket = installScriptedWebSocket([
 		(socket) => socket.emitJson({
 			type: "response.failed",
-			response: { status: "failed", error: { code: "server_is_overloaded", message: "slow down" } },
+			response: { status: "failed", error: { code: "server_error", message: "temporary failure" } },
 		}),
 		websocketSuccess,
 		(socket) => socket.emitJson({
@@ -114,6 +114,24 @@ test("transient streamed failures retry with bounded provider delays", async () 
 			rateLimitError = error;
 		}
 		assert.equal(codexStreamRetryDelay(rateLimitError), 60_000);
+
+		const overloaded = mapCodexEvents((async function* () {
+			yield {
+				type: "response.failed",
+				response: { error: { code: "server_is_overloaded", message: "server overloaded" } },
+			};
+		})());
+		let overloadError: unknown;
+		try {
+			await overloaded[Symbol.asyncIterator]().next();
+		} catch (error) {
+			overloadError = error;
+		}
+		assert.equal(isCodexOverloadError(overloadError), true);
+		assert.equal(codexOverloadRetryDelay(overloadError, 0, 0), 30_000);
+		assert.equal(codexOverloadRetryDelay(overloadError, 1, 30_000), 60_000);
+		assert.equal(codexOverloadRetryDelay(overloadError, 3, 150_000), 30_000);
+		assert.equal(codexOverloadRetryDelay(overloadError, 4, 180_000), undefined);
 	} finally {
 		globalThis.fetch = originalFetch;
 		restoreWebSocket();

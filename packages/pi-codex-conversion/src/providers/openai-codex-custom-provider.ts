@@ -27,7 +27,7 @@ import {
 	validateWebSocketTimeoutOptions,
 } from "./openai-codex/websocket.ts";
 import { isPermanentWebSocketError, isWebSocketMessageTooBigError, isWebSocketUnauthorizedError, isWebSocketUpgradeRequiredError } from "./openai-codex/websocket-connection.ts";
-import { assertSuccessfulCodexOutput, codexStreamRetryDelay, isRetryableCodexStreamError, processCodexResponsesStream } from "./openai-codex/stream-events.ts";
+import { assertSuccessfulCodexOutput, codexOverloadRetryDelay, codexStreamRetryDelay, isCodexOverloadError, isRetryableCodexStreamError, processCodexResponsesStream } from "./openai-codex/stream-events.ts";
 import { prewarmWebSocket, processWebSocketStream } from "./openai-codex/websocket-stream.ts";
 import { openaiCodexNativeOAuthProvider } from "./openai-codex/oauth.ts";
 import { CODEX_TURN_STATE_HEADER, type CodexTurnState } from "./openai-codex/turn-state.ts";
@@ -258,6 +258,26 @@ function createCodexStream<TApi extends Api>(
 			const sseBody = compressedBody ?? bodyJson;
 			const transport = effectiveOptions.transport ?? "auto";
 			const streamMaxRetries = codexStreamMaxRetries(effectiveOptions);
+			let overloadRetryCount = 0;
+			let overloadWaitedMs = 0;
+			const planRetry = (error: unknown, retryCount: number) => {
+				const overload = isCodexOverloadError(error);
+				return {
+					overload,
+					delayMs: overload
+						? codexOverloadRetryDelay(error, overloadRetryCount, overloadWaitedMs)
+						: codexStreamRetryDelay(error) ?? codexStreamRetryDelayMs(retryCount),
+				};
+			};
+			const waitBeforeRetry = async (plan: { overload: boolean; delayMs: number | undefined }) => {
+				if (plan.delayMs === undefined) return false;
+				await sleep(plan.delayMs, effectiveOptions?.signal);
+				if (plan.overload) {
+					overloadRetryCount++;
+					overloadWaitedMs += plan.delayMs;
+				}
+				return true;
+			};
 
 			let streamStarted = false;
 			if (transport !== "sse") {
@@ -297,8 +317,10 @@ function createCodexStream<TApi extends Api>(
 						const messageTooBig = isWebSocketMessageTooBigError(error);
 						const unauthorized = isWebSocketUnauthorizedError(error);
 						const retryableWebSocketError = !isPermanentWebSocketError(error) && isRetryableCodexStreamError(error);
+						const retryPlan = planRetry(error, attempt + 1);
+						const overloadBudgetExhausted = retryPlan.overload && retryPlan.delayMs === undefined;
 						const immediateFallback = upgradeRequired || messageTooBig || unauthorized;
-						const fallbackArmed = immediateFallback || (retryableWebSocketError && attempt >= streamMaxRetries);
+						const fallbackArmed = immediateFallback || (retryableWebSocketError && (attempt >= streamMaxRetries || overloadBudgetExhausted));
 						appendAssistantMessageDiagnostic(
 							output,
 							createAssistantMessageDiagnostic(retryableWebSocketError ? "provider_transport_failure" : "provider_stream_failure", error, {
@@ -309,8 +331,8 @@ function createCodexStream<TApi extends Api>(
 								requestBytes: new TextEncoder().encode(bodyJson).byteLength,
 							}),
 						);
-						if (!immediateFallback && retryableWebSocketError && attempt < streamMaxRetries) {
-							await sleep(codexStreamRetryDelay(error) ?? codexStreamRetryDelayMs(attempt + 1), effectiveOptions?.signal);
+						if (!immediateFallback && retryableWebSocketError && attempt < streamMaxRetries && !overloadBudgetExhausted) {
+							await waitBeforeRetry(retryPlan);
 							continue;
 						}
 						if (!fallbackArmed) {
@@ -356,6 +378,8 @@ function createCodexStream<TApi extends Api>(
 				} catch (error) {
 					if (effectiveOptions?.signal?.aborted) throw error;
 					const retryable = !(error instanceof NonRetryableProviderError) && isRetryableCodexStreamError(error);
+					const retryPlan = planRetry(error, attempt + 1);
+					const overloadBudgetExhausted = retryPlan.overload && retryPlan.delayMs === undefined;
 					appendAssistantMessageDiagnostic(
 						output,
 						createAssistantMessageDiagnostic(retryable ? "provider_transport_failure" : "provider_stream_failure", error, {
@@ -365,8 +389,8 @@ function createCodexStream<TApi extends Api>(
 							requestBytes: new TextEncoder().encode(bodyJson).byteLength,
 						}),
 					);
-					if (retryable && attempt < streamMaxRetries) {
-						await sleep(codexStreamRetryDelay(error) ?? codexStreamRetryDelayMs(attempt + 1), effectiveOptions?.signal);
+					if (retryable && attempt < streamMaxRetries && !overloadBudgetExhausted) {
+						await waitBeforeRetry(retryPlan);
 						continue;
 					}
 					if (retryable) throw new NonRetryableProviderError("Codex stream retry budget was exhausted before a response completed.");
