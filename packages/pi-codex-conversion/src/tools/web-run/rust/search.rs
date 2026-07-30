@@ -35,7 +35,7 @@ pub fn parse_search_response(body: &str) -> anyhow::Result<SearchResponse> {
 pub fn tool_output(response: SearchResponse) -> Value {
     json!({
         "output_text": response.output,
-        "results": response.results.unwrap_or_default(),
+        "search_results": response.results.unwrap_or_default(),
     })
 }
 
@@ -97,7 +97,7 @@ mod tests {
             tool_output(response),
             json!({
                 "output_text": "cited search material",
-                "results": [{"type": "text_result", "ref_id": "turn0search0"}]
+                "search_results": [{"type": "text_result", "ref_id": "turn0search0"}]
             })
         );
     }
