@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.0.5
+
+### Changes
+
+- [#212](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/212) [`a00d4ff`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/a00d4ffa416feec7b799138424a2456b2b9d474c) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Keep unfinished exec session polls bounded by host backoff, surface pending output, finalize exited processes despite retained handles, update the native PTY runner, preserve cross-platform paths in apply_patch results, refresh native image processing with safer validation, metadata-preserving re-encoding, and byte-bounded caching, route web_run search and navigation through Codex's native cached search endpoint, and validate imagegen edit inputs through Codex's current image pipeline.
+
+- [#212](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/212) [`a00d4ff`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/a00d4ffa416feec7b799138424a2456b2b9d474c) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Keep new Code Mode custom tools out of the prompt until the session restarts or compacts
+
 ## 3.0.4
 
 ### Changes
