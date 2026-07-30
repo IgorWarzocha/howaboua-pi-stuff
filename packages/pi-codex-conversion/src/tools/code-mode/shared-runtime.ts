@@ -1,9 +1,6 @@
 import { ensureCodeModeHostBinary } from "./binary.js";
 import { CodeModeHostClient } from "./host-client.js";
-import type {
-	CodeModeToolDefinition,
-	CustomToolDefinition,
-} from "./types.js";
+import type { CodeModeToolDefinition } from "./types.js";
 
 export interface CodeModeToolProvider {
 	getTools(ctx?: unknown): CodeModeToolDefinition[];
@@ -17,7 +14,8 @@ export class SharedCodeModeRuntime {
 	readonly providers = new Map<object, CodeModeToolProvider>();
 	private clientPromise: Promise<CodeModeHostClient> | undefined;
 	private clientStartupAbort: AbortController | undefined;
-	private customPromptToolsSnapshot: CustomToolDefinition[] | undefined;
+	private customPromptToolsSnapshot: CodeModeToolDefinition[] | undefined;
+	private promptSectionSnapshot: string | undefined;
 
 	addProvider(provider: CodeModeToolProvider): object {
 		const id = {};
@@ -38,23 +36,36 @@ export class SharedCodeModeRuntime {
 	collectTools(ctx?: unknown): CodeModeToolDefinition[] {
 		const tools = collectUniqueTools(this.activeProviders(ctx), ctx);
 		return this.customPromptToolsSnapshot
-			? applySessionCustomToolState(tools, this.customPromptToolsSnapshot)
+			? applyCustomPromptState(tools, this.customPromptToolsSnapshot)
 			: tools;
 	}
 
-	resetPromptTools(ctx?: unknown): CodeModeToolDefinition[] {
+	refreshPromptTools(ctx?: unknown): CodeModeToolDefinition[] {
 		const tools = collectUniqueTools(this.activeProviders(ctx), ctx);
 		this.customPromptToolsSnapshot = tools.filter(isCustomTool);
 		return tools;
 	}
 
+	resetPromptTools(ctx?: unknown): CodeModeToolDefinition[] {
+		this.promptSectionSnapshot = undefined;
+		return this.refreshPromptTools(ctx);
+	}
+
 	collectPromptTools(ctx?: unknown): CodeModeToolDefinition[] {
-		if (!this.customPromptToolsSnapshot) return this.resetPromptTools(ctx);
+		if (!this.customPromptToolsSnapshot) return this.refreshPromptTools(ctx);
 		const liveProgrammaticTools = collectUniqueTools(
 			this.activeProviders(ctx),
 			ctx,
 		).filter((tool) => !isCustomTool(tool));
 		return [...liveProgrammaticTools, ...this.customPromptToolsSnapshot];
+	}
+
+	setPromptSection(section: string): void {
+		this.promptSectionSnapshot = section;
+	}
+
+	getPromptSection(): string | undefined {
+		return this.promptSectionSnapshot;
 	}
 
 	collectRenderTools(): CodeModeToolDefinition[] {
@@ -110,21 +121,18 @@ export class SharedCodeModeRuntime {
 	}
 }
 
-function isCustomTool(
-	tool: CodeModeToolDefinition,
-): tool is CustomToolDefinition {
+function isCustomTool(tool: CodeModeToolDefinition): boolean {
 	return "command" in tool;
 }
 
-function applySessionCustomToolState(
+function applyCustomPromptState(
 	tools: CodeModeToolDefinition[],
-	customPromptTools: CustomToolDefinition[],
+	customPromptTools: CodeModeToolDefinition[],
 ): CodeModeToolDefinition[] {
 	const customPromptState = new Map(
 		customPromptTools.map((tool) => [tool.name, tool.deferLoading]),
 	);
-	const liveNames = new Set(tools.map((tool) => tool.name));
-	const scopedTools = tools.map((tool) =>
+	return tools.map((tool) =>
 		isCustomTool(tool)
 			? {
 					...tool,
@@ -132,10 +140,6 @@ function applySessionCustomToolState(
 				}
 			: tool,
 	);
-	for (const tool of customPromptTools) {
-		if (!tool.deferLoading && !liveNames.has(tool.name)) scopedTools.push(tool);
-	}
-	return scopedTools;
 }
 
 function collectUniqueTools(
