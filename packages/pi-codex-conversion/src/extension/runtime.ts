@@ -35,6 +35,7 @@ export interface CodexExtensionRuntime {
 	startPrewarm(ctx: CodexContext, systemPrompt?: string, prepared?: boolean): Promise<void> | undefined;
 	startCompactionPrewarm(ctx: CodexContext): Promise<void> | undefined;
 	resetTransport(sessionId?: string): void;
+	resetTransportAfterCompaction(sessionId: string): void;
 	shutdownTransport(sessionId: string): void;
 	waitForPrewarm(ctx: CodexContext, systemPrompt: string): Promise<void> | undefined;
 }
@@ -167,6 +168,10 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 			state.codexTurnState.reset();
 			if (sessionId) resetOpenAICodexWebSocketSessions(sessionId);
 			else closeOpenAICodexWebSocketSessions();
+		},
+		resetTransportAfterCompaction(sessionId) {
+			runtime.resetTransport(sessionId);
+			closeOpenAICodexWebSocketSessions(sessionId);
 		},
 		shutdownTransport(sessionId) {
 			runtime.resetTransport(sessionId);

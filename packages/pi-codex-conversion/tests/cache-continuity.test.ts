@@ -543,6 +543,14 @@ test("transport reset preserves session-sticky SSE until shutdown", () => {
 	assert.equal(isWebSocketSseFallbackActive(sessionId), false);
 });
 
+test("post-compaction transport reset restores WebSocket eligibility", () => {
+	const runtime = createCodexExtensionRuntime({ sendUserMessage: () => undefined } as never);
+	const sessionId = "sticky-compaction-reset";
+	recordWebSocketSseFallback(sessionId);
+	runtime.resetTransportAfterCompaction(sessionId);
+	assert.equal(isWebSocketSseFallbackActive(sessionId), false);
+});
+
 test("failed WebSocket prewarm leaves the generation retry lane enabled", async () => {
 	const restoreWebSocket = installScriptedWebSocket([
 		failAfterStart,
