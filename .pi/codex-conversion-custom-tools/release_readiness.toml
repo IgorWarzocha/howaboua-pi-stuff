@@ -1,0 +1,6 @@
+usage = '''await tools.release_readiness("check release readiness for the current checkout")'''
+description = "Reports the current branch, working-tree state, pending Changesets, affected publishable packages, and available release validation commands. It does not run validations or change the repository."
+output = "Structured JSON with evidence, blockers, warnings, affected packages, and commands to run next."
+command = "./release-readiness/release-readiness.mjs"
+defer_loading = false
+yield_time_ms = 30000

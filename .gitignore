@@ -6,3 +6,5 @@ node_modules
 !.pi/skills/**
 !.pi/prompts/
 !.pi/prompts/**
+!.pi/codex-conversion-custom-tools/
+!.pi/codex-conversion-custom-tools/**
