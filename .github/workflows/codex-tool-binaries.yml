@@ -14,7 +14,6 @@ on:
       - 'packages/pi-codex-conversion/scripts/build-changed-native-tool-binaries.mjs'
       - 'packages/pi-codex-conversion/scripts/build-native-tool-binary.mjs'
       - 'packages/pi-codex-conversion/scripts/build-voice-helper.mjs'
-      - 'packages/pi-codex-conversion/package.json'
       - 'packages/pi-gippity-control/src/voice/rust/**'
       - 'packages/pi-gippity-control/scripts/build-voice-helper.mjs'
 
@@ -64,7 +63,6 @@ jobs:
           git diff --no-index --quiet -- src/voice/rust ../pi-gippity-control/src/voice/rust
           git diff --no-index --quiet -- scripts/build-voice-helper.mjs ../pi-gippity-control/scripts/build-voice-helper.mjs
           bun run build:changed-native-tools
-          bun run build:voice-helper
       - uses: actions/upload-artifact@v7
         with:
           name: codex-tool-binaries-${{ matrix.platform_arch }}

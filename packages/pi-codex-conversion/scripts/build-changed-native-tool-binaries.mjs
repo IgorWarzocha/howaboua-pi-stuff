@@ -2,17 +2,29 @@
 import { spawnSync } from "node:child_process";
 
 const tools = [
-	{ key: "apply-patch", packageName: "codex-apply-patch", binName: "apply_patch", script: "build:apply-patch", roots: ["src/tools/apply-patch/rust/", "src/tools/rust/crates/pi-apply-patch-fs/", "src/tools/rust/crates/codex-utils-absolute-path/", "src/tools/rust/crates/codex-utils-path-uri/"] },
+	{ key: "apply-patch", packageName: "codex-apply-patch", binName: "apply_patch", script: "build:apply-patch", roots: ["src/tools/apply-patch/rust/", "src/tools/rust/crates/pi-apply-patch-fs/", "src/tools/rust/crates/codex-utils-absolute-path/", "src/tools/rust/crates/codex-utils-path-uri/", "scripts/build-apply-patch-binary.mjs"] },
 	{ key: "exec", packageName: "codex-exec-shim", binName: "exec_bridge", script: "build:native-tool", roots: ["src/tools/exec/rust/", "src/tools/rust/crates/codex-utils-pty/"] },
 	{ key: "view-image", packageName: "codex-view-image", binName: "view_image", script: "build:native-tool", roots: ["src/tools/view-image/rust/", "src/tools/rust/crates/codex-utils-cache/", "src/tools/rust/crates/codex-utils-image/"] },
 	{ key: "web-run", packageName: "codex-web-run", binName: "web_run", script: "build:native-tool", roots: ["src/tools/web-run/rust/"] },
 	{ key: "imagegen", packageName: "codex-imagegen", binName: "imagegen", script: "build:native-tool", roots: ["src/tools/imagegen/rust/"] },
 ];
 
-const allToolKeys = new Set(tools.map((tool) => tool.key));
+const voice = {
+	key: "voice",
+	script: "build:voice-helper",
+	roots: [
+		"src/voice/rust/",
+		"scripts/build-voice-helper.mjs",
+		"packages/pi-gippity-control/src/voice/rust/",
+		"packages/pi-gippity-control/scripts/build-voice-helper.mjs",
+	],
+};
+
+const allTargetKeys = new Set([...tools.map((tool) => tool.key), voice.key]);
 const allRoots = [
 	"src/tools/Cargo.toml",
 	"src/tools/Cargo.lock",
+	"scripts/build-native-tool-binary.mjs",
 ];
 
 function run(command, args, options = {}) {
@@ -77,29 +89,29 @@ const changed = changedFiles().map(normalize);
 const selected = new Set();
 
 if (process.argv.includes("--all") || process.env.FORCE_ALL_CODEX_TOOL_BUILDS === "1") {
-	for (const key of allToolKeys) selected.add(key);
+	for (const key of allTargetKeys) selected.add(key);
 }
 
 for (const file of changed) {
 	if (allRoots.some((root) => file === root || file.startsWith(root))) {
-		for (const key of allToolKeys) selected.add(key);
+		for (const tool of tools) selected.add(tool.key);
 		continue;
 	}
 	if (file.startsWith("src/tools/rust/")) {
-		for (const key of allToolKeys) selected.add(key);
+		for (const tool of tools) selected.add(tool.key);
 		continue;
 	}
-	for (const tool of tools) {
+	for (const tool of [...tools, voice]) {
 		if (tool.roots.some((root) => file.startsWith(root))) selected.add(tool.key);
 	}
 }
 
 if (changed.length === 0 || selected.size === 0) {
-	console.log("No Rust tool changes detected.");
+	console.log("No native target changes detected.");
 	process.exit(0);
 }
 
-console.log(`Changed Rust tools: ${[...selected].join(", ")}`);
+console.log(`Changed native targets: ${[...selected].join(", ")}`);
 for (const tool of tools) {
 	if (!selected.has(tool.key)) continue;
 	if (tool.script === "build:apply-patch") {
@@ -108,3 +120,4 @@ for (const tool of tools) {
 		run("bun", ["run", tool.script, tool.packageName, tool.binName]);
 	}
 }
+if (selected.has(voice.key)) run("bun", ["run", voice.script]);
