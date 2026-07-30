@@ -14,6 +14,11 @@ import { buildWebSearchInput } from "./history.ts";
 export const WEB_SEARCH_UNSUPPORTED_MESSAGE = CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE;
 export const WEB_SEARCH_SESSION_NOTE_TYPE = "codex-web-search-session-note";
 
+// Codex sends the recent visible turn in SearchRequest.input. Controlled
+// alpha/search comparisons showed no meaningful output benefit, so Pi keeps
+// the compatible builder dormant rather than disclose conversation context.
+const SEND_NATIVE_WEB_SEARCH_HISTORY = false;
+
 const SearchQueryParameters = Type.Object({
 	q: Type.String(),
 	recency: Type.Optional(Type.Number({ description: "Recent days" })),
@@ -137,7 +142,9 @@ export async function executeCodexWebSearch(params: Record<string, unknown>, ctx
 	const configuredModel = typeof options.model === "function" ? options.model() : options.model;
 	const model = provider.route === "configured-responses" ? provider.model : configuredModel;
 	const env = codexToolProviderEnv(provider);
-	const input = buildWebSearchInput(ctx.sessionManager.buildContextEntries());
+	const input = SEND_NATIVE_WEB_SEARCH_HISTORY
+		? buildWebSearchInput(ctx.sessionManager.buildContextEntries())
+		: undefined;
 	try {
 		const stdout = await runWebRunBinary(webRunPath, { ...params, id: sessionId, ...(model ? { model } : {}), ...(input ? { input } : {}) }, env, signal);
 		const parsed = JSON.parse(stdout) as WebRunOutput;
