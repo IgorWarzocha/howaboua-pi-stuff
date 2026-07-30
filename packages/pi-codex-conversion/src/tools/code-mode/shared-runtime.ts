@@ -15,6 +15,7 @@ export class SharedCodeModeRuntime {
 	private clientPromise: Promise<CodeModeHostClient> | undefined;
 	private clientStartupAbort: AbortController | undefined;
 	private promptToolsSnapshot: CodeModeToolDefinition[] | undefined;
+	private promptSectionSnapshot: string | undefined;
 
 	addProvider(provider: CodeModeToolProvider): object {
 		const id = {};
@@ -55,8 +56,21 @@ export class SharedCodeModeRuntime {
 		return this.promptToolsSnapshot;
 	}
 
+	resetPromptTools(ctx?: unknown): CodeModeToolDefinition[] {
+		this.promptSectionSnapshot = undefined;
+		return this.refreshPromptTools(ctx);
+	}
+
 	collectPromptTools(ctx?: unknown): CodeModeToolDefinition[] {
 		return this.promptToolsSnapshot ?? this.refreshPromptTools(ctx);
+	}
+
+	setPromptSection(section: string): void {
+		this.promptSectionSnapshot = section;
+	}
+
+	getPromptSection(): string | undefined {
+		return this.promptSectionSnapshot;
 	}
 
 	collectRenderTools(): CodeModeToolDefinition[] {

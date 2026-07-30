@@ -98,7 +98,9 @@ test("late custom-tool promotion stays deferred until the prompt snapshot refres
 	runtime.addProvider({ getTools: () => discovered });
 
 	const initialSnapshot = runtime.refreshPromptTools();
-	const initialPrompt = injectCodeModeToolsPrompt("Base", initialSnapshot, "/custom-tools.md");
+	const basePrompt = "Tools available in exec:\n- user_owned_tool\n\nBase";
+	const initialSection = buildCodeModeToolsPrompt(initialSnapshot, "/custom-tools.md", basePrompt);
+	const initialPrompt = injectCodeModeToolsPrompt(basePrompt, initialSnapshot, "/custom-tools.md");
 	discovered = [bundled, initial, late];
 
 	assert.deepEqual(runtime.collectPromptTools().map((tool) => tool.name), ["exec_command", "initial_tool"]);
@@ -108,10 +110,12 @@ test("late custom-tool promotion stays deferred until the prompt snapshot refres
 	const refreshedSnapshot = runtime.refreshPromptTools();
 	const refreshedPrompt = replaceCodeModeToolsPrompt(
 		initialPrompt,
-		initialSnapshot,
+		initialSection,
 		refreshedSnapshot,
 		"/custom-tools.md",
-	);
+	).systemPrompt;
 	assert.equal(runtime.collectTools().find((tool) => tool.name === "late_tool")?.deferLoading, false);
+	assert.equal(refreshedPrompt.match(/Tools available in exec:/g)?.length, 1);
+	assert.match(refreshedPrompt, /- user_owned_tool/);
 	assert.match(refreshedPrompt, /Configured custom tools:\n- await tools\.initial_tool\(input\)\n- await tools\.late_tool\(input\)/);
 });

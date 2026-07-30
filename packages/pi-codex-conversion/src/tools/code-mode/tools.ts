@@ -116,14 +116,16 @@ export async function registerCodeModeTools(
 			const documentationPath = activeProviders.find(
 				(provider) => provider.documentationPath,
 			)?.documentationPath;
-			const previousTools = runtime.collectPromptTools(ctx);
+			const previousSection = runtime.getPromptSection();
 			const nextTools = runtime.refreshPromptTools(ctx);
-			return replaceCodeModeToolsPrompt(
+			const replacement = replaceCodeModeToolsPrompt(
 				systemPrompt,
-				previousTools,
+				previousSection,
 				nextTools,
 				documentationPath,
 			);
+			runtime.setPromptSection(replacement.section);
+			return replacement.systemPrompt;
 		},
 		shutdownHost: () => runtime.shutdownHost(),
 		async shutdown() {

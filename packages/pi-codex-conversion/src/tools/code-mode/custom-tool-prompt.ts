@@ -91,15 +91,17 @@ export function injectCodeModeToolsPrompt(
 
 export function replaceCodeModeToolsPrompt(
 	systemPrompt: string,
-	previousTools: CodeModeToolDefinition[],
+	previousSection: string | undefined,
 	nextTools: CodeModeToolDefinition[],
 	documentationPath?: string,
-): string {
-	const previous = buildCodeModeToolsPrompt(previousTools, documentationPath);
-	const next = buildCodeModeToolsPrompt(nextTools, documentationPath);
-	if (previous === next) return systemPrompt;
-	if (!previous || !systemPrompt.includes(previous)) {
-		return injectCodeModeToolsPrompt(systemPrompt, nextTools, documentationPath);
-	}
-	return systemPrompt.replace(previous, next);
+): { systemPrompt: string; section: string } {
+	const hasPrevious = Boolean(previousSection && systemPrompt.includes(previousSection));
+	const basePrompt = hasPrevious ? systemPrompt.replace(previousSection!, "") : systemPrompt;
+	const section = buildCodeModeToolsPrompt(nextTools, documentationPath, basePrompt);
+	return {
+		systemPrompt: hasPrevious
+			? systemPrompt.replace(previousSection!, section)
+			: injectCodeModeToolsPrompt(systemPrompt, nextTools, documentationPath),
+		section,
+	};
 }
