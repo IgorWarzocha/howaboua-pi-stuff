@@ -11,13 +11,13 @@ import {
 } from "@earendil-works/pi-ai";
 import { createGrammarToolInputProperties } from "./constrained-sampling.js";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
-import { BASE_DELAY_MS, DEFAULT_SSE_HEADER_TIMEOUT_MS, DEFAULT_STREAM_MAX_RETRIES, INITIAL_STREAM_RETRY_DELAY_MS, MAX_SSE_REQUEST_RETRIES } from "./openai-codex/constants.ts";
+import { BASE_DELAY_MS, DEFAULT_SSE_HEADER_TIMEOUT_MS, DEFAULT_STREAM_IDLE_TIMEOUT_MS, DEFAULT_STREAM_MAX_RETRIES, INITIAL_STREAM_RETRY_DELAY_MS, MAX_SSE_REQUEST_RETRIES } from "./openai-codex/constants.ts";
 import { createErrorMessage, isRetryableError, NonRetryableProviderError, parseErrorResponse } from "./openai-codex/errors.ts";
 import { createCodexRequestId, extractAccountId, buildSSEHeaders, buildWebSocketHeaders, headersToRecord, PI_CODEX_CONVERSION_ORIGINATOR, resolveCodexUrl, resolveCodexWebSocketUrl } from "./openai-codex/headers.ts";
 import { buildRequestBody } from "./openai-codex/request-body.ts";
 import { supportsResponsesLiteModel } from "./openai-codex/responses-lite-model.ts";
 import { applyResponsesLiteRequest, applyResponsesLiteWebSocketMetadata, isResponsesLiteRequest, prepareResponsesLiteRequestImages } from "./openai-codex/responses-lite.ts";
-import { combineAbortSignals, compressRequestBodyZstd, createSSEHeaderTimeout, parseSSE, sleep } from "./openai-codex/sse.ts";
+import { combineAbortSignals, compressRequestBodyZstd, createSSEHeaderTimeout, normalizeTimeoutMs, parseSSE, sleep } from "./openai-codex/sse.ts";
 import type { CodexProviderStreamOptions, OpenAICodexStreamOptions, ResponsesBody } from "./openai-codex/types.ts";
 import { createInitialAssistantMessage } from "./openai-codex/types.ts";
 import { finalizeUsage } from "./openai-codex/usage.ts";
@@ -26,7 +26,7 @@ import {
 	recordWebSocketSseFallback,
 	validateWebSocketTimeoutOptions,
 } from "./openai-codex/websocket.ts";
-import { assertSuccessfulCodexOutput, isCodexNonTransportError, isPreviousResponseNotFoundError, isWebSocketConnectionLimitReachedError, processCodexResponsesStream } from "./openai-codex/stream-events.ts";
+import { assertSuccessfulCodexOutput, isRetryableCodexStreamError, processCodexResponsesStream } from "./openai-codex/stream-events.ts";
 import { prewarmWebSocket, processWebSocketStream } from "./openai-codex/websocket-stream.ts";
 import { openaiCodexNativeOAuthProvider } from "./openai-codex/oauth.ts";
 import { CODEX_TURN_STATE_HEADER, type CodexTurnState } from "./openai-codex/turn-state.ts";
@@ -50,6 +50,20 @@ function codexStreamRetryDelayMs(retryCount: number): number {
 function isWebSocketUpgradeRequiredError(error: unknown): boolean {
 	const message = error instanceof Error ? error.message : String(error);
 	return /(?:\b426\b|upgrade required)/i.test(message);
+}
+
+function withCodexTurnState(body: ResponsesBody, turnState: CodexTurnState | undefined): ResponsesBody {
+	const current = turnState?.current();
+	return current
+		? { ...body, client_metadata: { ...(body.client_metadata ?? {}), [CODEX_TURN_STATE_HEADER]: current } }
+		: body;
+}
+
+function withCodexTurnStateHeader(headers: Headers, turnState: CodexTurnState | undefined): Headers {
+	const attemptHeaders = new Headers(headers);
+	const current = turnState?.current();
+	if (current) attemptHeaders.set(CODEX_TURN_STATE_HEADER, current);
+	return attemptHeaders;
 }
 
 export function getEffectiveCodexTransport(
@@ -86,6 +100,64 @@ async function prepareCodexRequestBody<TApi extends Api>(
 	return body;
 }
 
+async function openCodexSSE<TApi extends Api>(
+	model: Model<TApi>,
+	body: string | Uint8Array,
+	baseHeaders: Headers,
+	options: OpenAICodexStreamOptions | undefined,
+	turnState: CodexTurnState | undefined,
+): Promise<Response> {
+	let lastError: Error | undefined;
+	for (let attempt = 0; attempt <= MAX_SSE_REQUEST_RETRIES; attempt++) {
+		if (options?.signal?.aborted) throw new Error("Request was aborted");
+		try {
+			const headerTimeout = createSSEHeaderTimeout(DEFAULT_SSE_HEADER_TIMEOUT_MS);
+			const combinedSignal = combineAbortSignals([options?.signal, headerTimeout.signal]);
+			let response: Response;
+			try {
+				response = await fetch(resolveCodexUrl(model.baseUrl), {
+					method: "POST",
+					headers: withCodexTurnStateHeader(baseHeaders, turnState),
+					body,
+					signal: combinedSignal.signal,
+				});
+			} catch (error) {
+				const timeoutError = headerTimeout.error();
+				throw timeoutError && !options?.signal?.aborted ? timeoutError : error;
+			} finally {
+				combinedSignal.cleanup();
+				headerTimeout.clear();
+			}
+
+			if (response.ok) turnState?.capture(response.headers.get(CODEX_TURN_STATE_HEADER));
+			await options?.onResponse?.({ status: response.status, headers: headersToRecord(response.headers) }, model);
+			if (response.ok) return response;
+
+			const errorText = await response.text();
+			const retryable = isRetryableError(response.status, errorText);
+			if (retryable && attempt < MAX_SSE_REQUEST_RETRIES) {
+				await sleep(BASE_DELAY_MS * 2 ** attempt, options?.signal);
+				continue;
+			}
+			const info = await parseErrorResponse(new Response(errorText, { status: response.status, statusText: response.statusText }));
+			const message = info.friendlyMessage || info.message;
+			throw retryable ? new Error(message) : new NonRetryableProviderError(message);
+		} catch (error) {
+			if (error instanceof NonRetryableProviderError) throw error;
+			if (error instanceof Error && (error.name === "AbortError" || error.message === "Request was aborted")) {
+				throw new Error("Request was aborted");
+			}
+			lastError = error instanceof Error ? error : new Error(String(error));
+			if (attempt < MAX_SSE_REQUEST_RETRIES && !lastError.message.includes("usage limit")) {
+				await sleep(BASE_DELAY_MS * 2 ** attempt, options?.signal);
+				continue;
+			}
+			throw lastError;
+		}
+	}
+	throw lastError ?? new Error("Failed after retries");
+}
+
 export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 	model: Model<TApi>,
 	context: Context,
@@ -108,14 +180,7 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 	const accountId = extractAccountId(options.apiKey);
 	const originator = runtimeConfig?.openai.harnessIdentifierHeader ? PI_CODEX_CONVERSION_ORIGINATOR : undefined;
 	const headers = buildWebSocketHeaders(model.headers, effectiveOptions.headers, accountId, options.apiKey, options.sessionId, originator);
-	let websocketBody = responsesLite ? applyResponsesLiteWebSocketMetadata(body) : body;
-	const currentTurnState = deps.turnState?.current();
-	if (currentTurnState) {
-		websocketBody = {
-			...websocketBody,
-			client_metadata: { ...(websocketBody.client_metadata ?? {}), [CODEX_TURN_STATE_HEADER]: currentTurnState },
-		};
-	}
+	const websocketBody = withCodexTurnState(responsesLite ? applyResponsesLiteWebSocketMetadata(body) : body, deps.turnState);
 	try {
 		await prewarmWebSocket(resolveCodexWebSocketUrl(model.baseUrl), websocketBody, headers, effectiveOptions, deps.turnState);
 	} catch (error) {
@@ -167,20 +232,12 @@ function createCodexStream<TApi extends Api>(
 			deps.onPreparedPayload?.(body);
 			const websocketRequestId = effectiveOptions?.sessionId || createCodexRequestId();
 			const originator = runtimeConfig?.openai.harnessIdentifierHeader ? PI_CODEX_CONVERSION_ORIGINATOR : undefined;
-			const sseHeaders = buildSSEHeaders(model.headers, effectiveOptions?.headers, accountId, apiKey, effectiveOptions?.sessionId, responsesLite, originator);
+			const baseSseHeaders = buildSSEHeaders(model.headers, effectiveOptions?.headers, accountId, apiKey, effectiveOptions?.sessionId, responsesLite, originator);
 			const websocketHeaders = buildWebSocketHeaders(model.headers, effectiveOptions?.headers, accountId, apiKey, websocketRequestId, originator);
-			const currentTurnState = deps.turnState?.current();
-			if (currentTurnState) sseHeaders.set(CODEX_TURN_STATE_HEADER, currentTurnState);
 			const bodyJson = JSON.stringify(body);
-			let websocketBody = responsesLite ? applyResponsesLiteWebSocketMetadata(body) : body;
-			if (currentTurnState) {
-				websocketBody = {
-					...websocketBody,
-					client_metadata: { ...(websocketBody.client_metadata ?? {}), [CODEX_TURN_STATE_HEADER]: currentTurnState },
-				};
-			}
+			const websocketBody = responsesLite ? applyResponsesLiteWebSocketMetadata(body) : body;
 			const compressedBody = compressRequestBodyZstd(bodyJson);
-			if (compressedBody) sseHeaders.set("content-encoding", "zstd");
+			if (compressedBody) baseSseHeaders.set("content-encoding", "zstd");
 			const sseBody = compressedBody ?? bodyJson;
 			const transport = effectiveOptions.transport ?? "auto";
 
@@ -195,7 +252,7 @@ function createCodexStream<TApi extends Api>(
 					try {
 						await processWebSocketStream(
 							resolveCodexWebSocketUrl(model.baseUrl),
-							websocketBody,
+							withCodexTurnState(websocketBody, deps.turnState),
 							websocketHeaders,
 							output,
 							stream,
@@ -219,9 +276,7 @@ function createCodexStream<TApi extends Api>(
 					} catch (error) {
 						if (effectiveOptions?.signal?.aborted) throw error;
 						const upgradeRequired = isWebSocketUpgradeRequiredError(error);
-						const retryableWebSocketError = !isCodexNonTransportError(error)
-							|| isWebSocketConnectionLimitReachedError(error)
-							|| isPreviousResponseNotFoundError(error);
+						const retryableWebSocketError = isRetryableCodexStreamError(error);
 						const fallbackArmed = upgradeRequired || (retryableWebSocketError && attempt >= DEFAULT_STREAM_MAX_RETRIES);
 						appendAssistantMessageDiagnostic(
 							output,
@@ -250,90 +305,51 @@ function createCodexStream<TApi extends Api>(
 				}
 			}
 
-			let response: Response | undefined;
-			let lastError: Error | undefined;
-
-			for (let attempt = 0; attempt <= MAX_SSE_REQUEST_RETRIES; attempt++) {
-				if (effectiveOptions?.signal?.aborted) {
-					throw new Error("Request was aborted");
-				}
-
+			const sseIdleTimeoutMs = normalizeTimeoutMs(effectiveOptions?.timeoutMs ?? DEFAULT_STREAM_IDLE_TIMEOUT_MS, "timeoutMs");
+			for (let attempt = 0; attempt <= DEFAULT_STREAM_MAX_RETRIES; attempt++) {
+				if (attempt > 0) output = createInitialAssistantMessage(model);
+				const responseItems: unknown[] = [];
 				try {
-					const headerTimeout = createSSEHeaderTimeout(DEFAULT_SSE_HEADER_TIMEOUT_MS);
-					const combinedSignal = combineAbortSignals([effectiveOptions?.signal, headerTimeout.signal]);
-					try {
-						response = await fetch(resolveCodexUrl(model.baseUrl), {
-							method: "POST",
-							headers: sseHeaders,
-							body: sseBody,
-							signal: combinedSignal.signal,
-						});
-					} catch (error) {
-						const timeoutError = headerTimeout.error();
-						throw timeoutError && !effectiveOptions?.signal?.aborted ? new NonRetryableProviderError(timeoutError.message) : error;
-					} finally {
-						combinedSignal.cleanup();
-						headerTimeout.clear();
+					const response = await openCodexSSE(model, sseBody, baseSseHeaders, effectiveOptions, deps.turnState);
+					if (!response.body) throw new Error("No response body");
+					if (!streamStarted) {
+						streamStarted = true;
+						stream.push({ type: "start", partial: output });
 					}
-
-					if (response.ok) deps.turnState?.capture(response.headers.get(CODEX_TURN_STATE_HEADER));
-					await effectiveOptions?.onResponse?.({ status: response.status, headers: headersToRecord(response.headers) }, model);
-
-					if (response.ok) {
-						break;
-					}
-
-					const errorText = await response.text();
-					if (attempt < MAX_SSE_REQUEST_RETRIES && isRetryableError(response.status, errorText)) {
-						await sleep(BASE_DELAY_MS * 2 ** attempt, effectiveOptions?.signal);
-						continue;
-					}
-
-					const fakeResponse = new Response(errorText, {
-						status: response.status,
-						statusText: response.statusText,
-					});
-					const info = await parseErrorResponse(fakeResponse);
-					throw new NonRetryableProviderError(info.friendlyMessage || info.message);
+					await processCodexResponsesStream(
+						parseSSE(response, effectiveOptions?.signal, sseIdleTimeoutMs),
+						output,
+						stream,
+						model,
+						{ ...effectiveOptions, onOutputItemDone: (item) => responseItems.push(item) },
+					);
+					finalizeUsage(output);
+					if (effectiveOptions?.signal?.aborted) throw new Error("Request was aborted");
+					assertSuccessfulCodexOutput(output);
+					for (const item of responseItems) effectiveOptions?.onOutputItemDone?.(item);
+					stream.push({ type: "done", reason: output.stopReason, message: output });
+					stream.end();
+					return;
 				} catch (error) {
-					if (error instanceof NonRetryableProviderError) {
-						throw error;
-					}
-					if (error instanceof Error && (error.name === "AbortError" || error.message === "Request was aborted")) {
-						throw new Error("Request was aborted");
-					}
-
-					lastError = error instanceof Error ? error : new Error(String(error));
-					if (attempt < MAX_SSE_REQUEST_RETRIES && !lastError.message.includes("usage limit")) {
-						await sleep(BASE_DELAY_MS * 2 ** attempt, effectiveOptions?.signal);
+					if (effectiveOptions?.signal?.aborted) throw error;
+					const retryable = !(error instanceof NonRetryableProviderError) && isRetryableCodexStreamError(error);
+					appendAssistantMessageDiagnostic(
+						output,
+						createAssistantMessageDiagnostic(retryable ? "provider_transport_failure" : "provider_stream_failure", error, {
+							configuredTransport: preferredTransport,
+							eventsEmitted: output.content.length > 0,
+							phase: output.content.length > 0 ? "after_message_stream_start" : "before_message_stream_start",
+							requestBytes: new TextEncoder().encode(bodyJson).byteLength,
+						}),
+					);
+					if (retryable && attempt < DEFAULT_STREAM_MAX_RETRIES) {
+						await sleep(codexStreamRetryDelayMs(attempt + 1), effectiveOptions?.signal);
 						continue;
 					}
-					throw lastError;
+					if (retryable) throw new NonRetryableProviderError("Codex stream retry budget was exhausted before a response completed.");
+					throw error;
 				}
 			}
-
-			if (!response?.ok) {
-				throw lastError ?? new Error("Failed after retries");
-			}
-
-			if (!response.body) {
-				throw new Error("No response body");
-			}
-
-			if (!streamStarted) {
-				streamStarted = true;
-				stream.push({ type: "start", partial: output });
-			}
-			await processCodexResponsesStream(parseSSE(response, effectiveOptions?.signal), output, stream, model, effectiveOptions);
-			finalizeUsage(output);
-
-			if (effectiveOptions?.signal?.aborted) {
-				throw new Error("Request was aborted");
-			}
-			assertSuccessfulCodexOutput(output);
-
-			stream.push({ type: "done", reason: output.stopReason, message: output });
-			stream.end();
 		} catch (error) {
 			stream.push({
 				type: "error",

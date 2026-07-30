@@ -11,7 +11,8 @@ import { getActiveToolsInActiveOrder } from "../src/adapter/active-tools.ts";
 import { serializeMessagesToResponsesInput } from "../src/adapter/compaction/serializer.ts";
 import { NATIVE_COMPACTION_SHIM_SUMMARY, NATIVE_COMPACTION_STRATEGY } from "../src/adapter/compaction/types.ts";
 import { CODE_MODE_EXEC_GRAMMAR_INPUTS } from "../src/tools/code-mode/exec-contract.ts";
-import { closeOpenAICodexWebSocketSessions, prewarmOpenAICodexWebSocket } from "../src/providers/openai-codex-custom-provider.ts";
+import { buildCachedWebSocketRequestBody, closeOpenAICodexWebSocketSessions, prewarmOpenAICodexWebSocket } from "../src/providers/openai-codex-custom-provider.ts";
+import { isWebSocketSseFallbackActive, recordWebSocketSseFallback } from "../src/providers/openai-codex/websocket.ts";
 import { createCodexExtensionRuntime } from "../src/extension/runtime.ts";
 import {
 	ScriptedWebSocket,
@@ -30,6 +31,7 @@ type ResponseCreateFrame = {
 	type: "response.create";
 	input?: unknown[] | undefined;
 	previous_response_id?: string | undefined;
+	client_metadata?: Record<string, string> | undefined;
 };
 
 const model = {
@@ -131,8 +133,14 @@ function failAfterText(socket: ScriptedWebSocket) {
 }
 
 function apiFailAfterStart(socket: ScriptedWebSocket) {
+	socket.emitJson({ type: "response.metadata", headers: { "x-codex-turn-state": "retry-turn-state" } });
 	socket.emitJson({ type: "response.created", response: { id: "resp_failed" } });
 	socket.emitJson({ type: "error", code: "server_error", message: "internal server error" });
+}
+
+function fatalApiFailAfterStart(socket: ScriptedWebSocket) {
+	socket.emitJson({ type: "response.created", response: { id: "resp_failed" } });
+	socket.emitJson({ type: "error", code: "invalid_request", message: "bad request" });
 }
 
 function missingContinuationAfterStart(socket: ScriptedWebSocket) {
@@ -152,6 +160,14 @@ function unfinishedResponse(responseId: string, status: "queued" | "in_progress"
 			response: { id: responseId, status, usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 } },
 		});
 	};
+}
+
+function incompleteResponse(socket: ScriptedWebSocket) {
+	socket.emitJson({ type: "response.created", response: { id: "resp_incomplete" } });
+	socket.emitJson({
+		type: "response.incomplete",
+		response: { id: "resp_incomplete", status: "incomplete", incomplete_details: { reason: "max_output_tokens" } },
+	});
 }
 
 function streamOptions(sessionId: string) {
@@ -340,6 +356,33 @@ test("cache continuation rejects meaningful prompt, tool, and persisted-history 
 	}
 });
 
+test("cache continuation requires matching model and reasoning", () => {
+	const userInput = { role: "user", content: [{ type: "input_text", text: "first" }] };
+	const assistantOutput = { type: "message", role: "assistant", content: [{ type: "output_text", text: "answer" }] };
+	const base = {
+		model: "gpt-5.6-luna",
+		store: false,
+		stream: true,
+		input: [userInput],
+		text: { verbosity: "low" },
+		include: [],
+		tool_choice: "auto" as const,
+		parallel_tool_calls: false,
+		reasoning: { effort: "low" },
+	};
+	const continuation = { lastRequestBody: base, lastResponseId: "resp_base", lastResponseItems: [assistantOutput] };
+	const nextInput = [...base.input, assistantOutput, { role: "user", content: [{ type: "input_text", text: "next" }] }];
+	for (const changed of [
+		{ ...base, model: "gpt-5.6-sol", input: nextInput },
+		{ ...base, reasoning: { effort: "high" }, input: nextInput },
+	]) {
+		const result = buildCachedWebSocketRequestBody(continuation, changed);
+		assert.equal(result.decision, "body_mismatch");
+		assert.equal(result.body.previous_response_id, undefined);
+		assert.deepEqual(result.body.input, nextInput);
+	}
+});
+
 test("WebSocket continuations never cross session IDs", async () => {
 	const restoreWebSocket = installScriptedWebSocket([
 		textResponse("resp_session_a", "session A"),
@@ -370,8 +413,8 @@ test("WebSocket continuations never cross session IDs", async () => {
 test("Codex transport retries five fresh full WebSockets before sticky SSE fallback", { timeout: 15_000 }, async () => {
 	const restoreWebSocket = installScriptedWebSocket([
 		failAfterText,
-		failAfterStart,
-		failAfterStart,
+		apiFailAfterStart,
+		incompleteResponse,
 		failAfterStart,
 		failAfterStart,
 		failAfterStart,
@@ -407,10 +450,11 @@ test("Codex transport retries five fresh full WebSockets before sticky SSE fallb
 		const registered = createRegisteredCodexProvider({ codeMode: true });
 		const sessionId = "post-start-retry";
 		const requestContext = context([user("same user", 1)]);
+		const completedItems: unknown[] = [];
 		const recovered = await collectStream(registered.provider.streamSimple(
 			model as never,
 			requestContext as never,
-			streamOptions(sessionId) as never,
+			{ ...streamOptions(sessionId), onOutputItemDone: (item: unknown) => completedItems.push(item) } as never,
 		));
 		assert.equal((recovered.at(-1) as { type?: string }).type, "done");
 		assert.equal(recovered.filter((event) => (event as { type?: string }).type === "start").length, 1);
@@ -434,6 +478,7 @@ test("Codex transport retries five fresh full WebSockets before sticky SSE fallb
 		assert.equal(recoveredMessage.content.find((item) => item.type === "text")?.text, "SSE recovery 1");
 		assert.equal(ScriptedWebSocket.opened, 6);
 		assert.equal(fetchCalls, 1);
+		assert.deepEqual((completedItems as Array<{ id?: string }>).map((item) => item.id), ["msg_sse_1"]);
 
 		await collectStream(registered.provider.streamSimple(
 			model as never,
@@ -444,8 +489,9 @@ test("Codex transport retries five fresh full WebSockets before sticky SSE fallb
 		assert.equal(fetchCalls, 2);
 		for (const frame of sentFrames()) {
 			assert.equal(frame.previous_response_id, undefined);
-			assert.deepEqual(frame, sentFrames()[0]);
+			assert.deepEqual(frame.input, sentFrames()[0]?.input);
 		}
+		assert.equal(sentFrames()[2]?.client_metadata?.["x-codex-turn-state"], "retry-turn-state");
 	} finally {
 		globalThis.fetch = originalFetch;
 		restoreWebSocket();
@@ -485,6 +531,16 @@ test("WebSocket 426 falls back to sticky SSE without retrying", async () => {
 		globalThis.fetch = originalFetch;
 		restoreWebSocket();
 	}
+});
+
+test("transport reset preserves session-sticky SSE until shutdown", () => {
+	const runtime = createCodexExtensionRuntime({ sendUserMessage: () => undefined } as never);
+	const sessionId = "sticky-reset";
+	recordWebSocketSseFallback(sessionId);
+	runtime.resetTransport(sessionId);
+	assert.equal(isWebSocketSseFallbackActive(sessionId), true);
+	runtime.shutdownTransport(sessionId);
+	assert.equal(isWebSocketSseFallbackActive(sessionId), false);
 });
 
 test("failed WebSocket prewarm leaves the generation retry lane enabled", async () => {
@@ -641,8 +697,8 @@ test("unfinished WebSocket prewarm cannot seed a continuation", async () => {
 	}
 });
 
-test("post-start API failures also block Pi's automatic replay", async () => {
-	const restoreWebSocket = installScriptedWebSocket([apiFailAfterStart]);
+test("post-start fatal API failures also block Pi's automatic replay", async () => {
+	const restoreWebSocket = installScriptedWebSocket([fatalApiFailAfterStart]);
 	try {
 		const registered = createRegisteredCodexProvider({ codeMode: true });
 		const failed = await collectStream(registered.provider.streamSimple(
@@ -654,7 +710,7 @@ test("post-start API failures also block Pi's automatic replay", async () => {
 		assert.ok(failedEvent.error);
 		assert.equal(isRetryableAssistantError(failedEvent.error), false);
 		assert.match(failedEvent.error.errorMessage ?? "", /cannot be continued/);
-		assert.match(JSON.stringify(failedEvent.error.diagnostics), /internal server error/);
+		assert.match(JSON.stringify(failedEvent.error.diagnostics), /bad request/);
 	} finally {
 		restoreWebSocket();
 	}

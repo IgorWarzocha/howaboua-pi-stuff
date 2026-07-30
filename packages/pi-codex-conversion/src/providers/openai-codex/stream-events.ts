@@ -6,16 +6,38 @@ import type { OpenAICodexStreamOptions, ServiceTier, StreamEventShape } from "./
 
 const WEBSOCKET_CONNECTION_LIMIT_REACHED_CODE = "websocket_connection_limit_reached";
 const PREVIOUS_RESPONSE_NOT_FOUND_CODE = "previous_response_not_found";
+const FATAL_CODEX_ERROR_CODES = new Set([
+	"bio_policy",
+	"context_length_exceeded",
+	"cyber_policy",
+	"insufficient_quota",
+	"invalid_prompt",
+	"invalid_request",
+	"server_is_overloaded",
+	"slow_down",
+	"usage_not_included",
+]);
 
-export class CodexApiError extends Error {
+class CodexApiError extends Error {
 	readonly code?: string | undefined;
 	readonly payload?: StreamEventShape | undefined;
+	readonly retryable: boolean;
+	readonly status?: number | undefined;
 
-	constructor(message: string, options?: { code?: string | undefined; payload?: StreamEventShape | undefined }) {
+	constructor(message: string, options?: { code?: string | undefined; payload?: StreamEventShape | undefined; retryable?: boolean | undefined; status?: number | undefined }) {
 		super(message);
 		this.name = "CodexApiError";
 		this.code = options?.code;
 		this.payload = options?.payload;
+		this.retryable = options?.retryable ?? false;
+		this.status = options?.status;
+	}
+}
+
+class CodexRetryableStreamError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = "CodexRetryableStreamError";
 	}
 }
 
@@ -26,16 +48,9 @@ export class CodexProtocolError extends Error {
 	}
 }
 
-export function isCodexNonTransportError(error: unknown): boolean {
-	return error instanceof CodexApiError || error instanceof CodexProtocolError;
-}
-
-export function isWebSocketConnectionLimitReachedError(error: unknown): boolean {
-	return error instanceof CodexApiError && error.code === WEBSOCKET_CONNECTION_LIMIT_REACHED_CODE;
-}
-
-export function isPreviousResponseNotFoundError(error: unknown): boolean {
-	return error instanceof CodexApiError && error.code === PREVIOUS_RESPONSE_NOT_FOUND_CODE;
+export function isRetryableCodexStreamError(error: unknown): boolean {
+	if (error instanceof CodexApiError) return error.retryable;
+	return !(error instanceof CodexProtocolError);
 }
 
 export function assertSuccessfulCodexOutput(
@@ -49,8 +64,8 @@ export function assertSuccessfulCodexOutput(
 	}
 }
 
-export function assertSuccessfulCodexStatus(status: string | undefined): asserts status is "completed" | "incomplete" {
-	if (status === "completed" || status === "incomplete") return;
+export function assertSuccessfulCodexStatus(status: string | undefined): asserts status is "completed" {
+	if (status === "completed") return;
 	if (!status || status === "queued" || status === "in_progress") {
 		throw new CodexProtocolError("Responses stream ended with a pending result");
 	}
@@ -58,6 +73,18 @@ export function assertSuccessfulCodexStatus(status: string | undefined): asserts
 		throw new CodexProtocolError("Responses stream ended without a successful result");
 	}
 	throw new CodexProtocolError(`Unhandled Codex response status: ${status}`);
+}
+
+function eventStatus(event: StreamEventShape): number | undefined {
+	const status = event["status"] ?? event["status_code"];
+	return typeof status === "number" && Number.isInteger(status) ? status : undefined;
+}
+
+function isRetryableCodexApiFailure(code: string | undefined, status: number | undefined, defaultRetryable: boolean): boolean {
+	if (code === WEBSOCKET_CONNECTION_LIMIT_REACHED_CODE || code === PREVIOUS_RESPONSE_NOT_FOUND_CODE) return true;
+	if (code && FATAL_CODEX_ERROR_CODES.has(code)) return false;
+	if (status !== undefined) return status === 408 || status === 409 || status === 425 || status === 429 || status >= 500;
+	return defaultRetryable;
 }
 
 function extractCodexEventError(event: StreamEventShape): { code?: string | undefined; message?: string | undefined } {
@@ -76,15 +103,33 @@ export async function* mapCodexEvents(events: AsyncIterable<StreamEventShape>): 
 
 		if (type === "error") {
 			const { code, message } = extractCodexEventError(event);
-			throw new CodexApiError(`Codex error: ${message || code || JSON.stringify(event)}`, { code, payload: event });
+			const status = eventStatus(event);
+			throw new CodexApiError(`Codex error: ${message || code || JSON.stringify(event)}`, {
+				code,
+				payload: event,
+				retryable: isRetryableCodexApiFailure(code, status, true),
+				...(status !== undefined ? { status } : {}),
+			});
 		}
 
 		if (type === "response.failed") {
 			const code = typeof event.response?.error === "object" ? (event.response.error as { code?: string | undefined }).code : undefined;
-			throw new CodexApiError(event.response?.error?.message || "Codex response failed", { code, payload: event });
+			throw new CodexApiError(event.response?.error?.message || "Codex response failed", {
+				code,
+				payload: event,
+				retryable: isRetryableCodexApiFailure(code, undefined, true),
+			});
 		}
 
-		if (type === "response.done" || type === "response.completed" || type === "response.incomplete") {
+		if (type === "response.incomplete") {
+			const reason = event.response?.["incomplete_details"];
+			const detail = reason && typeof reason === "object" && typeof (reason as { reason?: unknown }).reason === "string"
+				? (reason as { reason: string }).reason
+				: "unknown";
+			throw new CodexRetryableStreamError(`Incomplete response returned, reason: ${detail}`);
+		}
+
+		if (type === "response.done" || type === "response.completed") {
 			sawTerminalResponse = true;
 			const response = event.response;
 			yield {

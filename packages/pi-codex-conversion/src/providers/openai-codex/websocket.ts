@@ -6,6 +6,7 @@ export {
 	closeOpenAICodexWebSocketSessions,
 	isWebSocketSseFallbackActive,
 	recordWebSocketSseFallback,
+	resetOpenAICodexWebSocketSessions,
 } from "./websocket-session-cache.ts";
 export { parseWebSocket, startWebSocketOutputOnFirstEvent } from "./websocket-parser.ts";
 

@@ -82,7 +82,7 @@ export function createSSEHeaderTimeout(timeoutMs: number): { signal: AbortSignal
 	};
 }
 
-export async function* parseSSE(response: Response, signal?: AbortSignal): AsyncIterable<StreamEventShape> {
+export async function* parseSSE(response: Response, signal?: AbortSignal, idleTimeoutMs?: number): AsyncIterable<StreamEventShape> {
 	if (!response.body) return;
 
 	const reader = response.body.getReader();
@@ -98,7 +98,18 @@ export async function* parseSSE(response: Response, signal?: AbortSignal): Async
 			if (signal?.aborted) {
 				throw new Error("Request was aborted");
 			}
-			const { done, value } = await reader.read();
+			let idleTimer: ReturnType<typeof setTimeout> | undefined;
+			const read = reader.read();
+			const { done, value } = idleTimeoutMs === undefined || idleTimeoutMs <= 0
+				? await read
+				: await Promise.race([
+					read,
+					new Promise<never>((_resolve, reject) => {
+						idleTimer = setTimeout(() => reject(new Error(`Codex SSE stream idle timeout after ${idleTimeoutMs}ms`)), idleTimeoutMs);
+					}),
+				]).finally(() => {
+					if (idleTimer) clearTimeout(idleTimer);
+				});
 			if (signal?.aborted) {
 				throw new Error("Request was aborted");
 			}

@@ -10,6 +10,7 @@ import { getDefaultCodexRuntimeShell } from "../adapter/prompt/runtime-shell.ts"
 import { isAdapterContextExcludedCustomMessage } from "../adapter/prompt/context-filter.ts";
 import { buildCodexSystemPrompt, type PiSystemPromptOptions } from "../prompt/build-system-prompt.ts";
 import { closeOpenAICodexWebSocketSessions, prewarmOpenAICodexWebSocket } from "../providers/openai-codex-custom-provider.ts";
+import { resetOpenAICodexWebSocketSessions } from "../providers/openai-codex/websocket.ts";
 import { createCodexTurnState } from "../providers/openai-codex/turn-state.ts";
 import type { OpenAICodexStreamOptions } from "../providers/openai-codex/types.ts";
 import { createExecCommandTracker } from "../tools/exec/command-state.ts";
@@ -164,10 +165,12 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 			prewarmPromise = undefined;
 			websocketPrewarmed = false;
 			state.codexTurnState.reset();
-			if (sessionId) closeOpenAICodexWebSocketSessions(sessionId);
+			if (sessionId) resetOpenAICodexWebSocketSessions(sessionId);
+			else closeOpenAICodexWebSocketSessions();
 		},
 		shutdownTransport(sessionId) {
 			runtime.resetTransport(sessionId);
+			closeOpenAICodexWebSocketSessions(sessionId);
 		},
 		waitForPrewarm(ctx, systemPrompt) {
 			return prewarmPromise ?? runtime.startPrewarm(ctx, systemPrompt, true);

@@ -5,7 +5,7 @@ import { acquireWebSocket, parseWebSocket, startWebSocketOutputOnFirstEvent } fr
 import { assertSuccessfulCodexOutput, assertSuccessfulCodexStatus, mapCodexEvents, processMappedCodexResponsesStream } from "./stream-events.ts";
 import type { CachedWebSocketRequestBodyResult, OpenAICodexStreamOptions, ResponsesBody } from "./types.ts";
 import type { CodexTurnState } from "./turn-state.ts";
-import { DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS } from "./constants.ts";
+import { DEFAULT_STREAM_IDLE_TIMEOUT_MS, DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS } from "./constants.ts";
 
 export async function processWebSocketStream<TApi extends Api>(
 	url: string,
@@ -19,7 +19,7 @@ export async function processWebSocketStream<TApi extends Api>(
 	turnState?: CodexTurnState,
 ): Promise<void> {
 	let streamStarted = false;
-	const idleTimeoutMs = normalizeTimeoutMs(options?.timeoutMs, "timeoutMs");
+	const idleTimeoutMs = normalizeTimeoutMs(options?.timeoutMs ?? DEFAULT_STREAM_IDLE_TIMEOUT_MS, "timeoutMs");
 	const websocketConnectTimeoutMs = normalizeTimeoutMs(options?.websocketConnectTimeoutMs, "websocketConnectTimeoutMs");
 
 	const { socket, entry, release } = await acquireWebSocket(url, headers, options?.sessionId, options?.signal, websocketConnectTimeoutMs, options?.env);
@@ -59,16 +59,14 @@ export async function processWebSocketStream<TApi extends Api>(
 			model,
 			{
 				...options,
-				onOutputItemDone: (item) => {
-					responseItems.push(item);
-					options?.onOutputItemDone?.(item);
-				},
+				onOutputItemDone: (item) => responseItems.push(item),
 			},
 		);
 		if (options?.signal?.aborted) {
 			keepConnection = false;
 		} else {
 			assertSuccessfulCodexOutput(output);
+			for (const item of responseItems) options?.onOutputItemDone?.(item);
 			if (useCachedContext && entry && output.responseId) {
 				entry.continuation = {
 					lastRequestBody: fullBody,
