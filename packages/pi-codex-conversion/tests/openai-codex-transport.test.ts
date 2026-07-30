@@ -154,30 +154,44 @@ test("WebSocket close 1009 continues through sticky SSE without futile WebSocket
 	}
 });
 
-test("permanent WebSocket handshake failures neither retry nor disable WebSockets", async () => {
+test("WebSocket HTTP statuses recover within the turn without unnecessarily disabling WebSockets", async () => {
 	const restoreWebSocket = installScriptedWebSocket([
 		(socket) => socket.emit("error", { message: "Unexpected server response: 401 Unauthorized", status: 401 }),
+		websocketSuccess,
+		(socket) => socket.emit("error", { message: "Unexpected server response: 403 Forbidden", status: 403 }),
 		websocketSuccess,
 	]);
 	const originalFetch = globalThis.fetch;
 	let fetchCalls = 0;
 	globalThis.fetch = (async () => {
 		fetchCalls++;
-		return sseResponse([]);
+		return sseResponse([{
+			type: "response.completed",
+			response: { id: "resp_sse_auth", status: "completed", usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 } },
+		}]);
 	}) as typeof fetch;
 	try {
 		const registered = createRegisteredCodexProvider();
 		const request = codexStreamRequest("websocket-auth-session");
-		const failed = await collectStream(registered.provider.streamSimple(request.model, request.context, request.options));
-		assert.equal((failed.at(-1) as { type?: string }).type, "error");
-		assert.match(JSON.stringify(failed.at(-1)), /401 Unauthorized/);
-		assert.equal(ScriptedWebSocket.opened, 1);
-		assert.equal(fetchCalls, 0);
-
 		const recovered = await collectStream(registered.provider.streamSimple(request.model, request.context, request.options));
 		assert.equal((recovered.at(-1) as { type?: string }).type, "done");
+		assert.equal(ScriptedWebSocket.opened, 1);
+		assert.equal(fetchCalls, 1);
+
+		const nextTurn = await collectStream(registered.provider.streamSimple(request.model, request.context, request.options));
+		assert.equal((nextTurn.at(-1) as { type?: string }).type, "done");
 		assert.equal(ScriptedWebSocket.opened, 2);
-		assert.equal(fetchCalls, 0);
+		assert.equal(fetchCalls, 1);
+
+		const unexpected = codexStreamRequest("websocket-unexpected-status");
+		const retried = await collectStream(registered.provider.streamSimple(
+			unexpected.model,
+			unexpected.context,
+			{ ...(unexpected.options as object), maxRetries: 1 } as never,
+		));
+		assert.equal((retried.at(-1) as { type?: string }).type, "done");
+		assert.equal(ScriptedWebSocket.opened, 4);
+		assert.equal(fetchCalls, 1);
 	} finally {
 		globalThis.fetch = originalFetch;
 		restoreWebSocket();

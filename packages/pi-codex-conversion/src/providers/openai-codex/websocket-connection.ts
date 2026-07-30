@@ -160,10 +160,16 @@ function webSocketCloseCode(value: unknown, seen = new Set<unknown>()): number |
 	return webSocketCloseCode(record["error"], seen) ?? webSocketCloseCode(record["cause"], seen);
 }
 
-export function isWebSocketUpgradeRequiredError(error: unknown): boolean {
-	if (webSocketHttpStatus(error) === 426) return true;
+function webSocketStatus(error: unknown): number | undefined {
+	const structured = webSocketHttpStatus(error);
+	if (structured !== undefined) return structured;
 	const message = error instanceof Error ? error.message : String(error);
-	return /^(?:WebSocket error:\s*)?(?:Unexpected server response:\s*426(?:\s+Upgrade Required)?|HTTP(?:\/\d(?:\.\d)?)?\s+426(?:\s+Upgrade Required)?|WebSocket (?:handshake|upgrade)\b[^\n]*\b426(?:\s+Upgrade Required)?)$/i.test(message.trim());
+	const match = /^(?:WebSocket error:\s*)?(?:Unexpected server response:\s*|HTTP(?:\/\d(?:\.\d)?)?\s+|WebSocket (?:handshake|upgrade)\b[^\n]*?\b)(\d{3})(?:\s+[^\n]*)?$/i.exec(message.trim());
+	return match?.[1] ? Number(match[1]) : undefined;
+}
+
+export function isWebSocketUpgradeRequiredError(error: unknown): boolean {
+	return webSocketStatus(error) === 426;
 }
 
 export function isWebSocketMessageTooBigError(error: unknown): boolean {
@@ -173,15 +179,12 @@ export function isWebSocketMessageTooBigError(error: unknown): boolean {
 }
 
 export function isPermanentWebSocketError(error: unknown): boolean {
-	const status = webSocketHttpStatus(error);
-	if (status === undefined) return false;
-	return status >= 400
-		&& status <= 499
-		&& status !== 408
-		&& status !== 409
-		&& status !== 425
-		&& status !== 426
-		&& status !== 429;
+	const status = webSocketStatus(error);
+	return status === 400 || status === 429;
+}
+
+export function isWebSocketUnauthorizedError(error: unknown): boolean {
+	return webSocketStatus(error) === 401;
 }
 
 export function extractWebSocketError(event: unknown): Error {

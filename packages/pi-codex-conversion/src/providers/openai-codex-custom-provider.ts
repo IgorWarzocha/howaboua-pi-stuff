@@ -26,7 +26,7 @@ import {
 	recordWebSocketSseFallback,
 	validateWebSocketTimeoutOptions,
 } from "./openai-codex/websocket.ts";
-import { isPermanentWebSocketError, isWebSocketMessageTooBigError, isWebSocketUpgradeRequiredError } from "./openai-codex/websocket-connection.ts";
+import { isPermanentWebSocketError, isWebSocketMessageTooBigError, isWebSocketUnauthorizedError, isWebSocketUpgradeRequiredError } from "./openai-codex/websocket-connection.ts";
 import { assertSuccessfulCodexOutput, codexStreamRetryDelay, isRetryableCodexStreamError, processCodexResponsesStream } from "./openai-codex/stream-events.ts";
 import { prewarmWebSocket, processWebSocketStream } from "./openai-codex/websocket-stream.ts";
 import { openaiCodexNativeOAuthProvider } from "./openai-codex/oauth.ts";
@@ -295,8 +295,9 @@ function createCodexStream<TApi extends Api>(
 						if (effectiveOptions?.signal?.aborted) throw error;
 						const upgradeRequired = isWebSocketUpgradeRequiredError(error);
 						const messageTooBig = isWebSocketMessageTooBigError(error);
+						const unauthorized = isWebSocketUnauthorizedError(error);
 						const retryableWebSocketError = !isPermanentWebSocketError(error) && isRetryableCodexStreamError(error);
-						const immediateFallback = upgradeRequired || messageTooBig;
+						const immediateFallback = upgradeRequired || messageTooBig || unauthorized;
 						const fallbackArmed = immediateFallback || (retryableWebSocketError && attempt >= streamMaxRetries);
 						appendAssistantMessageDiagnostic(
 							output,
@@ -318,7 +319,9 @@ function createCodexStream<TApi extends Api>(
 							}
 							throw error;
 						}
-						recordWebSocketSseFallback(effectiveOptions?.sessionId);
+						// Pi supplies resolved request auth, not a force-refresh handle. Keep 401
+						// fallback turn-local so refreshed auth can use WebSockets on the next turn.
+						if (!unauthorized) recordWebSocketSseFallback(effectiveOptions?.sessionId);
 						output = createInitialAssistantMessage(model);
 						break;
 					}
