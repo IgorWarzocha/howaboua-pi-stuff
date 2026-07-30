@@ -2,7 +2,7 @@ use std::env;
 use std::io::Read;
 
 use anyhow::Context;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::types::{SearchCommands, SearchSettings};
 
@@ -23,42 +23,6 @@ pub struct WebRunArgs {
     pub settings: Option<SearchSettings>,
     #[serde(default)]
     pub max_output_tokens: Option<u64>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct WebRunSearchResult {
-    pub ref_id: String,
-    pub title: String,
-    pub url: String,
-    pub source: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct WebRunPageLine {
-    pub line: u64,
-    pub text: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct WebRunPageLink {
-    pub id: u64,
-    pub text: String,
-    pub url: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct WebRunPage {
-    pub ref_id: String,
-    pub url: String,
-    pub title: String,
-    pub content: Vec<WebRunPageLine>,
-    pub links: Vec<WebRunPageLink>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
-pub struct WebRunSessionState {
-    pub search_results: Vec<WebRunSearchResult>,
-    pub pages: Vec<WebRunPage>,
 }
 
 pub fn parse_args() -> anyhow::Result<WebRunArgs> {

@@ -9,6 +9,7 @@ export interface CodexToolProvider {
 	route: "openai-codex" | "configured-responses";
 	baseUrl: string;
 	responsesUrl: string;
+	searchUrl: string;
 	model: string | undefined;
 	token: string;
 	accountId: string;
@@ -38,6 +39,15 @@ export function resolveCodexResponsesUrl(providerBaseUrl: string): string {
 	const base = providerBaseUrl.replace(/\/+$/, "");
 	if (base.endsWith("/codex/responses")) return base;
 	return `${resolveCodexApiProviderBaseUrl(base)}/responses`;
+}
+
+export function resolveCodexSearchUrl(providerBaseUrl: string): string {
+	const normalized = providerBaseUrl.trim().replace(/\/+$/, "");
+	if (normalized.endsWith("/alpha/search")) return normalized;
+	const base = normalized.endsWith("/responses")
+		? normalized.slice(0, -"/responses".length)
+		: resolveCodexApiProviderBaseUrl(normalized);
+	return `${base}/alpha/search`;
 }
 
 function headerValue(headers: Record<string, string> | undefined, name: string): string | undefined {
@@ -110,10 +120,12 @@ export async function resolveCodexToolProvider(ctx: ExtensionContext, allowConfi
 		? resolveCodexApiProviderBaseUrl(model.baseUrl)
 		: model.baseUrl?.trim().replace(/\/+$/, "");
 	if (!baseUrl) throw new Error("Configured Responses provider is missing a base URL");
+	const responsesUrl = openAICodex ? resolveCodexResponsesUrl(baseUrl) : resolveConfiguredResponsesUrl(baseUrl);
 	return {
 		route: openAICodex ? "openai-codex" : "configured-responses",
 		baseUrl,
-		responsesUrl: openAICodex ? resolveCodexResponsesUrl(baseUrl) : resolveConfiguredResponsesUrl(baseUrl),
+		responsesUrl,
+		searchUrl: resolveCodexSearchUrl(responsesUrl),
 		model: model.id,
 		token,
 		accountId: headerValue(auth.headers, "chatgpt-account-id") ?? (openAICodex ? extractAccountId(token) : ""),
@@ -146,6 +158,7 @@ export function codexToolProviderEnv(provider: CodexToolProvider): NodeJS.Proces
 		PI_CODEX_ACCOUNT_ID: provider.accountId,
 		PI_CODEX_BASE_URL: provider.baseUrl,
 		PI_CODEX_RESPONSES_URL: provider.responsesUrl,
+		PI_CODEX_SEARCH_URL: provider.searchUrl,
 		...(provider.model ? { PI_CODEX_MODEL: provider.model } : {}),
 	};
 	if (provider.route === "configured-responses") delete env["PI_CODEX_AGENT_IDENTITY_JWT"];

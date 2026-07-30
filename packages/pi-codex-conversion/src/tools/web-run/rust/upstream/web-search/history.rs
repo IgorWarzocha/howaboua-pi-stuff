@@ -3,6 +3,7 @@ use codex_core::parse_turn_item;
 use codex_protocol::items::TurnItem;
 use codex_protocol::models::ContentItem;
 use codex_protocol::models::ResponseItem;
+use codex_protocol::models::plaintext_agent_message_content;
 use codex_tools::retain_tail_from_last_n_user_messages;
 use codex_tools::truncate_assistant_output_text_to_token_budget;
 
@@ -28,13 +29,34 @@ pub(crate) fn recent_input(items: &[ResponseItem]) -> Option<SearchInput> {
 fn push_visible_message(messages: &mut Vec<ResponseItem>, item: &ResponseItem) {
     match item {
         ResponseItem::Message { role, .. } if role == ASSISTANT_ROLE => {
-            messages.push(item.clone());
+            let mut message = item.clone();
+            message.set_id(/*new_id*/ None);
+            messages.push(message);
+        }
+        ResponseItem::AgentMessage {
+            author,
+            content,
+            internal_chat_message_metadata_passthrough: metadata,
+            ..
+        } => {
+            if let Some(text) = plaintext_agent_message_content(content) {
+                messages.push(ResponseItem::Message {
+                    id: None,
+                    role: ASSISTANT_ROLE.to_string(),
+                    content: vec![ContentItem::OutputText {
+                        text: format!("Agent message from {author}:\n{text}"),
+                    }],
+                    phase: None,
+                    internal_chat_message_metadata_passthrough: metadata.clone(),
+                });
+            }
         }
         ResponseItem::Message {
-            id,
+            id: _,
             role,
             content,
             phase,
+            internal_chat_message_metadata_passthrough: metadata,
         } if role == USER_ROLE
             && matches!(parse_turn_item(item), Some(TurnItem::UserMessage(_))) =>
         {
@@ -45,10 +67,11 @@ fn push_visible_message(messages: &mut Vec<ResponseItem>, item: &ResponseItem) {
                 .collect::<Vec<_>>();
             if !content.is_empty() {
                 messages.push(ResponseItem::Message {
-                    id: id.clone(),
+                    id: None,
                     role: role.clone(),
                     content,
                     phase: phase.clone(),
+                    internal_chat_message_metadata_passthrough: metadata.clone(),
                 });
             }
         }
@@ -59,6 +82,7 @@ fn push_visible_message(messages: &mut Vec<ResponseItem>, item: &ResponseItem) {
 #[cfg(test)]
 mod tests {
     use codex_api::SearchInput;
+    use codex_protocol::ResponseItemId;
     use codex_protocol::models::ContentItem;
     use codex_protocol::models::ResponseItem;
     use pretty_assertions::assert_eq;
@@ -81,24 +105,34 @@ mod tests {
                 }
             }],
             phase: None,
+            internal_chat_message_metadata_passthrough: None,
         }
     }
 
     #[test]
     fn keeps_current_user_and_previous_visible_turn() {
+        let mut previous_user = message(USER_ROLE, "previous user");
+        previous_user.set_id(Some(ResponseItemId::with_suffix("msg", "previous_user")));
+        let mut previous_assistant = message(ASSISTANT_ROLE, "previous assistant");
+        previous_assistant.set_id(Some(ResponseItemId::with_suffix(
+            "msg",
+            "previous_assistant",
+        )));
         let items = vec![
             message("system", "system"),
             message(USER_ROLE, "old user"),
             message(ASSISTANT_ROLE, "old assistant"),
-            message(USER_ROLE, "previous user"),
+            previous_user,
             ResponseItem::FunctionCall {
                 id: None,
                 name: "tool".to_string(),
                 namespace: None,
                 arguments: "{}".to_string(),
                 call_id: "call-1".to_string(),
+                encrypted_function_args: None,
+                internal_chat_message_metadata_passthrough: None,
             },
-            message(ASSISTANT_ROLE, "previous assistant"),
+            previous_assistant,
             message("developer", "developer"),
             message(USER_ROLE, "current user"),
             message(ASSISTANT_ROLE, "current commentary"),
@@ -129,6 +163,7 @@ mod tests {
                 },
             ],
             phase: None,
+            internal_chat_message_metadata_passthrough: None,
         };
         let items = vec![
             previous_user,

@@ -156,6 +156,21 @@ pub enum SearchResponseLength {
     Long,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ExternalWebAccessMode {
+    Cached,
+    Indexed,
+    Live,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum ExternalWebAccess {
+    Boolean(bool),
+    Mode(ExternalWebAccessMode),
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct SearchSettings {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -169,7 +184,7 @@ pub struct SearchSettings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allowed_callers: Option<Vec<AllowedCaller>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub external_web_access: Option<bool>,
+    pub external_web_access: Option<ExternalWebAccess>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ApproximateLocation {
@@ -218,5 +233,8 @@ pub enum AllowedCaller {
 }
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 pub struct SearchResponse {
-    pub encrypted_output: String,
+    pub encrypted_output: Option<String>,
+    pub output: String,
+    #[serde(default)]
+    pub results: Option<Vec<Value>>,
 }
