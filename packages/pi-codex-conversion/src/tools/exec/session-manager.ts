@@ -74,6 +74,8 @@ interface RustExecSession extends BaseExecSession {
 	lastSeq: number;
 	outputDecoders: Record<"stdout" | "stderr" | "pty", StringDecoder>;
 	outputDecodersFlushed: boolean;
+	postExitIdleSince?: number | undefined;
+	observedExitCode?: number | null | undefined;
 }
 
 type ExecSession = RustExecSession;
@@ -111,6 +113,7 @@ const MAX_COMPLETED_SESSION_OUTPUT_TOKENS = MAX_COMPLETED_SESSION_OUTPUT_CHARS /
 const DEFAULT_MAX_TTY_SESSION_BUFFER_CHARS = 1024 * 1024;
 const DEFAULT_MAX_PIPE_SESSION_BUFFER_CHARS = 256 * 1024 * 1024;
 const TERMINATE_ESCALATE_MS = 2_000;
+const EXIT_OUTPUT_GRACE_MS = 100;
 
 export function createExecSessionManager(options: ExecSessionManagerOptions = {}): ExecSessionManager {
 	let nextSessionId = 1;
@@ -242,19 +245,25 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			max_bytes: maxBytes,
 			wait_ms: waitMs,
 		});
+		let receivedOutput = false;
 		for (const chunk of response.chunks ?? []) {
 			appendOutput(session, session.outputDecoders[chunk.stream].write(chunkToBytes(chunk.chunk)));
 			session.lastSeq = Math.max(session.lastSeq, chunk.seq);
+			receivedOutput = true;
 		}
 		session.lastSeq = Math.max(session.lastSeq, response.nextSeq - 1);
-		// Process exit can race ahead of the stdout/stderr readers. Only publish
-		// the terminal state once the bridge confirms every output stream closed.
-		if (response.closed) {
+		if (response.exited) {
+			session.observedExitCode = response.exitCode;
+			if (session.postExitIdleSince === undefined || receivedOutput) session.postExitIdleSince = Date.now();
+		}
+		const postExitIdle = session.postExitIdleSince !== undefined
+			&& Date.now() - session.postExitIdleSince >= EXIT_OUTPUT_GRACE_MS;
+		if (response.closed || postExitIdle) {
 			if (!session.outputDecodersFlushed) {
 				session.outputDecodersFlushed = true;
 				for (const decoder of Object.values(session.outputDecoders)) appendOutput(session, decoder.end());
 			}
-			setClosedExitCode(session, response.exitCode);
+			setClosedExitCode(session, response.exitCode ?? session.observedExitCode);
 			finalizeSession(session);
 		}
 	}
@@ -376,7 +385,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 				await waitForStartup(session, signal);
 				if (session.started) await pollSession(session, 0);
 				if (session.exitCode === undefined || session.exitCode === null)
-					session.nextEmptyPollYieldMs = growEmptyPollYield(execYieldMs, maxEmptyWriteYieldTimeMs);
+					session.nextEmptyPollYieldMs = growEmptyPollYield(Math.max(execYieldMs, waitedMs), maxEmptyWriteYieldTimeMs);
 				return finishResult(session, waitedMs, input.max_output_tokens);
 			} catch (error) {
 				if (signal?.aborted) sessions.delete(session.id);
@@ -401,7 +410,6 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 				throw new Error(`Unknown process id ${input.session_id}`);
 			}
 			const updateBaseline = session.bufferStartOffset + session.buffer.length;
-			const outputVersionBaseline = session.outputVersion;
 			const chars = input.chars ?? "";
 			const isEmptyPoll = chars.length === 0;
 			if (!isEmptyPoll) {
@@ -427,17 +435,15 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 					? await waitForExitOrInactivity(
 							session,
 							effectiveYieldMs,
-							isEmptyPoll ? maxEmptyWriteYieldTimeMs : effectiveYieldMs,
+							effectiveYieldMs,
 							signal,
 							onUpdate ? (elapsedMs) => onUpdate(makeSnapshotSince(session, elapsedMs, updateBaseline, input.max_output_tokens)) : undefined,
-					)
+						)
 					: 0;
 			await waitForStartup(session, signal);
 			if (session.started) await pollSession(session, 0);
 			if (isEmptyPoll && (session.exitCode === undefined || session.exitCode === null))
-				session.nextEmptyPollYieldMs = session.outputVersion === outputVersionBaseline
-					? growEmptyPollYield(effectiveYieldMs, maxEmptyWriteYieldTimeMs)
-					: minEmptyWriteYieldTimeMs;
+				session.nextEmptyPollYieldMs = growEmptyPollYield(effectiveYieldMs, maxEmptyWriteYieldTimeMs);
 			return finishResult(session, waitedMs, input.max_output_tokens);
 		},
 		hasSession: (sessionId) => sessions.has(sessionId),

@@ -4,6 +4,7 @@ use std::{env, fs};
 
 use anyhow::Context;
 use base64::Engine;
+use codex_utils_image::{PromptImageMode, load_for_prompt_bytes};
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -228,11 +229,9 @@ fn image_url_from_arg(value: &str) -> anyhow::Result<String> {
         return Ok(value.to_string());
     }
     let bytes = fs::read(value).with_context(|| format!("failed to read edit image `{value}`"))?;
-    let mime = mime_guess::from_path(value)
-        .first_or_octet_stream()
-        .to_string();
-    let b64 = base64::engine::general_purpose::STANDARD.encode(bytes);
-    Ok(format!("data:{mime};base64,{b64}"))
+    load_for_prompt_bytes(Path::new(value), bytes, PromptImageMode::Original)
+        .with_context(|| format!("failed to process edit image `{value}`"))
+        .map(|image| image.into_data_url())
 }
 
 fn codex_base_url() -> String {
@@ -369,4 +368,32 @@ async fn main() -> anyhow::Result<()> {
     let output = save_images(&args, image_response)?;
     println!("{}", serde_json::to_string(&output)?);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn local_edit_images_use_validated_content_type() {
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")
+            .expect("valid PNG fixture");
+        let path = env::temp_dir().join(format!("pi-imagegen-{}.data", Uuid::new_v4().simple()));
+        fs::write(&path, &bytes).expect("write image fixture");
+
+        let result = image_url_from_arg(path.to_str().expect("UTF-8 temporary path"));
+        fs::remove_file(path).expect("remove image fixture");
+
+        let url = result.expect("process image fixture");
+        let encoded = url
+            .strip_prefix("data:image/png;base64,")
+            .expect("detect PNG content independently of extension");
+        assert_eq!(
+            base64::engine::general_purpose::STANDARD
+                .decode(encoded)
+                .expect("decode resulting data URL"),
+            bytes
+        );
+    }
 }

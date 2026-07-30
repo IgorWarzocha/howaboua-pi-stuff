@@ -29,11 +29,13 @@ const PI_DEFAULT_GUIDELINES = new Set([
 	"Show file paths clearly when working with files",
 ]);
 
+const EXEC_SESSION_GUIDELINE = "For unfinished exec_command sessions, use write_stdin with yield_time_ms near the command's expected remaining time and lengthen later waits";
+
 const NORMAL_CODEX_GUIDELINES = [
 	"Use exec_command for shell commands, file inspection, builds, and tests; prefer rg / rg --files for discovery and focused commands over truncation",
 	"Reserve tty=true for input or persistent processes",
 	"Use apply_patch for text-file changes, including creates/deletes/moves; split oversized patches",
-	"Give commands time; back off session polls",
+	EXEC_SESSION_GUIDELINE,
 	"Run independent tool calls in parallel when practical",
 ];
 
@@ -41,7 +43,7 @@ const CODE_MODE_GUIDELINES = [
 	"Use tools.exec_command for shell commands; prefer rg and rg --files",
 	"Use String.raw for cmd only when shell text has no backticks or ${}; otherwise use quoted lines or split the call",
 	"Continue exec cell_id with wait; continue exec_command session_id with tools.write_stdin",
-	"Give commands time; back off polls; use tty=true only for input or persistent processes",
+	`${EXEC_SESSION_GUIDELINE}; use tty=true only for input or persistent processes`,
 	"Use tools.apply_patch(patch) for file edits; split large patches; reserve shell/Python for formatting or bulk rewrites",
 	"Await dependencies; use Promise.all for independent calls",
 	"Use text() only for concise final output",

@@ -2,33 +2,35 @@ use std::env;
 use std::sync::Arc;
 
 use anyhow::Context;
-use reqwest::header::{ACCEPT, CONTENT_TYPE, HeaderMap, HeaderValue, USER_AGENT};
+use reqwest::header::{CONTENT_TYPE, HeaderMap, HeaderValue, USER_AGENT};
 
 use crate::auth::CodexAuth;
 use crate::cloudflare::CHATGPT_CLOUDFLARE_COOKIE_STORE;
 use crate::{DEFAULT_BASE_URL, DEFAULT_ORIGINATOR};
 
-pub fn codex_responses_url() -> String {
-    if let Ok(url) = env::var("PI_CODEX_RESPONSES_URL") {
+pub fn codex_search_url() -> String {
+    if let Ok(url) = env::var("PI_CODEX_SEARCH_URL") {
         return url;
     }
     let base = env::var("PI_CODEX_BASE_URL").unwrap_or_else(|_| DEFAULT_BASE_URL.to_string());
-    responses_url_from_base(&base)
+    search_url_from_base(&base)
 }
 
-pub fn responses_url_from_base(base: &str) -> String {
+pub fn search_url_from_base(base: &str) -> String {
     let normalized = base.trim_end_matches('/');
-    if normalized.ends_with("/codex/responses") {
+    if normalized.ends_with("/alpha/search") {
         normalized.to_string()
+    } else if let Some(base) = normalized.strip_suffix("/responses") {
+        format!("{base}/alpha/search")
     } else if normalized.ends_with("/api/codex")
         || normalized.ends_with("/backend-api/codex")
         || normalized.ends_with("/codex")
     {
-        format!("{normalized}/responses")
+        format!("{normalized}/alpha/search")
     } else if normalized.ends_with("/api") || normalized.ends_with("/backend-api") {
-        format!("{normalized}/codex/responses")
+        format!("{normalized}/codex/alpha/search")
     } else {
-        format!("{normalized}/api/codex/responses")
+        format!("{normalized}/api/codex/alpha/search")
     }
 }
 
@@ -46,12 +48,28 @@ pub fn headers(auth: &CodexAuth) -> anyhow::Result<HeaderMap> {
         headers.insert("X-OpenAI-Fedramp", HeaderValue::from_static("true"));
     }
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-    headers.insert(ACCEPT, HeaderValue::from_static("text/event-stream"));
-    headers.insert(
-        "OpenAI-Beta",
-        HeaderValue::from_static("responses=experimental"),
-    );
     Ok(headers)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::search_url_from_base;
+
+    #[test]
+    fn derives_native_search_endpoint_from_supported_provider_bases() {
+        assert_eq!(
+            search_url_from_base("https://chatgpt.com/backend-api/codex"),
+            "https://chatgpt.com/backend-api/codex/alpha/search"
+        );
+        assert_eq!(
+            search_url_from_base("https://proxy.example/api/codex/responses"),
+            "https://proxy.example/api/codex/alpha/search"
+        );
+        assert_eq!(
+            search_url_from_base("https://proxy.example/api/codex/alpha/search"),
+            "https://proxy.example/api/codex/alpha/search"
+        );
+    }
 }
 
 fn default_headers() -> HeaderMap {

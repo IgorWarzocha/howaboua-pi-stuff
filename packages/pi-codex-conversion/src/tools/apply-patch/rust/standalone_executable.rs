@@ -1,8 +1,6 @@
 use std::io::Read;
 use std::io::Write;
-use std::path::Path;
 
-use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_path_uri::PathUri;
 use serde_json::json;
 
@@ -85,7 +83,7 @@ pub fn run_main() -> i32 {
     )) {
         Ok(delta) => {
             if json_output {
-                let _ = write_json_result(&mut stdout, "success", None, &native_cwd, &delta);
+                let _ = write_json_result(&mut stdout, "success", None, &cwd, &delta);
             }
             // Flush to ensure output ordering when used in pipelines.
             let _ = stdout.flush();
@@ -95,8 +93,7 @@ pub fn run_main() -> i32 {
             if json_output {
                 let message = error.to_string();
                 let (_, delta) = error.into_parts();
-                let _ =
-                    write_json_result(&mut stdout, "failure", Some(&message), &native_cwd, &delta);
+                let _ = write_json_result(&mut stdout, "failure", Some(&message), &cwd, &delta);
                 let _ = stdout.flush();
             }
             1
@@ -108,7 +105,7 @@ fn write_json_result(
     out: &mut impl Write,
     status: &str,
     error: Option<&str>,
-    cwd: &AbsolutePathBuf,
+    cwd: &PathUri,
     delta: &AppliedPatchDelta,
 ) -> std::io::Result<()> {
     let summary = summarize_delta(cwd, delta);
@@ -136,7 +133,7 @@ struct DeltaSummary {
     changes: Vec<serde_json::Value>,
 }
 
-fn summarize_delta(cwd: &AbsolutePathBuf, delta: &AppliedPatchDelta) -> DeltaSummary {
+fn summarize_delta(cwd: &PathUri, delta: &AppliedPatchDelta) -> DeltaSummary {
     let mut changed_files = Vec::new();
     let mut created_files = Vec::new();
     let mut deleted_files = Vec::new();
@@ -209,16 +206,52 @@ fn summarize_delta(cwd: &AbsolutePathBuf, delta: &AppliedPatchDelta) -> DeltaSum
     }
 }
 
-fn display_path(cwd: &AbsolutePathBuf, path: &Path) -> String {
-    let cwd_path: &Path = cwd.as_ref();
-    path.strip_prefix(cwd_path)
-        .unwrap_or(path)
-        .to_string_lossy()
-        .to_string()
+fn display_path(cwd: &PathUri, path: &PathUri) -> String {
+    path.relative_path_from(cwd)
+        .unwrap_or_else(|| path.inferred_native_path_string())
 }
 
 fn push_unique(values: &mut Vec<String>, value: String) {
     if !values.contains(&value) {
         values.push(value);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display_path_uses_the_environment_path_convention() {
+        for (cwd, path, expected) in [
+            (
+                "file:///workspace/project",
+                "file:///workspace/project/src/main.rs",
+                "src/main.rs",
+            ),
+            (
+                "file:///C:/workspace/project",
+                "file:///C:/workspace/project/src/main.rs",
+                r"src\main.rs",
+            ),
+            (
+                "file://server/share/project",
+                "file://server/share/project/src/main.rs",
+                r"src\main.rs",
+            ),
+        ] {
+            let cwd = PathUri::parse(cwd).expect("valid cwd URI");
+            let path = PathUri::parse(path).expect("valid path URI");
+
+            assert_eq!(display_path(&cwd, &path), expected);
+        }
+    }
+
+    #[test]
+    fn display_path_keeps_foreign_absolute_paths() {
+        let cwd = PathUri::parse("file:///workspace/project").expect("valid POSIX cwd URI");
+        let path = PathUri::parse("file:///C:/other/file.rs").expect("valid Windows path URI");
+
+        assert_eq!(display_path(&cwd, &path), r"C:\other\file.rs");
     }
 }

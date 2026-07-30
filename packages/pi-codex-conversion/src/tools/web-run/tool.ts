@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { formatNativeBinaryError, nativeBinaryRecoveryMessage } from "../../native-binary-error.ts";
-import { dirname, join } from "node:path";
 import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { Container, Text } from "@earendil-works/pi-tui";
@@ -10,9 +9,15 @@ import { WEB_SEARCH_TOOL_NAME } from "../../adapter/activation/tool-set.ts";
 import { supportsNativeWebSearch } from "../../adapter/tool-support.ts";
 import { renderCodexToolCell } from "../../ui/tool-rendering/codex-tool-cell.ts";
 import { getBundledToolBinaryPath } from "../native/binary.ts";
+import { buildWebSearchInput } from "./history.ts";
 
 export const WEB_SEARCH_UNSUPPORTED_MESSAGE = CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE;
 export const WEB_SEARCH_SESSION_NOTE_TYPE = "codex-web-search-session-note";
+
+// Codex sends the recent visible turn in SearchRequest.input. Controlled
+// alpha/search comparisons showed no meaningful output benefit, so Pi keeps
+// the compatible builder dormant rather than disclose conversation context.
+const SEND_NATIVE_WEB_SEARCH_HISTORY = false;
 
 const SearchQueryParameters = Type.Object({
 	q: Type.String(),
@@ -36,6 +41,7 @@ function createEmptyResultComponent(): Container { return new Container(); }
 type WebRunOutput = Record<string, unknown> & {
 	encrypted_output?: string | undefined;
 	output_text?: string | undefined;
+	output?: string | undefined;
 	text?: string | undefined;
 };
 
@@ -70,18 +76,6 @@ export interface WebSearchToolOptions {
 	allowCodexProviderFallback?: boolean | undefined;
 	customRendering?: boolean | undefined;
 	promptSnippet?: boolean | undefined;
-}
-
-function safeSessionId(id: string): string {
-	return id.replace(/[^a-zA-Z0-9_-]/g, "_");
-}
-
-export function webRunSessionStatePath(ctx: ExtensionContext): string | undefined {
-	const sessionManager = ctx.sessionManager;
-	const sessionFile = sessionManager?.getSessionFile?.();
-	const sessionId = sessionManager?.getSessionId?.();
-	if (typeof sessionFile !== "string" || !sessionFile || typeof sessionId !== "string" || !sessionId) return undefined;
-	return join(dirname(sessionFile), `.web-run-${safeSessionId(sessionId)}.json`);
 }
 
 async function runWebRunBinary(webRunPath: string, params: Record<string, unknown>, env: NodeJS.ProcessEnv, signal: AbortSignal | undefined | null): Promise<string> {
@@ -122,12 +116,11 @@ async function runWebRunBinary(webRunPath: string, params: Record<string, unknow
 }
 
 function formatWebRunOutput(parsed: Record<string, unknown>): string | undefined {
-	const encryptedOutput = parsed["encrypted_output"];
-	if (typeof encryptedOutput === "string" && encryptedOutput.trim()) return encryptedOutput;
+	const outputText = parsed["output"] ?? parsed["output_text"] ?? parsed["text"];
+	if (typeof outputText === "string" && outputText.trim()) return outputText;
 	if (parsed["search_results"] !== undefined) return JSON.stringify(parsed, null, 2);
 	if (Array.isArray(parsed["content"]) || Array.isArray(parsed["open"]) || Array.isArray(parsed["find"])) return JSON.stringify(parsed, null, 2);
-	const outputText = parsed["output_text"] ?? parsed["text"];
-	return typeof outputText === "string" && outputText.trim() ? outputText : undefined;
+	return undefined;
 }
 
 function supportsExecutableWebSearch(model: ExtensionContext["model"], options: WebSearchToolOptions): boolean {
@@ -148,10 +141,12 @@ export async function executeCodexWebSearch(params: Record<string, unknown>, ctx
 	const sessionId = ctx.sessionManager?.getSessionId?.() || options.sessionId;
 	const configuredModel = typeof options.model === "function" ? options.model() : options.model;
 	const model = provider.route === "configured-responses" ? provider.model : configuredModel;
-	const statePath = webRunSessionStatePath(ctx);
-	const env = { ...codexToolProviderEnv(provider), ...(statePath ? { PI_WEB_RUN_STATE_PATH: statePath } : {}) };
+	const env = codexToolProviderEnv(provider);
+	const input = SEND_NATIVE_WEB_SEARCH_HISTORY
+		? buildWebSearchInput(ctx.sessionManager.buildContextEntries())
+		: undefined;
 	try {
-		const stdout = await runWebRunBinary(webRunPath, { ...params, id: sessionId, ...(model ? { model } : {}) }, env, signal);
+		const stdout = await runWebRunBinary(webRunPath, { ...params, id: sessionId, ...(model ? { model } : {}), ...(input ? { input } : {}) }, env, signal);
 		const parsed = JSON.parse(stdout) as WebRunOutput;
 		const output = formatWebRunOutput(parsed);
 		if (output) return { text: output, details: parsed };

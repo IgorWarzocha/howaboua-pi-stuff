@@ -105,7 +105,7 @@ function createEmptyResultComponent(): Container {
 	return new Container();
 }
 
-export function createWriteStdinTool(sessions: ExecSessionManager, options: { promptSnippet?: boolean | undefined } = {}) {
+export function createWriteStdinTool(sessions: ExecSessionManager, options: { promptSnippet?: boolean | undefined; showOutputWhenCollapsed?: boolean | undefined } = {}) {
 	const tool: Parameters<ExtensionAPI["registerTool"]>[0] = {
 		name: "write_stdin",
 		label: "write_stdin",
@@ -138,9 +138,15 @@ export function createWriteStdinTool(sessions: ExecSessionManager, options: { pr
 			const command = typeof sessionId === "number" ? sessions.getSessionCommand(sessionId) : undefined;
 			return new Text(renderWriteStdinCall(sessionId, input, command, theme), 0, 0);
 		},
-			renderResult(result, { expanded }, theme) {
-				const state = getResultState(result);
-				if (!expanded) return createEmptyResultComponent();
+		renderResult(result, { expanded, isPartial }, theme) {
+			const state = getResultState(result);
+			if (!expanded) {
+				if (!isPartial || !options.showOutputWhenCollapsed) return createEmptyResultComponent();
+				const output = renderTerminalText(state.output).trimEnd();
+				const tail = output.slice(-8_000).split("\n").slice(-5).join("\n");
+				const status = state.sessionId === undefined ? "" : `Session ${state.sessionId} still running`;
+				return new Text(theme.fg("dim", [tail, status].filter(Boolean).join("\n") || "Waiting for output"), 0, 0);
+			}
 			const output = renderTerminalText(state.output);
 			let text = theme.fg("dim", output || "(no output)");
 			if (state.sessionId !== undefined) {
@@ -149,12 +155,12 @@ export function createWriteStdinTool(sessions: ExecSessionManager, options: { pr
 			if (state.exitCode !== undefined) {
 				text += `\n${theme.fg("muted", `Exit code: ${state.exitCode}`)}`;
 			}
-				return new Text(text, 0, 0);
+			return new Text(text, 0, 0);
 		},
 	};
 	return tool;
 }
 
-export function registerWriteStdinTool(pi: ExtensionAPI, sessions: ExecSessionManager, options: { promptSnippet?: boolean | undefined } = {}): void {
+export function registerWriteStdinTool(pi: ExtensionAPI, sessions: ExecSessionManager, options: { promptSnippet?: boolean | undefined; showOutputWhenCollapsed?: boolean | undefined } = {}): void {
 	pi.registerTool(createWriteStdinTool(sessions, options) as any);
 }
