@@ -7,7 +7,7 @@ import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/confi
 import { captureActiveProviderSystemPrompt, rewriteCodexProviderRequest } from "../src/adapter/provider-request.ts";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
 import { executeRemoteCompactionV2 } from "../src/adapter/compaction/remote-v2-client.ts";
-import { getActiveCompactionTools } from "../src/adapter/compaction/compaction.ts";
+import { getActiveToolsInActiveOrder } from "../src/adapter/active-tools.ts";
 import { serializeMessagesToResponsesInput } from "../src/adapter/compaction/serializer.ts";
 import { NATIVE_COMPACTION_SHIM_SUMMARY, NATIVE_COMPACTION_STRATEGY } from "../src/adapter/compaction/types.ts";
 import { CODE_MODE_EXEC_GRAMMAR_INPUTS } from "../src/tools/code-mode/exec-contract.ts";
@@ -166,7 +166,7 @@ test("Code Mode normal turns and V2 compaction share one exact WebSocket continu
 	]]);
 	try {
 		const activeTools = [...codeModeTools, exampleTool] as typeof codeModeTools;
-		const rebuiltCompactionTools = getActiveCompactionTools({
+		const rebuiltCompactionTools = getActiveToolsInActiveOrder({
 			getActiveTools: () => ["exec", "wait", "example_tool"],
 			getAllTools: () => [exampleTool, ...codeModeTools],
 		}, true);
@@ -346,19 +346,25 @@ test("WebSocket continuations never cross session IDs", async () => {
 	}
 });
 
-test("three post-start WebSocket failures reserve Pi's final retry for SSE", async () => {
+test("SSE fallback stays sticky after three post-start WebSocket failures", async () => {
 	const restoreWebSocket = installScriptedWebSocket([
 		failAfterStart,
 		failAfterStart,
 		failAfterStart,
-		textResponse("resp_retry", "recovered"),
 	]);
 	const originalFetch = globalThis.fetch;
 	let fetchCalls = 0;
 	globalThis.fetch = (async () => {
 		fetchCalls++;
 		return sseResponse([
-			{ type: "response.completed", response: { id: "resp_sse", status: "completed", usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 } } },
+			{
+				type: "response.completed",
+				response: {
+					id: `resp_sse_${fetchCalls}`,
+					status: fetchCalls === 1 ? "in_progress" : "completed",
+					usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 },
+				},
+			},
 		]);
 	}) as typeof fetch;
 	try {
@@ -377,11 +383,13 @@ test("three post-start WebSocket failures reserve Pi's final retry for SSE", asy
 			assert.equal(fetchCalls, 0);
 		}
 
-		await collectStream(registered.provider.streamSimple(
+		const unfinishedSse = await collectStream(registered.provider.streamSimple(
 			model as never,
 			requestContext as never,
 			streamOptions(sessionId) as never,
 		));
+		assert.equal((unfinishedSse.at(-1) as { type?: string }).type, "error");
+		assert.match(JSON.stringify(unfinishedSse.at(-1)), /pending result/);
 		assert.equal(ScriptedWebSocket.opened, 3);
 		assert.equal(fetchCalls, 1);
 
@@ -390,9 +398,17 @@ test("three post-start WebSocket failures reserve Pi's final retry for SSE", asy
 			requestContext as never,
 			streamOptions(sessionId) as never,
 		));
+		assert.equal(ScriptedWebSocket.opened, 3);
+		assert.equal(fetchCalls, 2);
 
-		assert.equal(ScriptedWebSocket.opened, 4);
-		assert.equal(fetchCalls, 1);
+		await collectStream(registered.provider.streamSimple(
+			model as never,
+			requestContext as never,
+			streamOptions(sessionId) as never,
+		));
+
+		assert.equal(ScriptedWebSocket.opened, 3);
+		assert.equal(fetchCalls, 3);
 		for (const frame of sentFrames()) {
 			assert.equal(frame.previous_response_id, undefined);
 			assert.deepEqual(frame, sentFrames()[0]);
@@ -544,6 +560,7 @@ test("post-compaction prewarm opens a fresh socket with the encrypted checkpoint
 		[websocketSuccess, textResponse("resp_after", "after compaction")],
 	]);
 	try {
+		const activeTools = [...codeModeTools, exampleTool] as typeof codeModeTools;
 		const registered = createRegisteredCodexProvider({ codeMode: true });
 		const sessionId = "post-compaction-prewarm";
 		await collectStream(registered.provider.streamSimple(
@@ -605,8 +622,8 @@ test("post-compaction prewarm opens a fresh socket with the encrypted checkpoint
 			ui: { notify: () => undefined },
 		} as never;
 		const runtime = createCodexExtensionRuntime({
-			getActiveTools: () => ["exec", "wait"],
-			getAllTools: () => codeModeTools,
+			getActiveTools: () => ["exec", "wait", "example_tool"],
+			getAllTools: () => [exampleTool, ...codeModeTools],
 			getThinkingLevel: () => "low",
 			sendUserMessage: () => undefined,
 		} as never);
@@ -619,7 +636,7 @@ test("post-compaction prewarm opens a fresh socket with the encrypted checkpoint
 		const postCompactionMessages = convertToLlm(buildSessionContext(branchEntries).messages);
 		await collectStream(registered.provider.streamSimple(
 			model as never,
-			context(postCompactionMessages as never, activeProviderPrompt) as never,
+			context(postCompactionMessages as never, activeProviderPrompt, activeTools) as never,
 			{
 				...streamOptions(sessionId),
 				onPayload: (body: unknown) => rewriteCodexProviderRequest(body, extensionContext, runtime.state),

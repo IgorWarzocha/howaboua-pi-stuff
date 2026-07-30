@@ -306,7 +306,6 @@ function createCodexStream<TApi extends Api>(
 
 			stream.push({ type: "start", partial: output });
 			await processCodexResponsesStream(parseSSE(response, effectiveOptions?.signal), output, stream, model, effectiveOptions);
-			clearWebSocketTransportFailures(effectiveOptions?.sessionId);
 			finalizeUsage(output);
 
 			if (effectiveOptions?.signal?.aborted) {

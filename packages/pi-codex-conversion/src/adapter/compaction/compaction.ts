@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ExtensionContext, SessionBeforeCompactEvent, SessionEntry } from "@earendil-works/pi-coding-agent";
-import { clampThinkingLevel, type Api, type Context, type Model, type ModelThinkingLevel, type Tool } from "@earendil-works/pi-ai";
+import { clampThinkingLevel, type Api, type Context, type Model, type ModelThinkingLevel } from "@earendil-works/pi-ai";
 import { findLatestNativeCompactionEntry, findLatestNativeCompactionEntryIndex, resolveLatestNativeCompactionEntry, type LatestNativeCompactionResolution } from "./details-store.ts";
 import { rewriteResponsesPayloadWithNativeReplay, serializeLiveTailToResponsesInput } from "../replay/payload-rewrite.ts";
 import { DEFAULT_SUPPORTED_PROVIDERS, isResponsesCompatiblePayload, resolveNativeCompactionEnvironment, type ResponsesCompatibleRequestPayload } from "./compaction-runtime.ts";
@@ -16,7 +16,8 @@ import { resolveCodexRuntimePlan } from "../activation/runtime-plan.ts";
 import type { AdapterState } from "../activation/state.ts";
 import { executeRemoteCompactionV2 } from "./remote-v2-client.ts";
 import { buildRemoteCompactionV2Window } from "./remote-v2-history.ts";
-import { CODE_MODE_EXEC_CONSTRAINED_SAMPLING, CODE_MODE_EXEC_GRAMMAR_INPUTS } from "../../tools/code-mode/exec-contract.ts";
+import { CODE_MODE_EXEC_GRAMMAR_INPUTS } from "../../tools/code-mode/exec-contract.ts";
+import { getActiveToolsInActiveOrder } from "../active-tools.ts";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === "object" && !Array.isArray(value);
@@ -52,21 +53,8 @@ function cloneCompactedWindow(window: readonly unknown[]): ResponsesInputItem[] 
 	return window.map((item) => structuredClone(item));
 }
 
-function getActiveCompactionTools(pi: ExtensionAPI, codeMode = false): Tool[] {
-	const activeToolNames = new Set(pi.getActiveTools());
-	return pi
-		.getAllTools()
-		.filter((tool) => activeToolNames.has(tool.name))
-		.map((tool): Tool => ({
-			name: tool.name,
-			description: tool.description,
-			parameters: tool.parameters,
-			...(codeMode && tool.name === "exec" ? { constrainedSampling: CODE_MODE_EXEC_CONSTRAINED_SAMPLING } : {}),
-		}));
-}
-
 function buildCompactionTools(pi: ExtensionAPI, codeMode: boolean): unknown[] | undefined {
-	const tools = getActiveCompactionTools(pi, codeMode);
+	const tools = getActiveToolsInActiveOrder(pi, codeMode);
 	if (tools.length === 0) return undefined;
 	return convertResponsesTools(tools, { strict: null });
 }
@@ -248,7 +236,7 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 	if (event.customInstructions?.trim()) {
 		ctx.ui.notify("Responses compaction v2 uses the active session instructions and ignores custom /compact guidance.", "warning");
 	}
-	const tools = getActiveCompactionTools(pi, codeMode);
+	const tools = getActiveToolsInActiveOrder(pi, codeMode);
 	const context: Context = {
 		// Match the active provider lane so cached WebSocket compaction can send
 		// only previous_response_id plus the trigger instead of the full history.
