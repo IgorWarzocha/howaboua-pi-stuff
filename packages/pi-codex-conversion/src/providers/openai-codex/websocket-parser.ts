@@ -1,8 +1,7 @@
 import type { StreamEventShape, WebSocketLike } from "./types.ts";
+import { DEFAULT_WEBSOCKET_CLOSE_TIMEOUT_MS } from "./constants.ts";
 import { extractWebSocketCloseError, extractWebSocketError, isWebSocketMessageTooBigError } from "./websocket-connection.ts";
 import { extractCodexTurnStateFromWebSocketEvent } from "./turn-state.ts";
-
-const WEBSOCKET_CLOSE_GRACE_MS = 25;
 
 async function decodeWebSocketData(data: unknown): Promise<string | null> {
 	if (typeof data === "string") return data;
@@ -81,7 +80,7 @@ export async function* parseWebSocket(socket: WebSocketLike, signal: AbortSignal
 			failed = socketError;
 			done = true;
 			wake();
-		}, WEBSOCKET_CLOSE_GRACE_MS);
+		}, DEFAULT_WEBSOCKET_CLOSE_TIMEOUT_MS);
 	};
 
 	const onClose = (event: unknown) => {

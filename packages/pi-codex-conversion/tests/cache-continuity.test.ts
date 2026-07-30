@@ -108,11 +108,11 @@ function compactionResponse(responseId: string) {
 
 function failAfterStart(socket: ScriptedWebSocket) {
 	socket.emitJson({ type: "response.created", response: { id: "resp_failed" } });
-	socket.emit("error", { error: new Error("socket reset by peer") });
+	socket.emitError({ error: new Error("socket reset by peer") });
 }
 
 function upgradeRequired(socket: ScriptedWebSocket) {
-	socket.emit("error", { error: new Error("Unexpected server response: 426 Upgrade Required") });
+	socket.emitError({ error: new Error("Unexpected server response: 426 Upgrade Required") });
 }
 
 function failAfterText(socket: ScriptedWebSocket) {
@@ -129,7 +129,7 @@ function failAfterText(socket: ScriptedWebSocket) {
 			role: "assistant",
 		},
 	});
-	socket.emit("error", { error: new Error("socket reset by peer") });
+	socket.emitError({ error: new Error("socket reset by peer") });
 }
 
 function apiFailAfterStart(socket: ScriptedWebSocket) {
@@ -535,7 +535,7 @@ test("WebSocket 426 falls back to sticky SSE without retrying", async () => {
 
 test("unrelated 426 text retries WebSocket instead of arming SSE fallback", async () => {
 	const restoreWebSocket = installScriptedWebSocket([
-		(socket) => socket.emit("error", { message: "Codex protocol item 426 failed" }),
+		(socket) => socket.emitError({ message: "Codex protocol item 426 failed" }),
 		websocketSuccess,
 	]);
 	const originalFetch = globalThis.fetch;

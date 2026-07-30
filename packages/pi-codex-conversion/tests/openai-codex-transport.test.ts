@@ -142,7 +142,7 @@ test("WebSocket close 1009 continues through sticky SSE without futile WebSocket
 	const restoreWebSocket = installScriptedWebSocket([
 		(socket) => {
 			socket.emit("error", { error: new Error("WebSocket transport failed") });
-			queueMicrotask(() => socket.emit("close", { code: 1009, reason: "" }));
+			setTimeout(() => socket.emit("close", { code: 1009, reason: "" }), 50);
 		},
 	]);
 	const originalFetch = globalThis.fetch;
@@ -174,9 +174,9 @@ test("WebSocket close 1009 continues through sticky SSE without futile WebSocket
 
 test("WebSocket HTTP statuses recover within the turn without unnecessarily disabling WebSockets", async () => {
 	const restoreWebSocket = installScriptedWebSocket([
-		(socket) => socket.emit("error", { message: "Unexpected server response: 401 Unauthorized", status: 401 }),
+		(socket) => socket.emitError({ message: "Unexpected server response: 401 Unauthorized", status: 401 }),
 		websocketSuccess,
-		(socket) => socket.emit("error", { message: "Unexpected server response: 403 Forbidden", status: 403 }),
+		(socket) => socket.emitError({ message: "Unexpected server response: 403 Forbidden", status: 403 }),
 		websocketSuccess,
 	]);
 	const originalFetch = globalThis.fetch;
