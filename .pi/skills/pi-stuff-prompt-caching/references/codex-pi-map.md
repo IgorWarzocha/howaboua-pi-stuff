@@ -72,7 +72,14 @@ Relevant installed-package docs are `docs/extensions.md`, `docs/compaction.md`, 
 
 ### Default Pi compaction
 
-Default compaction/branch summarization uses a fresh UUID routing session and `cacheRetention: "none"` because the prompt is one-off. It then rebuilds main context as system prompt + summary + kept messages. Both compaction and branch summary are main-conversation prefix boundaries.
+`completeSummarization()` sends default compaction/branch-summary model calls with a fresh UUID and `cacheRetention: "none"` because each summary prompt is one-off. This isolates it from the main session cache key.
+
+Provider behavior differs:
+
+- stock standard OpenAI Responses omits `prompt_cache_key` and, when explicit mode is supported, sends `{mode:"explicit"}` with no breakpoints to disable GPT-5.6 implicit writes
+- stock OpenAI Codex omits the key but currently sends no explicit cache-disable field. Pi requests no retention, but client shape alone cannot guarantee zero backend writes
+
+Pi then rebuilds main context as system prompt + summary + kept messages. Compaction and branch summary are main-conversation prefix boundaries; optimize the rebuilt conversation, not the one-off summary call.
 
 ## `pi-codex-conversion`
 
@@ -122,9 +129,10 @@ The invariant is **prewarm request shape = next real request shape**. A prewarm 
 ### Native compaction
 
 - `src/adapter/compaction/compaction.ts` serializes current context or reuses a native window, calls remote V2 compaction and installs canonical replay
+- unlike default Pi summarization, V2 keeps the clamped main-session `prompt_cache_key` plus active tools, reasoning, service tier and text options. The first call sends active history; later calls send checkpoint + live tail
 - oversized requests may replace old tool output with an explicit truncation sentinel (`request-shrink.ts`)
 - post-compaction context rewrites the provider input from the encrypted checkpoint, filters display-only compaction messages, resets transport and prewarms the new window
-- compaction usage reports input, cache read, cache write and output independently
+- compaction usage reports input, cache read, cache write and output independently; reads/writes are expected evidence, not accidental Pi-summary caching
 
 Treat the compacted window as fresh. Preserve every checkpoint item, item ID/type, tool pair and order. Do not insert compaction status copy into provider context.
 

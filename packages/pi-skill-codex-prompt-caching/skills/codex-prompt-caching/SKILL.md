@@ -94,9 +94,11 @@ The public Responses API supports explicit breakpoints; the ChatGPT-backed Codex
 
 ## Compaction rules
 
-- Pi's default summarization request is intentionally one-off: fresh routing session ID and disabled prompt-cache writes. Optimize the post-compaction main conversation, not the summary call
+- Pi's default compaction/branch-summary call is intentionally one-off: fresh routing ID plus `cacheRetention: "none"`. It leaves the normal session cache lane and asks the provider not to write cache. Standard GPT-5.6 Responses can disable implicit writes; the Codex provider currently only omits `prompt_cache_key`, so verify backend usage before claiming zero writes
+- do not prewarm Pi's one-off summary call. Optimize the rebuilt main conversation after compaction
 - ordinary Pi compaction replaces old history with summary + kept messages; branch summaries also reshape the active prefix
 - OpenAI standalone `/responses/compact` output is the canonical next window: pass all returned items as-is
+- provider-native compaction may deliberately keep the session key and report cache reads/writes; inspect its adapter rather than applying Pi-summary assumptions
 - custom compaction adapters must preserve canonical checkpoints/replay, filter display-only records, reset incompatible continuation state and prewarm the new window exactly
 - post-compaction prewarm establishes continuation for the new prefix; it does not make the old and new prefixes equivalent
 

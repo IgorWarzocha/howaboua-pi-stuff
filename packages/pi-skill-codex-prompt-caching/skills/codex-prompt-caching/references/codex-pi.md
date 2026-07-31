@@ -63,7 +63,16 @@ Pi 0.83 constructs a provider request in this order:
 
 Stock OpenAI Responses/Codex providers derive `prompt_cache_key` from Pi's session ID and clamp it to 64 Unicode characters. Pi usage separates uncached `input`, `cacheRead` and `cacheWrite`.
 
-Default Pi compaction and branch summarization use a fresh routing ID with cache writes disabled because the summary prompt is one-off. The rebuilt main context is a new prefix.
+### Default Pi summarization versus native compaction
+
+Pi's default compaction and branch-summary model calls use a fresh UUID and `cacheRetention: "none"` because each summary prompt is one-off. This isolates them from the normal session key and requests no cache retention:
+
+- stock standard OpenAI Responses sends no key and, when explicit cache mode is supported, `{mode:"explicit"}` with no breakpoints to disable implicit writes
+- stock OpenAI Codex currently sends no key but no explicit cache-disable field. The request is intentionally cold, but client shape alone cannot guarantee the backend writes nothing
+
+Do not prewarm or optimize the one-off summary call. The rebuilt main context—summary plus kept messages—is a new prefix worth warming normally.
+
+Provider-native compaction is a separate protocol. It may intentionally retain the session key, tools and reasoning so the compaction request can read/write prompt cache, then return a canonical encrypted checkpoint. Inspect its usage and adapter; never infer native behavior from Pi's default summary path.
 
 Relevant package docs: `docs/extensions.md`, `docs/compaction.md`, `docs/session-format.md`, `docs/sdk.md`. In source distributions inspect `packages/coding-agent/src/core` and `packages/ai/src`.
 

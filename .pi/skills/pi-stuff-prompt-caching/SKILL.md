@@ -94,10 +94,11 @@ Current `pi-codex-conversion` sends a session-derived key but no breakpoint/opti
 
 ## Compaction rules
 
-- Pi's default summarization request is intentionally one-off: fresh routing session ID and disabled prompt-cache writes. Optimize the post-compaction main conversation, not the summary call
+- Pi's default compaction/branch-summary call is intentionally one-off: fresh UUID plus `cacheRetention: "none"`. Standard GPT-5.6 Responses disables implicit writes; stock Codex currently only omits `prompt_cache_key`, so zero writes are not guaranteed by client shape alone
+- `pi-codex-conversion` native V2 does the opposite deliberately: it keeps the session cache key and sends active tools, reasoning, service tier/text options with full history or checkpoint + tail. Its compaction usage can contain both cache reads and writes
 - ordinary Pi compaction replaces old history with summary + kept messages; branch summaries also reshape the active prefix
 - OpenAI standalone `/responses/compact` output is the canonical next window: pass all returned items as-is
-- `pi-codex-conversion` native compaction stores/replays the encrypted checkpoint, filters display-only records, resets transport and prewarms the new window
+- conversion native compaction stores/replays the encrypted checkpoint, filters display-only records, resets transport and prewarms the new window
 - post-compaction prewarm establishes continuation for the new prefix; it does not make the old and new prefixes equivalent
 
 ## Validate with independent evidence
