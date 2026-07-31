@@ -11,11 +11,14 @@ class PiLanVoiceProcessor extends AudioWorkletProcessor {
     this.capturePrevious = 0;
     this.capture = new Int16Array(CAPTURE_FRAME_SAMPLES);
     this.captureLength = 0;
-    this.playback = [];
-    this.playbackOffset = 0;
-    this.playbackPhase = 0;
+    this.playback = new Float32Array(PLAYBACK_MAX_SAMPLES);
+    this.playbackRead = 0;
+    this.playbackLength = 0;
     this.playing = false;
-    this.port.onmessage = (event) => this.enqueuePlayback(event.data);
+    this.playbackPhase = 0;
+    this.playbackCurrent = 0;
+    this.playbackNext = 0;
+    this.port.onmessage = (event) => this.queuePlayback(event.data);
   }
 
   process(inputs, outputs) {
@@ -54,48 +57,49 @@ class PiLanVoiceProcessor extends AudioWorkletProcessor {
     this.capturePrevious = mono[mono.length - 1];
   }
 
-  enqueuePlayback(value) {
-    if (!(value instanceof ArrayBuffer) || value.byteLength % 2 !== 0) return;
+  queuePlayback(value) {
+    if (!(value instanceof ArrayBuffer) || value.byteLength === 0 || value.byteLength % 2 !== 0) return;
     const samples = new Int16Array(value);
-    for (const sample of samples) this.playback.push(sample / (sample < 0 ? 32768 : 32767));
-    const available = this.playback.length - this.playbackOffset;
-    if (available > PLAYBACK_MAX_SAMPLES) this.playbackOffset += available - PLAYBACK_MAX_SAMPLES;
-    if (!this.playing && this.playback.length - this.playbackOffset >= PLAYBACK_START_SAMPLES) this.playing = true;
-    this.compactPlayback();
+    for (const sample of samples) {
+      if (this.playbackLength === PLAYBACK_MAX_SAMPLES) {
+        this.playbackRead = (this.playbackRead + 1) % PLAYBACK_MAX_SAMPLES;
+        this.playbackLength -= 1;
+      }
+      this.playback[(this.playbackRead + this.playbackLength) % PLAYBACK_MAX_SAMPLES] = sample / (sample < 0 ? 32768 : 32767);
+      this.playbackLength += 1;
+    }
   }
 
   renderPlayback(output) {
+    output.fill(0);
+    if (!this.playing) {
+      if (this.playbackLength < PLAYBACK_START_SAMPLES) return;
+      this.playing = true;
+      this.playbackPhase = 0;
+      this.playbackCurrent = this.shiftPlayback();
+      this.playbackNext = this.shiftPlayback();
+    }
     const step = TARGET_RATE / sampleRate;
     for (let index = 0; index < output.length; index++) {
-      const available = this.playback.length - this.playbackOffset;
-      if (!this.playing || available < 2) {
-        output[index] = 0;
-        this.playing = false;
-        continue;
-      }
-      const base = Math.floor(this.playbackPhase);
-      if (base + 1 >= available) {
-        output[index] = 0;
-        continue;
-      }
-      const fraction = this.playbackPhase - base;
-      const left = this.playback[this.playbackOffset + base];
-      const right = this.playback[this.playbackOffset + base + 1];
-      output[index] = left + (right - left) * fraction;
+      output[index] = this.playbackCurrent + (this.playbackNext - this.playbackCurrent) * this.playbackPhase;
       this.playbackPhase += step;
-      const consumed = Math.floor(this.playbackPhase);
-      if (consumed > 0) {
-        this.playbackOffset += consumed;
-        this.playbackPhase -= consumed;
+      while (this.playbackPhase >= 1) {
+        this.playbackPhase -= 1;
+        this.playbackCurrent = this.playbackNext;
+        if (this.playbackLength === 0) {
+          this.playing = false;
+          return;
+        }
+        this.playbackNext = this.shiftPlayback();
       }
     }
-    this.compactPlayback();
   }
 
-  compactPlayback() {
-    if (this.playbackOffset < 2048) return;
-    this.playback = this.playback.slice(this.playbackOffset);
-    this.playbackOffset = 0;
+  shiftPlayback() {
+    const sample = this.playback[this.playbackRead] || 0;
+    this.playbackRead = (this.playbackRead + 1) % PLAYBACK_MAX_SAMPLES;
+    this.playbackLength -= 1;
+    return sample;
   }
 }
 

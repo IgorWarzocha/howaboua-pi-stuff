@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-pub const PROTOCOL_VERSION: u8 = 4;
+pub const PROTOCOL_VERSION: u8 = 5;
 pub const MAX_SDP_BYTES: usize = 256 * 1024;
 pub const MAX_DATA_MESSAGE_BYTES: usize = 64 * 1024;
 pub const MAX_PCM_BYTES: usize = 64 * 1024;
@@ -136,11 +136,13 @@ impl Command {
                 audio,
                 sample_rate,
                 num_channels,
-            } if audio.len() > MAX_PCM_BYTES.div_ceil(3) * 4
-                || *sample_rate != 24_000
-                || *num_channels != 1 =>
-            {
-                anyhow::bail!("V3 bridge PCM must be bounded 24 kHz mono audio")
+            } => {
+                if *sample_rate != 24_000 || *num_channels != 1 {
+                    anyhow::bail!("bridge PCM must be 24 kHz mono");
+                }
+                if audio.len() > MAX_PCM_BYTES * 4 / 3 + 4 {
+                    anyhow::bail!("bridge PCM exceeds {MAX_PCM_BYTES} bytes");
+                }
             }
             _ => {}
         }
@@ -158,6 +160,16 @@ mod tests {
         assert!(parse_command(r#"{"type":"stop","extra":true}"#).is_err());
         assert!(parse_command(r#"{"type":"set_input_muted","muted":true}"#).is_ok());
         assert!(parse_command(r#"{"type":"set_input_muted","muted":"yes"}"#).is_err());
+        assert!(parse_command(r#"{"type":"start_v3_bridge"}"#).is_ok());
+        assert!(
+            Command::SendPcm {
+                audio: "AA==".to_owned(),
+                sample_rate: 48_000,
+                num_channels: 1,
+            }
+            .validate()
+            .is_err()
+        );
         assert!(
             Command::StartDictation {
                 microphone: Some("x".repeat(MAX_DEVICE_BYTES + 1)),

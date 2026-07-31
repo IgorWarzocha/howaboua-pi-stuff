@@ -8,13 +8,11 @@ const CODEX_EFFECTIVE_CONTEXT_WINDOW_PERCENT = 95;
 export type NativeCompactionShrinkResult = {
 	request: NativeCompactionRequestBody;
 	rewrittenOutputs: number;
-	estimatedTokensBefore: number;
-	estimatedTokensAfter: number;
-	budgetTokens?: number | undefined;
 };
 
 export type ShrinkNativeCompactionRequestOptions = {
 	budgetTokens?: number | null | undefined;
+	tokensBefore: number;
 };
 
 export type NativeCompactionBudgetOptions = {
@@ -79,19 +77,17 @@ function estimateCompactContextTokens(request: NativeCompactionRequestBody, enco
 
 export async function shrinkNativeCompactionRequestForEndpoint(
 	request: NativeCompactionRequestBody,
-	options: ShrinkNativeCompactionRequestOptions = {},
+	options: ShrinkNativeCompactionRequestOptions,
 ): Promise<NativeCompactionShrinkResult> {
-	const encoding = await getTokenEncoder();
 	const budgetTokens = compactRequestBudget(options);
+	if (budgetTokens === undefined || !Number.isFinite(options.tokensBefore) || options.tokensBefore <= budgetTokens) {
+		return { request, rewrittenOutputs: 0 };
+	}
+
+	const encoding = await getTokenEncoder();
 	const estimatedTokensBefore = estimateCompactContextTokens(request, encoding);
-	if (budgetTokens === undefined || estimatedTokensBefore <= budgetTokens) {
-		return {
-			request,
-			rewrittenOutputs: 0,
-			estimatedTokensBefore,
-			estimatedTokensAfter: estimatedTokensBefore,
-			budgetTokens,
-		};
+	if (estimatedTokensBefore <= budgetTokens) {
+		return { request, rewrittenOutputs: 0 };
 	}
 
 	let rewrittenOutputs = 0;
@@ -113,8 +109,5 @@ export async function shrinkNativeCompactionRequestForEndpoint(
 	return {
 		request: input ? { ...request, input } : request,
 		rewrittenOutputs,
-		estimatedTokensBefore,
-		estimatedTokensAfter,
-		budgetTokens,
 	};
 }

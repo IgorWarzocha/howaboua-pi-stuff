@@ -64,6 +64,7 @@ test("Responses compaction v2 uses the registered stream and installs one canoni
 		context: { systemPrompt: "system", messages: [] },
 		promptInput: [{ role: "user", content: [{ type: "input_text", text: "hello" }] }],
 		requestOptions: { reasoning: { effort: "high", summary: "auto" } },
+		tokensBefore: 1_000,
 		sessionId: "session",
 		retryDelayMs: 0,
 	});

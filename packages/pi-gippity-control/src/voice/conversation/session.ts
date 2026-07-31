@@ -10,7 +10,7 @@ import {
 	MAX_REALTIME_SDP_BYTES,
 } from "./peer.ts";
 
-const V3_MODEL = "gpt-live-1-boulder-alpha";
+const V3_MODEL = "gpt-live-1-codex";
 const HANDOFF_CHUNK_BYTES = 500;
 const HANDOFF_FLUSH_MS = 200;
 const PEER_READY_TIMEOUT_MS = 15_000;
@@ -190,6 +190,7 @@ export class CodexRealtimeConversation {
 		this.clearHandoff();
 		this.turnTracker.reset();
 		this.activeDelegationId = undefined;
+		this.inputMuted = false;
 		this.peerReady?.resolve();
 		this.peerReady = undefined;
 		await this.peer.close();
@@ -418,7 +419,7 @@ function remoteError(event: Record<string, unknown>): string {
 		: "Codex realtime error";
 }
 
-function utf8Chunks(input: string, maxBytes: number): string[] {
+export function utf8Chunks(input: string, maxBytes: number): string[] {
 	const chunks: string[] = [];
 	let current = "";
 	for (const character of input) {

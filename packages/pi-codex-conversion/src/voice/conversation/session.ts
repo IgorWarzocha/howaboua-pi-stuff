@@ -6,7 +6,7 @@ import { RealtimeVoiceTurnTracker, type RealtimeVoiceTurn } from "../turns.ts";
 import { MAX_REALTIME_SDP_BYTES, type CodexRealtimePeer, type CodexRealtimePeerEvent } from "./peer.ts";
 import { fetch as undiciFetch, ProxyAgent, type Response } from "undici";
 
-const V3_MODEL = "gpt-live-1-boulder-alpha";
+const V3_MODEL = "gpt-live-1-codex";
 const HANDOFF_CHUNK_BYTES = 500;
 const HANDOFF_FLUSH_MS = 200;
 const PEER_READY_TIMEOUT_MS = 15_000;

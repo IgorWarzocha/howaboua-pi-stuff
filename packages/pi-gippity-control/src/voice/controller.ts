@@ -11,10 +11,14 @@ import type { CodexDictationSession } from "./dictation/session.ts";
 import { CodexVoiceSessionMessages } from "./session-messages.ts";
 import { formatVoiceAudioError } from "./setup.ts";
 import {
+	formatCodexVoicePromptSchemaMismatch,
 	getProjectCodexVoiceSystemPromptPath,
 	loadCodexVoiceSystemPrompt,
+	prepareCodexVoiceSystemPrompt,
 } from "./system-prompt.ts";
 import type { CodexVoiceMode } from "./ui.ts";
+
+const GIPPITY_VOICE_STATUS_KEY = "gippity-voice";
 
 type VoiceSession = CodexRealtimeConversation | CodexDictationSession;
 type VoiceState =
@@ -113,6 +117,28 @@ export class CodexVoiceController {
 	): Promise<CodexRealtimeConversation | undefined> {
 		return this.startMode(ctx, config, "realtime", peer, signal);
 	}
+	prepareRealtimePrompt(ctx: ExtensionContext): string | undefined {
+		try {
+			const status = prepareCodexVoiceSystemPrompt();
+			if (!status.current)
+				ctx.ui.notify(
+					formatCodexVoicePromptSchemaMismatch(status.currentSchemaVersion),
+					"warning",
+				);
+			return loadCodexVoiceSystemPrompt(
+				undefined,
+				ctx.isProjectTrusted()
+					? getProjectCodexVoiceSystemPromptPath(ctx.cwd)
+					: undefined,
+			);
+		} catch (error) {
+			ctx.ui.notify(
+				error instanceof Error ? error.message : String(error),
+				"error",
+			);
+			return undefined;
+		}
+	}
 
 	async stopConversation(
 		session: CodexRealtimeConversation,
@@ -149,24 +175,9 @@ export class CodexVoiceController {
 			await peer?.close();
 			return;
 		}
-		let realtimePrompt: string | undefined;
-		try {
-			realtimePrompt =
-				mode === "realtime"
-					? loadCodexVoiceSystemPrompt(
-							undefined,
-							ctx.isProjectTrusted()
-								? getProjectCodexVoiceSystemPromptPath(ctx.cwd)
-								: undefined,
-						)
-					: undefined;
-		} catch (error) {
-			ctx.ui.notify(
-				error instanceof Error ? error.message : String(error),
-				"error",
-			);
-			return;
-		}
+		const realtimePrompt =
+			mode === "realtime" ? this.prepareRealtimePrompt(ctx) : undefined;
+		if (mode === "realtime" && realtimePrompt === undefined) return;
 		if (this.state.type === "dictation")
 			await this.finishDictation({ announce: true });
 		else await this.stop({ announce: true });
@@ -249,7 +260,7 @@ export class CodexVoiceController {
 		this.announcedMode = undefined;
 		this.config = undefined;
 		this.voiceStatus = "";
-		this.context?.ui.setStatus("gippity-voice", undefined);
+		this.context?.ui.setStatus(GIPPITY_VOICE_STATUS_KEY, undefined);
 		await session?.close();
 		if (wasMuted)
 			for (const listener of this.inputMuteListeners) listener(false);
@@ -277,7 +288,7 @@ export class CodexVoiceController {
 		this.announcedMode = undefined;
 		this.config = undefined;
 		this.voiceStatus = "";
-		this.context?.ui.setStatus("gippity-voice", undefined);
+		this.context?.ui.setStatus(GIPPITY_VOICE_STATUS_KEY, undefined);
 		this.messages.voiceStopped(endedMode);
 	}
 
@@ -426,7 +437,7 @@ export class CodexVoiceController {
 		this.state = { type: "idle" };
 		this.config = undefined;
 		this.voiceStatus = "";
-		this.context?.ui.setStatus("gippity-voice", undefined);
+		this.context?.ui.setStatus(GIPPITY_VOICE_STATUS_KEY, undefined);
 	}
 
 	private fail(error: Error): void {
@@ -448,7 +459,7 @@ export class CodexVoiceController {
 		this.announcedMode = undefined;
 		this.config = undefined;
 		this.voiceStatus = "";
-		this.context?.ui.setStatus("gippity-voice", undefined);
+		this.context?.ui.setStatus(GIPPITY_VOICE_STATUS_KEY, undefined);
 		this.context?.ui.notify(message, "error");
 		this.messages.voiceStopped(endedMode);
 		if (wasMuted)
@@ -468,7 +479,7 @@ export class CodexVoiceController {
 			? ctx.ui.theme.fg("warning", " · mic muted")
 			: "";
 		ctx.ui.setStatus(
-			"gippity-voice",
+			GIPPITY_VOICE_STATUS_KEY,
 			`${ctx.ui.theme.fg("accent", `voice: ${this.voiceStatus}`)}${mute}`,
 		);
 	}

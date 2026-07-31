@@ -1,4 +1,5 @@
 mod audio;
+mod playout;
 mod protocol;
 mod resample;
 mod v3;
@@ -156,12 +157,16 @@ async fn main() -> Result<()> {
                     Session::V3(active) => active.send(message).await?,
                     _ => anyhow::bail!("data messages require an active V3 session"),
                 },
-                Command::SendPcm {
-                    audio,
-                    sample_rate,
-                    num_channels,
-                } => match &session {
-                    Session::V3(active) => active.send_pcm(&audio, sample_rate, num_channels)?,
+                Command::SendPcm { audio, .. } => match &session {
+                    Session::V3(active) => {
+                        let pcm = BASE64
+                            .decode(audio)
+                            .context("invalid bridge PCM encoding")?;
+                        if pcm.len() > protocol::MAX_PCM_BYTES {
+                            anyhow::bail!("bridge PCM exceeds {} bytes", protocol::MAX_PCM_BYTES);
+                        }
+                        active.send_pcm(&pcm)?;
+                    }
                     _ => anyhow::bail!("PCM input requires an active V3 session"),
                 },
                 Command::Stop => {

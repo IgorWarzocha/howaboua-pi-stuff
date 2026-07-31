@@ -13,7 +13,6 @@ import { maybeWarnLocalCheckoutVersion } from "../adapter/local-version-warning.
 import { clearApplyPatchRenderState } from "../tools/apply-patch/tool.ts";
 import type { CodeModeRegistration } from "../tools/code-mode/tools.ts";
 import { initializeBashParser } from "../shell/bash.ts";
-import { ensureCodexVoiceSystemPrompt, getCodexVoiceSystemPromptPath } from "../voice/system-prompt.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
 import type { CodexToolRegistration } from "./tools.ts";
 import type { CodexUiController } from "./ui.ts";
@@ -64,11 +63,6 @@ export function registerCodexEvents(
 	pi.on("session_start", async (event, ctx) => {
 		await runtime.lanVoice.stop(ctx);
 		runtime.voice.resetContextAnnouncements();
-		try {
-			ensureCodexVoiceSystemPrompt();
-		} catch (error) {
-			console.warn(`[pi-codex-conversion] Failed to prepare ${getCodexVoiceSystemPromptPath()}: ${error instanceof Error ? error.message : String(error)}`);
-		}
 		initializeBashParser();
 		runtime.resetTransport();
 		runtime.backgroundWidget.ctx = ctx;
@@ -96,7 +90,6 @@ export function registerCodexEvents(
 	});
 
 	pi.on("model_select", async (_event, ctx) => {
-		await runtime.voice.stop({ announce: true });
 		runtime.resetTransport(ctx.sessionManager.getSessionId());
 		state.cwd = ctx.cwd;
 		state.activeProviderSystemPrompt = undefined;

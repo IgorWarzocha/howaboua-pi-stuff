@@ -8,7 +8,7 @@ import type { CodexVoiceController } from "../controller.ts";
 import type { CodexRealtimeConversation } from "../conversation/session.ts";
 import { LanVoiceActivity } from "./activity.ts";
 import { createLanVoiceWebManifest } from "./app-assets.ts";
-import { LanVoiceBridgePeer } from "./bridge-peer.ts";
+import { LanHostRealtimePeer } from "./browser-peer.ts";
 import { LanVoiceBrowserClients, MAX_CONTROL_BYTES } from "./browser-clients.ts";
 import { resolveLanVoiceCertificate } from "./certificate.ts";
 import { LanVoiceDictation } from "./dictation.ts";
@@ -39,9 +39,8 @@ export async function startCodexLanVoiceServer(options: {
 }): Promise<CodexLanVoiceServer> {
 	const certificate = resolveLanVoiceCertificate(options.certificateAgentDir);
 	const ownerIsActive = () => options.ctx.sessionManager.getSessionId() === options.ownerSessionId;
-	let upstreamPeer: LanVoiceBridgePeer | undefined;
-	let conversation: CodexRealtimeConversation | undefined;
-	let conversationStartAbort: AbortController | undefined;
+	let activeConversation: { peer: LanHostRealtimePeer; conversation: CodexRealtimeConversation } | undefined;
+	let conversationStart: { peer: LanHostRealtimePeer; abort: AbortController; promise: Promise<void> } | undefined;
 	let closing = false;
 	let clients!: LanVoiceBrowserClients;
 	const activity = new LanVoiceActivity({
@@ -57,34 +56,37 @@ export async function startCodexLanVoiceServer(options: {
 		onError: (clientId, error) => clients.sendControl(clientId, { type: "error", message: error.message }),
 	});
 
-	const clearUpstream = (peer?: LanVoiceBridgePeer): boolean => {
-		if (peer && upstreamPeer !== peer) return false;
-		upstreamPeer = undefined;
-		conversation = undefined;
-		return true;
+	const conversationFailed = (peer: LanHostRealtimePeer, error: Error): void => {
+		if (activeConversation?.peer !== peer) return;
+		activeConversation = undefined;
+		clients.broadcastControl({ type: "error", message: error.message });
 	};
 	const ensureConversation = async (): Promise<void> => {
-		if (conversation && upstreamPeer) return;
-		const startAbort = new AbortController();
-		let peer!: LanVoiceBridgePeer;
-		peer = new LanVoiceBridgePeer((pcm) => clients.sendConversationAudio(pcm));
-		peer.onExit((error) => {
-			if (clearUpstream(peer)) clients.conversationFailed(error);
+		if (activeConversation) return;
+		if (conversationStart) return conversationStart.promise;
+		const peer = new LanHostRealtimePeer({
+			onAudio: (pcm) => clients.sendConversationAudio(pcm),
+			onFailure: (error) => conversationFailed(peer, error),
 		});
-		upstreamPeer = peer;
-		conversationStartAbort = startAbort;
-		let started: CodexRealtimeConversation | undefined;
-		try {
-			started = await options.voice.startRealtimeWithPeer(options.ctx, options.getConfig(), peer, startAbort.signal);
-		} finally {
-			if (conversationStartAbort === startAbort) conversationStartAbort = undefined;
-		}
-		if (!started) {
-			clearUpstream(peer);
-			await peer.close();
-			throw new Error("Codex voice could not start");
-		}
-		conversation = started;
+		const abort = new AbortController();
+		const promise = (async () => {
+			let started: CodexRealtimeConversation | undefined;
+			try {
+				started = await options.voice.startRealtimeWithPeer(options.ctx, options.getConfig(), peer, abort.signal);
+			} catch (error) {
+				await peer.close();
+				throw error;
+			}
+			if (!started) {
+				await peer.close();
+				throw new Error("Codex voice could not start");
+			}
+			activeConversation = { peer, conversation: started };
+		})().finally(() => {
+			if (conversationStart?.peer === peer) conversationStart = undefined;
+		});
+		conversationStart = { peer, abort, promise };
+		return promise;
 	};
 	clients = new LanVoiceBrowserClients({
 		ensureConversation,
@@ -107,15 +109,14 @@ export async function startCodexLanVoiceServer(options: {
 		},
 		cancelDictation: (clientId) => dictation.cancel(clientId),
 		onConversationActivity(active) {
-			const activeConversation = conversation;
-			if (activeConversation) options.voice.setConversationInputActive(activeConversation, active);
+			if (activeConversation) options.voice.setConversationInputActive(activeConversation.conversation, active);
 		},
+		conversationMuted: () => options.voice.inputMuted,
 		onConversationMute(muted) {
 			if (!options.voice.setInputMuted(muted)) throw new Error("Realtime voice is not active");
 		},
 		onConversationAudio(pcm) {
-			const peer = upstreamPeer;
-			if (peer) peer.sendAudio(pcm);
+			activeConversation?.peer.sendAudio(pcm);
 		},
 		onDictationAudio: (clientId, pcm) => dictation.append(clientId, pcm),
 	});
@@ -156,7 +157,7 @@ export async function startCodexLanVoiceServer(options: {
 		const clientsClosing = clients.close();
 		webSockets.close();
 		server.closeAllConnections();
-		await Promise.allSettled([clientsClosing, dictation.close(), upstreamPeer?.close()]);
+		await Promise.allSettled([clientsClosing, dictation.close()]);
 		throw error;
 	}
 	const heartbeat = setInterval(() => clients.heartbeat(), HEARTBEAT_MS);
@@ -166,24 +167,16 @@ export async function startCodexLanVoiceServer(options: {
 	const closeServer = async (): Promise<void> => {
 		closing = true;
 		removeInputMuteListener();
-		conversationStartAbort?.abort();
-		conversationStartAbort = undefined;
+		conversationStart?.abort.abort();
+		conversationStart = undefined;
 		clearInterval(heartbeat);
-		const firstConversation = conversation;
-		const firstPeer = upstreamPeer;
 		const clientsClosing = clients.close();
-		const upstreamClosing = firstConversation
-			? options.voice.stopConversation(firstConversation, { announce: true })
-			: firstPeer?.close() ?? Promise.resolve();
 		const failures: unknown[] = [];
-		await collectFailures([clientsClosing, dictation.close(), upstreamClosing], failures);
-		const remainingConversation = conversation;
-		const remainingPeer = upstreamPeer;
-		clearUpstream();
-		if (remainingConversation && remainingConversation !== firstConversation) {
-			await collectFailures([options.voice.stopConversation(remainingConversation, { announce: true })], failures);
-		} else if (remainingPeer && remainingPeer !== firstPeer) {
-			await collectFailures([remainingPeer.close()], failures);
+		await collectFailures([clientsClosing, dictation.close()], failures);
+		const remainingConversation = activeConversation;
+		if (remainingConversation) {
+			activeConversation = undefined;
+			await collectFailures([options.voice.stopConversation(remainingConversation.conversation, { announce: true })], failures);
 		}
 		await collectFailures([
 			new Promise<void>((resolve) => webSockets.close(() => resolve())),

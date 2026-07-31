@@ -7,7 +7,12 @@ import type { CodexRealtimePeer } from "./conversation/peer.ts";
 import type { CodexDictationSession } from "./dictation/session.ts";
 import { CodexVoiceSessionMessages } from "./session-messages.ts";
 import { formatVoiceAudioError } from "./setup.ts";
-import { getProjectCodexVoiceSystemPromptPath, loadCodexVoiceSystemPrompt } from "./system-prompt.ts";
+import {
+	formatCodexVoicePromptSchemaMismatch,
+	getProjectCodexVoiceSystemPromptPath,
+	loadCodexVoiceSystemPrompt,
+	prepareCodexVoiceSystemPrompt,
+} from "./system-prompt.ts";
 import type { CodexVoiceMode } from "./ui.ts";
 
 type VoiceSession = CodexRealtimeConversation | CodexDictationSession;
@@ -72,6 +77,16 @@ export class CodexVoiceController {
 	async startRealtimeWithPeer(ctx: ExtensionContext, config: CodexConversionConfig, peer: CodexRealtimePeer, signal?: AbortSignal): Promise<CodexRealtimeConversation | undefined> {
 		return this.startMode(ctx, config, "realtime", peer, signal);
 	}
+	prepareRealtimePrompt(ctx: ExtensionContext): string | undefined {
+		try {
+			const status = prepareCodexVoiceSystemPrompt();
+			if (!status.current) ctx.ui.notify(formatCodexVoicePromptSchemaMismatch(status.currentSchemaVersion), "warning");
+			return loadCodexVoiceSystemPrompt(undefined, ctx.isProjectTrusted() ? getProjectCodexVoiceSystemPromptPath(ctx.cwd) : undefined);
+		} catch (error) {
+			ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
+			return undefined;
+		}
+	}
 
 	async stopConversation(session: CodexRealtimeConversation, options?: { announce?: boolean }): Promise<void> {
 		if (this.currentSession() === session) await this.stop(options);
@@ -93,15 +108,8 @@ export class CodexVoiceController {
 
 	private async startMode(ctx: ExtensionContext, config: CodexConversionConfig, mode: CodexVoiceMode, peer?: CodexRealtimePeer, signal?: AbortSignal): Promise<CodexRealtimeConversation | undefined> {
 		if (signal?.aborted) { await peer?.close(); return; }
-		let realtimePrompt: string | undefined;
-		try {
-			realtimePrompt = mode === "realtime"
-				? loadCodexVoiceSystemPrompt(undefined, ctx.isProjectTrusted() ? getProjectCodexVoiceSystemPromptPath(ctx.cwd) : undefined)
-				: undefined;
-		} catch (error) {
-			ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
-			return;
-		}
+		const realtimePrompt = mode === "realtime" ? this.prepareRealtimePrompt(ctx) : undefined;
+		if (mode === "realtime" && realtimePrompt === undefined) return;
 		if (this.state.type === "dictation") await this.finishDictation({ announce: true });
 		else await this.stop({ announce: true });
 		if (signal?.aborted) { await peer?.close(); return; }
