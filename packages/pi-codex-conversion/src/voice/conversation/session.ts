@@ -178,8 +178,18 @@ export class CodexRealtimeConversation {
 		if (!value || typeof value !== "object") return;
 		const event = value as Record<string, unknown>;
 		if (event["type"] === "error") { this.fail(new Error(remoteError(event))); return; }
-		if (event["type"] === "input_transcript.added") return;
-		if (event["type"] === "output_transcript.added") { this.callbacks.onStatus("speaking"); return; }
+		if (event["type"] === "input_transcript.added") {
+			const input = boundedTranscript(transcriptItemText(event["item"]));
+			if (input === "oversized") { this.fail(new Error("Codex voice transcript was oversized")); return; }
+			if (input) this.turnTracker.inputAdded(input);
+			return;
+		}
+		if (event["type"] === "output_transcript.added") {
+			const output = boundedAssistantTranscript(transcriptItemText(event["item"]));
+			if (output) this.turnTracker.outputAdded(output);
+			this.callbacks.onStatus("speaking");
+			return;
+		}
 		if (event["type"] === "turn.done") {
 			this.handleCompletedTurn(event["turn"]);
 			return;
@@ -203,11 +213,7 @@ export class CodexRealtimeConversation {
 		if (record["role"] === "user") {
 			const input = boundedTranscript(record["transcript"]);
 			if (input === "oversized") { this.fail(new Error("Codex voice transcript was oversized")); return; }
-			const delegated = input ? this.turnTracker.userFinished(input) : undefined;
-			if (delegated) {
-				this.flushHandoff();
-				this.callbacks.onTurn(delegated);
-			}
+			if (input) this.turnTracker.userFinished(input);
 			this.callbacks.onStatus("responding");
 			return;
 		}
@@ -301,6 +307,10 @@ function boundedTranscript(value: unknown): string | "oversized" | undefined {
 	const input = value.trim();
 	if (!input) return undefined;
 	return Buffer.byteLength(input) > MAX_REALTIME_VOICE_INPUT_BYTES ? "oversized" : input;
+}
+
+function transcriptItemText(value: unknown): unknown {
+	return value && typeof value === "object" ? (value as Record<string, unknown>)["text"] : undefined;
 }
 
 function boundedAssistantTranscript(value: unknown): string | undefined {

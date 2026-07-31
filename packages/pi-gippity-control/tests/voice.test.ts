@@ -69,18 +69,41 @@ describe("realtime session routing", () => {
 			input: "check the laptop and server",
 			delegationId: "delegation-1",
 			transcriptDelta:
-				"user: terms of the laptop\nassistant: Do you mean temperatures?\nuser: yes, temperatures",
+				"user: terms of the laptop\nassistant: Do you mean temperatures?\nuser: yes, temperatures\nuser: check the laptop and server",
 		});
 
 		const delegationFirst = new RealtimeVoiceTurnTracker();
+		delegationFirst.inputAdded("yes, check the laptop");
 		expect(
 			delegationFirst.delegated("check the laptop", "delegation-2"),
-		).toBeUndefined();
-		expect(delegationFirst.userFinished("yes, check the laptop")).toEqual({
+		).toEqual({
 			input: "check the laptop",
 			delegationId: "delegation-2",
-			transcriptDelta: "user: yes, check the laptop",
+			transcriptDelta: "user: yes, check the laptop\nuser: check the laptop",
 		});
+		expect(
+			delegationFirst.userFinished("yes, check the laptop"),
+		).toBeUndefined();
+	});
+
+	test("an interrupted conversation cannot consume a later delegation", () => {
+		const turns = new RealtimeVoiceTurnTracker();
+		turns.inputAdded("what is the current load");
+		turns.userFinished("what is the current load");
+		turns.outputAdded("The load is");
+		turns.inputAdded("check the logs instead");
+
+		expect(turns.delegated("check the logs instead", "delegation-1")).toEqual({
+			input: "check the logs instead",
+			delegationId: "delegation-1",
+			transcriptDelta:
+				"user: what is the current load\nassistant: The load is\nuser: check the logs instead",
+		});
+		expect(turns.userFinished("check the logs instead")).toBeUndefined();
+		expect(turns.assistantFinished("The load is normal")).toEqual({
+			input: "what is the current load",
+		});
+		expect(turns.drainConversationTurns()).toEqual([]);
 	});
 
 	test("presentation entries never enter Pi model queues", () => {

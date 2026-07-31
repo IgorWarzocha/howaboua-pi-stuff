@@ -147,16 +147,15 @@ test("voice helper JSONL parser bounds unterminated frames", () => {
 
 test("voice delegation suppresses backend retries without blocking a later repeat", () => {
 	const turns = new RealtimeVoiceTurnTracker();
-	assert.equal(turns.delegated("check the load", "first"), undefined);
-	assert.equal(turns.delegated("check the load", "retry-before-settle"), undefined);
-	assert.deepEqual(turns.userFinished("check the load"), {
+	assert.deepEqual(turns.delegated("check the load", "first"), {
 		input: "check the load",
 		delegationId: "first",
 		transcriptDelta: "user: check the load",
 	});
+	assert.equal(turns.delegated("check the load", "retry-before-settle"), undefined);
+	assert.equal(turns.userFinished("check the load"), undefined);
 	turns.delegationSettled("first");
-	assert.equal(turns.delegated("check the load", "intentional-repeat"), undefined);
-	assert.deepEqual(turns.userFinished("check the load"), {
+	assert.deepEqual(turns.delegated("check the load", "intentional-repeat"), {
 		input: "check the load",
 		delegationId: "intentional-repeat",
 		transcriptDelta: "user: check the load",
@@ -171,16 +170,36 @@ test("voice delegations carry conversation since the previous handoff", () => {
 	assert.deepEqual(turns.delegated("check the laptop and server", "delegation-1"), {
 		input: "check the laptop and server",
 		delegationId: "delegation-1",
-		transcriptDelta: "user: terms of the laptop\nassistant: Do you mean temperatures?\nuser: yes, temperatures",
+		transcriptDelta: "user: terms of the laptop\nassistant: Do you mean temperatures?\nuser: yes, temperatures\nuser: check the laptop and server",
 	});
 
 	const delegationFirst = new RealtimeVoiceTurnTracker();
-	assert.equal(delegationFirst.delegated("check the laptop", "delegation-2"), undefined);
-	assert.deepEqual(delegationFirst.userFinished("yes, check the laptop"), {
+	delegationFirst.inputAdded("yes, check the laptop");
+	assert.deepEqual(delegationFirst.delegated("check the laptop", "delegation-2"), {
 		input: "check the laptop",
 		delegationId: "delegation-2",
-		transcriptDelta: "user: yes, check the laptop",
+		transcriptDelta: "user: yes, check the laptop\nuser: check the laptop",
 	});
+	assert.equal(delegationFirst.userFinished("yes, check the laptop"), undefined);
+});
+
+test("an interrupted conversation cannot consume a later delegation", () => {
+	const turns = new RealtimeVoiceTurnTracker();
+	turns.inputAdded("what is the current load");
+	turns.userFinished("what is the current load");
+	turns.outputAdded("The load is");
+	turns.inputAdded("check the logs instead");
+
+	assert.deepEqual(turns.delegated("check the logs instead", "delegation-1"), {
+		input: "check the logs instead",
+		delegationId: "delegation-1",
+		transcriptDelta: "user: what is the current load\nassistant: The load is\nuser: check the logs instead",
+	});
+	assert.equal(turns.userFinished("check the logs instead"), undefined);
+	assert.deepEqual(turns.assistantFinished("The load is normal"), {
+		input: "what is the current load",
+	});
+	assert.deepEqual(turns.drainConversationTurns(), []);
 });
 
 test("voice presentation entries never enter Pi model queues", () => {
