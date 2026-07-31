@@ -53,13 +53,15 @@ test("Code Mode separates bundled, promoted custom, and deferred custom expositi
 	assert.match(section, /Deferred custom tools: find by name in ALL_TOOLS/);
 	assert.match(
 		section,
-		/Read \/custom-tools\.md only to work on custom-tool definitions, not to call them/,
+		/To create or edit a custom tool, read \/custom-tools\.md; do not read Pi docs\nNever read that file to discover or call tools/,
 	);
 
 	const basePrompt = "Base\nCurrent shell: /bin/bash";
 	const withoutCustom = injectCodeModeToolsPrompt(basePrompt, [bundled], "/custom-tools.md");
 	assert.match(withoutCustom, /Tools available in exec:/);
-	assert.doesNotMatch(withoutCustom, /custom-tool definitions|Configured custom tools|ALL_TOOLS/);
+	assert.doesNotMatch(withoutCustom, /Configured custom tools|ALL_TOOLS/);
+	assert.match(withoutCustom, /To create or edit a custom tool, read \/custom-tools\.md; do not read Pi docs/);
+	assert.match(withoutCustom, /Never read that file to discover or call tools/);
 	assert.equal(
 		injectCodeModeToolsPrompt(withoutCustom, [bundled], "/custom-tools.md"),
 		withoutCustom,
@@ -69,7 +71,7 @@ test("Code Mode separates bundled, promoted custom, and deferred custom expositi
 	assert.equal(withCustom.match(/Tools available in exec:/g)?.length, 1);
 	assert.match(withCustom, /Configured custom tools:\n- await tools\.promoted_tool/);
 	assert.match(withCustom, /Deferred custom tools: find by name in ALL_TOOLS/);
-	assert.match(withCustom, /only to work on custom-tool definitions/);
+	assert.match(withCustom, /To create or edit a custom tool, read/);
 	assert.equal(injectCodeModeToolsPrompt(withCustom, tools, "/custom-tools.md"), withCustom);
 });
 

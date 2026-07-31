@@ -89,7 +89,7 @@ type CodexPromptMode = "normal" | "code";
 function buildCodexGuidelines(mode: CodexPromptMode = "normal", piPackageRoot?: string): string[] {
 	const guidelines = mode === "normal" ? [...NORMAL_CODEX_GUIDELINES] : [...CODE_MODE_GUIDELINES];
 	if (piPackageRoot) {
-		guidelines.push(`For questions about Pi, Pi configuration, or anything built with its SDK, first list README.md, docs/, and examples/ under ${piPackageRoot}; read relevant files and follow references before implementing`);
+		guidelines.push(`When work depends on Pi APIs or runtime behavior not established in the current repository, consult the relevant README.md, docs/, or examples/ files under ${piPackageRoot} and follow their references before implementing`);
 	}
 	return guidelines;
 }

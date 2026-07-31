@@ -82,7 +82,7 @@ test("heavy prompt overwrite removes Pi scaffold and preserves dynamic instructi
 	assert.doesNotMatch(prompt, /expert coding assistant|Available tools:\n- exec:|Be concise|The following skills provide/);
 	assert.match(
 		prompt,
-		/For questions about Pi, Pi configuration, or anything built with its SDK, first list README\.md, docs\/, and examples\/ under \/opt\/pi\/packages\/coding-agent/,
+		/When work depends on Pi APIs or runtime behavior not established in the current repository, consult the relevant README\.md, docs\/, or examples\/ files under \/opt\/pi\/packages\/coding-agent/,
 	);
 	assert.match(prompt, /^Third-party preface\n\nGuidelines:/);
 	assert.match(prompt, /- Third-party registered guidance/);

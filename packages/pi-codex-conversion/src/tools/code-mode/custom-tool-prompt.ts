@@ -15,7 +15,8 @@ export const WAIT_DESCRIPTION =
 const BUNDLED_TOOLS_HEADING = "Tools available in exec:";
 const CUSTOM_TOOLS_HEADING = "Configured custom tools:";
 const DEFERRED_CUSTOM_TOOLS_GUIDANCE = "Deferred custom tools: find by name in ALL_TOOLS";
-const CUSTOM_TOOL_DOCUMENTATION_MARKER = "only to work on custom-tool definitions";
+const CUSTOM_TOOL_DOCUMENTATION_MARKER = "To create or edit a custom tool, read";
+const CUSTOM_TOOL_DOCUMENTATION_GUIDANCE = "Never read that file to discover or call tools";
 const CUSTOM_TOOLS_GUIDANCE =
 	"Prefer custom tools for command-backed capabilities";
 
@@ -66,8 +67,8 @@ export function buildCodeModeToolsPrompt(
 		custom.some((tool) => tool.deferLoading) && !existingPrompt.includes(DEFERRED_CUSTOM_TOOLS_GUIDANCE)
 			? DEFERRED_CUSTOM_TOOLS_GUIDANCE
 			: undefined,
-		custom.length > 0 && documentationPath && !existingPrompt.includes(CUSTOM_TOOL_DOCUMENTATION_MARKER)
-			? `Read ${documentationPath} ${CUSTOM_TOOL_DOCUMENTATION_MARKER}, not to call them`
+		documentationPath && !existingPrompt.includes(CUSTOM_TOOL_DOCUMENTATION_MARKER)
+			? `${CUSTOM_TOOL_DOCUMENTATION_MARKER} ${documentationPath}; do not read Pi docs\n${CUSTOM_TOOL_DOCUMENTATION_GUIDANCE}`
 			: undefined,
 		custom.length > 0 && !existingPrompt.includes(CUSTOM_TOOLS_GUIDANCE) ? CUSTOM_TOOLS_GUIDANCE : undefined,
 	].filter(Boolean);
