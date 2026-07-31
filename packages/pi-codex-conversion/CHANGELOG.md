@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.0.6
+
+### Changes
+
+- [#216](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/216) [`981e04a`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/981e04a6660e36131c81eb2cbaef105fcb94e5b0) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Makes realtime voice more conversational and robust with the Codex voice model, host-owned LAN WebRTC with seamless device takeover, buffered browser audio, buffered native playback, packet reordering, and loss concealment. Keeps voice alive across Pi model changes and avoids unnecessary transport resets when saving settings. Ships prompt schemas as raw Markdown with agent-assisted migration instead of rewriting custom prompts. Preserves full native compaction input until session usage exceeds the endpoint budget. Limits Pi documentation lookup to unresolved Pi API or runtime dependencies, and keeps the custom-tool guide focused on creating and editing definitions rather than discovering or calling tools. Bundles a disabled browser custom-tool example with local CDP control, bounded child output, safe screenshot paths, accurate load-all deadlines, and opt-in SSH routing. Rejects incompatible voice helpers immediately and preserves LAN startup errors through terminal cleanup.
+
 ## 3.0.5
 
 ### Changes
