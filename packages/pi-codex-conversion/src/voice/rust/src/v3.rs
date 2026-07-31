@@ -9,6 +9,7 @@ use bytes::Bytes;
 use crossbeam_queue::ArrayQueue;
 use serde_json::Value;
 use tokio::sync::mpsc;
+use tokio::time::Instant;
 use webrtc::api::APIBuilder;
 use webrtc::api::interceptor_registry::register_default_interceptors;
 use webrtc::api::media_engine::{MIME_TYPE_OPUS, MediaEngine};
@@ -25,7 +26,7 @@ use webrtc::track::track_local::TrackLocal;
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
 
 use crate::audio::{self, Capture, Playback};
-use crate::playout::{PacketPlayout, PlayoutFrame};
+use crate::playout::{PacketPlayout, PlayoutClock, PlayoutFrame};
 use crate::protocol::{Event, MAX_DATA_MESSAGE_BYTES};
 use crate::resample::LinearResampler;
 
@@ -50,6 +51,13 @@ impl OutputSink {
             Self::Device { sample_rate, .. } => *sample_rate,
             Self::Bridge => BRIDGE_RATE,
         }
+    }
+}
+
+async fn wait_for_playout(deadline: Option<Instant>) {
+    match deadline {
+        Some(deadline) => tokio::time::sleep_until(deadline).await,
+        None => std::future::pending().await,
     }
 }
 
@@ -211,13 +219,11 @@ impl V3Session {
                     }
                 };
                 let mut playout = PacketPlayout::new();
-				let mut ticker = tokio::time::interval(Duration::from_millis(10));
-                ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+                let mut playout_clock = PlayoutClock::new();
                 let mut decoded = vec![0_f32; OPUS_FRAME_SAMPLES * 2 * 6];
                 let mut converted = Vec::new();
                 let mut bridge_pending = Vec::new();
-				let mut last_frame_samples = OPUS_FRAME_SAMPLES;
-				let mut ticks_until_next = 0;
+                let mut last_frame_samples = OPUS_FRAME_SAMPLES;
                 loop {
                     tokio::select! {
                         packet = remote.read_rtp() => {
@@ -229,21 +235,26 @@ impl V3Session {
                                 }
                             };
                             playout.push(packet.header.sequence_number, packet.payload);
+                            if playout.ready() {
+                                playout_clock.start(Instant::now());
+                            }
                         }
-						_ = ticker.tick() => {
-							if ticks_until_next > 0 {
-								ticks_until_next -= 1;
-								continue;
-							}
+                        _ = wait_for_playout(playout_clock.deadline()) => {
                             let frame = playout.next();
                             let (payload, decoded_output) = match frame {
-                                PlayoutFrame::Buffering => continue,
+                                PlayoutFrame::Buffering => {
+                                    playout_clock.stop();
+                                    continue;
+                                }
                                 PlayoutFrame::Packet(payload) => (payload, &mut decoded[..]),
                                 PlayoutFrame::Missing => (Bytes::new(), &mut decoded[..last_frame_samples * 2]),
                             };
-                            let Ok(samples_per_channel) = decoder.decode_float(&payload, decoded_output, false) else { continue; };
-							last_frame_samples = samples_per_channel;
-							ticks_until_next = samples_per_channel.div_ceil(OPUS_FRAME_SAMPLES / 2).saturating_sub(1);
+                            let Ok(samples_per_channel) = decoder.decode_float(&payload, decoded_output, false) else {
+                                playout_clock.advance(last_frame_samples, OPUS_RATE);
+                                continue;
+                            };
+                            last_frame_samples = samples_per_channel;
+                            playout_clock.advance(samples_per_channel, OPUS_RATE);
                             let mut mono = Vec::with_capacity(samples_per_channel);
                             for pair in decoded[..samples_per_channel * 2].chunks_exact(2) {
                                 mono.push((pair[0] + pair[1]) * 0.5);
