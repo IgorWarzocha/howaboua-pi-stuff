@@ -10,7 +10,7 @@ function createAudioController({ button, muteButton, audioState, audioDetail, mo
   let context;
   let source;
   let processor;
-  let realtimePeer;
+  let realtimeAudio;
   let mode = 'conversation';
   let active = false;
   let muted = false;
@@ -39,12 +39,17 @@ function createAudioController({ button, muteButton, audioState, audioDetail, mo
     updateControls();
   };
   const closeHardware = () => {
-    realtimePeer?.close(); realtimePeer = undefined;
-    processor?.disconnect(); processor = undefined;
-    source?.disconnect(); source = undefined;
+    const currentRealtimeAudio = realtimeAudio; realtimeAudio = undefined;
+    if (currentRealtimeAudio) currentRealtimeAudio.close();
+    else {
+      processor?.disconnect();
+      source?.disconnect();
+      void context?.close().catch(() => {});
+    }
+    processor = undefined;
+    source = undefined;
+    context = undefined;
     stream?.getTracks().forEach((track) => track.stop()); stream = undefined;
-    const currentContext = context; context = undefined;
-    void currentContext?.close().catch(() => {});
   };
   const stop = (notify = true, reason = 'user') => {
     startGeneration += 1;
@@ -86,28 +91,24 @@ function createAudioController({ button, muteButton, audioState, audioDetail, mo
   const receiveMessage = (currentSocket, event) => {
     if (socket !== currentSocket) return;
     if (event.data instanceof ArrayBuffer) {
+      realtimeAudio?.play(event.data);
       return;
     }
     try {
       const message = JSON.parse(event.data);
 	  if (message.type === 'stop') { stop(false, message.reason || 'server'); return; }
 	  if (message.type === 'mute') setMuted(message.muted, false);
-      if (message.type === 'answer' && typeof message.sdp === 'string') {
-        void realtimePeer?.acceptAnswer(message.sdp).catch((error) => {
-          if (socket === currentSocket && currentSocket.readyState === WebSocket.OPEN) currentSocket.send(JSON.stringify({ type:'peer_error', message:error instanceof Error ? error.message : String(error) }));
-        });
-      }
-      if (message.type === 'peer_data') {
-        try { realtimePeer?.sendData(message.message); }
-        catch (error) { if (currentSocket.readyState === WebSocket.OPEN) currentSocket.send(JSON.stringify({ type:'peer_error', message:error instanceof Error ? error.message : String(error) })); }
-      }
       if (message.type === 'active') {
         active = true;
         busy = false;
         finishingDictation = false;
         button.setAttribute('aria-pressed', 'true');
         button.setAttribute('aria-label', mode === 'dictation' ? 'Finish dictation' : 'Stop voice');
-        setMuted(false, false);
+        if (mode === 'conversation') {
+          if (typeof message.muted === 'boolean') muted = message.muted;
+          realtimeAudio?.releaseInput();
+        }
+        setMuted(muted, false);
         setStatus(mode === 'dictation' ? 'Recording' : 'Listening', mode === 'dictation' ? 'Tap to finish' : 'Tap to stop');
         updateControls();
       }
@@ -134,17 +135,10 @@ function createAudioController({ button, muteButton, audioState, audioDetail, mo
       if (!globalThis.AudioWorkletNode) throw new Error('This browser does not support the required low-latency audio runtime.');
       stream = await navigator.mediaDevices.getUserMedia({ audio:{ channelCount:1, echoCancellation:true, noiseSuppression:true, autoGainControl:true } });
       if (generation !== startGeneration) { closeHardware(); return; }
-      let offerSdp;
       if (mode === 'conversation') {
-        realtimePeer = await createRealtimeBrowserPeer({
-          stream,
-          sendControl(value) { if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(value)); },
-		  fail(error) {
-			setStatus('Voice stopped', error.message);
-			if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type:'peer_error', message:error.message }));
-		  },
-        });
-        offerSdp = realtimePeer.offerSdp;
+        realtimeAudio = await createRealtimeBrowserAudio(stream);
+        context = realtimeAudio.context;
+        processor = realtimeAudio.processor;
       } else {
         context = new AudioContext({ latencyHint:'interactive' });
         const workletUrl = URL.createObjectURL(new Blob([${AUDIO_WORKLET_SOURCE}], { type:'text/javascript' }));
@@ -173,9 +167,9 @@ function createAudioController({ button, muteButton, audioState, audioDetail, mo
         if (active && !muted && socket === currentSocket && currentSocket.readyState === WebSocket.OPEN && currentSocket.bufferedAmount < 65536) currentSocket.send(event.data);
       };
       currentSocket.onopen = () => {
-		if (socket !== currentSocket || (!realtimePeer && !context)) return;
+		if (socket !== currentSocket || !context) return;
         clearTimeout(connectTimer);
-        currentSocket.send(JSON.stringify({ type:'start', mode, ...(offerSdp ? { sdp:offerSdp } : {}) }));
+        currentSocket.send(JSON.stringify({ type:'start', mode }));
         setStatus('Connecting…');
       };
       currentSocket.onmessage = (event) => receiveMessage(currentSocket, event);

@@ -3,83 +3,114 @@ import type {
 	CodexRealtimePeerEvent,
 	CodexRealtimeWebRtcPeer,
 } from "../conversation/peer.ts";
+import { VoiceHelperClient, type VoiceHelperEvent } from "../helper.ts";
 
-type SendBrowserControl = (value: unknown) => void;
+const OFFER_TIMEOUT_MS = 15_000;
 
-export type LanBrowserPeerEvent =
-	| { type: "peer_state"; state: string }
-	| { type: "peer_data"; message: unknown }
-	| { type: "peer_error"; message: string };
-
-export class LanBrowserRealtimePeer implements CodexRealtimeWebRtcPeer {
+export class LanHostRealtimePeer implements CodexRealtimeWebRtcPeer {
 	readonly kind = "webrtc" as const;
-	private readonly offerSdp: string;
-	private readonly sendControl: SendBrowserControl;
-	private readonly eventListeners = new Set<
-		(event: CodexRealtimePeerEvent) => void
-	>();
-	private active = false;
-	private closed = false;
+	private readonly helper = new VoiceHelperClient();
+	private readonly onAudio: (pcm: Buffer) => void;
+	private readonly onFailure: (error: Error) => void;
+	private failed = false;
+	private closing = false;
 
-	constructor(offerSdp: string, sendControl: SendBrowserControl) {
-		this.offerSdp = offerSdp;
-		this.sendControl = sendControl;
+	constructor(options: {
+		onAudio(pcm: Buffer): void;
+		onFailure(error: Error): void;
+	}) {
+		this.onAudio = options.onAudio;
+		this.onFailure = options.onFailure;
 	}
 
 	onEvent(listener: (event: CodexRealtimePeerEvent) => void): () => void {
-		this.eventListeners.add(listener);
-		return () => this.eventListeners.delete(listener);
+		return this.helper.onEvent((event) => {
+			if (event.type === "pcm") {
+				this.onAudio(Buffer.from(event.audio, "base64"));
+				return;
+			}
+			const peerEvent = toPeerEvent(event);
+			if (peerEvent) listener(peerEvent);
+			if (event.type === "error") this.fail(new Error(event.message));
+		});
 	}
 
-	onExit(_listener: (error: Error) => void): () => void {
-		return () => {};
+	onExit(listener: (error: Error) => void): () => void {
+		const remove = this.helper.onExit(listener);
+		const removeFailure = this.helper.onExit((error) => {
+			if (!this.closing) this.fail(error);
+		});
+		return () => {
+			remove();
+			removeFailure();
+		};
 	}
 
 	async start(_config: GippityControlConfig): Promise<string> {
-		if (this.closed) throw new Error("LAN realtime peer is closed");
-		return this.offerSdp;
+		await this.helper.start();
+		if (this.helper.protocolVersion !== 5) {
+			const actualVersion = this.helper.protocolVersion ?? "unknown";
+			await this.helper.close();
+			throw new Error(
+				`Incompatible Codex voice helper protocol ${actualVersion}; expected 5`,
+			);
+		}
+		const offer = Promise.withResolvers<string>();
+		const removeEvent = this.helper.onEvent((event) => {
+			if (event.type === "offer") offer.resolve(event.sdp);
+			else if (event.type === "error") offer.reject(new Error(event.message));
+		});
+		const removeExit = this.helper.onExit((error) => offer.reject(error));
+		const timeout = setTimeout(
+			() =>
+				offer.reject(new Error("Codex voice helper did not create an offer")),
+			OFFER_TIMEOUT_MS,
+		);
+		this.helper.send({ type: "start_v3_bridge" });
+		return offer.promise.finally(() => {
+			clearTimeout(timeout);
+			removeEvent();
+			removeExit();
+		});
 	}
 
 	applyAnswer(sdp: string): void {
-		this.send({ type: "answer", sdp });
+		this.helper.send({ type: "apply_answer", sdp });
 	}
 
 	sendData(message: unknown): void {
-		this.send({ type: "peer_data", message });
+		this.helper.send({ type: "send_data", message });
+	}
+
+	sendAudio(pcm: Buffer): void {
+		this.helper.send({
+			type: "send_pcm",
+			audio: pcm.toString("base64"),
+			sample_rate: 24_000,
+			num_channels: 1,
+		});
 	}
 
 	setInputMuted(muted: boolean): void {
-		this.send({ type: "mute", muted });
+		this.helper.send({ type: "set_input_muted", muted });
 	}
 
-	markActive(): void {
-		if (!this.closed) this.active = true;
+	close(): Promise<void> {
+		this.closing = true;
+		return this.helper.close();
 	}
 
-	receive(event: LanBrowserPeerEvent): void {
-		if (this.closed) return;
-		const peerEvent: CodexRealtimePeerEvent =
-			event.type === "peer_state"
-				? { type: "state", state: event.state }
-				: event.type === "peer_data"
-					? { type: "data", message: event.message }
-					: { type: "error", message: event.message };
-		for (const listener of this.eventListeners) listener(peerEvent);
+	private fail(error: Error): void {
+		if (this.failed) return;
+		this.failed = true;
+		this.onFailure(error);
 	}
+}
 
-	async close(): Promise<void> {
-		if (this.closed) return;
-		this.closed = true;
-		if (this.active) {
-			try {
-				this.sendControl({ type: "stop", reason: "upstream-error" });
-			} catch {}
-		}
-		this.eventListeners.clear();
-	}
-
-	private send(value: unknown): void {
-		if (this.closed) throw new Error("LAN realtime peer is closed");
-		this.sendControl(value);
-	}
+function toPeerEvent(
+	event: VoiceHelperEvent,
+): CodexRealtimePeerEvent | undefined {
+	if (event.type === "state" || event.type === "data" || event.type === "error")
+		return event;
+	return undefined;
 }

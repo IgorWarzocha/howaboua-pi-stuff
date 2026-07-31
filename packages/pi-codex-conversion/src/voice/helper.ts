@@ -6,10 +6,12 @@ import { MAX_REALTIME_SDP_BYTES } from "./conversation/peer.ts";
 export type VoiceHelperCommand =
 	| { type: "list_devices" }
 	| { type: "start_v3"; microphone?: string; speaker?: string }
+	| { type: "start_v3_bridge" }
 	| { type: "set_input_muted"; muted: boolean }
 	| { type: "apply_answer"; sdp: string }
 	| { type: "start_dictation"; microphone?: string }
 	| { type: "send_data"; message: unknown }
+	| { type: "send_pcm"; audio: string; sample_rate: 24_000; num_channels: 1 }
 	| { type: "stop" }
 	| { type: "shutdown" };
 

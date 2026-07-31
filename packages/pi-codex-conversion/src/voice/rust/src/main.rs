@@ -74,6 +74,17 @@ async fn main() -> Result<()> {
                     session = Session::V3(created);
                     events_tx.send(Event::Offer { sdp }).await?;
                 }
+                Command::StartV3Bridge => {
+                    stop(&mut session).await?;
+                    events_tx
+                        .send(Event::State {
+                            state: "connecting",
+                        })
+                        .await?;
+                    let (created, sdp) = v3::V3Session::create_bridge(events_tx.clone()).await?;
+                    session = Session::V3(created);
+                    events_tx.send(Event::Offer { sdp }).await?;
+                }
                 Command::ApplyAnswer { sdp } => match &session {
                     Session::V3(active) => active.apply_answer(sdp).await?,
                     _ => anyhow::bail!("cannot apply an answer without an active V3 session"),
@@ -145,6 +156,18 @@ async fn main() -> Result<()> {
                 Command::SendData { message } => match &session {
                     Session::V3(active) => active.send(message).await?,
                     _ => anyhow::bail!("data messages require an active V3 session"),
+                },
+                Command::SendPcm { audio, .. } => match &session {
+                    Session::V3(active) => {
+                        let pcm = BASE64
+                            .decode(audio)
+                            .context("invalid bridge PCM encoding")?;
+                        if pcm.len() > protocol::MAX_PCM_BYTES {
+                            anyhow::bail!("bridge PCM exceeds {} bytes", protocol::MAX_PCM_BYTES);
+                        }
+                        active.send_pcm(&pcm)?;
+                    }
+                    _ => anyhow::bail!("PCM input requires an active V3 session"),
                 },
                 Command::Stop => {
                     stop(&mut session).await?;

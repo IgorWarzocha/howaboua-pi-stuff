@@ -12,7 +12,7 @@ import {
 	LanVoiceBrowserClients,
 	MAX_CONTROL_BYTES,
 } from "./browser-clients.ts";
-import type { LanBrowserRealtimePeer } from "./browser-peer.ts";
+import { LanHostRealtimePeer } from "./browser-peer.ts";
 import { resolveLanVoiceCertificate } from "./certificate.ts";
 import { LanVoiceDictation } from "./dictation.ts";
 import { LanVoiceDraft, LanVoiceDraftConflictError } from "./draft.ts";
@@ -44,10 +44,14 @@ export async function startCodexLanVoiceServer(options: {
 	const ownerIsActive = () =>
 		options.ctx.sessionManager.getSessionId() === options.ownerSessionId;
 	let activeConversation:
-		| { peer: LanBrowserRealtimePeer; conversation: CodexRealtimeConversation }
+		| { peer: LanHostRealtimePeer; conversation: CodexRealtimeConversation }
 		| undefined;
 	let conversationStart:
-		| { peer: LanBrowserRealtimePeer; abort: AbortController }
+		| {
+				peer: LanHostRealtimePeer;
+				abort: AbortController;
+				promise: Promise<void>;
+		  }
 		| undefined;
 	let closing = false;
 	let clients!: LanVoiceBrowserClients;
@@ -65,50 +69,48 @@ export async function startCodexLanVoiceServer(options: {
 			clients.sendControl(clientId, { type: "error", message: error.message }),
 	});
 
-	const startConversation = async (
-		peer: LanBrowserRealtimePeer,
-	): Promise<void> => {
-		if (activeConversation)
-			throw new Error("A LAN realtime conversation is already active");
-		const startAbort = new AbortController();
-		const start = { peer, abort: startAbort };
-		conversationStart = start;
-		let started: CodexRealtimeConversation | undefined;
-		try {
-			started = await options.voice.startRealtimeWithPeer(
-				options.ctx,
-				options.getConfig(),
-				peer,
-				startAbort.signal,
-			);
-		} finally {
-			if (conversationStart === start) conversationStart = undefined;
-		}
-		if (!started) {
-			await peer.close();
-			throw new Error("GipPity voice could not start");
-		}
-		activeConversation = { peer, conversation: started };
-	};
-	const stopConversation = async (
-		peer: LanBrowserRealtimePeer,
-	): Promise<void> => {
-		const active = activeConversation;
-		if (!active || active.peer !== peer) {
-			await peer.close();
-			return;
-		}
+	const conversationFailed = (
+		peer: LanHostRealtimePeer,
+		error: Error,
+	): void => {
+		if (activeConversation?.peer !== peer) return;
 		activeConversation = undefined;
-		await options.voice.stopConversation(active.conversation, {
-			announce: true,
+		clients.broadcastControl({ type: "error", message: error.message });
+	};
+	const ensureConversation = async (): Promise<void> => {
+		if (activeConversation) return;
+		if (conversationStart) return conversationStart.promise;
+		const peer = new LanHostRealtimePeer({
+			onAudio: (pcm) => clients.sendConversationAudio(pcm),
+			onFailure: (error) => conversationFailed(peer, error),
 		});
+		const abort = new AbortController();
+		const promise = (async () => {
+			let started: CodexRealtimeConversation | undefined;
+			try {
+				started = await options.voice.startRealtimeWithPeer(
+					options.ctx,
+					options.getConfig(),
+					peer,
+					abort.signal,
+				);
+			} catch (error) {
+				await peer.close();
+				throw error;
+			}
+			if (!started) {
+				await peer.close();
+				throw new Error("Codex voice could not start");
+			}
+			activeConversation = { peer, conversation: started };
+		})().finally(() => {
+			if (conversationStart?.peer === peer) conversationStart = undefined;
+		});
+		conversationStart = { peer, abort, promise };
+		return promise;
 	};
 	clients = new LanVoiceBrowserClients({
-		startConversation,
-		cancelConversationStart(peer) {
-			if (conversationStart?.peer === peer) conversationStart.abort.abort();
-		},
-		stopConversation,
+		ensureConversation,
 		async startDictation(clientId) {
 			await dictation.start(clientId);
 			options.voice.announceDictation(options.ctx);
@@ -134,9 +136,13 @@ export async function startCodexLanVoiceServer(options: {
 					active,
 				);
 		},
+		conversationMuted: () => options.voice.inputMuted,
 		onConversationMute(muted) {
 			if (!options.voice.setInputMuted(muted))
 				throw new Error("Realtime voice is not active");
+		},
+		onConversationAudio(pcm) {
+			activeConversation?.peer.sendAudio(pcm);
 		},
 		onDictationAudio: (clientId, pcm) => dictation.append(clientId, pcm),
 	});

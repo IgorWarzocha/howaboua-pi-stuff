@@ -1,12 +1,11 @@
 import type { ServerResponse } from "node:http";
 import { type RawData, WebSocket } from "ws";
-import { MAX_REALTIME_SDP_BYTES } from "../conversation/peer.ts";
-import { LanBrowserRealtimePeer } from "./browser-peer.ts";
 import type { LanVoiceDraftSelection } from "./draft.ts";
 import { decodeLanVoiceAudioCommand } from "./protocol.ts";
 
-export const MAX_CONTROL_BYTES = MAX_REALTIME_SDP_BYTES + 16 * 1024;
+export const MAX_CONTROL_BYTES = 64 * 1024;
 const MAX_PCM_BYTES = 24_000 * 2;
+const MAX_SOCKET_AUDIO_BACKLOG = 24_000 * 2;
 
 type LanVoiceBrowserMode = "conversation" | "dictation";
 type LanVoiceBrowserState =
@@ -15,23 +14,18 @@ type LanVoiceBrowserState =
 			type: "starting";
 			clientId: string;
 			socket: WebSocket;
-			mode: "conversation";
-			peer: LanBrowserRealtimePeer;
+			mode: LanVoiceBrowserMode;
 	  }
 	| {
 			type: "active";
 			clientId: string;
 			socket: WebSocket;
-			mode: "conversation";
-			peer: LanBrowserRealtimePeer;
+			mode: LanVoiceBrowserMode;
 	  }
-	| { type: "active"; clientId: string; socket: WebSocket; mode: "dictation" }
 	| { type: "closed" };
 
 interface LanVoiceBrowserClientsOptions {
-	startConversation(peer: LanBrowserRealtimePeer): Promise<void>;
-	cancelConversationStart(peer: LanBrowserRealtimePeer): void;
-	stopConversation(peer: LanBrowserRealtimePeer): Promise<void>;
+	ensureConversation(): Promise<void>;
 	startDictation(clientId: string): Promise<void>;
 	finishDictation(
 		clientId: string,
@@ -42,6 +36,8 @@ interface LanVoiceBrowserClientsOptions {
 	cancelDictation(clientId: string): Promise<void>;
 	onConversationActivity(active: boolean): void;
 	onConversationMute(muted: boolean): void;
+	conversationMuted(): boolean;
+	onConversationAudio(pcm: Buffer): void;
 	onDictationAudio(clientId: string, pcm: Buffer): void;
 }
 
@@ -49,10 +45,6 @@ export class LanVoiceBrowserClients {
 	private readonly options: LanVoiceBrowserClientsOptions;
 	private readonly eventResponses = new Map<string, ServerResponse>();
 	private readonly audioSockets = new Map<string, WebSocket>();
-	private readonly conversationPeers = new WeakMap<
-		WebSocket,
-		LanBrowserRealtimePeer
-	>();
 	private state: LanVoiceBrowserState = { type: "idle" };
 	private operation = Promise.resolve();
 
@@ -81,7 +73,7 @@ export class LanVoiceBrowserClients {
 		}
 		const previous = this.audioSockets.get(clientId);
 		this.audioSockets.set(clientId, socket);
-		if (previous) this.cancelStartingConversation(clientId, previous);
+		if (previous) this.releaseStarting(clientId, previous);
 		previous?.close(4001, "replaced");
 		socket.send(JSON.stringify({ type: "connected" }));
 		socket.on("message", (data, isBinary) =>
@@ -105,8 +97,19 @@ export class LanVoiceBrowserClients {
 			this.sendControl(clientId, value);
 	}
 
+	sendConversationAudio(pcm: Buffer): void {
+		const active = this.state;
+		if (active.type !== "active" || active.mode !== "conversation") return;
+		if (
+			active.socket.readyState !== WebSocket.OPEN ||
+			active.socket.bufferedAmount >= MAX_SOCKET_AUDIO_BACKLOG
+		)
+			return;
+		active.socket.send(pcm);
+	}
+
 	release(clientId: string, socket?: WebSocket): void {
-		this.cancelStartingConversation(clientId, socket);
+		this.releaseStarting(clientId, socket);
 		void this.enqueue(async () => {
 			const active = this.state;
 			if (
@@ -116,19 +119,15 @@ export class LanVoiceBrowserClients {
 			)
 				return;
 			this.state = { type: "idle" };
-			if (active.mode === "conversation") {
-				this.conversationPeers.delete(active.socket);
+			if (active.mode === "conversation")
 				this.options.onConversationActivity(false);
-				await this.options.stopConversation(active.peer);
-			}
-			if (active.mode === "dictation")
-				await this.options.finishDictation(clientId);
-		}).catch((error: unknown) => {
+			else await this.options.finishDictation(clientId);
+		}).catch((error: unknown) =>
 			this.sendControl(clientId, {
 				type: "error",
-				message: error instanceof Error ? error.message : String(error),
-			});
-		});
+				message: errorMessage(error),
+			}),
+		);
 	}
 
 	heartbeat(): void {
@@ -144,23 +143,19 @@ export class LanVoiceBrowserClients {
 		}
 		this.state = { type: "closed" };
 		const failures: unknown[] = [];
-		if (active.type === "starting") {
-			this.conversationPeers.delete(active.socket);
-			try {
-				this.options.cancelConversationStart(active.peer);
-			} catch (error) {
-				failures.push(error);
-			}
-		}
 		if (active.type === "active" && active.mode === "conversation") {
 			try {
 				this.options.onConversationActivity(false);
 			} catch (error) {
 				failures.push(error);
 			}
-			this.conversationPeers.delete(active.socket);
+		}
+		if (
+			(active.type === "starting" || active.type === "active") &&
+			active.mode === "dictation"
+		) {
 			try {
-				await this.options.stopConversation(active.peer);
+				await this.options.cancelDictation(active.clientId);
 			} catch (error) {
 				failures.push(error);
 			}
@@ -208,14 +203,9 @@ export class LanVoiceBrowserClients {
 				throw new Error("LAN voice control message is too large");
 			const message = decodeLanVoiceAudioCommand(JSON.parse(text));
 			if (message.type === "start") {
-				void this.claim(
-					clientId,
-					socket,
-					message.mode,
-					message.type === "start" && message.mode === "conversation"
-						? message.sdp
-						: undefined,
-				).catch((error: unknown) => this.sendSocketError(socket, error));
+				void this.claim(clientId, socket, message.mode).catch(
+					(error: unknown) => this.sendSocketError(socket, error),
+				);
 			} else if (message.type === "finish") {
 				void this.finish(
 					clientId,
@@ -228,18 +218,12 @@ export class LanVoiceBrowserClients {
 				this.release(clientId, socket);
 			} else if (message.type === "mute") {
 				this.mute(clientId, socket, message.muted);
-			} else if (
-				message.type === "peer_state" ||
-				message.type === "peer_data" ||
-				message.type === "peer_error"
-			) {
-				this.conversationPeers.get(socket)?.receive(message);
 			} else {
 				void this.options
 					.cancelDictation(clientId)
 					.catch((error: unknown) => this.sendSocketError(socket, error));
 			}
-		} catch (error) {
+		} catch {
 			socket.close(1003, "invalid message");
 		}
 	}
@@ -270,15 +254,14 @@ export class LanVoiceBrowserClients {
 			active.socket !== socket
 		)
 			return;
-		if (active.mode === "dictation")
-			this.options.onDictationAudio(clientId, pcm);
+		if (active.mode === "conversation") this.options.onConversationAudio(pcm);
+		else this.options.onDictationAudio(clientId, pcm);
 	}
 
 	private claim(
 		clientId: string,
 		socket: WebSocket,
 		mode: LanVoiceBrowserMode,
-		offerSdp?: string,
 	): Promise<void> {
 		const starting = this.state.type === "starting" ? this.state : undefined;
 		if (
@@ -287,11 +270,8 @@ export class LanVoiceBrowserClients {
 				starting.socket !== socket ||
 				starting.mode !== mode)
 		) {
-			this.cancelStartingConversation(starting.clientId, starting.socket);
-			this.sendControl(starting.clientId, {
-				type: "stop",
-				reason: "replaced",
-			});
+			this.releaseStarting(starting.clientId, starting.socket);
+			this.sendControl(starting.clientId, { type: "stop", reason: "replaced" });
 			starting.socket.close(4001, "replaced");
 		}
 		return this.enqueue(async () => {
@@ -311,71 +291,44 @@ export class LanVoiceBrowserClients {
 				});
 				previous.socket.close(4001, "replaced");
 			}
-			if (previous?.mode === "conversation" && mode === "conversation")
-				this.options.onConversationMute(false);
-			if (previous?.mode === "conversation") {
+			if (previous?.mode === "conversation" && mode !== "conversation")
 				this.options.onConversationActivity(false);
-				this.conversationPeers.delete(previous.socket);
-				await this.options.stopConversation(previous.peer);
-			}
 			if (previous?.mode === "dictation")
 				await this.options.finishDictation(previous.clientId);
 			if (this.isClosed()) return;
-			let peer: LanBrowserRealtimePeer | undefined;
-			if (mode === "conversation") {
-				if (!offerSdp)
-					throw new Error("LAN realtime start requires an SDP offer");
-				peer = new LanBrowserRealtimePeer(offerSdp, (value) => {
-					if (socket.readyState === WebSocket.OPEN)
-						socket.send(JSON.stringify(value));
-				});
-				this.conversationPeers.set(socket, peer);
-				const starting = {
-					type: "starting",
-					clientId,
-					socket,
-					mode,
-					peer,
-				} as const;
-				this.state = starting;
-				try {
-					await this.options.startConversation(peer);
-				} catch (error) {
-					const cancelled = this.state !== starting;
-					if (!cancelled) this.state = { type: "idle" };
-					this.conversationPeers.delete(socket);
-					if (cancelled) return;
-					throw error;
-				}
-				peer.markActive();
-			} else await this.options.startDictation(clientId);
+			const starting = { type: "starting", clientId, socket, mode } as const;
+			this.state = starting;
+			try {
+				if (mode === "conversation") await this.options.ensureConversation();
+				else await this.options.startDictation(clientId);
+			} catch (error) {
+				if (this.state === starting) this.state = { type: "idle" };
+				throw error;
+			}
 			if (
 				this.isClosed() ||
-				(peer &&
-					(this.state.type !== "starting" || this.state.peer !== peer)) ||
+				this.state !== starting ||
 				this.audioSockets.get(clientId) !== socket ||
 				socket.readyState !== WebSocket.OPEN
 			) {
-				if (peer) {
-					this.conversationPeers.delete(socket);
-					await this.options.stopConversation(peer);
-				}
 				if (mode === "dictation") await this.options.cancelDictation(clientId);
 				return;
 			}
-			this.state =
-				mode === "conversation"
-					? { type: "active", clientId, socket, mode, peer: peer! }
-					: { type: "active", clientId, socket, mode };
+			this.state = { type: "active", clientId, socket, mode };
 			if (mode === "conversation") this.options.onConversationActivity(true);
-			socket.send(JSON.stringify({ type: "active", mode }));
+			socket.send(
+				JSON.stringify({
+					type: "active",
+					mode,
+					...(mode === "conversation"
+						? { muted: this.options.conversationMuted() }
+						: {}),
+				}),
+			);
 		});
 	}
 
-	private cancelStartingConversation(
-		clientId: string,
-		socket?: WebSocket,
-	): void {
+	private releaseStarting(clientId: string, socket?: WebSocket): void {
 		const starting = this.state;
 		if (
 			starting.type !== "starting" ||
@@ -384,15 +337,13 @@ export class LanVoiceBrowserClients {
 		)
 			return;
 		this.state = { type: "idle" };
-		this.conversationPeers.delete(starting.socket);
-		try {
-			this.options.cancelConversationStart(starting.peer);
-		} catch (error) {
-			this.sendControl(clientId, {
-				type: "error",
-				message: error instanceof Error ? error.message : String(error),
-			});
-		}
+		if (starting.mode === "dictation")
+			void this.options.cancelDictation(clientId).catch((error: unknown) =>
+				this.sendControl(clientId, {
+					type: "error",
+					message: errorMessage(error),
+				}),
+			);
 	}
 
 	private finish(
@@ -419,9 +370,10 @@ export class LanVoiceBrowserClients {
 	}
 
 	private sendSocketError(socket: WebSocket, error: unknown): void {
-		const message = error instanceof Error ? error.message : String(error);
 		if (socket.readyState === WebSocket.OPEN)
-			socket.send(JSON.stringify({ type: "error", message }));
+			socket.send(
+				JSON.stringify({ type: "error", message: errorMessage(error) }),
+			);
 	}
 
 	private isClosed(): boolean {
@@ -442,4 +394,8 @@ function rawBuffer(data: RawData): Buffer {
 	if (Buffer.isBuffer(data)) return data;
 	if (Array.isArray(data)) return Buffer.concat(data);
 	return Buffer.from(data);
+}
+
+function errorMessage(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
 }

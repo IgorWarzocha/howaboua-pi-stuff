@@ -5,7 +5,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { WebSocket } from "ws";
 import { LanVoiceBrowserClients } from "../src/voice/lan/browser-clients.ts";
-import { LanBrowserRealtimePeer } from "../src/voice/lan/browser-peer.ts";
 import { decodeLanVoiceAudioCommand } from "../src/voice/lan/protocol.ts";
 import {
 	getPackagedCodexVoiceSystemPromptPath,
@@ -54,92 +53,85 @@ describe("realtime prompt persistence", () => {
 });
 
 describe("LAN conversation setup", () => {
-	test("rejects non-string peer states", () => {
+	test("rejects browser-owned peer messages", () => {
 		expect(() =>
-			decodeLanVoiceAudioCommand({ type: "peer_state", state: ["ready"] }),
+			decodeLanVoiceAudioCommand({ type: "peer_state", state: "ready" }),
 		).toThrow();
 	});
 
-	test("disconnect cancels the pending setup", async () => {
-		const setup = Promise.withResolvers<void>();
-		const started = Promise.withResolvers<LanBrowserRealtimePeer>();
-		const cancelled: LanBrowserRealtimePeer[] = [];
+	test("disconnect leaves the host conversation available for another device", async () => {
+		let hostStarts = 0;
+		let hostConversation: object | undefined;
 		const clients = testBrowserClients({
-			startConversation(peer) {
-				started.resolve(peer);
-				return setup.promise;
-			},
-			cancelConversationStart(peer) {
-				cancelled.push(peer);
-				setup.reject(new Error("cancelled"));
-			},
-		});
-		const socket = new TestWebSocket();
-		clients.connectAudio("first", socket.asWebSocket());
-		socket.receive({ type: "start", mode: "conversation", sdp: "offer" });
-		const peer = await started.promise;
-		socket.close();
-		expect(cancelled).toEqual([peer]);
-		await clients.close();
-	});
-
-	test("takeover cancels the pending setup", async () => {
-		const firstSetup = Promise.withResolvers<void>();
-		const firstStarted = Promise.withResolvers<LanBrowserRealtimePeer>();
-		const secondStarted = Promise.withResolvers<LanBrowserRealtimePeer>();
-		const cancelled: LanBrowserRealtimePeer[] = [];
-		let starts = 0;
-		const clients = testBrowserClients({
-			startConversation(peer) {
-				starts += 1;
-				if (starts === 1) {
-					firstStarted.resolve(peer);
-					return firstSetup.promise;
+			async ensureConversation() {
+				if (!hostConversation) {
+					hostConversation = {};
+					hostStarts += 1;
 				}
-				secondStarted.resolve(peer);
-				return Promise.resolve();
-			},
-			cancelConversationStart(peer) {
-				cancelled.push(peer);
-				firstSetup.reject(new Error("cancelled"));
 			},
 		});
 		const first = new TestWebSocket();
 		clients.connectAudio("first", first.asWebSocket());
-		first.receive({
-			type: "start",
-			mode: "conversation",
-			sdp: "first-offer",
-		});
-		const firstPeer = await firstStarted.promise;
+		first.receive({ type: "start", mode: "conversation" });
+		await settle();
+		first.close();
+		await settle();
 		const second = new TestWebSocket();
 		clients.connectAudio("second", second.asWebSocket());
-		second.receive({
-			type: "start",
+		second.receive({ type: "start", mode: "conversation" });
+		await settle();
+		expect(hostStarts).toBe(1);
+		expect(second.sent.map((value) => JSON.parse(value)).at(-1)).toEqual({
+			type: "active",
 			mode: "conversation",
-			sdp: "second-offer",
+			muted: false,
 		});
-		expect(cancelled).toEqual([firstPeer]);
-		await secondStarted.promise;
 		await clients.close();
 	});
 
-	test("reports startup errors before terminal cleanup", async () => {
+	test("takeover shares the pending host conversation setup", async () => {
+		const setup = Promise.withResolvers<void>();
+		let hostStarts = 0;
+		let sharedSetup: Promise<void> | undefined;
 		const clients = testBrowserClients({
-			async startConversation(peer) {
-				await peer.close();
+			ensureConversation() {
+				if (!sharedSetup) {
+					hostStarts += 1;
+					sharedSetup = setup.promise;
+				}
+				return sharedSetup;
+			},
+		});
+		const first = new TestWebSocket();
+		clients.connectAudio("first", first.asWebSocket());
+		first.receive({ type: "start", mode: "conversation" });
+		await settle();
+		const second = new TestWebSocket();
+		clients.connectAudio("second", second.asWebSocket());
+		second.receive({ type: "start", mode: "conversation" });
+		setup.resolve();
+		await settle();
+		await settle();
+		expect(hostStarts).toBe(1);
+		expect(first.readyState).toBe(WebSocket.CLOSED);
+		expect(second.sent.map((value) => JSON.parse(value)).at(-1)).toEqual({
+			type: "active",
+			mode: "conversation",
+			muted: false,
+		});
+		await clients.close();
+	});
+
+	test("reports startup errors without a terminal stop racing them", async () => {
+		const clients = testBrowserClients({
+			async ensureConversation() {
 				throw new Error("authentication failed");
 			},
-			cancelConversationStart() {},
 		});
 		const socket = new TestWebSocket();
 		clients.connectAudio("first", socket.asWebSocket());
-		socket.receive({
-			type: "start",
-			mode: "conversation",
-			sdp: "offer",
-		});
-		await new Promise((resolve) => setImmediate(resolve));
+		socket.receive({ type: "start", mode: "conversation" });
+		await settle();
 		expect(socket.sent.map((value) => JSON.parse(value))).toEqual([
 			{ type: "connected" },
 			{ type: "error", message: "authentication failed" },
@@ -155,19 +147,23 @@ async function temporaryDirectory(): Promise<string> {
 }
 
 function testBrowserClients(overrides: {
-	startConversation(peer: LanBrowserRealtimePeer): Promise<void>;
-	cancelConversationStart(peer: LanBrowserRealtimePeer): void;
+	ensureConversation(): Promise<void>;
 }): LanVoiceBrowserClients {
 	return new LanVoiceBrowserClients({
 		...overrides,
-		stopConversation: async () => {},
 		startDictation: async () => {},
 		finishDictation: async () => {},
 		cancelDictation: async () => {},
 		onConversationActivity: () => {},
 		onConversationMute: () => {},
+		conversationMuted: () => false,
+		onConversationAudio: () => {},
 		onDictationAudio: () => {},
 	});
+}
+
+async function settle(): Promise<void> {
+	await new Promise((resolve) => setImmediate(resolve));
 }
 
 class TestWebSocket extends EventEmitter {

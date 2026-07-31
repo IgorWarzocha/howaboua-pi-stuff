@@ -8,7 +8,6 @@ import test from "node:test";
 import { WebSocket } from "ws";
 import { BoundedJsonlReader, parseVoiceHelperEvent } from "../src/voice/helper.ts";
 import { LanVoiceDraft, LanVoiceDraftConflictError } from "../src/voice/lan/draft.ts";
-import { LanBrowserRealtimePeer } from "../src/voice/lan/browser-peer.ts";
 import { LanVoiceBrowserClients } from "../src/voice/lan/browser-clients.ts";
 import { decodeLanVoiceAudioCommand } from "../src/voice/lan/protocol.ts";
 import { startCodexLanVoiceServer } from "../src/voice/lan/server.ts";
@@ -38,11 +37,9 @@ test("voice helper parser validates protocol payloads", () => {
 });
 
 test("LAN audio command decoder rejects ambiguous browser input", () => {
-	assert.deepEqual(decodeLanVoiceAudioCommand({ type: "start", mode: "conversation", sdp: "offer" }), { type: "start", mode: "conversation", sdp: "offer" });
+	assert.deepEqual(decodeLanVoiceAudioCommand({ type: "start", mode: "conversation" }), { type: "start", mode: "conversation" });
 	assert.deepEqual(decodeLanVoiceAudioCommand({ type: "start", mode: "dictation" }), { type: "start", mode: "dictation" });
 	assert.deepEqual(decodeLanVoiceAudioCommand({ type: "mute", muted: true }), { type: "mute", muted: true });
-	assert.deepEqual(decodeLanVoiceAudioCommand({ type: "peer_state", state: "ready" }), { type: "peer_state", state: "ready" });
-	assert.deepEqual(decodeLanVoiceAudioCommand({ type: "peer_data", message: { type: "turn.done" } }), { type: "peer_data", message: { type: "turn.done" } });
 	assert.deepEqual(decodeLanVoiceAudioCommand({
 		type: "finish",
 		draft: "hello",
@@ -55,91 +52,78 @@ test("LAN audio command decoder rejects ambiguous browser input", () => {
 		revision: 2,
 		selection: { start: 1, end: 4 },
 	});
-	assert.throws(() => decodeLanVoiceAudioCommand({ type: "start", mode: "conversation" }));
+	assert.throws(() => decodeLanVoiceAudioCommand({ type: "start", mode: "call" }));
 	assert.throws(() => decodeLanVoiceAudioCommand({ type: "mute", muted: "yes" }));
-	assert.throws(() => decodeLanVoiceAudioCommand({ type: "peer_state", state: ["ready"] }));
+	assert.throws(() => decodeLanVoiceAudioCommand({ type: "peer_state", state: "ready" }));
 	assert.throws(() => decodeLanVoiceAudioCommand({ type: "finish", draft: "hello", revision: 2, selectionStart: 0, selectionEnd: 6 }));
 	assert.throws(() => decodeLanVoiceAudioCommand({ type: "surprise" }));
 });
 
-test("LAN browser peer relays WebRTC negotiation and realtime events", async () => {
-	const sent: unknown[] = [];
-	const events: unknown[] = [];
-	const peer = new LanBrowserRealtimePeer("offer", (value) => sent.push(value));
-	peer.onEvent((event) => events.push(event));
-	assert.equal(await peer.start({} as never), "offer");
-	peer.applyAnswer("answer");
-	peer.sendData({ type: "delegation.context.append" });
-	peer.setInputMuted(true);
-	peer.receive({ type: "peer_state", state: "ready" });
-	peer.receive({ type: "peer_data", message: { type: "turn.done" } });
-	assert.deepEqual(sent, [
-		{ type: "answer", sdp: "answer" },
-		{ type: "peer_data", message: { type: "delegation.context.append" } },
-		{ type: "mute", muted: true },
-	]);
-	assert.deepEqual(events, [
-		{ type: "state", state: "ready" },
-		{ type: "data", message: { type: "turn.done" } },
-	]);
-});
-
-test("LAN conversation setup is cancelled when its browser disconnects", async () => {
-	const setup = Promise.withResolvers<void>();
-	const started = Promise.withResolvers<LanBrowserRealtimePeer>();
-	const cancelled: LanBrowserRealtimePeer[] = [];
+test("LAN browser disconnect leaves the host conversation available for another device", async () => {
+	let hostStarts = 0;
+	let hostConversation: object | undefined;
+	const received: Buffer[] = [];
 	const clients = testBrowserClients({
-		startConversation(peer) { started.resolve(peer); return setup.promise; },
-		cancelConversationStart(peer) { cancelled.push(peer); setup.reject(new Error("cancelled")); },
-	});
-	const socket = new TestWebSocket();
-	clients.connectAudio("first", socket.asWebSocket());
-	socket.receive({ type: "start", mode: "conversation", sdp: "offer" });
-	const peer = await started.promise;
-	socket.close();
-	assert.deepEqual(cancelled, [peer]);
-	await clients.close();
-});
-
-test("LAN browser takeover cancels an in-progress conversation setup", async () => {
-	const firstSetup = Promise.withResolvers<void>();
-	const firstStarted = Promise.withResolvers<LanBrowserRealtimePeer>();
-	const secondStarted = Promise.withResolvers<LanBrowserRealtimePeer>();
-	const cancelled: LanBrowserRealtimePeer[] = [];
-	let starts = 0;
-	const clients = testBrowserClients({
-		startConversation(peer) {
-			starts += 1;
-			if (starts === 1) { firstStarted.resolve(peer); return firstSetup.promise; }
-			secondStarted.resolve(peer);
-			return Promise.resolve();
+		async ensureConversation() {
+			if (!hostConversation) { hostConversation = {}; hostStarts += 1; }
 		},
-		cancelConversationStart(peer) { cancelled.push(peer); firstSetup.reject(new Error("cancelled")); },
+		onConversationAudio(pcm) { received.push(pcm); },
 	});
 	const first = new TestWebSocket();
 	clients.connectAudio("first", first.asWebSocket());
-	first.receive({ type: "start", mode: "conversation", sdp: "first-offer" });
-	const firstPeer = await firstStarted.promise;
+	first.receive({ type: "start", mode: "conversation" });
+	await settle();
+	first.receiveBinary(Buffer.from([1, 0]));
+	first.close();
+	await settle();
+
 	const second = new TestWebSocket();
 	clients.connectAudio("second", second.asWebSocket());
-	second.receive({ type: "start", mode: "conversation", sdp: "second-offer" });
-	assert.deepEqual(cancelled, [firstPeer]);
-	await secondStarted.promise;
+	second.receive({ type: "start", mode: "conversation" });
+	await settle();
+	assert.equal(hostStarts, 1);
+	assert.deepEqual(received, [Buffer.from([1, 0])]);
+	assert.deepEqual(second.sent.map((value) => JSON.parse(value)), [
+		{ type: "connected" },
+		{ type: "active", mode: "conversation", muted: false },
+	]);
 	await clients.close();
 });
 
-test("LAN conversation startup reports its error before terminal cleanup", async () => {
+test("LAN browser takeover shares an in-progress host conversation setup", async () => {
+	const setup = Promise.withResolvers<void>();
+	let hostStarts = 0;
+	let sharedSetup: Promise<void> | undefined;
 	const clients = testBrowserClients({
-		async startConversation(peer) {
-			await peer.close();
-			throw new Error("authentication failed");
+		ensureConversation() {
+			if (!sharedSetup) { hostStarts += 1; sharedSetup = setup.promise; }
+			return sharedSetup;
 		},
-		cancelConversationStart() {},
+	});
+	const first = new TestWebSocket();
+	clients.connectAudio("first", first.asWebSocket());
+	first.receive({ type: "start", mode: "conversation" });
+	await settle();
+	const second = new TestWebSocket();
+	clients.connectAudio("second", second.asWebSocket());
+	second.receive({ type: "start", mode: "conversation" });
+	setup.resolve();
+	await settle();
+	await settle();
+	assert.equal(hostStarts, 1);
+	assert.equal(first.readyState, WebSocket.CLOSED);
+	assert.deepEqual(second.sent.map((value) => JSON.parse(value)).at(-1), { type: "active", mode: "conversation", muted: false });
+	await clients.close();
+});
+
+test("LAN conversation startup reports its error without a terminal stop racing it", async () => {
+	const clients = testBrowserClients({
+		async ensureConversation() { throw new Error("authentication failed"); },
 	});
 	const socket = new TestWebSocket();
 	clients.connectAudio("first", socket.asWebSocket());
-	socket.receive({ type: "start", mode: "conversation", sdp: "offer" });
-	await new Promise((resolve) => setImmediate(resolve));
+	socket.receive({ type: "start", mode: "conversation" });
+	await settle();
 	assert.deepEqual(socket.sent.map((value) => JSON.parse(value)), [
 		{ type: "connected" },
 		{ type: "error", message: "authentication failed" },
@@ -248,17 +232,18 @@ test("LAN server rejects turns after its owning Pi session changes", async () =>
 });
 
 function testBrowserClients(overrides: {
-	startConversation(peer: LanBrowserRealtimePeer): Promise<void>;
-	cancelConversationStart(peer: LanBrowserRealtimePeer): void;
+	ensureConversation(): Promise<void>;
+	onConversationAudio?(pcm: Buffer): void;
 }): LanVoiceBrowserClients {
 	return new LanVoiceBrowserClients({
 		...overrides,
-		stopConversation: async () => {},
 		startDictation: async () => {},
 		finishDictation: async () => {},
 		cancelDictation: async () => {},
 		onConversationActivity: () => {},
 		onConversationMute: () => {},
+		conversationMuted: () => false,
+		onConversationAudio: overrides.onConversationAudio ?? (() => {}),
 		onDictationAudio: () => {},
 	});
 }
@@ -270,12 +255,17 @@ class TestWebSocket extends EventEmitter {
 	asWebSocket(): WebSocket { return this as unknown as WebSocket; }
 	send(value: string): void { this.sent.push(value); }
 	receive(value: unknown): void { this.emit("message", Buffer.from(JSON.stringify(value)), false); }
+	receiveBinary(value: Buffer): void { this.emit("message", value, true); }
 	close(code = 1000, reason = "closed"): void {
 		if (this.readyState === WebSocket.CLOSED) return;
 		this.readyState = WebSocket.CLOSED;
 		this.emit("close", code, Buffer.from(reason));
 	}
 	terminate(): void { this.close(1006, "terminated"); }
+}
+
+async function settle(): Promise<void> {
+	await new Promise((resolve) => setImmediate(resolve));
 }
 
 function requestText(url: URL, body: string): Promise<{ status: number; body: string }> {

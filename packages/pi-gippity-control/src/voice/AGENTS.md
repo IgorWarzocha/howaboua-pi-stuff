@@ -1,7 +1,7 @@
 - `controller.ts` owns mode replacement and lazy mode imports; `controls.ts` owns commands/shortcut policy.
 - Realtime conversation is V3 only. Dictation owns its separate transcription connection.
 - Realtime delegations stay on Pi's user-message path; active Pi turns use `deliverAs: "steer"`. Mirror only interactive/RPC Pi steering to the owning delegation, never extension input.
-- LAN realtime audio stays on the browser's native WebRTC path; the server owns authenticated call setup and delegation. Browser takeover restarts V3 because media ownership cannot move between peer connections.
+- LAN realtime is host-owned: one persistent helper WebRTC V3 call owns authenticated setup and delegation; browsers are replaceable 24 kHz mono PCM capture/playback clients. Takeover swaps the active browser socket without restarting or terminating V3.
 - Realtime mic mute keeps V3 warm. Gate browser tracks and the native encoder, drain captured samples while muted, and reset mute when input ownership ends.
 - Pi model selection changes the delegation target, not the fixed realtime transport; keep active voice connected.
 - `REALTIME-SYSTEM-PROMPT.md` is the shipped template and schema source. Record every schema change cumulatively in its adjacent changelog. Never rewrite an existing user prompt; check its marker only when realtime voice is engaged and direct the user's agent to migrate it.

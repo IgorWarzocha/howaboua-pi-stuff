@@ -4,6 +4,7 @@ use serde_json::Value;
 pub const PROTOCOL_VERSION: u8 = 5;
 pub const MAX_SDP_BYTES: usize = 256 * 1024;
 pub const MAX_DATA_MESSAGE_BYTES: usize = 64 * 1024;
+pub const MAX_PCM_BYTES: usize = 64 * 1024;
 pub const MAX_DEVICE_BYTES: usize = 512;
 pub const MAX_DEVICES: usize = 128;
 
@@ -19,10 +20,12 @@ pub fn parse_command(input: &str) -> anyhow::Result<Command> {
     let allowed: &[&str] = match command_type {
         "list_devices" | "stop" | "shutdown" => &["type"],
         "start_v3" => &["type", "microphone", "speaker"],
+        "start_v3_bridge" => &["type"],
         "set_input_muted" => &["type", "muted"],
         "apply_answer" => &["type", "sdp"],
         "start_dictation" => &["type", "microphone"],
         "send_data" => &["type", "message"],
+        "send_pcm" => &["type", "audio", "sample_rate", "num_channels"],
         _ => anyhow::bail!("unknown voice helper command type {command_type}"),
     };
     if let Some(key) = object.keys().find(|key| !allowed.contains(&key.as_str())) {
@@ -39,6 +42,7 @@ pub enum Command {
         microphone: Option<String>,
         speaker: Option<String>,
     },
+    StartV3Bridge,
     SetInputMuted {
         muted: bool,
     },
@@ -50,6 +54,11 @@ pub enum Command {
     },
     SendData {
         message: Value,
+    },
+    SendPcm {
+        audio: String,
+        sample_rate: u32,
+        num_channels: u16,
     },
     Stop,
     Shutdown,
@@ -123,6 +132,18 @@ impl Command {
                     anyhow::bail!("data-channel message exceeds {MAX_DATA_MESSAGE_BYTES} bytes");
                 }
             }
+            Self::SendPcm {
+                audio,
+                sample_rate,
+                num_channels,
+            } => {
+                if *sample_rate != 24_000 || *num_channels != 1 {
+                    anyhow::bail!("bridge PCM must be 24 kHz mono");
+                }
+                if audio.len() > MAX_PCM_BYTES * 4 / 3 + 4 {
+                    anyhow::bail!("bridge PCM exceeds {MAX_PCM_BYTES} bytes");
+                }
+            }
             _ => {}
         }
         Ok(())
@@ -139,6 +160,16 @@ mod tests {
         assert!(parse_command(r#"{"type":"stop","extra":true}"#).is_err());
         assert!(parse_command(r#"{"type":"set_input_muted","muted":true}"#).is_ok());
         assert!(parse_command(r#"{"type":"set_input_muted","muted":"yes"}"#).is_err());
+        assert!(parse_command(r#"{"type":"start_v3_bridge"}"#).is_ok());
+        assert!(
+            Command::SendPcm {
+                audio: "AA==".to_owned(),
+                sample_rate: 48_000,
+                num_channels: 1,
+            }
+            .validate()
+            .is_err()
+        );
         assert!(
             Command::StartDictation {
                 microphone: Some("x".repeat(MAX_DEVICE_BYTES + 1)),

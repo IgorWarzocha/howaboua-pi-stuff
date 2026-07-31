@@ -3,7 +3,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64;
 use bytes::Bytes;
+use crossbeam_queue::ArrayQueue;
 use serde_json::Value;
 use tokio::sync::mpsc;
 use webrtc::api::APIBuilder;
@@ -28,6 +31,27 @@ use crate::resample::LinearResampler;
 
 const OPUS_RATE: u32 = 48_000;
 const OPUS_FRAME_SAMPLES: usize = 960;
+const BRIDGE_RATE: u32 = 24_000;
+const BRIDGE_FRAME_SAMPLES: usize = 480;
+const BRIDGE_INPUT_SECONDS: usize = 3;
+
+#[derive(Clone)]
+enum OutputSink {
+    Device {
+        samples: Arc<ArrayQueue<f32>>,
+        sample_rate: u32,
+    },
+    Bridge,
+}
+
+impl OutputSink {
+    fn sample_rate(&self) -> u32 {
+        match self {
+            Self::Device { sample_rate, .. } => *sample_rate,
+            Self::Bridge => BRIDGE_RATE,
+        }
+    }
+}
 
 pub struct V3Session {
     peer: Arc<RTCPeerConnection>,
@@ -35,8 +59,9 @@ pub struct V3Session {
     rtcp_task: tokio::task::JoinHandle<()>,
     encoder_task: tokio::task::JoinHandle<()>,
     input_muted: Arc<AtomicBool>,
-    _capture: Capture,
-    _playback: Playback,
+    _capture: Option<Capture>,
+    _playback: Option<Playback>,
+    bridge_input: Option<Arc<ArrayQueue<f32>>>,
 }
 
 impl V3Session {
@@ -49,7 +74,45 @@ impl V3Session {
         let playback = audio::playback(speaker.as_deref(), events.clone())?;
         let input_samples = Arc::clone(&capture.samples);
         let input_rate = capture.sample_rate;
+        let output = OutputSink::Device {
+            samples: Arc::clone(&playback.samples),
+            sample_rate: playback.sample_rate,
+        };
+        Self::create(
+            input_samples,
+            input_rate,
+            output,
+            events,
+            Some(capture),
+            Some(playback),
+            None,
+        )
+        .await
+    }
 
+    pub async fn create_bridge(events: mpsc::Sender<Event>) -> Result<(Self, String)> {
+        let input = Arc::new(ArrayQueue::new(BRIDGE_RATE as usize * BRIDGE_INPUT_SECONDS));
+        Self::create(
+            Arc::clone(&input),
+            BRIDGE_RATE,
+            OutputSink::Bridge,
+            events,
+            None,
+            None,
+            Some(input),
+        )
+        .await
+    }
+
+    async fn create(
+        input_samples: Arc<ArrayQueue<f32>>,
+        input_rate: u32,
+        output: OutputSink,
+        events: mpsc::Sender<Event>,
+        capture: Option<Capture>,
+        playback: Option<Playback>,
+        bridge_input: Option<Arc<ArrayQueue<f32>>>,
+    ) -> Result<(Self, String)> {
         let mut media_engine = MediaEngine::default();
         media_engine.register_default_codecs()?;
         let registry = register_default_interceptors(Registry::new(), &mut media_engine)?;
@@ -127,11 +190,10 @@ impl V3Session {
             })
         }));
 
-        let output_samples = Arc::clone(&playback.samples);
-        let output_rate = playback.sample_rate;
+        let output_rate = output.sample_rate();
         let output_events = events.clone();
         peer.on_track(Box::new(move |remote, _, _| {
-            let output_samples = Arc::clone(&output_samples);
+            let output = output.clone();
             let output_events = output_events.clone();
             Box::pin(async move {
                 let mut decoder = match opus::Decoder::new(OPUS_RATE, opus::Channels::Stereo) {
@@ -153,6 +215,7 @@ impl V3Session {
                 ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
                 let mut decoded = vec![0_f32; OPUS_FRAME_SAMPLES * 2 * 6];
                 let mut converted = Vec::new();
+                let mut bridge_pending = Vec::new();
 				let mut last_frame_samples = OPUS_FRAME_SAMPLES;
 				let mut ticks_until_next = 0;
                 loop {
@@ -173,12 +236,12 @@ impl V3Session {
 								continue;
 							}
                             let frame = playout.next();
-                            let (payload, output) = match frame {
+                            let (payload, decoded_output) = match frame {
                                 PlayoutFrame::Buffering => continue,
                                 PlayoutFrame::Packet(payload) => (payload, &mut decoded[..]),
                                 PlayoutFrame::Missing => (Bytes::new(), &mut decoded[..last_frame_samples * 2]),
                             };
-                            let Ok(samples_per_channel) = decoder.decode_float(&payload, output, false) else { continue; };
+                            let Ok(samples_per_channel) = decoder.decode_float(&payload, decoded_output, false) else { continue; };
 							last_frame_samples = samples_per_channel;
 							ticks_until_next = samples_per_channel.div_ceil(OPUS_FRAME_SAMPLES / 2).saturating_sub(1);
                             let mut mono = Vec::with_capacity(samples_per_channel);
@@ -187,8 +250,29 @@ impl V3Session {
                             }
                             converted.clear();
                             resampler.process(&mono, &mut converted);
-                            for sample in &converted {
-                                audio::push_latest(&output_samples, *sample);
+                            match &output {
+                                OutputSink::Device { samples, .. } => {
+                                    for sample in &converted {
+                                        audio::push_latest(samples, *sample);
+                                    }
+                                }
+                                OutputSink::Bridge => {
+                                    bridge_pending.extend_from_slice(&converted);
+                                    while bridge_pending.len() >= BRIDGE_FRAME_SAMPLES {
+                                        let frame: Vec<f32> = bridge_pending.drain(..BRIDGE_FRAME_SAMPLES).collect();
+                                        let mut bytes = Vec::with_capacity(BRIDGE_FRAME_SAMPLES * 2);
+                                        for sample in frame {
+                                            bytes.extend_from_slice(&((sample.clamp(-1.0, 1.0) * i16::MAX as f32) as i16).to_le_bytes());
+                                        }
+                                        if output_events.send(Event::Pcm {
+                                            audio: BASE64.encode(bytes),
+                                            sample_rate: BRIDGE_RATE,
+                                            num_channels: 1,
+                                        }).await.is_err() {
+                                            return;
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -301,6 +385,7 @@ impl V3Session {
                 input_muted,
                 _capture: capture,
                 _playback: playback,
+                bridge_input,
             },
             sdp,
         ))
@@ -322,6 +407,22 @@ impl V3Session {
 
     pub fn set_input_muted(&self, muted: bool) {
         self.input_muted.store(muted, Ordering::Relaxed);
+    }
+
+    pub fn send_pcm(&self, pcm: &[u8]) -> Result<()> {
+        let input = self
+            .bridge_input
+            .as_ref()
+            .context("PCM input requires a bridge V3 session")?;
+        if pcm.len() % 2 != 0 {
+            anyhow::bail!("bridge PCM must contain complete i16 samples");
+        }
+        for bytes in pcm.chunks_exact(2) {
+            let sample = i16::from_le_bytes([bytes[0], bytes[1]]);
+            let normalized = sample as f32 / if sample < 0 { 32_768.0 } else { 32_767.0 };
+            audio::push_latest(input, normalized);
+        }
+        Ok(())
     }
 
     pub async fn close(self) -> Result<()> {

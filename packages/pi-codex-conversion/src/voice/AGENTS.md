@@ -5,7 +5,7 @@
 - V3 conversation and V2 dictation keep independent transport state. No implicit fallback between them.
 - Realtime delegations stay on Pi's user-message path; active Pi turns use `deliverAs: "steer"`. Mirror only interactive/RPC Pi steering to the owning delegation, never extension input.
 - Each mode owns its helper process and idempotent cleanup; the controller owns replacement/reload/shutdown ordering.
-- LAN voice is session-owned: the browser owns WebRTC V3 audio, while the server owns authenticated call setup, delegation, short-lived V2 dictation, draft, and bounded Pi activity. Never replace supported V3 WebRTC with standalone ChatGPT OAuth WebSocket. Browser takeover restarts V3 because media ownership cannot move between peer connections.
+- LAN voice is host-owned: one persistent helper WebRTC V3 call owns authenticated setup and delegation; browsers are replaceable 24 kHz mono PCM capture/playback clients. Takeover swaps the active browser socket without restarting or terminating V3. Never replace supported V3 WebRTC with standalone ChatGPT OAuth WebSocket.
 - Realtime mic mute keeps V3 warm. Gate browser tracks and the native encoder, drain captured samples while muted, and reset mute when input ownership ends.
 - Pi model selection changes the delegation target, not the fixed realtime transport; keep active voice connected.
 - `REALTIME-SYSTEM-PROMPT.md` is the shipped template and schema source. Record every schema change cumulatively in its adjacent changelog. Never rewrite an existing user prompt; check its marker only when realtime voice is engaged and direct the user's agent to migrate it.
