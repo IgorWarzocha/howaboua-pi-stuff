@@ -1,0 +1,37 @@
+{
+	"name": "@howaboua/pi-skill-prompt-cache-awareness",
+	"version": "0.0.0",
+	"description": "Pi skill for prompt-cache-aware agent and extension design.",
+	"type": "module",
+	"keywords": [
+		"pi-package",
+		"pi",
+		"pi-skill",
+		"skill",
+		"prompt-caching",
+		"codex"
+	],
+	"license": "MIT",
+	"publishConfig": {
+		"access": "public"
+	},
+	"files": [
+		"skills",
+		"README.md",
+		"LICENSE"
+	],
+	"pi": {
+		"skills": [
+			"./skills"
+		]
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
+		"directory": "packages/pi-skill-prompt-cache-awareness"
+	},
+	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-skill-prompt-cache-awareness#readme",
+	"bugs": {
+		"url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
+	}
+}

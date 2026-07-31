@@ -54,6 +54,7 @@ pi install npm:@howaboua/pi-skills
 | [`pi-skill-gh-issue-pr-flow`](./packages/pi-skill-gh-issue-pr-flow) | GitHub issue, branch, PR, release, and review workflows |
 | [`pi-skill-model-facing-api-design`](./packages/pi-skill-model-facing-api-design) | Tool contracts that models select and call correctly |
 | [`pi-skill-project-reference-research`](./packages/pi-skill-project-reference-research) | Evidence-backed research in local or external repositories |
+| [`pi-skill-prompt-cache-awareness`](./packages/pi-skill-prompt-cache-awareness) | Prompt-cache-aware Codex, Pi extension, tool and compaction design |
 | [`pi-skill-skill-creator`](./packages/pi-skill-skill-creator) | Creating, auditing, and packaging reusable agent skills |
 | [`pi-skill-omarchy-help`](./packages/pi-skill-omarchy-help) | User-level maintenance for Arch desktops configured with Omarchy |
 
