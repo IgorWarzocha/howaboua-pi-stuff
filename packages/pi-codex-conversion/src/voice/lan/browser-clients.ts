@@ -94,16 +94,23 @@ export class LanVoiceBrowserClients {
 		const active = this.state;
 		if (active.type === "closed") { await this.operation; return; }
 		this.state = { type: "closed" };
+		const failures: unknown[] = [];
 		if (active.type === "active" && active.mode === "conversation") {
-			this.options.onConversationActivity(false);
+			try { this.options.onConversationActivity(false); } catch (error) { failures.push(error); }
 			this.conversationPeers.delete(active.socket);
-			await this.options.stopConversation(active.peer);
+			try { await this.options.stopConversation(active.peer); } catch (error) { failures.push(error); }
 		}
-		for (const socket of this.audioSockets.values()) socket.terminate();
+		for (const socket of this.audioSockets.values()) {
+			try { socket.terminate(); } catch (error) { failures.push(error); }
+		}
 		this.audioSockets.clear();
-		for (const response of this.eventResponses.values()) response.end();
+		for (const response of this.eventResponses.values()) {
+			try { response.end(); } catch (error) { failures.push(error); }
+		}
 		this.eventResponses.clear();
-		await this.operation;
+		try { await this.operation; } catch (error) { failures.push(error); }
+		if (failures.length === 1) throw failures[0];
+		if (failures.length > 1) throw new AggregateError(failures, "LAN browser cleanup failed");
 	}
 
 	private receive(clientId: string, socket: WebSocket, data: RawData, isBinary: boolean): void {

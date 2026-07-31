@@ -2,7 +2,7 @@ export const LAN_VOICE_MICROPHONE_BUFFER_WORKLET = String.raw`
 class PiLanMicrophoneBuffer extends AudioWorkletProcessor {
   constructor() {
     super();
-    this.capacity = sampleRate * 30;
+    this.capacity = sampleRate * 3;
     this.samples = new Float32Array(this.capacity);
     this.length = 0;
     this.readOffset = 0;
