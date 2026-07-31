@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-skill-codex-prompt-caching",
-	"version": "0.0.0",
+	"version": "0.0.1",
 	"description": "GPT-5.6, Codex and Pi prompt-caching skill.",
 	"type": "module",
 	"keywords": [

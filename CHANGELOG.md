@@ -178,6 +178,14 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-skill-chrome-cdp/CHANGELOG.md)
 
+### @howaboua/pi-skill-codex-prompt-caching — 0.0.1
+
+### Changes
+
+- [#214](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/214) [`2023aa0`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/2023aa005da4d32f9af0b9bc161c9224d8c60486) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add a Codex prompt-caching skill covering GPT-5.6 caching, Codex request continuity, Pi hooks, compaction, dynamic tools, measurement, and extension review.
+
+[Full changelog](./packages/pi-skill-codex-prompt-caching/CHANGELOG.md)
+
 ### @howaboua/pi-skill-gh-issue-pr-flow — 0.0.7
 
 ### Changes
@@ -218,16 +226,16 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-skill-skill-creator/CHANGELOG.md)
 
-### @howaboua/pi-skills — 0.0.13
+### @howaboua/pi-skills — 0.0.14
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-skill-gh-issue-pr-flow: Cull feature-existence and implementation-coupled tests before final PR submission, retaining only independently justified contract coverage.
+  - @howaboua/pi-skill-codex-prompt-caching: Add a Codex prompt-caching skill covering GPT-5.6 caching, Codex request continuity, Pi hooks, compaction, dynamic tools, measurement, and extension review.
 
-- Updated dependencies [[`70c9973`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/70c9973b8509d2ebefc26acef5c25d1e01b47d47)]:
-  - @howaboua/pi-skill-gh-issue-pr-flow@0.0.7
+- Updated dependencies [[`2023aa0`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/2023aa005da4d32f9af0b9bc161c9224d8c60486)]:
+  - @howaboua/pi-skill-codex-prompt-caching@0.0.1
 
 [Full changelog](./packages/pi-skills/CHANGELOG.md)
 
@@ -239,18 +247,16 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.47
+### @howaboua/pi-stuff — 0.0.48
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-gippity-control: Add reconnect-safe realtime microphone mute controls and native input gating.
-  - @howaboua/pi-subagent-review: Replace the review subprocess transport with Pi's maintained RPC client, preserve failed-run diagnostics, prevent review-loop bookkeeping from creating empty summaries, and reissue guidance for each fresh review loop.
+  - @howaboua/pi-skill-codex-prompt-caching: Add a Codex prompt-caching skill covering GPT-5.6 caching, Codex request continuity, Pi hooks, compaction, dynamic tools, measurement, and extension review.
 
-- Updated dependencies [[`05f2da3`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/05f2da3e7b540d30eaada94c527b6ecbef80f736), [`05f2da3`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/05f2da3e7b540d30eaada94c527b6ecbef80f736)]:
-  - @howaboua/pi-subagent-review@0.2.14
-  - @howaboua/pi-gippity-control@0.0.3
+- Updated dependencies [[`2023aa0`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/2023aa005da4d32f9af0b9bc161c9224d8c60486)]:
+  - @howaboua/pi-skill-codex-prompt-caching@0.0.1
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 
