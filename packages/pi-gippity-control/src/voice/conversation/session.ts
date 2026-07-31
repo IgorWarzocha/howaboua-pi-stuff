@@ -21,6 +21,7 @@ export interface CodexConversationCallbacks {
 	onError(error: Error): void;
 	onStatus(status: string): void;
 	onTurn(turn: RealtimeVoiceTurn): void;
+	onTranscriptTail(transcriptDelta: string): void;
 }
 
 type RealtimeCallResult = { status: number; answer: string };
@@ -188,6 +189,10 @@ export class CodexRealtimeConversation {
 		this.state = "closed";
 		this.abortSetup();
 		this.clearHandoff();
+		for (const turn of this.turnTracker.drainConversationTurns())
+			this.callbacks.onTurn(turn);
+		const transcriptTail = this.turnTracker.takeTranscriptTail();
+		if (transcriptTail) this.callbacks.onTranscriptTail(transcriptTail);
 		this.turnTracker.reset();
 		this.activeDelegationId = undefined;
 		this.inputMuted = false;
@@ -232,8 +237,20 @@ export class CodexRealtimeConversation {
 			this.fail(new Error(remoteError(event)));
 			return;
 		}
-		if (event["type"] === "input_transcript.added") return;
+		if (event["type"] === "input_transcript.added") {
+			const input = boundedTranscript(transcriptItemText(event["item"]));
+			if (input === "oversized") {
+				this.fail(new Error("Codex voice transcript was oversized"));
+				return;
+			}
+			if (input) this.turnTracker.inputAdded(input);
+			return;
+		}
 		if (event["type"] === "output_transcript.added") {
+			const output = boundedAssistantTranscript(
+				transcriptItemText(event["item"]),
+			);
+			if (output) this.turnTracker.outputAdded(output);
 			this.callbacks.onStatus("speaking");
 			return;
 		}
@@ -288,7 +305,9 @@ export class CodexRealtimeConversation {
 			return;
 		}
 		if (record["role"] !== "assistant") return;
-		const completed = this.turnTracker.assistantFinished();
+		const completed = this.turnTracker.assistantFinished(
+			boundedAssistantTranscript(record["transcript"]),
+		);
 		this.callbacks.onStatus("listening");
 		if (completed) this.callbacks.onTurn(completed);
 	}
@@ -407,6 +426,38 @@ function boundedTranscript(value: unknown): string | "oversized" | undefined {
 	return Buffer.byteLength(input) > MAX_REALTIME_VOICE_INPUT_BYTES
 		? "oversized"
 		: input;
+}
+
+function transcriptItemText(value: unknown): unknown {
+	return value && typeof value === "object"
+		? (value as Record<string, unknown>)["text"]
+		: undefined;
+}
+
+function boundedAssistantTranscript(value: unknown): string | undefined {
+	if (typeof value !== "string") return undefined;
+	const output = value.trim();
+	if (!output) return undefined;
+	return utf8Tail(output, MAX_REALTIME_VOICE_INPUT_BYTES - 32);
+}
+
+function utf8Tail(value: string, maxBytes: number): string {
+	if (Buffer.byteLength(value) <= maxBytes) return value;
+	let start = value.length;
+	let bytes = 0;
+	while (start > 0) {
+		let characterStart = start - 1;
+		const lastUnit = value.charCodeAt(characterStart);
+		if (lastUnit >= 0xdc00 && lastUnit <= 0xdfff && characterStart > 0)
+			characterStart--;
+		const characterBytes = Buffer.byteLength(
+			value.slice(characterStart, start),
+		);
+		if (bytes + characterBytes > maxBytes) break;
+		bytes += characterBytes;
+		start = characterStart;
+	}
+	return value.slice(start);
 }
 
 function remoteError(event: Record<string, unknown>): string {

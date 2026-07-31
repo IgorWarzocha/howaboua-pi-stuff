@@ -9,12 +9,12 @@ export const CODEX_VOICE_SETUP_MESSAGE_TYPE = "codex-voice-setup";
 export type CodexVoiceMode = "realtime" | "dictation";
 export type CodexVoiceModeState = "started" | "ended";
 
-interface RealtimeVoiceMessageDetails {
+export interface RealtimeVoiceMessageDetails {
 	input: string;
 	route: "conversation" | "delegation";
 }
 
-interface CodexVoiceModeMessageDetails {
+export interface CodexVoiceModeMessageDetails {
 	mode: CodexVoiceMode;
 	state: CodexVoiceModeState;
 }
@@ -55,9 +55,18 @@ export function registerCodexVoiceRenderer(pi: ExtensionAPI): void {
 		const input = typeof message.details?.input === "string" ? message.details.input : "Voice request";
 		return voiceBox(theme, "Realtime Voice", input);
 	});
+	pi.registerEntryRenderer<RealtimeVoiceMessageDetails>(REALTIME_VOICE_MESSAGE_TYPE, (entry, _options, theme) => {
+		const input = typeof entry.data?.input === "string" ? entry.data.input : "Voice request";
+		return voiceBox(theme, "Realtime Voice", input);
+	});
 	pi.registerMessageRenderer<CodexVoiceModeMessageDetails>(CODEX_VOICE_MODE_MESSAGE_TYPE, (message, _options, theme) => {
 		const mode = message.details?.mode === "dictation" ? "dictation" : "realtime";
 		const state = message.details?.state === "ended" ? "ended" : "started";
+		return voiceBox(theme, mode === "dictation" ? "Codex Dictation" : "Realtime Voice", modeStateDisplay(mode, state));
+	});
+	pi.registerEntryRenderer<CodexVoiceModeMessageDetails>(CODEX_VOICE_MODE_MESSAGE_TYPE, (entry, _options, theme) => {
+		const mode = entry.data?.mode === "dictation" ? "dictation" : "realtime";
+		const state = entry.data?.state === "ended" ? "ended" : "started";
 		return voiceBox(theme, mode === "dictation" ? "Codex Dictation" : "Realtime Voice", modeStateDisplay(mode, state));
 	});
 	pi.registerMessageRenderer<CodexVoiceSetupMessageDetails>(CODEX_VOICE_SETUP_MESSAGE_TYPE, (message, _options, theme) => {

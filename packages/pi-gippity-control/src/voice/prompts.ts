@@ -1,11 +1,21 @@
 export const MAX_REALTIME_VOICE_INPUT_BYTES = 32 * 1024;
 
-export function renderRealtimeDelegation(input: string): string {
-	return `<realtime_delegation>\n  <input>${escapeXml(input)}</input>\n</realtime_delegation>`;
+export function renderRealtimeDelegation(
+	input: string,
+	transcriptDelta?: string,
+): string {
+	const transcript = transcriptDelta
+		? `\n  <transcript_delta>${escapeXml(transcriptDelta)}</transcript_delta>`
+		: "";
+	return `<realtime_delegation>\n  <input>${escapeXml(input)}</input>${transcript}\n  <routing>realtime voice is active; input may contain recognition errors; keep spoken updates concise</routing>\n</realtime_delegation>`;
 }
 
 export function renderRealtimeConversationInput(input: string): string {
 	return `<realtime_voice_turn>\n  <input>${escapeXml(input)}</input>\n  <routing>handled by realtime voice; no Pi action requested</routing>\n</realtime_voice_turn>`;
+}
+
+export function renderRealtimeTranscriptTail(transcriptDelta: string): string {
+	return `<realtime_conversation_tail>\n  <transcript_delta>${escapeXml(transcriptDelta)}</transcript_delta>\n  <routing>context from the ended voice conversation; do not respond to it independently</routing>\n</realtime_conversation_tail>`;
 }
 
 export function renderPiSteer(input: unknown): string | undefined {

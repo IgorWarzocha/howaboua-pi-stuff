@@ -3,6 +3,7 @@ import { readCodexConversionConfig } from "../adapter/activation/config-store.ts
 import { syncAdapter } from "../adapter/activation/activation.ts";
 import { isAdapterRuntime, resolveCodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
 import { isNativeCompactionDetails, NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, NATIVE_COMPACTION_DISPLAY_TEXT, NATIVE_COMPACTION_STRATEGY, type NativeCompactionUsage } from "../adapter/compaction/types.ts";
+import { findLatestCompactionEntry } from "../adapter/compaction/details-store.ts";
 import { handleCodexSessionBeforeCompact } from "../adapter/compaction/compaction.ts";
 import { rewriteCodexProviderRequest } from "../adapter/provider-request.ts";
 import { isAdapterContextExcludedCustomMessage } from "../adapter/prompt/context-filter.ts";
@@ -63,6 +64,7 @@ export function registerCodexEvents(
 	pi.on("session_start", async (event, ctx) => {
 		await runtime.lanVoice.stop(ctx);
 		runtime.voice.resetContextAnnouncements();
+		runtime.voice.resetSessionContext();
 		initializeBashParser();
 		runtime.resetTransport();
 		runtime.backgroundWidget.ctx = ctx;
@@ -108,6 +110,7 @@ export function registerCodexEvents(
 	});
 
 	pi.on("message_start", async (event) => {
+		runtime.voice.bindDelegatedUserMessage(event.message);
 		if (event.message.role !== "toolResult" && !isToolCallOnlyAssistantMessage(event.message)) tracker.resetExplorationGroup();
 	});
 	pi.on("message_end", async (event) => {
@@ -139,6 +142,7 @@ export function registerCodexEvents(
 		if (failures.length > 1) throw new AggregateError(failures, "Codex extension shutdown failed");
 	});
 	pi.on("input", async (event) => {
+		runtime.voice.acceptDelegatedInput(event);
 		if (event.streamingBehavior === undefined) state.codexTurnState.beginTurn();
 		else if (event.streamingBehavior === "steer" && event.source !== "extension") runtime.voice.mirrorPiSteer(event.text);
 	});
@@ -180,21 +184,22 @@ export function registerCodexEvents(
 		runtime.voice.resetContextAnnouncements();
 		state.pendingPiCompactionNativeWindow = undefined;
 		let nativeCompaction = false;
-		if (event.fromExtension && isNativeCompactionDetails(event.compactionEntry.details)) {
-			const details = event.compactionEntry.details;
+		const compactionEntry = findLatestCompactionEntry(ctx.sessionManager.getBranch());
+		if (event.fromExtension && compactionEntry && isNativeCompactionDetails(compactionEntry.details)) {
+			const details = compactionEntry.details;
 			nativeCompaction = true;
 			pi.sendMessage({
 				customType: NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE,
 				content: NATIVE_COMPACTION_DISPLAY_TEXT,
 				display: true,
-				details: { compactionEntryId: event.compactionEntry.id },
+				details: { compactionEntryId: compactionEntry.id },
 			}, { triggerTurn: false });
 			if (details.strategy === NATIVE_COMPACTION_STRATEGY && details.usage) {
 				pi.sendMessage({
 					customType: NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE,
 					content: formatCompactionUsage(details.usage),
 					display: true,
-					details: { compactionEntryId: event.compactionEntry.id, kind: "usage" },
+					details: { compactionEntryId: compactionEntry.id, kind: "usage" },
 				}, { triggerTurn: false });
 			}
 		}
@@ -209,8 +214,9 @@ export function registerCodexEvents(
 			: runtime.startPrewarm(ctx, postCompactionPrompt, true));
 	});
 	pi.on("context", async (event) => {
-		if (state.config.voiceFeaturesOnly) return undefined;
-		const messages = event.messages.filter((message) => !isAdapterContextExcludedCustomMessage(message));
+		const voiceMessages = runtime.voice.applyDelegationContext(event.messages);
+		if (state.config.voiceFeaturesOnly) return { messages: voiceMessages };
+		const messages = voiceMessages.filter((message) => !isAdapterContextExcludedCustomMessage(message));
 		return { messages };
 	});
 }

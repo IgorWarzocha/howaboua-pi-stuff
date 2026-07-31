@@ -3,13 +3,16 @@ import { EventEmitter } from "node:events";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { WebSocket } from "ws";
 import { LanVoiceBrowserClients } from "../src/voice/lan/browser-clients.ts";
 import { decodeLanVoiceAudioCommand } from "../src/voice/lan/protocol.ts";
+import { CodexVoiceSessionMessages } from "../src/voice/session-messages.ts";
 import {
 	getPackagedCodexVoiceSystemPromptPath,
 	prepareCodexVoiceSystemPrompt,
 } from "../src/voice/system-prompt.ts";
+import { RealtimeVoiceTurnTracker } from "../src/voice/turns.ts";
 
 const directories: string[] = [];
 
@@ -51,6 +54,140 @@ describe("realtime prompt persistence", () => {
 		expect(await readFile(promptPath, "utf8")).toBe(customized);
 	});
 });
+
+describe("realtime session routing", () => {
+	test("delegations carry conversation since the previous handoff", () => {
+		const turns = new RealtimeVoiceTurnTracker();
+		turns.userFinished("terms of the laptop");
+		expect(turns.assistantFinished("Do you mean temperatures?")).toEqual({
+			input: "terms of the laptop",
+		});
+		turns.userFinished("yes, temperatures");
+		expect(
+			turns.delegated("check the laptop and server", "delegation-1"),
+		).toEqual({
+			input: "check the laptop and server",
+			delegationId: "delegation-1",
+			transcriptDelta:
+				"user: terms of the laptop\nassistant: Do you mean temperatures?\nuser: yes, temperatures\nuser: check the laptop and server",
+		});
+
+		const delegationFirst = new RealtimeVoiceTurnTracker();
+		delegationFirst.inputAdded("yes, check the laptop");
+		expect(
+			delegationFirst.delegated("check the laptop", "delegation-2"),
+		).toEqual({
+			input: "check the laptop",
+			delegationId: "delegation-2",
+			transcriptDelta: "user: yes, check the laptop\nuser: check the laptop",
+		});
+		expect(
+			delegationFirst.userFinished("yes, check the laptop"),
+		).toBeUndefined();
+	});
+
+	test("an interrupted conversation cannot consume a later delegation", () => {
+		const turns = new RealtimeVoiceTurnTracker();
+		turns.inputAdded("what is the current load");
+		turns.userFinished("what is the current load");
+		turns.outputAdded("The load is");
+		turns.inputAdded("check the logs instead");
+
+		expect(turns.delegated("check the logs instead", "delegation-1")).toEqual({
+			input: "check the logs instead",
+			delegationId: "delegation-1",
+			transcriptDelta:
+				"user: what is the current load\nassistant: The load is\nuser: check the logs instead",
+		});
+		expect(turns.userFinished("check the logs instead")).toBeUndefined();
+		expect(turns.assistantFinished("The load is normal")).toEqual({
+			input: "what is the current load",
+		});
+		expect(turns.drainConversationTurns()).toEqual([]);
+	});
+
+	test("presentation entries never enter Pi model queues", () => {
+		const modelMessages: unknown[] = [];
+		const messages = new CodexVoiceSessionMessages(
+			{
+				appendEntry() {},
+				sendMessage(message: unknown, options: unknown) {
+					modelMessages.push({ message, options });
+				},
+				sendUserMessage(message: unknown, options: unknown) {
+					modelMessages.push({ message, options });
+				},
+			} as unknown as ExtensionAPI,
+			voiceMessageCallbacks(),
+		);
+		messages.modeStarted("dictation");
+		messages.voiceTurn({ input: "thanks" });
+
+		expect(modelMessages).toEqual([]);
+	});
+
+	test("delegation context binds only its accepted user message", () => {
+		const messages = new CodexVoiceSessionMessages(
+			{
+				appendEntry() {},
+				sendUserMessage() {},
+			} as unknown as ExtensionAPI,
+			voiceMessageCallbacks(),
+		);
+		messages.setContext({ isIdle: () => false } as never);
+		messages.voiceTurn({
+			input: "do the same for the server",
+			delegationId: "delegation-1",
+			transcriptDelta: "voice context",
+		});
+		messages.acceptDelegatedInput({
+			type: "input",
+			text: "do the same for the server",
+			source: "extension",
+			streamingBehavior: "steer",
+		} as never);
+
+		const earlierIdenticalMessage = {
+			role: "user" as const,
+			content: [{ type: "text" as const, text: "do the same for the server" }],
+			timestamp: 0,
+		};
+		const visibleUserMessage = {
+			...earlierIdenticalMessage,
+			content: [...earlierIdenticalMessage.content],
+			timestamp: Date.now() + 1_000,
+		};
+		messages.bindDelegatedUserMessage(earlierIdenticalMessage);
+		messages.bindDelegatedUserMessage(visibleUserMessage);
+		const providerMessages = messages.applyDelegationContext([
+			earlierIdenticalMessage,
+			visibleUserMessage,
+		]);
+		const [earlierProviderMessage, providerMessage] = providerMessages;
+		const earlierProviderText =
+			earlierProviderMessage?.role === "user" &&
+			Array.isArray(earlierProviderMessage.content)
+				? earlierProviderMessage.content.find((part) => part.type === "text")
+						?.text
+				: undefined;
+		expect(earlierProviderText).toBe("do the same for the server");
+		const providerText =
+			providerMessage?.role === "user" && Array.isArray(providerMessage.content)
+				? providerMessage.content.find((part) => part.type === "text")?.text
+				: undefined;
+		expect(providerText).toContain(
+			"<transcript_delta>voice context</transcript_delta>",
+		);
+	});
+});
+
+function voiceMessageCallbacks() {
+	return {
+		canDelegate: () => true,
+		onDelegation: () => {},
+		onWorking: () => {},
+	};
+}
 
 describe("LAN conversation setup", () => {
 	test("rejects browser-owned peer messages", () => {

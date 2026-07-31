@@ -42,8 +42,8 @@ const NORMAL_CODEX_GUIDELINES = [
 const CODE_MODE_GUIDELINES = [
 	"Use tools.exec_command for shell commands; prefer rg and rg --files",
 	"Use String.raw for cmd only when shell text has no backticks or ${}; otherwise use quoted lines or split the call",
-	"Continue exec cell_id with wait; continue exec_command session_id with tools.write_stdin",
-	`${EXEC_SESSION_GUIDELINE}; use tty=true only for input or persistent processes`,
+	"Long command: keep tools.exec_command awaited inside exec; resume the yielded cell_id with wait near completion. Do not request a short child yield and poll its session_id with tools.write_stdin",
+	"Use tty=true only for input or persistent processes",
 	"Use tools.apply_patch(patch) for file edits; split large patches; reserve shell/Python for formatting or bulk rewrites",
 	"Await dependencies; use Promise.all for independent calls",
 	"Use text() only for concise final output",
@@ -320,6 +320,7 @@ function buildHeavyCodexSystemPrompt(
 	return prompt.replace(/\n{3,}/g, "\n\n").trim();
 }
 
+// Sole owner of Pi-Codex core system-prompt construction; see this directory's AGENTS.md.
 export function buildCodexSystemPrompt(
 	basePrompt: string,
 	options: {

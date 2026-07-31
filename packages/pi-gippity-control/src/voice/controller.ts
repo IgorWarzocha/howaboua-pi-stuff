@@ -1,6 +1,9 @@
 import type {
+	ContextEvent,
 	ExtensionAPI,
 	ExtensionContext,
+	InputEvent,
+	MessageStartEvent,
 } from "@earendil-works/pi-coding-agent";
 import type { GippityControlConfig } from "../config.ts";
 import { resolveCodexVoiceAuth } from "./auth.ts";
@@ -54,7 +57,6 @@ export class CodexVoiceController {
 	constructor(pi: ExtensionAPI) {
 		this.messages = new CodexVoiceSessionMessages(pi, {
 			canDelegate: () => this.state.type === "conversation",
-			isVoiceActive: () => this.active,
 			onDelegation: (id) => {
 				if (this.state.type === "conversation")
 					this.state.session.activateDelegation(id);
@@ -95,6 +97,10 @@ export class CodexVoiceController {
 	}
 	resetContextAnnouncements(): void {
 		this.messages.resetContextAnnouncements();
+	}
+
+	resetSessionContext(): void {
+		this.messages.resetSessionContext();
 	}
 	announceDictation(ctx: ExtensionContext): void {
 		this.messages.setContext(ctx);
@@ -161,7 +167,7 @@ export class CodexVoiceController {
 		if (session.microphoneMuted) this.setInputMuted(false);
 		if (this.announcedMode !== "realtime") return;
 		this.announcedMode = undefined;
-		this.messages.voiceStopped("realtime");
+		this.messages.conversationInputStopped();
 	}
 
 	private async startMode(
@@ -300,6 +306,20 @@ export class CodexVoiceController {
 		this.messages.agentStarted();
 	}
 
+	bindDelegatedUserMessage(message: MessageStartEvent["message"]): void {
+		this.messages.bindDelegatedUserMessage(message);
+	}
+
+	acceptDelegatedInput(event: InputEvent): void {
+		this.messages.acceptDelegatedInput(event);
+	}
+
+	applyDelegationContext(
+		messages: ContextEvent["messages"],
+	): ContextEvent["messages"] {
+		return this.messages.applyDelegationContext(messages);
+	}
+
 	mirrorPiSteer(input: unknown): boolean {
 		return (
 			this.state.type === "conversation" &&
@@ -358,6 +378,8 @@ export class CodexVoiceController {
 				onError: (error) => this.failSession(session, error),
 				onStatus: (status) => this.renderStatus(status),
 				onTurn: (turn) => this.messages.voiceTurn(turn),
+				onTranscriptTail: (transcript) =>
+					this.messages.retainTranscriptTail(transcript),
 			},
 			realtimePeer,
 		);
@@ -402,7 +424,9 @@ export class CodexVoiceController {
 		session = new CodexDictationSession({
 			onError: (error) => this.failSession(session, error),
 			onStatus: (status) => this.renderStatus(status),
-			onTranscript: (transcript) => this.context?.ui.pasteToEditor(transcript),
+			onTranscript: (transcript) => {
+				this.context?.ui.pasteToEditor(transcript);
+			},
 		});
 		this.state = {
 			type: "connecting",

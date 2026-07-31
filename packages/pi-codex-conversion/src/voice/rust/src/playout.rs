@@ -1,6 +1,8 @@
 use std::collections::BTreeMap;
+use std::time::Duration;
 
 use bytes::Bytes;
+use tokio::time::Instant;
 
 const START_PACKETS: usize = 3;
 const MAX_SEQUENCE_DISTANCE: usize = 6;
@@ -17,6 +19,36 @@ pub struct PacketPlayout {
     pending: BTreeMap<i64, Bytes>,
     expected: Option<i64>,
     playing: bool,
+}
+
+pub struct PlayoutClock {
+    deadline: Option<Instant>,
+}
+
+impl PlayoutClock {
+    pub fn new() -> Self {
+        Self { deadline: None }
+    }
+
+    pub fn start(&mut self, now: Instant) {
+        self.deadline.get_or_insert(now);
+    }
+
+    pub fn deadline(&self) -> Option<Instant> {
+        self.deadline
+    }
+
+    pub fn advance(&mut self, samples: usize, sample_rate: u32) {
+        let Some(deadline) = self.deadline else {
+            return;
+        };
+        let frame_duration = Duration::from_secs_f64(samples as f64 / sample_rate as f64);
+        self.deadline = Some(deadline + frame_duration);
+    }
+
+    pub fn stop(&mut self) {
+        self.deadline = None;
+    }
 }
 
 impl PacketPlayout {
@@ -76,6 +108,10 @@ impl PacketPlayout {
         };
         self.expected = Some(expected + 1);
         frame
+    }
+
+    pub fn ready(&self) -> bool {
+        self.playing
     }
 }
 
@@ -159,5 +195,20 @@ mod tests {
             960
         );
         assert_eq!(decoder.decode_float(&[], &mut decoded, false).unwrap(), 960);
+    }
+
+    #[test]
+    fn playout_clock_preserves_media_time_across_a_coarse_wake() {
+        let start = Instant::now();
+        let mut clock = PlayoutClock::new();
+        clock.start(start);
+        clock.advance(960, 48_000);
+
+        let coarse_wake = start + Duration::from_millis(31);
+        assert!(clock.deadline().unwrap() <= coarse_wake);
+
+        clock.advance(960, 48_000);
+        assert_eq!(clock.deadline(), Some(start + Duration::from_millis(40)));
+        assert!(clock.deadline().unwrap() > coarse_wake);
     }
 }
