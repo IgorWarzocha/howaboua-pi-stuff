@@ -54,6 +54,7 @@ Set `defer_loading = false` only for stable, frequently used tools. Promotion ad
 
 Working, disabled templates ship under the package root's `examples/custom-tools/` directory:
 
+- `browser`: controls a logged-in Chromium browser through CDP with bounded Codex `web__run`-style operations; optional SSH routing ships disabled.
 - `herdr_agent`: finds and coordinates Pi agents in Herdr panels; use with `skills` for advanced Herdr orchestration.
 - `skills`: lazily queries a general workflow catalog from the corresponding global or project-local `lazy-skills/` directory.
 - `more_skills`: lists or loads additional skills from the corresponding global or project-local `more-skills/` directory.

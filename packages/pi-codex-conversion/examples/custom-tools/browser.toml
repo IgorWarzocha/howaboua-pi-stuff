@@ -1,0 +1,9 @@
+usage = '''await tools.browser("help") // Logged-in local browser with web__run-style operation arrays/refs; ask before consequential external actions'''
+# After enabling SSH routing in browser/browser.mjs, replace the usage above with:
+# usage = '''await tools.browser("help") // Logged-in browser with web__run-style operation arrays/refs; optional host; ask before consequential external actions'''
+description = '''Inspect and control logged-in browser tabs. Batched operation arrays use web__run's ref_id/id/lineno/response_length vocabulary while returning live accessibility content and interactive elements; expert CDP actions remain available.'''
+output = "Bounded JSON with ref_id, line content, numbered elements, continuations, and local screenshot path where relevant."
+command = "./browser/browser.mjs"
+input = "stdin"
+defer_loading = false
+yield_time_ms = 30000

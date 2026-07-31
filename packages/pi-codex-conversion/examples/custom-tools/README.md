@@ -2,6 +2,12 @@
 
 These are disabled templates. Enable a tool by copying its top-level TOML file and companion directory into `~/.pi/agent/codex-conversion-custom-tools/`, or `$PI_CODING_AGENT_DIR/codex-conversion-custom-tools/` when configured.
 
+## Browser
+
+The `browser` example controls a logged-in Chromium browser through CDP with Codex `web__run`-style operations. Copy `browser.toml` and `browser/` together, then follow `browser/README.md` to expose CDP.
+
+The implementation also supports routing browser operations over SSH, but that surface is disabled and hidden from the agent by default. Enabling it requires configuring allowed hosts and the remote tool path in `browser/browser.mjs`, copying the companion files to each remote host, and switching `browser.toml` to its commented SSH-aware usage.
+
 ## Lazy skill loaders
 
 Pi discovers its standard skill folders at startup and advertises every discovered skill to the model. The `skills` example keeps a large global workflow library out of that startup catalog while leaving native Pi skills available:
