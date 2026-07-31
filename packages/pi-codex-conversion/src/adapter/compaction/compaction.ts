@@ -250,6 +250,7 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 		context,
 		promptInput: input,
 		requestOptions,
+		tokensBefore: event.preparation.tokensBefore,
 		sessionId: ctx.sessionManager.getSessionId(),
 		signal: event.signal,
 	});

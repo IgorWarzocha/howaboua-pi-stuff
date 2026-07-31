@@ -29,6 +29,7 @@ export type ExecuteRemoteCompactionV2Options = {
 	context: Context;
 	promptInput: readonly ResponsesInputItem[];
 	requestOptions: NativeCompactionRequestOptions;
+	tokensBefore: number;
 	sessionId: string;
 	signal?: AbortSignal | undefined;
 	transport?: Transport | undefined;
@@ -93,7 +94,7 @@ async function runAttempt(options: ExecuteRemoteCompactionV2Options, streamSimpl
 				provider: options.runtime.provider,
 				model: options.runtime.model,
 				contextWindow: options.runtime.currentModel.contextWindow,
-			}) });
+			}), tokensBefore: options.tokensBefore });
 			return {
 				...body,
 				input: [...request.request.input, { type: "compaction_trigger" }],

@@ -143,6 +143,7 @@ test("V2 compaction reuses the active turn's WebSocket continuation", async () =
 				grammarToolInputProperties: CODE_MODE_EXEC_GRAMMAR_INPUTS,
 			}),
 			requestOptions: { reasoning: { effort: "low", summary: "auto" }, text: { verbosity: "low" } },
+			tokensBefore: 1_000,
 			sessionId,
 			retryDelayMs: 0,
 		});
