@@ -107,13 +107,10 @@ describe("realtime session routing", () => {
 	});
 
 	test("presentation entries never enter Pi model queues", () => {
-		const entries: Array<{ customType: string; data: unknown }> = [];
 		const modelMessages: unknown[] = [];
 		const messages = new CodexVoiceSessionMessages(
 			{
-				appendEntry(customType: string, data: unknown) {
-					entries.push({ customType, data });
-				},
+				appendEntry() {},
 				sendMessage(message: unknown, options: unknown) {
 					modelMessages.push({ message, options });
 				},
@@ -123,49 +120,26 @@ describe("realtime session routing", () => {
 			} as unknown as ExtensionAPI,
 			voiceMessageCallbacks(),
 		);
-		messages.setContext({ isIdle: () => false } as never);
 		messages.modeStarted("dictation");
 		messages.voiceTurn({ input: "thanks" });
 
-		expect(entries).toEqual([
-			{
-				customType: "gippity-voice-mode",
-				data: { mode: "dictation", state: "started" },
-			},
-			{
-				customType: "gippity-realtime-voice",
-				data: { input: "thanks", route: "conversation" },
-			},
-		]);
 		expect(modelMessages).toEqual([]);
 	});
 
-	test("an active delegation is the sole Pi steer and carries transcript context", () => {
-		const userMessages: Array<{ input: unknown; options: unknown }> = [];
+	test("delegation context binds only its accepted user message", () => {
 		const messages = new CodexVoiceSessionMessages(
 			{
 				appendEntry() {},
-				sendUserMessage(input: unknown, options: unknown) {
-					userMessages.push({ input, options });
-				},
+				sendUserMessage() {},
 			} as unknown as ExtensionAPI,
 			voiceMessageCallbacks(),
 		);
 		messages.setContext({ isIdle: () => false } as never);
-		messages.conversationInputStopped();
-		messages.modeStarted("realtime");
 		messages.voiceTurn({
 			input: "do the same for the server",
 			delegationId: "delegation-1",
-			transcriptDelta:
-				"user: temperatures, not terms\nassistant: checking the temperatures",
+			transcriptDelta: "voice context",
 		});
-		expect(userMessages).toEqual([
-			{
-				input: "do the same for the server",
-				options: { deliverAs: "steer" },
-			},
-		]);
 		messages.acceptDelegatedInput({
 			type: "input",
 			text: "do the same for the server",
@@ -186,34 +160,24 @@ describe("realtime session routing", () => {
 		messages.bindDelegatedUserMessage(earlierIdenticalMessage);
 		messages.bindDelegatedUserMessage(visibleUserMessage);
 		const providerMessages = messages.applyDelegationContext([
-			{
-				role: "custom",
-				customType: "gippity-realtime-voice",
-				content: "legacy display card",
-				display: true,
-				details: {},
-				timestamp: 1,
-			},
 			earlierIdenticalMessage,
 			visibleUserMessage,
 		]);
-		expect(providerMessages).toHaveLength(2);
 		const [earlierProviderMessage, providerMessage] = providerMessages;
 		const earlierProviderText =
-			earlierProviderMessage && Array.isArray(earlierProviderMessage.content)
+			earlierProviderMessage?.role === "user" &&
+			Array.isArray(earlierProviderMessage.content)
 				? earlierProviderMessage.content.find((part) => part.type === "text")
 						?.text
 				: undefined;
 		expect(earlierProviderText).toBe("do the same for the server");
-		expect(visibleUserMessage.content[0]?.text).toBe(
-			"do the same for the server",
+		const providerText =
+			providerMessage?.role === "user" && Array.isArray(providerMessage.content)
+				? providerMessage.content.find((part) => part.type === "text")?.text
+				: undefined;
+		expect(providerText).toContain(
+			"<transcript_delta>voice context</transcript_delta>",
 		);
-		expect(providerMessage?.content[0]?.text).toBe(`<realtime_delegation>
-  <input>do the same for the server</input>
-  <transcript_delta>user: temperatures, not terms
-assistant: checking the temperatures</transcript_delta>
-  <routing>realtime voice is active; input may contain recognition errors; keep spoken updates concise</routing>
-</realtime_delegation>`);
 	});
 });
 

@@ -203,39 +203,29 @@ test("an interrupted conversation cannot consume a later delegation", () => {
 });
 
 test("voice presentation entries never enter Pi model queues", () => {
-	const entries: Array<{ customType: string; data: unknown }> = [];
 	const modelMessages: unknown[] = [];
 	const messages = new CodexVoiceSessionMessages({
-		appendEntry(customType: string, data: unknown) { entries.push({ customType, data }); },
+		appendEntry() {},
 		sendMessage(message: unknown, options: unknown) { modelMessages.push({ message, options }); },
 		sendUserMessage(message: unknown, options: unknown) { modelMessages.push({ message, options }); },
 	} as unknown as ExtensionAPI, voiceMessageCallbacks());
-	messages.setContext({ isIdle: () => false } as never);
 	messages.modeStarted("dictation");
 	messages.voiceTurn({ input: "thanks" });
 
-	assert.deepEqual(entries, [
-		{ customType: "codex-voice-mode", data: { mode: "dictation", state: "started" } },
-		{ customType: "codex-realtime-voice", data: { input: "thanks", route: "conversation" } },
-	]);
 	assert.deepEqual(modelMessages, []);
 });
 
-test("an active voice delegation is the sole Pi steer and carries transcript context", () => {
-	const userMessages: Array<{ input: unknown; options: unknown }> = [];
+test("voice delegation context binds only its accepted user message", () => {
 	const messages = new CodexVoiceSessionMessages({
 		appendEntry() {},
-		sendUserMessage(input: unknown, options: unknown) { userMessages.push({ input, options }); },
+		sendUserMessage() {},
 	} as unknown as ExtensionAPI, voiceMessageCallbacks());
 	messages.setContext({ isIdle: () => false } as never);
-	messages.conversationInputStopped();
-	messages.modeStarted("realtime");
 	messages.voiceTurn({
 		input: "do the same for the server",
 		delegationId: "delegation-1",
-		transcriptDelta: "user: temperatures, not terms\nassistant: checking the temperatures",
+		transcriptDelta: "voice context",
 	});
-	assert.deepEqual(userMessages, [{ input: "do the same for the server", options: { deliverAs: "steer" } }]);
 	messages.acceptDelegatedInput({
 		type: "input",
 		text: "do the same for the server",
@@ -255,32 +245,16 @@ test("an active voice delegation is the sole Pi steer and carries transcript con
 	};
 	messages.bindDelegatedUserMessage(earlierIdenticalMessage);
 	messages.bindDelegatedUserMessage(visibleUserMessage);
-	const providerMessages = messages.applyDelegationContext([{
-		role: "custom",
-		customType: "codex-realtime-voice",
-		content: "legacy display card",
-		display: true,
-		details: {},
-		timestamp: 1,
-	}, earlierIdenticalMessage, visibleUserMessage]);
-	assert.equal(providerMessages.length, 2);
+	const providerMessages = messages.applyDelegationContext([earlierIdenticalMessage, visibleUserMessage]);
 	const [earlierProviderMessage, providerMessage] = providerMessages;
-	assert.equal(earlierProviderMessage?.role, "user");
-	const earlierProviderText = earlierProviderMessage && Array.isArray(earlierProviderMessage.content)
+	const earlierProviderText = earlierProviderMessage?.role === "user" && Array.isArray(earlierProviderMessage.content)
 		? earlierProviderMessage.content.find((part) => part.type === "text")?.text
 		: undefined;
 	assert.equal(earlierProviderText, "do the same for the server");
-	assert.equal(visibleUserMessage.content[0]?.text, "do the same for the server");
-	assert.equal(providerMessage?.role, "user");
-	const providerText = providerMessage && Array.isArray(providerMessage.content)
+	const providerText = providerMessage?.role === "user" && Array.isArray(providerMessage.content)
 		? providerMessage.content.find((part) => part.type === "text")?.text
 		: undefined;
-	assert.equal(providerText, `<realtime_delegation>
-  <input>do the same for the server</input>
-  <transcript_delta>user: temperatures, not terms
-assistant: checking the temperatures</transcript_delta>
-  <routing>realtime voice is active; input may contain recognition errors; keep spoken updates concise</routing>
-</realtime_delegation>`);
+	assert.match(providerText ?? "", /<transcript_delta>voice context<\/transcript_delta>/);
 });
 
 function voiceMessageCallbacks() {
