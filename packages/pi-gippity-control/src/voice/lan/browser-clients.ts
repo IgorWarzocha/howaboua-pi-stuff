@@ -12,6 +12,13 @@ type LanVoiceBrowserMode = "conversation" | "dictation";
 type LanVoiceBrowserState =
 	| { type: "idle" }
 	| {
+			type: "starting";
+			clientId: string;
+			socket: WebSocket;
+			mode: "conversation";
+			peer: LanBrowserRealtimePeer;
+	  }
+	| {
 			type: "active";
 			clientId: string;
 			socket: WebSocket;
@@ -23,6 +30,7 @@ type LanVoiceBrowserState =
 
 interface LanVoiceBrowserClientsOptions {
 	startConversation(peer: LanBrowserRealtimePeer): Promise<void>;
+	cancelConversationStart(peer: LanBrowserRealtimePeer): void;
 	stopConversation(peer: LanBrowserRealtimePeer): Promise<void>;
 	startDictation(clientId: string): Promise<void>;
 	finishDictation(
@@ -73,6 +81,7 @@ export class LanVoiceBrowserClients {
 		}
 		const previous = this.audioSockets.get(clientId);
 		this.audioSockets.set(clientId, socket);
+		if (previous) this.cancelStartingConversation(clientId, previous);
 		previous?.close(4001, "replaced");
 		socket.send(JSON.stringify({ type: "connected" }));
 		socket.on("message", (data, isBinary) =>
@@ -97,6 +106,7 @@ export class LanVoiceBrowserClients {
 	}
 
 	release(clientId: string, socket?: WebSocket): void {
+		this.cancelStartingConversation(clientId, socket);
 		void this.enqueue(async () => {
 			const active = this.state;
 			if (
@@ -134,6 +144,14 @@ export class LanVoiceBrowserClients {
 		}
 		this.state = { type: "closed" };
 		const failures: unknown[] = [];
+		if (active.type === "starting") {
+			this.conversationPeers.delete(active.socket);
+			try {
+				this.options.cancelConversationStart(active.peer);
+			} catch (error) {
+				failures.push(error);
+			}
+		}
 		if (active.type === "active" && active.mode === "conversation") {
 			try {
 				this.options.onConversationActivity(false);
@@ -262,6 +280,20 @@ export class LanVoiceBrowserClients {
 		mode: LanVoiceBrowserMode,
 		offerSdp?: string,
 	): Promise<void> {
+		const starting = this.state.type === "starting" ? this.state : undefined;
+		if (
+			starting &&
+			(starting.clientId !== clientId ||
+				starting.socket !== socket ||
+				starting.mode !== mode)
+		) {
+			this.cancelStartingConversation(starting.clientId, starting.socket);
+			this.sendControl(starting.clientId, {
+				type: "stop",
+				reason: "replaced",
+			});
+			starting.socket.close(4001, "replaced");
+		}
 		return this.enqueue(async () => {
 			if (this.isClosed()) return;
 			const previous = this.state.type === "active" ? this.state : undefined;
@@ -298,10 +330,28 @@ export class LanVoiceBrowserClients {
 						socket.send(JSON.stringify(value));
 				});
 				this.conversationPeers.set(socket, peer);
-				await this.options.startConversation(peer);
+				const starting = {
+					type: "starting",
+					clientId,
+					socket,
+					mode,
+					peer,
+				} as const;
+				this.state = starting;
+				try {
+					await this.options.startConversation(peer);
+				} catch (error) {
+					const cancelled = this.state !== starting;
+					if (!cancelled) this.state = { type: "idle" };
+					this.conversationPeers.delete(socket);
+					if (cancelled) return;
+					throw error;
+				}
 			} else await this.options.startDictation(clientId);
 			if (
 				this.isClosed() ||
+				(peer &&
+					(this.state.type !== "starting" || this.state.peer !== peer)) ||
 				this.audioSockets.get(clientId) !== socket ||
 				socket.readyState !== WebSocket.OPEN
 			) {
@@ -319,6 +369,29 @@ export class LanVoiceBrowserClients {
 			if (mode === "conversation") this.options.onConversationActivity(true);
 			socket.send(JSON.stringify({ type: "active", mode }));
 		});
+	}
+
+	private cancelStartingConversation(
+		clientId: string,
+		socket?: WebSocket,
+	): void {
+		const starting = this.state;
+		if (
+			starting.type !== "starting" ||
+			starting.clientId !== clientId ||
+			(socket && starting.socket !== socket)
+		)
+			return;
+		this.state = { type: "idle" };
+		this.conversationPeers.delete(starting.socket);
+		try {
+			this.options.cancelConversationStart(starting.peer);
+		} catch (error) {
+			this.sendControl(clientId, {
+				type: "error",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
 	}
 
 	private finish(

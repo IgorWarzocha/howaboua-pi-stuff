@@ -46,7 +46,9 @@ export async function startCodexLanVoiceServer(options: {
 	let activeConversation:
 		| { peer: LanBrowserRealtimePeer; conversation: CodexRealtimeConversation }
 		| undefined;
-	let conversationStartAbort: AbortController | undefined;
+	let conversationStart:
+		| { peer: LanBrowserRealtimePeer; abort: AbortController }
+		| undefined;
 	let closing = false;
 	let clients!: LanVoiceBrowserClients;
 	const activity = new LanVoiceActivity({
@@ -69,7 +71,8 @@ export async function startCodexLanVoiceServer(options: {
 		if (activeConversation)
 			throw new Error("A LAN realtime conversation is already active");
 		const startAbort = new AbortController();
-		conversationStartAbort = startAbort;
+		const start = { peer, abort: startAbort };
+		conversationStart = start;
 		let started: CodexRealtimeConversation | undefined;
 		try {
 			started = await options.voice.startRealtimeWithPeer(
@@ -79,8 +82,7 @@ export async function startCodexLanVoiceServer(options: {
 				startAbort.signal,
 			);
 		} finally {
-			if (conversationStartAbort === startAbort)
-				conversationStartAbort = undefined;
+			if (conversationStart === start) conversationStart = undefined;
 		}
 		if (!started) {
 			await peer.close();
@@ -103,6 +105,9 @@ export async function startCodexLanVoiceServer(options: {
 	};
 	clients = new LanVoiceBrowserClients({
 		startConversation,
+		cancelConversationStart(peer) {
+			if (conversationStart?.peer === peer) conversationStart.abort.abort();
+		},
 		stopConversation,
 		async startDictation(clientId) {
 			await dictation.start(clientId);
@@ -203,8 +208,8 @@ export async function startCodexLanVoiceServer(options: {
 	const closeServer = async (): Promise<void> => {
 		closing = true;
 		removeInputMuteListener();
-		conversationStartAbort?.abort();
-		conversationStartAbort = undefined;
+		conversationStart?.abort.abort();
+		conversationStart = undefined;
 		clearInterval(heartbeat);
 		const clientsClosing = clients.close();
 		const failures: unknown[] = [];

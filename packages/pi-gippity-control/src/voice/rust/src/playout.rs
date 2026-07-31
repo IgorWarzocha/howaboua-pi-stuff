@@ -3,7 +3,8 @@ use std::collections::BTreeMap;
 use bytes::Bytes;
 
 const START_PACKETS: usize = 3;
-const MAX_PACKETS: usize = 6;
+const MAX_SEQUENCE_DISTANCE: usize = 6;
+const MAX_PENDING_PACKETS: usize = MAX_SEQUENCE_DISTANCE + 1;
 
 #[derive(Debug, PartialEq)]
 pub enum PlayoutFrame {
@@ -32,17 +33,17 @@ impl PacketPlayout {
         let delta = sequence.wrapping_sub(expected as u16) as i16 as i64;
         let extended = expected + delta;
         if extended < expected {
-            if self.playing || expected - extended > MAX_PACKETS as i64 {
+            if self.playing || expected - extended > MAX_SEQUENCE_DISTANCE as i64 {
                 return;
             }
             self.expected = Some(extended);
-        } else if extended - expected > MAX_PACKETS as i64 {
+        } else if extended - expected > MAX_SEQUENCE_DISTANCE as i64 {
             self.pending.clear();
             self.expected = Some(extended);
             self.playing = false;
         }
         self.pending.entry(extended).or_insert(payload);
-        while self.pending.len() > MAX_PACKETS {
+        while self.pending.len() > MAX_PENDING_PACKETS {
             let Some(oldest) = self.pending.keys().next().copied() else {
                 break;
             };
@@ -130,6 +131,17 @@ mod tests {
             playout.push(sequence, packet(sequence as u8));
         }
         assert_eq!(playout.next(), PlayoutFrame::Packet(packet(30)));
+    }
+
+    #[test]
+    fn retains_every_packet_at_the_inclusive_window_boundary() {
+        let mut playout = PacketPlayout::new();
+        for sequence in 10..=16 {
+            playout.push(sequence, packet(sequence as u8));
+        }
+        for sequence in 10..=16 {
+            assert_eq!(playout.next(), PlayoutFrame::Packet(packet(sequence as u8)));
+        }
     }
 
     #[test]
