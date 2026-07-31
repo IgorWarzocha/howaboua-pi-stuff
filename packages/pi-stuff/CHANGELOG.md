@@ -1,5 +1,16 @@
 # @howaboua/pi-stuff
 
+## 0.0.48
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-skill-codex-prompt-caching: Add a Codex prompt-caching skill covering GPT-5.6 caching, Codex request continuity, Pi hooks, compaction, dynamic tools, measurement, and extension review.
+
+- Updated dependencies [[`2023aa0`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/2023aa005da4d32f9af0b9bc161c9224d8c60486)]:
+  - @howaboua/pi-skill-codex-prompt-caching@0.0.1
+
 ## 0.0.47
 
 ### Changes
