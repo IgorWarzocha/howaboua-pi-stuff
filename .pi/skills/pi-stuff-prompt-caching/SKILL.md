@@ -1,9 +1,9 @@
 ---
-name: prompt-cache-awareness
-description: "Reviews and designs prompt-cache-aware Pi/OpenAI/Codex changes. Use when changing system prompts, tools, provider payloads, model/reasoning selection, Responses/WebSocket continuity, compaction, dynamic context, or cache metrics."
+name: pi-stuff-prompt-caching
+description: "Prompt-cache reviews for this monorepo. Use when changing pi-codex-conversion, Pi system/context hooks, tool surfaces, GPT-5.6 model/reasoning routes, WebSocket continuation, compaction, or cache metrics."
 ---
 
-# Prompt-cache awareness
+# Pi Stuff prompt caching
 
 ## Mental model
 

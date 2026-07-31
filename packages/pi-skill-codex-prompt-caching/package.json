@@ -1,7 +1,7 @@
 {
-	"name": "@howaboua/pi-skill-prompt-cache-awareness",
+	"name": "@howaboua/pi-skill-codex-prompt-caching",
 	"version": "0.0.0",
-	"description": "Pi skill for prompt-cache-aware agent and extension design.",
+	"description": "GPT-5.6, Codex and Pi prompt-caching skill.",
 	"type": "module",
 	"keywords": [
 		"pi-package",
@@ -28,9 +28,9 @@
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
-		"directory": "packages/pi-skill-prompt-cache-awareness"
+		"directory": "packages/pi-skill-codex-prompt-caching"
 	},
-	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-skill-prompt-cache-awareness#readme",
+	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-skill-codex-prompt-caching#readme",
 	"bugs": {
 		"url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
 	}

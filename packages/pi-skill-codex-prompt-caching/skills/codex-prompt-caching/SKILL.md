@@ -1,9 +1,9 @@
 ---
-name: prompt-cache-awareness
-description: "Reviews and designs prompt-cache-aware Pi/OpenAI/Codex changes. Use when changing system prompts, tools, provider payloads, model/reasoning selection, Responses/WebSocket continuity, compaction, dynamic context, or cache metrics."
+name: codex-prompt-caching
+description: "GPT-5.6/Codex/Pi prompt-cache design and review. Use when changing Pi system/context prompts, tool schemas/order, Responses payloads, cache keys/breakpoints, model/reasoning routes, WebSocket continuation, compaction, or cache metrics."
 ---
 
-# Prompt-cache awareness
+# Codex prompt caching
 
 ## Mental model
 
@@ -12,11 +12,11 @@ Keep these mechanisms separate:
 1. **Provider prompt cache** reuses model prefill for an exact provider-rendered token prefix. It reduces billed input and latency; it does not reuse an answer
 2. **Responses continuation** (`previous_response_id`) lets the server carry conversation state. Codex WebSocket delta requests use this when request properties and prior history still match
 3. **Transport prewarm** opens/seeds a connection for the expected next request. It helps only when prewarm and real request are equivalent
-4. **Pi cache prediction** estimates reuse from earlier usage. It neither queries nor changes provider cache state
+4. **Cache prediction UI** estimates reuse from earlier usage. It neither queries nor changes provider cache state
 
 A stable cache key cannot rescue a changed prefix. A cache read proves only that some eligible prefix matched, not that the whole request matched. Correct behavior outranks cache reuse.
 
-For current OpenAI rules, read [OpenAI contract](references/openai-contract.md). For Codex, Pi and this monorepo, read [Implementation map](references/codex-pi-map.md). Re-open the linked official docs before implementing API fields, retention or pricing: those contracts are model-versioned and mutable.
+For current OpenAI rules, read [OpenAI contract](references/openai-contract.md). For Codex and Pi construction, read [Codex and Pi](references/codex-pi.md). Re-open the linked official docs before implementing API fields, retention or pricing: those contracts are model-versioned and mutable.
 
 ## Trace the request actually sent
 
@@ -90,14 +90,14 @@ GPT-5.6 and later changed cache behavior and write pricing:
 - explicit breakpoints plus a shared key isolate stable prefixes; `prompt_cache_options.mode: "explicit"` disables the implicit breakpoint
 - capability-gate breakpoint/options fields for any other model
 
-Current `pi-codex-conversion` sends a session-derived key but no breakpoint/options fields. It therefore relies on backend implicit behavior. Do not promise reuse of its stable system/tool prefix on GPT-5.6; inspect usage. Adding explicit caching is provider integration work requiring Codex-backend verification, request-shape tests and cost measurement.
+The public Responses API supports explicit breakpoints; the ChatGPT-backed Codex endpoint may expose a different contract. Inspect the adapter's final payload and backend acceptance. Do not promise reuse of a stable system/tool prefix under implicit mode; inspect usage.
 
 ## Compaction rules
 
 - Pi's default summarization request is intentionally one-off: fresh routing session ID and disabled prompt-cache writes. Optimize the post-compaction main conversation, not the summary call
 - ordinary Pi compaction replaces old history with summary + kept messages; branch summaries also reshape the active prefix
 - OpenAI standalone `/responses/compact` output is the canonical next window: pass all returned items as-is
-- `pi-codex-conversion` native compaction stores/replays the encrypted checkpoint, filters display-only records, resets transport and prewarms the new window
+- custom compaction adapters must preserve canonical checkpoints/replay, filter display-only records, reset incompatible continuation state and prewarm the new window exactly
 - post-compaction prewarm establishes continuation for the new prefix; it does not make the old and new prefixes equivalent
 
 ## Validate with independent evidence
