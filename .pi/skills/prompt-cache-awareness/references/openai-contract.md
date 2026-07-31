@@ -6,11 +6,10 @@ Current as of **2026-07-31**. Recheck the official pages before implementation:
 - [Compaction](https://developers.openai.com/api/docs/guides/compaction)
 - [Data controls](https://developers.openai.com/api/docs/guides/your-data)
 - [Model catalog and pricing](https://developers.openai.com/api/docs/models)
-- [Historical 2024 launch post](https://openai.com/index/api-prompt-caching/)
 
 ## Core contract
 
-- Prompt caching is automatic for eligible recent models (`gpt-4o` and newer) when rendered prompt input is at least 1,024 tokens
+- Prompt caching is automatic for supported current models when rendered prompt input is at least 1,024 tokens
 - Hits require an exact prompt prefix. Put stable instructions/examples first and variable user data last
 - Messages, images/files, available tools and structured-output schemas can contribute to cached input
 - Images must retain identity/content and `detail`; tools must be identical between requests
@@ -19,8 +18,6 @@ Current as of **2026-07-31**. Recheck the official pages before implementation:
 - Caches are organization-scoped, not shared across organizations
 
 “Exact prefix” means the model's provider-rendered prompt token sequence, not JavaScript object identity or top-level JSON key order. Arrays, roles, text, images and tool declarations feed that rendered sequence. The public docs do not expose every provider rendering rule, so deterministic request construction plus measured usage is the practical oracle.
-
-The 2024 launch post documented cache lengths starting at 1,024 and increasing in 128-token increments. The current guide no longer states an increment. Treat 128 as historical, not a current invariant.
 
 ## Routing and `prompt_cache_key`
 
@@ -43,9 +40,9 @@ GPT-5.6 introduces breakpoint-based behavior:
 - Responses supports markers on `input_text`, `input_image` and `input_file`; Chat Completions supports `text`, `image_url`, `input_audio`, `file` and `refusal`
 - one request may create up to four writes; reads consider up to the latest 50 breakpoints. Longest matching breakpoint wins
 - markers require at least 1,024 rendered tokens before them to be cacheable
-- unsupported blocks or models return `400 invalid_request_error`; older models reject breakpoint/options fields
+- unsupported blocks or models return `400 invalid_request_error`; capability-gate these fields
 
-Cache writes on GPT-5.6+ cost 1.25× uncached input; reads use the model's discounted cached-input price. Earlier-model writes have no additional fee. Compare actual `cache_write_tokens` with later `cached_tokens`; do not assume caching is a net saving.
+Cache writes cost 1.25× uncached input; reads use the model's discounted cached-input price. Compare actual `cache_write_tokens` with later `cached_tokens`; do not assume caching is a net saving.
 
 ## Metrics and accounting
 
@@ -56,14 +53,7 @@ usage.input_tokens_details.cached_tokens
 usage.input_tokens_details.cache_write_tokens  # GPT-5.6+
 ```
 
-Chat Completions reports:
-
-```text
-usage.prompt_tokens_details.cached_tokens
-usage.prompt_tokens_details.cache_write_tokens  # GPT-5.6+
-```
-
-Raw `input_tokens`/`prompt_tokens` includes tokens read from and written to cache. Current Pi/OpenAI providers normalize this into:
+Chat Completions uses the corresponding fields under `usage.prompt_tokens_details` if that API is touched. Raw `input_tokens` includes tokens read from and written to cache. Current Pi/OpenAI providers normalize this into:
 
 ```text
 prompt = usage.input + usage.cacheRead + usage.cacheWrite
@@ -74,29 +64,14 @@ Record model snapshot/alias, provider/API, key, reasoning settings, request mode
 
 ## Retention and privacy
 
-### GPT-5.6+
-
 - `prompt_cache_options.ttl` sets a **minimum** lifetime, not storage policy or maximum retention
 - only `30m` is currently supported and is the default; OpenAI may retain a prefix longer
-
-### Earlier models
-
-- `prompt_cache_retention: "in_memory"` generally survives 5–10 minutes of inactivity, maximum one hour, in volatile GPU memory
-- supported models may use `24h` extended retention; current eligible models are listed in the guide
-- extended retention offloads key/value tensors to GPU-local storage, not original prompt text
-- `gpt-5.5` and `gpt-5.5-pro` accept only `24h`
-- for models supporting both policies, non-ZDR organizations default to `24h`; ZDR organizations default to `in_memory`
-
-Data controls add important context:
-
 - encrypted cache tensors are application state and are not retained beyond the documented 24-hour expiration
-- API data is not used for training unless the customer opts in
 - ordinary abuse-monitoring logs may contain customer content for up to 30 days; ZDR/MAM require approval
 - ZDR forces Responses `store: false`; current data-control docs say non-ZDR organizations use extended caching on supported models
-- on GPT-5.6+, `prompt_cache_options.ttl` still controls only minimum lifetime, not the underlying storage policy or 24-hour maximum
 - extended caching in regions without Regional Processing may temporarily process/store customer content outside the selected region
 
-Do not equate “prompt text is not persisted in extended cache storage” with “the API stores no customer content.” Cache, response state and abuse monitoring have separate controls.
+Cache, response state and abuse monitoring have separate controls. For a non-GPT-5.6 model, reopen the current retention table rather than carrying forward another model generation's policy.
 
 ## Responses state and compaction
 

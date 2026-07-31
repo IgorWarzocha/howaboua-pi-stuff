@@ -81,14 +81,14 @@ Compaction, branch summaries, tree navigation, retries that rebuild history, mod
 11. After compaction, preserve the returned/rebuilt window exactly according to its protocol. Do not mix manual pruning with `previous_response_id` chaining
 12. Do not add provider cache controls to the ChatGPT-backed Codex endpoint merely because the public OpenAI API documents them. Verify backend acceptance and Codex parity first
 
-## GPT-5.6 gate
+## Current GPT-5.6 contract
 
 GPT-5.6 and later changed cache behavior and write pricing:
 
 - implicit mode places a breakpoint at the latest user/tool message and does not fall back to an earlier unmarked common prefix
 - changing history inside that breakpoint can produce zero reads and repeated paid writes despite a long stable beginning
 - explicit breakpoints plus a shared key isolate stable prefixes; `prompt_cache_options.mode: "explicit"` disables the implicit breakpoint
-- older models reject the new breakpoint/options fields
+- capability-gate breakpoint/options fields for any other model
 
 Current `pi-codex-conversion` sends a session-derived key but no breakpoint/options fields. It therefore relies on backend implicit behavior. Do not promise reuse of its stable system/tool prefix on GPT-5.6; inspect usage. Adding explicit caching is provider integration work requiring Codex-backend verification, request-shape tests and cost measurement.
 
