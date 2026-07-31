@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.0.7
+
+### Changes
+
+- [#219](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/219) [`47bd29a`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/47bd29a9b89bb3e2a8d50d4a7b3d84e981d8a34c) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Render voice and dictation cards immediately without adding them to model context, carry conversation transcripts with actual delegations, preserve realtime audio cadence across coarse system timers, steer long Code Mode commands through exec/wait instead of session polling, and report repeated native compaction usage from the current checkpoint
+
 ## 3.0.6
 
 ### Changes
