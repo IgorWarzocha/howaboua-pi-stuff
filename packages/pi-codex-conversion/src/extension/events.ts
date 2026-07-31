@@ -3,6 +3,7 @@ import { readCodexConversionConfig } from "../adapter/activation/config-store.ts
 import { syncAdapter } from "../adapter/activation/activation.ts";
 import { isAdapterRuntime, resolveCodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
 import { isNativeCompactionDetails, NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, NATIVE_COMPACTION_DISPLAY_TEXT, NATIVE_COMPACTION_STRATEGY, type NativeCompactionUsage } from "../adapter/compaction/types.ts";
+import { findLatestCompactionEntry } from "../adapter/compaction/details-store.ts";
 import { handleCodexSessionBeforeCompact } from "../adapter/compaction/compaction.ts";
 import { rewriteCodexProviderRequest } from "../adapter/provider-request.ts";
 import { isAdapterContextExcludedCustomMessage } from "../adapter/prompt/context-filter.ts";
@@ -182,21 +183,22 @@ export function registerCodexEvents(
 		runtime.voice.resetContextAnnouncements();
 		state.pendingPiCompactionNativeWindow = undefined;
 		let nativeCompaction = false;
-		if (event.fromExtension && isNativeCompactionDetails(event.compactionEntry.details)) {
-			const details = event.compactionEntry.details;
+		const compactionEntry = findLatestCompactionEntry(ctx.sessionManager.getBranch());
+		if (event.fromExtension && compactionEntry && isNativeCompactionDetails(compactionEntry.details)) {
+			const details = compactionEntry.details;
 			nativeCompaction = true;
 			pi.sendMessage({
 				customType: NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE,
 				content: NATIVE_COMPACTION_DISPLAY_TEXT,
 				display: true,
-				details: { compactionEntryId: event.compactionEntry.id },
+				details: { compactionEntryId: compactionEntry.id },
 			}, { triggerTurn: false });
 			if (details.strategy === NATIVE_COMPACTION_STRATEGY && details.usage) {
 				pi.sendMessage({
 					customType: NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE,
 					content: formatCompactionUsage(details.usage),
 					display: true,
-					details: { compactionEntryId: event.compactionEntry.id, kind: "usage" },
+					details: { compactionEntryId: compactionEntry.id, kind: "usage" },
 				}, { triggerTurn: false });
 			}
 		}
