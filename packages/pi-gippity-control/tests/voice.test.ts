@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { WebSocket } from "ws";
 import { LanVoiceBrowserClients } from "../src/voice/lan/browser-clients.ts";
 import { LanBrowserRealtimePeer } from "../src/voice/lan/browser-peer.ts";
+import { decodeLanVoiceAudioCommand } from "../src/voice/lan/protocol.ts";
 import {
 	getPackagedCodexVoiceSystemPromptPath,
 	prepareCodexVoiceSystemPrompt,
@@ -53,6 +54,12 @@ describe("realtime prompt persistence", () => {
 });
 
 describe("LAN conversation setup", () => {
+	test("rejects non-string peer states", () => {
+		expect(() =>
+			decodeLanVoiceAudioCommand({ type: "peer_state", state: ["ready"] }),
+		).toThrow();
+	});
+
 	test("disconnect cancels the pending setup", async () => {
 		const setup = Promise.withResolvers<void>();
 		const started = Promise.withResolvers<LanBrowserRealtimePeer>();
@@ -114,6 +121,29 @@ describe("LAN conversation setup", () => {
 		});
 		expect(cancelled).toEqual([firstPeer]);
 		await secondStarted.promise;
+		await clients.close();
+	});
+
+	test("reports startup errors before terminal cleanup", async () => {
+		const clients = testBrowserClients({
+			async startConversation(peer) {
+				await peer.close();
+				throw new Error("authentication failed");
+			},
+			cancelConversationStart() {},
+		});
+		const socket = new TestWebSocket();
+		clients.connectAudio("first", socket.asWebSocket());
+		socket.receive({
+			type: "start",
+			mode: "conversation",
+			sdp: "offer",
+		});
+		await new Promise((resolve) => setImmediate(resolve));
+		expect(socket.sent.map((value) => JSON.parse(value))).toEqual([
+			{ type: "connected" },
+			{ type: "error", message: "authentication failed" },
+		]);
 		await clients.close();
 	});
 });

@@ -201,6 +201,7 @@ export class LanVoiceBrowserClients {
 					if (cancelled) return;
 					throw error;
 				}
+				peer.markActive();
 			} else await this.options.startDictation(clientId);
 			if (this.isClosed() || (peer && (this.state.type !== "starting" || this.state.peer !== peer)) || this.audioSockets.get(clientId) !== socket || socket.readyState !== WebSocket.OPEN) {
 				if (peer) {

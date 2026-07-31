@@ -39,7 +39,7 @@ export function decodeLanVoiceAudioCommand(value: unknown): LanVoiceAudioCommand
 		return { type: "mute", muted: value.muted };
 	}
 	if (value.type === "peer_state") {
-		if (!("state" in value) || !["connected", "disconnected", "failed", "closed", "ready"].includes(String(value.state))) throw invalidCommand();
+		if (!("state" in value) || typeof value.state !== "string" || !["connected", "disconnected", "failed", "closed", "ready"].includes(value.state)) throw invalidCommand();
 		return { type: "peer_state", state: value.state as "connected" | "disconnected" | "failed" | "closed" | "ready" };
 	}
 	if (value.type === "peer_data") {

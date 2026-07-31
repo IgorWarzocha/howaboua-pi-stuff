@@ -77,8 +77,9 @@ export function decodeLanVoiceAudioCommand(
 	if (value.type === "peer_state") {
 		if (
 			!("state" in value) ||
+			typeof value.state !== "string" ||
 			!["connected", "disconnected", "failed", "closed", "ready"].includes(
-				String(value.state),
+				value.state,
 			)
 		)
 			throw invalidCommand();

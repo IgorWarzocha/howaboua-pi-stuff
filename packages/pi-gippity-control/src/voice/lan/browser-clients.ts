@@ -347,6 +347,7 @@ export class LanVoiceBrowserClients {
 					if (cancelled) return;
 					throw error;
 				}
+				peer.markActive();
 			} else await this.options.startDictation(clientId);
 			if (
 				this.isClosed() ||

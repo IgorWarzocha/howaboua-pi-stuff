@@ -922,17 +922,23 @@ async function typeRefStr(cdp, sid, elementRefs, id, text) {
 async function loadAllStr(cdp, sid, selector, intervalMs = 1500) {
   if (!selector) throw new Error('CSS selector required');
   let clicks = 0;
+  let disappeared = false;
   const deadline = Date.now() + 5 * 60 * 1000; // 5-minute hard cap
   while (Date.now() < deadline) {
     const exists = await evalStr(cdp, sid,
       `!!document.querySelector(${JSON.stringify(selector)})`
     );
-    if (exists !== 'true') break;
+    if (exists !== 'true') {
+      disappeared = true;
+      break;
+    }
     await clickStr(cdp, sid, selector);
     clicks++;
     await sleep(intervalMs);
   }
-  return `Clicked "${selector}" ${clicks} time(s) until it disappeared`;
+  return disappeared
+    ? `Clicked "${selector}" ${clicks} time(s) until it disappeared`
+    : `Clicked "${selector}" ${clicks} time(s); stopped at the five-minute deadline while it was still present`;
 }
 
 // Send a raw CDP command and return the result as JSON

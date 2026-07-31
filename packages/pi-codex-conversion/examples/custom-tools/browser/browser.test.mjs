@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { basename } from "node:path";
 import test from "node:test";
 import {
 	browserHelp,
@@ -8,6 +9,7 @@ import {
 	planHostRoute,
 	pruneResultCache,
 	readCachedResult,
+	runProgram,
 } from "./browser.mjs";
 
 test("parser accepts web_run-style operation arrays and canonicalizes batches", () => {
@@ -73,6 +75,15 @@ test("requests map to structured CDP commands and element refs", async () => {
 	assert.deepEqual(
 		await cliInvocation({ action: "type", ref_id: "ABCDEF12", id: 3, text: "hello" }),
 		{ args: ["typeref", "ABCDEF12", "3", "hello"] },
+	);
+	const screenshot = await cliInvocation({ action: "screenshot", ref_id: "x/../../../escape" });
+	assert.match(basename(screenshot.file), /^browser-x__________e-[a-f0-9-]{36}\.png$/);
+});
+
+test("child output is bounded before result formatting", async () => {
+	await assert.rejects(
+		runProgram(process.execPath, ["-e", "process.stdout.write('x'.repeat(9 * 1024 * 1024))"]),
+		/output exceeded 8 MiB/,
 	);
 });
 

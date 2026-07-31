@@ -57,6 +57,7 @@ test("LAN audio command decoder rejects ambiguous browser input", () => {
 	});
 	assert.throws(() => decodeLanVoiceAudioCommand({ type: "start", mode: "conversation" }));
 	assert.throws(() => decodeLanVoiceAudioCommand({ type: "mute", muted: "yes" }));
+	assert.throws(() => decodeLanVoiceAudioCommand({ type: "peer_state", state: ["ready"] }));
 	assert.throws(() => decodeLanVoiceAudioCommand({ type: "finish", draft: "hello", revision: 2, selectionStart: 0, selectionEnd: 6 }));
 	assert.throws(() => decodeLanVoiceAudioCommand({ type: "surprise" }));
 });
@@ -124,6 +125,25 @@ test("LAN browser takeover cancels an in-progress conversation setup", async () 
 	second.receive({ type: "start", mode: "conversation", sdp: "second-offer" });
 	assert.deepEqual(cancelled, [firstPeer]);
 	await secondStarted.promise;
+	await clients.close();
+});
+
+test("LAN conversation startup reports its error before terminal cleanup", async () => {
+	const clients = testBrowserClients({
+		async startConversation(peer) {
+			await peer.close();
+			throw new Error("authentication failed");
+		},
+		cancelConversationStart() {},
+	});
+	const socket = new TestWebSocket();
+	clients.connectAudio("first", socket.asWebSocket());
+	socket.receive({ type: "start", mode: "conversation", sdp: "offer" });
+	await new Promise((resolve) => setImmediate(resolve));
+	assert.deepEqual(socket.sent.map((value) => JSON.parse(value)), [
+		{ type: "connected" },
+		{ type: "error", message: "authentication failed" },
+	]);
 	await clients.close();
 });
 

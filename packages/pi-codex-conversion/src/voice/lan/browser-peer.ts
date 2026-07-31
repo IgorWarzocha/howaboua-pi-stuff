@@ -13,6 +13,7 @@ export class LanBrowserRealtimePeer implements CodexRealtimeWebRtcPeer {
 	private readonly offerSdp: string;
 	private readonly sendControl: SendBrowserControl;
 	private readonly eventListeners = new Set<(event: CodexRealtimePeerEvent) => void>();
+	private active = false;
 	private closed = false;
 
 	constructor(offerSdp: string, sendControl: SendBrowserControl) {
@@ -46,6 +47,10 @@ export class LanBrowserRealtimePeer implements CodexRealtimeWebRtcPeer {
 		this.send({ type: "mute", muted });
 	}
 
+	markActive(): void {
+		if (!this.closed) this.active = true;
+	}
+
 	receive(event: LanBrowserPeerEvent): void {
 		if (this.closed) return;
 		const peerEvent: CodexRealtimePeerEvent = event.type === "peer_state"
@@ -59,7 +64,9 @@ export class LanBrowserRealtimePeer implements CodexRealtimeWebRtcPeer {
 	async close(): Promise<void> {
 		if (this.closed) return;
 		this.closed = true;
-		try { this.sendControl({ type: "stop", reason: "upstream-error" }); } catch {}
+		if (this.active) {
+			try { this.sendControl({ type: "stop", reason: "upstream-error" }); } catch {}
+		}
 		this.eventListeners.clear();
 	}
 

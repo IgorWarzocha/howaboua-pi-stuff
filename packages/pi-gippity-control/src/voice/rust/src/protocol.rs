@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-pub const PROTOCOL_VERSION: u8 = 4;
+pub const PROTOCOL_VERSION: u8 = 5;
 pub const MAX_SDP_BYTES: usize = 256 * 1024;
 pub const MAX_DATA_MESSAGE_BYTES: usize = 64 * 1024;
 pub const MAX_DEVICE_BYTES: usize = 512;
