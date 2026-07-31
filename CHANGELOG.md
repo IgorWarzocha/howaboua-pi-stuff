@@ -57,13 +57,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 3.0.5
+### @howaboua/pi-codex-conversion — 3.0.6
 
 ### Changes
 
-- [#212](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/212) [`a00d4ff`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/a00d4ffa416feec7b799138424a2456b2b9d474c) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Keep unfinished exec session polls bounded by host backoff, surface pending output, finalize exited processes despite retained handles, update the native PTY runner, preserve cross-platform paths in apply_patch results, refresh native image processing with safer validation, metadata-preserving re-encoding, and byte-bounded caching, route web_run search and navigation through Codex's native cached search endpoint, and validate imagegen edit inputs through Codex's current image pipeline.
-
-- [#212](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/212) [`a00d4ff`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/a00d4ffa416feec7b799138424a2456b2b9d474c) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Keep new Code Mode custom tools out of the prompt until the session restarts or compacts
+- [#216](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/216) [`981e04a`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/981e04a6660e36131c81eb2cbaef105fcb94e5b0) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Makes realtime voice more conversational and robust with the Codex voice model, host-owned LAN WebRTC with seamless device takeover, buffered browser audio, buffered native playback, packet reordering, and loss concealment. Keeps voice alive across Pi model changes and avoids unnecessary transport resets when saving settings. Ships prompt schemas as raw Markdown with agent-assisted migration instead of rewriting custom prompts. Preserves full native compaction input until session usage exceeds the endpoint budget. Limits Pi documentation lookup to unresolved Pi API or runtime dependencies, and keeps the custom-tool guide focused on creating and editing definitions rather than discovering or calling tools. Bundles a disabled browser custom-tool example with local CDP control, bounded child output, safe screenshot paths, accurate load-all deadlines, and opt-in SSH routing. Rejects incompatible voice helpers immediately and preserves LAN startup errors through terminal cleanup.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
@@ -83,26 +81,24 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.45
+### @howaboua/pi-extensions — 0.0.46
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-gippity-control: Add reconnect-safe realtime microphone mute controls and native input gating.
-  - @howaboua/pi-subagent-review: Replace the review subprocess transport with Pi's maintained RPC client, preserve failed-run diagnostics, prevent review-loop bookkeeping from creating empty summaries, and reissue guidance for each fresh review loop.
+  - @howaboua/pi-gippity-control: Makes realtime voice more conversational and robust with the Codex voice model, host-owned LAN WebRTC with seamless device takeover, buffered browser audio, buffered native playback, packet reordering, and loss concealment. Keeps voice alive across Pi model changes and avoids unnecessary transport resets when saving settings. Ships prompt schemas as raw Markdown with agent-assisted migration instead of rewriting custom prompts. Rejects incompatible voice helpers immediately and preserves LAN startup errors through terminal cleanup.
 
-- Updated dependencies [[`05f2da3`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/05f2da3e7b540d30eaada94c527b6ecbef80f736), [`05f2da3`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/05f2da3e7b540d30eaada94c527b6ecbef80f736)]:
-  - @howaboua/pi-subagent-review@0.2.14
-  - @howaboua/pi-gippity-control@0.0.3
+- Updated dependencies [[`981e04a`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/981e04a6660e36131c81eb2cbaef105fcb94e5b0)]:
+  - @howaboua/pi-gippity-control@0.0.4
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
-### @howaboua/pi-gippity-control — 0.0.3
+### @howaboua/pi-gippity-control — 0.0.4
 
 ### Changes
 
-- [#198](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/198) [`05f2da3`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/05f2da3e7b540d30eaada94c527b6ecbef80f736) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add reconnect-safe realtime microphone mute controls and native input gating
+- [#216](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/216) [`981e04a`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/981e04a6660e36131c81eb2cbaef105fcb94e5b0) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Makes realtime voice more conversational and robust with the Codex voice model, host-owned LAN WebRTC with seamless device takeover, buffered browser audio, buffered native playback, packet reordering, and loss concealment. Keeps voice alive across Pi model changes and avoids unnecessary transport resets when saving settings. Ships prompt schemas as raw Markdown with agent-assisted migration instead of rewriting custom prompts. Rejects incompatible voice helpers immediately and preserves LAN startup errors through terminal cleanup.
 
 [Full changelog](./packages/pi-gippity-control/CHANGELOG.md)
 
@@ -247,16 +243,16 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.48
+### @howaboua/pi-stuff — 0.0.49
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-skill-codex-prompt-caching: Add a Codex prompt-caching skill covering GPT-5.6 caching, Codex request continuity, Pi hooks, compaction, dynamic tools, measurement, and extension review.
+  - @howaboua/pi-gippity-control: Makes realtime voice more conversational and robust with the Codex voice model, host-owned LAN WebRTC with seamless device takeover, buffered browser audio, buffered native playback, packet reordering, and loss concealment. Keeps voice alive across Pi model changes and avoids unnecessary transport resets when saving settings. Ships prompt schemas as raw Markdown with agent-assisted migration instead of rewriting custom prompts. Rejects incompatible voice helpers immediately and preserves LAN startup errors through terminal cleanup.
 
-- Updated dependencies [[`2023aa0`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/2023aa005da4d32f9af0b9bc161c9224d8c60486)]:
-  - @howaboua/pi-skill-codex-prompt-caching@0.0.1
+- Updated dependencies [[`981e04a`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/981e04a6660e36131c81eb2cbaef105fcb94e5b0)]:
+  - @howaboua/pi-gippity-control@0.0.4
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 
