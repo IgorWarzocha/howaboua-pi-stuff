@@ -143,6 +143,14 @@ export class CodexVoiceSessionMessages {
 		const contextMessages = messages.filter(
 			(message) => !isLegacyVoiceDisplayMessage(message),
 		);
+		this.boundDelegations = this.boundDelegations.filter((delegation) =>
+			contextMessages.some(
+				(message) =>
+					message.role === "user" &&
+					message.timestamp === delegation.timestamp &&
+					userMessageText(message.content) === delegation.input,
+			),
+		);
 		if (this.boundDelegations.length === 0) return contextMessages;
 		return contextMessages.map((message) => {
 			if (message.role !== "user") return message;
@@ -184,6 +192,7 @@ export class CodexVoiceSessionMessages {
 
 	agentSettled(): void {
 		this.piTurnActive = false;
+		this.pendingDelegations = [];
 	}
 
 	private appendMode(mode: CodexVoiceMode, state: CodexVoiceModeState): void {
