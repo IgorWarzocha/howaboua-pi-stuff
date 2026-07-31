@@ -5,19 +5,19 @@ import {
 	renderRealtimeDelegation,
 } from "./prompts.ts";
 
-const REALTIME_VOICE_MESSAGE_TYPE = "gippity-realtime-voice";
-const CODEX_VOICE_MODE_MESSAGE_TYPE = "gippity-voice-mode";
+export const REALTIME_VOICE_MESSAGE_TYPE = "gippity-realtime-voice";
+export const CODEX_VOICE_MODE_MESSAGE_TYPE = "gippity-voice-mode";
 const CODEX_VOICE_SETUP_MESSAGE_TYPE = "gippity-voice-setup";
 
 export type CodexVoiceMode = "realtime" | "dictation";
 export type CodexVoiceModeState = "started" | "ended";
 
-interface RealtimeVoiceMessageDetails {
+export interface RealtimeVoiceMessageDetails {
 	input: string;
 	route: "conversation" | "delegation";
 }
 
-interface CodexVoiceModeMessageDetails {
+export interface CodexVoiceModeMessageDetails {
 	mode: CodexVoiceMode;
 	state: CodexVoiceModeState;
 }
@@ -65,26 +65,19 @@ export function codexVoiceSetupMessage(instructions: string) {
 export function registerCodexVoiceRenderer(pi: ExtensionAPI): void {
 	pi.registerMessageRenderer<RealtimeVoiceMessageDetails>(
 		REALTIME_VOICE_MESSAGE_TYPE,
-		(message, _options, theme) => {
-			const input =
-				typeof message.details?.input === "string"
-					? message.details.input
-					: "Voice request";
-			return voiceBox(theme, "Realtime Voice", input);
-		},
+		(message, _options, theme) => voiceTurnBox(message.details, theme),
+	);
+	pi.registerEntryRenderer<RealtimeVoiceMessageDetails>(
+		REALTIME_VOICE_MESSAGE_TYPE,
+		(entry, _options, theme) => voiceTurnBox(entry.data, theme),
 	);
 	pi.registerMessageRenderer<CodexVoiceModeMessageDetails>(
 		CODEX_VOICE_MODE_MESSAGE_TYPE,
-		(message, _options, theme) => {
-			const mode =
-				message.details?.mode === "dictation" ? "dictation" : "realtime";
-			const state = message.details?.state === "ended" ? "ended" : "started";
-			return voiceBox(
-				theme,
-				mode === "dictation" ? "Dictation" : "Realtime Voice",
-				modeStateDisplay(mode, state),
-			);
-		},
+		(message, _options, theme) => voiceModeBox(message.details, theme),
+	);
+	pi.registerEntryRenderer<CodexVoiceModeMessageDetails>(
+		CODEX_VOICE_MODE_MESSAGE_TYPE,
+		(entry, _options, theme) => voiceModeBox(entry.data, theme),
 	);
 	pi.registerMessageRenderer<CodexVoiceSetupMessageDetails>(
 		CODEX_VOICE_SETUP_MESSAGE_TYPE,
@@ -97,6 +90,28 @@ export function registerCodexVoiceRenderer(pi: ExtensionAPI): void {
 						: "GipPity audio setup is required.";
 			return voiceBox(theme, "GipPity Setup", instructions);
 		},
+	);
+}
+
+function voiceTurnBox(
+	details: RealtimeVoiceMessageDetails | undefined,
+	theme: Theme,
+): Box {
+	const input =
+		typeof details?.input === "string" ? details.input : "Voice request";
+	return voiceBox(theme, "Realtime Voice", input);
+}
+
+function voiceModeBox(
+	details: CodexVoiceModeMessageDetails | undefined,
+	theme: Theme,
+): Box {
+	const mode = details?.mode === "dictation" ? "dictation" : "realtime";
+	const state = details?.state === "ended" ? "ended" : "started";
+	return voiceBox(
+		theme,
+		mode === "dictation" ? "Dictation" : "Realtime Voice",
+		modeStateDisplay(mode, state),
 	);
 }
 

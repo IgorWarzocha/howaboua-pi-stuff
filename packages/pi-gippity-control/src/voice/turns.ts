@@ -1,10 +1,39 @@
 export interface RealtimeVoiceTurn {
 	input: string;
 	delegationId?: string;
+	transcriptDelta?: string;
+}
+
+const MAX_TRANSCRIPT_DELTA_BYTES = 32 * 1024;
+
+class RealtimeTranscriptBuffer {
+	private lines: string[] = [];
+
+	append(role: "user" | "assistant", transcript: string): void {
+		const line = `${role}: ${transcript.trim()}`;
+		if (Buffer.byteLength(line) > MAX_TRANSCRIPT_DELTA_BYTES) return;
+		this.lines.push(line);
+		while (
+			Buffer.byteLength(this.lines.join("\n")) > MAX_TRANSCRIPT_DELTA_BYTES
+		)
+			this.lines.shift();
+	}
+
+	take(): string | undefined {
+		if (this.lines.length === 0) return undefined;
+		const transcript = this.lines.join("\n");
+		this.lines = [];
+		return transcript;
+	}
+
+	reset(): void {
+		this.lines = [];
+	}
 }
 
 /** Correlates final user transcripts with the route V3 chose for each turn. */
 export class RealtimeVoiceTurnTracker {
+	private readonly transcript = new RealtimeTranscriptBuffer();
 	private pendingUserInputs: string[] = [];
 	private delegationsAwaitingTranscript = 0;
 	private readonly delegationIds = new Set<string>();
@@ -12,6 +41,7 @@ export class RealtimeVoiceTurnTracker {
 	private readonly outstandingInputs = new Set<string>();
 
 	userFinished(input: string): void {
+		this.transcript.append("user", input);
 		if (this.delegationsAwaitingTranscript > 0) {
 			this.delegationsAwaitingTranscript--;
 			return;
@@ -32,7 +62,12 @@ export class RealtimeVoiceTurnTracker {
 		this.outstandingInputs.add(input);
 		if (this.pendingUserInputs.length > 0) this.pendingUserInputs.shift();
 		else this.delegationsAwaitingTranscript++;
-		return { input, delegationId };
+		const transcriptDelta = this.transcript.take();
+		return {
+			input,
+			delegationId,
+			...(transcriptDelta ? { transcriptDelta } : {}),
+		};
 	}
 
 	delegationSettled(delegationId: string): void {
@@ -42,12 +77,24 @@ export class RealtimeVoiceTurnTracker {
 		this.outstandingInputs.delete(input);
 	}
 
-	assistantFinished(): RealtimeVoiceTurn | undefined {
+	assistantFinished(output?: string): RealtimeVoiceTurn | undefined {
+		if (output) this.transcript.append("assistant", output);
 		const input = this.pendingUserInputs.shift();
 		return input === undefined ? undefined : { input };
 	}
 
+	takeTranscriptTail(): string | undefined {
+		return this.transcript.take();
+	}
+
+	drainConversationTurns(): RealtimeVoiceTurn[] {
+		const turns = this.pendingUserInputs.map((input) => ({ input }));
+		this.pendingUserInputs = [];
+		return turns;
+	}
+
 	reset(): void {
+		this.transcript.reset();
 		this.pendingUserInputs = [];
 		this.delegationsAwaitingTranscript = 0;
 		this.delegationIds.clear();

@@ -5,12 +5,14 @@ import { request as httpsRequest, type RequestOptions } from "node:https";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { WebSocket } from "ws";
 import { BoundedJsonlReader, parseVoiceHelperEvent } from "../src/voice/helper.ts";
 import { LanVoiceDraft, LanVoiceDraftConflictError } from "../src/voice/lan/draft.ts";
 import { LanVoiceBrowserClients } from "../src/voice/lan/browser-clients.ts";
 import { decodeLanVoiceAudioCommand } from "../src/voice/lan/protocol.ts";
 import { startCodexLanVoiceServer } from "../src/voice/lan/server.ts";
+import { CodexVoiceSessionMessages } from "../src/voice/session-messages.ts";
 import {
 	getPackagedCodexVoiceSystemPromptPath,
 	prepareCodexVoiceSystemPrompt,
@@ -150,6 +152,88 @@ test("voice delegation suppresses backend retries without blocking a later repea
 	turns.delegationSettled("first");
 	assert.deepEqual(turns.delegated("check the load", "intentional-repeat"), { input: "check the load", delegationId: "intentional-repeat" });
 });
+
+test("voice delegations carry conversation since the previous handoff", () => {
+	const turns = new RealtimeVoiceTurnTracker();
+	turns.userFinished("terms of the laptop");
+	assert.deepEqual(turns.assistantFinished("Do you mean temperatures?"), { input: "terms of the laptop" });
+	turns.userFinished("yes, temperatures");
+	assert.deepEqual(turns.delegated("check the laptop and server", "delegation-1"), {
+		input: "check the laptop and server",
+		delegationId: "delegation-1",
+		transcriptDelta: "user: terms of the laptop\nassistant: Do you mean temperatures?\nuser: yes, temperatures",
+	});
+});
+
+test("voice presentation entries never enter Pi model queues", () => {
+	const entries: Array<{ customType: string; data: unknown }> = [];
+	const modelMessages: unknown[] = [];
+	const messages = new CodexVoiceSessionMessages({
+		appendEntry(customType: string, data: unknown) { entries.push({ customType, data }); },
+		sendMessage(message: unknown, options: unknown) { modelMessages.push({ message, options }); },
+		sendUserMessage(message: unknown, options: unknown) { modelMessages.push({ message, options }); },
+	} as unknown as ExtensionAPI, voiceMessageCallbacks());
+	messages.setContext({ isIdle: () => false } as never);
+	messages.modeStarted("dictation");
+	messages.voiceTurn({ input: "thanks" });
+
+	assert.deepEqual(entries, [
+		{ customType: "codex-voice-mode", data: { mode: "dictation", state: "started" } },
+		{ customType: "codex-realtime-voice", data: { input: "thanks", route: "conversation" } },
+	]);
+	assert.deepEqual(modelMessages, []);
+});
+
+test("an active voice delegation is the sole Pi steer and carries transcript context", () => {
+	const userMessages: Array<{ input: unknown; options: unknown }> = [];
+	const messages = new CodexVoiceSessionMessages({
+		appendEntry() {},
+		sendUserMessage(input: unknown, options: unknown) { userMessages.push({ input, options }); },
+	} as unknown as ExtensionAPI, voiceMessageCallbacks());
+	messages.setContext({ isIdle: () => false } as never);
+	messages.voiceTurn({
+		input: "do the same for the server",
+		delegationId: "delegation-1",
+		transcriptDelta: "user: temperatures, not terms\nassistant: checking the temperatures",
+	});
+	assert.deepEqual(userMessages, [{ input: "do the same for the server", options: { deliverAs: "steer" } }]);
+
+	const visibleUserMessage = {
+		role: "user" as const,
+		content: [{ type: "text" as const, text: "do the same for the server" }],
+		timestamp: 42,
+	};
+	messages.bindDelegatedUserMessage(visibleUserMessage);
+	const providerMessages = messages.applyDelegationContext([{
+		role: "custom",
+		customType: "codex-realtime-voice",
+		content: "legacy display card",
+		display: true,
+		details: {},
+		timestamp: 41,
+	}, visibleUserMessage]);
+	assert.equal(providerMessages.length, 1);
+	const [providerMessage] = providerMessages;
+	assert.equal(visibleUserMessage.content[0]?.text, "do the same for the server");
+	assert.equal(providerMessage?.role, "user");
+	const providerText = providerMessage && Array.isArray(providerMessage.content)
+		? providerMessage.content.find((part) => part.type === "text")?.text
+		: undefined;
+	assert.equal(providerText, `<realtime_delegation>
+  <input>do the same for the server</input>
+  <transcript_delta>user: temperatures, not terms
+assistant: checking the temperatures</transcript_delta>
+  <routing>realtime voice is active; input may contain recognition errors; keep spoken updates concise</routing>
+</realtime_delegation>`);
+});
+
+function voiceMessageCallbacks() {
+	return {
+		canDelegate: () => true,
+		onDelegation: () => {},
+		onWorking: () => {},
+	};
+}
 
 test("voice prompt preparation copies the packaged template on first use", async () => {
 	const directory = await mkdtemp(join(tmpdir(), "pi-voice-prompt-"));

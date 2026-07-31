@@ -17,6 +17,7 @@ export interface CodexConversationCallbacks {
 	onError(error: Error): void;
 	onStatus(status: string): void;
 	onTurn(turn: RealtimeVoiceTurn): void;
+	onTranscriptTail(transcriptDelta: string): void;
 }
 
 type RealtimeCallResult = { status: number; answer: string };
@@ -144,6 +145,9 @@ export class CodexRealtimeConversation {
 		this.state = "closed";
 		this.abortSetup();
 		this.clearHandoff();
+		for (const turn of this.turnTracker.drainConversationTurns()) this.callbacks.onTurn(turn);
+		const transcriptTail = this.turnTracker.takeTranscriptTail();
+		if (transcriptTail) this.callbacks.onTranscriptTail(transcriptTail);
 		this.turnTracker.reset();
 		this.activeDelegationId = undefined;
 		this.inputMuted = false;
@@ -204,7 +208,9 @@ export class CodexRealtimeConversation {
 			return;
 		}
 		if (record["role"] !== "assistant") return;
-		const completed = this.turnTracker.assistantFinished();
+		const output = boundedTranscript(record["transcript"]);
+		if (output === "oversized") { this.fail(new Error("Codex voice transcript was oversized")); return; }
+		const completed = this.turnTracker.assistantFinished(output || undefined);
 		this.callbacks.onStatus("listening");
 		if (completed) this.callbacks.onTurn(completed);
 	}

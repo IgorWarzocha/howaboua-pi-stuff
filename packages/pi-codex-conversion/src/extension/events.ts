@@ -63,6 +63,7 @@ export function registerCodexEvents(
 	pi.on("session_start", async (event, ctx) => {
 		await runtime.lanVoice.stop(ctx);
 		runtime.voice.resetContextAnnouncements();
+		runtime.voice.resetSessionContext();
 		initializeBashParser();
 		runtime.resetTransport();
 		runtime.backgroundWidget.ctx = ctx;
@@ -108,6 +109,7 @@ export function registerCodexEvents(
 	});
 
 	pi.on("message_start", async (event) => {
+		runtime.voice.bindDelegatedUserMessage(event.message);
 		if (event.message.role !== "toolResult" && !isToolCallOnlyAssistantMessage(event.message)) tracker.resetExplorationGroup();
 	});
 	pi.on("message_end", async (event) => {
@@ -209,8 +211,9 @@ export function registerCodexEvents(
 			: runtime.startPrewarm(ctx, postCompactionPrompt, true));
 	});
 	pi.on("context", async (event) => {
-		if (state.config.voiceFeaturesOnly) return undefined;
-		const messages = event.messages.filter((message) => !isAdapterContextExcludedCustomMessage(message));
+		const voiceMessages = runtime.voice.applyDelegationContext(event.messages);
+		if (state.config.voiceFeaturesOnly) return { messages: voiceMessages };
+		const messages = voiceMessages.filter((message) => !isAdapterContextExcludedCustomMessage(message));
 		return { messages };
 	});
 }
