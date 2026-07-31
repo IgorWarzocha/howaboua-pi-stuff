@@ -320,6 +320,7 @@ function buildHeavyCodexSystemPrompt(
 	return prompt.replace(/\n{3,}/g, "\n\n").trim();
 }
 
+// Sole owner of Pi-Codex core system-prompt construction; see this directory's AGENTS.md.
 export function buildCodexSystemPrompt(
 	basePrompt: string,
 	options: {
