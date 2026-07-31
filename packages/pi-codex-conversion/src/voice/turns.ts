@@ -30,18 +30,23 @@ class RealtimeTranscriptBuffer {
 export class RealtimeVoiceTurnTracker {
 	private readonly transcript = new RealtimeTranscriptBuffer();
 	private pendingUserInputs: string[] = [];
-	private delegationsAwaitingTranscript = 0;
+	private delegationsAwaitingTranscript: Array<{ input: string; delegationId: string }> = [];
 	private readonly delegationIds = new Set<string>();
 	private readonly outstandingDelegations = new Map<string, string>();
 	private readonly outstandingInputs = new Set<string>();
 
-	userFinished(input: string): void {
+	userFinished(input: string): RealtimeVoiceTurn | undefined {
 		this.transcript.append("user", input);
-		if (this.delegationsAwaitingTranscript > 0) {
-			this.delegationsAwaitingTranscript--;
-			return;
+		const delegation = this.delegationsAwaitingTranscript.shift();
+		if (delegation) {
+			const transcriptDelta = this.transcript.take();
+			return {
+				...delegation,
+				...(transcriptDelta ? { transcriptDelta } : {}),
+			};
 		}
 		this.pendingUserInputs.push(input);
+		return undefined;
 	}
 
 	delegated(input: string, delegationId: string): RealtimeVoiceTurn | undefined {
@@ -52,7 +57,10 @@ export class RealtimeVoiceTurnTracker {
 		this.outstandingDelegations.set(delegationId, input);
 		this.outstandingInputs.add(input);
 		if (this.pendingUserInputs.length > 0) this.pendingUserInputs.shift();
-		else this.delegationsAwaitingTranscript++;
+		else {
+			this.delegationsAwaitingTranscript.push({ input, delegationId });
+			return undefined;
+		}
 		const transcriptDelta = this.transcript.take();
 		return { input, delegationId, ...(transcriptDelta ? { transcriptDelta } : {}) };
 	}
@@ -81,7 +89,7 @@ export class RealtimeVoiceTurnTracker {
 	reset(): void {
 		this.transcript.reset();
 		this.pendingUserInputs = [];
-		this.delegationsAwaitingTranscript = 0;
+		this.delegationsAwaitingTranscript = [];
 		this.delegationIds.clear();
 		this.outstandingDelegations.clear();
 		this.outstandingInputs.clear();

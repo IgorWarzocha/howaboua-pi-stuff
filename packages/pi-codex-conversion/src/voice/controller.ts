@@ -1,4 +1,4 @@
-import type { ContextEvent, ExtensionAPI, ExtensionContext, MessageStartEvent } from "@earendil-works/pi-coding-agent";
+import type { ContextEvent, ExtensionAPI, ExtensionContext, InputEvent, MessageStartEvent } from "@earendil-works/pi-coding-agent";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import { resolveCodexVoiceAuth } from "./auth.ts";
 import { CANCELLED, interruptible } from "./cancellation.ts";
@@ -103,7 +103,7 @@ export class CodexVoiceController {
 		if (session.microphoneMuted) this.setInputMuted(false);
 		if (this.announcedMode !== "realtime") return;
 		this.announcedMode = undefined;
-		this.messages.voiceStopped("realtime");
+		this.messages.conversationInputStopped();
 	}
 
 	private async startMode(ctx: ExtensionContext, config: CodexConversionConfig, mode: CodexVoiceMode, peer?: CodexRealtimePeer, signal?: AbortSignal): Promise<CodexRealtimeConversation | undefined> {
@@ -202,6 +202,7 @@ export class CodexVoiceController {
 	}
 
 	bindDelegatedUserMessage(message: MessageStartEvent["message"]): void { this.messages.bindDelegatedUserMessage(message); }
+	acceptDelegatedInput(event: InputEvent): void { this.messages.acceptDelegatedInput(event); }
 
 	applyDelegationContext(messages: ContextEvent["messages"]): ContextEvent["messages"] { return this.messages.applyDelegationContext(messages); }
 
@@ -264,7 +265,7 @@ export class CodexVoiceController {
 		session = new CodexDictationSession({
 			onError: (error) => this.failSession(session, error),
 			onStatus: (status) => this.renderStatus(status),
-			onTranscript: (transcript) => { this.messages.prepareDictationTurn(); this.context?.ui.pasteToEditor(transcript); },
+			onTranscript: (transcript) => { this.context?.ui.pasteToEditor(transcript); },
 		});
 		this.state = { type: "connecting", mode: "dictation", phase: "starting", session };
 		await session.start(auth, config);

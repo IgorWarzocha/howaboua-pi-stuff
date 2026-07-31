@@ -2,6 +2,7 @@ import type {
 	ContextEvent,
 	ExtensionAPI,
 	ExtensionContext,
+	InputEvent,
 	MessageStartEvent,
 } from "@earendil-works/pi-coding-agent";
 import type { GippityControlConfig } from "../config.ts";
@@ -166,7 +167,7 @@ export class CodexVoiceController {
 		if (session.microphoneMuted) this.setInputMuted(false);
 		if (this.announcedMode !== "realtime") return;
 		this.announcedMode = undefined;
-		this.messages.voiceStopped("realtime");
+		this.messages.conversationInputStopped();
 	}
 
 	private async startMode(
@@ -309,6 +310,10 @@ export class CodexVoiceController {
 		this.messages.bindDelegatedUserMessage(message);
 	}
 
+	acceptDelegatedInput(event: InputEvent): void {
+		this.messages.acceptDelegatedInput(event);
+	}
+
 	applyDelegationContext(
 		messages: ContextEvent["messages"],
 	): ContextEvent["messages"] {
@@ -420,7 +425,6 @@ export class CodexVoiceController {
 			onError: (error) => this.failSession(session, error),
 			onStatus: (status) => this.renderStatus(status),
 			onTranscript: (transcript) => {
-				this.messages.prepareDictationTurn();
 				this.context?.ui.pasteToEditor(transcript);
 			},
 		});

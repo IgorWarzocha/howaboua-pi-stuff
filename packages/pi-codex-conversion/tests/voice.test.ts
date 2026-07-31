@@ -147,10 +147,20 @@ test("voice helper JSONL parser bounds unterminated frames", () => {
 
 test("voice delegation suppresses backend retries without blocking a later repeat", () => {
 	const turns = new RealtimeVoiceTurnTracker();
-	assert.deepEqual(turns.delegated("check the load", "first"), { input: "check the load", delegationId: "first" });
+	assert.equal(turns.delegated("check the load", "first"), undefined);
 	assert.equal(turns.delegated("check the load", "retry-before-settle"), undefined);
+	assert.deepEqual(turns.userFinished("check the load"), {
+		input: "check the load",
+		delegationId: "first",
+		transcriptDelta: "user: check the load",
+	});
 	turns.delegationSettled("first");
-	assert.deepEqual(turns.delegated("check the load", "intentional-repeat"), { input: "check the load", delegationId: "intentional-repeat" });
+	assert.equal(turns.delegated("check the load", "intentional-repeat"), undefined);
+	assert.deepEqual(turns.userFinished("check the load"), {
+		input: "check the load",
+		delegationId: "intentional-repeat",
+		transcriptDelta: "user: check the load",
+	});
 });
 
 test("voice delegations carry conversation since the previous handoff", () => {
@@ -162,6 +172,14 @@ test("voice delegations carry conversation since the previous handoff", () => {
 		input: "check the laptop and server",
 		delegationId: "delegation-1",
 		transcriptDelta: "user: terms of the laptop\nassistant: Do you mean temperatures?\nuser: yes, temperatures",
+	});
+
+	const delegationFirst = new RealtimeVoiceTurnTracker();
+	assert.equal(delegationFirst.delegated("check the laptop", "delegation-2"), undefined);
+	assert.deepEqual(delegationFirst.userFinished("yes, check the laptop"), {
+		input: "check the laptop",
+		delegationId: "delegation-2",
+		transcriptDelta: "user: yes, check the laptop",
 	});
 });
 
@@ -191,18 +209,32 @@ test("an active voice delegation is the sole Pi steer and carries transcript con
 		sendUserMessage(input: unknown, options: unknown) { userMessages.push({ input, options }); },
 	} as unknown as ExtensionAPI, voiceMessageCallbacks());
 	messages.setContext({ isIdle: () => false } as never);
+	messages.conversationInputStopped();
+	messages.modeStarted("realtime");
 	messages.voiceTurn({
 		input: "do the same for the server",
 		delegationId: "delegation-1",
 		transcriptDelta: "user: temperatures, not terms\nassistant: checking the temperatures",
 	});
 	assert.deepEqual(userMessages, [{ input: "do the same for the server", options: { deliverAs: "steer" } }]);
+	messages.acceptDelegatedInput({
+		type: "input",
+		text: "do the same for the server",
+		source: "extension",
+		streamingBehavior: "steer",
+	} as never);
 
-	const visibleUserMessage = {
+	const earlierIdenticalMessage = {
 		role: "user" as const,
 		content: [{ type: "text" as const, text: "do the same for the server" }],
-		timestamp: 42,
+		timestamp: 0,
 	};
+	const visibleUserMessage = {
+		...earlierIdenticalMessage,
+		content: [...earlierIdenticalMessage.content],
+		timestamp: Date.now() + 1_000,
+	};
+	messages.bindDelegatedUserMessage(earlierIdenticalMessage);
 	messages.bindDelegatedUserMessage(visibleUserMessage);
 	const providerMessages = messages.applyDelegationContext([{
 		role: "custom",
@@ -210,10 +242,15 @@ test("an active voice delegation is the sole Pi steer and carries transcript con
 		content: "legacy display card",
 		display: true,
 		details: {},
-		timestamp: 41,
-	}, visibleUserMessage]);
-	assert.equal(providerMessages.length, 1);
-	const [providerMessage] = providerMessages;
+		timestamp: 1,
+	}, earlierIdenticalMessage, visibleUserMessage]);
+	assert.equal(providerMessages.length, 2);
+	const [earlierProviderMessage, providerMessage] = providerMessages;
+	assert.equal(earlierProviderMessage?.role, "user");
+	const earlierProviderText = earlierProviderMessage && Array.isArray(earlierProviderMessage.content)
+		? earlierProviderMessage.content.find((part) => part.type === "text")?.text
+		: undefined;
+	assert.equal(earlierProviderText, "do the same for the server");
 	assert.equal(visibleUserMessage.content[0]?.text, "do the same for the server");
 	assert.equal(providerMessage?.role, "user");
 	const providerText = providerMessage && Array.isArray(providerMessage.content)

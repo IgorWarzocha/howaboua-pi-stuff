@@ -2,6 +2,7 @@ import type {
 	ContextEvent,
 	ExtensionAPI,
 	ExtensionContext,
+	InputEvent,
 	MessageStartEvent,
 } from "@earendil-works/pi-coding-agent";
 import {
@@ -23,12 +24,15 @@ interface PendingDelegationContext {
 	transcriptDelta?: string;
 }
 
+interface AcceptedDelegationContext extends PendingDelegationContext {
+	acceptedAt: number;
+}
+
 interface BoundDelegationContext extends PendingDelegationContext {
 	timestamp: number;
 }
 
 const REALTIME_VOICE_TAIL_CONTEXT_TYPE = "gippity-realtime-voice-tail";
-const DICTATION_TURN_CONTEXT_TYPE = "gippity-dictation-turn";
 
 export interface CodexVoiceSessionMessageCallbacks {
 	canDelegate(): boolean;
@@ -44,6 +48,7 @@ export class CodexVoiceSessionMessages {
 	private backendTurnPending = false;
 	private dictationAnnounced = false;
 	private pendingDelegations: PendingDelegationContext[] = [];
+	private acceptedDelegations: AcceptedDelegationContext[] = [];
 	private boundDelegations: BoundDelegationContext[] = [];
 
 	constructor(pi: ExtensionAPI, callbacks: CodexVoiceSessionMessageCallbacks) {
@@ -73,13 +78,20 @@ export class CodexVoiceSessionMessages {
 		this.piTurnActive = false;
 		this.backendTurnPending = false;
 		this.pendingDelegations = [];
+		this.acceptedDelegations = [];
 		this.boundDelegations = [];
+	}
+
+	conversationInputStopped(): void {
+		this.appendMode("realtime", "ended");
 	}
 
 	voiceStopped(mode?: CodexVoiceMode): void {
 		this.backendTurnPending = false;
 		this.piTurnActive = this.context ? !this.context.isIdle() : false;
 		if (mode && mode !== "dictation") this.appendMode(mode, "ended");
+		this.pendingDelegations = [];
+		this.acceptedDelegations = [];
 		this.context = undefined;
 	}
 
@@ -111,28 +123,28 @@ export class CodexVoiceSessionMessages {
 		);
 	}
 
-	prepareDictationTurn(): void {
-		this.pi.sendMessage(
-			{
-				customType: DICTATION_TURN_CONTEXT_TYPE,
-				content:
-					"<codex_dictation>Next user prompt was dictated and may contain recognition errors or missing punctuation.</codex_dictation>",
-				display: false,
-				details: {},
-			},
-			{ triggerTurn: false, deliverAs: "nextTurn" },
+	acceptDelegatedInput(event: InputEvent): void {
+		if (event.source !== "extension") return;
+		const pendingIndex = this.pendingDelegations.findIndex(
+			(delegation) => delegation.input === event.text,
 		);
+		if (pendingIndex === -1) return;
+		const [delegation] = this.pendingDelegations.splice(pendingIndex, 1);
+		if (!delegation) return;
+		this.acceptedDelegations.push({ ...delegation, acceptedAt: Date.now() });
 	}
 
 	bindDelegatedUserMessage(message: MessageStartEvent["message"]): void {
 		if (message.role !== "user") return;
 		const input = userMessageText(message.content);
 		if (!input) return;
-		const pendingIndex = this.pendingDelegations.findIndex(
-			(delegation) => delegation.input === input,
+		const acceptedIndex = this.acceptedDelegations.findIndex(
+			(delegation) =>
+				delegation.input === input &&
+				message.timestamp >= delegation.acceptedAt,
 		);
-		if (pendingIndex === -1) return;
-		const [delegation] = this.pendingDelegations.splice(pendingIndex, 1);
+		if (acceptedIndex === -1) return;
+		const [delegation] = this.acceptedDelegations.splice(acceptedIndex, 1);
 		if (!delegation) return;
 		this.boundDelegations.push({ ...delegation, timestamp: message.timestamp });
 	}
@@ -193,6 +205,7 @@ export class CodexVoiceSessionMessages {
 	agentSettled(): void {
 		this.piTurnActive = false;
 		this.pendingDelegations = [];
+		this.acceptedDelegations = [];
 	}
 
 	private appendMode(mode: CodexVoiceMode, state: CodexVoiceModeState): void {

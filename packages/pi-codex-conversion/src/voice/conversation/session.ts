@@ -203,14 +203,16 @@ export class CodexRealtimeConversation {
 		if (record["role"] === "user") {
 			const input = boundedTranscript(record["transcript"]);
 			if (input === "oversized") { this.fail(new Error("Codex voice transcript was oversized")); return; }
-			if (input) this.turnTracker.userFinished(input);
+			const delegated = input ? this.turnTracker.userFinished(input) : undefined;
+			if (delegated) {
+				this.flushHandoff();
+				this.callbacks.onTurn(delegated);
+			}
 			this.callbacks.onStatus("responding");
 			return;
 		}
 		if (record["role"] !== "assistant") return;
-		const output = boundedTranscript(record["transcript"]);
-		if (output === "oversized") { this.fail(new Error("Codex voice transcript was oversized")); return; }
-		const completed = this.turnTracker.assistantFinished(output || undefined);
+		const completed = this.turnTracker.assistantFinished(boundedAssistantTranscript(record["transcript"]));
 		this.callbacks.onStatus("listening");
 		if (completed) this.callbacks.onTurn(completed);
 	}
@@ -299,6 +301,29 @@ function boundedTranscript(value: unknown): string | "oversized" | undefined {
 	const input = value.trim();
 	if (!input) return undefined;
 	return Buffer.byteLength(input) > MAX_REALTIME_VOICE_INPUT_BYTES ? "oversized" : input;
+}
+
+function boundedAssistantTranscript(value: unknown): string | undefined {
+	if (typeof value !== "string") return undefined;
+	const output = value.trim();
+	if (!output) return undefined;
+	return utf8Tail(output, MAX_REALTIME_VOICE_INPUT_BYTES - 32);
+}
+
+function utf8Tail(value: string, maxBytes: number): string {
+	if (Buffer.byteLength(value) <= maxBytes) return value;
+	let start = value.length;
+	let bytes = 0;
+	while (start > 0) {
+		let characterStart = start - 1;
+		const lastUnit = value.charCodeAt(characterStart);
+		if (lastUnit >= 0xdc00 && lastUnit <= 0xdfff && characterStart > 0) characterStart--;
+		const characterBytes = Buffer.byteLength(value.slice(characterStart, start));
+		if (bytes + characterBytes > maxBytes) break;
+		bytes += characterBytes;
+		start = characterStart;
+	}
+	return value.slice(start);
 }
 
 function remoteError(event: Record<string, unknown>): string {

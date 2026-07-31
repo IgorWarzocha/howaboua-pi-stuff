@@ -71,6 +71,16 @@ describe("realtime session routing", () => {
 			transcriptDelta:
 				"user: terms of the laptop\nassistant: Do you mean temperatures?\nuser: yes, temperatures",
 		});
+
+		const delegationFirst = new RealtimeVoiceTurnTracker();
+		expect(
+			delegationFirst.delegated("check the laptop", "delegation-2"),
+		).toBeUndefined();
+		expect(delegationFirst.userFinished("yes, check the laptop")).toEqual({
+			input: "check the laptop",
+			delegationId: "delegation-2",
+			transcriptDelta: "user: yes, check the laptop",
+		});
 	});
 
 	test("presentation entries never enter Pi model queues", () => {
@@ -119,6 +129,8 @@ describe("realtime session routing", () => {
 			voiceMessageCallbacks(),
 		);
 		messages.setContext({ isIdle: () => false } as never);
+		messages.conversationInputStopped();
+		messages.modeStarted("realtime");
 		messages.voiceTurn({
 			input: "do the same for the server",
 			delegationId: "delegation-1",
@@ -131,12 +143,24 @@ describe("realtime session routing", () => {
 				options: { deliverAs: "steer" },
 			},
 		]);
+		messages.acceptDelegatedInput({
+			type: "input",
+			text: "do the same for the server",
+			source: "extension",
+			streamingBehavior: "steer",
+		} as never);
 
-		const visibleUserMessage = {
+		const earlierIdenticalMessage = {
 			role: "user" as const,
 			content: [{ type: "text" as const, text: "do the same for the server" }],
-			timestamp: 42,
+			timestamp: 0,
 		};
+		const visibleUserMessage = {
+			...earlierIdenticalMessage,
+			content: [...earlierIdenticalMessage.content],
+			timestamp: Date.now() + 1_000,
+		};
+		messages.bindDelegatedUserMessage(earlierIdenticalMessage);
 		messages.bindDelegatedUserMessage(visibleUserMessage);
 		const providerMessages = messages.applyDelegationContext([
 			{
@@ -145,12 +169,19 @@ describe("realtime session routing", () => {
 				content: "legacy display card",
 				display: true,
 				details: {},
-				timestamp: 41,
+				timestamp: 1,
 			},
+			earlierIdenticalMessage,
 			visibleUserMessage,
 		]);
-		expect(providerMessages).toHaveLength(1);
-		const [providerMessage] = providerMessages;
+		expect(providerMessages).toHaveLength(2);
+		const [earlierProviderMessage, providerMessage] = providerMessages;
+		const earlierProviderText =
+			earlierProviderMessage && Array.isArray(earlierProviderMessage.content)
+				? earlierProviderMessage.content.find((part) => part.type === "text")
+						?.text
+				: undefined;
+		expect(earlierProviderText).toBe("do the same for the server");
 		expect(visibleUserMessage.content[0]?.text).toBe(
 			"do the same for the server",
 		);

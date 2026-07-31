@@ -142,6 +142,7 @@ export function registerCodexEvents(
 		if (failures.length > 1) throw new AggregateError(failures, "Codex extension shutdown failed");
 	});
 	pi.on("input", async (event) => {
+		runtime.voice.acceptDelegatedInput(event);
 		if (event.streamingBehavior === undefined) state.codexTurnState.beginTurn();
 		else if (event.streamingBehavior === "steer" && event.source !== "extension") runtime.voice.mirrorPiSteer(event.text);
 	});
