@@ -292,6 +292,10 @@
       "name": "@howaboua/pi-skill-chrome-cdp",
       "version": "0.0.4",
     },
+    "packages/pi-skill-codex-prompt-caching": {
+      "name": "@howaboua/pi-skill-codex-prompt-caching",
+      "version": "0.0.0",
+    },
     "packages/pi-skill-gh-issue-pr-flow": {
       "name": "@howaboua/pi-skill-gh-issue-pr-flow",
       "version": "0.0.7",
@@ -321,6 +325,7 @@
         "@howaboua/pi-skill-agents-md": "0.0.4",
         "@howaboua/pi-skill-anti-ai-copy": "0.0.4",
         "@howaboua/pi-skill-chrome-cdp": "0.0.4",
+        "@howaboua/pi-skill-codex-prompt-caching": "0.0.0",
         "@howaboua/pi-skill-gh-issue-pr-flow": "0.0.6",
         "@howaboua/pi-skill-model-facing-api-design": "0.0.5",
         "@howaboua/pi-skill-project-reference-research": "0.0.4",
@@ -366,6 +371,7 @@
         "@howaboua/pi-skill-agents-md": "0.0.4",
         "@howaboua/pi-skill-anti-ai-copy": "0.0.4",
         "@howaboua/pi-skill-chrome-cdp": "0.0.4",
+        "@howaboua/pi-skill-codex-prompt-caching": "0.0.0",
         "@howaboua/pi-skill-gh-issue-pr-flow": "0.0.7",
         "@howaboua/pi-skill-model-facing-api-design": "0.0.5",
         "@howaboua/pi-skill-project-reference-research": "0.0.4",
@@ -630,6 +636,8 @@
     "@howaboua/pi-skill-anti-ai-copy": ["@howaboua/pi-skill-anti-ai-copy@workspace:packages/pi-skill-anti-ai-copy"],
 
     "@howaboua/pi-skill-chrome-cdp": ["@howaboua/pi-skill-chrome-cdp@workspace:packages/pi-skill-chrome-cdp"],
+
+    "@howaboua/pi-skill-codex-prompt-caching": ["@howaboua/pi-skill-codex-prompt-caching@workspace:packages/pi-skill-codex-prompt-caching"],
 
     "@howaboua/pi-skill-gh-issue-pr-flow": ["@howaboua/pi-skill-gh-issue-pr-flow@workspace:packages/pi-skill-gh-issue-pr-flow"],
 

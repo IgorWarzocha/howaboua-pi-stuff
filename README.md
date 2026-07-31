@@ -51,6 +51,7 @@ pi install npm:@howaboua/pi-skills
 | [`pi-skill-agents-md`](./packages/pi-skill-agents-md) | Creating, auditing, and pruning scoped `AGENTS.md` files |
 | [`pi-skill-anti-ai-copy`](./packages/pi-skill-anti-ai-copy) | Specific, natural prose that preserves the author's voice |
 | [`pi-skill-chrome-cdp`](./packages/pi-skill-chrome-cdp) | Inspecting and controlling a local Chrome-family browser through CDP |
+| [`pi-skill-codex-prompt-caching`](./packages/pi-skill-codex-prompt-caching) | GPT-5.6/Codex/Pi prompt-cache design and review |
 | [`pi-skill-gh-issue-pr-flow`](./packages/pi-skill-gh-issue-pr-flow) | GitHub issue, branch, PR, release, and review workflows |
 | [`pi-skill-model-facing-api-design`](./packages/pi-skill-model-facing-api-design) | Tool contracts that models select and call correctly |
 | [`pi-skill-project-reference-research`](./packages/pi-skill-project-reference-research) | Evidence-backed research in local or external repositories |
