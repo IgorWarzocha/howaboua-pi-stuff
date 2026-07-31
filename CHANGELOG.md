@@ -57,11 +57,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 3.0.6
+### @howaboua/pi-codex-conversion — 3.0.7
 
 ### Changes
 
-- [#216](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/216) [`981e04a`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/981e04a6660e36131c81eb2cbaef105fcb94e5b0) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Makes realtime voice more conversational and robust with the Codex voice model, host-owned LAN WebRTC with seamless device takeover, buffered browser audio, buffered native playback, packet reordering, and loss concealment. Keeps voice alive across Pi model changes and avoids unnecessary transport resets when saving settings. Ships prompt schemas as raw Markdown with agent-assisted migration instead of rewriting custom prompts. Preserves full native compaction input until session usage exceeds the endpoint budget. Limits Pi documentation lookup to unresolved Pi API or runtime dependencies, and keeps the custom-tool guide focused on creating and editing definitions rather than discovering or calling tools. Bundles a disabled browser custom-tool example with local CDP control, bounded child output, safe screenshot paths, accurate load-all deadlines, and opt-in SSH routing. Rejects incompatible voice helpers immediately and preserves LAN startup errors through terminal cleanup.
+- [#219](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/219) [`47bd29a`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/47bd29a9b89bb3e2a8d50d4a7b3d84e981d8a34c) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Render voice and dictation cards immediately without adding them to model context, carry conversation transcripts with actual delegations, preserve realtime audio cadence across coarse system timers, steer long Code Mode commands through exec/wait instead of session polling, and report repeated native compaction usage from the current checkpoint
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
@@ -81,24 +81,24 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.46
+### @howaboua/pi-extensions — 0.0.47
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-gippity-control: Makes realtime voice more conversational and robust with the Codex voice model, host-owned LAN WebRTC with seamless device takeover, buffered browser audio, buffered native playback, packet reordering, and loss concealment. Keeps voice alive across Pi model changes and avoids unnecessary transport resets when saving settings. Ships prompt schemas as raw Markdown with agent-assisted migration instead of rewriting custom prompts. Rejects incompatible voice helpers immediately and preserves LAN startup errors through terminal cleanup.
+  - @howaboua/pi-gippity-control: Render voice and dictation cards immediately without adding them to model context, carry conversation transcripts with actual delegations, preserve realtime audio cadence across coarse system timers, steer long Code Mode commands through exec/wait instead of session polling, and report repeated native compaction usage from the current checkpoint.
 
-- Updated dependencies [[`981e04a`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/981e04a6660e36131c81eb2cbaef105fcb94e5b0)]:
-  - @howaboua/pi-gippity-control@0.0.4
+- Updated dependencies [[`47bd29a`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/47bd29a9b89bb3e2a8d50d4a7b3d84e981d8a34c)]:
+  - @howaboua/pi-gippity-control@0.0.5
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
-### @howaboua/pi-gippity-control — 0.0.4
+### @howaboua/pi-gippity-control — 0.0.5
 
 ### Changes
 
-- [#216](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/216) [`981e04a`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/981e04a6660e36131c81eb2cbaef105fcb94e5b0) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Makes realtime voice more conversational and robust with the Codex voice model, host-owned LAN WebRTC with seamless device takeover, buffered browser audio, buffered native playback, packet reordering, and loss concealment. Keeps voice alive across Pi model changes and avoids unnecessary transport resets when saving settings. Ships prompt schemas as raw Markdown with agent-assisted migration instead of rewriting custom prompts. Rejects incompatible voice helpers immediately and preserves LAN startup errors through terminal cleanup.
+- [#219](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/219) [`47bd29a`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/47bd29a9b89bb3e2a8d50d4a7b3d84e981d8a34c) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Render voice and dictation cards immediately without adding them to model context, carry conversation transcripts with actual delegations, preserve realtime audio cadence across coarse system timers, steer long Code Mode commands through exec/wait instead of session polling, and report repeated native compaction usage from the current checkpoint
 
 [Full changelog](./packages/pi-gippity-control/CHANGELOG.md)
 
@@ -243,16 +243,16 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.49
+### @howaboua/pi-stuff — 0.0.50
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-gippity-control: Makes realtime voice more conversational and robust with the Codex voice model, host-owned LAN WebRTC with seamless device takeover, buffered browser audio, buffered native playback, packet reordering, and loss concealment. Keeps voice alive across Pi model changes and avoids unnecessary transport resets when saving settings. Ships prompt schemas as raw Markdown with agent-assisted migration instead of rewriting custom prompts. Rejects incompatible voice helpers immediately and preserves LAN startup errors through terminal cleanup.
+  - @howaboua/pi-gippity-control: Render voice and dictation cards immediately without adding them to model context, carry conversation transcripts with actual delegations, preserve realtime audio cadence across coarse system timers, steer long Code Mode commands through exec/wait instead of session polling, and report repeated native compaction usage from the current checkpoint.
 
-- Updated dependencies [[`981e04a`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/981e04a6660e36131c81eb2cbaef105fcb94e5b0)]:
-  - @howaboua/pi-gippity-control@0.0.4
+- Updated dependencies [[`47bd29a`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/47bd29a9b89bb3e2a8d50d4a7b3d84e981d8a34c)]:
+  - @howaboua/pi-gippity-control@0.0.5
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 
