@@ -4,7 +4,7 @@ Verified **2026-07-31** against:
 
 - OpenAI Codex [`aea26afa`](https://github.com/openai/codex/tree/aea26afaee177d3fe40721ef261a29f89879d505)
 - `@earendil-works/pi-coding-agent` / `pi-ai` 0.83.0
-- this monorepo's `main` at the skill's creation
+- this monorepo's `main` at [`a1af4af`](https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/a1af4af60d6de850b3d9db8e818dd5165f0fdbde)
 
 Re-trace touched code: implementation moves faster than this map. Paths below are repository-relative and intentionally avoid machine-specific checkout locations.
 
@@ -40,7 +40,7 @@ Codex's delta mechanism requires the new input to be a strict extension of prior
 
 See [`client.rs` request-property and delta checks](https://github.com/openai/codex/blob/aea26afaee177d3fe40721ef261a29f89879d505/codex-rs/core/src/client.rs#L300-L359) and [input extension logic](https://github.com/openai/codex/blob/aea26afaee177d3fe40721ef261a29f89879d505/codex-rs/core/src/client.rs#L1179-L1259).
 
-A model/reasoning change definitely breaks this continuation mechanism. Public docs do not establish whether reasoning effort alone partitions server prompt-cache KV for an otherwise identical model/prefix; measure before claiming it does.
+At the pinned revision, a model/reasoning change makes the Codex **client** send a full request instead of using this delta mechanism. That does not prove the backend rejects such continuation or that reasoning effort partitions server prompt-cache KV; measure before claiming either.
 
 ### Compaction and usage
 
@@ -104,18 +104,20 @@ additional_tools developer item
 → converted history
 ```
 
-It also disables parallel tool calls and sets `reasoning.context` to `all_turns`. Normal ↔ Code Mode changes prompt layout, tool surface and reasoning properties; never claim cross-mode continuity. “Responses Lite” here is the active OpenAI protocol, unrelated to this repository's archived Lite package.
+It also disables parallel tool calls, sets `reasoning.context` to `all_turns`, removes image `detail`, replaces unsupported remote image URLs, and deterministically resizes or replaces inline images before sending. Fingerprint the post-transform images/input. Normal ↔ Code Mode changes prompt layout, tool surface and reasoning properties; never claim cross-mode continuity. “Responses Lite” here is the active OpenAI protocol, unrelated to this repository's archived Lite package.
 
 Current conversion requests send no `prompt_cache_breakpoint`, `prompt_cache_options` or `prompt_cache_retention`. Public GPT-5.6 breakpoint support does not prove the ChatGPT-backed Codex endpoint accepts those fields.
 
 ### Cached WebSocket and prewarm
 
-- `src/providers/openai-codex/websocket-continuation.ts` compares request bodies except input, then requires exact prior-input extension before adding `previous_response_id`
-- meaningful instruction, tool content/order, persisted history, model or reasoning changes reject continuation
+- `src/providers/openai-codex/websocket-continuation.ts` compares request bodies except input/client metadata, then requires exact prior-input extension before adding `previous_response_id`
+- current code/tests reject meaningful instruction, tool content/order, persisted history, model or reasoning changes
 - `src/extension/runtime.ts` prewarms with active system prompt, active tools including the restored Code Mode grammar, session ID, reasoning, verbosity, service tier and the same request rewrite
 - session/model changes and compaction reset transport
 
 The invariant is **prewarm request shape = next real request shape**. A prewarm success is not proof of server prompt-cache tokens; it seeds connection/continuation state.
+
+`UPSTREAM_SYNC.md` records live backend acceptance of `previous_response_id` across model/reasoning changes and says this adapter should exclude those generation settings. Current comparator/tests do not. Treat this as existing implementation/documentation drift: distinguish backend capability, upstream Codex client policy and current adapter behavior before changing or reviewing continuation.
 
 ### Native compaction
 
@@ -146,7 +148,7 @@ Treat the compacted window as fresh. Preserve every checkpoint item, item ID/typ
 
 ### History mutation
 
-- **voice controllers** inject canonical mode/state or transcript messages and may route speech as a new user turn or steer. Main-history messages affect later prefixes; the separate Realtime voice system prompt does not alter the main model request
+- **`pi-codex-conversion` voice and `pi-gippity-control`** inject canonical mode/state or transcript messages and may route speech as a new user turn or steer. Main-history messages affect later prefixes; the separate Realtime voice system prompt does not alter the main model request
 - **`pi-smart-btw`** injects completed side-session answers as user context and filters legacy display/state records. The injected answer is intentional new history, not a cache-preserving operation
 - **`pi-auto-trees`**, Pi tree navigation and branch summaries replace/reshape active context. Treat them like compaction
 - **`pi-memories`** does not currently mutate the active provider context during ordinary turns; future memory injection would become a prefix surface

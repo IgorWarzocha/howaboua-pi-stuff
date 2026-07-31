@@ -51,7 +51,7 @@ These directly affect reusable prompt content:
 - system/developer instructions, examples, AGENTS/context files, loaded skill text
 - ordered tool definitions: name, description, schema, strictness, grammar and deferred-tool metadata
 - ordered messages and output items, including reasoning signatures, tool calls/results and custom messages
-- images or files, their identity/content and image `detail`
+- images or files, their final identity/content and image `detail` after provider transforms
 - structured-output schema
 
 The first changed token ends reuse for everything after it. “Same information” is insufficient. Preserve roles, item types, IDs, tool pairing and ordering as well as text.
@@ -60,7 +60,7 @@ The first changed token ends reuse for everything after it. “Same information�
 
 Treat provider, API, organization/account, model and cache key as lane identity. Model switches are cold. A `prompt_cache_key` influences routing/matching; it is not a cache namespace that overrides prompt comparison.
 
-Reasoning effort, reasoning context, service tier, tool-choice mode, parallel-call mode and transport may not be prompt tokens. They still partition behavior and can invalidate Codex WebSocket continuation. Treat changes as new operational lanes unless backend usage proves server prompt-cache reuse; do not claim undocumented invalidation or reuse.
+Reasoning effort, reasoning context, service tier, tool-choice mode, parallel-call mode and transport may not be prompt tokens. They still partition behavior and can invalidate a client's WebSocket continuation policy. Inspect client comparison separately from backend capability: an adapter may fall back to a full request even when the backend accepts continuation. Treat changes as new operational lanes unless backend usage proves server prompt-cache reuse; do not claim undocumented invalidation or reuse.
 
 ### History boundary
 
@@ -75,7 +75,7 @@ Compaction, branch summaries, tree navigation, retries that rebuild history, mod
 5. Treat tool copy/schema edits as prompt changes. Keep active tool sets stable within a work phase; prefer one stable search/deferred-tool surface over repeatedly replacing the full tool list
 6. Append changed context after a stable history instead of rewriting old entries when semantically safe. Never preserve stale instructions merely for cache
 7. Keep session cache keys stable for requests sharing a prefix and distinct for unrelated/high-volume traffic. Follow provider key length/rate limits
-8. Change model or reasoning by durable work phase, not around individual tool calls. Quality-driven switches remain valid; account for a cold/uncertain lane
+8. Change model or reasoning by durable work phase, not around individual tool calls. Quality-driven switches remain valid; account for a cold/uncertain prompt-cache lane and separately inspect current continuation policy/backend evidence
 9. Make prewarm use the exact prompt, ordered tools, reasoning, verbosity, service tier, mode transform and compacted replay expected by the real request
 10. Keep display/status records out of model context unless intentionally model-facing. Canonicalize and deduplicate injected state messages
 11. After compaction, preserve the returned/rebuilt window exactly according to its protocol. Do not mix manual pruning with `previous_response_id` chaining

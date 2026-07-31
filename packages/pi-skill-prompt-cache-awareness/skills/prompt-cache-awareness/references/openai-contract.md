@@ -56,7 +56,14 @@ usage.input_tokens_details.cached_tokens
 usage.input_tokens_details.cache_write_tokens  # GPT-5.6+
 ```
 
-Chat Completions reports the corresponding fields under `usage.prompt_tokens_details`. Raw `input_tokens` includes tokens read from and written to cache. Current Pi/OpenAI providers normalize this into:
+Chat Completions reports:
+
+```text
+usage.prompt_tokens_details.cached_tokens
+usage.prompt_tokens_details.cache_write_tokens  # GPT-5.6+
+```
+
+Raw `input_tokens`/`prompt_tokens` includes tokens read from and written to cache. Current Pi/OpenAI providers normalize this into:
 
 ```text
 prompt = usage.input + usage.cacheRead + usage.cacheWrite
@@ -85,7 +92,8 @@ Data controls add important context:
 - encrypted cache tensors are application state and are not retained beyond the documented 24-hour expiration
 - API data is not used for training unless the customer opts in
 - ordinary abuse-monitoring logs may contain customer content for up to 30 days; ZDR/MAM require approval
-- ZDR forces Responses `store: false`; non-ZDR organizations use extended caching on supported models
+- ZDR forces Responses `store: false`; current data-control docs say non-ZDR organizations use extended caching on supported models
+- on GPT-5.6+, `prompt_cache_options.ttl` still controls only minimum lifetime, not the underlying storage policy or 24-hour maximum
 - extended caching in regions without Regional Processing may temporarily process/store customer content outside the selected region
 
 Do not equate “prompt text is not persisted in extended cache storage” with “the API stores no customer content.” Cache, response state and abuse monitoring have separate controls.
