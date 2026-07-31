@@ -36,14 +36,14 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 			tools.applyConfig(config);
 			ui.applyConfig(config);
 			if (
-				config.voiceFeaturesOnly
+				config.voiceFeaturesOnly !== previousConfig.voiceFeaturesOnly
 				|| config.prompt.heavySystemPromptOverwrite !== previousConfig.prompt.heavySystemPromptOverwrite
 				|| config.openai.harnessIdentifierHeader !== previousConfig.openai.harnessIdentifierHeader
 				|| config.compaction.responsesCompaction !== previousConfig.compaction.responsesCompaction
 			) {
 				runtime.resetTransport(ctx.sessionManager.getSessionId());
 			}
-			if (config.voiceFeaturesOnly) {
+			if (config.voiceFeaturesOnly && !previousConfig.voiceFeaturesOnly) {
 				void codeMode.shutdownHost().catch((error: unknown) => {
 					ctx.ui.notify(`Could not stop Code Mode host: ${error instanceof Error ? error.message : String(error)}`, "warning");
 				});

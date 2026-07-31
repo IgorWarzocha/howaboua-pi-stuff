@@ -31,9 +31,10 @@
 		]
 	},
 	"scripts": {
-		"check": "bun run lint && bun run typecheck",
+		"check": "bun run lint && bun run typecheck && bun run test",
 		"prepack": "bun run check",
 		"typecheck": "tsgo --noEmit",
+		"test": "bun test tests",
 		"lint": "biome check .",
 		"format": "biome check --write .",
 		"pack:dry": "npm pack --dry-run",

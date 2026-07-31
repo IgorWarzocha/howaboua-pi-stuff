@@ -4,7 +4,6 @@ use serde_json::Value;
 pub const PROTOCOL_VERSION: u8 = 4;
 pub const MAX_SDP_BYTES: usize = 256 * 1024;
 pub const MAX_DATA_MESSAGE_BYTES: usize = 64 * 1024;
-pub const MAX_PCM_BYTES: usize = 64 * 1024;
 pub const MAX_DEVICE_BYTES: usize = 512;
 pub const MAX_DEVICES: usize = 128;
 
@@ -20,12 +19,10 @@ pub fn parse_command(input: &str) -> anyhow::Result<Command> {
     let allowed: &[&str] = match command_type {
         "list_devices" | "stop" | "shutdown" => &["type"],
         "start_v3" => &["type", "microphone", "speaker"],
-        "start_v3_bridge" => &["type"],
         "set_input_muted" => &["type", "muted"],
         "apply_answer" => &["type", "sdp"],
         "start_dictation" => &["type", "microphone"],
         "send_data" => &["type", "message"],
-        "send_pcm" => &["type", "audio", "sample_rate", "num_channels"],
         _ => anyhow::bail!("unknown voice helper command type {command_type}"),
     };
     if let Some(key) = object.keys().find(|key| !allowed.contains(&key.as_str())) {
@@ -42,7 +39,6 @@ pub enum Command {
         microphone: Option<String>,
         speaker: Option<String>,
     },
-    StartV3Bridge,
     SetInputMuted {
         muted: bool,
     },
@@ -54,11 +50,6 @@ pub enum Command {
     },
     SendData {
         message: Value,
-    },
-    SendPcm {
-        audio: String,
-        sample_rate: u32,
-        num_channels: u16,
     },
     Stop,
     Shutdown,
@@ -131,16 +122,6 @@ impl Command {
                 if size > MAX_DATA_MESSAGE_BYTES {
                     anyhow::bail!("data-channel message exceeds {MAX_DATA_MESSAGE_BYTES} bytes");
                 }
-            }
-            Self::SendPcm {
-                audio,
-                sample_rate,
-                num_channels,
-            } if audio.len() > MAX_PCM_BYTES.div_ceil(3) * 4
-                || *sample_rate != 24_000
-                || *num_channels != 1 =>
-            {
-                anyhow::bail!("V3 bridge PCM must be bounded 24 kHz mono audio")
             }
             _ => {}
         }

@@ -1,14 +1,16 @@
 import { LAN_VOICE_AUDIO_WORKLET } from "./audio-worklet.ts";
+import { LAN_VOICE_BROWSER_REALTIME_SCRIPT } from "./browser-realtime-script.ts";
 
 const AUDIO_WORKLET_SOURCE = JSON.stringify(LAN_VOICE_AUDIO_WORKLET);
 
-export const LAN_VOICE_BROWSER_AUDIO_SCRIPT = String.raw`
+export const LAN_VOICE_BROWSER_AUDIO_SCRIPT = `${LAN_VOICE_BROWSER_REALTIME_SCRIPT}\n${String.raw`
 function createAudioController({ button, muteButton, audioState, audioDetail, modeButtons, composer, clientId, post }) {
   let socket;
   let stream;
   let context;
   let source;
   let processor;
+  let realtimePeer;
   let mode = 'conversation';
   let active = false;
   let muted = false;
@@ -37,6 +39,7 @@ function createAudioController({ button, muteButton, audioState, audioDetail, mo
     updateControls();
   };
   const closeHardware = () => {
+    realtimePeer?.close(); realtimePeer = undefined;
     processor?.disconnect(); processor = undefined;
     source?.disconnect(); source = undefined;
     stream?.getTracks().forEach((track) => track.stop()); stream = undefined;
@@ -83,11 +86,21 @@ function createAudioController({ button, muteButton, audioState, audioDetail, mo
   const receiveMessage = (currentSocket, event) => {
     if (socket !== currentSocket) return;
     if (event.data instanceof ArrayBuffer) {
-      if (mode === 'conversation') processor?.port.postMessage(event.data, [event.data]);
       return;
     }
     try {
       const message = JSON.parse(event.data);
+	  if (message.type === 'stop') { stop(false, message.reason || 'server'); return; }
+	  if (message.type === 'mute') setMuted(message.muted, false);
+      if (message.type === 'answer' && typeof message.sdp === 'string') {
+        void realtimePeer?.acceptAnswer(message.sdp).catch((error) => {
+          if (socket === currentSocket && currentSocket.readyState === WebSocket.OPEN) currentSocket.send(JSON.stringify({ type:'peer_error', message:error instanceof Error ? error.message : String(error) }));
+        });
+      }
+      if (message.type === 'peer_data') {
+        try { realtimePeer?.sendData(message.message); }
+        catch (error) { if (currentSocket.readyState === WebSocket.OPEN) currentSocket.send(JSON.stringify({ type:'peer_error', message:error instanceof Error ? error.message : String(error) })); }
+      }
       if (message.type === 'active') {
         active = true;
         busy = false;
@@ -121,17 +134,32 @@ function createAudioController({ button, muteButton, audioState, audioDetail, mo
       if (!globalThis.AudioWorkletNode) throw new Error('This browser does not support the required low-latency audio runtime.');
       stream = await navigator.mediaDevices.getUserMedia({ audio:{ channelCount:1, echoCancellation:true, noiseSuppression:true, autoGainControl:true } });
       if (generation !== startGeneration) { closeHardware(); return; }
-      context = new AudioContext({ latencyHint:'interactive' });
-      const workletUrl = URL.createObjectURL(new Blob([${AUDIO_WORKLET_SOURCE}], { type:'text/javascript' }));
-      try { await context.audioWorklet.addModule(workletUrl); }
-      finally { URL.revokeObjectURL(workletUrl); }
+      let offerSdp;
+      if (mode === 'conversation') {
+        realtimePeer = await createRealtimeBrowserPeer({
+          stream,
+          sendControl(value) { if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(value)); },
+		  fail(error) {
+			setStatus('Voice stopped', error.message);
+			if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type:'peer_error', message:error.message }));
+		  },
+        });
+        offerSdp = realtimePeer.offerSdp;
+      } else {
+        context = new AudioContext({ latencyHint:'interactive' });
+        const workletUrl = URL.createObjectURL(new Blob([${AUDIO_WORKLET_SOURCE}], { type:'text/javascript' }));
+        try { await context.audioWorklet.addModule(workletUrl); }
+        finally { URL.revokeObjectURL(workletUrl); }
+        if (generation !== startGeneration) { closeHardware(); return; }
+        await context.resume();
+        if (context.state !== 'running') throw new Error('Browser audio did not start. Check its media permissions.');
+        if (generation !== startGeneration) { closeHardware(); return; }
+        source = context.createMediaStreamSource(stream);
+        processor = new AudioWorkletNode(context, 'pi-lan-voice', { numberOfInputs:1, numberOfOutputs:1, outputChannelCount:[1] });
+        source.connect(processor);
+        processor.connect(context.destination);
+      }
       if (generation !== startGeneration) { closeHardware(); return; }
-      await context.resume();
-      if (generation !== startGeneration) { closeHardware(); return; }
-      source = context.createMediaStreamSource(stream);
-      processor = new AudioWorkletNode(context, 'pi-lan-voice', { numberOfInputs:1, numberOfOutputs:1, outputChannelCount:[1] });
-      source.connect(processor);
-      processor.connect(context.destination);
       const currentSocket = new WebSocket('wss://' + location.host + '/api/audio?client=' + encodeURIComponent(clientId));
       currentSocket.binaryType = 'arraybuffer';
       socket = currentSocket;
@@ -141,13 +169,13 @@ function createAudioController({ button, muteButton, audioState, audioDetail, mo
         void stop(false, 'connect-timeout');
         setStatus('Could not start', 'Connection timed out. Tap to retry.');
       }, 10000);
-      processor.port.onmessage = (event) => {
+      if (processor) processor.port.onmessage = (event) => {
         if (active && !muted && socket === currentSocket && currentSocket.readyState === WebSocket.OPEN && currentSocket.bufferedAmount < 65536) currentSocket.send(event.data);
       };
       currentSocket.onopen = () => {
-        if (socket !== currentSocket || !context) return;
+		if (socket !== currentSocket || (!realtimePeer && !context)) return;
         clearTimeout(connectTimer);
-        currentSocket.send(JSON.stringify({ type:'start', mode }));
+        currentSocket.send(JSON.stringify({ type:'start', mode, ...(offerSdp ? { sdp:offerSdp } : {}) }));
         setStatus('Connecting…');
       };
       currentSocket.onmessage = (event) => receiveMessage(currentSocket, event);
@@ -210,4 +238,4 @@ function createAudioController({ button, muteButton, audioState, audioDetail, mo
     },
   };
 }
-`;
+`}`;

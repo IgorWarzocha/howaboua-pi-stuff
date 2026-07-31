@@ -1,25 +1,28 @@
 import type { ServerResponse } from "node:http";
 import { WebSocket, type RawData } from "ws";
+import { MAX_REALTIME_SDP_BYTES } from "../conversation/peer.ts";
+import { LanBrowserRealtimePeer } from "./browser-peer.ts";
 import type { LanVoiceDraftSelection } from "./draft.ts";
 import { decodeLanVoiceAudioCommand } from "./protocol.ts";
 
-export const MAX_CONTROL_BYTES = 72 * 1024;
+export const MAX_CONTROL_BYTES = MAX_REALTIME_SDP_BYTES + 16 * 1024;
 const MAX_PCM_BYTES = 24_000 * 2;
 
 type LanVoiceBrowserMode = "conversation" | "dictation";
 type LanVoiceBrowserState =
 	| { type: "idle" }
-	| { type: "active"; clientId: string; socket: WebSocket; mode: LanVoiceBrowserMode }
+	| { type: "active"; clientId: string; socket: WebSocket; mode: "conversation"; peer: LanBrowserRealtimePeer }
+	| { type: "active"; clientId: string; socket: WebSocket; mode: "dictation" }
 	| { type: "closed" };
 
 interface LanVoiceBrowserClientsOptions {
-	ensureConversation(): Promise<void>;
+	startConversation(peer: LanBrowserRealtimePeer): Promise<void>;
+	stopConversation(peer: LanBrowserRealtimePeer): Promise<void>;
 	startDictation(clientId: string): Promise<void>;
 	finishDictation(clientId: string, draft?: string, revision?: number, selection?: LanVoiceDraftSelection): Promise<void>;
 	cancelDictation(clientId: string): Promise<void>;
 	onConversationActivity(active: boolean): void;
 	onConversationMute(muted: boolean): void;
-	onConversationAudio(pcm: Buffer): void;
 	onDictationAudio(clientId: string, pcm: Buffer): void;
 }
 
@@ -27,6 +30,7 @@ export class LanVoiceBrowserClients {
 	private readonly options: LanVoiceBrowserClientsOptions;
 	private readonly eventResponses = new Map<string, ServerResponse>();
 	private readonly audioSockets = new Map<string, WebSocket>();
+	private readonly conversationPeers = new WeakMap<WebSocket, LanBrowserRealtimePeer>();
 	private state: LanVoiceBrowserState = { type: "idle" };
 	private operation = Promise.resolve();
 
@@ -57,12 +61,6 @@ export class LanVoiceBrowserClients {
 		});
 	}
 
-	sendConversationAudio(pcm: Buffer): void {
-		const active = this.state;
-		if (active.type !== "active" || active.mode !== "conversation" || active.socket.readyState !== WebSocket.OPEN) return;
-		active.socket.send(pcm, { binary: true });
-	}
-
 	sendControl(clientId: string, value: unknown): void {
 		const response = this.eventResponses.get(clientId);
 		if (response && !response.writableEnded) response.write(`data: ${JSON.stringify(value)}\n\n`);
@@ -72,22 +70,16 @@ export class LanVoiceBrowserClients {
 		for (const clientId of this.eventResponses.keys()) this.sendControl(clientId, value);
 	}
 
-	conversationFailed(error: Error): void {
-		void this.enqueue(async () => {
-			const active = this.state;
-			if (active.type !== "active" || active.mode !== "conversation") return;
-			this.state = { type: "idle" };
-			this.options.onConversationActivity(false);
-			this.sendControl(active.clientId, { type: "error", message: error.message });
-		});
-	}
-
 	release(clientId: string, socket?: WebSocket): void {
 		void this.enqueue(async () => {
 			const active = this.state;
 			if (active.type !== "active" || active.clientId !== clientId || (socket && active.socket !== socket)) return;
 			this.state = { type: "idle" };
-			if (active.mode === "conversation") this.options.onConversationActivity(false);
+			if (active.mode === "conversation") {
+				this.conversationPeers.delete(active.socket);
+				this.options.onConversationActivity(false);
+				await this.options.stopConversation(active.peer);
+			}
 			if (active.mode === "dictation") await this.options.finishDictation(clientId);
 		}).catch((error: unknown) => {
 			this.sendControl(clientId, { type: "error", message: error instanceof Error ? error.message : String(error) });
@@ -102,7 +94,11 @@ export class LanVoiceBrowserClients {
 		const active = this.state;
 		if (active.type === "closed") { await this.operation; return; }
 		this.state = { type: "closed" };
-		if (active.type === "active" && active.mode === "conversation") this.options.onConversationActivity(false);
+		if (active.type === "active" && active.mode === "conversation") {
+			this.options.onConversationActivity(false);
+			this.conversationPeers.delete(active.socket);
+			await this.options.stopConversation(active.peer);
+		}
 		for (const socket of this.audioSockets.values()) socket.terminate();
 		this.audioSockets.clear();
 		for (const response of this.eventResponses.values()) response.end();
@@ -118,13 +114,15 @@ export class LanVoiceBrowserClients {
 			if (Buffer.byteLength(text) > MAX_CONTROL_BYTES) throw new Error("LAN voice control message is too large");
 			const message = decodeLanVoiceAudioCommand(JSON.parse(text));
 			if (message.type === "start") {
-				void this.claim(clientId, socket, message.mode).catch((error: unknown) => this.sendSocketError(socket, error));
+				void this.claim(clientId, socket, message.mode, message.type === "start" && message.mode === "conversation" ? message.sdp : undefined).catch((error: unknown) => this.sendSocketError(socket, error));
 			} else if (message.type === "finish") {
 				void this.finish(clientId, socket, message.draft, message.revision, message.selection).catch((error: unknown) => this.sendSocketError(socket, error));
 			} else if (message.type === "release") {
 				this.release(clientId, socket);
 			} else if (message.type === "mute") {
 				this.mute(clientId, socket, message.muted);
+			} else if (message.type === "peer_state" || message.type === "peer_data" || message.type === "peer_error") {
+				this.conversationPeers.get(socket)?.receive(message);
 			} else {
 				void this.options.cancelDictation(clientId).catch((error: unknown) => this.sendSocketError(socket, error));
 			}
@@ -143,11 +141,10 @@ export class LanVoiceBrowserClients {
 		if (pcm.byteLength === 0 || pcm.byteLength > MAX_PCM_BYTES || pcm.byteLength % 2 !== 0) throw new Error("Invalid LAN voice PCM frame");
 		const active = this.state;
 		if (active.type !== "active" || active.clientId !== clientId || active.socket !== socket) return;
-		if (active.mode === "conversation") this.options.onConversationAudio(pcm);
-		else this.options.onDictationAudio(clientId, pcm);
+		if (active.mode === "dictation") this.options.onDictationAudio(clientId, pcm);
 	}
 
-	private claim(clientId: string, socket: WebSocket, mode: LanVoiceBrowserMode): Promise<void> {
+	private claim(clientId: string, socket: WebSocket, mode: LanVoiceBrowserMode, offerSdp?: string): Promise<void> {
 		return this.enqueue(async () => {
 			if (this.isClosed()) return;
 			const previous = this.state.type === "active" ? this.state : undefined;
@@ -158,18 +155,34 @@ export class LanVoiceBrowserClients {
 				previous.socket.close(4001, "replaced");
 			}
 			if (previous?.mode === "conversation" && mode === "conversation") this.options.onConversationMute(false);
-			if (previous?.mode === "conversation" && mode !== "conversation") this.options.onConversationActivity(false);
+			if (previous?.mode === "conversation") {
+				this.options.onConversationActivity(false);
+				this.conversationPeers.delete(previous.socket);
+				await this.options.stopConversation(previous.peer);
+			}
 			if (previous?.mode === "dictation") await this.options.finishDictation(previous.clientId);
 			if (this.isClosed()) return;
-			if (mode === "conversation") await this.options.ensureConversation();
-			else await this.options.startDictation(clientId);
+			let peer: LanBrowserRealtimePeer | undefined;
+			if (mode === "conversation") {
+				if (!offerSdp) throw new Error("LAN realtime start requires an SDP offer");
+				peer = new LanBrowserRealtimePeer(offerSdp, (value) => {
+					if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(value));
+				});
+				this.conversationPeers.set(socket, peer);
+				await this.options.startConversation(peer);
+			} else await this.options.startDictation(clientId);
 			if (this.isClosed() || this.audioSockets.get(clientId) !== socket || socket.readyState !== WebSocket.OPEN) {
-				if (previous?.mode === "conversation" && mode === "conversation") this.options.onConversationActivity(false);
+				if (peer) {
+					this.conversationPeers.delete(socket);
+					await this.options.stopConversation(peer);
+				}
 				if (mode === "dictation") await this.options.cancelDictation(clientId);
 				return;
 			}
-			this.state = { type: "active", clientId, socket, mode };
-			if (previous?.mode !== "conversation" && mode === "conversation") this.options.onConversationActivity(true);
+			this.state = mode === "conversation"
+				? { type: "active", clientId, socket, mode, peer: peer! }
+				: { type: "active", clientId, socket, mode };
+			if (mode === "conversation") this.options.onConversationActivity(true);
 			socket.send(JSON.stringify({ type: "active", mode }));
 		});
 	}

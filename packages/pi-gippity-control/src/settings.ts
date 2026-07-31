@@ -14,6 +14,7 @@ import { getGippityControlConfigPath } from "./config-store.ts";
 import type { CodexLanVoiceServerController } from "./voice/lan/controller.ts";
 import { formatVoiceShortcut } from "./voice/setup.ts";
 import {
+	getCodexVoiceSystemPromptChangelogPath,
 	getCodexVoiceSystemPromptPath,
 	REALTIME_SYSTEM_PROMPT_BASENAME,
 } from "./voice/system-prompt.ts";
@@ -180,12 +181,14 @@ function details(
 		"",
 		theme.fg(
 			"dim",
-			`  Realtime System Prompt: ${getCodexVoiceSystemPromptPath()}`,
+			`  Realtime system prompt: ${getCodexVoiceSystemPromptPath()}`,
 		),
 		theme.fg(
 			"dim",
 			`  Folder-level: create ${CONFIG_DIR_NAME}/${REALTIME_SYSTEM_PROMPT_BASENAME} (appends to global)`,
 		),
+		theme.fg("dim", "  Realtime system prompt changelog:"),
+		theme.fg("dim", `  ${getCodexVoiceSystemPromptChangelogPath()}`),
 		"",
 		theme.fg("dim", "  Enter/Space to change · Esc to close"),
 	];

@@ -115,6 +115,8 @@ If audio devices are not configured, the first start asks the Pi agent to inspec
 
 The visible realtime prompt lives at `~/.pi/agent/REALTIME-SYSTEM-PROMPT.md`. A trusted project can append `.pi/REALTIME-SYSTEM-PROMPT.md`. Keep coding and project instructions in AGENTS.md rather than duplicating them into the spoken assistant.
 
+The package ships its current prompt template and cumulative schema changelog as raw Markdown. Realtime voice checks the global prompt marker when voice is engaged. If it is outdated, the extension points you and your agent to the changelog instead of rewriting personal customizations automatically. Both paths are shown in the Voice tab.
+
 Voice commands:
 
 ```text
@@ -127,7 +129,7 @@ Voice commands:
 
 `/codex voice server` lazily starts GipPity over HTTPS and prints its hostname and LAN addresses. Open one on a different machine (phone, cough, cough) and accept the local certificate on first visit. Amazing when using a devbox without a mic or when you want to Tailscale into Pi and talk to it remotely.
 
-GipPity provides realtime voice with a microphone mute button, editable dictation drafts, typed prompting, Pi activity, settled assistant results and seamless microphone takeover between devices. It follows the Pi theme and can be saved as a PWA / phone app.
+GipPity provides realtime voice with a microphone mute button, editable dictation drafts, typed prompting, Pi activity and settled assistant results. Realtime audio stays on the browser's native WebRTC playback path while the server retains authenticated setup and Pi delegation. It follows the Pi theme and can be saved as a PWA / phone app.
 
 The server belongs only to the Pi session that started it and stops when that session changes. There is intentionally no authentication in v1; it is for a trusted LAN.
 

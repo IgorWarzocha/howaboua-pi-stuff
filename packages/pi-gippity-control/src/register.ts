@@ -9,10 +9,6 @@ import {
 import { CodexVoiceController } from "./voice/controller.ts";
 import { createCodexVoiceControls } from "./voice/controls.ts";
 import { CodexLanVoiceServerController } from "./voice/lan/controller.ts";
-import {
-	ensureCodexVoiceSystemPrompt,
-	getCodexVoiceSystemPromptPath,
-} from "./voice/system-prompt.ts";
 import { registerCodexVoiceRenderer } from "./voice/ui.ts";
 
 export function registerGippityControl(pi: ExtensionAPI): void {
@@ -43,13 +39,6 @@ export function registerGippityControl(pi: ExtensionAPI): void {
 		await lanVoice.stop(ctx);
 		voice.resetContextAnnouncements();
 		state.config = readGippityControlConfig();
-		try {
-			ensureCodexVoiceSystemPrompt();
-		} catch (error) {
-			console.warn(
-				`[pi-gippity-control] Failed to prepare ${getCodexVoiceSystemPromptPath()}: ${error instanceof Error ? error.message : String(error)}`,
-			);
-		}
 	});
 	pi.on("message_end", async (event) => {
 		if (event.message.role === "assistant")

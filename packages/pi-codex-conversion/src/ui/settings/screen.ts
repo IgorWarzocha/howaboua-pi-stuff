@@ -3,7 +3,11 @@ import { SettingsList, truncateToWidth } from "@earendil-works/pi-tui";
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import { getCodexConversionConfigPath, readCodexConversionConfig } from "../../adapter/activation/config-store.ts";
 import { formatVoiceShortcut } from "../../voice/setup.ts";
-import { getCodexVoiceSystemPromptPath, REALTIME_SYSTEM_PROMPT_BASENAME } from "../../voice/system-prompt.ts";
+import {
+	getCodexVoiceSystemPromptChangelogPath,
+	getCodexVoiceSystemPromptPath,
+	REALTIME_SYSTEM_PROMPT_BASENAME,
+} from "../../voice/system-prompt.ts";
 import type { CodexLanVoiceServerStatus } from "../../voice/lan/controller.ts";
 import { handleAboutTabInput, renderAboutTab } from "./about-tab.ts";
 import { buildConfigSettings, type ConfigSetting } from "./config-items.ts";
@@ -155,8 +159,10 @@ function formatVoiceDetails(theme: Theme, config: CodexConversionConfig): string
 		theme.fg("dim", `  LAN server: ${formatVoiceShortcut(config.voice.serverShortcut)}`),
 		theme.fg("dim", `  Change keybinds: ${getCodexConversionConfigPath()} (/reload to apply)`),
 		"",
-		theme.fg("dim", `  Realtime System Prompt: ${getCodexVoiceSystemPromptPath()}`),
+		theme.fg("dim", `  Realtime system prompt: ${getCodexVoiceSystemPromptPath()}`),
 		theme.fg("dim", `  Folder-level: create ${CONFIG_DIR_NAME}/${REALTIME_SYSTEM_PROMPT_BASENAME} (appends to global)`),
+		theme.fg("dim", "  Realtime system prompt changelog:"),
+		theme.fg("dim", `  ${getCodexVoiceSystemPromptChangelogPath()}`),
 	];
 }
 

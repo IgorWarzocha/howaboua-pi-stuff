@@ -29,6 +29,7 @@ export function createCodexVoiceControls(options: {
 		state.config = currentConfig;
 		const missingAudioSettings = missingVoiceAudioSettings(currentConfig, mode);
 		if (missingAudioSettings.length > 0) {
+			if (mode === "realtime" && voice.prepareRealtimePrompt(ctx) === undefined) return;
 			if (!ctx.isIdle()) {
 				ctx.ui.notify("Wait for the current turn before setting up Codex voice.", "info");
 				return;

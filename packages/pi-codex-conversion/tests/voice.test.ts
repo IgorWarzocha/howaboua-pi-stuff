@@ -1,13 +1,18 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { request as httpsRequest, type RequestOptions } from "node:https";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { BoundedJsonlReader, parseVoiceHelperEvent } from "../src/voice/helper.ts";
 import { LanVoiceDraft, LanVoiceDraftConflictError } from "../src/voice/lan/draft.ts";
+import { LanBrowserRealtimePeer } from "../src/voice/lan/browser-peer.ts";
 import { decodeLanVoiceAudioCommand } from "../src/voice/lan/protocol.ts";
 import { startCodexLanVoiceServer } from "../src/voice/lan/server.ts";
+import {
+	getPackagedCodexVoiceSystemPromptPath,
+	prepareCodexVoiceSystemPrompt,
+} from "../src/voice/system-prompt.ts";
 import { RealtimeVoiceTurnTracker } from "../src/voice/turns.ts";
 
 test("voice helper parser validates protocol payloads", () => {
@@ -30,8 +35,11 @@ test("voice helper parser validates protocol payloads", () => {
 });
 
 test("LAN audio command decoder rejects ambiguous browser input", () => {
-	assert.deepEqual(decodeLanVoiceAudioCommand({ type: "start", mode: "conversation" }), { type: "start", mode: "conversation" });
+	assert.deepEqual(decodeLanVoiceAudioCommand({ type: "start", mode: "conversation", sdp: "offer" }), { type: "start", mode: "conversation", sdp: "offer" });
+	assert.deepEqual(decodeLanVoiceAudioCommand({ type: "start", mode: "dictation" }), { type: "start", mode: "dictation" });
 	assert.deepEqual(decodeLanVoiceAudioCommand({ type: "mute", muted: true }), { type: "mute", muted: true });
+	assert.deepEqual(decodeLanVoiceAudioCommand({ type: "peer_state", state: "ready" }), { type: "peer_state", state: "ready" });
+	assert.deepEqual(decodeLanVoiceAudioCommand({ type: "peer_data", message: { type: "turn.done" } }), { type: "peer_data", message: { type: "turn.done" } });
 	assert.deepEqual(decodeLanVoiceAudioCommand({
 		type: "finish",
 		draft: "hello",
@@ -44,10 +52,32 @@ test("LAN audio command decoder rejects ambiguous browser input", () => {
 		revision: 2,
 		selection: { start: 1, end: 4 },
 	});
-	assert.throws(() => decodeLanVoiceAudioCommand({ type: "start" }));
+	assert.throws(() => decodeLanVoiceAudioCommand({ type: "start", mode: "conversation" }));
 	assert.throws(() => decodeLanVoiceAudioCommand({ type: "mute", muted: "yes" }));
 	assert.throws(() => decodeLanVoiceAudioCommand({ type: "finish", draft: "hello", revision: 2, selectionStart: 0, selectionEnd: 6 }));
 	assert.throws(() => decodeLanVoiceAudioCommand({ type: "surprise" }));
+});
+
+test("LAN browser peer relays WebRTC negotiation and realtime events", async () => {
+	const sent: unknown[] = [];
+	const events: unknown[] = [];
+	const peer = new LanBrowserRealtimePeer("offer", (value) => sent.push(value));
+	peer.onEvent((event) => events.push(event));
+	assert.equal(await peer.start({} as never), "offer");
+	peer.applyAnswer("answer");
+	peer.sendData({ type: "delegation.context.append" });
+	peer.setInputMuted(true);
+	peer.receive({ type: "peer_state", state: "ready" });
+	peer.receive({ type: "peer_data", message: { type: "turn.done" } });
+	assert.deepEqual(sent, [
+		{ type: "answer", sdp: "answer" },
+		{ type: "peer_data", message: { type: "delegation.context.append" } },
+		{ type: "mute", muted: true },
+	]);
+	assert.deepEqual(events, [
+		{ type: "state", state: "ready" },
+		{ type: "data", message: { type: "turn.done" } },
+	]);
 });
 
 test("voice helper JSONL parser bounds unterminated frames", () => {
@@ -68,6 +98,50 @@ test("voice delegation suppresses backend retries without blocking a later repea
 	assert.equal(turns.delegated("check the load", "retry-before-settle"), undefined);
 	turns.delegationSettled("first");
 	assert.deepEqual(turns.delegated("check the load", "intentional-repeat"), { input: "check the load", delegationId: "intentional-repeat" });
+});
+
+test("voice prompt preparation copies the packaged template on first use", async () => {
+	const directory = await mkdtemp(join(tmpdir(), "pi-voice-prompt-"));
+	const promptPath = join(directory, "REALTIME-SYSTEM-PROMPT.md");
+	try {
+		assert.deepEqual(prepareCodexVoiceSystemPrompt(promptPath), { created: true, schemaVersion: 3, currentSchemaVersion: 3, current: true });
+		assert.equal(await readFile(promptPath, "utf8"), await readFile(getPackagedCodexVoiceSystemPromptPath(), "utf8"));
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("voice prompt schema checks never rewrite a customized prompt", async () => {
+	const directory = await mkdtemp(join(tmpdir(), "pi-voice-prompt-"));
+	const promptPath = join(directory, "REALTIME-SYSTEM-PROMPT.md");
+	const customizedPrompt = `﻿<!-- codex-voice-prompt-version: 2 -->
+## Identity and tone
+
+Keep this customized personality.
+
+## Interface and role
+
+One assistant.
+
+## Delegation
+
+Delegate work.
+
+## Session continuity
+
+Preserve context.
+
+## Backend results
+
+Speak results.
+`.replaceAll("\n", "\r\n");
+	await writeFile(promptPath, customizedPrompt, { mode: 0o600 });
+	try {
+		assert.deepEqual(prepareCodexVoiceSystemPrompt(promptPath), { created: false, schemaVersion: 2, currentSchemaVersion: 3, current: false });
+		assert.equal(await readFile(promptPath, "utf8"), customizedPrompt);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
 });
 
 test("LAN composer rejects stale writes from another browser", () => {
