@@ -147,40 +147,49 @@ test("voice helper JSONL parser bounds unterminated frames", () => {
 
 test("voice delegation suppresses backend retries without blocking a later repeat", () => {
 	const turns = new RealtimeVoiceTurnTracker();
-	assert.deepEqual(turns.delegated("check the load", "first"), {
+	assert.equal(turns.delegated("check the load", "first"), undefined);
+	assert.equal(turns.delegated("check the load", "retry-before-settle"), undefined);
+	assert.deepEqual(turns.userFinished("check the load"), {
 		input: "check the load",
 		delegationId: "first",
-		transcriptDelta: "user: check the load",
 	});
-	assert.equal(turns.delegated("check the load", "retry-before-settle"), undefined);
-	assert.equal(turns.userFinished("check the load"), undefined);
 	turns.delegationSettled("first");
-	assert.deepEqual(turns.delegated("check the load", "intentional-repeat"), {
+	assert.equal(turns.delegated("check the load", "intentional-repeat"), undefined);
+	assert.deepEqual(turns.userFinished("check the load"), {
 		input: "check the load",
 		delegationId: "intentional-repeat",
-		transcriptDelta: "user: check the load",
 	});
 });
 
-test("voice delegations carry conversation since the previous handoff", () => {
+test("voice delegations clear prior voice chatter", () => {
 	const turns = new RealtimeVoiceTurnTracker();
 	turns.userFinished("terms of the laptop");
 	assert.deepEqual(turns.assistantFinished("Do you mean temperatures?"), { input: "terms of the laptop" });
 	turns.userFinished("yes, temperatures");
 	assert.deepEqual(turns.delegated("check the laptop and server", "delegation-1"), {
-		input: "check the laptop and server",
+		input: "check the laptop and server\n\nVoice transcript: yes, temperatures",
 		delegationId: "delegation-1",
-		transcriptDelta: "user: terms of the laptop\nassistant: Do you mean temperatures?\nuser: yes, temperatures\nuser: check the laptop and server",
 	});
+	assert.equal(turns.takeTranscriptTail(), undefined);
 
 	const delegationFirst = new RealtimeVoiceTurnTracker();
 	delegationFirst.inputAdded("yes, check the laptop");
-	assert.deepEqual(delegationFirst.delegated("check the laptop", "delegation-2"), {
-		input: "check the laptop",
+	assert.equal(delegationFirst.delegated("check the laptop", "delegation-2"), undefined);
+	assert.deepEqual(delegationFirst.userFinished("yes, check the laptop"), {
+		input: "yes, check the laptop",
 		delegationId: "delegation-2",
-		transcriptDelta: "user: yes, check the laptop\nuser: check the laptop",
 	});
-	assert.equal(delegationFirst.userFinished("yes, check the laptop"), undefined);
+	assert.equal(delegationFirst.takeTranscriptTail(), undefined);
+});
+
+test("voice delegation keeps distinct delegation and transcript context visible", () => {
+	const turns = new RealtimeVoiceTurnTracker();
+	turns.inputAdded("yes, temperatures");
+	assert.equal(turns.delegated("check the laptop and server", "delegation-1"), undefined);
+	assert.deepEqual(turns.userFinished("yes, temperatures"), {
+		input: "check the laptop and server\n\nVoice transcript: yes, temperatures",
+		delegationId: "delegation-1",
+	});
 });
 
 test("an interrupted conversation cannot consume a later delegation", () => {
@@ -190,16 +199,39 @@ test("an interrupted conversation cannot consume a later delegation", () => {
 	turns.outputAdded("The load is");
 	turns.inputAdded("check the logs instead");
 
-	assert.deepEqual(turns.delegated("check the logs instead", "delegation-1"), {
+	assert.equal(turns.delegated("check the logs instead", "delegation-1"), undefined);
+	assert.deepEqual(turns.userFinished("check the logs instead"), {
 		input: "check the logs instead",
 		delegationId: "delegation-1",
-		transcriptDelta: "user: what is the current load\nassistant: The load is\nuser: check the logs instead",
 	});
-	assert.equal(turns.userFinished("check the logs instead"), undefined);
 	assert.deepEqual(turns.assistantFinished("The load is normal"), {
 		input: "what is the current load",
 	});
 	assert.deepEqual(turns.drainConversationTurns(), []);
+
+	const delegationBeforeFinalTranscript = new RealtimeVoiceTurnTracker();
+	delegationBeforeFinalTranscript.inputAdded("what is the current load");
+	assert.equal(
+		delegationBeforeFinalTranscript.delegated("check the current load", "delegation-2"),
+		undefined,
+	);
+	delegationBeforeFinalTranscript.outputAdded("Okay, checking");
+	delegationBeforeFinalTranscript.inputAdded("check the logs instead");
+	assert.deepEqual(
+		delegationBeforeFinalTranscript.userFinished("what is the current load"),
+		{
+			input: "check the current load\n\nVoice transcript: what is the current load",
+			delegationId: "delegation-2",
+		},
+	);
+	assert.equal(
+		delegationBeforeFinalTranscript.userFinished("check the logs instead"),
+		undefined,
+	);
+	assert.deepEqual(
+		delegationBeforeFinalTranscript.assistantFinished("The logs are clean"),
+		{ input: "check the logs instead" },
+	);
 });
 
 test("voice presentation entries never enter Pi model queues", () => {
@@ -215,46 +247,32 @@ test("voice presentation entries never enter Pi model queues", () => {
 	assert.deepEqual(modelMessages, []);
 });
 
-test("voice delegation context binds only its accepted user message", () => {
+
+test("voice delegations use Pi's plain user queues", () => {
+	const sent: unknown[] = [];
 	const messages = new CodexVoiceSessionMessages({
 		appendEntry() {},
-		sendUserMessage() {},
+		sendUserMessage(message: unknown, options: unknown) { sent.push({ message, options }); },
 	} as unknown as ExtensionAPI, voiceMessageCallbacks());
 	messages.setContext({ isIdle: () => false } as never);
 	messages.voiceTurn({
 		input: "do the same for the server",
 		delegationId: "delegation-1",
-		transcriptDelta: "voice context",
 	});
-	messages.acceptDelegatedInput({
-		type: "input",
-		text: "do the same for the server",
-		source: "extension",
-		streamingBehavior: "steer",
-	} as never);
 
-	const earlierIdenticalMessage = {
-		role: "user" as const,
-		content: [{ type: "text" as const, text: "do the same for the server" }],
-		timestamp: 0,
-	};
-	const visibleUserMessage = {
-		...earlierIdenticalMessage,
-		content: [...earlierIdenticalMessage.content],
-		timestamp: Date.now() + 1_000,
-	};
-	messages.bindDelegatedUserMessage(earlierIdenticalMessage);
-	messages.bindDelegatedUserMessage(visibleUserMessage);
-	const providerMessages = messages.applyDelegationContext([earlierIdenticalMessage, visibleUserMessage]);
-	const [earlierProviderMessage, providerMessage] = providerMessages;
-	const earlierProviderText = earlierProviderMessage?.role === "user" && Array.isArray(earlierProviderMessage.content)
-		? earlierProviderMessage.content.find((part) => part.type === "text")?.text
-		: undefined;
-	assert.equal(earlierProviderText, "do the same for the server");
-	const providerText = providerMessage?.role === "user" && Array.isArray(providerMessage.content)
-		? providerMessage.content.find((part) => part.type === "text")?.text
-		: undefined;
-	assert.match(providerText ?? "", /<transcript_delta>voice context<\/transcript_delta>/);
+	assert.deepEqual(sent, [{
+		message: "do the same for the server",
+		options: { deliverAs: "steer" },
+	}]);
+
+	const idleSent: unknown[] = [];
+	const idleMessages = new CodexVoiceSessionMessages({
+		appendEntry() {},
+		sendUserMessage(message: unknown, options: unknown) { idleSent.push({ message, options }); },
+	} as unknown as ExtensionAPI, voiceMessageCallbacks());
+	idleMessages.setContext({ isIdle: () => true } as never);
+	idleMessages.voiceTurn({ input: "check the server", delegationId: "delegation-2" });
+	assert.deepEqual(idleSent, [{ message: "check the server", options: undefined }]);
 });
 
 function voiceMessageCallbacks() {

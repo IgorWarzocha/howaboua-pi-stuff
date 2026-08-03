@@ -1,5 +1,10 @@
 type DictationShortcutMode = "push" | "toggle";
 
+export interface VoiceContextModel {
+	provider: string;
+	modelId: string;
+}
+
 export const REALTIME_V3_VOICES = [
 	"juniper",
 	"maple",
@@ -21,6 +26,7 @@ export interface GippityControlConfig {
 		muteShortcut: string;
 		serverShortcut: string;
 		dictationShortcutMode: DictationShortcutMode;
+		contextModel?: VoiceContextModel | undefined;
 		inputDevice?: string | undefined;
 		outputDevice?: string | undefined;
 	};
@@ -53,6 +59,15 @@ function optionalString(value: unknown): string | undefined {
 		: undefined;
 }
 
+function normalizeVoiceContextModel(
+	value: unknown,
+): VoiceContextModel | undefined {
+	if (!isObject(value)) return undefined;
+	const provider = optionalString(value["provider"]);
+	const modelId = optionalString(value["modelId"]);
+	return provider && modelId ? { provider, modelId } : undefined;
+}
+
 export function normalizeRealtimeV3Voice(
 	value: unknown,
 ): RealtimeV3Voice | undefined {
@@ -68,6 +83,7 @@ export function normalizeGippityControlConfig(
 	const voice = isObject(value["voice"]) ? value["voice"] : {};
 	const inputDevice = optionalString(voice["inputDevice"]);
 	const outputDevice = optionalString(voice["outputDevice"]);
+	const contextModel = normalizeVoiceContextModel(voice["contextModel"]);
 	return {
 		voice: {
 			v3Voice:
@@ -93,6 +109,7 @@ export function normalizeGippityControlConfig(
 				voice["dictationShortcutMode"] === "toggle"
 					? "toggle"
 					: DEFAULT_GIPPITY_CONTROL_CONFIG.voice.dictationShortcutMode,
+			...(contextModel ? { contextModel } : {}),
 			...(inputDevice ? { inputDevice } : {}),
 			...(outputDevice ? { outputDevice } : {}),
 		},

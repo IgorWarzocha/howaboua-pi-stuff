@@ -1,4 +1,6 @@
-- `controller.ts` owns mode replacement and lazy mode imports; `controls.ts` owns commands/shortcut policy.
+- `controller.ts` owns mode replacement; `controller-sessions.ts` owns lazy mode construction; `controller-support.ts` owns shared state/presentation helpers. `controls.ts` owns commands/shortcut policy.
+- Under `conversation/`, `session.ts` owns V3 sequencing, `call-setup.ts` HTTP setup, `handoff.ts` delegation output, and `wire.ts` validation.
+- `helper.ts` owns the process; `helper-protocol.ts` owns JSONL framing and validation. LAN browser transport, ownership, and decoding stay in `browser-connections.ts`, `browser-session.ts`, and `browser-wire.ts`.
 - Realtime conversation is V3 only. Dictation owns its separate transcription connection.
 - Realtime delegations stay on Pi's user-message path; active Pi turns use `deliverAs: "steer"`. Mirror only interactive/RPC Pi steering to the owning delegation, never extension input.
 - LAN realtime is host-owned: one persistent helper WebRTC V3 call owns authenticated setup and delegation; browsers are replaceable 24 kHz mono PCM capture/playback clients. Takeover swaps the active browser socket without restarting or terminating V3.

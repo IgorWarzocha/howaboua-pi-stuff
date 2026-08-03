@@ -110,7 +110,6 @@ export function registerCodexEvents(
 	});
 
 	pi.on("message_start", async (event) => {
-		runtime.voice.bindDelegatedUserMessage(event.message);
 		if (event.message.role !== "toolResult" && !isToolCallOnlyAssistantMessage(event.message)) tracker.resetExplorationGroup();
 	});
 	pi.on("message_end", async (event) => {
@@ -142,12 +141,10 @@ export function registerCodexEvents(
 		if (failures.length > 1) throw new AggregateError(failures, "Codex extension shutdown failed");
 	});
 	pi.on("input", async (event) => {
-		runtime.voice.acceptDelegatedInput(event);
 		if (event.streamingBehavior === undefined) state.codexTurnState.beginTurn();
 		else if (event.streamingBehavior === "steer" && event.source !== "extension") runtime.voice.mirrorPiSteer(event.text);
 	});
 	pi.on("before_agent_start", async (event, ctx) => {
-		if (runtime.voice.consumeDelegatedTurnStart()) state.codexTurnState.beginTurn();
 		const systemPrompt = event.systemPrompt;
 		if (!isAdapterRuntime(resolveCodexRuntimePlan(ctx, state.config))) {
 			state.pendingActiveProviderPromptCapture = false;
@@ -214,7 +211,7 @@ export function registerCodexEvents(
 			: runtime.startPrewarm(ctx, postCompactionPrompt, true));
 	});
 	pi.on("context", async (event) => {
-		const voiceMessages = runtime.voice.applyDelegationContext(event.messages);
+		const voiceMessages = runtime.voice.filterContext(event.messages);
 		if (state.config.voiceFeaturesOnly) return { messages: voiceMessages };
 		const messages = voiceMessages.filter((message) => !isAdapterContextExcludedCustomMessage(message));
 		return { messages };

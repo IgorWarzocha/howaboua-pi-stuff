@@ -41,9 +41,6 @@ export function registerGippityControl(pi: ExtensionAPI): void {
 		voice.resetSessionContext();
 		state.config = readGippityControlConfig();
 	});
-	pi.on("message_start", async (event) => {
-		voice.bindDelegatedUserMessage(event.message);
-	});
 	pi.on("message_end", async (event) => {
 		if (event.message.role === "assistant")
 			lanVoice.assistantMessage(event.message);
@@ -57,12 +54,8 @@ export function registerGippityControl(pi: ExtensionAPI): void {
 			voice.streamDelta(update.type, update.delta);
 	});
 	pi.on("input", async (event) => {
-		voice.acceptDelegatedInput(event);
 		if (event.streamingBehavior === "steer" && event.source !== "extension")
 			voice.mirrorPiSteer(event.text);
-	});
-	pi.on("before_agent_start", async () => {
-		voice.consumeDelegatedTurnStart();
 	});
 	pi.on("agent_start", async () => {
 		voice.agentStarted();
@@ -73,7 +66,7 @@ export function registerGippityControl(pi: ExtensionAPI): void {
 		lanVoice.agentSettled();
 	});
 	pi.on("context", async (event) => ({
-		messages: voice.applyDelegationContext(event.messages),
+		messages: voice.filterContext(event.messages),
 	}));
 	pi.on("session_compact", async () => {
 		voice.resetContextAnnouncements();

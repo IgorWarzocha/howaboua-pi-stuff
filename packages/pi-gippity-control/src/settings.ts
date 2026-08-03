@@ -9,6 +9,7 @@ import {
 	type GippityControlConfig,
 	normalizeRealtimeV3Voice,
 	REALTIME_V3_VOICES,
+	type VoiceContextModel,
 } from "./config.ts";
 import { getGippityControlConfigPath } from "./config-store.ts";
 import type { CodexLanVoiceServerController } from "./voice/lan/controller.ts";
@@ -37,6 +38,12 @@ export async function openGippitySettings(options: {
 	let config = options.initialConfig;
 	await ctx.ui.custom<void>((tui, theme, _keybindings, done) => {
 		let list: SettingsList;
+		const contextModels = new Map<string, VoiceContextModel>();
+		for (const model of ctx.modelRegistry.getAvailable()) {
+			if (!model.input.includes("text")) continue;
+			const value = `${model.provider}/${model.id}`;
+			contextModels.set(value, { provider: model.provider, modelId: model.id });
+		}
 		const buildSettings = (): Setting[] => [
 			{
 				id: "server",
@@ -74,6 +81,36 @@ export async function openGippitySettings(options: {
 						dictationShortcutMode: value === "toggle" ? "toggle" : "push",
 					},
 				}),
+			},
+			{
+				id: "contextModel",
+				label: "Voice context model",
+				currentValue: config.voice.contextModel
+					? formatContextModel(config.voice.contextModel)
+					: "off",
+				values: [
+					"off",
+					...new Set([
+						...(config.voice.contextModel
+							? [formatContextModel(config.voice.contextModel)]
+							: []),
+						...[...contextModels.keys()].sort(),
+					]),
+				],
+				update: (value, current) => {
+					const { contextModel: _contextModel, ...voice } = current.voice;
+					return {
+						...current,
+						voice:
+							value === "off"
+								? voice
+								: {
+										...voice,
+										contextModel:
+											contextModels.get(value) ?? current.voice.contextModel,
+									},
+					};
+				},
 			},
 		];
 		const createList = () => {
@@ -164,6 +201,10 @@ function details(
 		),
 		theme.fg(
 			"dim",
+			`  Voice context: ${config.voice.contextModel ? formatContextModel(config.voice.contextModel) : "off"}`,
+		),
+		theme.fg(
+			"dim",
 			`  Change keybinds/devices: ${getGippityControlConfigPath()} (/reload to apply)`,
 		),
 		"",
@@ -196,6 +237,10 @@ function details(
 
 function formatVoiceName(voice: string): string {
 	return `${voice.slice(0, 1).toUpperCase()}${voice.slice(1)}`;
+}
+
+function formatContextModel(model: VoiceContextModel): string {
+	return `${model.provider}/${model.modelId}`;
 }
 
 function rule(width: number, theme: Theme): string {

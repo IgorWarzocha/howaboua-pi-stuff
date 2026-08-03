@@ -1,4 +1,6 @@
-- `controller.ts` composes lifecycle and loads mode sessions on start; guard cancellation across that import boundary. `auth.ts`, `conversation/`, `dictation/`, and `session-messages.ts` own their boundaries.
+- `controller.ts` composes lifecycle; `controller-sessions.ts` loads modes and guards cancellation across imports; `controller-support.ts` owns shared state/presentation helpers.
+- Under `conversation/`, `session.ts` owns V3 sequencing, `call-setup.ts` HTTP setup, `handoff.ts` delegation output, and `wire.ts` validation. `auth.ts`, `dictation/`, and `session-messages.ts` retain their boundaries.
+- `helper.ts` owns the process; `helper-protocol.ts` owns JSONL framing and validation. LAN browser transport, ownership, and decoding stay in `browser-connections.ts`, `browser-session.ts`, and `browser-wire.ts`.
 - `controls.ts` owns start/stop/setup policy; settings commands and shortcuts route through it into the controller.
 - The native helper never reads credential stores or executes agent work.
 - Helper IPC is versioned JSONL on stdio. Stdout is protocol-only; diagnostics go to stderr. Validate and bound every wire string/blob.

@@ -25,6 +25,7 @@ export interface CodexSettingsScreenOptions extends UsageTabOptions {
 export async function openCodexSettingsScreen(ctx: ExtensionContext, options: CodexSettingsScreenOptions): Promise<void> {
 	let draft = options.initialConfig;
 	let activeTab: SettingsTab = options.initialTab ?? "adapter";
+	const availableContextModels = ctx.modelRegistry.getAvailable().filter((model) => model.input.includes("text")).map((model) => ({ provider: model.provider, modelId: model.id }));
 
 	await ctx.ui.custom<void>((tui, theme, _kb, done) => {
 		const usageTab = createUsageTab(ctx, options, () => tui.requestRender());
@@ -56,7 +57,7 @@ export async function openCodexSettingsScreen(ctx: ExtensionContext, options: Co
 				...(activeTab === "voice" && options.lanVoiceServer
 					? [{ item: { id: "lanVoiceServer", label: "LAN voice server", currentValue: options.lanVoiceServer.status().running ? "on" : "off", values: ["off", "on"] } }]
 					: []),
-				...buildConfigSettings(activeTab, draft, theme),
+					...buildConfigSettings(activeTab, draft, theme, availableContextModels),
 			];
 			list = new SettingsList(
 				buildSettings().map(({ item }) => item),
@@ -157,6 +158,7 @@ function formatVoiceDetails(theme: Theme, config: CodexConversionConfig): string
 		theme.fg("dim", `  Mute microphone: ${formatVoiceShortcut(config.voice.muteShortcut)}`),
 		theme.fg("dim", `  Dictation: ${formatVoiceShortcut(config.voice.dictationShortcut)}`),
 		theme.fg("dim", `  LAN server: ${formatVoiceShortcut(config.voice.serverShortcut)}`),
+		theme.fg("dim", `  Voice context: ${config.voice.contextModel ? `${config.voice.contextModel.provider}/${config.voice.contextModel.modelId}` : "off"}`),
 		theme.fg("dim", `  Change keybinds: ${getCodexConversionConfigPath()} (/reload to apply)`),
 		"",
 		theme.fg("dim", `  Realtime system prompt: ${getCodexVoiceSystemPromptPath()}`),

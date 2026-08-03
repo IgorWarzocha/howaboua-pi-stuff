@@ -4,6 +4,7 @@ export type HelperModel = "gpt-5.6-luna" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gp
 export type WebSearchModel = HelperModel;
 export type V2UserMessageRetention = 16 | 32 | 64;
 export type DictationShortcutMode = "push" | "toggle";
+export type VoiceContextModel = { provider: string; modelId: string };
 
 export const REALTIME_V3_VOICES = ["juniper", "maple", "spruce", "ember", "vale", "breeze", "arbor", "sol", "cove"] as const;
 export type RealtimeV3Voice = typeof REALTIME_V3_VOICES[number];
@@ -46,6 +47,7 @@ export interface CodexConversionConfig {
 		muteShortcut: string;
 		serverShortcut: string;
 		dictationShortcutMode: DictationShortcutMode;
+		contextModel?: VoiceContextModel | undefined;
 		inputDevice?: string | undefined;
 		outputDevice?: string | undefined;
 	};
@@ -148,6 +150,13 @@ function optionalString(value: unknown): string | undefined {
 	return normalized && Buffer.byteLength(normalized) <= 512 ? normalized : undefined;
 }
 
+function normalizeVoiceContextModel(value: unknown): VoiceContextModel | undefined {
+	if (!isObject(value)) return undefined;
+	const provider = optionalString(value["provider"]);
+	const modelId = optionalString(value["modelId"]);
+	return provider && modelId ? { provider, modelId } : undefined;
+}
+
 export function normalizeCustomRustBinariesDir(value: unknown): string {
 	return optionalString(value) ?? "";
 }
@@ -164,6 +173,7 @@ export function normalizeCodexConversionConfig(value: unknown): CodexConversionC
 	const openai = isObject(value["openai"]) ? value["openai"] : {};
 	const inputDevice = optionalString(voice["inputDevice"]);
 	const outputDevice = optionalString(voice["outputDevice"]);
+	const contextModel = normalizeVoiceContextModel(voice["contextModel"]);
 	return {
 		voiceFeaturesOnly: bool(value["voiceFeaturesOnly"], DEFAULT_CODEX_CONVERSION_CONFIG.voiceFeaturesOnly),
 		prompt: {
@@ -211,6 +221,7 @@ export function normalizeCodexConversionConfig(value: unknown): CodexConversionC
 			serverShortcut: stringValue(voice["serverShortcut"], DEFAULT_CODEX_CONVERSION_CONFIG.voice.serverShortcut),
 			dictationShortcutMode: normalizeDictationShortcutMode(voice["dictationShortcutMode"])
 				?? DEFAULT_CODEX_CONVERSION_CONFIG.voice.dictationShortcutMode,
+			...(contextModel ? { contextModel } : {}),
 			...(inputDevice ? { inputDevice } : {}),
 			...(outputDevice ? { outputDevice } : {}),
 		},

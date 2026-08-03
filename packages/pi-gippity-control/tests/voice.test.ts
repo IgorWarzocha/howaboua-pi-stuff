@@ -5,6 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { WebSocket } from "ws";
+import { DEFAULT_GIPPITY_CONTROL_CONFIG } from "../src/config.ts";
+import { buildRealtimeInitialItems } from "../src/voice/context.ts";
+import { buildRealtimeCallRequest } from "../src/voice/conversation/session.ts";
 import { LanVoiceBrowserClients } from "../src/voice/lan/browser-clients.ts";
 import { decodeLanVoiceAudioCommand } from "../src/voice/lan/protocol.ts";
 import { CodexVoiceSessionMessages } from "../src/voice/session-messages.ts";
@@ -56,7 +59,95 @@ describe("realtime prompt persistence", () => {
 });
 
 describe("realtime session routing", () => {
-	test("delegations carry conversation since the previous handoff", () => {
+	test("V3 setup pins delegation acknowledgement and initial context", () => {
+		const initialItems = [
+			{
+				type: "message" as const,
+				role: "developer" as const,
+				content: [{ type: "input_text" as const, text: "session summary" }],
+			},
+		];
+		expect(
+			buildRealtimeCallRequest(
+				"offer",
+				DEFAULT_GIPPITY_CONTROL_CONFIG,
+				"instructions",
+				initialItems,
+			).session,
+		).toMatchObject({
+			model: "gpt-live-1-codex",
+			delegation: { type: "client", ack_filler: true },
+			initial_items: initialItems,
+		});
+	});
+
+	test("context sidecars serialize mixed-provider history to text", async () => {
+		let sidecarContext: unknown;
+		const entry = {
+			type: "message",
+			id: "user-message",
+			parentId: null,
+			timestamp: new Date(1).toISOString(),
+			message: {
+				role: "user",
+				content: [
+					{ type: "text", text: "Inspect this screenshot" },
+					{ type: "image", data: "aW1hZ2U=", mimeType: "image/png" },
+				],
+				timestamp: 1,
+			},
+		};
+		const model = {
+			provider: "example",
+			id: "text-model",
+			maxTokens: 4_096,
+		};
+		const provider = {
+			async *streamSimple(_model: unknown, context: unknown) {
+				sidecarContext = context;
+				yield {
+					type: "done",
+					message: { content: [{ type: "text", text: "summary" }] },
+				};
+			},
+		};
+		const ctx = {
+			sessionManager: {
+				getEntries: () => [entry],
+				getBranch: () => [entry],
+				getLeafId: () => entry.id,
+				getSessionId: () => "mixed-provider-session",
+			},
+			modelRegistry: {
+				find: () => model,
+				getProvider: () => provider,
+				getApiKeyAndHeaders: async () => ({ ok: true, apiKey: "token" }),
+			},
+		};
+
+		await buildRealtimeInitialItems({
+			ctx: ctx as never,
+			config: {
+				...DEFAULT_GIPPITY_CONTROL_CONFIG,
+				voice: {
+					...DEFAULT_GIPPITY_CONTROL_CONFIG.voice,
+					contextModel: { provider: "example", modelId: "text-model" },
+				},
+			},
+		});
+
+		expect(sidecarContext).toMatchObject({
+			messages: [
+				{
+					role: "user",
+					content: [{ type: "text" }],
+				},
+			],
+		});
+		expect((sidecarContext as { tools?: unknown }).tools).toBeUndefined();
+	});
+
+	test("delegations clear prior voice chatter", () => {
 		const turns = new RealtimeVoiceTurnTracker();
 		turns.userFinished("terms of the laptop");
 		expect(turns.assistantFinished("Do you mean temperatures?")).toEqual({
@@ -66,24 +157,35 @@ describe("realtime session routing", () => {
 		expect(
 			turns.delegated("check the laptop and server", "delegation-1"),
 		).toEqual({
-			input: "check the laptop and server",
+			input:
+				"check the laptop and server\n\nVoice transcript: yes, temperatures",
 			delegationId: "delegation-1",
-			transcriptDelta:
-				"user: terms of the laptop\nassistant: Do you mean temperatures?\nuser: yes, temperatures\nuser: check the laptop and server",
 		});
+		expect(turns.takeTranscriptTail()).toBeUndefined();
 
 		const delegationFirst = new RealtimeVoiceTurnTracker();
 		delegationFirst.inputAdded("yes, check the laptop");
 		expect(
 			delegationFirst.delegated("check the laptop", "delegation-2"),
-		).toEqual({
-			input: "check the laptop",
-			delegationId: "delegation-2",
-			transcriptDelta: "user: yes, check the laptop\nuser: check the laptop",
-		});
-		expect(
-			delegationFirst.userFinished("yes, check the laptop"),
 		).toBeUndefined();
+		expect(delegationFirst.userFinished("yes, check the laptop")).toEqual({
+			input: "yes, check the laptop",
+			delegationId: "delegation-2",
+		});
+		expect(delegationFirst.takeTranscriptTail()).toBeUndefined();
+	});
+
+	test("delegation keeps distinct delegation and transcript context visible", () => {
+		const turns = new RealtimeVoiceTurnTracker();
+		turns.inputAdded("yes, temperatures");
+		expect(
+			turns.delegated("check the laptop and server", "delegation-1"),
+		).toBeUndefined();
+		expect(turns.userFinished("yes, temperatures")).toEqual({
+			input:
+				"check the laptop and server\n\nVoice transcript: yes, temperatures",
+			delegationId: "delegation-1",
+		});
 	});
 
 	test("an interrupted conversation cannot consume a later delegation", () => {
@@ -93,17 +195,41 @@ describe("realtime session routing", () => {
 		turns.outputAdded("The load is");
 		turns.inputAdded("check the logs instead");
 
-		expect(turns.delegated("check the logs instead", "delegation-1")).toEqual({
+		expect(
+			turns.delegated("check the logs instead", "delegation-1"),
+		).toBeUndefined();
+		expect(turns.userFinished("check the logs instead")).toEqual({
 			input: "check the logs instead",
 			delegationId: "delegation-1",
-			transcriptDelta:
-				"user: what is the current load\nassistant: The load is\nuser: check the logs instead",
 		});
-		expect(turns.userFinished("check the logs instead")).toBeUndefined();
 		expect(turns.assistantFinished("The load is normal")).toEqual({
 			input: "what is the current load",
 		});
 		expect(turns.drainConversationTurns()).toEqual([]);
+
+		const delegationBeforeFinalTranscript = new RealtimeVoiceTurnTracker();
+		delegationBeforeFinalTranscript.inputAdded("what is the current load");
+		expect(
+			delegationBeforeFinalTranscript.delegated(
+				"check the current load",
+				"delegation-2",
+			),
+		).toBeUndefined();
+		delegationBeforeFinalTranscript.outputAdded("Okay, checking");
+		delegationBeforeFinalTranscript.inputAdded("check the logs instead");
+		expect(
+			delegationBeforeFinalTranscript.userFinished("what is the current load"),
+		).toEqual({
+			input:
+				"check the current load\n\nVoice transcript: what is the current load",
+			delegationId: "delegation-2",
+		});
+		expect(
+			delegationBeforeFinalTranscript.userFinished("check the logs instead"),
+		).toBeUndefined();
+		expect(
+			delegationBeforeFinalTranscript.assistantFinished("The logs are clean"),
+		).toEqual({ input: "check the logs instead" });
 	});
 
 	test("presentation entries never enter Pi model queues", () => {
@@ -126,11 +252,14 @@ describe("realtime session routing", () => {
 		expect(modelMessages).toEqual([]);
 	});
 
-	test("delegation context binds only its accepted user message", () => {
+	test("delegations use Pi's plain user queues", () => {
+		const sent: unknown[] = [];
 		const messages = new CodexVoiceSessionMessages(
 			{
 				appendEntry() {},
-				sendUserMessage() {},
+				sendUserMessage(message: unknown, options: unknown) {
+					sent.push({ message, options });
+				},
 			} as unknown as ExtensionAPI,
 			voiceMessageCallbacks(),
 		);
@@ -138,46 +267,33 @@ describe("realtime session routing", () => {
 		messages.voiceTurn({
 			input: "do the same for the server",
 			delegationId: "delegation-1",
-			transcriptDelta: "voice context",
 		});
-		messages.acceptDelegatedInput({
-			type: "input",
-			text: "do the same for the server",
-			source: "extension",
-			streamingBehavior: "steer",
-		} as never);
 
-		const earlierIdenticalMessage = {
-			role: "user" as const,
-			content: [{ type: "text" as const, text: "do the same for the server" }],
-			timestamp: 0,
-		};
-		const visibleUserMessage = {
-			...earlierIdenticalMessage,
-			content: [...earlierIdenticalMessage.content],
-			timestamp: Date.now() + 1_000,
-		};
-		messages.bindDelegatedUserMessage(earlierIdenticalMessage);
-		messages.bindDelegatedUserMessage(visibleUserMessage);
-		const providerMessages = messages.applyDelegationContext([
-			earlierIdenticalMessage,
-			visibleUserMessage,
+		expect(sent).toEqual([
+			{
+				message: "do the same for the server",
+				options: { deliverAs: "steer" },
+			},
 		]);
-		const [earlierProviderMessage, providerMessage] = providerMessages;
-		const earlierProviderText =
-			earlierProviderMessage?.role === "user" &&
-			Array.isArray(earlierProviderMessage.content)
-				? earlierProviderMessage.content.find((part) => part.type === "text")
-						?.text
-				: undefined;
-		expect(earlierProviderText).toBe("do the same for the server");
-		const providerText =
-			providerMessage?.role === "user" && Array.isArray(providerMessage.content)
-				? providerMessage.content.find((part) => part.type === "text")?.text
-				: undefined;
-		expect(providerText).toContain(
-			"<transcript_delta>voice context</transcript_delta>",
+
+		const idleSent: unknown[] = [];
+		const idleMessages = new CodexVoiceSessionMessages(
+			{
+				appendEntry() {},
+				sendUserMessage(message: unknown, options: unknown) {
+					idleSent.push({ message, options });
+				},
+			} as unknown as ExtensionAPI,
+			voiceMessageCallbacks(),
 		);
+		idleMessages.setContext({ isIdle: () => true } as never);
+		idleMessages.voiceTurn({
+			input: "check the server",
+			delegationId: "delegation-2",
+		});
+		expect(idleSent).toEqual([
+			{ message: "check the server", options: undefined },
+		]);
 	});
 });
 
