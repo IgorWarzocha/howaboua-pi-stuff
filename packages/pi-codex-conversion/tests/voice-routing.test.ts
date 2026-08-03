@@ -1,0 +1,152 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import {
+	realtimeHandoffChannel,
+	RealtimeDelegationHandoff,
+} from "../src/voice/conversation/handoff.ts";
+import type { CodexRealtimePeer } from "../src/voice/conversation/peer.ts";
+import { CodexVoiceSessionMessages } from "../src/voice/session-messages.ts";
+import { RealtimeVoiceTurnTracker } from "../src/voice/turns.ts";
+
+test("assistant message boundaries route clean realtime handoffs", () => {
+	const sent: unknown[] = [];
+	const handoff = new RealtimeDelegationHandoff(
+		{ sendData: (message: unknown) => sent.push(message) } as unknown as CodexRealtimePeer,
+		{
+			isActive: () => true,
+			onFailure: (error) => assert.fail(error),
+			onSettled: () => undefined,
+			onStatus: () => undefined,
+		},
+	);
+	handoff.activate("delegation-1");
+	handoff.stream("Checking cache");
+	handoff.finishMessage(realtimeHandoffChannel("toolUse"));
+	handoff.stream("Finished");
+	handoff.finishMessage(realtimeHandoffChannel("stop"));
+	assert.deepEqual(sent, [
+		{
+			type: "delegation.context.append",
+			delegation_item_id: "delegation-1",
+			channel: "commentary",
+			content: [{ type: "input_text", text: "Checking cache" }],
+		},
+		{
+			type: "delegation.context.append",
+			delegation_item_id: "delegation-1",
+			channel: "speakable",
+			content: [{ type: "input_text", text: "Finished" }],
+		},
+	]);
+});
+
+test("voice turns finalize frontend history before delegation", () => {
+	const turns = new RealtimeVoiceTurnTracker();
+	turns.inputAdded("whatwerewe discussing");
+	turns.userFinished("What were we discussing?");
+	turns.outputAdded("This repo isa");
+	turns.assistantFinished("This repo is a Pi toolkit.");
+	turns.inputAdded("readthe readmes");
+	assert.equal(turns.delegated("Read the READMEs", "delegation-1"), undefined);
+	turns.inputAdded("properly");
+	assert.deepEqual(turns.userFinished("Read the READMEs"), {
+		input: "Read the READMEs",
+		transcriptDelta:
+			"user: What were we discussing?\nassistant: This repo is a Pi toolkit.",
+		delegationId: "delegation-1",
+	});
+	turns.delegationSettled("delegation-1");
+	turns.inputAdded("thenrunthe tests");
+	assert.equal(
+		turns.delegated("Then run the tests", "delegation-2"),
+		undefined,
+	);
+	assert.deepEqual(turns.userFinished("Then run the tests"), {
+		input: "Then run the tests",
+		delegationId: "delegation-2",
+	});
+});
+
+test("voice presentation entries never enter Pi model queues", () => {
+	const modelMessages: unknown[] = [];
+	const messages = new CodexVoiceSessionMessages(
+		{
+			appendEntry() {},
+			sendMessage(message: unknown, options: unknown) {
+				modelMessages.push({ message, options });
+			},
+			sendUserMessage(message: unknown, options: unknown) {
+				modelMessages.push({ message, options });
+			},
+		} as unknown as ExtensionAPI,
+		voiceMessageCallbacks(),
+	);
+	messages.modeStarted("dictation");
+	messages.userTranscript("Can you check the server?");
+	messages.voiceTurn({ input: "thanks" });
+
+	assert.deepEqual(modelMessages, []);
+});
+
+test("realtime session messages route one current Pi and V3 flow", () => {
+	const sent: Array<{ message: any; options: unknown }> = [];
+	const messages = new CodexVoiceSessionMessages(
+		{
+			sendMessage(message: unknown, options: unknown) {
+				sent.push({ message, options });
+			},
+		} as unknown as ExtensionAPI,
+		voiceMessageCallbacks(),
+	);
+	messages.setContext({ isIdle: () => true } as never);
+	messages.modeStarted("realtime");
+	messages.retainTranscriptTail("user: earlier conversation");
+	messages.voiceTurn({
+		input: "check the server",
+		delegationId: "delegation-1",
+	});
+	messages.retainTranscriptTail("user: while Pi works");
+	messages.voiceTurn({
+		input: "also check the laptop",
+		delegationId: "delegation-2",
+	});
+	messages.voiceStopped("realtime");
+
+	assert.equal(sent.length, 6);
+	assert.equal(sent[0]?.message.customType, "codex-voice-mode");
+	assert.match(sent[0]?.message.content, /^<realtime_voice_session state="active">/);
+	assert.equal(sent[1]?.message.customType, "codex-realtime-voice-tail");
+	assert.equal(sent[2]?.message.customType, "codex-realtime-delegation");
+	assert.equal(
+		sent[2]?.message.content,
+		"<realtime_delegation>\n  <input>check the server</input>\n</realtime_delegation>",
+	);
+	assert.equal(sent[4]?.message.customType, "codex-realtime-delegation");
+	assert.match(sent[5]?.message.content, /^<realtime_voice_session state="ended">/);
+	assert.deepEqual(
+		sent.map(({ options }) => options),
+		[
+			{ triggerTurn: false, deliverAs: "steer" },
+			{ triggerTurn: false, deliverAs: "steer" },
+			{ triggerTurn: true },
+			{ triggerTurn: false, deliverAs: "nextTurn" },
+			{ triggerTurn: true, deliverAs: "steer" },
+			{ triggerTurn: false, deliverAs: "steer" },
+		],
+	);
+	const lifecycle = { role: "custom", ...sent[0]!.message };
+	const delegation = { role: "custom", ...sent[2]!.message };
+	assert.deepEqual(
+		messages.filterContext([lifecycle, delegation] as never),
+		[lifecycle, delegation],
+	);
+});
+
+function voiceMessageCallbacks() {
+	return {
+		canDelegate: () => true,
+		onDelegation: () => {},
+		onWorking: () => {},
+	};
+}
