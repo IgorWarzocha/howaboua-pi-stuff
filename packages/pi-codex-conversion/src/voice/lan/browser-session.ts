@@ -15,7 +15,7 @@ export interface LanVoiceBrowserClientsOptions {
 	startDictation(clientId: string): Promise<void>;
 	finishDictation(clientId: string, draft?: string, revision?: number, selection?: LanVoiceDraftSelection): Promise<void>;
 	cancelDictation(clientId: string): Promise<void>;
-	onConversationActivity(active: boolean): void;
+	onConversationActivity(active: boolean): void | Promise<void>;
 	onConversationMute(muted: boolean): void;
 	conversationMuted(): boolean;
 	onConversationAudio(pcm: Buffer): void;
@@ -27,6 +27,7 @@ export class LanVoiceBrowserSession {
 	private readonly connections: LanVoiceBrowserConnections;
 	private state: LanVoiceBrowserState = { type: "idle" };
 	private operation = Promise.resolve();
+	private conversationOwnerId: string | undefined;
 
 	constructor(options: LanVoiceBrowserClientsOptions, connections: LanVoiceBrowserConnections) {
 		this.options = options;
@@ -40,14 +41,19 @@ export class LanVoiceBrowserSession {
 		if (active.type === "active" && active.mode === "conversation") this.connections.sendAudio(active.socket, pcm);
 	}
 
-	release(clientId: string, socket?: WebSocket): void {
+	release(clientId: string, socket?: WebSocket, terminateConversation = false): void {
 		this.releaseStarting(clientId, socket);
 		void this.enqueue(async () => {
 			const active = this.state;
-			if (active.type !== "active" || active.clientId !== clientId || (socket && active.socket !== socket)) return;
-			this.state = { type: "idle" };
-			if (active.mode === "conversation") this.options.onConversationActivity(false);
-			else await this.options.finishDictation(clientId);
+			const ownsActive = active.type === "active" && active.clientId === clientId && (!socket || active.socket === socket);
+			if (ownsActive) this.state = { type: "idle" };
+			if (terminateConversation && this.conversationOwnerId === clientId) {
+				this.conversationOwnerId = undefined;
+				await this.options.onConversationActivity(false);
+				return;
+			}
+			if (!ownsActive) return;
+			if (active.mode === "dictation") await this.options.finishDictation(clientId);
 		}).catch((error: unknown) => this.connections.sendControl(clientId, { type: "error", message: errorMessage(error) }));
 	}
 
@@ -74,16 +80,21 @@ export class LanVoiceBrowserSession {
 				this.connections.sendControl(previous.clientId, { type: "stop", reason: "replaced" });
 				previous.socket.close(4001, "replaced");
 			}
-			if (previous?.mode === "conversation" && mode !== "conversation") this.options.onConversationActivity(false);
+			if (previous?.mode === "conversation" && mode !== "conversation") {
+				this.conversationOwnerId = undefined;
+				await this.options.onConversationActivity(false);
+			}
 			if (previous?.mode === "dictation") await this.options.finishDictation(previous.clientId);
 			if (this.closed) return;
 			const starting = { type: "starting", clientId, socket, mode } as const;
 			this.state = starting;
+			if (mode === "conversation") this.conversationOwnerId = clientId;
 			try {
 				if (mode === "conversation") await this.options.ensureConversation();
 				else await this.options.startDictation(clientId);
 			} catch (error) {
 				if (this.state === starting) this.state = { type: "idle" };
+				if (mode === "conversation" && this.conversationOwnerId === clientId) this.conversationOwnerId = undefined;
 				throw error;
 			}
 			if (this.closed || this.state !== starting || !this.connections.isCurrentAudio(clientId, socket) || socket.readyState !== WebSocket.OPEN) {
@@ -91,7 +102,7 @@ export class LanVoiceBrowserSession {
 				return;
 			}
 			this.state = { type: "active", clientId, socket, mode };
-			if (mode === "conversation") this.options.onConversationActivity(true);
+			if (mode === "conversation") await this.options.onConversationActivity(true);
 			socket.send(JSON.stringify({ type: "active", mode, ...(mode === "conversation" ? { muted: this.options.conversationMuted() } : {}) }));
 		});
 	}
@@ -126,7 +137,7 @@ export class LanVoiceBrowserSession {
 		this.state = { type: "closed" };
 		const failures: unknown[] = [];
 		if (active.type === "active" && active.mode === "conversation") {
-			try { this.options.onConversationActivity(false); } catch (error) { failures.push(error); }
+			try { this.conversationOwnerId = undefined; await this.options.onConversationActivity(false); } catch (error) { failures.push(error); }
 		}
 		if ((active.type === "starting" || active.type === "active") && active.mode === "dictation") {
 			try { await this.options.cancelDictation(active.clientId); } catch (error) { failures.push(error); }

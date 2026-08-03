@@ -1,5 +1,6 @@
 export interface RealtimeVoiceTurn {
 	input: string;
+	transcriptDelta?: string;
 	delegationId?: string;
 }
 
@@ -8,6 +9,7 @@ const MAX_TRANSCRIPT_DELTA_BYTES = 32 * 1024;
 interface TranscriptEntry {
 	role: "user" | "assistant";
 	text: string;
+	final: boolean;
 }
 
 interface PendingDelegation {
@@ -19,52 +21,95 @@ interface PendingUserTurn {
 	delegation?: PendingDelegation;
 }
 
+interface PendingUserInput {
+	input: string;
+	transcript: TranscriptEntry;
+}
+
 class RealtimeTranscriptBuffer {
 	private entries: TranscriptEntry[] = [];
+	private readonly active = new Map<TranscriptEntry["role"], TranscriptEntry>();
 
-	append(role: TranscriptEntry["role"], transcript: string): void {
+	append(
+		role: TranscriptEntry["role"],
+		transcript: string,
+		startsTurn = false,
+	): void {
 		const text = transcript.trim();
 		if (!text) return;
-		const last = this.entries.at(-1);
-		if (last?.role === role) last.text += text;
-		else this.entries.push({ role, text });
+		const current = this.active.get(role);
+		if (current && !startsTurn) current.text += text;
+		else {
+			const entry = { role, text, final: false };
+			this.entries.push(entry);
+			this.active.set(role, entry);
+		}
 		this.bound();
 	}
 
-	finish(role: TranscriptEntry["role"], transcript: string): void {
+	finish(role: TranscriptEntry["role"], transcript: string): TranscriptEntry {
 		const text = transcript.trim();
-		if (!text) return;
-		const last = this.entries.at(-1);
-		if (last?.role === role) last.text = text;
-		else this.entries.push({ role, text });
+		const current = this.entries.find(
+			(entry) => entry.role === role && !entry.final,
+		);
+		if (current) {
+			current.text = text;
+			current.final = true;
+			if (this.active.get(role) === current) this.active.delete(role);
+		} else {
+			const entry = { role, text, final: true };
+			this.entries.push(entry);
+			this.bound();
+			return entry;
+		}
 		this.bound();
+		return current;
 	}
 
 	take(): string | undefined {
 		if (this.entries.length === 0) return undefined;
 		const transcript = this.render();
-		this.entries = [];
+		this.reset();
 		return transcript;
 	}
 
-	reset(): void { this.entries = []; }
+	takeHistoryBefore(currentUser: TranscriptEntry): string | undefined {
+		const currentUserIndex = this.entries.indexOf(currentUser);
+		const history =
+			currentUserIndex < 0
+				? []
+				: this.entries.slice(0, currentUserIndex).filter(({ final }) => final);
+		const transcript = this.render(history);
+		this.reset();
+		return transcript || undefined;
+	}
+
+	reset(): void {
+		this.entries = [];
+		this.active.clear();
+	}
 
 	private bound(): void {
 		this.entries = this.entries.filter(
-			(entry) => Buffer.byteLength(`${entry.role}: ${entry.text}`) <= MAX_TRANSCRIPT_DELTA_BYTES,
+			(entry) =>
+				Buffer.byteLength(`${entry.role}: ${entry.text}`) <=
+				MAX_TRANSCRIPT_DELTA_BYTES,
 		);
-		while (Buffer.byteLength(this.render()) > MAX_TRANSCRIPT_DELTA_BYTES) this.entries.shift();
+		while (Buffer.byteLength(this.render()) > MAX_TRANSCRIPT_DELTA_BYTES)
+			this.entries.shift();
+		for (const [role, entry] of this.active)
+			if (!this.entries.includes(entry)) this.active.delete(role);
 	}
 
-	private render(): string {
-		return this.entries.map(({ role, text }) => `${role}: ${text}`).join("\n");
+	private render(entries = this.entries): string {
+		return entries.map(({ role, text }) => `${role}: ${text}`).join("\n");
 	}
 }
 
 /** Keeps conversational display turns separate from V3 delegation handoffs. */
 export class RealtimeVoiceTurnTracker {
 	private readonly transcript = new RealtimeTranscriptBuffer();
-	private pendingUserInputs: string[] = [];
+	private pendingUserInputs: PendingUserInput[] = [];
 	private unfinishedUserTurns: PendingUserTurn[] = [];
 	private activeUserTurn: PendingUserTurn | undefined;
 	private readonly delegationIds = new Set<string>();
@@ -72,11 +117,12 @@ export class RealtimeVoiceTurnTracker {
 	private readonly outstandingInputs = new Set<string>();
 
 	inputAdded(input: string): void {
+		const startsTurn = !this.activeUserTurn;
 		if (!this.activeUserTurn) {
 			this.activeUserTurn = {};
 			this.unfinishedUserTurns.push(this.activeUserTurn);
 		}
-		this.transcript.append("user", input);
+		this.transcript.append("user", input, startsTurn);
 	}
 
 	outputAdded(output: string): void {
@@ -85,47 +131,42 @@ export class RealtimeVoiceTurnTracker {
 
 	userFinished(input: string): RealtimeVoiceTurn | undefined {
 		const turn = this.unfinishedUserTurns.shift();
-		const wasActive = !turn || this.activeUserTurn === turn;
 		if (this.activeUserTurn === turn) this.activeUserTurn = undefined;
+		const transcript = this.transcript.finish("user", input);
 		const delegation = turn?.delegation;
-		if (delegation) {
-			return {
-				input: reconcileDelegationInput(delegation.input, input),
-				delegationId: delegation.delegationId,
-			};
-		}
-		if (wasActive) this.transcript.finish("user", input);
-		this.pendingUserInputs.push(input);
+		if (delegation) return this.finishDelegation(delegation, transcript);
+		this.pendingUserInputs.push({ input, transcript });
 		return undefined;
 	}
 
-	delegated(input: string, delegationId: string): RealtimeVoiceTurn | undefined {
+	delegated(
+		input: string,
+		delegationId: string,
+	): RealtimeVoiceTurn | undefined {
 		if (this.delegationIds.has(delegationId)) return undefined;
 		this.delegationIds.add(delegationId);
 		if (this.outstandingInputs.has(input)) return undefined;
-		if (!this.activeUserTurn && this.pendingUserInputs.length === 0 && this.unfinishedUserTurns.some((turn) => turn.delegation)) return undefined;
+		if (
+			!this.activeUserTurn &&
+			this.pendingUserInputs.length === 0 &&
+			this.unfinishedUserTurns.some((turn) => turn.delegation)
+		)
+			return undefined;
 		this.outstandingDelegations.set(delegationId, input);
 		this.outstandingInputs.add(input);
 
 		if (this.activeUserTurn) {
 			this.activeUserTurn.delegation = { input, delegationId };
 			this.activeUserTurn = undefined;
-			this.transcript.reset();
 			return undefined;
 		}
 		const pendingIndex = this.pendingUserInputs.length - 1;
 		if (pendingIndex === -1) {
 			this.unfinishedUserTurns.push({ delegation: { input, delegationId } });
-			this.transcript.reset();
 			return undefined;
 		}
-		const [transcript] = this.pendingUserInputs.splice(pendingIndex, 1);
-
-		this.transcript.reset();
-		return {
-			input: reconcileDelegationInput(input, transcript),
-			delegationId,
-		};
+		const [pending] = this.pendingUserInputs.splice(pendingIndex, 1);
+		return this.finishDelegation({ input, delegationId }, pending!.transcript);
 	}
 
 	delegationSettled(delegationId: string): void {
@@ -137,16 +178,20 @@ export class RealtimeVoiceTurnTracker {
 
 	assistantFinished(output?: string): RealtimeVoiceTurn | undefined {
 		if (output) this.transcript.finish("assistant", output);
-		const input = this.pendingUserInputs.shift();
-		return input === undefined ? undefined : { input };
+		this.pendingUserInputs.shift();
+		return output ? { input: output } : undefined;
 	}
 
-	takeTranscriptTail(): string | undefined { return this.transcript.take(); }
+	takeTranscriptTail(): string | undefined {
+		return this.transcript.take();
+	}
 
 	drainConversationTurns(): RealtimeVoiceTurn[] {
 		const turns = [
-			...this.pendingUserInputs.map((input) => ({ input })),
-			...this.unfinishedUserTurns.flatMap((turn) => turn.delegation ? [turn.delegation] : []),
+			...this.pendingUserInputs.map(({ input }) => ({ input })),
+			...this.unfinishedUserTurns.flatMap((turn) =>
+				turn.delegation ? [turn.delegation] : [],
+			),
 		];
 		this.pendingUserInputs = [];
 		this.unfinishedUserTurns = [];
@@ -163,17 +208,16 @@ export class RealtimeVoiceTurnTracker {
 		this.outstandingDelegations.clear();
 		this.outstandingInputs.clear();
 	}
-}
 
-function reconcileDelegationInput(delegation: string, transcript?: string): string {
-	if (!transcript) return delegation;
-	const normalizedDelegation = normalizeComparisonText(delegation);
-	const normalizedTranscript = normalizeComparisonText(transcript);
-	if (normalizedTranscript.includes(normalizedDelegation)) return transcript;
-	if (normalizedDelegation.includes(normalizedTranscript)) return delegation;
-	return `${delegation}\n\nVoice transcript: ${transcript}`;
-}
-
-function normalizeComparisonText(value: string): string {
-	return value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+	private finishDelegation(
+		delegation: PendingDelegation,
+		currentUser: TranscriptEntry,
+	): RealtimeVoiceTurn {
+		const transcriptDelta = this.transcript.takeHistoryBefore(currentUser);
+		return {
+			input: delegation.input,
+			...(transcriptDelta ? { transcriptDelta } : {}),
+			delegationId: delegation.delegationId,
+		};
+	}
 }

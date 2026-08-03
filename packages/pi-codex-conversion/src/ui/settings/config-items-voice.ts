@@ -1,7 +1,9 @@
 import {
 	type CodexConversionConfig,
 	normalizeRealtimeV3Voice,
+	normalizeVoiceContextReasoning,
 	REALTIME_V3_VOICES,
+	VOICE_CONTEXT_REASONING_LEVELS,
 	type VoiceContextModel,
 } from "../../adapter/activation/config.ts";
 import { type ConfigSetting, setting } from "./config-items-shared.ts";
@@ -16,6 +18,7 @@ export function buildVoiceSettings(
 	const currentContextModel = config.voice.contextModel
 		? formatContextModel(config.voice.contextModel)
 		: "off";
+	const currentContextReasoning = config.voice.contextReasoning;
 	return [
 		setting(
 			{
@@ -61,6 +64,21 @@ export function buildVoiceSettings(
 								},
 				};
 			},
+		),
+		setting(
+			{
+				id: "voiceContextReasoning",
+				label: "Voice context reasoning",
+				currentValue: currentContextReasoning,
+				values: [...VOICE_CONTEXT_REASONING_LEVELS],
+			},
+			(value, current) => ({
+				...current,
+				voice: {
+					...current.voice,
+					contextReasoning: normalizeVoiceContextReasoning(value),
+				},
+			}),
 		),
 		setting(
 			{

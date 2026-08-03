@@ -1,9 +1,17 @@
+import type { AssistantMessage } from "@earendil-works/pi-ai";
 import { renderPiSteer } from "../prompts.ts";
 import type { CodexRealtimePeer } from "./peer.ts";
 import { utf8Chunks } from "./wire.ts";
 
 const HANDOFF_CHUNK_BYTES = 500;
-const HANDOFF_FLUSH_MS = 200;
+
+export type RealtimeHandoffChannel = "commentary" | "speakable";
+
+export function realtimeHandoffChannel(
+	stopReason: AssistantMessage["stopReason"],
+): RealtimeHandoffChannel {
+	return stopReason === "toolUse" ? "commentary" : "speakable";
+}
 
 interface RealtimeDelegationHandoffCallbacks {
 	isActive(): boolean;
@@ -17,8 +25,6 @@ export class RealtimeDelegationHandoff {
 	private readonly callbacks: RealtimeDelegationHandoffCallbacks;
 	private activeDelegationId: string | undefined;
 	private buffer = "";
-	private channel: "commentary" | "speakable" = "speakable";
-	private timer: ReturnType<typeof setTimeout> | undefined;
 
 	constructor(peer: CodexRealtimePeer, callbacks: RealtimeDelegationHandoffCallbacks) {
 		this.peer = peer;
@@ -28,7 +34,7 @@ export class RealtimeDelegationHandoff {
 	activate(id: string): void {
 		if (!this.callbacks.isActive() || this.activeDelegationId === id) return;
 		const previousDelegationId = this.activeDelegationId;
-		this.flush();
+		this.finishMessage("speakable");
 		if (!this.callbacks.isActive()) return;
 		if (previousDelegationId) this.callbacks.onSettled(previousDelegationId);
 		this.activeDelegationId = id;
@@ -38,8 +44,6 @@ export class RealtimeDelegationHandoff {
 		const delegationId = this.activeDelegationId;
 		const frame = renderPiSteer(input);
 		if (!this.callbacks.isActive() || !delegationId || !frame) return false;
-		this.flush();
-		if (!this.callbacks.isActive() || this.activeDelegationId !== delegationId) return false;
 		try {
 			this.send(delegationId, "commentary", frame);
 			return true;
@@ -49,43 +53,37 @@ export class RealtimeDelegationHandoff {
 		}
 	}
 
-	stream(type: string, delta: string): void {
+	stream(delta: string): void {
 		if (!this.callbacks.isActive() || !this.activeDelegationId || !delta) return;
-		this.callbacks.onStatus("speaking");
-		const channel = type === "thinking_delta" ? "commentary" : "speakable";
-		if (this.buffer && channel !== this.channel) this.flush();
-		this.channel = channel;
 		this.buffer += delta;
-		if (!this.timer) this.timer = setTimeout(() => this.flush(), HANDOFF_FLUSH_MS);
 	}
 
-	settle(): void {
-		this.flush();
-		if (this.activeDelegationId) this.callbacks.onSettled(this.activeDelegationId);
-		this.activeDelegationId = undefined;
-		if (this.callbacks.isActive()) this.callbacks.onStatus("listening");
-	}
-
-	flush(): void {
-		if (this.timer) clearTimeout(this.timer);
-		this.timer = undefined;
-		if (!this.callbacks.isActive() || !this.activeDelegationId || !this.buffer) return;
+	finishMessage(channel: RealtimeHandoffChannel): void {
+		const delegationId = this.activeDelegationId;
+		const text = this.buffer;
+		this.buffer = "";
+		if (!this.callbacks.isActive() || !delegationId || !text) return;
+		if (channel === "speakable") this.callbacks.onStatus("speaking");
 		try {
-			this.send(this.activeDelegationId, this.channel, this.buffer);
-			this.buffer = "";
+			this.send(delegationId, channel, text);
 		} catch (error) {
 			this.callbacks.onFailure(asError(error));
 		}
 	}
 
+	settle(): void {
+		this.finishMessage("speakable");
+		if (this.activeDelegationId) this.callbacks.onSettled(this.activeDelegationId);
+		this.activeDelegationId = undefined;
+		if (this.callbacks.isActive()) this.callbacks.onStatus("listening");
+	}
+
 	clear(): void {
-		if (this.timer) clearTimeout(this.timer);
-		this.timer = undefined;
 		this.buffer = "";
 		this.activeDelegationId = undefined;
 	}
 
-	private send(delegationId: string, channel: "commentary" | "speakable", content: string): void {
+	private send(delegationId: string, channel: RealtimeHandoffChannel, content: string): void {
 		for (const text of utf8Chunks(content, HANDOFF_CHUNK_BYTES)) {
 			this.peer.sendData({ type: "delegation.context.append", delegation_item_id: delegationId, channel, content: [{ type: "input_text", text }] });
 		}

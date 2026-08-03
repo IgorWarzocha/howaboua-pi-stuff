@@ -7,6 +7,11 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { WebSocket } from "ws";
 import { DEFAULT_GIPPITY_CONTROL_CONFIG } from "../src/config.ts";
 import { buildRealtimeInitialItems } from "../src/voice/context.ts";
+import {
+	RealtimeDelegationHandoff,
+	realtimeHandoffChannel,
+} from "../src/voice/conversation/handoff.ts";
+import type { CodexRealtimePeer } from "../src/voice/conversation/peer.ts";
 import { buildRealtimeCallRequest } from "../src/voice/conversation/session.ts";
 import { LanVoiceBrowserClients } from "../src/voice/lan/browser-clients.ts";
 import { decodeLanVoiceAudioCommand } from "../src/voice/lan/protocol.ts";
@@ -59,6 +64,43 @@ describe("realtime prompt persistence", () => {
 });
 
 describe("realtime session routing", () => {
+	test("assistant message boundaries route clean realtime handoffs", () => {
+		const sent: unknown[] = [];
+		const statuses: string[] = [];
+		const handoff = new RealtimeDelegationHandoff(
+			{
+				sendData: (message: unknown) => sent.push(message),
+			} as unknown as CodexRealtimePeer,
+			{
+				isActive: () => true,
+				onFailure: (error) => {
+					throw error;
+				},
+				onSettled: () => undefined,
+				onStatus: (status) => statuses.push(status),
+			},
+		);
+		handoff.activate("delegation-1");
+		handoff.stream("Checking cache");
+		handoff.finishMessage(realtimeHandoffChannel("toolUse"));
+		handoff.stream("Finished");
+		handoff.finishMessage(realtimeHandoffChannel("stop"));
+		expect(sent).toEqual([
+			{
+				type: "delegation.context.append",
+				delegation_item_id: "delegation-1",
+				channel: "commentary",
+				content: [{ type: "input_text", text: "Checking cache" }],
+			},
+			{
+				type: "delegation.context.append",
+				delegation_item_id: "delegation-1",
+				channel: "speakable",
+				content: [{ type: "input_text", text: "Finished" }],
+			},
+		]);
+		expect(statuses).toEqual(["speaking"]);
+	});
 	test("V3 setup pins delegation acknowledgement and initial context", () => {
 		const initialItems = [
 			{
@@ -83,7 +125,9 @@ describe("realtime session routing", () => {
 
 	test("context sidecars serialize mixed-provider history to text", async () => {
 		let sidecarContext: unknown;
-		const entry = {
+		let displayedSummary: string | undefined;
+		let sidecarReasoning: unknown;
+		const userEntry = {
 			type: "message",
 			id: "user-message",
 			parentId: null,
@@ -97,14 +141,83 @@ describe("realtime session routing", () => {
 				timestamp: 1,
 			},
 		};
+		const workingEntry = {
+			type: "message",
+			id: "working-message",
+			parentId: userEntry.id,
+			timestamp: new Date(2).toISOString(),
+			message: {
+				role: "assistant",
+				content: [
+					{ type: "thinking", thinking: "private reasoning" },
+					{ type: "text", text: "Checking files" },
+					{ type: "toolCall", id: "call-1", name: "read", arguments: {} },
+				],
+				stopReason: "toolUse",
+				timestamp: 2,
+			},
+		};
+		const toolEntry = {
+			type: "message",
+			id: "tool-message",
+			parentId: workingEntry.id,
+			timestamp: new Date(3).toISOString(),
+			message: {
+				role: "toolResult",
+				toolCallId: "call-1",
+				toolName: "read",
+				content: [{ type: "text", text: "large code dump" }],
+				isError: false,
+				timestamp: 3,
+			},
+		};
+		const answerEntry = {
+			type: "message",
+			id: "answer-message",
+			parentId: toolEntry.id,
+			timestamp: new Date(4).toISOString(),
+			message: {
+				role: "assistant",
+				content: [
+					{ type: "thinking", thinking: "final private reasoning" },
+					{ type: "text", text: "This is the final answer." },
+				],
+				stopReason: "stop",
+				timestamp: 4,
+			},
+		};
+		const delegationEntry = {
+			type: "custom_message",
+			id: "voice-delegation",
+			parentId: answerEntry.id,
+			timestamp: new Date(5).toISOString(),
+			customType: "gippity-realtime-delegation",
+			content:
+				"<realtime_delegation><input>Now inspect tests</input></realtime_delegation>",
+			display: false,
+			details: {},
+		};
+		const entries = [
+			userEntry,
+			workingEntry,
+			toolEntry,
+			answerEntry,
+			delegationEntry,
+		];
 		const model = {
 			provider: "example",
 			id: "text-model",
 			maxTokens: 4_096,
+			reasoning: true,
 		};
 		const provider = {
-			async *streamSimple(_model: unknown, context: unknown) {
+			async *streamSimple(
+				_model: unknown,
+				context: unknown,
+				options: { reasoning?: unknown },
+			) {
 				sidecarContext = context;
+				sidecarReasoning = options.reasoning;
 				yield {
 					type: "done",
 					message: { content: [{ type: "text", text: "summary" }] },
@@ -113,9 +226,9 @@ describe("realtime session routing", () => {
 		};
 		const ctx = {
 			sessionManager: {
-				getEntries: () => [entry],
-				getBranch: () => [entry],
-				getLeafId: () => entry.id,
+				getEntries: () => entries,
+				getBranch: () => entries,
+				getLeafId: () => delegationEntry.id,
 				getSessionId: () => "mixed-provider-session",
 			},
 			modelRegistry: {
@@ -125,7 +238,7 @@ describe("realtime session routing", () => {
 			},
 		};
 
-		await buildRealtimeInitialItems({
+		const initialItems = await buildRealtimeInitialItems({
 			ctx: ctx as never,
 			config: {
 				...DEFAULT_GIPPITY_CONTROL_CONFIG,
@@ -133,6 +246,9 @@ describe("realtime session routing", () => {
 					...DEFAULT_GIPPITY_CONTROL_CONFIG.voice,
 					contextModel: { provider: "example", modelId: "text-model" },
 				},
+			},
+			onSummary: (summary) => {
+				displayedSummary = summary;
 			},
 		});
 
@@ -145,98 +261,50 @@ describe("realtime session routing", () => {
 			],
 		});
 		expect((sidecarContext as { tools?: unknown }).tools).toBeUndefined();
+		const history = (
+			sidecarContext as {
+				messages: Array<{ content: Array<{ text: string }> }>;
+			}
+		).messages[0]!.content[0]!.text;
+		expect(history).toContain("[User]: Inspect this screenshot");
+		expect(history).toContain("[Assistant]: This is the final answer.");
+		expect(history).toContain("[Realtime voice]: <realtime_delegation>");
+		expect(history).not.toContain("private reasoning");
+		expect(history).not.toContain("Checking files");
+		expect(history).not.toContain("large code dump");
+		expect(history).not.toContain("aW1hZ2U=");
+		expect(displayedSummary).toBe("summary");
+		expect(sidecarReasoning).toBe("high");
+		expect(initialItems?.[0]?.content[0]?.text).toBe(
+			"Startup context from Pi.\nThis is background context from the current Pi conversation before realtime voice started. It may be summarized. Use it to answer questions about the earlier conversation, and do not repeat it unless relevant.\n<startup_context>\nsummary\n</startup_context>",
+		);
 	});
 
-	test("delegations clear prior voice chatter", () => {
+	test("delegation contains finalized prior turns without partial or current duplicates", () => {
 		const turns = new RealtimeVoiceTurnTracker();
-		turns.userFinished("terms of the laptop");
-		expect(turns.assistantFinished("Do you mean temperatures?")).toEqual({
-			input: "terms of the laptop",
-		});
-		turns.userFinished("yes, temperatures");
-		expect(
-			turns.delegated("check the laptop and server", "delegation-1"),
-		).toEqual({
-			input:
-				"check the laptop and server\n\nVoice transcript: yes, temperatures",
+		turns.inputAdded("whatwerewe discussing");
+		turns.userFinished("What were we discussing?");
+		turns.outputAdded("This repo isa");
+		turns.assistantFinished("This repo is a Pi toolkit.");
+		turns.inputAdded("readthe readmes");
+		expect(turns.delegated("Read the READMEs", "delegation-1")).toBeUndefined();
+		turns.outputAdded("Okay,I'll");
+		expect(turns.userFinished("Read the READMEs")).toEqual({
+			input: "Read the READMEs",
+			transcriptDelta:
+				"user: What were we discussing?\nassistant: This repo is a Pi toolkit.",
 			delegationId: "delegation-1",
 		});
-		expect(turns.takeTranscriptTail()).toBeUndefined();
-
-		const delegationFirst = new RealtimeVoiceTurnTracker();
-		delegationFirst.inputAdded("yes, check the laptop");
-		expect(
-			delegationFirst.delegated("check the laptop", "delegation-2"),
-		).toBeUndefined();
-		expect(delegationFirst.userFinished("yes, check the laptop")).toEqual({
-			input: "yes, check the laptop",
-			delegationId: "delegation-2",
-		});
-		expect(delegationFirst.takeTranscriptTail()).toBeUndefined();
-	});
-
-	test("delegation keeps distinct delegation and transcript context visible", () => {
-		const turns = new RealtimeVoiceTurnTracker();
-		turns.inputAdded("yes, temperatures");
-		expect(
-			turns.delegated("check the laptop and server", "delegation-1"),
-		).toBeUndefined();
-		expect(turns.userFinished("yes, temperatures")).toEqual({
-			input:
-				"check the laptop and server\n\nVoice transcript: yes, temperatures",
-			delegationId: "delegation-1",
-		});
-	});
-
-	test("an interrupted conversation cannot consume a later delegation", () => {
-		const turns = new RealtimeVoiceTurnTracker();
-		turns.inputAdded("what is the current load");
-		turns.userFinished("what is the current load");
-		turns.outputAdded("The load is");
-		turns.inputAdded("check the logs instead");
-
-		expect(
-			turns.delegated("check the logs instead", "delegation-1"),
-		).toBeUndefined();
-		expect(turns.userFinished("check the logs instead")).toEqual({
-			input: "check the logs instead",
-			delegationId: "delegation-1",
-		});
-		expect(turns.assistantFinished("The load is normal")).toEqual({
-			input: "what is the current load",
-		});
-		expect(turns.drainConversationTurns()).toEqual([]);
-
-		const delegationBeforeFinalTranscript = new RealtimeVoiceTurnTracker();
-		delegationBeforeFinalTranscript.inputAdded("what is the current load");
-		expect(
-			delegationBeforeFinalTranscript.delegated(
-				"check the current load",
-				"delegation-2",
-			),
-		).toBeUndefined();
-		delegationBeforeFinalTranscript.outputAdded("Okay, checking");
-		delegationBeforeFinalTranscript.inputAdded("check the logs instead");
-		expect(
-			delegationBeforeFinalTranscript.userFinished("what is the current load"),
-		).toEqual({
-			input:
-				"check the current load\n\nVoice transcript: what is the current load",
-			delegationId: "delegation-2",
-		});
-		expect(
-			delegationBeforeFinalTranscript.userFinished("check the logs instead"),
-		).toBeUndefined();
-		expect(
-			delegationBeforeFinalTranscript.assistantFinished("The logs are clean"),
-		).toEqual({ input: "check the logs instead" });
 	});
 
 	test("presentation entries never enter Pi model queues", () => {
 		const modelMessages: unknown[] = [];
+		const entries: unknown[] = [];
 		const messages = new CodexVoiceSessionMessages(
 			{
-				appendEntry() {},
+				appendEntry(customType: string, data: unknown) {
+					entries.push({ customType, data });
+				},
 				sendMessage(message: unknown, options: unknown) {
 					modelMessages.push({ message, options });
 				},
@@ -247,17 +315,56 @@ describe("realtime session routing", () => {
 			voiceMessageCallbacks(),
 		);
 		messages.modeStarted("dictation");
+		messages.userTranscript("Can you check the server?");
 		messages.voiceTurn({ input: "thanks" });
 
 		expect(modelMessages).toEqual([]);
+		expect(entries[1]).toEqual({
+			customType: "gippity-realtime-user-transcript",
+			data: { transcript: "Can you check the server?" },
+		});
 	});
 
-	test("delegations use Pi's plain user queues", () => {
+	test("realtime lifecycle guidance is model-visible without triggering a turn", () => {
+		const sent: Array<{ message: any; options: unknown }> = [];
+		const messages = new CodexVoiceSessionMessages(
+			{
+				sendMessage(message: unknown, options: unknown) {
+					sent.push({ message, options });
+				},
+			} as unknown as ExtensionAPI,
+			voiceMessageCallbacks(),
+		);
+		messages.modeStarted("realtime");
+		messages.voiceStopped("realtime");
+
+		expect(sent).toHaveLength(2);
+		expect(sent[0]).toMatchObject({
+			message: {
+				customType: "gippity-voice-mode",
+				display: true,
+				content: expect.stringContaining(
+					"Keep everyone informed and up to date",
+				),
+			},
+			options: { triggerTurn: false, deliverAs: "steer" },
+		});
+		expect(sent[1]).toMatchObject({
+			message: {
+				content: expect.stringContaining(
+					"Resume normal conversation, tool use, and formatting",
+				),
+			},
+			options: { triggerTurn: false, deliverAs: "steer" },
+		});
+	});
+
+	test("delegations use a clean rendered Pi queue with Codex context", () => {
 		const sent: unknown[] = [];
 		const messages = new CodexVoiceSessionMessages(
 			{
 				appendEntry() {},
-				sendUserMessage(message: unknown, options: unknown) {
+				sendMessage(message: unknown, options: unknown) {
 					sent.push({ message, options });
 				},
 			} as unknown as ExtensionAPI,
@@ -271,8 +378,17 @@ describe("realtime session routing", () => {
 
 		expect(sent).toEqual([
 			{
-				message: "do the same for the server",
-				options: { deliverAs: "steer" },
+				message: {
+					customType: "gippity-realtime-delegation",
+					content:
+						"<realtime_delegation>\n  <input>do the same for the server</input>\n</realtime_delegation>",
+					display: false,
+					details: {
+						input: "do the same for the server",
+						route: "delegation",
+					},
+				},
+				options: { triggerTurn: true, deliverAs: "steer" },
 			},
 		]);
 
@@ -280,7 +396,7 @@ describe("realtime session routing", () => {
 		const idleMessages = new CodexVoiceSessionMessages(
 			{
 				appendEntry() {},
-				sendUserMessage(message: unknown, options: unknown) {
+				sendMessage(message: unknown, options: unknown) {
 					idleSent.push({ message, options });
 				},
 			} as unknown as ExtensionAPI,
@@ -291,9 +407,9 @@ describe("realtime session routing", () => {
 			input: "check the server",
 			delegationId: "delegation-2",
 		});
-		expect(idleSent).toEqual([
-			{ message: "check the server", options: undefined },
-		]);
+		expect((idleSent[0] as { options?: unknown })?.options).toEqual({
+			triggerTurn: true,
+		});
 	});
 });
 
@@ -339,6 +455,35 @@ describe("LAN conversation setup", () => {
 			mode: "conversation",
 			muted: false,
 		});
+		await clients.close();
+	});
+
+	test("explicit stop ends the host conversation before restart", async () => {
+		let hostStarts = 0;
+		let hostActive = false;
+		const activity: boolean[] = [];
+		const clients = testBrowserClients({
+			async ensureConversation() {
+				if (!hostActive) {
+					hostActive = true;
+					hostStarts += 1;
+				}
+			},
+			onConversationActivity(active) {
+				activity.push(active);
+				if (!active) hostActive = false;
+			},
+		});
+		const socket = new TestWebSocket();
+		clients.connectAudio("phone", socket.asWebSocket());
+		socket.receive({ type: "start", mode: "conversation" });
+		await settle();
+		socket.receive({ type: "release" });
+		await settle();
+		socket.receive({ type: "start", mode: "conversation" });
+		await settle();
+		expect(hostStarts).toBe(2);
+		expect(activity).toEqual([true, false, true]);
 		await clients.close();
 	});
 
@@ -401,13 +546,14 @@ async function temporaryDirectory(): Promise<string> {
 
 function testBrowserClients(overrides: {
 	ensureConversation(): Promise<void>;
+	onConversationActivity?(active: boolean): void | Promise<void>;
 }): LanVoiceBrowserClients {
 	return new LanVoiceBrowserClients({
 		...overrides,
 		startDictation: async () => {},
 		finishDictation: async () => {},
 		cancelDictation: async () => {},
-		onConversationActivity: () => {},
+		onConversationActivity: overrides.onConversationActivity ?? (() => {}),
 		onConversationMute: () => {},
 		conversationMuted: () => false,
 		onConversationAudio: () => {},

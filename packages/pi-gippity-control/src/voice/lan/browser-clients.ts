@@ -43,8 +43,12 @@ export class LanVoiceBrowserClients {
 		this.session.sendConversationAudio(pcm);
 	}
 
-	release(clientId: string, socket?: WebSocket): void {
-		this.session.release(clientId, socket);
+	release(
+		clientId: string,
+		socket?: WebSocket,
+		terminateConversation = false,
+	): void {
+		this.session.release(clientId, socket, terminateConversation);
 	}
 
 	heartbeat(): void {
@@ -84,7 +88,7 @@ export class LanVoiceBrowserClients {
 					)
 					.catch((error: unknown) => this.sendSocketError(socket, error));
 			} else if (message.type === "release") {
-				this.session.release(clientId, socket);
+				this.session.release(clientId, socket, true);
 			} else if (message.type === "mute") {
 				this.session.mute(clientId, socket, message.muted);
 			} else {

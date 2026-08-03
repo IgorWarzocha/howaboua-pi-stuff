@@ -18,6 +18,7 @@ interface SessionLifecycle<T> {
 interface RealtimeSessionLifecycle
 	extends SessionLifecycle<CodexRealtimeConversation> {
 	onTurn(turn: RealtimeVoiceTurn): void;
+	onUserTranscript(transcript: string): void;
 	onTranscriptTail(transcript: string): void;
 }
 
@@ -61,6 +62,7 @@ export async function startControllerConversation(options: {
 			onError: (error) => options.lifecycle.onError(session, error),
 			onStatus: options.lifecycle.onStatus,
 			onTurn: options.lifecycle.onTurn,
+			onUserTranscript: options.lifecycle.onUserTranscript,
 			onTranscriptTail: options.lifecycle.onTranscriptTail,
 		},
 		realtimePeer,

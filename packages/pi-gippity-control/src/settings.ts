@@ -8,7 +8,9 @@ import { SettingsList, truncateToWidth } from "@earendil-works/pi-tui";
 import {
 	type GippityControlConfig,
 	normalizeRealtimeV3Voice,
+	normalizeVoiceContextReasoning,
 	REALTIME_V3_VOICES,
+	VOICE_CONTEXT_REASONING_LEVELS,
 	type VoiceContextModel,
 } from "./config.ts";
 import { getGippityControlConfigPath } from "./config-store.ts";
@@ -99,6 +101,7 @@ export async function openGippitySettings(options: {
 				],
 				update: (value, current) => {
 					const { contextModel: _contextModel, ...voice } = current.voice;
+					const selected = contextModels.get(value);
 					return {
 						...current,
 						voice:
@@ -106,11 +109,23 @@ export async function openGippitySettings(options: {
 								? voice
 								: {
 										...voice,
-										contextModel:
-											contextModels.get(value) ?? current.voice.contextModel,
+										contextModel: selected ?? current.voice.contextModel,
 									},
 					};
 				},
+			},
+			{
+				id: "contextReasoning",
+				label: "Voice context reasoning",
+				currentValue: config.voice.contextReasoning,
+				values: [...VOICE_CONTEXT_REASONING_LEVELS],
+				update: (value, current) => ({
+					...current,
+					voice: {
+						...current.voice,
+						contextReasoning: normalizeVoiceContextReasoning(value),
+					},
+				}),
 			},
 		];
 		const createList = () => {
@@ -201,7 +216,7 @@ function details(
 		),
 		theme.fg(
 			"dim",
-			`  Voice context: ${config.voice.contextModel ? formatContextModel(config.voice.contextModel) : "off"}`,
+			`  Voice context: ${config.voice.contextModel ? `${formatContextModel(config.voice.contextModel)} · ${config.voice.contextReasoning}` : "off"}`,
 		),
 		theme.fg(
 			"dim",

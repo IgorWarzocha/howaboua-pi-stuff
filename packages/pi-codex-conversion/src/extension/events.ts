@@ -113,7 +113,10 @@ export function registerCodexEvents(
 		if (event.message.role !== "toolResult" && !isToolCallOnlyAssistantMessage(event.message)) tracker.resetExplorationGroup();
 	});
 	pi.on("message_end", async (event) => {
-		if (event.message.role === "assistant") runtime.lanVoice.assistantMessage(event.message);
+		if (event.message.role === "assistant") {
+			runtime.voice.finishAgentMessage(event.message.stopReason);
+			runtime.lanVoice.assistantMessage(event.message);
+		}
 	});
 	pi.on("tool_execution_start", async (event) => {
 		if (event.toolName !== "exec_command") {
@@ -159,7 +162,7 @@ export function registerCodexEvents(
 	});
 	pi.on("message_update", async (event) => {
 		const update = event.assistantMessageEvent;
-		if ((update.type === "text_delta" || update.type === "thinking_delta") && typeof update.delta === "string") runtime.voice.streamDelta(update.type, update.delta);
+		if (update.type === "text_delta" && typeof update.delta === "string") runtime.voice.streamDelta(update.delta);
 	});
 	pi.on("agent_start", async () => { runtime.voice.agentStarted(); runtime.lanVoice.agentStarted(); });
 	pi.on("agent_settled", async () => {

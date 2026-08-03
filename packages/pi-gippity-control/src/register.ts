@@ -42,16 +42,15 @@ export function registerGippityControl(pi: ExtensionAPI): void {
 		state.config = readGippityControlConfig();
 	});
 	pi.on("message_end", async (event) => {
-		if (event.message.role === "assistant")
+		if (event.message.role === "assistant") {
+			voice.finishAgentMessage(event.message.stopReason);
 			lanVoice.assistantMessage(event.message);
+		}
 	});
 	pi.on("message_update", async (event) => {
 		const update = event.assistantMessageEvent;
-		if (
-			(update.type === "text_delta" || update.type === "thinking_delta") &&
-			typeof update.delta === "string"
-		)
-			voice.streamDelta(update.type, update.delta);
+		if (update.type === "text_delta" && typeof update.delta === "string")
+			voice.streamDelta(update.delta);
 	});
 	pi.on("input", async (event) => {
 		if (event.streamingBehavior === "steer" && event.source !== "extension")

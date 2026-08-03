@@ -1,5 +1,18 @@
 type DictationShortcutMode = "push" | "toggle";
 
+export const VOICE_CONTEXT_REASONING_LEVELS = [
+	"off",
+	"minimal",
+	"low",
+	"medium",
+	"high",
+	"xhigh",
+	"max",
+] as const;
+export type VoiceContextReasoning =
+	(typeof VOICE_CONTEXT_REASONING_LEVELS)[number];
+export const DEFAULT_VOICE_CONTEXT_REASONING: VoiceContextReasoning = "high";
+
 export interface VoiceContextModel {
 	provider: string;
 	modelId: string;
@@ -27,6 +40,7 @@ export interface GippityControlConfig {
 		serverShortcut: string;
 		dictationShortcutMode: DictationShortcutMode;
 		contextModel?: VoiceContextModel | undefined;
+		contextReasoning: VoiceContextReasoning;
 		inputDevice?: string | undefined;
 		outputDevice?: string | undefined;
 	};
@@ -40,6 +54,7 @@ export const DEFAULT_GIPPITY_CONTROL_CONFIG: GippityControlConfig = {
 		muteShortcut: "ctrl+alt+m",
 		serverShortcut: "ctrl+alt+g",
 		dictationShortcutMode: "push",
+		contextReasoning: DEFAULT_VOICE_CONTEXT_REASONING,
 	},
 };
 
@@ -66,6 +81,15 @@ function normalizeVoiceContextModel(
 	const provider = optionalString(value["provider"]);
 	const modelId = optionalString(value["modelId"]);
 	return provider && modelId ? { provider, modelId } : undefined;
+}
+
+export function normalizeVoiceContextReasoning(
+	value: unknown,
+): VoiceContextReasoning {
+	return typeof value === "string" &&
+		(VOICE_CONTEXT_REASONING_LEVELS as readonly string[]).includes(value)
+		? (value as VoiceContextReasoning)
+		: DEFAULT_VOICE_CONTEXT_REASONING;
 }
 
 export function normalizeRealtimeV3Voice(
@@ -110,6 +134,9 @@ export function normalizeGippityControlConfig(
 					? "toggle"
 					: DEFAULT_GIPPITY_CONTROL_CONFIG.voice.dictationShortcutMode,
 			...(contextModel ? { contextModel } : {}),
+			contextReasoning: normalizeVoiceContextReasoning(
+				voice["contextReasoning"],
+			),
 			...(inputDevice ? { inputDevice } : {}),
 			...(outputDevice ? { outputDevice } : {}),
 		},

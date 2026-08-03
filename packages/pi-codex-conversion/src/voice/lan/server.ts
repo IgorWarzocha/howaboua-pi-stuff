@@ -109,8 +109,15 @@ export async function startCodexLanVoiceServer(options: {
 			if (transcript) draft.insertTranscript(clientId, transcript, insertion);
 		},
 		cancelDictation: (clientId) => dictation.cancel(clientId),
-		onConversationActivity(active) {
-			if (activeConversation) options.voice.setConversationInputActive(activeConversation.conversation, active);
+		async onConversationActivity(active) {
+			const current = activeConversation;
+			if (!current) return;
+			if (active) {
+				options.voice.setConversationInputActive(current.conversation, true);
+				return;
+			}
+			activeConversation = undefined;
+			await options.voice.stopConversation(current.conversation, { announce: true });
 		},
 		conversationMuted: () => options.voice.inputMuted,
 		onConversationMute(muted) {

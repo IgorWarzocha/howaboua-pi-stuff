@@ -1,17 +1,22 @@
-import { uuidv7, type Context, type Model } from "@earendil-works/pi-ai";
+import { type Context, type Model, uuidv7 } from "@earendil-works/pi-ai";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import {
+	DEFAULT_VOICE_CONTEXT_REASONING,
+	type VoiceContextReasoning,
+} from "../adapter/activation/config.ts";
 import { normalizeBaseUrl } from "../adapter/compaction/compaction-runtime.ts";
 import { findLatestCompactionEntryIndex } from "../adapter/compaction/details-store.ts";
 import { normalizeRemoteCompactionV2PromptInput } from "../adapter/compaction/remote-v2-history.ts";
-import { serializeLiveTailToResponsesInput } from "../adapter/replay/payload-rewrite.ts";
 import {
 	isNativeCompactionEntry,
 	type NativeCompactionEntry,
 } from "../adapter/compaction/types.ts";
+import { serializeLiveTailToResponsesInput } from "../adapter/replay/payload-rewrite.ts";
 
 interface VoiceContextModelSelection {
 	provider: string;
 	modelId: string;
+	reasoning?: VoiceContextReasoning | undefined;
 }
 
 interface NativeVoiceContextRequest {
@@ -69,6 +74,7 @@ export async function createNativeVoiceContextSummary(
 			},
 		],
 	};
+	const reasoning = request.model.reasoning ?? DEFAULT_VOICE_CONTEXT_REASONING;
 	let completed:
 		| { content: Array<{ type: string; text?: string }>; errorMessage?: string }
 		| undefined;
@@ -80,6 +86,7 @@ export async function createNativeVoiceContextSummary(
 		maxTokens: model.maxTokens,
 		cacheRetention: "none",
 		sessionId: uuidv7(),
+		...(model.reasoning && reasoning !== "off" ? { reasoning } : {}),
 		onPayload(payload) {
 			if (!isRecord(payload) || !Array.isArray(payload["input"]))
 				throw new Error(
@@ -93,7 +100,6 @@ export async function createNativeVoiceContextSummary(
 			return {
 				...payload,
 				input,
-				prompt_cache_key: request.ctx.sessionManager.getSessionId(),
 			};
 		},
 	})) {

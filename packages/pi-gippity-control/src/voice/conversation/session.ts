@@ -8,7 +8,10 @@ import {
 	type RealtimeCallSetup,
 	setupRealtimeCall,
 } from "./call-setup.ts";
-import { RealtimeDelegationHandoff } from "./handoff.ts";
+import {
+	RealtimeDelegationHandoff,
+	type RealtimeHandoffChannel,
+} from "./handoff.ts";
 import { type CodexRealtimePeer, type CodexRealtimePeerEvent } from "./peer.ts";
 import {
 	boundedAssistantTranscript,
@@ -29,6 +32,7 @@ export interface CodexConversationCallbacks {
 	onError(error: Error): void;
 	onStatus(status: string): void;
 	onTurn(turn: RealtimeVoiceTurn): void;
+	onUserTranscript(transcript: string): void;
 	onTranscriptTail(transcriptDelta: string): void;
 }
 
@@ -133,8 +137,12 @@ export class CodexRealtimeConversation {
 		return this.handoff.mirrorPiSteer(input);
 	}
 
-	streamAgentDelta(type: string, delta: string): void {
-		this.handoff.stream(type, delta);
+	streamAgentDelta(delta: string): void {
+		this.handoff.stream(delta);
+	}
+
+	finishAgentMessage(channel: RealtimeHandoffChannel): void {
+		this.handoff.finishMessage(channel);
 	}
 
 	settleAgentTurn(): void {
@@ -239,7 +247,6 @@ export class CodexRealtimeConversation {
 		}
 		const delegated = this.turnTracker.delegated(input, record["id"]);
 		if (!delegated) return;
-		this.handoff.flush();
 		this.callbacks.onTurn(delegated);
 	}
 
@@ -252,12 +259,12 @@ export class CodexRealtimeConversation {
 				this.fail(new Error("Codex voice transcript was oversized"));
 				return;
 			}
+			if (input) this.callbacks.onUserTranscript(input);
 			const delegated = input
 				? this.turnTracker.userFinished(input)
 				: undefined;
 			this.callbacks.onStatus("responding");
 			if (delegated) {
-				this.handoff.flush();
 				this.callbacks.onTurn(delegated);
 			}
 			return;

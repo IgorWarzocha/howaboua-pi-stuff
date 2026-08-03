@@ -10,8 +10,13 @@ import {
 	type CodexVoiceMode,
 	type CodexVoiceModeMessageDetails,
 	type CodexVoiceModeState,
+	codexVoiceModeMessage,
+	REALTIME_USER_TRANSCRIPT_MESSAGE_TYPE,
 	REALTIME_VOICE_MESSAGE_TYPE,
+	type RealtimeUserTranscriptMessageDetails,
 	type RealtimeVoiceMessageDetails,
+	realtimeVoiceMessage,
+	VOICE_CONTEXT_MESSAGE_TYPE,
 } from "./ui.ts";
 
 const REALTIME_VOICE_TAIL_CONTEXT_TYPE = "gippity-realtime-voice-tail";
@@ -37,6 +42,17 @@ export class CodexVoiceSessionMessages {
 	setContext(ctx: ExtensionContext): void {
 		this.context = ctx;
 		this.piTurnActive = !ctx.isIdle();
+	}
+
+	contextSummary(summary: string): void {
+		this.pi.appendEntry(VOICE_CONTEXT_MESSAGE_TYPE, { summary });
+	}
+
+	userTranscript(transcript: string): void {
+		this.pi.appendEntry<RealtimeUserTranscriptMessageDetails>(
+			REALTIME_USER_TRANSCRIPT_MESSAGE_TYPE,
+			{ transcript },
+		);
 	}
 
 	modeStarted(mode: CodexVoiceMode): void {
@@ -107,6 +123,13 @@ export class CodexVoiceSessionMessages {
 	}
 
 	private appendMode(mode: CodexVoiceMode, state: CodexVoiceModeState): void {
+		if (mode === "realtime") {
+			this.pi.sendMessage(codexVoiceModeMessage(mode, state), {
+				triggerTurn: false,
+				deliverAs: "steer",
+			});
+			return;
+		}
 		this.pi.appendEntry<CodexVoiceModeMessageDetails>(
 			CODEX_VOICE_MODE_MESSAGE_TYPE,
 			{
@@ -124,9 +147,11 @@ export class CodexVoiceSessionMessages {
 		this.callbacks.onDelegation(turn.delegationId);
 		this.piTurnActive = true;
 		this.callbacks.onWorking();
-		this.pi.sendUserMessage(
-			turn.input,
-			startsTurn ? undefined : { deliverAs: "steer" },
+		this.pi.sendMessage(
+			realtimeVoiceMessage(turn.input, "delegation", turn.transcriptDelta),
+			startsTurn
+				? { triggerTurn: true }
+				: { triggerTurn: true, deliverAs: "steer" },
 		);
 		return true;
 	}

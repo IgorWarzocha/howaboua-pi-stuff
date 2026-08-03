@@ -4,7 +4,7 @@ import type { RealtimeInitialMessageItem } from "../context.ts";
 import { MAX_REALTIME_VOICE_INPUT_BYTES } from "../prompts.ts";
 import { RealtimeVoiceTurnTracker, type RealtimeVoiceTurn } from "../turns.ts";
 import { buildRealtimeCallRequest, type RealtimeCallSetup, setupRealtimeCall } from "./call-setup.ts";
-import { RealtimeDelegationHandoff } from "./handoff.ts";
+import { RealtimeDelegationHandoff, type RealtimeHandoffChannel } from "./handoff.ts";
 import { type CodexRealtimePeer, type CodexRealtimePeerEvent } from "./peer.ts";
 import { boundedAssistantTranscript, boundedTranscript, realtimePeerStateFailure, remoteError, transcriptItemText } from "./wire.ts";
 
@@ -19,6 +19,7 @@ export interface CodexConversationCallbacks {
 	onError(error: Error): void;
 	onStatus(status: string): void;
 	onTurn(turn: RealtimeVoiceTurn): void;
+	onUserTranscript(transcript: string): void;
 	onTranscriptTail(transcriptDelta: string): void;
 }
 
@@ -107,8 +108,12 @@ export class CodexRealtimeConversation {
 		return this.handoff.mirrorPiSteer(input);
 	}
 
-	streamAgentDelta(type: string, delta: string): void {
-		this.handoff.stream(type, delta);
+	streamAgentDelta(delta: string): void {
+		this.handoff.stream(delta);
+	}
+
+	finishAgentMessage(channel: RealtimeHandoffChannel): void {
+		this.handoff.finishMessage(channel);
 	}
 
 	settleAgentTurn(): void {
@@ -174,7 +179,6 @@ export class CodexRealtimeConversation {
 		if (!input || Buffer.byteLength(input) > MAX_REALTIME_VOICE_INPUT_BYTES) { this.fail(new Error("Codex voice delegation was empty or oversized")); return; }
 		const delegated = this.turnTracker.delegated(input, record["id"]);
 		if (!delegated) return;
-		this.handoff.flush();
 		this.callbacks.onTurn(delegated);
 	}
 
@@ -184,10 +188,10 @@ export class CodexRealtimeConversation {
 		if (record["role"] === "user") {
 			const input = boundedTranscript(record["transcript"]);
 			if (input === "oversized") { this.fail(new Error("Codex voice transcript was oversized")); return; }
+			if (input) this.callbacks.onUserTranscript(input);
 			const delegated = input ? this.turnTracker.userFinished(input) : undefined;
 			this.callbacks.onStatus("responding");
 			if (delegated) {
-				this.handoff.flush();
 				this.callbacks.onTurn(delegated);
 			}
 			return;

@@ -2,7 +2,7 @@ export const MAX_REALTIME_VOICE_INPUT_BYTES = 32 * 1024;
 
 export function renderRealtimeDelegation(input: string, transcriptDelta?: string): string {
 	const transcript = transcriptDelta ? `\n  <transcript_delta>${escapeXml(transcriptDelta)}</transcript_delta>` : "";
-	return `<realtime_delegation>\n  <input>${escapeXml(input)}</input>${transcript}\n  <routing>realtime voice is active; input may contain recognition errors; keep spoken updates concise</routing>\n</realtime_delegation>`;
+	return `<realtime_delegation>\n  <input>${escapeXml(input)}</input>${transcript}\n</realtime_delegation>`;
 }
 
 export function renderRealtimeConversationInput(input: string): string {
@@ -10,7 +10,7 @@ export function renderRealtimeConversationInput(input: string): string {
 }
 
 export function renderRealtimeTranscriptTail(transcriptDelta: string): string {
-	return `<realtime_conversation_tail>\n  <transcript_delta>${escapeXml(transcriptDelta)}</transcript_delta>\n  <routing>context from the ended voice conversation; do not respond to it independently</routing>\n</realtime_conversation_tail>`;
+	return `<realtime_delegation>\n  <source>transcript_tail_flush</source>\n  <input>The user just ended their realtime session. Here is the remaining transcript tail. Do not respond unless it contains an unhandled request.</input>\n  <transcript_delta>${escapeXml(transcriptDelta)}</transcript_delta>\n</realtime_delegation>`;
 }
 
 export function renderPiSteer(input: unknown): string | undefined {
