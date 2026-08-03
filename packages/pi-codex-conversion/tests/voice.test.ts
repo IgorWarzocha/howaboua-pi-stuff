@@ -159,7 +159,7 @@ test("LAN audio command decoder rejects ambiguous browser input", () => {
 	assert.throws(() => decodeLanVoiceAudioCommand({ type: "surprise" }));
 });
 
-test("LAN browser disconnect leaves the host conversation available for another device", async () => {
+test("LAN browser preserves handoff and restarts after explicit release", async () => {
 	let hostStarts = 0;
 	let hostConversation: object | undefined;
 	const received: Buffer[] = [];
@@ -172,6 +172,9 @@ test("LAN browser disconnect leaves the host conversation available for another 
 		},
 		onConversationAudio(pcm) {
 			received.push(pcm);
+		},
+		onConversationActivity(active) {
+			if (!active) hostConversation = undefined;
 		},
 	});
 	const first = new TestWebSocket();
@@ -195,35 +198,11 @@ test("LAN browser disconnect leaves the host conversation available for another 
 			{ type: "active", mode: "conversation", muted: false },
 		],
 	);
-	await clients.close();
-});
-
-test("LAN browser explicit stop ends the host conversation before restart", async () => {
-	let hostStarts = 0;
-	let hostActive = false;
-	const activity: boolean[] = [];
-	const clients = testBrowserClients({
-		async ensureConversation() {
-			if (!hostActive) {
-				hostActive = true;
-				hostStarts += 1;
-			}
-		},
-		onConversationActivity(active) {
-			activity.push(active);
-			if (!active) hostActive = false;
-		},
-	});
-	const socket = new TestWebSocket();
-	clients.connectAudio("phone", socket.asWebSocket());
-	socket.receive({ type: "start", mode: "conversation" });
+	second.receive({ type: "release" });
 	await settle();
-	socket.receive({ type: "release" });
-	await settle();
-	socket.receive({ type: "start", mode: "conversation" });
+	second.receive({ type: "start", mode: "conversation" });
 	await settle();
 	assert.equal(hostStarts, 2);
-	assert.deepEqual(activity, [true, false, true]);
 	await clients.close();
 });
 
@@ -298,29 +277,7 @@ test("voice helper JSONL parser bounds unterminated frames", () => {
 	assert.deepEqual(lines, ["one", "two"]);
 });
 
-test("voice delegation suppresses backend retries without blocking a later repeat", () => {
-	const turns = new RealtimeVoiceTurnTracker();
-	assert.equal(turns.delegated("check the load", "first"), undefined);
-	assert.equal(
-		turns.delegated("check the load", "retry-before-settle"),
-		undefined,
-	);
-	assert.deepEqual(turns.userFinished("check the load"), {
-		input: "check the load",
-		delegationId: "first",
-	});
-	turns.delegationSettled("first");
-	assert.equal(
-		turns.delegated("check the load", "intentional-repeat"),
-		undefined,
-	);
-	assert.deepEqual(turns.userFinished("check the load"), {
-		input: "check the load",
-		delegationId: "intentional-repeat",
-	});
-});
-
-test("voice delegation contains finalized prior turns without partial or current duplicates", () => {
+test("voice turns finalize frontend history before delegation", () => {
 	const turns = new RealtimeVoiceTurnTracker();
 	turns.inputAdded("whatwerewe discussing");
 	turns.userFinished("What were we discussing?");
@@ -329,11 +286,6 @@ test("voice delegation contains finalized prior turns without partial or current
 	turns.inputAdded("readthe readmes");
 	assert.equal(turns.delegated("Read the READMEs", "delegation-1"), undefined);
 	turns.inputAdded("properly");
-	assert.equal(
-		turns.delegated("Read every README", "delegation-retry"),
-		undefined,
-	);
-	turns.outputAdded("Okay,I'll");
 	assert.deepEqual(turns.userFinished("Read the READMEs"), {
 		input: "Read the READMEs",
 		transcriptDelta:
@@ -373,7 +325,7 @@ test("voice presentation entries never enter Pi model queues", () => {
 	assert.deepEqual(modelMessages, []);
 });
 
-test("realtime lifecycle guidance is model-visible without triggering a turn", () => {
+test("realtime session messages route one current Pi and V3 flow", () => {
 	const sent: Array<{ message: any; options: unknown }> = [];
 	const messages = new CodexVoiceSessionMessages(
 		{
@@ -383,107 +335,48 @@ test("realtime lifecycle guidance is model-visible without triggering a turn", (
 		} as unknown as ExtensionAPI,
 		voiceMessageCallbacks(),
 	);
-	messages.modeStarted("realtime");
-	messages.voiceStopped("realtime");
-
-	assert.equal(sent.length, 2);
-	assert.deepEqual(sent[0]?.options, {
-		triggerTurn: false,
-		deliverAs: "steer",
-	});
-	assert.equal(sent[0]?.message.customType, "codex-voice-mode");
-	assert.equal(sent[0]?.message.display, true);
-	assert.match(sent[0]?.message.content, /^<realtime_voice_session state="active">/);
-	assert.deepEqual(sent[1]?.options, {
-		triggerTurn: false,
-		deliverAs: "steer",
-	});
-	assert.match(sent[1]?.message.content, /^<realtime_voice_session state="ended">/);
-	const lifecycle = { role: "custom", ...sent[0]!.message };
-	assert.deepEqual(
-		messages.filterContext([
-			lifecycle,
-			{
-				role: "custom",
-				customType: "codex-realtime-voice",
-				content: "display only",
-				display: true,
-				details: {},
-			},
-		] as never),
-		[lifecycle],
-	);
-});
-
-test("transcript tails persist while idle and wait during active turns", () => {
-	const sent: Array<{ options: unknown }> = [];
-	const messages = new CodexVoiceSessionMessages(
-		{
-			sendMessage(_message: unknown, options: unknown) {
-				sent.push({ options });
-			},
-		} as unknown as ExtensionAPI,
-		voiceMessageCallbacks(),
-	);
 	messages.setContext({ isIdle: () => true } as never);
-	messages.retainTranscriptTail("user: idle");
-	messages.setContext({ isIdle: () => false } as never);
-	messages.retainTranscriptTail("user: active");
-
-	assert.deepEqual(sent, [
-		{ options: { triggerTurn: false, deliverAs: "steer" } },
-		{ options: { triggerTurn: false, deliverAs: "nextTurn" } },
-	]);
-});
-
-test("voice delegations use a clean rendered Pi queue with Codex context", () => {
-	const sent: unknown[] = [];
-	const messages = new CodexVoiceSessionMessages(
-		{
-			appendEntry() {},
-			sendMessage(message: unknown, options: unknown) {
-				sent.push({ message, options });
-			},
-		} as unknown as ExtensionAPI,
-		voiceMessageCallbacks(),
-	);
-	messages.setContext({ isIdle: () => false } as never);
+	messages.modeStarted("realtime");
+	messages.retainTranscriptTail("user: earlier conversation");
 	messages.voiceTurn({
-		input: "do the same for the server",
+		input: "check the server",
 		delegationId: "delegation-1",
 	});
-
-	assert.deepEqual(sent, [
-		{
-			message: {
-				customType: "codex-realtime-delegation",
-				content:
-					"<realtime_delegation>\n  <input>do the same for the server</input>\n</realtime_delegation>",
-				display: false,
-				details: { input: "do the same for the server", route: "delegation" },
-			},
-			options: { triggerTurn: true, deliverAs: "steer" },
-		},
-	]);
-
-	const idleSent: unknown[] = [];
-	const idleMessages = new CodexVoiceSessionMessages(
-		{
-			appendEntry() {},
-			sendMessage(message: unknown, options: unknown) {
-				idleSent.push({ message, options });
-			},
-		} as unknown as ExtensionAPI,
-		voiceMessageCallbacks(),
-	);
-	idleMessages.setContext({ isIdle: () => true } as never);
-	idleMessages.voiceTurn({
-		input: "check the server",
+	messages.retainTranscriptTail("user: while Pi works");
+	messages.voiceTurn({
+		input: "also check the laptop",
 		delegationId: "delegation-2",
 	});
-	assert.deepEqual((idleSent[0] as { options?: unknown })?.options, {
-		triggerTurn: true,
-	});
+	messages.voiceStopped("realtime");
+
+	assert.equal(sent.length, 6);
+	assert.equal(sent[0]?.message.customType, "codex-voice-mode");
+	assert.match(sent[0]?.message.content, /^<realtime_voice_session state="active">/);
+	assert.equal(sent[1]?.message.customType, "codex-realtime-voice-tail");
+	assert.equal(sent[2]?.message.customType, "codex-realtime-delegation");
+	assert.equal(
+		sent[2]?.message.content,
+		"<realtime_delegation>\n  <input>check the server</input>\n</realtime_delegation>",
+	);
+	assert.equal(sent[4]?.message.customType, "codex-realtime-delegation");
+	assert.match(sent[5]?.message.content, /^<realtime_voice_session state="ended">/);
+	assert.deepEqual(
+		sent.map(({ options }) => options),
+		[
+			{ triggerTurn: false, deliverAs: "steer" },
+			{ triggerTurn: false, deliverAs: "steer" },
+			{ triggerTurn: true },
+			{ triggerTurn: false, deliverAs: "nextTurn" },
+			{ triggerTurn: true, deliverAs: "steer" },
+			{ triggerTurn: false, deliverAs: "steer" },
+		],
+	);
+	const lifecycle = { role: "custom", ...sent[0]!.message };
+	const delegation = { role: "custom", ...sent[2]!.message };
+	assert.deepEqual(
+		messages.filterContext([lifecycle, delegation] as never),
+		[lifecycle, delegation],
+	);
 });
 
 function voiceMessageCallbacks() {

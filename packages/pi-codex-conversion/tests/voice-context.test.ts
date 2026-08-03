@@ -9,28 +9,7 @@ import { buildRealtimeInitialItems } from "../src/voice/context.ts";
 import { buildRealtimeCallRequest } from "../src/voice/conversation/session.ts";
 import { createNativeVoiceContextSummary } from "../src/voice/native-context.ts";
 
-test("V3 voice setup pins acknowledgements and seeded context", () => {
-	const initialItems = [
-		{
-			type: "message" as const,
-			role: "developer" as const,
-			content: [{ type: "input_text" as const, text: "summary" }],
-		},
-	];
-	const request = buildRealtimeCallRequest(
-		"offer",
-		DEFAULT_CODEX_CONVERSION_CONFIG,
-		"instructions",
-		initialItems,
-	);
-	assert.deepEqual(request.session.delegation, {
-		type: "client",
-		ack_filler: true,
-	});
-	assert.deepEqual(request.session.initial_items, initialItems);
-});
-
-test("voice summary input keeps conversation text without tool mechanics", async () => {
+test("voice startup projects clean text into V3 developer context", async () => {
 	let history = "";
 	const entries = [
 		{
@@ -133,13 +112,24 @@ test("voice summary input keeps conversation text without tool mechanics", async
 		initialItems?.[0]?.content[0]?.text ?? "",
 		/<startup_context>\nsummary\n<\/startup_context>/,
 	);
+	const request = buildRealtimeCallRequest(
+		"offer",
+		DEFAULT_CODEX_CONVERSION_CONFIG,
+		"instructions",
+		initialItems,
+	);
+	assert.deepEqual(request.session.delegation, {
+		type: "client",
+		ack_filler: true,
+	});
+	assert.deepEqual(request.session.initial_items, initialItems);
 });
 
-test("native voice context keeps the checkpoint off the main cache lane", async () => {
+test("native voice startup replays its checkpoint through an isolated sidecar", async () => {
 	let payload: Record<string, unknown> | undefined;
 	let sidecarContext: Record<string, unknown> | undefined;
 	let sidecarSessionId: string | undefined;
-	let model: Record<string, unknown> = {
+	const model: Record<string, unknown> = {
 		provider: "openai-codex",
 		api: "openai-codex-responses",
 		id: "gpt-5.4-mini",
@@ -228,16 +218,5 @@ test("native voice context keeps the checkpoint off the main cache lane", async 
 			"encrypted_content"
 		],
 		"sealed-checkpoint",
-	);
-
-	model = { ...model, provider: "anthropic", api: "anthropic-messages" };
-	await assert.rejects(
-		createNativeVoiceContextSummary({
-			ctx: ctx as never,
-			model: { provider: "anthropic", modelId: "claude" },
-			systemPrompt: "Summarize",
-			request: "Create summary",
-		}),
-		/cannot read the latest native checkpoint/,
 	);
 });

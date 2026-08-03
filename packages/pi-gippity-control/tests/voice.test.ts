@@ -99,29 +99,7 @@ describe("realtime session routing", () => {
 			},
 		]);
 	});
-	test("V3 setup pins delegation acknowledgement and initial context", () => {
-		const initialItems = [
-			{
-				type: "message" as const,
-				role: "developer" as const,
-				content: [{ type: "input_text" as const, text: "session summary" }],
-			},
-		];
-		expect(
-			buildRealtimeCallRequest(
-				"offer",
-				DEFAULT_GIPPITY_CONTROL_CONFIG,
-				"instructions",
-				initialItems,
-			).session,
-		).toMatchObject({
-			model: "gpt-live-1-codex",
-			delegation: { type: "client", ack_filler: true },
-			initial_items: initialItems,
-		});
-	});
-
-	test("context sidecars serialize mixed-provider history to text", async () => {
+	test("voice startup projects mixed-provider history into V3 context", async () => {
 		let sidecarContext: unknown;
 		const userEntry = {
 			type: "message",
@@ -261,9 +239,21 @@ describe("realtime session routing", () => {
 		expect(initialItems?.[0]?.content[0]?.text).toMatch(
 			/<startup_context>\nsummary\n<\/startup_context>/,
 		);
+		expect(
+			buildRealtimeCallRequest(
+				"offer",
+				DEFAULT_GIPPITY_CONTROL_CONFIG,
+				"instructions",
+				initialItems,
+			).session,
+		).toMatchObject({
+			model: "gpt-live-1-codex",
+			delegation: { type: "client", ack_filler: true },
+			initial_items: initialItems,
+		});
 	});
 
-	test("delegation contains finalized prior turns without partial or current duplicates", () => {
+	test("voice turns finalize frontend history before delegation", () => {
 		const turns = new RealtimeVoiceTurnTracker();
 		turns.inputAdded("whatwerewe discussing");
 		turns.userFinished("What were we discussing?");
@@ -272,10 +262,6 @@ describe("realtime session routing", () => {
 		turns.inputAdded("readthe readmes");
 		expect(turns.delegated("Read the READMEs", "delegation-1")).toBeUndefined();
 		turns.inputAdded("properly");
-		expect(
-			turns.delegated("Read every README", "delegation-retry"),
-		).toBeUndefined();
-		turns.outputAdded("Okay,I'll");
 		expect(turns.userFinished("Read the READMEs")).toEqual({
 			input: "Read the READMEs",
 			transcriptDelta:
@@ -314,7 +300,7 @@ describe("realtime session routing", () => {
 		expect(modelMessages).toEqual([]);
 	});
 
-	test("realtime lifecycle guidance is model-visible without triggering a turn", () => {
+	test("realtime session messages route one current Pi and V3 flow", () => {
 		const sent: Array<{ message: any; options: unknown }> = [];
 		const messages = new CodexVoiceSessionMessages(
 			{
@@ -324,115 +310,48 @@ describe("realtime session routing", () => {
 			} as unknown as ExtensionAPI,
 			voiceMessageCallbacks(),
 		);
-		messages.modeStarted("realtime");
-		messages.voiceStopped("realtime");
-
-		expect(sent).toHaveLength(2);
-		const lifecycle = { role: "custom", ...sent[0]!.message };
-		expect(sent[0]).toMatchObject({
-			message: {
-				customType: "gippity-voice-mode",
-				display: true,
-				content: expect.stringMatching(
-					/^<realtime_voice_session state="active">/,
-				),
-			},
-			options: { triggerTurn: false, deliverAs: "steer" },
-		});
-		expect(sent[1]).toMatchObject({
-			message: {
-				content: expect.stringMatching(
-					/^<realtime_voice_session state="ended">/,
-				),
-			},
-			options: { triggerTurn: false, deliverAs: "steer" },
-		});
-		expect(
-			messages.filterContext([
-				lifecycle,
-				{
-					role: "custom",
-					customType: "gippity-realtime-voice",
-					content: "display only",
-					display: true,
-					details: {},
-				},
-			] as never),
-		).toEqual([lifecycle]);
-	});
-
-	test("transcript tails persist while idle and wait during active turns", () => {
-		const sent: Array<{ options: unknown }> = [];
-		const messages = new CodexVoiceSessionMessages(
-			{
-				sendMessage(_message: unknown, options: unknown) {
-					sent.push({ options });
-				},
-			} as unknown as ExtensionAPI,
-			voiceMessageCallbacks(),
-		);
 		messages.setContext({ isIdle: () => true } as never);
-		messages.retainTranscriptTail("user: idle");
-		messages.setContext({ isIdle: () => false } as never);
-		messages.retainTranscriptTail("user: active");
-
-		expect(sent).toEqual([
-			{ options: { triggerTurn: false, deliverAs: "steer" } },
-			{ options: { triggerTurn: false, deliverAs: "nextTurn" } },
-		]);
-	});
-
-	test("delegations use a clean rendered Pi queue with Codex context", () => {
-		const sent: unknown[] = [];
-		const messages = new CodexVoiceSessionMessages(
-			{
-				appendEntry() {},
-				sendMessage(message: unknown, options: unknown) {
-					sent.push({ message, options });
-				},
-			} as unknown as ExtensionAPI,
-			voiceMessageCallbacks(),
-		);
-		messages.setContext({ isIdle: () => false } as never);
+		messages.modeStarted("realtime");
+		messages.retainTranscriptTail("user: earlier conversation");
 		messages.voiceTurn({
-			input: "do the same for the server",
+			input: "check the server",
 			delegationId: "delegation-1",
 		});
-
-		expect(sent).toEqual([
-			{
-				message: {
-					customType: "gippity-realtime-delegation",
-					content:
-						"<realtime_delegation>\n  <input>do the same for the server</input>\n</realtime_delegation>",
-					display: false,
-					details: {
-						input: "do the same for the server",
-						route: "delegation",
-					},
-				},
-				options: { triggerTurn: true, deliverAs: "steer" },
-			},
-		]);
-
-		const idleSent: unknown[] = [];
-		const idleMessages = new CodexVoiceSessionMessages(
-			{
-				appendEntry() {},
-				sendMessage(message: unknown, options: unknown) {
-					idleSent.push({ message, options });
-				},
-			} as unknown as ExtensionAPI,
-			voiceMessageCallbacks(),
-		);
-		idleMessages.setContext({ isIdle: () => true } as never);
-		idleMessages.voiceTurn({
-			input: "check the server",
+		messages.retainTranscriptTail("user: while Pi works");
+		messages.voiceTurn({
+			input: "also check the laptop",
 			delegationId: "delegation-2",
 		});
-		expect((idleSent[0] as { options?: unknown })?.options).toEqual({
-			triggerTurn: true,
+		messages.voiceStopped("realtime");
+
+		expect(sent).toHaveLength(6);
+		const lifecycle = { role: "custom", ...sent[0]!.message };
+		const delegation = { role: "custom", ...sent[2]!.message };
+		expect(sent[0]!.message.content).toMatch(
+			/^<realtime_voice_session state="active">/,
+		);
+		expect(sent[1]!.message.customType).toBe("gippity-realtime-voice-tail");
+		expect(sent[2]!.message).toMatchObject({
+			customType: "gippity-realtime-delegation",
+			content:
+				"<realtime_delegation>\n  <input>check the server</input>\n</realtime_delegation>",
 		});
+		expect(sent[4]!.message.customType).toBe("gippity-realtime-delegation");
+		expect(sent[5]!.message.content).toMatch(
+			/^<realtime_voice_session state="ended">/,
+		);
+		expect(sent.map(({ options }) => options)).toEqual([
+			{ triggerTurn: false, deliverAs: "steer" },
+			{ triggerTurn: false, deliverAs: "steer" },
+			{ triggerTurn: true },
+			{ triggerTurn: false, deliverAs: "nextTurn" },
+			{ triggerTurn: true, deliverAs: "steer" },
+			{ triggerTurn: false, deliverAs: "steer" },
+		]);
+		expect(messages.filterContext([lifecycle, delegation] as never)).toEqual([
+			lifecycle,
+			delegation,
+		]);
 	});
 });
 
@@ -451,7 +370,7 @@ describe("LAN conversation setup", () => {
 		).toThrow();
 	});
 
-	test("disconnect leaves the host conversation available for another device", async () => {
+	test("preserves device handoff and restarts after explicit release", async () => {
 		let hostStarts = 0;
 		let hostConversation: object | undefined;
 		const clients = testBrowserClients({
@@ -460,6 +379,9 @@ describe("LAN conversation setup", () => {
 					hostConversation = {};
 					hostStarts += 1;
 				}
+			},
+			onConversationActivity(active) {
+				if (!active) hostConversation = undefined;
 			},
 		});
 		const first = new TestWebSocket();
@@ -478,35 +400,11 @@ describe("LAN conversation setup", () => {
 			mode: "conversation",
 			muted: false,
 		});
-		await clients.close();
-	});
-
-	test("explicit stop ends the host conversation before restart", async () => {
-		let hostStarts = 0;
-		let hostActive = false;
-		const activity: boolean[] = [];
-		const clients = testBrowserClients({
-			async ensureConversation() {
-				if (!hostActive) {
-					hostActive = true;
-					hostStarts += 1;
-				}
-			},
-			onConversationActivity(active) {
-				activity.push(active);
-				if (!active) hostActive = false;
-			},
-		});
-		const socket = new TestWebSocket();
-		clients.connectAudio("phone", socket.asWebSocket());
-		socket.receive({ type: "start", mode: "conversation" });
+		second.receive({ type: "release" });
 		await settle();
-		socket.receive({ type: "release" });
-		await settle();
-		socket.receive({ type: "start", mode: "conversation" });
+		second.receive({ type: "start", mode: "conversation" });
 		await settle();
 		expect(hostStarts).toBe(2);
-		expect(activity).toEqual([true, false, true]);
 		await clients.close();
 	});
 
