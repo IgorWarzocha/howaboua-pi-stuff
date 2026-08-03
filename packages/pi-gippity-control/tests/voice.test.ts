@@ -288,12 +288,25 @@ describe("realtime session routing", () => {
 		turns.assistantFinished("This repo is a Pi toolkit.");
 		turns.inputAdded("readthe readmes");
 		expect(turns.delegated("Read the READMEs", "delegation-1")).toBeUndefined();
+		turns.inputAdded("properly");
+		expect(
+			turns.delegated("Read every README", "delegation-retry"),
+		).toBeUndefined();
 		turns.outputAdded("Okay,I'll");
 		expect(turns.userFinished("Read the READMEs")).toEqual({
 			input: "Read the READMEs",
 			transcriptDelta:
 				"user: What were we discussing?\nassistant: This repo is a Pi toolkit.",
 			delegationId: "delegation-1",
+		});
+		turns.delegationSettled("delegation-1");
+		turns.inputAdded("thenrunthe tests");
+		expect(
+			turns.delegated("Then run the tests", "delegation-2"),
+		).toBeUndefined();
+		expect(turns.userFinished("Then run the tests")).toEqual({
+			input: "Then run the tests",
+			delegationId: "delegation-2",
 		});
 	});
 
@@ -339,6 +352,7 @@ describe("realtime session routing", () => {
 		messages.voiceStopped("realtime");
 
 		expect(sent).toHaveLength(2);
+		const lifecycle = { role: "custom", ...sent[0]!.message };
 		expect(sent[0]).toMatchObject({
 			message: {
 				customType: "gippity-voice-mode",
@@ -357,6 +371,18 @@ describe("realtime session routing", () => {
 			},
 			options: { triggerTurn: false, deliverAs: "steer" },
 		});
+		expect(
+			messages.filterContext([
+				lifecycle,
+				{
+					role: "custom",
+					customType: "gippity-realtime-voice",
+					content: "display only",
+					display: true,
+					details: {},
+				},
+			] as never),
+		).toEqual([lifecycle]);
 	});
 
 	test("delegations use a clean rendered Pi queue with Codex context", () => {

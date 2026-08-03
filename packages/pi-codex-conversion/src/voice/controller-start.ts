@@ -75,6 +75,7 @@ export async function startControllerMode(options: {
 			? { type: "connecting", mode: "realtime", phase: "authorizing" }
 			: { type: "connecting", mode: "dictation", phase: "authorizing" };
 	options.onStatus("connecting…");
+	let realtimeSummary: string | undefined;
 	try {
 		const startup = await interruptible(
 			Promise.all([
@@ -83,7 +84,9 @@ export async function startControllerMode(options: {
 					? buildRealtimeInitialItems({
 							ctx: options.ctx,
 							config: options.config,
-							onSummary: (summary) => options.messages.contextSummary(summary),
+							onSummary: (summary) => {
+								realtimeSummary = summary;
+							},
 							signal: startSignal,
 						})
 					: Promise.resolve(undefined),
@@ -123,6 +126,7 @@ export async function startControllerMode(options: {
 				await peer?.close();
 				return;
 			}
+			if (realtimeSummary) options.messages.contextSummary(realtimeSummary);
 			runtime.announcedMode = options.mode;
 			options.messages.modeStarted(options.mode);
 			return activeState.session;

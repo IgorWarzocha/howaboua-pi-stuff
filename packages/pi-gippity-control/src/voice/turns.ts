@@ -146,6 +146,7 @@ export class RealtimeVoiceTurnTracker {
 		if (this.delegationIds.has(delegationId)) return undefined;
 		this.delegationIds.add(delegationId);
 		if (this.outstandingInputs.has(input)) return undefined;
+		if (this.activeUserTurn?.delegation) return undefined;
 		if (
 			!this.activeUserTurn &&
 			this.pendingUserInputs.length === 0 &&
@@ -157,7 +158,6 @@ export class RealtimeVoiceTurnTracker {
 
 		if (this.activeUserTurn) {
 			this.activeUserTurn.delegation = { input, delegationId };
-			this.activeUserTurn = undefined;
 			return undefined;
 		}
 		const pendingIndex = this.pendingUserInputs.length - 1;

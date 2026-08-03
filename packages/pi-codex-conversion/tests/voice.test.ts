@@ -330,12 +330,27 @@ test("voice delegation contains finalized prior turns without partial or current
 	turns.assistantFinished("This repo is a Pi toolkit.");
 	turns.inputAdded("readthe readmes");
 	assert.equal(turns.delegated("Read the READMEs", "delegation-1"), undefined);
+	turns.inputAdded("properly");
+	assert.equal(
+		turns.delegated("Read every README", "delegation-retry"),
+		undefined,
+	);
 	turns.outputAdded("Okay,I'll");
 	assert.deepEqual(turns.userFinished("Read the READMEs"), {
 		input: "Read the READMEs",
 		transcriptDelta:
 			"user: What were we discussing?\nassistant: This repo is a Pi toolkit.",
 		delegationId: "delegation-1",
+	});
+	turns.delegationSettled("delegation-1");
+	turns.inputAdded("thenrunthe tests");
+	assert.equal(
+		turns.delegated("Then run the tests", "delegation-2"),
+		undefined,
+	);
+	assert.deepEqual(turns.userFinished("Then run the tests"), {
+		input: "Then run the tests",
+		delegationId: "delegation-2",
 	});
 });
 
@@ -398,6 +413,20 @@ test("realtime lifecycle guidance is model-visible without triggering a turn", (
 	assert.match(
 		sent[1]?.message.content,
 		/Resume normal conversation, tool use, and formatting/,
+	);
+	const lifecycle = { role: "custom", ...sent[0]!.message };
+	assert.deepEqual(
+		messages.filterContext([
+			lifecycle,
+			{
+				role: "custom",
+				customType: "codex-realtime-voice",
+				content: "display only",
+				display: true,
+				details: {},
+			},
+		] as never),
+		[lifecycle],
 	);
 });
 

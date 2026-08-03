@@ -111,7 +111,9 @@ export class CodexVoiceSessionMessages {
 	}
 
 	filterContext(messages: ContextEvent["messages"]): ContextEvent["messages"] {
-		return messages.filter((message) => !isLegacyVoiceDisplayMessage(message));
+		return messages.filter(
+			(message) => !isContextExcludedVoiceMessage(message),
+		);
 	}
 
 	agentStarted(): void {
@@ -154,12 +156,14 @@ export class CodexVoiceSessionMessages {
 	}
 }
 
-function isLegacyVoiceDisplayMessage(
+function isContextExcludedVoiceMessage(
 	message: ContextEvent["messages"][number],
 ): boolean {
+	if (message.role !== "custom") return false;
+	if (message.customType === REALTIME_VOICE_MESSAGE_TYPE) return true;
 	return (
-		message.role === "custom" &&
-		(message.customType === REALTIME_VOICE_MESSAGE_TYPE ||
-			message.customType === CODEX_VOICE_MODE_MESSAGE_TYPE)
+		message.customType === CODEX_VOICE_MODE_MESSAGE_TYPE &&
+		(typeof message.content !== "string" ||
+			!message.content.startsWith('<realtime_voice_session state="'))
 	);
 }
