@@ -354,6 +354,15 @@ test("voice delegation contains finalized prior turns without partial or current
 	});
 });
 
+test("finalized conversational speech drains only through hidden context", () => {
+	const turns = new RealtimeVoiceTurnTracker();
+	turns.inputAdded("thanks");
+	turns.userFinished("Thanks.");
+
+	assert.deepEqual(turns.drainConversationTurns(), []);
+	assert.equal(turns.takeTranscriptTail(), "user: Thanks.");
+});
+
 test("voice presentation entries never enter Pi model queues", () => {
 	const modelMessages: unknown[] = [];
 	const entries: unknown[] = [];
@@ -428,6 +437,27 @@ test("realtime lifecycle guidance is model-visible without triggering a turn", (
 		] as never),
 		[lifecycle],
 	);
+});
+
+test("transcript tails persist while idle and wait during active turns", () => {
+	const sent: Array<{ options: unknown }> = [];
+	const messages = new CodexVoiceSessionMessages(
+		{
+			sendMessage(_message: unknown, options: unknown) {
+				sent.push({ options });
+			},
+		} as unknown as ExtensionAPI,
+		voiceMessageCallbacks(),
+	);
+	messages.setContext({ isIdle: () => true } as never);
+	messages.retainTranscriptTail("user: idle");
+	messages.setContext({ isIdle: () => false } as never);
+	messages.retainTranscriptTail("user: active");
+
+	assert.deepEqual(sent, [
+		{ options: { triggerTurn: false, deliverAs: "steer" } },
+		{ options: { triggerTurn: false, deliverAs: "nextTurn" } },
+	]);
 });
 
 test("voice delegations use a clean rendered Pi queue with Codex context", () => {

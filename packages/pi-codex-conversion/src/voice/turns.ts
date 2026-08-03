@@ -187,12 +187,9 @@ export class RealtimeVoiceTurnTracker {
 	}
 
 	drainConversationTurns(): RealtimeVoiceTurn[] {
-		const turns = [
-			...this.pendingUserInputs.map(({ input }) => ({ input })),
-			...this.unfinishedUserTurns.flatMap((turn) =>
-				turn.delegation ? [turn.delegation] : [],
-			),
-		];
+		const turns = this.unfinishedUserTurns.flatMap((turn) =>
+			turn.delegation ? [turn.delegation] : [],
+		);
 		this.pendingUserInputs = [];
 		this.unfinishedUserTurns = [];
 		this.activeUserTurn = undefined;

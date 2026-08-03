@@ -99,6 +99,8 @@ export class CodexVoiceSessionMessages {
 	}
 
 	retainTranscriptTail(transcriptDelta: string): void {
+		const piTurnActive =
+			this.piTurnActive || (this.context ? !this.context.isIdle() : false);
 		this.pi.sendMessage(
 			{
 				customType: REALTIME_VOICE_TAIL_CONTEXT_TYPE,
@@ -106,7 +108,10 @@ export class CodexVoiceSessionMessages {
 				display: false,
 				details: {},
 			},
-			{ triggerTurn: false, deliverAs: "nextTurn" },
+			{
+				triggerTurn: false,
+				deliverAs: piTurnActive ? "nextTurn" : "steer",
+			},
 		);
 	}
 

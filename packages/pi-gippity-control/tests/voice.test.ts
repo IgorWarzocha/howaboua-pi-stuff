@@ -310,6 +310,15 @@ describe("realtime session routing", () => {
 		});
 	});
 
+	test("finalized conversational speech drains only through hidden context", () => {
+		const turns = new RealtimeVoiceTurnTracker();
+		turns.inputAdded("thanks");
+		turns.userFinished("Thanks.");
+
+		expect(turns.drainConversationTurns()).toEqual([]);
+		expect(turns.takeTranscriptTail()).toBe("user: Thanks.");
+	});
+
 	test("presentation entries never enter Pi model queues", () => {
 		const modelMessages: unknown[] = [];
 		const entries: unknown[] = [];
@@ -383,6 +392,27 @@ describe("realtime session routing", () => {
 				},
 			] as never),
 		).toEqual([lifecycle]);
+	});
+
+	test("transcript tails persist while idle and wait during active turns", () => {
+		const sent: Array<{ options: unknown }> = [];
+		const messages = new CodexVoiceSessionMessages(
+			{
+				sendMessage(_message: unknown, options: unknown) {
+					sent.push({ options });
+				},
+			} as unknown as ExtensionAPI,
+			voiceMessageCallbacks(),
+		);
+		messages.setContext({ isIdle: () => true } as never);
+		messages.retainTranscriptTail("user: idle");
+		messages.setContext({ isIdle: () => false } as never);
+		messages.retainTranscriptTail("user: active");
+
+		expect(sent).toEqual([
+			{ options: { triggerTurn: false, deliverAs: "steer" } },
+			{ options: { triggerTurn: false, deliverAs: "nextTurn" } },
+		]);
 	});
 
 	test("delegations use a clean rendered Pi queue with Codex context", () => {
