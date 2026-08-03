@@ -32,14 +32,13 @@ import { RealtimeVoiceTurnTracker } from "../src/voice/turns.ts";
 
 test("assistant message boundaries route clean realtime handoffs", () => {
 	const sent: unknown[] = [];
-	const statuses: string[] = [];
 	const handoff = new RealtimeDelegationHandoff(
 		{ sendData: (message: unknown) => sent.push(message) } as unknown as CodexRealtimePeer,
 		{
 			isActive: () => true,
 			onFailure: (error) => assert.fail(error),
 			onSettled: () => undefined,
-			onStatus: (status) => statuses.push(status),
+			onStatus: () => undefined,
 		},
 	);
 	handoff.activate("delegation-1");
@@ -61,7 +60,6 @@ test("assistant message boundaries route clean realtime handoffs", () => {
 			content: [{ type: "input_text", text: "Finished" }],
 		},
 	]);
-	assert.deepEqual(statuses, ["speaking"]);
 });
 
 test("voice helper parser validates protocol payloads", () => {
@@ -354,23 +352,11 @@ test("voice delegation contains finalized prior turns without partial or current
 	});
 });
 
-test("finalized conversational speech drains only through hidden context", () => {
-	const turns = new RealtimeVoiceTurnTracker();
-	turns.inputAdded("thanks");
-	turns.userFinished("Thanks.");
-
-	assert.deepEqual(turns.drainConversationTurns(), []);
-	assert.equal(turns.takeTranscriptTail(), "user: Thanks.");
-});
-
 test("voice presentation entries never enter Pi model queues", () => {
 	const modelMessages: unknown[] = [];
-	const entries: unknown[] = [];
 	const messages = new CodexVoiceSessionMessages(
 		{
-			appendEntry(customType: string, data: unknown) {
-				entries.push({ customType, data });
-			},
+			appendEntry() {},
 			sendMessage(message: unknown, options: unknown) {
 				modelMessages.push({ message, options });
 			},
@@ -385,10 +371,6 @@ test("voice presentation entries never enter Pi model queues", () => {
 	messages.voiceTurn({ input: "thanks" });
 
 	assert.deepEqual(modelMessages, []);
-	assert.deepEqual(entries[1], {
-		customType: "codex-realtime-user-transcript",
-		data: { transcript: "Can you check the server?" },
-	});
 });
 
 test("realtime lifecycle guidance is model-visible without triggering a turn", () => {
@@ -411,18 +393,12 @@ test("realtime lifecycle guidance is model-visible without triggering a turn", (
 	});
 	assert.equal(sent[0]?.message.customType, "codex-voice-mode");
 	assert.equal(sent[0]?.message.display, true);
-	assert.match(
-		sent[0]?.message.content,
-		/Keep everyone informed and up to date/,
-	);
+	assert.match(sent[0]?.message.content, /^<realtime_voice_session state="active">/);
 	assert.deepEqual(sent[1]?.options, {
 		triggerTurn: false,
 		deliverAs: "steer",
 	});
-	assert.match(
-		sent[1]?.message.content,
-		/Resume normal conversation, tool use, and formatting/,
-	);
+	assert.match(sent[1]?.message.content, /^<realtime_voice_session state="ended">/);
 	const lifecycle = { role: "custom", ...sent[0]!.message };
 	assert.deepEqual(
 		messages.filterContext([

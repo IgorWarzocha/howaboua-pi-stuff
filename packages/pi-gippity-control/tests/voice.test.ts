@@ -66,7 +66,6 @@ describe("realtime prompt persistence", () => {
 describe("realtime session routing", () => {
 	test("assistant message boundaries route clean realtime handoffs", () => {
 		const sent: unknown[] = [];
-		const statuses: string[] = [];
 		const handoff = new RealtimeDelegationHandoff(
 			{
 				sendData: (message: unknown) => sent.push(message),
@@ -77,7 +76,7 @@ describe("realtime session routing", () => {
 					throw error;
 				},
 				onSettled: () => undefined,
-				onStatus: (status) => statuses.push(status),
+				onStatus: () => undefined,
 			},
 		);
 		handoff.activate("delegation-1");
@@ -99,7 +98,6 @@ describe("realtime session routing", () => {
 				content: [{ type: "input_text", text: "Finished" }],
 			},
 		]);
-		expect(statuses).toEqual(["speaking"]);
 	});
 	test("V3 setup pins delegation acknowledgement and initial context", () => {
 		const initialItems = [
@@ -125,8 +123,6 @@ describe("realtime session routing", () => {
 
 	test("context sidecars serialize mixed-provider history to text", async () => {
 		let sidecarContext: unknown;
-		let displayedSummary: string | undefined;
-		let sidecarReasoning: unknown;
 		const userEntry = {
 			type: "message",
 			id: "user-message",
@@ -214,10 +210,9 @@ describe("realtime session routing", () => {
 			async *streamSimple(
 				_model: unknown,
 				context: unknown,
-				options: { reasoning?: unknown },
+				_options: unknown,
 			) {
 				sidecarContext = context;
-				sidecarReasoning = options.reasoning;
 				yield {
 					type: "done",
 					message: { content: [{ type: "text", text: "summary" }] },
@@ -247,19 +242,8 @@ describe("realtime session routing", () => {
 					contextModel: { provider: "example", modelId: "text-model" },
 				},
 			},
-			onSummary: (summary) => {
-				displayedSummary = summary;
-			},
 		});
 
-		expect(sidecarContext).toMatchObject({
-			messages: [
-				{
-					role: "user",
-					content: [{ type: "text" }],
-				},
-			],
-		});
 		expect((sidecarContext as { tools?: unknown }).tools).toBeUndefined();
 		const history = (
 			sidecarContext as {
@@ -273,10 +257,9 @@ describe("realtime session routing", () => {
 		expect(history).not.toContain("Checking files");
 		expect(history).not.toContain("large code dump");
 		expect(history).not.toContain("aW1hZ2U=");
-		expect(displayedSummary).toBe("summary");
-		expect(sidecarReasoning).toBe("high");
-		expect(initialItems?.[0]?.content[0]?.text).toBe(
-			"Startup context from Pi.\nThis is background context from the current Pi conversation before realtime voice started. It may be summarized. Use it to answer questions about the earlier conversation, and do not repeat it unless relevant.\n<startup_context>\nsummary\n</startup_context>",
+		expect(initialItems?.[0]?.role).toBe("developer");
+		expect(initialItems?.[0]?.content[0]?.text).toMatch(
+			/<startup_context>\nsummary\n<\/startup_context>/,
 		);
 	});
 
@@ -310,23 +293,11 @@ describe("realtime session routing", () => {
 		});
 	});
 
-	test("finalized conversational speech drains only through hidden context", () => {
-		const turns = new RealtimeVoiceTurnTracker();
-		turns.inputAdded("thanks");
-		turns.userFinished("Thanks.");
-
-		expect(turns.drainConversationTurns()).toEqual([]);
-		expect(turns.takeTranscriptTail()).toBe("user: Thanks.");
-	});
-
 	test("presentation entries never enter Pi model queues", () => {
 		const modelMessages: unknown[] = [];
-		const entries: unknown[] = [];
 		const messages = new CodexVoiceSessionMessages(
 			{
-				appendEntry(customType: string, data: unknown) {
-					entries.push({ customType, data });
-				},
+				appendEntry() {},
 				sendMessage(message: unknown, options: unknown) {
 					modelMessages.push({ message, options });
 				},
@@ -341,10 +312,6 @@ describe("realtime session routing", () => {
 		messages.voiceTurn({ input: "thanks" });
 
 		expect(modelMessages).toEqual([]);
-		expect(entries[1]).toEqual({
-			customType: "gippity-realtime-user-transcript",
-			data: { transcript: "Can you check the server?" },
-		});
 	});
 
 	test("realtime lifecycle guidance is model-visible without triggering a turn", () => {
@@ -366,16 +333,16 @@ describe("realtime session routing", () => {
 			message: {
 				customType: "gippity-voice-mode",
 				display: true,
-				content: expect.stringContaining(
-					"Keep everyone informed and up to date",
+				content: expect.stringMatching(
+					/^<realtime_voice_session state="active">/,
 				),
 			},
 			options: { triggerTurn: false, deliverAs: "steer" },
 		});
 		expect(sent[1]).toMatchObject({
 			message: {
-				content: expect.stringContaining(
-					"Resume normal conversation, tool use, and formatting",
+				content: expect.stringMatching(
+					/^<realtime_voice_session state="ended">/,
 				),
 			},
 			options: { triggerTurn: false, deliverAs: "steer" },

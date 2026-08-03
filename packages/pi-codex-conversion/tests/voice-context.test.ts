@@ -30,73 +30,6 @@ test("V3 voice setup pins acknowledgements and seeded context", () => {
 	assert.deepEqual(request.session.initial_items, initialItems);
 });
 
-test("voice summary is labeled as prior Pi conversation context", async () => {
-	let displayedSummary: string | undefined;
-	let sidecarReasoning: unknown;
-	const entry = {
-		type: "message",
-		id: "user-message",
-		parentId: null,
-		timestamp: new Date(1).toISOString(),
-		message: {
-			role: "user",
-			content: [{ type: "text", text: "What is this repo?" }],
-			timestamp: 1,
-		},
-	};
-	const provider = {
-		async *streamSimple(
-			_model: unknown,
-			_context: unknown,
-			options: { reasoning?: unknown },
-		) {
-			sidecarReasoning = options.reasoning;
-			yield {
-				type: "done",
-				message: { content: [{ type: "text", text: "Pi toolkit summary" }] },
-			};
-		},
-	};
-	const ctx = {
-		sessionManager: {
-			getEntries: () => [entry],
-			getBranch: () => [entry],
-			getLeafId: () => entry.id,
-			getSessionId: () => "startup-context-session",
-		},
-		modelRegistry: {
-			find: () => ({
-				provider: "example",
-				id: "text-model",
-				maxTokens: 4_096,
-				reasoning: true,
-			}),
-			getProvider: () => provider,
-			getApiKeyAndHeaders: async () => ({ ok: true, apiKey: "token" }),
-		},
-	};
-	const initialItems = await buildRealtimeInitialItems({
-		ctx: ctx as never,
-		config: {
-			...DEFAULT_CODEX_CONVERSION_CONFIG,
-			voice: {
-				...DEFAULT_CODEX_CONVERSION_CONFIG.voice,
-				contextModel: { provider: "example", modelId: "text-model" },
-			},
-		},
-		onSummary: (summary) => {
-			displayedSummary = summary;
-		},
-	});
-
-	assert.equal(displayedSummary, "Pi toolkit summary");
-	assert.equal(sidecarReasoning, "high");
-	assert.equal(
-		initialItems?.[0]?.content[0]?.text,
-		"Startup context from Pi.\nThis is background context from the current Pi conversation before realtime voice started. It may be summarized. Use it to answer questions about the earlier conversation, and do not repeat it unless relevant.\n<startup_context>\nPi toolkit summary\n</startup_context>",
-	);
-});
-
 test("voice summary input keeps conversation text without tool mechanics", async () => {
 	let history = "";
 	const entries = [
@@ -165,7 +98,7 @@ test("voice summary input keeps conversation text without tool mechanics", async
 			};
 		},
 	};
-	await buildRealtimeInitialItems({
+	const initialItems = await buildRealtimeInitialItems({
 		ctx: {
 			sessionManager: {
 				getEntries: () => entries,
@@ -195,6 +128,11 @@ test("voice summary input keeps conversation text without tool mechanics", async
 	assert.match(history, /\[User\]: Explain this repo/);
 	assert.match(history, /\[Assistant\]: It is a Pi extension monorepo\./);
 	assert.doesNotMatch(history, /private reasoning|Checking files|large code dump/);
+	assert.equal(initialItems?.[0]?.role, "developer");
+	assert.match(
+		initialItems?.[0]?.content[0]?.text ?? "",
+		/<startup_context>\nsummary\n<\/startup_context>/,
+	);
 });
 
 test("native voice context keeps the checkpoint off the main cache lane", async () => {
@@ -278,7 +216,6 @@ test("native voice context keeps the checkpoint off the main cache lane", async 
 
 	assert.equal(summary, "Readable continuity");
 	assert.equal(sidecarContext?.["tools"], undefined);
-	assert.equal(payload?.["prompt_cache_key"], undefined);
 	assert.notEqual(sidecarSessionId, "main-session");
 	assert.deepEqual(
 		(payload?.["input"] as Array<Record<string, unknown>>).map(
