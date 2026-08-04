@@ -1,6 +1,6 @@
 # Realtime system prompt changelog
 
-This is migration guidance for the agent editing a user's `REALTIME-SYSTEM-PROMPT.md`. The extension never rewrites an existing prompt because it may contain extensive personal customization.
+This is migration guidance for the agent editing the user's global prompt at `~/.pi/agent/REALTIME-SYSTEM-PROMPT.md`. The extension never rewrites an existing prompt because it may contain extensive personal customization.
 
 The packaged `REALTIME-SYSTEM-PROMPT.md` beside this file is the latest reference template. Do not replace the user's prompt wholesale unless they explicitly ask. Preserve their identity, tone, speaking style, preferences, and intentional routing choices.
 
