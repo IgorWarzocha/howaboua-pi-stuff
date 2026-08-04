@@ -6,7 +6,7 @@ This repo publishes through Changesets; every merge to `main` feeds the version 
 - Contract spine, not feature museum: feature-existence and regression-tour tests die; retain only independent protocol, routing, migration, or model-visible contracts.
 - Skills and extensions must work for any user. Never ship local paths, personal names, machine assumptions, or private workflow details.
 - Slash commands are for users; agents use tools. Prefer one routed entry command over several command names unless explicitly requested.
-- Treat related package work from one session as one release unit and one PR. Installed users should not absorb serial cleanup releases.
+- Treat related package work from one session as one release unit: one PR or one directly, atomically merged stack. Installed users should not absorb serial cleanup releases.
 - Shipped package changes require a changeset. Use concrete release language; never write “upcoming release”, “unreleased”, or speculative notes.
 - Before a `dev` → `main` PR, fetch/prune, reset `dev` onto `origin/main`, then cherry-pick only intended commits. Never merge `main` into `dev`.
 - Prefer `bun run check:changed` and patch-autodetecting `bun changeset -- "summary"`; use `bun changeset:raw` only for intentional non-patch bumps.
