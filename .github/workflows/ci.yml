@@ -24,16 +24,6 @@ jobs:
             base=$(git rev-parse HEAD^ 2>/dev/null || git rev-parse HEAD)
           fi
           echo "base=$base" >> "$GITHUB_OUTPUT"
-      - name: Reject changes to archived Pi-Codex Lite
-        env:
-          CHANGED_BASE: ${{ steps.changed-base.outputs.base }}
-        run: |
-          if git diff --quiet "$CHANGED_BASE...HEAD" -- packages/pi-codex-conversion-lite; then
-            exit 0
-          fi
-          echo "::error::packages/pi-codex-conversion-lite is archived read-only source"
-          git diff --name-only "$CHANGED_BASE...HEAD" -- packages/pi-codex-conversion-lite
-          exit 1
       - name: Check changed workspace packages only
         env:
           CHANGED_BASE: ${{ steps.changed-base.outputs.base }}

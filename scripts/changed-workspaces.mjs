@@ -2,7 +2,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { isActivePackageDir, listActivePackageDirs } from "./active-packages.mjs";
+import { listActivePackageDirs } from "./active-packages.mjs";
 
 const root = process.cwd();
 const base = process.env.CHANGED_BASE || process.argv[2] || "origin/main";
@@ -17,6 +17,6 @@ const files = diff.stdout.split("\n").filter(Boolean);
 const changed = new Set();
 for (const file of files) {
   const match = file.match(/^packages\/([^/]+)\//);
-  if (match && isActivePackageDir(match[1]) && existsSync(join(root, "packages", match[1], "package.json"))) changed.add(match[1]);
+  if (match && existsSync(join(root, "packages", match[1], "package.json"))) changed.add(match[1]);
 }
 console.log(JSON.stringify([...changed].sort()));

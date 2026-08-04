@@ -1,9 +1,0 @@
-- Keep Pi behavior as close as practical to the Codex toolkit; document intentional differences.
-- Before npm, publish, release, or merge work, compare `src/providers/openai-codex-custom-provider.ts` with Pi's stock `openai-codex-responses` provider: request shape, transport/headers, reasoning/service tier, retry, stream termination, and touched behavior.
-- Structured mode uses flat TypeScript tools over standard Responses. GPT-5.6 Code Mode uses `exec`/`wait` over Responses Lite.
-- Keep prompt guidance short and argv-shaped.
-- Native runners execute bundled helpers directly. Rebuild for the local platform and use the checkout; never patch installed npm files.
-- Vendored apply-patch engine, path-uri, and absolute-path sources track one Codex commit. Pi-owned changes belong only in `standalone_executable.rs` and the `pi-apply-patch-fs` adapter.
-- Do not accept review-driven drift from stock Pi behavior unless backend-verified or intentional.
-- Native compaction supports only OpenAI Codex and explicitly configured OpenAI/Codex passthrough proxies; V2 must preserve raw Responses output-item access rather than delegate to arbitrary registered provider streams.
-- After TypeScript topology changes, run root `bun run knip`; export-surface debt is reported separately by `bun run knip:exports`.
