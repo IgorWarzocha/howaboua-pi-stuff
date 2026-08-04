@@ -1,6 +1,6 @@
 ---
 name: gh-stack
-description: "Native GitHub stacked-PR workflow via gh stack: plan dependent layers; create, submit, inspect, sync, rebase, restructure, and merge stacks. Use for stacked diffs, dependent branch chains, or incremental review; not independent PRs."
+description: "Native GitHub stacked-PR workflow via gh stack: plan dependent layers; create, submit, inspect, sync, rebase, restructure, and merge stacks. Use for explicit stacked PRs, stacked diffs, or gh stack work; not ordinary or independent PRs."
 license: MIT
 compatibility: "Requires authenticated GitHub CLI and the github/gh-stack extension; same-repository branches only"
 ---
@@ -99,9 +99,10 @@ GitHub merges a selected PR and every unmerged layer below it, bottom first. Mer
 Before an authorized merge:
 
 1. Inspect `gh stack view --json`
-2. Confirm the intended highest PR, approvals, checks, draft state, merge method, and trunk
-3. Run `gh stack merge <stack-or-pr> --yes` with one of `--squash`, `--rebase`, or `--merge`
-4. Verify landed PRs and remaining layer bases. If a merge queue governs the trunk, report queued state rather than claiming merge completion
+2. For the selected PR and every unmerged layer below it, run `gh pr view <pr> --json isDraft,reviewDecision,statusCheckRollup,baseRefName,headRefName,mergeStateStatus`
+3. Confirm the intended highest PR, approvals, checks, draft state, merge method, and trunk
+4. Run `gh stack merge <stack-or-pr> --yes` with one of `--squash`, `--rebase`, or `--merge`
+5. Verify landed PRs and remaining layer bases. If a merge queue governs the trunk, report queued state rather than claiming merge completion
 
 Do not use `gh pr merge` for a native stack.
 
@@ -110,7 +111,7 @@ Do not use `gh pr merge` for a native stack.
 - **Stack support unavailable:** report the repository/rollout failure. Do not silently create ordinary chained PRs
 - **Rebase conflict:** inspect `git status` and conflict markers, resolve and stage only intended files, then `gh stack rebase --continue`. Use `--abort` when ownership or resolution is uncertain; verify every branch afterward
 - **Local/remote divergence:** preserve both states until choosing an authority. If remote wins and the tree is clean, remove only local tracking with `gh stack unstack --local`, then check out the remote stack. If local wins, remote `unstack` and reconstruction alter GitHub state; proceed only when that outcome is authorized
-- **Published restructure:** record PR numbers, branches, bases, and stack order first. `unstack` keeps PRs and branches but removes stack grouping; rebuild explicitly with `init` or `link`, then verify every base and PR
+- **Published restructure:** record PR numbers, branches, bases, and stack order first. `unstack` keeps PRs and branches but removes stack grouping. Rebuild remotely with `link`, or restore local tracking with `init` and then run `submit --auto`; `init` alone does not recreate GitHub's stack object. Verify every base and PR
 - **Checkout wants conflict resolution:** do not blindly discard local tracking. Inspect the mismatch; use `unstack --local` only after deciding GitHub is authoritative
 - **Partial push/submit:** these operations may update some branches before another fails. Inspect remote heads and PRs, repair the rejected branch, then rerun idempotently
 - **Authentication/API failure:** use `gh auth status`, preserve visible error details, and retry only after the permission or transient failure is resolved
