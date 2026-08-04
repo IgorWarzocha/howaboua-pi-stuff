@@ -1,5 +1,6 @@
 import type { AgentToolResult, ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { CodexExtensionRuntime } from "../extension/runtime.ts";
+import { formatRunningExecSessionGuidance } from "../tools/code-mode/tool-result.ts";
 import {
 	type CodeModeRegistration,
 	registerCodeModeTools,
@@ -120,7 +121,7 @@ function createNestedTools(
 					if (isRunningExecResult(details))
 						return {
 							...details,
-							continuation: `Still running. Call exec with tools.write_stdin({ session_id: ${details.session_id} })`,
+							continuation: formatRunningExecSessionGuidance(details.session_id),
 						};
 					if (isExecResult(details)) return details;
 					return result.content

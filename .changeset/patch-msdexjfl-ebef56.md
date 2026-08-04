@@ -10,3 +10,5 @@ Guide Code Mode to reread files changed since their last read before patching th
 Avoid duplicating partial apply patch failures in Code Mode traces and result metadata.
 
 Guide generated commands to follow the detected shell's syntax, quoting, and variable rules.
+
+Tell agents to resume running exec cells and command sessions near expected completion instead of short polling.
