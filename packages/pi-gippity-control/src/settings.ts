@@ -216,10 +216,6 @@ function details(
 		),
 		theme.fg(
 			"dim",
-			`  Voice context: ${config.voice.contextModel ? `${formatContextModel(config.voice.contextModel)} · ${config.voice.contextReasoning}` : "off"}`,
-		),
-		theme.fg(
-			"dim",
 			`  Change keybinds/devices: ${getGippityControlConfigPath()} (/reload to apply)`,
 		),
 		"",

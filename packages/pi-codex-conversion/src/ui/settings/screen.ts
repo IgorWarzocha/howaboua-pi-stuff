@@ -247,10 +247,6 @@ function formatVoiceDetails(
 		),
 		theme.fg(
 			"dim",
-			`  Voice context: ${config.voice.contextModel ? `${config.voice.contextModel.provider}/${config.voice.contextModel.modelId} · ${config.voice.contextReasoning}` : "off"}`,
-		),
-		theme.fg(
-			"dim",
 			`  Change keybinds: ${getCodexConversionConfigPath()} (/reload to apply)`,
 		),
 		"",

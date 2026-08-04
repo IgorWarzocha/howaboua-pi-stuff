@@ -16,3 +16,5 @@ Tell agents to resume running exec cells and command sessions near expected comp
 Resolve bare Bash requests through Pi's detected shell on Windows and prevent persisted terminal controls from reaching custom exec renderers.
 
 Identify the user-owned realtime system prompt by its default path in the migration changelog.
+
+Remove the redundant dimmed voice-context summary from both settings screens.
