@@ -1,6 +1,6 @@
 # @howaboua/pi-stuff
 
-The full general-purpose bundle: all 13 extensions from `@howaboua/pi-extensions`, pi-ask's prompt workflows, and all 9 skills from `@howaboua/pi-skills`.
+The full general-purpose bundle: all 13 extensions from `@howaboua/pi-extensions`, pi-ask's prompt workflows, and all 11 skills from `@howaboua/pi-skills`.
 
 ## Install
 
@@ -11,7 +11,7 @@ pi install npm:@howaboua/pi-stuff
 This installs:
 
 - extensions: `pi-ask`, `pi-auto-reasoning-tool`, `pi-auto-trees`, `pi-cache-hit-predictor`, `pi-dynamic-tools`, `pi-explore-subagents`, `pi-gpt-switcher`, `pi-markdown-workflows`, `pi-memories`, `pi-semantic-grep`, `pi-smart-btw`, `pi-subagent-review`, and `pi-vent`
-- skills: `adversarial-qa`, `agent-native-hardening`, `agents-md`, `anti-ai-copy`, `chrome-cdp`, `gh-issue-pr-flow`, `model-facing-api-design`, `project-reference-research`, and `skill-creator`
+- skills: `adversarial-qa`, `agent-native-hardening`, `agents-md`, `anti-ai-copy`, `chrome-cdp`, `codex-prompt-caching`, `gh-issue-pr-flow`, `gh-stack`, `model-facing-api-design`, `project-reference-research`, and `skill-creator`
 
 The Codex conversion packages and `omarchy-help` are intentionally separate because they depend on model and workstation choices.
 

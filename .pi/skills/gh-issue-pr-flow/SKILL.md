@@ -1,6 +1,6 @@
 ---
 name: gh-issue-pr-flow
-description: "This repo's GitHub/Changesets workflow: issues, branches, commits, PRs, review, release hygiene. Use for filing or implementing issues, package changes, PR delivery, or feedback."
+description: "This repo's GitHub/Changesets workflow: issues, parallel Herdr/worktree batches, branches, commits, PRs, review, release hygiene. Use for filing or implementing issues, package changes, PR delivery, or feedback."
 ---
 
 # GitHub Issue and PR Flow
@@ -34,6 +34,30 @@ description: "This repo's GitHub/Changesets workflow: issues, branches, commits,
 4. For shipped package work, read `references/release-and-repository-hygiene.md` before finalizing release artifacts.
 5. Review the diff and branch history, stage only intended files, and commit the completed result.
 6. Push and open the PR against `main`; return the link.
+
+### Dispatch a parallel issue batch
+
+Use a native stack when several bounded issues should stay independently reviewable but land as one release unit. This repo runs PR CI for every layer and Changesets/npm release work only on `push` to `main`; directly merging the top lands the stack atomically. A merge queue may split that landing, so use one integration PR instead when one release run is mandatory and direct merge is unavailable.
+
+Dispatch is a handoff, not a supervision loop:
+
+1. Read every issue first. Identify dependencies, shared files/packages, review boundaries, and a stable bottom-to-top order. Exclude work that does not belong in the same release unit.
+2. Fetch `origin/main` once and record its SHA. In a dedicated coordinator worktree at that base, run `gh stack init --base main <issue-branch-1> <issue-branch-2> ...` to create and track every worker branch in stack order before implementation starts. Do not create sibling branches and retrofit them later.
+3. Detach the coordinator worktree to free the stack's current branch. Check out each tracked stack branch into its own worker worktree under a sibling root such as `<repo-parent>/.worktrees/<repo>/issue-123`.
+4. Require `HERDR_ENV=1` before controlling panels. Create one unfocused Herdr workspace per worktree, label it with the issue number and short title, and launch a named Pi session with `--model openai-codex/gpt-5.6-luna:high`. Parse workspace and pane IDs from Herdr's JSON; do not guess IDs.
+5. Give each worker this ownership contract: read the issue and repository instructions; implement only that issue directly on the assigned stack branch; run focused validation; cull weak tests; commit all intended work; do not push, open a PR, add a changeset, run the umbrella gate, invoke `gh stack`, or touch another worktree. If blocked, ask in this panel and wait for the user. When finished, report commit SHA, changed surface, checks, and risks, then remain idle.
+6. Return the issue → branch → worktree → Herdr workspace/pane map and stop. Do not wait for, read, message, steer, review, or decide readiness for dispatched agents. Resume only after an explicit user signal such as “workers X, Y, Z are ready.”
+
+### Resume a dispatched issue batch
+
+1. Treat the user's readiness signal—not panel status—as the phase gate. Inspect only the named ready worktrees and commits. Report dirty, missing, or conflicting results instead of silently completing worker tasks.
+2. Stop the ready panels and detach or remove their clean worktrees so Git can rewrite the checked-out branches. In the coordinator worktree, check out a stack branch, run the cascading `gh stack rebase`, resolve integration conflicts in the owning layer, and verify the complete order with `gh stack view --json`.
+3. From the top worker branch, run `gh stack add <batch-release-branch>`. Add patch-autodetected `bun changeset -- "<combined release summary>"` there so the stack carries one release artifact, then apply the verification cull across the complete stack and run the umbrella gate once from the release layer.
+4. Run `gh stack submit --auto` to create draft native PRs and the stack object on GitHub.com. Verify the GitHub stack map, then edit every PR's title, body, issue linkage, base, and order. Use `Closes` only where the layer fully resolves its issue. Invoke configured review systems on each focused layer.
+5. Return the layer → PR map and stop again. Dispatch review-fix workers only when the user asks; each fix wave follows the same launch-and-handoff boundary. After the user declares review converged, rebase and push the affected upstack, run `gh stack submit --auto --open`, and report readiness.
+6. Merge only on explicit user direction. Confirm every layer is approved and green and the target does not require a merge queue, then directly merge the top with `gh stack merge <top-pr> --yes` and the repository's merge method. Verify the atomic `main` landing and release workflow; until one live batch confirms event behavior, do not claim the one-run release property as measured fact.
+
+Use one integration PR instead when slices do not merit separate review, stack support is unavailable, or merge-queue behavior would defeat the single release landing. Use ordinary separate PRs when work should release independently.
 
 ### Open or update a PR for existing work
 
@@ -82,12 +106,15 @@ Use this concise PR body when no more specific template applies:
 
 ```markdown
 ## Summary
+
 - ...
 
 ## Validation
+
 - `...`
 
 ## Release
+
 - Changeset: yes/no
 - Packages: `@howaboua/...` or none
 - Aggregates: generated by release automation
