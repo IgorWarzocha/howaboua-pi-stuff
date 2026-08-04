@@ -218,6 +218,14 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-skill-gh-issue-pr-flow/CHANGELOG.md)
 
+### @howaboua/pi-skill-gh-stack — 0.0.1
+
+### Changes
+
+- [#228](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/228) [`f3dcf5e`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/f3dcf5e01b850e4de57801450eba9464f750b11d) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add a compact native GitHub stacked-PR skill with dependency-layer planning, noninteractive gh-stack workflows, synchronization, conflict recovery, and safe partial or whole-stack merging.
+
+[Full changelog](./packages/pi-skill-gh-stack/CHANGELOG.md)
+
 ### @howaboua/pi-skill-model-facing-api-design — 0.0.5
 
 ### Changes
@@ -250,16 +258,16 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-skill-skill-creator/CHANGELOG.md)
 
-### @howaboua/pi-skills — 0.0.14
+### @howaboua/pi-skills — 0.0.15
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-skill-codex-prompt-caching: Add a Codex prompt-caching skill covering GPT-5.6 caching, Codex request continuity, Pi hooks, compaction, dynamic tools, measurement, and extension review.
+  - @howaboua/pi-skill-gh-stack: Add a compact native GitHub stacked-PR skill with dependency-layer planning, noninteractive gh-stack workflows, synchronization, conflict recovery, and safe partial or whole-stack merging.
 
-- Updated dependencies [[`2023aa0`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/2023aa005da4d32f9af0b9bc161c9224d8c60486)]:
-  - @howaboua/pi-skill-codex-prompt-caching@0.0.1
+- Updated dependencies [[`f3dcf5e`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/f3dcf5e01b850e4de57801450eba9464f750b11d)]:
+  - @howaboua/pi-skill-gh-stack@0.0.1
 
 [Full changelog](./packages/pi-skills/CHANGELOG.md)
 
@@ -271,16 +279,16 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.51
+### @howaboua/pi-stuff — 0.0.52
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-gippity-control: Seed realtime voice with a user-selected session context model and reasoning level, default context reasoning to high, summarize clean conversational text without reasoning or tool noise, show the exact startup summary in a display-only Voice Context entry, preserve native Responses checkpoints without sharing the main cache lane, give Pi non-triggering model-visible lifecycle guidance for spoken delegation progress and restore normal interaction on exit, regenerate context after an explicit voice restart while preserving sessions across device handoff, retain stopped-session transcript tails for fresh restarts, keep muted calls alive with silence RTP, show each finalized spoken user turn once without exposing partial recognition, route hidden clean delegation envelopes with deduplicated finalized frontend history, map clean Pi assistant messages to realtime commentary or speech at message boundaries, display completed voice replies once, and request delegation acknowledgement fillers explicitly. Guide Code Mode to reread files changed since their last read before patching them again. Avoid duplicating partial apply patch failures in Code Mode traces and result metadata. Guide generated commands to follow the detected shell's syntax, quoting, and variable rules. Tell agents to resume running exec cells and command sessions near expected completion instead of short polling. Resolve bare Bash requests through Pi's detected shell on Windows and prevent persisted terminal controls from reaching custom exec renderers. Identify the user-owned realtime system prompt by its default path in the migration changelog. Remove the redundant dimmed voice-context summary from both settings screens.
+  - @howaboua/pi-skill-gh-stack: Add a compact native GitHub stacked-PR skill with dependency-layer planning, noninteractive gh-stack workflows, synchronization, conflict recovery, and safe partial or whole-stack merging.
 
-- Updated dependencies [[`c42c408`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/c42c40800b53e23f6d3ef4d0af1f41e6179290a1)]:
-  - @howaboua/pi-gippity-control@0.0.6
+- Updated dependencies [[`f3dcf5e`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/f3dcf5e01b850e4de57801450eba9464f750b11d)]:
+  - @howaboua/pi-skill-gh-stack@0.0.1
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 

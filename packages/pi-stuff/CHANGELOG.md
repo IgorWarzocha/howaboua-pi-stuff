@@ -1,5 +1,16 @@
 # @howaboua/pi-stuff
 
+## 0.0.52
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-skill-gh-stack: Add a compact native GitHub stacked-PR skill with dependency-layer planning, noninteractive gh-stack workflows, synchronization, conflict recovery, and safe partial or whole-stack merging.
+
+- Updated dependencies [[`f3dcf5e`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/f3dcf5e01b850e4de57801450eba9464f750b11d)]:
+  - @howaboua/pi-skill-gh-stack@0.0.1
+
 ## 0.0.51
 
 ### Changes
