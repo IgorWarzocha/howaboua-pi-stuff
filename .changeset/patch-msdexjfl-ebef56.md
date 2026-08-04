@@ -8,3 +8,5 @@ Seed realtime voice with a user-selected session context model and reasoning lev
 Guide Code Mode to reread files changed since their last read before patching them again.
 
 Avoid duplicating partial apply patch failures in Code Mode traces and result metadata.
+
+Guide generated commands to follow the detected shell's syntax, quoting, and variable rules.

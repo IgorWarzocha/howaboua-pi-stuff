@@ -106,10 +106,11 @@ function injectShell(prompt: string, shell?: string): string {
 	if (!shell) {
 		return prompt;
 	}
+	const shellContext = `Current shell: ${shell}; follow its syntax, quoting, and variable rules`;
 	if (/\nCurrent shell:/.test(prompt)) {
-		return prompt.replace(/(^Current shell:) .*$/m, `$1 ${shell}`);
+		return prompt.replace(/^Current shell:.*$/m, shellContext);
 	}
-	return insertBeforeTrailingContext(prompt, `Current shell: ${shell}`);
+	return insertBeforeTrailingContext(prompt, shellContext);
 }
 
 function decodeXml(text: string): string {
