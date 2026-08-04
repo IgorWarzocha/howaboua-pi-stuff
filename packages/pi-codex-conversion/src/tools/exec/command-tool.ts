@@ -5,6 +5,7 @@ import { Type } from "typebox";
 import { renderExecCommandCall, renderGroupedExecCommandCall } from "../../ui/tool-rendering/codex-rendering.ts";
 import type { ExecCommandTracker } from "./command-state.ts";
 import { formatUnifiedExecResult } from "./format.ts";
+import { renderTerminalOutput } from "./output.ts";
 import type { ExecSessionManager, UnifiedExecResult } from "./session-manager.ts";
 import { MAX_EXEC_YIELD_TIME_MS } from "./shell.ts";
 
@@ -85,7 +86,7 @@ function expandHint(): string {
 }
 
 function collapsedOutput(result: CollapsedExecOutput, theme: { fg(role: string, text: string): string }): { text: string; truncated: boolean } {
-	let output = result.output.trimEnd();
+	let output = renderTerminalOutput(result.output).trimEnd();
 	let truncated = false;
 	if (output.length > COLLAPSED_OUTPUT_MAX_RAW_CHARS) {
 		output = output.slice(-COLLAPSED_OUTPUT_MAX_RAW_CHARS);
@@ -157,7 +158,7 @@ function renderResult(
 		const collapsed = details ?? (plainText ? { output: plainText } : undefined);
 		return options.showOutputWhenCollapsed && collapsed ? renderCollapsedOutput(collapsed, theme) : new Container();
 	}
-	let text = theme.fg("dim", (details?.output ?? plainText) || "(no output)");
+	let text = theme.fg("dim", renderTerminalOutput(details?.output ?? plainText) || "(no output)");
 	if (details?.session_id !== undefined) text += `\n${theme.fg("accent", `Session ${details.session_id} still running`)}`;
 	if (details?.exit_code !== undefined) text += `\n${theme.fg("muted", `Exit code: ${details.exit_code}`)}`;
 	return new Text(text, 4, 0);

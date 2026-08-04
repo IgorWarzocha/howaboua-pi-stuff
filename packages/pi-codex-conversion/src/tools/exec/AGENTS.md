@@ -1,4 +1,4 @@
 - Bridge output chunks are arbitrary bytes; decode incrementally per process stream and flush only after bridge closure.
-- TTY output stays raw and bounded in session state; do not reintroduce terminal-grid emulation.
+- TTY output stays raw and bounded in session state; display boundaries strip controls and collapse CR/backspace without terminal-grid emulation.
 - Keep wait policy host-side and model wording generic: output extends ordinary non-TTY and empty-poll waits, silence yields a session, and agents only need the continuation handle.
 - Completed replay retention is separate from immediate delivery; never apply its bound to the exit-observing call (PATH may intentionally disable truncation).

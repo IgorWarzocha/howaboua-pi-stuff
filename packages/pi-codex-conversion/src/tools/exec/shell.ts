@@ -20,7 +20,9 @@ export function resolveWorkdir(baseCwd: string, workdir?: string): string {
 }
 
 export function resolveShell(shell?: string): string {
-	return shell ? getCodexRuntimeShell(shell) : getDefaultCodexRuntimeShell();
+	if (!shell || (process.platform === "win32" && /^(?:bash|bash\.exe)$/i.test(shell)))
+		return getDefaultCodexRuntimeShell();
+	return getCodexRuntimeShell(shell);
 }
 
 function shellEscape(value: string): string {

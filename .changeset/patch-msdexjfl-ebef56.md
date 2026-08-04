@@ -12,3 +12,5 @@ Avoid duplicating partial apply patch failures in Code Mode traces and result me
 Guide generated commands to follow the detected shell's syntax, quoting, and variable rules.
 
 Tell agents to resume running exec cells and command sessions near expected completion instead of short polling.
+
+Resolve bare Bash requests through Pi's detected shell on Windows and prevent persisted terminal controls from reaching custom exec renderers.
