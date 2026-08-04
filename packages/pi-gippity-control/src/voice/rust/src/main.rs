@@ -3,6 +3,7 @@ mod playout;
 mod protocol;
 mod resample;
 mod v3;
+mod v3_media;
 
 use anyhow::{Context, Result};
 use base64::Engine;

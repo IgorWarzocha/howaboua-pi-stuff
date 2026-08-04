@@ -75,7 +75,7 @@ function createAudioController({ button, muteButton, audioState, audioDetail, mo
     const currentSocket = socket;
     socket = undefined;
     if (notify && currentSocket?.readyState === WebSocket.OPEN) currentSocket.send(JSON.stringify({ type:'release' }));
-    if (notify) void post('/api/stop', {}).catch(() => {});
+    if (notify) void post('/api/stop', { terminateConversation: mode === 'conversation' }).catch(() => {});
     currentSocket?.close(1000, reason);
     closeHardware();
     busy = false;

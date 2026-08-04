@@ -1,12 +1,21 @@
-- `controller.ts` composes lifecycle and loads mode sessions on start; guard cancellation across that import boundary. `auth.ts`, `conversation/`, `dictation/`, and `session-messages.ts` own their boundaries.
+- `controller.ts` owns the public facade, teardown, mute, and Pi event bridge; `controller-start.ts` owns startup/auth/state transitions; `controller-sessions.ts` loads modes and guards cancellation across imports; `controller-support.ts` owns shared state/presentation helpers.
+- Under `conversation/`, `session.ts` owns V3 sequencing, `call-setup.ts` HTTP setup, `handoff.ts` delegation output, and `wire.ts` validation. `auth.ts`, `dictation/`, and `session-messages.ts` retain their boundaries.
+- `helper.ts` owns the process; `helper-protocol.ts` owns JSONL framing and validation. LAN browser transport, ownership, and decoding stay in `browser-connections.ts`, `browser-session.ts`, and `browser-wire.ts`.
 - `controls.ts` owns start/stop/setup policy; settings commands and shortcuts route through it into the controller.
 - The native helper never reads credential stores or executes agent work.
 - Helper IPC is versioned JSONL on stdio. Stdout is protocol-only; diagnostics go to stderr. Validate and bound every wire string/blob.
 - V3 conversation and V2 dictation keep independent transport state. No implicit fallback between them.
-- Realtime delegations stay on Pi's user-message path; active Pi turns use `deliverAs: "steer"`. Mirror only interactive/RPC Pi steering to the owning delegation, never extension input.
+- Seeded summaries are developer `initial_items` labeled as prior Pi `<startup_context>`; voice startup awaits generation before opening V3 and shows the exact sidecar output in a display-only `Voice Context` entry. Context-model reasoning is user-selected, defaults high, and stays on the isolated sidecar call.
+- Plaintext sidecar history contains user text, terminal assistant text, textual compaction/branch summaries, and realtime delegation/tail context only; omit thinking, tool calls/results, images, and presentation entries. Native Responses checkpoints and their protocol-valid live tail remain untouched.
+- Realtime delegations are model-visible user-role custom messages hidden from duplicate rendering; active Pi turns use `deliverAs: "steer"`. Mirror only interactive/RPC Pi steering to the owning delegation, never extension input.
+- Realtime start/end are fixed model-visible purple lifecycle messages: steer an active Pi turn or append while idle, never trigger a turn. Start scopes spoken progress/formatting guidance to delegations; end restores normal interaction.
+- Delegation `<input>` is authoritative. `<transcript_delta>` contains deduplicated finalized frontend history before that input; keep partial recognition and the current utterance out.
+- On finalized user `turn.done`, immediately show one display-only `You said` entry before routing any hidden canonical delegation. Never render partial recognition.
+- Buffer Pi worker text to its assistant-message boundary. Route tool-use messages to V3 commentary and terminal messages to speakable without changing visible Pi text. Never forward raw thinking deltas.
 - Each mode owns its helper process and idempotent cleanup; the controller owns replacement/reload/shutdown ordering.
-- LAN voice is host-owned: one persistent helper WebRTC V3 call owns authenticated setup and delegation; browsers are replaceable 24 kHz mono PCM capture/playback clients. Takeover swaps the active browser socket without restarting or terminating V3. Never replace supported V3 WebRTC with standalone ChatGPT OAuth WebSocket.
-- Realtime mic mute keeps V3 warm. Gate browser tracks and the native encoder, drain captured samples while muted, and reset mute when input ownership ends.
+- LAN voice is host-owned: one helper WebRTC V3 call owns authenticated setup and delegation; browser disconnect/takeover preserves it, explicit Stop closes it so the next Start snapshots fresh Pi context. Never replace supported V3 WebRTC with standalone ChatGPT OAuth WebSocket.
+- Realtime mic mute keeps V3 warm. Gate browser tracks, discard captured samples, send silence RTP, and reset mute when input ownership ends.
+- Native `v3.rs` owns WebRTC signaling/session state; `v3_media.rs` owns audio tracks, playout, encoding, and silence RTP.
 - Pi model selection changes the delegation target, not the fixed realtime transport; keep active voice connected.
 - `REALTIME-SYSTEM-PROMPT.md` is the shipped template and schema source. Record every schema change cumulatively in its adjacent changelog. Never rewrite an existing user prompt; check its marker only when realtime voice is engaged and direct the user's agent to migrate it.
 - Normal Codex Responses has no usable output-audio channel; keep voice on Realtime transport rather than teaching the provider stream speculative audio events.

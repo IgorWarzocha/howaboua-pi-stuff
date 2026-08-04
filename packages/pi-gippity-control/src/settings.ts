@@ -8,7 +8,10 @@ import { SettingsList, truncateToWidth } from "@earendil-works/pi-tui";
 import {
 	type GippityControlConfig,
 	normalizeRealtimeV3Voice,
+	normalizeVoiceContextReasoning,
 	REALTIME_V3_VOICES,
+	VOICE_CONTEXT_REASONING_LEVELS,
+	type VoiceContextModel,
 } from "./config.ts";
 import { getGippityControlConfigPath } from "./config-store.ts";
 import type { CodexLanVoiceServerController } from "./voice/lan/controller.ts";
@@ -37,6 +40,12 @@ export async function openGippitySettings(options: {
 	let config = options.initialConfig;
 	await ctx.ui.custom<void>((tui, theme, _keybindings, done) => {
 		let list: SettingsList;
+		const contextModels = new Map<string, VoiceContextModel>();
+		for (const model of ctx.modelRegistry.getAvailable()) {
+			if (!model.input.includes("text")) continue;
+			const value = `${model.provider}/${model.id}`;
+			contextModels.set(value, { provider: model.provider, modelId: model.id });
+		}
 		const buildSettings = (): Setting[] => [
 			{
 				id: "server",
@@ -72,6 +81,49 @@ export async function openGippitySettings(options: {
 					voice: {
 						...current.voice,
 						dictationShortcutMode: value === "toggle" ? "toggle" : "push",
+					},
+				}),
+			},
+			{
+				id: "contextModel",
+				label: "Voice context model",
+				currentValue: config.voice.contextModel
+					? formatContextModel(config.voice.contextModel)
+					: "off",
+				values: [
+					"off",
+					...new Set([
+						...(config.voice.contextModel
+							? [formatContextModel(config.voice.contextModel)]
+							: []),
+						...[...contextModels.keys()].sort(),
+					]),
+				],
+				update: (value, current) => {
+					const { contextModel: _contextModel, ...voice } = current.voice;
+					const selected = contextModels.get(value);
+					return {
+						...current,
+						voice:
+							value === "off"
+								? voice
+								: {
+										...voice,
+										contextModel: selected ?? current.voice.contextModel,
+									},
+					};
+				},
+			},
+			{
+				id: "contextReasoning",
+				label: "Voice context reasoning",
+				currentValue: config.voice.contextReasoning,
+				values: [...VOICE_CONTEXT_REASONING_LEVELS],
+				update: (value, current) => ({
+					...current,
+					voice: {
+						...current.voice,
+						contextReasoning: normalizeVoiceContextReasoning(value),
 					},
 				}),
 			},
@@ -196,6 +248,10 @@ function details(
 
 function formatVoiceName(voice: string): string {
 	return `${voice.slice(0, 1).toUpperCase()}${voice.slice(1)}`;
+}
+
+function formatContextModel(model: VoiceContextModel): string {
+	return `${model.provider}/${model.modelId}`;
 }
 
 function rule(width: number, theme: Theme): string {

@@ -93,7 +93,7 @@ test("heavy prompt overwrite removes Pi scaffold and preserves dynamic instructi
 	assert.match(prompt, /<third_party_context>preserve exactly<\/third_party_context>/);
 	assert.match(prompt, /<workflows>third-party workflow hook<\/workflows>/);
 	assert.match(prompt, /Current working directory: C:\/work\/repo/);
-	assert.match(prompt, /Current shell: \/bin\/zsh\nDate: 2026-03/);
+	assert.match(prompt, /Current shell: \/bin\/zsh; follow its syntax, quoting, and variable rules\nDate: 2026-03/);
 	assert.doesNotMatch(prompt, /2026-03-21/);
 });
 

@@ -19,14 +19,7 @@ export interface ApplyPatchSuccessDetails {
 export interface ApplyPatchPartialFailureDetails {
 	status: "partial_failure";
 	result: ExecutePatchResult;
-	error: string;
 	failedTargets?: string[] | undefined;
-	appliedFiles: string[];
-	failedFiles: string[];
-	recoveryInstructions: {
-		mustReadFiles: string[];
-		mustNotReadFiles: string[];
-	};
 }
 
 export type ApplyPatchToolDetails = ApplyPatchSuccessDetails | ApplyPatchPartialFailureDetails;

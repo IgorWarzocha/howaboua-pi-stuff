@@ -75,9 +75,9 @@ export function toNestedTool<TParams extends TSchema, TDetails, TState>(
 					(update) => forwardUpdate(update, context),
 					extensionContext,
 				);
-				context.captureResult?.(result);
 				const resultError = contract.resultError?.(result);
 				if (resultError) throw new Error(resultError);
+				context.captureResult?.(result);
 				return contract.resultValue?.(result) ?? compactNestedResult(result);
 			} finally {
 				lifecycle.end?.(toolCallId);

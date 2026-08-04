@@ -17,7 +17,10 @@ import {
 	renderWaitCall,
 } from "./rendering.js";
 import type { SharedCodeModeRuntime } from "./shared-runtime.js";
-import { toCodeModeToolResult } from "./tool-result.js";
+import {
+	formatRunningExecSessionGuidance,
+	toCodeModeToolResult,
+} from "./tool-result.js";
 import type { ToolExecutionContext } from "./types.js";
 import { CODE_MODE_EXEC_CONSTRAINED_SAMPLING } from "./exec-contract.js";
 
@@ -253,7 +256,7 @@ async function continueExecSessionFromMistakenWait(
 					? [
 							{
 								type: "text" as const,
-								text: `exec_command session ${sessionId} is still running. Continue with exec and tools.write_stdin({ session_id: ${sessionId} })`,
+								text: formatRunningExecSessionGuidance(sessionId),
 							},
 						]
 					: []),

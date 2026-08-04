@@ -1,14 +1,16 @@
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
-import { resolveWebSocketProxyForTarget } from "../../providers/openai-codex/websocket-connection.ts";
 import type { CodexVoiceAuth } from "../auth.ts";
-import { MAX_REALTIME_VOICE_INPUT_BYTES, renderPiSteer } from "../prompts.ts";
+import type { RealtimeInitialMessageItem } from "../context.ts";
+import { MAX_REALTIME_VOICE_INPUT_BYTES } from "../prompts.ts";
 import { RealtimeVoiceTurnTracker, type RealtimeVoiceTurn } from "../turns.ts";
-import { MAX_REALTIME_SDP_BYTES, type CodexRealtimePeer, type CodexRealtimePeerEvent } from "./peer.ts";
-import { fetch as undiciFetch, ProxyAgent, type Response } from "undici";
+import { buildRealtimeCallRequest, type RealtimeCallSetup, setupRealtimeCall } from "./call-setup.ts";
+import { RealtimeDelegationHandoff, type RealtimeHandoffChannel } from "./handoff.ts";
+import { type CodexRealtimePeer, type CodexRealtimePeerEvent } from "./peer.ts";
+import { boundedAssistantTranscript, boundedTranscript, realtimePeerStateFailure, remoteError, transcriptItemText } from "./wire.ts";
 
-const V3_MODEL = "gpt-live-1-codex";
-const HANDOFF_CHUNK_BYTES = 500;
-const HANDOFF_FLUSH_MS = 200;
+export { buildRealtimeCallRequest } from "./call-setup.ts";
+export { utf8Chunks } from "./wire.ts";
+
 const PEER_READY_TIMEOUT_MS = 15_000;
 
 type ConversationState = "idle" | "starting" | "active" | "failed" | "closed";
@@ -17,21 +19,16 @@ export interface CodexConversationCallbacks {
 	onError(error: Error): void;
 	onStatus(status: string): void;
 	onTurn(turn: RealtimeVoiceTurn): void;
+	onUserTranscript(transcript: string): void;
 	onTranscriptTail(transcriptDelta: string): void;
 }
-
-type RealtimeCallResult = { status: number; answer: string };
-type RealtimeCallSetup = (endpoint: string, headers: Headers, signal: AbortSignal, body: string, env?: Record<string, string>) => Promise<RealtimeCallResult>;
 
 export class CodexRealtimeConversation {
 	private readonly callbacks: CodexConversationCallbacks;
 	private readonly peer: CodexRealtimePeer;
 	private readonly turnTracker = new RealtimeVoiceTurnTracker();
+	private readonly handoff: RealtimeDelegationHandoff;
 	private state: ConversationState = "idle";
-	private activeDelegationId: string | undefined;
-	private handoffBuffer = "";
-	private handoffChannel: "commentary" | "speakable" = "speakable";
-	private handoffTimer: ReturnType<typeof setTimeout> | undefined;
 	private setupAbortController: AbortController | undefined;
 	private peerReady: ReturnType<typeof Promise.withResolvers<void>> | undefined;
 	private callSetup: RealtimeCallSetup = setupRealtimeCall;
@@ -40,11 +37,17 @@ export class CodexRealtimeConversation {
 	constructor(callbacks: CodexConversationCallbacks, peer: CodexRealtimePeer) {
 		this.callbacks = callbacks;
 		this.peer = peer;
+		this.handoff = new RealtimeDelegationHandoff(peer, {
+			isActive: () => this.state === "active",
+			onFailure: (error) => this.fail(error),
+			onSettled: (id) => this.turnTracker.delegationSettled(id),
+			onStatus: (status) => this.callbacks.onStatus(status),
+		});
 		this.peer.onEvent((event) => this.handlePeerEvent(event));
 		this.peer.onExit((error) => this.fail(error));
 	}
 
-	async start(auth: CodexVoiceAuth, config: CodexConversionConfig, instructions: string): Promise<void> {
+	async start(auth: CodexVoiceAuth, config: CodexConversionConfig, instructions: string, initialItems?: RealtimeInitialMessageItem[]): Promise<void> {
 		this.state = "starting";
 		const sdp = await this.peer.start(config);
 		if (this.state !== "starting") return;
@@ -54,7 +57,7 @@ export class CodexRealtimeConversation {
 		const endpoint = `${auth.baseUrl.replace(/\/+$/, "")}/realtime/calls?intent=quicksilver&architecture=avas`;
 		const setupAbortController = new AbortController();
 		this.setupAbortController = setupAbortController;
-		const requestBody = JSON.stringify({ sdp, session: { model: V3_MODEL, instructions, audio: { output: { voice: config.voice.v3Voice } }, delegation: { type: "client" } } });
+		const requestBody = JSON.stringify(buildRealtimeCallRequest(sdp, config, instructions, initialItems));
 		let status: number;
 		let answer: string;
 		try {
@@ -90,12 +93,7 @@ export class CodexRealtimeConversation {
 	}
 
 	activateDelegation(id: string): void {
-		if (this.state !== "active" || this.activeDelegationId === id) return;
-		const previousDelegationId = this.activeDelegationId;
-		this.flushHandoff();
-		if (this.state !== "active") return;
-		if (previousDelegationId) this.turnTracker.delegationSettled(previousDelegationId);
-		this.activeDelegationId = id;
+		this.handoff.activate(id);
 	}
 
 	get microphoneMuted(): boolean { return this.inputMuted; }
@@ -107,49 +105,27 @@ export class CodexRealtimeConversation {
 	}
 
 	mirrorPiSteer(input: unknown): boolean {
-		const delegationId = this.activeDelegationId;
-		const frame = renderPiSteer(input);
-		if (this.state !== "active" || !delegationId || !frame) return false;
-		this.flushHandoff();
-		if (this.state !== "active" || this.activeDelegationId !== delegationId) return false;
-		try {
-			for (const text of utf8Chunks(frame, HANDOFF_CHUNK_BYTES)) {
-				this.peer.sendData({ type: "delegation.context.append", delegation_item_id: delegationId, channel: "commentary", content: [{ type: "input_text", text }] });
-			}
-			return true;
-		} catch (error) {
-			this.fail(error instanceof Error ? error : new Error(String(error)));
-			return false;
-		}
+		return this.handoff.mirrorPiSteer(input);
 	}
 
-	streamAgentDelta(type: string, delta: string): void {
-		if (this.state !== "active" || !this.activeDelegationId || !delta) return;
-		this.callbacks.onStatus("speaking");
-		const channel = type === "thinking_delta" ? "commentary" : "speakable";
-		if (this.handoffBuffer && channel !== this.handoffChannel) this.flushHandoff();
-		this.handoffChannel = channel;
-		this.handoffBuffer += delta;
-		if (!this.handoffTimer) this.handoffTimer = setTimeout(() => this.flushHandoff(), HANDOFF_FLUSH_MS);
+	streamAgentDelta(delta: string): void {
+		this.handoff.stream(delta);
+	}
+
+	finishAgentMessage(channel: RealtimeHandoffChannel): void {
+		this.handoff.finishMessage(channel);
 	}
 
 	settleAgentTurn(): void {
-		this.flushHandoff();
-		if (this.activeDelegationId) this.turnTracker.delegationSettled(this.activeDelegationId);
-		this.activeDelegationId = undefined;
-		if (this.state === "active") this.callbacks.onStatus("listening");
+		this.handoff.settle();
 	}
 
 	async close(): Promise<void> {
 		if (this.state === "closed") return;
 		this.state = "closed";
 		this.abortSetup();
-		this.clearHandoff();
-		for (const turn of this.turnTracker.drainConversationTurns()) this.callbacks.onTurn(turn);
-		const transcriptTail = this.turnTracker.takeTranscriptTail();
-		if (transcriptTail) this.callbacks.onTranscriptTail(transcriptTail);
-		this.turnTracker.reset();
-		this.activeDelegationId = undefined;
+		this.handoff.clear();
+		this.drainConversation();
 		this.inputMuted = false;
 		this.peerReady?.resolve();
 		this.peerReady = undefined;
@@ -203,7 +179,6 @@ export class CodexRealtimeConversation {
 		if (!input || Buffer.byteLength(input) > MAX_REALTIME_VOICE_INPUT_BYTES) { this.fail(new Error("Codex voice delegation was empty or oversized")); return; }
 		const delegated = this.turnTracker.delegated(input, record["id"]);
 		if (!delegated) return;
-		this.flushHandoff();
 		this.callbacks.onTurn(delegated);
 	}
 
@@ -213,8 +188,12 @@ export class CodexRealtimeConversation {
 		if (record["role"] === "user") {
 			const input = boundedTranscript(record["transcript"]);
 			if (input === "oversized") { this.fail(new Error("Codex voice transcript was oversized")); return; }
-			if (input) this.turnTracker.userFinished(input);
+			if (input) this.callbacks.onUserTranscript(input);
+			const delegated = input ? this.turnTracker.userFinished(input) : undefined;
 			this.callbacks.onStatus("responding");
+			if (delegated) {
+				this.callbacks.onTurn(delegated);
+			}
 			return;
 		}
 		if (record["role"] !== "assistant") return;
@@ -223,138 +202,27 @@ export class CodexRealtimeConversation {
 		if (completed) this.callbacks.onTurn(completed);
 	}
 
-	private flushHandoff(): void {
-		if (this.handoffTimer) clearTimeout(this.handoffTimer);
-		this.handoffTimer = undefined;
-		if (this.state !== "active" || !this.activeDelegationId || !this.handoffBuffer) return;
-		try {
-			for (const text of utf8Chunks(this.handoffBuffer, HANDOFF_CHUNK_BYTES)) {
-				this.peer.sendData({ type: "delegation.context.append", delegation_item_id: this.activeDelegationId, channel: this.handoffChannel, content: [{ type: "input_text", text }] });
-			}
-			this.handoffBuffer = "";
-		} catch (error) {
-			this.fail(error instanceof Error ? error : new Error(String(error)));
-		}
-	}
-
-	private clearHandoff(): void {
-		if (this.handoffTimer) clearTimeout(this.handoffTimer);
-		this.handoffTimer = undefined;
-		this.handoffBuffer = "";
-	}
-
 	private abortSetup(): void {
 		this.setupAbortController?.abort();
 		this.setupAbortController = undefined;
+	}
+
+	private drainConversation(): void {
+		for (const turn of this.turnTracker.drainConversationTurns()) this.callbacks.onTurn(turn);
+		const transcriptTail = this.turnTracker.takeTranscriptTail();
+		if (transcriptTail) this.callbacks.onTranscriptTail(transcriptTail);
+		this.turnTracker.reset();
 	}
 
 	private fail(error: Error): void {
 		if (this.state === "idle" || this.state === "closed" || this.state === "failed") return;
 		this.state = "failed";
 		this.abortSetup();
-		this.clearHandoff();
+		this.handoff.clear();
+		this.drainConversation();
 		this.peerReady?.resolve();
 		this.peerReady = undefined;
 		this.callbacks.onError(error);
 		void this.peer.close();
 	}
-}
-
-async function setupRealtimeCall(endpoint: string, headers: Headers, signal: AbortSignal, body: string, env?: Record<string, string>): Promise<RealtimeCallResult> {
-	const proxy = await resolveWebSocketProxyForTarget(endpoint, env);
-	const dispatcher = proxy ? new ProxyAgent(proxy) : undefined;
-	try {
-		const response = await undiciFetch(endpoint, {
-			method: "POST",
-			headers: Object.fromEntries(headers),
-			signal,
-			body,
-			...(dispatcher ? { dispatcher } : {}),
-		});
-		return { status: response.status, answer: await readBoundedResponseText(response, MAX_REALTIME_SDP_BYTES) };
-	} finally {
-		await dispatcher?.close();
-	}
-}
-
-async function readBoundedResponseText(response: Response, maxBytes: number): Promise<string> {
-	const declaredBytes = Number(response.headers.get("content-length"));
-	if (Number.isFinite(declaredBytes) && declaredBytes > maxBytes) throw new Error(`Codex voice response exceeded ${maxBytes} bytes`);
-	if (!response.body) return "";
-	const reader = response.body.getReader();
-	const chunks: Buffer[] = [];
-	let bytes = 0;
-	try {
-		while (true) {
-			const { done, value } = await reader.read();
-			if (done) break;
-			const chunk = Buffer.from(value);
-			bytes += chunk.byteLength;
-			if (bytes > maxBytes) {
-				await reader.cancel().catch(() => {});
-				throw new Error(`Codex voice response exceeded ${maxBytes} bytes`);
-			}
-			chunks.push(chunk);
-		}
-	} finally {
-		reader.releaseLock();
-	}
-	return Buffer.concat(chunks, bytes).toString("utf8");
-}
-
-function boundedTranscript(value: unknown): string | "oversized" | undefined {
-	if (typeof value !== "string") return undefined;
-	const input = value.trim();
-	if (!input) return undefined;
-	return Buffer.byteLength(input) > MAX_REALTIME_VOICE_INPUT_BYTES ? "oversized" : input;
-}
-
-function transcriptItemText(value: unknown): unknown {
-	return value && typeof value === "object" ? (value as Record<string, unknown>)["text"] : undefined;
-}
-
-function boundedAssistantTranscript(value: unknown): string | undefined {
-	if (typeof value !== "string") return undefined;
-	const output = value.trim();
-	if (!output) return undefined;
-	return utf8Tail(output, MAX_REALTIME_VOICE_INPUT_BYTES - 32);
-}
-
-function utf8Tail(value: string, maxBytes: number): string {
-	if (Buffer.byteLength(value) <= maxBytes) return value;
-	let start = value.length;
-	let bytes = 0;
-	while (start > 0) {
-		let characterStart = start - 1;
-		const lastUnit = value.charCodeAt(characterStart);
-		if (lastUnit >= 0xdc00 && lastUnit <= 0xdfff && characterStart > 0) characterStart--;
-		const characterBytes = Buffer.byteLength(value.slice(characterStart, start));
-		if (bytes + characterBytes > maxBytes) break;
-		bytes += characterBytes;
-		start = characterStart;
-	}
-	return value.slice(start);
-}
-
-function remoteError(event: Record<string, unknown>): string {
-	if (typeof event["message"] === "string") return event["message"];
-	const error = event["error"];
-	return error && typeof error === "object" && typeof (error as Record<string, unknown>)["message"] === "string" ? (error as Record<string, unknown>)["message"] as string : "Codex realtime error";
-}
-
-export function utf8Chunks(input: string, maxBytes: number): string[] {
-	const chunks: string[] = [];
-	let current = "";
-	for (const character of input) {
-		if (Buffer.byteLength(current + character) > maxBytes && current) { chunks.push(current); current = character; }
-		else current += character;
-	}
-	if (current) chunks.push(current);
-	return chunks;
-}
-
-function realtimePeerStateFailure(state: string): string | undefined {
-	if (state === "failed") return "Codex realtime connection failed";
-	if (state === "closed") return "Codex realtime connection closed";
-	return undefined;
 }

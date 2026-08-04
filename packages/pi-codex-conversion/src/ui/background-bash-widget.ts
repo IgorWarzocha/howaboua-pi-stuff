@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
+import { renderTerminalOutput } from "../tools/exec/output.ts";
 import type { ExecSessionManager, ExecSessionSnapshot } from "../tools/exec/session-manager.ts";
 
 export const BACKGROUND_BASH_WIDGET_ID = "codex-background-bashes";
@@ -66,7 +67,7 @@ export function renderBackgroundBashWidget(ctx: ExtensionContext, state: Backgro
 
 	if (!state.folded) {
 		lines.push(`${theme.fg("muted", "│ $")} ${truncate(active.command, 120)}`);
-		const output = active.outputTail.trimEnd();
+		const output = renderTerminalOutput(active.outputTail).trimEnd();
 		if (output) {
 			for (const line of output.split("\n").slice(-6)) {
 				lines.push(`${theme.fg("muted", "│")} ${theme.fg("dim", truncate(line, 160))}`);

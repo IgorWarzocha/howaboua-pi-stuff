@@ -1,4 +1,4 @@
-import { createServer, type Server as HttpsServer } from "node:https";
+import { createServer } from "node:https";
 import type { AddressInfo } from "node:net";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { WebSocketServer } from "ws";
@@ -14,6 +14,7 @@ import { resolveLanVoiceCertificate } from "./certificate.ts";
 import { LanVoiceDictation } from "./dictation.ts";
 import { LanVoiceDraft, LanVoiceDraftConflictError } from "./draft.ts";
 import { boundedString, handleLanVoiceHttpRequest } from "./http-handler.ts";
+import { collectFailures, configureServer, lanVoiceUrls, listen } from "./server-runtime.ts";
 import { createLanVoiceWebUi } from "./web-ui.ts";
 
 const PORT = 43_120;
@@ -108,8 +109,15 @@ export async function startCodexLanVoiceServer(options: {
 			if (transcript) draft.insertTranscript(clientId, transcript, insertion);
 		},
 		cancelDictation: (clientId) => dictation.cancel(clientId),
-		onConversationActivity(active) {
-			if (activeConversation) options.voice.setConversationInputActive(activeConversation.conversation, active);
+		async onConversationActivity(active) {
+			const current = activeConversation;
+			if (!current) return;
+			if (active) {
+				options.voice.setConversationInputActive(current.conversation, true);
+				return;
+			}
+			activeConversation = undefined;
+			await options.voice.stopConversation(current.conversation, { announce: true });
 		},
 		conversationMuted: () => options.voice.inputMuted,
 		onConversationMute(muted) {
@@ -196,32 +204,4 @@ export async function startCodexLanVoiceServer(options: {
 			return closePromise;
 		},
 	};
-}
-
-async function collectFailures(promises: ReadonlyArray<Promise<unknown> | undefined>, failures: unknown[]): Promise<void> {
-	const settled = await Promise.allSettled(promises.filter((promise): promise is Promise<unknown> => promise !== undefined));
-	for (const result of settled) if (result.status === "rejected") failures.push(result.reason);
-}
-
-function configureServer(server: HttpsServer): void {
-	server.keepAliveTimeout = 20_000;
-	server.on("tlsClientError", () => {});
-	server.on("clientError", (_error, socket) => socket.destroy());
-	server.on("error", () => {});
-}
-
-function listen(server: HttpsServer, port: number): Promise<void> {
-	return new Promise((resolve, reject) => {
-		const onError = (error: Error) => { server.off("listening", onListening); reject(error); };
-		const onListening = () => { server.off("error", onError); resolve(); };
-		server.once("error", onError);
-		server.once("listening", onListening);
-		server.listen(port, "0.0.0.0");
-	});
-}
-
-function lanVoiceUrls(hostnames: string[], ipAddresses: string[], port: number): string[] {
-	const hosts = [...hostnames.filter((value) => value !== "localhost"), ...ipAddresses.filter((value) => value !== "127.0.0.1")];
-	if (hosts.length === 0) hosts.push("localhost");
-	return [...new Set(hosts.map((host) => `https://${host}:${port}`))];
 }

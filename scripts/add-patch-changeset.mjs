@@ -4,7 +4,6 @@ import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { spawnSync } from "node:child_process";
-import { isActivePackageDir } from "./active-packages.mjs";
 
 const root = process.cwd();
 const base = process.env.CHANGED_BASE || "origin/main";
@@ -27,7 +26,7 @@ const packageDirs = new Set(
 	diff.stdout
 		.split("\n")
 		.map((path) => /^packages\/([^/]+)\//.exec(path)?.[1])
-		.filter((dir) => dir && isActivePackageDir(dir)),
+		.filter(Boolean),
 );
 const changedPackages = [...packageDirs]
 	.map((dir) => {

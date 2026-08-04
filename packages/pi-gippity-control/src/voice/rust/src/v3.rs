@@ -1,65 +1,28 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
 
 use anyhow::{Context, Result};
-use base64::Engine;
-use base64::engine::general_purpose::STANDARD as BASE64;
-use bytes::Bytes;
 use crossbeam_queue::ArrayQueue;
 use serde_json::Value;
 use tokio::sync::mpsc;
-use tokio::time::Instant;
 use webrtc::api::APIBuilder;
 use webrtc::api::interceptor_registry::register_default_interceptors;
-use webrtc::api::media_engine::{MIME_TYPE_OPUS, MediaEngine};
+use webrtc::api::media_engine::MediaEngine;
 use webrtc::data_channel::RTCDataChannel;
 use webrtc::data_channel::data_channel_message::DataChannelMessage;
 use webrtc::interceptor::registry::Registry;
-use webrtc::media::Sample as MediaSample;
 use webrtc::peer_connection::RTCPeerConnection;
 use webrtc::peer_connection::configuration::RTCConfiguration;
 use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
-use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
-use webrtc::track::track_local::TrackLocal;
-use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
 
 use crate::audio::{self, Capture, Playback};
-use crate::playout::{PacketPlayout, PlayoutClock, PlayoutFrame};
 use crate::protocol::{Event, MAX_DATA_MESSAGE_BYTES};
-use crate::resample::LinearResampler;
+use crate::v3_media::{
+    BRIDGE_RATE, OutputSink, create_audio_sender, register_playout, spawn_encoder,
+};
 
-const OPUS_RATE: u32 = 48_000;
-const OPUS_FRAME_SAMPLES: usize = 960;
-const BRIDGE_RATE: u32 = 24_000;
-const BRIDGE_FRAME_SAMPLES: usize = 480;
 const BRIDGE_INPUT_SECONDS: usize = 3;
-
-#[derive(Clone)]
-enum OutputSink {
-    Device {
-        samples: Arc<ArrayQueue<f32>>,
-        sample_rate: u32,
-    },
-    Bridge,
-}
-
-impl OutputSink {
-    fn sample_rate(&self) -> u32 {
-        match self {
-            Self::Device { sample_rate, .. } => *sample_rate,
-            Self::Bridge => BRIDGE_RATE,
-        }
-    }
-}
-
-async fn wait_for_playout(deadline: Option<Instant>) {
-    match deadline {
-        Some(deadline) => tokio::time::sleep_until(deadline).await,
-        None => std::future::pending().await,
-    }
-}
 
 pub struct V3Session {
     peer: Arc<RTCPeerConnection>,
@@ -130,23 +93,7 @@ impl V3Session {
             .build();
         let peer = Arc::new(api.new_peer_connection(RTCConfiguration::default()).await?);
 
-        let track = Arc::new(TrackLocalStaticSample::new(
-            RTCRtpCodecCapability {
-                mime_type: MIME_TYPE_OPUS.to_owned(),
-                clock_rate: OPUS_RATE,
-                channels: 2,
-                ..Default::default()
-            },
-            "audio".to_owned(),
-            "pi".to_owned(),
-        ));
-        let sender = peer
-            .add_track(Arc::clone(&track) as Arc<dyn TrackLocal + Send + Sync>)
-            .await?;
-        let rtcp_task = tokio::spawn(async move {
-            let mut buffer = vec![0_u8; 1500];
-            while sender.read(&mut buffer).await.is_ok() {}
-        });
+        let (track, rtcp_task) = create_audio_sender(&peer).await?;
 
         let input_enabled = Arc::new(AtomicBool::new(false));
         let data_channel = peer.create_data_channel("oai-events", None).await?;
@@ -198,185 +145,16 @@ impl V3Session {
             })
         }));
 
-        let output_rate = output.sample_rate();
-        let output_events = events.clone();
-        peer.on_track(Box::new(move |remote, _, _| {
-            let output = output.clone();
-            let output_events = output_events.clone();
-            Box::pin(async move {
-                let mut decoder = match opus::Decoder::new(OPUS_RATE, opus::Channels::Stereo) {
-                    Ok(decoder) => decoder,
-                    Err(error) => {
-                        let _ = output_events.send(Event::Error { message: format!("could not start realtime audio decoder: {error}") }).await;
-                        return;
-                    }
-                };
-                let mut resampler = match LinearResampler::new(OPUS_RATE, output_rate) {
-                    Ok(resampler) => resampler,
-                    Err(error) => {
-                        let _ = output_events.send(Event::Error { message: error.to_string() }).await;
-                        return;
-                    }
-                };
-                let mut playout = PacketPlayout::new();
-                let mut playout_clock = PlayoutClock::new();
-                let mut decoded = vec![0_f32; OPUS_FRAME_SAMPLES * 2 * 6];
-                let mut converted = Vec::new();
-                let mut bridge_pending = Vec::new();
-                let mut last_frame_samples = OPUS_FRAME_SAMPLES;
-                loop {
-                    tokio::select! {
-                        packet = remote.read_rtp() => {
-                            let (packet, _) = match packet {
-                                Ok(packet) => packet,
-                                Err(error) => {
-                                    let _ = output_events.send(Event::Error { message: format!("realtime speaker stream ended: {error}") }).await;
-                                    return;
-                                }
-                            };
-                            playout.push(packet.header.sequence_number, packet.payload);
-                            if playout.ready() {
-                                playout_clock.start(Instant::now());
-                            }
-                        }
-                        _ = wait_for_playout(playout_clock.deadline()) => {
-                            let frame = playout.next();
-                            let (payload, decoded_output) = match frame {
-                                PlayoutFrame::Buffering => {
-                                    playout_clock.stop();
-                                    continue;
-                                }
-                                PlayoutFrame::Packet(payload) => (payload, &mut decoded[..]),
-                                PlayoutFrame::Missing => (Bytes::new(), &mut decoded[..last_frame_samples * 2]),
-                            };
-                            let Ok(samples_per_channel) = decoder.decode_float(&payload, decoded_output, false) else {
-                                playout_clock.advance(last_frame_samples, OPUS_RATE);
-                                continue;
-                            };
-                            last_frame_samples = samples_per_channel;
-                            playout_clock.advance(samples_per_channel, OPUS_RATE);
-                            let mut mono = Vec::with_capacity(samples_per_channel);
-                            for pair in decoded[..samples_per_channel * 2].chunks_exact(2) {
-                                mono.push((pair[0] + pair[1]) * 0.5);
-                            }
-                            converted.clear();
-                            resampler.process(&mono, &mut converted);
-                            match &output {
-                                OutputSink::Device { samples, .. } => {
-                                    for sample in &converted {
-                                        audio::push_latest(samples, *sample);
-                                    }
-                                }
-                                OutputSink::Bridge => {
-                                    bridge_pending.extend_from_slice(&converted);
-                                    while bridge_pending.len() >= BRIDGE_FRAME_SAMPLES {
-                                        let frame: Vec<f32> = bridge_pending.drain(..BRIDGE_FRAME_SAMPLES).collect();
-                                        let mut bytes = Vec::with_capacity(BRIDGE_FRAME_SAMPLES * 2);
-                                        for sample in frame {
-                                            bytes.extend_from_slice(&((sample.clamp(-1.0, 1.0) * i16::MAX as f32) as i16).to_le_bytes());
-                                        }
-                                        if output_events.send(Event::Pcm {
-                                            audio: BASE64.encode(bytes),
-                                            sample_rate: BRIDGE_RATE,
-                                            num_channels: 1,
-                                        }).await.is_err() {
-                                            return;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            })
-        }));
-
-        let encoder_samples = Arc::clone(&input_samples);
+        register_playout(&peer, output, events.clone());
         let input_muted = Arc::new(AtomicBool::new(false));
-        let encoder_muted = Arc::clone(&input_muted);
-        let encoder_enabled = Arc::clone(&input_enabled);
-        let encoder_events = events;
-        let encoder_task = tokio::spawn(async move {
-            let mut encoder = match opus::Encoder::new(
-                OPUS_RATE,
-                opus::Channels::Mono,
-                opus::Application::Voip,
-            ) {
-                Ok(value) => value,
-                Err(error) => {
-                    let _ = encoder_events
-                        .send(Event::Error {
-                            message: format!("could not start realtime audio encoder: {error}"),
-                        })
-                        .await;
-                    return;
-                }
-            };
-            let mut resampler = match LinearResampler::new(input_rate, OPUS_RATE) {
-                Ok(value) => value,
-                Err(error) => {
-                    let _ = encoder_events
-                        .send(Event::Error {
-                            message: error.to_string(),
-                        })
-                        .await;
-                    return;
-                }
-            };
-            let mut pending = Vec::new();
-            let mut source = Vec::new();
-            let mut packet = vec![0_u8; 4_000];
-            let mut was_muted = false;
-            let mut ticker = tokio::time::interval(Duration::from_millis(20));
-            ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-            loop {
-                ticker.tick().await;
-                if !encoder_enabled.load(Ordering::Acquire) {
-                    continue;
-                }
-                source.clear();
-                audio::drain(&encoder_samples, input_rate as usize / 50, &mut source);
-                if encoder_muted.load(Ordering::Relaxed) {
-                    pending.clear();
-                    if !was_muted {
-                        resampler.reset();
-                        was_muted = true;
-                    }
-                    continue;
-                }
-                was_muted = false;
-                resampler.process(&source, &mut pending);
-                while pending.len() >= OPUS_FRAME_SAMPLES {
-                    let frame: Vec<f32> = pending.drain(..OPUS_FRAME_SAMPLES).collect();
-                    let size = match encoder.encode_float(&frame, &mut packet) {
-                        Ok(size) => size,
-                        Err(error) => {
-                            let _ = encoder_events
-                                .send(Event::Error {
-                                    message: format!("realtime microphone encoder failed: {error}"),
-                                })
-                                .await;
-                            return;
-                        }
-                    };
-                    if let Err(error) = track
-                        .write_sample(&MediaSample {
-                            data: Bytes::copy_from_slice(&packet[..size]),
-                            duration: Duration::from_millis(20),
-                            ..Default::default()
-                        })
-                        .await
-                    {
-                        let _ = encoder_events
-                            .send(Event::Error {
-                                message: format!("realtime microphone stream failed: {error}"),
-                            })
-                            .await;
-                        return;
-                    }
-                }
-            }
-        });
+        let encoder_task = spawn_encoder(
+            track,
+            input_samples,
+            input_rate,
+            input_enabled,
+            Arc::clone(&input_muted),
+            events,
+        );
 
         let offer = peer.create_offer(None).await?;
         let mut gather = peer.gathering_complete_promise().await;

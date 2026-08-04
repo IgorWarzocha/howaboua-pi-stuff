@@ -17,7 +17,10 @@ function stripTerminalControlSequences(text: string): string {
 	const withoutOscAndDcs = text
 		.replace(/\u001B\][^\u0007\u001B]*(?:\u0007|\u001B\\)/g, "")
 		.replace(/\u001B[P_X^][\s\S]*?\u001B\\/g, "");
-	return withoutOscAndDcs.replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, "").replace(/\u001B[@-_]/g, "");
+	return withoutOscAndDcs
+		.replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, "")
+		.replace(/\u001B[@-_]/g, "")
+		.replaceAll("\u001B", "");
 }
 
 function sanitizeBinaryOutput(text: string): string {
@@ -33,6 +36,38 @@ function sanitizeBinaryOutput(text: string): string {
 
 export function normalizePipeOutput(text: string): string {
 	return sanitizeBinaryOutput(stripTerminalControlSequences(text)).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+}
+
+export function renderTerminalOutput(text: string): string {
+	let committed = "";
+	let line: string[] = [];
+	let cursor = 0;
+
+	for (const char of stripTerminalControlSequences(text)) {
+		const code = char.codePointAt(0);
+		if (code === undefined || (code < 0x20 && char !== "\t" && char !== "\n" && char !== "\r" && char !== "\b") || (code >= 0x7f && code <= 0x9f))
+			continue;
+		if (char === "\r") {
+			cursor = 0;
+			continue;
+		}
+		if (char === "\n") {
+			committed += `${line.join("")}\n`;
+			line = [];
+			cursor = 0;
+			continue;
+		}
+		if (char === "\b") {
+			cursor = Math.max(0, cursor - 1);
+			continue;
+		}
+		if (cursor > line.length)
+			line.push(...Array.from({ length: cursor - line.length }, () => " "));
+		line[cursor] = char;
+		cursor += 1;
+	}
+
+	return committed + line.join("");
 }
 
 export function truncateToTail(text: string, maxChars: number): { output: string; removed: number } {

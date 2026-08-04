@@ -4,6 +4,7 @@ import { Container, Text } from "@earendil-works/pi-tui";
 import { renderWriteStdinCall } from "../../ui/tool-rendering/codex-rendering.ts";
 import type { ExecSessionManager, UnifiedExecResult } from "./session-manager.ts";
 import { formatUnifiedExecResult } from "./format.ts";
+import { renderTerminalOutput } from "./output.ts";
 
 const WRITE_STDIN_PARAMETERS = Type.Object({
 	session_id: Type.Number({ description: "Session ID" }),
@@ -37,37 +38,6 @@ function parseFormattedExecTranscript(text: string): FormattedExecTranscript {
 		sessionId: sessionMatch ? Number(sessionMatch[1]!) : undefined,
 		exitCode: exitCodeMatch ? Number(exitCodeMatch[1]!) : undefined,
 	};
-}
-
-function renderTerminalText(text: string): string {
-	let committed = "";
-	let line: string[] = [];
-	let cursor = 0;
-
-	for (const char of text) {
-		switch (char) {
-			case "\r":
-				cursor = 0;
-				break;
-			case "\n":
-				committed += `${line.join("")}\n`;
-				line = [];
-				cursor = 0;
-				break;
-			case "\b":
-				cursor = Math.max(0, cursor - 1);
-				break;
-			default:
-				if (cursor > line.length) {
-					line.push(...Array.from({ length: cursor - line.length }, () => " "));
-				}
-				line[cursor] = char;
-				cursor += 1;
-				break;
-		}
-	}
-
-	return committed + line.join("");
 }
 
 function getResultState(result: { details?: unknown | undefined; content: Array<{ type: string; text?: string | undefined }> }): FormattedExecTranscript {
@@ -142,12 +112,12 @@ export function createWriteStdinTool(sessions: ExecSessionManager, options: { pr
 			const state = getResultState(result);
 			if (!expanded) {
 				if (!isPartial || !options.showOutputWhenCollapsed) return createEmptyResultComponent();
-				const output = renderTerminalText(state.output).trimEnd();
+				const output = renderTerminalOutput(state.output).trimEnd();
 				const tail = output.slice(-8_000).split("\n").slice(-5).join("\n");
 				const status = state.sessionId === undefined ? "" : `Session ${state.sessionId} still running`;
 				return new Text(theme.fg("dim", [tail, status].filter(Boolean).join("\n") || "Waiting for output"), 0, 0);
 			}
-			const output = renderTerminalText(state.output);
+			const output = renderTerminalOutput(state.output);
 			let text = theme.fg("dim", output || "(no output)");
 			if (state.sessionId !== undefined) {
 				text += `\n${theme.fg("accent", `Session ${state.sessionId} still running`)}`;
