@@ -1,5 +1,6 @@
 This repo publishes through Changesets; every merge to `main` feeds the version and npm publish workflow.
 
+- Resolve package names by matching their words against immediate subdirectories of packages; search the unique match first and follow direct references only.
 - Agent-facing text is behavior: keep tool contracts, skill files, prompt metadata, and subagent prompts compact.
 - Agent-facing prose need not perform grammatical polish; optimize semantic signal per token and omit cosmetic punctuation when it saves tokens. Preserve syntax, structural delimiters, meaning, evidence, caveats, and recovery instructions.
 - Contract spine, not feature museum: feature-existence and regression-tour tests die; retain only independent protocol, routing, migration, or model-visible contracts.
