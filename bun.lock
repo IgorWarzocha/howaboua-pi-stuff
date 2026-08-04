@@ -300,6 +300,10 @@
       "name": "@howaboua/pi-skill-gh-issue-pr-flow",
       "version": "0.0.7",
     },
+    "packages/pi-skill-gh-stack": {
+      "name": "@howaboua/pi-skill-gh-stack",
+      "version": "0.0.0",
+    },
     "packages/pi-skill-model-facing-api-design": {
       "name": "@howaboua/pi-skill-model-facing-api-design",
       "version": "0.0.5",
@@ -327,6 +331,7 @@
         "@howaboua/pi-skill-chrome-cdp": "0.0.4",
         "@howaboua/pi-skill-codex-prompt-caching": "0.0.0",
         "@howaboua/pi-skill-gh-issue-pr-flow": "0.0.6",
+        "@howaboua/pi-skill-gh-stack": "0.0.0",
         "@howaboua/pi-skill-model-facing-api-design": "0.0.5",
         "@howaboua/pi-skill-project-reference-research": "0.0.4",
         "@howaboua/pi-skill-skill-creator": "0.0.5",
@@ -373,6 +378,7 @@
         "@howaboua/pi-skill-chrome-cdp": "0.0.4",
         "@howaboua/pi-skill-codex-prompt-caching": "0.0.0",
         "@howaboua/pi-skill-gh-issue-pr-flow": "0.0.7",
+        "@howaboua/pi-skill-gh-stack": "0.0.0",
         "@howaboua/pi-skill-model-facing-api-design": "0.0.5",
         "@howaboua/pi-skill-project-reference-research": "0.0.4",
         "@howaboua/pi-skill-skill-creator": "0.0.5",
@@ -640,6 +646,8 @@
     "@howaboua/pi-skill-codex-prompt-caching": ["@howaboua/pi-skill-codex-prompt-caching@workspace:packages/pi-skill-codex-prompt-caching"],
 
     "@howaboua/pi-skill-gh-issue-pr-flow": ["@howaboua/pi-skill-gh-issue-pr-flow@workspace:packages/pi-skill-gh-issue-pr-flow"],
+
+    "@howaboua/pi-skill-gh-stack": ["@howaboua/pi-skill-gh-stack@workspace:packages/pi-skill-gh-stack"],
 
     "@howaboua/pi-skill-model-facing-api-design": ["@howaboua/pi-skill-model-facing-api-design@workspace:packages/pi-skill-model-facing-api-design"],
 

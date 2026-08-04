@@ -1,0 +1,38 @@
+{
+  "name": "@howaboua/pi-skill-gh-stack",
+  "version": "0.0.0",
+  "description": "Pi skill package for native GitHub stacked pull requests.",
+  "keywords": [
+    "gh-stack",
+    "github",
+    "pi",
+    "pi-package",
+    "pi-skill",
+    "skill",
+    "stacked-pull-requests"
+  ],
+  "homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-skill-gh-stack#readme",
+  "bugs": {
+    "url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
+    "directory": "packages/pi-skill-gh-stack"
+  },
+  "files": [
+    "skills",
+    "README.md",
+    "LICENSE"
+  ],
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "pi": {
+    "skills": [
+      "./skills"
+    ]
+  }
+}

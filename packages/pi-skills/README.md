@@ -15,7 +15,9 @@ pi install npm:@howaboua/pi-skills
 - `agents-md` — scoped `AGENTS.md` authoring and maintenance
 - `anti-ai-copy` — specific, natural prose that preserves voice
 - `chrome-cdp` — local browser inspection and control through CDP
+- `codex-prompt-caching` — GPT-5.6 and Codex prompt-cache review
 - `gh-issue-pr-flow` — GitHub issue, branch, PR, release, and review work
+- `gh-stack` — native GitHub stacked-PR planning and operation
 - `model-facing-api-design` — Pi tool contracts that models can use reliably
 - `project-reference-research` — evidence-backed research in other repositories
 - `skill-creator` — reusable skill design, validation, and packaging
