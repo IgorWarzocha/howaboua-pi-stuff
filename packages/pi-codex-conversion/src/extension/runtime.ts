@@ -7,7 +7,7 @@ import { isAdapterRuntime, resolveCodexRuntimePlan } from "../adapter/activation
 import type { AdapterState } from "../adapter/activation/state.ts";
 import { rewriteCodexPrewarmProviderRequest, rewriteCodexProviderRequest } from "../adapter/provider-request.ts";
 import { getDefaultCodexRuntimeShell } from "../adapter/prompt/runtime-shell.ts";
-import { isAdapterContextExcludedCustomMessage } from "../adapter/prompt/context-filter.ts";
+import { isProviderContextExcludedMessage } from "../adapter/prompt/context-filter.ts";
 import { buildCodexSystemPrompt, type PiSystemPromptOptions } from "../prompt/build-system-prompt.ts";
 import { closeOpenAICodexWebSocketSessions, prewarmOpenAICodexWebSocket } from "../providers/openai-codex-custom-provider.ts";
 import { resetOpenAICodexWebSocketSessions } from "../providers/openai-codex/websocket.ts";
@@ -169,7 +169,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		},
 		startCompactionPrewarm(ctx) {
 			const messages = buildSessionContext(ctx.sessionManager.getBranch()).messages
-				.filter((message) => !isAdapterContextExcludedCustomMessage(message));
+				.filter((message) => !isProviderContextExcludedMessage(message));
 			const activeSystemPrompt = state.activeProviderSystemPrompt;
 			return startPrewarm(
 				ctx,

@@ -3,6 +3,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { isVoiceContextExcludedMessage } from "./context-visibility.ts";
 import { renderRealtimeTranscriptTail } from "./prompts.ts";
 import type { RealtimeVoiceTurn } from "./turns.ts";
 import {
@@ -119,7 +120,7 @@ export class CodexVoiceSessionMessages {
 
 	filterContext(messages: ContextEvent["messages"]): ContextEvent["messages"] {
 		return messages.filter(
-			(message) => !isContextExcludedVoiceMessage(message),
+			(message) => !isVoiceContextExcludedMessage(message),
 		);
 	}
 
@@ -172,16 +173,4 @@ export class CodexVoiceSessionMessages {
 				: { triggerTurn: true, deliverAs: "steer" },
 		);
 	}
-}
-
-function isContextExcludedVoiceMessage(
-	message: ContextEvent["messages"][number],
-): boolean {
-	if (message.role !== "custom") return false;
-	if (message.customType === REALTIME_VOICE_MESSAGE_TYPE) return true;
-	return (
-		message.customType === CODEX_VOICE_MODE_MESSAGE_TYPE &&
-		(typeof message.content !== "string" ||
-			!message.content.startsWith('<realtime_voice_session state="'))
-	);
 }

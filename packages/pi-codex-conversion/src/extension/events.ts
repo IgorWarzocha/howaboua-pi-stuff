@@ -6,7 +6,7 @@ import { isNativeCompactionDetails, NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, NATI
 import { findLatestCompactionEntry } from "../adapter/compaction/details-store.ts";
 import { handleCodexSessionBeforeCompact } from "../adapter/compaction/compaction.ts";
 import { rewriteCodexProviderRequest } from "../adapter/provider-request.ts";
-import { isAdapterContextExcludedCustomMessage } from "../adapter/prompt/context-filter.ts";
+import { isProviderContextExcludedMessage } from "../adapter/prompt/context-filter.ts";
 import { hasNoSkillsFlag } from "../adapter/prompt/skills.ts";
 import { extractPiPromptSkills, resolvePromptSkills } from "../prompt/build-system-prompt.ts";
 import type { CodeModeProxyProviderRegistration } from "../providers/code-mode-proxy-provider.ts";
@@ -221,9 +221,8 @@ export function registerCodexEvents(
 			: runtime.startPrewarm(ctx, postCompactionPrompt, true));
 	});
 	pi.on("context", async (event) => {
-		const voiceMessages = runtime.voice.filterContext(event.messages);
-		if (state.config.voiceFeaturesOnly) return { messages: voiceMessages };
-		const messages = voiceMessages.filter((message) => !isAdapterContextExcludedCustomMessage(message));
+		const messages = event.messages.filter((message) => !isProviderContextExcludedMessage(message));
+		if (state.config.voiceFeaturesOnly) return { messages };
 		return { messages };
 	});
 }

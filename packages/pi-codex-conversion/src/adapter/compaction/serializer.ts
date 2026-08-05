@@ -4,7 +4,7 @@ import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { buildSessionContext, convertToLlm, getAgentDir, type SessionEntry } from "@earendil-works/pi-coding-agent";
 import type { Api, ImageContent, Message, Model, TextContent, ToolResultMessage, UserMessage } from "@earendil-works/pi-ai";
 import { CODEX_TOOL_CALL_PROVIDERS, convertResponsesMessages } from "../../providers/openai-responses/shared.ts";
-import { isAdapterContextExcludedCustomMessage } from "../prompt/context-filter.ts";
+import { isProviderContextExcludedMessage } from "../prompt/context-filter.ts";
 
 /**
  * Responses compaction reuses the provider's serializer.
@@ -148,7 +148,7 @@ export function serializeActiveSessionToResponsesInput<TApi extends Api>(args: {
 	options?: SerializeResponsesMessagesOptions | undefined;
 }): ResponsesInputItem[] {
 	const messages = buildSessionContext(args.entries, args.leafId).messages
-		.filter((message) => !isAdapterContextExcludedCustomMessage(message));
+		.filter((message) => !isProviderContextExcludedMessage(message));
 	return serializeMessagesToResponsesInput(args.model, messages, args.options);
 }
 

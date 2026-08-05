@@ -6,6 +6,10 @@ import type { AdapterState } from "../src/adapter/activation/state.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 import type { Model } from "@earendil-works/pi-ai";
 import { serializeActiveSessionToResponsesInput } from "../src/adapter/compaction/serializer.ts";
+import {
+	REALTIME_DELEGATION_MESSAGE_TYPE,
+	REALTIME_VOICE_MESSAGE_TYPE,
+} from "../src/voice/message-types.ts";
 
 const model = {
 	id: "gpt-5.1",
@@ -48,6 +52,46 @@ test("first native compaction sends the full active Pi context", () => {
 	assert.match(serialized, /exact kept context/);
 	assert.match(serialized, /exact live tail/);
 	assert.doesNotMatch(serialized, /superseded old context/);
+});
+
+test("native compaction excludes voice-only chatter but preserves Pi delegations", () => {
+	const customEntry = (
+		id: string,
+		parentId: string | null,
+		customType: string,
+		content: string,
+	) => ({
+		type: "custom_message",
+		id,
+		parentId,
+		timestamp: new Date(1).toISOString(),
+		customType,
+		content,
+		display: false,
+		details: {},
+	});
+	const chatter = customEntry(
+		"chatter",
+		null,
+		REALTIME_VOICE_MESSAGE_TYPE,
+		"voice-only conversation",
+	);
+	const delegation = customEntry(
+		"delegation",
+		"chatter",
+		REALTIME_DELEGATION_MESSAGE_TYPE,
+		"Pi-visible delegation",
+	);
+
+	const input = serializeActiveSessionToResponsesInput({
+		model,
+		entries: [chatter, delegation] as never,
+		leafId: "delegation",
+	});
+	const serialized = JSON.stringify(input);
+
+	assert.doesNotMatch(serialized, /voice-only conversation/);
+	assert.match(serialized, /Pi-visible delegation/);
 });
 
 test("native compaction request routing reuses only the latest matching checkpoint", () => {
