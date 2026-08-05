@@ -226,18 +226,42 @@ function extractPiPackageRoot(prompt: string): string | undefined {
 function stripPiToolScaffold(prompt: string, options: PiSystemPromptOptions): string {
 	const tools = options.selectedTools ?? ["read", "bash", "edit", "write"];
 	const visibleTools = tools.filter((name) => Boolean(options.toolSnippets?.[name]));
-	const toolsList = visibleTools.length > 0
-		? visibleTools.map((name) => `- ${name}: ${options.toolSnippets![name]}`).join("\n")
-		: "(none)";
-	const scaffold = `${PI_DEFAULT_INTRO}\n\nAvailable tools:\n${toolsList}\n\n${PI_CUSTOM_TOOLS_NOTE}`;
-	if (prompt.includes(scaffold)) return prompt.replace(scaffold, "").trimStart();
-	const prefix = `${PI_DEFAULT_INTRO}\n\nAvailable tools:\n`;
-	const start = prompt.indexOf(prefix);
-	const note = `\n\n${PI_CUSTOM_TOOLS_NOTE}`;
-	const end = start === -1 ? -1 : prompt.indexOf(note, start + prefix.length);
-	return end === -1
-		? prompt
-		: `${prompt.slice(0, start)}${prompt.slice(end + note.length)}`.trimStart();
+	const start = prompt.indexOf(PI_DEFAULT_INTRO);
+	const toolsHeader = start === -1
+		? -1
+		: prompt.indexOf("\nAvailable tools:\n", start + PI_DEFAULT_INTRO.length);
+	const noteStart = toolsHeader === -1
+		? -1
+		: prompt.indexOf(PI_CUSTOM_TOOLS_NOTE, toolsHeader + 1);
+	if (start === -1 || toolsHeader === -1 || noteStart === -1) return prompt;
+	const end = noteStart + PI_CUSTOM_TOOLS_NOTE.length;
+	let scaffoldRegion = prompt.slice(start, end);
+	for (const name of visibleTools) {
+		scaffoldRegion = scaffoldRegion.replace(
+			`- ${name}: ${options.toolSnippets![name]}`,
+			"",
+		);
+	}
+	const piToolNames = new Set([
+		"read",
+		"bash",
+		"edit",
+		"write",
+		"exec",
+		"wait",
+		...tools,
+	]);
+	const keptLines = scaffoldRegion.split("\n").filter((line) => {
+		if (
+			line === PI_DEFAULT_INTRO ||
+			line === "Available tools:" ||
+			line === PI_CUSTOM_TOOLS_NOTE ||
+			line === "(none)"
+		) return false;
+		const toolName = /^- ([A-Za-z0-9_-]+):/.exec(line)?.[1];
+		return !toolName || !piToolNames.has(toolName);
+	});
+	return `${prompt.slice(0, start)}${keptLines.join("\n")}${prompt.slice(end)}`.trimStart();
 }
 
 function stripPiDocumentation(prompt: string): string {

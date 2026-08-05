@@ -122,3 +122,20 @@ test("heavy prompt overwrite can strip Pi tool scaffold from context-only option
 	assert.match(prompt, /Tools available in exec:\n- await tools\.exec_command/);
 	assert.match(prompt, /Current working directory: \/repo/);
 });
+
+test("heavy prompt overwrite preserves extension instructions interleaved with Pi tools", () => {
+	const interleaved = basePrompt
+		.replace(
+			"Available tools:\n- exec: Compose tools with JavaScript\n- wait: Resume or terminate an exec cell",
+			"Available tools:\n- exec: Compose tools with JavaScript\nExtension instruction inside Pi tools\n- wait: Resume or terminate an exec cell\n- Never remove this extension rule",
+		);
+	const prompt = buildCodexSystemPrompt(interleaved, {
+		mode: "code",
+		heavySystemPromptOverwrite: true,
+		systemPromptOptions: { cwd: "/repo" },
+	});
+
+	assert.doesNotMatch(prompt, /expert coding assistant|Available tools:\n|- exec: Compose|- wait: Resume/);
+	assert.match(prompt, /Extension instruction inside Pi tools/);
+	assert.match(prompt, /- Never remove this extension rule/);
+});
