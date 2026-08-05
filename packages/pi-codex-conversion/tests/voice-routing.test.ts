@@ -289,6 +289,35 @@ test("voice restart discards an awaiting delegation and starts a fresh queue", a
 	assert.equal(sent.length, 1);
 });
 
+test("voice shutdown can drain a delegation accepted before closing", async () => {
+	const sent: Array<{ message: unknown; options: unknown }> = [];
+	const preflight = Promise.withResolvers<void>();
+	let canDelegate = true;
+	const messages = new CodexVoiceSessionMessages(
+		{
+			sendMessage(message: unknown, options: unknown) {
+				sent.push({ message, options });
+			},
+		} as unknown as ExtensionAPI,
+		{
+			...voiceMessageCallbacks(),
+			canDelegate: () => canDelegate,
+			async prepareDelegation() {
+				await preflight.promise;
+				return () => true;
+			},
+		},
+	);
+	messages.setContext({ isIdle: () => true, ui: { notify() {} } } as never);
+	void messages.voiceTurn({ input: "final request", delegationId: "delegation-final" });
+	canDelegate = false;
+	preflight.resolve();
+	await messages.waitForDelegations();
+
+	assert.equal(sent.length, 1);
+	assert.deepEqual(sent[0]?.options, { triggerTurn: true });
+});
+
 function voiceMessageCallbacks() {
 	return {
 		canDelegate: () => true,

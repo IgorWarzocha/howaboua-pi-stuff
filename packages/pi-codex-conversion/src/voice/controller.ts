@@ -32,7 +32,7 @@ export class CodexVoiceController {
 	};
 	private readonly messages: CodexVoiceSessionMessages;
 	private readonly inputMuteListeners = new Set<(muted: boolean) => void>();
-	private delegationPreflight: (ctx: ExtensionContext) => Promise<(() => void) | undefined> = async () => undefined;
+	private delegationPreflight: (ctx: ExtensionContext) => Promise<(() => boolean | void) | undefined> = async () => undefined;
 
 	constructor(pi: ExtensionAPI) {
 		this.messages = new CodexVoiceSessionMessages(pi, {
@@ -46,7 +46,7 @@ export class CodexVoiceController {
 		});
 	}
 
-	setDelegationPreflight(preflight: (ctx: ExtensionContext) => Promise<(() => void) | undefined>): void {
+	setDelegationPreflight(preflight: (ctx: ExtensionContext) => Promise<(() => boolean | void) | undefined>): void {
 		this.delegationPreflight = preflight;
 	}
 
@@ -169,6 +169,7 @@ export class CodexVoiceController {
 		this.runtime.startAbortController?.abort();
 		this.runtime.startAbortController = undefined;
 		this.runtime.startGeneration += 1;
+		const stopGeneration = this.runtime.startGeneration;
 		const wasMuted = this.inputMuted;
 		const endedMode = options?.announce
 			? this.runtime.announcedMode
@@ -181,9 +182,11 @@ export class CodexVoiceController {
 		this.runtime.voiceStatus = "";
 		this.runtime.context?.ui.setStatus(VOICE_STATUS_KEY, undefined);
 		await closePromise;
+		await this.messages.waitForDelegations();
 		if (wasMuted)
 			for (const listener of this.inputMuteListeners) listener(false);
-		this.messages.voiceStopped(endedMode);
+		if (this.runtime.startGeneration === stopGeneration)
+			this.messages.voiceStopped(endedMode);
 	}
 
 	async finishDictation(options?: { announce?: boolean }): Promise<void> {
@@ -273,10 +276,18 @@ export class CodexVoiceController {
 		this.runtime.voiceStatus = "";
 		this.runtime.context?.ui.setStatus(VOICE_STATUS_KEY, undefined);
 		this.runtime.context?.ui.notify(message, "error");
-		this.messages.voiceStopped(endedMode);
 		if (wasMuted)
 			for (const listener of this.inputMuteListeners) listener(false);
-		void closePromise;
+		void (async () => {
+			await Promise.allSettled([
+				closePromise,
+				this.messages.waitForDelegations(),
+			]);
+			if (
+				this.runtime.state.type === "failed" &&
+				this.runtime.state.message === message
+			) this.messages.voiceStopped(endedMode);
+		})();
 	}
 
 	private renderStatus(status: string): void {

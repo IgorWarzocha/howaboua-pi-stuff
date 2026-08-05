@@ -99,11 +99,16 @@ export class CodexVoiceSessionMessages {
 			return Promise.resolve();
 		}
 		const generation = this.contextGeneration;
+		const canDeliver = this.callbacks.canDelegate();
 		const delivery = this.delegationTail.then(() =>
-			this.deliverDelegation(turn, generation),
+			this.deliverDelegation(turn, generation, canDeliver),
 		);
 		this.delegationTail = delivery.catch(() => undefined);
 		return delivery;
+	}
+
+	waitForDelegations(): Promise<void> {
+		return this.delegationTail;
 	}
 
 	retainTranscriptTail(transcriptDelta: string): void {
@@ -160,13 +165,14 @@ export class CodexVoiceSessionMessages {
 	private async deliverDelegation(
 		turn: RealtimeVoiceTurn,
 		generation: number,
+		canDeliver: boolean,
 	): Promise<void> {
 		const ctx = this.context;
 		if (
 			generation !== this.contextGeneration ||
 			!ctx ||
 			!turn.delegationId ||
-			!this.callbacks.canDelegate()
+			!canDeliver
 		) return;
 		let startsTurn = !this.piTurnActive && ctx.isIdle();
 		let commitPreflight: (() => boolean | void) | undefined;
@@ -190,8 +196,7 @@ export class CodexVoiceSessionMessages {
 				}
 				if (
 					generation !== this.contextGeneration ||
-					this.context !== ctx ||
-					!this.callbacks.canDelegate()
+					this.context !== ctx
 				) return;
 				startsTurn = !this.piTurnActive && ctx.isIdle();
 				if (!startsTurn || commitPreflight?.() !== false) break;
