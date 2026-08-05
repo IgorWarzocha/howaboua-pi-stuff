@@ -189,6 +189,106 @@ test("voice delegation steers without committing idle preflight when another tur
 	assert.deepEqual(sent[0]?.options, { triggerTurn: true, deliverAs: "steer" });
 });
 
+test("voice delegation retries preflight when its prepared identity changes before commit", async () => {
+	const sent: Array<{ message: unknown; options: unknown }> = [];
+	let prepares = 0;
+	const messages = new CodexVoiceSessionMessages(
+		{
+			sendMessage(message: unknown, options: unknown) {
+				sent.push({ message, options });
+			},
+		} as unknown as ExtensionAPI,
+		{
+			...voiceMessageCallbacks(),
+			async prepareDelegation() {
+				prepares++;
+				return prepares === 1 ? () => false : () => true;
+			},
+		},
+	);
+	messages.setContext({ isIdle: () => true, ui: { notify() {} } } as never);
+
+	await messages.voiceTurn({ input: "check the server", delegationId: "delegation-1" });
+
+	assert.equal(prepares, 2);
+	assert.equal(sent.length, 1);
+	assert.deepEqual(sent[0]?.options, { triggerTurn: true });
+});
+
+test("failed voice preflight preserves the delegation without triggering Pi", async () => {
+	const sent: unknown[] = [];
+	const entries: Array<{ customType: string; data: unknown }> = [];
+	const notifications: string[] = [];
+	const messages = new CodexVoiceSessionMessages(
+		{
+			sendMessage(message: unknown) {
+				sent.push(message);
+			},
+			appendEntry(customType: string, data: unknown) {
+				entries.push({ customType, data });
+			},
+		} as unknown as ExtensionAPI,
+		{
+			...voiceMessageCallbacks(),
+			async prepareDelegation() {
+				throw new Error("tool refresh failed");
+			},
+		},
+	);
+	messages.setContext({
+		isIdle: () => true,
+		ui: { notify(message: string) { notifications.push(message); } },
+	} as never);
+
+	await messages.voiceTurn({ input: "check the server", delegationId: "delegation-1" });
+
+	assert.deepEqual(sent, []);
+	assert.match(notifications[0] ?? "", /tool refresh failed/);
+	assert.deepEqual(entries, [{
+		customType: "codex-realtime-delegation",
+		data: {
+			input: "check the server",
+			route: "delegation",
+			error: "tool refresh failed",
+		},
+	}]);
+});
+
+test("voice restart discards an awaiting delegation and starts a fresh queue", async () => {
+	const sent: Array<{ message: any; options: unknown }> = [];
+	const firstPreflight = Promise.withResolvers<void>();
+	let prepares = 0;
+	const messages = new CodexVoiceSessionMessages(
+		{
+			sendMessage(message: unknown, options: unknown) {
+				sent.push({ message, options });
+			},
+		} as unknown as ExtensionAPI,
+		{
+			...voiceMessageCallbacks(),
+			async prepareDelegation() {
+				prepares++;
+				if (prepares === 1) await firstPreflight.promise;
+				return () => true;
+			},
+		},
+	);
+	const ctx = { isIdle: () => true, ui: { notify() {} } } as never;
+	messages.setContext(ctx);
+	const stale = messages.voiceTurn({ input: "old request", delegationId: "delegation-old" });
+	await Promise.resolve();
+	messages.voiceStopped();
+	messages.setContext(ctx);
+
+	await messages.voiceTurn({ input: "new request", delegationId: "delegation-new" });
+	assert.equal(sent.length, 1);
+	assert.match(sent[0]!.message.content, /new request/);
+
+	firstPreflight.resolve();
+	await stale;
+	assert.equal(sent.length, 1);
+});
+
 function voiceMessageCallbacks() {
 	return {
 		canDelegate: () => true,

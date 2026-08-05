@@ -12,6 +12,7 @@ import {
 	type CodexVoiceModeMessageDetails,
 	type CodexVoiceModeState,
 	codexVoiceModeMessage,
+	REALTIME_DELEGATION_MESSAGE_TYPE,
 	REALTIME_USER_TRANSCRIPT_MESSAGE_TYPE,
 	REALTIME_VOICE_MESSAGE_TYPE,
 	type RealtimeUserTranscriptMessageDetails,
@@ -24,7 +25,7 @@ const REALTIME_VOICE_TAIL_CONTEXT_TYPE = "codex-realtime-voice-tail";
 
 export interface CodexVoiceSessionMessageCallbacks {
 	canDelegate(): boolean;
-	prepareDelegation(ctx: ExtensionContext): Promise<(() => void) | undefined>;
+	prepareDelegation(ctx: ExtensionContext): Promise<(() => boolean | void) | undefined>;
 	onDelegation(id: string): void;
 	onWorking(): void;
 }
@@ -36,6 +37,7 @@ export class CodexVoiceSessionMessages {
 	private piTurnActive = false;
 	private dictationAnnounced = false;
 	private delegationTail: Promise<void> = Promise.resolve();
+	private contextGeneration = 0;
 
 	constructor(pi: ExtensionAPI, callbacks: CodexVoiceSessionMessageCallbacks) {
 		this.pi = pi;
@@ -43,7 +45,7 @@ export class CodexVoiceSessionMessages {
 	}
 
 	setContext(ctx: ExtensionContext): void {
-		this.context = ctx;
+		this.replaceContext(ctx);
 		this.piTurnActive = !ctx.isIdle();
 	}
 
@@ -71,7 +73,7 @@ export class CodexVoiceSessionMessages {
 	}
 
 	resetSessionContext(): void {
-		this.context = undefined;
+		this.replaceContext(undefined);
 		this.piTurnActive = false;
 	}
 
@@ -82,7 +84,7 @@ export class CodexVoiceSessionMessages {
 	voiceStopped(mode?: CodexVoiceMode): void {
 		this.piTurnActive = this.context ? !this.context.isIdle() : false;
 		if (mode && mode !== "dictation") this.appendMode(mode, "ended");
-		this.context = undefined;
+		this.replaceContext(undefined);
 	}
 
 	voiceTurn(turn: RealtimeVoiceTurn): Promise<void> {
@@ -96,7 +98,10 @@ export class CodexVoiceSessionMessages {
 			);
 			return Promise.resolve();
 		}
-		const delivery = this.delegationTail.then(() => this.deliverDelegation(turn));
+		const generation = this.contextGeneration;
+		const delivery = this.delegationTail.then(() =>
+			this.deliverDelegation(turn, generation),
+		);
 		this.delegationTail = delivery.catch(() => undefined);
 		return delivery;
 	}
@@ -146,22 +151,51 @@ export class CodexVoiceSessionMessages {
 		);
 	}
 
-	private async deliverDelegation(turn: RealtimeVoiceTurn): Promise<void> {
+	private replaceContext(ctx: ExtensionContext | undefined): void {
+		this.contextGeneration++;
+		this.delegationTail = Promise.resolve();
+		this.context = ctx;
+	}
+
+	private async deliverDelegation(
+		turn: RealtimeVoiceTurn,
+		generation: number,
+	): Promise<void> {
 		const ctx = this.context;
-		if (!ctx || !turn.delegationId || !this.callbacks.canDelegate()) return;
+		if (
+			generation !== this.contextGeneration ||
+			!ctx ||
+			!turn.delegationId ||
+			!this.callbacks.canDelegate()
+		) return;
 		let startsTurn = !this.piTurnActive && ctx.isIdle();
-		let commitPreflight: (() => void) | undefined;
+		let commitPreflight: (() => boolean | void) | undefined;
 		if (startsTurn) {
-			try {
-				commitPreflight = await this.callbacks.prepareDelegation(ctx);
-			} catch (error) {
-				if (this.context === ctx)
-					ctx.ui.notify(`Could not prepare voice delegation: ${error instanceof Error ? error.message : String(error)}`, "error");
-				return;
+			for (;;) {
+				try {
+					commitPreflight = await this.callbacks.prepareDelegation(ctx);
+				} catch (error) {
+					if (
+						generation === this.contextGeneration &&
+						this.context === ctx
+					) {
+						const message = error instanceof Error ? error.message : String(error);
+						ctx.ui.notify(`Could not prepare voice delegation: ${message}`, "error");
+						this.pi.appendEntry<RealtimeVoiceMessageDetails>(
+							REALTIME_DELEGATION_MESSAGE_TYPE,
+							{ input: turn.input, route: "delegation", error: message },
+						);
+					}
+					return;
+				}
+				if (
+					generation !== this.contextGeneration ||
+					this.context !== ctx ||
+					!this.callbacks.canDelegate()
+				) return;
+				startsTurn = !this.piTurnActive && ctx.isIdle();
+				if (!startsTurn || commitPreflight?.() !== false) break;
 			}
-			if (this.context !== ctx || !this.callbacks.canDelegate()) return;
-			startsTurn = !this.piTurnActive && ctx.isIdle();
-			if (startsTurn) commitPreflight?.();
 		}
 		this.callbacks.onDelegation(turn.delegationId);
 		this.piTurnActive = true;

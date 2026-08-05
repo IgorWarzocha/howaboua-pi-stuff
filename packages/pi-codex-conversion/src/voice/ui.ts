@@ -28,6 +28,7 @@ export type CodexVoiceModeState = "started" | "ended";
 export interface RealtimeVoiceMessageDetails {
 	input: string;
 	route: "conversation" | "delegation";
+	error?: string | undefined;
 }
 
 export interface CodexVoiceModeMessageDetails {
@@ -118,6 +119,19 @@ export function registerCodexVoiceRenderer(pi: ExtensionAPI): void {
 					? entry.data.input
 					: "Voice request";
 			return voiceBox(theme, "Realtime Voice", input);
+		},
+	);
+	pi.registerEntryRenderer<RealtimeVoiceMessageDetails>(
+		REALTIME_DELEGATION_MESSAGE_TYPE,
+		(entry, _options, theme) => {
+			const input =
+				typeof entry.data?.input === "string"
+					? entry.data.input
+					: "Voice delegation unavailable.";
+			const error = typeof entry.data?.error === "string"
+				? `\n\nNot sent: ${entry.data.error}`
+				: "";
+			return voiceBox(theme, "Voice delegation", `${input}${error}`);
 		},
 	);
 	pi.registerEntryRenderer<RealtimeUserTranscriptMessageDetails>(

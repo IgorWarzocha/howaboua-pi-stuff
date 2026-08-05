@@ -79,6 +79,43 @@ test("prewarm refreshes only when its prompt or active tools change", async () =
 	}
 });
 
+test("aborted prewarm cleanup cannot clear a newer equivalent operation", async () => {
+	const authRequests = [
+		Promise.withResolvers<any>(),
+		Promise.withResolvers<any>(),
+	];
+	let authIndex = 0;
+	const runtime = createCodexExtensionRuntime({
+		getActiveTools: () => ["exec", "wait"],
+		getAllTools: () => codeModeTools,
+		getThinkingLevel: () => "low",
+		sendUserMessage: () => undefined,
+	} as never);
+	runtime.state.config = {
+		...DEFAULT_CODEX_CONVERSION_CONFIG,
+		beta: { ...DEFAULT_CODEX_CONVERSION_CONFIG.beta, codeMode: true },
+	};
+	const extensionContext = {
+		model,
+		modelRegistry: {
+			getApiKeyAndHeaders: () => authRequests[authIndex++]!.promise,
+		},
+		sessionManager: { getSessionId: () => "equivalent-prewarm" },
+	} as never;
+
+	const stale = runtime.startPrewarm(extensionContext, "Prompt", true)!;
+	await Promise.resolve();
+	runtime.resetTransport("equivalent-prewarm");
+	const current = runtime.startPrewarm(extensionContext, "Prompt", true)!;
+	await Promise.resolve();
+	authRequests[0]!.resolve({ ok: true, apiKey: "" });
+	await stale;
+
+	assert.equal(runtime.startPrewarm(extensionContext, "Prompt", true), current);
+	authRequests[1]!.resolve({ ok: true, apiKey: "" });
+	await current;
+});
+
 test("unfinished WebSocket prewarm cannot seed a continuation", async () => {
 	const restoreWebSocket = installScriptedWebSocket([
 		unfinishedResponse("resp_prewarm_pending", "queued"),

@@ -38,6 +38,7 @@ export interface CodexExtensionRuntime {
 	resetTransportAfterCompaction(sessionId: string): void;
 	shutdownTransport(sessionId: string): void;
 	waitForPrewarm(ctx: CodexContext, systemPrompt: string): Promise<void> | undefined;
+	prewarmIdentity(ctx: CodexContext, systemPrompt: string): string | undefined;
 }
 
 function activeToolContext(pi: ExtensionAPI): NonNullable<Context["tools"]> {
@@ -68,6 +69,41 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 	let pendingPrewarmKey: string | undefined;
 	let prewarmedKey: string | undefined;
 	const voice = new CodexVoiceController(pi);
+	const buildPrewarmPlan = (
+		ctx: CodexContext,
+		systemPrompt: string,
+		prepared: boolean,
+		messages: Context["messages"],
+		rewriteCompactedReplay: boolean,
+	) => {
+		const model = ctx.model;
+		const config = structuredClone(state.config);
+		if (!model || model.provider !== "openai-codex" || !isAdapterRuntime(resolveCodexRuntimePlan(ctx, config)) || !config.openai.forceCachedWebSockets) return undefined;
+		const preparedSystemPrompt = prepared
+			? systemPrompt
+			: runtime.codexSystemPrompt(systemPrompt, ctx);
+		const tools = activeToolContext(pi);
+		const reasoning = prewarmReasoningOption(pi.getThinkingLevel());
+		const key = JSON.stringify({
+			model: { provider: model.provider, id: model.id, api: model.api, baseUrl: model.baseUrl },
+			systemPrompt: preparedSystemPrompt,
+			messages,
+			tools,
+			reasoning,
+			openai: config.openai,
+			beta: config.beta,
+			compaction: config.compaction,
+			rewriteCompactedReplay,
+		});
+		return {
+			model,
+			config,
+			preparedSystemPrompt,
+			tools,
+			reasoning,
+			key,
+		};
+	};
 	const startPrewarm = (
 		ctx: CodexContext,
 		systemPrompt = ctx.getSystemPrompt(),
@@ -75,22 +111,9 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		messages: Context["messages"] = [],
 		rewriteCompactedReplay = false,
 	): Promise<void> | undefined => {
-		const model = ctx.model;
-		if (!model || model.provider !== "openai-codex" || !isAdapterRuntime(resolveCodexRuntimePlan(ctx, state.config)) || !state.config.openai.forceCachedWebSockets) return undefined;
-		const preparedSystemPrompt = prepared
-			? systemPrompt
-			: runtime.codexSystemPrompt(systemPrompt, ctx);
-		const tools = activeToolContext(pi);
-		const prewarmKey = JSON.stringify({
-			model: { provider: model.provider, id: model.id, api: model.api, baseUrl: model.baseUrl },
-			systemPrompt: preparedSystemPrompt,
-			messages,
-			tools,
-			reasoning: prewarmReasoningOption(pi.getThinkingLevel()),
-			verbosity: state.config.openai.verbosity,
-			fast: state.config.openai.fast,
-			rewriteCompactedReplay,
-		});
+		const plan = buildPrewarmPlan(ctx, systemPrompt, prepared, messages, rewriteCompactedReplay);
+		if (!plan) return undefined;
+		const { model, config, preparedSystemPrompt, tools, reasoning, key: prewarmKey } = plan;
 		if (prewarmedKey === prewarmKey) return undefined;
 		if (pendingPrewarmKey === prewarmKey) return prewarmPromise;
 		prewarmController?.abort();
@@ -109,16 +132,16 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 					...(auth.env ? { env: auth.env } : {}),
 					sessionId: ctx.sessionManager.getSessionId(),
 					signal: controller.signal,
-					...prewarmReasoningOption(pi.getThinkingLevel()),
-					textVerbosity: state.config.openai.verbosity,
-					...(state.config.openai.fast ? { serviceTier: "priority" as const } : {}),
+					...reasoning,
+					textVerbosity: config.openai.verbosity,
+					...(config.openai.fast ? { serviceTier: "priority" as const } : {}),
 					onPayload: (body) => rewriteCompactedReplay
-						? rewriteCodexProviderRequest(body, ctx, state)
-						: rewriteCodexPrewarmProviderRequest(body, ctx, state),
+						? rewriteCodexProviderRequest(body, ctx, { ...state, config })
+						: rewriteCodexPrewarmProviderRequest(body, ctx, { ...state, config }),
 				},
 				{
-					getConfig: () => ({ openai: state.config.openai, beta: state.config.beta, compaction: state.config.compaction }),
-					useResponsesLite: (currentModel) => resolveCodexRuntimePlan({ model: currentModel }, state.config).kind === "code",
+					getConfig: () => ({ openai: config.openai, beta: config.beta, compaction: config.compaction }),
+					useResponsesLite: (currentModel) => resolveCodexRuntimePlan({ model: currentModel }, config).kind === "code",
 					turnState: state.codexTurnState,
 				},
 			);
@@ -128,9 +151,11 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 				console.warn(`[pi-codex-conversion] WebSocket prewarm failed: ${error instanceof Error ? error.message : String(error)}`);
 			}
 		}).finally(() => {
-			if (prewarmPromise === promise) prewarmPromise = undefined;
+			if (prewarmPromise === promise) {
+				prewarmPromise = undefined;
+				if (pendingPrewarmKey === prewarmKey) pendingPrewarmKey = undefined;
+			}
 			if (prewarmController === controller) prewarmController = undefined;
-			if (pendingPrewarmKey === prewarmKey) pendingPrewarmKey = undefined;
 		});
 		prewarmPromise = promise;
 		return promise;
@@ -199,6 +224,9 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		},
 		waitForPrewarm(ctx, systemPrompt) {
 			return runtime.startPrewarm(ctx, systemPrompt, true);
+		},
+		prewarmIdentity(ctx, systemPrompt) {
+			return buildPrewarmPlan(ctx, systemPrompt, true, [], false)?.key;
 		},
 	};
 	return runtime;
