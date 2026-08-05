@@ -20,7 +20,7 @@ import {
 import { realtimeHandoffChannel } from "./conversation/handoff.ts";
 import type { CodexRealtimePeer } from "./conversation/peer.ts";
 import type { CodexRealtimeConversation } from "./conversation/session.ts";
-import { CodexVoiceSessionMessages } from "./session-messages.ts";
+import { CodexVoiceSessionMessages, type PreparedVoiceDelegation } from "./session-messages.ts";
 import { formatVoiceAudioError } from "./setup.ts";
 import type { CodexVoiceMode } from "./ui.ts";
 
@@ -32,7 +32,7 @@ export class CodexVoiceController {
 	};
 	private readonly messages: CodexVoiceSessionMessages;
 	private readonly inputMuteListeners = new Set<(muted: boolean) => void>();
-	private delegationPreflight: (ctx: ExtensionContext, signal: AbortSignal) => Promise<(() => boolean | void) | undefined> = async () => undefined;
+	private delegationPreflight: (ctx: ExtensionContext, signal: AbortSignal) => Promise<PreparedVoiceDelegation | undefined> = async () => undefined;
 
 	constructor(pi: ExtensionAPI) {
 		this.messages = new CodexVoiceSessionMessages(pi, {
@@ -42,11 +42,15 @@ export class CodexVoiceController {
 				if (this.runtime.state.type === "conversation")
 					this.runtime.state.session.activateDelegation(id);
 			},
+			onDelegationFailed: () => {
+				if (this.runtime.state.type === "conversation")
+					this.runtime.state.session.settleAgentTurn();
+			},
 			onWorking: () => this.renderStatus("working"),
 		});
 	}
 
-	setDelegationPreflight(preflight: (ctx: ExtensionContext, signal: AbortSignal) => Promise<(() => boolean | void) | undefined>): void {
+	setDelegationPreflight(preflight: (ctx: ExtensionContext, signal: AbortSignal) => Promise<PreparedVoiceDelegation | undefined>): void {
 		this.delegationPreflight = preflight;
 	}
 

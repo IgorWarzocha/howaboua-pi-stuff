@@ -23,10 +23,16 @@ import {
 
 const REALTIME_VOICE_TAIL_CONTEXT_TYPE = "codex-realtime-voice-tail";
 
+export interface PreparedVoiceDelegation {
+	commit(): boolean;
+	rollback(): void;
+}
+
 export interface CodexVoiceSessionMessageCallbacks {
 	canDelegate(): boolean;
-	prepareDelegation(ctx: ExtensionContext, signal: AbortSignal): Promise<(() => boolean | void) | undefined>;
+	prepareDelegation(ctx: ExtensionContext, signal: AbortSignal): Promise<PreparedVoiceDelegation | undefined>;
 	onDelegation(id: string): void;
+	onDelegationFailed(id: string): void;
 	onWorking(): void;
 }
 
@@ -183,11 +189,11 @@ export class CodexVoiceSessionMessages {
 		) return;
 		let startsTurn = !this.piTurnActive && ctx.isIdle();
 		const signal = this.delegationAbortController.signal;
-		let commitPreflight: (() => boolean | void) | undefined;
+		let preflight: PreparedVoiceDelegation | undefined;
 		if (startsTurn) {
 			for (;;) {
 				try {
-					commitPreflight = await this.callbacks.prepareDelegation(ctx, signal);
+					preflight = await this.callbacks.prepareDelegation(ctx, signal);
 				} catch (error) {
 					if (
 						generation === this.contextGeneration &&
@@ -210,17 +216,23 @@ export class CodexVoiceSessionMessages {
 					this.context !== ctx
 				) return;
 				startsTurn = !this.piTurnActive && ctx.isIdle();
-				if (!startsTurn || commitPreflight?.() !== false) break;
+				if (!startsTurn || preflight?.commit() !== false) break;
 			}
 		}
 		this.callbacks.onDelegation(turn.delegationId);
 		this.piTurnActive = true;
 		this.callbacks.onWorking();
-		this.pi.sendMessage(
-			realtimeVoiceMessage(turn.input, "delegation", turn.transcriptDelta),
-			startsTurn
-				? { triggerTurn: true }
-				: { triggerTurn: true, deliverAs: "steer" },
-		);
+		try {
+			this.pi.sendMessage(
+				realtimeVoiceMessage(turn.input, "delegation", turn.transcriptDelta),
+				startsTurn
+					? { triggerTurn: true }
+					: { triggerTurn: true, deliverAs: "steer" },
+			);
+		} catch {
+			preflight?.rollback();
+			this.piTurnActive = this.context ? !this.context.isIdle() : false;
+			this.callbacks.onDelegationFailed(turn.delegationId);
+		}
 	}
 }

@@ -174,7 +174,7 @@ test("voice delegation steers without committing idle preflight when another tur
 			...voiceMessageCallbacks(),
 			async prepareDelegation() {
 				await gate.promise;
-				return () => { commits++; };
+				return { commit: () => { commits++; return true; }, rollback() {} };
 			},
 		},
 	);
@@ -202,7 +202,7 @@ test("voice delegation retries preflight when its prepared identity changes befo
 			...voiceMessageCallbacks(),
 			async prepareDelegation() {
 				prepares++;
-				return prepares === 1 ? () => false : () => true;
+				return { commit: () => prepares !== 1, rollback() {} };
 			},
 		},
 	);
@@ -269,7 +269,7 @@ test("voice restart discards an awaiting delegation and starts a fresh queue", a
 			async prepareDelegation() {
 				prepares++;
 				if (prepares === 1) await firstPreflight.promise;
-				return () => true;
+				return { commit: () => true, rollback() {} };
 			},
 		},
 	);
@@ -304,7 +304,7 @@ test("voice shutdown can drain a delegation accepted before closing", async () =
 			canDelegate: () => canDelegate,
 			async prepareDelegation() {
 				await preflight.promise;
-				return () => true;
+				return { commit: () => true, rollback() {} };
 			},
 		},
 	);
@@ -357,11 +357,51 @@ test("voice shutdown cancels preflight that outlives session close", async () =>
 	}]);
 });
 
+test("failed Pi send rolls back voice preflight before the next delegation", async () => {
+	const sent: Array<{ message: unknown; options: unknown }> = [];
+	let failSend = true;
+	let prepares = 0;
+	let commits = 0;
+	let rollbacks = 0;
+	let failedDelegations = 0;
+	const messages = new CodexVoiceSessionMessages(
+		{
+			sendMessage(message: unknown, options: unknown) {
+				if (failSend) throw new Error("stale Pi runtime");
+				sent.push({ message, options });
+			},
+		} as unknown as ExtensionAPI,
+		{
+			...voiceMessageCallbacks(),
+			onDelegationFailed() { failedDelegations++; },
+			async prepareDelegation() {
+				prepares++;
+				return {
+					commit() { commits++; return true; },
+					rollback() { rollbacks++; },
+				};
+			},
+		},
+	);
+	messages.setContext({ isIdle: () => true, ui: { notify() {} } } as never);
+
+	await messages.voiceTurn({ input: "first request", delegationId: "delegation-1" });
+	failSend = false;
+	await messages.voiceTurn({ input: "second request", delegationId: "delegation-2" });
+
+	assert.equal(prepares, 2);
+	assert.equal(commits, 2);
+	assert.equal(rollbacks, 1);
+	assert.equal(failedDelegations, 1);
+	assert.deepEqual(sent[0]?.options, { triggerTurn: true });
+});
+
 function voiceMessageCallbacks() {
 	return {
 		canDelegate: () => true,
 		prepareDelegation: async () => undefined,
 		onDelegation: () => {},
+		onDelegationFailed: () => {},
 		onWorking: () => {},
 	};
 }

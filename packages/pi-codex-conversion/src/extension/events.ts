@@ -15,6 +15,7 @@ import { clearApplyPatchRenderState } from "../tools/apply-patch/tool.ts";
 import type { CodeModeRegistration } from "../tools/code-mode/tools.ts";
 import { initializeBashParser } from "../shell/bash.ts";
 import { CANCELLED, interruptible } from "../voice/cancellation.ts";
+import type { PreparedVoiceDelegation } from "../voice/session-messages.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
 import type { CodexToolRegistration } from "./tools.ts";
 import type { CodexUiController } from "./ui.ts";
@@ -233,7 +234,7 @@ async function prepareVoiceDelegation(
 	codeMode: CodeModeRegistration,
 	ctx: ExtensionContext,
 	signal: AbortSignal,
-): Promise<(() => boolean) | undefined> {
+): Promise<PreparedVoiceDelegation | undefined> {
 	const { state } = runtime;
 	const buildCurrent = () => {
 		if (!isAdapterRuntime(resolveCodexRuntimePlan(ctx, state.config))) return undefined;
@@ -275,17 +276,37 @@ async function prepareVoiceDelegation(
 			current.systemPrompt !== prepared.systemPrompt ||
 			current.prewarmIdentity !== prepared.prewarmIdentity
 		) continue;
-		return () => {
-			const commit = buildCurrent();
-			if (
-				!commit ||
-				commit.systemPrompt !== prepared.systemPrompt ||
-				commit.prewarmIdentity !== prepared.prewarmIdentity
-			) return false;
-			state.activeProviderSystemPrompt = prepared.systemPrompt;
-			state.voiceSystemPromptOverride = prepared.systemPrompt;
-			state.pendingActiveProviderPromptCapture = true;
-			return true;
+		let committed = false;
+		let previous: Pick<typeof state, "activeProviderSystemPrompt" | "voiceSystemPromptOverride" | "pendingActiveProviderPromptCapture"> | undefined;
+		return {
+			commit() {
+				const commit = buildCurrent();
+				if (
+					!commit ||
+					commit.systemPrompt !== prepared.systemPrompt ||
+					commit.prewarmIdentity !== prepared.prewarmIdentity
+				) return false;
+				previous = {
+					activeProviderSystemPrompt: state.activeProviderSystemPrompt,
+					voiceSystemPromptOverride: state.voiceSystemPromptOverride,
+					pendingActiveProviderPromptCapture: state.pendingActiveProviderPromptCapture,
+				};
+				state.activeProviderSystemPrompt = prepared.systemPrompt;
+				state.voiceSystemPromptOverride = prepared.systemPrompt;
+				state.pendingActiveProviderPromptCapture = true;
+				committed = true;
+				return true;
+			},
+			rollback() {
+				if (!committed || !previous) return;
+				if (state.activeProviderSystemPrompt === prepared.systemPrompt)
+					state.activeProviderSystemPrompt = previous.activeProviderSystemPrompt;
+				if (state.voiceSystemPromptOverride === prepared.systemPrompt)
+					state.voiceSystemPromptOverride = previous.voiceSystemPromptOverride;
+				if (state.pendingActiveProviderPromptCapture === true)
+					state.pendingActiveProviderPromptCapture = previous.pendingActiveProviderPromptCapture;
+				committed = false;
+			},
 		};
 	}
 }
