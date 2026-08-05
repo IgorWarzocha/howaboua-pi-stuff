@@ -32,7 +32,7 @@ export class CodexVoiceController {
 	};
 	private readonly messages: CodexVoiceSessionMessages;
 	private readonly inputMuteListeners = new Set<(muted: boolean) => void>();
-	private delegationPreflight: (ctx: ExtensionContext) => Promise<void> = async () => undefined;
+	private delegationPreflight: (ctx: ExtensionContext) => Promise<(() => void) | undefined> = async () => undefined;
 
 	constructor(pi: ExtensionAPI) {
 		this.messages = new CodexVoiceSessionMessages(pi, {
@@ -46,7 +46,7 @@ export class CodexVoiceController {
 		});
 	}
 
-	setDelegationPreflight(preflight: (ctx: ExtensionContext) => Promise<void>): void {
+	setDelegationPreflight(preflight: (ctx: ExtensionContext) => Promise<(() => void) | undefined>): void {
 		this.delegationPreflight = preflight;
 	}
 

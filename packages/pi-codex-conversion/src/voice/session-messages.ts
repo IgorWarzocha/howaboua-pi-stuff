@@ -23,7 +23,7 @@ const REALTIME_VOICE_TAIL_CONTEXT_TYPE = "codex-realtime-voice-tail";
 
 export interface CodexVoiceSessionMessageCallbacks {
 	canDelegate(): boolean;
-	prepareDelegation(ctx: ExtensionContext): Promise<void>;
+	prepareDelegation(ctx: ExtensionContext): Promise<(() => void) | undefined>;
 	onDelegation(id: string): void;
 	onWorking(): void;
 }
@@ -148,16 +148,19 @@ export class CodexVoiceSessionMessages {
 	private async deliverDelegation(turn: RealtimeVoiceTurn): Promise<void> {
 		const ctx = this.context;
 		if (!ctx || !turn.delegationId || !this.callbacks.canDelegate()) return;
-		const startsTurn = !this.piTurnActive && ctx.isIdle();
+		let startsTurn = !this.piTurnActive && ctx.isIdle();
+		let commitPreflight: (() => void) | undefined;
 		if (startsTurn) {
 			try {
-				await this.callbacks.prepareDelegation(ctx);
+				commitPreflight = await this.callbacks.prepareDelegation(ctx);
 			} catch (error) {
 				if (this.context === ctx)
 					ctx.ui.notify(`Could not prepare voice delegation: ${error instanceof Error ? error.message : String(error)}`, "error");
 				return;
 			}
 			if (this.context !== ctx || !this.callbacks.canDelegate()) return;
+			startsTurn = !this.piTurnActive && ctx.isIdle();
+			if (startsTurn) commitPreflight?.();
 		}
 		this.callbacks.onDelegation(turn.delegationId);
 		this.piTurnActive = true;

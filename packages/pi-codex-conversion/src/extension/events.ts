@@ -232,21 +232,41 @@ async function prepareVoiceDelegation(
 	runtime: CodexExtensionRuntime,
 	codeMode: CodeModeRegistration,
 	ctx: ExtensionContext,
-): Promise<void> {
+): Promise<(() => void) | undefined> {
 	const { state } = runtime;
 	if (!isAdapterRuntime(resolveCodexRuntimePlan(ctx, state.config))) {
 		state.voiceSystemPromptOverride = undefined;
-		return;
+		return undefined;
 	}
+	const basePrompt = state.activeProviderSystemPrompt ?? ctx.getSystemPrompt();
 	const promptWithTools = codeMode.refreshPromptTools(
-		state.activeProviderSystemPrompt ?? ctx.getSystemPrompt(),
+		basePrompt,
 		ctx,
 	);
-	const systemPrompt = runtime.codexSystemPrompt(promptWithTools, ctx);
-	state.activeProviderSystemPrompt = systemPrompt;
-	state.voiceSystemPromptOverride = systemPrompt;
-	state.pendingActiveProviderPromptCapture = true;
+	const promptOptions = state.config.prompt.heavySystemPromptOverwrite
+		? { cwd: ctx.cwd }
+		: undefined;
+	const systemPrompt = runtime.codexSystemPrompt(
+		promptWithTools,
+		ctx,
+		undefined,
+		promptOptions,
+	);
 	await runtime.waitForPrewarm(ctx, systemPrompt);
+	return () => {
+		const currentBasePrompt = state.activeProviderSystemPrompt ?? ctx.getSystemPrompt();
+		const currentSystemPrompt = currentBasePrompt === basePrompt
+			? systemPrompt
+			: runtime.codexSystemPrompt(
+				codeMode.refreshPromptTools(currentBasePrompt, ctx),
+				ctx,
+				undefined,
+				promptOptions,
+			);
+		state.activeProviderSystemPrompt = currentSystemPrompt;
+		state.voiceSystemPromptOverride = currentSystemPrompt;
+		state.pendingActiveProviderPromptCapture = true;
+	};
 }
 
 async function runShutdownStep(failures: unknown[], action: () => unknown): Promise<void> {

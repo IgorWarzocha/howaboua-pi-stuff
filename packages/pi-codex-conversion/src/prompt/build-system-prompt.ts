@@ -230,7 +230,14 @@ function stripPiToolScaffold(prompt: string, options: PiSystemPromptOptions): st
 		? visibleTools.map((name) => `- ${name}: ${options.toolSnippets![name]}`).join("\n")
 		: "(none)";
 	const scaffold = `${PI_DEFAULT_INTRO}\n\nAvailable tools:\n${toolsList}\n\n${PI_CUSTOM_TOOLS_NOTE}`;
-	return prompt.includes(scaffold) ? prompt.replace(scaffold, "").trimStart() : prompt;
+	if (prompt.includes(scaffold)) return prompt.replace(scaffold, "").trimStart();
+	const prefix = `${PI_DEFAULT_INTRO}\n\nAvailable tools:\n`;
+	const start = prompt.indexOf(prefix);
+	const note = `\n\n${PI_CUSTOM_TOOLS_NOTE}`;
+	const end = start === -1 ? -1 : prompt.indexOf(note, start + prefix.length);
+	return end === -1
+		? prompt
+		: `${prompt.slice(0, start)}${prompt.slice(end + note.length)}`.trimStart();
 }
 
 function stripPiDocumentation(prompt: string): string {

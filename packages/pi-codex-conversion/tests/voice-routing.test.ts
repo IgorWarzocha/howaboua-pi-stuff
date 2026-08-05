@@ -159,6 +159,36 @@ test("realtime session messages preflight an idle delegation and route one curre
 	);
 });
 
+test("voice delegation steers without committing idle preflight when another turn starts", async () => {
+	const sent: Array<{ message: unknown; options: unknown }> = [];
+	const gate = Promise.withResolvers<void>();
+	let idle = true;
+	let commits = 0;
+	const messages = new CodexVoiceSessionMessages(
+		{
+			sendMessage(message: unknown, options: unknown) {
+				sent.push({ message, options });
+			},
+		} as unknown as ExtensionAPI,
+		{
+			...voiceMessageCallbacks(),
+			async prepareDelegation() {
+				await gate.promise;
+				return () => { commits++; };
+			},
+		},
+	);
+	messages.setContext({ isIdle: () => idle, ui: { notify() {} } } as never);
+	const delivery = messages.voiceTurn({ input: "check the server", delegationId: "delegation-1" });
+	await Promise.resolve();
+	idle = false;
+	gate.resolve();
+	await delivery;
+
+	assert.equal(commits, 0);
+	assert.deepEqual(sent[0]?.options, { triggerTurn: true, deliverAs: "steer" });
+});
+
 function voiceMessageCallbacks() {
 	return {
 		canDelegate: () => true,
