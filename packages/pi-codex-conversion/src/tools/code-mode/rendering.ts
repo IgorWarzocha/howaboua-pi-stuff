@@ -256,10 +256,7 @@ function renderTrace(
 	context: RenderContext | undefined,
 	emittedImages: Map<string, Set<string>>,
 ): Component[] {
-	const [renderedTrace, omittedImages] = withoutEmittedImages(
-		trace,
-		emittedImages,
-	);
+	const renderedTrace = withoutEmittedImages(trace, emittedImages);
 	const renderContext = {
 		toolCallId: trace.id,
 		cwd: context?.cwd,
@@ -278,7 +275,7 @@ function renderTrace(
 		call = renderGenericTraceCall(trace, theme, options.expanded);
 	}
 	const components = [call];
-	if (renderedTrace.result && programmatic?.renderResult && !omittedImages) {
+	if (renderedTrace.result && programmatic?.renderResult) {
 		try {
 			components.push(
 				programmatic.renderResult(
@@ -297,10 +294,7 @@ function renderTrace(
 	}
 	if (trace.status === "error" && trace.error) {
 		components.push(new Text(theme.fg("error", trace.error), 4, 0));
-	} else if (
-		renderedTrace.result &&
-		(!programmatic?.renderResult || omittedImages)
-	) {
+	} else if (renderedTrace.result && !programmatic?.renderResult) {
 		components.push(
 			renderGenericTraceResult(
 				renderedTrace,
@@ -315,15 +309,15 @@ function renderTrace(
 function withoutEmittedImages(
 	trace: RuntimeToolTrace,
 	emittedImages: Map<string, Set<string>>,
-): [RuntimeToolTrace, boolean] {
-	if (!trace.result) return [trace, false];
+): RuntimeToolTrace {
+	if (!trace.result) return trace;
 	const content = trace.result.content.filter(
 		(item) =>
 			item.type !== "image" ||
 			!emittedImages.get(item.mimeType)?.has(item.data),
 	);
-	if (content.length === trace.result.content.length) return [trace, false];
-	return [{ ...trace, result: { ...trace.result, content } }, true];
+	if (content.length === trace.result.content.length) return trace;
+	return { ...trace, result: { ...trace.result, content } };
 }
 
 function renderGenericTraceCall(
