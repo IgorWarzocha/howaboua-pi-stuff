@@ -52,6 +52,19 @@ test("captures downstream system-prompt additions from the final provider payloa
 	assert.equal(adapterState.activeProviderSystemPrompt, finalInstructions);
 });
 
+test("voice preflight replaces stale instructions before Responses Lite relocation", async () => {
+	const adapterState = state(["litellm"]);
+	adapterState.voiceSystemPromptOverride = "Fresh voice delegation instructions";
+	const rewritten = await rewriteCodexProviderRequest(payload, {
+		model: { provider: "litellm", api: "openai-responses", id: "gpt-5.6" },
+	} as never, adapterState) as typeof payload;
+
+	assert.equal("instructions" in rewritten, false);
+	assert.deepEqual((rewritten.input[1] as { content: unknown }).content, [
+		{ type: "input_text", text: "Fresh voice delegation instructions" },
+	]);
+});
+
 test("voice-only mode does not rewrite provider requests", async () => {
 	const voiceOnly = state(["litellm"]);
 	voiceOnly.config.voiceFeaturesOnly = true;

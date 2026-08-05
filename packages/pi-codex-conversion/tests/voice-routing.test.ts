@@ -89,25 +89,32 @@ test("voice presentation entries never enter Pi model queues", () => {
 	assert.deepEqual(modelMessages, []);
 });
 
-test("realtime session messages route one current Pi and V3 flow", () => {
+test("realtime session messages preflight an idle delegation and route one current Pi and V3 flow", async () => {
 	const sent: Array<{ message: any; options: unknown }> = [];
+	const events: string[] = [];
 	const messages = new CodexVoiceSessionMessages(
 		{
 			sendMessage(message: unknown, options: unknown) {
+				events.push(`send:${(message as { customType?: string }).customType ?? "unknown"}`);
 				sent.push({ message, options });
 			},
 		} as unknown as ExtensionAPI,
-		voiceMessageCallbacks(),
+		{
+			...voiceMessageCallbacks(),
+			async prepareDelegation() {
+				events.push("preflight");
+			},
+		},
 	);
 	messages.setContext({ isIdle: () => true } as never);
 	messages.modeStarted("realtime");
 	messages.retainTranscriptTail("user: earlier conversation");
-	messages.voiceTurn({
+	await messages.voiceTurn({
 		input: "check the server",
 		delegationId: "delegation-1",
 	});
 	messages.retainTranscriptTail("user: while Pi works");
-	messages.voiceTurn({
+	await messages.voiceTurn({
 		input: "also check the laptop",
 		delegationId: "delegation-2",
 	});
@@ -124,6 +131,15 @@ test("realtime session messages route one current Pi and V3 flow", () => {
 	);
 	assert.equal(sent[4]?.message.customType, "codex-realtime-delegation");
 	assert.match(sent[5]?.message.content, /^<realtime_voice_session state="ended">/);
+	assert.deepEqual(events, [
+		"send:codex-voice-mode",
+		"send:codex-realtime-voice-tail",
+		"preflight",
+		"send:codex-realtime-delegation",
+		"send:codex-realtime-voice-tail",
+		"send:codex-realtime-delegation",
+		"send:codex-voice-mode",
+	]);
 	assert.deepEqual(
 		sent.map(({ options }) => options),
 		[
@@ -146,6 +162,7 @@ test("realtime session messages route one current Pi and V3 flow", () => {
 function voiceMessageCallbacks() {
 	return {
 		canDelegate: () => true,
+		prepareDelegation: async () => undefined,
 		onDelegation: () => {},
 		onWorking: () => {},
 	};

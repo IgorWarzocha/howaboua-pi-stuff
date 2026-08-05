@@ -59,6 +59,7 @@ export function registerCodexEvents(
 	proxyProvider: CodeModeProxyProviderRegistration,
 ): void {
 	const { state, tracker, sessions } = runtime;
+	runtime.voice.setDelegationPreflight((ctx) => prepareVoiceDelegation(runtime, codeMode, ctx));
 	sessions.onSessionExit((sessionId) => tracker.recordSessionFinished(sessionId));
 
 	pi.on("session_start", async (event, ctx) => {
@@ -71,6 +72,7 @@ export function registerCodexEvents(
 		state.cwd = ctx.cwd;
 		state.config = readCodexConversionConfig();
 		state.activeProviderSystemPrompt = undefined;
+		state.voiceSystemPromptOverride = undefined;
 		proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 		if (state.config.voiceFeaturesOnly) {
@@ -87,7 +89,8 @@ export function registerCodexEvents(
 		ui.renderBackgroundWidget();
 		syncAdapter(pi, ctx, state);
 		prepareCodeModeHost(codeMode, ctx);
-		if (!state.config.prompt.heavySystemPromptOverwrite) void runtime.startPrewarm(ctx);
+		if (!state.config.prompt.heavySystemPromptOverwrite)
+			void runtime.startPrewarm(ctx, codeMode.refreshPromptTools(ctx.getSystemPrompt(), ctx));
 		if (event.reason === "startup") await maybeWarnLocalCheckoutVersion(ctx);
 	});
 
@@ -95,6 +98,7 @@ export function registerCodexEvents(
 		runtime.resetTransport(ctx.sessionManager.getSessionId());
 		state.cwd = ctx.cwd;
 		state.activeProviderSystemPrompt = undefined;
+		state.voiceSystemPromptOverride = undefined;
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 		proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 		if (state.config.voiceFeaturesOnly) {
@@ -106,7 +110,8 @@ export function registerCodexEvents(
 		tools.ensureOptionalTools();
 		syncAdapter(pi, ctx, state);
 		prepareCodeModeHost(codeMode, ctx);
-		if (!state.config.prompt.heavySystemPromptOverwrite) void runtime.startPrewarm(ctx);
+		if (!state.config.prompt.heavySystemPromptOverwrite)
+			void runtime.startPrewarm(ctx, codeMode.refreshPromptTools(ctx.getSystemPrompt(), ctx));
 	});
 
 	pi.on("message_start", async (event) => {
@@ -149,6 +154,7 @@ export function registerCodexEvents(
 	});
 	pi.on("before_agent_start", async (event, ctx) => {
 		const systemPrompt = event.systemPrompt;
+		state.voiceSystemPromptOverride = undefined;
 		if (!isAdapterRuntime(resolveCodexRuntimePlan(ctx, state.config))) {
 			state.pendingActiveProviderPromptCapture = false;
 			return undefined;
@@ -167,6 +173,7 @@ export function registerCodexEvents(
 	pi.on("agent_start", async () => { runtime.voice.agentStarted(); runtime.lanVoice.agentStarted(); });
 	pi.on("agent_settled", async () => {
 		state.pendingActiveProviderPromptCapture = false;
+		state.voiceSystemPromptOverride = undefined;
 		state.codexTurnState.reset();
 		runtime.voice.settleTurn();
 		runtime.lanVoice.agentSettled();
@@ -219,6 +226,27 @@ export function registerCodexEvents(
 		const messages = voiceMessages.filter((message) => !isAdapterContextExcludedCustomMessage(message));
 		return { messages };
 	});
+}
+
+async function prepareVoiceDelegation(
+	runtime: CodexExtensionRuntime,
+	codeMode: CodeModeRegistration,
+	ctx: ExtensionContext,
+): Promise<void> {
+	const { state } = runtime;
+	if (!isAdapterRuntime(resolveCodexRuntimePlan(ctx, state.config))) {
+		state.voiceSystemPromptOverride = undefined;
+		return;
+	}
+	const promptWithTools = codeMode.refreshPromptTools(
+		state.activeProviderSystemPrompt ?? ctx.getSystemPrompt(),
+		ctx,
+	);
+	const systemPrompt = runtime.codexSystemPrompt(promptWithTools, ctx);
+	state.activeProviderSystemPrompt = systemPrompt;
+	state.voiceSystemPromptOverride = systemPrompt;
+	state.pendingActiveProviderPromptCapture = true;
+	await runtime.waitForPrewarm(ctx, systemPrompt);
 }
 
 async function runShutdownStep(failures: unknown[], action: () => unknown): Promise<void> {

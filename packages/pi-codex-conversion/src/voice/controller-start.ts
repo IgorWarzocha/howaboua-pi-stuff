@@ -191,7 +191,7 @@ async function startConversation(
 					options.onError(error);
 			},
 			onStatus: options.onStatus,
-			onTurn: (turn) => options.messages.voiceTurn(turn),
+			onTurn: (turn) => { void options.messages.voiceTurn(turn); },
 			onUserTranscript: (transcript) =>
 				options.messages.userTranscript(transcript),
 			onTranscriptTail: (transcript) =>
