@@ -1,5 +1,16 @@
 # @howaboua/pi-stuff
 
+## 0.0.53
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-skill-gh-stack: Improve the native GitHub stacked-PR skill with tested noninteractive command guidance, lazy-loaded command and recovery references, machine-readable state contracts, and issue-batch stack design.
+
+- Updated dependencies [[`f05fa46`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/f05fa469e034ec0e47f238f213437e5a11f2b13c)]:
+  - @howaboua/pi-skill-gh-stack@0.0.2
+
 ## 0.0.52
 
 ### Changes

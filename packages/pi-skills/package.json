@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-skills",
-	"version": "0.0.15",
+	"version": "0.0.16",
 	"description": "all Howaboua Pi skills",
 	"type": "module",
 	"keywords": [
@@ -20,7 +20,7 @@
 		"@howaboua/pi-skill-chrome-cdp": "0.0.4",
 		"@howaboua/pi-skill-codex-prompt-caching": "0.0.1",
 		"@howaboua/pi-skill-gh-issue-pr-flow": "0.0.7",
-		"@howaboua/pi-skill-gh-stack": "0.0.1",
+		"@howaboua/pi-skill-gh-stack": "0.0.2",
 		"@howaboua/pi-skill-model-facing-api-design": "0.0.5",
 		"@howaboua/pi-skill-project-reference-research": "0.0.4",
 		"@howaboua/pi-skill-skill-creator": "0.0.5"
