@@ -218,11 +218,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-skill-gh-issue-pr-flow/CHANGELOG.md)
 
-### @howaboua/pi-skill-gh-stack — 0.0.1
+### @howaboua/pi-skill-gh-stack — 0.0.2
 
 ### Changes
 
-- [#228](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/228) [`f3dcf5e`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/f3dcf5e01b850e4de57801450eba9464f750b11d) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add a compact native GitHub stacked-PR skill with dependency-layer planning, noninteractive gh-stack workflows, synchronization, conflict recovery, and safe partial or whole-stack merging.
+- [#231](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/231) [`f05fa46`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/f05fa469e034ec0e47f238f213437e5a11f2b13c) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Improve the native GitHub stacked-PR skill with tested noninteractive command guidance, lazy-loaded command and recovery references, machine-readable state contracts, and issue-batch stack design.
 
 [Full changelog](./packages/pi-skill-gh-stack/CHANGELOG.md)
 
@@ -258,16 +258,16 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-skill-skill-creator/CHANGELOG.md)
 
-### @howaboua/pi-skills — 0.0.15
+### @howaboua/pi-skills — 0.0.16
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-skill-gh-stack: Add a compact native GitHub stacked-PR skill with dependency-layer planning, noninteractive gh-stack workflows, synchronization, conflict recovery, and safe partial or whole-stack merging.
+  - @howaboua/pi-skill-gh-stack: Improve the native GitHub stacked-PR skill with tested noninteractive command guidance, lazy-loaded command and recovery references, machine-readable state contracts, and issue-batch stack design.
 
-- Updated dependencies [[`f3dcf5e`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/f3dcf5e01b850e4de57801450eba9464f750b11d)]:
-  - @howaboua/pi-skill-gh-stack@0.0.1
+- Updated dependencies [[`f05fa46`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/f05fa469e034ec0e47f238f213437e5a11f2b13c)]:
+  - @howaboua/pi-skill-gh-stack@0.0.2
 
 [Full changelog](./packages/pi-skills/CHANGELOG.md)
 
@@ -279,16 +279,16 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.52
+### @howaboua/pi-stuff — 0.0.53
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-skill-gh-stack: Add a compact native GitHub stacked-PR skill with dependency-layer planning, noninteractive gh-stack workflows, synchronization, conflict recovery, and safe partial or whole-stack merging.
+  - @howaboua/pi-skill-gh-stack: Improve the native GitHub stacked-PR skill with tested noninteractive command guidance, lazy-loaded command and recovery references, machine-readable state contracts, and issue-batch stack design.
 
-- Updated dependencies [[`f3dcf5e`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/f3dcf5e01b850e4de57801450eba9464f750b11d)]:
-  - @howaboua/pi-skill-gh-stack@0.0.1
+- Updated dependencies [[`f05fa46`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/f05fa469e034ec0e47f238f213437e5a11f2b13c)]:
+  - @howaboua/pi-skill-gh-stack@0.0.2
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 
