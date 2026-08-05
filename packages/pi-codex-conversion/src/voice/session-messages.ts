@@ -187,52 +187,69 @@ export class CodexVoiceSessionMessages {
 			!turn.delegationId ||
 			!canDeliver
 		) return;
-		let startsTurn = !this.piTurnActive && ctx.isIdle();
 		const signal = this.delegationAbortController.signal;
 		let preflight: PreparedVoiceDelegation | undefined;
-		if (startsTurn) {
-			for (;;) {
-				try {
-					preflight = await this.callbacks.prepareDelegation(ctx, signal);
-				} catch (error) {
-					if (
-						generation === this.contextGeneration &&
-						this.context === ctx
-					) {
-						const message = signal.aborted
-							? "Voice session stopped before the delegation was prepared"
-							: error instanceof Error ? error.message : String(error);
-						if (!signal.aborted)
-							ctx.ui.notify(`Could not prepare voice delegation: ${message}`, "error");
-						this.pi.appendEntry<RealtimeVoiceMessageDetails>(
-							REALTIME_DELEGATION_MESSAGE_TYPE,
-							{ input: turn.input, route: "delegation", error: message },
-						);
-					}
-					return;
-				}
-				if (
-					generation !== this.contextGeneration ||
-					this.context !== ctx
-				) return;
-				startsTurn = !this.piTurnActive && ctx.isIdle();
-				if (!startsTurn || preflight?.commit() !== false) break;
-			}
-		}
-		this.callbacks.onDelegation(turn.delegationId);
-		this.piTurnActive = true;
-		this.callbacks.onWorking();
+		let deliveryStarted = false;
+		let failureAction = "prepare";
 		try {
+			let startsTurn = !this.piTurnActive && ctx.isIdle();
+			if (startsTurn) {
+				for (;;) {
+					preflight = await this.callbacks.prepareDelegation(ctx, signal);
+					if (
+						generation !== this.contextGeneration ||
+						this.context !== ctx
+					) return;
+					startsTurn = !this.piTurnActive && ctx.isIdle();
+					if (!startsTurn) break;
+					deliveryStarted = true;
+					if (preflight?.commit() !== false) break;
+					deliveryStarted = false;
+					preflight = undefined;
+				}
+			}
+			failureAction = "deliver";
+			deliveryStarted = true;
+			this.callbacks.onDelegation(turn.delegationId);
+			this.piTurnActive = true;
+			this.callbacks.onWorking();
 			this.pi.sendMessage(
 				realtimeVoiceMessage(turn.input, "delegation", turn.transcriptDelta),
 				startsTurn
 					? { triggerTurn: true }
 					: { triggerTurn: true, deliverAs: "steer" },
 			);
-		} catch {
-			preflight?.rollback();
-			this.piTurnActive = this.context ? !this.context.isIdle() : false;
-			this.callbacks.onDelegationFailed(turn.delegationId);
+		} catch (error) {
+			if (
+				generation !== this.contextGeneration ||
+				this.context !== ctx
+			) return;
+			if (deliveryStarted) {
+				try { preflight?.rollback(); } catch {}
+				try {
+					this.piTurnActive = this.context ? !this.context.isIdle() : false;
+				} catch {
+					this.piTurnActive = false;
+				}
+				try { this.callbacks.onDelegationFailed(turn.delegationId); } catch {}
+			}
+			const message = signal.aborted
+				? "Voice session stopped before the delegation was prepared"
+				: error instanceof Error ? error.message : String(error);
+			if (!signal.aborted) {
+				try {
+					ctx.ui.notify(
+						`Could not ${failureAction} voice delegation: ${message}`,
+						"error",
+					);
+				} catch {}
+			}
+			try {
+				this.pi.appendEntry<RealtimeVoiceMessageDetails>(
+					REALTIME_DELEGATION_MESSAGE_TYPE,
+					{ input: turn.input, route: "delegation", error: message },
+				);
+			} catch {}
 		}
 	}
 }

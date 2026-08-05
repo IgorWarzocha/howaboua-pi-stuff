@@ -270,7 +270,7 @@ export class CodexVoiceController {
 		const message = this.runtime.config
 			? formatVoiceAudioError(error, mode, this.runtime.config)
 			: error.message;
-		this.runtime.startGeneration += 1;
+		const failGeneration = ++this.runtime.startGeneration;
 		const endedMode = this.runtime.announcedMode;
 		const wasMuted = this.inputMuted;
 		const session = this.currentSession();
@@ -288,6 +288,7 @@ export class CodexVoiceController {
 			this.messages.cancelPendingDelegations();
 			await Promise.allSettled([this.messages.waitForDelegations()]);
 			if (
+				this.runtime.startGeneration === failGeneration &&
 				this.runtime.state.type === "failed" &&
 				this.runtime.state.message === message
 			) this.messages.voiceStopped(endedMode);

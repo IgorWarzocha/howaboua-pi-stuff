@@ -254,6 +254,51 @@ test("failed voice preflight preserves the delegation without triggering Pi", as
 	}]);
 });
 
+test("failed voice preflight commit rolls back and settles the delegation", async () => {
+	const entries: Array<{ customType: string; data: unknown }> = [];
+	const notifications: string[] = [];
+	let rollbacks = 0;
+	let failedDelegations = 0;
+	const messages = new CodexVoiceSessionMessages(
+		{
+			sendMessage() {
+				throw new Error("Pi must not run");
+			},
+			appendEntry(customType: string, data: unknown) {
+				entries.push({ customType, data });
+			},
+		} as unknown as ExtensionAPI,
+		{
+			...voiceMessageCallbacks(),
+			onDelegationFailed() { failedDelegations++; },
+			async prepareDelegation() {
+				return {
+					commit() { throw new Error("tool refresh changed"); },
+					rollback() { rollbacks++; },
+				};
+			},
+		},
+	);
+	messages.setContext({
+		isIdle: () => true,
+		ui: { notify(message: string) { notifications.push(message); } },
+	} as never);
+
+	await messages.voiceTurn({ input: "check the server", delegationId: "delegation-1" });
+
+	assert.equal(rollbacks, 1);
+	assert.equal(failedDelegations, 1);
+	assert.match(notifications[0] ?? "", /tool refresh changed/);
+	assert.deepEqual(entries, [{
+		customType: "codex-realtime-delegation",
+		data: {
+			input: "check the server",
+			route: "delegation",
+			error: "tool refresh changed",
+		},
+	}]);
+});
+
 test("voice restart discards an awaiting delegation and starts a fresh queue", async () => {
 	const sent: Array<{ message: any; options: unknown }> = [];
 	const firstPreflight = Promise.withResolvers<void>();
@@ -359,6 +404,8 @@ test("voice shutdown cancels preflight that outlives session close", async () =>
 
 test("failed Pi send rolls back voice preflight before the next delegation", async () => {
 	const sent: Array<{ message: unknown; options: unknown }> = [];
+	const entries: Array<{ customType: string; data: unknown }> = [];
+	const notifications: string[] = [];
 	let failSend = true;
 	let prepares = 0;
 	let commits = 0;
@@ -369,6 +416,9 @@ test("failed Pi send rolls back voice preflight before the next delegation", asy
 			sendMessage(message: unknown, options: unknown) {
 				if (failSend) throw new Error("stale Pi runtime");
 				sent.push({ message, options });
+			},
+			appendEntry(customType: string, data: unknown) {
+				entries.push({ customType, data });
 			},
 		} as unknown as ExtensionAPI,
 		{
@@ -383,7 +433,10 @@ test("failed Pi send rolls back voice preflight before the next delegation", asy
 			},
 		},
 	);
-	messages.setContext({ isIdle: () => true, ui: { notify() {} } } as never);
+	messages.setContext({
+		isIdle: () => true,
+		ui: { notify(message: string) { notifications.push(message); } },
+	} as never);
 
 	await messages.voiceTurn({ input: "first request", delegationId: "delegation-1" });
 	failSend = false;
@@ -393,6 +446,15 @@ test("failed Pi send rolls back voice preflight before the next delegation", asy
 	assert.equal(commits, 2);
 	assert.equal(rollbacks, 1);
 	assert.equal(failedDelegations, 1);
+	assert.match(notifications[0] ?? "", /stale Pi runtime/);
+	assert.deepEqual(entries, [{
+		customType: "codex-realtime-delegation",
+		data: {
+			input: "first request",
+			route: "delegation",
+			error: "stale Pi runtime",
+		},
+	}]);
 	assert.deepEqual(sent[0]?.options, { triggerTurn: true });
 });
 
