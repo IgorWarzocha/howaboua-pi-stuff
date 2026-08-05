@@ -32,12 +32,12 @@ export class CodexVoiceController {
 	};
 	private readonly messages: CodexVoiceSessionMessages;
 	private readonly inputMuteListeners = new Set<(muted: boolean) => void>();
-	private delegationPreflight: (ctx: ExtensionContext) => Promise<(() => boolean | void) | undefined> = async () => undefined;
+	private delegationPreflight: (ctx: ExtensionContext, signal: AbortSignal) => Promise<(() => boolean | void) | undefined> = async () => undefined;
 
 	constructor(pi: ExtensionAPI) {
 		this.messages = new CodexVoiceSessionMessages(pi, {
 			canDelegate: () => this.runtime.state.type === "conversation",
-			prepareDelegation: (ctx) => this.delegationPreflight(ctx),
+			prepareDelegation: (ctx, signal) => this.delegationPreflight(ctx, signal),
 			onDelegation: (id) => {
 				if (this.runtime.state.type === "conversation")
 					this.runtime.state.session.activateDelegation(id);
@@ -46,7 +46,7 @@ export class CodexVoiceController {
 		});
 	}
 
-	setDelegationPreflight(preflight: (ctx: ExtensionContext) => Promise<(() => boolean | void) | undefined>): void {
+	setDelegationPreflight(preflight: (ctx: ExtensionContext, signal: AbortSignal) => Promise<(() => boolean | void) | undefined>): void {
 		this.delegationPreflight = preflight;
 	}
 
@@ -182,6 +182,7 @@ export class CodexVoiceController {
 		this.runtime.voiceStatus = "";
 		this.runtime.context?.ui.setStatus(VOICE_STATUS_KEY, undefined);
 		await closePromise;
+		this.messages.cancelPendingDelegations();
 		await this.messages.waitForDelegations();
 		if (wasMuted)
 			for (const listener of this.inputMuteListeners) listener(false);
@@ -279,10 +280,9 @@ export class CodexVoiceController {
 		if (wasMuted)
 			for (const listener of this.inputMuteListeners) listener(false);
 		void (async () => {
-			await Promise.allSettled([
-				closePromise,
-				this.messages.waitForDelegations(),
-			]);
+			await Promise.allSettled([closePromise]);
+			this.messages.cancelPendingDelegations();
+			await Promise.allSettled([this.messages.waitForDelegations()]);
 			if (
 				this.runtime.state.type === "failed" &&
 				this.runtime.state.message === message

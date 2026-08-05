@@ -318,6 +318,45 @@ test("voice shutdown can drain a delegation accepted before closing", async () =
 	assert.deepEqual(sent[0]?.options, { triggerTurn: true });
 });
 
+test("voice shutdown cancels preflight that outlives session close", async () => {
+	const sent: unknown[] = [];
+	const entries: Array<{ customType: string; data: unknown }> = [];
+	const messages = new CodexVoiceSessionMessages(
+		{
+			sendMessage(message: unknown) {
+				sent.push(message);
+			},
+			appendEntry(customType: string, data: unknown) {
+				entries.push({ customType, data });
+			},
+		} as unknown as ExtensionAPI,
+		{
+			...voiceMessageCallbacks(),
+			async prepareDelegation(_ctx, signal) {
+				await new Promise<void>((_resolve, reject) => {
+					signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+				});
+			},
+		},
+	);
+	messages.setContext({ isIdle: () => true, ui: { notify() {} } } as never);
+	void messages.voiceTurn({ input: "final request", delegationId: "delegation-final" });
+	await Promise.resolve();
+
+	messages.cancelPendingDelegations();
+	await messages.waitForDelegations();
+
+	assert.deepEqual(sent, []);
+	assert.deepEqual(entries, [{
+		customType: "codex-realtime-delegation",
+		data: {
+			input: "final request",
+			route: "delegation",
+			error: "Voice session stopped before the delegation was prepared",
+		},
+	}]);
+});
+
 function voiceMessageCallbacks() {
 	return {
 		canDelegate: () => true,

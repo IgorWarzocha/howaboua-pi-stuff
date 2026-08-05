@@ -25,7 +25,7 @@ const REALTIME_VOICE_TAIL_CONTEXT_TYPE = "codex-realtime-voice-tail";
 
 export interface CodexVoiceSessionMessageCallbacks {
 	canDelegate(): boolean;
-	prepareDelegation(ctx: ExtensionContext): Promise<(() => boolean | void) | undefined>;
+	prepareDelegation(ctx: ExtensionContext, signal: AbortSignal): Promise<(() => boolean | void) | undefined>;
 	onDelegation(id: string): void;
 	onWorking(): void;
 }
@@ -37,6 +37,7 @@ export class CodexVoiceSessionMessages {
 	private piTurnActive = false;
 	private dictationAnnounced = false;
 	private delegationTail: Promise<void> = Promise.resolve();
+	private delegationAbortController = new AbortController();
 	private contextGeneration = 0;
 
 	constructor(pi: ExtensionAPI, callbacks: CodexVoiceSessionMessageCallbacks) {
@@ -111,6 +112,10 @@ export class CodexVoiceSessionMessages {
 		return this.delegationTail;
 	}
 
+	cancelPendingDelegations(): void {
+		this.delegationAbortController.abort();
+	}
+
 	retainTranscriptTail(transcriptDelta: string): void {
 		const piTurnActive =
 			this.piTurnActive || (this.context ? !this.context.isIdle() : false);
@@ -157,6 +162,8 @@ export class CodexVoiceSessionMessages {
 	}
 
 	private replaceContext(ctx: ExtensionContext | undefined): void {
+		this.delegationAbortController.abort();
+		this.delegationAbortController = new AbortController();
 		this.contextGeneration++;
 		this.delegationTail = Promise.resolve();
 		this.context = ctx;
@@ -175,18 +182,22 @@ export class CodexVoiceSessionMessages {
 			!canDeliver
 		) return;
 		let startsTurn = !this.piTurnActive && ctx.isIdle();
+		const signal = this.delegationAbortController.signal;
 		let commitPreflight: (() => boolean | void) | undefined;
 		if (startsTurn) {
 			for (;;) {
 				try {
-					commitPreflight = await this.callbacks.prepareDelegation(ctx);
+					commitPreflight = await this.callbacks.prepareDelegation(ctx, signal);
 				} catch (error) {
 					if (
 						generation === this.contextGeneration &&
 						this.context === ctx
 					) {
-						const message = error instanceof Error ? error.message : String(error);
-						ctx.ui.notify(`Could not prepare voice delegation: ${message}`, "error");
+						const message = signal.aborted
+							? "Voice session stopped before the delegation was prepared"
+							: error instanceof Error ? error.message : String(error);
+						if (!signal.aborted)
+							ctx.ui.notify(`Could not prepare voice delegation: ${message}`, "error");
 						this.pi.appendEntry<RealtimeVoiceMessageDetails>(
 							REALTIME_DELEGATION_MESSAGE_TYPE,
 							{ input: turn.input, route: "delegation", error: message },

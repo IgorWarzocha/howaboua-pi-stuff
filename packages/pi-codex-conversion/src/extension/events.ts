@@ -14,6 +14,7 @@ import { maybeWarnLocalCheckoutVersion } from "../adapter/local-version-warning.
 import { clearApplyPatchRenderState } from "../tools/apply-patch/tool.ts";
 import type { CodeModeRegistration } from "../tools/code-mode/tools.ts";
 import { initializeBashParser } from "../shell/bash.ts";
+import { CANCELLED, interruptible } from "../voice/cancellation.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
 import type { CodexToolRegistration } from "./tools.ts";
 import type { CodexUiController } from "./ui.ts";
@@ -59,7 +60,7 @@ export function registerCodexEvents(
 	proxyProvider: CodeModeProxyProviderRegistration,
 ): void {
 	const { state, tracker, sessions } = runtime;
-	runtime.voice.setDelegationPreflight((ctx) => prepareVoiceDelegation(runtime, codeMode, ctx));
+	runtime.voice.setDelegationPreflight((ctx, signal) => prepareVoiceDelegation(runtime, codeMode, ctx, signal));
 	sessions.onSessionExit((sessionId) => tracker.recordSessionFinished(sessionId));
 
 	pi.on("session_start", async (event, ctx) => {
@@ -231,6 +232,7 @@ async function prepareVoiceDelegation(
 	runtime: CodexExtensionRuntime,
 	codeMode: CodeModeRegistration,
 	ctx: ExtensionContext,
+	signal: AbortSignal,
 ): Promise<(() => boolean) | undefined> {
 	const { state } = runtime;
 	const buildCurrent = () => {
@@ -251,12 +253,20 @@ async function prepareVoiceDelegation(
 		};
 	};
 	for (;;) {
+		signal.throwIfAborted();
 		const prepared = buildCurrent();
 		if (!prepared) {
 			state.voiceSystemPromptOverride = undefined;
 			return undefined;
 		}
-		const prewarm = await runtime.waitForPrewarm(ctx, prepared.systemPrompt);
+		const prewarmOperation = runtime.waitForPrewarm(ctx, prepared.systemPrompt);
+		const prewarm = prewarmOperation
+			? await interruptible(prewarmOperation, signal)
+			: undefined;
+		if (prewarm === CANCELLED) {
+			signal.throwIfAborted();
+			throw new Error("Voice delegation preflight was cancelled");
+		}
 		if (prewarm?.status === "aborted") continue;
 		if (prewarm?.status === "failed") throw prewarm.error;
 		const current = buildCurrent();
