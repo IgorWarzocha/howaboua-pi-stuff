@@ -33,15 +33,11 @@ selects a non-default trunk.
 
 ## add
 
-- **Must run from the top branch** of the stack (or the trunk when the stack is still empty).
-  Anywhere else it exits **5** with `can only add branches on top of the stack`. Run `gh stack top`
-  first.
-- **Uncommitted changes carry over.** Without `-Am`, `add` does not touch the working tree, so
-  staged and unstaged changes follow you onto the new branch. Commit or stash first for a clean start.
-- **`add -Am` commits in place when the current branch has no commits yet** — for example
-  immediately after `init` — instead of creating a branch. This is deliberate: the first layer
-  usually needs its content before a second layer exists.
-- `-A` and `-u` are mutually exclusive, and both require `-m`.
+- Extend a stack from its top branch; a middle branch exits **5**. Use `gh stack top` first.
+- **Uncommitted changes carry over.** Without `-A`, `-u`, or `-m`, `add` does not touch the working
+  tree, so staged and unstaged changes follow onto the new branch. Commit or stash for a clean start.
+- Avoid the `-A`, `-u`, and `-m` commit shortcuts: they can open an editor or commit in place on an
+  empty current layer. Stage and commit with Git, then run `add <branch>`.
 
 ## push
 
@@ -56,7 +52,7 @@ moved on the remote; fix that branch and rerun — rerunning is safe and skips w
 ## submit
 
 Pushes each active branch, then creates a PR for every branch that lacks one, basing it on the
-first non-merged ancestor, then links them into a Stack on GitHub.
+first active ancestor (skipping merged and queued ancestors), then links them into a Stack on GitHub.
 
 - **Not atomic.** Branches are pushed sequentially with per-branch `--force-with-lease`. If a later
   push is rejected, earlier pushes and PR updates stand. Fix the rejection and rerun the same command.
@@ -68,6 +64,7 @@ first non-merged ancestor, then links them into a Stack on GitHub.
   (hyphens and underscores become spaces). There is no flag for a custom title or body; use
   `gh pr edit` afterwards.
 - `--open` marks new _and existing_ PRs ready for review; without it new PRs are drafts.
+- Read base-mismatch warnings; a remote stack can prevent `submit` from repairing an existing PR.
 - Requires stacked PRs to be enabled on the repository. If not, `submit` exits **9** when
   non-interactive (under a TTY it offers to create ordinary unstacked PRs instead).
 
@@ -140,7 +137,7 @@ Accepts a stack number, PR number, PR URL, or branch name.
   stack or PR number to pull a stack that is not tracked locally.
 - If a local stack already exists over those branches with a different composition, `checkout`
   cannot be forced past it. Run `gh stack unstack --local` first, then retry.
-- `checkout` has no flags. It relies on `remote.pushDefault` when several remotes exist.
+- `checkout` has no flags. Configure one unambiguous remote when several exist.
 
 ## unstack
 
@@ -172,8 +169,8 @@ Removes the stack **grouping** only. It never deletes pull requests or branches.
 
 ## Navigation
 
-`up`, `down`, `top`, `bottom`, and `trunk` are always non-interactive. `up` and `down` accept a
-count (`gh stack up 3`). Movement clamps at the stack bounds, and merged branches are skipped when
-navigating from an active branch, so `bottom` lands on the lowest _unmerged_ branch.
+`up`, `down`, `top`, `bottom`, and `trunk` are always noninteractive. `up` and `down` accept a count
+(`gh stack up 3`) and navigate active layers; `top` means the literal top. Use explicit `checkout`
+when merged or queued layers make the target important.
 
 `gh stack switch` is a selection menu with no non-interactive path. Use the commands above instead.

@@ -66,8 +66,8 @@ git commit -m "Add user API routes"
 Multiple commits per branch are fine. What matters is that every commit in a branch serves the same
 concern, and that a change belonging to a different concern goes in a different branch.
 
-Note that `gh stack add <branch>` without `-Am` does not touch the working tree, so uncommitted
-changes carry over to the new branch. Commit or stash first if you want the new layer to start clean.
+`gh stack add <branch>` does not touch the working tree, so uncommitted changes carry over. Commit
+or stash first if the new layer should start clean.
 
 ## When to add a layer
 

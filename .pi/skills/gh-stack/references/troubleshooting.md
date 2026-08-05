@@ -69,7 +69,9 @@ Two resolution paths:
 - **Keep the local version.** Remove the grouping on GitHub, then recreate it from local state.
 
   ```bash
-  gh stack unstack                  # removes the grouping; PRs and branches survive
+  # First record trunk and every branch bottom to top.
+  gh stack unstack                  # removes remote and local grouping; PRs and branches survive
+  gh stack init --base <trunk> <bottom-branch> <next-branch> [<top-branch>...]
   gh stack submit --auto
   ```
 
@@ -133,7 +135,7 @@ where the local `.git/gh-stack` file would be wrong or absent.
 ```bash
 gh stack link branch-a branch-b branch-c        # bottom to top
 gh stack link --base develop --open a b c       # non-default trunk, ready for review
-gh stack link 10 20 30                          # by PR number
+gh stack link <pr-url-1> <pr-url-2> <pr-url-3>  # explicit PRs, bottom to top
 gh stack link 7 feature-d                       # append to existing stack #7
 ```
 

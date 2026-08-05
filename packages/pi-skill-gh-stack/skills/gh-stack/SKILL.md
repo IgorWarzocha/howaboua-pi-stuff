@@ -39,8 +39,8 @@ git config rerere.enabled true
 The contracts below target `gh stack` v0.1.0. If the installed version differs, current command
 help wins.
 
-With several remotes, pass `--remote <name>` where supported. Commands without that flag require
-an unambiguous repository-local `remote.pushDefault`.
+With several remotes, pass `--remote <name>` where supported or configure one unambiguous remote
+before noninteractive use.
 
 ## Noninteractive use
 
@@ -84,10 +84,10 @@ gh stack init --base <trunk> <issue-branch-1> <issue-branch-2> <issue-branch-3>
 order. Inspect existing ancestry first. Use ordinary `git add` and `git commit` so each branch owns
 only its concern.
 
-`submit --auto` pushes active branches, creates missing draft PRs with generated metadata, fixes
-their bases, and links them into a GitHub stack. Add `--open` only when they should leave draft
-state; use `gh pr edit` afterward for custom titles and bodies. Submit is not atomic: rerun it after
-repairing a partial failure.
+`submit --auto` pushes active branches, creates missing PRs as drafts, updates existing PRs where
+possible, and links them into a GitHub stack. Read its warnings. Add `--open` only when PRs should
+leave draft state, and use `gh pr edit` afterward for custom titles and bodies. Submit is not atomic;
+rerun it after a partial failure.
 
 ## Edit a lower layer
 
