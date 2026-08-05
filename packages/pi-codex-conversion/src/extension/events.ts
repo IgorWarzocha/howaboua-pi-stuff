@@ -256,7 +256,9 @@ async function prepareVoiceDelegation(
 			state.voiceSystemPromptOverride = undefined;
 			return undefined;
 		}
-		await runtime.waitForPrewarm(ctx, prepared.systemPrompt);
+		const prewarm = await runtime.waitForPrewarm(ctx, prepared.systemPrompt);
+		if (prewarm?.status === "aborted") continue;
+		if (prewarm?.status === "failed") throw prewarm.error;
 		const current = buildCurrent();
 		if (
 			!current ||

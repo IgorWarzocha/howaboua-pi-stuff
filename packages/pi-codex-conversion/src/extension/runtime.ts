@@ -23,6 +23,11 @@ import { getActiveToolsInActiveOrder } from "../adapter/active-tools.ts";
 
 export type CodexContext = ExtensionContext;
 
+export type CodexPrewarmResult =
+	| { status: "ready" }
+	| { status: "aborted" }
+	| { status: "failed"; error: Error };
+
 export interface CodexExtensionRuntime {
 	state: AdapterState;
 	tracker: ReturnType<typeof createExecCommandTracker>;
@@ -32,12 +37,12 @@ export interface CodexExtensionRuntime {
 	lanVoice: CodexLanVoiceServerController;
 	execEnv(config?: CodexConversionConfig): NodeJS.ProcessEnv;
 	codexSystemPrompt(basePrompt: string, ctx: CodexContext, skills?: AdapterState["promptSkills"], systemPromptOptions?: PiSystemPromptOptions): string;
-	startPrewarm(ctx: CodexContext, systemPrompt?: string, prepared?: boolean): Promise<void> | undefined;
-	startCompactionPrewarm(ctx: CodexContext): Promise<void> | undefined;
+	startPrewarm(ctx: CodexContext, systemPrompt?: string, prepared?: boolean): Promise<CodexPrewarmResult> | undefined;
+	startCompactionPrewarm(ctx: CodexContext): Promise<CodexPrewarmResult> | undefined;
 	resetTransport(sessionId?: string): void;
 	resetTransportAfterCompaction(sessionId: string): void;
 	shutdownTransport(sessionId: string): void;
-	waitForPrewarm(ctx: CodexContext, systemPrompt: string): Promise<void> | undefined;
+	waitForPrewarm(ctx: CodexContext, systemPrompt: string): Promise<CodexPrewarmResult> | undefined;
 	prewarmIdentity(ctx: CodexContext, systemPrompt: string): string | undefined;
 }
 
@@ -65,7 +70,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		bridgeBinaryPath: () => getBundledToolBinaryPath("exec_bridge", {}, state.config.tools.customRustBinariesDir),
 	});
 	let prewarmController: AbortController | undefined;
-	let prewarmPromise: Promise<void> | undefined;
+	let prewarmPromise: Promise<CodexPrewarmResult> | undefined;
 	let pendingPrewarmKey: string | undefined;
 	let prewarmedKey: string | undefined;
 	const voice = new CodexVoiceController(pi);
@@ -110,7 +115,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		prepared = false,
 		messages: Context["messages"] = [],
 		rewriteCompactedReplay = false,
-	): Promise<void> | undefined => {
+	): Promise<CodexPrewarmResult> | undefined => {
 		const plan = buildPrewarmPlan(ctx, systemPrompt, prepared, messages, rewriteCompactedReplay);
 		if (!plan) return undefined;
 		const { model, config, preparedSystemPrompt, tools, reasoning, key: prewarmKey } = plan;
@@ -122,35 +127,47 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		pendingPrewarmKey = prewarmKey;
 		const promise = (async () => {
 			const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
-			if (!auth.ok || !auth.apiKey || controller.signal.aborted) return;
-			await prewarmOpenAICodexWebSocket(
-				model,
-				{ systemPrompt: preparedSystemPrompt, messages, tools },
-				{
-					apiKey: auth.apiKey,
-					...(auth.headers ? { headers: auth.headers } : {}),
-					...(auth.env ? { env: auth.env } : {}),
-					sessionId: ctx.sessionManager.getSessionId(),
-					signal: controller.signal,
-					...reasoning,
-					textVerbosity: config.openai.verbosity,
-					...(config.openai.fast ? { serviceTier: "priority" as const } : {}),
-					onPayload: (body) => rewriteCompactedReplay
-						? rewriteCodexProviderRequest(body, ctx, { ...state, config })
-						: rewriteCodexPrewarmProviderRequest(body, ctx, { ...state, config }),
-				},
-				{
-					getConfig: () => ({ openai: config.openai, beta: config.beta, compaction: config.compaction }),
-					useResponsesLite: (currentModel) => resolveCodexRuntimePlan({ model: currentModel }, config).kind === "code",
-					turnState: state.codexTurnState,
-				},
-			);
-			if (!controller.signal.aborted) prewarmedKey = prewarmKey;
-		})().catch((error: unknown) => {
-			if (!controller.signal.aborted && process.env["PI_DEBUG"] === "1") {
-				console.warn(`[pi-codex-conversion] WebSocket prewarm failed: ${error instanceof Error ? error.message : String(error)}`);
+			if (controller.signal.aborted) return { status: "aborted" } as const;
+			if (!auth.ok) return { status: "failed", error: new Error(auth.error) } as const;
+			if (!auth.apiKey) return {
+				status: "failed",
+				error: new Error(`No API key found for "${model.provider}"`),
+			} as const;
+			try {
+				await prewarmOpenAICodexWebSocket(
+					model,
+					{ systemPrompt: preparedSystemPrompt, messages, tools },
+					{
+						apiKey: auth.apiKey,
+						...(auth.headers ? { headers: auth.headers } : {}),
+						...(auth.env ? { env: auth.env } : {}),
+						sessionId: ctx.sessionManager.getSessionId(),
+						signal: controller.signal,
+						...reasoning,
+						textVerbosity: config.openai.verbosity,
+						...(config.openai.fast ? { serviceTier: "priority" as const } : {}),
+						onPayload: (body) => rewriteCompactedReplay
+							? rewriteCodexProviderRequest(body, ctx, { ...state, config })
+							: rewriteCodexPrewarmProviderRequest(body, ctx, { ...state, config }),
+					},
+					{
+						getConfig: () => ({ openai: config.openai, beta: config.beta, compaction: config.compaction }),
+						useResponsesLite: (currentModel) => resolveCodexRuntimePlan({ model: currentModel }, config).kind === "code",
+						turnState: state.codexTurnState,
+					},
+				);
+			} catch (error) {
+				if (controller.signal.aborted) return { status: "aborted" } as const;
+				const failure = error instanceof Error ? error : new Error(String(error));
+				if (process.env["PI_DEBUG"] === "1") {
+					console.warn(`[pi-codex-conversion] WebSocket prewarm failed: ${failure.message}`);
+				}
+				return { status: "failed", error: failure } as const;
 			}
-		}).finally(() => {
+			if (controller.signal.aborted) return { status: "aborted" } as const;
+			prewarmedKey = prewarmKey;
+			return { status: "ready" } as const;
+		})().finally(() => {
 			if (prewarmPromise === promise) {
 				prewarmPromise = undefined;
 				if (pendingPrewarmKey === prewarmKey) pendingPrewarmKey = undefined;
