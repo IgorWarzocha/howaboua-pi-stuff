@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.0.9
+
+### Changes
+
+- [#235](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/235) [`5657b77`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/5657b778f59ffa2eb86f10f7e949f060d95eb993) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Prepare realtime voice delegations before agent turns, preserve failed delegations without stale voice state, handle authentication, prewarm, shutdown, and Pi delivery failures, preserve cache continuity across voice compaction and prewarm races, add opt-in live cache status and redacted per-session diagnostic logs, keep extension prompt content and nested tool rendering intact, use user-facing web citations, prevent duplicate Code Mode images, support Pi 0.84 credential-and-route-scoped sockets, nullable auth headers, credential-resolved endpoints, cancellable subscription OAuth, and incomplete-response recovery, isolate voice preflight, transport recovery, exec process lifecycle, and Responses history ownership, and remove retired parser and internal compatibility shims
+
 ## 3.0.8
 
 ### Changes
