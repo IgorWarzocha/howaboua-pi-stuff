@@ -4,6 +4,7 @@ import {
 	appendAssistantMessageDiagnostic,
 	createAssistantMessageDiagnostic,
 	type Api,
+	type AssistantMessage,
 	type AssistantMessageEventStream,
 	type Context,
 	type Model,
@@ -14,11 +15,12 @@ import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import { DEFAULT_MAX_RETRY_DELAY_MS, DEFAULT_SSE_HEADER_TIMEOUT_MS, DEFAULT_STREAM_IDLE_TIMEOUT_MS, DEFAULT_STREAM_MAX_RETRIES, INITIAL_STREAM_RETRY_DELAY_MS, MAX_SSE_REQUEST_RETRIES, MAX_STREAM_MAX_RETRIES } from "./openai-codex/constants.ts";
 import { createErrorMessage, isRetryableRequestStatus, isRetryableStreamStatus, NonRetryableProviderError, parseErrorResponse } from "./openai-codex/errors.ts";
 import { createCodexRequestId, extractAccountId, buildSSEHeaders, buildWebSocketHeaders, headersToRecord, PI_CODEX_CONVERSION_ORIGINATOR, resolveCodexUrl, resolveCodexWebSocketUrl } from "./openai-codex/headers.ts";
+import { codexDiagnosticsFailure, noThrowCodexDiagnosticsSink } from "./openai-codex/diagnostic-failure.ts";
 import { buildRequestBody } from "./openai-codex/request-body.ts";
 import { supportsResponsesLiteModel } from "./openai-codex/responses-lite-model.ts";
 import { applyResponsesLiteRequest, applyResponsesLiteWebSocketMetadata, isResponsesLiteRequest, prepareResponsesLiteRequestImages } from "./openai-codex/responses-lite.ts";
 import { combineAbortSignals, compressRequestBodyZstd, createSSEHeaderTimeout, normalizeTimeoutMs, parseSSE, sleep } from "./openai-codex/sse.ts";
-import type { CodexProviderStreamOptions, OpenAICodexStreamOptions, ResponsesBody } from "./openai-codex/types.ts";
+import type { CodexDiagnosticsLane, CodexDiagnosticsSink, CodexProviderStreamOptions, OpenAICodexStreamOptions, ResponsesBody } from "./openai-codex/types.ts";
 import { createInitialAssistantMessage } from "./openai-codex/types.ts";
 import { finalizeUsage } from "./openai-codex/usage.ts";
 import {
@@ -35,6 +37,29 @@ import { withRemoteCompactionV2Feature } from "./openai-responses/compaction-v2-
 import { normalizeResponsesToolHistory } from "./openai-responses/tool-history.ts";
 
 type CodexProviderRuntimeConfig = Pick<CodexConversionConfig, "openai" | "beta"> & Partial<Pick<CodexConversionConfig, "compaction">>;
+
+function diagnosticsLane(body: ResponsesBody): Exclude<CodexDiagnosticsLane, "prewarm"> {
+	return body.input.some((item) =>
+		item && typeof item === "object" && (item as { type?: unknown }).type === "compaction_trigger"
+	) ? "compaction" : "response";
+}
+
+function recordUsage(
+	record: CodexDiagnosticsSink | undefined,
+	lane: Exclude<CodexDiagnosticsLane, "prewarm">,
+	transport: "websocket" | "sse",
+	output: AssistantMessage,
+): void {
+	record?.({
+		type: "usage",
+		lane,
+		transport,
+		inputTokens: output.usage.input,
+		cachedInputTokens: output.usage.cacheRead,
+		cacheWriteInputTokens: output.usage.cacheWrite,
+		outputTokens: output.usage.output,
+	});
+}
 
 export { buildProviderErrorMessage } from "./openai-codex/errors.ts";
 export { buildRequestBody } from "./openai-codex/request-body.ts";
@@ -180,6 +205,7 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 		getConfig?: () => CodexProviderRuntimeConfig | undefined;
 		useResponsesLite?: (model: Model<Api>) => boolean;
 		turnState?: CodexTurnState | undefined;
+		getDiagnostics?: (() => CodexDiagnosticsSink | undefined) | undefined;
 	},
 ): Promise<void> {
 	const runtimeConfig = deps.getConfig?.();
@@ -195,8 +221,9 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 	const originator = runtimeConfig?.openai.harnessIdentifierHeader ? PI_CODEX_CONVERSION_ORIGINATOR : undefined;
 	const headers = buildWebSocketHeaders(model.headers, effectiveOptions.headers, accountId, options.apiKey, options.sessionId, originator);
 	const websocketBody = withCodexTurnState(responsesLite ? applyResponsesLiteWebSocketMetadata(body) : body, deps.turnState);
+	const diagnostics = noThrowCodexDiagnosticsSink(deps.getDiagnostics?.());
 	try {
-		await prewarmWebSocket(resolveCodexWebSocketUrl(model.baseUrl), websocketBody, headers, effectiveOptions, deps.turnState);
+		await prewarmWebSocket(resolveCodexWebSocketUrl(model.baseUrl), websocketBody, headers, effectiveOptions, deps.turnState, diagnostics);
 	} catch (error) {
 		if (!options.signal?.aborted && (isWebSocketUpgradeRequiredError(error) || isWebSocketMessageTooBigError(error))) {
 			recordWebSocketSseFallback(options.sessionId);
@@ -216,6 +243,7 @@ function createCodexStream<TApi extends Api>(
 		turnState?: CodexTurnState | undefined;
 		onPreparedPayload?: ((payload: ResponsesBody) => void) | undefined;
 		onStreamSettled?: () => void | undefined;
+		getDiagnostics?: (() => CodexDiagnosticsSink | undefined) | undefined;
 	},
 ): AssistantMessageEventStream {
 	const runtimeConfig = deps.getConfig?.();
@@ -235,6 +263,14 @@ function createCodexStream<TApi extends Api>(
 
 	(async () => {
 		let output = createInitialAssistantMessage(model);
+		const diagnostics = noThrowCodexDiagnosticsSink(deps.getDiagnostics?.());
+		let lane: Exclude<CodexDiagnosticsLane, "prewarm"> = "response";
+		let diagnosticsFailureRecorded = false;
+		const recordFailure = (transport: "websocket" | "sse", error: unknown) => {
+			if (!diagnostics) return;
+			diagnosticsFailureRecorded = true;
+			diagnostics({ type: "failure", lane, transport, failure: codexDiagnosticsFailure(error) });
+		};
 		try {
 			const apiKey = effectiveOptions?.apiKey;
 			if (!apiKey) {
@@ -243,6 +279,7 @@ function createCodexStream<TApi extends Api>(
 
 			const accountId = extractAccountId(apiKey);
 			const body = await prepareCodexRequestBody(model, context, effectiveOptions, responsesLite);
+			lane = diagnosticsLane(body);
 			deps.onPreparedPayload?.(body);
 			const websocketRequestId = effectiveOptions?.sessionId || createCodexRequestId();
 			const originator = runtimeConfig?.openai.harnessIdentifierHeader ? PI_CODEX_CONVERSION_ORIGINATOR : undefined;
@@ -308,10 +345,12 @@ function createCodexStream<TApi extends Api>(
 							},
 							effectiveOptions,
 							deps.turnState,
+							diagnostics ? { lane, attempt: attempt + 1, record: diagnostics } : undefined,
 						);
 						if (effectiveOptions?.signal?.aborted) throw new Error("Request was aborted");
 						finalizeUsage(output);
 						assertSuccessfulCodexOutput(output);
+						recordUsage(diagnostics, lane, "websocket", output);
 						stream.push({ type: "done", reason: output.stopReason, message: output });
 						stream.end();
 						return;
@@ -337,6 +376,14 @@ function createCodexStream<TApi extends Api>(
 							}),
 						);
 						if (!immediateFallback && retryableWebSocketError && attempt < streamMaxRetries && !overloadBudgetExhausted && !rateLimitBudgetExhausted) {
+							diagnostics?.({
+								type: "retry",
+								lane,
+								transport: "websocket",
+								attempt: attempt + 2,
+								...(retryPlan.delayMs !== undefined ? { delayMs: retryPlan.delayMs } : {}),
+								failure: codexDiagnosticsFailure(error),
+							});
 							await waitBeforeRetry(retryPlan);
 							continue;
 						}
@@ -344,6 +391,7 @@ function createCodexStream<TApi extends Api>(
 							throw rateLimitRecoveryBudgetError(error);
 						}
 						if (!fallbackArmed) {
+							recordFailure("websocket", error);
 							if (websocketStarted) {
 								throw new NonRetryableProviderError("Codex stream ended after output began and cannot be continued from its incomplete response.");
 							}
@@ -352,6 +400,19 @@ function createCodexStream<TApi extends Api>(
 						// Pi supplies resolved request auth, not a force-refresh handle. Keep 401
 						// fallback turn-local so refreshed auth can use WebSockets on the next turn.
 						if (!unauthorized) recordWebSocketSseFallback(effectiveOptions?.sessionId);
+						diagnostics?.({
+							type: "fallback",
+							lane,
+							from: "websocket",
+							to: "sse",
+							reason: upgradeRequired
+								? "upgrade_required"
+								: messageTooBig
+									? "message_too_big"
+									: unauthorized
+										? "unauthorized"
+										: "retry_budget_exhausted",
+						});
 						output = createInitialAssistantMessage(model);
 						break;
 					}
@@ -363,6 +424,14 @@ function createCodexStream<TApi extends Api>(
 				if (attempt > 0) output = createInitialAssistantMessage(model);
 				const responseItems: unknown[] = [];
 				try {
+					diagnostics?.({
+						type: "request",
+						lane,
+						transport: "sse",
+						attempt: attempt + 1,
+						fullInputItems: body.input.length,
+						sentInputItems: body.input.length,
+					});
 					const response = await openCodexSSE(model, sseBody, baseSseHeaders, effectiveOptions, deps.turnState);
 					if (!response.body) throw new Error("No response body");
 					if (!streamStarted) {
@@ -379,6 +448,7 @@ function createCodexStream<TApi extends Api>(
 					finalizeUsage(output);
 					if (effectiveOptions?.signal?.aborted) throw new Error("Request was aborted");
 					assertSuccessfulCodexOutput(output);
+					recordUsage(diagnostics, lane, "sse", output);
 					for (const item of responseItems) effectiveOptions?.onOutputItemDone?.(item);
 					stream.push({ type: "done", reason: output.stopReason, message: output });
 					stream.end();
@@ -399,17 +469,27 @@ function createCodexStream<TApi extends Api>(
 						}),
 					);
 					if (retryable && attempt < streamMaxRetries && !overloadBudgetExhausted && !rateLimitBudgetExhausted) {
+						diagnostics?.({
+							type: "retry",
+							lane,
+							transport: "sse",
+							attempt: attempt + 2,
+							...(retryPlan.delayMs !== undefined ? { delayMs: retryPlan.delayMs } : {}),
+							failure: codexDiagnosticsFailure(error),
+						});
 						await waitBeforeRetry(retryPlan);
 						continue;
 					}
 					if (rateLimitBudgetExhausted) {
 						throw rateLimitRecoveryBudgetError(error);
 					}
+					recordFailure("sse", error);
 					if (retryable) throw new NonRetryableProviderError("Codex stream retry budget was exhausted before a response completed.");
 					throw error;
 				}
 			}
 		} catch (error) {
+			if (!diagnosticsFailureRecorded) recordFailure(effectiveTransport === "sse" ? "sse" : "websocket", error);
 			stream.push({
 				type: "error",
 				reason: (effectiveOptions?.signal?.aborted ? "aborted" : "error") as "aborted" | "error",
@@ -429,6 +509,7 @@ export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: {
 	useResponsesLite?: (model: Model<Api>) => boolean;
 	turnState?: CodexTurnState | undefined;
 	onPreparedPayload?: ((payload: ResponsesBody) => void) | undefined;
+	getDiagnostics?: (() => CodexDiagnosticsSink | undefined) | undefined;
 }): void {
 	pi.registerProvider("openai-codex", {
 		api: "openai-codex-responses",
@@ -438,6 +519,7 @@ export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: {
 			...(options.useResponsesLite ? { useResponsesLite: options.useResponsesLite } : {}),
 			...(options.turnState ? { turnState: options.turnState } : {}),
 			...(options.onPreparedPayload ? { onPreparedPayload: options.onPreparedPayload } : {}),
+			...(options.getDiagnostics ? { getDiagnostics: options.getDiagnostics } : {}),
 		}),
 	});
 }

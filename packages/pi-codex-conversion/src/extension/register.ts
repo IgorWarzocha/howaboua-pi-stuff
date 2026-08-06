@@ -21,6 +21,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 			getConfig: () => ({ openai: runtime.state.config.openai, beta: runtime.state.config.beta, compaction: runtime.state.config.compaction }),
 			useResponsesLite: (model) => resolveCodexRuntimePlan({ model }, runtime.state.config).kind === "code",
 			turnState: runtime.state.codexTurnState,
+			getDiagnostics: () => runtime.diagnosticsSink(),
 			onPreparedPayload: (payload) => {
 				if (!runtime.state.pendingActiveProviderPromptCapture) return;
 				captureActiveProviderSystemPrompt(payload, runtime.state);
@@ -35,6 +36,13 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 			proxyProvider.applyConfig(config, ctx.modelRegistry);
 			tools.applyConfig(config);
 			ui.applyConfig(config);
+			if (config.openai.cacheDiagnostics !== previousConfig.openai.cacheDiagnostics) {
+				void runtime.configureDiagnostics(
+					ctx,
+					previousConfig.openai.cacheDiagnostics !== "status-and-log"
+						&& config.openai.cacheDiagnostics === "status-and-log",
+				);
+			}
 			if (
 				config.voiceFeaturesOnly !== previousConfig.voiceFeaturesOnly
 				|| config.prompt.heavySystemPromptOverwrite !== previousConfig.prompt.heavySystemPromptOverwrite

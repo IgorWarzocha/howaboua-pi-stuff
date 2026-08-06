@@ -44,6 +44,76 @@ export type WebSocketContinuationDecision =
 	| "missing_previous_response_id"
 	| "delta";
 
+export type CodexDiagnosticsLane = "response" | "compaction" | "prewarm";
+export type CodexDiagnosticsTransport = "websocket" | "sse";
+export type CodexDiagnosticsFailureCategory =
+	| "aborted"
+	| "authentication"
+	| "connection"
+	| "connection_limit"
+	| "message_too_big"
+	| "overload"
+	| "previous_response_missing"
+	| "protocol"
+	| "rate_limit"
+	| "timeout"
+	| "transport"
+	| "unknown";
+export interface CodexDiagnosticsFailure {
+	category: CodexDiagnosticsFailureCategory;
+	code?: string | undefined;
+	status?: number | undefined;
+}
+export type CodexDiagnosticsEvent =
+	| {
+			type: "request";
+			lane: CodexDiagnosticsLane;
+			transport: CodexDiagnosticsTransport;
+			attempt: number;
+			fullInputItems: number;
+			sentInputItems: number;
+			socketReused?: boolean | undefined;
+			continuation?: WebSocketContinuationDecision | undefined;
+			previousResponseId?: boolean | undefined;
+	  }
+	| {
+			type: "usage";
+			lane: Exclude<CodexDiagnosticsLane, "prewarm">;
+			transport: CodexDiagnosticsTransport;
+			inputTokens: number;
+			cachedInputTokens: number;
+			cacheWriteInputTokens: number;
+			outputTokens: number;
+	  }
+	| {
+			type: "retry";
+			lane: Exclude<CodexDiagnosticsLane, "prewarm">;
+			transport: CodexDiagnosticsTransport;
+			attempt: number;
+			delayMs?: number | undefined;
+			failure: CodexDiagnosticsFailure;
+	  }
+	| {
+			type: "fallback";
+			lane: Exclude<CodexDiagnosticsLane, "prewarm">;
+			from: CodexDiagnosticsTransport;
+			to: CodexDiagnosticsTransport;
+			reason: "upgrade_required" | "message_too_big" | "unauthorized" | "retry_budget_exhausted";
+	  }
+	| {
+			type: "failure";
+			lane: CodexDiagnosticsLane;
+			transport: CodexDiagnosticsTransport;
+			failure: CodexDiagnosticsFailure;
+	  }
+	| {
+			type: "prewarm-ready";
+			transport: "websocket";
+			socketReused: boolean;
+	  };
+
+export type CodexDiagnosticsSink = (event: CodexDiagnosticsEvent) => void;
+
 export interface CachedWebSocketRequestBodyResult {
 	body: ResponsesBody;
 	decision: WebSocketContinuationDecision;

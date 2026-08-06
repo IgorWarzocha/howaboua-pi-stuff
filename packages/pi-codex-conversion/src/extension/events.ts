@@ -6,7 +6,7 @@ import { isNativeCompactionDetails, NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, NATI
 import { findLatestCompactionEntry } from "../adapter/compaction/details-store.ts";
 import { handleCodexSessionBeforeCompact } from "../adapter/compaction/compaction.ts";
 import { rewriteCodexProviderRequest } from "../adapter/provider-request.ts";
-import { isAdapterContextExcludedCustomMessage } from "../adapter/prompt/context-filter.ts";
+import { isProviderContextExcludedMessage } from "../adapter/prompt/context-filter.ts";
 import { hasNoSkillsFlag } from "../adapter/prompt/skills.ts";
 import { extractPiPromptSkills, resolvePromptSkills } from "../prompt/build-system-prompt.ts";
 import type { CodeModeProxyProviderRegistration } from "../providers/code-mode-proxy-provider.ts";
@@ -14,6 +14,8 @@ import { maybeWarnLocalCheckoutVersion } from "../adapter/local-version-warning.
 import { clearApplyPatchRenderState } from "../tools/apply-patch/tool.ts";
 import type { CodeModeRegistration } from "../tools/code-mode/tools.ts";
 import { initializeBashParser } from "../shell/bash.ts";
+import { CANCELLED, interruptible } from "../voice/cancellation.ts";
+import type { PreparedVoiceDelegation } from "../voice/session-messages.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
 import type { CodexToolRegistration } from "./tools.ts";
 import type { CodexUiController } from "./ui.ts";
@@ -59,6 +61,7 @@ export function registerCodexEvents(
 	proxyProvider: CodeModeProxyProviderRegistration,
 ): void {
 	const { state, tracker, sessions } = runtime;
+	runtime.voice.setDelegationPreflight((ctx, signal) => prepareVoiceDelegation(runtime, codeMode, ctx, signal));
 	sessions.onSessionExit((sessionId) => tracker.recordSessionFinished(sessionId));
 
 	pi.on("session_start", async (event, ctx) => {
@@ -71,6 +74,7 @@ export function registerCodexEvents(
 		state.cwd = ctx.cwd;
 		state.config = readCodexConversionConfig();
 		state.activeProviderSystemPrompt = undefined;
+		state.voiceSystemPromptOverride = undefined;
 		proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 		if (state.config.voiceFeaturesOnly) {
@@ -78,6 +82,7 @@ export function registerCodexEvents(
 			tools.ensureOptionalTools();
 			ui.clearBackgroundWidget();
 			syncAdapter(pi, ctx, state);
+			await runtime.configureDiagnostics(ctx);
 			return;
 		}
 		sessions.setBaseEnv(runtime.execEnv());
@@ -86,8 +91,10 @@ export function registerCodexEvents(
 		tools.ensureOptionalTools();
 		ui.renderBackgroundWidget();
 		syncAdapter(pi, ctx, state);
+		await runtime.configureDiagnostics(ctx);
 		prepareCodeModeHost(codeMode, ctx);
-		if (!state.config.prompt.heavySystemPromptOverwrite) void runtime.startPrewarm(ctx);
+		if (!state.config.prompt.heavySystemPromptOverwrite)
+			void runtime.startPrewarm(ctx, codeMode.refreshPromptTools(ctx.getSystemPrompt(), ctx));
 		if (event.reason === "startup") await maybeWarnLocalCheckoutVersion(ctx);
 	});
 
@@ -95,18 +102,22 @@ export function registerCodexEvents(
 		runtime.resetTransport(ctx.sessionManager.getSessionId());
 		state.cwd = ctx.cwd;
 		state.activeProviderSystemPrompt = undefined;
+		state.voiceSystemPromptOverride = undefined;
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 		proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 		if (state.config.voiceFeaturesOnly) {
 			tools.ensureOptionalTools();
 			ui.clearBackgroundWidget();
 			syncAdapter(pi, ctx, state);
+			await runtime.configureDiagnostics(ctx);
 			return;
 		}
 		tools.ensureOptionalTools();
 		syncAdapter(pi, ctx, state);
+		await runtime.configureDiagnostics(ctx);
 		prepareCodeModeHost(codeMode, ctx);
-		if (!state.config.prompt.heavySystemPromptOverwrite) void runtime.startPrewarm(ctx);
+		if (!state.config.prompt.heavySystemPromptOverwrite)
+			void runtime.startPrewarm(ctx, codeMode.refreshPromptTools(ctx.getSystemPrompt(), ctx));
 	});
 
 	pi.on("message_start", async (event) => {
@@ -135,6 +146,7 @@ export function registerCodexEvents(
 		await runShutdownStep(failures, () => runtime.lanVoice.stop(ctx));
 		await runShutdownStep(failures, () => runtime.voice.stop({ announce: true }));
 		await runShutdownStep(failures, () => runtime.shutdownTransport(ctx.sessionManager.getSessionId()));
+		await runShutdownStep(failures, () => runtime.shutdownDiagnostics());
 		await runShutdownStep(failures, () => ui.clearBackgroundWidget());
 		runtime.backgroundWidget.ctx = undefined;
 		await runShutdownStep(failures, () => sessions.shutdown());
@@ -149,6 +161,7 @@ export function registerCodexEvents(
 	});
 	pi.on("before_agent_start", async (event, ctx) => {
 		const systemPrompt = event.systemPrompt;
+		state.voiceSystemPromptOverride = undefined;
 		if (!isAdapterRuntime(resolveCodexRuntimePlan(ctx, state.config))) {
 			state.pendingActiveProviderPromptCapture = false;
 			return undefined;
@@ -167,6 +180,7 @@ export function registerCodexEvents(
 	pi.on("agent_start", async () => { runtime.voice.agentStarted(); runtime.lanVoice.agentStarted(); });
 	pi.on("agent_settled", async () => {
 		state.pendingActiveProviderPromptCapture = false;
+		state.voiceSystemPromptOverride = undefined;
 		state.codexTurnState.reset();
 		runtime.voice.settleTurn();
 		runtime.lanVoice.agentSettled();
@@ -214,11 +228,92 @@ export function registerCodexEvents(
 			: runtime.startPrewarm(ctx, postCompactionPrompt, true));
 	});
 	pi.on("context", async (event) => {
-		const voiceMessages = runtime.voice.filterContext(event.messages);
-		if (state.config.voiceFeaturesOnly) return { messages: voiceMessages };
-		const messages = voiceMessages.filter((message) => !isAdapterContextExcludedCustomMessage(message));
+		const messages = event.messages.filter((message) => !isProviderContextExcludedMessage(message));
+		if (state.config.voiceFeaturesOnly) return { messages };
 		return { messages };
 	});
+}
+
+async function prepareVoiceDelegation(
+	runtime: CodexExtensionRuntime,
+	codeMode: CodeModeRegistration,
+	ctx: ExtensionContext,
+	signal: AbortSignal,
+): Promise<PreparedVoiceDelegation | undefined> {
+	const { state } = runtime;
+	const buildCurrent = () => {
+		if (!isAdapterRuntime(resolveCodexRuntimePlan(ctx, state.config))) return undefined;
+		const basePrompt = state.activeProviderSystemPrompt ?? ctx.getSystemPrompt();
+		const promptOptions = state.config.prompt.heavySystemPromptOverwrite
+			? { cwd: ctx.cwd }
+			: undefined;
+		const systemPrompt = runtime.codexSystemPrompt(
+			codeMode.refreshPromptTools(basePrompt, ctx),
+			ctx,
+			undefined,
+			promptOptions,
+		);
+		return {
+			systemPrompt,
+			prewarmIdentity: runtime.prewarmIdentity(ctx, systemPrompt),
+		};
+	};
+	for (;;) {
+		signal.throwIfAborted();
+		const prepared = buildCurrent();
+		if (!prepared) {
+			state.voiceSystemPromptOverride = undefined;
+			return undefined;
+		}
+		const prewarmOperation = runtime.waitForPrewarm(ctx, prepared.systemPrompt);
+		const prewarm = prewarmOperation
+			? await interruptible(prewarmOperation, signal)
+			: undefined;
+		if (prewarm === CANCELLED) {
+			signal.throwIfAborted();
+			throw new Error("Voice delegation preflight was cancelled");
+		}
+		if (prewarm?.status === "aborted") continue;
+		if (prewarm?.status === "failed") throw prewarm.error;
+		const current = buildCurrent();
+		if (
+			!current ||
+			current.systemPrompt !== prepared.systemPrompt ||
+			current.prewarmIdentity !== prepared.prewarmIdentity
+		) continue;
+		let committed = false;
+		let previous: Pick<typeof state, "activeProviderSystemPrompt" | "voiceSystemPromptOverride" | "pendingActiveProviderPromptCapture"> | undefined;
+		return {
+			commit() {
+				const commit = buildCurrent();
+				if (
+					!commit ||
+					commit.systemPrompt !== prepared.systemPrompt ||
+					commit.prewarmIdentity !== prepared.prewarmIdentity
+				) return false;
+				previous = {
+					activeProviderSystemPrompt: state.activeProviderSystemPrompt,
+					voiceSystemPromptOverride: state.voiceSystemPromptOverride,
+					pendingActiveProviderPromptCapture: state.pendingActiveProviderPromptCapture,
+				};
+				state.activeProviderSystemPrompt = prepared.systemPrompt;
+				state.voiceSystemPromptOverride = prepared.systemPrompt;
+				state.pendingActiveProviderPromptCapture = true;
+				committed = true;
+				return true;
+			},
+			rollback() {
+				if (!committed || !previous) return;
+				if (state.activeProviderSystemPrompt === prepared.systemPrompt)
+					state.activeProviderSystemPrompt = previous.activeProviderSystemPrompt;
+				if (state.voiceSystemPromptOverride === prepared.systemPrompt)
+					state.voiceSystemPromptOverride = previous.voiceSystemPromptOverride;
+				if (state.pendingActiveProviderPromptCapture === true)
+					state.pendingActiveProviderPromptCapture = previous.pendingActiveProviderPromptCapture;
+				committed = false;
+			},
+		};
+	}
 }
 
 async function runShutdownStep(failures: unknown[], action: () => unknown): Promise<void> {

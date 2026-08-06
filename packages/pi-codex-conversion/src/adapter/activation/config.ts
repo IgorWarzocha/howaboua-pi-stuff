@@ -1,4 +1,5 @@
 export type CodexVerbosity = "low" | "medium" | "high";
+export type CacheDiagnosticsMode = "off" | "status" | "status-and-log";
 export type AllProvidersMode = "off" | "on" | "extras";
 export type HelperModel =
 	| "gpt-5.6-luna"
@@ -96,6 +97,7 @@ export interface CodexConversionConfig {
 		fast: boolean;
 		verbosity: CodexVerbosity;
 		forceCachedWebSockets: boolean;
+		cacheDiagnostics: CacheDiagnosticsMode;
 		harnessIdentifierHeader: boolean;
 		webSearchModel: WebSearchModel;
 	};
@@ -141,6 +143,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 		fast: false,
 		verbosity: "low",
 		forceCachedWebSockets: true,
+		cacheDiagnostics: "off",
 		harnessIdentifierHeader: false,
 		webSearchModel: "gpt-5.6-luna",
 	},
@@ -169,6 +172,14 @@ export function normalizeCodexVerbosity(
 		normalized === "medium" ||
 		normalized === "high"
 		? normalized
+		: undefined;
+}
+
+export function normalizeCacheDiagnosticsMode(
+	value: unknown,
+): CacheDiagnosticsMode | undefined {
+	return value === "off" || value === "status" || value === "status-and-log"
+		? value
 		: undefined;
 }
 
@@ -418,6 +429,9 @@ export function normalizeCodexConversionConfig(
 				openai["forceCachedWebSockets"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.openai["forceCachedWebSockets"],
 			),
+			cacheDiagnostics:
+				normalizeCacheDiagnosticsMode(openai["cacheDiagnostics"]) ??
+				DEFAULT_CODEX_CONVERSION_CONFIG.openai.cacheDiagnostics,
 			harnessIdentifierHeader: bool(
 				openai["harnessIdentifierHeader"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.openai["harnessIdentifierHeader"],

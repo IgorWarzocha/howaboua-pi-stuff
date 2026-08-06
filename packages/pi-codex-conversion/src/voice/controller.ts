@@ -20,7 +20,7 @@ import {
 import { realtimeHandoffChannel } from "./conversation/handoff.ts";
 import type { CodexRealtimePeer } from "./conversation/peer.ts";
 import type { CodexRealtimeConversation } from "./conversation/session.ts";
-import { CodexVoiceSessionMessages } from "./session-messages.ts";
+import { CodexVoiceSessionMessages, type PreparedVoiceDelegation } from "./session-messages.ts";
 import { formatVoiceAudioError } from "./setup.ts";
 import type { CodexVoiceMode } from "./ui.ts";
 
@@ -32,16 +32,26 @@ export class CodexVoiceController {
 	};
 	private readonly messages: CodexVoiceSessionMessages;
 	private readonly inputMuteListeners = new Set<(muted: boolean) => void>();
+	private delegationPreflight: (ctx: ExtensionContext, signal: AbortSignal) => Promise<PreparedVoiceDelegation | undefined> = async () => undefined;
 
 	constructor(pi: ExtensionAPI) {
 		this.messages = new CodexVoiceSessionMessages(pi, {
 			canDelegate: () => this.runtime.state.type === "conversation",
+			prepareDelegation: (ctx, signal) => this.delegationPreflight(ctx, signal),
 			onDelegation: (id) => {
 				if (this.runtime.state.type === "conversation")
 					this.runtime.state.session.activateDelegation(id);
 			},
+			onDelegationFailed: () => {
+				if (this.runtime.state.type === "conversation")
+					this.runtime.state.session.settleAgentTurn();
+			},
 			onWorking: () => this.renderStatus("working"),
 		});
+	}
+
+	setDelegationPreflight(preflight: (ctx: ExtensionContext, signal: AbortSignal) => Promise<PreparedVoiceDelegation | undefined>): void {
+		this.delegationPreflight = preflight;
 	}
 
 	get status(): string {
@@ -163,6 +173,7 @@ export class CodexVoiceController {
 		this.runtime.startAbortController?.abort();
 		this.runtime.startAbortController = undefined;
 		this.runtime.startGeneration += 1;
+		const stopGeneration = this.runtime.startGeneration;
 		const wasMuted = this.inputMuted;
 		const endedMode = options?.announce
 			? this.runtime.announcedMode
@@ -175,9 +186,12 @@ export class CodexVoiceController {
 		this.runtime.voiceStatus = "";
 		this.runtime.context?.ui.setStatus(VOICE_STATUS_KEY, undefined);
 		await closePromise;
+		this.messages.cancelPendingDelegations();
+		await this.messages.waitForDelegations();
 		if (wasMuted)
 			for (const listener of this.inputMuteListeners) listener(false);
-		this.messages.voiceStopped(endedMode);
+		if (this.runtime.startGeneration === stopGeneration)
+			this.messages.voiceStopped(endedMode);
 	}
 
 	async finishDictation(options?: { announce?: boolean }): Promise<void> {
@@ -256,7 +270,7 @@ export class CodexVoiceController {
 		const message = this.runtime.config
 			? formatVoiceAudioError(error, mode, this.runtime.config)
 			: error.message;
-		this.runtime.startGeneration += 1;
+		const failGeneration = ++this.runtime.startGeneration;
 		const endedMode = this.runtime.announcedMode;
 		const wasMuted = this.inputMuted;
 		const session = this.currentSession();
@@ -267,10 +281,18 @@ export class CodexVoiceController {
 		this.runtime.voiceStatus = "";
 		this.runtime.context?.ui.setStatus(VOICE_STATUS_KEY, undefined);
 		this.runtime.context?.ui.notify(message, "error");
-		this.messages.voiceStopped(endedMode);
 		if (wasMuted)
 			for (const listener of this.inputMuteListeners) listener(false);
-		void closePromise;
+		void (async () => {
+			await Promise.allSettled([closePromise]);
+			this.messages.cancelPendingDelegations();
+			await Promise.allSettled([this.messages.waitForDelegations()]);
+			if (
+				this.runtime.startGeneration === failGeneration &&
+				this.runtime.state.type === "failed" &&
+				this.runtime.state.message === message
+			) this.messages.voiceStopped(endedMode);
+		})();
 	}
 
 	private renderStatus(status: string): void {

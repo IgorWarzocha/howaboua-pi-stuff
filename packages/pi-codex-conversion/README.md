@@ -21,6 +21,7 @@ Open `/codex` after installation. The defaults give Codex-like GPT models the st
 - [What you get](#what-you-get)
 - [Modes](#modes)
 - [Settings](#settings)
+- [Cache diagnostics](#cache-diagnostics)
 - [Code Mode and custom tools](#code-mode-and-custom-tools)
 - [Voice, dictation and GipPity](#voice-dictation-and-gippity)
 - [Models and providers](#models-and-providers)
@@ -60,7 +61,7 @@ Provider scope can stay on **Codex and configured**, expand to **all providers**
 | --- | --- |
 | General | Extension mode, provider scope, configured providers and heavy prompt overwrite |
 | Tools | Code Mode, web, images, text image descriptions and activate-only tools |
-| OpenAI | Fast mode, verbosity, transport, Responses Lite and compaction |
+| OpenAI | Fast mode, verbosity, transport, cache diagnostics, Responses Lite and compaction |
 | Display | Statusline, tool rendering, Code Mode detail and background shells |
 | Voice | LAN server, voice, dictation behaviour, shortcuts and prompt paths |
 | Usage | Codex limits, reset times and banked reset credits |
@@ -73,6 +74,40 @@ Settings live in `~/.pi/agent/pi-codex-conversion.json`. **Edit config** opens t
 `tools.customRustBinariesDir` can override any bundled native helper by filename, including `exec_bridge`, `apply_patch`, `view_image`, `web_run`, `imagegen` and `pi-codex-voice`. Build helpers on the target machine, collect the needed binaries in one directory, set that directory in the config, then run `/reload`.
 
 The optional **Heavy system prompt overwrite** removes roughly 40% of Pi's known default scaffold while preserving additions from other extensions. It is off by default.
+
+## Cache diagnostics
+
+Open `/codex openai` and enable **Cache status line**. **Cache log file** is an additional tier and enables the status automatically. Both are off by default.
+
+Pi has one extension-status row, so the existing adapter and optional cache state appear together:
+
+```text
+Codex adapter V: low • web search • image gen Codex Cache • HIT • WS delta
+```
+
+Pi's built-in footer already shows the latest cache percentage. `Codex Cache` instead explains the transport and continuation decision:
+
+| Status | Meaning |
+| --- | --- |
+| `Codex Cache • waiting` | Enabled; no Codex request observed yet. |
+| `Codex Cache • prewarm ready • WS new` | A new WebSocket was prepared successfully. `WS reused` means an existing socket was prepared. |
+| `Codex Cache • HIT • WS delta` | OpenAI reported cached input and only continuation input was sent. |
+| `Codex Cache • HIT • WS full (body mismatch)` | Delta continuation was unsafe, so the full request was sent, but OpenAI's prompt cache still hit. |
+| `Codex Cache • MISS • WS full (input prefix mismatch)` | The history diverged from the continuation baseline and OpenAI reported no cached input. |
+| `Codex Cache • WS retry 2` | The first WebSocket attempt failed and the adapter is retrying. |
+| `Codex Cache • WS → SSE` | WebSocket recovery ended and the request moved to SSE. |
+| `Codex Cache • compaction • HIT • WS delta` | Native compaction reused the active continuation. |
+| `Codex Cache • WS failed: authentication • invalid_token • 401` | The request failed; diagnostics expose only safe error metadata. |
+
+A cache miss stays visible for three seconds. Events arriving during that hold are not queued; the row then moves directly to the newest state. WebSocket continuation and OpenAI prompt caching are separate, so `WS full` can still produce a cache hit.
+
+With logging enabled the status gains `• log`. Readable per-session logs go to:
+
+```text
+~/.pi/agent/pi-codex-logs/<session-derived-name>.log
+```
+
+Logs contain request lane, transport, socket reuse, continuation decision, item counts, cache token counts, retry/fallback state and allowlisted errors. They omit prompts, messages, tool arguments, images, credentials, provider payloads and response IDs.
 
 ## Code Mode and custom tools
 

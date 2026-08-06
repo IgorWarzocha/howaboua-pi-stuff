@@ -3,6 +3,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { isVoiceContextExcludedMessage } from "./context-visibility.ts";
 import { renderRealtimeTranscriptTail } from "./prompts.ts";
 import type { RealtimeVoiceTurn } from "./turns.ts";
 import {
@@ -11,6 +12,7 @@ import {
 	type CodexVoiceModeMessageDetails,
 	type CodexVoiceModeState,
 	codexVoiceModeMessage,
+	REALTIME_DELEGATION_MESSAGE_TYPE,
 	REALTIME_USER_TRANSCRIPT_MESSAGE_TYPE,
 	REALTIME_VOICE_MESSAGE_TYPE,
 	type RealtimeUserTranscriptMessageDetails,
@@ -21,9 +23,16 @@ import {
 
 const REALTIME_VOICE_TAIL_CONTEXT_TYPE = "codex-realtime-voice-tail";
 
+export interface PreparedVoiceDelegation {
+	commit(): boolean;
+	rollback(): void;
+}
+
 export interface CodexVoiceSessionMessageCallbacks {
 	canDelegate(): boolean;
+	prepareDelegation(ctx: ExtensionContext, signal: AbortSignal): Promise<PreparedVoiceDelegation | undefined>;
 	onDelegation(id: string): void;
+	onDelegationFailed(id: string): void;
 	onWorking(): void;
 }
 
@@ -33,6 +42,9 @@ export class CodexVoiceSessionMessages {
 	private context: ExtensionContext | undefined;
 	private piTurnActive = false;
 	private dictationAnnounced = false;
+	private delegationTail: Promise<void> = Promise.resolve();
+	private delegationAbortController = new AbortController();
+	private contextGeneration = 0;
 
 	constructor(pi: ExtensionAPI, callbacks: CodexVoiceSessionMessageCallbacks) {
 		this.pi = pi;
@@ -40,7 +52,7 @@ export class CodexVoiceSessionMessages {
 	}
 
 	setContext(ctx: ExtensionContext): void {
-		this.context = ctx;
+		this.replaceContext(ctx);
 		this.piTurnActive = !ctx.isIdle();
 	}
 
@@ -68,7 +80,7 @@ export class CodexVoiceSessionMessages {
 	}
 
 	resetSessionContext(): void {
-		this.context = undefined;
+		this.replaceContext(undefined);
 		this.piTurnActive = false;
 	}
 
@@ -79,10 +91,10 @@ export class CodexVoiceSessionMessages {
 	voiceStopped(mode?: CodexVoiceMode): void {
 		this.piTurnActive = this.context ? !this.context.isIdle() : false;
 		if (mode && mode !== "dictation") this.appendMode(mode, "ended");
-		this.context = undefined;
+		this.replaceContext(undefined);
 	}
 
-	voiceTurn(turn: RealtimeVoiceTurn): void {
+	voiceTurn(turn: RealtimeVoiceTurn): Promise<void> {
 		if (!turn.delegationId) {
 			this.pi.appendEntry<RealtimeVoiceMessageDetails>(
 				REALTIME_VOICE_MESSAGE_TYPE,
@@ -91,11 +103,23 @@ export class CodexVoiceSessionMessages {
 					route: "conversation",
 				},
 			);
-			return;
+			return Promise.resolve();
 		}
-		const ctx = this.context;
-		if (!ctx) return;
-		this.deliverDelegation(turn, !this.piTurnActive && ctx.isIdle());
+		const generation = this.contextGeneration;
+		const canDeliver = this.callbacks.canDelegate();
+		const delivery = this.delegationTail.then(() =>
+			this.deliverDelegation(turn, generation, canDeliver),
+		);
+		this.delegationTail = delivery.catch(() => undefined);
+		return delivery;
+	}
+
+	waitForDelegations(): Promise<void> {
+		return this.delegationTail;
+	}
+
+	cancelPendingDelegations(): void {
+		this.delegationAbortController.abort();
 	}
 
 	retainTranscriptTail(transcriptDelta: string): void {
@@ -117,7 +141,7 @@ export class CodexVoiceSessionMessages {
 
 	filterContext(messages: ContextEvent["messages"]): ContextEvent["messages"] {
 		return messages.filter(
-			(message) => !isContextExcludedVoiceMessage(message),
+			(message) => !isVoiceContextExcludedMessage(message),
 		);
 	}
 
@@ -143,32 +167,89 @@ export class CodexVoiceSessionMessages {
 		);
 	}
 
-	private deliverDelegation(
-		turn: RealtimeVoiceTurn,
-		startsTurn: boolean,
-	): boolean {
-		if (!turn.delegationId || !this.callbacks.canDelegate()) return false;
-		this.callbacks.onDelegation(turn.delegationId);
-		this.piTurnActive = true;
-		this.callbacks.onWorking();
-		this.pi.sendMessage(
-			realtimeVoiceMessage(turn.input, "delegation", turn.transcriptDelta),
-			startsTurn
-				? { triggerTurn: true }
-				: { triggerTurn: true, deliverAs: "steer" },
-		);
-		return true;
+	private replaceContext(ctx: ExtensionContext | undefined): void {
+		this.delegationAbortController.abort();
+		this.delegationAbortController = new AbortController();
+		this.contextGeneration++;
+		this.delegationTail = Promise.resolve();
+		this.context = ctx;
 	}
-}
 
-function isContextExcludedVoiceMessage(
-	message: ContextEvent["messages"][number],
-): boolean {
-	if (message.role !== "custom") return false;
-	if (message.customType === REALTIME_VOICE_MESSAGE_TYPE) return true;
-	return (
-		message.customType === CODEX_VOICE_MODE_MESSAGE_TYPE &&
-		(typeof message.content !== "string" ||
-			!message.content.startsWith('<realtime_voice_session state="'))
-	);
+	private async deliverDelegation(
+		turn: RealtimeVoiceTurn,
+		generation: number,
+		canDeliver: boolean,
+	): Promise<void> {
+		const ctx = this.context;
+		if (
+			generation !== this.contextGeneration ||
+			!ctx ||
+			!turn.delegationId ||
+			!canDeliver
+		) return;
+		const signal = this.delegationAbortController.signal;
+		let preflight: PreparedVoiceDelegation | undefined;
+		let deliveryStarted = false;
+		let failureAction = "prepare";
+		try {
+			let startsTurn = !this.piTurnActive && ctx.isIdle();
+			if (startsTurn) {
+				for (;;) {
+					preflight = await this.callbacks.prepareDelegation(ctx, signal);
+					if (
+						generation !== this.contextGeneration ||
+						this.context !== ctx
+					) return;
+					startsTurn = !this.piTurnActive && ctx.isIdle();
+					if (!startsTurn) break;
+					deliveryStarted = true;
+					if (preflight?.commit() !== false) break;
+					deliveryStarted = false;
+					preflight = undefined;
+				}
+			}
+			failureAction = "deliver";
+			deliveryStarted = true;
+			this.callbacks.onDelegation(turn.delegationId);
+			this.piTurnActive = true;
+			this.callbacks.onWorking();
+			this.pi.sendMessage(
+				realtimeVoiceMessage(turn.input, "delegation", turn.transcriptDelta),
+				startsTurn
+					? { triggerTurn: true }
+					: { triggerTurn: true, deliverAs: "steer" },
+			);
+		} catch (error) {
+			if (
+				generation !== this.contextGeneration ||
+				this.context !== ctx
+			) return;
+			if (deliveryStarted) {
+				try { preflight?.rollback(); } catch {}
+				try {
+					this.piTurnActive = this.context ? !this.context.isIdle() : false;
+				} catch {
+					this.piTurnActive = false;
+				}
+				try { this.callbacks.onDelegationFailed(turn.delegationId); } catch {}
+			}
+			const message = signal.aborted
+				? "Voice session stopped before the delegation was prepared"
+				: error instanceof Error ? error.message : String(error);
+			if (!signal.aborted) {
+				try {
+					ctx.ui.notify(
+						`Could not ${failureAction} voice delegation: ${message}`,
+						"error",
+					);
+				} catch {}
+			}
+			try {
+				this.pi.appendEntry<RealtimeVoiceMessageDetails>(
+					REALTIME_DELEGATION_MESSAGE_TYPE,
+					{ input: turn.input, route: "delegation", error: message },
+				);
+			} catch {}
+		}
+	}
 }

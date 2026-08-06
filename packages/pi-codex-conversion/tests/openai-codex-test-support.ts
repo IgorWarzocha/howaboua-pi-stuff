@@ -2,6 +2,7 @@ import { zstdDecompressSync } from "node:zlib";
 import { registerOpenAICodexCustomProvider, closeOpenAICodexWebSocketSessions } from "../src/providers/openai-codex-custom-provider.ts";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
+import type { CodexDiagnosticsSink } from "../src/providers/openai-codex/types.ts";
 import { CODE_MODE_EXEC_GRAMMAR } from "../src/tools/code-mode/exec-contract.ts";
 
 export const exampleTool = {
@@ -196,7 +197,11 @@ export function codexStreamRequest(sessionId: string) {
 	};
 }
 
-export function createRegisteredCodexProvider(options?: { codeMode?: boolean | undefined; onPreparedPayload?: ((payload: unknown) => void) | undefined }) {
+export function createRegisteredCodexProvider(options?: {
+	codeMode?: boolean | undefined;
+	onPreparedPayload?: ((payload: unknown) => void) | undefined;
+	getDiagnostics?: (() => CodexDiagnosticsSink | undefined) | undefined;
+}) {
 	const turnState = createCodexTurnState();
 	const providers = new Map<string, { streamSimple: (...args: never[]) => AsyncIterable<unknown> }>();
 	const handlers = new Map<string, Array<(...args: never[]) => unknown>>();
@@ -224,6 +229,7 @@ export function createRegisteredCodexProvider(options?: { codeMode?: boolean | u
 		}),
 		turnState,
 		...(options?.onPreparedPayload ? { onPreparedPayload: options.onPreparedPayload as never } : {}),
+		...(options?.getDiagnostics ? { getDiagnostics: options.getDiagnostics } : {}),
 	});
 	return { provider: providers.get("openai-codex")!, handlers, renderers, sentMessages, turnState };
 }
