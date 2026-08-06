@@ -15,6 +15,7 @@ import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import { DEFAULT_MAX_RETRY_DELAY_MS, DEFAULT_SSE_HEADER_TIMEOUT_MS, DEFAULT_STREAM_IDLE_TIMEOUT_MS, DEFAULT_STREAM_MAX_RETRIES, INITIAL_STREAM_RETRY_DELAY_MS, MAX_SSE_REQUEST_RETRIES, MAX_STREAM_MAX_RETRIES } from "./openai-codex/constants.ts";
 import { createErrorMessage, isRetryableRequestStatus, isRetryableStreamStatus, NonRetryableProviderError, parseErrorResponse } from "./openai-codex/errors.ts";
 import { createCodexRequestId, extractAccountId, buildSSEHeaders, buildWebSocketHeaders, headersToRecord, PI_CODEX_CONVERSION_ORIGINATOR, resolveCodexUrl, resolveCodexWebSocketUrl } from "./openai-codex/headers.ts";
+import { codexDiagnosticsFailure } from "./openai-codex/diagnostic-failure.ts";
 import { buildRequestBody } from "./openai-codex/request-body.ts";
 import { supportsResponsesLiteModel } from "./openai-codex/responses-lite-model.ts";
 import { applyResponsesLiteRequest, applyResponsesLiteWebSocketMetadata, isResponsesLiteRequest, prepareResponsesLiteRequestImages } from "./openai-codex/responses-lite.ts";
@@ -41,10 +42,6 @@ function diagnosticsLane(body: ResponsesBody): Exclude<CodexDiagnosticsLane, "pr
 	return body.input.some((item) =>
 		item && typeof item === "object" && (item as { type?: unknown }).type === "compaction_trigger"
 	) ? "compaction" : "response";
-}
-
-function diagnosticError(error: unknown): string {
-	return error instanceof Error ? `${error.name}: ${error.message}` : String(error);
 }
 
 function recordUsage(
@@ -272,7 +269,7 @@ function createCodexStream<TApi extends Api>(
 		const recordFailure = (transport: "websocket" | "sse", error: unknown) => {
 			if (!diagnostics) return;
 			diagnosticsFailureRecorded = true;
-			diagnostics({ type: "failure", lane, transport, error: diagnosticError(error) });
+			diagnostics({ type: "failure", lane, transport, failure: codexDiagnosticsFailure(error) });
 		};
 		try {
 			const apiKey = effectiveOptions?.apiKey;
@@ -385,7 +382,7 @@ function createCodexStream<TApi extends Api>(
 								transport: "websocket",
 								attempt: attempt + 2,
 								...(retryPlan.delayMs !== undefined ? { delayMs: retryPlan.delayMs } : {}),
-								error: diagnosticError(error),
+								failure: codexDiagnosticsFailure(error),
 							});
 							await waitBeforeRetry(retryPlan);
 							continue;
@@ -409,12 +406,12 @@ function createCodexStream<TApi extends Api>(
 							from: "websocket",
 							to: "sse",
 							reason: upgradeRequired
-								? "upgrade required"
+								? "upgrade_required"
 								: messageTooBig
-									? "message too big"
+									? "message_too_big"
 									: unauthorized
 										? "unauthorized"
-										: "retry budget exhausted",
+										: "retry_budget_exhausted",
 						});
 						output = createInitialAssistantMessage(model);
 						break;
@@ -478,7 +475,7 @@ function createCodexStream<TApi extends Api>(
 							transport: "sse",
 							attempt: attempt + 2,
 							...(retryPlan.delayMs !== undefined ? { delayMs: retryPlan.delayMs } : {}),
-							error: diagnosticError(error),
+							failure: codexDiagnosticsFailure(error),
 						});
 						await waitBeforeRetry(retryPlan);
 						continue;

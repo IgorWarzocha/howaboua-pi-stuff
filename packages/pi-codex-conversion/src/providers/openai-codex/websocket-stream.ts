@@ -6,6 +6,7 @@ import { assertSuccessfulCodexOutput, assertSuccessfulCodexStatus, mapCodexEvent
 import type { CachedWebSocketRequestBodyResult, CodexDiagnosticsLane, CodexDiagnosticsSink, OpenAICodexStreamOptions, ResponsesBody } from "./types.ts";
 import type { CodexTurnState } from "./turn-state.ts";
 import { DEFAULT_STREAM_IDLE_TIMEOUT_MS, DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS } from "./constants.ts";
+import { codexDiagnosticsFailure } from "./diagnostic-failure.ts";
 
 export async function processWebSocketStream<TApi extends Api>(
 	url: string,
@@ -144,7 +145,7 @@ export async function prewarmWebSocket(
 			type: "failure",
 			lane: "prewarm",
 			transport: "websocket",
-			error: error instanceof Error ? error.message : String(error),
+			failure: codexDiagnosticsFailure(error),
 		});
 		throw error;
 	} finally {

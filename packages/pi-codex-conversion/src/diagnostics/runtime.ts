@@ -2,6 +2,7 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { CacheDiagnosticsMode } from "../adapter/activation/config.ts";
 import type {
 	CodexDiagnosticsEvent,
+	CodexDiagnosticsFailure,
 	CodexDiagnosticsLane,
 } from "../providers/openai-codex/types.ts";
 
@@ -20,16 +21,6 @@ export interface CodexDiagnosticsRuntime {
 	shutdown(): Promise<void>;
 }
 
-function inputTokens(event: Extract<CodexDiagnosticsEvent, { type: "usage" }>): number {
-	return event.inputTokens + event.cachedInputTokens + event.cacheWriteInputTokens;
-}
-
-function formatTokens(value: number): string {
-	if (value < 1_000) return String(Math.round(value));
-	if (value < 1_000_000) return `${(value / 1_000).toFixed(value < 10_000 ? 1 : 0)}k`;
-	return `${(value / 1_000_000).toFixed(1)}m`;
-}
-
 function laneLabel(lane: CodexDiagnosticsLane): string | undefined {
 	return lane === "response" ? undefined : lane;
 }
@@ -40,9 +31,12 @@ function requestTransportLabel(event: Extract<CodexDiagnosticsEvent, { type: "re
 	return event.continuation ? `WS full (${event.continuation.replaceAll("_", " ")})` : "WS full";
 }
 
-function errorLabel(error: string): string {
-	const singleLine = error.replace(/\s+/g, " ").trim();
-	return singleLine.length > 80 ? `${singleLine.slice(0, 77)}...` : singleLine;
+function failureLabel(failure: CodexDiagnosticsFailure): string {
+	return [
+		failure.category.replaceAll("_", " "),
+		failure.code,
+		failure.status,
+	].filter((value) => value !== undefined).join(" • ");
 }
 
 export async function createCodexDiagnosticsRuntime(options: {
@@ -124,19 +118,17 @@ export async function createCodexDiagnosticsRuntime(options: {
 				return;
 			}
 			if (event.type === "usage") {
-				const totalInput = inputTokens(event);
-				const ratio = totalInput > 0 ? event.cachedInputTokens / totalInput : undefined;
+				const totalInput = event.inputTokens + event.cachedInputTokens + event.cacheWriteInputTokens;
 				const request = latestRequests.get(event.lane);
 				const transport = request
 					? requestTransportLabel(request)
 					: event.transport === "websocket" ? "WS" : "SSE";
 				const prefix = laneLabel(event.lane);
-				if (ratio === 0 && totalInput > 0) {
-					holdMiss([prefix, "MISS", `${formatTokens(totalInput)} input`, transport].filter(Boolean).join(" • "));
+				if (event.cachedInputTokens === 0 && totalInput > 0) {
+					holdMiss([prefix, "MISS", transport].filter(Boolean).join(" • "));
 					return;
 				}
-				const cache = ratio === undefined ? "cache unavailable" : `${(ratio * 100).toFixed(1)}% cached`;
-				showCurrent([prefix, cache, transport].filter(Boolean).join(" • "));
+				showCurrent([prefix, totalInput > 0 ? "HIT" : "cache unavailable", transport].filter(Boolean).join(" • "));
 				return;
 			}
 			if (event.type === "prewarm-ready") {
@@ -151,12 +143,23 @@ export async function createCodexDiagnosticsRuntime(options: {
 				showCurrent(`${laneLabel(event.lane) ? `${laneLabel(event.lane)} • ` : ""}WS → SSE`);
 				return;
 			}
-			showCurrent(`${laneLabel(event.lane) ? `${laneLabel(event.lane)} • ` : ""}${event.transport === "websocket" ? "WS" : "SSE"} failed: ${errorLabel(event.error)}`);
+			showCurrent(`${laneLabel(event.lane) ? `${laneLabel(event.lane)} • ` : ""}${event.transport === "websocket" ? "WS" : "SSE"} failed: ${failureLabel(event.failure)}`);
 		},
 		async shutdown() {
 			if (holdTimer) clearTimeout(holdTimer);
-			ctx.ui.setStatus(CACHE_STATUS_KEY, undefined);
-			await log?.close();
+			const failures: unknown[] = [];
+			try {
+				ctx.ui.setStatus(CACHE_STATUS_KEY, undefined);
+			} catch (error) {
+				failures.push(error);
+			}
+			try {
+				await log?.close();
+			} catch (error) {
+				failures.push(error);
+			}
+			if (failures.length === 1) throw failures[0];
+			if (failures.length > 1) throw new AggregateError(failures, "Codex cache diagnostics shutdown failed");
 		},
 	};
 }

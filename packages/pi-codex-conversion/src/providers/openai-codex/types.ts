@@ -46,6 +46,24 @@ export type WebSocketContinuationDecision =
 
 export type CodexDiagnosticsLane = "response" | "compaction" | "prewarm";
 export type CodexDiagnosticsTransport = "websocket" | "sse";
+export type CodexDiagnosticsFailureCategory =
+	| "aborted"
+	| "authentication"
+	| "connection"
+	| "connection_limit"
+	| "message_too_big"
+	| "overload"
+	| "previous_response_missing"
+	| "protocol"
+	| "rate_limit"
+	| "timeout"
+	| "transport"
+	| "unknown";
+export interface CodexDiagnosticsFailure {
+	category: CodexDiagnosticsFailureCategory;
+	code?: string | undefined;
+	status?: number | undefined;
+}
 export type CodexDiagnosticsEvent =
 	| {
 			type: "request";
@@ -73,20 +91,20 @@ export type CodexDiagnosticsEvent =
 			transport: CodexDiagnosticsTransport;
 			attempt: number;
 			delayMs?: number | undefined;
-			error: string;
+			failure: CodexDiagnosticsFailure;
 	  }
 	| {
 			type: "fallback";
 			lane: Exclude<CodexDiagnosticsLane, "prewarm">;
 			from: CodexDiagnosticsTransport;
 			to: CodexDiagnosticsTransport;
-			reason: string;
+			reason: "upgrade_required" | "message_too_big" | "unauthorized" | "retry_budget_exhausted";
 	  }
 	| {
 			type: "failure";
 			lane: CodexDiagnosticsLane;
 			transport: CodexDiagnosticsTransport;
-			error: string;
+			failure: CodexDiagnosticsFailure;
 	  }
 	| {
 			type: "prewarm-ready";

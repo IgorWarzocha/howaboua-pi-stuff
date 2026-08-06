@@ -71,20 +71,21 @@ function eventFields(event: CodexDiagnosticsEvent): Array<string | undefined> {
 			field("input_tokens", totalInput),
 			field("cache_read", event.cachedInputTokens),
 			field("cache_write", event.cacheWriteInputTokens),
-			field("cache_percent", totalInput > 0 ? ((event.cachedInputTokens / totalInput) * 100).toFixed(1) : "unavailable"),
 			field("output_tokens", event.outputTokens),
 		];
 	}
 	if (event.type === "retry") return [
 		field("event", event.type), field("lane", event.lane), field("transport", event.transport),
-		field("attempt", event.attempt), field("delay_ms", event.delayMs), field("error", event.error),
+		field("attempt", event.attempt), field("delay_ms", event.delayMs),
+		field("failure", event.failure.category), field("code", event.failure.code), field("status", event.failure.status),
 	];
 	if (event.type === "fallback") return [
 		field("event", event.type), field("lane", event.lane), field("from", event.from),
 		field("to", event.to), field("reason", event.reason),
 	];
 	if (event.type === "failure") return [
-		field("event", event.type), field("lane", event.lane), field("transport", event.transport), field("error", event.error),
+		field("event", event.type), field("lane", event.lane), field("transport", event.transport),
+		field("failure", event.failure.category), field("code", event.failure.code), field("status", event.failure.status),
 	];
 	return [field("event", event.type), field("transport", event.transport), field("socket", event.socketReused ? "reused" : "new")];
 }
@@ -141,14 +142,21 @@ export async function createCodexDiagnosticsLog(options: {
 				.then(() => handle.appendFile(formatEvent(event), "utf8"))
 				.catch((error: unknown) => {
 					failed = true;
-					options.onError(error);
+					try {
+						options.onError(error);
+					} catch {
+						// Logging failures must not escape into provider or shutdown paths.
+					}
 				});
 		},
 		async close() {
 			if (closed) return;
 			closed = true;
-			await pending;
-			await handle.close();
+			try {
+				await pending;
+			} finally {
+				await handle.close();
+			}
 		},
 	};
 }
