@@ -82,6 +82,29 @@ test("cached WebSockets stay isolated by Codex account", async () => {
 	}
 });
 
+test("cached WebSockets stay isolated by resolved endpoint", async () => {
+	const restoreWebSocket = installScriptedWebSocket([
+		textResponse("resp_route_1", "one"),
+		textResponse("resp_route_2", "two"),
+	]);
+	try {
+		const registered = createRegisteredCodexProvider({ codeMode: true });
+		const sessionId = "route-isolation";
+		const requestContext = context([user("same user", 1)]);
+		await collectStream(registered.provider.streamSimple(model as never, requestContext as never, streamOptions(sessionId) as never));
+		await collectStream(registered.provider.streamSimple(
+			{ ...model, baseUrl: "https://alternate.example/backend-api" } as never,
+			requestContext as never,
+			streamOptions(sessionId) as never,
+		));
+
+		assert.equal(ScriptedWebSocket.opened, 2);
+		assert.equal(sentFrames()[1]?.previous_response_id, undefined);
+	} finally {
+		restoreWebSocket();
+	}
+});
+
 test("incomplete Codex responses distinguish output truncation from provider failure", async () => {
 	const incomplete = (reason: string) => (socket: ScriptedWebSocket) => socket.emitJson({
 		type: "response.incomplete",
