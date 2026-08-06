@@ -1,7 +1,5 @@
-import { StringDecoder } from "node:string_decoder";
-import { getCodexShellArgs } from "../../adapter/prompt/runtime-shell.ts";
 import { normalizePipeOutput, truncateOutput, truncateToTail } from "./output.ts";
-import { chunkToBytes, createExecBridgeClient, type BridgeReadResponse } from "./bridge-client.ts";
+import { createBridgeSessionRuntime, type BridgeExecSession, type BridgeSessionHooks } from "./bridge-session.ts";
 import { DEFAULT_EXEC_YIELD_TIME_MS, DEFAULT_MAX_EMPTY_WRITE_YIELD_TIME_MS, DEFAULT_WRITE_YIELD_TIME_MS, clampExecYieldTime, clampWriteYieldTime, normalizeMinEmptyWriteYieldTime, normalizeMinNonInteractiveExecYieldTime, resolveExecution, resolveShell, resolveWorkdir } from "./shell.ts";
 import { registerAbortHandler, waitForExitOrInactivity } from "./wait.ts";
 import { makeExecResult, makeSnapshotResult, makeSnapshotSince, snapshotSession } from "./results.ts";
@@ -47,38 +45,7 @@ export interface WriteStdinInput {
 	max_output_tokens?: number | undefined;
 }
 
-interface BaseExecSession {
-	id: number;
-	command: string;
-	buffer: string;
-	bufferStartOffset: number;
-	emittedOffset: number;
-	outputVersion: number;
-	exitCode: number | null | undefined;
-	startedAt: number;
-	updatedAt: number;
-	finalized: boolean;
-	exposed: boolean;
-	terminating: boolean;
-	listeners: Set<() => void>;
-	interactive: boolean;
-	nextEmptyPollYieldMs?: number | undefined;
-}
-
-interface RustExecSession extends BaseExecSession {
-	kind: "rust";
-	processId: string;
-	startup: Promise<void>;
-	started: boolean;
-	tty: boolean;
-	lastSeq: number;
-	outputDecoders: Record<"stdout" | "stderr" | "pty", StringDecoder>;
-	outputDecodersFlushed: boolean;
-	postExitIdleSince?: number | undefined;
-	observedExitCode?: number | null | undefined;
-}
-
-type ExecSession = RustExecSession;
+type ExecSession = BridgeExecSession;
 
 export type ExecSessionUpdateCallback = (result: UnifiedExecResult) => void;
 
@@ -113,7 +80,6 @@ const MAX_COMPLETED_SESSION_OUTPUT_TOKENS = MAX_COMPLETED_SESSION_OUTPUT_CHARS /
 const DEFAULT_MAX_TTY_SESSION_BUFFER_CHARS = 1024 * 1024;
 const DEFAULT_MAX_PIPE_SESSION_BUFFER_CHARS = 256 * 1024 * 1024;
 const TERMINATE_ESCALATE_MS = 2_000;
-const EXIT_OUTPUT_GRACE_MS = 100;
 
 export function createExecSessionManager(options: ExecSessionManagerOptions = {}): ExecSessionManager {
 	let nextSessionId = 1;
@@ -122,7 +88,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 	const completedResults = new Map<number, UnifiedExecResult>();
 	const changeListeners = new Set<(reason: ExecSessionChangeReason) => void>();
 	const exitListeners = new Set<(sessionId: number, command: string) => void>();
-	const bridge = createExecBridgeClient(options.bridgeBinaryPath);
+	const bridgeSessions = createBridgeSessionRuntime(options.bridgeBinaryPath);
 	let baseEnv: NodeJS.ProcessEnv = { ...(options.env ?? process.env) };
 	const defaultExecYieldTimeMs = options.defaultExecYieldTimeMs ?? DEFAULT_EXEC_YIELD_TIME_MS;
 	const defaultWriteYieldTimeMs = options.defaultWriteYieldTimeMs ?? DEFAULT_WRITE_YIELD_TIME_MS;
@@ -201,24 +167,6 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 		notifyChanged("start");
 	}
 
-	function setClosedExitCode(session: ExecSession, code: number | null | undefined, signal?: string | null): void {
-		if (session.exitCode !== undefined && session.exitCode !== null) return;
-		if (session.terminating) {
-			session.exitCode = code && code !== 0 ? code : signal ? 128 + signalNumber(signal) : 143;
-			return;
-		}
-		session.exitCode = code ?? (signal ? 128 + signalNumber(signal) : 1);
-	}
-
-	function signalNumber(signal: string): number {
-		if (signal === "SIGTERM") return 15;
-		if (signal === "SIGKILL") return 9;
-		if (signal === "SIGINT") return 2;
-		const numericSignal = /^SIG(\d+)$/.exec(signal)?.[1];
-		if (numericSignal) return Number.parseInt(numericSignal, 10);
-		return 1;
-	}
-
 	function appendOutput(session: ExecSession, text: string): void {
 		if (text.length === 0) return;
 		const output = session.tty ? text : normalizePipeOutput(text);
@@ -237,137 +185,37 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 		baseEnv = { ...env };
 	}
 
-	async function pollSession(session: RustExecSession, waitMs = 0, maxBytes?: number): Promise<void> {
-		const response = await bridge.request<BridgeReadResponse>({
-			op: "read",
-			process_id: session.processId,
-			after_seq: session.lastSeq,
-			max_bytes: maxBytes,
-			wait_ms: waitMs,
-		});
-		let receivedOutput = false;
-		for (const chunk of response.chunks ?? []) {
-			appendOutput(session, session.outputDecoders[chunk.stream].write(chunkToBytes(chunk.chunk)));
-			session.lastSeq = Math.max(session.lastSeq, chunk.seq);
-			receivedOutput = true;
-		}
-		session.lastSeq = Math.max(session.lastSeq, response.nextSeq - 1);
-		if (response.exited) {
-			session.observedExitCode = response.exitCode;
-			if (session.postExitIdleSince === undefined || receivedOutput) session.postExitIdleSince = Date.now();
-		}
-		const postExitIdle = session.postExitIdleSince !== undefined
-			&& Date.now() - session.postExitIdleSince >= EXIT_OUTPUT_GRACE_MS;
-		if (response.closed || postExitIdle) {
-			if (!session.outputDecodersFlushed) {
-				session.outputDecodersFlushed = true;
-				for (const decoder of Object.values(session.outputDecoders)) appendOutput(session, decoder.end());
-			}
-			setClosedExitCode(session, response.exitCode ?? session.observedExitCode);
-			finalizeSession(session);
-		}
-	}
-
-	function createRustSession(input: ExecCommandInput, workdir: string, shell: string, signal?: AbortSignal): RustExecSession {
-		const session: RustExecSession = {
-			kind: "rust",
-			id: nextSessionId++,
-			processId: "",
-			startup: Promise.resolve(),
-			started: false,
-			tty: Boolean(input.tty),
-			command: input.cmd,
-			buffer: "",
-			bufferStartOffset: 0,
-			emittedOffset: 0,
-			outputVersion: 0,
-			exitCode: undefined,
-			listeners: new Set(),
-			interactive: Boolean(input.tty),
-			lastSeq: 0,
-			startedAt: Date.now(),
-			updatedAt: Date.now(),
-			finalized: false,
-			exposed: false,
-			terminating: false,
-			outputDecoders: {
-				stdout: new StringDecoder("utf8"),
-				stderr: new StringDecoder("utf8"),
-				pty: new StringDecoder("utf8"),
-			},
-			outputDecodersFlushed: false,
-		};
-		session.processId = `pi-${session.id}`;
-		session.startup = (async () => {
-			try {
-				const login = input.login ?? true;
-				const execution = resolveExecution(input.shell, input.cmd, input.env, baseEnv);
-				const shellArgs = getCodexShellArgs(shell, execution.command, login);
-				await bridge.request({
-					op: "exec",
-					process_id: session.processId,
-					argv: [shell, ...shellArgs],
-					cwd: workdir,
-					env: execution.env,
-					tty: Boolean(input.tty),
-					pipe_stdin: Boolean(input.tty),
-					arg0: null,
-				});
-				session.started = true;
-				if (signal?.aborted) {
-					session.terminating = true;
-					await bridge.request({ op: "terminate", process_id: session.processId });
-				}
-				void pollSessionLoop(session);
-			} catch (error) {
-				appendOutput(session, `${error instanceof Error ? error.message : String(error)}\n`);
-				session.exitCode = 1;
-				finalizeSession(session);
-			}
-		})();
-		return session;
-	}
-
-	async function waitForStartup(session: RustExecSession, signal?: AbortSignal): Promise<void> {
-		if (!signal) return session.startup;
-		if (signal.aborted) throw new Error("exec_command aborted");
-		let removeAbortListener = () => {};
-		const aborted = new Promise<never>((_, reject) => {
-			const onAbort = () => reject(new Error("exec_command aborted"));
-			signal.addEventListener("abort", onAbort, { once: true });
-			removeAbortListener = () => signal.removeEventListener("abort", onAbort);
-		});
-		try {
-			await Promise.race([session.startup, aborted]);
-		} finally {
-			removeAbortListener();
-		}
-	}
-
-	async function pollSessionLoop(session: RustExecSession): Promise<void> {
-		while (sessions.has(session.id) && (session.exitCode === undefined || session.exitCode === null)) {
-			try {
-				await pollSession(session, 250);
-			} catch (error) {
-				appendOutput(session, `${error instanceof Error ? error.message : String(error)}\n`);
-				session.exitCode = 1;
-				finalizeSession(session);
-				return;
-			}
-		}
-	}
+	const bridgeHooks: BridgeSessionHooks = {
+		isOwned: (session) => sessions.get(session.id) === session,
+		onOutput: (session, text) => appendOutput(session, text),
+		onExit: (session) => finalizeSession(session),
+	};
 
 	return {
 		setBaseEnv,
 		exec: async (input, cwd, signal, onUpdate) => {
 			const shell = resolveShell(input.shell);
 			const workdir = resolveWorkdir(cwd, input.workdir);
-			const session = createRustSession(input, workdir, shell, signal);
+			const execution = resolveExecution(input.shell, input.cmd, input.env, baseEnv);
+			const session = bridgeSessions.create({
+				id: nextSessionId++,
+				input: {
+					command: input.cmd,
+					executionCommand: execution.command,
+					executionEnv: execution.env,
+					...(input.tty === undefined ? {} : { tty: input.tty }),
+					...(input.login === undefined ? {} : { login: input.login }),
+				},
+				workdir,
+				shell,
+				...(signal ? { signal } : {}),
+				hooks: bridgeHooks,
+			});
 			sessions.set(session.id, session);
 			rememberCommand(session.id, session.command);
 			const abortCleanup = registerAbortHandler(signal, () => {
 				if (session.exitCode === undefined || session.exitCode === null) {
-					void bridge.request({ op: "terminate", process_id: session.processId }).catch(() => {});
+					void bridgeSessions.terminate(session).catch(() => {});
 				}
 			});
 
@@ -382,8 +230,8 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 					signal,
 					onUpdate ? (elapsedMs) => onUpdate(makeSnapshotResult(session, elapsedMs, input.max_output_tokens)) : undefined,
 				);
-				await waitForStartup(session, signal);
-				if (session.started) await pollSession(session, 0);
+				await bridgeSessions.waitForStartup(session, signal);
+				if (session.started) await bridgeSessions.poll(session, bridgeHooks, 0);
 				if (session.exitCode === undefined || session.exitCode === null)
 					session.nextEmptyPollYieldMs = growEmptyPollYield(Math.max(execYieldMs, waitedMs), maxEmptyWriteYieldTimeMs);
 				return finishResult(session, waitedMs, input.max_output_tokens);
@@ -416,7 +264,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 				if (!session.interactive) {
 					throw new Error("stdin is closed for this session; rerun exec_command with tty=true to keep stdin open");
 				}
-				await bridge.request({ op: "write", process_id: session.processId, chunk: Array.from(Buffer.from(chars, "utf8")) });
+				await bridgeSessions.write(session, chars);
 				session.nextEmptyPollYieldMs = undefined;
 			}
 			onUpdate?.(makeSnapshotSince(session, 0, updateBaseline, input.max_output_tokens));
@@ -440,8 +288,8 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 							onUpdate ? (elapsedMs) => onUpdate(makeSnapshotSince(session, elapsedMs, updateBaseline, input.max_output_tokens)) : undefined,
 						)
 					: 0;
-			await waitForStartup(session, signal);
-			if (session.started) await pollSession(session, 0);
+			await bridgeSessions.waitForStartup(session, signal);
+			if (session.started) await bridgeSessions.poll(session, bridgeHooks, 0);
 			if (isEmptyPoll && (session.exitCode === undefined || session.exitCode === null))
 				session.nextEmptyPollYieldMs = growEmptyPollYield(effectiveYieldMs, maxEmptyWriteYieldTimeMs);
 			return finishResult(session, waitedMs, input.max_output_tokens);
@@ -461,9 +309,9 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			const session = sessions.get(sessionId);
 			if (!session || session.exitCode !== undefined || session.terminating) return false;
 			session.terminating = true;
-			void bridge.request({ op: "terminate", process_id: session.processId }).catch(() => {});
+			void bridgeSessions.terminate(session).catch(() => {});
 			setTimeout(() => {
-				if (session.exitCode === undefined || session.exitCode === null) void bridge.request({ op: "terminate", process_id: session.processId }).catch(() => {});
+				if (session.exitCode === undefined || session.exitCode === null) void bridgeSessions.terminate(session).catch(() => {});
 			}, TERMINATE_ESCALATE_MS).unref?.();
 			notify(session, "terminate");
 			return true;
@@ -478,9 +326,9 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 		},
 		shutdown: () => {
 			for (const session of sessions.values()) {
-				if (session.exitCode === undefined || session.exitCode === null) void bridge.request({ op: "terminate", process_id: session.processId }).catch(() => {});
+				if (session.exitCode === undefined || session.exitCode === null) void bridgeSessions.terminate(session).catch(() => {});
 			}
-			bridge.shutdown();
+			bridgeSessions.shutdown();
 			sessions.clear();
 			commandHistory.clear();
 			completedResults.clear();
