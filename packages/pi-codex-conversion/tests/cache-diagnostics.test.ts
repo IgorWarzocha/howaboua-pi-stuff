@@ -189,6 +189,17 @@ test("cache diagnostics log is session-derived, readable, and omits raw provider
 			cwd: "/work/project",
 			onError: (error) => errors.push(error),
 		});
+		const providerFailure = Object.assign(new Error("Unauthorized response resp_secret Bearer secret"), {
+			code: "invalid_token",
+			status: 401,
+			payload: { response: { id: "resp_secret", echoed_prompt: "private" } },
+		});
+		const safeFailure = codexDiagnosticsFailure(providerFailure);
+		assert.deepEqual(safeFailure, {
+			category: "authentication",
+			code: "invalid_token",
+			status: 401,
+		});
 		log.record({
 			type: "request",
 			lane: "compaction",
@@ -204,7 +215,7 @@ test("cache diagnostics log is session-derived, readable, and omits raw provider
 			type: "failure",
 			lane: "compaction",
 			transport: "websocket",
-			failure: { category: "authentication", status: 401 },
+			failure: safeFailure,
 		});
 		await log.close();
 
@@ -212,7 +223,7 @@ test("cache diagnostics log is session-derived, readable, and omits raw provider
 		assert.match(contents, /Metadata only/);
 		assert.match(contents, /event="request" lane="compaction" transport="websocket"/);
 		assert.match(contents, /full_input_items=43 sent_input_items=43/);
-		assert.match(contents, /failure="authentication" status=401/);
+		assert.match(contents, /failure="authentication" code="invalid_token" status=401/);
 		assert.doesNotMatch(contents, /error=|resp_secret|echoed_prompt|Bearer/);
 		assert.deepEqual(errors, []);
 	} finally {
@@ -220,47 +231,49 @@ test("cache diagnostics log is session-derived, readable, and omits raw provider
 	}
 });
 
-test("provider failures reduce to allowlisted diagnostic metadata", () => {
-	const failure = Object.assign(new Error("Unauthorized response resp_secret Bearer secret"), {
-		code: "invalid_token",
-		status: 401,
-		payload: { response: { id: "resp_secret", echoed_prompt: "private" } },
-	});
-	assert.deepEqual(codexDiagnosticsFailure(failure), {
-		category: "authentication",
-		code: "invalid_token",
-		status: 401,
-	});
-});
-
-test("provider diagnostics report the request decision and authoritative cache usage", async () => {
-	const restoreWebSocket = installScriptedWebSocket([[(socket: ScriptedWebSocket) => {
-		socket.emitJson({ type: "response.created", response: { id: "resp_diagnostics" } });
-		socket.emitJson({
-			type: "response.completed",
-			response: {
-				id: "resp_diagnostics",
-				status: "completed",
-				usage: {
-					input_tokens: 10,
-					output_tokens: 1,
-					total_tokens: 11,
-					input_tokens_details: { cached_tokens: 8 },
+test("provider diagnostics are authoritative and cannot alter or leak the stream", async () => {
+	const restoreWebSocket = installScriptedWebSocket([[
+		(socket: ScriptedWebSocket) => {
+			socket.emitJson({ type: "response.created", response: { id: "resp_safe_diagnostics_1" } });
+			socket.emitJson({
+				type: "response.completed",
+				response: {
+					id: "resp_safe_diagnostics_1",
+					status: "completed",
+					usage: {
+						input_tokens: 10,
+						output_tokens: 1,
+						total_tokens: 11,
+						input_tokens_details: { cached_tokens: 8 },
+					},
 				},
-			},
-		});
-	}]]);
+			});
+		},
+		textResponse("resp_safe_diagnostics_2", "second"),
+	]]);
 	try {
 		const events: CodexDiagnosticsEvent[] = [];
 		const registered = createRegisteredCodexProvider({
-			getDiagnostics: () => (event) => events.push(event),
+			getDiagnostics: () => (event) => {
+				events.push(event);
+				throw new Error("diagnostics failed");
+			},
 		});
-		await collectStream(registered.provider.streamSimple(
+		const requestContext = context([user("diagnose safely", 1)]);
+		const first = await collectStream(registered.provider.streamSimple(
 			model as never,
-			context([user("diagnose", 1)]) as never,
-			streamOptions("cache-diagnostics") as never,
+			requestContext as never,
+			streamOptions("throwing-cache-diagnostics") as never,
 		));
-
+		const second = await collectStream(registered.provider.streamSimple(
+			model as never,
+			requestContext as never,
+			streamOptions("throwing-cache-diagnostics") as never,
+		));
+		assert.equal((first.at(-1) as { type?: string }).type, "done");
+		assert.equal((second.at(-1) as { type?: string }).type, "done");
+		assert.equal(ScriptedWebSocket.opened, 1);
+		assert.equal(sentFrames().length, 2);
 		assert.deepEqual(events[0], {
 			type: "request",
 			lane: "response",
@@ -281,35 +294,6 @@ test("provider diagnostics report the request decision and authoritative cache u
 			cacheWriteInputTokens: 0,
 			outputTokens: 1,
 		});
-	} finally {
-		restoreWebSocket();
-	}
-});
-
-test("a throwing diagnostics sink cannot alter or leak the provider stream", async () => {
-	const restoreWebSocket = installScriptedWebSocket([[
-		textResponse("resp_safe_diagnostics_1", "first"),
-		textResponse("resp_safe_diagnostics_2", "second"),
-	]]);
-	try {
-		const registered = createRegisteredCodexProvider({
-			getDiagnostics: () => () => { throw new Error("diagnostics failed"); },
-		});
-		const requestContext = context([user("diagnose safely", 1)]);
-		const first = await collectStream(registered.provider.streamSimple(
-			model as never,
-			requestContext as never,
-			streamOptions("throwing-cache-diagnostics") as never,
-		));
-		const second = await collectStream(registered.provider.streamSimple(
-			model as never,
-			requestContext as never,
-			streamOptions("throwing-cache-diagnostics") as never,
-		));
-		assert.equal((first.at(-1) as { type?: string }).type, "done");
-		assert.equal((second.at(-1) as { type?: string }).type, "done");
-		assert.equal(ScriptedWebSocket.opened, 1);
-		assert.equal(sentFrames().length, 2);
 	} finally {
 		restoreWebSocket();
 	}

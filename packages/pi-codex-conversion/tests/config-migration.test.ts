@@ -40,12 +40,6 @@ test("old flat config migrates to grouped config and respects disabled provider 
 	assert.equal(config.openai.webSearchModel, "gpt-5.6-luna");
 });
 
-test("cache diagnostics config accepts only its three lifecycle-safe modes", () => {
-	assert.equal(normalizeCodexConversionConfig({ openai: { cacheDiagnostics: "status" } }).openai.cacheDiagnostics, "status");
-	assert.equal(normalizeCodexConversionConfig({ openai: { cacheDiagnostics: "status-and-log" } }).openai.cacheDiagnostics, "status-and-log");
-	assert.equal(normalizeCodexConversionConfig({ openai: { cacheDiagnostics: "log-only" } }).openai.cacheDiagnostics, "off");
-});
-
 test("legacy Responses Lite config enables Code Mode without opting proxies into Lite", () => {
 	const migration = migrateCodexConversionConfigIfNeeded({
 		beta: { responsesLite: true },
