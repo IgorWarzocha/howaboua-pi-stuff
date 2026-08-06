@@ -8,6 +8,20 @@ export interface CodexTurnState {
 	reset(): void;
 }
 
+export function withCodexTurnState<T extends { client_metadata?: Record<string, unknown> | undefined }>(body: T, turnState: CodexTurnState | undefined): T {
+	const current = turnState?.current();
+	return current
+		? { ...body, client_metadata: { ...(body.client_metadata ?? {}), [CODEX_TURN_STATE_HEADER]: current } }
+		: body;
+}
+
+export function withCodexTurnStateHeader(headers: Headers, turnState: CodexTurnState | undefined): Headers {
+	const attemptHeaders = new Headers(headers);
+	const current = turnState?.current();
+	if (current) attemptHeaders.set(CODEX_TURN_STATE_HEADER, current);
+	return attemptHeaders;
+}
+
 export function createCodexTurnState(): CodexTurnState {
 	let value: string | undefined;
 	let prewarmed = false;

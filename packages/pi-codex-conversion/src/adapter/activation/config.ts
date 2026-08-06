@@ -1,4 +1,5 @@
 export type CodexVerbosity = "low" | "medium" | "high";
+export type CacheDiagnosticsMode = "off" | "status" | "status-and-log";
 export type AllProvidersMode = "off" | "on" | "extras";
 export type HelperModel =
 	| "gpt-5.6-luna"
@@ -37,7 +38,7 @@ export const REALTIME_V3_VOICES = [
 ] as const;
 export type RealtimeV3Voice = (typeof REALTIME_V3_VOICES)[number];
 
-export const HELPER_MODELS: readonly HelperModel[] = [
+export const WEB_SEARCH_MODELS: readonly WebSearchModel[] = [
 	"gpt-5.6-luna",
 	"gpt-5.6-terra",
 	"gpt-5.6-sol",
@@ -45,7 +46,6 @@ export const HELPER_MODELS: readonly HelperModel[] = [
 	"gpt-5.4-mini",
 	"gpt-5.3-codex-spark",
 ];
-export const WEB_SEARCH_MODELS: readonly WebSearchModel[] = HELPER_MODELS;
 export const V2_USER_MESSAGE_RETENTION_OPTIONS: readonly V2UserMessageRetention[] =
 	[16, 32, 64];
 
@@ -96,6 +96,7 @@ export interface CodexConversionConfig {
 		fast: boolean;
 		verbosity: CodexVerbosity;
 		forceCachedWebSockets: boolean;
+		cacheDiagnostics: CacheDiagnosticsMode;
 		harnessIdentifierHeader: boolean;
 		webSearchModel: WebSearchModel;
 	};
@@ -141,6 +142,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 		fast: false,
 		verbosity: "low",
 		forceCachedWebSockets: true,
+		cacheDiagnostics: "off",
 		harnessIdentifierHeader: false,
 		webSearchModel: "gpt-5.6-luna",
 	},
@@ -169,6 +171,14 @@ export function normalizeCodexVerbosity(
 		normalized === "medium" ||
 		normalized === "high"
 		? normalized
+		: undefined;
+}
+
+export function normalizeCacheDiagnosticsMode(
+	value: unknown,
+): CacheDiagnosticsMode | undefined {
+	return value === "off" || value === "status" || value === "status-and-log"
+		? value
 		: undefined;
 }
 
@@ -418,6 +428,9 @@ export function normalizeCodexConversionConfig(
 				openai["forceCachedWebSockets"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.openai["forceCachedWebSockets"],
 			),
+			cacheDiagnostics:
+				normalizeCacheDiagnosticsMode(openai["cacheDiagnostics"]) ??
+				DEFAULT_CODEX_CONVERSION_CONFIG.openai.cacheDiagnostics,
 			harnessIdentifierHeader: bool(
 				openai["harnessIdentifierHeader"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.openai["harnessIdentifierHeader"],

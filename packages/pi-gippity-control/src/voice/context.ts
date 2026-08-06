@@ -188,18 +188,21 @@ async function completeWithSelectedModel(
 		throw new Error(`Voice context provider is unavailable: ${model.provider}`);
 	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
 	if (!auth.ok) throw new Error(auth.error);
+	const requestModel = auth.baseUrl
+		? { ...model, baseUrl: auth.baseUrl }
+		: model;
 	let completed:
 		| { content: Array<{ type: string; text?: string }> }
 		| undefined;
-	for await (const event of provider.streamSimple(model, context, {
+	for await (const event of provider.streamSimple(requestModel, context, {
 		...(auth.apiKey ? { apiKey: auth.apiKey } : {}),
 		...(auth.headers ? { headers: auth.headers } : {}),
 		...(auth.env ? { env: auth.env } : {}),
 		...(signal ? { signal } : {}),
-		maxTokens: model.maxTokens,
+		maxTokens: requestModel.maxTokens,
 		cacheRetention: "none",
 		sessionId: uuidv7(),
-		...(model.reasoning && reasoning !== "off" ? { reasoning } : {}),
+		...(requestModel.reasoning && reasoning !== "off" ? { reasoning } : {}),
 	})) {
 		if (event.type === "done") completed = event.message;
 		if (event.type === "error")

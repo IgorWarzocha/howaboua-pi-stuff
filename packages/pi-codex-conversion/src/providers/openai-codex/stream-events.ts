@@ -213,15 +213,7 @@ export async function* mapCodexEvents(events: AsyncIterable<StreamEventShape>): 
 			});
 		}
 
-		if (type === "response.incomplete") {
-			const reason = event.response?.["incomplete_details"];
-			const detail = reason && typeof reason === "object" && typeof (reason as { reason?: unknown }).reason === "string"
-				? (reason as { reason: string }).reason
-				: "unknown";
-			throw new CodexRetryableStreamError(`Incomplete response returned, reason: ${detail}`);
-		}
-
-		if (type === "response.done" || type === "response.completed") {
+		if (type === "response.done" || type === "response.completed" || type === "response.incomplete") {
 			sawTerminalResponse = true;
 			const response = event.response;
 			yield {

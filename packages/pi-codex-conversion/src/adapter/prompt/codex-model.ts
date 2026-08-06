@@ -28,10 +28,6 @@ export function isCodexLikeModel(model: Partial<CodexLikeModelDescriptor> | null
 	return provider.includes("codex") || api.includes("codex") || id.includes("codex") || (provider.includes("openai") && id.includes("gpt")) || isCopilotGpt;
 }
 
-export function isCodexLikeContext(ctx: ExtensionContext): boolean {
-	return isCodexLikeModel(ctx.model);
-}
-
 export function isOpenAICodexContext(ctx: Pick<ExtensionContext, "model">): boolean {
 	return isOpenAICodexModel(ctx.model);
 }

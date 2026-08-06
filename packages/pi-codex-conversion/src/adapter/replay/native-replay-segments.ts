@@ -1,4 +1,3 @@
-import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 import type { ResponsesCompatibleRequestPayload } from "../compaction/compaction-runtime.ts";
@@ -65,22 +64,6 @@ export function findCompactionBoundaryIndex(
 ): number | undefined {
 	const boundaryIndex = entries.findIndex((entry) => entry.id === compactionEntryId);
 	return boundaryIndex >= 0 ? boundaryIndex : undefined;
-}
-
-export function findEntriesStrictlyAfterCompactionBoundary(
-	entries: readonly SessionEntry[],
-	compactionEntryId: string,
-): SessionEntry[] | undefined {
-	const boundaryIndex = findCompactionBoundaryIndex(entries, compactionEntryId);
-	if (boundaryIndex === undefined) {
-		return undefined;
-	}
-
-	return entries.slice(boundaryIndex + 1);
-}
-
-export function collectLiveTailMessages(entries: readonly SessionEntry[]): AgentMessage[] {
-	return collectReplayMessages(entries);
 }
 
 export function serializeLiveTailToResponsesInput<TApi extends Api>(args: {
@@ -317,6 +300,3 @@ export function rewriteResponsesPayloadWithNativeReplay<TApi extends Api>(args: 
 }): NativeReplayPayloadRewriteResult {
 	return buildNativeReplaySegmentsInternal(args);
 }
-
-export { collectReplayMessages } from "./native-replay-matching.ts";
-export type { SerializedReplaySlice } from "./native-replay-matching.ts";

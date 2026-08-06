@@ -12,10 +12,6 @@ export function initializeBashParser(): void {
 	});
 }
 
-export function hasBashAstSupport(): boolean {
-	return parser !== undefined;
-}
-
 export function extractBashCommand(command: string[]): [shell: string, script: string] | undefined {
 	if (command.length !== 3) return undefined;
 	const [shell, flag, script] = command as [string, string, string];
@@ -88,19 +84,6 @@ export function parseShellLcPlainCommands(command: string[]): string[][] | undef
 	const tree = tryParseShell(script);
 	if (!tree) return undefined;
 	return tryParseWordOnlyCommandsSequence(tree, script);
-}
-
-export function parseShellLcSingleCommandPrefix(command: string[]): string[] | undefined {
-	const bash = extractBashCommand(command);
-	if (!bash) return undefined;
-	const [, script] = bash;
-	const tree = tryParseShell(script);
-	if (!tree || tree.rootNode.hasError) return undefined;
-	if (!hasNamedDescendantKind(tree.rootNode, "heredoc_redirect")) return undefined;
-
-	const commandNode = findSingleCommandNode(tree.rootNode);
-	if (!commandNode) return undefined;
-	return parseHeredocCommandWords(commandNode, script);
 }
 
 async function createBashParser(): Promise<Parser | undefined> {
@@ -178,74 +161,6 @@ function parsePlainCommandFromNode(command: Node, src: string): string[] | undef
 	}
 
 	return words;
-}
-
-function parseHeredocCommandWords(command: Node, src: string): string[] | undefined {
-	if (command.type !== "command") return undefined;
-	const words: string[] = [];
-	for (const child of command.namedChildren) {
-		switch (child.type) {
-			case "command_name": {
-				const wordNode = child.namedChild(0);
-				if (!wordNode || !(wordNode.type === "word" || wordNode.type === "number") || !isLiteralWordOrNumber(wordNode)) return undefined;
-				words.push(textOf(wordNode, src));
-				break;
-			}
-			case "word":
-			case "number":
-				if (!isLiteralWordOrNumber(child)) return undefined;
-				words.push(textOf(child, src));
-				break;
-			case "variable_assignment":
-			case "comment":
-				break;
-			case "heredoc_body":
-			case "simple_heredoc_body":
-			case "heredoc_redirect":
-			case "herestring_redirect":
-			case "file_redirect":
-			case "redirected_statement":
-				break;
-			default:
-				return undefined;
-		}
-	}
-	return words.length > 0 ? words : undefined;
-}
-
-function isLiteralWordOrNumber(node: Node): boolean {
-	if (node.type !== "word" && node.type !== "number") return false;
-	return node.namedChildren.length === 0;
-}
-
-function findSingleCommandNode(root: Node): Node | undefined {
-	const stack: Node[] = [root];
-	let singleCommand: Node | undefined;
-	while (stack.length > 0) {
-		const node = stack.pop();
-		if (!node) continue;
-		if (node.type === "command") {
-			if (singleCommand) return undefined;
-			singleCommand = node;
-		}
-		for (const child of node.namedChildren) {
-			stack.push(child);
-		}
-	}
-	return singleCommand;
-}
-
-function hasNamedDescendantKind(node: Node, kind: string): boolean {
-	const stack: Node[] = [node];
-	while (stack.length > 0) {
-		const current = stack.pop();
-		if (!current) continue;
-		if (current.type === kind) return true;
-		for (const child of current.namedChildren) {
-			stack.push(child);
-		}
-	}
-	return false;
 }
 
 function parseDoubleQuotedString(node: Node, src: string): string | undefined {

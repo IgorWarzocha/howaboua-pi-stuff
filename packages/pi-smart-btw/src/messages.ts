@@ -24,7 +24,7 @@ function messageRoleType(message: {
 	return message.role ?? message.type;
 }
 
-export function isBtwResultMessage(message: {
+function isBtwResultMessage(message: {
 	role?: string;
 	type?: string;
 	customType?: string;

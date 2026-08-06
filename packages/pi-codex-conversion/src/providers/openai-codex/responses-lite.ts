@@ -1,7 +1,7 @@
 import { resizeImage } from "@earendil-works/pi-coding-agent";
 
 export const RESPONSES_LITE_HEADER = "x-openai-internal-codex-responses-lite";
-export const RESPONSES_LITE_WS_METADATA_KEY = "ws_request_header_x_openai_internal_codex_responses_lite";
+const RESPONSES_LITE_WS_METADATA_KEY = "ws_request_header_x_openai_internal_codex_responses_lite";
 
 const IMAGE_PROCESSING_PLACEHOLDER = "image content omitted because it could not be processed";
 const IMAGE_MAX_DIMENSION = 2048;

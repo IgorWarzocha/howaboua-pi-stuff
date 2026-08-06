@@ -15,9 +15,8 @@ import { createViewImageTool } from "../tools/view-image/tool.ts";
 import { createWebSearchTool } from "../tools/web-run/tool.ts";
 import { supportsNativeImageGeneration, supportsViewImageInputs } from "./tool-support.ts";
 import { resolveCodexRuntimePlan } from "./activation/runtime-plan.ts";
-import { codeModeImageResult, toNestedTool } from "./code-mode/nested-tool-adapter.ts";
+import { codeModeImageResult, codeModeWebResult, toNestedTool } from "./code-mode/nested-tool-adapter.ts";
 
-export const CODE_MODE_TOOL_NAMES = ["exec", "wait"] as const;
 const LONG_RUNNING_TOOL_OUTER_YIELD_MS = 1_800_000;
 
 export async function registerCodexCodeMode(
@@ -163,7 +162,9 @@ function createNestedTools(
 				promptSnippet: false,
 				customRendering: runtime.state.config.ui.toolRenaming,
 			}),
-			"await tools.web__run({ search_query?: [{ q: string, recency?: number, domains?: string[] }], image_query?: [{ q: string }], open?: [{ ref_id: string, lineno?: number }], click?: [{ ref_id: string, id: number }], find?: [{ ref_id: string, pattern: string }], response_length?: \"short\" | \"medium\" | \"long\" })",
+			"await tools.web__run({ search_query?: [{ q: string, recency?: number, domains?: string[] }], image_query?: [{ q: string }], open?: [{ ref_id: string, lineno?: number }], click?: [{ ref_id: string, id: number }], find?: [{ ref_id: string, pattern: string }], response_length?: \"short\" | \"medium\" | \"long\" }) // turn… ref_ids only for web__run; final answers cite result URLs with Markdown links, never turn… or cite…",
+			{},
+			{ resultValue: codeModeWebResult },
 		));
 	}
 	if (runtime.state.config.tools.imageGeneration && (!ctx || supportsNativeImageGeneration(ctx.model) || allowConfiguredProvider(ctx.model))) {

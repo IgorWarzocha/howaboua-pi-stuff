@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
-import { dirname, isAbsolute, resolve } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { isAbsolute, resolve } from "node:path";
 import { DiffError } from "./types.ts";
 
 export function normalizePatchPath({ path }: { path: string }): string {
@@ -25,24 +25,4 @@ export function openFileAtPath({ cwd, path }: { cwd: string; path: string }): st
 		throw new DiffError(`File not found: ${path}`);
 	}
 	return readFileSync(absolutePath, "utf8");
-}
-
-export function writeFileAtPath({ cwd, path, content }: { cwd: string; path: string; content: string }): { created: boolean } {
-	const absolutePath = resolvePatchPath({ cwd, patchPath: path });
-	const created = !existsSync(absolutePath);
-	mkdirSync(dirname(absolutePath), { recursive: true });
-	writeFileSync(absolutePath, content, "utf8");
-	return { created };
-}
-
-export function removeFileAtPath({ cwd, path }: { cwd: string; path: string }): void {
-	const absolutePath = resolvePatchPath({ cwd, patchPath: path });
-	if (!existsSync(absolutePath)) {
-		throw new DiffError(`File not found: ${path}`);
-	}
-	unlinkSync(absolutePath);
-}
-
-export function pathExists({ cwd, path }: { cwd: string; path: string }): boolean {
-	return existsSync(resolvePatchPath({ cwd, patchPath: path }));
 }

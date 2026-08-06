@@ -1,0 +1,4 @@
+- `lazy.ts` is the only eager boundary. Load `runtime.ts` only for cache status; load filesystem-owning `logger.ts` only for `status-and-log`.
+- Providers emit typed metadata only. Diagnostics never receive prompts, messages, tool arguments, images, credentials, or response IDs.
+- Cache-miss footer display is latest-write-wins: pin the newest miss for three seconds, retain only the latest following status, never queue intermediate events.
+- Keep `Codex Cache` on Pi's single official status row beside `Codex adapter`; never replace the footer or use a widget. Pi owns cache percentages, diagnostics status shows only HIT/MISS and transport/continuation state.

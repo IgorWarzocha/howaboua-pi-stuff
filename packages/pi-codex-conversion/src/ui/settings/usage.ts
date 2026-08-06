@@ -110,7 +110,10 @@ async function buildCodexUsageHeaders(ctx: ExtensionContext, model: RuntimeModel
 	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
 	if (!auth.ok) throw new Error(auth.error);
 	const headers = new Headers(model.headers);
-	for (const [key, value] of Object.entries(auth.headers ?? {})) headers.set(key, value);
+	for (const [key, value] of Object.entries(auth.headers ?? {})) {
+		if (value === null) headers.delete(key);
+		else headers.set(key, value);
+	}
 	if (auth.apiKey) headers.set("authorization", `Bearer ${auth.apiKey}`);
 	const token = auth.apiKey ?? extractBearerToken(headers);
 	const accountId = token ? extractAccountId(token) : undefined;

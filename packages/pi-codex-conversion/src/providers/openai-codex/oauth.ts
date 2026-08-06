@@ -133,6 +133,10 @@ function startLocalOAuthServer(state: string): Promise<{ close: () => void; canc
 async function loginBrowser(callbacks: OAuthCallbacks): Promise<OAuthCredentials> {
 	const { verifier, state, url } = await createOpenAICodexNativeAuthorizationFlow("pi");
 	const server = await startLocalOAuthServer(state);
+	const signal = callbacks.signal ?? new AbortController().signal;
+	const onAbort = () => server.cancelWait();
+	signal.addEventListener("abort", onAbort, { once: true });
+	if (signal.aborted) onAbort();
 	callbacks.onAuth({ url, instructions: "A browser window should open. Complete login to finish." });
 	try {
 		let manualInput: string | undefined;
@@ -144,6 +148,7 @@ async function loginBrowser(callbacks: OAuthCallbacks): Promise<OAuthCredentials
 			});
 		}
 		let code = (await server.waitForCode())?.code;
+		if (signal.aborted) throw signal.reason instanceof Error ? signal.reason : new Error("OpenAI authentication was cancelled");
 		if (manualError) throw manualError;
 		if (!code && manualInput) {
 			const parsed = parseAuthorizationInput(manualInput);
@@ -157,8 +162,11 @@ async function loginBrowser(callbacks: OAuthCallbacks): Promise<OAuthCredentials
 			code = parsed.code;
 		}
 		if (!code) throw new Error("Missing authorization code");
-		return exchangeAuthorizationCode(code, verifier, REDIRECT_URI, callbacks.signal);
-	} finally { server.close(); }
+		return exchangeAuthorizationCode(code, verifier, REDIRECT_URI, signal);
+	} finally {
+		signal.removeEventListener("abort", onAbort);
+		server.close();
+	}
 }
 
 export async function parseOpenAICodexDeviceAuthPollResponse(
@@ -210,6 +218,7 @@ async function loginDeviceCode(callbacks: OAuthCallbacks): Promise<OAuthCredenti
 
 export const openaiCodexNativeOAuthProvider: NonNullable<ProviderConfig["oauth"]> & { usesCallbackServer: true } = {
 	name: "ChatGPT Plus/Pro (Codex Subscription)",
+	isSubscription: true,
 	usesCallbackServer: true,
 	async login(callbacks) {
 		const method = await callbacks.onSelect({ message: "Select OpenAI Codex login method:", options: [{ id: "browser", label: "Browser login (default)" }, { id: "device_code", label: "Device code login (headless)" }] });
@@ -217,7 +226,7 @@ export const openaiCodexNativeOAuthProvider: NonNullable<ProviderConfig["oauth"]
 		if (method && method !== "browser") throw new Error(`Unknown OpenAI Codex login method: ${method}`);
 		return loginBrowser(callbacks);
 	},
-	refreshToken(credentials) { return tokenRequest(new URLSearchParams({ grant_type: "refresh_token", refresh_token: credentials.refresh, client_id: CLIENT_ID }), "refresh"); },
+	refreshToken(credentials, signal) { return tokenRequest(new URLSearchParams({ grant_type: "refresh_token", refresh_token: credentials.refresh, client_id: CLIENT_ID }), "refresh", signal); },
 	getApiKey(credentials) { return credentials.access; },
 	modifyModels(models) { return clampOpenAICodexModelWindows(models); },
 };

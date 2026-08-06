@@ -35,6 +35,7 @@ test("old flat config migrates to grouped config and respects disabled provider 
 	assert.equal(config.openai.fast, true);
 	assert.equal(config.openai.verbosity, "high");
 	assert.equal(config.openai.forceCachedWebSockets, false);
+	assert.equal(config.openai.cacheDiagnostics, "off");
 	assert.equal(config.openai.harnessIdentifierHeader, false);
 	assert.equal(config.openai.webSearchModel, "gpt-5.6-luna");
 });

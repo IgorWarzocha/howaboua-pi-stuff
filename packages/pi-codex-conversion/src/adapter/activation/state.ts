@@ -20,6 +20,7 @@ export interface AdapterState {
 	promptSkills: PromptSkill[];
 	activeProviderSystemPrompt?: string | undefined;
 	pendingActiveProviderPromptCapture?: boolean | undefined;
+	voiceSystemPromptOverride?: string | undefined;
 	config: CodexConversionConfig;
 	codexTurnState: CodexTurnState;
 	pendingPiCompactionNativeWindow?: PendingPiCompactionNativeWindow | undefined;

@@ -8,13 +8,8 @@ import {
 } from "./helper-protocol.ts";
 
 export type {
-	VoiceDevice,
 	VoiceHelperCommand,
 	VoiceHelperEvent,
-} from "./helper-protocol.ts";
-export {
-	BoundedJsonlReader,
-	parseVoiceHelperEvent,
 } from "./helper-protocol.ts";
 
 const MAX_HELPER_LINE_BYTES = 512 * 1024;

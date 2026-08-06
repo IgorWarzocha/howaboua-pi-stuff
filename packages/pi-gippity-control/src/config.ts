@@ -11,7 +11,7 @@ export const VOICE_CONTEXT_REASONING_LEVELS = [
 ] as const;
 export type VoiceContextReasoning =
 	(typeof VOICE_CONTEXT_REASONING_LEVELS)[number];
-export const DEFAULT_VOICE_CONTEXT_REASONING: VoiceContextReasoning = "high";
+const DEFAULT_VOICE_CONTEXT_REASONING: VoiceContextReasoning = "high";
 
 export interface VoiceContextModel {
 	provider: string;

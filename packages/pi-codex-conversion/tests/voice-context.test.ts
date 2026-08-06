@@ -128,12 +128,13 @@ test("voice startup projects clean text into V3 developer context", async () => 
 test("native voice startup replays its checkpoint through an isolated sidecar", async () => {
 	let payload: Record<string, unknown> | undefined;
 	let sidecarContext: Record<string, unknown> | undefined;
+	let sidecarModel: Record<string, unknown> | undefined;
 	let sidecarSessionId: string | undefined;
 	const model: Record<string, unknown> = {
 		provider: "openai-codex",
 		api: "openai-codex-responses",
 		id: "gpt-5.4-mini",
-		baseUrl: "https://chatgpt.com/backend-api",
+		baseUrl: "https://catalog.example/backend-api",
 		contextWindow: 100_000,
 		maxTokens: 8_192,
 		input: ["text"],
@@ -160,13 +161,14 @@ test("native voice startup replays its checkpoint through an isolated sidecar", 
 	};
 	const provider = {
 		async *streamSimple(
-			_model: unknown,
+			requestModel: unknown,
 			context: unknown,
 			options: {
 				onPayload?: (value: unknown) => unknown;
 				sessionId?: string;
 			},
 		) {
+			sidecarModel = requestModel as Record<string, unknown>;
 			sidecarContext = context as Record<string, unknown>;
 			sidecarSessionId = options.sessionId;
 			payload = options.onPayload?.({
@@ -194,7 +196,7 @@ test("native voice startup replays its checkpoint through an isolated sidecar", 
 		modelRegistry: {
 			find: () => model,
 			getProvider: () => provider,
-			getApiKeyAndHeaders: async () => ({ ok: true, apiKey: "token" }),
+			getApiKeyAndHeaders: async () => ({ ok: true, apiKey: "token", baseUrl: "https://chatgpt.com/backend-api" }),
 		},
 	};
 	const summary = await createNativeVoiceContextSummary({
@@ -205,6 +207,7 @@ test("native voice startup replays its checkpoint through an isolated sidecar", 
 	});
 
 	assert.equal(summary, "Readable continuity");
+	assert.equal(sidecarModel?.["baseUrl"], "https://chatgpt.com/backend-api");
 	assert.equal(sidecarContext?.["tools"], undefined);
 	assert.notEqual(sidecarSessionId, "main-session");
 	assert.deepEqual(

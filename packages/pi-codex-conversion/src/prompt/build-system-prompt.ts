@@ -23,6 +23,17 @@ export interface PiSystemPromptOptions {
 
 const PI_DEFAULT_INTRO = "You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.";
 const PI_CUSTOM_TOOLS_NOTE = "In addition to the tools above, you may have access to other custom tools depending on the project.";
+const PI_CANONICAL_TOOL_LINES = new Set([
+	"- read: Read file contents",
+	"- bash: Execute bash commands (ls, grep, find, etc.)",
+	"- edit: Make precise file edits with exact text replacement, including multiple disjoint edits in one call",
+	"- write: Create or overwrite files",
+	"- ls: List directory contents",
+	"- grep: Search file contents for patterns (respects .gitignore)",
+	"- find: Find files by glob pattern (respects .gitignore)",
+	"- exec: Compose tools with JavaScript",
+	"- wait: Resume or terminate an exec cell",
+]);
 const PI_DEFAULT_GUIDELINES = new Set([
 	"Use bash for file operations like ls, rg, find",
 	"Be concise in your responses",
@@ -229,8 +240,38 @@ function stripPiToolScaffold(prompt: string, options: PiSystemPromptOptions): st
 	const toolsList = visibleTools.length > 0
 		? visibleTools.map((name) => `- ${name}: ${options.toolSnippets![name]}`).join("\n")
 		: "(none)";
-	const scaffold = `${PI_DEFAULT_INTRO}\n\nAvailable tools:\n${toolsList}\n\n${PI_CUSTOM_TOOLS_NOTE}`;
-	return prompt.includes(scaffold) ? prompt.replace(scaffold, "").trimStart() : prompt;
+	const exactScaffold = `${PI_DEFAULT_INTRO}\n\nAvailable tools:\n${toolsList}\n\n${PI_CUSTOM_TOOLS_NOTE}`;
+	const exactStart = prompt.indexOf(exactScaffold);
+	if (exactStart !== -1 && exactStart === prompt.lastIndexOf(exactScaffold)) {
+		return prompt.replace(exactScaffold, "").trimStart();
+	}
+	const start = prompt.indexOf(PI_DEFAULT_INTRO);
+	if (start !== prompt.lastIndexOf(PI_DEFAULT_INTRO)) return prompt;
+	const toolsHeader = start === -1
+		? -1
+		: prompt.indexOf("\nAvailable tools:\n", start + PI_DEFAULT_INTRO.length);
+	const noteStart = toolsHeader === -1
+		? -1
+		: prompt.indexOf(PI_CUSTOM_TOOLS_NOTE, toolsHeader + 1);
+	if (start === -1 || toolsHeader === -1 || noteStart === -1) return prompt;
+	const end = noteStart + PI_CUSTOM_TOOLS_NOTE.length;
+	let scaffoldRegion = prompt.slice(start, end);
+	for (const name of visibleTools) {
+		scaffoldRegion = scaffoldRegion.replace(
+			`- ${name}: ${options.toolSnippets![name]}`,
+			"",
+		);
+	}
+	const keptLines = scaffoldRegion.split("\n").filter((line) => {
+		if (
+			line === PI_DEFAULT_INTRO ||
+			line === "Available tools:" ||
+			line === PI_CUSTOM_TOOLS_NOTE ||
+			line === "(none)"
+		) return false;
+		return !PI_CANONICAL_TOOL_LINES.has(line);
+	});
+	return `${prompt.slice(0, start)}${keptLines.join("\n")}${prompt.slice(end)}`.trimStart();
 }
 
 function stripPiDocumentation(prompt: string): string {

@@ -11,4 +11,4 @@
 - Vendored apply-patch engine, path-uri, and absolute-path sources track one Codex commit. Pi-owned changes belong only in `standalone_executable.rs` and the `pi-apply-patch-fs` adapter.
 - Do not accept review-driven drift from stock Pi behavior unless backend-verified or intentional.
 - Native compaction supports only OpenAI Codex and explicitly configured OpenAI/Codex passthrough proxies; V2 must preserve raw Responses output-item access rather than delegate to arbitrary registered provider streams.
-- After TypeScript topology changes, run root `bun run knip`; export-surface debt is reported separately by `bun run knip:exports`.
+- After TypeScript topology changes, run root `bun run knip`; it enforces file, dependency, cycle, and export-surface hygiene.

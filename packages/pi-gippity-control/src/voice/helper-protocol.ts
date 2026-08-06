@@ -22,7 +22,7 @@ export type VoiceHelperEvent =
 	| { type: "error"; message: string }
 	| { type: "stopped" };
 
-export interface VoiceDevice {
+interface VoiceDevice {
 	id: string;
 	name: string;
 	is_default: boolean;

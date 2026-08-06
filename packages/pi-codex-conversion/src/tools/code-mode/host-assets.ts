@@ -27,9 +27,6 @@ export const HOST_ASSETS = {
 	],
 } as const;
 
-export type CodeModeHostPlatform = "darwin" | "linux" | "win32";
-export type CodeModeHostArch = "arm64" | "x64";
-
 export function codeModeHostBinaryName(platform: string): string {
 	return platform === "win32" ? "codex-code-mode-host.exe" : "codex-code-mode-host";
 }

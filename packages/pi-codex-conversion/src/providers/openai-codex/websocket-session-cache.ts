@@ -1,9 +1,34 @@
+import { createHash } from "node:crypto";
 import type { AcquiredWebSocket, ProviderEnv, SessionWebSocketCacheEntry } from "./types.ts";
-import { closeWebSocketSilently, connectWebSocket, isWebSocketReusable } from "./websocket-connection.ts";
+import { closeWebSocketSilently, connectWebSocket, isWebSocketReusable, resolveWebSocketProxyForTarget } from "./websocket-connection.ts";
 
-const websocketSessionCache = new Map<string, SessionWebSocketCacheEntry>();
+const websocketSessionCache = new Map<string, Map<string, SessionWebSocketCacheEntry>>();
 const websocketSseFallbackSessions = new Set<string>();
 const SESSION_WEBSOCKET_MAX_AGE_MS = 55 * 60 * 1000;
+const CONTINUATION_HEADERS = new Set([
+	"openai-beta",
+	"session-id",
+	"thread-id",
+	"x-client-request-id",
+	"x-codex-beta-features",
+]);
+
+function routeIdentityHeaders(headers: Headers): [string, string][] {
+	return [...headers.entries()]
+		.filter(([name]) => !CONTINUATION_HEADERS.has(name.toLowerCase()))
+		.sort(([left], [right]) => left.localeCompare(right));
+}
+
+async function websocketRouteKey(url: string, headers: Headers, accountId: string, env: ProviderEnv | undefined): Promise<string> {
+	const proxy = await resolveWebSocketProxyForTarget(url, env);
+	const handshakeIdentity = JSON.stringify([
+		accountId,
+		new URL(url).href,
+		proxy ?? null,
+		routeIdentityHeaders(headers),
+	]);
+	return createHash("sha256").update(handshakeIdentity).digest("base64url");
+}
 
 export function isWebSocketSseFallbackActive(sessionId: string | undefined): boolean {
 	return sessionId ? websocketSseFallbackSessions.has(sessionId) : false;
@@ -17,7 +42,7 @@ function isWebSocketSessionExpired(entry: SessionWebSocketCacheEntry): boolean {
 	return Date.now() - entry.createdAt >= SESSION_WEBSOCKET_MAX_AGE_MS;
 }
 
-function scheduleSessionWebSocketExpiry(cacheKey: string, entry: SessionWebSocketCacheEntry): void {
+function scheduleSessionWebSocketExpiry(sessionId: string, routeKey: string, entry: SessionWebSocketCacheEntry): void {
 	if (entry.idleTimer) {
 		clearTimeout(entry.idleTimer);
 	}
@@ -25,7 +50,9 @@ function scheduleSessionWebSocketExpiry(cacheKey: string, entry: SessionWebSocke
 	entry.idleTimer = setTimeout(() => {
 		if (entry.busy) return;
 		closeWebSocketSilently(entry.socket, 1000, "connection_age_limit");
-		websocketSessionCache.delete(cacheKey);
+		const routeEntries = websocketSessionCache.get(sessionId);
+		if (routeEntries?.get(routeKey) === entry) routeEntries.delete(routeKey);
+		if (routeEntries?.size === 0) websocketSessionCache.delete(sessionId);
 	}, remainingLifetimeMs);
 }
 
@@ -39,14 +66,13 @@ function closeWebSocketSessions(sessionId: string | undefined): void {
 	};
 
 	if (sessionId) {
-		const entry = websocketSessionCache.get(sessionId);
-		if (entry) closeEntry(entry);
+		for (const entry of websocketSessionCache.get(sessionId)?.values() ?? []) closeEntry(entry);
 		websocketSessionCache.delete(sessionId);
 		return;
 	}
 
-	for (const entry of websocketSessionCache.values()) {
-		closeEntry(entry);
+	for (const routeEntries of websocketSessionCache.values()) {
+		for (const entry of routeEntries.values()) closeEntry(entry);
 	}
 	websocketSessionCache.clear();
 }
@@ -68,6 +94,7 @@ export async function acquireWebSocket(
 	url: string,
 	headers: Headers,
 	sessionId: string | undefined,
+	accountId: string,
 	signal: AbortSignal | undefined,
 	connectTimeoutMs?: number,
 	env?: ProviderEnv,
@@ -87,7 +114,9 @@ export async function acquireWebSocket(
 		};
 	}
 
-	const cached = websocketSessionCache.get(sessionId);
+	const routeKey = await websocketRouteKey(url, headers, accountId, env);
+	let routeEntries = websocketSessionCache.get(sessionId);
+	const cached = routeEntries?.get(routeKey);
 	if (cached) {
 		if (cached.idleTimer) {
 			clearTimeout(cached.idleTimer);
@@ -96,7 +125,8 @@ export async function acquireWebSocket(
 
 		if (!cached.busy && isWebSocketSessionExpired(cached)) {
 			closeWebSocketSilently(cached.socket, 1000, "connection_age_limit");
-			websocketSessionCache.delete(sessionId);
+			routeEntries?.delete(routeKey);
+			if (routeEntries?.size === 0) websocketSessionCache.delete(sessionId);
 		} else if (!cached.busy && isWebSocketReusable(cached.socket)) {
 			cached.busy = true;
 			return {
@@ -106,11 +136,13 @@ export async function acquireWebSocket(
 				release: ({ keep } = {}) => {
 					if (!keep || !isWebSocketReusable(cached.socket)) {
 						closeWebSocketSilently(cached.socket);
-						websocketSessionCache.delete(sessionId);
+						const currentEntries = websocketSessionCache.get(sessionId);
+						if (currentEntries?.get(routeKey) === cached) currentEntries.delete(routeKey);
+						if (currentEntries?.size === 0) websocketSessionCache.delete(sessionId);
 						return;
 					}
 					cached.busy = false;
-					scheduleSessionWebSocketExpiry(sessionId, cached);
+					scheduleSessionWebSocketExpiry(sessionId, routeKey, cached);
 				},
 			};
 		}
@@ -128,13 +160,19 @@ export async function acquireWebSocket(
 
 		if (!isWebSocketReusable(cached.socket)) {
 			closeWebSocketSilently(cached.socket);
-			websocketSessionCache.delete(sessionId);
+			routeEntries?.delete(routeKey);
+			if (routeEntries?.size === 0) websocketSessionCache.delete(sessionId);
 		}
 	}
 
 	const socket = await connectWebSocket(url, headers, signal, connectTimeoutMs, env);
 	const entry: SessionWebSocketCacheEntry = { socket, busy: true, createdAt: Date.now() };
-	websocketSessionCache.set(sessionId, entry);
+	routeEntries = websocketSessionCache.get(sessionId);
+	if (!routeEntries) {
+		routeEntries = new Map();
+		websocketSessionCache.set(sessionId, routeEntries);
+	}
+	routeEntries.set(routeKey, entry);
 	return {
 		socket,
 		entry,
@@ -143,13 +181,13 @@ export async function acquireWebSocket(
 			if (!keep || !isWebSocketReusable(entry.socket)) {
 				closeWebSocketSilently(entry.socket);
 				if (entry.idleTimer) clearTimeout(entry.idleTimer);
-				if (websocketSessionCache.get(sessionId) === entry) {
-					websocketSessionCache.delete(sessionId);
-				}
+				const currentEntries = websocketSessionCache.get(sessionId);
+				if (currentEntries?.get(routeKey) === entry) currentEntries.delete(routeKey);
+				if (currentEntries?.size === 0) websocketSessionCache.delete(sessionId);
 				return;
 			}
 			entry.busy = false;
-			scheduleSessionWebSocketExpiry(sessionId, entry);
+			scheduleSessionWebSocketExpiry(sessionId, routeKey, entry);
 		},
 	};
 }
