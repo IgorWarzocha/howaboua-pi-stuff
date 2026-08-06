@@ -20,6 +20,3 @@ export const DEFAULT_SHORTCUTS = {
 	next: "alt+l",
 	previous: "alt+h",
 } as const;
-
-/** @deprecated use DEFAULT_SHORTCUTS */
-export const SHORTCUTS = DEFAULT_SHORTCUTS;

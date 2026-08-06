@@ -3,7 +3,7 @@ import { splitModelRef } from "../config.js";
 
 const FALLBACK_REF = "openai-codex/gpt-5.6-luna";
 
-export function modelRef(provider: string, modelId: string) {
+function modelRef(provider: string, modelId: string) {
 	return `${provider}/${modelId}`;
 }
 
@@ -29,12 +29,6 @@ export function listModelIdsForProvider(
 		.filter((p) => p.provider === provider)
 		.map((p) => p.modelId);
 	return [...new Set(ids)].sort((a, b) => a.localeCompare(b));
-}
-
-export function listProviderModelRefs(ctx: ExtensionContext): string[] {
-	return registryPairs(ctx)
-		.map((p) => p.ref)
-		.sort((a, b) => a.localeCompare(b));
 }
 
 export function resolveProviderModel(

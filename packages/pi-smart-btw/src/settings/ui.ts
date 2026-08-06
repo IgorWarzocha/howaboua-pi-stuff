@@ -42,7 +42,7 @@ function mergeDraftForSave(
 	};
 }
 
-export type BtwSettingsDraft = ResolvedBtwConfig;
+type BtwSettingsDraft = ResolvedBtwConfig;
 
 export interface BtwSettingsScreenOptions {
 	initialConfig: BtwSettingsDraft;

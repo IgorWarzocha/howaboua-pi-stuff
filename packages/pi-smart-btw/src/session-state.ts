@@ -48,7 +48,7 @@ function lowestFreeIndex(state: BtwState) {
 	return index === -1 ? state.sessions.length : index;
 }
 
-export function switchToSession(state: BtwState, index: number) {
+function switchToSession(state: BtwState, index: number) {
 	const session = state.sessions[index];
 	if (!session) return false;
 	state.activeIndex = index;
@@ -83,7 +83,7 @@ export function createSession(state: BtwState, index = lowestFreeIndex(state)) {
 	return session;
 }
 
-export function restoreSession(
+function restoreSession(
 	state: BtwState,
 	args: { generationId: string; index: number; turns: BtwTurn[] },
 ) {
