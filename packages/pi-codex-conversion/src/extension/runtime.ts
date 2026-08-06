@@ -257,6 +257,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 				mode: state.config.openai.cacheDiagnostics,
 				active: ctx.model?.provider === "openai-codex",
 				ctx,
+				agentDir: dirname(getCodexConversionConfigPath()),
 				announceLog,
 			});
 		},

@@ -42,6 +42,7 @@ function failureLabel(failure: CodexDiagnosticsFailure): string {
 export async function createCodexDiagnosticsRuntime(options: {
 	mode: Exclude<CacheDiagnosticsMode, "off">;
 	ctx: ExtensionContext;
+	agentDir: string;
 	announceLog?: boolean | undefined;
 	missHoldMs?: number | undefined;
 }): Promise<CodexDiagnosticsRuntime> {
@@ -92,6 +93,7 @@ export async function createCodexDiagnosticsRuntime(options: {
 		try {
 			const logger = await import("./logger.ts");
 			log = await logger.createCodexDiagnosticsLog({
+				agentDir: options.agentDir,
 				sessionId: ctx.sessionManager.getSessionId(),
 				sessionFile: ctx.sessionManager.getSessionFile(),
 				sessionName: ctx.sessionManager.getSessionName(),

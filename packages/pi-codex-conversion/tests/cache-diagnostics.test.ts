@@ -24,6 +24,7 @@ test("cache miss status holds for three seconds then shows only the latest event
 	const statuses: Array<string | undefined> = [];
 	const runtime = await createCodexDiagnosticsRuntime({
 		mode: "status",
+		agentDir: tmpdir(),
 		missHoldMs: 20,
 		ctx: {
 			ui: {
@@ -107,9 +108,9 @@ test("lazy diagnostics sinks are session-bound and exception-safe", async () => 
 	}) as never;
 	const ctxA = contextFor("session-a", statusesA);
 	const ctxB = contextFor("session-b", statusesB);
-	await diagnostics.configure({ mode: "status", active: true, ctx: ctxA });
+	await diagnostics.configure({ mode: "status", active: true, ctx: ctxA, agentDir: tmpdir() });
 	const staleSink = diagnostics.sink()!;
-	await diagnostics.configure({ mode: "status", active: true, ctx: ctxB });
+	await diagnostics.configure({ mode: "status", active: true, ctx: ctxB, agentDir: tmpdir() });
 	const currentSink = diagnostics.sink()!;
 	const request: CodexDiagnosticsEvent = {
 		type: "request",
@@ -152,8 +153,8 @@ test("concurrent diagnostics shutdown waits for an in-flight log close", async (
 		sessionManager: { getSessionId: () => "concurrent-close" },
 		ui: { notify: () => undefined },
 	} as never;
-	await diagnostics.configure({ mode: "status", active: true, ctx });
-	const disable = diagnostics.configure({ mode: "off", active: true, ctx });
+	await diagnostics.configure({ mode: "status", active: true, ctx, agentDir: tmpdir() });
+	const disable = diagnostics.configure({ mode: "off", active: true, ctx, agentDir: tmpdir() });
 	await new Promise<void>((resolve) => setImmediate(resolve));
 	assert.equal(closeStarted, true);
 	let shutdownFinished = false;

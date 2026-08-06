@@ -16,6 +16,7 @@ export interface LazyCodexDiagnostics {
 		mode: CacheDiagnosticsMode;
 		active: boolean;
 		ctx: ExtensionContext;
+		agentDir: string;
 		announceLog?: boolean | undefined;
 	}): Promise<void>;
 	sink(): CodexDiagnosticsSink | undefined;

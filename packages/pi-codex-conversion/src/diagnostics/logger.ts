@@ -1,6 +1,5 @@
 import { mkdir, open } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { CodexDiagnosticsEvent } from "../providers/openai-codex/types.ts";
 
 const LOG_DIRECTORY_BASENAME = "pi-codex-logs";
@@ -101,10 +100,10 @@ export async function createCodexDiagnosticsLog(options: {
 	cwd: string;
 	modelProvider?: string | undefined;
 	modelId?: string | undefined;
-	agentDir?: string | undefined;
+	agentDir: string;
 	onError: (error: unknown) => void;
 }): Promise<CodexDiagnosticsLog> {
-	const agentDir = options.agentDir ?? getAgentDir();
+	const agentDir = options.agentDir;
 	const path = codexDiagnosticsLogPath({
 		agentDir,
 		sessionId: options.sessionId,
