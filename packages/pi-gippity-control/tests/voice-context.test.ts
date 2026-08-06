@@ -5,6 +5,7 @@ import { buildRealtimeCallRequest } from "../src/voice/conversation/session.ts";
 
 test("voice startup projects mixed-provider history into V3 context", async () => {
 	let sidecarContext: unknown;
+	let sidecarModel: unknown;
 	const userEntry = {
 		type: "message",
 		id: "user-message",
@@ -89,7 +90,8 @@ test("voice startup projects mixed-provider history into V3 context", async () =
 		reasoning: true,
 	};
 	const provider = {
-		async *streamSimple(_model: unknown, context: unknown, _options: unknown) {
+		async *streamSimple(model: unknown, context: unknown, _options: unknown) {
+			sidecarModel = model;
 			sidecarContext = context;
 			yield {
 				type: "done",
@@ -107,7 +109,11 @@ test("voice startup projects mixed-provider history into V3 context", async () =
 		modelRegistry: {
 			find: () => model,
 			getProvider: () => provider,
-			getApiKeyAndHeaders: async () => ({ ok: true, apiKey: "token" }),
+			getApiKeyAndHeaders: async () => ({
+				ok: true,
+				apiKey: "token",
+				baseUrl: "https://account.example/v1",
+			}),
 		},
 	};
 
@@ -123,6 +129,9 @@ test("voice startup projects mixed-provider history into V3 context", async () =
 	});
 
 	expect((sidecarContext as { tools?: unknown }).tools).toBeUndefined();
+	expect((sidecarModel as { baseUrl?: string }).baseUrl).toBe(
+		"https://account.example/v1",
+	);
 	const history = (
 		sidecarContext as {
 			messages: Array<{ content: Array<{ text: string }> }>;

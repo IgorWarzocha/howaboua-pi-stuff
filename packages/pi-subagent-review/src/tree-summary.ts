@@ -59,26 +59,29 @@ export function registerTreeSummaryModel(
 			);
 			return;
 		}
+		const summaryModel = auth.baseUrl
+			? { ...model, baseUrl: auth.baseUrl }
+			: model;
 
 		try {
 			const result = await generateBranchSummary(
 				event.preparation.entriesToSummarize,
 				{
-					model,
+					model: summaryModel,
 					signal: event.signal,
-					...(auth.apiKey !== undefined ? { apiKey: auth.apiKey } : {}),
-					...(auth.headers !== undefined ? { headers: auth.headers } : {}),
-					...(auth.env !== undefined ? { env: auth.env } : {}),
 					...(event.preparation.customInstructions !== undefined
 						? { customInstructions: event.preparation.customInstructions }
 						: {}),
 					...(event.preparation.replaceInstructions !== undefined
 						? { replaceInstructions: event.preparation.replaceInstructions }
 						: {}),
-					streamFn: (requestModel, context, options) =>
-						provider.streamSimple(requestModel, context, {
+					streamFn: (streamModel, context, options) =>
+						provider.streamSimple(streamModel, context, {
 							...options,
-							...(requestModel.reasoning && request.config.thinking !== "off"
+							...(auth.apiKey !== undefined ? { apiKey: auth.apiKey } : {}),
+							...(auth.headers !== undefined ? { headers: auth.headers } : {}),
+							...(auth.env !== undefined ? { env: auth.env } : {}),
+							...(streamModel.reasoning && request.config.thinking !== "off"
 								? { reasoning: request.config.thinking }
 								: {}),
 						}),

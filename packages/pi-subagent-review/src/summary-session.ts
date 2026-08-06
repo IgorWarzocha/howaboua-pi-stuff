@@ -62,6 +62,19 @@ function lastAssistantMessage(
 	return undefined;
 }
 
+function mergeRequestHeaders(
+	configured: Record<string, string> | undefined,
+	resolved: Record<string, string | null> | undefined,
+): Record<string, string> | undefined {
+	const headers = new Headers(configured);
+	for (const [name, value] of Object.entries(resolved ?? {})) {
+		if (value === null) headers.delete(name);
+		else headers.set(name, value);
+	}
+	const entries = [...headers.entries()];
+	return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
 export async function completeSummary(
 	ctx: ExtensionCommandContext,
 	config: ResolvedReviewConfig,
@@ -76,6 +89,9 @@ export async function completeSummary(
 		throw new Error(`Summary model not found: ${config.summary.model}`);
 	const requestAuth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
 	if (!requestAuth.ok) throw new Error(requestAuth.error);
+	const requestModel = requestAuth.baseUrl
+		? { ...model, baseUrl: requestAuth.baseUrl }
+		: model;
 	const persistedCredential = readStoredCredential(model.provider);
 	const storedCredential =
 		persistedCredential?.type === "oauth" &&
@@ -100,17 +116,24 @@ export async function completeSummary(
 	const registeredProvider = ctx.modelRegistry.getRegisteredProviderConfig(
 		model.provider,
 	);
-	if (registeredProvider || requestAuth.apiKey || requestAuth.headers) {
+	if (
+		registeredProvider ||
+		requestAuth.apiKey ||
+		requestAuth.headers ||
+		requestAuth.baseUrl
+	) {
 		const { oauth, ...providerConfig } = registeredProvider ?? {};
+		const headers = mergeRequestHeaders(
+			registeredProvider?.headers,
+			requestAuth.headers,
+		);
 		modelRuntime.registerProvider(model.provider, {
 			...providerConfig,
+			...(requestAuth.baseUrl ? { baseUrl: requestAuth.baseUrl } : {}),
 			...(storedCredential?.type !== "oauth" && requestAuth.apiKey
 				? { apiKey: requestAuth.apiKey }
 				: {}),
-			headers: {
-				...registeredProvider?.headers,
-				...requestAuth.headers,
-			},
+			...(headers ? { headers } : {}),
 			...(storedCredential?.type === "oauth" && oauth ? { oauth } : {}),
 		});
 	}
@@ -133,7 +156,7 @@ export async function completeSummary(
 
 	const { session } = await createAgentSession({
 		cwd: ctx.cwd,
-		model,
+		model: requestModel,
 		thinkingLevel: config.summary.thinking,
 		modelRuntime,
 		noTools: "all",
