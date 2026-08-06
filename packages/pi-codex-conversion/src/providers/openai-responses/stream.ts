@@ -365,7 +365,7 @@ export async function processResponsesStream<TApi extends Api>(
 				}
 				outputStates.delete(event.output_index);
 			}
-		} else if (event.type === "response.completed") {
+		} else if (event.type === "response.completed" || event.type === "response.incomplete") {
 			const response = event.response;
 			if (response?.id) output.responseId = response.id;
 			if (response?.usage) {
@@ -389,7 +389,13 @@ export async function processResponsesStream<TApi extends Api>(
 					: (response?.service_tier ?? options.serviceTier);
 				options.applyServiceTierPricing(output.usage, serviceTier);
 			}
-			output.stopReason = mapStopReason(response?.status);
+			const incompleteDetails = response?.incomplete_details as { reason?: unknown } | null | undefined;
+			const incompleteReason = typeof incompleteDetails?.reason === "string" ? incompleteDetails.reason : undefined;
+			const rawStopReason = incompleteReason ? `${response?.status}.${incompleteReason}` : response?.status;
+			if (rawStopReason !== undefined) output.rawStopReason = rawStopReason;
+			const mappedStop = mapStopReason(response?.status, incompleteReason);
+			output.stopReason = mappedStop.stopReason;
+			if (mappedStop.errorMessage !== undefined) output.errorMessage = mappedStop.errorMessage;
 			if (output.content.some((block) => block.type === "toolCall") && output.stopReason === "stop") {
 				output.stopReason = "toolUse";
 			}
@@ -409,19 +415,28 @@ export async function processResponsesStream<TApi extends Api>(
 	}
 }
 
-function mapStopReason(status: string | undefined): AssistantMessage["stopReason"] {
-	if (!status) return "pending";
+function mapStopReason(
+	status: string | undefined,
+	incompleteReason?: string,
+): { stopReason: AssistantMessage["stopReason"]; errorMessage?: string } {
+	if (!status) return { stopReason: "pending" };
 	switch (status) {
 		case "completed":
-			return "stop";
+			return { stopReason: "stop" };
 		case "incomplete":
-			return "length";
+			if (incompleteReason === "max_output_tokens") return { stopReason: "length" };
+			return {
+				stopReason: "error",
+				errorMessage: incompleteReason
+					? `Response incomplete: ${incompleteReason}`
+					: "Response incomplete without a provider reason",
+			};
 		case "failed":
 		case "cancelled":
-			return "error";
+			return { stopReason: "error" };
 		case "in_progress":
 		case "queued":
-			return "pending";
+			return { stopReason: "pending" };
 		default:
 			throw new Error(`Unhandled stop reason: ${status}`);
 	}

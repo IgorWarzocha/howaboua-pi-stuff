@@ -1,5 +1,5 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import type { Model } from "@earendil-works/pi-ai";
+import type { Model, ProviderHeaders } from "@earendil-works/pi-ai";
 import { DEFAULT_CODEX_BASE_URL } from "../providers/openai-codex/constants.ts";
 import { extractAccountId } from "../providers/openai-codex/headers.ts";
 
@@ -50,11 +50,11 @@ export function resolveCodexSearchUrl(providerBaseUrl: string): string {
 	return `${base}/alpha/search`;
 }
 
-function headerValue(headers: Record<string, string> | undefined, name: string): string | undefined {
+function headerValue(headers: ProviderHeaders | undefined, name: string): string | undefined {
 	if (!headers) return undefined;
 	const lowerName = name.toLowerCase();
 	for (const [key, value] of Object.entries(headers)) {
-		if (key.toLowerCase() === lowerName) return value;
+		if (key.toLowerCase() === lowerName) return typeof value === "string" ? value : undefined;
 	}
 	return undefined;
 }
@@ -116,9 +116,10 @@ export async function resolveCodexToolProvider(ctx: ExtensionContext, allowConfi
 	const authorization = headerValue(auth.headers, "Authorization")?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
 	const token = openAICodex ? auth.apiKey ?? authorization : authorization ?? auth.apiKey;
 	if (!token) throw new Error(CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE);
+	const resolvedBaseUrl = auth.baseUrl ?? model.baseUrl;
 	const baseUrl = openAICodex
-		? resolveCodexApiProviderBaseUrl(model.baseUrl)
-		: model.baseUrl?.trim().replace(/\/+$/, "");
+		? resolveCodexApiProviderBaseUrl(resolvedBaseUrl)
+		: resolvedBaseUrl?.trim().replace(/\/+$/, "");
 	if (!baseUrl) throw new Error("Configured Responses provider is missing a base URL");
 	const responsesUrl = openAICodex ? resolveCodexResponsesUrl(baseUrl) : resolveConfiguredResponsesUrl(baseUrl);
 	return {

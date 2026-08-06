@@ -1,4 +1,4 @@
-import type { Api, Model } from "@earendil-works/pi-ai";
+import type { Api, Model, ProviderHeaders } from "@earendil-works/pi-ai";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 export const DEFAULT_SUPPORTED_PROVIDERS = ["openai", "openai-codex"] as const;
@@ -38,7 +38,7 @@ export type NativeCompactionRuntime = {
 	model: string;
 	baseUrl: string;
 	apiKey?: string | undefined;
-	headers?: Record<string, string> | undefined;
+	headers?: ProviderHeaders | undefined;
 	payload?: ResponsesCompatibleRequestPayload | undefined;
 	currentModel: RuntimeModel;
 };
@@ -78,10 +78,10 @@ export function normalizeBaseUrl(baseUrl: string | undefined | null): string | u
 async function resolveRequestAuth(
 	ctx: ExtensionContext,
 	model: RuntimeModel,
-): Promise<{ apiKey?: string | undefined; headers?: Record<string, string> | undefined }> {
+): Promise<{ apiKey?: string | undefined; headers?: ProviderHeaders | undefined; baseUrl?: string | undefined }> {
 	const modelRegistry = ctx.modelRegistry as {
 		getApiKeyAndHeaders?: (currentModel: RuntimeModel) => Promise<
-			| { ok: true; apiKey?: string | undefined; headers?: Record<string, string> | undefined }
+			| { ok: true; apiKey?: string | undefined; headers?: ProviderHeaders | undefined; baseUrl?: string | undefined }
 			| { ok: false; error: string }
 		> | undefined;
 	};
@@ -91,7 +91,7 @@ async function resolveRequestAuth(
 	}
 
 	const auth = await modelRegistry.getApiKeyAndHeaders(model);
-	return auth && auth.ok ? { apiKey: auth.apiKey, headers: auth.headers } : {};
+	return auth && auth.ok ? { apiKey: auth.apiKey, headers: auth.headers, baseUrl: auth.baseUrl } : {};
 }
 
 export function isSupportedApi(api: string): api is DefaultSupportedApi {
@@ -173,7 +173,9 @@ export async function resolveNativeCompactionEnvironment(
 		};
 	}
 
-	if (!descriptor.baseUrl) {
+	const { apiKey, headers, baseUrl: authBaseUrl } = await resolveRequestAuth(ctx, currentModel);
+	const effectiveBaseUrl = normalizeBaseUrl(authBaseUrl) ?? descriptor.baseUrl;
+	if (!effectiveBaseUrl) {
 		return {
 			ok: false,
 			reason: "missing-base-url",
@@ -202,8 +204,9 @@ export async function resolveNativeCompactionEnvironment(
 		requestPayload = payload;
 	}
 
-	const { apiKey, headers } = await resolveRequestAuth(ctx, currentModel);
-	const hasAuthorizationHeader = Object.entries(headers ?? {}).some(([key, value]) => key.toLowerCase() === "authorization" && value.trim().length > 0);
+	const hasAuthorizationHeader = Object.entries(headers ?? {}).some(
+		([key, value]) => key.toLowerCase() === "authorization" && typeof value === "string" && value.trim().length > 0,
+	);
 	if (!apiKey && !hasAuthorizationHeader) {
 		return {
 			ok: false,
@@ -219,11 +222,11 @@ export async function resolveNativeCompactionEnvironment(
 			api: descriptor.api,
 			apiFamily: descriptor.api,
 			model: descriptor.model,
-			baseUrl: descriptor.baseUrl,
+			baseUrl: effectiveBaseUrl,
 			apiKey,
 			headers,
 			payload: requestPayload,
-			currentModel,
+			currentModel: authBaseUrl ? { ...currentModel, baseUrl: effectiveBaseUrl } : currentModel,
 		},
 	};
 }

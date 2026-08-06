@@ -55,7 +55,7 @@ test("Responses compaction v2 uses the registered stream and installs one canoni
 			model: model.id,
 			baseUrl: model.baseUrl!,
 			apiKey: "token",
-			headers: { "x-codex-beta-features": "other" },
+			headers: { authorization: null, "x-codex-beta-features": "other" },
 			currentModel: model,
 		},
 		modelRegistry: {
@@ -71,6 +71,7 @@ test("Responses compaction v2 uses the registered stream and installs one canoni
 	closeOpenAICodexWebSocketSessions("session");
 
 	assert.equal(result.ok, true);
+	assert.equal(headers?.["authorization"], null);
 	assert.equal(headers?.["x-codex-beta-features"], "other,remote_compaction_v2");
 	assert.equal(transport, "sse");
 	assert.equal(maxRetries, 2);

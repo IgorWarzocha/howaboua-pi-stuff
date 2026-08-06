@@ -53,15 +53,16 @@ export async function createNativeVoiceContextSummary(
 		throw new Error(
 			`Voice context model is unavailable: ${request.model.provider}/${request.model.modelId}`,
 		);
-	assertCheckpointCompatibility(model, details);
 	const provider = request.ctx.modelRegistry.getProvider(model.provider);
 	if (!provider)
 		throw new Error(`Voice context provider is unavailable: ${model.provider}`);
 	const auth = await request.ctx.modelRegistry.getApiKeyAndHeaders(model);
 	if (!auth.ok) throw new Error(auth.error);
+	const requestModel = auth.baseUrl ? { ...model, baseUrl: auth.baseUrl } : model;
+	assertCheckpointCompatibility(requestModel, details);
 
 	const liveTail = serializeLiveTailToResponsesInput({
-		model,
+		model: requestModel,
 		entries: branch.slice(checkpointIndex + 1),
 	});
 	const context: Context = {
@@ -78,15 +79,15 @@ export async function createNativeVoiceContextSummary(
 	let completed:
 		| { content: Array<{ type: string; text?: string }>; errorMessage?: string }
 		| undefined;
-	for await (const event of provider.streamSimple(model, context, {
+	for await (const event of provider.streamSimple(requestModel, context, {
 		...(auth.apiKey ? { apiKey: auth.apiKey } : {}),
 		...(auth.headers ? { headers: auth.headers } : {}),
 		...(auth.env ? { env: auth.env } : {}),
 		...(request.signal ? { signal: request.signal } : {}),
-		maxTokens: model.maxTokens,
+		maxTokens: requestModel.maxTokens,
 		cacheRetention: "none",
 		sessionId: uuidv7(),
-		...(model.reasoning && reasoning !== "off" ? { reasoning } : {}),
+		...(requestModel.reasoning && reasoning !== "off" ? { reasoning } : {}),
 		onPayload(payload) {
 			if (!isRecord(payload) || !Array.isArray(payload["input"]))
 				throw new Error(

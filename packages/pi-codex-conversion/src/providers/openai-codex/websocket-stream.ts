@@ -15,6 +15,7 @@ export async function processWebSocketStream<TApi extends Api>(
 	output: AssistantMessage,
 	stream: AssistantMessageEventStream,
 	model: Model<TApi>,
+	accountId: string,
 	onStart: () => void,
 	options: OpenAICodexStreamOptions | undefined,
 	turnState?: CodexTurnState,
@@ -24,7 +25,7 @@ export async function processWebSocketStream<TApi extends Api>(
 	const idleTimeoutMs = normalizeTimeoutMs(options?.timeoutMs ?? DEFAULT_STREAM_IDLE_TIMEOUT_MS, "timeoutMs");
 	const websocketConnectTimeoutMs = normalizeTimeoutMs(options?.websocketConnectTimeoutMs, "websocketConnectTimeoutMs");
 
-	const { socket, entry, release, reused } = await acquireWebSocket(url, headers, options?.sessionId, options?.signal, websocketConnectTimeoutMs, options?.env);
+	const { socket, entry, release, reused } = await acquireWebSocket(url, headers, options?.sessionId, accountId, options?.signal, websocketConnectTimeoutMs, options?.env);
 	let keepConnection = true;
 	let released = false;
 	const responseItems: unknown[] = [];
@@ -106,13 +107,14 @@ export async function prewarmWebSocket(
 	url: string,
 	body: ResponsesBody,
 	headers: Headers,
+	accountId: string,
 	options: OpenAICodexStreamOptions,
 	turnState?: CodexTurnState,
 	diagnostics?: CodexDiagnosticsSink | undefined,
 ): Promise<void> {
 	const recordDiagnostics = noThrowCodexDiagnosticsSink(diagnostics);
 	const websocketConnectTimeoutMs = normalizeTimeoutMs(options.websocketConnectTimeoutMs, "websocketConnectTimeoutMs");
-	const { socket, entry, release, reused } = await acquireWebSocket(url, headers, options.sessionId, options.signal, websocketConnectTimeoutMs, options.env);
+	const { socket, entry, release, reused } = await acquireWebSocket(url, headers, options.sessionId, accountId, options.signal, websocketConnectTimeoutMs, options.env);
 	let keepConnection = true;
 	const responseItems: unknown[] = [];
 	let responseId: string | undefined;

@@ -29,7 +29,7 @@ import {
 	validateWebSocketTimeoutOptions,
 } from "./openai-codex/websocket.ts";
 import { isPermanentWebSocketError, isWebSocketMessageTooBigError, isWebSocketUnauthorizedError, isWebSocketUpgradeRequiredError } from "./openai-codex/websocket-connection.ts";
-import { assertSuccessfulCodexOutput, codexOverloadRetryDelay, codexRateLimitRetryDelay, codexStreamRetryDelay, createCodexHttpError, isCodexApiError, isCodexOverloadError, isCodexRateLimitError, isRetryableCodexStreamError, processCodexResponsesStream } from "./openai-codex/stream-events.ts";
+import { assertSuccessfulCodexOutput, CodexProtocolError, codexOverloadRetryDelay, codexRateLimitRetryDelay, codexStreamRetryDelay, createCodexHttpError, isCodexApiError, isCodexOverloadError, isCodexRateLimitError, isRetryableCodexStreamError, processCodexResponsesStream } from "./openai-codex/stream-events.ts";
 import { prewarmWebSocket, processWebSocketStream } from "./openai-codex/websocket-stream.ts";
 import { openaiCodexNativeOAuthProvider } from "./openai-codex/oauth.ts";
 import { CODEX_TURN_STATE_HEADER, type CodexTurnState } from "./openai-codex/turn-state.ts";
@@ -223,7 +223,7 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 	const websocketBody = withCodexTurnState(responsesLite ? applyResponsesLiteWebSocketMetadata(body) : body, deps.turnState);
 	const diagnostics = noThrowCodexDiagnosticsSink(deps.getDiagnostics?.());
 	try {
-		await prewarmWebSocket(resolveCodexWebSocketUrl(model.baseUrl), websocketBody, headers, effectiveOptions, deps.turnState, diagnostics);
+		await prewarmWebSocket(resolveCodexWebSocketUrl(model.baseUrl), websocketBody, headers, accountId, effectiveOptions, deps.turnState, diagnostics);
 	} catch (error) {
 		if (!options.signal?.aborted && (isWebSocketUpgradeRequiredError(error) || isWebSocketMessageTooBigError(error))) {
 			recordWebSocketSseFallback(options.sessionId);
@@ -336,6 +336,7 @@ function createCodexStream<TApi extends Api>(
 							output,
 							stream,
 							model,
+							accountId,
 							() => {
 								websocketStarted = true;
 								if (!streamStarted) {
@@ -392,7 +393,7 @@ function createCodexStream<TApi extends Api>(
 						}
 						if (!fallbackArmed) {
 							recordFailure("websocket", error);
-							if (websocketStarted) {
+							if (websocketStarted && !(error instanceof CodexProtocolError)) {
 								throw new NonRetryableProviderError("Codex stream ended after output began and cannot be continued from its incomplete response.");
 							}
 							throw error;

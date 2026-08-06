@@ -139,9 +139,10 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 				status: "failed",
 				error: new Error(`No API key found for "${model.provider}"`),
 			} as const;
+			const requestModel = auth.baseUrl ? { ...model, baseUrl: auth.baseUrl } : model;
 			try {
 				await prewarmOpenAICodexWebSocket(
-					model,
+					requestModel,
 					{ systemPrompt: preparedSystemPrompt, messages, tools },
 					{
 						apiKey: auth.apiKey,

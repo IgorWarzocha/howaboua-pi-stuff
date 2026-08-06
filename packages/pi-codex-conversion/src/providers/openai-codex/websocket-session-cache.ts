@@ -1,7 +1,7 @@
 import type { AcquiredWebSocket, ProviderEnv, SessionWebSocketCacheEntry } from "./types.ts";
 import { closeWebSocketSilently, connectWebSocket, isWebSocketReusable } from "./websocket-connection.ts";
 
-const websocketSessionCache = new Map<string, SessionWebSocketCacheEntry>();
+const websocketSessionCache = new Map<string, Map<string, SessionWebSocketCacheEntry>>();
 const websocketSseFallbackSessions = new Set<string>();
 const SESSION_WEBSOCKET_MAX_AGE_MS = 55 * 60 * 1000;
 
@@ -17,7 +17,7 @@ function isWebSocketSessionExpired(entry: SessionWebSocketCacheEntry): boolean {
 	return Date.now() - entry.createdAt >= SESSION_WEBSOCKET_MAX_AGE_MS;
 }
 
-function scheduleSessionWebSocketExpiry(cacheKey: string, entry: SessionWebSocketCacheEntry): void {
+function scheduleSessionWebSocketExpiry(sessionId: string, accountId: string, entry: SessionWebSocketCacheEntry): void {
 	if (entry.idleTimer) {
 		clearTimeout(entry.idleTimer);
 	}
@@ -25,7 +25,9 @@ function scheduleSessionWebSocketExpiry(cacheKey: string, entry: SessionWebSocke
 	entry.idleTimer = setTimeout(() => {
 		if (entry.busy) return;
 		closeWebSocketSilently(entry.socket, 1000, "connection_age_limit");
-		websocketSessionCache.delete(cacheKey);
+		const accountEntries = websocketSessionCache.get(sessionId);
+		if (accountEntries?.get(accountId) === entry) accountEntries.delete(accountId);
+		if (accountEntries?.size === 0) websocketSessionCache.delete(sessionId);
 	}, remainingLifetimeMs);
 }
 
@@ -39,14 +41,13 @@ function closeWebSocketSessions(sessionId: string | undefined): void {
 	};
 
 	if (sessionId) {
-		const entry = websocketSessionCache.get(sessionId);
-		if (entry) closeEntry(entry);
+		for (const entry of websocketSessionCache.get(sessionId)?.values() ?? []) closeEntry(entry);
 		websocketSessionCache.delete(sessionId);
 		return;
 	}
 
-	for (const entry of websocketSessionCache.values()) {
-		closeEntry(entry);
+	for (const accountEntries of websocketSessionCache.values()) {
+		for (const entry of accountEntries.values()) closeEntry(entry);
 	}
 	websocketSessionCache.clear();
 }
@@ -68,6 +69,7 @@ export async function acquireWebSocket(
 	url: string,
 	headers: Headers,
 	sessionId: string | undefined,
+	accountId: string,
 	signal: AbortSignal | undefined,
 	connectTimeoutMs?: number,
 	env?: ProviderEnv,
@@ -87,7 +89,8 @@ export async function acquireWebSocket(
 		};
 	}
 
-	const cached = websocketSessionCache.get(sessionId);
+	let accountEntries = websocketSessionCache.get(sessionId);
+	const cached = accountEntries?.get(accountId);
 	if (cached) {
 		if (cached.idleTimer) {
 			clearTimeout(cached.idleTimer);
@@ -96,7 +99,8 @@ export async function acquireWebSocket(
 
 		if (!cached.busy && isWebSocketSessionExpired(cached)) {
 			closeWebSocketSilently(cached.socket, 1000, "connection_age_limit");
-			websocketSessionCache.delete(sessionId);
+			accountEntries?.delete(accountId);
+			if (accountEntries?.size === 0) websocketSessionCache.delete(sessionId);
 		} else if (!cached.busy && isWebSocketReusable(cached.socket)) {
 			cached.busy = true;
 			return {
@@ -106,11 +110,13 @@ export async function acquireWebSocket(
 				release: ({ keep } = {}) => {
 					if (!keep || !isWebSocketReusable(cached.socket)) {
 						closeWebSocketSilently(cached.socket);
-						websocketSessionCache.delete(sessionId);
+						const currentEntries = websocketSessionCache.get(sessionId);
+						if (currentEntries?.get(accountId) === cached) currentEntries.delete(accountId);
+						if (currentEntries?.size === 0) websocketSessionCache.delete(sessionId);
 						return;
 					}
 					cached.busy = false;
-					scheduleSessionWebSocketExpiry(sessionId, cached);
+					scheduleSessionWebSocketExpiry(sessionId, accountId, cached);
 				},
 			};
 		}
@@ -128,13 +134,19 @@ export async function acquireWebSocket(
 
 		if (!isWebSocketReusable(cached.socket)) {
 			closeWebSocketSilently(cached.socket);
-			websocketSessionCache.delete(sessionId);
+			accountEntries?.delete(accountId);
+			if (accountEntries?.size === 0) websocketSessionCache.delete(sessionId);
 		}
 	}
 
 	const socket = await connectWebSocket(url, headers, signal, connectTimeoutMs, env);
 	const entry: SessionWebSocketCacheEntry = { socket, busy: true, createdAt: Date.now() };
-	websocketSessionCache.set(sessionId, entry);
+	accountEntries = websocketSessionCache.get(sessionId);
+	if (!accountEntries) {
+		accountEntries = new Map();
+		websocketSessionCache.set(sessionId, accountEntries);
+	}
+	accountEntries.set(accountId, entry);
 	return {
 		socket,
 		entry,
@@ -143,13 +155,13 @@ export async function acquireWebSocket(
 			if (!keep || !isWebSocketReusable(entry.socket)) {
 				closeWebSocketSilently(entry.socket);
 				if (entry.idleTimer) clearTimeout(entry.idleTimer);
-				if (websocketSessionCache.get(sessionId) === entry) {
-					websocketSessionCache.delete(sessionId);
-				}
+				const currentEntries = websocketSessionCache.get(sessionId);
+				if (currentEntries?.get(accountId) === entry) currentEntries.delete(accountId);
+				if (currentEntries?.size === 0) websocketSessionCache.delete(sessionId);
 				return;
 			}
 			entry.busy = false;
-			scheduleSessionWebSocketExpiry(sessionId, entry);
+			scheduleSessionWebSocketExpiry(sessionId, accountId, entry);
 		},
 	};
 }
