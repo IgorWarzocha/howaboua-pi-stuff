@@ -10,8 +10,11 @@ export function getFinalOutput(messages: any[]): string {
 	for (let i = messages.length - 1; i >= 0; i--) {
 		const message = messages[i];
 		if (message.role !== "assistant") continue;
-		for (const part of message.content ?? [])
-			if (part.type === "text") return part.text;
+		const text = (message.content ?? [])
+			.filter((part: any) => part.type === "text")
+			.map((part: any) => part.text)
+			.join("");
+		if (text) return text;
 	}
 	return "";
 }
