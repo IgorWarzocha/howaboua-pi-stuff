@@ -14,8 +14,7 @@ import { maybeWarnLocalCheckoutVersion } from "../adapter/local-version-warning.
 import { clearApplyPatchRenderState } from "../tools/apply-patch/tool.ts";
 import type { CodeModeRegistration } from "../tools/code-mode/tools.ts";
 import { initializeBashParser } from "../shell/bash.ts";
-import { CANCELLED, interruptible } from "../voice/cancellation.ts";
-import type { PreparedVoiceDelegation } from "../voice/session-messages.ts";
+import { prepareVoiceDelegation } from "../voice/delegation-preflight.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
 import type { CodexToolRegistration } from "./tools.ts";
 import type { CodexUiController } from "./ui.ts";
@@ -232,88 +231,6 @@ export function registerCodexEvents(
 		if (state.config.voiceFeaturesOnly) return { messages };
 		return { messages };
 	});
-}
-
-async function prepareVoiceDelegation(
-	runtime: CodexExtensionRuntime,
-	codeMode: CodeModeRegistration,
-	ctx: ExtensionContext,
-	signal: AbortSignal,
-): Promise<PreparedVoiceDelegation | undefined> {
-	const { state } = runtime;
-	const buildCurrent = () => {
-		if (!isAdapterRuntime(resolveCodexRuntimePlan(ctx, state.config))) return undefined;
-		const basePrompt = state.activeProviderSystemPrompt ?? ctx.getSystemPrompt();
-		const promptOptions = state.config.prompt.heavySystemPromptOverwrite
-			? { cwd: ctx.cwd }
-			: undefined;
-		const systemPrompt = runtime.codexSystemPrompt(
-			codeMode.refreshPromptTools(basePrompt, ctx),
-			ctx,
-			undefined,
-			promptOptions,
-		);
-		return {
-			systemPrompt,
-			prewarmIdentity: runtime.prewarmIdentity(ctx, systemPrompt),
-		};
-	};
-	for (;;) {
-		signal.throwIfAborted();
-		const prepared = buildCurrent();
-		if (!prepared) {
-			state.voiceSystemPromptOverride = undefined;
-			return undefined;
-		}
-		const prewarmOperation = runtime.waitForPrewarm(ctx, prepared.systemPrompt);
-		const prewarm = prewarmOperation
-			? await interruptible(prewarmOperation, signal)
-			: undefined;
-		if (prewarm === CANCELLED) {
-			signal.throwIfAborted();
-			throw new Error("Voice delegation preflight was cancelled");
-		}
-		if (prewarm?.status === "aborted") continue;
-		if (prewarm?.status === "failed") throw prewarm.error;
-		const current = buildCurrent();
-		if (
-			!current ||
-			current.systemPrompt !== prepared.systemPrompt ||
-			current.prewarmIdentity !== prepared.prewarmIdentity
-		) continue;
-		let committed = false;
-		let previous: Pick<typeof state, "activeProviderSystemPrompt" | "voiceSystemPromptOverride" | "pendingActiveProviderPromptCapture"> | undefined;
-		return {
-			commit() {
-				const commit = buildCurrent();
-				if (
-					!commit ||
-					commit.systemPrompt !== prepared.systemPrompt ||
-					commit.prewarmIdentity !== prepared.prewarmIdentity
-				) return false;
-				previous = {
-					activeProviderSystemPrompt: state.activeProviderSystemPrompt,
-					voiceSystemPromptOverride: state.voiceSystemPromptOverride,
-					pendingActiveProviderPromptCapture: state.pendingActiveProviderPromptCapture,
-				};
-				state.activeProviderSystemPrompt = prepared.systemPrompt;
-				state.voiceSystemPromptOverride = prepared.systemPrompt;
-				state.pendingActiveProviderPromptCapture = true;
-				committed = true;
-				return true;
-			},
-			rollback() {
-				if (!committed || !previous) return;
-				if (state.activeProviderSystemPrompt === prepared.systemPrompt)
-					state.activeProviderSystemPrompt = previous.activeProviderSystemPrompt;
-				if (state.voiceSystemPromptOverride === prepared.systemPrompt)
-					state.voiceSystemPromptOverride = previous.voiceSystemPromptOverride;
-				if (state.pendingActiveProviderPromptCapture === true)
-					state.pendingActiveProviderPromptCapture = previous.pendingActiveProviderPromptCapture;
-				committed = false;
-			},
-		};
-	}
 }
 
 async function runShutdownStep(failures: unknown[], action: () => unknown): Promise<void> {
