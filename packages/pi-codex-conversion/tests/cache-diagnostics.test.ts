@@ -17,7 +17,7 @@ import {
 	createRegisteredCodexProvider,
 	installScriptedWebSocket,
 } from "./openai-codex-test-support.ts";
-import { context, model, streamOptions, user } from "./websocket-test-support.ts";
+import { context, model, sentFrames, streamOptions, textResponse, user } from "./websocket-test-support.ts";
 
 test("cache miss status holds for three seconds then shows only the latest event", async () => {
 	assert.equal(CACHE_MISS_HOLD_MS, 3_000);
@@ -280,6 +280,35 @@ test("provider diagnostics report the request decision and authoritative cache u
 			cacheWriteInputTokens: 0,
 			outputTokens: 1,
 		});
+	} finally {
+		restoreWebSocket();
+	}
+});
+
+test("a throwing diagnostics sink cannot alter or leak the provider stream", async () => {
+	const restoreWebSocket = installScriptedWebSocket([[
+		textResponse("resp_safe_diagnostics_1", "first"),
+		textResponse("resp_safe_diagnostics_2", "second"),
+	]]);
+	try {
+		const registered = createRegisteredCodexProvider({
+			getDiagnostics: () => () => { throw new Error("diagnostics failed"); },
+		});
+		const requestContext = context([user("diagnose safely", 1)]);
+		const first = await collectStream(registered.provider.streamSimple(
+			model as never,
+			requestContext as never,
+			streamOptions("throwing-cache-diagnostics") as never,
+		));
+		const second = await collectStream(registered.provider.streamSimple(
+			model as never,
+			requestContext as never,
+			streamOptions("throwing-cache-diagnostics") as never,
+		));
+		assert.equal((first.at(-1) as { type?: string }).type, "done");
+		assert.equal((second.at(-1) as { type?: string }).type, "done");
+		assert.equal(ScriptedWebSocket.opened, 1);
+		assert.equal(sentFrames().length, 2);
 	} finally {
 		restoreWebSocket();
 	}

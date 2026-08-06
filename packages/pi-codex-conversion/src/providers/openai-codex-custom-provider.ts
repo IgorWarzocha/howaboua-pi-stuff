@@ -15,7 +15,7 @@ import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import { DEFAULT_MAX_RETRY_DELAY_MS, DEFAULT_SSE_HEADER_TIMEOUT_MS, DEFAULT_STREAM_IDLE_TIMEOUT_MS, DEFAULT_STREAM_MAX_RETRIES, INITIAL_STREAM_RETRY_DELAY_MS, MAX_SSE_REQUEST_RETRIES, MAX_STREAM_MAX_RETRIES } from "./openai-codex/constants.ts";
 import { createErrorMessage, isRetryableRequestStatus, isRetryableStreamStatus, NonRetryableProviderError, parseErrorResponse } from "./openai-codex/errors.ts";
 import { createCodexRequestId, extractAccountId, buildSSEHeaders, buildWebSocketHeaders, headersToRecord, PI_CODEX_CONVERSION_ORIGINATOR, resolveCodexUrl, resolveCodexWebSocketUrl } from "./openai-codex/headers.ts";
-import { codexDiagnosticsFailure } from "./openai-codex/diagnostic-failure.ts";
+import { codexDiagnosticsFailure, noThrowCodexDiagnosticsSink } from "./openai-codex/diagnostic-failure.ts";
 import { buildRequestBody } from "./openai-codex/request-body.ts";
 import { supportsResponsesLiteModel } from "./openai-codex/responses-lite-model.ts";
 import { applyResponsesLiteRequest, applyResponsesLiteWebSocketMetadata, isResponsesLiteRequest, prepareResponsesLiteRequestImages } from "./openai-codex/responses-lite.ts";
@@ -221,7 +221,7 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 	const originator = runtimeConfig?.openai.harnessIdentifierHeader ? PI_CODEX_CONVERSION_ORIGINATOR : undefined;
 	const headers = buildWebSocketHeaders(model.headers, effectiveOptions.headers, accountId, options.apiKey, options.sessionId, originator);
 	const websocketBody = withCodexTurnState(responsesLite ? applyResponsesLiteWebSocketMetadata(body) : body, deps.turnState);
-	const diagnostics = deps.getDiagnostics?.();
+	const diagnostics = noThrowCodexDiagnosticsSink(deps.getDiagnostics?.());
 	try {
 		await prewarmWebSocket(resolveCodexWebSocketUrl(model.baseUrl), websocketBody, headers, effectiveOptions, deps.turnState, diagnostics);
 	} catch (error) {
@@ -263,7 +263,7 @@ function createCodexStream<TApi extends Api>(
 
 	(async () => {
 		let output = createInitialAssistantMessage(model);
-		const diagnostics = deps.getDiagnostics?.();
+		const diagnostics = noThrowCodexDiagnosticsSink(deps.getDiagnostics?.());
 		let lane: Exclude<CodexDiagnosticsLane, "prewarm"> = "response";
 		let diagnosticsFailureRecorded = false;
 		const recordFailure = (transport: "websocket" | "sse", error: unknown) => {

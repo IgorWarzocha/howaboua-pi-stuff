@@ -6,7 +6,7 @@ import { assertSuccessfulCodexOutput, assertSuccessfulCodexStatus, mapCodexEvent
 import type { CachedWebSocketRequestBodyResult, CodexDiagnosticsLane, CodexDiagnosticsSink, OpenAICodexStreamOptions, ResponsesBody } from "./types.ts";
 import type { CodexTurnState } from "./turn-state.ts";
 import { DEFAULT_STREAM_IDLE_TIMEOUT_MS, DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS } from "./constants.ts";
-import { codexDiagnosticsFailure } from "./diagnostic-failure.ts";
+import { codexDiagnosticsFailure, noThrowCodexDiagnosticsSink } from "./diagnostic-failure.ts";
 
 export async function processWebSocketStream<TApi extends Api>(
 	url: string,
@@ -37,17 +37,7 @@ export async function processWebSocketStream<TApi extends Api>(
 		? buildCachedWebSocketRequestBody(entry.continuation, fullBody)
 		: { body: fullBody, decision: useCachedContext ? "no_session_cache_entry" : "disabled" } satisfies CachedWebSocketRequestBodyResult;
 	const requestBody = cachedRequest.body;
-	diagnostics?.record({
-		type: "request",
-		lane: diagnostics.lane,
-		transport: "websocket",
-		attempt: diagnostics.attempt,
-		fullInputItems: fullBody.input.length,
-		sentInputItems: requestBody.input.length,
-		socketReused: reused,
-		continuation: cachedRequest.decision,
-		previousResponseId: Boolean(requestBody.previous_response_id),
-	});
+	const recordDiagnostics = noThrowCodexDiagnosticsSink(diagnostics?.record);
 
 	const releaseOnce = (releaseOptions?: { keep?: boolean | undefined }) => {
 		if (released) return;
@@ -56,6 +46,19 @@ export async function processWebSocketStream<TApi extends Api>(
 	};
 
 	try {
+		if (diagnostics && recordDiagnostics) {
+			recordDiagnostics({
+				type: "request",
+				lane: diagnostics.lane,
+				transport: "websocket",
+				attempt: diagnostics.attempt,
+				fullInputItems: fullBody.input.length,
+				sentInputItems: requestBody.input.length,
+				socketReused: reused,
+				continuation: cachedRequest.decision,
+				previousResponseId: Boolean(requestBody.previous_response_id),
+			});
+		}
 		socket.send(JSON.stringify({ type: "response.create", ...requestBody }));
 		await processMappedCodexResponsesStream(
 			startWebSocketOutputOnFirstEvent(
@@ -107,6 +110,7 @@ export async function prewarmWebSocket(
 	turnState?: CodexTurnState,
 	diagnostics?: CodexDiagnosticsSink | undefined,
 ): Promise<void> {
+	const recordDiagnostics = noThrowCodexDiagnosticsSink(diagnostics);
 	const websocketConnectTimeoutMs = normalizeTimeoutMs(options.websocketConnectTimeoutMs, "websocketConnectTimeoutMs");
 	const { socket, entry, release, reused } = await acquireWebSocket(url, headers, options.sessionId, options.signal, websocketConnectTimeoutMs, options.env);
 	let keepConnection = true;
@@ -115,7 +119,7 @@ export async function prewarmWebSocket(
 	let responseStatus: string | undefined;
 	const idleTimeoutMs = normalizeTimeoutMs(options.timeoutMs ?? options.websocketConnectTimeoutMs ?? DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS, "timeoutMs");
 	try {
-		diagnostics?.({
+		recordDiagnostics?.({
 			type: "request",
 			lane: "prewarm",
 			transport: "websocket",
@@ -138,10 +142,10 @@ export async function prewarmWebSocket(
 		if (entry && responseId) {
 			entry.continuation = { lastRequestBody: body, lastResponseId: responseId, lastResponseItems: responseItems };
 		}
-		diagnostics?.({ type: "prewarm-ready", transport: "websocket", socketReused: reused });
+		recordDiagnostics?.({ type: "prewarm-ready", transport: "websocket", socketReused: reused });
 	} catch (error) {
 		keepConnection = false;
-		diagnostics?.({
+		recordDiagnostics?.({
 			type: "failure",
 			lane: "prewarm",
 			transport: "websocket",

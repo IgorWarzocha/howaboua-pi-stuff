@@ -1,6 +1,7 @@
 import type {
 	CodexDiagnosticsFailure,
 	CodexDiagnosticsFailureCategory,
+	CodexDiagnosticsSink,
 } from "./types.ts";
 
 function record(value: unknown): Record<string, unknown> | undefined {
@@ -61,5 +62,18 @@ export function codexDiagnosticsFailure(error: unknown): CodexDiagnosticsFailure
 		category: category(description),
 		...(code ? { code } : {}),
 		...(status !== undefined ? { status } : {}),
+	};
+}
+
+export function noThrowCodexDiagnosticsSink(
+	sink: CodexDiagnosticsSink | undefined,
+): CodexDiagnosticsSink | undefined {
+	if (!sink) return undefined;
+	return (event) => {
+		try {
+			sink(event);
+		} catch {
+			// Optional diagnostics must never change provider execution.
+		}
 	};
 }
