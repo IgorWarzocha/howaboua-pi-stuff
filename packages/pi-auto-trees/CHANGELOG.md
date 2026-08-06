@@ -1,5 +1,11 @@
 # @howaboua/pi-auto-trees
 
+## 0.1.12
+
+### Changes
+
+- [#235](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/235) [`5657b77`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/5657b778f59ffa2eb86f10f7e949f060d95eb993) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Preserve Pi 0.84 credential-resolved endpoints and nullable auth headers in tree, review, and voice summaries, assemble complete multi-block delta-only RPC streaming updates, and remove retired Smart BTW shortcut-capture and voice helper exports
+
 ## 0.1.11
 
 ### Changes
