@@ -123,9 +123,8 @@ export async function openCodexSettingsScreen(
 					const nextDraft = definition.update(value, draft);
 					if (options.onChange(nextDraft)) {
 						draft = nextDraft;
-						const nextValue = buildSettings().find(({ item }) => item.id === id)
-							?.item.currentValue;
-						if (nextValue !== undefined) list.updateValue(id, nextValue);
+						for (const { item } of buildSettings())
+							list.updateValue(item.id, item.currentValue);
 					} else {
 						list.updateValue(id, previousValue);
 					}

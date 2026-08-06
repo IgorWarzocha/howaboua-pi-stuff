@@ -106,5 +106,38 @@ export function buildOpenAISettings(
 				},
 			}),
 		),
+		setting({
+			id: "diagnosticsHeader",
+			label: theme.fg("dim", "Diagnostics"),
+			currentValue: "",
+		}),
+		toggle(
+			"cacheDiagnosticsStatus",
+			"Cache status line",
+			config.openai.cacheDiagnostics !== "off",
+			(enabled, current) => ({
+				...current,
+				openai: {
+					...current.openai,
+					cacheDiagnostics: enabled ? "status" : "off",
+				},
+			}),
+		),
+		toggle(
+			"cacheDiagnosticsLog",
+			"Cache log file",
+			config.openai.cacheDiagnostics === "status-and-log",
+			(enabled, current) => ({
+				...current,
+				openai: {
+					...current.openai,
+					cacheDiagnostics: enabled
+						? "status-and-log"
+						: current.openai.cacheDiagnostics === "off"
+							? "off"
+							: "status",
+				},
+			}),
+		),
 	];
 }

@@ -44,6 +44,58 @@ export type WebSocketContinuationDecision =
 	| "missing_previous_response_id"
 	| "delta";
 
+export type CodexDiagnosticsLane = "response" | "compaction" | "prewarm";
+export type CodexDiagnosticsTransport = "websocket" | "sse";
+export type CodexDiagnosticsEvent =
+	| {
+			type: "request";
+			lane: CodexDiagnosticsLane;
+			transport: CodexDiagnosticsTransport;
+			attempt: number;
+			fullInputItems: number;
+			sentInputItems: number;
+			socketReused?: boolean | undefined;
+			continuation?: WebSocketContinuationDecision | undefined;
+			previousResponseId?: boolean | undefined;
+	  }
+	| {
+			type: "usage";
+			lane: Exclude<CodexDiagnosticsLane, "prewarm">;
+			transport: CodexDiagnosticsTransport;
+			inputTokens: number;
+			cachedInputTokens: number;
+			cacheWriteInputTokens: number;
+			outputTokens: number;
+	  }
+	| {
+			type: "retry";
+			lane: Exclude<CodexDiagnosticsLane, "prewarm">;
+			transport: CodexDiagnosticsTransport;
+			attempt: number;
+			delayMs?: number | undefined;
+			error: string;
+	  }
+	| {
+			type: "fallback";
+			lane: Exclude<CodexDiagnosticsLane, "prewarm">;
+			from: CodexDiagnosticsTransport;
+			to: CodexDiagnosticsTransport;
+			reason: string;
+	  }
+	| {
+			type: "failure";
+			lane: CodexDiagnosticsLane;
+			transport: CodexDiagnosticsTransport;
+			error: string;
+	  }
+	| {
+			type: "prewarm-ready";
+			transport: "websocket";
+			socketReused: boolean;
+	  };
+
+export type CodexDiagnosticsSink = (event: CodexDiagnosticsEvent) => void;
+
 export interface CachedWebSocketRequestBodyResult {
 	body: ResponsesBody;
 	decision: WebSocketContinuationDecision;

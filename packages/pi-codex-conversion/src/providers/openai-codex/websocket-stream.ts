@@ -3,7 +3,7 @@ import { normalizeTimeoutMs } from "./sse.ts";
 import { buildCachedWebSocketRequestBody } from "./websocket-continuation.ts";
 import { acquireWebSocket, parseWebSocket, startWebSocketOutputOnFirstEvent } from "./websocket.ts";
 import { assertSuccessfulCodexOutput, assertSuccessfulCodexStatus, mapCodexEvents, processMappedCodexResponsesStream } from "./stream-events.ts";
-import type { CachedWebSocketRequestBodyResult, OpenAICodexStreamOptions, ResponsesBody } from "./types.ts";
+import type { CachedWebSocketRequestBodyResult, CodexDiagnosticsLane, CodexDiagnosticsSink, OpenAICodexStreamOptions, ResponsesBody } from "./types.ts";
 import type { CodexTurnState } from "./turn-state.ts";
 import { DEFAULT_STREAM_IDLE_TIMEOUT_MS, DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS } from "./constants.ts";
 
@@ -17,12 +17,13 @@ export async function processWebSocketStream<TApi extends Api>(
 	onStart: () => void,
 	options: OpenAICodexStreamOptions | undefined,
 	turnState?: CodexTurnState,
+	diagnostics?: { lane: Exclude<CodexDiagnosticsLane, "prewarm">; attempt: number; record: CodexDiagnosticsSink } | undefined,
 ): Promise<void> {
 	let streamStarted = false;
 	const idleTimeoutMs = normalizeTimeoutMs(options?.timeoutMs ?? DEFAULT_STREAM_IDLE_TIMEOUT_MS, "timeoutMs");
 	const websocketConnectTimeoutMs = normalizeTimeoutMs(options?.websocketConnectTimeoutMs, "websocketConnectTimeoutMs");
 
-	const { socket, entry, release } = await acquireWebSocket(url, headers, options?.sessionId, options?.signal, websocketConnectTimeoutMs, options?.env);
+	const { socket, entry, release, reused } = await acquireWebSocket(url, headers, options?.sessionId, options?.signal, websocketConnectTimeoutMs, options?.env);
 	let keepConnection = true;
 	let released = false;
 	const responseItems: unknown[] = [];
@@ -35,6 +36,17 @@ export async function processWebSocketStream<TApi extends Api>(
 		? buildCachedWebSocketRequestBody(entry.continuation, fullBody)
 		: { body: fullBody, decision: useCachedContext ? "no_session_cache_entry" : "disabled" } satisfies CachedWebSocketRequestBodyResult;
 	const requestBody = cachedRequest.body;
+	diagnostics?.record({
+		type: "request",
+		lane: diagnostics.lane,
+		transport: "websocket",
+		attempt: diagnostics.attempt,
+		fullInputItems: fullBody.input.length,
+		sentInputItems: requestBody.input.length,
+		socketReused: reused,
+		continuation: cachedRequest.decision,
+		previousResponseId: Boolean(requestBody.previous_response_id),
+	});
 
 	const releaseOnce = (releaseOptions?: { keep?: boolean | undefined }) => {
 		if (released) return;
@@ -92,15 +104,26 @@ export async function prewarmWebSocket(
 	headers: Headers,
 	options: OpenAICodexStreamOptions,
 	turnState?: CodexTurnState,
+	diagnostics?: CodexDiagnosticsSink | undefined,
 ): Promise<void> {
 	const websocketConnectTimeoutMs = normalizeTimeoutMs(options.websocketConnectTimeoutMs, "websocketConnectTimeoutMs");
-	const { socket, entry, release } = await acquireWebSocket(url, headers, options.sessionId, options.signal, websocketConnectTimeoutMs, options.env);
+	const { socket, entry, release, reused } = await acquireWebSocket(url, headers, options.sessionId, options.signal, websocketConnectTimeoutMs, options.env);
 	let keepConnection = true;
 	const responseItems: unknown[] = [];
 	let responseId: string | undefined;
 	let responseStatus: string | undefined;
 	const idleTimeoutMs = normalizeTimeoutMs(options.timeoutMs ?? options.websocketConnectTimeoutMs ?? DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS, "timeoutMs");
 	try {
+		diagnostics?.({
+			type: "request",
+			lane: "prewarm",
+			transport: "websocket",
+			attempt: 1,
+			fullInputItems: body.input.length,
+			sentInputItems: body.input.length,
+			socketReused: reused,
+			previousResponseId: Boolean(body.previous_response_id),
+		});
 		socket.send(JSON.stringify({ type: "response.create", ...body, generate: false }));
 		for await (const event of mapCodexEvents(parseWebSocket(socket, options.signal, idleTimeoutMs, (value) => turnState?.capturePrewarm(value)))) {
 			if (event.type === "response.created" && event.response?.id) responseId = event.response.id;
@@ -114,8 +137,15 @@ export async function prewarmWebSocket(
 		if (entry && responseId) {
 			entry.continuation = { lastRequestBody: body, lastResponseId: responseId, lastResponseItems: responseItems };
 		}
+		diagnostics?.({ type: "prewarm-ready", transport: "websocket", socketReused: reused });
 	} catch (error) {
 		keepConnection = false;
+		diagnostics?.({
+			type: "failure",
+			lane: "prewarm",
+			transport: "websocket",
+			error: error instanceof Error ? error.message : String(error),
+		});
 		throw error;
 	} finally {
 		release({ keep: keepConnection });

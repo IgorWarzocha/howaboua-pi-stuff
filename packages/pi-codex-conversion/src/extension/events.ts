@@ -82,6 +82,7 @@ export function registerCodexEvents(
 			tools.ensureOptionalTools();
 			ui.clearBackgroundWidget();
 			syncAdapter(pi, ctx, state);
+			await runtime.configureDiagnostics(ctx);
 			return;
 		}
 		sessions.setBaseEnv(runtime.execEnv());
@@ -90,6 +91,7 @@ export function registerCodexEvents(
 		tools.ensureOptionalTools();
 		ui.renderBackgroundWidget();
 		syncAdapter(pi, ctx, state);
+		await runtime.configureDiagnostics(ctx);
 		prepareCodeModeHost(codeMode, ctx);
 		if (!state.config.prompt.heavySystemPromptOverwrite)
 			void runtime.startPrewarm(ctx, codeMode.refreshPromptTools(ctx.getSystemPrompt(), ctx));
@@ -107,10 +109,12 @@ export function registerCodexEvents(
 			tools.ensureOptionalTools();
 			ui.clearBackgroundWidget();
 			syncAdapter(pi, ctx, state);
+			await runtime.configureDiagnostics(ctx);
 			return;
 		}
 		tools.ensureOptionalTools();
 		syncAdapter(pi, ctx, state);
+		await runtime.configureDiagnostics(ctx);
 		prepareCodeModeHost(codeMode, ctx);
 		if (!state.config.prompt.heavySystemPromptOverwrite)
 			void runtime.startPrewarm(ctx, codeMode.refreshPromptTools(ctx.getSystemPrompt(), ctx));
@@ -142,6 +146,7 @@ export function registerCodexEvents(
 		await runShutdownStep(failures, () => runtime.lanVoice.stop(ctx));
 		await runShutdownStep(failures, () => runtime.voice.stop({ announce: true }));
 		await runShutdownStep(failures, () => runtime.shutdownTransport(ctx.sessionManager.getSessionId()));
+		await runShutdownStep(failures, () => runtime.shutdownDiagnostics());
 		await runShutdownStep(failures, () => ui.clearBackgroundWidget());
 		runtime.backgroundWidget.ctx = undefined;
 		await runShutdownStep(failures, () => sessions.shutdown());

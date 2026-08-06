@@ -20,6 +20,8 @@ import type { BackgroundBashWidgetState } from "../ui/background-bash-widget.ts"
 import { CodexVoiceController } from "../voice/controller.ts";
 import { CodexLanVoiceServerController } from "../voice/lan/controller.ts";
 import { getActiveToolsInActiveOrder } from "../adapter/active-tools.ts";
+import { createLazyCodexDiagnostics } from "../diagnostics/lazy.ts";
+import type { CodexDiagnosticsSink } from "../providers/openai-codex/types.ts";
 
 export type CodexContext = ExtensionContext;
 
@@ -44,6 +46,9 @@ export interface CodexExtensionRuntime {
 	shutdownTransport(sessionId: string): void;
 	waitForPrewarm(ctx: CodexContext, systemPrompt: string): Promise<CodexPrewarmResult> | undefined;
 	prewarmIdentity(ctx: CodexContext, systemPrompt: string): string | undefined;
+	configureDiagnostics(ctx: CodexContext, announceLog?: boolean): Promise<void>;
+	diagnosticsSink(): CodexDiagnosticsSink | undefined;
+	shutdownDiagnostics(): Promise<void>;
 }
 
 function activeToolContext(pi: ExtensionAPI): NonNullable<Context["tools"]> {
@@ -74,6 +79,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 	let pendingPrewarmKey: string | undefined;
 	let prewarmedKey: string | undefined;
 	const voice = new CodexVoiceController(pi);
+	const diagnostics = createLazyCodexDiagnostics();
 	const buildPrewarmPlan = (
 		ctx: CodexContext,
 		systemPrompt: string,
@@ -154,6 +160,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 						getConfig: () => ({ openai: config.openai, beta: config.beta, compaction: config.compaction }),
 						useResponsesLite: (currentModel) => resolveCodexRuntimePlan({ model: currentModel }, config).kind === "code",
 						turnState: state.codexTurnState,
+						getDiagnostics: () => diagnostics.sink(),
 					},
 				);
 			} catch (error) {
@@ -244,6 +251,20 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		},
 		prewarmIdentity(ctx, systemPrompt) {
 			return buildPrewarmPlan(ctx, systemPrompt, true, [], false)?.key;
+		},
+		configureDiagnostics(ctx, announceLog = false) {
+			return diagnostics.configure({
+				mode: state.config.openai.cacheDiagnostics,
+				active: ctx.model?.provider === "openai-codex",
+				ctx,
+				announceLog,
+			});
+		},
+		diagnosticsSink() {
+			return diagnostics.sink();
+		},
+		shutdownDiagnostics() {
+			return diagnostics.shutdown();
 		},
 	};
 	return runtime;
