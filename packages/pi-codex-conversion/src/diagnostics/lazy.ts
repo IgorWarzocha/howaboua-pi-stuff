@@ -23,11 +23,7 @@ export interface LazyCodexDiagnostics {
 	shutdown(): Promise<void>;
 }
 
-type DiagnosticsRuntimeModule = Pick<typeof import("./runtime.ts"), "createCodexDiagnosticsRuntime">;
-
-export function createLazyCodexDiagnostics(
-	loadRuntime: () => Promise<DiagnosticsRuntimeModule> = () => import("./runtime.ts"),
-): LazyCodexDiagnostics {
+export function createLazyCodexDiagnostics(): LazyCodexDiagnostics {
 	let active: ActiveCodexDiagnostics | undefined;
 	let stopInFlight: Promise<void> | undefined;
 	let generation = 0;
@@ -78,7 +74,7 @@ export function createLazyCodexDiagnostics(
 				await stopForReconfigure(options.ctx);
 				return;
 			}
-			const module = await loadRuntime();
+			const module = await import("./runtime.ts");
 			if (generation !== currentGeneration) return;
 			await stopForReconfigure(options.ctx);
 			if (generation !== currentGeneration) return;

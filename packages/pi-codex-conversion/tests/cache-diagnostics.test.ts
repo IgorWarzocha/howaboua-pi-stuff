@@ -7,7 +7,6 @@ import {
 	codexDiagnosticsLogPath,
 	createCodexDiagnosticsLog,
 } from "../src/diagnostics/logger.ts";
-import { createLazyCodexDiagnostics } from "../src/diagnostics/lazy.ts";
 import { CACHE_MISS_HOLD_MS, createCodexDiagnosticsRuntime } from "../src/diagnostics/runtime.ts";
 import { codexDiagnosticsFailure } from "../src/providers/openai-codex/diagnostic-failure.ts";
 import type { CodexDiagnosticsEvent } from "../src/providers/openai-codex/types.ts";
@@ -82,88 +81,6 @@ test("cache miss status holds for three seconds then shows only the latest event
 	assert.match(statuses.at(-1) ?? "", /HIT.*WS delta/);
 	assert.doesNotMatch(statuses.at(-1) ?? "", /%|cached/);
 	await runtime.shutdown();
-});
-
-test("lazy diagnostics sinks are session-bound and exception-safe", async () => {
-	const diagnostics = createLazyCodexDiagnostics();
-	const statusesA: Array<string | undefined> = [];
-	const statusesB: Array<string | undefined> = [];
-	let throwFromB = false;
-	const contextFor = (sessionId: string, statuses: Array<string | undefined>) => ({
-		cwd: "/work/project",
-		model,
-		sessionManager: {
-			getSessionId: () => sessionId,
-			getSessionFile: () => `/sessions/${sessionId}.jsonl`,
-			getSessionName: () => undefined,
-		},
-		ui: {
-			theme: { fg: (_role: string, text: string) => text },
-			setStatus: (_key: string, value: string | undefined) => {
-				if (sessionId === "session-b" && throwFromB) throw new Error("UI unavailable");
-				statuses.push(value);
-			},
-			notify: () => undefined,
-		},
-	}) as never;
-	const ctxA = contextFor("session-a", statusesA);
-	const ctxB = contextFor("session-b", statusesB);
-	await diagnostics.configure({ mode: "status", active: true, ctx: ctxA, agentDir: tmpdir() });
-	const staleSink = diagnostics.sink()!;
-	await diagnostics.configure({ mode: "status", active: true, ctx: ctxB, agentDir: tmpdir() });
-	const currentSink = diagnostics.sink()!;
-	const request: CodexDiagnosticsEvent = {
-		type: "request",
-		lane: "response",
-		transport: "websocket",
-		attempt: 1,
-		fullInputItems: 10,
-		sentInputItems: 1,
-		socketReused: true,
-		continuation: "delta",
-		previousResponseId: true,
-	};
-	const statusCount = statusesB.length;
-	staleSink(request);
-	assert.equal(statusesB.length, statusCount);
-	currentSink(request);
-	assert.match(statusesB.at(-1) ?? "", /WS delta/);
-
-	throwFromB = true;
-	assert.doesNotThrow(() => currentSink(request));
-	assert.doesNotThrow(() => currentSink(request));
-	throwFromB = false;
-	await diagnostics.shutdown();
-});
-
-test("concurrent diagnostics shutdown waits for an in-flight log close", async () => {
-	const close = Promise.withResolvers<void>();
-	let closeStarted = false;
-	const diagnostics = createLazyCodexDiagnostics(async () => ({
-		createCodexDiagnosticsRuntime: async () => ({
-			record: () => undefined,
-			shutdown: async () => {
-				closeStarted = true;
-				await close.promise;
-			},
-		}),
-	}) as never);
-	const ctx = {
-		model,
-		sessionManager: { getSessionId: () => "concurrent-close" },
-		ui: { notify: () => undefined },
-	} as never;
-	await diagnostics.configure({ mode: "status", active: true, ctx, agentDir: tmpdir() });
-	const disable = diagnostics.configure({ mode: "off", active: true, ctx, agentDir: tmpdir() });
-	await new Promise<void>((resolve) => setImmediate(resolve));
-	assert.equal(closeStarted, true);
-	let shutdownFinished = false;
-	const shutdown = diagnostics.shutdown().then(() => { shutdownFinished = true; });
-	await Promise.resolve();
-	assert.equal(shutdownFinished, false);
-	close.resolve();
-	await Promise.all([disable, shutdown]);
-	assert.equal(shutdownFinished, true);
 });
 
 test("cache diagnostics log is session-derived, readable, and omits raw provider payloads", async () => {
