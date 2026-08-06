@@ -1,12 +1,33 @@
+import { createHash } from "node:crypto";
 import type { AcquiredWebSocket, ProviderEnv, SessionWebSocketCacheEntry } from "./types.ts";
-import { closeWebSocketSilently, connectWebSocket, isWebSocketReusable } from "./websocket-connection.ts";
+import { closeWebSocketSilently, connectWebSocket, isWebSocketReusable, resolveWebSocketProxyForTarget } from "./websocket-connection.ts";
 
 const websocketSessionCache = new Map<string, Map<string, SessionWebSocketCacheEntry>>();
 const websocketSseFallbackSessions = new Set<string>();
 const SESSION_WEBSOCKET_MAX_AGE_MS = 55 * 60 * 1000;
+const CONTINUATION_HEADERS = new Set([
+	"openai-beta",
+	"session-id",
+	"thread-id",
+	"x-client-request-id",
+	"x-codex-beta-features",
+]);
 
-function websocketRouteKey(url: string, accountId: string): string {
-	return JSON.stringify([accountId, new URL(url).href]);
+function routeIdentityHeaders(headers: Headers): [string, string][] {
+	return [...headers.entries()]
+		.filter(([name]) => !CONTINUATION_HEADERS.has(name.toLowerCase()))
+		.sort(([left], [right]) => left.localeCompare(right));
+}
+
+async function websocketRouteKey(url: string, headers: Headers, accountId: string, env: ProviderEnv | undefined): Promise<string> {
+	const proxy = await resolveWebSocketProxyForTarget(url, env);
+	const handshakeIdentity = JSON.stringify([
+		accountId,
+		new URL(url).href,
+		proxy ?? null,
+		routeIdentityHeaders(headers),
+	]);
+	return createHash("sha256").update(handshakeIdentity).digest("base64url");
 }
 
 export function isWebSocketSseFallbackActive(sessionId: string | undefined): boolean {
@@ -93,7 +114,7 @@ export async function acquireWebSocket(
 		};
 	}
 
-	const routeKey = websocketRouteKey(url, accountId);
+	const routeKey = await websocketRouteKey(url, headers, accountId, env);
 	let routeEntries = websocketSessionCache.get(sessionId);
 	const cached = routeEntries?.get(routeKey);
 	if (cached) {
