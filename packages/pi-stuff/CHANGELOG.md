@@ -1,5 +1,22 @@
 # @howaboua/pi-stuff
 
+## 0.0.54
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-auto-trees: Preserve Pi 0.84 credential-resolved endpoints and nullable auth headers in tree, review, and voice summaries, assemble complete multi-block delta-only RPC streaming updates, and remove retired Smart BTW shortcut-capture and voice helper exports.
+  - @howaboua/pi-gippity-control: Preserve Pi 0.84 credential-resolved endpoints and nullable auth headers in tree, review, and voice summaries, assemble complete multi-block delta-only RPC streaming updates, and remove retired Smart BTW shortcut-capture and voice helper exports.
+  - @howaboua/pi-smart-btw: Preserve Pi 0.84 credential-resolved endpoints and nullable auth headers in tree, review, and voice summaries, assemble complete multi-block delta-only RPC streaming updates, and remove retired Smart BTW shortcut-capture and voice helper exports.
+  - @howaboua/pi-subagent-review: Preserve Pi 0.84 credential-resolved endpoints and nullable auth headers in tree, review, and voice summaries, assemble complete multi-block delta-only RPC streaming updates, and remove retired Smart BTW shortcut-capture and voice helper exports.
+
+- Updated dependencies [[`5657b77`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/5657b778f59ffa2eb86f10f7e949f060d95eb993)]:
+  - @howaboua/pi-auto-trees@0.1.12
+  - @howaboua/pi-gippity-control@0.0.7
+  - @howaboua/pi-smart-btw@0.2.6
+  - @howaboua/pi-subagent-review@0.2.15
+
 ## 0.0.53
 
 ### Changes
