@@ -1,1 +1,2 @@
 - `responses-lite-model.ts` is the pure model capability gate; `responses-lite.ts` owns request transforms and lazily loads image processing only for inline images.
+- `transport-recovery.ts` owns live WebSocket/SSE selection, retry budgets, fallback, diagnostics, and settlement; the provider facade retains request preparation, prewarm, registration, and compatibility re-exports.
