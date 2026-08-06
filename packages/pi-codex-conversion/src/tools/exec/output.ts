@@ -1,5 +1,4 @@
 import { randomBytes } from "node:crypto";
-import type { UnifiedExecResult } from "./session-manager.ts";
 
 const DEFAULT_MAX_OUTPUT_TOKENS = 10_000;
 
@@ -112,17 +111,4 @@ export function peekUnconsumedOutput(session: ExecOutputSessionState, maxOutputT
 export function peekOutputSince(session: ExecOutputSessionState, baselineOffset: number, maxOutputTokens?: number): { output: string; original_token_count?: number | undefined } {
 	const output = outputSince(session, baselineOffset);
 	return truncateOutput(output.text, maxOutputTokens, output.originalCharCount);
-}
-
-export function resultFromSnapshot(args: {
-	sessionId: number;
-	waitMs: number;
-	exitCode?: number | null | undefined;
-	snapshot: { output: string; original_token_count?: number | undefined };
-}): UnifiedExecResult {
-	const result: UnifiedExecResult = { chunk_id: generateChunkId(), wall_time_seconds: args.waitMs / 1000, output: args.snapshot.output };
-	if (args.snapshot.original_token_count !== undefined) result.original_token_count = args.snapshot.original_token_count;
-	if (args.exitCode === undefined || args.exitCode === null) result.session_id = args.sessionId;
-	else result.exit_code = args.exitCode;
-	return result;
 }

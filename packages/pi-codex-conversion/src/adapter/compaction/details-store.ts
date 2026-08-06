@@ -1,8 +1,6 @@
 import type { CompactionEntry, SessionEntry } from "@earendil-works/pi-coding-agent";
 import {
-	isNativeCompactionDetails,
 	isNativeCompactionEntry,
-	type NativeCompactionDetails,
 	type NativeCompactionEntry,
 	type NativeCompactionIdentity,
 } from "../compaction/types.js";
@@ -40,16 +38,6 @@ function entryMatches(entry: NativeCompactionEntry, match: NativeCompactionEntry
 		(match.model === undefined || details.model === match.model) &&
 		(match.baseUrl === undefined || details.baseUrl === match.baseUrl)
 	);
-}
-
-export function getNativeCompactionDetails(
-	entry: CompactionEntry | SessionEntry | undefined,
-): NativeCompactionDetails | undefined {
-	if (!entry || entry.type !== "compaction") {
-		return undefined;
-	}
-
-	return isNativeCompactionDetails(entry.details) ? entry.details : undefined;
 }
 
 export function isPersistedNativeCompactionEntry(
@@ -99,13 +87,6 @@ export function findLatestNativeCompactionEntry(
 ): NativeCompactionEntry | undefined {
 	const index = findLatestNativeCompactionEntryIndex(entries, match);
 	return index === undefined ? undefined : (entries[index]! as NativeCompactionEntry);
-}
-
-export function findLatestNativeCompactionDetails(
-	entries: readonly SessionEntry[],
-	match: NativeCompactionEntryMatch = {},
-): NativeCompactionDetails | undefined {
-	return findLatestNativeCompactionEntry(entries, match)?.details;
 }
 
 export function resolveLatestNativeCompactionEntry(

@@ -38,7 +38,7 @@ export const REALTIME_V3_VOICES = [
 ] as const;
 export type RealtimeV3Voice = (typeof REALTIME_V3_VOICES)[number];
 
-export const HELPER_MODELS: readonly HelperModel[] = [
+export const WEB_SEARCH_MODELS: readonly WebSearchModel[] = [
 	"gpt-5.6-luna",
 	"gpt-5.6-terra",
 	"gpt-5.6-sol",
@@ -46,7 +46,6 @@ export const HELPER_MODELS: readonly HelperModel[] = [
 	"gpt-5.4-mini",
 	"gpt-5.3-codex-spark",
 ];
-export const WEB_SEARCH_MODELS: readonly WebSearchModel[] = HELPER_MODELS;
 export const V2_USER_MESSAGE_RETENTION_OPTIONS: readonly V2UserMessageRetention[] =
 	[16, 32, 64];
 

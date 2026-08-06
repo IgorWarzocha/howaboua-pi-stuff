@@ -1,5 +1,4 @@
 export type ActionType = "add" | "delete" | "update";
-export type ParseMode = "keep" | "add" | "delete";
 
 export interface Chunk {
 	origIndex: number;

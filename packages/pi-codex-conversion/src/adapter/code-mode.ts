@@ -17,7 +17,6 @@ import { supportsNativeImageGeneration, supportsViewImageInputs } from "./tool-s
 import { resolveCodexRuntimePlan } from "./activation/runtime-plan.ts";
 import { codeModeImageResult, codeModeWebResult, toNestedTool } from "./code-mode/nested-tool-adapter.ts";
 
-export const CODE_MODE_TOOL_NAMES = ["exec", "wait"] as const;
 const LONG_RUNNING_TOOL_OUTER_YIELD_MS = 1_800_000;
 
 export async function registerCodexCodeMode(

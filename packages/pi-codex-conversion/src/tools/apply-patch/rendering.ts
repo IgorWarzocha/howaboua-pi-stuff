@@ -59,42 +59,6 @@ export function formatApplyPatchSummary(patchText: string, cwd = process.cwd()):
 	return lines.join("\n");
 }
 
-export function formatApplyPatchCall(patchText: string, cwd = process.cwd()): string {
-	let actions: ParsedPatchAction[];
-	try {
-		actions = parsePatchActions({ text: patchText });
-	} catch {
-		return "";
-	}
-
-	const files = actions.map((action) => buildFilePreview(action, cwd));
-	if (files.length === 0) {
-		return "";
-	}
-
-	const totalAdded = files.reduce((sum, file) => sum + file.added, 0);
-	const totalRemoved = files.reduce((sum, file) => sum + file.removed, 0);
-	const lines: string[] = [];
-
-	if (files.length === 1) {
-		const file = files[0]!;
-		lines.push(`${bulletHeader(file.verb, formatPatchTarget(file.path, file.movePath, cwd))} ${renderCounts(file.added, file.removed)}`);
-		lines.push(...file.lines.map((line) => formatPreviewLine(line, file.lines)));
-		return lines.join("\n");
-	}
-
-	lines.push(`${bulletHeader("Edited", `${files.length} files`)} ${renderCounts(totalAdded, totalRemoved)}`);
-	for (const [index, file] of files.entries()) {
-		if (index > 0) {
-			lines.push("");
-		}
-		lines.push(`  └ ${formatPatchTarget(file.path, file.movePath, cwd)} ${renderCounts(file.added, file.removed)}`);
-		lines.push(...file.lines.map((line) => formatPreviewLine(line, file.lines)));
-	}
-
-	return lines.join("\n");
-}
-
 export function formatApplyPatchCollapsedDiff(patchText: string, cwd = process.cwd(), maxPreviewLines = 10): string {
 	const full = renderApplyPatchCall(patchText, cwd);
 	if (!full) return formatApplyPatchSummary(patchText, cwd);

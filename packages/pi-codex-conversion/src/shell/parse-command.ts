@@ -6,7 +6,6 @@ import {
 } from "./command-summary.ts";
 import type { ParsedShellCommand } from "./parsed-command.ts";
 import {
-	isAbsoluteLike,
 	joinCommandTokens,
 	joinPaths,
 	normalizeTokens,
@@ -14,7 +13,6 @@ import {
 	splitOnConnectors,
 } from "./tokenize.ts";
 
-export { isSmallFormattingCommand } from "./command-summary.ts";
 export type { ParsedShellCommand } from "./parsed-command.ts";
 
 export function parseCommandString(command: string): ParsedShellCommand[] {
@@ -260,8 +258,4 @@ function simplifyOnce(
 
 function dropSmallFormattingCommands(commands: string[][]): string[][] {
 	return commands.filter((command) => !isSmallFormattingCommand(command));
-}
-
-export function isAbsolutePathLike(path: string): boolean {
-	return isAbsoluteLike(path);
 }

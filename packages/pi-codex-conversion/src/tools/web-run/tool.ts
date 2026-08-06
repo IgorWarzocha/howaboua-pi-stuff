@@ -12,7 +12,6 @@ import { getBundledToolBinaryPath } from "../native/binary.ts";
 import { buildWebSearchInput } from "./history.ts";
 
 export const WEB_SEARCH_UNSUPPORTED_MESSAGE = CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE;
-export const WEB_SEARCH_SESSION_NOTE_TYPE = "codex-web-search-session-note";
 
 // Codex sends the recent visible turn in SearchRequest.input. Controlled
 // alpha/search comparisons showed no meaningful output benefit, so Pi keeps
@@ -127,11 +126,6 @@ function supportsExecutableWebSearch(model: ExtensionContext["model"], options: 
 	return supportsNativeWebSearch(model)
 		|| Boolean(options.allowConfiguredProvider?.(model))
 		|| options.allowCodexProviderFallback === true;
-}
-
-export function supportsMultimodalNativeWebSearch(model: ExtensionContext["model"], options: { force?: boolean | undefined } = {}): boolean {
-	if (!options.force && !supportsNativeWebSearch(model)) return false;
-	return !(model?.id ?? "").toLowerCase().includes("spark");
 }
 
 export async function executeCodexWebSearch(params: Record<string, unknown>, ctx: ExtensionContext, signal: AbortSignal | undefined | null, options: WebSearchToolOptions = {}): Promise<WebRunExecutionResult> {

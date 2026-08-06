@@ -1,6 +1,5 @@
 import type { CompactionEntry, CompactionResult } from "@earendil-works/pi-coding-agent";
 
-export const EXTENSION_ID = "openai-native-compaction";
 const LEGACY_NATIVE_COMPACTION_STRATEGY = "openai-native-compact-v1";
 export const NATIVE_COMPACTION_STRATEGY = "openai-responses-compaction-v2";
 export const NATIVE_COMPACTION_SHIM_SUMMARY = "[OpenAI native compaction checkpoint]";
@@ -15,8 +14,6 @@ export const NATIVE_COMPACTION_DISPLAY_TEXT = [
 
 export type NativeCompactionStrategy = typeof NATIVE_COMPACTION_STRATEGY;
 type PersistedNativeCompactionStrategy = NativeCompactionStrategy | typeof LEGACY_NATIVE_COMPACTION_STRATEGY;
-export type NativeCompactionShimSummary = typeof NATIVE_COMPACTION_SHIM_SUMMARY;
-
 export type NativeCompactionRequestMeta = {
 	tokensBefore?: number | undefined;
 	previousSummaryPresent?: boolean | undefined;
@@ -155,19 +152,6 @@ export function isNativeCompactionUsage(value: unknown): value is NativeCompacti
 	return [value["inputTokens"], value["cachedInputTokens"], value["cacheWriteInputTokens"], value["outputTokens"]].every(isFiniteNonNegativeNumber);
 }
 
-export function isNativeCompactionIdentity(value: unknown): value is NativeCompactionIdentity {
-	if (!isRecord(value)) {
-		return false;
-	}
-
-	return (
-		isNonEmptyString(value["provider"]!) &&
-		isNonEmptyString(value["api"]!) &&
-		isNonEmptyString(value["model"]!) &&
-		isNonEmptyString(value["baseUrl"]!)
-	);
-}
-
 export function isNativeCompactionDetails(value: unknown): value is NativeCompactionDetails {
 	if (!isRecord(value)) {
 		return false;
@@ -193,10 +177,6 @@ export function isNativeCompactionEntry(value: unknown): value is NativeCompacti
 	return isRecord(value) && value["type"] === "compaction" && isNativeCompactionDetails(value["details"]!);
 }
 
-export function isNativeCompactionShimSummary(value: unknown): value is NativeCompactionShimSummary {
-	return value === NATIVE_COMPACTION_SHIM_SUMMARY;
-}
-
 export function createNativeCompactionDetails(input: CreateNativeCompactionDetailsInput): NativeCompactionDetails {
 	return {
 		strategy: NATIVE_COMPACTION_STRATEGY,
@@ -220,10 +200,6 @@ export function createNativeCompactionDetails(input: CreateNativeCompactionDetai
 			: undefined,
 		usage: input.usage ? { ...input.usage } : undefined,
 	};
-}
-
-export function createNativeCompactionShimSummary(): NativeCompactionShimSummary {
-	return NATIVE_COMPACTION_SHIM_SUMMARY;
 }
 
 export function createNativeCompactionShimResult(

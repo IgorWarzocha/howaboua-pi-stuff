@@ -20,13 +20,11 @@ import {
 	type CodexProviderRuntimeConfig,
 } from "./openai-codex/transport-recovery.ts";
 
-export { buildProviderErrorMessage } from "./openai-codex/errors.ts";
 export { buildRequestBody } from "./openai-codex/request-body.ts";
 export { parseSSE } from "./openai-codex/sse.ts";
-export { getEffectiveCodexTransport } from "./openai-codex/transport-recovery.ts";
-export { buildCachedWebSocketRequestBody, requestBodyForWebSocketContinuationComparison } from "./openai-codex/websocket-continuation.ts";
+export { buildCachedWebSocketRequestBody } from "./openai-codex/websocket-continuation.ts";
 export { closeOpenAICodexWebSocketSessions } from "./openai-codex/websocket.ts";
-export type { CachedWebSocketContinuationState, CachedWebSocketRequestBodyResult, ResponsesBody, WebSocketContinuationDecision } from "./openai-codex/types.ts";
+export type { ResponsesBody } from "./openai-codex/types.ts";
 
 async function prepareCodexRequestBody<TApi extends Api>(
 	model: Model<TApi>,

@@ -154,16 +154,6 @@ export function discoverCustomToolsFromDirectories(
 	};
 }
 
-export function discoverCustomTools(
-	dir: string = getCustomToolsDir(),
-): CustomToolDiscoveryResult {
-	const errors: CustomToolDiscoveryError[] = [];
-	const tools = customToolPaths(dir, errors)
-		.map((path) => loadCustomTool(path, errors))
-		.filter((tool): tool is CustomToolDefinition => tool !== undefined);
-	return { tools, errors };
-}
-
 function customToolPaths(
 	dir: string,
 	errors: CustomToolDiscoveryError[],

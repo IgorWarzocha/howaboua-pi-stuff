@@ -9,7 +9,6 @@ import { type CodexRealtimePeer, type CodexRealtimePeerEvent } from "./peer.ts";
 import { boundedAssistantTranscript, boundedTranscript, realtimePeerStateFailure, remoteError, transcriptItemText } from "./wire.ts";
 
 export { buildRealtimeCallRequest } from "./call-setup.ts";
-export { utf8Chunks } from "./wire.ts";
 
 const PEER_READY_TIMEOUT_MS = 15_000;
 

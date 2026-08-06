@@ -230,12 +230,3 @@ export async function resolveNativeCompactionEnvironment(
 		},
 	};
 }
-
-export async function getNativeCompactionRuntime(
-	ctx: ExtensionContext,
-	options: NativeCompactionSupportOptions = {},
-	payload?: unknown,
-): Promise<NativeCompactionRuntime | undefined> {
-	const resolution = await resolveNativeCompactionEnvironment(ctx, options, payload);
-	return resolution.ok ? resolution.runtime : undefined;
-}
