@@ -16,6 +16,32 @@ export function getFinalOutput(messages: any[]): string {
 	return "";
 }
 
+export function reduceAssistantMessageUpdate(
+	current: string,
+	event: {
+		assistantMessageEvent?: {
+			type?: unknown;
+			delta?: unknown;
+			partial?: unknown;
+		};
+	},
+): string | undefined {
+	const update = event.assistantMessageEvent;
+	const partial = update?.partial;
+	if (
+		partial &&
+		typeof partial === "object" &&
+		(partial as { role?: unknown }).role === "assistant"
+	) {
+		const text = getFinalOutput([partial]);
+		return text !== current ? text : undefined;
+	}
+	if (update?.type !== "text_delta" || typeof update.delta !== "string")
+		return undefined;
+	const text = `${current}${update.delta}`;
+	return text !== current ? text : undefined;
+}
+
 export class BtwChild {
 	readonly details: ChildDetails;
 	private proc: ChildProcessWithoutNullStreams;
@@ -214,6 +240,8 @@ export class BtwChild {
 		}
 		if (this.handleResponse(data)) return;
 		if (data.type === "agent_settled") this.handleAgentSettled();
+		if (data.type === "message_start" && data.message?.role === "assistant")
+			this.currentPartial = "";
 		if (data.type === "message_end" && data.message)
 			this.handleMessageEnd(data.message);
 		if (data.type === "message_update") this.handleMessageUpdate(data);
@@ -249,10 +277,8 @@ export class BtwChild {
 	}
 
 	private handleMessageUpdate(event: any) {
-		const partial = event.assistantMessageEvent?.partial;
-		if (partial?.role !== "assistant") return;
-		const text = getFinalOutput([partial]).trim();
-		if (!text || text === this.currentPartial) return;
+		const text = reduceAssistantMessageUpdate(this.currentPartial, event);
+		if (text === undefined) return;
 		this.currentPartial = text;
 		this.onPartial?.(text);
 		this.onUpdate?.();
