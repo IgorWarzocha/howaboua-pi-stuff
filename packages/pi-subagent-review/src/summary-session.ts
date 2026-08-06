@@ -65,14 +65,13 @@ function lastAssistantMessage(
 function mergeRequestHeaders(
 	configured: Record<string, string> | undefined,
 	resolved: Record<string, string | null> | undefined,
-): Record<string, string> | undefined {
+): Record<string, string> {
 	const headers = new Headers(configured);
 	for (const [name, value] of Object.entries(resolved ?? {})) {
 		if (value === null) headers.delete(name);
 		else headers.set(name, value);
 	}
-	const entries = [...headers.entries()];
-	return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+	return Object.fromEntries(headers.entries());
 }
 
 export async function completeSummary(
@@ -122,18 +121,19 @@ export async function completeSummary(
 		requestAuth.headers ||
 		requestAuth.baseUrl
 	) {
-		const { oauth, ...providerConfig } = registeredProvider ?? {};
-		const headers = mergeRequestHeaders(
-			registeredProvider?.headers,
-			requestAuth.headers,
-		);
+		const {
+			oauth,
+			headers: configuredHeaders,
+			...providerConfig
+		} = registeredProvider ?? {};
+		const headers = mergeRequestHeaders(configuredHeaders, requestAuth.headers);
 		modelRuntime.registerProvider(model.provider, {
 			...providerConfig,
 			...(requestAuth.baseUrl ? { baseUrl: requestAuth.baseUrl } : {}),
 			...(storedCredential?.type !== "oauth" && requestAuth.apiKey
 				? { apiKey: requestAuth.apiKey }
 				: {}),
-			...(headers ? { headers } : {}),
+			headers,
 			...(storedCredential?.type === "oauth" && oauth ? { oauth } : {}),
 		});
 	}
