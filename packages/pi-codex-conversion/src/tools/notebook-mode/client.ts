@@ -44,6 +44,8 @@ import { notebookSessionIdentity } from "./session-identity.ts";
 const EXIT_SENTINEL = "__PI_NOTEBOOK_EXIT__";
 const TERMINATE_GRACE_MS = 1_500;
 const CHECKPOINT_DEBOUNCE_MS = 1_500;
+const MAX_CELL_OUTPUT_CHARS = 32 * 1024 * 1024;
+const MAX_CELL_OUTPUT_ITEMS = 10_000;
 
 interface Deferred {
 	promise: Promise<void>;
@@ -56,6 +58,8 @@ interface NotebookCell {
 	context: ToolExecutionContext;
 	controller: AbortController;
 	items: RuntimeContentItem[];
+	outputChars: number;
+	outputTruncated: boolean;
 	cursor: number;
 	maxOutputTokens: number;
 	yielded: Deferred;
@@ -79,6 +83,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 	private activeCell: NotebookCell | undefined;
 	private nextCellId = 1;
 	private startup: Promise<void> | undefined;
+	private startupAbort: AbortController | undefined;
 	private baselineNames = new Set<string>();
 	private checkpointIdentity: NotebookCheckpointIdentity | undefined;
 	private checkpointTimer: ReturnType<typeof setTimeout> | undefined;
@@ -109,12 +114,15 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		const { code, yieldTimeMs, maxOutputTokens } = parseExecSource(source);
 		const effectiveYieldTime = directToolYieldTime(code, tools) ?? yieldTimeMs ?? DEFAULT_CODE_MODE_EXEC_YIELD_MS;
 		const id = `notebook-${this.nextCellId++}`;
+		this.latestMemory = undefined;
 		const cell: NotebookCell = {
 			id,
 			source: code,
 			context,
 			controller: new AbortController(),
 			items: [],
+			outputChars: 0,
+			outputTruncated: false,
 			cursor: 0,
 			maxOutputTokens: maxOutputTokens ?? 10_000,
 			yielded: deferred(),
@@ -123,6 +131,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		};
 		if (this.pendingNotice) {
 			cell.items.push({ type: "input_text", text: this.pendingNotice });
+			cell.outputChars += this.pendingNotice.length;
 			this.pendingNotice = undefined;
 		}
 		this.activeCell = cell;
@@ -131,7 +140,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 			.filter((tool) => isCustomToolDefinition(tool) && tool.deferLoading)
 			.map((tool) => ({ name: tool.name, description: formatCodeModeToolHelp(tool) }));
 		const wrapped = [
-			`globalThis.__piNotebook.begin(${JSON.stringify(id)}, ${JSON.stringify(metadata)});`,
+			`await globalThis.__piNotebook.begin(${JSON.stringify(id)}, ${JSON.stringify(metadata)});`,
 			code,
 			`await globalThis.__piNotebook.flush(${JSON.stringify(id)});`,
 			"undefined;",
@@ -186,12 +195,15 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 	}
 
 	async shutdown(): Promise<void> {
+		this.startupAbort?.abort(new Error("Notebook session is shutting down"));
+		await this.startup?.catch(() => undefined);
 		const active = this.activeCell;
 		if (active) await this.stopCell(active).catch(() => undefined);
 		await this.flushCheckpoint();
 		if (this.checkpointTimer) clearTimeout(this.checkpointTimer);
 		this.checkpointTimer = undefined;
 		this.startup = undefined;
+		this.startupAbort = undefined;
 		this.sessionIdentity = undefined;
 		this.baselineNames.clear();
 		this.checkpointIdentity = undefined;
@@ -216,10 +228,19 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		if (this.sessionIdentity && this.sessionIdentity !== identity) await this.shutdown();
 		if (!this.startup) {
 			this.sessionIdentity = identity;
-			const pending = this.startSession(extension, signal).catch((error) => {
-				if (this.startup === pending) this.startup = undefined;
-				throw error;
-			});
+			const startupAbort = new AbortController();
+			const startupSignal = signal
+				? AbortSignal.any([signal, startupAbort.signal])
+				: startupAbort.signal;
+			this.startupAbort = startupAbort;
+			const pending = this.startSession(extension, startupSignal)
+				.catch((error) => {
+					if (this.startup === pending) this.startup = undefined;
+					throw error;
+				})
+				.finally(() => {
+					if (this.startupAbort === startupAbort) this.startupAbort = undefined;
+				});
 			this.startup = pending;
 		}
 		await this.startup;
@@ -454,12 +475,27 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 
 	private emit(cellId: string, items: RuntimeContentItem[]): void {
 		const cell = this.requireActiveCell(cellId);
-		cell.items.push(...items);
+		const accepted: RuntimeContentItem[] = [];
+		for (const item of items) {
+			if (cell.outputTruncated) break;
+			const size = item.type === "input_text" ? item.text?.length ?? 0 : item.image_url?.length ?? 0;
+			if (cell.items.length >= MAX_CELL_OUTPUT_ITEMS || cell.outputChars + size > MAX_CELL_OUTPUT_CHARS) {
+				const notice = { type: "input_text" as const, text: "[Notebook cell output truncated]" };
+				cell.items.push(notice);
+				accepted.push(notice);
+				cell.outputChars += notice.text.length;
+				cell.outputTruncated = true;
+				break;
+			}
+			cell.items.push(item);
+			accepted.push(item);
+			cell.outputChars += size;
+		}
 		const content: Array<
 			| { type: "text"; text: string }
 			| { type: "image"; mimeType: string; data: string }
 		> = [];
-		for (const item of items) {
+		for (const item of accepted) {
 			if (item.type === "input_text" && item.text) {
 				content.push({ type: "text", text: item.text });
 				continue;

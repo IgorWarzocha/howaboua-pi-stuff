@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
-const NOTEBOOK_TREE_EPOCH_ENTRY = "pi-codex-conversion-notebook-tree-epoch";
+export const NOTEBOOK_TREE_EPOCH_ENTRY = "pi-codex-conversion-notebook-tree-epoch";
 
 export function appendNotebookTreeEpoch(pi: ExtensionAPI): void {
 	pi.appendEntry(NOTEBOOK_TREE_EPOCH_ENTRY, { epoch: randomUUID() });

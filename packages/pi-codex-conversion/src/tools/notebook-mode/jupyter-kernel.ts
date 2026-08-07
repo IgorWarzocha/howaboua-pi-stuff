@@ -18,6 +18,8 @@ const READY_TIMEOUT_MS = 8_000;
 const SUBSCRIBER_SETTLE_MS = 50;
 const SHUTDOWN_GRACE_MS = 1_500;
 const MAX_STDERR_CHARS = 16_384;
+const MAX_EXECUTION_OUTPUT_CHARS = 32 * 1024 * 1024;
+const MAX_EXECUTION_OUTPUT_ITEMS = 10_000;
 
 interface ConnectionInfo {
 	ip: "127.0.0.1";
@@ -41,6 +43,8 @@ export interface KernelExecutionResult {
 interface ActiveExecution {
 	requestId: string;
 	items: RuntimeContentItem[];
+	outputChars: number;
+	outputTruncated: boolean;
 	status: KernelExecutionResult["status"];
 	errorText?: string | undefined;
 	onOutput?: ((item: RuntimeContentItem) => void) | undefined;
@@ -106,6 +110,8 @@ export class DenoJupyterKernel {
 		const execution: ActiveExecution = {
 			requestId: message.header.msg_id,
 			items: [],
+			outputChars: 0,
+			outputTruncated: false,
 			status: "ok",
 			...(options.onOutput ? { onOutput: options.onOutput } : {}),
 			resolve,
@@ -116,7 +122,13 @@ export class DenoJupyterKernel {
 		this.active = execution;
 		try {
 			await shell.send(encodeJupyterMessage(message, connection.key));
-			const result = await completion;
+			const [result, reply] = await Promise.all([
+				completion,
+				this.receiveShellReply(message.header.msg_id),
+			]);
+			if (reply.header.msg_type !== "execute_reply") {
+				throw new Error(`Deno Jupyter returned ${reply.header.msg_type} for execute_request`);
+			}
 			return options.signal?.aborted ? { ...result, status: "aborted" } : result;
 		} catch (error) {
 			if (this.active === execution) this.active = undefined;
@@ -156,10 +168,15 @@ export class DenoJupyterKernel {
 			}
 		}
 		if (process?.exitCode === null && process.signalCode === null) {
-			await Promise.race([
-				new Promise<void>((resolve) => process.once("exit", () => resolve())),
-				sleep(SHUTDOWN_GRACE_MS).then(() => undefined),
-			]);
+			await waitForProcessExit(process, SHUTDOWN_GRACE_MS);
+		}
+		if (process?.exitCode === null && process.signalCode === null) {
+			process.kill("SIGTERM");
+			await waitForProcessExit(process, SHUTDOWN_GRACE_MS);
+		}
+		if (process?.exitCode === null && process.signalCode === null) {
+			process.kill("SIGKILL");
+			await waitForProcessExit(process, SHUTDOWN_GRACE_MS);
 		}
 		this.dispose();
 	}
@@ -177,7 +194,7 @@ export class DenoJupyterKernel {
 					.filter(Boolean)
 					.join(" "),
 			},
-			stdio: ["ignore", "pipe", "pipe"],
+			stdio: ["ignore", "ignore", "pipe"],
 		});
 		this.process = child;
 		child.stderr?.on("data", (chunk: Buffer) => {
@@ -212,6 +229,23 @@ export class DenoJupyterKernel {
 		if (!shell || !connection) throw new Error("Deno Jupyter shell is not connected");
 		const request = createJupyterMessage(type, content, this.session);
 		await shell.send(encodeJupyterMessage(request, connection.key));
+		return this.receiveShellReply(request.header.msg_id, timeoutMs, type);
+	}
+
+	private async receiveShellReply(
+		requestId: string,
+		timeoutMs?: number,
+		requestType = "request",
+	): Promise<JupyterMessage> {
+		const shell = this.shell;
+		const connection = this.connection;
+		if (!shell || !connection) throw new Error("Deno Jupyter shell is not connected");
+		if (timeoutMs === undefined) {
+			while (true) {
+				const message = decodeJupyterMessage([...await shell.receive()] as Buffer[], connection.key);
+				if (message?.parent_header["msg_id"] === requestId) return message;
+			}
+		}
 		const deadline = Date.now() + timeoutMs;
 		while (Date.now() < deadline) {
 			const remaining = Math.max(1, deadline - Date.now());
@@ -221,9 +255,9 @@ export class DenoJupyterKernel {
 			]);
 			if (result.kind === "timeout") break;
 			const message = decodeJupyterMessage([...result.frames] as Buffer[], connection.key);
-			if (message?.parent_header["msg_id"] === request.header.msg_id) return message;
+			if (message?.parent_header["msg_id"] === requestId) return message;
 		}
-		throw new Error(`Deno Jupyter did not answer ${type} within ${timeoutMs}ms${this.stderr ? `\n${this.stderr}` : ""}`);
+		throw new Error(`Deno Jupyter did not answer ${requestType} within ${timeoutMs}ms${this.stderr ? `\n${this.stderr}` : ""}`);
 	}
 
 	private async runIopubPump(): Promise<void> {
@@ -285,7 +319,14 @@ export class DenoJupyterKernel {
 	}
 
 	private emit(execution: ActiveExecution, item: RuntimeContentItem): void {
+		if (execution.outputTruncated) return;
+		const size = item.type === "input_text" ? item.text?.length ?? 0 : item.image_url?.length ?? 0;
+		if (execution.items.length >= MAX_EXECUTION_OUTPUT_ITEMS || execution.outputChars + size > MAX_EXECUTION_OUTPUT_CHARS) {
+			item = { type: "input_text", text: "[Notebook cell output truncated]" };
+			execution.outputTruncated = true;
+		}
 		execution.items.push(item);
+		execution.outputChars += item.type === "input_text" ? item.text?.length ?? 0 : item.image_url?.length ?? 0;
 		execution.onOutput?.(item);
 	}
 
@@ -299,7 +340,14 @@ export class DenoJupyterKernel {
 	private dispose(): void {
 		const child = this.process;
 		this.process = undefined;
-		if (child?.exitCode === null && child.signalCode === null) child.kill("SIGTERM");
+		if (child?.exitCode === null && child.signalCode === null) {
+			child.kill("SIGTERM");
+			const killTimer = setTimeout(() => {
+				if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+			}, SHUTDOWN_GRACE_MS);
+			killTimer.unref?.();
+			child.once("exit", () => clearTimeout(killTimer));
+		}
 		this.shell?.close();
 		this.control?.close();
 		this.iopub?.close();
@@ -359,4 +407,18 @@ async function reserveLoopbackPorts(count: number): Promise<number[]> {
 
 function endpoint(connection: ConnectionInfo, port: number): string {
 	return `${connection.transport}://${connection.ip}:${port}`;
+}
+
+function waitForProcessExit(process: ChildProcess, timeoutMs: number): Promise<void> {
+	if (process.exitCode !== null || process.signalCode !== null) return Promise.resolve();
+	return new Promise((resolve) => {
+		const timer = setTimeout(finish, timeoutMs);
+		const exited = () => finish();
+		function finish() {
+			clearTimeout(timer);
+			process.off("exit", exited);
+			resolve();
+		}
+		process.once("exit", exited);
+	});
 }
