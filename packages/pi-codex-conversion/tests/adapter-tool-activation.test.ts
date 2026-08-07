@@ -97,8 +97,12 @@ test("runtime plan keeps unsupported and non-Lite models on structured standard 
 test("explicit Notebook mode reuses Code Mode eligibility without changing inherited V8 routing", () => {
 	const config = createAdapterState({ beta: { codeMode: true, responsesLite: true } }).config;
 	const context = createContext({ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.6-luna" }) as never;
-	assert.equal(resolveCodexRuntimePlan(context, config).kind, "code");
-	assert.equal(resolveCodexRuntimePlan(context, config, "notebook").kind, "notebook");
+	const code = resolveCodexRuntimePlan(context, config);
+	const notebook = resolveCodexRuntimePlan(context, config, "notebook");
+	assert.equal(code.kind, "code");
+	assert.equal(code.toolNames.includes("notebook"), false);
+	assert.equal(notebook.kind, "notebook");
+	assert.equal(notebook.toolNames.includes("notebook"), true);
 	assert.equal(resolveCodexRuntimePlan(context, config, "normal").kind, "normal");
 });
 

@@ -37,6 +37,7 @@ export const SHELL_ADAPTER_TOOL_NAMES = ["exec_command", "write_stdin"];
 export const APPLY_PATCH_TOOL_NAME = "apply_patch";
 export const CORE_ADAPTER_TOOL_NAMES = [...SHELL_ADAPTER_TOOL_NAMES, APPLY_PATCH_TOOL_NAME];
 export const CODE_MODE_TOOL_NAMES = ["exec", "wait"];
+export const NOTEBOOK_MODE_TOOL_NAMES = [...CODE_MODE_TOOL_NAMES, "notebook"];
 export const IMAGE_GENERATION_TOOL_NAME = "imagegen";
 export const VIEW_IMAGE_TOOL_NAME = "view_image";
 export const WEB_SEARCH_TOOL_NAME = "web_run";

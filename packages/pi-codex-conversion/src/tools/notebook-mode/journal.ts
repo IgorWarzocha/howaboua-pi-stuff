@@ -27,6 +27,7 @@ export interface NotebookJournal {
 	path: string;
 	project: string;
 	session: string;
+	cells: number;
 }
 
 export function initializeNotebookJournal(identity: { project: string; session: string; agentDir: string }): NotebookJournal {
@@ -42,10 +43,13 @@ export function initializeNotebookJournal(identity: { project: string; session: 
 		projectKey,
 	);
 	mkdirSync(directory, { recursive: true });
+	const path = join(directory, `${sessionKey}.ipynb`);
+	const existing = readJournal(path);
 	const journal = {
-		path: join(directory, `${sessionKey}.ipynb`),
+		path,
 		project,
 		session: identity.session,
+		cells: existing?.cells.length ?? 0,
 	};
 	if (!existsSync(journal.path)) writeJournal(journal.path, emptyDocument(journal));
 	return journal;
@@ -72,6 +76,7 @@ export function appendNotebookJournalCell(
 		source: sourceLines(cell.source),
 	});
 	writeJournal(journal.path, document);
+	journal.cells = executionCount;
 }
 
 function journalOutputs(items: RuntimeContentItem[], result: KernelExecutionResult): Array<Record<string, unknown>> {

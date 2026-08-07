@@ -9,6 +9,7 @@ import {
 	CODE_MODE_TOOL_NAMES,
 	CORE_ADAPTER_TOOL_NAMES,
 	IMAGE_GENERATION_TOOL_NAME,
+	NOTEBOOK_MODE_TOOL_NAMES,
 	SHELL_ADAPTER_TOOL_NAMES,
 	VIEW_IMAGE_TOOL_NAME,
 	WEB_SEARCH_TOOL_NAME,
@@ -61,7 +62,7 @@ export type CodexRuntimePlan = InactiveRuntimePlan | ExtrasRuntimePlan | NormalR
 
 const ALL_ADAPTER_TOOL_NAMES = [
 	...CORE_ADAPTER_TOOL_NAMES,
-	...CODE_MODE_TOOL_NAMES,
+	...NOTEBOOK_MODE_TOOL_NAMES,
 	WEB_SEARCH_TOOL_NAME,
 	IMAGE_GENERATION_TOOL_NAME,
 	VIEW_IMAGE_TOOL_NAME,
@@ -122,7 +123,7 @@ export function resolveCodexRuntimePlan(
 	const effectiveOpenAICodex = codexTransport || isConfigured;
 	const ownedToolNames = [
 		...SHELL_ADAPTER_TOOL_NAMES,
-		...CODE_MODE_TOOL_NAMES,
+		...NOTEBOOK_MODE_TOOL_NAMES,
 		APPLY_PATCH_TOOL_NAME,
 		VIEW_IMAGE_TOOL_NAME,
 		...(config.tools.webRun ? [WEB_SEARCH_TOOL_NAME] : []),
@@ -157,7 +158,7 @@ export function resolveCodexRuntimePlan(
 				: undefined;
 	if (requestedCodeMode && codeModeEligible(ctx, config)) {
 		if (requestedCodeMode === "notebook") {
-			return { ...base, kind: "notebook", toolNames: [...CODE_MODE_TOOL_NAMES], prompt: "notebook", transport: "responses-lite", nativeCompaction };
+			return { ...base, kind: "notebook", toolNames: [...NOTEBOOK_MODE_TOOL_NAMES], prompt: "notebook", transport: "responses-lite", nativeCompaction };
 		}
 		return { ...base, kind: "code", toolNames: [...CODE_MODE_TOOL_NAMES], prompt: "code", transport: "responses-lite", nativeCompaction };
 	}

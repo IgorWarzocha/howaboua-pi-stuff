@@ -1,5 +1,9 @@
 import { writeNotebookCheckpoint, type NotebookCheckpointIdentity } from "./checkpoint.ts";
 import type { DenoJupyterKernel } from "./jupyter-kernel.ts";
+import {
+	type ProjectStateBaseline,
+	writeProjectState,
+} from "./project-state.ts";
 
 const CHECKPOINT_DEBOUNCE_MS = 1_500;
 
@@ -10,9 +14,11 @@ export class NotebookCheckpointManager {
 	private readonly reportNotice: (notice: string, showInUi: boolean) => void;
 	private baselineNames = new Set<string>();
 	private identity: NotebookCheckpointIdentity | undefined;
+	private projectBaseline: ProjectStateBaseline = { generation: "root", entries: [] };
 	private timer: ReturnType<typeof setTimeout> | undefined;
 	private dirty = false;
 	private maintenance: Promise<void> = Promise.resolve();
+	private lastCheckpointAt: string | undefined;
 
 	constructor(options: {
 		maxBytes: number;
@@ -26,9 +32,14 @@ export class NotebookCheckpointManager {
 		this.reportNotice = options.reportNotice;
 	}
 
-	configure(identity: NotebookCheckpointIdentity, baselineNames: Set<string>): void {
+	configure(
+		identity: NotebookCheckpointIdentity,
+		baselineNames: Set<string>,
+		projectBaseline: ProjectStateBaseline,
+	): void {
 		this.identity = identity;
 		this.baselineNames = baselineNames;
+		this.projectBaseline = projectBaseline;
 	}
 
 	schedule(): void {
@@ -54,8 +65,24 @@ export class NotebookCheckpointManager {
 		this.timer = undefined;
 		this.baselineNames.clear();
 		this.identity = undefined;
+		this.projectBaseline = { generation: "root", entries: [] };
 		this.dirty = false;
 		this.maintenance = Promise.resolve();
+		this.lastCheckpointAt = undefined;
+	}
+
+	status(): {
+		dirty: boolean;
+		projectGeneration: string;
+		projectBindings: number;
+		lastCheckpointAt?: string | undefined;
+	} {
+		return {
+			dirty: this.dirty,
+			projectGeneration: this.projectBaseline.generation,
+			projectBindings: this.projectBaseline.entries.length,
+			...(this.lastCheckpointAt ? { lastCheckpointAt: this.lastCheckpointAt } : {}),
+		};
 	}
 
 	private async perform(requireIdle: boolean): Promise<void> {
@@ -69,11 +96,30 @@ export class NotebookCheckpointManager {
 		const kernel = this.currentKernel();
 		if (!this.dirty || !kernel || !this.identity) return;
 		this.dirty = false;
+		let failed = false;
+		try {
+			const project = await writeProjectState(
+				kernel,
+				this.identity,
+				this.projectBaseline,
+				this.baselineNames,
+				this.maxBytes,
+			);
+			this.projectBaseline = project.baseline;
+			if (project.conflicts.length > 0) {
+				this.reportNotice(`Project notebook conflicts preserved without overwrite: ${project.conflicts.join(", ")}`, false);
+			}
+		} catch (error) {
+			failed = true;
+			this.reportNotice(`Project notebook checkpoint failed: ${error instanceof Error ? error.message : String(error)}`, true);
+		}
 		try {
 			await writeNotebookCheckpoint(kernel, this.identity, this.baselineNames, this.maxBytes);
 		} catch (error) {
-			this.dirty = true;
+			failed = true;
 			this.reportNotice(`Session notebook checkpoint failed: ${error instanceof Error ? error.message : String(error)}`, true);
 		}
+		this.dirty = failed;
+		if (!failed) this.lastCheckpointAt = new Date().toISOString();
 	}
 }

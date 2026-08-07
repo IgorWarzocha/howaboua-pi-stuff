@@ -3,6 +3,8 @@
 - `bridge-server.ts` owns HTTP lifecycle, `bridge-protocol.ts` validates wire data, and `kernel-runtime.ts` owns injected Deno source
 - `jupyter-kernel.ts` owns kernel messaging/process lifecycle; connection allocation, output interpretation, and wire encoding stay in their named modules
 - `checkpoint.ts` owns host persistence and validation; checkpoint format and injected capture/restore source stay separate; `journal.ts` owns `.ipynb` history
+- `project-state.ts` orchestrates worktree persistence; format validation, injected runtime source, and merge/conflict policy stay in their named modules
+- `lifecycle.ts` owns Notebook control actions; generated Deno inspection/disposal source stays in `lifecycle-runtime.ts`
 - `directory-lock.ts` owns cross-process leases; release only the observed owner file and never recursively delete a lock path.
 - Existing V8 Code Mode remains under `tools/code-mode/`; share its public tool, rendering, nested-tool, and output contracts without changing the vendored host.
 - Linux x64 is the only supported prototype platform. Add platforms only with pinned official artifacts and verified checksums.

@@ -27,6 +27,7 @@ import {
 	registerCodeModePreflightBroker,
 	runCodeModeToolPreflight,
 } from "./nested-tool-preflight.js";
+import { registerNotebookTool } from "./notebook-tool.ts";
 
 const DEFAULT_WAIT_MS = 10_000;
 const MIN_ADAPTIVE_WAIT_MS = 5_000;
@@ -63,6 +64,7 @@ export function registerPublicCodeModeTools(
 	const preflight = registerCodeModePreflightBroker(pi).run;
 	pi.registerTool(createExecTool(runtime, tracker, renderResult, preflight));
 	pi.registerTool(createWaitTool(runtime, tracker, renderResult, waitAttempts, preflight));
+	registerNotebookTool(pi, runtime);
 }
 
 function createExecTool(
