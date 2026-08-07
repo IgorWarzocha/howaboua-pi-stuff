@@ -115,11 +115,16 @@ function journalOutputs(items: RuntimeContentItem[], result: KernelExecutionResu
 	}
 	if (remaining <= 0) outputs.push({ name: "stderr", output_type: "stream", text: ["[notebook journal output truncated]\n"] });
 	if (result.status === "error" && result.errorText) {
+		const marker = "\n[notebook journal error truncated]";
+		const errorBudget = Math.floor(Math.max(0, remaining) / 2);
+		const errorText = result.errorText.length > errorBudget
+			? `${result.errorText.slice(0, Math.max(0, errorBudget - marker.length))}${marker.slice(0, errorBudget)}`
+			: result.errorText;
 		outputs.push({
 			output_type: "error",
 			ename: "NotebookCellError",
-			evalue: result.errorText,
-			traceback: result.errorText.split("\n"),
+			evalue: errorText,
+			traceback: errorText.split("\n"),
 		});
 	}
 	return outputs;

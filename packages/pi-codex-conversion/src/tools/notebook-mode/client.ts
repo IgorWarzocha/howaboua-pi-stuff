@@ -19,6 +19,7 @@ import type {
 import { NotebookBridgeServer, notebookBootstrapSource } from "./bridge-server.ts";
 import {
 	formatCheckpointNotice,
+	resolveNotebookCheckpointMaxBytes,
 	restoreNotebookCheckpoint,
 	type NotebookCheckpointIdentity,
 	writeNotebookCheckpoint,
@@ -41,7 +42,6 @@ import {
 } from "./repository-state.ts";
 import { notebookSessionIdentity } from "./session-identity.ts";
 
-const EXIT_SENTINEL = "__PI_NOTEBOOK_EXIT__";
 const TERMINATE_GRACE_MS = 1_500;
 const CHECKPOINT_DEBOUNCE_MS = 1_500;
 const MAX_CELL_OUTPUT_CHARS = 32 * 1024 * 1024;
@@ -70,6 +70,7 @@ interface NotebookCell {
 
 export class NotebookCodeModeClient implements CodeModeExecutionClient {
 	private readonly options: NotebookRuntimeOptions;
+	private readonly checkpointMaxBytes: number;
 	private readonly delegate = new CodeModeDelegateRuntime(() => undefined);
 	private readonly bridge = new NotebookBridgeServer({
 		callTool: (cellId, requestId, tool, input) => this.callTool(cellId, requestId, tool, input),
@@ -97,6 +98,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 
 	constructor(options: NotebookRuntimeOptions) {
 		this.options = options;
+		this.checkpointMaxBytes = resolveNotebookCheckpointMaxBytes(options.maxHeapMiB);
 	}
 
 	async execute(
@@ -191,7 +193,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 	}
 
 	async checkpoint(): Promise<void> {
-		await this.flushCheckpoint();
+		await this.flushCheckpoint(true);
 	}
 
 	async shutdown(): Promise<void> {
@@ -215,9 +217,10 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		this.extensionContext = undefined;
 		const kernel = this.kernel;
 		this.kernel = undefined;
+		this.delegate.clear();
 		await kernel?.shutdown().catch(() => undefined);
 		await this.bridge.shutdown();
-		this.delegate.clear();
+		this.maintenance = Promise.resolve();
 	}
 
 	private async ensureSession(context: ToolExecutionContext, signal?: AbortSignal): Promise<void> {
@@ -248,16 +251,26 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 
 	private async startSession(ctx: ExtensionContext, signal?: AbortSignal): Promise<void> {
 		this.latestMemory = undefined;
-		const [deno, origin] = await Promise.all([
-			ensureNotebookDenoBinary({ agentDir: this.options.agentDir }, signal),
-			this.bridge.start(),
-		]);
-		signal?.throwIfAborted();
+		const startupAbort = new AbortController();
+		const startupSignal = signal ? AbortSignal.any([signal, startupAbort.signal]) : startupAbort.signal;
+		const denoPending = ensureNotebookDenoBinary({ agentDir: this.options.agentDir }, startupSignal);
+		const bridgePending = this.bridge.start();
+		let deno: string;
+		let origin: string;
+		try {
+			[deno, origin] = await Promise.all([denoPending, bridgePending]);
+			startupSignal.throwIfAborted();
+		} catch (error) {
+			startupAbort.abort();
+			await Promise.allSettled([denoPending, bridgePending]);
+			await this.bridge.shutdown().catch(() => undefined);
+			throw error;
+		}
 		const kernel = new DenoJupyterKernel({ deno, cwd: ctx.cwd, maxHeapMiB: this.options.maxHeapMiB });
 		this.kernel = kernel;
 		try {
 			await kernel.start(signal);
-			const bootstrap = await kernel.execute(notebookBootstrapSource(origin, this.bridge.token), { signal });
+			const bootstrap = await kernel.execute(notebookBootstrapSource(origin, this.bridge.token, this.bridge.exitToken), { signal });
 			if (bootstrap.status !== "ok") {
 				throw new Error(`Notebook bootstrap failed: ${bootstrap.errorText ?? "unknown error"}`);
 			}
@@ -278,11 +291,12 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 			const repository = await restoreRepositoryState(kernel, {
 				project,
 				agentDir: this.options.agentDir,
+				maxBytes: this.checkpointMaxBytes,
 			});
 			this.repositoryBaseline = repository.baseline;
 			this.baselineNames = new Set(await kernel.complete("", 0));
 			this.checkpointIdentity = checkpointIdentity;
-			const restored = await restoreNotebookCheckpoint(kernel, this.checkpointIdentity);
+			const restored = await restoreNotebookCheckpoint(kernel, this.checkpointIdentity, this.checkpointMaxBytes);
 			this.pendingNotice = joinNotices(
 				formatRepositoryStateNotice(repository, { inventory: true }),
 				formatCheckpointNotice(restored),
@@ -290,6 +304,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		} catch (error) {
 			if (this.kernel === kernel) this.kernel = undefined;
 			await kernel.shutdown().catch(() => undefined);
+			await this.bridge.shutdown().catch(() => undefined);
 			throw error;
 		}
 	}
@@ -300,13 +315,14 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 				signal: cell.controller.signal,
 				onOutput: (item) => this.emit(cell.id, [item]),
 			});
-			const normalized = result.errorText?.includes(EXIT_SENTINEL)
-				? { ...result, status: "ok" as const, errorText: undefined }
+			const normalized = result.errorName === "PiNotebookExit" && result.errorValue === this.bridge.exitToken
+				? { ...result, status: "ok" as const, errorText: undefined, errorName: undefined, errorValue: undefined }
 				: result;
 			cell.result = normalized;
 			await this.endCellRuntime(cell);
 			if (cell.result.status === "ok") this.scheduleCheckpoint();
 		} catch (error) {
+			this.delegate.cancelCell(cell.id);
 			const recovery = cell.controller.signal.aborted
 				? undefined
 				: await this.recoverAfterFatal(cell.context);
@@ -356,7 +372,12 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 	}
 
 	private finishObservation(cell: NotebookCell, kind: RuntimeResponse["kind"]): RuntimeResponse {
-		const contentItems = cell.items.slice(cell.cursor);
+		const notice = this.pendingNotice;
+		this.pendingNotice = undefined;
+		const contentItems = [
+			...(notice ? [{ type: "input_text" as const, text: notice }] : []),
+			...cell.items.slice(cell.cursor),
+		];
 		cell.cursor = cell.items.length;
 		const response: RuntimeResponse = kind === "result"
 			? {
@@ -378,6 +399,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		if (cell.terminated) return;
 		cell.terminated = true;
 		cell.controller.abort();
+		this.delegate.cancelCell(cell.id);
 		await this.kernel?.interrupt().catch(() => undefined);
 		await Promise.race([cell.completed.promise, abortableDelay(TERMINATE_GRACE_MS)]);
 		if (!cell.result) {
@@ -404,6 +426,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		const extension = context.extensionContext;
 		if (!extension) return "Notebook kernel could not restart because its session context is unavailable";
 		const previous = this.kernel;
+		if (this.activeCell) this.delegate.cancelCell(this.activeCell.id);
 		this.kernel = undefined;
 		this.startup = undefined;
 		await previous?.shutdown().catch(() => undefined);
@@ -422,45 +445,58 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		}
 	}
 
-	private async flushCheckpoint(): Promise<void> {
+	private flushCheckpoint(requireIdle = false): Promise<void> {
 		if (this.checkpointTimer) clearTimeout(this.checkpointTimer);
 		this.checkpointTimer = undefined;
-		if (!this.checkpointDirty || !this.kernel || !this.checkpointIdentity || this.activeCell && !this.activeCell.result) return;
+		const operation = this.maintenance.then(() => this.performCheckpoint(requireIdle));
+		this.maintenance = operation.catch(() => undefined);
+		return operation;
+	}
+
+	private async performCheckpoint(requireIdle: boolean): Promise<void> {
+		if (this.activeCell && !this.activeCell.result) {
+			if (!requireIdle) return;
+			const notice = `Notebook checkpoint skipped because cell "${this.activeCell.id}" is still running; the last completed checkpoint remains available`;
+			this.pendingNotice = joinNotices(this.pendingNotice, notice);
+			throw new Error(notice);
+		}
+		if (!this.checkpointDirty || !this.kernel || !this.checkpointIdentity) return;
 		this.checkpointDirty = false;
 		const kernel = this.kernel;
 		const identity = this.checkpointIdentity;
 		const baseline = this.baselineNames;
-		const operation = this.maintenance.then(async () => {
-			const notices = [this.pendingNotice];
-			try {
-				const repository = await writeRepositoryState(kernel, identity, this.repositoryBaseline);
-				this.repositoryBaseline = repository.baseline;
-				const notice = formatRepositoryStateNotice(repository);
-				notices.push(notice);
-				if (notice) this.extensionContext?.ui.notify(notice, "warning");
-			} catch (error) {
-				this.checkpointDirty = true;
-				const notice = `Repository notebook checkpoint failed: ${error instanceof Error ? error.message : String(error)}`;
-				notices.push(notice);
-				this.extensionContext?.ui.notify(notice, "warning");
-			}
-			try {
-				const manifest = await writeNotebookCheckpoint(kernel, identity, baseline);
-				if (manifest.skipped.length > 0) {
-					const notice = formatSkippedCheckpointNotice(manifest.skipped);
-					notices.push(notice);
-					this.extensionContext?.ui.notify(notice, "warning");
-				}
-			} catch (error) {
-				this.checkpointDirty = true;
-				const notice = `Session notebook checkpoint failed: ${error instanceof Error ? error.message : String(error)}`;
+		const notices = [this.pendingNotice];
+		try {
+			const repository = await writeRepositoryState(
+				kernel,
+				identity,
+				this.repositoryBaseline,
+				this.checkpointMaxBytes,
+			);
+			this.repositoryBaseline = repository.baseline;
+			const notice = formatRepositoryStateNotice(repository);
+			notices.push(notice);
+			if (notice) this.extensionContext?.ui.notify(notice, "warning");
+		} catch (error) {
+			this.checkpointDirty = true;
+			const notice = `Repository notebook checkpoint failed: ${error instanceof Error ? error.message : String(error)}`;
+			notices.push(notice);
+			this.extensionContext?.ui.notify(notice, "warning");
+		}
+		try {
+			const manifest = await writeNotebookCheckpoint(kernel, identity, baseline, this.checkpointMaxBytes);
+			if (manifest.skipped.length > 0) {
+				const notice = formatSkippedCheckpointNotice(manifest.skipped);
 				notices.push(notice);
 				this.extensionContext?.ui.notify(notice, "warning");
 			}
-			this.pendingNotice = joinNotices(...notices);
-		});
-		this.maintenance = operation;
-		await operation;
+		} catch (error) {
+			this.checkpointDirty = true;
+			const notice = `Session notebook checkpoint failed: ${error instanceof Error ? error.message : String(error)}`;
+			notices.push(notice);
+			this.extensionContext?.ui.notify(notice, "warning");
+		}
+		this.pendingNotice = joinNotices(...notices);
 	}
 
 	private closeCell(cell: NotebookCell): void {

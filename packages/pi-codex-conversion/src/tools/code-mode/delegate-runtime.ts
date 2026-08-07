@@ -12,12 +12,17 @@ const MAX_TRACE_ERROR_CHARS = 16_384;
 const MAX_NOTIFICATION_CHARS = 16_384;
 const MAX_NOTIFICATIONS_PER_CELL = 100;
 
+interface DelegateController {
+	cellId?: string | undefined;
+	controller: AbortController;
+}
+
 type SendMessage = (message: unknown) => void;
 
 export class CodeModeDelegateRuntime {
 	private readonly cellContexts = new Map<string, ToolExecutionContext>();
 	private readonly cellTools = new Map<string, Map<string, CodeModeToolDefinition>>();
-	private readonly controllers = new Map<number, AbortController>();
+	private readonly controllers = new Map<string, DelegateController>();
 	private readonly notifications = new Map<string, string[]>();
 	private readonly traces = new CodeModeTraceStore();
 	private readonly cleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -53,7 +58,7 @@ export class CodeModeDelegateRuntime {
 	}
 
 	clear(): void {
-		for (const controller of this.controllers.values()) controller.abort();
+		for (const { controller } of this.controllers.values()) controller.abort();
 		this.controllers.clear();
 		this.cellContexts.clear();
 		this.cellTools.clear();
@@ -64,17 +69,30 @@ export class CodeModeDelegateRuntime {
 	}
 
 	cancel(id: number): void {
-		const controller = this.controllers.get(id);
-		this.controllers.delete(id);
-		controller?.abort();
+		const key = hostControllerKey(id);
+		const pending = this.controllers.get(key);
+		this.controllers.delete(key);
+		pending?.controller.abort();
+	}
+
+	cancelCell(cellId: string): void {
+		for (const [key, pending] of this.controllers) {
+			if (pending.cellId !== cellId) continue;
+			this.controllers.delete(key);
+			pending.controller.abort();
+		}
 	}
 
 	handleRequest(message: DelegateRequestMessage): void {
-		if (this.controllers.has(message.id))
+		const key = hostControllerKey(message.id);
+		if (this.controllers.has(key))
 			throw new Error(`Duplicate code-mode delegate request: ${message.id}`);
 		const controller = new AbortController();
-		this.controllers.set(message.id, controller);
-		void this.invoke(message, controller);
+		const cellId = message.request.type === "notification/send"
+			? message.request.cellId
+			: message.request.invocation.cell_id;
+		this.controllers.set(key, { cellId, controller });
+		void this.invoke(message, key, controller);
 	}
 
 	async invokeDirect(
@@ -83,14 +101,15 @@ export class CodeModeDelegateRuntime {
 		toolName: string,
 		input: unknown,
 	): Promise<unknown> {
-		if (this.controllers.has(requestId))
+		const key = directControllerKey(cellId, requestId);
+		if (this.controllers.has(key))
 			throw new Error(`Duplicate code-mode delegate request: ${requestId}`);
 		const controller = new AbortController();
-		this.controllers.set(requestId, controller);
+		this.controllers.set(key, { cellId, controller });
 		try {
 			return await this.invokeTool(cellId, toolName, input, String(requestId), controller);
 		} finally {
-			this.controllers.delete(requestId);
+			this.controllers.delete(key);
 		}
 	}
 
@@ -128,11 +147,12 @@ export class CodeModeDelegateRuntime {
 
 	private async invoke(
 		message: DelegateRequestMessage,
+		key: string,
 		controller: AbortController,
 	): Promise<void> {
 		const request = message.request;
 		if (request.type === "notification/send") {
-			this.handleNotification(message.id, request);
+			this.handleNotification(message.id, key, request);
 			return;
 		}
 		const invocation = request.invocation;
@@ -157,7 +177,7 @@ export class CodeModeDelegateRuntime {
 				message: error instanceof Error ? error.message : String(error),
 			});
 		} finally {
-			this.controllers.delete(message.id);
+			this.controllers.delete(key);
 		}
 	}
 
@@ -209,6 +229,7 @@ export class CodeModeDelegateRuntime {
 
 	private handleNotification(
 		id: number,
+		key: string,
 		request: Extract<DelegateRequestMessage["request"], { type: "notification/send" }>,
 	): void {
 		const cellId = request.cellId;
@@ -219,14 +240,14 @@ export class CodeModeDelegateRuntime {
 				status: "error",
 				message: error instanceof Error ? error.message : String(error),
 			});
-			this.controllers.delete(id);
+			this.controllers.delete(key);
 			return;
 		}
 		this.respond(id, {
 			status: "ok",
 			value: { type: "notification/delivered" },
 		});
-		this.controllers.delete(id);
+		this.controllers.delete(key);
 	}
 
 	private respond(id: number, result: Record<string, unknown>): void {
@@ -247,4 +268,12 @@ export class CodeModeDelegateRuntime {
 			}
 		}
 	}
+}
+
+function hostControllerKey(id: number): string {
+	return `host:${id}`;
+}
+
+function directControllerKey(cellId: string, requestId: number): string {
+	return `direct:${cellId}:${requestId}`;
 }
