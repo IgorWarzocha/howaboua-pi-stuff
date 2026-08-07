@@ -38,6 +38,8 @@ export interface KernelExecutionResult {
 	status: "ok" | "error" | "aborted";
 	items: RuntimeContentItem[];
 	errorText?: string | undefined;
+	errorName?: string | undefined;
+	errorValue?: string | undefined;
 }
 
 interface ActiveExecution {
@@ -47,6 +49,8 @@ interface ActiveExecution {
 	outputTruncated: boolean;
 	status: KernelExecutionResult["status"];
 	errorText?: string | undefined;
+	errorName?: string | undefined;
+	errorValue?: string | undefined;
 	onOutput?: ((item: RuntimeContentItem) => void) | undefined;
 	resolve(result: KernelExecutionResult): void;
 	reject(error: Error): void;
@@ -305,6 +309,8 @@ export class DenoJupyterKernel {
 				? message.content["traceback"].filter((line): line is string => typeof line === "string")
 				: [];
 			execution.status = "error";
+			execution.errorName = name;
+			execution.errorValue = value;
 			execution.errorText = traceback.length > 0 ? traceback.join("\n") : `${name}: ${value}`;
 			return;
 		}
@@ -314,6 +320,8 @@ export class DenoJupyterKernel {
 				status: execution.status,
 				items: execution.items,
 				...(execution.errorText ? { errorText: execution.errorText } : {}),
+				...(execution.errorName ? { errorName: execution.errorName } : {}),
+				...(execution.errorValue ? { errorValue: execution.errorValue } : {}),
 			});
 		}
 	}
