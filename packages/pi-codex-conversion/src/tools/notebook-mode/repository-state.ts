@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import {
 	closeSync,
 	existsSync,
+	lstatSync,
 	mkdirSync,
 	openSync,
 	readdirSync,
@@ -12,13 +13,14 @@ import {
 	unlinkSync,
 	writeFileSync,
 } from "node:fs";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { NOTEBOOK_CHECKPOINT_MAX_BYTES } from "./checkpoint.ts";
 import type { DenoJupyterKernel } from "./jupyter-kernel.ts";
 
 const REPOSITORY_SCHEMA = 1;
 const LOCK_STALE_MS = 5 * 60_000;
 const LOCK_WAIT_MS = 5_000;
+const REPOSITORY_PAYLOAD_NAME = /^repository-[0-9a-f-]+\.bin$/;
 
 interface RepositoryEntry {
 	key: string;
@@ -124,7 +126,10 @@ export async function writeRepositoryState(
 				candidatePayload: readFileSync(candidatePayloadPath),
 				currentPayload,
 			});
-			if (merged.conflictPayload.length > 0) writeConflict(paths.directory, identity, merged);
+			if (merged.payload.length > NOTEBOOK_CHECKPOINT_MAX_BYTES) {
+				throw new Error("Merged repository notebook state exceeds the repository checkpoint cap");
+			}
+			if (merged.conflicts.length > 0) writeConflict(paths.directory, identity, merged);
 			let manifest = current;
 			if (merged.changed) manifest = writeMergedState(paths, identity, current, candidate, merged);
 			removeResolvedConflicts(paths.directory, new Set(merged.appliedKeys));
@@ -190,6 +195,7 @@ function mergeRepositoryState(options: {
 	const entries: RepositoryEntry[] = [];
 	const conflictParts: Buffer[] = [];
 	const conflictEntries: RepositoryEntry[] = [];
+	const conflictDeletions: string[] = [];
 	const conflicts: string[] = [];
 	const appliedKeys: string[] = [];
 	let offset = 0;
@@ -212,7 +218,7 @@ function mergeRepositoryState(options: {
 				conflictParts.push(bytes);
 				conflictEntries.push({ key, offset: conflictOffset, length: bytes.length, hash: candidateEntry.hash });
 				conflictOffset += bytes.length;
-			}
+			} else conflictDeletions.push(key);
 			if (currentEntry) selected = { entry: currentEntry, payload: options.currentPayload };
 		} else if (candidateChanged) {
 			appliedKeys.push(key);
@@ -235,6 +241,7 @@ function mergeRepositoryState(options: {
 		conflicts,
 		appliedKeys,
 		conflictEntries,
+		conflictDeletions,
 		conflictPayload: Buffer.concat(conflictParts),
 	};
 }
@@ -276,7 +283,7 @@ function writeConflict(
 ): void {
 	const conflictDirectory = join(directory, "conflicts");
 	mkdirSync(conflictDirectory, { recursive: true });
-	const prefix = `${new Date().toISOString().replaceAll(":", "-")}-${createHash("sha256").update(identity.session).digest("hex").slice(0, 12)}`;
+	const prefix = `${new Date().toISOString().replaceAll(":", "-")}-${createHash("sha256").update(identity.session).digest("hex").slice(0, 12)}-${randomUUID().slice(0, 8)}`;
 	for (const entry of merged.conflictEntries) {
 		const id = `${prefix}-${createHash("sha256").update(entry.key).digest("hex").slice(0, 12)}`;
 		const bytes = merged.conflictPayload.subarray(entry.offset, entry.offset + entry.length);
@@ -288,6 +295,16 @@ function writeConflict(
 			createdAt: new Date().toISOString(),
 			payload: `${id}.bin`,
 			entries: [{ ...entry, offset: 0 }],
+		}, null, 2)}\n`, { mode: 0o600 });
+	}
+	for (const key of merged.conflictDeletions) {
+		const id = `${prefix}-${createHash("sha256").update(key).digest("hex").slice(0, 12)}`;
+		writeFileSync(join(conflictDirectory, `${id}.json`), `${JSON.stringify({
+			schema: REPOSITORY_SCHEMA,
+			project: resolve(identity.project),
+			session: identity.session,
+			createdAt: new Date().toISOString(),
+			entries: [{ key, deleted: true }],
 		}, null, 2)}\n`, { mode: 0o600 });
 	}
 }
@@ -428,9 +445,11 @@ function readRepositoryManifest(path: string): RepositoryManifest | undefined {
 			|| typeof value["v8"] !== "string"
 			|| typeof value["payload"] !== "string"
 			|| typeof value["createdAt"] !== "string"
-			|| typeof value["sourceSession"] !== "string"
+				|| typeof value["sourceSession"] !== "string"
 			|| !Array.isArray(value["entries"])
 			|| !Array.isArray(value["skipped"])
+			|| !REPOSITORY_PAYLOAD_NAME.test(value["payload"])
+			|| basename(value["payload"]) !== value["payload"]
 		) return undefined;
 		const entries = value["entries"].map(parseRepositoryEntry);
 		const skipped = value["skipped"].map(parseSkipped);
@@ -475,15 +494,19 @@ function readCandidateManifest(path: string, payloadPath: string): CandidateMani
 
 function readValidatedRepositoryPayload(manifest: RepositoryManifest, path: string): Buffer | undefined {
 	try {
+		const stat = lstatSync(path);
+		if (!stat.isFile() || stat.isSymbolicLink() || stat.size > NOTEBOOK_CHECKPOINT_MAX_BYTES) return undefined;
 		const payload = readFileSync(path);
 		const keys = new Set<string>();
+		let offset = 0;
 		for (const entry of manifest.entries) {
-			if (keys.has(entry.key) || entry.offset + entry.length > payload.length) return undefined;
+			if (keys.has(entry.key) || entry.offset !== offset || entry.offset + entry.length > payload.length) return undefined;
 			keys.add(entry.key);
 			const bytes = payload.subarray(entry.offset, entry.offset + entry.length);
 			if (hashBytes(bytes) !== entry.hash) return undefined;
+			offset += entry.length;
 		}
-		return payload;
+		return offset === payload.length ? payload : undefined;
 	} catch {
 		return undefined;
 	}

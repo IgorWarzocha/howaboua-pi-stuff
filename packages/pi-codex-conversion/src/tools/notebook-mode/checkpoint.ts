@@ -1,11 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { existsSync, lstatSync, mkdirSync, readFileSync } from "node:fs";
+import { basename, join, resolve } from "node:path";
 import type { DenoJupyterKernel } from "./jupyter-kernel.ts";
 
 export const NOTEBOOK_CHECKPOINT_MAX_BYTES = 256 * 1024 * 1024;
 const CHECKPOINT_SCHEMA = 1;
 const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
+const PAYLOAD_NAME = /^checkpoint-[0-9a-f-]+\.bin$/;
 
 interface CheckpointEntry {
 	name: string;
@@ -81,8 +82,8 @@ export async function restoreNotebookCheckpoint(
 		return { restored: [], skipped: manifest.skipped, message: "Notebook checkpoint identity was incompatible and was not restored" };
 	}
 	const payloadPath = join(paths.directory, manifest.payload);
-	if (!existsSync(payloadPath)) {
-		return { restored: [], skipped: manifest.skipped, message: "Notebook checkpoint payload was missing and was not restored" };
+	if (!isValidCheckpointPayload(manifest, payloadPath)) {
+		return { restored: [], skipped: manifest.skipped, message: "Notebook checkpoint payload was missing or invalid and was not restored" };
 	}
 	const result = await kernel.execute(restoreSource(manifest, payloadPath));
 	if (result.status !== "ok") {
@@ -218,9 +219,11 @@ function readManifest(path: string): CheckpointManifest | undefined {
 			|| typeof value["deno"] !== "string"
 			|| typeof value["v8"] !== "string"
 			|| typeof value["payload"] !== "string"
-			|| typeof value["createdAt"] !== "string"
+				|| typeof value["createdAt"] !== "string"
 			|| !Array.isArray(value["entries"])
 			|| !Array.isArray(value["skipped"])
+			|| !PAYLOAD_NAME.test(value["payload"])
+			|| basename(value["payload"]) !== value["payload"]
 		) return undefined;
 		const entries = value["entries"].map(parseEntry);
 		const skipped = value["skipped"].map(parseSkipped);
@@ -238,6 +241,23 @@ function readManifest(path: string): CheckpointManifest | undefined {
 		};
 	} catch {
 		return undefined;
+	}
+}
+
+function isValidCheckpointPayload(manifest: CheckpointManifest, path: string): boolean {
+	try {
+		const stat = lstatSync(path);
+		if (!stat.isFile() || stat.isSymbolicLink() || stat.size > NOTEBOOK_CHECKPOINT_MAX_BYTES) return false;
+		let offset = 0;
+		const names = new Set<string>();
+		for (const entry of manifest.entries) {
+			if (names.has(entry.name) || entry.offset !== offset) return false;
+			names.add(entry.name);
+			offset += entry.length;
+		}
+		return offset === stat.size;
+	} catch {
+		return false;
 	}
 }
 

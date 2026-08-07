@@ -73,7 +73,8 @@ export function appendNotebookJournalCell(
 	journal: NotebookJournal,
 	cell: { id: string; source: string; items: RuntimeContentItem[]; result: KernelExecutionResult },
 ): void {
-	const document = readJournal(journal.path) ?? emptyDocument(journal);
+	const document = readJournal(journal.path);
+	if (!document) throw new Error(`Notebook journal is invalid: ${journal.path}`);
 	const executionCount = document.cells.length + 1;
 	document.cells.push({
 		cell_type: "code",
@@ -104,7 +105,11 @@ function journalOutputs(items: RuntimeContentItem[], result: KernelExecutionResu
 		}
 		const match = item.type === "input_image" && item.image_url?.match(/^data:([^;,]+);base64,(.+)$/s);
 		if (!match) continue;
-		const data = match[2]!.slice(0, remaining);
+		if (match[2]!.length > remaining) {
+			remaining = 0;
+			continue;
+		}
+		const data = match[2]!;
 		remaining -= data.length;
 		outputs.push({ output_type: "display_data", data: { [match[1]!]: data }, metadata: {} });
 	}

@@ -74,6 +74,8 @@ export function registerCodexCommand(
 	}
 
 	async function setSessionExecutionMode(ctx: ExtensionContext, mode: SessionExecutionMode): Promise<boolean> {
+		const previousSessionMode = state.sessionExecutionMode;
+		const previousExecutionMode = state.executionMode;
 		appendSessionExecutionMode(pi, mode);
 		const resolved = resolveExecutionMode(ctx);
 		state.sessionExecutionMode = resolved.session;
@@ -83,7 +85,20 @@ export function registerCodexCommand(
 			syncAdapter(pi, ctx, state);
 			return true;
 		} catch (error) {
-			ctx.ui.notify(`Could not apply session execution mode: ${error instanceof Error ? error.message : String(error)}`, "error");
+			appendSessionExecutionMode(pi, previousSessionMode);
+			state.sessionExecutionMode = previousSessionMode;
+			state.executionMode = previousExecutionMode;
+			let rollbackError: unknown;
+			try {
+				await onExecutionModeApplied?.(ctx);
+				syncAdapter(pi, ctx, state);
+			} catch (rollbackFailure) {
+				rollbackError = rollbackFailure;
+			}
+			ctx.ui.notify(
+				`Could not apply session execution mode: ${error instanceof Error ? error.message : String(error)}${rollbackError ? `. Rollback failed: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}` : ""}`,
+				"error",
+			);
 			return false;
 		}
 	}
