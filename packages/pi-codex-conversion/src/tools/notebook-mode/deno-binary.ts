@@ -14,7 +14,6 @@ import {
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { denoAssetUrl, DENO_VERSION, resolveDenoAsset } from "./deno-assets.ts";
 
 const DOWNLOAD_TIMEOUT_MS = 180_000;
@@ -30,13 +29,13 @@ export interface DenoBinaryRuntime {
 }
 
 export async function ensureNotebookDenoBinary(
+	overrides: Partial<Omit<DenoBinaryRuntime, "agentDir">> & Pick<DenoBinaryRuntime, "agentDir">,
 	signal?: AbortSignal,
-	overrides: Partial<DenoBinaryRuntime> = {},
 ): Promise<string> {
 	const runtime: DenoBinaryRuntime = {
 		platform: overrides.platform ?? process.platform,
 		arch: overrides.arch ?? process.arch,
-		agentDir: overrides.agentDir ?? getAgentDir(),
+		agentDir: overrides.agentDir,
 	};
 	const destination = join(
 		runtime.agentDir,
