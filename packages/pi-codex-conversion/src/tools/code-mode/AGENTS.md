@@ -4,3 +4,4 @@
 - `host-client.ts` composes execution; `host-session.ts` open/shutdown lifecycle; `host-cell-operations.ts` wait/terminate; `host-operation.ts` cancellation; `host-connection.ts` handshake/request correlation; `host-process.ts` subprocess framing; `host-protocol.ts` wire validation; `host-delegation.ts` routes nested execution into `delegate-runtime.ts`; `tool-source.ts` scans/scopes JavaScript; `trace-*` owns bounded trace state.
 - `tools.ts` registers the runtime. `shared-runtime.ts`, `public-tools.ts`, and `tool-events.ts` own provider state, Pi tools, and hooks.
 - `custom-tool-*` owns TOML discovery and execution. `tool-result.ts`, `render-tracker.ts`, and `rendering.ts` own output and rendering boundaries.
+- `shared-runtime.ts` selects the V8 or lazily imported Notebook client; Notebook implementation stays under sibling `tools/notebook-mode/`.

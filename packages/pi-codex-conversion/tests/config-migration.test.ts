@@ -58,3 +58,10 @@ test("legacy PATH mode and unknown fields normalize as ordinary structured-tool 
 	assert.equal("mode" in config, false);
 	assert.equal(CODEX_CONVERSION_CONFIG_BASENAME, "pi-codex-conversion.json");
 });
+
+test("Notebook heap configuration is bounded without migrating grouped config", () => {
+	const accepted = migrateCodexConversionConfigIfNeeded({ notebook: { maxHeapMiB: 8192 } });
+	assert.equal(accepted.migrated, false);
+	assert.equal(normalizeCodexConversionConfig(accepted.config).notebook.maxHeapMiB, 8192);
+	assert.equal(normalizeCodexConversionConfig({ notebook: { maxHeapMiB: 128 } }).notebook.maxHeapMiB, 4096);
+});

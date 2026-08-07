@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { readCodexConversionConfig } from "../adapter/activation/config-store.ts";
+import { resolveExecutionMode } from "../adapter/activation/execution-mode.ts";
 import { syncAdapter } from "../adapter/activation/activation.ts";
 import { isAdapterRuntime, resolveCodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
 import { isNativeCompactionDetails, NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, NATIVE_COMPACTION_DISPLAY_TEXT, NATIVE_COMPACTION_STRATEGY, type NativeCompactionUsage } from "../adapter/compaction/types.ts";
@@ -15,6 +16,7 @@ import { clearApplyPatchRenderState } from "../tools/apply-patch/tool.ts";
 import type { CodeModeRegistration } from "../tools/code-mode/tools.ts";
 import { initializeBashParser } from "../shell/bash.ts";
 import { prepareVoiceDelegation } from "../voice/delegation-preflight.ts";
+import { appendNotebookTreeEpoch } from "../tools/notebook-mode/session-identity.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
 import type { CodexToolRegistration } from "./tools.ts";
 import type { CodexUiController } from "./ui.ts";
@@ -72,6 +74,9 @@ export function registerCodexEvents(
 		runtime.backgroundWidget.ctx = ctx;
 		state.cwd = ctx.cwd;
 		state.config = readCodexConversionConfig();
+		const executionMode = resolveExecutionMode(ctx);
+		state.executionMode = executionMode.effective;
+		state.sessionExecutionMode = executionMode.session;
 		state.activeProviderSystemPrompt = undefined;
 		state.voiceSystemPromptOverride = undefined;
 		proxyProvider.applyConfig(state.config, ctx.modelRegistry);
@@ -118,6 +123,23 @@ export function registerCodexEvents(
 		if (!state.config.prompt.heavySystemPromptOverwrite)
 			void runtime.startPrewarm(ctx, codeMode.refreshPromptTools(ctx.getSystemPrompt(), ctx));
 	});
+	pi.on("session_tree", async (_event, ctx) => {
+		const previousMode = state.executionMode;
+		const executionMode = resolveExecutionMode(ctx);
+		state.executionMode = executionMode.effective;
+		state.sessionExecutionMode = executionMode.session;
+		state.activeProviderSystemPrompt = undefined;
+		state.voiceSystemPromptOverride = undefined;
+		runtime.resetTransport(ctx.sessionManager.getSessionId());
+		if (previousMode === "notebook" || state.executionMode === "notebook") appendNotebookTreeEpoch(pi);
+		await codeMode.shutdownHost();
+		proxyProvider.applyConfig(state.config, ctx.modelRegistry);
+		syncAdapter(pi, ctx, state);
+		prepareCodeModeHost(codeMode, ctx);
+		if (previousMode === "notebook" || state.executionMode === "notebook") {
+			ctx.ui.notify("Notebook state reset after conversation-tree navigation", "info");
+		}
+	});
 
 	pi.on("message_start", async (event) => {
 		if (event.message.role !== "toolResult" && !isToolCallOnlyAssistantMessage(event.message)) tracker.resetExplorationGroup();
@@ -161,7 +183,7 @@ export function registerCodexEvents(
 	pi.on("before_agent_start", async (event, ctx) => {
 		const systemPrompt = event.systemPrompt;
 		state.voiceSystemPromptOverride = undefined;
-		if (!isAdapterRuntime(resolveCodexRuntimePlan(ctx, state.config))) {
+		if (!isAdapterRuntime(resolveCodexRuntimePlan(ctx, state.config, state.executionMode))) {
 			state.pendingActiveProviderPromptCapture = false;
 			return undefined;
 		}
@@ -190,7 +212,12 @@ export function registerCodexEvents(
 	});
 	pi.on("session_before_compact", async (event, ctx) => {
 		state.cwd = ctx.cwd;
-		if (!resolveCodexRuntimePlan(ctx, state.config).nativeCompaction) return undefined;
+		try {
+			await codeMode.checkpointNotebook();
+		} catch (error) {
+			ctx.ui.notify(`Notebook checkpoint before compaction failed: ${error instanceof Error ? error.message : String(error)}`, "warning");
+		}
+		if (!resolveCodexRuntimePlan(ctx, state.config, state.executionMode).nativeCompaction) return undefined;
 		return handleCodexSessionBeforeCompact(event, ctx, state, pi);
 	});
 	pi.on("session_compact", async (event, ctx) => {

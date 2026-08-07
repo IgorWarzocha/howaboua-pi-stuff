@@ -13,7 +13,7 @@ export async function prepareVoiceDelegation(
 ): Promise<PreparedVoiceDelegation | undefined> {
 	const { state } = runtime;
 	const buildCurrent = () => {
-		if (!isAdapterRuntime(resolveCodexRuntimePlan(ctx, state.config))) return undefined;
+		if (!isAdapterRuntime(resolveCodexRuntimePlan(ctx, state.config, state.executionMode))) return undefined;
 		const basePrompt = state.activeProviderSystemPrompt ?? ctx.getSystemPrompt();
 		const promptOptions = state.config.prompt.heavySystemPromptOverwrite
 			? { cwd: ctx.cwd }

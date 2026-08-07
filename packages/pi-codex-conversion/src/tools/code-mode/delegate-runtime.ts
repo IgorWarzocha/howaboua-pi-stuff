@@ -77,6 +77,38 @@ export class CodeModeDelegateRuntime {
 		void this.invoke(message, controller);
 	}
 
+	async invokeDirect(
+		cellId: string,
+		requestId: number,
+		toolName: string,
+		input: unknown,
+	): Promise<unknown> {
+		if (this.controllers.has(requestId))
+			throw new Error(`Duplicate code-mode delegate request: ${requestId}`);
+		const controller = new AbortController();
+		this.controllers.set(requestId, controller);
+		try {
+			return await this.invokeTool(cellId, toolName, input, String(requestId), controller);
+		} finally {
+			this.controllers.delete(requestId);
+		}
+	}
+
+	notifyDirect(cellId: string, value: string): void {
+		const context = this.cellContexts.get(cellId);
+		if (!context) throw new Error("Code-mode notification cell is unavailable");
+		const notifications = this.notifications.get(cellId) ?? [];
+		const text = value.slice(0, MAX_NOTIFICATION_CHARS);
+		notifications.push(text);
+		if (notifications.length > MAX_NOTIFICATIONS_PER_CELL)
+			notifications.splice(0, notifications.length - MAX_NOTIFICATIONS_PER_CELL);
+		this.notifications.set(cellId, notifications);
+		context.onUpdate?.({
+			content: [{ type: "text", text }],
+			details: { cellId, notification: true },
+		});
+	}
+
 	attach(response: RuntimeResponse): RuntimeResponse {
 		const cleanupTimer = this.cleanupTimers.get(response.cellId);
 		if (cleanupTimer) clearTimeout(cleanupTimer);
@@ -107,24 +139,40 @@ export class CodeModeDelegateRuntime {
 		const cellId = invocation.cell_id;
 		const toolName = invocation.tool_name.name;
 		const input = invocation?.input;
-		const tool = this.cellTools.get(cellId)?.get(toolName);
-		const context = this.cellContexts.get(cellId);
-		if (!tool || !context) {
+		try {
+			const result = await this.invokeTool(
+				cellId,
+				toolName,
+				input,
+				String(invocation?.runtime_tool_call_id ?? message.id),
+				controller,
+			);
+			this.respond(message.id, {
+				status: "ok",
+				value: { type: "tool/result", result },
+			});
+		} catch (error) {
 			this.respond(message.id, {
 				status: "error",
-				message: !tool
-					? `Unknown custom tool: ${toolName}`
-					: "Code-mode cell context is unavailable",
+				message: error instanceof Error ? error.message : String(error),
 			});
+		} finally {
 			this.controllers.delete(message.id);
-			return;
 		}
-		const trace = this.traces.start(
-			cellId,
-			String(invocation?.runtime_tool_call_id ?? message.id),
-			tool.name,
-			input,
-		);
+	}
+
+	private async invokeTool(
+		cellId: string,
+		toolName: string,
+		input: unknown,
+		traceId: string,
+		controller: AbortController,
+	): Promise<unknown> {
+		const tool = this.cellTools.get(cellId)?.get(toolName);
+		const context = this.cellContexts.get(cellId);
+		if (!tool) throw new Error(`Unknown custom tool: ${toolName}`);
+		if (!context) throw new Error("Code-mode cell context is unavailable");
+		const trace = this.traces.start(cellId, traceId, tool.name, input);
 		const invocationContext: ToolExecutionContext = {
 			...context,
 			toolCallId: trace.id,
@@ -141,29 +189,13 @@ export class CodeModeDelegateRuntime {
 		try {
 			if (isCustomToolDefinition(tool)) this.traces.emitUpdate(cellId, context);
 			const result = isCustomToolDefinition(tool)
-				? await runCustomTool(
-						tool,
-							input,
-						invocationContext.cwd,
-						controller.signal,
-					)
-				: await tool.invoke(
-							input,
-						invocationContext,
-						controller.signal,
-					);
+				? await runCustomTool(tool, input, invocationContext.cwd, controller.signal)
+				: await tool.invoke(input, invocationContext, controller.signal);
 			if (!trace.result)
-				trace.result = this.traces.captureResult(
-					cellId,
-					trace,
-					toolResultFromValue(result),
-				);
+				trace.result = this.traces.captureResult(cellId, trace, toolResultFromValue(result));
 			trace.status = "done";
 			this.traces.emitUpdate(cellId, context);
-			this.respond(message.id, {
-				status: "ok",
-				value: { type: "tool/result", result },
-			});
+			return result;
 		} catch (error) {
 			trace.status = "error";
 			trace.error = truncateTraceText(
@@ -171,12 +203,7 @@ export class CodeModeDelegateRuntime {
 				MAX_TRACE_ERROR_CHARS,
 			);
 			this.traces.emitUpdate(cellId, context);
-			this.respond(message.id, {
-				status: "error",
-				message: error instanceof Error ? error.message : String(error),
-			});
-		} finally {
-			this.controllers.delete(message.id);
+			throw error;
 		}
 	}
 
@@ -185,25 +212,16 @@ export class CodeModeDelegateRuntime {
 		request: Extract<DelegateRequestMessage["request"], { type: "notification/send" }>,
 	): void {
 		const cellId = request.cellId;
-		const context = this.cellContexts.get(cellId);
-		if (!context) {
+		try {
+			this.notifyDirect(cellId, request.text);
+		} catch (error) {
 			this.respond(id, {
 				status: "error",
-				message: "Code-mode notification cell is unavailable",
+				message: error instanceof Error ? error.message : String(error),
 			});
 			this.controllers.delete(id);
 			return;
 		}
-		const notifications = this.notifications.get(cellId) ?? [];
-		const text = request.text.slice(0, MAX_NOTIFICATION_CHARS);
-		notifications.push(text);
-		if (notifications.length > MAX_NOTIFICATIONS_PER_CELL)
-			notifications.splice(0, notifications.length - MAX_NOTIFICATIONS_PER_CELL);
-		this.notifications.set(cellId, notifications);
-		context.onUpdate?.({
-			content: [{ type: "text", text }],
-			details: { cellId, notification: true },
-		});
 		this.respond(id, {
 			status: "ok",
 			value: { type: "notification/delivered" },

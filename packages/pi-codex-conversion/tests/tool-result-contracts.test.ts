@@ -8,6 +8,7 @@ import {
 	registerApplyPatchResultEvent,
 } from "../src/tools/apply-patch/tool.ts";
 import { parseViewImageParams } from "../src/tools/view-image/tool.ts";
+import { toCodeModeToolResult } from "../src/tools/code-mode/tool-result.ts";
 
 test("apply_patch partial mutations remain error results", () => {
 	let handler: ((event: { toolName: string; details: unknown }) => unknown) | undefined;
@@ -63,4 +64,22 @@ test("apply_patch context failures request a focused reread", async () => {
 test("view_image accepts model-style path references", () => {
 	assert.deepEqual(parseViewImageParams({ path: "@assets/example.png" }), { path: "assets/example.png" });
 	assert.deepEqual(parseViewImageParams({ path: "assets/example.png" }), { path: "assets/example.png" });
+});
+
+test("Notebook memory pressure is model-visible", () => {
+	const result = toCodeModeToolResult({
+		kind: "yielded",
+		cellId: "notebook-1",
+		contentItems: [],
+		notebookMemory: {
+			heapUsedBytes: 950,
+			heapTotalBytes: 960,
+			rssBytes: 1_200,
+			externalBytes: 10,
+			heapLimitBytes: 1_000,
+		},
+	});
+	const text = result.content.map((item) => item.type === "text" ? item.text : "").join("\n");
+	assert.match(text, /Notebook memory:/);
+	assert.match(text, /CRITICAL:/);
 });
