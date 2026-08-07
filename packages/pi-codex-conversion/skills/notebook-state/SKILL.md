@@ -5,15 +5,15 @@ description: "Notebook Code Mode state reuse: persistent cells, repository basel
 
 # Notebook state
 
-Use Notebook state to avoid recomputing durable repository knowledge, not to preserve incidental clutter.
+Use state to avoid recomputing durable workspace knowledge, not to preserve incidental clutter.
 
 ## State layers
 
-- `repo` is the serializable repository baseline automatically loaded into every new Notebook session. Store deliberately reusable indexes, parsed datasets, decisions, and concise working notes as top-level keys.
+- `repo` is the serializable workspace baseline automatically loaded into every new session in the same scope. Store deliberately reusable verified commands, artifact pointers, indexes, parsed datasets, and decisions as top-level keys, with provenance when staleness matters.
 - Ordinary declarations are private to the current Pi session. Use them for experiments, transient handles, and work that should not seed unrelated sessions.
 - Resuming a session restores its private checkpoint over the current compatible repository baseline.
 
-Inspect existing `repo` keys before rebuilding equivalent state. Validate freshness against current files, revisions, dependency versions, or other relevant provenance; persisted data is not proof that its assumptions still hold.
+Before rebuilding equivalent state, filter `Object.keys(repo)` and `Object.keys(globalThis)` with selective task-specific terms; never dump either namespace. Inspect only relevant matches. Before finishing, publish compact knowledge when future sessions would otherwise need meaningful rediscovery. Validate freshness against current files, revisions, dependency versions, or other relevant provenance; persisted data is not proof that its assumptions still hold.
 
 ## Publishing
 
