@@ -10,6 +10,7 @@ function state(additionalProviders: string[] = []): AdapterState {
 		enabled: true,
 		cwd: process.cwd(),
 		promptSkills: [],
+		sessionExecutionMode: "inherited",
 		codexTurnState: createCodexTurnState(),
 		config: {
 			...DEFAULT_CODEX_CONVERSION_CONFIG,

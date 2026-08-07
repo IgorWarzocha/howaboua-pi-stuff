@@ -6,6 +6,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { SettingsList, truncateToWidth } from "@earendil-works/pi-tui";
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
+import type { SessionExecutionMode } from "../../adapter/activation/execution-mode.ts";
 import {
 	getCodexConversionConfigPath,
 	readCodexConversionConfig,
@@ -27,6 +28,10 @@ export interface CodexSettingsScreenOptions extends UsageTabOptions {
 	initialConfig: CodexConversionConfig;
 	onChange: (nextConfig: CodexConversionConfig) => boolean;
 	initialTab?: SettingsTab | undefined;
+	executionMode?: {
+		current: () => SessionExecutionMode;
+		set: (mode: SessionExecutionMode) => Promise<boolean>;
+	} | undefined;
 	lanVoiceServer?:
 		| {
 				status: () => CodexLanVoiceServerStatus;
@@ -76,6 +81,16 @@ export async function openCodexSettingsScreen(
 		const createSettingsList = () => {
 			let list: SettingsList;
 			const buildSettings = (): ConfigSetting[] => [
+				...(activeTab === "adapter" && options.executionMode
+					? [{
+							item: {
+								id: "sessionExecutionMode",
+								label: "Session execution mode",
+								currentValue: options.executionMode.current(),
+								values: ["inherited", "normal", "code", "notebook"],
+							},
+						}]
+					: []),
 				...(activeTab === "voice" && options.lanVoiceServer
 					? [
 							{
@@ -116,6 +131,14 @@ export async function openCodexSettingsScreen(
 								list.updateValue(id, previousValue);
 								tui.requestRender();
 							});
+						return;
+					}
+					if (id === "sessionExecutionMode" && options.executionMode) {
+						const previousValue = options.executionMode.current();
+						void options.executionMode.set(value as SessionExecutionMode).then((changed) => {
+							list.updateValue(id, changed ? options.executionMode!.current() : previousValue);
+							tui.requestRender();
+						});
 						return;
 					}
 					if (!definition?.update) return;

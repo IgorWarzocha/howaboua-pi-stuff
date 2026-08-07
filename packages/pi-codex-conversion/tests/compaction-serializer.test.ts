@@ -146,6 +146,7 @@ test("injects pending native compacted window into Pi compaction summarization p
 		enabled: true,
 		cwd: process.cwd(),
 		promptSkills: [],
+		sessionExecutionMode: "inherited",
 		codexTurnState: createCodexTurnState(),
 		config: { ...DEFAULT_CODEX_CONVERSION_CONFIG, compaction: { ...DEFAULT_CODEX_CONVERSION_CONFIG.compaction, responsesCompaction: true } },
 		pendingPiCompactionNativeWindow: {

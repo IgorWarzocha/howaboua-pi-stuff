@@ -67,6 +67,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		cwd: process.cwd(),
 		promptSkills: [],
 		config: readCodexConversionConfig(),
+		sessionExecutionMode: "inherited",
 		codexTurnState: createCodexTurnState(),
 	};
 	const tracker = createExecCommandTracker();
@@ -89,7 +90,8 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 	) => {
 		const model = ctx.model;
 		const config = structuredClone(state.config);
-		if (!model || model.provider !== "openai-codex" || !isAdapterRuntime(resolveCodexRuntimePlan(ctx, config)) || !config.openai.forceCachedWebSockets) return undefined;
+		const executionMode = state.executionMode;
+		if (!model || model.provider !== "openai-codex" || !isAdapterRuntime(resolveCodexRuntimePlan(ctx, config, executionMode)) || !config.openai.forceCachedWebSockets) return undefined;
 		const preparedSystemPrompt = prepared
 			? systemPrompt
 			: runtime.codexSystemPrompt(systemPrompt, ctx);
@@ -104,11 +106,13 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 			openai: config.openai,
 			beta: config.beta,
 			compaction: config.compaction,
+			executionMode,
 			rewriteCompactedReplay,
 		});
 		return {
 			model,
 			config,
+			executionMode,
 			preparedSystemPrompt,
 			tools,
 			reasoning,
@@ -124,7 +128,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 	): Promise<CodexPrewarmResult> | undefined => {
 		const plan = buildPrewarmPlan(ctx, systemPrompt, prepared, messages, rewriteCompactedReplay);
 		if (!plan) return undefined;
-		const { model, config, preparedSystemPrompt, tools, reasoning, key: prewarmKey } = plan;
+		const { model, config, executionMode, preparedSystemPrompt, tools, reasoning, key: prewarmKey } = plan;
 		if (prewarmedKey === prewarmKey) return undefined;
 		if (pendingPrewarmKey === prewarmKey) return prewarmPromise;
 		prewarmController?.abort();
@@ -154,12 +158,12 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 						textVerbosity: config.openai.verbosity,
 						...(config.openai.fast ? { serviceTier: "priority" as const } : {}),
 						onPayload: (body) => rewriteCompactedReplay
-							? rewriteCodexProviderRequest(body, ctx, { ...state, config })
-							: rewriteCodexPrewarmProviderRequest(body, ctx, { ...state, config }),
+							? rewriteCodexProviderRequest(body, ctx, { ...state, config, executionMode })
+							: rewriteCodexPrewarmProviderRequest(body, ctx, { ...state, config, executionMode }),
 					},
 					{
 						getConfig: () => ({ openai: config.openai, beta: config.beta, compaction: config.compaction }),
-						useResponsesLite: (currentModel) => resolveCodexRuntimePlan({ model: currentModel }, config).kind === "code",
+						useResponsesLite: (currentModel) => resolveCodexRuntimePlan({ model: currentModel }, config, executionMode).transport === "responses-lite",
 						turnState: state.codexTurnState,
 						getDiagnostics: () => diagnostics.sink(),
 					},
@@ -205,7 +209,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 			return { ...process.env, PI_CODEX_MODEL: config.openai.webSearchModel };
 		},
 		codexSystemPrompt(basePrompt, ctx, skills = state.promptSkills, systemPromptOptions) {
-			const plan = resolveCodexRuntimePlan(ctx, state.config);
+			const plan = resolveCodexRuntimePlan(ctx, state.config, state.executionMode);
 			return buildCodexSystemPrompt(basePrompt, {
 				skills,
 				shell: getDefaultCodexRuntimeShell(),
