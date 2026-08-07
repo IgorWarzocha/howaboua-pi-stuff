@@ -10,6 +10,8 @@ export type HelperModel =
 	| "gpt-5.3-codex-spark";
 export type WebSearchModel = HelperModel;
 export type V2UserMessageRetention = 16 | 32 | 64;
+export const MIN_NOTEBOOK_HEAP_MIB = 256;
+export const MAX_NOTEBOOK_HEAP_MIB = 65_536;
 export type DictationShortcutMode = "push" | "toggle";
 export const VOICE_CONTEXT_REASONING_LEVELS = [
 	"off",
@@ -75,6 +77,7 @@ export interface CodexConversionConfig {
 		backgroundShellCloseShortcut: string;
 	};
 	compaction: { responsesCompaction: boolean };
+	notebook: { maxHeapMiB: number };
 	beta: {
 		codeMode: boolean;
 		responsesLite: boolean;
@@ -129,6 +132,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 		backgroundShellCloseShortcut: "alt+r",
 	},
 	compaction: { responsesCompaction: false },
+	notebook: { maxHeapMiB: 4_096 },
 	beta: { codeMode: false, responsesLite: false, v2UserMessageRetention: 64 },
 	voice: {
 		v3Voice: "cove",
@@ -241,6 +245,12 @@ function optionalString(value: unknown): string | undefined {
 		: undefined;
 }
 
+function integerInRange(value: unknown, fallback: number, minimum: number, maximum: number): number {
+	return typeof value === "number" && Number.isSafeInteger(value) && value >= minimum && value <= maximum
+		? value
+		: fallback;
+}
+
 function normalizeVoiceContextModel(
 	value: unknown,
 ): VoiceContextModel | undefined {
@@ -272,6 +282,7 @@ export function normalizeCodexConversionConfig(
 	const tools = isObject(value["tools"]) ? value["tools"] : {};
 	const ui = isObject(value["ui"]) ? value["ui"] : {};
 	const compaction = isObject(value["compaction"]) ? value["compaction"] : {};
+	const notebook = isObject(value["notebook"]) ? value["notebook"] : {};
 	const beta = isObject(value["beta"]) ? value["beta"] : {};
 	const voice = isObject(value["voice"]) ? value["voice"] : {};
 	const openai = isObject(value["openai"]) ? value["openai"] : {};
@@ -373,6 +384,14 @@ export function normalizeCodexConversionConfig(
 			responsesCompaction: bool(
 				compaction["responsesCompaction"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.compaction["responsesCompaction"],
+			),
+		},
+		notebook: {
+			maxHeapMiB: integerInRange(
+				notebook["maxHeapMiB"],
+				DEFAULT_CODEX_CONVERSION_CONFIG.notebook.maxHeapMiB,
+				MIN_NOTEBOOK_HEAP_MIB,
+				MAX_NOTEBOOK_HEAP_MIB,
 			),
 		},
 		beta: {

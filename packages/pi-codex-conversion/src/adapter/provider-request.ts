@@ -2,13 +2,13 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { isResponsesContext } from "./prompt/codex-model.ts";
 import { applyCodexRequestOptions } from "./request-options.ts";
 import type { AdapterState } from "./activation/state.ts";
-import { isAdapterRuntime, resolveCodexRuntimePlan } from "./activation/runtime-plan.ts";
+import { isAdapterRuntime, isCodeModeRuntime, resolveCodexRuntimePlan } from "./activation/runtime-plan.ts";
 import { injectPendingNativeWindowIntoPiCompactionRequest, rewriteCodexCompactedProviderRequest } from "./compaction/compaction.ts";
 import { applyResponsesLiteRequest, type ResponsesLiteCompatibleBody } from "../providers/openai-codex/responses-lite.ts";
 
 function prepareCodexProviderRequest(payload: unknown, ctx: ExtensionContext, state: AdapterState) {
 	if (state.config.voiceFeaturesOnly) return undefined;
-	const plan = resolveCodexRuntimePlan(ctx, state.config);
+	const plan = resolveCodexRuntimePlan(ctx, state.config, state.executionMode);
 	if (!isAdapterRuntime(plan) || (!plan.effectiveOpenAICodex && !isResponsesContext(ctx))) {
 		return undefined;
 	}
@@ -45,7 +45,7 @@ export async function rewriteCodexProviderRequest(payload: unknown, ctx: Extensi
 		const piCompactionPayload = await injectPendingNativeWindowIntoPiCompactionRequest(configuredPayload, ctx, state);
 		rewrittenPayload = piCompactionPayload ?? (await rewriteCodexCompactedProviderRequest(configuredPayload, ctx, state)) ?? configuredPayload;
 	}
-	return applyCodexRuntimePayload(rewrittenPayload, plan.kind === "code");
+	return applyCodexRuntimePayload(rewrittenPayload, isCodeModeRuntime(plan));
 }
 
 export function rewriteCodexPrewarmProviderRequest(
@@ -54,7 +54,7 @@ export function rewriteCodexPrewarmProviderRequest(
 	state: AdapterState,
 ): unknown | undefined {
 	const prepared = prepareCodexProviderRequest(payload, ctx, state);
-	return prepared ? applyCodexRuntimePayload(prepared.configuredPayload, prepared.plan.kind === "code") : undefined;
+	return prepared ? applyCodexRuntimePayload(prepared.configuredPayload, isCodeModeRuntime(prepared.plan)) : undefined;
 }
 
 function isCodeModeCompatibleBody(value: unknown): value is ResponsesLiteCompatibleBody {

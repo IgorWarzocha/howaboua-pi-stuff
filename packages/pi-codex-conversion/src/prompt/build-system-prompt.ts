@@ -60,6 +60,14 @@ const CODE_MODE_GUIDELINES = [
 	"Use text() only for concise final output",
 ];
 
+const NOTEBOOK_MODE_GUIDELINES = [
+	...CODE_MODE_GUIDELINES,
+	"Notebook cells share one persistent Deno kernel; reuse declarations, imports, helpers, indexes, and computed data across exec calls",
+	"Use the repo object only for deliberately reusable repository state that should seed future sessions; keep temporary work in ordinary variables",
+	"Each exec is a separate sequential cell; use wait only to observe or terminate the currently yielded cell",
+	"Use Deno APIs and npm imports for persistent computation; prefer Pi/custom tools for project operations with richer contracts, rendering, output bounds, or background handles",
+];
+
 const CODE_MODE_REPLACED_GUIDELINES = new Set([
 	"Reserve tty=true for input or persistent processes",
 	"Use apply_patch for text-file changes, including creates/deletes/moves; split oversized patches",
@@ -73,6 +81,7 @@ const REMOVED_GUIDELINES = new Set([
 const ALL_STATIC_CODEX_GUIDELINES = [
 	...NORMAL_CODEX_GUIDELINES,
 	...CODE_MODE_GUIDELINES,
+	...NOTEBOOK_MODE_GUIDELINES,
 ];
 
 function withoutCosmeticTerminalPeriod(value: string): string {
@@ -95,10 +104,14 @@ function canonicalizeGuidelineLine(line: string): string {
 	return canonical ? `${match[1]}${canonical}` : line;
 }
 
-type CodexPromptMode = "normal" | "code";
+type CodexPromptMode = "normal" | "code" | "notebook";
 
 function buildCodexGuidelines(mode: CodexPromptMode = "normal", piPackageRoot?: string): string[] {
-	const guidelines = mode === "normal" ? [...NORMAL_CODEX_GUIDELINES] : [...CODE_MODE_GUIDELINES];
+	const guidelines = mode === "normal"
+		? [...NORMAL_CODEX_GUIDELINES]
+		: mode === "notebook"
+			? [...NOTEBOOK_MODE_GUIDELINES]
+			: [...CODE_MODE_GUIDELINES];
 	if (piPackageRoot) {
 		guidelines.push(`When work depends on Pi APIs or runtime behavior not established in the current repository, consult the relevant README.md, docs/, or examples/ files under ${piPackageRoot} and follow their references before implementing`);
 	}
@@ -212,7 +225,7 @@ function injectGuidelines(prompt: string, mode?: CodexPromptMode): string {
 	const bodyLines = body.split("\n");
 	const canonicalBodyLines = bodyLines.map(canonicalizeGuidelineLine);
 	const withoutRemoved = canonicalBodyLines.filter((line) => !REMOVED_GUIDELINES.has(withoutCosmeticTerminalPeriod(line.trim().replace(/^-\s*/, ""))));
-	const keptBodyLines = mode === "code"
+	const keptBodyLines = mode !== "normal"
 		? withoutRemoved.filter((line) => !CODE_MODE_REPLACED_GUIDELINES.has(withoutCosmeticTerminalPeriod(line.trim().replace(/^-\s*/, ""))))
 		: withoutRemoved;
 	const existingLines = keptBodyLines

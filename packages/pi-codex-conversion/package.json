@@ -38,6 +38,9 @@
   "pi": {
     "extensions": [
       "./dist/index.js"
+    ],
+    "skills": [
+      "./skills"
     ]
   },
   "files": [
@@ -46,6 +49,7 @@
     "src/**/*.ts",
     "src/**/*.md",
     "types/**/*.d.ts",
+    "skills",
     "src/voice/lan/assets/**",
     "available-tools.png",
     "examples/custom-tools",
@@ -113,7 +117,8 @@
     "tree-sitter-bash": "^0.25.1",
     "undici": "8.10.0",
     "web-tree-sitter": "^0.26.7",
-    "ws": "^8.21.0"
+    "ws": "^8.21.0",
+    "zeromq": "6.1.2"
   },
   "engines": {
     "node": ">=22.19.0"
