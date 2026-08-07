@@ -1,8 +1,5 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { ModelRegistry, ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { CODE_MODE_EXEC_GRAMMAR } from "../src/tools/code-mode/exec-contract.ts";
@@ -119,28 +116,9 @@ test("the provider-scoped proxy stream delegates ordinary Responses models witho
 
 test("configured Responses models route through the Code Mode stream in Pi's model runtime", async () => {
 	const originalFetch = globalThis.fetch;
-	const agentDir = await mkdtemp(join(tmpdir(), "pi-code-mode-proxy-"));
 	let capturedRequest: RequestInit | undefined;
 	let registration: ReturnType<typeof registerCodeModeProxyProvider> | undefined;
 	try {
-		await writeFile(join(agentDir, "models.json"), JSON.stringify({
-			providers: {
-				MyProxy: {
-					baseUrl: "https://proxy.example/v1",
-					apiKey: "test-key",
-					api: "openai-responses",
-					models: [{
-						id: "gpt-5.6",
-						name: "GPT-5.6 Proxy",
-						reasoning: true,
-						input: ["text"],
-						cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-						contextWindow: 100_000,
-						maxTokens: 10_000,
-					}],
-				},
-			},
-		}));
 		globalThis.fetch = (async (_url, init) => {
 			capturedRequest = init;
 			return sseResponse([
@@ -153,10 +131,24 @@ test("configured Responses models route through the Code Mode stream in Pi's mod
 		}) as typeof fetch;
 
 		const runtime = await ModelRuntime.create({
-			modelsPath: join(agentDir, "models.json"),
+			modelsPath: null,
 			allowModelNetwork: false,
 		});
 		const registry = new ModelRegistry(runtime);
+		registry.registerProvider("MyProxy", {
+			baseUrl: "https://proxy.example/v1",
+			apiKey: "test-key",
+			api: "openai-responses",
+			models: [{
+				id: "gpt-5.6",
+				name: "GPT-5.6 Proxy",
+				reasoning: true,
+				input: ["text"],
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+				contextWindow: 100_000,
+				maxTokens: 10_000,
+			}],
+		});
 		const config = {
 			...DEFAULT_CODEX_CONVERSION_CONFIG,
 			beta: { codeMode: true, responsesLite: true },
@@ -205,6 +197,5 @@ test("configured Responses models route through the Code Mode stream in Pi's mod
 	} finally {
 		registration?.shutdown();
 		globalThis.fetch = originalFetch;
-		await rm(agentDir, { recursive: true, force: true });
 	}
 });
