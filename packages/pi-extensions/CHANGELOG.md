@@ -1,5 +1,16 @@
 # @howaboua/pi-extensions
 
+## 0.0.50
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-semantic-grep: Make semantic indexing non-blocking at session startup, single-writer, atomic, resumable, ignore-aware, metadata-fast, batch-embedded, and role-aware while preserving usable prior file indexes across interrupted rebuilds.
+
+- Updated dependencies [[`7dbbfc8`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/7dbbfc8bc28746ec28b3142a73efc8e0b14d2ffa)]:
+  - @howaboua/pi-semantic-grep@0.1.19
+
 ## 0.0.49
 
 ### Changes
