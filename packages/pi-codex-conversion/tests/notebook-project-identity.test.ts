@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { resolveNotebookProject } from "../src/tools/notebook-mode/project-identity.ts";
 
-test("Notebook repository state follows the Git worktree root across package directories", () => {
+test("Notebook session state follows the Git worktree root across package directories", () => {
 	const root = mkdtempSync(join(tmpdir(), "pi-notebook-project-"));
 	try {
 		writeFileSync(join(root, ".git"), "gitdir: /tmp/example\n");

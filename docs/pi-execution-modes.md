@@ -11,7 +11,7 @@ The first slice is an internal Linux x64 proof on the canonical development serv
 - Notebook Code Mode extends Code Mode; it does not replace or weaken normal or existing Code Mode.
 - The provider still sees only `exec` and `wait`.
 - Existing nested built-ins, custom tools, deferred discovery, `ALL_TOOLS`, rendering, output handling, and background operations remain available with the same contracts.
-- Users continue choosing their own general memory systems, skills, and custom tools. Bundle only thin Notebook guidance for inspecting and deliberately maintaining repository notebook state; do not add Prime's continual harness, prompt-note, or subagent systems.
+- Users continue choosing their own general memory systems, skills, and custom tools. Do not add Prime's continual harness, prompt-note, or subagent systems.
 - Notebook cells support natural declarations: top-level variables, functions, classes, and imports persist and may be redefined in later cells.
 - Deno APIs and npm imports add a notebook-native computation ecosystem. Prompt the model to keep using Pi/custom tools for project operations where their contracts, rendering, output bounds, or background handles help.
 - Notebook Code Mode initially follows the same model/provider eligibility as existing Code Mode and keeps Responses Lite behavior.
@@ -48,29 +48,23 @@ Deno's ambient filesystem, network, process, and package APIs remain available. 
 - A normal uncaught exception leaves mutations made before the throw in the live kernel, matching notebook behavior. A failed cell does not advance the durable checkpoint; a later successful checkpoint may include those surviving mutations.
 - Cancellation sends a kernel interrupt. If the kernel remains busy or suffers a fatal runtime failure, terminate it and restore the last completed checkpoint.
 - Runtime recovery only restores notebook data. Never imply that filesystem, network, subprocess, or Pi-tool side effects from an interrupted cell were rolled back.
-- Compaction does not reset the kernel. The model prompt states that notebook state survives turns and compaction while the session remains live.
+- Compaction does not reset the kernel. The model prompt tells the agent to treat every `exec` as the next Jupyter cell, retain exact working data in named variables, and emit only findings needed in model context.
 - Every `exec` and `wait` result reports model-visible V8 heap use against the configured ceiling plus process RSS. Add pressure guidance near the limit rather than hiding an operational constraint in UI-only metadata.
 
 The internal prototype is session-linear. It need not rewind heap state with Pi conversation-tree navigation. It must detect navigation away from the state-owning branch and reset or restore visibly rather than silently attach mismatched notebook state. Do not share a live kernel between forked sessions.
 
-## Repository baseline and session restore
+## Session restore and journal
 
-Per-session persistence alone is a poor fit for repositories where agents start many fresh sessions. Use two layers:
+Keep ordinary Jupyter semantics: one private kernel and plain top-level variables per Pi session. Do not add repository namespaces, state wrapper objects, migration layers, or notebook-management globals. Fresh sessions start clean; resuming a session restores its compatible serializable checkpoint.
 
-- Every Git worktree has a durable, serializable `repo` namespace that hydrates automatically into each new Notebook session, including sessions started from nested package directories. It carries only deliberately reusable indexes, datasets, decisions, and working notes.
-- Ordinary notebook variables remain private to the Pi session. Resuming that session restores its private checkpoint on top of the latest compatible repository baseline.
-- Sessions fork repository state; they never share one live kernel. Persist repository updates with generation/provenance checks and preserve conflicts visibly rather than silently applying last-writer-wins.
-- Bound repository key count, key size, manifest size, and model-visible inventories independently of serialized value bytes.
-- Startup tells the model what repository and session state was restored. A thin bundled skill teaches agents to inspect `repo`, reuse fresh values, and promote only genuinely reusable work.
-
-Keep the full JavaScript heap live while the session runs. Add best-effort durable checkpoints for repository and session data:
+Keep the full JavaScript heap live while the session runs. Add best-effort durable checkpoints for session data:
 
 1. Ask Deno's Jupyter `complete_request` for global and lexical-scope names.
 2. Exclude runtime/bootstrap names and serialize each remaining candidate independently with Deno's supported `node:v8` `serialize` API.
 3. Skip functions, closures, promises, imports, weak collections, live resources, and values that fail serialization; retain a concise reason per skipped name.
-4. Write atomically replaced manifests and payloads for the repository baseline and each session overlay. Include schema, Deno, V8, project, session, generation, and provenance so incompatible or concurrent state is rejected rather than guessed at.
+4. Write one atomically replaced manifest and payload for the session. Include schema, Deno, V8, project, and session so incompatible state is rejected rather than guessed at.
 5. Restore compatible values with `node:v8` `deserialize`, then rebind current tool globals and metadata.
-6. Report restored, skipped, failed, or invalidated names visibly to the model.
+6. Report actual checkpoint failures to the model without dumping routine skipped-value inventories to the user.
 
 Use a 256 MiB upper prototype cap, reduced to one eighth of the configured heap so serialization plus assembly cannot consume the kernel ceiling; apply the effective cap to both total state and any single variable. Debounce checkpoints after successful cells and await the final flush before orderly teardown. Replacing one current checkpoint prevents unbounded per-cell history; tree navigation removes superseded private checkpoint epochs while retaining `.ipynb` evidence.
 
@@ -122,9 +116,9 @@ The Linux x64 proof is successful when it demonstrates:
 3. TypeScript declarations, functions, imports, npm packages, and top-level await persist and can be reused or redefined across cells.
 4. Existing built-ins and promoted or deferred custom tools remain discoverable and callable from notebook code, including composed and parallel nested calls.
 5. Yield, `wait`, busy rejection, cancellation, ordinary exceptions, and fatal recovery produce actionable model-visible results.
-6. A fresh session automatically restores the compatible repository baseline; an existing session additionally restores its private serializable variables.
-7. Repository updates retain provenance and surface concurrent conflicts without overwriting either candidate silently.
-8. A graceful restart reports restored and skipped state, rebinds current tool metadata, and does not claim to reverse external side effects.
+6. A fresh session starts clean; resuming an existing session restores its compatible serializable variables without invented state namespaces.
+7. The session writes a valid `.ipynb` journal containing cell source and bounded outputs without exposing journal plumbing as a notebook global.
+8. A graceful restart reports incompatible state, rebinds current tool metadata, and does not claim to reverse external side effects.
 9. Every Notebook result reports heap/RSS pressure while normal Code Mode still uses fresh V8 isolates and its existing custom-tool behavior unchanged.
 
 After the proof, decide publication and broader platform support from measured startup latency, checkpoint cost, dependency/install reliability, bridge behavior, and real agent use. Shipping package changes require a focused issue/PR, a changeset, and the repository's changed-package gate.
