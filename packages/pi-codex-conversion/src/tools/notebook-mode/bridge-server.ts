@@ -4,6 +4,9 @@ import type { NotebookMemoryUsage, RuntimeContentItem } from "../code-mode/types
 
 const MAX_REQUEST_BYTES = 16 * 1024 * 1024;
 const MAX_RESPONSE_BYTES = 32 * 1024 * 1024;
+const MAX_CELL_OUTPUT_CHARS = 32 * 1024 * 1024;
+const MAX_CELL_OUTPUT_ITEMS = 10_000;
+const BRIDGE_SHUTDOWN_GRACE_MS = 1_500;
 
 export interface NotebookBridgeHandlers {
 	callTool(cellId: string, requestId: number, tool: string, input: unknown): Promise<unknown>;
@@ -15,6 +18,7 @@ export interface NotebookBridgeHandlers {
 
 export class NotebookBridgeServer {
 	readonly token = randomBytes(32).toString("hex");
+	readonly exitToken = randomBytes(32).toString("hex");
 	private readonly handlers: NotebookBridgeHandlers;
 	private server: Server | undefined;
 	private origin: string | undefined;
@@ -47,7 +51,11 @@ export class NotebookBridgeServer {
 		this.server = undefined;
 		this.origin = undefined;
 		if (!server) return;
-		await new Promise<void>((resolve) => server.close(() => resolve()));
+		const closed = new Promise<void>((resolve) => server.close(() => resolve()));
+		server.closeIdleConnections();
+		if (await settlesWithin(closed, BRIDGE_SHUTDOWN_GRACE_MS)) return;
+		server.closeAllConnections();
+		await settlesWithin(closed, BRIDGE_SHUTDOWN_GRACE_MS);
 	}
 
 	private async handle(request: IncomingMessage, response: ServerResponse): Promise<void> {
@@ -103,7 +111,7 @@ export class NotebookBridgeServer {
 	}
 }
 
-export function notebookBootstrapSource(origin: string, token: string): string {
+export function notebookBootstrapSource(origin: string, token: string, exitToken: string): string {
 	return `{
   const __origin = ${JSON.stringify(origin)};
   const __token = ${JSON.stringify(token)};
@@ -116,6 +124,11 @@ export function notebookBootstrapSource(origin: string, token: string): string {
     cellId: null,
     requestId: 0,
     pending: new Set(),
+	pendingErrors: [],
+	outputChars: 0,
+	outputItems: 0,
+	outputTruncated: false,
+	repoTouched: new Set(),
     store: new Map(),
     tools: undefined,
     memoryTimer: undefined,
@@ -139,7 +152,13 @@ export function notebookBootstrapSource(origin: string, token: string): string {
   };
   const __track = (promise) => {
     __state.pending.add(promise);
-    void promise.catch(() => undefined);
+	void promise.then(
+	  () => __state.pending.delete(promise),
+	  (error) => {
+		__state.pending.delete(promise);
+		__state.pendingErrors.push(error);
+	  },
+	);
     return promise;
   };
   const __stringify = (value) => {
@@ -149,7 +168,23 @@ export function notebookBootstrapSource(origin: string, token: string): string {
   };
   const __emit = (items) => {
     if (!__state.cellId) throw new Error("Notebook helper called outside an active exec cell");
-    __track(__post({ kind: "emit", cellId: __state.cellId, items }));
+	if (__state.outputTruncated) return;
+	const accepted = [];
+	for (const item of items) {
+	  const size = item.type === "input_text" ? (item.text?.length || 0) : (item.image_url?.length || 0);
+	  if (__state.outputItems >= ${MAX_CELL_OUTPUT_ITEMS} || __state.outputChars + size > ${MAX_CELL_OUTPUT_CHARS}) {
+		const notice = { type: "input_text", text: "[Notebook cell output truncated]" };
+		accepted.push(notice);
+		__state.outputChars += notice.text.length;
+		__state.outputItems += 1;
+		__state.outputTruncated = true;
+		break;
+	  }
+	  accepted.push(item);
+	  __state.outputChars += size;
+	  __state.outputItems += 1;
+	}
+	if (accepted.length > 0) __track(__post({ kind: "emit", cellId: __state.cellId, items: accepted }));
   };
   const __reportMemory = async (cellId) => {
     const usage = Deno.memoryUsage();
@@ -210,6 +245,10 @@ export function notebookBootstrapSource(origin: string, token: string): string {
 	  if (__state.memoryTimer !== undefined) clearInterval(__state.memoryTimer);
       __state.cellId = cellId;
       __state.pending = new Set();
+	  __state.pendingErrors = [];
+	  __state.outputChars = 0;
+	  __state.outputItems = 0;
+	  __state.outputTruncated = false;
       globalThis.tools = __tools;
       globalThis.ALL_TOOLS = tools;
 	  await __reportMemory(cellId);
@@ -217,7 +256,9 @@ export function notebookBootstrapSource(origin: string, token: string): string {
     },
     async flush(cellId) {
       if (__state.cellId !== cellId) throw new Error("Notebook cell identity changed while executing");
-      await Promise.all([...__state.pending]);
+	  await Promise.allSettled([...__state.pending]);
+	  const [error] = __state.pendingErrors.splice(0);
+	  if (error) throw error;
 	  await __reportMemory(cellId);
     },
     end(cellId) {
@@ -226,9 +267,33 @@ export function notebookBootstrapSource(origin: string, token: string): string {
 	  __state.memoryTimer = undefined;
 	  __state.cellId = null;
     },
+	repoTouched() {
+	  return [...__state.repoTouched];
+	},
+	resetRepoTouched() {
+	  __state.repoTouched.clear();
+	},
   };
   Object.defineProperty(globalThis, "__piNotebook", { value: __runtime, configurable: false });
-	Object.defineProperty(globalThis, "repo", { value: Object.create(null), writable: false, configurable: false, enumerable: true });
+	const __repoTarget = Object.create(null);
+	const __repo = new Proxy(__repoTarget, {
+	  set(target, key, value) {
+		const changed = Reflect.set(target, key, value);
+		if (changed && typeof key === "string") __state.repoTouched.add(key);
+		return changed;
+	  },
+	  deleteProperty(target, key) {
+		const changed = Reflect.deleteProperty(target, key);
+		if (changed && typeof key === "string") __state.repoTouched.add(key);
+		return changed;
+	  },
+	  defineProperty(target, key, descriptor) {
+		const changed = Reflect.defineProperty(target, key, descriptor);
+		if (changed && typeof key === "string") __state.repoTouched.add(key);
+		return changed;
+	  },
+	});
+	Object.defineProperty(globalThis, "repo", { value: __repo, writable: false, configurable: false, enumerable: true });
   globalThis.tools = __tools;
   globalThis.ALL_TOOLS = [];
   globalThis.text = (value) => __emit([{ type: "input_text", text: __stringify(value) }]);
@@ -249,7 +314,11 @@ export function notebookBootstrapSource(origin: string, token: string): string {
     if (!__state.cellId) throw new Error("yield_control called outside an active exec cell");
     __track(__post({ kind: "yield", cellId: __state.cellId }));
   };
-  globalThis.exit = () => { throw new Error("__PI_NOTEBOOK_EXIT__"); };
+  globalThis.exit = () => {
+	const error = new Error(${JSON.stringify(exitToken)});
+	error.name = "PiNotebookExit";
+	throw error;
+  };
   globalThis.store = (key, value) => {
     if (typeof key !== "string") throw new TypeError("store key must be a string");
     const encoded = JSON.stringify(value);
@@ -341,4 +410,16 @@ function writeJson(response: ServerResponse, status: number, value: unknown): vo
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+async function settlesWithin(promise: Promise<void>, timeoutMs: number): Promise<boolean> {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	try {
+		return await Promise.race([
+			promise.then(() => true),
+			new Promise<false>((resolve) => { timer = setTimeout(() => resolve(false), timeoutMs); }),
+		]);
+	} finally {
+		if (timer) clearTimeout(timer);
+	}
 }

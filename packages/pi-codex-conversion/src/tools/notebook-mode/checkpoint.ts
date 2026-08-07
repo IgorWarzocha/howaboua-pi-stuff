@@ -4,6 +4,7 @@ import { basename, join, resolve } from "node:path";
 import type { DenoJupyterKernel } from "./jupyter-kernel.ts";
 
 export const NOTEBOOK_CHECKPOINT_MAX_BYTES = 256 * 1024 * 1024;
+const NOTEBOOK_CHECKPOINT_MIN_BYTES = 8 * 1024 * 1024;
 const CHECKPOINT_SCHEMA = 1;
 const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 const PAYLOAD_NAME = /^checkpoint-[0-9a-f-]+\.bin$/;
@@ -38,10 +39,16 @@ export interface NotebookCheckpointSummary {
 	message?: string | undefined;
 }
 
+export function resolveNotebookCheckpointMaxBytes(maxHeapMiB: number): number {
+	const heapRelative = Math.floor(maxHeapMiB * 1024 * 1024 / 8);
+	return Math.min(NOTEBOOK_CHECKPOINT_MAX_BYTES, Math.max(NOTEBOOK_CHECKPOINT_MIN_BYTES, heapRelative));
+}
+
 export async function writeNotebookCheckpoint(
 	kernel: DenoJupyterKernel,
 	identity: NotebookCheckpointIdentity,
 	baselineNames: ReadonlySet<string>,
+	maxBytes: number,
 ): Promise<CheckpointManifest> {
 	const paths = checkpointPaths(identity);
 	mkdirSync(paths.directory, { recursive: true });
@@ -58,6 +65,7 @@ export async function writeNotebookCheckpoint(
 		identity,
 		payload,
 		skippedInvalid,
+		maxBytes,
 	});
 	const result = await kernel.execute(source);
 	if (result.status !== "ok") throw new Error(`Notebook checkpoint failed: ${result.errorText ?? "unknown error"}`);
@@ -69,6 +77,7 @@ export async function writeNotebookCheckpoint(
 export async function restoreNotebookCheckpoint(
 	kernel: DenoJupyterKernel,
 	identity: NotebookCheckpointIdentity,
+	maxBytes: number,
 ): Promise<NotebookCheckpointSummary> {
 	const paths = checkpointPaths(identity);
 	if (!existsSync(paths.manifest)) return { restored: [], skipped: [] };
@@ -82,7 +91,7 @@ export async function restoreNotebookCheckpoint(
 		return { restored: [], skipped: manifest.skipped, message: "Notebook checkpoint identity was incompatible and was not restored" };
 	}
 	const payloadPath = join(paths.directory, manifest.payload);
-	if (!isValidCheckpointPayload(manifest, payloadPath)) {
+	if (!isValidCheckpointPayload(manifest, payloadPath, maxBytes)) {
 		return { restored: [], skipped: manifest.skipped, message: "Notebook checkpoint payload was missing or invalid and was not restored" };
 	}
 	const result = await kernel.execute(restoreSource(manifest, payloadPath));
@@ -117,6 +126,7 @@ function checkpointSource(options: {
 	identity: NotebookCheckpointIdentity;
 	payload: string;
 	skippedInvalid: Array<{ name: string; reason: string }>;
+	maxBytes: number;
 }): string {
 	const captures = options.candidates.map((name) => `
   try {
@@ -139,7 +149,7 @@ function checkpointSource(options: {
   }`).join("");
 	return `{
   const { serialize } = await import("node:v8");
-  const __max = ${NOTEBOOK_CHECKPOINT_MAX_BYTES};
+  const __max = ${options.maxBytes};
   const __parts = [];
   const __entries = [];
   const __skipped = ${JSON.stringify(options.skippedInvalid)};
@@ -244,10 +254,10 @@ function readManifest(path: string): CheckpointManifest | undefined {
 	}
 }
 
-function isValidCheckpointPayload(manifest: CheckpointManifest, path: string): boolean {
+function isValidCheckpointPayload(manifest: CheckpointManifest, path: string, maxBytes: number): boolean {
 	try {
 		const stat = lstatSync(path);
-		if (!stat.isFile() || stat.isSymbolicLink() || stat.size > NOTEBOOK_CHECKPOINT_MAX_BYTES) return false;
+		if (!stat.isFile() || stat.isSymbolicLink() || stat.size > maxBytes) return false;
 		let offset = 0;
 		const names = new Set<string>();
 		for (const entry of manifest.entries) {

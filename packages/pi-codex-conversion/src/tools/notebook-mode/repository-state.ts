@@ -14,7 +14,6 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { basename, join, resolve } from "node:path";
-import { NOTEBOOK_CHECKPOINT_MAX_BYTES } from "./checkpoint.ts";
 import type { DenoJupyterKernel } from "./jupyter-kernel.ts";
 
 const REPOSITORY_SCHEMA = 1;
@@ -48,6 +47,7 @@ interface CandidateManifest {
 	v8: string;
 	entries: Array<{ key: string; offset: number; length: number }>;
 	skipped: Array<{ key: string; reason: string }>;
+	touched: string[];
 }
 
 export interface RepositoryStateBaseline {
@@ -65,7 +65,7 @@ export interface RepositoryStateSummary {
 
 export async function restoreRepositoryState(
 	kernel: DenoJupyterKernel,
-	identity: { project: string; agentDir: string },
+	identity: { project: string; agentDir: string; maxBytes: number },
 ): Promise<RepositoryStateSummary> {
 	const { project, agentDir } = identity;
 	const paths = repositoryPaths(project, agentDir);
@@ -75,7 +75,7 @@ export async function restoreRepositoryState(
 		return { ...emptySummary(), message: "Repository notebook state identity was incompatible and was not restored" };
 	}
 	const payloadPath = join(paths.directory, manifest.payload);
-	if (!readValidatedRepositoryPayload(manifest, payloadPath)) {
+	if (!readValidatedRepositoryPayload(manifest, payloadPath, identity.maxBytes)) {
 		return { ...emptySummary(), message: "Repository notebook state payload was missing or invalid and was not restored" };
 	}
 	const result = await kernel.execute(repositoryRestoreSource(manifest, payloadPath));
@@ -97,6 +97,7 @@ export async function writeRepositoryState(
 	kernel: DenoJupyterKernel,
 	identity: { project: string; session: string; agentDir: string },
 	baseline: RepositoryStateBaseline,
+	maxBytes: number,
 ): Promise<RepositoryStateSummary> {
 	const paths = repositoryPaths(identity.project, identity.agentDir);
 	mkdirSync(paths.directory, { recursive: true });
@@ -104,11 +105,11 @@ export async function writeRepositoryState(
 	const candidatePayloadPath = join(paths.directory, `candidate-${candidateId}.bin`);
 	const candidateManifestPath = join(paths.directory, `candidate-${candidateId}.json`);
 	try {
-		const capture = await kernel.execute(repositoryCaptureSource(candidatePayloadPath, candidateManifestPath));
+		const capture = await kernel.execute(repositoryCaptureSource(candidatePayloadPath, candidateManifestPath, maxBytes));
 		if (capture.status !== "ok") {
 			throw new Error(`Repository notebook checkpoint failed: ${capture.errorText ?? "unknown error"}`);
 		}
-		const candidate = readCandidateManifest(candidateManifestPath, candidatePayloadPath);
+		const candidate = readCandidateManifest(candidateManifestPath, candidatePayloadPath, maxBytes);
 		if (!candidate) throw new Error("Repository notebook checkpoint did not produce a valid candidate");
 		const committed = await withRepositoryLock(paths.lock, async () => {
 			const current = readRepositoryManifest(paths.manifest);
@@ -116,7 +117,7 @@ export async function writeRepositoryState(
 				throw new Error("Repository notebook state uses an incompatible Deno/V8 version; the existing baseline was preserved");
 			}
 			const currentPayload = current
-				? readValidatedRepositoryPayload(current, join(paths.directory, current.payload))
+				? readValidatedRepositoryPayload(current, join(paths.directory, current.payload), maxBytes)
 				: Buffer.alloc(0);
 			if (!currentPayload) throw new Error("Existing repository notebook state payload is invalid; it was preserved without overwrite");
 			const merged = mergeRepositoryState({
@@ -126,7 +127,7 @@ export async function writeRepositoryState(
 				candidatePayload: readFileSync(candidatePayloadPath),
 				currentPayload,
 			});
-			if (merged.payload.length > NOTEBOOK_CHECKPOINT_MAX_BYTES) {
+			if (merged.payload.length > maxBytes) {
 				throw new Error("Merged repository notebook state exceeds the repository checkpoint cap");
 			}
 			if (merged.conflicts.length > 0) writeConflict(paths.directory, identity, merged);
@@ -189,8 +190,9 @@ function mergeRepositoryState(options: {
 		...entry,
 		hash: hashBytes(options.candidatePayload.subarray(entry.offset, entry.offset + entry.length)),
 	}]));
+	const touched = new Set(options.candidate.touched);
 	const skipped = new Set(options.candidate.skipped.map(({ key }) => key));
-	const keys = [...new Set([...base.keys(), ...current.keys(), ...candidate.keys(), ...skipped])].sort();
+	const keys = [...new Set([...base.keys(), ...current.keys(), ...candidate.keys(), ...skipped, ...touched])].sort();
 	const parts: Buffer[] = [];
 	const entries: RepositoryEntry[] = [];
 	const conflictParts: Buffer[] = [];
@@ -207,7 +209,7 @@ function mergeRepositoryState(options: {
 		const candidateEntry = candidate.get(key);
 		const candidateHash = skipped.has(key) ? baseHash : candidateEntry?.hash;
 		const currentHash = currentEntry?.hash;
-		const candidateChanged = candidateHash !== baseHash;
+		const candidateChanged = !skipped.has(key) && (touched.has(key) || candidateHash !== baseHash);
 		const currentChanged = currentHash !== baseHash;
 		candidateChangedAny ||= candidateChanged;
 		let selected: { entry: RepositoryEntry; payload: Buffer } | undefined;
@@ -351,11 +353,12 @@ function readDirectoryNames(directory: string): string[] {
 
 async function withRepositoryLock<T>(path: string, operation: () => Promise<T>): Promise<T> {
 	const deadline = Date.now() + LOCK_WAIT_MS;
+	const token = randomUUID();
 	let descriptor: number | undefined;
 	while (descriptor === undefined) {
 		try {
 			descriptor = openSync(path, "wx", 0o600);
-			writeFileSync(descriptor, `${process.pid}\n${Date.now()}\n`);
+			writeFileSync(descriptor, `${token}\n${process.pid}\n${Date.now()}\n`);
 		} catch (error) {
 			if (!isFileExistsError(error)) throw error;
 			try {
@@ -369,14 +372,16 @@ async function withRepositoryLock<T>(path: string, operation: () => Promise<T>):
 		return await operation();
 	} finally {
 		closeSync(descriptor);
-		rmSync(path, { force: true });
+		try {
+			if (readFileSync(path, "utf8").startsWith(`${token}\n`)) unlinkSync(path);
+		} catch {}
 	}
 }
 
-function repositoryCaptureSource(payloadPath: string, manifestPath: string): string {
+function repositoryCaptureSource(payloadPath: string, manifestPath: string, maxBytes: number): string {
 	return `{
   const { serialize } = await import("node:v8");
-  const __max = ${NOTEBOOK_CHECKPOINT_MAX_BYTES};
+  const __max = ${maxBytes};
   const __parts = [];
   const __entries = [];
   const __skipped = [];
@@ -406,6 +411,7 @@ function repositoryCaptureSource(payloadPath: string, manifestPath: string): str
     v8: Deno.version.v8,
     entries: __entries,
     skipped: __skipped,
+	touched: globalThis.__piNotebook.repoTouched(),
   }), { mode: 0o600 });
   undefined;
 }`;
@@ -424,6 +430,7 @@ function repositoryRestoreSource(manifest: RepositoryManifest, payloadPath: stri
   }
 	for (const __key of Object.keys(globalThis.repo)) delete globalThis.repo[__key];
 	for (const [__key, __value] of __restored) globalThis.repo[__key] = __value;
+	globalThis.__piNotebook.resetRepoTouched();
   undefined;
 }`;
 }
@@ -472,30 +479,33 @@ function readRepositoryManifest(path: string): RepositoryManifest | undefined {
 	}
 }
 
-function readCandidateManifest(path: string, payloadPath: string): CandidateManifest | undefined {
+function readCandidateManifest(path: string, payloadPath: string, maxBytes: number): CandidateManifest | undefined {
 	try {
 		const value = JSON.parse(readFileSync(path, "utf8")) as unknown;
 		if (!isRecord(value) || typeof value["deno"] !== "string" || typeof value["v8"] !== "string") return undefined;
-		if (!Array.isArray(value["entries"]) || !Array.isArray(value["skipped"])) return undefined;
+		if (!Array.isArray(value["entries"]) || !Array.isArray(value["skipped"]) || !Array.isArray(value["touched"])) return undefined;
 		const payloadLength = statSync(payloadPath).size;
+		if (payloadLength > maxBytes) return undefined;
 		const entries = value["entries"].map((entry) => parseCandidateEntry(entry, payloadLength));
 		const skipped = value["skipped"].map(parseSkipped);
-		if (entries.some((entry) => !entry) || skipped.some((entry) => !entry)) return undefined;
+		const touched = value["touched"];
+		if (entries.some((entry) => !entry) || skipped.some((entry) => !entry) || touched.some((key) => typeof key !== "string")) return undefined;
 		return {
 			deno: value["deno"],
 			v8: value["v8"],
 			entries: entries as CandidateManifest["entries"],
 			skipped: skipped as CandidateManifest["skipped"],
+			touched: [...new Set(touched as string[])],
 		};
 	} catch {
 		return undefined;
 	}
 }
 
-function readValidatedRepositoryPayload(manifest: RepositoryManifest, path: string): Buffer | undefined {
+function readValidatedRepositoryPayload(manifest: RepositoryManifest, path: string, maxBytes: number): Buffer | undefined {
 	try {
 		const stat = lstatSync(path);
-		if (!stat.isFile() || stat.isSymbolicLink() || stat.size > NOTEBOOK_CHECKPOINT_MAX_BYTES) return undefined;
+		if (!stat.isFile() || stat.isSymbolicLink() || stat.size > maxBytes) return undefined;
 		const payload = readFileSync(path);
 		const keys = new Set<string>();
 		let offset = 0;
