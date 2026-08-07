@@ -19,6 +19,7 @@ import type {
 import { NotebookBridgeServer, notebookBootstrapSource } from "./bridge-server.ts";
 import {
 	formatCheckpointNotice,
+	garbageCollectSupersededNotebookCheckpoints,
 	resolveNotebookCheckpointMaxBytes,
 	restoreNotebookCheckpoint,
 	type NotebookCheckpointIdentity,
@@ -46,6 +47,7 @@ const TERMINATE_GRACE_MS = 1_500;
 const CHECKPOINT_DEBOUNCE_MS = 1_500;
 const MAX_CELL_OUTPUT_CHARS = 32 * 1024 * 1024;
 const MAX_CELL_OUTPUT_ITEMS = 10_000;
+const MAX_NOTICE_CHARS = 16_384;
 
 interface Deferred {
 	promise: Promise<void>;
@@ -74,6 +76,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 	private readonly delegate = new CodeModeDelegateRuntime(() => undefined);
 	private readonly bridge = new NotebookBridgeServer({
 		callTool: (cellId, requestId, tool, input) => this.callTool(cellId, requestId, tool, input),
+		cancelTools: (cellId) => this.cancelTools(cellId),
 		emit: (cellId, items) => this.emit(cellId, items),
 		notify: (cellId, text) => this.notify(cellId, text),
 		yield: (cellId) => this.requestYield(cellId),
@@ -131,12 +134,10 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 			completed: deferred(),
 			terminated: false,
 		};
-		if (this.pendingNotice) {
-			cell.items.push({ type: "input_text", text: this.pendingNotice });
-			cell.outputChars += this.pendingNotice.length;
-			this.pendingNotice = undefined;
-		}
+		const notice = this.pendingNotice;
+		this.pendingNotice = undefined;
 		this.activeCell = cell;
+		if (notice) this.emit(id, [{ type: "input_text", text: notice }]);
 		this.delegate.bindCell(id, context, new Map(tools.map((tool) => [tool.name, tool])));
 		const metadata = tools
 			.filter((tool) => isCustomToolDefinition(tool) && tool.deferLoading)
@@ -202,6 +203,8 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		const active = this.activeCell;
 		if (active) await this.stopCell(active).catch(() => undefined);
 		await this.flushCheckpoint();
+		if (active) this.closeCell(active);
+		this.activeCell = undefined;
 		if (this.checkpointTimer) clearTimeout(this.checkpointTimer);
 		this.checkpointTimer = undefined;
 		this.startup = undefined;
@@ -297,6 +300,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 			this.baselineNames = new Set(await kernel.complete("", 0));
 			this.checkpointIdentity = checkpointIdentity;
 			const restored = await restoreNotebookCheckpoint(kernel, this.checkpointIdentity, this.checkpointMaxBytes);
+			garbageCollectSupersededNotebookCheckpoints(this.checkpointIdentity);
 			this.pendingNotice = joinNotices(
 				formatRepositoryStateNotice(repository, { inventory: true }),
 				formatCheckpointNotice(restored),
@@ -374,10 +378,8 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 	private finishObservation(cell: NotebookCell, kind: RuntimeResponse["kind"]): RuntimeResponse {
 		const notice = this.pendingNotice;
 		this.pendingNotice = undefined;
-		const contentItems = [
-			...(notice ? [{ type: "input_text" as const, text: notice }] : []),
-			...cell.items.slice(cell.cursor),
-		];
+		if (notice) this.emit(cell.id, [{ type: "input_text", text: notice }]);
+		const contentItems = cell.items.slice(cell.cursor);
 		cell.cursor = cell.items.length;
 		const response: RuntimeResponse = kind === "result"
 			? {
@@ -509,6 +511,11 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		return this.delegate.invokeDirect(cellId, requestId, tool, input);
 	}
 
+	private cancelTools(cellId: string): void {
+		this.requireActiveCell(cellId);
+		this.delegate.cancelCell(cellId);
+	}
+
 	private emit(cellId: string, items: RuntimeContentItem[]): void {
 		const cell = this.requireActiveCell(cellId);
 		const accepted: RuntimeContentItem[] = [];
@@ -595,11 +602,23 @@ function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 function formatSkippedCheckpointNotice(skipped: Array<{ name: string; reason: string }>): string {
-	const shown = skipped.slice(0, 12).map(({ name, reason }) => `${name} (${reason})`).join(", ");
+	const shown = skipped.slice(0, 12).map(({ name, reason }) => `${name.slice(0, 256)} (${reason})`).join(", ");
 	return `Notebook checkpoint skipped state: ${shown}${skipped.length > 12 ? `, and ${skipped.length - 12} more` : ""}`;
 }
 
 function joinNotices(...notices: Array<string | undefined>): string | undefined {
 	const present = notices.filter((notice): notice is string => Boolean(notice));
-	return present.length > 0 ? present.join(". ") : undefined;
+	if (present.length === 0) return undefined;
+	const marker = " [Notebook notices truncated]";
+	let output = "";
+	for (let index = 0; index < present.length; index += 1) {
+		const notice = present[index]!;
+		const separator = output ? ". " : "";
+		const remaining = MAX_NOTICE_CHARS - output.length - separator.length;
+		if (remaining <= 0 || notice.length > remaining || index < present.length - 1 && notice.length === remaining) {
+			return `${output}${separator}${notice.slice(0, Math.max(0, remaining - marker.length))}${marker}`.slice(0, MAX_NOTICE_CHARS);
+		}
+		output += separator + notice;
+	}
+	return output;
 }

@@ -10,8 +10,8 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { basename, join, resolve } from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
 import { denoAssetUrl, DENO_VERSION, resolveDenoAsset } from "./deno-assets.ts";
+import { acquireDirectoryLock } from "./directory-lock.ts";
 
 const DOWNLOAD_TIMEOUT_MS = 180_000;
 const INSTALL_LOCK_TIMEOUT_MS = 185_000;
@@ -63,7 +63,14 @@ async function installDeno(
 	if (basename(destination) !== "deno") throw new Error("Deno destination must end with deno");
 	mkdirSync(resolve(destination, ".."), { recursive: true });
 	const lockPath = `${destination}.lock`;
-	if (!(await acquireLock(lockPath, destination, signal))) return;
+	const lock = await acquireDirectoryLock(lockPath, {
+		waitMs: INSTALL_LOCK_TIMEOUT_MS,
+		staleMs: INSTALL_LOCK_STALE_MS,
+		pollMs: INSTALL_LOCK_POLL_MS,
+		signal,
+		stopWaiting: () => existsSync(destination),
+	});
+	if (!lock) return;
 	const staged = `${destination}.${process.pid}.tmp`;
 	try {
 		const url = denoAssetUrl(asset);
@@ -104,7 +111,7 @@ async function installDeno(
 		renameSync(staged, destination);
 	} finally {
 		rmSync(staged, { force: true });
-		rmSync(lockPath, { recursive: true, force: true });
+		lock.release();
 	}
 }
 
@@ -140,28 +147,4 @@ function validDenoBinary(path: string, expectedSha256: string, expectedBytes: nu
 	} catch {
 		return false;
 	}
-}
-
-async function acquireLock(lockPath: string, destination: string, signal?: AbortSignal): Promise<boolean> {
-	const deadline = Date.now() + INSTALL_LOCK_TIMEOUT_MS;
-	while (Date.now() < deadline) {
-		signal?.throwIfAborted();
-		if (existsSync(destination)) return false;
-		try {
-			mkdirSync(lockPath);
-			return true;
-		} catch (error) {
-			if (!error || typeof error !== "object" || !("code" in error) || error.code !== "EEXIST") throw error;
-			try {
-				if (Date.now() - statSync(lockPath).mtimeMs > INSTALL_LOCK_STALE_MS) {
-					rmSync(lockPath, { recursive: true, force: true });
-					continue;
-				}
-			} catch (statError) {
-				if (!statError || typeof statError !== "object" || !("code" in statError) || statError.code !== "ENOENT") throw statError;
-			}
-			await delay(INSTALL_LOCK_POLL_MS, undefined, signal ? { signal } : undefined);
-		}
-	}
-	throw new Error(`timed out waiting for Deno install lock: ${lockPath}`);
 }

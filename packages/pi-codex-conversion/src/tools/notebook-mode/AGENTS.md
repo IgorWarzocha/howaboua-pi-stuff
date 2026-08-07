@@ -1,4 +1,5 @@
 - Keep this optional runtime cold: import it only after Notebook Code Mode is selected; download Deno only on first execution/prepare.
 - `client.ts` owns cell/session policy; `jupyter-kernel.ts` owns Deno/ZeroMQ; `bridge-server.ts` owns the authenticated nested-tool boundary; `checkpoint.ts` owns private session data; `repository-state.ts` owns mergeable `repo` state; `journal.ts` owns `.ipynb` history.
+- `directory-lock.ts` owns cross-process leases; release only the observed owner file and never recursively delete a lock path.
 - Existing V8 Code Mode remains under `tools/code-mode/`; share its public tool, rendering, nested-tool, and output contracts without changing the vendored host.
 - Linux x64 is the only supported prototype platform. Add platforms only with pinned official artifacts and verified checksums.
