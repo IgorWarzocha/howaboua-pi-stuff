@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { NotebookMemoryUsage, RuntimeContentItem } from "../code-mode/types.ts";
 
 const MAX_REQUEST_BYTES = 16 * 1024 * 1024;
+const MAX_RESPONSE_BYTES = 32 * 1024 * 1024;
 
 export interface NotebookBridgeHandlers {
 	callTool(cellId: string, requestId: number, tool: string, input: unknown): Promise<unknown>;
@@ -166,16 +167,33 @@ export function notebookBootstrapSource(origin: string, token: string): string {
   };
   const __image = (value, detail) => {
     let image_url;
-    let resolvedDetail = detail ?? null;
-    if (typeof value === "string") image_url = value;
+	let embeddedDetail;
+	if (typeof value === "string") image_url = value;
     else if (value && typeof value.image_url === "string") {
       image_url = value.image_url;
-      resolvedDetail = detail ?? value.detail ?? null;
+	  embeddedDetail = value.detail;
     } else if (value && value.type === "image" && typeof value.data === "string" && typeof value.mimeType === "string") {
-      image_url = "data:" + value.mimeType + ";base64," + value.data;
-      resolvedDetail = detail ?? value._meta?.["codex/imageDetail"] ?? null;
+	  if (!value.data) throw new TypeError("image expected MCP image data");
+	  image_url = value.data.toLowerCase().startsWith("data:")
+		? value.data
+		: "data:" + (value.mimeType || "application/octet-stream") + ";base64," + value.data;
+	  const metadataDetail = value._meta?.["codex/imageDetail"];
+	  embeddedDetail = ["auto", "low", "high", "original"].includes(metadataDetail) ? metadataDetail : undefined;
     } else throw new TypeError("image expects a data URL or image content item");
-    __emit([{ type: "input_image", image_url, detail: resolvedDetail }]);
+	if (!image_url || !/^data:/i.test(image_url)) {
+	  if (/^https?:/i.test(image_url || "")) throw new TypeError("remote image URLs are not supported; pass a base64 data URI instead");
+	  throw new TypeError("invalid image output; pass a base64 data URI instead");
+	}
+	const requestedDetail = detail !== undefined ? detail : embeddedDetail;
+	let resolvedDetail = "high";
+	if (requestedDetail !== undefined && requestedDetail !== null) {
+	  if (typeof requestedDetail !== "string") throw new TypeError("image detail must be a string when provided");
+	  resolvedDetail = requestedDetail.toLowerCase();
+	  if (!["auto", "low", "high", "original"].includes(resolvedDetail)) {
+		throw new TypeError("image detail must be one of: auto, low, high, original");
+	  }
+	}
+	__emit([{ type: "input_image", image_url, detail: resolvedDetail }]);
   };
   const __tools = new Proxy({}, {
     get(_target, name) {
@@ -188,13 +206,13 @@ export function notebookBootstrapSource(origin: string, token: string): string {
     },
   });
   const __runtime = {
-    begin(cellId, tools) {
+    async begin(cellId, tools) {
 	  if (__state.memoryTimer !== undefined) clearInterval(__state.memoryTimer);
       __state.cellId = cellId;
       __state.pending = new Set();
       globalThis.tools = __tools;
       globalThis.ALL_TOOLS = tools;
-	  void __reportMemory(cellId).catch(() => undefined);
+	  await __reportMemory(cellId);
 	  __state.memoryTimer = setInterval(() => void __reportMemory(cellId).catch(() => undefined), 1000);
     },
     async flush(cellId) {
@@ -210,15 +228,16 @@ export function notebookBootstrapSource(origin: string, token: string): string {
     },
   };
   Object.defineProperty(globalThis, "__piNotebook", { value: __runtime, configurable: false });
-	Object.defineProperty(globalThis, "repo", { value: {}, writable: false, configurable: false, enumerable: true });
+	Object.defineProperty(globalThis, "repo", { value: Object.create(null), writable: false, configurable: false, enumerable: true });
   globalThis.tools = __tools;
   globalThis.ALL_TOOLS = [];
   globalThis.text = (value) => __emit([{ type: "input_text", text: __stringify(value) }]);
   globalThis.image = __image;
   globalThis.generatedImage = (value) => {
     if (!value || typeof value.image_url !== "string") throw new TypeError("generatedImage expects an image result");
-    if (value.output_hint) globalThis.text(value.output_hint);
-    __image(value.image_url, "original");
+	if (value.output_hint !== undefined && typeof value.output_hint !== "string") throw new TypeError("generatedImage output_hint must be a string when provided");
+    __image(value.image_url);
+	if (value.output_hint !== undefined) globalThis.text(value.output_hint);
   };
   globalThis.notify = (value) => {
     const text = __stringify(value);
@@ -311,6 +330,10 @@ function writeJson(response: ServerResponse, status: number, value: unknown): vo
 	} catch (error) {
 		status = 500;
 		body = JSON.stringify({ ok: false, error: `Notebook bridge result is not serializable: ${error instanceof Error ? error.message : String(error)}` });
+	}
+	if (Buffer.byteLength(body) > MAX_RESPONSE_BYTES) {
+		status = 413;
+		body = JSON.stringify({ ok: false, error: `Notebook bridge response exceeds ${MAX_RESPONSE_BYTES} bytes` });
 	}
 	response.writeHead(status, { "content-type": "application/json", "content-length": Buffer.byteLength(body) });
 	response.end(body);
