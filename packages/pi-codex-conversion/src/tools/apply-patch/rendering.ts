@@ -35,7 +35,7 @@ export function formatApplyPatchSummary(patchText: string, cwd = process.cwd()):
 		return "";
 	}
 
-	const files = actions.map((action) => buildFilePreview(action, cwd));
+	const files = buildFilePreviews(actions, cwd);
 	if (files.length === 0) {
 		return "";
 	}
@@ -80,7 +80,7 @@ export function renderApplyPatchCall(patchText: string, cwd = process.cwd()): st
 		return "";
 	}
 
-	const files = actions.map((action) => buildFilePreview(action, cwd));
+	const files = buildFilePreviews(actions, cwd);
 	if (files.length === 0) {
 		return "";
 	}
@@ -106,6 +106,29 @@ export function renderApplyPatchCall(patchText: string, cwd = process.cwd()): st
 	}
 
 	return lines.join("\n");
+}
+
+function buildFilePreviews(actions: ParsedPatchAction[], cwd: string): FilePreview[] {
+	const files: FilePreview[] = [];
+	for (let index = 0; index < actions.length; index += 1) {
+		const action = actions[index]!;
+		const next = actions[index + 1];
+		if (action.type === "delete" && next?.type === "add" && action.path === next.path) {
+			const deleted = buildFilePreview(action, cwd);
+			const added = buildFilePreview(next, cwd);
+			files.push({
+				verb: "Edited",
+				path: action.path,
+				added: added.added,
+				removed: deleted.removed,
+				lines: [...deleted.lines, ...added.lines],
+			});
+			index += 1;
+			continue;
+		}
+		files.push(buildFilePreview(action, cwd));
+	}
+	return files;
 }
 
 function buildFilePreview(action: ParsedPatchAction, cwd: string): FilePreview {

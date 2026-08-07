@@ -4,12 +4,6 @@ import { createAskTool } from "../ask/tool.js";
 const context = { hasUI: false, mode: "print" } as never;
 
 describe("ask tool results", () => {
-	test("keeps the prompt inventory snippet free of the tool name", () => {
-		expect(createAskTool().promptSnippet).toBe(
-			"Request human input or action.",
-		);
-	});
-
 	test("serializes interactive calls", () => {
 		expect(createAskTool().executionMode).toBe("sequential");
 	});

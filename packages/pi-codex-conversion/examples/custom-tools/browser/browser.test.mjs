@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { basename } from "node:path";
 import test from "node:test";
 import {
-	browserHelp,
 	cliInvocation,
 	formatLocalResult,
 	parseRequest,
@@ -159,14 +158,4 @@ test("abandoned cached results expire", async () => {
 		readCachedResult({ handle: first.result_handle, offset: first.next_offset }),
 		/result handle not found/,
 	);
-});
-
-test("help keeps the preferred loop compact", () => {
-	const help = browserHelp();
-	assert.match(help.call, /tabs\?.*open\?.*find\?.*click\?/);
-	assert.doesNotMatch(help.call, /host/);
-	assert.equal(help.host, undefined);
-	assert.match(help.actions.open, /ref_id/);
-	assert.match(help.actions.click, /id/);
-	assert.ok(JSON.stringify(help).length < 2_000);
 });

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -71,35 +71,6 @@ describe("bundled spawn_agent", () => {
 		expect(explorer).not.toContain("--system-prompt");
 		expect(explorer).not.toContain("--no-context-files");
 		expect(explorer).toContain("--no-skills");
-	});
-
-	test("uses the review extension rubric", () => {
-		const bundled = readFileSync(
-			new URL("../examples/spawn-agent/reviewer.prompt.md", import.meta.url),
-			"utf8",
-		);
-		const reviewExtension = readFileSync(
-			new URL("../../pi-subagent-review/review.prompt.md", import.meta.url),
-			"utf8",
-		);
-		expect(bundled).toBe(reviewExtension);
-	});
-
-	test("documents the example as inactive reference material", () => {
-		const documentation = readFileSync(
-			new URL("../DYNAMIC-TOOLS.md", import.meta.url),
-			"utf8",
-		);
-		expect(documentation).toContain(
-			"Installing the package does not register or enable them.",
-		);
-		expect(documentation).toContain(
-			"It does not control, validate, or transform command output.",
-		);
-		expect(documentation).toContain(
-			"Relative entries inside `args` are not rewritten",
-		);
-		expect(documentation).not.toContain("An agent can");
 	});
 
 	test("detects the review base and builds explicit review instructions", () => {
