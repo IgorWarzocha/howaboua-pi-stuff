@@ -6,6 +6,11 @@ import type { AdapterState } from "../../adapter/activation/state.ts";
 import type { CodexVoiceController } from "../../voice/controller.ts";
 import { createCodexVoiceControls } from "../../voice/controls.ts";
 import type { CodexLanVoiceServerController } from "../../voice/lan/controller.ts";
+import {
+	appendSessionExecutionMode,
+	resolveExecutionMode,
+	type SessionExecutionMode,
+} from "../../adapter/activation/execution-mode.ts";
 import { ROUTABLE_SETTINGS_TABS, parseSettingsTab, type SettingsTab } from "./tabs.ts";
 import { openCodexSettingsScreen } from "./screen.ts";
 
@@ -19,6 +24,7 @@ export function registerCodexCommand(
 	voice: CodexVoiceController,
 	lanVoice: CodexLanVoiceServerController,
 	onConfigApplied?: (config: CodexConversionConfig, ctx: ExtensionContext, previousConfig: CodexConversionConfig) => void,
+	onExecutionModeApplied?: (ctx: ExtensionContext) => Promise<void> | void,
 ): void {
 	function saveAndApply(ctx: ExtensionContext, nextConfig: CodexConversionConfig): boolean {
 		const writeResult = writeCodexConversionConfig(nextConfig);
@@ -56,11 +62,30 @@ export function registerCodexCommand(
 			initialConfig: state.config,
 			initialTab: tab,
 			onChange: (config) => saveAndApply(ctx, config),
+			executionMode: {
+				current: () => state.sessionExecutionMode,
+				set: (mode) => setSessionExecutionMode(ctx, mode),
+			},
 			lanVoiceServer: {
 				status: () => lanVoice.status(),
 				setEnabled: (enabled) => setLanVoiceServerEnabled(lanVoice, enabled, ctx),
 			},
 		});
+	}
+
+	async function setSessionExecutionMode(ctx: ExtensionContext, mode: SessionExecutionMode): Promise<boolean> {
+		appendSessionExecutionMode(pi, mode);
+		const resolved = resolveExecutionMode(ctx);
+		state.sessionExecutionMode = resolved.session;
+		state.executionMode = resolved.effective;
+		try {
+			await onExecutionModeApplied?.(ctx);
+			syncAdapter(pi, ctx, state);
+			return true;
+		} catch (error) {
+			ctx.ui.notify(`Could not apply session execution mode: ${error instanceof Error ? error.message : String(error)}`, "error");
+			return false;
+		}
 	}
 
 	pi.registerCommand("codex", {

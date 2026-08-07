@@ -19,3 +19,10 @@ test("legacy persisted config shapes migrate to the current groups", () => {
 	assert.equal(lite.migrated, true);
 	assert.deepEqual((lite.config as { beta: unknown }).beta, { codeMode: true, responsesLite: false });
 });
+
+test("Notebook heap configuration is bounded without migrating grouped config", () => {
+	const accepted = migrateCodexConversionConfigIfNeeded({ notebook: { maxHeapMiB: 8192 } });
+	assert.equal(accepted.migrated, false);
+	assert.equal(normalizeCodexConversionConfig(accepted.config).notebook.maxHeapMiB, 8192);
+	assert.equal(normalizeCodexConversionConfig({ notebook: { maxHeapMiB: 128 } }).notebook.maxHeapMiB, 4096);
+});

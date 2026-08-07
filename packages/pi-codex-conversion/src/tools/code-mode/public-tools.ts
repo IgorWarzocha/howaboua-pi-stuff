@@ -81,7 +81,7 @@ function createExecTool(
 		async execute(id, params, signal, onUpdate, ctx) {
 			tracker.start(id);
 			try {
-				const response = await (await runtime.getClient()).execute(
+				const response = await (await runtime.getClient(ctx)).execute(
 					params.code,
 					{ cwd: ctx.cwd, toolCallId: id, extensionContext: ctx, preflight, onUpdate },
 					signal,
@@ -129,7 +129,7 @@ function createWaitTool(
 		async execute(id, params, signal, onUpdate, ctx) {
 			tracker.start(id);
 			try {
-				const client = await runtime.getClient();
+				const client = await runtime.getClient(ctx);
 				const context = { cwd: ctx.cwd, toolCallId: id, extensionContext: ctx, preflight, onUpdate };
 				const attempt = waitAttempts.get(params.cell_id) ?? 0;
 				const response = params.terminate

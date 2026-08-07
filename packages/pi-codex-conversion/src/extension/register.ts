@@ -3,7 +3,7 @@ import { registerCodeModeProxyProvider } from "../providers/code-mode-proxy-prov
 import { registerOpenAICodexCustomProvider } from "../providers/openai-codex-custom-provider.ts";
 import { registerCodexCommand } from "../ui/settings/command.ts";
 import { registerCodexCodeMode } from "../adapter/code-mode.ts";
-import { registerCodexEvents } from "./events.ts";
+import { prepareCodeModeHost, registerCodexEvents } from "./events.ts";
 import { createCodexExtensionRuntime } from "./runtime.ts";
 import { registerCodexTools } from "./tools.ts";
 import { registerCodexUi } from "./ui.ts";
@@ -19,7 +19,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 	try {
 		registerOpenAICodexCustomProvider(pi, {
 			getConfig: () => ({ openai: runtime.state.config.openai, beta: runtime.state.config.beta, compaction: runtime.state.config.compaction }),
-			useResponsesLite: (model) => resolveCodexRuntimePlan({ model }, runtime.state.config).kind === "code",
+			useResponsesLite: (model) => resolveCodexRuntimePlan({ model }, runtime.state.config, runtime.state.executionMode).transport === "responses-lite",
 			turnState: runtime.state.codexTurnState,
 			getDiagnostics: () => runtime.diagnosticsSink(),
 			onPreparedPayload: (payload) => {
@@ -28,7 +28,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 				runtime.state.pendingActiveProviderPromptCapture = false;
 			},
 		});
-		const proxyProvider = registerCodeModeProxyProvider(pi, () => runtime.state.config);
+		const proxyProvider = registerCodeModeProxyProvider(pi, () => runtime.state.config, () => runtime.state.executionMode);
 		cleanupProxyProvider = proxyProvider;
 		const tools = registerCodexTools(pi, runtime);
 		const ui = registerCodexUi(pi, runtime);
@@ -56,6 +56,11 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 					ctx.ui.notify(`Could not stop Code Mode host: ${error instanceof Error ? error.message : String(error)}`, "warning");
 				});
 			}
+		}, async (ctx) => {
+			runtime.resetTransport(ctx.sessionManager.getSessionId());
+			await codeMode.shutdownHost();
+			proxyProvider.applyConfig(runtime.state.config, ctx.modelRegistry);
+			prepareCodeModeHost(codeMode, ctx);
 		});
 		registerCodexEvents(pi, runtime, tools, ui, codeMode, proxyProvider);
 	} catch (registrationError) {
