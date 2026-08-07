@@ -126,7 +126,14 @@ export function renderCodeModeResult(
 		.filter((item) => item.type === "text" && typeof item.text === "string")
 		.map((item) => item.text)
 		.join("\n");
-	const status = statusText(details);
+	const scriptErrorRenderedByTrace = Boolean(
+		details.scriptError &&
+			details.traces?.some(
+				(trace) =>
+					trace.status === "error" && trace.error === details.scriptError,
+			),
+	);
+	const status = scriptErrorRenderedByTrace ? "" : statusText(details);
 	const outputText = [text, status].filter(Boolean).join("\n");
 	const tone = context?.isError
 		? "error"
@@ -144,7 +151,7 @@ export function renderCodeModeResult(
 
 	const showOutput =
 		richRendering ||
-		Boolean(details.scriptError) ||
+		Boolean(details.scriptError && !scriptErrorRenderedByTrace) ||
 		details.notification === true ||
 		images.length > 0;
 	const output =
