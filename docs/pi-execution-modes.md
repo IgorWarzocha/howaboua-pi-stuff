@@ -70,7 +70,7 @@ Keep the full JavaScript heap live while the session runs. Add best-effort durab
 5. Restore compatible values with `node:v8` `deserialize`, then rebind current tool globals and metadata.
 6. Report restored, skipped, failed, or invalidated names visibly to the model.
 
-Use a 256 MiB total prototype cap, with the same cap applied to any single variable. Debounce checkpoints after successful cells and await the final flush before orderly teardown. Replacing one current checkpoint prevents unbounded per-cell history; orphaned session artifacts should be garbage-collected rather than retained indefinitely.
+Use a 256 MiB upper prototype cap, reduced to one eighth of the configured heap so serialization plus assembly cannot consume the kernel ceiling; apply the effective cap to both total state and any single variable. Debounce checkpoints after successful cells and await the final flush before orderly teardown. Replacing one current checkpoint prevents unbounded per-cell history; orphaned session artifacts should be garbage-collected rather than retained indefinitely.
 
 Checkpoint before compaction. On an orderly mode switch, session switch, reload, or exit, await the final flush and stop Deno. Do not maintain detached daemons or orphan kernels.
 
