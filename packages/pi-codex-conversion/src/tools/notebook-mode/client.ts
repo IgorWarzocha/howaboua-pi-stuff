@@ -12,73 +12,36 @@ import { directToolYieldTime } from "../code-mode/tool-source.ts";
 import type {
 	CodeModeToolDefinition,
 	NotebookMemoryUsage,
-	RuntimeContentItem,
 	RuntimeResponse,
 	ToolExecutionContext,
 } from "../code-mode/types.ts";
-import { NotebookBridgeServer, notebookBootstrapSource } from "./bridge-server.ts";
-import {
-	garbageCollectSupersededNotebookCheckpoints,
-	resolveNotebookCheckpointMaxBytes,
-	restoreNotebookCheckpoint,
-	type NotebookCheckpointIdentity,
-	writeNotebookCheckpoint,
-} from "./checkpoint.ts";
-import { ensureNotebookDenoBinary } from "./deno-binary.ts";
-import { DenoJupyterKernel, type KernelExecutionResult } from "./jupyter-kernel.ts";
+import { NotebookBridgeServer } from "./bridge-server.ts";
+import { NotebookCell } from "./cell.ts";
+import { resolveNotebookCheckpointMaxBytes } from "./checkpoint.ts";
+import { NotebookCheckpointManager } from "./checkpoint-manager.ts";
+import { DenoJupyterKernel } from "./jupyter-kernel.ts";
 import {
 	appendNotebookJournalCell,
-	initializeNotebookJournal,
 	type NotebookJournal,
-	notebookJournalBootstrapSource,
 } from "./journal.ts";
 import { resolveNotebookProject } from "./project-identity.ts";
-import {
-	formatRepositoryStateNotice,
-	repositoryConflictDirectory,
-	restoreRepositoryState,
-	type RepositoryStateBaseline,
-	writeRepositoryState,
-} from "./repository-state.ts";
+import { startNotebookSession } from "./session-startup.ts";
 import { notebookSessionIdentity } from "./session-identity.ts";
 
 const TERMINATE_GRACE_MS = 1_500;
-const CHECKPOINT_DEBOUNCE_MS = 1_500;
-const MAX_CELL_OUTPUT_CHARS = 32 * 1024 * 1024;
-const MAX_CELL_OUTPUT_ITEMS = 10_000;
 const MAX_NOTICE_CHARS = 16_384;
-
-interface Deferred {
-	promise: Promise<void>;
-	resolve(): void;
-}
-
-interface NotebookCell {
-	id: string;
-	source: string;
-	context: ToolExecutionContext;
-	controller: AbortController;
-	items: RuntimeContentItem[];
-	outputChars: number;
-	outputTruncated: boolean;
-	cursor: number;
-	maxOutputTokens: number;
-	yielded: Deferred;
-	completed: Deferred;
-	result?: KernelExecutionResult | undefined;
-	terminated: boolean;
-}
 
 export class NotebookCodeModeClient implements CodeModeExecutionClient {
 	private readonly options: NotebookRuntimeOptions;
 	private readonly checkpointMaxBytes: number;
+	private readonly checkpoints: NotebookCheckpointManager;
 	private readonly delegate = new CodeModeDelegateRuntime(() => undefined);
 	private readonly bridge = new NotebookBridgeServer({
 		callTool: (cellId, requestId, tool, input) => this.callTool(cellId, requestId, tool, input),
 		cancelTools: (cellId) => this.cancelTools(cellId),
-		emit: (cellId, items) => this.emit(cellId, items),
+		emit: (cellId, items) => this.requireActiveCell(cellId).emit(items),
 		notify: (cellId, text) => this.notify(cellId, text),
-		yield: (cellId) => this.requestYield(cellId),
+		yield: (cellId) => this.requireActiveCell(cellId).requestYield(),
 		memory: (cellId, usage) => this.recordMemory(cellId, usage),
 	});
 	private kernel: DenoJupyterKernel | undefined;
@@ -87,20 +50,23 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 	private nextCellId = 1;
 	private startup: Promise<void> | undefined;
 	private startupAbort: AbortController | undefined;
-	private baselineNames = new Set<string>();
-	private checkpointIdentity: NotebookCheckpointIdentity | undefined;
-	private checkpointTimer: ReturnType<typeof setTimeout> | undefined;
-	private checkpointDirty = false;
-	private maintenance: Promise<void> = Promise.resolve();
 	private pendingNotice: string | undefined;
 	private latestMemory: NotebookMemoryUsage | undefined;
-	private repositoryBaseline: RepositoryStateBaseline = { generation: "root", entries: [] };
 	private journal: NotebookJournal | undefined;
 	private extensionContext: ExtensionContext | undefined;
 
 	constructor(options: NotebookRuntimeOptions) {
 		this.options = options;
 		this.checkpointMaxBytes = resolveNotebookCheckpointMaxBytes(options.maxHeapMiB);
+		this.checkpoints = new NotebookCheckpointManager({
+			maxBytes: this.checkpointMaxBytes,
+			currentKernel: () => this.kernel,
+			runningCellId: () => this.activeCell && !this.activeCell.result ? this.activeCell.id : undefined,
+			reportNotice: (notice, showInUi) => {
+				this.pendingNotice = joinNotices(this.pendingNotice, notice);
+				if (showInUi) this.extensionContext?.ui.notify(notice, "warning");
+			},
+		});
 	}
 
 	async execute(
@@ -114,29 +80,21 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 			throw new Error(`Notebook exec cell "${this.activeCell.id}" is still active; call wait or terminate it before starting another cell`);
 		}
 		await this.ensureSession(context, signal);
-		await this.flushCheckpoint();
+		await this.checkpoints.flush();
 		const { code, yieldTimeMs, maxOutputTokens } = parseExecSource(source);
 		const effectiveYieldTime = directToolYieldTime(code, tools) ?? yieldTimeMs ?? DEFAULT_CODE_MODE_EXEC_YIELD_MS;
 		const id = `notebook-${this.nextCellId++}`;
 		this.latestMemory = undefined;
-		const cell: NotebookCell = {
+		const cell = new NotebookCell({
 			id,
 			source: code,
 			context,
-			controller: new AbortController(),
-			items: [],
-			outputChars: 0,
-			outputTruncated: false,
-			cursor: 0,
 			maxOutputTokens: maxOutputTokens ?? 10_000,
-			yielded: deferred(),
-			completed: deferred(),
-			terminated: false,
-		};
+		});
 		const notice = this.pendingNotice;
 		this.pendingNotice = undefined;
 		this.activeCell = cell;
-		if (notice) this.emit(id, [{ type: "input_text", text: notice }]);
+		if (notice) cell.emit([{ type: "input_text", text: notice }]);
 		this.delegate.bindCell(id, context, new Map(tools.map((tool) => [tool.name, tool])));
 		const metadata = tools
 			.filter((tool) => isCustomToolDefinition(tool) && tool.deferLoading)
@@ -193,7 +151,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 	}
 
 	async checkpoint(): Promise<void> {
-		await this.flushCheckpoint(true);
+		await this.checkpoints.flush(true);
 	}
 
 	async shutdown(): Promise<void> {
@@ -201,20 +159,15 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		await this.startup?.catch(() => undefined);
 		const active = this.activeCell;
 		if (active) await this.stopCell(active).catch(() => undefined);
-		await this.flushCheckpoint();
+		await this.checkpoints.flush();
 		if (active) this.closeCell(active);
 		this.activeCell = undefined;
-		if (this.checkpointTimer) clearTimeout(this.checkpointTimer);
-		this.checkpointTimer = undefined;
 		this.startup = undefined;
 		this.startupAbort = undefined;
 		this.sessionIdentity = undefined;
-		this.baselineNames.clear();
-		this.checkpointIdentity = undefined;
-		this.checkpointDirty = false;
+		this.checkpoints.reset();
 		this.pendingNotice = undefined;
 		this.latestMemory = undefined;
-		this.repositoryBaseline = { generation: "root", entries: [] };
 		this.journal = undefined;
 		this.extensionContext = undefined;
 		const kernel = this.kernel;
@@ -222,7 +175,6 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		this.delegate.clear();
 		await kernel?.shutdown().catch(() => undefined);
 		await this.bridge.shutdown();
-		this.maintenance = Promise.resolve();
 	}
 
 	private async ensureSession(context: ToolExecutionContext, signal?: AbortSignal): Promise<void> {
@@ -253,77 +205,31 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 
 	private async startSession(ctx: ExtensionContext, signal?: AbortSignal): Promise<void> {
 		this.latestMemory = undefined;
-		const startupAbort = new AbortController();
-		const startupSignal = signal ? AbortSignal.any([signal, startupAbort.signal]) : startupAbort.signal;
-		const denoPending = ensureNotebookDenoBinary({ agentDir: this.options.agentDir }, startupSignal);
-		const bridgePending = this.bridge.start();
-		let deno: string;
-		let origin: string;
-		try {
-			[deno, origin] = await Promise.all([denoPending, bridgePending]);
-			startupSignal.throwIfAborted();
-		} catch (error) {
-			startupAbort.abort();
-			await Promise.allSettled([denoPending, bridgePending]);
-			await this.bridge.shutdown().catch(() => undefined);
-			throw error;
-		}
-		const kernel = new DenoJupyterKernel({ deno, cwd: ctx.cwd, maxHeapMiB: this.options.maxHeapMiB });
-		this.kernel = kernel;
-		try {
-			await kernel.start(signal);
-			const bootstrap = await kernel.execute(notebookBootstrapSource(origin, this.bridge.token, this.bridge.exitToken), { signal });
-			if (bootstrap.status !== "ok") {
-				throw new Error(`Notebook bootstrap failed: ${bootstrap.errorText ?? "unknown error"}`);
-			}
-			const project = resolveNotebookProject(ctx.cwd);
-			const checkpointIdentity = {
-				project,
-				session: notebookSessionIdentity(ctx),
-				agentDir: this.options.agentDir,
-			};
-			this.journal = initializeNotebookJournal({
-				...checkpointIdentity,
-				conflictDirectory: repositoryConflictDirectory(project, this.options.agentDir),
-			});
-			const journalBootstrap = await kernel.execute(notebookJournalBootstrapSource(this.journal), { signal });
-			if (journalBootstrap.status !== "ok") {
-				throw new Error(`Notebook journal bootstrap failed: ${journalBootstrap.errorText ?? "unknown error"}`);
-			}
-			const repository = await restoreRepositoryState(kernel, {
-				project,
-				agentDir: this.options.agentDir,
-				maxBytes: this.checkpointMaxBytes,
-			});
-			this.repositoryBaseline = repository.baseline;
-			this.baselineNames = new Set(await kernel.complete("", 0));
-			this.checkpointIdentity = checkpointIdentity;
-			const restored = await restoreNotebookCheckpoint(kernel, this.checkpointIdentity, this.checkpointMaxBytes);
-			garbageCollectSupersededNotebookCheckpoints(this.checkpointIdentity);
-			this.reportStateNotice(joinNotices(
-				formatRepositoryStateNotice(repository),
-				restored.message,
-			));
-		} catch (error) {
-			if (this.kernel === kernel) this.kernel = undefined;
-			await kernel.shutdown().catch(() => undefined);
-			await this.bridge.shutdown().catch(() => undefined);
-			throw error;
-		}
+		const started = await startNotebookSession({
+			context: ctx,
+			runtime: this.options,
+			bridge: this.bridge,
+			checkpointMaxBytes: this.checkpointMaxBytes,
+			...(signal ? { signal } : {}),
+		});
+		this.kernel = started.kernel;
+		this.journal = started.journal;
+		this.checkpoints.configure(started.checkpointIdentity, started.baselineNames);
+		this.reportStateNotice(started.restoreNotice);
 	}
 
 	private async runCell(cell: NotebookCell, source: string): Promise<void> {
 		try {
 			const result = await this.kernel!.execute(source, {
 				signal: cell.controller.signal,
-				onOutput: (item) => this.emit(cell.id, [item]),
+				onOutput: (item) => cell.emit([item]),
 			});
 			const normalized = result.errorName === "PiNotebookExit" && result.errorValue === this.bridge.exitToken
 				? { ...result, status: "ok" as const, errorText: undefined, errorName: undefined, errorValue: undefined }
 				: result;
 			cell.result = normalized;
 			await this.endCellRuntime(cell);
-			if (cell.result.status === "ok") this.scheduleCheckpoint();
+			if (cell.result.status === "ok") this.checkpoints.schedule();
 		} catch (error) {
 			this.delegate.cancelCell(cell.id);
 			const recovery = cell.controller.signal.aborted
@@ -337,7 +243,12 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		} finally {
 			if (cell.result && this.journal) {
 				try {
-					appendNotebookJournalCell(this.journal, cell as NotebookCell & { result: KernelExecutionResult });
+					appendNotebookJournalCell(this.journal, {
+						id: cell.id,
+						source: cell.source,
+						items: cell.items,
+						result: cell.result,
+					});
 				} catch (error) {
 					const notice = `Notebook journal update failed: ${error instanceof Error ? error.message : String(error)}`;
 					this.pendingNotice = joinNotices(
@@ -347,7 +258,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 					this.extensionContext?.ui.notify(notice, "warning");
 				}
 			}
-			cell.completed.resolve();
+			cell.markCompleted();
 		}
 	}
 
@@ -362,24 +273,14 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 
 	private async observe(cell: NotebookCell, yieldTimeMs: number, signal?: AbortSignal): Promise<RuntimeResponse> {
 		signal?.throwIfAborted();
-		if (!cell.result) {
-			await Promise.race([
-				cell.completed.promise,
-				cell.yielded.promise,
-				abortableDelay(yieldTimeMs, signal),
-			]);
-		}
-		if (cell.result) return this.finishObservation(cell, "result");
-		cell.yielded = deferred();
-		return this.finishObservation(cell, "yielded");
+		return this.finishObservation(cell, await cell.observe(yieldTimeMs, signal));
 	}
 
 	private finishObservation(cell: NotebookCell, kind: RuntimeResponse["kind"]): RuntimeResponse {
 		const notice = this.pendingNotice;
 		this.pendingNotice = undefined;
-		if (notice) this.emit(cell.id, [{ type: "input_text", text: notice }]);
-		const contentItems = cell.items.slice(cell.cursor);
-		cell.cursor = cell.items.length;
+		if (notice) cell.emit([{ type: "input_text", text: notice }]);
+		const contentItems = cell.takeContent();
 		const response: RuntimeResponse = kind === "result"
 			? {
 				kind,
@@ -402,25 +303,15 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		cell.controller.abort();
 		this.delegate.cancelCell(cell.id);
 		await this.kernel?.interrupt().catch(() => undefined);
-		await Promise.race([cell.completed.promise, abortableDelay(TERMINATE_GRACE_MS)]);
+		await Promise.race([cell.waitForCompletion(), abortableDelay(TERMINATE_GRACE_MS)]);
 		if (!cell.result) {
 			const kernel = this.kernel;
 			this.kernel = undefined;
 			this.startup = undefined;
 			await kernel?.shutdown().catch(() => undefined);
 			cell.result = { status: "aborted", items: [] };
-			cell.completed.resolve();
+			cell.markCompleted();
 		}
-	}
-
-	private scheduleCheckpoint(): void {
-		this.checkpointDirty = true;
-		if (this.checkpointTimer) clearTimeout(this.checkpointTimer);
-		this.checkpointTimer = setTimeout(() => {
-			this.checkpointTimer = undefined;
-			void this.flushCheckpoint();
-		}, CHECKPOINT_DEBOUNCE_MS);
-		this.checkpointTimer.unref?.();
 	}
 
 	private async recoverAfterFatal(context: ToolExecutionContext): Promise<string> {
@@ -446,54 +337,6 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		}
 	}
 
-	private flushCheckpoint(requireIdle = false): Promise<void> {
-		if (this.checkpointTimer) clearTimeout(this.checkpointTimer);
-		this.checkpointTimer = undefined;
-		const operation = this.maintenance.then(() => this.performCheckpoint(requireIdle));
-		this.maintenance = operation.catch(() => undefined);
-		return operation;
-	}
-
-	private async performCheckpoint(requireIdle: boolean): Promise<void> {
-		if (this.activeCell && !this.activeCell.result) {
-			if (!requireIdle) return;
-			const notice = `Notebook checkpoint skipped because cell "${this.activeCell.id}" is still running; the last completed checkpoint remains available`;
-			this.pendingNotice = joinNotices(this.pendingNotice, notice);
-			throw new Error(notice);
-		}
-		if (!this.checkpointDirty || !this.kernel || !this.checkpointIdentity) return;
-		this.checkpointDirty = false;
-		const kernel = this.kernel;
-		const identity = this.checkpointIdentity;
-		const baseline = this.baselineNames;
-		const notices = [this.pendingNotice];
-		try {
-			const repository = await writeRepositoryState(
-				kernel,
-				identity,
-				this.repositoryBaseline,
-				this.checkpointMaxBytes,
-			);
-			this.repositoryBaseline = repository.baseline;
-			const notice = formatRepositoryStateNotice(repository);
-			this.reportStateNotice(notice);
-		} catch (error) {
-			this.checkpointDirty = true;
-			const notice = `Repository notebook checkpoint failed: ${error instanceof Error ? error.message : String(error)}`;
-			notices.push(notice);
-			this.extensionContext?.ui.notify(notice, "warning");
-		}
-		try {
-			await writeNotebookCheckpoint(kernel, identity, baseline, this.checkpointMaxBytes);
-		} catch (error) {
-			this.checkpointDirty = true;
-			const notice = `Session notebook checkpoint failed: ${error instanceof Error ? error.message : String(error)}`;
-			notices.push(notice);
-			this.extensionContext?.ui.notify(notice, "warning");
-		}
-		this.pendingNotice = joinNotices(...notices);
-	}
-
 	private reportStateNotice(notice: string | undefined): void {
 		if (!notice) return;
 		try {
@@ -517,48 +360,9 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		this.requireActiveCell(cellId);
 		this.delegate.cancelCell(cellId);
 	}
-
-	private emit(cellId: string, items: RuntimeContentItem[]): void {
-		const cell = this.requireActiveCell(cellId);
-		const accepted: RuntimeContentItem[] = [];
-		for (const item of items) {
-			if (cell.outputTruncated) break;
-			const size = item.type === "input_text" ? item.text?.length ?? 0 : item.image_url?.length ?? 0;
-			if (cell.items.length >= MAX_CELL_OUTPUT_ITEMS || cell.outputChars + size > MAX_CELL_OUTPUT_CHARS) {
-				const notice = { type: "input_text" as const, text: "[Notebook cell output truncated]" };
-				cell.items.push(notice);
-				accepted.push(notice);
-				cell.outputChars += notice.text.length;
-				cell.outputTruncated = true;
-				break;
-			}
-			cell.items.push(item);
-			accepted.push(item);
-			cell.outputChars += size;
-		}
-		const content: Array<
-			| { type: "text"; text: string }
-			| { type: "image"; mimeType: string; data: string }
-		> = [];
-		for (const item of accepted) {
-			if (item.type === "input_text" && item.text) {
-				content.push({ type: "text", text: item.text });
-				continue;
-			}
-			const match = item.type === "input_image" && item.image_url?.match(/^data:([^;,]+);base64,(.+)$/s);
-			if (match) content.push({ type: "image", mimeType: match[1]!, data: match[2]! });
-		}
-		if (content.length > 0) cell.context.onUpdate?.({ content, details: { cellId, status: "running" } });
-	}
-
 	private notify(cellId: string, text: string): void {
 		this.requireActiveCell(cellId);
 		this.delegate.notifyDirect(cellId, text);
-	}
-
-	private requestYield(cellId: string): void {
-		const cell = this.requireActiveCell(cellId);
-		cell.yielded.resolve();
 	}
 
 	private recordMemory(
@@ -578,12 +382,6 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		if (!cell || cell.id !== cellId) throw new Error(`Notebook cell "${cellId}" is not active`);
 		return cell;
 	}
-}
-
-function deferred(): Deferred {
-	let resolve!: () => void;
-	const promise = new Promise<void>((done) => { resolve = done; });
-	return { promise, resolve };
 }
 
 function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {

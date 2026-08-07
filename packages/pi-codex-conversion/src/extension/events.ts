@@ -9,7 +9,7 @@ import { handleCodexSessionBeforeCompact } from "../adapter/compaction/compactio
 import { rewriteCodexProviderRequest } from "../adapter/provider-request.ts";
 import { isProviderContextExcludedMessage } from "../adapter/prompt/context-filter.ts";
 import { hasNoSkillsFlag } from "../adapter/prompt/skills.ts";
-import { extractPiPromptSkills, NOTEBOOK_STARTUP_CONTEXT, resolvePromptSkills } from "../prompt/build-system-prompt.ts";
+import { extractPiPromptSkills, resolvePromptSkills } from "../prompt/build-system-prompt.ts";
 import type { CodeModeProxyProviderRegistration } from "../providers/code-mode-proxy-provider.ts";
 import { maybeWarnLocalCheckoutVersion } from "../adapter/local-version-warning.ts";
 import { clearApplyPatchRenderState } from "../tools/apply-patch/tool.ts";
@@ -62,7 +62,6 @@ export function registerCodexEvents(
 	proxyProvider: CodeModeProxyProviderRegistration,
 ): void {
 	const { state, tracker, sessions } = runtime;
-	let notebookStartupContextDelivered = false;
 	runtime.voice.setDelegationPreflight((ctx, signal) => prepareVoiceDelegation(runtime, codeMode, ctx, signal));
 	sessions.onSessionExit((sessionId) => tracker.recordSessionFinished(sessionId));
 
@@ -78,7 +77,6 @@ export function registerCodexEvents(
 		const executionMode = resolveExecutionMode(ctx);
 		state.executionMode = executionMode.effective;
 		state.sessionExecutionMode = executionMode.session;
-		notebookStartupContextDelivered = false;
 		state.activeProviderSystemPrompt = undefined;
 		state.voiceSystemPromptOverride = undefined;
 		proxyProvider.applyConfig(state.config, ctx.modelRegistry);
@@ -130,7 +128,6 @@ export function registerCodexEvents(
 		const executionMode = resolveExecutionMode(ctx);
 		state.executionMode = executionMode.effective;
 		state.sessionExecutionMode = executionMode.session;
-		notebookStartupContextDelivered = false;
 		state.activeProviderSystemPrompt = undefined;
 		state.voiceSystemPromptOverride = undefined;
 		runtime.resetTransport(ctx.sessionManager.getSessionId());
@@ -191,18 +188,13 @@ export function registerCodexEvents(
 			state.pendingActiveProviderPromptCapture = false;
 			return undefined;
 		}
-		const sendNotebookStartupContext = plan.kind === "notebook" && !notebookStartupContextDelivered;
 		const skills = resolvePromptSkills(event.systemPromptOptions?.skills, hasNoSkillsFlag() ? [] : state.promptSkills);
 		const codexSystemPrompt = runtime.codexSystemPrompt(systemPrompt, ctx, skills, event.systemPromptOptions);
 		state.activeProviderSystemPrompt = codexSystemPrompt;
 		state.pendingActiveProviderPromptCapture = true;
 		await runtime.waitForPrewarm(ctx, codexSystemPrompt);
-		if (sendNotebookStartupContext) notebookStartupContextDelivered = true;
 		return {
 			systemPrompt: codexSystemPrompt,
-			...(sendNotebookStartupContext
-				? { message: { customType: "codex-notebook-startup", content: NOTEBOOK_STARTUP_CONTEXT, display: false } }
-				: {}),
 		};
 	});
 	pi.on("message_update", async (event) => {
