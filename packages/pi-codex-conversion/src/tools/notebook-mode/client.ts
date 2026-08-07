@@ -228,7 +228,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 	private async startSession(ctx: ExtensionContext, signal?: AbortSignal): Promise<void> {
 		this.latestMemory = undefined;
 		const [deno, origin] = await Promise.all([
-			ensureNotebookDenoBinary(signal),
+			ensureNotebookDenoBinary({ agentDir: this.options.agentDir }, signal),
 			this.bridge.start(),
 		]);
 		signal?.throwIfAborted();
@@ -241,16 +241,23 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 				throw new Error(`Notebook bootstrap failed: ${bootstrap.errorText ?? "unknown error"}`);
 			}
 			const project = resolveNotebookProject(ctx.cwd);
-			const checkpointIdentity = { project, session: notebookSessionIdentity(ctx) };
+			const checkpointIdentity = {
+				project,
+				session: notebookSessionIdentity(ctx),
+				agentDir: this.options.agentDir,
+			};
 			this.journal = initializeNotebookJournal({
 				...checkpointIdentity,
-				conflictDirectory: repositoryConflictDirectory(project),
+				conflictDirectory: repositoryConflictDirectory(project, this.options.agentDir),
 			});
 			const journalBootstrap = await kernel.execute(notebookJournalBootstrapSource(this.journal), { signal });
 			if (journalBootstrap.status !== "ok") {
 				throw new Error(`Notebook journal bootstrap failed: ${journalBootstrap.errorText ?? "unknown error"}`);
 			}
-			const repository = await restoreRepositoryState(kernel, project);
+			const repository = await restoreRepositoryState(kernel, {
+				project,
+				agentDir: this.options.agentDir,
+			});
 			this.repositoryBaseline = repository.baseline;
 			this.baselineNames = new Set(await kernel.complete("", 0));
 			this.checkpointIdentity = checkpointIdentity;
