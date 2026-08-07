@@ -7,26 +7,30 @@ import {
 import { Text } from "@earendil-works/pi-tui";
 import { type Static, Type } from "typebox";
 import { ensureConfig } from "./config.js";
-import { dbPathFor, openDb } from "./db.js";
-import { syncIndex } from "./indexer.js";
+import { dbPathFor, openSearchDb } from "./db.js";
+import { runIndex } from "./index-runner.js";
 import { denyReason, findProjectRoot } from "./root.js";
 import { formatMatches, type SearchMatch, searchDb } from "./search.js";
 
 const semanticGrepSchema = Type.Object({
-	query: Type.String({ description: "Natural-language search query." }),
+	query: Type.String({ description: "Natural-language search query" }),
 	top_k: Type.Optional(
-		Type.Number({ description: "Maximum matches to return." }),
+		Type.Integer({
+			description: "Maximum matches to return",
+			minimum: 1,
+			maximum: 30,
+		}),
 	),
 });
 
 type SemanticGrepParams = Static<typeof semanticGrepSchema>;
 type SemanticGrepDetails = {
 	error?: string;
-	reason?: string;
 	root?: string;
 	dbFile?: string;
 	query?: string;
 	matches?: SearchMatch[];
+	skippedIncompatible?: number;
 };
 
 function cwdFromCtx(ctx: ExtensionContext): string {
@@ -41,13 +45,13 @@ export default function semanticGrepExtension(pi: ExtensionAPI) {
 		pi.registerTool<typeof semanticGrepSchema, SemanticGrepDetails>({
 			name: "semantic_grep",
 			label: "Semantic Grep",
-			description: "Search code and docs by meaning.",
-			promptSnippet: "Use semantic_grep for conceptual code/docs discovery.",
+			description: "Search indexed code and docs by meaning",
+			promptSnippet: "Search code and docs by meaning",
 			promptGuidelines: [
-				"semantic_grep: Use early for conceptual or cross-file discovery.",
-				"semantic_grep: Query for behavior, concepts, features, or code paths—not just exact identifiers.",
-				"semantic_grep: Inspect returned locations with file-reading tools before making precise claims or edits.",
-				"semantic_grep: Use exact text search instead when you need literal string occurrences.",
+				"semantic_grep: Use early for conceptual or cross-file discovery",
+				"semantic_grep: Query for behavior, concepts, features, or code paths—not exact identifiers",
+				"semantic_grep: Inspect returned locations before precise claims or edits",
+				"semantic_grep: Use exact text search for literal occurrences",
 			],
 			parameters: semanticGrepSchema,
 			renderCall(args, theme) {
@@ -79,6 +83,15 @@ export default function semanticGrepExtension(pi: ExtensionAPI) {
 				}
 
 				const matches = result.details?.matches ?? [];
+				if (!matches.length && result.details?.skippedIncompatible)
+					return new Text(
+						theme.fg(
+							"warning",
+							`No compatible vectors; ${result.details.skippedIncompatible} stale chunks omitted`,
+						),
+						0,
+						0,
+					);
 				if (!matches.length)
 					return new Text(theme.fg("dim", "No semantic matches"), 0, 0);
 
@@ -112,46 +125,27 @@ export default function semanticGrepExtension(pi: ExtensionAPI) {
 			) {
 				const baseConfig = ensureConfig();
 				const root = findProjectRoot(cwdFromCtx(ctx), baseConfig);
-				if (!root) {
-					return {
-						content: [
-							{
-								type: "text",
-								text: "Semantic grep skipped: no project marker found.",
-							},
-						],
-						details: { error: "no_project_root" },
-					};
-				}
+				if (!root)
+					throw new Error(
+						"Semantic grep needs a project marker in the current directory or an ancestor",
+					);
 				const config = ensureConfig(root);
 				const denied = denyReason(root, config);
-				if (denied) {
-					return {
-						content: [
-							{ type: "text", text: `Semantic grep skipped: ${denied}.` },
-						],
-						details: { error: "denied_root", root, reason: denied },
-					};
-				}
+				if (denied)
+					throw new Error(`Semantic grep refused this root: ${denied}`);
 				const dbFile = dbPathFor(root);
-				if (!existsSync(dbFile)) {
-					return {
-						content: [
-							{
-								type: "text",
-								text: `Semantic grep index not found at ${dbFile}. It should be created automatically at session start; check extension logs/status.`,
-							},
-						],
-						details: { error: "missing_index", dbFile },
-					};
-				}
+				if (!existsSync(dbFile))
+					throw new Error(
+						`Semantic grep index not found at ${dbFile}; indexing starts automatically with the session`,
+					);
 				const topK = Math.min(
 					Math.max(1, params.top_k ?? config.search.defaultTopK),
 					config.search.maxTopK,
+					30,
 				);
-				const db = openDb(root);
+				const db = openSearchDb(root);
 				try {
-					const matches = await searchDb(
+					const results = await searchDb(
 						db,
 						params.query,
 						topK,
@@ -159,8 +153,14 @@ export default function semanticGrepExtension(pi: ExtensionAPI) {
 						signal,
 					);
 					return {
-						content: [{ type: "text", text: formatMatches(matches) }],
-						details: { root, dbFile, query: params.query, matches },
+						content: [{ type: "text", text: formatMatches(results) }],
+						details: {
+							root,
+							dbFile,
+							query: params.query,
+							matches: results.matches,
+							skippedIncompatible: results.skippedIncompatible,
+						},
 					};
 				} finally {
 					db.close();
@@ -168,7 +168,7 @@ export default function semanticGrepExtension(pi: ExtensionAPI) {
 			},
 		});
 
-	pi.on("session_start", async (_event, ctx) => {
+	pi.on("session_start", (_event, ctx) => {
 		const baseConfig = ensureConfig();
 		if (!baseConfig.autoIndex.enabled) return;
 
@@ -195,32 +195,41 @@ export default function semanticGrepExtension(pi: ExtensionAPI) {
 		indexingController?.abort();
 		const controller = new AbortController();
 		indexingController = controller;
-		const db = openDb(root);
 		ctx.ui.setStatus("semantic-grep", "indexing…");
-		try {
-			const stats = await syncIndex(
-				db,
-				root,
-				config,
-				forceFullRebuild,
-				controller.signal,
-				(msg) => ctx.ui.setStatus("semantic-grep", msg),
-			);
-			ctx.ui.notify(
-				`Semantic grep synced ${stats.files} files: +${stats.added} ~${stats.changed} -${stats.deleted}, ${stats.unchanged} unchanged${stats.fullRebuild ? " (full rebuild)" : ""}`,
-				"info",
-			);
-		} catch (err) {
-			if (controller.signal.aborted) return;
-			ctx.ui.notify(
-				`Semantic grep indexing failed: ${err instanceof Error ? err.message : String(err)}`,
-				"error",
-			);
-		} finally {
-			if (indexingController === controller) indexingController = undefined;
-			ctx.ui.setStatus("semantic-grep", undefined);
-			db.close();
-		}
+		void (async () => {
+			try {
+				const result = await runIndex(
+					root,
+					config,
+					forceFullRebuild,
+					controller.signal,
+					(message) => ctx.ui.setStatus("semantic-grep", message),
+				);
+				if (result.status === "busy") {
+					ctx.ui.notify(
+						"Semantic grep indexing is already running for this project",
+						"info",
+					);
+					return;
+				}
+				const { stats } = result;
+				ctx.ui.notify(
+					`Semantic grep synced ${stats.files} files: +${stats.added} ~${stats.changed} -${stats.deleted}, ${stats.unchanged} unchanged, ${stats.metadataOnly} metadata-only${stats.skipped ? `, ${stats.skipped} skipped` : ""}${stats.fullRebuild ? (stats.complete ? " (resumable rebuild complete)" : " (resumable rebuild paused)") : ""}`,
+					stats.complete ? "info" : "warning",
+				);
+			} catch (err) {
+				if (controller.signal.aborted) return;
+				ctx.ui.notify(
+					`Semantic grep indexing failed: ${err instanceof Error ? err.message : String(err)}`,
+					"error",
+				);
+			} finally {
+				if (indexingController === controller) {
+					indexingController = undefined;
+					ctx.ui.setStatus("semantic-grep", undefined);
+				}
+			}
+		})();
 	});
 
 	pi.on("session_shutdown", () => {

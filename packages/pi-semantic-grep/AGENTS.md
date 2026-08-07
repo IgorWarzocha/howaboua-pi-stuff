@@ -1,0 +1,6 @@
+- The nearest configured project marker owns the index; nested catalogue indexes are intentional.
+- Session startup returns before discovery; background scanning and file loops yield to Pi's event loop while stale searches stay available.
+- Acquire the repository writer lock before opening the writable database. Searches remain read-only WAL readers.
+- Embed a complete file before atomically replacing its rows. Failures must preserve the last complete file index.
+- Content-fingerprint generations are resumable; never clear the live index to begin a rebuild.
+- Prefer Git's tracked/untracked `--exclude-standard` discovery. The filesystem fallback stays bounded and churn-tolerant.

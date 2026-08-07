@@ -9,14 +9,22 @@ export interface SemanticGrepConfig {
 		model: string;
 		apiKey?: string;
 		dimensions?: number;
+		batchSize: number;
+		queryPrefix: string;
+		documentPrefix: string;
+		queryExtraBody: Record<string, unknown>;
+		documentExtraBody: Record<string, unknown>;
 	};
 	indexing: {
 		chunkLines: number;
 		chunkOverlap: number;
 		maxFileBytes: number;
 		maxChunkChars: number;
+		maxEmbeddingChars: number;
 		skipOversizedChunks: boolean;
 		followSymlinks: boolean;
+		useGitIgnore: boolean;
+		maxFiles: number;
 		includeExtensions: string[];
 		excludeDirs: string[];
 	};
@@ -42,19 +50,45 @@ export const PROJECT_CONFIG_BASENAME = path.join(
 	"semantic-grep.json",
 );
 
+export const STANDARD_EXCLUDE_DIRS = [
+	".git",
+	".pi",
+	"node_modules",
+	"dist",
+	"build",
+	"target",
+	".venv",
+	"venv",
+	"vendor",
+	".next",
+	".cache",
+	".turbo",
+	".output",
+	"coverage",
+	"out",
+];
+
 export const DEFAULT_CONFIG: SemanticGrepConfig = {
 	toolRegistration: true,
 	embeddings: {
 		url: "http://127.0.0.1:1234/v1/embeddings",
 		model: "text-embedding-embeddinggemma-300m-qat",
+		batchSize: 32,
+		queryPrefix: "",
+		documentPrefix: "",
+		queryExtraBody: {},
+		documentExtraBody: {},
 	},
 	indexing: {
 		chunkLines: 80,
 		chunkOverlap: 20,
 		maxFileBytes: 512_000,
 		maxChunkChars: 12_000,
+		maxEmbeddingChars: 2_000,
 		skipOversizedChunks: false,
 		followSymlinks: false,
+		useGitIgnore: true,
+		maxFiles: 100_000,
 		includeExtensions: [
 			".ts",
 			".tsx",
@@ -83,19 +117,7 @@ export const DEFAULT_CONFIG: SemanticGrepConfig = {
 			".svelte",
 			".vue",
 		],
-		excludeDirs: [
-			".git",
-			".pi",
-			"node_modules",
-			"dist",
-			"build",
-			"target",
-			".venv",
-			"venv",
-			"vendor",
-			".next",
-			".cache",
-		],
+		excludeDirs: STANDARD_EXCLUDE_DIRS,
 	},
 	search: {
 		defaultTopK: 8,

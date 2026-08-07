@@ -125,7 +125,9 @@ export function parsePatchActions({ text }: { text: string }): ParsedPatchAction
 
 		if (line.startsWith("*** Add File: ")) {
 			const addPath = normalizePatchPath({ path: line.slice("*** Add File: ".length) });
-			if (seenPaths.has(addPath)) {
+			const previous = actions.at(-1);
+			const replacesDeletedPath = previous?.type === "delete" && previous.path === addPath;
+			if (seenPaths.has(addPath) && !replacesDeletedPath) {
 				throw new DiffError(`Add File Error: Duplicate Path: ${addPath}`);
 			}
 			seenPaths.add(addPath);

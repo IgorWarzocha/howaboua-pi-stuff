@@ -19,7 +19,7 @@ import {
 
 const APPLY_PATCH_PARAMETERS = Type.Object({
 	input: Type.String({
-		description: "Full patch text. Use *** Begin Patch / *** End Patch with Add/Update/Delete File sections. Order each file's hunks top-to-bottom; indentation is literal",
+		description: "Full patch text. Use *** Begin Patch / *** End Patch with Add/Update/Delete File sections. *** Move to: path must immediately follow its Update File header and still needs a nonempty @@ hunk; use one unchanged context line for a pure move. Order each file's hunks top-to-bottom; indentation is literal",
 	}),
 });
 
@@ -104,9 +104,27 @@ function buildPartialFailureMessage(message: string, failedFiles: string[], appl
 	return lines.join("\n");
 }
 
-function addPatchRetryHint(message: string, cause: string): string {
-	if (!cause.startsWith("Failed to find expected lines")) return message;
-	return `${message}\nRecovery: order each Update File's hunks top-to-bottom and copy exact indentation before retrying`;
+function expectedContextPreview(cause: string): string | undefined {
+	if (!cause.startsWith("Failed to find expected lines")) return undefined;
+	return cause
+		.split("\n")
+		.slice(1)
+		.find((line) => line.trim().length > 0)
+		?.trim();
+}
+
+function summarizePatchCause(cause: string): string {
+	const preview = expectedContextPreview(cause);
+	if (preview === undefined) return cause;
+	return preview
+		? `expected context not found\nExpected near: ${preview}`
+		: "expected context not found";
+}
+
+function addContextRecovery(message: string, cause: string, failedTargets: string[]): string {
+	if (expectedContextPreview(cause) === undefined) return message;
+	const target = failedTargets.join(", ") || "the failed file";
+	return `${message}\nRecovery: MUST read ${target} and retry only the failed edit against current contents`;
 }
 
 function describeFailedActions(error: ExecutePatchError, cwd: string): string[] {
@@ -148,12 +166,12 @@ export function createApplyPatchTool(options: ApplyPatchToolOptions = {}) {
 					const failedTargets = describeFailedActions(error, ctx.cwd);
 					const failedTargetSummary = failedTargets.join(", ");
 					const prefix = partial ? `apply_patch partially failed after ${summarizePatchCounts(error.result)}` : "apply_patch failed";
-					const rawMessage = failedTargetSummary ? `${prefix} while patching ${failedTargetSummary}: ${error.message}` : `${prefix}: ${error.message}`;
-					const message = addPatchRetryHint(rawMessage, error.message);
+					const cause = summarizePatchCause(error.message);
+					const rawMessage = failedTargetSummary ? `${prefix} while patching ${failedTargetSummary}: ${cause}` : `${prefix}: ${cause}`;
 					if (partial) {
 						const failedFiles = getFailedPaths(error);
 						const appliedFiles = getAppliedPaths(error.result, failedFiles);
-						const recoveryMessage = buildPartialFailureMessage(message, failedFiles, appliedFiles);
+						const recoveryMessage = buildPartialFailureMessage(rawMessage, failedFiles, appliedFiles);
 						markApplyPatchPartialFailure(toolCallId, failedTargets);
 						return {
 							content: [{ type: "text", text: recoveryMessage }],
@@ -164,6 +182,7 @@ export function createApplyPatchTool(options: ApplyPatchToolOptions = {}) {
 							} satisfies ApplyPatchPartialFailureDetails,
 						};
 					}
+					const message = addContextRecovery(rawMessage, error.message, failedTargets);
 					markApplyPatchFailure(toolCallId, "failed", failedTargets);
 					throw new Error(message);
 				}

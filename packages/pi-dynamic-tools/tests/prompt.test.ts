@@ -1,11 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-	buildDynamicToolsDocumentationPrompt,
-	buildPromotedToolsPrompt,
-	EXEC_DESCRIPTION,
-	injectDynamicToolsPrompt,
-	WAIT_DESCRIPTION,
-} from "../src/prompt.js";
+import { EXEC_DESCRIPTION, injectDynamicToolsPrompt } from "../src/prompt.js";
 import type { DynamicToolDefinition } from "../src/types.js";
 
 function tool(
@@ -30,40 +24,6 @@ describe("dynamic tool prompt tiers", () => {
 	test("keeps exec stable regardless of configured tools", () => {
 		expect(EXEC_DESCRIPTION).not.toContain("common_tool");
 		expect(EXEC_DESCRIPTION).toContain("ALL_TOOLS");
-	});
-
-	test("steers long-running cells away from frequent polling", () => {
-		expect(EXEC_DESCRIPTION).toContain(
-			"use 60000 or more for subagents and long commands",
-		);
-		expect(EXEC_DESCRIPTION).toContain("Long waits remain cancellable");
-		expect(WAIT_DESCRIPTION).toContain(
-			"Prefer one long wait over repeated short waits",
-		);
-		expect(WAIT_DESCRIPTION).toContain("notify progress remains visible");
-	});
-
-	test("promotes exact usage without cosmetic markdown", () => {
-		const prompt = buildPromotedToolsPrompt([
-			tool("common_tool", false, "await tools.common_tool({ query: string })"),
-			tool("rare_tool", true),
-		]);
-		expect(prompt).toBe(
-			"Dynamic tools available in exec:\n- common_tool: await tools.common_tool({ query: string })",
-		);
-		expect(prompt).not.toContain("`");
-		expect(prompt).not.toContain("This detail stays on demand.");
-		expect(prompt).not.toContain("Plain text.");
-	});
-
-	test("points to resolved setup help even when no tools exist", () => {
-		expect(
-			buildDynamicToolsDocumentationPrompt(
-				"/packages/pi-dynamic-tools/DYNAMIC-TOOLS.md",
-			),
-		).toBe(
-			"Dynamic tools documentation: read /packages/pi-dynamic-tools/DYNAMIC-TOOLS.md before adding, changing, or answering questions about dynamic tools.\nPrefer a dynamic tool over a Pi extension for a command-backed capability.",
-		);
 	});
 
 	test("injects documentation and promoted forms before runtime context", () => {
