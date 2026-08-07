@@ -20,6 +20,8 @@ const SHUTDOWN_GRACE_MS = 1_500;
 const MAX_STDERR_CHARS = 16_384;
 const MAX_EXECUTION_OUTPUT_CHARS = 32 * 1024 * 1024;
 const MAX_EXECUTION_OUTPUT_ITEMS = 10_000;
+const MAX_ERROR_CHARS = 256 * 1024;
+const MAX_ERROR_FIELD_CHARS = 64 * 1024;
 
 interface ConnectionInfo {
 	ip: "127.0.0.1";
@@ -303,15 +305,17 @@ export class DenoJupyterKernel {
 			return;
 		}
 		if (type === "error") {
-			const name = typeof message.content["ename"] === "string" ? message.content["ename"] : "Error";
-			const value = typeof message.content["evalue"] === "string" ? message.content["evalue"] : "Notebook cell failed";
-			const traceback = Array.isArray(message.content["traceback"])
-				? message.content["traceback"].filter((line): line is string => typeof line === "string")
-				: [];
+			const name = truncateErrorField(
+				typeof message.content["ename"] === "string" ? message.content["ename"] : "Error",
+			);
+			const value = truncateErrorField(
+				typeof message.content["evalue"] === "string" ? message.content["evalue"] : "Notebook cell failed",
+			);
+			const traceback = boundedTraceback(message.content["traceback"]);
 			execution.status = "error";
 			execution.errorName = name;
 			execution.errorValue = value;
-			execution.errorText = traceback.length > 0 ? traceback.join("\n") : `${name}: ${value}`;
+			execution.errorText = traceback ?? truncateErrorText(`${name}: ${value}`);
 			return;
 		}
 		if (type === "status" && message.content["execution_state"] === "idle") {
@@ -367,6 +371,38 @@ export class DenoJupyterKernel {
 		if (this.tempDir) rmSync(this.tempDir, { recursive: true, force: true });
 		this.tempDir = undefined;
 	}
+}
+
+function boundedTraceback(value: unknown): string | undefined {
+	if (!Array.isArray(value)) return undefined;
+	let output = "";
+	for (const line of value) {
+		if (typeof line !== "string") continue;
+		const separator = output ? "\n" : "";
+		const remaining = MAX_ERROR_CHARS - output.length - separator.length;
+		if (remaining <= 0) return markErrorTruncated(output);
+		output += separator + line.slice(0, remaining);
+		if (line.length > remaining) return markErrorTruncated(output);
+	}
+	return output || undefined;
+}
+
+function truncateErrorField(value: string): string {
+	const marker = "\n[Notebook error field truncated]";
+	return value.length <= MAX_ERROR_FIELD_CHARS
+		? value
+		: `${value.slice(0, MAX_ERROR_FIELD_CHARS - marker.length)}${marker}`;
+}
+
+function truncateErrorText(value: string): string {
+	return value.length <= MAX_ERROR_CHARS
+		? value
+		: markErrorTruncated(value);
+}
+
+function markErrorTruncated(value: string): string {
+	const marker = "\n[Notebook error truncated]";
+	return `${value.slice(0, MAX_ERROR_CHARS - marker.length)}${marker}`;
 }
 
 async function createConnectionFile(): Promise<{ info: ConnectionInfo; path: string; dir: string }> {

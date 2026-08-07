@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, lstatSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, type Dirent } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import type { DenoJupyterKernel } from "./jupyter-kernel.ts";
 
@@ -8,6 +8,8 @@ const NOTEBOOK_CHECKPOINT_MIN_BYTES = 8 * 1024 * 1024;
 const CHECKPOINT_SCHEMA = 1;
 const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 const PAYLOAD_NAME = /^checkpoint-[0-9a-f-]+\.bin$/;
+const MAX_NOTICE_NAMES = 24;
+const CHECKPOINT_DIRECTORY_NAME = /^[0-9a-f]{64}$/;
 
 interface CheckpointEntry {
 	name: string;
@@ -42,6 +44,26 @@ export interface NotebookCheckpointSummary {
 export function resolveNotebookCheckpointMaxBytes(maxHeapMiB: number): number {
 	const heapRelative = Math.floor(maxHeapMiB * 1024 * 1024 / 8);
 	return Math.min(NOTEBOOK_CHECKPOINT_MAX_BYTES, Math.max(NOTEBOOK_CHECKPOINT_MIN_BYTES, heapRelative));
+}
+
+export function garbageCollectSupersededNotebookCheckpoints(identity: NotebookCheckpointIdentity): void {
+	const current = checkpointPaths(identity).directory;
+	const sessions = resolve(current, "..");
+	const family = sessionFamily(identity.session);
+	let entries: Dirent[];
+	try {
+		entries = readdirSync(sessions, { withFileTypes: true });
+	} catch {
+		return;
+	}
+	for (const entry of entries) {
+		if (!entry.isDirectory() || !CHECKPOINT_DIRECTORY_NAME.test(entry.name)) continue;
+		const directory = join(sessions, entry.name);
+		if (directory === current) continue;
+		const manifest = readManifest(join(directory, "checkpoint.json"));
+		if (!manifest || manifest.project !== identity.project || sessionFamily(manifest.session) !== family) continue;
+		rmSync(directory, { recursive: true, force: true });
+	}
 }
 
 export async function writeNotebookCheckpoint(
@@ -110,10 +132,10 @@ export function formatCheckpointNotice(summary: NotebookCheckpointSummary): stri
 	if (summary.restored.length === 0 && summary.skipped.length === 0) return undefined;
 	const parts = [
 		summary.restored.length > 0
-			? `Restored notebook state: ${summary.restored.join(", ")}`
+			? `Restored notebook state: ${formatNameList(summary.restored)}`
 			: "No notebook variables were restored",
 		summary.skipped.length > 0
-			? `Skipped checkpoint state: ${summary.skipped.slice(0, 12).map(({ name, reason }) => `${name} (${reason})`).join(", ")}${summary.skipped.length > 12 ? `, and ${summary.skipped.length - 12} more` : ""}`
+			? `Skipped checkpoint state: ${summary.skipped.slice(0, 12).map(({ name, reason }) => `${name.slice(0, 256)} (${reason.slice(0, 240)})`).join(", ")}${summary.skipped.length > 12 ? `, and ${summary.skipped.length - 12} more` : ""}`
 			: undefined,
 	].filter(Boolean);
 	return parts.join(". ");
@@ -219,6 +241,11 @@ function checkpointPaths(identity: NotebookCheckpointIdentity): { directory: str
 	return { directory, manifest: join(directory, "checkpoint.json") };
 }
 
+function sessionFamily(session: string): string {
+	const separator = session.indexOf("\0");
+	return separator === -1 ? session : session.slice(0, separator);
+}
+
 function readManifest(path: string): CheckpointManifest | undefined {
 	try {
 		const value = JSON.parse(readFileSync(path, "utf8")) as unknown;
@@ -290,4 +317,9 @@ function parseSkipped(value: unknown): { name: string; reason: string } | undefi
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function formatNameList(names: string[]): string {
+	const shown = names.slice(0, MAX_NOTICE_NAMES).map((name) => name.slice(0, 256)).join(", ");
+	return names.length > MAX_NOTICE_NAMES ? `${shown}, and ${names.length - MAX_NOTICE_NAMES} more` : shown;
 }
