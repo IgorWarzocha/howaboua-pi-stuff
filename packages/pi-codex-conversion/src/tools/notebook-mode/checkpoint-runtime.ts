@@ -76,7 +76,7 @@ export function restoreSource(manifest: CheckpointManifest, payloadPath: string)
   const __entries = ${JSON.stringify(manifest.entries)};
 	const __restored = [];
   for (const __entry of __entries) {
-    const __value = deserialize(__payload.subarray(__entry.offset, __entry.offset + __entry.length));
+    const __value = deserialize(__payload.slice(__entry.offset, __entry.offset + __entry.length));
 	__restored.push([__entry.name, __value]);
   }
 	for (const [__name, __value] of __restored) {
