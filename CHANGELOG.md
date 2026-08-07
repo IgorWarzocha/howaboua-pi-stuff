@@ -57,11 +57,13 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 3.0.9
+### @howaboua/pi-codex-conversion — 3.0.10
 
 ### Changes
 
-- [#235](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/235) [`5657b77`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/5657b778f59ffa2eb86f10f7e949f060d95eb993) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Prepare realtime voice delegations before agent turns, preserve failed delegations without stale voice state, handle authentication, prewarm, shutdown, and Pi delivery failures, preserve cache continuity across voice compaction and prewarm races, add opt-in live cache status and redacted per-session diagnostic logs, keep extension prompt content and nested tool rendering intact, use user-facing web citations, prevent duplicate Code Mode images, support Pi 0.84 credential-and-route-scoped sockets, nullable auth headers, credential-resolved endpoints, cancellable subscription OAuth, and incomplete-response recovery, isolate voice preflight, transport recovery, exec process lifecycle, and Responses history ownership, and remove retired parser and internal compatibility shims
+- [#239](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/239) [`7dbbfc8`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/7dbbfc8bc28746ec28b3142a73efc8e0b14d2ffa) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Render delete-and-readd patches as file edits, clarify move-file syntax, and keep failed-patch recovery concise and non-duplicated.
+
+- [#239](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/239) [`7dbbfc8`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/7dbbfc8bc28746ec28b3142a73efc8e0b14d2ffa) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Make semantic indexing non-blocking at session startup, single-writer, atomic, resumable, ignore-aware, metadata-fast, batch-embedded, and role-aware while preserving usable prior file indexes across interrupted rebuilds.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
@@ -81,22 +83,16 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.49
+### @howaboua/pi-extensions — 0.0.50
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-auto-trees: Preserve Pi 0.84 credential-resolved endpoints and nullable auth headers in tree, review, and voice summaries, assemble complete multi-block delta-only RPC streaming updates, and remove retired Smart BTW shortcut-capture and voice helper exports.
-  - @howaboua/pi-gippity-control: Preserve Pi 0.84 credential-resolved endpoints and nullable auth headers in tree, review, and voice summaries, assemble complete multi-block delta-only RPC streaming updates, and remove retired Smart BTW shortcut-capture and voice helper exports.
-  - @howaboua/pi-smart-btw: Preserve Pi 0.84 credential-resolved endpoints and nullable auth headers in tree, review, and voice summaries, assemble complete multi-block delta-only RPC streaming updates, and remove retired Smart BTW shortcut-capture and voice helper exports.
-  - @howaboua/pi-subagent-review: Preserve Pi 0.84 credential-resolved endpoints and nullable auth headers in tree, review, and voice summaries, assemble complete multi-block delta-only RPC streaming updates, and remove retired Smart BTW shortcut-capture and voice helper exports.
+  - @howaboua/pi-semantic-grep: Make semantic indexing non-blocking at session startup, single-writer, atomic, resumable, ignore-aware, metadata-fast, batch-embedded, and role-aware while preserving usable prior file indexes across interrupted rebuilds.
 
-- Updated dependencies [[`5657b77`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/5657b778f59ffa2eb86f10f7e949f060d95eb993)]:
-  - @howaboua/pi-auto-trees@0.1.12
-  - @howaboua/pi-gippity-control@0.0.7
-  - @howaboua/pi-smart-btw@0.2.6
-  - @howaboua/pi-subagent-review@0.2.15
+- Updated dependencies [[`7dbbfc8`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/7dbbfc8bc28746ec28b3142a73efc8e0b14d2ffa)]:
+  - @howaboua/pi-semantic-grep@0.1.19
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
@@ -132,11 +128,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-memories/CHANGELOG.md)
 
-### @howaboua/pi-semantic-grep — 0.1.18
+### @howaboua/pi-semantic-grep — 0.1.19
 
 ### Changes
 
-- [#106](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/106) [`c423031`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/c4230312f24db0e49c95eafff959109d74017c3d) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Rewrite package documentation around current installation, configuration, usage, and behavior.
+- [#239](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/239) [`7dbbfc8`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/7dbbfc8bc28746ec28b3142a73efc8e0b14d2ffa) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Make semantic indexing non-blocking at session startup, single-writer, atomic, resumable, ignore-aware, metadata-fast, batch-embedded, and role-aware while preserving usable prior file indexes across interrupted rebuilds.
 
 [Full changelog](./packages/pi-semantic-grep/CHANGELOG.md)
 
@@ -257,22 +253,16 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.54
+### @howaboua/pi-stuff — 0.0.55
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-auto-trees: Preserve Pi 0.84 credential-resolved endpoints and nullable auth headers in tree, review, and voice summaries, assemble complete multi-block delta-only RPC streaming updates, and remove retired Smart BTW shortcut-capture and voice helper exports.
-  - @howaboua/pi-gippity-control: Preserve Pi 0.84 credential-resolved endpoints and nullable auth headers in tree, review, and voice summaries, assemble complete multi-block delta-only RPC streaming updates, and remove retired Smart BTW shortcut-capture and voice helper exports.
-  - @howaboua/pi-smart-btw: Preserve Pi 0.84 credential-resolved endpoints and nullable auth headers in tree, review, and voice summaries, assemble complete multi-block delta-only RPC streaming updates, and remove retired Smart BTW shortcut-capture and voice helper exports.
-  - @howaboua/pi-subagent-review: Preserve Pi 0.84 credential-resolved endpoints and nullable auth headers in tree, review, and voice summaries, assemble complete multi-block delta-only RPC streaming updates, and remove retired Smart BTW shortcut-capture and voice helper exports.
+  - @howaboua/pi-semantic-grep: Make semantic indexing non-blocking at session startup, single-writer, atomic, resumable, ignore-aware, metadata-fast, batch-embedded, and role-aware while preserving usable prior file indexes across interrupted rebuilds.
 
-- Updated dependencies [[`5657b77`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/5657b778f59ffa2eb86f10f7e949f060d95eb993)]:
-  - @howaboua/pi-auto-trees@0.1.12
-  - @howaboua/pi-gippity-control@0.0.7
-  - @howaboua/pi-smart-btw@0.2.6
-  - @howaboua/pi-subagent-review@0.2.15
+- Updated dependencies [[`7dbbfc8`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/7dbbfc8bc28746ec28b3142a73efc8e0b14d2ffa)]:
+  - @howaboua/pi-semantic-grep@0.1.19
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 
