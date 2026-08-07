@@ -90,9 +90,7 @@ async function installDeno(
 		}
 		const actualSha256 = createHash("sha256").update(bytes).digest("hex");
 		if (actualSha256 !== expectedSha256) throw new Error(`checksum mismatch for ${asset}`);
-		const { Open } = await dynamicImport("unzipper") as {
-			Open: { buffer(input: Buffer): Promise<{ files: Array<{ path: string; type?: string; buffer(): Promise<Buffer> }> }> };
-		};
+		const { Open } = await import("unzipper");
 		const archive = await Open.buffer(bytes);
 		const entry = archive.files.find((candidate) => candidate.path === "deno" && candidate.type !== "Directory");
 		if (!entry) throw new Error("pinned Deno archive does not contain the deno executable");
