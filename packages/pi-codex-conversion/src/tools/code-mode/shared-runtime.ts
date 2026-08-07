@@ -1,6 +1,20 @@
 import { ensureCodeModeHostBinary } from "./binary.js";
 import { CodeModeHostClient } from "./host-client.js";
-import type { CodeModeToolDefinition } from "./types.js";
+import type { CodeModeToolDefinition, RuntimeResponse, ToolExecutionContext } from "./types.js";
+
+export type CodeModeExecutionKind = "code" | "notebook";
+
+export interface NotebookRuntimeOptions {
+	maxHeapMiB: number;
+}
+
+export interface CodeModeExecutionClient {
+	execute(source: string, context: ToolExecutionContext, signal?: AbortSignal, tools?: CodeModeToolDefinition[]): Promise<RuntimeResponse>;
+	wait(cellId: string, yieldTimeMs: number, context: ToolExecutionContext, signal?: AbortSignal): Promise<RuntimeResponse>;
+	terminate(cellId: string, context: ToolExecutionContext, signal?: AbortSignal): Promise<RuntimeResponse>;
+	checkpoint?(): Promise<void>;
+	shutdown(): Promise<void>;
+}
 
 export interface CodeModeToolProvider {
 	getTools(ctx?: unknown): CodeModeToolDefinition[];
@@ -8,11 +22,14 @@ export interface CodeModeToolProvider {
 	isActive?(ctx: unknown): boolean;
 	providesRenderers?: boolean | undefined;
 	richRendering?(): boolean;
+	executionKind?(ctx: unknown): CodeModeExecutionKind;
+	notebookOptions?(ctx: unknown): NotebookRuntimeOptions;
 }
 
 export class SharedCodeModeRuntime {
 	readonly providers = new Map<object, CodeModeToolProvider>();
 	private clientPromise: Promise<CodeModeHostClient> | undefined;
+	private notebookClientPromise: Promise<CodeModeExecutionClient> | undefined;
 	private clientStartupAbort: AbortController | undefined;
 	private customPromptToolsSnapshot: CodeModeToolDefinition[] | undefined;
 	private promptSectionSnapshot: string | undefined;
@@ -79,7 +96,18 @@ export class SharedCodeModeRuntime {
 			?.richRendering?.() ?? true;
 	}
 
-	async getClient(): Promise<CodeModeHostClient> {
+	executionKind(ctx?: unknown): CodeModeExecutionKind {
+		const explicit = new Set(
+			this.activeProviders(ctx)
+				.map((provider) => provider.executionKind?.(ctx))
+				.filter((kind): kind is CodeModeExecutionKind => Boolean(kind)),
+		);
+		if (explicit.size > 1) throw new Error("Conflicting code-mode execution runtimes are active");
+		return explicit.values().next().value ?? "code";
+	}
+
+	async getClient(ctx?: unknown): Promise<CodeModeExecutionClient> {
+		if (this.executionKind(ctx) === "notebook") return this.getNotebookClient(ctx);
 		if (!this.clientPromise) {
 			const startupAbort = new AbortController();
 			const pending = ensureCodeModeHostBinary(startupAbort.signal).then(
@@ -101,9 +129,31 @@ export class SharedCodeModeRuntime {
 		return this.clientPromise;
 	}
 
+	private async getNotebookClient(ctx?: unknown): Promise<CodeModeExecutionClient> {
+		if (!this.notebookClientPromise) {
+			const options = this.activeProviders(ctx).find((provider) => provider.notebookOptions)?.notebookOptions?.(ctx);
+			if (!options) throw new Error("Notebook Code Mode runtime options are unavailable");
+			const pending = import("../notebook-mode/client.ts").then(
+				({ NotebookCodeModeClient }) => new NotebookCodeModeClient(options),
+			);
+			this.notebookClientPromise = pending;
+			void pending.catch(() => {
+				if (this.notebookClientPromise === pending) this.notebookClientPromise = undefined;
+			});
+		}
+		return this.notebookClientPromise;
+	}
+
 	prepare(ctx?: unknown): Promise<void> | undefined {
 		if (this.activeProviders(ctx).length === 0) return undefined;
-		return this.getClient().then(() => undefined);
+		return this.getClient(ctx).then(() => undefined);
+	}
+
+	async checkpointNotebook(): Promise<void> {
+		const pending = this.notebookClientPromise;
+		if (!pending) return;
+		const client = await pending;
+		await client.checkpoint?.();
 	}
 
 	async shutdownHost(): Promise<void> {
@@ -112,6 +162,15 @@ export class SharedCodeModeRuntime {
 			this.clientPromise = undefined;
 			this.clientStartupAbort?.abort();
 			this.clientStartupAbort = undefined;
+			try {
+				await (await pending).shutdown();
+			} catch {
+				// Startup failure already reached the caller.
+			}
+		}
+		while (this.notebookClientPromise) {
+			const pending = this.notebookClientPromise;
+			this.notebookClientPromise = undefined;
 			try {
 				await (await pending).shutdown();
 			} catch {

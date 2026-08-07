@@ -5,7 +5,7 @@ import { DEFAULT_TOOL_NAMES, STATUS_KEY, buildExtraToolsOnlyStatusText } from ".
 import { renderCodexStatus } from "../../ui/status.ts";
 
 export function syncAdapter(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState): CodexRuntimePlan {
-	const plan = resolveCodexRuntimePlan(ctx, state.config);
+	const plan = resolveCodexRuntimePlan(ctx, state.config, state.executionMode);
 	if (plan.kind === "extras") enableExtraTools(pi, ctx, state, plan);
 	else if (isAdapterRuntime(plan)) enableAdapter(pi, ctx, state, plan);
 	else disableAdapter(pi, ctx, state, plan);
@@ -24,7 +24,7 @@ function enableExtraTools(pi: ExtensionAPI, ctx: ExtensionContext, state: Adapte
 	if (ctx.hasUI) ctx.ui.setStatus(STATUS_KEY, !state.config.voiceFeaturesOnly && state.config.ui.statusLine ? buildExtraToolsOnlyStatusText(plan.toolNames, ctx.ui.theme) : undefined);
 }
 
-function enableAdapter(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState, plan: Extract<CodexRuntimePlan, { kind: "normal" | "code" }>): void {
+function enableAdapter(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState, plan: Extract<CodexRuntimePlan, { kind: "normal" | "code" | "notebook" }>): void {
 	const owned = state.enabled ? mergeToolNames(state.adapterOwnedToolNames ?? plan.ownedToolNames, plan.ownedToolNames) : plan.ownedToolNames;
 	const tools = mergeAdapterTools(pi.getActiveTools(), plan.toolNames, owned);
 	if (!state.enabled) {

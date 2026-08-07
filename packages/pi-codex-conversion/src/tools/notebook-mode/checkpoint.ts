@@ -1,0 +1,263 @@
+import { createHash, randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import type { DenoJupyterKernel } from "./jupyter-kernel.ts";
+
+export const NOTEBOOK_CHECKPOINT_MAX_BYTES = 256 * 1024 * 1024;
+const CHECKPOINT_SCHEMA = 1;
+const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
+
+interface CheckpointEntry {
+	name: string;
+	offset: number;
+	length: number;
+}
+
+interface CheckpointManifest {
+	schema: number;
+	project: string;
+	session: string;
+	deno: string;
+	v8: string;
+	payload: string;
+	createdAt: string;
+	entries: CheckpointEntry[];
+	skipped: Array<{ name: string; reason: string }>;
+}
+
+export interface NotebookCheckpointIdentity {
+	project: string;
+	session: string;
+}
+
+export interface NotebookCheckpointSummary {
+	restored: string[];
+	skipped: Array<{ name: string; reason: string }>;
+	message?: string | undefined;
+}
+
+export async function writeNotebookCheckpoint(
+	kernel: DenoJupyterKernel,
+	identity: NotebookCheckpointIdentity,
+	baselineNames: ReadonlySet<string>,
+): Promise<CheckpointManifest> {
+	const paths = checkpointPaths(identity);
+	mkdirSync(paths.directory, { recursive: true });
+	const names = [...new Set(await kernel.complete("", 0))].sort();
+	const skippedInvalid = names
+		.filter((name) => !baselineNames.has(name) && !IDENTIFIER.test(name))
+		.map((name) => ({ name, reason: "unsupported identifier" }));
+	const candidates = names.filter((name) => !baselineNames.has(name) && IDENTIFIER.test(name));
+	const payload = `checkpoint-${randomUUID()}.bin`;
+	const source = checkpointSource({
+		candidates,
+		payloadPath: join(paths.directory, payload),
+		manifestPath: paths.manifest,
+		identity,
+		payload,
+		skippedInvalid,
+	});
+	const result = await kernel.execute(source);
+	if (result.status !== "ok") throw new Error(`Notebook checkpoint failed: ${result.errorText ?? "unknown error"}`);
+	const manifest = readManifest(paths.manifest);
+	if (!manifest) throw new Error("Notebook checkpoint did not produce a valid manifest");
+	return manifest;
+}
+
+export async function restoreNotebookCheckpoint(
+	kernel: DenoJupyterKernel,
+	identity: NotebookCheckpointIdentity,
+): Promise<NotebookCheckpointSummary> {
+	const paths = checkpointPaths(identity);
+	if (!existsSync(paths.manifest)) return { restored: [], skipped: [] };
+	const manifest = readManifest(paths.manifest);
+	if (!manifest) return { restored: [], skipped: [], message: "Notebook checkpoint was invalid and was not restored" };
+	if (
+		manifest.schema !== CHECKPOINT_SCHEMA
+		|| manifest.project !== identity.project
+		|| manifest.session !== identity.session
+	) {
+		return { restored: [], skipped: manifest.skipped, message: "Notebook checkpoint identity was incompatible and was not restored" };
+	}
+	const payloadPath = join(paths.directory, manifest.payload);
+	if (!existsSync(payloadPath)) {
+		return { restored: [], skipped: manifest.skipped, message: "Notebook checkpoint payload was missing and was not restored" };
+	}
+	const result = await kernel.execute(restoreSource(manifest, payloadPath));
+	if (result.status !== "ok") {
+		return {
+			restored: [],
+			skipped: manifest.skipped,
+			message: `Notebook checkpoint was incompatible and was not restored: ${result.errorText ?? "unknown error"}`,
+		};
+	}
+	return { restored: manifest.entries.map((entry) => entry.name), skipped: manifest.skipped };
+}
+
+export function formatCheckpointNotice(summary: NotebookCheckpointSummary): string | undefined {
+	if (summary.message) return summary.message;
+	if (summary.restored.length === 0 && summary.skipped.length === 0) return undefined;
+	const parts = [
+		summary.restored.length > 0
+			? `Restored notebook state: ${summary.restored.join(", ")}`
+			: "No notebook variables were restored",
+		summary.skipped.length > 0
+			? `Skipped checkpoint state: ${summary.skipped.slice(0, 12).map(({ name, reason }) => `${name} (${reason})`).join(", ")}${summary.skipped.length > 12 ? `, and ${summary.skipped.length - 12} more` : ""}`
+			: undefined,
+	].filter(Boolean);
+	return parts.join(". ");
+}
+
+function checkpointSource(options: {
+	candidates: string[];
+	payloadPath: string;
+	manifestPath: string;
+	identity: NotebookCheckpointIdentity;
+	payload: string;
+	skippedInvalid: Array<{ name: string; reason: string }>;
+}): string {
+	const captures = options.candidates.map((name) => `
+  try {
+    const __value = ${name};
+    if (typeof __value === "function") __skip(${JSON.stringify(name)}, "function or class");
+    else if (__value instanceof Promise) __skip(${JSON.stringify(name)}, "promise");
+    else if (__value instanceof WeakMap || __value instanceof WeakSet) __skip(${JSON.stringify(name)}, "weak collection");
+    else {
+      const __bytes = serialize(__value);
+      if (__bytes.byteLength > __max) __skip(${JSON.stringify(name)}, "exceeds per-variable checkpoint cap");
+      else if (__total + __bytes.byteLength > __max) __skip(${JSON.stringify(name)}, "exceeds total checkpoint cap");
+      else {
+        __entries.push({ name: ${JSON.stringify(name)}, offset: __total, length: __bytes.byteLength });
+        __parts.push(__bytes);
+        __total += __bytes.byteLength;
+      }
+    }
+  } catch (__error) {
+    __skip(${JSON.stringify(name)}, __error instanceof Error ? __error.message : String(__error));
+  }`).join("");
+	return `{
+  const { serialize } = await import("node:v8");
+  const __max = ${NOTEBOOK_CHECKPOINT_MAX_BYTES};
+  const __parts = [];
+  const __entries = [];
+  const __skipped = ${JSON.stringify(options.skippedInvalid)};
+  let __total = 0;
+  const __skip = (name, reason) => __skipped.push({ name, reason: String(reason).slice(0, 240) });
+  ${captures}
+  const __payload = new Uint8Array(__total);
+  let __offset = 0;
+  for (const __part of __parts) { __payload.set(__part, __offset); __offset += __part.byteLength; }
+  const __manifestPath = ${JSON.stringify(options.manifestPath)};
+  let __previousPayload;
+  try { __previousPayload = JSON.parse(await Deno.readTextFile(__manifestPath)).payload; } catch {}
+  await Deno.writeFile(${JSON.stringify(options.payloadPath)}, __payload, { mode: 0o600 });
+  const __manifest = {
+    schema: ${CHECKPOINT_SCHEMA},
+    project: ${JSON.stringify(options.identity.project)},
+    session: ${JSON.stringify(options.identity.session)},
+    deno: Deno.version.deno,
+    v8: Deno.version.v8,
+    payload: ${JSON.stringify(options.payload)},
+    createdAt: new Date().toISOString(),
+    entries: __entries,
+    skipped: __skipped,
+  };
+  const __temporaryManifest = __manifestPath + "." + crypto.randomUUID() + ".tmp";
+  await Deno.writeTextFile(__temporaryManifest, JSON.stringify(__manifest, null, 2) + "\\n", { mode: 0o600 });
+  await Deno.rename(__temporaryManifest, __manifestPath);
+  if (__previousPayload && __previousPayload !== __manifest.payload) {
+    await Deno.remove(${JSON.stringify(checkpointPaths(options.identity).directory)} + "/" + __previousPayload).catch(() => {});
+  }
+  undefined;
+}`;
+}
+
+function restoreSource(manifest: CheckpointManifest, payloadPath: string): string {
+	return `{
+  const { deserialize } = await import("node:v8");
+  if (Deno.version.deno !== ${JSON.stringify(manifest.deno)} || Deno.version.v8 !== ${JSON.stringify(manifest.v8)}) {
+    throw new Error("checkpoint Deno/V8 version does not match the active kernel");
+  }
+  const __payload = await Deno.readFile(${JSON.stringify(payloadPath)});
+  const __entries = ${JSON.stringify(manifest.entries)};
+	const __restored = [];
+  for (const __entry of __entries) {
+    const __value = deserialize(__payload.subarray(__entry.offset, __entry.offset + __entry.length));
+	__restored.push([__entry.name, __value]);
+  }
+	for (const [__name, __value] of __restored) {
+	  Object.defineProperty(globalThis, __name, { value: __value, writable: true, configurable: true, enumerable: true });
+	}
+  undefined;
+}`;
+}
+
+function checkpointPaths(identity: NotebookCheckpointIdentity): { directory: string; manifest: string } {
+	const key = createHash("sha256")
+		.update(`${resolve(identity.project)}\0${identity.session}`)
+		.digest("hex");
+	const directory = join(
+		getAgentDir(),
+		"cache",
+		"pi-codex-conversion",
+		"notebook-mode",
+		"sessions",
+		key,
+	);
+	return { directory, manifest: join(directory, "checkpoint.json") };
+}
+
+function readManifest(path: string): CheckpointManifest | undefined {
+	try {
+		const value = JSON.parse(readFileSync(path, "utf8")) as unknown;
+		if (!isRecord(value) || value["schema"] !== CHECKPOINT_SCHEMA) return undefined;
+		if (
+			typeof value["project"] !== "string"
+			|| typeof value["session"] !== "string"
+			|| typeof value["deno"] !== "string"
+			|| typeof value["v8"] !== "string"
+			|| typeof value["payload"] !== "string"
+			|| typeof value["createdAt"] !== "string"
+			|| !Array.isArray(value["entries"])
+			|| !Array.isArray(value["skipped"])
+		) return undefined;
+		const entries = value["entries"].map(parseEntry);
+		const skipped = value["skipped"].map(parseSkipped);
+		if (entries.some((entry) => !entry) || skipped.some((entry) => !entry)) return undefined;
+		return {
+			schema: CHECKPOINT_SCHEMA,
+			project: value["project"],
+			session: value["session"],
+			deno: value["deno"],
+			v8: value["v8"],
+			payload: value["payload"],
+			createdAt: value["createdAt"],
+			entries: entries as CheckpointEntry[],
+			skipped: skipped as Array<{ name: string; reason: string }>,
+		};
+	} catch {
+		return undefined;
+	}
+}
+
+function parseEntry(value: unknown): CheckpointEntry | undefined {
+	if (!isRecord(value)) return undefined;
+	const { name, offset, length } = value;
+	return typeof name === "string" && IDENTIFIER.test(name)
+		&& Number.isSafeInteger(offset) && (offset as number) >= 0
+		&& Number.isSafeInteger(length) && (length as number) >= 0
+		? { name, offset: offset as number, length: length as number }
+		: undefined;
+}
+
+function parseSkipped(value: unknown): { name: string; reason: string } | undefined {
+	if (!isRecord(value)) return undefined;
+	return typeof value["name"] === "string" && typeof value["reason"] === "string"
+		? { name: value["name"], reason: value["reason"] }
+		: undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}

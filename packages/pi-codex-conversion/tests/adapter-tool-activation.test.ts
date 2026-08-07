@@ -27,6 +27,7 @@ function createAdapterState(overrides: Partial<AdapterState["config"]> = {}): Ad
 		enabled: false,
 		cwd: process.cwd(),
 		promptSkills: [],
+		sessionExecutionMode: "inherited",
 		codexTurnState: createCodexTurnState(),
 		config: {
 			...DEFAULT_CODEX_CONVERSION_CONFIG,
@@ -91,6 +92,14 @@ test("runtime plan keeps unsupported and non-Lite models on structured standard 
 	assert.ok(pre56.toolNames.includes("exec_command"));
 	assert.deepEqual({ kind: proxyWithoutLite.kind, transport: proxyWithoutLite.transport }, { kind: "normal", transport: "responses" });
 	assert.deepEqual({ kind: proxyWithLite.kind, transport: proxyWithLite.transport }, { kind: "code", transport: "responses-lite" });
+});
+
+test("explicit Notebook mode reuses Code Mode eligibility without changing inherited V8 routing", () => {
+	const config = createAdapterState({ beta: { codeMode: true, responsesLite: true } }).config;
+	const context = createContext({ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.6-luna" }) as never;
+	assert.equal(resolveCodexRuntimePlan(context, config).kind, "code");
+	assert.equal(resolveCodexRuntimePlan(context, config, "notebook").kind, "notebook");
+	assert.equal(resolveCodexRuntimePlan(context, config, "normal").kind, "normal");
 });
 
 test("native Responses compaction stays scoped to OpenAI Codex and explicit providers", () => {

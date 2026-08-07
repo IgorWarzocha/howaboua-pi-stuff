@@ -13,6 +13,7 @@ import {
 import type {
 	CodeModeToolDefinition,
 	ProgrammaticCodeModeToolDefinition,
+	NotebookMemoryUsage,
 	RuntimeToolTrace,
 } from "./types.js";
 import type { CodeModeRenderTracker } from "./render-tracker.js";
@@ -47,6 +48,7 @@ export interface CodeModeResultDetails {
 	traces?: RuntimeToolTrace[] | undefined;
 	droppedTraceCount?: number | undefined;
 	scriptError?: string | undefined;
+	notebookMemory?: NotebookMemoryUsage | undefined;
 }
 
 export function renderExecCall(

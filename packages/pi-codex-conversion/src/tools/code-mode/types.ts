@@ -98,6 +98,14 @@ export interface RuntimeContentItem {
 	detail?: "auto" | "low" | "high" | "original" | null;
 }
 
+export interface NotebookMemoryUsage {
+	heapUsedBytes: number;
+	heapTotalBytes: number;
+	rssBytes: number;
+	externalBytes: number;
+	heapLimitBytes: number;
+}
+
 export type RuntimeResponse = (
 	| { kind: "yielded"; cellId: string; contentItems: RuntimeContentItem[] }
 	| { kind: "terminated"; cellId: string; contentItems: RuntimeContentItem[] }
@@ -112,4 +120,5 @@ export type RuntimeResponse = (
 	missingCell?: true | undefined;
 	traces?: RuntimeToolTrace[] | undefined;
 	droppedTraceCount?: number | undefined;
+	notebookMemory?: NotebookMemoryUsage | undefined;
 };

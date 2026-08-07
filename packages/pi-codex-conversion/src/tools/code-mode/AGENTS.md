@@ -5,3 +5,4 @@
 - `tools.ts` registers the runtime. `shared-runtime.ts`, `public-tools.ts`, and `tool-events.ts` own provider state, Pi tools, and hooks.
 - `src/code-mode-preflight.ts` is the lightweight public guard API; keep its shared protocol dependency free of the extension graph.
 - `custom-tool-*` owns TOML discovery and execution. `tool-result.ts`, `render-tracker.ts`, and `rendering.ts` own output and rendering boundaries.
+- `shared-runtime.ts` selects the V8 or lazily imported Notebook client; Notebook implementation stays under sibling `tools/notebook-mode/`.

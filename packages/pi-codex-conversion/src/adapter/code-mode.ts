@@ -14,7 +14,7 @@ import { createImageGenerationTool } from "../tools/imagegen/tool.ts";
 import { createViewImageTool } from "../tools/view-image/tool.ts";
 import { createWebSearchTool } from "../tools/web-run/tool.ts";
 import { supportsNativeImageGeneration, supportsViewImageInputs } from "./tool-support.ts";
-import { resolveCodexRuntimePlan } from "./activation/runtime-plan.ts";
+import { isCodeModeRuntime, resolveCodexRuntimePlan } from "./activation/runtime-plan.ts";
 import { codeModeImageResult, codeModeWebResult, toNestedTool } from "./code-mode/nested-tool-adapter.ts";
 
 const LONG_RUNNING_TOOL_OUTER_YIELD_MS = 1_800_000;
@@ -24,13 +24,18 @@ export async function registerCodexCodeMode(
 	runtime: CodexExtensionRuntime,
 ): Promise<CodeModeRegistration> {
 	const isActive = (ctx: unknown) =>
-		resolveCodexRuntimePlan(ctx as ExtensionContext, runtime.state.config).kind === "code";
+		isCodeModeRuntime(resolveCodexRuntimePlan(ctx as ExtensionContext, runtime.state.config, runtime.state.executionMode));
 	const customToolsRuntime = await registerCustomTools(pi, undefined, {
 		isActive,
 	});
 	const programmaticRuntime = await registerCodeModeTools(pi, {
 		getTools: (ctx) => createNestedTools(runtime, ctx as ExtensionContext | undefined),
 		isActive,
+		executionKind: (ctx) =>
+			resolveCodexRuntimePlan(ctx as ExtensionContext, runtime.state.config, runtime.state.executionMode).kind === "notebook"
+				? "notebook"
+				: "code",
+		notebookOptions: () => ({ maxHeapMiB: runtime.state.config.notebook.maxHeapMiB }),
 		providesRenderers: true,
 		richRendering: () => runtime.state.config.ui.codeModeDetails,
 	});
@@ -38,6 +43,7 @@ export async function registerCodexCodeMode(
 		prepare: (ctx) => programmaticRuntime.prepare(ctx),
 		refreshPromptTools: (systemPrompt, ctx) =>
 			programmaticRuntime.refreshPromptTools(systemPrompt, ctx),
+		checkpointNotebook: () => programmaticRuntime.checkpointNotebook(),
 		shutdownHost: () => programmaticRuntime.shutdownHost(),
 		async shutdown() {
 			await programmaticRuntime.shutdown();
@@ -58,8 +64,12 @@ function createNestedTools(
 		compactTools: runtime.state.config.ui.compactTools,
 	};
 	const allowConfiguredProvider = (model: ExtensionContext["model"]) => {
-		const plan = resolveCodexRuntimePlan({ model }, runtime.state.config);
-		return plan.kind === "code" && plan.configuredProvider && !plan.codexTransport;
+		const plan = resolveCodexRuntimePlan(
+			{ model },
+			runtime.state.config,
+			runtime.state.executionMode,
+		);
+		return isCodeModeRuntime(plan) && plan.configuredProvider && !plan.codexTransport;
 	};
 	const tools: ProgrammaticCodeModeToolDefinition[] = [
 		toNestedTool(
