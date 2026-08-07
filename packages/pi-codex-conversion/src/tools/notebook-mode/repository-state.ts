@@ -1,25 +1,27 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
-	closeSync,
 	existsSync,
 	lstatSync,
 	mkdirSync,
-	openSync,
 	readdirSync,
 	readFileSync,
 	renameSync,
 	rmSync,
 	statSync,
-	unlinkSync,
 	writeFileSync,
 } from "node:fs";
 import { basename, join, resolve } from "node:path";
+import { acquireDirectoryLock } from "./directory-lock.ts";
 import type { DenoJupyterKernel } from "./jupyter-kernel.ts";
 
 const REPOSITORY_SCHEMA = 1;
 const LOCK_STALE_MS = 5 * 60_000;
 const LOCK_WAIT_MS = 5_000;
 const REPOSITORY_PAYLOAD_NAME = /^repository-[0-9a-f-]+\.bin$/;
+const MAX_REPOSITORY_ENTRIES = 10_000;
+const MAX_REPOSITORY_KEY_BYTES = 4 * 1024;
+const MAX_REPOSITORY_MANIFEST_BYTES = 8 * 1024 * 1024;
+const MAX_NOTICE_KEYS = 24;
 
 interface RepositoryEntry {
 	key: string;
@@ -162,12 +164,14 @@ export function formatRepositoryStateNotice(
 ): string | undefined {
 	if (summary.message) return summary.message;
 	const parts = [
-		options.inventory && summary.restored.length > 0 ? `Repository notebook state: repo contains ${summary.restored.join(", ")}` : undefined,
+		options.inventory && summary.restored.length > 0
+			? `Repository notebook state: repo contains ${formatKeyList(summary.restored)}`
+			: undefined,
 		summary.skipped.length > 0
-			? `Repository state not published: ${summary.skipped.slice(0, 12).map(({ key, reason }) => `${key} (${reason})`).join(", ")}`
+			? `Repository state not published: ${summary.skipped.slice(0, 12).map(({ key, reason }) => `${key.slice(0, 256)} (${reason.slice(0, 240)})`).join(", ")}`
 			: undefined,
 		summary.conflicts.length > 0
-			? `Repository state conflicts preserved without overwrite: ${summary.conflicts.join(", ")}`
+			? `Repository state conflicts preserved without overwrite: ${formatKeyList(summary.conflicts)}`
 			: undefined,
 	].filter(Boolean);
 	return parts.length > 0 ? parts.join(". ") : undefined;
@@ -193,6 +197,7 @@ function mergeRepositoryState(options: {
 	const touched = new Set(options.candidate.touched);
 	const skipped = new Set(options.candidate.skipped.map(({ key }) => key));
 	const keys = [...new Set([...base.keys(), ...current.keys(), ...candidate.keys(), ...skipped, ...touched])].sort();
+	if (keys.length > MAX_REPOSITORY_ENTRIES) throw new Error(`Repository state exceeds ${MAX_REPOSITORY_ENTRIES} top-level keys`);
 	const parts: Buffer[] = [];
 	const entries: RepositoryEntry[] = [];
 	const conflictParts: Buffer[] = [];
@@ -270,9 +275,13 @@ function writeMergedState(
 		entries: merged.entries,
 		skipped: candidate.skipped,
 	};
+	const manifestText = `${JSON.stringify(manifest, null, 2)}\n`;
+	if (Buffer.byteLength(manifestText) > MAX_REPOSITORY_MANIFEST_BYTES) {
+		throw new Error(`Repository manifest exceeds ${MAX_REPOSITORY_MANIFEST_BYTES} bytes`);
+	}
 	writeFileSync(join(paths.directory, payload), merged.payload, { mode: 0o600 });
 	const temporary = `${paths.manifest}.${randomUUID()}.tmp`;
-	writeFileSync(temporary, `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });
+	writeFileSync(temporary, manifestText, { mode: 0o600 });
 	renameSync(temporary, paths.manifest);
 	if (current?.payload && current.payload !== payload) rmSync(join(paths.directory, current.payload), { force: true });
 	return manifest;
@@ -352,29 +361,16 @@ function readDirectoryNames(directory: string): string[] {
 }
 
 async function withRepositoryLock<T>(path: string, operation: () => Promise<T>): Promise<T> {
-	const deadline = Date.now() + LOCK_WAIT_MS;
-	const token = randomUUID();
-	let descriptor: number | undefined;
-	while (descriptor === undefined) {
-		try {
-			descriptor = openSync(path, "wx", 0o600);
-			writeFileSync(descriptor, `${token}\n${process.pid}\n${Date.now()}\n`);
-		} catch (error) {
-			if (!isFileExistsError(error)) throw error;
-			try {
-				if (Date.now() - statSync(path).mtimeMs > LOCK_STALE_MS) unlinkSync(path);
-			} catch {}
-			if (Date.now() >= deadline) throw new Error("Timed out waiting for repository notebook checkpoint lock");
-			await new Promise((resolve) => setTimeout(resolve, 50));
-		}
-	}
+	const lock = await acquireDirectoryLock(path, {
+		waitMs: LOCK_WAIT_MS,
+		staleMs: LOCK_STALE_MS,
+		pollMs: 50,
+	});
+	if (!lock) throw new Error("Repository notebook checkpoint lock became unavailable");
 	try {
 		return await operation();
 	} finally {
-		closeSync(descriptor);
-		try {
-			if (readFileSync(path, "utf8").startsWith(`${token}\n`)) unlinkSync(path);
-		} catch {}
+		lock.release();
 	}
 }
 
@@ -385,8 +381,12 @@ function repositoryCaptureSource(payloadPath: string, manifestPath: string, maxB
   const __parts = [];
   const __entries = [];
   const __skipped = [];
+	const __encoder = new TextEncoder();
+	const __keys = Object.getOwnPropertyNames(globalThis.repo);
+	if (__keys.length > ${MAX_REPOSITORY_ENTRIES}) throw new Error("repo exceeds ${MAX_REPOSITORY_ENTRIES} top-level keys");
   let __total = 0;
-  for (const __key of Object.keys(globalThis.repo).sort()) {
+  for (const __key of __keys.sort()) {
+	if (__encoder.encode(__key).byteLength > ${MAX_REPOSITORY_KEY_BYTES}) throw new Error("repo key exceeds ${MAX_REPOSITORY_KEY_BYTES} bytes");
     try {
       const __value = globalThis.repo[__key];
       if (typeof __value === "function") throw new Error("function or class");
@@ -405,14 +405,19 @@ function repositoryCaptureSource(payloadPath: string, manifestPath: string, maxB
   const __payload = new Uint8Array(__total);
   let __offset = 0;
   for (const __part of __parts) { __payload.set(__part, __offset); __offset += __part.byteLength; }
+	const __touched = globalThis.__piNotebook.repoTouched();
+	if (__touched.length > ${MAX_REPOSITORY_ENTRIES}) throw new Error("repo touched-key metadata exceeds ${MAX_REPOSITORY_ENTRIES} keys");
+	if (__touched.some((__key) => __encoder.encode(__key).byteLength > ${MAX_REPOSITORY_KEY_BYTES})) throw new Error("repo touched key exceeds ${MAX_REPOSITORY_KEY_BYTES} bytes");
+	const __manifest = JSON.stringify({
+	  deno: Deno.version.deno,
+	  v8: Deno.version.v8,
+	  entries: __entries,
+	  skipped: __skipped,
+	  touched: __touched,
+	});
+	if (__encoder.encode(__manifest).byteLength > ${MAX_REPOSITORY_MANIFEST_BYTES}) throw new Error("repo manifest exceeds ${MAX_REPOSITORY_MANIFEST_BYTES} bytes");
   await Deno.writeFile(${JSON.stringify(payloadPath)}, __payload, { mode: 0o600 });
-  await Deno.writeTextFile(${JSON.stringify(manifestPath)}, JSON.stringify({
-    deno: Deno.version.deno,
-    v8: Deno.version.v8,
-    entries: __entries,
-    skipped: __skipped,
-	touched: globalThis.__piNotebook.repoTouched(),
-  }), { mode: 0o600 });
+  await Deno.writeTextFile(${JSON.stringify(manifestPath)}, __manifest, { mode: 0o600 });
   undefined;
 }`;
 }
@@ -428,7 +433,7 @@ function repositoryRestoreSource(manifest: RepositoryManifest, payloadPath: stri
   for (const __entry of ${JSON.stringify(manifest.entries)}) {
 	__restored.push([__entry.key, deserialize(__payload.subarray(__entry.offset, __entry.offset + __entry.length))]);
   }
-	for (const __key of Object.keys(globalThis.repo)) delete globalThis.repo[__key];
+	for (const __key of Object.getOwnPropertyNames(globalThis.repo)) delete globalThis.repo[__key];
 	for (const [__key, __value] of __restored) globalThis.repo[__key] = __value;
 	globalThis.__piNotebook.resetRepoTouched();
   undefined;
@@ -443,6 +448,7 @@ function repositoryPaths(project: string, agentDir: string) {
 
 function readRepositoryManifest(path: string): RepositoryManifest | undefined {
 	try {
+		if (statSync(path).size > MAX_REPOSITORY_MANIFEST_BYTES) return undefined;
 		const value = JSON.parse(readFileSync(path, "utf8")) as unknown;
 		if (!isRecord(value) || value["schema"] !== REPOSITORY_SCHEMA) return undefined;
 		if (
@@ -457,6 +463,8 @@ function readRepositoryManifest(path: string): RepositoryManifest | undefined {
 			|| !Array.isArray(value["skipped"])
 			|| !REPOSITORY_PAYLOAD_NAME.test(value["payload"])
 			|| basename(value["payload"]) !== value["payload"]
+			|| value["entries"].length > MAX_REPOSITORY_ENTRIES
+			|| value["skipped"].length > MAX_REPOSITORY_ENTRIES
 		) return undefined;
 		const entries = value["entries"].map(parseRepositoryEntry);
 		const skipped = value["skipped"].map(parseSkipped);
@@ -481,15 +489,17 @@ function readRepositoryManifest(path: string): RepositoryManifest | undefined {
 
 function readCandidateManifest(path: string, payloadPath: string, maxBytes: number): CandidateManifest | undefined {
 	try {
+		if (statSync(path).size > MAX_REPOSITORY_MANIFEST_BYTES) return undefined;
 		const value = JSON.parse(readFileSync(path, "utf8")) as unknown;
 		if (!isRecord(value) || typeof value["deno"] !== "string" || typeof value["v8"] !== "string") return undefined;
 		if (!Array.isArray(value["entries"]) || !Array.isArray(value["skipped"]) || !Array.isArray(value["touched"])) return undefined;
+		if (value["entries"].length > MAX_REPOSITORY_ENTRIES || value["skipped"].length > MAX_REPOSITORY_ENTRIES || value["touched"].length > MAX_REPOSITORY_ENTRIES) return undefined;
 		const payloadLength = statSync(payloadPath).size;
 		if (payloadLength > maxBytes) return undefined;
 		const entries = value["entries"].map((entry) => parseCandidateEntry(entry, payloadLength));
 		const skipped = value["skipped"].map(parseSkipped);
 		const touched = value["touched"];
-		if (entries.some((entry) => !entry) || skipped.some((entry) => !entry) || touched.some((key) => typeof key !== "string")) return undefined;
+		if (entries.some((entry) => !entry) || skipped.some((entry) => !entry) || touched.some((key) => typeof key !== "string" || Buffer.byteLength(key) > MAX_REPOSITORY_KEY_BYTES)) return undefined;
 		return {
 			deno: value["deno"],
 			v8: value["v8"],
@@ -534,6 +544,7 @@ function parseCandidateEntry(value: unknown, payloadLength: number): CandidateMa
 	if (!isRecord(value)) return undefined;
 	const { key, offset, length } = value;
 	return typeof key === "string"
+		&& Buffer.byteLength(key) <= MAX_REPOSITORY_KEY_BYTES
 		&& Number.isSafeInteger(offset) && (offset as number) >= 0
 		&& Number.isSafeInteger(length) && (length as number) >= 0
 		&& (offset as number) + (length as number) <= payloadLength
@@ -542,7 +553,7 @@ function parseCandidateEntry(value: unknown, payloadLength: number): CandidateMa
 }
 
 function parseSkipped(value: unknown): { key: string; reason: string } | undefined {
-	return isRecord(value) && typeof value["key"] === "string" && typeof value["reason"] === "string"
+	return isRecord(value) && typeof value["key"] === "string" && Buffer.byteLength(value["key"]) <= MAX_REPOSITORY_KEY_BYTES && typeof value["reason"] === "string"
 		? { key: value["key"], reason: value["reason"] }
 		: undefined;
 }
@@ -559,8 +570,9 @@ function hashBytes(bytes: Uint8Array): string {
 	return createHash("sha256").update(bytes).digest("hex");
 }
 
-function isFileExistsError(error: unknown): boolean {
-	return error instanceof Error && "code" in error && error.code === "EEXIST";
+function formatKeyList(keys: string[]): string {
+	const shown = keys.slice(0, MAX_NOTICE_KEYS).map((key) => key.slice(0, 256)).join(", ");
+	return keys.length > MAX_NOTICE_KEYS ? `${shown}, and ${keys.length - MAX_NOTICE_KEYS} more` : shown;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
