@@ -18,7 +18,6 @@ import type {
 } from "../code-mode/types.ts";
 import { NotebookBridgeServer, notebookBootstrapSource } from "./bridge-server.ts";
 import {
-	formatCheckpointNotice,
 	garbageCollectSupersededNotebookCheckpoints,
 	resolveNotebookCheckpointMaxBytes,
 	restoreNotebookCheckpoint,
@@ -301,10 +300,10 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 			this.checkpointIdentity = checkpointIdentity;
 			const restored = await restoreNotebookCheckpoint(kernel, this.checkpointIdentity, this.checkpointMaxBytes);
 			garbageCollectSupersededNotebookCheckpoints(this.checkpointIdentity);
-			this.pendingNotice = joinNotices(
-				formatRepositoryStateNotice(repository, { inventory: true }),
-				formatCheckpointNotice(restored),
-			);
+			this.reportStateNotice(joinNotices(
+				formatRepositoryStateNotice(repository),
+				restored.message,
+			));
 		} catch (error) {
 			if (this.kernel === kernel) this.kernel = undefined;
 			await kernel.shutdown().catch(() => undefined);
@@ -477,8 +476,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 			);
 			this.repositoryBaseline = repository.baseline;
 			const notice = formatRepositoryStateNotice(repository);
-			notices.push(notice);
-			if (notice) this.extensionContext?.ui.notify(notice, "warning");
+			this.reportStateNotice(notice);
 		} catch (error) {
 			this.checkpointDirty = true;
 			const notice = `Repository notebook checkpoint failed: ${error instanceof Error ? error.message : String(error)}`;
@@ -486,12 +484,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 			this.extensionContext?.ui.notify(notice, "warning");
 		}
 		try {
-			const manifest = await writeNotebookCheckpoint(kernel, identity, baseline, this.checkpointMaxBytes);
-			if (manifest.skipped.length > 0) {
-				const notice = formatSkippedCheckpointNotice(manifest.skipped);
-				notices.push(notice);
-				this.extensionContext?.ui.notify(notice, "warning");
-			}
+			await writeNotebookCheckpoint(kernel, identity, baseline, this.checkpointMaxBytes);
 		} catch (error) {
 			this.checkpointDirty = true;
 			const notice = `Session notebook checkpoint failed: ${error instanceof Error ? error.message : String(error)}`;
@@ -499,6 +492,15 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 			this.extensionContext?.ui.notify(notice, "warning");
 		}
 		this.pendingNotice = joinNotices(...notices);
+	}
+
+	private reportStateNotice(notice: string | undefined): void {
+		if (!notice) return;
+		try {
+			this.options.reportStateNotice?.(notice);
+		} catch {
+			// State reporting must not turn successful persistence into a cell failure.
+		}
 	}
 
 	private closeCell(cell: NotebookCell): void {
@@ -599,11 +601,6 @@ function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
 		}
 		signal?.addEventListener("abort", abort, { once: true });
 	});
-}
-
-function formatSkippedCheckpointNotice(skipped: Array<{ name: string; reason: string }>): string {
-	const shown = skipped.slice(0, 12).map(({ name, reason }) => `${name.slice(0, 256)} (${reason})`).join(", ");
-	return `Notebook checkpoint skipped state: ${shown}${skipped.length > 12 ? `, and ${skipped.length - 12} more` : ""}`;
 }
 
 function joinNotices(...notices: Array<string | undefined>): string | undefined {

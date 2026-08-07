@@ -21,6 +21,8 @@ export interface PiSystemPromptOptions {
 	contextFiles?: Array<{ path: string; content: string }> | undefined;
 }
 
+export const NOTEBOOK_STARTUP_CONTEXT = "Retained state may already satisfy this request. Before external discovery, use the first exec call to derive selective terms from the request, filter Object.keys(repo) and Object.keys(globalThis), and inspect only relevant matches. Never dump either namespace.";
+
 const PI_DEFAULT_INTRO = "You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.";
 const PI_CUSTOM_TOOLS_NOTE = "In addition to the tools above, you may have access to other custom tools depending on the project.";
 const PI_CANONICAL_TOOL_LINES = new Set([
@@ -62,13 +64,14 @@ const CODE_MODE_GUIDELINES = [
 
 const NOTEBOOK_MODE_GUIDELINES = [
 	...CODE_MODE_GUIDELINES,
-	"Treat exec as a long-lived computational notebook, not disposable snippets: inspect and reuse existing values before rereading or recomputing",
-	"Declarations, imports, helpers, indexes, and computed data remain available across exec calls, turns, and compaction",
-	"Use the repo object only for deliberately reusable repository state that should seed future sessions; keep temporary work in ordinary variables",
+	"PERSISTENT EXECUTION: every exec call continues the same Deno/TypeScript global environment for the whole session; never treat calls as isolated scripts",
+	"Keep reusable results in named top-level variables: first exec `globalThis.index = await tools.exec_command(...)`; later exec read `index` instead of rerunning the tool",
+	"tools.exec_command starts ordinary subprocesses whose shell-local state does not persist; carry useful results, paths, parsed data, imports, helpers, and indexes into named TypeScript globals",
+	"Before final, publish a newly created or verified durable capability for future sessions as a compact serializable repo entry such as `{ path, usage, provenance }`; do not copy artifact contents or retain incidental work",
 	"Use notebook.journalPath when prior cell history matters; replay old cells only deliberately because they may repeat external side effects",
 	"Keep important reusable data serializable; recreate functions, imports, and live handles if they are unavailable after restart",
 	"Each result reports memory use; preserve valuable data and release disposable large values before pressure becomes critical",
-	"Each exec is a separate sequential cell; use wait only to observe or terminate the currently yielded cell",
+	"exec calls run sequentially; use wait only to observe or terminate the currently yielded call",
 	"Use Deno APIs and npm imports for persistent computation; prefer Pi/custom tools for project operations with richer contracts, rendering, output bounds, or background handles",
 ];
 
