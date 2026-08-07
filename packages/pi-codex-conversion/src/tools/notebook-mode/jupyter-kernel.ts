@@ -18,7 +18,8 @@ import {
 	type JupyterMessage,
 } from "./jupyter-wire.ts";
 
-const READY_TIMEOUT_MS = 8_000;
+const STARTUP_TIMEOUT_MS = 30_000;
+const REQUEST_TIMEOUT_MS = 8_000;
 const SUBSCRIBER_SETTLE_MS = 50;
 const SHUTDOWN_GRACE_MS = 1_500;
 const MAX_STDERR_CHARS = 16_384;
@@ -188,13 +189,13 @@ export class DenoJupyterKernel {
 		this.iopub.subscribe("");
 		await sleep(SUBSCRIBER_SETTLE_MS, undefined, signal ? { signal } : undefined);
 		void this.runIopubPump();
-		await this.shellRequest("kernel_info_request", {}, READY_TIMEOUT_MS);
+		await this.shellRequest("kernel_info_request", {}, STARTUP_TIMEOUT_MS);
 	}
 
 	private async shellRequest(
 		type: string,
 		content: Record<string, unknown>,
-		timeoutMs = READY_TIMEOUT_MS,
+		timeoutMs = REQUEST_TIMEOUT_MS,
 	): Promise<JupyterMessage> {
 		const shell = this.shell;
 		const connection = this.connection;
