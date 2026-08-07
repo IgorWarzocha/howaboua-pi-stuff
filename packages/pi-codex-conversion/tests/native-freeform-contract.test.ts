@@ -22,7 +22,7 @@ const exec = {
 	},
 } as const;
 
-test("Code Mode exposes native freeform exec beside function wait", () => {
+test("Code Mode registers native freeform exec beside function controls", () => {
 	const registered: Array<{ name: string; constrainedSampling?: unknown }> = [];
 	registerPublicCodeModeTools({
 		events: {
@@ -37,6 +37,7 @@ test("Code Mode exposes native freeform exec beside function wait", () => {
 	assert.deepEqual(registered.map(({ name, constrainedSampling }) => [name, constrainedSampling]), [
 		["exec", exec.constrainedSampling],
 		["wait", undefined],
+		["notebook", undefined],
 	]);
 
 	const tools = convertResponsesTools([
