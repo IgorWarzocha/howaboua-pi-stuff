@@ -62,8 +62,12 @@ const CODE_MODE_GUIDELINES = [
 
 const NOTEBOOK_MODE_GUIDELINES = [
 	...CODE_MODE_GUIDELINES,
-	"Notebook cells share one persistent Deno kernel; reuse declarations, imports, helpers, indexes, and computed data across exec calls",
+	"Treat exec as a long-lived computational notebook, not disposable snippets: inspect and reuse existing values before rereading or recomputing",
+	"Declarations, imports, helpers, indexes, and computed data remain available across exec calls, turns, and compaction",
 	"Use the repo object only for deliberately reusable repository state that should seed future sessions; keep temporary work in ordinary variables",
+	"Use notebook.journalPath when prior cell history matters; replay old cells only deliberately because they may repeat external side effects",
+	"Keep important reusable data serializable; recreate functions, imports, and live handles if they are unavailable after restart",
+	"Each result reports memory use; preserve valuable data and release disposable large values before pressure becomes critical",
 	"Each exec is a separate sequential cell; use wait only to observe or terminate the currently yielded cell",
 	"Use Deno APIs and npm imports for persistent computation; prefer Pi/custom tools for project operations with richer contracts, rendering, output bounds, or background handles",
 ];
