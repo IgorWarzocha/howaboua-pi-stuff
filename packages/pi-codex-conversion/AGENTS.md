@@ -3,7 +3,7 @@
 - Pi intentionally retries `server_is_overloaded` and `slow_down` across WebSocket/SSE with a shared three-minute wait budget.
 - Streamed rate-limit delays are exact within a shared three-minute budget; longer delays fail instead of retrying early.
 - Before npm, publish, release, or merge work, compare `src/providers/openai-codex-custom-provider.ts` with Pi's stock `openai-codex-responses` provider: request shape, transport/headers, reasoning/service tier, retry, stream termination, and touched behavior.
-- Structured mode uses flat TypeScript tools over standard Responses. GPT-5.6 Code Mode uses `exec`/`wait` over Responses Lite.
+- Structured mode uses flat TypeScript tools over standard Responses. GPT-5.6 Code Mode uses `exec`/`wait` over Responses Lite; Notebook Mode additionally exposes host-side `notebook` lifecycle control.
 - Keep prompt guidance short and argv-shaped.
 - Native runners execute bundled helpers directly. Rebuild for the local platform and use the checkout; never patch installed npm files.
 - For native GitHub builds, run `gh run watch <id> --exit-status` directly and wait near the expected 10–15 minutes. Never wrap it in polling loops, background shells, or temporary log redirection.

@@ -33,6 +33,7 @@ const PI_CANONICAL_TOOL_LINES = new Set([
 	"- find: Find files by glob pattern (respects .gitignore)",
 	"- exec: Compose tools with JavaScript",
 	"- wait: Resume or terminate an exec cell",
+	"- notebook: Inspect or control notebook lifecycle",
 ]);
 const PI_DEFAULT_GUIDELINES = new Set([
 	"Use bash for file operations like ls, rg, find",
@@ -63,10 +64,11 @@ const CODE_MODE_GUIDELINES = [
 const NOTEBOOK_MODE_GUIDELINES = [
 	"Your exec environment is a stateful Deno/TypeScript Jupyter notebook, not a script runner: each exec is the next cell",
 	"Before replying, preserve state needed by follow-ups in purpose-named top-level variables; subprocesses provide I/O, not retained state",
+	"Plain top-level values and reanimatable function/class definitions persist as project notebook state across sessions",
 	...CODE_MODE_GUIDELINES,
 	"Filter and transform retained data inside exec, returning only findings needed in model context; inspect existing globals selectively when relevant and never dump the namespace",
 	"Keep canonical project artifacts in files; tools.exec_command starts ordinary subprocesses whose shell-local state does not persist",
-	"Keep important reusable data serializable; recreate functions, imports, and live handles if they are unavailable after restart",
+	"Keep durable helpers self-contained; imports, cell-local closures, and live handles may need recreation after restart",
 	"Each result reports memory use; preserve valuable data and release disposable large values before pressure becomes critical",
 	"exec calls run sequentially; use wait only to observe or terminate the currently yielded call",
 	"Use Deno APIs and npm imports for persistent computation; prefer Pi/custom tools for project operations with richer contracts, rendering, output bounds, or background handles",

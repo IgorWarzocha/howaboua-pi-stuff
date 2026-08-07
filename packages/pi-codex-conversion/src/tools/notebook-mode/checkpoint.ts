@@ -185,11 +185,12 @@ function isValidCheckpointPayload(manifest: CheckpointManifest, path: string, ma
 
 function parseEntry(value: unknown): CheckpointEntry | undefined {
 	if (!isRecord(value)) return undefined;
-	const { name, offset, length } = value;
+	const { name, offset, length, kind } = value;
 	return typeof name === "string" && IDENTIFIER.test(name)
+		&& (kind === undefined || kind === "value" || kind === "function")
 		&& Number.isSafeInteger(offset) && (offset as number) >= 0
 		&& Number.isSafeInteger(length) && (length as number) >= 0
-		? { name, offset: offset as number, length: length as number }
+		? { name, kind: kind === "function" ? "function" : "value", offset: offset as number, length: length as number }
 		: undefined;
 }
 
