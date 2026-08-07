@@ -1,7 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { DenoJupyterKernel } from "./jupyter-kernel.ts";
 
 export const NOTEBOOK_CHECKPOINT_MAX_BYTES = 256 * 1024 * 1024;
@@ -29,6 +28,7 @@ interface CheckpointManifest {
 export interface NotebookCheckpointIdentity {
 	project: string;
 	session: string;
+	agentDir: string;
 }
 
 export interface NotebookCheckpointSummary {
@@ -198,7 +198,7 @@ function checkpointPaths(identity: NotebookCheckpointIdentity): { directory: str
 		.update(`${resolve(identity.project)}\0${identity.session}`)
 		.digest("hex");
 	const directory = join(
-		getAgentDir(),
+		identity.agentDir,
 		"cache",
 		"pi-codex-conversion",
 		"notebook-mode",
