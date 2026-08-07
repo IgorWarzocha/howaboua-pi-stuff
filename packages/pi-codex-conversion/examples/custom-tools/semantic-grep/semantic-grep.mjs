@@ -121,10 +121,18 @@ async function embed(input, config) {
 	if (config.embeddings.apiKey) {
 		headers.Authorization = `Bearer ${config.embeddings.apiKey}`;
 	}
+	const body = {
+		...(config.embeddings.queryExtraBody ?? {}),
+		model: config.embeddings.model,
+		input: `${config.embeddings.queryPrefix ?? ""}${input}`,
+	};
+	if (config.embeddings.dimensions !== undefined) {
+		body.dimensions = config.embeddings.dimensions;
+	}
 	const response = await fetch(config.embeddings.url, {
 		method: "POST",
 		headers,
-		body: JSON.stringify({ model: config.embeddings.model, input }),
+		body: JSON.stringify(body),
 	});
 	if (!response.ok) {
 		throw new Error(
@@ -133,7 +141,13 @@ async function embed(input, config) {
 	}
 	const json = await response.json();
 	const vector = json.data?.[0]?.embedding;
-	if (!Array.isArray(vector) || vector.length === 0) {
+	if (
+		!Array.isArray(vector) ||
+		vector.length === 0 ||
+		vector.some(
+			(value) => typeof value !== "number" || !Number.isFinite(value),
+		)
+	) {
 		throw new Error("embedding response did not contain data[0].embedding");
 	}
 	return vector;
@@ -143,8 +157,7 @@ function cosine(a, b) {
 	let dot = 0;
 	let aa = 0;
 	let bb = 0;
-	const length = Math.min(a.length, b.length);
-	for (let index = 0; index < length; index += 1) {
+	for (let index = 0; index < a.length; index += 1) {
 		const av = a[index] ?? 0;
 		const bv = b[index] ?? 0;
 		dot += av * bv;
@@ -158,10 +171,28 @@ async function search(db, query, topK, config) {
 	const queryVector = await embed(query, config);
 	const best = [];
 	let minimum = Number.NEGATIVE_INFINITY;
+	let skippedIncompatible = 0;
 	for (const row of db
 		.prepare("select file, start_line, end_line, text, vector from chunks")
 		.iterate()) {
-		const score = cosine(queryVector, JSON.parse(row.vector));
+		let vector;
+		try {
+			vector = JSON.parse(row.vector);
+		} catch {
+			skippedIncompatible += 1;
+			continue;
+		}
+		if (
+			!Array.isArray(vector) ||
+			vector.length !== queryVector.length ||
+			vector.some(
+				(value) => typeof value !== "number" || !Number.isFinite(value),
+			)
+		) {
+			skippedIncompatible += 1;
+			continue;
+		}
+		const score = cosine(queryVector, vector);
 		if (best.length >= topK && score <= minimum) continue;
 		best.push({
 			file: row.file,
@@ -174,11 +205,17 @@ async function search(db, query, topK, config) {
 		if (best.length > topK) best.pop();
 		minimum = best.at(-1)?.score ?? Number.NEGATIVE_INFINITY;
 	}
-	return best;
+	return { matches: best, skippedIncompatible };
 }
 
-function formatMatches(matches) {
-	if (matches.length === 0) return "No semantic grep matches.";
+function formatMatches(results) {
+	const { matches, skippedIncompatible } = results;
+	if (matches.length === 0) {
+		if (skippedIncompatible > 0) {
+			return `No compatible semantic grep vectors. ${skippedIncompatible} stale chunks were omitted; let indexing finish or rebuild the index.`;
+		}
+		return "No semantic grep matches.";
+	}
 	const sections = [];
 	let used = 0;
 	for (const [index, match] of matches.entries()) {
@@ -208,6 +245,11 @@ function formatMatches(matches) {
 			);
 			break;
 		}
+	}
+	if (skippedIncompatible > 0) {
+		sections.push(
+			`${skippedIncompatible} stale chunks were omitted; indexing will replace them.`,
+		);
 	}
 	return sections.join("\n\n");
 }

@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import type { SemanticGrepConfig } from "./config.js";
 
@@ -9,58 +9,21 @@ export interface TextChunk {
 	endLine: number;
 	text: string;
 	hash: string;
+	key: string;
 }
 
 export interface FileSnapshot {
 	file: string;
-	abs: string;
 	size: number;
 	mtimeMs: number;
 	hash: string;
+	text: string;
 }
 
-export function findRepoRoot(cwd: string): string {
-	let dir = path.resolve(cwd);
-	while (true) {
-		try {
-			if (statSync(path.join(dir, ".git")).isDirectory()) return dir;
-		} catch {}
-		const parent = path.dirname(dir);
-		if (parent === dir) return path.resolve(cwd);
-		dir = parent;
-	}
-}
-
-function walk(
-	dir: string,
-	root: string,
-	config: SemanticGrepConfig,
-	out: string[],
-): void {
-	for (const ent of readdirSync(dir, { withFileTypes: true })) {
-		if (ent.isSymbolicLink() && !config.indexing.followSymlinks) continue;
-		const abs = path.join(dir, ent.name);
-		if (ent.isDirectory()) {
-			if (!config.indexing.excludeDirs.includes(ent.name))
-				walk(abs, root, config, out);
-			continue;
-		}
-		if (!ent.isFile()) continue;
-		const ext = path.extname(ent.name).toLowerCase();
-		if (!config.indexing.includeExtensions.includes(ext)) continue;
-		const st = statSync(abs);
-		if (st.size > config.indexing.maxFileBytes) continue;
-		out.push(path.relative(root, abs));
-	}
-}
-
-export function listIndexableFiles(
-	root: string,
-	config: SemanticGrepConfig,
-): string[] {
-	const out: string[] = [];
-	walk(root, root, config, out);
-	return out.sort();
+export interface FileMetadata {
+	file: string;
+	size: number;
+	mtimeMs: number;
 }
 
 export function hashText(text: string): string {
@@ -69,74 +32,119 @@ export function hashText(text: string): string {
 
 export function readFileSnapshot(
 	root: string,
-	rel: string,
+	metadata: FileMetadata,
 ): FileSnapshot | undefined {
-	const abs = path.join(root, rel);
-	const st = statSync(abs);
-	const text = readFileSync(abs, "utf8");
-	if (text.includes("\0")) return undefined;
-	return {
-		file: rel,
-		abs,
-		size: st.size,
-		mtimeMs: st.mtimeMs,
-		hash: hashText(text),
-	};
-}
-
-function splitOversizedChunk(text: string, maxChars: number): string[] {
-	const out: string[] = [];
-	for (let i = 0; i < text.length; i += maxChars) {
-		const part = text.slice(i, i + maxChars).trim();
-		if (part.length >= 20) out.push(part);
+	const abs = path.join(root, metadata.file);
+	try {
+		const before = statSync(abs);
+		const text = readFileSync(abs, "utf8");
+		const after = statSync(abs);
+		if (
+			before.size !== after.size ||
+			before.mtimeMs !== after.mtimeMs ||
+			after.size !== metadata.size ||
+			after.mtimeMs !== metadata.mtimeMs ||
+			text.includes("\0")
+		)
+			return undefined;
+		return {
+			file: metadata.file,
+			size: after.size,
+			mtimeMs: after.mtimeMs,
+			hash: hashText(text),
+			text,
+		};
+	} catch (error) {
+		const code = (error as NodeJS.ErrnoException).code;
+		if (code === "ENOENT" || code === "EACCES" || code === "EPERM")
+			return undefined;
+		throw error;
 	}
-	return out;
 }
 
-export function chunkFile(
-	root: string,
-	rel: string,
+function pushChunk(
+	out: TextChunk[],
+	file: string,
+	startLine: number,
+	endLine: number,
+	text: string,
+	fileHash: string,
+): void {
+	const trimmed = text.trim();
+	if (trimmed.length < 20) return;
+	out.push({
+		file,
+		startLine,
+		endLine,
+		text: trimmed,
+		hash: fileHash,
+		key: hashText(`${startLine}:${endLine}\0${trimmed}`),
+	});
+}
+
+function pushOversizedLine(
+	out: TextChunk[],
+	file: string,
+	line: number,
+	text: string,
+	fileHash: string,
+	maxChars: number,
+): void {
+	for (let offset = 0; offset < text.length; offset += maxChars)
+		pushChunk(
+			out,
+			file,
+			line,
+			line,
+			text.slice(offset, offset + maxChars),
+			fileHash,
+		);
+}
+
+export function chunkSnapshot(
+	snapshot: FileSnapshot,
 	config: SemanticGrepConfig,
-	knownHash?: string,
 ): TextChunk[] {
-	const abs = path.join(root, rel);
-	const text = readFileSync(abs, "utf8");
-	if (text.includes("\0")) return [];
-	const hash = knownHash ?? hashText(text);
-	const lines = text.split(/\r?\n/);
-	const size = Math.max(1, config.indexing.chunkLines);
-	const overlap = Math.min(config.indexing.chunkOverlap, size - 1);
-	const step = size - overlap;
+	const lines = snapshot.text.split(/\r?\n/);
+	const lineLimit = Math.max(1, config.indexing.chunkLines);
+	const charLimit = Math.max(
+		20,
+		Math.min(config.indexing.maxChunkChars, config.indexing.maxEmbeddingChars),
+	);
+	const configuredOverlap = Math.max(0, config.indexing.chunkOverlap);
 	const chunks: TextChunk[] = [];
-	for (let i = 0; i < lines.length; i += step) {
-		const part = lines.slice(i, i + size);
-		const chunkText = part.join("\n").trim();
-		if (chunkText.length < 20) continue;
-		if (chunkText.length > config.indexing.maxChunkChars) {
-			if (config.indexing.skipOversizedChunks) continue;
-			const subChunks = splitOversizedChunk(
-				chunkText,
-				config.indexing.maxChunkChars,
-			);
-			for (const [j, subText] of subChunks.entries()) {
-				chunks.push({
-					file: rel,
-					startLine: i + 1,
-					endLine: Math.min(i + size, lines.length),
-					text: `[part ${j + 1}/${subChunks.length}]\n${subText}`,
-					hash,
-				});
-			}
-			continue;
+	let start = 0;
+
+	while (start < lines.length) {
+		let end = start;
+		let chars = 0;
+		while (end < lines.length && end - start < lineLimit) {
+			const nextChars = (lines[end]?.length ?? 0) + (end > start ? 1 : 0);
+			if (end > start && chars + nextChars > charLimit) break;
+			chars += nextChars;
+			end++;
 		}
-		chunks.push({
-			file: rel,
-			startLine: i + 1,
-			endLine: Math.min(i + size, lines.length),
-			text: chunkText,
-			hash,
-		});
-		if (i + size >= lines.length) break;
+
+		if (end === start) end++;
+		const text = lines.slice(start, end).join("\n");
+		if (text.length > charLimit) {
+			if (!config.indexing.skipOversizedChunks)
+				pushOversizedLine(
+					chunks,
+					snapshot.file,
+					start + 1,
+					text,
+					snapshot.hash,
+					charLimit,
+				);
+		} else {
+			pushChunk(chunks, snapshot.file, start + 1, end, text, snapshot.hash);
+		}
+
+		if (end >= lines.length) break;
+		const consumed = end - start;
+		const overlap = Math.min(configuredOverlap, Math.max(0, consumed - 1));
+		start = end - overlap;
 	}
 	return chunks;
 }

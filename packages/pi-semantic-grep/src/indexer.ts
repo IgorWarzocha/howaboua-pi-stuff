@@ -1,9 +1,16 @@
 import crypto from "node:crypto";
 import type Database from "better-sqlite3";
 import type { SemanticGrepConfig } from "./config.js";
-import { type FileRow, getMeta, resetDb, setMeta } from "./db.js";
-import { embed } from "./embeddings.js";
-import { chunkFile, listIndexableFiles, readFileSnapshot } from "./files.js";
+import { completeBuild, type FileRow, prepareBuildTarget } from "./db.js";
+import { discoverFiles } from "./discovery.js";
+import { embedDocuments } from "./embeddings.js";
+import {
+	chunkSnapshot,
+	type FileMetadata,
+	type FileSnapshot,
+	readFileSnapshot,
+	type TextChunk,
+} from "./files.js";
 
 export interface IndexStats {
 	files: number;
@@ -11,73 +18,151 @@ export interface IndexStats {
 	added: number;
 	changed: number;
 	unchanged: number;
+	metadataOnly: number;
 	deleted: number;
+	skipped: number;
 	fullRebuild: boolean;
+	discovery: "filesystem" | "git";
 }
 
-function indexFingerprint(config: SemanticGrepConfig): string {
-	const payload = {
-		schema: 4,
+function canonical(value: unknown): unknown {
+	if (Array.isArray(value)) return value.map(canonical);
+	if (!value || typeof value !== "object") return value;
+	return Object.fromEntries(
+		Object.entries(value as Record<string, unknown>)
+			.sort(([a], [b]) => a.localeCompare(b))
+			.map(([key, item]) => [key, canonical(item)]),
+	);
+}
+
+export function indexFingerprint(config: SemanticGrepConfig): string {
+	const payload = canonical({
+		schema: 5,
 		model: config.embeddings.model,
 		dimensions: config.embeddings.dimensions ?? null,
+		documentPrefix: config.embeddings.documentPrefix,
+		documentExtraBody: config.embeddings.documentExtraBody,
 		chunkLines: config.indexing.chunkLines,
 		chunkOverlap: config.indexing.chunkOverlap,
-		includeExtensions: config.indexing.includeExtensions,
-		excludeDirs: config.indexing.excludeDirs,
-		maxFileBytes: config.indexing.maxFileBytes,
 		maxChunkChars: config.indexing.maxChunkChars,
+		maxEmbeddingChars: config.indexing.maxEmbeddingChars,
 		skipOversizedChunks: config.indexing.skipOversizedChunks,
-		followSymlinks: config.indexing.followSymlinks,
-	};
+	});
 	return crypto
 		.createHash("sha256")
 		.update(JSON.stringify(payload))
 		.digest("hex");
 }
 
-async function indexOneFile(
+function formattedChunk(chunk: {
+	file: string;
+	startLine: number;
+	endLine: number;
+	text: string;
+}): string {
+	return `File: ${chunk.file}\nLines: ${chunk.startLine}-${chunk.endLine}\n\n${chunk.text}`;
+}
+
+interface FileJob {
+	snapshot: FileSnapshot;
+	chunks: TextChunk[];
+}
+
+function commitFile(
 	db: Database.Database,
-	root: string,
-	file: string,
-	snapshot: NonNullable<ReturnType<typeof readFileSnapshot>>,
+	job: FileJob,
+	vectors: number[][],
+	fingerprint: string,
+	generation: number,
+): void {
+	const { chunks, snapshot } = job;
+	const insertFile = db.prepare(`
+    insert into files (
+      file, hash, size, mtime_ms, indexed_at,
+      index_fingerprint, index_generation, chunk_count
+    ) values (?, ?, ?, ?, ?, ?, ?, ?)
+    on conflict(file) do update set
+      hash = excluded.hash,
+      size = excluded.size,
+      mtime_ms = excluded.mtime_ms,
+      indexed_at = excluded.indexed_at,
+      index_fingerprint = excluded.index_fingerprint,
+      index_generation = excluded.index_generation,
+      chunk_count = excluded.chunk_count
+  `);
+	const insertChunk = db.prepare(`
+    insert into chunks (
+      file, start_line, end_line, text, hash, vector, chunk_key
+    ) values (?, ?, ?, ?, ?, ?, ?)
+  `);
+	const commit = db.transaction(() => {
+		db.prepare("delete from chunks where file = ?").run(snapshot.file);
+		insertFile.run(
+			snapshot.file,
+			snapshot.hash,
+			snapshot.size,
+			snapshot.mtimeMs,
+			new Date().toISOString(),
+			fingerprint,
+			generation,
+			chunks.length,
+		);
+		for (let i = 0; i < chunks.length; i++) {
+			const chunk = chunks[i];
+			const vector = vectors[i];
+			if (!chunk || !vector)
+				throw new Error(`missing embedded chunk ${i} for ${snapshot.file}`);
+			insertChunk.run(
+				chunk.file,
+				chunk.startLine,
+				chunk.endLine,
+				chunk.text,
+				chunk.hash,
+				JSON.stringify(vector),
+				chunk.key,
+			);
+		}
+	});
+	commit();
+}
+
+async function embedAndCommitJobs(
+	db: Database.Database,
+	jobs: FileJob[],
 	config: SemanticGrepConfig,
+	fingerprint: string,
+	generation: number,
 	signal?: AbortSignal,
 ): Promise<number> {
-	db.prepare("delete from chunks where file = ?").run(file);
-	db.prepare("delete from files where file = ?").run(file);
-
-	const chunks = chunkFile(root, file, config, snapshot.hash);
-	const insertChunk = db.prepare(
-		"insert into chunks (file, start_line, end_line, text, hash, vector) values (?, ?, ?, ?, ?, ?)",
+	const chunks = jobs.flatMap((job) => job.chunks);
+	const vectors = await embedDocuments(
+		chunks.map(formattedChunk),
+		config,
+		signal,
 	);
-	const insertFile = db.prepare(
-		"insert into files (file, hash, size, mtime_ms, indexed_at) values (?, ?, ?, ?, ?)",
-	);
-
-	insertFile.run(
-		file,
-		snapshot.hash,
-		snapshot.size,
-		snapshot.mtimeMs,
-		new Date().toISOString(),
-	);
-	for (const chunk of chunks) {
-		signal?.throwIfAborted();
-		const vector = await embed(
-			`File: ${chunk.file}\nLines: ${chunk.startLine}-${chunk.endLine}\n\n${chunk.text}`,
-			config,
-			signal,
+	if (vectors.length !== chunks.length)
+		throw new Error(
+			`embedding response contained ${vectors.length} vectors for ${chunks.length} queued chunks`,
 		);
-		insertChunk.run(
-			chunk.file,
-			chunk.startLine,
-			chunk.endLine,
-			chunk.text,
-			chunk.hash,
-			JSON.stringify(vector),
-		);
+	signal?.throwIfAborted();
+	let offset = 0;
+	for (const job of jobs) {
+		const next = offset + job.chunks.length;
+		commitFile(db, job, vectors.slice(offset, next), fingerprint, generation);
+		offset = next;
 	}
 	return chunks.length;
+}
+
+function updateMetadata(db: Database.Database, metadata: FileMetadata): void {
+	db.prepare(
+		"update files set size = ?, mtime_ms = ?, indexed_at = ? where file = ?",
+	).run(
+		metadata.size,
+		metadata.mtimeMs,
+		new Date().toISOString(),
+		metadata.file,
+	);
 }
 
 export async function syncIndex(
@@ -89,63 +174,108 @@ export async function syncIndex(
 	onProgress?: (msg: string) => void,
 ): Promise<IndexStats> {
 	const fingerprint = indexFingerprint(config);
-	const priorFingerprint = getMeta(db, "index_fingerprint");
-	const fullRebuild = forceFullRebuild || priorFingerprint !== fingerprint;
-	if (fullRebuild) resetDb(db);
-
-	const files = listIndexableFiles(root, config);
-	const current = new Set(files);
+	const target = prepareBuildTarget(db, fingerprint, forceFullRebuild);
+	onProgress?.("scanning project files");
+	const discovery = discoverFiles(root, config);
+	const current = new Set(discovery.files.map((file) => file.file));
 	const knownRows = db
-		.prepare("select file, hash, size, mtime_ms, indexed_at from files")
+		.prepare(`
+      select file, hash, size, mtime_ms, indexed_at,
+             index_fingerprint, index_generation, chunk_count
+      from files
+    `)
 		.all() as FileRow[];
-	const known = new Map(knownRows.map((r) => [r.file, r]));
+	const known = new Map(knownRows.map((row) => [row.file, row]));
 
 	let chunks = 0,
 		added = 0,
 		changed = 0,
 		unchanged = 0,
-		deleted = 0;
+		metadataOnly = 0,
+		deleted = 0,
+		skipped = discovery.skipped;
+	const pendingJobs: FileJob[] = [];
+	let pendingChunks = 0;
+	const flushJobs = async (): Promise<void> => {
+		if (pendingJobs.length === 0) return;
+		chunks += await embedAndCommitJobs(
+			db,
+			pendingJobs,
+			config,
+			target.fingerprint,
+			target.generation,
+			signal,
+		);
+		pendingJobs.length = 0;
+		pendingChunks = 0;
+	};
 
-	for (const row of knownRows) {
-		if (!current.has(row.file)) {
-			db.prepare("delete from chunks where file = ?").run(row.file);
+	const removeDeleted = db.transaction(() => {
+		for (const row of knownRows) {
+			if (current.has(row.file)) continue;
 			db.prepare("delete from files where file = ?").run(row.file);
 			deleted++;
 		}
-	}
+	});
+	removeDeleted();
 
-	for (let i = 0; i < files.length; i++) {
+	for (let i = 0; i < discovery.files.length; i++) {
 		signal?.throwIfAborted();
-		const file = files[i];
-		if (!file) continue;
-		const snapshot = readFileSnapshot(root, file);
-		if (!snapshot) continue;
-		const old = known.get(file);
-		const same =
-			old && old.hash === snapshot.hash && old.size === snapshot.size;
-		if (!fullRebuild && same) {
+		const metadata = discovery.files[i];
+		if (!metadata) continue;
+		const old = known.get(metadata.file);
+		const currentGeneration =
+			old?.index_fingerprint === target.fingerprint &&
+			old.index_generation === target.generation &&
+			old.chunk_count >= 0;
+		if (
+			currentGeneration &&
+			old.size === metadata.size &&
+			old.mtime_ms === metadata.mtimeMs
+		) {
 			unchanged++;
+			continue;
+		}
+
+		const snapshot = readFileSnapshot(root, metadata);
+		if (!snapshot) {
+			skipped++;
+			continue;
+		}
+		if (currentGeneration && old.hash === snapshot.hash) {
+			updateMetadata(db, metadata);
+			metadataOnly++;
 			continue;
 		}
 
 		if (old) changed++;
 		else added++;
-		onProgress?.(`[${i + 1}/${files.length}] indexing ${file}`);
-		chunks += await indexOneFile(db, root, file, snapshot, config, signal);
+		onProgress?.(
+			`[${i + 1}/${discovery.files.length}] indexing ${metadata.file}`,
+		);
+		const fileChunks = chunkSnapshot(snapshot, config);
+		pendingJobs.push({ snapshot, chunks: fileChunks });
+		pendingChunks += fileChunks.length;
+		if (
+			pendingChunks >= Math.max(1, config.embeddings.batchSize) ||
+			pendingJobs.length >= Math.max(1, config.embeddings.batchSize)
+		)
+			await flushJobs();
 	}
+	await flushJobs();
 
-	setMeta(db, "index_fingerprint", fingerprint);
-	setMeta(db, "indexed_at", new Date().toISOString());
-	setMeta(db, "embedding_model", config.embeddings.model);
-
+	completeBuild(db, target, config.embeddings.model);
 	return {
-		files: files.length,
+		files: discovery.files.length,
 		chunks,
 		added,
 		changed,
 		unchanged,
+		metadataOnly,
 		deleted,
-		fullRebuild,
+		skipped,
+		fullRebuild: target.fullRebuild,
+		discovery: discovery.source,
 	};
 }
 

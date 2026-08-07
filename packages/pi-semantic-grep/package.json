@@ -39,21 +39,26 @@
 	"scripts": {
 		"check": "bun run lint && bun run typecheck",
 		"prepack": "bun run check",
+		"test": "tsx --test tests/**/*.test.ts",
 		"typecheck": "tsgo --noEmit",
 		"lint": "biome check .",
 		"format": "biome check --write ."
 	},
 	"dependencies": {
-		"better-sqlite3": "^12.10.0"
+		"better-sqlite3": "^12.10.0",
+		"ignore": "^7.0.5",
+		"proper-lockfile": "^4.1.2"
 	},
 	"devDependencies": {
-		"@types/better-sqlite3": "^7.6.13",
-		"@types/node": "^24.0.0",
-		"typescript": "^5.8.3",
 		"@biomejs/biome": "^2.4.16",
 		"@earendil-works/pi-coding-agent": "0.82.0",
 		"@earendil-works/pi-tui": "0.82.0",
-		"typebox": "1.1.38"
+		"@types/better-sqlite3": "^7.6.13",
+		"@types/node": "^24.0.0",
+		"@types/proper-lockfile": "^4.1.4",
+		"tsx": "^4.20.5",
+		"typebox": "1.1.38",
+		"typescript": "^5.8.3"
 	},
 	"peerDependencies": {
 		"@earendil-works/pi-coding-agent": "*",
