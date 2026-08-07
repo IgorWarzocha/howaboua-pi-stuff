@@ -8,6 +8,8 @@ import {
 	EXECUTION_MODE_SESSION_ENTRY,
 	resolveExecutionMode,
 } from "../src/adapter/activation/execution-mode.ts";
+import { isProviderContextExcludedMessage } from "../src/adapter/prompt/context-filter.ts";
+import { NOTEBOOK_TREE_EPOCH_ENTRY } from "../src/tools/notebook-mode/session-identity.ts";
 
 test("execution mode resolves branch override before trusted project default", () => {
 	const cwd = mkdtempSync(join(tmpdir(), "pi-execution-mode-"));
@@ -39,5 +41,11 @@ test("execution mode resolves branch override before trusted project default", (
 		} as never), { session: "inherited" });
 	} finally {
 		rmSync(cwd, { recursive: true, force: true });
+	}
+});
+
+test("execution-mode lifecycle entries stay out of provider context", () => {
+	for (const customType of [EXECUTION_MODE_SESSION_ENTRY, NOTEBOOK_TREE_EPOCH_ENTRY]) {
+		assert.equal(isProviderContextExcludedMessage({ role: "custom", customType }), true);
 	}
 });

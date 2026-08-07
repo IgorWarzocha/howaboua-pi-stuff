@@ -1,17 +1,14 @@
-import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
 	chmodSync,
-	copyFileSync,
 	existsSync,
 	mkdirSync,
-	mkdtempSync,
+	readFileSync,
 	renameSync,
 	rmSync,
 	statSync,
 	writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { denoAssetUrl, DENO_VERSION, resolveDenoAsset } from "./deno-assets.ts";
@@ -46,8 +43,13 @@ export async function ensureNotebookDenoBinary(
 		`${runtime.platform}-${runtime.arch}`,
 		"deno",
 	);
-	if (existsSync(destination)) return destination;
+	const [, , binarySha256, binaryBytes] = resolveDenoAsset(runtime.platform, runtime.arch);
+	if (validDenoBinary(destination, binarySha256, binaryBytes)) return destination;
+	rmSync(destination, { force: true });
 	await installDeno(destination, runtime, signal);
+	if (!validDenoBinary(destination, binarySha256, binaryBytes)) {
+		throw new Error(`Deno ${DENO_VERSION} cache validation failed after installation`);
+	}
 	return destination;
 }
 
@@ -56,13 +58,12 @@ async function installDeno(
 	runtime: DenoBinaryRuntime,
 	signal?: AbortSignal,
 ): Promise<void> {
-	const [asset, expectedSha256] = resolveDenoAsset(runtime.platform, runtime.arch);
+	const [asset, expectedSha256, expectedBinarySha256, expectedBinaryBytes] = resolveDenoAsset(runtime.platform, runtime.arch);
 	const destination = resolve(destinationInput);
 	if (basename(destination) !== "deno") throw new Error("Deno destination must end with deno");
 	mkdirSync(resolve(destination, ".."), { recursive: true });
 	const lockPath = `${destination}.lock`;
 	if (!(await acquireLock(lockPath, destination, signal))) return;
-	const temporary = mkdtempSync(join(tmpdir(), "pi-codex-deno-"));
 	const staged = `${destination}.${process.pid}.tmp`;
 	try {
 		const url = denoAssetUrl(asset);
@@ -89,20 +90,32 @@ async function installDeno(
 		}
 		const actualSha256 = createHash("sha256").update(bytes).digest("hex");
 		if (actualSha256 !== expectedSha256) throw new Error(`checksum mismatch for ${asset}`);
-		const archive = join(temporary, asset);
-		writeFileSync(archive, bytes);
-		const extraction = spawnSync("unzip", ["-q", archive, "deno", "-d", temporary], { stdio: "inherit" });
+		const { Open } = await dynamicImport("unzipper") as {
+			Open: { buffer(input: Buffer): Promise<{ files: Array<{ path: string; type?: string; buffer(): Promise<Buffer> }> }> };
+		};
+		const archive = await Open.buffer(bytes);
+		const entry = archive.files.find((candidate) => candidate.path === "deno" && candidate.type !== "Directory");
+		if (!entry) throw new Error("pinned Deno archive does not contain the deno executable");
+		const binary = Buffer.from(await entry.buffer());
 		signal?.throwIfAborted();
-		if (extraction.status !== 0) {
-			throw new Error("failed to extract Deno archive; Notebook Code Mode requires the unzip command on Linux");
+		if (binary.length !== expectedBinaryBytes || createHash("sha256").update(binary).digest("hex") !== expectedBinarySha256) {
+			throw new Error("extracted Deno binary checksum mismatch");
 		}
-		copyFileSync(join(temporary, "deno"), staged);
+		writeFileSync(staged, binary, { mode: 0o755 });
 		chmodSync(staged, 0o755);
 		renameSync(staged, destination);
 	} finally {
 		rmSync(staged, { force: true });
-		rmSync(temporary, { recursive: true, force: true });
 		rmSync(lockPath, { recursive: true, force: true });
+	}
+}
+
+function validDenoBinary(path: string, expectedSha256: string, expectedBytes: number): boolean {
+	try {
+		if (statSync(path).size !== expectedBytes) return false;
+		return createHash("sha256").update(readFileSync(path)).digest("hex") === expectedSha256;
+	} catch {
+		return false;
 	}
 }
 

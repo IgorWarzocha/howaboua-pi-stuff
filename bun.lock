@@ -96,6 +96,7 @@
         "smol-toml": "^1.6.0",
         "tree-sitter-bash": "^0.25.1",
         "undici": "8.5.0",
+        "unzipper": "0.12.5",
         "web-tree-sitter": "^0.26.7",
         "ws": "^8.21.0",
         "zeromq": "6.1.2",
