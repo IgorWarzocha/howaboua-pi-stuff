@@ -1,7 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { KernelExecutionResult } from "./jupyter-kernel.ts";
 import type { RuntimeContentItem } from "../code-mode/types.ts";
 
@@ -32,12 +31,12 @@ export interface NotebookJournal {
 	conflictDirectory: string;
 }
 
-export function initializeNotebookJournal(identity: { project: string; session: string; conflictDirectory: string }): NotebookJournal {
+export function initializeNotebookJournal(identity: { project: string; session: string; agentDir: string; conflictDirectory: string }): NotebookJournal {
 	const project = resolve(identity.project);
 	const projectKey = createHash("sha256").update(project).digest("hex");
 	const sessionKey = createHash("sha256").update(identity.session).digest("hex");
 	const directory = join(
-		getAgentDir(),
+		identity.agentDir,
 		"cache",
 		"pi-codex-conversion",
 		"notebook-mode",

@@ -1,4 +1,4 @@
-import type { AgentToolResult, ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { getAgentDir, type AgentToolResult, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { CodexExtensionRuntime } from "../extension/runtime.ts";
 import { formatRunningExecSessionGuidance } from "../tools/code-mode/tool-result.ts";
 import {
@@ -35,7 +35,7 @@ export async function registerCodexCodeMode(
 			resolveCodexRuntimePlan(ctx as ExtensionContext, runtime.state.config, runtime.state.executionMode).kind === "notebook"
 				? "notebook"
 				: "code",
-		notebookOptions: () => ({ maxHeapMiB: runtime.state.config.notebook.maxHeapMiB }),
+		notebookOptions: () => ({ maxHeapMiB: runtime.state.config.notebook.maxHeapMiB, agentDir: getAgentDir() }),
 		providesRenderers: true,
 		richRendering: () => runtime.state.config.ui.codeModeDetails,
 	});
