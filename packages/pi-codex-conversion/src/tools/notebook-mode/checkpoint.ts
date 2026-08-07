@@ -8,7 +8,6 @@ const NOTEBOOK_CHECKPOINT_MIN_BYTES = 8 * 1024 * 1024;
 const CHECKPOINT_SCHEMA = 1;
 const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 const PAYLOAD_NAME = /^checkpoint-[0-9a-f-]+\.bin$/;
-const MAX_NOTICE_NAMES = 24;
 const CHECKPOINT_DIRECTORY_NAME = /^[0-9a-f]{64}$/;
 
 interface CheckpointEntry {
@@ -125,20 +124,6 @@ export async function restoreNotebookCheckpoint(
 		};
 	}
 	return { restored: manifest.entries.map((entry) => entry.name), skipped: manifest.skipped };
-}
-
-export function formatCheckpointNotice(summary: NotebookCheckpointSummary): string | undefined {
-	if (summary.message) return summary.message;
-	if (summary.restored.length === 0 && summary.skipped.length === 0) return undefined;
-	const parts = [
-		summary.restored.length > 0
-			? `Restored notebook state: ${formatNameList(summary.restored)}`
-			: "No notebook variables were restored",
-		summary.skipped.length > 0
-			? `Skipped checkpoint state: ${summary.skipped.slice(0, 12).map(({ name, reason }) => `${name.slice(0, 256)} (${reason.slice(0, 240)})`).join(", ")}${summary.skipped.length > 12 ? `, and ${summary.skipped.length - 12} more` : ""}`
-			: undefined,
-	].filter(Boolean);
-	return parts.join(". ");
 }
 
 function checkpointSource(options: {
@@ -317,9 +302,4 @@ function parseSkipped(value: unknown): { name: string; reason: string } | undefi
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function formatNameList(names: string[]): string {
-	const shown = names.slice(0, MAX_NOTICE_NAMES).map((name) => name.slice(0, 256)).join(", ");
-	return names.length > MAX_NOTICE_NAMES ? `${shown}, and ${names.length - MAX_NOTICE_NAMES} more` : shown;
 }
