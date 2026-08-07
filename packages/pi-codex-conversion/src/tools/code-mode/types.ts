@@ -106,6 +106,17 @@ export interface NotebookMemoryUsage {
 	heapLimitBytes: number;
 }
 
+export type NotebookControlRequest =
+	| { action: "status"; query?: string | undefined }
+	| { action: "checkpoint" }
+	| { action: "release"; names: string[] }
+	| { action: "restart" };
+
+export interface NotebookControlResult {
+	message: string;
+	details: Record<string, unknown>;
+}
+
 export type RuntimeResponse = (
 	| { kind: "yielded"; cellId: string; contentItems: RuntimeContentItem[] }
 	| { kind: "terminated"; cellId: string; contentItems: RuntimeContentItem[] }

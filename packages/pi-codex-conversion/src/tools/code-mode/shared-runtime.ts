@@ -1,6 +1,12 @@
 import { ensureCodeModeHostBinary } from "./binary.js";
 import { CodeModeHostClient } from "./host-client.js";
-import type { CodeModeToolDefinition, RuntimeResponse, ToolExecutionContext } from "./types.js";
+import type {
+	CodeModeToolDefinition,
+	NotebookControlRequest,
+	NotebookControlResult,
+	RuntimeResponse,
+	ToolExecutionContext,
+} from "./types.js";
 
 export type CodeModeExecutionKind = "code" | "notebook";
 
@@ -15,6 +21,7 @@ export interface CodeModeExecutionClient {
 	wait(cellId: string, yieldTimeMs: number, context: ToolExecutionContext, signal?: AbortSignal): Promise<RuntimeResponse>;
 	terminate(cellId: string, context: ToolExecutionContext, signal?: AbortSignal): Promise<RuntimeResponse>;
 	checkpoint?(): Promise<void>;
+	controlNotebook?(request: NotebookControlRequest, context: ToolExecutionContext, signal?: AbortSignal): Promise<NotebookControlResult>;
 	shutdown(): Promise<void>;
 }
 
@@ -156,6 +163,19 @@ export class SharedCodeModeRuntime {
 		if (!pending) return;
 		const client = await pending;
 		await client.checkpoint?.();
+	}
+
+	async controlNotebook(
+		request: NotebookControlRequest,
+		context: ToolExecutionContext,
+		signal?: AbortSignal,
+	): Promise<NotebookControlResult> {
+		if (this.executionKind(context.extensionContext) !== "notebook") {
+			throw new Error("notebook is available only in Notebook Mode");
+		}
+		const client = await this.getNotebookClient(context.extensionContext);
+		if (!client.controlNotebook) throw new Error("Notebook lifecycle controls are unavailable");
+		return client.controlNotebook(request, context, signal);
 	}
 
 	async shutdownHost(): Promise<void> {

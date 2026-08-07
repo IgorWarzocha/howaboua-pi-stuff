@@ -2,6 +2,7 @@ export const CHECKPOINT_SCHEMA = 1;
 
 export interface CheckpointEntry {
 	name: string;
+	kind: "value" | "function";
 	offset: number;
 	length: number;
 }

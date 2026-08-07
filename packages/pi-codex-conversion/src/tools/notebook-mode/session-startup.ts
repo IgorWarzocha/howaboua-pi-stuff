@@ -10,6 +10,11 @@ import { ensureNotebookDenoBinary } from "./deno-binary.ts";
 import { initializeNotebookJournal, type NotebookJournal } from "./journal.ts";
 import { DenoJupyterKernel } from "./jupyter-kernel.ts";
 import { notebookBootstrapSource } from "./kernel-runtime.ts";
+import {
+	formatProjectStateNotice,
+	restoreProjectState,
+	type ProjectStateBaseline,
+} from "./project-state.ts";
 import { resolveNotebookProject } from "./project-identity.ts";
 import { notebookSessionIdentity } from "./session-identity.ts";
 
@@ -18,6 +23,7 @@ export interface StartedNotebookSession {
 	journal: NotebookJournal;
 	checkpointIdentity: NotebookCheckpointIdentity;
 	baselineNames: Set<string>;
+	projectBaseline: ProjectStateBaseline;
 	restoreNotice?: string | undefined;
 }
 
@@ -60,14 +66,21 @@ export async function startNotebookSession(options: {
 		};
 		const journal = initializeNotebookJournal(checkpointIdentity);
 		const baselineNames = new Set(await kernel.complete("", 0));
+		const projectState = await restoreProjectState(kernel, {
+			project,
+			agentDir: runtime.agentDir,
+			maxBytes: options.checkpointMaxBytes,
+		});
 		const restored = await restoreNotebookCheckpoint(kernel, checkpointIdentity, options.checkpointMaxBytes);
 		garbageCollectSupersededNotebookCheckpoints(checkpointIdentity);
+		const restoreNotice = [formatProjectStateNotice(projectState), restored.message].filter(Boolean).join(". ") || undefined;
 		return {
 			kernel,
 			journal,
 			checkpointIdentity,
 			baselineNames,
-			...(restored.message ? { restoreNotice: restored.message } : {}),
+			projectBaseline: projectState.baseline,
+			...(restoreNotice ? { restoreNotice } : {}),
 		};
 	} catch (error) {
 		await kernel.shutdown().catch(() => undefined);
