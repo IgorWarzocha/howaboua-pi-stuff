@@ -23,6 +23,7 @@ import {
 } from "./tool-result.js";
 import type { ToolExecutionContext } from "./types.js";
 import { CODE_MODE_EXEC_CONSTRAINED_SAMPLING } from "./exec-contract.js";
+import { registerNotebookTool } from "./notebook-tool.ts";
 
 const DEFAULT_WAIT_MS = 10_000;
 const MIN_ADAPTIVE_WAIT_MS = 5_000;
@@ -58,6 +59,7 @@ export function registerPublicCodeModeTools(
 	const renderResult = createResultRenderer(runtime, tracker);
 	pi.registerTool(createExecTool(runtime, tracker, renderResult));
 	pi.registerTool(createWaitTool(runtime, tracker, renderResult, waitAttempts));
+	registerNotebookTool(pi, runtime);
 }
 
 function createExecTool(

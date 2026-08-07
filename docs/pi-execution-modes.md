@@ -2,14 +2,14 @@
 
 ## Goal
 
-Add **Notebook Code Mode** to `pi-codex-conversion` alongside normal and existing Code Mode. Preserve the current provider-visible `exec` and `wait` surface and every nested capability, while giving JavaScript and TypeScript cells persistent notebook state, Deno APIs, and npm imports.
+Add **Notebook Code Mode** to `pi-codex-conversion` alongside normal and existing Code Mode. Preserve the existing `exec` and `wait` behavior and every nested capability, while giving JavaScript and TypeScript cells persistent notebook state, Deno APIs, npm imports, and an external lifecycle control.
 
 The first slice is an internal Linux x64 proof on the canonical development server. It does not promise a cross-platform release.
 
 ## Product contract
 
 - Notebook Code Mode extends Code Mode; it does not replace or weaken normal or existing Code Mode.
-- The provider still sees only `exec` and `wait`.
+- Notebook Mode adds one JSON `notebook` tool beside `exec` and `wait`; normal Code Mode keeps its existing two-tool surface.
 - Existing nested built-ins, custom tools, deferred discovery, `ALL_TOOLS`, rendering, output handling, and background operations remain available with the same contracts.
 - Users continue choosing their own general memory systems, skills, and custom tools. Do not add Prime's continual harness, prompt-note, or subagent systems.
 - Notebook cells support natural declarations: top-level variables, functions, classes, and imports persist and may be redefined in later cells.
@@ -51,22 +51,33 @@ Deno's ambient filesystem, network, process, and package APIs remain available. 
 - Compaction does not reset the kernel. The model prompt tells the agent to treat every `exec` as the next Jupyter cell, retain exact working data in named variables, and emit only findings needed in model context.
 - Every `exec` and `wait` result reports model-visible V8 heap use against the configured ceiling plus process RSS. Add pressure guidance near the limit rather than hiding an operational constraint in UI-only metadata.
 
+The host-side `notebook` tool keeps emergency controls available when the kernel cannot safely evaluate an ordinary cell:
+
+- `status` reports kernel, memory, checkpoint, and optionally glob-filtered top-level binding state.
+- `checkpoint` immediately flushes completed project and session state.
+- `release` invokes only standard `Symbol.asyncDispose`/`Symbol.dispose` hooks, deletes the named bindings, and checkpoints their removal.
+- `restart` terminates an active cell if necessary, attempts standard resource disposal, and restores the last completed checkpoint even when disposal fails.
+
+Use JavaScript explicit resource management rather than guessing `.close()`, `.kill()`, or `.abort()` methods. Orderly shutdown also invokes standard disposal hooks after checkpointing and before terminating Deno.
+
 The internal prototype is session-linear. It need not rewind heap state with Pi conversation-tree navigation. It must detect navigation away from the state-owning branch and reset or restore visibly rather than silently attach mismatched notebook state. Do not share a live kernel between forked sessions.
 
-## Session restore and journal
+## Project notebook and session recovery
 
-Keep ordinary Jupyter semantics: one private kernel and plain top-level variables per Pi session. Do not add repository namespaces, state wrapper objects, migration layers, or notebook-management globals. Fresh sessions start clean; resuming a session restores its compatible serializable checkpoint.
+Keep one private live kernel per Pi session, but make its plain top-level state the durable notebook for the Git worktree. Fresh sessions hydrate compatible project state automatically, including sessions started from nested package directories. Do not add repository namespaces, wrapper objects, management globals, or shared live kernels.
 
-Keep the full JavaScript heap live while the session runs. Add best-effort durable checkpoints for session data:
+Each session forks the latest project generation. Successful checkpoints merge changed top-level names back by generation and value hash; independent names merge, while concurrent changes to the same name preserve the committed value and write a visible conflict artifact instead of applying last-writer-wins. The session checkpoint remains a recovery overlay for that Pi session.
+
+Keep the full JavaScript heap live while the session runs. Add best-effort durable checkpoints for project and session state:
 
 1. Ask Deno's Jupyter `complete_request` for global and lexical-scope names.
 2. Exclude runtime/bootstrap names and serialize each remaining candidate independently with Deno's supported `node:v8` `serialize` API.
-3. Skip functions, closures, promises, imports, weak collections, live resources, and values that fail serialization; retain a concise reason per skipped name.
-4. Write one atomically replaced manifest and payload for the session. Include schema, Deno, V8, project, and session so incompatible state is rejected rather than guessed at.
-5. Restore compatible values with `node:v8` `deserialize`, then rebind current tool globals and metadata.
+3. Serialize ordinary values independently. Capture reanimatable function and class source; skip native/bound functions, promises, imports, weak collections, live resources, unsupported closures, and values that fail serialization.
+4. Write atomically replaced manifests and payloads for the worktree and session. Include schema, Deno, V8, project, session, generation, and provenance so incompatible or concurrent state is rejected rather than guessed at.
+5. Restore values before function/class definitions, then rebind current tool globals and metadata. Never replay cells, tool calls, shell commands, or other side effects.
 6. Report actual checkpoint failures to the model without dumping routine skipped-value inventories to the user.
 
-Use a 256 MiB upper prototype cap, reduced to one eighth of the configured heap so serialization plus assembly cannot consume the kernel ceiling; apply the effective cap to both total state and any single variable. Debounce checkpoints after successful cells and await the final flush before orderly teardown. Replacing one current checkpoint prevents unbounded per-cell history; tree navigation removes superseded private checkpoint epochs while retaining `.ipynb` evidence.
+Use a 256 MiB upper prototype cap, reduced to one eighth of the configured heap so serialization plus assembly cannot consume the kernel ceiling; apply the effective cap independently to project and session state and to any single value. Debounce checkpoints after successful cells and await the final flush before orderly teardown. Replacing current checkpoints prevents unbounded per-cell history; tree navigation removes superseded session epochs while retaining project state and `.ipynb` evidence.
 
 Checkpoint before compaction. On an orderly mode switch, session switch, reload, or exit, await the final flush and stop Deno. Do not maintain detached daemons or orphan kernels.
 
@@ -112,13 +123,14 @@ Add a **Session execution mode** selector to `/codex` with inherited, normal, Co
 The Linux x64 proof is successful when it demonstrates:
 
 1. Notebook Code Mode activates through a session override or trusted project default without affecting other modes.
-2. The provider receives only `exec` and `wait`.
+2. Notebook Mode receives `exec`, `wait`, and the JSON `notebook` lifecycle tool while normal Code Mode retains only `exec` and `wait`.
 3. TypeScript declarations, functions, imports, npm packages, and top-level await persist and can be reused or redefined across cells.
 4. Existing built-ins and promoted or deferred custom tools remain discoverable and callable from notebook code, including composed and parallel nested calls.
 5. Yield, `wait`, busy rejection, cancellation, ordinary exceptions, and fatal recovery produce actionable model-visible results.
-6. A fresh session starts clean; resuming an existing session restores its compatible serializable variables without invented state namespaces.
+6. Fresh sessions restore compatible plain project globals, including reanimatable helpers; resuming a session layers its compatible recovery checkpoint without invented state namespaces.
 7. The session writes a valid `.ipynb` journal containing cell source and bounded outputs without exposing journal plumbing as a notebook global.
 8. A graceful restart reports incompatible state, rebinds current tool metadata, and does not claim to reverse external side effects.
 9. Every Notebook result reports heap/RSS pressure while normal Code Mode still uses fresh V8 isolates and its existing custom-tool behavior unchanged.
+10. Lifecycle status, explicit checkpoint, standard resource release, idle restart, and restart around a yielded cell remain available outside `exec`.
 
 After the proof, decide publication and broader platform support from measured startup latency, checkpoint cost, dependency/install reliability, bridge behavior, and real agent use. Shipping package changes require a focused issue/PR, a changeset, and the repository's changed-package gate.

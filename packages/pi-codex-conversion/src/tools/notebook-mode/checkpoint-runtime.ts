@@ -13,15 +13,24 @@ export function checkpointSource(options: {
 	const captures = options.candidates.map((name) => `
   try {
     const __value = ${name};
-    if (typeof __value === "function") __skip(${JSON.stringify(name)}, "function or class");
-    else if (__value instanceof Promise) __skip(${JSON.stringify(name)}, "promise");
+    let __kind = "value";
+    let __captured = __value;
+    if (typeof __value === "function") {
+      const __source = Function.prototype.toString.call(__value);
+      if (__source.includes("[native code]")) throw new Error("native or bound function");
+      const __candidate = (0, eval)("(" + __source + ")");
+      if (typeof __candidate !== "function") throw new Error("function source did not reanimate");
+      __kind = "function";
+      __captured = __source;
+    }
+    if (__captured instanceof Promise) __skip(${JSON.stringify(name)}, "promise");
     else if (__value instanceof WeakMap || __value instanceof WeakSet) __skip(${JSON.stringify(name)}, "weak collection");
     else {
-      const __bytes = serialize(__value);
+      const __bytes = serialize(__captured);
       if (__bytes.byteLength > __max) __skip(${JSON.stringify(name)}, "exceeds per-variable checkpoint cap");
       else if (__total + __bytes.byteLength > __max) __skip(${JSON.stringify(name)}, "exceeds total checkpoint cap");
       else {
-        __entries.push({ name: ${JSON.stringify(name)}, offset: __total, length: __bytes.byteLength });
+        __entries.push({ name: ${JSON.stringify(name)}, kind: __kind, offset: __total, length: __bytes.byteLength });
         __parts.push(__bytes);
         __total += __bytes.byteLength;
       }
@@ -74,12 +83,18 @@ export function restoreSource(manifest: CheckpointManifest, payloadPath: string)
   }
   const __payload = await Deno.readFile(${JSON.stringify(payloadPath)});
   const __entries = ${JSON.stringify(manifest.entries)};
-	const __restored = [];
+	const __values = [];
+	const __functions = [];
   for (const __entry of __entries) {
-    const __value = deserialize(__payload.slice(__entry.offset, __entry.offset + __entry.length));
-	__restored.push([__entry.name, __value]);
+	const __captured = deserialize(__payload.slice(__entry.offset, __entry.offset + __entry.length));
+	if (__entry.kind === "function") __functions.push([__entry.name, __captured]);
+	else __values.push([__entry.name, __captured]);
   }
-	for (const [__name, __value] of __restored) {
+	for (const [__name, __value] of __values) {
+	  Object.defineProperty(globalThis, __name, { value: __value, writable: true, configurable: true, enumerable: true });
+	}
+	for (const [__name, __source] of __functions) {
+	  const __value = (0, eval)("(" + __source + ")");
 	  Object.defineProperty(globalThis, __name, { value: __value, writable: true, configurable: true, enumerable: true });
 	}
   undefined;

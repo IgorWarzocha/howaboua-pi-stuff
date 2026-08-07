@@ -11,6 +11,8 @@ import type { NotebookRuntimeOptions } from "../code-mode/shared-runtime.ts";
 import { directToolYieldTime } from "../code-mode/tool-source.ts";
 import type {
 	CodeModeToolDefinition,
+	NotebookControlRequest,
+	NotebookControlResult,
 	NotebookMemoryUsage,
 	RuntimeResponse,
 	ToolExecutionContext,
@@ -20,6 +22,7 @@ import { NotebookCell } from "./cell.ts";
 import { resolveNotebookCheckpointMaxBytes } from "./checkpoint.ts";
 import { NotebookCheckpointManager } from "./checkpoint-manager.ts";
 import { DenoJupyterKernel } from "./jupyter-kernel.ts";
+import { NotebookLifecycleController } from "./lifecycle.ts";
 import {
 	appendNotebookJournalCell,
 	type NotebookJournal,
@@ -35,6 +38,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 	private readonly options: NotebookRuntimeOptions;
 	private readonly checkpointMaxBytes: number;
 	private readonly checkpoints: NotebookCheckpointManager;
+	private readonly lifecycle: NotebookLifecycleController;
 	private readonly delegate = new CodeModeDelegateRuntime(() => undefined);
 	private readonly bridge = new NotebookBridgeServer({
 		callTool: (cellId, requestId, tool, input) => this.callTool(cellId, requestId, tool, input),
@@ -54,6 +58,8 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 	private latestMemory: NotebookMemoryUsage | undefined;
 	private journal: NotebookJournal | undefined;
 	private extensionContext: ExtensionContext | undefined;
+	private baselineNames = new Set<string>();
+	private kernelStartedAt: number | undefined;
 
 	constructor(options: NotebookRuntimeOptions) {
 		this.options = options;
@@ -66,6 +72,22 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 				this.pendingNotice = joinNotices(this.pendingNotice, notice);
 				if (showInUi) this.extensionContext?.ui.notify(notice, "warning");
 			},
+		});
+		this.lifecycle = new NotebookLifecycleController({
+			prepare: (context, signal) => this.ensureSession(context, signal),
+			kernel: () => this.kernel,
+			activeCellId: () => this.activeCell?.id,
+			stopActive: () => this.stopActiveForLifecycle(),
+			checkpoint: () => this.checkpoint(),
+			markChanged: () => this.checkpoints.schedule(),
+			restart: (context, signal) => this.restartSession(context, signal),
+			baselineNames: () => this.baselineNames,
+			metadata: () => ({
+				startedAt: this.kernelStartedAt,
+				userCells: this.journal?.cells ?? 0,
+				...(this.latestMemory ? { memory: this.latestMemory } : {}),
+				checkpoint: this.checkpoints.status(),
+			}),
 		});
 	}
 
@@ -154,6 +176,14 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		await this.checkpoints.flush(true);
 	}
 
+	async controlNotebook(
+		request: NotebookControlRequest,
+		context: ToolExecutionContext,
+		signal?: AbortSignal,
+	): Promise<NotebookControlResult> {
+		return this.lifecycle.control(request, context, signal);
+	}
+
 	async shutdown(): Promise<void> {
 		this.startupAbort?.abort(new Error("Notebook session is shutting down"));
 		await this.startup?.catch(() => undefined);
@@ -161,6 +191,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		if (active) await this.stopCell(active).catch(() => undefined);
 		await this.checkpoints.flush();
 		if (active) this.closeCell(active);
+		await this.lifecycle.disposeAll().catch(() => undefined);
 		this.activeCell = undefined;
 		this.startup = undefined;
 		this.startupAbort = undefined;
@@ -170,6 +201,8 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		this.latestMemory = undefined;
 		this.journal = undefined;
 		this.extensionContext = undefined;
+		this.baselineNames.clear();
+		this.kernelStartedAt = undefined;
 		const kernel = this.kernel;
 		this.kernel = undefined;
 		this.delegate.clear();
@@ -213,8 +246,11 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 			...(signal ? { signal } : {}),
 		});
 		this.kernel = started.kernel;
+		this.kernelStartedAt = Date.now();
 		this.journal = started.journal;
-		this.checkpoints.configure(started.checkpointIdentity, started.baselineNames);
+		this.nextCellId = Math.max(this.nextCellId, started.journal.cells + 1);
+		this.baselineNames = started.baselineNames;
+		this.checkpoints.configure(started.checkpointIdentity, started.baselineNames, started.projectBaseline);
 		this.reportStateNotice(started.restoreNotice);
 	}
 
@@ -314,23 +350,39 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		}
 	}
 
-	private async recoverAfterFatal(context: ToolExecutionContext): Promise<string> {
-		const extension = context.extensionContext;
-		if (!extension) return "Notebook kernel could not restart because its session context is unavailable";
+	private async stopActiveForLifecycle(): Promise<string | undefined> {
+		const cell = this.activeCell;
+		if (!cell) return undefined;
+		await this.stopCell(cell);
+		this.closeCell(cell);
+		return cell.id;
+	}
+
+	private async restartSession(context: ExtensionContext, signal?: AbortSignal): Promise<string | undefined> {
 		const previous = this.kernel;
-		if (this.activeCell) this.delegate.cancelCell(this.activeCell.id);
 		this.kernel = undefined;
 		this.startup = undefined;
+		this.checkpoints.reset();
+		this.latestMemory = undefined;
+		this.kernelStartedAt = undefined;
 		await previous?.shutdown().catch(() => undefined);
-		const pending = this.startSession(extension).catch((error) => {
+		const pending = this.startSession(context, signal).catch((error) => {
 			if (this.startup === pending) this.startup = undefined;
 			throw error;
 		});
 		this.startup = pending;
+		await pending;
+		const restoreNotice = this.pendingNotice;
+		this.pendingNotice = undefined;
+		return restoreNotice;
+	}
+
+	private async recoverAfterFatal(context: ToolExecutionContext): Promise<string> {
+		const extension = context.extensionContext;
+		if (!extension) return "Notebook kernel could not restart because its session context is unavailable";
+		if (this.activeCell) this.delegate.cancelCell(this.activeCell.id);
 		try {
-			await pending;
-			const restoreNotice = this.pendingNotice;
-			this.pendingNotice = undefined;
+			const restoreNotice = await this.restartSession(extension);
 			return `Notebook kernel restarted from the last completed checkpoint; external side effects were not rolled back${restoreNotice ? `. ${restoreNotice}` : ""}`;
 		} catch (error) {
 			return `Notebook kernel restart failed: ${error instanceof Error ? error.message : String(error)}`;
