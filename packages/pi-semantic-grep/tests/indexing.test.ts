@@ -16,6 +16,7 @@ import { DEFAULT_CONFIG, type SemanticGrepConfig } from "../src/config.js";
 import { dbPathFor, getMeta, openIndexDb } from "../src/db.js";
 import { discoverFiles } from "../src/discovery.js";
 import { chunkSnapshot } from "../src/files.js";
+import { runIndex } from "../src/index-runner.js";
 import { syncIndex } from "../src/indexer.js";
 import { tryAcquireIndexLock } from "../src/lock.js";
 import { searchDb } from "../src/search.js";
@@ -307,7 +308,7 @@ test("legacy databases migrate without discarding indexed chunks", () => {
 	migrated.close();
 });
 
-test("Git discovery includes untracked files and honors standard ignores", () => {
+test("Git discovery includes untracked files and honors standard ignores", async () => {
 	const root = tempProject();
 	execFileSync("git", ["init", "-q", root]);
 	mkdirSync(path.join(root, "ignored"));
@@ -319,7 +320,7 @@ test("Git discovery includes untracked files and honors standard ignores", () =>
 	execFileSync("git", ["-C", root, "add", "-f", "node_modules/forced.ts"]);
 
 	const cfg = config("http://127.0.0.1:1/v1/embeddings");
-	const result = discoverFiles(root, cfg);
+	const result = await discoverFiles(root, cfg);
 	assert.equal(result.source, "git");
 	assert.deepEqual(
 		result.files.map((file) => file.file),
@@ -327,7 +328,7 @@ test("Git discovery includes untracked files and honors standard ignores", () =>
 	);
 });
 
-test("filesystem discovery applies nested gitignore rules", () => {
+test("filesystem discovery applies nested gitignore rules", async () => {
 	const root = tempProject();
 	mkdirSync(path.join(root, "catalogue"));
 	writeFileSync(path.join(root, "catalogue", ".gitignore"), "ignored.ts\n");
@@ -337,7 +338,7 @@ test("filesystem discovery applies nested gitignore rules", () => {
 	);
 	writeFileSync(path.join(root, "catalogue", "ignored.ts"), "ignored\n");
 
-	const result = discoverFiles(
+	const result = await discoverFiles(
 		root,
 		config("http://127.0.0.1:1/v1/embeddings"),
 	);
@@ -346,6 +347,31 @@ test("filesystem discovery applies nested gitignore rules", () => {
 		result.files.map((file) => file.file),
 		[path.join("catalogue", "kept.ts")],
 	);
+});
+
+test("startup indexing yields before project scanning", async () => {
+	const endpoint = await embeddingEndpoint();
+	try {
+		const root = tempProject();
+		writeFileSync(
+			path.join(root, "background.ts"),
+			"export const ready = true;\n",
+		);
+		let scanning = false;
+		const indexing = runIndex(
+			root,
+			config(endpoint.url),
+			false,
+			undefined,
+			() => {
+				scanning = true;
+			},
+		);
+		assert.equal(scanning, false);
+		assert.equal((await indexing).status, "indexed");
+	} finally {
+		await endpoint.close();
+	}
 });
 
 test("oversized repeated segments receive distinct chunk keys", () => {

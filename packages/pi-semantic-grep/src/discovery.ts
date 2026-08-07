@@ -1,9 +1,12 @@
-import { spawnSync } from "node:child_process";
-import { lstatSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { execFile } from "node:child_process";
+import { lstat, readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
+import { promisify } from "node:util";
 import ignore, { type Ignore } from "ignore";
 import { type SemanticGrepConfig, STANDARD_EXCLUDE_DIRS } from "./config.js";
 import type { FileMetadata } from "./files.js";
+
+const execFileAsync = promisify(execFile);
 
 export interface DiscoveryResult {
 	files: FileMetadata[];
@@ -31,12 +34,12 @@ function excludedByDirectory(rel: string, excluded: Set<string>): boolean {
 	return rel.split(/[\\/]/).some((part) => excluded.has(part));
 }
 
-function inspectFile(
+async function inspectFile(
 	root: string,
 	rel: string,
 	config: SemanticGrepConfig,
 	excluded: Set<string>,
-): Inspection {
+): Promise<Inspection> {
 	if (
 		excludedByDirectory(rel, excluded) ||
 		!config.indexing.includeExtensions.includes(path.extname(rel).toLowerCase())
@@ -45,18 +48,18 @@ function inspectFile(
 
 	const abs = path.join(root, rel);
 	try {
-		const entry = lstatSync(abs);
+		const entry = await lstat(abs);
 		if (entry.isSymbolicLink() && !config.indexing.followSymlinks)
 			return { unavailable: false };
-		const stat = entry.isSymbolicLink() ? statSync(abs) : entry;
-		if (!stat.isFile() || stat.size > config.indexing.maxFileBytes)
+		const fileStat = entry.isSymbolicLink() ? await stat(abs) : entry;
+		if (!fileStat.isFile() || fileStat.size > config.indexing.maxFileBytes)
 			return { unavailable: false };
 		return {
 			metadata: {
 				file: rel,
-				size: stat.size,
-				mtimeMs: stat.mtimeMs,
-				ctimeMs: stat.ctimeMs,
+				size: fileStat.size,
+				mtimeMs: fileStat.mtimeMs,
+				ctimeMs: fileStat.ctimeMs,
 			},
 			unavailable: false,
 		};
@@ -68,29 +71,35 @@ function inspectFile(
 	}
 }
 
-function gitCandidates(root: string): string[] | undefined {
-	const result = spawnSync(
-		"git",
-		[
-			"-C",
-			root,
-			"ls-files",
-			"--cached",
-			"--others",
-			"--exclude-standard",
-			"-z",
-			"--",
-			".",
-		],
-		{ encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
-	);
-	if (result.status !== 0) return undefined;
-	return result.stdout.split("\0").filter(Boolean);
+async function gitCandidates(root: string): Promise<string[] | undefined> {
+	try {
+		const { stdout } = await execFileAsync(
+			"git",
+			[
+				"-C",
+				root,
+				"ls-files",
+				"--cached",
+				"--others",
+				"--exclude-standard",
+				"-z",
+				"--",
+				".",
+			],
+			{ encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
+		);
+		return stdout.split("\0").filter(Boolean);
+	} catch {
+		return undefined;
+	}
 }
 
-function loadIgnoreScope(root: string, dir: string): IgnoreScope | undefined {
+async function loadIgnoreScope(
+	root: string,
+	dir: string,
+): Promise<IgnoreScope | undefined> {
 	try {
-		const rules = readFileSync(path.join(root, dir, ".gitignore"), "utf8");
+		const rules = await readFile(path.join(root, dir, ".gitignore"), "utf8");
 		return {
 			base: dir.split(path.sep).join("/"),
 			matcher: ignore().add(rules),
@@ -120,28 +129,31 @@ function ignoredByScopes(
 	return ignored;
 }
 
-function filesystemCandidates(
+async function filesystemCandidates(
 	root: string,
 	config: SemanticGrepConfig,
-): {
+): Promise<{
 	files: string[];
 	skipped: number;
 	unavailableDirectories: string[];
-} {
+}> {
 	const excluded = excludedDirectories(config);
 	const files: string[] = [];
 	const unavailableDirectories: string[] = [];
 	let skipped = 0;
-	const walk = (dir: string, inheritedScopes: IgnoreScope[]): void => {
+	const walk = async (
+		dir: string,
+		inheritedScopes: IgnoreScope[],
+	): Promise<void> => {
 		const localScope = config.indexing.useGitIgnore
-			? loadIgnoreScope(root, dir)
+			? await loadIgnoreScope(root, dir)
 			: undefined;
 		const scopes = localScope
 			? [...inheritedScopes, localScope]
 			: inheritedScopes;
 		let entries;
 		try {
-			entries = readdirSync(path.join(root, dir), { withFileTypes: true });
+			entries = await readdir(path.join(root, dir), { withFileTypes: true });
 		} catch (error) {
 			const code = (error as NodeJS.ErrnoException).code;
 			if (code === "ENOENT" || code === "EACCES" || code === "EPERM") {
@@ -164,35 +176,45 @@ function filesystemCandidates(
 			if (entry.isDirectory()) {
 				if (excluded.has(entry.name) || ignoredByScopes(rel, true, scopes))
 					continue;
-				walk(rel, scopes);
+				await walk(rel, scopes);
 			} else if (entry.isFile() && !ignoredByScopes(rel, false, scopes)) {
 				files.push(rel);
 			}
 		}
 	};
-	walk("", []);
+	await walk("", []);
 	return { files, skipped, unavailableDirectories };
 }
 
-export function discoverFiles(
+export async function discoverFiles(
 	root: string,
 	config: SemanticGrepConfig,
-): DiscoveryResult {
+): Promise<DiscoveryResult> {
 	const fromGit = config.indexing.useGitIgnore
-		? gitCandidates(root)
+		? await gitCandidates(root)
 		: undefined;
-	const fallback = fromGit ? undefined : filesystemCandidates(root, config);
+	const fallback = fromGit
+		? undefined
+		: await filesystemCandidates(root, config);
 	const candidates = fromGit ?? fallback?.files ?? [];
 	const files: FileMetadata[] = [];
 	const unavailableFiles = new Set<string>();
 	const excluded = excludedDirectories(config);
 	let skipped = fallback?.skipped ?? 0;
-	for (const rel of candidates) {
-		const inspection = inspectFile(root, rel, config, excluded);
-		if (inspection.metadata) files.push(inspection.metadata);
-		else if (inspection.unavailable) {
-			skipped++;
-			unavailableFiles.add(rel);
+	for (let start = 0; start < candidates.length; start += 256) {
+		const batch = candidates.slice(start, start + 256);
+		const inspections = await Promise.all(
+			batch.map((rel) => inspectFile(root, rel, config, excluded)),
+		);
+		for (let index = 0; index < batch.length; index++) {
+			const rel = batch[index];
+			const inspection = inspections[index];
+			if (!rel || !inspection) continue;
+			if (inspection.metadata) files.push(inspection.metadata);
+			else if (inspection.unavailable) {
+				skipped++;
+				unavailableFiles.add(rel);
+			}
 		}
 	}
 	if (files.length > config.indexing.maxFiles) {

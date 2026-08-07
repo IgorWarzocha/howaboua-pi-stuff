@@ -4,6 +4,7 @@ import type { SemanticGrepConfig } from "./config.js";
 import { completeBuild, type FileRow, prepareBuildTarget } from "./db.js";
 import { type DiscoveryResult, discoverFiles } from "./discovery.js";
 import { embedDocuments } from "./embeddings.js";
+import { nextEventLoopTurn } from "./event-loop.js";
 import {
 	chunkSnapshot,
 	type FileMetadata,
@@ -197,7 +198,7 @@ export async function syncIndex(
 	const fingerprint = indexFingerprint(config);
 	const target = prepareBuildTarget(db, fingerprint, forceFullRebuild);
 	if (!providedDiscovery) onProgress?.("scanning project files");
-	const discovery = providedDiscovery ?? discoverFiles(root, config);
+	const discovery = providedDiscovery ?? (await discoverFiles(root, config));
 	const current = new Set(discovery.files.map((file) => file.file));
 	const filesTable = target.fullRebuild ? "staged_files" : "files";
 	const knownRows = db
@@ -244,6 +245,7 @@ export async function syncIndex(
 	};
 
 	for (let i = 0; i < discovery.files.length; i++) {
+		if (i % 32 === 0) await nextEventLoopTurn();
 		signal?.throwIfAborted();
 		const metadata = discovery.files[i];
 		if (!metadata) continue;
