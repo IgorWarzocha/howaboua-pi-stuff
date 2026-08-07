@@ -25,13 +25,11 @@ interface NotebookCell {
 
 export interface NotebookJournal {
 	path: string;
-	directory: string;
 	project: string;
 	session: string;
-	conflictDirectory: string;
 }
 
-export function initializeNotebookJournal(identity: { project: string; session: string; agentDir: string; conflictDirectory: string }): NotebookJournal {
+export function initializeNotebookJournal(identity: { project: string; session: string; agentDir: string }): NotebookJournal {
 	const project = resolve(identity.project);
 	const projectKey = createHash("sha256").update(project).digest("hex");
 	const sessionKey = createHash("sha256").update(identity.session).digest("hex");
@@ -46,27 +44,11 @@ export function initializeNotebookJournal(identity: { project: string; session: 
 	mkdirSync(directory, { recursive: true });
 	const journal = {
 		path: join(directory, `${sessionKey}.ipynb`),
-		directory,
 		project,
 		session: identity.session,
-		conflictDirectory: identity.conflictDirectory,
 	};
 	if (!existsSync(journal.path)) writeJournal(journal.path, emptyDocument(journal));
 	return journal;
-}
-
-export function notebookJournalBootstrapSource(journal: NotebookJournal): string {
-	return `{
-  const __info = Object.freeze({
-    journalPath: ${JSON.stringify(journal.path)},
-    directory: ${JSON.stringify(journal.directory)},
-    project: ${JSON.stringify(journal.project)},
-    session: ${JSON.stringify(journal.session)},
-	conflictDirectory: ${JSON.stringify(journal.conflictDirectory)},
-  });
-  Object.defineProperty(globalThis, "notebook", { value: __info, writable: false, configurable: false, enumerable: true });
-  undefined;
-}`;
 }
 
 export function appendNotebookJournalCell(

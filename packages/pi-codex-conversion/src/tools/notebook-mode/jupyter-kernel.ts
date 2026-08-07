@@ -1,12 +1,16 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { randomBytes, randomUUID } from "node:crypto";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { createServer, type Server } from "node:net";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { randomUUID } from "node:crypto";
+import { rmSync } from "node:fs";
 import { setTimeout as sleep } from "node:timers/promises";
 import { Dealer, Subscriber } from "zeromq";
 import type { RuntimeContentItem } from "../code-mode/types.ts";
+import { createJupyterConnectionFile, jupyterEndpoint, type JupyterConnectionInfo } from "./jupyter-connection.ts";
+import {
+	applyKernelOutput,
+	finishKernelExecution,
+	type ActiveKernelExecution,
+	type KernelExecutionResult,
+} from "./jupyter-output.ts";
 import {
 	createJupyterMessage,
 	decodeJupyterMessage,
@@ -18,45 +22,7 @@ const READY_TIMEOUT_MS = 8_000;
 const SUBSCRIBER_SETTLE_MS = 50;
 const SHUTDOWN_GRACE_MS = 1_500;
 const MAX_STDERR_CHARS = 16_384;
-const MAX_EXECUTION_OUTPUT_CHARS = 32 * 1024 * 1024;
-const MAX_EXECUTION_OUTPUT_ITEMS = 10_000;
-const MAX_ERROR_CHARS = 256 * 1024;
-const MAX_ERROR_FIELD_CHARS = 64 * 1024;
-
-interface ConnectionInfo {
-	ip: "127.0.0.1";
-	transport: "tcp";
-	shell_port: number;
-	iopub_port: number;
-	stdin_port: number;
-	control_port: number;
-	hb_port: number;
-	signature_scheme: "hmac-sha256";
-	key: string;
-	kernel_name: "deno";
-}
-
-export interface KernelExecutionResult {
-	status: "ok" | "error" | "aborted";
-	items: RuntimeContentItem[];
-	errorText?: string | undefined;
-	errorName?: string | undefined;
-	errorValue?: string | undefined;
-}
-
-interface ActiveExecution {
-	requestId: string;
-	items: RuntimeContentItem[];
-	outputChars: number;
-	outputTruncated: boolean;
-	status: KernelExecutionResult["status"];
-	errorText?: string | undefined;
-	errorName?: string | undefined;
-	errorValue?: string | undefined;
-	onOutput?: ((item: RuntimeContentItem) => void) | undefined;
-	resolve(result: KernelExecutionResult): void;
-	reject(error: Error): void;
-}
+export type { KernelExecutionResult } from "./jupyter-output.ts";
 
 export class DenoJupyterKernel {
 	private readonly deno: string;
@@ -66,12 +32,12 @@ export class DenoJupyterKernel {
 	private readonly session = randomUUID();
 	private process: ChildProcess | undefined;
 	private tempDir: string | undefined;
-	private connection: ConnectionInfo | undefined;
+	private connection: JupyterConnectionInfo | undefined;
 	private shell: Dealer | undefined;
 	private control: Dealer | undefined;
 	private iopub: Subscriber | undefined;
 	private startup: Promise<void> | undefined;
-	private active: ActiveExecution | undefined;
+	private active: ActiveKernelExecution | undefined;
 	private stderr = "";
 
 	constructor(options: { deno: string; cwd: string; maxHeapMiB: number; env?: NodeJS.ProcessEnv | undefined }) {
@@ -113,7 +79,7 @@ export class DenoJupyterKernel {
 			resolve = done;
 			reject = fail;
 		});
-		const execution: ActiveExecution = {
+		const execution: ActiveKernelExecution = {
 			requestId: message.header.msg_id,
 			items: [],
 			outputChars: 0,
@@ -190,7 +156,7 @@ export class DenoJupyterKernel {
 	private async startInner(signal?: AbortSignal): Promise<void> {
 		if (this.process && this.connection) return;
 		signal?.throwIfAborted();
-		const { info, path, dir } = await createConnectionFile();
+		const { info, path, dir } = await createJupyterConnectionFile();
 		this.tempDir = dir;
 		const child = spawn(this.deno, ["jupyter", "--kernel", "--conn", path], {
 			cwd: this.cwd,
@@ -216,9 +182,9 @@ export class DenoJupyterKernel {
 		this.shell = new Dealer();
 		this.control = new Dealer();
 		this.iopub = new Subscriber();
-		this.shell.connect(endpoint(connection, connection.shell_port));
-		this.control.connect(endpoint(connection, connection.control_port));
-		this.iopub.connect(endpoint(connection, connection.iopub_port));
+		this.shell.connect(jupyterEndpoint(connection, connection.shell_port));
+		this.control.connect(jupyterEndpoint(connection, connection.control_port));
+		this.iopub.connect(jupyterEndpoint(connection, connection.iopub_port));
 		this.iopub.subscribe("");
 		await sleep(SUBSCRIBER_SETTLE_MS, undefined, signal ? { signal } : undefined);
 		void this.runIopubPump();
@@ -283,63 +249,10 @@ export class DenoJupyterKernel {
 	private handleIopub(message: JupyterMessage): void {
 		const execution = this.active;
 		if (!execution || message.parent_header["msg_id"] !== execution.requestId) return;
-		const type = message.header.msg_type;
-		if (type === "stream") {
-			const text = message.content["text"];
-			if (typeof text === "string" && text) this.emit(execution, { type: "input_text", text });
-			return;
-		}
-		if (type === "execute_result" || type === "display_data") {
-			const data = message.content["data"];
-			if (!data || typeof data !== "object" || Array.isArray(data)) return;
-			const bundle = data as Record<string, unknown>;
-			for (const mime of ["image/png", "image/jpeg", "image/gif"] as const) {
-				const encoded = bundle[mime];
-				if (typeof encoded === "string") {
-					this.emit(execution, { type: "input_image", image_url: `data:${mime};base64,${encoded}` });
-					return;
-				}
-			}
-			const text = bundle["text/markdown"] ?? bundle["text/plain"];
-			if (typeof text === "string" && text !== "undefined") this.emit(execution, { type: "input_text", text });
-			return;
-		}
-		if (type === "error") {
-			const name = truncateErrorField(
-				typeof message.content["ename"] === "string" ? message.content["ename"] : "Error",
-			);
-			const value = truncateErrorField(
-				typeof message.content["evalue"] === "string" ? message.content["evalue"] : "Notebook cell failed",
-			);
-			const traceback = boundedTraceback(message.content["traceback"]);
-			execution.status = "error";
-			execution.errorName = name;
-			execution.errorValue = value;
-			execution.errorText = traceback ?? truncateErrorText(`${name}: ${value}`);
-			return;
-		}
-		if (type === "status" && message.content["execution_state"] === "idle") {
+		if (applyKernelOutput(message, execution) === "idle") {
 			this.active = undefined;
-			execution.resolve({
-				status: execution.status,
-				items: execution.items,
-				...(execution.errorText ? { errorText: execution.errorText } : {}),
-				...(execution.errorName ? { errorName: execution.errorName } : {}),
-				...(execution.errorValue ? { errorValue: execution.errorValue } : {}),
-			});
+			execution.resolve(finishKernelExecution(execution));
 		}
-	}
-
-	private emit(execution: ActiveExecution, item: RuntimeContentItem): void {
-		if (execution.outputTruncated) return;
-		const size = item.type === "input_text" ? item.text?.length ?? 0 : item.image_url?.length ?? 0;
-		if (execution.items.length >= MAX_EXECUTION_OUTPUT_ITEMS || execution.outputChars + size > MAX_EXECUTION_OUTPUT_CHARS) {
-			item = { type: "input_text", text: "[Notebook cell output truncated]" };
-			execution.outputTruncated = true;
-		}
-		execution.items.push(item);
-		execution.outputChars += item.type === "input_text" ? item.text?.length ?? 0 : item.image_url?.length ?? 0;
-		execution.onOutput?.(item);
 	}
 
 	private failKernel(error: Error): void {
@@ -371,86 +284,6 @@ export class DenoJupyterKernel {
 		if (this.tempDir) rmSync(this.tempDir, { recursive: true, force: true });
 		this.tempDir = undefined;
 	}
-}
-
-function boundedTraceback(value: unknown): string | undefined {
-	if (!Array.isArray(value)) return undefined;
-	let output = "";
-	for (const line of value) {
-		if (typeof line !== "string") continue;
-		const separator = output ? "\n" : "";
-		const remaining = MAX_ERROR_CHARS - output.length - separator.length;
-		if (remaining <= 0) return markErrorTruncated(output);
-		output += separator + line.slice(0, remaining);
-		if (line.length > remaining) return markErrorTruncated(output);
-	}
-	return output || undefined;
-}
-
-function truncateErrorField(value: string): string {
-	const marker = "\n[Notebook error field truncated]";
-	return value.length <= MAX_ERROR_FIELD_CHARS
-		? value
-		: `${value.slice(0, MAX_ERROR_FIELD_CHARS - marker.length)}${marker}`;
-}
-
-function truncateErrorText(value: string): string {
-	return value.length <= MAX_ERROR_CHARS
-		? value
-		: markErrorTruncated(value);
-}
-
-function markErrorTruncated(value: string): string {
-	const marker = "\n[Notebook error truncated]";
-	return `${value.slice(0, MAX_ERROR_CHARS - marker.length)}${marker}`;
-}
-
-async function createConnectionFile(): Promise<{ info: ConnectionInfo; path: string; dir: string }> {
-	const [shellPort, iopubPort, stdinPort, controlPort, heartbeatPort] = await reserveLoopbackPorts(5);
-	const info: ConnectionInfo = {
-		ip: "127.0.0.1",
-		transport: "tcp",
-		shell_port: shellPort!,
-		iopub_port: iopubPort!,
-		stdin_port: stdinPort!,
-		control_port: controlPort!,
-		hb_port: heartbeatPort!,
-		signature_scheme: "hmac-sha256",
-		key: randomBytes(24).toString("hex"),
-		kernel_name: "deno",
-	};
-	const dir = mkdtempSync(join(tmpdir(), "pi-codex-deno-kernel-"));
-	const path = join(dir, "connection.json");
-	writeFileSync(path, `${JSON.stringify(info, null, 2)}\n`, { mode: 0o600 });
-	return { info, path, dir };
-}
-
-async function reserveLoopbackPorts(count: number): Promise<number[]> {
-	const servers: Server[] = [];
-	try {
-		for (let index = 0; index < count; index += 1) {
-			const server = createServer();
-			servers.push(server);
-			await new Promise<void>((resolve, reject) => {
-				server.once("error", reject);
-				server.listen(0, "127.0.0.1", () => {
-					server.off("error", reject);
-					resolve();
-				});
-			});
-		}
-		return servers.map((server) => {
-			const address = server.address();
-			if (!address || typeof address === "string") throw new Error("Could not reserve a Jupyter loopback port");
-			return address.port;
-		});
-	} finally {
-		await Promise.all(servers.map((server) => new Promise<void>((resolve) => server.close(() => resolve()))));
-	}
-}
-
-function endpoint(connection: ConnectionInfo, port: number): string {
-	return `${connection.transport}://${connection.ip}:${port}`;
 }
 
 function waitForProcessExit(process: ChildProcess, timeoutMs: number): Promise<void> {
