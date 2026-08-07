@@ -13,7 +13,6 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { join, resolve } from "node:path";
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { NOTEBOOK_CHECKPOINT_MAX_BYTES } from "./checkpoint.ts";
 import type { DenoJupyterKernel } from "./jupyter-kernel.ts";
 
@@ -64,9 +63,10 @@ export interface RepositoryStateSummary {
 
 export async function restoreRepositoryState(
 	kernel: DenoJupyterKernel,
-	project: string,
+	identity: { project: string; agentDir: string },
 ): Promise<RepositoryStateSummary> {
-	const paths = repositoryPaths(project);
+	const { project, agentDir } = identity;
+	const paths = repositoryPaths(project, agentDir);
 	const manifest = readRepositoryManifest(paths.manifest);
 	if (!manifest) return emptySummary();
 	if (manifest.project !== resolve(project)) {
@@ -93,10 +93,10 @@ export async function restoreRepositoryState(
 
 export async function writeRepositoryState(
 	kernel: DenoJupyterKernel,
-	identity: { project: string; session: string },
+	identity: { project: string; session: string; agentDir: string },
 	baseline: RepositoryStateBaseline,
 ): Promise<RepositoryStateSummary> {
-	const paths = repositoryPaths(identity.project);
+	const paths = repositoryPaths(identity.project, identity.agentDir);
 	mkdirSync(paths.directory, { recursive: true });
 	const candidateId = randomUUID();
 	const candidatePayloadPath = join(paths.directory, `candidate-${candidateId}.bin`);
@@ -167,8 +167,8 @@ export function formatRepositoryStateNotice(
 	return parts.length > 0 ? parts.join(". ") : undefined;
 }
 
-export function repositoryConflictDirectory(project: string): string {
-	return join(repositoryPaths(project).directory, "conflicts");
+export function repositoryConflictDirectory(project: string, agentDir: string): string {
+	return join(repositoryPaths(project, agentDir).directory, "conflicts");
 }
 
 function mergeRepositoryState(options: {
@@ -411,9 +411,9 @@ function repositoryRestoreSource(manifest: RepositoryManifest, payloadPath: stri
 }`;
 }
 
-function repositoryPaths(project: string) {
+function repositoryPaths(project: string, agentDir: string) {
 	const key = createHash("sha256").update(resolve(project)).digest("hex");
-	const directory = join(getAgentDir(), "cache", "pi-codex-conversion", "notebook-mode", "repositories", key);
+	const directory = join(agentDir, "cache", "pi-codex-conversion", "notebook-mode", "repositories", key);
 	return { directory, manifest: join(directory, "repository.json"), lock: join(directory, "write.lock") };
 }
 
