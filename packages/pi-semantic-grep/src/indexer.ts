@@ -198,7 +198,8 @@ export async function syncIndex(
 	const fingerprint = indexFingerprint(config);
 	const target = prepareBuildTarget(db, fingerprint, forceFullRebuild);
 	if (!providedDiscovery) onProgress?.("scanning project files");
-	const discovery = providedDiscovery ?? (await discoverFiles(root, config));
+	const discovery =
+		providedDiscovery ?? (await discoverFiles(root, config, signal));
 	const current = new Set(discovery.files.map((file) => file.file));
 	const filesTable = target.fullRebuild ? "staged_files" : "files";
 	const knownRows = db
@@ -264,6 +265,8 @@ export async function syncIndex(
 			continue;
 		}
 
+		await nextEventLoopTurn();
+		signal?.throwIfAborted();
 		const snapshot = readFileSnapshot(root, metadata);
 		if (!snapshot) {
 			skipped++;
@@ -281,6 +284,8 @@ export async function syncIndex(
 			`[${i + 1}/${discovery.files.length}] indexing ${metadata.file}`,
 		);
 		const fileChunks = chunkSnapshot(snapshot, config);
+		await nextEventLoopTurn();
+		signal?.throwIfAborted();
 		pendingJobs.push({ snapshot, chunks: fileChunks });
 		pendingChunks += fileChunks.length;
 		if (

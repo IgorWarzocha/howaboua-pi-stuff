@@ -349,6 +349,20 @@ test("filesystem discovery applies nested gitignore rules", async () => {
 	);
 });
 
+test("discovery honors startup cancellation", async () => {
+	const root = tempProject();
+	const controller = new AbortController();
+	controller.abort();
+	await assert.rejects(
+		discoverFiles(
+			root,
+			config("http://127.0.0.1:1/v1/embeddings"),
+			controller.signal,
+		),
+		(error: Error) => error.name === "AbortError",
+	);
+});
+
 test("startup indexing yields before project scanning", async () => {
 	const endpoint = await embeddingEndpoint();
 	try {

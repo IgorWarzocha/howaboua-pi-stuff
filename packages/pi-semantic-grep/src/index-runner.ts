@@ -19,7 +19,7 @@ export async function runIndex(
 	await nextEventLoopTurn();
 	signal?.throwIfAborted();
 	onProgress?.("scanning project files");
-	const discovery = await discoverFiles(root, config);
+	const discovery = await discoverFiles(root, config, signal);
 	signal?.throwIfAborted();
 	const release = await tryAcquireIndexLock(root);
 	if (!release) return { status: "busy" };

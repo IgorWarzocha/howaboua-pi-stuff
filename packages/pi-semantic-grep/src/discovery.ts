@@ -7,6 +7,7 @@ import { type SemanticGrepConfig, STANDARD_EXCLUDE_DIRS } from "./config.js";
 import type { FileMetadata } from "./files.js";
 
 const execFileAsync = promisify(execFile);
+const METADATA_CONCURRENCY = 32;
 
 export interface DiscoveryResult {
 	files: FileMetadata[];
@@ -39,7 +40,9 @@ async function inspectFile(
 	rel: string,
 	config: SemanticGrepConfig,
 	excluded: Set<string>,
+	signal?: AbortSignal,
 ): Promise<Inspection> {
+	signal?.throwIfAborted();
 	if (
 		excludedByDirectory(rel, excluded) ||
 		!config.indexing.includeExtensions.includes(path.extname(rel).toLowerCase())
@@ -49,6 +52,7 @@ async function inspectFile(
 	const abs = path.join(root, rel);
 	try {
 		const entry = await lstat(abs);
+		signal?.throwIfAborted();
 		if (entry.isSymbolicLink() && !config.indexing.followSymlinks)
 			return { unavailable: false };
 		const fileStat = entry.isSymbolicLink() ? await stat(abs) : entry;
@@ -71,7 +75,10 @@ async function inspectFile(
 	}
 }
 
-async function gitCandidates(root: string): Promise<string[] | undefined> {
+async function gitCandidates(
+	root: string,
+	signal?: AbortSignal,
+): Promise<string[] | undefined> {
 	try {
 		const { stdout } = await execFileAsync(
 			"git",
@@ -86,10 +93,12 @@ async function gitCandidates(root: string): Promise<string[] | undefined> {
 				"--",
 				".",
 			],
-			{ encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
+			{ encoding: "utf8", maxBuffer: 64 * 1024 * 1024, signal },
 		);
+		signal?.throwIfAborted();
 		return stdout.split("\0").filter(Boolean);
 	} catch {
+		signal?.throwIfAborted();
 		return undefined;
 	}
 }
@@ -97,9 +106,12 @@ async function gitCandidates(root: string): Promise<string[] | undefined> {
 async function loadIgnoreScope(
 	root: string,
 	dir: string,
+	signal?: AbortSignal,
 ): Promise<IgnoreScope | undefined> {
+	signal?.throwIfAborted();
 	try {
 		const rules = await readFile(path.join(root, dir, ".gitignore"), "utf8");
+		signal?.throwIfAborted();
 		return {
 			base: dir.split(path.sep).join("/"),
 			matcher: ignore().add(rules),
@@ -132,6 +144,7 @@ function ignoredByScopes(
 async function filesystemCandidates(
 	root: string,
 	config: SemanticGrepConfig,
+	signal?: AbortSignal,
 ): Promise<{
 	files: string[];
 	skipped: number;
@@ -145,8 +158,9 @@ async function filesystemCandidates(
 		dir: string,
 		inheritedScopes: IgnoreScope[],
 	): Promise<void> => {
+		signal?.throwIfAborted();
 		const localScope = config.indexing.useGitIgnore
-			? await loadIgnoreScope(root, dir)
+			? await loadIgnoreScope(root, dir, signal)
 			: undefined;
 		const scopes = localScope
 			? [...inheritedScopes, localScope]
@@ -154,6 +168,7 @@ async function filesystemCandidates(
 		let entries;
 		try {
 			entries = await readdir(path.join(root, dir), { withFileTypes: true });
+			signal?.throwIfAborted();
 		} catch (error) {
 			const code = (error as NodeJS.ErrnoException).code;
 			if (code === "ENOENT" || code === "EACCES" || code === "EPERM") {
@@ -164,6 +179,7 @@ async function filesystemCandidates(
 			throw error;
 		}
 		for (const entry of entries) {
+			signal?.throwIfAborted();
 			const rel = dir ? path.join(dir, entry.name) : entry.name;
 			if (entry.isSymbolicLink()) {
 				if (
@@ -189,34 +205,54 @@ async function filesystemCandidates(
 export async function discoverFiles(
 	root: string,
 	config: SemanticGrepConfig,
+	signal?: AbortSignal,
 ): Promise<DiscoveryResult> {
+	signal?.throwIfAborted();
 	const fromGit = config.indexing.useGitIgnore
-		? await gitCandidates(root)
+		? await gitCandidates(root, signal)
 		: undefined;
 	const fallback = fromGit
 		? undefined
-		: await filesystemCandidates(root, config);
+		: await filesystemCandidates(root, config, signal);
 	const candidates = fromGit ?? fallback?.files ?? [];
 	const files: FileMetadata[] = [];
 	const unavailableFiles = new Set<string>();
 	const excluded = excludedDirectories(config);
 	let skipped = fallback?.skipped ?? 0;
-	for (let start = 0; start < candidates.length; start += 256) {
-		const batch = candidates.slice(start, start + 256);
-		const inspections = await Promise.all(
-			batch.map((rel) => inspectFile(root, rel, config, excluded)),
-		);
-		for (let index = 0; index < batch.length; index++) {
-			const rel = batch[index];
-			const inspection = inspections[index];
-			if (!rel || !inspection) continue;
-			if (inspection.metadata) files.push(inspection.metadata);
-			else if (inspection.unavailable) {
-				skipped++;
-				unavailableFiles.add(rel);
+	let cursor = 0;
+	let failure: unknown;
+	const worker = async (): Promise<void> => {
+		while (failure === undefined) {
+			try {
+				signal?.throwIfAborted();
+				const index = cursor++;
+				const rel = candidates[index];
+				if (!rel) return;
+				const inspection = await inspectFile(
+					root,
+					rel,
+					config,
+					excluded,
+					signal,
+				);
+				if (inspection.metadata) files.push(inspection.metadata);
+				else if (inspection.unavailable) {
+					skipped++;
+					unavailableFiles.add(rel);
+				}
+			} catch (error) {
+				failure = error;
 			}
 		}
-	}
+	};
+	await Promise.all(
+		Array.from(
+			{ length: Math.min(METADATA_CONCURRENCY, candidates.length) },
+			worker,
+		),
+	);
+	if (failure !== undefined) throw failure;
+	signal?.throwIfAborted();
 	if (files.length > config.indexing.maxFiles) {
 		throw new Error(
 			`semantic grep found ${files.length} indexable files, above indexing.maxFiles=${config.indexing.maxFiles}; narrow the project root or exclusions`,
