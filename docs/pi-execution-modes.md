@@ -44,6 +44,7 @@ Deno's ambient filesystem, network, process, and package APIs remain available. 
 - Every `exec` remains a distinct cell in that kernel, not one never-ending invocation.
 - Execute one cell at a time. If a cell has yielded, a second `exec` fails with guidance to call `wait` or terminate the active cell.
 - `wait` continues observing the same active cell and preserves its current continuation contract.
+- Nested tool promises may run in parallel. At cell completion, cancel and drain only invocations that were fired without being awaited, matching V8 Code Mode rather than letting side effects cross into a later cell.
 - A normal uncaught exception leaves mutations made before the throw in the live kernel, matching notebook behavior. A failed cell does not advance the durable checkpoint; a later successful checkpoint may include those surviving mutations.
 - Cancellation sends a kernel interrupt. If the kernel remains busy or suffers a fatal runtime failure, terminate it and restore the last completed checkpoint.
 - Runtime recovery only restores notebook data. Never imply that filesystem, network, subprocess, or Pi-tool side effects from an interrupted cell were rolled back.
@@ -59,6 +60,7 @@ Per-session persistence alone is a poor fit for repositories where agents start 
 - Every Git worktree has a durable, serializable `repo` namespace that hydrates automatically into each new Notebook session, including sessions started from nested package directories. It carries only deliberately reusable indexes, datasets, decisions, and working notes.
 - Ordinary notebook variables remain private to the Pi session. Resuming that session restores its private checkpoint on top of the latest compatible repository baseline.
 - Sessions fork repository state; they never share one live kernel. Persist repository updates with generation/provenance checks and preserve conflicts visibly rather than silently applying last-writer-wins.
+- Bound repository key count, key size, manifest size, and model-visible inventories independently of serialized value bytes.
 - Startup tells the model what repository and session state was restored. A thin bundled skill teaches agents to inspect `repo`, reuse fresh values, and promote only genuinely reusable work.
 
 Keep the full JavaScript heap live while the session runs. Add best-effort durable checkpoints for repository and session data:
@@ -70,7 +72,7 @@ Keep the full JavaScript heap live while the session runs. Add best-effort durab
 5. Restore compatible values with `node:v8` `deserialize`, then rebind current tool globals and metadata.
 6. Report restored, skipped, failed, or invalidated names visibly to the model.
 
-Use a 256 MiB upper prototype cap, reduced to one eighth of the configured heap so serialization plus assembly cannot consume the kernel ceiling; apply the effective cap to both total state and any single variable. Debounce checkpoints after successful cells and await the final flush before orderly teardown. Replacing one current checkpoint prevents unbounded per-cell history; orphaned session artifacts should be garbage-collected rather than retained indefinitely.
+Use a 256 MiB upper prototype cap, reduced to one eighth of the configured heap so serialization plus assembly cannot consume the kernel ceiling; apply the effective cap to both total state and any single variable. Debounce checkpoints after successful cells and await the final flush before orderly teardown. Replacing one current checkpoint prevents unbounded per-cell history; tree navigation removes superseded private checkpoint epochs while retaining `.ipynb` evidence.
 
 Checkpoint before compaction. On an orderly mode switch, session switch, reload, or exit, await the final flush and stop Deno. Do not maintain detached daemons or orphan kernels.
 

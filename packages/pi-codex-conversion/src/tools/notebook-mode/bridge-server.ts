@@ -2,14 +2,16 @@ import { randomBytes } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { NotebookMemoryUsage, RuntimeContentItem } from "../code-mode/types.ts";
 
-const MAX_REQUEST_BYTES = 16 * 1024 * 1024;
+const MAX_REQUEST_BYTES = 34 * 1024 * 1024;
 const MAX_RESPONSE_BYTES = 32 * 1024 * 1024;
 const MAX_CELL_OUTPUT_CHARS = 32 * 1024 * 1024;
 const MAX_CELL_OUTPUT_ITEMS = 10_000;
+const MAX_TEXT_ITEM_CHARS = 4 * 1024 * 1024;
 const BRIDGE_SHUTDOWN_GRACE_MS = 1_500;
 
 export interface NotebookBridgeHandlers {
 	callTool(cellId: string, requestId: number, tool: string, input: unknown): Promise<unknown>;
+	cancelTools(cellId: string): void;
 	emit(cellId: string, items: RuntimeContentItem[]): void;
 	notify(cellId: string, text: string): void;
 	yield(cellId: string): void;
@@ -82,6 +84,11 @@ export class NotebookBridgeServer {
 				writeJson(response, 200, { ok: true, result });
 				return;
 			}
+			if (value["kind"] === "cancel_tools") {
+				this.handlers.cancelTools(cellId);
+				writeJson(response, 200, { ok: true });
+				return;
+			}
 			if (value["kind"] === "emit") {
 				const items = parseContentItems(value["items"]);
 				this.handlers.emit(cellId, items);
@@ -125,10 +132,12 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
     requestId: 0,
     pending: new Set(),
 	pendingErrors: [],
+	toolPending: new Set(),
 	outputChars: 0,
 	outputItems: 0,
 	outputTruncated: false,
 	repoTouched: new Set(),
+	repoBaselineKeys: new Set(),
     store: new Map(),
     tools: undefined,
     memoryTimer: undefined,
@@ -161,6 +170,14 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
 	);
     return promise;
   };
+	const __trackTool = (promise) => {
+	  __state.toolPending.add(promise);
+	  void promise.then(
+		() => __state.toolPending.delete(promise),
+		() => __state.toolPending.delete(promise),
+	  );
+	  return promise;
+	};
   const __stringify = (value) => {
     if (typeof value === "string") return value;
     if (value === undefined) return "undefined";
@@ -170,7 +187,22 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
     if (!__state.cellId) throw new Error("Notebook helper called outside an active exec cell");
 	if (__state.outputTruncated) return;
 	const accepted = [];
+	const expanded = [];
 	for (const item of items) {
+	  if (item.type !== "input_text" || !item.text || item.text.length <= ${MAX_TEXT_ITEM_CHARS}) {
+		expanded.push(item);
+		continue;
+	  }
+	  for (let offset = 0; offset < item.text.length;) {
+		let end = Math.min(item.text.length, offset + ${MAX_TEXT_ITEM_CHARS});
+		const before = item.text.charCodeAt(end - 1);
+		const after = item.text.charCodeAt(end);
+		if (end < item.text.length && before >= 0xD800 && before <= 0xDBFF && after >= 0xDC00 && after <= 0xDFFF) end -= 1;
+		expanded.push({ ...item, text: item.text.slice(offset, end) });
+		offset = end;
+	  }
+	}
+	for (const item of expanded) {
 	  const size = item.type === "input_text" ? (item.text?.length || 0) : (item.image_url?.length || 0);
 	  if (__state.outputItems >= ${MAX_CELL_OUTPUT_ITEMS} || __state.outputChars + size > ${MAX_CELL_OUTPUT_CHARS}) {
 		const notice = { type: "input_text", text: "[Notebook cell output truncated]" };
@@ -184,7 +216,7 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
 	  __state.outputChars += size;
 	  __state.outputItems += 1;
 	}
-	if (accepted.length > 0) __track(__post({ kind: "emit", cellId: __state.cellId, items: accepted }));
+	for (const item of accepted) __track(__post({ kind: "emit", cellId: __state.cellId, items: [item] }));
   };
   const __reportMemory = async (cellId) => {
     const usage = Deno.memoryUsage();
@@ -219,6 +251,7 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
 	  if (/^https?:/i.test(image_url || "")) throw new TypeError("remote image URLs are not supported; pass a base64 data URI instead");
 	  throw new TypeError("invalid image output; pass a base64 data URI instead");
 	}
+	if (!/^data:[a-z0-9.+-]+\\/[a-z0-9.+-]+;base64,[a-z0-9+/=]+$/i.test(image_url)) throw new TypeError("invalid image output; expected base64 image data");
 	const requestedDetail = detail !== undefined ? detail : embeddedDetail;
 	let resolvedDetail = "high";
 	if (requestedDetail !== undefined && requestedDetail !== null) {
@@ -233,10 +266,10 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
   const __tools = new Proxy({}, {
     get(_target, name) {
       if (typeof name !== "string") return undefined;
-      return async (input) => {
+      return (input) => {
         if (!__state.cellId) throw new Error("Nested tool called outside an active exec cell");
         const requestId = ++__state.requestId;
-        return await __post({ kind: "tool", cellId: __state.cellId, requestId, tool: name, input });
+		return __trackTool(__post({ kind: "tool", cellId: __state.cellId, requestId, tool: name, input }));
       };
     },
   });
@@ -246,6 +279,7 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
       __state.cellId = cellId;
       __state.pending = new Set();
 	  __state.pendingErrors = [];
+	  __state.toolPending = new Set();
 	  __state.outputChars = 0;
 	  __state.outputItems = 0;
 	  __state.outputTruncated = false;
@@ -259,6 +293,8 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
 	  await Promise.allSettled([...__state.pending]);
 	  const [error] = __state.pendingErrors.splice(0);
 	  if (error) throw error;
+	  await __post({ kind: "cancel_tools", cellId });
+	  await Promise.allSettled([...__state.toolPending]);
 	  await __reportMemory(cellId);
     },
     end(cellId) {
@@ -268,10 +304,11 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
 	  __state.cellId = null;
     },
 	repoTouched() {
-	  return [...__state.repoTouched];
+	  return [...__state.repoTouched].filter((key) => Object.hasOwn(__repoTarget, key) || __state.repoBaselineKeys.has(key));
 	},
 	resetRepoTouched() {
 	  __state.repoTouched.clear();
+	  __state.repoBaselineKeys = new Set(Object.getOwnPropertyNames(__repoTarget));
 	},
   };
   Object.defineProperty(globalThis, "__piNotebook", { value: __runtime, configurable: false });
