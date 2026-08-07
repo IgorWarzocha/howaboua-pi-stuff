@@ -43,7 +43,7 @@ export async function ensureNotebookDenoBinary(
 		`${runtime.platform}-${runtime.arch}`,
 		"deno",
 	);
-	const [, , binarySha256, binaryBytes] = resolveDenoAsset(runtime.platform, runtime.arch);
+	const [, , , binarySha256, binaryBytes] = resolveDenoAsset(runtime.platform, runtime.arch);
 	if (validDenoBinary(destination, binarySha256, binaryBytes)) return destination;
 	rmSync(destination, { force: true });
 	await installDeno(destination, runtime, signal);
@@ -58,7 +58,7 @@ async function installDeno(
 	runtime: DenoBinaryRuntime,
 	signal?: AbortSignal,
 ): Promise<void> {
-	const [asset, expectedSha256, expectedBinarySha256, expectedBinaryBytes] = resolveDenoAsset(runtime.platform, runtime.arch);
+	const [asset, expectedSha256, expectedArchiveBytes, expectedBinarySha256, expectedBinaryBytes] = resolveDenoAsset(runtime.platform, runtime.arch);
 	const destination = resolve(destinationInput);
 	if (basename(destination) !== "deno") throw new Error("Deno destination must end with deno");
 	mkdirSync(resolve(destination, ".."), { recursive: true });
@@ -81,7 +81,7 @@ async function installDeno(
 					...(dispatcher ? { dispatcher } : {}),
 				} as RequestInit & { dispatcher?: InstanceType<typeof ProxyAgent> });
 				if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-				bytes = Buffer.from(await response.arrayBuffer());
+				bytes = await readPinnedResponse(response, expectedArchiveBytes);
 			} finally {
 				await dispatcher?.close();
 			}
@@ -106,6 +106,31 @@ async function installDeno(
 		rmSync(staged, { force: true });
 		rmSync(lockPath, { recursive: true, force: true });
 	}
+}
+
+async function readPinnedResponse(response: Response, expectedBytes: number): Promise<Buffer> {
+	const declared = response.headers.get("content-length");
+	if (declared !== null && Number(declared) !== expectedBytes) {
+		throw new Error(`pinned Deno archive size mismatch: expected ${expectedBytes} bytes, got ${declared}`);
+	}
+	if (!response.body) throw new Error("pinned Deno download had no response body");
+	const reader = response.body.getReader();
+	const chunks: Uint8Array[] = [];
+	let total = 0;
+	try {
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			total += value.byteLength;
+			if (total > expectedBytes) throw new Error(`pinned Deno archive exceeds ${expectedBytes} bytes`);
+			chunks.push(value);
+		}
+	} catch (error) {
+		await reader.cancel().catch(() => undefined);
+		throw error;
+	}
+	if (total !== expectedBytes) throw new Error(`pinned Deno archive size mismatch: expected ${expectedBytes} bytes, got ${total}`);
+	return Buffer.concat(chunks, total);
 }
 
 function validDenoBinary(path: string, expectedSha256: string, expectedBytes: number): boolean {
