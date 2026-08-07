@@ -42,9 +42,6 @@
   "pi": {
     "extensions": [
       "./dist/index.js"
-    ],
-    "skills": [
-      "./skills"
     ]
   },
   "files": [
@@ -53,7 +50,6 @@
     "src/**/*.ts",
     "src/**/*.md",
     "types/**/*.d.ts",
-    "skills",
     "src/voice/lan/assets/**",
     "available-tools.png",
     "examples/custom-tools",
