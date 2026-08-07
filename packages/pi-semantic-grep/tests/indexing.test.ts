@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, utimesSync, writeFileSync } from "node:fs";
+import {
+	mkdirSync,
+	mkdtempSync,
+	unlinkSync,
+	utimesSync,
+	writeFileSync,
+} from "node:fs";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -9,6 +15,7 @@ import Database from "better-sqlite3";
 import { DEFAULT_CONFIG, type SemanticGrepConfig } from "../src/config.js";
 import { dbPathFor, getMeta, openIndexDb } from "../src/db.js";
 import { discoverFiles } from "../src/discovery.js";
+import { chunkSnapshot } from "../src/files.js";
 import { syncIndex } from "../src/indexer.js";
 import { tryAcquireIndexLock } from "../src/lock.js";
 import { searchDb } from "../src/search.js";
@@ -102,6 +109,7 @@ test("unchanged and metadata-only files do not request new embeddings", async ()
 		assert.equal(endpoint.state.inputs, initialInputs);
 
 		writeFileSync(file, "export const durableBehavior = 'second version';\n");
+		utimesSync(file, future, future);
 		const changed = await syncIndex(db, root, cfg);
 		assert.equal(changed.changed, 1);
 		assert.ok(endpoint.state.inputs > initialInputs);
@@ -116,7 +124,9 @@ test("failed embeddings preserve the last complete file index", async () => {
 	try {
 		const root = tempProject();
 		const file = path.join(root, "stable.ts");
+		const removed = path.join(root, "removed.ts");
 		writeFileSync(file, "export function stableResult() { return 'old'; }\n");
+		writeFileSync(removed, "export const removedAfterSuccess = true;\n");
 		const db = openIndexDb(root);
 		const cfg = config(endpoint.url);
 		await syncIndex(db, root, cfg);
@@ -128,6 +138,7 @@ test("failed embeddings preserve the last complete file index", async () => {
 			.all();
 
 		writeFileSync(file, "export function stableResult() { return 'new'; }\n");
+		unlinkSync(removed);
 		endpoint.state.fail = true;
 		await assert.rejects(syncIndex(db, root, cfg), /503/);
 		assert.deepEqual(
@@ -141,6 +152,10 @@ test("failed embeddings preserve the last complete file index", async () => {
 				.prepare("select text, vector from chunks where file = 'stable.ts'")
 				.all(),
 			chunksBefore,
+		);
+		assert.deepEqual(
+			db.prepare("select file from files where file = 'removed.ts'").get(),
+			{ file: "removed.ts" },
 		);
 		db.close();
 	} finally {
@@ -172,7 +187,13 @@ test("interrupted configuration rebuilds resume completed files", async () => {
 		await assert.rejects(syncIndex(db, root, changedConfig), /503/);
 		assert.deepEqual(
 			db.prepare("select index_generation from files order by file").all(),
-			[{ index_generation: 2 }, { index_generation: 1 }],
+			[{ index_generation: 1 }, { index_generation: 1 }],
+		);
+		assert.deepEqual(
+			db
+				.prepare("select index_generation from staged_files order by file")
+				.all(),
+			[{ index_generation: 2 }],
 		);
 
 		endpoint.state.failAfterInputs = undefined;
@@ -304,4 +325,44 @@ test("Git discovery includes untracked files and honors standard ignores", () =>
 		result.files.map((file) => file.file),
 		["kept.ts"],
 	);
+});
+
+test("filesystem discovery applies nested gitignore rules", () => {
+	const root = tempProject();
+	mkdirSync(path.join(root, "catalogue"));
+	writeFileSync(path.join(root, "catalogue", ".gitignore"), "ignored.ts\n");
+	writeFileSync(
+		path.join(root, "catalogue", "kept.ts"),
+		"export const kept = true;\n",
+	);
+	writeFileSync(path.join(root, "catalogue", "ignored.ts"), "ignored\n");
+
+	const result = discoverFiles(
+		root,
+		config("http://127.0.0.1:1/v1/embeddings"),
+	);
+	assert.equal(result.source, "filesystem");
+	assert.deepEqual(
+		result.files.map((file) => file.file),
+		[path.join("catalogue", "kept.ts")],
+	);
+});
+
+test("oversized repeated segments receive distinct chunk keys", () => {
+	const cfg = config("http://127.0.0.1:1/v1/embeddings");
+	cfg.indexing.maxEmbeddingChars = 20;
+	cfg.indexing.maxChunkChars = 20;
+	const chunks = chunkSnapshot(
+		{
+			file: "generated.ts",
+			size: 40,
+			mtimeMs: 1,
+			ctimeMs: 1,
+			hash: "file-hash",
+			text: "abcdefghijklmnopqrstabcdefghijklmnopqrst",
+		},
+		cfg,
+	);
+	assert.equal(chunks.length, 2);
+	assert.equal(new Set(chunks.map((chunk) => chunk.key)).size, 2);
 });

@@ -83,6 +83,15 @@ export default function semanticGrepExtension(pi: ExtensionAPI) {
 				}
 
 				const matches = result.details?.matches ?? [];
+				if (!matches.length && result.details?.skippedIncompatible)
+					return new Text(
+						theme.fg(
+							"warning",
+							`No compatible vectors; ${result.details.skippedIncompatible} stale chunks omitted`,
+						),
+						0,
+						0,
+					);
 				if (!matches.length)
 					return new Text(theme.fg("dim", "No semantic matches"), 0, 0);
 
@@ -205,8 +214,8 @@ export default function semanticGrepExtension(pi: ExtensionAPI) {
 				}
 				const { stats } = result;
 				ctx.ui.notify(
-					`Semantic grep synced ${stats.files} files: +${stats.added} ~${stats.changed} -${stats.deleted}, ${stats.unchanged} unchanged, ${stats.metadataOnly} metadata-only${stats.skipped ? `, ${stats.skipped} skipped` : ""}${stats.fullRebuild ? " (resumable rebuild)" : ""}`,
-					"info",
+					`Semantic grep synced ${stats.files} files: +${stats.added} ~${stats.changed} -${stats.deleted}, ${stats.unchanged} unchanged, ${stats.metadataOnly} metadata-only${stats.skipped ? `, ${stats.skipped} skipped` : ""}${stats.fullRebuild ? (stats.complete ? " (resumable rebuild complete)" : " (resumable rebuild paused)") : ""}`,
+					stats.complete ? "info" : "warning",
 				);
 			} catch (err) {
 				if (controller.signal.aborted) return;

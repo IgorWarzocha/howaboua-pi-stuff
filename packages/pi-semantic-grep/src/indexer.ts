@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import type Database from "better-sqlite3";
 import type { SemanticGrepConfig } from "./config.js";
 import { completeBuild, type FileRow, prepareBuildTarget } from "./db.js";
-import { discoverFiles } from "./discovery.js";
+import { type DiscoveryResult, discoverFiles } from "./discovery.js";
 import { embedDocuments } from "./embeddings.js";
 import {
 	chunkSnapshot,
@@ -22,6 +22,7 @@ export interface IndexStats {
 	deleted: number;
 	skipped: number;
 	fullRebuild: boolean;
+	complete: boolean;
 	discovery: "filesystem" | "git";
 }
 
@@ -74,34 +75,39 @@ function commitFile(
 	vectors: number[][],
 	fingerprint: string,
 	generation: number,
+	staging: boolean,
 ): void {
 	const { chunks, snapshot } = job;
+	const filesTable = staging ? "staged_files" : "files";
+	const chunksTable = staging ? "staged_chunks" : "chunks";
 	const insertFile = db.prepare(`
-    insert into files (
-      file, hash, size, mtime_ms, indexed_at,
+    insert into ${filesTable} (
+      file, hash, size, mtime_ms, ctime_ms, indexed_at,
       index_fingerprint, index_generation, chunk_count
-    ) values (?, ?, ?, ?, ?, ?, ?, ?)
+    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?)
     on conflict(file) do update set
       hash = excluded.hash,
       size = excluded.size,
       mtime_ms = excluded.mtime_ms,
+      ctime_ms = excluded.ctime_ms,
       indexed_at = excluded.indexed_at,
       index_fingerprint = excluded.index_fingerprint,
       index_generation = excluded.index_generation,
       chunk_count = excluded.chunk_count
   `);
 	const insertChunk = db.prepare(`
-    insert into chunks (
+    insert into ${chunksTable} (
       file, start_line, end_line, text, hash, vector, chunk_key
     ) values (?, ?, ?, ?, ?, ?, ?)
-  `);
+	`);
 	const commit = db.transaction(() => {
-		db.prepare("delete from chunks where file = ?").run(snapshot.file);
+		db.prepare(`delete from ${chunksTable} where file = ?`).run(snapshot.file);
 		insertFile.run(
 			snapshot.file,
 			snapshot.hash,
 			snapshot.size,
 			snapshot.mtimeMs,
+			snapshot.ctimeMs,
 			new Date().toISOString(),
 			fingerprint,
 			generation,
@@ -132,6 +138,7 @@ async function embedAndCommitJobs(
 	config: SemanticGrepConfig,
 	fingerprint: string,
 	generation: number,
+	staging: boolean,
 	signal?: AbortSignal,
 ): Promise<number> {
 	const chunks = jobs.flatMap((job) => job.chunks);
@@ -148,18 +155,31 @@ async function embedAndCommitJobs(
 	let offset = 0;
 	for (const job of jobs) {
 		const next = offset + job.chunks.length;
-		commitFile(db, job, vectors.slice(offset, next), fingerprint, generation);
+		commitFile(
+			db,
+			job,
+			vectors.slice(offset, next),
+			fingerprint,
+			generation,
+			staging,
+		);
 		offset = next;
 	}
 	return chunks.length;
 }
 
-function updateMetadata(db: Database.Database, metadata: FileMetadata): void {
+function updateMetadata(
+	db: Database.Database,
+	metadata: FileMetadata,
+	staging: boolean,
+): void {
+	const table = staging ? "staged_files" : "files";
 	db.prepare(
-		"update files set size = ?, mtime_ms = ?, indexed_at = ? where file = ?",
+		`update ${table} set size = ?, mtime_ms = ?, ctime_ms = ?, indexed_at = ? where file = ?`,
 	).run(
 		metadata.size,
 		metadata.mtimeMs,
+		metadata.ctimeMs,
 		new Date().toISOString(),
 		metadata.file,
 	);
@@ -172,20 +192,32 @@ export async function syncIndex(
 	forceFullRebuild = false,
 	signal?: AbortSignal,
 	onProgress?: (msg: string) => void,
+	providedDiscovery?: DiscoveryResult,
 ): Promise<IndexStats> {
 	const fingerprint = indexFingerprint(config);
 	const target = prepareBuildTarget(db, fingerprint, forceFullRebuild);
-	onProgress?.("scanning project files");
-	const discovery = discoverFiles(root, config);
+	if (!providedDiscovery) onProgress?.("scanning project files");
+	const discovery = providedDiscovery ?? discoverFiles(root, config);
 	const current = new Set(discovery.files.map((file) => file.file));
+	const filesTable = target.fullRebuild ? "staged_files" : "files";
 	const knownRows = db
 		.prepare(`
-      select file, hash, size, mtime_ms, indexed_at,
+      select file, hash, size, mtime_ms, ctime_ms, indexed_at,
              index_fingerprint, index_generation, chunk_count
-      from files
+      from ${filesTable}
     `)
 		.all() as FileRow[];
 	const known = new Map(knownRows.map((row) => [row.file, row]));
+	const activeRows = target.fullRebuild
+		? (db
+				.prepare(`
+            select file, hash, size, mtime_ms, ctime_ms, indexed_at,
+                   index_fingerprint, index_generation, chunk_count
+            from files
+          `)
+				.all() as FileRow[])
+		: knownRows;
+	const active = new Map(activeRows.map((row) => [row.file, row]));
 
 	let chunks = 0,
 		added = 0,
@@ -204,20 +236,12 @@ export async function syncIndex(
 			config,
 			target.fingerprint,
 			target.generation,
+			target.fullRebuild,
 			signal,
 		);
 		pendingJobs.length = 0;
 		pendingChunks = 0;
 	};
-
-	const removeDeleted = db.transaction(() => {
-		for (const row of knownRows) {
-			if (current.has(row.file)) continue;
-			db.prepare("delete from files where file = ?").run(row.file);
-			deleted++;
-		}
-	});
-	removeDeleted();
 
 	for (let i = 0; i < discovery.files.length; i++) {
 		signal?.throwIfAborted();
@@ -231,7 +255,8 @@ export async function syncIndex(
 		if (
 			currentGeneration &&
 			old.size === metadata.size &&
-			old.mtime_ms === metadata.mtimeMs
+			old.mtime_ms === metadata.mtimeMs &&
+			old.ctime_ms === metadata.ctimeMs
 		) {
 			unchanged++;
 			continue;
@@ -243,12 +268,12 @@ export async function syncIndex(
 			continue;
 		}
 		if (currentGeneration && old.hash === snapshot.hash) {
-			updateMetadata(db, metadata);
+			updateMetadata(db, metadata, target.fullRebuild);
 			metadataOnly++;
 			continue;
 		}
 
-		if (old) changed++;
+		if (old || active.has(metadata.file)) changed++;
 		else added++;
 		onProgress?.(
 			`[${i + 1}/${discovery.files.length}] indexing ${metadata.file}`,
@@ -264,7 +289,41 @@ export async function syncIndex(
 	}
 	await flushJobs();
 
-	completeBuild(db, target, config.embeddings.model);
+	const normalizedUnavailableDirectories = discovery.unavailableDirectories.map(
+		(dir) => (dir ? `${dir.split("\\").join("/")}/` : ""),
+	);
+	const preserved = (file: string): boolean => {
+		const normalized = file.split("\\").join("/");
+		return (
+			discovery.unavailableFiles.has(file) ||
+			normalizedUnavailableDirectories.some(
+				(dir) => dir === "" || normalized.startsWith(dir),
+			)
+		);
+	};
+	const deletedFiles = activeRows
+		.filter((row) => !current.has(row.file) && !preserved(row.file))
+		.map((row) => row.file);
+	const complete = !target.fullRebuild || skipped === 0;
+	if (complete) {
+		deleted = deletedFiles.length;
+		if (target.fullRebuild) {
+			const removeStaleStaging = db.transaction(() => {
+				for (const row of knownRows) {
+					if (!current.has(row.file))
+						db.prepare("delete from staged_files where file = ?").run(row.file);
+				}
+			});
+			removeStaleStaging();
+		} else {
+			const removeDeleted = db.transaction(() => {
+				for (const file of deletedFiles)
+					db.prepare("delete from files where file = ?").run(file);
+			});
+			removeDeleted();
+		}
+		completeBuild(db, target, config.embeddings.model);
+	}
 	return {
 		files: discovery.files.length,
 		chunks,
@@ -275,6 +334,7 @@ export async function syncIndex(
 		deleted,
 		skipped,
 		fullRebuild: target.fullRebuild,
+		complete,
 		discovery: discovery.source,
 	};
 }

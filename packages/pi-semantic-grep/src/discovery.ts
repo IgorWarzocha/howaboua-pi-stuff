@@ -9,15 +9,26 @@ export interface DiscoveryResult {
 	files: FileMetadata[];
 	source: "filesystem" | "git";
 	skipped: number;
-}
-
-function excludedByDirectory(rel: string, excluded: Set<string>): boolean {
-	return rel.split(/[\\/]/).some((part) => excluded.has(part));
+	unavailableDirectories: string[];
+	unavailableFiles: Set<string>;
 }
 
 interface Inspection {
 	metadata?: FileMetadata;
 	unavailable: boolean;
+}
+
+interface IgnoreScope {
+	base: string;
+	matcher: Ignore;
+}
+
+function excludedDirectories(config: SemanticGrepConfig): Set<string> {
+	return new Set([...STANDARD_EXCLUDE_DIRS, ...config.indexing.excludeDirs]);
+}
+
+function excludedByDirectory(rel: string, excluded: Set<string>): boolean {
+	return rel.split(/[\\/]/).some((part) => excluded.has(part));
 }
 
 function inspectFile(
@@ -41,7 +52,12 @@ function inspectFile(
 		if (!stat.isFile() || stat.size > config.indexing.maxFileBytes)
 			return { unavailable: false };
 		return {
-			metadata: { file: rel, size: stat.size, mtimeMs: stat.mtimeMs },
+			metadata: {
+				file: rel,
+				size: stat.size,
+				mtimeMs: stat.mtimeMs,
+				ctimeMs: stat.ctimeMs,
+			},
 			unavailable: false,
 		};
 	} catch (error) {
@@ -72,26 +88,57 @@ function gitCandidates(root: string): string[] | undefined {
 	return result.stdout.split("\0").filter(Boolean);
 }
 
-function rootIgnore(root: string, config: SemanticGrepConfig): Ignore {
-	const matcher = ignore();
-	if (!config.indexing.useGitIgnore) return matcher;
+function loadIgnoreScope(root: string, dir: string): IgnoreScope | undefined {
 	try {
-		matcher.add(readFileSync(path.join(root, ".gitignore"), "utf8"));
+		const rules = readFileSync(path.join(root, dir, ".gitignore"), "utf8");
+		return {
+			base: dir.split(path.sep).join("/"),
+			matcher: ignore().add(rules),
+		};
 	} catch (error) {
-		if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+		if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+		throw error;
 	}
-	return matcher;
+}
+
+function ignoredByScopes(
+	rel: string,
+	directory: boolean,
+	scopes: IgnoreScope[],
+): boolean {
+	const normalized = rel.split(path.sep).join("/");
+	let ignored = false;
+	for (const scope of scopes) {
+		if (scope.base && !normalized.startsWith(`${scope.base}/`)) continue;
+		const local = scope.base
+			? normalized.slice(scope.base.length + 1)
+			: normalized;
+		if (!local) continue;
+		const result = scope.matcher.checkIgnore(directory ? `${local}/` : local);
+		if (result.rule) ignored = result.ignored;
+	}
+	return ignored;
 }
 
 function filesystemCandidates(
 	root: string,
 	config: SemanticGrepConfig,
-): { files: string[]; skipped: number } {
+): {
+	files: string[];
+	skipped: number;
+	unavailableDirectories: string[];
+} {
 	const excluded = excludedDirectories(config);
-	const matcher = rootIgnore(root, config);
 	const files: string[] = [];
+	const unavailableDirectories: string[] = [];
 	let skipped = 0;
-	const walk = (dir: string): void => {
+	const walk = (dir: string, inheritedScopes: IgnoreScope[]): void => {
+		const localScope = config.indexing.useGitIgnore
+			? loadIgnoreScope(root, dir)
+			: undefined;
+		const scopes = localScope
+			? [...inheritedScopes, localScope]
+			: inheritedScopes;
 		let entries;
 		try {
 			entries = readdirSync(path.join(root, dir), { withFileTypes: true });
@@ -99,33 +146,32 @@ function filesystemCandidates(
 			const code = (error as NodeJS.ErrnoException).code;
 			if (code === "ENOENT" || code === "EACCES" || code === "EPERM") {
 				skipped++;
+				unavailableDirectories.push(dir);
 				return;
 			}
 			throw error;
 		}
 		for (const entry of entries) {
 			const rel = dir ? path.join(dir, entry.name) : entry.name;
-			const normalized = rel.split(path.sep).join("/");
 			if (entry.isSymbolicLink()) {
-				if (config.indexing.followSymlinks && !matcher.ignores(normalized))
+				if (
+					config.indexing.followSymlinks &&
+					!ignoredByScopes(rel, false, scopes)
+				)
 					files.push(rel);
 				continue;
 			}
 			if (entry.isDirectory()) {
-				if (excluded.has(entry.name) || matcher.ignores(`${normalized}/`))
+				if (excluded.has(entry.name) || ignoredByScopes(rel, true, scopes))
 					continue;
-				walk(rel);
-			} else if (entry.isFile() && !matcher.ignores(normalized)) {
+				walk(rel, scopes);
+			} else if (entry.isFile() && !ignoredByScopes(rel, false, scopes)) {
 				files.push(rel);
 			}
 		}
 	};
-	walk("");
-	return { files, skipped };
-}
-
-function excludedDirectories(config: SemanticGrepConfig): Set<string> {
-	return new Set([...STANDARD_EXCLUDE_DIRS, ...config.indexing.excludeDirs]);
+	walk("", []);
+	return { files, skipped, unavailableDirectories };
 }
 
 export function discoverFiles(
@@ -138,12 +184,16 @@ export function discoverFiles(
 	const fallback = fromGit ? undefined : filesystemCandidates(root, config);
 	const candidates = fromGit ?? fallback?.files ?? [];
 	const files: FileMetadata[] = [];
+	const unavailableFiles = new Set<string>();
 	const excluded = excludedDirectories(config);
 	let skipped = fallback?.skipped ?? 0;
 	for (const rel of candidates) {
 		const inspection = inspectFile(root, rel, config, excluded);
 		if (inspection.metadata) files.push(inspection.metadata);
-		else if (inspection.unavailable) skipped++;
+		else if (inspection.unavailable) {
+			skipped++;
+			unavailableFiles.add(rel);
+		}
 	}
 	if (files.length > config.indexing.maxFiles) {
 		throw new Error(
@@ -151,5 +201,11 @@ export function discoverFiles(
 		);
 	}
 	files.sort((a, b) => a.file.localeCompare(b.file));
-	return { files, source: fromGit ? "git" : "filesystem", skipped };
+	return {
+		files,
+		source: fromGit ? "git" : "filesystem",
+		skipped,
+		unavailableDirectories: fallback?.unavailableDirectories ?? [],
+		unavailableFiles,
+	};
 }

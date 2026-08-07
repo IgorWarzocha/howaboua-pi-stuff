@@ -16,6 +16,7 @@ export interface FileRow {
 	hash: string;
 	size: number;
 	mtime_ms: number;
+	ctime_ms: number;
 	indexed_at: string;
 	index_fingerprint: string;
 	index_generation: number;
@@ -46,6 +47,7 @@ function createSchema(db: Database.Database): void {
       hash text not null,
       size integer not null,
       mtime_ms real not null,
+      ctime_ms real not null,
       indexed_at text not null,
       index_fingerprint text not null default '',
       index_generation integer not null default 0,
@@ -62,7 +64,32 @@ function createSchema(db: Database.Database): void {
       chunk_key text,
       foreign key(file) references files(file) on delete cascade
     );
+    create table if not exists staged_files (
+      file text primary key,
+      hash text not null,
+      size integer not null,
+      mtime_ms real not null,
+      ctime_ms real not null,
+      indexed_at text not null,
+      index_fingerprint text not null,
+      index_generation integer not null,
+      chunk_count integer not null
+    );
+    create table if not exists staged_chunks (
+      id integer primary key,
+      file text not null,
+      start_line integer not null,
+      end_line integer not null,
+      text text not null,
+      hash text not null,
+      vector text not null,
+      chunk_key text not null,
+      foreign key(file) references staged_files(file) on delete cascade
+    );
     create index if not exists chunks_file_idx on chunks(file);
+    create index if not exists staged_chunks_file_idx on staged_chunks(file);
+    create unique index if not exists staged_chunks_file_key_uidx
+      on staged_chunks(file, chunk_key);
   `);
 }
 
@@ -92,6 +119,8 @@ function migrateSchema(db: Database.Database): void {
 			);
 		if (!chunkColumns.has("chunk_key"))
 			db.exec("alter table chunks add column chunk_key text");
+		if (!fileColumns.has("ctime_ms"))
+			db.exec("alter table files add column ctime_ms real not null default 0");
 
 		const legacyFingerprint = getMeta(db, "index_fingerprint") ?? "";
 		if (legacyFingerprint) {
@@ -173,13 +202,18 @@ export function prepareBuildTarget(
 	const pendingGeneration = metaGeneration(db, "target_generation");
 
 	let generation: number;
+	let resetStaging = false;
 	if (!force && pendingFingerprint === fingerprint && pendingGeneration > 0) {
 		generation = pendingGeneration;
 	} else if (!force && activeFingerprint === fingerprint) {
 		generation = activeGeneration || 1;
+		resetStaging = true;
 	} else {
 		generation = Math.max(activeGeneration, pendingGeneration) + 1;
+		resetStaging = true;
 	}
+	if (resetStaging)
+		db.exec("delete from staged_chunks; delete from staged_files;");
 	setMeta(db, "target_fingerprint", fingerprint);
 	setMeta(db, "target_generation", String(generation));
 	setMeta(db, "build_started_at", new Date().toISOString());
@@ -199,6 +233,26 @@ export function completeBuild(
 	model: string,
 ): void {
 	const complete = db.transaction(() => {
+		if (target.fullRebuild) {
+			db.exec(`
+        delete from chunks;
+        delete from files;
+        insert into files (
+          file, hash, size, mtime_ms, ctime_ms, indexed_at,
+          index_fingerprint, index_generation, chunk_count
+        )
+        select file, hash, size, mtime_ms, ctime_ms, indexed_at,
+               index_fingerprint, index_generation, chunk_count
+        from staged_files;
+        insert into chunks (
+          file, start_line, end_line, text, hash, vector, chunk_key
+        )
+        select file, start_line, end_line, text, hash, vector, chunk_key
+        from staged_chunks;
+        delete from staged_chunks;
+        delete from staged_files;
+      `);
+		}
 		setMeta(db, "active_fingerprint", target.fingerprint);
 		setMeta(db, "active_generation", String(target.generation));
 		setMeta(db, "index_fingerprint", target.fingerprint);

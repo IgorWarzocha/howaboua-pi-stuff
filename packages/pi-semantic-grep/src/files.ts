@@ -16,6 +16,7 @@ export interface FileSnapshot {
 	file: string;
 	size: number;
 	mtimeMs: number;
+	ctimeMs: number;
 	hash: string;
 	text: string;
 }
@@ -24,6 +25,7 @@ export interface FileMetadata {
 	file: string;
 	size: number;
 	mtimeMs: number;
+	ctimeMs: number;
 }
 
 export function hashText(text: string): string {
@@ -42,8 +44,10 @@ export function readFileSnapshot(
 		if (
 			before.size !== after.size ||
 			before.mtimeMs !== after.mtimeMs ||
+			before.ctimeMs !== after.ctimeMs ||
 			after.size !== metadata.size ||
 			after.mtimeMs !== metadata.mtimeMs ||
+			after.ctimeMs !== metadata.ctimeMs ||
 			text.includes("\0")
 		)
 			return undefined;
@@ -51,6 +55,7 @@ export function readFileSnapshot(
 			file: metadata.file,
 			size: after.size,
 			mtimeMs: after.mtimeMs,
+			ctimeMs: after.ctimeMs,
 			hash: hashText(text),
 			text,
 		};
@@ -69,6 +74,7 @@ function pushChunk(
 	endLine: number,
 	text: string,
 	fileHash: string,
+	discriminator = "",
 ): void {
 	const trimmed = text.trim();
 	if (trimmed.length < 20) return;
@@ -78,7 +84,7 @@ function pushChunk(
 		endLine,
 		text: trimmed,
 		hash: fileHash,
-		key: hashText(`${startLine}:${endLine}\0${trimmed}`),
+		key: hashText(`${startLine}:${endLine}:${discriminator}\0${trimmed}`),
 	});
 }
 
@@ -98,6 +104,7 @@ function pushOversizedLine(
 			line,
 			text.slice(offset, offset + maxChars),
 			fileHash,
+			String(offset),
 		);
 }
 
