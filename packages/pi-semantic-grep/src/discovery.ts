@@ -27,6 +27,12 @@ interface IgnoreScope {
 	matcher: Ignore;
 }
 
+function fileLimitError(config: SemanticGrepConfig): Error {
+	return new Error(
+		`semantic grep found more than indexing.maxFiles=${config.indexing.maxFiles} indexable files; narrow the project root or exclusions`,
+	);
+}
+
 function excludedDirectories(config: SemanticGrepConfig): Set<string> {
 	return new Set([...STANDARD_EXCLUDE_DIRS, ...config.indexing.excludeDirs]);
 }
@@ -80,23 +86,33 @@ async function gitCandidates(
 	signal?: AbortSignal,
 ): Promise<string[] | undefined> {
 	try {
-		const { stdout } = await execFileAsync(
-			"git",
-			[
-				"-C",
-				root,
-				"ls-files",
-				"--cached",
-				"--others",
-				"--exclude-standard",
-				"-z",
-				"--",
-				".",
-			],
-			{ encoding: "utf8", maxBuffer: 64 * 1024 * 1024, signal },
-		);
+		const [listed, removed] = await Promise.all([
+			execFileAsync(
+				"git",
+				[
+					"-C",
+					root,
+					"ls-files",
+					"--cached",
+					"--others",
+					"--exclude-standard",
+					"-z",
+					"--",
+					".",
+				],
+				{ encoding: "utf8", maxBuffer: 64 * 1024 * 1024, signal },
+			),
+			execFileAsync(
+				"git",
+				["-C", root, "ls-files", "--deleted", "-z", "--", "."],
+				{ encoding: "utf8", maxBuffer: 64 * 1024 * 1024, signal },
+			),
+		]);
 		signal?.throwIfAborted();
-		return stdout.split("\0").filter(Boolean);
+		const deleted = new Set(removed.stdout.split("\0").filter(Boolean));
+		return listed.stdout
+			.split("\0")
+			.filter((file) => file && !deleted.has(file));
 	} catch {
 		signal?.throwIfAborted();
 		return undefined;
@@ -146,22 +162,45 @@ async function filesystemCandidates(
 	config: SemanticGrepConfig,
 	signal?: AbortSignal,
 ): Promise<{
-	files: string[];
+	files: FileMetadata[];
 	skipped: number;
 	unavailableDirectories: string[];
+	unavailableFiles: Set<string>;
 }> {
 	const excluded = excludedDirectories(config);
-	const files: string[] = [];
+	const files: FileMetadata[] = [];
 	const unavailableDirectories: string[] = [];
+	const unavailableFiles = new Set<string>();
 	let skipped = 0;
+	const inspect = async (rel: string): Promise<void> => {
+		const inspection = await inspectFile(root, rel, config, excluded, signal);
+		if (inspection.metadata) {
+			files.push(inspection.metadata);
+			if (files.length > config.indexing.maxFiles) throw fileLimitError(config);
+		} else if (inspection.unavailable) {
+			skipped++;
+			unavailableFiles.add(rel);
+		}
+	};
 	const walk = async (
 		dir: string,
 		inheritedScopes: IgnoreScope[],
 	): Promise<void> => {
 		signal?.throwIfAborted();
-		const localScope = config.indexing.useGitIgnore
-			? await loadIgnoreScope(root, dir, signal)
-			: undefined;
+		let localScope: IgnoreScope | undefined;
+		try {
+			localScope = config.indexing.useGitIgnore
+				? await loadIgnoreScope(root, dir, signal)
+				: undefined;
+		} catch (error) {
+			const code = (error as NodeJS.ErrnoException).code;
+			if (code === "EACCES" || code === "EPERM") {
+				skipped++;
+				unavailableDirectories.push(dir);
+				return;
+			}
+			throw error;
+		}
 		const scopes = localScope
 			? [...inheritedScopes, localScope]
 			: inheritedScopes;
@@ -186,20 +225,19 @@ async function filesystemCandidates(
 					config.indexing.followSymlinks &&
 					!ignoredByScopes(rel, false, scopes)
 				)
-					files.push(rel);
+					await inspect(rel);
 				continue;
 			}
 			if (entry.isDirectory()) {
 				if (excluded.has(entry.name) || ignoredByScopes(rel, true, scopes))
 					continue;
 				await walk(rel, scopes);
-			} else if (entry.isFile() && !ignoredByScopes(rel, false, scopes)) {
-				files.push(rel);
-			}
+			} else if (entry.isFile() && !ignoredByScopes(rel, false, scopes))
+				await inspect(rel);
 		}
 	};
 	await walk("", []);
-	return { files, skipped, unavailableDirectories };
+	return { files, skipped, unavailableDirectories, unavailableFiles };
 }
 
 export async function discoverFiles(
@@ -214,9 +252,9 @@ export async function discoverFiles(
 	const fallback = fromGit
 		? undefined
 		: await filesystemCandidates(root, config, signal);
-	const candidates = fromGit ?? fallback?.files ?? [];
-	const files: FileMetadata[] = [];
-	const unavailableFiles = new Set<string>();
+	const candidates = fromGit ?? [];
+	const files: FileMetadata[] = fallback?.files ?? [];
+	const unavailableFiles = fallback?.unavailableFiles ?? new Set<string>();
 	const excluded = excludedDirectories(config);
 	let skipped = fallback?.skipped ?? 0;
 	let cursor = 0;
@@ -236,6 +274,8 @@ export async function discoverFiles(
 					signal,
 				);
 				if (inspection.metadata) files.push(inspection.metadata);
+				if (files.length > config.indexing.maxFiles)
+					throw fileLimitError(config);
 				else if (inspection.unavailable) {
 					skipped++;
 					unavailableFiles.add(rel);
@@ -253,11 +293,6 @@ export async function discoverFiles(
 	);
 	if (failure !== undefined) throw failure;
 	signal?.throwIfAborted();
-	if (files.length > config.indexing.maxFiles) {
-		throw new Error(
-			`semantic grep found ${files.length} indexable files, above indexing.maxFiles=${config.indexing.maxFiles}; narrow the project root or exclusions`,
-		);
-	}
 	files.sort((a, b) => a.file.localeCompare(b.file));
 	return {
 		files,

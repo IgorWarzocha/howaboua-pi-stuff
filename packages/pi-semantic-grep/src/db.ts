@@ -203,7 +203,10 @@ export function prepareBuildTarget(
 
 	let generation: number;
 	let resetStaging = false;
-	if (!force && pendingFingerprint === fingerprint && pendingGeneration > 0) {
+	if (
+		pendingFingerprint === fingerprint &&
+		pendingGeneration > activeGeneration
+	) {
 		generation = pendingGeneration;
 	} else if (!force && activeFingerprint === fingerprint) {
 		generation = activeGeneration || 1;

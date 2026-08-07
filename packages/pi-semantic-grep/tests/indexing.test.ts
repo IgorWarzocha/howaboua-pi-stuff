@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import {
+	chmodSync,
 	mkdirSync,
 	mkdtempSync,
 	unlinkSync,
@@ -211,6 +212,42 @@ test("interrupted configuration rebuilds resume completed files", async () => {
 	}
 });
 
+test("interrupted forced rebuilds resume completed files", async () => {
+	const endpoint = await embeddingEndpoint();
+	try {
+		const root = tempProject();
+		writeFileSync(path.join(root, "a.ts"), "export const first = 'stable';\n");
+		writeFileSync(path.join(root, "b.ts"), "export const second = 'stable';\n");
+		const db = openIndexDb(root);
+		const cfg = config(endpoint.url);
+		cfg.embeddings.batchSize = 1;
+		await syncIndex(db, root, cfg);
+
+		endpoint.state.failAfterInputs = endpoint.state.inputs + 1;
+		await assert.rejects(syncIndex(db, root, cfg, true), /503/);
+		assert.equal(
+			(
+				db.prepare("select count(*) count from staged_files").get() as {
+					count: number;
+				}
+			).count,
+			1,
+		);
+
+		endpoint.state.failAfterInputs = undefined;
+		const beforeResume = endpoint.state.inputs;
+		await syncIndex(db, root, cfg, true);
+		assert.equal(endpoint.state.inputs - beforeResume, 1);
+		assert.deepEqual(
+			db.prepare("select index_generation from files order by file").all(),
+			[{ index_generation: 2 }, { index_generation: 2 }],
+		);
+		db.close();
+	} finally {
+		await endpoint.close();
+	}
+});
+
 test("query and document requests preserve configured embedding roles", async () => {
 	const endpoint = await embeddingEndpoint();
 	try {
@@ -315,9 +352,12 @@ test("Git discovery includes untracked files and honors standard ignores", async
 	mkdirSync(path.join(root, "node_modules"));
 	writeFileSync(path.join(root, ".gitignore"), "ignored/\n");
 	writeFileSync(path.join(root, "kept.ts"), "export const kept = true;\n");
+	writeFileSync(path.join(root, "deleted.ts"), "export const gone = true;\n");
 	writeFileSync(path.join(root, "ignored", "hidden.ts"), "hidden\n");
 	writeFileSync(path.join(root, "node_modules", "forced.ts"), "forced\n");
 	execFileSync("git", ["-C", root, "add", "-f", "node_modules/forced.ts"]);
+	execFileSync("git", ["-C", root, "add", "deleted.ts"]);
+	unlinkSync(path.join(root, "deleted.ts"));
 
 	const cfg = config("http://127.0.0.1:1/v1/embeddings");
 	const result = await discoverFiles(root, cfg);
@@ -347,6 +387,27 @@ test("filesystem discovery applies nested gitignore rules", async () => {
 		result.files.map((file) => file.file),
 		[path.join("catalogue", "kept.ts")],
 	);
+});
+
+test("filesystem discovery preserves unreadable ignore scopes", {
+	skip: process.platform === "win32",
+}, async () => {
+	const root = tempProject();
+	const protectedDir = path.join(root, "protected");
+	mkdirSync(protectedDir);
+	writeFileSync(path.join(protectedDir, ".gitignore"), "ignored.ts\n");
+	writeFileSync(path.join(protectedDir, "ignored.ts"), "ignored\n");
+	chmodSync(protectedDir, 0);
+	try {
+		const result = await discoverFiles(
+			root,
+			config("http://127.0.0.1:1/v1/embeddings"),
+		);
+		assert.deepEqual(result.unavailableDirectories, ["protected"]);
+		assert.equal(result.skipped, 1);
+	} finally {
+		chmodSync(protectedDir, 0o755);
+	}
 });
 
 test("discovery honors startup cancellation", async () => {
@@ -405,4 +466,25 @@ test("oversized repeated segments receive distinct chunk keys", () => {
 	);
 	assert.equal(chunks.length, 2);
 	assert.equal(new Set(chunks.map((chunk) => chunk.key)).size, 2);
+});
+
+test("text files that become binary are intentionally removed", async () => {
+	const endpoint = await embeddingEndpoint();
+	try {
+		const root = tempProject();
+		const file = path.join(root, "generated.ts");
+		writeFileSync(file, "export const generated = 'text';\n");
+		const db = openIndexDb(root);
+		const cfg = config(endpoint.url);
+		await syncIndex(db, root, cfg);
+
+		writeFileSync(file, "binary\0content");
+		const rebuilt = await syncIndex(db, root, cfg, true);
+		assert.equal(rebuilt.complete, true);
+		assert.equal(rebuilt.skipped, 0);
+		assert.equal(db.prepare("select file from files").get(), undefined);
+		db.close();
+	} finally {
+		await endpoint.close();
+	}
 });

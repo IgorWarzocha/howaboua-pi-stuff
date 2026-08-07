@@ -28,6 +28,11 @@ export interface FileMetadata {
 	ctimeMs: number;
 }
 
+export type FileSnapshotRead =
+	| { status: "ready"; snapshot: FileSnapshot }
+	| { status: "unavailable" }
+	| { status: "non-text" };
+
 export function hashText(text: string): string {
 	return crypto.createHash("sha256").update(text).digest("hex");
 }
@@ -35,7 +40,7 @@ export function hashText(text: string): string {
 export function readFileSnapshot(
 	root: string,
 	metadata: FileMetadata,
-): FileSnapshot | undefined {
+): FileSnapshotRead {
 	const abs = path.join(root, metadata.file);
 	try {
 		const before = statSync(abs);
@@ -47,22 +52,25 @@ export function readFileSnapshot(
 			before.ctimeMs !== after.ctimeMs ||
 			after.size !== metadata.size ||
 			after.mtimeMs !== metadata.mtimeMs ||
-			after.ctimeMs !== metadata.ctimeMs ||
-			text.includes("\0")
+			after.ctimeMs !== metadata.ctimeMs
 		)
-			return undefined;
+			return { status: "unavailable" };
+		if (text.includes("\0")) return { status: "non-text" };
 		return {
-			file: metadata.file,
-			size: after.size,
-			mtimeMs: after.mtimeMs,
-			ctimeMs: after.ctimeMs,
-			hash: hashText(text),
-			text,
+			status: "ready",
+			snapshot: {
+				file: metadata.file,
+				size: after.size,
+				mtimeMs: after.mtimeMs,
+				ctimeMs: after.ctimeMs,
+				hash: hashText(text),
+				text,
+			},
 		};
 	} catch (error) {
 		const code = (error as NodeJS.ErrnoException).code;
 		if (code === "ENOENT" || code === "EACCES" || code === "EPERM")
-			return undefined;
+			return { status: "unavailable" };
 		throw error;
 	}
 }

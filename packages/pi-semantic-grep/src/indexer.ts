@@ -267,11 +267,16 @@ export async function syncIndex(
 
 		await nextEventLoopTurn();
 		signal?.throwIfAborted();
-		const snapshot = readFileSnapshot(root, metadata);
-		if (!snapshot) {
+		const snapshotRead = readFileSnapshot(root, metadata);
+		if (snapshotRead.status === "unavailable") {
 			skipped++;
 			continue;
 		}
+		if (snapshotRead.status === "non-text") {
+			current.delete(metadata.file);
+			continue;
+		}
+		const { snapshot } = snapshotRead;
 		if (currentGeneration && old.hash === snapshot.hash) {
 			updateMetadata(db, metadata, target.fullRebuild);
 			metadataOnly++;
