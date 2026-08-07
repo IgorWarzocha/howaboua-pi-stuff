@@ -160,13 +160,9 @@ export async function writeRepositoryState(
 
 export function formatRepositoryStateNotice(
 	summary: RepositoryStateSummary,
-	options: { inventory?: boolean } = {},
 ): string | undefined {
 	if (summary.message) return summary.message;
 	const parts = [
-		options.inventory && summary.restored.length > 0
-			? `Repository notebook state: repo contains ${formatKeyList(summary.restored)}`
-			: undefined,
 		summary.skipped.length > 0
 			? `Repository state not published: ${summary.skipped.slice(0, 12).map(({ key, reason }) => `${key.slice(0, 256)} (${reason.slice(0, 240)})`).join(", ")}`
 			: undefined,
