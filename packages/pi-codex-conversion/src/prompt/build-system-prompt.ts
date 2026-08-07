@@ -61,9 +61,9 @@ const CODE_MODE_GUIDELINES = [
 ];
 
 const NOTEBOOK_MODE_GUIDELINES = [
+	"Your exec environment is a stateful Deno/TypeScript Jupyter notebook, not a script runner: each exec is the next cell",
+	"Before replying, preserve state needed by follow-ups in purpose-named top-level variables; subprocesses provide I/O, not retained state",
 	...CODE_MODE_GUIDELINES,
-	"JUPYTER NOTEBOOK: treat every exec call as the next cell in the same persistent Deno/TypeScript environment, never as an isolated script",
-	"Keep large tool results, parsed source, indexes, calculations, imports, helpers, and other reusable working data in clearly named top-level variables; reuse and refine them across turns",
 	"Filter and transform retained data inside exec, returning only findings needed in model context; inspect existing globals selectively when relevant and never dump the namespace",
 	"Keep canonical project artifacts in files; tools.exec_command starts ordinary subprocesses whose shell-local state does not persist",
 	"Keep important reusable data serializable; recreate functions, imports, and live handles if they are unavailable after restart",
