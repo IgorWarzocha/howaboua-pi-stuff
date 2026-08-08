@@ -6,7 +6,7 @@ const FORCE_KILL_GRACE_MS = 2_000;
 export async function runSettledPi(args, options) {
 	const child = spawn("pi", args, {
 		...options,
-		detached: process.platform !== "win32",
+		detached: false,
 		stdio: ["ignore", "pipe", "inherit", "pipe"],
 	});
 	let settled = false;
@@ -27,14 +27,6 @@ export async function runSettledPi(args, options) {
 				windowsHide: true,
 			});
 			return;
-		}
-		if (process.platform !== "win32" && child.pid) {
-			try {
-				process.kill(-child.pid, signal);
-				return;
-			} catch {
-				// The child may not have established its process group yet.
-			}
 		}
 		child.kill(signal);
 	};
@@ -76,8 +68,7 @@ export async function runSettledPi(args, options) {
 			child.once("error", reject);
 			child.once("close", (value) => {
 				resolveCode(
-					requestedExitCode ??
-					(value ?? (settledTermination ? 0 : 1)),
+					requestedExitCode ?? (settledTermination ? 0 : (value ?? 1)),
 				);
 			});
 		});

@@ -1,11 +1,11 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
+	type CodeModeToolPreflight,
+	type CodeModeToolPreflightCall,
+	isProtocolRequest,
 	PREFLIGHT_AVAILABLE_CHANNEL,
 	PREFLIGHT_PROTOCOL,
 	PREFLIGHT_REQUEST_CHANNEL,
-	isProtocolRequest,
-	type CodeModeToolPreflight,
-	type CodeModeToolPreflightCall,
 	type PreflightBroker,
 } from "./preflight-protocol.js";
 import type { ToolExecutionContext } from "./types.js";
@@ -47,18 +47,44 @@ export function registerCodeModePreflightBroker(
 		async run(call) {
 			for (const preflight of [...preflights]) {
 				call.signal.throwIfAborted();
-				const result = await preflight(preflightSnapshot(call));
+				const pending = Promise.resolve().then(() =>
+					preflight(preflightSnapshot(call)),
+				);
+				void pending.catch(() => undefined);
+				const result = await raceAbort(pending, call.signal);
 				call.signal.throwIfAborted();
 				if (result?.block !== true) continue;
-				const reason = typeof result.reason === "string"
-					? result.reason.trim()
-					: "";
+				const reason =
+					typeof result.reason === "string" ? result.reason.trim() : "";
 				throw new Error(
 					reason || `Code Mode nested tool blocked: ${call.toolName}`,
 				);
 			}
 		},
 	};
+}
+
+async function raceAbort<T>(
+	pending: Promise<T>,
+	signal: AbortSignal,
+): Promise<T> {
+	signal.throwIfAborted();
+	let onAbort = () => {};
+	const aborted = new Promise<never>((_resolve, reject) => {
+		onAbort = () => {
+			try {
+				signal.throwIfAborted();
+			} catch (error) {
+				reject(error);
+			}
+		};
+		signal.addEventListener("abort", onAbort, { once: true });
+	});
+	try {
+		return await Promise.race([pending, aborted]);
+	} finally {
+		signal.removeEventListener("abort", onAbort);
+	}
 }
 
 export async function runCodeModeToolPreflight(
@@ -92,7 +118,8 @@ function preflightSnapshot(
 }
 
 function freezeInput(value: unknown): unknown {
-	if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
+	if (!value || typeof value !== "object" || Object.isFrozen(value))
+		return value;
 	if (Array.isArray(value)) {
 		for (const item of value) freezeInput(item);
 	} else {
