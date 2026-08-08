@@ -25,6 +25,12 @@ const SHUTDOWN_GRACE_MS = 1_500;
 const MAX_STDERR_CHARS = 16_384;
 export type { KernelExecutionResult } from "./jupyter-output.ts";
 
+interface ShellReplyWaiter {
+	resolve(message: JupyterMessage): void;
+	reject(error: Error): void;
+	timer?: ReturnType<typeof setTimeout> | undefined;
+}
+
 export class DenoJupyterKernel {
 	private readonly deno: string;
 	private readonly cwd: string;
@@ -39,6 +45,7 @@ export class DenoJupyterKernel {
 	private iopub: Subscriber | undefined;
 	private startup: Promise<void> | undefined;
 	private active: ActiveKernelExecution | undefined;
+	private readonly shellReplies = new Map<string, ShellReplyWaiter>();
 	private stderr = "";
 
 	constructor(options: { deno: string; cwd: string; maxHeapMiB: number; env?: NodeJS.ProcessEnv | undefined }) {
@@ -64,8 +71,6 @@ export class DenoJupyterKernel {
 		await this.start(options.signal);
 		options.signal?.throwIfAborted();
 		if (this.active) throw new Error("Notebook kernel already has an active cell");
-		const connection = this.connection!;
-		const shell = this.shell!;
 		const message = createJupyterMessage("execute_request", {
 			code,
 			silent: false,
@@ -94,10 +99,9 @@ export class DenoJupyterKernel {
 		options.signal?.addEventListener("abort", abort, { once: true });
 		this.active = execution;
 		try {
-			await shell.send(encodeJupyterMessage(message, connection.key));
 			const [result, reply] = await Promise.all([
 				completion,
-				this.receiveShellReply(message.header.msg_id),
+				this.sendShellRequest(message),
 			]);
 			if (reply.header.msg_type !== "execute_reply") {
 				throw new Error(`Deno Jupyter returned ${reply.header.msg_type} for execute_request`);
@@ -187,6 +191,7 @@ export class DenoJupyterKernel {
 		this.control.connect(jupyterEndpoint(connection, connection.control_port));
 		this.iopub.connect(jupyterEndpoint(connection, connection.iopub_port));
 		this.iopub.subscribe("");
+		void this.runShellPump(this.shell, connection);
 		await sleep(SUBSCRIBER_SETTLE_MS, undefined, signal ? { signal } : undefined);
 		void this.runIopubPump();
 		await this.shellRequest("kernel_info_request", {}, STARTUP_TIMEOUT_MS);
@@ -201,36 +206,56 @@ export class DenoJupyterKernel {
 		const connection = this.connection;
 		if (!shell || !connection) throw new Error("Deno Jupyter shell is not connected");
 		const request = createJupyterMessage(type, content, this.session);
-		await shell.send(encodeJupyterMessage(request, connection.key));
-		return this.receiveShellReply(request.header.msg_id, timeoutMs, type);
+		return this.sendShellRequest(request, timeoutMs, type);
 	}
 
-	private async receiveShellReply(
-		requestId: string,
+	private async sendShellRequest(
+		request: JupyterMessage,
 		timeoutMs?: number,
 		requestType = "request",
 	): Promise<JupyterMessage> {
 		const shell = this.shell;
 		const connection = this.connection;
 		if (!shell || !connection) throw new Error("Deno Jupyter shell is not connected");
-		if (timeoutMs === undefined) {
-			while (true) {
-				const message = decodeJupyterMessage([...await shell.receive()] as Buffer[], connection.key);
-				if (message?.parent_header["msg_id"] === requestId) return message;
+		const requestId = request.header.msg_id;
+		if (this.shellReplies.has(requestId)) throw new Error(`Duplicate Deno Jupyter shell request: ${requestId}`);
+		let waiter!: ShellReplyWaiter;
+		const reply = new Promise<JupyterMessage>((resolve, reject) => {
+			waiter = { resolve, reject };
+		});
+		if (timeoutMs !== undefined) {
+			waiter.timer = setTimeout(() => {
+				if (this.shellReplies.get(requestId) !== waiter) return;
+				this.shellReplies.delete(requestId);
+				waiter.reject(new Error(`Deno Jupyter did not answer ${requestType} within ${timeoutMs}ms${this.stderr ? `\n${this.stderr}` : ""}`));
+			}, timeoutMs);
+		}
+		this.shellReplies.set(requestId, waiter);
+		try {
+			await shell.send(encodeJupyterMessage(request, connection.key));
+			return await reply;
+		} catch (error) {
+			if (this.shellReplies.get(requestId) === waiter) this.shellReplies.delete(requestId);
+			if (waiter.timer) clearTimeout(waiter.timer);
+			throw error;
+		}
+	}
+
+	private async runShellPump(socket: Dealer, connection: JupyterConnectionInfo): Promise<void> {
+		try {
+			for await (const frames of socket) {
+				const message = decodeJupyterMessage([...frames] as Buffer[], connection.key);
+				const requestId = message?.parent_header["msg_id"];
+				if (typeof requestId !== "string") continue;
+				const waiter = this.shellReplies.get(requestId);
+				if (!waiter) continue;
+				this.shellReplies.delete(requestId);
+				if (waiter.timer) clearTimeout(waiter.timer);
+				waiter.resolve(message!);
 			}
+		} catch (error) {
+			if (this.shell === socket) this.failKernel(error instanceof Error ? error : new Error(String(error)));
 		}
-		const deadline = Date.now() + timeoutMs;
-		while (Date.now() < deadline) {
-			const remaining = Math.max(1, deadline - Date.now());
-			const result = await Promise.race([
-				shell.receive().then((frames) => ({ kind: "frames" as const, frames })),
-				sleep(remaining).then(() => ({ kind: "timeout" as const })),
-			]);
-			if (result.kind === "timeout") break;
-			const message = decodeJupyterMessage([...result.frames] as Buffer[], connection.key);
-			if (message?.parent_header["msg_id"] === requestId) return message;
-		}
-		throw new Error(`Deno Jupyter did not answer ${requestType} within ${timeoutMs}ms${this.stderr ? `\n${this.stderr}` : ""}`);
 	}
 
 	private async runIopubPump(): Promise<void> {
@@ -274,10 +299,16 @@ export class DenoJupyterKernel {
 			killTimer.unref?.();
 			child.once("exit", () => clearTimeout(killTimer));
 		}
-		this.shell?.close();
+		const shell = this.shell;
+		this.shell = undefined;
+		for (const waiter of this.shellReplies.values()) {
+			if (waiter.timer) clearTimeout(waiter.timer);
+			waiter.reject(new Error("Deno Jupyter shell disconnected"));
+		}
+		this.shellReplies.clear();
+		shell?.close();
 		this.control?.close();
 		this.iopub?.close();
-		this.shell = undefined;
 		this.control = undefined;
 		this.iopub = undefined;
 		this.connection = undefined;

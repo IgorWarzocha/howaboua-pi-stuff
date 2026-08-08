@@ -47,15 +47,19 @@ export class NotebookCheckpointManager {
 		if (this.timer) clearTimeout(this.timer);
 		this.timer = setTimeout(() => {
 			this.timer = undefined;
-			void this.flush();
+			void this.flush().catch(() => undefined);
 		}, CHECKPOINT_DEBOUNCE_MS);
 		this.timer.unref?.();
 	}
 
-	flush(requireIdle = false): Promise<void> {
+	flush(options: {
+		requireIdle?: boolean | undefined;
+		force?: boolean | undefined;
+		excludeNames?: ReadonlySet<string> | undefined;
+	} = {}): Promise<void> {
 		if (this.timer) clearTimeout(this.timer);
 		this.timer = undefined;
-		const operation = this.maintenance.then(() => this.perform(requireIdle));
+		const operation = this.maintenance.then(() => this.perform(options));
 		this.maintenance = operation.catch(() => undefined);
 		return operation;
 	}
@@ -85,18 +89,22 @@ export class NotebookCheckpointManager {
 		};
 	}
 
-	private async perform(requireIdle: boolean): Promise<void> {
+	private async perform(options: {
+		requireIdle?: boolean | undefined;
+		force?: boolean | undefined;
+		excludeNames?: ReadonlySet<string> | undefined;
+	}): Promise<void> {
 		const runningCellId = this.runningCellId();
 		if (runningCellId) {
-			if (!requireIdle) return;
+			if (!options.requireIdle) return;
 			const notice = `Notebook checkpoint skipped because cell "${runningCellId}" is still running; the last completed checkpoint remains available`;
 			this.reportNotice(notice, false);
 			throw new Error(notice);
 		}
 		const kernel = this.currentKernel();
-		if (!this.dirty || !kernel || !this.identity) return;
+		if ((!options.force && !this.dirty) || !kernel || !this.identity) return;
 		this.dirty = false;
-		let failed = false;
+		let projectFailure: Error | undefined;
 		try {
 			const project = await writeProjectState(
 				kernel,
@@ -104,22 +112,34 @@ export class NotebookCheckpointManager {
 				this.projectBaseline,
 				this.baselineNames,
 				this.maxBytes,
+				options.excludeNames,
 			);
 			this.projectBaseline = project.baseline;
 			if (project.conflicts.length > 0) {
 				this.reportNotice(`Project notebook conflicts preserved without overwrite: ${project.conflicts.join(", ")}`, false);
 			}
 		} catch (error) {
-			failed = true;
-			this.reportNotice(`Project notebook checkpoint failed: ${error instanceof Error ? error.message : String(error)}`, true);
+			this.dirty = true;
+			const notice = `Project notebook checkpoint failed: ${error instanceof Error ? error.message : String(error)}`;
+			this.reportNotice(notice, true);
+			projectFailure = new Error(notice, { cause: error });
 		}
 		try {
-			await writeNotebookCheckpoint(kernel, this.identity, this.baselineNames, this.maxBytes);
+			await writeNotebookCheckpoint(
+				kernel,
+				this.identity,
+				this.baselineNames,
+				this.maxBytes,
+				this.projectBaseline,
+				options.excludeNames,
+			);
 		} catch (error) {
-			failed = true;
-			this.reportNotice(`Session notebook checkpoint failed: ${error instanceof Error ? error.message : String(error)}`, true);
+			this.dirty = true;
+			const notice = `Session notebook checkpoint failed: ${error instanceof Error ? error.message : String(error)}`;
+			this.reportNotice(notice, true);
+			throw new Error(notice, { cause: error });
 		}
-		this.dirty = failed;
-		if (!failed) this.lastCheckpointAt = new Date().toISOString();
+		if (projectFailure) throw projectFailure;
+		this.lastCheckpointAt = new Date().toISOString();
 	}
 }

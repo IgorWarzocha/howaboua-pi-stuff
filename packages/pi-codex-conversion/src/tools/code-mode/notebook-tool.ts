@@ -20,7 +20,7 @@ export function registerNotebookTool(pi: ExtensionAPI, runtime: SharedCodeModeRu
 	pi.registerTool({
 		name: "notebook",
 		label: "Notebook",
-		description: "Inspect or control the persistent notebook. Checkpoint durable state, release named bindings and standard disposable resources, or restart the kernel from the last completed checkpoint",
+		description: "Inspect or control the persistent notebook. Checkpoint durable state, release named bindings, or restart from the last completed checkpoint. Releasing lexical bindings restarts the kernel, so runtime-only handles are not restored",
 		promptSnippet: "Inspect or control notebook lifecycle",
 		parameters: NOTEBOOK_PARAMETERS,
 		async execute(_id, params, signal, _onUpdate, ctx) {
