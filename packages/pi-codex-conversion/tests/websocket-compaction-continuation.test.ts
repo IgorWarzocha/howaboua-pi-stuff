@@ -327,9 +327,25 @@ test("V2 compaction exactly replays the provider baseline after its WebSocket di
 		assert.equal(ScriptedWebSocket.opened, 2);
 		const compactionRequest = sentFrames()[1]!;
 		assert.equal(compactionRequest.previous_response_id, undefined);
-		const { input: _firstInput, client_metadata: _firstMetadata, ...firstProperties } = firstRequest;
-		const { input: _compactInput, client_metadata: _compactMetadata, ...compactionProperties } = compactionRequest;
-		assert.deepEqual(compactionProperties, firstProperties);
+		const firstBody = firstRequest as Record<string, unknown>;
+		const compactionBody = compactionRequest as Record<string, unknown>;
+		const {
+			input: _firstInput,
+			client_metadata: _firstMetadata,
+			reasoning: _firstReasoning,
+			text: _firstText,
+			...firstHistoryProperties
+		} = firstBody;
+		const {
+			input: _compactInput,
+			client_metadata: _compactMetadata,
+			reasoning: compactReasoning,
+			text: compactText,
+			...compactionHistoryProperties
+		} = compactionBody;
+		assert.deepEqual(compactionHistoryProperties, firstHistoryProperties);
+		assert.deepEqual(compactReasoning, { effort: "high", summary: "auto", context: "all_turns" });
+		assert.deepEqual(compactText, { verbosity: "high" });
 		assert.deepEqual(compactionRequest.input?.slice(0, firstRequest.input?.length), firstRequest.input);
 		assert.deepEqual(compactionRequest.input?.slice(-3), [
 			{
@@ -364,5 +380,24 @@ test("an explicit reset rejects a late canonical response from the old lane", ()
 	});
 
 	assert.equal(canonicalCompactionPromptInput(sessionId, "model"), undefined);
+	clearCanonicalSessions(sessionId);
+});
+
+test("an older concurrent completion cannot replace a newer canonical lane", () => {
+	const sessionId = "completion-order";
+	const olderToken = captureCanonicalSessionToken(sessionId);
+	const newerToken = captureCanonicalSessionToken(sessionId);
+	const record = (content: string, token: ReturnType<typeof captureCanonicalSessionToken>) => recordCanonicalSessionResponse({
+		sessionId,
+		url: "wss://example.test/responses",
+		accountId: "account",
+		requestBody: { model: "model", input: [{ role: "user", content }] } as never,
+		responseItems: [],
+		token,
+	});
+	record("newer", newerToken);
+	record("older", olderToken);
+
+	assert.deepEqual(canonicalCompactionPromptInput(sessionId, "model"), [{ role: "user", content: "newer" }]);
 	clearCanonicalSessions(sessionId);
 });

@@ -80,6 +80,33 @@ function canonicalSessionIdentity(options: ExecuteRemoteCompactionV2Options): { 
 	};
 }
 
+function withCurrentCompactionControls(
+	canonicalBody: ResponsesBody,
+	currentBody: ResponsesBody,
+	requestOptions: NativeCompactionRequestOptions,
+): ResponsesBody {
+	const {
+		client_metadata: _canonicalMetadata,
+		reasoning: canonicalReasoning,
+		service_tier: _canonicalServiceTier,
+		temperature: _canonicalTemperature,
+		text: _canonicalText,
+		...historyBody
+	} = canonicalBody;
+	const currentReasoning = requestOptions.reasoning ?? currentBody.reasoning;
+	const reasoningContext = canonicalReasoning?.context;
+	return {
+		...historyBody,
+		text: structuredClone(currentBody.text),
+		...(reasoningContext || currentReasoning
+			? { reasoning: { ...(reasoningContext ? { context: reasoningContext } : {}), ...structuredClone(currentReasoning ?? {}) } }
+			: {}),
+		...(currentBody.service_tier !== undefined ? { service_tier: currentBody.service_tier } : {}),
+		...(currentBody.temperature !== undefined ? { temperature: currentBody.temperature } : {}),
+		...(currentBody.client_metadata ? { client_metadata: structuredClone(currentBody.client_metadata) } : {}),
+	};
+}
+
 async function runAttempt(options: ExecuteRemoteCompactionV2Options, streamSimple: V2Stream): Promise<RemoteCompactionV2Result> {
 	const outputItems: unknown[] = [];
 	let responseStatus: number | undefined;
@@ -107,10 +134,7 @@ async function runAttempt(options: ExecuteRemoteCompactionV2Options, streamSimpl
 		onPayload: async (payload) => {
 			const body = payload as ResponsesBody;
 			const requestBody = canonicalBody
-				? {
-					...canonicalBody,
-					...(body.client_metadata ? { client_metadata: structuredClone(body.client_metadata) } : {}),
-				}
+				? withCurrentCompactionControls(canonicalBody, body, options.requestOptions)
 				: body;
 			const promptInput = normalizeRemoteCompactionV2PromptInput(canonicalInput ?? options.promptInput) as ResponsesInputItem[];
 			const request = await shrinkNativeCompactionRequestForEndpoint({
