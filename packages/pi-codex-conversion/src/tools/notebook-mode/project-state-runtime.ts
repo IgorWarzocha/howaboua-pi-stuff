@@ -67,7 +67,7 @@ export function projectStateRestoreSource(
 ): string {
 	return `{
   const { deserialize } = await import("node:v8");
-  if (Deno.version.deno !== ${JSON.stringify(manifest.deno)} || Deno.version.v8 !== ${JSON.stringify(manifest.v8)}) {
+  if (${manifest.entries.length > 0} && (Deno.version.deno !== ${JSON.stringify(manifest.deno)} || Deno.version.v8 !== ${JSON.stringify(manifest.v8)})) {
     throw new Error("project checkpoint Deno/V8 version does not match the active kernel");
   }
   const __payload = await Deno.readFile(${JSON.stringify(payloadPath)});

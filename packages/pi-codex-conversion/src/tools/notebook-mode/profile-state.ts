@@ -152,6 +152,20 @@ export function listNotebookProfiles(agentDir: string): ProfileStateSummary[] {
 	}).sort((left, right) => left.name.localeCompare(right.name));
 }
 
+export function notebookProfileBindingNames(name: string | undefined, agentDir: string, maxBytes: number): string[] {
+	if (!name) return [];
+	try {
+		const paths = profileStatePaths(name, agentDir);
+		assertSafeProfileDirectory(paths.directory, agentDir);
+		const manifest = readProfileStateManifest(paths.manifest, name);
+		return manifest && readProfileStatePayload(manifest, join(paths.directory, manifest.payload), maxBytes)
+			? manifest.entries.map((entry) => entry.name)
+			: [];
+	} catch {
+		return [];
+	}
+}
+
 function writeProfile(
 	paths: ReturnType<typeof profileStatePaths>,
 	manifest: ProfileStateManifest,

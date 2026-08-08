@@ -57,6 +57,8 @@ The host-side `notebook` tool keeps emergency controls available when the kernel
 - `checkpoint` immediately flushes completed project and session state.
 - `release` invokes only standard `Symbol.asyncDispose`/`Symbol.dispose` hooks, checkpoints the named bindings as absent, and restarts when required to clear JavaScript lexical bindings.
 - `restart` terminates an active cell if necessary, attempts standard resource disposal, and restores the last completed checkpoint even when disposal fails.
+- `diagnostics` starts a one-shot Deno language server outside the kernel, checks the saved `.ipynb`, reports cell-local source errors, then shuts the server down. It never injects automatic diagnostics into `exec` output or keeps an indexer resident.
+- `reset` is the explicit disaster path: terminate the kernel, advance the project to an empty generation, discard the current session checkpoint, and start clean while preserving the journal and named profiles. It never replays cells; repaired code runs only through a later explicit `exec`.
 - `list`, `save`, and `load` manage global named profiles containing compatible values and helper definitions. Loading refuses binding collisions and forks the profile into ordinary project state; it never shares a kernel or replays cells.
 
 Use JavaScript explicit resource management rather than guessing `.close()`, `.kill()`, or `.abort()` methods. Orderly shutdown also invokes standard disposal hooks after checkpointing and before terminating Deno.
@@ -129,10 +131,11 @@ The Linux x64 proof is successful when it demonstrates:
 4. Existing built-ins and promoted or deferred custom tools remain discoverable and callable from notebook code, including composed and parallel nested calls.
 5. Yield, `wait`, busy rejection, cancellation, ordinary exceptions, and fatal recovery produce actionable model-visible results.
 6. Fresh sessions restore compatible plain project globals, including reanimatable helpers; resuming a session layers its compatible recovery checkpoint without invented state namespaces.
-7. The session writes a valid `.ipynb` journal containing cell source and bounded outputs without exposing journal plumbing as a notebook global.
+7. The session writes a valid `.ipynb` journal containing cell source before execution and bounded outputs afterward, so a hung cell remains diagnosable without exposing journal plumbing as a notebook global.
 8. A graceful restart reports incompatible state, rebinds current tool metadata, and does not claim to reverse external side effects.
 9. Every Notebook result reports heap/RSS pressure while normal Code Mode still uses fresh V8 isolates and its existing custom-tool behavior unchanged.
 10. Lifecycle status, explicit checkpoint, standard resource release, idle restart, and restart around a yielded cell remain available outside `exec`.
 11. Named profiles can be listed, atomically saved, loaded without overwrite, reused across projects, and selected as an optional startup default without replaying notebook cells.
+12. One-shot diagnostics can inspect a saved notebook while its kernel is unavailable, identify errors by notebook path and cell-local location, and exit without a resident process; reset removes broken durable state without deleting or replaying the journal.
 
 After the proof, decide publication and broader platform support from measured startup latency, checkpoint cost, dependency/install reliability, bridge behavior, and real agent use. Shipping package changes require a focused issue/PR, a changeset, and the repository's changed-package gate.

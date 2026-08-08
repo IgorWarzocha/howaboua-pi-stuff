@@ -5,7 +5,7 @@ import type { SharedCodeModeRuntime } from "./shared-runtime.ts";
 import type { NotebookControlRequest, ToolExecutionContext } from "./types.ts";
 
 const NOTEBOOK_PARAMETERS = Type.Object({
-	action: StringEnum(["status", "list", "checkpoint", "save", "load", "release", "restart"]),
+	action: StringEnum(["status", "list", "checkpoint", "save", "load", "release", "restart", "diagnostics", "reset"]),
 	query: Type.Optional(Type.String()),
 	name: Type.Optional(Type.String()),
 	names: Type.Optional(Type.Array(Type.String(), { minItems: 1 })),
@@ -15,8 +15,8 @@ export function registerNotebookTool(pi: ExtensionAPI, runtime: SharedCodeModeRu
 	pi.registerTool({
 		name: "notebook",
 		label: "Notebook",
-		description: "Notebook lifecycle: status/list (optional query glob), checkpoint, save/load (name required), release (names required), or restart. Lexical release restarts the kernel, so runtime-only handles are not restored",
-		promptSnippet: "Inspect or control notebook lifecycle",
+		description: "Notebook state: status/list (query glob), checkpoint, save/load (name), release (names), restart, diagnostics, or reset. Diagnostics checks the saved .ipynb without its kernel; reset discards project/session state but preserves the file and profiles",
+		promptSnippet: "Inspect, recover, or control notebook state",
 		parameters: NOTEBOOK_PARAMETERS,
 		async execute(_id, params, signal, _onUpdate, ctx) {
 			const result = await runtime.controlNotebook(
@@ -52,7 +52,7 @@ function normalizeNotebookRequest(params: {
 		if (!params.names?.length) throw new Error("notebook release requires at least one name");
 		return { action: "release", names: [...new Set(params.names)] };
 	}
-	if (params.action !== "checkpoint" && params.action !== "restart") {
+	if (params.action !== "checkpoint" && params.action !== "restart" && params.action !== "diagnostics" && params.action !== "reset") {
 		throw new Error(`Unsupported notebook action: ${params.action}`);
 	}
 	if (params.query !== undefined || params.name !== undefined || params.names !== undefined) {
