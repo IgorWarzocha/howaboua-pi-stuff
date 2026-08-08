@@ -13,6 +13,7 @@ export type CodeModeExecutionKind = "code" | "notebook";
 export interface NotebookRuntimeOptions {
 	maxHeapMiB: number;
 	agentDir: string;
+	profile?: string | undefined;
 	reportStateNotice?(notice: string): void;
 }
 
