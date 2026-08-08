@@ -16,7 +16,7 @@ import {
 	type ProjectStateBaseline,
 } from "./project-state.ts";
 import { resolveNotebookProject } from "./project-identity.ts";
-import { loadNotebookProfile } from "./profile-state.ts";
+import { loadNotebookProfile, NotebookProfileRestoreError } from "./profile-state.ts";
 import { notebookSessionIdentity } from "./session-identity.ts";
 
 export interface StartedNotebookSession {
@@ -88,6 +88,7 @@ export async function startNotebookSession(options: {
 					? `Notebook profile ${runtime.profile} was not loaded because ${profile.collisions.length} binding collision(s) already exist`
 					: `Notebook profile ${runtime.profile} loaded ${profile.loaded.length} binding(s)`;
 			} catch (error) {
+				if (signal?.aborted || error instanceof NotebookProfileRestoreError) throw error;
 				profileNotice = `Notebook profile ${runtime.profile} was not loaded: ${error instanceof Error ? error.message : String(error)}`;
 			}
 		}

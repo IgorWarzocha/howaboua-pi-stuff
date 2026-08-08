@@ -30,6 +30,7 @@ interface NotebookLifecycleHost {
 	checkpoint(excludeNames?: ReadonlySet<string>): Promise<void>;
 	markChanged(): void;
 	restart(context: ExtensionContext, signal?: AbortSignal): Promise<string | undefined>;
+	rollback(context: ExtensionContext): Promise<void>;
 	baselineNames(): ReadonlySet<string>;
 	profileStorage(): { agentDir: string; maxBytes: number };
 	metadata(): {
@@ -73,7 +74,7 @@ export class NotebookLifecycleController {
 			case "status": return this.status(request.query, signal);
 			case "checkpoint": return this.checkpoint();
 			case "save": return this.profiles.save(request.name, context, signal);
-			case "load": return this.profiles.load(request.name, signal);
+			case "load": return this.profiles.load(request.name, context, signal);
 			case "release": return this.release(request.names, context, signal);
 			case "restart": return this.restart(context, signal);
 		}

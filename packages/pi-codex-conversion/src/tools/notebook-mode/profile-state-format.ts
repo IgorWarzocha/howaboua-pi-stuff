@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { lstatSync, readFileSync, statSync } from "node:fs";
-import { basename, join } from "node:path";
+import { existsSync, lstatSync, readFileSync, statSync } from "node:fs";
+import { basename, join, relative, resolve } from "node:path";
 import {
 	MAX_PROJECT_ENTRIES,
 	MAX_PROJECT_MANIFEST_BYTES,
@@ -49,7 +49,7 @@ export function assertProfileName(name: string): void {
 	if (!PROFILE_NAME.test(name)) throw new Error("Notebook profile name must be 1-64 letters, numbers, dots, underscores, or hyphens and start with a letter or number");
 }
 
-export function readProfileStateManifest(path: string): ProfileStateManifest | undefined {
+export function readProfileStateManifest(path: string, expectedName?: string): ProfileStateManifest | undefined {
 	try {
 		if (statSync(path).size > MAX_PROJECT_MANIFEST_BYTES) return undefined;
 		const value = JSON.parse(readFileSync(path, "utf8")) as unknown;
@@ -68,6 +68,7 @@ export function readProfileStateManifest(path: string): ProfileStateManifest | u
 			|| !PAYLOAD_NAME.test(value["payload"])
 			|| basename(value["payload"]) !== value["payload"]
 		) return undefined;
+		if (expectedName !== undefined && value["name"] !== expectedName) return undefined;
 		const entries = value["entries"].map(parseEntry);
 		const skipped = value["skipped"].map(parseSkipped);
 		if (entries.some((entry) => !entry) || skipped.some((entry) => !entry)) return undefined;
@@ -84,6 +85,20 @@ export function readProfileStateManifest(path: string): ProfileStateManifest | u
 		};
 	} catch {
 		return undefined;
+	}
+}
+
+export function assertSafeProfileDirectory(directory: string, agentDir: string): void {
+	const root = resolve(agentDir);
+	const target = resolve(directory);
+	const suffix = relative(root, target);
+	if (!suffix || suffix.startsWith("..") || suffix.includes("\0")) throw new Error("Notebook profile path escaped agent storage");
+	let current = root;
+	for (const part of suffix.split(/[\\/]+/)) {
+		current = join(current, part);
+		if (existsSync(current) && lstatSync(current).isSymbolicLink()) {
+			throw new Error(`Notebook profile storage cannot use symlinked path: ${current}`);
+		}
 	}
 }
 
