@@ -7,9 +7,9 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { CodeModeDelegateRuntime } from "../src/tools/code-mode/delegate-runtime.ts";
 import {
-	registerCodeModePreflightBroker,
 	registerCodeModeToolPreflight,
-} from "../src/tools/code-mode/nested-tool-preflight.ts";
+} from "../src/code-mode-preflight.ts";
+import { registerCodeModePreflightBroker } from "../src/tools/code-mode/nested-tool-preflight.ts";
 import { registerPublicCodeModeTools } from "../src/tools/code-mode/public-tools.ts";
 import { SharedCodeModeRuntime } from "../src/tools/code-mode/shared-runtime.ts";
 import type {
@@ -46,8 +46,16 @@ test("Code Mode preflight broker survives extension load order and reload", asyn
 	const guardApi = extensionApi(bus);
 	let calls = 0;
 	let block = false;
-	const registration = registerCodeModeToolPreflight(guardApi.pi, () => {
+	let captureInput = false;
+	let firstInput: unknown;
+	const registration = registerCodeModeToolPreflight(guardApi.pi, (call) => {
 		calls += 1;
+		if (captureInput) {
+			firstInput = call.input;
+			assert.throws(() => {
+				(call.input as { cmd: string }).cmd = "mutated";
+			});
+		}
 		return block ? { block: true, reason: "Approval is required" } : undefined;
 	});
 	assert.equal(registration.available, false);
@@ -82,19 +90,26 @@ test("Code Mode preflight broker survives extension load order and reload", asyn
 	block = false;
 
 	const lateGuardApi = extensionApi(bus);
-	const lateRegistration = registerCodeModeToolPreflight(lateGuardApi.pi, () => {
+	let lateInput: unknown;
+	const lateRegistration = registerCodeModeToolPreflight(lateGuardApi.pi, (call) => {
 		calls += 10;
+		lateInput = call.input;
 	});
 	assert.equal(lateRegistration.available, true);
+	const approvedInput = { cmd: "pwd" };
+	captureInput = true;
 	await reloadedBroker.run({
 		toolName: "exec_command",
-		input: { cmd: "pwd" },
+		input: approvedInput,
 		toolCallId: "nested-2",
 		cwd: "/tmp",
 		extensionContext: {} as ExtensionContext,
 		signal: new AbortController().signal,
 	});
 	assert.equal(calls, 13);
+	assert.deepEqual(firstInput, approvedInput);
+	assert.deepEqual(lateInput, approvedInput);
+	assert.notEqual(firstInput, lateInput);
 });
 
 test("nested preflight blocks programmatic and TOML tools before invocation", async () => {
@@ -180,7 +195,7 @@ test("wait recovery preflights write_stdin before bypassing the delegate", async
 			toolCallId: call.toolCallId,
 			input: call.input,
 		};
-		return { block: true, reason: "Approval is required" };
+		return { block: true, reason: "unknown process id: Approval is required" };
 	});
 
 	const runtime = new SharedCodeModeRuntime();

@@ -23,12 +23,17 @@
   ],
   "license": "MIT",
   "main": "./dist/index.js",
-  "types": "./src/index.ts",
+  "types": "./types/index.d.ts",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
+      "types": "./types/index.d.ts",
       "import": "./dist/index.js"
-    }
+    },
+    "./code-mode-preflight": {
+      "types": "./dist/code-mode-preflight.d.ts",
+      "import": "./dist/code-mode-preflight.js"
+    },
+    "./*": "./*"
   },
   "pi": {
     "extensions": [
@@ -37,8 +42,10 @@
   },
   "files": [
     "dist/**/*.js",
+    "dist/**/*.d.ts",
     "src/**/*.ts",
     "src/**/*.md",
+    "types/**/*.d.ts",
     "src/voice/lan/assets/**",
     "available-tools.png",
     "examples/custom-tools",

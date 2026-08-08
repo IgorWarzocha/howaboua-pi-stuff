@@ -201,6 +201,7 @@ export function registerCodexEvents(
 		if (event.fromExtension && compactionEntry && isNativeCompactionDetails(compactionEntry.details)) {
 			const details = compactionEntry.details;
 			nativeCompaction = true;
+			// Presentation entries persist and render without entering Pi's turn queue or LLM context.
 			pi.appendEntry<NativeCompactionDisplayEntry>(NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, {
 				content: NATIVE_COMPACTION_DISPLAY_TEXT,
 				compactionEntryId: compactionEntry.id,

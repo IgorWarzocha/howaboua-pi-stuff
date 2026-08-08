@@ -219,15 +219,15 @@ async function continueExecSessionFromMistakenWait(
 			? {}
 			: { max_output_tokens: maxOutputTokens }),
 	};
+	const nestedSignal = signal ?? new AbortController().signal;
+	await runCodeModeToolPreflight(
+		writeStdin.name,
+		input,
+		context,
+		nestedSignal,
+	);
 	let value: unknown;
 	try {
-		const nestedSignal = signal ?? new AbortController().signal;
-		await runCodeModeToolPreflight(
-			writeStdin.name,
-			input,
-			context,
-			nestedSignal,
-		);
 		value = await writeStdin.invoke(
 			input,
 			context,

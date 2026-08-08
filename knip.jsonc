@@ -4,6 +4,8 @@
 		"packages/pi-codex-conversion": {
 			"ignoreExportsUsedInFile": true,
 			"entry": [
+				"src/index.ts",
+				"src/code-mode-preflight.ts",
 				"scripts/**/*.mjs",
 				"examples/custom-tools/**/*.mjs",
 				"tests/**/*.test.ts"

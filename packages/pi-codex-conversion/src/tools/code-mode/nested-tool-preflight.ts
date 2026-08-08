@@ -1,84 +1,21 @@
-import type {
-	ExtensionAPI,
-	ExtensionContext,
-} from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import {
+	PREFLIGHT_AVAILABLE_CHANNEL,
+	PREFLIGHT_PROTOCOL,
+	PREFLIGHT_REQUEST_CHANNEL,
+	isProtocolRequest,
+	type CodeModeToolPreflight,
+	type CodeModeToolPreflightCall,
+	type PreflightBroker,
+} from "./preflight-protocol.js";
 import type { ToolExecutionContext } from "./types.js";
-
-const PREFLIGHT_PROTOCOL = "@howaboua/pi-codex-conversion/code-mode-preflight/v1";
-const PREFLIGHT_REQUEST_CHANNEL = `${PREFLIGHT_PROTOCOL}/request`;
-const PREFLIGHT_AVAILABLE_CHANNEL = `${PREFLIGHT_PROTOCOL}/available`;
-
-export interface CodeModeToolPreflightCall {
-	toolName: string;
-	input: unknown;
-	toolCallId: string;
-	cwd: string;
-	extensionContext: ExtensionContext;
-	signal: AbortSignal;
-}
-
-export type CodeModeToolPreflightResult =
-	| { block: true; reason: string }
-	| { block?: false };
-
-export type CodeModeToolPreflight = (
-	call: CodeModeToolPreflightCall,
-) =>
-	| CodeModeToolPreflightResult
-	| void
-	| Promise<CodeModeToolPreflightResult | void>;
-
-export interface CodeModeToolPreflightRegistration {
-	readonly available: boolean;
-	dispose(): void;
-}
 
 export type CodeModeToolPreflightRunner = (
 	call: CodeModeToolPreflightCall,
 ) => Promise<void>;
 
-interface PreflightBroker {
-	protocol: typeof PREFLIGHT_PROTOCOL;
-	isActive(): boolean;
-	register(preflight: CodeModeToolPreflight): () => void;
-}
-
 interface BrokerRegistration {
 	run: CodeModeToolPreflightRunner;
-}
-
-export function registerCodeModeToolPreflight(
-	pi: ExtensionAPI,
-	preflight: CodeModeToolPreflight,
-): CodeModeToolPreflightRegistration {
-	let broker: PreflightBroker | undefined;
-	let unregisterPreflight: (() => void) | undefined;
-	let disposed = false;
-	const unregisterAvailable = pi.events.on(
-		PREFLIGHT_AVAILABLE_CHANNEL,
-		(value) => {
-			if (disposed || !isPreflightBroker(value) || value === broker) return;
-			unregisterPreflight?.();
-			broker = value;
-			unregisterPreflight = value.register(preflight);
-		},
-	);
-	const registration: CodeModeToolPreflightRegistration = {
-		get available() {
-			return !disposed && (broker?.isActive() ?? false);
-		},
-		dispose() {
-			if (disposed) return;
-			disposed = true;
-			unregisterAvailable();
-			unregisterPreflight?.();
-			unregisterPreflight = undefined;
-			broker = undefined;
-		},
-	};
-	pi.on("session_shutdown", () => registration.dispose());
-	pi.events.emit(PREFLIGHT_REQUEST_CHANNEL, { protocol: PREFLIGHT_PROTOCOL });
-	return registration;
 }
 
 export function registerCodeModePreflightBroker(
@@ -109,7 +46,7 @@ export function registerCodeModePreflightBroker(
 	return {
 		async run(call) {
 			for (const preflight of [...preflights]) {
-				const result = await preflight(call);
+				const result = await preflight(preflightSnapshot(call));
 				if (result?.block !== true) continue;
 				const reason = typeof result.reason === "string"
 					? result.reason.trim()
@@ -141,24 +78,21 @@ export async function runCodeModeToolPreflight(
 	});
 }
 
-function isProtocolRequest(value: unknown): boolean {
-	return Boolean(
-		value &&
-			typeof value === "object" &&
-			"protocol" in value &&
-			value.protocol === PREFLIGHT_PROTOCOL,
-	);
+function preflightSnapshot(
+	call: CodeModeToolPreflightCall,
+): CodeModeToolPreflightCall {
+	return Object.freeze({
+		...call,
+		input: freezeInput(structuredClone(call.input)),
+	});
 }
 
-function isPreflightBroker(value: unknown): value is PreflightBroker {
-	return Boolean(
-		value &&
-			typeof value === "object" &&
-			"protocol" in value &&
-			value.protocol === PREFLIGHT_PROTOCOL &&
-			"isActive" in value &&
-			typeof value.isActive === "function" &&
-			"register" in value &&
-			typeof value.register === "function",
-	);
+function freezeInput(value: unknown): unknown {
+	if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
+	if (Array.isArray(value)) {
+		for (const item of value) freezeInput(item);
+	} else {
+		for (const item of Object.values(value)) freezeInput(item);
+	}
+	return Object.freeze(value);
 }

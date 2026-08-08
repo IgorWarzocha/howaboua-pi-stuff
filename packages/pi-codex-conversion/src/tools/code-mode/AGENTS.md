@@ -3,4 +3,5 @@
 - Codex host source stays pinned under `vendor/code-mode-src/`; keep Pi-owned changes outside its upstream source tree.
 - `host-client.ts` composes execution; `host-session.ts` open/shutdown lifecycle; `host-cell-operations.ts` wait/terminate; `host-operation.ts` cancellation; `host-connection.ts` handshake/request correlation; `host-process.ts` subprocess framing; `host-protocol.ts` wire validation; `host-delegation.ts` routes nested execution into `delegate-runtime.ts`; `tool-source.ts` scans/scopes JavaScript; `trace-*` owns bounded trace state.
 - `tools.ts` registers the runtime. `shared-runtime.ts`, `public-tools.ts`, and `tool-events.ts` own provider state, Pi tools, and hooks.
+- `src/code-mode-preflight.ts` is the lightweight public guard API; keep its shared protocol dependency free of the extension graph.
 - `custom-tool-*` owns TOML discovery and execution. `tool-result.ts`, `render-tracker.ts`, and `rendering.ts` own output and rendering boundaries.
