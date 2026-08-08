@@ -12,7 +12,7 @@ export function requestBodyForWebSocketContinuationComparison(body: ResponsesBod
 	return rest as ResponsesBody;
 }
 
-function responseInputsEqual(a: unknown[] | undefined, b: unknown[] | undefined): boolean {
+export function responseInputsEqual(a: readonly unknown[] | undefined, b: readonly unknown[] | undefined): boolean {
 	const left = a ?? [];
 	const right = b ?? [];
 	return left.length === right.length && left.every((item, index) => responsesValuesEqual(item, right[index]));

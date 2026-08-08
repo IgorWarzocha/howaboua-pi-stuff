@@ -3,7 +3,11 @@ import assert from "node:assert/strict";
 import type { Model } from "@earendil-works/pi-ai";
 import { executeRemoteCompactionV2 } from "../src/adapter/compaction/remote-v2-client.ts";
 import { buildRemoteCompactionV2Window, normalizeRemoteCompactionV2PromptInput } from "../src/adapter/compaction/remote-v2-history.ts";
+import { COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE } from "../src/adapter/compaction/request-shrink.ts";
+import { extractAccountId, resolveCodexWebSocketUrl } from "../src/providers/openai-codex/headers.ts";
+import { recordCanonicalSessionResponse } from "../src/providers/openai-codex/session-continuity.ts";
 import { closeOpenAICodexWebSocketSessions, recordWebSocketSseFallback } from "../src/providers/openai-codex/websocket.ts";
+import { apiKey } from "./websocket-test-support.ts";
 
 const model = {
 	id: "gpt-5.6-luna",
@@ -63,6 +67,7 @@ test("Responses compaction v2 uses the registered stream and installs one canoni
 		} as never,
 		context: { systemPrompt: "system", messages: [] },
 		promptInput: [{ role: "user", content: [{ type: "input_text", text: "hello" }] }],
+		promptInputSource: "reconstructed",
 		requestOptions: { reasoning: { effort: "high", summary: "auto" } },
 		tokensBefore: 1_000,
 		sessionId: "session",
@@ -101,4 +106,76 @@ test("Responses compaction v2 retains real turns and reconciles tool history", (
 	assert.doesNotMatch(JSON.stringify(window), /private scaffolding|hidden hook|orphan/);
 	assert.match(JSON.stringify(window), /remember this exactly/);
 	assert.equal(window.at(-1)?.["encrypted_content"], "sealed");
+});
+
+test("canonical compaction still applies the endpoint output budget", async () => {
+	const smallModel = { ...model, id: "gpt-5.5", contextWindow: 100 } as Model<any>;
+	const sessionId = "canonical-budget";
+	const canonicalInput = [
+		{ type: "function_call", id: "fc_call", call_id: "call", name: "exec", arguments: "{}" },
+		{ type: "function_call_output", call_id: "call", output: "large output ".repeat(200) },
+	];
+	recordCanonicalSessionResponse({
+		sessionId,
+		url: resolveCodexWebSocketUrl(smallModel.baseUrl!),
+		accountId: extractAccountId(apiKey),
+		requestBody: {
+			model: smallModel.id,
+			store: false,
+			stream: true,
+			input: canonicalInput,
+			text: { verbosity: "low" },
+			include: [],
+			tool_choice: "auto",
+			parallel_tool_calls: true,
+		},
+		responseItems: [],
+	});
+	let request: Record<string, unknown> | undefined;
+	const streamSimple = (_model: unknown, _context: unknown, options: any) => (async function* () {
+		request = await options.onPayload({
+			model: smallModel.id,
+			store: false,
+			stream: true,
+			input: [],
+			text: { verbosity: "low" },
+			include: [],
+			tool_choice: "auto",
+			parallel_tool_calls: true,
+		});
+		options.onOutputItemDone({ type: "compaction", id: "cmp", encrypted_content: "sealed" });
+		yield {
+			type: "done",
+			reason: "stop",
+			message: { responseId: "resp", stopReason: "stop", usage: { input: 1, cacheRead: 0, cacheWrite: 0, output: 1 } },
+		};
+	})();
+	try {
+		const result = await executeRemoteCompactionV2({
+			runtime: {
+				provider: smallModel.provider,
+				api: smallModel.api,
+				apiFamily: smallModel.api,
+				model: smallModel.id,
+				baseUrl: smallModel.baseUrl!,
+				apiKey,
+				headers: {},
+				currentModel: smallModel,
+			},
+			modelRegistry: { getRegisteredProviderConfig: () => ({ api: smallModel.api, streamSimple }) } as never,
+			context: { systemPrompt: "system", messages: [] },
+			promptInput: [{ role: "user", content: [{ type: "input_text", text: "wrong fallback" }] }],
+			requestOptions: {},
+			tokensBefore: 100,
+			sessionId,
+			retryDelayMs: 0,
+		});
+
+		assert.equal(result.ok, true);
+		const sentInput = request?.["input"] as Array<Record<string, unknown>>;
+		assert.equal(sentInput[1]?.["output"], COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE);
+		assert.equal(sentInput.at(-1)?.["type"], "compaction_trigger");
+	} finally {
+		closeOpenAICodexWebSocketSessions(sessionId);
+	}
 });

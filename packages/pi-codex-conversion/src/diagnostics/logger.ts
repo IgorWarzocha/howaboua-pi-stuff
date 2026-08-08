@@ -57,6 +57,7 @@ function eventFields(event: CodexDiagnosticsEvent): Array<string | undefined> {
 		field("attempt", event.attempt),
 		field("socket", event.socketReused === undefined ? undefined : event.socketReused ? "reused" : "new"),
 		field("continuation", event.continuation),
+		field("canonical_history", event.canonicalHistory),
 		field("previous_response_id", event.previousResponseId),
 		field("full_input_items", event.fullInputItems),
 		field("sent_input_items", event.sentInputItems),

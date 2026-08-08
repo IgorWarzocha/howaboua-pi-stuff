@@ -8,6 +8,8 @@ import { withRemoteCompactionV2Feature } from "../../providers/openai-responses/
 import type { OpenAICodexStreamOptions, ResponsesBody } from "../../providers/openai-codex/types.ts";
 import { sleep } from "../../providers/openai-codex/sse.ts";
 import { isWebSocketSseFallbackActive } from "../../providers/openai-codex/websocket.ts";
+import { canonicalCompactionPromptInput, canonicalCompactionRequestBody } from "../../providers/openai-codex/session-continuity.ts";
+import { extractAccountId, resolveCodexWebSocketUrl } from "../../providers/openai-codex/headers.ts";
 
 const MAX_STREAM_RETRIES = 2;
 type V2Stream = (model: Model<Api>, context: Context, options?: SimpleStreamOptions) => AsyncIterable<unknown>;
@@ -34,6 +36,7 @@ export type ExecuteRemoteCompactionV2Options = {
 	signal?: AbortSignal | undefined;
 	transport?: Transport | undefined;
 	retryDelayMs?: number | undefined;
+	promptInputSource?: "canonical" | "reconstructed" | undefined;
 };
 
 function resolveStream(options: ExecuteRemoteCompactionV2Options): V2Stream | undefined {
@@ -69,9 +72,26 @@ function compactionUsage(message: AssistantMessage): RemoteCompactionV2Usage | u
 	return { inputTokens, cachedInputTokens, cacheWriteInputTokens, outputTokens };
 }
 
+function canonicalSessionIdentity(options: ExecuteRemoteCompactionV2Options): { url: string; accountId: string } | undefined {
+	if (options.promptInputSource === "reconstructed" || options.runtime.provider !== "openai-codex" || !options.runtime.apiKey) return undefined;
+	return {
+		url: resolveCodexWebSocketUrl(options.runtime.baseUrl),
+		accountId: extractAccountId(options.runtime.apiKey),
+	};
+}
+
 async function runAttempt(options: ExecuteRemoteCompactionV2Options, streamSimple: V2Stream): Promise<RemoteCompactionV2Result> {
 	const outputItems: unknown[] = [];
 	let responseStatus: number | undefined;
+	const canonicalIdentity = canonicalSessionIdentity(options);
+	const canonicalInput = options.promptInputSource === "canonical"
+		? options.promptInput
+		: options.promptInputSource === undefined && canonicalIdentity
+		? canonicalCompactionPromptInput(options.sessionId, options.runtime.model, canonicalIdentity)
+		: undefined;
+	const canonicalBody = options.promptInputSource !== "reconstructed" && canonicalIdentity
+		? canonicalCompactionRequestBody(options.sessionId, options.runtime.model, canonicalIdentity)
+		: undefined;
 	const streamOptions: OpenAICodexStreamOptions = {
 		...(options.runtime.apiKey ? { apiKey: options.runtime.apiKey } : {}),
 		headers: withRemoteCompactionV2Feature(options.runtime.headers),
@@ -86,20 +106,26 @@ async function runAttempt(options: ExecuteRemoteCompactionV2Options, streamSimpl
 		onResponse: (response) => { responseStatus = response.status; },
 		onPayload: async (payload) => {
 			const body = payload as ResponsesBody;
-			const promptInput = normalizeRemoteCompactionV2PromptInput(options.promptInput) as ResponsesInputItem[];
+			const requestBody = canonicalBody
+				? {
+					...canonicalBody,
+					...(body.client_metadata ? { client_metadata: structuredClone(body.client_metadata) } : {}),
+				}
+				: body;
+			const promptInput = normalizeRemoteCompactionV2PromptInput(canonicalInput ?? options.promptInput) as ResponsesInputItem[];
 			const request = await shrinkNativeCompactionRequestForEndpoint({
-				model: body.model,
+				model: requestBody.model,
 				input: promptInput,
-				...(typeof body.instructions === "string" ? { instructions: body.instructions } : {}),
+				...(typeof requestBody.instructions === "string" ? { instructions: requestBody.instructions } : {}),
 			}, { budgetTokens: resolveNativeCompactionRequestBudget({
 				provider: options.runtime.provider,
 				model: options.runtime.model,
 				contextWindow: options.runtime.currentModel.contextWindow,
 			}), tokensBefore: options.tokensBefore });
 			return {
-				...body,
+				...requestBody,
 				input: [...request.request.input, { type: "compaction_trigger" }],
-				...(options.requestOptions.reasoning ? { reasoning: structuredClone(options.requestOptions.reasoning) } : {}),
+				...(!canonicalBody && options.requestOptions.reasoning ? { reasoning: structuredClone(options.requestOptions.reasoning) } : {}),
 			};
 		},
 	};

@@ -233,7 +233,7 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 		? canonicalCompactionPromptInput(ctx.sessionManager.getSessionId(), runtime.model, {
 			url: resolveCodexWebSocketUrl(runtime.baseUrl),
 			accountId: extractAccountId(runtime.apiKey),
-		})
+		}, builtInput.input)
 		: undefined;
 	const input = canonicalInput && canonicalInput.every(isRecord)
 		? canonicalInput as ResponsesInputItem[]
@@ -260,6 +260,7 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 		modelRegistry: ctx.modelRegistry,
 		context,
 		promptInput: input,
+		promptInputSource: canonicalInput ? "canonical" : "reconstructed",
 		requestOptions,
 		tokensBefore: event.preparation.tokensBefore,
 		sessionId: ctx.sessionManager.getSessionId(),
