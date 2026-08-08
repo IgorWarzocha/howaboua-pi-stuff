@@ -63,6 +63,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 	private extensionContext: ExtensionContext | undefined;
 	private baselineNames = new Set<string>();
 	private kernelStartedAt: number | undefined;
+	private configuredProfileLoaded = false;
 
 	constructor(options: NotebookRuntimeOptions) {
 		this.options = options;
@@ -80,6 +81,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 			stopWithoutCheckpoint: () => this.stopWithoutCheckpoint(),
 			startClean: async (context, signal) => { await this.restartSession(context, signal, true); },
 			checkpointEmpty: () => this.checkpoints.flush({ force: true, requireIdle: true }),
+			configuredProfileActive: () => this.configuredProfileLoaded,
 		});
 		this.lifecycle = new NotebookLifecycleController({
 			prepare: (context, signal) => this.ensureSession(context, signal),
@@ -136,7 +138,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 				beginNotebookJournalCell(this.journal, { id, source: cell.source });
 				journaled = true;
 			} catch (error) {
-				this.reportJournalFailure(error);
+				this.reportJournalFailure(error, "start", cell);
 			}
 		}
 		const metadata = tools
@@ -224,6 +226,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		this.extensionContext = undefined;
 		this.baselineNames.clear();
 		this.kernelStartedAt = undefined;
+		this.configuredProfileLoaded = false;
 		const kernel = this.kernel;
 		this.kernel = undefined;
 		this.delegate.clear();
@@ -273,6 +276,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		this.journal = started.journal;
 		this.nextCellId = Math.max(this.nextCellId, started.journal.cells + 1);
 		this.baselineNames = started.baselineNames;
+		this.configuredProfileLoaded = started.configuredProfileLoaded;
 		this.checkpoints.configure(started.checkpointIdentity, started.baselineNames, started.projectBaseline);
 		this.reportStateNotice(started.restoreNotice);
 	}
@@ -309,7 +313,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 						result: cell.result,
 					});
 				} catch (error) {
-					this.reportJournalFailure(error, journaled ? "completion" : "update");
+					this.reportJournalFailure(error, journaled ? "completion" : "update", cell);
 				}
 			}
 			cell.markCompleted();
@@ -380,9 +384,10 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		const previous = this.kernel;
 		this.kernel = undefined;
 		this.startup = undefined;
-		this.checkpoints.reset();
+		await this.checkpoints.discard();
 		this.latestMemory = undefined;
 		this.kernelStartedAt = undefined;
+		this.configuredProfileLoaded = false;
 		await previous?.shutdown().catch(() => undefined);
 		const pending = this.startSession(context, signal, skipProfile).catch((error) => {
 			if (this.startup === pending) this.startup = undefined;
@@ -402,9 +407,10 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		const previous = this.kernel;
 		this.kernel = undefined;
 		this.startup = undefined;
-		this.checkpoints.reset();
+		await this.checkpoints.discard();
 		this.latestMemory = undefined;
 		this.kernelStartedAt = undefined;
+		this.configuredProfileLoaded = false;
 		this.pendingNotice = undefined;
 		this.delegate.clear();
 		await previous?.shutdown().catch(() => undefined);
@@ -432,10 +438,10 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		}
 	}
 
-	private reportJournalFailure(error: unknown, operation = "start"): void {
+	private reportJournalFailure(error: unknown, operation = "start", cell?: NotebookCell): void {
 		const notice = `Notebook journal ${operation} failed: ${error instanceof Error ? error.message : String(error)}`;
-		this.pendingNotice = joinNotices(this.pendingNotice, notice);
-		this.extensionContext?.ui.notify(notice, "warning");
+		if (cell) cell.emit([{ type: "input_text", text: notice }]);
+		else this.pendingNotice = joinNotices(this.pendingNotice, notice);
 	}
 
 	private closeCell(cell: NotebookCell): void {
