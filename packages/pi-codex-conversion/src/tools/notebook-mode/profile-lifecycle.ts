@@ -1,3 +1,4 @@
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { NotebookControlResult, ToolExecutionContext } from "../code-mode/types.ts";
 import { globMatcher } from "./glob.ts";
 import type { DenoJupyterKernel } from "./jupyter-kernel.ts";
@@ -5,6 +6,7 @@ import { resolveNotebookProject } from "./project-identity.ts";
 import {
 	listNotebookProfiles,
 	loadNotebookProfile,
+	NotebookProfileRestoreError,
 	saveNotebookProfile,
 } from "./profile-state.ts";
 import type { ProfileStateSummary } from "./profile-state-format.ts";
@@ -18,6 +20,7 @@ interface NotebookProfileHost {
 	markChanged(): void;
 	baselineNames(): ReadonlySet<string>;
 	profileStorage(): { agentDir: string; maxBytes: number };
+	rollback(context: ExtensionContext): Promise<void>;
 }
 
 export class NotebookProfileController {
@@ -42,6 +45,7 @@ export class NotebookProfileController {
 		const activeCell = this.host.activeCellId();
 		if (activeCell) throw new Error(`Cannot save a notebook profile while exec cell "${activeCell}" is running`);
 		const storage = this.host.profileStorage();
+		await this.host.checkpoint();
 		const summary = await saveNotebookProfile({
 			name,
 			kernel: this.host.kernel()!,
@@ -57,18 +61,28 @@ export class NotebookProfileController {
 		};
 	}
 
-	async load(name: string, signal?: AbortSignal): Promise<NotebookControlResult> {
+	async load(name: string, context: ToolExecutionContext, signal?: AbortSignal): Promise<NotebookControlResult> {
 		const activeCell = this.host.activeCellId();
 		if (activeCell) throw new Error(`Cannot load a notebook profile while exec cell "${activeCell}" is running`);
 		const storage = this.host.profileStorage();
-		const loaded = await loadNotebookProfile({
-			name,
-			kernel: this.host.kernel()!,
-			agentDir: storage.agentDir,
-			baselineNames: this.host.baselineNames(),
-			maxBytes: storage.maxBytes,
-			signal,
-		});
+		await this.host.checkpoint();
+		let loaded;
+		try {
+			loaded = await loadNotebookProfile({
+				name,
+				kernel: this.host.kernel()!,
+				agentDir: storage.agentDir,
+				baselineNames: this.host.baselineNames(),
+				maxBytes: storage.maxBytes,
+				signal,
+			});
+		} catch (error) {
+			if (error instanceof NotebookProfileRestoreError) {
+				const extension = context.extensionContext;
+				if (extension) await this.host.rollback(extension);
+			}
+			throw error;
+		}
 		if (loaded.collisions.length > 0) {
 			throw new Error(`Notebook profile ${name} conflicts with existing bindings: ${bound(loaded.collisions.join(", "))}. Release or rename them before loading`);
 		}
