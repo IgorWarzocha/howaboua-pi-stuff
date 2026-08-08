@@ -2,21 +2,6 @@ name: Notebook platform smoke
 
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - '.github/workflows/notebook-platform-smoke.yml'
-      - 'bun.lock'
-      - 'packages/pi-codex-conversion/package.json'
-      - 'packages/pi-codex-conversion/scripts/smoke-notebook-platform.ts'
-      - 'packages/pi-codex-conversion/src/tools/notebook-mode/**'
-  push:
-    branches-ignore: [main]
-    paths:
-      - '.github/workflows/notebook-platform-smoke.yml'
-      - 'bun.lock'
-      - 'packages/pi-codex-conversion/package.json'
-      - 'packages/pi-codex-conversion/scripts/smoke-notebook-platform.ts'
-      - 'packages/pi-codex-conversion/src/tools/notebook-mode/**'
 
 permissions:
   contents: read
