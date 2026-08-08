@@ -314,7 +314,7 @@ export function createCodexTransportStream<TApi extends Api>(
 						}
 						if (!fallbackArmed) {
 							recordFailure("websocket", error);
-							if (websocketStarted && !(error instanceof CodexProtocolError)) {
+							if (websocketStarted && !(error instanceof CodexProtocolError) && !isCodexApiError(error)) {
 								throw new NonRetryableProviderError("Codex stream ended after output began and cannot be continued from its incomplete response.");
 							}
 							throw error;
