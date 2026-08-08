@@ -41,6 +41,11 @@ async function* asAsyncIterable<T>(values: T[]): AsyncIterable<T> {
 	}
 }
 
+async function* interruptedAsyncIterable<T>(values: T[]): AsyncIterable<T> {
+	for (const value of values) yield value;
+	throw new Error("Request was aborted");
+}
+
 test("convertResponsesMessages preserves structured view_image output", () => {
 	const imageModel = { ...model, input: ["text", "image"] as Array<"text" | "image"> };
 	const messages = convertResponsesMessages(
@@ -276,4 +281,26 @@ test("processResponsesStream retains finalized freeform input for execution and 
 	assert.deepEqual(output.content, [{ type: "toolCall", id: "call_1|ctc_1", name: "exec", arguments: { code: "canonical();" } }]);
 	assert.equal(toolCallDeltas.join(""), JSON.stringify({ code: "canonical();" }));
 	assert.deepEqual(completedItems, [{ type: "custom_tool_call", id: "ctc_1", call_id: "call_1", name: "exec", status: "completed", input: "canonical();" }]);
+});
+
+test("processResponsesStream omits an interrupted partial tool call from the final message", async () => {
+	const output = createAssistantOutput();
+	const pushedEvents: string[] = [];
+
+	await assert.rejects(
+		processResponsesStream(
+			interruptedAsyncIterable([
+				{ type: "response.output_item.added", output_index: 0, item: { type: "custom_tool_call", id: "ctc_1", call_id: "call_1", name: "exec", input: "" } },
+				{ type: "response.custom_tool_call_input.delta", output_index: 0, item_id: "ctc_1", delta: "unfinished", sequence_number: 1 },
+			]) as AsyncIterable<any>,
+			output as any,
+			{ push: (event: { type: string }) => pushedEvents.push(event.type) } as any,
+			model,
+			{ grammarToolInputProperties: new Map([["exec", "code"]]) },
+		),
+		/Request was aborted/,
+	);
+
+	assert.ok(pushedEvents.includes("toolcall_start"));
+	assert.deepEqual(output.content, []);
 });
