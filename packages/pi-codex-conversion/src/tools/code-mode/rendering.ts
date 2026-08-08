@@ -17,6 +17,7 @@ import type {
 	RuntimeToolTrace,
 } from "./types.js";
 import type { CodeModeRenderTracker } from "./render-tracker.js";
+import { formatNotebookMemory } from "./tool-result.js";
 
 export interface RenderTheme {
 	fg(role: string, text: string): string;
@@ -124,7 +125,15 @@ export function renderCodeModeResult(
 		details.notification || details.status === undefined
 			? result.content
 			: result.content.slice(1);
-	const text = content
+	const notebookMemoryText = details.notebookMemory
+		? formatNotebookMemory(details.notebookMemory)
+		: undefined;
+	const renderedContent = notebookMemoryText
+		&& content[0]?.type === "text"
+		&& content[0].text === notebookMemoryText
+		? content.slice(1)
+		: content;
+	const text = renderedContent
 		.filter((item) => item.type === "text" && typeof item.text === "string")
 		.map((item) => item.text)
 		.join("\n");
@@ -143,7 +152,7 @@ export function renderCodeModeResult(
 			? "accent"
 			: "dim";
 	const renderedText = outputText ? theme.fg(tone, outputText) : "";
-	const images = content.filter(
+	const images = renderedContent.filter(
 		(item): item is ToolContent & { data: string; mimeType: string } =>
 			item.type === "image" &&
 			typeof item.data === "string" &&
@@ -162,7 +171,7 @@ export function renderCodeModeResult(
 			: showOutput
 				? renderTextAndImages(previewText(renderedText, theme), [], theme)
 				: new Container();
-	return renderTraceAndOutput(
+	const body = renderTraceAndOutput(
 		details.traces ?? [],
 		details.droppedTraceCount ?? 0,
 		tools,
@@ -173,6 +182,31 @@ export function renderCodeModeResult(
 		context,
 		emittedImages,
 	);
+	if (!details.notebookMemory || !notebookMemoryText) return body;
+	const container = new Container();
+	const ratio = details.notebookMemory.heapLimitBytes > 0
+		? details.notebookMemory.heapUsedBytes / details.notebookMemory.heapLimitBytes
+		: 0;
+	container.addChild(
+		new Text(
+			theme.fg(
+				ratio >= 0.9 ? "error" : ratio >= 0.8 ? "accent" : "muted",
+				notebookMemoryText,
+			),
+			0,
+			0,
+		),
+	);
+	if (
+		details.traces?.length
+		|| details.droppedTraceCount
+		|| renderedText
+		|| images.length
+	) {
+		container.addChild(new Spacer(1));
+		container.addChild(body);
+	}
+	return container;
 }
 
 function imagesByMimeType(
