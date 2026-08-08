@@ -71,22 +71,25 @@ export function projectStateRestoreSource(
     throw new Error("project checkpoint Deno/V8 version does not match the active kernel");
   }
   const __payload = await Deno.readFile(${JSON.stringify(payloadPath)});
-  const __values = [];
-  const __functions = [];
+	const __values = [];
+	const __functions = [];
+	const __resolvedFunctions = [];
   for (const __entry of ${JSON.stringify(manifest.entries)}) {
     const __captured = deserialize(__payload.slice(__entry.offset, __entry.offset + __entry.length));
-    if (__entry.kind === "function") __functions.push([__entry.name, __captured]);
-    else __values.push([__entry.name, __captured]);
-  }
+		if (__entry.kind === "function") __functions.push([__entry.name, __captured]);
+		else __values.push([__entry.name, __captured]);
+	}
+	for (const [__name, __source] of __functions) {
+	  __resolvedFunctions.push([__name, (0, eval)("(" + __source + ")")]);
+	}
   for (const __name of ${JSON.stringify(clearNames.slice(0, MAX_PROJECT_ENTRIES))}) {
     try { delete globalThis[__name]; } catch {}
   }
   for (const [__name, __value] of __values) {
     Object.defineProperty(globalThis, __name, { value: __value, writable: true, configurable: true, enumerable: true });
   }
-  for (const [__name, __source] of __functions) {
-    const __value = (0, eval)("(" + __source + ")");
-    Object.defineProperty(globalThis, __name, { value: __value, writable: true, configurable: true, enumerable: true });
+	for (const [__name, __value] of __resolvedFunctions) {
+	  Object.defineProperty(globalThis, __name, { value: __value, writable: true, configurable: true, enumerable: true });
   }
   undefined;
 }`;

@@ -12,6 +12,7 @@ import { acquireDirectoryLock } from "./directory-lock.ts";
 import type { DenoJupyterKernel } from "./jupyter-kernel.ts";
 import {
 	assertProfileName,
+	assertSafeProfileDirectory,
 	hashProfileBytes,
 	PROFILE_STATE_SCHEMA,
 	profilesDirectory,
@@ -45,6 +46,7 @@ export async function saveNotebookProfile(options: {
 }): Promise<ProfileStateSummary> {
 	assertProfileName(options.name);
 	const paths = profileStatePaths(options.name, options.agentDir);
+	assertSafeProfileDirectory(paths.directory, options.agentDir);
 	mkdirSync(paths.directory, { recursive: true });
 	const id = randomUUID();
 	const candidatePayload = join(paths.directory, `candidate-${id}.bin`);
@@ -101,9 +103,10 @@ export async function loadNotebookProfile(options: {
 }): Promise<{ summary: ProfileStateSummary; loaded: string[]; collisions: string[] }> {
 	assertProfileName(options.name);
 	const paths = profileStatePaths(options.name, options.agentDir);
+	assertSafeProfileDirectory(paths.directory, options.agentDir);
 	mkdirSync(paths.directory, { recursive: true });
 	return withProfileLock(paths.lock, async () => {
-		const manifest = readProfileStateManifest(paths.manifest);
+		const manifest = readProfileStateManifest(paths.manifest, options.name);
 		if (!manifest) throw new Error(`Notebook profile not found or invalid: ${options.name}`);
 		const payloadPath = join(paths.directory, manifest.payload);
 		if (!readProfileStatePayload(manifest, payloadPath, options.maxBytes)) {
@@ -115,8 +118,13 @@ export async function loadNotebookProfile(options: {
 		);
 		const collisions = manifest.entries.map(({ name }) => name).filter((name) => current.has(name));
 		if (collisions.length > 0) return { summary: profileSummary(manifest), loaded: [], collisions };
-		const restored = await options.kernel.execute(projectStateRestoreSource(manifest, payloadPath), { signal: options.signal });
-		if (restored.status !== "ok") throw new Error(`Notebook profile could not be loaded: ${restored.errorText ?? "unknown error"}`);
+		let restored;
+		try {
+			restored = await options.kernel.execute(projectStateRestoreSource(manifest, payloadPath), { signal: options.signal });
+		} catch (error) {
+			throw new NotebookProfileRestoreError(`Notebook profile could not be loaded: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+		}
+		if (restored.status !== "ok") throw new NotebookProfileRestoreError(`Notebook profile could not be loaded: ${restored.errorText ?? "unknown error"}`);
 		return {
 			summary: profileSummary(manifest),
 			loaded: manifest.entries.map(({ name }) => name),
@@ -134,7 +142,9 @@ export function listNotebookProfiles(agentDir: string): ProfileStateSummary[] {
 	}
 	return names.flatMap((name) => {
 		try {
-			const manifest = readProfileStateManifest(profileStatePaths(name, agentDir).manifest);
+			const paths = profileStatePaths(name, agentDir);
+			assertSafeProfileDirectory(paths.directory, agentDir);
+			const manifest = readProfileStateManifest(paths.manifest, name);
 			return manifest ? [profileSummary(manifest)] : [];
 		} catch {
 			return [];
@@ -147,7 +157,7 @@ function writeProfile(
 	manifest: ProfileStateManifest,
 	payload: Buffer,
 ): void {
-	const previous = readProfileStateManifest(paths.manifest);
+	const previous = readProfileStateManifest(paths.manifest, manifest.name);
 	const text = `${JSON.stringify(manifest, null, 2)}\n`;
 	if (Buffer.byteLength(text) > MAX_PROJECT_MANIFEST_BYTES) throw new Error(`Notebook profile manifest exceeds ${MAX_PROJECT_MANIFEST_BYTES} bytes`);
 	writeFileSync(join(paths.directory, manifest.payload), payload, { mode: 0o600 });
@@ -155,6 +165,13 @@ function writeProfile(
 	writeFileSync(temporary, text, { mode: 0o600 });
 	renameSync(temporary, paths.manifest);
 	if (previous?.payload && previous.payload !== manifest.payload) rmSync(join(paths.directory, previous.payload), { force: true });
+}
+
+export class NotebookProfileRestoreError extends Error {
+	constructor(message: string, options?: ErrorOptions) {
+		super(message, options);
+		this.name = "NotebookProfileRestoreError";
+	}
 }
 
 async function withProfileLock<T>(path: string, operation: () => Promise<T>, signal?: AbortSignal): Promise<T> {
