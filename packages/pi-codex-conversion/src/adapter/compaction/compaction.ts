@@ -235,9 +235,10 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 			accountId: extractAccountId(runtime.apiKey),
 		}, builtInput.input)
 		: undefined;
-	const input = canonicalInput && canonicalInput.every(isRecord)
+	const validatedCanonicalInput = canonicalInput?.every(isRecord)
 		? canonicalInput as ResponsesInputItem[]
-		: builtInput.input;
+		: undefined;
+	const input = validatedCanonicalInput ?? builtInput.input;
 	const { compactedKeptWindow } = builtInput;
 
 	if (input.length === 0) {
@@ -260,7 +261,7 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 		modelRegistry: ctx.modelRegistry,
 		context,
 		promptInput: input,
-		promptInputSource: canonicalInput ? "canonical" : "reconstructed",
+		promptInputSource: validatedCanonicalInput ? "canonical" : "reconstructed",
 		requestOptions,
 		tokensBefore: event.preparation.tokensBefore,
 		sessionId: ctx.sessionManager.getSessionId(),
