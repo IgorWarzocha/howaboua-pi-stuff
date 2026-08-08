@@ -46,6 +46,53 @@ export async function restoreProjectState(
 	return withProjectLock(paths.lock, () => restoreProjectStateLocked(kernel, identity, paths));
 }
 
+export async function resetProjectState(identity: {
+	project: string;
+	session: string;
+	agentDir: string;
+}): Promise<{ previousBindings: number; generation: string }> {
+	const paths = projectStatePaths(identity.project, identity.agentDir);
+	mkdirSync(paths.directory, { recursive: true });
+	return withProjectLock(paths.lock, async () => {
+		const current = readProjectStateManifest(paths.manifest);
+		if (!current) {
+			rmSync(paths.manifest, { force: true });
+			removeProjectArtifacts(paths.directory);
+			return { previousBindings: 0, generation: "root" };
+		}
+		const generation = randomUUID();
+		const payload = `project-${generation}.bin`;
+		const manifest: ProjectStateManifest = {
+			schema: PROJECT_STATE_SCHEMA,
+			project: resolve(identity.project),
+			generation,
+			parentGeneration: current.generation,
+			deno: current.deno,
+			v8: current.v8,
+			payload,
+			createdAt: new Date().toISOString(),
+			sourceSession: identity.session,
+			entries: [],
+			skipped: [],
+		};
+		writeFileSync(join(paths.directory, payload), Buffer.alloc(0), { mode: 0o600 });
+		const temporary = `${paths.manifest}.${randomUUID()}.tmp`;
+		writeFileSync(temporary, `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });
+		renameSync(temporary, paths.manifest);
+		removeProjectArtifacts(paths.directory, new Set([payload]));
+		return { previousBindings: current.entries.length, generation };
+	});
+}
+
+export function projectStateBindingNames(identity: { project: string; agentDir: string }, maxBytes: number): string[] {
+	const paths = projectStatePaths(identity.project, identity.agentDir);
+	const manifest = readProjectStateManifest(paths.manifest);
+	return manifest?.project === resolve(identity.project)
+		&& readProjectStatePayload(manifest, join(paths.directory, manifest.payload), maxBytes)
+		? manifest.entries.map(({ name }) => name)
+		: [];
+}
+
 async function restoreProjectStateLocked(
 	kernel: DenoJupyterKernel,
 	identity: { project: string; maxBytes: number },
@@ -161,7 +208,7 @@ async function commitCandidate(options: {
 	maxBytes: number;
 }): Promise<{ manifest?: ProjectStateManifest | undefined; conflicts: string[]; rebind: boolean }> {
 	const current = readProjectStateManifest(options.paths.manifest);
-	if (current && (current.deno !== options.candidate.deno || current.v8 !== options.candidate.v8)) {
+	if (current && current.entries.length > 0 && (current.deno !== options.candidate.deno || current.v8 !== options.candidate.v8)) {
 		throw new Error("Project notebook uses an incompatible Deno/V8 version; the existing state was preserved");
 	}
 	const currentPayload = current
@@ -227,6 +274,18 @@ async function withProjectLock<T>(path: string, operation: () => Promise<T>): Pr
 		return await operation();
 	} finally {
 		lock.release();
+	}
+}
+
+function removeProjectArtifacts(directory: string, keep = new Set<string>()): void {
+	for (const name of readDirectoryNames(directory)) {
+		if (keep.has(name) || name === "project.json" || name === "write.lock") continue;
+		if (
+			name === "conflicts"
+			|| /^project-[0-9a-f-]+\.bin$/.test(name)
+			|| /^candidate-[0-9a-f-]+\.(?:bin|json)$/.test(name)
+			|| name.endsWith(".tmp")
+		) rmSync(join(directory, name), { recursive: true, force: true });
 	}
 }
 

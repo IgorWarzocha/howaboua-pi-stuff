@@ -5,6 +5,8 @@
 - `checkpoint.ts` owns host persistence and validation; checkpoint format and injected capture/restore source stay separate; `journal.ts` owns `.ipynb` history
 - `project-state.ts` orchestrates worktree persistence; format validation, injected runtime source, and merge/conflict policy stay in their named modules
 - `lifecycle.ts` owns Notebook control actions; generated Deno inspection/disposal source stays in `lifecycle-runtime.ts`
+- `notebook-diagnostics.ts` maps journals to one-shot Deno diagnostics; `lsp-process.ts` owns bounded JSON-RPC process transport and never stays resident
+- `recovery.ts` coordinates host-side diagnostics and destructive reset; kernel/session mechanics remain in `client.ts`
 - `profile-lifecycle.ts` owns named profile actions; `profile-state.ts` owns snapshot I/O; schema, validation, and paths stay in `profile-state-format.ts`; profiles load by value and never replay cells
 - `directory-lock.ts` owns cross-process leases; release only the observed owner file and never recursively delete a lock path.
 - Existing V8 Code Mode remains under `tools/code-mode/`; share its public tool, rendering, nested-tool, and output contracts without changing the vendored host.
