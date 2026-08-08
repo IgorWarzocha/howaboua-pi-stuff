@@ -12,6 +12,12 @@ export const NATIVE_COMPACTION_DISPLAY_TEXT = [
 	"Warning: do not turn Responses compaction off or switch providers mid-session; old context may be much less reliable.",
 ].join("\n");
 
+export type NativeCompactionDisplayEntry = {
+	content: string;
+	compactionEntryId: string;
+	kind?: "usage" | undefined;
+};
+
 export type NativeCompactionStrategy = typeof NATIVE_COMPACTION_STRATEGY;
 type PersistedNativeCompactionStrategy = NativeCompactionStrategy | typeof LEGACY_NATIVE_COMPACTION_STRATEGY;
 export type NativeCompactionRequestMeta = {
