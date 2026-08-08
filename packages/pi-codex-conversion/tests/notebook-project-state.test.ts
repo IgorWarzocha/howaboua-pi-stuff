@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test from "node:test";
+import { sessionCheckpointProjectExclusions } from "../src/tools/notebook-mode/checkpoint.ts";
 import { mergeProjectState } from "../src/tools/notebook-mode/project-state-merge.ts";
 import type {
 	ProjectStateCandidate,
@@ -42,6 +43,15 @@ test("project notebook merge applies an uncontested plain global", () => {
 	assert.deepEqual(merged.conflicts, []);
 	assert.deepEqual(merged.appliedNames, ["shared"]);
 	assert.equal(merged.payload.toString(), "value");
+});
+
+test("stale session recovery cannot overwrite a newer project generation", () => {
+	const project = { generation: "new", entries: [{ name: "shared", hash: "hash" }] };
+	assert.deepEqual(
+		[...sessionCheckpointProjectExclusions({ projectGeneration: "old", projectNames: ["deleted"] }, project)],
+		["shared", "deleted"],
+	);
+	assert.deepEqual([...sessionCheckpointProjectExclusions({ projectGeneration: "new" }, project)], []);
 });
 
 function projectCandidate(payload: Buffer, kind: "value" | "function" = "function"): ProjectStateCandidate {

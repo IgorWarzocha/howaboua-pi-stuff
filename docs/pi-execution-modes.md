@@ -55,7 +55,7 @@ The host-side `notebook` tool keeps emergency controls available when the kernel
 
 - `status` reports kernel, memory, checkpoint, and optionally glob-filtered top-level binding state.
 - `checkpoint` immediately flushes completed project and session state.
-- `release` invokes only standard `Symbol.asyncDispose`/`Symbol.dispose` hooks, deletes the named bindings, and checkpoints their removal.
+- `release` invokes only standard `Symbol.asyncDispose`/`Symbol.dispose` hooks, checkpoints the named bindings as absent, and restarts when required to clear JavaScript lexical bindings.
 - `restart` terminates an active cell if necessary, attempts standard resource disposal, and restores the last completed checkpoint even when disposal fails.
 
 Use JavaScript explicit resource management rather than guessing `.close()`, `.kill()`, or `.abort()` methods. Orderly shutdown also invokes standard disposal hooks after checkpointing and before terminating Deno.

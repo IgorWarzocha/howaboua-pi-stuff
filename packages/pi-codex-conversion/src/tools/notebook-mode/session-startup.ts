@@ -71,7 +71,7 @@ export async function startNotebookSession(options: {
 			agentDir: runtime.agentDir,
 			maxBytes: options.checkpointMaxBytes,
 		});
-		const restored = await restoreNotebookCheckpoint(kernel, checkpointIdentity, options.checkpointMaxBytes);
+		const restored = await restoreNotebookCheckpoint(kernel, checkpointIdentity, options.checkpointMaxBytes, projectState.baseline);
 		garbageCollectSupersededNotebookCheckpoints(checkpointIdentity);
 		const restoreNotice = [formatProjectStateNotice(projectState), restored.message].filter(Boolean).join(". ") || undefined;
 		return {
