@@ -10,6 +10,8 @@ export interface CheckpointEntry {
 export interface CheckpointManifest {
 	schema: number;
 	project: string;
+	projectGeneration?: string | undefined;
+	projectNames?: string[] | undefined;
 	session: string;
 	deno: string;
 	v8: string;

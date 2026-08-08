@@ -6,6 +6,8 @@ export function checkpointSource(options: {
 	manifestPath: string;
 	directory: string;
 	identity: NotebookCheckpointIdentity;
+	projectGeneration: string;
+	projectNames: string[];
 	payload: string;
 	skippedInvalid: Array<{ name: string; reason: string }>;
 	maxBytes: number;
@@ -57,6 +59,8 @@ export function checkpointSource(options: {
   const __manifest = {
     schema: ${CHECKPOINT_SCHEMA},
     project: ${JSON.stringify(options.identity.project)},
+	projectGeneration: ${JSON.stringify(options.projectGeneration)},
+	projectNames: ${JSON.stringify(options.projectNames)},
     session: ${JSON.stringify(options.identity.session)},
     deno: Deno.version.deno,
     v8: Deno.version.v8,
@@ -75,14 +79,15 @@ export function checkpointSource(options: {
 }`;
 }
 
-export function restoreSource(manifest: CheckpointManifest, payloadPath: string): string {
+export function restoreSource(manifest: CheckpointManifest, payloadPath: string, excludeNames: ReadonlySet<string> = new Set()): string {
 	return `{
   const { deserialize } = await import("node:v8");
   if (Deno.version.deno !== ${JSON.stringify(manifest.deno)} || Deno.version.v8 !== ${JSON.stringify(manifest.v8)}) {
     throw new Error("checkpoint Deno/V8 version does not match the active kernel");
   }
   const __payload = await Deno.readFile(${JSON.stringify(payloadPath)});
-  const __entries = ${JSON.stringify(manifest.entries)};
+	const __excluded = new Set(${JSON.stringify([...excludeNames])});
+	const __entries = ${JSON.stringify(manifest.entries)}.filter(({ name }) => !__excluded.has(name));
 	const __values = [];
 	const __functions = [];
   for (const __entry of __entries) {
