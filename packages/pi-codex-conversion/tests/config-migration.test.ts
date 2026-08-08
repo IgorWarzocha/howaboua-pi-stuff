@@ -21,8 +21,10 @@ test("legacy persisted config shapes migrate to the current groups", () => {
 });
 
 test("Notebook heap configuration is bounded without migrating grouped config", () => {
-	const accepted = migrateCodexConversionConfigIfNeeded({ notebook: { maxHeapMiB: 8192 } });
+	const accepted = migrateCodexConversionConfigIfNeeded({ notebook: { maxHeapMiB: 8192, profile: "shell-agent" } });
 	assert.equal(accepted.migrated, false);
 	assert.equal(normalizeCodexConversionConfig(accepted.config).notebook.maxHeapMiB, 8192);
+	assert.equal(normalizeCodexConversionConfig(accepted.config).notebook.profile, "shell-agent");
 	assert.equal(normalizeCodexConversionConfig({ notebook: { maxHeapMiB: 128 } }).notebook.maxHeapMiB, 4096);
+	assert.equal(normalizeCodexConversionConfig({ notebook: { profile: "../nope" } }).notebook.profile, undefined);
 });

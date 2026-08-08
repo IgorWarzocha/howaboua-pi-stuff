@@ -16,6 +16,7 @@ import {
 	type ProjectStateBaseline,
 } from "./project-state.ts";
 import { resolveNotebookProject } from "./project-identity.ts";
+import { loadNotebookProfile } from "./profile-state.ts";
 import { notebookSessionIdentity } from "./session-identity.ts";
 
 export interface StartedNotebookSession {
@@ -72,8 +73,26 @@ export async function startNotebookSession(options: {
 			maxBytes: options.checkpointMaxBytes,
 		});
 		const restored = await restoreNotebookCheckpoint(kernel, checkpointIdentity, options.checkpointMaxBytes, projectState.baseline);
+		let profileNotice: string | undefined;
+		if (runtime.profile) {
+			try {
+				const profile = await loadNotebookProfile({
+					name: runtime.profile,
+					kernel,
+					agentDir: runtime.agentDir,
+					baselineNames,
+					maxBytes: options.checkpointMaxBytes,
+					signal,
+				});
+				profileNotice = profile.collisions.length > 0
+					? `Notebook profile ${runtime.profile} was not loaded because ${profile.collisions.length} binding collision(s) already exist`
+					: `Notebook profile ${runtime.profile} loaded ${profile.loaded.length} binding(s)`;
+			} catch (error) {
+				profileNotice = `Notebook profile ${runtime.profile} was not loaded: ${error instanceof Error ? error.message : String(error)}`;
+			}
+		}
 		garbageCollectSupersededNotebookCheckpoints(checkpointIdentity);
-		const restoreNotice = [formatProjectStateNotice(projectState), restored.message].filter(Boolean).join(". ") || undefined;
+		const restoreNotice = [formatProjectStateNotice(projectState), restored.message, profileNotice].filter(Boolean).join(". ") || undefined;
 		return {
 			kernel,
 			journal,

@@ -77,7 +77,7 @@ export interface CodexConversionConfig {
 		backgroundShellCloseShortcut: string;
 	};
 	compaction: { responsesCompaction: boolean };
-	notebook: { maxHeapMiB: number };
+	notebook: { maxHeapMiB: number; profile?: string | undefined };
 	beta: {
 		codeMode: boolean;
 		responsesLite: boolean;
@@ -295,6 +295,7 @@ export function normalizeCodexConversionConfig(
 	const inputDevice = optionalString(voice["inputDevice"]);
 	const outputDevice = optionalString(voice["outputDevice"]);
 	const contextModel = normalizeVoiceContextModel(voice["contextModel"]);
+	const notebookProfile = normalizeNotebookProfile(notebook["profile"]);
 	return {
 		voiceFeaturesOnly: bool(
 			value["voiceFeaturesOnly"],
@@ -399,6 +400,7 @@ export function normalizeCodexConversionConfig(
 				MIN_NOTEBOOK_HEAP_MIB,
 				MAX_NOTEBOOK_HEAP_MIB,
 			),
+			...(notebookProfile ? { profile: notebookProfile } : {}),
 		},
 		beta: {
 			codeMode: bool(
@@ -483,4 +485,9 @@ export function normalizeCodexConversionConfig(
 				DEFAULT_CODEX_CONVERSION_CONFIG.openai["webSearchModel"],
 		},
 	};
+}
+
+function normalizeNotebookProfile(value: unknown): string | undefined {
+	const name = optionalString(value);
+	return name && /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(name) ? name : undefined;
 }

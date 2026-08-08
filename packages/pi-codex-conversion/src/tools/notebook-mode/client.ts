@@ -82,6 +82,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 			markChanged: () => this.checkpoints.schedule(),
 			restart: (context, signal) => this.restartSession(context, signal),
 			baselineNames: () => this.baselineNames,
+			profileStorage: () => ({ agentDir: this.options.agentDir, maxBytes: this.checkpointMaxBytes }),
 			metadata: () => ({
 				startedAt: this.kernelStartedAt,
 				userCells: this.journal?.cells ?? 0,

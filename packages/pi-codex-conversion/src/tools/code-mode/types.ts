@@ -108,7 +108,10 @@ export interface NotebookMemoryUsage {
 
 export type NotebookControlRequest =
 	| { action: "status"; query?: string | undefined }
+	| { action: "list"; query?: string | undefined }
 	| { action: "checkpoint" }
+	| { action: "save"; name: string }
+	| { action: "load"; name: string }
 	| { action: "release"; names: string[] }
 	| { action: "restart" };
 
