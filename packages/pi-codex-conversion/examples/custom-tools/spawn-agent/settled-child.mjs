@@ -12,6 +12,7 @@ export async function runSettledPi(args, options) {
 	let settled = false;
 	let settledTimer;
 	let forceTimer;
+	let settledTermination = false;
 	let requestedExitCode;
 	let control = "";
 	const clearTimers = () => {
@@ -43,8 +44,11 @@ export async function runSettledPi(args, options) {
 		forceTimer = setTimeout(() => signalChild("SIGKILL"), FORCE_KILL_GRACE_MS);
 	};
 	const scheduleSettledExit = () => {
-		clearTimeout(settledTimer);
-		settledTimer = setTimeout(terminateChild, SETTLED_EXIT_GRACE_MS);
+		if (settledTimer) return;
+		settledTimer = setTimeout(() => {
+			settledTermination = true;
+			terminateChild();
+		}, SETTLED_EXIT_GRACE_MS);
 	};
 	const interrupt = (exitCode) => {
 		requestedExitCode ??= exitCode;
@@ -59,7 +63,6 @@ export async function runSettledPi(args, options) {
 			child.stdout.pause();
 			process.stdout.once("drain", () => child.stdout.resume());
 		}
-		if (settled) scheduleSettledExit();
 	});
 	child.stdio[3]?.on("data", (chunk) => {
 		control += chunk.toString();
@@ -68,14 +71,19 @@ export async function runSettledPi(args, options) {
 			scheduleSettledExit();
 		}
 	});
-	const code = await new Promise((resolveCode, reject) => {
-		child.once("error", reject);
-		child.once("close", (value) => {
-			clearTimers();
-			resolveCode(requestedExitCode ?? (settled ? 0 : (value ?? 1)));
+	try {
+		return await new Promise((resolveCode, reject) => {
+			child.once("error", reject);
+			child.once("close", (value) => {
+				resolveCode(
+					requestedExitCode ??
+					(value ?? (settledTermination ? 0 : 1)),
+				);
+			});
 		});
-	});
-	process.off("SIGINT", onSigint);
-	process.off("SIGTERM", onSigterm);
-	return code;
+	} finally {
+		clearTimers();
+		process.off("SIGINT", onSigint);
+		process.off("SIGTERM", onSigterm);
+	}
 }

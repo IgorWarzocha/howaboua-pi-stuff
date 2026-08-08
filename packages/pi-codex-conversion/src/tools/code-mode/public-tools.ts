@@ -226,6 +226,7 @@ async function continueExecSessionFromMistakenWait(
 		context,
 		nestedSignal,
 	);
+	nestedSignal.throwIfAborted();
 	let value: unknown;
 	try {
 		value = await writeStdin.invoke(

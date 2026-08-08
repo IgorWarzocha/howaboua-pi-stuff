@@ -46,7 +46,9 @@ export function registerCodeModePreflightBroker(
 	return {
 		async run(call) {
 			for (const preflight of [...preflights]) {
+				call.signal.throwIfAborted();
 				const result = await preflight(preflightSnapshot(call));
+				call.signal.throwIfAborted();
 				if (result?.block !== true) continue;
 				const reason = typeof result.reason === "string"
 					? result.reason.trim()
@@ -65,6 +67,7 @@ export async function runCodeModeToolPreflight(
 	context: ToolExecutionContext,
 	signal: AbortSignal,
 ): Promise<void> {
+	signal.throwIfAborted();
 	if (!context.preflight) return;
 	if (!context.toolCallId || !context.extensionContext)
 		throw new Error("Code Mode nested tool preflight context is unavailable");
@@ -76,6 +79,7 @@ export async function runCodeModeToolPreflight(
 		extensionContext: context.extensionContext,
 		signal,
 	});
+	signal.throwIfAborted();
 }
 
 function preflightSnapshot(

@@ -147,6 +147,7 @@ export class CodeModeDelegateRuntime {
 				controller.signal,
 			);
 			if (isCustomToolDefinition(tool)) this.traces.emitUpdate(cellId, context);
+			controller.signal.throwIfAborted();
 			const result = isCustomToolDefinition(tool)
 				? await runCustomTool(
 						tool,
