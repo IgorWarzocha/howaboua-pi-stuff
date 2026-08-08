@@ -111,7 +111,9 @@ export type NotebookControlRequest =
 	| { action: "save"; name: string }
 	| { action: "load"; name: string }
 	| { action: "release"; names: string[] }
-	| { action: "restart" };
+	| { action: "restart" }
+	| { action: "diagnostics" }
+	| { action: "reset" };
 
 export interface NotebookControlResult {
 	message: string;

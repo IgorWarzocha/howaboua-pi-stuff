@@ -50,6 +50,19 @@ export function garbageCollectSupersededNotebookCheckpoints(identity: NotebookCh
 	}
 }
 
+export function removeNotebookCheckpoint(identity: NotebookCheckpointIdentity): void {
+	rmSync(checkpointPaths(identity).directory, { recursive: true, force: true });
+}
+
+export function notebookCheckpointBindingNames(identity: NotebookCheckpointIdentity, maxBytes: number): string[] {
+	const manifest = readManifest(checkpointPaths(identity).manifest);
+	return manifest?.project === identity.project
+		&& manifest.session === identity.session
+		&& isValidCheckpointPayload(manifest, join(checkpointPaths(identity).directory, manifest.payload), maxBytes)
+		? manifest.entries.map(({ name }) => name)
+		: [];
+}
+
 export async function writeNotebookCheckpoint(
 	kernel: DenoJupyterKernel,
 	identity: NotebookCheckpointIdentity,
