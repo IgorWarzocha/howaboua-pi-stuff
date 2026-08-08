@@ -7,6 +7,7 @@ import type {
 	ToolExecutionContext,
 } from "../code-mode/types.ts";
 import type { DenoJupyterKernel } from "./jupyter-kernel.ts";
+import { globMatcher } from "./glob.ts";
 import {
 	notebookDisposeSource,
 	notebookReleaseSource,
@@ -15,6 +16,7 @@ import {
 	type NotebookKernelStatus,
 	type NotebookReleaseResult,
 } from "./lifecycle-runtime.ts";
+import { NotebookProfileController } from "./profile-lifecycle.ts";
 
 const INSPECTION_NAME_BUDGET = 16 * 1024;
 const MESSAGE_BUDGET = 16 * 1024;
@@ -29,6 +31,7 @@ interface NotebookLifecycleHost {
 	markChanged(): void;
 	restart(context: ExtensionContext, signal?: AbortSignal): Promise<string | undefined>;
 	baselineNames(): ReadonlySet<string>;
+	profileStorage(): { agentDir: string; maxBytes: number };
 	metadata(): {
 		startedAt?: number | undefined;
 		userCells: number;
@@ -52,9 +55,11 @@ interface NotebookStatusDetails extends Record<string, unknown> {
 
 export class NotebookLifecycleController {
 	private readonly host: NotebookLifecycleHost;
+	private readonly profiles: NotebookProfileController;
 
 	constructor(host: NotebookLifecycleHost) {
 		this.host = host;
+		this.profiles = new NotebookProfileController(host);
 	}
 
 	async control(
@@ -62,10 +67,13 @@ export class NotebookLifecycleController {
 		context: ToolExecutionContext,
 		signal?: AbortSignal,
 	): Promise<NotebookControlResult> {
+		if (request.action === "list") return this.profiles.list(request.query);
 		await this.host.prepare(context, signal);
 		switch (request.action) {
 			case "status": return this.status(request.query, signal);
 			case "checkpoint": return this.checkpoint();
+			case "save": return this.profiles.save(request.name, context, signal);
+			case "load": return this.profiles.load(request.name, signal);
 			case "release": return this.release(request.names, context, signal);
 			case "restart": return this.restart(context, signal);
 		}
@@ -205,12 +213,6 @@ export class NotebookLifecycleController {
 
 function lifecycleMarker(): string {
 	return `__PI_NOTEBOOK_LIFECYCLE_${randomUUID()}__`;
-}
-
-function globMatcher(glob: string): (name: string) => boolean {
-	const escaped = glob.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".");
-	const expression = new RegExp(`^${escaped}$`, "i");
-	return (name) => expression.test(name);
 }
 
 function withinNameBudget(names: string[]): string[] {

@@ -61,7 +61,7 @@ export function projectStateCaptureSource(options: {
 }
 
 export function projectStateRestoreSource(
-	manifest: ProjectStateManifest,
+	manifest: Pick<ProjectStateManifest, "deno" | "v8" | "entries">,
 	payloadPath: string,
 	clearNames: string[] = [],
 ): string {
