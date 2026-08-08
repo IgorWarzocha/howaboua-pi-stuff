@@ -42,6 +42,15 @@ export async function restoreProjectState(
 	identity: { project: string; agentDir: string; maxBytes: number },
 ): Promise<ProjectStateSummary> {
 	const paths = projectStatePaths(identity.project, identity.agentDir);
+	mkdirSync(paths.directory, { recursive: true });
+	return withProjectLock(paths.lock, () => restoreProjectStateLocked(kernel, identity, paths));
+}
+
+async function restoreProjectStateLocked(
+	kernel: DenoJupyterKernel,
+	identity: { project: string; maxBytes: number },
+	paths: ReturnType<typeof projectStatePaths>,
+): Promise<ProjectStateSummary> {
 	const manifest = readProjectStateManifest(paths.manifest);
 	if (!manifest) return emptyProjectStateSummary();
 	if (manifest.project !== resolve(identity.project)) {
@@ -72,6 +81,7 @@ export async function writeProjectState(
 	baseline: ProjectStateBaseline,
 	baselineNames: ReadonlySet<string>,
 	maxBytes: number,
+	excludeNames: ReadonlySet<string> = new Set(),
 ): Promise<ProjectStateSummary> {
 	const paths = projectStatePaths(identity.project, identity.agentDir);
 	mkdirSync(paths.directory, { recursive: true });
@@ -80,7 +90,7 @@ export async function writeProjectState(
 	const candidateManifestPath = join(paths.directory, `candidate-${candidateId}.json`);
 	try {
 		const names = [...new Set(await kernel.complete("", 0))]
-			.filter((name) => !baselineNames.has(name) && IDENTIFIER.test(name))
+			.filter((name) => !baselineNames.has(name) && !excludeNames.has(name) && IDENTIFIER.test(name))
 			.sort();
 		if (names.length > MAX_PROJECT_ENTRIES) throw new Error(`Project notebook state exceeds ${MAX_PROJECT_ENTRIES} top-level values`);
 		if (names.some((name) => Buffer.byteLength(name) > MAX_PROJECT_NAME_BYTES)) {
@@ -96,24 +106,27 @@ export async function writeProjectState(
 		const candidate = readProjectStateCandidate(candidateManifestPath, candidatePayloadPath, maxBytes);
 		if (!candidate) throw new Error("Project notebook checkpoint did not produce a valid candidate");
 		const candidatePayload = readFileSync(candidatePayloadPath);
-		const committed = await withProjectLock(paths.lock, async () => commitCandidate({
-			paths,
-			identity,
-			baseline,
-			candidate,
-			candidatePayload,
-			maxBytes,
-		}));
+		const committed = await withProjectLock(paths.lock, async () => {
+			const result = await commitCandidate({
+				paths,
+				identity,
+				baseline,
+				candidate,
+				candidatePayload,
+				maxBytes,
+			});
+			if (result.manifest && result.rebind) {
+				const clearNames = [...new Set([...baseline.entries.map(({ name }) => name), ...candidate.entries.map(({ name }) => name)])];
+				const restore = await kernel.execute(projectStateRestoreSource(
+					result.manifest,
+					join(paths.directory, result.manifest.payload),
+					clearNames,
+				));
+				if (restore.status !== "ok") throw new Error(`Committed project notebook could not be rebound: ${restore.errorText ?? "unknown error"}`);
+			}
+			return result;
+		});
 		if (!committed.manifest) return { ...emptyProjectStateSummary(), skipped: candidate.skipped, conflicts: committed.conflicts };
-		if (committed.rebind) {
-			const clearNames = [...new Set([...baseline.entries.map(({ name }) => name), ...candidate.entries.map(({ name }) => name)])];
-			const restore = await kernel.execute(projectStateRestoreSource(
-				committed.manifest,
-				join(paths.directory, committed.manifest.payload),
-				clearNames,
-			));
-			if (restore.status !== "ok") throw new Error(`Committed project notebook could not be rebound: ${restore.errorText ?? "unknown error"}`);
-		}
 		return {
 			baseline: baselineFromProjectManifest(committed.manifest),
 			restored: committed.manifest.entries,

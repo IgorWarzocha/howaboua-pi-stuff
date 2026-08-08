@@ -4,8 +4,9 @@ export interface NotebookBindingStatus {
 	name: string;
 	type: string;
 	constructor?: string | undefined;
-	persistence: "value" | "definition" | "runtime-only";
+	kind: "value" | "definition" | "runtime-only";
 	disposable?: "sync" | "async" | undefined;
+	globalProperty: boolean;
 }
 
 export interface NotebookKernelStatus {
@@ -29,32 +30,33 @@ export function notebookStatusSource(names: string[], marker: string): string {
 	const inspections = names.map((name) => `
   try {
     const __value = ${name};
-    let __persistence = "value";
+	let __kind = "value";
     let __disposable;
     if ((__value !== null && (typeof __value === "object" || typeof __value === "function"))) {
       if (typeof __value[Symbol.asyncDispose] === "function") __disposable = "async";
       else if (typeof __value[Symbol.dispose] === "function") __disposable = "sync";
     }
     if (__disposable || __value instanceof Promise || __value instanceof WeakMap || __value instanceof WeakSet) {
-      __persistence = "runtime-only";
-    } else if (typeof __value === "function") {
-      const __source = Function.prototype.toString.call(__value);
-      __persistence = __source.includes("[native code]") ? "runtime-only" : "definition";
-    } else {
-      try { serialize(__value); } catch { __persistence = "runtime-only"; }
+	  __kind = "runtime-only";
+	} else if (typeof __value === "function") {
+	  const __source = Function.prototype.toString.call(__value);
+	  __kind = __source.includes("[native code]") ? "runtime-only" : "definition";
+	} else if (__value && __value[Symbol.toStringTag] === "Module") {
+	  __kind = "runtime-only";
     }
     __bindings.push({
       name: ${JSON.stringify(name)},
       type: typeof __value,
       ...(__value?.constructor?.name ? { constructor: String(__value.constructor.name) } : {}),
-      persistence: __persistence,
+      kind: __kind,
+	  globalProperty: Object.prototype.hasOwnProperty.call(globalThis, ${JSON.stringify(name)}),
       ...(__disposable ? { disposable: __disposable } : {}),
     });
   } catch (__error) {
-    __bindings.push({ name: ${JSON.stringify(name)}, type: "unavailable", persistence: "runtime-only" });
+	__bindings.push({ name: ${JSON.stringify(name)}, type: "unavailable", kind: "runtime-only", globalProperty: false });
   }`).join("");
 	return `{
-  const { serialize, getHeapStatistics } = await import("node:v8");
+	const { getHeapStatistics } = await import("node:v8");
   const __bindings = [];
   ${inspections}
   const __memory = Deno.memoryUsage();
