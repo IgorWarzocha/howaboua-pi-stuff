@@ -79,7 +79,7 @@ export function toCodeModeToolResult(
 	};
 }
 
-function formatNotebookMemory(memory: NotebookMemoryUsage): string {
+export function formatNotebookMemory(memory: NotebookMemoryUsage): string {
 	const ratio = memory.heapLimitBytes > 0 ? memory.heapUsedBytes / memory.heapLimitBytes : 0;
 	const pressure = ratio >= 0.9
 		? " · CRITICAL: finish essential work and release unneeded notebook state"
