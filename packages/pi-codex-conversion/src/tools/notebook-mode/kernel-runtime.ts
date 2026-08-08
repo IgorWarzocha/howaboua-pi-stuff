@@ -179,6 +179,10 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
 	  await Promise.allSettled([...__state.toolPending]);
 	  await __reportMemory(cellId);
     },
+    async finish(cellId) {
+      if (__state.cellId !== cellId) return;
+      try { await this.flush(cellId); } finally { this.end(cellId); }
+    },
     end(cellId) {
 	  if (__state.cellId !== cellId) return;
 	  if (__state.memoryTimer !== undefined) clearInterval(__state.memoryTimer);

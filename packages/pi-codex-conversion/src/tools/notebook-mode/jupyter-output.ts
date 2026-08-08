@@ -51,17 +51,11 @@ export function applyKernelOutput(message: JupyterMessage, execution: ActiveKern
 		return undefined;
 	}
 	if (type === "error") {
-		const name = truncateErrorField(
-			typeof message.content["ename"] === "string" ? message.content["ename"] : "Error",
-		);
-		const value = truncateErrorField(
-			typeof message.content["evalue"] === "string" ? message.content["evalue"] : "Notebook cell failed",
-		);
-		const traceback = boundedTraceback(message.content["traceback"]);
+		const error = readKernelError(message.content);
 		execution.status = "error";
-		execution.errorName = name;
-		execution.errorValue = value;
-		execution.errorText = traceback ?? truncateErrorText(`${name}: ${value}`);
+		execution.errorName = error.errorName;
+		execution.errorValue = error.errorValue;
+		execution.errorText = error.errorText;
 		return undefined;
 	}
 	return type === "status" && message.content["execution_state"] === "idle" ? "idle" : undefined;
@@ -75,6 +69,14 @@ export function finishKernelExecution(execution: ActiveKernelExecution): KernelE
 		...(execution.errorName ? { errorName: execution.errorName } : {}),
 		...(execution.errorValue ? { errorValue: execution.errorValue } : {}),
 	};
+}
+
+export function applyExecuteReplyError(
+	result: KernelExecutionResult,
+	reply: JupyterMessage,
+): KernelExecutionResult {
+	if (result.status !== "ok" || reply.content["status"] !== "error") return result;
+	return { ...result, status: "error", ...readKernelError(reply.content) };
 }
 
 function emit(execution: ActiveKernelExecution, item: RuntimeContentItem): void {
@@ -101,6 +103,20 @@ function boundedTraceback(value: unknown): string | undefined {
 		if (line.length > remaining) return markErrorTruncated(output);
 	}
 	return output || undefined;
+}
+
+function readKernelError(content: Record<string, unknown>): Required<
+	Pick<KernelExecutionResult, "errorText" | "errorName" | "errorValue">
+> {
+	const errorName = truncateErrorField(typeof content["ename"] === "string" ? content["ename"] : "Error");
+	const errorValue = truncateErrorField(
+		typeof content["evalue"] === "string" ? content["evalue"] : "Notebook cell failed",
+	);
+	return {
+		errorName,
+		errorValue,
+		errorText: boundedTraceback(content["traceback"]) ?? truncateErrorText(`${errorName}: ${errorValue}`),
+	};
 }
 
 function truncateErrorField(value: string): string {
