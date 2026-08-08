@@ -57,13 +57,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 3.0.10
+### @howaboua/pi-codex-conversion — 3.0.11
 
 ### Changes
 
-- [#239](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/239) [`7dbbfc8`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/7dbbfc8bc28746ec28b3142a73efc8e0b14d2ffa) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Render delete-and-readd patches as file edits, clarify move-file syntax, and keep failed-patch recovery concise and non-duplicated.
-
-- [#239](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/239) [`7dbbfc8`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/7dbbfc8bc28746ec28b3142a73efc8e0b14d2ffa) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Make semantic indexing non-blocking at session startup, single-writer, atomic, resumable, ignore-aware, metadata-fast, batch-embedded, and role-aware while preserving usable prior file indexes across interrupted rebuilds.
+- [#246](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/246) [`712f662`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/712f66216996aa37664f791f12b940611f30c7a2) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add cross-extension Code Mode nested-tool preflights, keep native compaction displays out of turn queues, document `exec_command` output, preserve Codex API errors so Pi can recover context overflows, and stop settled subagents from hanging on extension shutdown.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
