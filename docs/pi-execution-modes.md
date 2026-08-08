@@ -57,6 +57,7 @@ The host-side `notebook` tool keeps emergency controls available when the kernel
 - `checkpoint` immediately flushes completed project and session state.
 - `release` invokes only standard `Symbol.asyncDispose`/`Symbol.dispose` hooks, checkpoints the named bindings as absent, and restarts when required to clear JavaScript lexical bindings.
 - `restart` terminates an active cell if necessary, attempts standard resource disposal, and restores the last completed checkpoint even when disposal fails.
+- `list`, `save`, and `load` manage global named profiles containing compatible values and helper definitions. Loading refuses binding collisions and forks the profile into ordinary project state; it never shares a kernel or replays cells.
 
 Use JavaScript explicit resource management rather than guessing `.close()`, `.kill()`, or `.abort()` methods. Orderly shutdown also invokes standard disposal hooks after checkpointing and before terminating Deno.
 
@@ -101,11 +102,11 @@ Global Notebook resource configuration lives in `pi-codex-conversion.json`:
 
 ```json
 {
-  "notebook": { "maxHeapMiB": 8192 }
+  "notebook": { "maxHeapMiB": 8192, "profile": "shell" }
 }
 ```
 
-The heap value is a V8 ceiling, not eagerly allocated physical RAM. Default to 4096 MiB and reject values outside 256–65536 MiB.
+The heap value is a V8 ceiling, not eagerly allocated physical RAM. Default to 4096 MiB and reject values outside 256–65536 MiB. The optional profile loads after project and session recovery only when none of its names collide with restored state.
 
 Valid values are `normal`, `code`, and `notebook`. Read project configuration only when `ctx.isProjectTrusted()` is true and use Pi's `CONFIG_DIR_NAME` rather than hardcoding `.pi` in implementation.
 
@@ -132,5 +133,6 @@ The Linux x64 proof is successful when it demonstrates:
 8. A graceful restart reports incompatible state, rebinds current tool metadata, and does not claim to reverse external side effects.
 9. Every Notebook result reports heap/RSS pressure while normal Code Mode still uses fresh V8 isolates and its existing custom-tool behavior unchanged.
 10. Lifecycle status, explicit checkpoint, standard resource release, idle restart, and restart around a yielded cell remain available outside `exec`.
+11. Named profiles can be listed, atomically saved, loaded without overwrite, reused across projects, and selected as an optional startup default without replaying notebook cells.
 
 After the proof, decide publication and broader platform support from measured startup latency, checkpoint cost, dependency/install reliability, bridge behavior, and real agent use. Shipping package changes require a focused issue/PR, a changeset, and the repository's changed-package gate.
