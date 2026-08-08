@@ -2,7 +2,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { readCodexConversionConfig } from "../adapter/activation/config-store.ts";
 import { syncAdapter } from "../adapter/activation/activation.ts";
 import { isAdapterRuntime, resolveCodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
-import { isNativeCompactionDetails, NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, NATIVE_COMPACTION_DISPLAY_TEXT, NATIVE_COMPACTION_STRATEGY, type NativeCompactionUsage } from "../adapter/compaction/types.ts";
+import { isNativeCompactionDetails, NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, NATIVE_COMPACTION_DISPLAY_TEXT, NATIVE_COMPACTION_STRATEGY, type NativeCompactionDisplayEntry, type NativeCompactionUsage } from "../adapter/compaction/types.ts";
 import { findLatestCompactionEntry } from "../adapter/compaction/details-store.ts";
 import { handleCodexSessionBeforeCompact } from "../adapter/compaction/compaction.ts";
 import { rewriteCodexProviderRequest } from "../adapter/provider-request.ts";
@@ -201,19 +201,17 @@ export function registerCodexEvents(
 		if (event.fromExtension && compactionEntry && isNativeCompactionDetails(compactionEntry.details)) {
 			const details = compactionEntry.details;
 			nativeCompaction = true;
-			pi.sendMessage({
-				customType: NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE,
+			// Presentation entries persist and render without entering Pi's turn queue or LLM context.
+			pi.appendEntry<NativeCompactionDisplayEntry>(NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, {
 				content: NATIVE_COMPACTION_DISPLAY_TEXT,
-				display: true,
-				details: { compactionEntryId: compactionEntry.id },
-			}, { triggerTurn: false });
+				compactionEntryId: compactionEntry.id,
+			});
 			if (details.strategy === NATIVE_COMPACTION_STRATEGY && details.usage) {
-				pi.sendMessage({
-					customType: NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE,
+				pi.appendEntry<NativeCompactionDisplayEntry>(NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, {
 					content: formatCompactionUsage(details.usage),
-					display: true,
-					details: { compactionEntryId: compactionEntry.id, kind: "usage" },
-				}, { triggerTurn: false });
+					compactionEntryId: compactionEntry.id,
+					kind: "usage",
+				});
 			}
 		}
 		const postCompactionPrompt = codeMode.refreshPromptTools(

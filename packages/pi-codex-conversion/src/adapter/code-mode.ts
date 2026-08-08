@@ -93,7 +93,7 @@ function createNestedTools(
 		),
 		toNestedTool(
 			createExecCommandTool(runtime.tracker, runtime.sessions, options),
-			"await tools.exec_command({ cmd: string, workdir?: string, shell?: string, tty?: boolean, yield_time_ms?: number, max_output_tokens?: number, login?: boolean })",
+			"await tools.exec_command({ cmd: string, workdir?: string, shell?: string, tty?: boolean, yield_time_ms?: number, max_output_tokens?: number, login?: boolean }) // returns { output: string, session_id?: number, exit_code?: number }",
 			{
 				start(id, input) {
 					const cmd =

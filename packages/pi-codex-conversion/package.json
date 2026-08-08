@@ -22,6 +22,19 @@
     "apply-patch"
   ],
   "license": "MIT",
+  "main": "./dist/index.js",
+  "types": "./types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./types/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./code-mode-preflight": {
+      "types": "./dist/code-mode-preflight.d.ts",
+      "import": "./dist/code-mode-preflight.js"
+    },
+    "./*": "./*"
+  },
   "pi": {
     "extensions": [
       "./dist/index.js"
@@ -29,8 +42,10 @@
   },
   "files": [
     "dist/**/*.js",
+    "dist/**/*.d.ts",
     "src/**/*.ts",
     "src/**/*.md",
+    "types/**/*.d.ts",
     "src/voice/lan/assets/**",
     "available-tools.png",
     "examples/custom-tools",
@@ -79,10 +94,10 @@
     "typebox": "*"
   },
   "devDependencies": {
-    "@earendil-works/pi-agent-core": "0.84.0",
-    "@earendil-works/pi-ai": "0.84.0",
-    "@earendil-works/pi-coding-agent": "0.84.0",
-    "@earendil-works/pi-tui": "0.84.0",
+    "@earendil-works/pi-agent-core": "0.84.1",
+    "@earendil-works/pi-ai": "0.84.1",
+    "@earendil-works/pi-coding-agent": "0.84.1",
+    "@earendil-works/pi-tui": "0.84.1",
     "@types/ws": "^8.18.1",
     "tsx": "^4.20.5",
     "typebox": "1.3.7",

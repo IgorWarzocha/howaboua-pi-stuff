@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 
-import { spawn, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { statSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { runSettledPi } from "./settled-child.mjs";
 
 const EXAMPLE_DIR = dirname(fileURLToPath(import.meta.url));
+const SETTLED_EXTENSION = resolve(EXAMPLE_DIR, "settled.mjs");
 const AGENT_CONFIG = {
 	explorer: {
 		model: "openai-codex/gpt-5.6-terra",
@@ -263,6 +265,8 @@ export function buildPiArgs(request, message) {
 		"--no-session",
 		"--no-skills",
 		"--no-prompt-templates",
+		"--extension",
+		SETTLED_EXTENSION,
 		"--model",
 		config.model,
 		"--thinking",
@@ -282,21 +286,10 @@ async function readStdin() {
 export async function main() {
 	const request = parseSpawnAgentRequest(await readStdin());
 	const prepared = prepareSpawn(request);
-	const child = spawn("pi", buildPiArgs(request, prepared.message), {
+	process.exitCode = await runSettledPi(buildPiArgs(request, prepared.message), {
 		cwd: prepared.cwd,
 		env: { ...process.env, PI_SKIP_VERSION_CHECK: "1" },
-		stdio: ["ignore", "inherit", "inherit"],
 	});
-	const forward = (signal) => {
-		if (!child.killed) child.kill(signal);
-	};
-	process.once("SIGINT", forward);
-	process.once("SIGTERM", forward);
-	const code = await new Promise((resolveCode, reject) => {
-		child.once("error", reject);
-		child.once("close", (value) => resolveCode(value ?? 1));
-	});
-	process.exitCode = code;
 }
 
 const invokedPath = process.argv[1] ? resolve(process.argv[1]) : undefined;

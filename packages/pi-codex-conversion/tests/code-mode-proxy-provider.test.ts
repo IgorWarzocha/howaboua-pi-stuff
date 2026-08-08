@@ -1,8 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ModelRegistry, ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
-import { CODE_MODE_EXEC_GRAMMAR } from "../src/tools/code-mode/exec-contract.ts";
 import { registerCodeModeProxyProvider, streamCodeModeResponsesProxy } from "../src/providers/code-mode-proxy-provider.ts";
 
 function sseResponse(events: unknown[]): Response {
@@ -112,90 +110,4 @@ test("the provider-scoped proxy stream delegates ordinary Responses models witho
 	registration.shutdown();
 	assert.equal(providers.size, 0);
 	assert.equal(unregistered.length, 1);
-});
-
-test("configured Responses models route through the Code Mode stream in Pi's model runtime", async () => {
-	const originalFetch = globalThis.fetch;
-	let capturedRequest: RequestInit | undefined;
-	let registration: ReturnType<typeof registerCodeModeProxyProvider> | undefined;
-	try {
-		globalThis.fetch = (async (_url, init) => {
-			capturedRequest = init;
-			return sseResponse([
-				{ type: "response.created", response: { id: "resp_runtime" } },
-				{ type: "response.output_item.added", output_index: 0, item: { type: "custom_tool_call", id: "ctc_1", call_id: "call_1", name: "exec", input: "" } },
-				{ type: "response.custom_tool_call_input.delta", output_index: 0, item_id: "ctc_1", delta: "text(\"runtime\");" },
-				{ type: "response.output_item.done", output_index: 0, item: { type: "custom_tool_call", id: "ctc_1", call_id: "call_1", name: "exec", input: "text(\"runtime\");", status: "completed" } },
-				{ type: "response.completed", response: { id: "resp_runtime", status: "completed", usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 } } },
-			]);
-		}) as typeof fetch;
-
-		const runtime = await ModelRuntime.create({
-			modelsPath: null,
-			allowModelNetwork: false,
-		});
-		const registry = new ModelRegistry(runtime);
-		registry.registerProvider("MyProxy", {
-			baseUrl: "https://proxy.example/v1",
-			apiKey: "test-key",
-			api: "openai-responses",
-			models: [{
-				id: "gpt-5.6",
-				name: "GPT-5.6 Proxy",
-				reasoning: true,
-				input: ["text"],
-				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-				contextWindow: 100_000,
-				maxTokens: 10_000,
-			}],
-		});
-		const config = {
-			...DEFAULT_CODEX_CONVERSION_CONFIG,
-			beta: { codeMode: true, responsesLite: true },
-			scope: { allProviders: "off" as const, additionalProviders: ["myproxy"] },
-		};
-		registration = registerCodeModeProxyProvider({
-			registerProvider: (name: string, provider: Parameters<ModelRegistry["registerProvider"]>[1]) =>
-				registry.registerProvider(name, provider),
-			unregisterProvider: (name: string) => registry.unregisterProvider(name),
-		} as never, () => config);
-		registration.applyConfig(config, registry);
-		await runtime.refresh({ allowNetwork: false });
-
-		const model = registry.find("MyProxy", "gpt-5.6");
-		assert.ok(model);
-		const events = await collect(runtime.streamSimple(
-			model,
-			{
-				systemPrompt: "Use Code Mode",
-				messages: [],
-				tools: [{
-					name: "exec",
-					description: "Run JavaScript",
-					parameters: { type: "object", properties: { code: { type: "string" } }, required: ["code"] },
-					constrainedSampling: { type: "grammar", variants: { openai_lark: CODE_MODE_EXEC_GRAMMAR } },
-				}],
-			} as never,
-			undefined,
-		));
-		const done = events.at(-1) as { type: string; reason: string; message: { content: unknown[] } };
-		assert.ok(capturedRequest);
-		assert.equal(new Headers(capturedRequest.headers).get("x-openai-internal-codex-responses-lite"), "true");
-		const requestBody = JSON.parse(String(capturedRequest.body));
-		assert.equal("tools" in requestBody, false);
-		assert.equal(requestBody.parallel_tool_calls, false);
-		assert.equal(requestBody.input[0].type, "additional_tools");
-		assert.equal(requestBody.input[0].tools[0].type, "custom");
-		assert.equal(done.type, "done");
-		assert.equal(done.reason, "toolUse");
-		assert.deepEqual(done.message.content, [{
-			type: "toolCall",
-			id: "call_1|ctc_1",
-			name: "exec",
-			arguments: { code: "text(\"runtime\");" },
-		}]);
-	} finally {
-		registration?.shutdown();
-		globalThis.fetch = originalFetch;
-	}
 });

@@ -1,5 +1,6 @@
 import { runCustomTool } from "./custom-tool-runner.js";
 import { isCustomToolDefinition, type DelegateRequestMessage } from "./host-protocol.js";
+import { runCodeModeToolPreflight } from "./nested-tool-preflight.js";
 import { CodeModeTraceStore } from "./trace-store.js";
 import { toolResultFromValue, truncateTraceText } from "./trace-values.js";
 import type {
@@ -139,7 +140,14 @@ export class CodeModeDelegateRuntime {
 			refreshTrace: () => this.traces.emitUpdate(cellId, context),
 		};
 		try {
+			await runCodeModeToolPreflight(
+				tool.name,
+				input,
+				invocationContext,
+				controller.signal,
+			);
 			if (isCustomToolDefinition(tool)) this.traces.emitUpdate(cellId, context);
+			controller.signal.throwIfAborted();
 			const result = isCustomToolDefinition(tool)
 				? await runCustomTool(
 						tool,

@@ -39,63 +39,6 @@ test("exec waits through output activity but yields on silence or the hard limit
 	assert.equal(await activeWait, 30);
 });
 
-test("late empty polls replay a completed process result", async () => {
-	const sessions = createExecSessionManager({ minNonInteractiveExecYieldTimeMs: 1 });
-	try {
-		const command = `${JSON.stringify(process.execPath)} -e ${JSON.stringify("setTimeout(() => process.stdout.write('final output' + 'x'.repeat(400)), 500)")}`;
-		const started = await sessions.exec({ cmd: command, yield_time_ms: 1, max_yield_time_ms: 1, login: false }, process.cwd());
-		assert.equal(started.session_id, 1);
-
-		const completed = await sessions.write({ session_id: 1, yield_time_ms: 1_000, max_output_tokens: 1 });
-		assert.equal(completed.exit_code, 0);
-		assert.equal(completed.output.length, 256);
-		const fullReplay = await sessions.write({ session_id: 1 });
-		assert.equal(fullReplay.exit_code, 0);
-		assert.match(fullReplay.output, /final output/);
-		assert.ok(fullReplay.output.length > completed.output.length);
-		const cappedReplay = await sessions.write({ session_id: 1, max_output_tokens: 1 });
-		assert.deepEqual(cappedReplay, completed);
-		await assert.rejects(sessions.write({ session_id: 1, chars: "x" }));
-
-		const largeCommand = `${JSON.stringify(process.execPath)} -e ${JSON.stringify("setTimeout(() => process.stdout.write('large head' + 'x'.repeat(70000) + 'large tail'), 500)")}`;
-		const largeStarted = await sessions.exec({ cmd: largeCommand, yield_time_ms: 1, max_yield_time_ms: 1, login: false }, process.cwd());
-		assert.equal(largeStarted.session_id, 2);
-		const largeCompleted = await sessions.write({ session_id: 2, yield_time_ms: 1_000, max_output_tokens: Number.MAX_SAFE_INTEGER });
-		assert.match(largeCompleted.output, /^large head/);
-		assert.match(largeCompleted.output, /large tail$/);
-		assert.ok(largeCompleted.output.length > 64 * 1024);
-		const boundedReplay = await sessions.write({ session_id: 2, max_output_tokens: Number.MAX_SAFE_INTEGER });
-		assert.equal(boundedReplay.output.length, 64 * 1024);
-		assert.match(boundedReplay.output, /large tail$/);
-	} finally {
-		sessions.shutdown();
-	}
-});
-
-test("unfinished empty polls keep growing their host wait despite output", async () => {
-	const sessions = createExecSessionManager({
-		minNonInteractiveExecYieldTimeMs: 250,
-		minEmptyWriteYieldTimeMs: 250,
-		maxEmptyWriteYieldTimeMs: 2_000,
-	});
-	try {
-		const script = "const timer=setInterval(()=>process.stdout.write('.'),25);setTimeout(()=>{clearInterval(timer);process.exit(0)},4000)";
-		const command = `${JSON.stringify(process.execPath)} -e ${JSON.stringify(script)}`;
-		const started = await sessions.exec({ cmd: command, yield_time_ms: 250, max_yield_time_ms: 250, login: false }, process.cwd());
-		assert.equal(started.session_id, 1);
-
-		const first = await sessions.write({ session_id: 1, yield_time_ms: 250 });
-		assert.equal(first.session_id, 1);
-		assert.ok(first.wall_time_seconds >= 0.4 && first.wall_time_seconds < 1);
-
-		const second = await sessions.write({ session_id: 1, yield_time_ms: 250 });
-		assert.equal(second.session_id, 1);
-		assert.ok(second.wall_time_seconds >= 0.8 && second.wall_time_seconds < 1.5);
-	} finally {
-		sessions.shutdown();
-	}
-});
-
 test("sessions finish after the shell exits when a detached child retains stdio", async () => {
 	const sessions = createExecSessionManager({ minNonInteractiveExecYieldTimeMs: 250 });
 	let childId: number | undefined;

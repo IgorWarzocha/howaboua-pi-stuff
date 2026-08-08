@@ -1,3 +1,4 @@
 - `register.ts` is the composition root; `runtime.ts` owns process/session state and transport lifecycle; `events.ts` visibly maps Pi events to feature owners.
 - Preserve lazy cold-feature boundaries, especially compaction; do not trade startup cost for pass-through wrappers or hidden dispatch.
 - Prewarm must match real-turn tools; Pi `ToolInfo` omits constrained sampling, so restore the owned `exec` contract explicitly.
+- Native compaction presentation is a custom entry: never route it through `sendMessage`, which can queue an empty continuation during auto-compaction.

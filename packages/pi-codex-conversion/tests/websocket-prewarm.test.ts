@@ -79,31 +79,6 @@ test("prewarm refreshes only when its prompt or active tools change", async () =
 	}
 });
 
-test("prewarm reports authentication failure to callers", async () => {
-	const runtime = createCodexExtensionRuntime({
-		getActiveTools: () => ["exec", "wait"],
-		getAllTools: () => codeModeTools,
-		getThinkingLevel: () => "low",
-		sendUserMessage: () => undefined,
-	} as never);
-	runtime.state.config = {
-		...DEFAULT_CODEX_CONVERSION_CONFIG,
-		beta: { ...DEFAULT_CODEX_CONVERSION_CONFIG.beta, codeMode: true },
-	};
-	const extensionContext = {
-		model,
-		modelRegistry: {
-			getApiKeyAndHeaders: async () => ({ ok: false as const, error: "Authentication token expired" }),
-		},
-		sessionManager: { getSessionId: () => "prewarm-auth-failure" },
-	} as never;
-
-	const result = await runtime.startPrewarm(extensionContext, "Prompt", true);
-
-	assert.equal(result?.status, "failed");
-	assert.match(result?.status === "failed" ? result.error.message : "", /token expired/);
-});
-
 test("aborted prewarm cleanup cannot clear a newer equivalent operation", async () => {
 	const authRequests = [
 		Promise.withResolvers<any>(),

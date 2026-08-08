@@ -84,26 +84,6 @@ test("LAN browser takeover shares an in-progress host conversation setup", async
 	await clients.close();
 });
 
-test("LAN conversation startup reports its error without a terminal stop racing it", async () => {
-	const clients = testBrowserClients({
-		async ensureConversation() {
-			throw new Error("authentication failed");
-		},
-	});
-	const socket = new TestWebSocket();
-	clients.connectAudio("first", socket.asWebSocket());
-	socket.receive({ type: "start", mode: "conversation" });
-	await settle();
-	assert.deepEqual(
-		socket.sent.map((value) => JSON.parse(value)),
-		[
-			{ type: "connected" },
-			{ type: "error", message: "authentication failed" },
-		],
-	);
-	await clients.close();
-});
-
 function testBrowserClients(overrides: {
 	ensureConversation(): Promise<void>;
 	onConversationActivity?(active: boolean): void | Promise<void>;

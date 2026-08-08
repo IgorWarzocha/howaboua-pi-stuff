@@ -25,6 +25,11 @@ const exec = {
 test("Code Mode exposes native freeform exec beside function wait", () => {
 	const registered: Array<{ name: string; constrainedSampling?: unknown }> = [];
 	registerPublicCodeModeTools({
+		events: {
+			emit() {},
+			on() { return () => {}; },
+		},
+		on() {},
 		registerTool(tool: { name: string; constrainedSampling?: unknown }) {
 			registered.push(tool);
 		},
