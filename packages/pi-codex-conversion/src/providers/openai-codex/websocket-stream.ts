@@ -92,6 +92,9 @@ export async function processWebSocketStream<TApi extends Api>(
 					lastResponseItems: responseItems,
 				};
 			}
+			// A transient socket means another request already owns this session lane.
+			// Its concurrent history has no canonical ordering, so only the retained
+			// cached lane may advance the baseline used by later compaction.
 			if (entry) {
 				recordCanonicalSessionResponse({
 					sessionId: options?.sessionId,

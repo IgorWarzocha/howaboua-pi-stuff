@@ -108,8 +108,11 @@ test("aborted prewarm cleanup cannot clear a newer equivalent operation", async 
 	runtime.resetTransport("equivalent-prewarm");
 	const current = runtime.startPrewarm(extensionContext, "Prompt", true)!;
 	await Promise.resolve();
+	assert.equal(authIndex, 1, "replacement must wait for the aborted prewarm to settle");
 	authRequests[0]!.resolve({ ok: true, apiKey: "" });
 	await stale;
+	await Promise.resolve();
+	assert.equal(authIndex, 2);
 
 	assert.equal(runtime.startPrewarm(extensionContext, "Prompt", true), current);
 	authRequests[1]!.resolve({ ok: true, apiKey: "" });
