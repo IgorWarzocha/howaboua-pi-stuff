@@ -20,7 +20,7 @@ import {
 
 const STARTUP_TIMEOUT_MS = 30_000;
 const REQUEST_TIMEOUT_MS = 8_000;
-const SUBSCRIBER_SETTLE_MS = 50;
+const SEND_TIMEOUT_MS = 5_000;
 const SHUTDOWN_GRACE_MS = 1_500;
 const MAX_STDERR_CHARS = 16_384;
 export type { KernelExecutionResult } from "./jupyter-output.ts";
@@ -43,6 +43,8 @@ export class DenoJupyterKernel {
 	private shell: Dealer | undefined;
 	private control: Dealer | undefined;
 	private iopub: Subscriber | undefined;
+	private shellPump: Promise<void> | undefined;
+	private iopubPump: Promise<void> | undefined;
 	private startup: Promise<void> | undefined;
 	private active: ActiveKernelExecution | undefined;
 	private readonly shellReplies = new Map<string, ShellReplyWaiter>();
@@ -136,10 +138,15 @@ export class DenoJupyterKernel {
 
 	async shutdown(): Promise<void> {
 		const process = this.process;
+		const pumps = [this.shellPump, this.iopubPump].filter((pump): pump is Promise<void> => Boolean(pump));
 		if (this.control && this.connection) {
 			try {
 				const message = createJupyterMessage("shutdown_request", { restart: false }, this.session);
-				await this.control.send(encodeJupyterMessage(message, this.connection.key));
+				await withTimeout(
+					this.control.send(encodeJupyterMessage(message, this.connection.key)),
+					SHUTDOWN_GRACE_MS,
+					() => new Error(`Deno Jupyter could not send shutdown_request within ${SHUTDOWN_GRACE_MS}ms`),
+				);
 			} catch {
 				// Process termination below is the fallback.
 			}
@@ -156,6 +163,13 @@ export class DenoJupyterKernel {
 			await waitForProcessExit(process, SHUTDOWN_GRACE_MS);
 		}
 		this.dispose();
+		await withTimeout(
+			Promise.allSettled(pumps),
+			SHUTDOWN_GRACE_MS,
+			() => new Error(`Deno Jupyter socket pumps did not stop within ${SHUTDOWN_GRACE_MS}ms`),
+		).catch(() => undefined);
+		this.shellPump = undefined;
+		this.iopubPump = undefined;
 	}
 
 	private async startInner(signal?: AbortSignal): Promise<void> {
@@ -187,14 +201,37 @@ export class DenoJupyterKernel {
 		this.shell = new Dealer();
 		this.control = new Dealer();
 		this.iopub = new Subscriber();
+		this.shell.sendTimeout = SEND_TIMEOUT_MS;
+		this.control.sendTimeout = SEND_TIMEOUT_MS;
+		this.shell.linger = 0;
+		this.control.linger = 0;
+		this.iopub.linger = 0;
 		this.shell.connect(jupyterEndpoint(connection, connection.shell_port));
 		this.control.connect(jupyterEndpoint(connection, connection.control_port));
 		this.iopub.connect(jupyterEndpoint(connection, connection.iopub_port));
 		this.iopub.subscribe("");
-		void this.runShellPump(this.shell, connection);
-		await sleep(SUBSCRIBER_SETTLE_MS, undefined, signal ? { signal } : undefined);
-		void this.runIopubPump();
-		await this.shellRequest("kernel_info_request", {}, STARTUP_TIMEOUT_MS);
+		this.shellPump = this.runShellPump(this.shell, connection);
+		let markIopubReady!: () => void;
+		const iopubReady = new Promise<void>((resolve) => { markIopubReady = resolve; });
+		this.iopubPump = this.runIopubPump(markIopubReady);
+		await this.waitForKernelReady(iopubReady, signal);
+	}
+
+	private async waitForKernelReady(iopubReady: Promise<void>, signal?: AbortSignal): Promise<void> {
+		const deadline = Date.now() + STARTUP_TIMEOUT_MS;
+		while (true) {
+			signal?.throwIfAborted();
+			const remaining = deadline - Date.now();
+			if (remaining <= 0) {
+				throw new Error(`Deno Jupyter IOPub did not become ready within ${STARTUP_TIMEOUT_MS}ms${this.stderr ? `\n${this.stderr}` : ""}`);
+			}
+			await this.shellRequest("kernel_info_request", {}, remaining);
+			const ready = await Promise.race([
+				iopubReady.then(() => true),
+				sleep(Math.min(100, remaining), false, signal ? { signal } : undefined),
+			]);
+			if (ready) return;
+		}
 	}
 
 	private async shellRequest(
@@ -258,14 +295,18 @@ export class DenoJupyterKernel {
 		}
 	}
 
-	private async runIopubPump(): Promise<void> {
+	private async runIopubPump(markReady?: () => void): Promise<void> {
 		const socket = this.iopub;
 		const connection = this.connection;
 		if (!socket || !connection) return;
 		try {
 			for await (const frames of socket) {
 				const message = decodeJupyterMessage([...frames] as Buffer[], connection.key);
-				if (message) this.handleIopub(message);
+				if (message) {
+					markReady?.();
+					markReady = undefined;
+					this.handleIopub(message);
+				}
 			}
 		} catch (error) {
 			if (this.iopub === socket) this.failKernel(error instanceof Error ? error : new Error(String(error)));
@@ -330,4 +371,17 @@ function waitForProcessExit(process: ChildProcess, timeoutMs: number): Promise<v
 		}
 		process.once("exit", exited);
 	});
+}
+
+async function withTimeout<T>(pending: Promise<T>, timeoutMs: number, timeoutError: () => Error): Promise<T> {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const timeout = new Promise<never>((_resolve, reject) => {
+		timer = setTimeout(() => reject(timeoutError()), timeoutMs);
+		timer.unref?.();
+	});
+	try {
+		return await Promise.race([pending, timeout]);
+	} finally {
+		if (timer) clearTimeout(timer);
+	}
 }
