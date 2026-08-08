@@ -74,7 +74,7 @@
     "prepack": "bun run check && bun run build",
     "prepare": "bun run build",
     "prepublishOnly": "bun run verify:extension-artifact && bun run verify:codex-tool-binaries && bun run verify:code-mode-host-assets",
-    "verify:extension-artifact": "node ../../scripts/verify-pi-extension-artifact.mjs --no-build --no-pack packages/pi-codex-conversion",
+    "verify:extension-artifact": "node ../../scripts/verify-pi-extension-artifact.mjs --no-build packages/pi-codex-conversion",
     "build:apply-patch": "node scripts/build-apply-patch-binary.mjs",
     "sync:apply-patch-source": "node scripts/sync-apply-patch-source.mjs",
     "verify:codex-tool-binaries": "node scripts/verify-codex-tool-binaries.mjs",
