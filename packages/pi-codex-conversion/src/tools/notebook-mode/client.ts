@@ -81,6 +81,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 			checkpoint: (excludeNames) => this.checkpoint(excludeNames),
 			markChanged: () => this.checkpoints.schedule(),
 			restart: (context, signal) => this.restartSession(context, signal),
+			rollback: async (context) => { await this.restartSession(context, undefined, true); },
 			baselineNames: () => this.baselineNames,
 			profileStorage: () => ({ agentDir: this.options.agentDir, maxBytes: this.checkpointMaxBytes }),
 			metadata: () => ({
@@ -237,11 +238,13 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		await this.startup;
 	}
 
-	private async startSession(ctx: ExtensionContext, signal?: AbortSignal): Promise<void> {
+	private async startSession(ctx: ExtensionContext, signal?: AbortSignal, skipProfile = false): Promise<void> {
 		this.latestMemory = undefined;
 		const started = await startNotebookSession({
 			context: ctx,
-			runtime: this.options,
+			runtime: skipProfile && this.options.profile
+				? { ...this.options, profile: undefined }
+				: this.options,
 			bridge: this.bridge,
 			checkpointMaxBytes: this.checkpointMaxBytes,
 			...(signal ? { signal } : {}),
@@ -359,7 +362,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		return cell.id;
 	}
 
-	private async restartSession(context: ExtensionContext, signal?: AbortSignal): Promise<string | undefined> {
+	private async restartSession(context: ExtensionContext, signal?: AbortSignal, skipProfile = false): Promise<string | undefined> {
 		const previous = this.kernel;
 		this.kernel = undefined;
 		this.startup = undefined;
@@ -367,7 +370,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		this.latestMemory = undefined;
 		this.kernelStartedAt = undefined;
 		await previous?.shutdown().catch(() => undefined);
-		const pending = this.startSession(context, signal).catch((error) => {
+		const pending = this.startSession(context, signal, skipProfile).catch((error) => {
 			if (this.startup === pending) this.startup = undefined;
 			throw error;
 		});
