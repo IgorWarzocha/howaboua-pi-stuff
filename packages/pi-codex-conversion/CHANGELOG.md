@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.0.11
+
+### Changes
+
+- [#246](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/246) [`712f662`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/712f66216996aa37664f791f12b940611f30c7a2) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add cross-extension Code Mode nested-tool preflights, keep native compaction displays out of turn queues, document `exec_command` output, preserve Codex API errors so Pi can recover context overflows, and stop settled subagents from hanging on extension shutdown.
+
 ## 3.0.10
 
 ### Changes
