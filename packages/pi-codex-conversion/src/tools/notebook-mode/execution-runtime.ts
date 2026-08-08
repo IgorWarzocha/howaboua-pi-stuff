@@ -193,7 +193,7 @@ export class NotebookExecutionRuntime {
 		const kernel = this.session().kernel();
 		if (!kernel) return;
 		const id = JSON.stringify(cell.id);
-		const result = await kernel.execute(`await globalThis.__piNotebook.flush(${id}); globalThis.__piNotebook.end(${id}); undefined;`);
+		const result = await kernel.execute(`await globalThis.__piNotebook.finish(${id}); undefined;`);
 		if (result.status !== "ok" && cell.result?.status === "ok") {
 			cell.result = { status: "error", items: [], errorText: result.errorText ?? "Notebook helper flush failed" };
 		}
