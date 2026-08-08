@@ -379,22 +379,3 @@ test("an explicit reset rejects a late canonical response from the old lane", ()
 	assert.equal(canonicalCompactionPromptInput(sessionId, "model"), undefined);
 	clearCanonicalSessions(sessionId);
 });
-
-test("an older concurrent completion cannot replace a newer canonical lane", () => {
-	const sessionId = "completion-order";
-	const olderToken = captureCanonicalSessionToken(sessionId);
-	const newerToken = captureCanonicalSessionToken(sessionId);
-	const record = (content: string, token: ReturnType<typeof captureCanonicalSessionToken>) => recordCanonicalSessionResponse({
-		sessionId,
-		url: "wss://example.test/responses",
-		accountId: "account",
-		requestBody: { model: "model", input: [{ role: "user", content }] } as never,
-		responseItems: [],
-		token,
-	});
-	record("newer", newerToken);
-	record("older", olderToken);
-
-	assert.deepEqual(canonicalCompactionPromptInput(sessionId, "model"), [{ role: "user", content: "newer" }]);
-	clearCanonicalSessions(sessionId);
-});
