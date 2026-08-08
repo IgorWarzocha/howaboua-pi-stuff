@@ -16,11 +16,11 @@ interface NotebookDocument {
 }
 
 interface NotebookCell {
-	cell_type: "code";
-	execution_count: number;
+	cell_type: string;
+	execution_count?: number | null | undefined;
 	metadata: Record<string, unknown>;
-	outputs: Array<Record<string, unknown>>;
-	source: string[];
+	outputs?: Array<Record<string, unknown>> | undefined;
+	source: string[] | string;
 }
 
 export interface NotebookJournal {
@@ -28,6 +28,13 @@ export interface NotebookJournal {
 	project: string;
 	session: string;
 	cells: number;
+	completedCells: number;
+}
+
+export interface NotebookJournalCodeCell {
+	id: string;
+	index: number;
+	source: string;
 }
 
 export function initializeNotebookJournal(identity: { project: string; session: string; agentDir: string }): NotebookJournal {
@@ -50,14 +57,15 @@ export function initializeNotebookJournal(identity: { project: string; session: 
 		project,
 		session: identity.session,
 		cells: existing?.cells.length ?? 0,
+		completedCells: existing?.cells.filter((cell) => notebookCellStatus(cell) !== "running").length ?? 0,
 	};
 	if (!existsSync(journal.path)) writeJournal(journal.path, emptyDocument(journal));
 	return journal;
 }
 
-export function appendNotebookJournalCell(
+export function beginNotebookJournalCell(
 	journal: NotebookJournal,
-	cell: { id: string; source: string; items: RuntimeContentItem[]; result: KernelExecutionResult },
+	cell: { id: string; source: string },
 ): void {
 	const document = readJournal(journal.path);
 	if (!document) throw new Error(`Notebook journal is invalid: ${journal.path}`);
@@ -68,15 +76,65 @@ export function appendNotebookJournalCell(
 		metadata: {
 			pi: {
 				cellId: cell.id,
-				status: cell.result.status,
+				status: "running",
 				createdAt: new Date().toISOString(),
 			},
 		},
-		outputs: journalOutputs(cell.items, cell.result),
+		outputs: [],
 		source: sourceLines(cell.source),
 	});
 	writeJournal(journal.path, document);
 	journal.cells = executionCount;
+}
+
+export function finishNotebookJournalCell(
+	journal: NotebookJournal,
+	cell: { id: string; source: string; items: RuntimeContentItem[]; result: KernelExecutionResult },
+): void {
+	const document = readJournal(journal.path);
+	if (!document) throw new Error(`Notebook journal is invalid: ${journal.path}`);
+	const existing = document.cells.find((entry) => notebookCellId(entry) === cell.id);
+	if (existing) {
+		const wasRunning = notebookCellStatus(existing) === "running";
+		const pi = isRecord(existing.metadata["pi"]) ? existing.metadata["pi"] : {};
+		existing.metadata["pi"] = { ...pi, cellId: cell.id, status: cell.result.status, completedAt: new Date().toISOString() };
+		existing.outputs = journalOutputs(cell.items, cell.result);
+		if (wasRunning) journal.completedCells += 1;
+	} else {
+		document.cells.push({
+			cell_type: "code",
+			execution_count: document.cells.length + 1,
+			metadata: {
+				pi: {
+					cellId: cell.id,
+					status: cell.result.status,
+					createdAt: new Date().toISOString(),
+					completedAt: new Date().toISOString(),
+				},
+			},
+			outputs: journalOutputs(cell.items, cell.result),
+			source: sourceLines(cell.source),
+		});
+		journal.completedCells += 1;
+	}
+	writeJournal(journal.path, document);
+	journal.cells = document.cells.length;
+}
+
+export function readNotebookJournalCodeCells(path: string): NotebookJournalCodeCell[] {
+	const document = readJournal(path);
+	if (!document) throw new Error(`Notebook journal is invalid: ${path}`);
+	return document.cells.flatMap((cell, index) => {
+		if (cell.cell_type !== "code") return [];
+		if (typeof cell.source !== "string" && !cell.source.every((line) => typeof line === "string")) {
+			throw new Error(`Notebook code cell ${index + 1} has invalid source: ${path}`);
+		}
+		return [{
+			id: notebookCellId(cell) ?? `cell-${index + 1}`,
+			index,
+			source: Array.isArray(cell.source) ? cell.source.join("") : cell.source,
+		}];
+	});
 }
 
 function journalOutputs(items: RuntimeContentItem[], result: KernelExecutionResult): Array<Record<string, unknown>> {
@@ -135,7 +193,18 @@ function readJournal(path: string): NotebookDocument | undefined {
 		const value = JSON.parse(readFileSync(path, "utf8")) as unknown;
 		if (!isRecord(value) || !Array.isArray(value["cells"]) || !isRecord(value["metadata"])) return undefined;
 		if (value["nbformat"] !== NOTEBOOK_FORMAT || value["nbformat_minor"] !== NOTEBOOK_MINOR) return undefined;
-		return value as unknown as NotebookDocument;
+		const cells = value["cells"].map((cell) => {
+			if (!isRecord(cell) || typeof cell["cell_type"] !== "string" || !isRecord(cell["metadata"])) return undefined;
+			if (typeof cell["source"] !== "string" && !Array.isArray(cell["source"])) return undefined;
+			return cell as unknown as NotebookCell;
+		});
+		if (cells.some((cell) => !cell)) return undefined;
+		return {
+			cells: cells as NotebookCell[],
+			metadata: value["metadata"],
+			nbformat: NOTEBOOK_FORMAT,
+			nbformat_minor: NOTEBOOK_MINOR,
+		};
 	} catch {
 		return undefined;
 	}
@@ -150,6 +219,16 @@ function writeJournal(path: string, document: NotebookDocument): void {
 function sourceLines(source: string): string[] {
 	const lines = source.match(/.*(?:\n|$)/g)?.filter(Boolean) ?? [];
 	return lines.length > 0 ? lines : [""];
+}
+
+function notebookCellId(cell: NotebookCell): string | undefined {
+	const pi = cell.metadata["pi"];
+	return isRecord(pi) && typeof pi["cellId"] === "string" ? pi["cellId"] : undefined;
+}
+
+function notebookCellStatus(cell: NotebookCell): string | undefined {
+	const pi = cell.metadata["pi"];
+	return isRecord(pi) && typeof pi["status"] === "string" ? pi["status"] : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

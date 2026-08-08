@@ -24,6 +24,8 @@ const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 
 interface NotebookLifecycleHost {
 	prepare(context: ToolExecutionContext, signal?: AbortSignal): Promise<void>;
+	diagnostics(context: ToolExecutionContext, signal?: AbortSignal): Promise<NotebookControlResult>;
+	reset(context: ToolExecutionContext, signal?: AbortSignal): Promise<NotebookControlResult>;
 	kernel(): DenoJupyterKernel | undefined;
 	activeCellId(): string | undefined;
 	stopActive(): Promise<string | undefined>;
@@ -69,6 +71,8 @@ export class NotebookLifecycleController {
 		signal?: AbortSignal,
 	): Promise<NotebookControlResult> {
 		if (request.action === "list") return this.profiles.list(request.query);
+		if (request.action === "diagnostics") return this.host.diagnostics(context, signal);
+		if (request.action === "reset") return this.host.reset(context, signal);
 		await this.host.prepare(context, signal);
 		switch (request.action) {
 			case "status": return this.status(request.query, signal);

@@ -24,10 +24,12 @@ import { NotebookCheckpointManager } from "./checkpoint-manager.ts";
 import { DenoJupyterKernel } from "./jupyter-kernel.ts";
 import { NotebookLifecycleController } from "./lifecycle.ts";
 import {
-	appendNotebookJournalCell,
+	beginNotebookJournalCell,
+	finishNotebookJournalCell,
 	type NotebookJournal,
 } from "./journal.ts";
 import { resolveNotebookProject } from "./project-identity.ts";
+import { NotebookRecoveryController } from "./recovery.ts";
 import { startNotebookSession } from "./session-startup.ts";
 import { notebookSessionIdentity } from "./session-identity.ts";
 
@@ -39,6 +41,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 	private readonly checkpointMaxBytes: number;
 	private readonly checkpoints: NotebookCheckpointManager;
 	private readonly lifecycle: NotebookLifecycleController;
+	private readonly recovery: NotebookRecoveryController;
 	private readonly delegate = new CodeModeDelegateRuntime(() => undefined);
 	private readonly bridge = new NotebookBridgeServer({
 		callTool: (cellId, requestId, tool, input) => this.callTool(cellId, requestId, tool, input),
@@ -73,8 +76,15 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 				if (showInUi) this.extensionContext?.ui.notify(notice, "warning");
 			},
 		});
+		this.recovery = new NotebookRecoveryController({ agentDir: this.options.agentDir, maxBytes: this.checkpointMaxBytes, profile: this.options.profile }, {
+			stopWithoutCheckpoint: () => this.stopWithoutCheckpoint(),
+			startClean: async (context, signal) => { await this.restartSession(context, signal, true); },
+			checkpointEmpty: () => this.checkpoints.flush({ force: true, requireIdle: true }),
+		});
 		this.lifecycle = new NotebookLifecycleController({
 			prepare: (context, signal) => this.ensureSession(context, signal),
+			diagnostics: (context, signal) => this.recovery.diagnostics(context, signal),
+			reset: (context, signal) => this.recovery.reset(context, signal),
 			kernel: () => this.kernel,
 			activeCellId: () => this.activeCell?.id,
 			stopActive: () => this.stopActiveForLifecycle(),
@@ -86,7 +96,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 			profileStorage: () => ({ agentDir: this.options.agentDir, maxBytes: this.checkpointMaxBytes }),
 			metadata: () => ({
 				startedAt: this.kernelStartedAt,
-				userCells: this.journal?.cells ?? 0,
+				userCells: this.journal?.completedCells ?? 0,
 				...(this.latestMemory ? { memory: this.latestMemory } : {}),
 				checkpoint: this.checkpoints.status(),
 			}),
@@ -120,6 +130,15 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		this.activeCell = cell;
 		if (notice) cell.emit([{ type: "input_text", text: notice }]);
 		this.delegate.bindCell(id, context, new Map(tools.map((tool) => [tool.name, tool])));
+		let journaled = false;
+		if (this.journal) {
+			try {
+				beginNotebookJournalCell(this.journal, { id, source: cell.source });
+				journaled = true;
+			} catch (error) {
+				this.reportJournalFailure(error);
+			}
+		}
 		const metadata = tools
 			.filter((tool) => isCustomToolDefinition(tool) && tool.deferLoading)
 			.map((tool) => ({ name: tool.name, description: formatCodeModeToolHelp(tool) }));
@@ -134,7 +153,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 			void this.stopCell(cell).catch(() => undefined);
 		};
 		signal?.addEventListener("abort", abort, { once: true });
-		void this.runCell(cell, wrapped).finally(() => signal?.removeEventListener("abort", abort));
+		void this.runCell(cell, wrapped, journaled).finally(() => signal?.removeEventListener("abort", abort));
 		try {
 			return await this.observe(cell, effectiveYieldTime, signal);
 		} catch (error) {
@@ -258,7 +277,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		this.reportStateNotice(started.restoreNotice);
 	}
 
-	private async runCell(cell: NotebookCell, source: string): Promise<void> {
+	private async runCell(cell: NotebookCell, source: string, journaled: boolean): Promise<void> {
 		try {
 			const result = await this.kernel!.execute(source, {
 				signal: cell.controller.signal,
@@ -283,19 +302,14 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		} finally {
 			if (cell.result && this.journal) {
 				try {
-					appendNotebookJournalCell(this.journal, {
+					finishNotebookJournalCell(this.journal, {
 						id: cell.id,
 						source: cell.source,
 						items: cell.items,
 						result: cell.result,
 					});
 				} catch (error) {
-					const notice = `Notebook journal update failed: ${error instanceof Error ? error.message : String(error)}`;
-					this.pendingNotice = joinNotices(
-						this.pendingNotice,
-						notice,
-					);
-					this.extensionContext?.ui.notify(notice, "warning");
+					this.reportJournalFailure(error, journaled ? "completion" : "update");
 				}
 			}
 			cell.markCompleted();
@@ -381,6 +395,22 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		return restoreNotice;
 	}
 
+	private async stopWithoutCheckpoint(): Promise<string | undefined> {
+		this.startupAbort?.abort(new Error("Notebook state is being reset"));
+		await this.startup?.catch(() => undefined);
+		const activeCell = await this.stopActiveForLifecycle();
+		const previous = this.kernel;
+		this.kernel = undefined;
+		this.startup = undefined;
+		this.checkpoints.reset();
+		this.latestMemory = undefined;
+		this.kernelStartedAt = undefined;
+		this.pendingNotice = undefined;
+		this.delegate.clear();
+		await previous?.shutdown().catch(() => undefined);
+		return activeCell;
+	}
+
 	private async recoverAfterFatal(context: ToolExecutionContext): Promise<string> {
 		const extension = context.extensionContext;
 		if (!extension) return "Notebook kernel could not restart because its session context is unavailable";
@@ -400,6 +430,12 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		} catch {
 			// State reporting must not turn successful persistence into a cell failure.
 		}
+	}
+
+	private reportJournalFailure(error: unknown, operation = "start"): void {
+		const notice = `Notebook journal ${operation} failed: ${error instanceof Error ? error.message : String(error)}`;
+		this.pendingNotice = joinNotices(this.pendingNotice, notice);
+		this.extensionContext?.ui.notify(notice, "warning");
 	}
 
 	private closeCell(cell: NotebookCell): void {
