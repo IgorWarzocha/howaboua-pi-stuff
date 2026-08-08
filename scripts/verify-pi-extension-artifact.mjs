@@ -33,7 +33,7 @@ function run(command, commandArgs, options = {}) {
 		cwd: options.cwd,
 		encoding: "utf8",
 		stdio: options.capture ? "pipe" : "inherit",
-		env: process.env,
+		env: { ...process.env, ...options.env },
 	});
 	if (result.status !== 0) {
 		if (options.capture) {
@@ -126,7 +126,11 @@ function packPackage(packageRoot, tempRoot) {
 	const output = run(
 		"npm",
 		["pack", "--ignore-scripts", "--json", "--pack-destination", tempRoot, packageRoot],
-		{ cwd: repoRoot, capture: true },
+		{
+			cwd: repoRoot,
+			capture: true,
+			env: { npm_config_dry_run: "false", NPM_CONFIG_DRY_RUN: "false" },
+		},
 	);
 	const packed = JSON.parse(output);
 	const filename = Array.isArray(packed) && typeof packed[0]?.filename === "string"
@@ -156,6 +160,7 @@ function installRuntimeDependencies(packageRoot, isolatedRoot) {
 	run("npm", ["install", "--ignore-scripts", "--legacy-peer-deps", "--no-audit", "--no-fund", "--package-lock=false"], {
 		cwd: isolatedRoot,
 		capture: true,
+		env: { npm_config_dry_run: "false", NPM_CONFIG_DRY_RUN: "false" },
 	});
 }
 
