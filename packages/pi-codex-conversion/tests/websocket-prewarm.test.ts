@@ -79,7 +79,7 @@ test("prewarm refreshes only when its prompt or active tools change", async () =
 	}
 });
 
-test("aborted prewarm cleanup cannot clear a newer equivalent operation", async () => {
+test("stalled auth in an aborted prewarm cannot block a newer equivalent operation", async () => {
 	const authRequests = [
 		Promise.withResolvers<any>(),
 		Promise.withResolvers<any>(),
@@ -108,15 +108,61 @@ test("aborted prewarm cleanup cannot clear a newer equivalent operation", async 
 	runtime.resetTransport("equivalent-prewarm");
 	const current = runtime.startPrewarm(extensionContext, "Prompt", true)!;
 	await Promise.resolve();
-	assert.equal(authIndex, 1, "replacement must wait for the aborted prewarm to settle");
+	assert.equal(authIndex, 2, "replacement must not wait for non-abortable auth lookup");
+	assert.equal(runtime.startPrewarm(extensionContext, "Prompt", true), current);
 	authRequests[0]!.resolve({ ok: true, apiKey: "" });
 	await stale;
-	await Promise.resolve();
-	assert.equal(authIndex, 2);
 
 	assert.equal(runtime.startPrewarm(extensionContext, "Prompt", true), current);
 	authRequests[1]!.resolve({ ok: true, apiKey: "" });
 	await current;
+});
+
+test("replacement prewarm waits for aborted transport cleanup", async () => {
+	const transportStarted = Promise.withResolvers<void>();
+	const pendingMessage = Promise.withResolvers<ArrayBuffer>();
+	const restoreWebSocket = installScriptedWebSocket([
+		(socket) => {
+			transportStarted.resolve();
+			socket.emit("message", { data: { arrayBuffer: () => pendingMessage.promise } });
+		},
+	]);
+	try {
+		let authIndex = 0;
+		const runtime = createCodexExtensionRuntime({
+			getActiveTools: () => ["exec", "wait"],
+			getAllTools: () => codeModeTools,
+			getThinkingLevel: () => "low",
+			sendUserMessage: () => undefined,
+		} as never);
+		runtime.state.config = {
+			...DEFAULT_CODEX_CONVERSION_CONFIG,
+			beta: { ...DEFAULT_CODEX_CONVERSION_CONFIG.beta, codeMode: true },
+		};
+		const extensionContext = {
+			model,
+			modelRegistry: {
+				getApiKeyAndHeaders: async () => ({ ok: true as const, apiKey: authIndex++ === 0 ? apiKey : "" }),
+			},
+			sessionManager: { getSessionId: () => "transport-settlement" },
+		} as never;
+
+		const stale = runtime.startPrewarm(extensionContext, "Prompt A", true)!;
+		await transportStarted.promise;
+		assert.equal(ScriptedWebSocket.sentFrames.length, 1);
+		runtime.resetTransport("transport-settlement");
+		const current = runtime.startPrewarm(extensionContext, "Prompt B", true)!;
+		await Promise.resolve();
+		assert.equal(authIndex, 1, "replacement must wait while aborted transport is still settling");
+
+		pendingMessage.resolve(new TextEncoder().encode("{}").buffer);
+		await stale;
+		await Promise.resolve();
+		assert.equal(authIndex, 2);
+		await current;
+	} finally {
+		restoreWebSocket();
+	}
 });
 
 test("unfinished WebSocket prewarm cannot seed a continuation", async () => {

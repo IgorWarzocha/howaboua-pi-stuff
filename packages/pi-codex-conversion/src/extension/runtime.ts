@@ -77,6 +77,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 	});
 	let prewarmController: AbortController | undefined;
 	let prewarmPromise: Promise<CodexPrewarmResult> | undefined;
+	let prewarmTransportSettlement: Promise<void> | undefined;
 	let pendingPrewarmKey: string | undefined;
 	let prewarmedKey: string | undefined;
 	const voice = new CodexVoiceController(pi);
@@ -131,13 +132,13 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		const { model, config, executionMode, preparedSystemPrompt, tools, reasoning, key: prewarmKey } = plan;
 		if (prewarmedKey === prewarmKey) return undefined;
 		if (pendingPrewarmKey === prewarmKey) return prewarmPromise;
-		const previousPrewarm = prewarmPromise;
+		const previousTransportSettlement = prewarmTransportSettlement;
 		prewarmController?.abort();
 		const controller = new AbortController();
 		prewarmController = controller;
 		pendingPrewarmKey = prewarmKey;
 		const promise = (async () => {
-			if (previousPrewarm) await previousPrewarm.catch(() => undefined);
+			if (previousTransportSettlement) await previousTransportSettlement.catch(() => undefined);
 			if (controller.signal.aborted) return { status: "aborted" } as const;
 			const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
 			if (controller.signal.aborted) return { status: "aborted" } as const;
@@ -148,7 +149,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 			} as const;
 			const requestModel = auth.baseUrl ? { ...model, baseUrl: auth.baseUrl } : model;
 			try {
-				await prewarmOpenAICodexWebSocket(
+				const transportSettlement = prewarmOpenAICodexWebSocket(
 					requestModel,
 					{ systemPrompt: preparedSystemPrompt, messages, tools },
 					{
@@ -171,6 +172,12 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 						getDiagnostics: () => diagnostics.sink(),
 					},
 				);
+				prewarmTransportSettlement = transportSettlement;
+				try {
+					await transportSettlement;
+				} finally {
+					if (prewarmTransportSettlement === transportSettlement) prewarmTransportSettlement = undefined;
+				}
 			} catch (error) {
 				if (controller.signal.aborted) return { status: "aborted" } as const;
 				const failure = error instanceof Error ? error : new Error(String(error));

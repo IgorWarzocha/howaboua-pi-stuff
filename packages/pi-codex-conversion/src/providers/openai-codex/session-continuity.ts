@@ -2,8 +2,12 @@ import type { CanonicalHistoryDecision, ResponsesBody } from "./types.ts";
 import { responseInputsEqual } from "./websocket-continuation.ts";
 
 export type CanonicalSessionToken = {
-	globalGeneration: number;
-	sessionGeneration: number;
+	laneIdentity: symbol;
+	requestSequence: number;
+};
+
+type CanonicalSessionLane = {
+	identity: symbol;
 	requestSequence: number;
 };
 
@@ -16,9 +20,7 @@ type CanonicalSessionState = {
 };
 
 const canonicalSessions = new Map<string, CanonicalSessionState>();
-const sessionGenerations = new Map<string, number>();
-const sessionRequestSequences = new Map<string, number>();
-let globalGeneration = 0;
+const canonicalSessionLanes = new Map<string, CanonicalSessionLane>();
 
 function matchesLane(state: CanonicalSessionState, url: string, accountId: string, model: string): boolean {
 	return state.url === url && state.accountId === accountId && state.requestBody.model === model;
@@ -83,19 +85,22 @@ export function recordCanonicalSessionResponse(args: {
 
 export function captureCanonicalSessionToken(sessionId: string | undefined): CanonicalSessionToken | undefined {
 	if (!sessionId) return undefined;
-	const requestSequence = (sessionRequestSequences.get(sessionId) ?? 0) + 1;
-	sessionRequestSequences.set(sessionId, requestSequence);
+	let lane = canonicalSessionLanes.get(sessionId);
+	if (!lane) {
+		lane = { identity: Symbol(), requestSequence: 0 };
+		canonicalSessionLanes.set(sessionId, lane);
+	}
+	lane.requestSequence++;
 	return {
-		globalGeneration,
-		sessionGeneration: sessionGenerations.get(sessionId) ?? 0,
-		requestSequence,
+		laneIdentity: lane.identity,
+		requestSequence: lane.requestSequence,
 	};
 }
 
 function canonicalSessionTokenMatches(sessionId: string, token: CanonicalSessionToken): boolean {
-	return token.globalGeneration === globalGeneration
-		&& token.sessionGeneration === (sessionGenerations.get(sessionId) ?? 0)
-		&& token.requestSequence === (sessionRequestSequences.get(sessionId) ?? 0);
+	const lane = canonicalSessionLanes.get(sessionId);
+	return lane?.identity === token.laneIdentity
+		&& token.requestSequence === lane.requestSequence;
 }
 
 export function validateCanonicalSessionRequest(
@@ -147,12 +152,9 @@ export function canonicalCompactionRequestBody(
 export function clearCanonicalSessions(sessionId?: string): void {
 	if (sessionId) {
 		canonicalSessions.delete(sessionId);
-		sessionGenerations.set(sessionId, (sessionGenerations.get(sessionId) ?? 0) + 1);
-		sessionRequestSequences.delete(sessionId);
+		canonicalSessionLanes.delete(sessionId);
 		return;
 	}
 	canonicalSessions.clear();
-	sessionGenerations.clear();
-	sessionRequestSequences.clear();
-	globalGeneration++;
+	canonicalSessionLanes.clear();
 }
