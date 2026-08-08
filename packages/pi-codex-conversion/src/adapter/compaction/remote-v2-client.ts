@@ -78,6 +78,7 @@ async function runAttempt(options: ExecuteRemoteCompactionV2Options, streamSimpl
 		sessionId: options.sessionId,
 		...(options.signal ? { signal: options.signal } : {}),
 		...(options.transport ? { transport: options.transport } : {}),
+		...(options.runtime.provider === "openai-codex" ? { canonicalCompaction: true } : {}),
 		maxRetries: options.runtime.provider === "openai-codex" ? MAX_STREAM_RETRIES : 0,
 		...(typeof options.requestOptions.service_tier === "string" ? { serviceTier: options.requestOptions.service_tier as never } : {}),
 		...(options.requestOptions.text?.verbosity ? { textVerbosity: options.requestOptions.text.verbosity } : {}),

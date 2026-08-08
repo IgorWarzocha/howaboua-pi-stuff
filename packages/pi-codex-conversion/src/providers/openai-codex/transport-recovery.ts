@@ -27,6 +27,7 @@ import { isWebSocketSseFallbackActive, recordWebSocketSseFallback, validateWebSo
 import { isPermanentWebSocketError, isWebSocketMessageTooBigError, isWebSocketUnauthorizedError, isWebSocketUpgradeRequiredError } from "./websocket-connection.ts";
 import { processWebSocketStream } from "./websocket-stream.ts";
 import { withRemoteCompactionV2Feature } from "../openai-responses/compaction-v2-feature.ts";
+import { buildCanonicalCompactionRequest, recordCanonicalSessionResponse } from "./session-continuity.ts";
 
 export type CodexProviderRuntimeConfig = Pick<CodexConversionConfig, "openai" | "beta"> & Partial<Pick<CodexConversionConfig, "compaction">>;
 
@@ -199,7 +200,15 @@ export function createCodexTransportStream<TApi extends Api>(
 			}
 
 			const accountId = extractAccountId(apiKey);
-			const body = await deps.prepareRequestBody(model, context, effectiveOptions, responsesLite);
+			let body = await deps.prepareRequestBody(model, context, effectiveOptions, responsesLite);
+			if (effectiveOptions?.canonicalCompaction) {
+				body = buildCanonicalCompactionRequest(
+					effectiveOptions.sessionId,
+					resolveCodexWebSocketUrl(model.baseUrl),
+					accountId,
+					body,
+				) ?? body;
+			}
 			lane = diagnosticsLane(body);
 			deps.onPreparedPayload?.(body);
 			const websocketRequestId = effectiveOptions?.sessionId || createCodexRequestId();
@@ -372,6 +381,13 @@ export function createCodexTransportStream<TApi extends Api>(
 					assertSuccessfulCodexOutput(output);
 					recordUsage(diagnostics, lane, "sse", output);
 					for (const item of responseItems) effectiveOptions?.onOutputItemDone?.(item);
+					recordCanonicalSessionResponse({
+						sessionId: effectiveOptions?.sessionId,
+						url: resolveCodexWebSocketUrl(model.baseUrl),
+						accountId,
+						requestBody: body,
+						responseItems,
+					});
 					stream.push({ type: "done", reason: output.stopReason, message: output });
 					stream.end();
 					return;
@@ -425,4 +441,3 @@ export function createCodexTransportStream<TApi extends Api>(
 
 	return stream;
 }
-
