@@ -3,11 +3,11 @@ import { normalizeTimeoutMs } from "./sse.ts";
 import { buildCachedWebSocketRequestBody } from "./websocket-continuation.ts";
 import { acquireWebSocket, parseWebSocket, startWebSocketOutputOnFirstEvent } from "./websocket.ts";
 import { assertSuccessfulCodexOutput, assertSuccessfulCodexStatus, mapCodexEvents, processMappedCodexResponsesStream } from "./stream-events.ts";
-import type { CachedWebSocketRequestBodyResult, CodexDiagnosticsLane, CodexDiagnosticsSink, OpenAICodexStreamOptions, ResponsesBody } from "./types.ts";
+import type { CachedWebSocketRequestBodyResult, CanonicalHistoryDecision, CodexDiagnosticsLane, CodexDiagnosticsSink, OpenAICodexStreamOptions, ResponsesBody } from "./types.ts";
 import type { CodexTurnState } from "./turn-state.ts";
 import { DEFAULT_STREAM_IDLE_TIMEOUT_MS, DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS } from "./constants.ts";
 import { codexDiagnosticsFailure, noThrowCodexDiagnosticsSink } from "./diagnostic-failure.ts";
-import { recordCanonicalSessionResponse } from "./session-continuity.ts";
+import { recordCanonicalSessionResponse, type CanonicalSessionToken } from "./session-continuity.ts";
 
 export async function processWebSocketStream<TApi extends Api>(
 	url: string,
@@ -21,6 +21,11 @@ export async function processWebSocketStream<TApi extends Api>(
 	options: OpenAICodexStreamOptions | undefined,
 	turnState?: CodexTurnState,
 	diagnostics?: { lane: Exclude<CodexDiagnosticsLane, "prewarm">; attempt: number; record: CodexDiagnosticsSink } | undefined,
+	canonical?: {
+		reconstructedRequestBody: ResponsesBody;
+		token?: CanonicalSessionToken | undefined;
+		decision?: CanonicalHistoryDecision | undefined;
+	} | undefined,
 ): Promise<void> {
 	let streamStarted = false;
 	const idleTimeoutMs = normalizeTimeoutMs(options?.timeoutMs ?? DEFAULT_STREAM_IDLE_TIMEOUT_MS, "timeoutMs");
@@ -58,6 +63,7 @@ export async function processWebSocketStream<TApi extends Api>(
 				sentInputItems: requestBody.input.length,
 				socketReused: reused,
 				continuation: cachedRequest.decision,
+				...(canonical?.decision ? { canonicalHistory: canonical.decision } : {}),
 				previousResponseId: Boolean(requestBody.previous_response_id),
 			});
 		}
@@ -101,7 +107,9 @@ export async function processWebSocketStream<TApi extends Api>(
 					url,
 					accountId,
 					requestBody: fullBody,
+					reconstructedRequestBody: canonical?.reconstructedRequestBody,
 					responseItems,
+					token: canonical?.token,
 				});
 			}
 		}

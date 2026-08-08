@@ -2,6 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
+import type { CodexDiagnosticsEvent } from "../src/providers/openai-codex/types.ts";
+import {
+	canonicalCompactionPromptInput,
+	captureCanonicalSessionToken,
+	clearCanonicalSessions,
+	recordCanonicalSessionResponse,
+} from "../src/providers/openai-codex/session-continuity.ts";
 import { getActiveToolsInActiveOrder } from "../src/adapter/active-tools.ts";
 import { executeRemoteCompactionV2 } from "../src/adapter/compaction/remote-v2-client.ts";
 import { serializeMessagesToResponsesInput } from "../src/adapter/compaction/serializer.ts";
@@ -97,6 +104,116 @@ test("Code Mode continuation sends only the next user turn", async () => {
 	}
 });
 
+test("an ordinary turn exactly extends the provider baseline after its WebSocket dies", async () => {
+	const restoreWebSocket = installScriptedWebSocket([
+		[(socket) => {
+			textResponse("resp_1", "first")(socket);
+			socket.emit("close", { code: 1000, reason: "server retired connection" });
+		}],
+		[textResponse("resp_2", "second")],
+	]);
+	try {
+		const events: CodexDiagnosticsEvent[] = [];
+		const registered = createRegisteredCodexProvider({
+			codeMode: true,
+			getDiagnostics: () => (event) => events.push(event),
+		});
+		const options = streamOptions("ordinary-reconnect");
+		const firstUser = user("first user", 1);
+		const firstAssistant = doneMessage(await collectStream(registered.provider.streamSimple(
+			model as never,
+			context([firstUser]) as never,
+			options as never,
+		)));
+		const firstRequest = sentFrames()[0]!;
+
+		await collectStream(registered.provider.streamSimple(
+			model as never,
+			context([firstUser, firstAssistant as AgentMessage, user("second user", 2)]) as never,
+			options as never,
+		));
+
+		assert.equal(ScriptedWebSocket.opened, 2);
+		const secondRequest = sentFrames()[1]!;
+		assert.equal(secondRequest.previous_response_id, undefined);
+		assert.deepEqual(secondRequest.input?.slice(0, firstRequest.input?.length), firstRequest.input);
+		assert.deepEqual(secondRequest.input?.slice(-2), [
+			{
+				id: "msg_resp_1",
+				type: "message",
+				status: "completed",
+				content: [{ type: "output_text", annotations: [], logprobs: [], text: "first" }],
+				phase: "final_answer",
+				role: "assistant",
+				internal_chat_message_metadata_passthrough: { turn_id: "turn_resp_1" },
+			},
+			{ role: "user", content: [{ type: "input_text", text: "second user" }] },
+		]);
+		const secondRequestEvent = events.filter((event) => event.type === "request")[1];
+		assert.equal(secondRequestEvent?.type, "request");
+		assert.equal(secondRequestEvent?.canonicalHistory, "replayed");
+		assert.equal(secondRequestEvent?.continuation, "no_continuation");
+	} finally {
+		restoreWebSocket();
+	}
+});
+
+test("a tool-result turn exactly extends the provider baseline after its WebSocket dies", async () => {
+	const restoreWebSocket = installScriptedWebSocket([
+		[(socket) => {
+			customToolResponse("resp_tool")(socket);
+			socket.emit("close", { code: 1000, reason: "server retired connection" });
+		}],
+		[textResponse("resp_2", "second")],
+	]);
+	try {
+		const registered = createRegisteredCodexProvider({ codeMode: true });
+		const options = streamOptions("tool-reconnect");
+		const firstUser = user("first user", 1);
+		const toolCallAssistant = doneMessage(await collectStream(registered.provider.streamSimple(
+			model as never,
+			context([firstUser]) as never,
+			options as never,
+		)));
+		const toolCall = toolCallAssistant.content.find((item) => item.type === "toolCall");
+		assert.equal(toolCall?.type, "toolCall");
+		const toolResult = {
+			role: "toolResult",
+			toolCallId: toolCall!.id,
+			toolName: "exec",
+			content: [{ type: "text", text: "tool result" }],
+			isError: false,
+			timestamp: 2,
+		} as AgentMessage;
+		const firstRequest = sentFrames()[0]!;
+
+		await collectStream(registered.provider.streamSimple(
+			model as never,
+			context([firstUser, toolCallAssistant as AgentMessage, toolResult]) as never,
+			options as never,
+		));
+
+		assert.equal(ScriptedWebSocket.opened, 2);
+		const secondRequest = sentFrames()[1]!;
+		assert.equal(secondRequest.previous_response_id, undefined);
+		assert.deepEqual(secondRequest.input?.slice(0, firstRequest.input?.length), firstRequest.input);
+		assert.deepEqual(secondRequest.input?.slice(-2), [
+			{
+				id: "ctc_resp_tool",
+				type: "custom_tool_call",
+				status: "completed",
+				call_id: "call_resp_tool",
+				input: 'text("tool result")',
+				name: "exec",
+				internal_chat_message_metadata_passthrough: { turn_id: "turn_resp_tool" },
+			},
+			{ type: "custom_tool_call_output", call_id: "call_resp_tool", output: "tool result" },
+		]);
+	} finally {
+		restoreWebSocket();
+	}
+});
+
 test("V2 compaction reuses the active turn's WebSocket continuation", async () => {
 	const restoreWebSocket = installScriptedWebSocket([[
 		textResponse("resp_1", "first"),
@@ -170,12 +287,18 @@ test("V2 compaction exactly replays the provider baseline after its WebSocket di
 		const registered = createRegisteredCodexProvider({ codeMode: true });
 		const sessionId = "compaction-reconnect";
 		const firstUser = user("first user", 1);
-		await collectStream(registered.provider.streamSimple(
+		const firstAssistant = doneMessage(await collectStream(registered.provider.streamSimple(
 			model as never,
 			context([firstUser]) as never,
 			streamOptions(sessionId) as never,
-		));
+		)));
 		const firstRequest = sentFrames()[0]!;
+		const liveTail = user("live tail", 2);
+		const rebuiltInput = serializeMessagesToResponsesInput(model, [firstUser, firstAssistant as AgentMessage, liveTail], {
+			grammarToolInputProperties: CODE_MODE_EXEC_GRAMMAR_INPUTS,
+		});
+		const canonicalInput = canonicalCompactionPromptInput(sessionId, model.id, undefined, rebuiltInput);
+		assert.ok(canonicalInput);
 
 		const compactResult = await executeRemoteCompactionV2({
 			runtime: {
@@ -192,7 +315,8 @@ test("V2 compaction exactly replays the provider baseline after its WebSocket di
 				getRegisteredProviderConfig: () => ({ api: model.api, streamSimple: registered.provider.streamSimple }),
 			} as never,
 			context: context([], "Changed instructions", [] as never),
-			promptInput: serializeMessagesToResponsesInput(model, [user("incorrect rebuilt history", 2)]),
+			promptInput: canonicalInput as never,
+			promptInputSource: "canonical",
 			requestOptions: { reasoning: { effort: "high", summary: "auto" }, text: { verbosity: "high" } },
 			tokensBefore: 1_000,
 			sessionId,
@@ -207,7 +331,7 @@ test("V2 compaction exactly replays the provider baseline after its WebSocket di
 		const { input: _compactInput, client_metadata: _compactMetadata, ...compactionProperties } = compactionRequest;
 		assert.deepEqual(compactionProperties, firstProperties);
 		assert.deepEqual(compactionRequest.input?.slice(0, firstRequest.input?.length), firstRequest.input);
-		assert.deepEqual(compactionRequest.input?.slice(-2), [
+		assert.deepEqual(compactionRequest.input?.slice(-3), [
 			{
 				id: "msg_resp_1",
 				type: "message",
@@ -217,10 +341,28 @@ test("V2 compaction exactly replays the provider baseline after its WebSocket di
 				role: "assistant",
 				internal_chat_message_metadata_passthrough: { turn_id: "turn_resp_1" },
 			},
+			{ role: "user", content: [{ type: "input_text", text: "live tail" }] },
 			{ type: "compaction_trigger" },
 		]);
-		assert.doesNotMatch(JSON.stringify(compactionRequest.input), /incorrect rebuilt history|Changed instructions/);
+		assert.doesNotMatch(JSON.stringify(compactionRequest.input), /Changed instructions/);
 	} finally {
 		restoreWebSocket();
 	}
+});
+
+test("an explicit reset rejects a late canonical response from the old lane", () => {
+	const sessionId = "reset-generation";
+	const token = captureCanonicalSessionToken(sessionId);
+	clearCanonicalSessions(sessionId);
+	recordCanonicalSessionResponse({
+		sessionId,
+		url: "wss://example.test/responses",
+		accountId: "account",
+		requestBody: { model: "model", input: [{ role: "user", content: "stale" }] } as never,
+		responseItems: [{ type: "message", role: "assistant", content: [] }],
+		token,
+	});
+
+	assert.equal(canonicalCompactionPromptInput(sessionId, "model"), undefined);
+	clearCanonicalSessions(sessionId);
 });

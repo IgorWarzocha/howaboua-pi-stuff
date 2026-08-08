@@ -1,3 +1,3 @@
 - `responses-lite-model.ts` is the pure model capability gate; `responses-lite.ts` owns request transforms and lazily loads image processing only for inline images.
 - `transport-recovery.ts` owns live WebSocket/SSE selection, retry budgets, fallback, diagnostics, and settlement; the provider facade retains request preparation, prewarm, and registration.
-- `session-continuity.ts` owns the completed provider request/raw-output baseline across physical socket loss; native compaction consumes it, and only explicit transport resets clear it.
+- `session-continuity.ts` owns the completed provider request/raw-output baseline across physical socket loss; ordinary turns and native compaction consume it, and only explicit transport resets clear it.
