@@ -34,6 +34,7 @@ export async function ensureNotebookDenoBinary(
 		arch: overrides.arch ?? process.arch,
 		agentDir: overrides.agentDir,
 	};
+	const asset = resolveDenoAsset(runtime.platform, runtime.arch);
 	const destination = join(
 		runtime.agentDir,
 		"cache",
@@ -41,13 +42,12 @@ export async function ensureNotebookDenoBinary(
 		"notebook-mode",
 		`deno-${DENO_VERSION}`,
 		`${runtime.platform}-${runtime.arch}`,
-		"deno",
+		asset.executable,
 	);
-	const [, , , binarySha256, binaryBytes] = resolveDenoAsset(runtime.platform, runtime.arch);
-	if (validDenoBinary(destination, binarySha256, binaryBytes)) return destination;
+	if (validDenoBinary(destination, asset.binarySha256, asset.binaryBytes)) return destination;
 	rmSync(destination, { force: true });
 	await installDeno(destination, runtime, signal);
-	if (!validDenoBinary(destination, binarySha256, binaryBytes)) {
+	if (!validDenoBinary(destination, asset.binarySha256, asset.binaryBytes)) {
 		throw new Error(`Deno ${DENO_VERSION} cache validation failed after installation`);
 	}
 	return destination;
@@ -58,9 +58,9 @@ async function installDeno(
 	runtime: DenoBinaryRuntime,
 	signal?: AbortSignal,
 ): Promise<void> {
-	const [asset, expectedSha256, expectedArchiveBytes, expectedBinarySha256, expectedBinaryBytes] = resolveDenoAsset(runtime.platform, runtime.arch);
+	const asset = resolveDenoAsset(runtime.platform, runtime.arch);
 	const destination = resolve(destinationInput);
-	if (basename(destination) !== "deno") throw new Error("Deno destination must end with deno");
+	if (basename(destination) !== asset.executable) throw new Error(`Deno destination must end with ${asset.executable}`);
 	mkdirSync(resolve(destination, ".."), { recursive: true });
 	const lockPath = `${destination}.lock`;
 	const lock = await acquireDirectoryLock(lockPath, {
@@ -73,7 +73,7 @@ async function installDeno(
 	if (!lock) return;
 	const staged = `${destination}.${process.pid}.tmp`;
 	try {
-		const url = denoAssetUrl(asset);
+			const url = denoAssetUrl(asset.archive);
 		let bytes: Buffer;
 		try {
 			const timeout = AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS);
@@ -88,7 +88,7 @@ async function installDeno(
 					...(dispatcher ? { dispatcher } : {}),
 				} as RequestInit & { dispatcher?: InstanceType<typeof ProxyAgent> });
 				if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-				bytes = await readPinnedResponse(response, expectedArchiveBytes);
+				bytes = await readPinnedResponse(response, asset.archiveBytes);
 			} finally {
 				await dispatcher?.close();
 			}
@@ -96,18 +96,18 @@ async function installDeno(
 			throw new Error(`failed to download pinned Deno ${DENO_VERSION}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
 		}
 		const actualSha256 = createHash("sha256").update(bytes).digest("hex");
-		if (actualSha256 !== expectedSha256) throw new Error(`checksum mismatch for ${asset}`);
+		if (actualSha256 !== asset.archiveSha256) throw new Error(`checksum mismatch for ${asset.archive}`);
 		const { Open } = await import("unzipper");
 		const archive = await Open.buffer(bytes);
-		const entry = archive.files.find((candidate) => candidate.path === "deno" && candidate.type !== "Directory");
-		if (!entry) throw new Error("pinned Deno archive does not contain the deno executable");
+		const entry = archive.files.find((candidate) => candidate.path === asset.executable && candidate.type !== "Directory");
+		if (!entry) throw new Error(`pinned Deno archive does not contain ${asset.executable}`);
 		const binary = Buffer.from(await entry.buffer());
 		signal?.throwIfAborted();
-		if (binary.length !== expectedBinaryBytes || createHash("sha256").update(binary).digest("hex") !== expectedBinarySha256) {
+		if (binary.length !== asset.binaryBytes || createHash("sha256").update(binary).digest("hex") !== asset.binarySha256) {
 			throw new Error("extracted Deno binary checksum mismatch");
 		}
 		writeFileSync(staged, binary, { mode: 0o755 });
-		chmodSync(staged, 0o755);
+		if (runtime.platform !== "win32") chmodSync(staged, 0o755);
 		renameSync(staged, destination);
 	} finally {
 		rmSync(staged, { force: true });
