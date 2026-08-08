@@ -1,0 +1,49 @@
+name: Notebook platform smoke
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/notebook-platform-smoke.yml'
+      - 'bun.lock'
+      - 'packages/pi-codex-conversion/package.json'
+      - 'packages/pi-codex-conversion/scripts/smoke-notebook-platform.ts'
+      - 'packages/pi-codex-conversion/src/tools/notebook-mode/**'
+  push:
+    branches-ignore: [main]
+    paths:
+      - '.github/workflows/notebook-platform-smoke.yml'
+      - 'bun.lock'
+      - 'packages/pi-codex-conversion/package.json'
+      - 'packages/pi-codex-conversion/scripts/smoke-notebook-platform.ts'
+      - 'packages/pi-codex-conversion/src/tools/notebook-mode/**'
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: ${{ matrix.platform_arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform_arch: linux-x64
+          - os: ubuntu-24.04-arm
+            platform_arch: linux-arm64
+          - os: macos-15-intel
+            platform_arch: darwin-x64
+          - os: macos-latest
+            platform_arch: darwin-arm64
+          - os: windows-latest
+            platform_arch: win32-x64
+          - os: windows-11-arm
+            platform_arch: win32-arm64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun x tsx packages/pi-codex-conversion/scripts/smoke-notebook-platform.ts

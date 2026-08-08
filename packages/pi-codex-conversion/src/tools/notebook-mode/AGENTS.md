@@ -1,5 +1,6 @@
 - Keep this optional runtime cold: import it only after Notebook Code Mode is selected; download Deno only on first execution/prepare.
-- `client.ts` composes execution; `cell.ts` owns per-cell state/output; `session-startup.ts` owns startup rollback; `checkpoint-manager.ts` owns checkpoint scheduling
+- `client.ts` only composes the public runtime; `execution-runtime.ts` owns active cells, bridge delegation, and result observation; `session-runtime.ts` owns kernel/session/checkpoint state
+- `cell.ts` owns per-cell state/output; `session-startup.ts` owns startup rollback; `checkpoint-manager.ts` owns checkpoint scheduling
 - `bridge-server.ts` owns HTTP lifecycle, `bridge-protocol.ts` validates wire data, and `kernel-runtime.ts` owns injected Deno source
 - `jupyter-kernel.ts` owns kernel messaging/process lifecycle; connection allocation, output interpretation, and wire encoding stay in their named modules
 - `checkpoint.ts` owns host persistence and validation; checkpoint format and injected capture/restore source stay separate; `journal.ts` owns `.ipynb` history
@@ -10,4 +11,4 @@
 - `profile-lifecycle.ts` owns named profile actions; `profile-state.ts` owns snapshot I/O; schema, validation, and paths stay in `profile-state-format.ts`; profiles load by value and never replay cells
 - `directory-lock.ts` owns cross-process leases; release only the observed owner file and never recursively delete a lock path.
 - Existing V8 Code Mode remains under `tools/code-mode/`; share its public tool, rendering, nested-tool, and output contracts without changing the vendored host.
-- Linux x64 is the only supported prototype platform. Add platforms only with pinned official artifacts and verified checksums.
+- Notebook Deno targets Linux, macOS, and Windows on x64/arm64; every archive and extracted executable stays version-, size-, and checksum-pinned.
