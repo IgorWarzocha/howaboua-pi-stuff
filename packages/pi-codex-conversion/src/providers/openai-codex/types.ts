@@ -46,9 +46,9 @@ export type CanonicalHistoryDecision =
 	| "compaction"
 	| "identity_mismatch"
 	| "input_shorter_than_baseline"
-	| "replayed"
 	| "request_prefix_mismatch"
-	| "response_prefix_mismatch";
+	| "response_prefix_mismatch"
+	| "validated";
 
 export type CodexDiagnosticsLane = "response" | "compaction" | "prewarm";
 export type CodexDiagnosticsTransport = "websocket" | "sse";

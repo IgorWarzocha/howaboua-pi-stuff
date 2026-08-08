@@ -57,7 +57,7 @@ function replayCanonicalInput(
 			...structuredClone(materializedInput(state)),
 			...structuredClone(preparedInput.slice(reconstructedResponseEnd)),
 		],
-		decision: "replayed",
+		decision: "validated",
 	};
 }
 
@@ -98,28 +98,21 @@ function canonicalSessionTokenMatches(sessionId: string, token: CanonicalSession
 		&& token.requestSequence === (sessionRequestSequences.get(sessionId) ?? 0);
 }
 
-export function buildCanonicalSessionRequest(
+export function validateCanonicalSessionRequest(
 	sessionId: string | undefined,
 	url: string,
 	accountId: string,
 	preparedBody: ResponsesBody,
-): { body: ResponsesBody; decision?: CanonicalHistoryDecision | undefined } {
-	if (!sessionId) return { body: preparedBody };
+): CanonicalHistoryDecision | undefined {
+	if (!sessionId) return undefined;
 	const state = canonicalSessions.get(sessionId);
-	if (!state) return { body: preparedBody };
+	if (!state) return undefined;
 	if (!matchesLane(state, url, accountId, preparedBody.model)) {
-		return { body: preparedBody, decision: "identity_mismatch" };
+		return "identity_mismatch";
 	}
 
 	const replay = replayCanonicalInput(state, preparedBody.input);
-	if (!replay.input) return { body: preparedBody, decision: replay.decision };
-	return {
-		body: {
-			...preparedBody,
-			input: replay.input,
-		},
-		decision: replay.decision,
-	};
+	return replay.decision;
 }
 
 export function canonicalCompactionPromptInput(
