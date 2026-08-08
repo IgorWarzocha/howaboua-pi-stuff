@@ -27,7 +27,7 @@ import { isWebSocketSseFallbackActive, recordWebSocketSseFallback, validateWebSo
 import { isPermanentWebSocketError, isWebSocketMessageTooBigError, isWebSocketUnauthorizedError, isWebSocketUpgradeRequiredError } from "./websocket-connection.ts";
 import { processWebSocketStream } from "./websocket-stream.ts";
 import { withRemoteCompactionV2Feature } from "../openai-responses/compaction-v2-feature.ts";
-import { buildCanonicalSessionRequest, captureCanonicalSessionToken, recordCanonicalSessionResponse } from "./session-continuity.ts";
+import { captureCanonicalSessionToken, recordCanonicalSessionResponse, validateCanonicalSessionRequest } from "./session-continuity.ts";
 
 export type CodexProviderRuntimeConfig = Pick<CodexConversionConfig, "openai" | "beta"> & Partial<Pick<CodexConversionConfig, "compaction">>;
 
@@ -202,20 +202,15 @@ export function createCodexTransportStream<TApi extends Api>(
 			const accountId = extractAccountId(apiKey);
 			const canonicalSessionToken = captureCanonicalSessionToken(effectiveOptions?.sessionId);
 			const reconstructedBody = await deps.prepareRequestBody(model, context, effectiveOptions, responsesLite);
-			let body = reconstructedBody;
-			let canonicalHistory: CanonicalHistoryDecision | undefined;
-			if (effectiveOptions?.canonicalCompaction) {
-				canonicalHistory = "compaction";
-			} else {
-				const canonicalRequest = buildCanonicalSessionRequest(
+			const body = reconstructedBody;
+			const canonicalHistory: CanonicalHistoryDecision | undefined = effectiveOptions?.canonicalCompaction
+				? "compaction"
+				: validateCanonicalSessionRequest(
 					effectiveOptions?.sessionId,
 					resolveCodexWebSocketUrl(model.baseUrl),
 					accountId,
 					body,
 				);
-				body = canonicalRequest.body;
-				canonicalHistory = canonicalRequest.decision;
-			}
 			lane = diagnosticsLane(body);
 			deps.onPreparedPayload?.(body);
 			const websocketRequestId = effectiveOptions?.sessionId || createCodexRequestId();

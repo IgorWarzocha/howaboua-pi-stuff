@@ -104,7 +104,7 @@ test("Code Mode continuation sends only the next user turn", async () => {
 	}
 });
 
-test("an ordinary turn exactly extends the provider baseline after its WebSocket dies", async () => {
+test("an ordinary reconnect sends validated Pi history for global prompt caching", async () => {
 	const restoreWebSocket = installScriptedWebSocket([
 		[(socket) => {
 			textResponse("resp_1", "first")(socket);
@@ -142,23 +142,22 @@ test("an ordinary turn exactly extends the provider baseline after its WebSocket
 				id: "msg_resp_1",
 				type: "message",
 				status: "completed",
-				content: [{ type: "output_text", annotations: [], logprobs: [], text: "first" }],
+				content: [{ type: "output_text", annotations: [], text: "first" }],
 				phase: "final_answer",
 				role: "assistant",
-				internal_chat_message_metadata_passthrough: { turn_id: "turn_resp_1" },
 			},
 			{ role: "user", content: [{ type: "input_text", text: "second user" }] },
 		]);
 		const secondRequestEvent = events.filter((event) => event.type === "request")[1];
 		assert.equal(secondRequestEvent?.type, "request");
-		assert.equal(secondRequestEvent?.canonicalHistory, "replayed");
+		assert.equal(secondRequestEvent?.canonicalHistory, "validated");
 		assert.equal(secondRequestEvent?.continuation, "no_continuation");
 	} finally {
 		restoreWebSocket();
 	}
 });
 
-test("a tool-result turn exactly extends the provider baseline after its WebSocket dies", async () => {
+test("a tool-result reconnect sends validated Pi history for global prompt caching", async () => {
 	const restoreWebSocket = installScriptedWebSocket([
 		[(socket) => {
 			customToolResponse("resp_tool")(socket);
@@ -201,11 +200,9 @@ test("a tool-result turn exactly extends the provider baseline after its WebSock
 			{
 				id: "ctc_resp_tool",
 				type: "custom_tool_call",
-				status: "completed",
 				call_id: "call_resp_tool",
 				input: 'text("tool result")',
 				name: "exec",
-				internal_chat_message_metadata_passthrough: { turn_id: "turn_resp_tool" },
 			},
 			{ type: "custom_tool_call_output", call_id: "call_resp_tool", output: "tool result" },
 		]);
