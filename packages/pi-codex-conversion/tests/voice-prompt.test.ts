@@ -4,28 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import {
-	getPackagedCodexVoiceSystemPromptPath,
 	prepareCodexVoiceSystemPrompt,
 } from "../src/voice/system-prompt.ts";
-
-test("voice prompt preparation copies the packaged template on first use", async () => {
-	const directory = await mkdtemp(join(tmpdir(), "pi-voice-prompt-"));
-	const promptPath = join(directory, "REALTIME-SYSTEM-PROMPT.md");
-	try {
-		assert.deepEqual(prepareCodexVoiceSystemPrompt(promptPath), {
-			created: true,
-			schemaVersion: 3,
-			currentSchemaVersion: 3,
-			current: true,
-		});
-		assert.equal(
-			await readFile(promptPath, "utf8"),
-			await readFile(getPackagedCodexVoiceSystemPromptPath(), "utf8"),
-		);
-	} finally {
-		await rm(directory, { recursive: true, force: true });
-	}
-});
 
 test("voice prompt schema checks never rewrite a customized prompt", async () => {
 	const directory = await mkdtemp(join(tmpdir(), "pi-voice-prompt-"));

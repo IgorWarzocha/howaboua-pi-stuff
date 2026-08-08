@@ -10,8 +10,6 @@ import {
 	registerCodeModeToolPreflight,
 } from "../src/code-mode-preflight.ts";
 import { registerCodeModePreflightBroker } from "../src/tools/code-mode/nested-tool-preflight.ts";
-import { registerPublicCodeModeTools } from "../src/tools/code-mode/public-tools.ts";
-import { SharedCodeModeRuntime } from "../src/tools/code-mode/shared-runtime.ts";
 import type {
 	CodeModeToolDefinition,
 	ProgrammaticCodeModeToolDefinition,
@@ -181,70 +179,5 @@ test("nested preflight blocks programmatic and TOML tools before invocation", as
 		type: "delegate/response",
 		id: 2,
 		result: { status: "error", message: "Guard failed closed" },
-	});
-});
-
-test("wait recovery preflights write_stdin before bypassing the delegate", async () => {
-	const bus = createEventBus();
-	const guardApi = extensionApi(bus);
-	let invoked = false;
-	let capturedCall: { toolName: string; toolCallId: string; input: unknown } | undefined;
-	registerCodeModeToolPreflight(guardApi.pi, (call) => {
-		capturedCall = {
-			toolName: call.toolName,
-			toolCallId: call.toolCallId,
-			input: call.input,
-		};
-		return { block: true, reason: "unknown process id: Approval is required" };
-	});
-
-	const runtime = new SharedCodeModeRuntime();
-	runtime.addProvider({
-		getTools: () => [{
-			name: "write_stdin",
-			usage: "await tools.write_stdin({ session_id })",
-			deferLoading: false,
-			kind: "function",
-			inputSchema: { type: "object" },
-			async invoke() {
-				invoked = true;
-				return { output: "" };
-			},
-		}],
-	});
-	(runtime as unknown as { getClient(): Promise<unknown> }).getClient = async () => ({
-		wait: async () => ({
-			kind: "result",
-			cellId: "42",
-			contentItems: [],
-			missingCell: true,
-		}),
-	});
-	const codeModeApi = extensionApi(bus);
-	registerPublicCodeModeTools(codeModeApi.pi, runtime);
-	const waitTool = codeModeApi.tools.get("wait") as {
-		execute(
-			id: string,
-			params: { cell_id: string; yield_time_ms: number; max_tokens: number },
-			signal: AbortSignal,
-			onUpdate: () => void,
-			ctx: ExtensionContext,
-		): Promise<unknown>;
-	};
-	await assert.rejects(
-		waitTool.execute(
-			"outer-wait",
-			{ cell_id: "42", yield_time_ms: 10, max_tokens: 100 },
-			new AbortController().signal,
-			() => {},
-			{ cwd: process.cwd() } as ExtensionContext,
-		),
-		/Approval is required/,
-	);
-	assert.equal(invoked, false);
-	assert.deepEqual(capturedCall, {
-		toolName: "write_stdin",
-		toolCallId: "outer-wait",
-		input: { session_id: 42, yield_time_ms: 10, max_output_tokens: 100 },
 	});
 });

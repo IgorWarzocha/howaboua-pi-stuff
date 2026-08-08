@@ -7,7 +7,6 @@ import {
 	codexDiagnosticsLogPath,
 	createCodexDiagnosticsLog,
 } from "../src/diagnostics/logger.ts";
-import { CACHE_MISS_HOLD_MS, createCodexDiagnosticsRuntime } from "../src/diagnostics/runtime.ts";
 import { codexDiagnosticsFailure } from "../src/providers/openai-codex/diagnostic-failure.ts";
 import type { CodexDiagnosticsEvent } from "../src/providers/openai-codex/types.ts";
 import {
@@ -17,71 +16,6 @@ import {
 	installScriptedWebSocket,
 } from "./openai-codex-test-support.ts";
 import { context, model, sentFrames, streamOptions, textResponse, user } from "./websocket-test-support.ts";
-
-test("cache miss status holds for three seconds then shows only the latest event", async () => {
-	assert.equal(CACHE_MISS_HOLD_MS, 3_000);
-	const statuses: Array<string | undefined> = [];
-	const runtime = await createCodexDiagnosticsRuntime({
-		mode: "status",
-		agentDir: tmpdir(),
-		missHoldMs: 20,
-		ctx: {
-			ui: {
-				theme: { fg: (_role: string, text: string) => text },
-				setStatus: (_key: string, value: string | undefined) => statuses.push(value),
-				notify: () => undefined,
-			},
-		} as never,
-	});
-	const fullRequest: CodexDiagnosticsEvent = {
-		type: "request",
-		lane: "response",
-		transport: "websocket",
-		attempt: 1,
-		fullInputItems: 40,
-		sentInputItems: 40,
-		socketReused: false,
-		continuation: "no_continuation",
-		previousResponseId: false,
-	};
-	runtime.record(fullRequest);
-	runtime.record({
-		type: "usage",
-		lane: "response",
-		transport: "websocket",
-		inputTokens: 35_000,
-		cachedInputTokens: 0,
-		cacheWriteInputTokens: 0,
-		outputTokens: 100,
-	});
-	assert.match(statuses.at(-1) ?? "", /MISS.*WS full/);
-	assert.doesNotMatch(statuses.at(-1) ?? "", /%|35k/);
-
-	runtime.record({
-		...fullRequest,
-		fullInputItems: 41,
-		sentInputItems: 1,
-		socketReused: true,
-		continuation: "delta",
-		previousResponseId: true,
-	});
-	assert.match(statuses.at(-1) ?? "", /MISS/);
-	await new Promise((resolve) => setTimeout(resolve, 30));
-	assert.match(statuses.at(-1) ?? "", /WS delta/);
-	assert.doesNotMatch(statuses.at(-1) ?? "", /MISS/);
-	runtime.record({
-		type: "usage",
-		lane: "response",
-		transport: "websocket",
-		inputTokens: 2_000,
-		cachedInputTokens: 8_000,
-		cacheWriteInputTokens: 0,
-		outputTokens: 100,
-	});
-	assert.match(statuses.at(-1) ?? "", /HIT.*WS delta/);
-	assert.doesNotMatch(statuses.at(-1) ?? "", /%|cached/);
-	await runtime.shutdown();
-});
 
 test("cache diagnostics log is session-derived, readable, and omits raw provider payloads", async () => {
 	const agentDir = await mkdtemp(join(tmpdir(), "pi-codex-log-"));

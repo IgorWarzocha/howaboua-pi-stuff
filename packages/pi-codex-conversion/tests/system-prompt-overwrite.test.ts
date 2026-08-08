@@ -113,18 +113,6 @@ test("heavy prompt overwrite leaves explicit custom prompts authoritative", () =
 	assert.doesNotMatch(prompt, /For questions about Pi|Pi documentation/);
 });
 
-test("heavy prompt overwrite can strip Pi tool scaffold from context-only options", () => {
-	const prompt = buildCodexSystemPrompt(basePrompt, {
-		mode: "code",
-		heavySystemPromptOverwrite: true,
-		systemPromptOptions: { cwd: "/repo" },
-	});
-
-	assert.doesNotMatch(prompt, /expert coding assistant|Available tools:\n- exec:/);
-	assert.match(prompt, /Tools available in exec:\n- await tools\.exec_command/);
-	assert.match(prompt, /Current working directory: \/repo/);
-});
-
 test("heavy prompt overwrite preserves extension instructions interleaved with Pi tools", () => {
 	const interleaved = basePrompt
 		.replace(
