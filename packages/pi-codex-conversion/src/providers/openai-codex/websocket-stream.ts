@@ -7,6 +7,7 @@ import type { CachedWebSocketRequestBodyResult, CodexDiagnosticsLane, CodexDiagn
 import type { CodexTurnState } from "./turn-state.ts";
 import { DEFAULT_STREAM_IDLE_TIMEOUT_MS, DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS } from "./constants.ts";
 import { codexDiagnosticsFailure, noThrowCodexDiagnosticsSink } from "./diagnostic-failure.ts";
+import { recordCanonicalSessionResponse } from "./session-continuity.ts";
 
 export async function processWebSocketStream<TApi extends Api>(
 	url: string,
@@ -90,6 +91,15 @@ export async function processWebSocketStream<TApi extends Api>(
 					lastResponseId: output.responseId,
 					lastResponseItems: responseItems,
 				};
+			}
+			if (entry) {
+				recordCanonicalSessionResponse({
+					sessionId: options?.sessionId,
+					url,
+					accountId,
+					requestBody: fullBody,
+					responseItems,
+				});
 			}
 		}
 		releaseOnce({ keep: keepConnection });

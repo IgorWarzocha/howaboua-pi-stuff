@@ -157,3 +157,70 @@ test("V2 compaction reuses the active turn's WebSocket continuation", async () =
 		restoreWebSocket();
 	}
 });
+
+test("V2 compaction exactly replays the provider baseline after its WebSocket dies", async () => {
+	const restoreWebSocket = installScriptedWebSocket([
+		[(socket) => {
+			textResponse("resp_1", "first")(socket);
+			socket.emit("close", { code: 1000, reason: "server retired connection" });
+		}],
+		[compactionResponse("resp_compact")],
+	]);
+	try {
+		const registered = createRegisteredCodexProvider({ codeMode: true });
+		const sessionId = "compaction-reconnect";
+		const firstUser = user("first user", 1);
+		await collectStream(registered.provider.streamSimple(
+			model as never,
+			context([firstUser]) as never,
+			streamOptions(sessionId) as never,
+		));
+		const firstRequest = sentFrames()[0]!;
+
+		const compactResult = await executeRemoteCompactionV2({
+			runtime: {
+				provider: model.provider,
+				api: model.api,
+				apiFamily: model.api,
+				model: model.id,
+				baseUrl: model.baseUrl!,
+				apiKey,
+				headers: {},
+				currentModel: model,
+			},
+			modelRegistry: {
+				getRegisteredProviderConfig: () => ({ api: model.api, streamSimple: registered.provider.streamSimple }),
+			} as never,
+			context: context([], "Changed instructions", [] as never),
+			promptInput: serializeMessagesToResponsesInput(model, [user("incorrect rebuilt history", 2)]),
+			requestOptions: { reasoning: { effort: "high", summary: "auto" }, text: { verbosity: "high" } },
+			tokensBefore: 1_000,
+			sessionId,
+			retryDelayMs: 0,
+		});
+
+		assert.equal(compactResult.ok, true);
+		assert.equal(ScriptedWebSocket.opened, 2);
+		const compactionRequest = sentFrames()[1]!;
+		assert.equal(compactionRequest.previous_response_id, undefined);
+		const { input: _firstInput, client_metadata: _firstMetadata, ...firstProperties } = firstRequest;
+		const { input: _compactInput, client_metadata: _compactMetadata, ...compactionProperties } = compactionRequest;
+		assert.deepEqual(compactionProperties, firstProperties);
+		assert.deepEqual(compactionRequest.input?.slice(0, firstRequest.input?.length), firstRequest.input);
+		assert.deepEqual(compactionRequest.input?.slice(-2), [
+			{
+				id: "msg_resp_1",
+				type: "message",
+				status: "completed",
+				content: [{ type: "output_text", annotations: [], logprobs: [], text: "first" }],
+				phase: "final_answer",
+				role: "assistant",
+				internal_chat_message_metadata_passthrough: { turn_id: "turn_resp_1" },
+			},
+			{ type: "compaction_trigger" },
+		]);
+		assert.doesNotMatch(JSON.stringify(compactionRequest.input), /incorrect rebuilt history|Changed instructions/);
+	} finally {
+		restoreWebSocket();
+	}
+});

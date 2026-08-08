@@ -127,11 +127,14 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		const { model, config, preparedSystemPrompt, tools, reasoning, key: prewarmKey } = plan;
 		if (prewarmedKey === prewarmKey) return undefined;
 		if (pendingPrewarmKey === prewarmKey) return prewarmPromise;
+		const previousPrewarm = prewarmPromise;
 		prewarmController?.abort();
 		const controller = new AbortController();
 		prewarmController = controller;
 		pendingPrewarmKey = prewarmKey;
 		const promise = (async () => {
+			if (previousPrewarm) await previousPrewarm.catch(() => undefined);
+			if (controller.signal.aborted) return { status: "aborted" } as const;
 			const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
 			if (controller.signal.aborted) return { status: "aborted" } as const;
 			if (!auth.ok) return { status: "failed", error: new Error(auth.error) } as const;
@@ -232,7 +235,6 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		resetTransport(sessionId) {
 			prewarmController?.abort();
 			prewarmController = undefined;
-			prewarmPromise = undefined;
 			pendingPrewarmKey = undefined;
 			prewarmedKey = undefined;
 			state.codexTurnState.reset();

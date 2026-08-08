@@ -18,6 +18,8 @@ import { executeRemoteCompactionV2 } from "./remote-v2-client.ts";
 import { buildRemoteCompactionV2Window } from "./remote-v2-history.ts";
 import { CODE_MODE_EXEC_GRAMMAR_INPUTS } from "../../tools/code-mode/exec-contract.ts";
 import { getActiveToolsInActiveOrder } from "../active-tools.ts";
+import { canonicalCompactionPromptInput } from "../../providers/openai-codex/session-continuity.ts";
+import { extractAccountId, resolveCodexWebSocketUrl } from "../../providers/openai-codex/headers.ts";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === "object" && !Array.isArray(value);
@@ -227,7 +229,16 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 		ctx.ui.notify("OpenAI native compaction could not clone the previous compacted window; Pi compaction was not run.", "error");
 		return { cancel: true };
 	}
-	const { input, compactedKeptWindow } = builtInput;
+	const canonicalInput = runtime.provider === "openai-codex" && runtime.apiKey
+		? canonicalCompactionPromptInput(ctx.sessionManager.getSessionId(), runtime.model, {
+			url: resolveCodexWebSocketUrl(runtime.baseUrl),
+			accountId: extractAccountId(runtime.apiKey),
+		})
+		: undefined;
+	const input = canonicalInput && canonicalInput.every(isRecord)
+		? canonicalInput as ResponsesInputItem[]
+		: builtInput.input;
+	const { compactedKeptWindow } = builtInput;
 
 	if (input.length === 0) {
 		ctx.ui.notify("OpenAI native compaction had no serializable conversation items; Pi compaction was not run.", "error");

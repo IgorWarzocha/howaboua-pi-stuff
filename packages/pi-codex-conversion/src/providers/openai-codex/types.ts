@@ -16,8 +16,6 @@ export interface WebSocketConstructorLike {
 export interface SessionWebSocketCacheEntry {
 	socket: WebSocketLike;
 	busy: boolean;
-	createdAt: number;
-	idleTimer?: ReturnType<typeof setTimeout> | undefined;
 	continuation?: CachedWebSocketContinuationState | undefined;
 }
 
@@ -135,6 +133,7 @@ export type OpenAICodexStreamOptions = CodexProviderStreamOptions & {
 	onOutputItemDone?: ((item: unknown) => void) | undefined;
 	websocketConnectTimeoutMs?: number | undefined;
 	env?: ProviderEnv | undefined;
+	canonicalCompaction?: boolean | undefined;
 };
 
 export interface ResponsesBody {
