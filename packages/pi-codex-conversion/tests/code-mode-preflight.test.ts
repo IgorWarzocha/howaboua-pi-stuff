@@ -13,6 +13,7 @@ import { registerCodeModePreflightBroker } from "../src/tools/code-mode/nested-t
 import type {
 	CodeModeToolDefinition,
 	ProgrammaticCodeModeToolDefinition,
+	ToolExecutionContext,
 } from "../src/tools/code-mode/types.ts";
 
 function extensionApi(bus = createEventBus()) {
@@ -110,7 +111,7 @@ test("Code Mode preflight broker survives extension load order and reload", asyn
 	assert.notEqual(firstInput, lateInput);
 });
 
-test("nested preflight blocks programmatic and TOML tools before invocation", async () => {
+test("nested preflight blocks or cancels tools before invocation", async () => {
 	const waiters: Array<(value: unknown) => void> = [];
 	const runtime = new CodeModeDelegateRuntime((message) => {
 		waiters.shift()?.(message);
@@ -136,7 +137,7 @@ test("nested preflight blocks programmatic and TOML tools before invocation", as
 		sourcePath: "/tmp/custom_shell.toml",
 	};
 	let preflightCalls = 0;
-	const context = {
+	const context: ToolExecutionContext = {
 		cwd: process.cwd(),
 		extensionContext: {} as ExtensionContext,
 		preflight: async () => {
@@ -180,4 +181,15 @@ test("nested preflight blocks programmatic and TOML tools before invocation", as
 		id: 2,
 		result: { status: "error", message: "Guard failed closed" },
 	});
+
+	context.preflight = async () => {
+		await Promise.resolve();
+		runtime.cancel(3);
+	};
+	const cancelledResponse = await invoke("cell-3", 3, programmatic, { cmd: "pwd" });
+	assert.equal(
+		(cancelledResponse as { result: { status: string } }).result.status,
+		"error",
+	);
+	assert.equal(programmaticInvoked, false);
 });
