@@ -6,6 +6,7 @@ import { Dealer, Subscriber } from "zeromq";
 import type { RuntimeContentItem } from "../code-mode/types.ts";
 import { createJupyterConnectionFile, jupyterEndpoint, type JupyterConnectionInfo } from "./jupyter-connection.ts";
 import {
+	applyExecuteReplyError,
 	applyKernelOutput,
 	finishKernelExecution,
 	type ActiveKernelExecution,
@@ -108,7 +109,8 @@ export class DenoJupyterKernel {
 			if (reply.header.msg_type !== "execute_reply") {
 				throw new Error(`Deno Jupyter returned ${reply.header.msg_type} for execute_request`);
 			}
-			return options.signal?.aborted ? { ...result, status: "aborted" } : result;
+			const replied = applyExecuteReplyError(result, reply);
+			return options.signal?.aborted ? { ...replied, status: "aborted" } : replied;
 		} catch (error) {
 			if (this.active === execution) this.active = undefined;
 			throw error;
