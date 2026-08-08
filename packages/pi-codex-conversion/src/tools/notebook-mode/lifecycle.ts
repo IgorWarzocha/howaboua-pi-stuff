@@ -25,7 +25,7 @@ interface NotebookLifecycleHost {
 	kernel(): DenoJupyterKernel | undefined;
 	activeCellId(): string | undefined;
 	stopActive(): Promise<string | undefined>;
-	checkpoint(): Promise<void>;
+	checkpoint(excludeNames?: ReadonlySet<string>): Promise<void>;
 	markChanged(): void;
 	restart(context: ExtensionContext, signal?: AbortSignal): Promise<string | undefined>;
 	baselineNames(): ReadonlySet<string>;
@@ -66,7 +66,7 @@ export class NotebookLifecycleController {
 		switch (request.action) {
 			case "status": return this.status(request.query, signal);
 			case "checkpoint": return this.checkpoint();
-			case "release": return this.release(request.names, signal);
+			case "release": return this.release(request.names, context, signal);
 			case "restart": return this.restart(context, signal);
 		}
 	}
@@ -121,24 +121,51 @@ export class NotebookLifecycleController {
 		return { message: "Notebook checkpoint complete", details };
 	}
 
-	private async release(names: string[], signal?: AbortSignal): Promise<NotebookControlResult> {
+	private async release(names: string[], context: ToolExecutionContext, signal?: AbortSignal): Promise<NotebookControlResult> {
 		const activeCell = this.host.activeCellId();
 		if (activeCell) throw new Error(`Cannot release notebook state while exec cell "${activeCell}" is running; terminate or restart it first`);
 		const kernel = this.host.kernel()!;
 		const available = new Set(await this.userBindingNames(kernel));
 		const invalid = names.filter((name) => !IDENTIFIER.test(name) || !available.has(name));
 		if (invalid.length > 0) throw new Error(`Notebook bindings not found or not releasable: ${invalid.join(", ")}`);
-		const marker = lifecycleMarker();
-		const result = parseNotebookRuntimeResult<NotebookReleaseResult>(
-			await kernel.execute(notebookReleaseSource(names, marker), { signal }),
-			marker,
+		const statusMarker = lifecycleMarker();
+		const status = parseNotebookRuntimeResult<NotebookKernelStatus>(
+			await kernel.execute(notebookStatusSource(names, statusMarker), { signal }),
+			statusMarker,
 		);
-		if (result.released.length > 0) {
+		const restartRequired = status.bindings.some(({ globalProperty }) => !globalProperty);
+		let result: NotebookReleaseResult;
+		if (restartRequired) {
 			this.host.markChanged();
-			await this.host.checkpoint();
+			await this.host.checkpoint(new Set(names));
+			const disposal = await this.disposeAll(signal);
+			const extension = context.extensionContext;
+			if (!extension) throw new Error("Notebook release requires an extension session context");
+			await this.host.restart(extension, signal);
+			result = {
+				released: [...names],
+				disposed: disposal?.disposed ?? [],
+				failures: disposal?.failures ?? [],
+			};
+		} else {
+			const marker = lifecycleMarker();
+			result = parseNotebookRuntimeResult<NotebookReleaseResult>(
+				await kernel.execute(notebookReleaseSource(names, marker), { signal }),
+				marker,
+			);
+			if (result.released.length > 0) {
+				this.host.markChanged();
+				await this.host.checkpoint(new Set(result.released));
+			}
 		}
-		const details = { ...result, checkpoint: this.host.metadata().checkpoint };
-		return { message: formatRelease(result), details };
+		const remaining = new Set(await this.userBindingNames(this.host.kernel()!));
+		for (const name of [...result.released]) {
+			if (!remaining.has(name)) continue;
+			result.released.splice(result.released.indexOf(name), 1);
+			result.failures.push({ name, reason: "concurrent project state retained this binding" });
+		}
+		const details = { ...result, restarted: restartRequired, checkpoint: this.host.metadata().checkpoint };
+		return { message: formatRelease(result, restartRequired), details };
 	}
 
 	private async restart(context: ToolExecutionContext, signal?: AbortSignal): Promise<NotebookControlResult> {
@@ -206,7 +233,7 @@ function formatStatus(details: NotebookStatusDetails): string {
 	if (details.query !== undefined) {
 		lines.push(`Bindings matching ${JSON.stringify(details.query)}:`);
 		for (const binding of details.matches ?? []) {
-			lines.push(`- ${binding.name}: ${binding.persistence}${binding.constructor ? ` ${binding.constructor}` : ` ${binding.type}`}${binding.disposable ? ` · ${binding.disposable} disposable` : ""}`);
+			lines.push(`- ${binding.name}: ${binding.kind}${binding.constructor ? ` ${binding.constructor}` : ` ${binding.type}`}${binding.disposable ? ` · ${binding.disposable} disposable` : ""}`);
 		}
 		if ((details.matches?.length ?? 0) === 0) lines.push("- none");
 		if ((details.omittedMatches ?? 0) > 0) lines.push(`${details.omittedMatches} additional match(es) omitted; narrow query`);
@@ -214,9 +241,10 @@ function formatStatus(details: NotebookStatusDetails): string {
 	return boundMessage(lines.filter(Boolean).join("\n"));
 }
 
-function formatRelease(result: NotebookReleaseResult): string {
+function formatRelease(result: NotebookReleaseResult, restarted: boolean): string {
 	const lines = [
 		`Released notebook bindings: ${result.released.length > 0 ? result.released.join(", ") : "none"}`,
+		restarted ? "Kernel restarted to clear lexical bindings; durable state was restored and runtime-only handles were not" : undefined,
 		result.disposed.length > 0 ? `Disposed standard resources: ${result.disposed.join(", ")}` : undefined,
 		...result.failures.map(({ name, reason }) => `Failed ${name}: ${reason}`),
 	];

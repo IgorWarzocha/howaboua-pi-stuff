@@ -78,7 +78,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 			kernel: () => this.kernel,
 			activeCellId: () => this.activeCell?.id,
 			stopActive: () => this.stopActiveForLifecycle(),
-			checkpoint: () => this.checkpoint(),
+			checkpoint: (excludeNames) => this.checkpoint(excludeNames),
 			markChanged: () => this.checkpoints.schedule(),
 			restart: (context, signal) => this.restartSession(context, signal),
 			baselineNames: () => this.baselineNames,
@@ -172,8 +172,8 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		return this.finishObservation(cell, "terminated");
 	}
 
-	async checkpoint(): Promise<void> {
-		await this.checkpoints.flush(true);
+	async checkpoint(excludeNames?: ReadonlySet<string>): Promise<void> {
+		await this.checkpoints.flush({ requireIdle: true, force: true, excludeNames });
 	}
 
 	async controlNotebook(
@@ -189,7 +189,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		await this.startup?.catch(() => undefined);
 		const active = this.activeCell;
 		if (active) await this.stopCell(active).catch(() => undefined);
-		await this.checkpoints.flush();
+		await this.checkpoints.flush({ force: true }).catch(() => undefined);
 		if (active) this.closeCell(active);
 		await this.lifecycle.disposeAll().catch(() => undefined);
 		this.activeCell = undefined;

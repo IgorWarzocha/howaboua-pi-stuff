@@ -9,6 +9,7 @@ import {
 } from "./checkpoint-format.ts";
 import { checkpointSource, restoreSource } from "./checkpoint-runtime.ts";
 import type { DenoJupyterKernel } from "./jupyter-kernel.ts";
+import { MAX_PROJECT_ENTRIES, type ProjectStateBaseline } from "./project-state-format.ts";
 
 export const NOTEBOOK_CHECKPOINT_MAX_BYTES = 256 * 1024 * 1024;
 const NOTEBOOK_CHECKPOINT_MIN_BYTES = 8 * 1024 * 1024;
@@ -54,6 +55,8 @@ export async function writeNotebookCheckpoint(
 	identity: NotebookCheckpointIdentity,
 	baselineNames: ReadonlySet<string>,
 	maxBytes: number,
+	projectBaseline: ProjectStateBaseline,
+	excludeNames: ReadonlySet<string> = new Set(),
 ): Promise<CheckpointManifest> {
 	const paths = checkpointPaths(identity);
 	mkdirSync(paths.directory, { recursive: true });
@@ -61,7 +64,7 @@ export async function writeNotebookCheckpoint(
 	const skippedInvalid = names
 		.filter((name) => !baselineNames.has(name) && !IDENTIFIER.test(name))
 		.map((name) => ({ name, reason: "unsupported identifier" }));
-	const candidates = names.filter((name) => !baselineNames.has(name) && IDENTIFIER.test(name));
+	const candidates = names.filter((name) => !baselineNames.has(name) && !excludeNames.has(name) && IDENTIFIER.test(name));
 	const payload = `checkpoint-${randomUUID()}.bin`;
 	const source = checkpointSource({
 		candidates,
@@ -69,6 +72,8 @@ export async function writeNotebookCheckpoint(
 		manifestPath: paths.manifest,
 		directory: paths.directory,
 		identity,
+		projectGeneration: projectBaseline.generation,
+		projectNames: projectBaseline.entries.map(({ name }) => name),
 		payload,
 		skippedInvalid,
 		maxBytes,
@@ -84,6 +89,7 @@ export async function restoreNotebookCheckpoint(
 	kernel: DenoJupyterKernel,
 	identity: NotebookCheckpointIdentity,
 	maxBytes: number,
+	projectBaseline: ProjectStateBaseline,
 ): Promise<NotebookCheckpointSummary> {
 	const paths = checkpointPaths(identity);
 	if (!existsSync(paths.manifest)) return { restored: [], skipped: [] };
@@ -100,7 +106,8 @@ export async function restoreNotebookCheckpoint(
 	if (!isValidCheckpointPayload(manifest, payloadPath, maxBytes)) {
 		return { restored: [], skipped: manifest.skipped, message: "Notebook checkpoint payload was missing or invalid and was not restored" };
 	}
-	const result = await kernel.execute(restoreSource(manifest, payloadPath));
+	const excluded = sessionCheckpointProjectExclusions(manifest, projectBaseline);
+	const result = await kernel.execute(restoreSource(manifest, payloadPath, excluded));
 	if (result.status !== "ok") {
 		return {
 			restored: [],
@@ -108,7 +115,24 @@ export async function restoreNotebookCheckpoint(
 			message: `Notebook checkpoint was incompatible and was not restored: ${result.errorText ?? "unknown error"}`,
 		};
 	}
-	return { restored: manifest.entries.map((entry) => entry.name), skipped: manifest.skipped };
+	const restored = manifest.entries.map((entry) => entry.name).filter((name) => !excluded.has(name));
+	return {
+		restored,
+		skipped: manifest.skipped,
+		...(excluded.size > 0 ? { message: "Session checkpoint came from an older project generation; current project bindings took precedence" } : {}),
+	};
+}
+
+export function sessionCheckpointProjectExclusions(
+	manifest: Pick<CheckpointManifest, "projectGeneration" | "projectNames">,
+	projectBaseline: ProjectStateBaseline,
+): Set<string> {
+	return manifest.projectGeneration && manifest.projectGeneration !== projectBaseline.generation
+		? new Set([
+			...projectBaseline.entries.map(({ name }) => name),
+			...(manifest.projectNames ?? []),
+		])
+		: new Set();
 }
 
 function checkpointPaths(identity: NotebookCheckpointIdentity): { directory: string; manifest: string } {
@@ -144,6 +168,11 @@ function readManifest(path: string): CheckpointManifest | undefined {
 				|| typeof value["createdAt"] !== "string"
 			|| !Array.isArray(value["entries"])
 			|| !Array.isArray(value["skipped"])
+			|| "projectNames" in value && (
+				!Array.isArray(value["projectNames"])
+				|| value["projectNames"].length > MAX_PROJECT_ENTRIES
+				|| !value["projectNames"].every((name) => typeof name === "string" && IDENTIFIER.test(name))
+			)
 			|| !PAYLOAD_NAME.test(value["payload"])
 			|| basename(value["payload"]) !== value["payload"]
 		) return undefined;
@@ -154,6 +183,8 @@ function readManifest(path: string): CheckpointManifest | undefined {
 			schema: CHECKPOINT_SCHEMA,
 			project: value["project"],
 			session: value["session"],
+			...(typeof value["projectGeneration"] === "string" ? { projectGeneration: value["projectGeneration"] } : {}),
+			...(Array.isArray(value["projectNames"]) ? { projectNames: value["projectNames"] as string[] } : {}),
 			deno: value["deno"],
 			v8: value["v8"],
 			payload: value["payload"],
