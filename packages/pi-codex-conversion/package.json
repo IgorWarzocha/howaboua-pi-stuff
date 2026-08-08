@@ -100,7 +100,7 @@
     "unzipper": "0.12.5",
     "web-tree-sitter": "^0.26.7",
     "ws": "^8.21.0",
-    "zeromq": "6.1.2"
+    "zeromq": "6.5.0"
   },
   "engines": {
     "node": ">=22.19.0"

@@ -4,7 +4,7 @@
 
 Add **Notebook Code Mode** to `pi-codex-conversion` alongside normal and existing Code Mode. Preserve the existing `exec` and `wait` behavior and every nested capability, while giving JavaScript and TypeScript cells persistent notebook state, Deno APIs, npm imports, and an external lifecycle control.
 
-The first slice is an internal Linux x64 proof on the canonical development server. It does not promise a cross-platform release.
+The first release targets standard glibc Linux, macOS, and Windows hosts on x64 and arm64.
 
 ## Product contract
 
@@ -24,8 +24,9 @@ Use a pinned Deno Jupyter kernel rather than modifying the existing V8 host.
 
 - Deno supplies maintained TypeScript compilation, top-level await, natural REPL redeclaration semantics, npm imports, rich MIME output, and isolate interruption.
 - The extension speaks Jupyter over ZeroMQ. `zeromq` 6.1.2 is already proven by Prime's TypeScript client and adds about 11.3 MB unpacked before transitive installation overhead.
-- Lazily download one exact, checksummed Deno release on first Notebook Code Mode use. On Linux x64, Deno 2.9.5 measured 41.6 MB compressed and 95.6 MB installed; this is about 25 MB more download and 49 MB more disk than the current Code Mode host, without inflating the npm package by the binary's full size.
-- Start only with Linux x64. A later release may adopt Deno's official macOS, Windows, and glibc Linux x64/arm64 matrix after the prototype contracts hold. Do not claim musl support without an actual distribution path.
+- Lazily download one exact, checksummed Deno release on first Notebook Code Mode use. Deno 2.9.5 archives are 38.5–42.7 MB and installed executables are 80.9–97.7 MB across supported targets, without inflating the npm package by the binary's full size.
+- Pin official Deno archives and extracted executables for Linux, macOS, and Windows on x64/arm64. Linux means the official glibc build; do not claim musl support without a Deno distribution path.
+- Use ZeroMQ 6.5.0, whose package includes Node-API prebuilds for the same six targets; validate actual kernel startup on each target rather than inferring support from package contents.
 - Keep Deno/Jupyter ownership outside the pinned upstream V8 source tree. Reuse Pi-owned nested-tool definitions and custom-tool discovery rather than duplicating their policies.
 
 Deno's kernel closes arbitrary Jupyter `comm_open` targets, so Prime's comm bridge is not reusable. Bootstrap an authenticated loopback bridge into the persistent notebook instead:
@@ -121,9 +122,9 @@ Add a **Session execution mode** selector to `/codex` with inherited, normal, Co
 - No V8 sandboxing, resource-limit, or host-transport work belongs in the Notebook Code Mode release.
 - Mode-specific prompt copy may change, but normal and existing Code Mode provider schemas, globals, and behavior must remain stable.
 
-## Prototype acceptance
+## Release acceptance
 
-The Linux x64 proof is successful when it demonstrates:
+The release is successful when it demonstrates:
 
 1. Notebook Code Mode activates through a session override or trusted project default without affecting other modes.
 2. Notebook Mode receives `exec`, `wait`, and the JSON `notebook` lifecycle tool while normal Code Mode retains only `exec` and `wait`.
@@ -137,5 +138,6 @@ The Linux x64 proof is successful when it demonstrates:
 10. Lifecycle status, explicit checkpoint, standard resource release, idle restart, and restart around a yielded cell remain available outside `exec`.
 11. Named profiles can be listed, atomically saved, loaded without overwrite, reused across projects, and selected as an optional startup default without replaying notebook cells.
 12. One-shot diagnostics can inspect a saved notebook while its kernel is unavailable, identify errors by notebook path and cell-local location, and exit without a resident process; reset removes broken durable state without deleting or replaying the journal.
+13. Real Deno Jupyter startup, state reuse, one-shot diagnostics, and shutdown pass on Linux, macOS, and Windows x64/arm64 runners using the published dependency graph.
 
-After the proof, decide publication and broader platform support from measured startup latency, checkpoint cost, dependency/install reliability, bridge behavior, and real agent use. Shipping package changes require a focused issue/PR, a changeset, and the repository's changed-package gate.
+Publish the branch under npm's `dev` tag for field testing before any stable release. Shipping package changes retain the changeset and repository gate even when the development build is published without merging the branch.
