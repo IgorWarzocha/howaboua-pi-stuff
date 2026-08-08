@@ -17,6 +17,7 @@ interface NotebookRecoveryHost {
 	stopWithoutCheckpoint(): Promise<string | undefined>;
 	startClean(context: ExtensionContext, signal?: AbortSignal): Promise<void>;
 	checkpointEmpty(): Promise<void>;
+	configuredProfileActive(): boolean;
 }
 
 export class NotebookRecoveryController {
@@ -42,18 +43,21 @@ export class NotebookRecoveryController {
 		const runtimeBindings = new Set([
 			...projectStateBindingNames(identity, this.maxBytes),
 			...notebookCheckpointBindingNames(identity, this.maxBytes),
-			...notebookProfileBindingNames(this.profile, this.agentDir, this.maxBytes),
+			...(this.host.configuredProfileActive()
+				? notebookProfileBindingNames(this.profile, this.agentDir, this.maxBytes)
+				: []),
 		]);
 		return diagnoseNotebook({ deno, cwd: identity.project, path: journal.path, runtimeBindings, signal });
 	}
 
 	async reset(context: ToolExecutionContext, signal?: AbortSignal): Promise<NotebookControlResult> {
+		signal?.throwIfAborted();
 		const extension = requireExtensionContext(context, "reset");
 		const identity = notebookIdentity(extension, this.agentDir);
 		const activeCell = await this.host.stopWithoutCheckpoint();
 		const projectReset = await resetProjectState(identity);
 		removeNotebookCheckpoint(identity);
-		await this.host.startClean(extension, signal);
+		await this.host.startClean(extension);
 		await this.host.checkpointEmpty();
 		return {
 			message: `Notebook reset to empty state; discarded ${projectReset.previousBindings} project binding${projectReset.previousBindings === 1 ? "" : "s"}${activeCell ? ` and terminated ${activeCell}` : ""}. Saved notebook and named profiles were preserved; use exec to establish repaired state`,

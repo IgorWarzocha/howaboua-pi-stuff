@@ -25,6 +25,7 @@ export interface StartedNotebookSession {
 	checkpointIdentity: NotebookCheckpointIdentity;
 	baselineNames: Set<string>;
 	projectBaseline: ProjectStateBaseline;
+	configuredProfileLoaded: boolean;
 	restoreNotice?: string | undefined;
 }
 
@@ -74,6 +75,7 @@ export async function startNotebookSession(options: {
 		});
 		const restored = await restoreNotebookCheckpoint(kernel, checkpointIdentity, options.checkpointMaxBytes, projectState.baseline);
 		let profileNotice: string | undefined;
+		let configuredProfileLoaded = false;
 		if (runtime.profile) {
 			try {
 				const profile = await loadNotebookProfile({
@@ -87,6 +89,7 @@ export async function startNotebookSession(options: {
 				profileNotice = profile.collisions.length > 0
 					? `Notebook profile ${runtime.profile} was not loaded because ${profile.collisions.length} binding collision(s) already exist`
 					: `Notebook profile ${runtime.profile} loaded ${profile.loaded.length} binding(s)`;
+				configuredProfileLoaded = profile.collisions.length === 0;
 			} catch (error) {
 				if (signal?.aborted || error instanceof NotebookProfileRestoreError) throw error;
 				profileNotice = `Notebook profile ${runtime.profile} was not loaded: ${error instanceof Error ? error.message : String(error)}`;
@@ -100,6 +103,7 @@ export async function startNotebookSession(options: {
 			checkpointIdentity,
 			baselineNames,
 			projectBaseline: projectState.baseline,
+			configuredProfileLoaded,
 			...(restoreNotice ? { restoreNotice } : {}),
 		};
 	} catch (error) {

@@ -75,6 +75,13 @@ export class NotebookCheckpointManager {
 		this.lastCheckpointAt = undefined;
 	}
 
+	async discard(): Promise<void> {
+		if (this.timer) clearTimeout(this.timer);
+		this.timer = undefined;
+		await this.maintenance;
+		this.reset();
+	}
+
 	status(): {
 		dirty: boolean;
 		projectGeneration: string;
