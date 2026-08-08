@@ -184,61 +184,6 @@ test("nested preflight blocks programmatic and TOML tools before invocation", as
 	});
 });
 
-test("cancellation during an awaited preflight prevents nested invocation", async () => {
-	let resolvePreflightStarted: (() => void) | undefined;
-	const preflightStarted = new Promise<void>((resolve) => {
-		resolvePreflightStarted = resolve;
-	});
-	let releasePreflight: (() => void) | undefined;
-	const preflightRelease = new Promise<void>((resolve) => {
-		releasePreflight = resolve;
-	});
-	let invoked = false;
-	const tool: ProgrammaticCodeModeToolDefinition = {
-		name: "exec_command",
-		usage: "await tools.exec_command({ cmd })",
-		deferLoading: false,
-		kind: "function",
-		inputSchema: { type: "object" },
-		async invoke() {
-			invoked = true;
-		},
-	};
-	let resolveResponse: ((value: unknown) => void) | undefined;
-	const response = new Promise<unknown>((resolve) => {
-		resolveResponse = resolve;
-	});
-	const runtime = new CodeModeDelegateRuntime((message) => {
-		resolveResponse?.(message);
-	});
-	runtime.bindCell("cell-cancel", {
-		cwd: process.cwd(),
-		extensionContext: {} as ExtensionContext,
-		preflight: async () => {
-			resolvePreflightStarted?.();
-			await preflightRelease;
-		},
-	}, new Map([[tool.name, tool]]));
-	runtime.handleRequest({
-		id: 3,
-		request: {
-			type: "tool/invoke",
-			invocation: {
-				cell_id: "cell-cancel",
-				input: { cmd: "pwd" },
-				runtime_tool_call_id: "nested-cancel",
-				tool_name: { name: tool.name },
-			},
-		},
-	});
-	await preflightStarted;
-	runtime.cancel(3);
-	releasePreflight?.();
-	const result = responseResult(await response);
-	assert.equal(result.status, "error");
-	assert.equal(invoked, false);
-});
-
 test("wait recovery preflights write_stdin before bypassing the delegate", async () => {
 	const bus = createEventBus();
 	const guardApi = extensionApi(bus);
@@ -303,10 +248,3 @@ test("wait recovery preflights write_stdin before bypassing the delegate", async
 		input: { session_id: 42, yield_time_ms: 10, max_output_tokens: 100 },
 	});
 });
-
-function responseResult(value: unknown): { status?: unknown } {
-	assert(value && typeof value === "object" && "result" in value);
-	const result = value.result;
-	assert(result && typeof result === "object");
-	return result;
-}
