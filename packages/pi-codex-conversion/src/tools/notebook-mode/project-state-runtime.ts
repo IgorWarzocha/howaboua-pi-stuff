@@ -65,31 +65,70 @@ export function projectStateRestoreSource(
 	payloadPath: string,
 	clearNames: string[] = [],
 ): string {
+	const bindingNames = [...new Set([
+		...manifest.entries.map(({ name }) => name),
+		...clearNames,
+	])].slice(0, MAX_PROJECT_ENTRIES);
+	const currentBindings = bindingNames.map((name) => `
+  try { __current.set(${JSON.stringify(name)}, ${name}); } catch {}`).join("");
 	return `{
-  const { deserialize } = await import("node:v8");
+  const { deserialize, serialize } = await import("node:v8");
   if (${manifest.entries.length > 0} && (Deno.version.deno !== ${JSON.stringify(manifest.deno)} || Deno.version.v8 !== ${JSON.stringify(manifest.v8)})) {
     throw new Error("project checkpoint Deno/V8 version does not match the active kernel");
   }
   const __payload = await Deno.readFile(${JSON.stringify(payloadPath)});
-	const __values = [];
-	const __functions = [];
-	const __resolvedFunctions = [];
+  const __restores = [];
   for (const __entry of ${JSON.stringify(manifest.entries)}) {
     const __captured = deserialize(__payload.slice(__entry.offset, __entry.offset + __entry.length));
-		if (__entry.kind === "function") __functions.push([__entry.name, __captured]);
-		else __values.push([__entry.name, __captured]);
-	}
-	for (const [__name, __source] of __functions) {
-	  __resolvedFunctions.push([__name, (0, eval)("(" + __source + ")")]);
-	}
-  for (const __name of ${JSON.stringify(clearNames.slice(0, MAX_PROJECT_ENTRIES))}) {
-    try { delete globalThis[__name]; } catch {}
+    const __value = __entry.kind === "function" ? (0, eval)("(" + __captured + ")") : __captured;
+    __restores.push({ ...__entry, captured: __captured, value: __value });
   }
-  for (const [__name, __value] of __values) {
-    Object.defineProperty(globalThis, __name, { value: __value, writable: true, configurable: true, enumerable: true });
+  const __current = new Map();
+  ${currentBindings}
+  const __sameBytes = (__left, __right) => {
+    try {
+      const __a = serialize(__left);
+      const __b = serialize(__right);
+      return __a.byteLength === __b.byteLength && __a.every((__byte, __index) => __byte === __b[__index]);
+    } catch { return Object.is(__left, __right); }
+  };
+  const __matches = (__currentValue, __restore) => __restore.kind === "function"
+    ? typeof __currentValue === "function" && Function.prototype.toString.call(__currentValue) === __restore.captured
+    : __sameBytes(__currentValue, __restore.value);
+  const __slot = "__piNotebookRebind_" + crypto.randomUUID().replaceAll("-", "");
+  const __assign = (__name, __value) => {
+    globalThis[__slot] = __value;
+    try { (0, eval)(__name + " = globalThis[" + JSON.stringify(__slot) + "]"); }
+    finally { delete globalThis[__slot]; }
+  };
+  const __restoreNames = new Set(__restores.map(({ name }) => name));
+  const __deletions = ${JSON.stringify(clearNames.slice(0, MAX_PROJECT_ENTRIES))}.filter((__name) => !__restoreNames.has(__name));
+  const __blocked = [];
+  for (const __name of __deletions) {
+    if (!__current.has(__name)) continue;
+    const __descriptor = Object.getOwnPropertyDescriptor(globalThis, __name);
+    if (!__descriptor?.configurable) __blocked.push(__name);
   }
-	for (const [__name, __value] of __resolvedFunctions) {
-	  Object.defineProperty(globalThis, __name, { value: __value, writable: true, configurable: true, enumerable: true });
+  for (const __restore of __restores) {
+    if (!__current.has(__restore.name) || __matches(__current.get(__restore.name), __restore)) continue;
+    try { __assign(__restore.name, __current.get(__restore.name)); }
+    catch { __blocked.push(__restore.name); }
+  }
+  if (__blocked.length > 0) {
+    throw new Error("project bindings require a notebook restart: " + [...new Set(__blocked)].join(", "));
+  }
+  for (const __name of __deletions) delete globalThis[__name];
+  for (const __restore of __restores) {
+    if (__current.has(__restore.name)) {
+      if (!__matches(__current.get(__restore.name), __restore)) __assign(__restore.name, __restore.value);
+      continue;
+    }
+    Object.defineProperty(globalThis, __restore.name, {
+      value: __restore.value,
+      writable: true,
+      configurable: true,
+      enumerable: true,
+    });
   }
   undefined;
 }`;
