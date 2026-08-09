@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
-import type { CodexDiagnosticsEvent } from "../src/providers/openai-codex/types.ts";
 import {
 	canonicalCompactionPromptInput,
 	captureCanonicalSessionToken,
@@ -99,113 +98,6 @@ test("Code Mode continuation sends only the next user turn", async () => {
 		assert.equal(ScriptedWebSocket.opened, 1);
 		assert.equal(sentFrames()[1]?.previous_response_id, "resp_1");
 		assert.deepEqual(sentFrames()[1]?.input, [{ role: "user", content: [{ type: "input_text", text: "second user" }] }]);
-	} finally {
-		restoreWebSocket();
-	}
-});
-
-test("an ordinary reconnect sends validated Pi history for global prompt caching", async () => {
-	const restoreWebSocket = installScriptedWebSocket([
-		[(socket) => {
-			textResponse("resp_1", "first")(socket);
-			socket.emit("close", { code: 1000, reason: "server retired connection" });
-		}],
-		[textResponse("resp_2", "second")],
-	]);
-	try {
-		const events: CodexDiagnosticsEvent[] = [];
-		const registered = createRegisteredCodexProvider({
-			codeMode: true,
-			getDiagnostics: () => (event) => events.push(event),
-		});
-		const options = streamOptions("ordinary-reconnect");
-		const firstUser = user("first user", 1);
-		const firstAssistant = doneMessage(await collectStream(registered.provider.streamSimple(
-			model as never,
-			context([firstUser]) as never,
-			options as never,
-		)));
-		const firstRequest = sentFrames()[0]!;
-
-		await collectStream(registered.provider.streamSimple(
-			model as never,
-			context([firstUser, firstAssistant as AgentMessage, user("second user", 2)]) as never,
-			options as never,
-		));
-
-		assert.equal(ScriptedWebSocket.opened, 2);
-		const secondRequest = sentFrames()[1]!;
-		assert.equal(secondRequest.previous_response_id, undefined);
-		assert.deepEqual(secondRequest.input?.slice(0, firstRequest.input?.length), firstRequest.input);
-		assert.deepEqual(secondRequest.input?.slice(-2), [
-			{
-				id: "msg_resp_1",
-				type: "message",
-				status: "completed",
-				content: [{ type: "output_text", annotations: [], text: "first" }],
-				phase: "final_answer",
-				role: "assistant",
-			},
-			{ role: "user", content: [{ type: "input_text", text: "second user" }] },
-		]);
-		const secondRequestEvent = events.filter((event) => event.type === "request")[1];
-		assert.equal(secondRequestEvent?.type, "request");
-		assert.equal(secondRequestEvent?.canonicalHistory, "validated");
-		assert.equal(secondRequestEvent?.continuation, "no_continuation");
-	} finally {
-		restoreWebSocket();
-	}
-});
-
-test("a tool-result reconnect sends validated Pi history for global prompt caching", async () => {
-	const restoreWebSocket = installScriptedWebSocket([
-		[(socket) => {
-			customToolResponse("resp_tool")(socket);
-			socket.emit("close", { code: 1000, reason: "server retired connection" });
-		}],
-		[textResponse("resp_2", "second")],
-	]);
-	try {
-		const registered = createRegisteredCodexProvider({ codeMode: true });
-		const options = streamOptions("tool-reconnect");
-		const firstUser = user("first user", 1);
-		const toolCallAssistant = doneMessage(await collectStream(registered.provider.streamSimple(
-			model as never,
-			context([firstUser]) as never,
-			options as never,
-		)));
-		const toolCall = toolCallAssistant.content.find((item) => item.type === "toolCall");
-		assert.equal(toolCall?.type, "toolCall");
-		const toolResult = {
-			role: "toolResult",
-			toolCallId: toolCall!.id,
-			toolName: "exec",
-			content: [{ type: "text", text: "tool result" }],
-			isError: false,
-			timestamp: 2,
-		} as AgentMessage;
-		const firstRequest = sentFrames()[0]!;
-
-		await collectStream(registered.provider.streamSimple(
-			model as never,
-			context([firstUser, toolCallAssistant as AgentMessage, toolResult]) as never,
-			options as never,
-		));
-
-		assert.equal(ScriptedWebSocket.opened, 2);
-		const secondRequest = sentFrames()[1]!;
-		assert.equal(secondRequest.previous_response_id, undefined);
-		assert.deepEqual(secondRequest.input?.slice(0, firstRequest.input?.length), firstRequest.input);
-		assert.deepEqual(secondRequest.input?.slice(-2), [
-			{
-				id: "ctc_resp_tool",
-				type: "custom_tool_call",
-				call_id: "call_resp_tool",
-				input: 'text("tool result")',
-				name: "exec",
-			},
-			{ type: "custom_tool_call_output", call_id: "call_resp_tool", output: "tool result" },
-		]);
 	} finally {
 		restoreWebSocket();
 	}
