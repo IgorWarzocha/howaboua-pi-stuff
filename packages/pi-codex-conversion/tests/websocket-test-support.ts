@@ -46,26 +46,6 @@ export function textResponse(responseId: string, text: string) {
 	};
 }
 
-export function customToolResponse(responseId: string) {
-	return (socket: ScriptedWebSocket) => {
-		const item = {
-			id: `ctc_${responseId}`,
-			type: "custom_tool_call",
-			status: "completed",
-			call_id: `call_${responseId}`,
-			input: 'text("tool result")',
-			name: "exec",
-			internal_chat_message_metadata_passthrough: { turn_id: `turn_${responseId}` },
-		};
-		socket.emitJson({ type: "response.created", response: { id: responseId } });
-		socket.emitJson({ type: "response.output_item.done", output_index: 0, item });
-		socket.emitJson({
-			type: "response.completed",
-			response: { id: responseId, status: "completed", usage: { input_tokens: 10, output_tokens: 1, total_tokens: 11 } },
-		});
-	};
-}
-
 export function compactionResponse(responseId: string) {
 	return (socket: ScriptedWebSocket) => {
 		socket.emitJson({ type: "response.created", response: { id: responseId } });

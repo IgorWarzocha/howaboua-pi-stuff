@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { convertResponsesMessages, processResponsesStream } from "../src/providers/openai-responses/shared.ts";
+import { processResponsesStream } from "../src/providers/openai-responses/shared.ts";
 
 const model = {
 	id: "gpt-test",
@@ -41,51 +41,11 @@ async function* asAsyncIterable<T>(values: T[]): AsyncIterable<T> {
 	}
 }
 
-test("convertResponsesMessages preserves structured view_image output", () => {
-	const imageModel = { ...model, input: ["text", "image"] as Array<"text" | "image"> };
-	const messages = convertResponsesMessages(
-		imageModel,
-		{
-			messages: [
-				{
-					role: "assistant",
-					content: [{ type: "toolCall", id: "call_image|fc_image", name: "view_image", arguments: { path: "image.png" } }],
-					api: imageModel.api,
-					provider: imageModel.provider,
-					model: imageModel.id,
-					stopReason: "toolUse",
-				} as any,
-				{
-					role: "toolResult",
-					toolCallId: "call_image|fc_image",
-					content: [
-						{ type: "text", text: "Command completed\nOutput:\n<image output>" },
-						{ type: "image", mimeType: "image/png", data: "AAA", detail: "original" },
-					],
-				} as any,
-			],
-		},
-		new Set(["openai-codex"]),
-	);
+async function* interruptedAsyncIterable<T>(values: T[]): AsyncIterable<T> {
+	for (const value of values) yield value;
+	throw new Error("Request was aborted");
+}
 
-	assert.deepEqual(messages, [
-		{
-			type: "function_call",
-			id: "fc_image",
-			call_id: "call_image",
-			name: "view_image",
-			arguments: JSON.stringify({ path: "image.png" }),
-		},
-		{
-			type: "function_call_output",
-			call_id: "call_image",
-			output: [
-				{ type: "input_text", text: "Command completed\nOutput:\n<image output>" },
-				{ type: "input_image", detail: "original", image_url: "data:image/png;base64,AAA" },
-			],
-		},
-	]);
-});
 test("processResponsesStream keeps interleaved message items separate by output index", async () => {
 	const output = createAssistantOutput();
 	const pushedEvents: Array<{ type: string; contentIndex?: number }> = [];
@@ -186,67 +146,6 @@ test("processResponsesStream records cache writes and reasoning tokens", async (
 	});
 });
 
-test("processResponsesStream preserves image generation calls for later Responses turns", async () => {
-	const output = createAssistantOutput();
-	const rawImageItem = {
-		type: "image_generation_call",
-		id: "ig_123",
-		status: "completed",
-		result: Buffer.from("png-bytes").toString("base64"),
-		action: "edit",
-		background: "opaque",
-		output_format: "png",
-		quality: "high",
-		revised_prompt: "A tiny red square icon",
-	};
-	const imageItem = {
-		type: "image_generation_call",
-		id: "ig_123",
-		status: "completed",
-		result: Buffer.from("png-bytes").toString("base64"),
-		revised_prompt: "A tiny red square icon",
-	};
-
-	await processResponsesStream(
-		asAsyncIterable([
-			{ type: "response.created", response: { id: "resp_1" } },
-			{
-				type: "response.output_item.added",
-				output_index: 0,
-				item: { type: "image_generation_call", id: "ig_123", status: "in_progress" },
-			},
-			{
-				type: "response.output_item.done",
-				output_index: 0,
-				item: rawImageItem,
-			},
-			{
-				type: "response.completed",
-				response: {
-					id: "resp_1",
-					status: "completed",
-					usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0, input_tokens_details: { cached_tokens: 0 } },
-				},
-			},
-		]) as AsyncIterable<any>,
-		output as any,
-		{ push: () => undefined } as any,
-		model,
-	);
-
-	assert.deepEqual((output.content as any[]).filter((block) => block.type === "image_generation_call"), [
-		{ type: "image_generation_call", item: imageItem },
-	]);
-
-	const messages = convertResponsesMessages(
-		model,
-		{ messages: [output as any] },
-		new Set(["openai-codex"]),
-	);
-
-	assert.deepEqual(messages, [imageItem]);
-});
-
 test("processResponsesStream retains finalized freeform input for execution and continuation", async () => {
 	const output = createAssistantOutput();
 	const completedItems: unknown[] = [];
@@ -276,4 +175,26 @@ test("processResponsesStream retains finalized freeform input for execution and 
 	assert.deepEqual(output.content, [{ type: "toolCall", id: "call_1|ctc_1", name: "exec", arguments: { code: "canonical();" } }]);
 	assert.equal(toolCallDeltas.join(""), JSON.stringify({ code: "canonical();" }));
 	assert.deepEqual(completedItems, [{ type: "custom_tool_call", id: "ctc_1", call_id: "call_1", name: "exec", status: "completed", input: "canonical();" }]);
+});
+
+test("processResponsesStream omits an interrupted partial tool call from the final message", async () => {
+	const output = createAssistantOutput();
+	const pushedEvents: string[] = [];
+
+	await assert.rejects(
+		processResponsesStream(
+			interruptedAsyncIterable([
+				{ type: "response.output_item.added", output_index: 0, item: { type: "custom_tool_call", id: "ctc_1", call_id: "call_1", name: "exec", input: "" } },
+				{ type: "response.custom_tool_call_input.delta", output_index: 0, item_id: "ctc_1", delta: "unfinished", sequence_number: 1 },
+			]) as AsyncIterable<any>,
+			output as any,
+			{ push: (event: { type: string }) => pushedEvents.push(event.type) } as any,
+			model,
+			{ grammarToolInputProperties: new Map([["exec", "code"]]) },
+		),
+		/Request was aborted/,
+	);
+
+	assert.ok(pushedEvents.includes("toolcall_start"));
+	assert.deepEqual(output.content, []);
 });

@@ -60,6 +60,7 @@ test("cache diagnostics log is session-derived, readable, and omits raw provider
 			sentInputItems: 43,
 			socketReused: false,
 			continuation: "no_continuation",
+			canonicalHistory: "validated",
 			previousResponseId: false,
 		});
 		log.record({
@@ -73,6 +74,7 @@ test("cache diagnostics log is session-derived, readable, and omits raw provider
 		const contents = await readFile(log.path, "utf8");
 		assert.match(contents, /Metadata only/);
 		assert.match(contents, /event="request" lane="compaction" transport="websocket"/);
+		assert.match(contents, /canonical_history="validated"/);
 		assert.match(contents, /full_input_items=43 sent_input_items=43/);
 		assert.match(contents, /failure="authentication" code="invalid_token" status=401/);
 		assert.doesNotMatch(contents, /error=|resp_secret|echoed_prompt|Bearer/);

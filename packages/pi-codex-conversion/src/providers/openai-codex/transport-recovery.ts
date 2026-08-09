@@ -20,13 +20,14 @@ import { applyResponsesLiteWebSocketMetadata } from "./responses-lite.ts";
 import { combineAbortSignals, compressRequestBodyZstd, createSSEHeaderTimeout, normalizeTimeoutMs, parseSSE, sleep } from "./sse.ts";
 import { assertSuccessfulCodexOutput, CodexProtocolError, codexOverloadRetryDelay, codexRateLimitRetryDelay, codexStreamRetryDelay, createCodexHttpError, isCodexApiError, isCodexOverloadError, isCodexRateLimitError, isRetryableCodexStreamError, processCodexResponsesStream } from "./stream-events.ts";
 import { CODEX_TURN_STATE_HEADER, type CodexTurnState, withCodexTurnState, withCodexTurnStateHeader } from "./turn-state.ts";
-import type { CodexDiagnosticsLane, CodexDiagnosticsSink, CodexProviderStreamOptions, OpenAICodexStreamOptions, ResponsesBody } from "./types.ts";
+import type { CanonicalHistoryDecision, CodexDiagnosticsLane, CodexDiagnosticsSink, CodexProviderStreamOptions, OpenAICodexStreamOptions, ResponsesBody } from "./types.ts";
 import { createInitialAssistantMessage } from "./types.ts";
 import { finalizeUsage } from "./usage.ts";
 import { isWebSocketSseFallbackActive, recordWebSocketSseFallback, validateWebSocketTimeoutOptions } from "./websocket.ts";
 import { isPermanentWebSocketError, isWebSocketMessageTooBigError, isWebSocketUnauthorizedError, isWebSocketUpgradeRequiredError } from "./websocket-connection.ts";
 import { processWebSocketStream } from "./websocket-stream.ts";
 import { withRemoteCompactionV2Feature } from "../openai-responses/compaction-v2-feature.ts";
+import { captureCanonicalSessionToken, recordCanonicalSessionResponse, validateCanonicalSessionRequest } from "./session-continuity.ts";
 
 export type CodexProviderRuntimeConfig = Pick<CodexConversionConfig, "openai" | "beta"> & Partial<Pick<CodexConversionConfig, "compaction">>;
 
@@ -199,7 +200,17 @@ export function createCodexTransportStream<TApi extends Api>(
 			}
 
 			const accountId = extractAccountId(apiKey);
-			const body = await deps.prepareRequestBody(model, context, effectiveOptions, responsesLite);
+			const canonicalSessionToken = captureCanonicalSessionToken(effectiveOptions?.sessionId);
+			const reconstructedBody = await deps.prepareRequestBody(model, context, effectiveOptions, responsesLite);
+			const body = reconstructedBody;
+			const canonicalHistory: CanonicalHistoryDecision | undefined = effectiveOptions?.canonicalCompaction
+				? "compaction"
+				: validateCanonicalSessionRequest(
+					effectiveOptions?.sessionId,
+					resolveCodexWebSocketUrl(model.baseUrl),
+					accountId,
+					body,
+				);
 			lane = diagnosticsLane(body);
 			deps.onPreparedPayload?.(body);
 			const websocketRequestId = effectiveOptions?.sessionId || createCodexRequestId();
@@ -268,6 +279,11 @@ export function createCodexTransportStream<TApi extends Api>(
 							effectiveOptions,
 							deps.turnState,
 							diagnostics ? { lane, attempt: attempt + 1, record: diagnostics } : undefined,
+							{
+								reconstructedRequestBody: reconstructedBody,
+								token: canonicalSessionToken,
+								decision: canonicalHistory,
+							},
 						);
 						if (effectiveOptions?.signal?.aborted) throw new Error("Request was aborted");
 						finalizeUsage(output);
@@ -353,6 +369,7 @@ export function createCodexTransportStream<TApi extends Api>(
 						attempt: attempt + 1,
 						fullInputItems: body.input.length,
 						sentInputItems: body.input.length,
+						...(canonicalHistory ? { canonicalHistory } : {}),
 					});
 					const response = await openCodexSSE(model, sseBody, baseSseHeaders, effectiveOptions, deps.turnState);
 					if (!response.body) throw new Error("No response body");
@@ -372,6 +389,15 @@ export function createCodexTransportStream<TApi extends Api>(
 					assertSuccessfulCodexOutput(output);
 					recordUsage(diagnostics, lane, "sse", output);
 					for (const item of responseItems) effectiveOptions?.onOutputItemDone?.(item);
+					recordCanonicalSessionResponse({
+						sessionId: effectiveOptions?.sessionId,
+						url: resolveCodexWebSocketUrl(model.baseUrl),
+						accountId,
+						requestBody: body,
+						reconstructedRequestBody: reconstructedBody,
+						responseItems,
+						token: canonicalSessionToken,
+					});
 					stream.push({ type: "done", reason: output.stopReason, message: output });
 					stream.end();
 					return;
@@ -425,4 +451,3 @@ export function createCodexTransportStream<TApi extends Api>(
 
 	return stream;
 }
-

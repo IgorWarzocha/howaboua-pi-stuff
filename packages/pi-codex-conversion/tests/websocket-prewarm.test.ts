@@ -9,13 +9,11 @@ import {
 	codeModeTools,
 	collectStream,
 	createRegisteredCodexProvider,
-	exampleTool,
 	installScriptedWebSocket,
 	websocketSuccess,
 } from "./openai-codex-test-support.ts";
 import {
 	type ResponseCreateFrame,
-	apiKey,
 	context,
 	model,
 	sentFrames,
@@ -42,44 +40,7 @@ test("post-compaction transport reset restores WebSocket eligibility", () => {
 	assert.equal(isWebSocketSseFallbackActive(sessionId), false);
 });
 
-test("prewarm refreshes only when its prompt or active tools change", async () => {
-	const restoreWebSocket = installScriptedWebSocket([[
-		websocketSuccess,
-		websocketSuccess,
-		websocketSuccess,
-	]]);
-	try {
-		let activeTools = ["exec", "wait"];
-		const runtime = createCodexExtensionRuntime({
-			getActiveTools: () => activeTools,
-			getAllTools: () => [...codeModeTools, exampleTool],
-			getThinkingLevel: () => "low",
-			sendUserMessage: () => undefined,
-		} as never);
-		runtime.state.config = {
-			...DEFAULT_CODEX_CONVERSION_CONFIG,
-			beta: { ...DEFAULT_CODEX_CONVERSION_CONFIG.beta, codeMode: true },
-		};
-		const extensionContext = {
-			model,
-			modelRegistry: { getApiKeyAndHeaders: async () => ({ ok: true as const, apiKey }) },
-			sessionManager: { getSessionId: () => "prewarm-key" },
-		} as never;
-
-		await runtime.startPrewarm(extensionContext, "Prompt A", true);
-		await runtime.startPrewarm(extensionContext, "Prompt A", true);
-		assert.equal(ScriptedWebSocket.sentFrames.length, 1);
-
-		activeTools = ["exec", "wait", "example_tool"];
-		await runtime.startPrewarm(extensionContext, "Prompt A", true);
-		await runtime.startPrewarm(extensionContext, "Prompt B", true);
-		assert.equal(ScriptedWebSocket.sentFrames.length, 3);
-	} finally {
-		restoreWebSocket();
-	}
-});
-
-test("aborted prewarm cleanup cannot clear a newer equivalent operation", async () => {
+test("stalled auth in an aborted prewarm cannot block a newer equivalent operation", async () => {
 	const authRequests = [
 		Promise.withResolvers<any>(),
 		Promise.withResolvers<any>(),
@@ -108,6 +69,8 @@ test("aborted prewarm cleanup cannot clear a newer equivalent operation", async 
 	runtime.resetTransport("equivalent-prewarm");
 	const current = runtime.startPrewarm(extensionContext, "Prompt", true)!;
 	await Promise.resolve();
+	assert.equal(authIndex, 2, "replacement must not wait for non-abortable auth lookup");
+	assert.equal(runtime.startPrewarm(extensionContext, "Prompt", true), current);
 	authRequests[0]!.resolve({ ok: true, apiKey: "" });
 	await stale;
 

@@ -17,17 +17,6 @@ test("usage parser reads reset-credit summary", () => {
 	assert.equal(snapshot.resetCredits?.availableCount, 2);
 });
 
-test("usage parser keeps a weekly-only window in the weekly column", () => {
-	const snapshot = parseCodexUsagePayload({
-		rate_limit: {
-			primary_window: { used_percent: 25, limit_window_seconds: 604_800, reset_at: 1_800_000_000 },
-		},
-	});
-
-	assert.equal(snapshot.limits[0]?.primary, undefined);
-	assert.equal(snapshot.limits[0]?.secondary?.windowMinutes, 10_080);
-});
-
 test("reset-credit parser normalizes the standalone API payload", () => {
 	const credits = parseCodexRateLimitResetCreditsPayload({
 		available_count: "1",

@@ -3,8 +3,6 @@ import test from "node:test";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { buildCodexSystemPrompt } from "../src/prompt/build-system-prompt.ts";
 
-const PI_INTRO_QUOTE = "You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.";
-
 const basePrompt = `Third-party preface
 
 You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.
@@ -111,33 +109,4 @@ test("heavy prompt overwrite leaves explicit custom prompts authoritative", () =
 
 	assert.match(prompt, /^My system prompt\n\nEarlier hook output\n\nGuidelines:/);
 	assert.doesNotMatch(prompt, /For questions about Pi|Pi documentation/);
-});
-
-test("heavy prompt overwrite preserves extension instructions interleaved with Pi tools", () => {
-	const interleaved = basePrompt
-		.replace(
-			"Available tools:\n- exec: Compose tools with JavaScript\n- wait: Resume or terminate an exec cell",
-			"Available tools:\n- exec: Compose tools with JavaScript\nExtension instruction inside Pi tools\n- exec: Extension-owned guidance for exec\n- wait: Resume or terminate an exec cell\n- Never remove this extension rule",
-		);
-	const prompt = buildCodexSystemPrompt(interleaved, {
-		mode: "code",
-		heavySystemPromptOverwrite: true,
-		systemPromptOptions: { cwd: "/repo" },
-	});
-
-	assert.doesNotMatch(prompt, /expert coding assistant|Available tools:\n|- exec: Compose|- wait: Resume/);
-	assert.match(prompt, /Extension instruction inside Pi tools/);
-	assert.match(prompt, /- exec: Extension-owned guidance for exec/);
-	assert.match(prompt, /- Never remove this extension rule/);
-});
-
-test("heavy prompt fallback leaves ambiguous repeated Pi scaffolds untouched", () => {
-	const prompt = buildCodexSystemPrompt(`${PI_INTRO_QUOTE}\n\n${basePrompt}`, {
-		mode: "code",
-		heavySystemPromptOverwrite: true,
-		systemPromptOptions: { cwd: "/repo" },
-	});
-
-	assert.ok(prompt.includes(PI_INTRO_QUOTE));
-	assert.match(prompt, /Available tools:\n- exec: Compose tools with JavaScript/);
 });

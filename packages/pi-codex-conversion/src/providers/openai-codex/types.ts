@@ -16,8 +16,6 @@ export interface WebSocketConstructorLike {
 export interface SessionWebSocketCacheEntry {
 	socket: WebSocketLike;
 	busy: boolean;
-	createdAt: number;
-	idleTimer?: ReturnType<typeof setTimeout> | undefined;
 	continuation?: CachedWebSocketContinuationState | undefined;
 }
 
@@ -43,6 +41,14 @@ export type WebSocketContinuationDecision =
 	| "input_prefix_mismatch"
 	| "missing_previous_response_id"
 	| "delta";
+
+export type CanonicalHistoryDecision =
+	| "compaction"
+	| "identity_mismatch"
+	| "input_shorter_than_baseline"
+	| "request_prefix_mismatch"
+	| "response_prefix_mismatch"
+	| "validated";
 
 export type CodexDiagnosticsLane = "response" | "compaction" | "prewarm";
 export type CodexDiagnosticsTransport = "websocket" | "sse";
@@ -74,6 +80,7 @@ export type CodexDiagnosticsEvent =
 			sentInputItems: number;
 			socketReused?: boolean | undefined;
 			continuation?: WebSocketContinuationDecision | undefined;
+			canonicalHistory?: CanonicalHistoryDecision | undefined;
 			previousResponseId?: boolean | undefined;
 	  }
 	| {
@@ -135,6 +142,7 @@ export type OpenAICodexStreamOptions = CodexProviderStreamOptions & {
 	onOutputItemDone?: ((item: unknown) => void) | undefined;
 	websocketConnectTimeoutMs?: number | undefined;
 	env?: ProviderEnv | undefined;
+	canonicalCompaction?: boolean | undefined;
 };
 
 export interface ResponsesBody {

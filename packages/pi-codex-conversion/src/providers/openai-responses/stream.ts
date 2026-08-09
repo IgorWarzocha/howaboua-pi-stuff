@@ -110,7 +110,19 @@ export async function processResponsesStream<TApi extends Api>(
 		}
 	};
 
-	for await (const event of openaiStream) {
+	const cleanedStream = async function* () {
+		try {
+			yield* openaiStream;
+		} finally {
+			const incompleteToolCallIndexes = [...outputStates.values()]
+				.filter((state) => state.kind === "function_call" || state.kind === "custom_tool_call")
+				.map((state) => state.blockIndex)
+				.sort((left, right) => right - left);
+			for (const index of incompleteToolCallIndexes) output.content.splice(index, 1);
+		}
+	}();
+
+	for await (const event of cleanedStream) {
 		if (event.type === "response.custom_tool_call_input.delta") {
 			const state = outputStates.get(event.output_index);
 			if (state?.kind === "custom_tool_call") {
