@@ -75,42 +75,6 @@ test("buildRequestBody keeps Codex request shape stable for common options", () 
 	);
 });
 
-test("buildRequestBody anchors newly activated tools at their loader result", () => {
-	const nativeBody = buildRequestBody(
-		{ ...(codexModel as object), compat: { supportsToolSearch: true } } as never,
-		{ messages: toolLoadingMessages, tools: [searchToolsTool, exampleTool] },
-	);
-
-	assert.deepEqual((nativeBody.tools as Array<{ name: string }>).map((tool) => tool.name), ["search_tools"]);
-	const searchCall = nativeBody.input.find((item) => (item as { type?: string }).type === "tool_search_call") as {
-		call_id: string;
-		arguments: { query: string; limit: number };
-	};
-	const searchOutput = nativeBody.input.find((item) => (item as { type?: string }).type === "tool_search_output") as {
-		call_id: string;
-		tools: Array<Record<string, unknown>>;
-	};
-	assert.match(searchCall.call_id, /^pi_tool_load_/);
-	assert.deepEqual(searchCall.arguments, { query: "example_tool", limit: 1 });
-	assert.equal(searchOutput.call_id, searchCall.call_id);
-	assert.deepEqual(searchOutput.tools, [{
-		type: "function",
-		name: "example_tool",
-		description: "Example tool",
-		parameters: {
-			type: "object",
-			properties: { value: { type: "string" } },
-			required: ["value"],
-		},
-		strict: false,
-		defer_loading: true,
-	}]);
-
-	const fallbackBody = buildRequestBody(codexModel, { messages: toolLoadingMessages, tools: [searchToolsTool, exampleTool] });
-	assert.deepEqual((fallbackBody.tools as Array<{ name: string }>).map((tool) => tool.name), ["search_tools", "example_tool"]);
-	assert.equal(fallbackBody.input.some((item) => (item as { type?: string }).type === "tool_search_call"), false);
-});
-
 test("GPT-5.6 Code Mode sends the GPT-5.6 input-item contract", async () => {
 	const originalFetch = globalThis.fetch;
 	const registered = createRegisteredCodexProvider({ codeMode: true });

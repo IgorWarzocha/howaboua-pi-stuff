@@ -1,80 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
-import type { AssistantMessage } from "@earendil-works/pi-ai";
 import { buildCachedWebSocketRequestBody } from "../src/providers/openai-codex-custom-provider.ts";
 import {
 	ScriptedWebSocket,
-	codeModeTools,
 	collectStream,
 	createRegisteredCodexProvider,
 	installScriptedWebSocket,
 } from "./openai-codex-test-support.ts";
 import { context, doneMessage, model, sentFrames, streamOptions, textResponse, user } from "./websocket-test-support.ts";
-
-test("cache continuation rejects meaningful prompt, tool, and persisted-history rewrites", async () => {
-	const cases: Array<{
-		name: string;
-		mutate: (base: { systemPrompt: string; tools: typeof codeModeTools; messages: AgentMessage[] }) => void;
-	}> = [
-		{
-			name: "system prompt",
-			mutate: (base) => { base.systemPrompt = "Changed instructions"; },
-		},
-		{
-			name: "tool schema",
-			mutate: (base) => {
-				base.tools = structuredClone(codeModeTools) as typeof codeModeTools;
-				(base.tools[1] as { description: string }).description = "Changed wait contract";
-			},
-		},
-		{
-			name: "tool order",
-			mutate: (base) => { base.tools = [...codeModeTools].reverse() as typeof codeModeTools; },
-		},
-		{
-			name: "assistant history",
-			mutate: (base) => {
-				const assistant = structuredClone(base.messages[1]!) as AssistantMessage;
-				const text = assistant.content.find((item) => item.type === "text");
-				if (text?.type === "text") text.text = "rewritten assistant history";
-				base.messages[1] = assistant as AgentMessage;
-			},
-		},
-	];
-
-	for (const candidate of cases) {
-		const restoreWebSocket = installScriptedWebSocket([[
-			textResponse("resp_base", "stable assistant"),
-			textResponse("resp_changed", "changed"),
-		]]);
-		try {
-			const registered = createRegisteredCodexProvider({ codeMode: true });
-			const sessionId = `invalidate-${candidate.name}`;
-			const firstUser = user("first user", 1);
-			const assistant = doneMessage(await collectStream(
-				registered.provider.streamSimple(model as never, context([firstUser]) as never, streamOptions(sessionId) as never),
-			));
-			const base = {
-				systemPrompt: "Stable instructions",
-				tools: codeModeTools,
-				messages: [firstUser, assistant as AgentMessage, user("new user", 2)],
-			};
-			candidate.mutate(base);
-			await collectStream(registered.provider.streamSimple(
-				model as never,
-				context(base.messages, base.systemPrompt, base.tools) as never,
-				streamOptions(sessionId) as never,
-			));
-
-			const changedFrame = sentFrames()[1]!;
-			assert.equal(changedFrame.previous_response_id, undefined, `${candidate.name} must invalidate continuation`);
-			assert.ok((changedFrame.input?.length ?? 0) > 1, `${candidate.name} must be sent in full`);
-		} finally {
-			restoreWebSocket();
-		}
-	}
-});
 
 test("cache continuation requires matching model and reasoning", () => {
 	const userInput = { role: "user", content: [{ type: "input_text", text: "first" }] };

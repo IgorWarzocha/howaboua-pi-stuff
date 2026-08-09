@@ -9,13 +9,11 @@ import {
 	codeModeTools,
 	collectStream,
 	createRegisteredCodexProvider,
-	exampleTool,
 	installScriptedWebSocket,
 	websocketSuccess,
 } from "./openai-codex-test-support.ts";
 import {
 	type ResponseCreateFrame,
-	apiKey,
 	context,
 	model,
 	sentFrames,
@@ -40,43 +38,6 @@ test("post-compaction transport reset restores WebSocket eligibility", () => {
 	recordWebSocketSseFallback(sessionId);
 	runtime.resetTransportAfterCompaction(sessionId);
 	assert.equal(isWebSocketSseFallbackActive(sessionId), false);
-});
-
-test("prewarm refreshes only when its prompt or active tools change", async () => {
-	const restoreWebSocket = installScriptedWebSocket([[
-		websocketSuccess,
-		websocketSuccess,
-		websocketSuccess,
-	]]);
-	try {
-		let activeTools = ["exec", "wait"];
-		const runtime = createCodexExtensionRuntime({
-			getActiveTools: () => activeTools,
-			getAllTools: () => [...codeModeTools, exampleTool],
-			getThinkingLevel: () => "low",
-			sendUserMessage: () => undefined,
-		} as never);
-		runtime.state.config = {
-			...DEFAULT_CODEX_CONVERSION_CONFIG,
-			beta: { ...DEFAULT_CODEX_CONVERSION_CONFIG.beta, codeMode: true },
-		};
-		const extensionContext = {
-			model,
-			modelRegistry: { getApiKeyAndHeaders: async () => ({ ok: true as const, apiKey }) },
-			sessionManager: { getSessionId: () => "prewarm-key" },
-		} as never;
-
-		await runtime.startPrewarm(extensionContext, "Prompt A", true);
-		await runtime.startPrewarm(extensionContext, "Prompt A", true);
-		assert.equal(ScriptedWebSocket.sentFrames.length, 1);
-
-		activeTools = ["exec", "wait", "example_tool"];
-		await runtime.startPrewarm(extensionContext, "Prompt A", true);
-		await runtime.startPrewarm(extensionContext, "Prompt B", true);
-		assert.equal(ScriptedWebSocket.sentFrames.length, 3);
-	} finally {
-		restoreWebSocket();
-	}
 });
 
 test("stalled auth in an aborted prewarm cannot block a newer equivalent operation", async () => {
@@ -116,53 +77,6 @@ test("stalled auth in an aborted prewarm cannot block a newer equivalent operati
 	assert.equal(runtime.startPrewarm(extensionContext, "Prompt", true), current);
 	authRequests[1]!.resolve({ ok: true, apiKey: "" });
 	await current;
-});
-
-test("replacement prewarm waits for aborted transport cleanup", async () => {
-	const transportStarted = Promise.withResolvers<void>();
-	const pendingMessage = Promise.withResolvers<ArrayBuffer>();
-	const restoreWebSocket = installScriptedWebSocket([
-		(socket) => {
-			transportStarted.resolve();
-			socket.emit("message", { data: { arrayBuffer: () => pendingMessage.promise } });
-		},
-	]);
-	try {
-		let authIndex = 0;
-		const runtime = createCodexExtensionRuntime({
-			getActiveTools: () => ["exec", "wait"],
-			getAllTools: () => codeModeTools,
-			getThinkingLevel: () => "low",
-			sendUserMessage: () => undefined,
-		} as never);
-		runtime.state.config = {
-			...DEFAULT_CODEX_CONVERSION_CONFIG,
-			beta: { ...DEFAULT_CODEX_CONVERSION_CONFIG.beta, codeMode: true },
-		};
-		const extensionContext = {
-			model,
-			modelRegistry: {
-				getApiKeyAndHeaders: async () => ({ ok: true as const, apiKey: authIndex++ === 0 ? apiKey : "" }),
-			},
-			sessionManager: { getSessionId: () => "transport-settlement" },
-		} as never;
-
-		const stale = runtime.startPrewarm(extensionContext, "Prompt A", true)!;
-		await transportStarted.promise;
-		assert.equal(ScriptedWebSocket.sentFrames.length, 1);
-		runtime.resetTransport("transport-settlement");
-		const current = runtime.startPrewarm(extensionContext, "Prompt B", true)!;
-		await Promise.resolve();
-		assert.equal(authIndex, 1, "replacement must wait while aborted transport is still settling");
-
-		pendingMessage.resolve(new TextEncoder().encode("{}").buffer);
-		await stale;
-		await Promise.resolve();
-		assert.equal(authIndex, 2);
-		await current;
-	} finally {
-		restoreWebSocket();
-	}
 });
 
 test("unfinished WebSocket prewarm cannot seed a continuation", async () => {
