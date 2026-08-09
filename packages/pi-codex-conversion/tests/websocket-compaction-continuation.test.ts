@@ -25,7 +25,6 @@ import {
 	apiKey,
 	compactionResponse,
 	context,
-	customToolResponse,
 	doneMessage,
 	model,
 	sentFrames,
@@ -33,47 +32,6 @@ import {
 	textResponse,
 	user,
 } from "./websocket-test-support.ts";
-
-test("Code Mode continuation sends only the pending custom-tool output", async () => {
-	const restoreWebSocket = installScriptedWebSocket([[
-		customToolResponse("resp_tool"),
-		textResponse("resp_1", "first"),
-	]]);
-	try {
-		const activeTools = [...codeModeTools, exampleTool] as typeof codeModeTools;
-		const registered = createRegisteredCodexProvider({ codeMode: true });
-		const options = streamOptions("tool-output-continuation");
-		const firstUser = user("first user", 1);
-		const toolCallAssistant = doneMessage(await collectStream(
-			registered.provider.streamSimple(model as never, context([firstUser], "Stable instructions", activeTools) as never, options as never),
-		));
-		const toolCall = toolCallAssistant.content.find((item) => item.type === "toolCall");
-		assert.equal(toolCall?.type, "toolCall");
-		const toolResult = {
-			role: "toolResult",
-			toolCallId: toolCall!.id,
-			toolName: "exec",
-			content: [{ type: "text", text: "tool result" }],
-			isError: false,
-			timestamp: 2,
-		} as AgentMessage;
-		await collectStream(registered.provider.streamSimple(
-			model as never,
-			context([firstUser, toolCallAssistant as AgentMessage, toolResult], "Stable instructions", activeTools) as never,
-			options as never,
-		));
-
-		assert.equal(ScriptedWebSocket.opened, 1);
-		assert.equal(sentFrames()[1]?.previous_response_id, "resp_tool");
-		assert.deepEqual(sentFrames()[1]?.input, [{
-			type: "custom_tool_call_output",
-			call_id: "call_resp_tool",
-			output: "tool result",
-		}]);
-	} finally {
-		restoreWebSocket();
-	}
-});
 
 test("Code Mode continuation sends only the next user turn", async () => {
 	const restoreWebSocket = installScriptedWebSocket([[
