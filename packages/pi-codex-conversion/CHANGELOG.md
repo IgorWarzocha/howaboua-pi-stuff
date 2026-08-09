@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.0.12
+
+### Changes
+
+- [#248](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/248) [`4f9282e`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/4f9282e9b502ef573bb894d849a7a490b39a3149) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Preserve canonical Codex provider history across WebSocket replacement and native compaction, prevent cancelled prewarms from blocking replacements, and keep interrupted partial tool calls from hiding abort status
+
 ## 3.0.11
 
 ### Changes

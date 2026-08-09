@@ -57,11 +57,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 3.0.11
+### @howaboua/pi-codex-conversion — 3.0.12
 
 ### Changes
 
-- [#246](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/246) [`712f662`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/712f66216996aa37664f791f12b940611f30c7a2) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add cross-extension Code Mode nested-tool preflights, keep native compaction displays out of turn queues, document `exec_command` output, preserve Codex API errors so Pi can recover context overflows, and stop settled subagents from hanging on extension shutdown.
+- [#248](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/248) [`4f9282e`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/4f9282e9b502ef573bb894d849a7a490b39a3149) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Preserve canonical Codex provider history across WebSocket replacement and native compaction, prevent cancelled prewarms from blocking replacements, and keep interrupted partial tool calls from hiding abort status
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
