@@ -103,6 +103,48 @@ test("cache continuation requires matching model and reasoning", () => {
 	}
 });
 
+test("continuation sends only a pending custom-tool output", () => {
+	const userInput = { role: "user", content: [{ type: "input_text", text: "first" }] };
+	const requestBody = {
+		model: "gpt-5.6-luna",
+		store: false,
+		stream: true,
+		input: [userInput],
+		text: { verbosity: "low" },
+		include: [],
+		tool_choice: "auto" as const,
+		parallel_tool_calls: false,
+		reasoning: { effort: "low" },
+	};
+	const providerToolCall = {
+		type: "custom_tool_call",
+		id: "ctc_tool",
+		call_id: "call_tool",
+		name: "exec",
+		input: 'text("tool result")',
+		status: "completed",
+		internal_chat_message_metadata_passthrough: { turn_id: "turn_tool" },
+	};
+	const reconstructedToolCall = {
+		type: "custom_tool_call",
+		id: "ctc_tool",
+		call_id: "call_tool",
+		name: "exec",
+		input: 'text("tool result")',
+	};
+	const toolOutput = { type: "custom_tool_call_output", call_id: "call_tool", output: "tool result" };
+
+	const result = buildCachedWebSocketRequestBody({
+		lastRequestBody: requestBody,
+		lastResponseId: "resp_tool",
+		lastResponseItems: [providerToolCall],
+	}, { ...requestBody, input: [userInput, reconstructedToolCall, toolOutput] });
+
+	assert.equal(result.decision, "delta");
+	assert.equal(result.body.previous_response_id, "resp_tool");
+	assert.deepEqual(result.body.input, [toolOutput]);
+});
+
 test("WebSocket continuations never cross session IDs", async () => {
 	const restoreWebSocket = installScriptedWebSocket([
 		textResponse("resp_session_a", "session A"),
