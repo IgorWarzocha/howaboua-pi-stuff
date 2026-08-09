@@ -92,6 +92,10 @@ test("cache continuation requires matching model and reasoning", () => {
 	};
 	const continuation = { lastRequestBody: base, lastResponseId: "resp_base", lastResponseItems: [assistantOutput] };
 	const nextInput = [...base.input, assistantOutput, { role: "user", content: [{ type: "input_text", text: "next" }] }];
+	const matching = buildCachedWebSocketRequestBody(continuation, { ...base, input: nextInput });
+	assert.equal(matching.decision, "delta");
+	assert.equal(matching.body.previous_response_id, "resp_base");
+	assert.deepEqual(matching.body.input, nextInput.slice(-1));
 	for (const changed of [
 		{ ...base, model: "gpt-5.6-sol", input: nextInput },
 		{ ...base, reasoning: { effort: "high" }, input: nextInput },

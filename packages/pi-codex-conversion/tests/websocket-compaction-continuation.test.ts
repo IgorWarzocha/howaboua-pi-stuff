@@ -33,34 +33,6 @@ import {
 	user,
 } from "./websocket-test-support.ts";
 
-test("Code Mode continuation sends only the next user turn", async () => {
-	const restoreWebSocket = installScriptedWebSocket([[
-		textResponse("resp_1", "first"),
-		textResponse("resp_2", "second"),
-	]]);
-	try {
-		const registered = createRegisteredCodexProvider({ codeMode: true });
-		const options = streamOptions("user-turn-continuation");
-		const firstUser = user("first user", 1);
-		const firstAssistant = doneMessage(await collectStream(registered.provider.streamSimple(
-			model as never,
-			context([firstUser]) as never,
-			options as never,
-		)));
-		await collectStream(registered.provider.streamSimple(
-			model as never,
-			context([firstUser, firstAssistant as AgentMessage, user("second user", 2)]) as never,
-			options as never,
-		));
-
-		assert.equal(ScriptedWebSocket.opened, 1);
-		assert.equal(sentFrames()[1]?.previous_response_id, "resp_1");
-		assert.deepEqual(sentFrames()[1]?.input, [{ role: "user", content: [{ type: "input_text", text: "second user" }] }]);
-	} finally {
-		restoreWebSocket();
-	}
-});
-
 test("V2 compaction reuses the active turn's WebSocket continuation", async () => {
 	const restoreWebSocket = installScriptedWebSocket([[
 		textResponse("resp_1", "first"),
