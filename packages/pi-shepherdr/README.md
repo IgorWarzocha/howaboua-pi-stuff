@@ -39,7 +39,7 @@ The persistent command atomically merges this setting into `.pi/herdr.json`:
 }
 ```
 
-`/herdr master` writes nothing. A dedicated control directory keeps the master role separate from project workers, but Shepherdr does not create or own that directory. While master mode is active, Pi is guided to delegate project implementation and synthesize results; it works directly only when explicitly asked or for configuration, documentation, and routine operations in its current directory.
+`/herdr master` affects only the current session. Use `/herdr json` in a dedicated control directory to keep orchestration separate from project workers. While master mode is active, Pi is guided to delegate project implementation and synthesize results; it works directly only when explicitly asked or for configuration, documentation, and routine operations in its current directory.
 
 ## Delegate work
 
