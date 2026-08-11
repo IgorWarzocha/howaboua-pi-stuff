@@ -4,6 +4,8 @@ Talk to one Pi. Let it run the others.
 
 Shepherdr turns one Pi session into an orchestrator for Pi agents running across [Herdr](https://herdr.dev). Give work to the master; it can find existing agents, start new ones in explicit locations, send follow-ups and bring their full replies back into the same conversation.
 
+The master gets one small JSON-schema tool with the actions and arguments it needs. It does not have to discover Herdr through `--help`, hunt for a skill or improvise CLI commands for ordinary delegation. Herdr and Shepherdr should be enough on their own; any other Pi extensions and skills continue to work alongside them.
+
 This is particularly handy with realtime voice. You keep talking to one agent while the workers operate in their panes and project directories. Finished work comes back automatically. If a worker needs approval or an answer, the master is steered at the next opportunity instead of leaving you to hunt through panes.
 
 Herdr still owns the terminals, layout and restored sessions. Shepherdr connects them to one Pi conversation.
@@ -52,7 +54,7 @@ While master mode is active, Pi is guided to delegate project implementation and
 
 ## What the master can do
 
-Shepherdr adds one compact `herdr_agents` tool:
+Shepherdr adds one compact `herdr_agents` tool. Its schema is the complete model-facing control surface:
 
 | Action | What it does |
 | --- | --- |
