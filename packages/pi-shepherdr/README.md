@@ -57,8 +57,8 @@ Delegation is fire-and-forget. A `start` with an initial prompt, plus every `wat
 
 A live widget shows watched agents and their state. When work settles, the master receives a labelled purple message containing the original task and the full, untruncated worker response.
 
-- A finished agent triggers a turn when the master is idle or queues a follow-up when it is busy.
-- A blocked agent steers the active turn, or triggers one when idle, so the master can intervene immediately.
+- Finished: an idle master receives `triggerTurn: true`; an active master receives `deliverAs: "followUp"`.
+- Blocked: an active master receives `deliverAs: "steer"`; an idle master receives `triggerTurn: true` with `deliverAs: "steer"`.
 
 Blocked events include the pane ID and these concrete Herdr operations:
 

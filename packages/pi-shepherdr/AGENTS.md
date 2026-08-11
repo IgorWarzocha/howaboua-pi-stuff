@@ -1,4 +1,4 @@
 - Herdr owns layout, process lifecycle, and Pi session restoration. Compose its workspace, tab, pane, agent, prompt, and event primitives; do not add managed layouts, resume, focus, release, or close policy.
-- `AgentMonitor` is event-driven with snapshot reconciliation for reconnects. Never poll worker progress or truncate worker tasks/responses; blocked reports steer, while finished reports trigger idle masters or follow up busy ones.
+- `AgentMonitor` is event-driven with snapshot reconciliation for reconnects. Never poll worker progress or truncate worker tasks/responses; blocked reports use `steer`, while finished reports trigger idle masters or use `followUp` for active turns.
 - Keep `herdr_agents` inactive outside explicit master mode. Its schema, orchestration guideline, acknowledgements, and injected event content are model-facing contracts; keep them compact and avoid repeated state or identifiers.
 - `messages.ts` owns model payloads and rendering details. Preserve task attribution, full responses, actionable blocked CLI commands, and safe restoration of malformed historical details.
