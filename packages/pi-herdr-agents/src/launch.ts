@@ -76,7 +76,10 @@ async function createStartPane(
 		root_pane: PaneInfo;
 		tab: { tab_id: string };
 		workspace: { workspace_id: string };
-	}>("workspace.create", { cwd, focus: false });
+	}>("workspace.create", {
+		cwd,
+		focus: false,
+	});
 	try {
 		await client.request("tab.rename", { tab_id: created.tab.tab_id, label });
 	} catch (error) {

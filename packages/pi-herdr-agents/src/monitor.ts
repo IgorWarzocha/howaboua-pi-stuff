@@ -17,9 +17,20 @@ import { renderAgentWidget } from "./widget.js";
 
 const MONITOR_STATE_TYPE = "herdr-agents-monitor-state";
 const SETTLED_STATUSES = new Set<AgentStatus>(["idle", "done", "blocked"]);
+const AGENT_STATUSES: ReadonlySet<string> = new Set([
+	"idle",
+	"working",
+	"blocked",
+	"done",
+	"unknown",
+]);
 
 interface MonitorStateEntry {
 	agents: MonitoredAgent[];
+}
+
+function isAgentStatus(value: unknown): value is AgentStatus {
+	return typeof value === "string" && AGENT_STATUSES.has(value);
 }
 
 function isMonitoredAgent(value: unknown): value is MonitoredAgent {
@@ -30,7 +41,7 @@ function isMonitoredAgent(value: unknown): value is MonitoredAgent {
 		typeof agent.terminalId === "string" &&
 		typeof agent.workspaceId === "string" &&
 		typeof agent.tabId === "string" &&
-		typeof agent.lastStatus === "string"
+		isAgentStatus(agent.lastStatus)
 	);
 }
 
@@ -60,6 +71,7 @@ export class AgentMonitor {
 	private unsubscribe: (() => void) | undefined;
 	private reconnectTimer: NodeJS.Timeout | undefined;
 	private subscriptionGeneration = 0;
+	private subscriptionWarningShown = false;
 	private readonly reporting = new Set<string>();
 
 	constructor(pi: ExtensionAPI, client = new HerdrClient()) {
@@ -238,12 +250,16 @@ export class AgentMonitor {
 			}
 			previousUnsubscribe?.();
 			this.unsubscribe = unsubscribe;
+			this.subscriptionWarningShown = false;
 		} catch (error) {
 			if (generation !== this.subscriptionGeneration || !this.context) return;
-			this.context.ui.notify(
-				`Herdr monitoring unavailable: ${error instanceof Error ? error.message : String(error)}`,
-				"warning",
-			);
+			if (!this.subscriptionWarningShown) {
+				this.subscriptionWarningShown = true;
+				this.context.ui.notify(
+					`Herdr monitoring unavailable: ${error instanceof Error ? error.message : String(error)}`,
+					"warning",
+				);
+			}
 			this.unsubscribe = previousUnsubscribe;
 			this.scheduleReconnect(generation, false);
 		}

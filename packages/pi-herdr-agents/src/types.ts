@@ -1,6 +1,6 @@
 export type AgentStatus = "idle" | "working" | "blocked" | "done" | "unknown";
 
-export interface AgentSessionInfo {
+interface AgentSessionInfo {
 	agent: string;
 	kind: "id" | "path";
 	source: string;
@@ -22,7 +22,7 @@ export interface PaneInfo {
 	workspace_id: string;
 }
 
-export interface TabInfo {
+interface TabInfo {
 	label: string;
 	tab_id: string;
 	workspace_id: string;

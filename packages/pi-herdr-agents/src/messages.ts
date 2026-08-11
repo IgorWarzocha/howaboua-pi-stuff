@@ -10,7 +10,7 @@ import type {
 	PaneInfo,
 } from "./types.js";
 
-export const AGENT_EVENT_MESSAGE_TYPE = "herdr-agent-event";
+const AGENT_EVENT_MESSAGE_TYPE = "herdr-agent-event";
 
 function xml(value: string): string {
 	return value

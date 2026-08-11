@@ -52,7 +52,9 @@ function compactAgent(
 		status: agent.agent_status,
 		cwd: agent.foreground_cwd ?? agent.cwd ?? null,
 		workspace: names.workspaces.get(agent.workspace_id) ?? agent.workspace_id,
+		workspaceId: agent.workspace_id,
 		tab: names.tabs.get(agent.tab_id) ?? agent.tab_id,
+		tabId: agent.tab_id,
 		monitored,
 	};
 }
@@ -79,12 +81,7 @@ export function registerHerdrAgentsTool(
 	pi.registerTool({
 		name: "herdr_agents",
 		label: "Herdr Agents",
-		description:
-			"Start and monitor Pi agents in Herdr. list discovers agents and layout; start requires explicit placement; watch/unwatch change monitoring only; send submits a follow-up and watches its result.",
-		promptSnippet: "Coordinate Pi agents running in Herdr.",
-		promptGuidelines: [
-			"herdr_agents: Use list before choosing existing layout or agents. Herdr restores sessions; send follow-ups instead of resuming them.",
-		],
+		description: "List, start, watch, unwatch, and message Pi agents in Herdr",
 		parameters: Type.Object({
 			action: StringEnum(ACTIONS),
 			target: Type.Optional(Type.String()),
@@ -96,6 +93,7 @@ export function registerHerdrAgentsTool(
 			cwd: Type.Optional(Type.String()),
 			prompt: Type.Optional(Type.String()),
 		}),
+		executionMode: "sequential",
 		async execute(_toolCallId, params: ToolParams, _signal, _onUpdate, ctx) {
 			const monitor = getMonitor();
 			const client = monitor.client;
@@ -108,11 +106,10 @@ export function registerHerdrAgentsTool(
 								agent.agent === "pi" &&
 								agent.pane_id !== process.env["HERDR_PANE_ID"],
 						)
-						.slice(0, 30)
 						.map((agent) =>
 							compactAgent(agent, snapshot, monitor.isMonitored(agent.pane_id)),
 						),
-					workspaces: snapshot.workspaces.slice(0, 50).map((workspace) => ({
+					workspaces: snapshot.workspaces.map((workspace) => ({
 						id: workspace.workspace_id,
 						label: workspace.label,
 					})),

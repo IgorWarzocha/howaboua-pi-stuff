@@ -6,7 +6,7 @@ interface SessionNode {
 	parentId?: string;
 }
 
-export function latestAssistantFromLines(
+function latestAssistantFromLines(
 	lines: string[],
 ): LatestAssistant | undefined {
 	const nodes = new Map<string, SessionNode>();

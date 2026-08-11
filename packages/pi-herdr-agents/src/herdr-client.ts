@@ -78,10 +78,15 @@ export class HerdrClient {
 				if (newline < 0) return;
 				try {
 					const response = JSON.parse(buffer.slice(0, newline)) as {
+						id?: unknown;
 						error?: unknown;
 						result?: T;
 					};
-					if (response.error !== undefined)
+					if (response.id !== id)
+						finish(
+							new Error(`Herdr ${method} returned a mismatched response ID`),
+						);
+					else if (response.error !== undefined)
 						finish(errorFromResponse(response.error));
 					else if (response.result !== undefined)
 						finish(undefined, response.result);
@@ -150,8 +155,14 @@ export class HerdrClient {
 					let value: Record<string, unknown>;
 					try {
 						value = JSON.parse(line) as Record<string, unknown>;
-					} catch {
-						continue;
+					} catch (error) {
+						disconnect(
+							new Error(
+								`Herdr events.subscribe returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`,
+							),
+						);
+						socket.destroy();
+						return;
 					}
 					if (!acknowledged && value["id"] === id) {
 						if (value["error"] !== undefined) {
