@@ -1,25 +1,15 @@
 import { StringEnum, Type } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { getSnapshot, resolvePiAgent, sessionPath } from "./herdr.js";
+import { getSnapshot, resolvePiAgent } from "./herdr.js";
 import {
 	START_PLACEMENTS,
 	type StartAgentParams,
 	startAgent,
 } from "./launch.js";
 import type { AgentMonitor } from "./monitor.js";
-import { SessionReader } from "./session-reader.js";
 import type { MonitoredAgent, PaneInfo, SessionSnapshot } from "./types.js";
 
-const ACTIONS = [
-	"list",
-	"start",
-	"adopt",
-	"send",
-	"read",
-	"focus",
-	"release",
-	"close",
-] as const;
+const ACTIONS = ["list", "start", "watch", "unwatch", "send"] as const;
 
 type ToolParams = StartAgentParams & {
 	action: (typeof ACTIONS)[number];
@@ -86,12 +76,11 @@ export function registerHerdrAgentsTool(
 	pi: ExtensionAPI,
 	getMonitor: () => AgentMonitor,
 ): void {
-	const reader = new SessionReader();
 	pi.registerTool({
 		name: "herdr_agents",
 		label: "Herdr Agents",
 		description:
-			"Control and monitor Pi agents in Herdr. list discovers existing agents; start requires an explicit Herdr placement; adopt/release change monitoring only; send submits a follow-up and monitors its result.",
+			"Start and monitor Pi agents in Herdr. list discovers agents and layout; start requires explicit placement; watch/unwatch change monitoring only; send submits a follow-up and watches its result.",
 		promptSnippet: "Coordinate Pi agents running in Herdr.",
 		promptGuidelines: [
 			"herdr_agents: Use list before choosing existing layout or agents. Herdr restores sessions; send follow-ups instead of resuming them.",
@@ -134,33 +123,25 @@ export function registerHerdrAgentsTool(
 			}
 
 			const target = required(params.target, "target");
-			if (params.action === "release") {
+			if (params.action === "unwatch") {
 				const record = findRecord(monitor, target);
-				if (!record) return result({ released: false, target });
-				await monitor.release(record.paneId);
-				return result({ released: true, id: record.paneId });
-			}
-			if (params.action === "close") {
-				const record = findRecord(monitor, target);
-				const paneId =
-					record?.paneId ?? (await resolvePiAgent(client, target)).pane_id;
-				await client.request("pane.close", { pane_id: paneId });
-				await monitor.release(paneId);
-				return result({ closed: true, id: paneId });
+				if (!record) return result({ unwatched: false, target });
+				await monitor.unwatch(record.paneId);
+				return result({ unwatched: true, id: record.paneId });
 			}
 
 			const agent = await resolvePiAgent(client, target);
-			if (params.action === "adopt") {
-				await monitor.adopt(agent);
+			if (params.action === "watch") {
+				await monitor.watch(agent);
 				return result({
-					adopted: true,
+					watched: true,
 					id: agent.pane_id,
 					status: agent.agent_status,
 				});
 			}
 			if (params.action === "send") {
 				const prompt = required(params.prompt, "prompt");
-				if (!monitor.isMonitored(agent.pane_id)) await monitor.adopt(agent);
+				if (!monitor.isMonitored(agent.pane_id)) await monitor.watch(agent);
 				monitor.beginWork(agent.pane_id, prompt);
 				try {
 					await client.request("agent.prompt", {
@@ -172,18 +153,6 @@ export function registerHerdrAgentsTool(
 					throw error;
 				}
 				return result({ sent: true, id: agent.pane_id, monitored: true });
-			}
-			if (params.action === "read") {
-				const reply = await reader.latest(sessionPath(agent));
-				return result({
-					id: agent.pane_id,
-					status: agent.agent_status,
-					text: reply?.text ?? null,
-				});
-			}
-			if (params.action === "focus") {
-				await client.request("agent.focus", { target: agent.pane_id });
-				return result({ focused: true, id: agent.pane_id });
 			}
 			throw new Error(`unsupported action ${params.action}`);
 		},

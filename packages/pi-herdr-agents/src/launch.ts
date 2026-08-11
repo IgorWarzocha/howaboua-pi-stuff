@@ -132,7 +132,7 @@ export async function startAgent(
 		}
 		throw error;
 	}
-	await monitor.adopt(agent);
+	await monitor.watch(agent);
 	if (params.prompt?.trim()) {
 		const prompt = params.prompt.trim();
 		monitor.beginWork(agent.pane_id, prompt);

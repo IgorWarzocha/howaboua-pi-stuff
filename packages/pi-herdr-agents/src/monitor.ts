@@ -94,7 +94,7 @@ export class AgentMonitor {
 		return this.agents.has(paneId);
 	}
 
-	async adopt(panel: PaneInfo): Promise<MonitoredAgent> {
+	async watch(panel: PaneInfo): Promise<MonitoredAgent> {
 		if (panel.pane_id === process.env["HERDR_PANE_ID"]) {
 			throw new Error("refusing to monitor the controlling Pi session");
 		}
@@ -110,7 +110,7 @@ export class AgentMonitor {
 		return record;
 	}
 
-	async release(paneId: string): Promise<boolean> {
+	async unwatch(paneId: string): Promise<boolean> {
 		const removed = this.agents.delete(paneId);
 		if (!removed) return false;
 		this.persist();
