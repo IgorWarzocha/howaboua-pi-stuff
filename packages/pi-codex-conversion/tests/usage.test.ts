@@ -1,9 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+	codexWeeklyUsageLeft,
 	parseCodexRateLimitResetCreditsPayload,
 	parseCodexUsagePayload,
-} from "../src/ui/settings/usage.ts";
+} from "../src/usage.ts";
+import { buildStatusText } from "../src/adapter/activation/tool-set.ts";
 
 test("usage parser reads reset-credit summary", () => {
 	const snapshot = parseCodexUsagePayload({
@@ -15,6 +17,23 @@ test("usage parser reads reset-credit summary", () => {
 	});
 
 	assert.equal(snapshot.resetCredits?.availableCount, 2);
+});
+
+test("usage parser exposes weekly remaining percentage", () => {
+	const snapshot = parseCodexUsagePayload({
+		rate_limit: {
+			primary_window: { used_percent: 3, limit_window_seconds: 7 * 24 * 60 * 60 },
+		},
+	});
+
+	assert.equal(codexWeeklyUsageLeft(snapshot), 97);
+	assert.equal(
+		buildStatusText(
+			{ fast: false, useOnAllModels: false, weeklyUsageLeft: 97 },
+			{ fg: (role, text) => `<${role}>${text}</${role}>` },
+		),
+		"<accent>Codex adapter</accent><dim> • weekly: 97% left</dim>",
+	);
 });
 
 test("reset-credit parser normalizes the standalone API payload", () => {

@@ -1,14 +1,18 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Box, Text, truncateToWidth } from "@earendil-works/pi-tui";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import { NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, NATIVE_COMPACTION_DISPLAY_TEXT, type NativeCompactionDisplayEntry } from "../adapter/compaction/types.ts";
 import { BACKGROUND_BASH_WIDGET_ID, registerBackgroundBashWidgetShortcuts, renderBackgroundBashWidget } from "../ui/background-bash-widget.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
+import { renderCodexStatus } from "../ui/status.ts";
+import { isAdapterRuntime, resolveCodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
+import { fetchCodexWeeklyUsageLeft } from "../usage.ts";
 
 export interface CodexUiController {
 	clearBackgroundWidget(): void;
 	renderBackgroundWidget(): void;
 	applyConfig(config: CodexConversionConfig): void;
+	refreshUsageStatus(ctx: ExtensionContext): Promise<void>;
 }
 
 export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime): CodexUiController {
@@ -72,6 +76,11 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 	return {
 		clearBackgroundWidget,
 		renderBackgroundWidget,
+		async refreshUsageStatus(ctx) {
+			runtime.state.weeklyUsageLeft = await fetchCodexWeeklyUsageLeft(ctx);
+			const plan = resolveCodexRuntimePlan(ctx, runtime.state.config);
+			if (isAdapterRuntime(plan)) renderCodexStatus(ctx, runtime.state, plan);
+		},
 		applyConfig(config) {
 			if (config.voiceFeaturesOnly || !config.ui.backgroundShellWidget) clearBackgroundWidget();
 			else renderBackgroundWidget();

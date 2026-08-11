@@ -7,7 +7,7 @@ import {
 	type CodexRateLimitResetConsumeResult,
 	type CodexRateLimitResetCredit,
 	type CodexUsageSnapshot,
-} from "./usage.ts";
+} from "../../usage.ts";
 
 export interface UsageTabOptions {
 	initialUsage?: CodexUsageSnapshot | { error: string } | undefined;

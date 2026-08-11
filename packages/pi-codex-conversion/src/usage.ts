@@ -5,6 +5,7 @@ const DEFAULT_CODEX_BASE_URL = "https://chatgpt.com/backend-api";
 const JWT_CLAIM_PATH = "https://api.openai.com/auth";
 const RESET_CREDITS_CACHE_MS = 5_000;
 const WEEKLY_WINDOW_MINUTES = 7 * 24 * 60;
+const WEEKLY_USAGE_CACHE_MS = 60_000;
 
 type RuntimeModel = Model<Api>;
 
@@ -55,6 +56,7 @@ export interface CodexRateLimitResetConsumeResult {
 }
 
 let resetCreditsCache: { key: string; expiresAt: number; promise: Promise<CodexRateLimitResetCredits | undefined> } | undefined;
+let weeklyUsageCache: { value?: number | undefined; expiresAt: number } = { expiresAt: 0 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -194,6 +196,13 @@ export function parseCodexUsagePayload(payload: unknown): CodexUsageSnapshot {
 	return { planType: stringValue(root["plan_type"]!), limits, resetCredits: parseCodexRateLimitResetCreditsSummary(root["rate_limit_reset_credits"]!), raw: payload };
 }
 
+export function codexWeeklyUsageLeft(snapshot: CodexUsageSnapshot): number | undefined {
+	const limit = snapshot.limits.find(({ limitId }) => limitId === "codex");
+	const weekly = [limit?.primary, limit?.secondary].find(({ windowMinutes } = {}) => windowMinutes === WEEKLY_WINDOW_MINUTES);
+	if (weekly?.usedPercent === undefined) return undefined;
+	return 100 - Math.max(0, Math.min(100, weekly.usedPercent));
+}
+
 function resetCreditsCacheKey(headers: Headers): string | undefined {
 	return headers.get("chatgpt-account-id")?.trim() || undefined;
 }
@@ -230,6 +239,17 @@ export async function fetchCodexUsage(ctx: ExtensionContext): Promise<CodexUsage
 		}
 	}
 	return snapshot;
+}
+
+export async function fetchCodexWeeklyUsageLeft(ctx: ExtensionContext): Promise<number | undefined> {
+	if (weeklyUsageCache.expiresAt > Date.now()) return weeklyUsageCache.value;
+	weeklyUsageCache.expiresAt = Date.now() + WEEKLY_USAGE_CACHE_MS;
+	try {
+		weeklyUsageCache.value = codexWeeklyUsageLeft(await fetchCodexUsage(ctx));
+	} catch {
+		// Keep the last successful value when usage is temporarily unavailable.
+	}
+	return weeklyUsageCache.value;
 }
 
 export function createCodexRateLimitResetRedeemRequestId(): string {
