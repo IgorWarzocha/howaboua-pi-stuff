@@ -10,27 +10,33 @@ function socketEndpoint(socketPath: string): string {
 }
 
 function errorFromResponse(value: unknown): Error {
+	let error: Error & { code?: string; herdrResponse?: true };
 	if (
 		typeof value === "object" &&
 		value !== null &&
 		"message" in value &&
 		typeof value.message === "string"
 	) {
-		const error = new Error(value.message) as Error & {
-			code?: string;
-			herdrResponse?: true;
-		};
-		error.herdrResponse = true;
+		error = new Error(value.message);
 		if ("code" in value && typeof value.code === "string") {
 			error.code = value.code;
 		}
-		return error;
+	} else {
+		error = new Error(`Herdr request failed: ${JSON.stringify(value)}`);
 	}
-	return new Error(`Herdr request failed: ${JSON.stringify(value)}`);
+	error.herdrResponse = true;
+	return error;
 }
 
 export function isHerdrResponseError(error: unknown): boolean {
 	return (error as Error & { herdrResponse?: unknown }).herdrResponse === true;
+}
+
+export function isHerdrErrorCode(error: unknown, code: string): boolean {
+	return (
+		isHerdrResponseError(error) &&
+		(error as Error & { code?: unknown }).code === code
+	);
 }
 
 export class HerdrClient {
@@ -178,6 +184,21 @@ export class HerdrClient {
 							socket.destroy();
 							return;
 						}
+						const result = value["result"];
+						if (
+							typeof result !== "object" ||
+							result === null ||
+							!("type" in result) ||
+							result.type !== "subscription_started"
+						) {
+							disconnect(
+								new Error(
+									"Herdr events.subscribe returned an invalid acknowledgement",
+								),
+							);
+							socket.destroy();
+							return;
+						}
 						acknowledged = true;
 						clearTimeout(timer);
 						resolve(() => {
@@ -192,10 +213,21 @@ export class HerdrClient {
 						typeof value["data"] === "object" &&
 						value["data"] !== null
 					) {
-						onEvent({
-							event: value["event"],
-							data: value["data"] as Record<string, unknown>,
-						});
+						try {
+							onEvent({
+								event: value["event"],
+								data: value["data"] as Record<string, unknown>,
+							});
+						} catch (error) {
+							disconnect(
+								new Error(
+									`Shepherdr event handling failed: ${error instanceof Error ? error.message : String(error)}`,
+									{ cause: error },
+								),
+							);
+							socket.destroy();
+							return;
+						}
 					}
 				}
 			});

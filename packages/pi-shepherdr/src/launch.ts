@@ -1,7 +1,12 @@
 import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
-import { getSnapshot, parsePaneInfo, resolveWorkspace } from "./herdr.js";
-import type { HerdrClient } from "./herdr-client.js";
+import {
+	getAgent,
+	getSnapshot,
+	parsePaneInfo,
+	resolveWorkspace,
+} from "./herdr.js";
+import { type HerdrClient, isHerdrErrorCode } from "./herdr-client.js";
 import type { AgentMonitor } from "./monitor.js";
 import type { PaneInfo } from "./types.js";
 
@@ -58,40 +63,95 @@ async function createStartPane(
 			await getSnapshot(client),
 			workspaceTarget,
 		);
-		const created = await client.request<{
-			root_pane: PaneInfo;
-			tab: { tab_id: string };
-		}>("tab.create", {
-			workspace_id: workspace.workspace_id,
-			cwd,
-			label,
-			focus: false,
-		});
+		const created = createdLocation(
+			await client.request<unknown>("tab.create", {
+				workspace_id: workspace.workspace_id,
+				cwd,
+				label,
+				focus: false,
+			}),
+			"tab.create result",
+		);
 		return {
 			paneId: created.root_pane.pane_id,
 			cleanup: { method: "tab.close", id: created.tab.tab_id },
 		};
 	}
-	const created = await client.request<{
-		root_pane: PaneInfo;
-		tab: { tab_id: string };
-		workspace: { workspace_id: string };
-	}>("workspace.create", {
-		cwd,
-		focus: false,
-	});
+	const created = createdLocation(
+		await client.request<unknown>("workspace.create", {
+			cwd,
+			focus: false,
+		}),
+		"workspace.create result",
+		true,
+	);
 	try {
 		await client.request("tab.rename", { tab_id: created.tab.tab_id, label });
 	} catch (error) {
-		await client.request("workspace.close", {
-			workspace_id: created.workspace.workspace_id,
-		});
-		throw error;
+		return rollbackCreatedLocation(
+			client,
+			{ method: "workspace.close", id: created.workspace.workspace_id },
+			error,
+		);
 	}
 	return {
 		paneId: created.root_pane.pane_id,
 		cleanup: { method: "workspace.close", id: created.workspace.workspace_id },
 	};
+}
+
+function createdLocation(
+	value: unknown,
+	path: string,
+): { root_pane: PaneInfo; tab: { tab_id: string } };
+function createdLocation(
+	value: unknown,
+	path: string,
+	withWorkspace: true,
+): {
+	root_pane: PaneInfo;
+	tab: { tab_id: string };
+	workspace: { workspace_id: string };
+};
+function createdLocation(
+	value: unknown,
+	path: string,
+	withWorkspace = false,
+): {
+	root_pane: PaneInfo;
+	tab: { tab_id: string };
+	workspace?: { workspace_id: string };
+} {
+	if (typeof value !== "object" || value === null) {
+		throw new Error(`Herdr ${path} must be an object`);
+	}
+	const result = value as Record<string, unknown>;
+	const tabId = nestedId(result["tab"], "tab_id", `${path}.tab`);
+	return {
+		root_pane: parsePaneInfo(result["root_pane"], `${path}.root_pane`),
+		tab: { tab_id: tabId },
+		...(withWorkspace
+			? {
+					workspace: {
+						workspace_id: nestedId(
+							result["workspace"],
+							"workspace_id",
+							`${path}.workspace`,
+						),
+					},
+				}
+			: {}),
+	};
+}
+
+function nestedId(value: unknown, key: string, path: string): string {
+	if (typeof value !== "object" || value === null) {
+		throw new Error(`Herdr ${path} must be an object`);
+	}
+	const id = (value as Record<string, unknown>)[key];
+	if (typeof id !== "string")
+		throw new Error(`Herdr ${path}.${key} must be string`);
+	return id;
 }
 
 export async function startAgent(
@@ -189,7 +249,7 @@ async function startWhenShellReady(
 			break;
 		} catch (error) {
 			if (
-				(error as Error & { code?: string }).code !== "agent_pane_busy" ||
+				!isHerdrErrorCode(error, "agent_pane_busy") ||
 				Date.now() >= shellDeadline
 			) {
 				throw error;
@@ -212,7 +272,8 @@ async function startWhenShellReady(
 		let current: PaneInfo;
 		try {
 			current = await resolveDuringStart(client, name, paneId);
-		} catch {
+		} catch (error) {
+			if (!isHerdrErrorCode(error, "agent_not_found")) throw error;
 			await new Promise((resolve) => setTimeout(resolve, 100));
 			continue;
 		}
@@ -249,12 +310,9 @@ async function resolveDuringStart(
 	paneId: string,
 ): Promise<PaneInfo> {
 	try {
-		return (
-			await client.request<{ agent: PaneInfo }>("agent.get", { target: name })
-		).agent;
-	} catch {
-		return (
-			await client.request<{ agent: PaneInfo }>("agent.get", { target: paneId })
-		).agent;
+		return await getAgent(client, name);
+	} catch (error) {
+		if (!isHerdrErrorCode(error, "agent_not_found")) throw error;
+		return getAgent(client, paneId);
 	}
 }

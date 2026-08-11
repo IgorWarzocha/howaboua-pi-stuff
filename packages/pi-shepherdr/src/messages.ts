@@ -4,11 +4,12 @@ import {
 	getMarkdownTheme,
 } from "@earendil-works/pi-coding-agent";
 import { Box, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
+import { activityTask } from "./activity.js";
 import type {
-	AgentStatus,
 	LatestAssistant,
 	MonitoredAgent,
 	PaneInfo,
+	SettledAgentStatus,
 } from "./types.js";
 
 const AGENT_EVENT_MESSAGE_TYPE = "herdr-agent-event";
@@ -33,7 +34,7 @@ interface AgentEventOptions {
 	labels: AgentEventLabels;
 	record: MonitoredAgent;
 	reply?: LatestAssistant;
-	status: AgentStatus;
+	status: SettledAgentStatus;
 }
 
 interface AgentEventDetails {
@@ -85,6 +86,7 @@ function agentEvent(options: AgentEventOptions): {
 	details: AgentEventDetails;
 } {
 	const { agent, blockedMessage, labels, record, reply, status } = options;
+	const task = activityTask(record.activity);
 	const blocked = status === "blocked";
 	const failed = !blocked && reply?.stopReason === "error";
 	const cwd = agent.foreground_cwd ?? agent.cwd ?? record.cwd;
@@ -101,7 +103,7 @@ function agentEvent(options: AgentEventOptions): {
 		.filter(Boolean)
 		.join(" ");
 	const lines = [`<${tag} ${attributes}>`];
-	if (record.task) lines.push(`<task>${xml(record.task)}</task>`);
+	if (task) lines.push(`<task>${xml(task)}</task>`);
 	if (blockedMessage) {
 		lines.push(`<blocked_on>${xml(blockedMessage)}</blocked_on>`);
 	}
@@ -122,7 +124,7 @@ function agentEvent(options: AgentEventOptions): {
 			...(cwd ? { cwd } : {}),
 			...(labels.workspace ? { workspace: labels.workspace } : {}),
 			...(labels.tab ? { tab: labels.tab } : {}),
-			...(record.task ? { task: record.task } : {}),
+			...(task ? { task } : {}),
 			...(blockedMessage ? { blockedOn: blockedMessage } : {}),
 			...(reply ? { response: reply.text } : {}),
 		},

@@ -1,5 +1,20 @@
 export type AgentStatus = "idle" | "working" | "blocked" | "done" | "unknown";
 
+export type SettledAgentStatus = Exclude<AgentStatus, "working">;
+
+export type StableAgentActivity =
+	| { readonly phase: "settled"; readonly status: SettledAgentStatus }
+	| { readonly phase: "working"; readonly task?: string };
+
+export type AgentActivity =
+	| StableAgentActivity
+	| {
+			readonly attemptId: string;
+			readonly phase: "submitting";
+			readonly previous: StableAgentActivity;
+			readonly task: string;
+	  };
+
 interface AgentSessionInfo {
 	agent: string;
 	kind: "id" | "path";
@@ -41,15 +56,14 @@ export interface SessionSnapshot {
 }
 
 export interface MonitoredAgent {
-	cwd?: string;
-	lastAssistantId?: string;
-	lastStatus: AgentStatus;
-	name?: string;
-	paneId: string;
-	tabId: string;
-	task?: string;
-	terminalId: string;
-	workspaceId: string;
+	readonly activity: AgentActivity;
+	readonly cwd?: string;
+	readonly lastAssistantId?: string;
+	readonly name?: string;
+	readonly paneId: string;
+	readonly tabId: string;
+	readonly terminalId: string;
+	readonly workspaceId: string;
 }
 
 export interface LatestAssistant {

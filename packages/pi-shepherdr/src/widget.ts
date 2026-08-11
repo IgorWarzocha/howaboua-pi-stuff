@@ -1,5 +1,6 @@
 import { basename } from "node:path";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { activityStatus } from "./activity.js";
 import type { AgentStatus, MonitoredAgent } from "./types.js";
 
 const WIDGET_ID = "herdr-agents";
@@ -25,14 +26,15 @@ function statusAppearance(status: AgentStatus): {
 
 function agentLine(ctx: ExtensionContext, agent: MonitoredAgent): string {
 	const theme = ctx.ui.theme;
-	const appearance = statusAppearance(agent.lastStatus);
+	const status = activityStatus(agent.activity);
+	const appearance = statusAppearance(status);
 	const name = agent.name ?? agent.paneId;
 	const location = agent.cwd ? basename(agent.cwd) : agent.paneId;
 	return [
 		theme.fg("muted", "│"),
 		theme.fg(appearance.tone, appearance.icon),
 		theme.fg("accent", name),
-		theme.fg(appearance.tone, agent.lastStatus),
+		theme.fg(appearance.tone, status),
 		theme.fg("dim", `· ${location}`),
 	].join(" ");
 }
@@ -49,7 +51,8 @@ export function renderAgentWidget(
 	const theme = ctx.ui.theme;
 	const ordered = [...agents].sort(
 		(left, right) =>
-			statusOrder(left.lastStatus) - statusOrder(right.lastStatus) ||
+			statusOrder(activityStatus(left.activity)) -
+				statusOrder(activityStatus(right.activity)) ||
 			(left.name ?? left.paneId).localeCompare(right.name ?? right.paneId),
 	);
 	const lines = [
