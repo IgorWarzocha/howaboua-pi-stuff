@@ -4,7 +4,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { getAgent, getSnapshot, sessionPath } from "./herdr.js";
 import { HerdrClient } from "./herdr-client.js";
-import { agentEventContent, injectAgentEvent } from "./messages.js";
+import { injectAgentEvent } from "./messages.js";
 import { SessionReader } from "./session-reader.js";
 import type {
 	AgentStatus,
@@ -31,6 +31,19 @@ interface MonitorStateEntry {
 
 function isAgentStatus(value: unknown): value is AgentStatus {
 	return typeof value === "string" && AGENT_STATUSES.has(value);
+}
+
+function blockedReason(data: Record<string, unknown>): string | undefined {
+	const stateLabels = data["state_labels"];
+	if (
+		typeof stateLabels === "object" &&
+		stateLabels !== null &&
+		"blocked" in stateLabels &&
+		typeof stateLabels.blocked === "string"
+	) {
+		return stateLabels.blocked;
+	}
+	return typeof data["title"] === "string" ? data["title"] : undefined;
 }
 
 function isMonitoredAgent(value: unknown): value is MonitoredAgent {
@@ -321,9 +334,7 @@ export class AgentMonitor {
 		this.persist();
 		if (SETTLED_STATUSES.has(status as AgentStatus) && previous === "working") {
 			const blockedMessage =
-				typeof event.data["title"] === "string"
-					? event.data["title"]
-					: undefined;
+				status === "blocked" ? blockedReason(event.data) : undefined;
 			void this.reportSettled(record, status as AgentStatus, blockedMessage);
 		}
 	}
@@ -380,26 +391,14 @@ export class AgentMonitor {
 			if (reply?.id) record.lastAssistantId = reply.id;
 			this.persist();
 			const labels = labelsFor(snapshot, agent);
-			injectAgentEvent(
-				this.pi,
-				context,
-				agentEventContent({
-					agent,
-					...(blockedMessage ? { blockedMessage } : {}),
-					labels,
-					record,
-					...(newReply ? { reply: newReply } : {}),
-					status,
-				}),
-				{
-					paneId: agent.pane_id,
-					terminalId: agent.terminal_id,
-					workspaceId: agent.workspace_id,
-					tabId: agent.tab_id,
-					status,
-					session: agent.agent_session,
-				},
-			);
+			injectAgentEvent(this.pi, context, {
+				agent,
+				...(blockedMessage ? { blockedMessage } : {}),
+				labels,
+				record,
+				...(newReply ? { reply: newReply } : {}),
+				status,
+			});
 		} catch (error) {
 			this.context?.ui.notify(
 				`Could not collect ${record.name ?? record.paneId}: ${error instanceof Error ? error.message : String(error)}`,
