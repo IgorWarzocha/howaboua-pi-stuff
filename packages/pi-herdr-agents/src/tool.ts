@@ -81,17 +81,40 @@ export function registerHerdrAgentsTool(
 	pi.registerTool({
 		name: "herdr_agents",
 		label: "Herdr Agents",
-		description: "List, start, watch, unwatch, and message Pi agents in Herdr",
+		description:
+			"Herdr Pi agents. start needs name and placement; new_tab needs workspace; pane placement needs pane ID. watch/unwatch need target; send needs target and prompt.",
 		parameters: Type.Object({
 			action: StringEnum(ACTIONS),
-			target: Type.Optional(Type.String()),
-			name: Type.Optional(Type.String()),
-			label: Type.Optional(Type.String()),
+			target: Type.Optional(
+				Type.String({ description: "Agent name or pane ID" }),
+			),
+			name: Type.Optional(
+				Type.String({
+					description: "Agent name; [a-z][a-z0-9_-]{0,31}",
+				}),
+			),
+			label: Type.Optional(
+				Type.String({
+					description:
+						"Pi session label; also labels a new tab; defaults to name",
+				}),
+			),
 			placement: Type.Optional(StringEnum(START_PLACEMENTS)),
-			workspace: Type.Optional(Type.String()),
+			workspace: Type.Optional(
+				Type.String({ description: "Workspace label or ID" }),
+			),
 			pane: Type.Optional(Type.String()),
-			cwd: Type.Optional(Type.String()),
-			prompt: Type.Optional(Type.String()),
+			cwd: Type.Optional(
+				Type.String({
+					description:
+						"Working directory for a new location; defaults to current",
+				}),
+			),
+			prompt: Type.Optional(
+				Type.String({
+					description: "Initial task (start) or message (send)",
+				}),
+			),
 		}),
 		executionMode: "sequential",
 		async execute(_toolCallId, params: ToolParams, _signal, _onUpdate, ctx) {
