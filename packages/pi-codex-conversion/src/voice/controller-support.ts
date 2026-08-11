@@ -14,6 +14,7 @@ export const VOICE_STATUS_KEY = "codex-voice";
 export type VoiceSession = CodexRealtimeConversation | CodexDictationSession;
 export type VoiceState =
 	| { type: "idle" }
+	| { type: "reconnecting" }
 	| { type: "connecting"; mode: "realtime"; phase: "authorizing" }
 	| { type: "connecting"; mode: "realtime"; phase: "starting"; session: CodexRealtimeConversation }
 	| { type: "connecting"; mode: "dictation"; phase: "authorizing" }

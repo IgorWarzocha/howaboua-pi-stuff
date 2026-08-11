@@ -14,6 +14,7 @@
 - On finalized user `turn.done`, immediately show one display-only `You said` entry before routing any hidden canonical delegation. Never render partial recognition.
 - Buffer Pi worker text to its assistant-message boundary. Route tool-use messages to V3 commentary and terminal messages to speakable without changing visible Pi text. Never forward raw thinking deltas.
 - Each mode owns its helper process and idempotent cleanup; the controller owns replacement/reload/shutdown ordering.
+- Opt-in auto-resume replaces only established host-to-OpenAI V3 calls after terminal transport drops. Preserve LAN browser ownership, rerun normal context startup, omit lifecycle end/start, and leave failed replacement startup terminal.
 - LAN voice is host-owned: one helper WebRTC V3 call owns authenticated setup and delegation; browser disconnect/takeover preserves it, explicit Stop closes it so the next Start snapshots fresh Pi context. Never replace supported V3 WebRTC with standalone ChatGPT OAuth WebSocket.
 - Realtime mic mute keeps V3 warm. Gate browser tracks, discard captured samples, send silence RTP, and reset mute when input ownership ends.
 - Native `v3.rs` owns WebRTC signaling/session state; `v3_media.rs` owns audio tracks, playout, encoding, and silence RTP.

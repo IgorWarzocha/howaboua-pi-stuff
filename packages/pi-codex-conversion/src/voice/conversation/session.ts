@@ -16,6 +16,7 @@ type ConversationState = "idle" | "starting" | "active" | "failed" | "closed";
 
 export interface CodexConversationCallbacks {
 	onError(error: Error): void;
+	onDrop(error: Error): void;
 	onStatus(status: string): void;
 	onTurn(turn: RealtimeVoiceTurn): void;
 	onUserTranscript(transcript: string): void;
@@ -32,6 +33,7 @@ export class CodexRealtimeConversation {
 	private peerReady: ReturnType<typeof Promise.withResolvers<void>> | undefined;
 	private callSetup: RealtimeCallSetup = setupRealtimeCall;
 	private inputMuted = false;
+	private established = false;
 
 	constructor(callbacks: CodexConversationCallbacks, peer: CodexRealtimePeer) {
 		this.callbacks = callbacks;
@@ -43,7 +45,7 @@ export class CodexRealtimeConversation {
 			onStatus: (status) => this.callbacks.onStatus(status),
 		});
 		this.peer.onEvent((event) => this.handlePeerEvent(event));
-		this.peer.onExit((error) => this.fail(error));
+		this.peer.onExit((error) => this.drop(error));
 	}
 
 	async start(auth: CodexVoiceAuth, config: CodexConversionConfig, instructions: string, initialItems?: RealtimeInitialMessageItem[]): Promise<void> {
@@ -91,6 +93,10 @@ export class CodexRealtimeConversation {
 		}
 	}
 
+	markEstablished(): void {
+		if (this.state === "active") this.established = true;
+	}
+
 	activateDelegation(id: string): void {
 		this.handoff.activate(id);
 	}
@@ -122,6 +128,7 @@ export class CodexRealtimeConversation {
 	async close(): Promise<void> {
 		if (this.state === "closed") return;
 		this.state = "closed";
+		this.established = false;
 		this.abortSetup();
 		this.handoff.clear();
 		this.drainConversation();
@@ -140,7 +147,7 @@ export class CodexRealtimeConversation {
 
 	private handleHelperState(state: string): void {
 		const failure = realtimePeerStateFailure(state);
-		if (failure) { this.fail(new Error(failure)); return; }
+		if (failure) { this.drop(new Error(failure)); return; }
 		if (state === "ready" || state === "listening") {
 			this.peerReady?.resolve();
 			this.callbacks.onStatus("listening");
@@ -214,14 +221,24 @@ export class CodexRealtimeConversation {
 	}
 
 	private fail(error: Error): void {
+		this.finishFailure(error, false);
+	}
+
+	private drop(error: Error): void {
+		this.finishFailure(error, this.established);
+	}
+
+	private finishFailure(error: Error, dropped: boolean): void {
 		if (this.state === "idle" || this.state === "closed" || this.state === "failed") return;
 		this.state = "failed";
+		this.established = false;
 		this.abortSetup();
 		this.handoff.clear();
 		this.drainConversation();
 		this.peerReady?.resolve();
 		this.peerReady = undefined;
-		this.callbacks.onError(error);
+		if (dropped) this.callbacks.onDrop(error);
+		else this.callbacks.onError(error);
 		void this.peer.close();
 	}
 }
