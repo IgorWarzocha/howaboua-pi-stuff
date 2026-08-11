@@ -49,13 +49,15 @@ function latestAssistantFromLines(
 				}
 			}
 			const joined = text.join("");
-			if (joined) {
+			const stopReason =
+				"stopReason" in message && typeof message.stopReason === "string"
+					? message.stopReason
+					: undefined;
+			if (joined || stopReason === "error") {
 				node.assistant = {
 					id: entry["id"],
 					text: joined,
-					...("stopReason" in message && typeof message.stopReason === "string"
-						? { stopReason: message.stopReason }
-						: {}),
+					...(stopReason ? { stopReason } : {}),
 				};
 			}
 		}

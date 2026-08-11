@@ -3,7 +3,7 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { getAgent, getSnapshot, sessionPath } from "./herdr.js";
-import { HerdrClient } from "./herdr-client.js";
+import { HerdrClient, isHerdrResponseError } from "./herdr-client.js";
 import { injectAgentEvent } from "./messages.js";
 import { SessionReader } from "./session-reader.js";
 import type {
@@ -35,7 +35,6 @@ interface ActiveSubscription {
 }
 
 export interface WorkAttempt {
-	paneId: string;
 	previousStatus: AgentStatus;
 	previousTask?: string;
 	task: string;
@@ -175,8 +174,10 @@ export class AgentMonitor {
 	}
 
 	async unwatch(paneId: string): Promise<boolean> {
-		if (!this.agents.delete(paneId)) return false;
-		this.pendingWork.delete(paneId);
+		const record = this.agents.get(paneId);
+		if (!record) return false;
+		this.agents.delete(paneId);
+		this.pendingWork.delete(record.terminalId);
 		this.persist();
 		await this.refreshSubscription();
 		return true;
@@ -186,32 +187,37 @@ export class AgentMonitor {
 		const record = this.agents.get(paneId);
 		if (!record) return undefined;
 		const attempt: WorkAttempt = {
-			paneId,
 			previousStatus: record.lastStatus,
 			...(record.task ? { previousTask: record.task } : {}),
 			task,
 			terminalId: record.terminalId,
 		};
 		record.task = task;
-		this.pendingWork.set(paneId, attempt);
+		this.pendingWork.set(record.terminalId, attempt);
 		this.persist();
 		return attempt;
 	}
 
 	acceptWork(attempt: WorkAttempt | undefined): void {
-		if (!attempt || this.pendingWork.get(attempt.paneId) !== attempt) return;
-		this.pendingWork.delete(attempt.paneId);
-		const record = this.agents.get(attempt.paneId);
-		if (!record || record.terminalId !== attempt.terminalId) return;
+		if (!attempt || this.pendingWork.get(attempt.terminalId) !== attempt)
+			return;
+		this.pendingWork.delete(attempt.terminalId);
+		const record = this.list().find(
+			(candidate) => candidate.terminalId === attempt.terminalId,
+		);
+		if (!record) return;
 		record.lastStatus = "working";
 		this.persist();
 	}
 
 	rejectWork(attempt: WorkAttempt | undefined): void {
-		if (!attempt || this.pendingWork.get(attempt.paneId) !== attempt) return;
-		this.pendingWork.delete(attempt.paneId);
-		const record = this.agents.get(attempt.paneId);
-		if (!record || record.terminalId !== attempt.terminalId) return;
+		if (!attempt || this.pendingWork.get(attempt.terminalId) !== attempt)
+			return;
+		this.pendingWork.delete(attempt.terminalId);
+		const record = this.list().find(
+			(candidate) => candidate.terminalId === attempt.terminalId,
+		);
+		if (!record) return;
 		record.lastStatus = attempt.previousStatus;
 		if (attempt.previousTask !== undefined) record.task = attempt.previousTask;
 		else delete record.task;
@@ -222,7 +228,7 @@ export class AgentMonitor {
 		attempt: WorkAttempt | undefined,
 		error: unknown,
 	): Promise<void> {
-		if (typeof (error as Error & { code?: unknown }).code === "string") {
+		if (isHerdrResponseError(error)) {
 			this.rejectWork(attempt);
 			return;
 		}
@@ -272,7 +278,11 @@ export class AgentMonitor {
 		if (generation !== this.activationGeneration || context !== this.context)
 			return;
 		let changed = false;
-		const settled: Array<{ record: MonitoredAgent; status: AgentStatus }> = [];
+		const settled: Array<{
+			record: MonitoredAgent;
+			requireNewReply: boolean;
+			status: AgentStatus;
+		}> = [];
 		for (const [paneId, record] of [...this.agents]) {
 			const panel =
 				snapshot.agents.find(
@@ -286,6 +296,7 @@ export class AgentMonitor {
 				);
 				if (!paneStillExists) {
 					this.agents.delete(paneId);
+					this.pendingWork.delete(record.terminalId);
 					changed = true;
 				}
 				continue;
@@ -299,8 +310,9 @@ export class AgentMonitor {
 			if (panel.pane_id !== paneId) this.agents.delete(paneId);
 			const cwd = panel.foreground_cwd ?? panel.cwd;
 			const name = panel.name ?? undefined;
+			const pending = this.pendingWork.get(record.terminalId);
 			const settling =
-				record.lastStatus === "working" &&
+				(record.lastStatus === "working" || pending !== undefined) &&
 				SETTLED_STATUSES.has(panel.agent_status);
 			const updated = {
 				...record,
@@ -316,10 +328,14 @@ export class AgentMonitor {
 			if (!cwd) delete updated.cwd;
 			this.agents.set(panel.pane_id, updated);
 			if (panel.agent_status === "working") {
-				this.pendingWork.delete(panel.pane_id);
+				this.pendingWork.delete(record.terminalId);
 			}
 			if (settling) {
-				settled.push({ record: updated, status: panel.agent_status });
+				settled.push({
+					record: updated,
+					requireNewReply: record.lastStatus !== "working",
+					status: panel.agent_status,
+				});
 			}
 			changed ||=
 				panel.pane_id !== paneId ||
@@ -333,7 +349,13 @@ export class AgentMonitor {
 		if (changed) this.persist();
 		else renderAgentWidget(this.context, this.list());
 		for (const completion of settled) {
-			void this.reportSettled(completion.record, completion.status);
+			void this.reportSettled(
+				completion.record,
+				completion.status,
+				undefined,
+				false,
+				completion.requireNewReply,
+			);
 		}
 	}
 
@@ -444,7 +466,10 @@ export class AgentMonitor {
 		}
 		if (event.event === "pane.closed") {
 			const paneId = event.data["pane_id"];
-			if (typeof paneId === "string" && this.agents.delete(paneId)) {
+			const record =
+				typeof paneId === "string" ? this.agents.get(paneId) : undefined;
+			if (record && this.agents.delete(record.paneId)) {
+				this.pendingWork.delete(record.terminalId);
 				this.persist();
 				void this.refreshSubscription();
 			}
@@ -459,9 +484,9 @@ export class AgentMonitor {
 		const record = this.agents.get(paneId);
 		if (!record) return;
 		const previous = record.lastStatus;
-		const pending = this.pendingWork.get(paneId);
+		const pending = this.pendingWork.get(record.terminalId);
 		if (status === "working") {
-			this.pendingWork.delete(paneId);
+			this.pendingWork.delete(record.terminalId);
 			record.lastStatus = "working";
 			this.persist();
 			return;
@@ -470,7 +495,7 @@ export class AgentMonitor {
 			SETTLED_STATUSES.has(status as AgentStatus) &&
 			(previous === "working" || pending)
 		) {
-			this.pendingWork.delete(paneId);
+			this.pendingWork.delete(record.terminalId);
 			record.lastStatus = "working";
 			this.persist();
 			const blockedMessage =
@@ -498,12 +523,6 @@ export class AgentMonitor {
 		if (!record) return;
 		this.agents.delete(previousPaneId);
 		record.paneId = pane.pane_id;
-		const pending = this.pendingWork.get(previousPaneId);
-		if (pending) {
-			this.pendingWork.delete(previousPaneId);
-			pending.paneId = pane.pane_id;
-			this.pendingWork.set(pending.paneId, pending);
-		}
 		if ("workspace_id" in pane && typeof pane.workspace_id === "string") {
 			record.workspaceId = pane.workspace_id;
 		}
@@ -520,6 +539,8 @@ export class AgentMonitor {
 		status: AgentStatus,
 		blockedMessage?: string,
 		retried = false,
+		requireNewReply = false,
+		task = record.task,
 	): Promise<void> {
 		const generation = this.activationGeneration;
 		const context = this.context;
@@ -551,6 +572,8 @@ export class AgentMonitor {
 				return;
 			const newReply =
 				reply?.id !== currentRecord.lastAssistantId ? reply : undefined;
+			if (requireNewReply && !newReply) return;
+			if (currentRecord.task !== task) return;
 			const labels = labelsFor(snapshot, currentAgent);
 			injectAgentEvent(this.pi, context, {
 				agent: currentAgent,
@@ -564,6 +587,7 @@ export class AgentMonitor {
 			});
 			if (reply?.id) currentRecord.lastAssistantId = reply.id;
 			currentRecord.lastStatus = currentStatus;
+			this.pendingWork.delete(currentRecord.terminalId);
 			delete currentRecord.task;
 			this.persist();
 		} catch (error) {
@@ -578,6 +602,8 @@ export class AgentMonitor {
 					blockedMessage,
 					generation,
 					context,
+					requireNewReply,
+					task,
 				);
 			}
 		} finally {
@@ -591,6 +617,8 @@ export class AgentMonitor {
 		blockedMessage: string | undefined,
 		generation: number,
 		context: ExtensionContext,
+		requireNewReply: boolean,
+		task: string | undefined,
 	): void {
 		if (
 			generation !== this.activationGeneration ||
@@ -608,7 +636,14 @@ export class AgentMonitor {
 				(candidate) => candidate.terminalId === record.terminalId,
 			);
 			if (!current) return;
-			void this.reportSettled(current, status, blockedMessage, true);
+			void this.reportSettled(
+				current,
+				status,
+				blockedMessage,
+				true,
+				requireNewReply,
+				task,
+			);
 		}, 1_000);
 		timer.unref();
 	}

@@ -16,13 +16,21 @@ function errorFromResponse(value: unknown): Error {
 		"message" in value &&
 		typeof value.message === "string"
 	) {
-		const error = new Error(value.message) as Error & { code?: string };
+		const error = new Error(value.message) as Error & {
+			code?: string;
+			herdrResponse?: true;
+		};
+		error.herdrResponse = true;
 		if ("code" in value && typeof value.code === "string") {
 			error.code = value.code;
 		}
 		return error;
 	}
 	return new Error(`Herdr request failed: ${JSON.stringify(value)}`);
+}
+
+export function isHerdrResponseError(error: unknown): boolean {
+	return (error as Error & { herdrResponse?: unknown }).herdrResponse === true;
 }
 
 export class HerdrClient {
