@@ -49,7 +49,33 @@ interface AgentEventDetails {
 }
 
 function operatorHint(paneId: string): string {
-	return `Inspect first with \`herdr agent read ${paneId} --source visible\`; respond with \`herdr agent prompt ${paneId} "<text>"\` or use \`herdr pane send-keys ${paneId} <keys>\` for interactive controls.`;
+	return `Inspect first with \`herdr agent read ${paneId} --source visible\`; respond with \`herdr agent prompt ${paneId} "<text>"\` or use \`herdr agent send-keys ${paneId} <keys>\` for interactive controls.`;
+}
+
+function eventDetails(value: unknown): AgentEventDetails | undefined {
+	if (typeof value !== "object" || value === null) return undefined;
+	const details = value as Record<string, unknown>;
+	if (
+		typeof details["paneId"] !== "string" ||
+		(details["state"] !== "blocked" && details["state"] !== "finished")
+	) {
+		return undefined;
+	}
+	const optional = (field: keyof AgentEventDetails) =>
+		typeof details[field] === "string"
+			? { [field]: details[field] as string }
+			: {};
+	return {
+		paneId: details["paneId"],
+		state: details["state"],
+		...optional("blockedOn"),
+		...optional("cwd"),
+		...optional("name"),
+		...optional("response"),
+		...optional("tab"),
+		...optional("task"),
+		...optional("workspace"),
+	};
 }
 
 function agentEvent(options: AgentEventOptions): {
@@ -117,7 +143,22 @@ export function registerAgentEventRenderer(pi: ExtensionAPI): void {
 	pi.registerMessageRenderer<AgentEventDetails>(
 		AGENT_EVENT_MESSAGE_TYPE,
 		(message, { expanded, outputPad }, theme) => {
-			const details = message.details;
+			const details = eventDetails(message.details);
+			if (!details) {
+				const box = new Box(outputPad, 1, (value) =>
+					theme.bg("customMessageBg", value),
+				);
+				box.addChild(
+					new Text(
+						typeof message.content === "string"
+							? message.content
+							: "Herdr agent event unavailable",
+						0,
+						0,
+					),
+				);
+				return box;
+			}
 			const blocked = details?.state === "blocked";
 			const identity = details?.name
 				? `${details.name} (${details.paneId})`

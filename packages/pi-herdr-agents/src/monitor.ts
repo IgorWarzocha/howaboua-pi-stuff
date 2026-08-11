@@ -378,26 +378,37 @@ export class AgentMonitor {
 		if (this.reporting.has(reportKey)) return;
 		this.reporting.add(reportKey);
 		try {
-			const [agent, snapshot] = await Promise.all([
-				getAgent(this.client, record.paneId),
-				getSnapshot(this.client),
-			]);
+			const agent = await getAgent(this.client, record.paneId);
 			if (agent.terminal_id !== record.terminalId || agent.agent !== "pi")
 				return;
 			const reply = await this.reader.latest(sessionPath(agent));
+			const [currentAgent, snapshot] = await Promise.all([
+				getAgent(this.client, record.paneId),
+				getSnapshot(this.client),
+			]);
+			if (
+				currentAgent.terminal_id !== record.terminalId ||
+				currentAgent.agent !== "pi" ||
+				!SETTLED_STATUSES.has(currentAgent.agent_status)
+			) {
+				return;
+			}
+			const currentStatus = currentAgent.agent_status;
 			if (generation !== this.activationGeneration || context !== this.context)
 				return;
 			const newReply = reply?.id !== record.lastAssistantId ? reply : undefined;
 			if (reply?.id) record.lastAssistantId = reply.id;
 			this.persist();
-			const labels = labelsFor(snapshot, agent);
+			const labels = labelsFor(snapshot, currentAgent);
 			injectAgentEvent(this.pi, context, {
-				agent,
-				...(blockedMessage ? { blockedMessage } : {}),
+				agent: currentAgent,
+				...(currentStatus === status && blockedMessage
+					? { blockedMessage }
+					: {}),
 				labels,
 				record,
 				...(newReply ? { reply: newReply } : {}),
-				status,
+				status: currentStatus,
 			});
 		} catch (error) {
 			this.context?.ui.notify(
