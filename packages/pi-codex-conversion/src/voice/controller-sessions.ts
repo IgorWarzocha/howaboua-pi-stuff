@@ -31,6 +31,7 @@ export async function startControllerConversation(options: {
 	config: CodexConversionConfig;
 	instructions: string;
 	initialItems?: RealtimeInitialMessageItem[] | undefined;
+	inputMuted?: boolean | undefined;
 	peer?: CodexRealtimePeer | undefined;
 	signal?: AbortSignal | undefined;
 	lifecycle: RealtimeSessionLifecycle;
@@ -54,7 +55,13 @@ export async function startControllerConversation(options: {
 	const closeOnAbort = () => { void session.close(); };
 	options.signal?.addEventListener("abort", closeOnAbort, { once: true });
 	try {
-		await session.start(options.auth, options.config, options.instructions, options.initialItems);
+		await session.start(
+			options.auth,
+			options.config,
+			options.instructions,
+			options.initialItems,
+			options.inputMuted,
+		);
 	} finally {
 		options.signal?.removeEventListener("abort", closeOnAbort);
 	}

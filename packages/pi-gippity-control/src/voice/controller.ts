@@ -150,6 +150,7 @@ export class CodexVoiceController {
 		realtimePeerPlan?: RealtimePeerPlan,
 		signal?: AbortSignal,
 		resume = false,
+		inputMuted = false,
 	): Promise<CodexRealtimeConversation | undefined> {
 		return startControllerMode({
 			runtime: this.runtime,
@@ -160,6 +161,7 @@ export class CodexVoiceController {
 			realtimePeerPlan,
 			signal,
 			resume,
+			inputMuted,
 			prepareRealtimePrompt: (current) => this.prepareRealtimePrompt(current),
 			stopCurrent: () => this.stop({ announce: true }),
 			finishCurrentDictation: () => this.finishDictation({ announce: true }),
@@ -322,6 +324,7 @@ export class CodexVoiceController {
 				realtimePeerPlan,
 				undefined,
 				true,
+				wasMuted,
 			);
 			const replacementGeneration = this.runtime.startGeneration;
 			let resumed: CodexRealtimeConversation | undefined;
@@ -348,7 +351,7 @@ export class CodexVoiceController {
 				return;
 			}
 			if (wasMuted && this.currentSession() === resumed)
-				this.setInputMuted(true);
+				this.renderCurrentStatus();
 		})();
 	}
 

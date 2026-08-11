@@ -49,6 +49,7 @@ export async function startControllerMode(options: {
 	mode: CodexVoiceMode;
 	realtimePeerPlan?: RealtimePeerPlan | undefined;
 	resume?: boolean | undefined;
+	inputMuted?: boolean | undefined;
 	signal?: AbortSignal | undefined;
 	prepareRealtimePrompt(ctx: ExtensionContext): string | undefined;
 	stopCurrent(): Promise<void>;
@@ -175,6 +176,7 @@ async function startConversation(
 		config: options.config,
 		instructions,
 		initialItems,
+		inputMuted: options.inputMuted,
 		peer,
 		signal,
 		lifecycle: {

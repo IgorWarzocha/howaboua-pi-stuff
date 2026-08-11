@@ -33,6 +33,7 @@ export async function startControllerConversation(options: {
 	config: GippityControlConfig;
 	instructions: string;
 	initialItems?: RealtimeInitialMessageItem[] | undefined;
+	inputMuted?: boolean | undefined;
 	peer?: CodexRealtimePeer | undefined;
 	signal?: AbortSignal | undefined;
 	lifecycle: RealtimeSessionLifecycle;
@@ -84,6 +85,7 @@ export async function startControllerConversation(options: {
 			options.config,
 			options.instructions,
 			options.initialItems,
+			options.inputMuted,
 		);
 	} finally {
 		options.signal?.removeEventListener("abort", closeOnAbort);

@@ -71,6 +71,7 @@ export class CodexRealtimeConversation {
 		config: GippityControlConfig,
 		instructions: string,
 		initialItems?: RealtimeInitialMessageItem[],
+		inputMuted = false,
 	): Promise<void> {
 		this.state = "starting";
 		const sdp = await this.peer.start(config);
@@ -104,6 +105,7 @@ export class CodexRealtimeConversation {
 				`Codex voice call failed (${status}): ${answer.slice(0, 1_000)}`,
 			);
 		this.state = "active";
+		if (inputMuted) this.setInputMuted(true);
 		const peerReady = Promise.withResolvers<void>();
 		this.peerReady = peerReady;
 		this.callbacks.onStatus("connecting…");
@@ -180,7 +182,9 @@ export class CodexRealtimeConversation {
 		)
 			return;
 		if (event.type === "error") {
-			this.fail(new Error(event.message));
+			const error = new Error(event.message);
+			if (terminalTransportError(event.message)) this.drop(error);
+			else this.fail(error);
 			return;
 		}
 		if (event.type === "data") this.handleServerEvent(event.message);
@@ -327,4 +331,11 @@ export class CodexRealtimeConversation {
 		else this.callbacks.onError(error);
 		void this.close();
 	}
+}
+
+function terminalTransportError(message: string): boolean {
+	return (
+		message.startsWith("realtime speaker stream ended:") ||
+		message.startsWith("realtime microphone stream failed:")
+	);
 }

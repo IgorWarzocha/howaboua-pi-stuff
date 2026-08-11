@@ -49,7 +49,7 @@ export class CodexRealtimeConversation {
 		this.peer.onExit((error) => this.drop(error));
 	}
 
-	async start(auth: CodexVoiceAuth, config: CodexConversionConfig, instructions: string, initialItems?: RealtimeInitialMessageItem[]): Promise<void> {
+	async start(auth: CodexVoiceAuth, config: CodexConversionConfig, instructions: string, initialItems?: RealtimeInitialMessageItem[], inputMuted = false): Promise<void> {
 		this.state = "starting";
 		const sdp = await this.peer.start(config);
 		if (this.state !== "starting") return;
@@ -76,6 +76,7 @@ export class CodexRealtimeConversation {
 		if (this.state !== "starting") return;
 		if (status !== 201) throw new Error(`Codex voice call failed (${status}): ${answer.slice(0, 1_000)}`);
 		this.state = "active";
+		if (inputMuted) this.setInputMuted(true);
 		const peerReady = Promise.withResolvers<void>();
 		this.peerReady = peerReady;
 		this.callbacks.onStatus("connecting…");
@@ -145,7 +146,12 @@ export class CodexRealtimeConversation {
 
 	private handlePeerEvent(event: CodexRealtimePeerEvent): void {
 		if (this.state === "idle" || this.state === "closed" || this.state === "failed") return;
-		if (event.type === "error") { this.fail(new Error(event.message)); return; }
+		if (event.type === "error") {
+			const error = new Error(event.message);
+			if (terminalTransportError(event.message)) this.drop(error);
+			else this.fail(error);
+			return;
+		}
 		if (event.type === "data") this.handleServerEvent(event.message);
 		if (event.type === "state") this.handleHelperState(event.state);
 	}
@@ -246,4 +252,9 @@ export class CodexRealtimeConversation {
 		else this.callbacks.onError(error);
 		void this.close();
 	}
+}
+
+function terminalTransportError(message: string): boolean {
+	return message.startsWith("realtime speaker stream ended:")
+		|| message.startsWith("realtime microphone stream failed:");
 }
