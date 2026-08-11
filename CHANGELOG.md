@@ -57,11 +57,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 3.0.12
+### @howaboua/pi-codex-conversion — 3.0.13
 
 ### Changes
 
-- [#248](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/248) [`4f9282e`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/4f9282e9b502ef573bb894d849a7a490b39a3149) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Preserve canonical Codex provider history across WebSocket replacement and native compaction, prevent cancelled prewarms from blocking replacements, and keep interrupted partial tool calls from hiding abort status
+- [#253](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/253) [`c9fcbf8`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/c9fcbf8a44adff914ed8c4a86703a35d503e4b0b) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Auto-resume dropped realtime voice calls when enabled and update Undici to its patched release.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
@@ -81,24 +81,24 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.50
+### @howaboua/pi-extensions — 0.0.51
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-semantic-grep: Make semantic indexing non-blocking at session startup, single-writer, atomic, resumable, ignore-aware, metadata-fast, batch-embedded, and role-aware while preserving usable prior file indexes across interrupted rebuilds.
+  - @howaboua/pi-gippity-control: Add opt-in dropped realtime voice call auto-resume to GipPity Control and update Undici to its patched release.
 
-- Updated dependencies [[`7dbbfc8`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/7dbbfc8bc28746ec28b3142a73efc8e0b14d2ffa)]:
-  - @howaboua/pi-semantic-grep@0.1.19
+- Updated dependencies [[`c9fcbf8`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/c9fcbf8a44adff914ed8c4a86703a35d503e4b0b)]:
+  - @howaboua/pi-gippity-control@0.0.8
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
-### @howaboua/pi-gippity-control — 0.0.7
+### @howaboua/pi-gippity-control — 0.0.8
 
 ### Changes
 
-- [#235](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/235) [`5657b77`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/5657b778f59ffa2eb86f10f7e949f060d95eb993) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Preserve Pi 0.84 credential-resolved endpoints and nullable auth headers in tree, review, and voice summaries, assemble complete multi-block delta-only RPC streaming updates, and remove retired Smart BTW shortcut-capture and voice helper exports
+- [#253](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/253) [`c9fcbf8`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/c9fcbf8a44adff914ed8c4a86703a35d503e4b0b) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add opt-in dropped realtime voice call auto-resume to GipPity Control and update Undici to its patched release.
 
 [Full changelog](./packages/pi-gippity-control/CHANGELOG.md)
 
@@ -251,16 +251,16 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.55
+### @howaboua/pi-stuff — 0.0.56
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-semantic-grep: Make semantic indexing non-blocking at session startup, single-writer, atomic, resumable, ignore-aware, metadata-fast, batch-embedded, and role-aware while preserving usable prior file indexes across interrupted rebuilds.
+  - @howaboua/pi-gippity-control: Add opt-in dropped realtime voice call auto-resume to GipPity Control and update Undici to its patched release.
 
-- Updated dependencies [[`7dbbfc8`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/7dbbfc8bc28746ec28b3142a73efc8e0b14d2ffa)]:
-  - @howaboua/pi-semantic-grep@0.1.19
+- Updated dependencies [[`c9fcbf8`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/c9fcbf8a44adff914ed8c4a86703a35d503e4b0b)]:
+  - @howaboua/pi-gippity-control@0.0.8
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 

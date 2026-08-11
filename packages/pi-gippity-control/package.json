@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-gippity-control",
-	"version": "0.0.7",
+	"version": "0.0.8",
 	"description": "GipPity voice and LAN remote control for any Pi model",
 	"keywords": [
 		"pi-package",
