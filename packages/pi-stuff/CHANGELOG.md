@@ -1,5 +1,13 @@
 # @howaboua/pi-stuff
 
+## 0.0.57
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-shepherdr: Add Shepherdr, a Herdr-native Pi agent orchestrator with event-driven monitoring and a live fleet widget.
+
 ## 0.0.56
 
 ### Changes
