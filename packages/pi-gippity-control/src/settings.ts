@@ -69,6 +69,19 @@ export async function openGippitySettings(options: {
 				}),
 			},
 			{
+				id: "autoResumeRealtime",
+				label: "Auto-resume realtime voice",
+				currentValue: config.voice.autoResumeRealtime ? "on" : "off",
+				values: ["off", "on"],
+				update: (value, current) => ({
+					...current,
+					voice: {
+						...current.voice,
+						autoResumeRealtime: value === "on",
+					},
+				}),
+			},
+			{
 				id: "dictationMode",
 				label: "Dictation key behavior",
 				currentValue:

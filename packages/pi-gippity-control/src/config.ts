@@ -34,6 +34,7 @@ export type RealtimeV3Voice = (typeof REALTIME_V3_VOICES)[number];
 export interface GippityControlConfig {
 	voice: {
 		v3Voice: RealtimeV3Voice;
+		autoResumeRealtime: boolean;
 		dictationShortcut: string;
 		realtimeShortcut: string;
 		muteShortcut: string;
@@ -49,6 +50,7 @@ export interface GippityControlConfig {
 export const DEFAULT_GIPPITY_CONTROL_CONFIG: GippityControlConfig = {
 	voice: {
 		v3Voice: "cove",
+		autoResumeRealtime: false,
 		dictationShortcut: "ctrl+alt+d",
 		realtimeShortcut: "ctrl+alt+space",
 		muteShortcut: "ctrl+alt+m",
@@ -113,6 +115,10 @@ export function normalizeGippityControlConfig(
 			v3Voice:
 				normalizeRealtimeV3Voice(voice["v3Voice"]) ??
 				DEFAULT_GIPPITY_CONTROL_CONFIG.voice.v3Voice,
+			autoResumeRealtime:
+				typeof voice["autoResumeRealtime"] === "boolean"
+					? voice["autoResumeRealtime"]
+					: DEFAULT_GIPPITY_CONTROL_CONFIG.voice.autoResumeRealtime,
 			dictationShortcut: stringValue(
 				voice["dictationShortcut"],
 				DEFAULT_GIPPITY_CONTROL_CONFIG.voice.dictationShortcut,

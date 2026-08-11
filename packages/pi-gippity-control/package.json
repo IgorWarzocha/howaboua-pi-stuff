@@ -43,7 +43,7 @@
 	"dependencies": {
 		"proxy-from-env": "1.1.0",
 		"selfsigned": "^3.0.1",
-		"undici": "8.5.0",
+		"undici": "8.10.0",
 		"ws": "^8.21.0"
 	},
 	"peerDependencies": {
