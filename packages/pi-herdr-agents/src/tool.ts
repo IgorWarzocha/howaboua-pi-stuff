@@ -10,6 +10,8 @@ import type { AgentMonitor } from "./monitor.js";
 import type { MonitoredAgent, PaneInfo, SessionSnapshot } from "./types.js";
 
 const ACTIONS = ["list", "start", "watch", "unwatch", "send"] as const;
+const FIRE_AND_FORGET =
+	"Do not poll; completion or blockage will be delivered automatically";
 
 type ToolParams = StartAgentParams & {
 	action: (typeof ACTIONS)[number];
@@ -83,6 +85,9 @@ export function registerHerdrAgentsTool(
 		label: "Herdr Agents",
 		description:
 			"Herdr Pi agents. start needs name and placement; new_tab needs workspace; pane placement needs pane ID. watch/unwatch need target; send needs target and prompt.",
+		promptGuidelines: [
+			"After herdr_agents delegates or watches work, do not poll with list/watch; completion or blockage arrives automatically",
+		],
 		parameters: Type.Object({
 			action: StringEnum(ACTIONS),
 			target: Type.Optional(
@@ -139,7 +144,11 @@ export function registerHerdrAgentsTool(
 				});
 			}
 			if (params.action === "start") {
-				return result(await startAgent(client, monitor, params, ctx.cwd));
+				const started = await startAgent(client, monitor, params, ctx.cwd);
+				return result({
+					...started,
+					...(params.prompt?.trim() ? { next: FIRE_AND_FORGET } : {}),
+				});
 			}
 
 			const target = required(params.target, "target");
@@ -157,6 +166,7 @@ export function registerHerdrAgentsTool(
 					watched: true,
 					id: agent.pane_id,
 					status: agent.agent_status,
+					next: FIRE_AND_FORGET,
 				});
 			}
 			if (params.action === "send") {
@@ -172,7 +182,12 @@ export function registerHerdrAgentsTool(
 					await monitor.reconcileNow().catch(() => undefined);
 					throw error;
 				}
-				return result({ sent: true, id: agent.pane_id, monitored: true });
+				return result({
+					sent: true,
+					id: agent.pane_id,
+					monitored: true,
+					next: FIRE_AND_FORGET,
+				});
 			}
 			throw new Error(`unsupported action ${params.action}`);
 		},
