@@ -4,7 +4,9 @@ Talk to one Pi. Let it run the others.
 
 Shepherdr turns one Pi session into an orchestrator for Pi agents running across [Herdr](https://herdr.dev). Give work to the master; it can find existing agents, start new ones in explicit locations, send follow-ups and bring their full replies back into the same conversation.
 
-The master gets one small JSON-schema tool with the actions and arguments it needs. It does not have to discover Herdr through `--help`, hunt for a skill or improvise CLI commands for ordinary delegation. Herdr and Shepherdr should be enough on their own; any other Pi extensions and skills continue to work alongside them.
+The master gets one small JSON-schema tool with the actions and arguments it needs. Its complete active surface measures 271 `o200k` tokens: 228 for the OpenAI Responses tool declaration and 43 for the master guideline. Workers load none of it.
+
+The master does not have to discover Herdr through `--help`, hunt for a skill or improvise CLI commands for ordinary delegation. Herdr and Shepherdr should be enough on their own; any other Pi extensions and skills continue to work alongside them.
 
 This is particularly handy with realtime voice. You keep talking to one agent while the workers operate in their panes and project directories. Finished work comes back automatically. If a worker needs approval or an answer, the master is steered at the next opportunity instead of leaving you to hunt through panes.
 
