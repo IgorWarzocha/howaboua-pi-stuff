@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-shepherdr",
-	"version": "0.0.0",
+	"version": "0.1.0",
 	"description": "Herdr-native multi-agent orchestration for Pi.",
 	"type": "module",
 	"license": "MIT",

@@ -81,16 +81,13 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.51
+### @howaboua/pi-extensions — 0.0.52
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-gippity-control: Add opt-in dropped realtime voice call auto-resume to GipPity Control and update Undici to its patched release.
-
-- Updated dependencies [[`c9fcbf8`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/c9fcbf8a44adff914ed8c4a86703a35d503e4b0b)]:
-  - @howaboua/pi-gippity-control@0.0.8
+  - @howaboua/pi-shepherdr: Add Shepherdr, a Herdr-native Pi agent orchestrator with event-driven monitoring and a live fleet widget.
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
@@ -133,6 +130,14 @@ Going forward, package-level changelogs remain the source of truth for each pack
 - [#239](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/239) [`7dbbfc8`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/7dbbfc8bc28746ec28b3142a73efc8e0b14d2ffa) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Make semantic indexing non-blocking at session startup, single-writer, atomic, resumable, ignore-aware, metadata-fast, batch-embedded, and role-aware while preserving usable prior file indexes across interrupted rebuilds.
 
 [Full changelog](./packages/pi-semantic-grep/CHANGELOG.md)
+
+### @howaboua/pi-shepherdr — 0.1.0
+
+### Changes
+
+- [#256](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/256) [`4d306ed`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/4d306eded0057c82868a1628bd2131a7eedfd7a6) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add Shepherdr, a Herdr-native Pi agent orchestrator with event-driven monitoring and a live fleet widget.
+
+[Full changelog](./packages/pi-shepherdr/CHANGELOG.md)
 
 ### @howaboua/pi-skill-adversarial-qa — 0.0.1
 
@@ -251,16 +256,13 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.56
+### @howaboua/pi-stuff — 0.0.57
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-gippity-control: Add opt-in dropped realtime voice call auto-resume to GipPity Control and update Undici to its patched release.
-
-- Updated dependencies [[`c9fcbf8`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/c9fcbf8a44adff914ed8c4a86703a35d503e4b0b)]:
-  - @howaboua/pi-gippity-control@0.0.8
+  - @howaboua/pi-shepherdr: Add Shepherdr, a Herdr-native Pi agent orchestrator with event-driven monitoring and a live fleet widget.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 
