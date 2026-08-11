@@ -60,7 +60,6 @@ export class SettlementCollector {
 		if (agent.terminal_id !== record.terminalId || agent.agent !== "pi") {
 			return undefined;
 		}
-		const reply = await this.latest(agent);
 		const [current, snapshot] = await Promise.all([
 			getAgent(this.client, record.paneId),
 			getSnapshot(this.client),
@@ -72,6 +71,7 @@ export class SettlementCollector {
 		) {
 			return undefined;
 		}
+		const reply = await this.latest(current);
 		const workspace = snapshot.workspaces.find(
 			(candidate) => candidate.workspace_id === current.workspace_id,
 		)?.label;
