@@ -14,6 +14,7 @@ export const VOICE_STATUS_KEY = "gippity-voice";
 export type VoiceSession = CodexRealtimeConversation | CodexDictationSession;
 export type VoiceState =
 	| { type: "idle" }
+	| { type: "reconnecting"; session: CodexRealtimeConversation }
 	| { type: "connecting"; mode: "realtime"; phase: "authorizing" }
 	| {
 			type: "connecting";
@@ -35,7 +36,11 @@ export type VoiceState =
 export function currentVoiceSession(
 	state: VoiceState,
 ): VoiceSession | undefined {
-	if (state.type === "conversation" || state.type === "dictation")
+	if (
+		state.type === "conversation" ||
+		state.type === "dictation" ||
+		state.type === "reconnecting"
+	)
 		return state.session;
 	return state.type === "connecting" && state.phase === "starting"
 		? state.session

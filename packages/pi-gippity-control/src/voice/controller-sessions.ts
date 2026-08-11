@@ -17,6 +17,7 @@ interface SessionLifecycle<T> {
 
 interface RealtimeSessionLifecycle
 	extends SessionLifecycle<CodexRealtimeConversation> {
+	onDrop(session: CodexRealtimeConversation, error: Error): void;
 	onTurn(turn: RealtimeVoiceTurn): void;
 	onUserTranscript(transcript: string): void;
 	onTranscriptTail(transcript: string): void;
@@ -32,6 +33,7 @@ export async function startControllerConversation(options: {
 	config: GippityControlConfig;
 	instructions: string;
 	initialItems?: RealtimeInitialMessageItem[] | undefined;
+	inputMuted?: boolean | undefined;
 	peer?: CodexRealtimePeer | undefined;
 	signal?: AbortSignal | undefined;
 	lifecycle: RealtimeSessionLifecycle;
@@ -60,6 +62,7 @@ export async function startControllerConversation(options: {
 	session = new CodexRealtimeConversation(
 		{
 			onError: (error) => options.lifecycle.onError(session, error),
+			onDrop: (error) => options.lifecycle.onDrop(session, error),
 			onStatus: options.lifecycle.onStatus,
 			onTurn: options.lifecycle.onTurn,
 			onUserTranscript: options.lifecycle.onUserTranscript,
@@ -82,12 +85,15 @@ export async function startControllerConversation(options: {
 			options.config,
 			options.instructions,
 			options.initialItems,
+			options.inputMuted,
 		);
 	} finally {
 		options.signal?.removeEventListener("abort", closeOnAbort);
 	}
-	if (options.lifecycle.isCurrent(session)) options.lifecycle.onActive(session);
-	else await session.close();
+	if (options.lifecycle.isCurrent(session)) {
+		session.markEstablished();
+		options.lifecycle.onActive(session);
+	} else await session.close();
 }
 
 export async function startControllerDictation(options: {

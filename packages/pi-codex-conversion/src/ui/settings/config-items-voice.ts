@@ -39,6 +39,21 @@ export function buildVoiceSettings(
 		),
 		setting(
 			{
+				id: "autoResumeRealtime",
+				label: "Auto-resume realtime voice",
+				currentValue: config.voice.autoResumeRealtime ? "on" : "off",
+				values: ["off", "on"],
+			},
+			(value, current) => ({
+				...current,
+				voice: {
+					...current.voice,
+					autoResumeRealtime: value === "on",
+				},
+			}),
+		),
+		setting(
+			{
 				id: "voiceContextModel",
 				label: "Voice context model",
 				currentValue: currentContextModel,

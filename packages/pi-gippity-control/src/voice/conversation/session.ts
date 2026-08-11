@@ -29,6 +29,7 @@ type ConversationState = "idle" | "starting" | "active" | "failed" | "closed";
 
 export interface CodexConversationCallbacks {
 	onError(error: Error): void;
+	onDrop(error: Error): void;
 	onStatus(status: string): void;
 	onTurn(turn: RealtimeVoiceTurn): void;
 	onUserTranscript(transcript: string): void;
@@ -43,8 +44,10 @@ export class CodexRealtimeConversation {
 	private state: ConversationState = "idle";
 	private setupAbortController: AbortController | undefined;
 	private peerReady: ReturnType<typeof Promise.withResolvers<void>> | undefined;
+	private closePromise: Promise<void> | undefined;
 	private callSetup: RealtimeCallSetup = setupRealtimeCall;
 	private inputMuted = false;
+	private established = false;
 
 	constructor(callbacks: CodexConversationCallbacks, peer: CodexRealtimePeer) {
 		this.callbacks = callbacks;
@@ -56,7 +59,11 @@ export class CodexRealtimeConversation {
 			onStatus: (status) => this.callbacks.onStatus(status),
 		});
 		this.peer.onEvent((event) => this.handlePeerEvent(event));
-		this.peer.onExit((error) => this.fail(error));
+		this.peer.onExit((error) => this.drop(error));
+	}
+
+	markEstablished(): void {
+		if (this.state === "active") this.established = true;
 	}
 
 	async start(
@@ -64,6 +71,7 @@ export class CodexRealtimeConversation {
 		config: GippityControlConfig,
 		instructions: string,
 		initialItems?: RealtimeInitialMessageItem[],
+		inputMuted = false,
 	): Promise<void> {
 		this.state = "starting";
 		const sdp = await this.peer.start(config);
@@ -97,6 +105,7 @@ export class CodexRealtimeConversation {
 				`Codex voice call failed (${status}): ${answer.slice(0, 1_000)}`,
 			);
 		this.state = "active";
+		if (inputMuted) this.setInputMuted(true);
 		const peerReady = Promise.withResolvers<void>();
 		this.peerReady = peerReady;
 		this.callbacks.onStatus("connecting…");
@@ -149,8 +158,13 @@ export class CodexRealtimeConversation {
 	}
 
 	async close(): Promise<void> {
-		if (this.state === "closed") return;
+		this.closePromise ??= this.closeSession();
+		return this.closePromise;
+	}
+
+	private async closeSession(): Promise<void> {
 		this.state = "closed";
+		this.established = false;
 		this.abortSetup();
 		this.handoff.clear();
 		this.drainConversation();
@@ -168,7 +182,9 @@ export class CodexRealtimeConversation {
 		)
 			return;
 		if (event.type === "error") {
-			this.fail(new Error(event.message));
+			const error = new Error(event.message);
+			if (terminalTransportError(event.message)) this.drop(error);
+			else this.fail(error);
 			return;
 		}
 		if (event.type === "data") this.handleServerEvent(event.message);
@@ -178,7 +194,7 @@ export class CodexRealtimeConversation {
 	private handleHelperState(state: string): void {
 		const failure = realtimePeerStateFailure(state);
 		if (failure) {
-			this.fail(new Error(failure));
+			this.drop(new Error(failure));
 			return;
 		}
 		if (state === "ready" || state === "listening") {
@@ -290,6 +306,14 @@ export class CodexRealtimeConversation {
 	}
 
 	private fail(error: Error): void {
+		this.finishFailure(error, false);
+	}
+
+	private drop(error: Error): void {
+		this.finishFailure(error, this.established);
+	}
+
+	private finishFailure(error: Error, dropped: boolean): void {
 		if (
 			this.state === "idle" ||
 			this.state === "closed" ||
@@ -297,12 +321,21 @@ export class CodexRealtimeConversation {
 		)
 			return;
 		this.state = "failed";
+		this.established = false;
 		this.abortSetup();
 		this.handoff.clear();
 		this.drainConversation();
 		this.peerReady?.resolve();
 		this.peerReady = undefined;
-		this.callbacks.onError(error);
-		void this.peer.close();
+		if (dropped) this.callbacks.onDrop(error);
+		else this.callbacks.onError(error);
+		void this.close();
 	}
+}
+
+function terminalTransportError(message: string): boolean {
+	return (
+		message.startsWith("realtime speaker stream ended:") ||
+		message.startsWith("realtime microphone stream failed:")
+	);
 }

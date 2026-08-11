@@ -7,6 +7,7 @@ import type {
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import {
 	startControllerMode,
+	type RealtimePeerPlan,
 	type VoiceControllerRuntime,
 } from "./controller-start.ts";
 import {
@@ -18,7 +19,6 @@ import {
 	voiceModeForState,
 } from "./controller-support.ts";
 import { realtimeHandoffChannel } from "./conversation/handoff.ts";
-import type { CodexRealtimePeer } from "./conversation/peer.ts";
 import type { CodexRealtimeConversation } from "./conversation/session.ts";
 import { CodexVoiceSessionMessages, type PreparedVoiceDelegation } from "./session-messages.ts";
 import { formatVoiceAudioError } from "./setup.ts";
@@ -110,13 +110,13 @@ export class CodexVoiceController {
 		await this.startMode(ctx, config, mode);
 	}
 
-	async startRealtimeWithPeer(
+	async startRealtimeWithPeerPlan(
 		ctx: ExtensionContext,
 		config: CodexConversionConfig,
-		peer: CodexRealtimePeer,
+		plan: RealtimePeerPlan,
 		signal?: AbortSignal,
 	): Promise<CodexRealtimeConversation | undefined> {
-		return this.startMode(ctx, config, "realtime", peer, signal);
+		return this.startMode(ctx, config, "realtime", plan, signal);
 	}
 	prepareRealtimePrompt(ctx: ExtensionContext): string | undefined {
 		return prepareRealtimeVoicePrompt(ctx);
@@ -127,6 +127,13 @@ export class CodexVoiceController {
 		options?: { announce?: boolean },
 	): Promise<void> {
 		if (this.currentSession() === session) await this.stop(options);
+	}
+
+	async stopRealtimeWithPeerPlan(
+		plan: RealtimePeerPlan,
+		options?: { announce?: boolean },
+	): Promise<void> {
+		if (this.runtime.realtimePeerPlan === plan) await this.stop(options);
 	}
 
 	setConversationInputActive(
@@ -150,8 +157,10 @@ export class CodexVoiceController {
 		ctx: ExtensionContext,
 		config: CodexConversionConfig,
 		mode: CodexVoiceMode,
-		peer?: CodexRealtimePeer,
+		realtimePeerPlan?: RealtimePeerPlan,
 		signal?: AbortSignal,
+		resume = false,
+		inputMuted = false,
 	): Promise<CodexRealtimeConversation | undefined> {
 		return startControllerMode({
 			runtime: this.runtime,
@@ -159,12 +168,15 @@ export class CodexVoiceController {
 			ctx,
 			config,
 			mode,
-			peer,
+			realtimePeerPlan,
 			signal,
+			resume,
+			inputMuted,
 			prepareRealtimePrompt: (current) => this.prepareRealtimePrompt(current),
 			stopCurrent: () => this.stop({ announce: true }),
 			finishCurrentDictation: () => this.finishDictation({ announce: true }),
-			onError: (error) => this.fail(error),
+			onError: (error, session) => this.fail(error, session),
+			onDrop: (session, error) => this.drop(session, error),
 			onStatus: (status) => this.renderStatus(status),
 		});
 	}
@@ -183,6 +195,7 @@ export class CodexVoiceController {
 		this.runtime.state = { type: "idle" };
 		this.runtime.announcedMode = undefined;
 		this.runtime.config = undefined;
+		this.runtime.realtimePeerPlan = undefined;
 		this.runtime.voiceStatus = "";
 		this.runtime.context?.ui.setStatus(VOICE_STATUS_KEY, undefined);
 		await closePromise;
@@ -216,6 +229,7 @@ export class CodexVoiceController {
 		this.runtime.state = { type: "idle" };
 		this.runtime.announcedMode = undefined;
 		this.runtime.config = undefined;
+		this.runtime.realtimePeerPlan = undefined;
 		this.runtime.voiceStatus = "";
 		this.runtime.context?.ui.setStatus(VOICE_STATUS_KEY, undefined);
 		this.messages.voiceStopped(endedMode);
@@ -258,7 +272,10 @@ export class CodexVoiceController {
 		return currentVoiceSession(this.runtime.state);
 	}
 
-	private fail(error: Error): void {
+	private fail(
+		error: Error,
+		failedSession?: CodexRealtimeConversation | undefined,
+	): void {
 		if (
 			this.runtime.state.type === "idle" ||
 			this.runtime.state.type === "failed"
@@ -274,10 +291,13 @@ export class CodexVoiceController {
 		const endedMode = this.runtime.announcedMode;
 		const wasMuted = this.inputMuted;
 		const session = this.currentSession();
+		if (failedSession)
+			this.markRealtimePeerInactive(failedSession, error, false);
 		const closePromise = session?.close();
 		this.runtime.state = { type: "failed", message };
 		this.runtime.announcedMode = undefined;
 		this.runtime.config = undefined;
+		this.runtime.realtimePeerPlan = undefined;
 		this.runtime.voiceStatus = "";
 		this.runtime.context?.ui.setStatus(VOICE_STATUS_KEY, undefined);
 		this.runtime.context?.ui.notify(message, "error");
@@ -293,6 +313,87 @@ export class CodexVoiceController {
 				this.runtime.state.message === message
 			) this.messages.voiceStopped(endedMode);
 		})();
+	}
+
+	private drop(session: CodexRealtimeConversation, error: Error): void {
+		if (this.currentSession() !== session) return;
+		const config = this.runtime.config;
+		const ctx = this.runtime.context;
+		if (!config?.voice.autoResumeRealtime || !ctx) {
+			this.markRealtimePeerInactive(session, error, false);
+			this.fail(error);
+			return;
+		}
+		const realtimePeerPlan = this.runtime.realtimePeerPlan;
+		this.markRealtimePeerInactive(session, error, true);
+		this.runtime.startAbortController?.abort();
+		this.runtime.startAbortController = undefined;
+		const resumeGeneration = ++this.runtime.startGeneration;
+		const wasMuted = this.inputMuted;
+		this.runtime.state = { type: "reconnecting", session };
+		this.renderStatus("reconnecting…");
+		void (async () => {
+			await Promise.allSettled([
+				session.close(),
+				this.messages.waitForDelegations(),
+			]);
+			if (
+				this.runtime.startGeneration !== resumeGeneration ||
+				this.runtime.state.type !== "reconnecting"
+			) return;
+			const resumePromise = this.startMode(
+				ctx,
+				config,
+				"realtime",
+				realtimePeerPlan,
+				undefined,
+				true,
+				wasMuted,
+			);
+			const replacementGeneration = this.runtime.startGeneration;
+			let resumed: CodexRealtimeConversation | undefined;
+			try {
+				resumed = await resumePromise;
+			} catch (resumeError) {
+				if (this.runtime.startGeneration === replacementGeneration)
+					this.fail(
+						resumeError instanceof Error
+							? resumeError
+							: new Error(String(resumeError)),
+					);
+				return;
+			}
+			if (!resumed) {
+				const resumeError = new Error("Codex realtime voice could not resume");
+				this.markRealtimePeerInactive(
+					session,
+					resumeError,
+					false,
+					realtimePeerPlan,
+				);
+				if (this.runtime.state.type === "reconnecting")
+					this.fail(resumeError);
+				return;
+			}
+			if (resumed && wasMuted && this.currentSession() === resumed)
+				this.renderCurrentStatus();
+		})();
+	}
+
+	private markRealtimePeerInactive(
+		session: CodexRealtimeConversation,
+		error: Error,
+		resuming: boolean,
+		plan = this.runtime.realtimePeerPlan,
+	): void {
+		try {
+			plan?.onInactive?.(session, error, resuming);
+		} catch (ownerError) {
+			this.runtime.context?.ui.notify(
+				`Could not update realtime voice owner: ${ownerError instanceof Error ? ownerError.message : String(ownerError)}`,
+				"error",
+			);
+		}
 	}
 
 	private renderStatus(status: string): void {

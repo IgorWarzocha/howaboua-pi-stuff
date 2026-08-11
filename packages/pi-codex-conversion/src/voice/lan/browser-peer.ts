@@ -8,13 +8,9 @@ export class LanHostRealtimePeer implements CodexRealtimeWebRtcPeer {
 	readonly kind = "webrtc" as const;
 	private readonly helper = new VoiceHelperClient();
 	private readonly onAudio: (pcm: Buffer) => void;
-	private readonly onFailure: (error: Error) => void;
-	private failed = false;
-	private closing = false;
 
-	constructor(options: { onAudio(pcm: Buffer): void; onFailure(error: Error): void }) {
+	constructor(options: { onAudio(pcm: Buffer): void }) {
 		this.onAudio = options.onAudio;
-		this.onFailure = options.onFailure;
 	}
 
 	onEvent(listener: (event: CodexRealtimePeerEvent) => void): () => void {
@@ -25,14 +21,11 @@ export class LanHostRealtimePeer implements CodexRealtimeWebRtcPeer {
 			}
 			const peerEvent = toPeerEvent(event);
 			if (peerEvent) listener(peerEvent);
-			if (event.type === "error") this.fail(new Error(event.message));
 		});
 	}
 
 	onExit(listener: (error: Error) => void): () => void {
-		const remove = this.helper.onExit(listener);
-		const removeFailure = this.helper.onExit((error) => { if (!this.closing) this.fail(error); });
-		return () => { remove(); removeFailure(); };
+		return this.helper.onExit(listener);
 	}
 
 	async start(config: CodexConversionConfig): Promise<string> {
@@ -74,14 +67,7 @@ export class LanHostRealtimePeer implements CodexRealtimeWebRtcPeer {
 	}
 
 	close(): Promise<void> {
-		this.closing = true;
 		return this.helper.close();
-	}
-
-	private fail(error: Error): void {
-		if (this.failed) return;
-		this.failed = true;
-		this.onFailure(error);
 	}
 }
 

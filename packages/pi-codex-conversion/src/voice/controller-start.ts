@@ -20,6 +20,12 @@ import type { CodexRealtimeConversation } from "./conversation/session.ts";
 import type { CodexVoiceSessionMessages } from "./session-messages.ts";
 import type { CodexVoiceMode } from "./ui.ts";
 
+export interface RealtimePeerPlan {
+	createPeer(): CodexRealtimePeer;
+	onActive?(session: CodexRealtimeConversation, peer: CodexRealtimePeer): void;
+	onInactive?(session: CodexRealtimeConversation, error: Error, resuming: boolean): void;
+}
+
 export interface VoiceControllerRuntime {
 	state: VoiceState;
 	context?: ExtensionContext | undefined;
@@ -28,6 +34,7 @@ export interface VoiceControllerRuntime {
 	startGeneration: number;
 	startAbortController?: AbortController | undefined;
 	voiceStatus: string;
+	realtimePeerPlan?: RealtimePeerPlan | undefined;
 }
 
 export async function startControllerMode(options: {
@@ -36,31 +43,30 @@ export async function startControllerMode(options: {
 	ctx: ExtensionContext;
 	config: CodexConversionConfig;
 	mode: CodexVoiceMode;
-	peer?: CodexRealtimePeer | undefined;
+	realtimePeerPlan?: RealtimePeerPlan | undefined;
+	resume?: boolean | undefined;
+	inputMuted?: boolean | undefined;
 	signal?: AbortSignal | undefined;
 	prepareRealtimePrompt(ctx: ExtensionContext): string | undefined;
 	stopCurrent(): Promise<void>;
 	finishCurrentDictation(): Promise<void>;
-	onError(error: Error): void;
+	onError(error: Error, session?: CodexRealtimeConversation | undefined): void;
+	onDrop(session: CodexRealtimeConversation, error: Error): void;
 	onStatus(status: string): void;
 }): Promise<CodexRealtimeConversation | undefined> {
-	const { runtime, peer, signal } = options;
-	if (signal?.aborted) {
-		await peer?.close();
-		return;
-	}
+	const { runtime, signal } = options;
+	if (signal?.aborted) return;
 	const realtimePrompt =
 		options.mode === "realtime"
 			? options.prepareRealtimePrompt(options.ctx)
 			: undefined;
 	if (options.mode === "realtime" && realtimePrompt === undefined) return;
-	if (runtime.state.type === "dictation")
-		await options.finishCurrentDictation();
-	else await options.stopCurrent();
-	if (signal?.aborted) {
-		await peer?.close();
-		return;
-	}
+	if (!options.resume) {
+		if (runtime.state.type === "dictation")
+			await options.finishCurrentDictation();
+		else await options.stopCurrent();
+	} else if (runtime.state.type !== "reconnecting") return;
+	if (signal?.aborted) return;
 	const startAbortController = new AbortController();
 	runtime.startAbortController = startAbortController;
 	const startSignal = signal
@@ -69,6 +75,7 @@ export async function startControllerMode(options: {
 	const startGeneration = ++runtime.startGeneration;
 	runtime.context = options.ctx;
 	runtime.config = options.config;
+	runtime.realtimePeerPlan = options.mode === "realtime" ? options.realtimePeerPlan : undefined;
 	options.messages.setContext(options.ctx);
 	runtime.state =
 		options.mode === "realtime"
@@ -94,7 +101,6 @@ export async function startControllerMode(options: {
 			startSignal,
 		);
 		if (startup === CANCELLED) {
-			await peer?.close();
 			cancelStart(runtime, startGeneration);
 			return;
 		}
@@ -102,10 +108,7 @@ export async function startControllerMode(options: {
 		if (
 			startGeneration !== runtime.startGeneration ||
 			runtime.state.type !== "connecting"
-		) {
-			await peer?.close();
-			return;
-		}
+		) return;
 		if (options.mode === "dictation") await startDictation(options, auth);
 		else
 			await startConversation(
@@ -116,19 +119,20 @@ export async function startControllerMode(options: {
 				startSignal,
 			);
 		if (startSignal.aborted) {
-			await peer?.close();
+			await currentVoiceSession(runtime.state)?.close();
 			cancelStart(runtime, startGeneration);
 			return;
 		}
 		const activeState = snapshotState(runtime);
 		if (options.mode === "realtime") {
 			if (activeState.type !== "conversation") {
-				await peer?.close();
 				return;
 			}
 			if (realtimeSummary) options.messages.contextSummary(realtimeSummary);
-			runtime.announcedMode = options.mode;
-			options.messages.modeStarted(options.mode);
+			if (runtime.announcedMode !== options.mode) {
+				runtime.announcedMode = options.mode;
+				options.messages.modeStarted(options.mode);
+			}
 			return activeState.session;
 		}
 		if (activeState.type !== "dictation") return;
@@ -137,14 +141,11 @@ export async function startControllerMode(options: {
 		return undefined;
 	} catch (error) {
 		if (startSignal.aborted) {
-			await peer?.close();
+			await currentVoiceSession(runtime.state)?.close();
 			cancelStart(runtime, startGeneration);
 			return;
 		}
-		if (startGeneration !== runtime.startGeneration) {
-			await peer?.close();
-			return;
-		}
+		if (startGeneration !== runtime.startGeneration) return;
 		options.onError(error instanceof Error ? error : new Error(String(error)));
 		return undefined;
 	}
@@ -165,12 +166,14 @@ async function startConversation(
 		connecting.phase !== "authorizing"
 	)
 		return;
+	const peer = options.realtimePeerPlan?.createPeer();
 	await startControllerConversation({
 		auth,
 		config: options.config,
 		instructions,
 		initialItems,
-		peer: options.peer,
+		inputMuted: options.inputMuted,
+		peer,
 		signal,
 		lifecycle: {
 			stillAuthorizing: () => runtime.state === connecting,
@@ -185,10 +188,15 @@ async function startConversation(
 			isCurrent: (session) => currentVoiceSession(runtime.state) === session,
 			onActive: (session) => {
 				runtime.state = { type: "conversation", session };
+				if (peer) options.realtimePeerPlan?.onActive?.(session, peer);
 			},
 			onError: (session, error) => {
 				if (currentVoiceSession(runtime.state) === session)
-					options.onError(error);
+					options.onError(error, session);
+			},
+			onDrop: (session, error) => {
+				if (currentVoiceSession(runtime.state) === session)
+					options.onDrop(session, error);
 			},
 			onStatus: options.onStatus,
 			onTurn: (turn) => { void options.messages.voiceTurn(turn); },
@@ -247,6 +255,7 @@ function cancelStart(
 	if (startGeneration !== runtime.startGeneration) return;
 	runtime.state = { type: "idle" };
 	runtime.config = undefined;
+	runtime.realtimePeerPlan = undefined;
 	runtime.voiceStatus = "";
 	runtime.context?.ui.setStatus(VOICE_STATUS_KEY, undefined);
 }

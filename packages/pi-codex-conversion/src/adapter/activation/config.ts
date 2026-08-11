@@ -82,6 +82,7 @@ export interface CodexConversionConfig {
 	};
 	voice: {
 		v3Voice: RealtimeV3Voice;
+		autoResumeRealtime: boolean;
 		dictationShortcut: string;
 		realtimeShortcut: string;
 		muteShortcut: string;
@@ -131,6 +132,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	beta: { codeMode: false, responsesLite: false, v2UserMessageRetention: 64 },
 	voice: {
 		v3Voice: "cove",
+		autoResumeRealtime: false,
 		dictationShortcut: "ctrl+alt+d",
 		realtimeShortcut: "ctrl+alt+space",
 		muteShortcut: "ctrl+alt+m",
@@ -390,6 +392,10 @@ export function normalizeCodexConversionConfig(
 			v3Voice:
 				normalizeRealtimeV3Voice(voice["v3Voice"]) ??
 				DEFAULT_CODEX_CONVERSION_CONFIG.voice.v3Voice,
+			autoResumeRealtime: bool(
+				voice["autoResumeRealtime"],
+				DEFAULT_CODEX_CONVERSION_CONFIG.voice.autoResumeRealtime,
+			),
 			dictationShortcut: stringValue(
 				voice["dictationShortcut"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.voice.dictationShortcut,
