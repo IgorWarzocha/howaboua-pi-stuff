@@ -9,6 +9,7 @@ import {
 
 export interface ProjectStateMerge {
 	changed: boolean;
+	baseline: ProjectStateBaseline;
 	entries: ProjectStateEntry[];
 	payload: Buffer;
 	conflicts: string[];
@@ -77,8 +78,16 @@ export function mergeProjectState(options: {
 	}
 	const currentShape = JSON.stringify((options.current?.entries ?? []).map(({ name, kind, hash }) => [name, kind, hash]));
 	const mergedShape = JSON.stringify(entries.map(({ name, kind, hash }) => [name, kind, hash]));
+	const skippedBaseline = options.baseline.entries.filter(({ name }) => skipped.has(name));
 	return {
 		changed: candidateChangedAny && mergedShape !== currentShape,
+		baseline: {
+			generation: options.baseline.generation,
+			entries: [
+				...skippedBaseline,
+				...[...candidate.values()].map(({ name, hash }) => ({ name, hash })),
+			].sort((left, right) => left.name.localeCompare(right.name)),
+		},
 		entries,
 		payload: Buffer.concat(parts),
 		conflicts,

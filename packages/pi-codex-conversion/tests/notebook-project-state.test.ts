@@ -23,11 +23,21 @@ test("project notebook merge preserves a concurrent same-name edit", () => {
 
 	assert.deepEqual(merged.conflicts, ["shared"]);
 	assert.equal(merged.payload.toString(), "current");
+	assert.deepEqual(merged.baseline.entries, [{ name: "shared", hash: hash(candidate) }]);
 	assert.deepEqual(merged.entries.map(({ name, kind, hash: entryHash }) => ({ name, kind, entryHash })), [{
 		name: "shared",
 		kind: "function",
 		entryHash: hash(current),
 	}]);
+	const repeated = mergeProjectState({
+		baseline: merged.baseline,
+		current: manifest,
+		candidate: projectCandidate(candidate),
+		candidatePayload: candidate,
+		currentPayload: current,
+	});
+	assert.deepEqual(repeated.conflicts, []);
+	assert.equal(repeated.payload.toString(), "current");
 });
 
 test("project notebook merge applies an uncontested plain global", () => {
@@ -42,6 +52,7 @@ test("project notebook merge applies an uncontested plain global", () => {
 	assert.equal(merged.changed, true);
 	assert.deepEqual(merged.conflicts, []);
 	assert.deepEqual(merged.appliedNames, ["shared"]);
+	assert.deepEqual(merged.baseline.entries, [{ name: "shared", hash: hash(payload) }]);
 	assert.equal(merged.payload.toString(), "value");
 });
 

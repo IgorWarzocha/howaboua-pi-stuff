@@ -153,29 +153,17 @@ export async function writeProjectState(
 		const candidate = readProjectStateCandidate(candidateManifestPath, candidatePayloadPath, maxBytes);
 		if (!candidate) throw new Error("Project notebook checkpoint did not produce a valid candidate");
 		const candidatePayload = readFileSync(candidatePayloadPath);
-		const committed = await withProjectLock(paths.lock, async () => {
-			const result = await commitCandidate({
+		const committed = await withProjectLock(paths.lock, () => commitCandidate({
 				paths,
 				identity,
 				baseline,
 				candidate,
 				candidatePayload,
 				maxBytes,
-			});
-			if (result.manifest && result.rebind) {
-				const clearNames = [...new Set([...baseline.entries.map(({ name }) => name), ...candidate.entries.map(({ name }) => name)])];
-				const restore = await kernel.execute(projectStateRestoreSource(
-					result.manifest,
-					join(paths.directory, result.manifest.payload),
-					clearNames,
-				));
-				if (restore.status !== "ok") throw new Error(`Committed project notebook could not be rebound: ${restore.errorText ?? "unknown error"}`);
-			}
-			return result;
-		});
+			}));
 		if (!committed.manifest) return { ...emptyProjectStateSummary(), skipped: candidate.skipped, conflicts: committed.conflicts };
 		return {
-			baseline: baselineFromProjectManifest(committed.manifest),
+			baseline: committed.baseline,
 			restored: committed.manifest.entries,
 			skipped: candidate.skipped,
 			conflicts: committed.conflicts,
@@ -206,7 +194,7 @@ async function commitCandidate(options: {
 	candidate: ProjectStateCandidate;
 	candidatePayload: Buffer;
 	maxBytes: number;
-}): Promise<{ manifest?: ProjectStateManifest | undefined; conflicts: string[]; rebind: boolean }> {
+}): Promise<{ manifest?: ProjectStateManifest | undefined; baseline: ProjectStateBaseline; conflicts: string[] }> {
 	const current = readProjectStateManifest(options.paths.manifest);
 	if (current && current.entries.length > 0 && (current.deno !== options.candidate.deno || current.v8 !== options.candidate.v8)) {
 		throw new Error("Project notebook uses an incompatible Deno/V8 version; the existing state was preserved");
@@ -230,8 +218,8 @@ async function commitCandidate(options: {
 	removeResolvedProjectConflicts(options.paths.directory, new Set(merged.appliedNames));
 	return {
 		...(manifest ? { manifest } : {}),
+		baseline: merged.baseline,
 		conflicts: merged.conflicts,
-		rebind: Boolean(current && current.generation !== options.baseline.generation) || merged.conflicts.length > 0,
 	};
 }
 
