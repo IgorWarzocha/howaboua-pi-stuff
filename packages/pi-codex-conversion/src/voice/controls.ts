@@ -6,10 +6,10 @@ import type { CodexVoiceController } from "./controller.ts";
 import type { CodexLanVoiceServerController } from "./lan/controller.ts";
 import { buildVoiceSetupInstructions, missingVoiceAudioSettings } from "./setup.ts";
 import { registerCodexVoiceShortcuts } from "./shortcuts.ts";
-import { getCodexVoiceSystemPromptPath, getProjectCodexVoiceSystemPromptPath } from "./system-prompt.ts";
 import { codexVoiceSetupMessage, type CodexVoiceMode } from "./ui.ts";
 
 export interface CodexVoiceControls {
+	setup(ctx: ExtensionContext): Promise<void>;
 	start(mode: CodexVoiceMode, ctx: ExtensionContext): Promise<void>;
 	stop(ctx: ExtensionContext): Promise<void>;
 	toggleInputMute(ctx: ExtensionContext): void;
@@ -23,28 +23,31 @@ export function createCodexVoiceControls(options: {
 }): CodexVoiceControls {
 	const { pi, state, voice, lanVoice } = options;
 
+	const setup = async (ctx: ExtensionContext): Promise<void> => {
+		const currentConfig = readCodexConversionConfig();
+		state.config = currentConfig;
+		const missing = missingVoiceAudioSettings(currentConfig, "realtime");
+		if (missing.length === 0) {
+			ctx.ui.notify("Voice input and output are already pinned.", "info");
+			return;
+		}
+		if (!ctx.isIdle()) {
+			ctx.ui.notify("Wait for the current turn before setting up Codex voice.", "info");
+			return;
+		}
+		state.codexTurnState.beginTurn();
+		pi.sendMessage(codexVoiceSetupMessage(buildVoiceSetupInstructions({
+			configPath: getCodexConversionConfigPath(),
+			helperPath: resolveVoiceHelperBinary(currentConfig.tools.customRustBinariesDir),
+			missing,
+			retryCommand: "/codex voice realtime",
+		})), { triggerTurn: true });
+	};
+
 	const start = async (mode: CodexVoiceMode, ctx: ExtensionContext): Promise<void> => {
 		if (voice.activeMode === mode) return;
 		const currentConfig = readCodexConversionConfig();
 		state.config = currentConfig;
-		const missingAudioSettings = missingVoiceAudioSettings(currentConfig, mode);
-		if (missingAudioSettings.length > 0) {
-			if (mode === "realtime" && voice.prepareRealtimePrompt(ctx) === undefined) return;
-			if (!ctx.isIdle()) {
-				ctx.ui.notify("Wait for the current turn before setting up Codex voice.", "info");
-				return;
-			}
-			state.codexTurnState.beginTurn();
-			pi.sendMessage(codexVoiceSetupMessage(buildVoiceSetupInstructions({
-				configPath: getCodexConversionConfigPath(),
-				helperPath: resolveVoiceHelperBinary(currentConfig.tools.customRustBinariesDir),
-				missing: missingAudioSettings,
-				...(ctx.isProjectTrusted() ? { projectRealtimePromptPath: getProjectCodexVoiceSystemPromptPath(ctx.cwd) } : {}),
-				realtimePromptPath: getCodexVoiceSystemPromptPath(),
-				retryCommand: `/codex voice ${mode}`,
-			})), { triggerTurn: true });
-			return;
-		}
 		await voice.start(ctx, currentConfig, mode);
 	};
 
@@ -80,5 +83,5 @@ export function createCodexVoiceControls(options: {
 		},
 	});
 
-	return { start, stop, toggleInputMute };
+	return { setup, start, stop, toggleInputMute };
 }
