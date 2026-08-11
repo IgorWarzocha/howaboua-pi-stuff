@@ -3,10 +3,8 @@ name: Release
 on:
   push:
     branches: [main]
-  workflow_dispatch:
 
 permissions:
-  actions: write
   contents: write
   pull-requests: write
   id-token: write
@@ -14,6 +12,7 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    environment: npm-release
     steps:
       - uses: actions/checkout@v6
         with:
@@ -37,37 +36,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
-      - name: Merge Changesets release PR and queue publish
-        if: steps.changesets.outputs.published != 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          pr_number=$(gh pr list \
-            --head changeset-release/main \
-            --base main \
-            --state open \
-            --json number \
-            --jq '.[0].number // empty')
-          if [ -z "$pr_number" ]; then
-            exit 0
-          fi
-
-          # PRs created with GITHUB_TOKEN do not trigger the normal PR checks.
-          # Auto-merge also requires a blocking branch rule, so merge this
-          # workflow-generated version PR directly once Changesets has created it.
-          gh pr merge "$pr_number" --merge
-
-          for attempt in {1..40}; do
-            state=$(gh pr view "$pr_number" --json state --jq '.state')
-            if [ "$state" = "MERGED" ]; then
-              gh workflow run release.yml --ref main
-              exit 0
-            fi
-            sleep 3
-          done
-
-          echo "Changesets release PR #$pr_number did not merge in time" >&2
-          exit 1
       - name: Delete Changesets release branch after publish
         if: steps.changesets.outputs.published == 'true'
         run: git push origin --delete changeset-release/main || true
