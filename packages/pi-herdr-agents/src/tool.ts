@@ -85,9 +85,6 @@ export function registerHerdrAgentsTool(
 		label: "Herdr Agents",
 		description:
 			"Herdr Pi agents. start needs name and placement; new_tab needs workspace; pane placement needs pane ID. watch/unwatch need target; send needs target and prompt.",
-		promptGuidelines: [
-			"After herdr_agents delegates or watches work, do not poll with list/watch; completion or blockage arrives automatically",
-		],
 		parameters: Type.Object({
 			action: StringEnum(ACTIONS),
 			target: Type.Optional(
@@ -146,7 +143,8 @@ export function registerHerdrAgentsTool(
 			if (params.action === "start") {
 				const started = await startAgent(client, monitor, params, ctx.cwd);
 				return result({
-					...started,
+					started: true,
+					id: started.id,
 					...(params.prompt?.trim() ? { next: FIRE_AND_FORGET } : {}),
 				});
 			}
@@ -165,7 +163,6 @@ export function registerHerdrAgentsTool(
 				return result({
 					watched: true,
 					id: agent.pane_id,
-					status: agent.agent_status,
 					next: FIRE_AND_FORGET,
 				});
 			}
@@ -185,7 +182,6 @@ export function registerHerdrAgentsTool(
 				return result({
 					sent: true,
 					id: agent.pane_id,
-					monitored: true,
 					next: FIRE_AND_FORGET,
 				});
 			}

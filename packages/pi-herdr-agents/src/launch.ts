@@ -99,7 +99,7 @@ export async function startAgent(
 	monitor: AgentMonitor,
 	params: StartAgentParams,
 	fallbackCwd: string,
-): Promise<Record<string, unknown>> {
+): Promise<{ id: string }> {
 	const name = required(params.name, "name");
 	if (!AGENT_NAME.test(name)) {
 		throw new Error("name must match [a-z][a-z0-9_-]{0,31}");
@@ -146,13 +146,7 @@ export async function startAgent(
 		}
 	}
 	return {
-		started: true,
 		id: agent.pane_id,
-		name,
-		cwd: agent.foreground_cwd ?? agent.cwd ?? cwd,
-		workspaceId: agent.workspace_id,
-		tabId: agent.tab_id,
-		monitored: true,
 	};
 }
 
