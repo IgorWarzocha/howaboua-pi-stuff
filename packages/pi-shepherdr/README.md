@@ -55,10 +55,12 @@ Delegation is fire-and-forget. A `start` with an initial prompt, plus every `wat
 
 ## Receive results
 
-A live widget shows watched agents and their state. When work settles, the master receives a labelled purple message containing the original task and the full, untruncated worker response.
+A live widget shows watched agents and their state. When work settles, the master receives a labelled purple message containing the original task and the full, untruncated worker response. Finished and blocked events both use steering delivery:
 
-- Finished: an idle master receives `triggerTurn: true`; an active master receives `deliverAs: "followUp"`.
-- Blocked: an active master receives `deliverAs: "steer"`; an idle master receives `triggerTurn: true` with `deliverAs: "steer"`.
+- Active master: `deliverAs: "steer"` delivers the event after the current tool-call batch and before the next model call.
+- Idle master: `deliverAs: "steer"` with `triggerTurn: true` starts a response immediately.
+
+Shepherdr never uses `followUp` delivery for worker events.
 
 Blocked events include the pane ID and these concrete Herdr operations:
 

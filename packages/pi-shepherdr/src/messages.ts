@@ -128,14 +128,9 @@ export function injectAgentEvent(
 	options: AgentEventOptions,
 ): void {
 	const message = agentEvent(options);
-	const delivery =
-		options.status === "blocked"
-			? ctx.isIdle()
-				? { triggerTurn: true, deliverAs: "steer" as const }
-				: { deliverAs: "steer" as const }
-			: ctx.isIdle()
-				? { triggerTurn: true }
-				: { deliverAs: "followUp" as const };
+	const delivery = ctx.isIdle()
+		? { triggerTurn: true, deliverAs: "steer" as const }
+		: { deliverAs: "steer" as const };
 	pi.sendMessage(
 		{
 			customType: AGENT_EVENT_MESSAGE_TYPE,
