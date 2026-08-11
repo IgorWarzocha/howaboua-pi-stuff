@@ -288,7 +288,7 @@ export class CodexVoiceController {
 		this.messages.voiceStopped(endedMode);
 		if (wasMuted)
 			for (const listener of this.inputMuteListeners) listener(false);
-		void closePromise;
+		void Promise.allSettled([closePromise]);
 	}
 
 	private drop(session: CodexRealtimeConversation, error: Error): void {
@@ -315,7 +315,7 @@ export class CodexVoiceController {
 				this.runtime.state.type !== "reconnecting"
 			)
 				return;
-			const resumed = await this.startMode(
+			const resumePromise = this.startMode(
 				ctx,
 				config,
 				"realtime",
@@ -323,6 +323,19 @@ export class CodexVoiceController {
 				undefined,
 				true,
 			);
+			const replacementGeneration = this.runtime.startGeneration;
+			let resumed: CodexRealtimeConversation | undefined;
+			try {
+				resumed = await resumePromise;
+			} catch (resumeError) {
+				if (this.runtime.startGeneration === replacementGeneration)
+					this.fail(
+						resumeError instanceof Error
+							? resumeError
+							: new Error(String(resumeError)),
+					);
+				return;
+			}
 			if (!resumed) {
 				const resumeError = new Error("Codex realtime voice could not resume");
 				this.markRealtimePeerInactive(
