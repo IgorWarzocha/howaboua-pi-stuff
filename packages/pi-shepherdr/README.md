@@ -70,12 +70,7 @@ Shepherdr does not invent another workspace model or resume mechanism. It never 
 
 A live widget shows the watched agents and their state. When work settles, the master receives a labelled purple message containing the original task and the full, untruncated worker response.
 
-Finished and blocked events both use Pi steering:
-
-- During an active turn, `deliverAs: "steer"` delivers the event after the current tool-call batch and before the next model call.
-- While idle, the same steering delivery uses `triggerTurn: true` to start a response immediately.
-
-Shepherdr never uses `followUp` delivery for worker events.
+Finished and blocked events both steer the master. During an active turn, the event arrives after the current tool calls and before the next model response. While idle, it starts a response immediately.
 
 A blocked event includes the pane ID and concrete Herdr commands for inspecting and operating it:
 
