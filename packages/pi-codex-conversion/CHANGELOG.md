@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.0.13
+
+### Changes
+
+- [#253](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/253) [`c9fcbf8`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/c9fcbf8a44adff914ed8c4a86703a35d503e4b0b) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Auto-resume dropped realtime voice calls when enabled and update Undici to its patched release.
+
 ## 3.0.12
 
 ### Changes

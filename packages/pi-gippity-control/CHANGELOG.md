@@ -1,5 +1,11 @@
 # @howaboua/pi-gippity-control
 
+## 0.0.8
+
+### Changes
+
+- [#253](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/253) [`c9fcbf8`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/c9fcbf8a44adff914ed8c4a86703a35d503e4b0b) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add opt-in dropped realtime voice call auto-resume to GipPity Control and update Undici to its patched release.
+
 ## 0.0.7
 
 ### Changes

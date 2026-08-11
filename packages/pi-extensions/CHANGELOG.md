@@ -1,5 +1,16 @@
 # @howaboua/pi-extensions
 
+## 0.0.51
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-gippity-control: Add opt-in dropped realtime voice call auto-resume to GipPity Control and update Undici to its patched release.
+
+- Updated dependencies [[`c9fcbf8`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/c9fcbf8a44adff914ed8c4a86703a35d503e4b0b)]:
+  - @howaboua/pi-gippity-control@0.0.8
+
 ## 0.0.50
 
 ### Changes
