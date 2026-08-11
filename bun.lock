@@ -217,23 +217,6 @@
         "@earendil-works/pi-coding-agent": ">=0.80.6",
       },
     },
-    "packages/pi-herdr-agents": {
-      "name": "@howaboua/pi-herdr-agents",
-      "version": "0.1.0",
-      "devDependencies": {
-        "@biomejs/biome": "^2.4.16",
-        "@earendil-works/pi-ai": "0.84.1",
-        "@earendil-works/pi-coding-agent": "0.84.1",
-        "@earendil-works/pi-tui": "0.84.1",
-        "@types/node": "^24.10.0",
-        "typescript": "^6.0.3",
-      },
-      "peerDependencies": {
-        "@earendil-works/pi-ai": ">=0.84.1",
-        "@earendil-works/pi-coding-agent": ">=0.84.1",
-        "@earendil-works/pi-tui": ">=0.84.1",
-      },
-    },
     "packages/pi-markdown-workflows": {
       "name": "@howaboua/pi-markdown-workflows",
       "version": "0.2.20",
@@ -291,6 +274,23 @@
         "@earendil-works/pi-coding-agent": "*",
         "@earendil-works/pi-tui": "*",
         "typebox": "*",
+      },
+    },
+    "packages/pi-shepherdr": {
+      "name": "@howaboua/pi-shepherdr",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@biomejs/biome": "^2.4.16",
+        "@earendil-works/pi-ai": "0.84.1",
+        "@earendil-works/pi-coding-agent": "0.84.1",
+        "@earendil-works/pi-tui": "0.84.1",
+        "@types/node": "^24.10.0",
+        "typescript": "^6.0.3",
+      },
+      "peerDependencies": {
+        "@earendil-works/pi-ai": ">=0.84.1",
+        "@earendil-works/pi-coding-agent": ">=0.84.1",
+        "@earendil-works/pi-tui": ">=0.84.1",
       },
     },
     "packages/pi-skill-adversarial-qa": {
@@ -652,8 +652,6 @@
 
     "@howaboua/pi-gpt-switcher": ["@howaboua/pi-gpt-switcher@workspace:packages/pi-gpt-switcher"],
 
-    "@howaboua/pi-herdr-agents": ["@howaboua/pi-herdr-agents@workspace:packages/pi-herdr-agents"],
-
     "@howaboua/pi-howaboua-extensions-primitives-sdk": ["@howaboua/pi-howaboua-extensions-primitives-sdk@0.3.2", "", { "peerDependencies": { "@earendil-works/pi-coding-agent": "*", "@earendil-works/pi-tui": "*" } }, "sha512-HVTZJh6wX4G+C6eFKEEnb7/tj5AY9oIINyHl6cgcRLRnoHZpEU5Mv5aDwGc5rJofjhiWGpB+jZOYYSHgPtCZGA=="],
 
     "@howaboua/pi-markdown-workflows": ["@howaboua/pi-markdown-workflows@workspace:packages/pi-markdown-workflows"],
@@ -661,6 +659,8 @@
     "@howaboua/pi-memories": ["@howaboua/pi-memories@workspace:packages/pi-memories"],
 
     "@howaboua/pi-semantic-grep": ["@howaboua/pi-semantic-grep@workspace:packages/pi-semantic-grep"],
+
+    "@howaboua/pi-shepherdr": ["@howaboua/pi-shepherdr@workspace:packages/pi-shepherdr"],
 
     "@howaboua/pi-skill-adversarial-qa": ["@howaboua/pi-skill-adversarial-qa@workspace:packages/pi-skill-adversarial-qa"],
 

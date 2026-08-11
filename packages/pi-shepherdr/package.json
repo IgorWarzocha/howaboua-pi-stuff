@@ -1,15 +1,15 @@
 {
-	"name": "@howaboua/pi-herdr-agents",
+	"name": "@howaboua/pi-shepherdr",
 	"version": "0.1.0",
-	"description": "Event-driven Herdr agent orchestration for Pi.",
+	"description": "Herdr-native multi-agent orchestration for Pi.",
 	"type": "module",
 	"license": "MIT",
 	"author": "Igor Warzocha",
-	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-herdr-agents#readme",
+	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-shepherdr#readme",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
-		"directory": "packages/pi-herdr-agents"
+		"directory": "packages/pi-shepherdr"
 	},
 	"bugs": {
 		"url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
@@ -19,6 +19,7 @@
 		"pi-extension",
 		"pi",
 		"herdr",
+		"shepherdr",
 		"agents",
 		"orchestration"
 	],

@@ -82,7 +82,7 @@ export function registerHerdrAgentsTool(
 ): void {
 	pi.registerTool({
 		name: "herdr_agents",
-		label: "Herdr Agents",
+		label: "Shepherdr",
 		description:
 			"Herdr Pi agents. start needs name and placement; new_tab needs workspace; pane placement needs pane ID. watch/unwatch need target; send needs target and prompt.",
 		promptGuidelines: [

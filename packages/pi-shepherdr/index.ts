@@ -4,7 +4,7 @@ import { registerAgentEventRenderer } from "./src/messages.js";
 import { AgentMonitor } from "./src/monitor.js";
 import { registerHerdrAgentsTool } from "./src/tool.js";
 
-export default function herdrAgentsExtension(pi: ExtensionAPI): void {
+export default function shepherdrExtension(pi: ExtensionAPI): void {
 	let monitor: AgentMonitor | undefined;
 	const getMonitor = () => (monitor ??= new AgentMonitor(pi));
 

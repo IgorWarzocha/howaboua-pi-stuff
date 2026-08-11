@@ -43,7 +43,7 @@ export class HerdrClient {
 		timeoutMs = 10_000,
 	): Promise<T> {
 		return new Promise((resolve, reject) => {
-			const id = `pi-herdr-agents:${crypto.randomUUID()}`;
+			const id = `pi-shepherdr:${crypto.randomUUID()}`;
 			let buffer = "";
 			let settled = false;
 			const socket = createConnection(socketEndpoint(this.socketPath));
@@ -108,7 +108,7 @@ export class HerdrClient {
 		onDisconnect: (error?: Error) => void,
 	): Promise<() => void> {
 		return new Promise((resolve, reject) => {
-			const id = `pi-herdr-agents:subscribe:${crypto.randomUUID()}`;
+			const id = `pi-shepherdr:subscribe:${crypto.randomUUID()}`;
 			let acknowledged = false;
 			let buffer = "";
 			let closed = false;

@@ -1,5 +1,5 @@
 ---
-"@howaboua/pi-herdr-agents": patch
+"@howaboua/pi-shepherdr": patch
 ---
 
-Add Herdr-native Pi agent orchestration with event-driven monitoring and a live fleet widget.
+Add Shepherdr, a Herdr-native Pi agent orchestrator with event-driven monitoring and a live fleet widget.
