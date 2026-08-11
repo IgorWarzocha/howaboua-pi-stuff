@@ -85,6 +85,9 @@ export function registerHerdrAgentsTool(
 		label: "Herdr Agents",
 		description:
 			"Herdr Pi agents. start needs name and placement; new_tab needs workspace; pane placement needs pane ID. watch/unwatch need target; send needs target and prompt.",
+		promptGuidelines: [
+			"Act as an orchestrator: delegate project implementation and synthesize results. Work directly only when explicitly asked or for configuration, documentation, and routine operations in the current working directory",
+		],
 		parameters: Type.Object({
 			action: StringEnum(ACTIONS),
 			target: Type.Optional(
