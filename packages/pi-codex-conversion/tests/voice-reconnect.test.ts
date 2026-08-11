@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import type { CodexVoiceAuth } from "../src/voice/auth.ts";
+import { currentVoiceSession } from "../src/voice/controller-support.ts";
 import type { RealtimeCallSetup } from "../src/voice/conversation/call-setup.ts";
 import type {
 	CodexRealtimePeerEvent,
@@ -35,9 +36,25 @@ test("only an established realtime transport failure is a resumable drop", async
 		"instructions",
 	);
 	active.session.markEstablished();
+	active.peer.holdClose();
 	active.peer.emit({ type: "state", state: "closed" });
 	assert.deepEqual(active.failures, []);
 	assert.deepEqual(active.drops, ["Codex realtime connection closed"]);
+	assert.equal(
+		currentVoiceSession({ type: "reconnecting", session: active.session }),
+		active.session,
+	);
+	const firstClose = active.session.close();
+	const repeatedClose = active.session.close();
+	let closeSettled = false;
+	void repeatedClose.then(() => {
+		closeSettled = true;
+	});
+	await Promise.resolve();
+	assert.equal(closeSettled, false);
+	assert.equal(active.peer.closeCalls, 1);
+	active.peer.releaseClose();
+	await Promise.all([firstClose, repeatedClose]);
 });
 
 function createConversation(answerState: "ready" | "closed"): {
@@ -67,9 +84,11 @@ function createConversation(answerState: "ready" | "closed"): {
 
 class FakeRealtimePeer implements CodexRealtimeWebRtcPeer {
 	readonly kind = "webrtc" as const;
+	closeCalls = 0;
 	private readonly answerState: "ready" | "closed";
 	private readonly eventListeners = new Set<(event: CodexRealtimePeerEvent) => void>();
 	private readonly exitListeners = new Set<(error: Error) => void>();
+	private closeGate: ReturnType<typeof Promise.withResolvers<void>> | undefined;
 
 	constructor(answerState: "ready" | "closed") {
 		this.answerState = answerState;
@@ -97,7 +116,18 @@ class FakeRealtimePeer implements CodexRealtimeWebRtcPeer {
 		for (const listener of this.eventListeners) listener(event);
 	}
 
+	holdClose(): void {
+		this.closeGate = Promise.withResolvers<void>();
+	}
+
+	releaseClose(): void {
+		this.closeGate?.resolve();
+	}
+
 	sendData(): void {}
 	setInputMuted(): void {}
-	async close(): Promise<void> {}
+	async close(): Promise<void> {
+		this.closeCalls += 1;
+		await this.closeGate?.promise;
+	}
 }

@@ -44,6 +44,7 @@ export class CodexRealtimeConversation {
 	private state: ConversationState = "idle";
 	private setupAbortController: AbortController | undefined;
 	private peerReady: ReturnType<typeof Promise.withResolvers<void>> | undefined;
+	private closePromise: Promise<void> | undefined;
 	private callSetup: RealtimeCallSetup = setupRealtimeCall;
 	private inputMuted = false;
 	private established = false;
@@ -155,7 +156,11 @@ export class CodexRealtimeConversation {
 	}
 
 	async close(): Promise<void> {
-		if (this.state === "closed") return;
+		this.closePromise ??= this.closeSession();
+		return this.closePromise;
+	}
+
+	private async closeSession(): Promise<void> {
 		this.state = "closed";
 		this.established = false;
 		this.abortSetup();
@@ -320,6 +325,6 @@ export class CodexRealtimeConversation {
 		this.peerReady = undefined;
 		if (dropped) this.callbacks.onDrop(error);
 		else this.callbacks.onError(error);
-		void this.peer.close();
+		void this.close();
 	}
 }

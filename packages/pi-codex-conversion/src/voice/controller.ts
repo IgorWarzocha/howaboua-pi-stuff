@@ -328,7 +328,7 @@ export class CodexVoiceController {
 		this.runtime.startAbortController = undefined;
 		const resumeGeneration = ++this.runtime.startGeneration;
 		const wasMuted = this.inputMuted;
-		this.runtime.state = { type: "reconnecting" };
+		this.runtime.state = { type: "reconnecting", session };
 		this.renderStatus("reconnecting…");
 		void (async () => {
 			await Promise.allSettled([

@@ -14,7 +14,7 @@ export const VOICE_STATUS_KEY = "codex-voice";
 export type VoiceSession = CodexRealtimeConversation | CodexDictationSession;
 export type VoiceState =
 	| { type: "idle" }
-	| { type: "reconnecting" }
+	| { type: "reconnecting"; session: CodexRealtimeConversation }
 	| { type: "connecting"; mode: "realtime"; phase: "authorizing" }
 	| { type: "connecting"; mode: "realtime"; phase: "starting"; session: CodexRealtimeConversation }
 	| { type: "connecting"; mode: "dictation"; phase: "authorizing" }
@@ -24,7 +24,7 @@ export type VoiceState =
 	| { type: "failed"; message: string };
 
 export function currentVoiceSession(state: VoiceState): VoiceSession | undefined {
-	if (state.type === "conversation" || state.type === "dictation") return state.session;
+	if (state.type === "conversation" || state.type === "dictation" || state.type === "reconnecting") return state.session;
 	return state.type === "connecting" && state.phase === "starting" ? state.session : undefined;
 }
 
