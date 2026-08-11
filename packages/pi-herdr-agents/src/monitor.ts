@@ -118,18 +118,16 @@ export class AgentMonitor {
 		return true;
 	}
 
-	setTask(paneId: string, task: string): void {
+	beginWork(paneId: string, task: string): void {
 		const record = this.agents.get(paneId);
 		if (!record) return;
 		record.task = task;
+		record.lastStatus = "working";
 		this.persist();
 	}
 
-	expectWork(paneId: string): void {
-		const record = this.agents.get(paneId);
-		if (!record) return;
-		record.lastStatus = "working";
-		this.persist();
+	async reconcileNow(): Promise<void> {
+		await this.reconcile();
 	}
 
 	private restore(ctx: ExtensionContext): void {
@@ -174,6 +172,7 @@ export class AgentMonitor {
 			}
 			if (panel.pane_id !== paneId) this.agents.delete(paneId);
 			const cwd = panel.foreground_cwd ?? panel.cwd;
+			const name = panel.name ?? undefined;
 			const updated = {
 				...record,
 				paneId: panel.pane_id,
@@ -184,6 +183,8 @@ export class AgentMonitor {
 				...(panel.name ? { name: panel.name } : {}),
 				...(cwd ? { cwd } : {}),
 			};
+			if (!name) delete updated.name;
+			if (!cwd) delete updated.cwd;
 			this.agents.set(panel.pane_id, updated);
 			if (
 				record.lastStatus === "working" &&
@@ -194,7 +195,11 @@ export class AgentMonitor {
 			changed ||=
 				panel.pane_id !== paneId ||
 				panel.terminal_id !== record.terminalId ||
-				panel.agent_status !== record.lastStatus;
+				panel.agent_status !== record.lastStatus ||
+				panel.workspace_id !== record.workspaceId ||
+				panel.tab_id !== record.tabId ||
+				name !== record.name ||
+				cwd !== record.cwd;
 		}
 		if (changed) this.persist();
 		else renderAgentWidget(this.context, this.list());

@@ -161,12 +161,16 @@ export function registerHerdrAgentsTool(
 			if (params.action === "send") {
 				const prompt = required(params.prompt, "prompt");
 				if (!monitor.isMonitored(agent.pane_id)) await monitor.adopt(agent);
-				monitor.setTask(agent.pane_id, prompt);
-				await client.request("agent.prompt", {
-					target: agent.pane_id,
-					text: prompt,
-				});
-				monitor.expectWork(agent.pane_id);
+				monitor.beginWork(agent.pane_id, prompt);
+				try {
+					await client.request("agent.prompt", {
+						target: agent.pane_id,
+						text: prompt,
+					});
+				} catch (error) {
+					await monitor.reconcileNow().catch(() => undefined);
+					throw error;
+				}
 				return result({ sent: true, id: agent.pane_id, monitored: true });
 			}
 			if (params.action === "read") {

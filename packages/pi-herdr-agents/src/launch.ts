@@ -135,12 +135,16 @@ export async function startAgent(
 	await monitor.adopt(agent);
 	if (params.prompt?.trim()) {
 		const prompt = params.prompt.trim();
-		monitor.setTask(agent.pane_id, prompt);
-		await client.request("agent.prompt", {
-			target: agent.pane_id,
-			text: prompt,
-		});
-		monitor.expectWork(agent.pane_id);
+		monitor.beginWork(agent.pane_id, prompt);
+		try {
+			await client.request("agent.prompt", {
+				target: agent.pane_id,
+				text: prompt,
+			});
+		} catch (error) {
+			await monitor.reconcileNow().catch(() => undefined);
+			throw error;
+		}
 	}
 	return {
 		started: true,
