@@ -5,6 +5,7 @@
 - `jupyter-kernel.ts` owns kernel messaging/process lifecycle; connection allocation, output interpretation, and wire encoding stay in their named modules
 - `checkpoint.ts` owns host persistence and validation; checkpoint format and injected capture/restore source stay separate; `journal.ts` owns `.ipynb` history
 - `project-state.ts` orchestrates worktree persistence; format validation, injected runtime source, and merge/conflict policy stay in their named modules
+- Running sessions are private forks of the durable project state; checkpoints merge into disk but never rebind another session's changes into a live kernel
 - `lifecycle.ts` owns Notebook control actions; generated Deno inspection/disposal source stays in `lifecycle-runtime.ts`
 - `notebook-diagnostics.ts` maps journals to one-shot Deno diagnostics; `lsp-process.ts` owns bounded JSON-RPC process transport and never stays resident
 - `recovery.ts` coordinates host-side diagnostics and destructive reset; kernel/session mechanics remain in `client.ts`
