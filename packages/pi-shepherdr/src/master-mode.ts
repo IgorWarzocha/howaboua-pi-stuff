@@ -36,7 +36,7 @@ export function registerMasterMode(
 				ctx.ui.notify(`Herdr master enabled in ${path}`, "info");
 			} catch (error) {
 				ctx.ui.notify(
-					`Herdr master is active for this session but could not save ${ctx.cwd}/.pi/herdr.json: ${error instanceof Error ? error.message : String(error)}`,
+					`Herdr master is active for this session but could not save ${ctx.cwd}/.pi/shepherdr.json: ${error instanceof Error ? error.message : String(error)}`,
 					"error",
 				);
 			}

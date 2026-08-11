@@ -42,7 +42,7 @@ interface AgentEventDetails {
 	name?: string;
 	paneId: string;
 	response?: string;
-	state: "blocked" | "finished";
+	state: "blocked" | "failed" | "finished";
 	tab?: string;
 	task?: string;
 	workspace?: string;
@@ -57,7 +57,9 @@ function eventDetails(value: unknown): AgentEventDetails | undefined {
 	const details = value as Record<string, unknown>;
 	if (
 		typeof details["paneId"] !== "string" ||
-		(details["state"] !== "blocked" && details["state"] !== "finished")
+		(details["state"] !== "blocked" &&
+			details["state"] !== "failed" &&
+			details["state"] !== "finished")
 	) {
 		return undefined;
 	}
@@ -84,8 +86,13 @@ function agentEvent(options: AgentEventOptions): {
 } {
 	const { agent, blockedMessage, labels, record, reply, status } = options;
 	const blocked = status === "blocked";
+	const failed = !blocked && reply?.stopReason === "error";
 	const cwd = agent.foreground_cwd ?? agent.cwd ?? record.cwd;
-	const tag = blocked ? "herdr_agent_blocked" : "herdr_agent_result";
+	const tag = blocked
+		? "herdr_agent_blocked"
+		: failed
+			? "herdr_agent_failed"
+			: "herdr_agent_result";
 	const attributes = [
 		`pane="${xml(agent.pane_id)}"`,
 		record.name ? `name="${xml(record.name)}"` : undefined,
@@ -110,7 +117,7 @@ function agentEvent(options: AgentEventOptions): {
 		content: lines.join("\n"),
 		details: {
 			paneId: agent.pane_id,
-			state: blocked ? "blocked" : "finished",
+			state: blocked ? "blocked" : failed ? "failed" : "finished",
 			...(record.name ? { name: record.name } : {}),
 			...(cwd ? { cwd } : {}),
 			...(labels.workspace ? { workspace: labels.workspace } : {}),
@@ -163,12 +170,13 @@ export function registerAgentEventRenderer(pi: ExtensionAPI): void {
 				return box;
 			}
 			const blocked = details?.state === "blocked";
+			const failed = details?.state === "failed";
 			const identity = details?.name
 				? `${details.name} (${details.paneId})`
 				: (details?.paneId ?? "unknown");
 			const title = theme.fg(
-				blocked ? "error" : "success",
-				`Herdr agent ${identity} · ${blocked ? "blocked" : "finished"}`,
+				blocked || failed ? "error" : "success",
+				`Herdr agent ${identity} · ${blocked ? "blocked" : failed ? "failed" : "finished"}`,
 			);
 			const location = [details?.workspace, details?.tab]
 				.filter(Boolean)

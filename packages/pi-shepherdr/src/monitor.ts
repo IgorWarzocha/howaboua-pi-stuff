@@ -34,6 +34,14 @@ interface ActiveSubscription {
 	unsubscribe: () => void;
 }
 
+export interface WorkAttempt {
+	paneId: string;
+	previousStatus: AgentStatus;
+	previousTask?: string;
+	task: string;
+	terminalId: string;
+}
+
 function isAgentStatus(value: unknown): value is AgentStatus {
 	return typeof value === "string" && AGENT_STATUSES.has(value);
 }
@@ -54,12 +62,18 @@ function blockedReason(data: Record<string, unknown>): string | undefined {
 function isMonitoredAgent(value: unknown): value is MonitoredAgent {
 	if (typeof value !== "object" || value === null) return false;
 	const agent = value as Partial<MonitoredAgent>;
+	const optionalString = (field: keyof MonitoredAgent) =>
+		agent[field] === undefined || typeof agent[field] === "string";
 	return (
 		typeof agent.paneId === "string" &&
 		typeof agent.terminalId === "string" &&
 		typeof agent.workspaceId === "string" &&
 		typeof agent.tabId === "string" &&
-		isAgentStatus(agent.lastStatus)
+		isAgentStatus(agent.lastStatus) &&
+		optionalString("cwd") &&
+		optionalString("lastAssistantId") &&
+		optionalString("name") &&
+		optionalString("task")
 	);
 }
 
@@ -93,6 +107,7 @@ export class AgentMonitor {
 	private activationGeneration = 0;
 	private subscriptionWarningShown = false;
 	private readonly reporting = new Set<string>();
+	private readonly pendingWork = new Map<string, WorkAttempt>();
 
 	constructor(pi: ExtensionAPI, client = new HerdrClient()) {
 		this.pi = pi;
@@ -119,6 +134,8 @@ export class AgentMonitor {
 		this.liveSubscriptionGenerations.clear();
 		this.subscription?.unsubscribe();
 		this.subscription = undefined;
+		this.pendingWork.clear();
+		this.subscriptionWarningShown = false;
 		if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
 		this.reconnectTimer = undefined;
 	}
@@ -137,30 +154,79 @@ export class AgentMonitor {
 		}
 		const reply = await this.reader.latest(sessionPath(panel));
 		const existing = this.agents.get(panel.pane_id);
+		const reportCurrent =
+			!existing &&
+			(panel.agent_status === "done" || panel.agent_status === "blocked");
 		const record = {
-			...panelRecord(panel, reply?.id),
+			...panelRecord(
+				panel,
+				reportCurrent ? undefined : (existing?.lastAssistantId ?? reply?.id),
+			),
 			...(existing?.task ? { task: existing.task } : {}),
 		};
 		this.agents.set(panel.pane_id, record);
 		this.persist();
 		await this.refreshSubscription();
+		await this.reconcile(this.activationGeneration, this.context);
+		if (reportCurrent) {
+			await this.reportSettled(record, panel.agent_status);
+		}
 		return record;
 	}
 
 	async unwatch(paneId: string): Promise<boolean> {
-		const removed = this.agents.delete(paneId);
-		if (!removed) return false;
+		if (!this.agents.delete(paneId)) return false;
+		this.pendingWork.delete(paneId);
 		this.persist();
 		await this.refreshSubscription();
 		return true;
 	}
 
-	beginWork(paneId: string, task: string): void {
+	beginWork(paneId: string, task: string): WorkAttempt | undefined {
 		const record = this.agents.get(paneId);
-		if (!record) return;
+		if (!record) return undefined;
+		const attempt: WorkAttempt = {
+			paneId,
+			previousStatus: record.lastStatus,
+			...(record.task ? { previousTask: record.task } : {}),
+			task,
+			terminalId: record.terminalId,
+		};
 		record.task = task;
+		this.pendingWork.set(paneId, attempt);
+		this.persist();
+		return attempt;
+	}
+
+	acceptWork(attempt: WorkAttempt | undefined): void {
+		if (!attempt || this.pendingWork.get(attempt.paneId) !== attempt) return;
+		this.pendingWork.delete(attempt.paneId);
+		const record = this.agents.get(attempt.paneId);
+		if (!record || record.terminalId !== attempt.terminalId) return;
 		record.lastStatus = "working";
 		this.persist();
+	}
+
+	rejectWork(attempt: WorkAttempt | undefined): void {
+		if (!attempt || this.pendingWork.get(attempt.paneId) !== attempt) return;
+		this.pendingWork.delete(attempt.paneId);
+		const record = this.agents.get(attempt.paneId);
+		if (!record || record.terminalId !== attempt.terminalId) return;
+		record.lastStatus = attempt.previousStatus;
+		if (attempt.previousTask !== undefined) record.task = attempt.previousTask;
+		else delete record.task;
+		this.persist();
+	}
+
+	async handleWorkFailure(
+		attempt: WorkAttempt | undefined,
+		error: unknown,
+	): Promise<void> {
+		if (typeof (error as Error & { code?: unknown }).code === "string") {
+			this.rejectWork(attempt);
+			return;
+		}
+		await this.reconcileNow().catch(() => undefined);
 	}
 
 	async reconcileNow(): Promise<void> {
@@ -233,23 +299,26 @@ export class AgentMonitor {
 			if (panel.pane_id !== paneId) this.agents.delete(paneId);
 			const cwd = panel.foreground_cwd ?? panel.cwd;
 			const name = panel.name ?? undefined;
+			const settling =
+				record.lastStatus === "working" &&
+				SETTLED_STATUSES.has(panel.agent_status);
 			const updated = {
 				...record,
 				paneId: panel.pane_id,
 				terminalId: panel.terminal_id,
 				workspaceId: panel.workspace_id,
 				tabId: panel.tab_id,
-				lastStatus: panel.agent_status,
+				lastStatus: settling ? record.lastStatus : panel.agent_status,
 				...(panel.name ? { name: panel.name } : {}),
 				...(cwd ? { cwd } : {}),
 			};
 			if (!name) delete updated.name;
 			if (!cwd) delete updated.cwd;
 			this.agents.set(panel.pane_id, updated);
-			if (
-				record.lastStatus === "working" &&
-				SETTLED_STATUSES.has(panel.agent_status)
-			) {
+			if (panel.agent_status === "working") {
+				this.pendingWork.delete(panel.pane_id);
+			}
+			if (settling) {
 				settled.push({ record: updated, status: panel.agent_status });
 			}
 			changed ||=
@@ -362,6 +431,7 @@ export class AgentMonitor {
 						`Herdr monitoring reconnect failed: ${error instanceof Error ? error.message : String(error)}`,
 						"warning",
 					);
+					this.scheduleReconnect(generation, false);
 				});
 		}, 1_000);
 		this.reconnectTimer.unref();
@@ -389,13 +459,27 @@ export class AgentMonitor {
 		const record = this.agents.get(paneId);
 		if (!record) return;
 		const previous = record.lastStatus;
-		record.lastStatus = status as AgentStatus;
-		this.persist();
-		if (SETTLED_STATUSES.has(status as AgentStatus) && previous === "working") {
+		const pending = this.pendingWork.get(paneId);
+		if (status === "working") {
+			this.pendingWork.delete(paneId);
+			record.lastStatus = "working";
+			this.persist();
+			return;
+		}
+		if (
+			SETTLED_STATUSES.has(status as AgentStatus) &&
+			(previous === "working" || pending)
+		) {
+			this.pendingWork.delete(paneId);
+			record.lastStatus = "working";
+			this.persist();
 			const blockedMessage =
 				status === "blocked" ? blockedReason(event.data) : undefined;
 			void this.reportSettled(record, status as AgentStatus, blockedMessage);
+			return;
 		}
+		record.lastStatus = status as AgentStatus;
+		this.persist();
 	}
 
 	private handleMoved(data: Record<string, unknown>): void {
@@ -414,6 +498,12 @@ export class AgentMonitor {
 		if (!record) return;
 		this.agents.delete(previousPaneId);
 		record.paneId = pane.pane_id;
+		const pending = this.pendingWork.get(previousPaneId);
+		if (pending) {
+			this.pendingWork.delete(previousPaneId);
+			pending.paneId = pane.pane_id;
+			this.pendingWork.set(pending.paneId, pending);
+		}
 		if ("workspace_id" in pane && typeof pane.workspace_id === "string") {
 			record.workspaceId = pane.workspace_id;
 		}
@@ -429,6 +519,7 @@ export class AgentMonitor {
 		record: MonitoredAgent,
 		status: AgentStatus,
 		blockedMessage?: string,
+		retried = false,
 	): Promise<void> {
 		const generation = this.activationGeneration;
 		const context = this.context;
@@ -455,9 +546,11 @@ export class AgentMonitor {
 			const currentStatus = currentAgent.agent_status;
 			if (generation !== this.activationGeneration || context !== this.context)
 				return;
-			const newReply = reply?.id !== record.lastAssistantId ? reply : undefined;
-			if (reply?.id) record.lastAssistantId = reply.id;
-			this.persist();
+			const currentRecord = this.agents.get(currentAgent.pane_id);
+			if (!currentRecord || currentRecord.terminalId !== record.terminalId)
+				return;
+			const newReply =
+				reply?.id !== currentRecord.lastAssistantId ? reply : undefined;
 			const labels = labelsFor(snapshot, currentAgent);
 			injectAgentEvent(this.pi, context, {
 				agent: currentAgent,
@@ -465,18 +558,59 @@ export class AgentMonitor {
 					? { blockedMessage }
 					: {}),
 				labels,
-				record,
+				record: currentRecord,
 				...(newReply ? { reply: newReply } : {}),
 				status: currentStatus,
 			});
+			if (reply?.id) currentRecord.lastAssistantId = reply.id;
+			currentRecord.lastStatus = currentStatus;
+			delete currentRecord.task;
+			this.persist();
 		} catch (error) {
-			this.context?.ui.notify(
+			context.ui.notify(
 				`Could not collect ${record.name ?? record.paneId}: ${error instanceof Error ? error.message : String(error)}`,
 				"warning",
 			);
+			if (!retried) {
+				this.scheduleReportRetry(
+					record,
+					status,
+					blockedMessage,
+					generation,
+					context,
+				);
+			}
 		} finally {
 			this.reporting.delete(reportKey);
 		}
+	}
+
+	private scheduleReportRetry(
+		record: MonitoredAgent,
+		status: AgentStatus,
+		blockedMessage: string | undefined,
+		generation: number,
+		context: ExtensionContext,
+	): void {
+		if (
+			generation !== this.activationGeneration ||
+			context !== this.context ||
+			!this.list().some(
+				(candidate) => candidate.terminalId === record.terminalId,
+			)
+		) {
+			return;
+		}
+		const timer = setTimeout(() => {
+			if (generation !== this.activationGeneration || context !== this.context)
+				return;
+			const current = this.list().find(
+				(candidate) => candidate.terminalId === record.terminalId,
+			);
+			if (!current) return;
+			void this.reportSettled(current, status, blockedMessage, true);
+		}, 1_000);
+		timer.unref();
 	}
 }
 

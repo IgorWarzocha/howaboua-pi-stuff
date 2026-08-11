@@ -134,14 +134,15 @@ export async function startAgent(
 	}
 	if (params.prompt?.trim()) {
 		const prompt = params.prompt.trim();
-		monitor.beginWork(agent.pane_id, prompt);
+		const attempt = monitor.beginWork(agent.pane_id, prompt);
 		try {
 			await client.request("agent.prompt", {
 				target: agent.pane_id,
 				text: prompt,
 			});
+			monitor.acceptWork(attempt);
 		} catch (error) {
-			await monitor.reconcileNow().catch(() => undefined);
+			await monitor.handleWorkFailure(attempt, error);
 			throw error;
 		}
 	}

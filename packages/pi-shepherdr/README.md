@@ -42,7 +42,7 @@ For a lasting setup, open Pi in a dedicated control directory and run:
 /herdr json
 ```
 
-That command atomically merges the following setting into `.pi/herdr.json`:
+That command atomically merges the following setting into `.pi/shepherdr.json`:
 
 ```json
 {
@@ -74,7 +74,7 @@ Shepherdr does not invent another workspace model or resume mechanism. It never 
 
 A live widget shows the watched agents and their state. When work settles, the master receives a labelled purple message containing the original task and the full, untruncated worker response.
 
-Finished and blocked events both steer the master. During an active turn, the event arrives after the current tool calls and before the next model response. While idle, it starts a response immediately.
+Finished, failed and blocked events all steer the master. During an active turn, the event arrives after the current tool calls and before the next model response. While idle, it starts a response immediately.
 
 A blocked event includes the pane ID and concrete Herdr commands for inspecting and operating it:
 

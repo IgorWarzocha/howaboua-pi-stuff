@@ -172,14 +172,15 @@ export function registerHerdrAgentsTool(
 			if (params.action === "send") {
 				const prompt = required(params.prompt, "prompt");
 				if (!monitor.isMonitored(agent.pane_id)) await monitor.watch(agent);
-				monitor.beginWork(agent.pane_id, prompt);
+				const attempt = monitor.beginWork(agent.pane_id, prompt);
 				try {
 					await client.request("agent.prompt", {
 						target: agent.pane_id,
 						text: prompt,
 					});
+					monitor.acceptWork(attempt);
 				} catch (error) {
-					await monitor.reconcileNow().catch(() => undefined);
+					await monitor.handleWorkFailure(attempt, error);
 					throw error;
 				}
 				return result({

@@ -3,7 +3,7 @@ import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 function configPath(cwd: string): string {
-	return join(cwd, ".pi", "herdr.json");
+	return join(cwd, ".pi", "shepherdr.json");
 }
 
 export async function isMasterDirectory(cwd: string): Promise<boolean> {
@@ -22,11 +22,10 @@ export async function enableMasterDirectory(cwd: string): Promise<string> {
 	await mkdir(directory, { recursive: true });
 	const temporaryPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
 	try {
-		await writeFile(
-			temporaryPath,
-			`${JSON.stringify(value, null, 2)}\n`,
-			"utf8",
-		);
+		await writeFile(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, {
+			encoding: "utf8",
+			mode: 0o600,
+		});
 		await rename(temporaryPath, path);
 	} catch (error) {
 		await unlink(temporaryPath).catch(() => undefined);
