@@ -276,6 +276,23 @@
         "typebox": "*",
       },
     },
+    "packages/pi-shepherdr": {
+      "name": "@howaboua/pi-shepherdr",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@biomejs/biome": "^2.4.16",
+        "@earendil-works/pi-ai": "0.84.1",
+        "@earendil-works/pi-coding-agent": "0.84.1",
+        "@earendil-works/pi-tui": "0.84.1",
+        "@types/node": "^24.10.0",
+        "typescript": "^6.0.3",
+      },
+      "peerDependencies": {
+        "@earendil-works/pi-ai": ">=0.84.1",
+        "@earendil-works/pi-coding-agent": ">=0.84.1",
+        "@earendil-works/pi-tui": ">=0.84.1",
+      },
+    },
     "packages/pi-skill-adversarial-qa": {
       "name": "@howaboua/pi-skill-adversarial-qa",
       "version": "0.0.1",
@@ -642,6 +659,8 @@
     "@howaboua/pi-memories": ["@howaboua/pi-memories@workspace:packages/pi-memories"],
 
     "@howaboua/pi-semantic-grep": ["@howaboua/pi-semantic-grep@workspace:packages/pi-semantic-grep"],
+
+    "@howaboua/pi-shepherdr": ["@howaboua/pi-shepherdr@workspace:packages/pi-shepherdr"],
 
     "@howaboua/pi-skill-adversarial-qa": ["@howaboua/pi-skill-adversarial-qa@workspace:packages/pi-skill-adversarial-qa"],
 

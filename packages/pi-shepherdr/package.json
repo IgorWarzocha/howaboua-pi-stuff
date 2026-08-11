@@ -1,0 +1,68 @@
+{
+	"name": "@howaboua/pi-shepherdr",
+	"version": "0.0.0",
+	"description": "Herdr-native multi-agent orchestration for Pi.",
+	"type": "module",
+	"license": "MIT",
+	"author": "Igor Warzocha",
+	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-shepherdr#readme",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
+		"directory": "packages/pi-shepherdr"
+	},
+	"bugs": {
+		"url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
+	},
+	"keywords": [
+		"pi-package",
+		"pi-extension",
+		"pi",
+		"herdr",
+		"shepherdr",
+		"agents",
+		"orchestration"
+	],
+	"files": [
+		"index.ts",
+		"src",
+		"README.md",
+		"LICENSE",
+		"tsconfig.json",
+		"biome.json"
+	],
+	"scripts": {
+		"check": "bun run lint && bun run typecheck",
+		"prepack": "bun run check",
+		"typecheck": "tsgo --noEmit",
+		"lint": "biome check .",
+		"format": "biome check --write .",
+		"pack:dry": "npm pack --dry-run"
+	},
+	"peerDependencies": {
+		"@earendil-works/pi-ai": ">=0.84.1",
+		"@earendil-works/pi-coding-agent": ">=0.84.1",
+		"@earendil-works/pi-tui": ">=0.84.1"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.16",
+		"@earendil-works/pi-ai": "0.84.1",
+		"@earendil-works/pi-coding-agent": "0.84.1",
+		"@earendil-works/pi-tui": "0.84.1",
+		"@types/node": "^24.10.0",
+		"typescript": "^6.0.3"
+	},
+	"pi": {
+		"extensions": [
+			"./index.ts"
+		]
+	},
+	"engines": {
+		"node": ">=20.6.0"
+	},
+	"main": "index.ts",
+	"exports": "./index.ts",
+	"publishConfig": {
+		"access": "public"
+	}
+}

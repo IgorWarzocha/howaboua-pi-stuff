@@ -1,0 +1,78 @@
+export type AgentStatus = "idle" | "working" | "blocked" | "done" | "unknown";
+
+export type SettledAgentStatus = Exclude<AgentStatus, "working">;
+
+export type StableAgentActivity =
+	| { readonly phase: "settled"; readonly status: SettledAgentStatus }
+	| { readonly phase: "working"; readonly task?: string };
+
+export type AgentActivity =
+	| StableAgentActivity
+	| {
+			readonly attemptId: string;
+			readonly phase: "submitting";
+			readonly previous: StableAgentActivity;
+			readonly task: string;
+	  };
+
+interface AgentSessionInfo {
+	agent: string;
+	kind: "id" | "path";
+	source: string;
+	value: string;
+}
+
+export interface PaneInfo {
+	agent?: string | null;
+	agent_session?: AgentSessionInfo | null;
+	agent_status: AgentStatus;
+	cwd?: string | null;
+	foreground_cwd?: string | null;
+	interactive_ready?: boolean;
+	launch_pending?: boolean;
+	name?: string | null;
+	pane_id: string;
+	tab_id: string;
+	terminal_id: string;
+	workspace_id: string;
+}
+
+interface TabInfo {
+	label: string;
+	tab_id: string;
+	workspace_id: string;
+}
+
+export interface WorkspaceInfo {
+	label: string;
+	workspace_id: string;
+}
+
+export interface SessionSnapshot {
+	agents: PaneInfo[];
+	panes: PaneInfo[];
+	tabs: TabInfo[];
+	workspaces: WorkspaceInfo[];
+}
+
+export interface MonitoredAgent {
+	readonly activity: AgentActivity;
+	readonly cwd?: string;
+	readonly lastAssistantId?: string;
+	readonly name?: string;
+	readonly paneId: string;
+	readonly tabId: string;
+	readonly terminalId: string;
+	readonly workspaceId: string;
+}
+
+export interface LatestAssistant {
+	id: string;
+	stopReason?: string;
+	text: string;
+}
+
+export interface HerdrEvent {
+	data: Record<string, unknown>;
+	event: string;
+}
