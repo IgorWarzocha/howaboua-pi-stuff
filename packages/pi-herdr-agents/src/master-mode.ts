@@ -24,8 +24,9 @@ export function registerMasterMode(
 				ctx.ui.notify("Usage: /herdr [master|json]", "warning");
 				return;
 			}
-			monitor = getMonitor();
-			if (!(await activateMaster(pi, monitor, ctx))) return;
+			const activeMonitor = await activateMaster(pi, getMonitor, ctx);
+			if (!activeMonitor) return;
+			monitor = activeMonitor;
 			if (action === "master") {
 				ctx.ui.notify("Herdr master enabled for this Pi session", "info");
 				return;
@@ -57,8 +58,8 @@ export function registerMasterMode(
 			setToolActive(pi, false);
 			return;
 		}
-		monitor = getMonitor();
-		await activateMaster(pi, monitor, ctx);
+		const activeMonitor = await activateMaster(pi, getMonitor, ctx);
+		if (activeMonitor) monitor = activeMonitor;
 	});
 
 	pi.on("session_shutdown", async () => {
@@ -68,19 +69,20 @@ export function registerMasterMode(
 
 async function activateMaster(
 	pi: ExtensionAPI,
-	monitor: AgentMonitor,
+	getMonitor: () => AgentMonitor,
 	ctx: ExtensionContext,
-): Promise<boolean> {
+): Promise<AgentMonitor | undefined> {
 	if (process.env["HERDR_ENV"] !== "1" || !process.env["HERDR_SOCKET_PATH"]) {
 		setToolActive(pi, false);
 		ctx.ui.notify("Herdr master mode requires Pi to run inside Herdr", "error");
-		return false;
+		return undefined;
 	}
+	const monitor = getMonitor();
 	try {
 		await monitor.client.request("ping");
 		setToolActive(pi, true);
 		await monitor.activate(ctx);
-		return true;
+		return monitor;
 	} catch (error) {
 		setToolActive(pi, false);
 		monitor.deactivate();
@@ -88,7 +90,7 @@ async function activateMaster(
 			`Herdr master could not start: ${error instanceof Error ? error.message : String(error)}`,
 			"error",
 		);
-		return false;
+		return undefined;
 	}
 }
 

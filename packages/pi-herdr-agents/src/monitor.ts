@@ -71,6 +71,7 @@ export class AgentMonitor {
 	private unsubscribe: (() => void) | undefined;
 	private reconnectTimer: NodeJS.Timeout | undefined;
 	private subscriptionGeneration = 0;
+	private activationGeneration = 0;
 	private subscriptionWarningShown = false;
 	private readonly reporting = new Set<string>();
 
@@ -89,6 +90,7 @@ export class AgentMonitor {
 	}
 
 	deactivate(): void {
+		this.activationGeneration += 1;
 		renderAgentWidget(this.context, []);
 		this.context = undefined;
 		this.subscriptionGeneration += 1;
@@ -175,8 +177,19 @@ export class AgentMonitor {
 				snapshot.agents.find(
 					(candidate) => candidate.terminal_id === record.terminalId,
 				) ?? snapshot.agents.find((candidate) => candidate.pane_id === paneId);
+			if (!panel) {
+				const paneStillExists = snapshot.panes.some(
+					(candidate) =>
+						candidate.terminal_id === record.terminalId ||
+						candidate.pane_id === paneId,
+				);
+				if (!paneStillExists) {
+					this.agents.delete(paneId);
+					changed = true;
+				}
+				continue;
+			}
 			if (
-				!panel ||
 				panel.agent !== "pi" ||
 				panel.pane_id === process.env["HERDR_PANE_ID"]
 			) {
@@ -347,8 +360,12 @@ export class AgentMonitor {
 		status: AgentStatus,
 		blockedMessage?: string,
 	): Promise<void> {
-		if (this.reporting.has(record.terminalId)) return;
-		this.reporting.add(record.terminalId);
+		const generation = this.activationGeneration;
+		const context = this.context;
+		if (!context) return;
+		const reportKey = `${generation}:${record.terminalId}`;
+		if (this.reporting.has(reportKey)) return;
+		this.reporting.add(reportKey);
 		try {
 			const [agent, snapshot] = await Promise.all([
 				getAgent(this.client, record.paneId),
@@ -357,11 +374,11 @@ export class AgentMonitor {
 			if (agent.terminal_id !== record.terminalId || agent.agent !== "pi")
 				return;
 			const reply = await this.reader.latest(sessionPath(agent));
+			if (generation !== this.activationGeneration || context !== this.context)
+				return;
 			const newReply = reply?.id !== record.lastAssistantId ? reply : undefined;
 			if (reply?.id) record.lastAssistantId = reply.id;
 			this.persist();
-			const context = this.context;
-			if (!context) return;
 			const labels = labelsFor(snapshot, agent);
 			injectAgentEvent(
 				this.pi,
@@ -389,7 +406,7 @@ export class AgentMonitor {
 				"warning",
 			);
 		} finally {
-			this.reporting.delete(record.terminalId);
+			this.reporting.delete(reportKey);
 		}
 	}
 }

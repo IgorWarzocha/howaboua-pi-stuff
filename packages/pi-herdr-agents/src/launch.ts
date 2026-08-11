@@ -1,6 +1,6 @@
 import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
-import { getSnapshot, resolveWorkspace } from "./herdr.js";
+import { getSnapshot, parsePaneInfo, resolveWorkspace } from "./herdr.js";
 import type { HerdrClient } from "./herdr-client.js";
 import type { AgentMonitor } from "./monitor.js";
 import type { PaneInfo } from "./types.js";
@@ -125,17 +125,13 @@ export async function startAgent(
 			timeout_ms: 30_000,
 		});
 	} catch (error) {
-		if (created.cleanup) {
-			await client
-				.request(created.cleanup.method, {
-					[created.cleanup.method === "tab.close" ? "tab_id" : "workspace_id"]:
-						created.cleanup.id,
-				})
-				.catch(() => undefined);
-		}
-		throw error;
+		return rollbackCreatedLocation(client, created.cleanup, error);
 	}
-	await monitor.watch(agent);
+	try {
+		await monitor.watch(agent);
+	} catch (error) {
+		return rollbackCreatedLocation(client, created.cleanup, error);
+	}
 	if (params.prompt?.trim()) {
 		const prompt = params.prompt.trim();
 		monitor.beginWork(agent.pane_id, prompt);
@@ -160,6 +156,25 @@ export async function startAgent(
 	};
 }
 
+async function rollbackCreatedLocation(
+	client: HerdrClient,
+	cleanup: { id: string; method: "tab.close" | "workspace.close" } | undefined,
+	cause: unknown,
+): Promise<never> {
+	if (!cleanup) throw cause;
+	try {
+		await client.request(cleanup.method, {
+			[cleanup.method === "tab.close" ? "tab_id" : "workspace_id"]: cleanup.id,
+		});
+	} catch (cleanupError) {
+		throw new Error(
+			`${cause instanceof Error ? cause.message : String(cause)}; rollback also failed: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`,
+			{ cause },
+		);
+	}
+	throw cause;
+}
+
 async function startWhenShellReady(
 	client: HerdrClient,
 	params: Record<string, unknown>,
@@ -168,11 +183,14 @@ async function startWhenShellReady(
 	let started: { agent: PaneInfo };
 	for (;;) {
 		try {
-			started = await client.request<{ agent: PaneInfo }>(
+			const result = await client.request<{ agent?: unknown }>(
 				"agent.start",
 				params,
 				35_000,
 			);
+			started = {
+				agent: parsePaneInfo(result.agent, "agent.start result.agent"),
+			};
 			break;
 		} catch (error) {
 			if (
