@@ -29,6 +29,11 @@ interface MonitorStateEntry {
 	agents: MonitoredAgent[];
 }
 
+interface ActiveSubscription {
+	generation: number;
+	unsubscribe: () => void;
+}
+
 function isAgentStatus(value: unknown): value is AgentStatus {
 	return typeof value === "string" && AGENT_STATUSES.has(value);
 }
@@ -81,7 +86,8 @@ export class AgentMonitor {
 	private readonly reader = new SessionReader();
 	private readonly agents = new Map<string, MonitoredAgent>();
 	private context: ExtensionContext | undefined;
-	private unsubscribe: (() => void) | undefined;
+	private subscription: ActiveSubscription | undefined;
+	private readonly liveSubscriptionGenerations = new Set<number>();
 	private reconnectTimer: NodeJS.Timeout | undefined;
 	private subscriptionGeneration = 0;
 	private activationGeneration = 0;
@@ -95,10 +101,13 @@ export class AgentMonitor {
 
 	async activate(ctx: ExtensionContext): Promise<void> {
 		this.deactivate();
+		const generation = this.activationGeneration;
 		this.context = ctx;
 		this.restore(ctx);
 		renderAgentWidget(this.context, this.list());
-		await this.reconcile();
+		await this.reconcile(generation, ctx);
+		if (generation !== this.activationGeneration || ctx !== this.context)
+			return;
 		await this.refreshSubscription();
 	}
 
@@ -107,8 +116,9 @@ export class AgentMonitor {
 		renderAgentWidget(this.context, []);
 		this.context = undefined;
 		this.subscriptionGeneration += 1;
-		this.unsubscribe?.();
-		this.unsubscribe = undefined;
+		this.liveSubscriptionGenerations.clear();
+		this.subscription?.unsubscribe();
+		this.subscription = undefined;
 		if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
 		this.reconnectTimer = undefined;
 	}
@@ -154,7 +164,7 @@ export class AgentMonitor {
 	}
 
 	async reconcileNow(): Promise<void> {
-		await this.reconcile();
+		await this.reconcile(this.activationGeneration, this.context);
 	}
 
 	private restore(ctx: ExtensionContext): void {
@@ -180,9 +190,21 @@ export class AgentMonitor {
 		renderAgentWidget(this.context, this.list());
 	}
 
-	private async reconcile(): Promise<void> {
-		if (this.agents.size === 0) return;
+	private async reconcile(
+		generation: number,
+		context: ExtensionContext | undefined,
+	): Promise<void> {
+		if (
+			!context ||
+			generation !== this.activationGeneration ||
+			context !== this.context ||
+			this.agents.size === 0
+		) {
+			return;
+		}
 		const snapshot = await getSnapshot(this.client);
+		if (generation !== this.activationGeneration || context !== this.context)
+			return;
 		let changed = false;
 		const settled: Array<{ record: MonitoredAgent; status: AgentStatus }> = [];
 		for (const [paneId, record] of [...this.agents]) {
@@ -248,12 +270,17 @@ export class AgentMonitor {
 
 	private async refreshSubscription(): Promise<void> {
 		const generation = ++this.subscriptionGeneration;
-		const previousUnsubscribe = this.unsubscribe;
+		const previousSubscription = this.subscription;
 		if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
 		this.reconnectTimer = undefined;
 		if (this.agents.size === 0 || !this.context) {
-			previousUnsubscribe?.();
-			this.unsubscribe = undefined;
+			if (previousSubscription) {
+				this.liveSubscriptionGenerations.delete(
+					previousSubscription.generation,
+				);
+				previousSubscription.unsubscribe();
+			}
+			this.subscription = undefined;
 			return;
 		}
 		const subscriptions = [
@@ -264,20 +291,42 @@ export class AgentMonitor {
 			{ type: "pane.moved" },
 			{ type: "pane.closed" },
 		];
+		this.liveSubscriptionGenerations.add(generation);
 		try {
 			const unsubscribe = await this.client.subscribe(
 				subscriptions,
-				(event) => this.handleEvent(event),
-				() => this.scheduleReconnect(generation, true),
+				(event) => {
+					if (
+						this.liveSubscriptionGenerations.has(generation) &&
+						this.context
+					) {
+						this.handleEvent(event);
+					}
+				},
+				() => {
+					this.liveSubscriptionGenerations.delete(generation);
+					this.scheduleReconnect(generation, true);
+				},
 			);
-			if (generation !== this.subscriptionGeneration || !this.context) {
+			if (
+				generation !== this.subscriptionGeneration ||
+				!this.context ||
+				!this.liveSubscriptionGenerations.has(generation)
+			) {
+				this.liveSubscriptionGenerations.delete(generation);
 				unsubscribe();
 				return;
 			}
-			previousUnsubscribe?.();
-			this.unsubscribe = unsubscribe;
+			if (previousSubscription) {
+				this.liveSubscriptionGenerations.delete(
+					previousSubscription.generation,
+				);
+				previousSubscription.unsubscribe();
+			}
+			this.subscription = { generation, unsubscribe };
 			this.subscriptionWarningShown = false;
 		} catch (error) {
+			this.liveSubscriptionGenerations.delete(generation);
 			if (generation !== this.subscriptionGeneration || !this.context) return;
 			if (!this.subscriptionWarningShown) {
 				this.subscriptionWarningShown = true;
@@ -286,18 +335,28 @@ export class AgentMonitor {
 					"warning",
 				);
 			}
-			this.unsubscribe = previousUnsubscribe;
 			this.scheduleReconnect(generation, false);
 		}
 	}
 
 	private scheduleReconnect(generation: number, disconnected: boolean): void {
 		if (generation !== this.subscriptionGeneration || !this.context) return;
-		if (disconnected) this.unsubscribe = undefined;
+		if (disconnected && this.subscription?.generation === generation) {
+			this.subscription = undefined;
+		}
+		const activationGeneration = this.activationGeneration;
+		const context = this.context;
 		this.reconnectTimer = setTimeout(() => {
 			this.reconnectTimer = undefined;
-			void this.reconcile()
-				.then(() => this.refreshSubscription())
+			void this.reconcile(activationGeneration, context)
+				.then(() => {
+					if (
+						activationGeneration === this.activationGeneration &&
+						context === this.context
+					) {
+						return this.refreshSubscription();
+					}
+				})
 				.catch((error) => {
 					this.context?.ui.notify(
 						`Herdr monitoring reconnect failed: ${error instanceof Error ? error.message : String(error)}`,
