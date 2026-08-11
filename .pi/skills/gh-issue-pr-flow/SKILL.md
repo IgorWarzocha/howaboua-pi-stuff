@@ -97,6 +97,7 @@ Verification does not imply a permanent test. Use the cheapest fitting evidence:
 ## GitHub writing
 
 - Write issue and PR bodies for the next human: goal, material context, actual change, validation, and unresolved risk without routine command narration.
+- Begin every PR body with one plain-language sentence stating what it is trying to do, before headings or bullets. Add more opening prose only when truly needed or when multiple affected packages need separate explanation.
 - Use `Closes #123` only when the PR fully resolves the issue; otherwise use `Refs #123`.
 - For multiline bodies and comments, write Markdown to a temporary file and pass `--body-file`. Do not pass shell strings containing `\n`.
 - Follow repository templates, removing placeholders that do not apply.
@@ -105,6 +106,8 @@ Verification does not imply a permanent test. Use the cheapest fitting evidence:
 Use this concise PR body when no more specific template applies:
 
 ```markdown
+This PR ...
+
 ## Summary
 
 - ...
