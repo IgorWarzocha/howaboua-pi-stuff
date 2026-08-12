@@ -68,13 +68,12 @@ gh stack checkout <stack-or-pr>
 
 # Keep verified local ancestry
 gh stack unstack
-gh stack init --base <recorded-trunk> <bottom> <next> <top>
-gh stack submit --auto --open
+# Recreate from the recorded trunk and order through create.md.
 ```
 
 `unstack` removes grouping, never branches or PRs. There is no noninteractive reorder or removal.
 For a structural change, record boundary SHAs, rewrite Git ancestry bottom to top, unstack, then rebuild
-with `init`; changing PR bases or metadata alone does not move commits.
+through `create.md`; changing PR bases or metadata alone does not move commits.
 
 If a branch belongs to several stacks, commands may exit 6. Check out a branch unique to the intended
 stack or use an explicit stack number. A stale stack lock exits 8; wait for the owning process. An

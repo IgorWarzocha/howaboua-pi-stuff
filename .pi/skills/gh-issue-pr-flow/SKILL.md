@@ -58,9 +58,9 @@ Dispatch is a handoff, not a supervision loop:
 1. Read every issue first. Keep all issues in the requested release batch, identify dependencies and overlapping files/packages, then choose a stable bottom-to-top order. Exclude only work that should release separately.
 2. Fetch `origin/main` once and record its SHA. In a dedicated coordinator worktree, create a clean
    release branch from that SHA, name it for the target release (for example `<package>/<version>`),
-   and push it. Run `gh stack init --base <release-branch> <issue-branch-1> <issue-branch-2> ...` to
-   create and track every worker branch in stack order before implementation starts. The release
-   branch is the stack trunk, not a member. Do not create sibling branches and retrofit them later.
+   and push it. Follow `../gh-stack/references/create.md` to create and track every worker branch in
+   stack order before implementation starts. The release branch is the stack trunk, not a member. Do
+   not create sibling branches and retrofit them later.
 3. Detach the coordinator worktree to free the stack's current branch. Check out each tracked stack branch into its own worker worktree under a sibling root such as `<repo-parent>/.worktrees/<repo>/issue-123`.
 4. Require `HERDR_ENV=1` before controlling panels. Create one unfocused Herdr workspace per worktree, label it with the issue number and short title, and launch a named Pi session with `--model openai-codex/gpt-5.6-luna:high`. Parse workspace and pane IDs from Herdr's JSON; do not guess IDs.
 5. Give each worker this ownership contract: read the issue and repository instructions; implement only that issue directly on the assigned stack branch; add its changeset for shipped package work; run focused validation; cull weak tests; commit all intended work; do not push, open a PR, run the umbrella gate, invoke `gh stack`, or touch another worktree. If blocked, ask in this panel and wait for the user. When finished, report commit SHA, changed surface, checks, and risks, then remain idle.
