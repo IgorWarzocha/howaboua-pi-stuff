@@ -22,6 +22,10 @@ trunk; `down` moves toward it.
 - Repository instructions and explicit user direction override this skill.
 - **Never merge a stack without explicit user approval.** Readiness, green checks, or a prior submit
   request is not merge authorization.
+- Before creating or adopting a stack, verify the GitHub and Git author identities and isolate any
+  checkout already owned by another task. A collaborator authors and pushes the stack as themself.
+- The stack author does not approve their own PRs or switch identity to bypass protection. Surface known
+  choices in each PR's review focus; an eligible maintainer owns approval and explicit merge direction.
 - Stacks are linear. A layer may represent a code dependency or one bounded issue in an explicitly
   shared release batch. Keep work outside that release unit in another stack or PR.
 - Create the chain before implementation. Put each change on the lowest layer that owns it; edit a
@@ -70,7 +74,7 @@ gh stack init --base <trunk> <bottom-branch>
 # edit, validate, stage deliberately, commit
 gh stack add <next-branch>
 # repeat
-gh stack submit --auto
+gh stack submit --auto --open
 gh stack view --json
 ```
 
@@ -84,10 +88,10 @@ gh stack init --base <trunk> <issue-branch-1> <issue-branch-2> <issue-branch-3>
 order. Inspect existing ancestry first. Use ordinary `git add` and `git commit` so each branch owns
 only its concern.
 
-`submit --auto` pushes active branches, creates missing PRs as drafts, updates existing PRs where
-possible, and links them into a GitHub stack. Read its warnings. Add `--open` only when PRs should
-leave draft state, and use `gh pr edit` afterward for custom titles and bodies. Submit is not atomic;
-rerun it after a partial failure.
+`submit --auto --open` pushes active branches, creates or opens PRs, updates existing PRs where
+possible, and links them into a GitHub stack. Omit `--open` only when drafts were explicitly requested.
+Use `gh pr edit` afterward for custom titles and bodies. Submit is not atomic; rerun it after a partial
+failure.
 
 ## Edit a lower layer
 

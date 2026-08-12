@@ -7,6 +7,7 @@ Read this reference only for shipped package work, release readiness, package ch
 - Workspace packages live under `packages/*` and remain separately installable.
 - Release tooling is Changesets. Do not manually bump package versions for normal feature or fix work.
 - Add a changeset when a change is meant to ship. Select only directly changed individual packages; patch is the normal fix/refinement bump.
+- In a release stack, each shipping layer owns its changeset; the top batch cap does not combine them. Multiple patch entries for one package coalesce into one version bump.
 - Do not manually add changesets or edit versions for aggregate packages: `@howaboua/pi-skills`, `@howaboua/pi-extensions`, or `@howaboua/pi-stuff`.
 - CI derives aggregate changesets with `bun run changeset:aggregates`.
 - Treat pending changesets on long-lived branches as suspect. Keep only changesets for changes intentionally present in the branch; remove files already consumed by `origin/main` release commits.
