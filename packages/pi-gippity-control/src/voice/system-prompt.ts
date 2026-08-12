@@ -90,13 +90,12 @@ export function loadCodexVoiceSystemPrompt(
 	projectPromptPath?: string,
 ): string {
 	const prompt = readVoicePrompt(promptPath)!;
-	if (!projectPromptPath)
-		return `${prompt}\n\n${CONNECTED_PI_RUNTIME_CONTRACT}`;
+	const connectedPrompt = `${CONNECTED_PI_RUNTIME_CONTRACT}\n\n${prompt}`;
+	if (!projectPromptPath) return connectedPrompt;
 	const projectPrompt = readVoicePrompt(projectPromptPath, true);
-	const customized = projectPrompt
-		? `${prompt}\n\n# Project level instructions\n\n${projectPrompt}`
-		: prompt;
-	return `${customized}\n\n${CONNECTED_PI_RUNTIME_CONTRACT}`;
+	return projectPrompt
+		? `${connectedPrompt}\n\n# Project level instructions\n\n${projectPrompt}`
+		: connectedPrompt;
 }
 
 function readCodexVoicePromptSchemaVersion(source: string): number | undefined {
