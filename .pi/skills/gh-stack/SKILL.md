@@ -29,7 +29,11 @@ immediately below, so its ordinary diff contains only that layer.
   membership or order.
 - Keep stacks linear. Put each change on its lowest owning layer and keep unrelated release units in
   another stack or PR.
-- Never merge a native stack with `gh pr merge`.
+- For a release batch, create a dedicated integration branch from `main` and use it as the stack
+  trunk. It stays outside the stack and becomes the final ordinary PR to `main`; never add it as a
+  top cap layer.
+- Never merge a native stack member with `gh pr merge`. The final integration PR is ordinary and is
+  merged separately only after its own explicit authorization.
 
 ## Route
 

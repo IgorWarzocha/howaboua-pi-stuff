@@ -7,13 +7,20 @@ or dependent implementation begins.
 
 Use a stack when concerns merit focused PRs but deliberately land together: code dependencies or a
 repository-defined issue/release batch. Use one ordinary PR when slices do not merit separate review.
-Use separate PRs or stacks when work should release independently. Use an integration PR instead when
-a merge queue would split an atomic release or direct native stack merge is unavailable.
+Use separate PRs or stacks when work should release independently.
+
+For a release batch, create a dedicated integration branch from the current target branch and keep it
+outside the native stack. Name it for the release or batch, such as `<package>/<version>`. Stack every
+focused layer on that branch, atomically assemble the reviewed stack into it, then open its one ordinary
+PR to `main`. This preserves a cumulative final diff and one release-triggering merge. Never use a top
+stack cap as the final integration PR.
+
+Base a stack directly on `main` only when every selected prefix is independently safe to ship and a
+push to `main` is intended at stack-merge time.
 
 Plan bottom to top before writing code. Dependencies go in the same or a lower layer. Give each layer
 one sentence of ownership and use repository branch conventions; otherwise prefer
-`<topic>/<concern>`. Reserve a top cap only for real integration or release work, not as a dumping
-ground.
+`<topic>/<concern>`.
 
 ## Preconditions
 
@@ -32,10 +39,13 @@ supported or configure one unambiguous remote.
 
 ## Create the chain
 
-Create all planned branches upfront for a parallel issue batch:
+For a release batch, create and publish its clean integration trunk first, then create all planned
+stack branches above it:
 
 ```bash
-gh stack init --base main <bottom> <next> <top>
+git switch --create <integration-branch> origin/main
+git push --set-upstream origin <integration-branch>
+gh stack init --base <integration-branch> <bottom> <next> <top>
 ```
 
 Arguments are bottom to top; existing branches are adopted, missing branches are created, and the
@@ -43,7 +53,7 @@ last branch is checked out. For sequential implementation, create the bottom and
 current top:
 
 ```bash
-gh stack init --base main <bottom>
+gh stack init --base <integration-branch> <bottom>
 # edit, validate, stage deliberately, commit
 gh stack add <next>
 ```
@@ -55,7 +65,7 @@ the top first.
 For branches owned by another manager or worktree layout, link without creating local tracking:
 
 ```bash
-gh stack link --base main <bottom-branch-or-pr> <next> <top>
+gh stack link --base <integration-branch> <bottom-branch-or-pr> <next> <top>
 ```
 
 `link` is additive, accepts branches or PRs bottom to top, may push branch arguments and create or
@@ -78,4 +88,5 @@ stacked PRs are unavailable.
 
 `--auto` derives titles from commits or branch names. Use `gh pr edit` afterward for accurate title,
 body, issue linkage, validation, and release information. Verify the GitHub stack order rather than
-inferring it from ancestry alone.
+inferring it from ancestry alone. Do not open the integration PR until the reviewed stack has been
+assembled into its branch; an empty placeholder PR is not the release gate.

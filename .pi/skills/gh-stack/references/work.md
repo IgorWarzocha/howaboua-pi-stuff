@@ -68,7 +68,7 @@ gh stack checkout <stack-or-pr>
 
 # Keep verified local ancestry
 gh stack unstack
-gh stack init --base main <bottom> <next> <top>
+gh stack init --base <recorded-trunk> <bottom> <next> <top>
 gh stack submit --auto --open
 ```
 
