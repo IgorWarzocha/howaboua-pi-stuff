@@ -15,6 +15,7 @@ import type {
 const AGENT_EVENT_MESSAGE_TYPE = "herdr-agent-event";
 const REALTIME_VOICE_PROMPT_CHANNEL =
 	"@howaboua/pi-codex-conversion/realtime-voice-prompt/v1";
+const MAX_REALTIME_VOICE_PROMPT_BYTES = 4 * 1_024;
 
 function xml(value: string): string {
 	return value
@@ -51,27 +52,53 @@ interface AgentEventDetails {
 	workspace?: string;
 }
 
-function voiceDetail(
-	value: string | undefined,
-	maxBytes: number,
-): string | undefined {
-	const text = value?.trim();
-	if (!text || new TextEncoder().encode(text).byteLength > maxBytes)
-		return undefined;
-	return JSON.stringify(text);
+function boundedVoicePrompt(prompt: string, truncationNotice: string): string {
+	const encoder = new TextEncoder();
+	const bytes = encoder.encode(prompt);
+	if (bytes.byteLength <= MAX_REALTIME_VOICE_PROMPT_BYTES) return prompt;
+
+	const suffix = `…\n\n${truncationNotice}`;
+	const decoder = new TextDecoder("utf-8", { fatal: true });
+	let end = MAX_REALTIME_VOICE_PROMPT_BYTES - encoder.encode(suffix).byteLength;
+	while (end > 0) {
+		try {
+			return `${decoder.decode(bytes.subarray(0, end)).trimEnd()}${suffix}`;
+		} catch {
+			end -= 1;
+		}
+	}
+	return truncationNotice;
 }
 
 function agentVoicePrompt(details: AgentEventDetails): string {
-	const name = voiceDetail(details.name, 160);
-	const identity = name ? `The monitored worker ${name}` : "A monitored worker";
-	const instruction = "Please announce this briefly in your natural voice.";
+	const lines = [
+		`Worker: ${details.name?.trim() || "unnamed"}`,
+		`State: ${details.state}`,
+	];
+	if (details.task?.trim()) lines.push(`Task:\n${details.task.trim()}`);
+	let instruction: string;
+	let truncationNotice: string;
 	if (details.state === "blocked") {
-		const reason = voiceDetail(details.blockedOn, 512);
-		return `${identity} is blocked${reason ? `: ${reason}` : ""}. User attention may be required. ${instruction}`;
+		instruction =
+			"Briefly tell the user why this monitored worker is blocked and what attention may be required.";
+		truncationNotice =
+			"The blocked worker details above were truncated. Tell the user and ask whether they would like the rest.";
+		if (details.blockedOn?.trim())
+			lines.push(`Reason:\n${details.blockedOn.trim()}`);
+	} else {
+		instruction =
+			details.state === "failed"
+				? "Briefly tell the user that this monitored worker failed and include useful detail from its report."
+				: "Briefly tell the user what this monitored worker found or completed; do not merely announce that it finished.";
+		truncationNotice =
+			"The worker report above was truncated. Tell the user and ask whether they would like the rest.";
+		if (details.response?.trim())
+			lines.push(`Report:\n${details.response.trim()}`);
 	}
-	return details.state === "failed"
-		? `${identity} has failed its assigned work. ${instruction}`
-		: `${identity} has finished its assigned work. ${instruction}`;
+	return boundedVoicePrompt(
+		`${instruction}\n\n${lines.join("\n\n")}`,
+		truncationNotice,
+	);
 }
 
 function announceAgentEvent(
@@ -88,8 +115,12 @@ function announceAgentEvent(
 	pi.events.emit(REALTIME_VOICE_PROMPT_CHANNEL, { id, active: false, prompt });
 }
 
-function operatorHint(paneId: string): string {
+function blockedOperatorHint(paneId: string): string {
 	return `Inspect first with \`herdr agent read ${paneId} --source visible\`; respond with \`herdr agent prompt ${paneId} "<text>"\` or use \`herdr agent send-keys ${paneId} <keys>\` for interactive controls.`;
+}
+
+function failedOperatorHint(paneId: string): string {
+	return `Inspect with \`herdr agent read ${paneId} --source recent-unwrapped --lines 80\` and assess the failure. If this task has not already been retried and one simple corrective prompt could recover it, try once with \`herdr agent prompt ${paneId} "<text>"\`. If it fails again or the setup looks broken, stop retrying and tell the user.`;
 }
 
 function eventDetails(value: unknown): AgentEventDetails | undefined {
@@ -148,7 +179,12 @@ function agentEvent(options: AgentEventOptions): {
 	}
 	if (blocked) {
 		lines.push(
-			`<operator_hint>${xml(operatorHint(agent.pane_id))}</operator_hint>`,
+			`<operator_hint>${xml(blockedOperatorHint(agent.pane_id))}</operator_hint>`,
+		);
+	}
+	if (failed) {
+		lines.push(
+			`<operator_hint>${xml(failedOperatorHint(agent.pane_id))}</operator_hint>`,
 		);
 	}
 	if (reply) lines.push(`<response>${xml(reply.text)}</response>`);
