@@ -128,6 +128,10 @@ export function isRetryableStreamStatus(status: number): boolean {
 
 export function buildProviderErrorMessage(error: unknown): string {
 	const message = error instanceof Error ? error.message : String(error);
+	const code = isRecord(error) ? asString(error["code"]!) : undefined;
+	if (code === "invalid_prompt") {
+		return "OpenAI blocked this request (invalid_prompt - reason unknown).";
+	}
 	const usageLimitMessage = formatCodexUsageLimitError(message);
 	if (usageLimitMessage) return usageLimitMessage;
 	if (/^(?:WebSocket (?:error|closed|connect timeout|idle timeout)|WebSocket stream closed before response\.completed|Stream closed before response\.completed)/.test(message)) {

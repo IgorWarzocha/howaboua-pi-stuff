@@ -10,13 +10,21 @@ import {
 	websocketSuccess,
 } from "./openai-codex-test-support.ts";
 
-test("fatal Codex API errors survive stream start without SSE fallback", async () => {
+test("fatal Codex API errors survive both event shapes without SSE fallback", async () => {
 	const restoreWebSocket = installScriptedWebSocket([
 		(socket) => {
 			socket.emitJson({ type: "response.created", response: { id: "resp_failed" } });
 			socket.emitJson({
 				type: "response.failed",
 				response: { status: "failed", error: { type: "context_length_exceeded", status_code: 400, message: "context_length_exceeded" } },
+			});
+		},
+		(socket) => {
+			socket.emitJson({ type: "response.created", response: { id: "resp_blocked" } });
+			socket.emitJson({
+				type: "error",
+				code: "invalid_prompt",
+				message: "Request blocked.",
 			});
 		},
 		websocketSuccess,
@@ -30,12 +38,19 @@ test("fatal Codex API errors survive stream start without SSE fallback", async (
 	try {
 		const registered = createRegisteredCodexProvider();
 		const request = codexStreamRequest("api-error-session");
-		const failed = await collectStream(registered.provider.streamSimple(request.model, request.context, request.options));
-		assert.equal((failed.at(-1) as { type?: string }).type, "error");
-		assert.match((failed.at(-1) as { error?: { errorMessage?: string } }).error?.errorMessage ?? "", /context_length_exceeded/);
+		const overflow = await collectStream(registered.provider.streamSimple(request.model, request.context, request.options));
+		assert.equal((overflow.at(-1) as { type?: string }).type, "error");
+		assert.match((overflow.at(-1) as { error?: { errorMessage?: string } }).error?.errorMessage ?? "", /context_length_exceeded/);
+
+		const blocked = await collectStream(registered.provider.streamSimple(request.model, request.context, request.options));
+		assert.equal((blocked.at(-1) as { type?: string }).type, "error");
+		assert.equal(
+			(blocked.at(-1) as { error?: { errorMessage?: string } }).error?.errorMessage,
+			"OpenAI blocked this request (invalid_prompt - reason unknown).",
+		);
 		await collectStream(registered.provider.streamSimple(request.model, request.context, request.options));
 
-		assert.equal(ScriptedWebSocket.opened, 2);
+		assert.equal(ScriptedWebSocket.opened, 3);
 		assert.equal(fetchCalls, 0);
 	} finally {
 		globalThis.fetch = originalFetch;
