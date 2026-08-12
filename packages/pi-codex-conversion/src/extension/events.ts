@@ -92,7 +92,7 @@ export function registerCodexEvents(
 		ui.renderBackgroundWidget();
 		syncAdapter(pi, ctx, state);
 		await runtime.configureDiagnostics(ctx);
-		await ui.refreshUsageStatus(ctx);
+		void ui.refreshUsageStatus(ctx);
 		prepareCodeModeHost(codeMode, ctx);
 		if (!state.config.prompt.heavySystemPromptOverwrite)
 			void runtime.startPrewarm(ctx, codeMode.refreshPromptTools(ctx.getSystemPrompt(), ctx));
@@ -117,7 +117,7 @@ export function registerCodexEvents(
 		tools.ensureOptionalTools();
 		syncAdapter(pi, ctx, state);
 		await runtime.configureDiagnostics(ctx);
-		await ui.refreshUsageStatus(ctx);
+		void ui.refreshUsageStatus(ctx);
 		prepareCodeModeHost(codeMode, ctx);
 		if (!state.config.prompt.heavySystemPromptOverwrite)
 			void runtime.startPrewarm(ctx, codeMode.refreshPromptTools(ctx.getSystemPrompt(), ctx));
@@ -187,7 +187,7 @@ export function registerCodexEvents(
 		state.codexTurnState.reset();
 		runtime.voice.settleTurn();
 		runtime.lanVoice.agentSettled();
-		if (!state.config.voiceFeaturesOnly) await ui.refreshUsageStatus(ctx);
+		if (!state.config.voiceFeaturesOnly) void ui.refreshUsageStatus(ctx);
 	});
 	pi.on("before_provider_request", async (event, ctx) => {
 		state.cwd = ctx.cwd;

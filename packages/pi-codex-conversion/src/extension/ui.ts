@@ -17,6 +17,7 @@ export interface CodexUiController {
 
 export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime): CodexUiController {
 	let renderTimer: ReturnType<typeof setTimeout> | undefined;
+	let usageGeneration = 0;
 	const clearBackgroundWidget = () => {
 		if (renderTimer) clearTimeout(renderTimer);
 		renderTimer = undefined;
@@ -77,11 +78,27 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 		clearBackgroundWidget,
 		renderBackgroundWidget,
 		async refreshUsageStatus(ctx) {
-			runtime.state.weeklyUsageLeft = await fetchCodexWeeklyUsageLeft(ctx);
+			const generation = ++usageGeneration;
+			if (!ctx.hasUI || runtime.state.config.voiceFeaturesOnly || !runtime.state.config.ui.statusLine) {
+				runtime.state.weeklyUsageLeft = undefined;
+				return;
+			}
+			const weeklyUsageLeft = await fetchCodexWeeklyUsageLeft(ctx);
+			if (
+				generation !== usageGeneration ||
+				!ctx.hasUI ||
+				runtime.state.config.voiceFeaturesOnly ||
+				!runtime.state.config.ui.statusLine
+			) return;
+			runtime.state.weeklyUsageLeft = weeklyUsageLeft;
 			const plan = resolveCodexRuntimePlan(ctx, runtime.state.config);
 			if (isAdapterRuntime(plan)) renderCodexStatus(ctx, runtime.state, plan);
 		},
 		applyConfig(config) {
+			if (config.voiceFeaturesOnly || !config.ui.statusLine) {
+				usageGeneration += 1;
+				runtime.state.weeklyUsageLeft = undefined;
+			}
 			if (config.voiceFeaturesOnly || !config.ui.backgroundShellWidget) clearBackgroundWidget();
 			else renderBackgroundWidget();
 		},

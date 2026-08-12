@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { Api, Model } from "@earendil-works/pi-ai";
 
@@ -5,7 +6,7 @@ const DEFAULT_CODEX_BASE_URL = "https://chatgpt.com/backend-api";
 const JWT_CLAIM_PATH = "https://api.openai.com/auth";
 const RESET_CREDITS_CACHE_MS = 5_000;
 const WEEKLY_WINDOW_MINUTES = 7 * 24 * 60;
-const WEEKLY_USAGE_CACHE_MS = 60_000;
+const WEEKLY_USAGE_CACHE_MS = 5 * 60_000;
 
 type RuntimeModel = Model<Api>;
 
@@ -56,7 +57,7 @@ export interface CodexRateLimitResetConsumeResult {
 }
 
 let resetCreditsCache: { key: string; expiresAt: number; promise: Promise<CodexRateLimitResetCredits | undefined> } | undefined;
-let weeklyUsageCache: { value?: number | undefined; expiresAt: number } = { expiresAt: 0 };
+let weeklyUsageCache: { key: string; value?: number | undefined; expiresAt: number } | undefined;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -207,6 +208,15 @@ function resetCreditsCacheKey(headers: Headers): string | undefined {
 	return headers.get("chatgpt-account-id")?.trim() || undefined;
 }
 
+function usageCacheKey(headers: Headers): string | undefined {
+	const accountId = resetCreditsCacheKey(headers);
+	if (accountId) return `account:${accountId}`;
+	const authorization = headers.get("authorization")?.trim();
+	return authorization
+		? `auth:${createHash("sha256").update(authorization).digest("hex")}`
+		: undefined;
+}
+
 async function fetchCodexRateLimitResetCreditsWithHeaders(headers: Headers, signal?: AbortSignal | undefined): Promise<CodexRateLimitResetCredits | undefined> {
 	const cacheKey = resetCreditsCacheKey(headers);
 	if (cacheKey && resetCreditsCache && resetCreditsCache.key === cacheKey && resetCreditsCache.expiresAt > Date.now()) return resetCreditsCache.promise;
@@ -219,20 +229,18 @@ async function fetchCodexRateLimitResetCreditsWithHeaders(headers: Headers, sign
 	return promise;
 }
 
-export async function fetchCodexUsage(ctx: ExtensionContext): Promise<CodexUsageSnapshot> {
-	const model = ctx.model;
-	if (!model) throw new Error("No active model selected.");
-	if (model.provider !== "openai-codex") {
-		throw new Error("Codex usage is only available for OpenAI Codex subscription models.");
-	}
-	const headers = await buildCodexUsageHeaders(ctx, model);
-	const response = await fetch(buildCodexUsageUrl(), { method: "GET", headers, ...(ctx.signal ? { signal: ctx.signal } : {}) });
+async function fetchCodexUsageWithHeaders(
+	headers: Headers,
+	signal?: AbortSignal | undefined,
+	includeDetailedResetCredits = true,
+): Promise<CodexUsageSnapshot> {
+	const response = await fetch(buildCodexUsageUrl(), { method: "GET", headers, ...(signal ? { signal } : {}) });
 	const text = await response.text();
 	if (!response.ok) throw new Error(`Usage request failed (${response.status}): ${text || response.statusText}`);
 	const snapshot = parseCodexUsagePayload(JSON.parse(text));
-	if (!snapshot.resetCredits || snapshot.resetCredits.availableCount > 0) {
+	if (includeDetailedResetCredits && (!snapshot.resetCredits || snapshot.resetCredits.availableCount > 0)) {
 		try {
-			const detailedResetCredits = await fetchCodexRateLimitResetCreditsWithHeaders(headers, ctx.signal);
+			const detailedResetCredits = await fetchCodexRateLimitResetCreditsWithHeaders(headers, signal);
 			if (detailedResetCredits) snapshot.resetCredits = detailedResetCredits;
 		} catch {
 			// Detailed reset-credit metadata is additive; usage still renders if this endpoint fails.
@@ -241,15 +249,36 @@ export async function fetchCodexUsage(ctx: ExtensionContext): Promise<CodexUsage
 	return snapshot;
 }
 
-export async function fetchCodexWeeklyUsageLeft(ctx: ExtensionContext): Promise<number | undefined> {
-	if (weeklyUsageCache.expiresAt > Date.now()) return weeklyUsageCache.value;
-	weeklyUsageCache.expiresAt = Date.now() + WEEKLY_USAGE_CACHE_MS;
-	try {
-		weeklyUsageCache.value = codexWeeklyUsageLeft(await fetchCodexUsage(ctx));
-	} catch {
-		// Keep the last successful value when usage is temporarily unavailable.
+export async function fetchCodexUsage(ctx: ExtensionContext): Promise<CodexUsageSnapshot> {
+	const model = ctx.model;
+	if (!model) throw new Error("No active model selected.");
+	if (model.provider !== "openai-codex") {
+		throw new Error("Codex usage is only available for OpenAI Codex subscription models.");
 	}
-	return weeklyUsageCache.value;
+	const headers = await buildCodexUsageHeaders(ctx, model);
+	return fetchCodexUsageWithHeaders(headers, ctx.signal);
+}
+
+export async function fetchCodexWeeklyUsageLeft(ctx: ExtensionContext): Promise<number | undefined> {
+	const model = ctx.model;
+	if (!model || model.provider !== "openai-codex") return undefined;
+	let key: string | undefined;
+	let previous: number | undefined;
+	try {
+		const headers = await buildCodexUsageHeaders(ctx, model);
+		key = usageCacheKey(headers);
+		if (key && weeklyUsageCache?.key === key && weeklyUsageCache.expiresAt > Date.now())
+			return weeklyUsageCache.value;
+		previous = key && weeklyUsageCache?.key === key ? weeklyUsageCache.value : undefined;
+		const value = codexWeeklyUsageLeft(
+			await fetchCodexUsageWithHeaders(headers, ctx.signal, false),
+		);
+		if (key) weeklyUsageCache = { key, value, expiresAt: Date.now() + WEEKLY_USAGE_CACHE_MS };
+		return value;
+	} catch {
+		if (key) weeklyUsageCache = { key, value: previous, expiresAt: Date.now() + WEEKLY_USAGE_CACHE_MS };
+		return previous;
+	}
 }
 
 export function createCodexRateLimitResetRedeemRequestId(): string {
