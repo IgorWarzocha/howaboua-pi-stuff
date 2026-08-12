@@ -118,6 +118,7 @@ export class CodexVoiceController {
 	}
 
 	resetSessionContext(): void {
+		this.activePrompts.clear();
 		this.messages.resetSessionContext();
 	}
 	announceDictation(ctx: ExtensionContext): void {
