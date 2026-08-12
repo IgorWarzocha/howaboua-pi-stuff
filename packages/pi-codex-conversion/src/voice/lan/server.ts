@@ -147,6 +147,10 @@ export async function startCodexLanVoiceServer(options: {
 		onConversationMute(muted) {
 			if (!options.voice.setInputMuted(muted)) throw new Error("Realtime voice is not active");
 		},
+		onConversationInputTooQuiet(inputTooQuiet) {
+			options.voice.setInputTooQuiet(inputTooQuiet);
+			clients.broadcastControl({ type: "microphone", state: inputTooQuiet ? "too-quiet" : "ok" });
+		},
 		onConversationAudio(pcm) {
 			activeConversation?.peer.sendAudio(pcm);
 		},

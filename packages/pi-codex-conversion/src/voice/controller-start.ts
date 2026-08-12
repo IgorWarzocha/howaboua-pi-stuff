@@ -34,6 +34,7 @@ export interface VoiceControllerRuntime {
 	startGeneration: number;
 	startAbortController?: AbortController | undefined;
 	voiceStatus: string;
+	inputTooQuiet: boolean;
 	realtimePeerPlan?: RealtimePeerPlan | undefined;
 }
 
@@ -91,8 +92,12 @@ export async function startControllerMode(options: {
 					? buildRealtimeInitialItems({
 							ctx: options.ctx,
 							config: options.config,
+							greet: !options.resume,
 							onSummary: (summary) => {
 								realtimeSummary = summary;
+							},
+							onSummaryStatus: (active) => {
+								options.onStatus(active ? "summarizing…" : "connecting…");
 							},
 							signal: startSignal,
 						})
@@ -173,6 +178,7 @@ async function startConversation(
 		instructions,
 		initialItems,
 		inputMuted: options.inputMuted,
+		greet: !options.resume,
 		peer,
 		signal,
 		lifecycle: {
@@ -257,6 +263,7 @@ function cancelStart(
 	runtime.config = undefined;
 	runtime.realtimePeerPlan = undefined;
 	runtime.voiceStatus = "";
+	runtime.inputTooQuiet = false;
 	runtime.context?.ui.setStatus(VOICE_STATUS_KEY, undefined);
 }
 

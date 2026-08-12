@@ -8,6 +8,7 @@ test("LAN browser preserves handoff and restarts after explicit release", async 
 	let hostStarts = 0;
 	let hostConversation: object | undefined;
 	const received: Buffer[] = [];
+	const inputLevels: boolean[] = [];
 	const clients = testBrowserClients({
 		async ensureConversation() {
 			if (!hostConversation) {
@@ -18,6 +19,9 @@ test("LAN browser preserves handoff and restarts after explicit release", async 
 		onConversationAudio(pcm) {
 			received.push(pcm);
 		},
+		onConversationInputTooQuiet(inputTooQuiet) {
+			inputLevels.push(inputTooQuiet);
+		},
 		onConversationActivity(active) {
 			if (!active) hostConversation = undefined;
 		},
@@ -26,7 +30,9 @@ test("LAN browser preserves handoff and restarts after explicit release", async 
 	clients.connectAudio("first", first.asWebSocket());
 	first.receive({ type: "start", mode: "conversation" });
 	await settle();
-	first.receiveBinary(Buffer.from([1, 0]));
+	const quietFrame = pcmFrame(100);
+	for (let frame = 0; frame < 50; frame += 1) first.receiveBinary(quietFrame);
+	first.receiveBinary(pcmFrame(1_000));
 	first.close();
 	await settle();
 
@@ -35,7 +41,8 @@ test("LAN browser preserves handoff and restarts after explicit release", async 
 	second.receive({ type: "start", mode: "conversation" });
 	await settle();
 	assert.equal(hostStarts, 1);
-	assert.deepEqual(received, [Buffer.from([1, 0])]);
+	assert.equal(received.length, 51);
+	assert.deepEqual(inputLevels, [true, false]);
 	assert.deepEqual(
 		second.sent.map((value) => JSON.parse(value)),
 		[
@@ -55,6 +62,7 @@ test("LAN browser takeover shares an in-progress host conversation setup", async
 	const setup = Promise.withResolvers<void>();
 	let hostStarts = 0;
 	let sharedSetup: Promise<void> | undefined;
+	const inputLevels: boolean[] = [];
 	const clients = testBrowserClients({
 		ensureConversation() {
 			if (!sharedSetup) {
@@ -62,6 +70,9 @@ test("LAN browser takeover shares an in-progress host conversation setup", async
 				sharedSetup = setup.promise;
 			}
 			return sharedSetup;
+		},
+		onConversationInputTooQuiet(inputTooQuiet) {
+			inputLevels.push(inputTooQuiet);
 		},
 	});
 	const first = new TestWebSocket();
@@ -81,12 +92,20 @@ test("LAN browser takeover shares an in-progress host conversation setup", async
 		mode: "conversation",
 		muted: false,
 	});
+	const quietFrame = pcmFrame(100);
+	for (let frame = 0; frame < 50; frame += 1) second.receiveBinary(quietFrame);
+	const third = new TestWebSocket();
+	clients.connectAudio("third", third.asWebSocket());
+	third.receive({ type: "start", mode: "conversation" });
+	await settle();
+	assert.deepEqual(inputLevels, [true, false]);
 	await clients.close();
 });
 
 function testBrowserClients(overrides: {
 	ensureConversation(): Promise<void>;
 	onConversationActivity?(active: boolean): void | Promise<void>;
+	onConversationInputTooQuiet?(inputTooQuiet: boolean): void;
 	onConversationAudio?(pcm: Buffer): void;
 }): LanVoiceBrowserClients {
 	return new LanVoiceBrowserClients({
@@ -97,9 +116,18 @@ function testBrowserClients(overrides: {
 		onConversationActivity: overrides.onConversationActivity ?? (() => {}),
 		onConversationMute: () => {},
 		conversationMuted: () => false,
+		onConversationInputTooQuiet:
+			overrides.onConversationInputTooQuiet ?? (() => {}),
 		onConversationAudio: overrides.onConversationAudio ?? (() => {}),
 		onDictationAudio: () => {},
 	});
+}
+
+function pcmFrame(peak: number): Buffer {
+	const frame = Buffer.alloc(480 * 2);
+	for (let sample = 0; sample < 480; sample += 1)
+		frame.writeInt16LE(peak, sample * 2);
+	return frame;
 }
 
 class TestWebSocket extends EventEmitter {

@@ -38,6 +38,7 @@ export interface VoiceControllerRuntime {
 	startGeneration: number;
 	startAbortController?: AbortController | undefined;
 	voiceStatus: string;
+	inputTooQuiet: boolean;
 	realtimePeerPlan?: RealtimePeerPlan | undefined;
 }
 
@@ -261,6 +262,7 @@ function cancelStart(
 	runtime.config = undefined;
 	runtime.realtimePeerPlan = undefined;
 	runtime.voiceStatus = "";
+	runtime.inputTooQuiet = false;
 	runtime.context?.ui.setStatus(VOICE_STATUS_KEY, undefined);
 }
 
