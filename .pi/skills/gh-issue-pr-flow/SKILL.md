@@ -71,7 +71,9 @@ Use one integration PR instead when slices do not merit separate review, stack s
 
 ### Open or update a PR for existing work
 
-1. Inspect the intended diff, commit history, base, and any existing PR.
+1. Inspect the intended diff, commit history, base, and any existing PR. If the target belongs or
+   should belong to a native stack, read `../gh-stack/SKILL.md` and follow that workflow before any
+   history rewrite, push, or base change.
 2. Repair stale or mixed history before presenting it. Do not launder already-merged commits into a new PR.
 3. Revalidate the changed surface, apply the verification cull to test changes, then push and create or update the PR.
 4. Update the body when scope, validation, issue linkage, risk, or follow-up information changed materially.
@@ -141,7 +143,20 @@ When opening a PR, post the standard review request unless the user says not to.
 @codex please review this PR and give me 10-20 issues if any. Categorize findings as required, recommended, or optional.
 ```
 
-Post it with `--body-file`.
+Post it with the GitHub login connected to Codex. A repo-local `codex.review-request-user` selects
+that login; otherwise use the active account. Use its token only for this command—never switch the
+active `gh` account:
+
+```bash
+repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
+review_user=$(git config --get codex.review-request-user || gh api user --jq .login)
+review_token=$(gh auth token --user "$review_user")
+test "$(GH_TOKEN="$review_token" gh api user --jq .login)" = "$review_user"
+body=$(mktemp)
+trap 'rm -f "$body"' EXIT
+printf '%s\n' '@codex please review this PR and give me 10-20 issues if any. Categorize findings as required, recommended, or optional.' > "$body"
+GH_TOKEN="$review_token" gh pr comment "$pr" --repo "$repo" --body-file "$body"
+```
 
 ## Failure handling
 

@@ -28,6 +28,9 @@ trunk; `down` moves toward it.
   choices in each PR's review focus; an eligible maintainer owns approval and explicit merge direction.
 - Stacks are linear. A layer may represent a code dependency or one bounded issue in an explicitly
   shared release batch. Keep work outside that release unit in another stack or PR.
+- Before changing an existing stacked branch or PR, run `gh stack view --json`. If the target is
+  absent or local and GitHub topology differ, read `references/troubleshooting.md` before rewriting.
+  Branch ancestry and PR bases do not replace native stack state.
 - Create the chain before implementation. Put each change on the lowest layer that owns it; edit a
   lower owner, cascade-rebase upstack, then return to the top.
 
