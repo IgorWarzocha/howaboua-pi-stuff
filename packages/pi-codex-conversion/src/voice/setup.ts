@@ -25,6 +25,34 @@ function audioErrorDirection(message: string, mode: CodexVoiceMode): "input" | "
 	return undefined;
 }
 
+export function buildVoiceSetupInstructions(options: {
+	config: CodexConversionConfig;
+	configPath: string;
+	helperPath: string | undefined;
+	retryCommand: string;
+}): string {
+	const lines = [
+		"Codex voice audio setup was requested.",
+		`Config file: ${options.configPath}`,
+		`Current input: ${options.config.voice.inputDevice ?? "system default"}`,
+		`Current output: ${options.config.voice.outputDevice ?? "system default"}`,
+	];
+	if (!options.helperPath) {
+		return [
+			...lines,
+			`No pi-codex-voice helper is available for ${process.platform}-${process.arch}. Build it locally, set tools.customRustBinariesDir in ${options.configPath}, then run /reload.`,
+		].join("\n");
+	}
+	return [
+		...lines,
+		`Audio helper: ${options.helperPath}`,
+		'Use its {"type":"list_devices"} JSONL command to inspect available devices.',
+		"Ask whether the user wants each system default or an exact pinned device; do not guess. Omit inputDevice or outputDevice to follow that system default, or set its exact device id to pin it.",
+		"Set voice.audioSetupCompleted to true and preserve every other config value.",
+		`After saving, tell the user to run ${options.retryCommand}.`,
+	].join("\n");
+}
+
 export function formatVoiceShortcut(value: string): string {
 	return value.split("+").map((part) => part === "ctrl" ? "Ctrl" : part === "alt" ? "Alt" : part === "shift" ? "Shift" : part === "space" ? "Space" : part.toUpperCase()).join("+");
 }

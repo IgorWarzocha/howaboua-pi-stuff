@@ -78,6 +78,15 @@ export function codexVoiceModeMessage(
 	};
 }
 
+export function codexVoiceSetupMessage(instructions: string) {
+	return {
+		customType: CODEX_VOICE_SETUP_MESSAGE_TYPE,
+		content: instructions,
+		display: true,
+		details: { instructions } satisfies CodexVoiceSetupMessageDetails,
+	};
+}
+
 export function registerCodexVoiceRenderer(pi: ExtensionAPI): void {
 	pi.registerMessageRenderer<RealtimeVoiceMessageDetails>(
 		REALTIME_VOICE_MESSAGE_TYPE,

@@ -1,12 +1,18 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { readCodexConversionConfig } from "../adapter/activation/config-store.ts";
+import {
+	getCodexConversionConfigPath,
+	readCodexConversionConfig,
+} from "../adapter/activation/config-store.ts";
 import type { AdapterState } from "../adapter/activation/state.ts";
+import { resolveVoiceHelperBinary } from "./binary.ts";
 import type { CodexVoiceController } from "./controller.ts";
 import type { CodexLanVoiceServerController } from "./lan/controller.ts";
+import { buildVoiceSetupInstructions } from "./setup.ts";
 import { registerCodexVoiceShortcuts } from "./shortcuts.ts";
-import type { CodexVoiceMode } from "./ui.ts";
+import { type CodexVoiceMode, codexVoiceSetupMessage } from "./ui.ts";
 
 export interface CodexVoiceControls {
+	setup(ctx: ExtensionContext): Promise<void>;
 	start(mode: CodexVoiceMode, ctx: ExtensionContext): Promise<void>;
 	stop(ctx: ExtensionContext): Promise<void>;
 	toggleInputMute(ctx: ExtensionContext): void;
@@ -19,12 +25,49 @@ export function createCodexVoiceControls(options: {
 	lanVoice: CodexLanVoiceServerController;
 }): CodexVoiceControls {
 	const { pi, state, voice, lanVoice } = options;
+	const requestSetup = async (
+		ctx: ExtensionContext,
+		retryCommand: string,
+		force: boolean,
+		mode?: CodexVoiceMode,
+	): Promise<boolean> => {
+		const currentConfig = readCodexConversionConfig();
+		state.config = currentConfig;
+		if (!force && currentConfig.voice.audioSetupCompleted) return false;
+		if (mode === "realtime" && voice.prepareRealtimePrompt(ctx) === undefined)
+			return true;
+		if (!ctx.isIdle()) {
+			ctx.ui.notify(
+				"Wait for the current turn before setting up Codex voice.",
+				"info",
+			);
+			return true;
+		}
+		state.codexTurnState.beginTurn();
+		pi.sendMessage(
+			codexVoiceSetupMessage(
+				buildVoiceSetupInstructions({
+					config: currentConfig,
+					configPath: getCodexConversionConfigPath(),
+					helperPath: resolveVoiceHelperBinary(
+						currentConfig.tools.customRustBinariesDir,
+					),
+					retryCommand,
+				}),
+			),
+			{ triggerTurn: true },
+		);
+		return true;
+	};
+
+	const setup = async (ctx: ExtensionContext): Promise<void> => {
+		await requestSetup(ctx, "/codex voice realtime", true);
+	};
 
 	const start = async (mode: CodexVoiceMode, ctx: ExtensionContext): Promise<void> => {
 		if (voice.activeMode === mode) return;
-		const currentConfig = readCodexConversionConfig();
-		state.config = currentConfig;
-		await voice.start(ctx, currentConfig, mode);
+		if (await requestSetup(ctx, `/codex voice ${mode}`, false, mode)) return;
+		await voice.start(ctx, state.config, mode);
 	};
 
 	const stop = async (_ctx: ExtensionContext): Promise<void> => {
@@ -59,5 +102,5 @@ export function createCodexVoiceControls(options: {
 		},
 	});
 
-	return { start, stop, toggleInputMute };
+	return { setup, start, stop, toggleInputMute };
 }
