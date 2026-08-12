@@ -24,6 +24,7 @@ export interface RealtimePeerPlan {
 	createPeer(): CodexRealtimePeer;
 	onActive?(session: CodexRealtimeConversation, peer: CodexRealtimePeer): void;
 	onInactive?(session: CodexRealtimeConversation, error: Error, resuming: boolean): void;
+	onStatus?(status: string): void;
 }
 
 export interface VoiceControllerRuntime {
@@ -82,7 +83,16 @@ export async function startControllerMode(options: {
 		options.mode === "realtime"
 			? { type: "connecting", mode: "realtime", phase: "authorizing" }
 			: { type: "connecting", mode: "dictation", phase: "authorizing" };
-	options.onStatus("connecting…");
+	const setStartupStatus = (status: string) => {
+		if (
+			startGeneration !== runtime.startGeneration ||
+			runtime.startAbortController !== startAbortController ||
+			runtime.state.type !== "connecting"
+		) return;
+		options.onStatus(status);
+		options.realtimePeerPlan?.onStatus?.(status);
+	};
+	setStartupStatus("connecting…");
 	let realtimeSummary: string | undefined;
 	try {
 		const startup = await interruptible(
@@ -97,7 +107,7 @@ export async function startControllerMode(options: {
 								realtimeSummary = summary;
 							},
 							onSummaryStatus: (active) => {
-								options.onStatus(active ? "summarizing…" : "connecting…");
+								setStartupStatus(active ? "summarizing…" : "connecting…");
 							},
 							signal: startSignal,
 						})

@@ -231,9 +231,10 @@ export class LanVoiceBrowserSession {
 			active.clientId === clientId &&
 			active.socket === socket &&
 			active.mode === "conversation"
-		)
+		) {
 			this.options.onConversationMute(muted);
-		if (muted) this.microphoneLevel.reset();
+			if (muted) this.microphoneLevel.reset();
+		}
 	}
 
 	receiveAudio(clientId: string, socket: WebSocket, pcm: Buffer): void {

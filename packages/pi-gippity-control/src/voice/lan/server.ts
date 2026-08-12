@@ -83,6 +83,8 @@ export async function startCodexLanVoiceServer(options: {
 		const abort = new AbortController();
 		let activated = false;
 		const plan: RealtimePeerPlan = {
+			onStatus: (status) =>
+				clients.broadcastControl({ type: "status", status }),
 			createPeer: () => {
 				let peer!: LanHostRealtimePeer;
 				peer = new LanHostRealtimePeer({

@@ -9,6 +9,8 @@ import { REALTIME_DELEGATION_MESSAGE_TYPE } from "./ui.ts";
 
 const VOICE_CONTEXT_SYSTEM_PROMPT = `Summarize the current Pi conversation for a realtime voice assistant joining the same session. Preserve the user's goal, relevant preferences, decisions, current state, unresolved questions, and next step. Treat the conversation as history: do not continue its work or answer it. Return only the self-contained continuity summary.`;
 const VOICE_CONTEXT_REQUEST = "Create the voice continuity summary now.";
+const VOICE_START_GREETING_REQUEST =
+	"The voice session has started. Greet the user briefly and naturally, then wait for them to speak.";
 const VOICE_STARTUP_CONTEXT_HEADER = `Startup context from Pi.
 This is background context from the current Pi conversation before realtime voice started. It may be summarized. Use it to answer questions about the earlier conversation, and do not repeat it unless relevant.`;
 
@@ -31,37 +33,59 @@ export interface RealtimeInitialMessageItem {
 export async function buildRealtimeInitialItems(args: {
 	ctx: ExtensionContext;
 	config: GippityControlConfig;
+	greet?: boolean | undefined;
 	onSummary?: ((summary: string) => void) | undefined;
+	onSummaryStatus?: ((active: boolean) => void) | undefined;
 	signal?: AbortSignal | undefined;
 }): Promise<RealtimeInitialMessageItem[] | undefined> {
 	const selected = args.config.voice.contextModel;
-	if (!selected) return undefined;
-	const reasoning = args.config.voice.contextReasoning;
-	const cacheKey = voiceContextCacheKey(args.ctx, selected, reasoning);
-	let text = summaryCache.get(cacheKey);
-	if (!text) {
-		const generated = await createVoiceContextSummary(
-			args.ctx,
-			selected,
-			reasoning,
-			args.signal,
-		);
-		if (!generated) return undefined;
-		text = generated;
-		if (cacheKey === voiceContextCacheKey(args.ctx, selected, reasoning)) {
-			summaryCache.set(cacheKey, text);
-			while (summaryCache.size > SUMMARY_CACHE_LIMIT)
-				summaryCache.delete(summaryCache.keys().next().value!);
+	const initialItems: RealtimeInitialMessageItem[] = [];
+	if (selected) {
+		const reasoning = args.config.voice.contextReasoning;
+		const cacheKey = voiceContextCacheKey(args.ctx, selected, reasoning);
+		let text = summaryCache.get(cacheKey);
+		if (!text) {
+			args.onSummaryStatus?.(true);
+			try {
+				const generated = await createVoiceContextSummary(
+					args.ctx,
+					selected,
+					reasoning,
+					args.signal,
+				);
+				if (generated) {
+					text = generated;
+					if (
+						cacheKey === voiceContextCacheKey(args.ctx, selected, reasoning)
+					) {
+						summaryCache.set(cacheKey, text);
+						while (summaryCache.size > SUMMARY_CACHE_LIMIT)
+							summaryCache.delete(summaryCache.keys().next().value!);
+					}
+				}
+			} finally {
+				args.onSummaryStatus?.(false);
+			}
+		}
+		if (text) {
+			args.onSummary?.(text);
+			initialItems.push({
+				type: "message",
+				role: "developer",
+				content: [
+					{ type: "input_text", text: renderVoiceStartupContext(text) },
+				],
+			});
 		}
 	}
-	args.onSummary?.(text);
-	return [
-		{
+	if (args.greet) {
+		initialItems.push({
 			type: "message",
-			role: "developer",
-			content: [{ type: "input_text", text: renderVoiceStartupContext(text) }],
-		},
-	];
+			role: "user",
+			content: [{ type: "input_text", text: VOICE_START_GREETING_REQUEST }],
+		});
+	}
+	return initialItems.length > 0 ? initialItems : undefined;
 }
 
 function renderVoiceStartupContext(summary: string): string {

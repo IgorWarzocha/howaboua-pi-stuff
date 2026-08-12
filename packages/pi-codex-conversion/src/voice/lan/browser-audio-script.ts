@@ -105,6 +105,7 @@ function createAudioController({ button, muteButton, audioState, audioDetail, mo
       const message = JSON.parse(event.data);
 	  if (message.type === 'stop') { stop(false, message.reason || 'server'); return; }
 	  if (message.type === 'mute') setMuted(message.muted, false);
+	  if (message.type === 'status' && busy && !active) setStatus(message.status === 'summarizing…' ? 'Summarizing conversation…' : 'Connecting…');
       if (message.type === 'active') {
         active = true;
         busy = false;

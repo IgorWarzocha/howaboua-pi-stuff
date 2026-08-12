@@ -32,7 +32,8 @@ test("LAN browser preserves handoff and restarts after explicit release", async 
 	await settle();
 	const quietFrame = pcmFrame(100);
 	for (let frame = 0; frame < 50; frame += 1) first.receiveBinary(quietFrame);
-	first.receiveBinary(pcmFrame(1_000));
+	const healthyFrame = pcmFrame(1_000);
+	first.receiveBinary(healthyFrame);
 	first.close();
 	await settle();
 
@@ -42,6 +43,7 @@ test("LAN browser preserves handoff and restarts after explicit release", async 
 	await settle();
 	assert.equal(hostStarts, 1);
 	assert.equal(received.length, 51);
+	assert.deepEqual(received.at(-1), healthyFrame);
 	assert.deepEqual(inputLevels, [true, false]);
 	assert.deepEqual(
 		second.sent.map((value) => JSON.parse(value)),

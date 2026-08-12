@@ -126,8 +126,10 @@ export class LanVoiceBrowserSession {
 
 	mute(clientId: string, socket: WebSocket, muted: boolean): void {
 		const active = this.state;
-		if (active.type === "active" && active.clientId === clientId && active.socket === socket && active.mode === "conversation") this.options.onConversationMute(muted);
-		if (muted) this.microphoneLevel.reset();
+		if (active.type === "active" && active.clientId === clientId && active.socket === socket && active.mode === "conversation") {
+			this.options.onConversationMute(muted);
+			if (muted) this.microphoneLevel.reset();
+		}
 	}
 
 	receiveAudio(clientId: string, socket: WebSocket, pcm: Buffer): void {

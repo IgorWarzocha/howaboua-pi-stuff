@@ -66,6 +66,15 @@ export class CodexRealtimeConversation {
 		if (this.state === "active") this.established = true;
 	}
 
+	greet(): void {
+		if (this.state !== "active") return;
+		try {
+			this.peer.sendData({ type: "response.create" });
+		} catch (error) {
+			this.fail(error instanceof Error ? error : new Error(String(error)));
+		}
+	}
+
 	async start(
 		auth: CodexVoiceAuth,
 		config: GippityControlConfig,
