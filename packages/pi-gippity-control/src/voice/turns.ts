@@ -192,7 +192,8 @@ export class RealtimeVoiceTurnTracker {
 
 	assistantFinished(output?: string): RealtimeVoiceTurn | undefined {
 		if (output) this.transcript.finish("assistant", output);
-		this.recentlyAnsweredUserInput = this.pendingUserInputs.shift();
+		const answered = this.pendingUserInputs.shift();
+		if (answered) this.recentlyAnsweredUserInput = answered;
 		return output ? { input: output } : undefined;
 	}
 

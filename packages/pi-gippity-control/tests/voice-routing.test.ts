@@ -95,6 +95,9 @@ test("voice turns finalize frontend history before delegation", () => {
 	expect(turns.userFinished("Handle this next")).toBeUndefined();
 	turns.outputAdded("On it");
 	expect(turns.assistantFinished("On it")).toEqual({ input: "On it" });
+	expect(turns.assistantFinished("Still on it")).toEqual({
+		input: "Still on it",
+	});
 	expect(turns.delegated("Handle this next", "delegation-3")).toEqual({
 		input: "Handle this next",
 		delegationId: "delegation-3",
