@@ -84,14 +84,15 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 			runtime.state.weeklyUsageLeft = undefined;
 			return;
 		}
-		const plan = resolveCodexRuntimePlan(ctx, runtime.state.config);
-		if (!isAdapterRuntime(plan)) return;
+		if (!isAdapterRuntime(resolveCodexRuntimePlan(ctx, runtime.state.config))) return;
 		const weeklyUsageLeft = await fetchCodexWeeklyUsageLeft(ctx);
+		const plan = resolveCodexRuntimePlan(ctx, runtime.state.config);
 		if (
 			generation !== usageGeneration ||
 			!ctx.hasUI ||
 			runtime.state.config.voiceFeaturesOnly ||
-			!runtime.state.config.ui.statusLine
+			!runtime.state.config.ui.statusLine ||
+			!isAdapterRuntime(plan)
 		) return;
 		runtime.state.weeklyUsageLeft = weeklyUsageLeft;
 		renderCodexStatus(ctx, runtime.state, plan);

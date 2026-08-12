@@ -196,6 +196,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 	return {
 		setBaseEnv,
 		exec: async (input, cwd, signal, onUpdate) => {
+			if (shuttingDown) throw new Error("exec manager is shut down");
 			const shell = resolveShell(input.shell);
 			const workdir = resolveWorkdir(cwd, input.workdir);
 			const execution = resolveExecution(input.shell, input.cmd, input.env, baseEnv);
@@ -245,6 +246,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			}
 		},
 		write: async (input, signal, onUpdate) => {
+			if (shuttingDown) throw new Error("exec manager is shut down");
 			if (signal?.aborted) {
 				throw new Error("write_stdin aborted");
 			}

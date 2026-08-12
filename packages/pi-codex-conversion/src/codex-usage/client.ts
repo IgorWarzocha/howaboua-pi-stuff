@@ -25,6 +25,7 @@ const weeklyUsageCache = new Map<string, {
 	expiresAt: number;
 	promise?: Promise<number | undefined> | undefined;
 }>();
+const weeklyUsageKeyByModel = new WeakMap<RuntimeModel, string>();
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -46,12 +47,6 @@ export function buildCodexRateLimitResetConsumeUrl(): string {
 	return `${DEFAULT_CODEX_BASE_URL}/wham/rate-limit-reset-credits/consume`;
 }
 
-function extractBearerToken(headers: Headers): string | undefined {
-	const authorization = headers.get("authorization")?.trim();
-	const match = authorization?.match(/^Bearer\s+(.+)$/i);
-	return match?.[1]?.trim();
-}
-
 function extractAccountId(token: string): string | undefined {
 	try {
 		const parts = token.split(".");
@@ -65,18 +60,39 @@ function extractAccountId(token: string): string | undefined {
 	}
 }
 
-async function buildCodexUsageHeaders(ctx: ExtensionContext, model: RuntimeModel): Promise<Headers> {
-	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
-	if (!auth.ok) throw new Error(auth.error);
-	const headers = new Headers(model.headers);
-	for (const [key, value] of Object.entries(auth.headers ?? {})) {
-		if (value === null) headers.delete(key);
-		else headers.set(key, value);
+function isCanonicalCodexBaseUrl(value: string | undefined, allowCodexPath = false): boolean {
+	try {
+		const url = new URL(value ?? DEFAULT_CODEX_BASE_URL);
+		const path = url.pathname.replace(/\/+$/, "");
+		return url.protocol === "https:"
+			&& url.hostname === "chatgpt.com"
+			&& (path === "/backend-api" || (allowCodexPath && path === "/backend-api/codex"));
+	} catch {
+		return false;
 	}
-	if (auth.apiKey) headers.set("authorization", `Bearer ${auth.apiKey}`);
-	const token = auth.apiKey ?? extractBearerToken(headers);
-	const accountId = token ? extractAccountId(token) : undefined;
-	if (accountId) headers.set("chatgpt-account-id", accountId);
+}
+
+function isCanonicalCodexSubscriptionModel(model: RuntimeModel): boolean {
+	return model.provider === "openai-codex"
+		&& model.api === "openai-codex-responses"
+		&& isCanonicalCodexBaseUrl(model.baseUrl);
+}
+
+async function buildCodexUsageHeaders(ctx: ExtensionContext, model: RuntimeModel): Promise<Headers> {
+	if (!isCanonicalCodexSubscriptionModel(model)) {
+		throw new Error("Codex usage requires the canonical ChatGPT subscription endpoint.");
+	}
+	const resolved = await ctx.modelRegistry.getProviderAuth("openai-codex");
+	const token = resolved?.auth.apiKey;
+	if (!token || !isCanonicalCodexBaseUrl(resolved?.auth.baseUrl, true)) {
+		throw new Error("Canonical OpenAI Codex subscription auth is required.");
+	}
+	const accountId = extractAccountId(token);
+	if (!accountId) throw new Error("Canonical OpenAI Codex subscription auth is required.");
+	const headers = new Headers({
+		authorization: `Bearer ${token}`,
+		"chatgpt-account-id": accountId,
+	});
 	headers.set("accept", "application/json");
 	headers.set("OAI-Language", "en");
 	headers.set("originator", "pi");
@@ -140,7 +156,7 @@ export async function fetchCodexUsage(ctx: ExtensionContext): Promise<CodexUsage
 
 export async function fetchCodexWeeklyUsageLeft(ctx: ExtensionContext): Promise<number | undefined> {
 	const model = ctx.model;
-	if (!model || model.provider !== "openai-codex") return undefined;
+	if (!model || !isCanonicalCodexSubscriptionModel(model)) return undefined;
 	const timeoutSignal = AbortSignal.timeout(WEEKLY_USAGE_TIMEOUT_MS);
 	const signal = ctx.signal
 		? AbortSignal.any([ctx.signal, timeoutSignal])
@@ -149,6 +165,7 @@ export async function fetchCodexWeeklyUsageLeft(ctx: ExtensionContext): Promise<
 		const headers = await withAbort(buildCodexUsageHeaders(ctx, model), signal);
 		const key = usageCacheKey(headers);
 		if (!key) return undefined;
+		weeklyUsageKeyByModel.set(model, key);
 		const cached = weeklyUsageCache.get(key);
 		if (cached?.expiresAt && cached.expiresAt > Date.now()) return cached.value;
 		if (cached?.promise) return cached.promise;
@@ -159,10 +176,10 @@ export async function fetchCodexWeeklyUsageLeft(ctx: ExtensionContext): Promise<
 				entry.value = codexWeeklyUsageLeft(
 					await fetchCodexUsageWithHeaders(headers, signal, false),
 				);
+				entry.expiresAt = Date.now() + WEEKLY_USAGE_CACHE_MS;
 			} catch {
 				entry.value = previous;
 			} finally {
-				entry.expiresAt = Date.now() + WEEKLY_USAGE_CACHE_MS;
 				entry.promise = undefined;
 			}
 			return entry.value;
@@ -171,7 +188,8 @@ export async function fetchCodexWeeklyUsageLeft(ctx: ExtensionContext): Promise<
 		weeklyUsageCache.set(key, entry);
 		return promise;
 	} catch {
-		return undefined;
+		const previousKey = weeklyUsageKeyByModel.get(model);
+		return previousKey ? weeklyUsageCache.get(previousKey)?.value : undefined;
 	}
 }
 
