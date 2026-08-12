@@ -58,7 +58,7 @@ export interface BridgeSessionRuntime {
 	waitForStartup(session: BridgeExecSession, signal?: AbortSignal): Promise<void>;
 	write(session: BridgeExecSession, chars: string): Promise<void>;
 	terminate(session: BridgeExecSession): Promise<void>;
-	shutdown(): void;
+	shutdown(): Promise<void>;
 }
 
 export function createBridgeSessionRuntime(binaryPath?: () => string | undefined): BridgeSessionRuntime {

@@ -21,10 +21,11 @@ export interface BridgeReadResponse {
 
 export interface ExecBridgeClient {
 	request<T = unknown>(request: Record<string, unknown>): Promise<T>;
-	shutdown(): void;
+	shutdown(): Promise<void>;
 }
 
 const MAX_BRIDGE_STDERR_CHARS = 16_000;
+const BRIDGE_SHUTDOWN_TIMEOUT_MS = 5_000;
 function appendBoundedText(current: string, next: string): string {
 	const combined = `${current}${next}`;
 	return combined.length > MAX_BRIDGE_STDERR_CHARS ? combined.slice(-MAX_BRIDGE_STDERR_CHARS) : combined;
@@ -53,6 +54,7 @@ export function createExecBridgeClient(binaryPath: () => string | undefined = ()
 	let bridgeStderrDecoder = new StringDecoder("utf8");
 	let bridgeClosing = false;
 	let bridgeResponded = false;
+	let bridgeShutdownPromise: Promise<void> | undefined;
 
 	function rejectPending(error: Error): void {
 		for (const pending of pendingBridgeRequests.values()) pending.reject(error);
@@ -107,28 +109,56 @@ export function createExecBridgeClient(binaryPath: () => string | undefined = ()
 		return bridge;
 	}
 
-	return {
-		async request<T = unknown>(request: Record<string, unknown>): Promise<T> {
-			const requestId = nextBridgeRequestId++;
-			const child = getBridge();
-			const response = await new Promise<BridgeResponse<T>>((resolve, reject) => {
-				pendingBridgeRequests.set(requestId, { resolve: resolve as (value: BridgeResponse) => void, reject });
-				child.stdin.write(`${JSON.stringify({ ...request, request_id: requestId })}\n`, (error) => {
-					if (!error) return;
-					pendingBridgeRequests.delete(requestId);
-					reject(new Error(formatExecBridgeWriteError(error, bridgeStderr, !bridgeResponded)));
-				});
+	async function request<T = unknown>(value: Record<string, unknown>): Promise<T> {
+		const requestId = nextBridgeRequestId++;
+		const child = getBridge();
+		const response = await new Promise<BridgeResponse<T>>((resolve, reject) => {
+			pendingBridgeRequests.set(requestId, { resolve: resolve as (value: BridgeResponse) => void, reject });
+			child.stdin.write(`${JSON.stringify({ ...value, request_id: requestId })}\n`, (error) => {
+				if (!error) return;
+				pendingBridgeRequests.delete(requestId);
+				reject(new Error(formatExecBridgeWriteError(error, bridgeStderr, !bridgeResponded)));
 			});
-			if (!response.ok) throw new Error(response.error ?? "exec_bridge request failed");
-			return response.result as T;
-		},
-		shutdown() {
-			if (bridge && !bridge.killed) {
-				bridgeClosing = true;
-				bridge.kill();
-			}
-		},
+		});
+		if (!response.ok) throw new Error(response.error ?? "exec_bridge request failed");
+		return response.result as T;
+	}
+
+	async function shutdownBridge(): Promise<void> {
+		const child = bridge;
+		if (!child || child.exitCode !== null || child.signalCode !== null) return;
+		const shutdownRequest = request({ op: "shutdown" });
+		bridgeClosing = true;
+		try {
+			await withTimeout(shutdownRequest, BRIDGE_SHUTDOWN_TIMEOUT_MS, "exec_bridge shutdown timed out");
+			await waitForBridgeClose(child, BRIDGE_SHUTDOWN_TIMEOUT_MS);
+		} catch (error) {
+			if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+			throw error;
+		}
+	}
+
+	return {
+		request,
+		shutdown: () => bridgeShutdownPromise ??= shutdownBridge(),
 	};
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+	let timeout: ReturnType<typeof setTimeout> | undefined;
+	return Promise.race([
+		promise,
+		new Promise<never>((_resolve, reject) => {
+			timeout = setTimeout(() => reject(new Error(message)), timeoutMs);
+		}),
+	]).finally(() => {
+		if (timeout) clearTimeout(timeout);
+	});
+}
+
+function waitForBridgeClose(child: ChildProcessWithoutNullStreams, timeoutMs: number): Promise<void> {
+	if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
+	return withTimeout(new Promise<void>((resolve) => child.once("close", () => resolve())), timeoutMs, "exec_bridge did not exit after shutdown");
 }
 
 export function chunkToBytes(chunk: string): Buffer {
