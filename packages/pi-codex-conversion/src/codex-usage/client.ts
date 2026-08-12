@@ -159,10 +159,10 @@ export async function fetchCodexWeeklyUsageLeft(ctx: ExtensionContext): Promise<
 				entry.value = codexWeeklyUsageLeft(
 					await fetchCodexUsageWithHeaders(headers, signal, false),
 				);
+				entry.expiresAt = Date.now() + WEEKLY_USAGE_CACHE_MS;
 			} catch {
 				entry.value = previous;
 			} finally {
-				entry.expiresAt = Date.now() + WEEKLY_USAGE_CACHE_MS;
 				entry.promise = undefined;
 			}
 			return entry.value;
