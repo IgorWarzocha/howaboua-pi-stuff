@@ -37,7 +37,8 @@ Read the reference for the current phase before acting. Load another only when t
 that boundary.
 
 - **Plan, create, adopt, link, or submit:** `references/create.md`
-- **Inspect, review, update, rebase, push, or restructure:** `references/work.md`
+- **Inspect, update, rebase, push, or restructure:** `references/work.md`
+- **Review focused PRs, run review agents, or request bot reviews:** `references/review.md`
 - **Approve, partially merge, fully merge, or reconcile after merge:** `references/merge.md`
 
 ## Command contract
