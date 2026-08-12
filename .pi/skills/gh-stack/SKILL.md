@@ -146,6 +146,9 @@ A PR target merges that PR and every unmerged PR below it; a stack target merges
 Direct stack merges are all-or-nothing. A merge queue overrides the method and may land queued PRs
 in separate groups. Do not use `gh pr merge` for a native stack.
 
+If GitHub rejects an otherwise-ready atomic merge for a code-owner review, do not broaden the merge
+target or bypass the rule. Follow the code-owner recovery in `references/troubleshooting.md`.
+
 ## Machine-readable state
 
 `gh stack view --json` writes JSON to stdout; status text goes to stderr. Its stable fields are:

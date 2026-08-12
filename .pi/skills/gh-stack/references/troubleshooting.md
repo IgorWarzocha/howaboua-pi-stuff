@@ -4,6 +4,7 @@
 
 - [Rebase conflicts (exit 3)](#rebase-conflicts-exit-3)
 - [After a squash merge](#after-a-squash-merge)
+- [Atomic merge reports a missing code-owner review](#atomic-merge-reports-a-missing-code-owner-review)
 - [Local and remote stacks have diverged](#local-and-remote-stacks-have-diverged)
 - [Restructuring a stack](#restructuring-a-stack)
 - [Branch belongs to several stacks (exit 6)](#branch-belongs-to-several-stacks-exit-6)
@@ -47,6 +48,39 @@ No manual action is needed. If the replay conflicts, `sync` restores all branche
 Run `gh stack rebase` to rerun the rebase, which will stop at the conflict and allow you to resolve
 and then `--continue` until complete. Use `gh stack sync --prune` to also delete local branches for
 merged PRs.
+
+## Atomic merge reports a missing code-owner review
+
+GitHub can reject an atomic stack merge with `Repository rule violations found` and `Waiting on code
+owner review from <login>` even when every PR in the requested range is clean and approved by that
+code owner. The operation is atomic, so this failure merges nothing.
+
+First verify the requested boundary from `gh stack view --json`, each included PR's current approval
+and checks, and the scope printed by `gh stack merge`. A PR target merges that PR and every unmerged
+PR below it; upper PRs must remain absent from the printed merge list. Do not widen the target, use an
+admin bypass, or fall back to serial `gh pr merge` calls.
+
+If the mutation was submitted as the stack author, retry the exact command with the required code
+owner's token for that command only. Verify the token and never switch the active `gh` account:
+
+```bash
+: "${target_pr:?set the highest PR that should merge}"
+: "${code_owner:?set the required code-owner login}"
+owner_token=$(gh auth token --user "$code_owner")
+test "$(GH_TOKEN="$owner_token" gh api user --jq .login)" = "$code_owner"
+GH_TOKEN="$owner_token" gh stack merge "$target_pr" --yes --squash
+```
+
+In the observed failure, approving the open cap and retrying as the stack author still failed; the
+same lower-PR target succeeded when the code owner submitted it. Treat that as an endpoint behavior,
+not proof that an out-of-range cap needs approval. After a successful squash, reconcile the remaining
+stack and verify the intended upper PR is still open directly on trunk:
+
+```bash
+gh stack sync
+gh stack view --json
+gh pr view <remaining-pr> --json state,baseRefName,headRefOid,reviewDecision,statusCheckRollup
+```
 
 ## Local and remote stacks have diverged
 
