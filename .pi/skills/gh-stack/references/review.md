@@ -25,13 +25,28 @@ bottom when deciding what can be removed before final landing. For each layer:
 2. State its goal, changed line/file count, and whether the implementation actually solves the
    reported or intended problem.
 3. Separate required behavior from unrelated work, speculative hardening, and over-engineering.
-4. Apply the repository verification cull to every changed test. Fake-provider behavior tours do not
-   prove provider-dependent semantics; retain only independent protocol, routing, migration, or other
-   durable boundaries.
+4. Run the test cull below.
 5. Record the verdict and agreed edit, then continue. After the pass, repair owning layers bottom to
    top and cascade once. Do not bury unresolved product choices in mechanical cleanup.
 
 Keep explanations concrete and short. Do not repeat stack mechanics the user already understands.
+
+## Cull tests
+
+Inspect every added or changed test with deletion as the default. The full gate is
+`../../gh-issue-pr-flow/SKILL.md#verification-cull`. Keep only a minimal independent contract spine
+for plausible future faults: protocol parsing or serialization, hazardous routing or isolation,
+persisted migration, or another stable boundary with an oracle independent of the implementation.
+
+Delete complete feature tours, presentation and copy locks, replica duplicates, setting-exists cases,
+and tests that merely prove a feature currently works. A fake provider cannot prove provider-dependent
+model semantics. A mocked external event bus or library cannot prove that extension integration works;
+exercise simple extensions in action instead. Do not replace deleted theatre with new cases unless the
+user explicitly asks for more permanent coverage.
+
+After deletion, remove fixtures, helpers, and exports that existed only for tests. Report complete test
+cases deleted separately from assertions or sub-scenarios removed; assertion cleanup is not a test
+cull.
 
 ## Dispatch local reviewers
 
