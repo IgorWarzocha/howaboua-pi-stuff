@@ -81,6 +81,8 @@ Use one integration PR instead when slices do not merit separate review, stack s
 ### Handle review feedback
 
 1. Read all feedback and current code; verify each finding against the PR goal and repository rules.
+   If the target belongs or should belong to a native stack, read `../gh-stack/SKILL.md` and follow
+   it before editing, rewriting history, or pushing.
 2. Fix required findings unless factually wrong or out of scope. Apply recommended findings when clearly beneficial and in scope.
 3. Avoid optional churn. Ask when a suggestion would materially change product behavior or agreed scope.
 4. Revalidate, recull any test changes, commit, push, and summarize what was fixed, rejected, or deferred and why.
