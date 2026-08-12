@@ -313,6 +313,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			session.terminating = true;
 			void bridgeSessions.terminate(session).catch(() => {});
 			setTimeout(() => {
+				if (shuttingDown) return;
 				if (session.exitCode === undefined || session.exitCode === null) void bridgeSessions.terminate(session).catch(() => {});
 			}, TERMINATE_ESCALATE_MS).unref?.();
 			notify(session, "terminate");
