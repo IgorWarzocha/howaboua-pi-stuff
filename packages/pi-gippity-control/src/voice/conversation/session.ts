@@ -368,6 +368,7 @@ export class CodexRealtimeConversation {
 
 function terminalTransportError(message: string): boolean {
 	return (
+		message === "DataChannel is not opened" ||
 		message.startsWith("realtime speaker stream ended:") ||
 		message.startsWith("realtime microphone stream failed:")
 	);
