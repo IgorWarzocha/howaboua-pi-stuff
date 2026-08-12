@@ -58,11 +58,12 @@ export interface BridgeSessionRuntime {
 	waitForStartup(session: BridgeExecSession, signal?: AbortSignal): Promise<void>;
 	write(session: BridgeExecSession, chars: string): Promise<void>;
 	terminate(session: BridgeExecSession): Promise<void>;
-	shutdown(): void;
+	shutdown(): Promise<void>;
 }
 
 export function createBridgeSessionRuntime(binaryPath?: () => string | undefined): BridgeSessionRuntime {
 	const bridge = createExecBridgeClient(binaryPath);
+	let pollQueue = Promise.resolve();
 
 	function setClosedExitCode(session: BridgeExecSession, code: number | null | undefined, signal?: string | null): void {
 		if (session.exitCode !== undefined && session.exitCode !== null) return;
@@ -74,6 +75,7 @@ export function createBridgeSessionRuntime(binaryPath?: () => string | undefined
 	}
 
 	async function poll(session: BridgeExecSession, hooks: BridgeSessionHooks, waitMs = 0, maxBytes?: number): Promise<void> {
+		if (!hooks.isOwned(session)) return;
 		const response = await bridge.request<BridgeReadResponse>({
 			op: "read",
 			process_id: session.processId,
@@ -104,10 +106,22 @@ export function createBridgeSessionRuntime(binaryPath?: () => string | undefined
 		}
 	}
 
+	async function pollBackground(session: BridgeExecSession, hooks: BridgeSessionHooks): Promise<void> {
+		const previous = pollQueue;
+		let release!: () => void;
+		pollQueue = new Promise<void>((resolve) => { release = resolve; });
+		await previous;
+		try {
+			await poll(session, hooks, 250);
+		} finally {
+			release();
+		}
+	}
+
 	async function pollLoop(session: BridgeExecSession, hooks: BridgeSessionHooks): Promise<void> {
 		while (hooks.isOwned(session) && (session.exitCode === undefined || session.exitCode === null)) {
 			try {
-				await poll(session, hooks, 250);
+				await pollBackground(session, hooks);
 			} catch (error) {
 				hooks.onOutput(session, `${error instanceof Error ? error.message : String(error)}\n`);
 				session.exitCode = 1;

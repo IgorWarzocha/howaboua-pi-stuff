@@ -52,7 +52,7 @@ test("sessions finish after the shell exits when a detached child retains stdio"
 		assert.equal(completed.session_id, undefined);
 		assert.equal(processIsRunning(childId), true);
 	} finally {
-		sessions.shutdown();
+		await sessions.shutdown();
 		if (childId !== undefined && processIsRunning(childId)) process.kill(childId);
 	}
 });
