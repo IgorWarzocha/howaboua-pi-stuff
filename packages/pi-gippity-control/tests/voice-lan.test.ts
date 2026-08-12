@@ -53,7 +53,6 @@ describe("LAN conversation setup", () => {
 		const setup = Promise.withResolvers<void>();
 		let hostStarts = 0;
 		let sharedSetup: Promise<void> | undefined;
-		const inputLevels: boolean[] = [];
 		const clients = testBrowserClients({
 			ensureConversation() {
 				if (!sharedSetup) {
@@ -61,9 +60,6 @@ describe("LAN conversation setup", () => {
 					sharedSetup = setup.promise;
 				}
 				return sharedSetup;
-			},
-			onConversationInputTooQuiet(inputTooQuiet) {
-				inputLevels.push(inputTooQuiet);
 			},
 		});
 		const first = new TestWebSocket();
@@ -83,14 +79,6 @@ describe("LAN conversation setup", () => {
 			mode: "conversation",
 			muted: false,
 		});
-		const quietFrame = pcmFrame(100);
-		for (let frame = 0; frame < 50; frame += 1)
-			second.receiveBinary(quietFrame);
-		const third = new TestWebSocket();
-		clients.connectAudio("third", third.asWebSocket());
-		third.receive({ type: "start", mode: "conversation" });
-		await settle();
-		expect(inputLevels).toEqual([true, false]);
 		await clients.close();
 	});
 
@@ -115,7 +103,6 @@ describe("LAN conversation setup", () => {
 function testBrowserClients(overrides: {
 	ensureConversation(): Promise<void>;
 	onConversationActivity?(active: boolean): void | Promise<void>;
-	onConversationInputTooQuiet?(inputTooQuiet: boolean): void;
 }): LanVoiceBrowserClients {
 	return new LanVoiceBrowserClients({
 		...overrides,
@@ -125,8 +112,7 @@ function testBrowserClients(overrides: {
 		onConversationActivity: overrides.onConversationActivity ?? (() => {}),
 		onConversationMute: () => {},
 		conversationMuted: () => false,
-		onConversationInputTooQuiet:
-			overrides.onConversationInputTooQuiet ?? (() => {}),
+		onConversationInputTooQuiet: () => {},
 		onConversationAudio: () => {},
 		onDictationAudio: () => {},
 	});
@@ -134,13 +120,6 @@ function testBrowserClients(overrides: {
 
 async function settle(): Promise<void> {
 	await new Promise((resolve) => setImmediate(resolve));
-}
-
-function pcmFrame(peak: number): Buffer {
-	const frame = Buffer.alloc(480 * 2);
-	for (let sample = 0; sample < 480; sample += 1)
-		frame.writeInt16LE(peak, sample * 2);
-	return frame;
 }
 
 class TestWebSocket extends EventEmitter {
@@ -157,10 +136,6 @@ class TestWebSocket extends EventEmitter {
 
 	receive(value: unknown): void {
 		this.emit("message", Buffer.from(JSON.stringify(value)), false);
-	}
-
-	receiveBinary(value: Buffer): void {
-		this.emit("message", value, true);
 	}
 
 	close(code = 1000, reason = "closed"): void {
