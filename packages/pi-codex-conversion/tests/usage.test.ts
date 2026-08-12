@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
 	parseCodexRateLimitResetCreditsPayload,
 	parseCodexUsagePayload,
-} from "../src/usage.ts";
+} from "../src/codex-usage/payload.ts";
 
 test("usage parser reads reset-credit summary", () => {
 	const snapshot = parseCodexUsagePayload({

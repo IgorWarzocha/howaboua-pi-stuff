@@ -6,7 +6,7 @@ import { BACKGROUND_BASH_WIDGET_ID, registerBackgroundBashWidgetShortcuts, rende
 import type { CodexExtensionRuntime } from "./runtime.ts";
 import { renderCodexStatus } from "../ui/status.ts";
 import { isAdapterRuntime, resolveCodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
-import { fetchCodexWeeklyUsageLeft } from "../usage.ts";
+import { fetchCodexWeeklyUsageLeft } from "../codex-usage/client.ts";
 
 export interface CodexUiController {
 	clearBackgroundWidget(): void;

@@ -38,7 +38,10 @@ export function registerCodexCommand(
 	async function openSettings(ctx: ExtensionContext, tab: SettingsTab): Promise<void> {
 		if (!ctx.hasUI) {
 			if (tab === "usage") {
-				const { fetchCodexUsage, formatCodexUsage } = await import("../../usage.ts");
+				const [{ fetchCodexUsage }, { formatCodexUsage }] = await Promise.all([
+					import("../../codex-usage/client.ts"),
+					import("../../codex-usage/format.ts"),
+				]);
 				try {
 					ctx.ui.notify(formatCodexUsage(await fetchCodexUsage(ctx)), "info");
 				} catch (error) {
