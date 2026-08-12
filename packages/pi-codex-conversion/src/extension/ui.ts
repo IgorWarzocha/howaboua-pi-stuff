@@ -1,18 +1,24 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Box, Text, truncateToWidth } from "@earendil-works/pi-tui";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import { NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, NATIVE_COMPACTION_DISPLAY_TEXT, type NativeCompactionDisplayEntry } from "../adapter/compaction/types.ts";
 import { BACKGROUND_BASH_WIDGET_ID, registerBackgroundBashWidgetShortcuts, renderBackgroundBashWidget } from "../ui/background-bash-widget.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
+import { renderCodexStatus } from "../ui/status.ts";
+import { isAdapterRuntime, resolveCodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
+import { fetchCodexWeeklyUsageLeft } from "../codex-usage/client.ts";
 
 export interface CodexUiController {
 	clearBackgroundWidget(): void;
 	renderBackgroundWidget(): void;
-	applyConfig(config: CodexConversionConfig): void;
+	invalidateUsageStatus(): void;
+	applyConfig(config: CodexConversionConfig, ctx: ExtensionContext, previousConfig: CodexConversionConfig): void;
+	refreshUsageStatus(ctx: ExtensionContext): Promise<void>;
 }
 
 export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime): CodexUiController {
 	let renderTimer: ReturnType<typeof setTimeout> | undefined;
+	let usageGeneration = 0;
 	const clearBackgroundWidget = () => {
 		if (renderTimer) clearTimeout(renderTimer);
 		renderTimer = undefined;
@@ -68,11 +74,43 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 		renderTimer = undefined;
 		renderBackgroundWidget();
 	});
+	const invalidateUsageStatus = () => {
+		usageGeneration += 1;
+		runtime.state.weeklyUsageLeft = undefined;
+	};
+	const refreshUsageStatus = async (ctx: ExtensionContext) => {
+		const generation = ++usageGeneration;
+		if (!ctx.hasUI || runtime.state.config.voiceFeaturesOnly || !runtime.state.config.ui.statusLine) {
+			runtime.state.weeklyUsageLeft = undefined;
+			return;
+		}
+		const plan = resolveCodexRuntimePlan(ctx, runtime.state.config);
+		if (!isAdapterRuntime(plan)) return;
+		const weeklyUsageLeft = await fetchCodexWeeklyUsageLeft(ctx);
+		if (
+			generation !== usageGeneration ||
+			!ctx.hasUI ||
+			runtime.state.config.voiceFeaturesOnly ||
+			!runtime.state.config.ui.statusLine
+		) return;
+		runtime.state.weeklyUsageLeft = weeklyUsageLeft;
+		renderCodexStatus(ctx, runtime.state, plan);
+	};
 
 	return {
 		clearBackgroundWidget,
 		renderBackgroundWidget,
-		applyConfig(config) {
+		invalidateUsageStatus,
+		refreshUsageStatus,
+		applyConfig(config, ctx, previousConfig) {
+			if (config.voiceFeaturesOnly || !config.ui.statusLine) {
+				invalidateUsageStatus();
+			} else if (
+				previousConfig.voiceFeaturesOnly ||
+				!previousConfig.ui.statusLine
+			) {
+				void refreshUsageStatus(ctx);
+			}
 			if (config.voiceFeaturesOnly || !config.ui.backgroundShellWidget) clearBackgroundWidget();
 			else renderBackgroundWidget();
 		},

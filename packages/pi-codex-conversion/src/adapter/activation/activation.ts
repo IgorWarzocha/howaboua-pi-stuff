@@ -1,8 +1,8 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { AdapterState } from "./state.ts";
 import { ALL_CODEX_ADAPTER_TOOL_NAMES, isAdapterRuntime, resolveCodexRuntimePlan, type CodexRuntimePlan } from "./runtime-plan.ts";
-import { DEFAULT_TOOL_NAMES, STATUS_KEY, buildExtraToolsOnlyStatusText, buildStatusText } from "./tool-set.ts";
-import { isResponsesContext } from "../prompt/codex-model.ts";
+import { DEFAULT_TOOL_NAMES, STATUS_KEY, buildExtraToolsOnlyStatusText } from "./tool-set.ts";
+import { renderCodexStatus } from "../../ui/status.ts";
 
 export function syncAdapter(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState): CodexRuntimePlan {
 	const plan = resolveCodexRuntimePlan(ctx, state.config);
@@ -33,7 +33,7 @@ function enableAdapter(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterSt
 	}
 	state.adapterOwnedToolNames = plan.ownedToolNames;
 	pi.setActiveTools(tools);
-	setStatus(ctx, state, plan);
+	renderCodexStatus(ctx, state, plan);
 }
 
 function disableAdapter(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState, plan: CodexRuntimePlan): void {
@@ -45,25 +45,6 @@ function disableAdapter(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterS
 	state.enabled = false;
 	delete state.adapterOwnedToolNames;
 	if (ctx.hasUI) ctx.ui.setStatus(STATUS_KEY, undefined);
-}
-
-function setStatus(ctx: ExtensionContext, state: AdapterState, plan: Extract<CodexRuntimePlan, { kind: "normal" | "code" }>): void {
-	if (!ctx.hasUI) return;
-	if (!state.config.ui.statusLine) {
-		ctx.ui.setStatus(STATUS_KEY, undefined);
-		return;
-	}
-	const config = state.config;
-	ctx.ui.setStatus(STATUS_KEY, buildStatusText({
-		mode: plan.kind,
-		useOnAllModels: config.scope.allProviders === "on",
-		additionalProvider: plan.configuredProvider,
-		fast: plan.effectiveOpenAICodex && config.openai.fast,
-		webSearch: plan.toolNames.includes("web_run"),
-		imageGeneration: plan.toolNames.includes("imagegen"),
-		compaction: plan.nativeCompaction,
-		...(isResponsesContext(ctx) ? { verbosity: config.openai.verbosity } : {}),
-	}, ctx.ui.theme));
 }
 
 function mergeToolNames(...groups: string[][]): string[] {

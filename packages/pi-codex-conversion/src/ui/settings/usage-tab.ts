@@ -4,10 +4,12 @@ import {
 	consumeCodexRateLimitResetCredit,
 	createCodexRateLimitResetRedeemRequestId,
 	fetchCodexUsage,
-	type CodexRateLimitResetConsumeResult,
-	type CodexRateLimitResetCredit,
-	type CodexUsageSnapshot,
-} from "./usage.ts";
+} from "../../codex-usage/client.ts";
+import type {
+	CodexRateLimitResetConsumeResult,
+	CodexRateLimitResetCredit,
+	CodexUsageSnapshot,
+} from "../../codex-usage/payload.ts";
 
 export interface UsageTabOptions {
 	initialUsage?: CodexUsageSnapshot | { error: string } | undefined;
