@@ -168,20 +168,26 @@ active `gh` account:
 ```bash
 set -eu
 : "${pr:?set pr to the target PR number or URL}"
+repo_url=$(gh repo view --json url --jq .url)
+host=${repo_url#*://}
+host=${host%%/*}
 repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
 review_user=$(git config --get codex.review-request-user || true)
 if [ -n "$review_user" ]; then
-  review_token=$(gh auth token --user "$review_user")
+  review_token=$(gh auth token --hostname "$host" --user "$review_user")
 else
-  review_token=${GH_TOKEN:-${GITHUB_TOKEN:-}}
-  [ -n "$review_token" ] || review_token=$(gh auth token)
-  review_user=$(GH_TOKEN="$review_token" gh api user --jq .login)
+  review_user=$(gh api --hostname "$host" user --jq .login)
+  review_token=$(gh auth token --hostname "$host" --user "$review_user")
 fi
-test "$(GH_TOKEN="$review_token" gh api user --jq .login)" = "$review_user"
+case "$host" in
+  github.com|*.ghe.com) token_var=GH_TOKEN ;;
+  *) token_var=GH_ENTERPRISE_TOKEN ;;
+esac
+test "$(env "$token_var=$review_token" gh api --hostname "$host" user --jq .login)" = "$review_user"
 body=$(mktemp)
 trap 'rm -f "$body"' EXIT
 printf '%s\n' '@codex please review this PR and give me 10-20 issues if any. Categorize findings as required, recommended, or optional.' > "$body"
-GH_TOKEN="$review_token" gh pr comment "$pr" --repo "$repo" --body-file "$body"
+env "$token_var=$review_token" gh pr comment "$pr" --repo "$host/$repo" --body-file "$body"
 ```
 
 ## Failure handling

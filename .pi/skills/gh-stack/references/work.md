@@ -5,15 +5,19 @@ repair. Use `review.md` for human, agent, or bot review passes.
 
 ## Establish current state
 
-For read-only inspection:
+First inspect the target PR without assuming local stack ownership:
 
 ```bash
-gh stack view --json
+gh pr view <target-pr> --json number,baseRefName,headRefName,headRefOid,state
 ```
 
-Before changing a stacked branch, PR, base, or history:
+If its stack is already tracked locally, inspect it with `gh stack view --json`. A stack created by
+`gh stack link` deliberately has no local tracking; do not require `sync` or infer that it is broken.
+Before changing linked branches or history, transfer local ownership explicitly with
+`gh stack checkout <stack-or-pr>`. Then synchronize and inspect:
 
 ```bash
+gh stack checkout <stack-or-pr> # only when local ownership is appropriate and not already present
 gh stack sync
 # Treat "Sync aborted" as failure even when exit status is 0.
 gh stack view --json
