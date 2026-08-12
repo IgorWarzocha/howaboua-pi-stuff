@@ -329,10 +329,6 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 		shutdown: () => shutdownPromise ??= (async () => {
 			shuttingDown = true;
 			try {
-				const running = Array.from(sessions.values()).filter(
-					(session) => session.exitCode === undefined || session.exitCode === null,
-				);
-				await Promise.allSettled(running.map((session) => bridgeSessions.terminate(session)));
 				await bridgeSessions.shutdown();
 			} finally {
 				sessions.clear();

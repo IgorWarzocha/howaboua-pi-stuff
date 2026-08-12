@@ -127,11 +127,12 @@ export function createExecBridgeClient(binaryPath: () => string | undefined = ()
 	async function shutdownBridge(): Promise<void> {
 		const child = bridge;
 		if (!child || child.exitCode !== null || child.signalCode !== null) return;
+		const deadline = performance.now() + BRIDGE_SHUTDOWN_TIMEOUT_MS;
 		const shutdownRequest = request({ op: "shutdown" });
 		bridgeClosing = true;
 		try {
-			await withTimeout(shutdownRequest, BRIDGE_SHUTDOWN_TIMEOUT_MS, "exec_bridge shutdown timed out");
-			await waitForBridgeClose(child, BRIDGE_SHUTDOWN_TIMEOUT_MS);
+			await withTimeout(shutdownRequest, remainingMs(deadline), "exec_bridge shutdown timed out");
+			await waitForBridgeClose(child, remainingMs(deadline));
 		} catch (error) {
 			if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
 			throw error;
@@ -142,6 +143,10 @@ export function createExecBridgeClient(binaryPath: () => string | undefined = ()
 		request,
 		shutdown: () => bridgeShutdownPromise ??= shutdownBridge(),
 	};
+}
+
+function remainingMs(deadline: number): number {
+	return Math.max(0, deadline - performance.now());
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
