@@ -18,6 +18,7 @@ export interface LanVoiceBrowserClientsOptions {
 	onConversationActivity(active: boolean): void | Promise<void>;
 	onConversationMute(muted: boolean): void;
 	conversationMuted(): boolean;
+	onConversationInputTooQuiet(inputTooQuiet: boolean): void;
 	onConversationAudio(pcm: Buffer): void;
 	onDictationAudio(clientId: string, pcm: Buffer): void;
 }
@@ -28,10 +29,12 @@ export class LanVoiceBrowserSession {
 	private state: LanVoiceBrowserState = { type: "idle" };
 	private operation = Promise.resolve();
 	private conversationOwnerId: string | undefined;
+	private readonly microphoneLevel: MicrophoneLevelMonitor;
 
 	constructor(options: LanVoiceBrowserClientsOptions, connections: LanVoiceBrowserConnections) {
 		this.options = options;
 		this.connections = connections;
+		this.microphoneLevel = new MicrophoneLevelMonitor(options.onConversationInputTooQuiet);
 	}
 
 	get closed(): boolean { return this.state.type === "closed"; }
@@ -47,6 +50,7 @@ export class LanVoiceBrowserSession {
 			const active = this.state;
 			const ownsActive = active.type === "active" && active.clientId === clientId && (!socket || active.socket === socket);
 			if (ownsActive) this.state = { type: "idle" };
+			if (ownsActive && active.mode === "conversation") this.microphoneLevel.reset();
 			if (terminateConversation && this.conversationOwnerId === clientId) {
 				this.conversationOwnerId = undefined;
 				await this.options.onConversationActivity(false);
@@ -76,6 +80,7 @@ export class LanVoiceBrowserSession {
 			const previous = this.state.type === "active" ? this.state : undefined;
 			if (previous?.clientId === clientId && previous.socket === socket && previous.mode === mode) return;
 			this.state = { type: "idle" };
+			if (previous?.mode === "conversation") this.microphoneLevel.reset();
 			if (previous && previous.socket !== socket) {
 				this.connections.sendControl(previous.clientId, { type: "stop", reason: "replaced" });
 				previous.socket.close(4001, "replaced");
@@ -118,16 +123,22 @@ export class LanVoiceBrowserSession {
 	}
 
 	cancelDictation(clientId: string): Promise<void> { return this.options.cancelDictation(clientId); }
+	resetConversationInputLevel(): void { this.microphoneLevel.reset(); }
 
 	mute(clientId: string, socket: WebSocket, muted: boolean): void {
 		const active = this.state;
-		if (active.type === "active" && active.clientId === clientId && active.socket === socket && active.mode === "conversation") this.options.onConversationMute(muted);
+		if (active.type === "active" && active.clientId === clientId && active.socket === socket && active.mode === "conversation") {
+			this.options.onConversationMute(muted);
+		}
 	}
 
 	receiveAudio(clientId: string, socket: WebSocket, pcm: Buffer): void {
 		const active = this.state;
 		if (active.type !== "active" || active.clientId !== clientId || active.socket !== socket) return;
-		if (active.mode === "conversation") this.options.onConversationAudio(pcm);
+		if (active.mode === "conversation") {
+			this.microphoneLevel.append(pcm);
+			this.options.onConversationAudio(pcm);
+		}
 		else this.options.onDictationAudio(clientId, pcm);
 	}
 
@@ -152,5 +163,50 @@ export class LanVoiceBrowserSession {
 		const result = this.operation.then(action, action);
 		this.operation = result.then(() => undefined, () => undefined);
 		return result;
+	}
+}
+
+const MICROPHONE_RATE = 24_000;
+const DETECTABLE_PEAK = 82;
+const HEALTHY_PEAK = 655;
+
+class MicrophoneLevelMonitor {
+	private readonly onChange: (inputTooQuiet: boolean) => void;
+	private samples = 0;
+	private peak = 0;
+	private inputTooQuiet = false;
+
+	constructor(onChange: (inputTooQuiet: boolean) => void) {
+		this.onChange = onChange;
+	}
+
+	append(pcm: Buffer): void {
+		let framePeak = 0;
+		for (let offset = 0; offset + 1 < pcm.byteLength; offset += 2)
+			framePeak = Math.max(framePeak, Math.abs(pcm.readInt16LE(offset)));
+		if (framePeak >= HEALTHY_PEAK) {
+			this.samples = 0;
+			this.peak = 0;
+			this.set(false);
+			return;
+		}
+		this.samples += Math.floor(pcm.byteLength / 2);
+		this.peak = Math.max(this.peak, framePeak);
+		if (this.samples < MICROPHONE_RATE) return;
+		if (this.peak >= DETECTABLE_PEAK) this.set(true);
+		this.samples = 0;
+		this.peak = 0;
+	}
+
+	reset(): void {
+		this.samples = 0;
+		this.peak = 0;
+		this.set(false);
+	}
+
+	private set(inputTooQuiet: boolean): void {
+		if (this.inputTooQuiet === inputTooQuiet) return;
+		this.inputTooQuiet = inputTooQuiet;
+		this.onChange(inputTooQuiet);
 	}
 }

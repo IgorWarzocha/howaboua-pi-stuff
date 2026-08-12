@@ -45,8 +45,9 @@ export function prepareRealtimeVoicePrompt(ctx: ExtensionContext): string | unde
 	}
 }
 
-export function renderVoiceStatus(ctx: ExtensionContext | undefined, status: string, muted: boolean): void {
+export function renderVoiceStatus(ctx: ExtensionContext | undefined, status: string, muted: boolean, inputTooQuiet: boolean): void {
 	if (!ctx || !status) return;
 	const mute = muted ? ctx.ui.theme.fg("warning", " · mic muted") : "";
-	ctx.ui.setStatus(VOICE_STATUS_KEY, `${ctx.ui.theme.fg("accent", `voice: ${status}`)}${mute}`);
+	const level = !muted && inputTooQuiet ? ctx.ui.theme.fg("warning", " · mic too quiet") : "";
+	ctx.ui.setStatus(VOICE_STATUS_KEY, `${ctx.ui.theme.fg("accent", `voice: ${status}`)}${mute}${level}`);
 }

@@ -29,6 +29,7 @@ export class CodexVoiceController {
 		state: { type: "idle" },
 		startGeneration: 0,
 		voiceStatus: "",
+		inputTooQuiet: false,
 	};
 	private readonly messages: CodexVoiceSessionMessages;
 	private readonly inputMuteListeners = new Set<(muted: boolean) => void>();
@@ -79,6 +80,16 @@ export class CodexVoiceController {
 			for (const listener of this.inputMuteListeners) listener(current);
 		}
 		return true;
+	}
+	setInputTooQuiet(inputTooQuiet: boolean): void {
+		const receivesInput =
+			this.runtime.state.type === "conversation" ||
+			this.runtime.state.type === "reconnecting" ||
+			this.runtime.state.type === "connecting";
+		const next = receivesInput && inputTooQuiet;
+		if (this.runtime.inputTooQuiet === next) return;
+		this.runtime.inputTooQuiet = next;
+		this.renderCurrentStatus();
 	}
 	resetContextAnnouncements(): void {
 		this.messages.resetContextAnnouncements();
@@ -186,6 +197,7 @@ export class CodexVoiceController {
 		this.runtime.config = undefined;
 		this.runtime.realtimePeerPlan = undefined;
 		this.runtime.voiceStatus = "";
+		this.runtime.inputTooQuiet = false;
 		this.runtime.context?.ui.setStatus(VOICE_STATUS_KEY, undefined);
 		await closePromise;
 		if (wasMuted)
@@ -217,6 +229,7 @@ export class CodexVoiceController {
 		this.runtime.config = undefined;
 		this.runtime.realtimePeerPlan = undefined;
 		this.runtime.voiceStatus = "";
+		this.runtime.inputTooQuiet = false;
 		this.runtime.context?.ui.setStatus(VOICE_STATUS_KEY, undefined);
 		this.messages.voiceStopped(endedMode);
 	}
@@ -285,6 +298,7 @@ export class CodexVoiceController {
 		this.runtime.config = undefined;
 		this.runtime.realtimePeerPlan = undefined;
 		this.runtime.voiceStatus = "";
+		this.runtime.inputTooQuiet = false;
 		this.runtime.context?.ui.setStatus(VOICE_STATUS_KEY, undefined);
 		this.runtime.context?.ui.notify(message, "error");
 		this.messages.voiceStopped(endedMode);
@@ -381,6 +395,7 @@ export class CodexVoiceController {
 			this.runtime.context,
 			this.runtime.voiceStatus,
 			this.inputMuted,
+			this.runtime.inputTooQuiet,
 		);
 	}
 }

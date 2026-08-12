@@ -97,6 +97,7 @@ function testBrowserClients(overrides: {
 		onConversationActivity: overrides.onConversationActivity ?? (() => {}),
 		onConversationMute: () => {},
 		conversationMuted: () => false,
+		onConversationInputTooQuiet: () => {},
 		onConversationAudio: overrides.onConversationAudio ?? (() => {}),
 		onDictationAudio: () => {},
 	});

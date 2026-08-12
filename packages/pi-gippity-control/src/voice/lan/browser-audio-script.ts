@@ -14,12 +14,18 @@ function createAudioController({ button, muteButton, audioState, audioDetail, mo
   let mode = 'conversation';
   let active = false;
   let muted = false;
+  let inputTooQuiet = false;
   let busy = false;
   let finishingDictation = false;
   let starting = false;
   let startGeneration = 0;
 
   const setStatus = (title, message = '') => { audioState.textContent = title; audioDetail.textContent = message; };
+  const renderConversationStatus = () => {
+    if (!active || mode !== 'conversation') return;
+    if (muted) setStatus('Microphone muted', 'Voice remains connected');
+    else setStatus('Listening', inputTooQuiet ? 'Microphone level is too low' : 'Tap to stop');
+  };
   const updateControls = () => {
     button.disabled = false;
     button.setAttribute('aria-busy', String(busy));
@@ -35,7 +41,7 @@ function createAudioController({ button, muteButton, audioState, audioDetail, mo
     muteButton.setAttribute('aria-label', muted ? 'Unmute microphone' : 'Mute microphone');
     muteButton.lastElementChild.textContent = muted ? 'Unmute mic' : 'Mute mic';
     if (notify && socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type:'mute', muted }));
-    if (active) setStatus(muted ? 'Microphone muted' : 'Listening', muted ? 'Voice remains connected' : 'Tap to stop');
+    renderConversationStatus();
     updateControls();
   };
   const closeHardware = () => {
@@ -70,6 +76,7 @@ function createAudioController({ button, muteButton, audioState, audioDetail, mo
     }
     active = false;
     muted = false;
+    inputTooQuiet = false;
     muteButton.setAttribute('aria-pressed', 'false');
     finishingDictation = false;
     const currentSocket = socket;
@@ -105,6 +112,7 @@ function createAudioController({ button, muteButton, audioState, audioDetail, mo
         button.setAttribute('aria-pressed', 'true');
         button.setAttribute('aria-label', mode === 'dictation' ? 'Finish dictation' : 'Stop voice');
         if (mode === 'conversation') {
+          inputTooQuiet = false;
           if (typeof message.muted === 'boolean') muted = message.muted;
           realtimeAudio?.releaseInput();
         }
@@ -225,6 +233,8 @@ function createAudioController({ button, muteButton, audioState, audioDetail, mo
       if (command.type === 'stop') stop(false, command.reason || 'server');
       if (command.type === 'error') { stop(false, 'server-error'); setStatus('Voice stopped', command.message); }
       if (command.type === 'mute') setMuted(command.muted, false);
+	  if (command.type === 'status' && busy && !active) setStatus(command.status === 'summarizing…' ? 'Summarizing conversation…' : 'Connecting…');
+      if (command.type === 'microphone') { inputTooQuiet = command.state === 'too-quiet'; renderConversationStatus(); }
     },
     pagehide() {
       stream?.getTracks().forEach((track) => track.stop());

@@ -83,6 +83,8 @@ export async function startCodexLanVoiceServer(options: {
 		const abort = new AbortController();
 		let activated = false;
 		const plan: RealtimePeerPlan = {
+			onStatus: (status) =>
+				clients.broadcastControl({ type: "status", status }),
 			createPeer: () => {
 				let peer!: LanHostRealtimePeer;
 				peer = new LanHostRealtimePeer({
@@ -164,14 +166,22 @@ export async function startCodexLanVoiceServer(options: {
 			if (!options.voice.setInputMuted(muted))
 				throw new Error("Realtime voice is not active");
 		},
+		onConversationInputTooQuiet(inputTooQuiet) {
+			options.voice.setInputTooQuiet(inputTooQuiet);
+			clients.broadcastControl({
+				type: "microphone",
+				state: inputTooQuiet ? "too-quiet" : "ok",
+			});
+		},
 		onConversationAudio(pcm) {
 			activeConversation?.peer.sendAudio(pcm);
 		},
 		onDictationAudio: (clientId, pcm) => dictation.append(clientId, pcm),
 	});
-	const removeInputMuteListener = options.voice.onInputMuteChange((muted) =>
-		clients.broadcastControl({ type: "mute", muted }),
-	);
+	const removeInputMuteListener = options.voice.onInputMuteChange((muted) => {
+		if (muted) clients.resetConversationInputLevel();
+		clients.broadcastControl({ type: "mute", muted });
+	});
 
 	const server = createServer(
 		{ cert: certificate.cert, key: certificate.key },
