@@ -47,12 +47,20 @@ Before the first commit or push, verify `gh api user --jq .login`, `git config u
 
 ### Dispatch a parallel issue batch
 
-Use a native stack as one release-batch PR set: each bounded issue gets a focused layer PR, while the top batch PR is the single requested merge action into `main`. Issues need not depend on each other when they deliberately ship together. This repo runs PR CI for every layer and Changesets/npm release work only on `push` to `main`; directly merging the top lands the stack atomically. A merge queue may split that landing, so use one integration PR instead when one release run is mandatory and direct merge is unavailable.
+Use a native stack to review focused release-batch layers, but assemble them into a dedicated release
+branch outside the stack. That branch is based on `origin/main`, named for the release, and becomes the
+one ordinary aggregate PR to `main`. Never add it as a top cap layer. This repo runs PR CI for every
+layer and Changesets/npm release work only on `push` to `main`; merging the stack must update only the
+release branch, while merging its final ordinary PR is the single release action.
 
 Dispatch is a handoff, not a supervision loop:
 
 1. Read every issue first. Keep all issues in the requested release batch, identify dependencies and overlapping files/packages, then choose a stable bottom-to-top order. Exclude only work that should release separately.
-2. Fetch `origin/main` once and record its SHA. In a dedicated coordinator worktree at that base, run `gh stack init --base main <issue-branch-1> <issue-branch-2> ...` to create and track every worker branch in stack order before implementation starts. Do not create sibling branches and retrofit them later.
+2. Fetch `origin/main` once and record its SHA. In a dedicated coordinator worktree, create a clean
+   release branch from that SHA, name it for the target release (for example `<package>/<version>`),
+   and push it. Follow `../gh-stack/references/create.md` to create and track every worker branch in
+   stack order before implementation starts. The release branch is the stack trunk, not a member. Do
+   not create sibling branches and retrofit them later.
 3. Detach the coordinator worktree to free the stack's current branch. Check out each tracked stack branch into its own worker worktree under a sibling root such as `<repo-parent>/.worktrees/<repo>/issue-123`.
 4. Require `HERDR_ENV=1` before controlling panels. Create one unfocused Herdr workspace per worktree, label it with the issue number and short title, and launch a named Pi session with `--model openai-codex/gpt-5.6-luna:high`. Parse workspace and pane IDs from Herdr's JSON; do not guess IDs.
 5. Give each worker this ownership contract: read the issue and repository instructions; implement only that issue directly on the assigned stack branch; add its changeset for shipped package work; run focused validation; cull weak tests; commit all intended work; do not push, open a PR, run the umbrella gate, invoke `gh stack`, or touch another worktree. If blocked, ask in this panel and wait for the user. When finished, report commit SHA, changed surface, checks, and risks, then remain idle.
@@ -62,16 +70,26 @@ Dispatch is a handoff, not a supervision loop:
 
 1. Treat the user's readiness signal—not panel status—as the phase gate. Inspect only the named ready worktrees and commits. Report dirty, missing, or conflicting results instead of silently completing worker tasks.
 2. Stop the ready panels and detach or remove their clean worktrees so Git can rewrite the checked-out branches. In the coordinator worktree, check out a stack branch, run the cascading `gh stack rebase`, resolve integration conflicts in the owning layer, and verify the complete order with `gh stack view --json`.
-3. From the top worker branch, run `gh stack add <batch-release-branch>`. This top branch is the single batch merge target; use an empty commit when it has no integration change. Verify each shipped package layer owns its changeset, then apply the verification cull across the complete stack and run the umbrella gate once from the release layer.
+3. Verify each shipped package layer owns its changeset, then apply the verification cull across the
+   complete stack and run the umbrella gate once from the cumulative top worker branch. Do not add the
+   release branch as a cap or create an empty placeholder commit.
 4. Run `gh stack submit --auto --open` to create native PRs and the stack object on GitHub.com. Verify the GitHub stack map, then edit every PR's title, body, issue linkage, base, and order. Use `Closes` only where the layer fully resolves its issue. Invoke configured review systems on each focused layer.
 5. Return the layer → PR map and stop again. Dispatch review-fix workers only when the user asks; each fix wave follows the same launch-and-handoff boundary. After the user declares review converged, rebase and push the affected upstack, run `gh stack submit --auto --open`, and report readiness.
-6. Merge only on explicit user direction. Confirm every layer is approved and green and the target does not require a merge queue, then directly merge the top with `gh stack merge <top-pr> --yes` and the repository's merge method. Verify the atomic `main` landing and release workflow; until one live batch confirms event behavior, do not claim the one-run release property as measured fact.
+6. Assemble only on explicit user direction. Confirm every layer is approved and green and
+   `gh stack view --json` names the dedicated release branch as trunk, then merge the top layer with
+   `gh stack merge <top-layer-pr> --yes` and the repository's method. Verify `main` did not move, sync,
+   check out the release branch, run the umbrella gate, and open its ordinary aggregate PR to `main`.
+   Stop for its review and CI. Merge that final PR only on a separate explicit user direction; that
+   one ordinary merge triggers the release workflow.
 
-Use one integration PR instead when slices do not merit separate review, stack support is unavailable, or merge-queue behavior would defeat the single release landing. Use ordinary separate PRs when work should release independently.
+Use one integration PR without layer PRs when slices do not merit separate review or stack support is
+unavailable. Use ordinary separate PRs when work should release independently.
 
 ### Open or update a PR for existing work
 
-1. Inspect the intended diff, commit history, base, and any existing PR.
+1. Inspect the intended diff, commit history, base, and any existing PR. If the target belongs or
+   should belong to a native stack, read `../gh-stack/SKILL.md` and follow that workflow before any
+   history rewrite, push, or base change.
 2. Repair stale or mixed history before presenting it. Do not launder already-merged commits into a new PR.
 3. Revalidate the changed surface, apply the verification cull to test changes, then push and create or update the PR.
 4. Update the body when scope, validation, issue linkage, risk, or follow-up information changed materially.
@@ -79,6 +97,8 @@ Use one integration PR instead when slices do not merit separate review, stack s
 ### Handle review feedback
 
 1. Read all feedback and current code; verify each finding against the PR goal and repository rules.
+   If the target belongs or should belong to a native stack, read `../gh-stack/SKILL.md` and follow
+   it before editing, rewriting history, or pushing.
 2. Fix required findings unless factually wrong or out of scope. Apply recommended findings when clearly beneficial and in scope.
 3. Avoid optional churn. Ask when a suggestion would materially change product behavior or agreed scope.
 4. Revalidate, recull any test changes, commit, push, and summarize what was fixed, rejected, or deferred and why.
@@ -141,7 +161,28 @@ When opening a PR, post the standard review request unless the user says not to.
 @codex please review this PR and give me 10-20 issues if any. Categorize findings as required, recommended, or optional.
 ```
 
-Post it with `--body-file`.
+Post it with the GitHub login connected to Codex. A repo-local `codex.review-request-user` selects
+that login; otherwise use the active account. Use its token only for this command—never switch the
+active `gh` account:
+
+```bash
+set -eu
+: "${pr:?set pr to the target PR number or URL}"
+repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
+review_user=$(git config --get codex.review-request-user || true)
+if [ -n "$review_user" ]; then
+  review_token=$(gh auth token --user "$review_user")
+else
+  review_token=${GH_TOKEN:-${GITHUB_TOKEN:-}}
+  [ -n "$review_token" ] || review_token=$(gh auth token)
+  review_user=$(GH_TOKEN="$review_token" gh api user --jq .login)
+fi
+test "$(GH_TOKEN="$review_token" gh api user --jq .login)" = "$review_user"
+body=$(mktemp)
+trap 'rm -f "$body"' EXIT
+printf '%s\n' '@codex please review this PR and give me 10-20 issues if any. Categorize findings as required, recommended, or optional.' > "$body"
+GH_TOKEN="$review_token" gh pr comment "$pr" --repo "$repo" --body-file "$body"
+```
 
 ## Failure handling
 
