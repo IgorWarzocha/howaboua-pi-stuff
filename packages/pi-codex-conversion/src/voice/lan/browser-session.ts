@@ -123,12 +123,12 @@ export class LanVoiceBrowserSession {
 	}
 
 	cancelDictation(clientId: string): Promise<void> { return this.options.cancelDictation(clientId); }
+	resetConversationInputLevel(): void { this.microphoneLevel.reset(); }
 
 	mute(clientId: string, socket: WebSocket, muted: boolean): void {
 		const active = this.state;
 		if (active.type === "active" && active.clientId === clientId && active.socket === socket && active.mode === "conversation") {
 			this.options.onConversationMute(muted);
-			if (muted) this.microphoneLevel.reset();
 		}
 	}
 

@@ -157,7 +157,10 @@ export async function startCodexLanVoiceServer(options: {
 		},
 		onDictationAudio: (clientId, pcm) => dictation.append(clientId, pcm),
 	});
-	const removeInputMuteListener = options.voice.onInputMuteChange((muted) => clients.broadcastControl({ type: "mute", muted }));
+	const removeInputMuteListener = options.voice.onInputMuteChange((muted) => {
+		if (muted) clients.resetConversationInputLevel();
+		clients.broadcastControl({ type: "mute", muted });
+	});
 
 	const server = createServer({ cert: certificate.cert, key: certificate.key }, (request, response) => {
 		void handleLanVoiceHttpRequest(request, response, {

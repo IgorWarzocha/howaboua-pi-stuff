@@ -84,7 +84,8 @@ export class CodexVoiceController {
 	setInputTooQuiet(inputTooQuiet: boolean): void {
 		const receivesInput =
 			this.runtime.state.type === "conversation" ||
-			this.runtime.state.type === "reconnecting";
+			this.runtime.state.type === "reconnecting" ||
+			this.runtime.state.type === "connecting";
 		const next = receivesInput && inputTooQuiet;
 		if (this.runtime.inputTooQuiet === next) return;
 		this.runtime.inputTooQuiet = next;

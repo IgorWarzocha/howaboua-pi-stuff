@@ -38,6 +38,10 @@ export class LanVoiceBrowserClients {
 		this.session.sendConversationAudio(pcm);
 	}
 
+	resetConversationInputLevel(): void {
+		this.session.resetConversationInputLevel();
+	}
+
 	release(clientId: string, socket?: WebSocket, terminateConversation = false): void {
 		this.session.release(clientId, socket, terminateConversation);
 	}

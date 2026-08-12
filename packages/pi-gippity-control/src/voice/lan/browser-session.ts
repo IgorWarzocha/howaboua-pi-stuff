@@ -224,6 +224,10 @@ export class LanVoiceBrowserSession {
 		return this.options.cancelDictation(clientId);
 	}
 
+	resetConversationInputLevel(): void {
+		this.microphoneLevel.reset();
+	}
+
 	mute(clientId: string, socket: WebSocket, muted: boolean): void {
 		const active = this.state;
 		if (
@@ -233,7 +237,6 @@ export class LanVoiceBrowserSession {
 			active.mode === "conversation"
 		) {
 			this.options.onConversationMute(muted);
-			if (muted) this.microphoneLevel.reset();
 		}
 	}
 

@@ -105,7 +105,6 @@ function createAudioController({ button, muteButton, audioState, audioDetail, mo
       const message = JSON.parse(event.data);
 	  if (message.type === 'stop') { stop(false, message.reason || 'server'); return; }
 	  if (message.type === 'mute') setMuted(message.muted, false);
-	  if (message.type === 'status' && busy && !active) setStatus(message.status === 'summarizing…' ? 'Summarizing conversation…' : 'Connecting…');
       if (message.type === 'active') {
         active = true;
         busy = false;
@@ -234,6 +233,7 @@ function createAudioController({ button, muteButton, audioState, audioDetail, mo
       if (command.type === 'stop') stop(false, command.reason || 'server');
       if (command.type === 'error') { stop(false, 'server-error'); setStatus('Voice stopped', command.message); }
       if (command.type === 'mute') setMuted(command.muted, false);
+	  if (command.type === 'status' && busy && !active) setStatus(command.status === 'summarizing…' ? 'Summarizing conversation…' : 'Connecting…');
       if (command.type === 'microphone') { inputTooQuiet = command.state === 'too-quiet'; renderConversationStatus(); }
     },
     pagehide() {
