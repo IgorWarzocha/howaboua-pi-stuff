@@ -70,7 +70,7 @@ for (const file of generatedFiles) {
 }
 
 const changesByPackage = new Map();
-for (const file of readdirSync(changesetDir)) {
+for (const file of readdirSync(changesetDir).sort()) {
 	if (
 		!file.endsWith(".md") ||
 		file === "README.md" ||
@@ -79,8 +79,11 @@ for (const file of readdirSync(changesetDir)) {
 		continue;
 	const text = readFileSync(join(changesetDir, file), "utf8");
 	const changeset = parseChangeset(text);
-	for (const pkg of changeset.packages)
-		changesByPackage.set(pkg, changeset.body);
+	for (const pkg of changeset.packages) {
+		const bodies = changesByPackage.get(pkg) ?? [];
+		if (!bodies.includes(changeset.body)) bodies.push(changeset.body);
+		changesByPackage.set(pkg, bodies);
+	}
 }
 
 const packageInfos = listActivePackageDirs(root)
@@ -102,9 +105,11 @@ for (const { pkg } of packageInfos) {
 	const hasExtensions =
 		Array.isArray(pkg.pi?.extensions) && pkg.pi.extensions.length > 0;
 	const hasSkills = Array.isArray(pkg.pi?.skills) && pkg.pi.skills.length > 0;
-	const entry = { name: pkg.name, body: changesByPackage.get(pkg.name) };
-	if (hasExtensions) changedExtensions.push(entry);
-	if (hasSkills) changedSkills.push(entry);
+	for (const body of changesByPackage.get(pkg.name) ?? []) {
+		const entry = { name: pkg.name, body };
+		if (hasExtensions) changedExtensions.push(entry);
+		if (hasSkills) changedSkills.push(entry);
+	}
 }
 
 const changedStuff = [...changedExtensions, ...changedSkills];
