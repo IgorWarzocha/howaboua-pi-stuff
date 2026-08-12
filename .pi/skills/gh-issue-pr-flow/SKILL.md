@@ -150,9 +150,17 @@ that login; otherwise use the active account. Use its token only for this comman
 active `gh` account:
 
 ```bash
+set -eu
+: "${pr:?set pr to the target PR number or URL}"
 repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
-review_user=$(git config --get codex.review-request-user || gh api user --jq .login)
-review_token=$(gh auth token --user "$review_user")
+review_user=$(git config --get codex.review-request-user || true)
+if [ -n "$review_user" ]; then
+  review_token=$(gh auth token --user "$review_user")
+else
+  review_token=${GH_TOKEN:-${GITHUB_TOKEN:-}}
+  [ -n "$review_token" ] || review_token=$(gh auth token)
+  review_user=$(GH_TOKEN="$review_token" gh api user --jq .login)
+fi
 test "$(GH_TOKEN="$review_token" gh api user --jq .login)" = "$review_user"
 body=$(mktemp)
 trap 'rm -f "$body"' EXIT
