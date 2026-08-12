@@ -16,7 +16,7 @@ import type {
 	ThinkingLevel,
 } from "./types.js";
 
-export function normalizeThinking(
+function normalizeThinking(
 	value: ThinkingLevel | undefined,
 	fallback: ThinkingLevel = DEFAULT_CONFIG.thinking,
 ): ThinkingLevel {

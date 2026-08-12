@@ -21,8 +21,6 @@ import {
 	transcriptItemText,
 } from "./wire.ts";
 
-export { buildRealtimeCallRequest } from "./call-setup.ts";
-
 const PEER_READY_TIMEOUT_MS = 15_000;
 
 type ConversationState = "idle" | "starting" | "active" | "failed" | "closed";

@@ -32,7 +32,7 @@ export function getProjectCodexVoiceSystemPromptPath(cwd: string): string {
 	return join(cwd, CONFIG_DIR_NAME, REALTIME_SYSTEM_PROMPT_BASENAME);
 }
 
-export function getPackagedCodexVoiceSystemPromptPath(): string {
+function getPackagedCodexVoiceSystemPromptPath(): string {
 	return join(PACKAGED_VOICE_DIR, REALTIME_SYSTEM_PROMPT_BASENAME);
 }
 

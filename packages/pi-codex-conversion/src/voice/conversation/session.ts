@@ -8,8 +8,6 @@ import { RealtimeDelegationHandoff, type RealtimeHandoffChannel } from "./handof
 import { type CodexRealtimePeer, type CodexRealtimePeerEvent } from "./peer.ts";
 import { boundedAssistantTranscript, boundedTranscript, realtimePeerStateFailure, remoteError, transcriptItemText } from "./wire.ts";
 
-export { buildRealtimeCallRequest } from "./call-setup.ts";
-
 const PEER_READY_TIMEOUT_MS = 15_000;
 type ConversationState = "idle" | "starting" | "active" | "failed" | "closed";
 

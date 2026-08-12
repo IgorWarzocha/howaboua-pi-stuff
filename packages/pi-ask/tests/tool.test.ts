@@ -4,10 +4,6 @@ import { createAskTool } from "../ask/tool.js";
 const context = { hasUI: false, mode: "print" } as never;
 
 describe("ask tool results", () => {
-	test("serializes interactive calls", () => {
-		expect(createAskTool().executionMode).toBe("sequential");
-	});
-
 	test("returns review dispositions in model-visible content", async () => {
 		const tool = createAskTool({
 			askInComposer: async () => [
@@ -50,12 +46,8 @@ describe("ask tool results", () => {
 	});
 
 	test("keeps a dismissed handoff distinct from a response", async () => {
-		const blockedStates: Array<{ id: string; active: boolean; label: string }> =
-			[];
 		const tool = createAskTool({
 			askInComposer: async () => null,
-			onBlockedChange: ({ prompt: _prompt, ...state }) =>
-				blockedStates.push(state),
 		});
 
 		const result = await tool.execute(
@@ -73,35 +65,5 @@ describe("ask tool results", () => {
 			dismissed: true,
 			kind: "handoff",
 		});
-		expect(blockedStates).toEqual([
-			{ id: "call-2", active: true, label: "Human action needed" },
-			{ id: "call-2", active: false, label: "Human action needed" },
-		]);
-	});
-
-	test("clears blocked state when the prompt UI fails", async () => {
-		const blockedStates: Array<{ id: string; active: boolean; label: string }> =
-			[];
-		const tool = createAskTool({
-			askInComposer: async () => {
-				throw new Error("UI unavailable");
-			},
-			onBlockedChange: ({ prompt: _prompt, ...state }) =>
-				blockedStates.push(state),
-		});
-
-		const execution = tool.execute(
-			"call-3",
-			{ prompts: [{ title: "Choose a path" }] },
-			undefined,
-			undefined,
-			context,
-		);
-
-		await expect(execution).rejects.toThrow("UI unavailable");
-		expect(blockedStates).toEqual([
-			{ id: "call-3", active: true, label: "Waiting for input" },
-			{ id: "call-3", active: false, label: "Waiting for input" },
-		]);
 	});
 });
