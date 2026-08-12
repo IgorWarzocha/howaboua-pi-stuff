@@ -7,6 +7,7 @@ const JWT_CLAIM_PATH = "https://api.openai.com/auth";
 const RESET_CREDITS_CACHE_MS = 5_000;
 const WEEKLY_WINDOW_MINUTES = 7 * 24 * 60;
 const WEEKLY_USAGE_CACHE_MS = 5 * 60_000;
+const WEEKLY_USAGE_TIMEOUT_MS = 10_000;
 
 type RuntimeModel = Model<Api>;
 
@@ -270,8 +271,12 @@ export async function fetchCodexWeeklyUsageLeft(ctx: ExtensionContext): Promise<
 		if (key && weeklyUsageCache?.key === key && weeklyUsageCache.expiresAt > Date.now())
 			return weeklyUsageCache.value;
 		previous = key && weeklyUsageCache?.key === key ? weeklyUsageCache.value : undefined;
+		const timeoutSignal = AbortSignal.timeout(WEEKLY_USAGE_TIMEOUT_MS);
+		const signal = ctx.signal
+			? AbortSignal.any([ctx.signal, timeoutSignal])
+			: timeoutSignal;
 		const value = codexWeeklyUsageLeft(
-			await fetchCodexUsageWithHeaders(headers, ctx.signal, false),
+			await fetchCodexUsageWithHeaders(headers, signal, false),
 		);
 		if (key) weeklyUsageCache = { key, value, expiresAt: Date.now() + WEEKLY_USAGE_CACHE_MS };
 		return value;
