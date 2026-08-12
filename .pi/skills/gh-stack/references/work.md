@@ -30,6 +30,23 @@ the PR before dispatching a reviewer. If a reviewer tool scopes a base against t
 check out the intended PR head and pass its direct parent; review layers sequentially rather than
 pointing the top head at a lower ancestor. Aggregate review is a separate explicit request.
 
+When several local reviewers cover a stack, assign one distinct PR to each agent unless the user
+explicitly asks for overlapping reviews. Record each assignment's head and direct base before launch;
+reviewers never switch branches or infer another layer.
+
+## Request bot reviews
+
+Finalize PR titles, bodies, bases, order, and heads before requesting bot review. Post one request to
+each selected focused PR, bottom to top. The standard body, configured commenter account, and exact
+token-only command are owned by `../../gh-issue-pr-flow/SKILL.md#codex-review`; never switch the active
+`gh` account merely to comment.
+
+Do not repost after routine pushes. If the user explicitly requests a fresh pass after a completed
+repair cascade, verify every selected PR's current head and post once to each. Give the bot a useful
+interval before checking; do not poll constantly. Triage findings against the current owning layer,
+reply with the fix or dismissal evidence, resolve settled threads, and rebase the upstack once after
+the owner-layer fixes converge.
+
 Resolve findings in the owning layer. Do not fix an upper symptom when the contract belongs below.
 
 ## Edit a layer
