@@ -37,13 +37,11 @@ test("only an established realtime transport failure is a resumable drop", async
 	active.session.markEstablished();
 	active.peer.emit({
 		type: "error",
-		message: "realtime speaker stream ended: connection reset",
+		message: "DataChannel is not opened",
 	});
 	active.peer.emit({ type: "state", state: "closed" });
 	assert.deepEqual(active.failures, []);
-	assert.deepEqual(active.drops, [
-		"realtime speaker stream ended: connection reset",
-	]);
+	assert.deepEqual(active.drops, ["DataChannel is not opened"]);
 	await active.session.close();
 });
 
