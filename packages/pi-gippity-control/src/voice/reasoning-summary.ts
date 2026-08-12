@@ -8,8 +8,12 @@ const SUMMARY_MODEL_PATTERNS = [
 ] as const;
 
 export function completedVoiceReasoningSummary(
-	message: Pick<AssistantMessage, "content" | "model" | "responseModel">,
+	message: Pick<
+		AssistantMessage,
+		"api" | "content" | "model" | "responseModel"
+	>,
 ): string | undefined {
+	if (message.api === "openai-completions") return undefined;
 	const model = (message.responseModel ?? message.model).trim().toLowerCase();
 	if (!SUMMARY_MODEL_PATTERNS.some((pattern) => pattern.test(model)))
 		return undefined;
