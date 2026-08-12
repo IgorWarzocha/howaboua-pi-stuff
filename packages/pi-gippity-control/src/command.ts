@@ -11,7 +11,14 @@ import { openGippitySettings } from "./settings.ts";
 import type { CodexVoiceControls } from "./voice/controls.ts";
 import type { CodexLanVoiceServerController } from "./voice/lan/controller.ts";
 
-const ACTIONS = ["realtime", "mute", "dictation", "stop", "server"] as const;
+const ACTIONS = [
+	"realtime",
+	"mute",
+	"dictation",
+	"stop",
+	"server",
+	"setup",
+] as const;
 
 export function registerGippityCommand(options: {
 	pi: ExtensionAPI;
@@ -60,9 +67,14 @@ export function registerGippityCommand(options: {
 			}
 			if (!ACTIONS.includes(action as (typeof ACTIONS)[number])) {
 				ctx.ui.notify(
-					"Usage: /gippity [realtime|mute|dictation|stop|server]",
+					"Usage: /gippity [realtime|mute|dictation|stop|server|setup]",
 					"warning",
 				);
+				return;
+			}
+			if (action === "setup") {
+				await ctx.waitForIdle();
+				await voiceControls.setup(ctx);
 				return;
 			}
 			if (ctx.mode !== "tui") {

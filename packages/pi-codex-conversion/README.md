@@ -146,7 +146,7 @@ Defaults:
 - `Ctrl+Alt+D` is push-to-dictate; toggle behaviour is available in the Voice tab
 - `Ctrl+Alt+G` toggles the GipPity LAN server
 
-If audio devices are not configured, the first start asks the Pi agent to inspect the available endpoints and save the selected IDs. Dictation returns one editable transcript to Pi's input.
+Voice input and output follow the system defaults. Set `voice.inputDevice` or `voice.outputDevice` only to pin an endpoint. Dictation returns one editable transcript to Pi's input.
 
 The visible realtime prompt lives at `~/.pi/agent/REALTIME-SYSTEM-PROMPT.md`. A trusted project can append `.pi/REALTIME-SYSTEM-PROMPT.md`. Keep coding and project instructions in AGENTS.md rather than duplicating them into the spoken assistant.
 

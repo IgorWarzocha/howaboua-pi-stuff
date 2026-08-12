@@ -213,6 +213,14 @@ function details(
 		"",
 		theme.fg(
 			"dim",
+			`  Audio input: ${config.voice.inputDevice ?? "system default"}`,
+		),
+		theme.fg(
+			"dim",
+			`  Audio output: ${config.voice.outputDevice ?? "system default"}`,
+		),
+		theme.fg(
+			"dim",
 			`  Realtime voice: ${formatVoiceShortcut(config.voice.realtimeShortcut)}`,
 		),
 		theme.fg(

@@ -58,9 +58,15 @@ export function readGippityControlConfig(
 	if (!existsSync(configPath))
 		return structuredClone(DEFAULT_GIPPITY_CONTROL_CONFIG);
 	try {
-		return normalizeGippityControlConfig(
-			JSON.parse(readFileSync(configPath, "utf8")) as unknown,
-		);
+		const parsed = JSON.parse(readFileSync(configPath, "utf8")) as unknown;
+		const config = normalizeGippityControlConfig(parsed);
+		const voice =
+			isObject(parsed) && isObject(parsed["voice"])
+				? parsed["voice"]
+				: undefined;
+		if (typeof voice?.["audioSetupCompleted"] !== "boolean")
+			config.voice.audioSetupCompleted = true;
+		return config;
 	} catch (error) {
 		console.warn(
 			`[pi-gippity-control] Failed to read ${configPath}: ${error instanceof Error ? error.message : String(error)}`,

@@ -1,4 +1,5 @@
 - This is an independent Pi extension; never import adapter or tool code from pi-codex-conversion.
+- `src/voice/rust/**` and `scripts/build-voice-helper.mjs` must stay byte-identical with `pi-codex-conversion`; change and changeset both packages together.
 - `src/register.ts` owns Pi lifecycle wiring. Voice modes own audio; LAN owns browser/session transport; config owns persisted user settings.
 - Realtime conversation is V3 only. Dictation is a separate manually bounded transcription path, not a selectable realtime protocol.
 - Keep the native helper credential-free and its stdout protocol-only. Preserve bounded external data and idempotent cleanup.

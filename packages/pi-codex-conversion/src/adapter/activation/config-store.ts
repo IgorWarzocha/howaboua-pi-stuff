@@ -40,7 +40,13 @@ export function readCodexConversionConfig(configPath: string = getCodexConversio
 	try {
 		const parsed = JSON.parse(readFileSync(configPath, "utf-8")) as unknown;
 		const migration = migrateCodexConversionConfigIfNeeded(parsed);
-		return normalizeCodexConversionConfig(migration.config);
+		const config = normalizeCodexConversionConfig(migration.config);
+		const voice = isRecord(parsed) && isRecord(parsed["voice"])
+			? parsed["voice"]
+			: undefined;
+		if (typeof voice?.["audioSetupCompleted"] !== "boolean")
+			config.voice.audioSetupCompleted = true;
+		return config;
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		console.warn(`[pi-codex-conversion] Failed to read ${configPath}: ${message}`);

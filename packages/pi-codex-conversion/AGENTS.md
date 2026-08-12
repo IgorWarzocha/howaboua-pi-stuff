@@ -6,6 +6,7 @@
 - Structured mode uses flat TypeScript tools over standard Responses. GPT-5.6 Code Mode uses `exec`/`wait` over Responses Lite.
 - Keep prompt guidance short and argv-shaped.
 - Native runners execute bundled helpers directly. Rebuild for the local platform and use the checkout; never patch installed npm files.
+- `src/voice/rust/**` and `scripts/build-voice-helper.mjs` must stay byte-identical with `pi-gippity-control`; change and changeset both packages together.
 - For native GitHub builds, run `gh run watch <id> --exit-status` directly and wait near the expected 10–15 minutes. Never wrap it in polling loops, background shells, or temporary log redirection.
 - `tools.customRustBinariesDir` is the shared filename-based override for tool and voice helpers; native startup incompatibilities point there without dumping loader noise.
 - Vendored apply-patch engine, path-uri, and absolute-path sources track one Codex commit. Pi-owned changes belong only in `standalone_executable.rs` and the `pi-apply-patch-fs` adapter.

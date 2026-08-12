@@ -2,7 +2,9 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{Device, FromSample, Sample, SampleFormat, SizedSample, Stream, SupportedStreamConfig};
+use cpal::{
+    Device, ErrorKind, FromSample, Sample, SampleFormat, SizedSample, Stream, SupportedStreamConfig,
+};
 use crossbeam_queue::ArrayQueue;
 use tokio::sync::mpsc;
 
@@ -229,7 +231,7 @@ where
         },
         move |error| {
             eprintln!("speaker stream error: {error}");
-            if !error_reported {
+            if error.kind() != ErrorKind::DeviceChanged && !error_reported {
                 error_reported = true;
                 let _ = events.try_send(Event::Error {
                     message: format!("speaker stream error: {error}"),
