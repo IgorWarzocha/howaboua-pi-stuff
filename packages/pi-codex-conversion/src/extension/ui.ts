@@ -11,7 +11,8 @@ import { fetchCodexWeeklyUsageLeft } from "../usage.ts";
 export interface CodexUiController {
 	clearBackgroundWidget(): void;
 	renderBackgroundWidget(): void;
-	applyConfig(config: CodexConversionConfig): void;
+	invalidateUsageStatus(): void;
+	applyConfig(config: CodexConversionConfig, ctx: ExtensionContext, previousConfig: CodexConversionConfig): void;
 	refreshUsageStatus(ctx: ExtensionContext): Promise<void>;
 }
 
@@ -73,31 +74,42 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 		renderTimer = undefined;
 		renderBackgroundWidget();
 	});
+	const invalidateUsageStatus = () => {
+		usageGeneration += 1;
+		runtime.state.weeklyUsageLeft = undefined;
+	};
+	const refreshUsageStatus = async (ctx: ExtensionContext) => {
+		const generation = ++usageGeneration;
+		if (!ctx.hasUI || runtime.state.config.voiceFeaturesOnly || !runtime.state.config.ui.statusLine) {
+			runtime.state.weeklyUsageLeft = undefined;
+			return;
+		}
+		const plan = resolveCodexRuntimePlan(ctx, runtime.state.config);
+		if (!isAdapterRuntime(plan)) return;
+		const weeklyUsageLeft = await fetchCodexWeeklyUsageLeft(ctx);
+		if (
+			generation !== usageGeneration ||
+			!ctx.hasUI ||
+			runtime.state.config.voiceFeaturesOnly ||
+			!runtime.state.config.ui.statusLine
+		) return;
+		runtime.state.weeklyUsageLeft = weeklyUsageLeft;
+		renderCodexStatus(ctx, runtime.state, plan);
+	};
 
 	return {
 		clearBackgroundWidget,
 		renderBackgroundWidget,
-		async refreshUsageStatus(ctx) {
-			const generation = ++usageGeneration;
-			if (!ctx.hasUI || runtime.state.config.voiceFeaturesOnly || !runtime.state.config.ui.statusLine) {
-				runtime.state.weeklyUsageLeft = undefined;
-				return;
-			}
-			const weeklyUsageLeft = await fetchCodexWeeklyUsageLeft(ctx);
-			if (
-				generation !== usageGeneration ||
-				!ctx.hasUI ||
-				runtime.state.config.voiceFeaturesOnly ||
-				!runtime.state.config.ui.statusLine
-			) return;
-			runtime.state.weeklyUsageLeft = weeklyUsageLeft;
-			const plan = resolveCodexRuntimePlan(ctx, runtime.state.config);
-			if (isAdapterRuntime(plan)) renderCodexStatus(ctx, runtime.state, plan);
-		},
-		applyConfig(config) {
+		invalidateUsageStatus,
+		refreshUsageStatus,
+		applyConfig(config, ctx, previousConfig) {
 			if (config.voiceFeaturesOnly || !config.ui.statusLine) {
-				usageGeneration += 1;
-				runtime.state.weeklyUsageLeft = undefined;
+				invalidateUsageStatus();
+			} else if (
+				previousConfig.voiceFeaturesOnly ||
+				!previousConfig.ui.statusLine
+			) {
+				void refreshUsageStatus(ctx);
 			}
 			if (config.voiceFeaturesOnly || !config.ui.backgroundShellWidget) clearBackgroundWidget();
 			else renderBackgroundWidget();

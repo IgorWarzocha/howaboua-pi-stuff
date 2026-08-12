@@ -58,7 +58,11 @@ export interface CodexRateLimitResetConsumeResult {
 }
 
 let resetCreditsCache: { key: string; expiresAt: number; promise: Promise<CodexRateLimitResetCredits | undefined> } | undefined;
-let weeklyUsageCache: { key: string; value?: number | undefined; expiresAt: number } | undefined;
+const weeklyUsageCache = new Map<string, {
+	value?: number | undefined;
+	expiresAt: number;
+	promise?: Promise<number | undefined> | undefined;
+}>();
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -263,27 +267,47 @@ export async function fetchCodexUsage(ctx: ExtensionContext): Promise<CodexUsage
 export async function fetchCodexWeeklyUsageLeft(ctx: ExtensionContext): Promise<number | undefined> {
 	const model = ctx.model;
 	if (!model || model.provider !== "openai-codex") return undefined;
-	let key: string | undefined;
-	let previous: number | undefined;
+	const timeoutSignal = AbortSignal.timeout(WEEKLY_USAGE_TIMEOUT_MS);
+	const signal = ctx.signal
+		? AbortSignal.any([ctx.signal, timeoutSignal])
+		: timeoutSignal;
 	try {
-		const headers = await buildCodexUsageHeaders(ctx, model);
-		key = usageCacheKey(headers);
-		if (key && weeklyUsageCache?.key === key && weeklyUsageCache.expiresAt > Date.now())
-			return weeklyUsageCache.value;
-		previous = key && weeklyUsageCache?.key === key ? weeklyUsageCache.value : undefined;
-		const timeoutSignal = AbortSignal.timeout(WEEKLY_USAGE_TIMEOUT_MS);
-		const signal = ctx.signal
-			? AbortSignal.any([ctx.signal, timeoutSignal])
-			: timeoutSignal;
-		const value = codexWeeklyUsageLeft(
-			await fetchCodexUsageWithHeaders(headers, signal, false),
-		);
-		if (key) weeklyUsageCache = { key, value, expiresAt: Date.now() + WEEKLY_USAGE_CACHE_MS };
-		return value;
+		const headers = await withAbort(buildCodexUsageHeaders(ctx, model), signal);
+		const key = usageCacheKey(headers);
+		if (!key) return undefined;
+		const cached = weeklyUsageCache.get(key);
+		if (cached?.expiresAt && cached.expiresAt > Date.now()) return cached.value;
+		if (cached?.promise) return cached.promise;
+		const entry = cached ?? { expiresAt: 0 };
+		const previous = entry.value;
+		const promise = (async () => {
+			try {
+				entry.value = codexWeeklyUsageLeft(
+					await fetchCodexUsageWithHeaders(headers, signal, false),
+				);
+			} catch {
+				entry.value = previous;
+			} finally {
+				entry.expiresAt = Date.now() + WEEKLY_USAGE_CACHE_MS;
+				entry.promise = undefined;
+			}
+			return entry.value;
+		})();
+		entry.promise = promise;
+		weeklyUsageCache.set(key, entry);
+		return promise;
 	} catch {
-		if (key) weeklyUsageCache = { key, value: previous, expiresAt: Date.now() + WEEKLY_USAGE_CACHE_MS };
-		return previous;
+		return undefined;
 	}
+}
+
+function withAbort<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+	if (signal.aborted) return Promise.reject(signal.reason);
+	return new Promise<T>((resolve, reject) => {
+		const onAbort = () => reject(signal.reason);
+		signal.addEventListener("abort", onAbort, { once: true });
+		promise.then(resolve, reject).finally(() => signal.removeEventListener("abort", onAbort));
+	});
 }
 
 export function createCodexRateLimitResetRedeemRequestId(): string {
@@ -315,7 +339,12 @@ export async function consumeCodexRateLimitResetCredit(ctx: ExtensionContext, re
 	const text = await response.text();
 	if (!response.ok) throw new Error(`Reset request failed (${response.status}): ${text || response.statusText}`);
 	resetCreditsCache = undefined;
-	return parseCodexRateLimitResetConsumePayload(JSON.parse(text));
+	const result = parseCodexRateLimitResetConsumePayload(JSON.parse(text));
+	if (result.outcome === "reset" || result.outcome === "already_redeemed") {
+		const key = usageCacheKey(headers);
+		if (key) weeklyUsageCache.delete(key);
+	}
+	return result;
 }
 
 function formatReset(timestampSeconds: number | undefined): string {

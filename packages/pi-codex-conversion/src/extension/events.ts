@@ -64,6 +64,7 @@ export function registerCodexEvents(
 	sessions.onSessionExit((sessionId) => tracker.recordSessionFinished(sessionId));
 
 	pi.on("session_start", async (event, ctx) => {
+		ui.invalidateUsageStatus();
 		await runtime.lanVoice.stop(ctx);
 		runtime.voice.resetContextAnnouncements();
 		runtime.voice.resetSessionContext();
@@ -100,6 +101,7 @@ export function registerCodexEvents(
 	});
 
 	pi.on("model_select", async (_event, ctx) => {
+		ui.invalidateUsageStatus();
 		runtime.resetTransport(ctx.sessionManager.getSessionId());
 		state.cwd = ctx.cwd;
 		state.activeProviderSystemPrompt = undefined;

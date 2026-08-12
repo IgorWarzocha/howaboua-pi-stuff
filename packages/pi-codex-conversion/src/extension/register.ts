@@ -35,7 +35,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 		registerCodexCommand(pi, runtime.state, runtime.voice, runtime.lanVoice, (config, ctx, previousConfig) => {
 			proxyProvider.applyConfig(config, ctx.modelRegistry);
 			tools.applyConfig(config);
-			ui.applyConfig(config);
+			ui.applyConfig(config, ctx, previousConfig);
 			if (config.openai.cacheDiagnostics !== previousConfig.openai.cacheDiagnostics) {
 				void runtime.configureDiagnostics(
 					ctx,
