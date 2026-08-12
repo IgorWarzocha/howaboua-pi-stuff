@@ -148,8 +148,6 @@ Defaults:
 
 Voice input and output follow the system defaults. Set `voice.inputDevice` or `voice.outputDevice` only to pin an endpoint. Dictation returns one editable transcript to Pi's input.
 
-Run `/codex voice setup` for guided device pinning.
-
 The visible realtime prompt lives at `~/.pi/agent/REALTIME-SYSTEM-PROMPT.md`. A trusted project can append `.pi/REALTIME-SYSTEM-PROMPT.md`. Keep coding and project instructions in AGENTS.md rather than duplicating them into the spoken assistant.
 
 The package ships its current prompt template and cumulative schema changelog as raw Markdown. Realtime voice checks the global prompt marker when voice is engaged. If it is outdated, the extension points you and your agent to the changelog instead of rewriting personal customizations automatically. Both paths are shown in the Voice tab.
@@ -158,7 +156,6 @@ Voice commands:
 
 ```text
 /codex voice realtime
-/codex voice setup
 /codex voice mute
 /codex voice dictation
 /codex voice stop

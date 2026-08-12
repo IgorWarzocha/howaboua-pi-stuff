@@ -2,15 +2,6 @@ import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import { getCodexConversionConfigPath } from "../adapter/activation/config-store.ts";
 import type { CodexVoiceMode } from "./ui.ts";
 
-export type VoiceAudioSetting = "voice.inputDevice" | "voice.outputDevice";
-
-export function missingVoiceAudioSettings(config: CodexConversionConfig, mode: "realtime" | "dictation"): VoiceAudioSetting[] {
-	return [
-		...(!config.voice.inputDevice ? ["voice.inputDevice" as const] : []),
-		...(mode === "realtime" && !config.voice.outputDevice ? ["voice.outputDevice" as const] : []),
-	];
-}
-
 export function formatVoiceAudioError(error: Error, mode: CodexVoiceMode, config: CodexConversionConfig): string {
 	const direction = audioErrorDirection(error.message, mode);
 	if (!direction) return error.message;
@@ -32,31 +23,6 @@ function audioErrorDirection(message: string, mode: CodexVoiceMode): "input" | "
 	if (/speaker|default output|output (?:device|stream|format)/.test(normalized)) return "output";
 	if (mode === "dictation" && /(?:requested )?device|audio (?:device|stream)|capture stream|sample format/.test(normalized)) return "input";
 	return undefined;
-}
-
-export function buildVoiceSetupInstructions(options: {
-	configPath: string;
-	helperPath: string | undefined;
-	missing: VoiceAudioSetting[];
-	retryCommand: string;
-}): string {
-	const lines = [
-		"Codex voice audio setup was requested.",
-		`Config file: ${options.configPath}`,
-		`Settings to configure: ${options.missing.join(", ")}`,
-	];
-	if (!options.helperPath) {
-		return [...lines,
-			`No pi-codex-voice helper is available for ${process.platform}-${process.arch}. Build it locally, set tools.customRustBinariesDir in ${options.configPath}, then run /reload.`,
-		].join("\n");
-	}
-	return [...lines,
-		`Audio helper: ${options.helperPath}`,
-		'Use its {"type":"list_devices"} JSONL command to inspect available devices.',
-		"Configure the requested audio settings with exact device id values. If multiple plausible devices are available, ask the user which they prefer. Investigate ambiguity as needed; do not guess.",
-		"Preserve every other config value.",
-		`After saving, tell the user to run ${options.retryCommand} again.`,
-	].join("\n");
 }
 
 export function formatVoiceShortcut(value: string): string {

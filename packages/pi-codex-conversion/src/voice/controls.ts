@@ -1,15 +1,12 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { getCodexConversionConfigPath, readCodexConversionConfig } from "../adapter/activation/config-store.ts";
+import { readCodexConversionConfig } from "../adapter/activation/config-store.ts";
 import type { AdapterState } from "../adapter/activation/state.ts";
-import { resolveVoiceHelperBinary } from "./binary.ts";
 import type { CodexVoiceController } from "./controller.ts";
 import type { CodexLanVoiceServerController } from "./lan/controller.ts";
-import { buildVoiceSetupInstructions, missingVoiceAudioSettings } from "./setup.ts";
 import { registerCodexVoiceShortcuts } from "./shortcuts.ts";
-import { codexVoiceSetupMessage, type CodexVoiceMode } from "./ui.ts";
+import type { CodexVoiceMode } from "./ui.ts";
 
 export interface CodexVoiceControls {
-	setup(ctx: ExtensionContext): Promise<void>;
 	start(mode: CodexVoiceMode, ctx: ExtensionContext): Promise<void>;
 	stop(ctx: ExtensionContext): Promise<void>;
 	toggleInputMute(ctx: ExtensionContext): void;
@@ -22,27 +19,6 @@ export function createCodexVoiceControls(options: {
 	lanVoice: CodexLanVoiceServerController;
 }): CodexVoiceControls {
 	const { pi, state, voice, lanVoice } = options;
-
-	const setup = async (ctx: ExtensionContext): Promise<void> => {
-		const currentConfig = readCodexConversionConfig();
-		state.config = currentConfig;
-		const missing = missingVoiceAudioSettings(currentConfig, "realtime");
-		if (missing.length === 0) {
-			ctx.ui.notify("Voice input and output are already pinned.", "info");
-			return;
-		}
-		if (!ctx.isIdle()) {
-			ctx.ui.notify("Wait for the current turn before setting up Codex voice.", "info");
-			return;
-		}
-		state.codexTurnState.beginTurn();
-		pi.sendMessage(codexVoiceSetupMessage(buildVoiceSetupInstructions({
-			configPath: getCodexConversionConfigPath(),
-			helperPath: resolveVoiceHelperBinary(currentConfig.tools.customRustBinariesDir),
-			missing,
-			retryCommand: "/codex voice realtime",
-		})), { triggerTurn: true });
-	};
 
 	const start = async (mode: CodexVoiceMode, ctx: ExtensionContext): Promise<void> => {
 		if (voice.activeMode === mode) return;
@@ -83,5 +59,5 @@ export function createCodexVoiceControls(options: {
 		},
 	});
 
-	return { setup, start, stop, toggleInputMute };
+	return { start, stop, toggleInputMute };
 }

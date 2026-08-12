@@ -2,7 +2,7 @@
 - `delegation-preflight.ts` owns prompt/tool prewarm identity plus commit/rollback before Pi receives an idle voice delegation.
 - Under `conversation/`, `session.ts` owns V3 sequencing, `call-setup.ts` HTTP setup, `handoff.ts` delegation output, and `wire.ts` validation. `auth.ts`, `dictation/`, and `session-messages.ts` retain their boundaries.
 - `helper.ts` owns the process; `helper-protocol.ts` owns JSONL framing and validation. LAN browser transport, ownership, and decoding stay in `browser-connections.ts`, `browser-session.ts`, and `browser-wire.ts`.
-- `controls.ts` owns start/stop/setup policy; settings commands and shortcuts route through it into the controller.
+- `controls.ts` owns start/stop policy; settings commands and shortcuts route through it into the controller.
 - The native helper never reads credential stores or executes agent work.
 - Helper IPC is versioned JSONL on stdio. Stdout is protocol-only; diagnostics go to stderr. Validate and bound every wire string/blob.
 - V3 conversation and V2 dictation keep independent transport state. No implicit fallback between them.
