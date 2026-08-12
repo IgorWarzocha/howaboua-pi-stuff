@@ -2,7 +2,12 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { resolveReviewConfig } from "./config.js";
 import { REVIEW_COMMAND } from "./constants.js";
 import { buildReviewConversationSummary } from "./conversation-summary.js";
-import { sendReviewFindings, sendReviewPreface } from "./messages.js";
+import {
+	announceReviewFindingsReady,
+	announceReviewSummaryStarted,
+	sendReviewFindings,
+	sendReviewPreface,
+} from "./messages.js";
 import { detectReviewContext } from "./review-context.js";
 import {
 	appendReviewLoopBoundary,
@@ -135,6 +140,7 @@ export function registerReviewCommand(
 								"warning",
 							);
 						setReviewWidget("Preparing review context…");
+						announceReviewSummaryStarted(pi);
 						conversationSummary = await buildReviewConversationSummary(
 							ctx,
 							reviewConfig,
@@ -178,6 +184,7 @@ export function registerReviewCommand(
 					);
 
 				sendReviewFindings(pi, ctx, review, finalOutput);
+				announceReviewFindingsReady(pi);
 				ctx.ui.notify(
 					`Review findings sent back to the main agent from /${REVIEW_COMMAND}.`,
 					"info",

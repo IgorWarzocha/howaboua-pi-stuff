@@ -6,6 +6,7 @@ import {
 	RealtimeDelegationHandoff,
 } from "../src/voice/conversation/handoff.ts";
 import type { CodexRealtimePeer } from "../src/voice/conversation/peer.ts";
+import { completedVoiceReasoningSummary } from "../src/voice/reasoning-summary.ts";
 import { CodexVoiceSessionMessages } from "../src/voice/session-messages.ts";
 
 test("assistant message boundaries route clean realtime handoffs", () => {
@@ -20,11 +21,18 @@ test("assistant message boundaries route clean realtime handoffs", () => {
 		},
 	);
 	handoff.activate("delegation-1");
+	handoff.finishMessage(realtimeHandoffChannel("toolUse"), "Silent summary");
 	handoff.stream("Checking cache");
-	handoff.finishMessage(realtimeHandoffChannel("toolUse"));
+	handoff.finishMessage(realtimeHandoffChannel("toolUse"), "Suppressed summary");
 	handoff.stream("Finished");
 	handoff.finishMessage(realtimeHandoffChannel("stop"));
 	assert.deepEqual(sent, [
+		{
+			type: "delegation.context.append",
+			delegation_item_id: "delegation-1",
+			channel: "commentary",
+			content: [{ type: "input_text", text: "Silent summary" }],
+		},
 		{
 			type: "delegation.context.append",
 			delegation_item_id: "delegation-1",
@@ -38,6 +46,21 @@ test("assistant message boundaries route clean realtime handoffs", () => {
 			content: [{ type: "input_text", text: "Finished" }],
 		},
 	]);
+	assert.equal(
+		completedVoiceReasoningSummary({
+			model: "azure-deployment",
+			responseModel: "gpt-5.6-sol",
+			content: [{ type: "thinking", thinking: "Completed summary" }],
+		}),
+		"Completed summary",
+	);
+	assert.equal(
+		completedVoiceReasoningSummary({
+			model: "deepseek-v4-pro",
+			content: [{ type: "thinking", thinking: "Raw reasoning" }],
+		}),
+		undefined,
+	);
 });
 
 test("voice presentation entries never enter Pi model queues", () => {
@@ -64,7 +87,6 @@ test("voice presentation entries never enter Pi model queues", () => {
 function voiceMessageCallbacks() {
 	return {
 		canDelegate: () => true,
-		prepareDelegation: async () => undefined,
 		onDelegation: () => {},
 		onDelegationFailed: () => {},
 		onWorking: () => {},

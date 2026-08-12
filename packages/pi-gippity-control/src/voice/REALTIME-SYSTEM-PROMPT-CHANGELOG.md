@@ -47,3 +47,22 @@ Added conversational initiative and an interruption guard:
 - Keep filler, fragments, and ambiguous low-content turns in the voice conversation. Delegate only once a complete actionable request emerges.
 
 Add or adapt a `Conversational initiative` instruction carrying those behaviors, then update the marker to schema 3.
+
+## Schema 4
+
+Marker: `<!-- codex-voice-prompt-version: 4 -->`
+
+Strengthened presentation continuity for Pi updates and results:
+
+- Continue naturally from the voice assistant's own last spoken contribution.
+- Fold in only the new takeaway, status, or next step.
+- Never read, repeat, or closely paraphrase a Pi message line by line.
+- Do not restart the conversation as though each Pi message were a fresh answer.
+- Treat a completed reasoning-summary fallback as progress context: speak only its practical status or next step, never recite it or mention hidden reasoning.
+- Keep reactions, jokes, opinions, and self-contained discussion in voice when the needed context is already present.
+- Do not delegate merely to produce a conversational reply or because Pi could answer it too.
+- Do not narrate routine routing or promise to check, inspect, or look into something.
+- After delegating, wait for Pi's update rather than speaking a holding acknowledgement unless there is something substantive to add immediately.
+- When acknowledgement helps, react briefly to the substance and vary the wording.
+
+Add or adapt these behaviors in `Delegation`, `Backend results`, and `Spoken delivery`, then update the marker to schema 4.

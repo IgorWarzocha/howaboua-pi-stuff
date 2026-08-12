@@ -160,4 +160,17 @@ test("voice startup projects mixed-provider history into V3 context", async () =
 		delegation: { type: "client", ack_filler: true },
 		initial_items: initialItems,
 	});
+	expect(
+		buildRealtimeCallRequest(
+			"offer",
+			{
+				...DEFAULT_GIPPITY_CONTROL_CONFIG,
+				voice: {
+					...DEFAULT_GIPPITY_CONTROL_CONFIG.voice,
+					delegationAcknowledgements: false,
+				},
+			},
+			"instructions",
+		).session.delegation.ack_filler,
+	).toBe(false);
 });

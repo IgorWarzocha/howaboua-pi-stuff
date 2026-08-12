@@ -5,6 +5,7 @@ import {
 	realtimeHandoffChannel,
 } from "../src/voice/conversation/handoff.ts";
 import type { CodexRealtimePeer } from "../src/voice/conversation/peer.ts";
+import { completedVoiceReasoningSummary } from "../src/voice/reasoning-summary.ts";
 import { CodexVoiceSessionMessages } from "../src/voice/session-messages.ts";
 import { RealtimeVoiceTurnTracker } from "../src/voice/turns.ts";
 
@@ -24,11 +25,21 @@ test("assistant message boundaries route clean realtime handoffs", () => {
 		},
 	);
 	handoff.activate("delegation-1");
+	handoff.finishMessage(realtimeHandoffChannel("toolUse"), "Silent summary");
 	handoff.stream("Checking cache");
-	handoff.finishMessage(realtimeHandoffChannel("toolUse"));
+	handoff.finishMessage(
+		realtimeHandoffChannel("toolUse"),
+		"Suppressed summary",
+	);
 	handoff.stream("Finished");
 	handoff.finishMessage(realtimeHandoffChannel("stop"));
 	expect(sent).toEqual([
+		{
+			type: "delegation.context.append",
+			delegation_item_id: "delegation-1",
+			channel: "commentary",
+			content: [{ type: "input_text", text: "Silent summary" }],
+		},
 		{
 			type: "delegation.context.append",
 			delegation_item_id: "delegation-1",
@@ -42,6 +53,19 @@ test("assistant message boundaries route clean realtime handoffs", () => {
 			content: [{ type: "input_text", text: "Finished" }],
 		},
 	]);
+	expect(
+		completedVoiceReasoningSummary({
+			model: "azure-deployment",
+			responseModel: "gpt-5.6-sol",
+			content: [{ type: "thinking", thinking: "Completed summary" }],
+		}),
+	).toBe("Completed summary");
+	expect(
+		completedVoiceReasoningSummary({
+			model: "deepseek-v4-pro",
+			content: [{ type: "thinking", thinking: "Raw reasoning" }],
+		}),
+	).toBeUndefined();
 });
 
 test("voice turns finalize frontend history before delegation", () => {
@@ -65,6 +89,15 @@ test("voice turns finalize frontend history before delegation", () => {
 	expect(turns.userFinished("Then run the tests")).toEqual({
 		input: "Then run the tests",
 		delegationId: "delegation-2",
+	});
+	turns.delegationSettled("delegation-2");
+	turns.inputAdded("handle this next");
+	expect(turns.userFinished("Handle this next")).toBeUndefined();
+	turns.outputAdded("On it");
+	expect(turns.assistantFinished("On it")).toEqual({ input: "On it" });
+	expect(turns.delegated("Handle this next", "delegation-3")).toEqual({
+		input: "Handle this next",
+		delegationId: "delegation-3",
 	});
 });
 

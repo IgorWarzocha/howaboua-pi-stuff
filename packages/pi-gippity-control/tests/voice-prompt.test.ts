@@ -23,8 +23,8 @@ describe("realtime prompt persistence", () => {
 		const promptPath = join(directory, "REALTIME-SYSTEM-PROMPT.md");
 		expect(prepareCodexVoiceSystemPrompt(promptPath)).toEqual({
 			created: true,
-			schemaVersion: 3,
-			currentSchemaVersion: 3,
+			schemaVersion: 4,
+			currentSchemaVersion: 4,
 			current: true,
 		});
 		expect(await readFile(promptPath, "utf8")).toBe(
@@ -41,7 +41,7 @@ describe("realtime prompt persistence", () => {
 		expect(prepareCodexVoiceSystemPrompt(promptPath)).toEqual({
 			created: false,
 			schemaVersion: 2,
-			currentSchemaVersion: 3,
+			currentSchemaVersion: 4,
 			current: false,
 		});
 		expect(await readFile(promptPath, "utf8")).toBe(customized);

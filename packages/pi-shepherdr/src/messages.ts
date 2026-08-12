@@ -13,6 +13,8 @@ import type {
 } from "./types.js";
 
 const AGENT_EVENT_MESSAGE_TYPE = "herdr-agent-event";
+const REALTIME_VOICE_PROMPT_CHANNEL =
+	"@howaboua/pi-codex-conversion/realtime-voice-prompt/v1";
 
 function xml(value: string): string {
 	return value
@@ -47,6 +49,43 @@ interface AgentEventDetails {
 	tab?: string;
 	task?: string;
 	workspace?: string;
+}
+
+function voiceDetail(
+	value: string | undefined,
+	maxBytes: number,
+): string | undefined {
+	const text = value?.trim();
+	if (!text || new TextEncoder().encode(text).byteLength > maxBytes)
+		return undefined;
+	return JSON.stringify(text);
+}
+
+function agentVoicePrompt(details: AgentEventDetails): string {
+	const name = voiceDetail(details.name, 160);
+	const identity = name ? `The monitored worker ${name}` : "A monitored worker";
+	const instruction = "Please announce this briefly in your natural voice.";
+	if (details.state === "blocked") {
+		const reason = voiceDetail(details.blockedOn, 512);
+		return `${identity} is blocked${reason ? `: ${reason}` : ""}. User attention may be required. ${instruction}`;
+	}
+	return details.state === "failed"
+		? `${identity} has failed its assigned work. ${instruction}`
+		: `${identity} has finished its assigned work. ${instruction}`;
+}
+
+function announceAgentEvent(
+	pi: ExtensionAPI,
+	details: AgentEventDetails,
+): void {
+	const candidateId = `pi-shepherdr:${details.paneId}`;
+	const id =
+		new TextEncoder().encode(candidateId).byteLength <= 160
+			? candidateId
+			: "pi-shepherdr:worker";
+	const prompt = agentVoicePrompt(details);
+	pi.events.emit(REALTIME_VOICE_PROMPT_CHANNEL, { id, active: true, prompt });
+	pi.events.emit(REALTIME_VOICE_PROMPT_CHANNEL, { id, active: false, prompt });
 }
 
 function operatorHint(paneId: string): string {
@@ -149,6 +188,7 @@ export function injectAgentEvent(
 		},
 		delivery,
 	);
+	announceAgentEvent(pi, message.details);
 }
 
 export function registerAgentEventRenderer(pi: ExtensionAPI): void {

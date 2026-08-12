@@ -36,6 +36,8 @@ export interface GippityControlConfig {
 		v3Voice: RealtimeV3Voice;
 		autoResumeRealtime: boolean;
 		audioSetupCompleted: boolean;
+		delegationAcknowledgements: boolean;
+		forwardReasoningSummaries: boolean;
 		dictationShortcut: string;
 		realtimeShortcut: string;
 		muteShortcut: string;
@@ -53,6 +55,8 @@ export const DEFAULT_GIPPITY_CONTROL_CONFIG: GippityControlConfig = {
 		v3Voice: "cove",
 		autoResumeRealtime: false,
 		audioSetupCompleted: false,
+		delegationAcknowledgements: true,
+		forwardReasoningSummaries: true,
 		dictationShortcut: "ctrl+alt+d",
 		realtimeShortcut: "ctrl+alt+space",
 		muteShortcut: "ctrl+alt+m",
@@ -125,6 +129,14 @@ export function normalizeGippityControlConfig(
 				typeof voice["audioSetupCompleted"] === "boolean"
 					? voice["audioSetupCompleted"]
 					: DEFAULT_GIPPITY_CONTROL_CONFIG.voice.audioSetupCompleted,
+			delegationAcknowledgements:
+				typeof voice["delegationAcknowledgements"] === "boolean"
+					? voice["delegationAcknowledgements"]
+					: DEFAULT_GIPPITY_CONTROL_CONFIG.voice.delegationAcknowledgements,
+			forwardReasoningSummaries:
+				typeof voice["forwardReasoningSummaries"] === "boolean"
+					? voice["forwardReasoningSummaries"]
+					: DEFAULT_GIPPITY_CONTROL_CONFIG.voice.forwardReasoningSummaries,
 			dictationShortcut: stringValue(
 				voice["dictationShortcut"],
 				DEFAULT_GIPPITY_CONTROL_CONFIG.voice.dictationShortcut,

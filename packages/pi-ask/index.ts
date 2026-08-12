@@ -7,11 +7,23 @@ import { createAskTool } from "./ask/tool.js";
 export { createAskTool } from "./ask/tool.js";
 
 const PROMPTS_DIR = join(dirname(fileURLToPath(import.meta.url)), "prompts");
+const REALTIME_VOICE_PROMPT_CHANNEL =
+	"@howaboua/pi-codex-conversion/realtime-voice-prompt/v1";
 
 export default function humanInTheLoop(pi: ExtensionAPI): void {
 	pi.registerTool(
 		createAskTool({
-			onBlockedChange: (state) => pi.events.emit("herdr:blocked", state),
+			onBlockedChange: (state) => {
+				pi.events.emit(REALTIME_VOICE_PROMPT_CHANNEL, {
+					id: state.id,
+					active: state.active,
+					prompt: state.prompt,
+				});
+				pi.events.emit("herdr:blocked", {
+					active: state.active,
+					label: state.label,
+				});
+			},
 		}),
 	);
 	pi.on("resources_discover", () => {

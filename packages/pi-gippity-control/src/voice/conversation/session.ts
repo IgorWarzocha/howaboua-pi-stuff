@@ -75,6 +75,32 @@ export class CodexRealtimeConversation {
 		}
 	}
 
+	announcePrompt(prompt: string): void {
+		if (this.state !== "active") return;
+		this.appendSpeakableContext(prompt);
+	}
+
+	announceCompaction(reason: "threshold" | "overflow"): void {
+		if (this.state !== "active") return;
+		this.appendSpeakableContext(
+			reason === "overflow"
+				? "The conversation exceeded its context limit and has been compacted. The interrupted work will now continue automatically. Please announce this briefly in your natural voice."
+				: "The conversation has been compacted. Please announce this briefly in your natural voice.",
+		);
+	}
+
+	private appendSpeakableContext(text: string): void {
+		try {
+			this.peer.sendData({
+				type: "session.context.append",
+				channel: "speakable",
+				content: [{ type: "input_text", text }],
+			});
+		} catch (error) {
+			this.fail(error instanceof Error ? error : new Error(String(error)));
+		}
+	}
+
 	async start(
 		auth: CodexVoiceAuth,
 		config: GippityControlConfig,
@@ -158,8 +184,8 @@ export class CodexRealtimeConversation {
 		this.handoff.stream(delta);
 	}
 
-	finishAgentMessage(channel: RealtimeHandoffChannel): void {
-		this.handoff.finishMessage(channel);
+	finishAgentMessage(channel: RealtimeHandoffChannel, fallback?: string): void {
+		this.handoff.finishMessage(channel, fallback);
 	}
 
 	settleAgentTurn(): void {

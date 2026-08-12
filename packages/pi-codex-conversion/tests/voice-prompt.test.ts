@@ -36,7 +36,7 @@ Speak results.
 		assert.deepEqual(prepareCodexVoiceSystemPrompt(promptPath), {
 			created: false,
 			schemaVersion: 2,
-			currentSchemaVersion: 3,
+			currentSchemaVersion: 4,
 			current: false,
 		});
 		assert.equal(await readFile(promptPath, "utf8"), customizedPrompt);

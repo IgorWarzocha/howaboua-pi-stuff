@@ -9,6 +9,8 @@ import {
 } from "./constants.js";
 import type { ReviewContext } from "./types.js";
 
+const REALTIME_VOICE_PROMPT_CHANNEL =
+	"@howaboua/pi-codex-conversion/realtime-voice-prompt/v1";
 const REVIEW_LOOP_PREFACE_MESSAGE = [
 	"A review subagent is about to inspect the repository in isolation. Its findings are advisory only and may be wrong, overbroad, or missing session context.",
 	"",
@@ -26,6 +28,36 @@ const REVIEW_LOOP_PREFACE_MESSAGE = [
 	"",
 	"Only after triage, explain what you recommend doing next. If a finding is not obviously required for the current implementation, do not change code for it.",
 ].join("\n");
+
+const REVIEW_SUMMARY_STARTED_PROMPT =
+	"The current conversation is being summarised to prepare context for an isolated code review. Please announce this briefly in your natural voice.";
+const REVIEW_FINDINGS_READY_PROMPT =
+	"The isolated code review has finished, and its findings have been sent to the main agent for triage. Announce this briefly in your natural voice. When the main agent responds, continue with its substantive triage without repeating this status.";
+
+function announceReviewStatus(
+	pi: ExtensionAPI,
+	id: string,
+	prompt: string,
+): void {
+	pi.events.emit(REALTIME_VOICE_PROMPT_CHANNEL, { id, active: true, prompt });
+	pi.events.emit(REALTIME_VOICE_PROMPT_CHANNEL, { id, active: false, prompt });
+}
+
+export function announceReviewSummaryStarted(pi: ExtensionAPI): void {
+	announceReviewStatus(
+		pi,
+		"pi-subagent-review:summary-started",
+		REVIEW_SUMMARY_STARTED_PROMPT,
+	);
+}
+
+export function announceReviewFindingsReady(pi: ExtensionAPI): void {
+	announceReviewStatus(
+		pi,
+		"pi-subagent-review:findings-ready",
+		REVIEW_FINDINGS_READY_PROMPT,
+	);
+}
 
 function getReviewPrefaceMessageId(
 	ctx: ExtensionCommandContext,

@@ -14,6 +14,7 @@ import {
 } from "./openai-codex-test-support.ts";
 import {
 	type ResponseCreateFrame,
+	apiKey,
 	context,
 	model,
 	sentFrames,
@@ -29,14 +30,6 @@ test("transport reset preserves session-sticky SSE until shutdown", () => {
 	runtime.resetTransport(sessionId);
 	assert.equal(isWebSocketSseFallbackActive(sessionId), true);
 	runtime.shutdownTransport(sessionId);
-	assert.equal(isWebSocketSseFallbackActive(sessionId), false);
-});
-
-test("post-compaction transport reset restores WebSocket eligibility", () => {
-	const runtime = createCodexExtensionRuntime({ sendUserMessage: () => undefined } as never);
-	const sessionId = "sticky-compaction-reset";
-	recordWebSocketSseFallback(sessionId);
-	runtime.resetTransportAfterCompaction(sessionId);
 	assert.equal(isWebSocketSseFallbackActive(sessionId), false);
 });
 
@@ -77,6 +70,46 @@ test("stalled auth in an aborted prewarm cannot block a newer equivalent operati
 	assert.equal(runtime.startPrewarm(extensionContext, "Prompt", true), current);
 	authRequests[1]!.resolve({ ok: true, apiKey: "" });
 	await current;
+});
+
+test("post-compaction reset seeds one reusable request identity", async () => {
+	const restoreWebSocket = installScriptedWebSocket([websocketSuccess]);
+	const sessionId = "history-prewarm-identity";
+	try {
+		const runtime = createCodexExtensionRuntime({
+			getActiveTools: () => ["exec", "wait"],
+			getAllTools: () => codeModeTools,
+			getThinkingLevel: () => "low",
+			sendUserMessage: () => undefined,
+		} as never);
+		recordWebSocketSseFallback(sessionId);
+		runtime.resetTransportAfterCompaction(sessionId);
+		assert.equal(isWebSocketSseFallbackActive(sessionId), false);
+		runtime.state.config = {
+			...DEFAULT_CODEX_CONVERSION_CONFIG,
+			beta: { ...DEFAULT_CODEX_CONVERSION_CONFIG.beta, codeMode: true },
+		};
+		runtime.state.activeProviderSystemPrompt = "Stable prompt";
+		const extensionContext = {
+			cwd: "/repo",
+			getSystemPrompt: () => "Stable prompt",
+			model,
+			modelRegistry: {
+				getApiKeyAndHeaders: async () => ({ ok: true, apiKey }),
+			},
+			sessionManager: {
+				getBranch: () => [],
+				getSessionId: () => sessionId,
+			},
+		} as never;
+
+		await runtime.startCompactionPrewarm(extensionContext);
+
+		assert.equal(runtime.waitForPrewarm(extensionContext, "Stable prompt"), undefined);
+		assert.equal(sentFrames().length, 1);
+	} finally {
+		restoreWebSocket();
+	}
 });
 
 test("unfinished WebSocket prewarm cannot seed a continuation", async () => {

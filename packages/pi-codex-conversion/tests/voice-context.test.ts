@@ -122,6 +122,20 @@ test("voice startup projects clean text into V3 developer context", async () => 
 		type: "client",
 		ack_filler: true,
 	});
+	assert.equal(
+		buildRealtimeCallRequest(
+			"offer",
+			{
+				...DEFAULT_CODEX_CONVERSION_CONFIG,
+				voice: {
+					...DEFAULT_CODEX_CONVERSION_CONFIG.voice,
+					delegationAcknowledgements: false,
+				},
+			},
+			"instructions",
+		).session.delegation.ack_filler,
+		false,
+	);
 	assert.deepEqual(request.session.initial_items, initialItems);
 });
 

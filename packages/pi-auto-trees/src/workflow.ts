@@ -7,6 +7,7 @@ import {
 	INCREMENTAL_WORKFLOW_DEFAULT_PRIME_SCOPE,
 } from "./prompts.js";
 import type { NavigateWithSummaryModel } from "./tree-summary.js";
+import { announceEndCompleted, announceEndStarted } from "./voice.js";
 
 export const INCREMENTAL_WORKFLOW_END_WIDGET = "auto-trees-end";
 
@@ -114,6 +115,7 @@ export function registerIncrementalWorkflow(
 					{ placement: "aboveEditor" },
 				);
 			}
+			announceEndStarted(pi);
 
 			let result: Awaited<ReturnType<typeof ctx.navigateTree>>;
 			try {
@@ -160,6 +162,7 @@ export function registerIncrementalWorkflow(
 				nextMarkerId,
 				"Increment summarized and marker advanced",
 			);
+			announceEndCompleted(pi);
 		},
 	});
 }

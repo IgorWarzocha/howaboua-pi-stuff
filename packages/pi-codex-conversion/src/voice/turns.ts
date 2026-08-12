@@ -110,6 +110,7 @@ class RealtimeTranscriptBuffer {
 export class RealtimeVoiceTurnTracker {
 	private readonly transcript = new RealtimeTranscriptBuffer();
 	private pendingUserInputs: PendingUserInput[] = [];
+	private recentlyAnsweredUserInput: PendingUserInput | undefined;
 	private unfinishedUserTurns: PendingUserTurn[] = [];
 	private activeUserTurn: PendingUserTurn | undefined;
 	private readonly delegationIds = new Set<string>();
@@ -119,6 +120,7 @@ export class RealtimeVoiceTurnTracker {
 	inputAdded(input: string): void {
 		const startsTurn = !this.activeUserTurn;
 		if (!this.activeUserTurn) {
+			this.recentlyAnsweredUserInput = undefined;
 			this.activeUserTurn = {};
 			this.unfinishedUserTurns.push(this.activeUserTurn);
 		}
@@ -150,6 +152,7 @@ export class RealtimeVoiceTurnTracker {
 		if (
 			!this.activeUserTurn &&
 			this.pendingUserInputs.length === 0 &&
+			!this.recentlyAnsweredUserInput &&
 			this.unfinishedUserTurns.some((turn) => turn.delegation)
 		)
 			return undefined;
@@ -162,10 +165,16 @@ export class RealtimeVoiceTurnTracker {
 		}
 		const pendingIndex = this.pendingUserInputs.length - 1;
 		if (pendingIndex === -1) {
+			if (this.recentlyAnsweredUserInput) {
+				const answered = this.recentlyAnsweredUserInput;
+				this.recentlyAnsweredUserInput = undefined;
+				return this.finishDelegation({ input, delegationId }, answered.transcript);
+			}
 			this.unfinishedUserTurns.push({ delegation: { input, delegationId } });
 			return undefined;
 		}
 		const [pending] = this.pendingUserInputs.splice(pendingIndex, 1);
+		this.recentlyAnsweredUserInput = undefined;
 		return this.finishDelegation({ input, delegationId }, pending!.transcript);
 	}
 
@@ -178,7 +187,7 @@ export class RealtimeVoiceTurnTracker {
 
 	assistantFinished(output?: string): RealtimeVoiceTurn | undefined {
 		if (output) this.transcript.finish("assistant", output);
-		this.pendingUserInputs.shift();
+		this.recentlyAnsweredUserInput = this.pendingUserInputs.shift();
 		return output ? { input: output } : undefined;
 	}
 
@@ -191,6 +200,7 @@ export class RealtimeVoiceTurnTracker {
 			turn.delegation ? [turn.delegation] : [],
 		);
 		this.pendingUserInputs = [];
+		this.recentlyAnsweredUserInput = undefined;
 		this.unfinishedUserTurns = [];
 		this.activeUserTurn = undefined;
 		return turns;
@@ -199,6 +209,7 @@ export class RealtimeVoiceTurnTracker {
 	reset(): void {
 		this.transcript.reset();
 		this.pendingUserInputs = [];
+		this.recentlyAnsweredUserInput = undefined;
 		this.unfinishedUserTurns = [];
 		this.activeUserTurn = undefined;
 		this.delegationIds.clear();
