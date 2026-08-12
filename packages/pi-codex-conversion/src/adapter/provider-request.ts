@@ -14,16 +14,11 @@ function prepareCodexProviderRequest(payload: unknown, ctx: ExtensionContext, st
 	}
 	return {
 		plan,
-		configuredPayload: applyCodexRequestOptions(applyVoiceSystemPrompt(payload, state.voiceSystemPromptOverride), state.config, {
+		configuredPayload: applyCodexRequestOptions(payload, state.config, {
 			serviceTier: plan.effectiveOpenAICodex,
 			verbosity: true,
 		}),
 	};
-}
-
-function applyVoiceSystemPrompt(payload: unknown, systemPrompt: string | undefined): unknown {
-	if (!systemPrompt || !isRecord(payload)) return payload;
-	return { ...payload, instructions: systemPrompt };
 }
 
 function applyCodexRuntimePayload(payload: unknown, codeMode: boolean): unknown {

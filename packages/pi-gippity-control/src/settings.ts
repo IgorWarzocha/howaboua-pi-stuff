@@ -82,6 +82,32 @@ export async function openGippitySettings(options: {
 				}),
 			},
 			{
+				id: "delegationAcknowledgements",
+				label: "Speak delegation acknowledgements",
+				currentValue: config.voice.delegationAcknowledgements ? "on" : "off",
+				values: ["off", "on"],
+				update: (value, current) => ({
+					...current,
+					voice: {
+						...current.voice,
+						delegationAcknowledgements: value === "on",
+					},
+				}),
+			},
+			{
+				id: "forwardReasoningSummaries",
+				label: "Forward reasoning summaries for compatible models",
+				currentValue: config.voice.forwardReasoningSummaries ? "on" : "off",
+				values: ["off", "on"],
+				update: (value, current) => ({
+					...current,
+					voice: {
+						...current.voice,
+						forwardReasoningSummaries: value === "on",
+					},
+				}),
+			},
+			{
 				id: "dictationMode",
 				label: "Dictation key behavior",
 				currentValue:

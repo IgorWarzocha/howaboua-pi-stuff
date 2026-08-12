@@ -45,7 +45,6 @@ export interface CodexExtensionRuntime {
 	resetTransportAfterCompaction(sessionId: string): void;
 	shutdownTransport(sessionId: string): void;
 	waitForPrewarm(ctx: CodexContext, systemPrompt: string): Promise<CodexPrewarmResult> | undefined;
-	prewarmIdentity(ctx: CodexContext, systemPrompt: string): string | undefined;
 	configureDiagnostics(ctx: CodexContext, announceLog?: boolean): Promise<void>;
 	diagnosticsSink(): CodexDiagnosticsSink | undefined;
 	shutdownDiagnostics(): Promise<void>;
@@ -78,7 +77,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 	let prewarmPromise: Promise<CodexPrewarmResult> | undefined;
 	let prewarmTransportSettlement: Promise<void> | undefined;
 	let pendingPrewarmKey: string | undefined;
-	let prewarmedKey: string | undefined;
+	let prewarmedIdentity: string | undefined;
 	const voice = new CodexVoiceController(pi);
 	const diagnostics = createLazyCodexDiagnostics();
 	const buildPrewarmPlan = (
@@ -96,15 +95,18 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 			: runtime.codexSystemPrompt(systemPrompt, ctx);
 		const tools = activeToolContext(pi);
 		const reasoning = prewarmReasoningOption(pi.getThinkingLevel());
-		const key = JSON.stringify({
+		const identity = JSON.stringify({
 			model: { provider: model.provider, id: model.id, api: model.api, baseUrl: model.baseUrl },
 			systemPrompt: preparedSystemPrompt,
-			messages,
 			tools,
 			reasoning,
 			openai: config.openai,
 			beta: config.beta,
 			compaction: config.compaction,
+		});
+		const key = JSON.stringify({
+			identity,
+			messages,
 			rewriteCompactedReplay,
 		});
 		return {
@@ -113,6 +115,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 			preparedSystemPrompt,
 			tools,
 			reasoning,
+			identity,
 			key,
 		};
 	};
@@ -125,10 +128,11 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 	): Promise<CodexPrewarmResult> | undefined => {
 		const plan = buildPrewarmPlan(ctx, systemPrompt, prepared, messages, rewriteCompactedReplay);
 		if (!plan) return undefined;
-		const { model, config, preparedSystemPrompt, tools, reasoning, key: prewarmKey } = plan;
-		if (prewarmedKey === prewarmKey) return undefined;
+		const { model, config, preparedSystemPrompt, tools, reasoning, identity, key: prewarmKey } = plan;
 		if (pendingPrewarmKey === prewarmKey) return prewarmPromise;
+		if (!pendingPrewarmKey && prewarmedIdentity === identity) return undefined;
 		const previousTransportSettlement = prewarmTransportSettlement;
+		prewarmedIdentity = undefined;
 		prewarmController?.abort();
 		const controller = new AbortController();
 		prewarmController = controller;
@@ -183,7 +187,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 				return { status: "failed", error: failure } as const;
 			}
 			if (controller.signal.aborted) return { status: "aborted" } as const;
-			prewarmedKey = prewarmKey;
+			prewarmedIdentity = identity;
 			return { status: "ready" } as const;
 		})().finally(() => {
 			if (prewarmPromise === promise) {
@@ -243,7 +247,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 			prewarmController?.abort();
 			prewarmController = undefined;
 			pendingPrewarmKey = undefined;
-			prewarmedKey = undefined;
+			prewarmedIdentity = undefined;
 			state.codexTurnState.reset();
 			if (sessionId) resetOpenAICodexWebSocketSessions(sessionId);
 			else closeOpenAICodexWebSocketSessions();
@@ -258,9 +262,6 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		},
 		waitForPrewarm(ctx, systemPrompt) {
 			return runtime.startPrewarm(ctx, systemPrompt, true);
-		},
-		prewarmIdentity(ctx, systemPrompt) {
-			return buildPrewarmPlan(ctx, systemPrompt, true, [], false)?.key;
 		},
 		configureDiagnostics(ctx, announceLog = false) {
 			return diagnostics.configure({

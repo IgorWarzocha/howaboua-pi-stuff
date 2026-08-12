@@ -20,11 +20,18 @@ test("assistant message boundaries route clean realtime handoffs", () => {
 		},
 	);
 	handoff.activate("delegation-1");
+	handoff.finishMessage(realtimeHandoffChannel("toolUse"), "Silent summary");
 	handoff.stream("Checking cache");
-	handoff.finishMessage(realtimeHandoffChannel("toolUse"));
+	handoff.finishMessage(realtimeHandoffChannel("toolUse"), "Suppressed summary");
 	handoff.stream("Finished");
 	handoff.finishMessage(realtimeHandoffChannel("stop"));
 	assert.deepEqual(sent, [
+		{
+			type: "delegation.context.append",
+			delegation_item_id: "delegation-1",
+			channel: "commentary",
+			content: [{ type: "input_text", text: "Silent summary" }],
+		},
 		{
 			type: "delegation.context.append",
 			delegation_item_id: "delegation-1",
@@ -64,7 +71,6 @@ test("voice presentation entries never enter Pi model queues", () => {
 function voiceMessageCallbacks() {
 	return {
 		canDelegate: () => true,
-		prepareDelegation: async () => undefined,
 		onDelegation: () => {},
 		onDelegationFailed: () => {},
 		onWorking: () => {},

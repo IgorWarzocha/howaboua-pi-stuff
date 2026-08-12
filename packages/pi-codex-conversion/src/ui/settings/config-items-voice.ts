@@ -54,6 +54,36 @@ export function buildVoiceSettings(
 		),
 		setting(
 			{
+				id: "delegationAcknowledgements",
+				label: "Speak delegation acknowledgements",
+				currentValue: config.voice.delegationAcknowledgements ? "on" : "off",
+				values: ["off", "on"],
+			},
+			(value, current) => ({
+				...current,
+				voice: {
+					...current.voice,
+					delegationAcknowledgements: value === "on",
+				},
+			}),
+		),
+		setting(
+			{
+				id: "forwardReasoningSummaries",
+				label: "Forward reasoning summaries for compatible models",
+				currentValue: config.voice.forwardReasoningSummaries ? "on" : "off",
+				values: ["off", "on"],
+			},
+			(value, current) => ({
+				...current,
+				voice: {
+					...current.voice,
+					forwardReasoningSummaries: value === "on",
+				},
+			}),
+		),
+		setting(
+			{
 				id: "voiceContextModel",
 				label: "Voice context model",
 				currentValue: currentContextModel,

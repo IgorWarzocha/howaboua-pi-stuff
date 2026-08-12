@@ -20,7 +20,8 @@ import {
 } from "./controller-support.ts";
 import { realtimeHandoffChannel } from "./conversation/handoff.ts";
 import type { CodexRealtimeConversation } from "./conversation/session.ts";
-import { CodexVoiceSessionMessages, type PreparedVoiceDelegation } from "./session-messages.ts";
+import { completedVoiceReasoningSummary } from "./reasoning-summary.ts";
+import { CodexVoiceSessionMessages } from "./session-messages.ts";
 import { formatVoiceAudioError } from "./setup.ts";
 import type { CodexVoiceMode } from "./ui.ts";
 
@@ -33,12 +34,11 @@ export class CodexVoiceController {
 	};
 	private readonly messages: CodexVoiceSessionMessages;
 	private readonly inputMuteListeners = new Set<(muted: boolean) => void>();
-	private delegationPreflight: (ctx: ExtensionContext, signal: AbortSignal) => Promise<PreparedVoiceDelegation | undefined> = async () => undefined;
+	private readonly activePrompts = new Map<string, string>();
 
 	constructor(pi: ExtensionAPI) {
 		this.messages = new CodexVoiceSessionMessages(pi, {
 			canDelegate: () => this.runtime.state.type === "conversation",
-			prepareDelegation: (ctx, signal) => this.delegationPreflight(ctx, signal),
 			onDelegation: (id) => {
 				if (this.runtime.state.type === "conversation")
 					this.runtime.state.session.activateDelegation(id);
@@ -51,8 +51,20 @@ export class CodexVoiceController {
 		});
 	}
 
-	setDelegationPreflight(preflight: (ctx: ExtensionContext, signal: AbortSignal) => Promise<PreparedVoiceDelegation | undefined>): void {
-		this.delegationPreflight = preflight;
+	setPrompt(report: { id: string; active: boolean; prompt: string }): void {
+		if (!report.active) {
+			this.activePrompts.delete(report.id);
+			return;
+		}
+		if (this.activePrompts.get(report.id) === report.prompt) return;
+		this.activePrompts.delete(report.id);
+		this.activePrompts.set(report.id, report.prompt);
+		if (this.runtime.state.type === "conversation")
+			this.runtime.state.session.announcePrompt(report.prompt);
+	}
+	announceCompaction(reason: "threshold" | "overflow"): void {
+		if (this.runtime.state.type === "conversation")
+			this.runtime.state.session.announceCompaction(reason);
 	}
 
 	get status(): string {
@@ -106,6 +118,7 @@ export class CodexVoiceController {
 	}
 
 	resetSessionContext(): void {
+		this.activePrompts.clear();
 		this.messages.resetSessionContext();
 	}
 	announceDictation(ctx: ExtensionContext): void {
@@ -173,7 +186,7 @@ export class CodexVoiceController {
 		resume = false,
 		inputMuted = false,
 	): Promise<CodexRealtimeConversation | undefined> {
-		return startControllerMode({
+		const session = await startControllerMode({
 			runtime: this.runtime,
 			messages: this.messages,
 			ctx,
@@ -190,6 +203,9 @@ export class CodexVoiceController {
 			onDrop: (session, error) => this.drop(session, error),
 			onStatus: (status) => this.renderStatus(status),
 		});
+		const activePrompt = Array.from(this.activePrompts.values()).at(-1);
+		if (session && activePrompt) session.announcePrompt(activePrompt);
+		return session;
 	}
 
 	async stop(options?: { announce?: boolean }): Promise<void> {
@@ -211,7 +227,6 @@ export class CodexVoiceController {
 		this.runtime.inputTooQuiet = false;
 		this.runtime.context?.ui.setStatus(VOICE_STATUS_KEY, undefined);
 		await closePromise;
-		this.messages.cancelPendingDelegations();
 		await this.messages.waitForDelegations();
 		if (wasMuted)
 			for (const listener of this.inputMuteListeners) listener(false);
@@ -268,11 +283,18 @@ export class CodexVoiceController {
 			this.runtime.state.session.streamAgentDelta(delta);
 	}
 
-	finishAgentMessage(stopReason: AssistantMessage["stopReason"]): void {
-		if (this.runtime.state.type === "conversation")
-			this.runtime.state.session.finishAgentMessage(
-				realtimeHandoffChannel(stopReason),
-			);
+	finishAgentMessage(
+		message: AssistantMessage,
+		forwardReasoningSummaries: boolean,
+	): void {
+		if (this.runtime.state.type !== "conversation") return;
+		const channel = realtimeHandoffChannel(message.stopReason);
+		this.runtime.state.session.finishAgentMessage(
+			channel,
+			channel === "commentary" && forwardReasoningSummaries
+				? completedVoiceReasoningSummary(message)
+				: undefined,
+		);
 	}
 
 	settleTurn(): void {
@@ -319,7 +341,6 @@ export class CodexVoiceController {
 			for (const listener of this.inputMuteListeners) listener(false);
 		void (async () => {
 			await Promise.allSettled([closePromise]);
-			this.messages.cancelPendingDelegations();
 			await Promise.allSettled([this.messages.waitForDelegations()]);
 			if (
 				this.runtime.startGeneration === failGeneration &&

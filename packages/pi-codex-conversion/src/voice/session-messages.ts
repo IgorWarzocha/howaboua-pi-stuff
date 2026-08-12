@@ -23,14 +23,8 @@ import {
 
 const REALTIME_VOICE_TAIL_CONTEXT_TYPE = "codex-realtime-voice-tail";
 
-export interface PreparedVoiceDelegation {
-	commit(): boolean;
-	rollback(): void;
-}
-
 export interface CodexVoiceSessionMessageCallbacks {
 	canDelegate(): boolean;
-	prepareDelegation(ctx: ExtensionContext, signal: AbortSignal): Promise<PreparedVoiceDelegation | undefined>;
 	onDelegation(id: string): void;
 	onDelegationFailed(id: string): void;
 	onWorking(): void;
@@ -43,7 +37,6 @@ export class CodexVoiceSessionMessages {
 	private piTurnActive = false;
 	private dictationAnnounced = false;
 	private delegationTail: Promise<void> = Promise.resolve();
-	private delegationAbortController = new AbortController();
 	private contextGeneration = 0;
 
 	constructor(pi: ExtensionAPI, callbacks: CodexVoiceSessionMessageCallbacks) {
@@ -118,10 +111,6 @@ export class CodexVoiceSessionMessages {
 		return this.delegationTail;
 	}
 
-	cancelPendingDelegations(): void {
-		this.delegationAbortController.abort();
-	}
-
 	retainTranscriptTail(transcriptDelta: string): void {
 		const piTurnActive =
 			this.piTurnActive || (this.context ? !this.context.isIdle() : false);
@@ -168,8 +157,6 @@ export class CodexVoiceSessionMessages {
 	}
 
 	private replaceContext(ctx: ExtensionContext | undefined): void {
-		this.delegationAbortController.abort();
-		this.delegationAbortController = new AbortController();
 		this.contextGeneration++;
 		this.delegationTail = Promise.resolve();
 		this.context = ctx;
@@ -187,28 +174,9 @@ export class CodexVoiceSessionMessages {
 			!turn.delegationId ||
 			!canDeliver
 		) return;
-		const signal = this.delegationAbortController.signal;
-		let preflight: PreparedVoiceDelegation | undefined;
 		let deliveryStarted = false;
-		let failureAction = "prepare";
 		try {
-			let startsTurn = !this.piTurnActive && ctx.isIdle();
-			if (startsTurn) {
-				for (;;) {
-					preflight = await this.callbacks.prepareDelegation(ctx, signal);
-					if (
-						generation !== this.contextGeneration ||
-						this.context !== ctx
-					) return;
-					startsTurn = !this.piTurnActive && ctx.isIdle();
-					if (!startsTurn) break;
-					deliveryStarted = true;
-					if (preflight?.commit() !== false) break;
-					deliveryStarted = false;
-					preflight = undefined;
-				}
-			}
-			failureAction = "deliver";
+			const startsTurn = !this.piTurnActive && ctx.isIdle();
 			deliveryStarted = true;
 			this.callbacks.onDelegation(turn.delegationId);
 			this.piTurnActive = true;
@@ -225,7 +193,6 @@ export class CodexVoiceSessionMessages {
 				this.context !== ctx
 			) return;
 			if (deliveryStarted) {
-				try { preflight?.rollback(); } catch {}
 				try {
 					this.piTurnActive = this.context ? !this.context.isIdle() : false;
 				} catch {
@@ -233,17 +200,10 @@ export class CodexVoiceSessionMessages {
 				}
 				try { this.callbacks.onDelegationFailed(turn.delegationId); } catch {}
 			}
-			const message = signal.aborted
-				? "Voice session stopped before the delegation was prepared"
-				: error instanceof Error ? error.message : String(error);
-			if (!signal.aborted) {
-				try {
-					ctx.ui.notify(
-						`Could not ${failureAction} voice delegation: ${message}`,
-						"error",
-					);
-				} catch {}
-			}
+			const message = error instanceof Error ? error.message : String(error);
+			try {
+				ctx.ui.notify(`Could not deliver voice delegation: ${message}`, "error");
+			} catch {}
 			try {
 				this.pi.appendEntry<RealtimeVoiceMessageDetails>(
 					REALTIME_DELEGATION_MESSAGE_TYPE,

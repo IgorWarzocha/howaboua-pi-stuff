@@ -84,6 +84,8 @@ export interface CodexConversionConfig {
 		v3Voice: RealtimeV3Voice;
 		autoResumeRealtime: boolean;
 		audioSetupCompleted: boolean;
+		delegationAcknowledgements: boolean;
+		forwardReasoningSummaries: boolean;
 		dictationShortcut: string;
 		realtimeShortcut: string;
 		muteShortcut: string;
@@ -135,6 +137,8 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 		v3Voice: "cove",
 		autoResumeRealtime: false,
 		audioSetupCompleted: false,
+		delegationAcknowledgements: true,
+		forwardReasoningSummaries: true,
 		dictationShortcut: "ctrl+alt+d",
 		realtimeShortcut: "ctrl+alt+space",
 		muteShortcut: "ctrl+alt+m",
@@ -401,6 +405,14 @@ export function normalizeCodexConversionConfig(
 			audioSetupCompleted: bool(
 				voice["audioSetupCompleted"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.voice.audioSetupCompleted,
+			),
+			delegationAcknowledgements: bool(
+				voice["delegationAcknowledgements"],
+				DEFAULT_CODEX_CONVERSION_CONFIG.voice.delegationAcknowledgements,
+			),
+			forwardReasoningSummaries: bool(
+				voice["forwardReasoningSummaries"],
+				DEFAULT_CODEX_CONVERSION_CONFIG.voice.forwardReasoningSummaries,
 			),
 			dictationShortcut: stringValue(
 				voice["dictationShortcut"],

@@ -6,6 +6,10 @@ import {
 	getGippityControlConfigPath,
 	readGippityControlConfig,
 } from "./config-store.ts";
+import {
+	parseRealtimeVoicePrompt,
+	REALTIME_VOICE_PROMPT_CHANNEL,
+} from "./realtime-voice.ts";
 import { CodexVoiceController } from "./voice/controller.ts";
 import { createCodexVoiceControls } from "./voice/controls.ts";
 import { CodexLanVoiceServerController } from "./voice/lan/controller.ts";
@@ -34,6 +38,10 @@ export function registerGippityControl(pi: ExtensionAPI): void {
 		lanVoice,
 	});
 	registerGippityCommand({ pi, state, voiceControls, lanVoice });
+	pi.events.on(REALTIME_VOICE_PROMPT_CHANNEL, (value) => {
+		const report = parseRealtimeVoicePrompt(value);
+		if (report) voice.setPrompt(report);
+	});
 
 	pi.on("session_start", async (_event, ctx) => {
 		await lanVoice.stop(ctx);
@@ -43,7 +51,10 @@ export function registerGippityControl(pi: ExtensionAPI): void {
 	});
 	pi.on("message_end", async (event) => {
 		if (event.message.role === "assistant") {
-			voice.finishAgentMessage(event.message.stopReason);
+			voice.finishAgentMessage(
+				event.message,
+				state.config.voice.forwardReasoningSummaries,
+			);
 			lanVoice.assistantMessage(event.message);
 		}
 	});
@@ -67,7 +78,8 @@ export function registerGippityControl(pi: ExtensionAPI): void {
 	pi.on("context", async (event) => ({
 		messages: voice.filterContext(event.messages),
 	}));
-	pi.on("session_compact", async () => {
+	pi.on("session_compact", async (event) => {
+		if (event.reason !== "manual") voice.announceCompaction(event.reason);
 		voice.resetContextAnnouncements();
 	});
 	pi.on("session_shutdown", async (_event, ctx) => {

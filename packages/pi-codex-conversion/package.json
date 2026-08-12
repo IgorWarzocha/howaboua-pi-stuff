@@ -33,6 +33,10 @@
       "types": "./dist/code-mode-preflight.d.ts",
       "import": "./dist/code-mode-preflight.js"
     },
+    "./realtime-voice": {
+      "types": "./dist/realtime-voice.d.ts",
+      "import": "./dist/realtime-voice.js"
+    },
     "./*": "./*"
   },
   "pi": {

@@ -62,9 +62,9 @@ export class RealtimeDelegationHandoff {
 		this.buffer += delta;
 	}
 
-	finishMessage(channel: RealtimeHandoffChannel): void {
+	finishMessage(channel: RealtimeHandoffChannel, fallback = ""): void {
 		const delegationId = this.activeDelegationId;
-		const text = this.buffer;
+		const text = this.buffer.trim() ? this.buffer : fallback;
 		this.buffer = "";
 		if (!this.callbacks.isActive() || !delegationId || !text) return;
 		if (channel === "speakable") this.callbacks.onStatus("speaking");

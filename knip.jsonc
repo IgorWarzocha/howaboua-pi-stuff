@@ -6,6 +6,7 @@
 			"entry": [
 				"src/index.ts",
 				"src/code-mode-preflight.ts",
+				"src/realtime-voice.ts",
 				"scripts/**/*.mjs",
 				"examples/custom-tools/**/*.mjs",
 				"tests/**/*.test.ts"

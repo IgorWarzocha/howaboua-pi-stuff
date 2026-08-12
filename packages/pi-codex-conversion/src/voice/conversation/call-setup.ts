@@ -16,7 +16,10 @@ export function buildRealtimeCallRequest(sdp: string, config: CodexConversionCon
 			model: V3_MODEL,
 			instructions,
 			audio: { output: { voice: config.voice.v3Voice } },
-			delegation: { type: "client", ack_filler: true },
+			delegation: {
+				type: "client",
+				ack_filler: config.voice.delegationAcknowledgements,
+			},
 			...(initialItems?.length ? { initial_items: initialItems } : {}),
 		},
 	};

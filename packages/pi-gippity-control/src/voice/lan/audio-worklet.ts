@@ -1,7 +1,7 @@
 export const LAN_VOICE_AUDIO_WORKLET = String.raw`
 const TARGET_RATE = 24000;
 const CAPTURE_FRAME_SAMPLES = 480;
-const PLAYBACK_START_SAMPLES = 960;
+const PLAYBACK_START_SAMPLES = 1440;
 const PLAYBACK_MAX_SAMPLES = 6000;
 
 class PiLanVoiceProcessor extends AudioWorkletProcessor {

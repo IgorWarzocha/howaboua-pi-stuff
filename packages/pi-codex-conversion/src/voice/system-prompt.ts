@@ -11,7 +11,7 @@ const PACKAGE_ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 const PACKAGED_VOICE_DIR = join(PACKAGE_ROOT, "src", "voice");
 const CONNECTED_PI_RUNTIME_CONTRACT = `## Connected Pi runtime
 
-You have a connected Pi agent with the active session's tools and environment. Delegate every request that needs facts, reasoning, current or external state, or any action. This includes questions about the current time or date, machine, network, working directory, files, project, and session. Respond directly only to greetings, acknowledgements, and casual social conversation that needs no facts or work. Never claim tools or host access are unavailable; delegate and use Pi's result.`;
+You have a connected Pi agent with the active session's tools and environment. Delegate requests that require tools or actions or depend on current, external, project, or session facts not already present in the conversation. Keep self-contained conversation and reasoning in voice when no unavailable state or action is required. Never claim tools or host access are unavailable; delegate and use Pi's result.`;
 
 export interface CodexVoiceSystemPromptStatus {
 	created: boolean;
@@ -77,10 +77,12 @@ export function loadCodexVoiceSystemPrompt(
 	projectPromptPath?: string,
 ): string {
 	const prompt = readVoicePrompt(promptPath)!;
-	if (!projectPromptPath) return `${prompt}\n\n${CONNECTED_PI_RUNTIME_CONTRACT}`;
+	const connectedPrompt = `${CONNECTED_PI_RUNTIME_CONTRACT}\n\n${prompt}`;
+	if (!projectPromptPath) return connectedPrompt;
 	const projectPrompt = readVoicePrompt(projectPromptPath, true);
-	const customized = projectPrompt ? `${prompt}\n\n# Project level instructions\n\n${projectPrompt}` : prompt;
-	return `${customized}\n\n${CONNECTED_PI_RUNTIME_CONTRACT}`;
+	return projectPrompt
+		? `${connectedPrompt}\n\n# Project level instructions\n\n${projectPrompt}`
+		: connectedPrompt;
 }
 
 function readCodexVoicePromptSchemaVersion(source: string): number | undefined {

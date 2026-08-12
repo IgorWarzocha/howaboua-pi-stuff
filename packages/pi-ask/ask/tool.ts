@@ -16,8 +16,10 @@ type AskInComposer = (
 ) => Promise<unknown>;
 
 interface BlockedState {
+	id: string;
 	active: boolean;
 	label: string;
+	prompt: string;
 }
 
 type OnBlockedChange = (state: BlockedState) => void;
@@ -42,7 +44,7 @@ export function createAskTool({
 			"ask: Do not add Other/rephrase; it is automatic.",
 		],
 		executionMode: "sequential",
-		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+		async execute(toolCallId, params, signal, _onUpdate, ctx) {
 			const { handoff, prompts } = normalizeAskInput(params);
 			if (prompts.length === 0) {
 				throw new Error(
@@ -53,8 +55,12 @@ export function createAskTool({
 				throw new Error("ask requires an interactive UI.");
 
 			const blockedState = {
+				id: toolCallId,
 				active: true,
 				label: handoff ? "Human action needed" : "Waiting for input",
+				prompt: handoff
+					? "The user needs to complete an action before the active work can continue. Please announce this briefly in your natural voice."
+					: "User input is required before the active work can continue. Please announce this briefly in your natural voice.",
 			};
 			onBlockedChange?.(blockedState);
 			let rawResponses: unknown;
