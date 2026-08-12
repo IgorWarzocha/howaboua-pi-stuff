@@ -8,6 +8,20 @@ Merge only after explicit user direction names or unambiguously selects the inte
 target merges that PR and every unmerged PR below it; a stack target merges every unmerged member.
 Never broaden the target to satisfy a rule.
 
+Before final approval, check out the top PR and validate the integrated filesystem state:
+
+```bash
+gh stack checkout <top-pr>
+gh stack top
+git status --short --branch
+# run the repository umbrella gate once
+```
+
+There is no separate aggregate branch: the top branch contains every unmerged lower layer by ancestry.
+After a partial merge and sync, it contains the merged layers through trunk plus the remaining top
+changes. Its working tree is therefore the final candidate even though its focused PR diff correctly
+shows only work not already on trunk.
+
 Before merging, inspect the native range and confirm every included PR is open, non-draft, approved,
 green, and free of unresolved required threads:
 
