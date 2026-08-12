@@ -4,7 +4,7 @@ const SUMMARY_MODEL_PATTERNS = [
 	/(?:^|[/.:])gpt-5(?:[.-]|$)/,
 	/(?:^|[/.:])claude-(?:opus|sonnet|haiku|fable|mythos)-(?:4|5)(?:[.-]|$)/,
 	/(?:^|[/.:])gemini-3(?:\.\d+)?(?:[.-]|$)/,
-	/(?:^|[/.:])grok-4\.5(?:[.-]|$)/,
+	/(?:^|[/.:])grok-4\.[56](?:[.-]|$)/,
 ] as const;
 
 export function completedVoiceReasoningSummary(

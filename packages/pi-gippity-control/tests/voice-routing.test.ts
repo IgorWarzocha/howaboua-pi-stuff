@@ -56,7 +56,7 @@ test("assistant message boundaries route clean realtime handoffs", () => {
 	expect(
 		completedVoiceReasoningSummary({
 			model: "azure-deployment",
-			responseModel: "gpt-5.6-sol",
+			responseModel: "grok-4.6",
 			content: [{ type: "thinking", thinking: "Completed summary" }],
 		}),
 	).toBe("Completed summary");
