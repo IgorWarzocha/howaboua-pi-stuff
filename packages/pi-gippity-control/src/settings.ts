@@ -54,6 +54,16 @@ export async function openGippitySettings(options: {
 				values: ["off", "on"],
 			},
 			{
+				id: "webApp",
+				label: "Control server web app",
+				currentValue: config.lan.customWebApp ? "custom" : "bundled",
+				values: ["bundled", "custom"],
+				update: (value, current) => ({
+					...current,
+					lan: { ...current.lan, customWebApp: value === "custom" },
+				}),
+			},
+			{
 				id: "voice",
 				label: "Voice",
 				currentValue: formatVoiceName(config.voice.v3Voice),
@@ -200,8 +210,19 @@ export async function openGippitySettings(options: {
 					const setting = buildSettings().find((item) => item.id === id);
 					if (!setting?.update) return;
 					const updated = setting.update(value, config);
-					if (onChange(updated)) config = updated;
-					else next.updateValue(id, setting.currentValue);
+					if (onChange(updated)) {
+						config = updated;
+						if (id === "webApp" && lanVoice.status().running)
+							void lanVoice
+								.setEnabled(false, ctx)
+								.then(() => lanVoice.setEnabled(true, ctx))
+								.catch((error: unknown) =>
+									ctx.ui.notify(
+										`Could not restart GipPity: ${error instanceof Error ? error.message : String(error)}`,
+										"error",
+									),
+								);
+					} else next.updateValue(id, setting.currentValue);
 					tui.requestRender();
 				},
 				() => done(undefined),
@@ -260,6 +281,10 @@ function details(
 		theme.fg(
 			"dim",
 			`  Control server: ${formatVoiceShortcut(config.voice.serverShortcut)}`,
+		),
+		theme.fg(
+			"dim",
+			`  Web app: ${config.lan.customWebApp ? (config.lan.customWebAppPath ?? "custom app discovery JSON") : "bundled GipPity"}`,
 		),
 		theme.fg(
 			"dim",

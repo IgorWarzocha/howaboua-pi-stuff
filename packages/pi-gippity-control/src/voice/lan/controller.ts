@@ -1,5 +1,8 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import type { GippityControlConfig } from "../../config.ts";
 import { resolveCodexVoiceAuth } from "../auth.ts";
 import type { CodexVoiceController } from "../controller.ts";
@@ -13,6 +16,7 @@ export interface CodexLanVoiceServerStatus {
 
 export class CodexLanVoiceServerController {
 	private readonly voice: CodexVoiceController;
+	private readonly pi: ExtensionAPI;
 	private readonly getConfig: () => GippityControlConfig;
 	private readonly sendUserMessage: (
 		text: string,
@@ -24,11 +28,13 @@ export class CodexLanVoiceServerController {
 	private operation = Promise.resolve();
 
 	constructor(
+		pi: ExtensionAPI,
 		voice: CodexVoiceController,
 		getConfig: () => GippityControlConfig,
 		sendUserMessage: (text: string, ctx: ExtensionContext) => void,
 		agentDir: string,
 	) {
+		this.pi = pi;
 		this.voice = voice;
 		this.getConfig = getConfig;
 		this.sendUserMessage = sendUserMessage;
@@ -54,6 +60,7 @@ export class CodexLanVoiceServerController {
 			const { startCodexLanVoiceServer } = await import("./server.ts");
 			this.server = await startCodexLanVoiceServer({
 				ctx,
+				pi: this.pi,
 				getConfig: this.getConfig,
 				voice: this.voice,
 				resolveAuth: () => resolveCodexVoiceAuth(ctx),
@@ -95,6 +102,10 @@ export class CodexLanVoiceServerController {
 		if (!this.server) return;
 		this.server.agentSettled(this.pendingAssistantText);
 		this.pendingAssistantText = undefined;
+	}
+
+	piEvent(event: string, data: unknown): void {
+		this.server?.piEvent(event, data);
 	}
 
 	private async stopCurrent(ctx?: ExtensionContext): Promise<void> {

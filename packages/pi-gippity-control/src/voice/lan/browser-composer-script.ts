@@ -1,42 +1,11 @@
 export const LAN_VOICE_BROWSER_COMPOSER_SCRIPT = String.raw`
-function createComposer({ draft, send, status, clientId, post }) {
+function createComposer({ draft, send, status, client }) {
   let sendBusy = false;
-  let timer;
-  let revision = -1;
-  let dirty = false;
-  let syncing = false;
-  let syncPromise;
 
   const setStatus = (message = '') => { status.textContent = message; };
   const updateControls = () => {
-    draft.disabled = sendBusy || revision < 0;
-    send.disabled = sendBusy || revision < 0 || !draft.value.trim();
-  };
-  const scheduleSync = () => {
-    dirty = true;
-    clearTimeout(timer);
-    timer = setTimeout(() => { void flush(); }, 180);
-  };
-  const flush = async () => {
-    if (syncing) return syncPromise;
-    if (!dirty || revision < 0) return true;
-    syncing = true;
-    syncPromise = (async () => {
-      while (dirty) {
-        dirty = false;
-        const text = draft.value;
-        try {
-          const result = await post('/api/draft', { text, revision });
-          if (typeof result.revision === 'number') revision = Math.max(revision, result.revision);
-        } catch (error) {
-          setStatus(error instanceof Error ? error.message : String(error));
-          return false;
-        }
-      }
-      return true;
-    })();
-    try { return await syncPromise; }
-    finally { syncing = false; syncPromise = undefined; }
+    draft.disabled = sendBusy || client.draft.revision < 0;
+    send.disabled = sendBusy || client.draft.revision < 0 || !draft.value.trim();
   };
   const sendDraft = async () => {
     if (sendBusy || !draft.value.trim()) return;
@@ -45,10 +14,7 @@ function createComposer({ draft, send, status, clientId, post }) {
     updateControls();
     setStatus('Sending…');
     try {
-      clearTimeout(timer);
-      if (!await flush()) throw new Error('Draft could not sync. Try sending again.');
-      const text = draft.value;
-      await post('/api/send', { text, revision });
+      await client.send(draft.value);
       draft.value = '';
       setStatus('Sent');
     } catch (error) {
@@ -60,14 +26,7 @@ function createComposer({ draft, send, status, clientId, post }) {
     }
   };
   const applyDraft = (command) => {
-    if (typeof command.text !== 'string' || typeof command.revision !== 'number' || command.revision < revision) return;
-    const preserveLocal = command.sourceClientId === clientId && command.reason === 'update' && (dirty || syncing) && draft.value !== command.text;
-    revision = command.revision;
-    if (preserveLocal) { updateControls(); return; }
-    if (command.sourceClientId !== clientId) {
-      clearTimeout(timer);
-      dirty = false;
-    }
+    if (typeof command.text !== 'string' || typeof command.revision !== 'number') return;
     const start = draft.selectionStart;
     const end = draft.selectionEnd;
     draft.value = command.text;
@@ -75,7 +34,11 @@ function createComposer({ draft, send, status, clientId, post }) {
     updateControls();
   };
 
-  draft.addEventListener('input', () => { setStatus(); scheduleSync(); updateControls(); });
+  client.on('draft', applyDraft);
+  client.on('sent', () => setStatus('Sent'));
+  client.on('dictation.complete', () => setStatus('Transcript ready'));
+  client.on('error', (error) => { if (error.source === 'draft') setStatus(error.message); });
+  draft.addEventListener('input', () => { setStatus(); client.setDraft(draft.value); updateControls(); });
   draft.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); void sendDraft(); }
   });
@@ -83,14 +46,8 @@ function createComposer({ draft, send, status, clientId, post }) {
   updateControls();
 
   return {
-    applyDraft,
-    markSent: () => setStatus('Sent'),
     setStatus,
-    snapshot: () => ({ text:draft.value, revision, selectionStart:draft.selectionStart, selectionEnd:draft.selectionEnd }),
-    pagehide: () => {
-      clearTimeout(timer);
-      navigator.sendBeacon('/api/draft', new Blob([JSON.stringify({ clientId, text:draft.value, revision })], {type:'application/json'}));
-    },
+    snapshot: () => ({ text:draft.value, revision:client.draft.revision, selectionStart:draft.selectionStart, selectionEnd:draft.selectionEnd }),
   };
 }
 `;

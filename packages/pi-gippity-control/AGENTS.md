@@ -4,3 +4,4 @@
 - Realtime conversation is V3 only. Dictation is a separate manually bounded transcription path, not a selectable realtime protocol.
 - Keep the native helper credential-free and its stdout protocol-only. Preserve bounded external data and idempotent cleanup.
 - LAN control is intentionally unauthenticated and session-owned. Keep server startup lazy.
+- LAN owns one HTTPS origin: bundled or configured static UI, fixed browser client/discovery endpoints, Pi/context RPC, events, and audio. Never make custom UIs launch a server or reimplement transport state.

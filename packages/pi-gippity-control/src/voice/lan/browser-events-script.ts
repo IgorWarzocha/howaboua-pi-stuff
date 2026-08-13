@@ -1,21 +1,10 @@
 export const LAN_VOICE_BROWSER_EVENTS_SCRIPT = String.raw`
-function connectBrowserEvents({ clientId, connection, activity, activityState, activityText, composer, audio }) {
-  const events = new EventSource('/api/events?client=' + encodeURIComponent(clientId));
-  events.onopen = () => {
-    connection.classList.add('online');
-    connection.lastElementChild.textContent = 'Connected';
-  };
-  events.onerror = () => {
-    connection.classList.remove('online');
-    connection.lastElementChild.textContent = 'Reconnecting';
-  };
-  events.onmessage = (event) => {
-    try {
-      const command = JSON.parse(event.data);
-      audio.handleServerCommand(command);
-      if (command.type === 'draft') composer.applyDraft(command);
-      if (command.type === 'sent') composer.markSent();
-      if (command.type === 'activity') {
+function connectBrowserEvents({ client, connection, activity, activityState, activityText }) {
+  client.on('connection', (event) => {
+    connection.classList.toggle('online', event.state === 'connected');
+    connection.lastElementChild.textContent = event.state === 'connected' ? 'Connected' : 'Reconnecting';
+  });
+  client.on('activity', (command) => {
         if (command.state === 'working') {
           activity.hidden = false;
           activityState.textContent = 'Working…';
@@ -29,9 +18,6 @@ function connectBrowserEvents({ clientId, connection, activity, activityState, a
           activityState.textContent = '';
           activityText.textContent = '';
         }
-      }
-    } catch {}
-  };
-  return events;
+  });
 }
 `;
