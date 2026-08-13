@@ -6,7 +6,7 @@
 - `checkpoint.ts` owns host persistence and validation; checkpoint format and injected capture/restore source stay separate; `journal.ts` owns `.ipynb` history
 - `project-state.ts` orchestrates worktree persistence; format validation, injected runtime source, merge/conflict policy, durable metadata, and locking stay in their named modules
 - Running sessions are private forks of the durable project state; checkpoints merge into disk but never rebind another session's changes into a live kernel
-- `lifecycle.ts` owns Notebook control actions; generated Deno inspection/disposal source stays in `lifecycle-runtime.ts`
+- `lifecycle.ts` owns Notebook control actions; model/session result formatting and bounds stay in `lifecycle-result.ts`; generated Deno inspection/disposal source stays in `lifecycle-runtime.ts`
 - Pins are durable project metadata; explicit release/prune must preserve them, and prune requires a caller-selected glob rather than guessed disposability
 - `notebook-diagnostics.ts` maps journals to one-shot Deno diagnostics; `lsp-process.ts` owns bounded JSON-RPC process transport and never stays resident
 - `recovery.ts` coordinates host-side diagnostics and destructive reset; kernel/session mechanics remain in `client.ts`
