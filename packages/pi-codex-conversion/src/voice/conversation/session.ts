@@ -32,6 +32,8 @@ export class CodexRealtimeConversation {
 	private callSetup: RealtimeCallSetup = setupRealtimeCall;
 	private inputMuted = false;
 	private established = false;
+	private speakableResponsePending = false;
+	private pendingCompactionAnnouncement: string | undefined;
 
 	constructor(callbacks: CodexConversationCallbacks, peer: CodexRealtimePeer) {
 		this.callbacks = callbacks;
@@ -40,7 +42,10 @@ export class CodexRealtimeConversation {
 			isActive: () => this.state === "active",
 			onFailure: (error) => this.fail(error),
 			onSettled: (id) => this.turnTracker.delegationSettled(id),
-			onStatus: (status) => this.callbacks.onStatus(status),
+			onStatus: (status) => {
+				if (status === "speaking") this.speakableResponsePending = true;
+				this.callbacks.onStatus(status);
+			},
 		});
 		this.peer.onEvent((event) => this.handlePeerEvent(event));
 		this.peer.onExit((error) => this.drop(error));
@@ -110,17 +115,22 @@ export class CodexRealtimeConversation {
 		this.appendSpeakableContext(prompt);
 	}
 
-	announceCompaction(reason: "threshold" | "overflow"): void {
+	announceCompactionStart(reason: "threshold" | "overflow"): void {
 		if (this.state !== "active") return;
-		this.appendSpeakableContext(
+		const prompt =
 			reason === "overflow"
-				? "The conversation exceeded its context limit and has been compacted. The interrupted work will now continue automatically. Please announce this briefly in your natural voice."
-				: "The conversation has been compacted. Please announce this briefly in your natural voice.",
-		);
+				? "The conversation exceeded its context limit and is being compacted. The interrupted work will continue automatically afterward. Please announce this briefly in your natural voice."
+				: "The conversation is being compacted. Please announce this briefly in your natural voice.";
+		if (this.speakableResponsePending) {
+			this.pendingCompactionAnnouncement = prompt;
+			return;
+		}
+		this.appendSpeakableContext(prompt);
 	}
 
 	private appendSpeakableContext(text: string): void {
 		try {
+			this.speakableResponsePending = true;
 			this.peer.sendData({
 				type: "session.context.append",
 				channel: "speakable",
@@ -253,7 +263,11 @@ export class CodexRealtimeConversation {
 		}
 		if (record["role"] !== "assistant") return;
 		const completed = this.turnTracker.assistantFinished(boundedAssistantTranscript(record["transcript"]));
-		this.callbacks.onStatus("listening");
+		this.speakableResponsePending = false;
+		const pendingCompaction = this.pendingCompactionAnnouncement;
+		this.pendingCompactionAnnouncement = undefined;
+		if (pendingCompaction) this.appendSpeakableContext(pendingCompaction);
+		else this.callbacks.onStatus("listening");
 		if (completed) this.callbacks.onTurn(completed);
 	}
 

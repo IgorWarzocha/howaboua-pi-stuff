@@ -59,9 +59,9 @@ export class CodexVoiceController {
 			this.runtime.state.session.announcePrompt(report.prompt);
 	}
 
-	announceCompaction(reason: "threshold" | "overflow"): void {
+	announceCompactionStart(reason: "threshold" | "overflow"): void {
 		if (this.runtime.state.type === "conversation")
-			this.runtime.state.session.announceCompaction(reason);
+			this.runtime.state.session.announceCompactionStart(reason);
 	}
 
 	get status(): string {
