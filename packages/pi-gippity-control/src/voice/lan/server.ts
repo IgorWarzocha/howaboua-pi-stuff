@@ -62,17 +62,26 @@ export async function startCodexLanVoiceServer(options: {
 	port?: number | undefined;
 	certificateAgentDir: string;
 }): Promise<CodexLanVoiceServer> {
-	const config = options.getConfig();
-	const customWebApp = config.lan.customWebApp;
-	const customApp =
-		customWebApp && config.lan.customWebAppPath
-			? resolveLanRemoteCustomApp(config.lan.customWebAppPath, options.ctx.cwd)
-			: undefined;
-	const discovery = createLanRemoteDiscovery({
-		customWebApp,
-		customWebAppPath: customApp?.root,
-		configPath: getGippityControlConfigPath(),
-	});
+	const resolveWebApp = (config: GippityControlConfig) => {
+		const customWebApp = config.lan.customWebApp;
+		const customApp =
+			customWebApp && config.lan.customWebAppPath
+				? resolveLanRemoteCustomApp(
+						config.lan.customWebAppPath,
+						options.ctx.cwd,
+					)
+				: undefined;
+		return {
+			customWebApp,
+			customApp,
+			discovery: createLanRemoteDiscovery({
+				customWebApp,
+				customWebAppPath: customApp?.root,
+				configPath: getGippityControlConfigPath(),
+			}),
+		};
+	};
+	resolveWebApp(options.getConfig());
 	const certificate = resolveLanVoiceCertificate(options.certificateAgentDir);
 	const ownerIsActive = () =>
 		options.ctx.sessionManager.getSessionId() === options.ownerSessionId;
@@ -220,9 +229,7 @@ export async function startCodexLanVoiceServer(options: {
 				renderManifest: () => createLanVoiceWebManifest(options.ctx.ui.theme),
 				renderPage: () => createLanVoiceWebUi(options.ctx.ui.theme),
 				clientScript: () => LAN_REMOTE_CLIENT_SCRIPT,
-				discovery: () => discovery,
-				customWebApp,
-				customApp,
+				webApp: () => resolveWebApp(options.getConfig()),
 				async rpc(body) {
 					try {
 						const rpc = decodeLanRemoteRpcRequest(body);

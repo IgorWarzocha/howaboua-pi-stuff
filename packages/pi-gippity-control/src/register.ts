@@ -26,7 +26,10 @@ export function registerGippityControl(pi: ExtensionAPI): void {
 	const lanVoice = new CodexLanVoiceServerController(
 		pi,
 		voice,
-		() => state.config,
+		() => {
+			state.config = readGippityControlConfig();
+			return state.config;
+		},
 		(text, ctx) =>
 			pi.sendUserMessage(
 				text,

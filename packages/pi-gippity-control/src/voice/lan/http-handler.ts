@@ -11,6 +11,12 @@ import { type LanVoiceDraft, LanVoiceDraftError } from "./draft.ts";
 
 const MAX_REQUEST_BYTES = 300 * 1024;
 
+export interface LanRemoteWebAppState {
+	customWebApp: boolean;
+	customApp?: LanRemoteCustomApp | undefined;
+	discovery: unknown;
+}
+
 export interface LanVoiceHttpHandlers {
 	activity: LanVoiceActivity;
 	clients: LanVoiceBrowserClients;
@@ -18,9 +24,7 @@ export interface LanVoiceHttpHandlers {
 	renderManifest(): string;
 	renderPage(): string;
 	clientScript(): string;
-	discovery(): unknown;
-	customWebApp: boolean;
-	customApp?: LanRemoteCustomApp | undefined;
+	webApp(): LanRemoteWebAppState;
 	rpc(body: Record<string, unknown>): Promise<unknown>;
 	inputMuted(): boolean;
 	ownerIsActive(): boolean;
@@ -36,6 +40,8 @@ export async function handleLanVoiceHttpRequest(
 	try {
 		const url = new URL(request.url ?? "/", "https://lan-voice.local");
 		path = url.pathname;
+		let webApp: LanRemoteWebAppState | undefined;
+		const currentWebApp = () => (webApp ??= handlers.webApp());
 		if (request.method === "GET" && path === LAN_REMOTE_CLIENT_PATH) {
 			sendText(
 				response,
@@ -45,14 +51,15 @@ export async function handleLanVoiceHttpRequest(
 			return;
 		}
 		if (request.method === "GET" && path === LAN_REMOTE_DISCOVERY_PATH) {
-			sendJson(response, 200, handlers.discovery());
+			sendJson(response, 200, currentWebApp().discovery);
 			return;
 		}
 		if (request.method === "GET" && path === "/") {
-			if (handlers.customWebApp) {
-				const asset = handlers.customApp?.asset(path);
+			const app = currentWebApp();
+			if (app.customWebApp) {
+				const asset = app.customApp?.asset(path);
 				if (asset) sendBinary(response, asset.contentType, asset.body, false);
-				else sendJson(response, 200, handlers.discovery());
+				else sendJson(response, 200, app.discovery);
 				return;
 			}
 			sendText(
@@ -66,7 +73,7 @@ export async function handleLanVoiceHttpRequest(
 		if (
 			request.method === "GET" &&
 			path === "/manifest.webmanifest" &&
-			!handlers.customWebApp
+			!currentWebApp().customWebApp
 		) {
 			sendText(
 				response,
@@ -76,7 +83,7 @@ export async function handleLanVoiceHttpRequest(
 			return;
 		}
 		const appAsset =
-			request.method === "GET" && !handlers.customWebApp
+			request.method === "GET" && !currentWebApp().customWebApp
 				? getLanVoiceAppAsset(path)
 				: undefined;
 		if (appAsset) {
@@ -85,11 +92,11 @@ export async function handleLanVoiceHttpRequest(
 		}
 		if (
 			request.method === "GET" &&
-			handlers.customWebApp &&
+			currentWebApp().customWebApp &&
 			!path.startsWith("/api/") &&
 			!path.startsWith("/_gippity/")
 		) {
-			const asset = handlers.customApp?.asset(path);
+			const asset = currentWebApp().customApp?.asset(path);
 			if (asset) {
 				sendBinary(response, asset.contentType, asset.body, false);
 				return;
