@@ -78,8 +78,10 @@ export function registerGippityControl(pi: ExtensionAPI): void {
 	pi.on("context", async (event) => ({
 		messages: voice.filterContext(event.messages),
 	}));
-	pi.on("session_compact", async (event) => {
-		if (event.reason !== "manual") voice.announceCompaction(event.reason);
+	pi.on("session_before_compact", async (event) => {
+		if (event.reason !== "manual") voice.announceCompactionStart(event.reason);
+	});
+	pi.on("session_compact", async () => {
 		voice.resetContextAnnouncements();
 	});
 	pi.on("session_shutdown", async (_event, ctx) => {

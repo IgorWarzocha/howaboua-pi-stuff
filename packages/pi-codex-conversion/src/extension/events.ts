@@ -205,11 +205,11 @@ export function registerCodexEvents(
 	});
 	pi.on("session_before_compact", async (event, ctx) => {
 		state.cwd = ctx.cwd;
+		if (event.reason !== "manual") runtime.voice.announceCompactionStart(event.reason);
 		if (!resolveCodexRuntimePlan(ctx, state.config).nativeCompaction) return undefined;
 		return handleCodexSessionBeforeCompact(event, ctx, state, pi);
 	});
 	pi.on("session_compact", async (event, ctx) => {
-		if (event.reason !== "manual") runtime.voice.announceCompaction(event.reason);
 		runtime.voice.resetContextAnnouncements();
 		state.pendingPiCompactionNativeWindow = undefined;
 		let nativeCompaction = false;
