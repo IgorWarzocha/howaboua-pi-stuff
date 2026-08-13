@@ -21,6 +21,7 @@ import { NotebookProfileController } from "./profile-lifecycle.ts";
 
 const INSPECTION_NAME_BUDGET = 16 * 1024;
 const MESSAGE_BUDGET = 16 * 1024;
+const DETAILS_BUDGET = 16 * 1024;
 const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 
 interface NotebookLifecycleHost {
@@ -127,6 +128,19 @@ export class NotebookLifecycleController {
 			);
 		}
 		const metadata = this.host.metadata();
+		const detailBudget = { remaining: DETAILS_BUDGET };
+		const inspectedMatches = (runtime?.bindings ?? []).map((binding) => {
+			const retainedBinding = retainedByName.get(binding.name);
+			return {
+				...binding,
+				...(retainedBinding ? {
+					bytes: retainedBinding.bytes,
+					updatedAt: retainedBinding.updatedAt,
+					pinned: retainedBinding.pinned,
+				} : {}),
+			};
+		});
+		const reportedMatches = takeDetailValues(inspectedMatches, detailBudget);
 		const details: NotebookStatusDetails = {
 			state: activeCell ? "running" : "idle",
 			...(activeCell ? { activeCell } : {}),
@@ -144,18 +158,8 @@ export class NotebookLifecycleController {
 				.slice(0, 8),
 			...(query === undefined ? {} : {
 				query,
-				matches: (runtime?.bindings ?? []).map((binding) => {
-					const retainedBinding = retainedByName.get(binding.name);
-					return {
-						...binding,
-						...(retainedBinding ? {
-							bytes: retainedBinding.bytes,
-							updatedAt: retainedBinding.updatedAt,
-							pinned: retainedBinding.pinned,
-						} : {}),
-					};
-				}),
-				omittedMatches: Math.max(0, matches.length - selected.length),
+				matches: reportedMatches,
+				omittedMatches: Math.max(0, matches.length - reportedMatches.length),
 			}),
 		};
 		return { message: formatStatus(details), details };
@@ -174,13 +178,14 @@ export class NotebookLifecycleController {
 		const retained = await this.host.setPins(names, pinned);
 		const reportedNames = withinNameBudget(names);
 		const selected = retained.filter((binding) => reportedNames.includes(binding.name));
+		const bindings = takeDetailValues(selected, { remaining: DETAILS_BUDGET });
 		return {
 			message: `${pinned ? "Pinned" : "Unpinned"} durable notebook bindings: ${formatNameList(names)}`,
-			details: { pinned, bindings: selected, omittedBindings: names.length - selected.length },
+			details: { pinned, bindings, bindingCount: names.length, omittedBindings: names.length - bindings.length },
 		};
 	}
 
-	private async release(names: string[], context: ToolExecutionContext, signal?: AbortSignal): Promise<NotebookControlResult> {
+	private async release(names: string[], context: ToolExecutionContext, signal?: AbortSignal, preservedNames: string[] = []): Promise<NotebookControlResult> {
 		const activeCell = this.host.activeCellId();
 		if (activeCell) throw new Error(`Cannot release notebook state while exec cell "${activeCell}" is running; terminate or restart it first`);
 		const kernel = this.host.kernel()!;
@@ -226,7 +231,7 @@ export class NotebookLifecycleController {
 			result.released.splice(result.released.indexOf(name), 1);
 			result.failures.push({ name, reason: "concurrent project state retained this binding" });
 		}
-		const details = { ...result, restarted: restartRequired, checkpoint: this.host.metadata().checkpoint };
+		const details = boundedReleaseDetails(result, preservedNames, restartRequired, this.host.metadata().checkpoint);
 		return { message: formatRelease(result, restartRequired), details };
 	}
 
@@ -237,15 +242,16 @@ export class NotebookLifecycleController {
 		const protectedNames = matches.filter((name) => pinned.has(name));
 		const names = matches.filter((name) => !pinned.has(name));
 		if (names.length === 0) {
+			const details = boundedReleaseDetails({ released: [], disposed: [], failures: [] }, protectedNames, false, this.host.metadata().checkpoint);
 			return {
 				message: `No unpinned notebook bindings matched ${JSON.stringify(query)}${protectedNames.length > 0 ? `; protected: ${formatNameList(protectedNames)}` : ""}`,
-				details: { query, released: [], protected: protectedNames },
+				details: { ...details, query },
 			};
 		}
-		const released = await this.release(names, context, signal);
+		const released = await this.release(names, context, signal, protectedNames);
 		return {
 			message: `${released.message}${protectedNames.length > 0 ? `\nPinned matches preserved: ${formatNameList(protectedNames)}` : ""}`,
-			details: { ...released.details, query, protected: protectedNames },
+			details: { ...released.details, query },
 		};
 	}
 
@@ -300,6 +306,42 @@ function formatNameList(names: string[]): string {
 	const shown = withinNameBudget(names);
 	const suffix = names.length > shown.length ? `, and ${names.length - shown.length} more` : "";
 	return `${shown.join(", ")}${suffix}`;
+}
+
+function takeDetailValues<T>(values: T[], budget: { remaining: number }): T[] {
+	const selected: T[] = [];
+	for (const value of values) {
+		const bytes = Buffer.byteLength(JSON.stringify(value)) + 1;
+		if (bytes > budget.remaining) break;
+		budget.remaining -= bytes;
+		selected.push(value);
+	}
+	return selected;
+}
+
+function boundedReleaseDetails(
+	result: NotebookReleaseResult,
+	protectedNames: string[],
+	restarted: boolean,
+	checkpoint: Record<string, unknown>,
+): Record<string, unknown> {
+	const budget = { remaining: DETAILS_BUDGET };
+	const protectedBindings = takeDetailValues(protectedNames, budget);
+	const released = takeDetailValues(result.released, budget);
+	const disposed = takeDetailValues(result.disposed, budget);
+	const failures = takeDetailValues(result.failures, budget);
+	return {
+		restarted,
+		checkpoint,
+		protected: protectedBindings,
+		protectedCount: protectedNames.length,
+		released,
+		releasedCount: result.released.length,
+		disposed,
+		disposedCount: result.disposed.length,
+		failures,
+		failureCount: result.failures.length,
+	};
 }
 
 function formatStatus(details: NotebookStatusDetails): string {
