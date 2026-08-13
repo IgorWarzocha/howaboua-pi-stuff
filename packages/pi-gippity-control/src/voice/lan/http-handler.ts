@@ -1,4 +1,6 @@
+import { createReadStream } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { pipeline } from "node:stream/promises";
 import type { LanVoiceActivity } from "./activity.ts";
 import { getLanVoiceAppAsset } from "./app-assets.ts";
 import type { LanVoiceBrowserClients } from "./browser-clients.ts";
@@ -58,7 +60,7 @@ export async function handleLanVoiceHttpRequest(
 			const app = currentWebApp();
 			if (app.customWebApp) {
 				const asset = app.customApp?.asset(path);
-				if (asset) sendBinary(response, asset.contentType, asset.body, false);
+				if (asset) await sendFile(response, asset, false);
 				else sendJson(response, 200, app.discovery);
 				return;
 			}
@@ -101,7 +103,7 @@ export async function handleLanVoiceHttpRequest(
 		) {
 			const asset = currentWebApp().customApp?.asset(path);
 			if (asset) {
-				sendBinary(response, asset.contentType, asset.body, false);
+				await sendFile(response, asset, false);
 				return;
 			}
 		}
@@ -136,6 +138,7 @@ export async function handleLanVoiceHttpRequest(
 			sendJson(response, 404, { error: "Not found" });
 			return;
 		}
+		assertJsonPost(request);
 		const body = await readJson(request);
 		if (!handlers.ownerIsActive() || handlers.closing) {
 			sendJson(response, 409, {
@@ -254,7 +257,7 @@ function sendText(
 		...(html
 			? {
 					"content-security-policy":
-						"default-src 'self'; script-src 'unsafe-inline' blob:; style-src 'unsafe-inline'; connect-src 'self' wss:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+						"default-src 'self'; script-src 'self' 'unsafe-inline' blob:; style-src 'unsafe-inline'; connect-src 'self' wss:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
 					"permissions-policy": "microphone=(self), camera=()",
 				}
 			: {}),
@@ -288,4 +291,34 @@ function sendBinary(
 		"x-content-type-options": "nosniff",
 	});
 	response.end(body);
+}
+
+async function sendFile(
+	response: ServerResponse,
+	asset: { contentType: string; path: string; size: number },
+	cache: boolean,
+): Promise<void> {
+	response.writeHead(200, {
+		"cache-control": cache ? "public, max-age=86400" : "no-store",
+		"content-length": asset.size,
+		"content-type": asset.contentType,
+		"x-content-type-options": "nosniff",
+	});
+	await pipeline(createReadStream(asset.path), response);
+}
+
+function assertJsonPost(request: IncomingMessage): void {
+	const contentType = request.headers["content-type"]?.split(";", 1)[0]?.trim();
+	if (contentType !== "application/json")
+		throw new LanVoiceRequestError(
+			415,
+			"GipPity requests must use application/json",
+		);
+	const origin = request.headers.origin;
+	const host = request.headers.host;
+	if (origin && (!host || origin !== `https://${host}`))
+		throw new LanVoiceRequestError(
+			403,
+			"Cross-origin GipPity requests are not allowed",
+		);
 }

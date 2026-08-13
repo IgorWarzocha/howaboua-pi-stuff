@@ -60,8 +60,12 @@ export class LanVoiceBrowserConnections {
 
 	sendControl(clientId: string, value: unknown): void {
 		const response = this.eventResponses.get(clientId);
-		if (response && !response.writableEnded)
-			response.write(`data: ${JSON.stringify(value)}\n\n`);
+		if (
+			response &&
+			!response.writableEnded &&
+			!response.write(`data: ${JSON.stringify(value)}\n\n`)
+		)
+			response.end();
 	}
 
 	broadcastControl(value: unknown): void {
@@ -79,7 +83,8 @@ export class LanVoiceBrowserConnections {
 
 	heartbeat(): void {
 		for (const response of this.eventResponses.values())
-			if (!response.writableEnded) response.write(": keepalive\n\n");
+			if (!response.writableEnded && !response.write(": keepalive\n\n"))
+				response.end();
 	}
 
 	close(failures: unknown[]): void {

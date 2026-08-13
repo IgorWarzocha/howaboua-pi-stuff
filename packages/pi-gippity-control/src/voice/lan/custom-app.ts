@@ -1,9 +1,10 @@
-import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { existsSync, realpathSync, statSync } from "node:fs";
 import { extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 interface LanRemoteStaticAsset {
 	contentType: string;
-	body: Buffer;
+	path: string;
+	size: number;
 }
 
 export interface LanRemoteCustomApp {
@@ -69,7 +70,8 @@ export function resolveLanRemoteCustomApp(
 			)
 				return undefined;
 			return {
-				body: readFileSync(real),
+				path: real,
+				size: statSync(real).size,
 				contentType:
 					CONTENT_TYPES[extname(real).toLowerCase()] ??
 					"application/octet-stream",

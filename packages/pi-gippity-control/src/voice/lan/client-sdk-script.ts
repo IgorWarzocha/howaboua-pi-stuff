@@ -200,9 +200,10 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
       _serverCommand: serverCommand,
       _pagehide() {
         stream?.getTracks().forEach((track) => track.stop());
-        if (active) navigator.sendBeacon('/api/stop', new Blob([JSON.stringify({ clientId:client.clientId })], {type:'application/json'}));
+		if (finishing && socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type:'cancel' }));
+		else if (active) navigator.sendBeacon('/api/stop', new Blob([JSON.stringify({ clientId:client.clientId })], {type:'application/json'}));
       },
-      _close() { generation += 1; finishStop(true, 'client-closed'); },
+	  _close() { if (finishing) stop(); else { generation += 1; finishStop(true, 'client-closed'); } },
     };
   }
 
@@ -215,9 +216,9 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
 	let resolveInitialDraft;
 	const initialDraft = new Promise((resolve) => { resolveInitialDraft = resolve; });
 
-    const emit = (type, value) => {
+    const emit = (type, value, wildcard = true) => {
       for (const listener of listeners.get(type) || []) { try { listener(value); } catch (error) { setTimeout(() => { throw error; }); } }
-      if (type !== '*') for (const listener of listeners.get('*') || []) { try { listener(value); } catch (error) { setTimeout(() => { throw error; }); } }
+	  if (wildcard && type !== '*') for (const listener of listeners.get('*') || []) { try { listener(value); } catch (error) { setTimeout(() => { throw error; }); } }
     };
     const post = async (path, body) => {
       const response = await fetch(path, { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ clientId, ...body }) });
@@ -261,17 +262,22 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
       },
       close() {
         if (closed) return; closed = true; clearTimeout(timer);
+		resolveInitialDraft();
         navigator.sendBeacon('/api/draft', new Blob([JSON.stringify({ clientId, text:draft.text, revision:draft.revision })], {type:'application/json'}));
+		global.removeEventListener('pagehide', pagehide);
         client.audio._close(); eventSource?.close(); listeners.clear();
       },
     };
     const flush = async () => {
+	  if (closed) throw new Error('GipPity remote is closed');
       if (syncing) return syncPromise;
 	  if (!dirty) return true;
       syncing = true;
       syncPromise = (async () => {
 		if (draft.revision < 0) await initialDraft;
+		if (closed) throw new Error('GipPity remote is closed');
         while (dirty) {
+		  if (closed) throw new Error('GipPity remote is closed');
           dirty = false;
           const text = draft.text;
           try {
@@ -309,10 +315,11 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
         client.audio._serverCommand(command);
         if (command.type === 'draft') applyDraft(command);
         else emit(command.type, command);
-        if (command.type === 'pi.event') emit('pi:' + command.event, command.data);
+		if (command.type === 'pi.event') emit('pi:' + command.event, command.data, false);
       } catch {}
     };
-    global.addEventListener('pagehide', () => { client.audio._pagehide(); clearTimeout(timer); navigator.sendBeacon('/api/draft', new Blob([JSON.stringify({ clientId, text:draft.text, revision:draft.revision })], {type:'application/json'})); }, { once:true });
+	const pagehide = () => { client.audio._pagehide(); clearTimeout(timer); navigator.sendBeacon('/api/draft', new Blob([JSON.stringify({ clientId, text:draft.text, revision:draft.revision })], {type:'application/json'})); };
+	global.addEventListener('pagehide', pagehide);
     return client;
   }
 

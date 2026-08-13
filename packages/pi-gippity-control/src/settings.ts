@@ -212,16 +212,6 @@ export async function openGippitySettings(options: {
 					const updated = setting.update(value, config);
 					if (onChange(updated)) {
 						config = updated;
-						if (id === "webApp" && lanVoice.status().running)
-							void lanVoice
-								.setEnabled(false, ctx)
-								.then(() => lanVoice.setEnabled(true, ctx))
-								.catch((error: unknown) =>
-									ctx.ui.notify(
-										`Could not restart GipPity: ${error instanceof Error ? error.message : String(error)}`,
-										"error",
-									),
-								);
 					} else next.updateValue(id, setting.currentValue);
 					tui.requestRender();
 				},
