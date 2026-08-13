@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-ask",
-	"version": "0.0.4",
+	"version": "0.0.5",
 	"description": "Interactive decisions, review triage, and human handoffs for Pi.",
 	"type": "module",
 	"license": "MIT",

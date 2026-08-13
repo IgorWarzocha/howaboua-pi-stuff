@@ -21,11 +21,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ## Latest package changelogs
 
-### @howaboua/pi-ask — 0.0.4
+### @howaboua/pi-ask — 0.0.5
 
 ### Changes
 
-- [#131](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/131) [`828f52e`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/828f52eff1291629d73c3058173cff2fa60e3b28) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Uses configured Pi keybindings for ask navigation and theme-native TUI colors.
+- [#269](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/269) [`6138ffd`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/6138ffd735bb4f7f80e451320dbfd0933a4acaa7) Thanks [@howaclawa](https://github.com/howaclawa)! - Expose a reusable realtime voice prompt API, report open ask prompts, Auto Trees navigation, Shepherdr worker settlements, and isolated review progress through it, announce context compaction as it starts, begin speaking Pi updates after two sentences and continue by paragraph, use compatible reasoning summaries only for otherwise silent tool steps without exposing Chat Completions thinking content, make spoken delegation acknowledgements configurable, display and deliver V3 delegations as soon as they are created, preserve delegations that arrive after an acknowledgement completes, resume established calls when the realtime data channel closes, keep spoken Pi updates conversational instead of repeating them line by line, preserve the prepared Code Mode prompt and single prewarm for voice-started Pi turns, preserve Codex cache continuity across voice delegation and compaction prewarming, and reduce LAN playback dropouts with one additional jitter-buffer frame.
 
 [Full changelog](./packages/pi-ask/CHANGELOG.md)
 
@@ -39,11 +39,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-auto-reasoning-tool/CHANGELOG.md)
 
-### @howaboua/pi-auto-trees — 0.1.12
+### @howaboua/pi-auto-trees — 0.1.13
 
 ### Changes
 
-- [#235](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/235) [`5657b77`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/5657b778f59ffa2eb86f10f7e949f060d95eb993) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Preserve Pi 0.84 credential-resolved endpoints and nullable auth headers in tree, review, and voice summaries, assemble complete multi-block delta-only RPC streaming updates, and remove retired Smart BTW shortcut-capture and voice helper exports
+- [#269](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/269) [`6138ffd`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/6138ffd735bb4f7f80e451320dbfd0933a4acaa7) Thanks [@howaclawa](https://github.com/howaclawa)! - Expose a reusable realtime voice prompt API, report open ask prompts, Auto Trees navigation, Shepherdr worker settlements, and isolated review progress through it, announce context compaction as it starts, begin speaking Pi updates after two sentences and continue by paragraph, use compatible reasoning summaries only for otherwise silent tool steps without exposing Chat Completions thinking content, make spoken delegation acknowledgements configurable, display and deliver V3 delegations as soon as they are created, preserve delegations that arrive after an acknowledgement completes, resume established calls when the realtime data channel closes, keep spoken Pi updates conversational instead of repeating them line by line, preserve the prepared Code Mode prompt and single prewarm for voice-started Pi turns, preserve Codex cache continuity across voice delegation and compaction prewarming, and reduce LAN playback dropouts with one additional jitter-buffer frame.
 
 [Full changelog](./packages/pi-auto-trees/CHANGELOG.md)
 
@@ -57,11 +57,21 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 3.0.13
+### @howaboua/pi-codex-conversion — 3.0.14
 
 ### Changes
 
-- [#253](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/253) [`c9fcbf8`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/c9fcbf8a44adff914ed8c4a86703a35d503e4b0b) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Auto-resume dropped realtime voice calls when enabled and update Undici to its patched release.
+- [#273](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/273) [`d0dbb06`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/d0dbb0619d9bd3bc965c2e17ae15f9fe9acfdc81) Thanks [@howaclawa](https://github.com/howaclawa)! - Show the exact provider code when OpenAI blocks a Codex request without identifying the reason.
+
+- [#270](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/270) [`d7dbad4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/d7dbad4e6827d7ec61f3e7949cd60ca2875d9856) Thanks [@howaclawa](https://github.com/howaclawa)! - Await exec process-group termination and graceful bridge exit during Pi shutdown, contain descendants when a bridge wedges, and reject work after shutdown begins.
+
+- [#263](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/263) [`85b0a1f`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/85b0a1f3f22a4e6f8c98211fefe8388c3be39d29) Thanks [@howaclawa](https://github.com/howaclawa)! - Make voice input and output follow the system defaults unless an endpoint is explicitly pinned, keep successfully rerouted default output streams active, and share guided first-run and manual audio setup.
+
+- [#268](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/268) [`df747db`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/df747dbc74520d11f7e56e3d85e2df81f5facba2) Thanks [@howaclawa](https://github.com/howaclawa)! - Show voice context summarization progress, greet the user through the V3 speakable context channel when a fresh realtime session becomes ready, and warn in Pi and the LAN controller when detectable microphone input remains too quiet.
+
+- [#269](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/269) [`6138ffd`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/6138ffd735bb4f7f80e451320dbfd0933a4acaa7) Thanks [@howaclawa](https://github.com/howaclawa)! - Expose a reusable realtime voice prompt API, report open ask prompts, Auto Trees navigation, Shepherdr worker settlements, and isolated review progress through it, announce context compaction as it starts, begin speaking Pi updates after two sentences and continue by paragraph, use compatible reasoning summaries only for otherwise silent tool steps without exposing Chat Completions thinking content, make spoken delegation acknowledgements configurable, display and deliver V3 delegations as soon as they are created, preserve delegations that arrive after an acknowledgement completes, resume established calls when the realtime data channel closes, keep spoken Pi updates conversational instead of repeating them line by line, preserve the prepared Code Mode prompt and single prewarm for voice-started Pi turns, preserve Codex cache continuity across voice delegation and compaction prewarming, and reduce LAN playback dropouts with one additional jitter-buffer frame.
+
+- [#264](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/264) [`6f24d07`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/6f24d07224f806aad9213bfcb351e626d077116a) Thanks [@howaclawa](https://github.com/howaclawa)! - Show remaining weekly Codex subscription usage in the adapter statusline, restrict polling to canonical ChatGPT subscription auth, and preserve cached usage across failed or superseded refreshes.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
@@ -81,21 +91,38 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.52
+### @howaboua/pi-extensions — 0.0.53
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-shepherdr: Add Shepherdr, a Herdr-native Pi agent orchestrator with event-driven monitoring and a live fleet widget.
+  - @howaboua/pi-ask: Expose a reusable realtime voice prompt API, report open ask prompts, Auto Trees navigation, Shepherdr worker settlements, and isolated review progress through it, announce context compaction as it starts, begin speaking Pi updates after two sentences and continue by paragraph, use compatible reasoning summaries only for otherwise silent tool steps without exposing Chat Completions thinking content, make spoken delegation acknowledgements configurable, display and deliver V3 delegations as soon as they are created, preserve delegations that arrive after an acknowledgement completes, resume established calls when the realtime data channel closes, keep spoken Pi updates conversational instead of repeating them line by line, preserve the prepared Code Mode prompt and single prewarm for voice-started Pi turns, preserve Codex cache continuity across voice delegation and compaction prewarming, and reduce LAN playback dropouts with one additional jitter-buffer frame.
+  - @howaboua/pi-auto-trees: Expose a reusable realtime voice prompt API, report open ask prompts, Auto Trees navigation, Shepherdr worker settlements, and isolated review progress through it, announce context compaction as it starts, begin speaking Pi updates after two sentences and continue by paragraph, use compatible reasoning summaries only for otherwise silent tool steps without exposing Chat Completions thinking content, make spoken delegation acknowledgements configurable, display and deliver V3 delegations as soon as they are created, preserve delegations that arrive after an acknowledgement completes, resume established calls when the realtime data channel closes, keep spoken Pi updates conversational instead of repeating them line by line, preserve the prepared Code Mode prompt and single prewarm for voice-started Pi turns, preserve Codex cache continuity across voice delegation and compaction prewarming, and reduce LAN playback dropouts with one additional jitter-buffer frame.
+  - @howaboua/pi-gippity-control: Make voice input and output follow the system defaults unless an endpoint is explicitly pinned, keep successfully rerouted default output streams active, and share guided first-run and manual audio setup.
+  - @howaboua/pi-gippity-control: Show voice context summarization progress, greet the user through the V3 speakable context channel when a fresh realtime session becomes ready, and warn in Pi and the LAN controller when detectable microphone input remains too quiet.
+  - @howaboua/pi-gippity-control: Expose a reusable realtime voice prompt API, report open ask prompts, Auto Trees navigation, Shepherdr worker settlements, and isolated review progress through it, announce context compaction as it starts, begin speaking Pi updates after two sentences and continue by paragraph, use compatible reasoning summaries only for otherwise silent tool steps without exposing Chat Completions thinking content, make spoken delegation acknowledgements configurable, display and deliver V3 delegations as soon as they are created, preserve delegations that arrive after an acknowledgement completes, resume established calls when the realtime data channel closes, keep spoken Pi updates conversational instead of repeating them line by line, preserve the prepared Code Mode prompt and single prewarm for voice-started Pi turns, preserve Codex cache continuity across voice delegation and compaction prewarming, and reduce LAN playback dropouts with one additional jitter-buffer frame.
+  - @howaboua/pi-shepherdr: Expose a reusable realtime voice prompt API, report open ask prompts, Auto Trees navigation, Shepherdr worker settlements, and isolated review progress through it, announce context compaction as it starts, begin speaking Pi updates after two sentences and continue by paragraph, use compatible reasoning summaries only for otherwise silent tool steps without exposing Chat Completions thinking content, make spoken delegation acknowledgements configurable, display and deliver V3 delegations as soon as they are created, preserve delegations that arrive after an acknowledgement completes, resume established calls when the realtime data channel closes, keep spoken Pi updates conversational instead of repeating them line by line, preserve the prepared Code Mode prompt and single prewarm for voice-started Pi turns, preserve Codex cache continuity across voice delegation and compaction prewarming, and reduce LAN playback dropouts with one additional jitter-buffer frame.
+  - @howaboua/pi-subagent-review: Expose a reusable realtime voice prompt API, report open ask prompts, Auto Trees navigation, Shepherdr worker settlements, and isolated review progress through it, announce context compaction as it starts, begin speaking Pi updates after two sentences and continue by paragraph, use compatible reasoning summaries only for otherwise silent tool steps without exposing Chat Completions thinking content, make spoken delegation acknowledgements configurable, display and deliver V3 delegations as soon as they are created, preserve delegations that arrive after an acknowledgement completes, resume established calls when the realtime data channel closes, keep spoken Pi updates conversational instead of repeating them line by line, preserve the prepared Code Mode prompt and single prewarm for voice-started Pi turns, preserve Codex cache continuity across voice delegation and compaction prewarming, and reduce LAN playback dropouts with one additional jitter-buffer frame.
+
+- Updated dependencies [[`85b0a1f`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/85b0a1f3f22a4e6f8c98211fefe8388c3be39d29), [`df747db`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/df747dbc74520d11f7e56e3d85e2df81f5facba2), [`6138ffd`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/6138ffd735bb4f7f80e451320dbfd0933a4acaa7)]:
+  - @howaboua/pi-gippity-control@0.0.9
+  - @howaboua/pi-ask@0.0.5
+  - @howaboua/pi-auto-trees@0.1.13
+  - @howaboua/pi-shepherdr@0.1.1
+  - @howaboua/pi-subagent-review@0.2.16
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
-### @howaboua/pi-gippity-control — 0.0.8
+### @howaboua/pi-gippity-control — 0.0.9
 
 ### Changes
 
-- [#253](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/253) [`c9fcbf8`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/c9fcbf8a44adff914ed8c4a86703a35d503e4b0b) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add opt-in dropped realtime voice call auto-resume to GipPity Control and update Undici to its patched release.
+- [#263](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/263) [`85b0a1f`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/85b0a1f3f22a4e6f8c98211fefe8388c3be39d29) Thanks [@howaclawa](https://github.com/howaclawa)! - Make voice input and output follow the system defaults unless an endpoint is explicitly pinned, keep successfully rerouted default output streams active, and share guided first-run and manual audio setup.
+
+- [#268](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/268) [`df747db`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/df747dbc74520d11f7e56e3d85e2df81f5facba2) Thanks [@howaclawa](https://github.com/howaclawa)! - Show voice context summarization progress, greet the user through the V3 speakable context channel when a fresh realtime session becomes ready, and warn in Pi and the LAN controller when detectable microphone input remains too quiet.
+
+- [#269](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/269) [`6138ffd`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/6138ffd735bb4f7f80e451320dbfd0933a4acaa7) Thanks [@howaclawa](https://github.com/howaclawa)! - Expose a reusable realtime voice prompt API, report open ask prompts, Auto Trees navigation, Shepherdr worker settlements, and isolated review progress through it, announce context compaction as it starts, begin speaking Pi updates after two sentences and continue by paragraph, use compatible reasoning summaries only for otherwise silent tool steps without exposing Chat Completions thinking content, make spoken delegation acknowledgements configurable, display and deliver V3 delegations as soon as they are created, preserve delegations that arrive after an acknowledgement completes, resume established calls when the realtime data channel closes, keep spoken Pi updates conversational instead of repeating them line by line, preserve the prepared Code Mode prompt and single prewarm for voice-started Pi turns, preserve Codex cache continuity across voice delegation and compaction prewarming, and reduce LAN playback dropouts with one additional jitter-buffer frame.
 
 [Full changelog](./packages/pi-gippity-control/CHANGELOG.md)
 
@@ -131,11 +158,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-semantic-grep/CHANGELOG.md)
 
-### @howaboua/pi-shepherdr — 0.1.0
+### @howaboua/pi-shepherdr — 0.1.1
 
 ### Changes
 
-- [#256](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/256) [`4d306ed`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/4d306eded0057c82868a1628bd2131a7eedfd7a6) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add Shepherdr, a Herdr-native Pi agent orchestrator with event-driven monitoring and a live fleet widget.
+- [#269](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/269) [`6138ffd`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/6138ffd735bb4f7f80e451320dbfd0933a4acaa7) Thanks [@howaclawa](https://github.com/howaclawa)! - Expose a reusable realtime voice prompt API, report open ask prompts, Auto Trees navigation, Shepherdr worker settlements, and isolated review progress through it, announce context compaction as it starts, begin speaking Pi updates after two sentences and continue by paragraph, use compatible reasoning summaries only for otherwise silent tool steps without exposing Chat Completions thinking content, make spoken delegation acknowledgements configurable, display and deliver V3 delegations as soon as they are created, preserve delegations that arrive after an acknowledgement completes, resume established calls when the realtime data channel closes, keep spoken Pi updates conversational instead of repeating them line by line, preserve the prepared Code Mode prompt and single prewarm for voice-started Pi turns, preserve Codex cache continuity across voice delegation and compaction prewarming, and reduce LAN playback dropouts with one additional jitter-buffer frame.
 
 [Full changelog](./packages/pi-shepherdr/CHANGELOG.md)
 
@@ -256,21 +283,34 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.57
+### @howaboua/pi-stuff — 0.0.58
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-shepherdr: Add Shepherdr, a Herdr-native Pi agent orchestrator with event-driven monitoring and a live fleet widget.
+  - @howaboua/pi-ask: Expose a reusable realtime voice prompt API, report open ask prompts, Auto Trees navigation, Shepherdr worker settlements, and isolated review progress through it, announce context compaction as it starts, begin speaking Pi updates after two sentences and continue by paragraph, use compatible reasoning summaries only for otherwise silent tool steps without exposing Chat Completions thinking content, make spoken delegation acknowledgements configurable, display and deliver V3 delegations as soon as they are created, preserve delegations that arrive after an acknowledgement completes, resume established calls when the realtime data channel closes, keep spoken Pi updates conversational instead of repeating them line by line, preserve the prepared Code Mode prompt and single prewarm for voice-started Pi turns, preserve Codex cache continuity across voice delegation and compaction prewarming, and reduce LAN playback dropouts with one additional jitter-buffer frame.
+  - @howaboua/pi-auto-trees: Expose a reusable realtime voice prompt API, report open ask prompts, Auto Trees navigation, Shepherdr worker settlements, and isolated review progress through it, announce context compaction as it starts, begin speaking Pi updates after two sentences and continue by paragraph, use compatible reasoning summaries only for otherwise silent tool steps without exposing Chat Completions thinking content, make spoken delegation acknowledgements configurable, display and deliver V3 delegations as soon as they are created, preserve delegations that arrive after an acknowledgement completes, resume established calls when the realtime data channel closes, keep spoken Pi updates conversational instead of repeating them line by line, preserve the prepared Code Mode prompt and single prewarm for voice-started Pi turns, preserve Codex cache continuity across voice delegation and compaction prewarming, and reduce LAN playback dropouts with one additional jitter-buffer frame.
+  - @howaboua/pi-gippity-control: Make voice input and output follow the system defaults unless an endpoint is explicitly pinned, keep successfully rerouted default output streams active, and share guided first-run and manual audio setup.
+  - @howaboua/pi-gippity-control: Show voice context summarization progress, greet the user through the V3 speakable context channel when a fresh realtime session becomes ready, and warn in Pi and the LAN controller when detectable microphone input remains too quiet.
+  - @howaboua/pi-gippity-control: Expose a reusable realtime voice prompt API, report open ask prompts, Auto Trees navigation, Shepherdr worker settlements, and isolated review progress through it, announce context compaction as it starts, begin speaking Pi updates after two sentences and continue by paragraph, use compatible reasoning summaries only for otherwise silent tool steps without exposing Chat Completions thinking content, make spoken delegation acknowledgements configurable, display and deliver V3 delegations as soon as they are created, preserve delegations that arrive after an acknowledgement completes, resume established calls when the realtime data channel closes, keep spoken Pi updates conversational instead of repeating them line by line, preserve the prepared Code Mode prompt and single prewarm for voice-started Pi turns, preserve Codex cache continuity across voice delegation and compaction prewarming, and reduce LAN playback dropouts with one additional jitter-buffer frame.
+  - @howaboua/pi-shepherdr: Expose a reusable realtime voice prompt API, report open ask prompts, Auto Trees navigation, Shepherdr worker settlements, and isolated review progress through it, announce context compaction as it starts, begin speaking Pi updates after two sentences and continue by paragraph, use compatible reasoning summaries only for otherwise silent tool steps without exposing Chat Completions thinking content, make spoken delegation acknowledgements configurable, display and deliver V3 delegations as soon as they are created, preserve delegations that arrive after an acknowledgement completes, resume established calls when the realtime data channel closes, keep spoken Pi updates conversational instead of repeating them line by line, preserve the prepared Code Mode prompt and single prewarm for voice-started Pi turns, preserve Codex cache continuity across voice delegation and compaction prewarming, and reduce LAN playback dropouts with one additional jitter-buffer frame.
+  - @howaboua/pi-subagent-review: Expose a reusable realtime voice prompt API, report open ask prompts, Auto Trees navigation, Shepherdr worker settlements, and isolated review progress through it, announce context compaction as it starts, begin speaking Pi updates after two sentences and continue by paragraph, use compatible reasoning summaries only for otherwise silent tool steps without exposing Chat Completions thinking content, make spoken delegation acknowledgements configurable, display and deliver V3 delegations as soon as they are created, preserve delegations that arrive after an acknowledgement completes, resume established calls when the realtime data channel closes, keep spoken Pi updates conversational instead of repeating them line by line, preserve the prepared Code Mode prompt and single prewarm for voice-started Pi turns, preserve Codex cache continuity across voice delegation and compaction prewarming, and reduce LAN playback dropouts with one additional jitter-buffer frame.
+
+- Updated dependencies [[`85b0a1f`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/85b0a1f3f22a4e6f8c98211fefe8388c3be39d29), [`df747db`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/df747dbc74520d11f7e56e3d85e2df81f5facba2), [`6138ffd`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/6138ffd735bb4f7f80e451320dbfd0933a4acaa7)]:
+  - @howaboua/pi-gippity-control@0.0.9
+  - @howaboua/pi-ask@0.0.5
+  - @howaboua/pi-auto-trees@0.1.13
+  - @howaboua/pi-shepherdr@0.1.1
+  - @howaboua/pi-subagent-review@0.2.16
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 
-### @howaboua/pi-subagent-review — 0.2.15
+### @howaboua/pi-subagent-review — 0.2.16
 
 ### Changes
 
-- [#235](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/235) [`5657b77`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/5657b778f59ffa2eb86f10f7e949f060d95eb993) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Preserve Pi 0.84 credential-resolved endpoints and nullable auth headers in tree, review, and voice summaries, assemble complete multi-block delta-only RPC streaming updates, and remove retired Smart BTW shortcut-capture and voice helper exports
+- [#269](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/269) [`6138ffd`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/6138ffd735bb4f7f80e451320dbfd0933a4acaa7) Thanks [@howaclawa](https://github.com/howaclawa)! - Expose a reusable realtime voice prompt API, report open ask prompts, Auto Trees navigation, Shepherdr worker settlements, and isolated review progress through it, announce context compaction as it starts, begin speaking Pi updates after two sentences and continue by paragraph, use compatible reasoning summaries only for otherwise silent tool steps without exposing Chat Completions thinking content, make spoken delegation acknowledgements configurable, display and deliver V3 delegations as soon as they are created, preserve delegations that arrive after an acknowledgement completes, resume established calls when the realtime data channel closes, keep spoken Pi updates conversational instead of repeating them line by line, preserve the prepared Code Mode prompt and single prewarm for voice-started Pi turns, preserve Codex cache continuity across voice delegation and compaction prewarming, and reduce LAN playback dropouts with one additional jitter-buffer frame.
 
 [Full changelog](./packages/pi-subagent-review/CHANGELOG.md)
 

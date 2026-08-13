@@ -1,5 +1,21 @@
 # Changelog
 
+## 3.0.14
+
+### Changes
+
+- [#273](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/273) [`d0dbb06`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/d0dbb0619d9bd3bc965c2e17ae15f9fe9acfdc81) Thanks [@howaclawa](https://github.com/howaclawa)! - Show the exact provider code when OpenAI blocks a Codex request without identifying the reason.
+
+- [#270](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/270) [`d7dbad4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/d7dbad4e6827d7ec61f3e7949cd60ca2875d9856) Thanks [@howaclawa](https://github.com/howaclawa)! - Await exec process-group termination and graceful bridge exit during Pi shutdown, contain descendants when a bridge wedges, and reject work after shutdown begins.
+
+- [#263](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/263) [`85b0a1f`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/85b0a1f3f22a4e6f8c98211fefe8388c3be39d29) Thanks [@howaclawa](https://github.com/howaclawa)! - Make voice input and output follow the system defaults unless an endpoint is explicitly pinned, keep successfully rerouted default output streams active, and share guided first-run and manual audio setup.
+
+- [#268](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/268) [`df747db`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/df747dbc74520d11f7e56e3d85e2df81f5facba2) Thanks [@howaclawa](https://github.com/howaclawa)! - Show voice context summarization progress, greet the user through the V3 speakable context channel when a fresh realtime session becomes ready, and warn in Pi and the LAN controller when detectable microphone input remains too quiet.
+
+- [#269](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/269) [`6138ffd`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/6138ffd735bb4f7f80e451320dbfd0933a4acaa7) Thanks [@howaclawa](https://github.com/howaclawa)! - Expose a reusable realtime voice prompt API, report open ask prompts, Auto Trees navigation, Shepherdr worker settlements, and isolated review progress through it, announce context compaction as it starts, begin speaking Pi updates after two sentences and continue by paragraph, use compatible reasoning summaries only for otherwise silent tool steps without exposing Chat Completions thinking content, make spoken delegation acknowledgements configurable, display and deliver V3 delegations as soon as they are created, preserve delegations that arrive after an acknowledgement completes, resume established calls when the realtime data channel closes, keep spoken Pi updates conversational instead of repeating them line by line, preserve the prepared Code Mode prompt and single prewarm for voice-started Pi turns, preserve Codex cache continuity across voice delegation and compaction prewarming, and reduce LAN playback dropouts with one additional jitter-buffer frame.
+
+- [#264](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/264) [`6f24d07`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/6f24d07224f806aad9213bfcb351e626d077116a) Thanks [@howaclawa](https://github.com/howaclawa)! - Show remaining weekly Codex subscription usage in the adapter statusline, restrict polling to canonical ChatGPT subscription auth, and preserve cached usage across failed or superseded refreshes.
+
 ## 3.0.13
 
 ### Changes
