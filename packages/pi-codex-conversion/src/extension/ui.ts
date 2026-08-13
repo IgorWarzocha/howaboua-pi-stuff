@@ -84,9 +84,9 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 			runtime.state.weeklyUsageLeft = undefined;
 			return;
 		}
-		if (!isAdapterRuntime(resolveCodexRuntimePlan(ctx, runtime.state.config))) return;
+		if (!isAdapterRuntime(resolveCodexRuntimePlan(ctx, runtime.state.config, runtime.state.executionMode))) return;
 		const weeklyUsageLeft = await fetchCodexWeeklyUsageLeft(ctx);
-		const plan = resolveCodexRuntimePlan(ctx, runtime.state.config);
+		const plan = resolveCodexRuntimePlan(ctx, runtime.state.config, runtime.state.executionMode);
 		if (
 			generation !== usageGeneration ||
 			!ctx.hasUI ||
