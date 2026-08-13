@@ -348,7 +348,7 @@ export async function startCodexLanVoiceServer(options: {
 		agentStarted: () => activity.working(),
 		agentSettled: (text) => activity.settled(text),
 		piEvent(event, data) {
-			if (!clients.hasEventClients()) return;
+			if (!ownerIsActive() || !clients.hasEventClients()) return;
 			let serialized: unknown;
 			try {
 				serialized = remoteJsonValue(data);

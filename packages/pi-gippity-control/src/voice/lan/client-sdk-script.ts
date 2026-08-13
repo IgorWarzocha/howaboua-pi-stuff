@@ -265,11 +265,11 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
         await post('/api/send', { text:draft.text, revision:draft.revision });
       },
       close() {
-        if (closed) return; closed = true; clearTimeout(timer);
-		resolveInitialDraft();
+        if (closed) return; clearTimeout(timer);
+        client.audio._close(); closed = true; resolveInitialDraft();
         navigator.sendBeacon('/api/draft', new Blob([JSON.stringify({ clientId, text:draft.text, revision:draft.revision })], {type:'application/json'}));
 		global.removeEventListener('pagehide', pagehide);
-        client.audio._close(); eventSource?.close(); listeners.clear();
+        eventSource?.close(); listeners.clear();
       },
     };
     const flush = async () => {

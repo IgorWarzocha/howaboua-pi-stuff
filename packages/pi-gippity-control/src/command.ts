@@ -83,9 +83,7 @@ export function registerGippityCommand(options: {
 			if (action === "create") {
 				try {
 					await ctx.waitForIdle();
-					const status = lanVoice.status().running
-						? lanVoice.status()
-						: await lanVoice.setEnabled(true, ctx);
+					const status = await lanVoice.setEnabled(true, ctx);
 					const baseUrl = status.urls[0];
 					if (!baseUrl) throw new Error("Control server has no reachable URL");
 					pi.sendMessage(
