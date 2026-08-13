@@ -13,10 +13,12 @@ import {
 import { CodexVoiceController } from "./voice/controller.ts";
 import { createCodexVoiceControls } from "./voice/controls.ts";
 import { CodexLanVoiceServerController } from "./voice/lan/controller.ts";
+import { registerLanRemoteCreateRenderers } from "./voice/lan/create.ts";
 import { registerCodexVoiceRenderer } from "./voice/ui.ts";
 
 export function registerGippityControl(pi: ExtensionAPI): void {
 	registerCodexVoiceRenderer(pi);
+	registerLanRemoteCreateRenderers(pi);
 	const state: { config: GippityControlConfig } = {
 		config: readGippityControlConfig(),
 	};

@@ -7,6 +7,7 @@ import type { GippityControlConfig } from "../../config.ts";
 import { resolveCodexVoiceAuth } from "../auth.ts";
 import type { CodexVoiceController } from "../controller.ts";
 import { boundedAssistantText } from "./activity.ts";
+import { appendLanRemoteCreateNotice } from "./create.ts";
 import type { CodexLanVoiceServer } from "./server.ts";
 
 export interface CodexLanVoiceServerStatus {
@@ -72,10 +73,19 @@ export class CodexLanVoiceServerController {
 				"gippity-lan",
 				ctx.ui.theme.fg("accent", "GipPity LAN: on"),
 			);
+			const config = this.getConfig();
+			const needsCustomApp =
+				config.lan.customWebApp && !config.lan.customWebAppPath;
 			ctx.ui.notify(
-				`LAN voice is running:\n${this.server.urls.join("\n")}\nAccept the local certificate on first visit.`,
+				`GipPity control server is running:\n${this.server.urls.join("\n")}\nAccept the local certificate on first visit.${needsCustomApp ? "\nNo custom web app is connected. Run /gippity create." : ""}`,
 				"info",
 			);
+			if (needsCustomApp) {
+				appendLanRemoteCreateNotice(
+					this.pi,
+					`${this.server.urls[0]}/api/discovery`,
+				);
+			}
 			return this.status();
 		});
 	}

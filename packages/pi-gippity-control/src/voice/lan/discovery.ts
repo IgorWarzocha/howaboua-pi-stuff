@@ -17,6 +17,7 @@ export function createLanRemoteDiscovery(options: {
 				: { mode: "discovery" }
 			: { mode: "bundled" },
 		gettingStarted: {
+			command: "/gippity create",
 			configPath: options.configPath,
 			appDirectory:
 				"Create a static index.html with any CSS/JS/assets. GipPity hosts the directory; do not start another web server.",
