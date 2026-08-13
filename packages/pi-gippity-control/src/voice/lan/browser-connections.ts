@@ -68,6 +68,10 @@ export class LanVoiceBrowserConnections {
 			response.end();
 	}
 
+	hasEventClients(): boolean {
+		return this.eventResponses.size > 0;
+	}
+
 	broadcastControl(value: unknown): void {
 		for (const clientId of this.eventResponses.keys())
 			this.sendControl(clientId, value);

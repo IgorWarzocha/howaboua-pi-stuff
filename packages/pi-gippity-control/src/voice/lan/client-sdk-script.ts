@@ -48,7 +48,7 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
     }
   }
 
-  function createAudio(client) {
+  function createAudio(client, assertOpen) {
     let socket, stream, context, source, processor, realtimeAudio;
     let mode = 'conversation';
     let active = false, muted = false, inputTooQuiet = false, busy = false, finishing = false, starting = false;
@@ -194,8 +194,9 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
       if (command.type === 'microphone') { inputTooQuiet = command.state === 'too-quiet'; if (active && !muted) publish('listening', inputTooQuiet ? 'Microphone level is too low' : ''); }
     };
     return {
-      start, stop,
-      setMuted,
+      start(...args) { assertOpen(); return start(...args); },
+      stop(...args) { assertOpen(); return stop(...args); },
+      setMuted(...args) { assertOpen(); return setMuted(...args); },
       get state() { return snapshot(); },
       _serverCommand: serverCommand,
       _pagehide() {
@@ -215,12 +216,14 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
     let dirty = false, syncing = false, syncPromise, timer;
 	let resolveInitialDraft;
 	const initialDraft = new Promise((resolve) => { resolveInitialDraft = resolve; });
+	const assertOpen = () => { if (closed) throw new Error('GipPity remote is closed'); };
 
     const emit = (type, value, wildcard = true) => {
       for (const listener of listeners.get(type) || []) { try { listener(value); } catch (error) { setTimeout(() => { throw error; }); } }
 	  if (wildcard && type !== '*') for (const listener of listeners.get('*') || []) { try { listener(value); } catch (error) { setTimeout(() => { throw error; }); } }
     };
     const post = async (path, body) => {
+      assertOpen();
       const response = await fetch(path, { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ clientId, ...body }) });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || 'Pi rejected the request');
@@ -247,6 +250,7 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
         return result.result;
       },
       setDraft(text) {
+        assertOpen();
         if (typeof text !== 'string') throw new Error('Draft text must be a string');
         draft = { ...draft, text, local:true };
         dirty = true; emit('draft', { ...draft });
@@ -305,7 +309,7 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
 	  resolveInitialDraft();
       emit('draft', { ...draft });
     };
-    client.audio = createAudio(client);
+    client.audio = createAudio(client, assertOpen);
     eventSource = new EventSource('/api/events?client=' + encodeURIComponent(clientId));
     eventSource.onopen = () => emit('connection', { type:'connection', state:'connected' });
     eventSource.onerror = () => emit('connection', { type:'connection', state:'reconnecting' });
