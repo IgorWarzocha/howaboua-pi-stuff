@@ -3,10 +3,12 @@ import type { NotebookRuntimeOptions } from "../code-mode/shared-runtime.ts";
 import type { NotebookMemoryUsage, ToolExecutionContext } from "../code-mode/types.ts";
 import type { NotebookBridgeServer } from "./bridge-server.ts";
 import { resolveNotebookCheckpointMaxBytes } from "./checkpoint.ts";
+import type { NotebookCheckpointIdentity } from "./checkpoint-format.ts";
 import { NotebookCheckpointManager } from "./checkpoint-manager.ts";
 import type { NotebookJournal } from "./journal.ts";
 import type { DenoJupyterKernel } from "./jupyter-kernel.ts";
 import { resolveNotebookProject } from "./project-identity.ts";
+import { readRetainedProjectBindings, setProjectBindingPins, type RetainedProjectBinding } from "./project-state-metadata.ts";
 import { startNotebookSession } from "./session-startup.ts";
 import { notebookSessionIdentity } from "./session-identity.ts";
 
@@ -20,6 +22,7 @@ export class NotebookSessionRuntime {
 	private readonly runningCellId: () => string | undefined;
 	private kernelValue: DenoJupyterKernel | undefined;
 	private identityValue: string | undefined;
+	private checkpointIdentityValue: NotebookCheckpointIdentity | undefined;
 	private startup: Promise<void> | undefined;
 	private startupAbort: AbortController | undefined;
 	private notice: string | undefined;
@@ -84,6 +87,7 @@ export class NotebookSessionRuntime {
 		this.memoryValue = undefined;
 		this.startedAtValue = undefined;
 		this.profileLoaded = false;
+		this.checkpointIdentityValue = undefined;
 		await previous?.shutdown().catch(() => undefined);
 		const pending = this.start(context, signal, skipProfile).catch((error) => {
 			if (this.startup === pending) this.startup = undefined;
@@ -101,6 +105,7 @@ export class NotebookSessionRuntime {
 		this.memoryValue = undefined;
 		this.startedAtValue = undefined;
 		this.profileLoaded = false;
+		this.checkpointIdentityValue = undefined;
 		await kernel?.shutdown().catch(() => undefined);
 	}
 
@@ -114,6 +119,7 @@ export class NotebookSessionRuntime {
 		this.memoryValue = undefined;
 		this.startedAtValue = undefined;
 		this.profileLoaded = false;
+		this.checkpointIdentityValue = undefined;
 		this.notice = undefined;
 		await previous?.shutdown().catch(() => undefined);
 	}
@@ -130,6 +136,7 @@ export class NotebookSessionRuntime {
 		this.startup = undefined;
 		this.startupAbort = undefined;
 		this.identityValue = undefined;
+		this.checkpointIdentityValue = undefined;
 		this.checkpoints.reset();
 		this.notice = undefined;
 		this.memoryValue = undefined;
@@ -146,6 +153,15 @@ export class NotebookSessionRuntime {
 	journal(): NotebookJournal | undefined { return this.journalValue; }
 	baselineNames(): ReadonlySet<string> { return this.baseline; }
 	configuredProfileLoaded(): boolean { return this.profileLoaded; }
+	retainedBindings(): RetainedProjectBinding[] {
+		return this.checkpointIdentityValue
+			? readRetainedProjectBindings(this.checkpointIdentityValue, this.checkpointMaxBytes)
+			: [];
+	}
+	setPins(names: string[], pinned: boolean): Promise<RetainedProjectBinding[]> {
+		if (!this.checkpointIdentityValue) throw new Error("Notebook project state is unavailable");
+		return setProjectBindingPins(this.checkpointIdentityValue, this.checkpointMaxBytes, names, pinned);
+	}
 	recordMemory(memory: NotebookMemoryUsage | undefined): void { this.memoryValue = memory; }
 	memory(): NotebookMemoryUsage | undefined { return this.memoryValue; }
 	addNotice(notice: string): void { this.notice = joinNotices(this.notice, notice); }
@@ -185,6 +201,7 @@ export class NotebookSessionRuntime {
 		this.kernelValue = started.kernel;
 		this.startedAtValue = Date.now();
 		this.journalValue = started.journal;
+		this.checkpointIdentityValue = started.checkpointIdentity;
 		this.baseline = started.baselineNames;
 		this.profileLoaded = started.configuredProfileLoaded;
 		this.checkpoints.configure(started.checkpointIdentity, started.baselineNames, started.projectBaseline);

@@ -45,6 +45,7 @@ export function mergeProjectState(options: {
 	let offset = 0;
 	let conflictOffset = 0;
 	let candidateChangedAny = false;
+	const capturedAt = new Date().toISOString();
 	for (const name of names) {
 		const baseHash = base.get(name);
 		const currentEntry = current.get(name);
@@ -55,7 +56,10 @@ export function mergeProjectState(options: {
 		const currentChanged = currentHash !== baseHash;
 		candidateChangedAny ||= candidateChanged;
 		let selected: { entry: ProjectStateEntry; payload: Buffer } | undefined;
-		if (candidateChanged && currentChanged && candidateHash !== currentHash) {
+		if (candidateChanged && !candidateEntry && currentEntry?.pinned) {
+			conflicts.push(name);
+			selected = { entry: currentEntry, payload: options.currentPayload };
+		} else if (candidateChanged && currentChanged && candidateHash !== currentHash) {
 			conflicts.push(name);
 			if (candidateEntry) {
 				const bytes = options.candidatePayload.subarray(candidateEntry.offset, candidateEntry.offset + candidateEntry.length);
@@ -66,14 +70,29 @@ export function mergeProjectState(options: {
 			if (currentEntry) selected = { entry: currentEntry, payload: options.currentPayload };
 		} else if (candidateChanged) {
 			appliedNames.push(name);
-			if (candidateEntry) selected = { entry: candidateEntry, payload: options.candidatePayload };
+			if (candidateEntry) selected = {
+				entry: {
+					...candidateEntry,
+					updatedAt: candidateHash === currentHash
+						? currentEntry?.updatedAt ?? options.current?.createdAt ?? capturedAt
+						: capturedAt,
+					...(currentEntry?.pinned ? { pinned: true } : {}),
+				},
+				payload: options.candidatePayload,
+			};
 		} else if (currentEntry) {
 			selected = { entry: currentEntry, payload: options.currentPayload };
 		}
 		if (!selected) continue;
 		const bytes = selected.payload.subarray(selected.entry.offset, selected.entry.offset + selected.entry.length);
 		parts.push(bytes);
-		entries.push({ ...selected.entry, offset });
+		entries.push({
+			...selected.entry,
+			updatedAt: selected.entry.updatedAt
+				?? (selected.payload === options.currentPayload ? options.current?.createdAt : undefined)
+				?? capturedAt,
+			offset,
+		});
 		offset += bytes.length;
 	}
 	const currentShape = JSON.stringify((options.current?.entries ?? []).map(({ name, kind, hash }) => [name, kind, hash]));

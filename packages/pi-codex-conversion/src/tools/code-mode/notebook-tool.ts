@@ -5,7 +5,7 @@ import type { SharedCodeModeRuntime } from "./shared-runtime.ts";
 import type { NotebookControlRequest, ToolExecutionContext } from "./types.ts";
 
 const NOTEBOOK_PARAMETERS = Type.Object({
-	action: StringEnum(["status", "list", "checkpoint", "save", "load", "release", "restart", "diagnostics", "reset"]),
+	action: StringEnum(["status", "list", "checkpoint", "save", "load", "pin", "unpin", "release", "prune", "restart", "diagnostics", "reset"]),
 	query: Type.Optional(Type.String()),
 	name: Type.Optional(Type.String()),
 	names: Type.Optional(Type.Array(Type.String(), { minItems: 1 })),
@@ -15,7 +15,7 @@ export function registerNotebookTool(pi: ExtensionAPI, runtime: SharedCodeModeRu
 	pi.registerTool({
 		name: "notebook",
 		label: "Notebook",
-		description: "Notebook state: status/list (query glob), checkpoint, save/load (name), release (names), restart, diagnostics, or reset. Diagnostics checks the saved .ipynb without its kernel; reset discards project/session state but preserves the file and profiles",
+		description: "Persistent notebook state/recovery: status shows binding age/size/pins and filters by query glob; list filters profiles; checkpoint; save/load name; pin/unpin/release names; prune unpinned bindings by query; restart; diagnostics checks the journal; reset clears live/durable state but keeps journal/profiles",
 		promptSnippet: "Inspect, recover, or control notebook state",
 		parameters: NOTEBOOK_PARAMETERS,
 		async execute(_id, params, signal, _onUpdate, ctx) {
@@ -47,10 +47,15 @@ function normalizeNotebookRequest(params: {
 		if (!params.name) throw new Error(`notebook ${params.action} requires name`);
 		return { action: params.action, name: params.name };
 	}
-	if (params.action === "release") {
-		if (params.query !== undefined || params.name !== undefined) throw new Error("notebook release accepts names only");
-		if (!params.names?.length) throw new Error("notebook release requires at least one name");
-		return { action: "release", names: [...new Set(params.names)] };
+	if (params.action === "release" || params.action === "pin" || params.action === "unpin") {
+		if (params.query !== undefined || params.name !== undefined) throw new Error(`notebook ${params.action} accepts names only`);
+		if (!params.names?.length) throw new Error(`notebook ${params.action} requires at least one name`);
+		return { action: params.action, names: [...new Set(params.names)] };
+	}
+	if (params.action === "prune") {
+		if (params.name !== undefined || params.names !== undefined) throw new Error("notebook prune accepts query only");
+		if (!params.query) throw new Error("notebook prune requires query");
+		return { action: "prune", query: params.query };
 	}
 	if (params.action !== "checkpoint" && params.action !== "restart" && params.action !== "diagnostics" && params.action !== "reset") {
 		throw new Error(`Unsupported notebook action: ${params.action}`);

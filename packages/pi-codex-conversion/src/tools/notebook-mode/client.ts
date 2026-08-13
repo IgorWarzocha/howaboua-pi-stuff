@@ -46,6 +46,8 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 			activeCellId: () => this.execution.activeCellId(),
 			stopActive: () => this.execution.stopActive(),
 			checkpoint: (excludeNames) => this.checkpoint(excludeNames),
+			retainedBindings: () => session.retainedBindings(),
+			setPins: (names, pinned) => session.setPins(names, pinned),
 			markChanged: () => session.checkpoints.schedule(),
 			restart: (context, signal) => session.restart(context, signal),
 			rollback: async (context) => { await session.restart(context, undefined, true); },

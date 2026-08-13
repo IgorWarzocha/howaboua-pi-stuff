@@ -48,7 +48,7 @@ export async function registerCodexCodeMode(
 			},
 		}),
 		providesRenderers: true,
-		richRendering: () => runtime.state.config.ui.codeModeDetails,
+		richRendering: () => runtime.state.executionMode === "notebook" || runtime.state.config.ui.codeModeDetails,
 	});
 	return {
 		prepare: (ctx) => programmaticRuntime.prepare(ctx),

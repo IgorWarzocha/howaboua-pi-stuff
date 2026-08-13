@@ -41,18 +41,22 @@ test("project notebook merge preserves a concurrent same-name edit", () => {
 });
 
 test("project notebook merge applies an uncontested plain global", () => {
+	const previous = Buffer.from("previous");
 	const payload = Buffer.from("value");
 	const merged = mergeProjectState({
-		baseline: { generation: "root", entries: [] },
+		baseline: { generation: "current", entries: [{ name: "shared", hash: hash(previous) }] },
+		current: projectManifest("current", previous, true),
 		candidate: projectCandidate(payload, "value"),
 		candidatePayload: payload,
-		currentPayload: Buffer.alloc(0),
+		currentPayload: previous,
 	});
 
 	assert.equal(merged.changed, true);
 	assert.deepEqual(merged.conflicts, []);
 	assert.deepEqual(merged.appliedNames, ["shared"]);
 	assert.deepEqual(merged.baseline.entries, [{ name: "shared", hash: hash(payload) }]);
+	assert.equal(merged.entries[0]?.pinned, true);
+	assert.ok(merged.entries[0]?.updatedAt);
 	assert.equal(merged.payload.toString(), "value");
 });
 
@@ -74,7 +78,7 @@ function projectCandidate(payload: Buffer, kind: "value" | "function" = "functio
 	};
 }
 
-function projectManifest(generation: string, payload: Buffer): ProjectStateManifest {
+function projectManifest(generation: string, payload: Buffer, pinned = false): ProjectStateManifest {
 	return {
 		schema: 1,
 		project: "/project",
@@ -84,7 +88,14 @@ function projectManifest(generation: string, payload: Buffer): ProjectStateManif
 		payload: "project-test.bin",
 		createdAt: "2026-01-01T00:00:00.000Z",
 		sourceSession: "session",
-		entries: [{ name: "shared", kind: "function", offset: 0, length: payload.length, hash: hash(payload) }],
+		entries: [{
+			name: "shared",
+			kind: "function",
+			offset: 0,
+			length: payload.length,
+			hash: hash(payload),
+			...(pinned ? { pinned: true } : {}),
+		}],
 		skipped: [],
 	};
 }
