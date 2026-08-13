@@ -81,8 +81,8 @@ export function registerGippityCommand(options: {
 				return;
 			}
 			if (action === "create") {
-				await ctx.waitForIdle();
 				try {
+					await ctx.waitForIdle();
 					const status = lanVoice.status().running
 						? lanVoice.status()
 						: await lanVoice.setEnabled(true, ctx);
