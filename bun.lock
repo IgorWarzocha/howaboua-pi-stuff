@@ -31,7 +31,7 @@
     },
     "packages/pi-ask": {
       "name": "@howaboua/pi-ask",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "devDependencies": {
         "@biomejs/biome": "^2.4.16",
         "@earendil-works/pi-coding-agent": "0.82.0",
@@ -62,7 +62,7 @@
     },
     "packages/pi-auto-trees": {
       "name": "@howaboua/pi-auto-trees",
-      "version": "0.1.12",
+      "version": "0.1.13",
       "devDependencies": {
         "@biomejs/biome": "^2.4.16",
         "@earendil-works/pi-coding-agent": "0.84.1",
@@ -86,7 +86,7 @@
     },
     "packages/pi-codex-conversion": {
       "name": "@howaboua/pi-codex-conversion",
-      "version": "3.0.11",
+      "version": "3.0.14",
       "dependencies": {
         "js-tiktoken": "^1.0.21",
         "openai": "6.26.0",
@@ -159,21 +159,22 @@
     },
     "packages/pi-extensions": {
       "name": "@howaboua/pi-extensions",
-      "version": "0.0.50",
+      "version": "0.0.53",
       "dependencies": {
-        "@howaboua/pi-ask": "0.0.4",
+        "@howaboua/pi-ask": "0.0.5",
         "@howaboua/pi-auto-reasoning-tool": "0.1.11",
-        "@howaboua/pi-auto-trees": "0.1.11",
+        "@howaboua/pi-auto-trees": "0.1.13",
         "@howaboua/pi-cache-hit-predictor": "0.0.1",
         "@howaboua/pi-dynamic-tools": "0.0.8",
         "@howaboua/pi-explore-subagents": "0.1.13",
-        "@howaboua/pi-gippity-control": "0.0.3",
+        "@howaboua/pi-gippity-control": "0.0.9",
         "@howaboua/pi-gpt-switcher": "0.1.0",
         "@howaboua/pi-markdown-workflows": "0.2.20",
         "@howaboua/pi-memories": "0.1.4",
-        "@howaboua/pi-semantic-grep": "0.1.18",
-        "@howaboua/pi-smart-btw": "0.2.5",
-        "@howaboua/pi-subagent-review": "0.2.14",
+        "@howaboua/pi-semantic-grep": "0.1.19",
+        "@howaboua/pi-shepherdr": "0.1.1",
+        "@howaboua/pi-smart-btw": "0.2.6",
+        "@howaboua/pi-subagent-review": "0.2.16",
         "@howaboua/pi-vent": "0.2.10",
       },
       "devDependencies": {
@@ -185,7 +186,7 @@
     },
     "packages/pi-gippity-control": {
       "name": "@howaboua/pi-gippity-control",
-      "version": "0.0.7",
+      "version": "0.0.9",
       "dependencies": {
         "proxy-from-env": "1.1.0",
         "selfsigned": "^3.0.1",
@@ -280,7 +281,7 @@
     },
     "packages/pi-shepherdr": {
       "name": "@howaboua/pi-shepherdr",
-      "version": "0.0.0",
+      "version": "0.1.1",
       "devDependencies": {
         "@biomejs/biome": "^2.4.16",
         "@earendil-works/pi-ai": "0.84.1",
@@ -381,32 +382,33 @@
     },
     "packages/pi-stuff": {
       "name": "@howaboua/pi-stuff",
-      "version": "0.0.55",
+      "version": "0.0.58",
       "dependencies": {
-        "@howaboua/pi-ask": "0.0.4",
+        "@howaboua/pi-ask": "0.0.5",
         "@howaboua/pi-auto-reasoning-tool": "0.1.11",
-        "@howaboua/pi-auto-trees": "0.1.11",
+        "@howaboua/pi-auto-trees": "0.1.13",
         "@howaboua/pi-cache-hit-predictor": "0.0.1",
         "@howaboua/pi-dynamic-tools": "0.0.8",
         "@howaboua/pi-explore-subagents": "0.1.13",
-        "@howaboua/pi-gippity-control": "0.0.3",
+        "@howaboua/pi-gippity-control": "0.0.9",
         "@howaboua/pi-gpt-switcher": "0.1.0",
         "@howaboua/pi-markdown-workflows": "0.2.20",
         "@howaboua/pi-memories": "0.1.4",
-        "@howaboua/pi-semantic-grep": "0.1.18",
+        "@howaboua/pi-semantic-grep": "0.1.19",
+        "@howaboua/pi-shepherdr": "0.1.1",
         "@howaboua/pi-skill-adversarial-qa": "0.0.1",
         "@howaboua/pi-skill-agent-native-hardening": "0.0.6",
         "@howaboua/pi-skill-agents-md": "0.0.4",
         "@howaboua/pi-skill-anti-ai-copy": "0.0.4",
         "@howaboua/pi-skill-chrome-cdp": "0.0.4",
-        "@howaboua/pi-skill-codex-prompt-caching": "0.0.0",
+        "@howaboua/pi-skill-codex-prompt-caching": "0.0.1",
         "@howaboua/pi-skill-gh-issue-pr-flow": "0.0.7",
-        "@howaboua/pi-skill-gh-stack": "0.0.0",
+        "@howaboua/pi-skill-gh-stack": "0.0.2",
         "@howaboua/pi-skill-model-facing-api-design": "0.0.5",
         "@howaboua/pi-skill-project-reference-research": "0.0.4",
         "@howaboua/pi-skill-skill-creator": "0.0.5",
-        "@howaboua/pi-smart-btw": "0.2.5",
-        "@howaboua/pi-subagent-review": "0.2.14",
+        "@howaboua/pi-smart-btw": "0.2.6",
+        "@howaboua/pi-subagent-review": "0.2.16",
         "@howaboua/pi-vent": "0.2.10",
       },
       "devDependencies": {
@@ -418,7 +420,7 @@
     },
     "packages/pi-subagent-review": {
       "name": "@howaboua/pi-subagent-review",
-      "version": "0.2.15",
+      "version": "0.2.16",
       "devDependencies": {
         "@biomejs/biome": "^2.4.16",
         "@earendil-works/pi-ai": "0.84.1",
@@ -1431,8 +1433,6 @@
     "@howaboua/pi-extensions/@earendil-works/pi-coding-agent": ["@earendil-works/pi-coding-agent@0.82.0", "", { "dependencies": { "@earendil-works/pi-agent-core": "^0.82.0", "@earendil-works/pi-ai": "^0.82.0", "@earendil-works/pi-tui": "^0.82.0", "@silvia-odwyer/photon-node": "0.3.4", "chalk": "5.6.2", "cross-spawn": "7.0.6", "diff": "8.0.4", "glob": "13.0.6", "highlight.js": "10.7.3", "hosted-git-info": "9.0.3", "ignore": "7.0.5", "jiti": "2.7.0", "minimatch": "10.2.5", "proper-lockfile": "4.1.2", "semver": "7.8.0", "typebox": "1.1.38", "undici": "8.5.0", "yaml": "2.9.0" }, "optionalDependencies": { "@mariozechner/clipboard": "0.3.9" }, "bin": { "pi": "dist/cli.js" } }, "sha512-Qnqgn9zhJFQ2HZ8R4iNuGhyCk93XX6+eUw9i+TjTuo47amzCy93ft3bB6yaUCleCrNO58dJDHYSGNHv/GAPWKg=="],
 
     "@howaboua/pi-gippity-control/@types/node": ["@types/node@25.9.1", "", { "dependencies": { "undici-types": ">=7.24.0 <7.24.7" } }, "sha512-xfrlY7UD5rMJk3ZVJP8BNzS28J36YJg+xp+LPXV1TdWxr8uMH5A860QNxYDGQe/ylDSgjxE52Q9VnO7p75tJxg=="],
-
-    "@howaboua/pi-gippity-control/undici": ["undici@8.5.0", "", {}, "sha512-xamtWoB1EshgjpmlXd7GGm2VfdDtw1+rD8uhry8pSNW3If6S8E0m2T2+orSKeZXEn/aPJMviCpDBA65WJt8zhg=="],
 
     "@howaboua/pi-gpt-switcher/@earendil-works/pi-coding-agent": ["@earendil-works/pi-coding-agent@0.82.0", "", { "dependencies": { "@earendil-works/pi-agent-core": "^0.82.0", "@earendil-works/pi-ai": "^0.82.0", "@earendil-works/pi-tui": "^0.82.0", "@silvia-odwyer/photon-node": "0.3.4", "chalk": "5.6.2", "cross-spawn": "7.0.6", "diff": "8.0.4", "glob": "13.0.6", "highlight.js": "10.7.3", "hosted-git-info": "9.0.3", "ignore": "7.0.5", "jiti": "2.7.0", "minimatch": "10.2.5", "proper-lockfile": "4.1.2", "semver": "7.8.0", "typebox": "1.1.38", "undici": "8.5.0", "yaml": "2.9.0" }, "optionalDependencies": { "@mariozechner/clipboard": "0.3.9" }, "bin": { "pi": "dist/cli.js" } }, "sha512-Qnqgn9zhJFQ2HZ8R4iNuGhyCk93XX6+eUw9i+TjTuo47amzCy93ft3bB6yaUCleCrNO58dJDHYSGNHv/GAPWKg=="],
 
