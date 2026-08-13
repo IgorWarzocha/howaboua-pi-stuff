@@ -212,6 +212,8 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
     let closed = false, eventSource, rpcId = 0;
     let draft = { type:'draft', text:'', revision:-1 };
     let dirty = false, syncing = false, syncPromise, timer;
+	let resolveInitialDraft;
+	const initialDraft = new Promise((resolve) => { resolveInitialDraft = resolve; });
 
     const emit = (type, value) => {
       for (const listener of listeners.get(type) || []) { try { listener(value); } catch (error) { setTimeout(() => { throw error; }); } }
@@ -265,9 +267,10 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
     };
     const flush = async () => {
       if (syncing) return syncPromise;
-      if (!dirty || draft.revision < 0) return true;
+	  if (!dirty) return true;
       syncing = true;
       syncPromise = (async () => {
+		if (draft.revision < 0) await initialDraft;
         while (dirty) {
           dirty = false;
           const text = draft.text;
@@ -286,9 +289,14 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
     };
     const applyDraft = (command) => {
       if (typeof command.text !== 'string' || typeof command.revision !== 'number' || command.revision < draft.revision) return;
+	  if (draft.revision < 0 && dirty) {
+		draft = { ...draft, revision:command.revision };
+		resolveInitialDraft(); emit('draft', { ...draft }); return;
+	  }
       const preserveLocal = command.sourceClientId === clientId && command.reason === 'update' && (dirty || syncing) && draft.text !== command.text;
       draft = preserveLocal ? { ...draft, revision:command.revision } : { ...command };
       if (command.sourceClientId !== clientId) { clearTimeout(timer); dirty = false; }
+	  resolveInitialDraft();
       emit('draft', { ...draft });
     };
     client.audio = createAudio(client);
