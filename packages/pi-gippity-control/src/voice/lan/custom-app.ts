@@ -4,7 +4,6 @@ import { extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 interface LanRemoteStaticAsset {
 	contentType: string;
 	path: string;
-	size: number;
 }
 
 export interface LanRemoteCustomApp {
@@ -71,7 +70,6 @@ export function resolveLanRemoteCustomApp(
 				return undefined;
 			return {
 				path: real,
-				size: statSync(real).size,
 				contentType:
 					CONTENT_TYPES[extname(real).toLowerCase()] ??
 					"application/octet-stream",

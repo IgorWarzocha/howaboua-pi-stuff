@@ -295,12 +295,11 @@ function sendBinary(
 
 async function sendFile(
 	response: ServerResponse,
-	asset: { contentType: string; path: string; size: number },
+	asset: { contentType: string; path: string },
 	cache: boolean,
 ): Promise<void> {
 	response.writeHead(200, {
 		"cache-control": cache ? "public, max-age=86400" : "no-store",
-		"content-length": asset.size,
 		"content-type": asset.contentType,
 		"x-content-type-options": "nosniff",
 	});

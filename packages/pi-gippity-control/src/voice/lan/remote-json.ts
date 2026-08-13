@@ -1,11 +1,20 @@
 const MAX_REMOTE_VALUE_BYTES = 256 * 1024;
 const MAX_REMOTE_STRING_BYTES = 32 * 1024;
 const MAX_REMOTE_ARRAY_ITEMS = 256;
+const MAX_REMOTE_OBJECT_PROPERTIES = 256;
 const MAX_REMOTE_BINARY_BYTES = 16 * 1024;
+const MAX_REMOTE_DEPTH = 12;
 
 export function remoteJsonValue(value: unknown): unknown {
 	const ancestors: object[] = [];
+	const depths = new WeakMap<object, number>();
+	const propertyCounts = new WeakMap<object, number>();
 	const json = JSON.stringify(value, function (key, current: unknown) {
+		if (key && this && typeof this === "object" && !Array.isArray(this)) {
+			const count = (propertyCounts.get(this) ?? 0) + 1;
+			propertyCounts.set(this, count);
+			if (count > MAX_REMOTE_OBJECT_PROPERTIES) return undefined;
+		}
 		const source =
 			key && this && typeof this === "object"
 				? (this as Record<string, unknown>)[key]
@@ -32,11 +41,22 @@ export function remoteJsonValue(value: unknown): unknown {
 		if (typeof current === "function" || typeof current === "symbol")
 			return undefined;
 		if (!current || typeof current !== "object") return current;
+		const depth =
+			((this && typeof this === "object" ? depths.get(this) : undefined) ??
+				-1) + 1;
+		if (depth > MAX_REMOTE_DEPTH) return "[Truncated]";
+		depths.set(current, depth);
 		while (ancestors.length > 0 && ancestors.at(-1) !== this) ancestors.pop();
 		if (ancestors.includes(current)) return "[Circular]";
 		ancestors.push(current);
-		if (Array.isArray(current) && current.length > MAX_REMOTE_ARRAY_ITEMS)
-			return [...current.slice(0, MAX_REMOTE_ARRAY_ITEMS), "[Truncated]"];
+		if (Array.isArray(current) && current.length > MAX_REMOTE_ARRAY_ITEMS) {
+			const bounded = [
+				...current.slice(0, MAX_REMOTE_ARRAY_ITEMS),
+				"[Truncated]",
+			];
+			depths.set(bounded, depth);
+			return bounded;
+		}
 		return current;
 	});
 	if (json === undefined) return null;
