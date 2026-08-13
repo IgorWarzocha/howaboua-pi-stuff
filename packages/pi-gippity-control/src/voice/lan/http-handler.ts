@@ -83,7 +83,10 @@ export async function handleLanVoiceHttpRequest(
 			return;
 		}
 		const appAsset =
-			request.method === "GET" && !currentWebApp().customWebApp
+			request.method === "GET" &&
+			!path.startsWith("/api/") &&
+			!path.startsWith("/_gippity/") &&
+			!currentWebApp().customWebApp
 				? getLanVoiceAppAsset(path)
 				: undefined;
 		if (appAsset) {
