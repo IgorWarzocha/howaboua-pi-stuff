@@ -9,6 +9,7 @@ import {
 	Image,
 	Spacer,
 	Text,
+	truncateToWidth,
 } from "@earendil-works/pi-tui";
 import type {
 	CodeModeToolDefinition,
@@ -76,6 +77,9 @@ export function renderExecCall(
 	const verb =
 		status === "running" ? "Running" : status === "yielded" ? "Started" : "Ran";
 	let text = `${theme.fg("dim", "•")} ${theme.bold(`${verb} code`)}`;
+	if (!context?.expanded && code.trim()) {
+		text += `\n${previewCode(code, theme)}`;
+	}
 	const names = customToolNames(code);
 	if (names.length > 0) {
 		text += `\n${theme.fg("dim", "  └ ")}${theme.fg("accent", names.join(" · "))}`;
@@ -461,13 +465,27 @@ function previewText(text: string, theme: RenderTheme): string {
 	if (!text) return "";
 	const preview = truncateToVisualLines(text, 5, 100, 0);
 	if (preview.skippedCount <= 0) return preview.visualLines.join("\n");
-	let hint: string;
-	try {
-		hint = keyHint("app.tools.expand", "to expand");
-	} catch {
-		hint = "ctrl+o to expand";
+	return `${theme.fg("muted", `... (${preview.skippedCount} more lines, ${expandHint()})`)}\n${preview.visualLines.join("\n")}`;
+}
+
+function previewCode(code: string, theme: RenderTheme): string {
+	const highlighted = highlightCode(code.trim(), "javascript");
+	const lines = highlighted
+		.slice(0, 3)
+		.map((line) => truncateToWidth(`  ${line}`, 100, "..."));
+	const skippedCount = highlighted.length - lines.length;
+	if (skippedCount > 0) {
+		lines.push(theme.fg("muted", `  ... (${skippedCount} more lines, ${expandHint()})`));
 	}
-	return `${theme.fg("muted", `... (${preview.skippedCount} more lines, ${hint})`)}\n${preview.visualLines.join("\n")}`;
+	return lines.join("\n");
+}
+
+function expandHint(): string {
+	try {
+		return keyHint("app.tools.expand", "to expand");
+	} catch {
+		return "ctrl+o to expand";
+	}
 }
 
 function renderTextAndImages(
