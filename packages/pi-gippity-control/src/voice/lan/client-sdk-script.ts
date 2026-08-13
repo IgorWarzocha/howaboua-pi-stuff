@@ -235,6 +235,7 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
       _post: post,
       get draft() { return { ...draft }; },
       on(type, listener) {
+        assertOpen();
         if (typeof listener !== 'function') throw new Error('Event listener must be a function');
         let group = listeners.get(type); if (!group) { group = new Set(); listeners.set(type, group); }
         group.add(listener); return () => group.delete(listener);
@@ -303,7 +304,7 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
 		draft = { ...draft, revision:command.revision };
 		resolveInitialDraft(); emit('draft', { ...draft }); return;
 	  }
-      const preserveLocal = command.sourceClientId === clientId && command.reason === 'update' && (dirty || syncing) && draft.text !== command.text;
+	  const preserveLocal = command.sourceClientId === clientId && (command.reason === 'update' || command.reason === 'sent') && (dirty || syncing) && draft.text !== command.text;
       draft = preserveLocal ? { ...draft, revision:command.revision } : { ...command };
       if (command.sourceClientId !== clientId) { clearTimeout(timer); dirty = false; }
 	  resolveInitialDraft();
