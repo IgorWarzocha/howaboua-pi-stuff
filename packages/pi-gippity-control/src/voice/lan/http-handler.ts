@@ -11,7 +11,7 @@ import { type LanVoiceDraft, LanVoiceDraftError } from "./draft.ts";
 
 const MAX_REQUEST_BYTES = 300 * 1024;
 
-export interface LanRemoteWebAppState {
+interface LanRemoteWebAppState {
 	customWebApp: boolean;
 	customApp?: LanRemoteCustomApp | undefined;
 	discovery: unknown;
