@@ -32,7 +32,7 @@ export async function startControllerConversation(options: {
 	instructions: string;
 	initialItems?: RealtimeInitialMessageItem[] | undefined;
 	inputMuted?: boolean | undefined;
-	greet?: boolean | undefined;
+	greeting?: "fresh" | "contextual" | undefined;
 	peer?: CodexRealtimePeer | undefined;
 	signal?: AbortSignal | undefined;
 	lifecycle: RealtimeSessionLifecycle;
@@ -69,9 +69,10 @@ export async function startControllerConversation(options: {
 	if (options.lifecycle.isCurrent(session)) {
 		session.markEstablished();
 		options.lifecycle.onActive(session);
-		if (options.greet) {
+		if (options.greeting) {
 			setTimeout(() => {
-				if (options.lifecycle.isCurrent(session)) session.greet();
+				if (options.lifecycle.isCurrent(session))
+					session.greet(options.greeting === "contextual");
 			}, 0).unref?.();
 		}
 	}

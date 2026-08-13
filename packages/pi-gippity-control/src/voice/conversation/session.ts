@@ -64,13 +64,13 @@ export class CodexRealtimeConversation {
 		if (this.state === "active") this.established = true;
 	}
 
-	greet(): void {
+	greet(contextual: boolean): void {
 		if (this.state !== "active") return;
-		try {
-			this.peer.sendData({ type: "response.create" });
-		} catch (error) {
-			this.fail(error instanceof Error ? error : new Error(String(error)));
-		}
+		this.appendSpeakableContext(
+			contextual
+				? "The voice session has started with context from the ongoing conversation. Greet the user by naturally acknowledging the relevant topic, state, or next step. Do not give a generic hello or repeat the context summary. Then wait for them to speak."
+				: "The voice session has started. Give the user a short, distinctive greeting with some personality; a bare generic hello is not enough. Then wait for them to speak.",
+		);
 	}
 
 	announcePrompt(prompt: string): void {
@@ -186,6 +186,14 @@ export class CodexRealtimeConversation {
 		this.handoff.finishMessage(channel, fallback);
 	}
 
+	finishAgentProgress(fallback?: string): void {
+		this.handoff.finishProgress(fallback);
+	}
+
+	get agentProgressStreamed(): boolean {
+		return this.handoff.hasStreamedProgress();
+	}
+
 	settleAgentTurn(): void {
 		this.handoff.settle();
 	}
@@ -295,7 +303,8 @@ export class CodexRealtimeConversation {
 		}
 		const delegated = this.turnTracker.delegated(input, record["id"]);
 		if (!delegated) return;
-		this.callbacks.onTurn(delegated);
+		if (delegated.displayInput) this.callbacks.onUserTranscript(input);
+		this.callbacks.onTurn(delegated.turn);
 	}
 
 	private handleCompletedTurn(turn: unknown): void {
@@ -307,14 +316,9 @@ export class CodexRealtimeConversation {
 				this.fail(new Error("Codex voice transcript was oversized"));
 				return;
 			}
-			if (input) this.callbacks.onUserTranscript(input);
-			const delegated = input
-				? this.turnTracker.userFinished(input)
-				: undefined;
+			if (input && this.turnTracker.userFinished(input))
+				this.callbacks.onUserTranscript(input);
 			this.callbacks.onStatus("responding");
-			if (delegated) {
-				this.callbacks.onTurn(delegated);
-			}
 			return;
 		}
 		if (record["role"] !== "assistant") return;

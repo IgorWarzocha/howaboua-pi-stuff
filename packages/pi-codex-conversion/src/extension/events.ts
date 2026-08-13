@@ -15,6 +15,7 @@ import { clearApplyPatchRenderState } from "../tools/apply-patch/tool.ts";
 import type { CodeModeRegistration } from "../tools/code-mode/tools.ts";
 import { parseRealtimeVoicePrompt, REALTIME_VOICE_PROMPT_CHANNEL } from "../realtime-voice.ts";
 import { initializeBashParser } from "../shell/bash.ts";
+import { prepareVoiceDelegation } from "../voice/delegation-preflight.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
 import type { CodexToolRegistration } from "./tools.ts";
 import type { CodexUiController } from "./ui.ts";
@@ -64,6 +65,7 @@ export function registerCodexEvents(
 		const report = parseRealtimeVoicePrompt(value);
 		if (report) runtime.voice.setPrompt(report);
 	});
+	runtime.voice.setDelegationPreflight((ctx, signal) => prepareVoiceDelegation(runtime, codeMode, ctx, signal));
 	sessions.onSessionExit((sessionId) => tracker.recordSessionFinished(sessionId));
 
 	pi.on("session_start", async (event, ctx) => {
@@ -78,6 +80,7 @@ export function registerCodexEvents(
 		state.config = readCodexConversionConfig();
 		state.weeklyUsageLeft = undefined;
 		state.activeProviderSystemPrompt = undefined;
+		state.voiceSystemPromptOverride = undefined;
 		proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 		if (state.config.voiceFeaturesOnly) {
@@ -107,6 +110,7 @@ export function registerCodexEvents(
 		runtime.resetTransport(ctx.sessionManager.getSessionId());
 		state.cwd = ctx.cwd;
 		state.activeProviderSystemPrompt = undefined;
+		state.voiceSystemPromptOverride = undefined;
 		state.weeklyUsageLeft = undefined;
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 		proxyProvider.applyConfig(state.config, ctx.modelRegistry);
@@ -170,6 +174,7 @@ export function registerCodexEvents(
 	});
 	pi.on("before_agent_start", async (event, ctx) => {
 		const systemPrompt = event.systemPrompt;
+		state.voiceSystemPromptOverride = undefined;
 		if (!isAdapterRuntime(resolveCodexRuntimePlan(ctx, state.config))) {
 			state.pendingActiveProviderPromptCapture = false;
 			return undefined;
@@ -188,6 +193,7 @@ export function registerCodexEvents(
 	pi.on("agent_start", async () => { runtime.voice.agentStarted(); runtime.lanVoice.agentStarted(); });
 	pi.on("agent_settled", async (_event, ctx) => {
 		state.pendingActiveProviderPromptCapture = false;
+		state.voiceSystemPromptOverride = undefined;
 		state.codexTurnState.reset();
 		runtime.voice.settleTurn();
 		runtime.lanVoice.agentSettled();

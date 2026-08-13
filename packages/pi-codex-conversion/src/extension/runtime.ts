@@ -45,6 +45,7 @@ export interface CodexExtensionRuntime {
 	resetTransportAfterCompaction(sessionId: string): void;
 	shutdownTransport(sessionId: string): void;
 	waitForPrewarm(ctx: CodexContext, systemPrompt: string): Promise<CodexPrewarmResult> | undefined;
+	prewarmIdentity(ctx: CodexContext, systemPrompt: string): string | undefined;
 	configureDiagnostics(ctx: CodexContext, announceLog?: boolean): Promise<void>;
 	diagnosticsSink(): CodexDiagnosticsSink | undefined;
 	shutdownDiagnostics(): Promise<void>;
@@ -262,6 +263,9 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		},
 		waitForPrewarm(ctx, systemPrompt) {
 			return runtime.startPrewarm(ctx, systemPrompt, true);
+		},
+		prewarmIdentity(ctx, systemPrompt) {
+			return buildPrewarmPlan(ctx, systemPrompt, true, [], false)?.identity;
 		},
 		configureDiagnostics(ctx, announceLog = false) {
 			return diagnostics.configure({
