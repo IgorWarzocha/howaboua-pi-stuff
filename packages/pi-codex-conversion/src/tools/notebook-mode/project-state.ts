@@ -9,7 +9,6 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { join, resolve } from "node:path";
-import { acquireDirectoryLock } from "./directory-lock.ts";
 import type { DenoJupyterKernel } from "./jupyter-kernel.ts";
 import {
 	baselineFromProjectManifest,
@@ -28,11 +27,10 @@ import {
 	type ProjectStateSummary,
 } from "./project-state-format.ts";
 import { mergeProjectState, type ProjectStateMerge } from "./project-state-merge.ts";
+import { withProjectStateLock } from "./project-state-lock.ts";
 import { projectStateCaptureSource, projectStateRestoreSource } from "./project-state-runtime.ts";
 
 const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
-const LOCK_STALE_MS = 5 * 60_000;
-const LOCK_WAIT_MS = 5_000;
 const MAX_NOTICE_NAMES = 24;
 
 export type { ProjectStateBaseline, ProjectStateSummary } from "./project-state-format.ts";
@@ -43,7 +41,7 @@ export async function restoreProjectState(
 ): Promise<ProjectStateSummary> {
 	const paths = projectStatePaths(identity.project, identity.agentDir);
 	mkdirSync(paths.directory, { recursive: true });
-	return withProjectLock(paths.lock, () => restoreProjectStateLocked(kernel, identity, paths));
+	return withProjectStateLock(paths.lock, () => restoreProjectStateLocked(kernel, identity, paths));
 }
 
 export async function resetProjectState(identity: {
@@ -53,7 +51,7 @@ export async function resetProjectState(identity: {
 }): Promise<{ previousBindings: number; generation: string }> {
 	const paths = projectStatePaths(identity.project, identity.agentDir);
 	mkdirSync(paths.directory, { recursive: true });
-	return withProjectLock(paths.lock, async () => {
+	return withProjectStateLock(paths.lock, async () => {
 		const current = readProjectStateManifest(paths.manifest);
 		if (!current) {
 			rmSync(paths.manifest, { force: true });
@@ -153,7 +151,7 @@ export async function writeProjectState(
 		const candidate = readProjectStateCandidate(candidateManifestPath, candidatePayloadPath, maxBytes);
 		if (!candidate) throw new Error("Project notebook checkpoint did not produce a valid candidate");
 		const candidatePayload = readFileSync(candidatePayloadPath);
-		const committed = await withProjectLock(paths.lock, () => commitCandidate({
+		const committed = await withProjectStateLock(paths.lock, () => commitCandidate({
 				paths,
 				identity,
 				baseline,
@@ -253,16 +251,6 @@ function writeMergedProjectState(
 	renameSync(temporary, paths.manifest);
 	if (current?.payload && current.payload !== payload) rmSync(join(paths.directory, current.payload), { force: true });
 	return manifest;
-}
-
-async function withProjectLock<T>(path: string, operation: () => Promise<T>): Promise<T> {
-	const lock = await acquireDirectoryLock(path, { waitMs: LOCK_WAIT_MS, staleMs: LOCK_STALE_MS, pollMs: 50 });
-	if (!lock) throw new Error("Project notebook checkpoint lock became unavailable");
-	try {
-		return await operation();
-	} finally {
-		lock.release();
-	}
 }
 
 function removeProjectArtifacts(directory: string, keep = new Set<string>()): void {

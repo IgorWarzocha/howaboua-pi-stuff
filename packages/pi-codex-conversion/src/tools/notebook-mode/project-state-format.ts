@@ -14,6 +14,8 @@ export interface ProjectStateEntry {
 	offset: number;
 	length: number;
 	hash: string;
+	updatedAt?: string | undefined;
+	pinned?: true | undefined;
 }
 
 export interface ProjectStateManifest {
@@ -68,6 +70,7 @@ export function readProjectStateManifest(path: string): ProjectStateManifest | u
 			|| typeof value["v8"] !== "string"
 			|| typeof value["payload"] !== "string"
 			|| typeof value["createdAt"] !== "string"
+			|| !Number.isFinite(Date.parse(value["createdAt"]))
 			|| typeof value["sourceSession"] !== "string"
 			|| !Array.isArray(value["entries"])
 			|| !Array.isArray(value["skipped"])
@@ -161,7 +164,7 @@ export function hashStateBytes(bytes: Uint8Array): string {
 
 function parseEntry(value: unknown, payloadLength: number, requireHash: boolean): ProjectStateEntry | Omit<ProjectStateEntry, "hash"> | undefined {
 	if (!isRecord(value)) return undefined;
-	const { name, kind, offset, length, hash } = value;
+	const { name, kind, offset, length, hash, updatedAt, pinned } = value;
 	if (
 		typeof name !== "string" || Buffer.byteLength(name) > MAX_PROJECT_NAME_BYTES
 		|| kind !== "value" && kind !== "function"
@@ -169,12 +172,16 @@ function parseEntry(value: unknown, payloadLength: number, requireHash: boolean)
 		|| !Number.isSafeInteger(length) || (length as number) < 0
 		|| (offset as number) + (length as number) > payloadLength
 		|| requireHash && typeof hash !== "string"
+		|| updatedAt !== undefined && (typeof updatedAt !== "string" || !Number.isFinite(Date.parse(updatedAt)))
+		|| pinned !== undefined && pinned !== true
 	) return undefined;
 	const entry: Omit<ProjectStateEntry, "hash"> = {
 		name,
 		kind: kind as ProjectStateEntry["kind"],
 		offset: offset as number,
 		length: length as number,
+		...(typeof updatedAt === "string" ? { updatedAt } : {}),
+		...(pinned === true ? { pinned: true as const } : {}),
 	};
 	return requireHash ? { ...entry, hash: hash as string } : entry;
 }

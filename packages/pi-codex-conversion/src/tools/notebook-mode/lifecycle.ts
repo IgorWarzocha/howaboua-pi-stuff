@@ -8,6 +8,7 @@ import type {
 } from "../code-mode/types.ts";
 import type { DenoJupyterKernel } from "./jupyter-kernel.ts";
 import { globMatcher } from "./glob.ts";
+import type { RetainedProjectBinding } from "./project-state-metadata.ts";
 import {
 	notebookDisposeSource,
 	notebookReleaseSource,
@@ -30,6 +31,8 @@ interface NotebookLifecycleHost {
 	activeCellId(): string | undefined;
 	stopActive(): Promise<string | undefined>;
 	checkpoint(excludeNames?: ReadonlySet<string>): Promise<void>;
+	retainedBindings(): RetainedProjectBinding[];
+	setPins(names: string[], pinned: boolean): Promise<RetainedProjectBinding[]>;
 	markChanged(): void;
 	restart(context: ExtensionContext, signal?: AbortSignal): Promise<string | undefined>;
 	rollback(context: ExtensionContext): Promise<void>;
@@ -52,8 +55,16 @@ interface NotebookStatusDetails extends Record<string, unknown> {
 	memory?: NotebookKernelStatus["memory"] | NotebookMemoryUsage | undefined;
 	checkpoint: Record<string, unknown>;
 	query?: string | undefined;
-	matches?: NotebookKernelStatus["bindings"] | undefined;
+	matches?: Array<NotebookKernelStatus["bindings"][number] & {
+		bytes?: number | undefined;
+		updatedAt?: string | undefined;
+		pinned?: boolean | undefined;
+	}> | undefined;
 	omittedMatches?: number | undefined;
+	retainedBindings: number;
+	retainedBytes: number;
+	pinnedBindings: number;
+	largestUnpinned: RetainedProjectBinding[];
 }
 
 export class NotebookLifecycleController {
@@ -79,7 +90,10 @@ export class NotebookLifecycleController {
 			case "checkpoint": return this.checkpoint();
 			case "save": return this.profiles.save(request.name, context, signal);
 			case "load": return this.profiles.load(request.name, context, signal);
+			case "pin": return this.pin(request.names, true);
+			case "unpin": return this.pin(request.names, false);
 			case "release": return this.release(request.names, context, signal);
+			case "prune": return this.prune(request.query, context, signal);
 			case "restart": return this.restart(context, signal);
 		}
 	}
@@ -102,6 +116,8 @@ export class NotebookLifecycleController {
 		const allNames = activeCell ? [] : await this.userBindingNames(kernel);
 		const matches = query === undefined ? [] : allNames.filter(globMatcher(query));
 		const selected = withinNameBudget(matches);
+		const retained = this.host.retainedBindings();
+		const retainedByName = new Map(retained.map((binding) => [binding.name, binding]));
 		let runtime: NotebookKernelStatus | undefined;
 		if (!activeCell) {
 			const marker = lifecycleMarker();
@@ -119,9 +135,26 @@ export class NotebookLifecycleController {
 			...(metadata.startedAt ? { startedAt: new Date(metadata.startedAt).toISOString() } : {}),
 			memory: runtime?.memory ?? metadata.memory,
 			checkpoint: metadata.checkpoint,
+			retainedBindings: retained.length,
+			retainedBytes: retained.reduce((total, binding) => total + binding.bytes, 0),
+			pinnedBindings: retained.filter(({ pinned }) => pinned).length,
+			largestUnpinned: retained
+				.filter(({ pinned }) => !pinned)
+				.sort((left, right) => right.bytes - left.bytes)
+				.slice(0, 8),
 			...(query === undefined ? {} : {
 				query,
-				matches: runtime?.bindings ?? [],
+				matches: (runtime?.bindings ?? []).map((binding) => {
+					const retainedBinding = retainedByName.get(binding.name);
+					return {
+						...binding,
+						...(retainedBinding ? {
+							bytes: retainedBinding.bytes,
+							updatedAt: retainedBinding.updatedAt,
+							pinned: retainedBinding.pinned,
+						} : {}),
+					};
+				}),
 				omittedMatches: Math.max(0, matches.length - selected.length),
 			}),
 		};
@@ -134,6 +167,19 @@ export class NotebookLifecycleController {
 		return { message: "Notebook checkpoint complete", details };
 	}
 
+	private async pin(names: string[], pinned: boolean): Promise<NotebookControlResult> {
+		const activeCell = this.host.activeCellId();
+		if (activeCell) throw new Error(`Cannot change notebook pins while exec cell "${activeCell}" is running`);
+		await this.host.checkpoint();
+		const retained = await this.host.setPins(names, pinned);
+		const reportedNames = withinNameBudget(names);
+		const selected = retained.filter((binding) => reportedNames.includes(binding.name));
+		return {
+			message: `${pinned ? "Pinned" : "Unpinned"} durable notebook bindings: ${formatNameList(names)}`,
+			details: { pinned, bindings: selected, omittedBindings: names.length - selected.length },
+		};
+	}
+
 	private async release(names: string[], context: ToolExecutionContext, signal?: AbortSignal): Promise<NotebookControlResult> {
 		const activeCell = this.host.activeCellId();
 		if (activeCell) throw new Error(`Cannot release notebook state while exec cell "${activeCell}" is running; terminate or restart it first`);
@@ -141,6 +187,9 @@ export class NotebookLifecycleController {
 		const available = new Set(await this.userBindingNames(kernel));
 		const invalid = names.filter((name) => !IDENTIFIER.test(name) || !available.has(name));
 		if (invalid.length > 0) throw new Error(`Notebook bindings not found or not releasable: ${invalid.join(", ")}`);
+		const pinned = new Set(this.host.retainedBindings().filter((binding) => binding.pinned).map(({ name }) => name));
+		const protectedNames = names.filter((name) => pinned.has(name));
+		if (protectedNames.length > 0) throw new Error(`Pinned notebook bindings cannot be released: ${formatNameList(protectedNames)}; unpin them first`);
 		const statusMarker = lifecycleMarker();
 		const status = parseNotebookRuntimeResult<NotebookKernelStatus>(
 			await kernel.execute(notebookStatusSource(names, statusMarker), { signal }),
@@ -179,6 +228,25 @@ export class NotebookLifecycleController {
 		}
 		const details = { ...result, restarted: restartRequired, checkpoint: this.host.metadata().checkpoint };
 		return { message: formatRelease(result, restartRequired), details };
+	}
+
+	private async prune(query: string, context: ToolExecutionContext, signal?: AbortSignal): Promise<NotebookControlResult> {
+		const kernel = this.host.kernel()!;
+		const matches = (await this.userBindingNames(kernel)).filter(globMatcher(query));
+		const pinned = new Set(this.host.retainedBindings().filter((binding) => binding.pinned).map(({ name }) => name));
+		const protectedNames = matches.filter((name) => pinned.has(name));
+		const names = matches.filter((name) => !pinned.has(name));
+		if (names.length === 0) {
+			return {
+				message: `No unpinned notebook bindings matched ${JSON.stringify(query)}${protectedNames.length > 0 ? `; protected: ${formatNameList(protectedNames)}` : ""}`,
+				details: { query, released: [], protected: protectedNames },
+			};
+		}
+		const released = await this.release(names, context, signal);
+		return {
+			message: `${released.message}${protectedNames.length > 0 ? `\nPinned matches preserved: ${formatNameList(protectedNames)}` : ""}`,
+			details: { ...released.details, query, protected: protectedNames },
+		};
 	}
 
 	private async restart(context: ToolExecutionContext, signal?: AbortSignal): Promise<NotebookControlResult> {
@@ -228,6 +296,12 @@ function withinNameBudget(names: string[]): string[] {
 	});
 }
 
+function formatNameList(names: string[]): string {
+	const shown = withinNameBudget(names);
+	const suffix = names.length > shown.length ? `, and ${names.length - shown.length} more` : "";
+	return `${shown.join(", ")}${suffix}`;
+}
+
 function formatStatus(details: NotebookStatusDetails): string {
 	const memory = details.memory;
 	const checkpoint = details.checkpoint;
@@ -235,12 +309,20 @@ function formatStatus(details: NotebookStatusDetails): string {
 		`Notebook ${details.state}${details.activeCell ? ` (${details.activeCell})` : ""} · ${details.userCells} completed cell${details.userCells === 1 ? "" : "s"}`,
 		memory ? `Memory ${formatBytes(memory.heapUsedBytes)} heap used / ${formatBytes(memory.heapLimitBytes)} limit · ${formatBytes(memory.rssBytes)} RSS` : undefined,
 		`Checkpoint ${checkpoint["dirty"] ? "pending" : "current"} · project generation ${String(checkpoint["projectGeneration"] ?? "root")} · ${String(checkpoint["projectBindings"] ?? 0)} durable binding(s)`,
+		`Retained state ${details.retainedBindings} binding(s) · ${formatBytes(details.retainedBytes)} serialized · ${details.pinnedBindings} pinned`,
 		details.userBindings === undefined ? undefined : `Top-level bindings: ${details.userBindings}`,
 	];
+	if (details.query === undefined && details.largestUnpinned.length > 0) {
+		lines.push("Largest unpinned retained bindings:");
+		for (const binding of details.largestUnpinned) {
+			lines.push(`- ${binding.name}: ${formatBytes(binding.bytes)} · updated ${formatAge(binding.updatedAt)}`);
+		}
+		lines.push("Use status with a query glob for details; pin intentional state before pruning disposable matches");
+	}
 	if (details.query !== undefined) {
 		lines.push(`Bindings matching ${JSON.stringify(details.query)}:`);
 		for (const binding of details.matches ?? []) {
-			lines.push(`- ${binding.name}: ${binding.kind}${binding.constructor ? ` ${binding.constructor}` : ` ${binding.type}`}${binding.disposable ? ` · ${binding.disposable} disposable` : ""}`);
+			lines.push(`- ${binding.name}: ${binding.kind}${binding.constructor ? ` ${binding.constructor}` : ` ${binding.type}`}${binding.disposable ? ` · ${binding.disposable} disposable` : ""}${binding.bytes === undefined ? "" : ` · ${formatBytes(binding.bytes)} · updated ${formatAge(binding.updatedAt!)}`}${binding.pinned ? " · pinned" : ""}`);
 		}
 		if ((details.matches?.length ?? 0) === 0) lines.push("- none");
 		if ((details.omittedMatches ?? 0) > 0) lines.push(`${details.omittedMatches} additional match(es) omitted; narrow query`);
@@ -263,6 +345,14 @@ function formatBytes(bytes: number): string {
 	if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KiB`;
 	if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MiB`;
 	return `${(bytes / 1024 ** 3).toFixed(2)} GiB`;
+}
+
+function formatAge(timestamp: string): string {
+	const elapsed = Math.max(0, Date.now() - Date.parse(timestamp));
+	if (elapsed < 60_000) return "just now";
+	if (elapsed < 3_600_000) return `${Math.floor(elapsed / 60_000)}m ago`;
+	if (elapsed < 86_400_000) return `${Math.floor(elapsed / 3_600_000)}h ago`;
+	return `${Math.floor(elapsed / 86_400_000)}d ago`;
 }
 
 function boundMessage(message: string): string {
