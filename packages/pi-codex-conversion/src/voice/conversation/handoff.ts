@@ -25,6 +25,7 @@ export class RealtimeDelegationHandoff {
 	private readonly callbacks: RealtimeDelegationHandoffCallbacks;
 	private activeDelegationId: string | undefined;
 	private buffer = "";
+	private streamedProgress = false;
 
 	constructor(peer: CodexRealtimePeer, callbacks: RealtimeDelegationHandoffCallbacks) {
 		this.peer = peer;
@@ -56,16 +57,54 @@ export class RealtimeDelegationHandoff {
 	stream(delta: string): void {
 		if (!this.callbacks.isActive() || !this.activeDelegationId || !delta) return;
 		this.buffer += delta;
+		for (;;) {
+			const boundary = this.streamedProgress
+				? paragraphBoundary(this.buffer)
+				: secondSentenceBoundary(this.buffer);
+			if (boundary === undefined) break;
+			const chunk = this.buffer.slice(0, boundary);
+			this.buffer = this.buffer.slice(boundary);
+			if (chunk.trim()) this.sendProgress(chunk);
+		}
 	}
 
 	finishMessage(channel: RealtimeHandoffChannel, fallback = ""): void {
 		const delegationId = this.activeDelegationId;
-		const text = this.buffer.trim() ? this.buffer : fallback;
+		const text = fallback || this.buffer;
 		this.buffer = "";
+		this.streamedProgress = false;
 		if (!this.callbacks.isActive() || !delegationId || !text) return;
 		if (channel === "speakable") this.callbacks.onStatus("speaking");
 		try {
 			this.send(delegationId, channel, text);
+		} catch (error) {
+			this.callbacks.onFailure(asError(error));
+		}
+	}
+
+	finishProgress(fallback = ""): void {
+		const text = fallback || this.buffer;
+		this.buffer = "";
+		const active = this.callbacks.isActive() && Boolean(this.activeDelegationId);
+		if (active && text) this.sendProgress(text, false);
+		this.streamedProgress = false;
+	}
+
+	hasStreamedProgress(): boolean {
+		return this.streamedProgress;
+	}
+
+	private sendProgress(text: string, markStreamed = true): void {
+		this.callbacks.onStatus("speaking");
+		try {
+			for (const content of utf8Chunks(text, HANDOFF_CHUNK_BYTES)) {
+				this.peer.sendData({
+					type: "session.context.append",
+					channel: "speakable",
+					content: [{ type: "input_text", text: content }],
+				});
+			}
+			if (markStreamed) this.streamedProgress = true;
 		} catch (error) {
 			this.callbacks.onFailure(asError(error));
 		}
@@ -80,6 +119,7 @@ export class RealtimeDelegationHandoff {
 
 	clear(): void {
 		this.buffer = "";
+		this.streamedProgress = false;
 		this.activeDelegationId = undefined;
 	}
 
@@ -88,6 +128,16 @@ export class RealtimeDelegationHandoff {
 			this.peer.sendData({ type: "delegation.context.append", delegation_item_id: delegationId, channel, content: [{ type: "input_text", text }] });
 		}
 	}
+}
+
+function secondSentenceBoundary(text: string): number | undefined {
+	const ends = [...text.matchAll(/[.!?](?:["')\]]+)?(?=\s|$)/g)];
+	return ends[1]?.index === undefined ? undefined : ends[1].index + ends[1][0].length;
+}
+
+function paragraphBoundary(text: string): number | undefined {
+	const match = /\n\s*\n/.exec(text);
+	return match?.index === undefined ? undefined : match.index + match[0].length;
 }
 
 function asError(error: unknown): Error {

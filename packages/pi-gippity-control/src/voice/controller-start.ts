@@ -108,7 +108,6 @@ export async function startControllerMode(options: {
 					? buildRealtimeInitialItems({
 							ctx: options.ctx,
 							config: options.config,
-							greet: !options.resume,
 							onSummary: (summary) => {
 								realtimeSummary = summary;
 							},
@@ -193,7 +192,11 @@ async function startConversation(
 		instructions,
 		initialItems,
 		inputMuted: options.inputMuted,
-		greet: !options.resume,
+		greeting: options.resume
+			? undefined
+			: initialItems?.length
+				? "contextual"
+				: "fresh",
 		peer,
 		signal,
 		lifecycle: {

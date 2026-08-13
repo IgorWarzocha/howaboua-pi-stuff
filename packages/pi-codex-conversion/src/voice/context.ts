@@ -12,7 +12,6 @@ import { REALTIME_DELEGATION_MESSAGE_TYPE } from "./ui.ts";
 
 const VOICE_CONTEXT_SYSTEM_PROMPT = `Summarize the current Pi conversation for a realtime voice assistant joining the same session. Preserve the user's goal, relevant preferences, decisions, current state, unresolved questions, and next step. Treat the conversation as history: do not continue its work or answer it. Return only the self-contained continuity summary.`;
 const VOICE_CONTEXT_REQUEST = "Create the voice continuity summary now.";
-const VOICE_START_GREETING_REQUEST = "The voice session has started. Greet the user briefly and naturally, then wait for them to speak.";
 const VOICE_STARTUP_CONTEXT_HEADER = `Startup context from Pi.
 This is background context from the current Pi conversation before realtime voice started. It may be summarized. Use it to answer questions about the earlier conversation, and do not repeat it unless relevant.`;
 const SUMMARIZABLE_CUSTOM_TYPES = new Set([
@@ -34,7 +33,6 @@ export interface RealtimeInitialMessageItem {
 export async function buildRealtimeInitialItems(args: {
 	ctx: ExtensionContext;
 	config: CodexConversionConfig;
-	greet?: boolean | undefined;
 	onSummary?: ((summary: string) => void) | undefined;
 	onSummaryStatus?: ((active: boolean) => void) | undefined;
 	signal?: AbortSignal | undefined;
@@ -74,13 +72,6 @@ export async function buildRealtimeInitialItems(args: {
 				content: [{ type: "input_text", text: renderVoiceStartupContext(text) }],
 			});
 		}
-	}
-	if (args.greet) {
-		initialItems.push({
-			type: "message",
-			role: "user",
-			content: [{ type: "input_text", text: VOICE_START_GREETING_REQUEST }],
-		});
 	}
 	return initialItems.length > 0 ? initialItems : undefined;
 }

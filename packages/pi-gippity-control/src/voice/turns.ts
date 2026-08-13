@@ -4,6 +4,11 @@ export interface RealtimeVoiceTurn {
 	delegationId?: string;
 }
 
+export interface TrackedRealtimeDelegation {
+	turn: RealtimeVoiceTurn;
+	displayInput: boolean;
+}
+
 const MAX_TRANSCRIPT_DELTA_BYTES = 32 * 1024;
 
 interface TranscriptEntry {
@@ -15,10 +20,6 @@ interface TranscriptEntry {
 interface PendingDelegation {
 	input: string;
 	delegationId: string;
-}
-
-interface PendingUserTurn {
-	delegation?: PendingDelegation;
 }
 
 interface PendingUserInput {
@@ -84,6 +85,12 @@ class RealtimeTranscriptBuffer {
 		return transcript || undefined;
 	}
 
+	takeFinalized(): string | undefined {
+		const transcript = this.render(this.entries.filter(({ final }) => final));
+		this.reset();
+		return transcript || undefined;
+	}
+
 	reset(): void {
 		this.entries = [];
 		this.active.clear();
@@ -111,8 +118,9 @@ export class RealtimeVoiceTurnTracker {
 	private readonly transcript = new RealtimeTranscriptBuffer();
 	private pendingUserInputs: PendingUserInput[] = [];
 	private recentlyAnsweredUserInput: PendingUserInput | undefined;
-	private unfinishedUserTurns: PendingUserTurn[] = [];
-	private activeUserTurn: PendingUserTurn | undefined;
+	private unfinishedUserTurns: object[] = [];
+	private activeUserTurn: object | undefined;
+	private delegatedUserFinishes = 0;
 	private readonly delegationIds = new Set<string>();
 	private readonly outstandingDelegations = new Map<string, string>();
 	private readonly outstandingInputs = new Set<string>();
@@ -131,56 +139,65 @@ export class RealtimeVoiceTurnTracker {
 		this.transcript.append("assistant", output);
 	}
 
-	userFinished(input: string): RealtimeVoiceTurn | undefined {
+	userFinished(input: string): boolean {
+		if (this.delegatedUserFinishes > 0) {
+			this.delegatedUserFinishes -= 1;
+			return false;
+		}
 		const turn = this.unfinishedUserTurns.shift();
 		if (this.activeUserTurn === turn) this.activeUserTurn = undefined;
 		const transcript = this.transcript.finish("user", input);
-		const delegation = turn?.delegation;
-		if (delegation) return this.finishDelegation(delegation, transcript);
 		this.pendingUserInputs.push({ input, transcript });
-		return undefined;
+		return true;
 	}
 
 	delegated(
 		input: string,
 		delegationId: string,
-	): RealtimeVoiceTurn | undefined {
+	): TrackedRealtimeDelegation | undefined {
 		if (this.delegationIds.has(delegationId)) return undefined;
 		this.delegationIds.add(delegationId);
 		if (this.outstandingInputs.has(input)) return undefined;
-		if (this.activeUserTurn?.delegation) return undefined;
-		if (
-			!this.activeUserTurn &&
-			this.pendingUserInputs.length === 0 &&
-			!this.recentlyAnsweredUserInput &&
-			this.unfinishedUserTurns.some((turn) => turn.delegation)
-		)
-			return undefined;
 		this.outstandingDelegations.set(delegationId, input);
 		this.outstandingInputs.add(input);
 
 		if (this.activeUserTurn) {
-			this.activeUserTurn.delegation = { input, delegationId };
-			return undefined;
+			const active = this.activeUserTurn;
+			this.activeUserTurn = undefined;
+			this.unfinishedUserTurns = this.unfinishedUserTurns.filter(
+				(turn) => turn !== active,
+			);
+			this.delegatedUserFinishes += 1;
+			return {
+				turn: this.finishDelegation({ input, delegationId }),
+				displayInput: true,
+			};
 		}
 		const pendingIndex = this.pendingUserInputs.length - 1;
 		if (pendingIndex === -1) {
 			if (this.recentlyAnsweredUserInput) {
 				const answered = this.recentlyAnsweredUserInput;
 				this.recentlyAnsweredUserInput = undefined;
-				return this.finishDelegation(
-					{ input, delegationId },
-					answered.transcript,
-				);
+				return {
+					turn: this.finishDelegation(
+						{ input, delegationId },
+						answered.transcript,
+					),
+					displayInput: false,
+				};
 			}
-			this.unfinishedUserTurns.push({
-				delegation: { input, delegationId },
-			});
-			return undefined;
+			this.delegatedUserFinishes += 1;
+			return {
+				turn: this.finishDelegation({ input, delegationId }),
+				displayInput: true,
+			};
 		}
 		const [pending] = this.pendingUserInputs.splice(pendingIndex, 1);
 		this.recentlyAnsweredUserInput = undefined;
-		return this.finishDelegation({ input, delegationId }, pending!.transcript);
+		return {
+			turn: this.finishDelegation({ input, delegationId }, pending!.transcript),
+			displayInput: false,
+		};
 	}
 
 	delegationSettled(delegationId: string): void {
@@ -202,14 +219,12 @@ export class RealtimeVoiceTurnTracker {
 	}
 
 	drainConversationTurns(): RealtimeVoiceTurn[] {
-		const turns = this.unfinishedUserTurns.flatMap((turn) =>
-			turn.delegation ? [turn.delegation] : [],
-		);
 		this.pendingUserInputs = [];
 		this.recentlyAnsweredUserInput = undefined;
 		this.unfinishedUserTurns = [];
 		this.activeUserTurn = undefined;
-		return turns;
+		this.delegatedUserFinishes = 0;
+		return [];
 	}
 
 	reset(): void {
@@ -218,6 +233,7 @@ export class RealtimeVoiceTurnTracker {
 		this.recentlyAnsweredUserInput = undefined;
 		this.unfinishedUserTurns = [];
 		this.activeUserTurn = undefined;
+		this.delegatedUserFinishes = 0;
 		this.delegationIds.clear();
 		this.outstandingDelegations.clear();
 		this.outstandingInputs.clear();
@@ -225,9 +241,11 @@ export class RealtimeVoiceTurnTracker {
 
 	private finishDelegation(
 		delegation: PendingDelegation,
-		currentUser: TranscriptEntry,
+		currentUser?: TranscriptEntry,
 	): RealtimeVoiceTurn {
-		const transcriptDelta = this.transcript.takeHistoryBefore(currentUser);
+		const transcriptDelta = currentUser
+			? this.transcript.takeHistoryBefore(currentUser)
+			: this.transcript.takeFinalized();
 		return {
 			input: delegation.input,
 			...(transcriptDelta ? { transcriptDelta } : {}),

@@ -283,12 +283,25 @@ export class CodexVoiceController {
 	): void {
 		if (this.runtime.state.type !== "conversation") return;
 		const channel = realtimeHandoffChannel(message.stopReason);
-		this.runtime.state.session.finishAgentMessage(
-			channel,
-			channel === "commentary" && forwardReasoningSummaries
-				? completedVoiceReasoningSummary(message)
-				: undefined,
-		);
+		const completedText = message.content
+			.flatMap((part) => (part.type === "text" ? [part.text] : []))
+			.join("\n");
+		if (this.runtime.state.session.agentProgressStreamed) {
+			this.runtime.state.session.finishAgentProgress();
+			return;
+		}
+		if (channel === "commentary") {
+			if (completedText.trim()) {
+				this.runtime.state.session.finishAgentProgress(completedText);
+			} else if (forwardReasoningSummaries) {
+				this.runtime.state.session.finishAgentMessage(
+					"speakable",
+					completedVoiceReasoningSummary(message),
+				);
+			}
+			return;
+		}
+		this.runtime.state.session.finishAgentMessage(channel, completedText);
 	}
 
 	settleTurn(): void {
