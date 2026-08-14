@@ -6,9 +6,10 @@ import { RealtimeVoiceTurnTracker, type RealtimeVoiceTurn } from "../turns.ts";
 import { buildRealtimeCallRequest, type RealtimeCallSetup, setupRealtimeCall } from "./call-setup.ts";
 import { RealtimeDelegationHandoff, type RealtimeHandoffChannel } from "./handoff.ts";
 import { type CodexRealtimePeer, type CodexRealtimePeerEvent } from "./peer.ts";
-import { boundedAssistantTranscript, boundedTranscript, realtimePeerStateFailure, remoteError, transcriptItemText } from "./wire.ts";
+import { boundedAssistantTranscript, boundedTranscript, realtimePeerStateFailure, remoteError, transcriptItemText, utf8Chunks } from "./wire.ts";
 
 const PEER_READY_TIMEOUT_MS = 15_000;
+const CONTEXT_APPEND_CHUNK_BYTES = 500;
 type ConversationState = "idle" | "starting" | "active" | "failed" | "closed";
 
 export interface CodexConversationCallbacks {
@@ -131,11 +132,12 @@ export class CodexRealtimeConversation {
 	private appendSpeakableContext(text: string): void {
 		try {
 			this.speakableResponsePending = true;
-			this.peer.sendData({
-				type: "session.context.append",
-				channel: "speakable",
-				content: [{ type: "input_text", text }],
-			});
+			for (const content of utf8Chunks(text, CONTEXT_APPEND_CHUNK_BYTES))
+				this.peer.sendData({
+					type: "session.context.append",
+					channel: "speakable",
+					content: [{ type: "input_text", text: content }],
+				});
 		} catch (error) {
 			this.fail(error instanceof Error ? error : new Error(String(error)));
 		}
