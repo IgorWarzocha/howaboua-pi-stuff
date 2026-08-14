@@ -5,7 +5,10 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { WebSocketServer } from "ws";
-import type { GippityControlConfig } from "../../config.ts";
+import {
+	DEFAULT_GIPPITY_LAN_PORT,
+	type GippityControlConfig,
+} from "../../config.ts";
 import { getGippityControlConfigPath } from "../../config-store.ts";
 import type { CodexVoiceAuth } from "../auth.ts";
 import type { CodexVoiceController } from "../controller.ts";
@@ -39,7 +42,6 @@ import {
 } from "./server-runtime.ts";
 import { createLanVoiceWebUi } from "./web-ui.ts";
 
-const DEFAULT_PORT = 43_120;
 const HEARTBEAT_MS = 15_000;
 
 export interface CodexLanVoiceServer {
@@ -292,7 +294,7 @@ export async function startCodexLanVoiceServer(options: {
 	try {
 		await listen(
 			server,
-			options.port ?? initialConfig.lan.port ?? DEFAULT_PORT,
+			options.port ?? initialConfig.lan.port ?? DEFAULT_GIPPITY_LAN_PORT,
 		);
 	} catch (error) {
 		removeInputMuteListener();

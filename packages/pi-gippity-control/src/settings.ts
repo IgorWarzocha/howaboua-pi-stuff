@@ -6,6 +6,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { SettingsList, truncateToWidth } from "@earendil-works/pi-tui";
 import {
+	DEFAULT_GIPPITY_LAN_PORT,
 	type GippityControlConfig,
 	normalizeRealtimeV3Voice,
 	normalizeVoiceContextReasoning,
@@ -21,8 +22,6 @@ import {
 	getCodexVoiceSystemPromptPath,
 	REALTIME_SYSTEM_PROMPT_BASENAME,
 } from "./voice/system-prompt.ts";
-
-const DEFAULT_LAN_PORT = 43_120;
 
 interface Setting {
 	id: string;
@@ -262,7 +261,7 @@ function details(
 			`           dictation ${formatVoiceShortcut(config.voice.dictationShortcut)} · server ${formatVoiceShortcut(config.voice.serverShortcut)}`,
 		),
 		dim(
-			`Web app: ${webApp} · port ${config.lan.port ?? DEFAULT_LAN_PORT} (set lan.port in config)${config.lan.customWebApp ? ` · ${config.lan.customWebAppPath ?? "app discovery JSON"}` : ""}`,
+			`Web app: ${webApp} · port ${config.lan.port ?? DEFAULT_GIPPITY_LAN_PORT} (set lan.port in config)${config.lan.customWebApp ? ` · ${config.lan.customWebAppPath ?? "app discovery JSON"}` : ""}`,
 		),
 		dim(
 			`Config (/reload after keybind/device/port edits): ${getGippityControlConfigPath()}`,

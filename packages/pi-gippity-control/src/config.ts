@@ -1,5 +1,7 @@
 type DictationShortcutMode = "push" | "toggle";
 
+export const DEFAULT_GIPPITY_LAN_PORT = 43_120;
+
 export const VOICE_CONTEXT_REASONING_LEVELS = [
 	"off",
 	"minimal",
