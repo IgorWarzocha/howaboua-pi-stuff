@@ -75,7 +75,7 @@ export class CodexLanVoiceServerController {
 			);
 			const config = this.getConfig();
 			const needsCustomApp =
-				config.lan.customWebApp && !config.lan.customWebAppPath;
+				config.lan.customWebApp && !this.server.customWebAppReady;
 			ctx.ui.notify(
 				`GipPity control server is running:\n${this.server.urls.join("\n")}\nAccept the local certificate on first visit.${needsCustomApp ? "\nNo custom web app is connected. Run /gippity create." : ""}`,
 				"info",

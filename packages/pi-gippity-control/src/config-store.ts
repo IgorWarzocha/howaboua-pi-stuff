@@ -41,8 +41,9 @@ function clearAbsentOwnedOptionals(
 ): void {
 	const lan = isObject(document["lan"]) ? document["lan"] : undefined;
 	const ownedLan = isObject(owned["lan"]) ? owned["lan"] : undefined;
-	if (lan && ownedLan && !("customWebAppPath" in ownedLan))
-		delete lan["customWebAppPath"];
+	if (lan && ownedLan)
+		for (const key of ["customWebAppPath", "port"])
+			if (!(key in ownedLan)) delete lan[key];
 	const voice = isObject(document["voice"]) ? document["voice"] : undefined;
 	const ownedVoice = isObject(owned["voice"]) ? owned["voice"] : undefined;
 	if (!voice || !ownedVoice) return;

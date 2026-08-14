@@ -34,18 +34,20 @@ const CONTENT_TYPES: Record<string, string> = {
 export function resolveLanRemoteCustomApp(
 	configuredPath: string,
 	cwd: string,
-): LanRemoteCustomApp {
+): LanRemoteCustomApp | undefined {
 	const candidate = isAbsolute(configuredPath)
 		? configuredPath
 		: resolve(cwd, configuredPath);
-	if (!existsSync(candidate) || !statSync(candidate).isDirectory())
-		throw new Error(
-			`Custom GipPity web app directory does not exist: ${candidate}`,
-		);
-	const root = realpathSync(candidate);
-	const index = join(root, "index.html");
-	if (!existsSync(index) || !statSync(index).isFile())
-		throw new Error(`Custom GipPity web app needs ${index}`);
+	let root: string;
+	try {
+		if (!existsSync(candidate) || !statSync(candidate).isDirectory())
+			return undefined;
+		root = realpathSync(candidate);
+		const index = join(root, "index.html");
+		if (!existsSync(index) || !statSync(index).isFile()) return undefined;
+	} catch {
+		return undefined;
+	}
 	return {
 		root,
 		asset(path) {
