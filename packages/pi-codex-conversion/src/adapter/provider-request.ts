@@ -31,22 +31,38 @@ function applyCodexRuntimePayload(payload: unknown, codeMode: boolean): unknown 
 	return codeMode && isCodeModeCompatibleBody(payload) ? applyResponsesLiteRequest(payload) : payload;
 }
 
-async function hasCanonicalAliasEndpoint(ctx: ExtensionContext): Promise<boolean> {
-	const model = ctx.model;
-	if (!model || !isCanonicalCodexAliasModel(model)) return true;
-	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
-	return auth.ok && isCanonicalCodexBaseUrl(auth.baseUrl ?? model.baseUrl);
+function canonicalAliasModelKey(model: NonNullable<ExtensionContext["model"]>): string {
+	return JSON.stringify([model.provider, model.api, model.id, model.baseUrl]);
 }
 
-export async function rewriteCodexProviderHeaders(
+export async function prepareCanonicalAliasEndpoint(ctx: ExtensionContext, state: AdapterState): Promise<boolean> {
+	const model = ctx.model;
+	if (!model || !isCanonicalCodexAliasModel(model)) {
+		state.canonicalAliasEndpoint = undefined;
+		return true;
+	}
+	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
+	const trusted = auth.ok && isCanonicalCodexBaseUrl(auth.baseUrl ?? model.baseUrl);
+	state.canonicalAliasEndpoint = { modelKey: canonicalAliasModelKey(model), trusted };
+	return trusted;
+}
+
+function hasCanonicalAliasEndpoint(ctx: ExtensionContext, state: AdapterState): boolean {
+	const model = ctx.model;
+	if (!model || !isCanonicalCodexAliasModel(model)) return true;
+	const endpoint = state.canonicalAliasEndpoint;
+	return endpoint?.modelKey === canonicalAliasModelKey(model) && endpoint.trusted;
+}
+
+export function rewriteCodexProviderHeaders(
 	headers: ProviderHeaders,
 	ctx: ExtensionContext,
 	state: AdapterState,
-): Promise<void> {
+): void {
 	if (state.config.voiceFeaturesOnly) return;
 	if (isCanonicalCodexAliasModel(ctx.model)
 		&& resolveCodexRuntimePlan(ctx, state.config).kind === "code"
-		&& await hasCanonicalAliasEndpoint(ctx)) {
+		&& hasCanonicalAliasEndpoint(ctx, state)) {
 		headers[RESPONSES_LITE_HEADER] = "true";
 	}
 }
@@ -58,9 +74,9 @@ export function captureActiveProviderSystemPrompt(payload: unknown, state: Adapt
 }
 
 export async function rewriteCodexProviderRequest(payload: unknown, ctx: ExtensionContext, state: AdapterState): Promise<unknown | undefined> {
-	if (!await hasCanonicalAliasEndpoint(ctx)) return undefined;
 	const prepared = prepareCodexProviderRequest(payload, ctx, state);
 	if (!prepared) return undefined;
+	if (!hasCanonicalAliasEndpoint(ctx, state)) return undefined;
 	const { plan, configuredPayload } = prepared;
 	let rewrittenPayload = configuredPayload;
 	if (plan.nativeCompaction || state.pendingPiCompactionNativeWindow) {

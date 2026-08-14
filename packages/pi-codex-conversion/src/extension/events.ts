@@ -5,7 +5,7 @@ import { isAdapterRuntime, resolveCodexRuntimePlan } from "../adapter/activation
 import { isNativeCompactionDetails, NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, NATIVE_COMPACTION_DISPLAY_TEXT, NATIVE_COMPACTION_STRATEGY, type NativeCompactionDisplayEntry, type NativeCompactionUsage } from "../adapter/compaction/types.ts";
 import { findLatestCompactionEntry } from "../adapter/compaction/details-store.ts";
 import { handleCodexSessionBeforeCompact } from "../adapter/compaction/compaction.ts";
-import { rewriteCodexProviderHeaders, rewriteCodexProviderRequest } from "../adapter/provider-request.ts";
+import { prepareCanonicalAliasEndpoint, rewriteCodexProviderHeaders, rewriteCodexProviderRequest } from "../adapter/provider-request.ts";
 import { isProviderContextExcludedMessage } from "../adapter/prompt/context-filter.ts";
 import { hasNoSkillsFlag } from "../adapter/prompt/skills.ts";
 import { extractPiPromptSkills, resolvePromptSkills } from "../prompt/build-system-prompt.ts";
@@ -81,6 +81,7 @@ export function registerCodexEvents(
 		state.weeklyUsageLeft = undefined;
 		state.activeProviderSystemPrompt = undefined;
 		state.voiceSystemPromptOverride = undefined;
+		state.canonicalAliasEndpoint = undefined;
 		proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 		if (state.config.voiceFeaturesOnly) {
@@ -111,6 +112,7 @@ export function registerCodexEvents(
 		state.cwd = ctx.cwd;
 		state.activeProviderSystemPrompt = undefined;
 		state.voiceSystemPromptOverride = undefined;
+		state.canonicalAliasEndpoint = undefined;
 		state.weeklyUsageLeft = undefined;
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 		proxyProvider.applyConfig(state.config, ctx.modelRegistry);
@@ -177,6 +179,12 @@ export function registerCodexEvents(
 		state.voiceSystemPromptOverride = undefined;
 		if (!isAdapterRuntime(resolveCodexRuntimePlan(ctx, state.config))) {
 			state.pendingActiveProviderPromptCapture = false;
+			state.canonicalAliasEndpoint = undefined;
+			return undefined;
+		}
+		if (!await prepareCanonicalAliasEndpoint(ctx, state)) {
+			state.activeProviderSystemPrompt = undefined;
+			state.pendingActiveProviderPromptCapture = false;
 			return undefined;
 		}
 		const skills = resolvePromptSkills(event.systemPromptOptions?.skills, hasNoSkillsFlag() ? [] : state.promptSkills);
@@ -195,6 +203,7 @@ export function registerCodexEvents(
 		state.pendingActiveProviderPromptCapture = false;
 		state.voiceSystemPromptOverride = undefined;
 		state.codexTurnState.reset();
+		state.canonicalAliasEndpoint = undefined;
 		runtime.voice.settleTurn();
 		runtime.lanVoice.agentSettled();
 		if (!state.config.voiceFeaturesOnly) void ui.refreshUsageStatus(ctx);
@@ -203,8 +212,8 @@ export function registerCodexEvents(
 		state.cwd = ctx.cwd;
 		return rewriteCodexProviderRequest(event.payload, ctx, state);
 	});
-	pi.on("before_provider_headers", async (event, ctx) => {
-		await rewriteCodexProviderHeaders(event.headers, ctx, state);
+	pi.on("before_provider_headers", (event, ctx) => {
+		rewriteCodexProviderHeaders(event.headers, ctx, state);
 	});
 	pi.on("session_before_compact", async (event, ctx) => {
 		state.cwd = ctx.cwd;

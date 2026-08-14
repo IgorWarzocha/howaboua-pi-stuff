@@ -25,4 +25,5 @@ export interface AdapterState {
 	config: CodexConversionConfig;
 	codexTurnState: CodexTurnState;
 	pendingPiCompactionNativeWindow?: PendingPiCompactionNativeWindow | undefined;
+	canonicalAliasEndpoint?: { modelKey: string; trusted: boolean } | undefined;
 }
