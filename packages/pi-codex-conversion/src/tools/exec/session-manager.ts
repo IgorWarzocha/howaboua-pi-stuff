@@ -30,6 +30,7 @@ export interface ExecCommandInput {
 	cmd: string;
 	workdir?: string | undefined;
 	shell?: string | undefined;
+	defaultShell?: string | undefined;
 	env?: NodeJS.ProcessEnv | undefined;
 	tty?: boolean | undefined;
 	yield_time_ms?: number | undefined;
@@ -197,9 +198,10 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 		setBaseEnv,
 		exec: async (input, cwd, signal, onUpdate) => {
 			if (shuttingDown) throw new Error("exec manager is shut down");
-			const shell = resolveShell(input.shell);
+			const requestedShell = input.shell ?? input.defaultShell;
+			const shell = resolveShell(requestedShell);
 			const workdir = resolveWorkdir(cwd, input.workdir);
-			const execution = resolveExecution(input.shell, input.cmd, input.env, baseEnv);
+			const execution = resolveExecution(requestedShell, input.cmd, input.env, baseEnv);
 			const session = bridgeSessions.create({
 				id: nextSessionId++,
 				input: {

@@ -3,7 +3,7 @@ import { registerCodeModeProxyProvider } from "../providers/code-mode-proxy-prov
 import { registerOpenAICodexCustomProvider } from "../providers/openai-codex-custom-provider.ts";
 import { registerCodexCommand } from "../ui/settings/command.ts";
 import { registerCodexCodeMode } from "../adapter/code-mode.ts";
-import { prepareCodeModeHost, registerCodexEvents } from "./events.ts";
+import { prepareCodeModeHost, registerCanonicalAliasEndpointPreflight, registerCodexEvents } from "./events.ts";
 import { createCodexExtensionRuntime } from "./runtime.ts";
 import { registerCodexTools } from "./tools.ts";
 import { registerCodexUi } from "./ui.ts";
@@ -14,6 +14,7 @@ import { captureActiveProviderSystemPrompt } from "../adapter/provider-request.t
 export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 	registerCodexVoiceRenderer(pi);
 	const runtime = createCodexExtensionRuntime(pi);
+	registerCanonicalAliasEndpointPreflight(pi, runtime);
 	const codeMode = await registerCodexCodeMode(pi, runtime);
 	let cleanupProxyProvider: ReturnType<typeof registerCodeModeProxyProvider> | undefined;
 	try {

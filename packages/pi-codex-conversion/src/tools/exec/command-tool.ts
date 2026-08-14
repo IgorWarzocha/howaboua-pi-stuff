@@ -2,12 +2,12 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { keyHint, truncateToVisualLines } from "@earendil-works/pi-coding-agent";
 import { Container, Text, truncateToWidth } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import { getPiCodexRuntimeShell } from "../../adapter/prompt/runtime-shell.ts";
+import { getPiConfiguredShellPath } from "../../adapter/prompt/runtime-shell.ts";
 import { renderExecCommandCall, renderGroupedExecCommandCall } from "../../ui/tool-rendering/codex-rendering.ts";
 import type { ExecCommandTracker } from "./command-state.ts";
 import { formatUnifiedExecResult } from "./format.ts";
 import { renderTerminalOutput } from "./output.ts";
-import type { ExecSessionManager, UnifiedExecResult } from "./session-manager.ts";
+import type { ExecCommandInput, ExecSessionManager, UnifiedExecResult } from "./session-manager.ts";
 import { MAX_EXEC_YIELD_TIME_MS } from "./shell.ts";
 
 const EXEC_COMMAND_PARAMETERS = Type.Object({
@@ -176,8 +176,8 @@ export function createExecCommandTool(tracker: ExecCommandTracker, sessions: Exe
 		async execute(toolCallId, params, signal, onUpdate, ctx) {
 			if (signal?.aborted) throw new Error("exec_command aborted");
 			const parsedInput = parseExecCommandParams(params);
-			const input = parsedInput.shell === undefined
-				? { ...parsedInput, shell: getPiCodexRuntimeShell(ctx) }
+			const input: ExecCommandInput = parsedInput.shell === undefined
+				? { ...parsedInput, defaultShell: getPiConfiguredShellPath(ctx) }
 				: parsedInput;
 			const toToolResult = (partial: UnifiedExecResult) => ({
 				content: [{ type: "text" as const, text: formatUnifiedExecResult(partial, input.cmd) }],

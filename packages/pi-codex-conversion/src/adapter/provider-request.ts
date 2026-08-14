@@ -1,15 +1,15 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { ProviderHeaders } from "@earendil-works/pi-ai";
-import { isCanonicalCodexAliasModel, isCanonicalCodexBaseUrl, isResponsesContext } from "./prompt/codex-model.ts";
+import { canonicalCodexAliasModelKey, isCanonicalCodexAliasModel, isCanonicalCodexBaseUrl, isResponsesContext } from "./prompt/codex-model.ts";
 import { applyCodexRequestOptions } from "./request-options.ts";
 import type { AdapterState } from "./activation/state.ts";
-import { isAdapterRuntime, isCodeModeRuntime, resolveCodexRuntimePlan } from "./activation/runtime-plan.ts";
+import { isAdapterRuntime, isCodeModeRuntime, resolveCodexRuntimePlanForState } from "./activation/runtime-plan.ts";
 import { injectPendingNativeWindowIntoPiCompactionRequest, rewriteCodexCompactedProviderRequest } from "./compaction/compaction.ts";
 import { applyResponsesLiteRequest, RESPONSES_LITE_HEADER, type ResponsesLiteCompatibleBody } from "../providers/openai-codex/responses-lite.ts";
 
 function prepareCodexProviderRequest(payload: unknown, ctx: ExtensionContext, state: AdapterState) {
 	if (state.config.voiceFeaturesOnly) return undefined;
-	const plan = resolveCodexRuntimePlan(ctx, state.config, state.executionMode);
+	const plan = resolveCodexRuntimePlanForState(ctx, state);
 	if (!isAdapterRuntime(plan) || (!plan.effectiveOpenAICodex && !isResponsesContext(ctx))) {
 		return undefined;
 	}
@@ -31,10 +31,6 @@ function applyCodexRuntimePayload(payload: unknown, codeMode: boolean): unknown 
 	return codeMode && isCodeModeCompatibleBody(payload) ? applyResponsesLiteRequest(payload) : payload;
 }
 
-function canonicalAliasModelKey(model: NonNullable<ExtensionContext["model"]>): string {
-	return JSON.stringify([model.provider, model.api, model.id, model.baseUrl]);
-}
-
 export async function prepareCanonicalAliasEndpoint(ctx: ExtensionContext, state: AdapterState): Promise<boolean> {
 	const model = ctx.model;
 	if (!model || !isCanonicalCodexAliasModel(model)) {
@@ -43,7 +39,7 @@ export async function prepareCanonicalAliasEndpoint(ctx: ExtensionContext, state
 	}
 	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
 	const trusted = auth.ok && isCanonicalCodexBaseUrl(auth.baseUrl ?? model.baseUrl);
-	state.canonicalAliasEndpoint = { modelKey: canonicalAliasModelKey(model), trusted };
+	state.canonicalAliasEndpoint = { modelKey: canonicalCodexAliasModelKey(model), trusted };
 	return trusted;
 }
 
@@ -51,7 +47,7 @@ function hasCanonicalAliasEndpoint(ctx: ExtensionContext, state: AdapterState): 
 	const model = ctx.model;
 	if (!model || !isCanonicalCodexAliasModel(model)) return true;
 	const endpoint = state.canonicalAliasEndpoint;
-	return endpoint?.modelKey === canonicalAliasModelKey(model) && endpoint.trusted;
+	return endpoint?.modelKey === canonicalCodexAliasModelKey(model) && endpoint.trusted;
 }
 
 export function rewriteCodexProviderHeaders(
@@ -61,7 +57,7 @@ export function rewriteCodexProviderHeaders(
 ): void {
 	if (state.config.voiceFeaturesOnly) return;
 	if (isCanonicalCodexAliasModel(ctx.model)
-		&& resolveCodexRuntimePlan(ctx, state.config).kind === "code"
+		&& isCodeModeRuntime(resolveCodexRuntimePlanForState(ctx, state))
 		&& hasCanonicalAliasEndpoint(ctx, state)) {
 		headers[RESPONSES_LITE_HEADER] = "true";
 	}

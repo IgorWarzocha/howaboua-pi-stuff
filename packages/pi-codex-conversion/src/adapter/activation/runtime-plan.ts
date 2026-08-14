@@ -1,9 +1,10 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { supportsNativeImageGeneration, supportsNativeWebSearch, supportsViewImageInputs } from "../tool-support.ts";
 import { supportsResponsesLiteModel } from "../../providers/openai-codex/responses-lite-model.ts";
-import { isCodexLikeModel, isCodexTransportContext, isOpenAIResponsesContext, isResponsesContext } from "../prompt/codex-model.ts";
+import { canonicalCodexAliasModelKey, isCanonicalCodexAliasModel, isCodexLikeModel, isCodexTransportContext, isOpenAIResponsesContext, isResponsesContext } from "../prompt/codex-model.ts";
 import type { CodexConversionConfig } from "./config.ts";
 import type { ExecutionMode } from "./execution-mode.ts";
+import type { AdapterState } from "./state.ts";
 import {
 	APPLY_PATCH_TOOL_NAME,
 	CODE_MODE_TOOL_NAMES,
@@ -117,6 +118,7 @@ export function resolveCodexRuntimePlan(
 	ctx: RuntimeContext,
 	config: CodexConversionConfig,
 	executionMode?: ExecutionMode,
+	options: { canonicalAliasEndpointTrusted?: boolean | undefined } = {},
 ): CodexRuntimePlan {
 	const isConfigured = configuredProvider(ctx, config);
 	const codexTransport = isCodexTransportContext(ctx);
@@ -146,7 +148,10 @@ export function resolveCodexRuntimePlan(
 	}
 	if (config.voiceFeaturesOnly) return { ...base, kind: "inactive", toolNames: [], prompt: undefined, transport: undefined };
 
-	const active = config.scope.allProviders === "on" || isConfigured || isCodexLikeModel(ctx.model);
+	const canonicalAliasTrusted = !isCanonicalCodexAliasModel(ctx.model)
+		|| options.canonicalAliasEndpointTrusted !== false;
+	const active = canonicalAliasTrusted
+		&& (config.scope.allProviders === "on" || isConfigured || isCodexLikeModel(ctx.model));
 	if (!active) return { ...base, kind: "inactive", toolNames: [], prompt: undefined, transport: undefined };
 	const nativeCompaction = config.compaction.responsesCompaction && effectiveOpenAICodex;
 	const requestedCodeMode = executionMode === "code" || executionMode === "notebook"
@@ -170,6 +175,17 @@ export function resolveCodexRuntimePlan(
 		transport: "responses",
 		nativeCompaction,
 	};
+}
+
+export function resolveCodexRuntimePlanForState(
+	ctx: RuntimeContext,
+	state: Pick<AdapterState, "config" | "canonicalAliasEndpoint" | "executionMode">,
+): CodexRuntimePlan {
+	const model = ctx.model;
+	if (!model || !isCanonicalCodexAliasModel(model)) return resolveCodexRuntimePlan(ctx, state.config, state.executionMode);
+	const endpoint = state.canonicalAliasEndpoint;
+	const trusted = endpoint?.modelKey === canonicalCodexAliasModelKey(model) && endpoint.trusted;
+	return resolveCodexRuntimePlan(ctx, state.config, state.executionMode, { canonicalAliasEndpointTrusted: trusted });
 }
 
 export function isAdapterRuntime(plan: CodexRuntimePlan): plan is NormalRuntimePlan | CodeRuntimePlan | NotebookRuntimePlan {

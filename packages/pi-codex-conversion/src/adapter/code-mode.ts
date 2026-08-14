@@ -14,7 +14,7 @@ import { createImageGenerationTool } from "../tools/imagegen/tool.ts";
 import { createViewImageTool } from "../tools/view-image/tool.ts";
 import { createWebSearchTool } from "../tools/web-run/tool.ts";
 import { supportsNativeImageGeneration, supportsViewImageInputs } from "./tool-support.ts";
-import { isCodeModeRuntime, resolveCodexRuntimePlan } from "./activation/runtime-plan.ts";
+import { isCodeModeRuntime, resolveCodexRuntimePlanForState } from "./activation/runtime-plan.ts";
 import { codeModeImageResult, codeModeWebResult, toNestedTool } from "./code-mode/nested-tool-adapter.ts";
 
 const LONG_RUNNING_TOOL_OUTER_YIELD_MS = 1_800_000;
@@ -24,7 +24,7 @@ export async function registerCodexCodeMode(
 	runtime: CodexExtensionRuntime,
 ): Promise<CodeModeRegistration> {
 	const isActive = (ctx: unknown) =>
-		isCodeModeRuntime(resolveCodexRuntimePlan(ctx as ExtensionContext, runtime.state.config, runtime.state.executionMode));
+		isCodeModeRuntime(resolveCodexRuntimePlanForState(ctx as ExtensionContext, runtime.state));
 	const customToolsRuntime = await registerCustomTools(pi, undefined, {
 		isActive,
 	});
@@ -32,7 +32,7 @@ export async function registerCodexCodeMode(
 		getTools: (ctx) => createNestedTools(runtime, ctx as ExtensionContext | undefined),
 		isActive,
 		executionKind: (ctx) =>
-			resolveCodexRuntimePlan(ctx as ExtensionContext, runtime.state.config, runtime.state.executionMode).kind === "notebook"
+			resolveCodexRuntimePlanForState(ctx as ExtensionContext, runtime.state).kind === "notebook"
 				? "notebook"
 				: "code",
 		notebookOptions: () => ({
@@ -68,11 +68,7 @@ function createNestedTools(
 		compactTools: runtime.state.config.ui.compactTools,
 	};
 	const allowConfiguredProvider = (model: ExtensionContext["model"]) => {
-		const plan = resolveCodexRuntimePlan(
-			{ model },
-			runtime.state.config,
-			runtime.state.executionMode,
-		);
+		const plan = resolveCodexRuntimePlanForState({ model }, runtime.state);
 		return isCodeModeRuntime(plan) && plan.configuredProvider && !plan.codexTransport;
 	};
 	const tools: ProgrammaticCodeModeToolDefinition[] = [

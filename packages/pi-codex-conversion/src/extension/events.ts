@@ -2,7 +2,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { readCodexConversionConfig } from "../adapter/activation/config-store.ts";
 import { resolveExecutionMode } from "../adapter/activation/execution-mode.ts";
 import { syncAdapter } from "../adapter/activation/activation.ts";
-import { isAdapterRuntime, resolveCodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
+import { isAdapterRuntime, resolveCodexRuntimePlan, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import { isNativeCompactionDetails, NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, NATIVE_COMPACTION_DISPLAY_TEXT, NATIVE_COMPACTION_STRATEGY, type NativeCompactionDisplayEntry, type NativeCompactionUsage } from "../adapter/compaction/types.ts";
 import { findLatestCompactionEntry } from "../adapter/compaction/details-store.ts";
 import { handleCodexSessionBeforeCompact } from "../adapter/compaction/compaction.ts";
@@ -51,6 +51,18 @@ export function prepareCodeModeHost(codeMode: CodeModeRegistration, ctx: Extensi
 	void codeMode.prepare(ctx)?.catch((error: unknown) => {
 		if (isAbortError(error)) return;
 		ctx.ui.notify(`Code Mode host setup failed: ${error instanceof Error ? error.message : String(error)}`, "error");
+	});
+}
+
+export function registerCanonicalAliasEndpointPreflight(pi: ExtensionAPI, runtime: CodexExtensionRuntime): void {
+	pi.on("before_agent_start", async (_event, ctx) => {
+		const { state } = runtime;
+		if (!isAdapterRuntime(resolveCodexRuntimePlan(ctx, state.config, state.executionMode))) {
+			state.canonicalAliasEndpoint = undefined;
+			return;
+		}
+		await prepareCanonicalAliasEndpoint(ctx, state);
+		syncAdapter(pi, ctx, state);
 	});
 }
 
@@ -199,13 +211,7 @@ export function registerCodexEvents(
 	pi.on("before_agent_start", async (event, ctx) => {
 		const systemPrompt = event.systemPrompt;
 		state.voiceSystemPromptOverride = undefined;
-		const plan = resolveCodexRuntimePlan(ctx, state.config, state.executionMode);
-		if (!isAdapterRuntime(plan)) {
-			state.pendingActiveProviderPromptCapture = false;
-			state.canonicalAliasEndpoint = undefined;
-			return undefined;
-		}
-		if (!await prepareCanonicalAliasEndpoint(ctx, state)) {
+		if (!isAdapterRuntime(resolveCodexRuntimePlanForState(ctx, state))) {
 			state.activeProviderSystemPrompt = undefined;
 			state.pendingActiveProviderPromptCapture = false;
 			return undefined;
@@ -228,7 +234,6 @@ export function registerCodexEvents(
 		state.pendingActiveProviderPromptCapture = false;
 		state.voiceSystemPromptOverride = undefined;
 		state.codexTurnState.reset();
-		state.canonicalAliasEndpoint = undefined;
 		runtime.voice.settleTurn();
 		runtime.lanVoice.agentSettled();
 		if (!state.config.voiceFeaturesOnly) void ui.refreshUsageStatus(ctx);
@@ -248,7 +253,7 @@ export function registerCodexEvents(
 		} catch (error) {
 			ctx.ui.notify(`Notebook checkpoint before compaction failed: ${error instanceof Error ? error.message : String(error)}`, "warning");
 		}
-		if (!resolveCodexRuntimePlan(ctx, state.config, state.executionMode).nativeCompaction) return undefined;
+		if (!resolveCodexRuntimePlanForState(ctx, state).nativeCompaction) return undefined;
 		return handleCodexSessionBeforeCompact(event, ctx, state, pi);
 	});
 	pi.on("session_compact", async (event, ctx) => {

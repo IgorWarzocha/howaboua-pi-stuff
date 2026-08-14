@@ -1,11 +1,11 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { AdapterState } from "./state.ts";
-import { ALL_CODEX_ADAPTER_TOOL_NAMES, isAdapterRuntime, resolveCodexRuntimePlan, type CodexRuntimePlan } from "./runtime-plan.ts";
+import { ALL_CODEX_ADAPTER_TOOL_NAMES, isAdapterRuntime, resolveCodexRuntimePlanForState, type CodexRuntimePlan } from "./runtime-plan.ts";
 import { DEFAULT_TOOL_NAMES, STATUS_KEY, buildExtraToolsOnlyStatusText } from "./tool-set.ts";
 import { renderCodexStatus } from "../../ui/status.ts";
 
 export function syncAdapter(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState): CodexRuntimePlan {
-	const plan = resolveCodexRuntimePlan(ctx, state.config, state.executionMode);
+	const plan = resolveCodexRuntimePlanForState(ctx, state);
 	if (plan.kind === "extras") enableExtraTools(pi, ctx, state, plan);
 	else if (isAdapterRuntime(plan)) enableAdapter(pi, ctx, state, plan);
 	else disableAdapter(pi, ctx, state, plan);

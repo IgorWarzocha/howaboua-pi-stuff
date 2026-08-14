@@ -4,6 +4,7 @@ import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/confi
 import { syncAdapter } from "../src/adapter/activation/activation.ts";
 import { resolveCodexRuntimePlan } from "../src/adapter/activation/runtime-plan.ts";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
+import { canonicalCodexAliasModelKey } from "../src/adapter/prompt/codex-model.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 
 const CANONICAL_CODEX_BASE_URL = "https://chatgpt.com/backend-api";
@@ -51,7 +52,7 @@ test("Code Mode activation stays within its model, API, and provider scope", () 
 	const cases = [
 		{ model: { provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.6-luna", baseUrl: CANONICAL_CODEX_BASE_URL }, configured: false, active: true },
 		{ model: { provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.6-luna", baseUrl: "https://codex-proxy.example.com/backend-api" }, configured: false, active: true },
-		{ model: { provider: "openai-codex-personal", api: "openai-codex-responses", id: "gpt-5.6-luna", baseUrl: CANONICAL_CODEX_BASE_URL }, configured: false, active: true },
+		{ model: { provider: "openai-codex-personal", api: "openai-codex-responses", id: "gpt-5.6-luna", baseUrl: CANONICAL_CODEX_BASE_URL }, configured: false, active: true, resolvedAliasTrusted: true },
 		{ model: { provider: "openai-codex-personal", api: "openai-codex-responses", id: "gpt-5.6-luna", baseUrl: "https://example.com/backend-api" }, configured: false, active: false },
 		{ model: { provider: "litellm", api: "openai-responses", id: "gpt-5.6" }, configured: true, active: true },
 		{ model: { provider: "litellm", api: "openai-completions", id: "gpt-5.6" }, configured: true, active: false },
@@ -62,12 +63,16 @@ test("Code Mode activation stays within its model, API, and provider scope", () 
 		{ model: { provider: "litellm", api: "openai-responses", id: "gpt-5.6" }, configured: false, active: false },
 	];
 
-	for (const { model, configured, active } of cases) {
+	for (const { model, configured, active, resolvedAliasTrusted } of cases) {
 		const pi = createToolHarness(["read", "bash", "edit", "write", "exec", "wait", "parallel"]);
 		const state = createAdapterState({
 			beta: { codeMode: true, responsesLite: true },
 			scope: { allProviders: "off", additionalProviders: configured ? [model.provider] : [] },
 		});
+		if (resolvedAliasTrusted) state.canonicalAliasEndpoint = {
+			modelKey: canonicalCodexAliasModelKey(model),
+			trusted: true,
+		};
 		syncAdapter(pi as never, createContext(model) as never, state);
 
 		assert.equal(pi.activeTools().includes("exec"), active, JSON.stringify(model));

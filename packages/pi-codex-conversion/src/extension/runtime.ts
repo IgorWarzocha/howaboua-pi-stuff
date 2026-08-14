@@ -3,7 +3,7 @@ import type { Context } from "@earendil-works/pi-ai";
 import { dirname } from "node:path";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import { getCodexConversionConfigPath, readCodexConversionConfig } from "../adapter/activation/config-store.ts";
-import { isAdapterRuntime, resolveCodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
+import { isAdapterRuntime, resolveCodexRuntimePlan, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import type { AdapterState } from "../adapter/activation/state.ts";
 import { rewriteCodexPrewarmProviderRequest, rewriteCodexProviderRequest } from "../adapter/provider-request.ts";
 import { getPiCodexRuntimeShell } from "../adapter/prompt/runtime-shell.ts";
@@ -224,7 +224,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 			return { ...process.env, PI_CODEX_MODEL: config.openai.webSearchModel };
 		},
 		codexSystemPrompt(basePrompt, ctx, skills = state.promptSkills, systemPromptOptions) {
-			const plan = resolveCodexRuntimePlan(ctx, state.config, state.executionMode);
+			const plan = resolveCodexRuntimePlanForState(ctx, state);
 			return buildCodexSystemPrompt(basePrompt, {
 				skills,
 				shell: getPiCodexRuntimeShell(ctx),

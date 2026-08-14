@@ -44,6 +44,10 @@ export function isCanonicalCodexAliasModel(
 	return !isOpenAICodexModel(model) && isCanonicalCodexSubscriptionModel(model);
 }
 
+export function canonicalCodexAliasModelKey(model: Partial<CodexLikeModelDescriptor>): string {
+	return JSON.stringify([model.provider, model.api, model.id, model.baseUrl]);
+}
+
 export function isCodexTransportModel(
 	model: Partial<CodexLikeModelDescriptor> | null | undefined,
 ): boolean {
