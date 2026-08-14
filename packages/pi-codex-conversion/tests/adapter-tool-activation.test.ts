@@ -4,7 +4,13 @@ import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/confi
 import { syncAdapter } from "../src/adapter/activation/activation.ts";
 import { resolveCodexRuntimePlan } from "../src/adapter/activation/runtime-plan.ts";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
+import { resolveNativeCompactionEnvironment } from "../src/adapter/compaction/compaction-runtime.ts";
+import { rewriteCodexProviderHeaders } from "../src/adapter/provider-request.ts";
+import { isCanonicalCodexSubscriptionModel, isCodexTransportModel } from "../src/adapter/prompt/codex-model.ts";
+import { supportsNativeImageGeneration, supportsNativeWebSearch } from "../src/adapter/tool-support.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
+
+const CANONICAL_CODEX_BASE_URL = "https://chatgpt.com/backend-api";
 
 function createToolHarness(activeTools: string[]) {
 	const registeredTools = new Set(activeTools);
@@ -36,7 +42,7 @@ function createAdapterState(overrides: Partial<AdapterState["config"]> = {}): Ad
 	};
 }
 
-function createContext(model: { provider: string; api: string; id: string; input?: string[] }, statuses?: unknown[]) {
+function createContext(model: { provider: string; api: string; id: string; baseUrl?: string; input?: string[] }, statuses?: unknown[]) {
 	return {
 		hasUI: Boolean(statuses),
 		model,
@@ -44,14 +50,44 @@ function createContext(model: { provider: string; api: string; id: string; input
 	};
 }
 
+test("Codex transport identity is broader than the canonical subscription trust boundary", () => {
+	const alias = {
+		provider: "openai-codex-personal",
+		api: "openai-codex-responses",
+		id: "gpt-5.6-sol",
+		baseUrl: CANONICAL_CODEX_BASE_URL,
+	};
+	const cases = [
+		{ model: alias, canonical: true, transport: true },
+		{ model: { ...alias, baseUrl: `${CANONICAL_CODEX_BASE_URL}/codex/` }, canonical: true, transport: true },
+		{ model: { ...alias, api: "openai-responses" }, canonical: false, transport: false },
+		{ model: { ...alias, baseUrl: "https://chatgpt.com.example/backend-api" }, canonical: false, transport: false },
+		{ model: { ...alias, baseUrl: `${CANONICAL_CODEX_BASE_URL}?proxy=1` }, canonical: false, transport: false },
+		{ model: { ...alias, baseUrl: "https://chatgpt.com:8443/backend-api" }, canonical: false, transport: false },
+		{
+			model: { ...alias, provider: "openai-codex", baseUrl: "https://codex-proxy.example.com/backend-api" },
+			canonical: false,
+			transport: true,
+		},
+	];
+
+	for (const { model, canonical, transport } of cases) {
+		assert.equal(isCanonicalCodexSubscriptionModel(model), canonical, JSON.stringify(model));
+		assert.equal(isCodexTransportModel(model), transport, JSON.stringify(model));
+	}
+});
+
 test("Code Mode activation stays within its model, API, and provider scope", () => {
 	const cases = [
-		{ model: { provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.6-luna" }, configured: false, active: true },
+		{ model: { provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.6-luna", baseUrl: CANONICAL_CODEX_BASE_URL }, configured: false, active: true },
+		{ model: { provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.6-luna", baseUrl: "https://codex-proxy.example.com/backend-api" }, configured: false, active: true },
+		{ model: { provider: "openai-codex-personal", api: "openai-codex-responses", id: "gpt-5.6-luna", baseUrl: CANONICAL_CODEX_BASE_URL }, configured: false, active: true },
+		{ model: { provider: "openai-codex-personal", api: "openai-codex-responses", id: "gpt-5.6-luna", baseUrl: "https://example.com/backend-api" }, configured: false, active: false },
 		{ model: { provider: "litellm", api: "openai-responses", id: "gpt-5.6" }, configured: true, active: true },
 		{ model: { provider: "litellm", api: "openai-completions", id: "gpt-5.6" }, configured: true, active: false },
 		{ model: { provider: "litellm", api: "azure-openai-responses", id: "gpt-5.6" }, configured: true, active: false },
-		{ model: { provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.5" }, configured: false, active: false },
-		{ model: { provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.6" }, configured: false, active: false },
+		{ model: { provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.5", baseUrl: CANONICAL_CODEX_BASE_URL }, configured: false, active: false },
+		{ model: { provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.6", baseUrl: CANONICAL_CODEX_BASE_URL }, configured: false, active: false },
 		{ model: { provider: "openai", api: "openai-responses", id: "gpt-5.6-luna" }, configured: false, active: false },
 		{ model: { provider: "litellm", api: "openai-responses", id: "gpt-5.6" }, configured: false, active: false },
 	];
@@ -74,7 +110,7 @@ test("runtime plan keeps unsupported and non-Lite models on structured standard 
 		beta: { codeMode: true, responsesLite: false },
 		scope: { allProviders: "off", additionalProviders: ["litellm"] },
 	}).config;
-	const pre56 = resolveCodexRuntimePlan(createContext({ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.5" }) as never, config);
+	const pre56 = resolveCodexRuntimePlan(createContext({ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.5", baseUrl: CANONICAL_CODEX_BASE_URL }) as never, config);
 	const proxyWithoutLite = resolveCodexRuntimePlan(createContext({ provider: "litellm", api: "openai-responses", id: "gpt-5.6" }) as never, config);
 	const proxyWithLite = resolveCodexRuntimePlan(
 		createContext({ provider: "litellm", api: "openai-responses", id: "gpt-5.6" }) as never,
@@ -92,6 +128,112 @@ test("native Responses compaction stays scoped to OpenAI Codex and explicit prov
 	const config = createAdapterState({ scope: { allProviders: "on", additionalProviders: ["my-provider"] }, compaction: { responsesCompaction: true } }).config;
 
 	assert.equal(resolveCodexRuntimePlan(createContext({ provider: "openai", api: "openai-responses", id: "gpt-5" }) as never, config).nativeCompaction, false);
-	assert.equal(resolveCodexRuntimePlan(createContext({ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5" }) as never, config).nativeCompaction, true);
+	assert.equal(resolveCodexRuntimePlan(createContext({ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5", baseUrl: CANONICAL_CODEX_BASE_URL }) as never, config).nativeCompaction, true);
+	assert.equal(resolveCodexRuntimePlan(createContext({ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5", baseUrl: "https://codex-proxy.example.com/backend-api" }) as never, config).nativeCompaction, true);
+	assert.equal(resolveCodexRuntimePlan(createContext({ provider: "openai-codex-personal", api: "openai-codex-responses", id: "gpt-5", baseUrl: CANONICAL_CODEX_BASE_URL }) as never, config).nativeCompaction, true);
+	assert.equal(resolveCodexRuntimePlan(createContext({ provider: "openai-codex-personal", api: "openai-codex-responses", id: "gpt-5", baseUrl: "https://example.com/backend-api" }) as never, config).nativeCompaction, false);
 	assert.equal(resolveCodexRuntimePlan(createContext({ provider: "my-provider", api: "openai-codex-responses", id: "gpt-5" }) as never, config).nativeCompaction, true);
+});
+
+test("native compaction resolves canonical aliases through their own model credential scope", async () => {
+	const requestedProviders: string[] = [];
+	const model = {
+		provider: "openai-codex-personal",
+		api: "openai-codex-responses",
+		id: "gpt-5.6-sol",
+		baseUrl: CANONICAL_CODEX_BASE_URL,
+	};
+	const resolution = await resolveNativeCompactionEnvironment({
+		model,
+		modelRegistry: {
+			getApiKeyAndHeaders: async (requestedModel: typeof model) => {
+				requestedProviders.push(requestedModel.provider);
+				return { ok: true, apiKey: "alias-token", baseUrl: `${CANONICAL_CODEX_BASE_URL}/codex` };
+			},
+		},
+	} as never);
+
+	assert.equal(resolution.ok, true);
+	assert.equal(resolution.ok && resolution.runtime.canonicalSubscription, true);
+	assert.equal(resolution.ok && resolution.runtime.codexTransport, true);
+	assert.deepEqual(requestedProviders, ["openai-codex-personal"]);
+	const rejectedAuthOverride = await resolveNativeCompactionEnvironment({
+		model,
+		modelRegistry: {
+			getApiKeyAndHeaders: async (requestedModel: typeof model) => {
+				requestedProviders.push(requestedModel.provider);
+				return { ok: true, apiKey: "proxy-token", baseUrl: "https://example.com/backend-api" };
+			},
+		},
+	} as never);
+	assert.deepEqual(rejectedAuthOverride.ok ? undefined : rejectedAuthOverride.reason, "unsupported-provider");
+	assert.deepEqual(requestedProviders, ["openai-codex-personal", "openai-codex-personal"]);
+
+	const rejected = await resolveNativeCompactionEnvironment({
+		model: { ...model, baseUrl: "https://example.com/backend-api" },
+		modelRegistry: {
+			getApiKeyAndHeaders: async () => ({ ok: true, apiKey: "proxy-token", baseUrl: "https://example.com/backend-api" }),
+		},
+	} as never);
+	assert.deepEqual(rejected.ok ? undefined : rejected.reason, "unsupported-provider");
+});
+
+test("stock Codex custom endpoints retain transport capabilities without subscription trust", async () => {
+	const model = {
+		provider: "openai-codex",
+		api: "openai-codex-responses",
+		id: "gpt-5.6-sol",
+		baseUrl: "https://codex-proxy.example.com/backend-api",
+		input: ["text", "image"],
+	};
+	const state = createAdapterState({
+		beta: { codeMode: true, responsesLite: true },
+		compaction: { responsesCompaction: true },
+		scope: { allProviders: "off", additionalProviders: [] },
+	});
+	const plan = resolveCodexRuntimePlan(createContext(model) as never, state.config);
+	assert.equal(plan.kind, "code");
+	assert.equal(plan.canonicalSubscription, false);
+	assert.equal(plan.codexTransport, true);
+	assert.equal(plan.nativeCompaction, true);
+	assert.equal(supportsNativeWebSearch(model as never), true);
+	assert.equal(supportsNativeImageGeneration(model as never), true);
+
+	const headers: Record<string, string> = {};
+	rewriteCodexProviderHeaders(headers, createContext(model) as never, state);
+	assert.equal(headers["x-openai-internal-codex-responses-lite"], "true");
+
+	const resolution = await resolveNativeCompactionEnvironment({
+		model,
+		modelRegistry: {
+			getApiKeyAndHeaders: async () => ({ ok: true, apiKey: "proxy-token", baseUrl: model.baseUrl }),
+		},
+	} as never);
+	assert.equal(resolution.ok, true);
+	assert.equal(resolution.ok && resolution.runtime.canonicalSubscription, false);
+	assert.equal(resolution.ok && resolution.runtime.codexTransport, true);
+});
+
+test("canonical alias Code Mode marks the real provider request as Responses Lite", () => {
+	const state = createAdapterState({
+		beta: { codeMode: true, responsesLite: true },
+		scope: { allProviders: "off", additionalProviders: [] },
+	});
+	const aliasHeaders: Record<string, string> = {};
+	rewriteCodexProviderHeaders(aliasHeaders, createContext({
+		provider: "openai-codex-personal",
+		api: "openai-codex-responses",
+		id: "gpt-5.6-sol",
+		baseUrl: CANONICAL_CODEX_BASE_URL,
+	}) as never, state);
+	assert.equal(aliasHeaders["x-openai-internal-codex-responses-lite"], "true");
+
+	const noncanonicalHeaders: Record<string, string> = {};
+	rewriteCodexProviderHeaders(noncanonicalHeaders, createContext({
+		provider: "openai-codex-personal",
+		api: "openai-codex-responses",
+		id: "gpt-5.6-sol",
+		baseUrl: "https://example.com/backend-api",
+	}) as never, state);
+	assert.equal("x-openai-internal-codex-responses-lite" in noncanonicalHeaders, false);
 });

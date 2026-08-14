@@ -40,16 +40,19 @@ export type ExecuteRemoteCompactionV2Options = {
 };
 
 function resolveStream(options: ExecuteRemoteCompactionV2Options): V2Stream | undefined {
-	const registration = options.modelRegistry.getRegisteredProviderConfig(options.runtime.provider);
-	if (options.runtime.provider === "openai-codex") {
+	if (options.runtime.codexTransport) {
+		// The Codex API implementation is registered once under the stock
+		// provider. The runtime model and credentials retain the alias scope.
+		const registration = options.modelRegistry.getRegisteredProviderConfig("openai-codex");
 		return registration?.api === "openai-codex-responses" && registration.streamSimple
 			? registration.streamSimple as V2Stream
 			: undefined;
 	}
+	const configuredRegistration = options.modelRegistry.getRegisteredProviderConfig(options.runtime.provider);
 	return options.runtime.api === "openai-responses"
-		&& registration?.api === "openai-responses"
-		&& registration.streamSimple
-		? registration.streamSimple as V2Stream
+		&& configuredRegistration?.api === "openai-responses"
+		&& configuredRegistration.streamSimple
+		? configuredRegistration.streamSimple as V2Stream
 		: undefined;
 }
 
@@ -73,7 +76,7 @@ function compactionUsage(message: AssistantMessage): RemoteCompactionV2Usage | u
 }
 
 function canonicalSessionIdentity(options: ExecuteRemoteCompactionV2Options): { url: string; accountId: string } | undefined {
-	if (options.promptInputSource === "reconstructed" || options.runtime.provider !== "openai-codex" || !options.runtime.apiKey) return undefined;
+	if (options.promptInputSource === "reconstructed" || !options.runtime.codexTransport || !options.runtime.apiKey) return undefined;
 	return {
 		url: resolveCodexWebSocketUrl(options.runtime.baseUrl),
 		accountId: extractAccountId(options.runtime.apiKey),
@@ -125,8 +128,8 @@ async function runAttempt(options: ExecuteRemoteCompactionV2Options, streamSimpl
 		sessionId: options.sessionId,
 		...(options.signal ? { signal: options.signal } : {}),
 		...(options.transport ? { transport: options.transport } : {}),
-		...(options.runtime.provider === "openai-codex" ? { canonicalCompaction: true } : {}),
-		maxRetries: options.runtime.provider === "openai-codex" ? MAX_STREAM_RETRIES : 0,
+		...(options.runtime.codexTransport ? { canonicalCompaction: true } : {}),
+		maxRetries: options.runtime.codexTransport ? MAX_STREAM_RETRIES : 0,
 		...(typeof options.requestOptions.service_tier === "string" ? { serviceTier: options.requestOptions.service_tier as never } : {}),
 		...(options.requestOptions.text?.verbosity ? { textVerbosity: options.requestOptions.text.verbosity } : {}),
 		onOutputItemDone: (item) => outputItems.push(item),
@@ -142,7 +145,7 @@ async function runAttempt(options: ExecuteRemoteCompactionV2Options, streamSimpl
 				input: promptInput,
 				...(typeof requestBody.instructions === "string" ? { instructions: requestBody.instructions } : {}),
 			}, { budgetTokens: resolveNativeCompactionRequestBudget({
-				provider: options.runtime.provider,
+				codexTransport: options.runtime.codexTransport,
 				model: options.runtime.model,
 				contextWindow: options.runtime.currentModel.contextWindow,
 			}), tokensBefore: options.tokensBefore });
@@ -185,10 +188,10 @@ async function runAttempt(options: ExecuteRemoteCompactionV2Options, streamSimpl
 export async function executeRemoteCompactionV2(options: ExecuteRemoteCompactionV2Options): Promise<RemoteCompactionV2Result> {
 	const streamSimple = resolveStream(options);
 	if (!streamSimple) return { ok: false, reason: "unavailable", errorMessage: "No compatible Responses stream is registered for this provider" };
-	const initialTransport = options.runtime.provider === "openai-codex" && isWebSocketSseFallbackActive(options.sessionId)
+	const initialTransport = options.runtime.codexTransport && isWebSocketSseFallbackActive(options.sessionId)
 		? "sse"
-		: options.transport ?? (options.runtime.provider === "openai-codex" ? "websocket-cached" : "sse");
-	if (options.runtime.provider === "openai-codex") {
+		: options.transport ?? (options.runtime.codexTransport ? "websocket-cached" : "sse");
+	if (options.runtime.codexTransport) {
 		return runAttempt({ ...options, transport: initialTransport }, streamSimple);
 	}
 	const transports: Transport[] = [initialTransport];

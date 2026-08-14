@@ -57,9 +57,10 @@ function createNestedTools(
 		showOutputWhenCollapsed: true,
 		compactTools: runtime.state.config.ui.compactTools,
 	};
-	const allowConfiguredProvider = (model: ExtensionContext["model"]) =>
-		(model?.provider ?? "").trim().toLowerCase() !== "openai-codex"
-		&& resolveCodexRuntimePlan({ model }, runtime.state.config).kind === "code";
+	const allowConfiguredProvider = (model: ExtensionContext["model"]) => {
+		const plan = resolveCodexRuntimePlan({ model }, runtime.state.config);
+		return plan.kind === "code" && plan.configuredProvider && !plan.codexTransport;
+	};
 	const tools: ProgrammaticCodeModeToolDefinition[] = [
 		toNestedTool(
 			createApplyPatchTool({

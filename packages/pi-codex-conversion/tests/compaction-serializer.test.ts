@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { buildNativeCompactionInput } from "../src/adapter/compaction/compaction.ts";
 import type { Model } from "@earendil-works/pi-ai";
-import { serializeActiveSessionToResponsesInput } from "../src/adapter/compaction/serializer.ts";
+import { serializeActiveSessionToResponsesInput, serializeMessagesToResponsesInput } from "../src/adapter/compaction/serializer.ts";
+import { CODE_MODE_EXEC_GRAMMAR_INPUTS } from "../src/tools/code-mode/exec-contract.ts";
 import {
 	REALTIME_DELEGATION_MESSAGE_TYPE,
 	REALTIME_VOICE_MESSAGE_TYPE,
@@ -89,6 +90,51 @@ test("native compaction excludes voice-only chatter but preserves Pi delegations
 
 	assert.doesNotMatch(serialized, /voice-only conversation/);
 	assert.match(serialized, /Pi-visible delegation/);
+});
+
+function serializeCodeModeToolHistory(historyModel: Model<any>) {
+	return serializeMessagesToResponsesInput(historyModel, [
+		{
+			role: "assistant",
+			content: [{ type: "toolCall", id: "call_1|ctc_1", name: "exec", arguments: { code: "text(42);" } }],
+			provider: historyModel.provider,
+			api: historyModel.api,
+			model: historyModel.id,
+			stopReason: "toolUse",
+			timestamp: 1,
+		},
+		{
+			role: "toolResult",
+			toolCallId: "call_1|ctc_1",
+			toolName: "exec",
+			content: [{ type: "text", text: "42" }],
+			isError: false,
+			timestamp: 2,
+		},
+	] as never, { grammarToolInputProperties: CODE_MODE_EXEC_GRAMMAR_INPUTS });
+}
+
+const codeModeToolHistory = [
+	{ type: "custom_tool_call", id: "ctc_1", call_id: "call_1", name: "exec", input: "text(42);" },
+	{ type: "custom_tool_call_output", call_id: "call_1", output: "42" },
+];
+
+test("canonical alias compaction preserves Code Mode custom tool history", () => {
+	const alias = {
+		...model,
+		provider: "openai-codex-personal",
+		api: "openai-codex-responses",
+		baseUrl: "https://chatgpt.com/backend-api",
+	} as Model<any>;
+	assert.deepEqual(serializeCodeModeToolHistory(alias), codeModeToolHistory);
+});
+
+test("stock Codex custom endpoints preserve Code Mode custom tool history", () => {
+	const stockProxy = {
+		...model,
+		baseUrl: "https://codex-proxy.example.com/backend-api",
+	} as Model<any>;
+	assert.deepEqual(serializeCodeModeToolHistory(stockProxy), codeModeToolHistory);
 });
 
 test("native compaction request routing reuses only the latest matching checkpoint", () => {

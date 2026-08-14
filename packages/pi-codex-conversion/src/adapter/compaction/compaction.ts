@@ -229,7 +229,7 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 		ctx.ui.notify("OpenAI native compaction could not clone the previous compacted window; Pi compaction was not run.", "error");
 		return { cancel: true };
 	}
-	const canonicalInput = runtime.provider === "openai-codex" && runtime.apiKey
+	const canonicalInput = runtime.codexTransport && runtime.apiKey
 		? canonicalCompactionPromptInput(ctx.sessionManager.getSessionId(), runtime.model, {
 			url: resolveCodexWebSocketUrl(runtime.baseUrl),
 			accountId: extractAccountId(runtime.apiKey),

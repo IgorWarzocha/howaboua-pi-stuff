@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { Api, Model } from "@earendil-works/pi-ai";
+import { isCanonicalCodexBaseUrl, isCanonicalCodexSubscriptionModel } from "../adapter/prompt/codex-model.ts";
+import { DEFAULT_CODEX_BASE_URL, JWT_CLAIM_PATH } from "../providers/openai-codex/constants.ts";
 import {
 	codexWeeklyUsageLeft,
 	type CodexRateLimitResetConsumeResult,
@@ -11,8 +13,6 @@ import {
 	parseCodexUsagePayload,
 } from "./payload.ts";
 
-const DEFAULT_CODEX_BASE_URL = "https://chatgpt.com/backend-api";
-const JWT_CLAIM_PATH = "https://api.openai.com/auth";
 const RESET_CREDITS_CACHE_MS = 5_000;
 const WEEKLY_USAGE_CACHE_MS = 5 * 60_000;
 const WEEKLY_USAGE_TIMEOUT_MS = 10_000;
@@ -60,31 +60,13 @@ function extractAccountId(token: string): string | undefined {
 	}
 }
 
-function isCanonicalCodexBaseUrl(value: string | undefined, allowCodexPath = false): boolean {
-	try {
-		const url = new URL(value ?? DEFAULT_CODEX_BASE_URL);
-		const path = url.pathname.replace(/\/+$/, "");
-		return url.protocol === "https:"
-			&& url.hostname === "chatgpt.com"
-			&& (path === "/backend-api" || (allowCodexPath && path === "/backend-api/codex"));
-	} catch {
-		return false;
-	}
-}
-
-function isCanonicalCodexSubscriptionModel(model: RuntimeModel): boolean {
-	return model.provider === "openai-codex"
-		&& model.api === "openai-codex-responses"
-		&& isCanonicalCodexBaseUrl(model.baseUrl);
-}
-
 async function buildCodexUsageHeaders(ctx: ExtensionContext, model: RuntimeModel): Promise<Headers> {
 	if (!isCanonicalCodexSubscriptionModel(model)) {
 		throw new Error("Codex usage requires the canonical ChatGPT subscription endpoint.");
 	}
-	const resolved = await ctx.modelRegistry.getProviderAuth("openai-codex");
+	const resolved = await ctx.modelRegistry.getProviderAuth(model.provider);
 	const token = resolved?.auth.apiKey;
-	if (!token || !isCanonicalCodexBaseUrl(resolved?.auth.baseUrl, true)) {
+	if (!token || !isCanonicalCodexBaseUrl(resolved?.auth.baseUrl ?? model.baseUrl)) {
 		throw new Error("Canonical OpenAI Codex subscription auth is required.");
 	}
 	const accountId = extractAccountId(token);
@@ -147,8 +129,8 @@ async function fetchCodexUsageWithHeaders(
 export async function fetchCodexUsage(ctx: ExtensionContext): Promise<CodexUsageSnapshot> {
 	const model = ctx.model;
 	if (!model) throw new Error("No active model selected.");
-	if (model.provider !== "openai-codex") {
-		throw new Error("Codex usage is only available for OpenAI Codex subscription models.");
+	if (!isCanonicalCodexSubscriptionModel(model)) {
+		throw new Error("Codex usage is only available for canonical OpenAI Codex subscription models.");
 	}
 	const headers = await buildCodexUsageHeaders(ctx, model);
 	return fetchCodexUsageWithHeaders(headers, ctx.signal);
@@ -209,8 +191,8 @@ export function createCodexRateLimitResetRedeemRequestId(): string {
 export async function consumeCodexRateLimitResetCredit(ctx: ExtensionContext, redeemRequestId = createCodexRateLimitResetRedeemRequestId()): Promise<CodexRateLimitResetConsumeResult> {
 	const model = ctx.model;
 	if (!model) throw new Error("No active model selected.");
-	if (model.provider !== "openai-codex") {
-		throw new Error("Codex reset credits are only available for OpenAI Codex subscription models.");
+	if (!isCanonicalCodexSubscriptionModel(model)) {
+		throw new Error("Codex reset credits are only available for canonical OpenAI Codex subscription models.");
 	}
 	const headers = await buildCodexUsageHeaders(ctx, model);
 	headers.set("content-type", "application/json");

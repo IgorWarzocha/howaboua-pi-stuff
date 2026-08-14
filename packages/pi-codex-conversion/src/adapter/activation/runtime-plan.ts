@@ -1,7 +1,7 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { supportsNativeImageGeneration, supportsNativeWebSearch, supportsViewImageInputs } from "../tool-support.ts";
 import { supportsResponsesLiteModel } from "../../providers/openai-codex/responses-lite-model.ts";
-import { isCodexLikeModel, isOpenAICodexContext, isOpenAIResponsesContext, isResponsesContext } from "../prompt/codex-model.ts";
+import { isCanonicalCodexSubscriptionContext, isCodexLikeModel, isCodexTransportContext, isOpenAIResponsesContext, isResponsesContext } from "../prompt/codex-model.ts";
 import type { CodexConversionConfig } from "./config.ts";
 import {
 	APPLY_PATCH_TOOL_NAME,
@@ -20,6 +20,8 @@ interface RuntimePlanBase {
 	toolNames: string[];
 	ownedToolNames: string[];
 	configuredProvider: boolean;
+	canonicalSubscription: boolean;
+	codexTransport: boolean;
 	effectiveOpenAICodex: boolean;
 	nativeCompaction: boolean;
 }
@@ -74,7 +76,7 @@ function proxySupportsCodeMode(ctx: RuntimeContext, config: CodexConversionConfi
 
 function codeModeEnabled(ctx: RuntimeContext, config: CodexConversionConfig): boolean {
 	if (!config.beta.codeMode) return false;
-	return isOpenAICodexContext(ctx)
+	return isCodexTransportContext(ctx)
 		? supportsResponsesLiteModel(ctx.model?.id)
 		: proxySupportsCodeMode(ctx, config);
 }
@@ -107,7 +109,9 @@ function normalToolNames(ctx: RuntimeContext, config: CodexConversionConfig, cod
 
 export function resolveCodexRuntimePlan(ctx: RuntimeContext, config: CodexConversionConfig): CodexRuntimePlan {
 	const isConfigured = configuredProvider(ctx, config);
-	const effectiveOpenAICodex = isOpenAICodexContext(ctx) || isConfigured;
+	const canonicalSubscription = isCanonicalCodexSubscriptionContext(ctx);
+	const codexTransport = isCodexTransportContext(ctx);
+	const effectiveOpenAICodex = codexTransport || isConfigured;
 	const ownedToolNames = [
 		...SHELL_ADAPTER_TOOL_NAMES,
 		...CODE_MODE_TOOL_NAMES,
@@ -119,6 +123,8 @@ export function resolveCodexRuntimePlan(ctx: RuntimeContext, config: CodexConver
 	const base = {
 		ownedToolNames,
 		configuredProvider: isConfigured,
+		canonicalSubscription,
+		codexTransport,
 		effectiveOpenAICodex,
 		nativeCompaction: false,
 	};
