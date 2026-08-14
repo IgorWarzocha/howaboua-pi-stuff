@@ -1,5 +1,16 @@
 # @howaboua/pi-stuff
 
+## 0.0.60
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-gippity-control: Allow the LAN control server port to be set through lan.port and keep discovery available while a custom app is incomplete.
+
+- Updated dependencies [[`0e4e876`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/0e4e87648c8612253b3e0758652077f1c8f4ef57)]:
+  - @howaboua/pi-gippity-control@0.0.11
+
 ## 0.0.59
 
 ### Changes

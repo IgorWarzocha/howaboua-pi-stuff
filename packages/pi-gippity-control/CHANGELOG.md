@@ -1,5 +1,11 @@
 # @howaboua/pi-gippity-control
 
+## 0.0.11
+
+### Changes
+
+- [#286](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/286) [`0e4e876`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/0e4e87648c8612253b3e0758652077f1c8f4ef57) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Allow the LAN control server port to be set through lan.port and keep discovery available while a custom app is incomplete.
+
 ## 0.0.10
 
 ### Changes

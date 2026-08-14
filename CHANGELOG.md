@@ -91,24 +91,24 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.54
+### @howaboua/pi-extensions — 0.0.55
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-gippity-control: Add hosted custom remote apps, guided frontend creation, a browser client, agent-readable discovery, Pi event streaming, generic Pi/context RPC, and bounded realtime context framing.
+  - @howaboua/pi-gippity-control: Allow the LAN control server port to be set through lan.port and keep discovery available while a custom app is incomplete.
 
-- Updated dependencies [[`adfe989`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/adfe989598cab149c483a595e0108f917b7c40fa)]:
-  - @howaboua/pi-gippity-control@0.0.10
+- Updated dependencies [[`0e4e876`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/0e4e87648c8612253b3e0758652077f1c8f4ef57)]:
+  - @howaboua/pi-gippity-control@0.0.11
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
-### @howaboua/pi-gippity-control — 0.0.10
+### @howaboua/pi-gippity-control — 0.0.11
 
 ### Changes
 
-- [#283](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/283) [`adfe989`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/adfe989598cab149c483a595e0108f917b7c40fa) Thanks [@howaclawa](https://github.com/howaclawa)! - Add hosted custom remote apps, guided frontend creation, a browser client, agent-readable discovery, Pi event streaming, generic Pi/context RPC, and bounded realtime context framing.
+- [#286](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/286) [`0e4e876`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/0e4e87648c8612253b3e0758652077f1c8f4ef57) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Allow the LAN control server port to be set through lan.port and keep discovery available while a custom app is incomplete.
 
 [Full changelog](./packages/pi-gippity-control/CHANGELOG.md)
 
@@ -269,16 +269,16 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.59
+### @howaboua/pi-stuff — 0.0.60
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-gippity-control: Add hosted custom remote apps, guided frontend creation, a browser client, agent-readable discovery, Pi event streaming, generic Pi/context RPC, and bounded realtime context framing.
+  - @howaboua/pi-gippity-control: Allow the LAN control server port to be set through lan.port and keep discovery available while a custom app is incomplete.
 
-- Updated dependencies [[`adfe989`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/adfe989598cab149c483a595e0108f917b7c40fa)]:
-  - @howaboua/pi-gippity-control@0.0.10
+- Updated dependencies [[`0e4e876`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/0e4e87648c8612253b3e0758652077f1c8f4ef57)]:
+  - @howaboua/pi-gippity-control@0.0.11
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 
