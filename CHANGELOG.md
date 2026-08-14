@@ -91,24 +91,24 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.55
+### @howaboua/pi-extensions — 0.0.56
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-gippity-control: Allow the LAN control server port to be set through lan.port and keep discovery available while a custom app is incomplete.
+  - @howaboua/pi-gippity-control: Route /gippity create through Pi's ordinary user-prompt lifecycle while preserving its custom transcript card, condense the settings details while showing the effective LAN port, and document custom web app paths and port configuration.
 
-- Updated dependencies [[`0e4e876`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/0e4e87648c8612253b3e0758652077f1c8f4ef57)]:
-  - @howaboua/pi-gippity-control@0.0.11
+- Updated dependencies [[`439c7f0`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/439c7f05c5e5c8a1d8a69ae133167e56289af555)]:
+  - @howaboua/pi-gippity-control@0.0.12
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
-### @howaboua/pi-gippity-control — 0.0.11
+### @howaboua/pi-gippity-control — 0.0.12
 
 ### Changes
 
-- [#286](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/286) [`0e4e876`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/0e4e87648c8612253b3e0758652077f1c8f4ef57) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Allow the LAN control server port to be set through lan.port and keep discovery available while a custom app is incomplete.
+- [#290](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/290) [`439c7f0`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/439c7f05c5e5c8a1d8a69ae133167e56289af555) Thanks [@howaclawa](https://github.com/howaclawa)! - Route /gippity create through Pi's ordinary user-prompt lifecycle while preserving its custom transcript card, condense the settings details while showing the effective LAN port, and document custom web app paths and port configuration
 
 [Full changelog](./packages/pi-gippity-control/CHANGELOG.md)
 
@@ -269,16 +269,16 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.60
+### @howaboua/pi-stuff — 0.0.61
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-gippity-control: Allow the LAN control server port to be set through lan.port and keep discovery available while a custom app is incomplete.
+  - @howaboua/pi-gippity-control: Route /gippity create through Pi's ordinary user-prompt lifecycle while preserving its custom transcript card, condense the settings details while showing the effective LAN port, and document custom web app paths and port configuration.
 
-- Updated dependencies [[`0e4e876`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/0e4e87648c8612253b3e0758652077f1c8f4ef57)]:
-  - @howaboua/pi-gippity-control@0.0.11
+- Updated dependencies [[`439c7f0`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/439c7f05c5e5c8a1d8a69ae133167e56289af555)]:
+  - @howaboua/pi-gippity-control@0.0.12
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 

@@ -1,5 +1,11 @@
 # @howaboua/pi-gippity-control
 
+## 0.0.12
+
+### Changes
+
+- [#290](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/290) [`439c7f0`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/439c7f05c5e5c8a1d8a69ae133167e56289af555) Thanks [@howaclawa](https://github.com/howaclawa)! - Route /gippity create through Pi's ordinary user-prompt lifecycle while preserving its custom transcript card, condense the settings details while showing the effective LAN port, and document custom web app paths and port configuration
+
 ## 0.0.11
 
 ### Changes
