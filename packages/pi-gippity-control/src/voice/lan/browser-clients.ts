@@ -35,6 +35,10 @@ export class LanVoiceBrowserClients {
 		this.connections.sendControl(clientId, value);
 	}
 
+	hasEventClients(): boolean {
+		return this.connections.hasEventClients();
+	}
+
 	broadcastControl(value: unknown): void {
 		this.connections.broadcastControl(value);
 	}

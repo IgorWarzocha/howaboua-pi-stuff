@@ -32,6 +32,10 @@ export const REALTIME_V3_VOICES = [
 export type RealtimeV3Voice = (typeof REALTIME_V3_VOICES)[number];
 
 export interface GippityControlConfig {
+	lan: {
+		customWebApp: boolean;
+		customWebAppPath?: string | undefined;
+	};
 	voice: {
 		v3Voice: RealtimeV3Voice;
 		autoResumeRealtime: boolean;
@@ -51,6 +55,9 @@ export interface GippityControlConfig {
 }
 
 export const DEFAULT_GIPPITY_CONTROL_CONFIG: GippityControlConfig = {
+	lan: {
+		customWebApp: false,
+	},
 	voice: {
 		v3Voice: "cove",
 		autoResumeRealtime: false,
@@ -112,11 +119,17 @@ export function normalizeGippityControlConfig(
 	value: unknown,
 ): GippityControlConfig {
 	if (!isObject(value)) return structuredClone(DEFAULT_GIPPITY_CONTROL_CONFIG);
+	const lan = isObject(value["lan"]) ? value["lan"] : {};
 	const voice = isObject(value["voice"]) ? value["voice"] : {};
+	const customWebAppPath = optionalString(lan["customWebAppPath"]);
 	const inputDevice = optionalString(voice["inputDevice"]);
 	const outputDevice = optionalString(voice["outputDevice"]);
 	const contextModel = normalizeVoiceContextModel(voice["contextModel"]);
 	return {
+		lan: {
+			customWebApp: lan["customWebApp"] === true,
+			...(customWebAppPath ? { customWebAppPath } : {}),
+		},
 		voice: {
 			v3Voice:
 				normalizeRealtimeV3Voice(voice["v3Voice"]) ??

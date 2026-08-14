@@ -1,5 +1,6 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { LAN_VOICE_BROWSER_SCRIPT } from "./browser-script.ts";
+import { LAN_REMOTE_CLIENT_PATH } from "./discovery.ts";
 import { resolveLanVoiceWebTheme } from "./theme.ts";
 
 export function createLanVoiceWebUi(piTheme: Theme): string {
@@ -103,6 +104,7 @@ export function createLanVoiceWebUi(piTheme: Theme): string {
       <div class="composer-actions"><div id="connection" class="connection" role="status"><span class="dot"></span><span>Connecting</span></div><button id="send" type="button" disabled>Send</button></div>
     </section>
   </main>
+  <script src="${LAN_REMOTE_CLIENT_PATH}"></script>
   <script>${LAN_VOICE_BROWSER_SCRIPT}</script>
 </body>
 </html>`;

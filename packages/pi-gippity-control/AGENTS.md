@@ -4,3 +4,5 @@
 - Realtime conversation is V3 only. Dictation is a separate manually bounded transcription path, not a selectable realtime protocol.
 - Keep the native helper credential-free and its stdout protocol-only. Preserve bounded external data and idempotent cleanup.
 - LAN control is intentionally unauthenticated and session-owned. Keep server startup lazy.
+- LAN owns one HTTPS origin: bundled or configured static UI, fixed browser client/discovery endpoints, Pi/context RPC, events, and audio. Never make custom UIs launch a server or reimplement transport state. A running server rereads persisted web-app config so a valid new path activates on refresh.
+- `/gippity create` may inspect discovery/client GET resources but must leave live RPC, drafts, audio, and session-operation testing to the user because the server targets its own Pi session.

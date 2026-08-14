@@ -4,12 +4,14 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { GippityControlConfig } from "./config.ts";
 import {
+	getGippityControlConfigPath,
 	readGippityControlConfig,
 	writeGippityControlConfig,
 } from "./config-store.ts";
 import { openGippitySettings } from "./settings.ts";
 import type { CodexVoiceControls } from "./voice/controls.ts";
 import type { CodexLanVoiceServerController } from "./voice/lan/controller.ts";
+import { lanRemoteCreatePrompt } from "./voice/lan/create.ts";
 
 const ACTIONS = [
 	"realtime",
@@ -17,6 +19,7 @@ const ACTIONS = [
 	"dictation",
 	"stop",
 	"server",
+	"create",
 	"setup",
 ] as const;
 
@@ -67,7 +70,7 @@ export function registerGippityCommand(options: {
 			}
 			if (!ACTIONS.includes(action as (typeof ACTIONS)[number])) {
 				ctx.ui.notify(
-					"Usage: /gippity [realtime|mute|dictation|stop|server|setup]",
+					"Usage: /gippity [realtime|mute|dictation|stop|server|create|setup]",
 					"warning",
 				);
 				return;
@@ -75,6 +78,28 @@ export function registerGippityCommand(options: {
 			if (action === "setup") {
 				await ctx.waitForIdle();
 				await voiceControls.setup(ctx);
+				return;
+			}
+			if (action === "create") {
+				try {
+					await ctx.waitForIdle();
+					const status = await lanVoice.setEnabled(true, ctx);
+					const baseUrl = status.urls[0];
+					if (!baseUrl) throw new Error("Control server has no reachable URL");
+					pi.sendMessage(
+						lanRemoteCreatePrompt({
+							appDirectory: ctx.cwd,
+							configPath: getGippityControlConfigPath(),
+							discoveryUrl: `${baseUrl}/api/discovery`,
+						}),
+						{ triggerTurn: true },
+					);
+				} catch (error) {
+					ctx.ui.notify(
+						`Could not create a GipPity web app: ${error instanceof Error ? error.message : String(error)}`,
+						"error",
+					);
+				}
 				return;
 			}
 			if (ctx.mode !== "tui") {

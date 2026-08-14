@@ -1,8 +1,12 @@
 import { createServer } from "node:https";
 import type { AddressInfo } from "node:net";
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import { WebSocketServer } from "ws";
 import type { GippityControlConfig } from "../../config.ts";
+import { getGippityControlConfigPath } from "../../config-store.ts";
 import type { CodexVoiceAuth } from "../auth.ts";
 import type { CodexVoiceController } from "../controller.ts";
 import type { RealtimePeerPlan } from "../controller-start.ts";
@@ -15,9 +19,18 @@ import {
 } from "./browser-clients.ts";
 import { LanHostRealtimePeer } from "./browser-peer.ts";
 import { resolveLanVoiceCertificate } from "./certificate.ts";
+import { LAN_REMOTE_CLIENT_SCRIPT } from "./client-sdk-script.ts";
+import { resolveLanRemoteCustomApp } from "./custom-app.ts";
 import { LanVoiceDictation } from "./dictation.ts";
+import { createLanRemoteDiscovery } from "./discovery.ts";
 import { LanVoiceDraft, LanVoiceDraftConflictError } from "./draft.ts";
 import { boundedString, handleLanVoiceHttpRequest } from "./http-handler.ts";
+import { remoteJsonValue } from "./remote-json.ts";
+import {
+	decodeLanRemoteRpcRequest,
+	invokeLanRemoteRpc,
+	lanRemoteRpcError,
+} from "./rpc.ts";
 import {
 	collectFailures,
 	configureServer,
@@ -34,11 +47,13 @@ export interface CodexLanVoiceServer {
 	readonly urls: string[];
 	agentStarted(): void;
 	agentSettled(text?: string): void;
+	piEvent(event: string, data: unknown): void;
 	close(): Promise<void>;
 }
 
 export async function startCodexLanVoiceServer(options: {
 	ctx: ExtensionContext;
+	pi: ExtensionAPI;
 	getConfig: () => GippityControlConfig;
 	voice: CodexVoiceController;
 	resolveAuth(): Promise<CodexVoiceAuth>;
@@ -47,6 +62,26 @@ export async function startCodexLanVoiceServer(options: {
 	port?: number | undefined;
 	certificateAgentDir: string;
 }): Promise<CodexLanVoiceServer> {
+	const resolveWebApp = (config: GippityControlConfig) => {
+		const customWebApp = config.lan.customWebApp;
+		const customApp =
+			customWebApp && config.lan.customWebAppPath
+				? resolveLanRemoteCustomApp(
+						config.lan.customWebAppPath,
+						options.ctx.cwd,
+					)
+				: undefined;
+		return {
+			customWebApp,
+			customApp,
+			discovery: createLanRemoteDiscovery({
+				customWebApp,
+				customWebAppPath: customApp?.root,
+				configPath: getGippityControlConfigPath(),
+			}),
+		};
+	};
+	resolveWebApp(options.getConfig());
 	const certificate = resolveLanVoiceCertificate(options.certificateAgentDir);
 	const ownerIsActive = () =>
 		options.ctx.sessionManager.getSessionId() === options.ownerSessionId;
@@ -193,6 +228,32 @@ export async function startCodexLanVoiceServer(options: {
 				inputMuted: () => options.voice.inputMuted,
 				renderManifest: () => createLanVoiceWebManifest(options.ctx.ui.theme),
 				renderPage: () => createLanVoiceWebUi(options.ctx.ui.theme),
+				clientScript: () => LAN_REMOTE_CLIENT_SCRIPT,
+				webApp: () => resolveWebApp(options.getConfig()),
+				async rpc(body) {
+					try {
+						const rpc = decodeLanRemoteRpcRequest(body);
+						return {
+							id: rpc.id ?? null,
+							ok: true,
+							result: await invokeLanRemoteRpc({
+								request: rpc,
+								pi: options.pi,
+								ctx: options.ctx,
+							}),
+						};
+					} catch (error) {
+						const id = body["id"];
+						return {
+							id:
+								typeof id === "string" || typeof id === "number" || id === null
+									? id
+									: null,
+							ok: false,
+							error: lanRemoteRpcError(error),
+						};
+					}
+				},
 				ownerIsActive,
 				get closing() {
 					return closing;
@@ -286,6 +347,23 @@ export async function startCodexLanVoiceServer(options: {
 		urls,
 		agentStarted: () => activity.working(),
 		agentSettled: (text) => activity.settled(text),
+		piEvent(event, data) {
+			if (!ownerIsActive() || !clients.hasEventClients()) return;
+			let serialized: unknown;
+			try {
+				serialized = remoteJsonValue(data);
+			} catch (error) {
+				serialized = {
+					serializationError:
+						error instanceof Error ? error.message : String(error),
+				};
+			}
+			clients.broadcastControl({
+				type: "pi.event",
+				event,
+				data: serialized,
+			});
+		},
 		close() {
 			closePromise ??= closeServer();
 			return closePromise;

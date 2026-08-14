@@ -1,9 +1,13 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import type { GippityControlConfig } from "../../config.ts";
 import { resolveCodexVoiceAuth } from "../auth.ts";
 import type { CodexVoiceController } from "../controller.ts";
 import { boundedAssistantText } from "./activity.ts";
+import { appendLanRemoteCreateNotice } from "./create.ts";
 import type { CodexLanVoiceServer } from "./server.ts";
 
 export interface CodexLanVoiceServerStatus {
@@ -13,6 +17,7 @@ export interface CodexLanVoiceServerStatus {
 
 export class CodexLanVoiceServerController {
 	private readonly voice: CodexVoiceController;
+	private readonly pi: ExtensionAPI;
 	private readonly getConfig: () => GippityControlConfig;
 	private readonly sendUserMessage: (
 		text: string,
@@ -24,11 +29,13 @@ export class CodexLanVoiceServerController {
 	private operation = Promise.resolve();
 
 	constructor(
+		pi: ExtensionAPI,
 		voice: CodexVoiceController,
 		getConfig: () => GippityControlConfig,
 		sendUserMessage: (text: string, ctx: ExtensionContext) => void,
 		agentDir: string,
 	) {
+		this.pi = pi;
 		this.voice = voice;
 		this.getConfig = getConfig;
 		this.sendUserMessage = sendUserMessage;
@@ -54,6 +61,7 @@ export class CodexLanVoiceServerController {
 			const { startCodexLanVoiceServer } = await import("./server.ts");
 			this.server = await startCodexLanVoiceServer({
 				ctx,
+				pi: this.pi,
 				getConfig: this.getConfig,
 				voice: this.voice,
 				resolveAuth: () => resolveCodexVoiceAuth(ctx),
@@ -65,10 +73,19 @@ export class CodexLanVoiceServerController {
 				"gippity-lan",
 				ctx.ui.theme.fg("accent", "GipPity LAN: on"),
 			);
+			const config = this.getConfig();
+			const needsCustomApp =
+				config.lan.customWebApp && !config.lan.customWebAppPath;
 			ctx.ui.notify(
-				`LAN voice is running:\n${this.server.urls.join("\n")}\nAccept the local certificate on first visit.`,
+				`GipPity control server is running:\n${this.server.urls.join("\n")}\nAccept the local certificate on first visit.${needsCustomApp ? "\nNo custom web app is connected. Run /gippity create." : ""}`,
 				"info",
 			);
+			if (needsCustomApp) {
+				appendLanRemoteCreateNotice(
+					this.pi,
+					`${this.server.urls[0]}/api/discovery`,
+				);
+			}
 			return this.status();
 		});
 	}
@@ -95,6 +112,10 @@ export class CodexLanVoiceServerController {
 		if (!this.server) return;
 		this.server.agentSettled(this.pendingAssistantText);
 		this.pendingAssistantText = undefined;
+	}
+
+	piEvent(event: string, data: unknown): void {
+		this.server?.piEvent(event, data);
 	}
 
 	private async stopCurrent(ctx?: ExtensionContext): Promise<void> {

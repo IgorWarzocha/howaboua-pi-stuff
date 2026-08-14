@@ -19,9 +19,11 @@ import {
 	realtimePeerStateFailure,
 	remoteError,
 	transcriptItemText,
+	utf8Chunks,
 } from "./wire.ts";
 
 const PEER_READY_TIMEOUT_MS = 15_000;
+const CONTEXT_APPEND_CHUNK_BYTES = 500;
 
 type ConversationState = "idle" | "starting" | "active" | "failed" | "closed";
 
@@ -99,11 +101,12 @@ export class CodexRealtimeConversation {
 	private appendSpeakableContext(text: string): void {
 		try {
 			this.speakableResponsePending = true;
-			this.peer.sendData({
-				type: "session.context.append",
-				channel: "speakable",
-				content: [{ type: "input_text", text }],
-			});
+			for (const content of utf8Chunks(text, CONTEXT_APPEND_CHUNK_BYTES))
+				this.peer.sendData({
+					type: "session.context.append",
+					channel: "speakable",
+					content: [{ type: "input_text", text: content }],
+				});
 		} catch (error) {
 			this.fail(error instanceof Error ? error : new Error(String(error)));
 		}
