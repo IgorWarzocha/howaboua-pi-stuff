@@ -35,6 +35,7 @@ export interface GippityControlConfig {
 	lan: {
 		customWebApp: boolean;
 		customWebAppPath?: string | undefined;
+		port?: number | undefined;
 	};
 	voice: {
 		v3Voice: RealtimeV3Voice;
@@ -89,6 +90,15 @@ function optionalString(value: unknown): string | undefined {
 		: undefined;
 }
 
+function optionalPort(value: unknown): number | undefined {
+	return typeof value === "number" &&
+		Number.isInteger(value) &&
+		value >= 1 &&
+		value <= 65_535
+		? value
+		: undefined;
+}
+
 function normalizeVoiceContextModel(
 	value: unknown,
 ): VoiceContextModel | undefined {
@@ -122,6 +132,7 @@ export function normalizeGippityControlConfig(
 	const lan = isObject(value["lan"]) ? value["lan"] : {};
 	const voice = isObject(value["voice"]) ? value["voice"] : {};
 	const customWebAppPath = optionalString(lan["customWebAppPath"]);
+	const port = optionalPort(lan["port"]);
 	const inputDevice = optionalString(voice["inputDevice"]);
 	const outputDevice = optionalString(voice["outputDevice"]);
 	const contextModel = normalizeVoiceContextModel(voice["contextModel"]);
@@ -129,6 +140,7 @@ export function normalizeGippityControlConfig(
 		lan: {
 			customWebApp: lan["customWebApp"] === true,
 			...(customWebAppPath ? { customWebAppPath } : {}),
+			...(port ? { port } : {}),
 		},
 		voice: {
 			v3Voice:

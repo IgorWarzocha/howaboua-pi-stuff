@@ -39,12 +39,13 @@ import {
 } from "./server-runtime.ts";
 import { createLanVoiceWebUi } from "./web-ui.ts";
 
-const PORT = 43_120;
+const DEFAULT_PORT = 43_120;
 const HEARTBEAT_MS = 15_000;
 
 export interface CodexLanVoiceServer {
 	readonly ownerSessionId: string;
 	readonly urls: string[];
+	readonly customWebAppReady: boolean;
 	agentStarted(): void;
 	agentSettled(text?: string): void;
 	piEvent(event: string, data: unknown): void;
@@ -81,7 +82,8 @@ export async function startCodexLanVoiceServer(options: {
 			}),
 		};
 	};
-	resolveWebApp(options.getConfig());
+	const initialConfig = options.getConfig();
+	const initialWebApp = resolveWebApp(initialConfig);
 	const certificate = resolveLanVoiceCertificate(options.certificateAgentDir);
 	const ownerIsActive = () =>
 		options.ctx.sessionManager.getSessionId() === options.ownerSessionId;
@@ -288,7 +290,10 @@ export async function startCodexLanVoiceServer(options: {
 	});
 	configureServer(server);
 	try {
-		await listen(server, options.port ?? PORT);
+		await listen(
+			server,
+			options.port ?? initialConfig.lan.port ?? DEFAULT_PORT,
+		);
 	} catch (error) {
 		removeInputMuteListener();
 		const clientsClosing = clients.close();
@@ -345,6 +350,7 @@ export async function startCodexLanVoiceServer(options: {
 	return {
 		ownerSessionId: options.ownerSessionId,
 		urls,
+		customWebAppReady: Boolean(initialWebApp.customApp),
 		agentStarted: () => activity.working(),
 		agentSettled: (text) => activity.settled(text),
 		piEvent(event, data) {
