@@ -139,6 +139,7 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
       if (nextMode !== 'conversation' && nextMode !== 'dictation') throw new Error('Audio mode must be conversation or dictation');
       if (starting || busy || active || socket) return;
       mode = nextMode;
+      if (mode === 'dictation') muted = false;
       const currentGeneration = ++generation;
       starting = true; busy = true; publish('opening', 'Allow microphone access if asked.');
       try {
@@ -192,7 +193,7 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
     const serverCommand = (command) => {
       if (command.type === 'stop') finishStop(false, command.reason || 'server');
       if (command.type === 'error' && (active || busy || socket)) { finishStop(false, 'server-error'); publish('error', command.message); }
-      if (command.type === 'mute') setMuted(command.muted, false);
+      if (command.type === 'mute' && mode === 'conversation') setMuted(command.muted, false);
       if (command.type === 'status' && busy && !active) publish(command.status === 'summarizing…' ? 'summarizing' : 'connecting');
       if (command.type === 'microphone') { inputTooQuiet = command.state === 'too-quiet'; if (active && !muted) publish('listening', inputTooQuiet ? 'Microphone level is too low' : ''); }
     };
@@ -307,9 +308,11 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
 		draft = { ...draft, revision:command.revision };
 		resolveInitialDraft(); emit('draft', { ...draft }); return;
 	  }
-	  const preserveLocal = command.sourceClientId === clientId && (command.reason === 'update' || command.reason === 'sent') && (dirty || syncing) && draft.text !== command.text;
+	  const reconnectSnapshot = !command.sourceClientId && !command.reason;
+	  const preserveLocal = (dirty || syncing) && draft.text !== command.text && (reconnectSnapshot || (command.sourceClientId === clientId && (command.reason === 'update' || command.reason === 'sent')));
       draft = preserveLocal ? { ...draft, revision:command.revision } : { ...command };
-      if (command.sourceClientId !== clientId) { clearTimeout(timer); dirty = false; }
+	  if (!preserveLocal && command.sourceClientId !== clientId) { clearTimeout(timer); dirty = false; }
+	  if (reconnectSnapshot && preserveLocal && dirty) { clearTimeout(timer); timer = setTimeout(() => { void flush().catch(() => {}); }, 180); }
 	  resolveInitialDraft();
       emit('draft', { ...draft });
     };

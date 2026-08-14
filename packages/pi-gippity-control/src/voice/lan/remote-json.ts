@@ -48,6 +48,7 @@ export function remoteJsonValue(value: unknown): unknown {
 		depths.set(current, depth);
 		while (ancestors.length > 0 && ancestors.at(-1) !== this) ancestors.pop();
 		if (ancestors.includes(current)) return "[Circular]";
+		propertyCounts.set(current, 0);
 		ancestors.push(current);
 		if (Array.isArray(current) && current.length > MAX_REMOTE_ARRAY_ITEMS) {
 			const bounded = [

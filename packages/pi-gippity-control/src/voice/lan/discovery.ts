@@ -21,6 +21,7 @@ export function createLanRemoteDiscovery(options: {
 			configPath: options.configPath,
 			appDirectory:
 				"Create a static index.html with any CSS/JS/assets. GipPity hosts the directory; do not start another web server.",
+			pwa: "Build an installable PWA with a web manifest, app icons, and mobile metadata. GipPity already provides HTTPS.",
 			activation:
 				"After writing a valid customWebAppPath, refresh or open the GipPity URL; the running server loads it without a restart.",
 			config: {
