@@ -6,7 +6,7 @@ import { getCodexConversionConfigPath, readCodexConversionConfig } from "../adap
 import { isAdapterRuntime, resolveCodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
 import type { AdapterState } from "../adapter/activation/state.ts";
 import { rewriteCodexPrewarmProviderRequest, rewriteCodexProviderRequest } from "../adapter/provider-request.ts";
-import { getDefaultCodexRuntimeShell } from "../adapter/prompt/runtime-shell.ts";
+import { getPiCodexRuntimeShell } from "../adapter/prompt/runtime-shell.ts";
 import { isProviderContextExcludedMessage } from "../adapter/prompt/context-filter.ts";
 import { buildCodexSystemPrompt, type PiSystemPromptOptions } from "../prompt/build-system-prompt.ts";
 import { closeOpenAICodexWebSocketSessions, prewarmOpenAICodexWebSocket } from "../providers/openai-codex-custom-provider.ts";
@@ -223,7 +223,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 			const plan = resolveCodexRuntimePlan(ctx, state.config);
 			return buildCodexSystemPrompt(basePrompt, {
 				skills,
-				shell: getDefaultCodexRuntimeShell(),
+				shell: getPiCodexRuntimeShell(ctx),
 				mode: plan.prompt ?? "normal",
 				heavySystemPromptOverwrite: state.config.prompt.heavySystemPromptOverwrite,
 				systemPromptOptions,
