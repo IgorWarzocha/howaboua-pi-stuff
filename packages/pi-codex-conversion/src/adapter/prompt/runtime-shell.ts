@@ -11,7 +11,8 @@ export function getCodexRuntimeShell(shell: string | undefined): string {
 	if (!shell) {
 		return CODEX_FALLBACK_SHELL;
 	}
-	return isFishShell(shell) ? CODEX_FALLBACK_SHELL : shell;
+	if (!isFishShell(shell)) return shell;
+	return process.platform === "win32" ? getShellConfig().shell : CODEX_FALLBACK_SHELL;
 }
 
 function getShellName(shell: string): string {
