@@ -1,5 +1,16 @@
 # @howaboua/pi-stuff
 
+## 0.0.61
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-gippity-control: Route /gippity create through Pi's ordinary user-prompt lifecycle while preserving its custom transcript card, condense the settings details while showing the effective LAN port, and document custom web app paths and port configuration.
+
+- Updated dependencies [[`439c7f0`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/439c7f05c5e5c8a1d8a69ae133167e56289af555)]:
+  - @howaboua/pi-gippity-control@0.0.12
+
 ## 0.0.60
 
 ### Changes
