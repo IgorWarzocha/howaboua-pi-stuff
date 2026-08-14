@@ -39,13 +39,6 @@ export async function registerCodexCodeMode(
 			maxHeapMiB: runtime.state.config.notebook.maxHeapMiB,
 			agentDir: getAgentDir(),
 			...(runtime.state.config.notebook.profile ? { profile: runtime.state.config.notebook.profile } : {}),
-			reportStateNotice: (notice) => {
-				pi.sendMessage({
-					customType: "codex-notebook-state",
-					content: notice,
-					display: false,
-				}, { deliverAs: "steer", triggerTurn: false });
-			},
 		}),
 		providesRenderers: true,
 		richRendering: () => runtime.state.executionMode === "notebook" || runtime.state.config.ui.codeModeDetails,

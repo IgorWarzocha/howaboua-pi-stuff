@@ -28,7 +28,14 @@ import {
 } from "./project-state-format.ts";
 import { mergeProjectState, type ProjectStateMerge } from "./project-state-merge.ts";
 import { withProjectStateLock } from "./project-state-lock.ts";
-import { projectStateCaptureSource, projectStateRestoreSource } from "./project-state-runtime.ts";
+import {
+	parseProjectBindingNames,
+	projectBindingNamesSource,
+	projectStateCaptureSource,
+	projectStateRestoreSource,
+	promoteProjectBindingsSource,
+	syncProjectBindingsSource,
+} from "./project-state-runtime.ts";
 
 const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 const MAX_NOTICE_NAMES = 24;
@@ -134,8 +141,11 @@ export async function writeProjectState(
 	const candidatePayloadPath = join(paths.directory, `candidate-${candidateId}.bin`);
 	const candidateManifestPath = join(paths.directory, `candidate-${candidateId}.json`);
 	try {
-		const names = [...new Set(await kernel.complete("", 0))]
-			.filter((name) => !baselineNames.has(name) && !excludeNames.has(name) && IDENTIFIER.test(name))
+		const marker = `__PI_NOTEBOOK_PROJECT_BINDINGS_${randomUUID()}__`;
+		const selected = parseProjectBindingNames(await kernel.execute(projectBindingNamesSource(marker)), marker);
+		const available = new Set(await kernel.complete("", 0));
+		const names = selected
+			.filter((name) => available.has(name) && !baselineNames.has(name) && !excludeNames.has(name) && IDENTIFIER.test(name))
 			.sort();
 		if (names.length > MAX_PROJECT_ENTRIES) throw new Error(`Project notebook state exceeds ${MAX_PROJECT_ENTRIES} top-level values`);
 		if (names.some((name) => Buffer.byteLength(name) > MAX_PROJECT_NAME_BYTES)) {
@@ -159,6 +169,12 @@ export async function writeProjectState(
 				candidatePayload,
 				maxBytes,
 			}));
+		const committedNames = [...new Set([
+			...(committed.manifest?.entries.map(({ name }) => name) ?? []),
+			...candidate.skipped.map(({ name }) => name),
+		])];
+		const sync = await kernel.execute(syncProjectBindingsSource(committedNames));
+		if (sync.status !== "ok") throw new Error(`Project notebook tracking could not be synchronized: ${sync.errorText ?? "unknown error"}`);
 		if (!committed.manifest) return { ...emptyProjectStateSummary(), skipped: candidate.skipped, conflicts: committed.conflicts };
 		return {
 			baseline: committed.baseline,
@@ -170,6 +186,12 @@ export async function writeProjectState(
 		rmSync(candidatePayloadPath, { force: true });
 		rmSync(candidateManifestPath, { force: true });
 	}
+}
+
+export async function promoteProjectStateBindings(kernel: DenoJupyterKernel, names: string[]): Promise<void> {
+	if (names.some((name) => !IDENTIFIER.test(name))) throw new Error("Project notebook binding name is invalid");
+	const result = await kernel.execute(promoteProjectBindingsSource(names));
+	if (result.status !== "ok") throw new Error(`Project notebook bindings could not be promoted: ${result.errorText ?? "unknown error"}`);
 }
 
 export function formatProjectStateNotice(summary: ProjectStateSummary): string | undefined {

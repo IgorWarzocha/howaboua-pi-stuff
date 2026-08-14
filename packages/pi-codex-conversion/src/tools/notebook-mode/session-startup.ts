@@ -10,6 +10,7 @@ import { ensureNotebookDenoBinary } from "./deno-binary.ts";
 import { initializeNotebookJournal, type NotebookJournal } from "./journal.ts";
 import { DenoJupyterKernel } from "./jupyter-kernel.ts";
 import { notebookBootstrapSource } from "./kernel-runtime.ts";
+import { formatNotebookNpmImportsNotice, readNotebookNpmImports } from "./npm-imports.ts";
 import {
 	formatProjectStateNotice,
 	restoreProjectState,
@@ -53,10 +54,10 @@ export async function startNotebookSession(options: {
 		throw error;
 	}
 
-	const kernel = new DenoJupyterKernel({ deno, cwd: context.cwd, maxHeapMiB: runtime.maxHeapMiB });
+	const kernel = new DenoJupyterKernel({ deno, maxHeapMiB: runtime.maxHeapMiB });
 	try {
 		await kernel.start(signal);
-		const bootstrap = await kernel.execute(notebookBootstrapSource(origin, bridge.token, bridge.exitToken), { signal });
+		const bootstrap = await kernel.execute(notebookBootstrapSource(origin, bridge.token, bridge.exitToken, context.cwd), { signal });
 		if (bootstrap.status !== "ok") {
 			throw new Error(`Notebook bootstrap failed: ${bootstrap.errorText ?? "unknown error"}`);
 		}
@@ -96,7 +97,8 @@ export async function startNotebookSession(options: {
 			}
 		}
 		garbageCollectSupersededNotebookCheckpoints(checkpointIdentity);
-		const restoreNotice = [formatProjectStateNotice(projectState), restored.message, profileNotice].filter(Boolean).join(". ") || undefined;
+		const npmNotice = formatNotebookNpmImportsNotice(readNotebookNpmImports(checkpointIdentity));
+		const restoreNotice = [npmNotice, formatProjectStateNotice(projectState), restored.message, profileNotice].filter(Boolean).join(". ") || undefined;
 		return {
 			kernel,
 			journal,

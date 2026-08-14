@@ -62,16 +62,17 @@ const CODE_MODE_GUIDELINES = [
 ];
 
 const NOTEBOOK_MODE_GUIDELINES = [
-	"Your exec environment is a stateful Deno/TypeScript Jupyter notebook, not a script runner: each exec is the next cell",
-	"Before replying, preserve state needed by follow-ups in purpose-named top-level variables; subprocesses provide I/O, not retained state",
-	"Plain top-level values and reanimatable function/class definitions persist as project notebook state across sessions",
+	"exec is a persistent Deno/TypeScript Jupyter notebook: each call is the next cell, so reuse useful bindings instead of rediscovering them",
+	"Use const/let and block scopes for session scratch; assign deliberately reusable cross-session values to purpose-named globalThis properties",
 	...CODE_MODE_GUIDELINES,
-	"Filter and transform retained data inside exec, returning only findings needed in model context; inspect existing globals selectively when relevant and never dump the namespace",
-	"Keep canonical project artifacts in files; tools.exec_command starts ordinary subprocesses whose shell-local state does not persist",
-	"Keep durable helpers self-contained; imports, cell-local closures, and live handles may need recreation after restart",
-	"Each result reports memory use; preserve valuable data and release disposable large values before pressure becomes critical",
+	"Use notebook status to inspect retained state or memory, pin to promote/protect useful bindings, release/prune disposable state, and diagnostics after broken state or helpers",
+	"Filter retained data inside exec and return only needed findings; never dump the namespace",
+	"Keep canonical project artifacts in files; tools.exec_command subprocess shell state does not persist",
+	"Keep cross-session helpers self-contained; imports, closures, and live handles may need recreation after restart",
+	"Each result reports memory; use notebook release/prune before pressure becomes critical",
 	"exec calls run sequentially; use wait only to observe or terminate the currently yielded call",
-	"Use Deno APIs and npm imports for persistent computation; prefer Pi/custom tools for project operations with richer contracts, rendering, output bounds, or background handles",
+	"Treat all npm packages as unsafe by default; Notebook startup lists prior project imports, and any unlisted package requires user approval before first use plus an exact-version npm: specifier",
+	"Use Deno APIs and approved npm: imports for persistent computation; prefer Pi/custom tools for project operations with richer contracts, rendering, bounds, or background handles",
 ];
 
 const CODE_MODE_REPLACED_GUIDELINES = new Set([

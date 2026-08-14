@@ -14,7 +14,6 @@ export interface NotebookRuntimeOptions {
 	maxHeapMiB: number;
 	agentDir: string;
 	profile?: string | undefined;
-	reportStateNotice?(notice: string): void;
 }
 
 export interface CodeModeExecutionClient {

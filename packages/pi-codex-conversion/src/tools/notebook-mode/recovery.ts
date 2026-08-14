@@ -7,6 +7,7 @@ import {
 } from "./checkpoint.ts";
 import { ensureNotebookDenoBinary } from "./deno-binary.ts";
 import { initializeNotebookJournal } from "./journal.ts";
+import { resetNotebookNpmImports } from "./npm-imports.ts";
 import { diagnoseNotebook } from "./notebook-diagnostics.ts";
 import { resolveNotebookProject } from "./project-identity.ts";
 import { notebookProfileBindingNames } from "./profile-state.ts";
@@ -56,6 +57,7 @@ export class NotebookRecoveryController {
 		const identity = notebookIdentity(extension, this.agentDir);
 		const activeCell = await this.host.stopWithoutCheckpoint();
 		const projectReset = await resetProjectState(identity);
+		await resetNotebookNpmImports(identity);
 		removeNotebookCheckpoint(identity);
 		await this.host.startClean(extension);
 		await this.host.checkpointEmpty();

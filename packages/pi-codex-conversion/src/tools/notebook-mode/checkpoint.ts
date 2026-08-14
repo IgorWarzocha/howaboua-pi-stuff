@@ -86,7 +86,6 @@ export async function writeNotebookCheckpoint(
 		directory: paths.directory,
 		identity,
 		projectGeneration: projectBaseline.generation,
-		projectNames: projectBaseline.entries.map(({ name }) => name),
 		payload,
 		skippedInvalid,
 		maxBytes,

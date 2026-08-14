@@ -34,7 +34,6 @@ interface ShellReplyWaiter {
 
 export class DenoJupyterKernel {
 	private readonly deno: string;
-	private readonly cwd: string;
 	private readonly env: NodeJS.ProcessEnv;
 	private readonly maxHeapMiB: number;
 	private readonly session = randomUUID();
@@ -51,9 +50,8 @@ export class DenoJupyterKernel {
 	private readonly shellReplies = new Map<string, ShellReplyWaiter>();
 	private stderr = "";
 
-	constructor(options: { deno: string; cwd: string; maxHeapMiB: number; env?: NodeJS.ProcessEnv | undefined }) {
+	constructor(options: { deno: string; maxHeapMiB: number; env?: NodeJS.ProcessEnv | undefined }) {
 		this.deno = options.deno;
-		this.cwd = options.cwd;
 		this.env = options.env ?? process.env;
 		this.maxHeapMiB = options.maxHeapMiB;
 	}
@@ -180,9 +178,10 @@ export class DenoJupyterKernel {
 		const { info, path, dir } = await createJupyterConnectionFile();
 		this.tempDir = dir;
 		const child = spawn(this.deno, ["jupyter", "--kernel", "--conn", path], {
-			cwd: this.cwd,
+			cwd: dir,
 			env: {
 				...this.env,
+				DENO_NO_PACKAGE_JSON: "1",
 				DENO_V8_FLAGS: [this.env["DENO_V8_FLAGS"], `--max-old-space-size=${this.maxHeapMiB}`]
 					.filter(Boolean)
 					.join(" "),

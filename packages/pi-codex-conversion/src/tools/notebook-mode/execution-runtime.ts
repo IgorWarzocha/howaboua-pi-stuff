@@ -162,7 +162,10 @@ export class NotebookExecutionRuntime {
 				: result;
 			cell.result = normalized;
 			await this.endCellRuntime(cell);
-			if (cell.result.status === "ok") session.checkpoints.schedule();
+			if (cell.result.status === "ok") {
+				await session.recordNpmImports(cell.source);
+				session.checkpoints.schedule();
+			}
 		} catch (error) {
 			this.delegate.cancelCell(cell.id);
 			const recovery = cell.controller.signal.aborted ? undefined : await this.recoverAfterFatal(cell.context);

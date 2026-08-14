@@ -10,6 +10,7 @@ import { NotebookExecutionRuntime } from "./execution-runtime.ts";
 import { NotebookLifecycleController } from "./lifecycle.ts";
 import { NotebookRecoveryController } from "./recovery.ts";
 import { NotebookSessionRuntime } from "./session-runtime.ts";
+import { promoteProjectStateBindings } from "./project-state.ts";
 
 export class NotebookCodeModeClient implements CodeModeExecutionClient {
 	private readonly execution: NotebookExecutionRuntime;
@@ -47,6 +48,11 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 			stopActive: () => this.execution.stopActive(),
 			checkpoint: (excludeNames) => this.checkpoint(excludeNames),
 			retainedBindings: () => session.retainedBindings(),
+			promoteBindings: async (names) => {
+				const kernel = session.kernel();
+				if (!kernel) throw new Error("Notebook kernel is unavailable");
+				await promoteProjectStateBindings(kernel, names);
+			},
 			setPins: (names, pinned) => session.setPins(names, pinned),
 			markChanged: () => session.checkpoints.schedule(),
 			restart: (context, signal) => session.restart(context, signal),
@@ -85,20 +91,26 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 
 	async checkpoint(excludeNames?: ReadonlySet<string>): Promise<void> {
 		await this.session.checkpoints.flush({ requireIdle: true, force: true, excludeNames });
+		this.session.materializeJournal();
 	}
 
-	controlNotebook(
+	async controlNotebook(
 		request: NotebookControlRequest,
 		context: ToolExecutionContext,
 		signal?: AbortSignal,
 	): Promise<NotebookControlResult> {
-		return this.lifecycle.control(request, context, signal);
+		const result = await this.lifecycle.control(request, context, signal);
+		const notice = this.session.takeNotice();
+		return notice
+			? { message: `${notice}\n${result.message}`, details: { ...result.details, startupNotice: notice } }
+			: result;
 	}
 
 	async shutdown(): Promise<void> {
 		await this.session.abortStartup(new Error("Notebook session is shutting down"));
 		await this.execution.stopActive().catch(() => undefined);
 		await this.session.checkpoints.flush({ force: true }).catch(() => undefined);
+		try { this.session.materializeJournal(); } catch {}
 		await this.lifecycle.disposeAll().catch(() => undefined);
 		this.execution.clear();
 		await this.session.shutdown();

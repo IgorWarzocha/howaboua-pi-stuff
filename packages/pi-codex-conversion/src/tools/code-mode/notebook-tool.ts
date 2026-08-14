@@ -15,7 +15,7 @@ export function registerNotebookTool(pi: ExtensionAPI, runtime: SharedCodeModeRu
 	pi.registerTool({
 		name: "notebook",
 		label: "Notebook",
-		description: "Persistent notebook state/recovery: status shows binding age/size/pins and filters by query glob; list filters profiles; checkpoint; save/load name; pin/unpin/release names; prune unpinned bindings by query; restart; diagnostics checks the journal; reset clears live/durable state but keeps journal/profiles",
+		description: "Control persistent notebook state: status inspects memory/bindings by query glob; checkpoint; pin/unpin/release names; prune unpinned matches; list/save/load profiles; restart; diagnostics; reset",
 		promptSnippet: "Inspect, recover, or control notebook state",
 		parameters: NOTEBOOK_PARAMETERS,
 		async execute(_id, params, signal, _onUpdate, ctx) {

@@ -3,6 +3,37 @@ import {
 	MAX_PROJECT_MANIFEST_BYTES,
 	type ProjectStateManifest,
 } from "./project-state-format.ts";
+import type { KernelExecutionResult } from "./jupyter-kernel.ts";
+
+const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
+
+export function projectBindingNamesSource(marker: string): string {
+	return `console.log(${JSON.stringify(marker)} + JSON.stringify(globalThis.__piNotebook.projectBindings())); undefined;`;
+}
+
+export function parseProjectBindingNames(result: KernelExecutionResult, marker: string): string[] {
+	if (result.status !== "ok") throw new Error(result.errorText ?? "Project binding selection failed");
+	const output = result.items.filter(({ type }) => type === "input_text").map(({ text }) => text ?? "").join("");
+	const start = output.indexOf(marker);
+	if (start === -1) throw new Error("Project binding selection returned no result");
+	try {
+		const value = JSON.parse(output.slice(start + marker.length).split("\n", 1)[0]!) as unknown;
+		if (!Array.isArray(value) || value.length > MAX_PROJECT_ENTRIES || !value.every((name) => typeof name === "string" && IDENTIFIER.test(name))) {
+			throw new Error("invalid project binding list");
+		}
+		return [...new Set(value)].sort();
+	} catch (error) {
+		throw new Error(`Project binding selection returned an invalid result: ${error instanceof Error ? error.message : String(error)}`);
+	}
+}
+
+export function promoteProjectBindingsSource(names: string[]): string {
+	return `globalThis.__piNotebook.promote(${JSON.stringify(names)}); undefined;`;
+}
+
+export function syncProjectBindingsSource(names: string[]): string {
+	return `globalThis.__piNotebook.syncProjectBindings(${JSON.stringify(names)}); undefined;`;
+}
 
 export function projectStateCaptureSource(options: {
 	candidates: string[];
@@ -28,8 +59,8 @@ export function projectStateCaptureSource(options: {
     const __bytes = serialize(__captured);
     if (__bytes.byteLength > __max) throw new Error("exceeds per-value checkpoint cap");
     if (__total + __bytes.byteLength > __max) throw new Error("exceeds total project checkpoint cap");
+	await __writeAll(__bytes);
     __entries.push({ name: ${JSON.stringify(name)}, kind: __kind, offset: __total, length: __bytes.byteLength });
-    __parts.push(__bytes);
     __total += __bytes.byteLength;
   } catch (__error) {
     __skipped.push({ name: ${JSON.stringify(name)}, reason: String(__error instanceof Error ? __error.message : __error).slice(0, 240) });
@@ -37,14 +68,19 @@ export function projectStateCaptureSource(options: {
 	return `{
   const { serialize } = await import("node:v8");
   const __max = ${options.maxBytes};
-  const __parts = [];
   const __entries = [];
   const __skipped = [];
   let __total = 0;
-  ${captures}
-  const __payload = new Uint8Array(__total);
-  let __offset = 0;
-  for (const __part of __parts) { __payload.set(__part, __offset); __offset += __part.byteLength; }
+	const __file = await Deno.open(${JSON.stringify(options.payloadPath)}, { create: true, write: true, truncate: true, mode: 0o600 });
+	const __writeAll = async (__bytes) => {
+	  let __offset = 0;
+	  while (__offset < __bytes.byteLength) {
+		const __written = await __file.write(__bytes.subarray(__offset));
+		if (__written === 0) throw new Error("project payload write made no progress");
+		__offset += __written;
+	  }
+	};
+	try { ${captures} } finally { __file.close(); }
   const __manifest = JSON.stringify({
     deno: Deno.version.deno,
     v8: Deno.version.v8,
@@ -54,7 +90,6 @@ export function projectStateCaptureSource(options: {
   if (new TextEncoder().encode(__manifest).byteLength > ${MAX_PROJECT_MANIFEST_BYTES}) {
     throw new Error("project manifest exceeds ${MAX_PROJECT_MANIFEST_BYTES} bytes");
   }
-  await Deno.writeFile(${JSON.stringify(options.payloadPath)}, __payload, { mode: 0o600 });
   await Deno.writeTextFile(${JSON.stringify(options.manifestPath)}, __manifest, { mode: 0o600 });
   undefined;
 }`;
@@ -130,6 +165,7 @@ export function projectStateRestoreSource(
       enumerable: true,
     });
   }
+	globalThis.__piNotebook.syncProjectBindings(${JSON.stringify(manifest.entries.map(({ name }) => name))});
   undefined;
 }`;
 }

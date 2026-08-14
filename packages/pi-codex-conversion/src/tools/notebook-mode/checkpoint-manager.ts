@@ -112,6 +112,7 @@ export class NotebookCheckpointManager {
 		if ((!options.force && !this.dirty) || !kernel || !this.identity) return;
 		this.dirty = false;
 		let projectFailure: Error | undefined;
+		const projectExclusions = new Set(options.excludeNames ?? []);
 		try {
 			const project = await writeProjectState(
 				kernel,
@@ -122,6 +123,10 @@ export class NotebookCheckpointManager {
 				options.excludeNames,
 			);
 			this.projectBaseline = project.baseline;
+			const sessionHashes = new Map(project.baseline.entries.map(({ name, hash }) => [name, hash]));
+			for (const { name, hash } of project.restored) {
+				if (sessionHashes.get(name) === hash) projectExclusions.add(name);
+			}
 			if (project.conflicts.length > 0) {
 				this.reportNotice(`Project notebook conflicts preserved without overwrite: ${project.conflicts.join(", ")}`, false);
 			}
@@ -138,7 +143,7 @@ export class NotebookCheckpointManager {
 				this.baselineNames,
 				this.maxBytes,
 				this.projectBaseline,
-				options.excludeNames,
+				projectExclusions,
 			);
 		} catch (error) {
 			this.dirty = true;

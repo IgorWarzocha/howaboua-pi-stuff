@@ -7,7 +7,6 @@ export function checkpointSource(options: {
 	directory: string;
 	identity: NotebookCheckpointIdentity;
 	projectGeneration: string;
-	projectNames: string[];
 	payload: string;
 	skippedInvalid: Array<{ name: string; reason: string }>;
 	maxBytes: number;
@@ -32,8 +31,8 @@ export function checkpointSource(options: {
       if (__bytes.byteLength > __max) __skip(${JSON.stringify(name)}, "exceeds per-variable checkpoint cap");
       else if (__total + __bytes.byteLength > __max) __skip(${JSON.stringify(name)}, "exceeds total checkpoint cap");
       else {
-        __entries.push({ name: ${JSON.stringify(name)}, kind: __kind, offset: __total, length: __bytes.byteLength });
-        __parts.push(__bytes);
+		await __writeAll(__bytes);
+		__entries.push({ name: ${JSON.stringify(name)}, kind: __kind, offset: __total, length: __bytes.byteLength });
         __total += __bytes.byteLength;
       }
     }
@@ -43,24 +42,27 @@ export function checkpointSource(options: {
 	return `{
   const { serialize } = await import("node:v8");
   const __max = ${options.maxBytes};
-  const __parts = [];
   const __entries = [];
   const __skipped = ${JSON.stringify(options.skippedInvalid)};
   let __total = 0;
   const __skip = (name, reason) => __skipped.push({ name, reason: String(reason).slice(0, 240) });
-  ${captures}
-  const __payload = new Uint8Array(__total);
-  let __offset = 0;
-  for (const __part of __parts) { __payload.set(__part, __offset); __offset += __part.byteLength; }
+	const __file = await Deno.open(${JSON.stringify(options.payloadPath)}, { create: true, write: true, truncate: true, mode: 0o600 });
+	const __writeAll = async (__bytes) => {
+	  let __offset = 0;
+	  while (__offset < __bytes.byteLength) {
+		const __written = await __file.write(__bytes.subarray(__offset));
+		if (__written === 0) throw new Error("checkpoint payload write made no progress");
+		__offset += __written;
+	  }
+	};
+	try { ${captures} } finally { __file.close(); }
   const __manifestPath = ${JSON.stringify(options.manifestPath)};
   let __previousPayload;
   try { __previousPayload = JSON.parse(await Deno.readTextFile(__manifestPath)).payload; } catch {}
-  await Deno.writeFile(${JSON.stringify(options.payloadPath)}, __payload, { mode: 0o600 });
   const __manifest = {
     schema: ${CHECKPOINT_SCHEMA},
     project: ${JSON.stringify(options.identity.project)},
 	projectGeneration: ${JSON.stringify(options.projectGeneration)},
-	projectNames: ${JSON.stringify(options.projectNames)},
     session: ${JSON.stringify(options.identity.session)},
     deno: Deno.version.deno,
     v8: Deno.version.v8,

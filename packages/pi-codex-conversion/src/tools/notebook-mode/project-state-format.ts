@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { lstatSync, readFileSync, statSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 
-export const PROJECT_STATE_SCHEMA = 1;
+export const PROJECT_STATE_SCHEMA = 2;
 export const MAX_PROJECT_ENTRIES = 10_000;
 export const MAX_PROJECT_NAME_BYTES = 4 * 1024;
 export const MAX_PROJECT_MANIFEST_BYTES = 8 * 1024 * 1024;

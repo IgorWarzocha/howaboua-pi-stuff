@@ -24,6 +24,8 @@ export interface NotebookStatusDetails extends Record<string, unknown> {
 	retainedBindings: number;
 	retainedBytes: number;
 	pinnedBindings: number;
+	pinned: RetainedProjectBinding[];
+	omittedPinned: number;
 	largestUnpinned: RetainedProjectBinding[];
 }
 
@@ -87,6 +89,11 @@ export function formatStatus(details: NotebookStatusDetails): string {
 		`Retained state ${details.retainedBindings} binding(s) · ${formatBytes(details.retainedBytes)} serialized · ${details.pinnedBindings} pinned`,
 		details.userBindings === undefined ? undefined : `Top-level bindings: ${details.userBindings}`,
 	];
+	if (details.query === undefined && details.pinned.length > 0) {
+		lines.push("Pinned project bindings:");
+		for (const binding of details.pinned) lines.push(`- ${binding.name}: ${formatBytes(binding.bytes)} · updated ${formatAge(binding.updatedAt)}`);
+		if (details.omittedPinned > 0) lines.push(`${details.omittedPinned} additional pinned binding(s) omitted; use status with a query glob`);
+	}
 	if (details.query === undefined && details.largestUnpinned.length > 0) {
 		lines.push("Largest unpinned retained bindings:");
 		for (const binding of details.largestUnpinned) {

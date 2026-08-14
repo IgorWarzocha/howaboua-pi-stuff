@@ -2,8 +2,9 @@ const MAX_CELL_OUTPUT_CHARS = 32 * 1024 * 1024;
 const MAX_CELL_OUTPUT_ITEMS = 10_000;
 const MAX_TEXT_ITEM_CHARS = 4 * 1024 * 1024;
 
-export function notebookBootstrapSource(origin: string, token: string, exitToken: string): string {
+export function notebookBootstrapSource(origin: string, token: string, exitToken: string, cwd: string): string {
 	return `{
+	Deno.chdir(${JSON.stringify(cwd)});
   const __origin = ${JSON.stringify(origin)};
   const __token = ${JSON.stringify(token)};
   const { getHeapStatistics: __getHeapStatistics } = await import("node:v8");
@@ -23,6 +24,8 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
     store: new Map(),
     tools: undefined,
     memoryTimer: undefined,
+	cellGlobals: new Set(),
+	projectBindings: new Set(),
   };
   const __decode = (_key, value) => {
     if (!value || typeof value !== "object") return value;
@@ -167,6 +170,7 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
 	  __state.outputTruncated = false;
       globalThis.tools = __tools;
       globalThis.ALL_TOOLS = tools;
+	  __state.cellGlobals = new Set(Object.getOwnPropertyNames(globalThis));
 	  await __reportMemory(cellId);
 	  __state.memoryTimer = setInterval(() => void __reportMemory(cellId).catch(() => undefined), 1000);
     },
@@ -181,7 +185,12 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
     },
     async finish(cellId) {
       if (__state.cellId !== cellId) return;
-      try { await this.flush(cellId); } finally { this.end(cellId); }
+	  try {
+		await this.flush(cellId);
+		for (const __name of Object.getOwnPropertyNames(globalThis)) {
+		  if (!__state.cellGlobals.has(__name)) __state.projectBindings.add(__name);
+		}
+	  } finally { this.end(cellId); }
     },
     end(cellId) {
 	  if (__state.cellId !== cellId) return;
@@ -189,6 +198,18 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
 	  __state.memoryTimer = undefined;
 	  __state.cellId = null;
     },
+	projectBindings() {
+	  return [...__state.projectBindings].sort();
+	},
+	promote(names) {
+	  for (const name of names) {
+		if (typeof name !== "string") throw new TypeError("project binding name must be a string");
+		__state.projectBindings.add(name);
+	  }
+	},
+	syncProjectBindings(names) {
+	  __state.projectBindings = new Set(names);
+	},
   };
   Object.defineProperty(globalThis, "__piNotebook", { value: __runtime, configurable: false });
   globalThis.tools = __tools;

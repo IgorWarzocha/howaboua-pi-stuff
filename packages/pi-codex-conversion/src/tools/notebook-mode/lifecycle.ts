@@ -40,6 +40,7 @@ interface NotebookLifecycleHost {
 	stopActive(): Promise<string | undefined>;
 	checkpoint(excludeNames?: ReadonlySet<string>): Promise<void>;
 	retainedBindings(): RetainedProjectBinding[];
+	promoteBindings(names: string[]): Promise<void>;
 	setPins(names: string[], pinned: boolean): Promise<RetainedProjectBinding[]>;
 	markChanged(): void;
 	restart(context: ExtensionContext, signal?: AbortSignal): Promise<string | undefined>;
@@ -127,6 +128,8 @@ export class NotebookLifecycleController {
 			};
 		});
 		const reportedMatches = takeDetailValues(inspectedMatches, detailBudget);
+		const pinned = retained.filter((binding) => binding.pinned);
+		const reportedPinned = takeDetailValues(pinned, detailBudget);
 		const details: NotebookStatusDetails = {
 			state: activeCell ? "running" : "idle",
 			...(activeCell ? { activeCell } : {}),
@@ -137,7 +140,9 @@ export class NotebookLifecycleController {
 			checkpoint: metadata.checkpoint,
 			retainedBindings: retained.length,
 			retainedBytes: retained.reduce((total, binding) => total + binding.bytes, 0),
-			pinnedBindings: retained.filter(({ pinned }) => pinned).length,
+			pinnedBindings: pinned.length,
+			pinned: reportedPinned,
+			omittedPinned: pinned.length - reportedPinned.length,
 			largestUnpinned: retained
 				.filter(({ pinned }) => !pinned)
 				.sort((left, right) => right.bytes - left.bytes)
@@ -160,6 +165,7 @@ export class NotebookLifecycleController {
 	private async pin(names: string[], pinned: boolean): Promise<NotebookControlResult> {
 		const activeCell = this.host.activeCellId();
 		if (activeCell) throw new Error(`Cannot change notebook pins while exec cell "${activeCell}" is running`);
+		if (pinned) await this.host.promoteBindings(names);
 		await this.host.checkpoint();
 		const retained = await this.host.setPins(names, pinned);
 		const reportedNames = withinNameBudget(names);

@@ -5,8 +5,9 @@ import type { NotebookBridgeServer } from "./bridge-server.ts";
 import { resolveNotebookCheckpointMaxBytes } from "./checkpoint.ts";
 import type { NotebookCheckpointIdentity } from "./checkpoint-format.ts";
 import { NotebookCheckpointManager } from "./checkpoint-manager.ts";
-import type { NotebookJournal } from "./journal.ts";
+import { materializeNotebookJournal, type NotebookJournal } from "./journal.ts";
 import type { DenoJupyterKernel } from "./jupyter-kernel.ts";
+import { extractNotebookNpmImports, recordNotebookNpmImports } from "./npm-imports.ts";
 import { resolveNotebookProject } from "./project-identity.ts";
 import { readRetainedProjectBindings, setProjectBindingPins, type RetainedProjectBinding } from "./project-state-metadata.ts";
 import { startNotebookSession } from "./session-startup.ts";
@@ -80,6 +81,7 @@ export class NotebookSessionRuntime {
 	}
 
 	async restart(context: ExtensionContext, signal?: AbortSignal, skipProfile = false): Promise<string | undefined> {
+		try { this.materializeJournal(); } catch {}
 		const previous = this.kernelValue;
 		this.kernelValue = undefined;
 		this.startup = undefined;
@@ -131,6 +133,7 @@ export class NotebookSessionRuntime {
 
 	async shutdown(): Promise<void> {
 		await this.abortStartup(new Error("Notebook session is shutting down"));
+		try { this.materializeJournal(); } catch {}
 		const kernel = this.kernelValue;
 		this.kernelValue = undefined;
 		this.startup = undefined;
@@ -151,6 +154,9 @@ export class NotebookSessionRuntime {
 
 	kernel(): DenoJupyterKernel | undefined { return this.kernelValue; }
 	journal(): NotebookJournal | undefined { return this.journalValue; }
+	materializeJournal(): void {
+		if (this.journalValue) materializeNotebookJournal(this.journalValue);
+	}
 	baselineNames(): ReadonlySet<string> { return this.baseline; }
 	configuredProfileLoaded(): boolean { return this.profileLoaded; }
 	retainedBindings(): RetainedProjectBinding[] {
@@ -163,6 +169,17 @@ export class NotebookSessionRuntime {
 		return setProjectBindingPins(this.checkpointIdentityValue, this.checkpointMaxBytes, names, pinned);
 	}
 	recordMemory(memory: NotebookMemoryUsage | undefined): void { this.memoryValue = memory; }
+	async recordNpmImports(source: string): Promise<void> {
+		const identity = this.checkpointIdentityValue;
+		if (!identity) return;
+		const imports = extractNotebookNpmImports(source);
+		if (imports.length === 0) return;
+		try {
+			await recordNotebookNpmImports(identity, imports);
+		} catch (error) {
+			this.addNotice(`Notebook npm inventory was not updated: ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
 	memory(): NotebookMemoryUsage | undefined { return this.memoryValue; }
 	addNotice(notice: string): void { this.notice = joinNotices(this.notice, notice); }
 	takeNotice(): string | undefined {
@@ -207,11 +224,6 @@ export class NotebookSessionRuntime {
 		this.checkpoints.configure(started.checkpointIdentity, started.baselineNames, started.projectBaseline);
 		if (started.restoreNotice) {
 			this.addNotice(started.restoreNotice);
-			try {
-				this.options.reportStateNotice?.(started.restoreNotice);
-			} catch {
-				// State reporting must not turn successful persistence into startup failure.
-			}
 		}
 	}
 }
