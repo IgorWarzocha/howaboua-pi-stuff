@@ -42,7 +42,6 @@ type CodexTransportCompactionModel = {
 async function runCodexTransportCompaction(
 	model: CodexTransportCompactionModel,
 	apiKey: string,
-	canonicalSubscription: boolean,
 ) {
 	const requestedProviders: string[] = [];
 	const streamSimple = async function* (streamModel: unknown, _context: unknown, rawOptions: unknown) {
@@ -88,7 +87,6 @@ async function runCodexTransportCompaction(
 			provider: model.provider,
 			api: model.api,
 			apiFamily: model.api,
-			canonicalSubscription,
 			codexTransport: true,
 			model: model.id,
 			baseUrl: model.baseUrl,
@@ -129,15 +127,6 @@ test("canonical alias compaction reuses the registered stock Codex stream with a
 		...baseCompactionModel,
 		provider: "openai-codex-personal",
 		baseUrl: "https://chatgpt.com/backend-api/codex",
-	}, "alias-token", true);
-	assert.deepEqual(requestedProviders, ["openai-codex"]);
-});
-
-test("stock Codex custom endpoints retain the registered Codex compaction transport", async () => {
-	const requestedProviders = await runCodexTransportCompaction({
-		...baseCompactionModel,
-		provider: "openai-codex",
-		baseUrl: "https://codex-proxy.example.com/backend-api/codex",
-	}, "proxy-token", false);
+	}, "alias-token");
 	assert.deepEqual(requestedProviders, ["openai-codex"]);
 });

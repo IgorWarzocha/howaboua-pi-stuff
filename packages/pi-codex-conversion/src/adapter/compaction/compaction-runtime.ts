@@ -36,7 +36,6 @@ export type NativeCompactionRuntime = {
 	provider: string;
 	api: DefaultSupportedApi;
 	apiFamily: DefaultSupportedApi;
-	canonicalSubscription: boolean;
 	codexTransport: boolean;
 	model: string;
 	baseUrl: string;
@@ -236,7 +235,6 @@ export async function resolveNativeCompactionEnvironment(
 			provider: descriptor.provider,
 			api: descriptor.api,
 			apiFamily: descriptor.api,
-			canonicalSubscription,
 			codexTransport,
 			model: descriptor.model,
 			baseUrl: effectiveBaseUrl,

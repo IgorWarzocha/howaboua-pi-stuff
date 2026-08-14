@@ -129,14 +129,6 @@ test("canonical alias compaction preserves Code Mode custom tool history", () =>
 	assert.deepEqual(serializeCodeModeToolHistory(alias), codeModeToolHistory);
 });
 
-test("stock Codex custom endpoints preserve Code Mode custom tool history", () => {
-	const stockProxy = {
-		...model,
-		baseUrl: "https://codex-proxy.example.com/backend-api",
-	} as Model<any>;
-	assert.deepEqual(serializeCodeModeToolHistory(stockProxy), codeModeToolHistory);
-});
-
 test("native compaction request routing reuses only the latest matching checkpoint", () => {
 	const tailEntry = {
 		type: "message",

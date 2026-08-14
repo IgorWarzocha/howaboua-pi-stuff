@@ -2,7 +2,7 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { Model, ProviderHeaders } from "@earendil-works/pi-ai";
 import { DEFAULT_CODEX_BASE_URL } from "../providers/openai-codex/constants.ts";
 import { extractAccountId } from "../providers/openai-codex/headers.ts";
-import { isCanonicalCodexBaseUrl, isCanonicalCodexSubscriptionModel, isCodexTransportModel, isOpenAICodexModel } from "./prompt/codex-model.ts";
+import { isCanonicalCodexAliasModel, isCanonicalCodexBaseUrl, isCanonicalCodexSubscriptionModel, isCodexTransportModel, isOpenAICodexModel } from "./prompt/codex-model.ts";
 
 export const CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE = "web_run/imagegen requires an OpenAI Codex-compatible Responses provider or /login openai-codex";
 
@@ -112,7 +112,7 @@ export async function resolveCodexToolProvider(ctx: ExtensionContext, allowConfi
 	const resolvedBaseUrl = auth.baseUrl ?? model.baseUrl;
 	const stockOpenAICodex = isOpenAICodexModel(model);
 	const canonicalSubscription = isCanonicalCodexSubscriptionModel({ ...model, baseUrl: resolvedBaseUrl });
-	const canonicalAlias = !stockOpenAICodex && isCanonicalCodexSubscriptionModel(model);
+	const canonicalAlias = isCanonicalCodexAliasModel(model);
 	if (canonicalAlias && !isCanonicalCodexBaseUrl(resolvedBaseUrl)) {
 		throw new Error("Canonical OpenAI Codex subscription auth is required.");
 	}

@@ -1,6 +1,6 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { ProviderHeaders } from "@earendil-works/pi-ai";
-import { isResponsesContext } from "./prompt/codex-model.ts";
+import { isCanonicalCodexAliasModel, isResponsesContext } from "./prompt/codex-model.ts";
 import { applyCodexRequestOptions } from "./request-options.ts";
 import type { AdapterState } from "./activation/state.ts";
 import { isAdapterRuntime, resolveCodexRuntimePlan } from "./activation/runtime-plan.ts";
@@ -37,7 +37,7 @@ export function rewriteCodexProviderHeaders(
 	state: AdapterState,
 ): void {
 	if (state.config.voiceFeaturesOnly) return;
-	if (resolveCodexRuntimePlan(ctx, state.config).kind === "code") {
+	if (isCanonicalCodexAliasModel(ctx.model) && resolveCodexRuntimePlan(ctx, state.config).kind === "code") {
 		headers[RESPONSES_LITE_HEADER] = "true";
 	}
 }

@@ -4,10 +4,8 @@ import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/confi
 import { syncAdapter } from "../src/adapter/activation/activation.ts";
 import { resolveCodexRuntimePlan } from "../src/adapter/activation/runtime-plan.ts";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
-import { resolveNativeCompactionEnvironment } from "../src/adapter/compaction/compaction-runtime.ts";
 import { rewriteCodexProviderHeaders } from "../src/adapter/provider-request.ts";
 import { isCanonicalCodexSubscriptionModel, isCodexTransportModel } from "../src/adapter/prompt/codex-model.ts";
-import { supportsNativeImageGeneration, supportsNativeWebSearch } from "../src/adapter/tool-support.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 
 const CANONICAL_CODEX_BASE_URL = "https://chatgpt.com/backend-api";
@@ -133,85 +131,6 @@ test("native Responses compaction stays scoped to OpenAI Codex and explicit prov
 	assert.equal(resolveCodexRuntimePlan(createContext({ provider: "openai-codex-personal", api: "openai-codex-responses", id: "gpt-5", baseUrl: CANONICAL_CODEX_BASE_URL }) as never, config).nativeCompaction, true);
 	assert.equal(resolveCodexRuntimePlan(createContext({ provider: "openai-codex-personal", api: "openai-codex-responses", id: "gpt-5", baseUrl: "https://example.com/backend-api" }) as never, config).nativeCompaction, false);
 	assert.equal(resolveCodexRuntimePlan(createContext({ provider: "my-provider", api: "openai-codex-responses", id: "gpt-5" }) as never, config).nativeCompaction, true);
-});
-
-test("native compaction resolves canonical aliases through their own model credential scope", async () => {
-	const requestedProviders: string[] = [];
-	const model = {
-		provider: "openai-codex-personal",
-		api: "openai-codex-responses",
-		id: "gpt-5.6-sol",
-		baseUrl: CANONICAL_CODEX_BASE_URL,
-	};
-	const resolution = await resolveNativeCompactionEnvironment({
-		model,
-		modelRegistry: {
-			getApiKeyAndHeaders: async (requestedModel: typeof model) => {
-				requestedProviders.push(requestedModel.provider);
-				return { ok: true, apiKey: "alias-token", baseUrl: `${CANONICAL_CODEX_BASE_URL}/codex` };
-			},
-		},
-	} as never);
-
-	assert.equal(resolution.ok, true);
-	assert.equal(resolution.ok && resolution.runtime.canonicalSubscription, true);
-	assert.equal(resolution.ok && resolution.runtime.codexTransport, true);
-	assert.deepEqual(requestedProviders, ["openai-codex-personal"]);
-	const rejectedAuthOverride = await resolveNativeCompactionEnvironment({
-		model,
-		modelRegistry: {
-			getApiKeyAndHeaders: async (requestedModel: typeof model) => {
-				requestedProviders.push(requestedModel.provider);
-				return { ok: true, apiKey: "proxy-token", baseUrl: "https://example.com/backend-api" };
-			},
-		},
-	} as never);
-	assert.deepEqual(rejectedAuthOverride.ok ? undefined : rejectedAuthOverride.reason, "unsupported-provider");
-	assert.deepEqual(requestedProviders, ["openai-codex-personal", "openai-codex-personal"]);
-
-	const rejected = await resolveNativeCompactionEnvironment({
-		model: { ...model, baseUrl: "https://example.com/backend-api" },
-		modelRegistry: {
-			getApiKeyAndHeaders: async () => ({ ok: true, apiKey: "proxy-token", baseUrl: "https://example.com/backend-api" }),
-		},
-	} as never);
-	assert.deepEqual(rejected.ok ? undefined : rejected.reason, "unsupported-provider");
-});
-
-test("stock Codex custom endpoints retain transport capabilities without subscription trust", async () => {
-	const model = {
-		provider: "openai-codex",
-		api: "openai-codex-responses",
-		id: "gpt-5.6-sol",
-		baseUrl: "https://codex-proxy.example.com/backend-api",
-		input: ["text", "image"],
-	};
-	const state = createAdapterState({
-		beta: { codeMode: true, responsesLite: true },
-		compaction: { responsesCompaction: true },
-		scope: { allProviders: "off", additionalProviders: [] },
-	});
-	const plan = resolveCodexRuntimePlan(createContext(model) as never, state.config);
-	assert.equal(plan.kind, "code");
-	assert.equal(plan.canonicalSubscription, false);
-	assert.equal(plan.codexTransport, true);
-	assert.equal(plan.nativeCompaction, true);
-	assert.equal(supportsNativeWebSearch(model as never), true);
-	assert.equal(supportsNativeImageGeneration(model as never), true);
-
-	const headers: Record<string, string> = {};
-	rewriteCodexProviderHeaders(headers, createContext(model) as never, state);
-	assert.equal(headers["x-openai-internal-codex-responses-lite"], "true");
-
-	const resolution = await resolveNativeCompactionEnvironment({
-		model,
-		modelRegistry: {
-			getApiKeyAndHeaders: async () => ({ ok: true, apiKey: "proxy-token", baseUrl: model.baseUrl }),
-		},
-	} as never);
-	assert.equal(resolution.ok, true);
-	assert.equal(resolution.ok && resolution.runtime.canonicalSubscription, false);
-	assert.equal(resolution.ok && resolution.runtime.codexTransport, true);
 });
 
 test("canonical alias Code Mode marks the real provider request as Responses Lite", () => {

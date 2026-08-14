@@ -38,6 +38,12 @@ export function isCanonicalCodexSubscriptionModel(
 		&& isCanonicalCodexBaseUrl(model.baseUrl));
 }
 
+export function isCanonicalCodexAliasModel(
+	model: Partial<CodexLikeModelDescriptor> | null | undefined,
+): boolean {
+	return !isOpenAICodexModel(model) && isCanonicalCodexSubscriptionModel(model);
+}
+
 export function isCodexTransportModel(
 	model: Partial<CodexLikeModelDescriptor> | null | undefined,
 ): boolean {
