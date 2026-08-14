@@ -1,5 +1,11 @@
 # @howaboua/pi-gippity-control
 
+## 0.0.10
+
+### Changes
+
+- [#283](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/283) [`adfe989`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/adfe989598cab149c483a595e0108f917b7c40fa) Thanks [@howaclawa](https://github.com/howaclawa)! - Add hosted custom remote apps, guided frontend creation, a browser client, agent-readable discovery, Pi event streaming, generic Pi/context RPC, and bounded realtime context framing.
+
 ## 0.0.9
 
 ### Changes
