@@ -22,6 +22,8 @@ import {
 	REALTIME_SYSTEM_PROMPT_BASENAME,
 } from "./voice/system-prompt.ts";
 
+const DEFAULT_LAN_PORT = 43_120;
+
 interface Setting {
 	id: string;
 	label: string;
@@ -246,65 +248,42 @@ function details(
 	lanVoice: CodexLanVoiceServerController,
 ): string[] {
 	const status = lanVoice.status();
+	const dim = (text: string) => theme.fg("dim", `  ${text}`);
+	const webApp = config.lan.customWebApp ? "custom" : "bundled GipPity";
 	return [
 		"",
-		theme.fg(
-			"dim",
-			`  Audio input: ${config.voice.inputDevice ?? "system default"}`,
+		dim(
+			`Audio: input ${config.voice.inputDevice ?? "system default"} · output ${config.voice.outputDevice ?? "system default"}`,
 		),
-		theme.fg(
-			"dim",
-			`  Audio output: ${config.voice.outputDevice ?? "system default"}`,
+		dim(
+			`Shortcuts: realtime ${formatVoiceShortcut(config.voice.realtimeShortcut)} · mute ${formatVoiceShortcut(config.voice.muteShortcut)}`,
 		),
-		theme.fg(
-			"dim",
-			`  Realtime voice: ${formatVoiceShortcut(config.voice.realtimeShortcut)}`,
+		dim(
+			`           dictation ${formatVoiceShortcut(config.voice.dictationShortcut)} · server ${formatVoiceShortcut(config.voice.serverShortcut)}`,
 		),
-		theme.fg(
-			"dim",
-			`  Mute microphone: ${formatVoiceShortcut(config.voice.muteShortcut)}`,
+		dim(
+			`Web app: ${webApp} · port ${config.lan.port ?? DEFAULT_LAN_PORT} (set lan.port in config)${config.lan.customWebApp ? ` · ${config.lan.customWebAppPath ?? "app discovery JSON"}` : ""}`,
 		),
-		theme.fg(
-			"dim",
-			`  Dictation: ${formatVoiceShortcut(config.voice.dictationShortcut)}`,
+		dim(
+			`Config (/reload after keybind/device/port edits): ${getGippityControlConfigPath()}`,
 		),
-		theme.fg(
-			"dim",
-			`  Control server: ${formatVoiceShortcut(config.voice.serverShortcut)}`,
-		),
-		theme.fg(
-			"dim",
-			`  Web app: ${config.lan.customWebApp ? (config.lan.customWebAppPath ?? "custom app discovery JSON") : "bundled GipPity"}`,
-		),
-		theme.fg(
-			"dim",
-			`  Change keybinds/devices: ${getGippityControlConfigPath()} (/reload to apply)`,
-		),
-		"",
 		...(status.running
 			? [
-					theme.fg("accent", "  Control server is running"),
-					...status.urls.map((url) => theme.fg("dim", `  ${url}`)),
-				]
-			: [
 					theme.fg(
-						"dim",
-						"  Control server belongs to this Pi session and stops when it changes",
+						"accent",
+						"  Control server running · stops when this Pi session changes",
 					),
-				]),
+					...status.urls.map((url) => dim(url)),
+				]
+			: [dim("Control server is session-owned · stops with this Pi session")]),
 		"",
-		theme.fg(
-			"dim",
-			`  Realtime system prompt: ${getCodexVoiceSystemPromptPath()}`,
+		dim(`Realtime prompt: ${getCodexVoiceSystemPromptPath()}`),
+		dim(
+			`Project prompt append: ${CONFIG_DIR_NAME}/${REALTIME_SYSTEM_PROMPT_BASENAME}`,
 		),
-		theme.fg(
-			"dim",
-			`  Folder-level: create ${CONFIG_DIR_NAME}/${REALTIME_SYSTEM_PROMPT_BASENAME} (appends to global)`,
-		),
-		theme.fg("dim", "  Realtime system prompt changelog:"),
-		theme.fg("dim", `  ${getCodexVoiceSystemPromptChangelogPath()}`),
+		dim(`Prompt changelog: ${getCodexVoiceSystemPromptChangelogPath()}`),
 		"",
-		theme.fg("dim", "  Enter/Space to change · Esc to close"),
+		dim("Enter/Space to change · Esc to close"),
 	];
 }
 
