@@ -1,6 +1,6 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { ProviderHeaders } from "@earendil-works/pi-ai";
-import { isCanonicalCodexAliasModel, isResponsesContext } from "./prompt/codex-model.ts";
+import { isCanonicalCodexAliasModel, isCanonicalCodexBaseUrl, isResponsesContext } from "./prompt/codex-model.ts";
 import { applyCodexRequestOptions } from "./request-options.ts";
 import type { AdapterState } from "./activation/state.ts";
 import { isAdapterRuntime, resolveCodexRuntimePlan } from "./activation/runtime-plan.ts";
@@ -31,13 +31,22 @@ function applyCodexRuntimePayload(payload: unknown, codeMode: boolean): unknown 
 	return codeMode && isCodeModeCompatibleBody(payload) ? applyResponsesLiteRequest(payload) : payload;
 }
 
-export function rewriteCodexProviderHeaders(
+async function hasCanonicalAliasEndpoint(ctx: ExtensionContext): Promise<boolean> {
+	const model = ctx.model;
+	if (!model || !isCanonicalCodexAliasModel(model)) return true;
+	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
+	return auth.ok && isCanonicalCodexBaseUrl(auth.baseUrl ?? model.baseUrl);
+}
+
+export async function rewriteCodexProviderHeaders(
 	headers: ProviderHeaders,
 	ctx: ExtensionContext,
 	state: AdapterState,
-): void {
+): Promise<void> {
 	if (state.config.voiceFeaturesOnly) return;
-	if (isCanonicalCodexAliasModel(ctx.model) && resolveCodexRuntimePlan(ctx, state.config).kind === "code") {
+	if (isCanonicalCodexAliasModel(ctx.model)
+		&& resolveCodexRuntimePlan(ctx, state.config).kind === "code"
+		&& await hasCanonicalAliasEndpoint(ctx)) {
 		headers[RESPONSES_LITE_HEADER] = "true";
 	}
 }
@@ -49,6 +58,7 @@ export function captureActiveProviderSystemPrompt(payload: unknown, state: Adapt
 }
 
 export async function rewriteCodexProviderRequest(payload: unknown, ctx: ExtensionContext, state: AdapterState): Promise<unknown | undefined> {
+	if (!await hasCanonicalAliasEndpoint(ctx)) return undefined;
 	const prepared = prepareCodexProviderRequest(payload, ctx, state);
 	if (!prepared) return undefined;
 	const { plan, configuredPayload } = prepared;

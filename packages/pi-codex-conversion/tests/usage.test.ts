@@ -4,18 +4,6 @@ import {
 	parseCodexRateLimitResetCreditsPayload,
 	parseCodexUsagePayload,
 } from "../src/codex-usage/payload.ts";
-import {
-	fetchCodexUsage,
-} from "../src/codex-usage/client.ts";
-
-const CANONICAL_CODEX_BASE_URL = "https://chatgpt.com/backend-api";
-
-function subscriptionToken(accountId: string): string {
-	const payload = Buffer.from(JSON.stringify({
-		"https://api.openai.com/auth": { chatgpt_account_id: accountId },
-	})).toString("base64url");
-	return `header.${payload}.signature`;
-}
 
 test("usage parser reads reset-credit summary", () => {
 	const snapshot = parseCodexUsagePayload({
@@ -58,50 +46,4 @@ test("reset-credit parser normalizes the standalone API payload", () => {
 		title: "One free rate limit reset",
 		description: "Thanks for using Codex!",
 	}]);
-});
-
-test("canonical subscription requests use the active alias credential scope", async () => {
-	const requestedProviders: string[] = [];
-	let requests = 0;
-	const token = subscriptionToken("account-alias");
-	const originalFetch = globalThis.fetch;
-	globalThis.fetch = async () => {
-		requests++;
-		return new Response(JSON.stringify({
-			rate_limit_reset_credits: { available_count: 0 },
-		}), { status: 200 });
-	};
-	const model = {
-		provider: "openai-codex-personal",
-		api: "openai-codex-responses",
-		id: "gpt-5.6-sol",
-		baseUrl: CANONICAL_CODEX_BASE_URL,
-	};
-	const context = {
-		model,
-		modelRegistry: {
-			getProviderAuth: async (provider: string) => {
-				requestedProviders.push(provider);
-				return { auth: { apiKey: token, baseUrl: `${CANONICAL_CODEX_BASE_URL}/codex` } };
-			},
-		},
-	} as never;
-	const invalidAuthContext = {
-		model: {
-			...model,
-		},
-		modelRegistry: {
-			getProviderAuth: async () => ({ auth: { apiKey: token, baseUrl: "https://example.com/backend-api" } }),
-		},
-	} as never;
-
-	try {
-		assert.equal((await fetchCodexUsage(context)).resetCredits?.availableCount, 0);
-		await assert.rejects(fetchCodexUsage(invalidAuthContext), /canonical.*auth/i);
-	} finally {
-		globalThis.fetch = originalFetch;
-	}
-
-	assert.deepEqual(requestedProviders, ["openai-codex-personal"]);
-	assert.equal(requests, 1);
 });

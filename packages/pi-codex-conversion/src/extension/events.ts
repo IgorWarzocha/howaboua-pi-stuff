@@ -203,8 +203,8 @@ export function registerCodexEvents(
 		state.cwd = ctx.cwd;
 		return rewriteCodexProviderRequest(event.payload, ctx, state);
 	});
-	pi.on("before_provider_headers", (event, ctx) => {
-		rewriteCodexProviderHeaders(event.headers, ctx, state);
+	pi.on("before_provider_headers", async (event, ctx) => {
+		await rewriteCodexProviderHeaders(event.headers, ctx, state);
 	});
 	pi.on("session_before_compact", async (event, ctx) => {
 		state.cwd = ctx.cwd;
