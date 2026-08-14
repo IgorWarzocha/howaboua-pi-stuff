@@ -119,7 +119,10 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
           active = true; busy = false; finishing = false;
           if (mode === 'conversation') {
             inputTooQuiet = false;
-            if (typeof message.muted === 'boolean') muted = message.muted;
+            if (typeof message.muted === 'boolean') {
+              muted = message.muted;
+              stream?.getAudioTracks().forEach((track) => { track.enabled = !muted; });
+            }
             realtimeAudio?.releaseInput();
           }
           publish(muted ? 'muted' : (mode === 'dictation' ? 'recording' : 'listening'));
