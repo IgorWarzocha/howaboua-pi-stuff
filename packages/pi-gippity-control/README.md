@@ -31,8 +31,12 @@ Commands:
 - `/gippity dictation`
 - `/gippity stop`
 - `/gippity server`
+- `/gippity create` — plan and build a custom LAN web app
+- `/gippity setup` — configure audio devices
 
 Settings live in `~/.pi/agent/pi-gippity-control.json`. Keybind changes take effect after `/reload`.
+
+`lan.customWebAppPath` may be absolute or relative to the Pi session cwd and must point to a static directory containing `index.html`. The running server rereads it on refresh. `lan.port` is optional and defaults to `43120`.
 
 The LAN server includes a microphone mute button. The host retains the Realtime WebRTC call and relays 24 kHz mono audio to the active browser, so moving between devices does not restart the voice session. The server is unauthenticated by design for trusted networks, uses a local HTTPS certificate, belongs only to the Pi session that started it, and stops when that session changes.
 

@@ -11,7 +11,7 @@ import {
 import { openGippitySettings } from "./settings.ts";
 import type { CodexVoiceControls } from "./voice/controls.ts";
 import type { CodexLanVoiceServerController } from "./voice/lan/controller.ts";
-import { lanRemoteCreatePrompt } from "./voice/lan/create.ts";
+import { startLanRemoteCreateTurn } from "./voice/lan/create.ts";
 
 const ACTIONS = [
 	"realtime",
@@ -86,14 +86,11 @@ export function registerGippityCommand(options: {
 					const status = await lanVoice.setEnabled(true, ctx);
 					const baseUrl = status.urls[0];
 					if (!baseUrl) throw new Error("Control server has no reachable URL");
-					pi.sendMessage(
-						lanRemoteCreatePrompt({
-							appDirectory: ctx.cwd,
-							configPath: getGippityControlConfigPath(),
-							discoveryUrl: `${baseUrl}/api/discovery`,
-						}),
-						{ triggerTurn: true },
-					);
+					startLanRemoteCreateTurn(pi, {
+						appDirectory: ctx.cwd,
+						configPath: getGippityControlConfigPath(),
+						discoveryUrl: `${baseUrl}/api/discovery`,
+					});
 				} catch (error) {
 					ctx.ui.notify(
 						`Could not create a GipPity web app: ${error instanceof Error ? error.message : String(error)}`,
