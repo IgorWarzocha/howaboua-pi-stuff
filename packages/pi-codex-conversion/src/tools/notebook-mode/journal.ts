@@ -113,12 +113,21 @@ function appendEvent(journal: NotebookJournal, event: NotebookJournalEvent): voi
 function readEvents(path: string): NotebookJournalEvent[] {
 	try {
 		const text = readFileSync(path, "utf8");
-		const complete = text.slice(0, text.lastIndexOf("\n") + 1);
-		return complete.split("\n").filter(Boolean).map((line) => {
-			const value = JSON.parse(line) as unknown;
-			if (!isNotebookJournalEvent(value)) throw new Error("invalid event");
-			return value;
-		});
+		const lines = text.split("\n");
+		const events: NotebookJournalEvent[] = [];
+		for (let index = 0; index < lines.length; index += 1) {
+			const line = lines[index]!;
+			if (!line) continue;
+			try {
+				const value = JSON.parse(line) as unknown;
+				if (!isNotebookJournalEvent(value)) throw new Error("invalid event");
+				events.push(value);
+			} catch (error) {
+				if (index === lines.length - 1 && !text.endsWith("\n")) break;
+				throw error;
+			}
+		}
+		return events;
 	} catch {
 		throw new Error(`Notebook journal events are invalid: ${path}`);
 	}
