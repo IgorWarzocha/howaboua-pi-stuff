@@ -83,6 +83,78 @@ test("buildRequestBody keeps Codex request shape stable for common options", () 
 	);
 });
 
+test("strict tool constraints serialize closed schemas and honor fallback policy", () => {
+	const parameters = {
+		type: "object",
+		properties: {
+			path: { type: "string" },
+			offset: { type: "number" },
+			metadata: {
+				type: "object",
+				properties: { enabled: { type: "boolean" } },
+			},
+		},
+		required: ["path", "metadata"],
+	};
+	const strictTool = {
+		name: "strict_tool",
+		description: "Strict tool",
+		parameters,
+		constrainedSampling: { type: "json_schema", strict: "prefer" },
+	};
+	const body = buildRequestBody(codexModel, { messages: [], tools: [strictTool] } as never);
+	assert.deepEqual(body.tools, [{
+		type: "function",
+		name: "strict_tool",
+		description: "Strict tool",
+		parameters: {
+			type: "object",
+			properties: {
+				path: { type: "string" },
+				offset: { anyOf: [{ type: "number" }, { type: "null" }] },
+				metadata: {
+					type: "object",
+					properties: { enabled: { anyOf: [{ type: "boolean" }, { type: "null" }] } },
+					required: ["enabled"],
+					additionalProperties: false,
+				},
+			},
+			required: ["path", "offset", "metadata"],
+			additionalProperties: false,
+		},
+		strict: true,
+	}]);
+	assert.deepEqual(parameters.required, ["path", "metadata"], "request conversion must not mutate Pi's tool schema");
+	assert.equal("additionalProperties" in parameters, false);
+
+	const unsupportedParameters = {
+		type: "object",
+		properties: {},
+		additionalProperties: { type: "string" },
+	};
+	const fallback = buildRequestBody(codexModel, {
+		messages: [],
+		tools: [{ ...strictTool, parameters: unsupportedParameters }],
+	} as never).tools as Array<{ strict: boolean | null; parameters: unknown }>;
+	assert.equal(fallback[0]?.strict, null);
+	assert.equal(fallback[0]?.parameters, unsupportedParameters);
+
+	assert.throws(() => buildRequestBody(codexModel, {
+		messages: [],
+		tools: [{
+			...strictTool,
+			parameters: unsupportedParameters,
+			constrainedSampling: { type: "json_schema", strict: "require" },
+		}],
+	} as never), /requires JSON-schema constrained sampling.*additionalProperties is unsupported/);
+
+	const unsupportedProviderBody = buildRequestBody({
+		...(codexModel as object),
+		compat: { supportsStrictMode: false },
+	} as never, { messages: [], tools: [strictTool] } as never);
+	assert.equal("strict" in (unsupportedProviderBody.tools as object[])[0]!, false);
+});
+
 test("Fast Mode request identity is opt-in and transport invariant", () => {
 	const model = "gpt-5.6-luna";
 	const fastRouting = resolveCodexRequestRouting({

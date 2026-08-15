@@ -26,7 +26,12 @@ export function buildRequestBody<TApi extends Api>(
 	context: Context,
 	options?: OpenAICodexStreamOptions,
 ): ResponsesBody {
-	const supportsToolSearch = (model.compat as { supportsToolSearch?: boolean } | undefined)?.supportsToolSearch ?? false;
+	const compat = model.compat as {
+		supportsStrictMode?: boolean | undefined;
+		supportsToolSearch?: boolean | undefined;
+	} | undefined;
+	const supportsStrictMode = compat?.supportsStrictMode ?? true;
+	const supportsToolSearch = compat?.supportsToolSearch ?? false;
 	const grammarToolInputProperties = options?.grammarToolInputProperties ?? new Map<string, string>();
 	const supportsOpenAIGrammarTools = grammarToolInputProperties.size > 0;
 	const allowedToolCallProviders = supportsOpenAIGrammarTools && !CODEX_TOOL_CALL_PROVIDERS.has(model.provider)
@@ -37,7 +42,7 @@ export function buildRequestBody<TApi extends Api>(
 		includeSystemPrompt: false,
 		grammarToolInputProperties,
 		deferredTools: toolPlacement.deferred,
-		toolOptions: { supportsOpenAIGrammarTools },
+		toolOptions: { supportsStrictMode, supportsOpenAIGrammarTools },
 	});
 
 	const body: ResponsesBody = {
@@ -71,6 +76,7 @@ export function buildRequestBody<TApi extends Api>(
 	if (toolPlacement.immediate.length > 0) {
 		body.tools = convertResponsesTools(toolPlacement.immediate, {
 			strict: null,
+			supportsStrictMode,
 			supportsOpenAIGrammarTools,
 		});
 	}

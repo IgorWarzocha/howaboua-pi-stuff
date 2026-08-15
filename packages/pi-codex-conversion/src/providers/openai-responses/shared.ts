@@ -7,8 +7,10 @@ import type {
 	Tool as OpenAITool,
 } from "openai/resources/responses/responses.js";
 import {
+	getJsonSchemaToolParameters,
 	getGrammarToolInput,
 	resolveGrammarConstrainedSampling,
+	resolveJsonSchemaStrictSampling,
 } from "../constrained-sampling.js";
 import { parseTextSignature, shortHash } from "./signatures.ts";
 import { normalizeResponsesToolHistory } from "./tool-history.ts";
@@ -40,6 +42,7 @@ interface ConvertResponsesMessagesOptions {
 
 interface ConvertResponsesToolsOptions {
 	strict?: boolean | null | undefined;
+	supportsStrictMode?: boolean | undefined;
 	supportsOpenAIGrammarTools?: boolean | undefined;
 	deferLoading?: boolean | undefined;
 }
@@ -259,7 +262,8 @@ export function convertResponsesMessages<TApi extends Api>(
 }
 
 export function convertResponsesTools(tools: readonly Tool[], options?: ConvertResponsesToolsOptions): OpenAITool[] {
-	const strict = options?.strict === undefined ? false : options.strict;
+	const defaultStrict = options?.strict === undefined ? false : options.strict;
+	const supportsStrictMode = options?.supportsStrictMode ?? true;
 	const supportsOpenAIGrammarTools = options?.supportsOpenAIGrammarTools ?? false;
 	return tools.map((tool): OpenAITool => {
 		const grammar = resolveGrammarConstrainedSampling(tool, supportsOpenAIGrammarTools);
@@ -274,14 +278,17 @@ export function convertResponsesTools(tools: readonly Tool[], options?: ConvertR
 			},
 			...(options?.deferLoading ? { defer_loading: true } : {}),
 		} as OpenAITool;
-		return {
+		const constrainedStrict = resolveJsonSchemaStrictSampling(tool, supportsStrictMode);
+		const strict = constrainedStrict ?? defaultStrict;
+		const functionTool = {
 			type: "function",
 			name: tool.name,
 			description: tool.description,
-			parameters: tool.parameters as unknown as Record<string, unknown>,
-			strict,
+			parameters: getJsonSchemaToolParameters(tool, strict === true) as unknown as Record<string, unknown>,
 			...(options?.deferLoading ? { defer_loading: true } : {}),
-		} as OpenAITool;
+		} as Extract<OpenAITool, { type: "function" }>;
+		if (supportsStrictMode) functionTool.strict = strict;
+		return functionTool;
 	});
 }
 
