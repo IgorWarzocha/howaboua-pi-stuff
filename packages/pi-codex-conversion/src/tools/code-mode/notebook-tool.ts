@@ -1,6 +1,7 @@
 import type { ExtensionAPI, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { StringEnum } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
+import { getExperimentalToolSampling } from "../tool-sampling.ts";
 import type { SharedCodeModeRuntime } from "./shared-runtime.ts";
 import type { NotebookControlRequest, ToolExecutionContext } from "./types.ts";
 
@@ -12,12 +13,14 @@ const NOTEBOOK_PARAMETERS = Type.Object({
 });
 
 export function registerNotebookTool(pi: ExtensionAPI, runtime: SharedCodeModeRuntime): void {
+	const constrainedSampling = getExperimentalToolSampling("notebook");
 	pi.registerTool({
 		name: "notebook",
 		label: "Notebook",
 		description: "Control persistent notebook state: status inspects memory/bindings by query glob; checkpoint; pin/unpin/release names; prune unpinned matches; list/save/load profiles; restart; diagnostics; reset",
 		promptSnippet: "Inspect, recover, or control notebook state",
 		parameters: NOTEBOOK_PARAMETERS,
+		...(constrainedSampling ? { constrainedSampling } : {}),
 		async execute(_id, params, signal, _onUpdate, ctx) {
 			const result = await runtime.controlNotebook(
 				normalizeNotebookRequest(params),

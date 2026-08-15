@@ -5,12 +5,12 @@ const PREFER_STRICT_TOOL_SAMPLING = {
 	strict: "prefer",
 } as const satisfies ConstrainedSamplingConfig;
 
-const STRICT_NORMAL_MODE_TOOLS = new Set(["exec_command", "apply_patch"]);
+const STRICT_FUNCTION_TOOLS = new Set(["exec_command", "apply_patch", "wait", "notebook"]);
 
 export function getExperimentalToolSampling(
 	toolName: string,
 ): ConstrainedSamplingConfig | undefined {
-	return process.env["PI_EXPERIMENTAL"] === "1" && STRICT_NORMAL_MODE_TOOLS.has(toolName)
+	return process.env["PI_EXPERIMENTAL"] === "1" && STRICT_FUNCTION_TOOLS.has(toolName)
 		? PREFER_STRICT_TOOL_SAMPLING
 		: undefined;
 }

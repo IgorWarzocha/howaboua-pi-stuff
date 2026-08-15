@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import { getExperimentalToolSampling } from "../tool-sampling.ts";
 import {
 	DEFAULT_CODE_MODE_OUTPUT_TOKENS,
 	MAX_CODE_MODE_OUTPUT_TOKENS,
@@ -124,12 +125,14 @@ function createWaitTool(
 	waitAttempts: Map<string, number>,
 	preflight: NonNullable<ToolExecutionContext["preflight"]>,
 ): ToolDefinition<typeof WAIT_PARAMETERS> {
+	const constrainedSampling = getExperimentalToolSampling("wait");
 	return {
 		name: "wait",
 		label: "Wait",
 		description: WAIT_DESCRIPTION,
 		promptSnippet: "Resume or terminate an exec cell",
 		parameters: WAIT_PARAMETERS,
+		...(constrainedSampling ? { constrainedSampling } : {}),
 		async execute(id, params, signal, onUpdate, ctx) {
 			tracker.start(id);
 			try {
