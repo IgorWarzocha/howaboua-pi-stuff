@@ -31,7 +31,7 @@ function agentDir(): string {
 	);
 }
 
-export function machinesConfigPath(): string {
+function machinesConfigPath(): string {
 	return join(agentDir(), "shepherdr.json");
 }
 
