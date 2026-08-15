@@ -13,4 +13,5 @@ This repo publishes through Changesets; every merge to `main` feeds the version 
 - Shipped package changes require a changeset. Use concrete release language; never write “upcoming release”, “unreleased”, or speculative notes.
 - Before a `dev` → `main` PR, fetch/prune, reset `dev` onto `origin/main`, then cherry-pick only intended commits. Never merge `main` into `dev`.
 - Prefer `bun run check:changed` and patch-autodetecting `bun changeset -- "summary"`; use `bun changeset:raw` only for intentional non-patch bumps.
+- For behavior-preserving module splits, use `bun refactor:compare --entry <old path> --probe <ESM probe>`; JSON reports equivalence, old-side coverage, and missing lines/functions/branches, not proof.
 - Do not bump aggregate package versions or add their changesets manually; CI runs `bun run changeset:aggregates`.
