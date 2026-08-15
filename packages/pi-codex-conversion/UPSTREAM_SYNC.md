@@ -60,7 +60,7 @@ Codex supports namespace tool schemas:
 }
 ```
 
-Current Codex groups ordinary function and custom tools under the default `functions` namespace for Responses Lite while leaving standard Responses flat. The backend omits that implicit default namespace from returned calls but returns non-default namespaces explicitly. This package mirrors that split for OpenAI Codex transports; explicitly configured `openai-responses` proxies retain flat Lite tools until they declare equivalent support. Namespace metadata is preserved through streamed calls, replay, the V8 host, and the Notebook bridge. Existing JavaScript aliases such as `web__run` retain their spelling while routing as `{ namespace: "web", name: "run" }`.
+Current Codex groups ordinary function and custom tools under the default `functions` namespace for Responses Lite while leaving standard Responses flat. The backend omits that implicit default namespace from returned calls but returns non-default namespaces explicitly. This package treats that shape as part of the Responses Lite protocol across stock, renamed, and explicitly configured proxy routes; provider identity does not flatten it. Namespace metadata is preserved through streamed calls, replay, the V8 host, and the Notebook bridge. Existing JavaScript aliases such as `web__run` retain their spelling while routing as `{ namespace: "web", name: "run" }`.
 
 Pi's structured registry still identifies and dispatches tools by one globally unique flat name. Full arbitrary namespace registration therefore belongs in Pi core; do not claim collision-safe direct tools or synthesize extension namespaces in this package.
 

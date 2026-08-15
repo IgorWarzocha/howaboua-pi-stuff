@@ -40,7 +40,7 @@ async function prepareCodexRequestBody<TApi extends Api>(
 	if (responsesLite) {
 		body = isResponsesLiteRequest(body)
 			? namespaceExistingResponsesLiteRequest({ ...body, parallel_tool_calls: false })
-			: applyResponsesLiteRequest(body, { namespaceTools: true });
+			: applyResponsesLiteRequest(body);
 		body = await prepareResponsesLiteRequestImages(body);
 	}
 	if (!body.previous_response_id) {

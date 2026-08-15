@@ -25,7 +25,12 @@ test("Responses Lite moves instructions and tools into input and prepares images
 	assert.equal(body.parallel_tool_calls, false);
 	assert.deepEqual(body.reasoning, { effort: "medium", summary: "auto", context: "all_turns" });
 	assert.deepEqual(body.input, [
-		{ type: "additional_tools", role: "developer", tools: [{ type: "function", name: "exec_command" }] },
+		{ type: "additional_tools", role: "developer", tools: [{
+			type: "namespace",
+			name: "functions",
+			description: "",
+			tools: [{ type: "function", name: "exec_command" }],
+		}] },
 		{ type: "message", role: "developer", content: [{ type: "input_text", text: "Be useful" }] },
 		{ type: "message", role: "user", content: [
 			{ type: "input_image", image_url: "data:image/png;base64,AAA" },

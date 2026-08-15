@@ -27,9 +27,9 @@ function applyVoiceSystemPrompt(payload: unknown, systemPrompt: string | undefin
 	return { ...payload, instructions: systemPrompt };
 }
 
-function applyCodexRuntimePayload(payload: unknown, codeMode: boolean, namespaceTools: boolean): unknown {
+function applyCodexRuntimePayload(payload: unknown, codeMode: boolean): unknown {
 	return codeMode && isCodeModeCompatibleBody(payload)
-		? applyResponsesLiteRequest(payload, { namespaceTools })
+		? applyResponsesLiteRequest(payload)
 		: payload;
 }
 
@@ -81,7 +81,7 @@ export async function rewriteCodexProviderRequest(payload: unknown, ctx: Extensi
 		const piCompactionPayload = await injectPendingNativeWindowIntoPiCompactionRequest(configuredPayload, ctx, state);
 		rewrittenPayload = piCompactionPayload ?? (await rewriteCodexCompactedProviderRequest(configuredPayload, ctx, state)) ?? configuredPayload;
 	}
-	return applyCodexRuntimePayload(rewrittenPayload, isCodeModeRuntime(plan), plan.codexTransport);
+	return applyCodexRuntimePayload(rewrittenPayload, isCodeModeRuntime(plan));
 }
 
 export function rewriteCodexPrewarmProviderRequest(
@@ -94,7 +94,6 @@ export function rewriteCodexPrewarmProviderRequest(
 		? applyCodexRuntimePayload(
 			prepared.configuredPayload,
 			isCodeModeRuntime(prepared.plan),
-			prepared.plan.codexTransport,
 		)
 		: undefined;
 }

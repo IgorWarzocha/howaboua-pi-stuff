@@ -42,7 +42,7 @@ function prepareLiteContent(content: unknown): unknown {
 	});
 }
 
-function prepareLiteInput(input: readonly unknown[], namespaceTools: boolean): unknown[] {
+function prepareLiteInput(input: readonly unknown[]): unknown[] {
 	const prepared = input.map((item) => {
 		if (!isRecord(item)) return item;
 		if (item["type"] === "message" || item["role"] === "user" || item["role"] === "developer" || item["role"] === "system") {
@@ -56,7 +56,7 @@ function prepareLiteInput(input: readonly unknown[], namespaceTools: boolean): u
 		}
 		return item;
 	});
-	return namespaceTools ? namespaceResponsesLiteInputTools(prepared) : prepared;
+	return namespaceResponsesLiteInputTools(prepared);
 }
 
 async function prepareDataImageUrl(imageUrl: string): Promise<string | undefined> {
@@ -116,7 +116,6 @@ export async function prepareResponsesLiteRequestImages<TBody extends ResponsesL
 
 export function applyResponsesLiteRequest<TBody extends ResponsesLiteCompatibleBody>(
 	body: TBody,
-	options: { namespaceTools?: boolean | undefined } = {},
 ): TBody {
 	const instructions = body.instructions?.trim();
 	const tools = [...(body.tools ?? [])];
@@ -124,14 +123,14 @@ export function applyResponsesLiteRequest<TBody extends ResponsesLiteCompatibleB
 		{
 			type: "additional_tools",
 			role: "developer",
-			tools: options.namespaceTools ? namespaceResponsesLiteTools(tools) : tools,
+			tools: namespaceResponsesLiteTools(tools),
 		},
 		...(instructions ? [{ type: "message", role: "developer", content: [{ type: "input_text", text: instructions }] }] : []),
 	];
 	const { instructions: _instructions, tools: _tools, ...rest } = body;
 	return {
 		...rest,
-		input: [...prefix, ...prepareLiteInput(body.input, options.namespaceTools === true)],
+		input: [...prefix, ...prepareLiteInput(body.input)],
 		parallel_tool_calls: false,
 		reasoning: { ...(isRecord(body.reasoning) ? body.reasoning : {}), context: "all_turns" },
 	} as TBody;

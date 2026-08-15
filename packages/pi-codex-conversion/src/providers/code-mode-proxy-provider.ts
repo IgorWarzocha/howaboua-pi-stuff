@@ -14,7 +14,7 @@ import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import type { ExecutionMode } from "../adapter/activation/execution-mode.ts";
 import { isCodeModeRuntime, resolveCodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
 import { buildRequestBody } from "./openai-codex/request-body.ts";
-import { applyResponsesLiteRequest, isResponsesLiteRequest, prepareResponsesLiteRequestImages, RESPONSES_LITE_HEADER } from "./openai-codex/responses-lite.ts";
+import { applyResponsesLiteRequest, isResponsesLiteRequest, namespaceExistingResponsesLiteRequest, prepareResponsesLiteRequestImages, RESPONSES_LITE_HEADER } from "./openai-codex/responses-lite.ts";
 import { assertSuccessfulCodexOutput, processCodexResponsesStream } from "./openai-codex/stream-events.ts";
 import type { OpenAICodexStreamOptions, ResponsesBody, StreamEventShape } from "./openai-codex/types.ts";
 
@@ -95,7 +95,7 @@ export function streamCodeModeResponsesProxy<TApi extends Api>(
 			const rewritten = await options?.onPayload?.(body, model);
 			if (rewritten !== undefined) body = rewritten as ResponsesBody;
 			body = isResponsesLiteRequest(body)
-				? { ...body, parallel_tool_calls: false }
+				? namespaceExistingResponsesLiteRequest({ ...body, parallel_tool_calls: false })
 				: applyResponsesLiteRequest(body);
 			body = await prepareResponsesLiteRequestImages(body);
 			headers = mergeHeaders(headers, { [RESPONSES_LITE_HEADER]: "true" });
