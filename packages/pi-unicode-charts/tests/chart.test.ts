@@ -50,7 +50,7 @@ test("replaces closed chart fences and preserves other Markdown", () => {
 });
 
 test("keeps invalid and unfinished chart fences as source", () => {
-	const invalid = "```chart\ntype: pie\ndata:\nA 1\n```";
+	const invalid = "```chart\r\ntype: pie\r\ndata:\r\nA 1\r\n```";
 	const unfinished = "```chart\ntype: line\ndata:\nA 1";
 
 	expect(transformChartMarkdown(invalid, 48)).toBe(invalid);

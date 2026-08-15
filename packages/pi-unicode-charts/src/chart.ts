@@ -53,6 +53,7 @@ export function transformChartMarkdown(
 	markdown: string,
 	availableWidth: number,
 ): string {
+	const newline = markdown.includes("\r\n") ? "\r\n" : "\n";
 	const lines = markdown.split(/\r?\n/u);
 	const output: string[] = [];
 
@@ -88,7 +89,7 @@ export function transformChartMarkdown(
 		index = close;
 	}
 
-	return output.join("\n");
+	return output.join(newline);
 }
 
 export function parseChartSource(source: string): ChartSpec | undefined {
@@ -219,9 +220,11 @@ function parseOpeningFence(
 	if (!match?.[1]) return undefined;
 	const fenceCharacter = match[1][0];
 	if (fenceCharacter !== "`" && fenceCharacter !== "~") return undefined;
+	const info = (match[2] ?? "").trim();
+	if (fenceCharacter === "`" && info.includes("`")) return undefined;
 	return {
 		fence: { character: fenceCharacter, length: match[1].length },
-		language: (match[2] ?? "").trim().split(/\s+/u, 1)[0]?.toLowerCase() ?? "",
+		language: info.split(/\s+/u, 1)[0]?.toLowerCase() ?? "",
 	};
 }
 
