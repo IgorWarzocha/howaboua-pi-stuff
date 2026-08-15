@@ -252,12 +252,23 @@ export class AgentFleet {
 			selected.map(async (status) => {
 				const runtime = this.runtimes.get(status.name);
 				if (status.status !== "connected" || !runtime?.client) return status;
+				const client = runtime.client;
 				try {
-					return { ...status, snapshot: await getSnapshot(runtime.client) };
-				} catch (error) {
-					if (runtime.local) throw error;
+					const snapshot = await getSnapshot(client);
 					if (
 						runtime.status !== "connected" ||
+						runtime.client !== client ||
+						this.runtimes.get(status.name) !== runtime
+					) {
+						return this.runtimes.has(status.name)
+							? this.statusFor(status.name)
+							: status;
+					}
+					return { ...status, snapshot };
+				} catch (error) {
+					if (
+						runtime.status !== "connected" ||
+						runtime.client !== client ||
 						this.runtimes.get(status.name) !== runtime
 					) {
 						return this.runtimes.has(status.name)

@@ -398,9 +398,24 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 			pending.reject(error);
 		}
 		this.pending.clear();
-		for (const callbacks of this.subscriptions.values())
-			callbacks.onDisconnect(error);
+		let callbackFailure: unknown;
+		for (const callbacks of this.subscriptions.values()) {
+			try {
+				callbacks.onDisconnect(error);
+			} catch (failure) {
+				callbackFailure ??= failure;
+			}
+		}
 		this.subscriptions.clear();
-		if (notify) this.onClose(error);
+		if (notify) {
+			this.onClose(
+				callbackFailure === undefined
+					? error
+					: new Error(
+							`${error.message}; disconnect handler failed: ${callbackFailure instanceof Error ? callbackFailure.message : String(callbackFailure)}`,
+							{ cause: callbackFailure },
+						),
+			);
+		}
 	}
 }
