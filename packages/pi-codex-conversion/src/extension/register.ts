@@ -47,6 +47,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 			if (
 				config.voiceFeaturesOnly !== previousConfig.voiceFeaturesOnly
 				|| config.prompt.heavySystemPromptOverwrite !== previousConfig.prompt.heavySystemPromptOverwrite
+				|| config.openai.fast !== previousConfig.openai.fast
 				|| config.openai.harnessIdentifierHeader !== previousConfig.openai.harnessIdentifierHeader
 				|| config.compaction.responsesCompaction !== previousConfig.compaction.responsesCompaction
 			) {

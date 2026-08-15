@@ -13,7 +13,7 @@ import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import { createGrammarToolInputProperties } from "../constrained-sampling.ts";
 import { DEFAULT_MAX_RETRY_DELAY_MS, DEFAULT_SSE_HEADER_TIMEOUT_MS, DEFAULT_STREAM_IDLE_TIMEOUT_MS, DEFAULT_STREAM_MAX_RETRIES, INITIAL_STREAM_RETRY_DELAY_MS, MAX_SSE_REQUEST_RETRIES, MAX_STREAM_MAX_RETRIES } from "./constants.ts";
 import { createErrorMessage, isRetryableRequestStatus, isRetryableStreamStatus, NonRetryableProviderError, parseErrorResponse } from "./errors.ts";
-import { buildSSEHeaders, buildWebSocketHeaders, createCodexRequestId, extractAccountId, headersToRecord, PI_CODEX_CONVERSION_ORIGINATOR, resolveCodexUrl, resolveCodexWebSocketUrl } from "./headers.ts";
+import { buildSSEHeaders, buildWebSocketHeaders, createCodexRequestId, extractAccountId, headersToRecord, PI_CODEX_CONVERSION_ORIGINATOR, resolveCodexRequestRouting, resolveCodexUrl, resolveCodexWebSocketUrl } from "./headers.ts";
 import { codexDiagnosticsFailure, noThrowCodexDiagnosticsSink } from "./diagnostic-failure.ts";
 import { supportsResponsesLiteModel } from "./responses-lite-model.ts";
 import { applyResponsesLiteWebSocketMetadata } from "./responses-lite.ts";
@@ -214,9 +214,14 @@ export function createCodexTransportStream<TApi extends Api>(
 			lane = diagnosticsLane(body);
 			deps.onPreparedPayload?.(body);
 			const websocketRequestId = effectiveOptions?.sessionId || createCodexRequestId();
-			const originator = runtimeConfig?.openai.harnessIdentifierHeader ? PI_CODEX_CONVERSION_ORIGINATOR : undefined;
-			const baseSseHeaders = buildSSEHeaders(model.headers, effectiveOptions?.headers, accountId, apiKey, effectiveOptions?.sessionId, responsesLite, originator);
-			const websocketHeaders = buildWebSocketHeaders(model.headers, effectiveOptions?.headers, accountId, apiKey, websocketRequestId, originator);
+			const routing = resolveCodexRequestRouting({
+				model: body.model,
+				fast: runtimeConfig?.openai.fast === true,
+				serviceTier: body.service_tier,
+				normalOriginator: runtimeConfig?.openai.harnessIdentifierHeader ? PI_CODEX_CONVERSION_ORIGINATOR : "pi",
+			});
+			const baseSseHeaders = buildSSEHeaders(model.headers, effectiveOptions?.headers, accountId, apiKey, effectiveOptions?.sessionId, responsesLite, routing.originator, routing.routingHint);
+			const websocketHeaders = buildWebSocketHeaders(model.headers, effectiveOptions?.headers, accountId, apiKey, websocketRequestId, routing.originator, routing.routingHint);
 			const bodyJson = JSON.stringify(body);
 			const websocketBody = responsesLite ? applyResponsesLiteWebSocketMetadata(body) : body;
 			const compressedBody = compressRequestBodyZstd(bodyJson);

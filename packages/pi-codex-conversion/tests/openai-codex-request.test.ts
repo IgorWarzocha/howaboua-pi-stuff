@@ -2,6 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { buildRequestBody } from "../src/providers/openai-codex-custom-provider.ts";
 import {
+	buildSSEHeaders,
+	buildWebSocketHeaders,
+	CODEX_FAST_MODE_ORIGINATOR,
+	PI_CODEX_CONVERSION_ORIGINATOR,
+	resolveCodexRequestRouting,
+	X_CODEX_ROUTING_HINT_HEADER,
+} from "../src/providers/openai-codex/headers.ts";
+import {
 	codeModeTools,
 	codexModel,
 	collectStream,
@@ -73,6 +81,45 @@ test("buildRequestBody keeps Codex request shape stable for common options", () 
 		(normalModeBody.tools as Array<{ type: string; name: string }>).map(({ type, name }) => [type, name]),
 		[["function", "exec"], ["function", "wait"]],
 	);
+});
+
+test("Fast Mode request identity is opt-in and transport invariant", () => {
+	const model = "gpt-5.6-luna";
+	const fastRouting = resolveCodexRequestRouting({
+		model,
+		fast: true,
+		serviceTier: "priority",
+		normalOriginator: PI_CODEX_CONVERSION_ORIGINATOR,
+	});
+	assert.deepEqual(fastRouting, {
+		originator: CODEX_FAST_MODE_ORIGINATOR,
+		routingHint: `model=${model};tier=priority`,
+	});
+
+	const transportHeaders = [
+		buildSSEHeaders(undefined, undefined, "account", "token", "session", false, fastRouting.originator, fastRouting.routingHint),
+		buildWebSocketHeaders(undefined, undefined, "account", "token", "session", fastRouting.originator, fastRouting.routingHint),
+	];
+	for (const headers of transportHeaders) {
+		assert.equal(headers.get("originator"), CODEX_FAST_MODE_ORIGINATOR);
+		assert.equal(headers.get(X_CODEX_ROUTING_HINT_HEADER), `model=${model};tier=priority`);
+	}
+
+	const normalRouting = resolveCodexRequestRouting({
+		model,
+		fast: false,
+		serviceTier: "priority",
+		normalOriginator: PI_CODEX_CONVERSION_ORIGINATOR,
+	});
+	assert.deepEqual(normalRouting, { originator: PI_CODEX_CONVERSION_ORIGINATOR });
+	const normalHeaders = buildSSEHeaders(undefined, undefined, "account", "token", "session", false, normalRouting.originator, normalRouting.routingHint);
+	assert.equal(normalHeaders.get("originator"), PI_CODEX_CONVERSION_ORIGINATOR);
+	assert.equal(normalHeaders.get(X_CODEX_ROUTING_HINT_HEADER), null);
+	assert.deepEqual(resolveCodexRequestRouting({
+		model,
+		fast: true,
+		normalOriginator: PI_CODEX_CONVERSION_ORIGINATOR,
+	}), { originator: PI_CODEX_CONVERSION_ORIGINATOR });
 });
 
 test("GPT-5.6 Code Mode sends the GPT-5.6 input-item contract", async () => {

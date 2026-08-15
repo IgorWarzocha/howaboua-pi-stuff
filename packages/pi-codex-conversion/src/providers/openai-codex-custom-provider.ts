@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { Api, Context, Model } from "@earendil-works/pi-ai";
 import { createGrammarToolInputProperties } from "./constrained-sampling.js";
-import { extractAccountId, buildWebSocketHeaders, PI_CODEX_CONVERSION_ORIGINATOR, resolveCodexWebSocketUrl } from "./openai-codex/headers.ts";
+import { extractAccountId, buildWebSocketHeaders, PI_CODEX_CONVERSION_ORIGINATOR, resolveCodexRequestRouting, resolveCodexWebSocketUrl } from "./openai-codex/headers.ts";
 import { noThrowCodexDiagnosticsSink } from "./openai-codex/diagnostic-failure.ts";
 import { buildRequestBody } from "./openai-codex/request-body.ts";
 import { supportsResponsesLiteModel } from "./openai-codex/responses-lite-model.ts";
@@ -69,8 +69,13 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 		: { ...options, grammarToolInputProperties };
 	const body = await prepareCodexRequestBody(model, context, effectiveOptions, responsesLite);
 	const accountId = extractAccountId(options.apiKey);
-	const originator = runtimeConfig?.openai.harnessIdentifierHeader ? PI_CODEX_CONVERSION_ORIGINATOR : undefined;
-	const headers = buildWebSocketHeaders(model.headers, effectiveOptions.headers, accountId, options.apiKey, options.sessionId, originator);
+	const routing = resolveCodexRequestRouting({
+		model: body.model,
+		fast: runtimeConfig?.openai.fast === true,
+		serviceTier: body.service_tier,
+		normalOriginator: runtimeConfig?.openai.harnessIdentifierHeader ? PI_CODEX_CONVERSION_ORIGINATOR : "pi",
+	});
+	const headers = buildWebSocketHeaders(model.headers, effectiveOptions.headers, accountId, options.apiKey, options.sessionId, routing.originator, routing.routingHint);
 	const websocketBody = withCodexTurnState(responsesLite ? applyResponsesLiteWebSocketMetadata(body) : body, deps.turnState);
 	const diagnostics = noThrowCodexDiagnosticsSink(deps.getDiagnostics?.());
 	try {
