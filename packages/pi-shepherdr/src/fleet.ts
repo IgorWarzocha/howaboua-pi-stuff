@@ -109,7 +109,9 @@ export class AgentFleet {
 		this.deactivate();
 		const generation = this.generation;
 		this.context = ctx;
-		this.config = await readMachinesConfig();
+		const config = await readMachinesConfig();
+		if (!this.isCurrent(generation, ctx)) return;
+		this.config = config;
 		const grouped = groupSaved(savedAgents(ctx));
 		const known = new Set([
 			LOCAL_MACHINE,
@@ -142,6 +144,7 @@ export class AgentFleet {
 
 		const localClient = new HerdrClient();
 		await localClient.request("ping");
+		if (!this.isCurrent(generation, ctx)) return;
 		const localMonitor = this.createMonitor(
 			LOCAL_MACHINE,
 			localRuntime,
@@ -150,6 +153,15 @@ export class AgentFleet {
 		localRuntime.client = localClient;
 		localRuntime.monitor = localMonitor;
 		await localMonitor.activate(ctx, localRuntime.pending);
+		if (
+			!this.isCurrent(generation, ctx) ||
+			this.runtimes.get(LOCAL_MACHINE) !== localRuntime ||
+			localRuntime.client !== localClient ||
+			localRuntime.monitor !== localMonitor
+		) {
+			localMonitor.deactivate();
+			return;
+		}
 		localRuntime.pending = [];
 		localRuntime.status = "connected";
 		this.refresh();
@@ -228,6 +240,10 @@ export class AgentFleet {
 		};
 	}
 
+	private isCurrent(generation: number, ctx: ExtensionContext): boolean {
+		return generation === this.generation && ctx === this.context;
+	}
+
 	async snapshots(machine?: string): Promise<MachineSnapshot[]> {
 		const selected = machine?.trim()
 			? [this.statusFor(machine.trim())]
@@ -240,8 +256,15 @@ export class AgentFleet {
 					return { ...status, snapshot: await getSnapshot(runtime.client) };
 				} catch (error) {
 					if (runtime.local) throw error;
-					this.disconnected(status.name, runtime, errorMessage(error));
-					return this.statusFor(status.name);
+					if (
+						runtime.status !== "connected" ||
+						this.runtimes.get(status.name) !== runtime
+					) {
+						return this.runtimes.has(status.name)
+							? this.statusFor(status.name)
+							: status;
+					}
+					throw error;
 				}
 			}),
 		);
@@ -332,6 +355,7 @@ export class AgentFleet {
 		runtime.status = "connecting";
 		delete runtime.reason;
 		this.refresh();
+		let attached = false;
 		let client: RemoteHerdrClient | undefined;
 		try {
 			client = await RemoteHerdrClient.connect(runtime.config, (error) => {
@@ -343,10 +367,25 @@ export class AgentFleet {
 				return;
 			}
 			await client.request("ping");
+			if (!this.isCurrent(generation, ctx)) {
+				client.close();
+				return;
+			}
 			const monitor = this.createMonitor(name, runtime, client);
 			runtime.client = client;
 			runtime.monitor = monitor;
+			attached = true;
 			await monitor.activate(ctx, runtime.pending);
+			if (
+				!this.isCurrent(generation, ctx) ||
+				this.runtimes.get(name) !== runtime ||
+				runtime.client !== client ||
+				runtime.monitor !== monitor
+			) {
+				monitor.deactivate();
+				client.close();
+				return;
+			}
 			runtime.pending = [];
 			runtime.status = "connected";
 			delete runtime.attempting;
@@ -356,6 +395,12 @@ export class AgentFleet {
 			delete runtime.attempting;
 			client?.close();
 			if (generation !== this.generation || ctx !== this.context) return;
+			if (
+				this.runtimes.get(name) !== runtime ||
+				(attached && runtime.client !== client)
+			) {
+				return;
+			}
 			this.disconnected(name, runtime, errorMessage(error));
 		}
 	}

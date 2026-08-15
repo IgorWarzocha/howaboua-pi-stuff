@@ -1,11 +1,12 @@
 // @howaboua/pi-shepherdr managed bridge
-import { readFile, stat } from "node:fs/promises";
+import { open, stat } from "node:fs/promises";
 import { createConnection } from "node:net";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
 const BRIDGE_VERSION = 1;
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
+const READ_CHUNK_BYTES = 64 * 1024;
 const subscriptions = new Map();
 const assistantCache = new Map();
 
@@ -211,60 +212,77 @@ function subscribe(id, requested) {
 	});
 }
 
-function latestAssistantFromLines(lines) {
-	const nodes = new Map();
-	let leafId;
-	for (const line of lines) {
+function assistantFromEntry(entry) {
+	const message = entry.message;
+	if (!message || typeof message !== "object" || message.role !== "assistant")
+		return undefined;
+	const text = [];
+	if (typeof message.content === "string") text.push(message.content);
+	else if (Array.isArray(message.content)) {
+		for (const part of message.content) {
+			if (
+				part &&
+				typeof part === "object" &&
+				part.type === "text" &&
+				typeof part.text === "string"
+			)
+				text.push(part.text);
+		}
+	}
+	const joined = text.join("");
+	const stopReason =
+		typeof message.stopReason === "string" ? message.stopReason : undefined;
+	if (!joined && stopReason !== "error") return undefined;
+	return {
+		id: entry.id,
+		text: joined,
+		...(stopReason ? { stopReason } : {}),
+	};
+}
+
+async function latestAssistant(path, size) {
+	const file = await open(path, "r");
+	let targetId;
+	const inspect = (line) => {
+		if (line.length === 0) return undefined;
 		let entry;
 		try {
-			entry = JSON.parse(line);
+			entry = JSON.parse(line.toString("utf8"));
 		} catch {
-			continue;
+			return undefined;
 		}
-		if (typeof entry.id !== "string") continue;
-		const node =
-			typeof entry.parentId === "string" ? { parentId: entry.parentId } : {};
-		const message = entry.message;
-		if (
-			message &&
-			typeof message === "object" &&
-			message.role === "assistant"
-		) {
-			const text = [];
-			if (typeof message.content === "string") text.push(message.content);
-			else if (Array.isArray(message.content)) {
-				for (const part of message.content) {
-					if (
-						part &&
-						typeof part === "object" &&
-						part.type === "text" &&
-						typeof part.text === "string"
-					)
-						text.push(part.text);
-				}
+		if (typeof entry.id !== "string") return undefined;
+		targetId ??= entry.id;
+		if (entry.id !== targetId) return undefined;
+		const assistant = assistantFromEntry(entry);
+		if (assistant) return assistant;
+		if (typeof entry.parentId !== "string") return null;
+		targetId = entry.parentId;
+		return undefined;
+	};
+
+	try {
+		let position = size;
+		let partial = Buffer.alloc(0);
+		while (position > 0) {
+			const length = Math.min(READ_CHUNK_BYTES, position);
+			position -= length;
+			const chunk = Buffer.allocUnsafe(length);
+			const { bytesRead } = await file.read(chunk, 0, length, position);
+			const data = Buffer.concat([chunk.subarray(0, bytesRead), partial]);
+			let lineEnd = data.length;
+			for (let index = data.length - 1; index >= 0; index -= 1) {
+				if (data[index] !== 0x0a) continue;
+				const result = inspect(data.subarray(index + 1, lineEnd));
+				if (result !== undefined) return result ?? undefined;
+				lineEnd = index;
 			}
-			const joined = text.join("");
-			const stopReason =
-				typeof message.stopReason === "string" ? message.stopReason : undefined;
-			if (joined || stopReason === "error") {
-				node.assistant = {
-					id: entry.id,
-					text: joined,
-					...(stopReason ? { stopReason } : {}),
-				};
-			}
+			partial = data.subarray(0, lineEnd);
 		}
-		nodes.set(entry.id, node);
-		leafId = entry.id;
-	}
-	const visited = new Set();
-	let current = leafId;
-	while (current && !visited.has(current)) {
-		visited.add(current);
-		const node = nodes.get(current);
-		if (!node) break;
-		if (node.assistant) return node.assistant;
-		current = node.parentId;
+		const result = inspect(partial);
+		return result ?? undefined;
+	} finally {
+		await file.close();
 	}
 }
 
@@ -281,9 +299,7 @@ async function latest(path) {
 	const cached = assistantCache.get(expanded);
 	if (cached?.size === metadata.size && cached.mtimeMs === metadata.mtimeMs)
 		return cached.result;
-	const result = latestAssistantFromLines(
-		(await readFile(expanded, "utf8")).split("\n"),
-	);
+	const result = await latestAssistant(expanded, metadata.size);
 	assistantCache.set(expanded, {
 		size: metadata.size,
 		mtimeMs: metadata.mtimeMs,

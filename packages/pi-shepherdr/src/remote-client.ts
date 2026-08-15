@@ -336,8 +336,19 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 			if (typeof subscription === "string") {
 				const callbacks = this.subscriptions.get(subscription);
 				const event = value["event"];
-				if (callbacks && event && typeof event === "object")
-					callbacks.onEvent(event as HerdrEvent);
+				if (callbacks && event && typeof event === "object") {
+					try {
+						callbacks.onEvent(event as HerdrEvent);
+					} catch (error) {
+						this.disconnected(
+							new Error(
+								`Shepherdr event handling failed: ${error instanceof Error ? error.message : String(error)}`,
+								{ cause: error },
+							),
+						);
+						return;
+					}
+				}
 				continue;
 			}
 			const id = value["id"];
