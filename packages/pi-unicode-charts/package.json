@@ -1,0 +1,64 @@
+{
+	"name": "@howaboua/pi-unicode-charts",
+	"version": "0.0.0",
+	"description": "Terminal-native Unicode charts for Pi Markdown",
+	"type": "module",
+	"main": "src/index.ts",
+	"exports": "./src/index.ts",
+	"files": [
+		"src",
+		"README.md",
+		"LICENSE",
+		"tsconfig.json",
+		"biome.json"
+	],
+	"pi": {
+		"extensions": [
+			"./src/index.ts"
+		]
+	},
+	"scripts": {
+		"check": "bun run lint && bun run typecheck && bun run test",
+		"prepack": "bun run check",
+		"test": "bun test",
+		"typecheck": "tsgo --noEmit",
+		"lint": "biome check .",
+		"format": "biome check --write ."
+	},
+	"keywords": [
+		"pi-package",
+		"pi-extension",
+		"pi-coding-agent",
+		"pi",
+		"unicode",
+		"charts",
+		"terminal",
+		"markdown",
+		"sparkline",
+		"heatmap",
+		"data-visualization"
+	],
+	"author": "howaboua",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
+		"directory": "packages/pi-unicode-charts"
+	},
+	"bugs": {
+		"url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
+	},
+	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-unicode-charts#readme",
+	"publishConfig": {
+		"access": "public"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.16",
+		"@earendil-works/pi-coding-agent": "0.84.1",
+		"@types/node": "^24.10.0",
+		"typescript": "^5.9.3"
+	},
+	"peerDependencies": {
+		"@earendil-works/pi-coding-agent": ">=0.84.1"
+	}
+}
