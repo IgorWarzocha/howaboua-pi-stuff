@@ -1,8 +1,7 @@
 # @howaboua/pi-unicode-charts
 
-Terminal-native Unicode charts for Pi. The extension transforms explicit
-`chart` Markdown fences into width-aware bars, lines, scatter plots, sparklines,
-and heatmaps. It uses no image, browser, Python, or raster dependencies.
+Terminal-native Unicode charts for Pi Markdown. No browser, image, Python, or
+raster dependencies.
 
 ## Install
 
@@ -10,51 +9,24 @@ and heatmaps. It uses no image, browser, Python, or raster dependencies.
 pi install npm:@howaboua/pi-unicode-charts
 ```
 
-The extension adds a small chart-format hint to the model prompt and renders
-completed chart fences in user and assistant Markdown. It leaves ordinary code
-blocks and invalid charts unchanged.
-
-## Format
-
-Use one data point per line. The value may be separated with whitespace,
-commas, tabs, or pipes.
+## Use
 
 ```chart
 type: bar
-title: Requests by endpoint
+title: Monthly net change
 data:
-GET /users 120
-POST /users 80
-GET /health 42
-```
-
-```chart
-type: line
-title: Latency
-data:
-Mon 42
-Tue 51
-Wed 47
-Thu 63
-Fri 58
-```
-
-```chart
-type: sparkline
-data:
-12 18 15 23 31 28 36 42 38 45
-```
-
-Heatmaps use one row label followed by numeric cells:
-
-```chart
-type: heatmap
-title: Activity
-data:
-Mon 1 2 4 3 1
-Tue 2 4 4 2 1
-Wed 1 3 2 1 0
+Jan -8
+Feb 5
+Mar 12
+Apr -3
 ```
 
 Supported types are `bar`, `line`, `scatter`, `sparkline`, and `heatmap`.
-`histogram` is accepted as an alias for `bar`.
+Bar, line, and scatter rows use `Label value`; sparklines accept a row of
+numbers; heatmap rows use `Label value value …`. Values may be separated by
+whitespace, commas, tabs, or pipes. `histogram` aliases `bar`.
+
+The extension gives the model a short format hint and renders completed
+`chart` fences up to 80 columns wide. Charts are display-only: ordinary,
+invalid, and unfinished fences remain unchanged, and original messages stay in
+the session and model context.

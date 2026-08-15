@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-unicode-charts",
-	"version": "0.1.0",
+	"version": "0.0.0",
 	"description": "Terminal-native Unicode charts for Pi Markdown",
 	"type": "module",
 	"main": "src/index.ts",
@@ -26,13 +26,17 @@
 		"format": "biome check --write ."
 	},
 	"keywords": [
-		"pi",
 		"pi-package",
 		"pi-extension",
+		"pi-coding-agent",
+		"pi",
 		"unicode",
 		"charts",
-		"data-visualization",
-		"terminal"
+		"terminal",
+		"markdown",
+		"sparkline",
+		"heatmap",
+		"data-visualization"
 	],
 	"author": "howaboua",
 	"license": "MIT",
