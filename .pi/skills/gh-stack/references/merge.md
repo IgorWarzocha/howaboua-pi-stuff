@@ -22,6 +22,7 @@ jj rebase --source <bottom> --onto <staging>
 # resolve every recorded conflict
 jj bookmark move <umbrella> --to <top> --allow-backwards
 jj git push --remote origin --bookmark <staging>
+jj git push --remote origin --bookmark <bottom> --bookmark <next> --bookmark <top>
 jj git export --ignore-working-copy
 gh stack link --base <staging> <bottom> <next> <top>
 jj git push --remote origin --bookmark <umbrella>
@@ -108,10 +109,11 @@ sub-PRs.
 Only a separate explicit instruction authorizes the ordinary umbrella merge:
 
 ```bash
-gh pr merge <umbrella-pr> --squash
+gh pr merge <umbrella-pr> <--squash|--merge|--rebase>
 ```
 
-Use the repository-selected method. This is the sole operation that moves `main` and triggers release
+Use `--squash` by default in this repository; replace it only when repository policy or explicit user
+direction selects another method. This is the sole operation that moves `main` and triggers release
 automation. Afterward verify the umbrella merged, `main` contains the reviewed tree, focused PRs remain
 recorded as merged into staging, and no open native stack member was bypassed. Clean remote/local refs
 only when repository policy or the user requests it.

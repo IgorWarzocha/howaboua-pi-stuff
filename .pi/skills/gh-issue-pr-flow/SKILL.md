@@ -163,6 +163,8 @@ This PR ...
 
 ## Codex review
 
+Manual Codex review requests are temporarily disabled while automatic review detection is tested. Do not post the request below.
+
 When opening a PR, post the standard review request unless the user says not to. Do not repost it after every update.
 
 ```text

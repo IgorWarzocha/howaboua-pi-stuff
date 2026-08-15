@@ -10,7 +10,7 @@ Name four kinds of ref:
 ```text
 <batch>/staging        remote native-stack trunk; no PR
 <topic>/<layer>        one bookmark/branch per focused PR
-<batch>                ordinary umbrella PR head; never a stack member
+<batch>/umbrella       ordinary umbrella PR head; never a stack member
 main                   umbrella PR base; only release target
 ```
 
@@ -79,6 +79,7 @@ Link only focused bookmarks, bottom to top. `link` pushes them, creates or retar
 creates the native GitHub stack without local `gh-stack` tracking:
 
 ```bash
+jj git push --remote origin --bookmark <bottom> --bookmark <next> --bookmark <top>
 jj git export --ignore-working-copy
 gh stack link --base <staging> --open <bottom> <next> <top>
 jj git push --remote origin --bookmark <umbrella>

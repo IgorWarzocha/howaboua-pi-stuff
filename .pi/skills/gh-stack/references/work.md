@@ -33,15 +33,17 @@ umbrella explicitly to the current focused top when needed:
 
 ```bash
 jj bookmark move <umbrella> --to <top> --allow-backwards
+jj git push --remote origin --bookmark <bottom> --bookmark <next> --bookmark <top>
 jj git export --ignore-working-copy
 gh stack link --base <staging> <bottom> <next> <top>
 jj git push --remote origin --bookmark <umbrella>
 ```
 
-JJ workspaces can leave the coordinator's colocated Git refs stale; forced export makes `gh stack
-link` see current bookmarks. `jj git push` uses remote-state safety equivalent to force-with-lease.
-Fetch and inspect bookmark conflicts rather than bypassing a rejected update. Rerun `link` with the
-complete focused order when heads or PR bases changed. Never include staging or umbrella in the list.
+Push rewritten focused bookmarks through JJ first because `link` only performs a non-force Git push.
+JJ workspaces can also leave the coordinator's colocated Git refs stale; forced export makes `link`
+see current bookmarks. `jj git push` uses remote-state safety equivalent to force-with-lease. Fetch
+and inspect bookmark conflicts rather than bypassing a rejected update. Rerun `link` with the complete
+focused order when heads or PR bases changed. Never include staging or umbrella in the list.
 
 ## Parallel JJ workspaces
 
