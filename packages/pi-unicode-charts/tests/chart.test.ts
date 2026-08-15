@@ -73,4 +73,10 @@ test("keeps rendered chart rows within the requested width", () => {
 
 	const line = renderChart(cases[0]!, 40).join("\n");
 	expect(/[\u2800-\u28ff]/u.test(line)).toBe(true);
+
+	const sparkline = renderChart(cases[2]!, 40)[0] ?? "";
+	expect(sparkline.length).toBe(40);
+
+	const heatmap = renderChart(cases[3]!, 40)[0] ?? "";
+	expect(heatmap.length).toBe(40);
 });

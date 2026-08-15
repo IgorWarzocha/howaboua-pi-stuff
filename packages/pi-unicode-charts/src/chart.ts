@@ -341,10 +341,15 @@ function verticalBar(
 
 function renderSparkline(points: ChartPoint[], width: number): string[] {
 	const values = points.map((point) => point.value);
-	const chartWidth = Math.max(4, width - 2);
-	const sampled = sample(values, chartWidth);
-	const minimum = Math.min(...sampled);
-	const maximum = Math.max(...sampled);
+	const minimum = Math.min(...values);
+	const maximum = Math.max(...values);
+	const minimumLabel = formatNumber(minimum);
+	const maximumLabel = formatNumber(maximum);
+	const chartWidth = Math.max(
+		4,
+		width - displayWidth(minimumLabel) - displayWidth(maximumLabel) - 2,
+	);
+	const sampled = resample(values, chartWidth);
 	const range = maximum - minimum || 1;
 	const spark = sampled
 		.map(
@@ -354,7 +359,7 @@ function renderSparkline(points: ChartPoint[], width: number): string[] {
 				] ?? "▁",
 		)
 		.join("");
-	return [`${formatNumber(minimum)} ${spark} ${formatNumber(maximum)}`];
+	return [`${minimumLabel} ${spark} ${maximumLabel}`];
 }
 
 function renderBraille(
@@ -391,7 +396,7 @@ function renderBraille(
 			const previous = coordinates[index - 1];
 			if (previous) drawLine(previous.x, previous.y, point.x, point.y, dots);
 		} else {
-			dots.add(`${point.x},${point.y}`);
+			drawPoint(point.x, point.y, dotWidth, dotHeight, dots);
 		}
 	}
 
@@ -458,29 +463,55 @@ function drawLine(
 	}
 }
 
+function drawPoint(
+	x: number,
+	y: number,
+	width: number,
+	height: number,
+	dots: Set<string>,
+): void {
+	const startX = x >= width - 1 ? x - 1 : x;
+	const startY = y >= height - 1 ? y - 1 : y;
+	for (let offsetY = 0; offsetY < 2; offsetY += 1) {
+		for (let offsetX = 0; offsetX < 2; offsetX += 1) {
+			const dotX = startX + offsetX;
+			const dotY = startY + offsetY;
+			if (dotX < width && dotY < height) dots.add(`${dotX},${dotY}`);
+		}
+	}
+}
+
 function renderHeatmap(rows: HeatmapRow[], width: number): string[] {
 	const rowLabelWidth = Math.min(
 		14,
 		Math.max(3, ...rows.map((row) => displayWidth(row.label))),
 	);
 	const columns = Math.max(0, ...rows.map((row) => row.values.length));
-	const cellWidth = width - rowLabelWidth - 2;
-	if (columns === 0 || cellWidth < 1) return [];
+	const plotWidth = width - rowLabelWidth - 3;
+	if (columns === 0 || plotWidth < 1) return [];
 
 	const allValues = rows.flatMap((row) => row.values);
+	if (allValues.length === 0) return [];
 	const minimum = Math.min(...allValues);
 	const maximum = Math.max(...allValues);
 	const range = maximum - minimum || 1;
-	const visibleColumns = Math.min(columns, cellWidth);
+	const visibleColumns = Math.min(columns, plotWidth);
+	const columnWidths = Array.from(
+		{ length: visibleColumns },
+		(_, index) =>
+			Math.floor(plotWidth / visibleColumns) +
+			(index < plotWidth % visibleColumns ? 1 : 0),
+	);
 	const lines = rows.map((row) => {
-		const values = sample(row.values, visibleColumns);
+		const values = resample(row.values, visibleColumns);
 		const cells = values
-			.map(
-				(value) =>
+			.map((value, index) => {
+				const glyph =
 					HEAT_GLYPHS[
 						Math.min(3, Math.floor(((value - minimum) / range) * 4))
-					] ?? "░",
-			)
+					] ?? "░";
+				return glyph.repeat(columnWidths[index] ?? 1);
+			})
 			.join("");
 		return `${padEndWidth(truncate(row.label, rowLabelWidth), rowLabelWidth)} │ ${cells}`;
 	});
@@ -488,12 +519,18 @@ function renderHeatmap(rows: HeatmapRow[], width: number): string[] {
 	return lines;
 }
 
-function sample(values: number[], limit: number): number[] {
+function resample(values: number[], limit: number): number[] {
 	if (limit <= 1) return values.length > 0 ? [values[0] ?? 0] : [];
-	if (values.length <= limit) return values;
+	if (values.length === 0) return [];
+	if (values.length === 1)
+		return Array.from({ length: limit }, () => values[0] ?? 0);
 	return Array.from({ length: limit }, (_, index) => {
-		const sourceIndex = Math.round((index * (values.length - 1)) / (limit - 1));
-		return values[sourceIndex] ?? values[values.length - 1] ?? 0;
+		const sourcePosition = (index * (values.length - 1)) / (limit - 1);
+		const lowerIndex = Math.floor(sourcePosition);
+		const upperIndex = Math.ceil(sourcePosition);
+		const lower = values[lowerIndex] ?? values[values.length - 1] ?? 0;
+		const upper = values[upperIndex] ?? lower;
+		return lower + (upper - lower) * (sourcePosition - lowerIndex);
 	});
 }
 
