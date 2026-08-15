@@ -4,11 +4,11 @@
 - `bridge-server.ts` owns HTTP lifecycle, `bridge-protocol.ts` validates wire data, and `kernel-runtime.ts` owns injected Deno source
 - `jupyter-kernel.ts` owns kernel messaging/process lifecycle; connection allocation, output interpretation, and wire encoding stay in their named modules
 - `checkpoint.ts` owns host persistence and validation; checkpoint format and injected capture/restore source stay separate; session payloads are deltas against project generations
-- `journal.ts` appends cell events; `journal-document.ts` materializes standard `.ipynb` at lifecycle boundaries
+- `journal.ts` appends cell events and rotates at the heap-derived persistence budget, retaining one previous `.ipynb`; `journal-document.ts` materializes standard notebooks
 - `project-state.ts` orchestrates worktree persistence; format validation, injected runtime source, merge/conflict policy, durable metadata, and locking stay in their named modules
 - Running sessions are private forks; new `globalThis` properties and explicitly pinned bindings merge into project state, never another live kernel
 - `lifecycle.ts` owns Notebook control actions; model/session result formatting and bounds stay in `lifecycle-result.ts`; generated Deno inspection/disposal source stays in `lifecycle-runtime.ts`
-- Pin promotes a binding into durable project state and protects it; release/prune preserve pins, and prune requires a caller-selected glob
+- Pin promotion and metadata commit under one project lock; failed commits restore kernel tracking. Release/prune preserve pins, and prune requires a caller-selected glob
 - Startup lists exact-version npm imports previously used by successful project cells; guidance requires user approval before any unlisted package
 - `notebook-diagnostics.ts` maps journals to one-shot Deno diagnostics; `lsp-process.ts` owns bounded JSON-RPC process transport and never stays resident
 - `recovery.ts` coordinates host-side diagnostics and destructive reset; kernel/session mechanics remain in `client.ts`

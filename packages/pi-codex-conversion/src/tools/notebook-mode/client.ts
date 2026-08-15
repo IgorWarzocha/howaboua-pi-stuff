@@ -10,7 +10,11 @@ import { NotebookExecutionRuntime } from "./execution-runtime.ts";
 import { NotebookLifecycleController } from "./lifecycle.ts";
 import { NotebookRecoveryController } from "./recovery.ts";
 import { NotebookSessionRuntime } from "./session-runtime.ts";
-import { promoteProjectStateBindings } from "./project-state.ts";
+import {
+	promoteProjectStateBindings,
+	projectStateBindingSelection,
+	syncProjectStateBindings,
+} from "./project-state.ts";
 
 export class NotebookCodeModeClient implements CodeModeExecutionClient {
 	private readonly execution: NotebookExecutionRuntime;
@@ -46,14 +50,20 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 			kernel: () => session.kernel(),
 			activeCellId: () => this.execution.activeCellId(),
 			stopActive: () => this.execution.stopActive(),
-			checkpoint: (excludeNames) => this.checkpoint(excludeNames),
+			checkpoint: (excludeNames, pins) => this.checkpoint(excludeNames, pins),
 			retainedBindings: () => session.retainedBindings(),
 			promoteBindings: async (names) => {
 				const kernel = session.kernel();
 				if (!kernel) throw new Error("Notebook kernel is unavailable");
-				await promoteProjectStateBindings(kernel, names);
+				const previous = await projectStateBindingSelection(kernel);
+				try {
+					await promoteProjectStateBindings(kernel, names);
+				} catch (error) {
+					await syncProjectStateBindings(kernel, previous).catch(() => undefined);
+					throw error;
+				}
+				return () => syncProjectStateBindings(kernel, previous);
 			},
-			setPins: (names, pinned) => session.setPins(names, pinned),
 			markChanged: () => session.checkpoints.schedule(),
 			restart: (context, signal) => session.restart(context, signal),
 			rollback: async (context) => { await session.restart(context, undefined, true); },
@@ -89,9 +99,17 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		return this.execution.terminate(cellId, context, signal);
 	}
 
-	async checkpoint(excludeNames?: ReadonlySet<string>): Promise<void> {
-		await this.session.checkpoints.flush({ requireIdle: true, force: true, excludeNames });
-		this.session.materializeJournal();
+	async checkpoint(
+		excludeNames?: ReadonlySet<string>,
+		pins?: { names: readonly string[]; pinned: boolean },
+	): Promise<void> {
+		await this.session.checkpoints.flush({ requireIdle: true, force: true, excludeNames, pins });
+		try {
+			this.session.materializeJournal();
+		} catch (error) {
+			if (!pins) throw error;
+			this.session.addNotice(`Notebook journal was not materialized: ${error instanceof Error ? error.message : String(error)}`);
+		}
 	}
 
 	async controlNotebook(

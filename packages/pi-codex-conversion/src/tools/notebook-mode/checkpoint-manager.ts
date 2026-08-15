@@ -4,6 +4,7 @@ import {
 	type ProjectStateBaseline,
 	writeProjectState,
 } from "./project-state.ts";
+import type { ProjectStatePinUpdate } from "./project-state-merge.ts";
 
 const CHECKPOINT_DEBOUNCE_MS = 1_500;
 
@@ -56,6 +57,7 @@ export class NotebookCheckpointManager {
 		requireIdle?: boolean | undefined;
 		force?: boolean | undefined;
 		excludeNames?: ReadonlySet<string> | undefined;
+		pins?: ProjectStatePinUpdate | undefined;
 	} = {}): Promise<void> {
 		if (this.timer) clearTimeout(this.timer);
 		this.timer = undefined;
@@ -100,6 +102,7 @@ export class NotebookCheckpointManager {
 		requireIdle?: boolean | undefined;
 		force?: boolean | undefined;
 		excludeNames?: ReadonlySet<string> | undefined;
+		pins?: ProjectStatePinUpdate | undefined;
 	}): Promise<void> {
 		const runningCellId = this.runningCellId();
 		if (runningCellId) {
@@ -121,6 +124,7 @@ export class NotebookCheckpointManager {
 				this.baselineNames,
 				this.maxBytes,
 				options.excludeNames,
+				options.pins,
 			);
 			this.projectBaseline = project.baseline;
 			const sessionHashes = new Map(project.baseline.entries.map(({ name, hash }) => [name, hash]));
@@ -130,12 +134,14 @@ export class NotebookCheckpointManager {
 			if (project.conflicts.length > 0) {
 				this.reportNotice(`Project notebook conflicts preserved without overwrite: ${project.conflicts.join(", ")}`, false);
 			}
+			if (project.message) this.reportNotice(project.message, false);
 		} catch (error) {
 			this.dirty = true;
 			const notice = `Project notebook checkpoint failed: ${error instanceof Error ? error.message : String(error)}`;
 			this.reportNotice(notice, true);
 			projectFailure = new Error(notice, { cause: error });
 		}
+		if (projectFailure && options.pins) throw projectFailure;
 		try {
 			await writeNotebookCheckpoint(
 				kernel,
@@ -149,6 +155,7 @@ export class NotebookCheckpointManager {
 			this.dirty = true;
 			const notice = `Session notebook checkpoint failed: ${error instanceof Error ? error.message : String(error)}`;
 			this.reportNotice(notice, true);
+			if (options.pins && !projectFailure) return;
 			throw new Error(notice, { cause: error });
 		}
 		if (projectFailure) throw projectFailure;

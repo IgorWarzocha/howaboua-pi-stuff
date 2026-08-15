@@ -39,6 +39,8 @@ export class SharedCodeModeRuntime {
 	readonly providers = new Map<object, CodeModeToolProvider>();
 	private clientPromise: Promise<CodeModeHostClient> | undefined;
 	private notebookClientPromise: Promise<CodeModeExecutionClient> | undefined;
+	private notebookClientOptionsKey: string | undefined;
+	private notebookClientTransition: Promise<void> = Promise.resolve();
 	private clientStartupAbort: AbortController | undefined;
 	private customPromptToolsSnapshot: CodeModeToolDefinition[] | undefined;
 	private promptSectionSnapshot: string | undefined;
@@ -138,19 +140,34 @@ export class SharedCodeModeRuntime {
 		return this.clientPromise;
 	}
 
-	private async getNotebookClient(ctx?: unknown): Promise<CodeModeExecutionClient> {
-		if (!this.notebookClientPromise) {
-			const options = this.activeProviders(ctx).find((provider) => provider.notebookOptions)?.notebookOptions?.(ctx);
-			if (!options) throw new Error("Notebook Code Mode runtime options are unavailable");
-			const pending = import("../notebook-mode/client.ts").then(
-				({ NotebookCodeModeClient }) => new NotebookCodeModeClient(options),
-			);
-			this.notebookClientPromise = pending;
-			void pending.catch(() => {
-				if (this.notebookClientPromise === pending) this.notebookClientPromise = undefined;
-			});
-		}
-		return this.notebookClientPromise;
+	private getNotebookClient(ctx?: unknown): Promise<CodeModeExecutionClient> {
+		const options = this.activeProviders(ctx).find((provider) => provider.notebookOptions)?.notebookOptions?.(ctx);
+		if (!options) return Promise.reject(new Error("Notebook Code Mode runtime options are unavailable"));
+		const key = JSON.stringify([options.agentDir, options.maxHeapMiB, options.profile ?? null]);
+		if (this.notebookClientPromise && this.notebookClientOptionsKey === key) return this.notebookClientPromise;
+		const transition = this.notebookClientTransition.then(async () => {
+			if (this.notebookClientPromise && this.notebookClientOptionsKey !== key) {
+				const previous = this.notebookClientPromise;
+				this.notebookClientPromise = undefined;
+				this.notebookClientOptionsKey = undefined;
+				await (await previous).shutdown();
+			}
+			if (!this.notebookClientPromise) {
+				const pending = import("../notebook-mode/client.ts").then(
+					({ NotebookCodeModeClient }) => new NotebookCodeModeClient(options),
+				);
+				this.notebookClientPromise = pending;
+				this.notebookClientOptionsKey = key;
+				void pending.catch(() => {
+					if (this.notebookClientPromise !== pending) return;
+					this.notebookClientPromise = undefined;
+					this.notebookClientOptionsKey = undefined;
+				});
+			}
+			return this.notebookClientPromise;
+		});
+		this.notebookClientTransition = transition.then(() => undefined, () => undefined);
+		return transition;
 	}
 
 	prepare(ctx?: unknown): Promise<void> | undefined {
@@ -179,6 +196,7 @@ export class SharedCodeModeRuntime {
 	}
 
 	async shutdownHost(): Promise<void> {
+		await this.notebookClientTransition;
 		while (this.clientPromise) {
 			const pending = this.clientPromise;
 			this.clientPromise = undefined;
@@ -193,6 +211,7 @@ export class SharedCodeModeRuntime {
 		while (this.notebookClientPromise) {
 			const pending = this.notebookClientPromise;
 			this.notebookClientPromise = undefined;
+			this.notebookClientOptionsKey = undefined;
 			try {
 				await (await pending).shutdown();
 			} catch {

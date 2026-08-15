@@ -67,14 +67,15 @@ export async function startNotebookSession(options: {
 			session: notebookSessionIdentity(context),
 			agentDir: runtime.agentDir,
 		};
-		const journal = initializeNotebookJournal(checkpointIdentity);
-		const baselineNames = new Set(await kernel.complete("", 0));
+		const journal = initializeNotebookJournal(checkpointIdentity, options.checkpointMaxBytes);
+		const baselineNames = new Set(await kernel.complete("", 0, signal));
 		const projectState = await restoreProjectState(kernel, {
 			project,
 			agentDir: runtime.agentDir,
 			maxBytes: options.checkpointMaxBytes,
+			signal,
 		});
-		const restored = await restoreNotebookCheckpoint(kernel, checkpointIdentity, options.checkpointMaxBytes, projectState.baseline);
+		const restored = await restoreNotebookCheckpoint(kernel, checkpointIdentity, options.checkpointMaxBytes, projectState.baseline, signal);
 		let profileNotice: string | undefined;
 		let configuredProfileLoaded = false;
 		if (runtime.profile) {

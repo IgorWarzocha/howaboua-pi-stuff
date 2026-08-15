@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { RuntimeContentItem } from "../code-mode/types.ts";
 import {
@@ -24,6 +24,7 @@ export interface NotebookJournal {
 	cells: number;
 	completedCells: number;
 	writable: boolean;
+	maxBytes: number;
 }
 
 export interface NotebookJournalCodeCell {
@@ -32,7 +33,10 @@ export interface NotebookJournalCodeCell {
 	source: string;
 }
 
-export function initializeNotebookJournal(identity: { project: string; session: string; agentDir: string }): NotebookJournal {
+export function initializeNotebookJournal(
+	identity: { project: string; session: string; agentDir: string },
+	maxBytes: number,
+): NotebookJournal {
 	const project = resolve(identity.project);
 	const projectKey = createHash("sha256").update(project).digest("hex");
 	const sessionKey = createHash("sha256").update(identity.session).digest("hex");
@@ -42,7 +46,7 @@ export function initializeNotebookJournal(identity: { project: string; session: 
 	const eventsPath = journalEventsPath(path);
 	if (!existsSync(path)) writeNotebookDocument(path, emptyNotebookDocument(project, identity.session));
 	if (!existsSync(eventsPath)) writeFileSync(eventsPath, "", { mode: 0o600 });
-	const journal = { path, eventsPath, project, session: identity.session, cells: 0, completedCells: 0, writable: true };
+	const journal = { path, eventsPath, project, session: identity.session, cells: 0, completedCells: 0, writable: true, maxBytes };
 	try { materializeNotebookJournal(journal); } catch { journal.writable = false; }
 	const document = readNotebookDocument(path);
 	if (!document) journal.writable = false;
@@ -53,8 +57,31 @@ export function initializeNotebookJournal(identity: { project: string; session: 
 
 export function beginNotebookJournalCell(journal: NotebookJournal, cell: { id: string; source: string }): void {
 	if (!journal.writable) throw new Error(`Notebook journal requires diagnostics: ${journal.path}`);
+	rotateNotebookJournalIfNeeded(journal);
 	appendEvent(journal, { type: "begin", id: cell.id, source: cell.source, createdAt: new Date().toISOString() });
 	journal.cells += 1;
+}
+
+function rotateNotebookJournalIfNeeded(journal: NotebookJournal): void {
+	if (fileSize(journal.path) + fileSize(journal.eventsPath) <= journal.maxBytes) return;
+	materializeNotebookJournal(journal);
+	if (fileSize(journal.path) <= journal.maxBytes) return;
+	const previous = journal.path.replace(/\.ipynb$/, ".previous.ipynb");
+	const replacement = `${journal.path}.replacement`;
+	writeNotebookDocument(replacement, emptyNotebookDocument(journal.project, journal.session));
+	try {
+		rmSync(previous, { force: true });
+		renameSync(journal.path, previous);
+		renameSync(replacement, journal.path);
+	} finally {
+		rmSync(replacement, { force: true });
+	}
+	journal.cells = 0;
+	journal.completedCells = 0;
+}
+
+function fileSize(path: string): number {
+	try { return statSync(path).size; } catch { return 0; }
 }
 
 export function finishNotebookJournalCell(
@@ -111,6 +138,7 @@ function appendEvent(journal: NotebookJournal, event: NotebookJournalEvent): voi
 }
 
 function readEvents(path: string): NotebookJournalEvent[] {
+	if (!existsSync(path)) return [];
 	try {
 		const text = readFileSync(path, "utf8");
 		const lines = text.split("\n");

@@ -19,12 +19,18 @@ export interface ProjectStateMerge {
 	conflictPayload: Buffer;
 }
 
+export interface ProjectStatePinUpdate {
+	names: readonly string[];
+	pinned: boolean;
+}
+
 export function mergeProjectState(options: {
 	baseline: ProjectStateBaseline;
 	current?: ProjectStateManifest | undefined;
 	candidate: ProjectStateCandidate;
 	candidatePayload: Buffer;
 	currentPayload: Buffer;
+	pins?: ProjectStatePinUpdate | undefined;
 }): ProjectStateMerge {
 	const base = new Map(options.baseline.entries.map(({ name, hash }) => [name, hash]));
 	const current = new Map((options.current?.entries ?? []).map((entry) => [entry.name, entry]));
@@ -44,7 +50,6 @@ export function mergeProjectState(options: {
 	const appliedNames: string[] = [];
 	let offset = 0;
 	let conflictOffset = 0;
-	let candidateChangedAny = false;
 	const capturedAt = new Date().toISOString();
 	for (const name of names) {
 		const baseHash = base.get(name);
@@ -54,7 +59,6 @@ export function mergeProjectState(options: {
 		const currentHash = currentEntry?.hash;
 		const candidateChanged = !skipped.has(name) && candidateHash !== baseHash;
 		const currentChanged = currentHash !== baseHash;
-		candidateChangedAny ||= candidateChanged;
 		let selected: { entry: ProjectStateEntry; payload: Buffer } | undefined;
 		if (candidateChanged && !candidateEntry && currentEntry?.pinned) {
 			conflicts.push(name);
@@ -95,11 +99,25 @@ export function mergeProjectState(options: {
 		});
 		offset += bytes.length;
 	}
-	const currentShape = JSON.stringify((options.current?.entries ?? []).map(({ name, kind, hash }) => [name, kind, hash]));
-	const mergedShape = JSON.stringify(entries.map(({ name, kind, hash }) => [name, kind, hash]));
+	if (options.pins) {
+		const selected = new Set(options.pins.names);
+		const available = new Set(entries.map(({ name }) => name));
+		const missing = options.pins.names.filter((name) => !available.has(name));
+		if (missing.length > 0) throw new Error(`Durable notebook bindings not found: ${missing.join(", ")}`);
+		for (let index = 0; index < entries.length; index += 1) {
+			const entry = entries[index]!;
+			if (!selected.has(entry.name)) continue;
+			entries[index] = {
+				...entry,
+				...(options.pins.pinned ? { pinned: true } : { pinned: undefined }),
+			};
+		}
+	}
+	const currentShape = JSON.stringify((options.current?.entries ?? []).map(({ name, kind, hash, pinned }) => [name, kind, hash, pinned === true]));
+	const mergedShape = JSON.stringify(entries.map(({ name, kind, hash, pinned }) => [name, kind, hash, pinned === true]));
 	const skippedBaseline = options.baseline.entries.filter(({ name }) => skipped.has(name));
 	return {
-		changed: candidateChangedAny && mergedShape !== currentShape,
+		changed: mergedShape !== currentShape,
 		baseline: {
 			generation: options.baseline.generation,
 			entries: [

@@ -7,6 +7,7 @@ export function checkpointSource(options: {
 	directory: string;
 	identity: NotebookCheckpointIdentity;
 	projectGeneration: string;
+	projectNames: string[];
 	payload: string;
 	skippedInvalid: Array<{ name: string; reason: string }>;
 	maxBytes: number;
@@ -63,6 +64,7 @@ export function checkpointSource(options: {
     schema: ${CHECKPOINT_SCHEMA},
     project: ${JSON.stringify(options.identity.project)},
 	projectGeneration: ${JSON.stringify(options.projectGeneration)},
+	projectNames: ${JSON.stringify(options.projectNames)},
     session: ${JSON.stringify(options.identity.session)},
     deno: Deno.version.deno,
     v8: Deno.version.v8,

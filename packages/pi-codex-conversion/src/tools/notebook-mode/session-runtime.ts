@@ -9,7 +9,7 @@ import { materializeNotebookJournal, type NotebookJournal } from "./journal.ts";
 import type { DenoJupyterKernel } from "./jupyter-kernel.ts";
 import { extractNotebookNpmImports, recordNotebookNpmImports } from "./npm-imports.ts";
 import { resolveNotebookProject } from "./project-identity.ts";
-import { readRetainedProjectBindings, setProjectBindingPins, type RetainedProjectBinding } from "./project-state-metadata.ts";
+import { readRetainedProjectBindings, type RetainedProjectBinding } from "./project-state-metadata.ts";
 import { startNotebookSession } from "./session-startup.ts";
 import { notebookSessionIdentity } from "./session-identity.ts";
 
@@ -149,10 +149,6 @@ export class NotebookSessionRuntime {
 		return this.checkpointIdentityValue
 			? readRetainedProjectBindings(this.checkpointIdentityValue, this.checkpointMaxBytes)
 			: [];
-	}
-	setPins(names: string[], pinned: boolean): Promise<RetainedProjectBinding[]> {
-		if (!this.checkpointIdentityValue) throw new Error("Notebook project state is unavailable");
-		return setProjectBindingPins(this.checkpointIdentityValue, this.checkpointMaxBytes, names, pinned);
 	}
 	recordMemory(memory: NotebookMemoryUsage | undefined): void { this.memoryValue = memory; }
 	async recordNpmImports(source: string): Promise<void> {

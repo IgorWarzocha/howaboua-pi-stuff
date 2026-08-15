@@ -39,7 +39,7 @@ export class NotebookRecoveryController {
 
 	async diagnostics(context: ToolExecutionContext, signal?: AbortSignal): Promise<NotebookControlResult> {
 		const identity = this.identity(context, "diagnostics");
-		const journal = initializeNotebookJournal(identity);
+		const journal = initializeNotebookJournal(identity, this.maxBytes);
 		const deno = await ensureNotebookDenoBinary({ agentDir: this.agentDir }, signal);
 		const runtimeBindings = new Set([
 			...projectStateBindingNames(identity, this.maxBytes),
@@ -59,7 +59,7 @@ export class NotebookRecoveryController {
 		const projectReset = await resetProjectState(identity);
 		await resetNotebookNpmImports(identity);
 		removeNotebookCheckpoint(identity);
-		await this.host.startClean(extension);
+		await this.host.startClean(extension, signal);
 		await this.host.checkpointEmpty();
 		return {
 			message: `Notebook reset to empty state; discarded ${projectReset.previousBindings} project binding${projectReset.previousBindings === 1 ? "" : "s"}${activeCell ? ` and terminated ${activeCell}` : ""}. Saved notebook and named profiles were preserved; use exec to establish repaired state`,

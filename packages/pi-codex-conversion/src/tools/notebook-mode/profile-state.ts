@@ -52,7 +52,7 @@ export async function saveNotebookProfile(options: {
 	const candidatePayload = join(paths.directory, `candidate-${id}.bin`);
 	const candidateManifest = join(paths.directory, `candidate-${id}.json`);
 	try {
-		const names = [...new Set(await options.kernel.complete("", 0))]
+		const names = [...new Set(await options.kernel.complete("", 0, options.signal))]
 			.filter((name) => IDENTIFIER.test(name) && !options.baselineNames.has(name))
 			.sort();
 		if (names.length > MAX_PROJECT_ENTRIES) throw new Error(`Notebook profile exceeds ${MAX_PROJECT_ENTRIES} top-level values`);
@@ -113,7 +113,7 @@ export async function loadNotebookProfile(options: {
 			throw new Error(`Notebook profile payload is missing or invalid: ${options.name}`);
 		}
 		const current = new Set(
-			[...new Set(await options.kernel.complete("", 0))]
+			[...new Set(await options.kernel.complete("", 0, options.signal))]
 				.filter((name) => IDENTIFIER.test(name) && !options.baselineNames.has(name)),
 		);
 		const collisions = manifest.entries.map(({ name }) => name).filter((name) => current.has(name));

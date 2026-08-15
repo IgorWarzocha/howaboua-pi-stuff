@@ -38,10 +38,9 @@ interface NotebookLifecycleHost {
 	kernel(): DenoJupyterKernel | undefined;
 	activeCellId(): string | undefined;
 	stopActive(): Promise<string | undefined>;
-	checkpoint(excludeNames?: ReadonlySet<string>): Promise<void>;
+	checkpoint(excludeNames?: ReadonlySet<string>, pins?: { names: readonly string[]; pinned: boolean }): Promise<void>;
 	retainedBindings(): RetainedProjectBinding[];
-	promoteBindings(names: string[]): Promise<void>;
-	setPins(names: string[], pinned: boolean): Promise<RetainedProjectBinding[]>;
+	promoteBindings(names: string[]): Promise<() => Promise<void>>;
 	markChanged(): void;
 	restart(context: ExtensionContext, signal?: AbortSignal): Promise<string | undefined>;
 	rollback(context: ExtensionContext): Promise<void>;
@@ -165,15 +164,21 @@ export class NotebookLifecycleController {
 	private async pin(names: string[], pinned: boolean): Promise<NotebookControlResult> {
 		const activeCell = this.host.activeCellId();
 		if (activeCell) throw new Error(`Cannot change notebook pins while exec cell "${activeCell}" is running`);
+		let rollbackPromotion: (() => Promise<void>) | undefined;
 		if (pinned) {
 			const kernel = this.host.kernel()!;
 			const available = new Set(await this.userBindingNames(kernel));
 			const invalid = names.filter((name) => !IDENTIFIER.test(name) || !available.has(name));
 			if (invalid.length > 0) throw new Error(`Notebook bindings not found or not pinnable: ${invalid.join(", ")}`);
-			await this.host.promoteBindings(names);
+			rollbackPromotion = await this.host.promoteBindings(names);
 		}
-		await this.host.checkpoint();
-		const retained = await this.host.setPins(names, pinned);
+		try {
+			await this.host.checkpoint(undefined, { names, pinned });
+		} catch (error) {
+			await rollbackPromotion?.().catch(() => undefined);
+			throw error;
+		}
+		const retained = this.host.retainedBindings();
 		const reportedNames = withinNameBudget(names);
 		const selected = retained.filter((binding) => reportedNames.includes(binding.name));
 		const bindings = takeDetailValues(selected, { remaining: NOTEBOOK_DETAILS_BUDGET });

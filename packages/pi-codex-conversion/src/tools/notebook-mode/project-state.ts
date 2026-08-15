@@ -26,7 +26,7 @@ import {
 	type ProjectStateManifest,
 	type ProjectStateSummary,
 } from "./project-state-format.ts";
-import { mergeProjectState, type ProjectStateMerge } from "./project-state-merge.ts";
+import { mergeProjectState, type ProjectStateMerge, type ProjectStatePinUpdate } from "./project-state-merge.ts";
 import { withProjectStateLock } from "./project-state-lock.ts";
 import {
 	parseProjectBindingNames,
@@ -44,11 +44,11 @@ export type { ProjectStateBaseline, ProjectStateSummary } from "./project-state-
 
 export async function restoreProjectState(
 	kernel: DenoJupyterKernel,
-	identity: { project: string; agentDir: string; maxBytes: number },
+	identity: { project: string; agentDir: string; maxBytes: number; signal?: AbortSignal | undefined },
 ): Promise<ProjectStateSummary> {
 	const paths = projectStatePaths(identity.project, identity.agentDir);
 	mkdirSync(paths.directory, { recursive: true });
-	return withProjectStateLock(paths.lock, () => restoreProjectStateLocked(kernel, identity, paths));
+	return withProjectStateLock(paths.lock, () => restoreProjectStateLocked(kernel, identity, paths), identity.signal);
 }
 
 export async function resetProjectState(identity: {
@@ -100,9 +100,10 @@ export function projectStateBindingNames(identity: { project: string; agentDir: 
 
 async function restoreProjectStateLocked(
 	kernel: DenoJupyterKernel,
-	identity: { project: string; maxBytes: number },
+	identity: { project: string; maxBytes: number; signal?: AbortSignal | undefined },
 	paths: ReturnType<typeof projectStatePaths>,
 ): Promise<ProjectStateSummary> {
+	identity.signal?.throwIfAborted();
 	const manifest = readProjectStateManifest(paths.manifest);
 	if (!manifest) return emptyProjectStateSummary();
 	if (manifest.project !== resolve(identity.project)) {
@@ -112,7 +113,8 @@ async function restoreProjectStateLocked(
 	if (!readProjectStatePayload(manifest, payloadPath, identity.maxBytes)) {
 		return { ...emptyProjectStateSummary(), message: "Project notebook payload was missing or invalid and was not restored" };
 	}
-	const result = await kernel.execute(projectStateRestoreSource(manifest, payloadPath));
+	identity.signal?.throwIfAborted();
+	const result = await kernel.execute(projectStateRestoreSource(manifest, payloadPath), { signal: identity.signal });
 	if (result.status !== "ok") {
 		return {
 			...emptyProjectStateSummary(),
@@ -134,6 +136,7 @@ export async function writeProjectState(
 	baselineNames: ReadonlySet<string>,
 	maxBytes: number,
 	excludeNames: ReadonlySet<string> = new Set(),
+	pins?: ProjectStatePinUpdate | undefined,
 ): Promise<ProjectStateSummary> {
 	const paths = projectStatePaths(identity.project, identity.agentDir);
 	mkdirSync(paths.directory, { recursive: true });
@@ -168,19 +171,26 @@ export async function writeProjectState(
 				candidate,
 				candidatePayload,
 				maxBytes,
+				pins,
 			}));
 		const committedNames = [...new Set([
 			...(committed.manifest?.entries.map(({ name }) => name) ?? []),
 			...candidate.skipped.map(({ name }) => name),
 		])];
-		const sync = await kernel.execute(syncProjectBindingsSource(committedNames));
-		if (sync.status !== "ok") throw new Error(`Project notebook tracking could not be synchronized: ${sync.errorText ?? "unknown error"}`);
+		let syncWarning: string | undefined;
+		try {
+			const sync = await kernel.execute(syncProjectBindingsSource(committedNames));
+			if (sync.status !== "ok") syncWarning = `Project notebook tracking could not be synchronized: ${sync.errorText ?? "unknown error"}`;
+		} catch (error) {
+			syncWarning = `Project notebook tracking could not be synchronized: ${error instanceof Error ? error.message : String(error)}`;
+		}
 		if (!committed.manifest) return { ...emptyProjectStateSummary(), skipped: candidate.skipped, conflicts: committed.conflicts };
 		return {
 			baseline: committed.baseline,
 			restored: committed.manifest.entries,
 			skipped: candidate.skipped,
 			conflicts: committed.conflicts,
+			...(syncWarning ? { message: syncWarning } : {}),
 		};
 	} finally {
 		rmSync(candidatePayloadPath, { force: true });
@@ -192,6 +202,19 @@ export async function promoteProjectStateBindings(kernel: DenoJupyterKernel, nam
 	if (names.some((name) => !IDENTIFIER.test(name))) throw new Error("Project notebook binding name is invalid");
 	const result = await kernel.execute(promoteProjectBindingsSource(names));
 	if (result.status !== "ok") throw new Error(`Project notebook bindings could not be promoted: ${result.errorText ?? "unknown error"}`);
+}
+
+export async function projectStateBindingSelection(kernel: DenoJupyterKernel, signal?: AbortSignal): Promise<string[]> {
+	const marker = `__PI_NOTEBOOK_PROJECT_BINDINGS_${randomUUID()}__`;
+	return parseProjectBindingNames(
+		await kernel.execute(projectBindingNamesSource(marker), { signal }),
+		marker,
+	);
+}
+
+export async function syncProjectStateBindings(kernel: DenoJupyterKernel, names: string[], signal?: AbortSignal): Promise<void> {
+	const result = await kernel.execute(syncProjectBindingsSource(names), { signal });
+	if (result.status !== "ok") throw new Error(`Project notebook tracking could not be synchronized: ${result.errorText ?? "unknown error"}`);
 }
 
 export function formatProjectStateNotice(summary: ProjectStateSummary): string | undefined {
@@ -214,6 +237,7 @@ async function commitCandidate(options: {
 	candidate: ProjectStateCandidate;
 	candidatePayload: Buffer;
 	maxBytes: number;
+	pins?: ProjectStatePinUpdate | undefined;
 }): Promise<{ manifest?: ProjectStateManifest | undefined; baseline: ProjectStateBaseline; conflicts: string[] }> {
 	const current = readProjectStateManifest(options.paths.manifest);
 	if (current && current.entries.length > 0 && (current.deno !== options.candidate.deno || current.v8 !== options.candidate.v8)) {
@@ -229,7 +253,10 @@ async function commitCandidate(options: {
 		candidate: options.candidate,
 		candidatePayload: options.candidatePayload,
 		currentPayload,
+		pins: options.pins,
 	});
+	const pinConflicts = options.pins?.names.filter((name) => merged.conflicts.includes(name)) ?? [];
+	if (pinConflicts.length > 0) throw new Error(`Notebook bindings changed concurrently and were not pinned: ${pinConflicts.join(", ")}`);
 	if (merged.payload.length > options.maxBytes) throw new Error("Merged project notebook exceeds the checkpoint cap");
 	if (merged.conflicts.length > 0) writeProjectConflict(options.paths.directory, options.identity, merged);
 	const manifest = merged.changed
@@ -271,7 +298,9 @@ function writeMergedProjectState(
 	const temporary = `${paths.manifest}.${randomUUID()}.tmp`;
 	writeFileSync(temporary, text, { mode: 0o600 });
 	renameSync(temporary, paths.manifest);
-	if (current?.payload && current.payload !== payload) rmSync(join(paths.directory, current.payload), { force: true });
+	if (current?.payload && current.payload !== payload) {
+		try { rmSync(join(paths.directory, current.payload), { force: true }); } catch {}
+	}
 	return manifest;
 }
 

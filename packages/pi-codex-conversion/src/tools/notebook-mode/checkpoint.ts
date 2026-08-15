@@ -86,6 +86,7 @@ export async function writeNotebookCheckpoint(
 		directory: paths.directory,
 		identity,
 		projectGeneration: projectBaseline.generation,
+		projectNames: projectBaseline.entries.map(({ name }) => name),
 		payload,
 		skippedInvalid,
 		maxBytes,
@@ -102,7 +103,9 @@ export async function restoreNotebookCheckpoint(
 	identity: NotebookCheckpointIdentity,
 	maxBytes: number,
 	projectBaseline: ProjectStateBaseline,
+	signal?: AbortSignal,
 ): Promise<NotebookCheckpointSummary> {
+	signal?.throwIfAborted();
 	const paths = checkpointPaths(identity);
 	if (!existsSync(paths.manifest)) return { restored: [], skipped: [] };
 	const manifest = readManifest(paths.manifest);
@@ -118,8 +121,9 @@ export async function restoreNotebookCheckpoint(
 	if (!isValidCheckpointPayload(manifest, payloadPath, maxBytes)) {
 		return { restored: [], skipped: manifest.skipped, message: "Notebook checkpoint payload was missing or invalid and was not restored" };
 	}
+	signal?.throwIfAborted();
 	const excluded = sessionCheckpointProjectExclusions(manifest, projectBaseline);
-	const result = await kernel.execute(restoreSource(manifest, payloadPath, excluded));
+	const result = await kernel.execute(restoreSource(manifest, payloadPath, excluded), { signal });
 	if (result.status !== "ok") {
 		return {
 			restored: [],

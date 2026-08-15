@@ -30,6 +30,7 @@ interface ShellReplyWaiter {
 	resolve(message: JupyterMessage): void;
 	reject(error: Error): void;
 	timer?: ReturnType<typeof setTimeout> | undefined;
+	abort?: (() => void) | undefined;
 }
 
 export class DenoJupyterKernel {
@@ -102,7 +103,7 @@ export class DenoJupyterKernel {
 		try {
 			const [result, reply] = await Promise.all([
 				completion,
-				this.sendShellRequest(message),
+				this.sendShellRequest(message, undefined, "execute_request", options.signal),
 			]);
 			if (reply.header.msg_type !== "execute_reply") {
 				throw new Error(`Deno Jupyter returned ${reply.header.msg_type} for execute_request`);
@@ -117,13 +118,14 @@ export class DenoJupyterKernel {
 		}
 	}
 
-	async complete(code = "", cursorPosition = code.length): Promise<string[]> {
-		await this.start();
+	async complete(code = "", cursorPosition = code.length, signal?: AbortSignal): Promise<string[]> {
+		await this.start(signal);
+		signal?.throwIfAborted();
 		if (this.active) throw new Error("Cannot request notebook completions while a cell is active");
 		const response = await this.shellRequest("complete_request", {
 			code,
 			cursor_pos: cursorPosition,
-		});
+		}, REQUEST_TIMEOUT_MS, signal);
 		const matches = response.content["matches"];
 		return Array.isArray(matches)
 			? matches.filter((value): value is string => typeof value === "string")
@@ -226,7 +228,7 @@ export class DenoJupyterKernel {
 			if (remaining <= 0) {
 				throw new Error(`Deno Jupyter IOPub did not become ready within ${STARTUP_TIMEOUT_MS}ms${this.stderr ? `\n${this.stderr}` : ""}`);
 			}
-			await this.shellRequest("kernel_info_request", {}, remaining);
+			await this.shellRequest("kernel_info_request", {}, remaining, signal);
 			const ready = await Promise.race([
 				iopubReady.then(() => true),
 				sleep(Math.min(100, remaining), false, signal ? { signal } : undefined),
@@ -239,18 +241,20 @@ export class DenoJupyterKernel {
 		type: string,
 		content: Record<string, unknown>,
 		timeoutMs = REQUEST_TIMEOUT_MS,
+		signal?: AbortSignal,
 	): Promise<JupyterMessage> {
 		const shell = this.shell;
 		const connection = this.connection;
 		if (!shell || !connection) throw new Error("Deno Jupyter shell is not connected");
 		const request = createJupyterMessage(type, content, this.session);
-		return this.sendShellRequest(request, timeoutMs, type);
+		return this.sendShellRequest(request, timeoutMs, type, signal);
 	}
 
 	private async sendShellRequest(
 		request: JupyterMessage,
 		timeoutMs?: number,
 		requestType = "request",
+		signal?: AbortSignal,
 	): Promise<JupyterMessage> {
 		const shell = this.shell;
 		const connection = this.connection;
@@ -268,14 +272,26 @@ export class DenoJupyterKernel {
 				waiter.reject(new Error(`Deno Jupyter did not answer ${requestType} within ${timeoutMs}ms${this.stderr ? `\n${this.stderr}` : ""}`));
 			}, timeoutMs);
 		}
+		if (signal) {
+			waiter.abort = () => {
+				if (this.shellReplies.get(requestId) !== waiter) return;
+				this.shellReplies.delete(requestId);
+				if (waiter.timer) clearTimeout(waiter.timer);
+				waiter.reject(signal.reason instanceof Error ? signal.reason : new Error("Deno Jupyter request aborted"));
+			};
+			signal.addEventListener("abort", waiter.abort, { once: true });
+		}
 		this.shellReplies.set(requestId, waiter);
 		try {
+			signal?.throwIfAborted();
 			await shell.send(encodeJupyterMessage(request, connection.key));
 			return await reply;
 		} catch (error) {
 			if (this.shellReplies.get(requestId) === waiter) this.shellReplies.delete(requestId);
 			if (waiter.timer) clearTimeout(waiter.timer);
 			throw error;
+		} finally {
+			if (waiter.abort) signal?.removeEventListener("abort", waiter.abort);
 		}
 	}
 
