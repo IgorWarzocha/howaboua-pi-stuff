@@ -13,6 +13,7 @@ export interface RemoteMachineConfig {
 	agentDir: string;
 	command: string[];
 	cwd?: string;
+	herdr: string;
 	node: string;
 	session?: string;
 	socket?: string;
@@ -69,6 +70,7 @@ function parseMachine(name: string, value: unknown): RemoteMachineConfig {
 	return {
 		command: command as string[],
 		agentDir: optionalString(record, "agentDir") ?? "~/.pi/agent",
+		herdr: optionalString(record, "herdr") ?? "herdr",
 		node: optionalString(record, "node") ?? "node",
 		...(() => {
 			const cwd = optionalString(record, "cwd");

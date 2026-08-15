@@ -34,9 +34,9 @@ interface AgentEventLabels {
 interface AgentEventOptions {
 	agent: PaneInfo;
 	blockedMessage?: string;
-	local: boolean;
 	labels: AgentEventLabels;
 	machine: string;
+	operatorPrefix: string;
 	record: MonitoredAgent;
 	reply?: LatestAssistant;
 	status: SettledAgentStatus;
@@ -118,28 +118,24 @@ function announceAgentEvent(
 	pi.events.emit(REALTIME_VOICE_PROMPT_CHANNEL, { id, active: false, prompt });
 }
 
-function operatorCommand(
-	machine: string,
-	local: boolean,
-	command: string,
-): string {
-	return local ? `\`${command}\`` : `on machine ${machine} with \`${command}\``;
+function operatorCommand(operatorPrefix: string, command: string): string {
+	return `\`${operatorPrefix} ${command}\``;
 }
 
 function blockedOperatorHint(
 	machine: string,
-	local: boolean,
+	operatorPrefix: string,
 	paneId: string,
 ): string {
-	return `Inspect first ${operatorCommand(machine, local, `herdr agent read ${paneId} --source visible`)}; respond through herdr_agents with machine=${JSON.stringify(machine)}, or use ${operatorCommand(machine, local, `herdr agent send-keys ${paneId} <keys>`)} for interactive controls.`;
+	return `Inspect first with ${operatorCommand(operatorPrefix, `agent read ${paneId} --source visible`)}; respond through herdr_agents with machine=${JSON.stringify(machine)}, or use ${operatorCommand(operatorPrefix, `agent send-keys ${paneId} <keys>`)} for interactive controls.`;
 }
 
 function failedOperatorHint(
 	machine: string,
-	local: boolean,
+	operatorPrefix: string,
 	paneId: string,
 ): string {
-	return `Inspect ${operatorCommand(machine, local, `herdr agent read ${paneId} --source recent-unwrapped --lines 80`)} and assess the failure. If this task has not already been retried and one simple corrective prompt could recover it, try once through herdr_agents with machine=${JSON.stringify(machine)}. If it fails again or the setup looks broken, stop retrying and tell the user.`;
+	return `Inspect with ${operatorCommand(operatorPrefix, `agent read ${paneId} --source recent-unwrapped --lines 80`)} and assess the failure. If this task has not already been retried and one simple corrective prompt could recover it, try once through herdr_agents with machine=${JSON.stringify(machine)}. If it fails again or the setup looks broken, stop retrying and tell the user.`;
 }
 
 function eventDetails(value: unknown): AgentEventDetails | undefined {
@@ -182,8 +178,8 @@ function agentEvent(options: AgentEventOptions): {
 		agent,
 		blockedMessage,
 		labels,
-		local,
 		machine,
+		operatorPrefix,
 		record,
 		reply,
 		status,
@@ -212,12 +208,12 @@ function agentEvent(options: AgentEventOptions): {
 	}
 	if (blocked) {
 		lines.push(
-			`<operator_hint>${xml(blockedOperatorHint(machine, local, agent.pane_id))}</operator_hint>`,
+			`<operator_hint>${xml(blockedOperatorHint(machine, operatorPrefix, agent.pane_id))}</operator_hint>`,
 		);
 	}
 	if (failed) {
 		lines.push(
-			`<operator_hint>${xml(failedOperatorHint(machine, local, agent.pane_id))}</operator_hint>`,
+			`<operator_hint>${xml(failedOperatorHint(machine, operatorPrefix, agent.pane_id))}</operator_hint>`,
 		);
 	}
 	if (reply) lines.push(`<response>${xml(reply.text)}</response>`);

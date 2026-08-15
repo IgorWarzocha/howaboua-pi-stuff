@@ -54,6 +54,17 @@ function errorMessage(error: unknown): string {
 	return message.length <= 500 ? message : `${message.slice(0, 499)}…`;
 }
 
+function shellQuote(value: string): string {
+	return `'${value.replaceAll("'", `'"'"'`)}'`;
+}
+
+function operatorPrefix(config: RemoteMachineConfig): string {
+	const remote = config.socket
+		? ["env", `HERDR_SOCKET_PATH=${config.socket}`, config.herdr]
+		: [config.herdr, ...(config.session ? ["--session", config.session] : [])];
+	return [...config.command, ...remote].map(shellQuote).join(" ");
+}
+
 function savedAgents(ctx: ExtensionContext): unknown[] {
 	let latest: unknown[] = [];
 	for (const entry of ctx.sessionManager.getBranch()) {
@@ -293,6 +304,7 @@ export class AgentFleet {
 			local: runtime.local,
 			onChange: () => this.changed(),
 			onRefresh: () => this.refresh(),
+			operatorPrefix: runtime.local ? "herdr" : operatorPrefix(runtime.config!),
 			onWarning: runtime.local
 				? (message) => this.context?.ui.notify(message, "warning")
 				: () => undefined,

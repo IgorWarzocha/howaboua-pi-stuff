@@ -166,12 +166,15 @@ async function showHerdrMenu(
 	if (!name) return fleet;
 	const status = statuses.find((machine) => machine.name === name);
 	const action = await ctx.ui.select(name, [
-		...(fleet && status?.status !== "connected" ? ["Connect"] : []),
+		...(status?.status !== "connected" ? ["Connect"] : []),
 		"Remove",
 	]);
 	if (action === "Connect") {
-		fleet?.connect(name);
+		const active = fleet ?? (await activateMaster(pi, getFleet, ctx));
+		if (!active) return fleet;
+		active.connect(name);
 		ctx.ui.notify(`Connecting to ${name}`, "info");
+		return active;
 	} else if (action === "Remove") {
 		const confirmed = await ctx.ui.confirm(
 			`Remove ${name}?`,
@@ -209,6 +212,7 @@ async function addMachine(
 	config.machines[name] = {
 		agentDir: "~/.pi/agent",
 		command: ["ssh", "-o", "BatchMode=yes", host],
+		herdr: "herdr",
 		node: "node",
 		...(session && session !== "default (leave blank)" ? { session } : {}),
 	};

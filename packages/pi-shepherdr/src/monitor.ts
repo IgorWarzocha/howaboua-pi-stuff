@@ -22,6 +22,7 @@ interface AgentMonitorOptions {
 	machine?: string;
 	onChange?: () => void;
 	onRefresh?: () => void;
+	operatorPrefix?: string;
 	onWarning?: (message: string) => void;
 	reader?: AssistantReader;
 	selfPaneId?: string;
@@ -58,7 +59,7 @@ export class AgentMonitor {
 			() => this.persist(),
 			options.reader,
 			this.machine,
-			this.local,
+			options.operatorPrefix ?? "herdr",
 		);
 		this.events = new MonitorEvents({
 			client: this.client,

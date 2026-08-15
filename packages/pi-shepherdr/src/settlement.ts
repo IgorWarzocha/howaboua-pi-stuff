@@ -98,8 +98,8 @@ export class SettlementReporter {
 	private readonly collector: SettlementCollector;
 	private readonly persist: () => void;
 	private readonly pi: ExtensionAPI;
-	private readonly local: boolean;
 	private readonly machine: string;
+	private readonly operatorPrefix: string;
 	private readonly reporting = new Set<string>();
 	private readonly retries = new Map<string, NodeJS.Timeout>();
 	private readonly state: MonitorState;
@@ -111,14 +111,14 @@ export class SettlementReporter {
 		persist: () => void,
 		reader?: AssistantReader,
 		machine = "local",
-		local = true,
+		operatorPrefix = "herdr",
 	) {
 		this.pi = pi;
 		this.collector = new SettlementCollector(client, reader);
 		this.state = state;
 		this.persist = persist;
 		this.machine = machine;
-		this.local = local;
+		this.operatorPrefix = operatorPrefix;
 	}
 
 	latest(panel: PaneInfo): Promise<LatestAssistant | undefined> {
@@ -153,8 +153,8 @@ export class SettlementReporter {
 			if (activityTask(current.activity) !== task) return;
 			injectAgentEvent(this.pi, lifecycle.context, {
 				agent: settlement.agent,
-				local: this.local,
 				machine: this.machine,
+				operatorPrefix: this.operatorPrefix,
 				...(settlement.status === request.status && request.blockedMessage
 					? { blockedMessage: request.blockedMessage }
 					: {}),
