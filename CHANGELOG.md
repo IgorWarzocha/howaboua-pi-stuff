@@ -106,19 +106,13 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.56
+### @howaboua/pi-extensions — 0.0.57
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-gippity-control:
-    - Route `/gippity create` through Pi's ordinary user-prompt lifecycle while preserving its transcript card.
-    - Condense settings details and show the effective LAN port.
-    - Document custom web-app paths and port configuration.
-
-- Updated dependencies [[`439c7f0`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/439c7f05c5e5c8a1d8a69ae133167e56289af555)]:
-  - @howaboua/pi-gippity-control@0.0.12
+  - @howaboua/pi-unicode-charts: Add terminal-native Unicode bar, line, scatter, sparkline, and heatmap rendering for explicit `chart` Markdown blocks.
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
@@ -338,19 +332,13 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.61
+### @howaboua/pi-stuff — 0.0.62
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-gippity-control:
-    - Route `/gippity create` through Pi's ordinary user-prompt lifecycle while preserving its transcript card.
-    - Condense settings details and show the effective LAN port.
-    - Document custom web-app paths and port configuration.
-
-- Updated dependencies [[`439c7f0`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/439c7f05c5e5c8a1d8a69ae133167e56289af555)]:
-  - @howaboua/pi-gippity-control@0.0.12
+  - @howaboua/pi-unicode-charts: Add terminal-native Unicode bar, line, scatter, sparkline, and heatmap rendering for explicit `chart` Markdown blocks.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 
@@ -367,6 +355,14 @@ Going forward, package-level changelogs remain the source of truth for each pack
   - Reduce LAN playback dropouts with one more jitter-buffer frame.
 
 [Full changelog](./packages/pi-subagent-review/CHANGELOG.md)
+
+### @howaboua/pi-unicode-charts — 0.1.0
+
+### Changes
+
+- [#295](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/295) [`b3c662a`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/b3c662abe45472e7b720cc900421164e1f137ee6) Thanks [@howaclawa](https://github.com/howaclawa)! - Add terminal-native Unicode bar, line, scatter, sparkline, and heatmap rendering for explicit `chart` Markdown blocks
+
+[Full changelog](./packages/pi-unicode-charts/CHANGELOG.md)
 
 ### @howaboua/pi-vent — 0.2.10
 

@@ -13,6 +13,7 @@ import howabouaPiSemanticGrep from "@howaboua/pi-semantic-grep";
 import howabouaPiShepherdr from "@howaboua/pi-shepherdr";
 import howabouaPiSmartBtw from "@howaboua/pi-smart-btw";
 import howabouaPiSubagentReview from "@howaboua/pi-subagent-review";
+import howabouaPiUnicodeCharts from "@howaboua/pi-unicode-charts";
 import howabouaPiVent from "@howaboua/pi-vent";
 
 export default async function (pi: ExtensionAPI) {
@@ -30,5 +31,6 @@ export default async function (pi: ExtensionAPI) {
 	await howabouaPiShepherdr(pi);
 	await howabouaPiSmartBtw(pi);
 	await howabouaPiSubagentReview(pi);
+	await howabouaPiUnicodeCharts(pi);
 	await howabouaPiVent(pi);
 }
