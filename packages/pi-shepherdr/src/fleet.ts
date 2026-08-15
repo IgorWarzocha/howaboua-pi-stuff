@@ -5,6 +5,7 @@ import type {
 import { getSnapshot } from "./herdr.js";
 import { HerdrClient, type HerdrConnection } from "./herdr-client.js";
 import {
+	LOCAL_MACHINE,
 	type MachinesConfig,
 	type RemoteMachineConfig,
 	readMachinesConfig,
@@ -76,10 +77,7 @@ function savedAgents(ctx: ExtensionContext): unknown[] {
 	return latest;
 }
 
-function groupSaved(
-	values: unknown[],
-	localMachine: string,
-): Map<string, unknown[]> {
+function groupSaved(values: unknown[]): Map<string, unknown[]> {
 	const grouped = new Map<string, unknown[]>();
 	for (const value of values) {
 		const machine =
@@ -88,7 +86,7 @@ function groupSaved(
 			"machine" in value &&
 			typeof value.machine === "string"
 				? value.machine
-				: localMachine;
+				: LOCAL_MACHINE;
 		const records = grouped.get(machine) ?? [];
 		records.push(value);
 		grouped.set(machine, records);
@@ -97,7 +95,7 @@ function groupSaved(
 }
 
 export class AgentFleet {
-	private config: MachinesConfig = { local: "local", machines: {} };
+	private config: MachinesConfig = { machines: {} };
 	private context: ExtensionContext | undefined;
 	private generation = 0;
 	private readonly pi: ExtensionAPI;
@@ -112,9 +110,9 @@ export class AgentFleet {
 		const generation = this.generation;
 		this.context = ctx;
 		this.config = await readMachinesConfig();
-		const grouped = groupSaved(savedAgents(ctx), this.config.local);
+		const grouped = groupSaved(savedAgents(ctx));
 		const known = new Set([
-			this.config.local,
+			LOCAL_MACHINE,
 			...Object.keys(this.config.machines),
 		]);
 		const orphaned = [...grouped.entries()]
@@ -129,10 +127,10 @@ export class AgentFleet {
 
 		const localRuntime: Runtime = {
 			local: true,
-			pending: grouped.get(this.config.local) ?? [],
+			pending: grouped.get(LOCAL_MACHINE) ?? [],
 			status: "connecting",
 		};
-		this.runtimes.set(this.config.local, localRuntime);
+		this.runtimes.set(LOCAL_MACHINE, localRuntime);
 		for (const [name, config] of Object.entries(this.config.machines)) {
 			this.runtimes.set(name, {
 				config,
@@ -145,7 +143,7 @@ export class AgentFleet {
 		const localClient = new HerdrClient();
 		await localClient.request("ping");
 		const localMonitor = this.createMonitor(
-			this.config.local,
+			LOCAL_MACHINE,
 			localRuntime,
 			localClient,
 		);
@@ -172,8 +170,8 @@ export class AgentFleet {
 		this.context = undefined;
 	}
 
-	localMachine(): string {
-		return this.config.local;
+	isActive(): boolean {
+		return this.context !== undefined;
 	}
 
 	async reload(): Promise<void> {
@@ -201,7 +199,7 @@ export class AgentFleet {
 	}
 
 	connected(machine?: string): ConnectedMachine {
-		const name = machine?.trim() || this.config.local;
+		const name = machine?.trim() || LOCAL_MACHINE;
 		const runtime = this.runtimes.get(name);
 		if (!runtime) {
 			throw new Error(
@@ -220,9 +218,7 @@ export class AgentFleet {
 			local: runtime.local,
 			client: runtime.client,
 			monitor: runtime.monitor,
-			fallbackCwd: runtime.local
-				? (this.context?.cwd ?? ".")
-				: (runtime.config?.cwd ?? "~"),
+			fallbackCwd: runtime.local ? (this.context?.cwd ?? ".") : "~",
 			...(remote
 				? {
 						resolveDirectory: (value: string | undefined, fallback: string) =>
@@ -301,13 +297,13 @@ export class AgentFleet {
 		return new AgentMonitor(this.pi, {
 			client,
 			machine,
-			local: runtime.local,
 			onChange: () => this.changed(),
 			onRefresh: () => this.refresh(),
 			operatorPrefix: runtime.local ? "herdr" : operatorPrefix(runtime.config!),
 			onWarning: runtime.local
 				? (message) => this.context?.ui.notify(message, "warning")
 				: () => undefined,
+			reconnect: runtime.local,
 			...(client instanceof RemoteHerdrClient ? { reader: client } : {}),
 			...(runtime.local && process.env["HERDR_PANE_ID"]
 				? { selfPaneId: process.env["HERDR_PANE_ID"] }

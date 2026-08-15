@@ -82,7 +82,7 @@ function findRecord(
 
 export function registerHerdrAgentsTool(
 	pi: ExtensionAPI,
-	getFleet: () => AgentFleet,
+	fleet: AgentFleet,
 ): void {
 	pi.registerTool({
 		name: "herdr_agents",
@@ -130,7 +130,6 @@ export function registerHerdrAgentsTool(
 		}),
 		executionMode: "sequential",
 		async execute(_toolCallId, params: ToolParams, _signal, _onUpdate, ctx) {
-			const fleet = getFleet();
 			if (params.action === "list") {
 				const machines = await fleet.snapshots(params.machine);
 				return result({

@@ -60,10 +60,6 @@ export class SettlementCollector {
 	async collect(
 		record: MonitoredAgent,
 	): Promise<CollectedSettlement | undefined> {
-		const agent = await getAgent(this.client, record.paneId);
-		if (agent.terminal_id !== record.terminalId || agent.agent !== "pi") {
-			return undefined;
-		}
 		const [current, snapshot] = await Promise.all([
 			getAgent(this.client, record.paneId),
 			getSnapshot(this.client),

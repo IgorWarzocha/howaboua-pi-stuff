@@ -1,12 +1,10 @@
 // @howaboua/pi-shepherdr managed bridge
-import { createHash } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import { createConnection } from "node:net";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 
-const PROTOCOL = 1;
+const BRIDGE_VERSION = 1;
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const subscriptions = new Map();
 const assistantCache = new Map();
@@ -56,13 +54,59 @@ function responseError(value) {
 	};
 }
 
+function errorFromResponse(value) {
+	const detail = responseError(value);
+	return Object.assign(new Error(detail.message), detail);
+}
+
+function openHerdr(label, message, onValue, onDisconnect) {
+	let buffer = "";
+	let disconnected = false;
+	const socket = createConnection(socketPath());
+	const disconnect = (error) => {
+		if (disconnected) return;
+		disconnected = true;
+		onDisconnect(error ?? new Error(`${label} disconnected`));
+	};
+	socket.setEncoding("utf8");
+	socket.on("connect", () => socket.write(`${JSON.stringify(message)}\n`));
+	socket.on("error", disconnect);
+	socket.on("end", () => disconnect());
+	socket.on("close", () => disconnect());
+	socket.on("data", (chunk) => {
+		buffer += chunk;
+		if (Buffer.byteLength(buffer) > MAX_FRAME_BYTES) {
+			disconnect(new Error(`${label} frame is too large`));
+			socket.destroy();
+			return;
+		}
+		for (;;) {
+			const newline = buffer.indexOf("\n");
+			if (newline < 0) break;
+			const line = buffer.slice(0, newline);
+			buffer = buffer.slice(newline + 1);
+			if (!line) continue;
+			let value;
+			try {
+				value = JSON.parse(line);
+			} catch (error) {
+				disconnect(
+					new Error(`${label} returned invalid JSON: ${error.message}`),
+				);
+				socket.destroy();
+				return;
+			}
+			onValue(value);
+		}
+	});
+	return socket;
+}
+
 function request(method, params = {}, timeoutMs = 10_000) {
 	return new Promise((resolveRequest, reject) => {
 		const id = `pi-shepherdr-bridge:${crypto.randomUUID()}`;
-		let buffer = "";
 		let settled = false;
-		const socket = createConnection(socketPath());
-		socket.setEncoding("utf8");
+		let socket;
 		const timer = setTimeout(
 			() => finish(new Error(`Herdr ${method} timed out`)),
 			timeoutMs,
@@ -76,39 +120,22 @@ function request(method, params = {}, timeoutMs = 10_000) {
 			if (error) reject(error);
 			else resolveRequest(result);
 		};
-		socket.on("connect", () =>
-			socket.write(`${JSON.stringify({ id, method, params })}\n`),
-		);
-		socket.on("error", (error) => finish(error));
-		socket.on("end", () => finish(new Error(`Herdr ${method} disconnected`)));
-		socket.on("data", (chunk) => {
-			buffer += chunk;
-			if (Buffer.byteLength(buffer) > MAX_FRAME_BYTES) {
-				finish(new Error(`Herdr ${method} response is too large`));
-				return;
-			}
-			const newline = buffer.indexOf("\n");
-			if (newline < 0) return;
-			try {
-				const response = JSON.parse(buffer.slice(0, newline));
+		socket = openHerdr(
+			`Herdr ${method}`,
+			{ id, method, params },
+			(response) => {
 				if (response.id !== id)
 					finish(
 						new Error(`Herdr ${method} returned a mismatched response ID`),
 					);
-				else if (response.error !== undefined) {
-					const detail = responseError(response.error);
-					const error = new Error(detail.message);
-					Object.assign(error, detail);
-					finish(error);
-				} else if (response.result !== undefined)
+				else if (response.error !== undefined)
+					finish(errorFromResponse(response.error));
+				else if (response.result !== undefined)
 					finish(undefined, response.result);
 				else finish(new Error(`Herdr ${method} returned no result`));
-			} catch (error) {
-				finish(
-					new Error(`Herdr ${method} returned invalid JSON: ${error.message}`),
-				);
-			}
-		});
+			},
+			(error) => finish(error),
+		);
 	});
 }
 
@@ -116,10 +143,8 @@ function subscribe(id, requested) {
 	return new Promise((resolveSubscription, reject) => {
 		const requestId = `pi-shepherdr-bridge:subscribe:${crypto.randomUUID()}`;
 		let acknowledged = false;
-		let buffer = "";
 		let closed = false;
-		const socket = createConnection(socketPath());
-		socket.setEncoding("utf8");
+		let socket;
 		const timer = setTimeout(() => {
 			socket.destroy();
 			reject(new Error("Herdr events.subscribe timed out"));
@@ -137,45 +162,17 @@ function subscribe(id, requested) {
 				setTimeout(() => process.exit(), 0);
 			}
 		};
-		socket.on("connect", () => {
-			socket.write(
-				`${JSON.stringify({ id: requestId, method: "events.subscribe", params: { subscriptions: requested } })}\n`,
-			);
-		});
-		socket.on("error", disconnected);
-		socket.on("end", () => disconnected());
-		socket.on("close", () => disconnected());
-		socket.on("data", (chunk) => {
-			buffer += chunk;
-			if (Buffer.byteLength(buffer) > MAX_FRAME_BYTES) {
-				disconnected(new Error("Herdr event frame is too large"));
-				socket.destroy();
-				return;
-			}
-			for (;;) {
-				const newline = buffer.indexOf("\n");
-				if (newline < 0) break;
-				const line = buffer.slice(0, newline);
-				buffer = buffer.slice(newline + 1);
-				if (!line) continue;
-				let value;
-				try {
-					value = JSON.parse(line);
-				} catch (error) {
-					disconnected(
-						new Error(
-							`Herdr events.subscribe returned invalid JSON: ${error.message}`,
-						),
-					);
-					socket.destroy();
-					return;
-				}
+		socket = openHerdr(
+			"Herdr events.subscribe",
+			{
+				id: requestId,
+				method: "events.subscribe",
+				params: { subscriptions: requested },
+			},
+			(value) => {
 				if (!acknowledged && value.id === requestId) {
 					if (value.error !== undefined) {
-						const detail = responseError(value.error);
-						const error = new Error(detail.message);
-						Object.assign(error, detail);
-						disconnected(error);
+						disconnected(errorFromResponse(value.error));
 						socket.destroy();
 						return;
 					}
@@ -195,7 +192,7 @@ function subscribe(id, requested) {
 						socket.destroy();
 					});
 					resolveSubscription();
-					continue;
+					return;
 				}
 				if (
 					acknowledged &&
@@ -208,8 +205,9 @@ function subscribe(id, requested) {
 						event: { event: value.event, data: value.data },
 					});
 				}
-			}
-		});
+			},
+			disconnected,
+		);
 	});
 }
 
@@ -379,10 +377,8 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
 	});
 }
 
-const source = await readFile(fileURLToPath(import.meta.url));
 send({
 	type: "ready",
-	protocol: PROTOCOL,
-	hash: createHash("sha256").update(source).digest("hex"),
+	version: BRIDGE_VERSION,
 	socket: socketPath(),
 });

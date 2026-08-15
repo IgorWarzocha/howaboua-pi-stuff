@@ -4,11 +4,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { isSettledStatus } from "./activity.js";
 import { getSnapshot } from "./herdr.js";
-import {
-	HerdrClient,
-	type HerdrConnection,
-	isHerdrResponseError,
-} from "./herdr-client.js";
+import { type HerdrConnection, isHerdrResponseError } from "./herdr-client.js";
 import { parseMonitorEvent } from "./monitor-event.js";
 import { MonitorEvents } from "./monitor-events.js";
 import { MonitorState, type WorkAttempt } from "./monitor-state.js";
@@ -17,20 +13,19 @@ import { SettlementReporter, type SettlementRequest } from "./settlement.js";
 import type { HerdrEvent, MonitoredAgent, PaneInfo } from "./types.js";
 
 interface AgentMonitorOptions {
-	client?: HerdrConnection;
-	local?: boolean;
-	machine?: string;
-	onChange?: () => void;
-	onRefresh?: () => void;
-	operatorPrefix?: string;
-	onWarning?: (message: string) => void;
+	client: HerdrConnection;
+	machine: string;
+	onChange: () => void;
+	onRefresh: () => void;
+	operatorPrefix: string;
+	onWarning: (message: string) => void;
 	reader?: AssistantReader;
+	reconnect: boolean;
 	selfPaneId?: string;
 }
 
 export class AgentMonitor {
 	readonly client: HerdrConnection;
-	readonly local: boolean;
 	readonly machine: string;
 	private readonly onChange: () => void;
 	private readonly onRefresh: () => void;
@@ -42,16 +37,13 @@ export class AgentMonitor {
 	private context: ExtensionContext | undefined;
 	private activationGeneration = 0;
 
-	constructor(pi: ExtensionAPI, options: AgentMonitorOptions = {}) {
-		this.client = options.client ?? new HerdrClient();
-		this.local = options.local ?? true;
-		this.machine = options.machine ?? "local";
-		this.onChange = options.onChange ?? (() => undefined);
-		this.onRefresh = options.onRefresh ?? this.onChange;
+	constructor(pi: ExtensionAPI, options: AgentMonitorOptions) {
+		this.client = options.client;
+		this.machine = options.machine;
+		this.onChange = options.onChange;
+		this.onRefresh = options.onRefresh;
 		this.selfPaneId = options.selfPaneId;
-		this.onWarning =
-			options.onWarning ??
-			((message) => this.context?.ui.notify(message, "warning"));
+		this.onWarning = options.onWarning;
 		this.settlements = new SettlementReporter(
 			pi,
 			this.client,
@@ -59,11 +51,11 @@ export class AgentMonitor {
 			() => this.persist(),
 			options.reader,
 			this.machine,
-			options.operatorPrefix ?? "herdr",
+			options.operatorPrefix,
 		);
 		this.events = new MonitorEvents({
 			client: this.client,
-			reconnect: this.local,
+			reconnect: options.reconnect,
 			onEvent: (event) => this.handleEvent(event),
 			onReconnect: () => this.reconcileNow(),
 			onWarning: (message) => this.onWarning(message),

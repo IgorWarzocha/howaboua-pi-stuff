@@ -1,5 +1,5 @@
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import type { HerdrConnection } from "./herdr-client.js";
@@ -7,19 +7,19 @@ import type { RemoteMachineConfig } from "./machines-config.js";
 import type { AssistantReader } from "./session-reader.js";
 import type { HerdrEvent, LatestAssistant } from "./types.js";
 
-const PROTOCOL = 1;
+const BRIDGE_VERSION = 1;
+const REMOTE_HELPER = "~/.pi/agent/shepherdr.mjs";
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const MAX_DIAGNOSTIC_BYTES = 8 * 1024;
 const DEPLOY_TIMEOUT_MS = 20_000;
 const READY_TIMEOUT_MS = 15_000;
 
 const DEPLOY_SOURCE = String.raw`
-const { createHash, randomUUID } = require("node:crypto");
+const { randomUUID } = require("node:crypto");
 const { mkdir, readFile, rename, unlink, writeFile } = require("node:fs/promises");
 const { homedir } = require("node:os");
 const { dirname, join } = require("node:path");
 const targetValue = process.argv[1];
-const expected = process.argv[2];
 const marker = "// @howaboua/pi-shepherdr managed bridge";
 const target = targetValue === "~" ? homedir() : targetValue.startsWith("~/") ? join(homedir(), targetValue.slice(2)) : targetValue;
 const chunks = [];
@@ -27,13 +27,10 @@ let size = 0;
 process.stdin.on("data", chunk => { size += chunk.length; if (size > 1024 * 1024) { process.stderr.write("bridge source is too large\n"); process.exit(1); } chunks.push(chunk); });
 process.stdin.on("end", () => { void (async () => {
   const source = Buffer.concat(chunks);
-  const actual = createHash("sha256").update(source).digest("hex");
-  if (actual !== expected) throw new Error("bridge upload hash mismatch");
   let existing;
   try { existing = await readFile(target); } catch (error) { if (error.code !== "ENOENT") throw error; }
   if (existing) {
-    const current = createHash("sha256").update(existing).digest("hex");
-    if (current === expected) { process.stdout.write(JSON.stringify({ updated: false, path: target }) + "\n"); return; }
+    if (existing.equals(source)) { process.stdout.write(JSON.stringify({ updated: false, path: target }) + "\n"); return; }
     if (!existing.toString("utf8", 0, marker.length + 32).startsWith(marker)) throw new Error(target + " is not owned by Shepherdr");
   }
   await mkdir(dirname(target), { recursive: true, mode: 0o700 });
@@ -76,14 +73,11 @@ function executablePath(path: string): string {
 		: shellQuote(path);
 }
 
-function remoteCommand(config: RemoteMachineConfig, hash: string): string {
-	const path = `${config.agentDir.replace(/\/$/, "")}/shepherdr.mjs`;
+function remoteCommand(config: RemoteMachineConfig): string {
 	const args = [
 		"exec",
 		shellQuote(config.node),
-		executablePath(path),
-		"--hash",
-		shellQuote(hash),
+		executablePath(REMOTE_HELPER),
 		...(config.socket ? ["--socket", shellQuote(config.socket)] : []),
 		...(config.session ? ["--session", shellQuote(config.session)] : []),
 	];
@@ -111,15 +105,12 @@ function appendBounded(current: string, chunk: Buffer): string {
 async function deploy(
 	config: RemoteMachineConfig,
 	source: Buffer,
-	hash: string,
 ): Promise<void> {
-	const target = `${config.agentDir.replace(/\/$/, "")}/shepherdr.mjs`;
 	const command = [
 		shellQuote(config.node),
 		"-e",
 		shellQuote(DEPLOY_SOURCE),
-		shellQuote(target),
-		shellQuote(hash),
+		shellQuote(REMOTE_HELPER),
 	].join(" ");
 	const child = spawnConnector(config, command);
 	let stdout = "";
@@ -194,12 +185,11 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 		const source = await readFile(
 			fileURLToPath(new URL("./remote/shepherdr.mjs", import.meta.url)),
 		);
-		const hash = createHash("sha256").update(source).digest("hex");
-		await deploy(config, source, hash);
-		const child = spawnConnector(config, remoteCommand(config, hash));
+		await deploy(config, source);
+		const child = spawnConnector(config, remoteCommand(config));
 		const client = new RemoteHerdrClient(child, onClose);
 		try {
-			await client.ready(hash);
+			await client.ready();
 			return client;
 		} catch (error) {
 			client.close();
@@ -259,7 +249,7 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 		this.failPending(new Error("remote Shepherdr bridge closed"), false);
 	}
 
-	private ready(expectedHash: string): Promise<void> {
+	private ready(): Promise<void> {
 		return new Promise((resolve, reject) => {
 			const timer = setTimeout(() => {
 				this.close();
@@ -269,8 +259,8 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 			this.pending.set("ready", {
 				timer,
 				resolve: (value) => {
-					const ready = value as { hash?: unknown; protocol?: unknown };
-					if (ready.protocol !== PROTOCOL || ready.hash !== expectedHash) {
+					const ready = value as { version?: unknown };
+					if (ready.version !== BRIDGE_VERSION) {
 						reject(new Error("remote Shepherdr bridge version mismatch"));
 						return;
 					}

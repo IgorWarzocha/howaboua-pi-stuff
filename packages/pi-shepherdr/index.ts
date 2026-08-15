@@ -5,10 +5,9 @@ import { registerAgentEventRenderer } from "./src/messages.js";
 import { registerHerdrAgentsTool } from "./src/tool.js";
 
 export default function shepherdrExtension(pi: ExtensionAPI): void {
-	let fleet: AgentFleet | undefined;
-	const getFleet = () => (fleet ??= new AgentFleet(pi));
+	const fleet = new AgentFleet(pi);
 
 	registerAgentEventRenderer(pi);
-	registerHerdrAgentsTool(pi, getFleet);
-	registerMasterMode(pi, getFleet);
+	registerHerdrAgentsTool(pi, fleet);
+	registerMasterMode(pi, fleet);
 }

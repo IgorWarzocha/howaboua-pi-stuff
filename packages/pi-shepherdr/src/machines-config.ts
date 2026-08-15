@@ -5,14 +5,14 @@ import { dirname, join } from "node:path";
 
 const MACHINE_NAME = /^[a-z][a-z0-9_-]{0,31}$/;
 
+export const LOCAL_MACHINE = "local";
+
 export function isMachineName(value: string): boolean {
 	return MACHINE_NAME.test(value);
 }
 
 export interface RemoteMachineConfig {
-	agentDir: string;
 	command: string[];
-	cwd?: string;
 	herdr: string;
 	node: string;
 	session?: string;
@@ -20,7 +20,6 @@ export interface RemoteMachineConfig {
 }
 
 export interface MachinesConfig {
-	local: string;
 	machines: Record<string, RemoteMachineConfig>;
 }
 
@@ -67,23 +66,19 @@ function parseMachine(name: string, value: unknown): RemoteMachineConfig {
 			`machine ${JSON.stringify(name)} command must be a non-empty string array`,
 		);
 	}
+	const session = optionalString(record, "session");
+	const socket = optionalString(record, "socket");
+	if (session && socket) {
+		throw new Error(
+			`machine ${JSON.stringify(name)} cannot set both session and socket`,
+		);
+	}
 	return {
 		command: command as string[],
-		agentDir: optionalString(record, "agentDir") ?? "~/.pi/agent",
 		herdr: optionalString(record, "herdr") ?? "herdr",
 		node: optionalString(record, "node") ?? "node",
-		...(() => {
-			const cwd = optionalString(record, "cwd");
-			return cwd ? { cwd } : {};
-		})(),
-		...(() => {
-			const session = optionalString(record, "session");
-			return session ? { session } : {};
-		})(),
-		...(() => {
-			const socket = optionalString(record, "socket");
-			return socket ? { socket } : {};
-		})(),
+		...(session ? { session } : {}),
+		...(socket ? { socket } : {}),
 	};
 }
 
@@ -94,7 +89,7 @@ export async function readMachinesConfig(): Promise<MachinesConfig> {
 		text = await readFile(path, "utf8");
 	} catch (error) {
 		if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-			return { local: "local", machines: {} };
+			return { machines: {} };
 		}
 		throw new Error(
 			`could not read ${path}: ${error instanceof Error ? error.message : String(error)}`,
@@ -112,12 +107,6 @@ export async function readMachinesConfig(): Promise<MachinesConfig> {
 		throw new Error(`${path} must contain a JSON object`);
 	}
 	const record = value as Record<string, unknown>;
-	const local = optionalString(record, "local") ?? "local";
-	if (!isMachineName(local)) {
-		throw new Error(
-			`local machine name ${JSON.stringify(local)} must match ${MACHINE_NAME.source}`,
-		);
-	}
 	const machines = record["machines"] ?? {};
 	if (
 		typeof machines !== "object" ||
@@ -132,11 +121,11 @@ export async function readMachinesConfig(): Promise<MachinesConfig> {
 			parseMachine(name, machine),
 		]),
 	);
-	if (local in parsed)
+	if (LOCAL_MACHINE in parsed)
 		throw new Error(
-			`remote machine ${JSON.stringify(local)} conflicts with local`,
+			`remote machine ${JSON.stringify(LOCAL_MACHINE)} conflicts with local`,
 		);
-	return { local, machines: parsed };
+	return { machines: parsed };
 }
 
 export async function writeMachinesConfig(
