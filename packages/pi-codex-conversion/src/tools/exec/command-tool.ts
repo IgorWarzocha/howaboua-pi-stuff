@@ -4,6 +4,7 @@ import { Container, Text, truncateToWidth } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { getPiConfiguredShellPath } from "../../adapter/prompt/runtime-shell.ts";
 import { renderExecCommandCall, renderGroupedExecCommandCall } from "../../ui/tool-rendering/codex-rendering.ts";
+import { getExperimentalToolSampling } from "../tool-sampling.ts";
 import type { ExecCommandTracker } from "./command-state.ts";
 import { formatUnifiedExecResult } from "./format.ts";
 import { renderTerminalOutput } from "./output.ts";
@@ -166,12 +167,14 @@ function renderResult(
 }
 
 export function createExecCommandTool(tracker: ExecCommandTracker, sessions: ExecSessionManager, options: ExecCommandToolOptions = {}) {
+	const constrainedSampling = getExperimentalToolSampling("exec_command");
 	const tool: Parameters<ExtensionAPI["registerTool"]>[0] = {
 		name: "exec_command",
 		label: "exec_command",
 		description: "Run shell commands; may return session_id",
 		...(options.promptSnippet === false ? {} : { promptSnippet: "Run command" }),
 		parameters: EXEC_COMMAND_PARAMETERS,
+		...(constrainedSampling ? { constrainedSampling } : {}),
 		prepareArguments: prepareExecCommandArguments,
 		async execute(toolCallId, params, signal, onUpdate, ctx) {
 			if (signal?.aborted) throw new Error("exec_command aborted");

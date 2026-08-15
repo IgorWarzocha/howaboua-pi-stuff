@@ -4,6 +4,7 @@ import { Container, Text } from "@earendil-works/pi-tui";
 import { parsePatchActions } from "../../patch/parser.ts";
 import { resolvePatchPath } from "../../patch/paths.ts";
 import { ExecutePatchError, type ExecutePatchResult } from "../../patch/types.ts";
+import { getExperimentalToolSampling } from "../tool-sampling.ts";
 import { formatPatchTarget } from "./rendering.ts";
 import { executePatchWithRust } from "./executor.ts";
 import {
@@ -142,12 +143,14 @@ const renderApplyPatchCallWithOptionalContext = (
 ) => new Text(renderApplyPatchCallFromState(args, theme, { ...context, showCollapsedDiff: options.showDiffWhenCollapsed }), 0, 0);
 
 export function createApplyPatchTool(options: ApplyPatchToolOptions = {}) {
+	const constrainedSampling = getExperimentalToolSampling("apply_patch");
 	return {
 		name: "apply_patch",
 		label: "apply_patch",
 		description: "Patch files",
 		...(options.promptSnippet === false ? {} : { promptSnippet: "Edit files with patch" }),
 		parameters: APPLY_PATCH_PARAMETERS,
+		...(constrainedSampling ? { constrainedSampling } : {}),
 		executionMode: "sequential",
 		prepareArguments: prepareApplyPatchArguments,
 		async execute(toolCallId, params, signal, _onUpdate, ctx) {
