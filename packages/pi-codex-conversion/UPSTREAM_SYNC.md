@@ -60,13 +60,9 @@ Codex supports namespace tool schemas:
 }
 ```
 
-Do not force structured Pi tools into namespaces yet. Full support requires request translation, streamed call translation, dispatch mapping, replay, and result mapping. The flat structured-tool names are already unique; Code Mode hides nested schemas behind `exec` rather than changing their wire names.
+Current Codex groups ordinary function and custom tools under the default `functions` namespace for Responses Lite while leaving standard Responses flat. The backend omits that implicit default namespace from returned calls but returns non-default namespaces explicitly. This package treats that shape as part of the Responses Lite protocol across stock, renamed, and explicitly configured proxy routes; provider identity does not flatten it. Namespace metadata is preserved through streamed calls, replay, the V8 host, and the Notebook bridge. Existing JavaScript aliases such as `web__run` retain their spelling while routing as `{ namespace: "web", name: "run" }`.
 
-Reconsider when Codex:
-
-- forces namespaces for ordinary first-party tools;
-- changes GPT-5.6 training or Lite validation to require them;
-- lands the coordinated Responses fixes for collisions and return items.
+Pi's structured registry still identifies and dispatches tools by one globally unique flat name. Full arbitrary namespace registration therefore belongs in Pi core; do not claim collision-safe direct tools or synthesize extension namespaces in this package.
 
 Relevant Codex areas:
 

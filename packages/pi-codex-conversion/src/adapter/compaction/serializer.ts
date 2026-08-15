@@ -4,6 +4,7 @@ import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { buildSessionContext, convertToLlm, getAgentDir, type SessionEntry } from "@earendil-works/pi-coding-agent";
 import type { Api, ImageContent, Message, Model, TextContent, ToolResultMessage, UserMessage } from "@earendil-works/pi-ai";
 import { CODEX_TOOL_CALL_PROVIDERS, convertResponsesMessages } from "../../providers/openai-responses/shared.ts";
+import { isCodexTransportModel } from "../prompt/codex-model.ts";
 import { isProviderContextExcludedMessage } from "../prompt/context-filter.ts";
 
 /**
@@ -158,13 +159,16 @@ export function serializeMessagesToResponsesInput<TApi extends Api>(
 	options: SerializeResponsesMessagesOptions = {},
 ): ResponsesInputItem[] {
 	const llmMessages = applyBlockImages(convertToLlm(messages), options.blockImages ?? readBlockImagesSetting());
+	const allowedToolCallProviders = isCodexTransportModel(model) && !CODEX_TOOL_CALL_PROVIDERS.has(model.provider)
+		? new Set([...CODEX_TOOL_CALL_PROVIDERS, model.provider])
+		: CODEX_TOOL_CALL_PROVIDERS;
 	return convertResponsesMessages(
 		model,
 		{
 			messages: llmMessages,
 			...(options.includeInstructionsInInput && options.instructions ? { systemPrompt: options.instructions } : {}),
 		},
-		CODEX_TOOL_CALL_PROVIDERS,
+		allowedToolCallProviders,
 		{
 			includeSystemPrompt: options.includeInstructionsInInput ?? false,
 			...(options.grammarToolInputProperties ? { grammarToolInputProperties: options.grammarToolInputProperties } : {}),

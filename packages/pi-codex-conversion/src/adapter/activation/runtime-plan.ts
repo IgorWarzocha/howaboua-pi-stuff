@@ -1,13 +1,16 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { supportsNativeImageGeneration, supportsNativeWebSearch, supportsViewImageInputs } from "../tool-support.ts";
 import { supportsResponsesLiteModel } from "../../providers/openai-codex/responses-lite-model.ts";
-import { isCodexLikeModel, isOpenAICodexContext, isOpenAIResponsesContext, isResponsesContext } from "../prompt/codex-model.ts";
+import { canonicalCodexAliasModelKey, isCanonicalCodexAliasModel, isCodexLikeModel, isCodexTransportContext, isOpenAIResponsesContext, isResponsesContext } from "../prompt/codex-model.ts";
 import type { CodexConversionConfig } from "./config.ts";
+import type { ExecutionMode } from "./execution-mode.ts";
+import type { AdapterState } from "./state.ts";
 import {
 	APPLY_PATCH_TOOL_NAME,
 	CODE_MODE_TOOL_NAMES,
 	CORE_ADAPTER_TOOL_NAMES,
 	IMAGE_GENERATION_TOOL_NAME,
+	NOTEBOOK_MODE_TOOL_NAMES,
 	SHELL_ADAPTER_TOOL_NAMES,
 	VIEW_IMAGE_TOOL_NAME,
 	WEB_SEARCH_TOOL_NAME,
@@ -16,10 +19,11 @@ import {
 type RuntimeContext = Pick<ExtensionContext, "model">;
 
 interface RuntimePlanBase {
-	kind: "inactive" | "extras" | "normal" | "code";
+	kind: "inactive" | "extras" | "normal" | "code" | "notebook";
 	toolNames: string[];
 	ownedToolNames: string[];
 	configuredProvider: boolean;
+	codexTransport: boolean;
 	effectiveOpenAICodex: boolean;
 	nativeCompaction: boolean;
 }
@@ -49,11 +53,17 @@ export interface CodeRuntimePlan extends RuntimePlanBase {
 	transport: "responses-lite";
 }
 
-export type CodexRuntimePlan = InactiveRuntimePlan | ExtrasRuntimePlan | NormalRuntimePlan | CodeRuntimePlan;
+export interface NotebookRuntimePlan extends RuntimePlanBase {
+	kind: "notebook";
+	prompt: "notebook";
+	transport: "responses-lite";
+}
+
+export type CodexRuntimePlan = InactiveRuntimePlan | ExtrasRuntimePlan | NormalRuntimePlan | CodeRuntimePlan | NotebookRuntimePlan;
 
 const ALL_ADAPTER_TOOL_NAMES = [
 	...CORE_ADAPTER_TOOL_NAMES,
-	...CODE_MODE_TOOL_NAMES,
+	...NOTEBOOK_MODE_TOOL_NAMES,
 	WEB_SEARCH_TOOL_NAME,
 	IMAGE_GENERATION_TOOL_NAME,
 	VIEW_IMAGE_TOOL_NAME,
@@ -65,16 +75,15 @@ function configuredProvider(ctx: RuntimeContext, config: CodexConversionConfig):
 }
 
 function proxySupportsCodeMode(ctx: RuntimeContext, config: CodexConversionConfig): boolean {
-	if (!config.beta.responsesLite || !configuredProvider(ctx, config) || !isOpenAIResponsesContext(ctx)) return false;
+	if (!config.openai.proxyResponsesLite || !configuredProvider(ctx, config) || !isOpenAIResponsesContext(ctx)) return false;
 	const modelId = ctx.model?.id;
 	if (!modelId) return false;
 	const id = modelId.includes("/") ? (modelId.split("/").pop() ?? modelId) : modelId;
 	return /^gpt-5\.6(?:-(?:luna|terra|sol))?$/.test(id.toLowerCase());
 }
 
-function codeModeEnabled(ctx: RuntimeContext, config: CodexConversionConfig): boolean {
-	if (!config.beta.codeMode) return false;
-	return isOpenAICodexContext(ctx)
+function codeModeEligible(ctx: RuntimeContext, config: CodexConversionConfig): boolean {
+	return isCodexTransportContext(ctx)
 		? supportsResponsesLiteModel(ctx.model?.id)
 		: proxySupportsCodeMode(ctx, config);
 }
@@ -105,12 +114,18 @@ function normalToolNames(ctx: RuntimeContext, config: CodexConversionConfig, cod
 	return names;
 }
 
-export function resolveCodexRuntimePlan(ctx: RuntimeContext, config: CodexConversionConfig): CodexRuntimePlan {
+export function resolveCodexRuntimePlan(
+	ctx: RuntimeContext,
+	config: CodexConversionConfig,
+	executionMode?: ExecutionMode,
+	options: { canonicalAliasEndpointTrusted?: boolean | undefined } = {},
+): CodexRuntimePlan {
 	const isConfigured = configuredProvider(ctx, config);
-	const effectiveOpenAICodex = isOpenAICodexContext(ctx) || isConfigured;
+	const codexTransport = isCodexTransportContext(ctx);
+	const effectiveOpenAICodex = codexTransport || isConfigured;
 	const ownedToolNames = [
 		...SHELL_ADAPTER_TOOL_NAMES,
-		...CODE_MODE_TOOL_NAMES,
+		...NOTEBOOK_MODE_TOOL_NAMES,
 		APPLY_PATCH_TOOL_NAME,
 		VIEW_IMAGE_TOOL_NAME,
 		...(config.tools.webRun ? [WEB_SEARCH_TOOL_NAME] : []),
@@ -119,6 +134,7 @@ export function resolveCodexRuntimePlan(ctx: RuntimeContext, config: CodexConver
 	const base = {
 		ownedToolNames,
 		configuredProvider: isConfigured,
+		codexTransport,
 		effectiveOpenAICodex,
 		nativeCompaction: false,
 	};
@@ -132,10 +148,22 @@ export function resolveCodexRuntimePlan(ctx: RuntimeContext, config: CodexConver
 	}
 	if (config.voiceFeaturesOnly) return { ...base, kind: "inactive", toolNames: [], prompt: undefined, transport: undefined };
 
-	const active = config.scope.allProviders === "on" || isConfigured || isCodexLikeModel(ctx.model);
+	const canonicalAliasTrusted = !isCanonicalCodexAliasModel(ctx.model)
+		|| options.canonicalAliasEndpointTrusted !== false;
+	const active = canonicalAliasTrusted
+		&& (config.scope.allProviders === "on" || isConfigured || isCodexLikeModel(ctx.model));
 	if (!active) return { ...base, kind: "inactive", toolNames: [], prompt: undefined, transport: undefined };
 	const nativeCompaction = config.compaction.responsesCompaction && effectiveOpenAICodex;
-	if (codeModeEnabled(ctx, config)) {
+	const configuredExecutionMode = executionMode ?? config.executionMode;
+	const requestedCodeMode = configuredExecutionMode === "code" || configuredExecutionMode === "notebook"
+		? configuredExecutionMode
+		: configuredExecutionMode === "normal"
+			? undefined
+			: undefined;
+	if (requestedCodeMode && codeModeEligible(ctx, config)) {
+		if (requestedCodeMode === "notebook") {
+			return { ...base, kind: "notebook", toolNames: [...NOTEBOOK_MODE_TOOL_NAMES], prompt: "notebook", transport: "responses-lite", nativeCompaction };
+		}
 		return { ...base, kind: "code", toolNames: [...CODE_MODE_TOOL_NAMES], prompt: "code", transport: "responses-lite", nativeCompaction };
 	}
 	return {
@@ -148,8 +176,23 @@ export function resolveCodexRuntimePlan(ctx: RuntimeContext, config: CodexConver
 	};
 }
 
-export function isAdapterRuntime(plan: CodexRuntimePlan): plan is NormalRuntimePlan | CodeRuntimePlan {
-	return plan.kind === "normal" || plan.kind === "code";
+export function resolveCodexRuntimePlanForState(
+	ctx: RuntimeContext,
+	state: Pick<AdapterState, "config" | "canonicalAliasEndpoint" | "executionMode">,
+): CodexRuntimePlan {
+	const model = ctx.model;
+	if (!model || !isCanonicalCodexAliasModel(model)) return resolveCodexRuntimePlan(ctx, state.config, state.executionMode);
+	const endpoint = state.canonicalAliasEndpoint;
+	const trusted = endpoint?.modelKey === canonicalCodexAliasModelKey(model) && endpoint.trusted;
+	return resolveCodexRuntimePlan(ctx, state.config, state.executionMode, { canonicalAliasEndpointTrusted: trusted });
+}
+
+export function isAdapterRuntime(plan: CodexRuntimePlan): plan is NormalRuntimePlan | CodeRuntimePlan | NotebookRuntimePlan {
+	return plan.kind === "normal" || plan.kind === "code" || plan.kind === "notebook";
+}
+
+export function isCodeModeRuntime(plan: CodexRuntimePlan): plan is CodeRuntimePlan | NotebookRuntimePlan {
+	return plan.kind === "code" || plan.kind === "notebook";
 }
 
 export const ALL_CODEX_ADAPTER_TOOL_NAMES = ALL_ADAPTER_TOOL_NAMES;

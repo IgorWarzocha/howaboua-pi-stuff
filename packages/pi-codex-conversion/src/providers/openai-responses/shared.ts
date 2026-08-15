@@ -7,8 +7,10 @@ import type {
 	Tool as OpenAITool,
 } from "openai/resources/responses/responses.js";
 import {
+	getJsonSchemaToolParameters,
 	getGrammarToolInput,
 	resolveGrammarConstrainedSampling,
+	resolveJsonSchemaStrictSampling,
 } from "../constrained-sampling.js";
 import { parseTextSignature, shortHash } from "./signatures.ts";
 import { normalizeResponsesToolHistory } from "./tool-history.ts";
@@ -35,11 +37,13 @@ interface ConvertResponsesMessagesOptions {
 	includeSystemPrompt?: boolean | undefined;
 	grammarToolInputProperties?: ReadonlyMap<string, string> | undefined;
 	deferredTools?: ReadonlyMap<string, Tool> | undefined;
+	deferredToolsMode?: "additional-tools" | "tool-search" | undefined;
 	toolOptions?: ConvertResponsesToolsOptions | undefined;
 }
 
 interface ConvertResponsesToolsOptions {
 	strict?: boolean | null | undefined;
+	supportsStrictMode?: boolean | undefined;
 	supportsOpenAIGrammarTools?: boolean | undefined;
 	deferLoading?: boolean | undefined;
 }
@@ -135,7 +139,9 @@ export function convertResponsesMessages<TApi extends Api>(
 			}
 		} else if (msg.role === "assistant") {
 			const output: ResponseInput = [];
-			const isDifferentModel = msg.model !== model.id && msg.provider === model.provider && msg.api === model.api;
+			const isSameProviderAndApi = msg.provider === model.provider && msg.api === model.api;
+			const isSameModel = isSameProviderAndApi && msg.model === model.id;
+			const isDifferentModel = isSameProviderAndApi && msg.model !== model.id;
 			let textBlockIndex = 0;
 			for (const block of msg.content as InternalAssistantContent[]) {
 				if (isImageGenerationCallBlock(block)) {
@@ -172,6 +178,7 @@ export function convertResponsesMessages<TApi extends Api>(
 						(isDifferentModel && itemId?.startsWith("fc_"))
 						|| (customInputProperty === undefined && !itemId?.startsWith("fc_"))
 					) itemId = undefined;
+					const canReplayNamespace = isSameModel || options?.deferredTools?.has(block.name) === true;
 					output.push(customInputProperty === undefined
 						? {
 								type: "function_call",
@@ -179,6 +186,7 @@ export function convertResponsesMessages<TApi extends Api>(
 								call_id: callId,
 								name: block.name,
 								arguments: JSON.stringify(block.arguments),
+								...(canReplayNamespace && block.namespace !== undefined ? { namespace: block.namespace } : {}),
 							} as ResponseInput[number]
 						: {
 								type: "custom_tool_call",
@@ -186,6 +194,7 @@ export function convertResponsesMessages<TApi extends Api>(
 								call_id: callId,
 								name: block.name,
 								input: sanitizeSurrogates(getGrammarToolInput(block.name, block.arguments, customInputProperty)),
+								...(canReplayNamespace && block.namespace !== undefined ? { namespace: block.namespace } : {}),
 							} as ResponseInput[number]);
 				}
 			}
@@ -225,7 +234,13 @@ export function convertResponsesMessages<TApi extends Api>(
 				loadedToolNames.add(name);
 				deferredTools.push(tool);
 			}
-			if (deferredTools.length > 0) {
+			if (deferredTools.length > 0 && options?.deferredToolsMode === "additional-tools") {
+				messages.push({
+					type: "additional_tools",
+					role: "developer",
+					tools: convertResponsesTools(deferredTools, options.toolOptions),
+				} as unknown as ResponseInputItem);
+			} else if (deferredTools.length > 0 && options?.deferredToolsMode === "tool-search") {
 				const names = deferredTools.map((tool) => tool.name);
 				const searchCallId = `pi_tool_load_${shortHash(`${msg.toolCallId}:${names.join(",")}`)}`;
 				messages.push({
@@ -241,7 +256,7 @@ export function convertResponsesMessages<TApi extends Api>(
 					execution: "client",
 					status: "completed",
 					tools: convertResponsesTools(deferredTools, {
-						...options?.toolOptions,
+						...options.toolOptions,
 						deferLoading: true,
 					}),
 				} satisfies ResponseToolSearchOutputItemParam);
@@ -254,7 +269,8 @@ export function convertResponsesMessages<TApi extends Api>(
 }
 
 export function convertResponsesTools(tools: readonly Tool[], options?: ConvertResponsesToolsOptions): OpenAITool[] {
-	const strict = options?.strict === undefined ? false : options.strict;
+	const defaultStrict = options?.strict === undefined ? false : options.strict;
+	const supportsStrictMode = options?.supportsStrictMode ?? true;
 	const supportsOpenAIGrammarTools = options?.supportsOpenAIGrammarTools ?? false;
 	return tools.map((tool): OpenAITool => {
 		const grammar = resolveGrammarConstrainedSampling(tool, supportsOpenAIGrammarTools);
@@ -269,14 +285,17 @@ export function convertResponsesTools(tools: readonly Tool[], options?: ConvertR
 			},
 			...(options?.deferLoading ? { defer_loading: true } : {}),
 		} as OpenAITool;
-		return {
+		const constrainedStrict = resolveJsonSchemaStrictSampling(tool, supportsStrictMode);
+		const strict = constrainedStrict ?? defaultStrict;
+		const functionTool = {
 			type: "function",
 			name: tool.name,
 			description: tool.description,
-			parameters: tool.parameters as unknown as Record<string, unknown>,
-			strict,
+			parameters: getJsonSchemaToolParameters(tool, strict === true) as unknown as Record<string, unknown>,
 			...(options?.deferLoading ? { defer_loading: true } : {}),
-		} as OpenAITool;
+		} as Extract<OpenAITool, { type: "function" }>;
+		if (supportsStrictMode) functionTool.strict = strict;
+		return functionTool;
 	});
 }
 

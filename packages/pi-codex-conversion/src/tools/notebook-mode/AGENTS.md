@@ -1,0 +1,18 @@
+- Keep this optional runtime cold: import it only after Notebook Code Mode is selected; download Deno only on first execution/prepare.
+- `client.ts` only composes the public runtime; `execution-runtime.ts` owns active cells, bridge delegation, and result observation; `session-runtime.ts` owns kernel/session/checkpoint state
+- `cell.ts` owns per-cell state/output; `session-startup.ts` owns startup rollback; `checkpoint-manager.ts` owns checkpoint scheduling
+- `bridge-server.ts` owns HTTP lifecycle, `bridge-protocol.ts` validates wire data, and `kernel-runtime.ts` owns injected Deno source
+- `jupyter-kernel.ts` owns kernel messaging/process lifecycle; connection allocation, output interpretation, and wire encoding stay in their named modules
+- `checkpoint.ts` owns host persistence and validation; checkpoint format and injected capture/restore source stay separate; session payloads are deltas against project generations
+- `journal.ts` appends cell events and rotates at the heap-derived persistence budget, retaining one previous `.ipynb`; `journal-document.ts` materializes standard notebooks
+- `project-state.ts` orchestrates worktree persistence; format validation, injected runtime source, merge/conflict policy, durable metadata, and locking stay in their named modules
+- Running sessions are private forks; new `globalThis` properties and explicitly pinned bindings merge into project state, never another live kernel
+- `lifecycle.ts` owns Notebook control actions; model/session result formatting and bounds stay in `lifecycle-result.ts`; generated Deno inspection/disposal source stays in `lifecycle-runtime.ts`
+- Pin promotion and metadata commit under one project lock; failed commits restore kernel tracking. Release/prune preserve pins, and prune requires a caller-selected glob
+- Startup lists exact-version npm imports previously used by successful project cells; guidance requires user approval before any unlisted package
+- `notebook-diagnostics.ts` maps journals to one-shot Deno diagnostics; `lsp-process.ts` owns bounded JSON-RPC process transport and never stays resident
+- `recovery.ts` coordinates host-side diagnostics and destructive reset; kernel/session mechanics remain in `client.ts`
+- `profile-lifecycle.ts` owns named profile actions; `profile-state.ts` owns snapshot I/O; schema, validation, and paths stay in `profile-state-format.ts`; profiles load by value and never replay cells
+- `directory-lock.ts` owns cross-process leases; release only the observed owner file and never recursively delete a lock path.
+- Existing V8 Code Mode remains under `tools/code-mode/`; share its public tool, rendering, nested-tool, and output contracts without changing the vendored host.
+- Notebook Deno targets Linux, macOS, and Windows on x64/arm64; every archive and extracted executable stays version-, size-, and checksum-pinned.

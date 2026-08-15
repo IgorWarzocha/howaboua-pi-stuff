@@ -16,7 +16,7 @@ export type ShrinkNativeCompactionRequestOptions = {
 };
 
 export type NativeCompactionBudgetOptions = {
-	provider: string;
+	codexTransport: boolean;
 	model: string;
 	contextWindow?: number | null | undefined;
 };
@@ -57,7 +57,7 @@ function rewriteToolOutputItem(item: ResponsesInputItem): { recognized: boolean;
 }
 
 export function resolveNativeCompactionRequestBudget(options: NativeCompactionBudgetOptions): number | undefined {
-	if (options.provider === "openai-codex" && supportsResponsesLiteModel(options.model)) {
+	if (options.codexTransport && supportsResponsesLiteModel(options.model)) {
 		return OPENAI_CODEX_COMPACTION_ENDPOINT_BUDGET_TOKENS;
 	}
 	const contextWindow = options.contextWindow;

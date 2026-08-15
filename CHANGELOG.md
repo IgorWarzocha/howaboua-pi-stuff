@@ -25,7 +25,13 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ### Changes
 
-- [#269](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/269) [`6138ffd`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/6138ffd735bb4f7f80e451320dbfd0933a4acaa7) Thanks [@howaclawa](https://github.com/howaclawa)! - Expose a reusable realtime voice prompt API, report open ask prompts, Auto Trees navigation, Shepherdr worker settlements, and isolated review progress through it, announce context compaction as it starts, begin speaking Pi updates after two sentences and continue by paragraph, use compatible reasoning summaries only for otherwise silent tool steps without exposing Chat Completions thinking content, make spoken delegation acknowledgements configurable, display and deliver V3 delegations as soon as they are created, preserve delegations that arrive after an acknowledgement completes, resume established calls when the realtime data channel closes, keep spoken Pi updates conversational instead of repeating them line by line, preserve the prepared Code Mode prompt and single prewarm for voice-started Pi turns, preserve Codex cache continuity across voice delegation and compaction prewarming, and reduce LAN playback dropouts with one additional jitter-buffer frame.
+- [#269](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/269) [`6138ffd`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/6138ffd735bb4f7f80e451320dbfd0933a4acaa7) Thanks [@howaclawa](https://github.com/howaclawa)!:
+  - Add shared realtime voice prompts for ask prompts, Auto Trees, Shepherdr settlements, and review progress.
+  - Announce compaction and stream conversational Pi updates after two sentences.
+  - Keep silent tool-step summaries compatible without exposing Chat Completions thinking content.
+  - Configure delegation acknowledgements and deliver V3 delegations immediately.
+  - Preserve late delegations, calls after data-channel closure, prepared Code Mode prompts, and Codex cache continuity.
+  - Reduce LAN playback dropouts with one more jitter-buffer frame.
 
 [Full changelog](./packages/pi-ask/CHANGELOG.md)
 
@@ -33,9 +39,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ### Changes
 
-- [#140](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/140) [`c95d68a`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/c95d68a21939860e4c6dcff9c58a6bf8a50044ff) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add inline cache-hit predictions when switching Pi model or reasoning lanes.
-
-  Warn once that automatic reasoning-level changes can cause prompt-cache misses and affect provider costs or quotas.
+- [#140](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/140) [`c95d68a`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/c95d68a21939860e4c6dcff9c58a6bf8a50044ff) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
+  - Show inline cache-hit predictions when switching models or reasoning lanes.
+  - Warn once that automatic reasoning changes can miss the prompt cache and affect costs or quotas.
 
 [Full changelog](./packages/pi-auto-reasoning-tool/CHANGELOG.md)
 
@@ -43,7 +49,13 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ### Changes
 
-- [#269](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/269) [`6138ffd`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/6138ffd735bb4f7f80e451320dbfd0933a4acaa7) Thanks [@howaclawa](https://github.com/howaclawa)! - Expose a reusable realtime voice prompt API, report open ask prompts, Auto Trees navigation, Shepherdr worker settlements, and isolated review progress through it, announce context compaction as it starts, begin speaking Pi updates after two sentences and continue by paragraph, use compatible reasoning summaries only for otherwise silent tool steps without exposing Chat Completions thinking content, make spoken delegation acknowledgements configurable, display and deliver V3 delegations as soon as they are created, preserve delegations that arrive after an acknowledgement completes, resume established calls when the realtime data channel closes, keep spoken Pi updates conversational instead of repeating them line by line, preserve the prepared Code Mode prompt and single prewarm for voice-started Pi turns, preserve Codex cache continuity across voice delegation and compaction prewarming, and reduce LAN playback dropouts with one additional jitter-buffer frame.
+- [#269](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/269) [`6138ffd`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/6138ffd735bb4f7f80e451320dbfd0933a4acaa7) Thanks [@howaclawa](https://github.com/howaclawa)!:
+  - Add shared realtime voice prompts for ask prompts, Auto Trees, Shepherdr settlements, and review progress.
+  - Announce compaction and stream conversational Pi updates after two sentences.
+  - Keep silent tool-step summaries compatible without exposing Chat Completions thinking content.
+  - Configure delegation acknowledgements and deliver V3 delegations immediately.
+  - Preserve late delegations, calls after data-channel closure, prepared Code Mode prompts, and Codex cache continuity.
+  - Reduce LAN playback dropouts with one more jitter-buffer frame.
 
 [Full changelog](./packages/pi-auto-trees/CHANGELOG.md)
 
@@ -51,9 +63,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ### Changes
 
-- [#140](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/140) [`c95d68a`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/c95d68a21939860e4c6dcff9c58a6bf8a50044ff) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add inline cache-hit predictions when switching Pi model or reasoning lanes.
-
-  Warn once that automatic reasoning-level changes can cause prompt-cache misses and affect provider costs or quotas.
+- [#140](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/140) [`c95d68a`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/c95d68a21939860e4c6dcff9c58a6bf8a50044ff) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
+  - Show inline cache-hit predictions when switching models or reasoning lanes.
+  - Warn once that automatic reasoning changes can miss the prompt cache and affect costs or quotas.
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
@@ -61,17 +73,35 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ### Changes
 
-- [#273](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/273) [`d0dbb06`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/d0dbb0619d9bd3bc965c2e17ae15f9fe9acfdc81) Thanks [@howaclawa](https://github.com/howaclawa)! - Show the exact provider code when OpenAI blocks a Codex request without identifying the reason.
+- [#273](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/273) [`d0dbb06`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/d0dbb0619d9bd3bc965c2e17ae15f9fe9acfdc81) Thanks [@howaclawa](https://github.com/howaclawa)!:
+  - Show the exact provider code when OpenAI blocks a Codex request without identifying the reason.
 
-- [#270](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/270) [`d7dbad4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/d7dbad4e6827d7ec61f3e7949cd60ca2875d9856) Thanks [@howaclawa](https://github.com/howaclawa)! - Await exec process-group termination and graceful bridge exit during Pi shutdown, contain descendants when a bridge wedges, and reject work after shutdown begins.
+- [#270](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/270) [`d7dbad4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/d7dbad4e6827d7ec61f3e7949cd60ca2875d9856) Thanks [@howaclawa](https://github.com/howaclawa)!:
+  - Await exec process-group termination and graceful bridge exit during shutdown.
+  - Contain wedged descendants and reject work after shutdown begins.
 
-- [#263](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/263) [`85b0a1f`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/85b0a1f3f22a4e6f8c98211fefe8388c3be39d29) Thanks [@howaclawa](https://github.com/howaclawa)! - Make voice input and output follow the system defaults unless an endpoint is explicitly pinned, keep successfully rerouted default output streams active, and share guided first-run and manual audio setup.
+- [#263](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/263) [`85b0a1f`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/85b0a1f3f22a4e6f8c98211fefe8388c3be39d29) Thanks [@howaclawa](https://github.com/howaclawa)!:
+  - Follow system audio defaults unless an endpoint is pinned.
+  - Keep successfully rerouted output streams active.
+  - Share guided first-run and manual audio setup.
 
-- [#268](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/268) [`df747db`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/df747dbc74520d11f7e56e3d85e2df81f5facba2) Thanks [@howaclawa](https://github.com/howaclawa)! - Show voice context summarization progress, greet the user through the V3 speakable context channel when a fresh realtime session becomes ready, and warn in Pi and the LAN controller when detectable microphone input remains too quiet.
+- [#268](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/268) [`df747db`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/df747dbc74520d11f7e56e3d85e2df81f5facba2) Thanks [@howaclawa](https://github.com/howaclawa)!:
+  - Show voice-context summarization progress.
+  - Greet users through the V3 speakable context channel when realtime sessions are ready.
+  - Warn in Pi and the LAN controller when microphone input is too quiet.
 
-- [#269](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/269) [`6138ffd`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/6138ffd735bb4f7f80e451320dbfd0933a4acaa7) Thanks [@howaclawa](https://github.com/howaclawa)! - Expose a reusable realtime voice prompt API, report open ask prompts, Auto Trees navigation, Shepherdr worker settlements, and isolated review progress through it, announce context compaction as it starts, begin speaking Pi updates after two sentences and continue by paragraph, use compatible reasoning summaries only for otherwise silent tool steps without exposing Chat Completions thinking content, make spoken delegation acknowledgements configurable, display and deliver V3 delegations as soon as they are created, preserve delegations that arrive after an acknowledgement completes, resume established calls when the realtime data channel closes, keep spoken Pi updates conversational instead of repeating them line by line, preserve the prepared Code Mode prompt and single prewarm for voice-started Pi turns, preserve Codex cache continuity across voice delegation and compaction prewarming, and reduce LAN playback dropouts with one additional jitter-buffer frame.
+- [#269](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/269) [`6138ffd`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/6138ffd735bb4f7f80e451320dbfd0933a4acaa7) Thanks [@howaclawa](https://github.com/howaclawa)!:
+  - Add shared realtime voice prompts for ask prompts, Auto Trees, Shepherdr settlements, and review progress.
+  - Announce compaction and stream conversational Pi updates after two sentences.
+  - Keep silent tool-step summaries compatible without exposing Chat Completions thinking content.
+  - Configure delegation acknowledgements and deliver V3 delegations immediately.
+  - Preserve late delegations, calls after data-channel closure, prepared Code Mode prompts, and Codex cache continuity.
+  - Reduce LAN playback dropouts with one more jitter-buffer frame.
 
-- [#264](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/264) [`6f24d07`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/6f24d07224f806aad9213bfcb351e626d077116a) Thanks [@howaclawa](https://github.com/howaclawa)! - Show remaining weekly Codex subscription usage in the adapter statusline, restrict polling to canonical ChatGPT subscription auth, and preserve cached usage across failed or superseded refreshes.
+- [#264](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/264) [`6f24d07`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/6f24d07224f806aad9213bfcb351e626d077116a) Thanks [@howaclawa](https://github.com/howaclawa)!:
+  - Show remaining weekly Codex subscription usage in the adapter statusline.
+  - Poll only for canonical ChatGPT subscription auth.
+  - Preserve cached usage across failed or superseded refreshes.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
@@ -79,7 +109,8 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ### Changes
 
-- [#195](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/195) [`dca7267`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/dca7267730098e7cfcdd068ae8f032008f2033d7) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Correct Herdr delivery failures to acknowledge that messages may already be queued
+- [#195](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/195) [`dca7267`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/dca7267730098e7cfcdd068ae8f032008f2033d7) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
+  - Correct Herdr delivery failures to acknowledge that messages may already be queued
 
 [Full changelog](./packages/pi-dynamic-tools/CHANGELOG.md)
 
@@ -87,7 +118,8 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ### Changes
 
-- [#106](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/106) [`c423031`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/c4230312f24db0e49c95eafff959109d74017c3d) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Rewrite package documentation around current installation, configuration, usage, and behavior.
+- [#106](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/106) [`c423031`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/c4230312f24db0e49c95eafff959109d74017c3d) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
+  - Rewrite package documentation around current installation, configuration, usage, and behavior.
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
@@ -97,7 +129,10 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 - Include bundled package updates:
 
-  - @howaboua/pi-gippity-control: Route /gippity create through Pi's ordinary user-prompt lifecycle while preserving its custom transcript card, condense the settings details while showing the effective LAN port, and document custom web app paths and port configuration.
+  - @howaboua/pi-gippity-control:
+    - Route `/gippity create` through Pi's ordinary user-prompt lifecycle while preserving its transcript card.
+    - Condense settings details and show the effective LAN port.
+    - Document custom web-app paths and port configuration.
 
 - Updated dependencies [[`439c7f0`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/439c7f05c5e5c8a1d8a69ae133167e56289af555)]:
   - @howaboua/pi-gippity-control@0.0.12
@@ -108,7 +143,10 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ### Changes
 
-- [#290](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/290) [`439c7f0`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/439c7f05c5e5c8a1d8a69ae133167e56289af555) Thanks [@howaclawa](https://github.com/howaclawa)! - Route /gippity create through Pi's ordinary user-prompt lifecycle while preserving its custom transcript card, condense the settings details while showing the effective LAN port, and document custom web app paths and port configuration
+- [#290](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/290) [`439c7f0`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/439c7f05c5e5c8a1d8a69ae133167e56289af555) Thanks [@howaclawa](https://github.com/howaclawa)!:
+  - Route `/gippity create` through Pi's ordinary user-prompt lifecycle while preserving its transcript card.
+  - Condense settings details and show the effective LAN port.
+  - Document custom web-app paths and port configuration.
 
 [Full changelog](./packages/pi-gippity-control/CHANGELOG.md)
 
@@ -116,7 +154,8 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ### Changes
 
-- [#164](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/164) [`b8731f6`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/b8731f68c8b6cbfb167e29728aad07fb59e560bb) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add `/sol`, `/terra`, and `/luna` commands for switching GPT-5.6 Codex models and reasoning levels.
+- [#164](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/164) [`b8731f6`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/b8731f68c8b6cbfb167e29728aad07fb59e560bb) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
+  - Add `/sol`, `/terra`, and `/luna` commands for switching GPT-5.6 Codex models and reasoning levels.
 
 [Full changelog](./packages/pi-gpt-switcher/CHANGELOG.md)
 
@@ -124,7 +163,10 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ### Changes
 
-- [#126](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/126) [`8983df4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8983df436423fdc2933863611285946dd0319cf5) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Make skill descriptions terse semantic indexes, remove purpose sections, and distinguish operational from creative body language.
+- [#126](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/126) [`8983df4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8983df436423fdc2933863611285946dd0319cf5) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
+  - Make skill descriptions terse semantic indexes.
+  - Remove redundant purpose or job restatements.
+  - Distinguish operational from creative body language where applicable.
 
 [Full changelog](./packages/pi-markdown-workflows/CHANGELOG.md)
 
@@ -132,7 +174,8 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ### Changes
 
-- [#106](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/106) [`c423031`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/c4230312f24db0e49c95eafff959109d74017c3d) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Rewrite package documentation around current installation, configuration, usage, and behavior.
+- [#106](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/106) [`c423031`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/c4230312f24db0e49c95eafff959109d74017c3d) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
+  - Rewrite package documentation around current installation, configuration, usage, and behavior.
 
 [Full changelog](./packages/pi-memories/CHANGELOG.md)
 
@@ -140,7 +183,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ### Changes
 
-- [#239](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/239) [`7dbbfc8`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/7dbbfc8bc28746ec28b3142a73efc8e0b14d2ffa) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Make semantic indexing non-blocking at session startup, single-writer, atomic, resumable, ignore-aware, metadata-fast, batch-embedded, and role-aware while preserving usable prior file indexes across interrupted rebuilds.
+- [#239](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/239) [`7dbbfc8`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/7dbbfc8bc28746ec28b3142a73efc8e0b14d2ffa) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
+  - Make indexing non-blocking at session startup.
+  - Use a single writer with atomic, resumable rebuilds.
+  - Respect ignore rules and prioritize metadata, batching, and roles.
+  - Preserve usable prior indexes across interrupted rebuilds.
 
 [Full changelog](./packages/pi-semantic-grep/CHANGELOG.md)
 
@@ -148,7 +195,13 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ### Changes
 
-- [#269](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/269) [`6138ffd`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/6138ffd735bb4f7f80e451320dbfd0933a4acaa7) Thanks [@howaclawa](https://github.com/howaclawa)! - Expose a reusable realtime voice prompt API, report open ask prompts, Auto Trees navigation, Shepherdr worker settlements, and isolated review progress through it, announce context compaction as it starts, begin speaking Pi updates after two sentences and continue by paragraph, use compatible reasoning summaries only for otherwise silent tool steps without exposing Chat Completions thinking content, make spoken delegation acknowledgements configurable, display and deliver V3 delegations as soon as they are created, preserve delegations that arrive after an acknowledgement completes, resume established calls when the realtime data channel closes, keep spoken Pi updates conversational instead of repeating them line by line, preserve the prepared Code Mode prompt and single prewarm for voice-started Pi turns, preserve Codex cache continuity across voice delegation and compaction prewarming, and reduce LAN playback dropouts with one additional jitter-buffer frame.
+- [#269](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/269) [`6138ffd`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/6138ffd735bb4f7f80e451320dbfd0933a4acaa7) Thanks [@howaclawa](https://github.com/howaclawa)!:
+  - Add shared realtime voice prompts for ask prompts, Auto Trees, Shepherdr settlements, and review progress.
+  - Announce compaction and stream conversational Pi updates after two sentences.
+  - Keep silent tool-step summaries compatible without exposing Chat Completions thinking content.
+  - Configure delegation acknowledgements and deliver V3 delegations immediately.
+  - Preserve late delegations, calls after data-channel closure, prepared Code Mode prompts, and Codex cache continuity.
+  - Reduce LAN playback dropouts with one more jitter-buffer frame.
 
 [Full changelog](./packages/pi-shepherdr/CHANGELOG.md)
 
@@ -156,7 +209,8 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ### Changes
 
-- [#126](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/126) [`8983df4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8983df436423fdc2933863611285946dd0319cf5) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add the adversarial-qa skill for falsifying code behaviour with property, differential, mutation, and fuzz testing.
+- [#126](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/126) [`8983df4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8983df436423fdc2933863611285946dd0319cf5) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
+  - Add the adversarial-qa skill for falsifying code behaviour with property, differential, mutation, and fuzz testing.
 
 [Full changelog](./packages/pi-skill-adversarial-qa/CHANGELOG.md)
 
@@ -164,7 +218,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ### Changes
 
-- [#166](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/166) [`5118fd9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/5118fd9c29c050316a4fa1cf9122b501710e7056) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add execution-topology hardening guidance for agent-navigable call stacks and measured import, initialization, startup, and bundle performance.
+- [#166](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/166) [`5118fd9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/5118fd9c29c050316a4fa1cf9122b501710e7056) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
+  - Add execution-topology guidance for agent-navigable call stacks.
+  - Measure import, initialization, startup, and bundle performance.
 
 [Full changelog](./packages/pi-skill-agent-native-hardening/CHANGELOG.md)
 
@@ -172,7 +228,10 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ### Changes
 
-- [#126](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/126) [`8983df4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8983df436423fdc2933863611285946dd0319cf5) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Make skill descriptions terse semantic indexes and remove redundant job restatements from operational bodies.
+- [#126](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/126) [`8983df4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8983df436423fdc2933863611285946dd0319cf5) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
+  - Make skill descriptions terse semantic indexes.
+  - Remove redundant purpose or job restatements.
+  - Distinguish operational from creative body language where applicable.
 
 [Full changelog](./packages/pi-skill-agents-md/CHANGELOG.md)
 
@@ -180,7 +239,10 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ### Changes
 
-- [#126](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/126) [`8983df4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8983df436423fdc2933863611285946dd0319cf5) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Make skill descriptions terse semantic indexes and remove redundant job restatements from operational bodies.
+- [#126](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/126) [`8983df4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8983df436423fdc2933863611285946dd0319cf5) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
+  - Make skill descriptions terse semantic indexes.
+  - Remove redundant purpose or job restatements.
+  - Distinguish operational from creative body language where applicable.
 
 [Full changelog](./packages/pi-skill-anti-ai-copy/CHANGELOG.md)
 
@@ -188,7 +250,10 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ### Changes
 
-- [#126](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/126) [`8983df4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8983df436423fdc2933863611285946dd0319cf5) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Make skill descriptions terse semantic indexes and remove redundant job restatements from operational bodies.
+- [#126](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/126) [`8983df4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8983df436423fdc2933863611285946dd0319cf5) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
+  - Make skill descriptions terse semantic indexes.
+  - Remove redundant purpose or job restatements.
+  - Distinguish operational from creative body language where applicable.
 
 [Full changelog](./packages/pi-skill-chrome-cdp/CHANGELOG.md)
 
@@ -196,7 +261,8 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ### Changes
 
-- [#214](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/214) [`2023aa0`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/2023aa005da4d32f9af0b9bc161c9224d8c60486) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add a Codex prompt-caching skill covering GPT-5.6 caching, Codex request continuity, Pi hooks, compaction, dynamic tools, measurement, and extension review.
+- [#214](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/214) [`2023aa0`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/2023aa005da4d32f9af0b9bc161c9224d8c60486) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
+  - Add a Codex prompt-caching skill covering GPT-5.6 caching, Codex request continuity, Pi hooks, compaction, dynamic tools, measurement, and extension review.
 
 [Full changelog](./packages/pi-skill-codex-prompt-caching/CHANGELOG.md)
 
@@ -204,7 +270,8 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ### Changes
 
-- [#168](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/168) [`70c9973`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/70c9973b8509d2ebefc26acef5c25d1e01b47d47) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Cull feature-existence and implementation-coupled tests before final PR submission, retaining only independently justified contract coverage.
+- [#168](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/168) [`70c9973`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/70c9973b8509d2ebefc26acef5c25d1e01b47d47) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
+  - Cull feature-existence and implementation-coupled tests before final PR submission, retaining only independently justified contract coverage.
 
 [Full changelog](./packages/pi-skill-gh-issue-pr-flow/CHANGELOG.md)
 
@@ -212,7 +279,10 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ### Changes
 
-- [#231](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/231) [`f05fa46`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/f05fa469e034ec0e47f238f213437e5a11f2b13c) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Improve the native GitHub stacked-PR skill with tested noninteractive command guidance, lazy-loaded command and recovery references, machine-readable state contracts, and issue-batch stack design.
+- [#231](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/231) [`f05fa46`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/f05fa469e034ec0e47f238f213437e5a11f2b13c) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
+  - Add tested noninteractive command guidance.
+  - Lazy-load command and recovery references.
+  - Add machine-readable state contracts and issue-batch stack design.
 
 [Full changelog](./packages/pi-skill-gh-stack/CHANGELOG.md)
 
@@ -220,7 +290,8 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ### Changes
 
-- [#149](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/149) [`94b2252`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/94b225295be07e04206460963fd3da754a74565e) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Document model-facing punctuation and token-cost hygiene
+- [#149](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/149) [`94b2252`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/94b225295be07e04206460963fd3da754a74565e) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
+  - Document model-facing punctuation and token-cost hygiene
 
 [Full changelog](./packages/pi-skill-model-facing-api-design/CHANGELOG.md)
 
@@ -228,7 +299,10 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ### Changes
 
-- [#126](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/126) [`8983df4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8983df436423fdc2933863611285946dd0319cf5) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Make skill descriptions terse semantic indexes and remove redundant job restatements from operational bodies.
+- [#126](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/126) [`8983df4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8983df436423fdc2933863611285946dd0319cf5) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
+  - Make skill descriptions terse semantic indexes.
+  - Remove redundant purpose or job restatements.
+  - Distinguish operational from creative body language where applicable.
 
 [Full changelog](./packages/pi-skill-omarchy-help/CHANGELOG.md)
 
@@ -236,7 +310,10 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ### Changes
 
-- [#126](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/126) [`8983df4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8983df436423fdc2933863611285946dd0319cf5) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Make skill descriptions terse semantic indexes and remove redundant job restatements from operational bodies.
+- [#126](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/126) [`8983df4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8983df436423fdc2933863611285946dd0319cf5) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
+  - Make skill descriptions terse semantic indexes.
+  - Remove redundant purpose or job restatements.
+  - Distinguish operational from creative body language where applicable.
 
 [Full changelog](./packages/pi-skill-project-reference-research/CHANGELOG.md)
 
@@ -244,7 +321,10 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ### Changes
 
-- [#126](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/126) [`8983df4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8983df436423fdc2933863611285946dd0319cf5) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Make skill descriptions terse semantic indexes, remove purpose sections, and distinguish operational from creative body language.
+- [#126](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/126) [`8983df4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8983df436423fdc2933863611285946dd0319cf5) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
+  - Make skill descriptions terse semantic indexes.
+  - Remove redundant purpose or job restatements.
+  - Distinguish operational from creative body language where applicable.
 
 [Full changelog](./packages/pi-skill-skill-creator/CHANGELOG.md)
 
@@ -254,7 +334,10 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 - Include bundled package updates:
 
-  - @howaboua/pi-skill-gh-stack: Improve the native GitHub stacked-PR skill with tested noninteractive command guidance, lazy-loaded command and recovery references, machine-readable state contracts, and issue-batch stack design.
+  - @howaboua/pi-skill-gh-stack:
+    - Add tested noninteractive command guidance.
+    - Lazy-load command and recovery references.
+    - Add machine-readable state contracts and issue-batch stack design.
 
 - Updated dependencies [[`f05fa46`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/f05fa469e034ec0e47f238f213437e5a11f2b13c)]:
   - @howaboua/pi-skill-gh-stack@0.0.2
@@ -265,7 +348,10 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ### Changes
 
-- [#235](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/235) [`5657b77`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/5657b778f59ffa2eb86f10f7e949f060d95eb993) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Preserve Pi 0.84 credential-resolved endpoints and nullable auth headers in tree, review, and voice summaries, assemble complete multi-block delta-only RPC streaming updates, and remove retired Smart BTW shortcut-capture and voice helper exports
+- [#235](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/235) [`5657b77`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/5657b778f59ffa2eb86f10f7e949f060d95eb993) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
+  - Preserve Pi 0.84 credential-resolved endpoints and nullable auth headers in summaries.
+  - Assemble complete multi-block, delta-only RPC streaming updates.
+  - Remove retired Smart BTW shortcut-capture and voice-helper exports.
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
@@ -275,7 +361,10 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 - Include bundled package updates:
 
-  - @howaboua/pi-gippity-control: Route /gippity create through Pi's ordinary user-prompt lifecycle while preserving its custom transcript card, condense the settings details while showing the effective LAN port, and document custom web app paths and port configuration.
+  - @howaboua/pi-gippity-control:
+    - Route `/gippity create` through Pi's ordinary user-prompt lifecycle while preserving its transcript card.
+    - Condense settings details and show the effective LAN port.
+    - Document custom web-app paths and port configuration.
 
 - Updated dependencies [[`439c7f0`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/439c7f05c5e5c8a1d8a69ae133167e56289af555)]:
   - @howaboua/pi-gippity-control@0.0.12
@@ -286,7 +375,13 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ### Changes
 
-- [#269](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/269) [`6138ffd`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/6138ffd735bb4f7f80e451320dbfd0933a4acaa7) Thanks [@howaclawa](https://github.com/howaclawa)! - Expose a reusable realtime voice prompt API, report open ask prompts, Auto Trees navigation, Shepherdr worker settlements, and isolated review progress through it, announce context compaction as it starts, begin speaking Pi updates after two sentences and continue by paragraph, use compatible reasoning summaries only for otherwise silent tool steps without exposing Chat Completions thinking content, make spoken delegation acknowledgements configurable, display and deliver V3 delegations as soon as they are created, preserve delegations that arrive after an acknowledgement completes, resume established calls when the realtime data channel closes, keep spoken Pi updates conversational instead of repeating them line by line, preserve the prepared Code Mode prompt and single prewarm for voice-started Pi turns, preserve Codex cache continuity across voice delegation and compaction prewarming, and reduce LAN playback dropouts with one additional jitter-buffer frame.
+- [#269](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/269) [`6138ffd`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/6138ffd735bb4f7f80e451320dbfd0933a4acaa7) Thanks [@howaclawa](https://github.com/howaclawa)!:
+  - Add shared realtime voice prompts for ask prompts, Auto Trees, Shepherdr settlements, and review progress.
+  - Announce compaction and stream conversational Pi updates after two sentences.
+  - Keep silent tool-step summaries compatible without exposing Chat Completions thinking content.
+  - Configure delegation acknowledgements and deliver V3 delegations immediately.
+  - Preserve late delegations, calls after data-channel closure, prepared Code Mode prompts, and Codex cache continuity.
+  - Reduce LAN playback dropouts with one more jitter-buffer frame.
 
 [Full changelog](./packages/pi-subagent-review/CHANGELOG.md)
 
@@ -294,7 +389,8 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ### Changes
 
-- [#106](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/106) [`c423031`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/c4230312f24db0e49c95eafff959109d74017c3d) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Rewrite package documentation around current installation, configuration, usage, and behavior.
+- [#106](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/106) [`c423031`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/c4230312f24db0e49c95eafff959109d74017c3d) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
+  - Rewrite package documentation around current installation, configuration, usage, and behavior.
 
 [Full changelog](./packages/pi-vent/CHANGELOG.md)
 

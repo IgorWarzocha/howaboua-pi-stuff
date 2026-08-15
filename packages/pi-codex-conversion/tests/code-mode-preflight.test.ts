@@ -6,6 +6,7 @@ import {
 	type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { CodeModeDelegateRuntime } from "../src/tools/code-mode/delegate-runtime.ts";
+import { parseHostMessage, toWireToolDefinition } from "../src/tools/code-mode/host-protocol.ts";
 import {
 	registerCodeModeToolPreflight,
 } from "../src/code-mode-preflight.ts";
@@ -118,8 +119,9 @@ test("nested preflight blocks or cancels tools before invocation", async () => {
 	});
 	let programmaticInvoked = false;
 	const programmatic: ProgrammaticCodeModeToolDefinition = {
-		name: "exec_command",
-		usage: "await tools.exec_command({ cmd })",
+		name: "web__run",
+		toolName: { namespace: "web", name: "run" },
+		usage: "await tools.web__run({ query })",
 		deferLoading: false,
 		kind: "function",
 		inputSchema: { type: "object" },
@@ -127,6 +129,7 @@ test("nested preflight blocks or cancels tools before invocation", async () => {
 			programmaticInvoked = true;
 		},
 	};
+	assert.deepEqual(toWireToolDefinition(programmatic).tool_name, { namespace: "web", name: "run" });
 	const toml: CodeModeToolDefinition = {
 		name: "custom_shell",
 		usage: "await tools.custom_shell(input)",
@@ -151,7 +154,8 @@ test("nested preflight blocks or cancels tools before invocation", async () => {
 	async function invoke(cellId: string, id: number, tool: CodeModeToolDefinition, input: unknown) {
 		runtime.bindCell(cellId, context, new Map([[tool.name, tool]]));
 		const response = new Promise((resolve) => waiters.push(resolve));
-		runtime.handleRequest({
+		const message = parseHostMessage({
+			type: "delegate/request",
 			id,
 			request: {
 				type: "tool/invoke",
@@ -159,10 +163,12 @@ test("nested preflight blocks or cancels tools before invocation", async () => {
 					cell_id: cellId,
 					input,
 					runtime_tool_call_id: `nested-${id}`,
-					tool_name: { name: tool.name },
+					tool_name: tool.toolName ?? { name: tool.name },
 				},
 			},
 		});
+		if (message.type !== "delegate/request") throw new Error("Expected delegate request");
+		runtime.handleRequest(message);
 		return await response;
 	}
 

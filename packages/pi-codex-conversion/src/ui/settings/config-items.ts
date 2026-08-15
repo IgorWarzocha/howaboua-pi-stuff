@@ -18,9 +18,10 @@ export function buildConfigSettings(
 	config: CodexConversionConfig,
 	theme: Theme,
 	availableContextModels: VoiceContextModel[] = [],
+	configPath?: string | undefined,
 ): ConfigSetting[] {
 	if (tab === "adapter") return buildAdapterSettings(config, theme);
-	if (tab === "tools") return buildToolsSettings(config, theme);
+	if (tab === "tools") return buildToolsSettings(config, theme, configPath);
 	if (tab === "openai") return buildOpenAISettings(config, theme);
 	if (tab === "display") return buildDisplaySettings(config);
 	if (tab === "voice")

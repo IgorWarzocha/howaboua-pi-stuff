@@ -3,7 +3,7 @@ import { registerCodeModeProxyProvider } from "../providers/code-mode-proxy-prov
 import { registerOpenAICodexCustomProvider } from "../providers/openai-codex-custom-provider.ts";
 import { registerCodexCommand } from "../ui/settings/command.ts";
 import { registerCodexCodeMode } from "../adapter/code-mode.ts";
-import { registerCodexEvents } from "./events.ts";
+import { prepareCodeModeHost, registerCanonicalAliasEndpointPreflight, registerCodexEvents } from "./events.ts";
 import { createCodexExtensionRuntime } from "./runtime.ts";
 import { registerCodexTools } from "./tools.ts";
 import { registerCodexUi } from "./ui.ts";
@@ -14,12 +14,13 @@ import { captureActiveProviderSystemPrompt } from "../adapter/provider-request.t
 export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 	registerCodexVoiceRenderer(pi);
 	const runtime = createCodexExtensionRuntime(pi);
+	registerCanonicalAliasEndpointPreflight(pi, runtime);
 	const codeMode = await registerCodexCodeMode(pi, runtime);
 	let cleanupProxyProvider: ReturnType<typeof registerCodeModeProxyProvider> | undefined;
 	try {
 		registerOpenAICodexCustomProvider(pi, {
-			getConfig: () => ({ openai: runtime.state.config.openai, beta: runtime.state.config.beta, compaction: runtime.state.config.compaction }),
-			useResponsesLite: (model) => resolveCodexRuntimePlan({ model }, runtime.state.config).kind === "code",
+			getConfig: () => ({ executionMode: runtime.state.executionMode, openai: runtime.state.config.openai, compaction: runtime.state.config.compaction }),
+			useResponsesLite: (model) => resolveCodexRuntimePlan({ model }, runtime.state.config, runtime.state.executionMode).transport === "responses-lite",
 			turnState: runtime.state.codexTurnState,
 			getDiagnostics: () => runtime.diagnosticsSink(),
 			onPreparedPayload: (payload) => {
@@ -28,11 +29,12 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 				runtime.state.pendingActiveProviderPromptCapture = false;
 			},
 		});
-		const proxyProvider = registerCodeModeProxyProvider(pi, () => runtime.state.config);
+		const proxyProvider = registerCodeModeProxyProvider(pi, () => runtime.state.config, () => runtime.state.executionMode);
 		cleanupProxyProvider = proxyProvider;
 		const tools = registerCodexTools(pi, runtime);
 		const ui = registerCodexUi(pi, runtime);
 		registerCodexCommand(pi, runtime.state, runtime.voice, runtime.lanVoice, (config, ctx, previousConfig) => {
+			const executionModeChanged = config.executionMode !== previousConfig.executionMode;
 			proxyProvider.applyConfig(config, ctx.modelRegistry);
 			tools.applyConfig(config);
 			ui.applyConfig(config, ctx, previousConfig);
@@ -45,7 +47,9 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 			}
 			if (
 				config.voiceFeaturesOnly !== previousConfig.voiceFeaturesOnly
+				|| executionModeChanged
 				|| config.prompt.heavySystemPromptOverwrite !== previousConfig.prompt.heavySystemPromptOverwrite
+				|| config.openai.fast !== previousConfig.openai.fast
 				|| config.openai.harnessIdentifierHeader !== previousConfig.openai.harnessIdentifierHeader
 				|| config.compaction.responsesCompaction !== previousConfig.compaction.responsesCompaction
 			) {
@@ -55,6 +59,12 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 				void codeMode.shutdownHost().catch((error: unknown) => {
 					ctx.ui.notify(`Could not stop Code Mode host: ${error instanceof Error ? error.message : String(error)}`, "warning");
 				});
+			} else if (executionModeChanged) {
+				void codeMode.shutdownHost()
+					.then(() => prepareCodeModeHost(codeMode, ctx))
+					.catch((error: unknown) => {
+						ctx.ui.notify(`Could not switch execution mode: ${error instanceof Error ? error.message : String(error)}`, "warning");
+					});
 			}
 		});
 		registerCodexEvents(pi, runtime, tools, ui, codeMode, proxyProvider);

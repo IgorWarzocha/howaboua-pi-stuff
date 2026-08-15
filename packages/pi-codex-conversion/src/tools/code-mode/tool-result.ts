@@ -2,7 +2,7 @@ import {
 	DEFAULT_CODE_MODE_OUTPUT_TOKENS,
 	MAX_CODE_MODE_OUTPUT_TOKENS,
 } from "./host-protocol.js";
-import type { RuntimeContentItem, RuntimeResponse } from "./types.js";
+import type { NotebookMemoryUsage, RuntimeContentItem, RuntimeResponse } from "./types.js";
 
 const MAX_OUTPUT_IMAGE_COUNT = 4;
 const MAX_OUTPUT_IMAGE_CHARS = 16 * 1024 * 1024;
@@ -45,6 +45,9 @@ export function toCodeModeToolResult(
 			text,
 		})),
 	);
+	if (response.notebookMemory) {
+		output.unshift({ type: "text", text: formatNotebookMemory(response.notebookMemory) });
+	}
 	if (omittedImages > 0)
 		output.push({
 			type: "text",
@@ -70,9 +73,27 @@ export function toCodeModeToolResult(
 			...(response.droppedTraceCount
 				? { droppedTraceCount: response.droppedTraceCount }
 				: {}),
+			...(response.notebookMemory ? { notebookMemory: response.notebookMemory } : {}),
 			...(scriptError ? { scriptError } : {}),
 		},
 	};
+}
+
+export function formatNotebookMemory(memory: NotebookMemoryUsage): string {
+	const ratio = memory.heapLimitBytes > 0 ? memory.heapUsedBytes / memory.heapLimitBytes : 0;
+	const pressure = ratio >= 0.9
+		? " · CRITICAL: finish essential work and release unneeded notebook state"
+		: ratio >= 0.8
+			? " · WARNING: release unneeded notebook state"
+			: "";
+	return `Notebook memory: heap ${formatBinaryBytes(memory.heapUsedBytes)} / ${formatBinaryBytes(memory.heapLimitBytes)} · RSS ${formatBinaryBytes(memory.rssBytes)}${pressure}`;
+}
+
+function formatBinaryBytes(bytes: number): string {
+	const mib = bytes / (1024 * 1024);
+	if (mib < 1024) return `${mib.toFixed(mib < 10 ? 1 : 0)} MiB`;
+	const gib = mib / 1024;
+	return `${gib.toFixed(gib < 10 ? 1 : 0)} GiB`;
 }
 
 function runningExecSessionGuidance(

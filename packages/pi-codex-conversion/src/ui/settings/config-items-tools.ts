@@ -11,17 +11,9 @@ import { type ConfigSetting, setting, toggle } from "./config-items-shared.ts";
 export function buildToolsSettings(
 	config: CodexConversionConfig,
 	theme: Theme,
+	configPath: string = getCodexConversionConfigPath(),
 ): ConfigSetting[] {
 	return [
-		toggle(
-			"codeMode",
-			"GPT-5.6 Code Mode",
-			config.beta.codeMode,
-			(enabled, current) => ({
-				...current,
-				beta: { ...current.beta, codeMode: enabled },
-			}),
-		),
 		toggle(
 			"viewImageFallback",
 			"Text Image Descriptions",
@@ -112,7 +104,7 @@ export function buildToolsSettings(
 		}),
 		setting({
 			id: "customRustBinariesPath",
-			label: theme.fg("dim", getCodexConversionConfigPath()),
+			label: theme.fg("dim", configPath),
 			currentValue: "",
 		}),
 	];

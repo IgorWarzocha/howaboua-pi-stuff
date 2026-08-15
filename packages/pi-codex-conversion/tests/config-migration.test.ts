@@ -15,7 +15,20 @@ test("legacy persisted config shapes migrate to the current groups", () => {
 	assert.deepEqual(normalized.scope, { allProviders: "on", additionalProviders: [] });
 	assert.equal(normalized.openai.fast, true);
 
-	const lite = migrateCodexConversionConfigIfNeeded({ beta: { responsesLite: true } });
-	assert.equal(lite.migrated, true);
-	assert.deepEqual((lite.config as { beta: unknown }).beta, { codeMode: true, responsesLite: false });
+	const code = migrateCodexConversionConfigIfNeeded({ beta: { codeMode: true, responsesLite: false } });
+	assert.equal(code.migrated, true);
+	assert.deepEqual(code.config, {
+		executionMode: "code",
+		openai: { proxyResponsesLite: false },
+		compaction: { v2UserMessageRetention: 64 },
+	});
+});
+
+test("Notebook heap configuration is bounded without migrating grouped config", () => {
+	const accepted = migrateCodexConversionConfigIfNeeded({ notebook: { maxHeapMiB: 8192, profile: "shell-agent" } });
+	assert.equal(accepted.migrated, false);
+	assert.equal(normalizeCodexConversionConfig(accepted.config).notebook.maxHeapMiB, 8192);
+	assert.equal(normalizeCodexConversionConfig(accepted.config).notebook.profile, "shell-agent");
+	assert.equal(normalizeCodexConversionConfig({ notebook: { maxHeapMiB: 128 } }).notebook.maxHeapMiB, 4096);
+	assert.equal(normalizeCodexConversionConfig({ notebook: { profile: "../nope" } }).notebook.profile, undefined);
 });

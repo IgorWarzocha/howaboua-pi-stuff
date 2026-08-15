@@ -47,7 +47,7 @@ test("stalled auth in an aborted prewarm cannot block a newer equivalent operati
 	} as never);
 	runtime.state.config = {
 		...DEFAULT_CODEX_CONVERSION_CONFIG,
-		beta: { ...DEFAULT_CODEX_CONVERSION_CONFIG.beta, codeMode: true },
+		executionMode: "code",
 	};
 	const extensionContext = {
 		model,
@@ -87,7 +87,7 @@ test("post-compaction reset seeds one reusable request identity", async () => {
 		assert.equal(isWebSocketSseFallbackActive(sessionId), false);
 		runtime.state.config = {
 			...DEFAULT_CODEX_CONVERSION_CONFIG,
-			beta: { ...DEFAULT_CODEX_CONVERSION_CONFIG.beta, codeMode: true },
+			executionMode: "code",
 		};
 		runtime.state.activeProviderSystemPrompt = "Stable prompt";
 		const extensionContext = {
@@ -129,7 +129,7 @@ test("unfinished WebSocket prewarm cannot seed a continuation", async () => {
 				{
 					getConfig: () => ({
 						openai: DEFAULT_CODEX_CONVERSION_CONFIG.openai,
-						beta: { ...DEFAULT_CODEX_CONVERSION_CONFIG.beta, codeMode: true },
+						executionMode: "code",
 					}),
 					turnState: registered.turnState,
 				},

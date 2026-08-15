@@ -175,7 +175,10 @@ function extractCodexEventError(event: StreamEventShape): { code?: string | unde
 	};
 }
 
-export async function* mapCodexEvents(events: AsyncIterable<StreamEventShape>): AsyncIterable<StreamEventShape> {
+export async function* mapCodexEvents(
+	events: AsyncIterable<StreamEventShape>,
+	output?: AssistantMessage,
+): AsyncIterable<StreamEventShape> {
 	let sawTerminalResponse = false;
 	for await (const event of events) {
 		const type = typeof event.type === "string" ? event.type : undefined;
@@ -216,6 +219,7 @@ export async function* mapCodexEvents(events: AsyncIterable<StreamEventShape>): 
 		if (type === "response.done" || type === "response.completed" || type === "response.incomplete") {
 			sawTerminalResponse = true;
 			const response = event.response;
+			if (output && typeof response?.["end_turn"] === "boolean") output.endTurn = response["end_turn"];
 			yield {
 				...event,
 				type: "response.completed",
@@ -266,5 +270,5 @@ export async function processCodexResponsesStream<TApi extends Api>(
 	model: Model<TApi>,
 	options: OpenAICodexStreamOptions | undefined,
 ): Promise<void> {
-	await processMappedCodexResponsesStream(mapCodexEvents(events), output, stream, model, options);
+	await processMappedCodexResponsesStream(mapCodexEvents(events, output), output, stream, model, options);
 }

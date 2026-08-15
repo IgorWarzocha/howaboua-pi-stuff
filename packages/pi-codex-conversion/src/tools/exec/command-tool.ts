@@ -2,11 +2,13 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { keyHint, truncateToVisualLines } from "@earendil-works/pi-coding-agent";
 import { Container, Text, truncateToWidth } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
+import { getPiConfiguredShellPath } from "../../adapter/prompt/runtime-shell.ts";
 import { renderExecCommandCall, renderGroupedExecCommandCall } from "../../ui/tool-rendering/codex-rendering.ts";
+import { getExperimentalToolSampling } from "../tool-sampling.ts";
 import type { ExecCommandTracker } from "./command-state.ts";
 import { formatUnifiedExecResult } from "./format.ts";
 import { renderTerminalOutput } from "./output.ts";
-import type { ExecSessionManager, UnifiedExecResult } from "./session-manager.ts";
+import type { ExecCommandInput, ExecSessionManager, UnifiedExecResult } from "./session-manager.ts";
 import { MAX_EXEC_YIELD_TIME_MS } from "./shell.ts";
 
 const EXEC_COMMAND_PARAMETERS = Type.Object({
@@ -165,16 +167,21 @@ function renderResult(
 }
 
 export function createExecCommandTool(tracker: ExecCommandTracker, sessions: ExecSessionManager, options: ExecCommandToolOptions = {}) {
+	const constrainedSampling = getExperimentalToolSampling("exec_command");
 	const tool: Parameters<ExtensionAPI["registerTool"]>[0] = {
 		name: "exec_command",
 		label: "exec_command",
 		description: "Run shell commands; may return session_id",
 		...(options.promptSnippet === false ? {} : { promptSnippet: "Run command" }),
 		parameters: EXEC_COMMAND_PARAMETERS,
+		...(constrainedSampling ? { constrainedSampling } : {}),
 		prepareArguments: prepareExecCommandArguments,
 		async execute(toolCallId, params, signal, onUpdate, ctx) {
 			if (signal?.aborted) throw new Error("exec_command aborted");
-			const input = parseExecCommandParams(params);
+			const parsedInput = parseExecCommandParams(params);
+			const input: ExecCommandInput = parsedInput.shell === undefined
+				? { ...parsedInput, defaultShell: getPiConfiguredShellPath(ctx) }
+				: parsedInput;
 			const toToolResult = (partial: UnifiedExecResult) => ({
 				content: [{ type: "text" as const, text: formatUnifiedExecResult(partial, input.cmd) }],
 				details: partial,

@@ -6,6 +6,27 @@ export { headersToRecord } from "./header-record.ts";
 type ProviderHeaders = Record<string, string | null>;
 
 export const PI_CODEX_CONVERSION_ORIGINATOR = "pi-codex-conversion";
+export const CODEX_FAST_MODE_ORIGINATOR = "codex_cli_rs";
+export const X_CODEX_ROUTING_HINT_HEADER = "x-codex-routing-hint";
+
+export interface CodexRequestRouting {
+	originator: string;
+	routingHint?: string | undefined;
+}
+
+export function resolveCodexRequestRouting(options: {
+	model: string;
+	fast: boolean;
+	serviceTier?: string | undefined;
+	normalOriginator?: string | undefined;
+}): CodexRequestRouting {
+	return options.fast && options.serviceTier === "priority"
+		? {
+			originator: CODEX_FAST_MODE_ORIGINATOR,
+			routingHint: `model=${options.model};tier=priority`,
+		}
+		: { originator: options.normalOriginator ?? "pi" };
+}
 
 export function extractAccountId(token: string): string {
 	try {
@@ -85,6 +106,7 @@ function buildBaseCodexHeaders(
 	accountId: string,
 	token: string,
 	originator: string,
+	routingHint?: string | undefined,
 ): Headers {
 	const headers = new Headers(modelHeaders);
 	for (const [key, value] of Object.entries(additionalHeaders ?? {})) {
@@ -98,6 +120,8 @@ function buildBaseCodexHeaders(
 	headers.set("Authorization", `Bearer ${token}`);
 	headers.set("chatgpt-account-id", accountId);
 	headers.set("originator", originator);
+	if (routingHint) headers.set(X_CODEX_ROUTING_HINT_HEADER, routingHint);
+	else headers.delete(X_CODEX_ROUTING_HINT_HEADER);
 	const os = osInfo.current;
 	headers.set("User-Agent", os ? `pi (${os.platform()} ${os.release()}; ${os.arch()})` : "pi (browser)");
 	return headers;
@@ -111,8 +135,9 @@ export function buildSSEHeaders(
 	sessionId: string | undefined,
 	responsesLite = false,
 	originator = "pi",
+	routingHint?: string | undefined,
 ): Headers {
-	const headers = buildBaseCodexHeaders(modelHeaders, additionalHeaders, accountId, token, originator);
+	const headers = buildBaseCodexHeaders(modelHeaders, additionalHeaders, accountId, token, originator, routingHint);
 	headers.set("OpenAI-Beta", "responses=experimental");
 	headers.set("accept", "text/event-stream");
 	headers.set("content-type", "application/json");
@@ -134,8 +159,9 @@ export function buildWebSocketHeaders(
 	token: string,
 	requestId: string,
 	originator = "pi",
+	routingHint?: string | undefined,
 ): Headers {
-	const headers = buildBaseCodexHeaders(modelHeaders, additionalHeaders, accountId, token, originator);
+	const headers = buildBaseCodexHeaders(modelHeaders, additionalHeaders, accountId, token, originator, routingHint);
 	headers.delete("accept");
 	headers.delete("content-type");
 	headers.delete("OpenAI-Beta");

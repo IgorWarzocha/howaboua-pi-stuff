@@ -1,4 +1,4 @@
-import type { AgentToolResult, ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { getAgentDir, type AgentToolResult, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { CodexExtensionRuntime } from "../extension/runtime.ts";
 import { formatRunningExecSessionGuidance } from "../tools/code-mode/tool-result.ts";
 import {
@@ -14,7 +14,7 @@ import { createImageGenerationTool } from "../tools/imagegen/tool.ts";
 import { createViewImageTool } from "../tools/view-image/tool.ts";
 import { createWebSearchTool } from "../tools/web-run/tool.ts";
 import { supportsNativeImageGeneration, supportsViewImageInputs } from "./tool-support.ts";
-import { resolveCodexRuntimePlan } from "./activation/runtime-plan.ts";
+import { isCodeModeRuntime, resolveCodexRuntimePlanForState } from "./activation/runtime-plan.ts";
 import { codeModeImageResult, codeModeWebResult, toNestedTool } from "./code-mode/nested-tool-adapter.ts";
 
 const LONG_RUNNING_TOOL_OUTER_YIELD_MS = 1_800_000;
@@ -24,20 +24,30 @@ export async function registerCodexCodeMode(
 	runtime: CodexExtensionRuntime,
 ): Promise<CodeModeRegistration> {
 	const isActive = (ctx: unknown) =>
-		resolveCodexRuntimePlan(ctx as ExtensionContext, runtime.state.config).kind === "code";
+		isCodeModeRuntime(resolveCodexRuntimePlanForState(ctx as ExtensionContext, runtime.state));
 	const customToolsRuntime = await registerCustomTools(pi, undefined, {
 		isActive,
 	});
 	const programmaticRuntime = await registerCodeModeTools(pi, {
 		getTools: (ctx) => createNestedTools(runtime, ctx as ExtensionContext | undefined),
 		isActive,
+		executionKind: (ctx) =>
+			resolveCodexRuntimePlanForState(ctx as ExtensionContext, runtime.state).kind === "notebook"
+				? "notebook"
+				: "code",
+		notebookOptions: () => ({
+			maxHeapMiB: runtime.state.config.notebook.maxHeapMiB,
+			agentDir: getAgentDir(),
+			...(runtime.state.config.notebook.profile ? { profile: runtime.state.config.notebook.profile } : {}),
+		}),
 		providesRenderers: true,
-		richRendering: () => runtime.state.config.ui.codeModeDetails,
+		richRendering: () => runtime.state.executionMode === "notebook" || runtime.state.config.ui.codeModeDetails,
 	});
 	return {
 		prepare: (ctx) => programmaticRuntime.prepare(ctx),
 		refreshPromptTools: (systemPrompt, ctx) =>
 			programmaticRuntime.refreshPromptTools(systemPrompt, ctx),
+		checkpointNotebook: () => programmaticRuntime.checkpointNotebook(),
 		shutdownHost: () => programmaticRuntime.shutdownHost(),
 		async shutdown() {
 			await programmaticRuntime.shutdown();
@@ -57,9 +67,10 @@ function createNestedTools(
 		showOutputWhenCollapsed: true,
 		compactTools: runtime.state.config.ui.compactTools,
 	};
-	const allowConfiguredProvider = (model: ExtensionContext["model"]) =>
-		(model?.provider ?? "").trim().toLowerCase() !== "openai-codex"
-		&& resolveCodexRuntimePlan({ model }, runtime.state.config).kind === "code";
+	const allowConfiguredProvider = (model: ExtensionContext["model"]) => {
+		const plan = resolveCodexRuntimePlanForState({ model }, runtime.state);
+		return isCodeModeRuntime(plan) && plan.configuredProvider && !plan.codexTransport;
+	};
 	const tools: ProgrammaticCodeModeToolDefinition[] = [
 		toNestedTool(
 			createApplyPatchTool({
@@ -164,7 +175,7 @@ function createNestedTools(
 			}),
 			"await tools.web__run({ search_query?: [{ q: string, recency?: number, domains?: string[] }], image_query?: [{ q: string }], open?: [{ ref_id: string, lineno?: number }], click?: [{ ref_id: string, id: number }], find?: [{ ref_id: string, pattern: string }], response_length?: \"short\" | \"medium\" | \"long\" }) // turn… ref_ids only for web__run; final answers cite result URLs with Markdown links, never turn… or cite…",
 			{},
-			{ resultValue: codeModeWebResult },
+			{ toolName: { namespace: "web", name: "run" }, resultValue: codeModeWebResult },
 		));
 	}
 	if (runtime.state.config.tools.imageGeneration && (!ctx || supportsNativeImageGeneration(ctx.model) || allowConfiguredProvider(ctx.model))) {
@@ -179,6 +190,7 @@ function createNestedTools(
 			"await tools.image_gen__imagegen({ prompt: string, action?: \"generate\" | \"edit\", images?: string[] })",
 			{},
 			{
+				toolName: { namespace: "image_gen", name: "imagegen" },
 				resultValue(result) {
 					const outputHint = result.content
 						.filter((item) => item.type === "text")

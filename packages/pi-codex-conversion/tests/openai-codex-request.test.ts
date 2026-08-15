@@ -2,6 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { buildRequestBody } from "../src/providers/openai-codex-custom-provider.ts";
 import {
+	buildSSEHeaders,
+	buildWebSocketHeaders,
+	CODEX_FAST_MODE_ORIGINATOR,
+	PI_CODEX_CONVERSION_ORIGINATOR,
+	resolveCodexRequestRouting,
+	X_CODEX_ROUTING_HINT_HEADER,
+} from "../src/providers/openai-codex/headers.ts";
+import {
 	codeModeTools,
 	codexModel,
 	collectStream,
@@ -75,22 +83,150 @@ test("buildRequestBody keeps Codex request shape stable for common options", () 
 	);
 });
 
+test("strict tool constraints serialize closed schemas and honor fallback policy", () => {
+	const parameters = {
+		type: "object",
+		properties: {
+			path: { type: "string" },
+			offset: { type: "number" },
+			metadata: {
+				type: "object",
+				properties: { enabled: { type: "boolean" } },
+			},
+		},
+		required: ["path", "metadata"],
+	};
+	const strictTool = {
+		name: "strict_tool",
+		description: "Strict tool",
+		parameters,
+		constrainedSampling: { type: "json_schema", strict: "prefer" },
+	};
+	const body = buildRequestBody(codexModel, { messages: [], tools: [strictTool] } as never);
+	assert.deepEqual(body.tools, [{
+		type: "function",
+		name: "strict_tool",
+		description: "Strict tool",
+		parameters: {
+			type: "object",
+			properties: {
+				path: { type: "string" },
+				offset: { anyOf: [{ type: "number" }, { type: "null" }] },
+				metadata: {
+					type: "object",
+					properties: { enabled: { anyOf: [{ type: "boolean" }, { type: "null" }] } },
+					required: ["enabled"],
+					additionalProperties: false,
+				},
+			},
+			required: ["path", "offset", "metadata"],
+			additionalProperties: false,
+		},
+		strict: true,
+	}]);
+	assert.deepEqual(parameters.required, ["path", "metadata"], "request conversion must not mutate Pi's tool schema");
+	assert.equal("additionalProperties" in parameters, false);
+
+	const unsupportedParameters = {
+		type: "object",
+		properties: {},
+		additionalProperties: { type: "string" },
+	};
+	const fallback = buildRequestBody(codexModel, {
+		messages: [],
+		tools: [{ ...strictTool, parameters: unsupportedParameters }],
+	} as never).tools as Array<{ strict: boolean | null; parameters: unknown }>;
+	assert.equal(fallback[0]?.strict, null);
+	assert.equal(fallback[0]?.parameters, unsupportedParameters);
+
+	assert.throws(() => buildRequestBody(codexModel, {
+		messages: [],
+		tools: [{
+			...strictTool,
+			parameters: unsupportedParameters,
+			constrainedSampling: { type: "json_schema", strict: "require" },
+		}],
+	} as never), /requires JSON-schema constrained sampling.*additionalProperties is unsupported/);
+
+	const unsupportedProviderBody = buildRequestBody({
+		...(codexModel as object),
+		compat: { supportsStrictMode: false },
+	} as never, { messages: [], tools: [strictTool] } as never);
+	assert.equal("strict" in (unsupportedProviderBody.tools as object[])[0]!, false);
+});
+
+test("Fast Mode request identity is opt-in and transport invariant", () => {
+	const model = "gpt-5.6-luna";
+	const fastRouting = resolveCodexRequestRouting({
+		model,
+		fast: true,
+		serviceTier: "priority",
+		normalOriginator: PI_CODEX_CONVERSION_ORIGINATOR,
+	});
+	assert.deepEqual(fastRouting, {
+		originator: CODEX_FAST_MODE_ORIGINATOR,
+		routingHint: `model=${model};tier=priority`,
+	});
+
+	const transportHeaders = [
+		buildSSEHeaders(undefined, undefined, "account", "token", "session", false, fastRouting.originator, fastRouting.routingHint),
+		buildWebSocketHeaders(undefined, undefined, "account", "token", "session", fastRouting.originator, fastRouting.routingHint),
+	];
+	for (const headers of transportHeaders) {
+		assert.equal(headers.get("originator"), CODEX_FAST_MODE_ORIGINATOR);
+		assert.equal(headers.get(X_CODEX_ROUTING_HINT_HEADER), `model=${model};tier=priority`);
+	}
+
+	const normalRouting = resolveCodexRequestRouting({
+		model,
+		fast: false,
+		serviceTier: "priority",
+		normalOriginator: PI_CODEX_CONVERSION_ORIGINATOR,
+	});
+	assert.deepEqual(normalRouting, { originator: PI_CODEX_CONVERSION_ORIGINATOR });
+	const normalHeaders = buildSSEHeaders(undefined, undefined, "account", "token", "session", false, normalRouting.originator, normalRouting.routingHint);
+	assert.equal(normalHeaders.get("originator"), PI_CODEX_CONVERSION_ORIGINATOR);
+	assert.equal(normalHeaders.get(X_CODEX_ROUTING_HINT_HEADER), null);
+	const inheritedHeaders = buildSSEHeaders(
+		{ [X_CODEX_ROUTING_HINT_HEADER]: `model=${model};tier=priority` },
+		undefined,
+		"account",
+		"token",
+		"session",
+		false,
+		normalRouting.originator,
+		normalRouting.routingHint,
+	);
+	assert.equal(inheritedHeaders.get(X_CODEX_ROUTING_HINT_HEADER), null);
+	assert.deepEqual(resolveCodexRequestRouting({
+		model,
+		fast: true,
+		normalOriginator: PI_CODEX_CONVERSION_ORIGINATOR,
+	}), { originator: PI_CODEX_CONVERSION_ORIGINATOR });
+});
+
 test("GPT-5.6 Code Mode sends the GPT-5.6 input-item contract", async () => {
 	const originalFetch = globalThis.fetch;
 	const registered = createRegisteredCodexProvider({ codeMode: true });
+	const deferredExec = { ...(codeModeTools[0] as object), name: "deferred_exec" } as never;
+	const messages = [
+		toolLoadingMessages[0],
+		toolLoadingMessages[1],
+		{ ...(toolLoadingMessages[2] as object), addedToolNames: ["example_tool", "deferred_exec"] },
+	] as never;
 	let captured: RequestInit | undefined;
 	try {
 		globalThis.fetch = (async (_url, init) => {
 			captured = init;
 			return sseResponse([
 				{ type: "response.created", response: { id: "resp_lite" } },
-				{ type: "response.completed", response: { id: "resp_lite", status: "completed", usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 } } },
+				{ type: "response.completed", response: { id: "resp_lite", status: "completed", end_turn: true, usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 } } },
 			]);
 		}) as typeof fetch;
 
-		await collectStream(registered.provider.streamSimple(
-			{ ...(codexModel as object), id: "gpt-5.6-luna", baseUrl: "https://chatgpt.example/backend-api", compat: { supportsToolSearch: true } } as never,
-			{ systemPrompt: "Lite instructions", messages: toolLoadingMessages, tools: [...codeModeTools, searchToolsTool, exampleTool] } as never,
+		const events = await collectStream(registered.provider.streamSimple(
+			{ ...(codexModel as object), id: "gpt-5.6-luna", baseUrl: "https://chatgpt.example/backend-api", compat: { supportsAdditionalTools: true, supportsToolSearch: true } } as never,
+			{ systemPrompt: "Lite instructions", messages, tools: [...codeModeTools, searchToolsTool, exampleTool, deferredExec] } as never,
 			{ apiKey: fakeJwt({ "https://api.openai.com/auth": { chatgpt_account_id: "acct_1" } }), transport: "sse", reasoning: "medium", toolChoice: "required" } as never,
 		));
 
@@ -103,10 +239,20 @@ test("GPT-5.6 Code Mode sends the GPT-5.6 input-item contract", async () => {
 		assert.equal(body.tool_choice, "required");
 		assert.equal(body.reasoning.context, "all_turns");
 		assert.equal(body.input[0].type, "additional_tools");
-		assert.deepEqual(body.input[0].tools.map((tool: { type: string; name: string }) => [tool.type, tool.name]), [["custom", "exec"], ["function", "wait"], ["function", "search_tools"]]);
-		assert.equal("parameters" in body.input[0].tools[0], false);
+		assert.deepEqual(body.input[0].tools.map((tool: { type: string; name: string }) => [tool.type, tool.name]), [["namespace", "functions"]]);
+		assert.deepEqual(body.input[0].tools[0].tools.map((tool: { type: string; name: string }) => [tool.type, tool.name]), [["custom", "exec"], ["function", "wait"], ["function", "search_tools"]]);
+		assert.equal("parameters" in body.input[0].tools[0].tools[0], false);
 		assert.deepEqual(body.input[1], { type: "message", role: "developer", content: [{ type: "input_text", text: "Lite instructions" }] });
-		assert.deepEqual(body.input.find((item: { type?: string }) => item.type === "tool_search_output").tools.map((tool: { name: string; defer_loading?: boolean }) => [tool.name, tool.defer_loading]), [["example_tool", true]]);
+		const additionalTools = body.input.filter((item: { type?: string }) => item.type === "additional_tools");
+		assert.equal(additionalTools.length, 2);
+		assert.deepEqual(additionalTools[1].tools.map((tool: { type: string; name: string }) => [tool.type, tool.name]), [["namespace", "functions"]]);
+		assert.deepEqual(additionalTools[1].tools[0].tools.map((tool: { type: string; name: string; defer_loading?: boolean }) => [tool.type, tool.name, tool.defer_loading]), [
+			["function", "example_tool", undefined],
+			["custom", "deferred_exec", undefined],
+		]);
+		assert.equal(body.input.some((item: { type?: string }) => item.type === "tool_search_output"), false);
+		const done = events.find((event) => (event as { type?: string }).type === "done") as { message: { endTurn?: boolean } };
+		assert.equal(done.message.endTurn, true);
 	} finally {
 		globalThis.fetch = originalFetch;
 	}

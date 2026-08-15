@@ -1,6 +1,17 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
-import { readCodexConversionConfig, writeCodexConversionConfig } from "../../adapter/activation/config-store.ts";
+import {
+	clearFolderCodexConversionConfig,
+	getCodexConversionConfigPath,
+	getProjectCodexConversionConfigPath,
+	hasFolderCodexConversionConfig,
+	materializeFolderCodexConversionConfig,
+	readCodexConversionConfig,
+	readEffectiveCodexConversionConfig,
+	readLayeredCodexConversionConfig,
+	type CodexConversionConfigScope,
+	writeCodexConversionConfig,
+} from "../../adapter/activation/config-store.ts";
 import { syncAdapter } from "../../adapter/activation/activation.ts";
 import type { AdapterState } from "../../adapter/activation/state.ts";
 import type { CodexVoiceController } from "../../voice/controller.ts";
@@ -20,16 +31,36 @@ export function registerCodexCommand(
 	lanVoice: CodexLanVoiceServerController,
 	onConfigApplied?: (config: CodexConversionConfig, ctx: ExtensionContext, previousConfig: CodexConversionConfig) => void,
 ): void {
-	function saveAndApply(ctx: ExtensionContext, nextConfig: CodexConversionConfig): boolean {
-		const writeResult = writeCodexConversionConfig(nextConfig);
+	function effectiveConfig(ctx: ExtensionContext): CodexConversionConfig {
+		return readEffectiveCodexConversionConfig({
+			cwd: ctx.cwd,
+			projectTrusted: ctx.isProjectTrusted(),
+		});
+	}
+
+	function applyEffectiveConfig(ctx: ExtensionContext, previousConfig: CodexConversionConfig): void {
+		const config = effectiveConfig(ctx);
+		state.config = config;
+		state.executionMode = config.executionMode;
+		onConfigApplied?.(config, ctx, previousConfig);
+		syncAdapter(pi, ctx, state);
+	}
+
+	function saveAndApply(
+		ctx: ExtensionContext,
+		scope: CodexConversionConfigScope,
+		nextConfig: CodexConversionConfig,
+	): boolean {
+		const path = scope === "folder"
+			? getProjectCodexConversionConfigPath(ctx.cwd)
+			: getCodexConversionConfigPath();
+		const writeResult = writeCodexConversionConfig(nextConfig, path);
 		if (!writeResult.ok) {
 			ctx.ui.notify(`Failed to save Codex settings: ${writeResult.error}`, "error");
 			return false;
 		}
 		const previousConfig = state.config;
-		state.config = nextConfig;
-		onConfigApplied?.(nextConfig, ctx, previousConfig);
-		syncAdapter(pi, ctx, state);
+		applyEffectiveConfig(ctx, previousConfig);
 		return true;
 	}
 
@@ -52,10 +83,45 @@ export function registerCodexCommand(
 			ctx.ui.notify(formatCodexSettings(state.config), "info");
 			return;
 		}
+		let configScope: CodexConversionConfigScope = hasFolderCodexConversionConfig(
+			ctx.cwd,
+			ctx.isProjectTrusted(),
+		) ? "folder" : "global";
+		if (configScope === "folder") {
+			const materialized = materializeFolderCodexConversionConfig(ctx.cwd, true);
+			if (!materialized.ok) {
+				ctx.ui.notify(`Could not materialize folder Codex settings: ${materialized.error}`, "error");
+				return;
+			}
+		}
+		const readSelectedConfig = () => configScope === "folder"
+			? readLayeredCodexConversionConfig({ cwd: ctx.cwd, projectTrusted: true })
+			: readCodexConversionConfig();
 		await openCodexSettingsScreen(ctx, {
-			initialConfig: state.config,
+			initialConfig: readSelectedConfig(),
 			initialTab: tab,
-			onChange: (config) => saveAndApply(ctx, config),
+			onChange: (config) => saveAndApply(ctx, configScope, config),
+			configScope: {
+				current: () => configScope,
+				canUseFolder: ctx.isProjectTrusted(),
+				path: () => configScope === "folder"
+					? getProjectCodexConversionConfigPath(ctx.cwd)
+					: getCodexConversionConfigPath(),
+				reload: readSelectedConfig,
+				set: (scope) => {
+					const previousConfig = state.config;
+					const result = scope === "folder"
+						? materializeFolderCodexConversionConfig(ctx.cwd, ctx.isProjectTrusted())
+						: clearFolderCodexConversionConfig(ctx.cwd, ctx.isProjectTrusted());
+					if (!result.ok) {
+						ctx.ui.notify(`Could not change Codex settings scope: ${result.error}`, "error");
+						return undefined;
+					}
+					configScope = scope;
+					applyEffectiveConfig(ctx, previousConfig);
+					return readSelectedConfig();
+				},
+			},
 			lanVoiceServer: {
 				status: () => lanVoice.status(),
 				setEnabled: (enabled) => setLanVoiceServerEnabled(lanVoice, enabled, ctx),
@@ -68,7 +134,7 @@ export function registerCodexCommand(
 		getArgumentCompletions: (prefix) =>
 			CODEX_COMMAND_COMPLETIONS.filter((item) => item.startsWith(prefix.trim().toLowerCase())).map((value) => ({ label: value, value })),
 		handler: async (args, ctx) => {
-			state.config = readCodexConversionConfig();
+			state.config = effectiveConfig(ctx);
 			const arg = args.trim().toLowerCase();
 
 			if (arg === "voice setup") {
@@ -129,5 +195,5 @@ function formatAllProvidersMode(value: CodexConversionConfig["scope"]["allProvid
 }
 
 function formatCodexSettings(config: CodexConversionConfig): string {
-	return `Codex settings: extension ${config.voiceFeaturesOnly ? "voice only" : "adapter and voice"}, providers ${formatAllProvidersMode(config.scope.allProviders)}, Rust binaries ${config.tools.customRustBinariesDir || "bundled"}, heavy prompt overwrite ${config.prompt.heavySystemPromptOverwrite ? "on" : "off"}, harness identifier ${config.openai.harnessIdentifierHeader ? "on" : "off"}, Code Mode ${config.beta.codeMode ? "on" : "off"}, Responses Lite ${config.beta.responsesLite ? "on" : "off"}, compaction V2 ${config.compaction.responsesCompaction ? "on" : "off"}, cache diagnostics ${config.openai.cacheDiagnostics}, fast ${config.openai.fast ? "on" : "off"}, verbosity ${config.openai.verbosity}`;
+	return `Codex settings: extension ${config.voiceFeaturesOnly ? "voice only" : "adapter and voice"}, execution ${config.executionMode}, providers ${formatAllProvidersMode(config.scope.allProviders)}, Rust binaries ${config.tools.customRustBinariesDir || "bundled"}, heavy prompt overwrite ${config.prompt.heavySystemPromptOverwrite ? "on" : "off"}, harness identifier ${config.openai.harnessIdentifierHeader ? "on" : "off"}, Proxy Responses Lite ${config.openai.proxyResponsesLite ? "on" : "off"}, compaction V2 ${config.compaction.responsesCompaction ? "on" : "off"}, cache diagnostics ${config.openai.cacheDiagnostics}, fast ${config.openai.fast ? "on" : "off"}, verbosity ${config.openai.verbosity}`;
 }

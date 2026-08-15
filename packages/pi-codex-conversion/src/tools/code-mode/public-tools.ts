@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import { getExperimentalToolSampling } from "../tool-sampling.ts";
 import {
 	DEFAULT_CODE_MODE_OUTPUT_TOKENS,
 	MAX_CODE_MODE_OUTPUT_TOKENS,
@@ -10,23 +11,26 @@ import {
 } from "./custom-tool-prompt.js";
 import { createCodeModeRenderTracker } from "./render-tracker.js";
 import {
-	type RenderContext,
-	type RenderTheme,
 	renderExecCall,
-	renderTrackedCodeModeResult,
 	renderWaitCall,
-} from "./rendering.js";
+} from "./call-rendering.js";
+import { renderTrackedCodeModeResult } from "./result-rendering.js";
 import type { SharedCodeModeRuntime } from "./shared-runtime.js";
 import {
 	formatRunningExecSessionGuidance,
 	toCodeModeToolResult,
 } from "./tool-result.js";
-import type { ToolExecutionContext } from "./types.js";
+import type {
+	CodeModeRenderContext,
+	CodeModeRenderTheme,
+	ToolExecutionContext,
+} from "./types.js";
 import { CODE_MODE_EXEC_CONSTRAINED_SAMPLING } from "./exec-contract.js";
 import {
 	registerCodeModePreflightBroker,
 	runCodeModeToolPreflight,
 } from "./nested-tool-preflight.js";
+import { registerNotebookTool } from "./notebook-tool.ts";
 
 const DEFAULT_WAIT_MS = 10_000;
 const MIN_ADAPTIVE_WAIT_MS = 5_000;
@@ -63,6 +67,7 @@ export function registerPublicCodeModeTools(
 	const preflight = registerCodeModePreflightBroker(pi).run;
 	pi.registerTool(createExecTool(runtime, tracker, renderResult, preflight));
 	pi.registerTool(createWaitTool(runtime, tracker, renderResult, waitAttempts, preflight));
+	registerNotebookTool(pi, runtime);
 }
 
 function createExecTool(
@@ -81,7 +86,7 @@ function createExecTool(
 		async execute(id, params, signal, onUpdate, ctx) {
 			tracker.start(id);
 			try {
-				const response = await (await runtime.getClient()).execute(
+				const response = await (await runtime.getClient(ctx)).execute(
 					params.code,
 					{ cwd: ctx.cwd, toolCallId: id, extensionContext: ctx, preflight, onUpdate },
 					signal,
@@ -99,8 +104,8 @@ function createExecTool(
 		},
 		renderCall: ((
 			args: { code?: unknown },
-			theme: RenderTheme,
-			context: RenderContext,
+			theme: CodeModeRenderTheme,
+			context: CodeModeRenderContext,
 		) =>
 			renderExecCall(
 				args,
@@ -120,16 +125,18 @@ function createWaitTool(
 	waitAttempts: Map<string, number>,
 	preflight: NonNullable<ToolExecutionContext["preflight"]>,
 ): ToolDefinition<typeof WAIT_PARAMETERS> {
+	const constrainedSampling = getExperimentalToolSampling("wait");
 	return {
 		name: "wait",
 		label: "Wait",
 		description: WAIT_DESCRIPTION,
 		promptSnippet: "Resume or terminate an exec cell",
 		parameters: WAIT_PARAMETERS,
+		...(constrainedSampling ? { constrainedSampling } : {}),
 		async execute(id, params, signal, onUpdate, ctx) {
 			tracker.start(id);
 			try {
-				const client = await runtime.getClient();
+				const client = await runtime.getClient(ctx);
 				const context = { cwd: ctx.cwd, toolCallId: id, extensionContext: ctx, preflight, onUpdate };
 				const attempt = waitAttempts.get(params.cell_id) ?? 0;
 				const response = params.terminate
@@ -173,8 +180,8 @@ function createWaitTool(
 		},
 		renderCall: ((
 			args: { cell_id?: unknown; terminate?: unknown },
-			theme: RenderTheme,
-			context: RenderContext,
+			theme: CodeModeRenderTheme,
+			context: CodeModeRenderContext,
 		) =>
 			renderWaitCall(
 				args,
@@ -296,8 +303,8 @@ function createResultRenderer(
 	return (
 		result: Parameters<typeof renderTrackedCodeModeResult>[0],
 		options: Parameters<typeof renderTrackedCodeModeResult>[1],
-		theme: RenderTheme,
-		context: RenderContext,
+		theme: CodeModeRenderTheme,
+		context: CodeModeRenderContext,
 	) =>
 		renderTrackedCodeModeResult(
 			result,

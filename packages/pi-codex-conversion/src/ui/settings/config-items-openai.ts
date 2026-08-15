@@ -42,10 +42,10 @@ export function buildOpenAISettings(
 		toggle(
 			"responsesLite",
 			"Proxy Responses Lite",
-			config.beta.responsesLite,
+			config.openai.proxyResponsesLite,
 			(enabled, current) => ({
 				...current,
-				beta: { ...current.beta, responsesLite: enabled },
+				openai: { ...current.openai, proxyResponsesLite: enabled },
 			}),
 		),
 		toggle(
@@ -92,15 +92,15 @@ export function buildOpenAISettings(
 			{
 				id: "v2UserMessageRetention",
 				label: "Preserved user messages",
-				currentValue: `${config.beta.v2UserMessageRetention ?? 64}k${(config.beta.v2UserMessageRetention ?? 64) === 64 ? " (Codex native)" : ""}`,
+				currentValue: `${config.compaction.v2UserMessageRetention}k${config.compaction.v2UserMessageRetention === 64 ? " (Codex native)" : ""}`,
 				values: V2_USER_MESSAGE_RETENTION_OPTIONS.map(
 					(value) => `${value}k${value === 64 ? " (Codex native)" : ""}`,
 				),
 			},
 			(value, current) => ({
 				...current,
-				beta: {
-					...current.beta,
+				compaction: {
+					...current.compaction,
 					v2UserMessageRetention:
 						normalizeV2UserMessageRetention(Number.parseInt(value, 10)) ?? 64,
 				},

@@ -1,11 +1,11 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { AdapterState } from "./state.ts";
-import { ALL_CODEX_ADAPTER_TOOL_NAMES, isAdapterRuntime, resolveCodexRuntimePlan, type CodexRuntimePlan } from "./runtime-plan.ts";
+import { ALL_CODEX_ADAPTER_TOOL_NAMES, isAdapterRuntime, resolveCodexRuntimePlanForState, type CodexRuntimePlan } from "./runtime-plan.ts";
 import { DEFAULT_TOOL_NAMES, STATUS_KEY, buildExtraToolsOnlyStatusText } from "./tool-set.ts";
 import { renderCodexStatus } from "../../ui/status.ts";
 
 export function syncAdapter(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState): CodexRuntimePlan {
-	const plan = resolveCodexRuntimePlan(ctx, state.config);
+	const plan = resolveCodexRuntimePlanForState(ctx, state);
 	if (plan.kind === "extras") enableExtraTools(pi, ctx, state, plan);
 	else if (isAdapterRuntime(plan)) enableAdapter(pi, ctx, state, plan);
 	else disableAdapter(pi, ctx, state, plan);
@@ -24,7 +24,7 @@ function enableExtraTools(pi: ExtensionAPI, ctx: ExtensionContext, state: Adapte
 	if (ctx.hasUI) ctx.ui.setStatus(STATUS_KEY, !state.config.voiceFeaturesOnly && state.config.ui.statusLine ? buildExtraToolsOnlyStatusText(plan.toolNames, ctx.ui.theme) : undefined);
 }
 
-function enableAdapter(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState, plan: Extract<CodexRuntimePlan, { kind: "normal" | "code" }>): void {
+function enableAdapter(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState, plan: Extract<CodexRuntimePlan, { kind: "normal" | "code" | "notebook" }>): void {
 	const owned = state.enabled ? mergeToolNames(state.adapterOwnedToolNames ?? plan.ownedToolNames, plan.ownedToolNames) : plan.ownedToolNames;
 	const tools = mergeAdapterTools(pi.getActiveTools(), plan.toolNames, owned);
 	if (!state.enabled) {

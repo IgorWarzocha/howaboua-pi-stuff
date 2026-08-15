@@ -11,9 +11,10 @@ import { createGrammarToolInputProperties } from "./constrained-sampling.js";
 import type { ExtensionAPI, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
-import { resolveCodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
+import type { ExecutionMode } from "../adapter/activation/execution-mode.ts";
+import { isCodeModeRuntime, resolveCodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
 import { buildRequestBody } from "./openai-codex/request-body.ts";
-import { applyResponsesLiteRequest, isResponsesLiteRequest, prepareResponsesLiteRequestImages, RESPONSES_LITE_HEADER } from "./openai-codex/responses-lite.ts";
+import { applyResponsesLiteRequest, isResponsesLiteRequest, namespaceExistingResponsesLiteRequest, prepareResponsesLiteRequestImages, RESPONSES_LITE_HEADER } from "./openai-codex/responses-lite.ts";
 import { assertSuccessfulCodexOutput, processCodexResponsesStream } from "./openai-codex/stream-events.ts";
 import type { OpenAICodexStreamOptions, ResponsesBody, StreamEventShape } from "./openai-codex/types.ts";
 
@@ -94,7 +95,7 @@ export function streamCodeModeResponsesProxy<TApi extends Api>(
 			const rewritten = await options?.onPayload?.(body, model);
 			if (rewritten !== undefined) body = rewritten as ResponsesBody;
 			body = isResponsesLiteRequest(body)
-				? { ...body, parallel_tool_calls: false }
+				? namespaceExistingResponsesLiteRequest({ ...body, parallel_tool_calls: false })
 				: applyResponsesLiteRequest(body);
 			body = await prepareResponsesLiteRequestImages(body);
 			headers = mergeHeaders(headers, { [RESPONSES_LITE_HEADER]: "true" });
@@ -158,8 +159,10 @@ export interface CodeModeProxyProviderRegistration {
 type CodeModeModelRegistry = Pick<ModelRegistry, "getAll" | "getProvider" | "getRegisteredProviderConfig">;
 type RegisteredProviderConfig = Parameters<ExtensionAPI["registerProvider"]>[1];
 
-function configuredProxyProviders(config: CodexConversionConfig): Set<string> {
-	return new Set(!config.voiceFeaturesOnly && config.beta.codeMode && config.beta.responsesLite
+function configuredProxyProviders(config: CodexConversionConfig, executionMode?: ExecutionMode): Set<string> {
+	const mode = executionMode ?? config.executionMode;
+	const enabled = mode === "code" || mode === "notebook";
+	return new Set(!config.voiceFeaturesOnly && enabled && config.openai.proxyResponsesLite
 		? config.scope.additionalProviders.filter((provider) => provider !== "openai-codex")
 		: []);
 }
@@ -175,6 +178,7 @@ function resolveProviderIds(configuredProviders: Set<string>, modelRegistry: Cod
 export function registerCodeModeProxyProvider(
 	pi: ExtensionAPI,
 	getConfig: () => CodexConversionConfig,
+	getExecutionMode: () => ExecutionMode | undefined = () => undefined,
 ): CodeModeProxyProviderRegistration {
 	const registeredProviders = new Map<string, {
 		previous: RegisteredProviderConfig | undefined;
@@ -197,7 +201,7 @@ export function registerCodeModeProxyProvider(
 		registeredProviders.clear();
 	};
 	const applyConfig = (config: CodexConversionConfig, modelRegistry: CodeModeModelRegistry) => {
-		const configuredProviders = configuredProxyProviders(config);
+		const configuredProviders = configuredProxyProviders(config, getExecutionMode());
 		const desiredProviders = resolveProviderIds(configuredProviders, modelRegistry);
 		for (const provider of desiredProviders) {
 			if (registeredProviders.has(provider)) continue;
@@ -206,7 +210,7 @@ export function registerCodeModeProxyProvider(
 			const fallbackProvider = modelRegistry.getProvider(provider);
 			if (!fallbackProvider) throw new Error(`Cannot overlay missing provider: ${provider}`);
 			const overlayStream: NonNullable<RegisteredProviderConfig["streamSimple"]> = (model, context, options) =>
-				resolveCodexRuntimePlan({ model }, getConfig()).kind === "code"
+				isCodeModeRuntime(resolveCodexRuntimePlan({ model }, getConfig(), getExecutionMode()))
 					? streamCodeModeResponsesProxy(model, context, options)
 					: fallbackProvider.streamSimple(model as never, context, options);
 			pi.registerProvider(provider, {

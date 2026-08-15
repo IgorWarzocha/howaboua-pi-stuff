@@ -67,7 +67,8 @@ test("the provider-scoped proxy stream delegates ordinary Responses models witho
 	const unregistered: string[] = [];
 	const config = {
 		...DEFAULT_CODEX_CONVERSION_CONFIG,
-		beta: { codeMode: true, responsesLite: true },
+		executionMode: "code" as const,
+		openai: { ...DEFAULT_CODEX_CONVERSION_CONFIG.openai, proxyResponsesLite: true },
 		scope: { allProviders: "off" as const, additionalProviders: ["proxy"] },
 	};
 	const registration = registerCodeModeProxyProvider({

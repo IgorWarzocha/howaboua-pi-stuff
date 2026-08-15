@@ -2,6 +2,7 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { Model, ProviderHeaders } from "@earendil-works/pi-ai";
 import { DEFAULT_CODEX_BASE_URL } from "../providers/openai-codex/constants.ts";
 import { extractAccountId } from "../providers/openai-codex/headers.ts";
+import { isCanonicalCodexAliasModel, isCanonicalCodexBaseUrl, isCanonicalCodexSubscriptionModel, isCodexTransportModel, isOpenAICodexModel } from "./prompt/codex-model.ts";
 
 export const CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE = "web_run/imagegen requires an OpenAI Codex-compatible Responses provider or /login openai-codex";
 
@@ -59,10 +60,6 @@ function headerValue(headers: ProviderHeaders | undefined, name: string): string
 	return undefined;
 }
 
-function isOpenAICodexModel(model: ExtensionContext["model"]): boolean {
-	return (model?.provider ?? "").trim().toLowerCase() === OPENAI_CODEX_PROVIDER;
-}
-
 function isResponsesModel(model: ExtensionContext["model"]): boolean {
 	return Boolean(model?.api?.includes("responses"));
 }
@@ -95,7 +92,7 @@ function resolveOpenAICodexAuthModel(ctx: ExtensionContext): Model<any> | undefi
 }
 
 function resolveCodexToolAuthModel(ctx: ExtensionContext, allowConfiguredProvider?: AllowConfiguredCodexToolProvider): Model<any> {
-	if (isUsableOpenAICodexModel(ctx.model)) return ctx.model as Model<any>;
+	if (isCodexTransportModel(ctx.model) && isResponsesModel(ctx.model)) return ctx.model as Model<any>;
 	if (isResponsesModel(ctx.model) && allowConfiguredProvider?.(ctx.model)) return ctx.model as Model<any>;
 	const openAICodexModel = resolveOpenAICodexAuthModel(ctx);
 	if (openAICodexModel) return openAICodexModel;
@@ -112,24 +109,30 @@ export async function resolveCodexToolProvider(ctx: ExtensionContext, allowConfi
 	const model = resolveCodexToolAuthModel(ctx, allowConfiguredProvider);
 	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
 	if (!auth.ok) throw new Error(auth.error);
-	const openAICodex = isOpenAICodexModel(model);
-	const authorization = headerValue(auth.headers, "Authorization")?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
-	const token = openAICodex ? auth.apiKey ?? authorization : authorization ?? auth.apiKey;
-	if (!token) throw new Error(CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE);
 	const resolvedBaseUrl = auth.baseUrl ?? model.baseUrl;
-	const baseUrl = openAICodex
+	const stockOpenAICodex = isOpenAICodexModel(model);
+	const canonicalSubscription = isCanonicalCodexSubscriptionModel({ ...model, baseUrl: resolvedBaseUrl });
+	const canonicalAlias = isCanonicalCodexAliasModel(model);
+	if (canonicalAlias && !isCanonicalCodexBaseUrl(resolvedBaseUrl)) {
+		throw new Error("Canonical OpenAI Codex subscription auth is required.");
+	}
+	const codexTransport = stockOpenAICodex || canonicalSubscription;
+	const authorization = headerValue(auth.headers, "Authorization")?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
+	const token = codexTransport ? auth.apiKey ?? authorization : authorization ?? auth.apiKey;
+	if (!token) throw new Error(CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE);
+	const baseUrl = codexTransport
 		? resolveCodexApiProviderBaseUrl(resolvedBaseUrl)
 		: resolvedBaseUrl?.trim().replace(/\/+$/, "");
 	if (!baseUrl) throw new Error("Configured Responses provider is missing a base URL");
-	const responsesUrl = openAICodex ? resolveCodexResponsesUrl(baseUrl) : resolveConfiguredResponsesUrl(baseUrl);
+	const responsesUrl = codexTransport ? resolveCodexResponsesUrl(baseUrl) : resolveConfiguredResponsesUrl(baseUrl);
 	return {
-		route: openAICodex ? "openai-codex" : "configured-responses",
+		route: codexTransport ? "openai-codex" : "configured-responses",
 		baseUrl,
 		responsesUrl,
 		searchUrl: resolveCodexSearchUrl(responsesUrl),
 		model: model.id,
 		token,
-		accountId: headerValue(auth.headers, "chatgpt-account-id") ?? (openAICodex ? extractAccountId(token) : ""),
+		accountId: headerValue(auth.headers, "chatgpt-account-id") ?? (codexTransport ? extractAccountId(token) : ""),
 	};
 }
 

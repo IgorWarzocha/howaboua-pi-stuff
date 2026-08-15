@@ -6,6 +6,7 @@ import type {
 import type { TSchema } from "typebox";
 import type {
 	ProgrammaticCodeModeToolDefinition,
+	CodeModeToolIdentity,
 	ToolExecutionContext,
 } from "../../tools/code-mode/types.ts";
 
@@ -16,6 +17,7 @@ interface NestedToolLifecycle {
 
 interface NestedToolContract {
 	kind?: "function" | "freeform";
+	toolName?: CodeModeToolIdentity;
 	yieldTimeMs?: number;
 	prepareInput?(input: unknown): unknown;
 	resultError?(result: AgentToolResult<unknown>): string | undefined;
@@ -37,6 +39,7 @@ export function toNestedTool<TParams extends TSchema, TDetails, TState>(
 		description: tool.description,
 		deferLoading: false,
 		kind,
+		...(contract.toolName ? { toolName: contract.toolName } : {}),
 		...(contract.yieldTimeMs === undefined ? {} : { yieldTimeMs: contract.yieldTimeMs }),
 		...(kind === "function" ? { inputSchema: tool.parameters } : {}),
 		...(tool.renderCall

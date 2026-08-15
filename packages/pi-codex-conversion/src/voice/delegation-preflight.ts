@@ -1,5 +1,5 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { isAdapterRuntime, resolveCodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
+import { isAdapterRuntime, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import type { CodeModeRegistration } from "../tools/code-mode/tools.ts";
 import type { CodexExtensionRuntime } from "../extension/runtime.ts";
 import { CANCELLED, interruptible } from "./cancellation.ts";
@@ -13,7 +13,7 @@ export async function prepareVoiceDelegation(
 ): Promise<PreparedVoiceDelegation | undefined> {
 	const { state } = runtime;
 	const buildCurrent = () => {
-		if (!isAdapterRuntime(resolveCodexRuntimePlan(ctx, state.config))) return undefined;
+		if (!isAdapterRuntime(resolveCodexRuntimePlanForState(ctx, state))) return undefined;
 		const basePrompt = state.activeProviderSystemPrompt ?? ctx.getSystemPrompt();
 		const promptOptions = state.config.prompt.heavySystemPromptOverwrite
 			? { cwd: ctx.cwd }

@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { getCodexConversionConfigPath, readCodexConversionConfig, writeCodexConversionConfig } from "../../adapter/activation/config-store.ts";
+import { readCodexConversionConfig, writeCodexConversionConfig } from "../../adapter/activation/config-store.ts";
 
 export function editorCommand(): string | undefined {
 	return process.env["VISUAL"]?.trim() || process.env["EDITOR"]?.trim() || undefined;
@@ -45,14 +45,14 @@ export function splitEditorCommand(command: string, platform: NodeJS.Platform = 
 }
 
 export async function openCodexConfigInExternalEditor(
+	file: string,
 	stopTui: () => void,
 	startTui: () => void,
 	requestRender: (full?: boolean) => void,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
 	const editorCmd = editorCommand();
 	if (!editorCmd) return { ok: false, error: "Set $VISUAL or $EDITOR to edit the config file." };
-	writeCodexConversionConfig(readCodexConversionConfig());
-	const file = getCodexConversionConfigPath();
+	writeCodexConversionConfig(readCodexConversionConfig(file), file);
 	try {
 		stopTui();
 		const status = await new Promise<number | null>((resolve) => {

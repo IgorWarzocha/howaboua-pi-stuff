@@ -33,6 +33,7 @@ const PI_CANONICAL_TOOL_LINES = new Set([
 	"- find: Find files by glob pattern (respects .gitignore)",
 	"- exec: Compose tools with JavaScript",
 	"- wait: Resume or terminate an exec cell",
+	"- notebook: Inspect or control notebook lifecycle",
 ]);
 const PI_DEFAULT_GUIDELINES = new Set([
 	"Use bash for file operations like ls, rg, find",
@@ -52,12 +53,28 @@ const NORMAL_CODEX_GUIDELINES = [
 
 const CODE_MODE_GUIDELINES = [
 	"Use tools.exec_command for shell commands; prefer rg and rg --files",
-	"Use String.raw for cmd only when shell text has no backticks or ${}; otherwise use quoted lines or split the call",
+	"For tools.exec_command cmd, use String.raw only without backticks or ${}; avoid nested quoting; split independent commands into separate calls",
 	"Long command: keep tools.exec_command awaited inside exec; resume the yielded cell_id with wait near completion. Do not request a short child yield and poll its session_id with tools.write_stdin",
 	"Use tty=true only for input or persistent processes",
 	"Use tools.apply_patch(patch) for file edits; split large patches; reserve shell/Python for formatting or bulk rewrites",
 	"Await dependencies; use Promise.all for independent calls",
 	"Use text() only for concise final output",
+];
+
+const NOTEBOOK_MODE_GUIDELINES = [
+	"exec is a persistent Deno/TypeScript Jupyter notebook; project globals may come from earlier agents and sessions",
+	"Before repeating discovery or rebuilding helpers, use notebook status and reuse matching bindings",
+	"Keep one-offs block-local; store compact reusable values and self-contained helpers on purpose-named globalThis properties",
+	"Turn repeatable project work into callable helpers; pin reusable project state worth protecting",
+	...CODE_MODE_GUIDELINES,
+	"Use notebook status to inspect retained state or memory, release/prune disposable state, and diagnostics after broken state or helpers",
+	"Filter retained data inside exec and return only needed findings; never dump the namespace",
+	"Keep canonical project artifacts in files; tools.exec_command subprocess shell state does not persist",
+	"Keep cross-session helpers self-contained; imports, closures, and live handles may need recreation after restart",
+	"Each result reports memory; use notebook release/prune before pressure becomes critical",
+	"exec calls run sequentially; use wait only to observe or terminate the currently yielded call",
+	"Treat all npm packages as unsafe by default; Notebook startup lists prior project imports, and any unlisted package requires user approval before first use plus an exact-version npm: specifier",
+	"Use Deno APIs and approved npm: imports for persistent computation; prefer Pi/custom tools for project operations with richer contracts, rendering, bounds, or background handles",
 ];
 
 const CODE_MODE_REPLACED_GUIDELINES = new Set([
@@ -73,6 +90,7 @@ const REMOVED_GUIDELINES = new Set([
 const ALL_STATIC_CODEX_GUIDELINES = [
 	...NORMAL_CODEX_GUIDELINES,
 	...CODE_MODE_GUIDELINES,
+	...NOTEBOOK_MODE_GUIDELINES,
 ];
 
 function withoutCosmeticTerminalPeriod(value: string): string {
@@ -95,10 +113,14 @@ function canonicalizeGuidelineLine(line: string): string {
 	return canonical ? `${match[1]}${canonical}` : line;
 }
 
-type CodexPromptMode = "normal" | "code";
+type CodexPromptMode = "normal" | "code" | "notebook";
 
 function buildCodexGuidelines(mode: CodexPromptMode = "normal", piPackageRoot?: string): string[] {
-	const guidelines = mode === "normal" ? [...NORMAL_CODEX_GUIDELINES] : [...CODE_MODE_GUIDELINES];
+	const guidelines = mode === "normal"
+		? [...NORMAL_CODEX_GUIDELINES]
+		: mode === "notebook"
+			? [...NOTEBOOK_MODE_GUIDELINES]
+			: [...CODE_MODE_GUIDELINES];
 	if (piPackageRoot) {
 		guidelines.push(`When work depends on Pi APIs or runtime behavior not established in the current repository, consult the relevant README.md, docs/, or examples/ files under ${piPackageRoot} and follow their references before implementing`);
 	}
@@ -117,7 +139,11 @@ function injectShell(prompt: string, shell?: string): string {
 	if (!shell) {
 		return prompt;
 	}
-	const shellContext = `Current shell: ${shell}; follow its syntax, quoting, and variable rules`;
+	const shellName = shell.replace(/\\/g, "/").split("/").pop()?.toLowerCase();
+	const zshGuidance = shellName === "zsh" || shellName === "zsh.exe"
+		? "; status is read-only, capture $? as rc"
+		: "";
+	const shellContext = `Current shell: ${shell}; follow its syntax, quoting, and variable rules${zshGuidance}`;
 	if (/\nCurrent shell:/.test(prompt)) {
 		return prompt.replace(/^Current shell:.*$/m, shellContext);
 	}
@@ -212,7 +238,7 @@ function injectGuidelines(prompt: string, mode?: CodexPromptMode): string {
 	const bodyLines = body.split("\n");
 	const canonicalBodyLines = bodyLines.map(canonicalizeGuidelineLine);
 	const withoutRemoved = canonicalBodyLines.filter((line) => !REMOVED_GUIDELINES.has(withoutCosmeticTerminalPeriod(line.trim().replace(/^-\s*/, ""))));
-	const keptBodyLines = mode === "code"
+	const keptBodyLines = mode !== "normal"
 		? withoutRemoved.filter((line) => !CODE_MODE_REPLACED_GUIDELINES.has(withoutCosmeticTerminalPeriod(line.trim().replace(/^-\s*/, ""))))
 		: withoutRemoved;
 	const existingLines = keptBodyLines

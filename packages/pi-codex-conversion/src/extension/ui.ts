@@ -5,7 +5,7 @@ import { NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, NATIVE_COMPACTION_DISPLAY_TEXT,
 import { BACKGROUND_BASH_WIDGET_ID, registerBackgroundBashWidgetShortcuts, renderBackgroundBashWidget } from "../ui/background-bash-widget.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
 import { renderCodexStatus } from "../ui/status.ts";
-import { isAdapterRuntime, resolveCodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
+import { isAdapterRuntime, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import { fetchCodexWeeklyUsageLeft } from "../codex-usage/client.ts";
 
 export interface CodexUiController {
@@ -84,9 +84,9 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 			runtime.state.weeklyUsageLeft = undefined;
 			return;
 		}
-		if (!isAdapterRuntime(resolveCodexRuntimePlan(ctx, runtime.state.config))) return;
+		if (!isAdapterRuntime(resolveCodexRuntimePlanForState(ctx, runtime.state))) return;
 		const weeklyUsageLeft = await fetchCodexWeeklyUsageLeft(ctx);
-		const plan = resolveCodexRuntimePlan(ctx, runtime.state.config);
+		const plan = resolveCodexRuntimePlanForState(ctx, runtime.state);
 		if (
 			generation !== usageGeneration ||
 			!ctx.hasUI ||

@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildNativeCompactionInput } from "../src/adapter/compaction/compaction.ts";
+import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
+import { buildNativeCompactionInput, injectPendingNativeWindowIntoPiCompactionRequest } from "../src/adapter/compaction/compaction.ts";
+import type { AdapterState } from "../src/adapter/activation/state.ts";
+import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 import type { Model } from "@earendil-works/pi-ai";
 import { serializeActiveSessionToResponsesInput } from "../src/adapter/compaction/serializer.ts";
 import {
@@ -131,4 +134,38 @@ test("native compaction request routing reuses only the latest matching checkpoi
 	assert.equal(mismatched?.compactedKeptWindow, true);
 	assert.doesNotMatch(JSON.stringify(mismatched?.input), /sealed/);
 	assert.match(JSON.stringify(mismatched?.input), /exact live tail/);
+});
+
+test("injects pending native compacted window into Pi compaction summarization payload", async () => {
+	const ctx = {
+		model,
+		sessionManager: { getSessionId: () => "session-1" },
+		modelRegistry: { getApiKeyAndHeaders: async () => ({ ok: true as const, apiKey: "key" }) },
+	} as any;
+	const state: AdapterState = {
+		enabled: true,
+		cwd: process.cwd(),
+		promptSkills: [],
+		executionMode: DEFAULT_CODEX_CONVERSION_CONFIG.executionMode,
+		codexTurnState: createCodexTurnState(),
+		config: { ...DEFAULT_CODEX_CONVERSION_CONFIG, compaction: { ...DEFAULT_CODEX_CONVERSION_CONFIG.compaction, responsesCompaction: true } },
+		pendingPiCompactionNativeWindow: {
+			window: [{ type: "compaction_summary", encrypted_content: "sealed" }],
+			provider: model.provider,
+			api: model.api,
+			baseUrl: model.baseUrl as string,
+			sessionId: "session-1",
+		},
+	};
+	const payload = {
+		model: model.id,
+		input: [
+			{ role: "developer", content: "You are a context summarization assistant. ONLY output the structured summary." },
+			{ role: "user", content: [{ type: "input_text", text: "<conversation>hello</conversation>" }] },
+		],
+	};
+
+	const rewritten = await injectPendingNativeWindowIntoPiCompactionRequest(payload, ctx, state) as typeof payload;
+	assert.deepEqual(rewritten.input.map((item) => (item as { type?: string; role?: string }).type ?? (item as { role?: string }).role), ["developer", "compaction_summary", "user"]);
+	assert.equal(state.pendingPiCompactionNativeWindow, undefined);
 });

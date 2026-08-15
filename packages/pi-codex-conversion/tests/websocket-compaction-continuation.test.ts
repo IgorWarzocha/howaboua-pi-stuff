@@ -58,6 +58,7 @@ test("V2 compaction exactly replays the provider baseline after its WebSocket di
 				provider: model.provider,
 				api: model.api,
 				apiFamily: model.api,
+				codexTransport: true,
 				model: model.id,
 				baseUrl: model.baseUrl!,
 				apiKey,

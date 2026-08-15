@@ -1,4 +1,5 @@
 import { formatCodeModeToolHelp } from "./custom-tool-prompt.js";
+import { codeModeNameForToolIdentity, resolveCodeModeToolIdentity } from "./tool-identity.ts";
 import type {
 	CodeModeToolDefinition,
 	CustomToolDefinition,
@@ -19,9 +20,13 @@ export function toWireToolDefinition(tool: CodeModeToolDefinition) {
 		throw new Error(
 			`Function code-mode tool requires inputSchema: ${tool.name}`,
 		);
+	const toolName = resolveCodeModeToolIdentity(tool);
+	if (codeModeNameForToolIdentity(toolName) !== tool.name) {
+		throw new Error(`Code-mode tool identity does not match its JavaScript name: ${tool.name}`);
+	}
 	return {
 		name: tool.name,
-		tool_name: { name: tool.name, namespace: null },
+		tool_name: { name: toolName.name, namespace: toolName.namespace ?? null },
 		description: formatCodeModeToolHelp(tool),
 		kind: isCustomToolDefinition(tool) ? "freeform" : tool.kind,
 		input_schema:
@@ -174,7 +179,7 @@ export interface DelegateRequestMessage {
 				cell_id: string;
 				input?: unknown;
 				runtime_tool_call_id: string;
-				tool_name: { name: string };
+				tool_name: { name: string; namespace?: string | undefined };
 			};
 		};
 }
@@ -245,11 +250,13 @@ function parseDelegateRequest(value: Record<string, unknown>): DelegateRequestMe
 		throw new Error("Code-mode host returned an invalid tool invocation");
 	const invocation = request["invocation"];
 	const toolName = invocation["tool_name"];
+	const namespace = isRecord(toolName) ? toolName["namespace"] : undefined;
 	if (
 		typeof invocation["cell_id"] !== "string" ||
 		typeof invocation["runtime_tool_call_id"] !== "string" ||
 		!isRecord(toolName) ||
-		typeof toolName["name"] !== "string"
+		typeof toolName["name"] !== "string" ||
+		(namespace !== undefined && namespace !== null && typeof namespace !== "string")
 	)
 		throw new Error("Code-mode host returned an invalid tool invocation");
 	return {
@@ -259,7 +266,10 @@ function parseDelegateRequest(value: Record<string, unknown>): DelegateRequestMe
 			invocation: {
 				cell_id: invocation["cell_id"],
 				runtime_tool_call_id: invocation["runtime_tool_call_id"],
-				tool_name: { name: toolName["name"] },
+				tool_name: {
+					name: toolName["name"],
+					...(typeof namespace === "string" ? { namespace } : {}),
+				},
 				...(invocation["input"] === undefined ? {} : { input: invocation["input"] }),
 			},
 		},

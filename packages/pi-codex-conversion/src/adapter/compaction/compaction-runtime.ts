@@ -1,5 +1,6 @@
 import type { Api, Model, ProviderHeaders } from "@earendil-works/pi-ai";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { isCanonicalCodexSubscriptionModel, isOpenAICodexModel } from "../prompt/codex-model.ts";
 
 export const DEFAULT_SUPPORTED_PROVIDERS = ["openai", "openai-codex"] as const;
 export const DEFAULT_SUPPORTED_APIS = ["openai-responses", "openai-codex-responses"] as const;
@@ -35,6 +36,7 @@ export type NativeCompactionRuntime = {
 	provider: string;
 	api: DefaultSupportedApi;
 	apiFamily: DefaultSupportedApi;
+	codexTransport: boolean;
 	model: string;
 	baseUrl: string;
 	apiKey?: string | undefined;
@@ -147,15 +149,6 @@ export async function resolveNativeCompactionEnvironment(
 		};
 	}
 
-	const supportedProviders = normalizeConfiguredProviderSet(options.supportedProviders);
-	if (!supportedProviders.has(descriptor.provider.trim().toLowerCase())) {
-		return {
-			ok: false,
-			reason: "unsupported-provider",
-			...descriptor,
-		};
-	}
-
 	const supportedApis = normalizeConfiguredSet(options.supportedApis, DEFAULT_SUPPORTED_APIS);
 	if (!supportedApis.has(descriptor.api)) {
 		return {
@@ -172,6 +165,15 @@ export async function resolveNativeCompactionEnvironment(
 			...descriptor,
 		};
 	}
+	const supportedProviders = normalizeConfiguredProviderSet(options.supportedProviders);
+	const providerSupported = supportedProviders.has(descriptor.provider.trim().toLowerCase());
+	if (!providerSupported && !isCanonicalCodexSubscriptionModel(currentModel)) {
+		return {
+			ok: false,
+			reason: "unsupported-provider",
+			...descriptor,
+		};
+	}
 
 	const { apiKey, headers, baseUrl: authBaseUrl } = await resolveRequestAuth(ctx, currentModel);
 	const effectiveBaseUrl = normalizeBaseUrl(authBaseUrl) ?? descriptor.baseUrl;
@@ -182,6 +184,18 @@ export async function resolveNativeCompactionEnvironment(
 			...descriptor,
 		};
 	}
+	const canonicalSubscription = isCanonicalCodexSubscriptionModel({
+		...currentModel,
+		baseUrl: effectiveBaseUrl,
+	});
+	if (!canonicalSubscription && !providerSupported) {
+		return {
+			ok: false,
+			reason: "unsupported-provider",
+			...descriptor,
+		};
+	}
+	const codexTransport = isOpenAICodexModel(currentModel) || canonicalSubscription;
 
 	let requestPayload: ResponsesCompatibleRequestPayload | undefined;
 	if (payload !== undefined) {
@@ -204,10 +218,8 @@ export async function resolveNativeCompactionEnvironment(
 		requestPayload = payload;
 	}
 
-	const hasAuthorizationHeader = Object.entries(headers ?? {}).some(
-		([key, value]) => key.toLowerCase() === "authorization" && typeof value === "string" && value.trim().length > 0,
-	);
-	if (!apiKey && !hasAuthorizationHeader) {
+	const resolvedApiKey = apiKey ?? bearerToken(headers);
+	if (!resolvedApiKey) {
 		return {
 			ok: false,
 			reason: "missing-api-key",
@@ -221,12 +233,22 @@ export async function resolveNativeCompactionEnvironment(
 			provider: descriptor.provider,
 			api: descriptor.api,
 			apiFamily: descriptor.api,
+			codexTransport,
 			model: descriptor.model,
 			baseUrl: effectiveBaseUrl,
-			apiKey,
+			apiKey: resolvedApiKey,
 			headers,
 			payload: requestPayload,
 			currentModel: authBaseUrl ? { ...currentModel, baseUrl: effectiveBaseUrl } : currentModel,
 		},
 	};
+}
+
+function bearerToken(headers: ProviderHeaders | undefined): string | undefined {
+	for (const [key, value] of Object.entries(headers ?? {})) {
+		if (key.toLowerCase() !== "authorization" || typeof value !== "string") continue;
+		const match = value.trim().match(/^Bearer\s+(.+)$/i);
+		if (match?.[1]?.trim()) return match[1].trim();
+	}
+	return undefined;
 }

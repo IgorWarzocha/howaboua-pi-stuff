@@ -32,6 +32,7 @@ export interface RegisterCodeModeToolsOptions extends CodeModeToolProvider {}
 export interface CodeModeRegistration {
 	prepare(ctx?: unknown): Promise<void> | undefined;
 	refreshPromptTools(systemPrompt: string, ctx?: unknown): string;
+	checkpointNotebook(): Promise<void>;
 	shutdownHost(): Promise<void>;
 	shutdown(): Promise<void>;
 }
@@ -127,6 +128,7 @@ export async function registerCodeModeTools(
 			runtime.setPromptSection(replacement.section);
 			return replacement.systemPrompt;
 		},
+		checkpointNotebook: () => runtime.checkpointNotebook(),
 		shutdownHost: () => runtime.shutdownHost(),
 		async shutdown() {
 			if (!active) return;

@@ -1,11 +1,13 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { Api, Context, Model } from "@earendil-works/pi-ai";
 import { createGrammarToolInputProperties } from "./constrained-sampling.js";
-import { extractAccountId, buildWebSocketHeaders, PI_CODEX_CONVERSION_ORIGINATOR, resolveCodexWebSocketUrl } from "./openai-codex/headers.ts";
+import { extractAccountId, buildWebSocketHeaders, PI_CODEX_CONVERSION_ORIGINATOR, resolveCodexRequestRouting, resolveCodexWebSocketUrl } from "./openai-codex/headers.ts";
 import { noThrowCodexDiagnosticsSink } from "./openai-codex/diagnostic-failure.ts";
+import { DEFAULT_CODEX_BASE_URL } from "./openai-codex/constants.ts";
 import { buildRequestBody } from "./openai-codex/request-body.ts";
+import { openAICodexModelsWithDaybreak } from "./openai-codex/model-catalog.ts";
 import { supportsResponsesLiteModel } from "./openai-codex/responses-lite-model.ts";
-import { applyResponsesLiteRequest, applyResponsesLiteWebSocketMetadata, isResponsesLiteRequest, prepareResponsesLiteRequestImages } from "./openai-codex/responses-lite.ts";
+import { applyResponsesLiteRequest, applyResponsesLiteWebSocketMetadata, isResponsesLiteRequest, namespaceExistingResponsesLiteRequest, prepareResponsesLiteRequestImages } from "./openai-codex/responses-lite.ts";
 import type { CodexDiagnosticsSink, OpenAICodexStreamOptions, ResponsesBody } from "./openai-codex/types.ts";
 import { recordWebSocketSseFallback } from "./openai-codex/websocket.ts";
 import { isWebSocketMessageTooBigError, isWebSocketUpgradeRequiredError } from "./openai-codex/websocket-connection.ts";
@@ -37,7 +39,7 @@ async function prepareCodexRequestBody<TApi extends Api>(
 	if (nextBody !== undefined) body = nextBody as ResponsesBody;
 	if (responsesLite) {
 		body = isResponsesLiteRequest(body)
-			? { ...body, parallel_tool_calls: false }
+			? namespaceExistingResponsesLiteRequest({ ...body, parallel_tool_calls: false })
 			: applyResponsesLiteRequest(body);
 		body = await prepareResponsesLiteRequestImages(body);
 	}
@@ -62,15 +64,22 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 	const runtimeConfig = deps.getConfig?.();
 	if (getEffectiveCodexTransport(options.transport, runtimeConfig?.openai, options.sessionId) === "sse") return;
 	if (!options.apiKey || !options.sessionId) return;
-	const responsesLite = deps.useResponsesLite?.(model) ?? (runtimeConfig?.beta.codeMode === true && supportsResponsesLiteModel(model.id));
+	const responsesLite = deps.useResponsesLite?.(model)
+		?? ((runtimeConfig?.executionMode === "code" || runtimeConfig?.executionMode === "notebook")
+			&& supportsResponsesLiteModel(model.id));
 	const grammarToolInputProperties = createGrammarToolInputProperties(context.tools, responsesLite);
 	const effectiveOptions = runtimeConfig?.compaction?.responsesCompaction
 		? { ...options, grammarToolInputProperties, headers: withRemoteCompactionV2Feature(options.headers) }
 		: { ...options, grammarToolInputProperties };
 	const body = await prepareCodexRequestBody(model, context, effectiveOptions, responsesLite);
 	const accountId = extractAccountId(options.apiKey);
-	const originator = runtimeConfig?.openai.harnessIdentifierHeader ? PI_CODEX_CONVERSION_ORIGINATOR : undefined;
-	const headers = buildWebSocketHeaders(model.headers, effectiveOptions.headers, accountId, options.apiKey, options.sessionId, originator);
+	const routing = resolveCodexRequestRouting({
+		model: body.model,
+		fast: runtimeConfig?.openai.fast === true,
+		serviceTier: body.service_tier,
+		normalOriginator: runtimeConfig?.openai.harnessIdentifierHeader ? PI_CODEX_CONVERSION_ORIGINATOR : "pi",
+	});
+	const headers = buildWebSocketHeaders(model.headers, effectiveOptions.headers, accountId, options.apiKey, options.sessionId, routing.originator, routing.routingHint);
 	const websocketBody = withCodexTurnState(responsesLite ? applyResponsesLiteWebSocketMetadata(body) : body, deps.turnState);
 	const diagnostics = noThrowCodexDiagnosticsSink(deps.getDiagnostics?.());
 	try {
@@ -93,6 +102,8 @@ export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: {
 }): void {
 	pi.registerProvider("openai-codex", {
 		api: "openai-codex-responses",
+		baseUrl: DEFAULT_CODEX_BASE_URL,
+		models: openAICodexModelsWithDaybreak(),
 		oauth: openaiCodexNativeOAuthProvider,
 		streamSimple: (model, context, streamOptions) => createCodexTransportStream(model, context, streamOptions, {
 			prepareRequestBody: prepareCodexRequestBody,

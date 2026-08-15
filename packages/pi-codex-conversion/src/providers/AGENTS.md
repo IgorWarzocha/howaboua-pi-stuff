@@ -4,4 +4,5 @@
 - `openai-responses/tool-history.ts` is the final pairing boundary after message, replay, and payload rewrites; do not bypass it before transport.
 - `openai-responses/message-history.ts` owns model-switch cleanup, image downgrades, tool-call ID pairing, and synthetic aborted results before `shared.ts` serializes Responses wire items.
 - Configured Code Mode proxies own idempotent Responses Lite relocation/header; never depend on `onPayload`.
+- `functions` namespace grouping is part of Responses Lite, not provider identity; keep it identical across stock, renamed, and configured proxy routes while standard Responses stays flat.
 - Configured-provider compaction uses its registered plan-aware stream; Code Mode compaction/replay carries the owned `exec` grammar contract.

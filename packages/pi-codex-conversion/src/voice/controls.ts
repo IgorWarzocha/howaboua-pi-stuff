@@ -1,7 +1,9 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
 	getCodexConversionConfigPath,
-	readCodexConversionConfig,
+	getProjectCodexConversionConfigPath,
+	hasFolderCodexConversionConfig,
+	readEffectiveCodexConversionConfig,
 } from "../adapter/activation/config-store.ts";
 import type { AdapterState } from "../adapter/activation/state.ts";
 import { resolveVoiceHelperBinary } from "./binary.ts";
@@ -31,7 +33,13 @@ export function createCodexVoiceControls(options: {
 		force: boolean,
 		mode?: CodexVoiceMode,
 	): Promise<boolean> => {
-		const currentConfig = readCodexConversionConfig();
+		const currentConfig = readEffectiveCodexConversionConfig({
+			cwd: ctx.cwd,
+			projectTrusted: ctx.isProjectTrusted(),
+		});
+		const configPath = hasFolderCodexConversionConfig(ctx.cwd, ctx.isProjectTrusted())
+			? getProjectCodexConversionConfigPath(ctx.cwd)
+			: getCodexConversionConfigPath();
 		state.config = currentConfig;
 		if (!force && currentConfig.voice.audioSetupCompleted) return false;
 		if (mode === "realtime" && voice.prepareRealtimePrompt(ctx) === undefined)
@@ -48,7 +56,7 @@ export function createCodexVoiceControls(options: {
 			codexVoiceSetupMessage(
 				buildVoiceSetupInstructions({
 					config: currentConfig,
-					configPath: getCodexConversionConfigPath(),
+					configPath,
 					helperPath: resolveVoiceHelperBinary(
 						currentConfig.tools.customRustBinariesDir,
 					),

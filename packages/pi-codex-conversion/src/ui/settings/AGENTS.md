@@ -1,4 +1,5 @@
 - Settings writes are explicit user actions; session startup and resume only read configuration.
+- Execution mode is a scoped `normal`/`code`/`notebook` setting; never store it in session entries or expose an inherited mode.
 - `config-items.ts` dispatches tabs; `config-items-<tab>.ts` builds each tab; `config-items-shared.ts` owns shared controls and update types.
 - `/codex` opens General; arguments target only other tabs. Do not add a default-tab argument or quick-toggle/action aliases.
 - Keep persistence synchronous and simple. Do not add process locks or concurrency machinery without a reproduced background writer or realistic overlapping-write path.
