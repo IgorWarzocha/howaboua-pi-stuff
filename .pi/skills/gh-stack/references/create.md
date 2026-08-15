@@ -1,92 +1,129 @@
-# Create a stack
+# Create an umbrella stack
 
-Use this phase to choose layers, establish the chain, and create the native PR stack before parallel
-or dependent implementation begins.
+Plan one cumulative ordinary PR plus focused native stack layers. Use one ordinary PR instead when
+the slices do not merit separate review; use separate release units when work may ship independently.
 
-## Choose the landing shape
+## Plan bottom to top
 
-Use a stack when concerns merit focused PRs but deliberately land together: code dependencies or a
-repository-defined issue/release batch. Use one ordinary PR when slices do not merit separate review.
-Use separate PRs or stacks when work should release independently.
+Name four kinds of ref:
 
-For a release batch, create a dedicated integration branch from the current target branch and keep it
-outside the native stack. Name it for the release or batch, such as `<package>/<version>`. Stack every
-focused layer on that branch, atomically assemble the reviewed stack into it, then open its one ordinary
-PR to `main`. This preserves a cumulative final diff and one release-triggering merge. Never use a top
-stack cap as the final integration PR.
+```text
+<batch>/staging        remote native-stack trunk; no PR
+<topic>/<layer>        one bookmark/branch per focused PR
+<batch>/umbrella       ordinary umbrella PR head; never a stack member
+main                   umbrella PR base; only release target
+```
 
-Base a stack directly on `main` only when every selected prefix is independently safe to ship and a
-push to `main` is intended at stack-merge time.
-
-Plan bottom to top before writing code. Dependencies go in the same or a lower layer. Give each layer
-one sentence of ownership and use repository branch conventions; otherwise prefer
-`<topic>/<concern>`.
+Dependencies belong in the same or a lower focused layer. Give each layer one ownership sentence.
+The umbrella owns only cumulative release context, not implementation or a fake cap change.
 
 ## Preconditions
 
 ```bash
 gh stack --version
-git config rerere.enabled true
 gh api user --jq .login
 git config user.name
 git config user.email
 git status --short --branch
-git fetch --prune origin
 ```
 
-Inspect existing branches and PRs before adopting them. With several remotes, pass `--remote` where
-supported or configure one unambiguous remote.
+For JJ, also verify `jj --version`, `jj root`, `jj status`, `jj workspace list`, `jj config get
+user.name`, and `jj config get user.email`. JJ identity is separate from Git identity; configure the
+verified active contributor before creating changes. Use an existing colocated JJ repository or a
+dedicated `jj git clone --colocate`; do not retrofit JJ into a shared checkout/worktree. Run `jj git
+fetch --remote origin` before selecting `main@origin`.
 
-## Create the chain
+Inspect existing PRs, bookmarks/branches, and remote names before creating refs. Configure an explicit
+remote when more than one is plausible.
 
-For a release batch, create and publish its clean integration trunk first, then create all planned
-stack branches above it:
+## Preferred JJ route
+
+Create and publish a staging bookmark at the selected `main` revision:
 
 ```bash
-git switch --create <integration-branch> origin/main
-git push --set-upstream origin <integration-branch>
-gh stack init --base <integration-branch> <bottom> <next> <top>
+jj bookmark create <staging> --revision main@origin
+jj git push --remote origin --bookmark <staging>
 ```
 
-Arguments are bottom to top; existing branches are adopted, missing branches are created, and the
-last branch is checked out. For sequential implementation, create the bottom and add layers from the
-current top:
+Create focused changes bottom to top. A bookmark points to each completed change; `@` advances to the
+next layer:
 
 ```bash
-gh stack init --base <integration-branch> <bottom>
-# edit, validate, stage deliberately, commit
+jj new <staging> -m "<bottom description>"
+# edit and validate the bottom layer
+jj bookmark create <bottom> --revision @
+
+jj new -m "<next description>"
+# edit and validate the next layer
+jj bookmark create <next> --revision @
+```
+
+For a parallel batch, create the described/bookmarked layer skeleton without publishing it, then move
+the coordinator working copy away so workers can edit those revisions:
+
+```bash
+jj new <staging>
+```
+
+Create worker workspaces and `jj edit <layer>` as specified in `work.md`. Empty skeleton revisions are
+local planning state only; do not link or push them.
+
+Before publishing, require every focused revision to be non-empty, described, conflict-free, and to
+own only its layer. Create the umbrella bookmark at the focused top:
+
+```bash
+jj bookmark create <umbrella> --revision <top>
+```
+
+Link only focused bookmarks, bottom to top. `link` pushes them, creates or retargets focused PRs, and
+creates the native GitHub stack without local `gh-stack` tracking:
+
+```bash
+jj git push --remote origin --bookmark <bottom> --bookmark <next> --bookmark <top>
+jj git export --ignore-working-copy
+gh stack link --base <staging> --open <bottom> <next> <top>
+jj git push --remote origin --bookmark <umbrella>
+```
+
+Open the cumulative umbrella as an ordinary draft PR:
+
+```bash
+gh pr create --draft --base main --head <umbrella> --title "<release title>" --body-file <body>
+```
+
+GitHub cannot open an empty PR. Create the umbrella after the first real focused change exists; never
+seed it with placeholder code or metadata. Its body lists focused PRs and release-level validation.
+Each focused PR links back with `Part of #<umbrella-pr>`.
+
+## Git-managed fallback
+
+Use only when JJ is unavailable. Create staging from the selected target, then let `gh-stack` own the
+focused branch chain:
+
+```bash
+git switch --create <staging> origin/main
+git push --set-upstream origin <staging>
+gh stack init --base <staging> <bottom>
+# edit, validate, commit
 gh stack add <next>
 ```
 
-`add` carries uncommitted changes onto the new branch. Avoid its commit shortcuts: use `git add` and
-`git commit` directly so each layer owns only its concern. `add` from a middle branch exits 5; move to
-the top first.
-
-For branches owned by another manager or worktree layout, link without creating local tracking:
-
-```bash
-gh stack link --base <integration-branch> <bottom-branch-or-pr> <next> <top>
-```
-
-`link` is additive, accepts branches or PRs bottom to top, may push branch arguments and create or
-retarget PRs, and never removes members. Use `gh stack checkout <stack-or-pr>` later if local tracking
-is needed.
-
-## Submit
-
-From the top after every layer is committed and the complete stack validates:
+After all focused layers are committed:
 
 ```bash
 gh stack submit --auto --open
-gh stack view --json
+gh stack top
+git branch <umbrella>
+git push --set-upstream origin <umbrella>
+gh pr create --draft --base main --head <umbrella> --title "<release title>" --body-file <body>
 ```
 
-Omit `--open` only when drafts were explicitly requested. Submit pushes active branches, creates or
-updates PRs, bases each on its active ancestor, and links the GitHub stack. It is not atomic: earlier
-pushes and PR changes survive a later failure, so repair the rejected branch and rerun. Exit 9 means
-stacked PRs are unavailable.
+`add` carries uncommitted changes; avoid its commit shortcuts. `submit` is not atomic, so repair a
+rejected branch and rerun. Keep the umbrella branch outside local stack tracking. Do not run the JJ
+export command in this fallback route.
 
-`--auto` derives titles from commits or branch names. Use `gh pr edit` afterward for accurate title,
-body, issue linkage, validation, and release information. Verify the GitHub stack order rather than
-inferring it from ancestry alone. Do not open the integration PR until the reviewed stack has been
-assembled into its branch; an empty placeholder PR is not the release gate.
+## Verify publication
+
+Inspect each focused PR's direct base and current head, the remote native order, and the umbrella's
+`main..umbrella` cumulative diff. Do not infer native membership from ancestry alone. Record focused
+PR numbers, stack number, staging ref, umbrella PR, and umbrella head SHA.
