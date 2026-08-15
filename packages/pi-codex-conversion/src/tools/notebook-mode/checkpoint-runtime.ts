@@ -1,4 +1,5 @@
 import { CHECKPOINT_SCHEMA, type CheckpointManifest, type NotebookCheckpointIdentity } from "./checkpoint-format.ts";
+import { MAX_PROJECT_MANIFEST_BYTES } from "./project-state-format.ts";
 
 export function checkpointSource(options: {
 	candidates: string[];
@@ -9,6 +10,7 @@ export function checkpointSource(options: {
 	projectGeneration: string;
 	projectNames: string[];
 	payload: string;
+	previousPayload?: string | undefined;
 	skippedInvalid: Array<{ name: string; reason: string }>;
 	maxBytes: number;
 }): string {
@@ -24,7 +26,7 @@ export function checkpointSource(options: {
       if (typeof __candidate !== "function") throw new Error("function source did not reanimate");
       __kind = "function";
       __captured = __source;
-    }
+	  }
     if (__captured instanceof Promise) __skip(${JSON.stringify(name)}, "promise");
     else if (__value instanceof WeakMap || __value instanceof WeakSet) __skip(${JSON.stringify(name)}, "weak collection");
     else {
@@ -54,12 +56,11 @@ export function checkpointSource(options: {
 		const __written = await __file.write(__bytes.subarray(__offset));
 		if (__written === 0) throw new Error("checkpoint payload write made no progress");
 		__offset += __written;
-	  }
+  }
 	};
 	try { ${captures} } finally { __file.close(); }
   const __manifestPath = ${JSON.stringify(options.manifestPath)};
-  let __previousPayload;
-  try { __previousPayload = JSON.parse(await Deno.readTextFile(__manifestPath)).payload; } catch {}
+  const __previousPayload = ${JSON.stringify(options.previousPayload)};
   const __manifest = {
     schema: ${CHECKPOINT_SCHEMA},
     project: ${JSON.stringify(options.identity.project)},
@@ -74,7 +75,11 @@ export function checkpointSource(options: {
     skipped: __skipped,
   };
   const __temporaryManifest = __manifestPath + "." + crypto.randomUUID() + ".tmp";
-  await Deno.writeTextFile(__temporaryManifest, JSON.stringify(__manifest, null, 2) + "\\n", { mode: 0o600 });
+  const __manifestText = JSON.stringify(__manifest, null, 2) + "\\n";
+  if (new TextEncoder().encode(__manifestText).byteLength > ${MAX_PROJECT_MANIFEST_BYTES}) {
+    throw new Error("notebook checkpoint manifest exceeds ${MAX_PROJECT_MANIFEST_BYTES} bytes");
+  }
+  await Deno.writeTextFile(__temporaryManifest, __manifestText, { mode: 0o600 });
   await Deno.rename(__temporaryManifest, __manifestPath);
   if (__previousPayload && __previousPayload !== __manifest.payload) {
     await Deno.remove(${JSON.stringify(options.directory)} + "/" + __previousPayload).catch(() => {});

@@ -42,6 +42,20 @@ function clearAbsentOwnedOptionals(document: Record<string, unknown>, owned: Rec
 		if (!(key in ownedVoice)) delete voice[key];
 }
 
+function writeConfigDocumentAtomic(configPath: string, document: Record<string, unknown>): void {
+	const temporaryPath = `${configPath}.${process.pid}.${Date.now()}.tmp`;
+	mkdirSync(dirname(configPath), { recursive: true });
+	try {
+		writeFileSync(temporaryPath, `${JSON.stringify(document, null, 2)}\n`, {
+			encoding: "utf-8",
+			mode: 0o600,
+		});
+		renameSync(temporaryPath, configPath);
+	} finally {
+		rmSync(temporaryPath, { force: true });
+	}
+}
+
 export function getCodexConversionConfigPath(agentDir: string = getAgentDir()): string {
 	return join(agentDir, CODEX_CONVERSION_CONFIG_BASENAME);
 }
@@ -132,7 +146,7 @@ export function clearFolderCodexConversionConfig(
 	for (const key of OWNED_CONFIG_KEYS) delete project[key];
 	try {
 		if (Object.keys(project).length === 0) rmSync(path, { force: true });
-		else writeFileSync(path, `${JSON.stringify(project, null, 2)}\n`, { encoding: "utf-8", mode: 0o600 });
+		else writeConfigDocumentAtomic(path, project);
 		return { ok: true };
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
@@ -145,9 +159,7 @@ export function writeCodexConversionConfig(
 	config: CodexConversionConfig,
 	configPath: string = getCodexConversionConfigPath(),
 ): { ok: true } | { ok: false; error: string } {
-	const temporaryPath = `${configPath}.${process.pid}.${Date.now()}.tmp`;
 	try {
-		mkdirSync(dirname(configPath), { recursive: true });
 		const normalized = normalizeCodexConversionConfig(config) as unknown as Record<string, unknown>;
 		let document = normalized;
 		if (existsSync(configPath)) {
@@ -159,18 +171,9 @@ export function writeCodexConversionConfig(
 			}
 		}
 		clearAbsentOwnedOptionals(document, normalized);
-		writeFileSync(temporaryPath, `${JSON.stringify(document, null, 2)}\n`, {
-			encoding: "utf-8",
-			mode: 0o600,
-		});
-		renameSync(temporaryPath, configPath);
+		writeConfigDocumentAtomic(configPath, document);
 		return { ok: true };
 	} catch (error) {
-		try {
-			rmSync(temporaryPath, { force: true });
-		} catch {
-			// Keep the original write error.
-		}
 		const message = error instanceof Error ? error.message : String(error);
 		console.warn(`[pi-codex-conversion] Failed to write ${configPath}: ${message}`);
 		return { ok: false, error: message };

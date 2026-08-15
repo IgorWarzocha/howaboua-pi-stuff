@@ -8,13 +8,13 @@ import {
 	notebookCellId,
 	notebookCellStatus,
 	readNotebookDocument,
-	sourceLines,
 	type NotebookJournalEvent,
 	writeNotebookDocument,
 } from "./journal-document.ts";
 import type { KernelExecutionResult } from "./jupyter-kernel.ts";
 
 const MAX_CELL_OUTPUT_CHARS = 16 * 1024 * 1024;
+const JOURNAL_DOCUMENT_OVERHEAD_BYTES = 4_096;
 
 export interface NotebookJournal {
 	path: string;
@@ -44,11 +44,15 @@ export function initializeNotebookJournal(
 	mkdirSync(directory, { recursive: true });
 	const path = join(directory, `${sessionKey}.ipynb`);
 	const eventsPath = journalEventsPath(path);
-	if (!existsSync(path)) writeNotebookDocument(path, emptyNotebookDocument(project, identity.session));
+	const previousPath = previousJournalPath(path);
+	for (const candidate of [path, eventsPath, previousPath]) {
+		if (fileSize(candidate) > maxBytes) rmSync(candidate, { force: true });
+	}
+	if (!existsSync(path)) writeNotebookDocument(path, emptyNotebookDocument(project, identity.session), maxBytes);
 	if (!existsSync(eventsPath)) writeFileSync(eventsPath, "", { mode: 0o600 });
 	const journal = { path, eventsPath, project, session: identity.session, cells: 0, completedCells: 0, writable: true, maxBytes };
 	try { materializeNotebookJournal(journal); } catch { journal.writable = false; }
-	const document = readNotebookDocument(path);
+	const document = readNotebookDocument(path, maxBytes);
 	if (!document) journal.writable = false;
 	journal.cells = document?.cells.length ?? 0;
 	journal.completedCells = document?.cells.filter((cell) => notebookCellStatus(cell) !== "running").length ?? 0;
@@ -57,18 +61,17 @@ export function initializeNotebookJournal(
 
 export function beginNotebookJournalCell(journal: NotebookJournal, cell: { id: string; source: string }): void {
 	if (!journal.writable) throw new Error(`Notebook journal requires diagnostics: ${journal.path}`);
-	rotateNotebookJournalIfNeeded(journal);
 	appendEvent(journal, { type: "begin", id: cell.id, source: cell.source, createdAt: new Date().toISOString() });
 	journal.cells += 1;
 }
 
-function rotateNotebookJournalIfNeeded(journal: NotebookJournal): void {
-	if (fileSize(journal.path) + fileSize(journal.eventsPath) <= journal.maxBytes) return;
+function rotateNotebookJournalIfNeeded(journal: NotebookJournal, incomingBytes: number): boolean {
+	if (fileSize(journal.path) + fileSize(journal.eventsPath) + incomingBytes <= journal.maxBytes) return false;
 	materializeNotebookJournal(journal);
-	if (fileSize(journal.path) <= journal.maxBytes) return;
-	const previous = journal.path.replace(/\.ipynb$/, ".previous.ipynb");
+	if (fileSize(journal.path) + incomingBytes <= journal.maxBytes) return false;
+	const previous = previousJournalPath(journal.path);
 	const replacement = `${journal.path}.replacement`;
-	writeNotebookDocument(replacement, emptyNotebookDocument(journal.project, journal.session));
+	writeNotebookDocument(replacement, emptyNotebookDocument(journal.project, journal.session), journal.maxBytes);
 	try {
 		rmSync(previous, { force: true });
 		renameSync(journal.path, previous);
@@ -78,6 +81,10 @@ function rotateNotebookJournalIfNeeded(journal: NotebookJournal): void {
 	}
 	journal.cells = 0;
 	journal.completedCells = 0;
+	if (fileSize(journal.path) + incomingBytes > journal.maxBytes) {
+		throw new Error("Notebook journal cell exceeds the persistence budget");
+	}
+	return true;
 }
 
 function fileSize(path: string): number {
@@ -89,24 +96,29 @@ export function finishNotebookJournalCell(
 	cell: { id: string; source: string; items: RuntimeContentItem[]; result: KernelExecutionResult },
 ): void {
 	if (!journal.writable) throw new Error(`Notebook journal requires diagnostics: ${journal.path}`);
-	appendEvent(journal, {
+	const rotated = appendEvent(journal, {
 		type: "finish",
 		id: cell.id,
 		source: cell.source,
 		status: cell.result.status,
 		completedAt: new Date().toISOString(),
-		outputs: journalOutputs(cell.items, cell.result),
+		outputs: journalOutputs(
+			cell.items,
+			cell.result,
+			Math.min(MAX_CELL_OUTPUT_CHARS, Math.max(0, Math.floor((journal.maxBytes - Buffer.byteLength(cell.source) - JOURNAL_DOCUMENT_OVERHEAD_BYTES) / 6))),
+		),
 	});
+	if (rotated) journal.cells = 1;
 	journal.completedCells += 1;
 }
 
 export function materializeNotebookJournal(journal: NotebookJournal): void {
-	const document = readNotebookDocument(journal.path);
+	const document = readNotebookDocument(journal.path, journal.maxBytes);
 	if (!document) throw new Error(`Notebook journal is invalid: ${journal.path}`);
-	const events = readEvents(journal.eventsPath);
+	const events = readEvents(journal.eventsPath, journal.maxBytes);
 	if (events.length === 0) return;
 	for (const event of events) applyNotebookJournalEvent(document, event);
-	writeNotebookDocument(journal.path, document);
+	writeNotebookDocument(journal.path, document, journal.maxBytes);
 	writeFileSync(journal.eventsPath, "", { mode: 0o600 });
 	journal.writable = true;
 }
@@ -133,13 +145,21 @@ function materializedDocument(path: string) {
 	return document;
 }
 
-function appendEvent(journal: NotebookJournal, event: NotebookJournalEvent): void {
-	appendFileSync(journal.eventsPath, `${JSON.stringify(event)}\n`, { encoding: "utf8", mode: 0o600 });
+function appendEvent(journal: NotebookJournal, event: NotebookJournalEvent): boolean {
+	const line = `${JSON.stringify(event)}\n`;
+	const bytes = Buffer.byteLength(line);
+	if (bytes + JOURNAL_DOCUMENT_OVERHEAD_BYTES > journal.maxBytes) {
+		throw new Error("Notebook journal cell exceeds the persistence budget");
+	}
+	const rotated = rotateNotebookJournalIfNeeded(journal, bytes);
+	appendFileSync(journal.eventsPath, line, { encoding: "utf8", mode: 0o600 });
+	return rotated;
 }
 
-function readEvents(path: string): NotebookJournalEvent[] {
+function readEvents(path: string, maxBytes?: number): NotebookJournalEvent[] {
 	if (!existsSync(path)) return [];
 	try {
+		if (maxBytes !== undefined && fileSize(path) > maxBytes) throw new Error("events exceed budget");
 		const text = readFileSync(path, "utf8");
 		const lines = text.split("\n");
 		const events: NotebookJournalEvent[] = [];
@@ -177,15 +197,19 @@ function journalEventsPath(path: string): string {
 	return `${path}.events.jsonl`;
 }
 
-function journalOutputs(items: RuntimeContentItem[], result: KernelExecutionResult): Array<Record<string, unknown>> {
+function previousJournalPath(path: string): string {
+	return path.replace(/\.ipynb$/, ".previous.ipynb");
+}
+
+function journalOutputs(items: RuntimeContentItem[], result: KernelExecutionResult, maxChars: number): Array<Record<string, unknown>> {
 	const outputs: Array<Record<string, unknown>> = [];
-	let remaining = MAX_CELL_OUTPUT_CHARS;
+	let remaining = maxChars;
 	for (const item of items) {
 		if (remaining <= 0) break;
 		if (item.type === "input_text" && item.text) {
 			const text = item.text.slice(0, remaining);
 			remaining -= text.length;
-			outputs.push({ name: "stdout", output_type: "stream", text: sourceLines(text) });
+			outputs.push({ name: "stdout", output_type: "stream", text });
 			continue;
 		}
 		const match = item.type === "input_image" && item.image_url?.match(/^data:([^;,]+);base64,(.+)$/s);

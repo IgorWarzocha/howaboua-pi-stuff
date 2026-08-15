@@ -30,6 +30,7 @@ import {
 import { NotebookProfileController } from "./profile-lifecycle.ts";
 
 const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
+const STATUS_TIMEOUT_MS = 8_000;
 
 interface NotebookLifecycleHost {
 	prepare(context: ToolExecutionContext, signal?: AbortSignal): Promise<void>;
@@ -88,7 +89,7 @@ export class NotebookLifecycleController {
 	async disposeAll(signal?: AbortSignal): Promise<NotebookReleaseResult | undefined> {
 		const kernel = this.host.kernel();
 		if (!kernel || this.host.activeCellId()) return undefined;
-		const names = await this.userBindingNames(kernel);
+		const names = await this.userBindingNames(kernel, signal);
 		if (names.length === 0) return { released: [], disposed: [], failures: [] };
 		const marker = lifecycleMarker();
 		return parseNotebookRuntimeResult<NotebookReleaseResult>(
@@ -100,7 +101,10 @@ export class NotebookLifecycleController {
 	private async status(query: string | undefined, signal?: AbortSignal): Promise<NotebookControlResult> {
 		const kernel = this.host.kernel()!;
 		const activeCell = this.host.activeCellId();
-		const allNames = activeCell ? [] : await this.userBindingNames(kernel);
+		const statusSignal = signal
+			? AbortSignal.any([signal, AbortSignal.timeout(STATUS_TIMEOUT_MS)])
+			: AbortSignal.timeout(STATUS_TIMEOUT_MS);
+		const allNames = activeCell ? [] : await this.userBindingNames(kernel, statusSignal);
 		const matches = query === undefined ? [] : allNames.filter(globMatcher(query));
 		const selected = withinNameBudget(matches);
 		const retained = this.host.retainedBindings();
@@ -109,7 +113,7 @@ export class NotebookLifecycleController {
 		if (!activeCell) {
 			const marker = lifecycleMarker();
 			runtime = parseNotebookRuntimeResult<NotebookKernelStatus>(
-				await kernel.execute(notebookStatusSource(selected, marker), { signal }),
+				await kernel.execute(notebookStatusSource(selected, marker), { signal: statusSignal }),
 				marker,
 			);
 		}
@@ -285,9 +289,9 @@ export class NotebookLifecycleController {
 		};
 	}
 
-	private async userBindingNames(kernel: DenoJupyterKernel): Promise<string[]> {
+	private async userBindingNames(kernel: DenoJupyterKernel, signal?: AbortSignal): Promise<string[]> {
 		const baseline = this.host.baselineNames();
-		return [...new Set(await kernel.complete("", 0))]
+		return [...new Set(await kernel.complete("", 0, signal))]
 			.filter((name) => IDENTIFIER.test(name) && !baseline.has(name))
 			.sort();
 	}

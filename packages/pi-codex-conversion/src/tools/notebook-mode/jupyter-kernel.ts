@@ -24,6 +24,7 @@ const REQUEST_TIMEOUT_MS = 8_000;
 const SEND_TIMEOUT_MS = 5_000;
 const SHUTDOWN_GRACE_MS = 1_500;
 const MAX_STDERR_CHARS = 16_384;
+const MAX_JUPYTER_MESSAGE_BYTES = 40 * 1024 * 1024;
 export type { KernelExecutionResult } from "./jupyter-output.ts";
 
 interface ShellReplyWaiter {
@@ -97,14 +98,48 @@ export class DenoJupyterKernel {
 			resolve,
 			reject,
 		};
-		const abort = () => void this.interrupt().catch(() => undefined);
+		let abortTimer: ReturnType<typeof setTimeout> | undefined;
+		let finished = false;
+		const abort = () => {
+			void this.interrupt().catch(() => undefined);
+			abortTimer = setTimeout(() => {
+				if (!finished) {
+					this.failKernel(options.signal?.reason instanceof Error
+						? options.signal.reason
+						: new Error("Deno Jupyter execution did not stop after cancellation"));
+				}
+			}, SHUTDOWN_GRACE_MS);
+			abortTimer.unref?.();
+		};
 		options.signal?.addEventListener("abort", abort, { once: true });
 		this.active = execution;
 		try {
-			const [result, reply] = await Promise.all([
-				completion,
-				this.sendShellRequest(message, undefined, "execute_request", options.signal),
-			]);
+			const completionState = completion.then((result) => ({ kind: "completion" as const, result }));
+			const replyState = this.sendShellRequest(message, undefined, "execute_request")
+				.then((reply) => ({ kind: "reply" as const, reply }));
+			let result: KernelExecutionResult;
+			let reply: JupyterMessage;
+			try {
+				const first = await Promise.race([completionState, replyState]);
+				if (first.kind === "completion") {
+					result = first.result;
+					reply = (await withTimeout(
+						replyState,
+						REQUEST_TIMEOUT_MS,
+						() => new Error(`Deno Jupyter did not answer execute_request after the cell became idle within ${REQUEST_TIMEOUT_MS}ms`),
+					)).reply;
+				} else {
+					reply = first.reply;
+					result = (await withTimeout(
+						completionState,
+						REQUEST_TIMEOUT_MS,
+						() => new Error(`Deno Jupyter did not become idle after execute_reply within ${REQUEST_TIMEOUT_MS}ms`),
+					)).result;
+				}
+			} catch (error) {
+				this.failKernel(error instanceof Error ? error : new Error(String(error)));
+				throw error;
+			}
 			if (reply.header.msg_type !== "execute_reply") {
 				throw new Error(`Deno Jupyter returned ${reply.header.msg_type} for execute_request`);
 			}
@@ -114,6 +149,8 @@ export class DenoJupyterKernel {
 			if (this.active === execution) this.active = undefined;
 			throw error;
 		} finally {
+			finished = true;
+			if (abortTimer) clearTimeout(abortTimer);
 			options.signal?.removeEventListener("abort", abort);
 		}
 	}
@@ -204,6 +241,9 @@ export class DenoJupyterKernel {
 		this.shell = new Dealer();
 		this.control = new Dealer();
 		this.iopub = new Subscriber();
+		this.shell.maxMessageSize = MAX_JUPYTER_MESSAGE_BYTES;
+		this.control.maxMessageSize = MAX_JUPYTER_MESSAGE_BYTES;
+		this.iopub.maxMessageSize = MAX_JUPYTER_MESSAGE_BYTES;
 		this.shell.sendTimeout = SEND_TIMEOUT_MS;
 		this.control.sendTimeout = SEND_TIMEOUT_MS;
 		this.shell.linger = 0;

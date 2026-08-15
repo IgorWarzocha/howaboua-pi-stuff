@@ -18,6 +18,7 @@ import {
 	MAX_PROJECT_NAME_BYTES,
 	PROJECT_STATE_SCHEMA,
 	projectStatePaths,
+	readProjectConflictRecord,
 	readProjectStateCandidate,
 	readProjectStateManifest,
 	readProjectStatePayload,
@@ -265,7 +266,10 @@ async function commitCandidate(options: {
 	removeResolvedProjectConflicts(options.paths.directory, new Set(merged.appliedNames));
 	return {
 		...(manifest ? { manifest } : {}),
-		baseline: merged.baseline,
+		baseline: {
+			...merged.baseline,
+			generation: manifest?.generation ?? merged.baseline.generation,
+		},
 		conflicts: merged.conflicts,
 	};
 }
@@ -355,13 +359,8 @@ function listProjectConflicts(directory: string): string[] {
 	const names = new Set<string>();
 	for (const file of readDirectoryNames(join(directory, "conflicts"))) {
 		if (!file.endsWith(".json")) continue;
-		try {
-			const value = JSON.parse(readFileSync(join(directory, "conflicts", file), "utf8")) as Record<string, unknown>;
-			for (const entry of Array.isArray(value["entries"]) ? value["entries"] : []) {
-				if (entry && typeof entry === "object" && typeof (entry as Record<string, unknown>)["name"] === "string") names.add((entry as Record<string, string>)["name"]!);
-			}
-			for (const name of Array.isArray(value["deletions"]) ? value["deletions"] : []) if (typeof name === "string") names.add(name);
-		} catch {}
+		const record = readProjectConflictRecord(join(directory, "conflicts", file));
+		for (const name of record?.names ?? []) names.add(name);
 	}
 	return [...names].sort();
 }
@@ -373,13 +372,9 @@ function removeResolvedProjectConflicts(directory: string, names: ReadonlySet<st
 		if (!file.endsWith(".json")) continue;
 		const path = join(conflicts, file);
 		try {
-			const value = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
-			const conflictNames = [
-				...(Array.isArray(value["entries"]) ? value["entries"].flatMap((entry) => entry && typeof entry === "object" && typeof (entry as Record<string, unknown>)["name"] === "string" ? [(entry as Record<string, string>)["name"]!] : []) : []),
-				...(Array.isArray(value["deletions"]) ? value["deletions"].filter((name): name is string => typeof name === "string") : []),
-			];
-			if (!conflictNames.some((name) => names.has(name))) continue;
-			if (typeof value["payload"] === "string") rmSync(join(conflicts, value["payload"]), { force: true });
+			const record = readProjectConflictRecord(path);
+			if (!record || !record.names.some((name) => names.has(name))) continue;
+			if (record.payload) rmSync(join(conflicts, record.payload), { force: true });
 			rmSync(path, { force: true });
 		} catch {}
 	}

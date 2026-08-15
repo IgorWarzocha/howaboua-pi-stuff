@@ -26,6 +26,7 @@ export class NotebookExecutionRuntime {
 	private readonly session: () => NotebookSessionRuntime;
 	private readonly prepareSession: (context: ToolExecutionContext, signal?: AbortSignal) => Promise<void>;
 	private readonly delegate = new CodeModeDelegateRuntime(() => undefined);
+	private readonly stopOperations = new WeakMap<NotebookCell, Promise<void>>();
 	private activeCell: NotebookCell | undefined;
 	private nextCellId = 1;
 
@@ -100,14 +101,14 @@ export class NotebookExecutionRuntime {
 		].join("\n");
 		const abort = () => {
 			cell.controller.abort();
-			void this.stopCell(cell).catch(() => undefined);
+			void this.stopAndCloseCell(cell).catch(() => undefined);
 		};
 		signal?.addEventListener("abort", abort, { once: true });
 		void this.runCell(cell, wrapped, journaled).finally(() => signal?.removeEventListener("abort", abort));
 		try {
 			return await this.observe(cell, effectiveYieldTime, signal);
 		} catch (error) {
-			if (signal?.aborted) await this.stopCell(cell).catch(() => undefined);
+			if (signal?.aborted) await this.stopAndCloseCell(cell).catch(() => undefined);
 			throw error;
 		}
 	}
@@ -230,8 +231,15 @@ export class NotebookExecutionRuntime {
 		return attached;
 	}
 
-	private async stopCell(cell: NotebookCell): Promise<void> {
-		if (cell.terminated) return;
+	private stopCell(cell: NotebookCell): Promise<void> {
+		const existing = this.stopOperations.get(cell);
+		if (existing) return existing;
+		const operation = this.stopCellInner(cell).finally(() => this.stopOperations.delete(cell));
+		this.stopOperations.set(cell, operation);
+		return operation;
+	}
+
+	private async stopCellInner(cell: NotebookCell): Promise<void> {
 		cell.terminated = true;
 		cell.controller.abort();
 		this.delegate.cancelCell(cell.id);
@@ -242,6 +250,11 @@ export class NotebookExecutionRuntime {
 			cell.result = { status: "aborted", items: [] };
 			cell.markCompleted();
 		}
+	}
+
+	private async stopAndCloseCell(cell: NotebookCell): Promise<void> {
+		await this.stopCell(cell);
+		this.closeCell(cell);
 	}
 
 	private async recoverAfterFatal(context: ToolExecutionContext): Promise<string> {

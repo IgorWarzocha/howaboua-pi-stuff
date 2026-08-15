@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { lstatSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { withProjectStateLock } from "./project-state-lock.ts";
 import { projectStatePaths } from "./project-state-format.ts";
@@ -30,8 +30,9 @@ export function extractNotebookNpmImports(source: string): string[] {
 export function readNotebookNpmImports(identity: { project: string; agentDir: string }): string[] {
 	const paths = npmImportPaths(identity);
 	try {
+		const stat = lstatSync(paths.manifest);
+		if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_FILE_BYTES) return [];
 		const text = readFileSync(paths.manifest, "utf8");
-		if (Buffer.byteLength(text) > MAX_FILE_BYTES) return [];
 		const value = JSON.parse(text) as unknown;
 		return isNpmImportsManifest(value, resolve(identity.project)) ? value.imports : [];
 	} catch {
@@ -133,12 +134,6 @@ function stringLiterals(source: string): Array<{ value: string; maskedPrefix: st
 			index = stop;
 			continue;
 		}
-		if (current === "`") {
-			const stop = skipDelimited(source, index, "`");
-			for (let cursor = index; cursor < stop; cursor += 1) if (source[cursor] !== "\n") masked[cursor] = " ";
-			index = stop;
-			continue;
-		}
 		if (current === "/" && isRegexLiteralStart(source, index)) {
 			let cursor = index + 1;
 			let characterClass = false;
@@ -154,46 +149,89 @@ function stringLiterals(source: string): Array<{ value: string; maskedPrefix: st
 			index = cursor;
 			continue;
 		}
-		if (current !== '"' && current !== "'") {
+		if (current !== '"' && current !== "'" && current !== "`") {
 			index += 1;
 			continue;
 		}
 		const start = index;
-		let value = "";
-		let simple = true;
-		index += 1;
-		while (index < source.length) {
-			const char = source[index]!;
-			if (char === "\\") {
-				simple = false;
-				masked[index] = " ";
-				if (index + 1 < source.length) masked[index + 1] = " ";
-				index += 2;
-				continue;
-			}
-			if (char === current) {
-				masked[index] = " ";
-				index += 1;
-				break;
-			}
-			value += char;
-			if (char !== "\n") masked[index] = " ";
-			index += 1;
-		}
-		masked[start] = " ";
-		if (simple) output.push({ value, maskedPrefix: masked.slice(0, start).join("") });
+		const literal = readStaticLiteral(source, start, current);
+		for (let cursor = start; cursor < literal.stop; cursor += 1) if (source[cursor] !== "\n") masked[cursor] = " ";
+		index = literal.stop;
+		if (literal.value !== undefined) output.push({ value: literal.value, maskedPrefix: masked.slice(0, start).join("") });
 	}
 	return output;
 }
 
-function skipDelimited(source: string, start: number, delimiter: string): number {
+function readStaticLiteral(source: string, start: number, delimiter: string): { stop: number; value?: string | undefined } {
 	let index = start + 1;
+	let raw = "";
+	let dynamic = false;
 	while (index < source.length) {
-		if (source[index] === "\\") index += 2;
-		else if (source[index] === delimiter) return index + 1;
-		else index += 1;
+		const char = source[index]!;
+		if (char === "\\") {
+			raw += char;
+			if (index + 1 < source.length) raw += source[index + 1]!;
+			index += 2;
+			continue;
+		}
+		if (char === delimiter) {
+			const value = dynamic ? undefined : decodeStaticLiteral(raw);
+			return { stop: index + 1, ...(value === undefined ? {} : { value }) };
+		}
+		if (delimiter === "`" && char === "$" && source[index + 1] === "{") dynamic = true;
+		if (delimiter !== "`" && (char === "\n" || char === "\r")) dynamic = true;
+		raw += char;
+		index += 1;
 	}
-	return source.length;
+	return { stop: source.length };
+}
+
+function decodeStaticLiteral(raw: string): string | undefined {
+	let value = "";
+	for (let index = 0; index < raw.length; index += 1) {
+		const char = raw[index]!;
+		if (char !== "\\") {
+			value += char;
+			continue;
+		}
+		const escaped = raw[++index];
+		if (escaped === undefined) return undefined;
+		if (escaped === "\n") continue;
+		if (escaped === "\r") {
+			if (raw[index + 1] === "\n") index += 1;
+			continue;
+		}
+		const simple: Record<string, string> = {
+			b: "\b", f: "\f", n: "\n", r: "\r", t: "\t", v: "\v",
+			"0": "\0", "\\": "\\", "'": "'", '"': '"', "`": "`",
+		};
+		if (escaped in simple) {
+			if (escaped === "0" && /[0-9]/.test(raw[index + 1] ?? "")) return undefined;
+			value += simple[escaped]!;
+			continue;
+		}
+		if (escaped === "x") {
+			const hex = raw.slice(index + 1, index + 3);
+			if (!/^[0-9a-f]{2}$/i.test(hex)) return undefined;
+			value += String.fromCodePoint(Number.parseInt(hex, 16));
+			index += 2;
+			continue;
+		}
+		if (escaped === "u") {
+			const braced = raw[index + 1] === "{";
+			const end = braced ? raw.indexOf("}", index + 2) : index + 5;
+			const hex = braced ? raw.slice(index + 2, end) : raw.slice(index + 1, end);
+			if (end < 0 || !/^[0-9a-f]{1,6}$/i.test(hex)) return undefined;
+			const point = Number.parseInt(hex, 16);
+			if (point > 0x10ffff) return undefined;
+			value += String.fromCodePoint(point);
+			index = braced ? end : end - 1;
+			continue;
+		}
+		if (/[1-9]/.test(escaped)) return undefined;
+		value += escaped;
+	}
+	return value;
 }
 
 function isRegexLiteralStart(source: string, index: number): boolean {

@@ -8,6 +8,7 @@ import { sessionCheckpointProjectExclusions } from "../src/tools/notebook-mode/c
 import { mergeProjectState } from "../src/tools/notebook-mode/project-state-merge.ts";
 import {
 	PROJECT_STATE_SCHEMA,
+	readProjectConflictRecord,
 	readProjectStateManifest,
 	type ProjectStateCandidate,
 	type ProjectStateManifest,
@@ -36,6 +37,29 @@ test("project notebook manifests reject executable binding names", () => {
 			skipped: [],
 		}));
 		assert.equal(readProjectStateManifest(path), undefined);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("project notebook conflicts reject payload paths outside their directory", () => {
+	const root = mkdtempSync(join(tmpdir(), "pi-notebook-project-conflict-"));
+	const path = join(root, "conflict.json");
+	try {
+		writeFileSync(path, JSON.stringify({
+			schema: PROJECT_STATE_SCHEMA,
+			entries: [{ name: "safe" }],
+			deletions: [],
+			payload: "../../outside.bin",
+		}));
+		assert.equal(readProjectConflictRecord(path), undefined);
+		writeFileSync(path, JSON.stringify({
+			schema: PROJECT_STATE_SCHEMA,
+			entries: [{ name: "safe" }],
+			deletions: [],
+			payload: "123-00000000-0000-0000-0000-000000000000.bin",
+		}));
+		assert.equal(readProjectConflictRecord(path), undefined);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}

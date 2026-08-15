@@ -7,6 +7,7 @@ export const MAX_PROJECT_ENTRIES = 10_000;
 export const MAX_PROJECT_NAME_BYTES = 4 * 1024;
 export const MAX_PROJECT_MANIFEST_BYTES = 8 * 1024 * 1024;
 const PAYLOAD_NAME = /^project-[0-9a-f-]+\.bin$/;
+const CONFLICT_PAYLOAD_NAME = /^[0-9]+-[0-9a-f-]+\.bin$/;
 const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 
 export interface ProjectStateEntry {
@@ -51,6 +52,11 @@ export interface ProjectStateSummary {
 	skipped: Array<{ name: string; reason: string }>;
 	conflicts: string[];
 	message?: string | undefined;
+}
+
+export interface ProjectConflictRecord {
+	names: string[];
+	payload?: string | undefined;
 }
 
 export function projectStatePaths(project: string, agentDir: string) {
@@ -146,6 +152,35 @@ export function readProjectStatePayload(
 			offset += entry.length;
 		}
 		return offset === payload.length ? payload : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+export function readProjectConflictRecord(path: string): ProjectConflictRecord | undefined {
+	try {
+		const stat = lstatSync(path);
+		if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_PROJECT_MANIFEST_BYTES) return undefined;
+		const value = JSON.parse(readFileSync(path, "utf8")) as unknown;
+		if (!isRecord(value) || value["schema"] !== PROJECT_STATE_SCHEMA) return undefined;
+		if (!Array.isArray(value["entries"]) || !Array.isArray(value["deletions"])) return undefined;
+		if (value["entries"].length > MAX_PROJECT_ENTRIES || value["deletions"].length > MAX_PROJECT_ENTRIES) return undefined;
+		const names = [
+			...value["entries"].map((entry) => isRecord(entry) ? entry["name"] : undefined),
+			...value["deletions"],
+		];
+		if (names.some((name) => typeof name !== "string" || !IDENTIFIER.test(name) || Buffer.byteLength(name) > MAX_PROJECT_NAME_BYTES)) {
+			return undefined;
+		}
+		const payload = value["payload"];
+		const recordId = basename(path, ".json");
+		if (payload !== undefined && (
+			typeof payload !== "string"
+			|| !CONFLICT_PAYLOAD_NAME.test(payload)
+			|| basename(payload) !== payload
+			|| payload !== `${recordId}.bin`
+		)) return undefined;
+		return { names: [...new Set(names as string[])], ...(typeof payload === "string" ? { payload } : {}) };
 	} catch {
 		return undefined;
 	}

@@ -9,7 +9,12 @@ import {
 } from "./checkpoint-format.ts";
 import { checkpointSource, restoreSource } from "./checkpoint-runtime.ts";
 import type { DenoJupyterKernel } from "./jupyter-kernel.ts";
-import { MAX_PROJECT_ENTRIES, type ProjectStateBaseline } from "./project-state-format.ts";
+import {
+	MAX_PROJECT_ENTRIES,
+	MAX_PROJECT_MANIFEST_BYTES,
+	MAX_PROJECT_NAME_BYTES,
+	type ProjectStateBaseline,
+} from "./project-state-format.ts";
 
 export const NOTEBOOK_CHECKPOINT_MAX_BYTES = 256 * 1024 * 1024;
 const NOTEBOOK_CHECKPOINT_MIN_BYTES = 8 * 1024 * 1024;
@@ -74,11 +79,19 @@ export async function writeNotebookCheckpoint(
 	const paths = checkpointPaths(identity);
 	mkdirSync(paths.directory, { recursive: true });
 	const names = [...new Set(await kernel.complete("", 0))].sort();
-	const skippedInvalid = names
-		.filter((name) => !baselineNames.has(name) && !IDENTIFIER.test(name))
+	const privateNames = names.filter((name) => !baselineNames.has(name) && !excludeNames.has(name));
+	if (privateNames.length > MAX_PROJECT_ENTRIES) {
+		throw new Error(`Notebook checkpoint exceeds ${MAX_PROJECT_ENTRIES} top-level values`);
+	}
+	if (privateNames.some((name) => Buffer.byteLength(name) > MAX_PROJECT_NAME_BYTES)) {
+		throw new Error(`Notebook checkpoint name exceeds ${MAX_PROJECT_NAME_BYTES} bytes`);
+	}
+	const skippedInvalid = privateNames
+		.filter((name) => !IDENTIFIER.test(name))
 		.map((name) => ({ name, reason: "unsupported identifier" }));
-	const candidates = names.filter((name) => !baselineNames.has(name) && !excludeNames.has(name) && IDENTIFIER.test(name));
+	const candidates = privateNames.filter((name) => IDENTIFIER.test(name));
 	const payload = `checkpoint-${randomUUID()}.bin`;
+	const previousPayload = readManifest(paths.manifest)?.payload;
 	const source = checkpointSource({
 		candidates,
 		payloadPath: join(paths.directory, payload),
@@ -88,6 +101,7 @@ export async function writeNotebookCheckpoint(
 		projectGeneration: projectBaseline.generation,
 		projectNames: projectBaseline.entries.map(({ name }) => name),
 		payload,
+		...(previousPayload ? { previousPayload } : {}),
 		skippedInvalid,
 		maxBytes,
 	});
@@ -173,6 +187,8 @@ function sessionFamily(session: string): string {
 
 function readManifest(path: string): CheckpointManifest | undefined {
 	try {
+		const stat = lstatSync(path);
+		if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_PROJECT_MANIFEST_BYTES) return undefined;
 		const value = JSON.parse(readFileSync(path, "utf8")) as unknown;
 		if (!isRecord(value) || value["schema"] !== CHECKPOINT_SCHEMA) return undefined;
 		if (
@@ -184,10 +200,15 @@ function readManifest(path: string): CheckpointManifest | undefined {
 				|| typeof value["createdAt"] !== "string"
 			|| !Array.isArray(value["entries"])
 			|| !Array.isArray(value["skipped"])
+			|| value["entries"].length > MAX_PROJECT_ENTRIES
+			|| value["skipped"].length > MAX_PROJECT_ENTRIES
 			|| "projectNames" in value && (
 				!Array.isArray(value["projectNames"])
 				|| value["projectNames"].length > MAX_PROJECT_ENTRIES
-				|| !value["projectNames"].every((name) => typeof name === "string" && IDENTIFIER.test(name))
+				|| !value["projectNames"].every((name) =>
+					typeof name === "string"
+					&& IDENTIFIER.test(name)
+					&& Buffer.byteLength(name) <= MAX_PROJECT_NAME_BYTES)
 			)
 			|| !PAYLOAD_NAME.test(value["payload"])
 			|| basename(value["payload"]) !== value["payload"]
@@ -234,6 +255,7 @@ function parseEntry(value: unknown): CheckpointEntry | undefined {
 	if (!isRecord(value)) return undefined;
 	const { name, offset, length, kind } = value;
 	return typeof name === "string" && IDENTIFIER.test(name)
+		&& Buffer.byteLength(name) <= MAX_PROJECT_NAME_BYTES
 		&& (kind === undefined || kind === "value" || kind === "function")
 		&& Number.isSafeInteger(offset) && (offset as number) >= 0
 		&& Number.isSafeInteger(length) && (length as number) >= 0
@@ -243,7 +265,10 @@ function parseEntry(value: unknown): CheckpointEntry | undefined {
 
 function parseSkipped(value: unknown): { name: string; reason: string } | undefined {
 	if (!isRecord(value)) return undefined;
-	return typeof value["name"] === "string" && typeof value["reason"] === "string"
+	return typeof value["name"] === "string"
+		&& Buffer.byteLength(value["name"]) <= MAX_PROJECT_NAME_BYTES
+		&& typeof value["reason"] === "string"
+		&& Buffer.byteLength(value["reason"]) <= MAX_PROJECT_NAME_BYTES
 		? { name: value["name"], reason: value["reason"] }
 		: undefined;
 }

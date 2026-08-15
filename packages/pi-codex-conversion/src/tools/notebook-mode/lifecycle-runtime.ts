@@ -33,21 +33,20 @@ export function notebookStatusSource(names: string[], marker: string): string {
 	let __kind = "value";
     let __disposable;
     if ((__value !== null && (typeof __value === "object" || typeof __value === "function"))) {
-      if (typeof __value[Symbol.asyncDispose] === "function") __disposable = "async";
-      else if (typeof __value[Symbol.dispose] === "function") __disposable = "sync";
+	  if (typeof __descriptorValue(__value, Symbol.asyncDispose) === "function") __disposable = "async";
+	  else if (typeof __descriptorValue(__value, Symbol.dispose) === "function") __disposable = "sync";
     }
     if (__disposable || __value instanceof Promise || __value instanceof WeakMap || __value instanceof WeakSet) {
 	  __kind = "runtime-only";
 	} else if (typeof __value === "function") {
 	  const __source = Function.prototype.toString.call(__value);
 	  __kind = __source.includes("[native code]") ? "runtime-only" : "definition";
-	} else if (__value && __value[Symbol.toStringTag] === "Module") {
+	} else if (__value && __descriptorValue(__value, Symbol.toStringTag) === "Module") {
 	  __kind = "runtime-only";
     }
     __bindings.push({
       name: ${JSON.stringify(name)},
       type: typeof __value,
-      ...(__value?.constructor?.name ? { constructor: String(__value.constructor.name) } : {}),
       kind: __kind,
 	  globalProperty: Object.prototype.hasOwnProperty.call(globalThis, ${JSON.stringify(name)}),
       ...(__disposable ? { disposable: __disposable } : {}),
@@ -57,6 +56,15 @@ export function notebookStatusSource(names: string[], marker: string): string {
   }`).join("");
 	return `{
 	const { getHeapStatistics } = await import("node:v8");
+  const __descriptorValue = (__value, __key) => {
+	let __current = __value;
+	while (__current !== null) {
+	  const __descriptor = Object.getOwnPropertyDescriptor(__current, __key);
+	  if (__descriptor) return __descriptor.value;
+	  __current = Object.getPrototypeOf(__current);
+	}
+	return undefined;
+  };
   const __bindings = [];
   ${inspections}
   const __memory = Deno.memoryUsage();

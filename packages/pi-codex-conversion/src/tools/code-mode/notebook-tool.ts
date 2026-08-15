@@ -35,12 +35,18 @@ export function registerNotebookTool(pi: ExtensionAPI, runtime: SharedCodeModeRu
 	} satisfies ToolDefinition<typeof NOTEBOOK_PARAMETERS>);
 }
 
-function normalizeNotebookRequest(params: {
+export function normalizeNotebookRequest(params: {
 	action: string;
 	query?: string | undefined;
 	name?: string | undefined;
 	names?: string[] | undefined;
 }): NotebookControlRequest {
+	params = {
+		action: params.action,
+		...(params.query == null ? {} : { query: params.query }),
+		...(params.name == null ? {} : { name: params.name }),
+		...(params.names == null ? {} : { names: params.names }),
+	};
 	if (params.action === "status" || params.action === "list") {
 		if (params.name !== undefined || params.names !== undefined) throw new Error(`notebook ${params.action} accepts query only`);
 		return { action: params.action, ...(params.query === undefined ? {} : { query: params.query }) };

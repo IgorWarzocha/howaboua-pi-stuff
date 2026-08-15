@@ -129,7 +129,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		await this.execution.stopActive().catch(() => undefined);
 		await this.session.checkpoints.flush({ force: true }).catch(() => undefined);
 		try { this.session.materializeJournal(); } catch {}
-		await this.lifecycle.disposeAll().catch(() => undefined);
+		await this.lifecycle.disposeAll(AbortSignal.timeout(1_500)).catch(() => undefined);
 		this.execution.clear();
 		await this.session.shutdown();
 	}

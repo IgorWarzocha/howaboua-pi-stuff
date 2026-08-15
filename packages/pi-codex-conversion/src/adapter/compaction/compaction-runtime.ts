@@ -218,10 +218,8 @@ export async function resolveNativeCompactionEnvironment(
 		requestPayload = payload;
 	}
 
-	const hasAuthorizationHeader = Object.entries(headers ?? {}).some(
-		([key, value]) => key.toLowerCase() === "authorization" && typeof value === "string" && value.trim().length > 0,
-	);
-	if (!apiKey && !hasAuthorizationHeader) {
+	const resolvedApiKey = apiKey ?? bearerToken(headers);
+	if (!resolvedApiKey) {
 		return {
 			ok: false,
 			reason: "missing-api-key",
@@ -238,10 +236,19 @@ export async function resolveNativeCompactionEnvironment(
 			codexTransport,
 			model: descriptor.model,
 			baseUrl: effectiveBaseUrl,
-			apiKey,
+			apiKey: resolvedApiKey,
 			headers,
 			payload: requestPayload,
 			currentModel: authBaseUrl ? { ...currentModel, baseUrl: effectiveBaseUrl } : currentModel,
 		},
 	};
+}
+
+function bearerToken(headers: ProviderHeaders | undefined): string | undefined {
+	for (const [key, value] of Object.entries(headers ?? {})) {
+		if (key.toLowerCase() !== "authorization" || typeof value !== "string") continue;
+		const match = value.trim().match(/^Bearer\s+(.+)$/i);
+		if (match?.[1]?.trim()) return match[1].trim();
+	}
+	return undefined;
 }
