@@ -40,6 +40,7 @@ const BRAILLE_DOTS = [
 	[0, 3, 64],
 	[1, 3, 128],
 ] as const;
+const BRAILLE_BAR_ROWS = [9, 18, 36, 192] as const;
 const SPARK_GLYPHS = "▁▂▃▄▅▆▇█";
 const HEAT_GLYPHS = "░▒▓█";
 
@@ -58,7 +59,7 @@ export function transformChartMarkdown(
 	for (let index = 0; index < lines.length; index += 1) {
 		const line = lines[index] ?? "";
 		const opening = parseOpeningFence(line);
-		if (!opening || opening.language !== "chart") {
+		if (!opening) {
 			output.push(line);
 			continue;
 		}
@@ -67,6 +68,11 @@ export function transformChartMarkdown(
 		if (close === undefined) {
 			output.push(...lines.slice(index));
 			break;
+		}
+		if (opening.language !== "chart") {
+			output.push(...lines.slice(index, close + 1));
+			index = close;
+			continue;
 		}
 
 		const source = lines.slice(index + 1, close).join("\n");
@@ -182,6 +188,7 @@ export function parseChartSource(source: string): ChartSpec | undefined {
 export function renderChart(spec: ChartSpec, availableWidth: number): string[] {
 	if (!Number.isFinite(availableWidth) || availableWidth < MINIMUM_WIDTH)
 		return [];
+	if (spec.type !== "heatmap" && spec.points.length === 0) return [];
 
 	const width = Math.floor(availableWidth);
 	const body =
@@ -280,13 +287,33 @@ function parseNumber(value: string | undefined): number | undefined {
 }
 
 function renderBars(points: ChartPoint[], width: number): string[] {
-	const values = points.map((point) => Math.max(0, point.value));
-	const maximum = Math.max(1, ...values);
-	const yLabelWidth = Math.max(3, displayWidth(formatNumber(maximum)));
+	const values = points.map((point) => point.value);
+	const minimum = Math.min(0, ...values);
+	let maximum = Math.max(0, ...values);
+	const zeroOnly = minimum === maximum;
+	if (zeroOnly) maximum = 1;
+	const range = maximum - minimum;
+	const zeroRow = Math.min(
+		PLOT_ROWS - 1,
+		Math.floor((PLOT_ROWS * maximum) / range),
+	);
+	const tickRows = new Set(zeroOnly ? [zeroRow] : [0, PLOT_ROWS - 1, zeroRow]);
+	if (!zeroOnly && (zeroRow === 0 || zeroRow === PLOT_ROWS - 1)) {
+		tickRows.add(Math.floor(PLOT_ROWS / 2));
+	}
+	const tickLabels = Array.from({ length: PLOT_ROWS }, (_, row) =>
+		tickRows.has(row)
+			? formatNumber(barAxisValue(row, minimum, maximum, zeroRow))
+			: "",
+	);
+	const yLabelWidth = Math.max(
+		3,
+		...tickLabels.map((label) => displayWidth(label)),
+	);
 	const plotWidth = width - yLabelWidth - 3;
 	if (plotWidth < points.length) return [];
 
-	const gap = points.length <= plotWidth ? 1 : 0;
+	const gap = points.length * 2 - 1 <= plotWidth ? 1 : 0;
 	const barWidth = Math.max(
 		1,
 		Math.floor((plotWidth - gap * (points.length - 1)) / points.length),
@@ -295,23 +322,13 @@ function renderBars(points: ChartPoint[], width: number): string[] {
 	const lines: string[] = [];
 
 	for (let row = 0; row < PLOT_ROWS; row += 1) {
-		const distanceFromBottom = PLOT_ROWS - row;
-		const label =
-			row === 0 || row === Math.floor(PLOT_ROWS / 2) || row === PLOT_ROWS - 1
-				? formatNumber(
-						row === PLOT_ROWS - 1
-							? 0
-							: row === Math.floor(PLOT_ROWS / 2)
-								? maximum / 2
-								: maximum,
-					)
-				: "";
+		const label = tickLabels[row] ?? "";
 		const bars = values
-			.map((value) =>
-				verticalBar(value / maximum, distanceFromBottom, barWidth),
-			)
+			.map((value) => barCell(value, row, barWidth, minimum, maximum))
 			.join(" ".slice(0, gap));
-		lines.push(`${label.padStart(yLabelWidth)} ┤${bars}`);
+		lines.push(
+			`${label.padStart(yLabelWidth)} ${row === zeroRow ? "┼" : "┤"}${bars}`,
+		);
 	}
 
 	lines.push(`${"".padStart(yLabelWidth)} └${"─".repeat(usedWidth)}`);
@@ -324,19 +341,51 @@ function renderBars(points: ChartPoint[], width: number): string[] {
 	return lines;
 }
 
-function verticalBar(
-	ratio: number,
-	distanceFromBottom: number,
+function barCell(
+	value: number,
+	row: number,
 	width: number,
+	minimum: number,
+	maximum: number,
 ): string {
-	const height = ratio * PLOT_ROWS;
-	if (height < distanceFromBottom - 1) return " ".repeat(width);
-	if (height >= distanceFromBottom) return "█".repeat(width);
-	const fraction = Math.max(
-		1,
-		Math.min(8, Math.ceil((height - (distanceFromBottom - 1)) * 8)),
-	);
-	return SPARK_GLYPHS[fraction - 1]?.repeat(width) ?? " ".repeat(width);
+	if (value === 0) return " ".repeat(width);
+	const range = maximum - minimum;
+	const subrows = PLOT_ROWS * BRAILLE_BAR_ROWS.length;
+	const zeroPosition = (maximum / range) * subrows;
+	const valuePosition = ((maximum - value) / range) * subrows;
+	const start = Math.min(zeroPosition, valuePosition);
+	const end = Math.max(zeroPosition, valuePosition);
+	let bits = 0;
+
+	for (let subrow = 0; subrow < BRAILLE_BAR_ROWS.length; subrow += 1) {
+		const center = row * BRAILLE_BAR_ROWS.length + subrow + 0.5;
+		if (center >= start && center < end) bits |= BRAILLE_BAR_ROWS[subrow] ?? 0;
+	}
+	if (bits === 0) {
+		const marker = Math.max(
+			0,
+			Math.min(subrows - 1, Math.floor((start + end) / 2)),
+		);
+		if (Math.floor(marker / BRAILLE_BAR_ROWS.length) === row) {
+			bits = BRAILLE_BAR_ROWS[marker % BRAILLE_BAR_ROWS.length] ?? 0;
+		}
+	}
+	if (bits === 0) return " ".repeat(width);
+
+	const glyph = bits === 255 ? "█" : String.fromCodePoint(0x2800 + bits);
+	return glyph.repeat(width);
+}
+
+function barAxisValue(
+	row: number,
+	minimum: number,
+	maximum: number,
+	zeroRow: number,
+): number {
+	if (row === zeroRow) return 0;
+	if (row === 0) return maximum;
+	if (row === PLOT_ROWS - 1) return minimum;
+	return (maximum + minimum) / 2;
 }
 
 function renderSparkline(points: ChartPoint[], width: number): string[] {
@@ -371,7 +420,16 @@ function renderBraille(
 	const minimum = Math.min(...yValues);
 	const maximum = Math.max(...yValues);
 	const range = maximum - minimum || 1;
-	const yLabelWidth = Math.max(3, displayWidth(formatNumber(maximum)));
+	const middleRow = Math.floor(PLOT_ROWS / 2);
+	const tickLabels = [
+		formatNumber(maximum),
+		formatNumber(maximum - ((maximum - minimum) * middleRow) / (PLOT_ROWS - 1)),
+		formatNumber(minimum),
+	];
+	const yLabelWidth = Math.max(
+		3,
+		...tickLabels.map((label) => displayWidth(label)),
+	);
 	const plotColumns = width - yLabelWidth - 3;
 	if (plotColumns < 4) return [];
 
@@ -403,9 +461,13 @@ function renderBraille(
 	const lines: string[] = [];
 	for (let row = 0; row < PLOT_ROWS; row += 1) {
 		const label =
-			row === 0 || row === Math.floor(PLOT_ROWS / 2) || row === PLOT_ROWS - 1
-				? formatNumber(maximum - ((maximum - minimum) * row) / (PLOT_ROWS - 1))
-				: "";
+			row === 0
+				? (tickLabels[0] ?? "")
+				: row === middleRow
+					? (tickLabels[1] ?? "")
+					: row === PLOT_ROWS - 1
+						? (tickLabels[2] ?? "")
+						: "";
 		let chart = "";
 		for (let column = 0; column < plotColumns; column += 1) {
 			let bits = 0;
@@ -536,9 +598,13 @@ function resample(values: number[], limit: number): number[] {
 
 function formatNumber(value: number): string {
 	if (Math.abs(value) >= 1000)
-		return `${(value / 1000).toFixed(value >= 10000 ? 0 : 1).replace(/\.0$/u, "")}k`;
+		return `${(value / 1000).toFixed(Math.abs(value) >= 10000 ? 0 : 1).replace(/\.0$/u, "")}k`;
 	if (Number.isInteger(value)) return String(value);
-	return value.toFixed(1).replace(/\.0$/u, "");
+	const absolute = Math.abs(value);
+	if (absolute >= 1) return value.toFixed(1).replace(/\.0$/u, "");
+	if (absolute >= 0.01)
+		return value.toFixed(2).replace(/0+$/u, "").replace(/\.$/u, "");
+	return value.toExponential(1).replace(/\.0e/u, "e");
 }
 
 function codeSpan(line: string): string {

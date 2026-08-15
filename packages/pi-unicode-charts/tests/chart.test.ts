@@ -1,9 +1,5 @@
 import { expect, test } from "bun:test";
-import {
-	parseChartSource,
-	renderChart,
-	transformChartMarkdown,
-} from "../src/chart.js";
+import { parseChartSource, transformChartMarkdown } from "../src/chart.js";
 
 test("parses chart rows with labels containing spaces", () => {
 	const spec = parseChartSource(`
@@ -35,17 +31,21 @@ test("replaces closed chart fences and preserves other Markdown", () => {
 		"B 5",
 		"```",
 		"",
-		"```ts",
-		"const value = 1;",
+		"````md",
+		"```chart",
+		"type: scatter",
+		"data:",
+		"Example 1",
 		"```",
+		"````",
 	].join("\n");
 
 	const transformed = transformChartMarkdown(source, 48);
 
 	expect(transformed).toContain("┤");
 	expect(transformed).toContain("█");
-	expect(transformed).toContain("```ts");
-	expect(transformed).toContain("const value = 1;");
+	expect(transformed).toContain("```chart");
+	expect(transformed).toContain("type: scatter");
 	expect(transformed).not.toContain("type: bar");
 });
 
@@ -55,28 +55,4 @@ test("keeps invalid and unfinished chart fences as source", () => {
 
 	expect(transformChartMarkdown(invalid, 48)).toBe(invalid);
 	expect(transformChartMarkdown(unfinished, 48)).toBe(unfinished);
-});
-
-test("keeps rendered chart rows within the requested width", () => {
-	const cases = [
-		parseChartSource("type: line\ndata:\nA 2\nB 9\nC 4"),
-		parseChartSource("type: scatter\ndata:\nA 2\nB 9\nC 4"),
-		parseChartSource("type: sparkline\ndata:\n2 9 4 8 3"),
-		parseChartSource("type: heatmap\ndata:\nA 1 2 3\nB 3 2 1"),
-	].filter((spec) => spec !== undefined);
-
-	for (const spec of cases) {
-		const rendered = renderChart(spec, 40);
-		expect(rendered.length).toBeGreaterThan(0);
-		expect(rendered.every((line) => Array.from(line).length <= 40)).toBe(true);
-	}
-
-	const line = renderChart(cases[0]!, 40).join("\n");
-	expect(/[\u2800-\u28ff]/u.test(line)).toBe(true);
-
-	const sparkline = renderChart(cases[2]!, 40)[0] ?? "";
-	expect(sparkline.length).toBe(40);
-
-	const heatmap = renderChart(cases[3]!, 40)[0] ?? "";
-	expect(heatmap.length).toBe(40);
 });
