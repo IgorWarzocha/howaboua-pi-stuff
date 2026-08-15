@@ -26,6 +26,7 @@ export interface ChartSpec {
 }
 
 const MINIMUM_WIDTH = 24;
+const MAXIMUM_WIDTH = 80;
 const MAX_POINTS = 64;
 const MAX_HEATMAP_ROWS = 32;
 const MAX_SOURCE_LENGTH = 12_000;
@@ -40,7 +41,6 @@ const BRAILLE_DOTS = [
 	[0, 3, 64],
 	[1, 3, 128],
 ] as const;
-const BRAILLE_BAR_ROWS = [9, 18, 36, 192] as const;
 const SPARK_GLYPHS = "▁▂▃▄▅▆▇█";
 const HEAT_GLYPHS = "░▒▓█";
 
@@ -191,7 +191,7 @@ export function renderChart(spec: ChartSpec, availableWidth: number): string[] {
 		return [];
 	if (spec.type !== "heatmap" && spec.points.length === 0) return [];
 
-	const width = Math.floor(availableWidth);
+	const width = Math.min(MAXIMUM_WIDTH, Math.floor(availableWidth));
 	const body =
 		spec.type === "bar"
 			? renderBars(spec.points, width)
@@ -353,29 +353,29 @@ function barCell(
 ): string {
 	if (value === 0) return " ".repeat(width);
 	const range = maximum - minimum;
-	const subrows = PLOT_ROWS * BRAILLE_BAR_ROWS.length;
-	const zeroPosition = (maximum / range) * subrows;
-	const valuePosition = ((maximum - value) / range) * subrows;
+	const zeroPosition = (PLOT_ROWS * maximum) / range;
+	const valuePosition = (PLOT_ROWS * (maximum - value)) / range;
 	const start = Math.min(zeroPosition, valuePosition);
 	const end = Math.max(zeroPosition, valuePosition);
-	let bits = 0;
+	const overlapStart = Math.max(start, row);
+	const overlapEnd = Math.min(end, row + 1);
+	const fraction = overlapEnd - overlapStart;
+	if (fraction <= 0) return " ".repeat(width);
 
-	for (let subrow = 0; subrow < BRAILLE_BAR_ROWS.length; subrow += 1) {
-		const center = row * BRAILLE_BAR_ROWS.length + subrow + 0.5;
-		if (center >= start && center < end) bits |= BRAILLE_BAR_ROWS[subrow] ?? 0;
-	}
-	if (bits === 0) {
-		const marker = Math.max(
-			0,
-			Math.min(subrows - 1, Math.floor((start + end) / 2)),
-		);
-		if (Math.floor(marker / BRAILLE_BAR_ROWS.length) === row) {
-			bits = BRAILLE_BAR_ROWS[marker % BRAILLE_BAR_ROWS.length] ?? 0;
-		}
-	}
-	if (bits === 0) return " ".repeat(width);
-
-	const glyph = bits === 255 ? "█" : String.fromCodePoint(0x2800 + bits);
+	const touchesTop = overlapStart <= row;
+	const touchesBottom = overlapEnd >= row + 1;
+	const glyph =
+		fraction >= 0.875
+			? "█"
+			: touchesTop
+				? fraction < 0.375
+					? "▔"
+					: "▀"
+				: touchesBottom
+					? (SPARK_GLYPHS[Math.max(0, Math.ceil(fraction * 8) - 1)] ?? "▁")
+					: (overlapStart + overlapEnd) / 2 < row + 0.5
+						? "▀"
+						: "▄";
 	return glyph.repeat(width);
 }
 
@@ -617,7 +617,13 @@ function codeSpan(line: string): string {
 		...Array.from(content.matchAll(/`+/gu), (match) => match[0].length),
 	);
 	const fence = "`".repeat(longestBacktickRun + 1);
-	const padding = content.startsWith("`") || content.endsWith("`") ? " " : "";
+	const padding =
+		content.startsWith("`") ||
+		content.endsWith("`") ||
+		content.startsWith(" ") ||
+		content.endsWith(" ")
+			? " "
+			: "";
 	return `${fence}${padding}${content}${padding}${fence}`;
 }
 
