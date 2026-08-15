@@ -115,6 +115,17 @@ test("Fast Mode request identity is opt-in and transport invariant", () => {
 	const normalHeaders = buildSSEHeaders(undefined, undefined, "account", "token", "session", false, normalRouting.originator, normalRouting.routingHint);
 	assert.equal(normalHeaders.get("originator"), PI_CODEX_CONVERSION_ORIGINATOR);
 	assert.equal(normalHeaders.get(X_CODEX_ROUTING_HINT_HEADER), null);
+	const inheritedHeaders = buildSSEHeaders(
+		{ [X_CODEX_ROUTING_HINT_HEADER]: `model=${model};tier=priority` },
+		undefined,
+		"account",
+		"token",
+		"session",
+		false,
+		normalRouting.originator,
+		normalRouting.routingHint,
+	);
+	assert.equal(inheritedHeaders.get(X_CODEX_ROUTING_HINT_HEADER), null);
 	assert.deepEqual(resolveCodexRequestRouting({
 		model,
 		fast: true,

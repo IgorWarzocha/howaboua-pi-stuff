@@ -7,6 +7,7 @@ export const MAX_PROJECT_ENTRIES = 10_000;
 export const MAX_PROJECT_NAME_BYTES = 4 * 1024;
 export const MAX_PROJECT_MANIFEST_BYTES = 8 * 1024 * 1024;
 const PAYLOAD_NAME = /^project-[0-9a-f-]+\.bin$/;
+const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 
 export interface ProjectStateEntry {
 	name: string;
@@ -166,7 +167,7 @@ function parseEntry(value: unknown, payloadLength: number, requireHash: boolean)
 	if (!isRecord(value)) return undefined;
 	const { name, kind, offset, length, hash, updatedAt, pinned } = value;
 	if (
-		typeof name !== "string" || Buffer.byteLength(name) > MAX_PROJECT_NAME_BYTES
+		typeof name !== "string" || !IDENTIFIER.test(name) || Buffer.byteLength(name) > MAX_PROJECT_NAME_BYTES
 		|| kind !== "value" && kind !== "function"
 		|| !Number.isSafeInteger(offset) || (offset as number) < 0
 		|| !Number.isSafeInteger(length) || (length as number) < 0

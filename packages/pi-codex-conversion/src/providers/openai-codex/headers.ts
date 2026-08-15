@@ -121,6 +121,7 @@ function buildBaseCodexHeaders(
 	headers.set("chatgpt-account-id", accountId);
 	headers.set("originator", originator);
 	if (routingHint) headers.set(X_CODEX_ROUTING_HINT_HEADER, routingHint);
+	else headers.delete(X_CODEX_ROUTING_HINT_HEADER);
 	const os = osInfo.current;
 	headers.set("User-Agent", os ? `pi (${os.platform()} ${os.release()}; ${os.arch()})` : "pi (browser)");
 	return headers;

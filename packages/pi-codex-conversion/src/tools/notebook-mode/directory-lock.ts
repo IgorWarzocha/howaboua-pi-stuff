@@ -2,9 +2,11 @@ import { randomUUID } from "node:crypto";
 import {
 	mkdirSync,
 	lstatSync,
+	readFileSync,
 	readdirSync,
 	rmdirSync,
 	unlinkSync,
+	utimesSync,
 	writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
@@ -40,8 +42,16 @@ export async function acquireDirectoryLock(
 			continue;
 		}
 		try {
-			writeFileSync(join(path, owner), `${process.pid}\n${Date.now()}\n`, { mode: 0o600 });
-			return { release: () => releaseDirectoryLock(path, owner) };
+			const ownerPath = join(path, owner);
+			writeFileSync(ownerPath, `${process.pid}\n${Date.now()}\n`, { mode: 0o600 });
+			const heartbeat = setInterval(() => refreshOwner(ownerPath), Math.max(1, Math.floor(options.staleMs / 3)));
+			heartbeat.unref();
+			return {
+				release: () => {
+					clearInterval(heartbeat);
+					releaseDirectoryLock(path, owner);
+				},
+			};
 		} catch (error) {
 			releaseDirectoryLock(path, owner);
 			throw error;
@@ -59,11 +69,35 @@ function reclaimStaleDirectoryLock(path: string, staleMs: number): void {
 			return;
 		}
 		const observedOwners = readdirSync(path).filter((name) => name.endsWith(OWNER_SUFFIX));
+		if (observedOwners.some((owner) => ownerIsFreshOrLive(join(path, owner), staleMs))) return;
 		for (const owner of observedOwners) {
 			try { unlinkSync(join(path, owner)); } catch {}
 		}
 		try { rmdirSync(path); } catch {}
 	} catch {}
+}
+
+function refreshOwner(path: string): void {
+	try {
+		const now = new Date();
+		utimesSync(path, now, now);
+	} catch {}
+}
+
+function ownerIsFreshOrLive(path: string, staleMs: number): boolean {
+	try {
+		if (Date.now() - lstatSync(path).mtimeMs <= staleMs) return true;
+		const pid = Number.parseInt(readFileSync(path, "utf8").split("\n", 1)[0]!, 10);
+		if (!Number.isSafeInteger(pid) || pid <= 0) return false;
+		try {
+			process.kill(pid, 0);
+			return true;
+		} catch (error) {
+			return error instanceof Error && "code" in error && error.code === "EPERM";
+		}
+	} catch {
+		return false;
+	}
 }
 
 function releaseDirectoryLock(path: string, owner: string): void {

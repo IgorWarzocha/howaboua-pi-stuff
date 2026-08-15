@@ -64,23 +64,13 @@ export class NotebookSessionRuntime {
 		this.extensionContext = extension;
 		if (!this.startup) {
 			this.identityValue = sessionIdentity(extension);
-			const startupAbort = new AbortController();
-			const startupSignal = signal ? AbortSignal.any([signal, startupAbort.signal]) : startupAbort.signal;
-			this.startupAbort = startupAbort;
-			const pending = this.start(extension, startupSignal)
-				.catch((error) => {
-					if (this.startup === pending) this.startup = undefined;
-					throw error;
-				})
-				.finally(() => {
-					if (this.startupAbort === startupAbort) this.startupAbort = undefined;
-				});
-			this.startup = pending;
+			this.beginStartup(extension, signal);
 		}
 		await this.startup;
 	}
 
 	async restart(context: ExtensionContext, signal?: AbortSignal, skipProfile = false): Promise<string | undefined> {
+		await this.abortStartup(new Error("Notebook kernel is restarting"));
 		try { this.materializeJournal(); } catch {}
 		const previous = this.kernelValue;
 		this.kernelValue = undefined;
@@ -91,11 +81,7 @@ export class NotebookSessionRuntime {
 		this.profileLoaded = false;
 		this.checkpointIdentityValue = undefined;
 		await previous?.shutdown().catch(() => undefined);
-		const pending = this.start(context, signal, skipProfile).catch((error) => {
-			if (this.startup === pending) this.startup = undefined;
-			throw error;
-		});
-		this.startup = pending;
+		const pending = this.beginStartup(context, signal, skipProfile);
 		await pending;
 		return this.takeNotice();
 	}
@@ -225,6 +211,22 @@ export class NotebookSessionRuntime {
 		if (started.restoreNotice) {
 			this.addNotice(started.restoreNotice);
 		}
+	}
+
+	private beginStartup(context: ExtensionContext, signal?: AbortSignal, skipProfile = false): Promise<void> {
+		const startupAbort = new AbortController();
+		const startupSignal = signal ? AbortSignal.any([signal, startupAbort.signal]) : startupAbort.signal;
+		this.startupAbort = startupAbort;
+		const pending = this.start(context, startupSignal, skipProfile)
+			.catch((error) => {
+				if (this.startup === pending) this.startup = undefined;
+				throw error;
+			})
+			.finally(() => {
+				if (this.startupAbort === startupAbort) this.startupAbort = undefined;
+			});
+		this.startup = pending;
+		return pending;
 	}
 }
 

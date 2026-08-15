@@ -1,12 +1,45 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import { sessionCheckpointProjectExclusions } from "../src/tools/notebook-mode/checkpoint.ts";
 import { mergeProjectState } from "../src/tools/notebook-mode/project-state-merge.ts";
-import type {
-	ProjectStateCandidate,
-	ProjectStateManifest,
+import {
+	PROJECT_STATE_SCHEMA,
+	readProjectStateManifest,
+	type ProjectStateCandidate,
+	type ProjectStateManifest,
 } from "../src/tools/notebook-mode/project-state-format.ts";
+
+test("project notebook manifests reject executable binding names", () => {
+	const root = mkdtempSync(join(tmpdir(), "pi-notebook-project-format-"));
+	const path = join(root, "project.json");
+	try {
+		writeFileSync(path, JSON.stringify({
+			schema: PROJECT_STATE_SCHEMA,
+			project: "/project",
+			generation: "generation",
+			deno: "2.9.5",
+			v8: "test",
+			payload: "project-00000000-0000-0000-0000-000000000000.bin",
+			createdAt: "2026-01-01T00:00:00.000Z",
+			sourceSession: "session",
+			entries: [{
+				name: "safe);globalThis.injected=true;//",
+				kind: "value",
+				offset: 0,
+				length: 0,
+				hash: hash(Buffer.alloc(0)),
+			}],
+			skipped: [],
+		}));
+		assert.equal(readProjectStateManifest(path), undefined);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
 
 test("project notebook merge preserves a concurrent same-name edit", () => {
 	const base = Buffer.from("base");
