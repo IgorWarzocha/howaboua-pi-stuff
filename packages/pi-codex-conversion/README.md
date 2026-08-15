@@ -69,7 +69,7 @@ Provider scope can stay on **Codex and configured**, expand to **all providers**
 
 Open a tab directly with `/codex tools`, `/codex openai`, `/codex display`, `/codex voice`, `/codex usage` or `/codex about`.
 
-The first `/codex` setting chooses **global** or **this folder**. Global settings live in `~/.pi/agent/pi-codex-conversion.json`. Choosing **this folder** creates a complete snapshot at `.pi/pi-codex-conversion.json`; every tab and **Edit config** then targets that file. Switching back to global removes the folder overrides while preserving its top-level `executionMode` setting. Folder settings are read only for trusted projects.
+The first `/codex` setting chooses **Defaults** or **Project**. Defaults live in `~/.pi/agent/pi-codex-conversion.json`. Choosing **Project** creates a complete snapshot at `.pi/pi-codex-conversion.json`; every tab and **Edit config** then targets that file. Switching back to Defaults removes the project overrides while preserving its top-level `executionMode` setting. Project settings are read only for trusted folders.
 
 Without folder settings, the project inherits the complete global configuration. `PI_CODEX_FAST=1` or `PI_CODEX_FAST=0` can override Fast Mode for one Pi process, which is useful for independently launched workers. Run `/reload` after changing files by hand.
 

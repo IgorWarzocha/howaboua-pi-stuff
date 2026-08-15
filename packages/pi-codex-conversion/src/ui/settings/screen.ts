@@ -89,11 +89,11 @@ export async function openCodexSettingsScreen(
 				{
 					item: {
 						id: "configScope",
-						label: "Settings scope",
-						currentValue: options.configScope.current() === "folder" ? "this folder" : "global",
+						label: "Settings",
+						currentValue: options.configScope.current() === "folder" ? "Project" : "Defaults",
 						values: options.configScope.canUseFolder
-							? ["global", "this folder"]
-							: ["global"],
+							? ["Defaults", "Project"]
+							: ["Defaults"],
 					},
 				},
 				...(activeTab === "adapter" && options.executionMode
@@ -139,8 +139,8 @@ export async function openCodexSettingsScreen(
 						return;
 					}
 					if (id === "configScope") {
-						const previousValue = options.configScope.current() === "folder" ? "this folder" : "global";
-						const nextDraft = options.configScope.set(value === "this folder" ? "folder" : "global");
+						const previousValue = options.configScope.current() === "folder" ? "Project" : "Defaults";
+						const nextDraft = options.configScope.set(value === "Project" ? "folder" : "global");
 						if (nextDraft) {
 							draft = nextDraft;
 							settingsList = createSettingsList();
@@ -205,6 +205,12 @@ export async function openCodexSettingsScreen(
 			render: (width: number) => {
 				const hasSettingsList = activeTab !== "usage" && activeTab !== "about";
 				let settingsLines = hasSettingsList ? settingsList.render(width) : [];
+				if (hasSettingsList)
+					settingsLines = withConfigScopeDetails(
+						settingsLines,
+						theme,
+						options.configScope.current(),
+					);
 				if (activeTab === "voice")
 					settingsLines = withSettingsDetails(
 						settingsLines,
@@ -346,6 +352,21 @@ function withSettingsFooter(lines: string[], theme: Theme): string[] {
 			break;
 		}
 	}
+	return next;
+}
+
+function withConfigScopeDetails(
+	lines: string[],
+	theme: Theme,
+	scope: CodexConversionConfigScope,
+): string[] {
+	const next = [...lines];
+	const scopeIndex = next.findIndex((line) => line.includes("Settings"));
+	if (scopeIndex < 0) return next;
+	const detail = scope === "folder"
+		? "Changes here update this project only and leave global defaults unchanged."
+		: "Changes here update global defaults. Projects with their own .pi/pi-codex-conversion.json keep their settings.";
+	next.splice(scopeIndex + 1, 0, theme.fg("dim", `  ${detail}`));
 	return next;
 }
 
