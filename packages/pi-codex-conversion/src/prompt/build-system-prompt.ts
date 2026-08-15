@@ -62,10 +62,12 @@ const CODE_MODE_GUIDELINES = [
 ];
 
 const NOTEBOOK_MODE_GUIDELINES = [
-	"exec is a persistent Deno/TypeScript Jupyter notebook: each call is the next cell, so reuse useful bindings instead of rediscovering them",
-	"Use const/let and block scopes for session scratch; assign deliberately reusable cross-session values to purpose-named globalThis properties",
+	"exec is a persistent Deno/TypeScript Jupyter notebook; project globals may come from earlier agents and sessions",
+	"Before repeating discovery or rebuilding helpers, use notebook status and reuse matching bindings",
+	"Keep one-offs block-local; store compact reusable values and self-contained helpers on purpose-named globalThis properties",
+	"Turn repeatable project work into callable helpers; pin reusable project state worth protecting",
 	...CODE_MODE_GUIDELINES,
-	"Use notebook status to inspect retained state or memory, pin to promote/protect useful bindings, release/prune disposable state, and diagnostics after broken state or helpers",
+	"Use notebook status to inspect retained state or memory, release/prune disposable state, and diagnostics after broken state or helpers",
 	"Filter retained data inside exec and return only needed findings; never dump the namespace",
 	"Keep canonical project artifacts in files; tools.exec_command subprocess shell state does not persist",
 	"Keep cross-session helpers self-contained; imports, closures, and live handles may need recreation after restart",
