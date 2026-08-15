@@ -10,18 +10,20 @@ import {
 } from "./custom-tool-prompt.js";
 import { createCodeModeRenderTracker } from "./render-tracker.js";
 import {
-	type RenderContext,
-	type RenderTheme,
 	renderExecCall,
-	renderTrackedCodeModeResult,
 	renderWaitCall,
-} from "./rendering.js";
+} from "./call-rendering.js";
+import { renderTrackedCodeModeResult } from "./result-rendering.js";
 import type { SharedCodeModeRuntime } from "./shared-runtime.js";
 import {
 	formatRunningExecSessionGuidance,
 	toCodeModeToolResult,
 } from "./tool-result.js";
-import type { ToolExecutionContext } from "./types.js";
+import type {
+	CodeModeRenderContext,
+	CodeModeRenderTheme,
+	ToolExecutionContext,
+} from "./types.js";
 import { CODE_MODE_EXEC_CONSTRAINED_SAMPLING } from "./exec-contract.js";
 import {
 	registerCodeModePreflightBroker,
@@ -101,8 +103,8 @@ function createExecTool(
 		},
 		renderCall: ((
 			args: { code?: unknown },
-			theme: RenderTheme,
-			context: RenderContext,
+			theme: CodeModeRenderTheme,
+			context: CodeModeRenderContext,
 		) =>
 			renderExecCall(
 				args,
@@ -175,8 +177,8 @@ function createWaitTool(
 		},
 		renderCall: ((
 			args: { cell_id?: unknown; terminate?: unknown },
-			theme: RenderTheme,
-			context: RenderContext,
+			theme: CodeModeRenderTheme,
+			context: CodeModeRenderContext,
 		) =>
 			renderWaitCall(
 				args,
@@ -298,8 +300,8 @@ function createResultRenderer(
 	return (
 		result: Parameters<typeof renderTrackedCodeModeResult>[0],
 		options: Parameters<typeof renderTrackedCodeModeResult>[1],
-		theme: RenderTheme,
-		context: RenderContext,
+		theme: CodeModeRenderTheme,
+		context: CodeModeRenderContext,
 	) =>
 		renderTrackedCodeModeResult(
 			result,

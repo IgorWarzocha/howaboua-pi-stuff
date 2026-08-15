@@ -74,6 +74,11 @@ export interface CodeModeNestedRenderContext {
 	invalidate?: (() => void) | undefined;
 }
 
+export interface CodeModeRenderContext extends CodeModeNestedRenderContext {
+	executionStarted?: boolean | undefined;
+	isPartial?: boolean | undefined;
+}
+
 export interface RuntimeToolResult {
 	content: Array<
 		| { type: "text"; text: string }
