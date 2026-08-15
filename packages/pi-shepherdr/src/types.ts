@@ -66,6 +66,20 @@ export interface MonitoredAgent {
 	readonly workspaceId: string;
 }
 
+export type MachineConnectionStatus =
+	| "connected"
+	| "connecting"
+	| "unavailable";
+
+export interface MachineStatus {
+	local: boolean;
+	name: string;
+	reason?: string;
+	status: MachineConnectionStatus;
+}
+
+export type ScopedMonitoredAgent = MonitoredAgent & { machine: string };
+
 export interface LatestAssistant {
 	id: string;
 	stopReason?: string;

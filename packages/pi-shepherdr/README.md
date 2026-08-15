@@ -4,7 +4,7 @@ Talk to one Pi. Let it run the others.
 
 Shepherdr turns one Pi session into an orchestrator for Pi agents running across [Herdr](https://herdr.dev). Give work to the master; it can find existing agents, start new ones in explicit locations, send follow-ups and bring their full replies back into the same conversation.
 
-The master gets one small JSON-schema tool with the actions and arguments it needs. Its complete active surface measures 271 `o200k` tokens: 228 for the OpenAI Responses tool declaration and 43 for the master guideline. Workers load none of it.
+The master gets one small JSON-schema tool with the actions and arguments it needs. Its complete active surface measures 290 `o200k` tokens: 247 for the OpenAI Responses tool declaration and 43 for the master guideline. Workers load none of it.
 
 Enable master mode and Pi already knows its job. You do not have to explain Herdr, ask it to load an orchestration skill or remind it to delegate. The schema handles ordinary delegation without `--help` or improvised CLI commands. Herdr and Shepherdr should be enough on their own; any other Pi extensions and skills continue to work alongside them.
 
@@ -53,6 +53,14 @@ That command atomically merges the following setting into `.pi/shepherdr.json`:
 Future Pi sessions in that directory start as masters. `/herdr master` affects only the current session.
 
 While master mode is active, Pi is guided to delegate project implementation and synthesize the results. It works directly when you explicitly ask, and for configuration, documentation and routine operations in its current directory.
+
+## Connect more machines
+
+Run `/herdr` and choose **Add machine**. Give the machine a name and an SSH target that already connects noninteractively; the remote machine needs Node, Herdr and the Pi integration. Machine settings live in `~/.pi/agent/shepherdr.json`.
+
+Master mode connects every configured machine once in parallel. A failed or dropped connection remains unavailable without retrying automatically; use `/herdr connect` or `/herdr connect <machine>` to try again.
+
+Shepherdr maintains one remote helper at `~/.pi/agent/shepherdr.mjs`. It updates that file atomically when needed, runs it only for the lifetime of the SSH connection and leaves no remote daemon behind. Agent lists, workspaces, monitored state and full replies retain their machine identity. Ask the master naturally—for example, “run this on desktop”—and it routes the existing `herdr_agents` tool with the configured machine name.
 
 ## What the master can do
 

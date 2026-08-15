@@ -1,0 +1,388 @@
+// @howaboua/pi-shepherdr managed bridge
+import { createHash } from "node:crypto";
+import { readFile, stat } from "node:fs/promises";
+import { createConnection } from "node:net";
+import { homedir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const PROTOCOL = 1;
+const MAX_FRAME_BYTES = 8 * 1024 * 1024;
+const subscriptions = new Map();
+const assistantCache = new Map();
+
+function argument(name) {
+	const index = process.argv.indexOf(`--${name}`);
+	return index >= 0 ? process.argv[index + 1] : undefined;
+}
+
+function expandHome(path) {
+	return path === "~"
+		? homedir()
+		: path.startsWith("~/")
+			? join(homedir(), path.slice(2))
+			: path;
+}
+
+function socketPath() {
+	const explicit = argument("socket");
+	if (explicit) return expandHome(explicit);
+	const root = process.env.XDG_CONFIG_HOME || join(homedir(), ".config");
+	const session = argument("session");
+	return session
+		? join(root, "herdr", "sessions", session, "herdr.sock")
+		: join(root, "herdr", "herdr.sock");
+}
+
+function send(value) {
+	const frame = `${JSON.stringify(value)}\n`;
+	if (Buffer.byteLength(frame) > MAX_FRAME_BYTES) {
+		throw new Error("Shepherdr bridge response is too large");
+	}
+	process.stdout.write(frame);
+}
+
+function responseError(value) {
+	if (value && typeof value === "object" && typeof value.message === "string") {
+		return {
+			message: value.message,
+			...(typeof value.code === "string" ? { code: value.code } : {}),
+			herdrResponse: true,
+		};
+	}
+	return {
+		message: `Herdr request failed: ${JSON.stringify(value)}`,
+		herdrResponse: true,
+	};
+}
+
+function request(method, params = {}, timeoutMs = 10_000) {
+	return new Promise((resolveRequest, reject) => {
+		const id = `pi-shepherdr-bridge:${crypto.randomUUID()}`;
+		let buffer = "";
+		let settled = false;
+		const socket = createConnection(socketPath());
+		socket.setEncoding("utf8");
+		const timer = setTimeout(
+			() => finish(new Error(`Herdr ${method} timed out`)),
+			timeoutMs,
+		);
+		timer.unref();
+		const finish = (error, result) => {
+			if (settled) return;
+			settled = true;
+			clearTimeout(timer);
+			socket.destroy();
+			if (error) reject(error);
+			else resolveRequest(result);
+		};
+		socket.on("connect", () =>
+			socket.write(`${JSON.stringify({ id, method, params })}\n`),
+		);
+		socket.on("error", (error) => finish(error));
+		socket.on("end", () => finish(new Error(`Herdr ${method} disconnected`)));
+		socket.on("data", (chunk) => {
+			buffer += chunk;
+			if (Buffer.byteLength(buffer) > MAX_FRAME_BYTES) {
+				finish(new Error(`Herdr ${method} response is too large`));
+				return;
+			}
+			const newline = buffer.indexOf("\n");
+			if (newline < 0) return;
+			try {
+				const response = JSON.parse(buffer.slice(0, newline));
+				if (response.id !== id)
+					finish(
+						new Error(`Herdr ${method} returned a mismatched response ID`),
+					);
+				else if (response.error !== undefined) {
+					const detail = responseError(response.error);
+					const error = new Error(detail.message);
+					Object.assign(error, detail);
+					finish(error);
+				} else if (response.result !== undefined)
+					finish(undefined, response.result);
+				else finish(new Error(`Herdr ${method} returned no result`));
+			} catch (error) {
+				finish(
+					new Error(`Herdr ${method} returned invalid JSON: ${error.message}`),
+				);
+			}
+		});
+	});
+}
+
+function subscribe(id, requested) {
+	return new Promise((resolveSubscription, reject) => {
+		const requestId = `pi-shepherdr-bridge:subscribe:${crypto.randomUUID()}`;
+		let acknowledged = false;
+		let buffer = "";
+		let closed = false;
+		const socket = createConnection(socketPath());
+		socket.setEncoding("utf8");
+		const timer = setTimeout(() => {
+			socket.destroy();
+			reject(new Error("Herdr events.subscribe timed out"));
+		}, 10_000);
+		timer.unref();
+		const disconnected = (error) => {
+			clearTimeout(timer);
+			if (!acknowledged)
+				reject(error ?? new Error("Herdr subscription disconnected"));
+			else if (!closed) {
+				process.stderr.write(
+					`Herdr monitoring disconnected${error ? `: ${error.message}` : ""}\n`,
+				);
+				process.exitCode = 1;
+				setTimeout(() => process.exit(), 0);
+			}
+		};
+		socket.on("connect", () => {
+			socket.write(
+				`${JSON.stringify({ id: requestId, method: "events.subscribe", params: { subscriptions: requested } })}\n`,
+			);
+		});
+		socket.on("error", disconnected);
+		socket.on("end", () => disconnected());
+		socket.on("close", () => disconnected());
+		socket.on("data", (chunk) => {
+			buffer += chunk;
+			if (Buffer.byteLength(buffer) > MAX_FRAME_BYTES) {
+				disconnected(new Error("Herdr event frame is too large"));
+				socket.destroy();
+				return;
+			}
+			for (;;) {
+				const newline = buffer.indexOf("\n");
+				if (newline < 0) break;
+				const line = buffer.slice(0, newline);
+				buffer = buffer.slice(newline + 1);
+				if (!line) continue;
+				let value;
+				try {
+					value = JSON.parse(line);
+				} catch (error) {
+					disconnected(
+						new Error(
+							`Herdr events.subscribe returned invalid JSON: ${error.message}`,
+						),
+					);
+					socket.destroy();
+					return;
+				}
+				if (!acknowledged && value.id === requestId) {
+					if (value.error !== undefined) {
+						const detail = responseError(value.error);
+						const error = new Error(detail.message);
+						Object.assign(error, detail);
+						disconnected(error);
+						socket.destroy();
+						return;
+					}
+					if (value.result?.type !== "subscription_started") {
+						disconnected(
+							new Error(
+								"Herdr events.subscribe returned an invalid acknowledgement",
+							),
+						);
+						socket.destroy();
+						return;
+					}
+					acknowledged = true;
+					clearTimeout(timer);
+					subscriptions.set(id, () => {
+						closed = true;
+						socket.destroy();
+					});
+					resolveSubscription();
+					continue;
+				}
+				if (
+					acknowledged &&
+					typeof value.event === "string" &&
+					value.data &&
+					typeof value.data === "object"
+				) {
+					send({
+						subscription: id,
+						event: { event: value.event, data: value.data },
+					});
+				}
+			}
+		});
+	});
+}
+
+function latestAssistantFromLines(lines) {
+	const nodes = new Map();
+	let leafId;
+	for (const line of lines) {
+		let entry;
+		try {
+			entry = JSON.parse(line);
+		} catch {
+			continue;
+		}
+		if (typeof entry.id !== "string") continue;
+		const node =
+			typeof entry.parentId === "string" ? { parentId: entry.parentId } : {};
+		const message = entry.message;
+		if (
+			message &&
+			typeof message === "object" &&
+			message.role === "assistant"
+		) {
+			const text = [];
+			if (typeof message.content === "string") text.push(message.content);
+			else if (Array.isArray(message.content)) {
+				for (const part of message.content) {
+					if (
+						part &&
+						typeof part === "object" &&
+						part.type === "text" &&
+						typeof part.text === "string"
+					)
+						text.push(part.text);
+				}
+			}
+			const joined = text.join("");
+			const stopReason =
+				typeof message.stopReason === "string" ? message.stopReason : undefined;
+			if (joined || stopReason === "error") {
+				node.assistant = {
+					id: entry.id,
+					text: joined,
+					...(stopReason ? { stopReason } : {}),
+				};
+			}
+		}
+		nodes.set(entry.id, node);
+		leafId = entry.id;
+	}
+	const visited = new Set();
+	let current = leafId;
+	while (current && !visited.has(current)) {
+		visited.add(current);
+		const node = nodes.get(current);
+		if (!node) break;
+		if (node.assistant) return node.assistant;
+		current = node.parentId;
+	}
+}
+
+async function latest(path) {
+	if (!path) return undefined;
+	const expanded = expandHome(path);
+	let metadata;
+	try {
+		metadata = await stat(expanded);
+	} catch (error) {
+		if (error.code === "ENOENT") return undefined;
+		throw error;
+	}
+	const cached = assistantCache.get(expanded);
+	if (cached?.size === metadata.size && cached.mtimeMs === metadata.mtimeMs)
+		return cached.result;
+	const result = latestAssistantFromLines(
+		(await readFile(expanded, "utf8")).split("\n"),
+	);
+	assistantCache.set(expanded, {
+		size: metadata.size,
+		mtimeMs: metadata.mtimeMs,
+		result,
+	});
+	return result;
+}
+
+async function directory(value, fallback) {
+	const base = expandHome(fallback?.trim() || homedir());
+	const path = resolve(base, expandHome(value?.trim() || "."));
+	const metadata = await stat(path).catch((error) => {
+		throw new Error(
+			`cannot use working directory ${JSON.stringify(path)}: ${error.message}`,
+		);
+	});
+	if (!metadata.isDirectory())
+		throw new Error(`${JSON.stringify(path)} is not a directory`);
+	return path;
+}
+
+function serializableError(error) {
+	return {
+		message: error instanceof Error ? error.message : String(error),
+		...(typeof error?.code === "string" ? { code: error.code } : {}),
+		...(error?.herdrResponse === true ? { herdrResponse: true } : {}),
+	};
+}
+
+async function handle(message) {
+	if (
+		!message ||
+		typeof message !== "object" ||
+		typeof message.id !== "string" ||
+		typeof message.op !== "string"
+	) {
+		throw new Error("invalid Shepherdr bridge request");
+	}
+	if (message.op === "request") {
+		return request(message.method, message.params ?? {}, message.timeoutMs);
+	}
+	if (message.op === "subscribe") {
+		await subscribe(message.id, message.subscriptions ?? []);
+		return { subscribed: true };
+	}
+	if (message.op === "unsubscribe") {
+		subscriptions.get(message.subscription)?.();
+		subscriptions.delete(message.subscription);
+		return { unsubscribed: true };
+	}
+	if (message.op === "latest") return latest(message.path);
+	if (message.op === "directory")
+		return directory(message.value, message.fallback);
+	throw new Error(`unsupported Shepherdr bridge operation ${message.op}`);
+}
+
+let input = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", (chunk) => {
+	input += chunk;
+	if (Buffer.byteLength(input) > MAX_FRAME_BYTES) {
+		process.stderr.write("Shepherdr bridge request is too large\n");
+		process.exit(1);
+	}
+	for (;;) {
+		const newline = input.indexOf("\n");
+		if (newline < 0) break;
+		const line = input.slice(0, newline);
+		input = input.slice(newline + 1);
+		if (!line) continue;
+		let message;
+		try {
+			message = JSON.parse(line);
+		} catch (error) {
+			send({ id: "invalid", ok: false, error: serializableError(error) });
+			continue;
+		}
+		void handle(message).then(
+			(result) => send({ id: message.id, ok: true, result }),
+			(error) =>
+				send({ id: message.id, ok: false, error: serializableError(error) }),
+		);
+	}
+});
+
+process.stdin.on("end", () => process.exit());
+for (const signal of ["SIGINT", "SIGTERM"]) {
+	process.on(signal, () => {
+		for (const close of subscriptions.values()) close();
+		process.exit();
+	});
+}
+
+const source = await readFile(fileURLToPath(import.meta.url));
+send({
+	type: "ready",
+	protocol: PROTOCOL,
+	hash: createHash("sha256").update(source).digest("hex"),
+	socket: socketPath(),
+});

@@ -107,3 +107,7 @@ export class SessionReader {
 		return result;
 	}
 }
+
+export interface AssistantReader {
+	latest(path?: string): Promise<LatestAssistant | undefined>;
+}

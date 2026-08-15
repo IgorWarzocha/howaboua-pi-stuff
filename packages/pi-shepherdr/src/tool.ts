@@ -1,6 +1,7 @@
 import { StringEnum, Type } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { getSnapshot, resolvePiAgent } from "./herdr.js";
+import type { AgentFleet } from "./fleet.js";
+import { resolvePiAgent } from "./herdr.js";
 import {
 	START_PLACEMENTS,
 	type StartAgentParams,
@@ -15,6 +16,7 @@ const FIRE_AND_FORGET =
 
 type ToolParams = StartAgentParams & {
 	action: (typeof ACTIONS)[number];
+	machine?: string;
 	target?: string;
 };
 
@@ -46,9 +48,11 @@ function compactAgent(
 	agent: PaneInfo,
 	snapshot: SessionSnapshot,
 	monitored: boolean,
+	machine: string,
 ): Record<string, unknown> {
 	const names = labels(snapshot);
 	return {
+		machine,
 		id: agent.pane_id,
 		...(agent.name ? { name: agent.name } : {}),
 		status: agent.agent_status,
@@ -78,18 +82,21 @@ function findRecord(
 
 export function registerHerdrAgentsTool(
 	pi: ExtensionAPI,
-	getMonitor: () => AgentMonitor,
+	getFleet: () => AgentFleet,
 ): void {
 	pi.registerTool({
 		name: "herdr_agents",
 		label: "Shepherdr",
 		description:
-			"Herdr Pi agents. start needs name and placement; new_tab needs workspace; pane placement needs pane ID. watch/unwatch need target; send needs target and prompt.",
+			"Herdr Pi agents across configured machines. start needs name and placement; new_tab needs workspace; pane placement needs pane ID. watch/unwatch need target; send needs target and prompt.",
 		promptGuidelines: [
 			"Act as an orchestrator: delegate project implementation, synthesize worker results, and report them to the user. Work directly only when explicitly asked or for configuration, documentation, and routine operations in the current working directory",
 		],
 		parameters: Type.Object({
 			action: StringEnum(ACTIONS),
+			machine: Type.Optional(
+				Type.String({ description: "Configured machine; defaults to local" }),
+			),
 			target: Type.Optional(
 				Type.String({ description: "Agent name or pane ID" }),
 			),
@@ -123,30 +130,54 @@ export function registerHerdrAgentsTool(
 		}),
 		executionMode: "sequential",
 		async execute(_toolCallId, params: ToolParams, _signal, _onUpdate, ctx) {
-			const monitor = getMonitor();
-			const client = monitor.client;
+			const fleet = getFleet();
 			if (params.action === "list") {
-				const snapshot = await getSnapshot(client);
+				const machines = await fleet.snapshots(params.machine);
 				return result({
-					agents: snapshot.agents
-						.filter(
-							(agent) =>
-								agent.agent === "pi" &&
-								agent.pane_id !== process.env["HERDR_PANE_ID"],
-						)
-						.map((agent) =>
-							compactAgent(agent, snapshot, monitor.isMonitored(agent.pane_id)),
-						),
-					workspaces: snapshot.workspaces.map((workspace) => ({
-						id: workspace.workspace_id,
-						label: workspace.label,
-					})),
+					machines: machines.map(
+						({ snapshot: _snapshot, ...machine }) => machine,
+					),
+					agents: machines.flatMap((machine) => {
+						if (!machine.snapshot) return [];
+						const runtime = fleet.connected(machine.name);
+						return machine.snapshot.agents
+							.filter(
+								(agent) =>
+									agent.agent === "pi" &&
+									(!machine.local ||
+										agent.pane_id !== process.env["HERDR_PANE_ID"]),
+							)
+							.map((agent) =>
+								compactAgent(
+									agent,
+									machine.snapshot!,
+									runtime.monitor.isMonitored(agent.pane_id),
+									machine.name,
+								),
+							);
+					}),
+					workspaces: machines.flatMap((machine) =>
+						(machine.snapshot?.workspaces ?? []).map((workspace) => ({
+							machine: machine.name,
+							id: workspace.workspace_id,
+							label: workspace.label,
+						})),
+					),
 				});
 			}
+			const runtime = fleet.connected(params.machine);
+			const { client, machine, monitor } = runtime;
 			if (params.action === "start") {
-				const started = await startAgent(client, monitor, params, ctx.cwd);
+				const started = await startAgent(
+					client,
+					monitor,
+					params,
+					runtime.local ? ctx.cwd : runtime.fallbackCwd,
+					runtime.resolveDirectory,
+				);
 				return result({
 					started: true,
+					machine,
 					id: started.id,
 					...(params.prompt?.trim() ? { next: FIRE_AND_FORGET } : {}),
 				});
@@ -155,16 +186,21 @@ export function registerHerdrAgentsTool(
 			const target = required(params.target, "target");
 			if (params.action === "unwatch") {
 				const record = findRecord(monitor, target);
-				if (!record) return result({ unwatched: false, target });
+				if (!record) return result({ unwatched: false, machine, target });
 				await monitor.unwatch(record.paneId);
-				return result({ unwatched: true, id: record.paneId });
+				return result({ unwatched: true, machine, id: record.paneId });
 			}
 
-			const agent = await resolvePiAgent(client, target);
+			const agent = await resolvePiAgent(
+				client,
+				target,
+				runtime.local ? process.env["HERDR_PANE_ID"] : "",
+			);
 			if (params.action === "watch") {
 				await monitor.watch(agent);
 				return result({
 					watched: true,
+					machine,
 					id: agent.pane_id,
 					next: FIRE_AND_FORGET,
 				});
@@ -185,6 +221,7 @@ export function registerHerdrAgentsTool(
 				}
 				return result({
 					sent: true,
+					machine,
 					id: agent.pane_id,
 					next: FIRE_AND_FORGET,
 				});

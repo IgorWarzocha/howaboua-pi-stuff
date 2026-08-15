@@ -4,50 +4,87 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { isSettledStatus } from "./activity.js";
 import { getSnapshot } from "./herdr.js";
-import { HerdrClient, isHerdrResponseError } from "./herdr-client.js";
+import {
+	HerdrClient,
+	type HerdrConnection,
+	isHerdrResponseError,
+} from "./herdr-client.js";
 import { parseMonitorEvent } from "./monitor-event.js";
 import { MonitorEvents } from "./monitor-events.js";
 import { MonitorState, type WorkAttempt } from "./monitor-state.js";
+import type { AssistantReader } from "./session-reader.js";
 import { SettlementReporter, type SettlementRequest } from "./settlement.js";
 import type { HerdrEvent, MonitoredAgent, PaneInfo } from "./types.js";
-import { renderAgentWidget } from "./widget.js";
 
-const MONITOR_STATE_TYPE = "herdr-agents-monitor-state";
-
-interface MonitorStateEntry {
-	agents: MonitoredAgent[];
+interface AgentMonitorOptions {
+	client?: HerdrConnection;
+	local?: boolean;
+	machine?: string;
+	onChange?: () => void;
+	onRefresh?: () => void;
+	onWarning?: (message: string) => void;
+	reader?: AssistantReader;
+	selfPaneId?: string;
 }
 
 export class AgentMonitor {
-	readonly client: HerdrClient;
-	private readonly pi: ExtensionAPI;
+	readonly client: HerdrConnection;
+	readonly local: boolean;
+	readonly machine: string;
+	private readonly onChange: () => void;
+	private readonly onRefresh: () => void;
+	private readonly selfPaneId: string | undefined;
+	private readonly onWarning: (message: string) => void;
 	private readonly state = new MonitorState();
 	private readonly events: MonitorEvents;
 	private readonly settlements: SettlementReporter;
 	private context: ExtensionContext | undefined;
 	private activationGeneration = 0;
 
-	constructor(pi: ExtensionAPI, client = new HerdrClient()) {
-		this.pi = pi;
-		this.client = client;
-		this.settlements = new SettlementReporter(pi, client, this.state, () =>
-			this.persist(),
+	constructor(pi: ExtensionAPI, options: AgentMonitorOptions = {}) {
+		this.client = options.client ?? new HerdrClient();
+		this.local = options.local ?? true;
+		this.machine = options.machine ?? "local";
+		this.onChange = options.onChange ?? (() => undefined);
+		this.onRefresh = options.onRefresh ?? this.onChange;
+		this.selfPaneId = options.selfPaneId;
+		this.onWarning =
+			options.onWarning ??
+			((message) => this.context?.ui.notify(message, "warning"));
+		this.settlements = new SettlementReporter(
+			pi,
+			this.client,
+			this.state,
+			() => this.persist(),
+			options.reader,
+			this.machine,
+			this.local,
 		);
 		this.events = new MonitorEvents({
-			client,
+			client: this.client,
+			reconnect: this.local,
 			onEvent: (event) => this.handleEvent(event),
 			onReconnect: () => this.reconcileNow(),
-			onWarning: (message) => this.context?.ui.notify(message, "warning"),
+			onWarning: (message) => this.onWarning(message),
 			targets: () => this.list().map((record) => record.paneId),
 		});
 	}
 
-	async activate(ctx: ExtensionContext): Promise<void> {
+	async activate(
+		ctx: ExtensionContext,
+		restored: unknown[] = [],
+	): Promise<void> {
 		this.deactivate();
 		const generation = this.activationGeneration;
 		this.context = ctx;
-		this.restore(ctx);
-		renderAgentWidget(this.context, this.list());
+		const dropped = this.state.restore(restored, this.selfPaneId);
+		if (dropped > 0) {
+			ctx.ui.notify(
+				`Ignored ${dropped} invalid saved Shepherdr monitor ${dropped === 1 ? "record" : "records"} for ${this.machine}`,
+				"warning",
+			);
+		}
+		this.onChange();
 		await this.reconcile(generation, ctx);
 		if (generation !== this.activationGeneration || ctx !== this.context)
 			return;
@@ -56,7 +93,6 @@ export class AgentMonitor {
 
 	deactivate(): void {
 		this.activationGeneration += 1;
-		renderAgentWidget(this.context, []);
 		this.context = undefined;
 		this.events.stop();
 		this.settlements.stop();
@@ -71,7 +107,7 @@ export class AgentMonitor {
 	}
 
 	async watch(panel: PaneInfo): Promise<MonitoredAgent> {
-		if (panel.pane_id === process.env["HERDR_PANE_ID"]) {
+		if (panel.pane_id === this.selfPaneId) {
 			throw new Error("refusing to monitor the controlling Pi session");
 		}
 		const reply = await this.settlements.latest(panel);
@@ -129,31 +165,8 @@ export class AgentMonitor {
 		await this.reconcile(this.activationGeneration, this.context);
 	}
 
-	private restore(ctx: ExtensionContext): void {
-		let latest: MonitorStateEntry | undefined;
-		for (const entry of ctx.sessionManager.getBranch()) {
-			if (entry.type !== "custom" || entry.customType !== MONITOR_STATE_TYPE)
-				continue;
-			const data = entry.data as Partial<MonitorStateEntry>;
-			if (Array.isArray(data?.agents)) {
-				latest = { agents: data.agents };
-			}
-		}
-		const dropped = this.state.restore(
-			latest?.agents ?? [],
-			process.env["HERDR_PANE_ID"],
-		);
-		if (dropped > 0) {
-			ctx.ui.notify(
-				`Ignored ${dropped} invalid saved Shepherdr monitor ${dropped === 1 ? "record" : "records"}`,
-				"warning",
-			);
-		}
-	}
-
 	private persist(): void {
-		this.pi.appendEntry(MONITOR_STATE_TYPE, { agents: this.list() });
-		renderAgentWidget(this.context, this.list());
+		this.onChange();
 	}
 
 	private async reconcile(
@@ -173,10 +186,10 @@ export class AgentMonitor {
 			return;
 		const { changed, completions } = this.state.reconcile(
 			snapshot,
-			process.env["HERDR_PANE_ID"],
+			this.selfPaneId,
 		);
 		if (changed) this.persist();
-		else renderAgentWidget(this.context, this.list());
+		else this.onRefresh();
 		for (const completion of completions) {
 			void this.report(completion);
 		}

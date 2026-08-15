@@ -39,7 +39,16 @@ export function isHerdrErrorCode(error: unknown, code: string): boolean {
 	);
 }
 
-export class HerdrClient {
+export interface HerdrConnection {
+	request<T>(method: string, params?: object, timeoutMs?: number): Promise<T>;
+	subscribe(
+		subscriptions: object[],
+		onEvent: (event: HerdrEvent) => void,
+		onDisconnect: (error?: Error) => void,
+	): Promise<() => void>;
+}
+
+export class HerdrClient implements HerdrConnection {
 	readonly socketPath: string;
 
 	constructor(socketPath = process.env["HERDR_SOCKET_PATH"]) {
