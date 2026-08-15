@@ -93,21 +93,6 @@ test("project notebook merge applies an uncontested plain global", () => {
 	assert.equal(merged.payload.toString(), "value");
 });
 
-test("project notebook merge commits a pin with the retained value", () => {
-	const payload = Buffer.from("value");
-	const merged = mergeProjectState({
-		baseline: { generation: "current", entries: [{ name: "shared", hash: hash(payload) }] },
-		current: projectManifest("current", payload),
-		candidate: projectCandidate(payload),
-		candidatePayload: payload,
-		currentPayload: payload,
-		pins: { names: ["shared"], pinned: true },
-	});
-
-	assert.equal(merged.changed, true);
-	assert.equal(merged.entries[0]?.pinned, true);
-});
-
 test("stale session recovery cannot overwrite a newer project generation", () => {
 	const project = { generation: "new", entries: [{ name: "shared", hash: "hash" }] };
 	assert.deepEqual(

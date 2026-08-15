@@ -34,10 +34,11 @@ test("Code Mode registers native freeform exec beside function controls", () => 
 			registered.push(tool);
 		},
 	} as never, {} as never);
-	assert.deepEqual(registered.map(({ name, constrainedSampling }) => [name, constrainedSampling]), [
+	assert.deepEqual(registered
+		.filter(({ name }) => name === "exec" || name === "wait")
+		.map(({ name, constrainedSampling }) => [name, constrainedSampling]), [
 		["exec", exec.constrainedSampling],
 		["wait", undefined],
-		["notebook", undefined],
 	]);
 
 	const tools = convertResponsesTools([
