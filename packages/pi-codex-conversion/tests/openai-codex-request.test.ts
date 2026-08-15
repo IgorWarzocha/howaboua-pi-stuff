@@ -233,10 +233,13 @@ test("GPT-5.6 Code Mode sends the GPT-5.6 input-item contract", async () => {
 		assert.equal(body.tool_choice, "required");
 		assert.equal(body.reasoning.context, "all_turns");
 		assert.equal(body.input[0].type, "additional_tools");
-		assert.deepEqual(body.input[0].tools.map((tool: { type: string; name: string }) => [tool.type, tool.name]), [["custom", "exec"], ["function", "wait"], ["function", "search_tools"]]);
-		assert.equal("parameters" in body.input[0].tools[0], false);
+		assert.deepEqual(body.input[0].tools.map((tool: { type: string; name: string }) => [tool.type, tool.name]), [["namespace", "functions"]]);
+		assert.deepEqual(body.input[0].tools[0].tools.map((tool: { type: string; name: string }) => [tool.type, tool.name]), [["custom", "exec"], ["function", "wait"], ["function", "search_tools"]]);
+		assert.equal("parameters" in body.input[0].tools[0].tools[0], false);
 		assert.deepEqual(body.input[1], { type: "message", role: "developer", content: [{ type: "input_text", text: "Lite instructions" }] });
-		assert.deepEqual(body.input.find((item: { type?: string }) => item.type === "tool_search_output").tools.map((tool: { name: string; defer_loading?: boolean }) => [tool.name, tool.defer_loading]), [["example_tool", true]]);
+		const searchedTools = body.input.find((item: { type?: string }) => item.type === "tool_search_output").tools;
+		assert.deepEqual(searchedTools.map((tool: { type: string; name: string }) => [tool.type, tool.name]), [["namespace", "functions"]]);
+		assert.deepEqual(searchedTools[0].tools.map((tool: { name: string; defer_loading?: boolean }) => [tool.name, tool.defer_loading]), [["example_tool", true]]);
 		const done = events.find((event) => (event as { type?: string }).type === "done") as { message: { endTurn?: boolean } };
 		assert.equal(done.message.endTurn, true);
 	} finally {

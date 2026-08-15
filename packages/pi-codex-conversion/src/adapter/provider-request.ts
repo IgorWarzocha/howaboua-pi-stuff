@@ -27,8 +27,10 @@ function applyVoiceSystemPrompt(payload: unknown, systemPrompt: string | undefin
 	return { ...payload, instructions: systemPrompt };
 }
 
-function applyCodexRuntimePayload(payload: unknown, codeMode: boolean): unknown {
-	return codeMode && isCodeModeCompatibleBody(payload) ? applyResponsesLiteRequest(payload) : payload;
+function applyCodexRuntimePayload(payload: unknown, codeMode: boolean, namespaceTools: boolean): unknown {
+	return codeMode && isCodeModeCompatibleBody(payload)
+		? applyResponsesLiteRequest(payload, { namespaceTools })
+		: payload;
 }
 
 export async function prepareCanonicalAliasEndpoint(ctx: ExtensionContext, state: AdapterState): Promise<boolean> {
@@ -79,7 +81,7 @@ export async function rewriteCodexProviderRequest(payload: unknown, ctx: Extensi
 		const piCompactionPayload = await injectPendingNativeWindowIntoPiCompactionRequest(configuredPayload, ctx, state);
 		rewrittenPayload = piCompactionPayload ?? (await rewriteCodexCompactedProviderRequest(configuredPayload, ctx, state)) ?? configuredPayload;
 	}
-	return applyCodexRuntimePayload(rewrittenPayload, isCodeModeRuntime(plan));
+	return applyCodexRuntimePayload(rewrittenPayload, isCodeModeRuntime(plan), plan.codexTransport);
 }
 
 export function rewriteCodexPrewarmProviderRequest(
@@ -88,7 +90,13 @@ export function rewriteCodexPrewarmProviderRequest(
 	state: AdapterState,
 ): unknown | undefined {
 	const prepared = prepareCodexProviderRequest(payload, ctx, state);
-	return prepared ? applyCodexRuntimePayload(prepared.configuredPayload, isCodeModeRuntime(prepared.plan)) : undefined;
+	return prepared
+		? applyCodexRuntimePayload(
+			prepared.configuredPayload,
+			isCodeModeRuntime(prepared.plan),
+			prepared.plan.codexTransport,
+		)
+		: undefined;
 }
 
 function isCodeModeCompatibleBody(value: unknown): value is ResponsesLiteCompatibleBody {

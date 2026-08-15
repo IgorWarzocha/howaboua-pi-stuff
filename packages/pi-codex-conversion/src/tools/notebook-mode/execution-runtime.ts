@@ -6,7 +6,9 @@ import {
 	parseExecSource,
 } from "../code-mode/host-protocol.ts";
 import { directToolYieldTime } from "../code-mode/tool-source.ts";
+import { codeModeNameForToolIdentity, resolveCodeModeToolIdentity } from "../code-mode/tool-identity.ts";
 import type {
+	CodeModeToolIdentity,
 	CodeModeToolDefinition,
 	NotebookMemoryUsage,
 	RuntimeResponse,
@@ -34,7 +36,7 @@ export class NotebookExecutionRuntime {
 		this.session = session;
 		this.prepareSession = prepareSession;
 		this.bridge = new NotebookBridgeServer({
-			callTool: (cellId, requestId, tool, input) => this.callTool(cellId, requestId, tool, input),
+			callTool: (cellId, requestId, toolName, input) => this.callTool(cellId, requestId, toolName, input),
 			cancelTools: (cellId) => this.cancelTools(cellId),
 			emit: (cellId, items) => this.requireActiveCell(cellId).emit(items),
 			notify: (cellId, text) => this.notify(cellId, text),
@@ -89,8 +91,9 @@ export class NotebookExecutionRuntime {
 		const metadata = tools
 			.filter((tool) => isCustomToolDefinition(tool) && tool.deferLoading)
 			.map((tool) => ({ name: tool.name, description: formatCodeModeToolHelp(tool) }));
+		const toolNames = Object.fromEntries(tools.map((tool) => [tool.name, resolveCodeModeToolIdentity(tool)]));
 		const wrapped = [
-			`await globalThis.__piNotebook.begin(${JSON.stringify(id)}, ${JSON.stringify(metadata)});`,
+			`await globalThis.__piNotebook.begin(${JSON.stringify(id)}, ${JSON.stringify(metadata)}, ${JSON.stringify(toolNames)});`,
 			code,
 			`await globalThis.__piNotebook.flush(${JSON.stringify(id)});`,
 			"undefined;",
@@ -262,9 +265,9 @@ export class NotebookExecutionRuntime {
 		this.delegate.closeCell(cell.id);
 	}
 
-	private async callTool(cellId: string, requestId: number, tool: string, input: unknown): Promise<unknown> {
+	private async callTool(cellId: string, requestId: number, toolName: CodeModeToolIdentity, input: unknown): Promise<unknown> {
 		this.requireActiveCell(cellId);
-		return this.delegate.invokeDirect(cellId, requestId, tool, input);
+		return this.delegate.invokeDirect(cellId, requestId, codeModeNameForToolIdentity(toolName), input);
 	}
 
 	private cancelTools(cellId: string): void {

@@ -1,11 +1,11 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { NotebookMemoryUsage, RuntimeContentItem } from "../code-mode/types.ts";
+import type { CodeModeToolIdentity, NotebookMemoryUsage, RuntimeContentItem } from "../code-mode/types.ts";
 
 const MAX_REQUEST_BYTES = 34 * 1024 * 1024;
 const MAX_RESPONSE_BYTES = 32 * 1024 * 1024;
 
 export type NotebookBridgeRequest =
-	| { kind: "tool"; cellId: string; requestId: number; tool: string; input: unknown }
+	| { kind: "tool"; cellId: string; requestId: number; toolName: CodeModeToolIdentity; input: unknown }
 	| { kind: "cancel_tools"; cellId: string }
 	| { kind: "emit"; cellId: string; items: RuntimeContentItem[] }
 	| { kind: "notify"; cellId: string; text: string }
@@ -21,9 +21,24 @@ export async function readNotebookBridgeRequest(request: IncomingMessage): Promi
 	switch (value["kind"]) {
 		case "tool": {
 			const requestId = value["requestId"];
-			const tool = value["tool"];
-			if (!Number.isSafeInteger(requestId) || typeof tool !== "string") throw new Error("Invalid notebook tool request");
-			return { kind: "tool", cellId, requestId: requestId as number, tool, input: value["input"] };
+			const toolName = value["toolName"];
+			const namespace = isRecord(toolName) ? toolName["namespace"] : undefined;
+			if (
+				!Number.isSafeInteger(requestId)
+				|| !isRecord(toolName)
+				|| typeof toolName["name"] !== "string"
+				|| (namespace !== undefined && typeof namespace !== "string")
+			) throw new Error("Invalid notebook tool request");
+			return {
+				kind: "tool",
+				cellId,
+				requestId: requestId as number,
+				toolName: {
+					name: toolName["name"],
+					...(typeof namespace === "string" ? { namespace } : {}),
+				},
+				input: value["input"],
+			};
 		}
 		case "cancel_tools": return { kind: "cancel_tools", cellId };
 		case "emit": return { kind: "emit", cellId, items: parseContentItems(value["items"]) };

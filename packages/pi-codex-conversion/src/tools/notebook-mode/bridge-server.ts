@@ -1,12 +1,12 @@
 import { randomBytes } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import type { NotebookMemoryUsage, RuntimeContentItem } from "../code-mode/types.ts";
+import type { CodeModeToolIdentity, NotebookMemoryUsage, RuntimeContentItem } from "../code-mode/types.ts";
 import { readNotebookBridgeRequest, writeNotebookBridgeJson } from "./bridge-protocol.ts";
 
 const BRIDGE_SHUTDOWN_GRACE_MS = 1_500;
 
 export interface NotebookBridgeHandlers {
-	callTool(cellId: string, requestId: number, tool: string, input: unknown): Promise<unknown>;
+	callTool(cellId: string, requestId: number, toolName: CodeModeToolIdentity, input: unknown): Promise<unknown>;
 	cancelTools(cellId: string): void;
 	emit(cellId: string, items: RuntimeContentItem[]): void;
 	notify(cellId: string, text: string): void;
@@ -68,8 +68,8 @@ export class NotebookBridgeServer {
 			}
 			const value = await readNotebookBridgeRequest(request);
 			switch (value.kind) {
-				case "tool": {
-					const result = await this.handlers.callTool(value.cellId, value.requestId, value.tool, value.input);
+			case "tool": {
+					const result = await this.handlers.callTool(value.cellId, value.requestId, value.toolName, value.input);
 					writeNotebookBridgeJson(response, 200, { ok: true, result });
 					return;
 				}

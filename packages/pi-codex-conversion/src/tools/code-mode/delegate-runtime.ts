@@ -1,6 +1,7 @@
 import { runCustomTool } from "./custom-tool-runner.js";
 import { isCustomToolDefinition, type DelegateRequestMessage } from "./host-protocol.js";
 import { runCodeModeToolPreflight } from "./nested-tool-preflight.js";
+import { codeModeNameForToolIdentity } from "./tool-identity.ts";
 import { CodeModeTraceStore } from "./trace-store.js";
 import { toolResultFromValue, truncateTraceText } from "./trace-values.js";
 import type {
@@ -158,7 +159,7 @@ export class CodeModeDelegateRuntime {
 		}
 		const invocation = request.invocation;
 		const cellId = invocation.cell_id;
-		const toolName = invocation.tool_name.name;
+		const toolName = codeModeNameForToolIdentity(invocation.tool_name);
 		const input = invocation?.input;
 		try {
 			const result = await this.invokeTool(

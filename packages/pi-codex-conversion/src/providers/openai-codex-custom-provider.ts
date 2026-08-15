@@ -7,7 +7,7 @@ import { DEFAULT_CODEX_BASE_URL } from "./openai-codex/constants.ts";
 import { buildRequestBody } from "./openai-codex/request-body.ts";
 import { openAICodexModelsWithDaybreak } from "./openai-codex/model-catalog.ts";
 import { supportsResponsesLiteModel } from "./openai-codex/responses-lite-model.ts";
-import { applyResponsesLiteRequest, applyResponsesLiteWebSocketMetadata, isResponsesLiteRequest, prepareResponsesLiteRequestImages } from "./openai-codex/responses-lite.ts";
+import { applyResponsesLiteRequest, applyResponsesLiteWebSocketMetadata, isResponsesLiteRequest, namespaceExistingResponsesLiteRequest, prepareResponsesLiteRequestImages } from "./openai-codex/responses-lite.ts";
 import type { CodexDiagnosticsSink, OpenAICodexStreamOptions, ResponsesBody } from "./openai-codex/types.ts";
 import { recordWebSocketSseFallback } from "./openai-codex/websocket.ts";
 import { isWebSocketMessageTooBigError, isWebSocketUpgradeRequiredError } from "./openai-codex/websocket-connection.ts";
@@ -39,8 +39,8 @@ async function prepareCodexRequestBody<TApi extends Api>(
 	if (nextBody !== undefined) body = nextBody as ResponsesBody;
 	if (responsesLite) {
 		body = isResponsesLiteRequest(body)
-			? { ...body, parallel_tool_calls: false }
-			: applyResponsesLiteRequest(body);
+			? namespaceExistingResponsesLiteRequest({ ...body, parallel_tool_calls: false })
+			: applyResponsesLiteRequest(body, { namespaceTools: true });
 		body = await prepareResponsesLiteRequestImages(body);
 	}
 	if (!body.previous_response_id) {

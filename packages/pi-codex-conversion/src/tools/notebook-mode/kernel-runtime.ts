@@ -18,6 +18,7 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
     pending: new Set(),
 	pendingErrors: [],
 	toolPending: new Set(),
+	toolNames: {},
 	outputChars: 0,
 	outputItems: 0,
 	outputTruncated: false,
@@ -154,14 +155,16 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
       return (input) => {
         if (!__state.cellId) throw new Error("Nested tool called outside an active exec cell");
         const requestId = ++__state.requestId;
-		return __trackTool(__post({ kind: "tool", cellId: __state.cellId, requestId, tool: name, input }));
+		const toolName = __state.toolNames[name] || { name };
+		return __trackTool(__post({ kind: "tool", cellId: __state.cellId, requestId, toolName, input }));
       };
     },
   });
   const __runtime = {
-    async begin(cellId, tools) {
+    async begin(cellId, tools, toolNames) {
 	  if (__state.memoryTimer !== undefined) clearInterval(__state.memoryTimer);
       __state.cellId = cellId;
+	  __state.toolNames = toolNames;
       __state.pending = new Set();
 	  __state.pendingErrors = [];
 	  __state.toolPending = new Set();

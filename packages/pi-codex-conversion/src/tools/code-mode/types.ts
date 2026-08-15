@@ -7,8 +7,14 @@ import type { CodeModeToolPreflightRunner } from "./nested-tool-preflight.js";
 
 export type CustomToolInputMode = "arg" | "stdin";
 
+export interface CodeModeToolIdentity {
+	name: string;
+	namespace?: string | undefined;
+}
+
 export interface CodeModeToolMetadata {
 	name: string;
+	toolName?: CodeModeToolIdentity | undefined;
 	usage: string;
 	description?: string | undefined;
 	output?: string | undefined;
