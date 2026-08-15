@@ -11,5 +11,7 @@
 - `tools.customRustBinariesDir` is the shared filename-based override for tool and voice helpers; native startup incompatibilities point there without dumping loader noise.
 - Vendored apply-patch engine, path-uri, and absolute-path sources track one Codex commit. Pi-owned changes belong only in `standalone_executable.rs` and the `pi-apply-patch-fs` adapter.
 - Do not accept review-driven drift from stock Pi behavior unless backend-verified or intentional.
+- Provider names are not backend identity. Renamed Codex providers exist for separate ChatGPT subscription accounts or model catalogs under distinct Pi provider IDs; when API and resolved endpoint remain canonical, preserve first-party Codex transport, Fast Mode, and account isolation.
+- Proxies are deliberate monitoring, routing, and policy seams. Environment HTTP(S)/ALL proxies do not change the canonical ChatGPT contract; explicitly configured `openai-responses` passthrough providers are different and receive only the capabilities their backend supports. Never reject either path from provider name alone or assume “proxy” means non-ChatGPT.
 - Native compaction supports only OpenAI Codex and explicitly configured OpenAI/Codex passthrough proxies; V2 must preserve raw Responses output-item access rather than delegate to arbitrary registered provider streams.
 - After TypeScript topology changes, run root `bun run knip`; it enforces file, dependency, cycle, and export-surface hygiene.
