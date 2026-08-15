@@ -11,6 +11,7 @@ This repo publishes through Changesets; every merge to `main` feeds the version 
 - Slash commands are for users; agents use tools. Prefer one routed entry command over several command names unless explicitly requested.
 - Treat related package work from one session as one release unit: one PR or one directly, atomically merged stack. Installed users should not absorb serial cleanup releases.
 - Shipped package changes require a changeset. Use concrete release language; never write “upcoming release”, “unreleased”, or speculative notes.
+- Changeset bodies become changelog copy: lead with one concise outcome; for broad releases add short user-facing capability bullets. Never dump implementation, tests, review history, or a multi-feature release into one prose lump.
 - Before a `dev` → `main` PR, fetch/prune, reset `dev` onto `origin/main`, then cherry-pick only intended commits. Never merge `main` into `dev`.
 - Prefer `bun run check:changed` and patch-autodetecting `bun changeset -- "summary"`; use `bun changeset:raw` only for intentional non-patch bumps.
 - After behavior-preserving module splits, run `bun refactor:compare --base <pre-refactor> --entry <old path> --probe <ESM>`; the probe calls old and replacement modules with identical inputs, asserts normalized outputs, and expands until no reachable old-side paths remain unexplained. Coverage is traversal, not proof; retain probes only for durable independent contracts.
