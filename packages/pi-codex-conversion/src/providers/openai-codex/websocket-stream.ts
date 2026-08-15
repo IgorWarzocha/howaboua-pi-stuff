@@ -70,7 +70,7 @@ export async function processWebSocketStream<TApi extends Api>(
 		socket.send(JSON.stringify({ type: "response.create", ...requestBody }));
 		await processMappedCodexResponsesStream(
 			startWebSocketOutputOnFirstEvent(
-				mapCodexEvents(parseWebSocket(socket, options?.signal, idleTimeoutMs, (value) => turnState?.capture(value))),
+				mapCodexEvents(parseWebSocket(socket, options?.signal, idleTimeoutMs, (value) => turnState?.capture(value)), output),
 				() => {
 					if (!streamStarted) {
 						streamStarted = true;

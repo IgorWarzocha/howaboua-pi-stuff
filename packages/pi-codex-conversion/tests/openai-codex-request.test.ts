@@ -142,11 +142,11 @@ test("GPT-5.6 Code Mode sends the GPT-5.6 input-item contract", async () => {
 			captured = init;
 			return sseResponse([
 				{ type: "response.created", response: { id: "resp_lite" } },
-				{ type: "response.completed", response: { id: "resp_lite", status: "completed", usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 } } },
+				{ type: "response.completed", response: { id: "resp_lite", status: "completed", end_turn: true, usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 } } },
 			]);
 		}) as typeof fetch;
 
-		await collectStream(registered.provider.streamSimple(
+		const events = await collectStream(registered.provider.streamSimple(
 			{ ...(codexModel as object), id: "gpt-5.6-luna", baseUrl: "https://chatgpt.example/backend-api", compat: { supportsToolSearch: true } } as never,
 			{ systemPrompt: "Lite instructions", messages: toolLoadingMessages, tools: [...codeModeTools, searchToolsTool, exampleTool] } as never,
 			{ apiKey: fakeJwt({ "https://api.openai.com/auth": { chatgpt_account_id: "acct_1" } }), transport: "sse", reasoning: "medium", toolChoice: "required" } as never,
@@ -165,6 +165,8 @@ test("GPT-5.6 Code Mode sends the GPT-5.6 input-item contract", async () => {
 		assert.equal("parameters" in body.input[0].tools[0], false);
 		assert.deepEqual(body.input[1], { type: "message", role: "developer", content: [{ type: "input_text", text: "Lite instructions" }] });
 		assert.deepEqual(body.input.find((item: { type?: string }) => item.type === "tool_search_output").tools.map((tool: { name: string; defer_loading?: boolean }) => [tool.name, tool.defer_loading]), [["example_tool", true]]);
+		const done = events.find((event) => (event as { type?: string }).type === "done") as { message: { endTurn?: boolean } };
+		assert.equal(done.message.endTurn, true);
 	} finally {
 		globalThis.fetch = originalFetch;
 	}

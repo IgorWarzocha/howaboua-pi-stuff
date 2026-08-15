@@ -144,7 +144,7 @@ export async function processResponsesStream<TApi extends Api>(
 		} else if (event.type === "response.output_item.added") {
 			const item = event.item;
 			if ((item as unknown as { type?: string }).type === "custom_tool_call") {
-				const customItem = item as unknown as { id?: string; call_id: string; name: string; input?: string };
+				const customItem = item as unknown as { id?: string; call_id: string; name: string; input?: string; namespace?: string };
 				const input = customItem.input ?? "";
 				const property = options?.grammarToolInputProperties?.get(customItem.name) ?? "input";
 				const currentBlock: ToolCallBlock = {
@@ -152,6 +152,7 @@ export async function processResponsesStream<TApi extends Api>(
 					id: `${customItem.call_id}|${customItem.id ?? ""}`,
 					name: customItem.name,
 					arguments: { [property]: input },
+					...(customItem.namespace !== undefined ? { namespace: customItem.namespace } : {}),
 				};
 				output.content.push(currentBlock);
 				outputStates.set(event.output_index, {
@@ -184,11 +185,13 @@ export async function processResponsesStream<TApi extends Api>(
 				});
 				stream.push({ type: "text_start", contentIndex: blockIndex(), partial: output });
 			} else if (item.type === "function_call") {
+				const namespace = (item as unknown as { namespace?: string }).namespace;
 				const currentBlock: ToolCallBlock = {
 					type: "toolCall",
 					id: `${item.call_id}|${item.id}`,
 					name: item.name,
 					arguments: {},
+					...(namespace !== undefined ? { namespace } : {}),
 					partialJson: item.arguments || "",
 				};
 				output.content.push(currentBlock);
@@ -278,7 +281,7 @@ export async function processResponsesStream<TApi extends Api>(
 		} else if (event.type === "response.output_item.done") {
 			const item = event.item;
 			const customItem = (item as unknown as { type?: string }).type === "custom_tool_call"
-				? item as unknown as { type: "custom_tool_call"; id?: string; call_id: string; name: string; input?: string }
+				? item as unknown as { type: "custom_tool_call"; id?: string; call_id: string; name: string; input?: string; namespace?: string }
 				: undefined;
 			const customState = customItem ? outputStates.get(event.output_index) : undefined;
 			const customInput = customItem
@@ -300,8 +303,8 @@ export async function processResponsesStream<TApi extends Api>(
 					? state.property
 					: options?.grammarToolInputProperties?.get(customItem.name) ?? "input";
 				const toolCall: ToolCallBlock = state?.kind === "custom_tool_call"
-					? { ...state.block, arguments: { [property]: customInput } }
-					: { type: "toolCall", id: `${customItem.call_id}|${customItem.id ?? ""}`, name: customItem.name, arguments: { [property]: customInput } };
+					? { ...state.block, arguments: { [property]: customInput }, ...(customItem.namespace !== undefined ? { namespace: customItem.namespace } : {}) }
+					: { type: "toolCall", id: `${customItem.call_id}|${customItem.id ?? ""}`, name: customItem.name, arguments: { [property]: customInput }, ...(customItem.namespace !== undefined ? { namespace: customItem.namespace } : {}) };
 				if (state?.kind !== "custom_tool_call") {
 					output.content.push(toolCall);
 					stream.push({ type: "toolcall_start", contentIndex: blockIndex(), partial: output });
@@ -337,12 +340,14 @@ export async function processResponsesStream<TApi extends Api>(
 				outputStates.delete(event.output_index);
 			} else if (item.type === "function_call") {
 				const state = outputStates.get(event.output_index);
+				const namespace = (item as unknown as { namespace?: string }).namespace;
 				const args = state?.kind === "function_call" && state.block.partialJson
 					? parseStreamingJson(state.block.partialJson, partialParse)
 					: parseStreamingJson(item.arguments || "{}", partialParse);
 				let toolCall: ToolCallBlock;
 				if (state?.kind === "function_call") {
 					state.block.arguments = args;
+					if (namespace !== undefined) state.block.namespace = namespace;
 					delete state.block.partialJson;
 					toolCall = state.block;
 				} else {
@@ -351,6 +356,7 @@ export async function processResponsesStream<TApi extends Api>(
 						id: `${item.call_id}|${item.id}`,
 						name: item.name,
 						arguments: args,
+						...(namespace !== undefined ? { namespace } : {}),
 					};
 					output.content.push(toolCall);
 					stream.push({ type: "toolcall_start", contentIndex: blockIndex(), partial: output });

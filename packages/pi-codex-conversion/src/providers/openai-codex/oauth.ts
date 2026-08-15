@@ -7,7 +7,6 @@ import {
 	type OAuthDeviceCodePollResult,
 	pollOAuthDeviceCodeFlow,
 } from "./device-code.ts";
-import { supportsResponsesLiteModel } from "./responses-lite-model.ts";
 
 const CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann";
 const AUTH_BASE_URL = "https://auth.openai.com";
@@ -51,7 +50,7 @@ export function clampOpenAICodexModelWindows(models: Model<Api>[]): Model<Api>[]
 	return models.map((model) =>
 		// Temporary: remove this clamp as soon as OpenAI confirms 372k production
 		// context caching is fixed. Overestimating currently delays Pi compaction.
-		supportsResponsesLiteModel(model) && model.contextWindow > GPT_56_PRODUCTION_CONTEXT_WINDOW
+		/^gpt-5\.6-(?:luna|terra|sol)$/i.test(model.id) && model.contextWindow > GPT_56_PRODUCTION_CONTEXT_WINDOW
 			? { ...model, contextWindow: GPT_56_PRODUCTION_CONTEXT_WINDOW }
 			: model,
 	);

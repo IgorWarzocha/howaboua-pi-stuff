@@ -135,7 +135,9 @@ export function convertResponsesMessages<TApi extends Api>(
 			}
 		} else if (msg.role === "assistant") {
 			const output: ResponseInput = [];
-			const isDifferentModel = msg.model !== model.id && msg.provider === model.provider && msg.api === model.api;
+			const isSameProviderAndApi = msg.provider === model.provider && msg.api === model.api;
+			const isSameModel = isSameProviderAndApi && msg.model === model.id;
+			const isDifferentModel = isSameProviderAndApi && msg.model !== model.id;
 			let textBlockIndex = 0;
 			for (const block of msg.content as InternalAssistantContent[]) {
 				if (isImageGenerationCallBlock(block)) {
@@ -172,6 +174,7 @@ export function convertResponsesMessages<TApi extends Api>(
 						(isDifferentModel && itemId?.startsWith("fc_"))
 						|| (customInputProperty === undefined && !itemId?.startsWith("fc_"))
 					) itemId = undefined;
+					const canReplayNamespace = isSameModel || options?.deferredTools?.has(block.name) === true;
 					output.push(customInputProperty === undefined
 						? {
 								type: "function_call",
@@ -179,6 +182,7 @@ export function convertResponsesMessages<TApi extends Api>(
 								call_id: callId,
 								name: block.name,
 								arguments: JSON.stringify(block.arguments),
+								...(canReplayNamespace && block.namespace !== undefined ? { namespace: block.namespace } : {}),
 							} as ResponseInput[number]
 						: {
 								type: "custom_tool_call",
@@ -186,6 +190,7 @@ export function convertResponsesMessages<TApi extends Api>(
 								call_id: callId,
 								name: block.name,
 								input: sanitizeSurrogates(getGrammarToolInput(block.name, block.arguments, customInputProperty)),
+								...(canReplayNamespace && block.namespace !== undefined ? { namespace: block.namespace } : {}),
 							} as ResponseInput[number]);
 				}
 			}

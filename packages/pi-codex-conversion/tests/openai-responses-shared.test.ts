@@ -153,10 +153,10 @@ test("processResponsesStream retains finalized freeform input for execution and 
 	await processResponsesStream(
 		asAsyncIterable([
 			{ type: "response.created", response: { id: "resp_exec" } },
-			{ type: "response.output_item.added", output_index: 0, item: { type: "custom_tool_call", id: "ctc_1", call_id: "call_1", name: "exec", input: "" } },
+			{ type: "response.output_item.added", output_index: 0, item: { type: "custom_tool_call", id: "ctc_1", call_id: "call_1", name: "exec", input: "", namespace: "security" } },
 			{ type: "response.custom_tool_call_input.delta", output_index: 0, item_id: "ctc_1", delta: "canonical", sequence_number: 1 },
 			{ type: "response.custom_tool_call_input.done", output_index: 0, item_id: "ctc_1", input: "canonical();", sequence_number: 2 },
-			{ type: "response.output_item.done", output_index: 0, item: { type: "custom_tool_call", id: "ctc_1", call_id: "call_1", name: "exec", status: "completed" } },
+			{ type: "response.output_item.done", output_index: 0, item: { type: "custom_tool_call", id: "ctc_1", call_id: "call_1", name: "exec", status: "completed", namespace: "security" } },
 			{ type: "response.completed", response: { id: "resp_exec", status: "completed", usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0, input_tokens_details: { cached_tokens: 0 } } } },
 		]) as AsyncIterable<any>,
 		output as any,
@@ -172,9 +172,9 @@ test("processResponsesStream retains finalized freeform input for execution and 
 		},
 	);
 
-	assert.deepEqual(output.content, [{ type: "toolCall", id: "call_1|ctc_1", name: "exec", arguments: { code: "canonical();" } }]);
+	assert.deepEqual(output.content, [{ type: "toolCall", id: "call_1|ctc_1", name: "exec", arguments: { code: "canonical();" }, namespace: "security" }]);
 	assert.equal(toolCallDeltas.join(""), JSON.stringify({ code: "canonical();" }));
-	assert.deepEqual(completedItems, [{ type: "custom_tool_call", id: "ctc_1", call_id: "call_1", name: "exec", status: "completed", input: "canonical();" }]);
+	assert.deepEqual(completedItems, [{ type: "custom_tool_call", id: "ctc_1", call_id: "call_1", name: "exec", status: "completed", namespace: "security", input: "canonical();" }]);
 });
 
 test("processResponsesStream omits an interrupted partial tool call from the final message", async () => {
