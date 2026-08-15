@@ -29,7 +29,7 @@ import { processWebSocketStream } from "./websocket-stream.ts";
 import { withRemoteCompactionV2Feature } from "../openai-responses/compaction-v2-feature.ts";
 import { captureCanonicalSessionToken, recordCanonicalSessionResponse, validateCanonicalSessionRequest } from "./session-continuity.ts";
 
-export type CodexProviderRuntimeConfig = Pick<CodexConversionConfig, "openai" | "beta"> & Partial<Pick<CodexConversionConfig, "compaction">>;
+export type CodexProviderRuntimeConfig = Pick<CodexConversionConfig, "openai" | "executionMode"> & Partial<Pick<CodexConversionConfig, "compaction">>;
 
 export interface CodexTransportRecoveryDependencies {
 	getConfig?: () => CodexProviderRuntimeConfig | undefined;
@@ -169,7 +169,9 @@ export function createCodexTransportStream<TApi extends Api>(
 	deps: CodexTransportRecoveryDependencies,
 ): AssistantMessageEventStream {
 	const runtimeConfig = deps.getConfig?.();
-	const responsesLite = deps.useResponsesLite?.(model) ?? (runtimeConfig?.beta.codeMode === true && supportsResponsesLiteModel(model.id));
+	const responsesLite = deps.useResponsesLite?.(model)
+		?? ((runtimeConfig?.executionMode === "code" || runtimeConfig?.executionMode === "notebook")
+			&& supportsResponsesLiteModel(model.id));
 	const grammarToolInputProperties = createGrammarToolInputProperties(context.tools, responsesLite);
 	const preferredTransport = getEffectiveCodexTransport(options?.transport, runtimeConfig?.openai);
 	const effectiveTransport = getEffectiveCodexTransport(options?.transport, runtimeConfig?.openai, options?.sessionId);

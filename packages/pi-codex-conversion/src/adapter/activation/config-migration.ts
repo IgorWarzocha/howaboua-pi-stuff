@@ -3,16 +3,40 @@ import {
 	isObject,
 	normalizeCodexVerbosity,
 	normalizeProviderList,
+	normalizeV2UserMessageRetention,
 	type CodexConversionConfig,
 } from "./config.ts";
+import { normalizeExecutionMode } from "./execution-mode.ts";
 
 export function migrateCodexConversionConfigIfNeeded(value: unknown): { migrated: boolean; config: unknown } {
 	if (!isObject(value)) return { migrated: false, config: value };
-	if (isObject(value["scope"]) || isObject(value["tools"]) || isObject(value["ui"]) || isObject(value["compaction"]) || isObject(value["notebook"]) || isObject(value["beta"]) || isObject(value["openai"])) {
+	if (normalizeExecutionMode(value["executionMode"]) || isObject(value["scope"]) || isObject(value["tools"]) || isObject(value["ui"]) || isObject(value["compaction"]) || isObject(value["notebook"]) || isObject(value["beta"]) || isObject(value["openai"])) {
 		const beta = isObject(value["beta"]) ? value["beta"] : undefined;
-		if (beta && typeof beta["responsesLite"] === "boolean" && typeof beta["codeMode"] !== "boolean") {
-			const { responsesLite, ...rest } = beta;
-			return { migrated: true, config: { ...value, beta: { ...rest, codeMode: responsesLite, responsesLite: false } } };
+		if (beta) {
+			const { beta: _beta, ...current } = value;
+			const openai = isObject(value["openai"]) ? value["openai"] : {};
+			const compaction = isObject(value["compaction"]) ? value["compaction"] : {};
+			return {
+				migrated: true,
+				config: {
+					...current,
+					executionMode: normalizeExecutionMode(value["executionMode"])
+						?? (beta["codeMode"] === true ? "code" : "normal"),
+					openai: {
+						...openai,
+						proxyResponsesLite: typeof openai["proxyResponsesLite"] === "boolean"
+							? openai["proxyResponsesLite"]
+							: beta["responsesLite"] === true,
+					},
+					compaction: {
+						...compaction,
+						v2UserMessageRetention:
+							normalizeV2UserMessageRetention(compaction["v2UserMessageRetention"])
+								?? normalizeV2UserMessageRetention(beta["v2UserMessageRetention"])
+								?? DEFAULT_CODEX_CONVERSION_CONFIG.compaction.v2UserMessageRetention,
+					},
+				},
+			};
 		}
 		return { migrated: false, config: value };
 	}
@@ -47,11 +71,12 @@ export function migrateCodexConversionConfigIfNeeded(value: unknown): { migrated
 		},
 		compaction: {
 			responsesCompaction: typeof value["responsesCompaction"] === "boolean" ? value["responsesCompaction"] : DEFAULT_CODEX_CONVERSION_CONFIG.compaction["responsesCompaction"],
+			v2UserMessageRetention: DEFAULT_CODEX_CONVERSION_CONFIG.compaction.v2UserMessageRetention,
 		},
-		beta: { ...DEFAULT_CODEX_CONVERSION_CONFIG.beta },
 		openai: {
 			fast: typeof value["fast"] === "boolean" ? value["fast"] : DEFAULT_CODEX_CONVERSION_CONFIG.openai["fast"],
 			verbosity: normalizeCodexVerbosity(value["verbosity"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai["verbosity"],
+			proxyResponsesLite: DEFAULT_CODEX_CONVERSION_CONFIG.openai.proxyResponsesLite,
 			forceCachedWebSockets: typeof value["forceCachedWebSockets"] === "boolean" ? value["forceCachedWebSockets"] : DEFAULT_CODEX_CONVERSION_CONFIG.openai["forceCachedWebSockets"],
 			cacheDiagnostics: DEFAULT_CODEX_CONVERSION_CONFIG.openai.cacheDiagnostics,
 			harnessIdentifierHeader: DEFAULT_CODEX_CONVERSION_CONFIG.openai["harnessIdentifierHeader"],

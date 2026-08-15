@@ -62,12 +62,13 @@ function prewarmReasoningOption(level: ReturnType<ExtensionAPI["getThinkingLevel
 }
 
 export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRuntime {
+	const initialConfig = readEffectiveCodexConversionConfig({ cwd: process.cwd(), projectTrusted: false });
 	const state: AdapterState = {
 		enabled: false,
 		cwd: process.cwd(),
 		promptSkills: [],
-		config: readEffectiveCodexConversionConfig({ cwd: process.cwd(), projectTrusted: false }),
-		sessionExecutionMode: "inherited",
+		config: initialConfig,
+		executionMode: initialConfig.executionMode,
 		codexTurnState: createCodexTurnState(),
 	};
 	const tracker = createExecCommandTracker();
@@ -104,7 +105,6 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 			tools,
 			reasoning,
 			openai: config.openai,
-			beta: config.beta,
 			compaction: config.compaction,
 			executionMode,
 		});
@@ -171,7 +171,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 							: rewriteCodexPrewarmProviderRequest(body, ctx, { ...state, config, executionMode }),
 					},
 					{
-						getConfig: () => ({ openai: config.openai, beta: config.beta, compaction: config.compaction }),
+						getConfig: () => ({ executionMode, openai: config.openai, compaction: config.compaction }),
 						useResponsesLite: (currentModel) => resolveCodexRuntimePlan({ model: currentModel }, config, executionMode).transport === "responses-lite",
 						turnState: state.codexTurnState,
 						getDiagnostics: () => diagnostics.sink(),

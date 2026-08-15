@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -37,6 +37,7 @@ test("trusted folder config overrides globals without crossing folder or process
 			globalConfigPath: globalPath,
 			env: {},
 		});
+		assert.equal(trusted.executionMode, "notebook");
 		assert.equal(trusted.openai.fast, true);
 		assert.equal(trusted.openai.verbosity, "high");
 		assert.equal(readEffectiveCodexConversionConfig({
@@ -87,7 +88,7 @@ test("folder scope materializes a full snapshot and returns cleanly to global in
 		}).openai.verbosity, "high");
 
 		assert.equal(clearFolderCodexConversionConfig(project, true).ok, true);
-		assert.deepEqual(JSON.parse(readFileSync(projectPath, "utf8")), { executionMode: "notebook" });
+		assert.equal(existsSync(projectPath), false);
 		assert.equal(readEffectiveCodexConversionConfig({
 			cwd: project,
 			projectTrusted: true,

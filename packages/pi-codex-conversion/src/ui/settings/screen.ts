@@ -7,7 +7,7 @@ import {
 import { SettingsList, truncateToWidth } from "@earendil-works/pi-tui";
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import type { CodexConversionConfigScope } from "../../adapter/activation/config-store.ts";
-import type { SessionExecutionMode } from "../../adapter/activation/execution-mode.ts";
+import type { ExecutionMode } from "../../adapter/activation/execution-mode.ts";
 import type { CodexLanVoiceServerStatus } from "../../voice/lan/controller.ts";
 import { formatVoiceShortcut } from "../../voice/setup.ts";
 import {
@@ -32,10 +32,6 @@ export interface CodexSettingsScreenOptions extends UsageTabOptions {
 		reload: () => CodexConversionConfig;
 		set: (scope: CodexConversionConfigScope) => CodexConversionConfig | undefined;
 	};
-	executionMode?: {
-		current: () => SessionExecutionMode;
-		set: (mode: SessionExecutionMode) => Promise<boolean>;
-	} | undefined;
 	lanVoiceServer?:
 		| {
 				status: () => CodexLanVoiceServerStatus;
@@ -96,14 +92,18 @@ export async function openCodexSettingsScreen(
 							: ["Defaults"],
 					},
 				},
-				...(activeTab === "adapter" && options.executionMode
+				...(activeTab === "adapter"
 					? [{
 							item: {
-								id: "sessionExecutionMode",
-								label: "Session execution mode",
-								currentValue: options.executionMode.current(),
-								values: ["inherited", "normal", "code", "notebook"],
+								id: "executionMode",
+								label: "Execution mode",
+								currentValue: draft.executionMode,
+								values: ["normal", "code", "notebook"],
 							},
+							update: (value: string, current: CodexConversionConfig) => ({
+								...current,
+								executionMode: value as ExecutionMode,
+							}),
 						}]
 					: []),
 				...(activeTab === "voice" && options.lanVoiceServer
@@ -164,14 +164,6 @@ export async function openCodexSettingsScreen(
 								list.updateValue(id, previousValue);
 								tui.requestRender();
 							});
-						return;
-					}
-					if (id === "sessionExecutionMode" && options.executionMode) {
-						const previousValue = options.executionMode.current();
-						void options.executionMode.set(value as SessionExecutionMode).then((changed) => {
-							list.updateValue(id, changed ? options.executionMode!.current() : previousValue);
-							tui.requestRender();
-						});
 						return;
 					}
 					if (!definition?.update) return;

@@ -160,8 +160,9 @@ type CodeModeModelRegistry = Pick<ModelRegistry, "getAll" | "getProvider" | "get
 type RegisteredProviderConfig = Parameters<ExtensionAPI["registerProvider"]>[1];
 
 function configuredProxyProviders(config: CodexConversionConfig, executionMode?: ExecutionMode): Set<string> {
-	const enabled = executionMode === "code" || executionMode === "notebook" || (executionMode === undefined && config.beta.codeMode);
-	return new Set(!config.voiceFeaturesOnly && enabled && config.beta.responsesLite
+	const mode = executionMode ?? config.executionMode;
+	const enabled = mode === "code" || mode === "notebook";
+	return new Set(!config.voiceFeaturesOnly && enabled && config.openai.proxyResponsesLite
 		? config.scope.additionalProviders.filter((provider) => provider !== "openai-codex")
 		: []);
 }

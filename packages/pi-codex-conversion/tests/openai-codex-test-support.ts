@@ -224,8 +224,8 @@ export function createRegisteredCodexProvider(options?: {
 
 	registerOpenAICodexCustomProvider(pi as never, {
 		getConfig: () => ({
+			executionMode: options?.codeMode ? "code" : "normal",
 			openai: DEFAULT_CODEX_CONVERSION_CONFIG.openai,
-			beta: { ...DEFAULT_CODEX_CONVERSION_CONFIG.beta, codeMode: options?.codeMode ?? false },
 		}),
 		turnState,
 		...(options?.onPreparedPayload ? { onPreparedPayload: options.onPreparedPayload as never } : {}),

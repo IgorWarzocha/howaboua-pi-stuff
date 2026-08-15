@@ -276,7 +276,7 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 	const compactedWindow = buildRemoteCompactionV2Window(
 		input,
 		compactResult.compaction,
-		(state.config.beta.v2UserMessageRetention ?? 64) * 1_000,
+		state.config.compaction.v2UserMessageRetention * 1_000,
 	);
 	try {
 		const details = createNativeCompactionDetails({

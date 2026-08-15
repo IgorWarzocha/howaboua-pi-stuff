@@ -1,6 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { readEffectiveCodexConversionConfig } from "../adapter/activation/config-store.ts";
-import { resolveExecutionMode } from "../adapter/activation/execution-mode.ts";
 import { syncAdapter } from "../adapter/activation/activation.ts";
 import { isAdapterRuntime, resolveCodexRuntimePlan, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import { isNativeCompactionDetails, NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, NATIVE_COMPACTION_DISPLAY_TEXT, NATIVE_COMPACTION_STRATEGY, type NativeCompactionDisplayEntry, type NativeCompactionUsage } from "../adapter/compaction/types.ts";
@@ -96,9 +95,7 @@ export function registerCodexEvents(
 			projectTrusted: ctx.isProjectTrusted(),
 		});
 		state.weeklyUsageLeft = undefined;
-		const executionMode = resolveExecutionMode(ctx);
-		state.executionMode = executionMode.effective;
-		state.sessionExecutionMode = executionMode.session;
+		state.executionMode = state.config.executionMode;
 		state.activeProviderSystemPrompt = undefined;
 		state.voiceSystemPromptOverride = undefined;
 		state.canonicalAliasEndpoint = undefined;
@@ -153,9 +150,6 @@ export function registerCodexEvents(
 	});
 	pi.on("session_tree", async (_event, ctx) => {
 		const previousMode = state.executionMode;
-		const executionMode = resolveExecutionMode(ctx);
-		state.executionMode = executionMode.effective;
-		state.sessionExecutionMode = executionMode.session;
 		state.activeProviderSystemPrompt = undefined;
 		state.voiceSystemPromptOverride = undefined;
 		runtime.resetTransport(ctx.sessionManager.getSessionId());

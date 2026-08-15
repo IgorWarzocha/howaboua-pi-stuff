@@ -17,11 +17,6 @@ import type { AdapterState } from "../../adapter/activation/state.ts";
 import type { CodexVoiceController } from "../../voice/controller.ts";
 import { createCodexVoiceControls } from "../../voice/controls.ts";
 import type { CodexLanVoiceServerController } from "../../voice/lan/controller.ts";
-import {
-	appendSessionExecutionMode,
-	resolveExecutionMode,
-	type SessionExecutionMode,
-} from "../../adapter/activation/execution-mode.ts";
 import { ROUTABLE_SETTINGS_TABS, parseSettingsTab, type SettingsTab } from "./tabs.ts";
 import { openCodexSettingsScreen } from "./screen.ts";
 
@@ -35,7 +30,6 @@ export function registerCodexCommand(
 	voice: CodexVoiceController,
 	lanVoice: CodexLanVoiceServerController,
 	onConfigApplied?: (config: CodexConversionConfig, ctx: ExtensionContext, previousConfig: CodexConversionConfig) => void,
-	onExecutionModeApplied?: (ctx: ExtensionContext) => Promise<void> | void,
 ): void {
 	function effectiveConfig(ctx: ExtensionContext): CodexConversionConfig {
 		return readEffectiveCodexConversionConfig({
@@ -47,6 +41,7 @@ export function registerCodexCommand(
 	function applyEffectiveConfig(ctx: ExtensionContext, previousConfig: CodexConversionConfig): void {
 		const config = effectiveConfig(ctx);
 		state.config = config;
+		state.executionMode = config.executionMode;
 		onConfigApplied?.(config, ctx, previousConfig);
 		syncAdapter(pi, ctx, state);
 	}
@@ -127,45 +122,11 @@ export function registerCodexCommand(
 					return readSelectedConfig();
 				},
 			},
-			executionMode: {
-				current: () => state.sessionExecutionMode,
-				set: (mode) => setSessionExecutionMode(ctx, mode),
-			},
 			lanVoiceServer: {
 				status: () => lanVoice.status(),
 				setEnabled: (enabled) => setLanVoiceServerEnabled(lanVoice, enabled, ctx),
 			},
 		});
-	}
-
-	async function setSessionExecutionMode(ctx: ExtensionContext, mode: SessionExecutionMode): Promise<boolean> {
-		const previousSessionMode = state.sessionExecutionMode;
-		const previousExecutionMode = state.executionMode;
-		appendSessionExecutionMode(pi, mode);
-		const resolved = resolveExecutionMode(ctx);
-		state.sessionExecutionMode = resolved.session;
-		state.executionMode = resolved.effective;
-		try {
-			await onExecutionModeApplied?.(ctx);
-			syncAdapter(pi, ctx, state);
-			return true;
-		} catch (error) {
-			appendSessionExecutionMode(pi, previousSessionMode);
-			state.sessionExecutionMode = previousSessionMode;
-			state.executionMode = previousExecutionMode;
-			let rollbackError: unknown;
-			try {
-				await onExecutionModeApplied?.(ctx);
-				syncAdapter(pi, ctx, state);
-			} catch (rollbackFailure) {
-				rollbackError = rollbackFailure;
-			}
-			ctx.ui.notify(
-				`Could not apply session execution mode: ${error instanceof Error ? error.message : String(error)}${rollbackError ? `. Rollback failed: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}` : ""}`,
-				"error",
-			);
-			return false;
-		}
 	}
 
 	pi.registerCommand("codex", {
@@ -234,5 +195,5 @@ function formatAllProvidersMode(value: CodexConversionConfig["scope"]["allProvid
 }
 
 function formatCodexSettings(config: CodexConversionConfig): string {
-	return `Codex settings: extension ${config.voiceFeaturesOnly ? "voice only" : "adapter and voice"}, providers ${formatAllProvidersMode(config.scope.allProviders)}, Rust binaries ${config.tools.customRustBinariesDir || "bundled"}, heavy prompt overwrite ${config.prompt.heavySystemPromptOverwrite ? "on" : "off"}, harness identifier ${config.openai.harnessIdentifierHeader ? "on" : "off"}, Code Mode ${config.beta.codeMode ? "on" : "off"}, Responses Lite ${config.beta.responsesLite ? "on" : "off"}, compaction V2 ${config.compaction.responsesCompaction ? "on" : "off"}, cache diagnostics ${config.openai.cacheDiagnostics}, fast ${config.openai.fast ? "on" : "off"}, verbosity ${config.openai.verbosity}`;
+	return `Codex settings: extension ${config.voiceFeaturesOnly ? "voice only" : "adapter and voice"}, execution ${config.executionMode}, providers ${formatAllProvidersMode(config.scope.allProviders)}, Rust binaries ${config.tools.customRustBinariesDir || "bundled"}, heavy prompt overwrite ${config.prompt.heavySystemPromptOverwrite ? "on" : "off"}, harness identifier ${config.openai.harnessIdentifierHeader ? "on" : "off"}, Proxy Responses Lite ${config.openai.proxyResponsesLite ? "on" : "off"}, compaction V2 ${config.compaction.responsesCompaction ? "on" : "off"}, cache diagnostics ${config.openai.cacheDiagnostics}, fast ${config.openai.fast ? "on" : "off"}, verbosity ${config.openai.verbosity}`;
 }

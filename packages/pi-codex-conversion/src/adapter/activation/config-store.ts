@@ -18,6 +18,7 @@ export interface EffectiveCodexConversionConfigOptions {
 export type CodexConversionConfigScope = "global" | "folder";
 
 const OWNED_CONFIG_KEYS = Object.keys(DEFAULT_CODEX_CONVERSION_CONFIG);
+const LEGACY_OWNED_CONFIG_KEYS = ["beta"];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === "object" && !Array.isArray(value);
@@ -92,12 +93,14 @@ export function readProjectCodexConversionDocument(cwd: string, projectTrusted: 
 	if (!projectTrusted) return undefined;
 	const path = getProjectCodexConversionConfigPath(cwd);
 	const parsed = readConfigDocument(path, "trusted project");
-	return isRecord(parsed) ? parsed : undefined;
+	if (!isRecord(parsed)) return undefined;
+	const migration = migrateCodexConversionConfigIfNeeded(parsed);
+	return isRecord(migration.config) ? migration.config : undefined;
 }
 
 export function hasFolderCodexConversionConfig(cwd: string, projectTrusted: boolean): boolean {
 	const project = readProjectCodexConversionDocument(cwd, projectTrusted);
-	return !!project && OWNED_CONFIG_KEYS.some((key) => key in project);
+	return !!project && [...OWNED_CONFIG_KEYS, ...LEGACY_OWNED_CONFIG_KEYS].some((key) => key in project);
 }
 
 function applyProcessOverrides(config: CodexConversionConfig, env: NodeJS.ProcessEnv): CodexConversionConfig {
@@ -143,7 +146,7 @@ export function clearFolderCodexConversionConfig(
 	const path = getProjectCodexConversionConfigPath(cwd);
 	const project = readProjectCodexConversionDocument(cwd, true);
 	if (!project) return { ok: true };
-	for (const key of OWNED_CONFIG_KEYS) delete project[key];
+	for (const key of [...OWNED_CONFIG_KEYS, ...LEGACY_OWNED_CONFIG_KEYS]) delete project[key];
 	try {
 		if (Object.keys(project).length === 0) rmSync(path, { force: true });
 		else writeConfigDocumentAtomic(path, project);
@@ -171,6 +174,7 @@ export function writeCodexConversionConfig(
 			}
 		}
 		clearAbsentOwnedOptionals(document, normalized);
+		for (const key of LEGACY_OWNED_CONFIG_KEYS) delete document[key];
 		writeConfigDocumentAtomic(configPath, document);
 		return { ok: true };
 	} catch (error) {

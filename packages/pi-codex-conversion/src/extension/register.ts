@@ -19,7 +19,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 	let cleanupProxyProvider: ReturnType<typeof registerCodeModeProxyProvider> | undefined;
 	try {
 		registerOpenAICodexCustomProvider(pi, {
-			getConfig: () => ({ openai: runtime.state.config.openai, beta: runtime.state.config.beta, compaction: runtime.state.config.compaction }),
+			getConfig: () => ({ executionMode: runtime.state.executionMode, openai: runtime.state.config.openai, compaction: runtime.state.config.compaction }),
 			useResponsesLite: (model) => resolveCodexRuntimePlan({ model }, runtime.state.config, runtime.state.executionMode).transport === "responses-lite",
 			turnState: runtime.state.codexTurnState,
 			getDiagnostics: () => runtime.diagnosticsSink(),
@@ -34,6 +34,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 		const tools = registerCodexTools(pi, runtime);
 		const ui = registerCodexUi(pi, runtime);
 		registerCodexCommand(pi, runtime.state, runtime.voice, runtime.lanVoice, (config, ctx, previousConfig) => {
+			const executionModeChanged = config.executionMode !== previousConfig.executionMode;
 			proxyProvider.applyConfig(config, ctx.modelRegistry);
 			tools.applyConfig(config);
 			ui.applyConfig(config, ctx, previousConfig);
@@ -46,6 +47,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 			}
 			if (
 				config.voiceFeaturesOnly !== previousConfig.voiceFeaturesOnly
+				|| executionModeChanged
 				|| config.prompt.heavySystemPromptOverwrite !== previousConfig.prompt.heavySystemPromptOverwrite
 				|| config.openai.fast !== previousConfig.openai.fast
 				|| config.openai.harnessIdentifierHeader !== previousConfig.openai.harnessIdentifierHeader
@@ -57,12 +59,13 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 				void codeMode.shutdownHost().catch((error: unknown) => {
 					ctx.ui.notify(`Could not stop Code Mode host: ${error instanceof Error ? error.message : String(error)}`, "warning");
 				});
+			} else if (executionModeChanged) {
+				void codeMode.shutdownHost()
+					.then(() => prepareCodeModeHost(codeMode, ctx))
+					.catch((error: unknown) => {
+						ctx.ui.notify(`Could not switch execution mode: ${error instanceof Error ? error.message : String(error)}`, "warning");
+					});
 			}
-		}, async (ctx) => {
-			runtime.resetTransport(ctx.sessionManager.getSessionId());
-			await codeMode.shutdownHost();
-			proxyProvider.applyConfig(runtime.state.config, ctx.modelRegistry);
-			prepareCodeModeHost(codeMode, ctx);
 		});
 		registerCodexEvents(pi, runtime, tools, ui, codeMode, proxyProvider);
 	} catch (registrationError) {

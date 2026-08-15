@@ -28,14 +28,14 @@ function createAdapterState(overrides: Partial<AdapterState["config"]> = {}): Ad
 		enabled: false,
 		cwd: process.cwd(),
 		promptSkills: [],
-		sessionExecutionMode: "inherited",
+		executionMode: overrides.executionMode ?? DEFAULT_CODEX_CONVERSION_CONFIG.executionMode,
 		codexTurnState: createCodexTurnState(),
 		config: {
 			...DEFAULT_CODEX_CONVERSION_CONFIG,
 			...overrides,
 			scope: { ...DEFAULT_CODEX_CONVERSION_CONFIG.scope, ...overrides.scope },
 			tools: { ...DEFAULT_CODEX_CONVERSION_CONFIG.tools, ...overrides.tools },
-			beta: { ...DEFAULT_CODEX_CONVERSION_CONFIG.beta, ...overrides.beta },
+			openai: { ...DEFAULT_CODEX_CONVERSION_CONFIG.openai, ...overrides.openai },
 		},
 	};
 }
@@ -66,7 +66,8 @@ test("Code Mode activation stays within its model, API, and provider scope", () 
 	for (const { model, configured, active, resolvedAliasTrusted } of cases) {
 		const pi = createToolHarness(["read", "bash", "edit", "write", "exec", "wait", "parallel"]);
 		const state = createAdapterState({
-			beta: { codeMode: true, responsesLite: true },
+			executionMode: "code",
+			openai: { ...DEFAULT_CODEX_CONVERSION_CONFIG.openai, proxyResponsesLite: true },
 			scope: { allProviders: "off", additionalProviders: configured ? [model.provider] : [] },
 		});
 		if (resolvedAliasTrusted) state.canonicalAliasEndpoint = {
@@ -82,14 +83,15 @@ test("Code Mode activation stays within its model, API, and provider scope", () 
 
 test("runtime plan keeps unsupported and non-Lite models on structured standard Responses", () => {
 	const config = createAdapterState({
-		beta: { codeMode: true, responsesLite: false },
+		executionMode: "code",
+		openai: { ...DEFAULT_CODEX_CONVERSION_CONFIG.openai, proxyResponsesLite: false },
 		scope: { allProviders: "off", additionalProviders: ["litellm"] },
 	}).config;
 	const pre56 = resolveCodexRuntimePlan(createContext({ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.5", baseUrl: CANONICAL_CODEX_BASE_URL }) as never, config);
 	const proxyWithoutLite = resolveCodexRuntimePlan(createContext({ provider: "litellm", api: "openai-responses", id: "gpt-5.6" }) as never, config);
 	const proxyWithLite = resolveCodexRuntimePlan(
 		createContext({ provider: "litellm", api: "openai-responses", id: "gpt-5.6" }) as never,
-		{ ...config, beta: { ...config.beta, responsesLite: true } },
+		{ ...config, openai: { ...config.openai, proxyResponsesLite: true } },
 	);
 
 	assert.equal(pre56.kind, "normal");
@@ -100,7 +102,10 @@ test("runtime plan keeps unsupported and non-Lite models on structured standard 
 });
 
 test("native Responses compaction stays scoped to OpenAI Codex and explicit providers", () => {
-	const config = createAdapterState({ scope: { allProviders: "on", additionalProviders: ["my-provider"] }, compaction: { responsesCompaction: true } }).config;
+	const config = createAdapterState({
+		scope: { allProviders: "on", additionalProviders: ["my-provider"] },
+		compaction: { ...DEFAULT_CODEX_CONVERSION_CONFIG.compaction, responsesCompaction: true },
+	}).config;
 
 	assert.equal(resolveCodexRuntimePlan(createContext({ provider: "openai", api: "openai-responses", id: "gpt-5" }) as never, config).nativeCompaction, false);
 	assert.equal(resolveCodexRuntimePlan(createContext({ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5", baseUrl: CANONICAL_CODEX_BASE_URL }) as never, config).nativeCompaction, true);

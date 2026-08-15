@@ -64,7 +64,9 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 	const runtimeConfig = deps.getConfig?.();
 	if (getEffectiveCodexTransport(options.transport, runtimeConfig?.openai, options.sessionId) === "sse") return;
 	if (!options.apiKey || !options.sessionId) return;
-	const responsesLite = deps.useResponsesLite?.(model) ?? (runtimeConfig?.beta.codeMode === true && supportsResponsesLiteModel(model.id));
+	const responsesLite = deps.useResponsesLite?.(model)
+		?? ((runtimeConfig?.executionMode === "code" || runtimeConfig?.executionMode === "notebook")
+			&& supportsResponsesLiteModel(model.id));
 	const grammarToolInputProperties = createGrammarToolInputProperties(context.tools, responsesLite);
 	const effectiveOptions = runtimeConfig?.compaction?.responsesCompaction
 		? { ...options, grammarToolInputProperties, headers: withRemoteCompactionV2Feature(options.headers) }

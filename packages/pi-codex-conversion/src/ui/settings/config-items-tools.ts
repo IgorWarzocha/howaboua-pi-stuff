@@ -15,15 +15,6 @@ export function buildToolsSettings(
 ): ConfigSetting[] {
 	return [
 		toggle(
-			"codeMode",
-			"GPT-5.6 Code Mode",
-			config.beta.codeMode,
-			(enabled, current) => ({
-				...current,
-				beta: { ...current.beta, codeMode: enabled },
-			}),
-		),
-		toggle(
 			"viewImageFallback",
 			"Text Image Descriptions",
 			config.tools.viewImageFallback,

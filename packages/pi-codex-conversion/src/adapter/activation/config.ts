@@ -1,3 +1,5 @@
+import { normalizeExecutionMode, type ExecutionMode } from "./execution-mode.ts";
+
 export type CodexVerbosity = "low" | "medium" | "high";
 export type CacheDiagnosticsMode = "off" | "status" | "status-and-log";
 export type AllProvidersMode = "off" | "on" | "extras";
@@ -52,6 +54,7 @@ export const V2_USER_MESSAGE_RETENTION_OPTIONS: readonly V2UserMessageRetention[
 	[16, 32, 64];
 
 export interface CodexConversionConfig {
+	executionMode: ExecutionMode;
 	voiceFeaturesOnly: boolean;
 	prompt: { heavySystemPromptOverwrite: boolean };
 	scope: { allProviders: AllProvidersMode; additionalProviders: string[] };
@@ -76,13 +79,11 @@ export interface CodexConversionConfig {
 		backgroundShellNextShortcut: string;
 		backgroundShellCloseShortcut: string;
 	};
-	compaction: { responsesCompaction: boolean };
-	notebook: { maxHeapMiB: number; profile?: string | undefined };
-	beta: {
-		codeMode: boolean;
-		responsesLite: boolean;
-		v2UserMessageRetention?: V2UserMessageRetention | undefined;
+	compaction: {
+		responsesCompaction: boolean;
+		v2UserMessageRetention: V2UserMessageRetention;
 	};
+	notebook: { maxHeapMiB: number; profile?: string | undefined };
 	voice: {
 		v3Voice: RealtimeV3Voice;
 		autoResumeRealtime: boolean;
@@ -102,6 +103,7 @@ export interface CodexConversionConfig {
 	openai: {
 		fast: boolean;
 		verbosity: CodexVerbosity;
+		proxyResponsesLite: boolean;
 		forceCachedWebSockets: boolean;
 		cacheDiagnostics: CacheDiagnosticsMode;
 		harnessIdentifierHeader: boolean;
@@ -110,6 +112,7 @@ export interface CodexConversionConfig {
 }
 
 export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
+	executionMode: "normal",
 	voiceFeaturesOnly: false,
 	prompt: { heavySystemPromptOverwrite: false },
 	scope: { allProviders: "off", additionalProviders: [] },
@@ -134,9 +137,8 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 		backgroundShellNextShortcut: "alt+e",
 		backgroundShellCloseShortcut: "alt+r",
 	},
-	compaction: { responsesCompaction: false },
+	compaction: { responsesCompaction: false, v2UserMessageRetention: 64 },
 	notebook: { maxHeapMiB: 4_096 },
-	beta: { codeMode: false, responsesLite: false, v2UserMessageRetention: 64 },
 	voice: {
 		v3Voice: "cove",
 		autoResumeRealtime: false,
@@ -153,6 +155,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	openai: {
 		fast: false,
 		verbosity: "low",
+		proxyResponsesLite: false,
 		forceCachedWebSockets: true,
 		cacheDiagnostics: "off",
 		harnessIdentifierHeader: false,
@@ -289,14 +292,16 @@ export function normalizeCodexConversionConfig(
 	const ui = isObject(value["ui"]) ? value["ui"] : {};
 	const compaction = isObject(value["compaction"]) ? value["compaction"] : {};
 	const notebook = isObject(value["notebook"]) ? value["notebook"] : {};
-	const beta = isObject(value["beta"]) ? value["beta"] : {};
 	const voice = isObject(value["voice"]) ? value["voice"] : {};
 	const openai = isObject(value["openai"]) ? value["openai"] : {};
 	const inputDevice = optionalString(voice["inputDevice"]);
 	const outputDevice = optionalString(voice["outputDevice"]);
 	const contextModel = normalizeVoiceContextModel(voice["contextModel"]);
 	const notebookProfile = normalizeNotebookProfile(notebook["profile"]);
+	const executionMode = normalizeExecutionMode(value["executionMode"])
+		?? DEFAULT_CODEX_CONVERSION_CONFIG.executionMode;
 	return {
+		executionMode,
 		voiceFeaturesOnly: bool(
 			value["voiceFeaturesOnly"],
 			DEFAULT_CODEX_CONVERSION_CONFIG.voiceFeaturesOnly,
@@ -392,6 +397,9 @@ export function normalizeCodexConversionConfig(
 				compaction["responsesCompaction"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.compaction["responsesCompaction"],
 			),
+			v2UserMessageRetention:
+				normalizeV2UserMessageRetention(compaction["v2UserMessageRetention"])
+					?? DEFAULT_CODEX_CONVERSION_CONFIG.compaction.v2UserMessageRetention,
 		},
 		notebook: {
 			maxHeapMiB: integerInRange(
@@ -401,19 +409,6 @@ export function normalizeCodexConversionConfig(
 				MAX_NOTEBOOK_HEAP_MIB,
 			),
 			...(notebookProfile ? { profile: notebookProfile } : {}),
-		},
-		beta: {
-			codeMode: bool(
-				beta["codeMode"],
-				DEFAULT_CODEX_CONVERSION_CONFIG.beta["codeMode"],
-			),
-			responsesLite: bool(
-				beta["responsesLite"],
-				DEFAULT_CODEX_CONVERSION_CONFIG.beta["responsesLite"],
-			),
-			v2UserMessageRetention:
-				normalizeV2UserMessageRetention(beta["v2UserMessageRetention"]) ??
-				DEFAULT_CODEX_CONVERSION_CONFIG.beta.v2UserMessageRetention,
 		},
 		voice: {
 			v3Voice:
@@ -469,6 +464,10 @@ export function normalizeCodexConversionConfig(
 			verbosity:
 				normalizeCodexVerbosity(openai["verbosity"]) ??
 				DEFAULT_CODEX_CONVERSION_CONFIG.openai["verbosity"],
+			proxyResponsesLite: bool(
+				openai["proxyResponsesLite"],
+				DEFAULT_CODEX_CONVERSION_CONFIG.openai.proxyResponsesLite,
+			),
 			forceCachedWebSockets: bool(
 				openai["forceCachedWebSockets"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.openai["forceCachedWebSockets"],

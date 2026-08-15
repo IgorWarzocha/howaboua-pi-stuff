@@ -75,7 +75,7 @@ function configuredProvider(ctx: RuntimeContext, config: CodexConversionConfig):
 }
 
 function proxySupportsCodeMode(ctx: RuntimeContext, config: CodexConversionConfig): boolean {
-	if (!config.beta.responsesLite || !configuredProvider(ctx, config) || !isOpenAIResponsesContext(ctx)) return false;
+	if (!config.openai.proxyResponsesLite || !configuredProvider(ctx, config) || !isOpenAIResponsesContext(ctx)) return false;
 	const modelId = ctx.model?.id;
 	if (!modelId) return false;
 	const id = modelId.includes("/") ? (modelId.split("/").pop() ?? modelId) : modelId;
@@ -154,13 +154,12 @@ export function resolveCodexRuntimePlan(
 		&& (config.scope.allProviders === "on" || isConfigured || isCodexLikeModel(ctx.model));
 	if (!active) return { ...base, kind: "inactive", toolNames: [], prompt: undefined, transport: undefined };
 	const nativeCompaction = config.compaction.responsesCompaction && effectiveOpenAICodex;
-	const requestedCodeMode = executionMode === "code" || executionMode === "notebook"
-		? executionMode
-		: executionMode === "normal"
+	const configuredExecutionMode = executionMode ?? config.executionMode;
+	const requestedCodeMode = configuredExecutionMode === "code" || configuredExecutionMode === "notebook"
+		? configuredExecutionMode
+		: configuredExecutionMode === "normal"
 			? undefined
-			: config.beta.codeMode
-				? "code"
-				: undefined;
+			: undefined;
 	if (requestedCodeMode && codeModeEligible(ctx, config)) {
 		if (requestedCodeMode === "notebook") {
 			return { ...base, kind: "notebook", toolNames: [...NOTEBOOK_MODE_TOOL_NAMES], prompt: "notebook", transport: "responses-lite", nativeCompaction };
