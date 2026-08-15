@@ -69,39 +69,22 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 3.0.14
+### @howaboua/pi-codex-conversion — 3.0.15
 
 ### Changes
 
-- [#273](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/273) [`d0dbb06`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/d0dbb0619d9bd3bc965c2e17ae15f9fe9acfdc81) Thanks [@howaclawa](https://github.com/howaclawa)!:
-  - Show the exact provider code when OpenAI blocks a Codex request without identifying the reason.
+- [#292](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/292) [`06aff78`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/06aff787778630394e122b89821c33f599d00bb2) Thanks [@howaclawa](https://github.com/howaclawa)! - Expand pi-codex-conversion with persistent Notebook Mode, true Fast Mode, project-owned settings, and current Pi/Codex protocol support.
 
-- [#270](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/270) [`d7dbad4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/d7dbad4e6827d7ec61f3e7949cd60ca2875d9856) Thanks [@howaclawa](https://github.com/howaclawa)!:
-  - Await exec process-group termination and graceful bridge exit during shutdown.
-  - Contain wedged descendants and reject work after shutdown begins.
+  - **Notebook Mode:** Run Code Mode as a persistent Deno/TypeScript Jupyter kernel while keeping the same `exec` and `wait` workflow. Serializable state survives cells and restarts; deliberate bindings can be shared across project sessions, and agents discover and leave reusable project helpers without exposing private session scratch.
+  - **Notebook operations:** Add named reusable profiles, inspect/pin/prune/reset/restart controls, one-shot Deno diagnostics, recoverable `.ipynb` journals, memory telemetry, expandable nested-tool traces, and conflict-aware concurrent project state.
+  - **Notebook resilience:** Bound kernel cancellation, cleanup, wire messages, and journal retention; emit interoperable notebook cell IDs; reject malformed dependency inventories and conflict payloads before reading or deleting state.
+  - **Safer notebook dependencies:** Require approval for new exact-version npm imports, show packages already available to the kernel, and lazily install verified Deno 2.9.5 builds on Linux, macOS, and Windows for x64 and ARM64.
+  - **Real Fast Mode:** Activate ChatGPT Codex priority processing across WebSocket, SSE, prewarm, reconnect, retry, and native compaction while preserving ordinary request identity when Fast Mode is off. Renamed providers and monitoring proxies retain the appropriate Codex transport behavior.
+  - **Project settings:** Let trusted projects switch `/codex` from global defaults to a complete `.pi/pi-codex-conversion.json` snapshot. Normal, Code, or Notebook execution persists in the selected scope, while independently launched workers can force Fast Mode without changing other Pi sessions. Retire the old `beta` settings bag by migrating its values to execution, OpenAI transport, and compaction settings.
+  - **Models and tool contracts:** Add gated Daybreak Blue and Daybreak Red cybersecurity models, honor Pi's opt-in strict tool schemas, load deferred tools through native GPT-5.6 `additional_tools`, preserve terminal `end_turn`, and carry namespaced tool identities through stock, renamed, proxy, Code, and Notebook routes.
+  - **Compatibility and security:** Require Pi 0.84.2 or newer and update Undici to patched 8.10.0.
 
-- [#263](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/263) [`85b0a1f`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/85b0a1f3f22a4e6f8c98211fefe8388c3be39d29) Thanks [@howaclawa](https://github.com/howaclawa)!:
-  - Follow system audio defaults unless an endpoint is pinned.
-  - Keep successfully rerouted output streams active.
-  - Share guided first-run and manual audio setup.
-
-- [#268](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/268) [`df747db`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/df747dbc74520d11f7e56e3d85e2df81f5facba2) Thanks [@howaclawa](https://github.com/howaclawa)!:
-  - Show voice-context summarization progress.
-  - Greet users through the V3 speakable context channel when realtime sessions are ready.
-  - Warn in Pi and the LAN controller when microphone input is too quiet.
-
-- [#269](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/269) [`6138ffd`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/6138ffd735bb4f7f80e451320dbfd0933a4acaa7) Thanks [@howaclawa](https://github.com/howaclawa)!:
-  - Add shared realtime voice prompts for ask prompts, Auto Trees, Shepherdr settlements, and review progress.
-  - Announce compaction and stream conversational Pi updates after two sentences.
-  - Keep silent tool-step summaries compatible without exposing Chat Completions thinking content.
-  - Configure delegation acknowledgements and deliver V3 delegations immediately.
-  - Preserve late delegations, calls after data-channel closure, prepared Code Mode prompts, and Codex cache continuity.
-  - Reduce LAN playback dropouts with one more jitter-buffer frame.
-
-- [#264](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/264) [`6f24d07`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/6f24d07224f806aad9213bfcb351e626d077116a) Thanks [@howaclawa](https://github.com/howaclawa)!:
-  - Show remaining weekly Codex subscription usage in the adapter statusline.
-  - Poll only for canonical ChatGPT subscription auth.
-  - Preserve cached usage across failed or superseded refreshes.
+- [#292](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/292) [`06aff78`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/06aff787778630394e122b89821c33f599d00bb2) Thanks [@howaclawa](https://github.com/howaclawa)! - Preserve canonical Codex subscription capabilities for provider aliases through their own credential scope without changing stock `openai-codex` transport behavior for custom endpoints. Honor Pi's configured `shellPath` in Code Mode execution and prompt context, with safer guidance for nested commands and zsh exit-status capture. Keep realtime voice prompts below the upstream per-item context limit without dropping content.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 

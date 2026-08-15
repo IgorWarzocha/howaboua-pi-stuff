@@ -1,27 +1,49 @@
 # Changelog
 
+## 3.0.15
+
+### Changes
+
+- [#292](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/292) [`06aff78`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/06aff787778630394e122b89821c33f599d00bb2) Thanks [@howaclawa](https://github.com/howaclawa)! - Expand pi-codex-conversion with persistent Notebook Mode, true Fast Mode, project-owned settings, and current Pi/Codex protocol support.
+
+  - **Notebook Mode:** Run Code Mode as a persistent Deno/TypeScript Jupyter kernel while keeping the same `exec` and `wait` workflow. Serializable state survives cells and restarts; deliberate bindings can be shared across project sessions, and agents discover and leave reusable project helpers without exposing private session scratch.
+  - **Notebook operations:** Add named reusable profiles, inspect/pin/prune/reset/restart controls, one-shot Deno diagnostics, recoverable `.ipynb` journals, memory telemetry, expandable nested-tool traces, and conflict-aware concurrent project state.
+  - **Notebook resilience:** Bound kernel cancellation, cleanup, wire messages, and journal retention; emit interoperable notebook cell IDs; reject malformed dependency inventories and conflict payloads before reading or deleting state.
+  - **Safer notebook dependencies:** Require approval for new exact-version npm imports, show packages already available to the kernel, and lazily install verified Deno 2.9.5 builds on Linux, macOS, and Windows for x64 and ARM64.
+  - **Real Fast Mode:** Activate ChatGPT Codex priority processing across WebSocket, SSE, prewarm, reconnect, retry, and native compaction while preserving ordinary request identity when Fast Mode is off. Renamed providers and monitoring proxies retain the appropriate Codex transport behavior.
+  - **Project settings:** Let trusted projects switch `/codex` from global defaults to a complete `.pi/pi-codex-conversion.json` snapshot. Normal, Code, or Notebook execution persists in the selected scope, while independently launched workers can force Fast Mode without changing other Pi sessions. Retire the old `beta` settings bag by migrating its values to execution, OpenAI transport, and compaction settings.
+  - **Models and tool contracts:** Add gated Daybreak Blue and Daybreak Red cybersecurity models, honor Pi's opt-in strict tool schemas, load deferred tools through native GPT-5.6 `additional_tools`, preserve terminal `end_turn`, and carry namespaced tool identities through stock, renamed, proxy, Code, and Notebook routes.
+  - **Compatibility and security:** Require Pi 0.84.2 or newer and update Undici to patched 8.10.0.
+
+- [#292](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/292) [`06aff78`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/06aff787778630394e122b89821c33f599d00bb2) Thanks [@howaclawa](https://github.com/howaclawa)! - Preserve canonical Codex subscription capabilities for provider aliases through their own credential scope without changing stock `openai-codex` transport behavior for custom endpoints. Honor Pi's configured `shellPath` in Code Mode execution and prompt context, with safer guidance for nested commands and zsh exit-status capture. Keep realtime voice prompts below the upstream per-item context limit without dropping content.
+
 ## 3.0.14
 
 ### Changes
 
 - [#273](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/273) [`d0dbb06`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/d0dbb0619d9bd3bc965c2e17ae15f9fe9acfdc81) Thanks [@howaclawa](https://github.com/howaclawa)!:
+
   - Show the exact provider code when OpenAI blocks a Codex request without identifying the reason.
 
 - [#270](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/270) [`d7dbad4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/d7dbad4e6827d7ec61f3e7949cd60ca2875d9856) Thanks [@howaclawa](https://github.com/howaclawa)!:
+
   - Await exec process-group termination and graceful bridge exit during shutdown.
   - Contain wedged descendants and reject work after shutdown begins.
 
 - [#263](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/263) [`85b0a1f`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/85b0a1f3f22a4e6f8c98211fefe8388c3be39d29) Thanks [@howaclawa](https://github.com/howaclawa)!:
+
   - Follow system audio defaults unless an endpoint is pinned.
   - Keep successfully rerouted output streams active.
   - Share guided first-run and manual audio setup.
 
 - [#268](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/268) [`df747db`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/df747dbc74520d11f7e56e3d85e2df81f5facba2) Thanks [@howaclawa](https://github.com/howaclawa)!:
+
   - Show voice-context summarization progress.
   - Greet users through the V3 speakable context channel when realtime sessions are ready.
   - Warn in Pi and the LAN controller when microphone input is too quiet.
 
 - [#269](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/269) [`6138ffd`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/6138ffd735bb4f7f80e451320dbfd0933a4acaa7) Thanks [@howaclawa](https://github.com/howaclawa)!:
+
   - Add shared realtime voice prompts for ask prompts, Auto Trees, Shepherdr settlements, and review progress.
   - Announce compaction and stream conversational Pi updates after two sentences.
   - Keep silent tool-step summaries compatible without exposing Chat Completions thinking content.
@@ -64,6 +86,7 @@
 ### Changes
 
 - [#239](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/239) [`7dbbfc8`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/7dbbfc8bc28746ec28b3142a73efc8e0b14d2ffa) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
+
   - Render delete-and-readd patches as file edits.
   - Clarify move-file syntax.
   - Keep failed-patch recovery concise and non-duplicated.
@@ -124,6 +147,7 @@
 ### Changes
 
 - [#212](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/212) [`a00d4ff`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/a00d4ffa416feec7b799138424a2456b2b9d474c) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
+
   - Bound unfinished exec polls with host backoff, surface pending output, finalize exited processes, and update the native PTY runner.
   - Preserve cross-platform apply-patch paths and refresh native image processing with safer validation, metadata preservation, and byte-bounded caching.
   - Route web search through Codex's cached endpoint and validate imagegen edits through the current image pipeline.
@@ -400,6 +424,7 @@
 ### Changes
 
 - [#100](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/100) [`14cfe97`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/14cfe97fcde447b9981d2ab755fcf65f1cc71ecf) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
+
   - Let bundled Code Mode spawn agents inherit the parent Codex extension and active tool surface.
 
 - [#100](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/100) [`14cfe97`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/14cfe97fcde447b9981d2ab755fcf65f1cc71ecf) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
@@ -428,6 +453,7 @@
 ### Changes
 
 - [#69](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/69) [`8b8ddb4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8b8ddb47812a6033b01f66e5442f282b4dc84d44) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
+
   - Fixes PATH-mode apply_patch previews with trailing shell commands and keeps PATH web_run/imagegen commands on the long wait path.
 
 - [#69](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/69) [`8b8ddb4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8b8ddb47812a6033b01f66e5442f282b4dc84d44) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
@@ -506,6 +532,7 @@
 ### Changes
 
 - [#35](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/35) [`2f03bc0`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/2f03bc04bfac5d7c41db7d3f53280baefa3a5ccc) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
+
   - Add the model-facing-api-design skill package.
   - Prevent fresh sessions from recursively shrinking reused model context windows.
   - Add a default-on Proxy tools override for web search, image generation, and fast mode.
@@ -525,6 +552,7 @@
 ### Changes
 
 - [#28](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/28) [`f852b3d`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/f852b3d94d3d7551e59f1dfa323d9978383b68d1) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
+
   - Preserve Codex WebSocket continuation across parallel tool-output replay drift and keep native web-search response items in Responses history for stable follow-up replay.
 
 - [#28](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/28) [`f852b3d`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/f852b3d94d3d7551e59f1dfa323d9978383b68d1) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
@@ -535,6 +563,7 @@
 ### Changes
 
 - [#19](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/19) [`d312d81`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/d312d81f82e24645f7cc59f4b6ead1834afd19f9) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
+
   - Align the custom OpenAI Codex provider with Pi 0.77 and 0.78 Responses fixes for explicit API-key handling, SSE abort cleanup, and fallback replay message IDs.
 
 - [#19](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/19) [`d312d81`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/d312d81f82e24645f7cc59f4b6ead1834afd19f9) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
