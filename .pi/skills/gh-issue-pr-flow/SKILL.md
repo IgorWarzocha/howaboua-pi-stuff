@@ -1,6 +1,6 @@
 ---
 name: gh-issue-pr-flow
-description: "This repo's GitHub/Changesets workflow: issues, parallel Herdr/worktree batches, branches, commits, PRs, review, release hygiene. Use for filing or implementing issues, package changes, PR delivery, or feedback."
+description: "This repo's GitHub/Changesets workflow: issues, parallel Herdr/JJ workspace batches, branches, commits, PRs, review, release hygiene. Use for filing or implementing issues, package changes, PR delivery, or feedback."
 ---
 
 # GitHub Issue and PR Flow
@@ -21,7 +21,7 @@ description: "This repo's GitHub/Changesets workflow: issues, parallel Herdr/wor
 
 Before the first commit or push, verify `gh api user --jq .login`, `git config user.name`, and `git config user.email`. Do not silently switch accounts or attribute collaborator work to the repository owner.
 
-- If the checkout's branch or dirty state belongs to another task, create a dedicated worktree and focused branch from fetched `origin/main`.
+- If the checkout belongs to another task, create a dedicated Git worktree/branch or, for a release stack, the JJ coordinator clone/workspace required by `../gh-stack/SKILL.md`.
 - A collaborator with push permission uses a focused branch on `origin` and opens the PR as themself. Use a fork only when the repository does not grant branch push access.
 - Preserve imported authorship: cherry-pick supplied commits where possible; otherwise retain their author metadata. New integration, repair, release, and documentation commits use the active contributor identity.
 - The PR author may update but not approve their own work. Surface known product choices under `Review focus`; an eligible maintainer owns approval and explicit merge direction.
@@ -47,42 +47,50 @@ Before the first commit or push, verify `gh api user --jq .login`, `git config u
 
 ### Dispatch a parallel issue batch
 
-Use a native stack to review focused release-batch layers, but assemble them into a dedicated release
-branch outside the stack. That branch is based on `origin/main`, named for the release, and becomes the
-one ordinary aggregate PR to `main`. Never add it as a top cap layer. This repo runs PR CI for every
-layer and Changesets/npm release work only on `push` to `main`; merging the stack must update only the
-release branch, while merging its final ordinary PR is the single release action.
+Use the JJ-first umbrella workflow in `../gh-stack/SKILL.md`: focused revisions/bookmarks become a
+native stack rooted on a staging branch, while a separate ordinary draft umbrella PR shows the
+cumulative batch against `main`. The umbrella is not a stack member and is the only PR that ultimately
+merges to `main`. Use the Git-managed fallback only when JJ is unavailable.
 
 Dispatch is a handoff, not a supervision loop:
 
 1. Read every issue first. Keep all issues in the requested release batch, identify dependencies and overlapping files/packages, then choose a stable bottom-to-top order. Exclude only work that should release separately.
-2. Fetch `origin/main` once and record its SHA. In a dedicated coordinator worktree, create a clean
-   release branch from that SHA, name it for the target release (for example `<package>/<version>`),
-   and push it. Follow `../gh-stack/references/create.md` to create and track every worker branch in
-   stack order before implementation starts. The release branch is the stack trunk, not a member. Do
-   not create sibling branches and retrofit them later.
-3. Detach the coordinator worktree to free the stack's current branch. Check out each tracked stack branch into its own worker worktree under a sibling root such as `<repo-parent>/.worktrees/<repo>/issue-123`.
-4. Require `HERDR_ENV=1` before controlling panels. Create one unfocused Herdr workspace per worktree, label it with the issue number and short title, and launch a named Pi session with `--model openai-codex/gpt-5.6-luna:high`. Parse workspace and pane IDs from Herdr's JSON; do not guess IDs.
-5. Give each worker this ownership contract: read the issue and repository instructions; implement only that issue directly on the assigned stack branch; add its changeset for shipped package work; run focused validation; cull weak tests; commit all intended work; do not push, open a PR, run the umbrella gate, invoke `gh stack`, or touch another worktree. If blocked, ask in this panel and wait for the user. When finished, report commit SHA, changed surface, checks, and risks, then remain idle.
-6. Return the issue → branch → worktree → Herdr workspace/pane map and stop. Do not wait for, read, message, steer, review, or decide readiness for dispatched agents. Resume only after an explicit user signal such as “workers X, Y, Z are ready.”
+2. Record fetched `main@origin`. In a dedicated colocated JJ coordinator clone, create and publish the
+   staging bookmark, then create described focused revisions/bookmarks in planned order without
+   publishing empty PRs. Follow `../gh-stack/references/create.md`.
+3. Create one JJ workspace per focused revision under a sibling workspace root. Enter each workspace
+   and `jj edit <layer>` so the worker owns that revision; do not use `git worktree` for JJ workspaces.
+4. Require `HERDR_ENV=1` before controlling panels. Create one unfocused Herdr workspace per JJ
+   workspace, label it with issue number/title, and launch a named Pi session with
+   `--model openai-codex/gpt-5.6-luna:high`. Parse workspace and pane IDs from Herdr JSON.
+5. Give each worker this contract: read the issue and repo instructions; implement only that focused
+   revision; add its package changeset; run focused validation; cull weak tests; leave a described,
+   conflict-free revision; do not push, open PRs, reorder revisions, move bookmarks, invoke `gh stack`,
+   or touch another workspace. If blocked, ask in-panel and wait. Report change ID/commit, surface,
+   checks, and risks, then remain idle.
+6. Return issue → JJ revision/bookmark → workspace → Herdr workspace/pane and stop. Do not supervise or
+   decide readiness until the user explicitly names ready workers.
 
 ### Resume a dispatched issue batch
 
-1. Treat the user's readiness signal—not panel status—as the phase gate. Inspect only the named ready worktrees and commits. Report dirty, missing, or conflicting results instead of silently completing worker tasks.
-2. Stop the ready panels and detach or remove their clean worktrees so Git can rewrite the checked-out branches. In the coordinator worktree, check out a stack branch, run the cascading `gh stack rebase`, resolve integration conflicts in the owning layer, and verify the complete order with `gh stack view --json`.
-3. Verify each shipped package layer owns its changeset, then apply the verification cull across the
-   complete stack and run the umbrella gate once from the cumulative top worker branch. Do not add the
-   release branch as a cap or create an empty placeholder commit.
-4. Run `gh stack submit --auto --open` to create native PRs and the stack object on GitHub.com. Verify the GitHub stack map, then edit every PR's title, body, issue linkage, base, and order. Use `Closes` only where the layer fully resolves its issue. Invoke configured review systems on each focused layer.
-5. Return the layer → PR map and stop again. Dispatch review-fix workers only when the user asks; each fix wave follows the same launch-and-handoff boundary. After the user declares review converged, rebase and push the affected upstack, run `gh stack submit --auto --open`, and report readiness.
-6. Assemble only on explicit user direction. Confirm every layer is approved and green and
-   `gh stack view --json` names the dedicated release branch as trunk, then merge the top layer with
-   `gh stack merge <top-layer-pr> --yes` and the repository's method. Verify `main` did not move, sync,
-   check out the release branch, run the umbrella gate, and open its ordinary aggregate PR to `main`.
-   Stop for its review and CI. Merge that final PR only on a separate explicit user direction; that
-   one ordinary merge triggers the release workflow.
+1. Treat the user's readiness signal—not panel status—as the phase gate. Inspect only the named ready JJ workspaces and revisions. Report dirty, missing, or conflicting results instead of silently completing worker tasks.
+2. Stop ready panels. In the coordinator, integrate JJ operations, inspect revisions, resolve conflicts
+   in the owning layer, and verify planned order. Forget/delete clean worker workspaces only after their
+   revisions are safely bookmarked.
+3. Verify each shipping layer owns its changeset, apply the verification cull across the stack, and run
+   the umbrella gate once from the cumulative top.
+4. Move/create the umbrella bookmark at that top. Link focused bookmarks bottom to top with `gh stack
+   link --base <staging> --open ...`, push the umbrella bookmark, and open its ordinary draft PR to
+   `main`. Verify native order, every direct base, and the cumulative umbrella diff; edit titles,
+   bodies, issue linkage, focused `Part of` links, validation, and release context.
+5. Return layer → focused PR plus umbrella PR and stop. Dispatch review-fix workspaces only when asked.
+   After review converges, update owner revisions, relink focused heads, move/push umbrella to the new
+   top, and report readiness.
+6. Assemble only on explicit direction through `../gh-stack/references/merge.md`. Native merge updates
+   staging and marks focused PRs merged; then move the umbrella to assembled staging and stop for its
+   fresh aggregate CI/review. Merge the umbrella to `main` only on a separate explicit direction.
 
-Use one integration PR without layer PRs when slices do not merit separate review or stack support is
+Use one umbrella PR without layer PRs when slices do not merit separate review or stack support is
 unavailable. Use ordinary separate PRs when work should release independently.
 
 ### Open or update a PR for existing work
@@ -108,7 +116,7 @@ unavailable. Use ordinary separate PRs when work should release independently.
 - Fetch/prune before choosing a base or repairing history.
 - Before using long-lived `dev` for a PR, reset it onto `origin/main` and cherry-pick only intended pending commits. Never merge `main` into `dev`.
 - Do not stash, reset, overwrite, or include unrelated local changes merely for convenience.
-- Do not amend or rewrite published shared history. If a push is rejected, inspect divergence before choosing rebase, reset, merge, or lease-protected force push.
+- Do not rewrite published shared history except deliberate focused-stack evolution under `../gh-stack/SKILL.md`. If a push is rejected, inspect divergence before choosing rebase, reset, merge, or lease-protected force push.
 
 ## Verification cull
 

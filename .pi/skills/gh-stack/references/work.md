@@ -1,81 +1,98 @@
-# Work with a stack
+# Work with an umbrella stack
 
-Use this phase for inspection, changes to an existing layer, cascading rebases, pushes, and topology
-repair. Use `review.md` for human, agent, or bot review passes.
+Keep one local-history owner. Determine whether the stack is JJ-linked or locally tracked by
+`gh-stack` before changing commits, refs, PR bases, or native topology.
 
-## Establish current state
-
-For read-only inspection:
+## Inspect a JJ-linked stack
 
 ```bash
-gh stack view --json
+jj git fetch --remote origin
+jj status
+jj workspace list
+jj log -r '<staging>::<umbrella>'
+gh api "repos/{owner}/{repo}/stacks?pull_request=<focused-pr>"
+gh pr view <umbrella-pr> --json baseRefName,headRefName,headRefOid,isDraft,state,statusCheckRollup
 ```
 
-Before changing a stacked branch, PR, base, or history:
+The Stacks REST array must contain exactly one matching stack. Inspect each focused PR as needed.
+Treat native membership/order and JJ's graph as separate facts; both must match the intended plan.
+Stop on conflicted bookmarks, unexpected remote movement, or a workspace owned by another task.
+
+## Edit a JJ layer
+
+```bash
+jj edit <owning-layer>
+# edit and validate
+jj describe -m "<accurate layer description>"
+jj status
+```
+
+JJ automatically rebases descendants when an ancestor is rewritten. Inspect every descendant and
+resolve recorded conflicts before publishing; never push conflict-bearing revisions. Move the
+umbrella explicitly to the current focused top when needed:
+
+```bash
+jj bookmark move <umbrella> --to <top> --allow-backwards
+jj git export --ignore-working-copy
+gh stack link --base <staging> <bottom> <next> <top>
+jj git push --remote origin --bookmark <umbrella>
+```
+
+JJ workspaces can leave the coordinator's colocated Git refs stale; forced export makes `gh stack
+link` see current bookmarks. `jj git push` uses remote-state safety equivalent to force-with-lease.
+Fetch and inspect bookmark conflicts rather than bypassing a rejected update. Rerun `link` with the
+complete focused order when heads or PR bases changed. Never include staging or umbrella in the list.
+
+## Parallel JJ workspaces
+
+Create each worker workspace from its intended parent revision:
+
+```bash
+jj workspace add <path> --name <worker> --revision <parent> -m "<layer description>"
+# in the new workspace
+jj edit <layer>
+```
+
+The worker edits its pre-bookmarked layer; JJ moves its bookmark and rebases descendants as the
+revision changes. Workers do not push, link, reorder, or move the umbrella. After explicit readiness,
+the coordinator integrates concurrent operations, inspects the graph, resolves conflicts in the
+owning layer, and reorders with `jj rebase` only when the planned chain changed.
+
+When a workspace is no longer needed, delete its directory only after its intended change is safely
+bookmarked, then run `jj workspace forget <worker>`. A workspace path is not a Git worktree; do not
+manage it with `git worktree`.
+
+## Restructure a JJ-linked stack
+
+Use `jj rebase --revisions`, `--insert-after`, or `--insert-before` to change local order, then inspect
+the exact graph and cumulative tree. `gh stack link` is additive and cannot remove or reorder existing
+remote members. For a real topology change:
+
+1. Record stack number, PR numbers, heads, bases, staging, and umbrella SHA.
+2. Rewrite and verify the JJ graph.
+3. `gh stack unstack <stack-number>` to remove only native grouping; keep branches and PRs.
+4. Relink the complete focused order with `gh stack link --base <staging> ...`.
+5. Verify every focused base, native order, and umbrella cumulative diff.
+
+Do not fake restructuring by changing PR bases alone; commits and JJ bookmarks must agree first.
+
+## Git-managed fallback
+
+For a stack created with local `gh-stack` tracking:
 
 ```bash
 gh stack sync
 # Treat "Sync aborted" as failure even when exit status is 0.
-gh stack view --json
-```
-
-`sync` fetches, reconciles GitHub membership, fast-forwards trunk, cascade-rebases when needed,
-atomically pushes active branches, refreshes PRs, and updates the stack object. It does not create PRs.
-If the target is absent or local and remote topology diverged, stop before rewriting.
-
-## Edit a layer
-
-```bash
 gh stack checkout <owning-pr-or-branch>
-# edit, validate, stage deliberately, commit
+# edit, validate, stage, commit
 gh stack rebase --upstack
 gh stack top
 gh stack push
+git branch --force <umbrella> HEAD
+git push --force-with-lease origin <umbrella>
 gh stack view --json
 ```
 
-`push` updates every active branch with per-branch force-with-lease and never updates PR metadata. It
-is not atomic: repair a rejected branch and rerun. Use `submit --auto --open` when PR creation or stack
-linkage also needs repair.
-
-Navigation commands `up`, `down`, `top`, `bottom`, and `trunk` are noninteractive. `checkout` accepts a
-stack number, PR number or URL, or locally tracked branch. A bare number resolves as stack first, then
-PR. Use a PR or stack number to fetch untracked remote state.
-
-## Rebase recovery
-
-`sync` restores all branches after a rebase conflict and exits 3. Recreate the conflict with `rebase`,
-resolve and stage it, then continue:
-
-```bash
-gh stack rebase
-git add <resolved-paths>
-gh stack rebase --continue
-```
-
-Repeat as needed. `gh stack rebase --abort` restores the entire stack. `--upstack` starts at the
-current branch; `--downstack` ends there; `--no-trunk` aligns stack branches without rebasing trunk.
-Starting while another rebase is active exits 7.
-
-## Divergence and restructuring
-
-When `sync` reports different local and GitHub chains, choose one authority deliberately:
-
-```bash
-# Keep remote composition
-gh stack unstack --local
-gh stack checkout <stack-or-pr>
-
-# Keep verified local ancestry
-gh stack unstack
-# Recreate from the recorded trunk and order through create.md.
-```
-
-`unstack` removes grouping, never branches or PRs. There is no noninteractive reorder or removal.
-For a structural change, record boundary SHAs, rewrite Git ancestry bottom to top, unstack, then rebuild
-through `create.md`; changing PR bases or metadata alone does not move commits.
-
-If a branch belongs to several stacks, commands may exit 6. Check out a branch unique to the intended
-stack or use an explicit stack number. A stale stack lock exits 8; wait for the owning process. An
-interrupted TUI modify exits 10 and may be cleared with `gh stack modify --abort`, but never start a
-new modify session noninteractively.
+On rebase conflict, run `gh stack rebase`, resolve and stage, then `gh stack rebase --continue`; abort
+restores the stack. Use the existing `gh-stack` divergence controls. Never introduce JJ midway through
+a locally tracked stack.
