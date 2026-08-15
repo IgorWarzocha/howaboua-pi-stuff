@@ -208,6 +208,12 @@ test("Fast Mode request identity is opt-in and transport invariant", () => {
 test("GPT-5.6 Code Mode sends the GPT-5.6 input-item contract", async () => {
 	const originalFetch = globalThis.fetch;
 	const registered = createRegisteredCodexProvider({ codeMode: true });
+	const deferredExec = { ...(codeModeTools[0] as object), name: "deferred_exec" } as never;
+	const messages = [
+		toolLoadingMessages[0],
+		toolLoadingMessages[1],
+		{ ...(toolLoadingMessages[2] as object), addedToolNames: ["example_tool", "deferred_exec"] },
+	] as never;
 	let captured: RequestInit | undefined;
 	try {
 		globalThis.fetch = (async (_url, init) => {
@@ -219,8 +225,8 @@ test("GPT-5.6 Code Mode sends the GPT-5.6 input-item contract", async () => {
 		}) as typeof fetch;
 
 		const events = await collectStream(registered.provider.streamSimple(
-			{ ...(codexModel as object), id: "gpt-5.6-luna", baseUrl: "https://chatgpt.example/backend-api", compat: { supportsToolSearch: true } } as never,
-			{ systemPrompt: "Lite instructions", messages: toolLoadingMessages, tools: [...codeModeTools, searchToolsTool, exampleTool] } as never,
+			{ ...(codexModel as object), id: "gpt-5.6-luna", baseUrl: "https://chatgpt.example/backend-api", compat: { supportsAdditionalTools: true, supportsToolSearch: true } } as never,
+			{ systemPrompt: "Lite instructions", messages, tools: [...codeModeTools, searchToolsTool, exampleTool, deferredExec] } as never,
 			{ apiKey: fakeJwt({ "https://api.openai.com/auth": { chatgpt_account_id: "acct_1" } }), transport: "sse", reasoning: "medium", toolChoice: "required" } as never,
 		));
 
@@ -237,9 +243,14 @@ test("GPT-5.6 Code Mode sends the GPT-5.6 input-item contract", async () => {
 		assert.deepEqual(body.input[0].tools[0].tools.map((tool: { type: string; name: string }) => [tool.type, tool.name]), [["custom", "exec"], ["function", "wait"], ["function", "search_tools"]]);
 		assert.equal("parameters" in body.input[0].tools[0].tools[0], false);
 		assert.deepEqual(body.input[1], { type: "message", role: "developer", content: [{ type: "input_text", text: "Lite instructions" }] });
-		const searchedTools = body.input.find((item: { type?: string }) => item.type === "tool_search_output").tools;
-		assert.deepEqual(searchedTools.map((tool: { type: string; name: string }) => [tool.type, tool.name]), [["namespace", "functions"]]);
-		assert.deepEqual(searchedTools[0].tools.map((tool: { name: string; defer_loading?: boolean }) => [tool.name, tool.defer_loading]), [["example_tool", true]]);
+		const additionalTools = body.input.filter((item: { type?: string }) => item.type === "additional_tools");
+		assert.equal(additionalTools.length, 2);
+		assert.deepEqual(additionalTools[1].tools.map((tool: { type: string; name: string }) => [tool.type, tool.name]), [["namespace", "functions"]]);
+		assert.deepEqual(additionalTools[1].tools[0].tools.map((tool: { type: string; name: string; defer_loading?: boolean }) => [tool.type, tool.name, tool.defer_loading]), [
+			["function", "example_tool", undefined],
+			["custom", "deferred_exec", undefined],
+		]);
+		assert.equal(body.input.some((item: { type?: string }) => item.type === "tool_search_output"), false);
 		const done = events.find((event) => (event as { type?: string }).type === "done") as { message: { endTurn?: boolean } };
 		assert.equal(done.message.endTurn, true);
 	} finally {

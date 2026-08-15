@@ -28,20 +28,26 @@ export function buildRequestBody<TApi extends Api>(
 ): ResponsesBody {
 	const compat = model.compat as {
 		supportsStrictMode?: boolean | undefined;
+		supportsAdditionalTools?: boolean | undefined;
 		supportsToolSearch?: boolean | undefined;
 	} | undefined;
 	const supportsStrictMode = compat?.supportsStrictMode ?? true;
-	const supportsToolSearch = compat?.supportsToolSearch ?? false;
+	const deferredToolsMode = compat?.supportsAdditionalTools
+		? "additional-tools"
+		: compat?.supportsToolSearch
+			? "tool-search"
+			: undefined;
 	const grammarToolInputProperties = options?.grammarToolInputProperties ?? new Map<string, string>();
 	const supportsOpenAIGrammarTools = grammarToolInputProperties.size > 0;
 	const allowedToolCallProviders = supportsOpenAIGrammarTools && !CODEX_TOOL_CALL_PROVIDERS.has(model.provider)
 		? new Set([...CODEX_TOOL_CALL_PROVIDERS, model.provider])
 		: CODEX_TOOL_CALL_PROVIDERS;
-	const toolPlacement = splitDeferredTools(context, supportsToolSearch);
+	const toolPlacement = splitDeferredTools(context, deferredToolsMode !== undefined);
 	const messages = convertResponsesMessages(model, context, allowedToolCallProviders, {
 		includeSystemPrompt: false,
 		grammarToolInputProperties,
 		deferredTools: toolPlacement.deferred,
+		deferredToolsMode,
 		toolOptions: { supportsStrictMode, supportsOpenAIGrammarTools },
 	});
 
