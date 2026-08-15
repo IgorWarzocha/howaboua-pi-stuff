@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { readCodexConversionConfig } from "../adapter/activation/config-store.ts";
+import { readEffectiveCodexConversionConfig } from "../adapter/activation/config-store.ts";
 import { resolveExecutionMode } from "../adapter/activation/execution-mode.ts";
 import { syncAdapter } from "../adapter/activation/activation.ts";
 import { isAdapterRuntime, resolveCodexRuntimePlan, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
@@ -91,7 +91,10 @@ export function registerCodexEvents(
 		runtime.resetTransport();
 		runtime.backgroundWidget.ctx = ctx;
 		state.cwd = ctx.cwd;
-		state.config = readCodexConversionConfig();
+		state.config = readEffectiveCodexConversionConfig({
+			cwd: ctx.cwd,
+			projectTrusted: ctx.isProjectTrusted(),
+		});
 		state.weeklyUsageLeft = undefined;
 		const executionMode = resolveExecutionMode(ctx);
 		state.executionMode = executionMode.effective;

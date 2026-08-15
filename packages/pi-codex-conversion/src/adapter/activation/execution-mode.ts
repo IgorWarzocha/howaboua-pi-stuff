@@ -1,11 +1,8 @@
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
 import {
-	CONFIG_DIR_NAME,
 	type ExtensionAPI,
 	type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { CODEX_CONVERSION_CONFIG_BASENAME } from "./config-store.ts";
+import { readProjectCodexConversionDocument } from "./config-store.ts";
 
 export const EXECUTION_MODE_SESSION_ENTRY = "pi-codex-conversion-execution-mode";
 
@@ -67,17 +64,7 @@ function readSessionExecutionMode(ctx: ExtensionContext): SessionExecutionMode {
 }
 
 function readProjectExecutionMode(ctx: ExtensionContext): ExecutionMode | undefined {
-	if (!ctx.isProjectTrusted()) return undefined;
-	const path = join(ctx.cwd, CONFIG_DIR_NAME, CODEX_CONVERSION_CONFIG_BASENAME);
-	if (!existsSync(path)) return undefined;
-	try {
-		const value = JSON.parse(readFileSync(path, "utf8")) as unknown;
-		if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
-		return normalizeExecutionMode((value as Record<string, unknown>)["executionMode"]);
-	} catch (error) {
-		console.warn(
-			`[pi-codex-conversion] Failed to read trusted project execution mode from ${path}: ${error instanceof Error ? error.message : String(error)}`,
-		);
-		return undefined;
-	}
+	return normalizeExecutionMode(
+		readProjectCodexConversionDocument(ctx.cwd, ctx.isProjectTrusted())?.["executionMode"],
+	);
 }

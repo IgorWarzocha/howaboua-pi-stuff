@@ -2,7 +2,7 @@ import { buildSessionContext, convertToLlm, type ExtensionAPI, type ExtensionCon
 import type { Context } from "@earendil-works/pi-ai";
 import { dirname } from "node:path";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
-import { getCodexConversionConfigPath, readCodexConversionConfig } from "../adapter/activation/config-store.ts";
+import { getCodexConversionConfigPath, readEffectiveCodexConversionConfig } from "../adapter/activation/config-store.ts";
 import { isAdapterRuntime, resolveCodexRuntimePlan, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import type { AdapterState } from "../adapter/activation/state.ts";
 import { rewriteCodexPrewarmProviderRequest, rewriteCodexProviderRequest } from "../adapter/provider-request.ts";
@@ -66,7 +66,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		enabled: false,
 		cwd: process.cwd(),
 		promptSkills: [],
-		config: readCodexConversionConfig(),
+		config: readEffectiveCodexConversionConfig({ cwd: process.cwd(), projectTrusted: false }),
 		sessionExecutionMode: "inherited",
 		codexTurnState: createCodexTurnState(),
 	};

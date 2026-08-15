@@ -6,11 +6,8 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { SettingsList, truncateToWidth } from "@earendil-works/pi-tui";
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
+import type { CodexConversionConfigScope } from "../../adapter/activation/config-store.ts";
 import type { SessionExecutionMode } from "../../adapter/activation/execution-mode.ts";
-import {
-	getCodexConversionConfigPath,
-	readCodexConversionConfig,
-} from "../../adapter/activation/config-store.ts";
 import type { CodexLanVoiceServerStatus } from "../../voice/lan/controller.ts";
 import { formatVoiceShortcut } from "../../voice/setup.ts";
 import {
@@ -28,6 +25,13 @@ export interface CodexSettingsScreenOptions extends UsageTabOptions {
 	initialConfig: CodexConversionConfig;
 	onChange: (nextConfig: CodexConversionConfig) => boolean;
 	initialTab?: SettingsTab | undefined;
+	configScope: {
+		current: () => CodexConversionConfigScope;
+		canUseFolder: boolean;
+		path: () => string;
+		reload: () => CodexConversionConfig;
+		set: (scope: CodexConversionConfigScope) => CodexConversionConfig | undefined;
+	};
 	executionMode?: {
 		current: () => SessionExecutionMode;
 		set: (mode: SessionExecutionMode) => Promise<boolean>;
@@ -64,6 +68,7 @@ export async function openCodexSettingsScreen(
 				return;
 			}
 			const result = await openCodexConfigInExternalEditor(
+				options.configScope.path(),
 				() => tui.stop(),
 				() => tui.start(),
 				(full) => tui.requestRender(full),
@@ -72,7 +77,7 @@ export async function openCodexSettingsScreen(
 				ctx.ui.notify(result.error, "warning");
 				return;
 			}
-			draft = readCodexConversionConfig();
+			draft = options.configScope.reload();
 			options.onChange(draft);
 			settingsList = createSettingsList();
 			tui.requestRender(true);
@@ -81,6 +86,16 @@ export async function openCodexSettingsScreen(
 		const createSettingsList = () => {
 			let list: SettingsList;
 			const buildSettings = (): ConfigSetting[] => [
+				{
+					item: {
+						id: "configScope",
+						label: "Settings scope",
+						currentValue: options.configScope.current() === "folder" ? "this folder" : "global",
+						values: options.configScope.canUseFolder
+							? ["global", "this folder"]
+							: ["global"],
+					},
+				},
 				...(activeTab === "adapter" && options.executionMode
 					? [{
 							item: {
@@ -105,7 +120,13 @@ export async function openCodexSettingsScreen(
 							},
 						]
 					: []),
-				...buildConfigSettings(activeTab, draft, theme, availableContextModels),
+				...buildConfigSettings(
+					activeTab,
+					draft,
+					theme,
+					availableContextModels,
+					options.configScope.path(),
+				),
 			];
 			list = new SettingsList(
 				buildSettings().map(({ item }) => item),
@@ -115,6 +136,18 @@ export async function openCodexSettingsScreen(
 					const definition = buildSettings().find(({ item }) => item.id === id);
 					if (definition?.action === "edit-config") {
 						void runEditConfig();
+						return;
+					}
+					if (id === "configScope") {
+						const previousValue = options.configScope.current() === "folder" ? "this folder" : "global";
+						const nextDraft = options.configScope.set(value === "this folder" ? "folder" : "global");
+						if (nextDraft) {
+							draft = nextDraft;
+							settingsList = createSettingsList();
+						} else {
+							list.updateValue(id, previousValue);
+						}
+						tui.requestRender(true);
 						return;
 					}
 					if (id === "lanVoiceServer" && options.lanVoiceServer) {
@@ -175,7 +208,7 @@ export async function openCodexSettingsScreen(
 				if (activeTab === "voice")
 					settingsLines = withSettingsDetails(
 						settingsLines,
-						formatVoiceDetails(theme, draft),
+						formatVoiceDetails(theme, draft, options.configScope.path()),
 					);
 				return [
 					rule(width, theme, "accent"),
@@ -249,6 +282,7 @@ function formatVoiceStatus(
 function formatVoiceDetails(
 	theme: Theme,
 	config: CodexConversionConfig,
+	configPath: string,
 ): string[] {
 	return [
 		theme.fg(
@@ -277,7 +311,7 @@ function formatVoiceDetails(
 		),
 		theme.fg(
 			"dim",
-			`  Change keybinds: ${getCodexConversionConfigPath()} (/reload to apply)`,
+			`  Change keybinds: ${configPath} (/reload to apply)`,
 		),
 		"",
 		theme.fg(

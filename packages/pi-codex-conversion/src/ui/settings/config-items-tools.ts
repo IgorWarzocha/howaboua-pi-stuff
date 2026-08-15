@@ -11,6 +11,7 @@ import { type ConfigSetting, setting, toggle } from "./config-items-shared.ts";
 export function buildToolsSettings(
 	config: CodexConversionConfig,
 	theme: Theme,
+	configPath: string = getCodexConversionConfigPath(),
 ): ConfigSetting[] {
 	return [
 		toggle(
@@ -112,7 +113,7 @@ export function buildToolsSettings(
 		}),
 		setting({
 			id: "customRustBinariesPath",
-			label: theme.fg("dim", getCodexConversionConfigPath()),
+			label: theme.fg("dim", configPath),
 			currentValue: "",
 		}),
 	];
