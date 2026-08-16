@@ -1,7 +1,8 @@
-import { cp, mkdir, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "bun";
+import { writePetDistribution } from "../src/authoring/pet-distribution.ts";
 import { loadPet } from "../src/pet-loader.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -11,6 +12,7 @@ const loaded = await loadPet(join(root, "pets"), "clawa");
 await rm(dist, { recursive: true, force: true });
 await mkdir(join(dist, "web"), { recursive: true });
 await mkdir(join(dist, "desktop"), { recursive: true });
+await mkdir(join(dist, "authoring"), { recursive: true });
 
 const results = await Promise.all([
   build({
@@ -39,6 +41,22 @@ const results = await Promise.all([
     external: ["electron"],
     minify: true,
   }),
+  build({
+    entrypoints: [join(root, "src/authoring/rebuild-cli.ts")],
+    outdir: join(dist, "authoring"),
+    naming: "rebuild.mjs",
+    target: "node",
+    format: "esm",
+    minify: true,
+  }),
+  build({
+    entrypoints: [join(root, "src/authoring/validate-cli.ts")],
+    outdir: join(dist, "authoring"),
+    naming: "validate.mjs",
+    target: "node",
+    format: "esm",
+    minify: true,
+  }),
 ]);
 
 for (const result of results) {
@@ -49,12 +67,4 @@ for (const result of results) {
 for (const file of ["index.html", "styles.css", "manifest.webmanifest", "pet-icon.svg"]) {
   await cp(join(root, "src", "web", file), join(dist, "web", file));
 }
-await writeFile(join(dist, "web", "catalog.json"), `${JSON.stringify(loaded.catalog)}\n`);
-const assets = new Set(
-  [...Object.values(loaded.catalog.actions), ...Object.values(loaded.catalog.directions)].map((action) => action.asset),
-);
-for (const asset of assets) {
-  const destination = join(dist, "web", asset);
-  await mkdir(dirname(destination), { recursive: true });
-  await cp(join(loaded.directory, asset), destination);
-}
+await writePetDistribution(root, loaded);

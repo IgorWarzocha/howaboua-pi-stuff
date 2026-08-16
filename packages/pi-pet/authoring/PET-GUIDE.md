@@ -29,10 +29,10 @@ Read `references/pet-format.md`, then:
 
 ## Rebuild and load
 
-After changing any packaged pet, resolve `PI_PET_PACKAGE` to the package directory containing this guide's `authoring/` directory, then run:
+The `/pet` prompt gives this guide's absolute installed path. Resolve the package root exactly two directories up from that path (`<package>/authoring/PET-GUIDE.md` → `<package>`), use it as the command working directory, and do not assume the current directory is a checkout or monorepo. After changing any packaged pet, run there:
 
 ```bash
-bun --cwd="$PI_PET_PACKAGE" run build
+npm run pet:rebuild
 ```
 
 Do not stop after validating one pet: the build regenerates the catalog and assets served by the GipPity miniapp. The running extension keeps its catalog in memory, so after a successful build tell the user to run `/reload`; slash commands are user actions. Reloading Pi reloads the catalog and restarts configured Electron displays. A separately opened browser display may also need a page refresh. Only then exercise new or repaired actions with `pet_show`.

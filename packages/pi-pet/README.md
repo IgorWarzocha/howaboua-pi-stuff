@@ -58,9 +58,7 @@ Authoring guides are loaded only when requested rather than exposed as permanent
 
 Pi Pet resolves `authoring/PET-GUIDE.md` from its own source or npm installation and asks Pi to follow it. That guide routes one-action work or full character hatching into the bundled references, deterministic atlas tooling, and visual review process.
 
-```bash
-bun --cwd=packages/pi-pet run build
-```
+Pi resolves its installed package from the guide path and runs `npm run pet:rebuild` there; authoring does not require Bun or a monorepo checkout.
 
 Refresh the GipPity display after rebuilding assets. Pet packages remain inert JSON and bounded PNG/WebP files; they cannot supply scripts, HTML, URLs, or commands.
 
