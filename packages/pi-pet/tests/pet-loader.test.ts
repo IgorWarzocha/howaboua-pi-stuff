@@ -8,6 +8,7 @@ import { loadPet } from "../src/pet-loader.ts";
 
 const ESCAPES_DIRECTORY_PATTERN = /escapes pet directory/;
 const OUTSIDE_PATTERN = /outside/;
+const UNKNOWN_FIELD_PATTERN = /unknown field/;
 
 function pngHeader(width: number, height: number): Buffer {
   const buffer = Buffer.alloc(24);
@@ -72,7 +73,21 @@ test("merges bounded custom actions", async () => {
   assert.equal(loaded.catalog.aliases["party"], "celebrate");
 });
 
-test("rejects out-of-bounds frames and symlink escapes", async () => {
+test("rejects unknown manifest fields, out-of-bounds frames, and symlink escapes", async () => {
+  const unknown = await fixture();
+  await writeFile(
+    join(unknown.pet, "pet.json"),
+    JSON.stringify({
+      id: "clawa",
+      displayName: "Clawa",
+      description: "Test pet.",
+      spriteVersionNumber: 2,
+      spritesheetPath: "spritesheet.png",
+      script: "nope.js",
+    }),
+  );
+  await assert.rejects(loadPet(unknown.root, "clawa"), UNKNOWN_FIELD_PATTERN);
+
   const first = await fixture();
   await writeFile(
     join(first.pet, "pet.pi.json"),

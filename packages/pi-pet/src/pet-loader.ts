@@ -70,6 +70,9 @@ function atlasFrames(row: number, durations: readonly number[]): PetFrame[] {
 
 function parseCodexManifest(value: unknown): PetCatalog {
   const manifest = record(value, "pet.json");
+  const allowed = new Set(["id", "displayName", "description", "spriteVersionNumber", "spritesheetPath"]);
+  for (const key of Object.keys(manifest))
+    if (!allowed.has(key)) throw new ContractError(`pet.json has unknown field: ${key}.`);
   const id = parseActionName(manifest["id"], "pet id");
   if (
     typeof manifest["displayName"] !== "string" ||

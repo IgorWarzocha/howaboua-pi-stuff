@@ -53,4 +53,8 @@ await writeFile(join(dist, "web", "catalog.json"), `${JSON.stringify(loaded.cata
 const assets = new Set(
   [...Object.values(loaded.catalog.actions), ...Object.values(loaded.catalog.directions)].map((action) => action.asset),
 );
-for (const asset of assets) await cp(join(loaded.directory, asset), join(dist, "web", asset));
+for (const asset of assets) {
+  const destination = join(dist, "web", asset);
+  await mkdir(dirname(destination), { recursive: true });
+  await cp(join(loaded.directory, asset), destination);
+}
