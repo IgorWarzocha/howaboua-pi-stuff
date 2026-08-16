@@ -95,10 +95,14 @@ function graphicalEnvironment() {
   }
   return environment;
 }
-async function buildIsCurrent(marker, output) {
+async function buildIsCurrent(marker, desktop) {
   try {
     const built = JSON.parse(await readFile(marker, "utf8"));
-    await access(output);
+    for (const path of [
+      "attention.js", "bridge.cjs", "bridge.js", "config.js", "cursor-provider.js", "main.js", "package.json", "preload.cjs",
+    ]) await access(join(desktop, "dist", "app", path));
+    const requireFromDesktop = createRequire(join(desktop, "package.json"));
+    await access(requireFromDesktop("electron"));
     return built.schemaVersion === 1
       && built.packageVersion === options.packageVersion
       && built.sourceDigest === options.sourceDigest;
@@ -110,10 +114,9 @@ async function main() {
   const root = join(homedir(), ".pi", "agent", "pi-pet");
   const desktop = join(root, "desktop");
   const marker = join(root, ".build.json");
-  const output = join(desktop, "dist", "app", "main.js");
   await mkdir(root, { recursive: true, mode: 0o700 });
   emit("check");
-  if (!(await buildIsCurrent(marker, output))) {
+  if (!(await buildIsCurrent(marker, desktop))) {
     if (stopping) return;
     emit("copy");
     for (const [relativePath, encoded] of Object.entries(options.files)) {
