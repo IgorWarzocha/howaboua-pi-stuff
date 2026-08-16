@@ -57,12 +57,22 @@ const { dirname, join, resolve, sep } = require("node:path");
 const { createRequire } = require("node:module");
 let activeChild;
 let stopping = false;
+let stopTimer;
+const ownerPid = process.ppid;
 const emit = phase => process.stdout.write(JSON.stringify({ type: "phase", phase }) + "\n");
 const bounded = value => value.length <= 8192 ? value : value.slice(value.length - 8192);
+const ownerIsRunning = () => { try { process.kill(ownerPid, 0); return true; } catch { return false; } };
 const heartbeat = setInterval(() => {
+  if (!ownerIsRunning()) { stop(); return; }
   process.stdout.write('{"type":"heartbeat"}\n');
 }, 1000);
-const stop = () => { stopping = true; clearInterval(heartbeat); activeChild?.kill(); };
+const stop = () => {
+  if (stopping) return;
+  stopping = true;
+  clearInterval(heartbeat);
+  activeChild?.kill();
+  stopTimer = setTimeout(() => { activeChild?.kill("SIGKILL"); process.exit(0); }, 3000);
+};
 for (const signal of ["SIGHUP", "SIGINT", "SIGTERM"]) process.on(signal, stop);
 process.stdout.once("close", stop);
 process.stdout.once("error", stop);
@@ -161,7 +171,7 @@ async function main() {
 }
 main()
   .catch(error => { process.stderr.write((error?.message || String(error)) + "\n"); process.exitCode = 1; })
-  .finally(() => clearInterval(heartbeat));
+  .finally(() => { clearInterval(heartbeat); clearTimeout(stopTimer); });
 `;
 
 export interface RemoteDesktopProcessSpec {
