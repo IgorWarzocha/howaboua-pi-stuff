@@ -106,13 +106,16 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.57
+### @howaboua/pi-extensions — 0.0.58
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-unicode-charts: Add terminal-native Unicode bar, line, scatter, sparkline, and heatmap rendering for explicit `chart` Markdown blocks.
+  - @howaboua/pi-shepherdr: Orchestrate Pi agents across named remote Herdr machines with automatic SSH bridge deployment and explicit reconnect controls.
+
+- Updated dependencies [[`b20e7de`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/b20e7de137fe89344bc15b06c7e7e0bf02a896b3)]:
+  - @howaboua/pi-shepherdr@0.1.2
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
@@ -168,17 +171,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-semantic-grep/CHANGELOG.md)
 
-### @howaboua/pi-shepherdr — 0.1.1
+### @howaboua/pi-shepherdr — 0.1.2
 
 ### Changes
 
-- [#269](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/269) [`6138ffd`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/6138ffd735bb4f7f80e451320dbfd0933a4acaa7) Thanks [@howaclawa](https://github.com/howaclawa)!:
-  - Add shared realtime voice prompts for ask prompts, Auto Trees, Shepherdr settlements, and review progress.
-  - Announce compaction and stream conversational Pi updates after two sentences.
-  - Keep silent tool-step summaries compatible without exposing Chat Completions thinking content.
-  - Configure delegation acknowledgements and deliver V3 delegations immediately.
-  - Preserve late delegations, calls after data-channel closure, prepared Code Mode prompts, and Codex cache continuity.
-  - Reduce LAN playback dropouts with one more jitter-buffer frame.
+- [#298](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/298) [`b20e7de`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/b20e7de137fe89344bc15b06c7e7e0bf02a896b3) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Orchestrate Pi agents across named remote Herdr machines with automatic SSH bridge deployment and explicit reconnect controls.
 
 [Full changelog](./packages/pi-shepherdr/CHANGELOG.md)
 
@@ -332,13 +329,16 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.62
+### @howaboua/pi-stuff — 0.0.63
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-unicode-charts: Add terminal-native Unicode bar, line, scatter, sparkline, and heatmap rendering for explicit `chart` Markdown blocks.
+  - @howaboua/pi-shepherdr: Orchestrate Pi agents across named remote Herdr machines with automatic SSH bridge deployment and explicit reconnect controls.
+
+- Updated dependencies [[`b20e7de`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/b20e7de137fe89344bc15b06c7e7e0bf02a896b3)]:
+  - @howaboua/pi-shepherdr@0.1.2
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 

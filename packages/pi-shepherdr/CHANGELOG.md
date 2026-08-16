@@ -1,5 +1,11 @@
 # @howaboua/pi-shepherdr
 
+## 0.1.2
+
+### Changes
+
+- [#298](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/298) [`b20e7de`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/b20e7de137fe89344bc15b06c7e7e0bf02a896b3) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Orchestrate Pi agents across named remote Herdr machines with automatic SSH bridge deployment and explicit reconnect controls.
+
 ## 0.1.1
 
 ### Changes

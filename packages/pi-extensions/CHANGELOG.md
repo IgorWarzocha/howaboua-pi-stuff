@@ -1,5 +1,16 @@
 # @howaboua/pi-extensions
 
+## 0.0.58
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-shepherdr: Orchestrate Pi agents across named remote Herdr machines with automatic SSH bridge deployment and explicit reconnect controls.
+
+- Updated dependencies [[`b20e7de`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/b20e7de137fe89344bc15b06c7e7e0bf02a896b3)]:
+  - @howaboua/pi-shepherdr@0.1.2
+
 ## 0.0.57
 
 ### Changes
