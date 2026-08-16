@@ -1,0 +1,2 @@
+- Owns reviewed service templates only; keep host-specific credentials and generated config out of this subtree.
+- Client tunnels must bind loopback and fail closed when forwarding cannot be established.

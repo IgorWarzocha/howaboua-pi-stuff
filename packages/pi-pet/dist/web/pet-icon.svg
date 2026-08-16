@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <title>Pi Pet</title>
+  <rect width="128" height="128" rx="30" fill="#20211d"/>
+  <circle cx="64" cy="64" r="43" fill="#ff941f"/>
+  <path d="M42 49h48M50 49v35M78 49v35M45 84h42" fill="none" stroke="#20211d" stroke-width="10" stroke-linecap="round"/>
+</svg>

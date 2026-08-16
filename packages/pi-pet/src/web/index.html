@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#171815" />
+    <meta name="description" content="A remote animated companion for Pi." />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/pet-icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css" />
+    <title>Pi Pet</title>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="masthead">
+        <a class="wordmark" href="/" aria-label="Pi Pet home">
+          <span class="wordmark-mark">π</span>
+          <span>pet</span>
+        </a>
+        <div class="connection" aria-live="polite">
+          <span id="connection-dot" class="connection-dot"></span>
+          <span id="connection-label">Connecting</span>
+        </div>
+      </header>
+
+      <section class="companion-layout" aria-label="Pi Pet companion">
+        <div id="stage" class="stage">
+          <div id="bubble" class="bubble" hidden></div>
+          <canvas id="pet-canvas" width="384" height="416" aria-label="Animated Pi Pet"></canvas>
+          <button id="wave-button" class="pet-hit-area" type="button" aria-label="Wave to the pet"></button>
+          <form id="desktop-prompt-form" class="desktop-prompt" hidden>
+            <div class="desktop-prompt-heading">
+              <label for="desktop-prompt-text">Talk to Clawa</label>
+              <button id="desktop-prompt-close" type="button" aria-label="Close prompt">×</button>
+            </div>
+            <textarea
+              id="desktop-prompt-text"
+              maxlength="8000"
+              rows="2"
+              placeholder="What should we do?"
+            ></textarea>
+            <div class="desktop-prompt-footer">
+              <span id="desktop-prompt-feedback" aria-live="polite"></span>
+              <button id="desktop-prompt-submit" type="submit">Send</button>
+            </div>
+          </form>
+          <p class="pointer-hint">Move nearby. Clawa is watching.</p>
+        </div>
+
+        <aside class="console">
+          <div class="identity">
+            <p class="eyebrow">Live companion</p>
+            <h1 id="pet-name">Pi Pet</h1>
+            <p id="pet-description" class="description">Connecting to the broker.</p>
+          </div>
+
+          <section class="now" aria-labelledby="now-title">
+            <div class="section-heading">
+              <h2 id="now-title">Now</h2>
+              <span id="display-count" class="quiet">0 displays</span>
+            </div>
+            <div class="current-state">
+              <span id="action-name" class="action-name">offline</span>
+              <span id="action-note" class="action-note">Waiting for Pi Pet</span>
+            </div>
+          </section>
+
+          <section aria-labelledby="preview-title">
+            <div class="section-heading">
+              <h2 id="preview-title">Preview</h2>
+              <button id="restore-action" class="text-button" type="button">Follow Pi</button>
+            </div>
+            <div id="quick-actions" class="quick-actions"></div>
+            <label class="select-label" for="action-select">Every action</label>
+            <select id="action-select"><option>Connect to load actions</option></select>
+          </section>
+
+          <section class="prompt-section" aria-labelledby="prompt-title">
+            <div class="section-heading">
+              <h2 id="prompt-title">Prompt Pi</h2>
+              <span id="agent-state" class="quiet">No session</span>
+            </div>
+            <form id="prompt-form">
+              <label class="sr-only" for="prompt-text">Prompt for the connected Pi session</label>
+              <textarea id="prompt-text" maxlength="8000" rows="3" placeholder="Send a thought back to Clawa…"></textarea>
+              <div class="prompt-footer">
+                <span id="prompt-feedback" class="prompt-feedback" aria-live="polite"></span>
+                <button id="prompt-submit" class="send-button" type="submit">Send to Pi</button>
+              </div>
+            </form>
+          </section>
+        </aside>
+      </section>
+    </main>
+
+    <dialog id="connect-dialog" class="connect-dialog">
+      <form id="connect-form" method="dialog">
+        <span class="dialog-mark">π</span>
+        <p class="eyebrow">Private connection</p>
+        <h2>Meet your Pi Pet</h2>
+        <p>Paste the display token from <code>pi-pet display-url</code>. It stays in this browser tab.</p>
+        <label for="display-token">Display token</label>
+        <input id="display-token" type="password" autocomplete="off" required minlength="32" />
+        <label for="device-name">This display</label>
+        <input id="device-name" type="text" maxlength="48" value="desk" pattern="[A-Za-z0-9][A-Za-z0-9 ._-]{0,47}" required />
+        <p id="connect-error" class="dialog-error" aria-live="polite"></p>
+        <button class="send-button" type="submit">Connect</button>
+      </form>
+    </dialog>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

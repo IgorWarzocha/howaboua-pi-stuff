@@ -1,0 +1,3 @@
+- Build and packaging orchestration uses Bun, while shipped broker code runs on Node and the desktop shell runs on Electron.
+- Change source before generated output; `dist/` is committed, while platform-specific `release/` bundles stay untracked.
+- Desktop packaging copies the pinned Electron runtime for the current platform only and must preserve its license files.

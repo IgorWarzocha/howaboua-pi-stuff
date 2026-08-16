@@ -1,0 +1,6 @@
+- Keep the broker loopback-only by default; network exposure requires an explicit user decision and matching security review.
+- Pet manifests and browser input are untrusted data: validate at boundaries, bound sizes, and never execute pet-provided code.
+- Keep the protocol source in `src/protocol/`; server, renderer, and extension must not duplicate message contracts.
+- `bun run ai:check:strict` MUST pass before launching or installing anything on desktop or laptop.
+- Generated `dist/` is distributable output; change source first and rebuild it in the same change.
+- Read the nearest nested `AGENTS.md` before editing a subtree.

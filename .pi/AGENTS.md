@@ -1,0 +1,2 @@
+- Keep Pi Pet project-scoped through `settings.json`; never add it to global Pi settings.
+- Session history for this monorepo lives under `.pi/sessions/`.

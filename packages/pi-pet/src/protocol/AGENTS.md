@@ -1,0 +1,2 @@
+- Owns wire and normalized pet contracts; derive runtime types and validators together here.
+- Reject malformed external data explicitly—do not add coercive or silent fallbacks.

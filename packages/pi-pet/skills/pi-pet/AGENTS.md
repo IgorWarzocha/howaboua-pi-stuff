@@ -1,0 +1,2 @@
+- Teach control and authoring workflows here; machine-readable action truth remains in the pet catalog.
+- Keep core workflow in `SKILL.md`, deterministic checks in the CLI, and conditional detail in references.

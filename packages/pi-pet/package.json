@@ -1,0 +1,90 @@
+{
+  "name": "@howaboua/pi-pet",
+  "version": "0.1.0",
+  "description": "A remote-capable animated companion and prompt surface for Pi.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
+    "directory": "packages/pi-pet"
+  },
+  "homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-pet#readme",
+  "bugs": {
+    "url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
+  },
+  "type": "module",
+  "main": "./dist/desktop/main.mjs",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pet"
+  ],
+  "files": [
+    "README.md",
+    "SECURITY.md",
+    "LICENSE",
+    "deploy",
+    "dist",
+    "docs",
+    "extensions",
+    "pets",
+    "skills",
+    "src/config.ts",
+    "src/protocol/index.ts",
+    "!**/AGENTS.md",
+    "!**/__pycache__",
+    "!**/*.pyc",
+    "!**/.venv"
+  ],
+  "bin": {
+    "pi-pet": "./dist/pi-pet.mjs"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions/index.ts"
+    ],
+    "skills": [
+      "./skills"
+    ]
+  },
+  "scripts": {
+    "build": "bun scripts/build.mjs",
+    "desktop:package": "bun run build && bun scripts/package-desktop.mjs",
+    "desktop:start": "electron .",
+    "pet:hatch:test": "uv run --project skills/hatch-pi-pet --locked python -m unittest discover -s skills/hatch-pi-pet/tests -p 'test_*.py' -v",
+    "typecheck": "tsgo --noEmit",
+    "test": "node --test --experimental-strip-types tests/*.test.ts",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "lint:strict": "biome check --error-on-warnings .",
+    "knip": "knip",
+    "deadcode": "knip",
+    "ai:check": "biome check . && tsgo --noEmit --noCheck && knip && bun run pet:hatch:test && bun run test && bun run build",
+    "ai:check:strict": "biome check --error-on-warnings . && tsgo --noEmit && knip && bun run pet:hatch:test && bun run test && bun run build",
+    "check": "bun run ai:check:strict",
+    "prepack": "bun run check",
+    "pack:dry": "npm pack --dry-run"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "bun@1.3.14",
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.3",
+    "@earendil-works/pi-coding-agent": "0.84.1",
+    "@earendil-works/pi-tui": "0.84.1",
+    "@types/node": "^24.10.0",
+    "electron": "41.0.2",
+    "knip": "^6.29.0",
+    "typebox": "1.3.7",
+    "@typescript/native-preview": "^7.0.0-dev.20260519.1",
+    "typescript": "^6.0.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

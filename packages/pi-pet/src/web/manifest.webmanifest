@@ -1,0 +1,16 @@
+{
+  "name": "Pi Pet",
+  "short_name": "Pi Pet",
+  "description": "A remote animated companion for Pi.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#171815",
+  "theme_color": "#171815",
+  "icons": [
+    {
+      "src": "/pet-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+- Keep the desktop process a thin native shell around the broker-hosted display; agent runtime and pet protocol stay elsewhere.
+- Validate desktop configuration before opening a window. Keep `sandbox` and `contextIsolation` enabled and Node integration disabled.
+- Permit navigation only within the configured broker origin; new windows and permissions fail closed.
+- A desktop launch requires a passing `bun run ai:check:strict`; verify transparency with a captured native window before remote installation.
+- Attention preferences are local desktop state: persist them atomically and never push snooze/quiet policy into the broker.
+- The preload bridge is cursor-position only: validate IPC in `bridge.ts` and expose no generic Electron or Node access.

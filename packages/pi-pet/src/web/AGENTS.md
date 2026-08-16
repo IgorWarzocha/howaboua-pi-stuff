@@ -1,0 +1,4 @@
+- Keep rendering transport-agnostic: normalized catalog/state in, user intent out.
+- Animation timing comes from manifests; respect reduced motion and never evaluate pet content.
+- Verify material UI changes in a real browser at desktop and narrow widths.
+- The native compact prompt reuses the display prompt endpoint; do not add a desktop-only conversation transport.

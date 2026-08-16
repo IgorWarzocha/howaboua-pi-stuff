@@ -1,0 +1,10 @@
+node_modules/
+.venv/
+__pycache__/
+.DS_Store
+*.log
+coverage/
+release/
+.pi-pet-test/
+.pi-pet-runs/
+.pi/semantic-grep.sqlite*

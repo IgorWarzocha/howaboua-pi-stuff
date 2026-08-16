@@ -1,0 +1,2 @@
+- Pet packages are inert data only: manifests and bounded image assets, never scripts or markup execution.
+- Preserve source/provenance notes and validate every changed atlas before packaging.

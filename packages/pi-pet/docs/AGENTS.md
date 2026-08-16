@@ -1,0 +1,2 @@
+- Keep product setup in `README.md`; use this subtree for architecture, protocol, security, and evidence detail.
+- Distinguish verified behavior from inference and keep deployment instructions loopback-first.

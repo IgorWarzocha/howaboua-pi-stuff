@@ -2,6 +2,10 @@ node_modules
 .DS_Store
 *.tgz
 .pi/*
+!.pi/AGENTS.md
+!.pi/settings.json
+!.pi/sessions/
+!.pi/sessions/**
 !.pi/skills/
 !.pi/skills/**
 !.pi/prompts/

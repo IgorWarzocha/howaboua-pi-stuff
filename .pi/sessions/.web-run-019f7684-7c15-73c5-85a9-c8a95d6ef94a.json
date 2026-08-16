@@ -1,0 +1,3020 @@
+{
+  "search_results": [
+    {
+      "ref_id": "turn0search0",
+      "title": "OpenAI Adds Animated AI Pets to Codex Coding App",
+      "url": "https://tech.yahoo.com/ai/chatgpt/articles/openai-adds-animated-ai-pets-120000859.html?utm_source=openai",
+      "source": "tech.yahoo.com"
+    },
+    {
+      "ref_id": "turn0search1",
+      "title": "skills/skills/.curated/hatch-pet/SKILL.md at main · openai/skills · GitHub",
+      "url": "https://github.com/openai/skills/blob/main/skills/.curated/hatch-pet/SKILL.md?utm_source=openai",
+      "source": "github.com"
+    },
+    {
+      "ref_id": "turn0search2",
+      "title": "Expose custom interaction hooks and APIs for Codex desktop pets · Issue #21657 · openai/codex",
+      "url": "https://github.com/openai/codex/issues/21657?utm_source=openai",
+      "source": "github.com"
+    },
+    {
+      "ref_id": "turn0search3",
+      "title": "Support configurable custom pet animation sequences and activity events · Issue #20863 · openai/codex",
+      "url": "https://github.com/openai/codex/issues/20863?utm_source=openai",
+      "source": "github.com"
+    },
+    {
+      "ref_id": "turn0search4",
+      "title": "codex/docs/agents_md.md at main · openai/codex · GitHub",
+      "url": "https://github.com/openai/codex/blob/main/docs/agents_md.md?utm_source=openai",
+      "source": "github.com"
+    },
+    {
+      "ref_id": "turn0search5",
+      "title": "codex/AGENTS.md at main · openai/codex · GitHub",
+      "url": "https://github.com/openai/codex/blob/main/AGENTS.md?utm_source=openai",
+      "source": "github.com"
+    },
+    {
+      "ref_id": "turn0search6",
+      "title": "Codex Desktop /pet is sent as a normal chat message instead of triggering pet command · Issue #20836 · openai/codex",
+      "url": "https://github.com/openai/codex/issues/20836?utm_source=openai",
+      "source": "github.com"
+    }
+  ],
+  "pages": [
+    {
+      "ref_id": "turn0view0",
+      "url": "https://github.com/openai/skills/blob/main/skills/.curated/hatch-pet/SKILL.md",
+      "title": "skills/skills/.curated/hatch-pet/SKILL.md at main · openai/skills · GitHub",
+      "content": [
+        {
+          "line": 1,
+          "text": "Uh oh! There was an error while loading. Please reload this page"
+        },
+        {
+          "line": 2,
+          "text": "."
+        },
+        {
+          "line": 3,
+          "text": "openai /"
+        },
+        {
+          "line": 4,
+          "text": "skills"
+        },
+        {
+          "line": 5,
+          "text": "Public"
+        },
+        {
+          "line": 6,
+          "text": "Notifications You must be signed in to change notification settings"
+        },
+        {
+          "line": 7,
+          "text": "Fork 1.6k"
+        },
+        {
+          "line": 8,
+          "text": "Star 23.9k"
+        },
+        {
+          "line": 9,
+          "text": "Code"
+        },
+        {
+          "line": 10,
+          "text": "Issues"
+        },
+        {
+          "line": 11,
+          "text": "58"
+        },
+        {
+          "line": 12,
+          "text": "Actions"
+        },
+        {
+          "line": 13,
+          "text": "Security and quality"
+        },
+        {
+          "line": 14,
+          "text": "0"
+        },
+        {
+          "line": 15,
+          "text": "Insights"
+        },
+        {
+          "line": 16,
+          "text": "Additional navigation options"
+        },
+        {
+          "line": 17,
+          "text": "Code Issues Actions Security and quality Insights Files"
+        },
+        {
+          "line": 18,
+          "text": "Expand file tree"
+        },
+        {
+          "line": 19,
+          "text": "main"
+        },
+        {
+          "line": 20,
+          "text": "Breadcrumbs"
+        },
+        {
+          "line": 21,
+          "text": "skills"
+        },
+        {
+          "line": 22,
+          "text": "/"
+        },
+        {
+          "line": 23,
+          "text": "skills"
+        },
+        {
+          "line": 24,
+          "text": "/"
+        },
+        {
+          "line": 25,
+          "text": ".curated"
+        },
+        {
+          "line": 26,
+          "text": "/"
+        },
+        {
+          "line": 27,
+          "text": "hatch-pet"
+        },
+        {
+          "line": 28,
+          "text": "/"
+        },
+        {
+          "line": 29,
+          "text": "SKILL.md"
+        },
+        {
+          "line": 30,
+          "text": "Copy path"
+        },
+        {
+          "line": 31,
+          "text": "Blame"
+        },
+        {
+          "line": 32,
+          "text": "More file actions"
+        },
+        {
+          "line": 33,
+          "text": "Blame"
+        },
+        {
+          "line": 34,
+          "text": "More file actions"
+        },
+        {
+          "line": 35,
+          "text": "Latest commit"
+        },
+        {
+          "line": 36,
+          "text": "History"
+        },
+        {
+          "line": 37,
+          "text": "History"
+        },
+        {
+          "line": 38,
+          "text": "History"
+        },
+        {
+          "line": 39,
+          "text": "539 lines (402 loc) · 36.4 KB"
+        },
+        {
+          "line": 40,
+          "text": "main"
+        },
+        {
+          "line": 41,
+          "text": "Breadcrumbs"
+        },
+        {
+          "line": 42,
+          "text": "skills"
+        },
+        {
+          "line": 43,
+          "text": "/"
+        },
+        {
+          "line": 44,
+          "text": "skills"
+        },
+        {
+          "line": 45,
+          "text": "/"
+        },
+        {
+          "line": 46,
+          "text": ".curated"
+        },
+        {
+          "line": 47,
+          "text": "/"
+        },
+        {
+          "line": 48,
+          "text": "hatch-pet"
+        },
+        {
+          "line": 49,
+          "text": "/"
+        },
+        {
+          "line": 50,
+          "text": "SKILL.md"
+        },
+        {
+          "line": 51,
+          "text": "Copy path"
+        },
+        {
+          "line": 52,
+          "text": "Top"
+        },
+        {
+          "line": 53,
+          "text": "File metadata and controls"
+        },
+        {
+          "line": 54,
+          "text": "Preview"
+        },
+        {
+          "line": 55,
+          "text": "Code"
+        },
+        {
+          "line": 56,
+          "text": "Blame"
+        },
+        {
+          "line": 57,
+          "text": "539 lines (402 loc) · 36.4 KB"
+        },
+        {
+          "line": 58,
+          "text": "Raw"
+        },
+        {
+          "line": 59,
+          "text": "Copy raw file"
+        },
+        {
+          "line": 60,
+          "text": "Download raw file"
+        },
+        {
+          "line": 61,
+          "text": "Outline"
+        },
+        {
+          "line": 62,
+          "text": "Edit and raw actions"
+        },
+        {
+          "line": 63,
+          "text": "name"
+        },
+        {
+          "line": 64,
+          "text": "hatch-pet"
+        },
+        {
+          "line": 65,
+          "text": "description"
+        },
+        {
+          "line": 66,
+          "text": "Create, repair, validate, visually QA, and package Codex-compatible animated pets and pet spritesheets from character art, generated images, company or prospect brand cues, or visual references. Use when a user wants a lightweight-worker Codex pet workflow, a non-pixel custom pet style, a prospect or company mascot pet, or a full 8x9 animated pet atlas with transparent unused cells, QA contact sheets, and pet.json packaging. This skill composes the installed $imagegen system skill for visual generation and uses bundled scripts for deterministic spritesheet assembly."
+        },
+        {
+          "line": 67,
+          "text": "Hatch Pet"
+        },
+        {
+          "line": 68,
+          "text": "Overview"
+        },
+        {
+          "line": 69,
+          "text": "Create a Codex-compatible animated pet from a concept, brand cue, company/prospect name, one or more reference images, or any combination of those inputs. This workflow keeps the deterministic hatch-pet pipeline for atlas geometry, validation, visual QA, and packaging, while using concise state-specific prompts and allowing any pet-safe visual style."
+        },
+        {
+          "line": 70,
+          "text": "User-facing inputs are optional. If the user omits a pet name, infer one from the concept, brand, company, or reference filenames; if that is not possible, choose a short friendly name. If the user omits a description, infer one from the concept or references. If the user omits reference images, generate the base pet from text first, then use that base as the canonical reference for every animation row."
+        },
+        {
+          "line": 71,
+          "text": "Generation Delegation"
+        },
+        {
+          "line": 72,
+          "text": "Use $imagegen"
+        },
+        {
+          "line": 73,
+          "text": "for all normal visual generation."
+        },
+        {
+          "line": 74,
+          "text": "Before generating base art, row strips, or repair rows, load and follow the installed image generation skill:"
+        },
+        {
+          "line": 75,
+          "text": "${CODEX_HOME:-$HOME/.codex}/skills/.system/imagegen/SKILL.md Do not call the Image API, image CLI, or any other image-generation path directly. Let $imagegen"
+        },
+        {
+          "line": 76,
+          "text": "choose its own built-in-first path and fallback rules. If $imagegen"
+        },
+        {
+          "line": 77,
+          "text": "says a fallback requires confirmation, ask the user before continuing."
+        },
+        {
+          "line": 78,
+          "text": "When invoking $imagegen"
+        },
+        {
+          "line": 79,
+          "text": ", pass the generated pet prompt as the authoritative visual spec. Pet prompts should stay concise, state-specific, sprite-production oriented, and grounded in the listed input images. Keep longer policy and QA rules in this skill and the deterministic review scripts rather than expanding them into every image prompt. Do not wrap prompts in the generic $imagegen"
+        },
+        {
+          "line": 80,
+          "text": "shared prompt schema."
+        },
+        {
+          "line": 81,
+          "text": "Use this skill's scripts for deterministic image work only: preparing layout guides and prompts, mirroring approved running-left"
+        },
+        {
+          "line": 82,
+          "text": ", extracting frames, validating rows, composing the final atlas, and creating contact-sheet plus motion-preview QA media. Parent-owned shell/"
+        },
+        {
+          "line": 83,
+          "text": "jq"
+        },
+        {
+          "line": 84,
+          "text": "steps handle manifest updates, packaging, and cleanup."
+        },
+        {
+          "line": 85,
+          "text": "Storage Controls"
+        },
+        {
+          "line": 86,
+          "text": "The built-in $imagegen"
+        },
+        {
+          "line": 87,
+          "text": "path stores generated PNG bytes in the rollout that invokes it, even when it also writes a file under ${CODEX_HOME:-$HOME/.codex}/generated_images"
+        },
+        {
+          "line": 88,
+          "text": ". Deleting files later reduces filesystem use, but it does not shrink an already-written rollout. Keep image generation isolated and bounded:"
+        },
+        {
+          "line": 89,
+          "text": "Use one lightweight generation worker per visual job. Do not batch multiple base/row jobs into the same worker."
+        },
+        {
+          "line": 90,
+          "text": "Workers must return only selected_source=..."
+        },
+        {
+          "line": 91,
+          "text": "and qa_note=..."
+        },
+        {
+          "line": 92,
+          "text": "; they must not include Markdown image previews, base64, or extra visual attachments in their final response."
+        },
+        {
+          "line": 93,
+          "text": "The parent must not open every generated PNG visually. Use worker QA for each job and inspect only the final contact sheet."
+        },
+        {
+          "line": 94,
+          "text": "After copying the selected generated output into decoded/"
+        },
+        {
+          "line": 95,
+          "text": ", remove the selected original from ${CODEX_HOME:-$HOME/.codex}/generated_images"
+        },
+        {
+          "line": 96,
+          "text": "when it lives there, then remove its now-empty generation directory if possible."
+        },
+        {
+          "line": 97,
+          "text": "For storage-sensitive full runs, ask the user whether to use the $imagegen"
+        },
+        {
+          "line": 98,
+          "text": "CLI fallback when available. That path requires local API credentials and explicit user confirmation, but it can avoid built-in image payloads being embedded in rollout events."
+        },
+        {
+          "line": 99,
+          "text": "Brand Discovery"
+        },
+        {
+          "line": 100,
+          "text": "If the user provides a brand, company, product, or prospect name rather than a concrete avatar description or reference image, run a lightweight discovery subagent before preparing the pet run. The discovery worker must use web search and prefer official sources such as the brand site, product pages, docs, about pages, press pages, or brand pages. Use reputable secondary sources only when official pages are too thin. Keep the search narrow: enough to extract visual and personality cues, not a market-research brief."
+        },
+        {
+          "line": 101,
+          "text": "Skip discovery when the user already provides a concrete mascot/avatar description or reference images, unless the user explicitly asks for brand research."
+        },
+        {
+          "line": 102,
+          "text": "Discovery worker responsibilities:"
+        },
+        {
+          "line": 103,
+          "text": "search the web for 2-4 relevant sources, preferring official pages"
+        },
+        {
+          "line": 104,
+          "text": "write an adaptive markdown brief rather than a rigid field dump"
+        },
+        {
+          "line": 105,
+          "text": "cover identity/category, audience/use context, visual system, personality/tone, product/domain motifs, mascot translation cues, avoidances, and evidence/confidence"
+        },
+        {
+          "line": 106,
+          "text": "mark mascot guidance that is inferred from sources as inference"
+        },
+        {
+          "line": 107,
+          "text": "avoid copying logos, readable marks, UI screenshots, slogans, or text"
+        },
+        {
+          "line": 108,
+          "text": "end with a compact Generation handoff"
+        },
+        {
+          "line": 109,
+          "text": "section containing only brand_name"
+        },
+        {
+          "line": 110,
+          "text": ", brand_brief"
+        },
+        {
+          "line": 111,
+          "text": ", avatar_seed"
+        },
+        {
+          "line": 112,
+          "text": ", avoid"
+        },
+        {
+          "line": 113,
+          "text": ", and brand_sources"
+        },
+        {
+          "line": 114,
+          "text": "do not generate images, prepare run folders, or edit unrelated files"
+        },
+        {
+          "line": 115,
+          "text": "Use this discovery worker prompt:"
+        },
+        {
+          "line": 116,
+          "text": "Research a brand for hatch-pet mascot creation. Brand/product/prospect: <brand name> User context: <short user request> Output file: <absolute path to brand-discovery.md> Use web search. Prefer official brand, product, docs, about, press, or brand pages. Use reputable secondary sources only if official sources are too thin. Write an adaptive markdown brief to the output file. Headings may flex by brand, but the brief must cover: - identity/category: canonical name, product type, what it does - audience/use context: who it serves and where it appears - visual system: palette, shapes, line quality, materials, typography feel, iconography, patterns - personality/tone: emotional traits, energy, formality, playfulness - product/domain motifs: objects, workflows, verbs, metaphors, environments - mascot translation cues: candidate forms, signature traits, props, what must read at pet size - avoidances: logos/text, trademark-sensitive elements, misleading cues, competitor confusion, poor mascot fits - evidence/confidence: source URLs plus notes where evidence is weak or inferred Do not copy logos, readable marks, UI screenshots, slogans, or text. Clearly label mascot guidance that is inferred rather than directly sourced. End the brief with a `Generation handoff` section containing exactly: - brand_name=<canonical brand/product name> - brand_brief=<one sentence, max 45 words, covering palette/tone/domain motifs/personality> - avatar_seed=<short mascot-safe visual idea, no logo copying> - avoid=<short comma-separated list> - brand_sources=<comma-separated source URLs> Return exactly: brand_discovery_file=<absolute output file path> brand_name=<canonical brand/product name> brand_brief=<same compact sentence from Generation handoff> avatar_seed=<same short seed from Generation handoff> avoid=<same short avoid list from Generation handoff> brand_sources=<same comma-separated URLs from Generation handoff> The parent should save the markdown brief before preparing the run, then pass it to prepare_pet_run.py"
+        },
+        {
+          "line": 117,
+          "text": "as --brand-discovery-file"
+        },
+        {
+          "line": 118,
+          "text": "together with --brand-name"
+        },
+        {
+          "line": 119,
+          "text": ", --brand-brief"
+        },
+        {
+          "line": 120,
+          "text": ", repeated --brand-source"
+        },
+        {
+          "line": 121,
+          "text": ", and a concise --pet-notes"
+        },
+        {
+          "line": 122,
+          "text": "value based on avatar_seed"
+        },
+        {
+          "line": 123,
+          "text": "when the user did not provide a better avatar description. Keep the full brief for review; only the compact handoff fields should shape prompts. If web search is unavailable and the user gave only a bare brand name, ask for brand cues before generating."
+        },
+        {
+          "line": 124,
+          "text": "For a normal pet run, expect up to 10 visual generation jobs: 1 base pet plus 9 row-strip jobs. The Codex app contract currently uses all 9 states: idle"
+        },
+        {
+          "line": 125,
+          "text": ", running-right"
+        },
+        {
+          "line": 126,
+          "text": ", running-left"
+        },
+        {
+          "line": 127,
+          "text": ", waving"
+        },
+        {
+          "line": 128,
+          "text": ", jumping"
+        },
+        {
+          "line": 129,
+          "text": ", failed"
+        },
+        {
+          "line": 130,
+          "text": ", waiting"
+        },
+        {
+          "line": 131,
+          "text": ", running"
+        },
+        {
+          "line": 132,
+          "text": ", and review"
+        },
+        {
+          "line": 133,
+          "text": ". The only deterministic visual derivation is running-left"
+        },
+        {
+          "line": 134,
+          "text": ", which may be produced by mirroring running-right"
+        },
+        {
+          "line": 135,
+          "text": "only after running-right"
+        },
+        {
+          "line": 136,
+          "text": "has been generated, visually inspected, and explicitly approved as safe to mirror. If mirroring is not appropriate, generate running-left"
+        },
+        {
+          "line": 137,
+          "text": "as a normal grounded $imagegen"
+        },
+        {
+          "line": 138,
+          "text": "row."
+        },
+        {
+          "line": 139,
+          "text": "After selecting a visual output, the parent agent copies that exact image into the job's decoded/"
+        },
+        {
+          "line": 140,
+          "text": "path and marks the job complete in imagegen-jobs.json"
+        },
+        {
+          "line": 141,
+          "text": ". Do not write helper scripts that populate row outputs. The deterministic Python scripts may only process already-generated visual outputs."
+        },
+        {
+          "line": 142,
+          "text": "Only the base job may be prompt-only. Every row-strip job generated through $imagegen"
+        },
+        {
+          "line": 143,
+          "text": "must use the input images listed in imagegen-jobs.json"
+        },
+        {
+          "line": 144,
+          "text": ", including the canonical base reference created after the selected base output is copied. Treat any row generation without attached grounding images as invalid."
+        },
+        {
+          "line": 145,
+          "text": "Pet-Safe Styles"
+        },
+        {
+          "line": 146,
+          "text": "Default style is auto"
+        },
+        {
+          "line": 147,
+          "text": ": infer the pet's style from the user's prompt and references, then preserve that style across every row. If the user names a style, honor it. Supported style presets include pixel"
+        },
+        {
+          "line": 148,
+          "text": ", plush"
+        },
+        {
+          "line": 149,
+          "text": ", clay"
+        },
+        {
+          "line": 150,
+          "text": ", sticker"
+        },
+        {
+          "line": 151,
+          "text": ", flat-vector"
+        },
+        {
+          "line": 152,
+          "text": ", 3d-toy"
+        },
+        {
+          "line": 153,
+          "text": ", painterly"
+        },
+        {
+          "line": 154,
+          "text": ", brand-inspired"
+        },
+        {
+          "line": 155,
+          "text": ", and auto"
+        },
+        {
+          "line": 156,
+          "text": "."
+        },
+        {
+          "line": 157,
+          "text": "Any style is acceptable when it remains pet-safe:"
+        },
+        {
+          "line": 158,
+          "text": "compact whole-body silhouette readable inside a 192x208"
+        },
+        {
+          "line": 159,
+          "text": "cell"
+        },
+        {
+          "line": 160,
+          "text": "consistent face, proportions, material, palette, and props across all rows"
+        },
+        {
+          "line": 161,
+          "text": "clean removable chroma-key background"
+        },
+        {
+          "line": 162,
+          "text": "details large enough to read at pet size"
+        },
+        {
+          "line": 163,
+          "text": "no text, labels, UI, or readable logos unless the user explicitly provides approved reference art and asks for them"
+        },
+        {
+          "line": 164,
+          "text": "Non-pixel styles are first-class. Plush, clay, sticker, vector, 3D toy, painterly mascot, ink, and brand-inspired looks should be accepted when they satisfy the atlas and readability constraints."
+        },
+        {
+          "line": 165,
+          "text": "Transparency And Effects"
+        },
+        {
+          "line": 166,
+          "text": "Pet rows are processed into transparent 192x208"
+        },
+        {
+          "line": 167,
+          "text": "cells, so every generated pixel must either belong to the pet sprite or be cleanly removable chroma-key background. Prefer pose, expression, and silhouette changes over decorative effects."
+        },
+        {
+          "line": 168,
+          "text": "The deterministic raster pipeline owns the transparency invariant: pixels that become fully transparent are normalized so they do not retain hidden RGB residue, and atlas validation should fail if exported files violate that invariant. Do not paper over colored halos or transparent-pixel residue by accepting visually inconsistent outputs."
+        },
+        {
+          "line": 169,
+          "text": "Allowed effects must satisfy all of these conditions:"
+        },
+        {
+          "line": 170,
+          "text": "The effect is state-relevant and helps explain the animation."
+        },
+        {
+          "line": 171,
+          "text": "The effect is physically attached to, touching, or overlapping the pet silhouette, not floating nearby."
+        },
+        {
+          "line": 172,
+          "text": "The effect is inside the same frame slot as the pet and does not create a separate sprite component."
+        },
+        {
+          "line": 173,
+          "text": "The effect is opaque, hard-edged enough for clean extraction, and uses non-chroma-key colors."
+        },
+        {
+          "line": 174,
+          "text": "The effect is small enough to remain readable at 192x208"
+        },
+        {
+          "line": 175,
+          "text": "without clutter."
+        },
+        {
+          "line": 176,
+          "text": "Avoid these by default because they usually break transparent-background cleanup or component extraction:"
+        },
+        {
+          "line": 177,
+          "text": "wave marks, motion arcs, speed lines, action streaks, afterimages, blur, or smears"
+        },
+        {
+          "line": 178,
+          "text": "detached stars, loose sparkles, floating punctuation, floating icons, falling tear drops, separated smoke clouds, or loose dust"
+        },
+        {
+          "line": 179,
+          "text": "cast shadows, contact shadows, drop shadows, oval floor shadows, floor patches, landing marks, impact bursts, glow, halo, aura, or soft transparent effects"
+        },
+        {
+          "line": 180,
+          "text": "text, labels, frame numbers, visible grids, guide marks, speech bubbles, thought bubbles, UI panels, code snippets, checkerboard transparency, white backgrounds, black backgrounds, or scenery"
+        },
+        {
+          "line": 181,
+          "text": "chroma-key-adjacent colors in the pet, prop, effects, highlights, or shadows"
+        },
+        {
+          "line": 182,
+          "text": "stray pixels, disconnected outline bits, speckle/noise, cropped body parts, overlapping poses, or any pose that crosses into a neighboring frame slot"
+        },
+        {
+          "line": 183,
+          "text": "State-specific guidance:"
+        },
+        {
+          "line": 184,
+          "text": "idle"
+        },
+        {
+          "line": 185,
+          "text": ": keep this calm and low-distraction. Use only subtle breathing, a tiny blink, a slight head or body bob, a very small material sway, or another quiet persona-preserving motion. The loop must still contain visible micro-variation; do not accept six effectively identical copies. Do not show waving, walking, running, jumping, talking, working, reviewing, emotional reactions, large gestures, item interactions, or new props."
+        },
+        {
+          "line": 186,
+          "text": "waving"
+        },
+        {
+          "line": 187,
+          "text": ": show the wave through paw, hand, wing, or limb pose only. Do not draw wave marks, motion arcs, lines, sparkles, symbols, or floating effects around the gesture."
+        },
+        {
+          "line": 188,
+          "text": "jumping"
+        },
+        {
+          "line": 189,
+          "text": ": show vertical motion through body position only. Do not draw shadows, dust, landing marks, impact bursts, bounce pads, or floor cues."
+        },
+        {
+          "line": 190,
+          "text": "failed"
+        },
+        {
+          "line": 191,
+          "text": ": tears, attached smoke puffs, or attached stars are allowed if they obey the allowed-effects rules; do not use red X marks, floating symbols, detached smoke, detached stars, or separate tear droplets."
+        },
+        {
+          "line": 192,
+          "text": "waiting"
+        },
+        {
+          "line": 193,
+          "text": ": show that Codex needs approval, help, or user input through an expectant asking pose. Keep it distinct from ordinary idle and review."
+        },
+        {
+          "line": 194,
+          "text": "running"
+        },
+        {
+          "line": 195,
+          "text": ": show active task work, processing, thinking, scanning, typing, or focused effort. Do not show literal foot-running, jogging, sprinting, treadmill motion, raised knees, long steps, pumping arms, directional travel, speed lines, dust clouds, floor shadows, motion trails, or detached motion effects."
+        },
+        {
+          "line": 196,
+          "text": "review"
+        },
+        {
+          "line": 197,
+          "text": ": show focus through lean, blink, eyes, head tilt, or paw/hand position. Do not add magnifying glasses, papers, code, UI, punctuation, symbols, or other new props unless they already exist in the base pet identity."
+        },
+        {
+          "line": 198,
+          "text": "running-right"
+        },
+        {
+          "line": 199,
+          "text": "and running-left"
+        },
+        {
+          "line": 200,
+          "text": ": show directional drag movement through body, limb, and prop movement only. running-right"
+        },
+        {
+          "line": 201,
+          "text": "must face and travel right; running-left"
+        },
+        {
+          "line": 202,
+          "text": "must face and travel left. Their cadence must visibly alternate across the loop rather than repeating one nearly static stride. Do not draw speed lines, dust clouds, floor shadows, motion trails, or detached motion effects."
+        },
+        {
+          "line": 203,
+          "text": "Visible Progress Plan"
+        },
+        {
+          "line": 204,
+          "text": "For every pet run, keep a visible checklist so the user can see where the work is up to. Create the checklist before starting, keep one step active at a time, and update it as each step finishes."
+        },
+        {
+          "line": 205,
+          "text": "Use this checklist for a normal pet run, replacing <Pet>"
+        },
+        {
+          "line": 206,
+          "text": "with the pet's name or your pet"
+        },
+        {
+          "line": 207,
+          "text": ":"
+        },
+        {
+          "line": 208,
+          "text": "Getting <Pet>"
+        },
+        {
+          "line": 209,
+          "text": "ready."
+        },
+        {
+          "line": 210,
+          "text": "Imagining <Pet>"
+        },
+        {
+          "line": 211,
+          "text": "'s main look."
+        },
+        {
+          "line": 212,
+          "text": "Picturing <Pet>"
+        },
+        {
+          "line": 213,
+          "text": "'s poses."
+        },
+        {
+          "line": 214,
+          "text": "Hatching <Pet>"
+        },
+        {
+          "line": 215,
+          "text": "."
+        },
+        {
+          "line": 216,
+          "text": "What each step means:"
+        },
+        {
+          "line": 217,
+          "text": "Getting <Pet> ready."
+        },
+        {
+          "line": 218,
+          "text": "Choose or confirm the pet name, description, source images, style preset, style notes, and working folder. For bare brand/product/company requests, first run the brand discovery worker and capture the compact brand brief, source URLs, and avatar seed."
+        },
+        {
+          "line": 219,
+          "text": "Imagining <Pet>'s main look."
+        },
+        {
+          "line": 220,
+          "text": "Generate the pet's main reference image. This becomes the visual source of truth."
+        },
+        {
+          "line": 221,
+          "text": "Picturing <Pet>'s poses."
+        },
+        {
+          "line": 222,
+          "text": "Generate pose rows through lightweight workers, starting with idle"
+        },
+        {
+          "line": 223,
+          "text": "and running-right"
+        },
+        {
+          "line": 224,
+          "text": "to confirm identity and gait. Only mirror running-left"
+        },
+        {
+          "line": 225,
+          "text": "if running-right"
+        },
+        {
+          "line": 226,
+          "text": "clearly works when flipped."
+        },
+        {
+          "line": 227,
+          "text": "Hatching <Pet>."
+        },
+        {
+          "line": 228,
+          "text": "Turn the approved poses into final pet files, review the contact sheet, previews, and validation results, fix any broken parts, save pet.json"
+        },
+        {
+          "line": 229,
+          "text": "and spritesheet.webp"
+        },
+        {
+          "line": 230,
+          "text": ", then report the output paths."
+        },
+        {
+          "line": 231,
+          "text": "Only mark a step complete when the real file, image, or decision exists. If this is a repair run, start from the first relevant step instead of restarting the whole checklist."
+        },
+        {
+          "line": 232,
+          "text": "Default Workflow"
+        },
+        {
+          "line": 233,
+          "text": "Prepare a pet run folder and imagegen job manifest:"
+        },
+        {
+          "line": 234,
+          "text": "SKILL_DIR="
+        },
+        {
+          "line": 235,
+          "text": "\""
+        },
+        {
+          "line": 236,
+          "text": "${CODEX_HOME"
+        },
+        {
+          "line": 237,
+          "text": ":-"
+        },
+        {
+          "line": 238,
+          "text": "$HOME"
+        },
+        {
+          "line": 239,
+          "text": "/"
+        },
+        {
+          "line": 240,
+          "text": ".codex}"
+        }
+      ],
+      "links": [
+        {
+          "id": 1,
+          "text": "Please reload this page",
+          "url": "https://github.com/openai/skills/blob/main/skills/.curated/hatch-pet/SKILL.md"
+        },
+        {
+          "id": 2,
+          "text": "openai",
+          "url": "https://github.com/openai"
+        },
+        {
+          "id": 3,
+          "text": "skills",
+          "url": "https://github.com/openai/skills"
+        },
+        {
+          "id": 4,
+          "text": "Notifications",
+          "url": "https://github.com/login?return_to=%2Fopenai%2Fskills"
+        },
+        {
+          "id": 5,
+          "text": "Fork\n    1.6k",
+          "url": "https://github.com/login?return_to=%2Fopenai%2Fskills"
+        },
+        {
+          "id": 6,
+          "text": "Star\n          23.9k",
+          "url": "https://github.com/login?return_to=%2Fopenai%2Fskills"
+        },
+        {
+          "id": 7,
+          "text": "Code",
+          "url": "https://github.com/openai/skills"
+        },
+        {
+          "id": 8,
+          "text": "Issues\n          58",
+          "url": "https://github.com/openai/skills/issues"
+        },
+        {
+          "id": 9,
+          "text": "Actions",
+          "url": "https://github.com/openai/skills/actions"
+        },
+        {
+          "id": 10,
+          "text": "Security and quality\n          0",
+          "url": "https://github.com/openai/skills/security"
+        },
+        {
+          "id": 11,
+          "text": "Insights",
+          "url": "https://github.com/openai/skills/pulse"
+        },
+        {
+          "id": 12,
+          "text": "Issues",
+          "url": "https://github.com/openai/skills/issues"
+        },
+        {
+          "id": 13,
+          "text": "Actions",
+          "url": "https://github.com/openai/skills/actions"
+        },
+        {
+          "id": 14,
+          "text": "Security and quality",
+          "url": "https://github.com/openai/skills/security"
+        },
+        {
+          "id": 15,
+          "text": "Insights",
+          "url": "https://github.com/openai/skills/pulse"
+        },
+        {
+          "id": 16,
+          "text": "skills",
+          "url": "https://github.com/openai/skills/tree/main"
+        },
+        {
+          "id": 17,
+          "text": "skills",
+          "url": "https://github.com/openai/skills/tree/main/skills"
+        },
+        {
+          "id": 18,
+          "text": ".curated",
+          "url": "https://github.com/openai/skills/tree/main/skills/.curated"
+        },
+        {
+          "id": 19,
+          "text": "hatch-pet",
+          "url": "https://github.com/openai/skills/tree/main/skills/.curated/hatch-pet"
+        },
+        {
+          "id": 20,
+          "text": "History",
+          "url": "https://github.com/openai/skills/commits/main/skills/.curated/hatch-pet/SKILL.md"
+        },
+        {
+          "id": 21,
+          "text": "skills",
+          "url": "https://github.com/openai/skills/tree/main"
+        },
+        {
+          "id": 22,
+          "text": "skills",
+          "url": "https://github.com/openai/skills/tree/main/skills"
+        },
+        {
+          "id": 23,
+          "text": ".curated",
+          "url": "https://github.com/openai/skills/tree/main/skills/.curated"
+        },
+        {
+          "id": 24,
+          "text": "hatch-pet",
+          "url": "https://github.com/openai/skills/tree/main/skills/.curated/hatch-pet"
+        },
+        {
+          "id": 25,
+          "text": "Raw",
+          "url": "https://github.com/openai/skills/raw/refs/heads/main/skills/.curated/hatch-pet/SKILL.md"
+        }
+      ]
+    },
+    {
+      "ref_id": "turn1view0",
+      "url": "https://github.com/openai/codex/issues/20863?utm_source=openai",
+      "title": "Support configurable custom pet animation sequences and activity events · Issue #20863 · openai/codex · GitHub",
+      "content": [
+        {
+          "line": 1,
+          "text": "Uh oh! There was an error while loading. Please reload this page"
+        },
+        {
+          "line": 2,
+          "text": "."
+        },
+        {
+          "line": 3,
+          "text": "openai /"
+        },
+        {
+          "line": 4,
+          "text": "codex"
+        },
+        {
+          "line": 5,
+          "text": "Public"
+        },
+        {
+          "line": 6,
+          "text": "Notifications You must be signed in to change notification settings"
+        },
+        {
+          "line": 7,
+          "text": "Fork 14.9k"
+        },
+        {
+          "line": 8,
+          "text": "Star 99.4k"
+        },
+        {
+          "line": 9,
+          "text": "Code"
+        },
+        {
+          "line": 10,
+          "text": "Issues"
+        },
+        {
+          "line": 11,
+          "text": "5k+"
+        },
+        {
+          "line": 12,
+          "text": "Pull requests"
+        },
+        {
+          "line": 13,
+          "text": "240"
+        },
+        {
+          "line": 14,
+          "text": "Discussions"
+        },
+        {
+          "line": 15,
+          "text": "Actions"
+        },
+        {
+          "line": 16,
+          "text": "Security and quality"
+        },
+        {
+          "line": 17,
+          "text": "1"
+        },
+        {
+          "line": 18,
+          "text": "Insights"
+        },
+        {
+          "line": 19,
+          "text": "Additional navigation options"
+        },
+        {
+          "line": 20,
+          "text": "Code Issues Pull requests Discussions Actions Security and quality Insights Support configurable custom pet animation sequences and activity events"
+        },
+        {
+          "line": 21,
+          "text": "#20863"
+        },
+        {
+          "line": 22,
+          "text": "New issue"
+        },
+        {
+          "line": 23,
+          "text": "Copy link"
+        },
+        {
+          "line": 24,
+          "text": "New issue"
+        },
+        {
+          "line": 25,
+          "text": "Copy link"
+        },
+        {
+          "line": 26,
+          "text": "Open"
+        },
+        {
+          "line": 27,
+          "text": "Open"
+        },
+        {
+          "line": 28,
+          "text": "Support configurable custom pet animation sequences and activity events"
+        },
+        {
+          "line": 29,
+          "text": "#20863"
+        },
+        {
+          "line": 30,
+          "text": "Copy link"
+        },
+        {
+          "line": 31,
+          "text": "Labels"
+        },
+        {
+          "line": 32,
+          "text": "app"
+        },
+        {
+          "line": 33,
+          "text": "Issues related to the Codex desktop app"
+        },
+        {
+          "line": 34,
+          "text": "Issues related to the Codex desktop app"
+        },
+        {
+          "line": 35,
+          "text": "enhancement"
+        },
+        {
+          "line": 36,
+          "text": "New feature or request"
+        },
+        {
+          "line": 37,
+          "text": "New feature or request"
+        },
+        {
+          "line": 38,
+          "text": "pets"
+        },
+        {
+          "line": 39,
+          "text": "Description"
+        },
+        {
+          "line": 40,
+          "text": "hlky"
+        },
+        {
+          "line": 41,
+          "text": "opened on May 3, 2026"
+        },
+        {
+          "line": 42,
+          "text": "Issue body actions"
+        },
+        {
+          "line": 43,
+          "text": "Summary"
+        },
+        {
+          "line": 44,
+          "text": "Please consider extending Codex custom pet support so pet.json"
+        },
+        {
+          "line": 45,
+          "text": "can optionally describe animation behavior, not only the spritesheet asset."
+        },
+        {
+          "line": 46,
+          "text": "The current custom pet feature is already useful, especially with the Hatch Pet skill, but custom pets are limited by hardcoded renderer behavior: frame counts, timing, sequence chaining, and event triggers are fixed by the app rather than by the pet manifest."
+        },
+        {
+          "line": 47,
+          "text": "Proof Of Concept"
+        },
+        {
+          "line": 48,
+          "text": "I published a proof-of-concept mod here:"
+        },
+        {
+          "line": 49,
+          "text": "https://github.com/hlky/codex_app_pet_mod"
+        },
+        {
+          "line": 50,
+          "text": "Demo video:"
+        },
+        {
+          "line": 51,
+          "text": "oVRedOdhq0.mp4"
+        },
+        {
+          "line": 52,
+          "text": "Example custom pet:"
+        },
+        {
+          "line": 53,
+          "text": "https://github.com/hlky/codex_app_pet_mod/tree/master/assets/datachan-extended"
+        },
+        {
+          "line": 54,
+          "text": "The proof of concept patches a copied desktop app package to explore the behavior. I am not asking upstream to adopt the patching approach; the repo is meant to demonstrate the requested runtime behavior and a possible backwards-compatible pet.json"
+        },
+        {
+          "line": 55,
+          "text": "shape."
+        },
+        {
+          "line": 56,
+          "text": "Current Behavior"
+        },
+        {
+          "line": 57,
+          "text": "Custom pets can provide metadata and a spritesheet, but the app still owns the animation table and event mapping. That means a custom pet cannot reliably define:"
+        },
+        {
+          "line": 58,
+          "text": "how many frames each row should play"
+        },
+        {
+          "line": 59,
+          "text": "different timing per state"
+        },
+        {
+          "line": 60,
+          "text": "longer idle or jumping sequences when the row has populated cells"
+        },
+        {
+          "line": 61,
+          "text": "chained sequences like running -> waving -> running-left"
+        },
+        {
+          "line": 62,
+          "text": "whether an active-state chain should loop or fall back to idle"
+        },
+        {
+          "line": 63,
+          "text": "hover or drag-specific states"
+        },
+        {
+          "line": 64,
+          "text": "richer activity states such as thinking, editing, edited, running a command, or command completed"
+        },
+        {
+          "line": 65,
+          "text": "This makes expressive custom pets difficult. The artwork can exist in the spritesheet, but the app may never play those cells or may return to the built-in idle behavior too quickly."
+        },
+        {
+          "line": 66,
+          "text": "Proposed Manifest Shape"
+        },
+        {
+          "line": 67,
+          "text": "A backwards-compatible optional animation"
+        },
+        {
+          "line": 68,
+          "text": "field could look like this:"
+        },
+        {
+          "line": 69,
+          "text": "{ \"displayName\""
+        },
+        {
+          "line": 70,
+          "text": ": \""
+        },
+        {
+          "line": 71,
+          "text": "Datachan Extended"
+        },
+        {
+          "line": 72,
+          "text": "\""
+        },
+        {
+          "line": 73,
+          "text": ", \"description\""
+        },
+        {
+          "line": 74,
+          "text": ": \""
+        },
+        {
+          "line": 75,
+          "text": "Custom pet with explicit animation behavior."
+        },
+        {
+          "line": 76,
+          "text": "\""
+        },
+        {
+          "line": 77,
+          "text": ", \"spritesheetPath\""
+        },
+        {
+          "line": 78,
+          "text": ": \""
+        },
+        {
+          "line": 79,
+          "text": "spritesheet.webp"
+        },
+        {
+          "line": 80,
+          "text": "\""
+        },
+        {
+          "line": 81,
+          "text": ", \"animation\""
+        },
+        {
+          "line": 82,
+          "text": ": { \"autoDetectFrames\""
+        },
+        {
+          "line": 83,
+          "text": ": true"
+        },
+        {
+          "line": 84,
+          "text": ", \"idleSlowdown\""
+        },
+        {
+          "line": 85,
+          "text": ": 6"
+        },
+        {
+          "line": 86,
+          "text": ", \"states\""
+        },
+        {
+          "line": 87,
+          "text": ": { \"idle\""
+        },
+        {
+          "line": 88,
+          "text": ": { \"row\""
+        },
+        {
+          "line": 89,
+          "text": ": 8"
+        },
+        {
+          "line": 90,
+          "text": ", \"durationMs\""
+        },
+        {
+          "line": 91,
+          "text": ": 150"
+        },
+        {
+          "line": 92,
+          "text": ", \"lastFrameDurationMs\""
+        },
+        {
+          "line": 93,
+          "text": ": 280"
+        },
+        {
+          "line": 94,
+          "text": "}, \"running\""
+        },
+        {
+          "line": 95,
+          "text": ": { \"row\""
+        },
+        {
+          "line": 96,
+          "text": ": 7"
+        },
+        {
+          "line": 97,
+          "text": ", \"durationMs\""
+        },
+        {
+          "line": 98,
+          "text": ": 120"
+        },
+        {
+          "line": 99,
+          "text": ", \"lastFrameDurationMs\""
+        },
+        {
+          "line": 100,
+          "text": ": 220"
+        },
+        {
+          "line": 101,
+          "text": "}, \"review\""
+        },
+        {
+          "line": 102,
+          "text": ": { \"row\""
+        },
+        {
+          "line": 103,
+          "text": ": 0"
+        },
+        {
+          "line": 104,
+          "text": ", \"durationMs\""
+        },
+        {
+          "line": 105,
+          "text": ": 140"
+        },
+        {
+          "line": 106,
+          "text": ", \"lastFrameDurationMs\""
+        },
+        {
+          "line": 107,
+          "text": ": 320"
+        },
+        {
+          "line": 108,
+          "text": "} }, \"chains\""
+        },
+        {
+          "line": 109,
+          "text": ": { \"idle\""
+        },
+        {
+          "line": 110,
+          "text": ": ["
+        },
+        {
+          "line": 111,
+          "text": "\""
+        },
+        {
+          "line": 112,
+          "text": "idle"
+        },
+        {
+          "line": 113,
+          "text": "\""
+        },
+        {
+          "line": 114,
+          "text": ", \""
+        },
+        {
+          "line": 115,
+          "text": "waving"
+        },
+        {
+          "line": 116,
+          "text": "\""
+        },
+        {
+          "line": 117,
+          "text": ", \""
+        },
+        {
+          "line": 118,
+          "text": "review"
+        },
+        {
+          "line": 119,
+          "text": "\""
+        },
+        {
+          "line": 120,
+          "text": "], \"running\""
+        },
+        {
+          "line": 121,
+          "text": ": { \"mode\""
+        },
+        {
+          "line": 122,
+          "text": ": \""
+        },
+        {
+          "line": 123,
+          "text": "loop"
+        },
+        {
+          "line": 124,
+          "text": "\""
+        },
+        {
+          "line": 125,
+          "text": ", \"sequence\""
+        },
+        {
+          "line": 126,
+          "text": ": ["
+        },
+        {
+          "line": 127,
+          "text": "\""
+        },
+        {
+          "line": 128,
+          "text": "waving"
+        },
+        {
+          "line": 129,
+          "text": "\""
+        },
+        {
+          "line": 130,
+          "text": ", \""
+        },
+        {
+          "line": 131,
+          "text": "idle"
+        },
+        {
+          "line": 132,
+          "text": "\""
+        },
+        {
+          "line": 133,
+          "text": ", \""
+        },
+        {
+          "line": 134,
+          "text": "running-left"
+        },
+        {
+          "line": 135,
+          "text": "\""
+        },
+        {
+          "line": 136,
+          "text": ", \""
+        },
+        {
+          "line": 137,
+          "text": "running-right"
+        },
+        {
+          "line": 138,
+          "text": "\""
+        },
+        {
+          "line": 139,
+          "text": ", \""
+        },
+        {
+          "line": 140,
+          "text": "running"
+        },
+        {
+          "line": 141,
+          "text": "\""
+        },
+        {
+          "line": 142,
+          "text": "] } }, \"events\""
+        },
+        {
+          "line": 143,
+          "text": ": { \"hover\""
+        },
+        {
+          "line": 144,
+          "text": ": \""
+        },
+        {
+          "line": 145,
+          "text": "jumping"
+        },
+        {
+          "line": 146,
+          "text": "\""
+        },
+        {
+          "line": 147,
+          "text": "} } }"
+        },
+        {
+          "line": 148,
+          "text": "Requested Features"
+        },
+        {
+          "line": 149,
+          "text": "Pass optional animation config through from custom pet manifests."
+        },
+        {
+          "line": 150,
+          "text": "Support per-state row/frame/timing config: row"
+        },
+        {
+          "line": 151,
+          "text": "/ rowIndex"
+        },
+        {
+          "line": 152,
+          "text": "frames"
+        },
+        {
+          "line": 153,
+          "text": "/ frameCount"
+        },
+        {
+          "line": 154,
+          "text": "durationMs"
+        },
+        {
+          "line": 155,
+          "text": "/ frameDurationMs"
+        },
+        {
+          "line": 156,
+          "text": "lastFrameDurationMs"
+        },
+        {
+          "line": 157,
+          "text": "slowdown"
+        },
+        {
+          "line": 158,
+          "text": "Use detected non-empty row cells when frames"
+        },
+        {
+          "line": 159,
+          "text": "is omitted, within the existing atlas geometry."
+        },
+        {
+          "line": 160,
+          "text": "Support sequence chains per state."
+        },
+        {
+          "line": 161,
+          "text": "Support chain playback modes: idleFallback"
+        },
+        {
+          "line": 162,
+          "text": ": play the active chain once, then loop the configured idle chain"
+        },
+        {
+          "line": 163,
+          "text": "loop"
+        },
+        {
+          "line": 164,
+          "text": ": loop the active chain until the app state changes"
+        },
+        {
+          "line": 165,
+          "text": "once"
+        },
+        {
+          "line": 166,
+          "text": ": play once and hold the final frame"
+        },
+        {
+          "line": 167,
+          "text": "Support configurable event mappings, starting with hover and drag directions."
+        },
+        {
+          "line": 168,
+          "text": "Expose richer pet animation states for agent activity where possible: thinking"
+        },
+        {
+          "line": 169,
+          "text": "editing"
+        },
+        {
+          "line": 170,
+          "text": "edited"
+        },
+        {
+          "line": 171,
+          "text": "running"
+        },
+        {
+          "line": 172,
+          "text": "/ command running"
+        },
+        {
+          "line": 173,
+          "text": "ran"
+        },
+        {
+          "line": 174,
+          "text": "/ command completed"
+        },
+        {
+          "line": 175,
+          "text": "review"
+        },
+        {
+          "line": 176,
+          "text": "Activity State Note"
+        },
+        {
+          "line": 177,
+          "text": "The current app appears to collapse active local/cloud work into a single running"
+        },
+        {
+          "line": 178,
+          "text": "mascot state. The UI already has richer activity labels for file edits, commands, searches, and tool calls. It would be useful to keep the existing internal task status model, but derive a separate pet animation state from the latest activity item. That avoids changing notification semantics while still allowing pets to react to editing, command execution, and thinking."
+        },
+        {
+          "line": 179,
+          "text": "Compatibility"
+        },
+        {
+          "line": 180,
+          "text": "This can be additive:"
+        },
+        {
+          "line": 181,
+          "text": "Existing pets without animation"
+        },
+        {
+          "line": 182,
+          "text": "keep current behavior."
+        },
+        {
+          "line": 183,
+          "text": "Existing built-in pets can keep the hardcoded defaults."
+        },
+        {
+          "line": 184,
+          "text": "Custom pets can opt into configuration only where needed."
+        },
+        {
+          "line": 185,
+          "text": "The existing 8-column by 9-row atlas can remain the first supported format."
+        },
+        {
+          "line": 186,
+          "text": "Why This Matters"
+        },
+        {
+          "line": 187,
+          "text": "The Hatch Pet workflow can generate expressive custom spritesheets, but without manifest-controlled playback much of that work is lost. Allowing custom pets to describe their own animation behavior would make the feature more useful without requiring users to patch app bundles or ask upstream for every new pet-specific behavior."
+        },
+        {
+          "line": 188,
+          "text": "Reactions are currently unavailable"
+        },
+        {
+          "line": 189,
+          "text": "Metadata"
+        },
+        {
+          "line": 190,
+          "text": "Metadata"
+        },
+        {
+          "line": 191,
+          "text": "Assignees"
+        },
+        {
+          "line": 192,
+          "text": "No one assigned"
+        },
+        {
+          "line": 193,
+          "text": "Labels"
+        },
+        {
+          "line": 194,
+          "text": "app"
+        },
+        {
+          "line": 195,
+          "text": "Issues related to the Codex desktop app"
+        },
+        {
+          "line": 196,
+          "text": "Issues related to the Codex desktop app"
+        },
+        {
+          "line": 197,
+          "text": "enhancement"
+        },
+        {
+          "line": 198,
+          "text": "New feature or request"
+        },
+        {
+          "line": 199,
+          "text": "New feature or request"
+        },
+        {
+          "line": 200,
+          "text": "pets"
+        },
+        {
+          "line": 201,
+          "text": "Type"
+        },
+        {
+          "line": 202,
+          "text": "No type"
+        },
+        {
+          "line": 203,
+          "text": "Fields"
+        },
+        {
+          "line": 204,
+          "text": "No fields configured for issues without a type."
+        },
+        {
+          "line": 205,
+          "text": "Projects"
+        },
+        {
+          "line": 206,
+          "text": "No projects"
+        },
+        {
+          "line": 207,
+          "text": "Milestone"
+        },
+        {
+          "line": 208,
+          "text": "No milestone"
+        },
+        {
+          "line": 209,
+          "text": "Relationships"
+        },
+        {
+          "line": 210,
+          "text": "None yet"
+        },
+        {
+          "line": 211,
+          "text": "Development"
+        },
+        {
+          "line": 212,
+          "text": "No branches or pull requests"
+        },
+        {
+          "line": 213,
+          "text": "Issue actions"
+        },
+        {
+          "line": 214,
+          "text": "Open in GitHub Copilot app"
+        }
+      ],
+      "links": [
+        {
+          "id": 1,
+          "text": "Please reload this page",
+          "url": "https://github.com/openai/codex/issues/20863?utm_source=openai"
+        },
+        {
+          "id": 2,
+          "text": "openai",
+          "url": "https://github.com/openai"
+        },
+        {
+          "id": 3,
+          "text": "codex",
+          "url": "https://github.com/openai/codex"
+        },
+        {
+          "id": 4,
+          "text": "Notifications",
+          "url": "https://github.com/login?return_to=%2Fopenai%2Fcodex"
+        },
+        {
+          "id": 5,
+          "text": "Fork\n    14.9k",
+          "url": "https://github.com/login?return_to=%2Fopenai%2Fcodex"
+        },
+        {
+          "id": 6,
+          "text": "Star\n          99.4k",
+          "url": "https://github.com/login?return_to=%2Fopenai%2Fcodex"
+        },
+        {
+          "id": 7,
+          "text": "Code",
+          "url": "https://github.com/openai/codex"
+        },
+        {
+          "id": 8,
+          "text": "Issues\n          5k+",
+          "url": "https://github.com/openai/codex/issues"
+        },
+        {
+          "id": 9,
+          "text": "Pull requests\n          240",
+          "url": "https://github.com/openai/codex/pulls"
+        },
+        {
+          "id": 10,
+          "text": "Discussions",
+          "url": "https://github.com/openai/codex/discussions"
+        },
+        {
+          "id": 11,
+          "text": "Actions",
+          "url": "https://github.com/openai/codex/actions"
+        },
+        {
+          "id": 12,
+          "text": "Security and quality\n          1",
+          "url": "https://github.com/openai/codex/security"
+        },
+        {
+          "id": 13,
+          "text": "Insights",
+          "url": "https://github.com/openai/codex/pulse"
+        },
+        {
+          "id": 14,
+          "text": "Issues",
+          "url": "https://github.com/openai/codex/issues"
+        },
+        {
+          "id": 15,
+          "text": "Pull requests",
+          "url": "https://github.com/openai/codex/pulls"
+        },
+        {
+          "id": 16,
+          "text": "Discussions",
+          "url": "https://github.com/openai/codex/discussions"
+        },
+        {
+          "id": 17,
+          "text": "Actions",
+          "url": "https://github.com/openai/codex/actions"
+        },
+        {
+          "id": 18,
+          "text": "Security and quality",
+          "url": "https://github.com/openai/codex/security"
+        },
+        {
+          "id": 19,
+          "text": "Insights",
+          "url": "https://github.com/openai/codex/pulse"
+        },
+        {
+          "id": 20,
+          "text": "Support configurable custom pet animation sequences and activity events",
+          "url": "https://github.com/openai/codex/issues/20863?utm_source=openai#top"
+        },
+        {
+          "id": 21,
+          "text": "appIssues related to the Codex desktop app",
+          "url": "https://github.com/openai/codex/issues?q=state%3Aopen%20label%3A%22app%22"
+        },
+        {
+          "id": 22,
+          "text": "enhancementNew feature or request",
+          "url": "https://github.com/openai/codex/issues?q=state%3Aopen%20label%3A%22enhancement%22"
+        },
+        {
+          "id": 23,
+          "text": "pets",
+          "url": "https://github.com/openai/codex/issues?q=state%3Aopen%20label%3A%22pets%22"
+        },
+        {
+          "id": 24,
+          "text": "hlky",
+          "url": "https://github.com/hlky"
+        },
+        {
+          "id": 25,
+          "text": "on May 3, 2026",
+          "url": "https://github.com/openai/codex/issues/20863#issue-4371623196"
+        },
+        {
+          "id": 26,
+          "text": "https://github.com/hlky/codex_app_pet_mod",
+          "url": "https://github.com/hlky/codex_app_pet_mod"
+        },
+        {
+          "id": 27,
+          "text": "https://github.com/hlky/codex_app_pet_mod/tree/master/assets/datachan-extended",
+          "url": "https://github.com/hlky/codex_app_pet_mod/tree/master/assets/datachan-extended"
+        },
+        {
+          "id": 28,
+          "text": "appIssues related to the Codex desktop app",
+          "url": "https://github.com/openai/codex/issues?q=state%3Aopen%20label%3A%22app%22"
+        },
+        {
+          "id": 29,
+          "text": "enhancementNew feature or request",
+          "url": "https://github.com/openai/codex/issues?q=state%3Aopen%20label%3A%22enhancement%22"
+        },
+        {
+          "id": 30,
+          "text": "pets",
+          "url": "https://github.com/openai/codex/issues?q=state%3Aopen%20label%3A%22pets%22"
+        }
+      ]
+    },
+    {
+      "ref_id": "turn2view0",
+      "url": "https://www.hatch-pet.com/?utm_source=openai",
+      "title": "Codex Pet — Hatch animated workflow companions",
+      "content": [
+        {
+          "line": 1,
+          "text": "Hatch Pet"
+        },
+        {
+          "line": 2,
+          "text": "Features"
+        },
+        {
+          "line": 3,
+          "text": "Enable /pet"
+        },
+        {
+          "line": 4,
+          "text": "Pets"
+        },
+        {
+          "line": 5,
+          "text": "Enable the built-in pet, then hatch your own"
+        },
+        {
+          "line": 6,
+          "text": "Enable"
+        },
+        {
+          "line": 7,
+          "text": "a pet in Codex"
+        },
+        {
+          "line": 8,
+          "text": "Hatch Pet shows the exact enable path: open Codex Settings, choose Appearance, expand Pets, and select the companion that should sit beside your AI coding flow."
+        },
+        {
+          "line": 9,
+          "text": "Want your own custom pet? Use the Hatch Pet skill to generate a Codex-ready pet package with sprite sheet, manifest, and local install files."
+        },
+        {
+          "line": 10,
+          "text": "Enable /pet"
+        },
+        {
+          "line": 11,
+          "text": "Create your own pet"
+        },
+        {
+          "line": 12,
+          "text": "Settings → Appearance → Pets → Select. Then use the Hatch Pet skill when you want a custom companion."
+        },
+        {
+          "line": 13,
+          "text": "Enable guide"
+        },
+        {
+          "line": 14,
+          "text": "How to enable a pet in Codex"
+        },
+        {
+          "line": 15,
+          "text": "The shortest path is inside the Codex desktop app: open Settings from the Codex menu, switch to Appearance, then use the Pets panel to select or tuck away the active companion."
+        },
+        {
+          "line": 16,
+          "text": "Open Hatch Pet skill"
+        },
+        {
+          "line": 17,
+          "text": "Browse pet ideas"
+        },
+        {
+          "line": 18,
+          "text": "1"
+        },
+        {
+          "line": 19,
+          "text": "Open Codex settings"
+        },
+        {
+          "line": 20,
+          "text": "From the macOS menu bar, choose Codex → Settings. This is where Codex keeps the appearance and pet controls."
+        },
+        {
+          "line": 21,
+          "text": "2"
+        },
+        {
+          "line": 22,
+          "text": "Switch to Appearance"
+        },
+        {
+          "line": 23,
+          "text": "In Settings, select Appearance from the sidebar. The pet selector lives on this page with the rest of the visual workspace controls."
+        },
+        {
+          "line": 24,
+          "text": "3"
+        },
+        {
+          "line": 25,
+          "text": "Choose a pet"
+        },
+        {
+          "line": 26,
+          "text": "Expand Pets, click Select beside the companion you want, or use Tuck Away Pet when you need a quieter workspace."
+        },
+        {
+          "line": 27,
+          "text": "4"
+        },
+        {
+          "line": 28,
+          "text": "Hatch a custom pet"
+        },
+        {
+          "line": 29,
+          "text": "When the built-in options are not enough, open the Hatch Pet skill on GitHub and use it to create a new pet folder that Codex can load after restart."
+        },
+        {
+          "line": 30,
+          "text": "Custom pets:"
+        },
+        {
+          "line": 31,
+          "text": "the Hatch Pet skill can create your own Codex-compatible pet package. It writes the pet manifest and sprite assets locally so the new pet can appear in this same Pets selector after restart."
+        },
+        {
+          "line": 32,
+          "text": "Create your own pet with the Hatch Pet skill"
+        },
+        {
+          "line": 33,
+          "text": "Use OpenAI&#x27;s curated Hatch Pet skill to define a pet concept, generate the sprite sheet and pet.json manifest, then install it under ~/.codex/pets so Codex can list it in Appearance → Pets."
+        },
+        {
+          "line": 34,
+          "text": "Open skill on GitHub"
+        },
+        {
+          "line": 35,
+          "text": "Frequently asked questions"
+        },
+        {
+          "line": 36,
+          "text": "A practical FAQ for visitors discovering Hatch Pet as a Codex pet resource."
+        },
+        {
+          "line": 37,
+          "text": "What is Hatch Pet?"
+        },
+        {
+          "line": 38,
+          "text": "Is this the official Codex pet feature?"
+        },
+        {
+          "line": 39,
+          "text": "Why do pets need multiple states?"
+        },
+        {
+          "line": 40,
+          "text": "Does Hatch Pet use tokens while a pet is running?"
+        },
+        {
+          "line": 41,
+          "text": "Can I create my own pet?"
+        },
+        {
+          "line": 42,
+          "text": "What platforms are supported?"
+        },
+        {
+          "line": 43,
+          "text": "Enable a pet, then hatch your own"
+        },
+        {
+          "line": 44,
+          "text": "Start with the built-in Pets selector in Codex. When you want a companion that matches your workflow, use the curated Hatch Pet skill to generate a custom pet package."
+        },
+        {
+          "line": 45,
+          "text": "Enable /pet"
+        },
+        {
+          "line": 46,
+          "text": "Create your own pet"
+        },
+        {
+          "line": 47,
+          "text": "Hatch Pet"
+        },
+        {
+          "line": 48,
+          "text": "Animated companions for Codex and AI workflows: cute, expressive, and useful as task status signals."
+        },
+        {
+          "line": 49,
+          "text": "About"
+        },
+        {
+          "line": 50,
+          "text": "Features"
+        },
+        {
+          "line": 51,
+          "text": "Enable /pet"
+        },
+        {
+          "line": 52,
+          "text": "Pets"
+        },
+        {
+          "line": 53,
+          "text": "English"
+        },
+        {
+          "line": 54,
+          "text": "© 2024"
+        },
+        {
+          "line": 55,
+          "text": "Hatch Pet"
+        },
+        {
+          "line": 56,
+          "text": ", All rights reserved"
+        },
+        {
+          "line": 57,
+          "text": "Privacy Policy"
+        },
+        {
+          "line": 58,
+          "text": "Terms of Service"
+        },
+        {
+          "line": 59,
+          "text": "BgLessVid"
+        },
+        {
+          "line": 60,
+          "text": "Codex Pet — Hatch animated workflow companions"
+        }
+      ],
+      "links": [
+        {
+          "id": 1,
+          "text": "Hatch Pet",
+          "url": "https://www.hatch-pet.com/"
+        },
+        {
+          "id": 2,
+          "text": "Features",
+          "url": "https://www.hatch-pet.com/#features"
+        },
+        {
+          "id": 3,
+          "text": "Enable /pet",
+          "url": "https://www.hatch-pet.com/#enable-pet"
+        },
+        {
+          "id": 4,
+          "text": "Pets",
+          "url": "https://www.hatch-pet.com/pets"
+        },
+        {
+          "id": 5,
+          "text": "Enable the built-in pet, then hatch your own",
+          "url": "https://www.hatch-pet.com/#enable-pet"
+        },
+        {
+          "id": 6,
+          "text": "Enable /pet",
+          "url": "https://www.hatch-pet.com/#enable-pet"
+        },
+        {
+          "id": 7,
+          "text": "Create your own pet",
+          "url": "https://github.com/openai/skills/tree/main/skills/.curated/hatch-pet"
+        },
+        {
+          "id": 8,
+          "text": "Open Hatch Pet skill",
+          "url": "https://github.com/openai/skills/tree/main/skills/.curated/hatch-pet"
+        },
+        {
+          "id": 9,
+          "text": "Browse pet ideas",
+          "url": "https://www.hatch-pet.com/pets"
+        },
+        {
+          "id": 10,
+          "text": "Open skill on GitHub",
+          "url": "https://github.com/openai/skills/tree/main/skills/.curated/hatch-pet"
+        },
+        {
+          "id": 11,
+          "text": "Enable /pet",
+          "url": "https://www.hatch-pet.com/#enable-pet"
+        },
+        {
+          "id": 12,
+          "text": "Create your own pet",
+          "url": "https://github.com/openai/skills/tree/main/skills/.curated/hatch-pet"
+        },
+        {
+          "id": 13,
+          "text": "Hatch Pet",
+          "url": "https://www.hatch-pet.com/"
+        },
+        {
+          "id": 14,
+          "text": "Features",
+          "url": "https://www.hatch-pet.com/#features"
+        },
+        {
+          "id": 15,
+          "text": "Enable /pet",
+          "url": "https://www.hatch-pet.com/#enable-pet"
+        },
+        {
+          "id": 16,
+          "text": "Pets",
+          "url": "https://www.hatch-pet.com/pets"
+        },
+        {
+          "id": 17,
+          "text": "Hatch Pet",
+          "url": "https://www.hatch-pet.com/"
+        },
+        {
+          "id": 18,
+          "text": "Privacy Policy",
+          "url": "https://www.hatch-pet.com/privacy-policy"
+        },
+        {
+          "id": 19,
+          "text": "Terms of Service",
+          "url": "https://www.hatch-pet.com/terms-of-service"
+        },
+        {
+          "id": 20,
+          "text": "BgLessVid",
+          "url": "https://bglessvid.com/"
+        }
+      ]
+    },
+    {
+      "ref_id": "turn3view0",
+      "url": "https://github.com/openai/codex/issues/21657?utm_source=openai",
+      "title": "Expose custom interaction hooks and APIs for Codex desktop pets · Issue #21657 · openai/codex · GitHub",
+      "content": [
+        {
+          "line": 1,
+          "text": "Uh oh! There was an error while loading. Please reload this page"
+        },
+        {
+          "line": 2,
+          "text": "."
+        },
+        {
+          "line": 3,
+          "text": "openai /"
+        },
+        {
+          "line": 4,
+          "text": "codex"
+        },
+        {
+          "line": 5,
+          "text": "Public"
+        },
+        {
+          "line": 6,
+          "text": "Notifications You must be signed in to change notification settings"
+        },
+        {
+          "line": 7,
+          "text": "Fork 14.9k"
+        },
+        {
+          "line": 8,
+          "text": "Star 99.4k"
+        },
+        {
+          "line": 9,
+          "text": "Code"
+        },
+        {
+          "line": 10,
+          "text": "Issues"
+        },
+        {
+          "line": 11,
+          "text": "5k+"
+        },
+        {
+          "line": 12,
+          "text": "Pull requests"
+        },
+        {
+          "line": 13,
+          "text": "240"
+        },
+        {
+          "line": 14,
+          "text": "Discussions"
+        },
+        {
+          "line": 15,
+          "text": "Actions"
+        },
+        {
+          "line": 16,
+          "text": "Security and quality"
+        },
+        {
+          "line": 17,
+          "text": "1"
+        },
+        {
+          "line": 18,
+          "text": "Insights"
+        },
+        {
+          "line": 19,
+          "text": "Additional navigation options"
+        },
+        {
+          "line": 20,
+          "text": "Code Issues Pull requests Discussions Actions Security and quality Insights Expose custom interaction hooks and APIs for Codex desktop pets"
+        },
+        {
+          "line": 21,
+          "text": "#21657"
+        },
+        {
+          "line": 22,
+          "text": "New issue"
+        },
+        {
+          "line": 23,
+          "text": "Copy link"
+        },
+        {
+          "line": 24,
+          "text": "New issue"
+        },
+        {
+          "line": 25,
+          "text": "Copy link"
+        },
+        {
+          "line": 26,
+          "text": "Open"
+        },
+        {
+          "line": 27,
+          "text": "Open"
+        },
+        {
+          "line": 28,
+          "text": "Expose custom interaction hooks and APIs for Codex desktop pets"
+        },
+        {
+          "line": 29,
+          "text": "#21657"
+        },
+        {
+          "line": 30,
+          "text": "Copy link"
+        },
+        {
+          "line": 31,
+          "text": "Labels"
+        },
+        {
+          "line": 32,
+          "text": "app"
+        },
+        {
+          "line": 33,
+          "text": "Issues related to the Codex desktop app"
+        },
+        {
+          "line": 34,
+          "text": "Issues related to the Codex desktop app"
+        },
+        {
+          "line": 35,
+          "text": "enhancement"
+        },
+        {
+          "line": 36,
+          "text": "New feature or request"
+        },
+        {
+          "line": 37,
+          "text": "New feature or request"
+        },
+        {
+          "line": 38,
+          "text": "pets"
+        },
+        {
+          "line": 39,
+          "text": "Description"
+        },
+        {
+          "line": 40,
+          "text": "KeKeDou810"
+        },
+        {
+          "line": 41,
+          "text": "opened on May 8, 2026"
+        },
+        {
+          "line": 42,
+          "text": "Issue body actions"
+        },
+        {
+          "line": 43,
+          "text": "What variant of Codex are you using?"
+        },
+        {
+          "line": 44,
+          "text": "Codex App (desktop), with custom pets generated/installed through Hatch Pet. This may also be relevant to CLI/SDK surfaces if they expose the same pet/action contract later."
+        },
+        {
+          "line": 45,
+          "text": "What feature would you like to see?"
+        },
+        {
+          "line": 46,
+          "text": "Please expose a supported interaction/API contract for Codex desktop pets, beyond visual spritesheet customization."
+        },
+        {
+          "line": 47,
+          "text": "Requested capabilities:"
+        },
+        {
+          "line": 48,
+          "text": "Let a custom pet declare safe interactions in pet.json"
+        },
+        {
+          "line": 49,
+          "text": ", e.g. click, double-click, right-click/context menu, hover, drag/drop, and optional keyboard shortcut actions."
+        },
+        {
+          "line": 50,
+          "text": "Let those interactions call first-party Codex actions or approved deep links, such as: open/tuck the pet;"
+        },
+        {
+          "line": 51,
+          "text": "open the current or related Codex thread;"
+        },
+        {
+          "line": 52,
+          "text": "create a new thread for a configured workspace/prompt;"
+        },
+        {
+          "line": 53,
+          "text": "open a local project dashboard or app route through an allowlisted URL/deeplink;"
+        },
+        {
+          "line": 54,
+          "text": "invoke a named skill/command where permissions allow."
+        },
+        {
+          "line": 55,
+          "text": "Expose a small, documented read-only status/event API for pets to observe agent/thread state, e.g. idle, running, waiting for user, ready for review, failure, latest activity category, active workspace/thread id."
+        },
+        {
+          "line": 56,
+          "text": "Keep the contract permissioned and safe: no arbitrary command execution by default; require user approval/allowlisting for external URLs, local apps, workspace commands, and any write-capable integration."
+        },
+        {
+          "line": 57,
+          "text": "Document the interaction contract so third-party dashboards can integrate with the official Codex pet instead of building their own always-on launcher."
+        },
+        {
+          "line": 58,
+          "text": "Additional information"
+        },
+        {
+          "line": 59,
+          "text": "Related but distinct: #20863"
+        },
+        {
+          "line": 60,
+          "text": "asks for configurable animation sequences and activity events. This request is about interaction hooks and open integration surfaces."
+        },
+        {
+          "line": 61,
+          "text": "Use case: a local project dashboard or personal wiki may want the official Codex pet to act as a lightweight entry point and status surface. For example, clicking the pet could open the project dashboard, create a project-specific Codex thread, or show safe actions for maintaining the project. Without supported hooks, users either treat pets as visual-only status indicators or build a separate desktop companion/launcher, which duplicates the Codex pet's role."
+        },
+        {
+          "line": 62,
+          "text": "A minimal first version could be a manifest-defined context menu with allowlisted codex://"
+        },
+        {
+          "line": 63,
+          "text": "actions and read-only status events. More advanced versions could expose a small SDK/API for registered local apps."
+        },
+        {
+          "line": 64,
+          "text": "Reactions are currently unavailable"
+        },
+        {
+          "line": 65,
+          "text": "Metadata"
+        },
+        {
+          "line": 66,
+          "text": "Metadata"
+        },
+        {
+          "line": 67,
+          "text": "Assignees"
+        },
+        {
+          "line": 68,
+          "text": "No one assigned"
+        },
+        {
+          "line": 69,
+          "text": "Labels"
+        },
+        {
+          "line": 70,
+          "text": "app"
+        },
+        {
+          "line": 71,
+          "text": "Issues related to the Codex desktop app"
+        },
+        {
+          "line": 72,
+          "text": "Issues related to the Codex desktop app"
+        },
+        {
+          "line": 73,
+          "text": "enhancement"
+        },
+        {
+          "line": 74,
+          "text": "New feature or request"
+        },
+        {
+          "line": 75,
+          "text": "New feature or request"
+        },
+        {
+          "line": 76,
+          "text": "pets"
+        },
+        {
+          "line": 77,
+          "text": "Type"
+        },
+        {
+          "line": 78,
+          "text": "No type"
+        },
+        {
+          "line": 79,
+          "text": "Fields"
+        },
+        {
+          "line": 80,
+          "text": "No fields configured for issues without a type."
+        },
+        {
+          "line": 81,
+          "text": "Projects"
+        },
+        {
+          "line": 82,
+          "text": "No projects"
+        },
+        {
+          "line": 83,
+          "text": "Milestone"
+        },
+        {
+          "line": 84,
+          "text": "No milestone"
+        },
+        {
+          "line": 85,
+          "text": "Relationships"
+        },
+        {
+          "line": 86,
+          "text": "None yet"
+        },
+        {
+          "line": 87,
+          "text": "Development"
+        },
+        {
+          "line": 88,
+          "text": "No branches or pull requests"
+        },
+        {
+          "line": 89,
+          "text": "Issue actions"
+        },
+        {
+          "line": 90,
+          "text": "Open in GitHub Copilot app"
+        }
+      ],
+      "links": [
+        {
+          "id": 1,
+          "text": "Please reload this page",
+          "url": "https://github.com/openai/codex/issues/21657?utm_source=openai"
+        },
+        {
+          "id": 2,
+          "text": "openai",
+          "url": "https://github.com/openai"
+        },
+        {
+          "id": 3,
+          "text": "codex",
+          "url": "https://github.com/openai/codex"
+        },
+        {
+          "id": 4,
+          "text": "Notifications",
+          "url": "https://github.com/login?return_to=%2Fopenai%2Fcodex"
+        },
+        {
+          "id": 5,
+          "text": "Fork\n    14.9k",
+          "url": "https://github.com/login?return_to=%2Fopenai%2Fcodex"
+        },
+        {
+          "id": 6,
+          "text": "Star\n          99.4k",
+          "url": "https://github.com/login?return_to=%2Fopenai%2Fcodex"
+        },
+        {
+          "id": 7,
+          "text": "Code",
+          "url": "https://github.com/openai/codex"
+        },
+        {
+          "id": 8,
+          "text": "Issues\n          5k+",
+          "url": "https://github.com/openai/codex/issues"
+        },
+        {
+          "id": 9,
+          "text": "Pull requests\n          240",
+          "url": "https://github.com/openai/codex/pulls"
+        },
+        {
+          "id": 10,
+          "text": "Discussions",
+          "url": "https://github.com/openai/codex/discussions"
+        },
+        {
+          "id": 11,
+          "text": "Actions",
+          "url": "https://github.com/openai/codex/actions"
+        },
+        {
+          "id": 12,
+          "text": "Security and quality\n          1",
+          "url": "https://github.com/openai/codex/security"
+        },
+        {
+          "id": 13,
+          "text": "Insights",
+          "url": "https://github.com/openai/codex/pulse"
+        },
+        {
+          "id": 14,
+          "text": "Issues",
+          "url": "https://github.com/openai/codex/issues"
+        },
+        {
+          "id": 15,
+          "text": "Pull requests",
+          "url": "https://github.com/openai/codex/pulls"
+        },
+        {
+          "id": 16,
+          "text": "Discussions",
+          "url": "https://github.com/openai/codex/discussions"
+        },
+        {
+          "id": 17,
+          "text": "Actions",
+          "url": "https://github.com/openai/codex/actions"
+        },
+        {
+          "id": 18,
+          "text": "Security and quality",
+          "url": "https://github.com/openai/codex/security"
+        },
+        {
+          "id": 19,
+          "text": "Insights",
+          "url": "https://github.com/openai/codex/pulse"
+        },
+        {
+          "id": 20,
+          "text": "Expose custom interaction hooks and APIs for Codex desktop pets",
+          "url": "https://github.com/openai/codex/issues/21657?utm_source=openai#top"
+        },
+        {
+          "id": 21,
+          "text": "appIssues related to the Codex desktop app",
+          "url": "https://github.com/openai/codex/issues?q=state%3Aopen%20label%3A%22app%22"
+        },
+        {
+          "id": 22,
+          "text": "enhancementNew feature or request",
+          "url": "https://github.com/openai/codex/issues?q=state%3Aopen%20label%3A%22enhancement%22"
+        },
+        {
+          "id": 23,
+          "text": "pets",
+          "url": "https://github.com/openai/codex/issues?q=state%3Aopen%20label%3A%22pets%22"
+        },
+        {
+          "id": 24,
+          "text": "KeKeDou810",
+          "url": "https://github.com/KeKeDou810"
+        },
+        {
+          "id": 25,
+          "text": "on May 8, 2026",
+          "url": "https://github.com/openai/codex/issues/21657#issue-4403719263"
+        },
+        {
+          "id": 26,
+          "text": "#20863",
+          "url": "https://github.com/openai/codex/issues/20863"
+        },
+        {
+          "id": 27,
+          "text": "appIssues related to the Codex desktop app",
+          "url": "https://github.com/openai/codex/issues?q=state%3Aopen%20label%3A%22app%22"
+        },
+        {
+          "id": 28,
+          "text": "enhancementNew feature or request",
+          "url": "https://github.com/openai/codex/issues?q=state%3Aopen%20label%3A%22enhancement%22"
+        },
+        {
+          "id": 29,
+          "text": "pets",
+          "url": "https://github.com/openai/codex/issues?q=state%3Aopen%20label%3A%22pets%22"
+        }
+      ]
+    }
+  ]
+}

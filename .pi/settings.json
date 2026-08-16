@@ -1,0 +1,4 @@
+{
+  "sessionDir": ".pi/sessions",
+  "packages": ["../packages/pi-pet"]
+}

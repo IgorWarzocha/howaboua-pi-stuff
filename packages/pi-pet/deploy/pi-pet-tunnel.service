@@ -1,0 +1,13 @@
+[Unit]
+Description=SSH tunnel to server-hosted Pi Pet
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/ssh -NT -o BatchMode=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -L 127.0.0.1:43117:127.0.0.1:43117 server
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

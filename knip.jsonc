@@ -26,6 +26,21 @@
 		"packages/pi-gippity-control": {
 			"entry": ["changelog.ts"]
 		},
+		"packages/pi-pet": {
+			"entry": [
+				"extensions/index.ts",
+				"src/desktop/main.ts",
+				"src/desktop/preload.ts",
+				"src/server/cli.ts",
+				"src/web/main.ts",
+				"tests/*.test.ts",
+				"scripts/**/*.mjs"
+			],
+			"project": ["extensions/**/*.ts", "src/**/*.ts", "tests/**/*.ts", "scripts/**/*.mjs"],
+			"ignoreIssues": {
+				"src/protocol/index.ts": ["exports", "types"]
+			}
+		},
 		"packages/pi-shepherdr": {
 			"entry": ["changelog.ts"]
 		},
