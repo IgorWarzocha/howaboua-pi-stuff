@@ -34,15 +34,19 @@
 		"README.md",
 		"LICENSE",
 		"tsconfig.json",
-		"biome.json"
+		"biome.json",
+		"changelog.ts",
+		"CHANGELOG.md"
 	],
 	"pi": {
 		"extensions": [
+			"./changelog.ts",
 			"./index.ts"
 		]
 	},
 	"peerDependencies": {
-		"@earendil-works/pi-coding-agent": ">=0.82.0"
+		"@earendil-works/pi-coding-agent": ">=0.82.0",
+		"@earendil-works/pi-tui": "*"
 	},
 	"devDependencies": {
 		"typescript": "^5.7.3",

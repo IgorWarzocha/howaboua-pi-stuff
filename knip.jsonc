@@ -1,6 +1,9 @@
 {
 	"$schema": "https://unpkg.com/knip@6/schema.json",
 	"workspaces": {
+		"packages/pi-auto-trees": {
+			"entry": ["changelog.ts"]
+		},
 		"packages/pi-codex-conversion": {
 			"ignoreExportsUsedInFile": true,
 			"entry": [
@@ -9,7 +12,8 @@
 				"src/realtime-voice.ts",
 				"scripts/**/*.mjs",
 				"examples/custom-tools/**/*.mjs",
-				"tests/**/*.test.ts"
+				"tests/**/*.test.ts",
+				"changelog.ts"
 			],
 			"project": [
 				"src/**/*.ts",
@@ -19,8 +23,17 @@
 			],
 			"ignoreDependencies": ["proxy-from-env"]
 		},
+		"packages/pi-gippity-control": {
+			"entry": ["changelog.ts"]
+		},
+		"packages/pi-shepherdr": {
+			"entry": ["changelog.ts"]
+		},
+		"packages/pi-smart-btw": {
+			"entry": ["changelog.ts"]
+		},
 		"packages/pi-subagent-review": {
-			"entry": ["tests/**/*.test.ts"],
+			"entry": ["changelog.ts", "tests/**/*.test.ts"],
 			"project": ["src/**/*.ts", "tests/**/*.ts"]
 		}
 	}

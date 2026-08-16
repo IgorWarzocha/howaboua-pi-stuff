@@ -14,7 +14,9 @@
 		"README.md",
 		"LICENSE",
 		"tsconfig.json",
-		"biome.json"
+		"biome.json",
+		"changelog.ts",
+		"CHANGELOG.md"
 	],
 	"scripts": {
 		"check": "bun run lint && bun run typecheck && bun run test",
@@ -44,6 +46,7 @@
 	},
 	"pi": {
 		"extensions": [
+			"./changelog.ts",
 			"./index.ts"
 		]
 	},

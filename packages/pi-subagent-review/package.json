@@ -12,7 +12,9 @@
 		"review.prompt.md",
 		"README.md",
 		"tsconfig.json",
-		"biome.json"
+		"biome.json",
+		"changelog.ts",
+		"CHANGELOG.md"
 	],
 	"keywords": [
 		"pi-package",
@@ -34,12 +36,14 @@
 	},
 	"pi": {
 		"extensions": [
+			"./changelog.ts",
 			"./index.ts"
 		]
 	},
 	"peerDependencies": {
 		"@earendil-works/pi-ai": ">=0.80.8",
-		"@earendil-works/pi-coding-agent": ">=0.82.0"
+		"@earendil-works/pi-coding-agent": ">=0.82.0",
+		"@earendil-works/pi-tui": "*"
 	},
 	"scripts": {
 		"check": "bun run lint && bun run typecheck && bun run test",

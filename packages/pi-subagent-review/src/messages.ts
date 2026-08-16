@@ -18,21 +18,26 @@ const REVIEW_LOOP_PREFACE_MESSAGE = [
 	"",
 	"When findings return, compare each one against the user’s actual request, prior conversation, accepted decisions, intentional tradeoffs from this session, and the current implementation.",
 	"",
-	"Default response: summarize and triage, not code.",
+	"Default response: verify and triage, not code.",
 	"",
-	"For each finding, mark one of:",
+	"For each verified finding, recommend one of:",
 	"",
 	"- address: concrete, in-scope, necessary for the current implementation",
 	"- defer: plausible but outside the current work",
 	"- skip: stylistic, speculative, preference-based, overengineered, or not useful",
 	"",
-	"Only after triage, explain what you recommend doing next. If a finding is not obviously required for the current implementation, do not change code for it.",
+	"After triage, obtain the user’s disposition. If a finding is not obviously required for the current implementation, recommend deferring or skipping it.",
 ].join("\n");
 
 const REVIEW_SUMMARY_STARTED_PROMPT =
 	"The current conversation is being summarised to prepare context for an isolated code review. Please announce this briefly in your natural voice.";
 const REVIEW_FINDINGS_READY_PROMPT =
 	"The isolated code review has finished, and its findings have been sent to the main agent for triage. Announce this briefly in your natural voice. When the main agent responds, continue with its substantive triage without repeating this status.";
+const REVIEW_FINDINGS_FOLLOW_UP = [
+	"Treat the findings above as advisory and unverified. Read the cited files and trace the relevant paths before deciding whether each finding is true, necessary, and in scope. Compare them against the user’s request, prior decisions, and current implementation. Do not merely summarize the reviewer output.",
+	"",
+	"Before changing code, get the user’s disposition on the verified findings using an available ask/questions tool, or a normal message if none is available. After dispositions are agreed, do not summarize them again: start the agreed work. If any remain ambiguous, complete the clear, simple, non-blocking agreed fixes first, then return to the ambiguous findings.",
+].join("\n");
 
 function announceReviewStatus(
 	pi: ExtensionAPI,
@@ -102,7 +107,7 @@ function buildReviewScopeText(review: ReviewContext): string {
 	return `for current repository state in \`${review.repoRoot}\` with no usable base branch or merge base`;
 }
 
-function buildReviewUserMessage(
+function buildReviewFindingsMessage(
 	review: ReviewContext,
 	findings: string,
 ): string {
@@ -110,14 +115,6 @@ function buildReviewUserMessage(
 		`Review findings from /${REVIEW_COMMAND} ${buildReviewScopeText(review)}:`,
 		"",
 		findings.trim() || "No actionable issues found.",
-		"",
-		"These findings are advisory output from an isolated review subagent.",
-		"",
-		"Do not treat review findings as a TODO list. Default response: summarize and triage, not code.",
-		"",
-		"Compare each finding against the user’s actual request, prior conversation, accepted decisions, intentional tradeoffs from this session, and the current implementation.",
-		"",
-		"Mark each finding as address, defer, or skip. Only change code for findings that are obviously required for the current implementation.",
 	].join("\n");
 }
 
@@ -127,13 +124,24 @@ export function sendReviewFindings(
 	review: ReviewContext,
 	findings: string,
 ): void {
+	const normalizedFindings = findings.trim();
+	const idle = ctx.isIdle();
 	pi.sendMessage(
 		{
 			customType: REVIEW_FINDINGS_MESSAGE_TYPE,
-			content: buildReviewUserMessage(review, findings),
+			content: buildReviewFindingsMessage(review, findings),
 			display: true,
 			details: { repoRoot: review.repoRoot, scope: review.scope },
 		},
-		ctx.isIdle() ? { triggerTurn: true } : { deliverAs: "followUp" },
+		idle ? { triggerTurn: false } : { deliverAs: "followUp" },
+	);
+	if (
+		!normalizedFindings ||
+		normalizedFindings === "No actionable issues found."
+	)
+		return;
+	pi.sendUserMessage(
+		REVIEW_FINDINGS_FOLLOW_UP,
+		idle ? undefined : { deliverAs: "followUp" },
 	);
 }

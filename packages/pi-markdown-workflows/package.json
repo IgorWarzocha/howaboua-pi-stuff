@@ -35,7 +35,9 @@
 		"README.md",
 		"index.ts",
 		"tsconfig.json",
-		"biome.json"
+		"biome.json",
+		"changelog.ts",
+		"CHANGELOG.md"
 	],
 	"type": "module",
 	"main": "./dist/index.js",
@@ -68,10 +70,12 @@
 	},
 	"peerDependencies": {
 		"@earendil-works/pi-coding-agent": "*",
-		"typebox": "*"
+		"typebox": "*",
+		"@earendil-works/pi-tui": "*"
 	},
 	"pi": {
 		"extensions": [
+			"./changelog.ts",
 			"./dist/index.js"
 		]
 	},

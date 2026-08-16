@@ -23,10 +23,13 @@
 		"tsconfig.json",
 		"biome.json",
 		"!src/**/AGENTS.md",
-		"!src/voice/rust/target/**"
+		"!src/voice/rust/target/**",
+		"changelog.ts",
+		"CHANGELOG.md"
 	],
 	"pi": {
 		"extensions": [
+			"./changelog.ts",
 			"./index.ts"
 		]
 	},

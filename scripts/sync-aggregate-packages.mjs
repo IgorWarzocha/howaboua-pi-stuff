@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, posix } from "node:path";
 import { listActivePackageDirs } from "./active-packages.mjs";
 
@@ -33,13 +33,20 @@ function safeIdentifier(packageName) {
 function writeExtensionAggregate(dir, filter) {
   rmSync(join(packagesDir, dir, "extensions"), { recursive: true, force: true });
   const extensionEntries = packages.filter(filter).filter((entry) => has("extensions", entry));
-  const imports = extensionEntries.map((entry) => `import ${safeIdentifier(entry.pkg.name)} from "${entry.pkg.name}";`);
+  const imports = extensionEntries.map(
+    (entry) =>
+      `import ${safeIdentifier(entry.pkg.name)} from "${entry.pkg.name}";`,
+  );
   const calls = extensionEntries.map((entry) => `\tawait ${safeIdentifier(entry.pkg.name)}(pi);`);
+  copyFileSync(
+    join(root, "scripts", "templates", "extension-changelog.ts"),
+    join(packagesDir, dir, "changelog.ts"),
+  );
   writeFileSync(
     join(packagesDir, dir, "index.ts"),
     `import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";\n${imports.join("\n")}\n\nexport default async function (pi: ExtensionAPI) {\n${calls.join("\n")}\n}\n`,
   );
-  return ["./index.ts"];
+  return ["./changelog.ts", "./index.ts"];
 }
 
 function dependencyResourcePath(dependencyName, resource) {
@@ -62,12 +69,22 @@ function updateAggregate(dir, filter, includeExtensions, includeSkills) {
   delete pkg.bundledDependencies;
   pkg.files = Array.from(
     new Set([
-      ...(pkg.files ?? []).filter((entry) => entry !== "extensions" && (includeExtensions || entry !== "index.ts")),
-      ...(includeExtensions ? ["index.ts"] : []),
+      ...(pkg.files ?? []).filter(
+        (entry) =>
+          !["changelog.ts", "extensions"].includes(entry) &&
+          (includeExtensions || entry !== "index.ts"),
+      ),
+      ...(includeExtensions ? ["index.ts", "changelog.ts", "CHANGELOG.md"] : []),
       "README.md",
       "LICENSE",
     ]),
   );
+  if (includeExtensions) {
+    pkg.peerDependencies = {
+      ...(pkg.peerDependencies ?? {}),
+      "@earendil-works/pi-tui": "*",
+    };
+  }
   pkg.pi = {};
   if (includeExtensions) pkg.pi.extensions = writeExtensionAggregate(dir, filter);
   if (includeSkills) pkg.pi.skills = skillPaths(filter);
