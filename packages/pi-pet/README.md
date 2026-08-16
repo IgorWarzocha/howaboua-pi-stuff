@@ -39,9 +39,9 @@ The display needs npm and Node 22 or newer; runtime extraction uses PowerShell o
 /pet attach desktop https://192.168.0.113:43120
 ```
 
-Pi now owns the whole lifecycle. Its one SSH command copies the desktop source from the exact Pi Pet package already loaded by Pi into a temporary directory on the display, runs `npm install`, `npm run build`, and Electron, then removes the source when Pi or Clawa exits. It creates no application installation, login item, or background service. npm and Electron may retain their ordinary download caches.
+Pi now owns the running lifecycle. Its SSH command keeps the desktop source and build at `~/.pi/agent/pi-pet` on the display. On connection it compares the loaded package version and source digest with the recorded build, runs the copy, `npm install`, and `npm run build` steps only when they differ, then starts Electron. Pi or Clawa exiting stops Electron but does not discard the build. It creates no application installation, login item, or background service.
 
-Every later Pi instance starts its attached displays automatically. Attach more SSH aliases with the same command, inspect them with `/pet status`, rebuild/relaunch with `/pet restart`, or remove one with `/pet detach desktop`. SSH options, keys, proxies, and host routing stay in `~/.ssh/config`.
+Every later Pi instance starts its attached displays automatically. Attach more SSH aliases with the same command, inspect them with `/pet status`, relaunch with `/pet restart`, or remove one with `/pet detach desktop`. SSH options, keys, proxies, and host routing stay in `~/.ssh/config`.
 
 Electron accepts GipPity's self-signed certificate only for the configured origin. The source-only `desktop/` package is also directly runnable with `npm install`, `npm run build`, and `npm start` from a source checkout.
 

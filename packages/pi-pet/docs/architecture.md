@@ -4,7 +4,7 @@
 flowchart LR
     Pi[Pi session] --> G[GipPity Control]
     Pi --> SSH[Owned SSH command]
-    SSH --> Build[Temporary source copy + npm build]
+    SSH --> Build[Versioned source + build in ~/.pi/agent/pi-pet]
     Build --> Electron[Transparent Electron shell]
     G --> SDK[GipPity Remote mini-SDK]
     SDK --> Web[Pi Pet web miniapp]
@@ -22,7 +22,7 @@ flowchart LR
 - `src/protocol/` owns pet/catalog and reaction-state shapes.
 - `src/pet-loader.ts` validates inert pet data and assets during builds.
 
-An attached display receives no installed Pi Pet application. The SSH command copies desktop source from the package loaded by Pi into a temporary directory, runs its npm install and build, and starts Electron. Closing the SSH owner closes Electron through an inherited pipe and removes the source; only normal tool download caches and local attention preferences persist.
+An attached display keeps Pi Pet at `~/.pi/agent/pi-pet` without installing an application. The SSH command compares its build record with the version and source digest of the package loaded by Pi. A mismatch updates the source and runs npm install and build; a match starts the existing build directly. Closing the SSH owner closes Electron through an inherited pipe but leaves the source and build for the next Pi session.
 
 ## State flow
 

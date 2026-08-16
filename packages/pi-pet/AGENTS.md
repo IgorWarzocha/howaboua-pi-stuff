@@ -3,5 +3,5 @@
 - Keep pet/catalog and reaction contracts in `src/protocol/`; renderer and extension must not duplicate them.
 - `bun run ai:check:strict` MUST pass before packaging or launching Electron.
 - Generated `dist/` is distributable output; change source first and rebuild it in the same change.
-- Attached desktop processes are ephemeral SSH-owned source builds: copy the loaded package source, npm install, npm build, run, cleanup. Never add Git fetching, app installation, autostart, or background-service state.
+- Attached desktops live at `~/.pi/agent/pi-pet` on the display. Rebuild there only when the loaded package version or source digest changes; SSH owns only the running process. Never add Git fetching, app installation, autostart, or background-service state.
 - Read the nearest nested `AGENTS.md` before editing a subtree.

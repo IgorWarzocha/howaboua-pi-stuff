@@ -1,4 +1,5 @@
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -50,31 +51,16 @@ process.stdin.on("end", () => {
 
 const REMOTE_BOOTSTRAP = String.raw`
 const { spawn, spawnSync } = require("node:child_process");
-const { mkdir, mkdtemp, readdir, readFile, rm, writeFile } = require("node:fs/promises");
-const { tmpdir } = require("node:os");
+const { access, mkdir, readFile, writeFile } = require("node:fs/promises");
+const { homedir } = require("node:os");
 const { dirname, join, resolve, sep } = require("node:path");
 const { createRequire } = require("node:module");
 let activeChild;
 let stopping = false;
-let ownerMarker;
-let markerWrites = Promise.resolve();
-let heartbeatCount = 0;
 const emit = phase => process.stdout.write(JSON.stringify({ type: "phase", phase }) + "\n");
 const bounded = value => value.length <= 8192 ? value : value.slice(value.length - 8192);
-function refreshOwnerMarker() {
-  if (!ownerMarker) return Promise.resolve();
-  markerWrites = markerWrites.catch(() => undefined).then(() => writeFile(
-    ownerMarker,
-    JSON.stringify({ schemaVersion: 1, pid: process.pid, startedAt, heartbeatAt: Date.now() }),
-    { mode: 0o600 },
-  ));
-  return markerWrites;
-}
-const startedAt = Date.now();
 const heartbeat = setInterval(() => {
   process.stdout.write('{"type":"heartbeat"}\n');
-  heartbeatCount += 1;
-  if (heartbeatCount % 60 === 0) void refreshOwnerMarker().catch(stop);
 }, 1000);
 const stop = () => { stopping = true; clearInterval(heartbeat); activeChild?.kill(); };
 for (const signal of ["SIGHUP", "SIGINT", "SIGTERM"]) process.on(signal, stop);
@@ -109,43 +95,34 @@ function graphicalEnvironment() {
   }
   return environment;
 }
-function processIsRunning(pid) {
-  try { process.kill(pid, 0); return true; } catch { return false; }
-}
-async function reapStaleCheckouts() {
-  const directory = tmpdir();
-  const entries = await readdir(directory, { withFileTypes: true }).catch(() => []);
-  for (const entry of entries) {
-    if (!(entry.isDirectory() && entry.name.startsWith("howaboua-pi-pet-"))) continue;
-    const path = join(directory, entry.name);
-    try {
-      const marker = JSON.parse(await readFile(join(path, ".ephemeral-owner.json"), "utf8"));
-      if (marker.schemaVersion !== 1 || !Number.isSafeInteger(marker.pid) || !Number.isFinite(marker.heartbeatAt)) continue;
-      const staleFor = Date.now() - marker.heartbeatAt;
-      if (staleFor < 24 * 60 * 60 * 1000) continue;
-      if (staleFor < 7 * 24 * 60 * 60 * 1000 && processIsRunning(marker.pid)) continue;
-      await rm(path, { recursive: true, force: true });
-    } catch {}
+async function buildIsCurrent(marker, output) {
+  try {
+    const built = JSON.parse(await readFile(marker, "utf8"));
+    await access(output);
+    return built.schemaVersion === 1
+      && built.packageVersion === options.packageVersion
+      && built.sourceDigest === options.sourceDigest;
+  } catch {
+    return false;
   }
 }
 async function main() {
-  await reapStaleCheckouts();
-  if (stopping) return;
-  const root = await mkdtemp(join(tmpdir(), "howaboua-pi-pet-"));
-  try {
+  const root = join(homedir(), ".pi", "agent", "pi-pet");
+  const desktop = join(root, "desktop");
+  const marker = join(root, ".build.json");
+  const output = join(desktop, "dist", "app", "main.js");
+  await mkdir(root, { recursive: true, mode: 0o700 });
+  emit("check");
+  if (!(await buildIsCurrent(marker, output))) {
     if (stopping) return;
-    ownerMarker = join(root, ".ephemeral-owner.json");
-    await refreshOwnerMarker();
     emit("copy");
-    const checkout = join(root, "source");
     for (const [relativePath, encoded] of Object.entries(options.files)) {
-      const target = resolve(checkout, relativePath);
-      if (!target.startsWith(checkout + sep)) throw new Error("Pi Pet source path escaped its temporary checkout");
+      const target = resolve(root, relativePath);
+      if (!target.startsWith(root + sep)) throw new Error("Pi Pet source path escaped its application directory");
       await mkdir(dirname(target), { recursive: true, mode: 0o700 });
-      await writeFile(target, Buffer.from(encoded, "base64"), { mode: 0o600, flag: "wx" });
+      await writeFile(target, Buffer.from(encoded, "base64"), { mode: 0o600 });
     }
     if (stopping) return;
-    const desktop = join(checkout, "desktop");
     const npm = process.platform === "win32" ? "npm.cmd" : "npm";
     emit("install");
     await run(npm, ["install", "--ignore-scripts", "--no-audit", "--no-fund"], desktop);
@@ -153,32 +130,35 @@ async function main() {
     emit("build");
     await run(npm, ["run", "build"], desktop);
     if (stopping) return;
-    emit("run");
-    const requireFromDesktop = createRequire(join(desktop, "package.json"));
-    const electron = requireFromDesktop("electron");
-    await new Promise((resolve, reject) => {
-      const child = spawn(electron, [join(desktop, "dist", "app")], {
-        cwd: desktop,
-        env: { ...graphicalEnvironment(), PI_PET_GIPPITY_URL: options.gippityUrl, PI_PET_OWNER_FD: "3" },
-        stdio: ["ignore", "inherit", "inherit", "pipe"],
-        windowsHide: true,
-      });
-      activeChild = child;
-      child.once("error", reject);
-      child.once("exit", code => {
-        if (activeChild === child) activeChild = undefined;
-        if (code === 0 || stopping) resolve();
-        else reject(new Error("Electron exited " + (code ?? "without status")));
-      });
-    });
-  } finally {
-    clearInterval(heartbeat);
-    await markerWrites.catch(() => undefined);
-    ownerMarker = undefined;
-    await rm(root, { recursive: true, force: true });
+    await writeFile(marker, JSON.stringify({
+      schemaVersion: 1,
+      packageVersion: options.packageVersion,
+      sourceDigest: options.sourceDigest,
+    }) + "\n", { mode: 0o600 });
   }
+  if (stopping) return;
+  emit("run");
+  const requireFromDesktop = createRequire(join(desktop, "package.json"));
+  const electron = requireFromDesktop("electron");
+  await new Promise((resolve, reject) => {
+    const child = spawn(electron, [join(desktop, "dist", "app")], {
+      cwd: desktop,
+      env: { ...graphicalEnvironment(), PI_PET_GIPPITY_URL: options.gippityUrl, PI_PET_OWNER_FD: "3" },
+      stdio: ["ignore", "inherit", "inherit", "pipe"],
+      windowsHide: true,
+    });
+    activeChild = child;
+    child.once("error", reject);
+    child.once("exit", code => {
+      if (activeChild === child) activeChild = undefined;
+      if (code === 0 || stopping) resolve();
+      else reject(new Error("Electron exited " + (code ?? "without status")));
+    });
+  });
 }
-main().catch(error => { process.stderr.write((error?.message || String(error)) + "\n"); process.exitCode = 1; });
+main()
+  .catch(error => { process.stderr.write((error?.message || String(error)) + "\n"); process.exitCode = 1; })
+  .finally(() => clearInterval(heartbeat));
 `;
 
 export interface RemoteDesktopProcessSpec {
@@ -187,21 +167,25 @@ export interface RemoteDesktopProcessSpec {
   source: string;
 }
 
-function packagedDesktopSource(): Record<string, string> {
+function packagedDesktopSource(): { files: Record<string, string>; packageVersion: string; sourceDigest: string } {
   const files: Record<string, string> = {};
+  const digest = createHash("sha256");
   let size = 0;
   for (const path of REMOTE_SOURCE_PATHS) {
     const contents = readFileSync(join(PACKAGE_ROOT, path));
     size += contents.length;
     if (size > MAX_SOURCE_BYTES) throw new Error("Pi Pet desktop source is unexpectedly large.");
     files[path] = contents.toString("base64");
+    digest.update(path).update("\0").update(contents).update("\0");
   }
-  return files;
+  const manifest = JSON.parse(readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8")) as { version?: unknown };
+  if (typeof manifest.version !== "string") throw new Error("Pi Pet package version is missing.");
+  return { files, packageVersion: manifest.version, sourceDigest: digest.digest("hex") };
 }
 
 export function remoteDesktopProcessSpec(target: string, gippityUrl: string): RemoteDesktopProcessSpec {
   const origin = parseDesktopConfig({ schemaVersion: 1, gippityUrl }).gippityUrl;
-  const options = { files: packagedDesktopSource(), gippityUrl: origin };
+  const options = { ...packagedDesktopSource(), gippityUrl: origin };
   const sshTarget = parseSshTarget(target);
   return {
     program: "node",
