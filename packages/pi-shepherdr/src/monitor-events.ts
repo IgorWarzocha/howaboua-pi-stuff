@@ -1,4 +1,4 @@
-import type { HerdrClient } from "./herdr-client.js";
+import type { HerdrConnection } from "./herdr-client.js";
 import type { HerdrEvent } from "./types.js";
 
 interface Subscription {
@@ -7,7 +7,8 @@ interface Subscription {
 }
 
 interface MonitorEventsOptions {
-	client: HerdrClient;
+	client: HerdrConnection;
+	reconnect?: boolean;
 	onEvent: (event: HerdrEvent) => void;
 	onReconnect: () => Promise<void>;
 	onWarning: (message: string) => void;
@@ -94,9 +95,9 @@ export class MonitorEvents {
 		} catch (error) {
 			this.live.delete(generation);
 			if (!this.active || generation !== this.generation) return;
-			this.warn(
-				`Herdr monitoring unavailable: ${error instanceof Error ? error.message : String(error)}`,
-			);
+			const failure = error instanceof Error ? error : new Error(String(error));
+			this.warn(`Herdr monitoring unavailable: ${failure.message}`);
+			if (this.options.reconnect === false) throw failure;
 			this.scheduleReconnect(generation, false);
 		}
 	}
@@ -115,6 +116,7 @@ export class MonitorEvents {
 
 	private scheduleReconnect(generation: number, disconnected: boolean): void {
 		if (!this.active || generation !== this.generation) return;
+		if (this.options.reconnect === false) return;
 		if (disconnected && this.subscription?.generation === generation) {
 			this.subscription = undefined;
 		}

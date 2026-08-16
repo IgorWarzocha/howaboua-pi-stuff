@@ -35,6 +35,8 @@ interface AgentEventOptions {
 	agent: PaneInfo;
 	blockedMessage?: string;
 	labels: AgentEventLabels;
+	machine: string;
+	operatorPrefix: string;
 	record: MonitoredAgent;
 	reply?: LatestAssistant;
 	status: SettledAgentStatus;
@@ -43,6 +45,7 @@ interface AgentEventOptions {
 interface AgentEventDetails {
 	blockedOn?: string;
 	cwd?: string;
+	machine: string;
 	name?: string;
 	paneId: string;
 	response?: string;
@@ -72,7 +75,7 @@ function boundedVoicePrompt(prompt: string, truncationNotice: string): string {
 
 function agentVoicePrompt(details: AgentEventDetails): string {
 	const lines = [
-		`Worker: ${details.name?.trim() || "unnamed"}`,
+		`Worker: ${details.machine} / ${details.name?.trim() || "unnamed"}`,
 		`State: ${details.state}`,
 	];
 	if (details.task?.trim()) lines.push(`Task:\n${details.task.trim()}`);
@@ -105,7 +108,7 @@ function announceAgentEvent(
 	pi: ExtensionAPI,
 	details: AgentEventDetails,
 ): void {
-	const candidateId = `pi-shepherdr:${details.paneId}`;
+	const candidateId = `pi-shepherdr:${details.machine}:${details.paneId}`;
 	const id =
 		new TextEncoder().encode(candidateId).byteLength <= 160
 			? candidateId
@@ -115,12 +118,24 @@ function announceAgentEvent(
 	pi.events.emit(REALTIME_VOICE_PROMPT_CHANNEL, { id, active: false, prompt });
 }
 
-function blockedOperatorHint(paneId: string): string {
-	return `Inspect first with \`herdr agent read ${paneId} --source visible\`; respond with \`herdr agent prompt ${paneId} "<text>"\` or use \`herdr agent send-keys ${paneId} <keys>\` for interactive controls.`;
+function operatorCommand(operatorPrefix: string, command: string): string {
+	return `\`${operatorPrefix} ${command}\``;
 }
 
-function failedOperatorHint(paneId: string): string {
-	return `Inspect with \`herdr agent read ${paneId} --source recent-unwrapped --lines 80\` and assess the failure. If this task has not already been retried and one simple corrective prompt could recover it, try once with \`herdr agent prompt ${paneId} "<text>"\`. If it fails again or the setup looks broken, stop retrying and tell the user.`;
+function blockedOperatorHint(
+	machine: string,
+	operatorPrefix: string,
+	paneId: string,
+): string {
+	return `Inspect first with ${operatorCommand(operatorPrefix, `agent read ${paneId} --source visible`)}; respond through herdr_agents with machine=${JSON.stringify(machine)}, or use ${operatorCommand(operatorPrefix, `agent send-keys ${paneId} <keys>`)} for interactive controls.`;
+}
+
+function failedOperatorHint(
+	machine: string,
+	operatorPrefix: string,
+	paneId: string,
+): string {
+	return `Inspect with ${operatorCommand(operatorPrefix, `agent read ${paneId} --source recent-unwrapped --lines 80`)} and assess the failure. If this task has not already been retried and one simple corrective prompt could recover it, try once through herdr_agents with machine=${JSON.stringify(machine)}. If it fails again or the setup looks broken, stop retrying and tell the user.`;
 }
 
 function eventDetails(value: unknown): AgentEventDetails | undefined {
@@ -128,6 +143,8 @@ function eventDetails(value: unknown): AgentEventDetails | undefined {
 	const details = value as Record<string, unknown>;
 	if (
 		typeof details["paneId"] !== "string" ||
+		(details["machine"] !== undefined &&
+			typeof details["machine"] !== "string") ||
 		(details["state"] !== "blocked" &&
 			details["state"] !== "failed" &&
 			details["state"] !== "finished")
@@ -139,6 +156,8 @@ function eventDetails(value: unknown): AgentEventDetails | undefined {
 			? { [field]: details[field] as string }
 			: {};
 	return {
+		machine:
+			typeof details["machine"] === "string" ? details["machine"] : "local",
 		paneId: details["paneId"],
 		state: details["state"],
 		...optional("blockedOn"),
@@ -155,7 +174,16 @@ function agentEvent(options: AgentEventOptions): {
 	content: string;
 	details: AgentEventDetails;
 } {
-	const { agent, blockedMessage, labels, record, reply, status } = options;
+	const {
+		agent,
+		blockedMessage,
+		labels,
+		machine,
+		operatorPrefix,
+		record,
+		reply,
+		status,
+	} = options;
 	const task = activityTask(record.activity);
 	const blocked = status === "blocked";
 	const failed = !blocked && reply?.stopReason === "error";
@@ -166,6 +194,7 @@ function agentEvent(options: AgentEventOptions): {
 			? "herdr_agent_failed"
 			: "herdr_agent_result";
 	const attributes = [
+		`machine="${xml(machine)}"`,
 		`pane="${xml(agent.pane_id)}"`,
 		record.name ? `name="${xml(record.name)}"` : undefined,
 		cwd ? `directory="${xml(cwd)}"` : undefined,
@@ -179,12 +208,12 @@ function agentEvent(options: AgentEventOptions): {
 	}
 	if (blocked) {
 		lines.push(
-			`<operator_hint>${xml(blockedOperatorHint(agent.pane_id))}</operator_hint>`,
+			`<operator_hint>${xml(blockedOperatorHint(machine, operatorPrefix, agent.pane_id))}</operator_hint>`,
 		);
 	}
 	if (failed) {
 		lines.push(
-			`<operator_hint>${xml(failedOperatorHint(agent.pane_id))}</operator_hint>`,
+			`<operator_hint>${xml(failedOperatorHint(machine, operatorPrefix, agent.pane_id))}</operator_hint>`,
 		);
 	}
 	if (reply) lines.push(`<response>${xml(reply.text)}</response>`);
@@ -193,6 +222,7 @@ function agentEvent(options: AgentEventOptions): {
 	return {
 		content: lines.join("\n"),
 		details: {
+			machine,
 			paneId: agent.pane_id,
 			state: blocked ? "blocked" : failed ? "failed" : "finished",
 			...(record.name ? { name: record.name } : {}),
@@ -249,9 +279,10 @@ export function registerAgentEventRenderer(pi: ExtensionAPI): void {
 			}
 			const blocked = details?.state === "blocked";
 			const failed = details?.state === "failed";
-			const identity = details?.name
+			const agentIdentity = details?.name
 				? `${details.name} (${details.paneId})`
 				: (details?.paneId ?? "unknown");
+			const identity = `${details.machine} / ${agentIdentity}`;
 			const title = theme.fg(
 				blocked || failed ? "error" : "success",
 				`Herdr agent ${identity} · ${blocked ? "blocked" : failed ? "failed" : "finished"}`,

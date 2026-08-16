@@ -6,7 +6,7 @@ import {
 	parsePaneInfo,
 	resolveWorkspace,
 } from "./herdr.js";
-import { type HerdrClient, isHerdrErrorCode } from "./herdr-client.js";
+import { type HerdrConnection, isHerdrErrorCode } from "./herdr-client.js";
 import type { AgentMonitor } from "./monitor.js";
 import type { PaneInfo } from "./types.js";
 
@@ -43,8 +43,13 @@ async function directory(
 	return path;
 }
 
+export type DirectoryResolver = (
+	value: string | undefined,
+	fallback: string,
+) => Promise<string>;
+
 async function createStartPane(
-	client: HerdrClient,
+	client: HerdrConnection,
 	params: StartAgentParams,
 	cwd: string,
 	label: string,
@@ -155,10 +160,11 @@ function nestedId(value: unknown, key: string, path: string): string {
 }
 
 export async function startAgent(
-	client: HerdrClient,
+	client: HerdrConnection,
 	monitor: AgentMonitor,
 	params: StartAgentParams,
 	fallbackCwd: string,
+	resolveDirectory: DirectoryResolver = directory,
 ): Promise<{ id: string }> {
 	const name = required(params.name, "name");
 	if (!AGENT_NAME.test(name)) {
@@ -173,7 +179,7 @@ export async function startAgent(
 	const cwd =
 		params.placement === "pane"
 			? fallbackCwd
-			: await directory(params.cwd, fallbackCwd);
+			: await resolveDirectory(params.cwd, fallbackCwd);
 	const created = await createStartPane(client, params, cwd, label);
 	let agent: PaneInfo;
 	try {
@@ -212,7 +218,7 @@ export async function startAgent(
 }
 
 async function rollbackCreatedLocation(
-	client: HerdrClient,
+	client: HerdrConnection,
 	cleanup: { id: string; method: "tab.close" | "workspace.close" } | undefined,
 	cause: unknown,
 ): Promise<never> {
@@ -231,7 +237,7 @@ async function rollbackCreatedLocation(
 }
 
 async function startWhenShellReady(
-	client: HerdrClient,
+	client: HerdrConnection,
 	params: Record<string, unknown>,
 ): Promise<PaneInfo> {
 	const shellDeadline = Date.now() + 3_000;
@@ -305,7 +311,7 @@ async function startWhenShellReady(
 }
 
 async function resolveDuringStart(
-	client: HerdrClient,
+	client: HerdrConnection,
 	name: string,
 	paneId: string,
 ): Promise<PaneInfo> {

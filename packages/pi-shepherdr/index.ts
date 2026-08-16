@@ -1,14 +1,13 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { AgentFleet } from "./src/fleet.js";
 import { registerMasterMode } from "./src/master-mode.js";
 import { registerAgentEventRenderer } from "./src/messages.js";
-import { AgentMonitor } from "./src/monitor.js";
 import { registerHerdrAgentsTool } from "./src/tool.js";
 
 export default function shepherdrExtension(pi: ExtensionAPI): void {
-	let monitor: AgentMonitor | undefined;
-	const getMonitor = () => (monitor ??= new AgentMonitor(pi));
+	const fleet = new AgentFleet(pi);
 
 	registerAgentEventRenderer(pi);
-	registerHerdrAgentsTool(pi, getMonitor);
-	registerMasterMode(pi, getMonitor);
+	registerHerdrAgentsTool(pi, fleet);
+	registerMasterMode(pi, fleet);
 }

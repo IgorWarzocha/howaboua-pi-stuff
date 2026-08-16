@@ -4,10 +4,10 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { activityTask, isSettledStatus } from "./activity.js";
 import { getAgent, getSnapshot, sessionPath } from "./herdr.js";
-import type { HerdrClient } from "./herdr-client.js";
+import type { HerdrConnection } from "./herdr-client.js";
 import { injectAgentEvent } from "./messages.js";
 import type { MonitorState } from "./monitor-state.js";
-import { SessionReader } from "./session-reader.js";
+import { type AssistantReader, SessionReader } from "./session-reader.js";
 import type {
 	LatestAssistant,
 	MonitoredAgent,
@@ -42,11 +42,15 @@ export interface SettlementLifecycle {
 }
 
 export class SettlementCollector {
-	private readonly client: HerdrClient;
-	private readonly reader = new SessionReader();
+	private readonly client: HerdrConnection;
+	private readonly reader: AssistantReader;
 
-	constructor(client: HerdrClient) {
+	constructor(
+		client: HerdrConnection,
+		reader: AssistantReader = new SessionReader(),
+	) {
 		this.client = client;
+		this.reader = reader;
 	}
 
 	latest(panel: PaneInfo): Promise<LatestAssistant | undefined> {
@@ -56,10 +60,6 @@ export class SettlementCollector {
 	async collect(
 		record: MonitoredAgent,
 	): Promise<CollectedSettlement | undefined> {
-		const agent = await getAgent(this.client, record.paneId);
-		if (agent.terminal_id !== record.terminalId || agent.agent !== "pi") {
-			return undefined;
-		}
 		const [current, snapshot] = await Promise.all([
 			getAgent(this.client, record.paneId),
 			getSnapshot(this.client),
@@ -94,20 +94,27 @@ export class SettlementReporter {
 	private readonly collector: SettlementCollector;
 	private readonly persist: () => void;
 	private readonly pi: ExtensionAPI;
+	private readonly machine: string;
+	private readonly operatorPrefix: string;
 	private readonly reporting = new Set<string>();
 	private readonly retries = new Map<string, NodeJS.Timeout>();
 	private readonly state: MonitorState;
 
 	constructor(
 		pi: ExtensionAPI,
-		client: HerdrClient,
+		client: HerdrConnection,
 		state: MonitorState,
 		persist: () => void,
+		reader?: AssistantReader,
+		machine = "local",
+		operatorPrefix = "herdr",
 	) {
 		this.pi = pi;
-		this.collector = new SettlementCollector(client);
+		this.collector = new SettlementCollector(client, reader);
 		this.state = state;
 		this.persist = persist;
+		this.machine = machine;
+		this.operatorPrefix = operatorPrefix;
 	}
 
 	latest(panel: PaneInfo): Promise<LatestAssistant | undefined> {
@@ -142,6 +149,8 @@ export class SettlementReporter {
 			if (activityTask(current.activity) !== task) return;
 			injectAgentEvent(this.pi, lifecycle.context, {
 				agent: settlement.agent,
+				machine: this.machine,
+				operatorPrefix: this.operatorPrefix,
 				...(settlement.status === request.status && request.blockedMessage
 					? { blockedMessage: request.blockedMessage }
 					: {}),

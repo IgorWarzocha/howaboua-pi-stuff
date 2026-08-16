@@ -1,4 +1,4 @@
-import type { HerdrClient } from "./herdr-client.js";
+import type { HerdrConnection } from "./herdr-client.js";
 import type {
 	AgentStatus,
 	PaneInfo,
@@ -15,7 +15,7 @@ const AGENT_STATUSES: ReadonlySet<string> = new Set([
 ]);
 
 export async function getSnapshot(
-	client: HerdrClient,
+	client: HerdrConnection,
 ): Promise<SessionSnapshot> {
 	const result = record(
 		await client.request<unknown>("session.snapshot", {}),
@@ -25,7 +25,7 @@ export async function getSnapshot(
 }
 
 export async function getAgent(
-	client: HerdrClient,
+	client: HerdrConnection,
 	target: string,
 ): Promise<PaneInfo> {
 	const result = record(
@@ -36,12 +36,13 @@ export async function getAgent(
 }
 
 export async function resolvePiAgent(
-	client: HerdrClient,
+	client: HerdrConnection,
 	target: string,
+	controllingPaneId = process.env["HERDR_PANE_ID"],
 ): Promise<PaneInfo> {
 	const agent = await getAgent(client, target);
 	if (agent.agent !== "pi") throw new Error(`${target} is not a Pi agent`);
-	if (agent.pane_id === process.env["HERDR_PANE_ID"]) {
+	if (controllingPaneId && agent.pane_id === controllingPaneId) {
 		throw new Error("refusing to target the controlling Pi session");
 	}
 	return agent;
