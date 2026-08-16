@@ -40,10 +40,8 @@ function writeExtensionAggregate(dir, filter) {
     ),
     'import { registerBundleChangelog } from "./changelog.js";',
   ];
-  const commandName =
-    dir === "pi-stuff" ? "stuff-changelog" : "extensions-changelog";
   const calls = [
-    `\tregisterBundleChangelog(pi, "${commandName}");`,
+    "\tregisterBundleChangelog(pi);",
     ...extensionEntries.map((entry) => `\tawait ${safeIdentifier(entry.pkg.name)}(pi);`),
   ];
   copyFileSync(

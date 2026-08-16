@@ -102,10 +102,7 @@ function writeSeenVersion(packageName: string, version: string): void {
 	}
 }
 
-export function registerBundleChangelog(
-	pi: ExtensionAPI,
-	commandName: string,
-): void {
+export function registerBundleChangelog(pi: ExtensionAPI): void {
 	let metadata: BundleMetadata;
 	let entries: ChangelogEntry[];
 	try {
@@ -151,23 +148,6 @@ export function registerBundleChangelog(
 			return container;
 		},
 	);
-
-	pi.registerCommand(commandName, {
-		description: `Show ${metadata.name} changelog entries`,
-		handler: async (_args, ctx) => {
-			if (entries.length === 0) {
-				ctx.ui.notify(
-					`No changelog entries found for ${metadata.name}`,
-					"warning",
-				);
-				return;
-			}
-			pi.appendEntry<ChangelogEntryData>(entryType, {
-				markdown: entries.map((entry) => entry.content).join("\n\n"),
-				packageName: metadata.name,
-			});
-		},
-	});
 
 	pi.on("session_start", async (event, ctx) => {
 		if (event.reason === "reload" || ctx.mode !== "tui") return;

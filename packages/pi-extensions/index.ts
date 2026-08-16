@@ -18,7 +18,7 @@ import howabouaPiVent from "@howaboua/pi-vent";
 import { registerBundleChangelog } from "./changelog.js";
 
 export default async function (pi: ExtensionAPI) {
-	registerBundleChangelog(pi, "extensions-changelog");
+	registerBundleChangelog(pi);
 	await howabouaPiAsk(pi);
 	await howabouaPiAutoReasoningTool(pi);
 	await howabouaPiAutoTrees(pi);
