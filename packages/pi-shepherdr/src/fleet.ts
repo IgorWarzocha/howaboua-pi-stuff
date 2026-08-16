@@ -47,7 +47,9 @@ export interface ConnectedMachine {
 }
 
 export interface MachineSnapshot extends MachineStatus {
+	monitoredPaneIds?: ReadonlySet<string>;
 	snapshot?: SessionSnapshot;
+	snapshotError?: string;
 }
 
 function errorMessage(error: unknown): string {
@@ -188,7 +190,37 @@ export class AgentFleet {
 
 	async reload(): Promise<void> {
 		const ctx = this.context;
-		if (ctx) await this.activate(ctx);
+		if (!ctx) return;
+		const generation = this.generation;
+		const config = await readMachinesConfig();
+		if (!this.isCurrent(generation, ctx)) return;
+		const added: string[] = [];
+
+		for (const [name, runtime] of this.runtimes) {
+			if (runtime.local || name in config.machines) continue;
+			runtime.monitor?.deactivate();
+			if (runtime.client instanceof RemoteHerdrClient) runtime.client.close();
+			this.runtimes.delete(name);
+		}
+		for (const [name, machineConfig] of Object.entries(config.machines)) {
+			const runtime = this.runtimes.get(name);
+			if (runtime) {
+				runtime.config = machineConfig;
+				continue;
+			}
+			this.runtimes.set(name, {
+				config: machineConfig,
+				local: false,
+				pending: [],
+				status: "connecting",
+			});
+			added.push(name);
+		}
+		this.config = config;
+		this.changed();
+		for (const name of added) {
+			void this.connectMachine(name, generation, true);
+		}
 	}
 
 	statuses(): MachineStatus[] {
@@ -251,64 +283,95 @@ export class AgentFleet {
 		return Promise.all(
 			selected.map(async (status) => {
 				const runtime = this.runtimes.get(status.name);
-				if (status.status !== "connected" || !runtime?.client) return status;
+				if (
+					status.status !== "connected" ||
+					!runtime?.client ||
+					!runtime.monitor
+				)
+					return status;
 				const client = runtime.client;
+				const monitor = runtime.monitor;
 				try {
 					const snapshot = await getSnapshot(client);
 					if (
 						runtime.status !== "connected" ||
 						runtime.client !== client ||
+						runtime.monitor !== monitor ||
 						this.runtimes.get(status.name) !== runtime
 					) {
 						return this.runtimes.has(status.name)
 							? this.statusFor(status.name)
 							: status;
 					}
-					return { ...status, snapshot };
+					return {
+						...status,
+						monitoredPaneIds: new Set(
+							monitor.list().map((record) => record.paneId),
+						),
+						snapshot,
+					};
 				} catch (error) {
 					if (
 						runtime.status !== "connected" ||
 						runtime.client !== client ||
+						runtime.monitor !== monitor ||
 						this.runtimes.get(status.name) !== runtime
 					) {
 						return this.runtimes.has(status.name)
 							? this.statusFor(status.name)
 							: status;
 					}
-					throw error;
+					return { ...status, snapshotError: errorMessage(error) };
 				}
 			}),
 		);
 	}
 
-	connect(machine?: string): string[] {
-		const names = machine?.trim()
-			? [machine.trim()]
-			: [...this.runtimes.entries()]
-					.filter(
-						([, runtime]) =>
-							!runtime.local &&
-							runtime.status !== "connected" &&
-							!runtime.attempting,
-					)
-					.map(([name]) => name);
-		for (const name of names) {
-			const runtime = this.runtimes.get(name);
+	connect(machine?: string): string {
+		const target = machine?.trim();
+		if (target) {
+			const runtime = this.runtimes.get(target);
 			if (!runtime)
-				throw new Error(`unknown Herdr machine ${JSON.stringify(name)}`);
-			if (runtime.local || runtime.status === "connected" || runtime.attempting)
-				continue;
+				throw new Error(`unknown Herdr machine ${JSON.stringify(target)}`);
+			if (runtime.local) {
+				return `${target} is the local machine and is already connected`;
+			}
+			if (runtime.status === "connected") {
+				return `${target} is already connected`;
+			}
+			if (runtime.attempting || runtime.status === "connecting") {
+				return `${target} is already connecting`;
+			}
+			void this.connectMachine(target, this.generation, false);
+			return `Connecting to ${target}`;
+		}
+
+		const names = [...this.runtimes.entries()]
+			.filter(
+				([, runtime]) =>
+					!runtime.local &&
+					runtime.status !== "connected" &&
+					!runtime.attempting,
+			)
+			.map(([name]) => name);
+		for (const name of names) {
 			void this.connectMachine(name, this.generation, false);
 		}
-		return names.filter((name) => {
-			const runtime = this.runtimes.get(name);
-			return (
-				runtime !== undefined &&
-				!runtime.local &&
-				runtime.status !== "connected" &&
-				runtime.attempting === true
-			);
-		});
+		if (names.length > 0) {
+			return `Connecting to ${names.join(", ")}`;
+		}
+		const remotes = [...this.runtimes.entries()].filter(
+			([, runtime]) => !runtime.local,
+		);
+		if (remotes.length === 0) {
+			return "No remote machines are configured";
+		}
+		const connecting = remotes
+			.filter(([, runtime]) => runtime.attempting)
+			.map(([name]) => name);
+		return connecting.length > 0
+			? `Already connecting to ${connecting.join(", ")}`
+			: "All configured machines are connected";
 	}
 
 	private statusFor(name: string): MachineStatus {

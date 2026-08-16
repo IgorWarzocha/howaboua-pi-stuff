@@ -134,11 +134,14 @@ export function registerHerdrAgentsTool(
 				const machines = await fleet.snapshots(params.machine);
 				return result({
 					machines: machines.map(
-						({ snapshot: _snapshot, ...machine }) => machine,
+						({
+							snapshot: _snapshot,
+							monitoredPaneIds: _monitoredPaneIds,
+							...machine
+						}) => machine,
 					),
 					agents: machines.flatMap((machine) => {
 						if (!machine.snapshot) return [];
-						const runtime = fleet.connected(machine.name);
 						return machine.snapshot.agents
 							.filter(
 								(agent) =>
@@ -150,7 +153,7 @@ export function registerHerdrAgentsTool(
 								compactAgent(
 									agent,
 									machine.snapshot!,
-									runtime.monitor.isMonitored(agent.pane_id),
+									machine.monitoredPaneIds?.has(agent.pane_id) ?? false,
 									machine.name,
 								),
 							);

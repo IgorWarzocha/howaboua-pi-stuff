@@ -33,13 +33,7 @@ export function registerMasterMode(pi: ExtensionAPI, fleet: AgentFleet): void {
 					return;
 				}
 				try {
-					const attempted = fleet.connect(target);
-					ctx.ui.notify(
-						attempted.length > 0
-							? `Connecting to ${attempted.join(", ")}`
-							: "All configured machines are connected",
-						"info",
-					);
+					ctx.ui.notify(fleet.connect(target), "info");
 				} catch (error) {
 					ctx.ui.notify(
 						error instanceof Error ? error.message : String(error),
@@ -158,8 +152,7 @@ async function showHerdrMenu(
 	]);
 	if (action === "Connect") {
 		if (!fleet.isActive() && !(await activateMaster(pi, fleet, ctx))) return;
-		fleet.connect(name);
-		ctx.ui.notify(`Connecting to ${name}`, "info");
+		ctx.ui.notify(fleet.connect(name), "info");
 	} else if (action === "Remove") {
 		const confirmed = await ctx.ui.confirm(
 			`Remove ${name}?`,
