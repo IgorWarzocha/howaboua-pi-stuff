@@ -37,7 +37,7 @@ pi install npm:@howaboua/pi-skills
 | [`pi-gpt-switcher`](./packages/pi-gpt-switcher) | `/sol`, `/terra`, and `/luna` commands for GPT-5.6 Codex models |
 | [`pi-markdown-workflows`](./packages/pi-markdown-workflows) | Workflow/skill UI, `/learn`, workflow capture, and nested `AGENTS.md` loading |
 | [`pi-memories`](./packages/pi-memories) | Shutdown memory candidates in a plain Markdown inbox |
-| [`pi-pet`](./packages/pi-pet) | Remote-capable animated companion and prompt surface for Pi |
+| [`pi-pet`](./packages/pi-pet) | Animated companion miniapps for GipPity Remote |
 | [`pi-semantic-grep`](./packages/pi-semantic-grep) | Meaning-based code and docs search backed by repo-local SQLite indexes |
 | [`pi-smart-btw`](./packages/pi-smart-btw) | Async side-session questions with explicit injection into the main chat |
 | [`pi-subagent-review`](./packages/pi-subagent-review) | `/review` through an isolated review subagent |

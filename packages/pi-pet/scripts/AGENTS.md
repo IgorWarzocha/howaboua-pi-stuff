@@ -1,3 +1,3 @@
-- Build and packaging orchestration uses Bun, while shipped broker code runs on Node and the desktop shell runs on Electron.
+- Build orchestration uses Bun; the desktop shell runs on Electron and the web miniapp is static output served by GipPity.
 - Change source before generated output; `dist/` is committed, while platform-specific `release/` bundles stay untracked.
 - Desktop packaging copies the pinned Electron runtime for the current platform only and must preserve its license files.

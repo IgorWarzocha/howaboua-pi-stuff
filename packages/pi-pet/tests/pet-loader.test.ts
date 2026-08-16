@@ -3,8 +3,8 @@ import { mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { imageSize } from "../src/server/image-size.ts";
-import { loadPet } from "../src/server/pet-loader.ts";
+import { imageSize } from "../src/pet-image-size.ts";
+import { loadPet } from "../src/pet-loader.ts";
 
 const ESCAPES_DIRECTORY_PATTERN = /escapes pet directory/;
 const OUTSIDE_PATTERN = /outside/;

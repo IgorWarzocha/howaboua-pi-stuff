@@ -1,24 +1,18 @@
-import { chmod, cp, mkdir, rm } from "node:fs/promises";
+import { cp, mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "bun";
+import { loadPet } from "../src/pet-loader.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dist = join(root, "dist");
+const loaded = await loadPet(join(root, "pets"), "clawa");
 
 await rm(dist, { recursive: true, force: true });
 await mkdir(join(dist, "web"), { recursive: true });
 await mkdir(join(dist, "desktop"), { recursive: true });
 
 const results = await Promise.all([
-  build({
-    entrypoints: [join(root, "src/server/cli.ts")],
-    outdir: dist,
-    naming: "pi-pet.mjs",
-    target: "node",
-    format: "esm",
-    minify: true,
-  }),
   build({
     entrypoints: [join(root, "src/web/main.ts")],
     outdir: join(dist, "web"),
@@ -55,4 +49,8 @@ for (const result of results) {
 for (const file of ["index.html", "styles.css", "manifest.webmanifest", "pet-icon.svg"]) {
   await cp(join(root, "src", "web", file), join(dist, "web", file));
 }
-await chmod(join(dist, "pi-pet.mjs"), 0o755);
+await writeFile(join(dist, "web", "catalog.json"), `${JSON.stringify(loaded.catalog)}\n`);
+const assets = new Set(
+  [...Object.values(loaded.catalog.actions), ...Object.values(loaded.catalog.directions)].map((action) => action.asset),
+);
+for (const asset of assets) await cp(join(loaded.directory, asset), join(dist, "web", asset));

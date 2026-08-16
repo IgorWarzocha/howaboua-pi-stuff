@@ -38,6 +38,8 @@ Settings live in `~/.pi/agent/pi-gippity-control.json`. Keybind changes take eff
 
 `lan.customWebAppPath` may be absolute or relative to the Pi session cwd and must point to a static directory containing `index.html`. The running server rereads it on refresh. `lan.port` is optional and defaults to `43120`.
 
+Companion extensions can register one built static app through `registerGippityRemoteApp`. GipPity serves it under `/_gippity/apps/<id>/` alongside the main remote UI, replays its bounded `app.state` snapshot on browser reconnect, and forwards transient `app.event` messages through the existing mini-SDK. The app still uses `GippityRemote` for activity, Pi events, prompts, drafts, voice, and reconnection; extensions must not start another server.
+
 The LAN server includes a microphone mute button. The host retains the Realtime WebRTC call and relays 24 kHz mono audio to the active browser, so moving between devices does not restart the voice session. The server is unauthenticated by design for trusted networks, uses a local HTTPS certificate, belongs only to the Pi session that started it, and stops when that session changes.
 
 The global realtime prompt lives at `~/.pi/agent/REALTIME-SYSTEM-PROMPT.md`; trusted projects can append `.pi/REALTIME-SYSTEM-PROMPT.md`. GipPity ships its current template and cumulative schema changelog as raw Markdown. It checks the marker only when realtime voice is engaged and asks your agent to migrate outdated customized prompts instead of rewriting them automatically. Both paths are shown in `/gippity`.

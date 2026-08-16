@@ -1,2 +1,2 @@
 - Test contracts and observable failure modes at public boundaries; avoid implementation-coupled snapshots.
-- Security regressions need executable counterexamples for traversal, auth roles, size limits, or prompt routing.
+- Security regressions need executable counterexamples for traversal, size limits, desktop confinement, or asset geometry.

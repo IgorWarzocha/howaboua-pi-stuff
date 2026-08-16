@@ -1,3 +1,0 @@
-- Owns authentication, broker state, prompt routing, static delivery, and lifecycle cleanup.
-- Agent and display credentials are distinct roles; never broaden a route's role to fix a client issue.
-- Asset access stays inside the active pet directory, including after symlink resolution.

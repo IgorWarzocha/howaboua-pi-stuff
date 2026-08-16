@@ -313,8 +313,7 @@ h2 {
   font-size: 11px;
 }
 select,
-textarea,
-.connect-dialog input {
+textarea {
   width: 100%;
   color: var(--ink);
   border: 1px solid var(--line);
@@ -333,8 +332,7 @@ textarea {
   line-height: 1.45;
 }
 select:focus,
-textarea:focus,
-.connect-dialog input:focus {
+textarea:focus {
   border-color: var(--teal);
   box-shadow: 0 0 0 3px rgba(62, 229, 210, 0.1);
 }
@@ -348,6 +346,11 @@ textarea:focus,
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+.prompt-buttons {
+  display: flex;
+  align-items: center;
+  gap: 7px;
 }
 .prompt-feedback {
   min-height: 18px;
@@ -367,58 +370,24 @@ textarea:focus,
 .send-button:hover {
   background: #ffad4c;
 }
-.send-button:disabled {
+.send-button:disabled,
+.voice-button:disabled {
   cursor: not-allowed;
   opacity: 0.4;
 }
-
-.connect-dialog {
-  width: min(420px, calc(100% - 32px));
-  padding: 0;
-  color: var(--ink);
-  border: 1px solid #44463e;
-  border-radius: var(--radius);
-  background: var(--panel);
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
-}
-.connect-dialog::backdrop {
-  background: rgba(10, 11, 9, 0.82);
-  backdrop-filter: blur(7px);
-}
-.connect-dialog form {
-  padding: 28px;
-  display: grid;
-  gap: 11px;
-}
-.dialog-mark {
-  font-size: 34px;
-  line-height: 1;
-}
-.connect-dialog h2 {
-  font-size: 26px;
-  letter-spacing: -0.035em;
-}
-.connect-dialog p {
-  margin-bottom: 5px;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.5;
-}
-.connect-dialog code {
+.voice-button {
+  min-height: 38px;
+  padding: 8px 13px;
   color: var(--orange-soft);
-}
-.connect-dialog label {
-  margin-top: 4px;
-  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: transparent;
   font-size: 12px;
+  font-weight: 700;
 }
-.connect-dialog input {
-  height: 42px;
-  padding: 0 11px;
-}
-.connect-dialog .dialog-error {
-  min-height: 19px;
-  color: var(--danger);
+.voice-button:hover {
+  color: var(--ink);
+  border-color: #65665d;
 }
 
 .sr-only {
@@ -538,10 +507,6 @@ html.desktop-shell body {
   -webkit-app-region: no-drag;
 }
 
-.desktop-shell .connect-dialog {
-  display: none;
-}
-
 .desktop-shell .desktop-prompt {
   position: absolute;
   z-index: 6;
@@ -617,6 +582,12 @@ html.desktop-shell body {
   background: var(--orange);
   font-size: 11px;
   font-weight: 780;
+}
+
+.desktop-prompt-footer .voice-button {
+  color: var(--orange-soft);
+  border: 1px solid #4a4b43;
+  background: transparent;
 }
 
 .desktop-prompt-footer button:disabled {

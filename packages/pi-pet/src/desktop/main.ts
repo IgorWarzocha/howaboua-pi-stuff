@@ -1,5 +1,5 @@
 import { writeFile } from "node:fs/promises";
-import { homedir, hostname } from "node:os";
+import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, Menu, screen, session } from "electron";
@@ -62,7 +62,7 @@ function attentionPath(): string {
 
 function currentDisplayUrl(): string {
   if (!desktopConfig) throw new Error("Pi Pet desktop configuration is not loaded.");
-  return desktopDisplayUrl(desktopConfig, attention.mode, hostname());
+  return desktopDisplayUrl(desktopConfig, attention.mode);
 }
 
 function updateAttention(update: (current: AttentionPreferences) => AttentionPreferences): Promise<void> {
@@ -78,6 +78,23 @@ function updateAttention(update: (current: AttentionPreferences) => AttentionPre
 function reportDesktopError(error: unknown): void {
   process.stderr.write(`Pi Pet desktop: ${error instanceof Error ? error.message : String(error)}\n`);
 }
+
+app.on("certificate-error", (event, _webContents, url, error, _certificate, callback) => {
+  try {
+    if (
+      desktopConfig &&
+      error === "net::ERR_CERT_AUTHORITY_INVALID" &&
+      new URL(url).origin === new URL(desktopConfig.gippityUrl).origin
+    ) {
+      event.preventDefault();
+      callback(true);
+      return;
+    }
+  } catch {
+    // Reject malformed certificate targets below.
+  }
+  callback(false);
+});
 
 function showAwakeWindow(window: BrowserWindow): void {
   if (remainingSnoozeMs(attention) > 0) {
@@ -208,11 +225,11 @@ function startCursorTracking(window: BrowserWindow): void {
   void refreshBounds().then(publish);
 }
 
-function secureWebContents(window: BrowserWindow, brokerOrigin: string): void {
+function secureWebContents(window: BrowserWindow, gippityOrigin: string): void {
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   const confineNavigation = (event: Electron.Event, target: string): void => {
     try {
-      if (new URL(target).origin !== brokerOrigin) event.preventDefault();
+      if (new URL(target).origin !== gippityOrigin) event.preventDefault();
     } catch {
       event.preventDefault();
     }
@@ -287,7 +304,7 @@ async function loadDisplay(window: BrowserWindow, url: string): Promise<void> {
   } catch (error) {
     if (window.isDestroyed()) return;
     process.stderr.write(
-      `Pi Pet desktop could not reach the broker: ${error instanceof Error ? error.message : String(error)}\n`,
+      `Pi Pet desktop could not reach GipPity: ${error instanceof Error ? error.message : String(error)}\n`,
     );
     scheduleLoad(window, url);
   }
@@ -297,7 +314,7 @@ async function createWindow(): Promise<BrowserWindow> {
   desktopConfig = await loadDesktopConfig();
   attention = await loadAttentionPreferences(attentionPath());
   const url = currentDisplayUrl();
-  const brokerOrigin = new URL(url).origin;
+  const gippityOrigin = new URL(url).origin;
   const window = new BrowserWindow({
     ...initialBounds(attention.petSize),
     frame: false,
@@ -321,7 +338,7 @@ async function createWindow(): Promise<BrowserWindow> {
       webSecurity: true,
     },
   });
-  secureWebContents(window, brokerOrigin);
+  secureWebContents(window, gippityOrigin);
   pinWindow(window);
   window.setFullScreenable(false);
   window.on("blur", () => pinWindow(window));

@@ -1,5 +1,6 @@
 import { readFile, realpath, stat } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
+import { readImageSize } from "./pet-image-size.ts";
 import {
   ContractError,
   isSafeRelativeAssetPath,
@@ -8,8 +9,7 @@ import {
   type PetCatalog,
   type PetFrame,
   parseActionName,
-} from "../protocol/index.ts";
-import { readImageSize } from "./image-size.ts";
+} from "./protocol/index.ts";
 
 const CELL = { width: 192, height: 208 } as const;
 const STANDARD_ROWS = [

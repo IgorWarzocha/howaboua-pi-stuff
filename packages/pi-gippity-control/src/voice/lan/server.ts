@@ -28,6 +28,7 @@ import { LanVoiceDictation } from "./dictation.ts";
 import { createLanRemoteDiscovery } from "./discovery.ts";
 import { LanVoiceDraft, LanVoiceDraftConflictError } from "./draft.ts";
 import { boundedString, handleLanVoiceHttpRequest } from "./http-handler.ts";
+import type { GippityRemoteApps } from "./remote-app.ts";
 import { remoteJsonValue } from "./remote-json.ts";
 import {
 	decodeLanRemoteRpcRequest,
@@ -64,6 +65,7 @@ export async function startCodexLanVoiceServer(options: {
 	ownerSessionId: string;
 	port?: number | undefined;
 	certificateAgentDir: string;
+	remoteApps: GippityRemoteApps;
 }): Promise<CodexLanVoiceServer> {
 	const resolveWebApp = (config: GippityControlConfig) => {
 		const customWebApp = config.lan.customWebApp;
@@ -81,6 +83,7 @@ export async function startCodexLanVoiceServer(options: {
 				customWebApp,
 				customWebAppPath: customApp?.root,
 				configPath: getGippityControlConfigPath(),
+				apps: options.remoteApps.apps(),
 			}),
 		};
 	};
@@ -221,6 +224,9 @@ export async function startCodexLanVoiceServer(options: {
 		if (muted) clients.resetConversationInputLevel();
 		clients.broadcastControl({ type: "mute", muted });
 	});
+	const removeRemoteAppListener = options.remoteApps.onMessage((message) =>
+		clients.broadcastControl(message),
+	);
 
 	const server = createServer(
 		{ cert: certificate.cert, key: certificate.key },
@@ -230,6 +236,8 @@ export async function startCodexLanVoiceServer(options: {
 				clients,
 				draft,
 				inputMuted: () => options.voice.inputMuted,
+				remoteAppSnapshot: () => options.remoteApps.snapshot(),
+				remoteAppRoute: (path) => options.remoteApps.route(path),
 				renderManifest: () => createLanVoiceWebManifest(options.ctx.ui.theme),
 				renderPage: () => createLanVoiceWebUi(options.ctx.ui.theme),
 				clientScript: () => LAN_REMOTE_CLIENT_SCRIPT,
@@ -298,6 +306,7 @@ export async function startCodexLanVoiceServer(options: {
 		);
 	} catch (error) {
 		removeInputMuteListener();
+		removeRemoteAppListener();
 		const clientsClosing = clients.close();
 		webSockets.close();
 		server.closeAllConnections();
@@ -315,6 +324,7 @@ export async function startCodexLanVoiceServer(options: {
 	const closeServer = async (): Promise<void> => {
 		closing = true;
 		removeInputMuteListener();
+		removeRemoteAppListener();
 		conversationStart?.abort.abort();
 		conversationStart = undefined;
 		clearInterval(heartbeat);

@@ -1,6 +1,6 @@
-- Keep the broker loopback-only by default; network exposure requires an explicit user decision and matching security review.
-- Pet manifests and browser input are untrusted data: validate at boundaries, bound sizes, and never execute pet-provided code.
-- Keep the protocol source in `src/protocol/`; server, renderer, and extension must not duplicate message contracts.
-- `bun run ai:check:strict` MUST pass before launching or installing anything on desktop or laptop.
+- GipPity owns network, session, prompt, voice, and browser transport; Pi Pet registers one static miniapp and reaction snapshot only.
+- Pet manifests and assets are untrusted data: validate at build boundaries, bound sizes, and never execute pet-provided code.
+- Keep pet/catalog and reaction contracts in `src/protocol/`; renderer and extension must not duplicate them.
+- `bun run ai:check:strict` MUST pass before packaging or launching Electron.
 - Generated `dist/` is distributable output; change source first and rebuild it in the same change.
 - Read the nearest nested `AGENTS.md` before editing a subtree.

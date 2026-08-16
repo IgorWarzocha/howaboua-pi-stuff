@@ -1,5 +1,3 @@
-- The extension is a thin Pi adapter; broker, rendering, and pet-authoring behavior do not belong here.
-- Start streams at `session_start`; abort streams, timers, and stale callbacks at `session_shutdown`.
-- Use `agent_settled` for completion and a tool-call ID set for parallel tool activity.
-- `activity.ts` owns lifecycle precedence and ordered publication; event handlers only feed it Pi facts.
-- Pet-originated conversations may publish one bounded final reply, never reasoning or tool output.
+- Register the built web root through GipPity's remote-app bridge; never start another server or transport.
+- Keep `pet_show` as the only model tool. GipPity owns lifecycle activity, prompts, final text, voice, and reconnection.
+- State is a bounded reaction snapshot so newly connected displays recover the latest explicit action.

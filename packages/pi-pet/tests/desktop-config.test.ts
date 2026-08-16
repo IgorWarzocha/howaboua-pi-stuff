@@ -19,11 +19,9 @@ import {
   readHyprlandCursor,
 } from "../src/desktop/cursor-provider.ts";
 
-const TOKEN = "display-token-that-is-longer-than-32-characters";
-const HTTP_ORIGIN_PATTERN = /HTTP origin/;
+const HTTPS_ORIGIN_PATTERN = /HTTPS origin/;
 const PATH_PATTERN = /must not contain a path/;
 const UNKNOWN_FIELD_PATTERN = /unknown field/;
-const PAIRED_ENV_PATTERN = /must be set together/;
 const PRIVATE_MODE_PATTERN = /mode 0600/;
 const SYMBOLIC_LINK_PATTERN = /symbolic link/;
 const ATTENTION_MODE_PATTERN = /normal or quiet/;
@@ -31,18 +29,13 @@ const ATTENTION_FUTURE_PATTERN = /seven days/;
 const UNKNOWN_CURSOR_FIELD_PATTERN = /unknown field/;
 const INVALID_CURSOR_PATTERN = /invalid/;
 
-test("desktop config builds a same-origin display URL without leaking the token into the query", () => {
-  const config = parseDesktopConfig({
-    schemaVersion: 1,
-    brokerUrl: "http://192.168.0.113:43117/",
-    displayToken: TOKEN,
-  });
-  const url = new URL(desktopDisplayUrl(config, "normal", "laptop"));
-  assert.equal(url.origin, "http://192.168.0.113:43117");
+test("desktop config builds the confined GipPity display URL", () => {
+  const config = parseDesktopConfig({ schemaVersion: 1, gippityUrl: "https://192.168.0.113:43120/" });
+  const url = new URL(desktopDisplayUrl(config, "normal"));
+  assert.equal(url.origin, "https://192.168.0.113:43120");
+  assert.equal(url.pathname, "/_gippity/apps/pi-pet/");
   assert.equal(url.searchParams.get("shell"), "desktop");
-  assert.equal(url.searchParams.get("device"), "laptop");
-  assert.equal(new URLSearchParams(url.hash.slice(1)).get("token"), TOKEN);
-  assert.equal(url.searchParams.has("token"), false);
+  assert.equal(url.hash, "");
   assert.equal(new URL(desktopDisplayUrl(config, "quiet")).searchParams.get("attention"), "quiet");
 });
 
@@ -123,34 +116,23 @@ test("Hyprland cursor IPC resolves without waiting for the command socket to clo
   }
 });
 
-test("desktop config rejects broadened URLs and partial environment overrides", async () => {
+test("desktop config rejects broadened URLs", () => {
+  assert.throws(() => parseDesktopConfig({ schemaVersion: 1, gippityUrl: "http://example.com" }), HTTPS_ORIGIN_PATTERN);
   assert.throws(
-    () => parseDesktopConfig({ schemaVersion: 1, brokerUrl: "https://example.com", displayToken: TOKEN }),
-    HTTP_ORIGIN_PATTERN,
-  );
-  assert.throws(
-    () => parseDesktopConfig({ schemaVersion: 1, brokerUrl: "http://127.0.0.1:43117/path", displayToken: TOKEN }),
+    () => parseDesktopConfig({ schemaVersion: 1, gippityUrl: "https://127.0.0.1:43120/path" }),
     PATH_PATTERN,
   );
   assert.throws(
-    () =>
-      parseDesktopConfig({ schemaVersion: 1, brokerUrl: "http://127.0.0.1:43117", displayToken: TOKEN, extra: true }),
+    () => parseDesktopConfig({ schemaVersion: 1, gippityUrl: "https://127.0.0.1:43120", extra: true }),
     UNKNOWN_FIELD_PATTERN,
   );
-  await assert.rejects(loadDesktopConfig("/unused", { PI_PET_DISPLAY_TOKEN: TOKEN }), PAIRED_ENV_PATTERN);
 });
 
 test("desktop config loads a bounded local file", async () => {
   const root = await mkdtemp(join(tmpdir(), "pi-pet-desktop-config-"));
   const path = join(root, "config.json");
-  await writeFile(
-    path,
-    JSON.stringify({ schemaVersion: 1, brokerUrl: "http://127.0.0.1:43117", displayToken: TOKEN }),
-    {
-      mode: 0o600,
-    },
-  );
-  assert.equal((await loadDesktopConfig(path, {})).brokerUrl, "http://127.0.0.1:43117");
+  await writeFile(path, JSON.stringify({ schemaVersion: 1, gippityUrl: "https://127.0.0.1:43120" }), { mode: 0o600 });
+  assert.equal((await loadDesktopConfig(path, {})).gippityUrl, "https://127.0.0.1:43120");
   if (process.platform !== "win32") {
     await chmod(path, 0o644);
     await assert.rejects(loadDesktopConfig(path, {}), PRIVATE_MODE_PATTERN);

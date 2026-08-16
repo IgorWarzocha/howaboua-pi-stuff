@@ -8,7 +8,7 @@ Do not package until every required item passes.
 - `spriteVersionNumber: 2`; used cells visible; unused standard cells transparent.
 - Fully transparent pixels have zero RGB residue.
 - Final despill report and v2 validation have `ok: true`; frame review has no errors.
-- Package contains inert bounded files only and passes `pi-pet validate`.
+- Package contains inert bounded files only and passes `validate-pet.mjs`.
 
 ## Identity and motion
 

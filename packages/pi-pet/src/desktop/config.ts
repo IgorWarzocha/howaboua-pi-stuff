@@ -2,15 +2,13 @@ import { constants as fsConstants } from "node:fs";
 import { type FileHandle, open } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import { parseDeviceName } from "../protocol/index.ts";
 
 export interface DesktopConfig {
   schemaVersion: 1;
-  brokerUrl: string;
-  displayToken: string;
+  gippityUrl: string;
 }
 
-const CONFIG_KEYS = new Set(["schemaVersion", "brokerUrl", "displayToken"]);
+const CONFIG_KEYS = new Set(["schemaVersion", "gippityUrl"]);
 const MAX_CONFIG_BYTES = 16_384;
 
 function desktopConfigPath(env: NodeJS.ProcessEnv = process.env): string {
@@ -18,18 +16,20 @@ function desktopConfigPath(env: NodeJS.ProcessEnv = process.env): string {
   return join(env["XDG_CONFIG_HOME"] || join(homedir(), ".config"), "pi-pet-desktop", "config.json");
 }
 
-function parseBrokerUrl(value: unknown): string {
-  if (typeof value !== "string" || value.length > 2_048) throw new Error("brokerUrl must be a bounded HTTP URL.");
+function parseGippityUrl(value: unknown): string {
+  if (typeof value !== "string" || value.length > 2_048) {
+    throw new Error("gippityUrl must be a bounded HTTPS URL.");
+  }
   let url: URL;
   try {
     url = new URL(value);
   } catch {
-    throw new Error("brokerUrl must be a valid HTTP URL.");
+    throw new Error("gippityUrl must be a valid HTTPS URL.");
   }
-  if (url.protocol !== "http:" || url.username || url.password || url.search || url.hash) {
-    throw new Error("brokerUrl must be an HTTP origin without credentials, query, or fragment.");
+  if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) {
+    throw new Error("gippityUrl must be an HTTPS origin without credentials, query, or fragment.");
   }
-  if (url.pathname !== "/") throw new Error("brokerUrl must not contain a path.");
+  if (url.pathname !== "/") throw new Error("gippityUrl must not contain a path.");
   return url.origin;
 }
 
@@ -41,28 +41,12 @@ export function parseDesktopConfig(value: unknown): DesktopConfig {
   const unknown = Object.keys(input).find((key) => !CONFIG_KEYS.has(key));
   if (unknown) throw new Error(`Pi Pet desktop config has unknown field: ${unknown}.`);
   if (input["schemaVersion"] !== 1) throw new Error("Unsupported Pi Pet desktop config schemaVersion.");
-  if (
-    typeof input["displayToken"] !== "string" ||
-    input["displayToken"].length < 32 ||
-    input["displayToken"].length > 256
-  ) {
-    throw new Error("displayToken must contain 32-256 characters.");
-  }
-  return {
-    schemaVersion: 1,
-    brokerUrl: parseBrokerUrl(input["brokerUrl"]),
-    displayToken: input["displayToken"],
-  };
+  return { schemaVersion: 1, gippityUrl: parseGippityUrl(input["gippityUrl"]) };
 }
 
 function configFromEnvironment(env: NodeJS.ProcessEnv): DesktopConfig | undefined {
-  const brokerUrl = env["PI_PET_DESKTOP_BROKER_URL"];
-  const displayToken = env["PI_PET_DISPLAY_TOKEN"];
-  if (!(brokerUrl || displayToken)) return undefined;
-  if (!(brokerUrl && displayToken)) {
-    throw new Error("PI_PET_DESKTOP_BROKER_URL and PI_PET_DISPLAY_TOKEN must be set together.");
-  }
-  return parseDesktopConfig({ schemaVersion: 1, brokerUrl, displayToken });
+  const gippityUrl = env["PI_PET_GIPPITY_URL"];
+  return gippityUrl ? parseDesktopConfig({ schemaVersion: 1, gippityUrl }) : undefined;
 }
 
 async function openDesktopConfig(path: string): Promise<FileHandle> {
@@ -109,15 +93,10 @@ export async function loadDesktopConfig(
   }
 }
 
-export function desktopDisplayUrl(
-  config: DesktopConfig,
-  attention: "normal" | "quiet" = "normal",
-  device = "desktop",
-): string {
-  const url = new URL(config.brokerUrl);
+export function desktopDisplayUrl(config: DesktopConfig, attention: "normal" | "quiet" = "normal"): string {
+  const url = new URL(config.gippityUrl);
+  url.pathname = "/_gippity/apps/pi-pet/";
   url.searchParams.set("shell", "desktop");
-  url.searchParams.set("device", parseDeviceName(device, "desktop device"));
   if (attention === "quiet") url.searchParams.set("attention", "quiet");
-  url.hash = new URLSearchParams({ token: config.displayToken }).toString();
   return url.toString();
 }

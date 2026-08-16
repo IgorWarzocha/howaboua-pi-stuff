@@ -31,7 +31,6 @@
 				"extensions/index.ts",
 				"src/desktop/main.ts",
 				"src/desktop/preload.ts",
-				"src/server/cli.ts",
 				"src/web/main.ts",
 				"tests/*.test.ts",
 				"scripts/**/*.mjs"

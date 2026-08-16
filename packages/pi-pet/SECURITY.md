@@ -1,26 +1,20 @@
 # Security model
 
-Pi Pet crosses two sensitive boundaries: agent-controlled display output and browser-authored prompts entering a live Pi session.
+Pi Pet adds no listener, credential store, prompt endpoint, or remote session ownership. GipPity Control owns those boundaries.
 
-## Defaults
+## Miniapp
 
-- The broker accepts only `127.0.0.1` and validates browser origins.
-- Agent and display roles use distinct random bearer tokens.
-- Browser tokens remain in session storage; the agent token never reaches the browser.
-- Only the currently connected extension session can mutate state, reload pets, acknowledge prompts, or receive browser prompts.
-- Prompt input is bounded, rate-limited, visibly prefixed with its display provenance, and queued as a follow-up while Pi is busy.
-- Request bodies, manifest fields, asset files, decoded dimensions, frames, and text are bounded.
-- Pet assets resolve through `realpath`; traversal and escaping symlinks fail.
-- Manifests are strict inert JSON. Unknown fields fail and no pet content is evaluated.
+- GipPity confines static files to Pi Pet's registered realpath and reserves its SDK/API routes.
+- Browser prompts and voice use the hosted `GippityRemote` client rather than a pet-specific transport.
+- Custom reaction state is normalized and bounded by GipPity before browser delivery.
+- Pet manifests are strict inert JSON. Assets are bounded regular PNG/WebP files; traversal, escaping symlinks, excessive decoded size, and out-of-frame geometry fail during builds.
 
-## Trusted-LAN mode
+## Electron
 
-`pi-pet network lan` is an explicit opt-in that binds the broker to all interfaces. It keeps the existing role-separated bearer tokens, same-origin browser checks, prompt bounds, and single-session ownership, but it does not add TLS or multi-user authorization. Use it only on a trusted LAN and scope any firewall rule to that subnet. `pi-pet network loopback` restores the default after a broker restart.
+- The configured GipPity URL must be a credential-free HTTPS origin.
+- GipPity's self-signed certificate is accepted only for that exact configured origin and only for an unknown-authority error.
+- Chromium sandboxing, context isolation, and web security remain enabled; Node integration is disabled.
+- Navigation stays within the configured origin. New windows and permission requests fail closed.
+- The preload bridge carries only validated cursor positions.
 
-The Electron client keeps Chromium sandboxing and context isolation enabled, disables Node integration and permissions, rejects new windows, and permits navigation only within its configured broker origin. Its display credential is loaded from a bounded local config and passed in the URL fragment, not the query string.
-
-## Not provided
-
-The current protocol does not provide TLS, public-internet authentication, multi-user authorization, or safe routing among several simultaneous Pi sessions. Do not forward it through a public reverse proxy or share display credentials outside the trusted LAN/SSH path.
-
-If a display credential is exposed, stop the service, replace `~/.config/pi-pet/config.json` with a newly generated config, and restart Pi plus the service. Do not post credentials in issue reports or logs.
+GipPity's trusted-LAN policy remains authoritative. Do not expose its server to an untrusted network or public reverse proxy.

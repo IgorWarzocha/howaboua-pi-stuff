@@ -129,7 +129,7 @@ pets/<pet-id>/
 - Write `pet.json` with `spriteVersionNumber: 2` and `spritesheetPath: "spritesheet.webp"`.
 - Write `PET.md` with identity, personality, included actions, generation inputs, tool/service provenance, review method, and licensing uncertainty.
 - Copy final deterministic validation as `validation.json`; retain full QA evidence in the run directory.
-- Run `pi-pet validate <absolute-package-directory>`. If replacing the active package, call `pet_reload`; a new package must first be selected as `activePet` and the broker restarted through the normal operations workflow. Then inspect at display scale and exercise every standard action.
+- Run `bun <pi-pet-package>/scripts/validate-pet.mjs <absolute-package-directory>`. Rebuild Pi Pet, refresh its GipPity display, then inspect at display scale and exercise every standard action.
 - Run the repository's strict gate before installation or desktop launch.
 
 ## Repair and stop conditions

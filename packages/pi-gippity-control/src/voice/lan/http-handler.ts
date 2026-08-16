@@ -10,6 +10,10 @@ import {
 	LAN_REMOTE_DISCOVERY_PATH,
 } from "./discovery.ts";
 import { type LanVoiceDraft, LanVoiceDraftError } from "./draft.ts";
+import type {
+	GippityRemoteAppMessage,
+	GippityRemoteAppRoute,
+} from "./remote-app.ts";
 
 const MAX_REQUEST_BYTES = 300 * 1024;
 
@@ -29,6 +33,8 @@ export interface LanVoiceHttpHandlers {
 	webApp(): LanRemoteWebAppState;
 	rpc(body: Record<string, unknown>): Promise<unknown>;
 	inputMuted(): boolean;
+	remoteAppSnapshot(): GippityRemoteAppMessage | undefined;
+	remoteAppRoute(path: string): GippityRemoteAppRoute;
 	ownerIsActive(): boolean;
 	readonly closing: boolean;
 }
@@ -54,6 +60,20 @@ export async function handleLanVoiceHttpRequest(
 		}
 		if (request.method === "GET" && path === LAN_REMOTE_DISCOVERY_PATH) {
 			sendJson(response, 200, currentWebApp().discovery);
+			return;
+		}
+		if (request.method === "GET" && path.startsWith("/_gippity/apps/")) {
+			const app = handlers.remoteAppRoute(path);
+			if (app.kind === "none" || app.kind === "missing") {
+				sendJson(response, 404, { error: "Not found" });
+				return;
+			}
+			if (app.kind === "redirect") {
+				response.writeHead(308, { location: app.location });
+				response.end();
+				return;
+			}
+			await sendFile(response, app.asset, false);
 			return;
 		}
 		if (request.method === "GET" && path === "/") {
@@ -132,6 +152,8 @@ export async function handleLanVoiceHttpRequest(
 				type: "mute",
 				muted: handlers.inputMuted(),
 			});
+			const remoteApp = handlers.remoteAppSnapshot();
+			if (remoteApp) handlers.clients.sendControl(clientId, remoteApp);
 			return;
 		}
 		if (request.method !== "POST") {

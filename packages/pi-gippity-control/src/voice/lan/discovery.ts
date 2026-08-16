@@ -6,6 +6,7 @@ export function createLanRemoteDiscovery(options: {
 	customWebApp: boolean;
 	customWebAppPath?: string | undefined;
 	configPath: string;
+	apps?: Array<{ id: string; path: string }> | undefined;
 }): Record<string, unknown> {
 	return {
 		name: "GipPity remote control",
@@ -16,6 +17,7 @@ export function createLanRemoteDiscovery(options: {
 				? { mode: "custom", path: options.customWebAppPath }
 				: { mode: "discovery" }
 			: { mode: "bundled" },
+		apps: options.apps ?? [],
 		gettingStarted: {
 			command: "/gippity create",
 			configPath: options.configPath,
@@ -87,6 +89,8 @@ export function createLanRemoteDiscovery(options: {
 				"{ type: 'activity', state: 'idle' | 'working' | 'settled', text? }",
 			voice: ["status", "mute", "microphone", "stop", "error"],
 			pi: "{ type: 'pi.event', event, data }",
+			appState: "{ type: 'app.state', app, data }",
+			appEvent: "{ type: 'app.event', app, event, data }",
 			piEvents: [
 				"session_info_changed",
 				"session_compact",

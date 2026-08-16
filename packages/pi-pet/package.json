@@ -1,7 +1,7 @@
 {
   "name": "@howaboua/pi-pet",
   "version": "0.1.0",
-  "description": "A remote-capable animated companion and prompt surface for Pi.",
+  "description": "Animated companions for GipPity Remote.",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
@@ -28,16 +28,15 @@
     "extensions",
     "pets",
     "skills",
-    "src/config.ts",
+    "scripts/validate-pet.mjs",
+    "src/pet-image-size.ts",
+    "src/pet-loader.ts",
     "src/protocol/index.ts",
     "!**/AGENTS.md",
     "!**/__pycache__",
     "!**/*.pyc",
     "!**/.venv"
   ],
-  "bin": {
-    "pi-pet": "./dist/pi-pet.mjs"
-  },
   "pi": {
     "extensions": [
       "./extensions/index.ts"
@@ -51,6 +50,7 @@
     "desktop:package": "bun run build && bun scripts/package-desktop.mjs",
     "desktop:start": "electron .",
     "pet:hatch:test": "uv run --project skills/hatch-pi-pet --locked python -m unittest discover -s skills/hatch-pi-pet/tests -p 'test_*.py' -v",
+    "pet:validate": "bun scripts/validate-pet.mjs",
     "typecheck": "tsgo --noEmit",
     "test": "node --test --experimental-strip-types tests/*.test.ts",
     "lint": "biome check .",
@@ -69,11 +69,13 @@
   },
   "packageManager": "bun@1.3.14",
   "peerDependencies": {
+    "@howaboua/pi-gippity-control": ">=0.0.13",
     "@earendil-works/pi-coding-agent": "*",
     "@earendil-works/pi-tui": "*",
     "typebox": "*"
   },
   "devDependencies": {
+    "@howaboua/pi-gippity-control": "workspace:*",
     "@biomejs/biome": "2.5.3",
     "@earendil-works/pi-coding-agent": "0.84.1",
     "@earendil-works/pi-tui": "0.84.1",

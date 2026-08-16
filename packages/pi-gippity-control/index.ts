@@ -8,6 +8,12 @@ export {
 	type RealtimeVoicePromptReport,
 	reportRealtimeVoicePrompt,
 } from "./src/realtime-voice.ts";
+export {
+	type GippityRemoteAppProvider,
+	type GippityRemoteAppRegistration,
+	type GippityRemoteAppUpdate,
+	registerGippityRemoteApp,
+} from "./src/voice/lan/remote-app.ts";
 
 export default function gippityControl(pi: ExtensionAPI): void {
 	registerGippityControl(pi);

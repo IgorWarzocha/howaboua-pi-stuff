@@ -1,7 +1,7 @@
 import { existsSync, realpathSync, statSync } from "node:fs";
 import { extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
-interface LanRemoteStaticAsset {
+export interface LanRemoteStaticAsset {
 	contentType: string;
 	path: string;
 }
