@@ -11,9 +11,33 @@ export interface DesktopConfig {
 const CONFIG_KEYS = new Set(["schemaVersion", "gippityUrl"]);
 const MAX_CONFIG_BYTES = 16_384;
 
-function desktopConfigPath(env: NodeJS.ProcessEnv = process.env): string {
+function desktopConfigPath(
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+  home = homedir(),
+): string {
   if (env["PI_PET_DESKTOP_CONFIG"]) return resolve(env["PI_PET_DESKTOP_CONFIG"]);
-  return join(env["XDG_CONFIG_HOME"] || join(homedir(), ".config"), "pi-pet-desktop", "config.json");
+  if (platform === "win32") {
+    return join(env["APPDATA"] || join(home, "AppData", "Roaming"), "PiPetDesktop", "config.json");
+  }
+  if (platform === "darwin") {
+    return join(home, "Library", "Application Support", "Pi Pet Desktop", "config.json");
+  }
+  return join(env["XDG_CONFIG_HOME"] || join(home, ".config"), "pi-pet-desktop", "config.json");
+}
+
+export function desktopStateDirectory(
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+  home = homedir(),
+): string {
+  if (platform === "win32") {
+    return join(env["LOCALAPPDATA"] || join(home, "AppData", "Local"), "PiPetDesktop", "state");
+  }
+  if (platform === "darwin") {
+    return join(home, "Library", "Application Support", "Pi Pet Desktop", "state");
+  }
+  return join(env["XDG_STATE_HOME"] || join(home, ".local", "state"), "pi-pet-desktop");
 }
 
 function parseGippityUrl(value: unknown): string {

@@ -1,2 +1,2 @@
-- Own optional Linux desktop templates only; GipPity owns the server and network transport.
+- Own optional compositor templates only; Pi owns SSH process lifecycle and GipPity owns network transport.
 - Keep host-specific URLs, credentials, and generated config out of this subtree.

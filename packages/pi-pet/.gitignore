@@ -5,6 +5,8 @@ __pycache__/
 *.log
 coverage/
 release/
+desktop/dist/
+desktop/node_modules/
 .pi-pet-test/
 .pi-pet-runs/
 .pi/semantic-grep.sqlite*

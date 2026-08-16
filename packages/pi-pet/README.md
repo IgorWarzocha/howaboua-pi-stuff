@@ -25,24 +25,25 @@ Open `<gippity-url>/_gippity/apps/pi-pet/` and accept GipPity's local certificat
 
 ## Transparent desktop pet
 
-The Electron shell loads the same GipPity-hosted app in a transparent, frameless, always-on-top window. It adds local cursor tracking, size, quiet mode, snooze, and login-startup policy without another agent runtime or remote protocol.
+The Electron shell loads the same GipPity-hosted app in a transparent, frameless, always-on-top window. It adds local cursor tracking, size, quiet mode, and snooze without another agent runtime or remote protocol.
 
-Build a bundle for the current platform:
+Give the display machine an SSH alias and confirm key-based access once outside Pi:
 
 ```bash
-bun --cwd=packages/pi-pet run desktop:package
+ssh desktop true
 ```
 
-Create `~/.config/pi-pet-desktop/config.json` with private permissions on Unix:
+The display needs npm and Node 22 or newer; runtime extraction uses PowerShell on Windows and standard `unzip` on macOS/Linux. Attach it from Pi with its LAN-reachable GipPity URL:
 
-```json
-{
-  "schemaVersion": 1,
-  "gippityUrl": "https://192.168.0.113:43120"
-}
+```text
+/pet attach desktop https://192.168.0.113:43120
 ```
 
-Run `runtime/electron app` from the generated release directory. Electron accepts GipPity's self-signed certificate only for that configured origin. Linux users may adapt the templates under `deploy/`; macOS and Windows should use their normal signed application packaging and startup mechanisms.
+Pi now owns the whole lifecycle. Its one SSH command copies the desktop source from the exact Pi Pet package already loaded by Pi into a temporary directory on the display, runs `npm install`, `npm run build`, and Electron, then removes the source when Pi or Clawa exits. It creates no application installation, login item, or background service. npm and Electron may retain their ordinary download caches.
+
+Every later Pi instance starts its attached displays automatically. Attach more SSH aliases with the same command, inspect them with `/pet status`, rebuild/relaunch with `/pet restart`, or remove one with `/pet detach desktop`. SSH options, keys, proxies, and host routing stay in `~/.ssh/config`.
+
+Electron accepts GipPity's self-signed certificate only for the configured origin. The source-only `desktop/` package is also directly runnable with `npm install`, `npm run build`, and `npm start` from a source checkout.
 
 ## Pet authoring
 

@@ -1,0 +1,16 @@
+{
+  "name": "@howaboua/pi-pet-desktop-source",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "electron dist/app"
+  },
+  "devDependencies": {
+    "electron": "41.0.2",
+    "typescript": "^6.0.3"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

@@ -1,6 +1,7 @@
 - Keep the desktop process a thin native shell around the GipPity-hosted display; agent runtime and remote protocol stay elsewhere.
 - Validate desktop configuration before opening a window. Keep `sandbox` and `contextIsolation` enabled and Node integration disabled.
 - Permit navigation and self-signed certificate exceptions only for the configured GipPity origin; new windows and permissions fail closed.
-- A desktop launch requires a passing `bun run ai:check:strict`; verify transparency with a captured native window before remote installation.
+- A desktop launch requires a passing `bun run ai:check:strict`; verify transparency with a captured native window before remote execution.
 - Attention preferences are local desktop state: persist them atomically and never push snooze/quiet policy into GipPity.
 - The preload bridge is cursor-position only: validate IPC in `bridge.ts` and expose no generic Electron or Node access.
+- The inherited owner pipe is lifecycle-only: closing its SSH-side owner quits Electron without polling.

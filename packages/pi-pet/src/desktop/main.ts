@@ -1,5 +1,5 @@
+import { createReadStream, type ReadStream } from "node:fs";
 import { writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, Menu, screen, session } from "electron";
@@ -13,7 +13,7 @@ import {
   snoozeUntilTomorrow,
 } from "./attention.ts";
 import { DESKTOP_CURSOR_CHANNEL, type DesktopCursorPosition } from "./bridge.ts";
-import { type DesktopConfig, desktopDisplayUrl, loadDesktopConfig } from "./config.ts";
+import { type DesktopConfig, desktopDisplayUrl, desktopStateDirectory, loadDesktopConfig } from "./config.ts";
 import { createCursorReader, createHyprlandBoundsReader, type DesktopWindowBounds } from "./cursor-provider.ts";
 
 const WINDOW_MARGIN = 20;
@@ -39,9 +39,11 @@ let desktopConfig: DesktopConfig | undefined;
 let attention = defaultAttentionPreferences();
 let attentionWrites = Promise.resolve();
 let signalShutdownStarted = false;
+let ownerPipe: ReadStream | undefined;
+let ownerClosing = false;
 
 app.setName("Pi Pet Desktop");
-app.setPath("userData", join(process.env["XDG_STATE_HOME"] || join(homedir(), ".local", "state"), "pi-pet-desktop"));
+app.setPath("userData", desktopStateDirectory());
 
 if (process.platform === "linux") {
   app.disableHardwareAcceleration();
@@ -58,6 +60,19 @@ function pinWindow(window: BrowserWindow): void {
 
 function attentionPath(): string {
   return join(app.getPath("userData"), "attention.json");
+}
+
+function watchOwner(): void {
+  const fd = Number(process.env["PI_PET_OWNER_FD"]);
+  if (!Number.isSafeInteger(fd) || fd < 3 || fd > 9) return;
+  const ownerGone = () => {
+    if (!ownerClosing) app.quit();
+  };
+  ownerPipe = createReadStream("", { fd, autoClose: false });
+  ownerPipe.once("end", ownerGone);
+  ownerPipe.once("close", ownerGone);
+  ownerPipe.once("error", ownerGone);
+  ownerPipe.resume();
 }
 
 function currentDisplayUrl(): string {
@@ -272,7 +287,7 @@ function secureWebContents(window: BrowserWindow, gippityOrigin: string): void {
         })),
       },
       { type: "separator" },
-      { label: "Quit until next login", click: () => app.quit() },
+      { label: "Quit for this Pi session", click: () => app.quit() },
     ]).popup({ window });
   });
 }
@@ -368,6 +383,7 @@ if (app.requestSingleInstanceLock()) {
     .whenReady()
     .then(async () => {
       Menu.setApplicationMenu(null);
+      watchOwner();
       session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
       mainWindow = await createWindow();
       app.on("activate", () => {
@@ -388,6 +404,12 @@ if (app.requestSingleInstanceLock()) {
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
+});
+
+app.on("will-quit", () => {
+  ownerClosing = true;
+  ownerPipe?.destroy();
+  ownerPipe = undefined;
 });
 
 async function shutdownForSignal(): Promise<void> {

@@ -5,6 +5,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import {
+  parseRemoteDesktopConfig,
+  parseSshTarget,
+  readRemoteDesktopConfig,
+  writeRemoteDesktopConfig,
+} from "../extensions/desktop-config.ts";
+import { remoteDesktopProcessSpec } from "../extensions/desktop-launcher.ts";
+import {
   defaultAttentionPreferences,
   parseAttentionPreferences,
   remainingSnoozeMs,
@@ -28,6 +35,11 @@ const ATTENTION_MODE_PATTERN = /normal or quiet/;
 const ATTENTION_FUTURE_PATTERN = /seven days/;
 const UNKNOWN_CURSOR_FIELD_PATTERN = /unknown field/;
 const INVALID_CURSOR_PATTERN = /invalid/;
+const REMOTE_COPY_PATTERN = /Buffer\.from\(encoded, "base64"\)/;
+const REMOTE_INSTALL_PATTERN = /\["install", "--ignore-scripts", "--no-audit", "--no-fund"\]/;
+const REMOTE_BUILD_PATTERN = /\["run", "build"\]/;
+const SSH_OPTIONS_PATTERN = /without command options/;
+const SSH_HELPER_PATTERN = /spawn\("ssh", \[target, "node", "-"\]/;
 
 test("desktop config builds the confined GipPity display URL", () => {
   const config = parseDesktopConfig({ schemaVersion: 1, gippityUrl: "https://192.168.0.113:43120/" });
@@ -37,6 +49,20 @@ test("desktop config builds the confined GipPity display URL", () => {
   assert.equal(url.searchParams.get("shell"), "desktop");
   assert.equal(url.hash, "");
   assert.equal(new URL(desktopDisplayUrl(config, "quiet")).searchParams.get("attention"), "quiet");
+  assert.deepEqual(
+    parseRemoteDesktopConfig({ schemaVersion: 1, displays: { desktop: { gippityUrl: config.gippityUrl } } }).displays,
+    {
+      desktop: { gippityUrl: "https://192.168.0.113:43120" },
+    },
+  );
+  const spec = remoteDesktopProcessSpec("desktop", config.gippityUrl);
+  assert.equal(spec.program, "node");
+  assert.equal(spec.args[2], "desktop");
+  assert.match(spec.args[1], SSH_HELPER_PATTERN);
+  assert.match(spec.source, REMOTE_COPY_PATTERN);
+  assert.match(spec.source, REMOTE_INSTALL_PATTERN);
+  assert.match(spec.source, REMOTE_BUILD_PATTERN);
+  assert.throws(() => parseSshTarget("-oProxyCommand=nope"), SSH_OPTIONS_PATTERN);
 });
 
 test("desktop attention preferences are explicit and time bounded", () => {
@@ -133,6 +159,14 @@ test("desktop config loads a bounded local file", async () => {
   const path = join(root, "config.json");
   await writeFile(path, JSON.stringify({ schemaVersion: 1, gippityUrl: "https://127.0.0.1:43120" }), { mode: 0o600 });
   assert.equal((await loadDesktopConfig(path, {})).gippityUrl, "https://127.0.0.1:43120");
+  const remotePath = join(root, "pi-pet.json");
+  await writeRemoteDesktopConfig(
+    { schemaVersion: 1, displays: { desktop: { gippityUrl: "https://127.0.0.1:43120" } } },
+    remotePath,
+  );
+  assert.deepEqual((await readRemoteDesktopConfig(remotePath)).displays, {
+    desktop: { gippityUrl: "https://127.0.0.1:43120" },
+  });
   if (process.platform !== "win32") {
     await chmod(path, 0o644);
     await assert.rejects(loadDesktopConfig(path, {}), PRIVATE_MODE_PATTERN);
