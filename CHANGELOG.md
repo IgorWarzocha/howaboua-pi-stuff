@@ -106,16 +106,16 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.58
+### @howaboua/pi-extensions — 0.0.59
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-shepherdr: Orchestrate Pi agents across named remote Herdr machines with automatic SSH bridge deployment and explicit reconnect controls.
+  - @howaboua/pi-subagent-review: Preserve the review findings UI while restoring the `before_agent_start` lifecycle when `/review` is the first session message. - Keep findings custom-rendered, then use a normal user turn for verification and disposition. - Direct the agent to verify findings against the cited code, request user dispositions, and begin agreed work without resummarizing. - End cleanly without a disposition turn when the reviewer finds no actionable issues. - Show this package’s unseen release notes in the shared startup card, with a global suppression setting.
 
-- Updated dependencies [[`b20e7de`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/b20e7de137fe89344bc15b06c7e7e0bf02a896b3)]:
-  - @howaboua/pi-shepherdr@0.1.2
+- Updated dependencies [[`8456135`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8456135c54113c01541c8ee8874baa1bd9eefa59)]:
+  - @howaboua/pi-subagent-review@0.2.17
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
@@ -329,30 +329,29 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.63
+### @howaboua/pi-stuff — 0.0.64
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-shepherdr: Orchestrate Pi agents across named remote Herdr machines with automatic SSH bridge deployment and explicit reconnect controls.
+  - @howaboua/pi-subagent-review: Preserve the review findings UI while restoring the `before_agent_start` lifecycle when `/review` is the first session message. - Keep findings custom-rendered, then use a normal user turn for verification and disposition. - Direct the agent to verify findings against the cited code, request user dispositions, and begin agreed work without resummarizing. - End cleanly without a disposition turn when the reviewer finds no actionable issues. - Show this package’s unseen release notes in the shared startup card, with a global suppression setting.
 
-- Updated dependencies [[`b20e7de`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/b20e7de137fe89344bc15b06c7e7e0bf02a896b3)]:
-  - @howaboua/pi-shepherdr@0.1.2
+- Updated dependencies [[`8456135`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8456135c54113c01541c8ee8874baa1bd9eefa59)]:
+  - @howaboua/pi-subagent-review@0.2.17
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 
-### @howaboua/pi-subagent-review — 0.2.16
+### @howaboua/pi-subagent-review — 0.2.17
 
 ### Changes
 
-- [#269](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/269) [`6138ffd`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/6138ffd735bb4f7f80e451320dbfd0933a4acaa7) Thanks [@howaclawa](https://github.com/howaclawa)!:
-  - Add shared realtime voice prompts for ask prompts, Auto Trees, Shepherdr settlements, and review progress.
-  - Announce compaction and stream conversational Pi updates after two sentences.
-  - Keep silent tool-step summaries compatible without exposing Chat Completions thinking content.
-  - Configure delegation acknowledgements and deliver V3 delegations immediately.
-  - Preserve late delegations, calls after data-channel closure, prepared Code Mode prompts, and Codex cache continuity.
-  - Reduce LAN playback dropouts with one more jitter-buffer frame.
+- [#301](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/301) [`8456135`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8456135c54113c01541c8ee8874baa1bd9eefa59) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Preserve the review findings UI while restoring the `before_agent_start` lifecycle when `/review` is the first session message.
+
+  - Keep findings custom-rendered, then use a normal user turn for verification and disposition.
+  - Direct the agent to verify findings against the cited code, request user dispositions, and begin agreed work without resummarizing.
+  - End cleanly without a disposition turn when the reviewer finds no actionable issues.
+  - Show this package’s unseen release notes in the shared startup card, with a global suppression setting.
 
 [Full changelog](./packages/pi-subagent-review/CHANGELOG.md)
 
