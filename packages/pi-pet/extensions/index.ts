@@ -1,27 +1,19 @@
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { CONFIG_DIR_NAME, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Container, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import { loadBundledPetRuntime, loadPetRuntime, type PetRuntime } from "../src/pet-storage.ts";
+import { type PetRuntime, resolvePetRuntime } from "../src/pet-storage.ts";
 import { type PetCatalog, type PetState, parseActionName, parseNote } from "../src/protocol/index.ts";
 import { registerRemoteDesktops } from "./desktop-command.ts";
 import { registerRemoteApp } from "./remote-app.ts";
 
 const packageRoot = fileURLToPath(new URL("../", import.meta.url));
 
-export default function piPetExtension(pi: ExtensionAPI): void {
-  let runtimeWarning: string | undefined;
-  let runtime: PetRuntime;
-  try {
-    runtime = loadPetRuntime(packageRoot);
-  } catch (error) {
-    runtimeWarning = error instanceof Error ? error.message : String(error);
-    runtime = loadBundledPetRuntime(packageRoot);
-  }
+function registerPetRuntime(pi: ExtensionAPI, runtime: PetRuntime): void {
   const appRoot = runtime.root;
   const catalog: PetCatalog = runtime.catalog;
-  registerRemoteDesktops(pi);
-  let state: PetState = { schemaVersion: 1, pet: catalog.id, revision: 0, action: catalog.defaultAction };
+  let state: PetState = { schemaVersion: 1, pet: catalog.id, revision: 1, action: catalog.defaultAction };
   const listeners = new Set<(update: { state: PetState }) => void>();
   const registration = registerRemoteApp(pi, {
     id: "pi-pet",
@@ -79,10 +71,15 @@ export default function piPetExtension(pi: ExtensionAPI): void {
       return new Text(theme.fg("error", message), 0, 0);
     },
   });
+}
 
+export default function piPetExtension(pi: ExtensionAPI): void {
+  registerRemoteDesktops(pi);
   pi.on("session_start", (_event, ctx) => {
-    if (runtimeWarning) ctx.ui.notify(`Pi Pet could not load the user pet: ${runtimeWarning}`, "warning");
-    state = { schemaVersion: 1, pet: catalog.id, revision: state.revision + 1, action: catalog.defaultAction };
-    for (const listener of listeners) listener({ state });
+    const resolution = resolvePetRuntime(packageRoot, join(ctx.cwd, CONFIG_DIR_NAME, "pi-pet.json"));
+    for (const warning of resolution.warnings) {
+      if (ctx.hasUI) ctx.ui.notify(`Pi Pet ${warning}`, "warning");
+    }
+    registerPetRuntime(pi, resolution.runtime);
   });
 }

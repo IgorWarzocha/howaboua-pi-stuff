@@ -18,6 +18,11 @@ export interface PetRuntime {
   source: "bundled" | "user";
 }
 
+export interface PetRuntimeResolution {
+  runtime: PetRuntime;
+  warnings: string[];
+}
+
 function piAgentDirectory(env: NodeJS.ProcessEnv = process.env, home = homedir()): string {
   return env["PI_CODING_AGENT_DIR"]?.trim() || join(home, ".pi", "agent");
 }
@@ -33,6 +38,16 @@ function parsePetStorageConfig(value: unknown): PetStorageConfig {
   if (unknown) throw new Error(`Pi Pet config has unknown field: ${unknown}.`);
   if (input["schemaVersion"] !== 1) throw new Error("Unsupported Pi Pet config schemaVersion.");
   return { schemaVersion: 1, activePet: parseActionName(input["activePet"], "active pet") };
+}
+
+function parseRepositoryPetConfig(value: unknown): string {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error("Repository Pi Pet config must be an object.");
+  const input = value as Record<string, unknown>;
+  const unknown = Object.keys(input).find((key) => !["schemaVersion", "pet"].includes(key));
+  if (unknown) throw new Error(`Repository Pi Pet config has unknown field: ${unknown}.`);
+  if (input["schemaVersion"] !== 1) throw new Error("Unsupported repository Pi Pet config schemaVersion.");
+  return parseActionName(input["pet"], "repository pet");
 }
 
 export async function readPetStorageConfig(dataRoot = petDataDirectory()): Promise<PetStorageConfig | undefined> {
@@ -113,29 +128,68 @@ function syncWebShell(packageRoot: string, destination: string): void {
   }
 }
 
-export function loadPetRuntime(packageRoot: string, dataRoot = petDataDirectory()): PetRuntime {
+function loadUserPetRuntime(packageRoot: string, petId: string, dataRoot: string): PetRuntime {
+  const root = join(dataRoot, "web", petId);
+  syncWebShell(packageRoot, root);
+  const catalog = readCatalog(join(root, "catalog.json"));
+  if (catalog.id !== petId) throw new Error(`Selected pet ${petId} does not match catalog ${catalog.id}.`);
+  return { catalog, root, source: "user" };
+}
+
+function readRepositoryPet(projectConfigPath: string): string | undefined {
+  try {
+    const info = statSync(projectConfigPath);
+    if (!info.isFile() || info.size > CONFIG_BYTES)
+      throw new Error(`Repository Pi Pet config must be bounded: ${projectConfigPath}`);
+    return parseRepositoryPetConfig(JSON.parse(readFileSync(projectConfigPath, "utf8")) as unknown);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
+}
+
+function readGlobalPet(dataRoot: string): string | undefined {
   const configPath = join(dataRoot, "config.json");
   try {
     const info = statSync(configPath);
     if (!info.isFile() || info.size > CONFIG_BYTES) throw new Error(`Pi Pet config must be bounded: ${configPath}`);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return loadBundledPetRuntime(packageRoot);
+      return undefined;
     }
     throw error;
   }
-  const config = parsePetStorageConfig(JSON.parse(readFileSync(configPath, "utf8")) as unknown);
-  const root = join(dataRoot, "web", config.activePet);
-  syncWebShell(packageRoot, root);
-  const catalog = readCatalog(join(root, "catalog.json"));
-  if (catalog.id !== config.activePet)
-    throw new Error(`Active pet ${config.activePet} does not match catalog ${catalog.id}.`);
-  return { catalog, root, source: "user" };
+  return parsePetStorageConfig(JSON.parse(readFileSync(configPath, "utf8")) as unknown).activePet;
 }
 
-export function loadBundledPetRuntime(packageRoot: string): PetRuntime {
+function loadBundledPetRuntime(packageRoot: string): PetRuntime {
   const root = join(packageRoot, "dist", "web");
   return { catalog: readCatalog(join(root, "catalog.json")), root, source: "bundled" };
+}
+
+export function resolvePetRuntime(
+  packageRoot: string,
+  projectConfigPath: string,
+  dataRoot = petDataDirectory(),
+): PetRuntimeResolution {
+  const warnings: string[] = [];
+  let repositoryPet: string | undefined;
+  try {
+    repositoryPet = readRepositoryPet(projectConfigPath);
+    if (repositoryPet) return { runtime: loadUserPetRuntime(packageRoot, repositoryPet, dataRoot), warnings };
+  } catch (error) {
+    warnings.push(`Repository pet unavailable: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  try {
+    const globalPet = readGlobalPet(dataRoot);
+    if (globalPet && globalPet !== repositoryPet) {
+      return { runtime: loadUserPetRuntime(packageRoot, globalPet, dataRoot), warnings };
+    }
+  } catch (error) {
+    warnings.push(`Global pet unavailable: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  return { runtime: loadBundledPetRuntime(packageRoot), warnings };
 }
 
 export const petWebShellFiles = WEB_SHELL_FILES;
