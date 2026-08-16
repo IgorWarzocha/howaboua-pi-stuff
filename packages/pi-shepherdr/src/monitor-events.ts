@@ -95,9 +95,9 @@ export class MonitorEvents {
 		} catch (error) {
 			this.live.delete(generation);
 			if (!this.active || generation !== this.generation) return;
-			this.warn(
-				`Herdr monitoring unavailable: ${error instanceof Error ? error.message : String(error)}`,
-			);
+			const failure = error instanceof Error ? error : new Error(String(error));
+			this.warn(`Herdr monitoring unavailable: ${failure.message}`);
+			if (this.options.reconnect === false) throw failure;
 			this.scheduleReconnect(generation, false);
 		}
 	}

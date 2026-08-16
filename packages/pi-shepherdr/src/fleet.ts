@@ -68,6 +68,20 @@ function operatorPrefix(config: RemoteMachineConfig): string {
 	return [...config.command, ...remote].map(shellQuote).join(" ");
 }
 
+function sameMachineConfig(
+	left: RemoteMachineConfig,
+	right: RemoteMachineConfig,
+): boolean {
+	return (
+		left.herdr === right.herdr &&
+		left.node === right.node &&
+		left.session === right.session &&
+		left.socket === right.socket &&
+		left.command.length === right.command.length &&
+		left.command.every((part, index) => part === right.command[index])
+	);
+}
+
 function savedAgents(ctx: ExtensionContext): unknown[] {
 	let latest: unknown[] = [];
 	for (const entry of ctx.sessionManager.getBranch()) {
@@ -194,7 +208,7 @@ export class AgentFleet {
 		const generation = this.generation;
 		const config = await readMachinesConfig();
 		if (!this.isCurrent(generation, ctx)) return;
-		const added: string[] = [];
+		const reconnect: string[] = [];
 
 		for (const [name, runtime] of this.runtimes) {
 			if (runtime.local || name in config.machines) continue;
@@ -204,21 +218,23 @@ export class AgentFleet {
 		}
 		for (const [name, machineConfig] of Object.entries(config.machines)) {
 			const runtime = this.runtimes.get(name);
-			if (runtime) {
-				runtime.config = machineConfig;
+			if (runtime?.config && sameMachineConfig(runtime.config, machineConfig)) {
 				continue;
 			}
+			const pending = runtime?.monitor?.list() ?? runtime?.pending ?? [];
+			runtime?.monitor?.deactivate();
+			if (runtime?.client instanceof RemoteHerdrClient) runtime.client.close();
 			this.runtimes.set(name, {
 				config: machineConfig,
 				local: false,
-				pending: [],
+				pending,
 				status: "connecting",
 			});
-			added.push(name);
+			reconnect.push(name);
 		}
 		this.config = config;
 		this.changed();
-		for (const name of added) {
+		for (const name of reconnect) {
 			void this.connectMachine(name, generation, true);
 		}
 	}
@@ -399,7 +415,11 @@ export class AgentFleet {
 			operatorPrefix: runtime.local ? "herdr" : operatorPrefix(runtime.config!),
 			onWarning: runtime.local
 				? (message) => this.context?.ui.notify(message, "warning")
-				: () => undefined,
+				: (message) => {
+						if (this.runtimes.get(machine) === runtime) {
+							this.disconnected(machine, runtime, message);
+						}
+					},
 			reconnect: runtime.local,
 			...(client instanceof RemoteHerdrClient ? { reader: client } : {}),
 			...(runtime.local && process.env["HERDR_PANE_ID"]
@@ -436,12 +456,18 @@ export class AgentFleet {
 				if (runtime.client === client)
 					this.disconnected(name, runtime, error.message);
 			});
-			if (generation !== this.generation || ctx !== this.context) {
+			if (
+				!this.isCurrent(generation, ctx) ||
+				this.runtimes.get(name) !== runtime
+			) {
 				client.close();
 				return;
 			}
 			await client.request("ping");
-			if (!this.isCurrent(generation, ctx)) {
+			if (
+				!this.isCurrent(generation, ctx) ||
+				this.runtimes.get(name) !== runtime
+			) {
 				client.close();
 				return;
 			}

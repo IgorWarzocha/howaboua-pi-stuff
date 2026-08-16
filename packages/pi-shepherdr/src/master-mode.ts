@@ -13,6 +13,51 @@ import { enableMasterDirectory, isMasterDirectory } from "./master-config.js";
 
 const TOOL_NAME = "herdr_agents";
 
+function parseSshArguments(value: string): string[] {
+	const parts: string[] = [];
+	let current = "";
+	let quote: "'" | '"' | undefined;
+	let escaped = false;
+	let started = false;
+	for (const character of value) {
+		if (escaped) {
+			current += character;
+			escaped = false;
+			started = true;
+			continue;
+		}
+		if (character === "\\" && quote !== "'") {
+			escaped = true;
+			started = true;
+			continue;
+		}
+		if (quote) {
+			if (character === quote) quote = undefined;
+			else current += character;
+			continue;
+		}
+		if (character === "'" || character === '"') {
+			quote = character;
+			started = true;
+		} else if (/\s/.test(character)) {
+			if (started) {
+				parts.push(current);
+				current = "";
+				started = false;
+			}
+		} else {
+			current += character;
+			started = true;
+		}
+	}
+	if (quote) throw new Error("SSH arguments contain an unclosed quote");
+	if (escaped) throw new Error("SSH arguments end with an incomplete escape");
+	if (started) parts.push(current);
+	if (parts.length === 0) throw new Error("SSH target is required");
+	const target = parts.pop()!;
+	return [...parts, "--", target];
+}
+
 export function registerMasterMode(pi: ExtensionAPI, fleet: AgentFleet): void {
 	pi.registerCommand("herdr", {
 		description: "Manage Herdr master mode and machines",
@@ -176,8 +221,20 @@ async function addMachine(
 		ctx.ui.notify("Machine name must match [a-z][a-z0-9_-]{0,31}", "error");
 		return;
 	}
-	const host = (await ctx.ui.input("SSH target", name))?.trim();
-	if (!host) return;
+	const ssh = (
+		await ctx.ui.input("SSH options and target (target last)", name)
+	)?.trim();
+	if (!ssh) return;
+	let sshArguments: string[];
+	try {
+		sshArguments = parseSshArguments(ssh);
+	} catch (error) {
+		ctx.ui.notify(
+			error instanceof Error ? error.message : String(error),
+			"error",
+		);
+		return;
+	}
 	const session = (
 		await ctx.ui.input("Herdr session", "default (leave blank)")
 	)?.trim();
@@ -187,7 +244,7 @@ async function addMachine(
 		return;
 	}
 	config.machines[name] = {
-		command: ["ssh", "-o", "BatchMode=yes", host],
+		command: ["ssh", "-o", "BatchMode=yes", ...sshArguments],
 		herdr: "herdr",
 		node: "node",
 		...(session && session !== "default (leave blank)" ? { session } : {}),

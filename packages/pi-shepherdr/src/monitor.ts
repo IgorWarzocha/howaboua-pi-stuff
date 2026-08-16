@@ -77,8 +77,8 @@ export class AgentMonitor {
 				"warning",
 			);
 		}
-		this.onChange();
-		await this.reconcile(generation, ctx);
+		this.onRefresh();
+		await this.reconcile(generation, ctx, dropped > 0);
 		if (generation !== this.activationGeneration || ctx !== this.context)
 			return;
 		await this.events.start();
@@ -165,13 +165,18 @@ export class AgentMonitor {
 	private async reconcile(
 		generation: number,
 		context: ExtensionContext | undefined,
+		persistRestoration = false,
 	): Promise<void> {
 		if (
 			!context ||
 			generation !== this.activationGeneration ||
-			context !== this.context ||
-			this.list().length === 0
+			context !== this.context
 		) {
+			return;
+		}
+		if (this.list().length === 0) {
+			if (persistRestoration) this.persist();
+			else this.onRefresh();
 			return;
 		}
 		const snapshot = await getSnapshot(this.client);
@@ -181,7 +186,7 @@ export class AgentMonitor {
 			snapshot,
 			this.selfPaneId,
 		);
-		if (changed) this.persist();
+		if (changed || persistRestoration) this.persist();
 		else this.onRefresh();
 		for (const completion of completions) {
 			void this.report(completion);
