@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Container, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import { type ClawaState, type PetCatalog, parseActionName, parseNote } from "../src/protocol/index.ts";
+import { type PetCatalog, type PetState, parseActionName, parseNote } from "../src/protocol/index.ts";
 import { registerRemoteDesktops } from "./desktop-command.ts";
 import { registerRemoteApp } from "./remote-app.ts";
 
@@ -12,8 +12,8 @@ const catalog = JSON.parse(readFileSync(new URL("../dist/web/catalog.json", impo
 
 export default function piPetExtension(pi: ExtensionAPI): void {
   registerRemoteDesktops(pi);
-  let state: ClawaState = { revision: 0, action: catalog.defaultAction };
-  const listeners = new Set<(update: { state: ClawaState }) => void>();
+  let state: PetState = { schemaVersion: 1, pet: catalog.id, revision: 0, action: catalog.defaultAction };
+  const listeners = new Set<(update: { state: PetState }) => void>();
   const registration = registerRemoteApp(pi, {
     id: "pi-pet",
     root: appRoot,
@@ -24,13 +24,19 @@ export default function piPetExtension(pi: ExtensionAPI): void {
     },
   });
 
-  function setAction(action: string, note?: string): ClawaState {
+  function setAction(action: string, note?: string): PetState {
     const requested = parseActionName(action);
     const resolved = catalog.actions[requested] ? requested : catalog.aliases[requested];
     if (!(resolved && catalog.actions[resolved])) {
       throw new Error(`Unknown pet action: ${requested}. Load the pi-pet skill for supported actions.`);
     }
-    state = { revision: state.revision + 1, action: resolved, ...(note ? { note } : {}) };
+    state = {
+      schemaVersion: 1,
+      pet: catalog.id,
+      revision: state.revision + 1,
+      action: resolved,
+      ...(note ? { note } : {}),
+    };
     for (const listener of listeners) listener({ state });
     return state;
   }
@@ -66,7 +72,7 @@ export default function piPetExtension(pi: ExtensionAPI): void {
   });
 
   pi.on("session_start", () => {
-    state = { revision: state.revision + 1, action: catalog.defaultAction };
+    state = { schemaVersion: 1, pet: catalog.id, revision: state.revision + 1, action: catalog.defaultAction };
     for (const listener of listeners) listener({ state });
   });
 }

@@ -1,5 +1,5 @@
 import type { PiPetDesktopBridge } from "../desktop/bridge.ts";
-import type { ClawaState, PetAction, PetCatalog } from "../protocol/index.ts";
+import type { PetAction, PetCatalog, PetState } from "../protocol/index.ts";
 
 interface RemoteAudioState {
   active?: boolean;
@@ -277,8 +277,14 @@ function toolEnded(value: { toolCallId?: string; isError?: boolean }): void {
   else show("running", "Pi is working", "working");
 }
 
-function handlePetState(value: { app?: string; data?: ClawaState }): void {
-  if (value.app !== "pi-pet" || !value.data || value.data.revision <= stateRevision) return;
+function handlePetState(value: { app?: string; data?: PetState }): void {
+  if (
+    value.app !== "pi-pet" ||
+    value.data?.schemaVersion !== 1 ||
+    value.data.pet !== catalog.id ||
+    value.data.revision <= stateRevision
+  )
+    return;
   const next = value.data;
   if (!catalog.actions[next.action]) return;
   stateRevision = next.revision;

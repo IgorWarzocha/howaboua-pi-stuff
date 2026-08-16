@@ -23,6 +23,8 @@ Open `<gippity-url>/_gippity/apps/pi-pet/` and accept GipPity's local certificat
 
 `pet_show` is the only model tool. It triggers an intentional named reaction; routine activity animates automatically and GipPity already owns speech and final text.
 
+Electron is optional. With no attached display, Pi Pet still publishes its versioned `{ pet, revision, action, note? }` state through GipPity alongside the session activity and tool events used by any browser renderer.
+
 ## Transparent desktop pet
 
 The Electron shell loads the same GipPity-hosted app in a transparent, frameless, always-on-top window. It adds local cursor tracking, size, quiet mode, and snooze without another agent runtime or remote protocol.

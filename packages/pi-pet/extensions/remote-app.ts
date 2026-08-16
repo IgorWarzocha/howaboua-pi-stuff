@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import type { ClawaState } from "../src/protocol/index.ts";
+import type { PetState } from "../src/protocol/index.ts";
 
 const PROTOCOL = "@howaboua/pi-gippity-control/remote-app/v1";
 const AVAILABLE_CHANNEL = `${PROTOCOL}/available`;
@@ -14,8 +14,8 @@ interface RemoteAppBroker {
 interface RemoteAppProvider {
   id: "pi-pet";
   root: string;
-  snapshot(): ClawaState;
-  subscribe(listener: (update: { state: ClawaState }) => void): () => void;
+  snapshot(): PetState;
+  subscribe(listener: (update: { state: PetState }) => void): () => void;
 }
 
 export interface RemoteAppRegistration {

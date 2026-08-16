@@ -24,7 +24,7 @@ function usage(): string {
 function formatStatus(config: RemoteDesktopConfig, fleet: RemoteDesktopFleet): string {
   const targets = Object.keys(config.displays).sort();
   const running = new Set(fleet.targets());
-  if (targets.length === 0) return "Pi Pet has no attached SSH displays.";
+  if (targets.length === 0) return "Pi Pet feed is active with no attached Electron displays.";
   return targets.map((target) => `${target}: ${running.has(target) ? "running" : "stopped"}`).join("\n");
 }
 

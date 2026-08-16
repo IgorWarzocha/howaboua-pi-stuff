@@ -37,7 +37,9 @@ export interface PetCatalog {
   directions: Record<string, PetAction>;
 }
 
-export interface ClawaState {
+export interface PetState {
+  schemaVersion: 1;
+  pet: string;
   revision: number;
   action: string;
   note?: string;

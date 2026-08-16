@@ -28,7 +28,7 @@ An attached display keeps Pi Pet at `~/.pi/agent/pi-pet` without installing an a
 
 GipPity sends its retained `idle`, `working`, and `settled` activity plus ordinary Pi events. The miniapp maps them onto the pet's standard actions and derives waiting/failure presentation from tool events. Settled assistant text becomes one bounded temporary bubble.
 
-`pet_show` publishes the latest explicit reaction through the in-process remote-app bridge. GipPity broadcasts it as `app.state` and replays the snapshot to newly connected or reconnecting displays. The browser SDK required no pet-specific transport.
+`pet_show` publishes the latest explicit reaction through the in-process remote-app bridge. Its versioned state identifies the pet catalog and carries a revision, action, and optional note. GipPity broadcasts it as `app.state` and replays the snapshot to newly connected or reconnecting renderers whether or not Electron is attached. The browser SDK requires no pet-specific transport.
 
 ## Pet flow
 
