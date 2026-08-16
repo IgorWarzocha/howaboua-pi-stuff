@@ -16,6 +16,7 @@ import { Container, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
 const ENTRY_TYPE = "@howaboua/pi-stuff/changelog";
 const REGISTRATION_CHANNEL = "@howaboua/pi-stuff/changelog/register/v1";
 const STATE_FILENAME = "howaboua-pi-stuff-changelog.json";
+const SUPPRESS_KEY = "suppress";
 const LOCK_STALE_MS = 30_000;
 const LOCK_TIMEOUT_MS = 2_000;
 
@@ -41,6 +42,8 @@ interface ChangelogEntry {
 interface ChangelogEntryData {
 	markdown: string;
 }
+
+type ChangelogState = Record<string, boolean | string>;
 
 function packageRegistration(): PackageRegistration {
 	const packageDirectory = fileURLToPath(new URL(".", import.meta.url));
@@ -109,7 +112,7 @@ function statePath(): string {
 	return join(getAgentDir(), STATE_FILENAME);
 }
 
-async function readState(path: string): Promise<Record<string, string>> {
+async function readState(path: string): Promise<ChangelogState> {
 	let text: string;
 	try {
 		text = await readFile(path, "utf8");
@@ -120,10 +123,15 @@ async function readState(path: string): Promise<Record<string, string>> {
 	const parsed = JSON.parse(text) as unknown;
 	if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
 		throw new Error(`${path} must contain a JSON object`);
-	for (const [name, version] of Object.entries(parsed))
-		if (typeof version !== "string")
+	for (const [name, value] of Object.entries(parsed)) {
+		if (name === SUPPRESS_KEY) {
+			if (typeof value !== "boolean")
+				throw new Error(`${path} ${SUPPRESS_KEY} must be a boolean`);
+		} else if (typeof value !== "string") {
 			throw new Error(`${path} version for ${name} must be a string`);
-	return parsed as Record<string, string>;
+		}
+	}
+	return parsed as ChangelogState;
 }
 
 async function acquireLock(path: string): Promise<() => Promise<void>> {
@@ -146,10 +154,7 @@ async function acquireLock(path: string): Promise<() => Promise<void>> {
 	}
 }
 
-async function writeState(
-	path: string,
-	state: Record<string, string>,
-): Promise<void> {
+async function writeState(path: string, state: ChangelogState): Promise<void> {
 	await mkdir(dirname(path), { mode: 0o700, recursive: true });
 	const temporaryPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
 	try {
@@ -190,12 +195,26 @@ async function claimUpdates(
 		const errors: string[] = [];
 		const sections: string[] = [];
 		let changed = false;
+		if (state[SUPPRESS_KEY] === true) {
+			for (const registration of registrations) {
+				const seenVersion = state[registration.name];
+				if (
+					typeof seenVersion !== "string" ||
+					compareVersions(registration.version, seenVersion) > 0
+				) {
+					state[registration.name] = registration.version;
+					changed = true;
+				}
+			}
+			if (changed) await writeState(path, state);
+			return { errors };
+		}
 		for (const registration of [...registrations].sort((left, right) =>
 			left.name.localeCompare(right.name),
 		)) {
 			const seenVersion = state[registration.name];
 			if (
-				seenVersion &&
+				typeof seenVersion === "string" &&
 				compareVersions(registration.version, seenVersion) <= 0
 			)
 				continue;
@@ -205,7 +224,7 @@ async function claimUpdates(
 				).filter(
 					(entry) =>
 						compareVersions(entry.version, registration.version) <= 0 &&
-						(seenVersion
+						(typeof seenVersion === "string"
 							? compareVersions(entry.version, seenVersion) > 0
 							: entry.version === registration.version),
 				);
