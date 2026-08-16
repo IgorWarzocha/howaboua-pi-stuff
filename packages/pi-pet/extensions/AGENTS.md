@@ -1,3 +1,4 @@
 - Register the built web root through GipPity's remote-app bridge; never start another server or transport.
+- Keep `remote-app.ts` dependency-free and protocol-compatible with GipPity's versioned event-bus handshake so Pi Pet still loads when GipPity is absent.
 - Keep `pet_show` as the only model tool. GipPity owns lifecycle activity, prompts, final text, voice, and reconnection.
 - State is a bounded reaction snapshot so newly connected displays recover the latest explicit action.
