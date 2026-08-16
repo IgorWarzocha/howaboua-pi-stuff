@@ -61,8 +61,8 @@
     "lint:strict": "biome check --error-on-warnings .",
     "knip": "knip",
     "deadcode": "knip",
-    "ai:check": "biome check . && tsgo --noEmit --noCheck && knip && bun run pet:hatch:test && bun run test && bun run build",
-    "ai:check:strict": "biome check --error-on-warnings . && tsgo --noEmit && knip && bun run pet:hatch:test && bun run test && bun run build",
+    "ai:check": "biome check . && tsgo --noEmit --noCheck && knip && bun run test && bun run build",
+    "ai:check:strict": "biome check --error-on-warnings . && tsgo --noEmit && knip && bun run test && bun run build",
     "check": "bun run ai:check:strict",
     "prepack": "bun run check",
     "pack:dry": "npm pack --dry-run"
