@@ -124,8 +124,7 @@ pets/<pet-id>/
 - Write `pet.json` with `spriteVersionNumber: 2` and `spritesheetPath: "spritesheet.webp"`.
 - Write `PET.md` with identity, personality, included actions, generation inputs, tool/service provenance, review method, and licensing uncertainty.
 - Copy final deterministic validation as `validation.json`; retain full QA evidence in the run directory.
-- From the package root resolved by `../PET-GUIDE.md`, run `npm run pet:validate -- <absolute-package-directory>`. Follow that guide's **Rebuild and load** procedure, then inspect at display scale and exercise every standard action.
-- Run the repository's strict gate before installation or desktop launch.
+- From the package root resolved by `../PET-GUIDE.md`, run `npm run pet:validate -- <pi-pet-package>/pets/<pet-id>`. Follow that guide's **Rebuild and load** procedure, then inspect at display scale and exercise every standard action.
 
 ## Repair and stop conditions
 
@@ -135,9 +134,9 @@ pets/<pet-id>/
 - If the same root failure recurs twice, change strategy rather than paraphrasing the same prompt.
 - Stop when all acceptance gates pass, the user cancels, or an external capability is unavailable after producing a resumable handoff. Never package a partial pet as complete.
 
-## Tooling check
+## Tooling check in a source checkout
 
-After changing bundled scripts:
+The npm package excludes hatch tests. Only after changing bundled hatch scripts in a source checkout, run:
 
 ```bash
 uv run --project "$HATCH_DIR" --locked python -m unittest discover \
