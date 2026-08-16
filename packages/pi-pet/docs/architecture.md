@@ -21,6 +21,7 @@ flowchart LR
 - `src/desktop/` owns the transparent native window, local attention preferences, navigation confinement, and a cursor-only sandboxed preload.
 - `src/protocol/` owns pet/catalog and reaction-state shapes.
 - `src/pet-loader.ts` validates inert pet data and assets during builds.
+- `authoring/` is read on demand through free-form `/pet` requests; it is shipped as package data, not registered as an always-visible skill.
 
 An attached display keeps Pi Pet at `~/.pi/agent/pi-pet` without installing an application. The SSH command compares its build record with the version and source digest of the package loaded by Pi. A mismatch updates the source and runs npm install and build; a match starts the existing build directly. Closing the SSH owner closes Electron through an inherited pipe but leaves the source and build for the next Pi session.
 

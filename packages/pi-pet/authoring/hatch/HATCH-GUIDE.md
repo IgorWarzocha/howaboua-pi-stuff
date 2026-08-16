@@ -1,15 +1,10 @@
----
-name: hatch-pi-pet
-description: "Complete Pi Pet creation, repair, validation, visual review, and packaging. Use for new character hatching, full Codex-v2 sprite atlases, nine standard animations, sixteen look directions, image-generation handoffs, or QA evidence. Not live control or one custom action."
-license: "Apache-2.0; see LICENSE.txt"
-compatibility: "Deterministic tooling requires uv and Python 3.11+. Visual work requires any image-generation capability, a user-supplied image, or an external-service handoff."
----
+# Hatch a Pi Pet
 
-# Hatch Pi Pet
+Use this guide for a complete character, full Codex-v2 atlas repair, nine standard animations, or sixteen look directions. Deterministic tooling requires uv and Python 3.11+. Visual work requires an image-generation capability, supplied images, or an explicit external handoff. See `LICENSE.txt` for the authoring-tool license.
 
 ## Run boundary
 
-1. Read the repository and nearest `AGENTS.md` files. Resolve `SKILL_DIR` to this skill directory and `REPO_ROOT` to the Pi Pet repository.
+1. Read the repository and nearest `AGENTS.md` files. Resolve `HATCH_DIR` to this guide's directory and `REPO_ROOT` to the Pi Pet package directory.
 2. Collect a concept, optional name/description, style, brand cues, and reference images. Infer omitted creative details; ask only when identity direction is genuinely ambiguous.
 3. Keep generated work outside `pets/`. Default to `$REPO_ROOT/.pi-pet-runs/<pet-id>`; reuse an existing run only when deliberately resuming it.
 4. For an existing pet, preserve every passing row. Never overwrite its package until the replacement passes and the user requested replacement.
@@ -33,7 +28,7 @@ Choose by capability, not vendor or tool name:
 Use the locked authoring environment:
 
 ```bash
-uv run --project "$SKILL_DIR" --locked python "$SKILL_DIR/scripts/prepare_pet_run.py" \
+uv run --project "$HATCH_DIR" --locked python "$HATCH_DIR/scripts/prepare_pet_run.py" \
   --pet-name "<Name>" \
   --description "<one sentence>" \
   --reference /absolute/reference.png \
@@ -61,7 +56,7 @@ Inspect `visual-jobs.json`. A pending job is ready only when every `depends_on` 
 3. Mirror `running-left` only when markings, lighting, props, and handedness remain correct:
 
 ```bash
-uv run --project "$SKILL_DIR" --locked python "$SKILL_DIR/scripts/derive_running_left_from_running_right.py" \
+uv run --project "$HATCH_DIR" --locked python "$HATCH_DIR/scripts/derive_running_left_from_running_right.py" \
   --run-dir "$RUN_DIR" --confirm-appropriate-mirror \
   --decision-note "<why identity and meaning survive mirroring>"
 ```
@@ -72,10 +67,10 @@ The derivation leaves `running-left` staged, not complete. Run the same extracti
 
 ```bash
 ROW_ID=<job-id>
-uv run --project "$SKILL_DIR" --locked python "$SKILL_DIR/scripts/extract_strip_frames.py" \
+uv run --project "$HATCH_DIR" --locked python "$HATCH_DIR/scripts/extract_strip_frames.py" \
   --decoded-dir "$RUN_DIR/decoded" --output-dir "$RUN_DIR/qa/rows/$ROW_ID/frames" \
   --states "$ROW_ID" --method auto
-uv run --project "$SKILL_DIR" --locked python "$SKILL_DIR/scripts/inspect_frames.py" \
+uv run --project "$HATCH_DIR" --locked python "$HATCH_DIR/scripts/inspect_frames.py" \
   --frames-root "$RUN_DIR/qa/rows/$ROW_ID/frames" \
   --json-out "$RUN_DIR/qa/rows/$ROW_ID/review.json" --states "$ROW_ID" --require-components
 ```
@@ -92,7 +87,7 @@ Read `references/look-directions.md` before this stage.
 2. Generate one four-pose strip: `000 up`, `090 screen-right`, `180 down`, `270 screen-left`. Extract it with `extract_cardinal_anchors.py`, inspect at pet size, and compose `decoded/look-anchors-approved.png`. Regenerate an ambiguous cardinal before continuing. Complete the evidence gate only after those artifacts pass:
 
 ```bash
-uv run --project "$SKILL_DIR" --locked python "$SKILL_DIR/scripts/approve_cardinals.py" \
+uv run --project "$HATCH_DIR" --locked python "$HATCH_DIR/scripts/approve_cardinals.py" \
   --run-dir "$RUN_DIR" --reviewed-by "<agent or user identity>" \
   --qa-note "<visible evidence that all four cardinals are correct>"
 ```
@@ -145,6 +140,6 @@ pets/<pet-id>/
 After changing bundled scripts:
 
 ```bash
-uv run --project "$SKILL_DIR" --locked python -m unittest discover \
-  -s "$SKILL_DIR/tests" -p 'test_*.py' -v
+uv run --project "$HATCH_DIR" --locked python -m unittest discover \
+  -s "$HATCH_DIR/tests" -p 'test_*.py' -v
 ```

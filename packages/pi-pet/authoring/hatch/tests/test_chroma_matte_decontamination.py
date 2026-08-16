@@ -4,8 +4,8 @@ from pathlib import Path
 
 from PIL import Image
 
-SKILL_DIR = Path(__file__).resolve().parents[1]
-MODULE_PATH = SKILL_DIR / "scripts" / "despill_chroma_edges.py"
+HATCH_DIR = Path(__file__).resolve().parents[1]
+MODULE_PATH = HATCH_DIR / "scripts" / "despill_chroma_edges.py"
 SPEC = importlib.util.spec_from_file_location("despill_chroma_edges", MODULE_PATH)
 if SPEC is None or SPEC.loader is None:
     raise RuntimeError(f"Unable to load {MODULE_PATH}")

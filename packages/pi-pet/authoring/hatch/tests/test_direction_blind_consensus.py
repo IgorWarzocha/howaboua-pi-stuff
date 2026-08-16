@@ -5,8 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-SKILL_DIR = Path(__file__).resolve().parents[1]
-COMBINE = SKILL_DIR / "scripts" / "combine_direction_blind_verdicts.py"
+HATCH_DIR = Path(__file__).resolve().parents[1]
+COMBINE = HATCH_DIR / "scripts" / "combine_direction_blind_verdicts.py"
 
 
 class DirectionBlindConsensusTest(unittest.TestCase):

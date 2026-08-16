@@ -30,7 +30,7 @@
     "docs",
     "extensions",
     "pets",
-    "skills",
+    "authoring",
     "scripts/validate-pet.mjs",
     "src/desktop",
     "src/pet-image-size.ts",
@@ -39,20 +39,18 @@
     "!**/AGENTS.md",
     "!**/__pycache__",
     "!**/*.pyc",
-    "!**/.venv"
+    "!**/.venv",
+    "!authoring/hatch/tests"
   ],
   "pi": {
     "extensions": [
       "./extensions/index.ts"
-    ],
-    "skills": [
-      "./skills"
     ]
   },
   "scripts": {
     "build": "bun scripts/build.mjs",
     "desktop:start": "npm --prefix desktop run build && npm --prefix desktop start",
-    "pet:hatch:test": "uv run --isolated --project skills/hatch-pi-pet --locked python -m unittest discover -s skills/hatch-pi-pet/tests -p 'test_*.py' -v",
+    "pet:hatch:test": "uv run --isolated --project authoring/hatch --locked python -m unittest discover -s authoring/hatch/tests -p 'test_*.py' -v",
     "pet:validate": "bun scripts/validate-pet.mjs",
     "typecheck": "tsgo --noEmit",
     "test": "node --test --experimental-strip-types tests/*.test.ts",

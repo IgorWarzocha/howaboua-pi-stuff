@@ -1,4 +1,6 @@
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { access } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { parseDesktopConfig } from "../src/desktop/config.ts";
 import {
   parseSshTarget,
@@ -10,12 +12,15 @@ import { RemoteDesktopFleet } from "./desktop-launcher.ts";
 
 const ACTIONS = ["attach", "detach", "restart", "status"] as const;
 const ARGUMENT_SEPARATOR = /\s+/;
+const MAX_AUTHORING_REQUEST_BYTES = 8 * 1024;
+const AUTHORING_GUIDE = fileURLToPath(new URL("../authoring/PET-GUIDE.md", import.meta.url));
 
 type PetCommand =
   | { action: "attach"; target: string; gippityUrl: string }
   | { action: "detach"; target: string }
   | { action: "restart" }
-  | { action: "status" };
+  | { action: "status" }
+  | { action: "author"; request: string };
 
 function usage(): string {
   return "Usage: /pet attach <ssh-host> <gippity-url> | detach <ssh-host> | restart | status";
@@ -28,13 +33,22 @@ function formatStatus(config: RemoteDesktopConfig, fleet: RemoteDesktopFleet): s
   return targets.map((target) => `${target}: ${running.has(target) ? "running" : "stopped"}`).join("\n");
 }
 
-function parseCommand(rawArgs: string): PetCommand {
-  const tokens = rawArgs.trim() ? rawArgs.trim().split(ARGUMENT_SEPARATOR) : ["status"];
+function authoringCommand(request: string): PetCommand {
+  if (Buffer.byteLength(request) > MAX_AUTHORING_REQUEST_BYTES) {
+    throw new Error(`Pi Pet authoring request exceeds ${MAX_AUTHORING_REQUEST_BYTES} bytes.`);
+  }
+  return { action: "author", request };
+}
+
+function parsePetCommand(rawArgs: string): PetCommand {
+  const request = rawArgs.trim();
+  const tokens = request ? request.split(ARGUMENT_SEPARATOR) : ["status"];
   const [rawAction, rawTarget, rawUrl, ...extra] = tokens;
   const action = rawAction?.toLowerCase();
-  if (!(action && ACTIONS.includes(action as (typeof ACTIONS)[number]) && extra.length === 0)) {
-    throw new Error(usage());
+  if (!(action && ACTIONS.includes(action as (typeof ACTIONS)[number]))) {
+    return authoringCommand(request);
   }
+  if (extra.length > 0) throw new Error(usage());
   const validAction = action as (typeof ACTIONS)[number];
   if (validAction === "status" || validAction === "restart") {
     if (rawTarget || rawUrl) throw new Error(usage());
@@ -51,7 +65,22 @@ function parseCommand(rawArgs: string): PetCommand {
   return { action: "attach", target, gippityUrl };
 }
 
-async function executeCommand(command: PetCommand, fleet: RemoteDesktopFleet, ctx: ExtensionContext): Promise<void> {
+function petAuthoringPrompt(request: string): string {
+  return `Read and follow the Pi Pet guide at ${JSON.stringify(AUTHORING_GUIDE)} for this request:\n\n${request}`;
+}
+
+async function executeCommand(
+  pi: ExtensionAPI,
+  command: PetCommand,
+  fleet: RemoteDesktopFleet,
+  ctx: ExtensionCommandContext,
+): Promise<void> {
+  if (command.action === "author") {
+    await access(AUTHORING_GUIDE);
+    await ctx.waitForIdle();
+    pi.sendUserMessage(petAuthoringPrompt(command.request));
+    return;
+  }
   const config = await readRemoteDesktopConfig();
   if (command.action === "status") {
     ctx.ui.notify(formatStatus(config, fleet), "info");
@@ -92,7 +121,7 @@ export function registerRemoteDesktops(pi: ExtensionAPI): void {
   });
 
   pi.registerCommand("pet", {
-    description: "Attach Pi Pet displays over SSH",
+    description: "Control displays or start Pi Pet authoring",
     getArgumentCompletions: (prefix) =>
       ACTIONS.filter((action) => action.startsWith(prefix.trim().toLowerCase())).map((value) => ({
         label: value,
@@ -100,7 +129,7 @@ export function registerRemoteDesktops(pi: ExtensionAPI): void {
       })),
     handler: async (rawArgs, ctx) => {
       try {
-        await executeCommand(parseCommand(rawArgs), fleet, ctx);
+        await executeCommand(pi, parsePetCommand(rawArgs), fleet, ctx);
       } catch (error) {
         ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
       }

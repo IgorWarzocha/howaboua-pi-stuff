@@ -7,11 +7,11 @@ from pathlib import Path
 
 from PIL import Image
 
-SKILL_DIR = Path(__file__).resolve().parents[1]
-PREPARE = SKILL_DIR / "scripts/prepare_pet_run.py"
-DERIVE_LEFT = SKILL_DIR / "scripts/derive_running_left_from_running_right.py"
-APPROVE_CARDINALS = SKILL_DIR / "scripts/approve_cardinals.py"
-VALIDATE = SKILL_DIR / "scripts/validate_atlas.py"
+HATCH_DIR = Path(__file__).resolve().parents[1]
+PREPARE = HATCH_DIR / "scripts/prepare_pet_run.py"
+DERIVE_LEFT = HATCH_DIR / "scripts/derive_running_left_from_running_right.py"
+APPROVE_CARDINALS = HATCH_DIR / "scripts/approve_cardinals.py"
+VALIDATE = HATCH_DIR / "scripts/validate_atlas.py"
 
 
 class WorkflowBoundaryTest(unittest.TestCase):

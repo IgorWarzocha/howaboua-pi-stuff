@@ -3,3 +3,4 @@
 - Keep `pet_show` as the only model tool. GipPity owns lifecycle activity, prompts, final text, voice, and reconnection.
 - State is a bounded reaction snapshot so newly connected displays recover the latest explicit action.
 - Remote desktop ownership is one SSH process per configured display. Send the bounded bootstrap over stdin, leave SSH behavior to the user's config, and stop every child with Pi.
+- Preserve `/pet` as one routed command: reserved display actions stay strict; other bounded text lazily points Pi at the installed authoring guide.

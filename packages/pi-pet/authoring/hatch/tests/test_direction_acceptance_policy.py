@@ -7,10 +7,10 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-SKILL_DIR = Path(__file__).resolve().parents[1]
-VALIDATE_BLIND = SKILL_DIR / "scripts" / "validate_direction_blind_verdicts.py"
-MEASURE_CONTINUITY = SKILL_DIR / "scripts" / "measure_direction_continuity.py"
-MAKE_BLIND_SHEET = SKILL_DIR / "scripts" / "make_direction_blind_qa_sheet.py"
+HATCH_DIR = Path(__file__).resolve().parents[1]
+VALIDATE_BLIND = HATCH_DIR / "scripts" / "validate_direction_blind_verdicts.py"
+MEASURE_CONTINUITY = HATCH_DIR / "scripts" / "measure_direction_continuity.py"
+MAKE_BLIND_SHEET = HATCH_DIR / "scripts" / "make_direction_blind_qa_sheet.py"
 
 
 class DirectionAcceptancePolicyTest(unittest.TestCase):

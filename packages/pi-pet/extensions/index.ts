@@ -28,7 +28,7 @@ export default function piPetExtension(pi: ExtensionAPI): void {
     const requested = parseActionName(action);
     const resolved = catalog.actions[requested] ? requested : catalog.aliases[requested];
     if (!(resolved && catalog.actions[resolved])) {
-      throw new Error(`Unknown pet action: ${requested}. Load the pi-pet skill for supported actions.`);
+      throw new Error(`Unknown pet action: ${requested}. Use /pet <request> to inspect or add actions.`);
     }
     state = {
       schemaVersion: 1,

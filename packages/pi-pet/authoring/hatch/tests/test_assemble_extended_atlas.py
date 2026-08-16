@@ -9,8 +9,8 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-SKILL_DIR = Path(__file__).resolve().parents[1]
-MODULE_PATH = SKILL_DIR / "scripts" / "assemble_extended_atlas.py"
+HATCH_DIR = Path(__file__).resolve().parents[1]
+MODULE_PATH = HATCH_DIR / "scripts" / "assemble_extended_atlas.py"
 sys.path.insert(0, str(MODULE_PATH.parent))
 SPEC = importlib.util.spec_from_file_location("assemble_extended_atlas", MODULE_PATH)
 if SPEC is None or SPEC.loader is None:

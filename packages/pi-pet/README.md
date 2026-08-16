@@ -49,7 +49,14 @@ Electron accepts GipPity's self-signed certificate only for the configured origi
 
 ## Pet authoring
 
-The bundled Clawa package follows the Codex-v2 atlas format and is validated while Pi Pet builds. Load `hatch-pi-pet` to create or repair a complete character with deterministic atlas assembly and independent visual review. Load `pi-pet` for existing actions or one additional data-only animation.
+Authoring guides are loaded only when requested rather than exposed as permanent skills. Pass a natural-language request to the same routed command:
+
+```text
+/pet add a catching-mouse animation
+/pet hatch a fluorescent office ferret
+```
+
+Pi Pet resolves `authoring/PET-GUIDE.md` from its own source or npm installation and asks Pi to follow it. That guide routes one-action work or full character hatching into the bundled references, deterministic atlas tooling, and visual review process.
 
 ```bash
 bun --cwd=packages/pi-pet run build

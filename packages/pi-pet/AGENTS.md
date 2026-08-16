@@ -4,4 +4,5 @@
 - `bun run ai:check:strict` MUST pass before packaging or launching Electron.
 - Generated `dist/` is distributable output; change source first and rebuild it in the same change.
 - Attached desktops live at `~/.pi/agent/pi-pet` on the display. Rebuild there only when the loaded package version or source digest changes; SSH owns only the running process. Never add Git fetching, app installation, autostart, or background-service state.
+- Keep authoring lazy: `/pet <request>` resolves the installed `authoring/PET-GUIDE.md`; never register bundled authoring as Pi skills or inline the guide into the command prompt.
 - Read the nearest nested `AGENTS.md` before editing a subtree.

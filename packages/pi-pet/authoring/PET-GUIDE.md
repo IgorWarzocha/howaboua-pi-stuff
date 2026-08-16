@@ -1,10 +1,12 @@
----
-name: pi-pet
-description: "Control or extend existing animated Pi Pet companions. Use for pet reactions, action catalogs, PET.md, pet.json, pet.pi.json, or adding one animation. Not complete new-pet generation; use hatch-pi-pet for that."
-compatibility: "Requires GipPity Control for live display; authoring requires PNG/WebP assets and may use an available image-generation tool."
----
+# Pi Pet guide
 
-# Pi Pet
+This guide is the on-demand entry point for `/pet <request>`. Resolve every relative path from this file and treat its package directory as the source of truth for bundled pets, validation, and authoring tools.
+
+## Route the request
+
+- For live reactions, action catalogs, one additional animation, or repair of one existing action, continue below.
+- For a complete new character, full atlas repair, nine standard animations, or sixteen look directions, read `hatch/HATCH-GUIDE.md` and follow it instead.
+- Separate pet data from renderer behavior. An animation such as `catching-mouse` can be authored as inert data; automatically triggering it near a pointer requires a separate renderer change.
 
 ## Live control
 
@@ -18,7 +20,7 @@ The bundled actions are `idle`, `running-right`, `running-left`, `waving`, `jump
 
 Read `references/pet-format.md`, then:
 
-1. Locate the package under `<pi-pet-package>/pets/<id>/`. Read its `PET.md`, `pet.json`, optional `pet.pi.json`, and nearest `AGENTS.md`. For a complete new character, stop and load `hatch-pi-pet`.
+1. Locate the package under `<pi-pet-package>/pets/<id>/`. Read its `PET.md`, `pet.json`, optional `pet.pi.json`, and nearest `AGENTS.md`. For a complete new character, switch to `hatch/HATCH-GUIDE.md`.
 2. Preserve character identity and every passing action. Prefer a separate bounded PNG/WebP atlas plus a `pet.pi.json` entry for one new action.
 3. Define frame coordinates and durations explicitly. Names use lowercase letters, numbers, dots, underscores, or hyphens.
 4. Run the Pi Pet build; it validates manifests, traversal, assets, decoded dimensions, and frame geometry before producing the GipPity miniapp.
