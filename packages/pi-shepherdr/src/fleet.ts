@@ -62,8 +62,15 @@ function shellQuote(value: string): string {
 }
 
 function operatorPrefix(config: RemoteMachineConfig): string {
-	const remote = config.socket
-		? ["env", `HERDR_SOCKET_PATH=${config.socket}`, config.herdr]
+	const socket = config.socket?.startsWith("~/")
+		? `HERDR_SOCKET_PATH="$HOME"/${shellQuote(config.socket.slice(2))}`
+		: config.socket === "~"
+			? 'HERDR_SOCKET_PATH="$HOME"'
+			: config.socket
+				? `HERDR_SOCKET_PATH=${shellQuote(config.socket)}`
+				: undefined;
+	const remote = socket
+		? ["env", socket, config.herdr]
 		: [config.herdr, ...(config.session ? ["--session", config.session] : [])];
 	return [...config.command, ...remote].map(shellQuote).join(" ");
 }
@@ -211,7 +218,7 @@ export class AgentFleet {
 		const reconnect: string[] = [];
 
 		for (const [name, runtime] of this.runtimes) {
-			if (runtime.local || name in config.machines) continue;
+			if (runtime.local || Object.hasOwn(config.machines, name)) continue;
 			runtime.monitor?.deactivate();
 			if (runtime.client instanceof RemoteHerdrClient) runtime.client.close();
 			this.runtimes.delete(name);

@@ -282,8 +282,7 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 		const id = typeof message["id"] === "string" ? message["id"] : randomUUID();
 		return new Promise((resolve, reject) => {
 			const timer = setTimeout(() => {
-				this.pending.delete(id);
-				reject(
+				this.disconnected(
 					new Error(`remote Shepherdr ${String(message["op"])} timed out`),
 				);
 			}, timeoutMs);

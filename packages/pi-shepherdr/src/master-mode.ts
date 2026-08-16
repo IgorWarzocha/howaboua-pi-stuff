@@ -239,7 +239,7 @@ async function addMachine(
 		await ctx.ui.input("Herdr session", "default (leave blank)")
 	)?.trim();
 	const config = await readMachinesConfig();
-	if (name === LOCAL_MACHINE || name in config.machines) {
+	if (name === LOCAL_MACHINE || Object.hasOwn(config.machines, name)) {
 		ctx.ui.notify(`Machine ${name} already exists`, "error");
 		return;
 	}
