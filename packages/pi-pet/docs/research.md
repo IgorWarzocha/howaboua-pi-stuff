@@ -2,9 +2,9 @@
 
 ## Atlas contract
 
-The retained Clawa fixture and OpenAI's public Hatch Pet skill establish the Codex-v2 `1536x2288`, 8×11, `192x208` atlas; nine standard action rows; sixteen clockwise look directions; and the minimal `pet.json` package. Clawa's committed validation reports no errors or warnings.
+The retained Clawa fixture establishes Pi Pet's Codex-v2 `1536x2288`, 8×11, `192x208` atlas: nine standard action rows, sixteen clockwise look directions, and the minimal `pet.json` package. Clawa's committed validation reports no errors or warnings.
 
-OpenAI's public Hatch Pet skill confirms deterministic spritesheet creation, validation, visual QA, and `pet.json` packaging: <https://github.com/openai/skills/tree/main/skills/.curated/hatch-pet>
+OpenAI's public Hatch Pet skill confirms deterministic spritesheet creation, validation, visual QA, and `pet.json` packaging for the legacy 8×9 contract: <https://github.com/openai/skills/tree/main/skills/.curated/hatch-pet>
 
 Codex issue #20863 documents that current animation timing, chaining, and activity triggers are hardcoded rather than pet-manifest driven: <https://github.com/openai/codex/issues/20863>
 
