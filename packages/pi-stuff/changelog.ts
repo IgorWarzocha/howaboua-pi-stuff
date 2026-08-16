@@ -1,12 +1,8 @@
-// Generated aggregate packages copy this file during aggregate:sync.
+// Generated extension packages copy this file during changelog:extensions.
 
-import {
-	mkdirSync,
-	readFileSync,
-	renameSync,
-	rmSync,
-	writeFileSync,
-} from "node:fs";
+import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -17,9 +13,24 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { Container, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
 
-interface BundleMetadata {
+const ENTRY_TYPE = "@howaboua/pi-stuff/changelog";
+const REGISTRATION_CHANNEL = "@howaboua/pi-stuff/changelog/register/v1";
+const STATE_FILENAME = "howaboua-pi-stuff-changelog.json";
+const LOCK_STALE_MS = 30_000;
+const LOCK_TIMEOUT_MS = 2_000;
+
+interface PackageMetadata {
 	name: string;
 	version: string;
+}
+
+interface PackageRegistration extends PackageMetadata {
+	changelogPath: string;
+}
+
+interface RegistrationEvent {
+	accept: () => void;
+	registration: PackageRegistration;
 }
 
 interface ChangelogEntry {
@@ -29,7 +40,31 @@ interface ChangelogEntry {
 
 interface ChangelogEntryData {
 	markdown: string;
-	packageName: string;
+}
+
+function packageRegistration(): PackageRegistration {
+	const packageDirectory = fileURLToPath(new URL(".", import.meta.url));
+	const metadata = JSON.parse(
+		readFileSync(join(packageDirectory, "package.json"), "utf8"),
+	) as Partial<PackageMetadata>;
+	if (typeof metadata.name !== "string" || typeof metadata.version !== "string")
+		throw new Error(`Invalid package metadata in ${packageDirectory}`);
+	return {
+		name: metadata.name,
+		version: metadata.version,
+		changelogPath: join(packageDirectory, "CHANGELOG.md"),
+	};
+}
+
+function isRegistrationEvent(value: unknown): value is RegistrationEvent {
+	if (!value || typeof value !== "object") return false;
+	const event = value as Partial<RegistrationEvent>;
+	return (
+		typeof event.accept === "function" &&
+		typeof event.registration?.name === "string" &&
+		typeof event.registration.version === "string" &&
+		typeof event.registration.changelogPath === "string"
+	);
 }
 
 function parseChangelog(markdown: string): ChangelogEntry[] {
@@ -38,8 +73,7 @@ function parseChangelog(markdown: string): ChangelogEntry[] {
 	let currentVersion: string | undefined;
 
 	for (const line of markdown.split("\n")) {
-		const heading = line.match(/^##\s+\[?(\d+\.\d+\.\d+)\]?(?:\s.*)?$/);
-		const version = heading?.[1];
+		const version = line.match(/^##\s+\[?(\d+\.\d+\.\d+)\]?(?:\s.*)?$/)?.[1];
 		if (version) {
 			if (currentVersion)
 				entries.push({
@@ -71,73 +105,162 @@ function compareVersions(left: string, right: string): number {
 	return 0;
 }
 
-function statePath(packageName: string): string {
-	const name = packageName.replace(/^@/, "").replace(/[^a-zA-Z0-9_.-]+/g, "-");
-	return join(getAgentDir(), "changelog", `${name}.json`);
+function statePath(): string {
+	return join(getAgentDir(), STATE_FILENAME);
 }
 
-function readSeenVersion(packageName: string): string | undefined {
+async function readState(path: string): Promise<Record<string, string>> {
+	let text: string;
 	try {
-		const state = JSON.parse(readFileSync(statePath(packageName), "utf8")) as {
-			version?: unknown;
-		};
-		return typeof state.version === "string" ? state.version : undefined;
-	} catch {
-		return undefined;
+		text = await readFile(path, "utf8");
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
+		throw error;
+	}
+	const parsed = JSON.parse(text) as unknown;
+	if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+		throw new Error(`${path} must contain a JSON object`);
+	for (const [name, version] of Object.entries(parsed))
+		if (typeof version !== "string")
+			throw new Error(`${path} version for ${name} must be a string`);
+	return parsed as Record<string, string>;
+}
+
+async function acquireLock(path: string): Promise<() => Promise<void>> {
+	const deadline = Date.now() + LOCK_TIMEOUT_MS;
+	while (true) {
+		try {
+			await mkdir(path);
+			return () => rm(path, { force: true, recursive: true });
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+			const info = await stat(path).catch(() => undefined);
+			if (info && Date.now() - info.mtimeMs > LOCK_STALE_MS) {
+				await rm(path, { force: true, recursive: true });
+				continue;
+			}
+			if (Date.now() >= deadline)
+				throw new Error(`Timed out waiting for ${path}`);
+			await new Promise((resolve) => setTimeout(resolve, 20));
+		}
 	}
 }
 
-function writeSeenVersion(packageName: string, version: string): void {
-	const path = statePath(packageName);
-	mkdirSync(dirname(path), { mode: 0o700, recursive: true });
-	const temporaryPath = `${path}.${process.pid}.${Date.now()}.tmp`;
+async function writeState(
+	path: string,
+	state: Record<string, string>,
+): Promise<void> {
+	await mkdir(dirname(path), { mode: 0o700, recursive: true });
+	const temporaryPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
 	try {
-		writeFileSync(temporaryPath, `${JSON.stringify({ version })}\n`, {
+		const ordered = Object.fromEntries(
+			Object.entries(state).sort(([left], [right]) =>
+				left.localeCompare(right),
+			),
+		);
+		await writeFile(temporaryPath, `${JSON.stringify(ordered, null, 2)}\n`, {
+			encoding: "utf8",
 			mode: 0o600,
 		});
-		renameSync(temporaryPath, path);
+		await rename(temporaryPath, path);
 	} catch (error) {
-		rmSync(temporaryPath, { force: true });
+		await rm(temporaryPath, { force: true });
 		throw error;
 	}
 }
 
-export function registerBundleChangelog(pi: ExtensionAPI): void {
-	let metadata: BundleMetadata;
-	let entries: ChangelogEntry[];
-	try {
-		const packageDirectory = fileURLToPath(new URL(".", import.meta.url));
-		metadata = JSON.parse(
-			readFileSync(join(packageDirectory, "package.json"), "utf8"),
-		) as BundleMetadata;
-		entries = parseChangelog(
-			readFileSync(join(packageDirectory, "CHANGELOG.md"), "utf8"),
-		);
-	} catch (error) {
-		pi.on("session_start", async (_event, ctx) => {
-			ctx.ui.notify(
-				`Could not load the Howaboua package changelog: ${error instanceof Error ? error.message : String(error)}`,
-				"warning",
-			);
-		});
-		return;
-	}
+function packageMarkdown(
+	registration: PackageRegistration,
+	entries: ChangelogEntry[],
+): string {
+	return [
+		`## ${registration.name}`,
+		...entries.map((entry) => entry.content.replace(/^##\s+/, "### ")),
+	].join("\n\n");
+}
 
-	const entryType = `${metadata.name}/changelog`;
+async function claimUpdates(
+	registrations: Iterable<PackageRegistration>,
+): Promise<{ errors: string[]; markdown?: string }> {
+	const path = statePath();
+	await mkdir(dirname(path), { mode: 0o700, recursive: true });
+	const release = await acquireLock(`${path}.lock`);
+	try {
+		const state = await readState(path);
+		const errors: string[] = [];
+		const sections: string[] = [];
+		let changed = false;
+		for (const registration of [...registrations].sort((left, right) =>
+			left.name.localeCompare(right.name),
+		)) {
+			const seenVersion = state[registration.name];
+			if (
+				seenVersion &&
+				compareVersions(registration.version, seenVersion) <= 0
+			)
+				continue;
+			try {
+				const entries = parseChangelog(
+					await readFile(registration.changelogPath, "utf8"),
+				).filter(
+					(entry) =>
+						compareVersions(entry.version, registration.version) <= 0 &&
+						(seenVersion
+							? compareVersions(entry.version, seenVersion) > 0
+							: entry.version === registration.version),
+				);
+				if (entries.length === 0) {
+					errors.push(
+						`No ${registration.version} changelog entry found for ${registration.name}`,
+					);
+					continue;
+				}
+				sections.push(packageMarkdown(registration, entries));
+				state[registration.name] = registration.version;
+				changed = true;
+			} catch (error) {
+				errors.push(
+					`Could not read the ${registration.name} changelog: ${error instanceof Error ? error.message : String(error)}`,
+				);
+			}
+		}
+		if (changed) await writeState(path, state);
+		return {
+			errors,
+			...(sections.length > 0 ? { markdown: sections.join("\n\n") } : {}),
+		};
+	} finally {
+		await release();
+	}
+}
+
+function registerCoordinator(
+	pi: ExtensionAPI,
+	registration: PackageRegistration,
+): void {
+	let accepted = false;
+	pi.events.emit(REGISTRATION_CHANNEL, {
+		registration,
+		accept: () => {
+			accepted = true;
+		},
+	} satisfies RegistrationEvent);
+	if (accepted) return;
+
+	const registrations = new Map([[registration.name, registration]]);
+	pi.events.on(REGISTRATION_CHANNEL, (value) => {
+		if (!isRegistrationEvent(value)) return;
+		registrations.set(value.registration.name, value.registration);
+		value.accept();
+	});
 	pi.registerEntryRenderer<ChangelogEntryData>(
-		entryType,
+		ENTRY_TYPE,
 		(entry, _options, theme) => {
 			if (!entry.data) return undefined;
 			const container = new Container();
 			container.addChild(new DynamicBorder());
 			container.addChild(
-				new Text(
-					theme.bold(
-						theme.fg("accent", `What's New · ${entry.data.packageName}`),
-					),
-					1,
-					0,
-				),
+				new Text(theme.bold(theme.fg("accent", "What's New")), 1, 0),
 			);
 			container.addChild(new Spacer(1));
 			container.addChild(
@@ -148,7 +271,6 @@ export function registerBundleChangelog(pi: ExtensionAPI): void {
 			return container;
 		},
 	);
-
 	pi.on("session_start", async (event, ctx) => {
 		if (event.reason === "reload" || ctx.mode !== "tui") return;
 		if (
@@ -159,30 +281,22 @@ export function registerBundleChangelog(pi: ExtensionAPI): void {
 				)
 		)
 			return;
-
-		const seenVersion = readSeenVersion(metadata.name);
-		// This feature cannot inherit state from older bundle versions, so its first
-		// run shows the current release once instead of silently establishing a baseline.
-		const unseenEntries = entries.filter(
-			(entry) =>
-				compareVersions(entry.version, metadata.version) <= 0 &&
-				(seenVersion
-					? compareVersions(entry.version, seenVersion) > 0
-					: entry.version === metadata.version),
-		);
-		if (unseenEntries.length === 0) return;
-
-		pi.appendEntry<ChangelogEntryData>(entryType, {
-			markdown: unseenEntries.map((entry) => entry.content).join("\n\n"),
-			packageName: metadata.name,
-		});
 		try {
-			writeSeenVersion(metadata.name, metadata.version);
+			const update = await claimUpdates(registrations.values());
+			if (update.markdown)
+				pi.appendEntry<ChangelogEntryData>(ENTRY_TYPE, {
+					markdown: update.markdown,
+				});
+			for (const error of update.errors) ctx.ui.notify(error, "warning");
 		} catch (error) {
 			ctx.ui.notify(
-				`Could not remember the ${metadata.name} changelog version: ${error instanceof Error ? error.message : String(error)}`,
+				`Could not update Howaboua changelog state: ${error instanceof Error ? error.message : String(error)}`,
 				"warning",
 			);
 		}
 	});
+}
+
+export default function howabouaPackageChangelog(pi: ExtensionAPI): void {
+	registerCoordinator(pi, packageRegistration());
 }

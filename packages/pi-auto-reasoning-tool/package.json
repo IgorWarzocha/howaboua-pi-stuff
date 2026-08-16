@@ -10,10 +10,13 @@
 		"README.md",
 		"LICENSE",
 		"tsconfig.json",
-		"biome.json"
+		"biome.json",
+		"changelog.ts",
+		"CHANGELOG.md"
 	],
 	"pi": {
 		"extensions": [
+			"./changelog.ts",
 			"./src/index.ts"
 		]
 	},
@@ -56,6 +59,7 @@
 	},
 	"peerDependencies": {
 		"@earendil-works/pi-ai": ">=0.80.6",
-		"@earendil-works/pi-coding-agent": ">=0.80.6"
+		"@earendil-works/pi-coding-agent": ">=0.80.6",
+		"@earendil-works/pi-tui": "*"
 	}
 }

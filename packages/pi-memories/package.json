@@ -4,6 +4,7 @@
 	"type": "module",
 	"pi": {
 		"extensions": [
+			"./changelog.ts",
 			"./src/index.ts"
 		]
 	},
@@ -30,7 +31,9 @@
 		"README.md",
 		"tsconfig.json",
 		"biome.json",
-		"LICENSE"
+		"LICENSE",
+		"changelog.ts",
+		"CHANGELOG.md"
 	],
 	"repository": {
 		"type": "git",
@@ -51,6 +54,7 @@
 	"main": "src/index.ts",
 	"exports": "./src/index.ts",
 	"peerDependencies": {
-		"@earendil-works/pi-coding-agent": "*"
+		"@earendil-works/pi-coding-agent": "*",
+		"@earendil-works/pi-tui": "*"
 	}
 }

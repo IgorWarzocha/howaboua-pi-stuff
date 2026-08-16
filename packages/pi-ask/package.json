@@ -35,10 +35,13 @@
 		"README.md",
 		"LICENSE",
 		"tsconfig.json",
-		"biome.json"
+		"biome.json",
+		"changelog.ts",
+		"CHANGELOG.md"
 	],
 	"pi": {
 		"extensions": [
+			"./changelog.ts",
 			"./index.ts"
 		]
 	},

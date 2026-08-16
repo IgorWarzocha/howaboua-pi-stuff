@@ -15,10 +15,8 @@ import howabouaPiSmartBtw from "@howaboua/pi-smart-btw";
 import howabouaPiSubagentReview from "@howaboua/pi-subagent-review";
 import howabouaPiUnicodeCharts from "@howaboua/pi-unicode-charts";
 import howabouaPiVent from "@howaboua/pi-vent";
-import { registerBundleChangelog } from "./changelog.js";
 
 export default async function (pi: ExtensionAPI) {
-	registerBundleChangelog(pi);
 	await howabouaPiAsk(pi);
 	await howabouaPiAutoReasoningTool(pi);
 	await howabouaPiAutoTrees(pi);

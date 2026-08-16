@@ -13,7 +13,7 @@
     "pack:dry": "bun run scripts/workspaces.mjs pack:dry",
     "changeset": "node scripts/add-patch-changeset.mjs",
     "changeset:raw": "changeset",
-    "version-packages": "changeset version && bun run changelog:polish && bun run aggregate:sync && bun run changelog:sync",
+    "version-packages": "changeset version && bun run changelog:polish && bun run aggregate:sync && bun run changelog:extensions && bun run changelog:sync",
     "release": "changeset publish",
     "check:changed": "bun run scripts/check-changed.mjs",
     "refactor:compare": "node scripts/refactor-compare.mjs",
@@ -22,6 +22,7 @@
     "hooks:install": "git config core.hooksPath .githooks",
     "changeset:check": "bun run scripts/require-changeset.mjs origin/main",
     "changelog:sync": "bun run scripts/sync-monorepo-changelog.mjs",
+    "changelog:extensions": "bun run scripts/sync-extension-changelogs.mjs",
     "aggregate:sync": "bun run scripts/sync-aggregate-packages.mjs",
     "changelog:polish": "bun run scripts/polish-changelogs.mjs"
   },
