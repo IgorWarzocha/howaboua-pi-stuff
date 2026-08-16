@@ -42,6 +42,14 @@ const results = await Promise.all([
     minify: true,
   }),
   build({
+    entrypoints: [join(root, "src/authoring/prepare-cli.ts")],
+    outdir: join(dist, "authoring"),
+    naming: "prepare.mjs",
+    target: "node",
+    format: "esm",
+    minify: true,
+  }),
+  build({
     entrypoints: [join(root, "src/authoring/rebuild-cli.ts")],
     outdir: join(dist, "authoring"),
     naming: "rebuild.mjs",
@@ -67,4 +75,4 @@ for (const result of results) {
 for (const file of ["index.html", "styles.css", "manifest.webmanifest", "pet-icon.svg"]) {
   await cp(join(root, "src", "web", file), join(dist, "web", file));
 }
-await writePetDistribution(root, loaded);
+await writePetDistribution(join(root, "dist", "web"), loaded);

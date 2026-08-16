@@ -1,16 +1,25 @@
-import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Container, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
+import { loadBundledPetRuntime, loadPetRuntime, type PetRuntime } from "../src/pet-storage.ts";
 import { type PetCatalog, type PetState, parseActionName, parseNote } from "../src/protocol/index.ts";
 import { registerRemoteDesktops } from "./desktop-command.ts";
 import { registerRemoteApp } from "./remote-app.ts";
 
-const appRoot = fileURLToPath(new URL("../dist/web/", import.meta.url));
-const catalog = JSON.parse(readFileSync(new URL("../dist/web/catalog.json", import.meta.url), "utf8")) as PetCatalog;
+const packageRoot = fileURLToPath(new URL("../", import.meta.url));
 
 export default function piPetExtension(pi: ExtensionAPI): void {
+  let runtimeWarning: string | undefined;
+  let runtime: PetRuntime;
+  try {
+    runtime = loadPetRuntime(packageRoot);
+  } catch (error) {
+    runtimeWarning = error instanceof Error ? error.message : String(error);
+    runtime = loadBundledPetRuntime(packageRoot);
+  }
+  const appRoot = runtime.root;
+  const catalog: PetCatalog = runtime.catalog;
   registerRemoteDesktops(pi);
   let state: PetState = { schemaVersion: 1, pet: catalog.id, revision: 0, action: catalog.defaultAction };
   const listeners = new Set<(update: { state: PetState }) => void>();
@@ -71,7 +80,8 @@ export default function piPetExtension(pi: ExtensionAPI): void {
     },
   });
 
-  pi.on("session_start", () => {
+  pi.on("session_start", (_event, ctx) => {
+    if (runtimeWarning) ctx.ui.notify(`Pi Pet could not load the user pet: ${runtimeWarning}`, "warning");
     state = { schemaVersion: 1, pet: catalog.id, revision: state.revision + 1, action: catalog.defaultAction };
     for (const listener of listeners) listener({ state });
   });

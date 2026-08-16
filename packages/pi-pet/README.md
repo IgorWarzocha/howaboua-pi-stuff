@@ -58,8 +58,8 @@ Authoring guides are loaded only when requested rather than exposed as permanent
 
 Pi Pet resolves `authoring/PET-GUIDE.md` from its own source or npm installation and asks Pi to follow it. That guide routes one-action work or full character hatching into the bundled references, deterministic atlas tooling, and visual review process.
 
-Pi resolves its installed package from the guide path and runs `npm run pet:rebuild` there; authoring does not require Bun or a monorepo checkout.
+Pi resolves its installed package from the guide path and uses its npm/Node authoring commands without requiring Bun or a monorepo checkout. Bundled pets are templates: the first edit copies one to `~/.pi/agent/pi-pet/pets/`, authoring evidence stays under `~/.pi/agent/pi-pet/runs/`, and generated display assets stay under `~/.pi/agent/pi-pet/web/`. Package updates therefore do not overwrite user pets.
 
-Refresh the GipPity display after rebuilding assets. Pet packages remain inert JSON and bounded PNG/WebP files; they cannot supply scripts, HTML, URLs, or commands.
+Run `/reload` after rebuilding to select the authored pet and refresh attached displays. Pet packages remain inert JSON and bounded PNG/WebP files; they cannot supply scripts, HTML, URLs, or commands.
 
 See [`docs/architecture.md`](docs/architecture.md), [`SECURITY.md`](SECURITY.md), and [`docs/research.md`](docs/research.md).

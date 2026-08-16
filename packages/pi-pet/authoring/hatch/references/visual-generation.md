@@ -21,16 +21,7 @@ For each ready entry in `visual-jobs.json`:
 4. Check frame count, identity, flat chroma background, spacing, clipping, and forbidden detached effects.
 5. Save the selected original, copy it to `output_path`, and record `source_path`, `qa_note`, and completion time atomically.
 
-Use the manifest-declared destination; never invent a parallel filename:
-
-```bash
-JOB_ID=<job-id>
-SOURCE=/absolute/path/to/selected.png
-OUTPUT_REL=$(jq -er --arg id "$JOB_ID" '.jobs[] | select(.id == $id) | .output_path' "$RUN_DIR/visual-jobs.json")
-mkdir -p "$(dirname "$RUN_DIR/$OUTPUT_REL")"
-cp "$SOURCE" "$RUN_DIR/$OUTPUT_REL"
-if [ "$JOB_ID" = base ]; then cp "$RUN_DIR/$OUTPUT_REL" "$RUN_DIR/references/canonical-base.png"; fi
-```
+Use an available JSON capability to read the selected job's `output_path`, then an available file capability to create its parent and copy the selected original there. If those capabilities are unavailable, perform the same bounded JSON read and file copy with Python through the guide's locked uv environment. For the `base` job, also copy that output to `references/canonical-base.png`. Use the manifest-declared destinations; never invent parallel filenames.
 
 After that job's required deterministic and visual checks pass, write `status: "complete"`, `source_path`, `qa_note`, and UTC `completed_at` through a temporary file plus atomic rename. Do not mark a copied but unreviewed strip complete.
 

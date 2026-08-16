@@ -2,6 +2,7 @@ import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, extname, join } from "node:path";
 import type { LoadedPet } from "../pet-loader.ts";
 import { loadPet } from "../pet-loader.ts";
+import { petDataDirectory, petWebShellFiles, readPetStorageConfig, writePetStorageConfig } from "../pet-storage.ts";
 import { isSafeRelativeAssetPath, type PetCatalog } from "../protocol/index.ts";
 
 function catalogAssets(catalog: PetCatalog): Set<string> {
@@ -44,8 +45,7 @@ async function previousAssets(catalogPath: string): Promise<Set<string>> {
   }
 }
 
-export async function writePetDistribution(packageRoot: string, loaded: LoadedPet): Promise<void> {
-  const webRoot = join(packageRoot, "dist", "web");
+export async function writePetDistribution(webRoot: string, loaded: LoadedPet): Promise<void> {
   const catalogPath = join(webRoot, "catalog.json");
   const oldAssets = await previousAssets(catalogPath);
   const nextAssets = catalogAssets(loaded.catalog);
@@ -61,8 +61,20 @@ export async function writePetDistribution(packageRoot: string, loaded: LoadedPe
   }
 }
 
-export async function rebuildActivePet(packageRoot: string): Promise<LoadedPet> {
-  const loaded = await loadPet(join(packageRoot, "pets"), "clawa");
-  await writePetDistribution(packageRoot, loaded);
+export async function activeUserPetId(dataRoot = petDataDirectory()): Promise<string> {
+  return (await readPetStorageConfig(dataRoot))?.activePet || "clawa";
+}
+
+export async function rebuildUserPet(
+  packageRoot: string,
+  petId: string,
+  dataRoot = petDataDirectory(),
+): Promise<LoadedPet> {
+  const loaded = await loadPet(join(dataRoot, "pets"), petId);
+  const webRoot = join(dataRoot, "web", loaded.catalog.id);
+  await mkdir(webRoot, { recursive: true, mode: 0o700 });
+  for (const file of petWebShellFiles) await cp(join(packageRoot, "dist", "web", file), join(webRoot, file));
+  await writePetDistribution(webRoot, loaded);
+  await writePetStorageConfig({ schemaVersion: 1, activePet: loaded.catalog.id }, dataRoot);
   return loaded;
 }

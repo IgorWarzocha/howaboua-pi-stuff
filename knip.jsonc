@@ -29,6 +29,7 @@
 		"packages/pi-pet": {
 			"entry": [
 				"extensions/index.ts",
+				"src/authoring/prepare-cli.ts",
 				"src/authoring/rebuild-cli.ts",
 				"src/authoring/validate-cli.ts",
 				"src/desktop/main.ts",

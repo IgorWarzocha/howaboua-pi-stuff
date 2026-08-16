@@ -8,6 +8,7 @@ Pi Pet adds no listener, credential store, prompt endpoint, or remote session ow
 - Browser prompts and voice use the hosted `GippityRemote` client rather than a pet-specific transport.
 - Custom reaction state is normalized and bounded by GipPity before browser delivery.
 - Pet manifests are strict inert JSON. Assets are bounded regular PNG/WebP files; traversal, escaping symlinks, excessive decoded size, and out-of-frame geometry fail during builds.
+- Authored pets stay under the Pi agent directory and reach the generated web root only after validation. Package updates refresh executable web-shell files without overwriting user pet sources or run evidence. Invalid durable state reports a warning and falls back to bundled Clawa.
 
 ## Electron
 

@@ -1,0 +1,141 @@
+import { copyFileSync, lstatSync, mkdirSync, readFileSync, statSync } from "node:fs";
+import { cp, mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
+import { type PetCatalog, parseActionName } from "./protocol/index.ts";
+
+const CONFIG_BYTES = 16 * 1024;
+const WEB_SHELL_FILES = ["app.js", "index.html", "manifest.webmanifest", "pet-icon.svg", "styles.css"] as const;
+
+export interface PetStorageConfig {
+  schemaVersion: 1;
+  activePet: string;
+}
+
+export interface PetRuntime {
+  catalog: PetCatalog;
+  root: string;
+  source: "bundled" | "user";
+}
+
+function piAgentDirectory(env: NodeJS.ProcessEnv = process.env, home = homedir()): string {
+  return env["PI_CODING_AGENT_DIR"]?.trim() || join(home, ".pi", "agent");
+}
+
+export function petDataDirectory(env: NodeJS.ProcessEnv = process.env, home = homedir()): string {
+  return join(piAgentDirectory(env, home), "pi-pet");
+}
+
+function parsePetStorageConfig(value: unknown): PetStorageConfig {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Pi Pet config must be an object.");
+  const input = value as Record<string, unknown>;
+  const unknown = Object.keys(input).find((key) => !["schemaVersion", "activePet"].includes(key));
+  if (unknown) throw new Error(`Pi Pet config has unknown field: ${unknown}.`);
+  if (input["schemaVersion"] !== 1) throw new Error("Unsupported Pi Pet config schemaVersion.");
+  return { schemaVersion: 1, activePet: parseActionName(input["activePet"], "active pet") };
+}
+
+export async function readPetStorageConfig(dataRoot = petDataDirectory()): Promise<PetStorageConfig | undefined> {
+  try {
+    const path = join(dataRoot, "config.json");
+    const info = await stat(path);
+    if (!info.isFile() || info.size > CONFIG_BYTES)
+      throw new Error(`Pi Pet config must be a bounded regular file: ${path}`);
+    return parsePetStorageConfig(JSON.parse(await readFile(path, "utf8")) as unknown);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
+}
+
+export async function writePetStorageConfig(config: PetStorageConfig, dataRoot = petDataDirectory()): Promise<void> {
+  const normalized = parsePetStorageConfig(config);
+  const path = join(dataRoot, "config.json");
+  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+  const temporary = `${path}.${process.pid}.tmp`;
+  try {
+    await rm(temporary, { force: true });
+    await writeFile(temporary, `${JSON.stringify(normalized, null, 2)}\n`, { mode: 0o600, flag: "wx" });
+    await rename(temporary, path);
+  } catch (error) {
+    await rm(temporary, { force: true });
+    throw error;
+  }
+}
+
+export async function prepareUserPet(
+  packageRoot: string,
+  petId: string,
+  dataRoot = petDataDirectory(),
+): Promise<string> {
+  const id = parseActionName(petId, "pet id");
+  const source = join(packageRoot, "pets", id);
+  const destination = join(dataRoot, "pets", id);
+  try {
+    const info = lstatSync(destination);
+    if (!info.isDirectory() || info.isSymbolicLink())
+      throw new Error(`User pet path is not a directory: ${destination}`);
+    return destination;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  await mkdir(dirname(destination), { recursive: true, mode: 0o700 });
+  await cp(source, destination, { recursive: true, errorOnExist: true, force: false });
+  return destination;
+}
+
+function readCatalog(path: string): PetCatalog {
+  const info = statSync(path);
+  if (!info.isFile() || info.size > CONFIG_BYTES * 8) throw new Error(`Pi Pet catalog must be bounded: ${path}`);
+  const catalog = JSON.parse(readFileSync(path, "utf8")) as PetCatalog;
+  const id = parseActionName(catalog.id, "catalog pet id");
+  if (
+    catalog.schemaVersion !== 1 ||
+    !catalog.actions ||
+    typeof catalog.actions !== "object" ||
+    !catalog.actions[catalog.defaultAction]
+  ) {
+    throw new Error(`Pi Pet catalog is invalid: ${path}`);
+  }
+  return { ...catalog, id };
+}
+
+function syncWebShell(packageRoot: string, destination: string): void {
+  mkdirSync(destination, { recursive: true, mode: 0o700 });
+  for (const file of WEB_SHELL_FILES) {
+    const target = join(destination, file);
+    try {
+      if (lstatSync(target).isSymbolicLink()) throw new Error(`Pi Pet web shell cannot overwrite a symlink: ${target}`);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+    copyFileSync(join(packageRoot, "dist", "web", file), target);
+  }
+}
+
+export function loadPetRuntime(packageRoot: string, dataRoot = petDataDirectory()): PetRuntime {
+  const configPath = join(dataRoot, "config.json");
+  try {
+    const info = statSync(configPath);
+    if (!info.isFile() || info.size > CONFIG_BYTES) throw new Error(`Pi Pet config must be bounded: ${configPath}`);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return loadBundledPetRuntime(packageRoot);
+    }
+    throw error;
+  }
+  const config = parsePetStorageConfig(JSON.parse(readFileSync(configPath, "utf8")) as unknown);
+  const root = join(dataRoot, "web", config.activePet);
+  syncWebShell(packageRoot, root);
+  const catalog = readCatalog(join(root, "catalog.json"));
+  if (catalog.id !== config.activePet)
+    throw new Error(`Active pet ${config.activePet} does not match catalog ${catalog.id}.`);
+  return { catalog, root, source: "user" };
+}
+
+export function loadBundledPetRuntime(packageRoot: string): PetRuntime {
+  const root = join(packageRoot, "dist", "web");
+  return { catalog: readCatalog(join(root, "catalog.json")), root, source: "bundled" };
+}
+
+export const petWebShellFiles = WEB_SHELL_FILES;

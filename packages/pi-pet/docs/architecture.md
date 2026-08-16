@@ -8,6 +8,7 @@ flowchart LR
     Build --> Electron[Transparent Electron shell]
     G --> SDK[GipPity Remote mini-SDK]
     SDK --> Web[Pi Pet web miniapp]
+    Store[Durable pets + runs in Pi agent directory] --> Web
     Web --> Browser[Browser or PWA]
     Web --> Electron
     Pet[Pi Pet extension: pet_show] --> G
@@ -21,6 +22,7 @@ flowchart LR
 - `src/desktop/` owns the transparent native window, local attention preferences, navigation confinement, and a cursor-only sandboxed preload.
 - `src/protocol/` owns pet/catalog and reaction-state shapes.
 - `src/pet-loader.ts` validates inert pet data and assets during builds.
+- `src/pet-storage.ts` selects durable user pets from the Pi agent directory and falls back visibly to the bundled pet.
 - `authoring/` is read on demand through free-form `/pet` requests; it is shipped as package data, not registered as an always-visible skill.
 
 An attached display keeps Pi Pet at `~/.pi/agent/pi-pet` without installing an application. The SSH command compares its build record with the version and source digest of the package loaded by Pi. A mismatch updates the source and runs npm install and build; a match starts the existing build directly. Closing the SSH owner closes Electron through an inherited pipe but leaves the source and build for the next Pi session.
@@ -33,4 +35,4 @@ GipPity sends its retained `idle`, `working`, and `settled` activity plus ordina
 
 ## Pet flow
 
-The build validates `pets/clawa/pet.json`, optional `pet.pi.json`, decoded dimensions, asset paths, and frame bounds. It writes a normalized `dist/web/catalog.json` and copies referenced assets into the static miniapp.
+The npm package's `pets/` directory contains templates. Authoring copies and modifies pets under `<pi-agent-directory>/pi-pet/pets/`, keeps generation evidence under `runs/`, and writes each validated miniapp under `web/<pet-id>/`. `config.json` selects the active pet. On reload the extension serves that durable catalog and assets while refreshing the web shell from the installed package; a missing config uses bundled Clawa, while invalid user state reports a warning and visibly falls back to Clawa.

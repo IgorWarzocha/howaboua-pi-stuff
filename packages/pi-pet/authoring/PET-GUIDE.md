@@ -1,6 +1,6 @@
 # Pi Pet guide
 
-This guide is the on-demand entry point for `/pet <request>`. Resolve every relative path from this file and treat its package directory as the source of truth for bundled pets, validation, and authoring tools.
+This guide is the on-demand entry point for `/pet <request>`. Resolve every relative path from this file. Its installed package owns bundled templates and tools; durable user pets and authoring runs live under `<pi-agent-directory>/pi-pet/`, normally `~/.pi/agent/pi-pet/`.
 
 ## Route the request
 
@@ -20,7 +20,7 @@ The bundled actions are `idle`, `running-right`, `running-left`, `waving`, `jump
 
 Read `references/pet-format.md`, then:
 
-1. Locate the package under `<pi-pet-package>/pets/<id>/`. Read its `PET.md`, `pet.json`, optional `pet.pi.json`, and nearest `AGENTS.md`. For a complete new character, switch to `hatch/HATCH-GUIDE.md`.
+1. Resolve the installed package from this guide's absolute path and use it as command working directory. Run `npm run pet:prepare` for the selected pet or `npm run pet:prepare -- <id>` for an explicit pet; it copies a bundled template only when no durable user pet exists and prints the user pet and run paths. Read that pet's `PET.md`, `pet.json`, and optional `pet.pi.json`. For a complete new character, switch to `hatch/HATCH-GUIDE.md`.
 2. Preserve character identity and every passing action. Prefer a separate bounded PNG/WebP atlas plus a `pet.pi.json` entry for one new action.
 3. Define frame coordinates and durations explicitly. Names use lowercase letters, numbers, dots, underscores, or hyphens.
 4. Follow **Rebuild and load** below. The build validates manifests, traversal, assets, decoded dimensions, and frame geometry before producing the GipPity miniapp.
@@ -29,13 +29,14 @@ Read `references/pet-format.md`, then:
 
 ## Rebuild and load
 
-The `/pet` prompt gives this guide's absolute installed path. Resolve the package root exactly two directories up from that path (`<package>/authoring/PET-GUIDE.md` → `<package>`), use it as the command working directory, and do not assume the current directory is a checkout or monorepo. After changing any packaged pet, run there:
+The `/pet` prompt gives this guide's absolute installed path. Resolve the package root exactly two directories up from that path (`<package>/authoring/PET-GUIDE.md` → `<package>`), use it as the command working directory, and do not assume the current directory is a checkout or monorepo. After changing the durable user pet printed by `pet:prepare`, run there:
 
 ```bash
-npm run pet:rebuild
+npm run pet:validate -- <absolute-user-pet-directory>
+npm run pet:rebuild -- <pet-id>
 ```
 
-Do not stop after validating one pet: the build regenerates the catalog and assets served by the GipPity miniapp. The running extension keeps its catalog in memory, so after a successful build tell the user to run `/reload`; slash commands are user actions. Reloading Pi reloads the catalog and restarts configured Electron displays. A separately opened browser display may also need a page refresh. Only then exercise new or repaired actions with `pet_show`.
+The rebuild writes the generated miniapp under the durable Pi Pet directory and selects that pet; it never modifies the npm package. The running extension keeps its catalog in memory, so after a successful rebuild tell the user to run `/reload`; slash commands are user actions. Reloading Pi loads the selected pet and restarts configured Electron displays. A separately opened browser display may also need a page refresh. Only then exercise new or repaired actions with `pet_show`.
 
 ## Boundaries
 

@@ -4,11 +4,13 @@ Use this guide for a complete character, full Codex-v2 atlas repair, nine standa
 
 ## Run boundary
 
-1. Read the repository and nearest `AGENTS.md` files. Resolve `HATCH_DIR` to this guide's directory and `REPO_ROOT` to the Pi Pet package directory.
+1. The `/pet` prompt gives `PET-GUIDE.md`'s absolute installed path. Resolve `PI_PET_PACKAGE` to its package directory, `HATCH_DIR` to this guide's directory, `PET_DATA` to `<pi-agent-directory>/pi-pet`, and `RUN_DIR` to `$PET_DATA/runs/<pet-id>`. The Pi agent directory is `PI_CODING_AGENT_DIR` when set, otherwise `~/.pi/agent`.
 2. Collect a concept, optional name/description, style, brand cues, and reference images. Infer omitted creative details; ask only when identity direction is genuinely ambiguous.
-3. Keep generated work outside `pets/`. Default to `$REPO_ROOT/.pi-pet-runs/<pet-id>`; reuse an existing run only when deliberately resuming it.
+3. Keep generated work in `RUN_DIR`, outside `$PET_DATA/pets/`; reuse an existing run only when deliberately resuming it.
 4. For an existing pet, preserve every passing row. Never overwrite its package until the replacement passes and the user requested replacement.
 5. Keep this visible progression: **prepare → establish identity → generate poses → review and hatch**.
+
+Variable names in command blocks are path placeholders, not required environment variables. Substitute their resolved absolute paths using the host's command/workdir syntax. Use available file and JSON operations; when none fit, use Python through the locked uv environment. Do not require a POSIX shell or utilities such as `jq` and `cp`.
 
 Read `references/pet-contract.md` and `references/animation-rows.md` before preparing a run.
 
@@ -35,7 +37,7 @@ uv run --project "$HATCH_DIR" --locked python "$HATCH_DIR/scripts/prepare_pet_ru
   --pet-notes "<stable identity description>" \
   --style-preset auto \
   --style-notes "<optional constraints>" \
-  --output-dir "$REPO_ROOT/.pi-pet-runs/<pet-id>"
+  --output-dir "$RUN_DIR"
 ```
 
 Omit flags that have no input. For a bare brand/product request, first research 2–4 preferably official sources and save a compact brief; do not copy logos, slogans, UI, or readable marks. Pass the brief and source URLs to `prepare_pet_run.py`.
@@ -66,13 +68,12 @@ The derivation leaves `running-left` staged, not complete. Run the same extracti
 4. After copying each selected strip to its declared `decoded/` path, immediately run:
 
 ```bash
-ROW_ID=<job-id>
 uv run --project "$HATCH_DIR" --locked python "$HATCH_DIR/scripts/extract_strip_frames.py" \
-  --decoded-dir "$RUN_DIR/decoded" --output-dir "$RUN_DIR/qa/rows/$ROW_ID/frames" \
-  --states "$ROW_ID" --method auto
+  --decoded-dir "$RUN_DIR/decoded" --output-dir "$RUN_DIR/qa/rows/<job-id>/frames" \
+  --states "<job-id>" --method auto
 uv run --project "$HATCH_DIR" --locked python "$HATCH_DIR/scripts/inspect_frames.py" \
-  --frames-root "$RUN_DIR/qa/rows/$ROW_ID/frames" \
-  --json-out "$RUN_DIR/qa/rows/$ROW_ID/review.json" --states "$ROW_ID" --require-components
+  --frames-root "$RUN_DIR/qa/rows/<job-id>/frames" \
+  --json-out "$RUN_DIR/qa/rows/<job-id>/review.json" --states "<job-id>" --require-components
 ```
 
 Do not mark the job complete until deterministic inspection and a quick visual check pass. Repair known clipping, extraction, identity, or semantics immediately. `stable-slots` is allowed only when the generated strip itself has stable scale and placement but component extraction introduces popping.
@@ -124,7 +125,7 @@ pets/<pet-id>/
 - Write `pet.json` with `spriteVersionNumber: 2` and `spritesheetPath: "spritesheet.webp"`.
 - Write `PET.md` with identity, personality, included actions, generation inputs, tool/service provenance, review method, and licensing uncertainty.
 - Copy final deterministic validation as `validation.json`; retain full QA evidence in the run directory.
-- From the package root resolved by `../PET-GUIDE.md`, run `npm run pet:validate -- <pi-pet-package>/pets/<pet-id>`. Follow that guide's **Rebuild and load** procedure, then inspect at display scale and exercise every standard action.
+- Write the accepted package to `$PET_DATA/pets/<pet-id>`. From `PI_PET_PACKAGE`, run `npm run pet:validate -- $PET_DATA/pets/<pet-id>` and `npm run pet:rebuild -- <pet-id>`. Tell the user to run `/reload`, then inspect at display scale and exercise every standard action.
 
 ## Repair and stop conditions
 
