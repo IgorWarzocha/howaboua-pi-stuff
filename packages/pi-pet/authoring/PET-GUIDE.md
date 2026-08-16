@@ -23,9 +23,19 @@ Read `references/pet-format.md`, then:
 1. Locate the package under `<pi-pet-package>/pets/<id>/`. Read its `PET.md`, `pet.json`, optional `pet.pi.json`, and nearest `AGENTS.md`. For a complete new character, switch to `hatch/HATCH-GUIDE.md`.
 2. Preserve character identity and every passing action. Prefer a separate bounded PNG/WebP atlas plus a `pet.pi.json` entry for one new action.
 3. Define frame coordinates and durations explicitly. Names use lowercase letters, numbers, dots, underscores, or hyphens.
-4. Run the Pi Pet build; it validates manifests, traversal, assets, decoded dimensions, and frame geometry before producing the GipPity miniapp.
+4. Follow **Rebuild and load** below. The build validates manifests, traversal, assets, decoded dimensions, and frame geometry before producing the GipPity miniapp.
 5. Inspect the animation at actual pet scale. Reject clipping, identity drift, static loops, frame popping, opaque backgrounds, and colored alpha fringe.
-6. Update `PET.md` with personality, action semantics, and provenance, then refresh the GipPity display and exercise the action with `pet_show`.
+6. Update `PET.md` with personality, action semantics, and provenance, then exercise the action with `pet_show` after the user reloads Pi.
+
+## Rebuild and load
+
+After changing any packaged pet, resolve `PI_PET_PACKAGE` to the package directory containing this guide's `authoring/` directory, then run:
+
+```bash
+bun --cwd="$PI_PET_PACKAGE" run build
+```
+
+Do not stop after validating one pet: the build regenerates the catalog and assets served by the GipPity miniapp. The running extension keeps its catalog in memory, so after a successful build tell the user to run `/reload`; slash commands are user actions. Reloading Pi reloads the catalog and restarts configured Electron displays. A separately opened browser display may also need a page refresh. Only then exercise new or repaired actions with `pet_show`.
 
 ## Boundaries
 
@@ -38,5 +48,5 @@ Read `references/pet-format.md`, then:
 
 - **GipPity unavailable:** report the concrete error; do not start another server or transport as fallback.
 - **Unknown action:** inspect the active pet manifests and use or add valid data.
-- **Build fails:** fix the reported package error and rerun once; do not bypass validation.
+- **Build fails:** fix the reported package error and rerun the build once; do not bypass validation or ask the user to reload a failed build.
 - **Image capability unavailable:** accept supplied artwork or stop at a validated plan; do not claim visual completion.
