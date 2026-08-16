@@ -108,6 +108,10 @@ function compareVersions(left: string, right: string): number {
 	return 0;
 }
 
+function isStableVersion(version: string): boolean {
+	return /^\d+\.\d+\.\d+$/.test(version);
+}
+
 function statePath(): string {
 	return join(getAgentDir(), STATE_FILENAME);
 }
@@ -187,6 +191,10 @@ function packageMarkdown(
 async function claimUpdates(
 	registrations: Iterable<PackageRegistration>,
 ): Promise<{ errors: string[]; markdown?: string }> {
+	const stableRegistrations = [...registrations]
+		.filter((registration) => isStableVersion(registration.version))
+		.sort((left, right) => left.name.localeCompare(right.name));
+	if (stableRegistrations.length === 0) return { errors: [] };
 	const path = statePath();
 	await mkdir(dirname(path), { mode: 0o700, recursive: true });
 	const release = await acquireLock(`${path}.lock`);
@@ -196,7 +204,7 @@ async function claimUpdates(
 		const sections: string[] = [];
 		let changed = false;
 		if (state[SUPPRESS_KEY] === true) {
-			for (const registration of registrations) {
+			for (const registration of stableRegistrations) {
 				const seenVersion = state[registration.name];
 				if (
 					typeof seenVersion !== "string" ||
@@ -209,9 +217,7 @@ async function claimUpdates(
 			if (changed) await writeState(path, state);
 			return { errors };
 		}
-		for (const registration of [...registrations].sort((left, right) =>
-			left.name.localeCompare(right.name),
-		)) {
+		for (const registration of stableRegistrations) {
 			const seenVersion = state[registration.name];
 			if (
 				typeof seenVersion === "string" &&

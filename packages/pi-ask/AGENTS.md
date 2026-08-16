@@ -1,6 +1,6 @@
 # Agent notes
 
-- This is a pi extension; `index.ts` is only the entrypoint.
+- Feature behavior enters through `index.ts`; generated `changelog.ts` is shared release UI infrastructure.
 - `ask` is the single human-in-the-loop surface for input, review, and handoff.
 - Feature code lives under `ask/`: constants, contracts, normalize, state, pi-ui, tui, tool.
 - Keep LLM-facing tool text short and user-facing.

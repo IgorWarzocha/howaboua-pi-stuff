@@ -18,15 +18,15 @@ const REVIEW_LOOP_PREFACE_MESSAGE = [
 	"",
 	"When findings return, compare each one against the user’s actual request, prior conversation, accepted decisions, intentional tradeoffs from this session, and the current implementation.",
 	"",
-	"Default response: summarize and triage, not code.",
+	"Default response: verify and triage, not code.",
 	"",
-	"For each finding, mark one of:",
+	"For each verified finding, recommend one of:",
 	"",
 	"- address: concrete, in-scope, necessary for the current implementation",
 	"- defer: plausible but outside the current work",
 	"- skip: stylistic, speculative, preference-based, overengineered, or not useful",
 	"",
-	"Only after triage, explain what you recommend doing next. If a finding is not obviously required for the current implementation, do not change code for it.",
+	"After triage, obtain the user’s disposition. If a finding is not obviously required for the current implementation, recommend deferring or skipping it.",
 ].join("\n");
 
 const REVIEW_SUMMARY_STARTED_PROMPT =
@@ -124,6 +124,7 @@ export function sendReviewFindings(
 	review: ReviewContext,
 	findings: string,
 ): void {
+	const normalizedFindings = findings.trim();
 	const idle = ctx.isIdle();
 	pi.sendMessage(
 		{
@@ -134,6 +135,11 @@ export function sendReviewFindings(
 		},
 		idle ? { triggerTurn: false } : { deliverAs: "followUp" },
 	);
+	if (
+		!normalizedFindings ||
+		normalizedFindings === "No actionable issues found."
+	)
+		return;
 	pi.sendUserMessage(
 		REVIEW_FINDINGS_FOLLOW_UP,
 		idle ? undefined : { deliverAs: "followUp" },
