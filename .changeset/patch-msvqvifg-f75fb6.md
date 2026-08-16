@@ -2,8 +2,8 @@
 "@howaboua/pi-subagent-review": patch
 ---
 
-Make review disposition reliable while surfacing package updates automatically.
+Preserve the review findings UI while restoring normal turn hooks for verification and disposition.
 
-- Preserve custom-rendered findings, then route verification and user disposition through a normal agent turn.
-- Show unseen package release notes in one startup card.
-- Allow `"suppress": true` in `howaboua-pi-stuff-changelog.json` to hide release notes while keeping seen versions current.
+- Keep findings custom-rendered, then use a normal user turn so turn hooks run before verification and disposition.
+- End cleanly without a disposition turn when the reviewer finds no actionable issues.
+- Show this package’s unseen release notes in the shared startup card, with a global suppression setting.
