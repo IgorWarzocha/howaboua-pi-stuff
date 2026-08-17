@@ -106,27 +106,31 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.59
+### @howaboua/pi-extensions — 0.0.60
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-subagent-review: Preserve the review findings UI while restoring the `before_agent_start` lifecycle when `/review` is the first session message. - Keep findings custom-rendered, then use a normal user turn for verification and disposition. - Direct the agent to verify findings against the cited code, request user dispositions, and begin agreed work without resummarizing. - End cleanly without a disposition turn when the reviewer finds no actionable issues. - Show this package’s unseen release notes in the shared startup card, with a global suppression setting.
+  - @howaboua/pi-gippity-control: Run Pi Pet as a first-class GipPity companion. - Meet Clawa through the browser, voice, desktop dictation, a transparent desktop window, or the headless pet-state feed. - Import compatible Codex and ChatGPT pets or author new pets through free-form `/pet` requests. - Keep authored pets and generated displays in durable Pi agent storage, with optional per-repository pet selection. - Attach the local device directly or remote devices through Pi-owned SSH sessions, with each folder remembering where its sessions appear. - Get exact install and reload guidance when GipPity Control is missing or outdated.
+  - @howaboua/pi-pet: Run Pi Pet as a first-class GipPity companion. - Meet Clawa through the browser, voice, desktop dictation, a transparent desktop window, or the headless pet-state feed. - Import compatible Codex and ChatGPT pets or author new pets through free-form `/pet` requests. - Keep authored pets and generated displays in durable Pi agent storage, with optional per-repository pet selection. - Attach the local device directly or remote devices through Pi-owned SSH sessions, with each folder remembering where its sessions appear. - Get exact install and reload guidance when GipPity Control is missing or outdated.
 
-- Updated dependencies [[`8456135`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8456135c54113c01541c8ee8874baa1bd9eefa59)]:
-  - @howaboua/pi-subagent-review@0.2.17
+- Updated dependencies [[`4b4e42f`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/4b4e42f7659e42854ec81cb502bf69a48422d9eb)]:
+  - @howaboua/pi-gippity-control@0.0.13
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
-### @howaboua/pi-gippity-control — 0.0.12
+### @howaboua/pi-gippity-control — 0.0.13
 
 ### Changes
 
-- [#290](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/290) [`439c7f0`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/439c7f05c5e5c8a1d8a69ae133167e56289af555) Thanks [@howaclawa](https://github.com/howaclawa)!:
-  - Route `/gippity create` through Pi's ordinary user-prompt lifecycle while preserving its transcript card.
-  - Condense settings details and show the effective LAN port.
-  - Document custom web-app paths and port configuration.
+- [#304](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/304) [`4b4e42f`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/4b4e42f7659e42854ec81cb502bf69a48422d9eb) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Run Pi Pet as a first-class GipPity companion.
+
+  - Meet Clawa through the browser, voice, desktop dictation, a transparent desktop window, or the headless pet-state feed.
+  - Import compatible Codex and ChatGPT pets or author new pets through free-form `/pet` requests.
+  - Keep authored pets and generated displays in durable Pi agent storage, with optional per-repository pet selection.
+  - Attach the local device directly or remote devices through Pi-owned SSH sessions, with each folder remembering where its sessions appear.
+  - Get exact install and reload guidance when GipPity Control is missing or outdated.
 
 [Full changelog](./packages/pi-gippity-control/CHANGELOG.md)
 
@@ -158,6 +162,23 @@ Going forward, package-level changelogs remain the source of truth for each pack
   - Rewrite package documentation around current installation, configuration, usage, and behavior.
 
 [Full changelog](./packages/pi-memories/CHANGELOG.md)
+
+### @howaboua/pi-pet — 0.1.1
+
+### Changes
+
+- [#304](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/304) [`4b4e42f`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/4b4e42f7659e42854ec81cb502bf69a48422d9eb) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Run Pi Pet as a first-class GipPity companion.
+
+  - Meet Clawa through the browser, voice, desktop dictation, a transparent desktop window, or the headless pet-state feed.
+  - Import compatible Codex and ChatGPT pets or author new pets through free-form `/pet` requests.
+  - Keep authored pets and generated displays in durable Pi agent storage, with optional per-repository pet selection.
+  - Attach the local device directly or remote devices through Pi-owned SSH sessions, with each folder remembering where its sessions appear.
+  - Get exact install and reload guidance when GipPity Control is missing or outdated.
+
+- Updated dependencies [[`4b4e42f`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/4b4e42f7659e42854ec81cb502bf69a48422d9eb)]:
+  - @howaboua/pi-gippity-control@0.0.13
+
+[Full changelog](./packages/pi-pet/CHANGELOG.md)
 
 ### @howaboua/pi-semantic-grep — 0.1.19
 
@@ -329,16 +350,17 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.64
+### @howaboua/pi-stuff — 0.0.65
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-subagent-review: Preserve the review findings UI while restoring the `before_agent_start` lifecycle when `/review` is the first session message. - Keep findings custom-rendered, then use a normal user turn for verification and disposition. - Direct the agent to verify findings against the cited code, request user dispositions, and begin agreed work without resummarizing. - End cleanly without a disposition turn when the reviewer finds no actionable issues. - Show this package’s unseen release notes in the shared startup card, with a global suppression setting.
+  - @howaboua/pi-gippity-control: Run Pi Pet as a first-class GipPity companion. - Meet Clawa through the browser, voice, desktop dictation, a transparent desktop window, or the headless pet-state feed. - Import compatible Codex and ChatGPT pets or author new pets through free-form `/pet` requests. - Keep authored pets and generated displays in durable Pi agent storage, with optional per-repository pet selection. - Attach the local device directly or remote devices through Pi-owned SSH sessions, with each folder remembering where its sessions appear. - Get exact install and reload guidance when GipPity Control is missing or outdated.
+  - @howaboua/pi-pet: Run Pi Pet as a first-class GipPity companion. - Meet Clawa through the browser, voice, desktop dictation, a transparent desktop window, or the headless pet-state feed. - Import compatible Codex and ChatGPT pets or author new pets through free-form `/pet` requests. - Keep authored pets and generated displays in durable Pi agent storage, with optional per-repository pet selection. - Attach the local device directly or remote devices through Pi-owned SSH sessions, with each folder remembering where its sessions appear. - Get exact install and reload guidance when GipPity Control is missing or outdated.
 
-- Updated dependencies [[`8456135`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8456135c54113c01541c8ee8874baa1bd9eefa59)]:
-  - @howaboua/pi-subagent-review@0.2.17
+- Updated dependencies [[`4b4e42f`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/4b4e42f7659e42854ec81cb502bf69a48422d9eb)]:
+  - @howaboua/pi-gippity-control@0.0.13
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 
