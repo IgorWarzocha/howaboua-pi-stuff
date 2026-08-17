@@ -58,9 +58,18 @@ test("cache diagnostics log is session-derived, readable, and omits raw provider
 			attempt: 1,
 			fullInputItems: 43,
 			sentInputItems: 43,
+			model: "gpt-5.6-sol",
 			socketReused: false,
 			continuation: "no_continuation",
 			canonicalHistory: "validated",
+			compaction: {
+				model: "gpt-5.6-sol",
+				inputSource: "reconstructed",
+				canonicalReplay: "response_prefix_mismatch",
+				checkpointReused: true,
+				checkpointModel: "gpt-5.6-luna",
+				rewrittenToolOutputs: 2,
+			},
 			previousResponseId: false,
 		});
 		log.record({
@@ -76,6 +85,8 @@ test("cache diagnostics log is session-derived, readable, and omits raw provider
 		assert.match(contents, /event="request" lane="compaction" transport="websocket"/);
 		assert.match(contents, /canonical_history="validated"/);
 		assert.match(contents, /full_input_items=43 sent_input_items=43/);
+		assert.match(contents, /model="gpt-5.6-sol"/);
+		assert.match(contents, /compaction_source="reconstructed" compaction_replay="response_prefix_mismatch" checkpoint_reused=true checkpoint_model="gpt-5.6-luna" rewritten_tool_outputs=2/);
 		assert.match(contents, /failure="authentication" code="invalid_token" status=401/);
 		assert.doesNotMatch(contents, /error=|resp_secret|echoed_prompt|Bearer/);
 		assert.deepEqual(errors, []);
@@ -134,6 +145,7 @@ test("provider diagnostics are authoritative and cannot alter or leak the stream
 			attempt: 1,
 			fullInputItems: 1,
 			sentInputItems: 1,
+			model: "gpt-5.6-luna",
 			socketReused: false,
 			continuation: "no_continuation",
 			previousResponseId: false,

@@ -45,6 +45,15 @@ export async function processWebSocketStream<TApi extends Api>(
 		: { body: fullBody, decision: useCachedContext ? "no_session_cache_entry" : "disabled" } satisfies CachedWebSocketRequestBodyResult;
 	const requestBody = cachedRequest.body;
 	const recordDiagnostics = noThrowCodexDiagnosticsSink(diagnostics?.record);
+	if (options?.compactionDiagnostics) {
+		Object.assign(options.compactionDiagnostics, {
+			transport: "websocket",
+			continuation: cachedRequest.decision,
+			previousResponseId: Boolean(requestBody.previous_response_id),
+			fullInputItems: fullBody.input.length,
+			sentInputItems: requestBody.input.length,
+		});
+	}
 
 	const releaseOnce = (releaseOptions?: { keep?: boolean | undefined }) => {
 		if (released) return;
@@ -61,9 +70,11 @@ export async function processWebSocketStream<TApi extends Api>(
 				attempt: diagnostics.attempt,
 				fullInputItems: fullBody.input.length,
 				sentInputItems: requestBody.input.length,
+				model: fullBody.model,
 				socketReused: reused,
 				continuation: cachedRequest.decision,
 				...(canonical?.decision ? { canonicalHistory: canonical.decision } : {}),
+				...(options?.compactionDiagnostics ? { compaction: structuredClone(options.compactionDiagnostics) } : {}),
 				previousResponseId: Boolean(requestBody.previous_response_id),
 			});
 		}

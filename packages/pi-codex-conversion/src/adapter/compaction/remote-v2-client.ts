@@ -10,6 +10,7 @@ import { sleep } from "../../providers/openai-codex/sse.ts";
 import { isWebSocketSseFallbackActive } from "../../providers/openai-codex/websocket.ts";
 import { canonicalCompactionPromptInput, canonicalCompactionRequestBody } from "../../providers/openai-codex/session-continuity.ts";
 import { extractAccountId, resolveCodexWebSocketUrl } from "../../providers/openai-codex/headers.ts";
+import type { CodexCompactionDiagnostic } from "./diagnostics.ts";
 
 const MAX_STREAM_RETRIES = 2;
 type V2Stream = (model: Model<Api>, context: Context, options?: SimpleStreamOptions) => AsyncIterable<unknown>;
@@ -23,6 +24,7 @@ export type RemoteCompactionV2Usage = {
 	cachedInputTokens: number;
 	cacheWriteInputTokens: number;
 	outputTokens: number;
+	diagnostic?: CodexCompactionDiagnostic | undefined;
 };
 
 export type ExecuteRemoteCompactionV2Options = {
@@ -37,6 +39,7 @@ export type ExecuteRemoteCompactionV2Options = {
 	transport?: Transport | undefined;
 	retryDelayMs?: number | undefined;
 	promptInputSource?: "canonical" | "reconstructed" | undefined;
+	compactionDiagnostic?: CodexCompactionDiagnostic | undefined;
 };
 
 function resolveStream(options: ExecuteRemoteCompactionV2Options): V2Stream | undefined {
@@ -65,14 +68,18 @@ function shouldRetry(result: Extract<RemoteCompactionV2Result, { ok: false }>): 
 	return !/\b(?:401|403)\b|unauthori[sz]ed|forbidden|usage limit|quota|not included|invalid request|context window|unsupported parameter/i.test(result.errorMessage);
 }
 
-function compactionUsage(message: AssistantMessage): RemoteCompactionV2Usage | undefined {
+function compactionUsage(message: AssistantMessage, diagnostic: CodexCompactionDiagnostic): RemoteCompactionV2Usage | undefined {
 	const inputTokens = message.usage.input + message.usage.cacheRead + message.usage.cacheWrite;
 	const cachedInputTokens = message.usage.cacheRead;
 	const cacheWriteInputTokens = message.usage.cacheWrite;
 	const outputTokens = message.usage.output;
 	if (![inputTokens, cachedInputTokens, cacheWriteInputTokens, outputTokens].every((value) => Number.isFinite(value) && value >= 0)) return undefined;
 	if (inputTokens + outputTokens === 0) return undefined;
-	return { inputTokens, cachedInputTokens, cacheWriteInputTokens, outputTokens };
+	return { inputTokens, cachedInputTokens, cacheWriteInputTokens, outputTokens, diagnostic: structuredClone(diagnostic) };
+}
+
+function diagnosticTransport(transport: Transport | undefined): "websocket" | "sse" {
+	return transport === "websocket" || transport === "websocket-cached" ? "websocket" : "sse";
 }
 
 function canonicalSessionIdentity(options: ExecuteRemoteCompactionV2Options): { url: string; accountId: string } | undefined {
@@ -113,6 +120,14 @@ function withCurrentCompactionControls(
 async function runAttempt(options: ExecuteRemoteCompactionV2Options, streamSimple: V2Stream): Promise<RemoteCompactionV2Result> {
 	const outputItems: unknown[] = [];
 	let responseStatus: number | undefined;
+	const compactionDiagnostic = options.compactionDiagnostic ?? {
+		inputSource: options.promptInputSource ?? "reconstructed",
+		canonicalReplay: "not_applicable" as const,
+		checkpointReused: false,
+	};
+	if (!options.runtime.codexTransport) {
+		compactionDiagnostic.transport = diagnosticTransport(options.transport);
+	}
 	const canonicalIdentity = canonicalSessionIdentity(options);
 	const canonicalInput = options.promptInputSource === "canonical"
 		? options.promptInput
@@ -129,6 +144,7 @@ async function runAttempt(options: ExecuteRemoteCompactionV2Options, streamSimpl
 		...(options.signal ? { signal: options.signal } : {}),
 		...(options.transport ? { transport: options.transport } : {}),
 		...(options.runtime.codexTransport ? { canonicalCompaction: true } : {}),
+		compactionDiagnostics: compactionDiagnostic,
 		maxRetries: options.runtime.codexTransport ? MAX_STREAM_RETRIES : 0,
 		...(typeof options.requestOptions.service_tier === "string" ? { serviceTier: options.requestOptions.service_tier as never } : {}),
 		...(options.requestOptions.text?.verbosity ? { textVerbosity: options.requestOptions.text.verbosity } : {}),
@@ -149,6 +165,7 @@ async function runAttempt(options: ExecuteRemoteCompactionV2Options, streamSimpl
 				model: options.runtime.model,
 				contextWindow: options.runtime.currentModel.contextWindow,
 			}), tokensBefore: options.tokensBefore });
+			compactionDiagnostic.rewrittenToolOutputs = request.rewrittenOutputs;
 			return {
 				...requestBody,
 				input: [...request.request.input, { type: "compaction_trigger" }],
@@ -182,7 +199,7 @@ async function runAttempt(options: ExecuteRemoteCompactionV2Options, streamSimpl
 	if (compactions.length !== 1) {
 		return { ok: false, reason: "invalid-output", errorMessage: `Responses compaction v2 expected exactly one compaction output item, got ${compactions.length} from ${outputItems.length} output items` };
 	}
-	return { ok: true, compaction: compactions[0]!, responseId: completed.responseId, createdAt: new Date().toISOString(), usage: compactionUsage(completed) };
+	return { ok: true, compaction: compactions[0]!, responseId: completed.responseId, createdAt: new Date().toISOString(), usage: compactionUsage(completed, compactionDiagnostic) };
 }
 
 export async function executeRemoteCompactionV2(options: ExecuteRemoteCompactionV2Options): Promise<RemoteCompactionV2Result> {
