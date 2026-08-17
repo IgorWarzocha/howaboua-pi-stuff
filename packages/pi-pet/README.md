@@ -35,13 +35,13 @@ Give the display machine an SSH alias and confirm key-based access once outside 
 ssh desktop true
 ```
 
-The display needs npm and Node 22 or newer; runtime extraction uses PowerShell on Windows and standard `unzip` on macOS/Linux. Attach it from Pi with its LAN-reachable GipPity URL:
+The display needs npm and Node 22 or newer; runtime extraction uses PowerShell on Windows and standard `unzip` on macOS/Linux. Attach it from Pi:
 
 ```text
-/pet attach desktop https://192.168.0.113:43120
+/pet attach desktop
 ```
 
-Pi now owns the running lifecycle. Its SSH command keeps the desktop source and build at `~/.pi/agent/pi-pet` on the display. On connection it compares the loaded package version and source digest with the recorded build, runs the copy, `npm install`, and `npm run build` steps only when they differ, then starts Electron. Pi or Clawa exiting stops Electron but does not discard the build. It creates no application installation, login item, or background service.
+Pi Pet starts GipPity for the active Pi session, uses its saved LAN settings, and retains an explicit URL only when `/pet attach desktop <gippity-url>` supplies an override. Its SSH command keeps the desktop source and build at `~/.pi/agent/pi-pet` on the display. On connection it compares the loaded package version and source digest with the recorded build, runs the copy, `npm install`, and `npm run build` steps only when they differ, then starts Electron. Pi or Clawa exiting stops Electron and GipPity but does not discard the build. It creates no application installation, login item, or background service.
 
 Every later Pi instance starts its attached displays automatically. Attach more SSH aliases with the same command, inspect them with `/pet status`, relaunch with `/pet restart`, or remove one with `/pet detach desktop`. SSH options, keys, proxies, and host routing stay in `~/.ssh/config`.
 

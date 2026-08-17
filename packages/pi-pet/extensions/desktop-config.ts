@@ -6,7 +6,7 @@ import { parseDesktopConfig } from "../src/desktop/config.ts";
 
 export interface RemoteDesktopConfig {
   schemaVersion: 1;
-  displays: Record<string, { gippityUrl: string }>;
+  displays: Record<string, { gippityUrl?: string | undefined }>;
 }
 
 const ROOT_KEYS = new Set(["schemaVersion", "displays"]);
@@ -54,8 +54,11 @@ export function parseRemoteDesktopConfig(value: unknown): RemoteDesktopConfig {
     const display = rawDisplay as Record<string, unknown>;
     const unknown = Object.keys(display).find((key) => !DISPLAY_KEYS.has(key));
     if (unknown) throw new Error(`Pi Pet display ${target} has unknown field: ${unknown}.`);
-    const { gippityUrl } = parseDesktopConfig({ schemaVersion: 1, gippityUrl: display["gippityUrl"] });
-    displays[target] = { gippityUrl };
+    const rawUrl = display["gippityUrl"];
+    displays[target] =
+      rawUrl === undefined
+        ? {}
+        : { gippityUrl: parseDesktopConfig({ schemaVersion: 1, gippityUrl: rawUrl }).gippityUrl };
   }
   return { schemaVersion: 1, displays };
 }

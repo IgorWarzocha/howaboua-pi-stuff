@@ -14,6 +14,10 @@ export {
 	type GippityRemoteAppUpdate,
 	registerGippityRemoteApp,
 } from "./src/voice/lan/remote-app.ts";
+export {
+	ensureGippityLan,
+	type GippityLanServiceStatus,
+} from "./src/voice/lan/service.ts";
 
 export default function gippityControl(pi: ExtensionAPI): void {
 	registerGippityControl(pi);

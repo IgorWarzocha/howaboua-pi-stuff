@@ -4,7 +4,6 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseDesktopConfig } from "../src/desktop/config.ts";
-import type { RemoteDesktopConfig } from "./desktop-config.ts";
 import { parseSshTarget } from "./desktop-config.ts";
 
 const MAX_DIAGNOSTIC_BYTES = 8 * 1024;
@@ -29,6 +28,7 @@ const REMOTE_BOOTSTRAP = String.raw`
 const { spawn, spawnSync } = require("node:child_process");
 const { access, mkdir, readFile, writeFile } = require("node:fs/promises");
 const { homedir } = require("node:os");
+const { isIP } = require("node:net");
 const { dirname, join, resolve, sep } = require("node:path");
 const { createRequire } = require("node:module");
 let activeChild;
@@ -81,6 +81,14 @@ function graphicalEnvironment() {
   }
   return environment;
 }
+function displayGippityUrl() {
+  if (!options.useSshSourceAddress) return options.gippityUrl;
+  const sourceAddress = process.env.SSH_CONNECTION?.trim().split(/\s+/)[0];
+  if (!sourceAddress || !isIP(sourceAddress)) return options.gippityUrl;
+  const url = new URL(options.gippityUrl);
+  url.hostname = sourceAddress;
+  return url.origin;
+}
 async function buildIsCurrent(marker, desktop) {
   try {
     const built = JSON.parse(await readFile(marker, "utf8"));
@@ -132,7 +140,7 @@ async function main() {
   await new Promise((resolve, reject) => {
     const child = spawn(electron, [join(desktop, "dist", "app")], {
       cwd: desktop,
-      env: { ...graphicalEnvironment(), PI_PET_GIPPITY_URL: options.gippityUrl, PI_PET_OWNER_FD: "3" },
+      env: { ...graphicalEnvironment(), PI_PET_GIPPITY_URL: displayGippityUrl(), PI_PET_OWNER_FD: "3" },
       stdio: ["ignore", "inherit", "inherit", "pipe"],
       windowsHide: true,
     });
@@ -172,9 +180,13 @@ function packagedDesktopSource(): { files: Record<string, string>; packageVersio
   return { files, packageVersion: manifest.version, sourceDigest: digest.digest("hex") };
 }
 
-export function remoteDesktopProcessSpec(target: string, gippityUrl: string): RemoteDesktopProcessSpec {
+export function remoteDesktopProcessSpec(
+  target: string,
+  gippityUrl: string,
+  useSshSourceAddress = false,
+): RemoteDesktopProcessSpec {
   const origin = parseDesktopConfig({ schemaVersion: 1, gippityUrl }).gippityUrl;
-  const options = { ...packagedDesktopSource(), gippityUrl: origin };
+  const options = { ...packagedDesktopSource(), gippityUrl: origin, useSshSourceAddress };
   const sshTarget = parseSshTarget(target);
   return {
     program: "ssh",
@@ -240,15 +252,9 @@ export class RemoteDesktopFleet {
     return [...this.#children.keys()].sort();
   }
 
-  async startAll(config: RemoteDesktopConfig): Promise<void> {
-    await Promise.all(
-      Object.entries(config.displays).map(([target, display]) => this.start(target, display.gippityUrl)),
-    );
-  }
-
-  async start(target: string, gippityUrl: string): Promise<void> {
+  async start(target: string, gippityUrl: string, useSshSourceAddress = false): Promise<void> {
     await this.stop(target);
-    const spec = remoteDesktopProcessSpec(target, gippityUrl);
+    const spec = remoteDesktopProcessSpec(target, gippityUrl, useSshSourceAddress);
     const child = spawn(spec.program, spec.args, {
       stdio: ["pipe", "pipe", "pipe", "pipe"],
       windowsHide: true,

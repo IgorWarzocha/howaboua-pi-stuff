@@ -49,9 +49,13 @@ test("desktop config builds the confined GipPity display URL", () => {
   assert.equal(url.hash, "");
   assert.equal(new URL(desktopDisplayUrl(config, "quiet")).searchParams.get("attention"), "quiet");
   assert.deepEqual(
-    parseRemoteDesktopConfig({ schemaVersion: 1, displays: { desktop: { gippityUrl: config.gippityUrl } } }).displays,
+    parseRemoteDesktopConfig({
+      schemaVersion: 1,
+      displays: { desktop: {}, overridden: { gippityUrl: config.gippityUrl } },
+    }).displays,
     {
-      desktop: { gippityUrl: "https://192.168.0.113:43120" },
+      desktop: {},
+      overridden: { gippityUrl: "https://192.168.0.113:43120" },
     },
   );
   const spec = remoteDesktopProcessSpec("desktop", config.gippityUrl);

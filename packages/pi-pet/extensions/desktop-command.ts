@@ -16,14 +16,14 @@ const MAX_AUTHORING_REQUEST_BYTES = 8 * 1024;
 const AUTHORING_GUIDE = fileURLToPath(new URL("../authoring/PET-GUIDE.md", import.meta.url));
 
 type PetCommand =
-  | { action: "attach"; target: string; gippityUrl: string }
+  | { action: "attach"; target: string; gippityUrl?: string | undefined }
   | { action: "detach"; target: string }
   | { action: "restart" }
   | { action: "status" }
   | { action: "author"; request: string };
 
 function usage(): string {
-  return "Usage: /pet attach <ssh-host> <gippity-url> | detach <ssh-host> | restart | status";
+  return "Usage: /pet attach <ssh-host> [gippity-url] | detach <ssh-host> | restart | status";
 }
 
 function formatStatus(config: RemoteDesktopConfig, fleet: RemoteDesktopFleet): string {
@@ -60,13 +60,29 @@ function parsePetCommand(rawArgs: string): PetCommand {
     if (rawUrl) throw new Error(usage());
     return { action: validAction, target };
   }
-  if (!rawUrl) throw new Error(usage());
-  const { gippityUrl } = parseDesktopConfig({ schemaVersion: 1, gippityUrl: rawUrl });
-  return { action: "attach", target, gippityUrl };
+  const gippityUrl = rawUrl ? parseDesktopConfig({ schemaVersion: 1, gippityUrl: rawUrl }).gippityUrl : undefined;
+  return { action: "attach", target, ...(gippityUrl ? { gippityUrl } : {}) };
 }
 
 function petAuthoringPrompt(request: string): string {
   return `Read and follow the Pi Pet guide at ${JSON.stringify(AUTHORING_GUIDE)} for this request:\n\n${request}`;
+}
+
+async function startDisplays(
+  pi: ExtensionAPI,
+  ctx: ExtensionContext,
+  fleet: RemoteDesktopFleet,
+  config: RemoteDesktopConfig,
+): Promise<string> {
+  const { ensureGippityLan } = await import("@howaboua/pi-gippity-control/lan-service");
+  const status = await ensureGippityLan(pi, ctx);
+  const automaticUrl = parseDesktopConfig({ schemaVersion: 1, gippityUrl: status.urls[0] }).gippityUrl;
+  await Promise.all(
+    Object.entries(config.displays).map(([target, display]) =>
+      fleet.start(target, display.gippityUrl ?? automaticUrl, !display.gippityUrl),
+    ),
+  );
+  return automaticUrl;
 }
 
 async function executeCommand(
@@ -88,7 +104,7 @@ async function executeCommand(
   }
   if (command.action === "restart") {
     await fleet.stopAll();
-    await fleet.startAll(config);
+    if (Object.keys(config.displays).length > 0) await startDisplays(pi, ctx, fleet, config);
     ctx.ui.notify("Pi Pet SSH displays restarted.", "info");
     return;
   }
@@ -99,10 +115,13 @@ async function executeCommand(
     ctx.ui.notify(`Pi Pet display ${command.target} detached.`, "info");
     return;
   }
-  config.displays[command.target] = { gippityUrl: command.gippityUrl };
+  const automaticUrl = await startDisplays(pi, ctx, fleet, {
+    schemaVersion: 1,
+    displays: { [command.target]: command.gippityUrl ? { gippityUrl: command.gippityUrl } : {} },
+  });
+  config.displays[command.target] = command.gippityUrl ? { gippityUrl: command.gippityUrl } : {};
   await writeRemoteDesktopConfig(config);
-  await fleet.start(command.target, command.gippityUrl);
-  ctx.ui.notify(`Pi Pet display ${command.target} attached to this Pi instance.`, "info");
+  ctx.ui.notify(`Pi Pet display ${command.target} attached to ${command.gippityUrl ?? automaticUrl}.`, "info");
 }
 
 export function registerRemoteDesktops(pi: ExtensionAPI): void {
@@ -139,7 +158,8 @@ export function registerRemoteDesktops(pi: ExtensionAPI): void {
   pi.on("session_start", async (_event, ctx) => {
     context = ctx;
     try {
-      await fleet.startAll(await readRemoteDesktopConfig());
+      const config = await readRemoteDesktopConfig();
+      if (Object.keys(config.displays).length > 0) await startDisplays(pi, ctx, fleet, config);
     } catch (error) {
       ctx.ui.notify(
         `Pi Pet displays could not start: ${error instanceof Error ? error.message : String(error)}`,
