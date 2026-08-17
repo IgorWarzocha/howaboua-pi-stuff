@@ -1,0 +1,380 @@
+import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { parseDesktopConfig, parseSshTarget } from "../src/desktop/config.ts";
+import type { PetDevice } from "./desktop-config.ts";
+
+const MAX_DIAGNOSTIC_BYTES = 8 * 1024;
+const STOP_TIMEOUT_MS = 3_000;
+const READY_TIMEOUT_MS = 15 * 60 * 1_000;
+const MAX_SOURCE_BYTES = 512 * 1024;
+const SOURCE_CHUNK_BYTES = 4 * 1024;
+const SOURCE_CHUNK_DELAY_MS = 10;
+const PACKAGE_ROOT = fileURLToPath(new URL("../", import.meta.url));
+const DESKTOP_SOURCE_PATHS = [
+  "desktop/build.mjs",
+  "desktop/package-lock.json",
+  "desktop/package.json",
+  "src/desktop/attention.ts",
+  "src/desktop/bridge.ts",
+  "src/desktop/config.ts",
+  "src/desktop/cursor-provider.ts",
+  "src/desktop/main.ts",
+  "src/desktop/preload.ts",
+] as const;
+
+const REMOTE_BOOTSTRAP = String.raw`
+const { spawn, spawnSync } = require("node:child_process");
+const { access, mkdir, readFile, writeFile } = require("node:fs/promises");
+const { homedir } = require("node:os");
+const { isIP } = require("node:net");
+const { dirname, join, resolve, sep } = require("node:path");
+const { createRequire } = require("node:module");
+let activeChild;
+let stopping = false;
+let stopTimer;
+const ownerPid = process.ppid;
+const emit = phase => process.stdout.write(JSON.stringify({ type: "phase", phase }) + "\n");
+const bounded = value => value.length <= 8192 ? value : value.slice(value.length - 8192);
+const ownerIsRunning = () => { try { process.kill(ownerPid, 0); return true; } catch { return false; } };
+const heartbeat = setInterval(() => {
+  if (!ownerIsRunning()) { stop(); return; }
+  process.stdout.write('{"type":"heartbeat"}\n');
+}, 1000);
+const stop = () => {
+  if (stopping) return;
+  stopping = true;
+  clearInterval(heartbeat);
+  const child = activeChild;
+  signalTree(child, "SIGTERM");
+  stopTimer = setTimeout(() => { signalTree(child, "SIGKILL"); process.exit(0); }, 3000);
+};
+for (const signal of ["SIGHUP", "SIGINT", "SIGTERM"]) process.on(signal, stop);
+process.stdout.once("close", stop);
+process.stdout.once("error", stop);
+function signalTree(child, signal) {
+  if (!child?.pid) return;
+  if (process.platform === "win32") {
+    const args = ["/pid", String(child.pid), "/t"];
+    if (signal === "SIGKILL") args.push("/f");
+    spawnSync("taskkill", args, { stdio: "ignore", windowsHide: true });
+    return;
+  }
+  try { process.kill(-child.pid, signal); } catch { child.kill(signal); }
+}
+function run(command, args, cwd) {
+  return new Promise((resolve, reject) => {
+    let errorText = "";
+    const child = spawn(command, args, {
+      cwd, stdio: ["ignore", "ignore", "pipe"], windowsHide: true, detached: process.platform !== "win32",
+    });
+    activeChild = child;
+    child.stderr.on("data", chunk => { errorText = bounded(errorText + chunk.toString("utf8")); });
+    child.once("error", error => { if (activeChild === child) activeChild = undefined; reject(error); });
+    child.once("exit", code => {
+      if (activeChild === child) activeChild = undefined;
+      if (code === 0) resolve();
+      else reject(new Error(errorText.trim() || command + " exited " + (code ?? "without status")));
+    });
+  });
+}
+function graphicalEnvironment() {
+  const environment = { ...process.env };
+  if (process.platform !== "linux") return environment;
+  const result = spawnSync("systemctl", ["--user", "show-environment"], {
+    encoding: "utf8", timeout: 2000, maxBuffer: 64 * 1024, windowsHide: true,
+  });
+  if (result.status !== 0) return environment;
+  const allowed = new Set(["DISPLAY", "WAYLAND_DISPLAY", "XDG_RUNTIME_DIR", "HYPRLAND_INSTANCE_SIGNATURE"]);
+  for (const line of result.stdout.split("\n")) {
+    const separator = line.indexOf("=");
+    const key = separator < 0 ? "" : line.slice(0, separator);
+    if (allowed.has(key)) environment[key] = line.slice(separator + 1);
+  }
+  return environment;
+}
+function displayGippityUrl() {
+  if (!options.useSshSourceAddress) return options.gippityUrl;
+  const sourceAddress = process.env.SSH_CONNECTION?.trim().split(/\s+/)[0];
+  const addressFamily = sourceAddress ? isIP(sourceAddress) : 0;
+  if (!sourceAddress || !addressFamily) return options.gippityUrl;
+  const url = new URL(options.gippityUrl);
+  url.hostname = addressFamily === 6 ? "[" + sourceAddress + "]" : sourceAddress;
+  return url.origin;
+}
+async function buildIsCurrent(marker, desktop) {
+  try {
+    const built = JSON.parse(await readFile(marker, "utf8"));
+    for (const path of [
+      "attention.js", "bridge.cjs", "bridge.js", "config.js", "cursor-provider.js", "main.js", "package.json", "preload.cjs",
+    ]) await access(join(desktop, "dist", "app", path));
+    const requireFromDesktop = createRequire(join(desktop, "package.json"));
+    await access(requireFromDesktop("electron"));
+    return built.schemaVersion === 1
+      && built.packageVersion === options.packageVersion
+      && built.sourceDigest === options.sourceDigest;
+  } catch {
+    return false;
+  }
+}
+async function main() {
+  const root = options.applicationRoot || join(homedir(), ".pi", "agent", "pi-pet");
+  const desktop = join(root, "desktop");
+  const marker = join(root, ".build.json");
+  await mkdir(root, { recursive: true, mode: 0o700 });
+  emit("check");
+  if (!(await buildIsCurrent(marker, desktop))) {
+    if (stopping) return;
+    emit("copy");
+    for (const [relativePath, encoded] of Object.entries(options.files)) {
+      const target = resolve(root, relativePath);
+      if (!target.startsWith(root + sep)) throw new Error("Pi Pet source path escaped its application directory");
+      await mkdir(dirname(target), { recursive: true, mode: 0o700 });
+      await writeFile(target, Buffer.from(encoded, "base64"), { mode: 0o600 });
+    }
+    if (stopping) return;
+    const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+    emit("install");
+    await run(npm, ["install", "--include=dev", "--ignore-scripts", "--no-audit", "--no-fund"], desktop);
+    if (stopping) return;
+    emit("build");
+    await run(npm, ["run", "build"], desktop);
+    if (stopping) return;
+    await writeFile(marker, JSON.stringify({
+      schemaVersion: 1,
+      packageVersion: options.packageVersion,
+      sourceDigest: options.sourceDigest,
+    }) + "\n", { mode: 0o600 });
+  }
+  if (stopping) return;
+  const requireFromDesktop = createRequire(join(desktop, "package.json"));
+  const electron = requireFromDesktop("electron");
+  await new Promise((resolve, reject) => {
+    const child = spawn(electron, [join(desktop, "dist", "app")], {
+      cwd: desktop,
+      env: { ...graphicalEnvironment(), PI_PET_GIPPITY_URL: displayGippityUrl(), PI_PET_OWNER_FD: "3" },
+      stdio: ["ignore", "inherit", "inherit", "pipe"],
+      windowsHide: true,
+      detached: process.platform !== "win32",
+    });
+    activeChild = child;
+    child.once("spawn", () => emit("run"));
+    child.once("error", reject);
+    child.once("exit", code => {
+      if (activeChild === child) activeChild = undefined;
+      if (code === 0 || stopping) resolve();
+      else reject(new Error("Electron exited " + (code ?? "without status")));
+    });
+  });
+}
+main()
+  .catch(error => { process.stderr.write((error?.message || String(error)) + "\n"); process.exitCode = 1; })
+  .finally(() => { clearInterval(heartbeat); clearTimeout(stopTimer); });
+`;
+
+export interface DesktopProcessSpec {
+  program: string;
+  args: string[];
+  source: string;
+}
+
+function packagedDesktopSource(): { files: Record<string, string>; packageVersion: string; sourceDigest: string } {
+  const files: Record<string, string> = {};
+  const digest = createHash("sha256");
+  let size = 0;
+  for (const path of DESKTOP_SOURCE_PATHS) {
+    const contents = readFileSync(join(PACKAGE_ROOT, path));
+    size += contents.length;
+    if (size > MAX_SOURCE_BYTES) throw new Error("Pi Pet desktop source is unexpectedly large.");
+    files[path] = contents.toString("base64");
+    digest.update(path).update("\0").update(contents).update("\0");
+  }
+  const manifest = JSON.parse(readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8")) as { version?: unknown };
+  if (typeof manifest.version !== "string") throw new Error("Pi Pet package version is missing.");
+  return { files, packageVersion: manifest.version, sourceDigest: digest.digest("hex") };
+}
+
+export function remoteDesktopProcessSpec(
+  target: string,
+  gippityUrl: string,
+  useSshSourceAddress = false,
+): DesktopProcessSpec {
+  const origin = parseDesktopConfig({ schemaVersion: 1, gippityUrl }).gippityUrl;
+  const options = { ...packagedDesktopSource(), gippityUrl: origin, useSshSourceAddress };
+  return {
+    program: "ssh",
+    args: [parseSshTarget(target), "node", "-"],
+    source: `const options = ${JSON.stringify(options)};\n${REMOTE_BOOTSTRAP}`,
+  };
+}
+
+export function localDesktopProcessSpec(gippityUrl: string): DesktopProcessSpec {
+  const origin = parseDesktopConfig({ schemaVersion: 1, gippityUrl }).gippityUrl;
+  const agentDirectory = process.env["PI_CODING_AGENT_DIR"]?.trim() || join(homedir(), ".pi", "agent");
+  const options = {
+    ...packagedDesktopSource(),
+    gippityUrl: origin,
+    useSshSourceAddress: false,
+    applicationRoot: join(agentDirectory, "pi-pet"),
+  };
+  return {
+    program: process.execPath,
+    args: ["-"],
+    source: `const options = ${JSON.stringify(options)};\n${REMOTE_BOOTSTRAP}`,
+  };
+}
+
+interface DesktopDeviceCallbacks {
+  onExit(device: string, error?: Error): void;
+  onPhase(device: string, phase: string): void;
+}
+
+function appendBounded(current: string, chunk: Buffer): string {
+  const next = current + chunk.toString("utf8");
+  return next.length <= MAX_DIAGNOSTIC_BYTES ? next : next.slice(next.length - MAX_DIAGNOSTIC_BYTES);
+}
+
+function sendSource(child: ChildProcessWithoutNullStreams, source: string): void {
+  const payload = Buffer.from(source);
+  let offset = 0;
+  const sendNext = () => {
+    if (!child.stdin.writable) return;
+    if (offset >= payload.length) {
+      child.stdin.end();
+      return;
+    }
+    const nextOffset = Math.min(offset + SOURCE_CHUNK_BYTES, payload.length);
+    const ready = child.stdin.write(payload.subarray(offset, nextOffset));
+    offset = nextOffset;
+    const resume = () => setTimeout(sendNext, SOURCE_CHUNK_DELAY_MS);
+    if (ready) resume();
+    else child.stdin.once("drain", resume);
+  };
+  sendNext();
+}
+
+function stopChild(child: ChildProcessWithoutNullStreams): Promise<void> {
+  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
+  child.kill();
+  return new Promise((resolvePromise) => {
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      resolvePromise();
+    }, STOP_TIMEOUT_MS);
+    timer.unref();
+    child.once("exit", () => {
+      clearTimeout(timer);
+      resolvePromise();
+    });
+  });
+}
+
+export class DesktopDeviceFleet {
+  readonly #callbacks: DesktopDeviceCallbacks;
+  readonly #children = new Map<string, ChildProcessWithoutNullStreams>();
+
+  constructor(callbacks: DesktopDeviceCallbacks) {
+    this.#callbacks = callbacks;
+  }
+
+  deviceNames(): string[] {
+    return [...this.#children.keys()].sort();
+  }
+
+  async start(name: string, device: PetDevice, automaticUrl: string): Promise<void> {
+    await this.stop(name);
+    const gippityUrl = device.gippityUrl ?? automaticUrl;
+    const spec =
+      device.kind === "local"
+        ? localDesktopProcessSpec(gippityUrl)
+        : remoteDesktopProcessSpec(device.target, gippityUrl, !device.gippityUrl);
+    const child = spawn(spec.program, spec.args, {
+      stdio: ["pipe", "pipe", "pipe", "pipe"],
+      windowsHide: true,
+    });
+    this.#children.set(name, child);
+    let diagnostics = "";
+    let output = "";
+    let ready = false;
+    let rejectReady: (error: Error) => void = () => undefined;
+    let resolveReady: () => void = () => undefined;
+    const readiness = new Promise<void>((resolvePromise, rejectPromise) => {
+      resolveReady = resolvePromise;
+      rejectReady = rejectPromise;
+    });
+    const timer = setTimeout(() => {
+      const error = new Error(`Pi Pet device ${name} did not start within 15 minutes.`);
+      void this.stop(name).finally(() => rejectReady(error));
+    }, READY_TIMEOUT_MS);
+    timer.unref();
+    child.stderr.on("data", (chunk: Buffer) => {
+      diagnostics = appendBounded(diagnostics, chunk);
+    });
+    child.stdin.on("error", (error: Error) => {
+      diagnostics = appendBounded(diagnostics, Buffer.from(error.message));
+    });
+    const handleOutputLine = (line: string) => {
+      try {
+        const event = JSON.parse(line) as { type?: unknown; phase?: unknown };
+        if (event.type !== "phase" || typeof event.phase !== "string") return;
+        this.#callbacks.onPhase(name, event.phase);
+        if (event.phase === "run" && !ready) {
+          ready = true;
+          clearTimeout(timer);
+          resolveReady();
+        }
+      } catch {
+        diagnostics = appendBounded(diagnostics, Buffer.from(line));
+      }
+    };
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      output += chunk;
+      let newline = output.indexOf("\n");
+      while (newline >= 0) {
+        const line = output.slice(0, newline);
+        output = output.slice(newline + 1);
+        handleOutputLine(line);
+        newline = output.indexOf("\n");
+      }
+      if (output.length > MAX_DIAGNOSTIC_BYTES) output = output.slice(-MAX_DIAGNOSTIC_BYTES);
+    });
+    child.once("error", (error) => {
+      clearTimeout(timer);
+      this.#finished(name, child, ready ? error : undefined);
+      if (!ready) rejectReady(error || new Error(`Pi Pet device ${name} exited before it was ready.`));
+    });
+    child.once("exit", (code) => {
+      const error =
+        code === 0 && ready
+          ? undefined
+          : new Error(diagnostics.trim() || `Pi Pet device exited ${code ?? "without status"} before it was ready`);
+      clearTimeout(timer);
+      this.#finished(name, child, ready ? error : undefined);
+      if (!ready) rejectReady(error || new Error(`Pi Pet device ${name} exited before it was ready.`));
+    });
+    child.once("spawn", () => sendSource(child, spec.source));
+    await readiness;
+  }
+
+  async stop(name: string): Promise<void> {
+    const child = this.#children.get(name);
+    if (!child) return;
+    this.#children.delete(name);
+    await stopChild(child);
+    this.#callbacks.onExit(name);
+  }
+
+  async stopAll(): Promise<void> {
+    await Promise.all([...this.#children.keys()].map((name) => this.stop(name)));
+  }
+
+  #finished(name: string, child: ChildProcessWithoutNullStreams, error?: Error): void {
+    if (this.#children.get(name) !== child) return;
+    this.#children.delete(name);
+    this.#callbacks.onExit(name, error);
+  }
+}

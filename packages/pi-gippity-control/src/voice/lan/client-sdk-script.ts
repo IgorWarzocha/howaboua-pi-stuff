@@ -179,7 +179,9 @@ export const LAN_REMOTE_CLIENT_SCRIPT = String.raw`
         current.onmessage = (event) => receive(current, event);
         current.onclose = (event) => {
           clearTimeout(timer);
-          if (socket === current) finishStop(false, event.reason || 'connection-closed');
+          if (socket !== current) return;
+          const detail = event.reason || 'Voice connection closed unexpectedly (' + event.code + ').';
+          finishStop(false, 'connection-closed'); publish('error', detail);
         };
       } catch (error) {
         if (currentGeneration !== generation) return;

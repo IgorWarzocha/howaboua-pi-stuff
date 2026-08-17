@@ -11,6 +11,13 @@
 	],
 	"license": "MIT",
 	"type": "module",
+	"main": "./index.ts",
+	"exports": {
+		".": "./index.ts",
+		"./lan-service": "./src/voice/lan/service.ts",
+		"./remote-app": "./src/voice/lan/remote-app.ts",
+		"./*": "./*"
+	},
 	"engines": {
 		"node": ">=22.19.0"
 	},

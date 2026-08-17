@@ -1,0 +1,6 @@
+- `HATCH-GUIDE.md` owns orchestration; references own visual judgment and scripts own deterministic image work.
+- Keep visual generation capability-neutral. A missing native generator routes to an explicit external or browser-assisted handoff.
+- Preserve `LICENSE.txt`; imported Python files derive from the Apache-2.0 Hatch Pet workflow and must retain modification notices.
+- Python tooling is authoring-only and isolated by this subtree's locked uv project; it is not an application runtime dependency.
+- Run `bun run pet:hatch:test` only when this authoring subtree changes; it is not part of the Pi Pet runtime gate.
+- Never stage a pet package until deterministic checks and independent visual review pass.

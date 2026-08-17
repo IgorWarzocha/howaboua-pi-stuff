@@ -1,0 +1,18 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "extensions/index.ts",
+    "src/authoring/prepare-cli.ts",
+    "src/authoring/rebuild-cli.ts",
+    "src/authoring/validate-cli.ts",
+    "src/desktop/main.ts",
+    "src/desktop/preload.ts",
+    "src/web/main.ts",
+    "tests/*.test.ts"
+  ],
+  "project": ["extensions/**/*.ts", "src/**/*.ts", "tests/**/*.ts"],
+  "ignoreBinaries": ["uv"],
+  "ignoreIssues": {
+    "src/protocol/index.ts": ["exports", "types"]
+  }
+}

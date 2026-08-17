@@ -14,6 +14,8 @@ import { CodexVoiceController } from "./voice/controller.ts";
 import { createCodexVoiceControls } from "./voice/controls.ts";
 import { CodexLanVoiceServerController } from "./voice/lan/controller.ts";
 import { registerLanRemoteCreateRenderers } from "./voice/lan/create.ts";
+import { GippityRemoteApps } from "./voice/lan/remote-app.ts";
+import { registerGippityLanService } from "./voice/lan/service.ts";
 import { registerCodexVoiceRenderer } from "./voice/ui.ts";
 
 export function registerGippityControl(pi: ExtensionAPI): void {
@@ -23,6 +25,7 @@ export function registerGippityControl(pi: ExtensionAPI): void {
 		config: readGippityControlConfig(),
 	};
 	const voice = new CodexVoiceController(pi);
+	const remoteApps = new GippityRemoteApps(pi);
 	const lanVoice = new CodexLanVoiceServerController(
 		pi,
 		voice,
@@ -36,6 +39,7 @@ export function registerGippityControl(pi: ExtensionAPI): void {
 				ctx.isIdle() ? undefined : { deliverAs: "steer" },
 			),
 		dirname(getGippityControlConfigPath()),
+		remoteApps,
 	);
 	const voiceControls = createCodexVoiceControls({
 		pi,
@@ -44,6 +48,7 @@ export function registerGippityControl(pi: ExtensionAPI): void {
 		lanVoice,
 	});
 	registerGippityCommand({ pi, state, voiceControls, lanVoice });
+	registerGippityLanService(pi, (ctx) => lanVoice.setEnabled(true, ctx));
 	pi.events.on(REALTIME_VOICE_PROMPT_CHANNEL, (value) => {
 		const report = parseRealtimeVoicePrompt(value);
 		if (report) voice.setPrompt(report);

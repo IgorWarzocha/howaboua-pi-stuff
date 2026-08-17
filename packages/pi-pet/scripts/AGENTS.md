@@ -1,0 +1,3 @@
+- Build orchestration uses Bun; the desktop shell runs on Electron and the web miniapp is static output served by GipPity.
+- Change source before generated output; `dist/` is committed, while platform-specific `release/` bundles stay untracked.
+- `desktop/` is the npm-only remote source build; keep it Node 22 compatible and reusable at `~/.pi/agent/pi-pet`.

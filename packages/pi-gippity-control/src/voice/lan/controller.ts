@@ -8,6 +8,7 @@ import { resolveCodexVoiceAuth } from "../auth.ts";
 import type { CodexVoiceController } from "../controller.ts";
 import { boundedAssistantText } from "./activity.ts";
 import { appendLanRemoteCreateNotice } from "./create.ts";
+import type { GippityRemoteApps } from "./remote-app.ts";
 import type { CodexLanVoiceServer } from "./server.ts";
 
 export interface CodexLanVoiceServerStatus {
@@ -24,6 +25,7 @@ export class CodexLanVoiceServerController {
 		ctx: ExtensionContext,
 	) => void;
 	private readonly agentDir: string;
+	private readonly remoteApps: GippityRemoteApps;
 	private server: CodexLanVoiceServer | undefined;
 	private pendingAssistantText: string | undefined;
 	private operation = Promise.resolve();
@@ -34,12 +36,14 @@ export class CodexLanVoiceServerController {
 		getConfig: () => GippityControlConfig,
 		sendUserMessage: (text: string, ctx: ExtensionContext) => void,
 		agentDir: string,
+		remoteApps: GippityRemoteApps,
 	) {
 		this.pi = pi;
 		this.voice = voice;
 		this.getConfig = getConfig;
 		this.sendUserMessage = sendUserMessage;
 		this.agentDir = agentDir;
+		this.remoteApps = remoteApps;
 	}
 
 	status(): CodexLanVoiceServerStatus {
@@ -68,6 +72,7 @@ export class CodexLanVoiceServerController {
 				sendUserMessage: (text) => this.sendUserMessage(text, ctx),
 				ownerSessionId: sessionId,
 				certificateAgentDir: this.agentDir,
+				remoteApps: this.remoteApps,
 			});
 			ctx.ui.setStatus(
 				"gippity-lan",
