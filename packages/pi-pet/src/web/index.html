@@ -30,7 +30,7 @@
           <button id="wave-button" class="pet-hit-area" type="button" aria-label="Wave to the pet"></button>
           <form id="desktop-prompt-form" class="desktop-prompt" hidden>
             <div class="desktop-prompt-heading">
-              <label for="desktop-prompt-text">Talk to Clawa</label>
+              <label id="desktop-prompt-label" for="desktop-prompt-text">Talk to your pet</label>
               <button id="desktop-prompt-close" type="button" aria-label="Close prompt">×</button>
             </div>
             <textarea id="desktop-prompt-text" maxlength="8000" rows="2" placeholder="What should we do?"></textarea>
@@ -38,16 +38,17 @@
               <span id="desktop-prompt-feedback" aria-live="polite"></span>
               <div class="prompt-buttons">
                 <button id="desktop-voice-button" class="voice-button" type="button">Voice</button>
+                <button id="desktop-dictation-button" class="voice-button" type="button">Dictate</button>
                 <button id="desktop-prompt-submit" type="submit">Send</button>
               </div>
             </div>
           </form>
-          <p class="pointer-hint">Move nearby. Clawa is watching.</p>
+          <p id="pointer-hint" class="pointer-hint">Move nearby. Your pet is watching.</p>
         </div>
 
         <aside class="console">
           <div class="identity">
-            <h1 id="pet-name">Clawa</h1>
+            <h1 id="pet-name">Pi Pet</h1>
             <p id="pet-description" class="description">Connecting through GipPity Remote.</p>
           </div>
 
@@ -79,7 +80,7 @@
             </div>
             <form id="prompt-form">
               <label class="sr-only" for="prompt-text">Prompt for the connected Pi session</label>
-              <textarea id="prompt-text" maxlength="8000" rows="3" placeholder="Send a thought back through Clawa…"></textarea>
+              <textarea id="prompt-text" maxlength="8000" rows="3" placeholder="Send a thought back through your pet…"></textarea>
               <div class="prompt-footer">
                 <span id="prompt-feedback" class="prompt-feedback" aria-live="polite"></span>
                 <div class="prompt-buttons">

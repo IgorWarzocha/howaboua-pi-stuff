@@ -297,7 +297,7 @@ function secureWebContents(window: BrowserWindow, gippityOrigin: string): void {
   window.webContents.on("will-redirect", confineNavigation);
   window.webContents.on("context-menu", () => {
     Menu.buildFromTemplate([
-      { label: "Reload Clawa", click: () => window.webContents.reload() },
+      { label: "Reload pet", click: () => window.webContents.reload() },
       {
         label: "Quiet mode",
         type: "checkbox",

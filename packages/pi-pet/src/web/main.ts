@@ -5,18 +5,28 @@ interface RemoteAudioState {
   active?: boolean;
   busy?: boolean;
   muted?: boolean;
+  mode?: "conversation" | "dictation";
   state?: string;
   detail?: string;
 }
 
+interface RemoteDraft {
+  text: string;
+  revision: number;
+  selectionStart?: number;
+  selectionEnd?: number;
+}
+
 interface GippityRemoteClient {
+  readonly draft: RemoteDraft;
   readonly audio: {
     readonly state: RemoteAudioState;
     start(mode?: "conversation" | "dictation"): Promise<void>;
-    stop(): void;
+    stop(draft?: RemoteDraft): void;
     setMuted(muted: boolean): void;
   };
   on<T>(type: string, listener: (value: T) => void): () => void;
+  setDraft(text: string): void;
   send(text?: string): Promise<void>;
 }
 
@@ -46,14 +56,17 @@ const elements = {
   desktopPromptClose: required<HTMLButtonElement>("desktop-prompt-close"),
   desktopPromptFeedback: required("desktop-prompt-feedback"),
   desktopPromptForm: required<HTMLFormElement>("desktop-prompt-form"),
+  desktopPromptLabel: required("desktop-prompt-label"),
   desktopPromptSubmit: required<HTMLButtonElement>("desktop-prompt-submit"),
   desktopPromptText: required<HTMLTextAreaElement>("desktop-prompt-text"),
+  desktopDictation: required<HTMLButtonElement>("desktop-dictation-button"),
   desktopVoice: required<HTMLButtonElement>("desktop-voice-button"),
   name: required("pet-name"),
   promptFeedback: required("prompt-feedback"),
   promptForm: required<HTMLFormElement>("prompt-form"),
   promptSubmit: required<HTMLButtonElement>("prompt-submit"),
   promptText: required<HTMLTextAreaElement>("prompt-text"),
+  pointerHint: required("pointer-hint"),
   quickActions: required("quick-actions"),
   restoreAction: required<HTMLButtonElement>("restore-action"),
   stage: required("stage"),
@@ -222,6 +235,8 @@ function setConnection(online: boolean, label: string): void {
   elements.desktopPromptSubmit.disabled = !online;
   elements.voice.disabled = !online;
   elements.desktopVoice.disabled = !online;
+  elements.desktopDictation.disabled = !online;
+  if (remote) updateVoice(remote.audio.state);
 }
 
 function show(nextAction: string, nextNote: string, nextActivity: Activity): void {
@@ -301,6 +316,10 @@ function populateActions(next: PetCatalog): void {
   currentAction = next.defaultAction;
   elements.name.textContent = next.displayName;
   elements.description.textContent = next.description;
+  elements.desktopPromptLabel.textContent = `Talk to ${next.displayName}`;
+  elements.pointerHint.textContent = `Move nearby. ${next.displayName} is watching.`;
+  elements.promptText.placeholder = `Send a thought back through ${next.displayName}…`;
+  if (desktopShell) elements.wave.setAttribute("aria-label", `Talk to ${next.displayName}`);
   document.title = `${next.displayName} · Pi Pet`;
   elements.actionSelect.replaceChildren();
   for (const name of Object.keys(next.actions).sort()) {
@@ -392,25 +411,67 @@ async function submitPrompt(surface: PromptSurface): Promise<void> {
   }
 }
 
+function updateAudioButton(
+  button: HTMLButtonElement,
+  buttonMode: "conversation" | "dictation",
+  value: RemoteAudioState,
+): void {
+  const mode = value.mode || "conversation";
+  const idleLabel = buttonMode === "conversation" ? "Voice" : "Dictate";
+  button.disabled = !connected || ((value.active === true || value.busy === true) && mode !== buttonMode);
+  if (mode !== buttonMode) {
+    button.textContent = idleLabel;
+    return;
+  }
+  if (value.active) {
+    button.textContent = buttonMode === "dictation" ? "Finish" : value.muted ? "Muted" : "Stop voice";
+    return;
+  }
+  button.textContent = value.busy ? "Cancel" : idleLabel;
+}
+
 function updateVoice(value: RemoteAudioState): void {
   const active = value.active === true;
-  const busy = value.busy === true;
-  const failed = value.state === "error";
-  const label = active ? (value.muted ? "Muted" : "Stop voice") : busy ? "Opening…" : failed ? "Voice failed" : "Voice";
-  elements.voice.textContent = label;
-  elements.desktopVoice.textContent = label;
+  updateAudioButton(elements.voice, "conversation", value);
+  updateAudioButton(elements.desktopVoice, "conversation", value);
+  updateAudioButton(elements.desktopDictation, "dictation", value);
   elements.voiceState.textContent = value.detail || (active ? value.state || "Voice active" : "Voice idle");
-  if (failed) {
+  if (value.state === "error") {
     const message = value.detail || "Voice failed";
     elements.promptFeedback.textContent = message;
     elements.desktopPromptFeedback.textContent = message;
   }
 }
 
-async function toggleVoice(feedback: HTMLElement): Promise<void> {
+function syncDraft(value: { text?: string }): void {
+  if (typeof value.text !== "string") return;
+  elements.promptText.value = value.text;
+  elements.desktopPromptText.value = value.text;
+}
+
+function updateLocalDraft(surface: PromptSurface): void {
+  if (!remote) return;
+  remote.setDraft(surface.text.value);
+}
+
+async function toggleAudio(
+  mode: "conversation" | "dictation",
+  feedback: HTMLElement,
+  surface?: PromptSurface,
+): Promise<void> {
   try {
-    if (remote.audio.state.active || remote.audio.state.busy) remote.audio.stop();
-    else await remote.audio.start("conversation");
+    const state = remote.audio.state;
+    if (state.active || state.busy) {
+      if (state.mode !== mode) return;
+      if (mode === "dictation" && surface) {
+        remote.audio.stop({
+          text: surface.text.value,
+          revision: remote.draft.revision,
+          selectionStart: surface.text.selectionStart,
+          selectionEnd: surface.text.selectionEnd,
+        });
+      } else remote.audio.stop();
+    } else await remote.audio.start(mode);
   } catch (error) {
     feedback.textContent = error instanceof Error ? error.message : "Voice failed";
   }
@@ -418,7 +479,7 @@ async function toggleVoice(feedback: HTMLElement): Promise<void> {
 
 async function start(): Promise<void> {
   const response = await fetch(new URL("catalog.json", location.href), { cache: "no-store" });
-  if (!response.ok) throw new Error(`Could not load Clawa: HTTP ${response.status}`);
+  if (!response.ok) throw new Error(`Could not load pet catalog: HTTP ${response.status}`);
   populateActions((await response.json()) as PetCatalog);
   await renderer.load(catalog);
   document.documentElement.dataset["petReady"] = "true";
@@ -431,6 +492,7 @@ async function start(): Promise<void> {
   remote.on("app.state", handlePetState);
   remote.on("pi:tool_execution_start", toolStarted);
   remote.on("pi:tool_execution_end", toolEnded);
+  remote.on("draft", syncDraft);
   remote.on("audio", updateVoice);
   setConnection(false, "Connecting");
 }
@@ -464,8 +526,14 @@ elements.desktopPromptText.addEventListener("keydown", (event) => {
     elements.desktopPromptForm.requestSubmit();
   }
 });
-elements.voice.addEventListener("click", () => void toggleVoice(elements.promptFeedback));
-elements.desktopVoice.addEventListener("click", () => void toggleVoice(elements.desktopPromptFeedback));
+elements.promptText.addEventListener("input", () => updateLocalDraft(mainPrompt));
+elements.desktopPromptText.addEventListener("input", () => updateLocalDraft(desktopPrompt));
+elements.voice.addEventListener("click", () => void toggleAudio("conversation", elements.promptFeedback));
+elements.desktopVoice.addEventListener("click", () => void toggleAudio("conversation", elements.desktopPromptFeedback));
+elements.desktopDictation.addEventListener(
+  "click",
+  () => void toggleAudio("dictation", elements.desktopPromptFeedback, desktopPrompt),
+);
 
 if (window.piPetDesktop) {
   window.piPetDesktop.onCursorPosition((position) => {
@@ -476,9 +544,7 @@ if (window.piPetDesktop) {
   elements.stage.addEventListener("pointermove", (event) => showCursorDirection(event.clientX, event.clientY));
   elements.stage.addEventListener("pointerleave", restoreCursorDirection);
 }
-if (desktopShell) elements.wave.setAttribute("aria-label", "Talk to Clawa");
-
 start().catch((error: unknown) => {
   setConnection(false, "Unavailable");
-  elements.actionNote.textContent = error instanceof Error ? error.message : "Clawa failed to start";
+  elements.actionNote.textContent = error instanceof Error ? error.message : "Pet failed to start";
 });
