@@ -1,3 +1,4 @@
+import { isAbsolute } from "node:path";
 import {
 	CONFIG_DIR_NAME,
 	type ExtensionContext,
@@ -248,7 +249,10 @@ function details(
 ): string[] {
 	const status = lanVoice.status();
 	const dim = (text: string) => theme.fg("dim", `  ${text}`);
-	const webApp = config.lan.customWebApp ? "custom" : "bundled GipPity";
+	const customPath = config.lan.customWebAppPath;
+	const webApp = config.lan.customWebApp
+		? `custom ${customPath ? (isAbsolute(customPath) ? "global" : "per-directory") : "discovery"}`
+		: "bundled GipPity";
 	return [
 		"",
 		dim(
@@ -261,7 +265,7 @@ function details(
 			`           dictation ${formatVoiceShortcut(config.voice.dictationShortcut)} · server ${formatVoiceShortcut(config.voice.serverShortcut)}`,
 		),
 		dim(
-			`Web app: ${webApp} · port ${config.lan.port ?? DEFAULT_GIPPITY_LAN_PORT} (set lan.port in config)${config.lan.customWebApp ? ` · ${config.lan.customWebAppPath ?? "app discovery JSON"}` : ""}`,
+			`Web app: ${webApp} · port ${config.lan.port ?? DEFAULT_GIPPITY_LAN_PORT} (set lan.port in config)${config.lan.customWebApp ? ` · ${customPath ?? "app discovery JSON"}` : ""}`,
 		),
 		dim(
 			`Config (/reload after keybind/device/port edits): ${getGippityControlConfigPath()}`,

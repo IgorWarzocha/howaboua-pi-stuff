@@ -94,6 +94,39 @@ function reportDesktopError(error: unknown): void {
   process.stderr.write(`Pi Pet desktop: ${error instanceof Error ? error.message : String(error)}\n`);
 }
 
+function isConfiguredGippityOrigin(value: string | undefined): boolean {
+  if (!(desktopConfig && value)) return false;
+  try {
+    return new URL(value).origin === new URL(desktopConfig.gippityUrl).origin;
+  } catch {
+    return false;
+  }
+}
+
+function configurePermissions(): void {
+  session.defaultSession.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
+    return (
+      permission === "media" &&
+      details.isMainFrame &&
+      details.mediaType === "audio" &&
+      webContents !== null &&
+      isConfiguredGippityOrigin(webContents.getURL()) &&
+      isConfiguredGippityOrigin(requestingOrigin)
+    );
+  });
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
+    const mediaTypes = "mediaTypes" in details ? details.mediaTypes : undefined;
+    callback(
+      permission === "media" &&
+        details.isMainFrame &&
+        mediaTypes?.length === 1 &&
+        mediaTypes[0] === "audio" &&
+        isConfiguredGippityOrigin(webContents.getURL()) &&
+        isConfiguredGippityOrigin(details.requestingUrl),
+    );
+  });
+}
+
 app.on("certificate-error", (event, _webContents, url, error, _certificate, callback) => {
   try {
     if (
@@ -384,7 +417,7 @@ if (app.requestSingleInstanceLock()) {
     .then(async () => {
       Menu.setApplicationMenu(null);
       watchOwner();
-      session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
+      configurePermissions();
       mainWindow = await createWindow();
       app.on("activate", () => {
         if (!mainWindow) {

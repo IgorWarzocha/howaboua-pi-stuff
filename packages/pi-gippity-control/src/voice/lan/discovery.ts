@@ -21,6 +21,8 @@ export function createLanRemoteDiscovery(options: {
 		gettingStarted: {
 			command: "/gippity create",
 			configPath: options.configPath,
+			appScope:
+				"An absolute customWebAppPath selects one global app in every directory; a relative path resolves from each Pi session cwd for project-specific apps.",
 			appDirectory:
 				"Create a static index.html with any CSS/JS/assets. GipPity hosts the directory; do not start another web server.",
 			pwa: "Build an installable PWA with a web manifest, app icons, and mobile metadata. GipPity already provides HTTPS.",
@@ -29,7 +31,7 @@ export function createLanRemoteDiscovery(options: {
 			config: {
 				lan: {
 					customWebApp: true,
-					customWebAppPath: "/absolute/path/to/app",
+					customWebAppPath: "absolute/global/or/relative/project/path",
 				},
 			},
 			clientScript: `<script src="${LAN_REMOTE_CLIENT_PATH}"></script>`,
