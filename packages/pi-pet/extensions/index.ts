@@ -6,11 +6,12 @@ import { Type } from "typebox";
 import { type PetRuntime, resolvePetRuntime } from "../src/pet-storage.ts";
 import { type PetCatalog, type PetState, parseActionName, parseNote } from "../src/protocol/index.ts";
 import { registerRemoteDesktops } from "./desktop-command.ts";
+import { GIPPITY_REQUIRED_TOOL_MESSAGE, GIPPITY_REQUIRED_USER_MESSAGE } from "./gippity.ts";
 import { registerRemoteApp } from "./remote-app.ts";
 
 const packageRoot = fileURLToPath(new URL("../", import.meta.url));
 
-function registerPetRuntime(pi: ExtensionAPI, runtime: PetRuntime): void {
+function registerPetRuntime(pi: ExtensionAPI, runtime: PetRuntime): boolean {
   const appRoot = runtime.root;
   const catalog: PetCatalog = runtime.catalog;
   let state: PetState = { schemaVersion: 1, pet: catalog.id, revision: 1, action: catalog.defaultAction };
@@ -58,7 +59,7 @@ function registerPetRuntime(pi: ExtensionAPI, runtime: PetRuntime): void {
     }),
     async execute(_toolCallId, params) {
       if (!registration.available) {
-        throw new Error("GipPity Control is unavailable. Install it and reload Pi before using pet_show.");
+        throw new Error(GIPPITY_REQUIRED_TOOL_MESSAGE);
       }
       if (params.action === "list") {
         const actions = Object.keys(catalog.actions).sort().join(", ");
@@ -91,6 +92,7 @@ function registerPetRuntime(pi: ExtensionAPI, runtime: PetRuntime): void {
       return new Text(theme.fg("error", message), 0, 0);
     },
   });
+  return registration.available;
 }
 
 export default function piPetExtension(pi: ExtensionAPI): void {
@@ -100,6 +102,7 @@ export default function piPetExtension(pi: ExtensionAPI): void {
     for (const warning of resolution.warnings) {
       if (ctx.hasUI) ctx.ui.notify(`Pi Pet ${warning}`, "warning");
     }
-    registerPetRuntime(pi, resolution.runtime);
+    const gippityAvailable = registerPetRuntime(pi, resolution.runtime);
+    if (!gippityAvailable && ctx.hasUI) ctx.ui.notify(GIPPITY_REQUIRED_USER_MESSAGE, "error");
   });
 }

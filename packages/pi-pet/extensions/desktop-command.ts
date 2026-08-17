@@ -9,6 +9,7 @@ import {
   writeRemoteDesktopConfig,
 } from "./desktop-config.ts";
 import { RemoteDesktopFleet } from "./desktop-launcher.ts";
+import { GippityUnavailableError, isMissingGippity } from "./gippity.ts";
 
 const ACTIONS = ["attach", "detach", "restart", "status"] as const;
 const ARGUMENT_SEPARATOR = /\s+/;
@@ -74,8 +75,14 @@ async function startDisplays(
   fleet: RemoteDesktopFleet,
   config: RemoteDesktopConfig,
 ): Promise<string> {
-  const { ensureGippityLan } = await import("@howaboua/pi-gippity-control/lan-service");
-  const status = await ensureGippityLan(pi, ctx);
+  let status: { running: boolean; urls: string[] };
+  try {
+    const { ensureGippityLan } = await import("@howaboua/pi-gippity-control/lan-service");
+    status = await ensureGippityLan(pi, ctx);
+  } catch (error) {
+    if (isMissingGippity(error)) throw new GippityUnavailableError();
+    throw error;
+  }
   const automaticUrl = parseDesktopConfig({ schemaVersion: 1, gippityUrl: status.urls[0] }).gippityUrl;
   await Promise.all(
     Object.entries(config.displays).map(([target, display]) =>
@@ -161,10 +168,12 @@ export function registerRemoteDesktops(pi: ExtensionAPI): void {
       const config = await readRemoteDesktopConfig();
       if (Object.keys(config.displays).length > 0) await startDisplays(pi, ctx, fleet, config);
     } catch (error) {
-      ctx.ui.notify(
-        `Pi Pet displays could not start: ${error instanceof Error ? error.message : String(error)}`,
-        "warning",
-      );
+      if (!(error instanceof GippityUnavailableError)) {
+        ctx.ui.notify(
+          `Pi Pet displays could not start: ${error instanceof Error ? error.message : String(error)}`,
+          "warning",
+        );
+      }
     }
   });
   pi.on("session_shutdown", async () => {
