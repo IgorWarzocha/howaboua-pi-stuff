@@ -127,7 +127,12 @@ async function executeCommand(
     displays: { [command.target]: command.gippityUrl ? { gippityUrl: command.gippityUrl } : {} },
   });
   config.displays[command.target] = command.gippityUrl ? { gippityUrl: command.gippityUrl } : {};
-  await writeRemoteDesktopConfig(config);
+  try {
+    await writeRemoteDesktopConfig(config);
+  } catch (error) {
+    await fleet.stop(command.target);
+    throw error;
+  }
   ctx.ui.notify(`Pi Pet display ${command.target} attached to ${command.gippityUrl ?? automaticUrl}.`, "info");
 }
 

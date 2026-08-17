@@ -176,14 +176,20 @@ class PetRenderer {
   #advance = (): void => {
     const action = this.#action;
     if (!action) return;
-    if (this.#reducedMotion || action.frames.length === 1) {
+    const total = action.frames.reduce((sum, animationFrame) => sum + animationFrame.durationMs, 0);
+    if (this.#reducedMotion) {
       this.#draw(action.frames[0]);
+      const next = action.next;
+      if (!action.loop && next) this.#timer = setTimeout(() => this.show(next), total);
       return;
     }
-    const total = action.frames.reduce((sum, animationFrame) => sum + animationFrame.durationMs, 0);
     let elapsed = performance.now() - this.#startedAt;
     if (action.loop) elapsed %= total;
-    else elapsed = Math.min(elapsed, total - 1);
+    else if (elapsed >= total) {
+      this.#draw(action.frames.at(-1));
+      if (action.next) this.show(action.next);
+      return;
+    }
     let index = 0;
     let boundary = action.frames[0]?.durationMs || 0;
     while (index < action.frames.length - 1 && elapsed >= boundary) {
@@ -192,7 +198,6 @@ class PetRenderer {
     }
     const frame = action.frames[index];
     if (frame !== this.#drawnFrame) this.#draw(frame);
-    if (!action.loop && index === action.frames.length - 1) return;
     this.#timer = setTimeout(this.#advance, Math.max(16, boundary - elapsed));
   };
 }
@@ -485,9 +490,11 @@ async function start(): Promise<void> {
   document.documentElement.dataset["petReady"] = "true";
   if (!window.GippityRemote) throw new Error("GipPity Remote SDK is unavailable");
   remote = window.GippityRemote.connect();
-  remote.on("connection", (value: { state?: string }) =>
-    setConnection(value.state === "connected", value.state === "connected" ? "Live" : "Reconnecting"),
-  );
+  remote.on("connection", (value: { state?: string }) => {
+    const online = value.state === "connected";
+    if (online) stateRevision = -1;
+    setConnection(online, online ? "Live" : "Reconnecting");
+  });
   remote.on("activity", handleActivity);
   remote.on("app.state", handlePetState);
   remote.on("pi:tool_execution_start", toolStarted);
