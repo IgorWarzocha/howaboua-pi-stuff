@@ -92,6 +92,9 @@ function registerPetRuntime(pi: ExtensionAPI, runtime: PetRuntime): boolean {
       return new Text(theme.fg("error", message), 0, 0);
     },
   });
+  pi.on("agent_settled", () => {
+    if (state.action !== catalog.defaultAction) setAction(catalog.defaultAction);
+  });
   return registration.available;
 }
 

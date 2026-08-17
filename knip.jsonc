@@ -27,6 +27,7 @@
 			"entry": ["changelog.ts"]
 		},
 		"packages/pi-pet": {
+			"ignoreDependencies": ["@howaboua/pi-gippity-control"],
 			"entry": [
 				"extensions/index.ts",
 				"src/authoring/prepare-cli.ts",

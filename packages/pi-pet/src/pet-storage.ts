@@ -2,7 +2,7 @@ import { copyFileSync, lstatSync, mkdirSync, readFileSync, statSync } from "node
 import { cp, mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { type PetCatalog, parseActionName } from "./protocol/index.ts";
+import { LIMITS, type PetCatalog, parseActionName } from "./protocol/index.ts";
 
 const CONFIG_BYTES = 16 * 1024;
 const WEB_SHELL_FILES = ["app.js", "index.html", "manifest.webmanifest", "pet-icon.svg", "styles.css"] as const;
@@ -101,7 +101,7 @@ export async function prepareUserPet(
 
 function readCatalog(path: string): PetCatalog {
   const info = statSync(path);
-  if (!info.isFile() || info.size > CONFIG_BYTES * 8) throw new Error(`Pi Pet catalog must be bounded: ${path}`);
+  if (!info.isFile() || info.size > LIMITS.catalogBytes) throw new Error(`Pi Pet catalog must be bounded: ${path}`);
   const catalog = JSON.parse(readFileSync(path, "utf8")) as PetCatalog;
   const id = parseActionName(catalog.id, "catalog pet id");
   if (

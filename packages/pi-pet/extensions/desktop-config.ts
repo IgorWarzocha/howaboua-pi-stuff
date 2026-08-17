@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { constants as fsConstants } from "node:fs";
 import { type FileHandle, mkdir, open, rename, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -94,7 +95,7 @@ export async function writeRemoteDesktopConfig(
 ): Promise<void> {
   const normalized = parseRemoteDesktopConfig(config);
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-  const temporary = `${path}.${process.pid}.tmp`;
+  const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`;
   try {
     await rm(temporary, { force: true });
     await writeFile(temporary, `${JSON.stringify(normalized, null, 2)}\n`, { mode: 0o600, flag: "wx" });

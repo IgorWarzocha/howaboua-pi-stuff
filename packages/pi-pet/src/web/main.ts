@@ -230,6 +230,12 @@ let currentNote = "Following the active Pi session";
 let stateRevision = -1;
 let settleTimer: ReturnType<typeof setTimeout> | undefined;
 let bubbleTimer: ReturnType<typeof setTimeout> | undefined;
+let explicitReaction = false;
+
+function cancelSettle(): void {
+  if (settleTimer) clearTimeout(settleTimer);
+  settleTimer = undefined;
+}
 
 function setConnection(online: boolean, label: string): void {
   connected = online;
@@ -245,6 +251,7 @@ function setConnection(online: boolean, label: string): void {
 }
 
 function show(nextAction: string, nextNote: string, nextActivity: Activity): void {
+  cancelSettle();
   activity = nextActivity;
   currentAction = quietAttention && nextActivity === "working" ? catalog.defaultAction : nextAction;
   currentNote = nextNote;
@@ -270,31 +277,52 @@ function showBubble(text: string): void {
 }
 
 function settle(text?: string): void {
-  if (settleTimer) clearTimeout(settleTimer);
   show("review", "Ready", "settled");
   if (text) showBubble(text);
   const duration = catalog.actions["review"]?.frames.reduce((total, frame) => total + frame.durationMs, 0) || 1_000;
-  settleTimer = setTimeout(() => show(catalog.defaultAction, "Following the active Pi session", "idle"), duration);
+  settleTimer = setTimeout(() => {
+    settleTimer = undefined;
+    show(catalog.defaultAction, "Following the active Pi session", "idle");
+  }, duration);
 }
 
 function handleActivity(value: { state?: string; text?: string }): void {
-  if (value.state === "working") show("running", "Pi is working", "working");
-  else if (value.state === "settled") settle(value.text);
-  else if (value.state === "idle") show(catalog.defaultAction, "Following the active Pi session", "idle");
+  if (value.state === "working") {
+    activity = "working";
+    if (!explicitReaction) show("running", "Pi is working", "working");
+  } else if (value.state === "settled") {
+    explicitReaction = false;
+    settle(value.text);
+  } else if (value.state === "idle") {
+    explicitReaction = false;
+    show(catalog.defaultAction, "Following the active Pi session", "idle");
+  }
 }
 
 function toolStarted(value: { toolCallId?: string; toolName?: string }): void {
   if (!(value.toolCallId && value.toolName) || value.toolName === "pet_show") return;
   activeTools.set(value.toolCallId, value.toolName);
-  if (value.toolName === "ask") show("waiting", "Waiting for your answer", "waiting");
-  else show("running", `Using ${value.toolName}`, "working");
+  if (value.toolName === "ask") {
+    activity = "waiting";
+    if (!explicitReaction) show("waiting", "Waiting for your answer", "waiting");
+  } else {
+    activity = "working";
+    if (!explicitReaction) show("running", `Using ${value.toolName}`, "working");
+  }
 }
 
 function toolEnded(value: { toolCallId?: string; isError?: boolean }): void {
   if (!(value.toolCallId && activeTools.delete(value.toolCallId))) return;
-  if (value.isError) show("failed", "A tool failed", "failed");
-  else if ([...activeTools.values()].includes("ask")) show("waiting", "Waiting for your answer", "waiting");
-  else show("running", "Pi is working", "working");
+  if (value.isError) {
+    activity = "failed";
+    if (!explicitReaction) show("failed", "A tool failed", "failed");
+  } else if ([...activeTools.values()].includes("ask")) {
+    activity = "waiting";
+    if (!explicitReaction) show("waiting", "Waiting for your answer", "waiting");
+  } else {
+    activity = "working";
+    if (!explicitReaction) show("running", "Pi is working", "working");
+  }
 }
 
 function handlePetState(value: { app?: string; data?: PetState }): void {
@@ -308,9 +336,18 @@ function handlePetState(value: { app?: string; data?: PetState }): void {
   const next = value.data;
   if (!catalog.actions[next.action]) return;
   stateRevision = next.revision;
+  if (next.action === catalog.defaultAction) {
+    explicitReaction = false;
+    if (activity === "idle") show(catalog.defaultAction, "Following the active Pi session", "idle");
+    else if (activity === "working") show("running", "Pi is working", "working");
+    else if (activity === "waiting") show("waiting", "Waiting for your answer", "waiting");
+    else if (activity === "failed") show("failed", "A tool failed", "failed");
+    return;
+  }
+  explicitReaction = true;
+  cancelSettle();
   currentAction = next.action;
-  currentNote =
-    next.note || (next.action === catalog.defaultAction ? "Following the active Pi session" : "Requested by Pi");
+  currentNote = next.note || "Requested by Pi";
   if (!previewing) renderer.show(currentAction);
   elements.actionName.textContent = actionLabel(currentAction);
   elements.actionNote.textContent = currentNote;

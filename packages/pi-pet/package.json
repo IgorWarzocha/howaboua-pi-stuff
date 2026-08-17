@@ -12,7 +12,6 @@
     "url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
   },
   "type": "module",
-  "main": "./dist/desktop/main.mjs",
   "keywords": [
     "pi-package",
     "pi-extension",
@@ -76,6 +75,11 @@
     "@earendil-works/pi-coding-agent": "*",
     "@earendil-works/pi-tui": "*",
     "typebox": "*"
+  },
+  "peerDependenciesMeta": {
+    "@howaboua/pi-gippity-control": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.3",

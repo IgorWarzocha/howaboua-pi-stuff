@@ -202,6 +202,12 @@ function validateCatalogLinks(catalog: PetCatalog): void {
   }
 }
 
+function assertCatalogSize(catalog: PetCatalog): void {
+  if (Buffer.byteLength(JSON.stringify(catalog)) > LIMITS.catalogBytes) {
+    throw new ContractError(`Generated pet catalog exceeds ${LIMITS.catalogBytes} bytes.`);
+  }
+}
+
 async function applyOverlay(directory: string, catalog: PetCatalog): Promise<void> {
   const overlay = await readOverlay(directory);
   if (!overlay) return;
@@ -265,6 +271,7 @@ export async function loadPet(petsRoot: string, petId: string): Promise<LoadedPe
   if (catalog.id !== safeId)
     throw new ContractError(`Active pet directory ${safeId} does not match manifest id ${catalog.id}.`);
   await applyOverlay(directory, catalog);
+  assertCatalogSize(catalog);
   const codexSpritesheet = record(manifest, "pet.json")["spritesheetPath"] as string;
   await assertAssets(directory, catalog, codexSpritesheet);
   return { directory, catalog };

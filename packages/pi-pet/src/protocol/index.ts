@@ -4,6 +4,7 @@ export const LIMITS = Object.freeze({
   actionName: 64,
   noteText: 280,
   manifestBytes: 131_072,
+  catalogBytes: 262_144,
   assetBytes: 16 * 1024 * 1024,
   frameCount: 64,
   decodedPixels: 16_000_000,
