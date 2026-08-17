@@ -39,7 +39,6 @@ const REMOTE_COPY_PATTERN = /Buffer\.from\(encoded, "base64"\)/;
 const REMOTE_INSTALL_PATTERN = /\["install", "--ignore-scripts", "--no-audit", "--no-fund"\]/;
 const REMOTE_BUILD_PATTERN = /\["run", "build"\]/;
 const SSH_OPTIONS_PATTERN = /without command options/;
-const SSH_HELPER_PATTERN = /spawn\("ssh", \[target, "node", "-"\]/;
 
 test("desktop config builds the confined GipPity display URL", () => {
   const config = parseDesktopConfig({ schemaVersion: 1, gippityUrl: "https://192.168.0.113:43120/" });
@@ -56,9 +55,8 @@ test("desktop config builds the confined GipPity display URL", () => {
     },
   );
   const spec = remoteDesktopProcessSpec("desktop", config.gippityUrl);
-  assert.equal(spec.program, "node");
-  assert.equal(spec.args[2], "desktop");
-  assert.match(spec.args[1], SSH_HELPER_PATTERN);
+  assert.equal(spec.program, "ssh");
+  assert.deepEqual(spec.args, ["desktop", "node", "-"]);
   assert.match(spec.source, REMOTE_COPY_PATTERN);
   assert.match(spec.source, REMOTE_INSTALL_PATTERN);
   assert.match(spec.source, REMOTE_BUILD_PATTERN);

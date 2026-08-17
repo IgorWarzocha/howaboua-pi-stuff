@@ -10,6 +10,8 @@ import { parseSshTarget } from "./desktop-config.ts";
 const MAX_DIAGNOSTIC_BYTES = 8 * 1024;
 const STOP_TIMEOUT_MS = 3_000;
 const MAX_SOURCE_BYTES = 512 * 1024;
+const SSH_SOURCE_CHUNK_BYTES = 4 * 1024;
+const SSH_SOURCE_CHUNK_DELAY_MS = 10;
 const PACKAGE_ROOT = fileURLToPath(new URL("../", import.meta.url));
 const REMOTE_SOURCE_PATHS = [
   "desktop/build.mjs",
@@ -22,32 +24,6 @@ const REMOTE_SOURCE_PATHS = [
   "src/desktop/main.ts",
   "src/desktop/preload.ts",
 ] as const;
-
-const LOCAL_HELPER = String.raw`
-const { spawn } = require("node:child_process");
-const { createReadStream } = require("node:fs");
-const target = process.argv[1];
-const chunks = [];
-let size = 0;
-let ssh;
-let stopping = false;
-const stop = () => { stopping = true; ssh?.kill(); };
-for (const signal of ["SIGHUP", "SIGINT", "SIGTERM"]) process.on(signal, stop);
-const owner = createReadStream("", { fd: 3, autoClose: false });
-owner.once("end", stop); owner.once("close", stop); owner.once("error", stop); owner.resume();
-process.stdin.on("data", chunk => {
-  size += chunk.length;
-  if (size > 1024 * 1024) { process.stderr.write("Pi Pet bootstrap is too large\n"); process.exit(1); }
-  chunks.push(chunk);
-});
-process.stdin.on("end", () => {
-  if (stopping) { process.exit(0); return; }
-  ssh = spawn("ssh", [target, "node", "-"], { stdio: ["pipe", "inherit", "inherit"], windowsHide: true });
-  ssh.once("error", error => { process.stderr.write(error.message + "\n"); process.exit(1); });
-  ssh.once("exit", code => process.exit(stopping ? 0 : (code ?? 1)));
-  ssh.stdin.end(Buffer.concat(chunks));
-});
-`;
 
 const REMOTE_BOOTSTRAP = String.raw`
 const { spawn, spawnSync } = require("node:child_process");
@@ -175,8 +151,8 @@ main()
 `;
 
 export interface RemoteDesktopProcessSpec {
-  program: "node";
-  args: ["-e", string, string];
+  program: "ssh";
+  args: [string, "node", "-"];
   source: string;
 }
 
@@ -201,8 +177,8 @@ export function remoteDesktopProcessSpec(target: string, gippityUrl: string): Re
   const options = { ...packagedDesktopSource(), gippityUrl: origin };
   const sshTarget = parseSshTarget(target);
   return {
-    program: "node",
-    args: ["-e", LOCAL_HELPER, sshTarget],
+    program: "ssh",
+    args: [sshTarget, "node", "-"],
     source: `const options = ${JSON.stringify(options)};\n${REMOTE_BOOTSTRAP}`,
   };
 }
@@ -215,6 +191,25 @@ interface RemoteDesktopCallbacks {
 function appendBounded(current: string, chunk: Buffer): string {
   const next = current + chunk.toString("utf8");
   return next.length <= MAX_DIAGNOSTIC_BYTES ? next : next.slice(next.length - MAX_DIAGNOSTIC_BYTES);
+}
+
+function sendSource(child: ChildProcessWithoutNullStreams, source: string): void {
+  const payload = Buffer.from(source);
+  let offset = 0;
+  const sendNext = () => {
+    if (!child.stdin.writable) return;
+    if (offset >= payload.length) {
+      child.stdin.end();
+      return;
+    }
+    const nextOffset = Math.min(offset + SSH_SOURCE_CHUNK_BYTES, payload.length);
+    const ready = child.stdin.write(payload.subarray(offset, nextOffset));
+    offset = nextOffset;
+    const resume = () => setTimeout(sendNext, SSH_SOURCE_CHUNK_DELAY_MS);
+    if (ready) resume();
+    else child.stdin.once("drain", resume);
+  };
+  sendNext();
 }
 
 function stopChild(child: ChildProcessWithoutNullStreams): Promise<void> {
@@ -287,7 +282,7 @@ export class RemoteDesktopFleet {
         code === 0 ? undefined : new Error(diagnostics.trim() || `SSH desktop exited ${code ?? "without status"}`);
       this.#finished(target, child, error);
     });
-    child.stdin.end(spec.source);
+    child.once("spawn", () => sendSource(child, spec.source));
   }
 
   async stop(target: string): Promise<void> {
