@@ -4,6 +4,7 @@ This guide is the on-demand entry point for `/pet <request>`. Resolve every rela
 
 ## Route the request
 
+- To import an existing Codex or ChatGPT pet package, read `references/import-existing-pet.md` and follow it instead.
 - For live reactions, action catalogs, one additional animation, or repair of one existing action, continue below.
 - For a complete new character, full atlas repair, nine standard animations, or sixteen look directions, read `hatch/HATCH-GUIDE.md` and follow it instead.
 - To select a pet for the current repository, ensure that durable pet has been rebuilt, write the repository config described below, then tell the user to run `/reload`.
