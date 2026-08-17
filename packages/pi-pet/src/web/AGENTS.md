@@ -1,4 +1,4 @@
 - Keep rendering transport-agnostic: normalized catalog/state in, user intent out.
-- Animation timing comes from manifests; respect reduced motion and never evaluate pet content.
+- Animation timing comes from manifests; Pi Pet remains animated regardless of reduced-motion settings and never evaluates pet content.
 - Verify material UI changes in a real browser at desktop and narrow widths.
 - Browser and native prompts use the same GipPity mini-SDK; do not add a desktop-only conversation transport.

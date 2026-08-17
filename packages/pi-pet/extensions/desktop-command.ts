@@ -54,6 +54,11 @@ function formatStatus(names: string[], fleet: DesktopDeviceFleet): string {
     .join("\n");
 }
 
+function showDevicePhase(context: ExtensionContext | undefined, phases: Map<string, string>): void {
+  const current = [...phases.entries()].at(-1);
+  context?.ui.setStatus("pi-pet-device", current ? `Pi Pet ${current[0]}: ${current[1]}` : undefined);
+}
+
 function authoringCommand(request: string): PetCommand {
   if (Buffer.byteLength(request) > MAX_AUTHORING_REQUEST_BYTES) {
     throw new Error(`Pi Pet authoring request exceeds ${MAX_AUTHORING_REQUEST_BYTES} bytes.`);
@@ -153,6 +158,9 @@ async function executeCommand(
     return;
   }
   if (command.action === "detach") {
+    if (!selected.includes(command.device)) {
+      throw new Error(`Pi Pet device ${command.device} is not attached to this folder.`);
+    }
     const devices = selected.filter((name) => name !== command.device);
     await writeRepositoryPetConfig({ ...project, schemaVersion: 1, devices }, path);
     await fleet.stop(command.device);
@@ -190,12 +198,13 @@ export function registerPetDevices(pi: ExtensionAPI): void {
   const phases = new Map<string, string>();
   const fleet = new DesktopDeviceFleet({
     onPhase(device, phase) {
+      phases.delete(device);
       phases.set(device, phase);
-      context?.ui.setStatus("pi-pet-device", `Pi Pet ${device}: ${phase}`);
+      showDevicePhase(context, phases);
     },
     onExit(device, error) {
       phases.delete(device);
-      if (phases.size === 0) context?.ui.setStatus("pi-pet-device", undefined);
+      showDevicePhase(context, phases);
       if (error && context?.hasUI) context.ui.notify(`Pi Pet device ${device}: ${error.message}`, "warning");
     },
   });

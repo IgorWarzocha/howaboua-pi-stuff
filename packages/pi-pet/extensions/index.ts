@@ -47,7 +47,6 @@ function registerPetRuntime(pi: ExtensionAPI, runtime: PetRuntime): boolean {
     name: "pet_show",
     label: "Pet",
     description: "Show a named reaction on the connected Pi Pet",
-    promptSnippet: "Show a Pi Pet reaction",
     promptGuidelines: ["Use pet_show sparingly; routine task activity animates automatically"],
     parameters: Type.Object({
       action: Type.String({

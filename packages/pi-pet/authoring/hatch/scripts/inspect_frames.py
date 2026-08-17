@@ -138,10 +138,16 @@ def inspect_state(
     if len(files) != expected_count:
         row_errors.append(f"expected {expected_count} frame files for {state}, found {len(files)}")
 
-    if args.require_components and method and method != "components":
-        if method == "stable-slots" and args.allow_stable_slots:
+    if args.require_components:
+        if method == "components":
+            pass
+        elif method == "stable-slots" and args.allow_stable_slots:
             row_warnings.append(
                 f"{state} used extraction method stable-slots; confirm motion playback remains stable and unclipped"
+            )
+        elif method is None:
+            row_errors.append(
+                f"{state} is missing extraction provenance; regenerate the row before requiring components"
             )
         else:
             row_errors.append(

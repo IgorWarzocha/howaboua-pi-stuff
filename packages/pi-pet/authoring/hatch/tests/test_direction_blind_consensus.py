@@ -37,8 +37,22 @@ class DirectionBlindConsensusTest(unittest.TestCase):
             )
             pair = json.loads(output.read_text())["pairs"][0]
 
+            duplicate = subprocess.run(
+                [
+                    sys.executable,
+                    str(COMBINE),
+                    *[argument for _index in range(3) for argument in ("--verdicts", str(paths[0]))],
+                    "--json-out",
+                    str(output),
+                ],
+                capture_output=True,
+                text=True,
+            )
+
         self.assertEqual(pair["A"], "screen-left")
         self.assertEqual(pair["B"], "ambiguous")
+        self.assertNotEqual(duplicate.returncode, 0)
+        self.assertIn("must be distinct", duplicate.stderr)
 
 
 if __name__ == "__main__":

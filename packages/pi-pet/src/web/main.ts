@@ -93,7 +93,6 @@ class PetRenderer {
   #action: PetAction | undefined;
   #drawnFrame: PetAction["frames"][number] | undefined;
   #startedAt = performance.now();
-  #reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
   #timer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(canvas: HTMLCanvasElement) {
@@ -177,12 +176,6 @@ class PetRenderer {
     const action = this.#action;
     if (!action) return;
     const total = action.frames.reduce((sum, animationFrame) => sum + animationFrame.durationMs, 0);
-    if (this.#reducedMotion) {
-      this.#draw(action.frames[0]);
-      const next = action.next;
-      if (!action.loop && next) this.#timer = setTimeout(() => this.show(next), total);
-      return;
-    }
     let elapsed = performance.now() - this.#startedAt;
     if (action.loop) elapsed %= total;
     else if (elapsed >= total) {
@@ -350,9 +343,11 @@ function handlePetState(value: { app?: string; data?: PetState }): void {
   cancelSettle();
   currentAction = next.action;
   currentNote = next.note || "Requested by Pi";
-  if (!previewing) renderer.show(currentAction);
-  elements.actionName.textContent = actionLabel(currentAction);
-  elements.actionNote.textContent = currentNote;
+  if (!previewing) {
+    renderer.show(currentAction);
+    elements.actionName.textContent = actionLabel(currentAction);
+    elements.actionNote.textContent = currentNote;
+  }
 }
 
 function populateActions(next: PetCatalog): void {
@@ -489,8 +484,8 @@ function updateVoice(value: RemoteAudioState): void {
 
 function syncDraft(value: { text?: string }): void {
   if (typeof value.text !== "string") return;
-  elements.promptText.value = value.text;
-  elements.desktopPromptText.value = value.text;
+  if (elements.promptText.value !== value.text) elements.promptText.value = value.text;
+  if (elements.desktopPromptText.value !== value.text) elements.desktopPromptText.value = value.text;
 }
 
 function updateLocalDraft(surface: PromptSurface): void {

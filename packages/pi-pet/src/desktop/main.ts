@@ -187,12 +187,6 @@ async function snooze(window: BrowserWindow, until: Date): Promise<void> {
   scheduleWake(window);
 }
 
-async function wake(window: BrowserWindow): Promise<void> {
-  await updateAttention((current) => ({ ...current, snoozedUntil: null }));
-  scheduleWake(window);
-  window.focus();
-}
-
 async function setQuietMode(window: BrowserWindow, quiet: boolean): Promise<void> {
   await updateAttention((current) => ({ ...current, mode: quiet ? "quiet" : "normal" }));
   await loadDisplay(window, currentDisplayUrl());
@@ -421,33 +415,26 @@ async function createWindow(): Promise<BrowserWindow> {
   return window;
 }
 
-if (app.requestSingleInstanceLock()) {
-  app.on("second-instance", () => {
-    if (mainWindow) void wake(mainWindow).catch(reportDesktopError);
-  });
-  app
-    .whenReady()
-    .then(async () => {
-      Menu.setApplicationMenu(null);
-      watchOwner();
-      configurePermissions();
-      configureCertificateVerification();
-      mainWindow = await createWindow();
-      app.on("activate", () => {
-        if (!mainWindow) {
-          void createWindow().then((window) => {
-            mainWindow = window;
-          });
-        }
-      });
-    })
-    .catch((error: unknown) => {
-      process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-      app.quit();
+app
+  .whenReady()
+  .then(async () => {
+    Menu.setApplicationMenu(null);
+    watchOwner();
+    configurePermissions();
+    configureCertificateVerification();
+    mainWindow = await createWindow();
+    app.on("activate", () => {
+      if (!mainWindow) {
+        void createWindow().then((window) => {
+          mainWindow = window;
+        });
+      }
     });
-} else {
-  app.quit();
-}
+  })
+  .catch((error: unknown) => {
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    app.quit();
+  });
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();

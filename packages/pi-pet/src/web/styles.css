@@ -435,13 +435,6 @@ textarea:focus {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .bubble {
-    animation-duration: 0.01ms;
-    animation-iteration-count: 1;
-  }
-}
-
 html.desktop-shell,
 html.desktop-shell body {
   width: 100%;

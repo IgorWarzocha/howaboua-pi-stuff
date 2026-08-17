@@ -25,7 +25,11 @@ def main() -> None:
     if len(args.verdicts) < 3 or len(args.verdicts) % 2 == 0:
         raise SystemExit("provide an odd number of at least three verdict files")
 
-    reviews = [load_pairs(path) for path in args.verdicts]
+    verdict_paths = [Path(path).expanduser().resolve() for path in args.verdicts]
+    if len(set(verdict_paths)) != len(verdict_paths):
+        raise SystemExit("verdict files must be distinct")
+
+    reviews = [load_pairs(str(path)) for path in verdict_paths]
     pair_ids = set(reviews[0])
     if any(set(review) != pair_ids for review in reviews[1:]):
         raise SystemExit("all verdict files must contain the same pair ids")
