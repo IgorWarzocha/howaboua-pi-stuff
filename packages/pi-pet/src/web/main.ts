@@ -395,10 +395,16 @@ async function submitPrompt(surface: PromptSurface): Promise<void> {
 function updateVoice(value: RemoteAudioState): void {
   const active = value.active === true;
   const busy = value.busy === true;
-  const label = active ? (value.muted ? "Muted" : "Stop voice") : busy ? "Opening…" : "Voice";
+  const failed = value.state === "error";
+  const label = active ? (value.muted ? "Muted" : "Stop voice") : busy ? "Opening…" : failed ? "Voice failed" : "Voice";
   elements.voice.textContent = label;
   elements.desktopVoice.textContent = label;
   elements.voiceState.textContent = value.detail || (active ? value.state || "Voice active" : "Voice idle");
+  if (failed) {
+    const message = value.detail || "Voice failed";
+    elements.promptFeedback.textContent = message;
+    elements.desktopPromptFeedback.textContent = message;
+  }
 }
 
 async function toggleVoice(feedback: HTMLElement): Promise<void> {

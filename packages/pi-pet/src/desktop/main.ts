@@ -127,6 +127,17 @@ function configurePermissions(): void {
   });
 }
 
+function configureCertificateVerification(): void {
+  session.defaultSession.setCertificateVerifyProc((request, callback) => {
+    const configuredHost = desktopConfig ? new URL(desktopConfig.gippityUrl).hostname : undefined;
+    const authorityInvalid =
+      request.errorCode === -202 ||
+      request.verificationResult === "CERT_AUTHORITY_INVALID" ||
+      request.verificationResult === "net::ERR_CERT_AUTHORITY_INVALID";
+    callback(request.hostname === configuredHost && authorityInvalid ? 0 : request.errorCode);
+  });
+}
+
 app.on("certificate-error", (event, _webContents, url, error, _certificate, callback) => {
   try {
     if (
@@ -418,6 +429,7 @@ if (app.requestSingleInstanceLock()) {
       Menu.setApplicationMenu(null);
       watchOwner();
       configurePermissions();
+      configureCertificateVerification();
       mainWindow = await createWindow();
       app.on("activate", () => {
         if (!mainWindow) {
