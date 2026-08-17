@@ -8,6 +8,7 @@ import { parseSshTarget } from "./desktop-config.ts";
 
 const MAX_DIAGNOSTIC_BYTES = 8 * 1024;
 const STOP_TIMEOUT_MS = 3_000;
+const READY_TIMEOUT_MS = 15 * 60 * 1_000;
 const MAX_SOURCE_BYTES = 512 * 1024;
 const SSH_SOURCE_CHUNK_BYTES = 4 * 1024;
 const SSH_SOURCE_CHUNK_DELAY_MS = 10;
@@ -46,19 +47,32 @@ const stop = () => {
   if (stopping) return;
   stopping = true;
   clearInterval(heartbeat);
-  activeChild?.kill();
-  stopTimer = setTimeout(() => { activeChild?.kill("SIGKILL"); process.exit(0); }, 3000);
+  const child = activeChild;
+  signalTree(child, "SIGTERM");
+  stopTimer = setTimeout(() => { signalTree(child, "SIGKILL"); process.exit(0); }, 3000);
 };
 for (const signal of ["SIGHUP", "SIGINT", "SIGTERM"]) process.on(signal, stop);
 process.stdout.once("close", stop);
 process.stdout.once("error", stop);
+function signalTree(child, signal) {
+  if (!child?.pid) return;
+  if (process.platform === "win32") {
+    const args = ["/pid", String(child.pid), "/t"];
+    if (signal === "SIGKILL") args.push("/f");
+    spawnSync("taskkill", args, { stdio: "ignore", windowsHide: true });
+    return;
+  }
+  try { process.kill(-child.pid, signal); } catch { child.kill(signal); }
+}
 function run(command, args, cwd) {
   return new Promise((resolve, reject) => {
     let errorText = "";
-    const child = spawn(command, args, { cwd, stdio: ["ignore", "ignore", "pipe"], windowsHide: true });
+    const child = spawn(command, args, {
+      cwd, stdio: ["ignore", "ignore", "pipe"], windowsHide: true, detached: process.platform !== "win32",
+    });
     activeChild = child;
     child.stderr.on("data", chunk => { errorText = bounded(errorText + chunk.toString("utf8")); });
-    child.once("error", reject);
+    child.once("error", error => { if (activeChild === child) activeChild = undefined; reject(error); });
     child.once("exit", code => {
       if (activeChild === child) activeChild = undefined;
       if (code === 0) resolve();
@@ -134,7 +148,6 @@ async function main() {
     }) + "\n", { mode: 0o600 });
   }
   if (stopping) return;
-  emit("run");
   const requireFromDesktop = createRequire(join(desktop, "package.json"));
   const electron = requireFromDesktop("electron");
   await new Promise((resolve, reject) => {
@@ -143,8 +156,10 @@ async function main() {
       env: { ...graphicalEnvironment(), PI_PET_GIPPITY_URL: displayGippityUrl(), PI_PET_OWNER_FD: "3" },
       stdio: ["ignore", "inherit", "inherit", "pipe"],
       windowsHide: true,
+      detached: process.platform !== "win32",
     });
     activeChild = child;
+    child.once("spawn", () => emit("run"));
     child.once("error", reject);
     child.once("exit", code => {
       if (activeChild === child) activeChild = undefined;
@@ -262,9 +277,38 @@ export class RemoteDesktopFleet {
     this.#children.set(target, child);
     let diagnostics = "";
     let output = "";
+    let ready = false;
+    let rejectReady: (error: Error) => void = () => undefined;
+    let resolveReady: () => void = () => undefined;
+    const readiness = new Promise<void>((resolvePromise, rejectPromise) => {
+      resolveReady = resolvePromise;
+      rejectReady = rejectPromise;
+    });
+    const timer = setTimeout(() => {
+      const error = new Error(`Pi Pet desktop ${target} did not start within 15 minutes.`);
+      void this.stop(target).finally(() => rejectReady(error));
+    }, READY_TIMEOUT_MS);
+    timer.unref();
     child.stderr.on("data", (chunk: Buffer) => {
       diagnostics = appendBounded(diagnostics, chunk);
     });
+    child.stdin.on("error", (error: Error) => {
+      diagnostics = appendBounded(diagnostics, Buffer.from(error.message));
+    });
+    const handleOutputLine = (line: string) => {
+      try {
+        const event = JSON.parse(line) as { type?: unknown; phase?: unknown };
+        if (event.type !== "phase" || typeof event.phase !== "string") return;
+        this.#callbacks.onPhase(target, event.phase);
+        if (event.phase === "run" && !ready) {
+          ready = true;
+          clearTimeout(timer);
+          resolveReady();
+        }
+      } catch {
+        diagnostics = appendBounded(diagnostics, Buffer.from(line));
+      }
+    };
     child.stdout.setEncoding("utf8");
     child.stdout.on("data", (chunk: string) => {
       output += chunk;
@@ -272,23 +316,27 @@ export class RemoteDesktopFleet {
       while (newline >= 0) {
         const line = output.slice(0, newline);
         output = output.slice(newline + 1);
-        try {
-          const event = JSON.parse(line) as { type?: unknown; phase?: unknown };
-          if (event.type === "phase" && typeof event.phase === "string") this.#callbacks.onPhase(target, event.phase);
-        } catch {
-          diagnostics = appendBounded(diagnostics, Buffer.from(line));
-        }
+        handleOutputLine(line);
         newline = output.indexOf("\n");
       }
       if (output.length > MAX_DIAGNOSTIC_BYTES) output = output.slice(-MAX_DIAGNOSTIC_BYTES);
     });
-    child.once("error", (error) => this.#finished(target, child, error));
+    child.once("error", (error) => {
+      clearTimeout(timer);
+      this.#finished(target, child, ready ? error : undefined);
+      if (!ready) rejectReady(error || new Error(`SSH desktop ${target} exited before it was ready.`));
+    });
     child.once("exit", (code) => {
       const error =
-        code === 0 ? undefined : new Error(diagnostics.trim() || `SSH desktop exited ${code ?? "without status"}`);
-      this.#finished(target, child, error);
+        code === 0 && ready
+          ? undefined
+          : new Error(diagnostics.trim() || `SSH desktop exited ${code ?? "without status"} before it was ready`);
+      clearTimeout(timer);
+      this.#finished(target, child, ready ? error : undefined);
+      if (!ready) rejectReady(error || new Error(`SSH desktop ${target} exited before it was ready.`));
     });
     child.once("spawn", () => sendSource(child, spec.source));
+    await readiness;
   }
 
   async stop(target: string): Promise<void> {
@@ -296,6 +344,7 @@ export class RemoteDesktopFleet {
     if (!child) return;
     this.#children.delete(target);
     await stopChild(child);
+    this.#callbacks.onExit(target);
   }
 
   async stopAll(): Promise<void> {

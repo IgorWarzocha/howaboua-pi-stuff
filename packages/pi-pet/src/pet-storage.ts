@@ -1,7 +1,9 @@
+import { randomUUID } from "node:crypto";
 import { copyFileSync, lstatSync, mkdirSync, readFileSync, statSync } from "node:fs";
 import { cp, mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { loadPet } from "./pet-loader.ts";
 import { LIMITS, type PetCatalog, parseActionName } from "./protocol/index.ts";
 
 const CONFIG_BYTES = 16 * 1024;
@@ -67,7 +69,7 @@ export async function writePetStorageConfig(config: PetStorageConfig, dataRoot =
   const normalized = parsePetStorageConfig(config);
   const path = join(dataRoot, "config.json");
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-  const temporary = `${path}.${process.pid}.tmp`;
+  const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`;
   try {
     await rm(temporary, { force: true });
     await writeFile(temporary, `${JSON.stringify(normalized, null, 2)}\n`, { mode: 0o600, flag: "wx" });
@@ -86,17 +88,29 @@ export async function prepareUserPet(
   const id = parseActionName(petId, "pet id");
   const source = join(packageRoot, "pets", id);
   const destination = join(dataRoot, "pets", id);
+  let exists = true;
   try {
     const info = lstatSync(destination);
     if (!info.isDirectory() || info.isSymbolicLink())
       throw new Error(`User pet path is not a directory: ${destination}`);
-    return destination;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    exists = false;
+  }
+  if (exists) {
+    await loadPet(join(dataRoot, "pets"), id);
+    return destination;
   }
   await mkdir(dirname(destination), { recursive: true, mode: 0o700 });
-  await cp(source, destination, { recursive: true, errorOnExist: true, force: false });
-  return destination;
+  const temporary = `${destination}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    await cp(source, temporary, { recursive: true, errorOnExist: true, force: false });
+    await rename(temporary, destination);
+    return destination;
+  } catch (error) {
+    await rm(temporary, { recursive: true, force: true });
+    throw error;
+  }
 }
 
 function readCatalog(path: string): PetCatalog {

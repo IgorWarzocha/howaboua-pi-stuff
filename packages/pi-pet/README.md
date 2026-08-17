@@ -45,6 +45,8 @@ Pi Pet starts GipPity for the active Pi session, uses its saved LAN settings, an
 
 Every later Pi instance starts its attached displays automatically. Attach more SSH aliases with the same command, inspect them with `/pet status`, relaunch with `/pet restart`, or remove one with `/pet detach desktop`. SSH options, keys, proxies, and host routing stay in `~/.ssh/config`.
 
+If attachment or a remote build fails, Pi reports the failing phase and error. Ask Pi to diagnose and repair `~/.pi/agent/pi-pet` on that display; no application reinstall or directory reset is normally needed.
+
 Electron accepts GipPity's self-signed certificate only for the configured origin. The source-only `desktop/` package is also directly runnable with `npm install`, `npm run build`, and `npm start` from a source checkout.
 
 ## Pet authoring

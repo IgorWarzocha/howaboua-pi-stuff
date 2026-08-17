@@ -291,9 +291,11 @@ function handleActivity(value: { state?: string; text?: string }): void {
     activity = "working";
     if (!explicitReaction) show("running", "Pi is working", "working");
   } else if (value.state === "settled") {
+    activeTools.clear();
     explicitReaction = false;
     settle(value.text);
   } else if (value.state === "idle") {
+    activeTools.clear();
     explicitReaction = false;
     show(catalog.defaultAction, "Following the active Pi session", "idle");
   }
@@ -529,7 +531,10 @@ async function start(): Promise<void> {
   remote = window.GippityRemote.connect();
   remote.on("connection", (value: { state?: string }) => {
     const online = value.state === "connected";
-    if (online) stateRevision = -1;
+    if (online) {
+      stateRevision = -1;
+      activeTools.clear();
+    }
     setConnection(online, online ? "Live" : "Reconnecting");
   });
   remote.on("activity", handleActivity);
