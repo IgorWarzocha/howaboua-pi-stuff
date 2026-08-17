@@ -12,13 +12,13 @@ This guide is the on-demand entry point for `/pet <request>`. Resolve every rela
 
 ## Repository selection
 
-The project Pi config directory is normally `.pi/`. Write `pi-pet.json` there with only:
+The project Pi config directory is normally `.pi/`. Write or update `pi-pet.json` there:
 
 ```json
 { "schemaVersion": 1, "pet": "<pet-id>" }
 ```
 
-This selects an existing durable pet without copying assets into the repository. Repository selection overrides the global default; a missing repository selection uses the global default, then bundled Clawa. Do not claim success until `<pi-agent-directory>/pi-pet/web/<pet-id>/catalog.json` exists; if needed, rebuild that pet first.
+This selects an existing durable pet without copying assets into the repository. Preserve an existing `devices` array exactly when changing only the pet; `/pet attach` and `/pet detach` own device selection. Repository selection overrides the global default; a missing repository selection uses the global default, then bundled Clawa. Do not claim success until `<pi-agent-directory>/pi-pet/web/<pet-id>/catalog.json` exists; if needed, rebuild that pet first.
 
 ## Live control
 
@@ -26,7 +26,7 @@ This selects an existing durable pet without copying assets into the repository.
 2. Read the active pet's `PET.md` and manifests before choosing an unfamiliar action.
 3. Unknown actions are a data-authoring task. Do not guess aliases repeatedly.
 
-The bundled actions are `idle`, `running-right`, `running-left`, `waving`, `jumping`, `failed`, `waiting`, `running`, and `review`. Semantic aliases include `active→running`, `working→running`, `thinking→running`, `settled→review`, `success→jumping`, `error→failed`, and `hello→waving`. Sixteen pointer-direction poses are display-owned and are not agent actions.
+The bundled actions are `idle`, `running-right`, `running-left`, `waving`, `jumping`, `failed`, `waiting`, `running`, and `review`. Semantic aliases include `active→running`, `working→running`, `thinking→running`, `settled→review`, `success→jumping`, `error→failed`, and `hello→waving`. Sixteen pointer-direction poses are renderer-owned and are not agent actions.
 
 ## Extend a pet
 
@@ -48,7 +48,7 @@ npm run pet:validate -- <absolute-user-pet-directory>
 npm run pet:rebuild -- <pet-id>
 ```
 
-The rebuild writes the generated miniapp under the durable Pi Pet directory and makes that pet the global default; it never modifies the npm package. A repository selection still takes precedence. The running extension keeps its catalog in memory, so after a successful rebuild tell the user to run `/reload`; slash commands are user actions. Reloading Pi resolves the repository, global, then bundled selection and restarts configured Electron displays. A separately opened browser display may also need a page refresh. Only then exercise new or repaired actions with `pet_show`.
+The rebuild writes the generated miniapp under the durable Pi Pet directory and makes that pet the global default; it never modifies the npm package. A repository selection still takes precedence. The running extension keeps its catalog in memory, so after a successful rebuild tell the user to run `/reload`; slash commands are user actions. Reloading Pi resolves the repository, global, then bundled selection and restarts the folder's configured Electron devices. A separately opened browser window may also need a page refresh. Only then exercise new or repaired actions with `pet_show`.
 
 ## Boundaries
 

@@ -4,13 +4,8 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import {
-  parseRemoteDesktopConfig,
-  parseSshTarget,
-  readRemoteDesktopConfig,
-  writeRemoteDesktopConfig,
-} from "../extensions/desktop-config.ts";
-import { remoteDesktopProcessSpec } from "../extensions/desktop-launcher.ts";
+import { parseDeviceRegistry, readDeviceRegistry, writeDeviceRegistry } from "../extensions/desktop-config.ts";
+import { localDesktopProcessSpec, remoteDesktopProcessSpec } from "../extensions/desktop-launcher.ts";
 import {
   defaultAttentionPreferences,
   parseAttentionPreferences,
@@ -18,13 +13,14 @@ import {
   snoozeUntilTomorrow,
 } from "../src/desktop/attention.ts";
 import { parseDesktopCursorPosition } from "../src/desktop/bridge.ts";
-import { desktopDisplayUrl, loadDesktopConfig, parseDesktopConfig } from "../src/desktop/config.ts";
+import { desktopDisplayUrl, loadDesktopConfig, parseDesktopConfig, parseSshTarget } from "../src/desktop/config.ts";
 import {
   hyprlandCursorSocket,
   parseHyprlandClientBounds,
   parseHyprlandCursorResponse,
   readHyprlandCursor,
 } from "../src/desktop/cursor-provider.ts";
+import { readRepositoryPetConfig, writeRepositoryPetConfig } from "../src/pet-storage.ts";
 
 const HTTPS_ORIGIN_PATTERN = /HTTPS origin/;
 const PATH_PATTERN = /must not contain a path/;
@@ -46,18 +42,34 @@ test("desktop config builds the confined GipPity display URL", () => {
   assert.equal(url.hash, "");
   assert.equal(new URL(desktopDisplayUrl(config, "quiet")).searchParams.get("attention"), "quiet");
   assert.deepEqual(
-    parseRemoteDesktopConfig({
+    parseDeviceRegistry({
       schemaVersion: 1,
-      displays: { desktop: {}, overridden: { gippityUrl: config.gippityUrl } },
-    }).displays,
+      devices: {
+        local: { kind: "local" },
+        overridden: { kind: "ssh", target: "desktop", gippityUrl: config.gippityUrl },
+      },
+      defaultDevices: ["local"],
+    }),
     {
-      desktop: {},
-      overridden: { gippityUrl: "https://192.168.0.113:43120" },
+      schemaVersion: 1,
+      devices: {
+        local: { kind: "local" },
+        overridden: { kind: "ssh", target: "desktop", gippityUrl: "https://192.168.0.113:43120" },
+      },
+      defaultDevices: ["local"],
     },
   );
+  assert.deepEqual(parseDeviceRegistry({ schemaVersion: 1, displays: { desktop: {} } }), {
+    schemaVersion: 1,
+    devices: { desktop: { kind: "ssh", target: "desktop" } },
+    defaultDevices: ["desktop"],
+  });
   const spec = remoteDesktopProcessSpec("desktop", config.gippityUrl);
   assert.equal(spec.program, "ssh");
   assert.deepEqual(spec.args, ["desktop", "node", "-"]);
+  const localSpec = localDesktopProcessSpec(config.gippityUrl);
+  assert.equal(localSpec.program, process.execPath);
+  assert.deepEqual(localSpec.args, ["-"]);
   assert.throws(() => parseSshTarget("-oProxyCommand=nope"), SSH_OPTIONS_PATTERN);
 });
 
@@ -155,13 +167,24 @@ test("desktop config loads a bounded local file", async () => {
   const path = join(root, "config.json");
   await writeFile(path, JSON.stringify({ schemaVersion: 1, gippityUrl: "https://127.0.0.1:43120" }), { mode: 0o600 });
   assert.equal((await loadDesktopConfig(path, {})).gippityUrl, "https://127.0.0.1:43120");
-  const remotePath = join(root, "pi-pet.json");
-  await writeRemoteDesktopConfig(
-    { schemaVersion: 1, displays: { desktop: { gippityUrl: "https://127.0.0.1:43120" } } },
-    remotePath,
+  const registryPath = join(root, "pi-pet.json");
+  await writeDeviceRegistry(
+    {
+      schemaVersion: 1,
+      devices: { desktop: { kind: "ssh", target: "desktop", gippityUrl: "https://127.0.0.1:43120" } },
+      defaultDevices: [],
+    },
+    registryPath,
   );
-  assert.deepEqual((await readRemoteDesktopConfig(remotePath)).displays, {
-    desktop: { gippityUrl: "https://127.0.0.1:43120" },
+  assert.deepEqual((await readDeviceRegistry(registryPath)).devices, {
+    desktop: { kind: "ssh", target: "desktop", gippityUrl: "https://127.0.0.1:43120" },
+  });
+  const projectPath = join(root, ".pi", "pi-pet.json");
+  await writeRepositoryPetConfig({ schemaVersion: 1, pet: "clawa", devices: ["local", "desktop"] }, projectPath);
+  assert.deepEqual(readRepositoryPetConfig(projectPath), {
+    schemaVersion: 1,
+    pet: "clawa",
+    devices: ["local", "desktop"],
   });
   if (process.platform !== "win32") {
     await chmod(path, 0o644);

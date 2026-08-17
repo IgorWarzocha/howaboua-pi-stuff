@@ -3,8 +3,11 @@
 ```mermaid
 flowchart LR
     Pi[Pi session] --> G[GipPity Control]
-    Pi --> SSH[Owned SSH command]
-    SSH --> Build[Versioned source + build in ~/.pi/agent/pi-pet]
+    Pi --> Route[Folder device selection]
+    Route --> Local[Owned local Node child]
+    Route --> SSH[Owned SSH command]
+    Local --> Build[Versioned source + build in ~/.pi/agent/pi-pet]
+    SSH --> Build
     Build --> Electron[Transparent Electron shell]
     G --> SDK[GipPity Remote mini-SDK]
     SDK --> Web[Pi Pet web miniapp]
@@ -17,7 +20,7 @@ flowchart LR
 ## Ownership
 
 - GipPity owns the HTTPS server, active Pi session, browser events, prompts, drafts, voice, reconnection, and namespaced static delivery under `/_gippity/apps/pi-pet/`.
-- `extensions/` registers Pi Pet's built web root and one bounded reaction snapshot through GipPity's remote-app bridge. It also owns configured SSH display processes for exactly the lifetime of Pi.
+- `extensions/` registers Pi Pet's built web root and one bounded reaction snapshot through GipPity's remote-app bridge. It also owns each folder-selected local or SSH device process for exactly the lifetime of that Pi session.
 - `src/web/` owns catalog loading, canvas animation, pointer direction, local previews, prompt presentation, and voice controls. It uses only the hosted `GippityRemote` SDK.
 - `src/desktop/` owns the transparent native window, local attention preferences, navigation confinement, and a cursor-only sandboxed preload.
 - `src/protocol/` owns pet/catalog and reaction-state shapes.
@@ -25,7 +28,7 @@ flowchart LR
 - `src/pet-storage.ts` selects durable user pets from the Pi agent directory and falls back visibly to the bundled pet.
 - `authoring/` is read on demand through free-form `/pet` requests; it is shipped as package data, not registered as an always-visible skill.
 
-An attached display keeps Pi Pet at `~/.pi/agent/pi-pet` without installing an application. The SSH command compares its build record with the version and source digest of the package loaded by Pi. A mismatch updates the source and runs npm install and build; a match starts the existing build directly. Closing the SSH owner closes Electron through an inherited pipe but leaves the source and build for the next Pi session.
+An attached device keeps Pi Pet at `~/.pi/agent/pi-pet` without installing an application. The direct local child or SSH command compares its build record with the version and source digest of the package loaded by Pi. A mismatch updates the source and runs npm install and build; a match starts the existing build directly. Closing its Pi owner closes Electron through an inherited pipe but leaves the source and build for the next Pi session.
 
 ## State flow
 
@@ -35,4 +38,4 @@ GipPity sends its retained `idle`, `working`, and `settled` activity plus ordina
 
 ## Pet flow
 
-The npm package's `pets/` directory contains templates. Authoring copies and modifies pets under `<pi-agent-directory>/pi-pet/pets/`, keeps generation evidence under `runs/`, and writes each validated miniapp under `web/<pet-id>/`. Global `config.json` selects the default pet; project `<config-directory>/pi-pet.json` may override it by ID without duplicating assets. On reload the extension serves the repository selection, global default, or bundled Clawa in that order while refreshing the web shell from the installed package. Invalid higher-precedence state reports a warning before falling through.
+The npm package's `pets/` directory contains templates. Authoring copies and modifies pets under `<pi-agent-directory>/pi-pet/pets/`, keeps generation evidence under `runs/`, and writes each validated miniapp under `web/<pet-id>/`. Global `config.json` selects the default pet; project `<config-directory>/pi-pet.json` may override it by ID without duplicating assets. The adjacent global `pi-pet.json` registers reusable device definitions, while the project config selects which devices receive sessions from that folder. On reload the extension serves the repository selection, global default, or bundled Clawa in that order and starts only the folder's selected devices. Invalid higher-precedence state is reported visibly.

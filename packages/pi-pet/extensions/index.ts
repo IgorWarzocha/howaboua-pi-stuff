@@ -5,7 +5,7 @@ import { Container, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { type PetRuntime, resolvePetRuntime } from "../src/pet-storage.ts";
 import { type PetCatalog, type PetState, parseActionName, parseNote } from "../src/protocol/index.ts";
-import { registerRemoteDesktops } from "./desktop-command.ts";
+import { registerPetDevices } from "./desktop-command.ts";
 import { GIPPITY_REQUIRED_TOOL_MESSAGE, GIPPITY_REQUIRED_USER_MESSAGE } from "./gippity.ts";
 import { registerRemoteApp } from "./remote-app.ts";
 
@@ -99,7 +99,7 @@ function registerPetRuntime(pi: ExtensionAPI, runtime: PetRuntime): boolean {
 }
 
 export default function piPetExtension(pi: ExtensionAPI): void {
-  registerRemoteDesktops(pi);
+  registerPetDevices(pi);
   pi.on("session_start", (_event, ctx) => {
     const resolution = resolvePetRuntime(packageRoot, join(ctx.cwd, CONFIG_DIR_NAME, "pi-pet.json"));
     for (const warning of resolution.warnings) {

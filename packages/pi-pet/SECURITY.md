@@ -12,8 +12,8 @@ Pi Pet adds no listener, credential store, prompt endpoint, or remote session ow
 
 ## Electron
 
-- Attached displays are reached only through the user's existing SSH authentication and host configuration. Pi Pet passes a bounded Node bootstrap over SSH stdin; SSH targets cannot contain command options.
-- The extension copies a fixed, bounded set of desktop source files from its own installed package into `~/.pi/agent/pi-pet` on the display. It records the package version and source digest only after a successful npm build, reuses matching builds, and leaves the directory in place when Electron exits. An SSH heartbeat closes Electron on channel loss. It creates no login item, service, or application installation.
+- Remote devices are reached only through the user's existing SSH authentication and host configuration. Pi Pet passes a bounded Node bootstrap over SSH stdin; SSH targets cannot contain command options. The same bootstrap runs as a direct child on the device running Pi.
+- The extension copies a fixed, bounded set of desktop source files from its own installed package into `~/.pi/agent/pi-pet` on the device. It records the package version and source digest only after a successful npm build, reuses matching builds, and leaves the directory in place when Electron exits. An owner heartbeat closes Electron when its local or SSH channel ends. It creates no login item, service, or application installation.
 - Dependency lifecycle scripts stay disabled. The npm build downloads the pinned Electron package's official current-platform archive and verifies the checksum bundled with that exact package before extraction. npm and Electron download caches remain governed by those tools.
 - The configured GipPity URL must be a credential-free HTTPS origin.
 - GipPity's self-signed certificate is accepted only for that exact configured origin and only for an unknown-authority error.

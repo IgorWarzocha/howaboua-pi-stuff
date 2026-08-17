@@ -1,19 +1,20 @@
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseDesktopConfig } from "../src/desktop/config.ts";
-import { parseSshTarget } from "./desktop-config.ts";
+import { parseDesktopConfig, parseSshTarget } from "../src/desktop/config.ts";
+import type { PetDevice } from "./desktop-config.ts";
 
 const MAX_DIAGNOSTIC_BYTES = 8 * 1024;
 const STOP_TIMEOUT_MS = 3_000;
 const READY_TIMEOUT_MS = 15 * 60 * 1_000;
 const MAX_SOURCE_BYTES = 512 * 1024;
-const SSH_SOURCE_CHUNK_BYTES = 4 * 1024;
-const SSH_SOURCE_CHUNK_DELAY_MS = 10;
+const SOURCE_CHUNK_BYTES = 4 * 1024;
+const SOURCE_CHUNK_DELAY_MS = 10;
 const PACKAGE_ROOT = fileURLToPath(new URL("../", import.meta.url));
-const REMOTE_SOURCE_PATHS = [
+const DESKTOP_SOURCE_PATHS = [
   "desktop/build.mjs",
   "desktop/package-lock.json",
   "desktop/package.json",
@@ -120,7 +121,7 @@ async function buildIsCurrent(marker, desktop) {
   }
 }
 async function main() {
-  const root = join(homedir(), ".pi", "agent", "pi-pet");
+  const root = options.applicationRoot || join(homedir(), ".pi", "agent", "pi-pet");
   const desktop = join(root, "desktop");
   const marker = join(root, ".build.json");
   await mkdir(root, { recursive: true, mode: 0o700 });
@@ -137,7 +138,7 @@ async function main() {
     if (stopping) return;
     const npm = process.platform === "win32" ? "npm.cmd" : "npm";
     emit("install");
-    await run(npm, ["install", "--ignore-scripts", "--no-audit", "--no-fund"], desktop);
+    await run(npm, ["install", "--include=dev", "--ignore-scripts", "--no-audit", "--no-fund"], desktop);
     if (stopping) return;
     emit("build");
     await run(npm, ["run", "build"], desktop);
@@ -174,9 +175,9 @@ main()
   .finally(() => { clearInterval(heartbeat); clearTimeout(stopTimer); });
 `;
 
-export interface RemoteDesktopProcessSpec {
-  program: "ssh";
-  args: [string, "node", "-"];
+export interface DesktopProcessSpec {
+  program: string;
+  args: string[];
   source: string;
 }
 
@@ -184,7 +185,7 @@ function packagedDesktopSource(): { files: Record<string, string>; packageVersio
   const files: Record<string, string> = {};
   const digest = createHash("sha256");
   let size = 0;
-  for (const path of REMOTE_SOURCE_PATHS) {
+  for (const path of DESKTOP_SOURCE_PATHS) {
     const contents = readFileSync(join(PACKAGE_ROOT, path));
     size += contents.length;
     if (size > MAX_SOURCE_BYTES) throw new Error("Pi Pet desktop source is unexpectedly large.");
@@ -200,20 +201,35 @@ export function remoteDesktopProcessSpec(
   target: string,
   gippityUrl: string,
   useSshSourceAddress = false,
-): RemoteDesktopProcessSpec {
+): DesktopProcessSpec {
   const origin = parseDesktopConfig({ schemaVersion: 1, gippityUrl }).gippityUrl;
   const options = { ...packagedDesktopSource(), gippityUrl: origin, useSshSourceAddress };
-  const sshTarget = parseSshTarget(target);
   return {
     program: "ssh",
-    args: [sshTarget, "node", "-"],
+    args: [parseSshTarget(target), "node", "-"],
     source: `const options = ${JSON.stringify(options)};\n${REMOTE_BOOTSTRAP}`,
   };
 }
 
-interface RemoteDesktopCallbacks {
-  onExit(target: string, error?: Error): void;
-  onPhase(target: string, phase: string): void;
+export function localDesktopProcessSpec(gippityUrl: string): DesktopProcessSpec {
+  const origin = parseDesktopConfig({ schemaVersion: 1, gippityUrl }).gippityUrl;
+  const agentDirectory = process.env["PI_CODING_AGENT_DIR"]?.trim() || join(homedir(), ".pi", "agent");
+  const options = {
+    ...packagedDesktopSource(),
+    gippityUrl: origin,
+    useSshSourceAddress: false,
+    applicationRoot: join(agentDirectory, "pi-pet"),
+  };
+  return {
+    program: process.execPath,
+    args: ["-"],
+    source: `const options = ${JSON.stringify(options)};\n${REMOTE_BOOTSTRAP}`,
+  };
+}
+
+interface DesktopDeviceCallbacks {
+  onExit(device: string, error?: Error): void;
+  onPhase(device: string, phase: string): void;
 }
 
 function appendBounded(current: string, chunk: Buffer): string {
@@ -230,10 +246,10 @@ function sendSource(child: ChildProcessWithoutNullStreams, source: string): void
       child.stdin.end();
       return;
     }
-    const nextOffset = Math.min(offset + SSH_SOURCE_CHUNK_BYTES, payload.length);
+    const nextOffset = Math.min(offset + SOURCE_CHUNK_BYTES, payload.length);
     const ready = child.stdin.write(payload.subarray(offset, nextOffset));
     offset = nextOffset;
-    const resume = () => setTimeout(sendNext, SSH_SOURCE_CHUNK_DELAY_MS);
+    const resume = () => setTimeout(sendNext, SOURCE_CHUNK_DELAY_MS);
     if (ready) resume();
     else child.stdin.once("drain", resume);
   };
@@ -256,26 +272,30 @@ function stopChild(child: ChildProcessWithoutNullStreams): Promise<void> {
   });
 }
 
-export class RemoteDesktopFleet {
-  readonly #callbacks: RemoteDesktopCallbacks;
+export class DesktopDeviceFleet {
+  readonly #callbacks: DesktopDeviceCallbacks;
   readonly #children = new Map<string, ChildProcessWithoutNullStreams>();
 
-  constructor(callbacks: RemoteDesktopCallbacks) {
+  constructor(callbacks: DesktopDeviceCallbacks) {
     this.#callbacks = callbacks;
   }
 
-  targets(): string[] {
+  deviceNames(): string[] {
     return [...this.#children.keys()].sort();
   }
 
-  async start(target: string, gippityUrl: string, useSshSourceAddress = false): Promise<void> {
-    await this.stop(target);
-    const spec = remoteDesktopProcessSpec(target, gippityUrl, useSshSourceAddress);
+  async start(name: string, device: PetDevice, automaticUrl: string): Promise<void> {
+    await this.stop(name);
+    const gippityUrl = device.gippityUrl ?? automaticUrl;
+    const spec =
+      device.kind === "local"
+        ? localDesktopProcessSpec(gippityUrl)
+        : remoteDesktopProcessSpec(device.target, gippityUrl, !device.gippityUrl);
     const child = spawn(spec.program, spec.args, {
       stdio: ["pipe", "pipe", "pipe", "pipe"],
       windowsHide: true,
     });
-    this.#children.set(target, child);
+    this.#children.set(name, child);
     let diagnostics = "";
     let output = "";
     let ready = false;
@@ -286,8 +306,8 @@ export class RemoteDesktopFleet {
       rejectReady = rejectPromise;
     });
     const timer = setTimeout(() => {
-      const error = new Error(`Pi Pet desktop ${target} did not start within 15 minutes.`);
-      void this.stop(target).finally(() => rejectReady(error));
+      const error = new Error(`Pi Pet device ${name} did not start within 15 minutes.`);
+      void this.stop(name).finally(() => rejectReady(error));
     }, READY_TIMEOUT_MS);
     timer.unref();
     child.stderr.on("data", (chunk: Buffer) => {
@@ -300,7 +320,7 @@ export class RemoteDesktopFleet {
       try {
         const event = JSON.parse(line) as { type?: unknown; phase?: unknown };
         if (event.type !== "phase" || typeof event.phase !== "string") return;
-        this.#callbacks.onPhase(target, event.phase);
+        this.#callbacks.onPhase(name, event.phase);
         if (event.phase === "run" && !ready) {
           ready = true;
           clearTimeout(timer);
@@ -324,37 +344,37 @@ export class RemoteDesktopFleet {
     });
     child.once("error", (error) => {
       clearTimeout(timer);
-      this.#finished(target, child, ready ? error : undefined);
-      if (!ready) rejectReady(error || new Error(`SSH desktop ${target} exited before it was ready.`));
+      this.#finished(name, child, ready ? error : undefined);
+      if (!ready) rejectReady(error || new Error(`Pi Pet device ${name} exited before it was ready.`));
     });
     child.once("exit", (code) => {
       const error =
         code === 0 && ready
           ? undefined
-          : new Error(diagnostics.trim() || `SSH desktop exited ${code ?? "without status"} before it was ready`);
+          : new Error(diagnostics.trim() || `Pi Pet device exited ${code ?? "without status"} before it was ready`);
       clearTimeout(timer);
-      this.#finished(target, child, ready ? error : undefined);
-      if (!ready) rejectReady(error || new Error(`SSH desktop ${target} exited before it was ready.`));
+      this.#finished(name, child, ready ? error : undefined);
+      if (!ready) rejectReady(error || new Error(`Pi Pet device ${name} exited before it was ready.`));
     });
     child.once("spawn", () => sendSource(child, spec.source));
     await readiness;
   }
 
-  async stop(target: string): Promise<void> {
-    const child = this.#children.get(target);
+  async stop(name: string): Promise<void> {
+    const child = this.#children.get(name);
     if (!child) return;
-    this.#children.delete(target);
+    this.#children.delete(name);
     await stopChild(child);
-    this.#callbacks.onExit(target);
+    this.#callbacks.onExit(name);
   }
 
   async stopAll(): Promise<void> {
-    await Promise.all([...this.#children.keys()].map((target) => this.stop(target)));
+    await Promise.all([...this.#children.keys()].map((name) => this.stop(name)));
   }
 
-  #finished(target: string, child: ChildProcessWithoutNullStreams, error?: Error): void {
-    if (this.#children.get(target) !== child) return;
-    this.#children.delete(target);
-    this.#callbacks.onExit(target, error);
+  #finished(name: string, child: ChildProcessWithoutNullStreams, error?: Error): void {
+    if (this.#children.get(name) !== child) return;
+    this.#children.delete(name);
+    this.#callbacks.onExit(name, error);
   }
 }

@@ -10,6 +10,25 @@ export interface DesktopConfig {
 
 const CONFIG_KEYS = new Set(["schemaVersion", "gippityUrl"]);
 const MAX_CONFIG_BYTES = 16_384;
+const DEVICE_NAME_PATTERN = /^(?!-)[a-zA-Z0-9_.@:-]{1,255}$/;
+const RESERVED_DEVICE_NAMES = new Set(["__proto__", "constructor", "prototype"]);
+
+export const MAX_PET_DEVICES = 8;
+
+export function parseDeviceName(value: unknown): string {
+  if (typeof value !== "string") throw new Error("Pi Pet device name must be a string.");
+  const name = value.trim();
+  if (!DEVICE_NAME_PATTERN.test(name) || RESERVED_DEVICE_NAMES.has(name)) {
+    throw new Error("Pi Pet device name must be local or one SSH host or alias without command options.");
+  }
+  return name;
+}
+
+export function parseSshTarget(value: unknown): string {
+  const target = parseDeviceName(value);
+  if (target === "local") throw new Error("The reserved local device does not use SSH.");
+  return target;
+}
 
 function desktopConfigPath(
   env: NodeJS.ProcessEnv = process.env,

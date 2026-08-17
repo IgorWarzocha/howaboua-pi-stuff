@@ -3,6 +3,7 @@ import { copyFileSync, lstatSync, mkdirSync, readFileSync, statSync } from "node
 import { cp, mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { MAX_PET_DEVICES, parseDeviceName } from "./desktop/config.ts";
 import { loadPet } from "./pet-loader.ts";
 import { LIMITS, type PetCatalog, parseActionName } from "./protocol/index.ts";
 
@@ -12,6 +13,12 @@ const WEB_SHELL_FILES = ["app.js", "index.html", "manifest.webmanifest", "pet-ic
 export interface PetStorageConfig {
   schemaVersion: 1;
   activePet: string;
+}
+
+export interface RepositoryPetConfig {
+  schemaVersion: 1;
+  pet?: string;
+  devices?: string[];
 }
 
 export interface PetRuntime {
@@ -42,14 +49,50 @@ function parsePetStorageConfig(value: unknown): PetStorageConfig {
   return { schemaVersion: 1, activePet: parseActionName(input["activePet"], "active pet") };
 }
 
-function parseRepositoryPetConfig(value: unknown): string {
+function parseRepositoryPetConfig(value: unknown): RepositoryPetConfig {
   if (!value || typeof value !== "object" || Array.isArray(value))
     throw new Error("Repository Pi Pet config must be an object.");
   const input = value as Record<string, unknown>;
-  const unknown = Object.keys(input).find((key) => !["schemaVersion", "pet"].includes(key));
+  const unknown = Object.keys(input).find((key) => !["schemaVersion", "pet", "devices"].includes(key));
   if (unknown) throw new Error(`Repository Pi Pet config has unknown field: ${unknown}.`);
   if (input["schemaVersion"] !== 1) throw new Error("Unsupported repository Pi Pet config schemaVersion.");
-  return parseActionName(input["pet"], "repository pet");
+  const pet = input["pet"] === undefined ? undefined : parseActionName(input["pet"], "repository pet");
+  let devices: string[] | undefined;
+  if (input["devices"] !== undefined) {
+    if (!Array.isArray(input["devices"]) || input["devices"].length > MAX_PET_DEVICES) {
+      throw new Error(`Repository Pi Pet devices must be an array of at most ${MAX_PET_DEVICES} names.`);
+    }
+    devices = input["devices"].map(parseDeviceName);
+    if (new Set(devices).size !== devices.length) throw new Error("Repository Pi Pet devices must be unique.");
+  }
+  if (pet === undefined && devices === undefined)
+    throw new Error("Repository Pi Pet config must select a pet, devices, or both.");
+  return { schemaVersion: 1, ...(pet ? { pet } : {}), ...(devices ? { devices } : {}) };
+}
+
+export function readRepositoryPetConfig(projectConfigPath: string): RepositoryPetConfig | undefined {
+  try {
+    const info = statSync(projectConfigPath);
+    if (!info.isFile() || info.size > CONFIG_BYTES)
+      throw new Error(`Repository Pi Pet config must be bounded: ${projectConfigPath}`);
+    return parseRepositoryPetConfig(JSON.parse(readFileSync(projectConfigPath, "utf8")) as unknown);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
+}
+
+export async function writeRepositoryPetConfig(config: RepositoryPetConfig, projectConfigPath: string): Promise<void> {
+  const normalized = parseRepositoryPetConfig(config);
+  await mkdir(dirname(projectConfigPath), { recursive: true });
+  const temporary = `${projectConfigPath}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(temporary, `${JSON.stringify(normalized, null, 2)}\n`, { flag: "wx" });
+    await rename(temporary, projectConfigPath);
+  } catch (error) {
+    await rm(temporary, { force: true });
+    throw error;
+  }
 }
 
 export async function readPetStorageConfig(dataRoot = petDataDirectory()): Promise<PetStorageConfig | undefined> {
@@ -150,18 +193,6 @@ function loadUserPetRuntime(packageRoot: string, petId: string, dataRoot: string
   return { catalog, root, source: "user" };
 }
 
-function readRepositoryPet(projectConfigPath: string): string | undefined {
-  try {
-    const info = statSync(projectConfigPath);
-    if (!info.isFile() || info.size > CONFIG_BYTES)
-      throw new Error(`Repository Pi Pet config must be bounded: ${projectConfigPath}`);
-    return parseRepositoryPetConfig(JSON.parse(readFileSync(projectConfigPath, "utf8")) as unknown);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
-    throw error;
-  }
-}
-
 function readGlobalPet(dataRoot: string): string | undefined {
   const configPath = join(dataRoot, "config.json");
   try {
@@ -189,7 +220,7 @@ export function resolvePetRuntime(
   const warnings: string[] = [];
   let repositoryPet: string | undefined;
   try {
-    repositoryPet = readRepositoryPet(projectConfigPath);
+    repositoryPet = readRepositoryPetConfig(projectConfigPath)?.pet;
     if (repositoryPet) return { runtime: loadUserPetRuntime(packageRoot, repositoryPet, dataRoot), warnings };
   } catch (error) {
     warnings.push(`Repository pet unavailable: ${error instanceof Error ? error.message : String(error)}`);
