@@ -297,6 +297,8 @@ function secureWebContents(window: BrowserWindow, gippityOrigin: string): void {
   window.webContents.on("will-redirect", confineNavigation);
   window.webContents.on("context-menu", () => {
     Menu.buildFromTemplate([
+      { label: "Use arrow keys and Enter", enabled: false },
+      { type: "separator" },
       { label: "Reload pet", click: () => window.webContents.reload() },
       {
         label: "Quiet mode",
