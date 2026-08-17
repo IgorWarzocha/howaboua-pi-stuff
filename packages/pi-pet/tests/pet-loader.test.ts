@@ -5,9 +5,11 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { imageSize } from "../src/pet-image-size.ts";
 import { loadPet } from "../src/pet-loader.ts";
+import { parseActionName } from "../src/protocol/index.ts";
 
 const ESCAPES_DIRECTORY_PATTERN = /escapes pet directory/;
 const OUTSIDE_PATTERN = /outside/;
+const RESERVED_NAME_PATTERN = /reserved object property/;
 const UNKNOWN_FIELD_PATTERN = /unknown field/;
 
 function pngHeader(width: number, height: number): Buffer {
@@ -73,7 +75,10 @@ test("merges bounded custom actions", async () => {
   assert.equal(loaded.catalog.aliases["party"], "celebrate");
 });
 
-test("rejects unknown manifest fields, out-of-bounds frames, and symlink escapes", async () => {
+test("rejects reserved names, unknown manifest fields, out-of-bounds frames, and symlink escapes", async () => {
+  assert.throws(() => parseActionName("__proto__"), RESERVED_NAME_PATTERN);
+  assert.throws(() => parseActionName("constructor"), RESERVED_NAME_PATTERN);
+
   const unknown = await fixture();
   await writeFile(
     join(unknown.pet, "pet.json"),

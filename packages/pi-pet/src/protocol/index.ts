@@ -1,4 +1,5 @@
 export const ACTION_NAME_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/;
+const RESERVED_ACTION_NAMES = new Set(["__proto__", "constructor"]);
 
 export const LIMITS = Object.freeze({
   actionName: 64,
@@ -61,6 +62,8 @@ function boundedString(value: unknown, label: string, max: number): string {
 export function parseActionName(value: unknown, label = "action"): string {
   const action = boundedString(value, label, LIMITS.actionName);
   if (action === "list") throw new ContractError(`${label} cannot use the reserved pet_show discovery name list.`);
+  if (RESERVED_ACTION_NAMES.has(action))
+    throw new ContractError(`${label} cannot use a reserved object property name.`);
   if (!ACTION_NAME_PATTERN.test(action)) {
     throw new ContractError(`${label} must use lowercase letters, numbers, dots, underscores, or hyphens.`);
   }

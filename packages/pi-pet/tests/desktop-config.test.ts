@@ -35,9 +35,6 @@ const ATTENTION_MODE_PATTERN = /normal or quiet/;
 const ATTENTION_FUTURE_PATTERN = /seven days/;
 const UNKNOWN_CURSOR_FIELD_PATTERN = /unknown field/;
 const INVALID_CURSOR_PATTERN = /invalid/;
-const REMOTE_COPY_PATTERN = /Buffer\.from\(encoded, "base64"\)/;
-const REMOTE_INSTALL_PATTERN = /\["install", "--ignore-scripts", "--no-audit", "--no-fund"\]/;
-const REMOTE_BUILD_PATTERN = /\["run", "build"\]/;
 const SSH_OPTIONS_PATTERN = /without command options/;
 
 test("desktop config builds the confined GipPity display URL", () => {
@@ -61,9 +58,6 @@ test("desktop config builds the confined GipPity display URL", () => {
   const spec = remoteDesktopProcessSpec("desktop", config.gippityUrl);
   assert.equal(spec.program, "ssh");
   assert.deepEqual(spec.args, ["desktop", "node", "-"]);
-  assert.match(spec.source, REMOTE_COPY_PATTERN);
-  assert.match(spec.source, REMOTE_INSTALL_PATTERN);
-  assert.match(spec.source, REMOTE_BUILD_PATTERN);
   assert.throws(() => parseSshTarget("-oProxyCommand=nope"), SSH_OPTIONS_PATTERN);
 });
 

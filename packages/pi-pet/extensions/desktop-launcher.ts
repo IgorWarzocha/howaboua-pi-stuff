@@ -98,9 +98,10 @@ function graphicalEnvironment() {
 function displayGippityUrl() {
   if (!options.useSshSourceAddress) return options.gippityUrl;
   const sourceAddress = process.env.SSH_CONNECTION?.trim().split(/\s+/)[0];
-  if (!sourceAddress || !isIP(sourceAddress)) return options.gippityUrl;
+  const addressFamily = sourceAddress ? isIP(sourceAddress) : 0;
+  if (!sourceAddress || !addressFamily) return options.gippityUrl;
   const url = new URL(options.gippityUrl);
-  url.hostname = sourceAddress;
+  url.hostname = addressFamily === 6 ? "[" + sourceAddress + "]" : sourceAddress;
   return url.origin;
 }
 async function buildIsCurrent(marker, desktop) {

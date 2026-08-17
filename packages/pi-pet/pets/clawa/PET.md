@@ -13,7 +13,7 @@ A cheerful orange compile-spirit fox with a cream face and belly, lightning tail
 
 - Calm and attentive while idle.
 - Busy rather than frantic while Pi works.
-- Openly expectant when Igor needs to answer.
+- Openly expectant when a response is needed.
 - Proud, not noisy, when work is ready to review.
 
 ## Included actions
@@ -22,6 +22,6 @@ A cheerful orange compile-spirit fox with a cream face and belly, lightning tail
 
 ## Provenance
 
-Created for Igor with the Hatch Pet workflow on 2026-07-18. The retained validator report is `validation.json`; the atlas SHA-256 is `75205dbefd6b145d50bbf78c4443d2257199da922d93c420042c19823d27d720`.
+Created with the Hatch Pet workflow on 2026-07-18. The retained validator report is `validation.json`; the atlas SHA-256 is `75205dbefd6b145d50bbf78c4443d2257199da922d93c420042c19823d27d720`.
 
-This pet is included as Igor's project fixture. Do not infer redistribution rights for unrelated Codex built-in pets.
+This pet is included as Pi Pet's bundled fixture. Do not infer redistribution rights for unrelated Codex built-in pets.
