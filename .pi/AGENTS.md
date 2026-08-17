@@ -1,2 +1,0 @@
-- Keep GipPity Control and Pi Pet project-scoped through `settings.json`; never add them to global Pi settings.
-- Session history for this monorepo lives under `.pi/sessions/`.

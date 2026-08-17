@@ -1,4 +1,0 @@
-{
-  "sessionDir": ".pi/sessions",
-  "packages": ["../packages/pi-gippity-control", "../packages/pi-pet"]
-}
