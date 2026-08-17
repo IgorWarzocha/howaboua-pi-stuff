@@ -29,7 +29,7 @@ function registerPetRuntime(pi: ExtensionAPI, runtime: PetRuntime): void {
     const requested = parseActionName(action);
     const resolved = catalog.actions[requested] ? requested : catalog.aliases[requested];
     if (!(resolved && catalog.actions[resolved])) {
-      throw new Error(`Unknown pet action: ${requested}. Use /pet <request> to inspect or add actions.`);
+      throw new Error(`Unknown pet action: ${requested}. Call pet_show with action "list", then retry.`);
     }
     state = {
       schemaVersion: 1,
@@ -49,12 +49,32 @@ function registerPetRuntime(pi: ExtensionAPI, runtime: PetRuntime): void {
     promptSnippet: "Show a Pi Pet reaction",
     promptGuidelines: ["Use pet_show sparingly; routine task activity animates automatically"],
     parameters: Type.Object({
-      action: Type.String({ minLength: 1, maxLength: 64, description: "Action name from the active pet package" }),
+      action: Type.String({
+        minLength: 1,
+        maxLength: 64,
+        description: 'Reaction name, or "list" to return available names',
+      }),
       note: Type.Optional(Type.String({ minLength: 1, maxLength: 280, description: "Short visible context" })),
     }),
     async execute(_toolCallId, params) {
       if (!registration.available) {
         throw new Error("GipPity Control is unavailable. Install it and reload Pi before using pet_show.");
+      }
+      if (params.action === "list") {
+        const actions = Object.keys(catalog.actions).sort().join(", ");
+        const aliases = Object.entries(catalog.aliases)
+          .sort(([left], [right]) => left.localeCompare(right))
+          .map(([alias, target]) => `${alias}=${target}`)
+          .join(", ");
+        return {
+          content: [
+            {
+              type: "text",
+              text: `${catalog.displayName} actions: ${actions}.${aliases ? ` Aliases: ${aliases}.` : ""}`,
+            },
+          ],
+          details: state,
+        };
       }
       const next = setAction(params.action, parseNote(params.note));
       return {

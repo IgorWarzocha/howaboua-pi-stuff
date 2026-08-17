@@ -59,6 +59,7 @@ function boundedString(value: unknown, label: string, max: number): string {
 
 export function parseActionName(value: unknown, label = "action"): string {
   const action = boundedString(value, label, LIMITS.actionName);
+  if (action === "list") throw new ContractError(`${label} cannot use the reserved pet_show discovery name list.`);
   if (!ACTION_NAME_PATTERN.test(action)) {
     throw new ContractError(`${label} must use lowercase letters, numbers, dots, underscores, or hyphens.`);
   }

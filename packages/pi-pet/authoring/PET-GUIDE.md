@@ -33,7 +33,7 @@ Read `references/pet-format.md`, then:
 
 1. Resolve the installed package from this guide's absolute path and use it as command working directory. If the repository config selects a pet, run `npm run pet:prepare -- <that-id>`; otherwise run `npm run pet:prepare` or pass an explicit ID. It copies a bundled template only when no durable user pet exists and prints the user pet and run paths. Read that pet's `PET.md`, `pet.json`, and optional `pet.pi.json`. For a complete new character, switch to `hatch/HATCH-GUIDE.md`.
 2. Preserve character identity and every passing action. Prefer a separate bounded PNG/WebP atlas plus a `pet.pi.json` entry for one new action.
-3. Define frame coordinates and durations explicitly. Names use lowercase letters, numbers, dots, underscores, or hyphens.
+3. Define frame coordinates and durations explicitly. Names use lowercase letters, numbers, dots, underscores, or hyphens; `list` is reserved for action discovery.
 4. Follow **Rebuild and load** below. The build validates manifests, traversal, assets, decoded dimensions, and frame geometry before producing the GipPity miniapp.
 5. Inspect the animation at actual pet scale. Reject clipping, identity drift, static loops, frame popping, opaque backgrounds, and colored alpha fringe.
 6. Update `PET.md` with personality, action semantics, and provenance, then exercise the action with `pet_show` after the user reloads Pi.
