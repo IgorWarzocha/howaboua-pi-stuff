@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildRequestBody } from "../src/providers/openai-codex-custom-provider.ts";
+import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
+import type { AdapterState } from "../src/adapter/activation/state.ts";
+import { rewriteCodexProviderRequest } from "../src/adapter/provider-request.ts";
+import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 import {
 	buildSSEHeaders,
 	buildWebSocketHeaders,
@@ -81,6 +85,41 @@ test("buildRequestBody keeps Codex request shape stable for common options", () 
 		(normalModeBody.tools as Array<{ type: string; name: string }>).map(({ type, name }) => [type, name]),
 		[["function", "exec"], ["function", "wait"]],
 	);
+});
+
+test("final provider hook captures configured Responses instructions for native replay", async () => {
+	const state: AdapterState = {
+		enabled: true,
+		cwd: "/repo",
+		promptSkills: [],
+		executionMode: "normal",
+		codexTurnState: createCodexTurnState(),
+		pendingActiveProviderPromptCapture: true,
+		activeProviderSystemPrompt: "stale prompt",
+		config: {
+			...DEFAULT_CODEX_CONVERSION_CONFIG,
+			scope: { allProviders: "off", additionalProviders: ["passthrough"] },
+		},
+	};
+	const ctx = {
+		cwd: "/repo",
+		model: {
+			provider: "passthrough",
+			api: "openai-responses",
+			id: "gpt-5.6",
+			baseUrl: "https://proxy.example/v1",
+		},
+	} as never;
+	const finalPayload = await rewriteCodexProviderRequest({
+		model: "gpt-5.6",
+		instructions: "final chained instructions",
+		input: [],
+		text: { verbosity: "low" },
+		parallel_tool_calls: true,
+	}, ctx, state) as { instructions?: string };
+
+	assert.equal(finalPayload.instructions, "final chained instructions");
+	assert.equal(state.activeProviderSystemPrompt, "final chained instructions");
 });
 
 test("strict tool constraints serialize closed schemas and honor fallback policy", () => {
