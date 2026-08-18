@@ -8,7 +8,7 @@ import type { KernelExecutionResult } from "./jupyter-kernel.ts";
 const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 
 export function projectBindingNamesSource(marker: string): string {
-	return `console.log(${JSON.stringify(marker)} + JSON.stringify(globalThis.__piNotebook.projectBindings())); undefined;`;
+	return `if (typeof globalThis.__piNotebook?.projectBindings !== "function") throw new Error("Notebook runtime bootstrap unavailable: __piNotebook.projectBindings"); console.log(${JSON.stringify(marker)} + JSON.stringify(globalThis.__piNotebook.projectBindings())); undefined;`;
 }
 
 export function parseProjectBindingNames(result: KernelExecutionResult, marker: string): string[] {
@@ -28,11 +28,11 @@ export function parseProjectBindingNames(result: KernelExecutionResult, marker: 
 }
 
 export function promoteProjectBindingsSource(names: string[]): string {
-	return `globalThis.__piNotebook.promote(${JSON.stringify(names)}); undefined;`;
+	return `if (typeof globalThis.__piNotebook?.promote !== "function") throw new Error("Notebook runtime bootstrap unavailable: __piNotebook.promote"); globalThis.__piNotebook.promote(${JSON.stringify(names)}); undefined;`;
 }
 
 export function syncProjectBindingsSource(names: string[]): string {
-	return `globalThis.__piNotebook.syncProjectBindings(${JSON.stringify(names)}); undefined;`;
+	return `if (typeof globalThis.__piNotebook?.syncProjectBindings !== "function") throw new Error("Notebook runtime bootstrap unavailable: __piNotebook.syncProjectBindings"); globalThis.__piNotebook.syncProjectBindings(${JSON.stringify(names)}); undefined;`;
 }
 
 export function projectStateCaptureSource(options: {

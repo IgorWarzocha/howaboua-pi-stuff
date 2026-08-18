@@ -28,6 +28,7 @@ import {
 	type NotebookReleaseResult,
 } from "./lifecycle-runtime.ts";
 import { NotebookProfileController } from "./profile-lifecycle.ts";
+import type { NotebookRuntimeHealth } from "./runtime-health.ts";
 
 const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 const STATUS_TIMEOUT_MS = 8_000;
@@ -47,6 +48,7 @@ interface NotebookLifecycleHost {
 	rollback(context: ExtensionContext): Promise<void>;
 	baselineNames(): ReadonlySet<string>;
 	profileStorage(): { agentDir: string; maxBytes: number };
+	runtimeHealth(): NotebookRuntimeHealth;
 	metadata(): {
 		startedAt?: number | undefined;
 		userCells: number;
@@ -72,6 +74,7 @@ export class NotebookLifecycleController {
 		if (request.action === "list") return this.profiles.list(request.query);
 		if (request.action === "diagnostics") return this.host.diagnostics(context, signal);
 		if (request.action === "reset") return this.host.reset(context, signal);
+		if (request.action === "restart" && this.host.runtimeHealth().state !== "ready") return this.restart(context, signal);
 		await this.host.prepare(context, signal);
 		switch (request.action) {
 			case "status": return this.status(request.query, signal);
@@ -264,7 +267,15 @@ export class NotebookLifecycleController {
 
 	private async restart(context: ToolExecutionContext, signal?: AbortSignal): Promise<NotebookControlResult> {
 		const activeCell = await this.host.stopActive();
-		if (!activeCell) await this.host.checkpoint();
+		let checkpointNotice: string | undefined;
+		if (!activeCell && this.host.runtimeHealth().state === "ready") {
+			try {
+				await this.host.checkpoint();
+			} catch (error) {
+				if (this.host.runtimeHealth().state !== "invalidated") throw error;
+				checkpointNotice = `Checkpoint skipped after runtime invalidation: ${error instanceof Error ? error.message : String(error)}`;
+			}
+		}
 		const disposal = await this.disposeAll(signal).catch((error) => ({
 			released: [],
 			disposed: [],
@@ -283,6 +294,7 @@ export class NotebookLifecycleController {
 			message: [
 				`Notebook kernel restarted from the last completed checkpoint${activeCell ? `; terminated ${activeCell}` : ""}`,
 				disposal && disposal.failures.length > 0 ? `${disposal.failures.length} resource cleanup failure${disposal.failures.length === 1 ? "" : "s"}; restart continued` : undefined,
+				checkpointNotice,
 				restoreNotice,
 			].filter(Boolean).join(". "),
 			details,

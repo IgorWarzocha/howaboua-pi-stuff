@@ -42,6 +42,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 			startClean: async (context, signal) => { await session.restart(context, signal, true); },
 			checkpointEmpty: () => session.checkpoints.flush({ force: true, requireIdle: true }),
 			configuredProfileActive: () => session.configuredProfileLoaded(),
+			runtimeHealth: (context) => session.runtimeHealthFor(context),
 		});
 		this.lifecycle = new NotebookLifecycleController({
 			prepare: (context, signal) => this.prepareSession(context, signal),
@@ -70,6 +71,7 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 			baselineNames: () => session.baselineNames(),
 			profileStorage: () => ({ agentDir: options.agentDir, maxBytes: session.checkpointMaxBytes }),
 			metadata: () => session.metadata(),
+			runtimeHealth: () => session.runtimeHealth(),
 		});
 	}
 
@@ -103,7 +105,12 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		excludeNames?: ReadonlySet<string>,
 		pins?: { names: readonly string[]; pinned: boolean },
 	): Promise<void> {
-		await this.session.checkpoints.flush({ requireIdle: true, force: true, excludeNames, pins });
+		try {
+			await this.session.checkpoints.flush({ requireIdle: true, force: true, excludeNames, pins });
+		} catch (error) {
+			await this.session.recoverFromBootstrapFailure(error);
+			throw error;
+		}
 		try {
 			this.session.materializeJournal();
 		} catch (error) {
@@ -117,7 +124,13 @@ export class NotebookCodeModeClient implements CodeModeExecutionClient {
 		context: ToolExecutionContext,
 		signal?: AbortSignal,
 	): Promise<NotebookControlResult> {
-		const result = await this.lifecycle.control(request, context, signal);
+		let result: NotebookControlResult;
+		try {
+			result = await this.lifecycle.control(request, context, signal);
+		} catch (error) {
+			await this.session.recoverFromBootstrapFailure(error);
+			throw error;
+		}
 		const notice = this.session.takeNotice();
 		return notice
 			? { message: `${notice}\n${result.message}`, details: { ...result.details, startupNotice: notice } }
