@@ -152,74 +152,135 @@ async function resolveSingleJjRevision(
 	return { changeId: lines[0], commitId: lines[1] };
 }
 
-async function detectJjReviewContext(
+interface JjRevision {
+	changeId: string;
+	commitId: string;
+	parentChangeIds: string[];
+	parentCommitIds: string[];
+}
+
+async function readJjRevision(
 	pi: ExtensionAPI,
-	repoRoot: string,
-	stackBase?: string,
-): Promise<JjReviewContext> {
-	const active = await jjString(pi, repoRoot, [
+	cwd: string,
+	revision: string,
+): Promise<JjRevision> {
+	const output = await jjString(pi, cwd, [
 		"log",
 		"-r",
-		"@",
+		revision,
 		"--no-graph",
 		"--template",
 		'change_id ++ "\\n" ++ commit_id ++ "\\n" ++ parents.map(|p| p.change_id()).join(",") ++ "\\n" ++ parents.map(|p| p.commit_id()).join(",") ++ "\\n" ++ if(conflict, "true", "false") ++ "\\n"',
 	]);
 	const [changeId, commitId, parentChanges = "", parentCommits = "", conflict] =
-		active.split("\n");
-	if (!changeId || !commitId || !conflict)
-		throw new Error("Could not identify the active JJ revision for /review.");
+		output.split("\n");
+	if (!changeId || !commitId || !conflict) {
+		throw new Error("Could not identify the selected JJ revision for /review.");
+	}
 	if (conflict === "true") {
 		throw new Error(
-			`Active JJ revision ${changeId} (${commitId}) has conflicts. Resolve them before running /review.`,
+			"JJ revision " +
+				changeId +
+				" (" +
+				commitId +
+				") has conflicts. Resolve them before running /review.",
 		);
 	}
+	return {
+		changeId,
+		commitId,
+		parentChangeIds: parentChanges ? parentChanges.split(",") : [],
+		parentCommitIds: parentCommits ? parentCommits.split(",") : [],
+	};
+}
 
-	const parentChangeIds = parentChanges ? parentChanges.split(",") : [];
-	const parentCommitIds = parentCommits ? parentCommits.split(",") : [];
+async function jjDiffSummary(
+	pi: ExtensionAPI,
+	cwd: string,
+	commitId: string,
+	baseCommitId?: string,
+): Promise<string> {
+	return jjString(
+		pi,
+		cwd,
+		baseCommitId
+			? ["diff", "--from", baseCommitId, "--to", commitId, "--summary"]
+			: ["diff", "-r", commitId, "--summary"],
+	);
+}
+
+async function detectJjReviewContext(
+	pi: ExtensionAPI,
+	repoRoot: string,
+	stackBase?: string,
+): Promise<JjReviewContext> {
+	const active = await readJjRevision(pi, repoRoot, "@");
+	let target = active;
 	let base:
 		| { revision: string; changeId: string; commitId: string }
 		| undefined;
 	if (stackBase) {
 		const resolved = await resolveSingleJjRevision(pi, repoRoot, stackBase);
-		if (resolved.commitId === commitId) {
+		if (resolved.commitId === active.commitId) {
 			throw new Error(
-				`JJ review stack base ${JSON.stringify(stackBase)} is the active revision. Choose an ancestor instead.`,
+				"JJ review stack base " +
+					JSON.stringify(stackBase) +
+					" is the active revision. Choose an ancestor instead.",
 			);
 		}
 		const ancestor = await jjString(pi, repoRoot, [
 			"log",
 			"-r",
-			`ancestors(${commitId}) & ${resolved.commitId}`,
+			["ancestors(", active.commitId, ") & ", resolved.commitId].join(""),
 			"--no-graph",
 			"--template",
 			"commit_id",
 		]);
 		if (ancestor !== resolved.commitId) {
 			throw new Error(
-				`JJ review stack base ${JSON.stringify(stackBase)} must be an ancestor of active revision ${changeId}.`,
+				"JJ review stack base " +
+					JSON.stringify(stackBase) +
+					" must be an ancestor of active revision " +
+					active.changeId +
+					".",
 			);
 		}
 		base = { revision: stackBase, ...resolved };
 	}
 
-	const changedFiles = await jjString(
+	let changedFiles = await jjDiffSummary(
 		pi,
 		repoRoot,
-		base
-			? ["diff", "--from", base.commitId, "--to", commitId, "--summary"]
-			: ["diff", "-r", commitId, "--summary"],
+		target.commitId,
+		base?.commitId,
 	);
+	if (!base && !changedFiles && active.parentCommitIds.length === 1) {
+		const parentCommitId = active.parentCommitIds[0];
+		if (parentCommitId) {
+			const parent = await readJjRevision(pi, repoRoot, parentCommitId);
+			const parentChanges = await jjDiffSummary(pi, repoRoot, parent.commitId);
+			if (parentChanges) {
+				target = parent;
+				changedFiles = parentChanges;
+			}
+		}
+	}
 
 	return {
 		vcs: "jj",
 		repoRoot,
-		currentRef: changeId,
+		currentRef: target.changeId,
 		scope: base ? "jj-base" : "jj-parent",
-		changeId,
-		commitId,
-		parentChangeIds,
-		parentCommitIds,
+		changeId: target.changeId,
+		commitId: target.commitId,
+		parentChangeIds: target.parentChangeIds,
+		parentCommitIds: target.parentCommitIds,
+		...(target.commitId !== active.commitId
+			? {
+					workspaceChangeId: active.changeId,
+					workspaceCommitId: active.commitId,
+				}
+			: {}),
 		...(base
 			? {
 					baseRevision: base.revision,
@@ -232,7 +293,6 @@ async function detectJjReviewContext(
 		hasAnyChanges: changedFiles.length > 0,
 	};
 }
-
 async function detectGitReviewContext(
 	pi: ExtensionAPI,
 	cwd: string,

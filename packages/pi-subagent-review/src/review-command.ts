@@ -100,6 +100,15 @@ export function registerReviewCommand(
 				}
 			}
 
+			if (!review.hasAnyChanges) {
+				ctx.ui.notify(
+					review.vcs === "jj"
+						? "No changes found in the active JJ revision or its immediate parent."
+						: "No changes found relative to the selected base branch.",
+					"info",
+				);
+				return;
+			}
 			sendReviewPreface(pi, ctx, { freshLoop: parsedArgs.startLoop });
 
 			if (parsedArgs.startLoop) {
@@ -114,24 +123,6 @@ export function registerReviewCommand(
 					);
 					ctx.ui.notify("Review loop marker set", "info");
 				}
-			}
-
-			if (!review.hasAnyChanges) {
-				sendReviewFindings(
-					pi,
-					ctx,
-					review,
-					review.vcs === "jj"
-						? "No changes found in the active JJ revision."
-						: "No changes found relative to the selected base branch.",
-				);
-				ctx.ui.notify(
-					review.vcs === "jj"
-						? "No changes found in the active JJ revision; sent summary to the agent."
-						: `No changes found relative to ${review.baseBranch}; sent summary to the agent.`,
-					"info",
-				);
-				return;
 			}
 
 			reviewConfig ??= await resolveReviewConfig(pi, ctx);

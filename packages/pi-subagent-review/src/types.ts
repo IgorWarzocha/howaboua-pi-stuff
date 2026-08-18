@@ -86,6 +86,8 @@ export interface JjReviewContext {
 	commitId: string;
 	parentChangeIds: string[];
 	parentCommitIds: string[];
+	workspaceChangeId?: string;
+	workspaceCommitId?: string;
 	baseRevision?: string;
 	baseChangeId?: string;
 	baseCommitId?: string;
