@@ -38,6 +38,7 @@ export class DenoJupyterKernel {
 	private readonly deno: string;
 	private readonly env: NodeJS.ProcessEnv;
 	private readonly maxHeapMiB: number;
+	private readonly onFailure: ((kernel: DenoJupyterKernel, error: Error) => void) | undefined;
 	private readonly session = randomUUID();
 	private process: ChildProcess | undefined;
 	private tempDir: string | undefined;
@@ -51,14 +52,24 @@ export class DenoJupyterKernel {
 	private active: ActiveKernelExecution | undefined;
 	private readonly shellReplies = new Map<string, ShellReplyWaiter>();
 	private stderr = "";
+	private terminalFailure: Error | undefined;
 
-	constructor(options: { deno: string; maxHeapMiB: number; env?: NodeJS.ProcessEnv | undefined }) {
+	constructor(options: {
+		deno: string;
+		maxHeapMiB: number;
+		env?: NodeJS.ProcessEnv | undefined;
+		onFailure?: ((kernel: DenoJupyterKernel, error: Error) => void) | undefined;
+	}) {
 		this.deno = options.deno;
 		this.env = options.env ?? process.env;
 		this.maxHeapMiB = options.maxHeapMiB;
+		this.onFailure = options.onFailure;
 	}
 
 	async start(signal?: AbortSignal): Promise<void> {
+		if (this.terminalFailure) {
+			throw new Error(`Deno Jupyter kernel is unavailable: ${this.terminalFailure.message}`, { cause: this.terminalFailure });
+		}
 		if (!this.startup) this.startup = this.startInner(signal).catch((error) => {
 			this.startup = undefined;
 			this.dispose();
@@ -69,7 +80,11 @@ export class DenoJupyterKernel {
 
 	async execute(
 		code: string,
-		options: { signal?: AbortSignal | undefined; onOutput?: ((item: RuntimeContentItem) => void) | undefined } = {},
+		options: {
+			signal?: AbortSignal | undefined;
+			onOutput?: ((item: RuntimeContentItem) => void) | undefined;
+			interruptOnAbort?: boolean | undefined;
+		} = {},
 	): Promise<KernelExecutionResult> {
 		await this.start(options.signal);
 		options.signal?.throwIfAborted();
@@ -101,7 +116,7 @@ export class DenoJupyterKernel {
 		let abortTimer: ReturnType<typeof setTimeout> | undefined;
 		let finished = false;
 		const abort = () => {
-			void this.interrupt().catch(() => undefined);
+			if (options.interruptOnAbort !== false) void this.interrupt().catch(() => undefined);
 			abortTimer = setTimeout(() => {
 				if (!finished) {
 					this.failKernel(options.signal?.reason instanceof Error
@@ -144,7 +159,11 @@ export class DenoJupyterKernel {
 				throw new Error(`Deno Jupyter returned ${reply.header.msg_type} for execute_request`);
 			}
 			const replied = applyExecuteReplyError(result, reply);
-			return options.signal?.aborted ? { ...replied, status: "aborted" } : replied;
+			if (options.signal?.aborted) {
+				if (options.interruptOnAbort !== false) this.failKernel(new Error("Deno Jupyter execution was aborted"));
+				return { ...replied, status: "aborted" };
+			}
+			return replied;
 		} catch (error) {
 			if (this.active === execution) this.active = undefined;
 			throw error;
@@ -380,6 +399,10 @@ export class DenoJupyterKernel {
 	}
 
 	private failKernel(error: Error): void {
+		if (!this.terminalFailure) {
+			this.terminalFailure = error;
+			this.onFailure?.(this, error);
+		}
 		const active = this.active;
 		this.active = undefined;
 		active?.reject(error);

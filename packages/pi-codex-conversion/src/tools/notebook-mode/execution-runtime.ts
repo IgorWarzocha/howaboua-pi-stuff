@@ -17,8 +17,10 @@ import type {
 import { NotebookBridgeServer } from "./bridge-server.ts";
 import { NotebookCell } from "./cell.ts";
 import { beginNotebookJournalCell, finishNotebookJournalCell } from "./journal.ts";
+import { NOTEBOOK_INTERRUPTED_NOTICE } from "./runtime-health.ts";
 import type { NotebookSessionRuntime } from "./session-runtime.ts";
 
+const CANCEL_GRACE_MS = 250;
 const TERMINATE_GRACE_MS = 1_500;
 
 export class NotebookExecutionRuntime {
@@ -94,8 +96,10 @@ export class NotebookExecutionRuntime {
 			.map((tool) => ({ name: tool.name, description: formatCodeModeToolHelp(tool) }));
 		const toolNames = Object.fromEntries(tools.map((tool) => [tool.name, resolveCodeModeToolIdentity(tool)]));
 		const wrapped = [
+			`if (typeof globalThis.__piNotebook?.begin !== "function") throw new Error("Notebook runtime bootstrap unavailable: __piNotebook.begin");`,
 			`await globalThis.__piNotebook.begin(${JSON.stringify(id)}, ${JSON.stringify(metadata)}, ${JSON.stringify(toolNames)});`,
 			code,
+			`if (typeof globalThis.__piNotebook?.flush !== "function") throw new Error("Notebook runtime bootstrap unavailable: __piNotebook.flush");`,
 			`await globalThis.__piNotebook.flush(${JSON.stringify(id)});`,
 			"undefined;",
 		].join("\n");
@@ -159,16 +163,19 @@ export class NotebookExecutionRuntime {
 		try {
 			const result = await session.kernel()!.execute(source, {
 				signal: cell.controller.signal,
+				interruptOnAbort: false,
 				onOutput: (item) => cell.emit([item]),
 			});
 			const normalized = result.errorName === "PiNotebookExit" && result.errorValue === this.bridge.exitToken
 				? { ...result, status: "ok" as const, errorText: undefined, errorName: undefined, errorValue: undefined }
 				: result;
 			cell.result = normalized;
-			await this.endCellRuntime(cell);
-			if (cell.result.status === "ok") {
-				await session.recordNpmImports(cell.source);
-				session.checkpoints.schedule();
+			if (!(await session.recoverFromBootstrapFailure(normalized))) {
+				await this.endCellRuntime(cell);
+				if (cell.result.status === "ok") {
+					await session.recordNpmImports(cell.source);
+					session.checkpoints.schedule();
+				}
 			}
 		} catch (error) {
 			this.delegate.cancelCell(cell.id);
@@ -200,7 +207,8 @@ export class NotebookExecutionRuntime {
 		const kernel = this.session().kernel();
 		if (!kernel) return;
 		const id = JSON.stringify(cell.id);
-		const result = await kernel.execute(`await globalThis.__piNotebook.finish(${id}); undefined;`);
+		const result = await kernel.execute(`if (typeof globalThis.__piNotebook?.finish !== "function") throw new Error("Notebook runtime bootstrap unavailable: __piNotebook.finish"); await globalThis.__piNotebook.finish(${id}); undefined;`);
+		await this.session().recoverFromBootstrapFailure(result);
 		if (result.status !== "ok" && cell.result?.status === "ok") {
 			cell.result = { status: "error", items: [], errorText: result.errorText ?? "Notebook helper flush failed" };
 		}
@@ -240,13 +248,18 @@ export class NotebookExecutionRuntime {
 	}
 
 	private async stopCellInner(cell: NotebookCell): Promise<void> {
+		const isolateKernel = !cell.isCompleted();
 		cell.terminated = true;
 		cell.controller.abort();
 		this.delegate.cancelCell(cell.id);
-		await this.session().kernel()?.interrupt().catch(() => undefined);
+		await Promise.race([cell.waitForCompletion(), delay(CANCEL_GRACE_MS)]);
+		if (!cell.isCompleted()) {
+			const kernel = this.session().kernel();
+			try { await kernel?.interrupt(); } catch {}
+		}
+		if (isolateKernel) await this.session().invalidateKernel(NOTEBOOK_INTERRUPTED_NOTICE);
 		await Promise.race([cell.waitForCompletion(), delay(TERMINATE_GRACE_MS)]);
-		if (!cell.result) {
-			await this.session().discardKernel();
+		if (!cell.isCompleted()) {
 			cell.result = { status: "aborted", items: [] };
 			cell.markCompleted();
 		}

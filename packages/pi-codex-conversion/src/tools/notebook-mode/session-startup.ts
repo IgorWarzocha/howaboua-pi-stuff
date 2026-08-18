@@ -35,6 +35,7 @@ export async function startNotebookSession(options: {
 	runtime: NotebookRuntimeOptions;
 	bridge: NotebookBridgeServer;
 	checkpointMaxBytes: number;
+	onKernelFailure?: ((kernel: DenoJupyterKernel, error: Error) => void) | undefined;
 	signal?: AbortSignal | undefined;
 }): Promise<StartedNotebookSession> {
 	const { context, runtime, bridge, signal } = options;
@@ -54,7 +55,7 @@ export async function startNotebookSession(options: {
 		throw error;
 	}
 
-	const kernel = new DenoJupyterKernel({ deno, maxHeapMiB: runtime.maxHeapMiB });
+	const kernel = new DenoJupyterKernel({ deno, maxHeapMiB: runtime.maxHeapMiB, onFailure: options.onKernelFailure });
 	try {
 		await kernel.start(signal);
 		const bootstrap = await kernel.execute(notebookBootstrapSource(origin, bridge.token, bridge.exitToken, context.cwd), { signal });

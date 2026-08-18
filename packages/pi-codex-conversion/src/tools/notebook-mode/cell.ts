@@ -21,6 +21,7 @@ export class NotebookCell {
 	private outputChars = 0;
 	private outputTruncated = false;
 	private cursor = 0;
+	private completedValue = false;
 	private yielded = deferred();
 	private readonly completed = deferred();
 
@@ -51,7 +52,12 @@ export class NotebookCell {
 	}
 
 	markCompleted(): void {
+		this.completedValue = true;
 		this.completed.resolve();
+	}
+
+	isCompleted(): boolean {
+		return this.completedValue;
 	}
 
 	waitForCompletion(): Promise<void> {

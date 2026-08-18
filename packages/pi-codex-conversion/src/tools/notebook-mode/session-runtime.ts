@@ -10,6 +10,14 @@ import type { DenoJupyterKernel } from "./jupyter-kernel.ts";
 import { extractNotebookNpmImports, recordNotebookNpmImports } from "./npm-imports.ts";
 import { resolveNotebookProject } from "./project-identity.ts";
 import { readRetainedProjectBindings, type RetainedProjectBinding } from "./project-state-metadata.ts";
+import {
+	NOTEBOOK_INTERRUPTED_NOTICE,
+	NOTEBOOK_BOOTSTRAP_NOTICE,
+	isNotebookBootstrapFailure,
+	NOTEBOOK_KERNEL_FAILURE_NOTICE,
+	type NotebookRuntimeHealth,
+	type NotebookRuntimeHealthState,
+} from "./runtime-health.ts";
 import { startNotebookSession } from "./session-startup.ts";
 import { notebookSessionIdentity } from "./session-identity.ts";
 
@@ -22,6 +30,7 @@ export class NotebookSessionRuntime {
 	private readonly bridge: NotebookBridgeServer;
 	private readonly runningCellId: () => string | undefined;
 	private kernelValue: DenoJupyterKernel | undefined;
+	private runtimeHealthValue: NotebookRuntimeHealthState = "not_started";
 	private identityValue: string | undefined;
 	private checkpointIdentityValue: NotebookCheckpointIdentity | undefined;
 	private startup: Promise<void> | undefined;
@@ -74,6 +83,7 @@ export class NotebookSessionRuntime {
 		try { this.materializeJournal(); } catch {}
 		const previous = this.kernelValue;
 		this.kernelValue = undefined;
+		this.runtimeHealthValue = "not_started";
 		this.startup = undefined;
 		await this.checkpoints.discard();
 		this.memoryValue = undefined;
@@ -86,15 +96,23 @@ export class NotebookSessionRuntime {
 		return this.takeNotice();
 	}
 
-	async discardKernel(): Promise<void> {
+	async invalidateKernel(notice = NOTEBOOK_INTERRUPTED_NOTICE): Promise<void> {
 		const kernel = this.kernelValue;
 		this.kernelValue = undefined;
+		this.runtimeHealthValue = "invalidated";
 		this.startup = undefined;
 		this.memoryValue = undefined;
 		this.startedAtValue = undefined;
 		this.profileLoaded = false;
 		this.checkpointIdentityValue = undefined;
+		this.addNotice(notice);
 		await kernel?.shutdown().catch(() => undefined);
+	}
+
+	async recoverFromBootstrapFailure(value: unknown): Promise<boolean> {
+		if (!isNotebookBootstrapFailure(value)) return false;
+		if (this.kernelValue) await this.invalidateKernel(NOTEBOOK_BOOTSTRAP_NOTICE);
+		return true;
 	}
 
 	async stopWithoutCheckpoint(): Promise<void> {
@@ -102,6 +120,7 @@ export class NotebookSessionRuntime {
 		await this.startup?.catch(() => undefined);
 		const previous = this.kernelValue;
 		this.kernelValue = undefined;
+		this.runtimeHealthValue = "not_started";
 		this.startup = undefined;
 		await this.checkpoints.discard();
 		this.memoryValue = undefined;
@@ -122,6 +141,7 @@ export class NotebookSessionRuntime {
 		try { this.materializeJournal(); } catch {}
 		const kernel = this.kernelValue;
 		this.kernelValue = undefined;
+		this.runtimeHealthValue = "not_started";
 		this.startup = undefined;
 		this.startupAbort = undefined;
 		this.identityValue = undefined;
@@ -139,6 +159,10 @@ export class NotebookSessionRuntime {
 	}
 
 	kernel(): DenoJupyterKernel | undefined { return this.kernelValue; }
+	runtimeHealth(): NotebookRuntimeHealth { return { state: this.runtimeHealthValue }; }
+	runtimeHealthFor(context: ExtensionContext): NotebookRuntimeHealth {
+		return this.identityMatches(context) ? this.runtimeHealth() : { state: "not_started" };
+	}
 	journal(): NotebookJournal | undefined { return this.journalValue; }
 	materializeJournal(): void {
 		if (this.journalValue) materializeNotebookJournal(this.journalValue);
@@ -195,6 +219,7 @@ export class NotebookSessionRuntime {
 				: this.options,
 			bridge: this.bridge,
 			checkpointMaxBytes: this.checkpointMaxBytes,
+			onKernelFailure: (kernel) => this.handleKernelFailure(kernel),
 			...(signal ? { signal } : {}),
 		});
 		this.kernelValue = started.kernel;
@@ -203,10 +228,23 @@ export class NotebookSessionRuntime {
 		this.checkpointIdentityValue = started.checkpointIdentity;
 		this.baseline = started.baselineNames;
 		this.profileLoaded = started.configuredProfileLoaded;
+		this.runtimeHealthValue = "ready";
 		this.checkpoints.configure(started.checkpointIdentity, started.baselineNames, started.projectBaseline);
 		if (started.restoreNotice) {
 			this.addNotice(started.restoreNotice);
 		}
+	}
+
+	private handleKernelFailure(kernel: DenoJupyterKernel): void {
+		if (this.kernelValue !== kernel) return;
+		this.kernelValue = undefined;
+		this.runtimeHealthValue = "invalidated";
+		this.startup = undefined;
+		this.memoryValue = undefined;
+		this.startedAtValue = undefined;
+		this.profileLoaded = false;
+		this.checkpointIdentityValue = undefined;
+		this.addNotice(NOTEBOOK_KERNEL_FAILURE_NOTICE);
 	}
 
 	private beginStartup(context: ExtensionContext, signal?: AbortSignal, skipProfile = false): Promise<void> {
