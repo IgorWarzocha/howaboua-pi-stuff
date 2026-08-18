@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { NotebookRuntimeOptions } from "../code-mode/shared-runtime.ts";
+import { notebookExecStartupNotice } from "./control-contract.ts";
 import type { NotebookBridgeServer } from "./bridge-server.ts";
 import {
 	garbageCollectSupersededNotebookCheckpoints,
@@ -106,7 +107,7 @@ export async function startNotebookSession(options: {
 		const exampleNotice = exampleNames.length === 2
 			? "Notebook example foo/bar available; inspect foo.description, foo.usage, bar.description, and bar.usage before constructing a reusable global"
 			: undefined;
-		const restoreNotice = [exampleNotice, npmNotice, formatProjectStateNotice(projectState), restored.message, profileNotice].filter(Boolean).join(". ") || undefined;
+		const restoreNotice = [exampleNotice, npmNotice, formatProjectStateNotice(projectState), restored.message, profileNotice, notebookExecStartupNotice()].filter(Boolean).join(". ") || undefined;
 		return {
 			kernel,
 			journal,
