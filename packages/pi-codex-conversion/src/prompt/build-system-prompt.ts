@@ -63,7 +63,7 @@ const CODE_MODE_GUIDELINES = [
 
 const NOTEBOOK_MODE_GUIDELINES = [
 	"exec is a persistent Deno/TypeScript Jupyter notebook; project globals may come from earlier agents and sessions",
-	"Before repeating discovery or rebuilding helpers, use notebook status and reuse matching bindings",
+	"Treat retained globals as mini-tools: check notebook status description/usage before rebuilding; inspect other globals' description/usage before constructing reusable ones; give helpers concise own description/usage with a safe inspection recipe and simple one-shot call shape",
 	"Keep one-offs block-local; store compact reusable values and self-contained helpers on purpose-named globalThis properties",
 	"Turn repeatable project work into callable helpers; pin reusable project state worth protecting",
 	...CODE_MODE_GUIDELINES,

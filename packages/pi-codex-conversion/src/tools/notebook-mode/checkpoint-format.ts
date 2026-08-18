@@ -1,6 +1,8 @@
+import type { ProjectBindingMetadata } from "./project-state-format.ts";
+
 export const CHECKPOINT_SCHEMA = 1;
 
-export interface CheckpointEntry {
+export interface CheckpointEntry extends ProjectBindingMetadata {
 	name: string;
 	kind: "value" | "function";
 	offset: number;

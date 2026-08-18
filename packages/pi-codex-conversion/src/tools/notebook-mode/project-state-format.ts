@@ -6,6 +6,9 @@ export const PROJECT_STATE_SCHEMA = 2;
 export const MAX_PROJECT_ENTRIES = 10_000;
 export const MAX_PROJECT_NAME_BYTES = 4 * 1024;
 export const MAX_PROJECT_MANIFEST_BYTES = 8 * 1024 * 1024;
+export const MAX_PROJECT_DESCRIPTION_BYTES = 256;
+export const MAX_PROJECT_USAGE_BYTES = 512;
+export const MAX_PROJECT_USAGE_LINES = 4;
 const PAYLOAD_NAME = /^project-[0-9a-f-]+\.bin$/;
 const CONFLICT_PAYLOAD_NAME = /^[0-9]+-[0-9a-f-]+\.bin$/;
 const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
@@ -16,8 +19,15 @@ export interface ProjectStateEntry {
 	offset: number;
 	length: number;
 	hash: string;
+	description?: string | undefined;
+	usage?: string | undefined;
 	updatedAt?: string | undefined;
 	pinned?: true | undefined;
+}
+
+export interface ProjectBindingMetadata {
+	description?: string | undefined;
+	usage?: string | undefined;
 }
 
 export interface ProjectStateManifest {
@@ -43,7 +53,7 @@ export interface ProjectStateCandidate {
 
 export interface ProjectStateBaseline {
 	generation: string;
-	entries: Array<{ name: string; hash: string }>;
+	entries: Array<{ name: string; hash: string } & ProjectBindingMetadata>;
 }
 
 export interface ProjectStateSummary {
@@ -187,7 +197,15 @@ export function readProjectConflictRecord(path: string): ProjectConflictRecord |
 }
 
 export function baselineFromProjectManifest(manifest: ProjectStateManifest): ProjectStateBaseline {
-	return { generation: manifest.generation, entries: manifest.entries.map(({ name, hash }) => ({ name, hash })) };
+	return {
+		generation: manifest.generation,
+		entries: manifest.entries.map(({ name, hash, description, usage }) => ({
+			name,
+			hash,
+			...(description === undefined ? {} : { description }),
+			...(usage === undefined ? {} : { usage }),
+		})),
+	};
 }
 
 export function emptyProjectStateSummary(): ProjectStateSummary {
@@ -211,15 +229,40 @@ function parseEntry(value: unknown, payloadLength: number, requireHash: boolean)
 		|| updatedAt !== undefined && (typeof updatedAt !== "string" || !Number.isFinite(Date.parse(updatedAt)))
 		|| pinned !== undefined && pinned !== true
 	) return undefined;
+	const metadata = parseProjectBindingMetadata(value);
+	if (!metadata) return undefined;
 	const entry: Omit<ProjectStateEntry, "hash"> = {
 		name,
 		kind: kind as ProjectStateEntry["kind"],
 		offset: offset as number,
 		length: length as number,
+		...metadata,
 		...(typeof updatedAt === "string" ? { updatedAt } : {}),
 		...(pinned === true ? { pinned: true as const } : {}),
 	};
 	return requireHash ? { ...entry, hash: hash as string } : entry;
+}
+
+export function parseProjectBindingMetadata(value: Record<string, unknown>): ProjectBindingMetadata | undefined {
+	const description = parseMetadataText(value["description"], MAX_PROJECT_DESCRIPTION_BYTES, false);
+	const usage = parseMetadataText(value["usage"], MAX_PROJECT_USAGE_BYTES, true);
+	if (description === null || usage === null) return undefined;
+	return {
+		...(description === undefined ? {} : { description }),
+		...(usage === undefined ? {} : { usage }),
+	};
+}
+
+function parseMetadataText(value: unknown, maxBytes: number, multiline: boolean): string | undefined | null {
+	if (value === undefined) return undefined;
+	if (typeof value !== "string" || value.length === 0 || Buffer.byteLength(value) > maxBytes) return null;
+	const lines = value.split("\n");
+	if ((!multiline && lines.length !== 1) || lines.length > MAX_PROJECT_USAGE_LINES || value.includes("\r")) return null;
+	for (const character of value) {
+		const codePoint = character.codePointAt(0)!;
+		if (codePoint < 0x20 && codePoint !== 0x0a || codePoint === 0x7f) return null;
+	}
+	return value;
 }
 
 function parseSkipped(value: unknown): { name: string; reason: string } | undefined {
