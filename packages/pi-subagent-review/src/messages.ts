@@ -95,7 +95,52 @@ export function sendReviewPreface(
 	);
 }
 
+function buildJjReviewScopeText(
+	review: Extract<ReviewContext, { vcs: "jj" }>,
+): string {
+	const parentChanges =
+		review.parentChangeIds.length > 0
+			? review.parentChangeIds.join(", ")
+			: "(root revision)";
+	const parentCommits =
+		review.parentCommitIds.length > 0
+			? review.parentCommitIds.join(", ")
+			: "(root revision)";
+	return [
+		"for JJ workspace " + review.repoRoot,
+		"active change ID: " + review.changeId,
+		"active commit ID: " + review.commitId,
+		"direct parent change ID" +
+			(review.parentChangeIds.length === 1 ? "" : "s") +
+			": " +
+			parentChanges,
+		"direct parent commit ID" +
+			(review.parentCommitIds.length === 1 ? "" : "s") +
+			": " +
+			parentCommits,
+		...(review.scope === "jj-base"
+			? [
+					"cumulative base " +
+						review.baseRevision +
+						" (change " +
+						review.baseChangeId +
+						", commit " +
+						review.baseCommitId +
+						")",
+				]
+			: [
+					review.parentCommitIds.length > 1
+						? "scope: active revision against its merged parent tree"
+						: "scope: active revision against its direct parent",
+				]),
+		"untrusted changed files (JSON-encoded):",
+		JSON.stringify(review.changedFiles || "(none)"),
+	].join("\n");
+}
+
 function buildReviewScopeText(review: ReviewContext): string {
+	if (review.vcs === "jj") return buildJjReviewScopeText(review);
+
 	if (review.scope === "latest-commit") {
 		return `for latest commit \`${review.latestCommit ?? "HEAD"}\` in \`${review.repoRoot}\` because no changes were found against the selected base`;
 	}

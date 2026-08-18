@@ -1,5 +1,9 @@
+import { existsSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import type { ReviewContext } from "./types.js";
+import type { JjReviewContext, ReviewContext } from "./types.js";
+
+const JJ_READ_ONLY = ["--ignore-working-copy", "--color=never"];
 
 async function runGit(
 	pi: ExtensionAPI,
@@ -8,6 +12,15 @@ async function runGit(
 	timeout = 10_000,
 ) {
 	return pi.exec("git", args, { cwd, timeout });
+}
+
+async function runJj(
+	pi: ExtensionAPI,
+	cwd: string,
+	args: string[],
+	timeout = 10_000,
+) {
+	return pi.exec("jj", [...JJ_READ_ONLY, ...args], { cwd, timeout });
 }
 
 async function gitString(
@@ -25,6 +38,17 @@ async function gitString(
 			`${command} failed with exit code ${result.code}`;
 		throw new Error(message);
 	}
+	return result.stdout.trim();
+}
+
+async function gitStringOrUndefined(
+	pi: ExtensionAPI,
+	cwd: string,
+	args: string[],
+	timeout = 10_000,
+): Promise<string | undefined> {
+	const result = await runGit(pi, cwd, args, timeout);
+	if (result.code !== 0) return undefined;
 	return result.stdout.trim();
 }
 
@@ -51,13 +75,6 @@ async function hasLocalBranch(
 	return commitResult.code === 0;
 }
 
-async function hasLocalDevBranch(
-	pi: ExtensionAPI,
-	cwd: string,
-): Promise<boolean> {
-	return hasLocalBranch(pi, cwd, "dev");
-}
-
 async function hasTrackedChangesAgainst(
 	pi: ExtensionAPI,
 	cwd: string,
@@ -72,18 +89,151 @@ async function hasTrackedChangesAgainst(
 	);
 }
 
-async function gitStringOrUndefined(
+async function detectJjWorkspace(
+	pi: ExtensionAPI,
+	cwd: string,
+): Promise<string | undefined> {
+	const result = await runJj(pi, cwd, ["workspace", "root"]);
+	if (result.code === 0) return result.stdout.trim() || undefined;
+
+	const message = result.stderr.trim() || result.stdout.trim();
+	if (hasJjMetadata(cwd)) {
+		throw new Error(
+			message ||
+				"JJ workspace detection failed. Resolve the JJ workspace before running /review.",
+		);
+	}
+	return undefined;
+}
+
+function hasJjMetadata(cwd: string): boolean {
+	let directory = resolve(cwd);
+	while (true) {
+		if (existsSync(join(directory, ".jj"))) return true;
+		const parent = dirname(directory);
+		if (parent === directory) return false;
+		directory = parent;
+	}
+}
+async function jjString(
 	pi: ExtensionAPI,
 	cwd: string,
 	args: string[],
-	timeout = 10_000,
-): Promise<string | undefined> {
-	const result = await runGit(pi, cwd, args, timeout);
-	if (result.code !== 0) return undefined;
-	return result.stdout.trim();
+): Promise<string> {
+	const result = await runJj(pi, cwd, args);
+	if (result.code === 0) return result.stdout.trim();
+	const command = `jj ${[...JJ_READ_ONLY, ...args].join(" ")}`;
+	throw new Error(
+		result.stderr.trim() ||
+			result.stdout.trim() ||
+			`${command} failed with exit code ${result.code}`,
+	);
 }
 
-export async function detectReviewContext(
+async function resolveSingleJjRevision(
+	pi: ExtensionAPI,
+	cwd: string,
+	revset: string,
+): Promise<{ changeId: string; commitId: string }> {
+	const output = await jjString(pi, cwd, [
+		"log",
+		"-r",
+		revset,
+		"--no-graph",
+		"--template",
+		'change_id ++ "\\n" ++ commit_id ++ "\\n"',
+	]);
+	const lines = output.split("\n").filter(Boolean);
+	if (lines.length !== 2 || !lines[0] || !lines[1]) {
+		throw new Error(
+			`JJ review base ${JSON.stringify(revset)} must resolve to exactly one revision.`,
+		);
+	}
+	return { changeId: lines[0], commitId: lines[1] };
+}
+
+async function detectJjReviewContext(
+	pi: ExtensionAPI,
+	repoRoot: string,
+	stackBase?: string,
+): Promise<JjReviewContext> {
+	const active = await jjString(pi, repoRoot, [
+		"log",
+		"-r",
+		"@",
+		"--no-graph",
+		"--template",
+		'change_id ++ "\\n" ++ commit_id ++ "\\n" ++ parents.map(|p| p.change_id()).join(",") ++ "\\n" ++ parents.map(|p| p.commit_id()).join(",") ++ "\\n" ++ if(conflict, "true", "false") ++ "\\n"',
+	]);
+	const [changeId, commitId, parentChanges = "", parentCommits = "", conflict] =
+		active.split("\n");
+	if (!changeId || !commitId || !conflict)
+		throw new Error("Could not identify the active JJ revision for /review.");
+	if (conflict === "true") {
+		throw new Error(
+			`Active JJ revision ${changeId} (${commitId}) has conflicts. Resolve them before running /review.`,
+		);
+	}
+
+	const parentChangeIds = parentChanges ? parentChanges.split(",") : [];
+	const parentCommitIds = parentCommits ? parentCommits.split(",") : [];
+	let base:
+		| { revision: string; changeId: string; commitId: string }
+		| undefined;
+	if (stackBase) {
+		const resolved = await resolveSingleJjRevision(pi, repoRoot, stackBase);
+		if (resolved.commitId === commitId) {
+			throw new Error(
+				`JJ review stack base ${JSON.stringify(stackBase)} is the active revision. Choose an ancestor instead.`,
+			);
+		}
+		const ancestor = await jjString(pi, repoRoot, [
+			"log",
+			"-r",
+			`ancestors(${commitId}) & ${resolved.commitId}`,
+			"--no-graph",
+			"--template",
+			"commit_id",
+		]);
+		if (ancestor !== resolved.commitId) {
+			throw new Error(
+				`JJ review stack base ${JSON.stringify(stackBase)} must be an ancestor of active revision ${changeId}.`,
+			);
+		}
+		base = { revision: stackBase, ...resolved };
+	}
+
+	const changedFiles = await jjString(
+		pi,
+		repoRoot,
+		base
+			? ["diff", "--from", base.commitId, "--to", commitId, "--summary"]
+			: ["diff", "-r", commitId, "--summary"],
+	);
+
+	return {
+		vcs: "jj",
+		repoRoot,
+		currentRef: changeId,
+		scope: base ? "jj-base" : "jj-parent",
+		changeId,
+		commitId,
+		parentChangeIds,
+		parentCommitIds,
+		...(base
+			? {
+					baseRevision: base.revision,
+					baseChangeId: base.changeId,
+					baseCommitId: base.commitId,
+				}
+			: {}),
+		changedFiles,
+		hasTrackedChanges: changedFiles.length > 0,
+		hasAnyChanges: changedFiles.length > 0,
+	};
+}
+
+async function detectGitReviewContext(
 	pi: ExtensionAPI,
 	cwd: string,
 ): Promise<ReviewContext> {
@@ -93,7 +243,7 @@ export async function detectReviewContext(
 		"--show-current",
 	]);
 	const [hasDev, hasMain, hasMaster] = await Promise.all([
-		hasLocalDevBranch(pi, repoRoot),
+		hasLocalBranch(pi, repoRoot, "dev"),
 		hasLocalBranch(pi, repoRoot, "main"),
 		hasLocalBranch(pi, repoRoot, "master"),
 	]);
@@ -124,6 +274,7 @@ export async function detectReviewContext(
 
 	if (!baseBranch) {
 		return {
+			vcs: "git",
 			repoRoot,
 			currentRef,
 			scope: "current-state",
@@ -141,6 +292,7 @@ export async function detectReviewContext(
 	]);
 	if (!mergeBase) {
 		return {
+			vcs: "git",
 			repoRoot,
 			currentRef,
 			scope: "current-state",
@@ -178,6 +330,7 @@ export async function detectReviewContext(
 	const scope = hasAnyChanges ? "base-diff" : "latest-commit";
 
 	return {
+		vcs: "git",
 		repoRoot,
 		currentRef,
 		scope,
@@ -190,4 +343,14 @@ export async function detectReviewContext(
 		hasTrackedChanges,
 		hasAnyChanges: hasAnyChanges || Boolean(latestCommit),
 	};
+}
+
+export async function detectReviewContext(
+	pi: ExtensionAPI,
+	cwd: string,
+	options: { stackBase?: string } = {},
+): Promise<ReviewContext> {
+	const jjRoot = await detectJjWorkspace(pi, cwd);
+	if (jjRoot) return detectJjReviewContext(pi, jjRoot, options.stackBase);
+	return detectGitReviewContext(pi, cwd);
 }
