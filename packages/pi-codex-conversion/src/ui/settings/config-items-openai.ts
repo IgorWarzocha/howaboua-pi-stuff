@@ -6,7 +6,7 @@ import {
 	normalizeV2UserMessageRetention,
 	V2_USER_MESSAGE_RETENTION_OPTIONS,
 } from "../../adapter/activation/config.ts";
-import { type ConfigSetting, setting, toggle } from "./config-items-shared.ts";
+import { type ConfigSetting, projectToggle, setting, toggle } from "./config-items-shared.ts";
 
 export function buildOpenAISettings(
 	config: CodexConversionConfig,
@@ -17,6 +17,11 @@ export function buildOpenAISettings(
 			...current,
 			openai: { ...current.openai, fast: enabled },
 		})),
+		projectToggle(
+			"cacheKeepalive",
+			"Experimental cache keepalive",
+			config.openai.cacheKeepalive,
+		),
 		setting(
 			{
 				id: "verbosity",

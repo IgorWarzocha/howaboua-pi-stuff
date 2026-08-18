@@ -227,7 +227,11 @@ export function registerCodexEvents(
 		const update = event.assistantMessageEvent;
 		if (update.type === "text_delta" && typeof update.delta === "string") runtime.voice.streamDelta(update.delta);
 	});
-	pi.on("agent_start", async () => { runtime.voice.agentStarted(); runtime.lanVoice.agentStarted(); });
+	pi.on("agent_start", async () => {
+		runtime.cancelCacheKeepalive();
+		runtime.voice.agentStarted();
+		runtime.lanVoice.agentStarted();
+	});
 	pi.on("agent_settled", async (_event, ctx) => {
 		state.pendingActiveProviderPromptCapture = false;
 		state.voiceSystemPromptOverride = undefined;
@@ -235,6 +239,7 @@ export function registerCodexEvents(
 		runtime.voice.settleTurn();
 		runtime.lanVoice.agentSettled();
 		if (!state.config.voiceFeaturesOnly) void ui.refreshUsageStatus(ctx);
+		runtime.armCacheKeepalive(ctx);
 	});
 	pi.on("before_provider_request", async (event, ctx) => {
 		state.cwd = ctx.cwd;

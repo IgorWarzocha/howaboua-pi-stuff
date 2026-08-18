@@ -9,6 +9,7 @@ import {
 	readCodexConversionConfig,
 	readEffectiveCodexConversionConfig,
 	readLayeredCodexConversionConfig,
+	setProjectCodexCacheKeepalive,
 	type CodexConversionConfigScope,
 	writeCodexConversionConfig,
 } from "../../adapter/activation/config-store.ts";
@@ -54,7 +55,7 @@ export function registerCodexCommand(
 		const path = scope === "folder"
 			? getProjectCodexConversionConfigPath(ctx.cwd)
 			: getCodexConversionConfigPath();
-		const writeResult = writeCodexConversionConfig(nextConfig, path);
+		const writeResult = writeCodexConversionConfig(nextConfig, path, scope === "folder");
 		if (!writeResult.ok) {
 			ctx.ui.notify(`Failed to save Codex settings: ${writeResult.error}`, "error");
 			return false;
@@ -94,13 +95,32 @@ export function registerCodexCommand(
 				return;
 			}
 		}
-		const readSelectedConfig = () => configScope === "folder"
-			? readLayeredCodexConversionConfig({ cwd: ctx.cwd, projectTrusted: true })
-			: readCodexConversionConfig();
+		const readSelectedConfig = () => {
+			const selected = configScope === "folder"
+				? readLayeredCodexConversionConfig({ cwd: ctx.cwd, projectTrusted: true })
+				: readCodexConversionConfig();
+			return {
+				...selected,
+				openai: {
+					...selected.openai,
+					cacheKeepalive: effectiveConfig(ctx).openai.cacheKeepalive,
+				},
+			};
+		};
 		await openCodexSettingsScreen(ctx, {
 			initialConfig: readSelectedConfig(),
 			initialTab: tab,
 			onChange: (config) => saveAndApply(ctx, configScope, config),
+			onProjectCacheKeepalive: (enabled) => {
+				const result = setProjectCodexCacheKeepalive(ctx.cwd, ctx.isProjectTrusted(), enabled);
+				if (!result.ok) {
+					ctx.ui.notify(`Failed to save project cache keepalive: ${result.error}`, "error");
+					return undefined;
+				}
+				const previousConfig = state.config;
+				applyEffectiveConfig(ctx, previousConfig);
+				return readSelectedConfig();
+			},
 			configScope: {
 				current: () => configScope,
 				canUseFolder: ctx.isProjectTrusted(),

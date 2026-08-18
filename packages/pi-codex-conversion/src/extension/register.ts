@@ -47,6 +47,9 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 						&& config.openai.cacheDiagnostics === "status-and-log",
 				);
 			}
+			if (config.openai.cacheKeepalive !== previousConfig.openai.cacheKeepalive) {
+				runtime.cancelCacheKeepalive();
+			}
 			if (
 				config.voiceFeaturesOnly !== previousConfig.voiceFeaturesOnly
 				|| executionModeChanged

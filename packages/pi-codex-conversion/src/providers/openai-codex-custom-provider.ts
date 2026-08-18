@@ -8,7 +8,7 @@ import { buildRequestBody } from "./openai-codex/request-body.ts";
 import { openAICodexModelsWithDaybreak } from "./openai-codex/model-catalog.ts";
 import { supportsResponsesLiteModel } from "./openai-codex/responses-lite-model.ts";
 import { applyResponsesLiteRequest, applyResponsesLiteWebSocketMetadata, isResponsesLiteRequest, namespaceExistingResponsesLiteRequest, prepareResponsesLiteRequestImages } from "./openai-codex/responses-lite.ts";
-import type { CodexDiagnosticsSink, OpenAICodexStreamOptions, ResponsesBody } from "./openai-codex/types.ts";
+import type { CodexDiagnosticsSink, CodexPrewarmResult, OpenAICodexStreamOptions, ResponsesBody } from "./openai-codex/types.ts";
 import { recordWebSocketSseFallback } from "./openai-codex/websocket.ts";
 import { isWebSocketMessageTooBigError, isWebSocketUpgradeRequiredError } from "./openai-codex/websocket-connection.ts";
 import { prewarmWebSocket } from "./openai-codex/websocket-stream.ts";
@@ -60,7 +60,7 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 		turnState?: CodexTurnState | undefined;
 		getDiagnostics?: (() => CodexDiagnosticsSink | undefined) | undefined;
 	},
-): Promise<void> {
+): Promise<CodexPrewarmResult | undefined> {
 	const runtimeConfig = deps.getConfig?.();
 	if (getEffectiveCodexTransport(options.transport, runtimeConfig?.openai, options.sessionId) === "sse") return;
 	if (!options.apiKey || !options.sessionId) return;
@@ -83,7 +83,7 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 	const websocketBody = withCodexTurnState(responsesLite ? applyResponsesLiteWebSocketMetadata(body) : body, deps.turnState);
 	const diagnostics = noThrowCodexDiagnosticsSink(deps.getDiagnostics?.());
 	try {
-		await prewarmWebSocket(resolveCodexWebSocketUrl(model.baseUrl), websocketBody, headers, accountId, effectiveOptions, deps.turnState, diagnostics);
+		return await prewarmWebSocket(resolveCodexWebSocketUrl(model.baseUrl), websocketBody, headers, accountId, effectiveOptions, deps.turnState, diagnostics);
 	} catch (error) {
 		if (!options.signal?.aborted && (isWebSocketUpgradeRequiredError(error) || isWebSocketMessageTooBigError(error))) {
 			recordWebSocketSseFallback(options.sessionId);

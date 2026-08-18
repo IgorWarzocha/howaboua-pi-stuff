@@ -6,8 +6,10 @@ import test from "node:test";
 import {
 	clearFolderCodexConversionConfig,
 	getProjectCodexConversionConfigPath,
+	hasFolderCodexConversionConfig,
 	materializeFolderCodexConversionConfig,
 	readEffectiveCodexConversionConfig,
+	setProjectCodexCacheKeepalive,
 	writeCodexConversionConfig,
 } from "../src/adapter/activation/config-store.ts";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
@@ -17,7 +19,19 @@ test("trusted folder config overrides globals without crossing folder or process
 	try {
 		const globalPath = join(root, "agent", "pi-codex-conversion.json");
 		const project = join(root, "project");
+		const projectPath = getProjectCodexConversionConfigPath(project);
+		mkdirSync(join(root, "agent"), { recursive: true });
 		mkdirSync(join(project, ".pi"), { recursive: true });
+		writeFileSync(globalPath, JSON.stringify({ openai: { cacheKeepalive: true } }), { encoding: "utf8" });
+
+		assert.equal(readEffectiveCodexConversionConfig({ cwd: project, projectTrusted: true, globalConfigPath: globalPath, env: {} }).openai.cacheKeepalive, false);
+		assert.equal(setProjectCodexCacheKeepalive(project, true, true).ok, true);
+		assert.deepEqual(JSON.parse(readFileSync(projectPath, "utf8")), { openai: { cacheKeepalive: true } });
+		assert.equal(hasFolderCodexConversionConfig(project, true), false);
+		assert.equal(readEffectiveCodexConversionConfig({ cwd: project, projectTrusted: true, globalConfigPath: globalPath, env: {} }).openai.cacheKeepalive, true);
+		assert.equal(setProjectCodexCacheKeepalive(project, true, false).ok, true);
+		assert.equal(existsSync(projectPath), false);
+
 		writeCodexConversionConfig({
 			...structuredClone(DEFAULT_CODEX_CONVERSION_CONFIG),
 			openai: {
