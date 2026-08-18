@@ -106,17 +106,16 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.60
+### @howaboua/pi-extensions — 0.0.61
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-gippity-control: Run Pi Pet as a first-class GipPity companion. - Meet Clawa through the browser, voice, desktop dictation, a transparent desktop window, or the headless pet-state feed. - Import compatible Codex and ChatGPT pets or author new pets through free-form `/pet` requests. - Keep authored pets and generated displays in durable Pi agent storage, with optional per-repository pet selection. - Attach the local device directly or remote devices through Pi-owned SSH sessions, with each folder remembering where its sessions appear. - Get exact install and reload guidance when GipPity Control is missing or outdated.
-  - @howaboua/pi-pet: Run Pi Pet as a first-class GipPity companion. - Meet Clawa through the browser, voice, desktop dictation, a transparent desktop window, or the headless pet-state feed. - Import compatible Codex and ChatGPT pets or author new pets through free-form `/pet` requests. - Keep authored pets and generated displays in durable Pi agent storage, with optional per-repository pet selection. - Attach the local device directly or remote devices through Pi-owned SSH sessions, with each folder remembering where its sessions appear. - Get exact install and reload guidance when GipPity Control is missing or outdated.
+  - @howaboua/pi-subagent-review: Review the active JJ workspace revision with pinned commit context and an optional cumulative stack base.
 
-- Updated dependencies [[`4b4e42f`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/4b4e42f7659e42854ec81cb502bf69a48422d9eb)]:
-  - @howaboua/pi-gippity-control@0.0.13
+- Updated dependencies [[`5e8bd97`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/5e8bd97ee18473ce539b4c0b9c29997e129ddca7)]:
+  - @howaboua/pi-subagent-review@0.2.18
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
@@ -350,30 +349,24 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.65
+### @howaboua/pi-stuff — 0.0.66
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-gippity-control: Run Pi Pet as a first-class GipPity companion. - Meet Clawa through the browser, voice, desktop dictation, a transparent desktop window, or the headless pet-state feed. - Import compatible Codex and ChatGPT pets or author new pets through free-form `/pet` requests. - Keep authored pets and generated displays in durable Pi agent storage, with optional per-repository pet selection. - Attach the local device directly or remote devices through Pi-owned SSH sessions, with each folder remembering where its sessions appear. - Get exact install and reload guidance when GipPity Control is missing or outdated.
-  - @howaboua/pi-pet: Run Pi Pet as a first-class GipPity companion. - Meet Clawa through the browser, voice, desktop dictation, a transparent desktop window, or the headless pet-state feed. - Import compatible Codex and ChatGPT pets or author new pets through free-form `/pet` requests. - Keep authored pets and generated displays in durable Pi agent storage, with optional per-repository pet selection. - Attach the local device directly or remote devices through Pi-owned SSH sessions, with each folder remembering where its sessions appear. - Get exact install and reload guidance when GipPity Control is missing or outdated.
+  - @howaboua/pi-subagent-review: Review the active JJ workspace revision with pinned commit context and an optional cumulative stack base.
 
-- Updated dependencies [[`4b4e42f`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/4b4e42f7659e42854ec81cb502bf69a48422d9eb)]:
-  - @howaboua/pi-gippity-control@0.0.13
+- Updated dependencies [[`5e8bd97`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/5e8bd97ee18473ce539b4c0b9c29997e129ddca7)]:
+  - @howaboua/pi-subagent-review@0.2.18
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 
-### @howaboua/pi-subagent-review — 0.2.17
+### @howaboua/pi-subagent-review — 0.2.18
 
 ### Changes
 
-- [#301](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/301) [`8456135`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8456135c54113c01541c8ee8874baa1bd9eefa59) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Preserve the review findings UI while restoring the `before_agent_start` lifecycle when `/review` is the first session message.
-
-  - Keep findings custom-rendered, then use a normal user turn for verification and disposition.
-  - Direct the agent to verify findings against the cited code, request user dispositions, and begin agreed work without resummarizing.
-  - End cleanly without a disposition turn when the reviewer finds no actionable issues.
-  - Show this package’s unseen release notes in the shared startup card, with a global suppression setting.
+- [#312](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/312) [`5e8bd97`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/5e8bd97ee18473ce539b4c0b9c29997e129ddca7) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Review the active JJ workspace revision with pinned commit context and an optional cumulative stack base.
 
 [Full changelog](./packages/pi-subagent-review/CHANGELOG.md)
 
