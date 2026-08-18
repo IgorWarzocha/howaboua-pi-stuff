@@ -108,8 +108,17 @@ function buildJjReviewScopeText(
 			: "(root revision)";
 	return [
 		"for JJ workspace " + review.repoRoot,
-		"active change ID: " + review.changeId,
-		"active commit ID: " + review.commitId,
+		...(review.workspaceChangeId && review.workspaceCommitId
+			? [
+					"active empty workspace change ID: " + review.workspaceChangeId,
+					"active empty workspace commit ID: " + review.workspaceCommitId,
+					"review parent change ID: " + review.changeId,
+					"review parent commit ID: " + review.commitId,
+				]
+			: [
+					"active change ID: " + review.changeId,
+					"active commit ID: " + review.commitId,
+				]),
 		"direct parent change ID" +
 			(review.parentChangeIds.length === 1 ? "" : "s") +
 			": " +

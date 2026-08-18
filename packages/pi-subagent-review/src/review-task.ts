@@ -125,8 +125,17 @@ function buildJjReviewTask(
 			: "(root revision)";
 	const sections = [
 		"JJ workspace root: " + review.repoRoot,
-		"Active change ID: " + review.changeId,
-		"Active commit ID: " + review.commitId,
+		...(review.workspaceChangeId && review.workspaceCommitId
+			? [
+					"Active empty workspace change ID: " + review.workspaceChangeId,
+					"Active empty workspace commit ID: " + review.workspaceCommitId,
+					"Review parent change ID: " + review.changeId,
+					"Review parent commit ID: " + review.commitId,
+				]
+			: [
+					"Active change ID: " + review.changeId,
+					"Active commit ID: " + review.commitId,
+				]),
 		"Direct parent commit ID" +
 			(review.parentCommitIds.length === 1 ? "" : "s") +
 			": " +
