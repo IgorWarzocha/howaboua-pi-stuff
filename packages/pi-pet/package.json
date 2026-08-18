@@ -1,6 +1,6 @@
 {
   "name": "@howaboua/pi-pet",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Animated companions for GipPity Remote.",
   "repository": {
     "type": "git",
@@ -39,10 +39,13 @@
     "!**/__pycache__",
     "!**/*.pyc",
     "!**/.venv",
-    "!authoring/hatch/tests"
+    "!authoring/hatch/tests",
+    "changelog.ts",
+    "CHANGELOG.md"
   ],
   "pi": {
     "extensions": [
+      "./changelog.ts",
       "./extensions/index.ts"
     ]
   },

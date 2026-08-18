@@ -1,5 +1,17 @@
 # @howaboua/pi-gippity-control
 
+## 0.0.13
+
+### Changes
+
+- [#304](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/304) [`4b4e42f`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/4b4e42f7659e42854ec81cb502bf69a48422d9eb) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Run Pi Pet as a first-class GipPity companion.
+
+  - Meet Clawa through the browser, voice, desktop dictation, a transparent desktop window, or the headless pet-state feed.
+  - Import compatible Codex and ChatGPT pets or author new pets through free-form `/pet` requests.
+  - Keep authored pets and generated displays in durable Pi agent storage, with optional per-repository pet selection.
+  - Attach the local device directly or remote devices through Pi-owned SSH sessions, with each folder remembering where its sessions appear.
+  - Get exact install and reload guidance when GipPity Control is missing or outdated.
+
 ## 0.0.12
 
 ### Changes
@@ -30,11 +42,13 @@
 ### Changes
 
 - [#263](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/263) [`85b0a1f`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/85b0a1f3f22a4e6f8c98211fefe8388c3be39d29) Thanks [@howaclawa](https://github.com/howaclawa)!:
+
   - Follow system audio defaults unless an endpoint is pinned.
   - Keep successfully rerouted output streams active.
   - Share guided first-run and manual audio setup.
 
 - [#268](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/268) [`df747db`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/df747dbc74520d11f7e56e3d85e2df81f5facba2) Thanks [@howaclawa](https://github.com/howaclawa)!:
+
   - Show voice-context summarization progress.
   - Greet users through the V3 speakable context channel when realtime sessions are ready.
   - Warn in Pi and the LAN controller when microphone input is too quiet.

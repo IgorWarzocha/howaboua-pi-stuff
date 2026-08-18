@@ -130,6 +130,20 @@
   },
   "overrides": [
     {
+      "includes": ["changelog.ts"],
+      "formatter": {
+        "indentStyle": "tab",
+        "indentWidth": 2,
+        "lineWidth": 80
+      },
+      "linter": {
+        "rules": {
+          "complexity": { "noExcessiveCognitiveComplexity": "off" },
+          "performance": { "useTopLevelRegex": "off" }
+        }
+      }
+    },
+    {
       "includes": ["**/*.d.ts", "**/*.config.{js,ts,mjs,cjs}", "**/scripts/**"],
       "linter": {
         "rules": {

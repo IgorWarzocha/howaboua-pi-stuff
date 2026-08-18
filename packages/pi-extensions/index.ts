@@ -9,6 +9,7 @@ import howabouaPiGippityControl from "@howaboua/pi-gippity-control";
 import howabouaPiGptSwitcher from "@howaboua/pi-gpt-switcher";
 import howabouaPiMarkdownWorkflows from "@howaboua/pi-markdown-workflows";
 import howabouaPiMemories from "@howaboua/pi-memories";
+import howabouaPiPet from "@howaboua/pi-pet";
 import howabouaPiSemanticGrep from "@howaboua/pi-semantic-grep";
 import howabouaPiShepherdr from "@howaboua/pi-shepherdr";
 import howabouaPiSmartBtw from "@howaboua/pi-smart-btw";
@@ -27,6 +28,7 @@ export default async function (pi: ExtensionAPI) {
 	await howabouaPiGptSwitcher(pi);
 	await howabouaPiMarkdownWorkflows(pi);
 	await howabouaPiMemories(pi);
+	await howabouaPiPet(pi);
 	await howabouaPiSemanticGrep(pi);
 	await howabouaPiShepherdr(pi);
 	await howabouaPiSmartBtw(pi);

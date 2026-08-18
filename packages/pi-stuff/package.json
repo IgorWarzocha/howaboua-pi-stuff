@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-stuff",
-	"version": "0.0.64",
+	"version": "0.0.65",
 	"description": "all Howaboua Pi extensions and skills",
 	"type": "module",
 	"keywords": [
@@ -19,10 +19,11 @@
 		"@howaboua/pi-cache-hit-predictor": "0.0.1",
 		"@howaboua/pi-dynamic-tools": "0.0.8",
 		"@howaboua/pi-explore-subagents": "0.1.13",
-		"@howaboua/pi-gippity-control": "0.0.12",
+		"@howaboua/pi-gippity-control": "0.0.13",
 		"@howaboua/pi-gpt-switcher": "0.1.0",
 		"@howaboua/pi-markdown-workflows": "0.2.20",
 		"@howaboua/pi-memories": "0.1.4",
+		"@howaboua/pi-pet": "0.1.1",
 		"@howaboua/pi-semantic-grep": "0.1.19",
 		"@howaboua/pi-shepherdr": "0.1.2",
 		"@howaboua/pi-skill-adversarial-qa": "0.0.1",
