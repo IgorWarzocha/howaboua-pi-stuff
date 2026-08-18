@@ -31,6 +31,9 @@ interface ReviewLoopState {
 export interface ParsedReviewArgs {
 	startLoop: boolean;
 	focus: string;
+	rawFocus: string;
+	stackBase?: string;
+	invalidStackArgument?: string;
 }
 
 function isReviewLoopState(value: unknown): value is ReviewLoopState {
@@ -41,17 +44,63 @@ function isReviewLoopState(value: unknown): value is ReviewLoopState {
 
 export function parseReviewArgs(args: string): ParsedReviewArgs {
 	const trimmed = args.trim();
-	if (!trimmed) return { startLoop: false, focus: "" };
+	if (!trimmed) return { startLoop: false, focus: "", rawFocus: "" };
 
-	const match = /^(\S+)(?:\s+([\s\S]*))?$/.exec(trimmed);
-	const firstWord = match?.[1] ?? "";
-	if (firstWord.toLowerCase() !== "loop") {
-		return { startLoop: false, focus: trimmed };
+	const loopMatch = /^loop(?:\s+|$)/i.exec(trimmed);
+	const startLoop = Boolean(loopMatch);
+	const rawFocus = startLoop
+		? trimmed.slice(loopMatch?.[0].length ?? 0).trim()
+		: trimmed;
+	const stackMatches = [
+		...rawFocus.matchAll(
+			/(?:^|\s)stack=(?:"((?:\\["\\]|[^"\\])*)"|'((?:\\['\\]|[^'\\])*)'|(\S+))(?=\s|$)/g,
+		),
+	];
+	if (stackMatches.length === 0) {
+		return { startLoop, focus: rawFocus, rawFocus };
+	}
+	if (stackMatches.length > 1) {
+		return {
+			startLoop,
+			focus: rawFocus,
+			rawFocus,
+			invalidStackArgument: "Specify only one stack=<ancestor revset>.",
+		};
 	}
 
-	return { startLoop: true, focus: (match?.[2] ?? "").trim() };
-}
+	const match = stackMatches[0];
+	if (!match) return { startLoop, focus: rawFocus, rawFocus };
+	const unquoted = match[3];
+	const stackBase =
+		match[1] !== undefined
+			? match[1].replaceAll(/\\(["\\])/g, "$1")
+			: match[2] !== undefined
+				? match[2].replaceAll(/\\(['\\])/g, "$1")
+				: (unquoted ?? "");
+	if (
+		!stackBase ||
+		(unquoted !== undefined &&
+			(unquoted.includes('"') || unquoted.includes("'")))
+	) {
+		return {
+			startLoop,
+			focus: rawFocus,
+			rawFocus,
+			invalidStackArgument:
+				"A JJ stack base must be a non-empty token or a quoted stack=<ancestor revset>.",
+		};
+	}
 
+	const matchIndex = match.index ?? 0;
+	const matchText = match[0] ?? "";
+	const focus = [
+		rawFocus.slice(0, matchIndex),
+		rawFocus.slice(matchIndex + matchText.length),
+	]
+		.join(" ")
+		.trim();
+	return { startLoop, focus, rawFocus, stackBase };
+}
 export function readReviewLoopState(
 	ctx: ExtensionCommandContext,
 ): ReviewLoopState | undefined {

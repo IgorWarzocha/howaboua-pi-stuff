@@ -32,7 +32,7 @@ export function registerReviewCommand(
 ) {
 	pi.registerCommand(REVIEW_COMMAND, {
 		description:
-			"Run an isolated code-review subagent against the current repo and send advisory findings back as custom review output",
+			"Run an isolated code-review subagent; in a JJ workspace, pass stack=<ancestor revset> to review a cumulative stack",
 		handler: async (args, ctx) => {
 			const parsedArgs = parseReviewArgs(args);
 			const setReviewWidget = (message?: string) => {
@@ -56,6 +56,22 @@ export function registerReviewCommand(
 				);
 				await ctx.waitForIdle();
 			}
+			let review;
+			try {
+				review = await detectReviewContext(pi, ctx.cwd, {
+					...(parsedArgs.stackBase ? { stackBase: parsedArgs.stackBase } : {}),
+				});
+				if (review.vcs === "jj" && parsedArgs.invalidStackArgument) {
+					throw new Error(parsedArgs.invalidStackArgument);
+				}
+			} catch (error) {
+				ctx.ui.notify(
+					error instanceof Error ? error.message : String(error),
+					"error",
+				);
+				return;
+			}
+
 			let reviewConfig;
 			let summaryFallbackNotified = false;
 
@@ -84,17 +100,6 @@ export function registerReviewCommand(
 				}
 			}
 
-			let review;
-			try {
-				review = await detectReviewContext(pi, ctx.cwd);
-			} catch (error) {
-				ctx.ui.notify(
-					error instanceof Error ? error.message : String(error),
-					"error",
-				);
-				return;
-			}
-
 			sendReviewPreface(pi, ctx, { freshLoop: parsedArgs.startLoop });
 
 			if (parsedArgs.startLoop) {
@@ -116,10 +121,14 @@ export function registerReviewCommand(
 					pi,
 					ctx,
 					review,
-					"No changes found relative to the selected base branch.",
+					review.vcs === "jj"
+						? "No changes found in the active JJ revision."
+						: "No changes found relative to the selected base branch.",
 				);
 				ctx.ui.notify(
-					`No changes found relative to ${review.baseBranch}; sent summary to the agent.`,
+					review.vcs === "jj"
+						? "No changes found in the active JJ revision; sent summary to the agent."
+						: `No changes found relative to ${review.baseBranch}; sent summary to the agent.`,
 					"info",
 				);
 				return;
@@ -156,7 +165,7 @@ export function registerReviewCommand(
 
 				const task = buildReviewTask(
 					review,
-					parsedArgs.focus,
+					review.vcs === "jj" ? parsedArgs.focus : parsedArgs.rawFocus,
 					conversationSummary,
 				);
 				details = createChildRunDetails(task, review.repoRoot, reviewConfig);

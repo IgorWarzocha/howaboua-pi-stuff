@@ -62,7 +62,8 @@ export interface ChildRunDetails {
 	usage: UsageStats;
 }
 
-export interface ReviewContext {
+interface GitReviewContext {
+	vcs: "git";
 	repoRoot: string;
 	currentRef: string;
 	scope: "base-diff" | "current-state" | "latest-commit";
@@ -75,3 +76,22 @@ export interface ReviewContext {
 	hasTrackedChanges: boolean;
 	hasAnyChanges: boolean;
 }
+
+export interface JjReviewContext {
+	vcs: "jj";
+	repoRoot: string;
+	currentRef: string;
+	scope: "jj-parent" | "jj-base";
+	changeId: string;
+	commitId: string;
+	parentChangeIds: string[];
+	parentCommitIds: string[];
+	baseRevision?: string;
+	baseChangeId?: string;
+	baseCommitId?: string;
+	changedFiles: string;
+	hasTrackedChanges: boolean;
+	hasAnyChanges: boolean;
+}
+
+export type ReviewContext = GitReviewContext | JjReviewContext;

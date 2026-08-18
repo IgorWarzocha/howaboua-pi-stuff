@@ -16,15 +16,19 @@ Run `/reload` after installation if Pi is already open.
 /review
 /review focus on migrations and tests
 /review loop
+/review stack=main@origin
+/review stack="description(exact:'release base')" focus on migrations
 ```
 
-Anything after `/review` becomes additional reviewer guidance. A leading `loop` starts review-loop mode and is removed from that guidance.
+Anything after `/review` becomes additional reviewer guidance. A leading `loop` starts review-loop mode and is removed from that guidance. In a JJ workspace, `stack=<ancestor revset>` selects a cumulative review base and is removed from that guidance; quote a revset containing spaces. Only one `stack=` argument is accepted.
 
 Findings are advisory. The command tells the main agent to verify and categorize them against the current implementation and session context rather than treating them as a TODO list.
 
 ## Review scope
 
-The extension chooses among local `dev`, `main`, and `master` branches, then reviews from the merge base so committed and dirty changes are included without base-only commits. With no usable base it reviews the checkout; with no changes it reviews the latest commit.
+In a JJ workspace, the extension reviews the active revision before considering an enclosing Git checkout. It pins the active change and commit IDs, reviews against its direct parent by default, and uses `stack=<ancestor revset>` for a cumulative range. The active revision must be conflict-free. The read-only command reviews stored commit content; capture filesystem edits with JJ before invoking `/review`.
+
+Elsewhere, the extension chooses among local `dev`, `main`, and `master` branches, then reviews from the merge base so committed and dirty changes are included without base-only commits. With no usable base it reviews the checkout; with no changes it reviews the latest commit.
 
 When enabled, a separate model summarizes the current Pi branch for the reviewer; raw turns are not sent. Review continues diff-only if summarization fails.
 
