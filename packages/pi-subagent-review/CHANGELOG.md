@@ -1,5 +1,11 @@
 # @howaboua/pi-subagent-review
 
+## 0.2.18
+
+### Changes
+
+- [#312](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/312) [`5e8bd97`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/5e8bd97ee18473ce539b4c0b9c29997e129ddca7) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Review the active JJ workspace revision with pinned commit context and an optional cumulative stack base.
+
 ## 0.2.17
 
 ### Changes

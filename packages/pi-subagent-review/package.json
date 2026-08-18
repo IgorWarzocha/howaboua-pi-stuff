@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-subagent-review",
-	"version": "0.2.17",
+	"version": "0.2.18",
 	"description": "Pi extension that adds /review via an isolated review subagent.",
 	"type": "module",
 	"main": "index.ts",
