@@ -101,13 +101,15 @@ export function formatStatus(details: NotebookStatusDetails): string {
 		for (const binding of details.pinned) lines.push(`- ${binding.name}: ${formatBytes(binding.bytes)} · updated ${formatAge(binding.updatedAt)}${formatBindingMetadata(binding)}`);
 		if (details.omittedPinned > 0) lines.push(`${details.omittedPinned} additional pinned binding(s) omitted; use status with a query glob`);
 	}
-	if (details.query === undefined && details.largestUnpinned.length > 0) {
-		lines.push("Largest unpinned retained bindings:");
-		for (const binding of details.largestUnpinned) {
-			lines.push(`- ${binding.name}: ${formatBytes(binding.bytes)} · updated ${formatAge(binding.updatedAt)}${formatBindingMetadata(binding)}`);
+	if (details.query === undefined && (details.largestUnpinned.length > 0 || details.omittedLargestUnpinned > 0)) {
+		if (details.largestUnpinned.length > 0) {
+			lines.push("Largest unpinned retained bindings:");
+			for (const binding of details.largestUnpinned) {
+				lines.push(`- ${binding.name}: ${formatBytes(binding.bytes)} · updated ${formatAge(binding.updatedAt)}${formatBindingMetadata(binding)}`);
+			}
 		}
 		if (details.omittedLargestUnpinned > 0) lines.push(`${details.omittedLargestUnpinned} additional unpinned binding(s) omitted; use status with a query glob`);
-		lines.push("Use status with a query glob for details; pin intentional state before pruning disposable matches");
+		lines.push("Use status with a query glob for details; unpinned state is reusable scratch, pin valuable state before pruning");
 	}
 	if (details.query !== undefined) {
 		lines.push(`Bindings matching ${JSON.stringify(details.query)}:`);

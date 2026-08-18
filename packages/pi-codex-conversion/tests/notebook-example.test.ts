@@ -1,13 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildCodexSystemPrompt } from "../src/prompt/build-system-prompt.ts";
 import { notebookExampleSource } from "../src/tools/notebook-mode/kernel-runtime.ts";
-
-test("Notebook system guidance treats retained globals as self-describing mini-tools", () => {
-	const prompt = buildCodexSystemPrompt("Guidelines:\n\nCurrent date: 2026-01-01", { mode: "notebook" });
-	assert.match(prompt, /Treat retained globals as mini-tools: check notebook status description\/usage before rebuilding/);
-	assert.match(prompt, /inspect other globals' description\/usage before constructing reusable ones; give helpers concise own description\/usage with a safe inspection recipe and simple one-shot call shape/);
-});
 
 test("Notebook seeds expose a self-describing foo/bar example and skip conflicts", async () => {
 	const previousFoo = Object.getOwnPropertyDescriptor(globalThis, "foo");
