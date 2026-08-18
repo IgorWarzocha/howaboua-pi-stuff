@@ -1,5 +1,6 @@
 import type { CanonicalHistoryDecision, ResponsesBody } from "./types.ts";
 import { responseInputsEqual } from "./websocket-continuation.ts";
+import type { CodexCompactionReplayDecision } from "../../adapter/compaction/diagnostics.ts";
 
 export type CanonicalSessionToken = {
 	laneIdentity: symbol;
@@ -126,15 +127,29 @@ export function canonicalCompactionPromptInput(
 	identity?: { url: string; accountId: string } | undefined,
 	reconstructedInput?: readonly unknown[] | undefined,
 ): unknown[] | undefined {
+	return resolveCanonicalCompactionPromptInput(sessionId, model, identity, reconstructedInput).input;
+}
+
+export function resolveCanonicalCompactionPromptInput(
+	sessionId: string,
+	model: string,
+	identity?: { url: string; accountId: string } | undefined,
+	reconstructedInput?: readonly unknown[] | undefined,
+): { input?: unknown[] | undefined; decision: CodexCompactionReplayDecision } {
 	const state = canonicalSessions.get(sessionId);
-	if (!state || state.requestBody.model !== model) return undefined;
-	if (identity && (state.url !== identity.url || state.accountId !== identity.accountId)) return undefined;
-	if (!reconstructedInput) return structuredClone(materializedInput(state));
-	return replayCanonicalInput(
+	if (!state) return { decision: "no_state" };
+	if (state.requestBody.model !== model) return { decision: "model_mismatch" };
+	if (identity && (state.url !== identity.url || state.accountId !== identity.accountId)) return { decision: "identity_mismatch" };
+	if (!reconstructedInput) return { input: structuredClone(materializedInput(state)), decision: "validated" };
+	const replay = replayCanonicalInput(
 		state,
 		reconstructedInput,
 		responsesLiteRequestPrefixLength(state.reconstructedRequestInput),
-	).input;
+	);
+	return {
+		...(replay.input ? { input: replay.input } : {}),
+		decision: replay.decision === "compaction" ? "validated" : replay.decision,
+	};
 }
 
 export function canonicalCompactionRequestBody(

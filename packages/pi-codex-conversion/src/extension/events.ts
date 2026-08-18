@@ -17,6 +17,7 @@ import { parseRealtimeVoicePrompt, REALTIME_VOICE_PROMPT_CHANNEL } from "../real
 import { initializeBashParser } from "../shell/bash.ts";
 import { prepareVoiceDelegation } from "../voice/delegation-preflight.ts";
 import { appendNotebookTreeEpoch } from "../tools/notebook-mode/session-identity.ts";
+import { formatCompactionCacheDiagnostic } from "../adapter/compaction/diagnostics.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
 import type { CodexToolRegistration } from "./tools.ts";
 import type { CodexUiController } from "./ui.ts";
@@ -24,7 +25,8 @@ import type { CodexUiController } from "./ui.ts";
 function formatCompactionUsage(usage: NativeCompactionUsage): string {
 	const ratio = usage.inputTokens > 0 ? `${((usage.cachedInputTokens / usage.inputTokens) * 100).toFixed(1)}%` : "0%";
 	const tokens = (value: number) => Math.round(value).toLocaleString("en-US");
-	return `Compaction V2 · input ${tokens(usage.inputTokens)} · cache read ${tokens(usage.cachedInputTokens)} (${ratio}) · cache write ${tokens(usage.cacheWriteInputTokens)} · output ${tokens(usage.outputTokens)}`;
+	const diagnostic = formatCompactionCacheDiagnostic(usage, usage.diagnostic);
+	return `Compaction V2 · input ${tokens(usage.inputTokens)} · cache read ${tokens(usage.cachedInputTokens)} (${ratio}) · cache write ${tokens(usage.cacheWriteInputTokens)} · output ${tokens(usage.outputTokens)}${diagnostic ? ` ${diagnostic}` : ""}`;
 }
 
 function commandArg(args: unknown): string | undefined {

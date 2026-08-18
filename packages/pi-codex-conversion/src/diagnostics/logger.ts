@@ -61,6 +61,12 @@ function eventFields(event: CodexDiagnosticsEvent): Array<string | undefined> {
 		field("previous_response_id", event.previousResponseId),
 		field("full_input_items", event.fullInputItems),
 		field("sent_input_items", event.sentInputItems),
+		field("model", event.model),
+		field("compaction_source", event.compaction?.inputSource),
+		field("compaction_replay", event.compaction?.canonicalReplay),
+		field("checkpoint_reused", event.compaction?.checkpointReused),
+		field("checkpoint_model", event.compaction?.checkpointModel),
+		field("rewritten_tool_outputs", event.compaction?.rewrittenToolOutputs),
 	];
 	if (event.type === "usage") {
 		const totalInput = event.inputTokens + event.cachedInputTokens + event.cacheWriteInputTokens;

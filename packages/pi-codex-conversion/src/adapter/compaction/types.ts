@@ -1,4 +1,5 @@
 import type { CompactionEntry, CompactionResult } from "@earendil-works/pi-coding-agent";
+import { isCodexCompactionDiagnostic, type CodexCompactionDiagnostic } from "./diagnostics.ts";
 
 const LEGACY_NATIVE_COMPACTION_STRATEGY = "openai-native-compact-v1";
 export const NATIVE_COMPACTION_STRATEGY = "openai-responses-compaction-v2";
@@ -31,6 +32,7 @@ export type NativeCompactionUsage = {
 	cachedInputTokens: number;
 	cacheWriteInputTokens: number;
 	outputTokens: number;
+	diagnostic?: CodexCompactionDiagnostic | undefined;
 };
 
 export type NativeCompactionIdentity = {
@@ -155,7 +157,8 @@ export function isNativeCompactionRequestMeta(value: unknown): value is NativeCo
 
 export function isNativeCompactionUsage(value: unknown): value is NativeCompactionUsage {
 	if (!isRecord(value)) return false;
-	return [value["inputTokens"], value["cachedInputTokens"], value["cacheWriteInputTokens"], value["outputTokens"]].every(isFiniteNonNegativeNumber);
+	return [value["inputTokens"], value["cachedInputTokens"], value["cacheWriteInputTokens"], value["outputTokens"]].every(isFiniteNonNegativeNumber)
+		&& (value["diagnostic"] === undefined || isCodexCompactionDiagnostic(value["diagnostic"]));
 }
 
 export function isNativeCompactionDetails(value: unknown): value is NativeCompactionDetails {

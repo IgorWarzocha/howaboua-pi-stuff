@@ -369,6 +369,15 @@ export function createCodexTransportStream<TApi extends Api>(
 				if (attempt > 0) output = createInitialAssistantMessage(model);
 				const responseItems: unknown[] = [];
 				try {
+					if (effectiveOptions?.compactionDiagnostics) {
+						Object.assign(effectiveOptions.compactionDiagnostics, {
+							transport: "sse",
+							continuation: undefined,
+							previousResponseId: false,
+							fullInputItems: body.input.length,
+							sentInputItems: body.input.length,
+						});
+					}
 					diagnostics?.({
 						type: "request",
 						lane,
@@ -376,7 +385,9 @@ export function createCodexTransportStream<TApi extends Api>(
 						attempt: attempt + 1,
 						fullInputItems: body.input.length,
 						sentInputItems: body.input.length,
+						model: body.model,
 						...(canonicalHistory ? { canonicalHistory } : {}),
+						...(effectiveOptions?.compactionDiagnostics ? { compaction: structuredClone(effectiveOptions.compactionDiagnostics) } : {}),
 					});
 					const response = await openCodexSSE(model, sseBody, baseSseHeaders, effectiveOptions, deps.turnState);
 					if (!response.body) throw new Error("No response body");
