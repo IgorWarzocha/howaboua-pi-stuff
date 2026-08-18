@@ -19,6 +19,8 @@ export interface NotebookStatusDetails extends Record<string, unknown> {
 		bytes?: number | undefined;
 		updatedAt?: string | undefined;
 		pinned?: boolean | undefined;
+		description?: string | undefined;
+		usage?: string | undefined;
 	}> | undefined;
 	omittedMatches?: number | undefined;
 	retainedBindings: number;
@@ -27,6 +29,7 @@ export interface NotebookStatusDetails extends Record<string, unknown> {
 	pinned: RetainedProjectBinding[];
 	omittedPinned: number;
 	largestUnpinned: RetainedProjectBinding[];
+	omittedLargestUnpinned: number;
 }
 
 export function withinNameBudget(names: string[]): string[] {
@@ -52,6 +55,10 @@ export function takeDetailValues<T>(values: T[], budget: { remaining: number }):
 		selected.push(value);
 	}
 	return selected;
+}
+
+export function remainingDetailsBudget(base: unknown): { remaining: number } {
+	return { remaining: Math.max(0, NOTEBOOK_DETAILS_BUDGET - Buffer.byteLength(JSON.stringify(base))) };
 }
 
 export function boundedReleaseDetails(
@@ -91,25 +98,34 @@ export function formatStatus(details: NotebookStatusDetails): string {
 	];
 	if (details.query === undefined && details.pinned.length > 0) {
 		lines.push("Pinned project bindings:");
-		for (const binding of details.pinned) lines.push(`- ${binding.name}: ${formatBytes(binding.bytes)} · updated ${formatAge(binding.updatedAt)}`);
+		for (const binding of details.pinned) lines.push(`- ${binding.name}: ${formatBytes(binding.bytes)} · updated ${formatAge(binding.updatedAt)}${formatBindingMetadata(binding)}`);
 		if (details.omittedPinned > 0) lines.push(`${details.omittedPinned} additional pinned binding(s) omitted; use status with a query glob`);
 	}
-	if (details.query === undefined && details.largestUnpinned.length > 0) {
-		lines.push("Largest unpinned retained bindings:");
-		for (const binding of details.largestUnpinned) {
-			lines.push(`- ${binding.name}: ${formatBytes(binding.bytes)} · updated ${formatAge(binding.updatedAt)}`);
+	if (details.query === undefined && (details.largestUnpinned.length > 0 || details.omittedLargestUnpinned > 0)) {
+		if (details.largestUnpinned.length > 0) {
+			lines.push("Largest unpinned retained bindings:");
+			for (const binding of details.largestUnpinned) {
+				lines.push(`- ${binding.name}: ${formatBytes(binding.bytes)} · updated ${formatAge(binding.updatedAt)}${formatBindingMetadata(binding)}`);
+			}
 		}
-		lines.push("Use status with a query glob for details; pin intentional state before pruning disposable matches");
+		if (details.omittedLargestUnpinned > 0) lines.push(`${details.omittedLargestUnpinned} additional unpinned binding(s) omitted; use status with a query glob`);
+		lines.push("Use status with a query glob for details; unpinned state is reusable scratch, pin valuable state before pruning");
 	}
 	if (details.query !== undefined) {
 		lines.push(`Bindings matching ${JSON.stringify(details.query)}:`);
 		for (const binding of details.matches ?? []) {
-			lines.push(`- ${binding.name}: ${binding.kind}${binding.constructor ? ` ${binding.constructor}` : ` ${binding.type}`}${binding.disposable ? ` · ${binding.disposable} disposable` : ""}${binding.bytes === undefined ? "" : ` · ${formatBytes(binding.bytes)} · updated ${formatAge(binding.updatedAt!)}`}${binding.pinned ? " · pinned" : ""}`);
+			lines.push(`- ${binding.name}: ${binding.kind}${binding.constructor ? ` ${binding.constructor}` : ` ${binding.type}`}${binding.disposable ? ` · ${binding.disposable} disposable` : ""}${binding.bytes === undefined ? "" : ` · ${formatBytes(binding.bytes)} · updated ${formatAge(binding.updatedAt!)}`}${binding.pinned ? " · pinned" : ""}${formatBindingMetadata(binding)}`);
 		}
 		if ((details.matches?.length ?? 0) === 0) lines.push("- none");
 		if ((details.omittedMatches ?? 0) > 0) lines.push(`${details.omittedMatches} additional match(es) omitted; narrow query`);
 	}
 	return boundMessage(lines.filter(Boolean).join("\n"));
+}
+
+function formatBindingMetadata(binding: { description?: string | undefined; usage?: string | undefined }): string {
+	const description = binding.description === undefined ? "" : ` · ${binding.description}`;
+	const usage = binding.usage === undefined ? "" : ` · usage: ${binding.usage.replaceAll("\n", "\n  ")}`;
+	return `${description}${usage}`;
 }
 
 export function formatRelease(result: NotebookReleaseResult, restarted: boolean): string {

@@ -5,6 +5,7 @@ import {
 	MAX_PROJECT_ENTRIES,
 	MAX_PROJECT_MANIFEST_BYTES,
 	MAX_PROJECT_NAME_BYTES,
+	parseProjectBindingMetadata,
 	type ProjectStateEntry,
 } from "./project-state-format.ts";
 
@@ -140,12 +141,14 @@ export function hashProfileBytes(bytes: Uint8Array): string {
 function parseEntry(value: unknown): ProjectStateEntry | undefined {
 	if (!isRecord(value)) return undefined;
 	const { name, kind, offset, length, hash } = value;
+	const metadata = parseProjectBindingMetadata(value);
 	return typeof name === "string" && IDENTIFIER.test(name) && Buffer.byteLength(name) <= MAX_PROJECT_NAME_BYTES
 		&& (kind === "value" || kind === "function")
 		&& Number.isSafeInteger(offset) && (offset as number) >= 0
 		&& Number.isSafeInteger(length) && (length as number) >= 0
 		&& typeof hash === "string" && HASH.test(hash)
-		? { name, kind, offset: offset as number, length: length as number, hash }
+		&& metadata !== undefined
+		? { name, kind, offset: offset as number, length: length as number, hash, ...metadata }
 		: undefined;
 }
 

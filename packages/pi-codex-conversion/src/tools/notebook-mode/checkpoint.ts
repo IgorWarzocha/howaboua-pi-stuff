@@ -13,6 +13,7 @@ import {
 	MAX_PROJECT_ENTRIES,
 	MAX_PROJECT_MANIFEST_BYTES,
 	MAX_PROJECT_NAME_BYTES,
+	parseProjectBindingMetadata,
 	type ProjectStateBaseline,
 } from "./project-state-format.ts";
 
@@ -254,12 +255,14 @@ function isValidCheckpointPayload(manifest: CheckpointManifest, path: string, ma
 function parseEntry(value: unknown): CheckpointEntry | undefined {
 	if (!isRecord(value)) return undefined;
 	const { name, offset, length, kind } = value;
+	const metadata = parseProjectBindingMetadata(value);
 	return typeof name === "string" && IDENTIFIER.test(name)
 		&& Buffer.byteLength(name) <= MAX_PROJECT_NAME_BYTES
 		&& (kind === undefined || kind === "value" || kind === "function")
 		&& Number.isSafeInteger(offset) && (offset as number) >= 0
 		&& Number.isSafeInteger(length) && (length as number) >= 0
-		? { name, kind: kind === "function" ? "function" : "value", offset: offset as number, length: length as number }
+		&& metadata !== undefined
+		? { name, kind: kind === "function" ? "function" : "value", offset: offset as number, length: length as number, ...metadata }
 		: undefined;
 }
 
