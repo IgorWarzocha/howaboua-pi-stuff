@@ -22,6 +22,7 @@ interface DelegateController {
 type SendMessage = (message: unknown) => void;
 
 export class CodeModeDelegateRuntime {
+	private readonly traceRuntimeGeneration = crypto.randomUUID();
 	private readonly cellContexts = new Map<string, ToolExecutionContext>();
 	private readonly cellTools = new Map<string, Map<string, CodeModeToolDefinition>>();
 	private readonly controllers = new Map<string, DelegateController>();
@@ -194,7 +195,12 @@ export class CodeModeDelegateRuntime {
 		const context = this.cellContexts.get(cellId);
 		if (!tool) throw new Error(`Unknown custom tool: ${toolName}`);
 		if (!context) throw new Error("Code-mode cell context is unavailable");
-		const trace = this.traces.start(cellId, traceId, tool.name, input);
+		const trace = this.traces.start(
+			cellId,
+			`${this.traceRuntimeGeneration}:${cellId}:${traceId}`,
+			tool.name,
+			input,
+		);
 		const invocationContext: ToolExecutionContext = {
 			...context,
 			toolCallId: trace.id,

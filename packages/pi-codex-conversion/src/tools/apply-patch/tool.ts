@@ -1,19 +1,24 @@
 import { Type } from "typebox";
-import { type ExtensionAPI, withFileMutationQueue } from "@earendil-works/pi-coding-agent";
+import { type ExtensionAPI, type ToolDefinition, withFileMutationQueue } from "@earendil-works/pi-coding-agent";
 import { Container, Text } from "@earendil-works/pi-tui";
 import { parsePatchActions } from "../../patch/parser.ts";
 import { resolvePatchPath } from "../../patch/paths.ts";
 import { ExecutePatchError, type ExecutePatchResult } from "../../patch/types.ts";
 import { getExperimentalToolSampling } from "../tool-sampling.ts";
+import {
+	recordApplyPatchDisplayInput,
+	recordApplyPatchDisplayOutcome,
+	shouldCompactApplyPatchDisplay,
+} from "./display-broker.ts";
 import { formatPatchTarget } from "./rendering.ts";
 import { executePatchWithRust } from "./executor.ts";
 import {
-	clearApplyPatchRenderState,
 	isApplyPatchToolDetails,
 	markApplyPatchFailure,
 	markApplyPatchPartialFailure,
 	renderApplyPatchCallFromState,
 	setApplyPatchRenderState,
+	type ApplyPatchToolDetails,
 	type ApplyPatchPartialFailureDetails,
 	type ApplyPatchSuccessDetails,
 } from "./render-state.ts";
@@ -27,14 +32,22 @@ const APPLY_PATCH_PARAMETERS = Type.Object({
 interface ApplyPatchRenderContextLike {
 	toolCallId?: string | undefined;
 	cwd?: string | undefined;
+	executionStarted?: boolean | undefined;
 	expanded?: boolean | undefined;
 	argsComplete?: boolean | undefined;
 }
 
-interface ApplyPatchToolOptions {
+type ApplyPatchToolDefinition = ToolDefinition<typeof APPLY_PATCH_PARAMETERS, ApplyPatchToolDetails>;
+
+export type ApplyPatchRenderCall = NonNullable<ApplyPatchToolDefinition["renderCall"]>;
+export type ApplyPatchRenderResult = NonNullable<ApplyPatchToolDefinition["renderResult"]>;
+
+export interface ApplyPatchToolOptions {
 	customRustBinariesDir?: string | undefined;
 	promptSnippet?: boolean | undefined;
 	showDiffWhenCollapsed?: boolean | undefined;
+	renderCall?: ApplyPatchRenderCall | undefined;
+	renderResult?: ApplyPatchRenderResult | undefined;
 }
 
 function parseApplyPatchParams(params: unknown): { patchText: string } {
@@ -133,7 +146,12 @@ function describeFailedActions(error: ExecutePatchError, cwd: string): string[] 
 }
 
 export type { ExecutePatchResult } from "../../patch/types.ts";
-export { clearApplyPatchRenderState };
+export type {
+	ApplyPatchPartialFailureDetails,
+	ApplyPatchSuccessDetails,
+	ApplyPatchToolDetails,
+} from "./render-state.ts";
+export { clearApplyPatchRenderState, isApplyPatchToolDetails } from "./render-state.ts";
 
 const renderApplyPatchCallWithOptionalContext = (
 	args: { input?: unknown | undefined },
@@ -142,8 +160,30 @@ const renderApplyPatchCallWithOptionalContext = (
 	options: ApplyPatchToolOptions = {},
 ) => new Text(renderApplyPatchCallFromState(args, theme, { ...context, showCollapsedDiff: options.showDiffWhenCollapsed }), 0, 0);
 
-export function createApplyPatchTool(options: ApplyPatchToolOptions = {}) {
+function renderCompactApplyPatchCall(theme: { fg(role: string, text: string): string; bold(text: string): string }): Text {
+	return new Text(`${theme.fg("dim", "•")} ${theme.bold("Patching")}`, 0, 0);
+}
+
+export function createApplyPatchTool(options: ApplyPatchToolOptions = {}): ApplyPatchToolDefinition {
 	const constrainedSampling = getExperimentalToolSampling("apply_patch");
+	const compactRendering = (context?: ApplyPatchRenderContextLike) => shouldCompactApplyPatchDisplay(context?.toolCallId, context?.executionStarted);
+	const defaultRenderCall: ApplyPatchRenderCall = (args, theme, context) =>
+		compactRendering(context) ? renderCompactApplyPatchCall(theme) : renderApplyPatchCallWithOptionalContext(args, theme, context, options);
+	const defaultRenderResult: ApplyPatchRenderResult = (result, { isPartial }, theme, context) => {
+		if (compactRendering(context)) {
+			if (isPartial) return renderCompactApplyPatchCall(theme);
+			if (isApplyPatchToolDetails(result.details)) {
+				if (result.details.status === "partial_failure") return new Text(theme.fg("error", "• Patch partially failed"), 0, 0);
+				return new Text(theme.fg("dim", `• Applied patch (${summarizePatchCounts(result.details.result)})`), 0, 0);
+			}
+			if (context.isError) return new Text(theme.fg("error", "• Patch failed"), 0, 0);
+			return new Container();
+		}
+		if (isPartial) return new Text(`${theme.fg("dim", "•")} ${theme.bold("Patching")}`, 0, 0);
+		if (!isApplyPatchToolDetails(result.details)) return new Container();
+		if (result.details.status === "partial_failure") return new Container();
+		return new Container();
+	};
 	return {
 		name: "apply_patch",
 		label: "apply_patch",
@@ -157,6 +197,7 @@ export function createApplyPatchTool(options: ApplyPatchToolOptions = {}) {
 			if (signal?.aborted) throw new Error("apply_patch aborted");
 
 			const typedParams = parseApplyPatchParams(params);
+			recordApplyPatchDisplayInput(toolCallId, typedParams.patchText);
 			setApplyPatchRenderState(toolCallId, typedParams.patchText, ctx.cwd);
 			let result: ExecutePatchResult;
 			try {
@@ -176,20 +217,35 @@ export function createApplyPatchTool(options: ApplyPatchToolOptions = {}) {
 						const appliedFiles = getAppliedPaths(error.result, failedFiles);
 						const recoveryMessage = buildPartialFailureMessage(rawMessage, failedFiles, appliedFiles);
 						markApplyPatchPartialFailure(toolCallId, failedTargets);
+						const details = {
+							status: "partial_failure",
+							result: error.result,
+							failedTargets,
+						} satisfies ApplyPatchPartialFailureDetails;
+						recordApplyPatchDisplayOutcome(toolCallId, {
+							content: recoveryMessage,
+							details,
+							error: recoveryMessage,
+							isError: true,
+						});
 						return {
 							content: [{ type: "text", text: recoveryMessage }],
-							details: {
-								status: "partial_failure",
-								result: error.result,
-								failedTargets,
-							} satisfies ApplyPatchPartialFailureDetails,
+							details,
 						};
 					}
 					const message = addContextRecovery(rawMessage, error.message, failedTargets);
 					markApplyPatchFailure(toolCallId, "failed", failedTargets);
+					recordApplyPatchDisplayOutcome(toolCallId, {
+						error: message,
+						isError: true,
+					});
 					throw new Error(message);
 				}
 				markApplyPatchFailure(toolCallId, "failed");
+				recordApplyPatchDisplayOutcome(toolCallId, {
+					error: error instanceof Error ? error.message : String(error),
+					isError: true,
+				});
 				throw error;
 			}
 			const summary = [
@@ -201,16 +257,17 @@ export function createApplyPatchTool(options: ApplyPatchToolOptions = {}) {
 				`Fuzz: ${result.fuzz}`,
 			].join("\n");
 
-			return { content: [{ type: "text", text: summary }], details: { status: "success", result } satisfies ApplyPatchSuccessDetails };
+			const details = { status: "success", result } satisfies ApplyPatchSuccessDetails;
+			recordApplyPatchDisplayOutcome(toolCallId, {
+				content: summary,
+				details,
+				isError: false,
+			});
+			return { content: [{ type: "text", text: summary }], details };
 		},
-		renderCall: ((args: { input?: unknown | undefined }, theme: { fg(role: string, text: string): string; bold(text: string): string }, context?: ApplyPatchRenderContextLike) => renderApplyPatchCallWithOptionalContext(args, theme, context, options)) as any,
-		renderResult(result, { isPartial }, theme) {
-			if (isPartial) return new Text(`${theme.fg("dim", "•")} ${theme.bold("Patching")}`, 0, 0);
-			if (!isApplyPatchToolDetails(result.details)) return new Container();
-			if (result.details.status === "partial_failure") return new Container();
-			return new Container();
-		},
-	} satisfies Parameters<ExtensionAPI["registerTool"]>[0];
+		renderCall: options.renderCall ?? defaultRenderCall,
+		renderResult: options.renderResult ?? defaultRenderResult,
+	} satisfies ApplyPatchToolDefinition;
 }
 
 export function registerApplyPatchTool(pi: ExtensionAPI, options: ApplyPatchToolOptions = {}): void {
