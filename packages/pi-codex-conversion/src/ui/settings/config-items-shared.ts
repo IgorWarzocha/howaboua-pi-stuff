@@ -14,7 +14,7 @@ export interface ConfigSetting {
 	update?:
 		| ((value: string, config: CodexConversionConfig) => CodexConversionConfig)
 		| undefined;
-	action?: "edit-config" | undefined;
+	action?: "edit-config" | "project-cache-keepalive" | undefined;
 }
 
 export class TextSettingSubmenu extends Container implements Focusable {
@@ -75,4 +75,11 @@ export function toggle(
 		{ id, label, currentValue: current ? "on" : "off", values: ["off", "on"] },
 		(value, config) => update(value === "on", config),
 	);
+}
+
+export function projectToggle(id: string, label: string, current: boolean): ConfigSetting {
+	return {
+		item: { id, label, currentValue: current ? "on" : "off", values: ["off", "on"] },
+		action: "project-cache-keepalive",
+	};
 }

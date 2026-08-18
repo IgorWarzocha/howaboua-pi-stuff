@@ -24,6 +24,7 @@ import { createUsageTab, type UsageTabOptions } from "./usage-tab.ts";
 export interface CodexSettingsScreenOptions extends UsageTabOptions {
 	initialConfig: CodexConversionConfig;
 	onChange: (nextConfig: CodexConversionConfig) => boolean;
+	onProjectCacheKeepalive: (enabled: boolean) => CodexConversionConfig | undefined;
 	initialTab?: SettingsTab | undefined;
 	configScope: {
 		current: () => CodexConversionConfigScope;
@@ -65,6 +66,7 @@ export async function openCodexSettingsScreen(
 			}
 			const result = await openCodexConfigInExternalEditor(
 				options.configScope.path(),
+				options.configScope.current() === "folder",
 				() => tui.stop(),
 				() => tui.start(),
 				(full) => tui.requestRender(full),
@@ -136,6 +138,17 @@ export async function openCodexSettingsScreen(
 					const definition = buildSettings().find(({ item }) => item.id === id);
 					if (definition?.action === "edit-config") {
 						void runEditConfig();
+						return;
+					}
+					if (definition?.action === "project-cache-keepalive") {
+						const nextDraft = options.onProjectCacheKeepalive(value === "on");
+						if (nextDraft) {
+							draft = nextDraft;
+							for (const { item } of buildSettings()) list.updateValue(item.id, item.currentValue);
+						} else {
+							list.updateValue(id, definition.item.currentValue);
+						}
+						tui.requestRender();
 						return;
 					}
 					if (id === "configScope") {

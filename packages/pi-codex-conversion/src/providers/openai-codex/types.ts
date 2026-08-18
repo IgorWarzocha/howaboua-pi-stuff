@@ -173,6 +173,17 @@ export interface ResponsesBody {
 	[key: string]: unknown;
 }
 
+export interface CodexPrewarmUsage {
+	inputTokens: number;
+	cachedInputTokens: number;
+	cacheWriteInputTokens: number;
+}
+
+export interface CodexPrewarmResult {
+	socketReused: boolean;
+	usage?: CodexPrewarmUsage | undefined;
+}
+
 export interface ResponseEnvelope {
 	id?: string | undefined;
 	status?: string | undefined;
