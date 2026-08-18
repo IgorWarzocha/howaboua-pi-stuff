@@ -47,18 +47,27 @@ focused order when heads or PR bases changed. Never include staging or umbrella 
 
 ## Parallel JJ workspaces
 
-Create each worker workspace from its intended parent revision:
+JJ workspaces share one operation log. Concurrent writers must own sibling revisions from a stable
+base, never revisions already arranged as ancestors and descendants:
 
 ```bash
-jj workspace add <path> --name <worker> --revision <parent> -m "<layer description>"
-# in the new workspace
-jj edit <layer>
+jj workspace add <path> --name <worker> --revision <stable-base> -m "<layer description>"
+# the new workspace's @ is the worker-owned candidate revision
 ```
 
-The worker edits its pre-bookmarked layer; JJ moves its bookmark and rebases descendants as the
-revision changes. Workers do not push, link, reorder, or move the umbrella. After explicit readiness,
-the coordinator integrates concurrent operations, inspects the graph, resolves conflicts in the
-owning layer, and reorders with `jj rebase` only when the planned chain changed.
+Workers edit only their candidate `@`; they do not push, create/move bookmarks, link, reorder, or move
+the umbrella. Dispatch only independent candidates concurrently. After readiness, the coordinator
+integrates accepted candidates bottom-to-top, compares each workspace's effective lockfile with its stable
+parent, and validates the cumulative result before starting a child from its stable parent. Use Bun's shared
+download cache. Run frozen install/linking locally against each workspace's effective lockfile; never share,
+symlink, or copy `node_modules` trees across workspaces. Update stale workspaces before each new dispatch
+wave.
+
+Once revisions are linearly stacked, allow only one writer at a time. Parallel review may stay
+read-only; apply accepted fixes bottom to top, waiting for each rewrite and descendant rebase to settle
+before starting the next workspace. Run `jj workspace update-stale` before each handoff. Concurrently
+rewriting stacked layers creates divergent versions of every rebased descendant and conflicted
+bookmarks; do not treat later bookmark repair as the normal integration path.
 
 When a workspace is no longer needed, delete its directory only after its intended change is safely
 bookmarked, then run `jj workspace forget <worker>`. A workspace path is not a Git worktree; do not

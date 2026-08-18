@@ -47,7 +47,8 @@ deleted, not assertion cleanup.
 ## Dispatch local reviewers
 
 Assign one focused PR per reviewer unless overlap is explicit. Supply exact head, direct parent, goal,
-and narrow risks. Reviewers are read-only unless separately assigned fixes. Review the umbrella only
+and narrow risks. Reviewers are read-only in parallel. In a shared JJ repository, apply accepted fixes
+one owner at a time, bottom to top; update stale workspaces between writers. Review the umbrella only
 as a distinct cumulative/release task after focused passes converge.
 
 Triage findings before involving the user: reproduce plausible faults, trace product reachability,

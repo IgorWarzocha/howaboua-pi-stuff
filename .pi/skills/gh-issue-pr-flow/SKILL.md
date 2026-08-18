@@ -48,45 +48,64 @@ Before the first commit or push, verify `gh api user --jq .login`, `git config u
 ### Dispatch a parallel issue batch
 
 Use the JJ-first umbrella workflow in `../gh-stack/SKILL.md`: focused revisions/bookmarks become a
-native stack rooted on a staging branch, while a separate ordinary draft umbrella PR shows the
+native stack rooted on a staging branch, while a separate ordinary umbrella PR shows the
 cumulative batch against `main`. The umbrella is not a stack member and is the only PR that ultimately
 merges to `main`. Use the Git-managed fallback only when JJ is unavailable.
 
-Dispatch is a handoff, not a supervision loop:
+Each dispatch wave is a handoff, not a supervision loop:
 
 1. Read every issue first. Keep all issues in the requested release batch, identify dependencies and overlapping files/packages, then choose a stable bottom-to-top order. Exclude only work that should release separately.
 2. Record fetched `main@origin`. In a dedicated colocated JJ coordinator clone, create and publish the
-   staging bookmark, then create described focused revisions/bookmarks in planned order without
-   publishing empty PRs. Follow `../gh-stack/references/create.md`.
-3. Create one JJ workspace per focused revision under a sibling workspace root. Enter each workspace
-   and `jj edit <layer>` so the worker owns that revision; do not use `git worktree` for JJ workspaces.
-4. Require `HERDR_ENV=1` before controlling panels. Create one unfocused Herdr workspace per JJ
-   workspace, label it with issue number/title, and launch a named Pi session with
-   `--model openai-codex/gpt-5.6-luna:high`. Parse workspace and pane IDs from Herdr JSON.
+   staging bookmark and planned layer order. Do not pre-stack concurrent writers; serialize dependent
+   layers. Follow `../gh-stack/references/create.md`.
+3. Dispatch only currently independent layers concurrently. Create one JJ workspace per candidate under
+   a sibling workspace root, based on staging or its now-stable parent. The worker owns its `@`; bookmarks
+   are assigned when the coordinator assembles completed candidates. Do not use `git worktree` for JJ
+   workspaces. Share Bun's download cache, not `node_modules`: compare each workspace's effective lockfile
+   with its stable parent and run its frozen install/linking locally against that lockfile. Never share,
+   symlink, or copy `node_modules` trees across workspaces; generated workspace links must resolve inside
+   the checkout being validated.
+4. Require `HERDR_ENV=1` before controlling panels. Prefer retained Notebook helper
+   `herdrBatch({ workspaceLabel, agents })` when available: create one labeled Herdr workspace, one
+   cwd-aware labeled tab per JJ workspace, and named Pi sessions using
+   `openai-codex/gpt-5.6-luna:xhigh`. Otherwise reproduce that layout with `herdr workspace create`,
+   `herdr tab create --workspace ... --cwd ...`, `herdr agent start`, and `herdr agent prompt`;
+   parse workspace, tab, and pane IDs from Herdr JSON.
 5. Give each worker this contract: read the issue and repo instructions; implement only that focused
    revision; add its package changeset; run focused validation; cull weak tests; leave a described,
    conflict-free revision; do not push, open PRs, reorder revisions, move bookmarks, invoke `gh stack`,
    or touch another workspace. If blocked, ask in-panel and wait. Report change ID/commit, surface,
    checks, and risks, then remain idle.
-6. Return issue → JJ revision/bookmark → workspace → Herdr workspace/pane and stop. Do not supervise or
-   decide readiness until the user explicitly names ready workers.
+6. Return issue → JJ candidate/planned bookmark → JJ workspace → Herdr workspace/tab/pane and stop. Do not
+   supervise or decide readiness until the user explicitly names ready workers.
+
+After a wave is ready, stop its panels and integrate accepted candidates bottom-up. Compare each resulting
+workspace's effective lockfile with its stable parent, update stale workspaces, then create and dispatch
+only newly unblocked children from their stable parents. Repeat the wave until every planned layer is ready;
+never dispatch a dependent child before its parent is integrated.
+
+After the coordinator makes the stack linear, parallel agents are read-only. Apply later review fixes
+through one writer at a time, bottom to top, updating stale workspaces between layers.
 
 ### Resume a dispatched issue batch
 
 1. Treat the user's readiness signal—not panel status—as the phase gate. Inspect only the named ready JJ workspaces and revisions. Report dirty, missing, or conflicting results instead of silently completing worker tasks.
-2. Stop ready panels. In the coordinator, integrate JJ operations, inspect revisions, resolve conflicts
-   in the owning layer, and verify planned order. Forget/delete clean worker workspaces only after their
-   revisions are safely bookmarked.
-3. Verify each shipping layer owns its changeset, apply the verification cull across the stack, and run
+2. Stop ready panels. In the coordinator, integrate accepted candidates bottom-to-top, inspect revisions,
+   resolve conflicts in the owning layer, and verify planned order. Compare each workspace's effective
+   lockfile with its stable parent and run its local frozen install/linking when that lockfile changed.
+   Forget/delete clean worker workspaces only after their revisions are safely bookmarked.
+3. If dependent layers remain, update stale workspaces, create the next wave from stable integrated parents,
+   and dispatch only independent children concurrently. Repeat this loop until every planned layer is ready.
+4. Verify each shipping layer owns its changeset, apply the verification cull across the stack, and run
    the umbrella gate once from the cumulative top.
-4. Move/create the umbrella bookmark at that top. Link focused bookmarks bottom to top with `gh stack
-   link --base <staging> --open ...`, push the umbrella bookmark, and open its ordinary draft PR to
+5. Move/create the umbrella bookmark at that top. Link focused bookmarks bottom to top with `gh stack
+   link --base <staging> --open ...`, push the umbrella bookmark, and open its ordinary PR to
    `main`. Verify native order, every direct base, and the cumulative umbrella diff; edit titles,
    bodies, issue linkage, focused `Part of` links, validation, and release context.
-5. Return layer → focused PR plus umbrella PR and stop. Dispatch review-fix workspaces only when asked.
+6. Return layer → focused PR plus umbrella PR and stop. Dispatch review-fix workspaces only when asked.
    After review converges, update owner revisions, relink focused heads, move/push umbrella to the new
    top, and report readiness.
-6. Assemble only on explicit direction through `../gh-stack/references/merge.md`. Native merge updates
+7. Assemble only on explicit direction through `../gh-stack/references/merge.md`. Native merge updates
    staging and marks focused PRs merged; then move the umbrella to assembled staging and stop for its
    fresh aggregate CI/review. Merge the umbrella to `main` only on a separate explicit direction.
 
