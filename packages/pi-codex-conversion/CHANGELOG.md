@@ -1,5 +1,27 @@
 # Changelog
 
+## 3.0.16
+
+### Changes
+
+- [#325](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/325) [`8b3c1e9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8b3c1e941309236efbf4b6f5157dd5352f1ec742) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Expose `createApplyPatchTool` and an `apply-patch-display` integration API for custom patch views without changing the agent-facing `apply_patch` execution contract
+
+- [#325](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/325) [`8b3c1e9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8b3c1e941309236efbf4b6f5157dd5352f1ec742) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Preserve final configured Responses instructions for native replay
+
+- [#325](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/325) [`8b3c1e9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8b3c1e941309236efbf4b6f5157dd5352f1ec742) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add a project-only experimental Codex cache keepalive that refreshes idle WebSocket context and reports cache-read results.
+
+- [#325](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/325) [`8b3c1e9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8b3c1e941309236efbf4b6f5157dd5352f1ec742) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Make safe Notebook lifecycle controls callable from inside Notebook exec cells.
+
+- [#325](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/325) [`8b3c1e9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8b3c1e941309236efbf4b6f5157dd5352f1ec742) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Report native compaction cache misses with replay and transport diagnostics
+
+- [#325](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/325) [`8b3c1e9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8b3c1e941309236efbf4b6f5157dd5352f1ec742) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Recover interrupted Notebook kernels without deleting durable project bindings
+
+- [#325](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/325) [`8b3c1e9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8b3c1e941309236efbf4b6f5157dd5352f1ec742) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Make durable Notebook Mode globals discoverable and guide safe reuse with bounded descriptions and usage hints
+
+- [#325](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/325) [`8b3c1e9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8b3c1e941309236efbf4b6f5157dd5352f1ec742) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Keep oversized Responses V2 user turns out of the retained compaction window
+
+- [#325](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/325) [`8b3c1e9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8b3c1e941309236efbf4b6f5157dd5352f1ec742) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Prevent delayed background shell widget renders from using stale session contexts
+
 ## 3.0.15
 
 ### Changes
