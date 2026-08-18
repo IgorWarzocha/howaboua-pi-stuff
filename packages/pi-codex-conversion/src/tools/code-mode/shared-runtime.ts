@@ -1,5 +1,6 @@
 import { ensureCodeModeHostBinary } from "./binary.js";
 import { CodeModeHostClient } from "./host-client.js";
+import { createNotebookControlProxy } from "./notebook-tool.ts";
 import type {
 	CodeModeToolDefinition,
 	NotebookControlRequest,
@@ -62,14 +63,14 @@ export class SharedCodeModeRuntime {
 	}
 
 	collectTools(ctx?: unknown): CodeModeToolDefinition[] {
-		const tools = collectUniqueTools(this.activeProviders(ctx), ctx);
+		const tools = this.collectProviderTools(ctx);
 		return this.customPromptToolsSnapshot
 			? applyCustomPromptState(tools, this.customPromptToolsSnapshot)
 			: tools;
 	}
 
 	refreshPromptTools(ctx?: unknown): CodeModeToolDefinition[] {
-		const tools = collectUniqueTools(this.activeProviders(ctx), ctx);
+		const tools = this.collectProviderTools(ctx);
 		this.customPromptToolsSnapshot = tools.filter(isCustomTool);
 		return tools;
 	}
@@ -81,10 +82,8 @@ export class SharedCodeModeRuntime {
 
 	collectPromptTools(ctx?: unknown): CodeModeToolDefinition[] {
 		if (!this.customPromptToolsSnapshot) return this.refreshPromptTools(ctx);
-		const liveProgrammaticTools = collectUniqueTools(
-			this.activeProviders(ctx),
-			ctx,
-		).filter((tool) => !isCustomTool(tool));
+		const liveProgrammaticTools = this.collectProviderTools(ctx)
+			.filter((tool) => !isCustomTool(tool));
 		return [...liveProgrammaticTools, ...this.customPromptToolsSnapshot];
 	}
 
@@ -218,6 +217,14 @@ export class SharedCodeModeRuntime {
 				// Startup failure already reached the caller.
 			}
 		}
+	}
+
+	private collectProviderTools(ctx?: unknown): CodeModeToolDefinition[] {
+		const tools = collectUniqueTools(this.activeProviders(ctx), ctx);
+		if (this.executionKind(ctx) !== "notebook") return tools;
+		if (tools.some((tool) => tool.name === "notebook"))
+			throw new Error("Duplicate code-mode tool: notebook");
+		return [...tools, createNotebookControlProxy(this)];
 	}
 }
 
