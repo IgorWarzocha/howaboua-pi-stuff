@@ -1,5 +1,6 @@
 import type { AssistantMessage, SimpleStreamOptions } from "@earendil-works/pi-ai";
 import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
+import type { CodexCompactionDiagnostic } from "../../adapter/compaction/diagnostics.ts";
 
 export interface WebSocketLike {
 	readyState?: number | undefined;
@@ -78,9 +79,11 @@ export type CodexDiagnosticsEvent =
 			attempt: number;
 			fullInputItems: number;
 			sentInputItems: number;
+			model?: string | undefined;
 			socketReused?: boolean | undefined;
 			continuation?: WebSocketContinuationDecision | undefined;
 			canonicalHistory?: CanonicalHistoryDecision | undefined;
+			compaction?: CodexCompactionDiagnostic | undefined;
 			previousResponseId?: boolean | undefined;
 	  }
 	| {
@@ -143,6 +146,7 @@ export type OpenAICodexStreamOptions = CodexProviderStreamOptions & {
 	websocketConnectTimeoutMs?: number | undefined;
 	env?: ProviderEnv | undefined;
 	canonicalCompaction?: boolean | undefined;
+	compactionDiagnostics?: CodexCompactionDiagnostic | undefined;
 };
 
 export interface ResponsesBody {
@@ -167,6 +171,17 @@ export interface ResponsesBody {
 	} | undefined;
 	client_metadata?: Record<string, string> | undefined;
 	[key: string]: unknown;
+}
+
+export interface CodexPrewarmUsage {
+	inputTokens: number;
+	cachedInputTokens: number;
+	cacheWriteInputTokens: number;
+}
+
+export interface CodexPrewarmResult {
+	socketReused: boolean;
+	usage?: CodexPrewarmUsage | undefined;
 }
 
 export interface ResponseEnvelope {

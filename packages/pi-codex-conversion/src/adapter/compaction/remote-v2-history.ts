@@ -128,7 +128,7 @@ export function buildRemoteCompactionV2Window(
 	for (let index = retained.length - 1; index >= 0; index--) {
 		const item = retained[index]!;
 		const tokens = Math.max(1, messageTextTokenCount(item));
-		if (tokens <= remaining || reversed.length === 0) {
+		if (tokens <= remaining) {
 			reversed.push(item);
 			remaining = Math.max(0, remaining - tokens);
 		} else break;

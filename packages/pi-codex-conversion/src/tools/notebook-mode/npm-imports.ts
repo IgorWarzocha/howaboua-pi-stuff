@@ -55,12 +55,6 @@ export async function recordNotebookNpmImports(
 	return readNotebookNpmImports(identity);
 }
 
-export async function resetNotebookNpmImports(identity: { project: string; agentDir: string }): Promise<void> {
-	const paths = npmImportPaths(identity);
-	mkdirSync(paths.directory, { recursive: true });
-	await withProjectStateLock(paths.lock, async () => { rmSync(paths.manifest, { force: true }); });
-}
-
 export function formatNotebookNpmImportsNotice(imports: string[]): string {
 	const prefix = `Available npm imports previously established in this project: ${imports.length === 0 ? "none" : boundedImportList(imports)}`;
 	return `${prefix}. All npm packages are unsafe by default; ask the user before first use of any unlisted package and use an exact-version npm: specifier`;

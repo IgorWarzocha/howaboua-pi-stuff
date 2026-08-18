@@ -2,9 +2,13 @@ import { pathToFileURL } from "node:url";
 import type { NotebookControlResult } from "../code-mode/types.ts";
 import { readNotebookJournalCodeCells } from "./journal.ts";
 import { OneShotLspProcess } from "./lsp-process.ts";
+import type { NotebookRuntimeHealthState } from "./runtime-health.ts";
 
 const DIAGNOSTIC_TIMEOUT_MS = 30_000;
 const MESSAGE_BUDGET = 16 * 1024;
+const DETAILS_BUDGET = 16 * 1024;
+const MAX_DIAGNOSTIC_TEXT_BYTES = 2 * 1024;
+const MAX_DIAGNOSTIC_SAMPLES = 3;
 const HOST_BINDINGS = new Set([
 	"ALL_TOOLS",
 	"exit",
@@ -18,7 +22,7 @@ const HOST_BINDINGS = new Set([
 	"yield_control",
 ]);
 
-interface NotebookDiagnostic {
+export interface NotebookDiagnostic {
 	cellId: string;
 	cellIndex: number;
 	line: number;
@@ -28,7 +32,18 @@ interface NotebookDiagnostic {
 	severity: "error" | "warning" | "information" | "hint" | "unknown";
 	code?: string | number | undefined;
 	source?: string | undefined;
+	name?: string | undefined;
 	message: string;
+}
+
+export interface NotebookDiagnosticGroup {
+	count: number;
+	severity: NotebookDiagnostic["severity"];
+	code?: string | number | undefined;
+	source?: string | undefined;
+	name?: string | undefined;
+	message: string;
+	samples: Array<Pick<NotebookDiagnostic, "cellId" | "cellIndex" | "line" | "column" | "endLine" | "endColumn">>;
 }
 
 export async function diagnoseNotebook(options: {
@@ -36,20 +51,27 @@ export async function diagnoseNotebook(options: {
 	cwd: string;
 	path: string;
 	runtimeBindings?: ReadonlySet<string> | undefined;
+	runtimeHealth?: NotebookRuntimeHealthState | undefined;
 	signal?: AbortSignal | undefined;
 }): Promise<NotebookControlResult> {
+	const runtimeHealth = options.runtimeHealth ?? "not_started";
+	const healthMessage = formatRuntimeHealth(runtimeHealth);
+	const path = boundText(options.path);
 	let cells;
 	try {
 		cells = readNotebookJournalCodeCells(options.path);
 	} catch (error) {
-		const reason = error instanceof Error ? error.message : String(error);
-		return {
-			message: `Notebook diagnostics could not read ${options.path}: ${reason}`,
-			details: { path: options.path, error: reason },
-		};
+		const reason = boundText(error instanceof Error ? error.message : String(error));
+		return boundedDiagnosticResult(
+			`${healthMessage}\nNotebook diagnostics could not read ${path}: ${reason}`,
+			{ path, runtime: { state: runtimeHealth }, error: reason },
+		);
 	}
 	if (cells.length === 0) {
-		return { message: `No code cells to diagnose in ${options.path}`, details: { path: options.path, cells: 0, diagnostics: [] } };
+		return boundedDiagnosticResult(
+			`${healthMessage}\nNo historical static code cells to diagnose in ${path}`,
+			{ path, cells: 0, runtime: { state: runtimeHealth }, diagnosticGroups: [] },
+		);
 	}
 
 	const timeout = AbortSignal.timeout(DIAGNOSTIC_TIMEOUT_MS);
@@ -101,7 +123,16 @@ export async function diagnoseNotebook(options: {
 			notebookDocument: { uri: notebookUri },
 			cellTextDocuments: documents.map(({ uri }) => ({ uri })),
 		});
-		return formatDiagnostics(options.path, cells.length, diagnostics);
+		return formatNotebookDiagnostics(options.path, cells.length, diagnostics, runtimeHealth);
+	} catch (error) {
+		if (options.signal?.aborted) throw error;
+		const reason = boundText(timeout.aborted
+			? `Deno diagnostics timed out after ${DIAGNOSTIC_TIMEOUT_MS}ms`
+			: error instanceof Error ? error.message : String(error));
+		return boundedDiagnosticResult(
+			`${healthMessage}\nNotebook diagnostics could not complete: ${reason}`,
+			{ path, cells: cells.length, runtime: { state: runtimeHealth }, error: reason },
+		);
 	} finally {
 		await lsp.shutdown();
 	}
@@ -117,6 +148,7 @@ function parseDiagnosticReport(
 		if (!isRecord(item) || typeof item["message"] !== "string" || !isRange(item["range"])) return [];
 		const range = item["range"];
 		if (isRuntimeDiagnostic(item, range, cell.source, runtimeBindings)) return [];
+		const message = boundText(item["message"]);
 		return [{
 			cellId: cell.id,
 			cellIndex: cell.index,
@@ -127,7 +159,8 @@ function parseDiagnosticReport(
 			severity: severityName(item["severity"]),
 			...(typeof item["code"] === "string" || typeof item["code"] === "number" ? { code: item["code"] } : {}),
 			...(typeof item["source"] === "string" ? { source: item["source"] } : {}),
-			message: item["message"],
+			...(diagnosticName(message) ? { name: diagnosticName(message) } : {}),
+			message,
 		}];
 	});
 }
@@ -147,25 +180,127 @@ function isRuntimeDiagnostic(
 	return line !== undefined && /globalThis\s*\.\s*$/.test(line.slice(0, range.start.character));
 }
 
-function formatDiagnostics(path: string, cells: number, diagnostics: NotebookDiagnostic[]): NotebookControlResult {
-	if (diagnostics.length === 0) {
-		return { message: `No Deno diagnostics in ${path} (${cells} code cells)`, details: { path, cells, diagnostics: [] } };
-	}
-	const lines = [`Deno diagnostics for ${path}:`];
-	const included: NotebookDiagnostic[] = [];
-	for (const diagnostic of diagnostics) {
-		const code = diagnostic.code === undefined ? "" : ` ${diagnostic.source ?? "deno"}-${diagnostic.code}`;
-		const line = `- ${diagnostic.cellId} cell ${diagnostic.cellIndex + 1}:${diagnostic.line}:${diagnostic.column} ${diagnostic.severity}${code}: ${diagnostic.message.replaceAll("\n", " ")}`;
-		if (lines.join("\n").length + line.length + 1 > MESSAGE_BUDGET) break;
+export function formatNotebookDiagnostics(path: string, cells: number, diagnostics: NotebookDiagnostic[], runtimeHealth: NotebookRuntimeHealthState = "not_started"): NotebookControlResult {
+	const groups = groupDiagnostics(diagnostics);
+	const reportedPath = boundText(path);
+	const lines = [formatRuntimeHealth(runtimeHealth), `Historical static diagnostics for ${reportedPath} (${cells} code cells):`];
+	const included: NotebookDiagnosticGroup[] = [];
+	for (const group of groups) {
+		const line = formatDiagnosticGroup(group);
+		const candidate = [...included, group];
+		const candidateDetails = diagnosticDetails(reportedPath, cells, runtimeHealth, diagnostics.length, candidate, groups.length - candidate.length);
+		if (Buffer.byteLength(JSON.stringify(candidateDetails), "utf8") > DETAILS_BUDGET) break;
+		if (Buffer.byteLength(`${lines.join("\n")}\n${line}`, "utf8") + 64 > MESSAGE_BUDGET) break;
 		lines.push(line);
-		included.push(diagnostic);
+		included.push(group);
 	}
-	const omitted = diagnostics.length - included.length;
-	if (omitted > 0) lines.push(`${omitted} additional diagnostic${omitted === 1 ? "" : "s"} omitted; repair these and run diagnostics again`);
+	const omittedGroups = groups.length - included.length;
+	if (groups.length === 0) lines.push("No historical static Deno diagnostics");
+	if (omittedGroups > 0) lines.push(`${omittedGroups} additional historical diagnostic group${omittedGroups === 1 ? "" : "s"} omitted by the output bound`);
+	return boundedDiagnosticResult(
+		lines.join("\n"),
+		diagnosticDetails(reportedPath, cells, runtimeHealth, diagnostics.length, included, omittedGroups),
+	);
+}
+
+function diagnosticDetails(
+	path: string,
+	cells: number,
+	runtimeHealth: NotebookRuntimeHealthState,
+	diagnosticCount: number,
+	diagnosticGroups: NotebookDiagnosticGroup[],
+	omittedGroups: number,
+): Record<string, unknown> {
+	return { path, cells, runtime: { state: runtimeHealth }, diagnosticCount, diagnosticGroups, omittedGroups };
+}
+
+function groupDiagnostics(diagnostics: NotebookDiagnostic[]): NotebookDiagnosticGroup[] {
+	const groups = new Map<string, NotebookDiagnosticGroup>();
+	for (const diagnostic of diagnostics) {
+		const key = JSON.stringify([
+			diagnostic.code ?? null,
+			diagnostic.message,
+			diagnostic.name ?? null,
+			diagnostic.severity,
+			diagnostic.source ?? null,
+		]);
+		let group = groups.get(key);
+		if (!group) {
+			group = {
+				count: 0,
+				severity: diagnostic.severity,
+				...(diagnostic.code === undefined ? {} : { code: diagnostic.code }),
+				...(diagnostic.source === undefined ? {} : { source: diagnostic.source }),
+				...(diagnostic.name === undefined ? {} : { name: diagnostic.name }),
+				message: diagnostic.message,
+				samples: [],
+			};
+			groups.set(key, group);
+		}
+		group.count += 1;
+		if (group.samples.length < MAX_DIAGNOSTIC_SAMPLES) group.samples.push({
+			cellId: diagnostic.cellId,
+			cellIndex: diagnostic.cellIndex,
+			line: diagnostic.line,
+			column: diagnostic.column,
+			endLine: diagnostic.endLine,
+			endColumn: diagnostic.endColumn,
+		});
+	}
+	return [...groups.values()];
+}
+
+function formatDiagnosticGroup(group: NotebookDiagnosticGroup): string {
+	const code = group.code === undefined ? "" : ` ${group.source ?? "deno"}-${group.code}`;
+	const name = group.name ? ` [${group.name}]` : "";
+	const samples = group.samples.map((sample) => `${sample.cellId} cell ${sample.cellIndex + 1}:${sample.line}:${sample.column}`).join(", ");
+	return `- ${group.count} occurrence${group.count === 1 ? "" : "s"} ${group.severity}${code}${name}: ${group.message.replaceAll("\n", " ")}; samples: ${samples}`;
+}
+
+function formatRuntimeHealth(state: NotebookRuntimeHealthState): string {
+	switch (state) {
+		case "ready": return "Notebook runtime health: ready; bootstrap is available";
+		case "invalidated": return "Notebook runtime health: invalidated; exec or restart will recreate it from the last completed checkpoint. Durable project bindings are preserved; external side effects were not rolled back";
+		case "not_started": return "Notebook runtime health: not started; exec or restart will create it from the last completed checkpoint";
+	}
+}
+
+function diagnosticName(message: string): string | undefined {
+	return /(?:Cannot redeclare block-scoped variable|Duplicate identifier) ['"]([^'"]+)['"]/.exec(message)?.[1];
+}
+
+function boundText(value: string): string {
+	return boundUtf8(value, MAX_DIAGNOSTIC_TEXT_BYTES, " [diagnostic text truncated]");
+}
+
+function boundedDiagnosticResult(message: string, details: Record<string, unknown>): NotebookControlResult {
+	const boundedMessage = boundUtf8(message, MESSAGE_BUDGET, "\n[diagnostics output truncated]");
+	if (Buffer.byteLength(JSON.stringify(details), "utf8") <= DETAILS_BUDGET) {
+		return { message: boundedMessage, details };
+	}
 	return {
-		message: lines.join("\n"),
-		details: { path, cells, diagnostics: included, omitted },
+		message: boundedMessage,
+		details: {
+			...(isRecord(details["runtime"]) ? { runtime: details["runtime"] } : {}),
+			detailsOmitted: true,
+		},
 	};
+}
+
+function boundUtf8(value: string, maxBytes: number, suffix: string): string {
+	if (Buffer.byteLength(value, "utf8") <= maxBytes) return value;
+	const available = Math.max(0, maxBytes - Buffer.byteLength(suffix, "utf8"));
+	let low = 0;
+	let high = value.length;
+	while (low < high) {
+		const middle = Math.ceil((low + high) / 2);
+		if (Buffer.byteLength(value.slice(0, middle), "utf8") <= available) low = middle;
+		else high = middle - 1;
+	}
+	let prefix = value.slice(0, low);
+	const last = prefix.charCodeAt(prefix.length - 1);
+	if (last >= 0xd800 && last <= 0xdbff) prefix = prefix.slice(0, -1);
+	return `${prefix}${suffix}`;
 }
 
 function notebookCellUri(path: string, index: number, id: string): string {

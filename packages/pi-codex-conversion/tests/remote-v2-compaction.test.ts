@@ -24,3 +24,13 @@ test("Responses compaction v2 retains real turns and reconciles tool history", (
 	assert.match(JSON.stringify(window), /remember this exactly/);
 	assert.equal(window.at(-1)?.["encrypted_content"], "sealed");
 });
+
+test("Responses compaction v2 does not retain an oversized newest user turn", () => {
+	const compaction = { type: "compaction", encrypted_content: "sealed" };
+	const window = buildRemoteCompactionV2Window([
+		{ role: "user", content: [{ type: "input_text", text: "older turn" }] },
+		{ role: "user", content: [{ type: "input_text", text: "x".repeat(12) }] },
+	], compaction, 2);
+
+	assert.deepEqual(window, [compaction]);
+});

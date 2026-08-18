@@ -1,6 +1,9 @@
 import {
+	MAX_PROJECT_DESCRIPTION_BYTES,
 	MAX_PROJECT_ENTRIES,
 	MAX_PROJECT_MANIFEST_BYTES,
+	MAX_PROJECT_USAGE_BYTES,
+	MAX_PROJECT_USAGE_LINES,
 	type ProjectStateManifest,
 } from "./project-state-format.ts";
 import type { KernelExecutionResult } from "./jupyter-kernel.ts";
@@ -8,7 +11,7 @@ import type { KernelExecutionResult } from "./jupyter-kernel.ts";
 const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 
 export function projectBindingNamesSource(marker: string): string {
-	return `console.log(${JSON.stringify(marker)} + JSON.stringify(globalThis.__piNotebook.projectBindings())); undefined;`;
+	return `if (typeof globalThis.__piNotebook?.projectBindings !== "function") throw new Error("Notebook runtime bootstrap unavailable: __piNotebook.projectBindings"); console.log(${JSON.stringify(marker)} + JSON.stringify(globalThis.__piNotebook.projectBindings())); undefined;`;
 }
 
 export function parseProjectBindingNames(result: KernelExecutionResult, marker: string): string[] {
@@ -28,11 +31,11 @@ export function parseProjectBindingNames(result: KernelExecutionResult, marker: 
 }
 
 export function promoteProjectBindingsSource(names: string[]): string {
-	return `globalThis.__piNotebook.promote(${JSON.stringify(names)}); undefined;`;
+	return `if (typeof globalThis.__piNotebook?.promote !== "function") throw new Error("Notebook runtime bootstrap unavailable: __piNotebook.promote"); globalThis.__piNotebook.promote(${JSON.stringify(names)}); undefined;`;
 }
 
 export function syncProjectBindingsSource(names: string[]): string {
-	return `globalThis.__piNotebook.syncProjectBindings(${JSON.stringify(names)}); undefined;`;
+	return `if (typeof globalThis.__piNotebook?.syncProjectBindings !== "function") throw new Error("Notebook runtime bootstrap unavailable: __piNotebook.syncProjectBindings"); globalThis.__piNotebook.syncProjectBindings(${JSON.stringify(names)}); undefined;`;
 }
 
 export function projectStateCaptureSource(options: {
@@ -59,8 +62,16 @@ export function projectStateCaptureSource(options: {
     const __bytes = serialize(__captured);
     if (__bytes.byteLength > __max) throw new Error("exceeds per-value checkpoint cap");
     if (__total + __bytes.byteLength > __max) throw new Error("exceeds total project checkpoint cap");
+	const __metadata = __readBindingMetadata(__value);
 	await __writeAll(__bytes);
-    __entries.push({ name: ${JSON.stringify(name)}, kind: __kind, offset: __total, length: __bytes.byteLength });
+	    __entries.push({
+	      name: ${JSON.stringify(name)},
+	      kind: __kind,
+	      offset: __total,
+	      length: __bytes.byteLength,
+	      ...(__metadata.description === undefined ? {} : { description: __metadata.description }),
+	      ...(__metadata.usage === undefined ? {} : { usage: __metadata.usage }),
+	    });
     __total += __bytes.byteLength;
   } catch (__error) {
     __skipped.push({ name: ${JSON.stringify(name)}, reason: String(__error instanceof Error ? __error.message : __error).slice(0, 240) });
@@ -68,9 +79,34 @@ export function projectStateCaptureSource(options: {
 	return `{
   const { serialize } = await import("node:v8");
   const __max = ${options.maxBytes};
-  const __entries = [];
-  const __skipped = [];
-  let __total = 0;
+	  const __entries = [];
+	  const __skipped = [];
+	  let __total = 0;
+	const __readBindingMetadata = (__value) => {
+	  if (__value === null || (typeof __value !== "object" && typeof __value !== "function")) return {};
+	  const __metadata = {};
+	  for (const [__key, __max, __multiline, __lines] of [
+	    ["description", ${MAX_PROJECT_DESCRIPTION_BYTES}, false, 1],
+	    ["usage", ${MAX_PROJECT_USAGE_BYTES}, true, ${MAX_PROJECT_USAGE_LINES}],
+	  ]) {
+	    const __descriptor = Object.getOwnPropertyDescriptor(__value, __key);
+	    if (!__descriptor || !("value" in __descriptor) || typeof __descriptor.value !== "string") continue;
+	    const __text = __descriptor.value;
+	    if (!__text || new TextEncoder().encode(__text).byteLength > __max || __text.includes("\\r")) continue;
+	    const __textLines = __text.split("\\n");
+	    if (__textLines.length > __lines) continue;
+	    let __valid = true;
+	    for (const __character of __text) {
+	      const __codePoint = __character.codePointAt(0);
+	      if ((__codePoint < 0x20 && __codePoint !== 0x0a) || __codePoint === 0x7f || !__multiline && __codePoint === 0x0a) {
+	        __valid = false;
+	        break;
+	      }
+	    }
+	    if (__valid) __metadata[__key] = __text;
+	  }
+	  return __metadata;
+	};
 	const __file = await Deno.open(${JSON.stringify(options.payloadPath)}, { create: true, write: true, truncate: true, mode: 0o600 });
 	const __writeAll = async (__bytes) => {
 	  let __offset = 0;
@@ -130,6 +166,20 @@ export function projectStateRestoreSource(
   const __matches = (__currentValue, __restore) => __restore.kind === "function"
     ? typeof __currentValue === "function" && Function.prototype.toString.call(__currentValue) === __restore.captured
     : __sameBytes(__currentValue, __restore.value);
+  const __applyMetadata = (__value, __entry) => {
+    if (__value === null || (typeof __value !== "object" && typeof __value !== "function")) return;
+    for (const __key of ["description", "usage"]) {
+      if (typeof __entry[__key] !== "string") continue;
+      try {
+        Object.defineProperty(__value, __key, {
+          value: __entry[__key],
+          writable: true,
+          configurable: true,
+          enumerable: true,
+        });
+      } catch {}
+    }
+  };
   const __slot = "__piNotebookRebind_" + crypto.randomUUID().replaceAll("-", "");
   const __assign = (__name, __value) => {
     globalThis[__slot] = __value;
@@ -156,8 +206,10 @@ export function projectStateRestoreSource(
   for (const __restore of __restores) {
     if (__current.has(__restore.name)) {
       if (!__matches(__current.get(__restore.name), __restore)) __assign(__restore.name, __restore.value);
+      __applyMetadata(globalThis[__restore.name], __restore);
       continue;
     }
+    __applyMetadata(__restore.value, __restore);
     Object.defineProperty(globalThis, __restore.name, {
       value: __restore.value,
       writable: true,

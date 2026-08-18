@@ -1,5 +1,7 @@
+import { randomUUID } from "node:crypto";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { NotebookRuntimeOptions } from "../code-mode/shared-runtime.ts";
+import { notebookExecStartupNotice } from "./control-contract.ts";
 import type { NotebookBridgeServer } from "./bridge-server.ts";
 import {
 	garbageCollectSupersededNotebookCheckpoints,
@@ -9,7 +11,7 @@ import {
 import { ensureNotebookDenoBinary } from "./deno-binary.ts";
 import { initializeNotebookJournal, type NotebookJournal } from "./journal.ts";
 import { DenoJupyterKernel } from "./jupyter-kernel.ts";
-import { notebookBootstrapSource } from "./kernel-runtime.ts";
+import { notebookBootstrapSource, notebookExampleSource } from "./kernel-runtime.ts";
 import { formatNotebookNpmImportsNotice, readNotebookNpmImports } from "./npm-imports.ts";
 import {
 	formatProjectStateNotice,
@@ -35,6 +37,7 @@ export async function startNotebookSession(options: {
 	runtime: NotebookRuntimeOptions;
 	bridge: NotebookBridgeServer;
 	checkpointMaxBytes: number;
+	onKernelFailure?: ((kernel: DenoJupyterKernel, error: Error) => void) | undefined;
 	signal?: AbortSignal | undefined;
 }): Promise<StartedNotebookSession> {
 	const { context, runtime, bridge, signal } = options;
@@ -54,7 +57,7 @@ export async function startNotebookSession(options: {
 		throw error;
 	}
 
-	const kernel = new DenoJupyterKernel({ deno, maxHeapMiB: runtime.maxHeapMiB });
+	const kernel = new DenoJupyterKernel({ deno, maxHeapMiB: runtime.maxHeapMiB, onFailure: options.onKernelFailure });
 	try {
 		await kernel.start(signal);
 		const bootstrap = await kernel.execute(notebookBootstrapSource(origin, bridge.token, bridge.exitToken, context.cwd), { signal });
@@ -97,9 +100,14 @@ export async function startNotebookSession(options: {
 				profileNotice = `Notebook profile ${runtime.profile} was not loaded: ${error instanceof Error ? error.message : String(error)}`;
 			}
 		}
+		const exampleNames = await installNotebookExamples(kernel, signal);
+		for (const name of exampleNames) baselineNames.add(name);
 		garbageCollectSupersededNotebookCheckpoints(checkpointIdentity);
 		const npmNotice = formatNotebookNpmImportsNotice(readNotebookNpmImports(checkpointIdentity));
-		const restoreNotice = [npmNotice, formatProjectStateNotice(projectState), restored.message, profileNotice].filter(Boolean).join(". ") || undefined;
+		const exampleNotice = exampleNames.length === 2
+			? "Notebook example foo/bar available; inspect foo.description, foo.usage, bar.description, and bar.usage before constructing a reusable global"
+			: undefined;
+		const restoreNotice = [exampleNotice, npmNotice, formatProjectStateNotice(projectState), restored.message, profileNotice, notebookExecStartupNotice()].filter(Boolean).join(". ") || undefined;
 		return {
 			kernel,
 			journal,
@@ -113,5 +121,25 @@ export async function startNotebookSession(options: {
 		await kernel.shutdown().catch(() => undefined);
 		await bridge.shutdown().catch(() => undefined);
 		throw error;
+	}
+}
+
+async function installNotebookExamples(kernel: DenoJupyterKernel, signal?: AbortSignal): Promise<string[]> {
+	const marker = `__PI_NOTEBOOK_EXAMPLES_${randomUUID()}__`;
+	signal?.throwIfAborted();
+	try {
+		const names = new Set(await kernel.complete("", 0, signal));
+		const result = await kernel.execute(notebookExampleSource(marker, names.has("foo") || names.has("bar")), { signal });
+		if (result.status !== "ok") return [];
+		const output = result.items.filter(({ type }) => type === "input_text").map(({ text }) => text ?? "").join("");
+		const start = output.indexOf(marker);
+		if (start === -1) return [];
+		const value = JSON.parse(output.slice(start + marker.length).split("\n", 1)[0]!) as unknown;
+		return Array.isArray(value) && value.every((name) => name === "foo" || name === "bar")
+			? [...new Set(value)]
+			: [];
+	} catch {
+		signal?.throwIfAborted();
+		return [];
 	}
 }

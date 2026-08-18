@@ -15,6 +15,7 @@ import {
 	formatRelease,
 	formatStatus,
 	NOTEBOOK_DETAILS_BUDGET,
+	remainingDetailsBudget,
 	takeDetailValues,
 	withinNameBudget,
 	type NotebookStatusDetails,
@@ -28,6 +29,7 @@ import {
 	type NotebookReleaseResult,
 } from "./lifecycle-runtime.ts";
 import { NotebookProfileController } from "./profile-lifecycle.ts";
+import type { NotebookRuntimeHealth } from "./runtime-health.ts";
 
 const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 const STATUS_TIMEOUT_MS = 8_000;
@@ -47,6 +49,7 @@ interface NotebookLifecycleHost {
 	rollback(context: ExtensionContext): Promise<void>;
 	baselineNames(): ReadonlySet<string>;
 	profileStorage(): { agentDir: string; maxBytes: number };
+	runtimeHealth(): NotebookRuntimeHealth;
 	metadata(): {
 		startedAt?: number | undefined;
 		userCells: number;
@@ -72,6 +75,7 @@ export class NotebookLifecycleController {
 		if (request.action === "list") return this.profiles.list(request.query);
 		if (request.action === "diagnostics") return this.host.diagnostics(context, signal);
 		if (request.action === "reset") return this.host.reset(context, signal);
+		if (request.action === "restart" && this.host.runtimeHealth().state !== "ready") return this.restart(context, signal);
 		await this.host.prepare(context, signal);
 		switch (request.action) {
 			case "status": return this.status(request.query, signal);
@@ -118,7 +122,6 @@ export class NotebookLifecycleController {
 			);
 		}
 		const metadata = this.host.metadata();
-		const detailBudget = { remaining: NOTEBOOK_DETAILS_BUDGET };
 		const inspectedMatches = (runtime?.bindings ?? []).map((binding) => {
 			const retainedBinding = retainedByName.get(binding.name);
 			return {
@@ -127,13 +130,17 @@ export class NotebookLifecycleController {
 					bytes: retainedBinding.bytes,
 					updatedAt: retainedBinding.updatedAt,
 					pinned: retainedBinding.pinned,
+					...(retainedBinding.description === undefined ? {} : { description: retainedBinding.description }),
+					...(retainedBinding.usage === undefined ? {} : { usage: retainedBinding.usage }),
 				} : {}),
 			};
 		});
-		const reportedMatches = takeDetailValues(inspectedMatches, detailBudget);
 		const pinned = retained.filter((binding) => binding.pinned);
-		const reportedPinned = takeDetailValues(pinned, detailBudget);
-		const details: NotebookStatusDetails = {
+		const unpinned = retained
+			.filter(({ pinned }) => !pinned)
+			.sort((left, right) => right.bytes - left.bytes);
+		const largestUnpinned = unpinned.slice(0, 8);
+		const baseDetails: NotebookStatusDetails = {
 			state: activeCell ? "running" : "idle",
 			...(activeCell ? { activeCell } : {}),
 			userBindings: activeCell ? undefined : allNames.length,
@@ -144,14 +151,27 @@ export class NotebookLifecycleController {
 			retainedBindings: retained.length,
 			retainedBytes: retained.reduce((total, binding) => total + binding.bytes, 0),
 			pinnedBindings: pinned.length,
-			pinned: reportedPinned,
-			omittedPinned: pinned.length - reportedPinned.length,
-			largestUnpinned: retained
-				.filter(({ pinned }) => !pinned)
-				.sort((left, right) => right.bytes - left.bytes)
-				.slice(0, 8),
+			pinned: [],
+			omittedPinned: pinned.length,
+			largestUnpinned: [],
+			omittedLargestUnpinned: unpinned.length,
 			...(query === undefined ? {} : {
 				query,
+				matches: [],
+				omittedMatches: matches.length,
+			}),
+		};
+		const detailBudget = remainingDetailsBudget(baseDetails);
+		const reportedMatches = takeDetailValues(inspectedMatches, detailBudget);
+		const reportedPinned = takeDetailValues(pinned, detailBudget);
+		const reportedLargestUnpinned = takeDetailValues(largestUnpinned, detailBudget);
+		const details: NotebookStatusDetails = {
+			...baseDetails,
+			pinned: reportedPinned,
+			omittedPinned: pinned.length - reportedPinned.length,
+			largestUnpinned: reportedLargestUnpinned,
+			omittedLargestUnpinned: unpinned.length - reportedLargestUnpinned.length,
+			...(query === undefined ? {} : {
 				matches: reportedMatches,
 				omittedMatches: Math.max(0, matches.length - reportedMatches.length),
 			}),
@@ -264,7 +284,15 @@ export class NotebookLifecycleController {
 
 	private async restart(context: ToolExecutionContext, signal?: AbortSignal): Promise<NotebookControlResult> {
 		const activeCell = await this.host.stopActive();
-		if (!activeCell) await this.host.checkpoint();
+		let checkpointNotice: string | undefined;
+		if (!activeCell && this.host.runtimeHealth().state === "ready") {
+			try {
+				await this.host.checkpoint();
+			} catch (error) {
+				if (this.host.runtimeHealth().state !== "invalidated") throw error;
+				checkpointNotice = `Checkpoint skipped after runtime invalidation: ${error instanceof Error ? error.message : String(error)}`;
+			}
+		}
 		const disposal = await this.disposeAll(signal).catch((error) => ({
 			released: [],
 			disposed: [],
@@ -283,6 +311,7 @@ export class NotebookLifecycleController {
 			message: [
 				`Notebook kernel restarted from the last completed checkpoint${activeCell ? `; terminated ${activeCell}` : ""}`,
 				disposal && disposal.failures.length > 0 ? `${disposal.failures.length} resource cleanup failure${disposal.failures.length === 1 ? "" : "s"}; restart continued` : undefined,
+				checkpointNotice,
 				restoreNotice,
 			].filter(Boolean).join(". "),
 			details,

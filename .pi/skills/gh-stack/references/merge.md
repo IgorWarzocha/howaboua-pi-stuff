@@ -91,12 +91,11 @@ not preserve the reviewed cumulative state: stop before final review.
 
 ## Final umbrella gate
 
-The umbrella head rewrite intentionally reruns aggregate CI and may dismiss old approval. Update its
-body with the focused PR list, actual changesets/packages, validation, and resolved risks. Mark it
-ready only after assembly:
+The umbrella stays open and ready for visibility by default; an explicitly requested draft is the only
+exception. Its head rewrite intentionally reruns aggregate CI and may dismiss old approval. After assembly,
+update its body with the focused PR list, actual changesets/packages, validation, and resolved risks:
 
 ```bash
-gh pr ready <umbrella-pr>
 gh pr view <umbrella-pr> --json baseRefName,headRefOid,isDraft,reviewDecision,mergeStateStatus,statusCheckRollup
 ```
 

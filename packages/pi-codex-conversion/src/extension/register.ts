@@ -1,6 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { registerCodeModeProxyProvider } from "../providers/code-mode-proxy-provider.ts";
 import { registerOpenAICodexCustomProvider } from "../providers/openai-codex-custom-provider.ts";
+import { registerApplyPatchDisplayBroker } from "../tools/apply-patch/display-broker.ts";
 import { registerCodexCommand } from "../ui/settings/command.ts";
 import { registerCodexCodeMode } from "../adapter/code-mode.ts";
 import { prepareCodeModeHost, registerCanonicalAliasEndpointPreflight, registerCodexEvents } from "./events.ts";
@@ -13,6 +14,7 @@ import { captureActiveProviderSystemPrompt } from "../adapter/provider-request.t
 
 export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 	registerCodexVoiceRenderer(pi);
+	registerApplyPatchDisplayBroker(pi);
 	const runtime = createCodexExtensionRuntime(pi);
 	registerCanonicalAliasEndpointPreflight(pi, runtime);
 	const codeMode = await registerCodexCodeMode(pi, runtime);
@@ -44,6 +46,9 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 					previousConfig.openai.cacheDiagnostics !== "status-and-log"
 						&& config.openai.cacheDiagnostics === "status-and-log",
 				);
+			}
+			if (config.openai.cacheKeepalive !== previousConfig.openai.cacheKeepalive) {
+				runtime.cancelCacheKeepalive();
 			}
 			if (
 				config.voiceFeaturesOnly !== previousConfig.voiceFeaturesOnly

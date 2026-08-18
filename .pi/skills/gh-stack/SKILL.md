@@ -29,8 +29,8 @@ stack assembles into staging; staging then replaces the umbrella head for final 
 - Keep focused layers linear and independently reviewable. Put each change on its lowest owner.
 - For one release unit, create a staging branch from `main`, root the native stack there, and keep a
   separate ordinary umbrella PR to `main`. Neither staging nor umbrella belongs to the native stack.
-- The umbrella is the cumulative release view, stays draft until assembly, and is the only PR merged
-  to `main`. Never merge native members with `gh pr merge`.
+- The umbrella is the cumulative release view and the only PR merged to `main`. Open it ready for
+  visibility unless the user explicitly asks for a draft. Never merge native members with `gh pr merge`.
 - Prefer JJ revisions/bookmarks/workspaces for local history. Use `gh stack link` for GitHub topology;
   do not adopt the same stack into local `gh-stack` tracking or mix in `sync`, `rebase`, or `push`.
 - If JJ is unavailable, use the explicit Git-managed fallback. One local-history owner per stack.

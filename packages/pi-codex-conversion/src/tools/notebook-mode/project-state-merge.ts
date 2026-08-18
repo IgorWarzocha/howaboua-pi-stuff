@@ -32,7 +32,7 @@ export function mergeProjectState(options: {
 	currentPayload: Buffer;
 	pins?: ProjectStatePinUpdate | undefined;
 }): ProjectStateMerge {
-	const base = new Map(options.baseline.entries.map(({ name, hash }) => [name, hash]));
+	const base = new Map(options.baseline.entries.map((entry) => [entry.name, entry]));
 	const current = new Map((options.current?.entries ?? []).map((entry) => [entry.name, entry]));
 	const candidate = new Map(options.candidate.entries.map((entry) => [entry.name, {
 		...entry,
@@ -52,18 +52,19 @@ export function mergeProjectState(options: {
 	let conflictOffset = 0;
 	const capturedAt = new Date().toISOString();
 	for (const name of names) {
-		const baseHash = base.get(name);
+		const baseEntry = base.get(name);
 		const currentEntry = current.get(name);
 		const candidateEntry = candidate.get(name);
-		const candidateHash = skipped.has(name) ? baseHash : candidateEntry?.hash;
-		const currentHash = currentEntry?.hash;
-		const candidateChanged = !skipped.has(name) && candidateHash !== baseHash;
-		const currentChanged = currentHash !== baseHash;
+		const baseFingerprint = projectStateEntryFingerprint(baseEntry);
+		const candidateFingerprint = skipped.has(name) ? baseFingerprint : projectStateEntryFingerprint(candidateEntry);
+		const currentFingerprint = projectStateEntryFingerprint(currentEntry);
+		const candidateChanged = !skipped.has(name) && candidateFingerprint !== baseFingerprint;
+		const currentChanged = currentFingerprint !== baseFingerprint;
 		let selected: { entry: ProjectStateEntry; payload: Buffer } | undefined;
 		if (candidateChanged && !candidateEntry && currentEntry?.pinned) {
 			conflicts.push(name);
 			selected = { entry: currentEntry, payload: options.currentPayload };
-		} else if (candidateChanged && currentChanged && candidateHash !== currentHash) {
+		} else if (candidateChanged && currentChanged && candidateFingerprint !== currentFingerprint) {
 			conflicts.push(name);
 			if (candidateEntry) {
 				const bytes = options.candidatePayload.subarray(candidateEntry.offset, candidateEntry.offset + candidateEntry.length);
@@ -77,7 +78,7 @@ export function mergeProjectState(options: {
 			if (candidateEntry) selected = {
 				entry: {
 					...candidateEntry,
-					updatedAt: candidateHash === currentHash
+					updatedAt: candidateFingerprint === currentFingerprint
 						? currentEntry?.updatedAt ?? options.current?.createdAt ?? capturedAt
 						: capturedAt,
 					...(currentEntry?.pinned ? { pinned: true } : {}),
@@ -113,17 +114,19 @@ export function mergeProjectState(options: {
 			};
 		}
 	}
-	const currentShape = JSON.stringify((options.current?.entries ?? []).map(({ name, kind, hash, pinned }) => [name, kind, hash, pinned === true]));
-	const mergedShape = JSON.stringify(entries.map(({ name, kind, hash, pinned }) => [name, kind, hash, pinned === true]));
+	const currentShape = JSON.stringify((options.current?.entries ?? []).map(projectStateEntryShape));
+	const mergedShape = JSON.stringify(entries.map(projectStateEntryShape));
 	const skippedBaseline = options.baseline.entries.filter(({ name }) => skipped.has(name));
 	return {
 		changed: mergedShape !== currentShape,
 		baseline: {
 			generation: options.baseline.generation,
-			entries: [
-				...skippedBaseline,
-				...[...candidate.values()].map(({ name, hash }) => ({ name, hash })),
-			].sort((left, right) => left.name.localeCompare(right.name)),
+			entries: [...skippedBaseline, ...[...candidate.values()].map(({ name, hash, description, usage }) => ({
+				name,
+				hash,
+				...(description === undefined ? {} : { description }),
+				...(usage === undefined ? {} : { usage }),
+			}))].sort((left, right) => left.name.localeCompare(right.name)),
 		},
 		entries,
 		payload: Buffer.concat(parts),
@@ -133,4 +136,18 @@ export function mergeProjectState(options: {
 		conflictDeletions,
 		conflictPayload: Buffer.concat(conflictParts),
 	};
+}
+
+export function projectStateEntryFingerprint(entry: {
+	hash?: string | undefined;
+	description?: string | undefined;
+	usage?: string | undefined;
+} | undefined): string | undefined {
+	return entry === undefined
+		? undefined
+		: JSON.stringify([entry.hash ?? null, entry.description ?? null, entry.usage ?? null]);
+}
+
+function projectStateEntryShape(entry: ProjectStateEntry): [string, string, string, boolean, string | null, string | null] {
+	return [entry.name, entry.kind, entry.hash, entry.pinned === true, entry.description ?? null, entry.usage ?? null];
 }

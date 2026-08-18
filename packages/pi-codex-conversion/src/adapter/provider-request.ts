@@ -81,7 +81,13 @@ export async function rewriteCodexProviderRequest(payload: unknown, ctx: Extensi
 		const piCompactionPayload = await injectPendingNativeWindowIntoPiCompactionRequest(configuredPayload, ctx, state);
 		rewrittenPayload = piCompactionPayload ?? (await rewriteCodexCompactedProviderRequest(configuredPayload, ctx, state)) ?? configuredPayload;
 	}
-	return applyCodexRuntimePayload(rewrittenPayload, isCodeModeRuntime(plan));
+	const finalPayload = applyCodexRuntimePayload(rewrittenPayload, isCodeModeRuntime(plan));
+	// Stock Responses providers and configured Code Mode overlays have no
+	// post-serialization callback. Keep native replay on the instructions that
+	// reached this final hook boundary; the custom Codex provider captures again
+	// after its transport-specific transforms.
+	if (state.pendingActiveProviderPromptCapture) captureActiveProviderSystemPrompt(finalPayload, state);
+	return finalPayload;
 }
 
 export function rewriteCodexPrewarmProviderRequest(

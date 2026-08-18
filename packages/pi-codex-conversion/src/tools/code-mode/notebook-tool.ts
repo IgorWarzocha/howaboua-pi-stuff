@@ -2,31 +2,45 @@ import type { ExtensionAPI, ToolDefinition } from "@earendil-works/pi-coding-age
 import { StringEnum } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
 import { getExperimentalToolSampling } from "../tool-sampling.ts";
+import { canExecuteNotebookControlInsideExec } from "../notebook-mode/control-contract.ts";
 import type { SharedCodeModeRuntime } from "./shared-runtime.ts";
-import type { NotebookControlRequest, ToolExecutionContext } from "./types.ts";
+import type {
+	NotebookControlRequest,
+	NotebookControlResult,
+	ProgrammaticCodeModeToolDefinition,
+	ToolExecutionContext,
+} from "./types.ts";
 
-const NOTEBOOK_PARAMETERS = Type.Object({
+export const NOTEBOOK_PARAMETERS = Type.Object({
 	action: StringEnum(["status", "list", "checkpoint", "save", "load", "pin", "unpin", "release", "prune", "restart", "diagnostics", "reset"]),
 	query: Type.Optional(Type.String()),
 	name: Type.Optional(Type.String()),
 	names: Type.Optional(Type.Array(Type.String(), { minItems: 1 })),
 });
 
+const NOTEBOOK_DESCRIPTION = "Control persistent notebook state: status inspects memory/bindings by query glob; checkpoint; pin/unpin/release names; prune unpinned matches; list/save/load profiles; restart; diagnostics; reset";
+
+type NotebookToolParameters = {
+	action: string;
+	query?: string | undefined;
+	name?: string | undefined;
+	names?: string[] | undefined;
+};
+
 export function registerNotebookTool(pi: ExtensionAPI, runtime: SharedCodeModeRuntime): void {
 	const constrainedSampling = getExperimentalToolSampling("notebook");
 	pi.registerTool({
 		name: "notebook",
 		label: "Notebook",
-		description: "Control persistent notebook state: status inspects memory/bindings by query glob; checkpoint; pin/unpin/release names; prune unpinned matches; list/save/load profiles; restart; diagnostics; reset",
+		description: NOTEBOOK_DESCRIPTION,
 		promptSnippet: "Inspect, recover, or control notebook state",
 		parameters: NOTEBOOK_PARAMETERS,
 		...(constrainedSampling ? { constrainedSampling } : {}),
 		async execute(_id, params, signal, _onUpdate, ctx) {
-			const result = await runtime.controlNotebook(
-				normalizeNotebookRequest(params),
-				{ cwd: ctx.cwd, extensionContext: ctx } as ToolExecutionContext,
-				signal,
-			);
+			const result = await executeNotebookControl(runtime, params, {
+				cwd: ctx.cwd,
+				extensionContext: ctx,
+			}, signal);
 			return {
 				content: [{ type: "text", text: result.message }],
 				details: result.details,
@@ -35,12 +49,55 @@ export function registerNotebookTool(pi: ExtensionAPI, runtime: SharedCodeModeRu
 	} satisfies ToolDefinition<typeof NOTEBOOK_PARAMETERS>);
 }
 
-export function normalizeNotebookRequest(params: {
-	action: string;
-	query?: string | undefined;
-	name?: string | undefined;
-	names?: string[] | undefined;
-}): NotebookControlRequest {
+export function createNotebookControlProxy(
+	runtime: SharedCodeModeRuntime,
+): ProgrammaticCodeModeToolDefinition {
+	return {
+		name: "notebook",
+		usage: "await tools.notebook({ action, query?, name?, names? })",
+		description: NOTEBOOK_DESCRIPTION,
+		deferLoading: true,
+		kind: "function",
+		inputSchema: NOTEBOOK_PARAMETERS,
+		invoke: (input, context, signal) =>
+			executeNotebookExecControl(runtime, input as NotebookToolParameters, context, signal),
+	};
+}
+
+export async function executeNotebookControl(
+	runtime: SharedCodeModeRuntime,
+	params: NotebookToolParameters,
+	context: ToolExecutionContext,
+	signal?: AbortSignal,
+): Promise<NotebookControlResult> {
+	return executeNormalizedNotebookControl(runtime, normalizeNotebookRequest(params), context, signal);
+}
+
+export async function executeNotebookExecControl(
+	runtime: SharedCodeModeRuntime,
+	params: NotebookToolParameters,
+	context: ToolExecutionContext,
+	signal?: AbortSignal,
+): Promise<NotebookControlResult> {
+	const request = normalizeNotebookRequest(params);
+	if (!canExecuteNotebookControlInsideExec(request))
+		return {
+			message: `Notebook ${request.action} was not run because it needs the active exec cell to finish. After exec returns, call notebook with ${JSON.stringify(request)}.`,
+			details: { notRun: true, action: request.action, retry: request },
+		};
+	return executeNormalizedNotebookControl(runtime, request, context, signal);
+}
+
+function executeNormalizedNotebookControl(
+	runtime: SharedCodeModeRuntime,
+	request: NotebookControlRequest,
+	context: ToolExecutionContext,
+	signal?: AbortSignal,
+): Promise<NotebookControlResult> {
+	return runtime.controlNotebook(request, context, signal);
+}
+
+export function normalizeNotebookRequest(params: NotebookToolParameters): NotebookControlRequest {
 	params = {
 		action: params.action,
 		...(params.query == null ? {} : { query: params.query }),

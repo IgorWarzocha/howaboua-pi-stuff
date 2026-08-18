@@ -103,6 +103,7 @@ export interface CodexConversionConfig {
 	openai: {
 		fast: boolean;
 		verbosity: CodexVerbosity;
+		cacheKeepalive: boolean;
 		proxyResponsesLite: boolean;
 		forceCachedWebSockets: boolean;
 		cacheDiagnostics: CacheDiagnosticsMode;
@@ -155,6 +156,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	openai: {
 		fast: false,
 		verbosity: "low",
+		cacheKeepalive: false,
 		proxyResponsesLite: false,
 		forceCachedWebSockets: true,
 		cacheDiagnostics: "off",
@@ -464,6 +466,10 @@ export function normalizeCodexConversionConfig(
 			verbosity:
 				normalizeCodexVerbosity(openai["verbosity"]) ??
 				DEFAULT_CODEX_CONVERSION_CONFIG.openai["verbosity"],
+			cacheKeepalive: bool(
+				openai["cacheKeepalive"],
+				DEFAULT_CODEX_CONVERSION_CONFIG.openai["cacheKeepalive"],
+			),
 			proxyResponsesLite: bool(
 				openai["proxyResponsesLite"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.openai.proxyResponsesLite,

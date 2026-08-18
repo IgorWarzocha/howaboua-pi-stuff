@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
+import { canonicalCodexAliasModelKey } from "../src/adapter/prompt/codex-model.ts";
 import { createCodexExtensionRuntime } from "../src/extension/runtime.ts";
 import { prewarmOpenAICodexWebSocket } from "../src/providers/openai-codex-custom-provider.ts";
 import { isWebSocketSseFallbackActive, recordWebSocketSseFallback } from "../src/providers/openai-codex/websocket.ts";
@@ -72,8 +73,21 @@ test("stalled auth in an aborted prewarm cannot block a newer equivalent operati
 	await current;
 });
 
-test("post-compaction reset seeds one reusable request identity", async () => {
-	const restoreWebSocket = installScriptedWebSocket([websocketSuccess]);
+test("post-compaction reset prewarms canonical aliases with normalized cache usage", async () => {
+	const restoreWebSocket = installScriptedWebSocket([(socket) => {
+		socket.emitJson({ type: "response.created", response: { id: "resp_cached" } });
+		socket.emitJson({
+			type: "response.completed",
+			response: {
+				id: "resp_cached",
+				status: "completed",
+				usage: {
+					input_tokens: 100,
+					input_tokens_details: { cached_tokens: 75 },
+				},
+			},
+		});
+	}]);
 	const sessionId = "history-prewarm-identity";
 	try {
 		const runtime = createCodexExtensionRuntime({
@@ -90,10 +104,19 @@ test("post-compaction reset seeds one reusable request identity", async () => {
 			executionMode: "code",
 		};
 		runtime.state.activeProviderSystemPrompt = "Stable prompt";
+		const alias = {
+			...model,
+			provider: "openai-codex-personal",
+			baseUrl: "https://chatgpt.com/backend-api",
+		};
+		runtime.state.canonicalAliasEndpoint = {
+			modelKey: canonicalCodexAliasModelKey(alias),
+			trusted: true,
+		};
 		const extensionContext = {
 			cwd: "/repo",
 			getSystemPrompt: () => "Stable prompt",
-			model,
+			model: alias,
 			modelRegistry: {
 				getApiKeyAndHeaders: async () => ({ ok: true, apiKey }),
 			},
@@ -103,7 +126,15 @@ test("post-compaction reset seeds one reusable request identity", async () => {
 			},
 		} as never;
 
-		await runtime.startCompactionPrewarm(extensionContext);
+		assert.deepEqual(await runtime.startCompactionPrewarm(extensionContext), {
+			status: "ready",
+			usage: {
+				inputTokens: 25,
+				cachedInputTokens: 75,
+				cacheWriteInputTokens: 0,
+			},
+			socketReused: false,
+		});
 
 		assert.equal(runtime.waitForPrewarm(extensionContext, "Stable prompt"), undefined);
 		assert.equal(sentFrames().length, 1);

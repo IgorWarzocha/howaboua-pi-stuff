@@ -16,3 +16,18 @@ export function stripAdapterTools(
 	toolNames: string[],
 	adapterOwnedTools?: string[],
 ): string[];
+
+export type {
+	ApplyPatchPartialFailureDetails,
+	ApplyPatchRenderCall,
+	ApplyPatchRenderResult,
+	ApplyPatchSuccessDetails,
+	ApplyPatchToolDetails,
+	ApplyPatchToolOptions,
+	ExecutePatchResult,
+} from "../dist/tools/apply-patch/tool.js";
+export {
+	createApplyPatchTool,
+	isApplyPatchToolDetails,
+	registerApplyPatchResultEvent,
+} from "../dist/tools/apply-patch/tool.js";

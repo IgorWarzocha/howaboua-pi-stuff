@@ -97,6 +97,21 @@ test("project notebook merge preserves a concurrent same-name edit", () => {
 	assert.equal(repeated.payload.toString(), "current");
 });
 
+test("project notebook merge treats metadata edits as concurrent changes", () => {
+	const payload = Buffer.from("same");
+	const merged = mergeProjectState({
+		baseline: { generation: "base-generation", entries: [{ name: "shared", hash: hash(payload), description: "base" }] },
+		current: projectManifest("current-generation", payload, false, { description: "current" }),
+		candidate: projectCandidate(payload, "function", { description: "candidate" }),
+		candidatePayload: payload,
+		currentPayload: payload,
+	});
+
+	assert.deepEqual(merged.conflicts, ["shared"]);
+	assert.equal(merged.payload.toString(), "same");
+	assert.equal(merged.entries[0]?.description, "current");
+});
+
 test("project notebook merge applies an uncontested plain global", () => {
 	const previous = Buffer.from("previous");
 	const payload = Buffer.from("value");
@@ -126,16 +141,16 @@ test("stale session recovery cannot overwrite a newer project generation", () =>
 	assert.deepEqual([...sessionCheckpointProjectExclusions({ projectGeneration: "new" }, project)], []);
 });
 
-function projectCandidate(payload: Buffer, kind: "value" | "function" = "function"): ProjectStateCandidate {
+function projectCandidate(payload: Buffer, kind: "value" | "function" = "function", metadata: { description?: string; usage?: string } = {}): ProjectStateCandidate {
 	return {
 		deno: "2.9.5",
 		v8: "test",
-		entries: [{ name: "shared", kind, offset: 0, length: payload.length }],
+		entries: [{ name: "shared", kind, offset: 0, length: payload.length, ...metadata }],
 		skipped: [],
 	};
 }
 
-function projectManifest(generation: string, payload: Buffer, pinned = false): ProjectStateManifest {
+function projectManifest(generation: string, payload: Buffer, pinned = false, metadata: { description?: string; usage?: string } = {}): ProjectStateManifest {
 	return {
 		schema: 1,
 		project: "/project",
@@ -151,6 +166,7 @@ function projectManifest(generation: string, payload: Buffer, pinned = false): P
 			offset: 0,
 			length: payload.length,
 			hash: hash(payload),
+			...metadata,
 			...(pinned ? { pinned: true } : {}),
 		}],
 		skipped: [],
