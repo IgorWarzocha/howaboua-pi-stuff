@@ -191,12 +191,11 @@ export function registerCodexEvents(
 
 	pi.on("session_shutdown", async (_event, ctx) => {
 		const failures: unknown[] = [];
+		await runShutdownStep(failures, () => ui.invalidateBackgroundWidget());
 		await runShutdownStep(failures, () => runtime.lanVoice.stop(ctx));
 		await runShutdownStep(failures, () => runtime.voice.stop({ announce: true }));
 		await runShutdownStep(failures, () => runtime.shutdownTransport(ctx.sessionManager.getSessionId()));
 		await runShutdownStep(failures, () => runtime.shutdownDiagnostics());
-		await runShutdownStep(failures, () => ui.clearBackgroundWidget());
-		runtime.backgroundWidget.ctx = undefined;
 		await runShutdownStep(failures, () => sessions.shutdown());
 		await runShutdownStep(failures, () => proxyProvider.shutdown());
 		await runShutdownStep(failures, () => codeMode.shutdown());
