@@ -27,7 +27,30 @@ export type ApplyPatchToolDetails = ApplyPatchSuccessDetails | ApplyPatchPartial
 const applyPatchRenderStates = new Map<string, ApplyPatchRenderState>();
 
 export function isApplyPatchToolDetails(details: unknown): details is ApplyPatchToolDetails {
-	return typeof details === "object" && details !== null && "status" in details && "result" in details;
+	if (!details || typeof details !== "object") return false;
+	const record = details as Record<string, unknown>;
+	if (record["status"] !== "success" && record["status"] !== "partial_failure") return false;
+	const result = record["result"];
+	if (!result || typeof result !== "object") return false;
+	const patchResult = result as Record<string, unknown>;
+	if (
+		!isStringArray(patchResult["changedFiles"]) ||
+		!isStringArray(patchResult["createdFiles"]) ||
+		!isStringArray(patchResult["deletedFiles"]) ||
+		!isStringArray(patchResult["movedFiles"]) ||
+		typeof patchResult["fuzz"] !== "number" ||
+		!Number.isFinite(patchResult["fuzz"])
+	)
+		return false;
+	return (
+		record["status"] === "success" ||
+		record["failedTargets"] === undefined ||
+		isStringArray(record["failedTargets"])
+	);
+}
+
+function isStringArray(value: unknown): value is string[] {
+	return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
 export function clearApplyPatchRenderState(): void {

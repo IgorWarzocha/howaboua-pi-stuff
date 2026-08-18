@@ -1,8 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {
-	registerApplyPatchResultEvent,
-} from "../src/tools/apply-patch/tool.ts";
+import { registerApplyPatchResultEvent } from "../src/index.ts";
 import { toCodeModeToolResult } from "../src/tools/code-mode/tool-result.ts";
 
 test("apply_patch partial mutations remain error results", () => {
@@ -12,12 +10,19 @@ test("apply_patch partial mutations remain error results", () => {
 			if (event === "tool_result") handler = registered as typeof handler;
 		},
 	} as never);
+	const result = {
+		changedFiles: [],
+		createdFiles: [],
+		deletedFiles: [],
+		movedFiles: [],
+		fuzz: 0,
+	};
 
 	assert.deepEqual(handler?.({
 		toolName: "apply_patch",
-		details: { status: "partial_failure", result: {} },
+		details: { status: "partial_failure", result },
 	}), { isError: true });
-	assert.equal(handler?.({ toolName: "apply_patch", details: { status: "success", result: {} } }), undefined);
+	assert.equal(handler?.({ toolName: "apply_patch", details: { status: "success", result } }), undefined);
 });
 
 test("Notebook memory pressure is model-visible", () => {
