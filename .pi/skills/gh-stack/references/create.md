@@ -58,15 +58,21 @@ jj new -m "<next description>"
 jj bookmark create <next> --revision @
 ```
 
-For a parallel batch, create the described/bookmarked layer skeleton without publishing it, then move
-the coordinator working copy away so workers can edit those revisions:
+For a parallel batch, give writable workers sibling revisions from the stable staging revision, not a
+prebuilt ancestor/descendant chain. Dispatch only independent candidates concurrently. After a wave's
+accepted candidates are ready, integrate them bottom to top, compare each workspace's effective lockfile
+with its stable parent, and update stale workspaces before creating the next wave from stable parents. Use
+Bun's shared download cache. Run frozen install/linking locally against each workspace's effective lockfile;
+never share, symlink, or copy `node_modules` trees across workspaces. Repeat until every dependent layer is
+ready.
+Move the coordinator working copy away before workers edit:
 
 ```bash
 jj new <staging>
 ```
 
-Create worker workspaces and `jj edit <layer>` as specified in `work.md`. Empty skeleton revisions are
-local planning state only; do not link or push them.
+Create worker workspaces as specified in `work.md`. Empty candidate revisions are local planning state
+only; do not link or push them.
 
 Before publishing, require every focused revision to be non-empty, described, conflict-free, and to
 own only its layer. Create the umbrella bookmark at the focused top:
@@ -85,10 +91,11 @@ gh stack link --base <staging> --open <bottom> <next> <top>
 jj git push --remote origin --bookmark <umbrella>
 ```
 
-Open the cumulative umbrella as an ordinary draft PR:
+Open the cumulative umbrella as an ordinary PR for visibility. It is ready by default; add `--draft` only
+when explicitly requested:
 
 ```bash
-gh pr create --draft --base main --head <umbrella> --title "<release title>" --body-file <body>
+gh pr create --base main --head <umbrella> --title "<release title>" --body-file <body>
 ```
 
 GitHub cannot open an empty PR. Create the umbrella after the first real focused change exists; never
@@ -115,7 +122,8 @@ gh stack submit --auto --open
 gh stack top
 git branch <umbrella>
 git push --set-upstream origin <umbrella>
-gh pr create --draft --base main --head <umbrella> --title "<release title>" --body-file <body>
+# ready by default; append --draft only when explicitly requested
+gh pr create --base main --head <umbrella> --title "<release title>" --body-file <body>
 ```
 
 `add` carries uncommitted changes; avoid its commit shortcuts. `submit` is not atomic, so repair a
