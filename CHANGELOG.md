@@ -69,22 +69,27 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 3.0.15
+### @howaboua/pi-codex-conversion — 3.0.16
 
 ### Changes
 
-- [#292](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/292) [`06aff78`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/06aff787778630394e122b89821c33f599d00bb2) Thanks [@howaclawa](https://github.com/howaclawa)! - Expand pi-codex-conversion with persistent Notebook Mode, true Fast Mode, project-owned settings, and current Pi/Codex protocol support.
+- [#325](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/325) [`8b3c1e9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8b3c1e941309236efbf4b6f5157dd5352f1ec742) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Expose `createApplyPatchTool` and an `apply-patch-display` integration API for custom patch views without changing the agent-facing `apply_patch` execution contract
 
-  - **Notebook Mode:** Run Code Mode as a persistent Deno/TypeScript Jupyter kernel while keeping the same `exec` and `wait` workflow. Serializable state survives cells and restarts; deliberate bindings can be shared across project sessions, and agents discover and leave reusable project helpers without exposing private session scratch.
-  - **Notebook operations:** Add named reusable profiles, inspect/pin/prune/reset/restart controls, one-shot Deno diagnostics, recoverable `.ipynb` journals, memory telemetry, expandable nested-tool traces, and conflict-aware concurrent project state.
-  - **Notebook resilience:** Bound kernel cancellation, cleanup, wire messages, and journal retention; emit interoperable notebook cell IDs; reject malformed dependency inventories and conflict payloads before reading or deleting state.
-  - **Safer notebook dependencies:** Require approval for new exact-version npm imports, show packages already available to the kernel, and lazily install verified Deno 2.9.5 builds on Linux, macOS, and Windows for x64 and ARM64.
-  - **Real Fast Mode:** Activate ChatGPT Codex priority processing across WebSocket, SSE, prewarm, reconnect, retry, and native compaction while preserving ordinary request identity when Fast Mode is off. Renamed providers and monitoring proxies retain the appropriate Codex transport behavior.
-  - **Project settings:** Let trusted projects switch `/codex` from global defaults to a complete `.pi/pi-codex-conversion.json` snapshot. Normal, Code, or Notebook execution persists in the selected scope, while independently launched workers can force Fast Mode without changing other Pi sessions. Retire the old `beta` settings bag by migrating its values to execution, OpenAI transport, and compaction settings.
-  - **Models and tool contracts:** Add gated Daybreak Blue and Daybreak Red cybersecurity models, honor Pi's opt-in strict tool schemas, load deferred tools through native GPT-5.6 `additional_tools`, preserve terminal `end_turn`, and carry namespaced tool identities through stock, renamed, proxy, Code, and Notebook routes.
-  - **Compatibility and security:** Require Pi 0.84.2 or newer and update Undici to patched 8.10.0.
+- [#325](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/325) [`8b3c1e9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8b3c1e941309236efbf4b6f5157dd5352f1ec742) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Preserve final configured Responses instructions for native replay
 
-- [#292](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/292) [`06aff78`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/06aff787778630394e122b89821c33f599d00bb2) Thanks [@howaclawa](https://github.com/howaclawa)! - Preserve canonical Codex subscription capabilities for provider aliases through their own credential scope without changing stock `openai-codex` transport behavior for custom endpoints. Honor Pi's configured `shellPath` in Code Mode execution and prompt context, with safer guidance for nested commands and zsh exit-status capture. Keep realtime voice prompts below the upstream per-item context limit without dropping content.
+- [#325](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/325) [`8b3c1e9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8b3c1e941309236efbf4b6f5157dd5352f1ec742) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add a project-only experimental Codex cache keepalive that refreshes idle WebSocket context and reports cache-read results.
+
+- [#325](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/325) [`8b3c1e9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8b3c1e941309236efbf4b6f5157dd5352f1ec742) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Make safe Notebook lifecycle controls callable from inside Notebook exec cells.
+
+- [#325](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/325) [`8b3c1e9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8b3c1e941309236efbf4b6f5157dd5352f1ec742) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Report native compaction cache misses with replay and transport diagnostics
+
+- [#325](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/325) [`8b3c1e9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8b3c1e941309236efbf4b6f5157dd5352f1ec742) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Recover interrupted Notebook kernels without deleting durable project bindings
+
+- [#325](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/325) [`8b3c1e9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8b3c1e941309236efbf4b6f5157dd5352f1ec742) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Make durable Notebook Mode globals discoverable and guide safe reuse with bounded descriptions and usage hints
+
+- [#325](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/325) [`8b3c1e9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8b3c1e941309236efbf4b6f5157dd5352f1ec742) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Keep oversized Responses V2 user turns out of the retained compaction window
+
+- [#325](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/325) [`8b3c1e9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8b3c1e941309236efbf4b6f5157dd5352f1ec742) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Prevent delayed background shell widget renders from using stale session contexts
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
