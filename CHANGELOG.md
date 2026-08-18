@@ -106,16 +106,16 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.61
+### @howaboua/pi-extensions — 0.0.62
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-subagent-review: Review the active JJ workspace revision with pinned commit context and an optional cumulative stack base.
+  - @howaboua/pi-subagent-review: Review a focused JJ revision when its workspace cursor is an empty child commit.
 
-- Updated dependencies [[`5e8bd97`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/5e8bd97ee18473ce539b4c0b9c29997e129ddca7)]:
-  - @howaboua/pi-subagent-review@0.2.18
+- Updated dependencies [[`536910d`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/536910d3b0a89f1caaa7a37844bdb80b62c1f844)]:
+  - @howaboua/pi-subagent-review@0.2.19
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
@@ -349,24 +349,24 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.66
+### @howaboua/pi-stuff — 0.0.67
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-subagent-review: Review the active JJ workspace revision with pinned commit context and an optional cumulative stack base.
+  - @howaboua/pi-subagent-review: Review a focused JJ revision when its workspace cursor is an empty child commit.
 
-- Updated dependencies [[`5e8bd97`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/5e8bd97ee18473ce539b4c0b9c29997e129ddca7)]:
-  - @howaboua/pi-subagent-review@0.2.18
+- Updated dependencies [[`536910d`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/536910d3b0a89f1caaa7a37844bdb80b62c1f844)]:
+  - @howaboua/pi-subagent-review@0.2.19
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 
-### @howaboua/pi-subagent-review — 0.2.18
+### @howaboua/pi-subagent-review — 0.2.19
 
 ### Changes
 
-- [#312](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/312) [`5e8bd97`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/5e8bd97ee18473ce539b4c0b9c29997e129ddca7) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Review the active JJ workspace revision with pinned commit context and an optional cumulative stack base.
+- [#314](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/314) [`536910d`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/536910d3b0a89f1caaa7a37844bdb80b62c1f844) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Review a focused JJ revision when its workspace cursor is an empty child commit.
 
 [Full changelog](./packages/pi-subagent-review/CHANGELOG.md)
 

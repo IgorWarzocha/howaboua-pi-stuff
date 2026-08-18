@@ -1,5 +1,16 @@
 # @howaboua/pi-stuff
 
+## 0.0.67
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-subagent-review: Review a focused JJ revision when its workspace cursor is an empty child commit.
+
+- Updated dependencies [[`536910d`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/536910d3b0a89f1caaa7a37844bdb80b62c1f844)]:
+  - @howaboua/pi-subagent-review@0.2.19
+
 ## 0.0.66
 
 ### Changes

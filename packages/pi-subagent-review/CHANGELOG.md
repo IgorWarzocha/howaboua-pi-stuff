@@ -1,5 +1,11 @@
 # @howaboua/pi-subagent-review
 
+## 0.2.19
+
+### Changes
+
+- [#314](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/314) [`536910d`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/536910d3b0a89f1caaa7a37844bdb80b62c1f844) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Review a focused JJ revision when its workspace cursor is an empty child commit.
+
 ## 0.2.18
 
 ### Changes
