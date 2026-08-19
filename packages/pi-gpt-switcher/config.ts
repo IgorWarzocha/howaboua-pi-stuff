@@ -37,7 +37,7 @@ export const DEFAULT_GPT_SWITCHER_CONFIG: GptSwitcherConfig = {
 };
 
 const CONFIG_BASENAME = "pi-gpt-switcher.json";
-const MAX_CONTEXT_WINDOW = 872_000;
+const MIN_CONTEXT_WINDOW = 128_000;
 
 function isObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -56,12 +56,12 @@ function normalizeContextWindow(
 	if (
 		typeof value === "number" &&
 		Number.isSafeInteger(value) &&
-		value > 0 &&
-		value <= MAX_CONTEXT_WINDOW
+		value >= MIN_CONTEXT_WINDOW &&
+		value <= fallback
 	)
 		return value;
 	configurationError(
-		`${alias}.contextWindow must be a positive integer up to ${MAX_CONTEXT_WINDOW}; using the default`,
+		`${alias}.contextWindow must be an integer from ${MIN_CONTEXT_WINDOW} to ${fallback}; using the default`,
 	);
 	return fallback;
 }

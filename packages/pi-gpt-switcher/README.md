@@ -27,7 +27,8 @@ agent directory:
 
 Edit the file to change a shortcut's session context window or default
 reasoning. Changes apply on the next shortcut invocation and do not alter the
-provider catalogue.
+provider catalogue. Context windows may be lowered to 128k but not raised
+above the shortcut's shipped limit.
 
 ## Install
 
