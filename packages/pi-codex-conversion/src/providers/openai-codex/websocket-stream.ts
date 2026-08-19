@@ -143,10 +143,12 @@ export async function prewarmWebSocket(
 	options: OpenAICodexStreamOptions,
 	turnState?: CodexTurnState,
 	diagnostics?: CodexDiagnosticsSink | undefined,
+	preserveContinuation = false,
 ): Promise<CodexPrewarmResult> {
 	const recordDiagnostics = noThrowCodexDiagnosticsSink(diagnostics);
 	const websocketConnectTimeoutMs = normalizeTimeoutMs(options.websocketConnectTimeoutMs, "websocketConnectTimeoutMs");
-	const { socket, entry, release, reused } = await acquireWebSocket(url, headers, options.sessionId, accountId, options.signal, websocketConnectTimeoutMs, options.env);
+	const socketSessionId = preserveContinuation ? `${options.sessionId}:cache-keepalive` : options.sessionId;
+	const { socket, entry, release, reused } = await acquireWebSocket(url, headers, socketSessionId, accountId, options.signal, websocketConnectTimeoutMs, options.env);
 	let keepConnection = true;
 	const responseItems: unknown[] = [];
 	let responseId: string | undefined;
@@ -165,7 +167,9 @@ export async function prewarmWebSocket(
 			previousResponseId: Boolean(body.previous_response_id),
 		});
 		socket.send(JSON.stringify({ type: "response.create", ...body, generate: false }));
-		for await (const event of mapCodexEvents(parseWebSocket(socket, options.signal, idleTimeoutMs, (value) => turnState?.capturePrewarm(value)))) {
+		for await (const event of mapCodexEvents(parseWebSocket(socket, options.signal, idleTimeoutMs, (value) => {
+			if (!preserveContinuation) turnState?.capturePrewarm(value);
+		}))) {
 			if (event.type === "response.created" && event.response?.id) responseId = event.response.id;
 			if (event.type === "response.output_item.done" && event.item) responseItems.push(event.item);
 			if (event.type === "response.completed") {
@@ -184,7 +188,7 @@ export async function prewarmWebSocket(
 			}
 		}
 		assertSuccessfulCodexStatus(responseStatus);
-		if (entry && responseId) {
+		if (!preserveContinuation && entry && responseId) {
 			entry.continuation = { lastRequestBody: body, lastResponseId: responseId, lastResponseItems: responseItems };
 		}
 		recordDiagnostics?.({ type: "prewarm-ready", transport: "websocket", socketReused: reused });

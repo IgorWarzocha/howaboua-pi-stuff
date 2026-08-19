@@ -59,6 +59,8 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 		useResponsesLite?: (model: Model<Api>) => boolean;
 		turnState?: CodexTurnState | undefined;
 		getDiagnostics?: (() => CodexDiagnosticsSink | undefined) | undefined;
+		preparedBody?: ResponsesBody | undefined;
+		preserveContinuation?: boolean | undefined;
 	},
 ): Promise<CodexPrewarmResult | undefined> {
 	const runtimeConfig = deps.getConfig?.();
@@ -71,7 +73,7 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 	const effectiveOptions = runtimeConfig?.compaction?.responsesCompaction
 		? { ...options, grammarToolInputProperties, headers: withRemoteCompactionV2Feature(options.headers) }
 		: { ...options, grammarToolInputProperties };
-	const body = await prepareCodexRequestBody(model, context, effectiveOptions, responsesLite);
+	const body = deps.preparedBody ? structuredClone(deps.preparedBody) : await prepareCodexRequestBody(model, context, effectiveOptions, responsesLite);
 	const accountId = extractAccountId(options.apiKey);
 	const routing = resolveCodexRequestRouting({
 		model: body.model,
@@ -80,10 +82,11 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 		normalOriginator: runtimeConfig?.openai.harnessIdentifierHeader ? PI_CODEX_CONVERSION_ORIGINATOR : "pi",
 	});
 	const headers = buildWebSocketHeaders(model.headers, effectiveOptions.headers, accountId, options.apiKey, options.sessionId, routing.originator, routing.routingHint);
-	const websocketBody = withCodexTurnState(responsesLite ? applyResponsesLiteWebSocketMetadata(body) : body, deps.turnState);
+	const turnState = deps.preserveContinuation ? undefined : deps.turnState;
+	const websocketBody = withCodexTurnState(responsesLite ? applyResponsesLiteWebSocketMetadata(body) : body, turnState);
 	const diagnostics = noThrowCodexDiagnosticsSink(deps.getDiagnostics?.());
 	try {
-		return await prewarmWebSocket(resolveCodexWebSocketUrl(model.baseUrl), websocketBody, headers, accountId, effectiveOptions, deps.turnState, diagnostics);
+		return await prewarmWebSocket(resolveCodexWebSocketUrl(model.baseUrl), websocketBody, headers, accountId, effectiveOptions, turnState, diagnostics, deps.preserveContinuation);
 	} catch (error) {
 		if (!options.signal?.aborted && (isWebSocketUpgradeRequiredError(error) || isWebSocketMessageTooBigError(error))) {
 			recordWebSocketSseFallback(options.sessionId);
