@@ -95,16 +95,16 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.62
+### @howaboua/pi-extensions — 0.0.63
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-subagent-review: Review a focused JJ revision when its workspace cursor is an empty child commit.
+  - @howaboua/pi-gpt-switcher: Add configurable session context windows and reasoning defaults for GPT shortcuts.
 
-- Updated dependencies [[`536910d`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/536910d3b0a89f1caaa7a37844bdb80b62c1f844)]:
-  - @howaboua/pi-subagent-review@0.2.19
+- Updated dependencies [[`a9143cf`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/a9143cfeb802406c2e62b4424e27b69da141b7ae)]:
+  - @howaboua/pi-gpt-switcher@0.1.1
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
@@ -122,12 +122,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-gippity-control/CHANGELOG.md)
 
-### @howaboua/pi-gpt-switcher — 0.1.0
+### @howaboua/pi-gpt-switcher — 0.1.1
 
 ### Changes
 
-- [#164](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/164) [`b8731f6`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/b8731f68c8b6cbfb167e29728aad07fb59e560bb) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
-  - Add `/sol`, `/terra`, and `/luna` commands for switching GPT-5.6 Codex models and reasoning levels.
+- [#333](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/333) [`a9143cf`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/a9143cfeb802406c2e62b4424e27b69da141b7ae) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add configurable session context windows and reasoning defaults for GPT shortcuts.
 
 [Full changelog](./packages/pi-gpt-switcher/CHANGELOG.md)
 
@@ -338,16 +337,16 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.67
+### @howaboua/pi-stuff — 0.0.68
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-subagent-review: Review a focused JJ revision when its workspace cursor is an empty child commit.
+  - @howaboua/pi-gpt-switcher: Add configurable session context windows and reasoning defaults for GPT shortcuts.
 
-- Updated dependencies [[`536910d`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/536910d3b0a89f1caaa7a37844bdb80b62c1f844)]:
-  - @howaboua/pi-subagent-review@0.2.19
+- Updated dependencies [[`a9143cf`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/a9143cfeb802406c2e62b4424e27b69da141b7ae)]:
+  - @howaboua/pi-gpt-switcher@0.1.1
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 
