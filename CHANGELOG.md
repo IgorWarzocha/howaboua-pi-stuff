@@ -69,11 +69,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 3.0.17
+### @howaboua/pi-codex-conversion — 3.0.18
 
 ### Changes
 
-- [#329](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/329) [`1d91df3`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/1d91df3f605a557958500bb40d14be576306f3a1) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Keep idle Codex cache refreshes on the exact provider request that produced the active cache, every 25 minutes, without disturbing the live WebSocket continuation or presenting `generate:false` usage as cache telemetry.
+- [#331](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/331) [`6b42bb6`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/6b42bb6cb878b0bee860016a2698e4bb9351ced5) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Allow native OpenAI Codex compaction requests up to the 872k subscription context budget without truncating tool outputs.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
