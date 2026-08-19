@@ -1,5 +1,11 @@
 # @howaboua/pi-gpt-switcher
 
+## 0.1.1
+
+### Changes
+
+- [#333](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/333) [`a9143cf`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/a9143cfeb802406c2e62b4424e27b69da141b7ae) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add configurable session context windows and reasoning defaults for GPT shortcuts.
+
 ## 0.1.0
 
 ### Changes

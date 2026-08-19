@@ -1,5 +1,16 @@
 # @howaboua/pi-extensions
 
+## 0.0.63
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-gpt-switcher: Add configurable session context windows and reasoning defaults for GPT shortcuts.
+
+- Updated dependencies [[`a9143cf`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/a9143cfeb802406c2e62b4424e27b69da141b7ae)]:
+  - @howaboua/pi-gpt-switcher@0.1.1
+
 ## 0.0.62
 
 ### Changes
