@@ -48,8 +48,6 @@ export function getOpenAICodexAccountId(accessToken: string): string | null {
 
 export function clampOpenAICodexModelWindows(models: Model<Api>[]): Model<Api>[] {
 	return models.map((model) =>
-		// Temporary: remove this clamp as soon as OpenAI confirms 372k production
-		// context caching is fixed. Overestimating currently delays Pi compaction.
 		/^gpt-5\.6-(?:luna|terra|sol)$/i.test(model.id) && model.contextWindow > GPT_56_PRODUCTION_CONTEXT_WINDOW
 			? { ...model, contextWindow: GPT_56_PRODUCTION_CONTEXT_WINDOW }
 			: model,
