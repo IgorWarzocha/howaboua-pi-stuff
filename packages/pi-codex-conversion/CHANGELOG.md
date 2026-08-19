@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.0.18
+
+### Changes
+
+- [#331](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/331) [`6b42bb6`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/6b42bb6cb878b0bee860016a2698e4bb9351ced5) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Allow native OpenAI Codex compaction requests up to the 872k subscription context budget without truncating tool outputs.
+
 ## 3.0.17
 
 ### Changes
