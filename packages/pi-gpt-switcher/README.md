@@ -8,8 +8,26 @@ Pi extension adding quick model commands:
 | `/terra [reasoning]` | `openai-codex/gpt-5.6-terra` |
 | `/luna [reasoning]` | `openai-codex/gpt-5.6-luna` |
 
-Reasoning defaults to `high`. Valid arguments are `off`, `minimal`, `low`,
-`medium`, `high`, `xhigh`, and `max`; for example, `/luna low`.
+An explicit reasoning argument overrides the configured default. Valid arguments
+are `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`; for example,
+`/luna low`.
+
+## Defaults
+
+On first load, the extension creates `pi-gpt-switcher.json` in Pi's global
+agent directory:
+
+```json
+{
+  "sol": { "contextWindow": 272000, "reasoning": "high" },
+  "terra": { "contextWindow": 872000, "reasoning": "high" },
+  "luna": { "contextWindow": 472000, "reasoning": "xhigh" }
+}
+```
+
+Edit the file to change a shortcut's session context window or default
+reasoning. Changes apply on the next shortcut invocation and do not alter the
+provider catalogue.
 
 ## Install
 
@@ -29,8 +47,8 @@ The commands use Pi's model registry and normal provider authentication. If a
 model is unavailable or the OpenAI Codex credentials are missing, the command
 reports that instead of changing the current model.
 
-Reasoning defaults to `high`. Pi clamps the requested level automatically if
-the selected model supports fewer levels.
+Pi clamps the requested reasoning level automatically if the selected model
+supports fewer levels.
 
 ## Local development
 

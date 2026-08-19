@@ -3,6 +3,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { DEFAULT_GPT_SWITCHER_CONFIG } from "../config.js";
 import gptSwitcher from "../index.js";
 
 type CommandHandler = (args: string, ctx: ExtensionContext) => unknown;
@@ -15,20 +16,25 @@ test("registers model commands and switches model plus reasoning level", async (
 	let selectedThinkingLevel: unknown;
 	let currentThinkingLevel = "high";
 
-	gptSwitcher({
-		registerCommand(name, options) {
-			commands.set(name, options as { handler: CommandHandler });
+	gptSwitcher(
+		{
+			registerCommand(name, options) {
+				commands.set(name, options as { handler: CommandHandler });
+			},
+			setModel: async (next) => {
+				selectedModel = next;
+				return true;
+			},
+			setThinkingLevel: (level) => {
+				selectedThinkingLevel = level;
+				currentThinkingLevel = level;
+			},
+			getThinkingLevel: () => currentThinkingLevel,
+		} as unknown as ExtensionAPI,
+		{
+			getConfig: () => structuredClone(DEFAULT_GPT_SWITCHER_CONFIG),
 		},
-		setModel: async (next) => {
-			selectedModel = next;
-			return true;
-		},
-		setThinkingLevel: (level) => {
-			selectedThinkingLevel = level;
-			currentThinkingLevel = level;
-		},
-		getThinkingLevel: () => currentThinkingLevel,
-	} as unknown as ExtensionAPI);
+	);
 
 	const ctx = {
 		model: undefined,
@@ -47,11 +53,11 @@ test("registers model commands and switches model plus reasoning level", async (
 	} as unknown as ExtensionContext;
 
 	expect([...commands.keys()]).toEqual(["sol", "terra", "luna"]);
-	await commands.get("luna")?.handler("low", ctx);
+	await commands.get("luna")?.handler("", ctx);
 
-	expect(selectedModel).toBe(model);
-	expect(selectedThinkingLevel).toBe("low");
-	expect(notifications).toEqual(["Switched to GPT-5.6 Luna (low)"]);
+	expect(selectedModel).toEqual({ ...model, contextWindow: 472_000 });
+	expect(selectedThinkingLevel).toBe("xhigh");
+	expect(notifications).toEqual(["Switched to GPT-5.6 Luna (xhigh)"]);
 });
 
 test("reports model authentication failures without changing reasoning", async () => {
@@ -80,7 +86,9 @@ test("reports model authentication failures without changing reasoning", async (
 		commands.set(name, options);
 	}) as typeof pi.registerCommand;
 
-	gptSwitcher(pi);
+	gptSwitcher(pi, {
+		getConfig: () => structuredClone(DEFAULT_GPT_SWITCHER_CONFIG),
+	});
 	await commands.get("sol")?.handler("", ctx);
 
 	expect(notifications).toEqual([
