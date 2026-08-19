@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.0.17
+
+### Changes
+
+- [#329](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/329) [`1d91df3`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/1d91df3f605a557958500bb40d14be576306f3a1) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Keep idle Codex cache refreshes on the exact provider request that produced the active cache, every 25 minutes, without disturbing the live WebSocket continuation or presenting `generate:false` usage as cache telemetry.
+
 ## 3.0.16
 
 ### Changes
