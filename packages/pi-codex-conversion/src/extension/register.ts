@@ -26,6 +26,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 			turnState: runtime.state.codexTurnState,
 			getDiagnostics: () => runtime.diagnosticsSink(),
 			onPreparedPayload: (payload) => {
+				runtime.captureCacheKeepaliveRequest(payload);
 				if (!runtime.state.pendingActiveProviderPromptCapture) return;
 				captureActiveProviderSystemPrompt(payload, runtime.state);
 				runtime.state.pendingActiveProviderPromptCapture = false;

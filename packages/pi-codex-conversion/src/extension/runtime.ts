@@ -12,7 +12,7 @@ import { buildCodexSystemPrompt, type PiSystemPromptOptions } from "../prompt/bu
 import { closeOpenAICodexWebSocketSessions, prewarmOpenAICodexWebSocket } from "../providers/openai-codex-custom-provider.ts";
 import { resetOpenAICodexWebSocketSessions } from "../providers/openai-codex/websocket.ts";
 import { createCodexTurnState } from "../providers/openai-codex/turn-state.ts";
-import type { CodexPrewarmUsage, OpenAICodexStreamOptions } from "../providers/openai-codex/types.ts";
+import type { CodexPrewarmUsage, OpenAICodexStreamOptions, ResponsesBody } from "../providers/openai-codex/types.ts";
 import { createExecCommandTracker } from "../tools/exec/command-state.ts";
 import { createExecSessionManager } from "../tools/exec/session-manager.ts";
 import { getBundledToolBinaryPath } from "../tools/native/binary.ts";
@@ -45,6 +45,7 @@ export interface CodexExtensionRuntime {
 	startKeepalivePrewarm(ctx: CodexContext): Promise<CodexPrewarmResult> | undefined;
 	armCacheKeepalive(ctx: CodexContext): void;
 	cancelCacheKeepalive(): void;
+	captureCacheKeepaliveRequest(payload: ResponsesBody): void;
 	resetTransport(sessionId?: string): void;
 	resetTransportAfterCompaction(sessionId: string): void;
 	shutdownTransport(sessionId: string): void;
@@ -90,8 +91,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 	let activePrewarmKind: "ordinary" | "keepalive" | undefined;
 	let cacheKeepaliveTimer: ReturnType<typeof setTimeout> | undefined;
 	let cacheKeepaliveEpoch = 0;
-	let consecutiveRedKeepalives = 0;
-	let cacheKeepalivePaused = false;
+	let cacheKeepaliveRequest: ResponsesBody | undefined;
 	const voice = new CodexVoiceController(pi);
 	const diagnostics = createLazyCodexDiagnostics();
 	const buildPrewarmPlan = (
@@ -144,6 +144,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		rewriteFinalRequest = false,
 		force = false,
 		kind: "ordinary" | "keepalive" = "ordinary",
+		preparedBody?: ResponsesBody,
 	): Promise<CodexPrewarmResult> | undefined => {
 		const plan = buildPrewarmPlan(ctx, systemPrompt, prepared, messages, rewriteFinalRequest);
 		if (!plan) return undefined;
@@ -190,6 +191,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 						useResponsesLite: (currentModel) => resolveCodexRuntimePlan({ model: currentModel }, config, executionMode).transport === "responses-lite",
 						turnState: state.codexTurnState,
 						getDiagnostics: () => diagnostics.sink(),
+						...(preparedBody ? { preparedBody, preserveContinuation: true } : {}),
 					},
 				);
 				prewarmTransportSettlement = transportSettlement;
@@ -225,6 +227,18 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 	};
 
 	const currentContextPrewarm = (ctx: CodexContext, force: boolean) => {
+		if (force && cacheKeepaliveRequest) {
+			return startPrewarm(
+				ctx,
+				state.activeProviderSystemPrompt ?? ctx.getSystemPrompt(),
+				state.activeProviderSystemPrompt !== undefined,
+				[],
+				false,
+				true,
+				"keepalive",
+				cacheKeepaliveRequest,
+			);
+		}
 		const messages = buildSessionContext(ctx.sessionManager.getBranch()).messages
 			.filter((message) => !isProviderContextExcludedMessage(message));
 		const activeSystemPrompt = state.activeProviderSystemPrompt;
@@ -246,17 +260,8 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		if (activePrewarmKind === "keepalive") prewarmController?.abort();
 	};
 
-	const formatKeepaliveMetrics = (usage: CodexPrewarmUsage, socketReused: boolean | undefined) => {
-		const total = usage.inputTokens + usage.cachedInputTokens;
-		const ratio = total > 0 ? usage.cachedInputTokens / total : undefined;
-		return {
-			ratio,
-			message: `Codex cache keepalive · input ${usage.inputTokens.toLocaleString("en-US")} · read ${usage.cachedInputTokens.toLocaleString("en-US")} · write ${usage.cacheWriteInputTokens.toLocaleString("en-US")} · ${ratio === undefined ? "cache unavailable" : `${(ratio * 100).toFixed(1)}%`} · WS ${socketReused ? "reused" : "new"}`,
-		};
-	};
-
 	const scheduleCacheKeepalive = (ctx: CodexContext, epoch: number) => {
-		if (cacheKeepalivePaused || !state.config.openai.cacheKeepalive) return;
+		if (!state.config.openai.cacheKeepalive) return;
 		if (cacheKeepaliveTimer) clearTimeout(cacheKeepaliveTimer);
 		cacheKeepaliveTimer = setTimeout(() => {
 			cacheKeepaliveTimer = undefined;
@@ -270,25 +275,10 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 					scheduleCacheKeepalive(ctx, epoch);
 					return;
 				}
-				if (!result.usage) {
-					consecutiveRedKeepalives = 0;
-					ctx.ui.notify("Codex cache keepalive completed without usage metrics", "warning");
-					scheduleCacheKeepalive(ctx, epoch);
-					return;
-				}
-				const metrics = formatKeepaliveMetrics(result.usage, result.socketReused);
-				if (metrics.ratio !== undefined && metrics.ratio <= 0.1) {
-					consecutiveRedKeepalives++;
-					ctx.ui.notify(metrics.message, "error");
-					if (consecutiveRedKeepalives >= 2) {
-						cacheKeepalivePaused = true;
-						ctx.ui.notify("Codex cache keepalive paused after two consecutive ≤10% reads", "error");
-						return;
-					}
-				} else {
-					consecutiveRedKeepalives = 0;
-					ctx.ui.notify(metrics.message, metrics.ratio !== undefined && metrics.ratio < 0.5 ? "warning" : "info");
-				}
+				ctx.ui.notify(
+					`Codex cache keepalive refreshed · WS ${result.socketReused ? "reused" : "new"}`,
+					"info",
+				);
 				scheduleCacheKeepalive(ctx, epoch);
 			});
 		}, CACHE_KEEPALIVE_INTERVAL_MS);
@@ -297,8 +287,6 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 
 	const armCacheKeepalive = (ctx: CodexContext) => {
 		cancelCacheKeepalive();
-		consecutiveRedKeepalives = 0;
-		cacheKeepalivePaused = false;
 		scheduleCacheKeepalive(ctx, cacheKeepaliveEpoch);
 	};
 
@@ -345,12 +333,16 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		cancelCacheKeepalive() {
 			cancelCacheKeepalive();
 		},
+		captureCacheKeepaliveRequest(payload) {
+			if (state.config.openai.cacheKeepalive) cacheKeepaliveRequest = structuredClone(payload);
+		},
 		resetTransport(sessionId) {
 			cancelCacheKeepalive();
 			prewarmController?.abort();
 			prewarmController = undefined;
 			pendingPrewarmKey = undefined;
 			prewarmedIdentity = undefined;
+			cacheKeepaliveRequest = undefined;
 			state.codexTurnState.reset();
 			if (sessionId) resetOpenAICodexWebSocketSessions(sessionId);
 			else closeOpenAICodexWebSocketSessions();
