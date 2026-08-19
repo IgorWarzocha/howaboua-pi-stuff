@@ -5,6 +5,14 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import {
+	ensureGptSwitcherConfig,
+	type GptSwitcherConfig,
+	readGptSwitcherConfig,
+	type ShortcutAlias,
+	THINKING_LEVELS,
+	type ThinkingLevel,
+} from "./config.js";
 
 const MODELS = {
 	sol: "gpt-5.6-sol",
@@ -12,41 +20,32 @@ const MODELS = {
 	luna: "gpt-5.6-luna",
 } as const;
 
-type Alias = keyof typeof MODELS;
-type ThinkingLevel =
-	| "off"
-	| "minimal"
-	| "low"
-	| "medium"
-	| "high"
-	| "xhigh"
-	| "max";
+type Alias = keyof typeof MODELS & ShortcutAlias;
 
-const DEFAULT_THINKING_LEVEL: ThinkingLevel = "high";
-const THINKING_LEVELS = new Set<ThinkingLevel>([
-	"off",
-	"minimal",
-	"low",
-	"medium",
-	"high",
-	"xhigh",
-	"max",
-]);
-
-function parseThinkingLevel(args: string): ThinkingLevel | undefined {
+function parseThinkingLevel(
+	args: string,
+	defaultThinkingLevel: ThinkingLevel,
+): ThinkingLevel | undefined {
 	const requested = args.trim().toLowerCase();
-	if (requested === "") return DEFAULT_THINKING_LEVEL;
+	if (requested === "") return defaultThinkingLevel;
 	return THINKING_LEVELS.has(requested as ThinkingLevel)
 		? (requested as ThinkingLevel)
 		: undefined;
 }
 
-export default function (pi: ExtensionAPI) {
+export default function (
+	pi: ExtensionAPI,
+	options: { getConfig?: () => GptSwitcherConfig } = {},
+) {
+	const getConfig = options.getConfig ?? readGptSwitcherConfig;
+	if (!options.getConfig) ensureGptSwitcherConfig();
+
 	for (const alias of Object.keys(MODELS) as Alias[]) {
 		pi.registerCommand(alias, {
 			description: `Switch to GPT-5.6 ${alias.charAt(0).toUpperCase()}${alias.slice(1)}`,
 			handler: async (args, ctx) => {
-				const thinkingLevel = parseThinkingLevel(args);
+				const defaults = getConfig()[alias];
+				const thinkingLevel = parseThinkingLevel(args, defaults.reasoning);
 				if (!thinkingLevel) {
 					ctx.ui.notify(
 						`Usage: /${alias} [off|minimal|low|medium|high|xhigh|max]`,
@@ -63,12 +62,18 @@ export default function (pi: ExtensionAPI) {
 					return;
 				}
 
+				const selectedModel = {
+					...model,
+					contextWindow: defaults.contextWindow,
+				};
 				const alreadySelected =
-					ctx.model?.provider === "openai-codex" && ctx.model.id === modelId;
+					ctx.model?.provider === "openai-codex" &&
+					ctx.model.id === modelId &&
+					ctx.model.contextWindow === defaults.contextWindow;
 				if (!alreadySelected) {
 					let switched: boolean;
 					try {
-						switched = await pi.setModel(model);
+						switched = await pi.setModel(selectedModel);
 					} catch (error) {
 						ctx.ui.notify(
 							`Could not switch to ${model.name}: ${error instanceof Error ? error.message : String(error)}`,
