@@ -43,6 +43,7 @@ export async function createCodexDiagnosticsRuntime(options: {
 	mode: Exclude<CacheDiagnosticsMode, "off">;
 	ctx: ExtensionContext;
 	agentDir: string;
+	logName?: string | undefined;
 	announceLog?: boolean | undefined;
 	missHoldMs?: number | undefined;
 }): Promise<CodexDiagnosticsRuntime> {
@@ -97,6 +98,7 @@ export async function createCodexDiagnosticsRuntime(options: {
 				sessionId: ctx.sessionManager.getSessionId(),
 				sessionFile: ctx.sessionManager.getSessionFile(),
 				sessionName: ctx.sessionManager.getSessionName(),
+				logName: options.logName,
 				cwd: ctx.cwd,
 				modelProvider: ctx.model?.provider,
 				modelId: ctx.model?.id,
@@ -134,9 +136,18 @@ export async function createCodexDiagnosticsRuntime(options: {
 				return;
 			}
 			if (event.type === "prewarm-ready") {
-				showCurrent(`prewarm ready • WS ${event.socketReused ? "reused" : "new"}`);
+				const strategy = event.prewarm.keepaliveStrategy;
+				if (strategy === "generated-current" && event.usage) {
+					const totalInput = event.usage.inputTokens + event.usage.cachedInputTokens + event.usage.cacheWriteInputTokens;
+					const suffix = `${strategy} • ${event.usage.cachedInputTokens > 0 ? "HIT" : "MISS"} • WS ${event.socketReused ? "reused" : "new"}`;
+					if (event.usage.cachedInputTokens > 0 || totalInput === 0) showCurrent(suffix);
+					else holdMiss(suffix);
+					return;
+				}
+				showCurrent(`${strategy ?? event.prewarm.kind} ready • WS ${event.socketReused ? "reused" : "new"}`);
 				return;
 			}
+			if (event.type === "keepalive") return;
 			if (event.type === "retry") {
 				showCurrent(`${laneLabel(event.lane) ? `${laneLabel(event.lane)} • ` : ""}${event.transport === "websocket" ? "WS" : "SSE"} retry ${event.attempt}`);
 				return;

@@ -27,9 +27,10 @@ test("cache diagnostics log is session-derived, readable, and omits raw provider
 			sessionId,
 			sessionFile,
 			sessionName: "../../ Cache Test",
+			logName: "generated refresh",
 		});
 		assert.equal(dirname(path), join(agentDir, "pi-codex-logs"));
-		assert.match(basename(path), /^Cache-Test--2026-08-06T15-56-33-850Z_/);
+		assert.match(basename(path), /^generated-refresh--2026-08-06T15-56-33-850Z_/);
 
 		const errors: unknown[] = [];
 		const log = await createCodexDiagnosticsLog({
@@ -37,6 +38,7 @@ test("cache diagnostics log is session-derived, readable, and omits raw provider
 			sessionId,
 			sessionFile,
 			sessionName: "../../ Cache Test",
+			logName: "generated refresh",
 			cwd: "/work/project",
 			onError: (error) => errors.push(error),
 		});
@@ -73,6 +75,22 @@ test("cache diagnostics log is session-derived, readable, and omits raw provider
 			previousResponseId: false,
 		});
 		log.record({
+			type: "prewarm-ready",
+			transport: "websocket",
+			socketReused: true,
+			socketAgeMs: 1_500_000,
+			socketLane: "keepalive",
+			prewarm: { kind: "keepalive", keepaliveStrategy: "generated-current", requestSource: "reconstructed" },
+			usage: { inputTokens: 408, cachedInputTokens: 14_080, cacheWriteInputTokens: 0, outputTokens: 4 },
+		});
+		log.record({
+			type: "keepalive",
+			phase: "applied",
+			strategy: "generated-current",
+			requestSource: "reconstructed",
+			action: "generated-refresh",
+		});
+		log.record({
 			type: "failure",
 			lane: "compaction",
 			transport: "websocket",
@@ -82,12 +100,15 @@ test("cache diagnostics log is session-derived, readable, and omits raw provider
 
 		const contents = await readFile(log.path, "utf8");
 		assert.match(contents, /Metadata only/);
+		assert.match(contents, /# log_name="generated refresh"/);
 		assert.match(contents, /event="request" lane="compaction" transport="websocket"/);
 		assert.match(contents, /canonical_history="validated"/);
 		assert.match(contents, /full_input_items=43 sent_input_items=43/);
 		assert.match(contents, /model="gpt-5.6-sol"/);
 		assert.match(contents, /compaction_source="reconstructed" compaction_replay="response_prefix_mismatch" checkpoint_reused=true checkpoint_model="gpt-5.6-luna" rewritten_tool_outputs=2/);
 		assert.match(contents, /failure="authentication" code="invalid_token" status=401/);
+		assert.match(contents, /event="prewarm-ready".*socket_age_ms=1500000.*keepalive_strategy="generated-current".*input_tokens=14488 cache_read=14080 cache_write=0 output_tokens=4 cache_usage="authoritative"/);
+		assert.match(contents, /event="keepalive" phase="applied" keepalive_strategy="generated-current".*action="generated-refresh"/);
 		assert.doesNotMatch(contents, /error=|resp_secret|echoed_prompt|Bearer/);
 		assert.deepEqual(errors, []);
 	} finally {
@@ -147,6 +168,8 @@ test("provider diagnostics are authoritative and cannot alter or leak the stream
 			sentInputItems: 1,
 			model: "gpt-5.6-luna",
 			socketReused: false,
+			socketAgeMs: 0,
+			socketLane: "main",
 			continuation: "no_continuation",
 			previousResponseId: false,
 		});

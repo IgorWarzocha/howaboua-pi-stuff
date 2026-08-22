@@ -26,12 +26,15 @@ export function codexDiagnosticsLogPath(options: {
 	sessionId: string;
 	sessionFile?: string | undefined;
 	sessionName?: string | undefined;
+	logName?: string | undefined;
 }): string {
 	const sessionFileStem = options.sessionFile
 		? safeFilenamePart(basename(options.sessionFile, ".jsonl"))
 		: "";
 	const identity = sessionFileStem || safeFilenamePart(options.sessionId) || "session";
-	const name = options.sessionName ? safeFilenamePart(options.sessionName) : "";
+	const name = options.logName
+		? safeFilenamePart(options.logName)
+		: options.sessionName ? safeFilenamePart(options.sessionName) : "";
 	return join(options.agentDir, LOG_DIRECTORY_BASENAME, `${name ? `${name}--` : ""}${identity}.log`);
 }
 
@@ -56,8 +59,15 @@ function eventFields(event: CodexDiagnosticsEvent): Array<string | undefined> {
 		field("transport", event.transport),
 		field("attempt", event.attempt),
 		field("socket", event.socketReused === undefined ? undefined : event.socketReused ? "reused" : "new"),
+		field("socket_age_ms", event.socketAgeMs),
+		field("socket_lane", event.socketLane),
 		field("continuation", event.continuation),
+		field("continuation_input_items", event.continuationBaselineInputItems),
+		field("continuation_response_items", event.continuationBaselineResponseItems),
 		field("canonical_history", event.canonicalHistory),
+		field("prewarm_kind", event.prewarm?.kind),
+		field("keepalive_strategy", event.prewarm?.keepaliveStrategy),
+		field("request_source", event.prewarm?.requestSource),
 		field("previous_response_id", event.previousResponseId),
 		field("full_input_items", event.fullInputItems),
 		field("sent_input_items", event.sentInputItems),
@@ -93,7 +103,35 @@ function eventFields(event: CodexDiagnosticsEvent): Array<string | undefined> {
 		field("event", event.type), field("lane", event.lane), field("transport", event.transport),
 		field("failure", event.failure.category), field("code", event.failure.code), field("status", event.failure.status),
 	];
-	return [field("event", event.type), field("transport", event.transport), field("socket", event.socketReused ? "reused" : "new")];
+	if (event.type === "prewarm-ready") {
+		const generatedRefresh = event.prewarm.keepaliveStrategy === "generated-current";
+		const totalInput = event.usage
+			? event.usage.inputTokens + event.usage.cachedInputTokens + event.usage.cacheWriteInputTokens
+			: undefined;
+		return [
+			field("event", event.type),
+			field("transport", event.transport),
+			field("socket", event.socketReused ? "reused" : "new"),
+			field("socket_age_ms", event.socketAgeMs),
+			field("socket_lane", event.socketLane),
+			field("prewarm_kind", event.prewarm.kind),
+			field("keepalive_strategy", event.prewarm.keepaliveStrategy),
+			field("request_source", event.prewarm.requestSource),
+			field("input_tokens", totalInput),
+			field("cache_read", event.usage?.cachedInputTokens),
+			field("cache_write", event.usage?.cacheWriteInputTokens),
+			field("output_tokens", event.usage?.outputTokens),
+			field("cache_usage", event.usage ? generatedRefresh ? "authoritative" : "non_authoritative" : "unavailable"),
+		];
+	}
+	return [
+		field("event", event.type),
+		field("phase", event.phase),
+		field("keepalive_strategy", event.strategy),
+		field("interval_ms", event.intervalMs),
+		field("request_source", event.requestSource),
+		field("action", event.action),
+	];
 }
 
 function formatEvent(event: CodexDiagnosticsEvent): string {
@@ -104,6 +142,7 @@ export async function createCodexDiagnosticsLog(options: {
 	sessionId: string;
 	sessionFile?: string | undefined;
 	sessionName?: string | undefined;
+	logName?: string | undefined;
 	cwd: string;
 	modelProvider?: string | undefined;
 	modelId?: string | undefined;
@@ -116,6 +155,7 @@ export async function createCodexDiagnosticsLog(options: {
 		sessionId: options.sessionId,
 		sessionFile: options.sessionFile,
 		sessionName: options.sessionName,
+		logName: options.logName,
 	});
 	await mkdir(join(agentDir, LOG_DIRECTORY_BASENAME), { recursive: true, mode: 0o700 });
 	const header = [
@@ -124,6 +164,7 @@ export async function createCodexDiagnosticsLog(options: {
 		`# opened=${new Date().toISOString()}`,
 		`# session_id=${JSON.stringify(options.sessionId)}`,
 		`# session_name=${JSON.stringify(options.sessionName ?? "")}`,
+		`# log_name=${JSON.stringify(options.logName ?? "")}`,
 		`# session_file=${JSON.stringify(options.sessionFile ?? "")}`,
 		`# cwd=${JSON.stringify(options.cwd)}`,
 		`# model=${JSON.stringify([options.modelProvider, options.modelId].filter(Boolean).join("/") || "")}`,
