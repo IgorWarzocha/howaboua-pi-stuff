@@ -227,6 +227,19 @@
         "@earendil-works/pi-tui": "*",
       },
     },
+    "packages/pi-machine-identity": {
+      "name": "@howaboua/pi-machine-identity",
+      "version": "0.0.1",
+      "devDependencies": {
+        "@biomejs/biome": "^2.4.16",
+        "@earendil-works/pi-coding-agent": "0.84.1",
+        "@types/node": "^24.10.0",
+        "typescript": "^6.0.3",
+      },
+      "peerDependencies": {
+        "@earendil-works/pi-coding-agent": ">=0.82.0",
+      },
+    },
     "packages/pi-markdown-workflows": {
       "name": "@howaboua/pi-markdown-workflows",
       "version": "0.2.20",

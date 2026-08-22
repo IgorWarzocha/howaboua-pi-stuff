@@ -1,0 +1,59 @@
+{
+	"name": "@howaboua/pi-machine-identity",
+	"version": "0.0.1",
+	"description": "Current machine identity and Howaclawa profile for Pi",
+	"type": "module",
+	"main": "index.ts",
+	"exports": "./index.ts",
+	"files": [
+		"index.ts",
+		"README.md",
+		"LICENSE",
+		"tsconfig.json",
+		"biome.json"
+	],
+	"scripts": {
+		"check": "bun run lint && bun run typecheck",
+		"prepack": "bun run check",
+		"typecheck": "tsgo --noEmit",
+		"lint": "biome check .",
+		"format": "biome check --write .",
+		"pack:dry": "npm pack --dry-run"
+	},
+	"pi": {
+		"extensions": [
+			"./index.ts"
+		]
+	},
+	"keywords": [
+		"pi",
+		"pi-package",
+		"pi-extension"
+	],
+	"license": "MIT",
+	"author": "Igor Warzocha",
+	"publishConfig": {
+		"access": "public"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
+		"directory": "packages/pi-machine-identity"
+	},
+	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-machine-identity#readme",
+	"bugs": {
+		"url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
+	},
+	"engines": {
+		"node": ">=20.6.0"
+	},
+	"peerDependencies": {
+		"@earendil-works/pi-coding-agent": ">=0.82.0"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.16",
+		"@earendil-works/pi-coding-agent": "0.84.1",
+		"@types/node": "^24.10.0",
+		"typescript": "^6.0.3"
+	}
+}
