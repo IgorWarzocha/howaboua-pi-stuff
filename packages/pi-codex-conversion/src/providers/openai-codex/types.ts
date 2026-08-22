@@ -1,6 +1,7 @@
 import type { AssistantMessage, SimpleStreamOptions } from "@earendil-works/pi-ai";
 import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
 import type { CodexCompactionDiagnostic } from "../../adapter/compaction/diagnostics.ts";
+import type { CodexCacheKeepaliveStrategy } from "../../adapter/activation/cache-experiment.ts";
 
 export interface WebSocketLike {
 	readyState?: number | undefined;
@@ -17,6 +18,7 @@ export interface WebSocketConstructorLike {
 export interface SessionWebSocketCacheEntry {
 	socket: WebSocketLike;
 	busy: boolean;
+	createdAtMs: number;
 	continuation?: CachedWebSocketContinuationState | undefined;
 }
 
@@ -24,6 +26,7 @@ export interface AcquiredWebSocket {
 	socket: WebSocketLike;
 	entry?: SessionWebSocketCacheEntry | undefined;
 	reused: boolean;
+	socketAgeMs: number;
 	release: (options?: { keep?: boolean | undefined }) => void;
 }
 
@@ -52,6 +55,12 @@ export type CanonicalHistoryDecision =
 	| "validated";
 
 export type CodexDiagnosticsLane = "response" | "compaction" | "prewarm";
+export type CodexPrewarmKind = "ordinary" | "compaction" | "keepalive";
+export interface CodexPrewarmDiagnostics {
+	kind: CodexPrewarmKind;
+	keepaliveStrategy?: CodexCacheKeepaliveStrategy | undefined;
+	requestSource?: "captured" | "reconstructed" | undefined;
+}
 export type CodexDiagnosticsTransport = "websocket" | "sse";
 export type CodexDiagnosticsFailureCategory =
 	| "aborted"
@@ -81,8 +90,13 @@ export type CodexDiagnosticsEvent =
 			sentInputItems: number;
 			model?: string | undefined;
 			socketReused?: boolean | undefined;
+			socketAgeMs?: number | undefined;
+			socketLane?: "main" | "keepalive" | undefined;
 			continuation?: WebSocketContinuationDecision | undefined;
+			continuationBaselineInputItems?: number | undefined;
+			continuationBaselineResponseItems?: number | undefined;
 			canonicalHistory?: CanonicalHistoryDecision | undefined;
+			prewarm?: CodexPrewarmDiagnostics | undefined;
 			compaction?: CodexCompactionDiagnostic | undefined;
 			previousResponseId?: boolean | undefined;
 	  }
@@ -120,6 +134,18 @@ export type CodexDiagnosticsEvent =
 			type: "prewarm-ready";
 			transport: "websocket";
 			socketReused: boolean;
+			socketAgeMs: number;
+			socketLane: "main" | "keepalive";
+			prewarm: CodexPrewarmDiagnostics;
+			usage?: CodexPrewarmUsage | undefined;
+	  }
+	| {
+			type: "keepalive";
+			phase: "armed" | "started" | "applied" | "skipped";
+			strategy: CodexCacheKeepaliveStrategy;
+			intervalMs?: number | undefined;
+			requestSource?: "captured" | "reconstructed" | undefined;
+			action?: "generated-refresh" | undefined;
 	  };
 
 export type CodexDiagnosticsSink = (event: CodexDiagnosticsEvent) => void;
@@ -177,6 +203,7 @@ export interface CodexPrewarmUsage {
 	inputTokens: number;
 	cachedInputTokens: number;
 	cacheWriteInputTokens: number;
+	outputTokens?: number | undefined;
 }
 
 export interface CodexPrewarmResult {

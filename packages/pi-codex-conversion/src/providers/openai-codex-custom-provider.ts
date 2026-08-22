@@ -8,7 +8,7 @@ import { buildRequestBody } from "./openai-codex/request-body.ts";
 import { openAICodexModelsWithDaybreak } from "./openai-codex/model-catalog.ts";
 import { supportsResponsesLiteModel } from "./openai-codex/responses-lite-model.ts";
 import { applyResponsesLiteRequest, applyResponsesLiteWebSocketMetadata, isResponsesLiteRequest, namespaceExistingResponsesLiteRequest, prepareResponsesLiteRequestImages } from "./openai-codex/responses-lite.ts";
-import type { CodexDiagnosticsSink, CodexPrewarmResult, OpenAICodexStreamOptions, ResponsesBody } from "./openai-codex/types.ts";
+import type { CodexDiagnosticsSink, CodexPrewarmDiagnostics, CodexPrewarmResult, OpenAICodexStreamOptions, ResponsesBody } from "./openai-codex/types.ts";
 import { recordWebSocketSseFallback } from "./openai-codex/websocket.ts";
 import { isWebSocketMessageTooBigError, isWebSocketUpgradeRequiredError } from "./openai-codex/websocket-connection.ts";
 import { prewarmWebSocket } from "./openai-codex/websocket-stream.ts";
@@ -59,8 +59,9 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 		useResponsesLite?: (model: Model<Api>) => boolean;
 		turnState?: CodexTurnState | undefined;
 		getDiagnostics?: (() => CodexDiagnosticsSink | undefined) | undefined;
-		preparedBody?: ResponsesBody | undefined;
 		preserveContinuation?: boolean | undefined;
+		generate?: boolean | undefined;
+		prewarmDiagnostics?: CodexPrewarmDiagnostics | undefined;
 	},
 ): Promise<CodexPrewarmResult | undefined> {
 	const runtimeConfig = deps.getConfig?.();
@@ -73,7 +74,7 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 	const effectiveOptions = runtimeConfig?.compaction?.responsesCompaction
 		? { ...options, grammarToolInputProperties, headers: withRemoteCompactionV2Feature(options.headers) }
 		: { ...options, grammarToolInputProperties };
-	const body = deps.preparedBody ? structuredClone(deps.preparedBody) : await prepareCodexRequestBody(model, context, effectiveOptions, responsesLite);
+	const body = await prepareCodexRequestBody(model, context, effectiveOptions, responsesLite);
 	const accountId = extractAccountId(options.apiKey);
 	const routing = resolveCodexRequestRouting({
 		model: body.model,
@@ -86,7 +87,18 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 	const websocketBody = withCodexTurnState(responsesLite ? applyResponsesLiteWebSocketMetadata(body) : body, turnState);
 	const diagnostics = noThrowCodexDiagnosticsSink(deps.getDiagnostics?.());
 	try {
-		return await prewarmWebSocket(resolveCodexWebSocketUrl(model.baseUrl), websocketBody, headers, accountId, effectiveOptions, turnState, diagnostics, deps.preserveContinuation);
+		return await prewarmWebSocket(
+			resolveCodexWebSocketUrl(model.baseUrl),
+			websocketBody,
+			headers,
+			accountId,
+			effectiveOptions,
+			turnState,
+			diagnostics,
+			deps.preserveContinuation,
+			deps.prewarmDiagnostics,
+			deps.generate,
+		);
 	} catch (error) {
 		if (!options.signal?.aborted && (isWebSocketUpgradeRequiredError(error) || isWebSocketMessageTooBigError(error))) {
 			recordWebSocketSseFallback(options.sessionId);

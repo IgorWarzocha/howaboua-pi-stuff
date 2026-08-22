@@ -66,6 +66,17 @@ test("trusted folder config overrides globals without crossing folder or process
 			globalConfigPath: globalPath,
 			env: { PI_CODEX_FAST: "0" },
 		}).openai.fast, false);
+		const experiment = readEffectiveCodexConversionConfig({
+			cwd: project,
+			projectTrusted: true,
+			globalConfigPath: globalPath,
+			env: {
+				PI_CODEX_CACHE_KEEPALIVE: "generated-current",
+				PI_CODEX_CACHE_DIAGNOSTICS: "status-and-log",
+			},
+		});
+		assert.equal(experiment.openai.cacheKeepalive, true);
+		assert.equal(experiment.openai.cacheDiagnostics, "status-and-log");
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}

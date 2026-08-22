@@ -84,6 +84,7 @@ export async function acquireWebSocket(
 		return {
 			socket,
 			reused: false,
+			socketAgeMs: 0,
 			release: ({ keep } = {}) => {
 				if (keep === false) {
 					closeWebSocketSilently(socket);
@@ -104,6 +105,7 @@ export async function acquireWebSocket(
 				socket: cached.socket,
 				entry: cached,
 				reused: true,
+				socketAgeMs: Math.max(0, Date.now() - cached.createdAtMs),
 				release: ({ keep } = {}) => {
 					if (!keep || !isWebSocketReusable(cached.socket)) {
 						closeWebSocketSilently(cached.socket);
@@ -122,6 +124,7 @@ export async function acquireWebSocket(
 			return {
 				socket,
 				reused: false,
+				socketAgeMs: 0,
 				release: () => {
 					closeWebSocketSilently(socket);
 				},
@@ -136,7 +139,7 @@ export async function acquireWebSocket(
 	}
 
 	const socket = await connectWebSocket(url, headers, signal, connectTimeoutMs, env);
-	const entry: SessionWebSocketCacheEntry = { socket, busy: true };
+	const entry: SessionWebSocketCacheEntry = { socket, busy: true, createdAtMs: Date.now() };
 	routeEntries = websocketSessionCache.get(sessionId);
 	if (!routeEntries) {
 		routeEntries = new Map();
@@ -147,6 +150,7 @@ export async function acquireWebSocket(
 		socket,
 		entry,
 		reused: false,
+		socketAgeMs: 0,
 		release: ({ keep } = {}) => {
 			if (!keep || !isWebSocketReusable(entry.socket)) {
 				closeWebSocketSilently(entry.socket);

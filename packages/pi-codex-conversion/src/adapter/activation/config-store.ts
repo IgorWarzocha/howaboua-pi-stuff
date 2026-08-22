@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { CONFIG_DIR_NAME, getAgentDir } from "@earendil-works/pi-coding-agent";
 import { migrateCodexConversionConfigIfNeeded } from "./config-migration.ts";
 import { DEFAULT_CODEX_CONVERSION_CONFIG, normalizeCodexConversionConfig, type CodexConversionConfig } from "./config.ts";
+import { readCodexCacheExperimentEnvironment } from "./cache-experiment.ts";
 
 // Lite deliberately shares the original package's config so replacing either
 // package does not require a reset or a second settings file.
@@ -126,11 +127,30 @@ export function hasFolderCodexConversionConfig(cwd: string, projectTrusted: bool
 }
 
 function applyProcessOverrides(config: CodexConversionConfig, env: NodeJS.ProcessEnv): CodexConversionConfig {
+	const cacheExperiment = readCodexCacheExperimentEnvironment(env);
 	const fast = env["PI_CODEX_FAST"]?.trim().toLowerCase();
-	if (fast !== "1" && fast !== "true" && fast !== "0" && fast !== "false") return config;
+	const fastOverride = fast === "1" || fast === "true"
+		? true
+		: fast === "0" || fast === "false"
+			? false
+			: undefined;
+	if (
+		fastOverride === undefined
+		&& cacheExperiment.keepalive === undefined
+		&& cacheExperiment.diagnostics === undefined
+	) return config;
 	return {
 		...config,
-		openai: { ...config.openai, fast: fast === "1" || fast === "true" },
+		openai: {
+			...config.openai,
+			...(fastOverride !== undefined ? { fast: fastOverride } : {}),
+			...(cacheExperiment.keepalive !== undefined
+				? { cacheKeepalive: cacheExperiment.keepalive !== false }
+				: {}),
+			...(cacheExperiment.diagnostics !== undefined
+				? { cacheDiagnostics: cacheExperiment.diagnostics }
+				: {}),
+		},
 	};
 }
 

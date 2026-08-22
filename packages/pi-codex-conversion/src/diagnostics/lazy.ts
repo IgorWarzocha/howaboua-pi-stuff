@@ -17,6 +17,7 @@ export interface LazyCodexDiagnostics {
 		active: boolean;
 		ctx: ExtensionContext;
 		agentDir: string;
+		logName?: string | undefined;
 		announceLog?: boolean | undefined;
 	}): Promise<void>;
 	sink(): CodexDiagnosticsSink | undefined;
@@ -66,6 +67,7 @@ export function createLazyCodexDiagnostics(): LazyCodexDiagnostics {
 				model?.id,
 				model?.api,
 				model?.baseUrl,
+				options.logName,
 			]);
 			if (active?.key === key && options.active) return;
 			const currentGeneration = ++generation;
