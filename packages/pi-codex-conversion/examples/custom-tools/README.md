@@ -12,14 +12,12 @@ The implementation also supports routing browser operations over SSH, but that s
 
 The `agents` example starts persistent explorer and reviewer Pi agents in Herdr panels. Copy `agents.toml` and `agents/` together. Local operation works inside Herdr; remote routing requires explicit installer configuration. See `agents/README.md`.
 
-## Lazy skill loaders
+## Skills
 
-Pi discovers its standard skill folders at startup and advertises every discovered skill to the model. The `skills` example keeps a large global workflow library out of that startup catalog while leaving native Pi skills available:
+The `skills` example reads Pi's standard global skill directory and the current session's `.pi/skills/` directory:
 
 1. Copy `skills.toml` and `skills/` into the custom-tools directory.
-2. Put general-purpose skill packages under `~/.pi/agent/lazy-skills/`, or `$PI_CODING_AGENT_DIR/lazy-skills/` when configured.
-3. Keep project-specific SOPs in the repository's normal `.pi/skills/` directory so Pi advertises them for every session in that project.
+2. Keep global skills under Pi's normal `skills/` directory.
+3. Keep repository addenda under the normal `.pi/skills/` directory. A same-named session skill overrides the global one.
 
-The nonstandard `lazy-skills` name is deliberate: Pi must not discover those global `SKILL.md` files itself. This example expects that exact folder name. Skills may be direct children or grouped one level deeper by category. `--no-skills` remains available when native skill discovery should be disabled entirely, but it is not required.
-
-The older `more_skills` additive loader remains available and reads the parallel `more-skills/` folder.
+The tool lists the catalog or reads one exact skill with its package files. Skills may be direct children or grouped one level deeper by category. No lazy or parallel skill directory is required.

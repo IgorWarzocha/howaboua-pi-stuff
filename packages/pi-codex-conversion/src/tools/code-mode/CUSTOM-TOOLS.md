@@ -57,8 +57,7 @@ Working, disabled templates ship under the package root's `examples/custom-tools
 - `browser`: controls a logged-in Chromium browser through CDP with bounded Codex `web__run`-style operations; optional SSH routing ships disabled.
 - `agents`: starts persistent explorer and reviewer Pi agents in Herdr panels; remote routing requires explicit installer configuration.
 - `herdr_agent`: finds and coordinates Pi agents in Herdr panels; use with `skills` for advanced Herdr orchestration.
-- `skills`: lazily queries a general workflow catalog from the corresponding global or project-local `lazy-skills/` directory.
-- `more_skills`: lists or loads additional skills from the corresponding global or project-local `more-skills/` directory.
+- `skills`: lists Pi's standard global and session skill catalog or reads one exact skill.
 - `port_info`: cross-platform listener and process diagnostics.
 - `semantic_grep`: queries an existing index owned by an installed and configured `@howaboua/pi-semantic-grep`.
 - `sites` and `sites_documentation`: a curated, private-API bridge to the ChatGPT Sites beta using Pi's OpenAI Codex OAuth; keep both definitions together.
@@ -68,7 +67,7 @@ Working, disabled templates ship under the package root's `examples/custom-tools
 
 To enable one, copy its top-level TOML and matching companion directory into `codex-conversion-custom-tools/`, preserving their relative layout. Examples are references, not defaults; never copy or enable one merely because it exists.
 
-For `skills`, keep general workflows in global `lazy-skills/` and repository SOPs in normal `.pi/skills/`. The nonstandard name is deliberate: otherwise Pi discovers and advertises the global library at startup before the custom tool can load it lazily. Native skills remain enabled unless Pi is started with `--no-skills`.
+For `skills`, keep global and repository skills in Pi's normal `skills/` and `.pi/skills/` directories. A same-named session skill overrides the global skill.
 
 ## Execution
 

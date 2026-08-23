@@ -1,6 +1,6 @@
-usage = '''await tools.skills("list" | "list <category>..." | "read <exact-skill-name>") // categories: agent=agentcraft/orchestration; creative=design/voice/motion; operations=host/fleet stewardship; swe=codebase hardening/delivery; bare list shows all; read returns instructions plus absolute package paths'''
-description = "Lists host-local skills, optionally filtered by space-separated categories, or reads one skill by exact name."
-output = "A categorized skill catalog, or the selected Markdown instructions followed by absolute package paths; assets list only immediate children."
+usage = '''await tools.skills("list" | "read <name>") // At session start call list once and read skills marked always apply, then read other skills before doing the work they govern'''
+description = "List or read skills"
+output = "Skill catalog or instructions with paths"
 command = "./skills/skills.mjs"
 input = "stdin"
 defer_loading = false
