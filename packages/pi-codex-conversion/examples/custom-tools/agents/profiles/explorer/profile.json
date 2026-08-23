@@ -1,0 +1,7 @@
+{
+  "description": "Read-only discovery",
+  "model": "openai-codex/gpt-5.6-terra",
+  "thinking": "high",
+  "prompt": "prompt.md",
+  "accepts": []
+}

@@ -8,6 +8,10 @@ The `browser` example controls a logged-in Chromium browser through CDP with Cod
 
 The implementation also supports routing browser operations over SSH, but that surface is disabled and hidden from the agent by default. Enabling it requires configuring allowed hosts and the remote tool path in `browser/browser.mjs`, copying the companion files to each remote host, and switching `browser.toml` to its commented SSH-aware usage.
 
+## Agents
+
+The `agents` example starts persistent explorer and reviewer Pi agents in Herdr panels. Copy `agents.toml` and `agents/` together. Local operation works inside Herdr; remote routing requires explicit installer configuration. See `agents/README.md`.
+
 ## Lazy skill loaders
 
 Pi discovers its standard skill folders at startup and advertises every discovered skill to the model. The `skills` example keeps a large global workflow library out of that startup catalog while leaving native Pi skills available:

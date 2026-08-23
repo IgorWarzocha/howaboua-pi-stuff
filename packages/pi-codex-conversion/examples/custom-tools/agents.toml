@@ -1,0 +1,6 @@
+usage = '''await tools.agents("help") // Persistent agents via Herdr, blocking by default, for advanced Herdr control run herdr --skill'''
+output = "Compact JSON with target, status, reply, ask, or sent state"
+command = "./agents/agents.mjs"
+input = "stdin"
+yield_time_ms = 3600000
+defer_loading = false

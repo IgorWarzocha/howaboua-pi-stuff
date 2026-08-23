@@ -1,0 +1,8 @@
+{
+  "description": "Read-only review",
+  "model": "openai-codex/gpt-5.6-luna",
+  "thinking": "xhigh",
+  "prompt": "prompt.md",
+  "prepare": "prepare.mjs",
+  "accepts": ["base"]
+}
