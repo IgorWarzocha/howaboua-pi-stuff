@@ -1,17 +1,17 @@
 ---
 name: pi-stuff-release-stack
-description: "This repo's JJ-first stack addendum. Read after general delivery and stack guidance for dependent release work with a cumulative umbrella."
+description: "Read after general repository delivery when dependent package work uses a JJ-managed native stack with one cumulative umbrella."
 ---
 
-Before stack work, discover and load applicable repository-delivery and stack skills.
+Discover and load applicable general repository delivery and stacked pull request guidance before changing stack history or topology.
 
-This repo's release stack has focused native PRs rooted on a staging branch plus one ordinary umbrella PR to `main`. The umbrella is cumulative and is the only PR merged to `main`.
+This repo's focused PRs form a native stack rooted on a staging branch. A separate ordinary umbrella PR shows the cumulative release against `main`; only that umbrella lands on `main`. Each shipping layer owns its direct package changeset. Aggregate package changesets and the umbrella gate belong to the cumulative release.
 
-JJ owns local revisions, order, conflicts, bookmarks, and workspaces. Use `gh stack link` and `merge` only for remote topology and assembly. Do not mix JJ-linked stacks with local `gh stack init`, `add`, `sync`, `rebase`, `push`, or `submit`.
+JJ owns revisions, order, conflicts, bookmarks, and workspaces. `gh stack link` and `merge` own remote topology and assembly. Never adopt a JJ-linked stack into local `gh-stack` tracking.
 
-Read the phase reference before acting:
+Read the matching phase reference before acting:
 
-- Create or link focused layers and open the umbrella: `references/create.md`
-- Edit, push, or restructure: `references/work.md`
-- Review focused layers and umbrella: `references/review.md`
-- Assemble or merge after explicit approval: `references/merge.md`
+- Create or publish: `references/create.md`
+- Edit, push, parallelize, or reorder: `references/work.md`
+- Review: `references/review.md`
+- Assemble or land: `references/merge.md`

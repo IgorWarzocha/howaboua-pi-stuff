@@ -1,12 +1,10 @@
 ---
 name: pi-stuff-prompt-caching
-description: "This repo's prompt-cache addendum. Read after a general cache skill when changing Codex transport, Pi hooks, compaction, or cache diagnostics."
+description: "Read after general prompt-caching guidance when changing this repo's Codex requests, Pi hooks, continuation, prewarm, or compaction."
 ---
 
-Before cache work, discover and load an applicable general prompt-caching skill. Read `references/codex-pi-map.md` before changing this repository's conversion, Code Mode, continuation, prewarm, compaction, or prompt-mutating extensions.
+Discover and load an applicable general prompt caching skill before cache-sensitive work.
 
-Recheck current provider documentation before relying on mutable cache API behavior.
+Read `references/codex-pi-map.md` before changing conversion routing, request construction, Code Mode, continuation, prewarm, compaction, or another extension that changes the system prompt, active tools, provider-visible history, model, or reasoning lane.
 
-Measure final provider requests and reported usage. Do not infer a cache hit from a stable key, quick response, or a source-level prompt comparison.
-
-Preserve canonical provider-visible history. Append new context when safe; never rewrite earlier tool calls or results to improve cache reuse.
+Use the map to find current owners, then inspect the source and final provider request. The map is not a frozen behavior claim.

@@ -1,12 +1,17 @@
 ---
 name: pi-stuff-tool-contracts
-description: "This repo's tool-contract addendum. Read after general tool design when changing model-facing Pi extension tools."
+description: "Read after general agent-tool design when reviewing or changing a model-facing Pi extension tool in this repository."
 ---
 
-Before tool work, discover and load an applicable general tool-design skill. When prompt cost or cache behavior matters, also load an applicable prompt-caching skill.
+Discover and load applicable general agent tool design guidance before tool work. Load prompt caching guidance too when the active tool vector or system-prompt metadata changes.
 
-This repo uses TypeBox 1.x and current `@earendil-works/pi-*` APIs. Migrate obsolete tool shapes instead of preserving compatibility fields.
+Use `scripts/tool-token-lines.mjs` as this repo's preliminary migration and copy-cost probe. If its dependency is absent, install it once:
 
-For model-visible tool changes, inspect the final registered schema and prompt metadata before optimizing copy. Measure this repository's emitted surface with `scripts/tool-token-lines.mjs` when token cost is in scope. Its count is a comparison aid, not a provider payload.
+```bash
+(cd .pi/skills/pi-stuff-tool-contracts/scripts && bun install --frozen-lockfile --ignore-scripts)
+node .pi/skills/pi-stuff-tool-contracts/scripts/tool-token-lines.mjs <extension-file-or-directory>
+```
 
-Keep `content` as the model continuation surface. Keep rendering and persistence data in `details`. Preserve the root prompt-cache rules for compact tool contracts and do not rewrite historical tool calls or results merely to integrate a tool.
+Add `--json` for machine-readable output. The helper rejects known obsolete TypeBox, Pi package-scope, and removed custom-tool API markers before reporting an o200k token proxy over detected source lines.
+
+The proxy is not the emitted schema or prompt payload. It can miss dynamic strings, imported schemas, conditional modes, and provider serialization. Use it to find likely duplication, then inspect the final registered schemas, prompt metadata, system-prompt additions, and model-visible results for each active mode. Run the owning package's direct check after changes.

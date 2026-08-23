@@ -1,7 +1,4 @@
-# Work with an umbrella stack
-
-Keep one local-history owner. Determine whether the stack is JJ-linked or locally tracked by
-`gh-stack` before changing commits, refs, PR bases, or native topology.
+Determine whether JJ or local `gh-stack` owns history before changing revisions, refs, PR bases, or remote topology.
 
 ## Inspect a JJ-linked stack
 
@@ -14,24 +11,15 @@ gh api "repos/{owner}/{repo}/stacks?pull_request=<focused-pr>"
 gh pr view <umbrella-pr> --json baseRefName,headRefName,headRefOid,isDraft,state,statusCheckRollup
 ```
 
-The Stacks REST array must contain exactly one matching stack. Inspect each focused PR as needed.
-Treat native membership/order and JJ's graph as separate facts; both must match the intended plan.
-Stop on conflicted bookmarks, unexpected remote movement, or a workspace owned by another task.
+The REST response is authoritative for native membership and order. JJ's graph is authoritative for local history. Stop on conflicted bookmarks, unexpected remote movement, or another task's workspace.
 
-## Edit a JJ layer
+## Edit and publish a layer
 
 ```bash
 jj edit <owning-layer>
 # edit and validate
 jj describe -m "<accurate layer description>"
 jj status
-```
-
-JJ automatically rebases descendants when an ancestor is rewritten. Inspect every descendant and
-resolve recorded conflicts before publishing; never push conflict-bearing revisions. Move the
-umbrella explicitly to the current focused top when needed:
-
-```bash
 jj bookmark move <umbrella> --to <top> --allow-backwards
 jj git push --remote origin --bookmark <bottom> --bookmark <next> --bookmark <top>
 jj git export --ignore-working-copy
@@ -39,71 +27,22 @@ gh stack link --base <staging> <bottom> <next> <top>
 jj git push --remote origin --bookmark <umbrella>
 ```
 
-Push rewritten focused bookmarks through JJ first because `link` only performs a non-force Git push.
-JJ workspaces can also leave the coordinator's colocated Git refs stale; forced export makes `link`
-see current bookmarks. `jj git push` uses remote-state safety equivalent to force-with-lease. Fetch
-and inspect bookmark conflicts rather than bypassing a rejected update. Rerun `link` with the complete
-focused order when heads or PR bases changed. Never include staging or umbrella in the list.
+JJ rebases descendants after an ancestor rewrite. Inspect and resolve every descendant conflict before publishing. Fetch and resolve bookmark divergence rather than bypassing JJ's remote-state safety.
+
+Always pass the complete focused order to `link` after heads or bases change. Never include staging or umbrella. `link` is additive: it cannot remove or reorder existing remote members. For a topology change, record the stack and PR heads, rewrite the JJ graph, run `gh stack unstack <stack-number>`, then relink the complete order and verify it. If queued or auto-merge members remain stacked, stop rather than creating mixed topology.
 
 ## Parallel JJ workspaces
 
-JJ workspaces share one operation log. Concurrent writers must own sibling revisions from a stable
-base, never revisions already arranged as ancestors and descendants:
+Concurrent writers must own sibling candidate revisions from one stable base, never already-stacked ancestors and descendants:
 
 ```bash
 jj workspace add <path> --name <worker> --revision <stable-base> -m "<layer description>"
-# the new workspace's @ is the worker-owned candidate revision
 ```
 
-Workers edit only their candidate `@`; they do not push, create/move bookmarks, link, reorder, or move
-the umbrella. Dispatch only independent candidates concurrently. After readiness, the coordinator
-integrates accepted candidates bottom-to-top, compares each workspace's effective lockfile with its stable
-parent, and validates the cumulative result before starting a child from its stable parent. Use Bun's shared
-download cache. Run frozen install/linking locally against each workspace's effective lockfile; never share,
-symlink, or copy `node_modules` trees across workspaces. Update stale workspaces before each new dispatch
-wave.
+Workers edit only their candidate `@`. They do not push, move bookmarks, link, reorder, or move the umbrella. After a wave, integrate accepted candidates bottom to top and run `jj workspace update-stale` before each handoff.
 
-Once revisions are linearly stacked, allow only one writer at a time. Parallel review may stay
-read-only; apply accepted fixes bottom to top, waiting for each rewrite and descendant rebase to settle
-before starting the next workspace. Run `jj workspace update-stale` before each handoff. Concurrently
-rewriting stacked layers creates divergent versions of every rebased descendant and conflicted
-bookmarks; do not treat later bookmark repair as the normal integration path.
+Each workspace uses its effective lockfile and Bun's shared download cache. Run frozen install or linking inside that workspace. Never share, symlink, or copy `node_modules` between workspaces. Once revisions become linear, allow only one writer.
 
-When a workspace is no longer needed, delete its directory only after its intended change is safely
-bookmarked, then run `jj workspace forget <worker>`. A workspace path is not a Git worktree; do not
-manage it with `git worktree`.
+Delete a workspace directory only after its change is safely bookmarked, then run `jj workspace forget <worker>`. A JJ workspace is not a Git worktree.
 
-## Restructure a JJ-linked stack
-
-Use `jj rebase --revisions`, `--insert-after`, or `--insert-before` to change local order, then inspect
-the exact graph and cumulative tree. `gh stack link` is additive and cannot remove or reorder existing
-remote members. For a real topology change:
-
-1. Record stack number, PR numbers, heads, bases, staging, and umbrella SHA.
-2. Rewrite and verify the JJ graph.
-3. `gh stack unstack <stack-number>` to remove only native grouping; keep branches and PRs.
-4. Relink the complete focused order with `gh stack link --base <staging> ...`.
-5. Verify every focused base, native order, and umbrella cumulative diff.
-
-Do not fake restructuring by changing PR bases alone; commits and JJ bookmarks must agree first.
-
-## Git-managed fallback
-
-For a stack created with local `gh-stack` tracking:
-
-```bash
-gh stack sync
-# Treat "Sync aborted" as failure even when exit status is 0.
-gh stack checkout <owning-pr-or-branch>
-# edit, validate, stage, commit
-gh stack rebase --upstack
-gh stack top
-gh stack push
-git branch --force <umbrella> HEAD
-git push --force-with-lease origin <umbrella>
-gh stack view --json
-```
-
-On rebase conflict, run `gh stack rebase`, resolve and stage, then `gh stack rebase --continue`; abort
-restores the stack. Use the existing `gh-stack` divergence controls. Never introduce JJ midway through
-a locally tracked stack.
+For a stack already owned by local `gh-stack`, use its `sync`, `checkout`, `rebase --upstack`, and `push` flow. Treat `Sync aborted` as failure even if the process exits zero. Never introduce JJ midway.
