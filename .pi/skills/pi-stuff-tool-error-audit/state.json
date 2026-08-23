@@ -1,0 +1,15 @@
+{
+	"version": 1,
+	"lastCheckedAt": "2026-08-23T20:54:56.980Z",
+	"lastWindow": {
+		"since": "2026-08-23T20:54:02.479Z",
+		"until": "2026-08-23T20:54:56.980Z",
+		"filesScanned": 1,
+		"toolResults": 5,
+		"markedIncidents": 0,
+		"sessionsWithMarked": 0,
+		"hiddenNested": 0,
+		"unmarkedNonzero": 0,
+		"malformedLines": 0
+	}
+}
