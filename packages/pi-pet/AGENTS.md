@@ -4,6 +4,6 @@
 - `bun run ai:check:strict` MUST pass before packaging or launching Electron.
 - Generated `dist/` is distributable output, never source. Build it before packaging; keep it untracked.
 - Installed `pets/` are immutable templates. User pets, runs, and generated web roots live under `<pi-agent-directory>/pi-pet/`; never put authored data back into npm package files.
-- Attached desktop builds live at `~/.pi/agent/pi-pet` on each device. Rebuild only when the loaded package version or source digest changes; Pi owns the local child or SSH process. Never add Git fetching, app installation, autostart, or background-service state.
+- Attached desktop builds live at `<pi-agent-directory>/pi-pet` on each device. Rebuild only when the loaded package version or source digest changes; Pi owns the local child or SSH process. Never add Git fetching, app installation, autostart, or background-service state.
 - Keep authoring lazy: `/pet <request>` resolves the installed `authoring/PET-GUIDE.md`; never register bundled authoring as Pi skills or inline the guide into the command prompt.
 - Read the nearest nested `AGENTS.md` before editing a subtree.
