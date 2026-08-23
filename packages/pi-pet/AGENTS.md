@@ -2,7 +2,7 @@
 - Pet manifests and assets are untrusted data: validate at build boundaries, bound sizes, and never execute pet-provided code.
 - Keep pet/catalog and reaction contracts in `src/protocol/`; renderer and extension must not duplicate them.
 - `bun run ai:check:strict` MUST pass before packaging or launching Electron.
-- Generated `dist/` is distributable output; change source first and rebuild it in the same change.
+- Generated `dist/` is distributable output, never source. Build it before packaging; keep it untracked.
 - Installed `pets/` are immutable templates. User pets, runs, and generated web roots live under `<pi-agent-directory>/pi-pet/`; never put authored data back into npm package files.
 - Attached desktop builds live at `~/.pi/agent/pi-pet` on each device. Rebuild only when the loaded package version or source digest changes; Pi owns the local child or SSH process. Never add Git fetching, app installation, autostart, or background-service state.
 - Keep authoring lazy: `/pet <request>` resolves the installed `authoring/PET-GUIDE.md`; never register bundled authoring as Pi skills or inline the guide into the command prompt.

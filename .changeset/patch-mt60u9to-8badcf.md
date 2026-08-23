@@ -8,7 +8,6 @@
 "@howaboua/pi-gippity-control": patch
 "@howaboua/pi-gpt-switcher": patch
 "@howaboua/pi-memories": patch
-"@howaboua/pi-pet": patch
 "@howaboua/pi-semantic-grep": patch
 "@howaboua/pi-shepherdr": patch
 "@howaboua/pi-smart-btw": patch
