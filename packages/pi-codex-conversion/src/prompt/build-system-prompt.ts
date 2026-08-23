@@ -53,7 +53,7 @@ const NORMAL_CODEX_GUIDELINES = [
 
 const CODE_MODE_GUIDELINES = [
 	"Use tools.exec_command for shell commands; prefer rg and rg --files",
-	"For tools.exec_command cmd, use String.raw only without backticks or ${}; avoid nested quoting; split independent commands into separate calls",
+	"In a String.raw command template, shell ${...} is JavaScript interpolation; use $NAME, a quoted JavaScript string, or split the command; never nest backticks",
 	"Long command: keep tools.exec_command awaited inside exec; resume the yielded cell_id with wait near completion. Do not request a short child yield and poll its session_id with tools.write_stdin",
 	"Use tty=true only for input or persistent processes",
 	"Use tools.apply_patch(patch) for file edits; split large patches; reserve shell/Python for formatting or bulk rewrites",

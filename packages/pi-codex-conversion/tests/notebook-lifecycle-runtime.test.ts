@@ -1,9 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { normalizeNotebookRequest } from "../src/tools/code-mode/notebook-tool.ts";
+import { Check } from "typebox/value";
+import { NOTEBOOK_PARAMETERS, normalizeNotebookRequest } from "../src/tools/code-mode/notebook-tool.ts";
 import { notebookStatusSource } from "../src/tools/notebook-mode/lifecycle-runtime.ts";
 
-test("strict notebook null placeholders are treated as absent", () => {
+test("notebook request schema rejects action mismatches and normalization tolerates null placeholders", () => {
+	assert.equal(Check(NOTEBOOK_PARAMETERS, { action: "prune", query: "scratch*" }), true);
+	assert.equal(Check(NOTEBOOK_PARAMETERS, { action: "prune" }), false);
+	assert.equal(Check(NOTEBOOK_PARAMETERS, { action: "checkpoint", query: "scratch*" }), false);
+	assert.equal(Check(NOTEBOOK_PARAMETERS, { action: "save", names: ["scratch"] }), false);
 	assert.deepEqual(normalizeNotebookRequest({
 		action: "status",
 		query: null,

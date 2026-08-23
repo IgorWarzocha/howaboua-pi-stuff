@@ -7,6 +7,7 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
 	Deno.chdir(${JSON.stringify(cwd)});
   const __origin = ${JSON.stringify(origin)};
   const __token = ${JSON.stringify(token)};
+  const __fetch = globalThis.fetch.bind(globalThis);
   const { getHeapStatistics: __getHeapStatistics } = await import("node:v8");
 	const __parentPid = Deno.ppid;
 	setInterval(() => {
@@ -35,7 +36,7 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
     return value;
   };
   const __post = async (payload) => {
-    const response = await fetch(__origin + "/bridge", {
+    const response = await __fetch(__origin + "/bridge", {
       method: "POST",
       headers: { authorization: "Bearer " + __token, "content-type": "application/json" },
       body: JSON.stringify(payload),

@@ -12,7 +12,7 @@ export function toCodeModeToolResult(
 	maxTokens?: number,
 ) {
 	const scriptError =
-		response.kind === "result" ? response.errorText : undefined;
+		response.kind === "result" ? withScriptErrorRecovery(response.errorText) : undefined;
 	const status = scriptError
 		? `Script error: ${scriptError}`
 		: response.kind === "yielded"
@@ -77,6 +77,11 @@ export function toCodeModeToolResult(
 			...(scriptError ? { scriptError } : {}),
 		},
 	};
+}
+
+function withScriptErrorRecovery(errorText: string | undefined): string | undefined {
+	if (!errorText || !/Identifier ['"][^'"]+['"] has already been declared/.test(errorText)) return errorText;
+	return `${errorText}\nRecovery: reuse the existing binding, choose a new name, or retry one-off code inside { ... }; restart only if the binding itself is unusable`;
 }
 
 export function formatNotebookMemory(memory: NotebookMemoryUsage): string {

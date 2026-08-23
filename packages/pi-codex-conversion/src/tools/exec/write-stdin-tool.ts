@@ -8,7 +8,7 @@ import { renderTerminalOutput } from "./output.ts";
 
 const WRITE_STDIN_PARAMETERS = Type.Object({
 	session_id: Type.Number({ description: "Session ID" }),
-	chars: Type.Optional(Type.String({ description: "Input. Empty polls" })),
+	chars: Type.Optional(Type.String({ description: "Input; non-empty requires original exec_command tty=true. Empty polls" })),
 	yield_time_ms: Type.Optional(Type.Number({ description: "Wait ms" })),
 	max_output_tokens: Type.Optional(Type.Number({ description: "Truncate" })),
 });

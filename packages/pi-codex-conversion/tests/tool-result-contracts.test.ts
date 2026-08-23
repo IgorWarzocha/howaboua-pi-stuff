@@ -25,7 +25,7 @@ test("apply_patch partial mutations remain error results", () => {
 	assert.equal(handler?.({ toolName: "apply_patch", details: { status: "success", result } }), undefined);
 });
 
-test("Notebook memory pressure is model-visible", () => {
+test("Notebook recovery and memory pressure are model-visible", () => {
 	const result = toCodeModeToolResult({
 		kind: "yielded",
 		cellId: "notebook-1",
@@ -41,4 +41,15 @@ test("Notebook memory pressure is model-visible", () => {
 	const text = result.content.map((item) => item.type === "text" ? item.text : "").join("\n");
 	assert.match(text, /Notebook memory:/);
 	assert.match(text, /CRITICAL:/);
+
+	const failed = toCodeModeToolResult({
+		kind: "result",
+		cellId: "notebook-2",
+		contentItems: [],
+		errorText: "SyntaxError: Identifier 'patch' has already been declared",
+	});
+	assert.match(
+		failed.content.map((item) => item.type === "text" ? item.text : "").join("\n"),
+		/retry one-off code inside \{ \.\.\. \}/,
+	);
 });
