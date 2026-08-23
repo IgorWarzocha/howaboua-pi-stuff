@@ -22,6 +22,19 @@ function custom(customType: string, content: string, timestamp = 1): AgentMessag
 	return { role: "custom", customType, content, display: true, timestamp } as AgentMessage;
 }
 
+function assistantFromModel(modelId: string, thinking: string, timestamp = 1): AgentMessage {
+	return {
+		role: "assistant",
+		content: [{ type: "thinking", thinking, thinkingSignature: "{}" }],
+		provider: "openai-codex",
+		api: "openai-codex-responses",
+		model: modelId,
+		usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+		stopReason: "stop",
+		timestamp,
+	} as AgentMessage;
+}
+
 function messageEntry(id: string, parentId: string | null, message: AgentMessage) {
 	return { type: "message", id, parentId, timestamp: new Date(message.timestamp ?? 1).toISOString(), message } as any;
 }
@@ -120,6 +133,33 @@ test("native replay preserves current payload tail beyond persisted branch entri
 	assert.equal(result.ok, true);
 	if (!result.ok) return;
 	assert.deepEqual(result.rewrittenPayload.input.map((item) => (item as { type?: string; role?: string }).type ?? (item as { role?: string }).role), ["compaction_summary", "user", "user"]);
+});
+
+test("native replay does not duplicate the retained window after a model switch", () => {
+	const switchedModel = { ...model, id: "gpt-5.6-sol" } as Model<any>;
+	const preMessage = assistantFromModel("gpt-5.6-terra", "retained reasoning", 1);
+	const pre = messageEntry("pre", null, preMessage);
+	const compaction = compactionEntry("pre");
+	const tailMessage = user("tail", 6);
+	const tail = messageEntry("tail", "compact", tailMessage);
+	const result = buildNativeReplaySegments({
+		model: switchedModel,
+		payload: {
+			model: switchedModel.id,
+			input: serializeMessagesToResponsesInput(switchedModel, [
+				compactionSummaryMessage(compaction),
+				preMessage,
+				tailMessage,
+			]),
+			instructions: "",
+		},
+		branchEntries: [pre, compaction, tail],
+		compactionEntry: compaction,
+	});
+
+	assert.equal(result.ok, true);
+	if (!result.ok) return;
+	assert.deepEqual(result.rewrittenPayload.input.map((item) => (item as { type?: string; role?: string }).type ?? (item as { role?: string }).role), ["compaction_summary", "user"]);
 });
 
 test("native replay preserves the previous native blob across a newer Pi fallback compaction", () => {
