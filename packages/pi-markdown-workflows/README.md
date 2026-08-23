@@ -1,6 +1,6 @@
 # @howaboua/pi-markdown-workflows
 
-Manages repository workflows and reusable skills from one Pi interface, and loads nested `AGENTS.md` context when work enters a subdirectory.
+Manages repository workflows and reusable skills from one Pi interface.
 
 ## Install
 
@@ -31,7 +31,9 @@ The agent-callable `workflows_create` tool writes or updates confirmed repeatabl
 
 ## Nested `AGENTS.md` loading
 
-The extension detects file reads and read-like shell or Code Mode operations. When a path enters a subtree, it injects the applicable nested `AGENTS.md` chain without reinjecting the repository root file Pi already loaded. It refreshes known context every 10 qualifying operations so edits made during a long session take effect.
+The current package release includes nested `AGENTS.md` loading. It detects file reads and read-like shell or Code Mode operations, then appends the applicable nested chain without reinjecting the repository root file Pi already loaded.
+
+For that behavior without workflows or skill UI, use `@howaboua/pi-subdir-agents`. Do not install both packages together while this package retains its loader.
 
 The package uses `@howaboua/pi-howaboua-extensions-primitives-sdk` for its UI. Published installs load compiled `dist/`; repository development runs the TypeScript entrypoint above.
 

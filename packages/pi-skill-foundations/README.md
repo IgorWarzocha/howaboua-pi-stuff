@@ -1,6 +1,6 @@
 # @howaboua/pi-skill-foundations
 
-Portable Pi foundations for scoped agent guidance, clear communication, and reusable skill maintenance.
+Portable Pi foundations for the rules and judgment that should survive across projects.
 
 ## Install
 
@@ -10,6 +10,8 @@ pi install npm:@howaboua/pi-skill-foundations
 
 Pi discovers these skills after installation:
 
-- `agents-md`
-- `communication`
-- `skill-creator`
+- `agents-md` keeps repository guidance scoped, concise, and separate from user documentation.
+- `communication` keeps investigation findings, reviews, teaching, and writing direct and specific.
+- `skill-creator` designs and maintains reusable skills without turning one-off instructions into permanent packages.
+
+Install this package when you want those foundations in every project. Use the narrower category packages when a session only needs code or harness work.

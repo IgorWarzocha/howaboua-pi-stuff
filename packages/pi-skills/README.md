@@ -15,4 +15,6 @@ pi install npm:@howaboua/pi-skills
 - Harness and agent engineering: `agent-session-diagnostics`, `agent-tool-design`, `extension-design`, `harness-checklist`, `instruction-calibration`, `prompt-caching`
 - Browser control: `chrome-cdp`
 
-`omarchy-help` is not included because it targets Arch desktops configured with Omarchy. Install `@howaboua/pi-skill-omarchy-help` separately when that matches your workstation.
+Install Foundations, Code, Harness and Agent Engineering, or Chrome CDP individually when you want a narrower setup.
+
+Operations and visual-work skills are intentionally separate from this bundle. `omarchy-help` is available as `@howaboua/pi-skill-omarchy-help` for Arch desktops configured with Omarchy.
