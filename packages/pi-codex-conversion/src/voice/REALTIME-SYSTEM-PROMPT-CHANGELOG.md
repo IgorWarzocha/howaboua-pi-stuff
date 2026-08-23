@@ -66,3 +66,15 @@ Strengthened presentation continuity for Pi updates and results:
 - When acknowledgement helps, react briefly to the substance and vary the wording.
 
 Add or adapt these behaviors in `Delegation`, `Backend results`, and `Spoken delivery`, then update the marker to schema 4.
+
+## Schema 5
+
+Marker: `<!-- codex-voice-prompt-version: 5 -->`
+
+Strengthened interruption handling while Pi results are being spoken:
+
+- Yield immediately when the user begins speaking during a response.
+- Process the user's complete utterance before resuming the prior Pi update.
+- Delegate any correction, constraint, or new instruction even when it interrupted speech.
+
+Add or adapt these behaviors in `Conversational initiative`, then update the marker to schema 5.

@@ -4,13 +4,25 @@ import type { RealtimeInitialMessageItem } from "../context.ts";
 import { MAX_REALTIME_VOICE_INPUT_BYTES } from "../prompts.ts";
 import { RealtimeVoiceTurnTracker, type RealtimeVoiceTurn } from "../turns.ts";
 import { buildRealtimeCallRequest, type RealtimeCallSetup, setupRealtimeCall } from "./call-setup.ts";
-import { RealtimeDelegationHandoff, type RealtimeHandoffChannel } from "./handoff.ts";
+import {
+	RealtimeDelegationHandoff,
+	type RealtimeHandoffChannel,
+	type RealtimeHandoffKind,
+	type RealtimeHandoffTarget,
+} from "./handoff.ts";
 import { type CodexRealtimePeer, type CodexRealtimePeerEvent } from "./peer.ts";
 import { boundedAssistantTranscript, boundedTranscript, realtimePeerStateFailure, remoteError, transcriptItemText, utf8Chunks } from "./wire.ts";
 
 const PEER_READY_TIMEOUT_MS = 15_000;
 const CONTEXT_APPEND_CHUNK_BYTES = 500;
+const MAX_PENDING_SPEAKABLE_CONTEXTS = 8;
 type ConversationState = "idle" | "starting" | "active" | "failed" | "closed";
+
+interface PendingSpeakableContext {
+	target: RealtimeHandoffTarget;
+	content: string;
+	kind: RealtimeHandoffKind | "announcement";
+}
 
 export interface CodexConversationCallbacks {
 	onError(error: Error): void;
@@ -34,19 +46,17 @@ export class CodexRealtimeConversation {
 	private inputMuted = false;
 	private established = false;
 	private speakableResponsePending = false;
-	private pendingCompactionAnnouncement: string | undefined;
+	private pendingSpeakableContexts: PendingSpeakableContext[] = [];
+	private userTurnPending = false;
 
 	constructor(callbacks: CodexConversationCallbacks, peer: CodexRealtimePeer) {
 		this.callbacks = callbacks;
 		this.peer = peer;
-		this.handoff = new RealtimeDelegationHandoff(peer, {
+		this.handoff = new RealtimeDelegationHandoff({
 			isActive: () => this.state === "active",
-			onFailure: (error) => this.fail(error),
+			onContext: (target, channel, content, kind) =>
+				this.appendHandoffContext(target, channel, content, kind),
 			onSettled: (id) => this.turnTracker.delegationSettled(id),
-			onStatus: (status) => {
-				if (status === "speaking") this.speakableResponsePending = true;
-				this.callbacks.onStatus(status);
-			},
 		});
 		this.peer.onEvent((event) => this.handlePeerEvent(event));
 		this.peer.onExit((error) => this.drop(error));
@@ -122,29 +132,23 @@ export class CodexRealtimeConversation {
 			reason === "overflow"
 				? "The conversation exceeded its context limit and is being compacted. The interrupted work will continue automatically afterward. Please announce this briefly in your natural voice."
 				: "The conversation is being compacted. Please announce this briefly in your natural voice.";
-		if (this.speakableResponsePending) {
-			this.pendingCompactionAnnouncement = prompt;
-			return;
-		}
 		this.appendSpeakableContext(prompt);
 	}
 
 	private appendSpeakableContext(text: string): void {
-		try {
-			this.speakableResponsePending = true;
-			for (const content of utf8Chunks(text, CONTEXT_APPEND_CHUNK_BYTES))
-				this.peer.sendData({
-					type: "session.context.append",
-					channel: "speakable",
-					content: [{ type: "input_text", text: content }],
-				});
-		} catch (error) {
-			this.fail(error instanceof Error ? error : new Error(String(error)));
-		}
+		this.enqueueSpeakable({
+			target: { type: "session" },
+			content: text,
+			kind: "announcement",
+		});
 	}
 
 	activateDelegation(id: string): void {
 		this.handoff.activate(id);
+	}
+
+	piInput(input: unknown, startsTurn: boolean): boolean {
+		return this.handoff.piInput(input, startsTurn);
 	}
 
 	get microphoneMuted(): boolean { return this.inputMuted; }
@@ -155,28 +159,18 @@ export class CodexRealtimeConversation {
 		this.inputMuted = muted;
 	}
 
-	mirrorPiSteer(input: unknown): boolean {
-		return this.handoff.mirrorPiSteer(input);
+	agentProgress(content: string): void {
+		this.handoff.progress(content);
 	}
 
-	streamAgentDelta(delta: string): void {
-		this.handoff.stream(delta);
-	}
-
-	finishAgentMessage(channel: RealtimeHandoffChannel, fallback?: string): void {
-		this.handoff.finishMessage(channel, fallback);
-	}
-
-	finishAgentProgress(fallback?: string): void {
-		this.handoff.finishProgress(fallback);
-	}
-
-	get agentProgressStreamed(): boolean {
-		return this.handoff.hasStreamedProgress();
+	agentResult(content: string): void {
+		this.handoff.result(content);
 	}
 
 	settleAgentTurn(): void {
 		this.handoff.settle();
+		if (!this.speakableResponsePending && this.pendingSpeakableContexts.length === 0)
+			this.callbacks.onStatus("listening");
 	}
 
 	async close(): Promise<void> {
@@ -189,6 +183,9 @@ export class CodexRealtimeConversation {
 		this.established = false;
 		this.abortSetup();
 		this.handoff.clear();
+		this.pendingSpeakableContexts = [];
+		this.speakableResponsePending = false;
+		this.userTurnPending = false;
 		this.drainConversation();
 		this.inputMuted = false;
 		this.peerReady?.resolve();
@@ -226,7 +223,13 @@ export class CodexRealtimeConversation {
 		if (event["type"] === "input_transcript.added") {
 			const input = boundedTranscript(transcriptItemText(event["item"]));
 			if (input === "oversized") { this.fail(new Error("Codex voice transcript was oversized")); return; }
-			if (input) this.turnTracker.inputAdded(input);
+			if (input) {
+				this.userTurnPending = true;
+				this.pendingSpeakableContexts = this.pendingSpeakableContexts.filter(
+					(context) => context.kind !== "progress",
+				);
+				this.turnTracker.inputAdded(input);
+			}
 			return;
 		}
 		if (event["type"] === "output_transcript.added") {
@@ -248,6 +251,7 @@ export class CodexRealtimeConversation {
 		if (!input || Buffer.byteLength(input) > MAX_REALTIME_VOICE_INPUT_BYTES) { this.fail(new Error("Codex voice delegation was empty or oversized")); return; }
 		const delegated = this.turnTracker.delegated(input, record["id"]);
 		if (!delegated) return;
+		this.demoteSupersededSpeech();
 		if (delegated.displayInput) this.callbacks.onUserTranscript(input);
 		this.callbacks.onTurn(delegated.turn);
 	}
@@ -260,17 +264,112 @@ export class CodexRealtimeConversation {
 			if (input === "oversized") { this.fail(new Error("Codex voice transcript was oversized")); return; }
 			if (input && this.turnTracker.userFinished(input))
 				this.callbacks.onUserTranscript(input);
+			this.demoteSupersededSpeech();
+			this.userTurnPending = false;
 			this.callbacks.onStatus("responding");
 			return;
 		}
 		if (record["role"] !== "assistant") return;
 		const completed = this.turnTracker.assistantFinished(boundedAssistantTranscript(record["transcript"]));
 		this.speakableResponsePending = false;
-		const pendingCompaction = this.pendingCompactionAnnouncement;
-		this.pendingCompactionAnnouncement = undefined;
-		if (pendingCompaction) this.appendSpeakableContext(pendingCompaction);
-		else this.callbacks.onStatus("listening");
+		if (this.userTurnPending) this.callbacks.onStatus("responding");
+		else if (!this.flushNextSpeakable()) this.callbacks.onStatus("listening");
 		if (completed) this.callbacks.onTurn(completed);
+	}
+
+	private demoteSupersededSpeech(): void {
+		for (const context of this.pendingSpeakableContexts) {
+			if (context.kind === "result")
+				this.sendContext({ type: "session" }, "commentary", context.content);
+		}
+		this.pendingSpeakableContexts = [];
+	}
+
+	private appendHandoffContext(
+		target: RealtimeHandoffTarget,
+		channel: RealtimeHandoffChannel,
+		content: string,
+		kind?: RealtimeHandoffKind,
+	): void {
+		if (channel === "speakable" && kind) {
+			this.enqueueSpeakable({ target, content, kind });
+			return;
+		}
+		this.sendContext(target, channel, content);
+	}
+
+	private enqueueSpeakable(context: PendingSpeakableContext): void {
+		if (!this.speakableResponsePending && !this.userTurnPending) {
+			this.sendSpeakable(context);
+			return;
+		}
+		const queued = {
+			...context,
+			target: { type: "session" } as const,
+		};
+		if (context.kind === "progress") {
+			const existing = this.pendingSpeakableContexts.findLastIndex(
+				(item) => item.kind === "progress",
+			);
+			if (existing >= 0) this.pendingSpeakableContexts[existing] = queued;
+			else this.pendingSpeakableContexts.push(queued);
+		} else {
+			if (context.kind === "result")
+				this.pendingSpeakableContexts = this.pendingSpeakableContexts.filter(
+					(item) => item.kind !== "progress",
+				);
+			this.pendingSpeakableContexts.push(queued);
+		}
+		while (this.pendingSpeakableContexts.length > MAX_PENDING_SPEAKABLE_CONTEXTS) {
+			const disposable = this.pendingSpeakableContexts.findIndex(
+				(item) => item.kind !== "result",
+			);
+			if (disposable < 0) {
+				this.fail(new Error("Realtime voice final-result queue overflow"));
+				return;
+			}
+			this.pendingSpeakableContexts.splice(disposable, 1);
+		}
+	}
+
+	private flushNextSpeakable(): boolean {
+		const next = this.pendingSpeakableContexts.shift();
+		if (!next) return false;
+		this.sendSpeakable(next);
+		return true;
+	}
+
+	private sendSpeakable(context: PendingSpeakableContext): void {
+		this.speakableResponsePending = true;
+		this.callbacks.onStatus("speaking");
+		this.sendContext(context.target, "speakable", context.content);
+	}
+
+	private sendContext(
+		target: RealtimeHandoffTarget,
+		channel: RealtimeHandoffChannel,
+		content: string,
+	): void {
+		try {
+			for (const text of utf8Chunks(content, CONTEXT_APPEND_CHUNK_BYTES)) {
+				this.peer.sendData(
+					target.type === "delegation"
+						? {
+								type: "delegation.context.append",
+								delegation_item_id: target.id,
+								channel,
+								content: [{ type: "input_text", text }],
+							}
+						: {
+								type: "session.context.append",
+								channel,
+								content: [{ type: "input_text", text }],
+							},
+				);
+			}
+		} catch (error) {
+			this.fail(error instanceof Error ? error : new Error(String(error)));
+		}
 	}
 
 	private abortSetup(): void {
@@ -299,6 +398,9 @@ export class CodexRealtimeConversation {
 		this.established = false;
 		this.abortSetup();
 		this.handoff.clear();
+		this.pendingSpeakableContexts = [];
+		this.speakableResponsePending = false;
+		this.userTurnPending = false;
 		this.drainConversation();
 		this.peerReady?.resolve();
 		this.peerReady = undefined;

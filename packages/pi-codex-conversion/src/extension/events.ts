@@ -204,7 +204,8 @@ export function registerCodexEvents(
 	});
 	pi.on("input", async (event) => {
 		if (event.streamingBehavior === undefined) state.codexTurnState.beginTurn();
-		else if (event.streamingBehavior === "steer" && event.source !== "extension") runtime.voice.mirrorPiSteer(event.text);
+		if (event.source !== "extension")
+			runtime.voice.piInput(event.text, event.streamingBehavior === undefined);
 	});
 	pi.on("before_agent_start", async (event, ctx) => {
 		const systemPrompt = event.systemPrompt;
@@ -222,10 +223,6 @@ export function registerCodexEvents(
 		return {
 			systemPrompt: codexSystemPrompt,
 		};
-	});
-	pi.on("message_update", async (event) => {
-		const update = event.assistantMessageEvent;
-		if (update.type === "text_delta" && typeof update.delta === "string") runtime.voice.streamDelta(update.delta);
 	});
 	pi.on("agent_start", async () => {
 		runtime.cancelCacheKeepalive();
@@ -251,13 +248,30 @@ export function registerCodexEvents(
 	pi.on("session_before_compact", async (event, ctx) => {
 		state.cwd = ctx.cwd;
 		if (event.reason !== "manual") runtime.voice.announceCompactionStart(event.reason);
+		const nativeCompaction = resolveCodexRuntimePlanForState(
+			ctx,
+			state,
+		).nativeCompaction;
+		if (nativeCompaction) runtime.voice.compactionStarted();
 		try {
 			await codeMode.checkpointNotebook();
 		} catch (error) {
 			ctx.ui.notify(`Notebook checkpoint before compaction failed: ${error instanceof Error ? error.message : String(error)}`, "warning");
 		}
-		if (!resolveCodexRuntimePlanForState(ctx, state).nativeCompaction) return undefined;
-		return handleCodexSessionBeforeCompact(event, ctx, state, pi);
+		if (!nativeCompaction) return undefined;
+		try {
+			const result = await handleCodexSessionBeforeCompact(
+				event,
+				ctx,
+				state,
+				pi,
+			);
+			if (!result?.compaction) runtime.voice.compactionFinished();
+			return result;
+		} catch (error) {
+			runtime.voice.compactionFinished();
+			throw error;
+		}
 	});
 	pi.on("session_compact", async (event, ctx) => {
 		runtime.voice.resetContextAnnouncements();
@@ -286,9 +300,13 @@ export function registerCodexEvents(
 		);
 		state.activeProviderSystemPrompt = postCompactionPrompt;
 		runtime.resetTransportAfterCompaction(ctx.sessionManager.getSessionId());
-		await (nativeCompaction
-			? runtime.startCompactionPrewarm(ctx)
-			: runtime.startPrewarm(ctx, postCompactionPrompt, true));
+		try {
+			await (nativeCompaction
+				? runtime.startCompactionPrewarm(ctx)
+				: runtime.startPrewarm(ctx, postCompactionPrompt, true));
+		} finally {
+			runtime.voice.compactionFinished();
+		}
 	});
 	pi.on("context", async (event) => {
 		const messages = event.messages.filter((message) => !isProviderContextExcludedMessage(message));
