@@ -1,17 +1,9 @@
 # Agents
 
-The `agents` example starts persistent explorer and reviewer Pi agents in Herdr panels, then finds, messages, reads, and answers them through one small custom-tool surface.
+Use when the user wants persistent explorer or reviewer agents in Herdr panels. Start with `await tools.agents("help")` to inspect the fixed profiles and available actions.
 
-Copy `agents.toml` and the `agents/` directory together into the custom-tool directory. The local calling Pi must run inside Herdr.
+Give a spawned agent only its concrete task and inaccessible context. Explorer and reviewer profiles are read-only. Reuse an explorer only for the same investigation. Keep reviewers independent.
 
-The bundled explorer and reviewer profiles are fixed. Call `await tools.agents("help")` to inspect the current actions and profiles before spawning one.
+Use the exact target returned by `spawn` or `find` for later `send`, `read`, or `answer` calls. Leave `blocking` enabled for requested findings or answers. Use `blocking: false` only while continuing other work before a later read.
 
-## Remote routing
-
-Local operation needs no configuration. Remote `desktop`, `laptop`, or `server` routing is disabled until the installer configures:
-
-- `AGENTS_REMOTE_SOCKET_PATH` for the remote Herdr socket
-- `AGENTS_REMOTE_TOOL_PATH` for a remote copy of `agents.mjs`
-- `AGENTS_REMOTE_COORDINATION_TOOL` for the remote coordination helper
-
-Remote hosts must already accept noninteractive SSH. The example does not copy files or configure remote Herdr instances.
+The local caller must run inside Herdr. Remote routing is unavailable until an installer explicitly configures it. Do not configure remote hosts, copy files, or alter Herdr setup unless the user asked for that work.

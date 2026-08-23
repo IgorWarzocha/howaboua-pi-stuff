@@ -67,7 +67,7 @@ Working, disabled templates ship under the package root's `examples/custom-tools
 
 To enable one, copy its top-level TOML and matching companion directory into `codex-conversion-custom-tools/`, preserving their relative layout. Examples are references, not defaults; never copy or enable one merely because it exists.
 
-For `skills`, keep global and repository skills in Pi's normal `skills/` and `.pi/skills/` directories. A same-named session skill overrides the global skill.
+For `skills`, Pi must be launched with `--no-skills`. Keep global and repository skills in Pi's normal `skills/` and `.pi/skills/` directories. A same-named session skill overrides the global skill. The custom tool cannot change the launch setting; without it, Pi preloads the same instructions and this tool duplicates them on read.
 
 ## Execution
 

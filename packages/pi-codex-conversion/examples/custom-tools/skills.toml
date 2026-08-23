@@ -1,4 +1,4 @@
-usage = '''await tools.skills("list" | "read <name>") // At session start call list once and read skills marked always apply, then read other skills before doing the work they govern'''
+usage = '''await tools.skills("list" | "read <name>") // At session start list once, then read skills marked always apply and task-relevant skills before work'''
 description = "List or read skills"
 output = "Skill catalog or instructions with paths"
 command = "./skills/skills.mjs"
