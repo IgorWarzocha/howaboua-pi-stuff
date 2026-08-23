@@ -1,14 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { clickStr, formatPagesJson, htmlStr, snapshotData } from "./cdp.mjs";
+import { cdpTimeoutAttempts, clickStr, formatPagesJson, htmlStr, snapshotData } from "./cdp.mjs";
 
-test("tab transport preserves titles that break the human list format", () => {
+test("CDP transport preserves protocol boundaries", () => {
 	const tabs = JSON.parse(formatPagesJson([
 		{ targetId: "ABCDEF123456", title: "First\nSecond", url: "https://example.com/a b" },
 	]));
 	assert.deepEqual(tabs, [
 		{ ref_id: "ABCDEF12", title: "First\nSecond", url: "https://example.com/a b" },
 	]);
+	assert.equal(cdpTimeoutAttempts("Page.captureScreenshot"), 2);
+	assert.equal(cdpTimeoutAttempts("Accessibility.getFullAXTree"), 2);
+	assert.equal(cdpTimeoutAttempts("Runtime.enable"), 2);
+	assert.equal(cdpTimeoutAttempts("Runtime.evaluate"), 1);
 });
 
 test("selector click dispatches trusted pointer events instead of DOM click", async () => {

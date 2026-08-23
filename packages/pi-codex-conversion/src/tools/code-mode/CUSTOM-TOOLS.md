@@ -56,7 +56,6 @@ Working, disabled templates ship under the package root's `examples/custom-tools
 
 - `browser`: controls a logged-in Chromium browser through CDP with bounded Codex `web__run`-style operations; optional SSH routing ships disabled.
 - `agents`: starts persistent explorer and reviewer Pi agents in Herdr panels; remote routing requires explicit installer configuration.
-- `herdr_agent`: finds and coordinates Pi agents in Herdr panels; use with `skills` for advanced Herdr orchestration.
 - `skills`: lists Pi's standard global and session skill catalog or reads one exact skill.
 - `port_info`: cross-platform listener and process diagnostics.
 - `semantic_grep`: queries an existing index owned by an installed and configured `@howaboua/pi-semantic-grep`.

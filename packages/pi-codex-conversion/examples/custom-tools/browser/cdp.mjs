@@ -16,10 +16,15 @@ import http from 'http';
 import net from 'net';
 
 const TIMEOUT = 15000;
+const RETRYABLE_TIMEOUT_METHODS = new Set([
+  'Accessibility.getFullAXTree',
+  'Page.captureScreenshot',
+  'Runtime.enable',
+]);
 const NAVIGATION_TIMEOUT = 30000;
 const IDLE_TIMEOUT = 20 * 60 * 1000;
-const DAEMON_CONNECT_RETRIES = 20;
 const DAEMON_CONNECT_DELAY = 300;
+const DAEMON_CONNECT_TIMEOUT = TIMEOUT + 2000;
 const BROWSER_START_TIMEOUT = 10000;
 const BROWSER_UNIT = 'chrome-cdp-browser.service';
 const MIN_TARGET_PREFIX_LEN = 8;
@@ -272,6 +277,23 @@ function getDisplayPrefixLength(targetIds) {
 // CDP WebSocket client
 // ---------------------------------------------------------------------------
 
+class CDPTimeoutError extends Error {}
+
+export function cdpTimeoutAttempts(method) {
+  return RETRYABLE_TIMEOUT_METHODS.has(method) ? 2 : 1;
+}
+
+function commandTimeoutError(method, attempts) {
+  const seconds = TIMEOUT / 1000;
+  if (attempts > 1) {
+    return new Error(`Chrome did not answer ${method} after two ${seconds}s attempts. The tab may be unresponsive or suspended.`);
+  }
+  if (method === 'Runtime.evaluate') {
+    return new Error(`Chrome did not answer Runtime.evaluate within ${seconds}s. The expression or awaited promise may still be running; check its effect before retrying.`);
+  }
+  return new Error(`Chrome did not answer ${method} within ${seconds}s.`);
+}
+
 class CDP {
   #ws; #id = 0; #pending = new Map(); #eventHandlers = new Map(); #closeHandlers = [];
 
@@ -298,13 +320,26 @@ class CDP {
     });
   }
 
-  send(method, params = {}, sessionId) {
+  async send(method, params = {}, sessionId) {
+    const attempts = cdpTimeoutAttempts(method);
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      try {
+        return await this.#sendOnce(method, params, sessionId);
+      } catch (error) {
+        if (!(error instanceof CDPTimeoutError)) throw error;
+        if (attempt === attempts) throw commandTimeoutError(method, attempts);
+        await sleep(100);
+      }
+    }
+  }
+
+  #sendOnce(method, params = {}, sessionId) {
     const id = ++this.#id;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         if (this.#pending.has(id)) {
           this.#pending.delete(id);
-          reject(new Error(`Timeout: ${method}`));
+          reject(new CDPTimeoutError(method));
         }
       }, TIMEOUT);
       this.#pending.set(id, { resolve, reject, timer });
@@ -1052,10 +1087,7 @@ async function runDaemon(targetId) {
       }
       return { ok: true, result: result ?? '' };
     } catch (e) {
-      const error = e.message.startsWith('Timeout:')
-        ? `${e.message}. Chrome may be waiting for "Allow debugging" approval, or the tab may be sleeping.`
-        : e.message;
-      return { ok: false, error };
+      return { ok: false, error: e.message };
     }
   }
 
@@ -1124,12 +1156,12 @@ async function getOrStartTabDaemon(targetId) {
   });
   child.unref();
 
-  // Wait for socket (includes time for user to click Allow)
-  for (let i = 0; i < DAEMON_CONNECT_RETRIES; i++) {
+  const deadline = Date.now() + DAEMON_CONNECT_TIMEOUT;
+  while (Date.now() < deadline) {
     await sleep(DAEMON_CONNECT_DELAY);
     try { return await connectToSocket(sp); } catch {}
   }
-  throw new Error('Daemon failed to start — did you click Allow in Chrome?');
+  throw new Error(`Tab bridge did not become ready within ${DAEMON_CONNECT_TIMEOUT / 1000}s. The target may have closed or Chrome may not be answering.`);
 }
 
 function sendCommand(conn, req) {
