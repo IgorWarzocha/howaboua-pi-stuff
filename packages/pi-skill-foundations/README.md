@@ -14,4 +14,4 @@ Pi discovers these skills after installation:
 - `communication` keeps investigation findings, reviews, teaching, and writing direct and specific.
 - `skill-creator` designs and maintains reusable skills without turning one-off instructions into permanent packages.
 
-Install this package when you want those foundations in every project. Use the narrower category packages when a session only needs code or harness work.
+Install this package when you want those foundations available in every project.

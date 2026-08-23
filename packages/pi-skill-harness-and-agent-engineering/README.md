@@ -17,4 +17,4 @@ Pi discovers these skills after installation:
 - `instruction-calibration` compares instruction changes with visible agent behavior.
 - `prompt-caching` traces rendered request prefixes, cache lanes, and compaction boundaries.
 
-Install it for harness work. It does not replace project-specific workflow or provider guidance.
+Install it when you build or investigate an agent harness.

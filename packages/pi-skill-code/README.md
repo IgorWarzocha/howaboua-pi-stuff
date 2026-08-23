@@ -16,4 +16,4 @@ Pi discovers these skills after installation:
 - `repository-delivery` covers focused commits and pull requests.
 - `scratchpad` keeps deliberate session experiments separate from product artifacts.
 
-The package is for maintained code, not a generic replacement for a task prompt or project instructions.
+Install this package when you want the code skills available together.
