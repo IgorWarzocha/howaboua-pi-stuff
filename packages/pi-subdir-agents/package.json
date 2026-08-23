@@ -1,0 +1,59 @@
+{
+	"name": "@howaboua/pi-subdir-agents",
+	"version": "0.0.0",
+	"description": "Pi extension that loads nested AGENTS.md context during repository discovery",
+	"type": "module",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
+		"directory": "packages/pi-subdir-agents"
+	},
+	"bugs": {
+		"url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
+	},
+	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-subdir-agents#readme",
+	"keywords": [
+		"pi-package",
+		"pi-extension",
+		"agents",
+		"context"
+	],
+	"engines": {
+		"node": ">=22"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"files": [
+		"index.ts",
+		"src",
+		"README.md",
+		"LICENSE",
+		"tsconfig.json",
+		"biome.json"
+	],
+	"pi": {
+		"extensions": [
+			"./index.ts"
+		]
+	},
+	"peerDependencies": {
+		"@earendil-works/pi-coding-agent": "*"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.5.10",
+		"@earendil-works/pi-coding-agent": "0.84.1",
+		"tsx": "^4.23.12",
+		"typescript": "^6.0.3"
+	},
+	"scripts": {
+		"lint": "biome check .",
+		"typecheck": "tsgo --noEmit",
+		"test": "tsx --test tests/subdir-context.test.mjs",
+		"check": "bun run lint && bun run typecheck && bun run test",
+		"pack:dry": "npm pack --dry-run"
+	},
+	"main": "index.ts",
+	"exports": "./index.ts"
+}

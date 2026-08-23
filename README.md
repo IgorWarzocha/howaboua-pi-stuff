@@ -10,8 +10,8 @@ Pi packages run with your local permissions. You can obviously trust me, a stran
 
 | Package | Includes | Deliberate exclusions |
 |---|---|---|
-| [`@howaboua/pi-stuff`](./packages/pi-stuff) | 13 general extensions and 15 shareable skills | Codex conversion and Omarchy support |
-| [`@howaboua/pi-extensions`](./packages/pi-extensions) | 13 general extensions | Codex conversion |
+| [`@howaboua/pi-stuff`](./packages/pi-stuff) | 17 general extensions and 15 shareable skills | Codex conversion, Omarchy support, and the standalone nested AGENTS loader |
+| [`@howaboua/pi-extensions`](./packages/pi-extensions) | 17 general extensions | Codex conversion and the standalone nested AGENTS loader |
 | [`@howaboua/pi-skills`](./packages/pi-skills) | 15 shareable skills | Omarchy support |
 
 ```bash
@@ -35,12 +35,13 @@ pi install npm:@howaboua/pi-skills
 | [`pi-dynamic-tools`](./packages/pi-dynamic-tools) | TOML-defined command-line tools exposed through JavaScript Code Mode |
 | [`pi-explore-subagents`](./packages/pi-explore-subagents) | Isolated, discovery-only shallow and deep subagents |
 | [`pi-gpt-switcher`](./packages/pi-gpt-switcher) | `/sol`, `/terra`, and `/luna` commands for GPT-5.6 Codex models |
-| [`pi-markdown-workflows`](./packages/pi-markdown-workflows) | Workflow/skill UI, `/learn`, workflow capture, and nested `AGENTS.md` loading |
+| [`pi-markdown-workflows`](./packages/pi-markdown-workflows) | Workflow/skill UI, `/learn`, and workflow capture |
 | [`pi-memories`](./packages/pi-memories) | Shutdown memory candidates in a plain Markdown inbox |
 | [`pi-pet`](./packages/pi-pet) | Animated companion miniapps for GipPity Remote |
 | [`pi-semantic-grep`](./packages/pi-semantic-grep) | Meaning-based code and docs search backed by repo-local SQLite indexes |
 | [`pi-smart-btw`](./packages/pi-smart-btw) | Async side-session questions with explicit injection into the main chat |
 | [`pi-subagent-review`](./packages/pi-subagent-review) | `/review` through an isolated review subagent |
+| [`pi-subdir-agents`](./packages/pi-subdir-agents) | Nested `AGENTS.md` context during repository discovery |
 | [`pi-vent`](./packages/pi-vent) | Batched notes about repeated workflow friction in `VENT.md` |
 
 ## Skills

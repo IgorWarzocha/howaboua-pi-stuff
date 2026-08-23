@@ -429,6 +429,19 @@
         "@earendil-works/pi-tui": "*",
       },
     },
+    "packages/pi-subdir-agents": {
+      "name": "@howaboua/pi-subdir-agents",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@biomejs/biome": "^2.5.10",
+        "@earendil-works/pi-coding-agent": "0.84.1",
+        "tsx": "^4.23.12",
+        "typescript": "^6.0.3",
+      },
+      "peerDependencies": {
+        "@earendil-works/pi-coding-agent": "*",
+      },
+    },
     "packages/pi-unicode-charts": {
       "name": "@howaboua/pi-unicode-charts",
       "version": "0.1.0",
@@ -699,6 +712,8 @@
     "@howaboua/pi-stuff": ["@howaboua/pi-stuff@workspace:packages/pi-stuff"],
 
     "@howaboua/pi-subagent-review": ["@howaboua/pi-subagent-review@workspace:packages/pi-subagent-review"],
+
+    "@howaboua/pi-subdir-agents": ["@howaboua/pi-subdir-agents@workspace:packages/pi-subdir-agents"],
 
     "@howaboua/pi-unicode-charts": ["@howaboua/pi-unicode-charts@workspace:packages/pi-unicode-charts"],
 
@@ -1488,7 +1503,7 @@
 
     "tslib": ["tslib@2.8.1", "", {}, "sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w=="],
 
-    "tsx": ["tsx@4.22.3", "", { "dependencies": { "esbuild": "~0.28.0" }, "optionalDependencies": { "fsevents": "~2.3.3" }, "bin": { "tsx": "dist/cli.mjs" } }, "sha512-mdoNxBC/cSQObGGVQ5Bpn5i+yv7j68gk3Nfm3wFjcJg3Z0Mix9jzAFfP12prmm5eVGmDKtp0yyArrs0Q+8gZHg=="],
+    "tsx": ["tsx@4.23.12", "", { "dependencies": { "esbuild": "~0.28.0" }, "optionalDependencies": { "fsevents": "~2.3.3" }, "bin": { "tsx": "dist/cli.mjs" } }, "sha512-FDf4L4sYzKtzWYhU/Xm0AQFdTjdIxNo9ElTf2mxXM6k8YMHXzYUe4yODVaXP4V9uMFbVg8c0qyBccK2OOxb45Q=="],
 
     "tunnel-agent": ["tunnel-agent@0.6.0", "", { "dependencies": { "safe-buffer": "^5.0.1" } }, "sha512-McnNiV1l8RYeY8tBgEpuodCC1mLUdbSN+CYBL7kJsJNInOP8UjDDEwdk6Mw60vdLLrr5NHKZhMAOSrR2NZuQ+w=="],
 

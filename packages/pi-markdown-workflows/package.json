@@ -44,7 +44,7 @@
 	"types": "./dist/index.d.ts",
 	"scripts": {
 		"build": "tsgo -p tsconfig.json --noEmit false",
-		"test": "node tests/subdir-context.test.mjs && node tests/skill-discovery.test.mjs",
+		"test": "node tests/skill-discovery.test.mjs",
 		"check": "bun run lint && bun run typecheck",
 		"clean": "rm -rf dist",
 		"lint": "biome check .",

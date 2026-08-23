@@ -6,7 +6,11 @@ import { listActivePackageDirs } from "./active-packages.mjs";
 const root = process.cwd();
 const packagesDir = join(root, "packages");
 const aggregateDirs = new Set(["pi-stuff", "pi-skills", "pi-extensions"]);
-const bundleExcludedPackages = new Set(["@howaboua/pi-codex-conversion", "@howaboua/pi-skill-omarchy-help"]);
+const bundleExcludedPackages = new Set([
+  "@howaboua/pi-codex-conversion",
+  "@howaboua/pi-skill-omarchy-help",
+  "@howaboua/pi-subdir-agents",
+]);
 const packages = listActivePackageDirs(root)
   .filter((dir) => !aggregateDirs.has(dir))
   .map((dir) => ({ dir, pkg: JSON.parse(readFileSync(join(packagesDir, dir, "package.json"), "utf8")) }))
