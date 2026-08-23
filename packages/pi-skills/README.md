@@ -10,12 +10,9 @@ pi install npm:@howaboua/pi-skills
 
 ## Included skills
 
-- `agent-native-hardening` — architecture reviews and structural refactors
-- `agents-md` — scoped `AGENTS.md` authoring and maintenance
-- `anti-ai-copy` — specific, natural prose that preserves voice
-- `chrome-cdp` — local browser inspection and control through CDP
-- `codex-prompt-caching` — GPT-5.6 and Codex prompt-cache review
-- `project-reference-research` — evidence-backed research in other repositories
-- `skill-creator` — reusable skill design, validation, and packaging
+- Foundations: `agents-md`, `communication`, `skill-creator`
+- Code: `codebase-hygiene`, `code-review`, `project-reference-research`, `repository-delivery`, `scratchpad`
+- Harness and agent engineering: `agent-session-diagnostics`, `agent-tool-design`, `extension-design`, `harness-checklist`, `instruction-calibration`, `prompt-caching`
+- Browser control: `chrome-cdp`
 
 `omarchy-help` is not included because it targets Arch desktops configured with Omarchy. Install `@howaboua/pi-skill-omarchy-help` separately when that matches your workstation.

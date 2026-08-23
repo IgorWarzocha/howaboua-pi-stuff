@@ -327,49 +327,34 @@
         "@earendil-works/pi-tui": ">=0.84.1",
       },
     },
-    "packages/pi-skill-agent-native-hardening": {
-      "name": "@howaboua/pi-skill-agent-native-hardening",
-      "version": "0.0.6",
-    },
-    "packages/pi-skill-agents-md": {
-      "name": "@howaboua/pi-skill-agents-md",
-      "version": "0.0.4",
-    },
-    "packages/pi-skill-anti-ai-copy": {
-      "name": "@howaboua/pi-skill-anti-ai-copy",
-      "version": "0.0.4",
-    },
     "packages/pi-skill-chrome-cdp": {
       "name": "@howaboua/pi-skill-chrome-cdp",
       "version": "0.0.4",
     },
-    "packages/pi-skill-codex-prompt-caching": {
-      "name": "@howaboua/pi-skill-codex-prompt-caching",
-      "version": "0.0.1",
+    "packages/pi-skill-code": {
+      "name": "@howaboua/pi-skill-code",
+      "version": "0.0.0",
+    },
+    "packages/pi-skill-foundations": {
+      "name": "@howaboua/pi-skill-foundations",
+      "version": "0.0.0",
+    },
+    "packages/pi-skill-harness-and-agent-engineering": {
+      "name": "@howaboua/pi-skill-harness-and-agent-engineering",
+      "version": "0.0.0",
     },
     "packages/pi-skill-omarchy-help": {
       "name": "@howaboua/pi-skill-omarchy-help",
       "version": "0.0.4",
     },
-    "packages/pi-skill-project-reference-research": {
-      "name": "@howaboua/pi-skill-project-reference-research",
-      "version": "0.0.4",
-    },
-    "packages/pi-skill-skill-creator": {
-      "name": "@howaboua/pi-skill-skill-creator",
-      "version": "0.0.5",
-    },
     "packages/pi-skills": {
       "name": "@howaboua/pi-skills",
       "version": "0.0.16",
       "dependencies": {
-        "@howaboua/pi-skill-agent-native-hardening": "0.0.5",
-        "@howaboua/pi-skill-agents-md": "0.0.4",
-        "@howaboua/pi-skill-anti-ai-copy": "0.0.4",
         "@howaboua/pi-skill-chrome-cdp": "0.0.4",
-        "@howaboua/pi-skill-codex-prompt-caching": "0.0.0",
-        "@howaboua/pi-skill-project-reference-research": "0.0.4",
-        "@howaboua/pi-skill-skill-creator": "0.0.5",
+        "@howaboua/pi-skill-code": "0.0.0",
+        "@howaboua/pi-skill-foundations": "0.0.0",
+        "@howaboua/pi-skill-harness-and-agent-engineering": "0.0.0",
       },
     },
     "packages/pi-smart-btw": {
@@ -407,13 +392,10 @@
         "@howaboua/pi-memories": "0.1.4",
         "@howaboua/pi-semantic-grep": "0.1.19",
         "@howaboua/pi-shepherdr": "0.1.2",
-        "@howaboua/pi-skill-agent-native-hardening": "0.0.6",
-        "@howaboua/pi-skill-agents-md": "0.0.4",
-        "@howaboua/pi-skill-anti-ai-copy": "0.0.4",
         "@howaboua/pi-skill-chrome-cdp": "0.0.4",
-        "@howaboua/pi-skill-codex-prompt-caching": "0.0.1",
-        "@howaboua/pi-skill-project-reference-research": "0.0.4",
-        "@howaboua/pi-skill-skill-creator": "0.0.5",
+        "@howaboua/pi-skill-code": "0.0.0",
+        "@howaboua/pi-skill-foundations": "0.0.0",
+        "@howaboua/pi-skill-harness-and-agent-engineering": "0.0.0",
         "@howaboua/pi-smart-btw": "0.2.6",
         "@howaboua/pi-subagent-review": "0.2.17",
         "@howaboua/pi-unicode-charts": "0.1.0",
@@ -696,21 +678,15 @@
 
     "@howaboua/pi-shepherdr": ["@howaboua/pi-shepherdr@workspace:packages/pi-shepherdr"],
 
-    "@howaboua/pi-skill-agent-native-hardening": ["@howaboua/pi-skill-agent-native-hardening@workspace:packages/pi-skill-agent-native-hardening"],
-
-    "@howaboua/pi-skill-agents-md": ["@howaboua/pi-skill-agents-md@workspace:packages/pi-skill-agents-md"],
-
-    "@howaboua/pi-skill-anti-ai-copy": ["@howaboua/pi-skill-anti-ai-copy@workspace:packages/pi-skill-anti-ai-copy"],
-
     "@howaboua/pi-skill-chrome-cdp": ["@howaboua/pi-skill-chrome-cdp@workspace:packages/pi-skill-chrome-cdp"],
 
-    "@howaboua/pi-skill-codex-prompt-caching": ["@howaboua/pi-skill-codex-prompt-caching@workspace:packages/pi-skill-codex-prompt-caching"],
+    "@howaboua/pi-skill-code": ["@howaboua/pi-skill-code@workspace:packages/pi-skill-code"],
+
+    "@howaboua/pi-skill-foundations": ["@howaboua/pi-skill-foundations@workspace:packages/pi-skill-foundations"],
+
+    "@howaboua/pi-skill-harness-and-agent-engineering": ["@howaboua/pi-skill-harness-and-agent-engineering@workspace:packages/pi-skill-harness-and-agent-engineering"],
 
     "@howaboua/pi-skill-omarchy-help": ["@howaboua/pi-skill-omarchy-help@workspace:packages/pi-skill-omarchy-help"],
-
-    "@howaboua/pi-skill-project-reference-research": ["@howaboua/pi-skill-project-reference-research@workspace:packages/pi-skill-project-reference-research"],
-
-    "@howaboua/pi-skill-skill-creator": ["@howaboua/pi-skill-skill-creator@workspace:packages/pi-skill-skill-creator"],
 
     "@howaboua/pi-skills": ["@howaboua/pi-skills@workspace:packages/pi-skills"],
 

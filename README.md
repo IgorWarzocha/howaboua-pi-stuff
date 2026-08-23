@@ -10,9 +10,9 @@ Pi packages run with your local permissions. You can obviously trust me, a stran
 
 | Package | Includes | Deliberate exclusions |
 |---|---|---|
-| [`@howaboua/pi-stuff`](./packages/pi-stuff) | 13 general extensions and 7 shareable skills | Codex conversion and Omarchy support |
+| [`@howaboua/pi-stuff`](./packages/pi-stuff) | 13 general extensions and 15 shareable skills | Codex conversion and Omarchy support |
 | [`@howaboua/pi-extensions`](./packages/pi-extensions) | 13 general extensions | Codex conversion |
-| [`@howaboua/pi-skills`](./packages/pi-skills) | 7 shareable skills | Omarchy support |
+| [`@howaboua/pi-skills`](./packages/pi-skills) | 15 shareable skills | Omarchy support |
 
 ```bash
 pi install npm:@howaboua/pi-stuff
@@ -47,20 +47,17 @@ pi install npm:@howaboua/pi-skills
 
 | Package | Use it for |
 |---|---|
-| [`pi-skill-agent-native-hardening`](./packages/pi-skill-agent-native-hardening) | Architecture reviews and refactors for clearer ownership and safer changes |
-| [`pi-skill-agents-md`](./packages/pi-skill-agents-md) | Creating, auditing, and pruning scoped `AGENTS.md` files |
-| [`pi-skill-anti-ai-copy`](./packages/pi-skill-anti-ai-copy) | Specific, natural prose that preserves the author's voice |
 | [`pi-skill-chrome-cdp`](./packages/pi-skill-chrome-cdp) | Inspecting and controlling a local Chrome-family browser through CDP |
-| [`pi-skill-codex-prompt-caching`](./packages/pi-skill-codex-prompt-caching) | GPT-5.6/Codex/Pi prompt-cache design and review |
-| [`pi-skill-project-reference-research`](./packages/pi-skill-project-reference-research) | Evidence-backed research in local or external repositories |
-| [`pi-skill-skill-creator`](./packages/pi-skill-skill-creator) | Creating, auditing, and packaging reusable agent skills |
+| [`pi-skill-code`](./packages/pi-skill-code) | Reviewing, changing, researching, and delivering maintained code |
+| [`pi-skill-foundations`](./packages/pi-skill-foundations) | Scoped agent guidance, clear communication, and reusable skill maintenance |
+| [`pi-skill-harness-and-agent-engineering`](./packages/pi-skill-harness-and-agent-engineering) | Diagnosing, designing, auditing, and calibrating agent harnesses |
 | [`pi-skill-omarchy-help`](./packages/pi-skill-omarchy-help) | User-level maintenance for Arch desktops configured with Omarchy |
 
 Pi discovers installed skills automatically and loads them when a task matches. Use `/skill:<name>` when you want to invoke one explicitly.
 
 ## How I use it
 
-Map an unfamiliar repo, set `/marker` once the useful context is in place, implement one coherent change, and run `/review`. After triage and QA, `/end` carries the accepted result forward. Broad changes get an `agent-native-hardening` pass.
+Map an unfamiliar repo, set `/marker` once the useful context is in place, implement one coherent change, and run `/review`. After triage and QA, `/end` carries the accepted result forward. Broad changes get a codebase-hygiene pass.
 
 For UI work, I give the agent references first—apps, screenshots, and interface details I like—then iterate through browser inspection and screenshots. One-shotting a good frontend is mostly a party trick.
 
