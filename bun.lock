@@ -327,10 +327,6 @@
         "@earendil-works/pi-tui": ">=0.84.1",
       },
     },
-    "packages/pi-skill-adversarial-qa": {
-      "name": "@howaboua/pi-skill-adversarial-qa",
-      "version": "0.0.1",
-    },
     "packages/pi-skill-agent-native-hardening": {
       "name": "@howaboua/pi-skill-agent-native-hardening",
       "version": "0.0.6",
@@ -351,18 +347,6 @@
       "name": "@howaboua/pi-skill-codex-prompt-caching",
       "version": "0.0.1",
     },
-    "packages/pi-skill-gh-issue-pr-flow": {
-      "name": "@howaboua/pi-skill-gh-issue-pr-flow",
-      "version": "0.0.7",
-    },
-    "packages/pi-skill-gh-stack": {
-      "name": "@howaboua/pi-skill-gh-stack",
-      "version": "0.0.2",
-    },
-    "packages/pi-skill-model-facing-api-design": {
-      "name": "@howaboua/pi-skill-model-facing-api-design",
-      "version": "0.0.5",
-    },
     "packages/pi-skill-omarchy-help": {
       "name": "@howaboua/pi-skill-omarchy-help",
       "version": "0.0.4",
@@ -379,15 +363,11 @@
       "name": "@howaboua/pi-skills",
       "version": "0.0.16",
       "dependencies": {
-        "@howaboua/pi-skill-adversarial-qa": "0.0.1",
         "@howaboua/pi-skill-agent-native-hardening": "0.0.5",
         "@howaboua/pi-skill-agents-md": "0.0.4",
         "@howaboua/pi-skill-anti-ai-copy": "0.0.4",
         "@howaboua/pi-skill-chrome-cdp": "0.0.4",
         "@howaboua/pi-skill-codex-prompt-caching": "0.0.0",
-        "@howaboua/pi-skill-gh-issue-pr-flow": "0.0.6",
-        "@howaboua/pi-skill-gh-stack": "0.0.0",
-        "@howaboua/pi-skill-model-facing-api-design": "0.0.5",
         "@howaboua/pi-skill-project-reference-research": "0.0.4",
         "@howaboua/pi-skill-skill-creator": "0.0.5",
       },
@@ -427,15 +407,11 @@
         "@howaboua/pi-memories": "0.1.4",
         "@howaboua/pi-semantic-grep": "0.1.19",
         "@howaboua/pi-shepherdr": "0.1.2",
-        "@howaboua/pi-skill-adversarial-qa": "0.0.1",
         "@howaboua/pi-skill-agent-native-hardening": "0.0.6",
         "@howaboua/pi-skill-agents-md": "0.0.4",
         "@howaboua/pi-skill-anti-ai-copy": "0.0.4",
         "@howaboua/pi-skill-chrome-cdp": "0.0.4",
         "@howaboua/pi-skill-codex-prompt-caching": "0.0.1",
-        "@howaboua/pi-skill-gh-issue-pr-flow": "0.0.7",
-        "@howaboua/pi-skill-gh-stack": "0.0.2",
-        "@howaboua/pi-skill-model-facing-api-design": "0.0.5",
         "@howaboua/pi-skill-project-reference-research": "0.0.4",
         "@howaboua/pi-skill-skill-creator": "0.0.5",
         "@howaboua/pi-smart-btw": "0.2.6",
@@ -720,8 +696,6 @@
 
     "@howaboua/pi-shepherdr": ["@howaboua/pi-shepherdr@workspace:packages/pi-shepherdr"],
 
-    "@howaboua/pi-skill-adversarial-qa": ["@howaboua/pi-skill-adversarial-qa@workspace:packages/pi-skill-adversarial-qa"],
-
     "@howaboua/pi-skill-agent-native-hardening": ["@howaboua/pi-skill-agent-native-hardening@workspace:packages/pi-skill-agent-native-hardening"],
 
     "@howaboua/pi-skill-agents-md": ["@howaboua/pi-skill-agents-md@workspace:packages/pi-skill-agents-md"],
@@ -731,12 +705,6 @@
     "@howaboua/pi-skill-chrome-cdp": ["@howaboua/pi-skill-chrome-cdp@workspace:packages/pi-skill-chrome-cdp"],
 
     "@howaboua/pi-skill-codex-prompt-caching": ["@howaboua/pi-skill-codex-prompt-caching@workspace:packages/pi-skill-codex-prompt-caching"],
-
-    "@howaboua/pi-skill-gh-issue-pr-flow": ["@howaboua/pi-skill-gh-issue-pr-flow@workspace:packages/pi-skill-gh-issue-pr-flow"],
-
-    "@howaboua/pi-skill-gh-stack": ["@howaboua/pi-skill-gh-stack@workspace:packages/pi-skill-gh-stack"],
-
-    "@howaboua/pi-skill-model-facing-api-design": ["@howaboua/pi-skill-model-facing-api-design@workspace:packages/pi-skill-model-facing-api-design"],
 
     "@howaboua/pi-skill-omarchy-help": ["@howaboua/pi-skill-omarchy-help@workspace:packages/pi-skill-omarchy-help"],
 

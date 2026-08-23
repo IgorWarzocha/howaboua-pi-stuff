@@ -10,9 +10,9 @@ Pi packages run with your local permissions. You can obviously trust me, a stran
 
 | Package | Includes | Deliberate exclusions |
 |---|---|---|
-| [`@howaboua/pi-stuff`](./packages/pi-stuff) | 13 general extensions and 11 shareable skills | Codex conversion and Omarchy support |
+| [`@howaboua/pi-stuff`](./packages/pi-stuff) | 13 general extensions and 7 shareable skills | Codex conversion and Omarchy support |
 | [`@howaboua/pi-extensions`](./packages/pi-extensions) | 13 general extensions | Codex conversion |
-| [`@howaboua/pi-skills`](./packages/pi-skills) | 11 shareable skills | Omarchy support |
+| [`@howaboua/pi-skills`](./packages/pi-skills) | 7 shareable skills | Omarchy support |
 
 ```bash
 pi install npm:@howaboua/pi-stuff
@@ -47,15 +47,11 @@ pi install npm:@howaboua/pi-skills
 
 | Package | Use it for |
 |---|---|
-| [`pi-skill-adversarial-qa`](./packages/pi-skill-adversarial-qa) | Falsifying code behaviour with properties, differential checks, mutation, and fuzzing |
 | [`pi-skill-agent-native-hardening`](./packages/pi-skill-agent-native-hardening) | Architecture reviews and refactors for clearer ownership and safer changes |
 | [`pi-skill-agents-md`](./packages/pi-skill-agents-md) | Creating, auditing, and pruning scoped `AGENTS.md` files |
 | [`pi-skill-anti-ai-copy`](./packages/pi-skill-anti-ai-copy) | Specific, natural prose that preserves the author's voice |
 | [`pi-skill-chrome-cdp`](./packages/pi-skill-chrome-cdp) | Inspecting and controlling a local Chrome-family browser through CDP |
 | [`pi-skill-codex-prompt-caching`](./packages/pi-skill-codex-prompt-caching) | GPT-5.6/Codex/Pi prompt-cache design and review |
-| [`pi-skill-gh-issue-pr-flow`](./packages/pi-skill-gh-issue-pr-flow) | GitHub issue, branch, PR, release, and review workflows |
-| [`pi-skill-gh-stack`](./packages/pi-skill-gh-stack) | Native GitHub stacked-PR planning, operation, and recovery |
-| [`pi-skill-model-facing-api-design`](./packages/pi-skill-model-facing-api-design) | Tool contracts that models select and call correctly |
 | [`pi-skill-project-reference-research`](./packages/pi-skill-project-reference-research) | Evidence-backed research in local or external repositories |
 | [`pi-skill-skill-creator`](./packages/pi-skill-skill-creator) | Creating, auditing, and packaging reusable agent skills |
 | [`pi-skill-omarchy-help`](./packages/pi-skill-omarchy-help) | User-level maintenance for Arch desktops configured with Omarchy |
