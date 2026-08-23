@@ -1,69 +1,26 @@
 ---
 name: omarchy-help
-description: "Omarchy workstation maintenance: Hyprland, Waybar, Walker, Mako, terminals, themes, keybindings, displays, updates, packages, devices, audio. Use for user/system troubleshooting; not Omarchy development."
+description: "Read before changing, diagnosing, maintaining, or recovering an Omarchy workstation."
 ---
 
-# Omarchy Help
+1. Identify the requested outcome and affected layer. Inspect only the relevant config, process, device, service, or log.
+2. Read the matching reference before acting:
+   - Hyprland, shell, themes, bindings, input, displays, or automation: `references/personalization.md`
+   - Update, refresh, reinstall, packages, snapshots, broad diagnostics, or staged recovery: `references/system-maintenance.md`
+   - User config lost or reset after an update: `references/config-recovery.md`
+   - Bluetooth adapter present but discovery broken: `references/bluetooth-fix.md`
+   - Process crash or core dump: `references/crash-diagnosis.md`
+   - Freeze or stalled application: `references/runtime-triage.md`
+   - Blank or locked physical display while connected remotely: `references/remote-unlock.md`
+3. Resolve symlinks, generated files, and sourced config before editing. Treat the installed Omarchy tree, commonly `/usr/share/omarchy/` or a compatibility link from `~/.local/share/omarchy/`, as read-only. Put durable customization in user-owned config. Inspect active generated state and live state, but do not mistake either for editable source.
+4. Discover current device names, services, applications, routes, and command behavior from the machine. Use `omarchy commands --json` when available and prefer a routed `omarchy <group> <command>` when it owns the task. Read an implementation before running a command with unclear replacement, removal, reset, upload, or system effects.
+5. Choose the smallest durable action. Do not turn a focused change into a health audit, update, reset, or reinstall.
+6. Routine user-config edits and scoped component reloads are part of the requested work. Confirm an unrequested config refresh, reinstall, package removal, snapshot restore, channel change, boot, security, or storage change, logout, reboot, or shutdown. Do not ask again when the user requested that exact action and its scope is clear.
+7. Preserve unrelated config. Do not create backup clutter for small edits. Preserve rollback before broad replacement only when the command does not already do so.
+8. Validate the affected component with its native config or status check, then reload or restart only when needed.
+9. For intermittent failures, inspect relevant current process state and journals before changing more config.
+10. Report the durable source changed, any reload or restart, and the observed result or exact blocker. Mention disruption, reboot requirements, generated backups, or manual follow-up only when applicable.
 
-## Operating boundaries
+Do not capture the active desktop without explicit approval. Prefer config, IPC, process, and runtime evidence.
 
-- Do not turn a focused config change or routine restart into a general health audit.
-- Treat `~/.local/share/omarchy/` as read-only reference and upstream-managed state. Official Omarchy update or reinstall commands may manage it; never patch it manually for workstation customization.
-- Read existing user config before editing. Preserve local structure, includes, overrides, and unrelated changes.
-- Discover device names, services, installed applications, theme names, and command availability from the machine. Do not assume them.
-- Routine user-config edits and scoped component reloads are authorized when they are part of the requested fix or change.
-- Confirm unrequested destructive or materially disruptive actions: config refresh/reset, reinstall, package removal, snapshot restore, channel or branch changes, boot/security/storage changes, logout, reboot, and shutdown. Do not ask again when the user explicitly requested that exact action and its scope is clear.
-- Do not use system updates, broad resets, or reinstall commands as speculative troubleshooting.
-
-## Reference
-
-Read the relevant part of `references/workstation-guide.md` before changing Omarchy-managed config, themes, packages, updates, or recovery state. It documents ownership layers, current command discovery, component validation, and the difference between restart, refresh, reinstall, and update.
-
-## Workflow
-
-1. **Identify the requested outcome and current layer.**
-   - For a precise task, inspect only the affected config, process, device, or status output.
-   - Determine whether the durable source is user config, a custom theme/template, an Omarchy command, or system state.
-   - Resolve symlinks and sourced config before editing generated or apparently duplicated files.
-
-2. **Discover local behavior only as needed.**
-   - Prefer the routed `omarchy <group> <command>` interface when it covers the task.
-   - Use `omarchy commands --json` to discover current routes, arguments, examples, and sudo requirements instead of relying on a memorized command list.
-   - When a command could overwrite files or has unclear side effects, inspect its resolved script in the installed Omarchy tree before running it.
-   - Fall back to native Arch, Hyprland, systemd, PipeWire, Bluetooth, or application tooling when Omarchy has no suitable command.
-
-3. **Choose the smallest durable action.**
-   - Edit user-owned config for customization.
-   - Use a restart or reload command to apply existing config; a restart is not a reset.
-   - Use official theme, package, update, toggle, and setup commands when they own the workflow.
-   - Use `refresh` only when replacing user config with current Omarchy defaults is the intended recovery action.
-   - Use `reinstall` only for an explicitly requested broad repair or reset.
-
-4. **Apply the change.**
-   - Keep edits scoped and preserve comments and ordering where they carry meaning.
-   - Do not create routine backup clutter for small edits. Preserve rollback before broad replacement when the command does not already do so.
-   - Use an interactive terminal for commands that require sudo, menus, or confirmation.
-
-5. **Validate the result, not the ritual.**
-   - Run the component's native config/status check when one exists.
-   - Reload or restart only the affected component unless the requested operation inherently spans the system.
-   - For visual changes, inspect a fresh screenshot when the environment supports it.
-   - For intermittent failures, inspect the relevant user/system journal and current process state before changing more config.
-
-6. **Report the durable result.**
-   - State what changed, which files or commands were involved, and whether a reload/restart occurred.
-   - Mention remaining disruption, reboot requirements, backups created by Omarchy, or a manual follow-up only when applicable.
-
-## Troubleshooting posture
-
-- Start from the failing component, not a full-machine diagnostic dump.
-- Use `omarchy debug --print --no-sudo` only when broad system context is useful. Inspect output locally; never upload or share logs without explicit authorization.
-- For failed updates, preserve the original error and inspect `/tmp/omarchy-update.log` plus `omarchy update analyze logs` before retrying.
-- If local command behavior differs from this skill, trust local command metadata and source, then avoid unsafe assumptions.
-
-## Completion check
-
-- The requested behavior works or the remaining blocker is identified with evidence.
-- Durable edits live in user-owned sources rather than generated current-state files.
-- No unrelated config, packages, services, or Omarchy upstream files changed.
-- Any destructive recovery, external upload, or system-wide action was explicitly authorized.
+Never upload diagnostics, logs, screenshots, recordings, or core dumps without explicit authorization.
