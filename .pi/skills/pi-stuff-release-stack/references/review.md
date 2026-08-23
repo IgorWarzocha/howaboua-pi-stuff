@@ -35,7 +35,7 @@ focused line. Repair focused owners bottom to top, update the cumulative head on
 ## Cull tests
 
 Inspect every added or changed test with deletion as default. Follow
-`../../gh-issue-pr-flow/SKILL.md#verification-cull`. Keep only a minimal independent contract spine
+the repository's applicable global review and delivery guidance. Keep only a minimal independent contract spine
 for plausible future faults: protocol parsing/serialization, hazardous routing/isolation, persisted
 migration, or another stable boundary with an oracle independent of the implementation.
 
@@ -58,7 +58,7 @@ material product/scope choices; never dump raw review bookkeeping.
 ## Request bot reviews
 
 Finalize focused titles, bodies, order, and heads, then post one configured request bottom to top.
-The exact command/body/account contract lives in `../../gh-issue-pr-flow/SKILL.md#codex-review`.
+Use the active GitHub account and the repository's applicable delivery guidance for review comments.
 Do not repost after routine pushes.
 
 After focused repairs converge and the stack is assembled, request a separate normal review on the
