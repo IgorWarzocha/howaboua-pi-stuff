@@ -103,6 +103,7 @@ export async function auditSessions(
         index,
         assessment,
         visibleFollow,
+        until,
       );
       incidents.push({
         ...assessment,
@@ -224,8 +225,12 @@ function errorTraces(message: JsonRecord): Trace[] {
 }
 
 function traceExitCode(trace: Trace): number | undefined {
-  if (!trace.result || typeof trace.result !== "object") return undefined;
-  const result = trace.result as JsonRecord;
+  return resultExitCode(trace.result);
+}
+
+function resultExitCode(value: unknown): number | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const result = value as JsonRecord;
   const details = result.details && typeof result.details === "object"
     ? result.details as JsonRecord
     : result;
@@ -244,10 +249,14 @@ function assess(message: JsonRecord): Assessment {
     return code !== undefined && code !== 0;
   });
   const marked = message.isError === true || failed.length > 0;
-  const exitCodes = nonzeroTraces.map(traceExitCode).filter(
-    (code): code is number => code !== undefined,
-  );
   const details = message.details as JsonRecord | undefined;
+  const directExitCode = resultExitCode(details);
+  const exitCodes = [
+    ...new Set([
+      ...nonzeroTraces.map(traceExitCode),
+      directExitCode !== 0 ? directExitCode : undefined,
+    ].filter((code): code is number => code !== undefined)),
+  ];
   const content = Array.isArray(message.content)
     ? message.content.filter((item) =>
       item && typeof item === "object" && (item as JsonRecord).type === "text"
@@ -274,7 +283,7 @@ function assess(message: JsonRecord): Assessment {
     : "direct tool";
   return {
     marked,
-    nonzero: nonzeroTraces.length > 0,
+    nonzero: exitCodes.length > 0,
     outerTool,
     leaves,
     error,
@@ -328,6 +337,7 @@ function traceRecovery(
   start: number,
   incident: Assessment,
   visibleLimit: number,
+  until: Date,
 ): { follow: Follow[]; recovery: string } {
   const follow: Follow[] = [];
   const targets = incident.source === "nested tool"
@@ -347,8 +357,9 @@ function traceRecovery(
     const stored = records[index];
     const message = messageOf(stored.value);
     if (!message) continue;
-    const timestamp = recordTimestamp(stored.value, message)?.toISOString() ??
-      "unknown";
+    const observedAt = recordTimestamp(stored.value, message);
+    if (observedAt && observedAt > until) break;
+    const timestamp = observedAt?.toISOString() ?? "unknown";
     if (message.role === "user") {
       userBoundary = true;
       if (follow.length < visibleLimit) {
