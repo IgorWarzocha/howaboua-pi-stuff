@@ -94,6 +94,14 @@ test("browser mutations preserve trusted click and safe typing boundaries", asyn
 		hitTests[0].params.functionDeclaration,
 		/root\.elementFromPoint/,
 	);
+	assert.equal(
+		calls.filter(
+			(call) =>
+				call.method === "Runtime.releaseObject" &&
+				call.params.objectId === "target",
+		).length,
+		calls.filter((call) => call.method === "DOM.resolveNode").length,
+	);
 
 	const blockedCalls = [];
 	let blockedHitTests = 0;
@@ -207,6 +215,14 @@ test("browser mutations preserve trusted click and safe typing boundaries", asyn
 			.every((call) => call.params.objectId === "field"),
 		true,
 	);
+	assert.equal(
+		typeCalls.filter(
+			(call) =>
+				call.method === "Runtime.releaseObject" &&
+				call.params.objectId === "field",
+		).length,
+		typeCalls.filter((call) => call.method === "DOM.resolveNode").length,
+	);
 	await assert.rejects(
 		typeRefStr(editable, "session", new Map([[7, 42]]), "7junk", "hello"),
 		/element id must be a positive integer/,
@@ -268,6 +284,14 @@ test("browser mutations preserve trusted click and safe typing boundaries", asyn
 	assert.equal(
 		buttonCalls.some((call) => call.method === "Input.insertText"),
 		false,
+	);
+	assert.equal(
+		buttonCalls.filter(
+			(call) =>
+				call.method === "Runtime.releaseObject" &&
+				call.params.objectId === "button",
+		).length,
+		buttonCalls.filter((call) => call.method === "DOM.resolveNode").length,
 	);
 });
 

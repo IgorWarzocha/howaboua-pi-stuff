@@ -99,50 +99,59 @@ async function resolveBackendObject(cdp, sid, backendNodeId) {
   return object.objectId;
 }
 
-async function scrollBackendIntoView(cdp, sid, backendNodeId) {
+async function withBackendObject(cdp, sid, backendNodeId, action) {
   const objectId = await resolveBackendObject(cdp, sid, backendNodeId);
-  await cdp.send('Runtime.callFunctionOn', {
-    objectId,
-    functionDeclaration: 'function() { this.scrollIntoView({block: "center", inline: "center"}); }',
-  }, sid);
+  try {
+    return await action(objectId);
+  } finally {
+    await cdp.send('Runtime.releaseObject', { objectId }, sid).catch(() => {});
+  }
+}
+
+async function scrollBackendIntoView(cdp, sid, backendNodeId) {
+  await withBackendObject(cdp, sid, backendNodeId, (objectId) =>
+    cdp.send('Runtime.callFunctionOn', {
+      objectId,
+      functionDeclaration: 'function() { this.scrollIntoView({block: "center", inline: "center"}); }',
+    }, sid));
   await sleep(50);
 }
 
 async function backendCenter(cdp, sid, backendNodeId, scroll = true) {
   if (scroll) await scrollBackendIntoView(cdp, sid, backendNodeId);
-  const objectId = await resolveBackendObject(cdp, sid, backendNodeId);
-  const result = await cdp.send('Runtime.callFunctionOn', {
-    objectId,
-    functionDeclaration: `function() {
-      const rect = this.getBoundingClientRect();
-      const style = getComputedStyle(this);
-      const disabled = this.matches(':disabled') || this.getAttribute('aria-disabled') === 'true';
-      const hidden = rect.width <= 0 || rect.height <= 0 || style.display === 'none' ||
-        style.visibility === 'hidden' || style.visibility === 'collapse' ||
-        style.pointerEvents === 'none' || Number(style.opacity) === 0 ||
-        this.closest('[inert]') !== null;
-      if (hidden) return { ok: false, error: 'Element is not visible or interactable' };
-      if (disabled) return { ok: false, error: 'Element is disabled' };
-      const x = rect.left + rect.width / 2;
-      const y = rect.top + rect.height / 2;
-      const root = this.getRootNode();
-      const hit = root && typeof root.elementFromPoint === 'function'
-        ? root.elementFromPoint(x, y)
-        : this.ownerDocument.elementFromPoint(x, y);
-      if (!hit || (hit !== this && !this.contains(hit))) {
-        const blocker = hit ? '<' + hit.tagName.toLowerCase() + '>' : 'no element';
-        return { ok: false, error: 'Element center is covered by ' + blocker };
-      }
-      return {
-        ok: true,
-        x,
-        y,
-        tag: this.tagName,
-        text: (this.textContent || '').trim().substring(0, 80)
-      };
-    }`,
-    returnByValue: true,
-  }, sid);
+  const result = await withBackendObject(cdp, sid, backendNodeId, (objectId) =>
+    cdp.send('Runtime.callFunctionOn', {
+      objectId,
+      functionDeclaration: `function() {
+        const rect = this.getBoundingClientRect();
+        const style = getComputedStyle(this);
+        const disabled = this.matches(':disabled') || this.getAttribute('aria-disabled') === 'true';
+        const hidden = rect.width <= 0 || rect.height <= 0 || style.display === 'none' ||
+          style.visibility === 'hidden' || style.visibility === 'collapse' ||
+          style.pointerEvents === 'none' || Number(style.opacity) === 0 ||
+          this.closest('[inert]') !== null;
+        if (hidden) return { ok: false, error: 'Element is not visible or interactable' };
+        if (disabled) return { ok: false, error: 'Element is disabled' };
+        const x = rect.left + rect.width / 2;
+        const y = rect.top + rect.height / 2;
+        const root = this.getRootNode();
+        const hit = root && typeof root.elementFromPoint === 'function'
+          ? root.elementFromPoint(x, y)
+          : this.ownerDocument.elementFromPoint(x, y);
+        if (!hit || (hit !== this && !this.contains(hit))) {
+          const blocker = hit ? '<' + hit.tagName.toLowerCase() + '>' : 'no element';
+          return { ok: false, error: 'Element center is covered by ' + blocker };
+        }
+        return {
+          ok: true,
+          x,
+          y,
+          tag: this.tagName,
+          text: (this.textContent || '').trim().substring(0, 80)
+        };
+      }`,
+      returnByValue: true,
+    }, sid));
   const point = result.result?.value;
   if (!point?.ok) throw new Error(point?.error || 'Element has no clickable box');
   return point;
@@ -210,12 +219,12 @@ async function htmlStr(cdp, sid, selector) {
 
 async function htmlRefStr(cdp, sid, elementRefs, id) {
   const ref = requireElementRef(elementRefs, id);
-  const objectId = await resolveBackendObject(cdp, sid, ref.backendNodeId);
-  const result = await cdp.send('Runtime.callFunctionOn', {
-    objectId,
-    functionDeclaration: 'function() { return this.outerHTML; }',
-    returnByValue: true,
-  }, sid);
+  const result = await withBackendObject(cdp, sid, ref.backendNodeId, (objectId) =>
+    cdp.send('Runtime.callFunctionOn', {
+      objectId,
+      functionDeclaration: 'function() { return this.outerHTML; }',
+      returnByValue: true,
+    }, sid));
   return result.result?.value || '';
 }
 
@@ -394,56 +403,57 @@ async function typeRefStr(cdp, sid, elementRefs, id, text) {
   if (text == null || text === '') throw new Error('text required');
   const ref = requireElementRef(elementRefs, id);
   await backendCenter(cdp, sid, ref.backendNodeId);
-  const objectId = await resolveBackendObject(cdp, sid, ref.backendNodeId);
-  const focusState = (await cdp.send('Runtime.callFunctionOn', {
-    objectId,
-    functionDeclaration: `function() {
-      const tag = this.tagName;
-      const inputTypes = new Set(['text', 'search', 'email', 'url', 'tel', 'password', 'number']);
-      const input = tag === 'INPUT' && inputTypes.has((this.type || 'text').toLowerCase());
-      const textarea = tag === 'TEXTAREA';
-      const contentEditable = this.isContentEditable;
-      if (!input && !textarea && !contentEditable)
-        return { ok: false, error: '<' + tag + '> is not editable' };
-      if ((input || textarea) && (this.disabled || this.readOnly))
-        return { ok: false, error: '<' + tag + '> is disabled or read-only' };
-      this.focus({ preventScroll: true });
-      const root = this.getRootNode();
-      if (root.activeElement !== this && this.ownerDocument.activeElement !== this)
-        return { ok: false, error: 'Could not focus editable <' + tag + '>' };
-      const before = input || textarea ? this.value : this.textContent;
-      return { ok: true, tag, before };
-    }`,
-    returnByValue: true,
-  }, sid)).result?.value;
-  if (!focusState?.ok) throw new Error(focusState?.error || 'Element is not editable');
-  const activeBefore = (await cdp.send('Runtime.callFunctionOn', {
-    objectId,
-    functionDeclaration: `function() {
-      const root = this.getRootNode();
-      return root.activeElement === this || this.ownerDocument.activeElement === this;
-    }`,
-    returnByValue: true,
-  }, sid)).result?.value;
-  if (!activeBefore) throw new Error('Focus changed before typing; input was not sent');
+  return withBackendObject(cdp, sid, ref.backendNodeId, async (objectId) => {
+    const focusState = (await cdp.send('Runtime.callFunctionOn', {
+      objectId,
+      functionDeclaration: `function() {
+        const tag = this.tagName;
+        const inputTypes = new Set(['text', 'search', 'email', 'url', 'tel', 'password', 'number']);
+        const input = tag === 'INPUT' && inputTypes.has((this.type || 'text').toLowerCase());
+        const textarea = tag === 'TEXTAREA';
+        const contentEditable = this.isContentEditable;
+        if (!input && !textarea && !contentEditable)
+          return { ok: false, error: '<' + tag + '> is not editable' };
+        if ((input || textarea) && (this.disabled || this.readOnly))
+          return { ok: false, error: '<' + tag + '> is disabled or read-only' };
+        this.focus({ preventScroll: true });
+        const root = this.getRootNode();
+        if (root.activeElement !== this && this.ownerDocument.activeElement !== this)
+          return { ok: false, error: 'Could not focus editable <' + tag + '>' };
+        const before = input || textarea ? this.value : this.textContent;
+        return { ok: true, tag, before };
+      }`,
+      returnByValue: true,
+    }, sid)).result?.value;
+    if (!focusState?.ok) throw new Error(focusState?.error || 'Element is not editable');
+    const activeBefore = (await cdp.send('Runtime.callFunctionOn', {
+      objectId,
+      functionDeclaration: `function() {
+        const root = this.getRootNode();
+        return root.activeElement === this || this.ownerDocument.activeElement === this;
+      }`,
+      returnByValue: true,
+    }, sid)).result?.value;
+    if (!activeBefore) throw new Error('Focus changed before typing; input was not sent');
 
-  await cdp.send('Input.insertText', { text }, sid);
-  const after = (await cdp.send('Runtime.callFunctionOn', {
-    objectId,
-    functionDeclaration: `function(before) {
-      const root = this.getRootNode();
-      const active = root.activeElement === this || this.ownerDocument.activeElement === this;
-      const value = this.tagName === 'INPUT' || this.tagName === 'TEXTAREA'
-        ? this.value
-        : this.textContent;
-      return { active, changed: value !== before };
-    }`,
-    arguments: [{ value: focusState.before }],
-    returnByValue: true,
-  }, sid)).result?.value;
-  if (!after?.active) throw new Error('Focus changed while typing; input result could not be verified');
-  if (!after.changed) throw new Error(`Input.insertText completed but referenced <${focusState.tag}> did not change`);
-  return `Typed ${text.length} characters into referenced <${focusState.tag}>`;
+    await cdp.send('Input.insertText', { text }, sid);
+    const after = (await cdp.send('Runtime.callFunctionOn', {
+      objectId,
+      functionDeclaration: `function(before) {
+        const root = this.getRootNode();
+        const active = root.activeElement === this || this.ownerDocument.activeElement === this;
+        const value = this.tagName === 'INPUT' || this.tagName === 'TEXTAREA'
+          ? this.value
+          : this.textContent;
+        return { active, changed: value !== before };
+      }`,
+      arguments: [{ value: focusState.before }],
+      returnByValue: true,
+    }, sid)).result?.value;
+    if (!after?.active) throw new Error('Focus changed while typing; input result could not be verified');
+    if (!after.changed) throw new Error(`Input.insertText completed but referenced <${focusState.tag}> did not change`);
+    return `Typed ${text.length} characters into referenced <${focusState.tag}>`;
+  });
 }
 
 // Load-more: repeatedly click a button/selector until it disappears

@@ -132,6 +132,13 @@ async function runDaemon(targetId, discoveryRecovery) {
     }
   }
 
+  let commandQueue = Promise.resolve();
+  function enqueueCommand(request) {
+    const pending = commandQueue.then(() => handleCommand(request));
+    commandQueue = pending.then(() => undefined, () => undefined);
+    return pending;
+  }
+
   // Unix socket server — NDJSON protocol
   // Wire format: each message is one JSON object followed by \n (newline-delimited JSON).
   // Request:  { "id": <number>, "cmd": "<command>", "args": ["arg1", "arg2", ...] }
@@ -152,7 +159,7 @@ async function runDaemon(targetId, discoveryRecovery) {
           conn.write(JSON.stringify({ ok: false, error: 'Invalid JSON request', id: null }) + '\n');
           continue;
         }
-        handleCommand(req).then((res) => {
+        enqueueCommand(req).then((res) => {
           const payload = JSON.stringify({ ...res, id: req.id }) + '\n';
           if (res.stopAfter) conn.end(payload, shutdown);
           else conn.write(payload);

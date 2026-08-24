@@ -81,7 +81,7 @@ export async function auditSessions(
       const message = messageOf(stored.value);
       if (!message || message.role !== "toolResult") continue;
       const timestamp = recordTimestamp(stored.value, message);
-      if (!timestamp || timestamp < since || timestamp > until) continue;
+      if (!timestamp || timestamp <= since || timestamp > until) continue;
       toolResults++;
 
       const assessment = assess(message);
