@@ -18,7 +18,7 @@ const AUTH: CodexVoiceAuth = {
 	officialCodex: false,
 };
 
-test("only an established realtime transport failure is a resumable drop", async () => {
+test("active realtime speech stays ordered until a resumable drop", async () => {
 	const startup = createConversation("closed");
 	await startup.session.start(
 		AUTH,
@@ -34,6 +34,28 @@ test("only an established realtime transport failure is a resumable drop", async
 		DEFAULT_GIPPITY_CONTROL_CONFIG,
 		"instructions",
 	);
+	active.session.piInput("Typed request", true);
+	active.session.agentProgress("First useful update");
+	active.session.agentProgress("Routine follow-on update");
+	active.session.agentResult("Finished result");
+	assert.deepEqual(active.peer.sentText(), [
+		[
+			"session.context.append",
+			"commentary",
+			"<pi_steer>\n  <input>Typed request</input>\n  <routing>already delivered to the active Pi run; update context, do not delegate it, and wait for authoritative Pi updates</routing>\n</pi_steer>",
+		],
+		["session.context.append", "speakable", "First useful update"],
+		["session.context.append", "commentary", "Routine follow-on update"],
+	]);
+	active.peer.emit({
+		type: "data",
+		message: { type: "turn.done", turn: { role: "assistant" } },
+	});
+	assert.deepEqual(active.peer.sentText().at(-1), [
+		"session.context.append",
+		"speakable",
+		"Finished result",
+	]);
 	active.session.markEstablished();
 	active.peer.emit({
 		type: "error",
@@ -73,6 +95,7 @@ function createConversation(answerState: "ready" | "closed"): {
 
 class FakeRealtimePeer implements CodexRealtimeWebRtcPeer {
 	readonly kind = "webrtc" as const;
+	private readonly sent: unknown[] = [];
 	private readonly answerState: "ready" | "closed";
 	private readonly eventListeners = new Set<
 		(event: CodexRealtimePeerEvent) => void
@@ -105,7 +128,17 @@ class FakeRealtimePeer implements CodexRealtimeWebRtcPeer {
 		for (const listener of this.eventListeners) listener(event);
 	}
 
-	sendData(): void {}
+	sendData(message: unknown): void {
+		this.sent.push(message);
+	}
+
+	sentText(): [unknown, unknown, unknown][] {
+		return this.sent.map((value) => {
+			const message = value as Record<string, unknown>;
+			const content = message["content"] as Array<Record<string, unknown>>;
+			return [message["type"], message["channel"], content[0]?.["text"]];
+		});
+	}
 	setInputMuted(): void {}
 	async close(): Promise<void> {}
 }
