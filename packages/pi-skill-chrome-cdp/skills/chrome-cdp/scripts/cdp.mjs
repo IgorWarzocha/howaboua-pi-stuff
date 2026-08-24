@@ -10,15 +10,21 @@
 import { readFileSync, writeFileSync, unlinkSync, existsSync, mkdirSync } from 'fs';
 import { homedir } from 'os';
 import { resolve } from 'path';
+import { fileURLToPath } from 'url';
 import { spawn } from 'child_process';
 import http from 'http';
 import net from 'net';
 
 const TIMEOUT = 15000;
+const RETRYABLE_TIMEOUT_METHODS = new Set([
+  'Accessibility.getFullAXTree',
+  'Page.captureScreenshot',
+  'Runtime.enable',
+]);
 const NAVIGATION_TIMEOUT = 30000;
 const IDLE_TIMEOUT = 20 * 60 * 1000;
-const DAEMON_CONNECT_RETRIES = 20;
 const DAEMON_CONNECT_DELAY = 300;
+const DAEMON_CONNECT_TIMEOUT = TIMEOUT + 2000;
 const MIN_TARGET_PREFIX_LEN = 8;
 const IS_WINDOWS = process.platform === 'win32';
 if (!IS_WINDOWS) process.umask(0o077);
@@ -107,7 +113,7 @@ async function getWsUrl() {
   ].filter(Boolean);
   const host = process.env.CDP_HOST || '127.0.0.1';
 
-  // Prefer the fixed debugging port used by this workstation's Chromium setup.
+  // Prefer a fixed debugging port for deterministic one-shot access.
   // This gives agents deterministic one-shot access to the logged-in browser.
   const ports = [process.env.CDP_PORT || '9222'];
   const errors = [];
@@ -129,7 +135,6 @@ async function getWsUrl() {
 }
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-
 
 function resolvePrefix(prefix, candidates, noun = 'target', missingHint = '') {
   const upper = prefix.toUpperCase();
@@ -158,6 +163,23 @@ function getDisplayPrefixLength(targetIds) {
 // CDP WebSocket client
 // ---------------------------------------------------------------------------
 
+class CDPTimeoutError extends Error {}
+
+export function cdpTimeoutAttempts(method) {
+  return RETRYABLE_TIMEOUT_METHODS.has(method) ? 2 : 1;
+}
+
+function commandTimeoutError(method, attempts) {
+  const seconds = TIMEOUT / 1000;
+  if (attempts > 1) {
+    return new Error(`Chrome did not answer ${method} after two ${seconds}s attempts. The tab may be unresponsive or suspended.`);
+  }
+  if (method === 'Runtime.evaluate') {
+    return new Error(`Chrome did not answer Runtime.evaluate within ${seconds}s. The expression or awaited promise may still be running; check its effect before retrying.`);
+  }
+  return new Error(`Chrome did not answer ${method} within ${seconds}s.`);
+}
+
 class CDP {
   #ws; #id = 0; #pending = new Map(); #eventHandlers = new Map(); #closeHandlers = [];
 
@@ -184,13 +206,26 @@ class CDP {
     });
   }
 
-  send(method, params = {}, sessionId) {
+  async send(method, params = {}, sessionId) {
+    const attempts = cdpTimeoutAttempts(method);
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      try {
+        return await this.#sendOnce(method, params, sessionId);
+      } catch (error) {
+        if (!(error instanceof CDPTimeoutError)) throw error;
+        if (attempt === attempts) throw commandTimeoutError(method, attempts);
+        await sleep(100);
+      }
+    }
+  }
+
+  #sendOnce(method, params = {}, sessionId) {
     const id = ++this.#id;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         if (this.#pending.has(id)) {
           this.#pending.delete(id);
-          reject(new Error(`Timeout: ${method}`));
+          reject(new CDPTimeoutError(method));
         }
       }, TIMEOUT);
       this.#pending.set(id, { resolve, reject, timer });
@@ -280,6 +315,15 @@ function formatPageList(pages) {
   }).join('\n');
 }
 
+function formatPagesJson(pages) {
+  const prefixLen = getDisplayPrefixLength(pages.map(p => p.targetId));
+  return JSON.stringify(pages.map(p => ({
+    ref_id: p.targetId.slice(0, prefixLen),
+    title: p.title,
+    url: p.url,
+  })));
+}
+
 function shouldShowAxNode(node, compact = false) {
   const role = node.role?.value || '';
   const name = node.name?.value ?? '';
@@ -318,7 +362,26 @@ function orderedAxChildren(node, nodesById, childrenByParent) {
   return children;
 }
 
-async function snapshotStr(cdp, sid, compact = false) {
+const INTERACTIVE_ROLES = new Set([
+  'button', 'checkbox', 'combobox', 'link', 'listbox', 'menuitem', 'option',
+  'radio', 'searchbox', 'slider', 'spinbutton', 'switch', 'tab', 'textbox',
+  'treeitem',
+]);
+const SNAPSHOT_LIMITS = { short: 60, medium: 140, long: 300 };
+
+function normalizeSnapshotText(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function splitSnapshotText(value, max = 700) {
+  const text = normalizeSnapshotText(value);
+  if (!text) return [];
+  const parts = [];
+  for (let start = 0; start < text.length; start += max) parts.push(text.slice(start, start + max));
+  return parts;
+}
+
+async function snapshotData(cdp, sid, elementRefs, options = {}) {
   const { nodes } = await cdp.send('Accessibility.getFullAXTree', {}, sid);
   const nodesById = new Map(nodes.map(node => [node.nodeId, node]));
   const childrenByParent = new Map();
@@ -328,14 +391,57 @@ async function snapshotStr(cdp, sid, compact = false) {
     childrenByParent.get(node.parentId).push(node);
   }
 
+  elementRefs.clear();
   const lines = [];
+  const elements = [];
   const visited = new Set();
-  function visit(node, depth) {
+  let nextElementId = 1;
+  function addLine(text, element, kind = 'text') {
+    for (const part of splitSnapshotText(text)) {
+      const line = { line: lines.length + 1, text: part, kind };
+      if (element) line.element_id = element.id;
+      lines.push(line);
+    }
+  }
+  function addStaticText(text) {
+    const normalized = normalizeSnapshotText(text);
+    if (!normalized) return;
+    const previous = lines.at(-1);
+    if (previous?.kind === 'text' && previous.text.length + normalized.length + 1 <= 700) {
+      previous.text += ` ${normalized}`;
+      return;
+    }
+    addLine(normalized);
+  }
+  function visit(node, depth, parentName = '') {
     if (!node || visited.has(node.nodeId)) return;
     visited.add(node.nodeId);
-    if (shouldShowAxNode(node, compact)) lines.push(formatAxNode(node, depth));
+    const role = node.role?.value || '';
+    const name = normalizeSnapshotText(node.name?.value ?? '');
+    const value = node.value?.value;
+    let renderedName = parentName;
+    if (!node.ignored && shouldShowAxNode(node, true)) {
+      const interactive = INTERACTIVE_ROLES.has(role) && node.backendDOMNodeId;
+      if (interactive) {
+        const element = {
+          id: nextElementId++,
+          role,
+          ...(name ? { name } : {}),
+          ...(value === '' || value == null ? {} : { value }),
+        };
+        elementRefs.set(element.id, node.backendDOMNodeId);
+        elements.push(element);
+        addLine(`[${element.id}] ${role}${name ? ` ${name}` : ''}${value === '' || value == null ? '' : ` = ${JSON.stringify(value)}`}`, element, 'interactive');
+        renderedName = name;
+      } else if (role === 'StaticText') {
+        if (name && name !== parentName) addStaticText(name);
+      } else if (role === 'heading' || role === 'image') {
+        if (name) addLine(`${role}: ${name}`, undefined, role);
+        renderedName = name || parentName;
+      }
+    }
     for (const child of orderedAxChildren(node, nodesById, childrenByParent)) {
-      visit(child, depth + 1);
+      visit(child, depth + 1, renderedName);
     }
   }
 
@@ -343,7 +449,45 @@ async function snapshotStr(cdp, sid, compact = false) {
   for (const root of roots) visit(root, 0);
   for (const node of nodes) visit(node, 0);
 
-  return lines.join('\n');
+  const metadata = JSON.parse(await evalStr(cdp, sid, '({title: document.title, url: location.href})'));
+  const pattern = options.pattern?.toLowerCase();
+  const matching = pattern
+    ? lines.filter(line => line.text.toLowerCase().includes(pattern))
+    : lines;
+  const start = Math.max(0, (options.lineno || 1) - 1);
+  const limit = SNAPSHOT_LIMITS[options.responseLength] || SNAPSHOT_LIMITS.medium;
+  const content = matching.slice(start, start + limit).map(({ kind: _kind, ...line }) => line);
+  const visibleIds = new Set(content.map(line => line.element_id).filter(Boolean));
+  const visibleElements = elements.filter(element => visibleIds.has(element.id));
+  const hasMore = start + content.length < matching.length;
+  return {
+    ref_id: options.refId,
+    title: metadata.title,
+    url: metadata.url,
+    lineno: start + 1,
+    content,
+    elements: visibleElements,
+    ...(pattern ? { pattern: options.pattern } : {}),
+    ...(hasMore ? { next_lineno: start + content.length + 1 } : {}),
+  };
+}
+
+async function snapshotStr(cdp, sid, elementRefs, refId, lineno, responseLength) {
+  return JSON.stringify(await snapshotData(cdp, sid, elementRefs, {
+    refId,
+    lineno: Number.parseInt(lineno || '1', 10),
+    responseLength,
+  }));
+}
+
+async function findStr(cdp, sid, elementRefs, refId, pattern, lineno, responseLength) {
+  if (!pattern) throw new Error('pattern required');
+  return JSON.stringify(await snapshotData(cdp, sid, elementRefs, {
+    refId,
+    pattern,
+    lineno: Number.parseInt(lineno || '1', 10),
+    responseLength,
+  }));
 }
 
 async function evalStr(cdp, sid, expression) {
@@ -440,11 +584,81 @@ async function shotElementStr(cdp, sid, selector, filePath, targetId) {
   ]);
 }
 
+function requireElementRef(elementRefs, id) {
+  const parsed = Number.parseInt(id, 10);
+  const backendNodeId = elementRefs.get(parsed);
+  if (!backendNodeId) throw new Error(`Unknown element id ${id}; run open again and use a current element id`);
+  return { id: parsed, backendNodeId };
+}
+
+async function resolveBackendObject(cdp, sid, backendNodeId) {
+  const { object } = await cdp.send('DOM.resolveNode', { backendNodeId }, sid);
+  if (!object?.objectId) throw new Error('Element is no longer available; run open again');
+  return object.objectId;
+}
+
+async function scrollBackendIntoView(cdp, sid, backendNodeId) {
+  const objectId = await resolveBackendObject(cdp, sid, backendNodeId);
+  await cdp.send('Runtime.callFunctionOn', {
+    objectId,
+    functionDeclaration: 'function() { this.scrollIntoView({block: "center", inline: "center"}); }',
+  }, sid);
+  await sleep(50);
+}
+
+async function backendCenter(cdp, sid, backendNodeId) {
+  await scrollBackendIntoView(cdp, sid, backendNodeId);
+  const { model } = await cdp.send('DOM.getBoxModel', { backendNodeId }, sid);
+  const quad = model?.content || model?.border;
+  if (!Array.isArray(quad) || quad.length < 8) throw new Error('Element has no clickable box');
+  return {
+    x: (quad[0] + quad[2] + quad[4] + quad[6]) / 4,
+    y: (quad[1] + quad[3] + quad[5] + quad[7]) / 4,
+  };
+}
+
+async function shotRefStr(cdp, sid, elementRefs, id, filePath, targetId) {
+  const ref = requireElementRef(elementRefs, id);
+  await scrollBackendIntoView(cdp, sid, ref.backendNodeId);
+  const { model } = await cdp.send('DOM.getBoxModel', { backendNodeId: ref.backendNodeId }, sid);
+  const quad = model?.border;
+  if (!Array.isArray(quad) || quad.length < 8) throw new Error('Element has no screenshot box');
+  const xs = [quad[0], quad[2], quad[4], quad[6]];
+  const ys = [quad[1], quad[3], quad[5], quad[7]];
+  const x = Math.max(0, Math.min(...xs) - 10);
+  const y = Math.max(0, Math.min(...ys) - 10);
+  const width = Math.max(1, Math.max(...xs) - Math.min(...xs) + 20);
+  const height = Math.max(1, Math.max(...ys) - Math.min(...ys) + 20);
+  const dpr = await getDpr(cdp, sid);
+  const { data } = await cdp.send('Page.captureScreenshot', {
+    format: 'png', clip: { x, y, width, height, scale: 1 },
+  }, sid);
+  const out = filePath || resolve(RUNTIME_DIR, `screenshot-${(targetId || 'unknown').slice(0, 8)}-element.png`);
+  writeFileSync(out, Buffer.from(data, 'base64'));
+  return screenshotReport(out, dpr, [`Element screenshot saved for id: ${ref.id}`]);
+}
+
 async function htmlStr(cdp, sid, selector) {
-  const expr = selector
-    ? `document.querySelector(${JSON.stringify(selector)})?.outerHTML || 'Element not found'`
-    : `document.documentElement.outerHTML`;
-  return evalStr(cdp, sid, expr);
+  if (!selector) return evalStr(cdp, sid, 'document.documentElement.outerHTML');
+  const result = JSON.parse(await evalStr(cdp, sid, `
+    (() => {
+      const element = document.querySelector(${JSON.stringify(selector)});
+      return element ? { ok: true, html: element.outerHTML } : { ok: false };
+    })()
+  `));
+  if (!result.ok) throw new Error(`Element not found: ${selector}`);
+  return result.html;
+}
+
+async function htmlRefStr(cdp, sid, elementRefs, id) {
+  const ref = requireElementRef(elementRefs, id);
+  const objectId = await resolveBackendObject(cdp, sid, ref.backendNodeId);
+  const result = await cdp.send('Runtime.callFunctionOn', {
+    objectId,
+    functionDeclaration: 'function() { return this.outerHTML; }',
+    returnByValue: true,
+  }, sid);
+  return result.result?.value || '';
 }
 
 async function waitForDocumentReady(cdp, sid, timeoutMs = NAVIGATION_TIMEOUT) {
@@ -527,28 +741,29 @@ async function clickStr(cdp, sid, selector) {
       if (hidden) return { ok: false, error: 'Element is not visible or interactable: ' + selector };
       if (disabled) return { ok: false, error: 'Element is disabled: ' + selector };
 
-      const textInputTypes = new Set(['text', 'search', 'email', 'url', 'tel', 'password', 'number']);
-      const textControl = el.tagName === 'TEXTAREA' || el.isContentEditable ||
-        (el.tagName === 'INPUT' && textInputTypes.has((el.type || 'text').toLowerCase()));
-      if (textControl) {
-        el.focus({ preventScroll: true });
-        if (document.activeElement !== el) {
-          return { ok: false, error: 'Element could not receive focus: ' + selector };
-        }
-      }
-      el.click();
+      const x = rect.left + rect.width / 2;
+      const y = rect.top + rect.height / 2;
       return {
         ok: true,
         tag: el.tagName,
         text: el.textContent.trim().substring(0, 80),
-        focused: document.activeElement === el
+        x,
+        y
       };
     })()
   `;
   const result = await evalStr(cdp, sid, expr);
   const r = JSON.parse(result);
   if (!r.ok) throw new Error(r.error);
-  return `Clicked <${r.tag}> "${r.text}"${r.focused ? ' and focused it' : ''}`;
+  await clickXyStr(cdp, sid, r.x, r.y);
+  return `Clicked <${r.tag}> "${r.text}"`;
+}
+
+async function clickRefStr(cdp, sid, elementRefs, id) {
+  const ref = requireElementRef(elementRefs, id);
+  const point = await backendCenter(cdp, sid, ref.backendNodeId);
+  await clickXyStr(cdp, sid, point.x, point.y);
+  return `Clicked element ${ref.id}`;
 }
 
 // Click at CSS pixel coordinates using Input.dispatchMouseEvent
@@ -619,31 +834,32 @@ async function typeStr(cdp, sid, text) {
   return `Typed ${text.length} characters into focused <${focusState.tag}>`;
 }
 
+async function typeRefStr(cdp, sid, elementRefs, id, text) {
+  await clickRefStr(cdp, sid, elementRefs, id);
+  return typeStr(cdp, sid, text);
+}
+
 // Load-more: repeatedly click a button/selector until it disappears
 async function loadAllStr(cdp, sid, selector, intervalMs = 1500) {
   if (!selector) throw new Error('CSS selector required');
   let clicks = 0;
+  let disappeared = false;
   const deadline = Date.now() + 5 * 60 * 1000; // 5-minute hard cap
   while (Date.now() < deadline) {
     const exists = await evalStr(cdp, sid,
       `!!document.querySelector(${JSON.stringify(selector)})`
     );
-    if (exists !== 'true') break;
-    const clickExpr = `
-      (function() {
-        const el = document.querySelector(${JSON.stringify(selector)});
-        if (!el) return false;
-        el.scrollIntoView({ block: 'center' });
-        el.click();
-        return true;
-      })()
-    `;
-    const clicked = await evalStr(cdp, sid, clickExpr);
-    if (clicked !== 'true') break;
+    if (exists !== 'true') {
+      disappeared = true;
+      break;
+    }
+    await clickStr(cdp, sid, selector);
     clicks++;
     await sleep(intervalMs);
   }
-  return `Clicked "${selector}" ${clicks} time(s) until it disappeared`;
+  return disappeared
+    ? `Clicked "${selector}" ${clicks} time(s) until it disappeared`
+    : `Clicked "${selector}" ${clicks} time(s); stopped at the five-minute deadline while it was still present`;
 }
 
 // Send a raw CDP command and return the result as JSON
@@ -682,6 +898,8 @@ async function runDaemon(targetId) {
     cdp.close();
     process.exit(1);
   }
+
+  const elementRefs = new Map();
 
   // Shutdown helpers
   let alive = true;
@@ -728,16 +946,26 @@ async function runDaemon(targetId) {
           result = JSON.stringify(pages);
           break;
         }
-        case 'snap': case 'snapshot': result = await snapshotStr(cdp, sessionId, true); break;
+        case 'tabsjson': {
+          const pages = await getPages(cdp);
+          result = formatPagesJson(pages);
+          break;
+        }
+        case 'snap': case 'snapshot': result = await snapshotStr(cdp, sessionId, elementRefs, targetId.slice(0, 8), args[0], args[1]); break;
+        case 'find': result = await findStr(cdp, sessionId, elementRefs, targetId.slice(0, 8), args[0], args[1], args[2]); break;
         case 'eval': result = await evalStr(cdp, sessionId, args[0]); break;
         case 'shot': case 'screenshot': result = await shotStr(cdp, sessionId, args[0], targetId); break;
         case 'shotel': case 'screenshot-element': case 'elementshot': result = await shotElementStr(cdp, sessionId, args[0], args[1], targetId); break;
+        case 'shotref': result = await shotRefStr(cdp, sessionId, elementRefs, args[0], args[1], targetId); break;
         case 'html': result = await htmlStr(cdp, sessionId, args[0]); break;
+        case 'htmlref': result = await htmlRefStr(cdp, sessionId, elementRefs, args[0]); break;
         case 'nav': case 'navigate': result = await navStr(cdp, sessionId, args[0]); break;
         case 'net': case 'network': result = await netStr(cdp, sessionId); break;
         case 'click': result = await clickStr(cdp, sessionId, args[0]); break;
+        case 'clickref': result = await clickRefStr(cdp, sessionId, elementRefs, args[0]); break;
         case 'clickxy': result = await clickXyStr(cdp, sessionId, args[0], args[1]); break;
         case 'type': result = await typeStr(cdp, sessionId, args[0]); break;
+        case 'typeref': result = await typeRefStr(cdp, sessionId, elementRefs, args[0], args[1]); break;
         case 'loadall': result = await loadAllStr(cdp, sessionId, args[0], args[1] ? parseInt(args[1]) : 1500); break;
         case 'evalraw': result = await evalRawStr(cdp, sessionId, args[0], args[1]); break;
         case 'stop': return { ok: true, result: '', stopAfter: true };
@@ -745,10 +973,7 @@ async function runDaemon(targetId) {
       }
       return { ok: true, result: result ?? '' };
     } catch (e) {
-      const error = e.message.startsWith('Timeout:')
-        ? `${e.message}. Chrome may be waiting for "Allow debugging" approval, or the tab may be sleeping.`
-        : e.message;
-      return { ok: false, error };
+      return { ok: false, error: e.message };
     }
   }
 
@@ -817,12 +1042,12 @@ async function getOrStartTabDaemon(targetId) {
   });
   child.unref();
 
-  // Wait for socket (includes time for user to click Allow)
-  for (let i = 0; i < DAEMON_CONNECT_RETRIES; i++) {
+  const deadline = Date.now() + DAEMON_CONNECT_TIMEOUT;
+  while (Date.now() < deadline) {
     await sleep(DAEMON_CONNECT_DELAY);
     try { return await connectToSocket(sp); } catch {}
   }
-  throw new Error('Daemon failed to start — did you click Allow in Chrome?');
+  throw new Error(`Tab bridge did not become ready within ${DAEMON_CONNECT_TIMEOUT / 1000}s. The target may have closed or Chrome may not be answering.`);
 }
 
 function sendCommand(conn, req) {
@@ -908,17 +1133,23 @@ const USAGE = `cdp - lightweight Chrome DevTools Protocol CLI (no Puppeteer)
 Usage: cdp <command> [args]
 
   list                              List open pages (shows unique target prefixes)
-  snap  <target>                    Accessibility tree snapshot
+  tabsjson                          List open pages as compact JSON
+  snap  <target> [line] [length]    Bounded accessibility snapshot with element ids
+  find  <target> <text> [line] [length]  Search a bounded snapshot
   eval  <target> <expr>             Evaluate JS expression
   shot  <target> [file]             Screenshot (default: screenshot-<target>.png in runtime dir); prints coordinate mapping
   shotel <target> <selector> [file]  Screenshot one element/div by CSS selector, with hardcoded 10px padding
+  shotref <target> <id> [file]      Screenshot one element from the latest snapshot
   html  <target> [selector]         Get HTML (full page or CSS selector)
+  htmlref <target> <id>             Get HTML for an element from the latest snapshot
   nav   <target> <url>              Navigate to URL and wait for load completion
   net   <target>                    Network performance entries
   click   <target> <selector>       Click one visible element by unique CSS selector
+  clickref <target> <id>            Click an element from the latest snapshot
   clickxy <target> <x> <y>          Click at CSS pixel coordinates (see coordinate note below)
   type    <target> <text>           Type at verified editable focus via Input.insertText
                                     Works in cross-origin iframes unlike eval-based approaches
+  typeref <target> <id> <text>      Focus a snapshot element and type into it
   loadall <target> <selector> [ms]  Repeatedly click a "load more" button until it disappears
                                     Optional interval in ms between clicks (default 1500)
   evalraw <target> <method> [json]  Send a raw CDP command; returns JSON result
@@ -953,14 +1184,13 @@ DAEMON IPC (for advanced use / scripting)
     Request:  {"id":<number>, "cmd":"<command>", "args":["arg1","arg2",...]}
     Response: {"id":<number>, "ok":true,  "result":"<string>"}
            or {"id":<number>, "ok":false, "error":"<message>"}
-  Commands mirror the CLI: snap, eval, shot, shotel, html, nav, net, click, clickxy,
-  type, loadall, evalraw, stop. Use evalraw to send arbitrary CDP methods.
+  Commands mirror the CLI. Use evalraw to send arbitrary CDP methods.
   The socket disappears after 20 min of inactivity or when the tab closes.
 `;
 
 const NEEDS_TARGET = new Set([
   'snap','snapshot','eval','shot','screenshot','shotel','screenshot-element','elementshot','html','nav','navigate',
-  'net','network','click','clickxy','type','loadall','evalraw',
+  'shotref','htmlref','find','net','network','click','clickref','clickxy','type','typeref','loadall','evalraw',
 ]);
 
 async function main() {
@@ -973,13 +1203,14 @@ async function main() {
     console.log(USAGE); process.exit(0);
   }
 
-  if (cmd === 'list' || cmd === 'ls') {
+
+  if (cmd === 'list' || cmd === 'ls' || cmd === 'tabsjson') {
     const cdp = new CDP();
     await cdp.connect(await getWsUrl());
     const pages = await getPages(cdp);
     cdp.close();
     writeFileSync(PAGES_CACHE, JSON.stringify(pages), { mode: 0o600 });
-    console.log(formatPageList(pages));
+    console.log(cmd === 'tabsjson' ? formatPagesJson(pages) : formatPageList(pages));
     setTimeout(() => process.exit(0), 100);
     return;
   }
@@ -998,7 +1229,8 @@ async function main() {
     }
     cdp.close();
     writeFileSync(PAGES_CACHE, JSON.stringify(pages), { mode: 0o600 });
-    console.log(`Opened new tab: ${targetId.slice(0, 8)}  ${url}`);
+    const prefixLen = getDisplayPrefixLength(pages.map(page => page.targetId));
+    console.log(`Opened new tab: ${targetId.slice(0, prefixLen)}  ${url}`);
     console.log('Note: Chrome may request "Allow debugging?" approval on first access.');
     return;
   }
@@ -1064,4 +1296,8 @@ async function main() {
   }
 }
 
-main().catch(e => { console.error(e.message); process.exit(1); });
+export { clickStr, formatPagesJson, htmlStr, snapshotData };
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch(e => { console.error(e.message); process.exit(1); });
+}
