@@ -26,17 +26,10 @@
 		"@howaboua/pi-pet": "0.1.1",
 		"@howaboua/pi-semantic-grep": "0.1.19",
 		"@howaboua/pi-shepherdr": "0.1.2",
-		"@howaboua/pi-skill-adversarial-qa": "0.0.1",
-		"@howaboua/pi-skill-agent-native-hardening": "0.0.6",
-		"@howaboua/pi-skill-agents-md": "0.0.4",
-		"@howaboua/pi-skill-anti-ai-copy": "0.0.4",
 		"@howaboua/pi-skill-chrome-cdp": "0.0.4",
-		"@howaboua/pi-skill-codex-prompt-caching": "0.0.1",
-		"@howaboua/pi-skill-gh-issue-pr-flow": "0.0.7",
-		"@howaboua/pi-skill-gh-stack": "0.0.2",
-		"@howaboua/pi-skill-model-facing-api-design": "0.0.5",
-		"@howaboua/pi-skill-project-reference-research": "0.0.4",
-		"@howaboua/pi-skill-skill-creator": "0.0.5",
+		"@howaboua/pi-skill-code": "0.0.0",
+		"@howaboua/pi-skill-foundations": "0.0.0",
+		"@howaboua/pi-skill-harness-and-agent-engineering": "0.0.0",
 		"@howaboua/pi-smart-btw": "0.2.6",
 		"@howaboua/pi-subagent-review": "0.2.19",
 		"@howaboua/pi-unicode-charts": "0.1.0",
@@ -55,17 +48,10 @@
 			"./index.ts"
 		],
 		"skills": [
-			"../pi-skill-adversarial-qa/skills",
-			"../pi-skill-agent-native-hardening/skills",
-			"../pi-skill-agents-md/skills",
-			"../pi-skill-anti-ai-copy/skills",
 			"../pi-skill-chrome-cdp/skills",
-			"../pi-skill-codex-prompt-caching/skills",
-			"../pi-skill-gh-issue-pr-flow/skills",
-			"../pi-skill-gh-stack/skills",
-			"../pi-skill-model-facing-api-design/skills",
-			"../pi-skill-project-reference-research/skills",
-			"../pi-skill-skill-creator/skills"
+			"../pi-skill-code/skills",
+			"../pi-skill-foundations/skills",
+			"../pi-skill-harness-and-agent-engineering/skills"
 		]
 	},
 	"repository": {

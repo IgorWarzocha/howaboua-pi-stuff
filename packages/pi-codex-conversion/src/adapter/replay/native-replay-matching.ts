@@ -3,7 +3,7 @@ import type { Api, Model } from "@earendil-works/pi-ai";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 import type { ResponsesCompatibleRequestPayload } from "../compaction/compaction-runtime.ts";
 import { serializeMessagesToResponsesInput, type ResponsesInputItem, type SerializeResponsesMessagesOptions } from "../compaction/serializer.js";
-import { areEquivalentValues, cloneResponsesInputSlice } from "./payload-structured.ts";
+import { areEquivalentValues, cloneResponsesInputSlice, isRecord } from "./payload-structured.ts";
 import type { FreshAuthoritativePreamble } from "./payload-preamble.ts";
 import type { NativeCompactionEntry } from "../compaction/types.js";
 import { toPiReplayAgentMessage, toReplayAgentMessage } from "./replay-message-conversion.ts";
@@ -26,6 +26,32 @@ export type ReplayMatch = {
 	actualPostCompactionTail: ResponsesInputItem[];
 	extraPostCompactionTail: ResponsesInputItem[];
 };
+
+const GENERATED_PI_MESSAGE_ID = /^msg_pi_\d+(?:_\d+)?$/;
+
+function replayPrefixValuesEquivalent(left: unknown, right: unknown): boolean {
+	if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+	// Segment serialization restarts its message index. Ignore only the resulting
+	// generated assistant ID while requiring the rest of the item to match.
+	return left.every((leftItem, index) => {
+		const rightItem = right[index];
+		if (
+			isRecord(leftItem)
+			&& isRecord(rightItem)
+			&& leftItem["type"] === "message"
+			&& rightItem["type"] === "message"
+			&& leftItem["role"] === "assistant"
+			&& rightItem["role"] === "assistant"
+			&& typeof leftItem["id"] === "string"
+			&& typeof rightItem["id"] === "string"
+			&& GENERATED_PI_MESSAGE_ID.test(leftItem["id"])
+			&& GENERATED_PI_MESSAGE_ID.test(rightItem["id"])
+		) {
+			return areEquivalentValues({ ...leftItem, id: "msg_pi_generated" }, { ...rightItem, id: "msg_pi_generated" });
+		}
+		return areEquivalentValues(leftItem, rightItem);
+	});
+}
 
 export function collectReplayMessages(entries: readonly SessionEntry[]): AgentMessage[] {
 	const messages: AgentMessage[] = [];
@@ -155,7 +181,7 @@ export function findReplayMatch<TApi extends Api>(args: {
 			];
 			const originalPiReplayInput: ResponsesInputItem[] = [...expectedBeforeTrailing, ...args.freshPreamble.trailingInput];
 			const tailEndIndex = args.payloadInput.length - args.freshPreamble.trailingInput.length;
-			const prefixMatches = areEquivalentValues(args.payloadInput.slice(0, expectedBeforeTrailing.length), expectedBeforeTrailing);
+			const prefixMatches = replayPrefixValuesEquivalent(args.payloadInput.slice(0, expectedBeforeTrailing.length), expectedBeforeTrailing);
 			const trailingMatches = areEquivalentValues(args.payloadInput.slice(tailEndIndex), args.freshPreamble.trailingInput);
 
 			if (prefixMatches && trailingMatches && tailEndIndex >= expectedBeforeTrailing.length) {

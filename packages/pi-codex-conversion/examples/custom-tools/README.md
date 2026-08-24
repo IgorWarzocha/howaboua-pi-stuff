@@ -1,21 +1,28 @@
 # Custom tool examples
 
-These are disabled templates. Enable a tool by copying its top-level TOML file and companion directory into `~/.pi/agent/codex-conversion-custom-tools/`, or `$PI_CODING_AGENT_DIR/codex-conversion-custom-tools/` when configured.
+Read when a user asks to configure one of these disabled examples. Do not enable an example merely because it exists.
 
-## Browser
+| Example | Use when |
+| --- | --- |
+| `agents` | The user wants persistent explorer or reviewer agents in Herdr panels |
+| `browser` | The user wants evidence or interaction from an existing logged-in CDP browser |
+| `herdr_agent` | A current Herdr agent needs finding, messaging, reading, or answering |
+| `skills` | Pi was launched with `--no-skills` and the agent needs on-demand global or project skills |
+| `port_info` | A process or listener needs identifying |
+| `semantic_grep` | An installed Pi Semantic Grep index needs querying |
+| `sites` | The user asks to manage a ChatGPT Site |
+| `spawn_agent` | The user wants an isolated one-shot explorer or reviewer |
+| `vent` | Repeated workflow friction belongs in `VENT.md` |
+| `workflows_create` | The user confirms a repeatable repository procedure |
 
-The `browser` example controls a logged-in Chromium browser through CDP with Codex `web__run`-style operations. Copy `browser.toml` and `browser/` together, then follow `browser/README.md` to expose CDP.
+An example consists of its top-level TOML definition and any companion directory. Keep that layout together when configuring it.
 
-The implementation also supports routing browser operations over SSH, but that surface is disabled and hidden from the agent by default. Enabling it requires configuring allowed hosts and the remote tool path in `browser/browser.mjs`, copying the companion files to each remote host, and switching `browser.toml` to its commented SSH-aware usage.
+## Skills
 
-## Lazy skill loaders
+The `skills` example assumes Pi was launched with `--no-skills`. It reads the normal global catalog and the current repository's `.pi/skills/` addenda. A same-named session skill overrides the global skill.
 
-Pi discovers its standard skill folders at startup and advertises every discovered skill to the model. The `skills` example keeps a large global workflow library out of that startup catalog while leaving native Pi skills available:
+Do not use it in a session where Pi loaded native skills at startup. The tool would repeat those instructions when reading a skill.
 
-1. Copy `skills.toml` and `skills/` into the custom-tools directory.
-2. Put general-purpose skill packages under `~/.pi/agent/lazy-skills/`, or `$PI_CODING_AGENT_DIR/lazy-skills/` when configured.
-3. Keep project-specific SOPs in the repository's normal `.pi/skills/` directory so Pi advertises them for every session in that project.
+## Sensitive examples
 
-The nonstandard `lazy-skills` name is deliberate: Pi must not discover those global `SKILL.md` files itself. This example expects that exact folder name. Skills may be direct children or grouped one level deeper by category. `--no-skills` remains available when native skill discovery should be disabled entirely, but it is not required.
-
-The older `more_skills` additive loader remains available and reads the parallel `more-skills/` folder.
+`browser` controls an existing logged-in browser. `agents` and `herdr_agent` affect other Pi sessions. `sites` can create production deployments and change access, environment, or domains. Follow its verification and repair loop in `sites/README.md`, then follow user intent and ask before consequential external actions.

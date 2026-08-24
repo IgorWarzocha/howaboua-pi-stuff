@@ -1,3 +1,0 @@
-display_name: Agent Native Hardening
-short_description: Harden code ownership, execution paths, imports, and contracts for safe changes.
-default_prompt: Review this codebase for agent-native maintainability, including execution and import topology, and recommend the highest-leverage improvements.

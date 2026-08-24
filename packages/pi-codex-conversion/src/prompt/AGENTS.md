@@ -1,5 +1,3 @@
-# Pi-Codex system prompt
-
 - Core construction has one owner: `build-system-prompt.ts`. Prompt wording, section order, guidelines, skills, shell context, and heavy-overwrite behavior belong there.
 - Call path: `extension/events.ts` `before_agent_start` → `runtime.codexSystemPrompt()` → `buildCodexSystemPrompt()`. Events route; runtime selects mode/config; neither rebuilds prompt text.
 - Code Mode inserts its dynamic tool section under `tools/code-mode/` before this builder runs. Keep that narrow exception there.

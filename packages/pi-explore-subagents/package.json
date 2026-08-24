@@ -36,7 +36,7 @@
 		"@types/node": "^25.9.1",
 		"typebox": "1.1.38",
 		"typescript": "^6.0.3",
-		"@biomejs/biome": "^2.4.16"
+		"@biomejs/biome": "^2.5.10"
 	},
 	"peerDependencies": {
 		"@earendil-works/pi-ai": ">=0.80.6",

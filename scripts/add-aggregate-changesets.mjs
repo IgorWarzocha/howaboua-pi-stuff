@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { spawnSync } from "node:child_process";
 import {
 	existsSync,
 	readdirSync,
@@ -20,6 +21,7 @@ const aggregateNames = new Set([
 const aggregateExcludedNames = new Set([
 	"@howaboua/pi-codex-conversion",
 	"@howaboua/pi-skill-omarchy-help",
+	"@howaboua/pi-subdir-agents",
 ]);
 const generatedFiles = [
 	"aggregate-bundles.md",
@@ -27,9 +29,37 @@ const generatedFiles = [
 	"aggregate-extensions.md",
 	"aggregate-skills.md",
 ];
+const removalBase = process.env.AGGREGATE_BASE ?? "HEAD~1";
 
 function readJson(path) {
 	return JSON.parse(readFileSync(path, "utf8"));
+}
+
+function retiredPackageChanges() {
+	const diff = spawnSync(
+		"git",
+		["diff", "--name-status", "--diff-filter=D", removalBase, "--", "packages"],
+		{ cwd: root, encoding: "utf8" },
+	);
+	if (diff.status !== 0) return [];
+
+	return diff.stdout
+		.split("\n")
+		.filter(Boolean)
+		.flatMap((line) => {
+			const path = line.slice(2);
+			if (!/^packages\/[^/]+\/package\.json$/.test(path)) return [];
+			const previous = spawnSync("git", ["show", `${removalBase}:${path}`], {
+				cwd: root,
+				encoding: "utf8",
+			});
+			if (previous.status !== 0) return [];
+			const pkg = JSON.parse(previous.stdout);
+			return Array.isArray(pkg.pi?.skills) &&
+				!aggregateExcludedNames.has(pkg.name)
+				? [{ name: pkg.name, body: "Remove retired bundled skill" }]
+				: [];
+		});
 }
 
 function parseChangeset(text) {
@@ -86,11 +116,10 @@ for (const file of readdirSync(changesetDir).sort()) {
 	}
 }
 
-const packageInfos = listActivePackageDirs(root)
-	.map((dir) => ({
-		dir,
-		pkg: readJson(join(packagesDir, dir, "package.json")),
-	}));
+const packageInfos = listActivePackageDirs(root).map((dir) => ({
+	dir,
+	pkg: readJson(join(packagesDir, dir, "package.json")),
+}));
 
 const changedExtensions = [];
 const changedSkills = [];
@@ -111,6 +140,8 @@ for (const { pkg } of packageInfos) {
 		if (hasSkills) changedSkills.push(entry);
 	}
 }
+
+changedSkills.push(...retiredPackageChanges());
 
 const changedStuff = [...changedExtensions, ...changedSkills];
 let wrote = false;

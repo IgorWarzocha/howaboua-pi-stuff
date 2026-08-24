@@ -1,0 +1,20 @@
+{
+	"name": "@howaboua/pi-skill-harness-and-agent-engineering",
+	"version": "0.0.0",
+	"description": "Portable Pi skills for harness and agent engineering",
+	"type": "module",
+	"keywords": ["pi-package", "pi", "pi-skill", "skill", "harness", "agent"],
+	"license": "MIT",
+	"publishConfig": { "access": "public" },
+	"files": ["skills", "README.md", "LICENSE"],
+	"pi": { "skills": ["./skills"] },
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
+		"directory": "packages/pi-skill-harness-and-agent-engineering"
+	},
+	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-skill-harness-and-agent-engineering#readme",
+	"bugs": {
+		"url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
+	}
+}

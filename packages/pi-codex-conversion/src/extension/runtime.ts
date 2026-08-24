@@ -2,6 +2,7 @@ import { buildSessionContext, convertToLlm, type ExtensionAPI, type ExtensionCon
 import type { Context } from "@earendil-works/pi-ai";
 import { dirname } from "node:path";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
+import { readCodexCacheExperimentEnvironment, resolveCodexCacheKeepaliveStrategy, type CodexCacheKeepaliveStrategy } from "../adapter/activation/cache-experiment.ts";
 import { getCodexConversionConfigPath, readEffectiveCodexConversionConfig } from "../adapter/activation/config-store.ts";
 import { isAdapterRuntime, resolveCodexRuntimePlan, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import type { AdapterState } from "../adapter/activation/state.ts";
@@ -12,7 +13,7 @@ import { buildCodexSystemPrompt, type PiSystemPromptOptions } from "../prompt/bu
 import { closeOpenAICodexWebSocketSessions, prewarmOpenAICodexWebSocket } from "../providers/openai-codex-custom-provider.ts";
 import { resetOpenAICodexWebSocketSessions } from "../providers/openai-codex/websocket.ts";
 import { createCodexTurnState } from "../providers/openai-codex/turn-state.ts";
-import type { CodexPrewarmUsage, OpenAICodexStreamOptions, ResponsesBody } from "../providers/openai-codex/types.ts";
+import type { CodexPrewarmUsage, OpenAICodexStreamOptions } from "../providers/openai-codex/types.ts";
 import { createExecCommandTracker } from "../tools/exec/command-state.ts";
 import { createExecSessionManager } from "../tools/exec/session-manager.ts";
 import { getBundledToolBinaryPath } from "../tools/native/binary.ts";
@@ -45,7 +46,6 @@ export interface CodexExtensionRuntime {
 	startKeepalivePrewarm(ctx: CodexContext): Promise<CodexPrewarmResult> | undefined;
 	armCacheKeepalive(ctx: CodexContext): void;
 	cancelCacheKeepalive(): void;
-	captureCacheKeepaliveRequest(payload: ResponsesBody): void;
 	resetTransport(sessionId?: string): void;
 	resetTransportAfterCompaction(sessionId: string): void;
 	shutdownTransport(sessionId: string): void;
@@ -55,8 +55,6 @@ export interface CodexExtensionRuntime {
 	diagnosticsSink(): CodexDiagnosticsSink | undefined;
 	shutdownDiagnostics(): Promise<void>;
 }
-
-const CACHE_KEEPALIVE_INTERVAL_MS = 25 * 60 * 1000;
 
 function activeToolContext(pi: ExtensionAPI): NonNullable<Context["tools"]> {
 	// Pi ToolInfo omits constrainedSampling; restore our owned exec contract so
@@ -69,6 +67,10 @@ function prewarmReasoningOption(level: ReturnType<ExtensionAPI["getThinkingLevel
 }
 
 export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRuntime {
+	const cacheExperiment = readCodexCacheExperimentEnvironment();
+	for (const warning of cacheExperiment.warnings) {
+		console.warn(`[pi-codex-conversion] ${warning}`);
+	}
 	const initialConfig = readEffectiveCodexConversionConfig({ cwd: process.cwd(), projectTrusted: false });
 	const state: AdapterState = {
 		enabled: false,
@@ -87,13 +89,13 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 	let prewarmPromise: Promise<CodexPrewarmResult> | undefined;
 	let prewarmTransportSettlement: Promise<unknown> | undefined;
 	let pendingPrewarmKey: string | undefined;
-	let prewarmedIdentity: string | undefined;
-	let activePrewarmKind: "ordinary" | "keepalive" | undefined;
+	let prewarmedKey: string | undefined;
+	let activePrewarmKind: "ordinary" | "compaction" | "keepalive" | undefined;
 	let cacheKeepaliveTimer: ReturnType<typeof setTimeout> | undefined;
 	let cacheKeepaliveEpoch = 0;
-	let cacheKeepaliveRequest: ResponsesBody | undefined;
 	const voice = new CodexVoiceController(pi);
 	const diagnostics = createLazyCodexDiagnostics();
+	let cacheExperimentWarningsReported = false;
 	const buildPrewarmPlan = (
 		ctx: CodexContext,
 		systemPrompt: string,
@@ -143,16 +145,20 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		messages: Context["messages"] = [],
 		rewriteFinalRequest = false,
 		force = false,
-		kind: "ordinary" | "keepalive" = "ordinary",
-		preparedBody?: ResponsesBody,
+		kind: "ordinary" | "compaction" | "keepalive" = "ordinary",
+		preserveContinuation = false,
+		keepaliveStrategy?: CodexCacheKeepaliveStrategy,
+		requestSource?: "captured" | "reconstructed",
+		generate = false,
 	): Promise<CodexPrewarmResult> | undefined => {
 		const plan = buildPrewarmPlan(ctx, systemPrompt, prepared, messages, rewriteFinalRequest);
 		if (!plan) return undefined;
-		const { model, config, executionMode, preparedSystemPrompt, tools, reasoning, identity, key: prewarmKey } = plan;
+		const { model, config, executionMode, preparedSystemPrompt, tools, reasoning, key: requestKey } = plan;
+		const prewarmKey = JSON.stringify({ requestKey, preserveContinuation, generate });
 		if (pendingPrewarmKey === prewarmKey) return prewarmPromise;
-		if (!force && !pendingPrewarmKey && prewarmedIdentity === identity) return undefined;
+		if (!force && !pendingPrewarmKey && prewarmedKey === prewarmKey) return undefined;
 		const previousTransportSettlement = prewarmTransportSettlement;
-		prewarmedIdentity = undefined;
+		prewarmedKey = undefined;
 		prewarmController?.abort();
 		const controller = new AbortController();
 		prewarmController = controller;
@@ -191,7 +197,13 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 						useResponsesLite: (currentModel) => resolveCodexRuntimePlan({ model: currentModel }, config, executionMode).transport === "responses-lite",
 						turnState: state.codexTurnState,
 						getDiagnostics: () => diagnostics.sink(),
-						...(preparedBody ? { preparedBody, preserveContinuation: true } : {}),
+						...(preserveContinuation ? { preserveContinuation: true } : {}),
+						prewarmDiagnostics: {
+							kind,
+							...(keepaliveStrategy ? { keepaliveStrategy } : {}),
+							...(requestSource ? { requestSource } : {}),
+						},
+						...(generate ? { generate: true } : {}),
 					},
 				);
 				prewarmTransportSettlement = transportSettlement;
@@ -199,7 +211,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 					const result = await transportSettlement;
 					if (controller.signal.aborted) return { status: "aborted" } as const;
 					if (!result) return { status: "skipped" } as const;
-					prewarmedIdentity = identity;
+					if (kind !== "keepalive") prewarmedKey = prewarmKey;
 					return { status: "ready", ...(result.usage ? { usage: result.usage } : {}), socketReused: result.socketReused } as const;
 				} finally {
 					if (prewarmTransportSettlement === transportSettlement) prewarmTransportSettlement = undefined;
@@ -226,30 +238,30 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		return promise;
 	};
 
-	const currentContextPrewarm = (ctx: CodexContext, force: boolean) => {
-		if (force && cacheKeepaliveRequest) {
-			return startPrewarm(
-				ctx,
-				state.activeProviderSystemPrompt ?? ctx.getSystemPrompt(),
-				state.activeProviderSystemPrompt !== undefined,
-				[],
-				false,
-				true,
-				"keepalive",
-				cacheKeepaliveRequest,
-			);
-		}
-		const messages = buildSessionContext(ctx.sessionManager.getBranch()).messages
-			.filter((message) => !isProviderContextExcludedMessage(message));
+	const currentMessages = (ctx: CodexContext) => convertToLlm(
+		buildSessionContext(ctx.sessionManager.getBranch()).messages
+			.filter((message) => !isProviderContextExcludedMessage(message)),
+	);
+
+	const currentContextPrewarm = (ctx: CodexContext, kind: "compaction" | "keepalive") => {
+		const keepaliveStrategy = kind === "keepalive"
+			? resolveCodexCacheKeepaliveStrategy(state.config.openai.cacheKeepalive, cacheExperiment)
+			: false;
+		if (kind === "keepalive" && !keepaliveStrategy) return undefined;
+		const preserveContinuation = keepaliveStrategy !== false;
 		const activeSystemPrompt = state.activeProviderSystemPrompt;
 		return startPrewarm(
 			ctx,
 			activeSystemPrompt ?? ctx.getSystemPrompt(),
 			activeSystemPrompt !== undefined,
-			convertToLlm(messages),
+			currentMessages(ctx),
 			true,
-			force,
-			force ? "keepalive" : "ordinary",
+			kind === "keepalive",
+			kind,
+			preserveContinuation,
+			keepaliveStrategy || undefined,
+			kind === "keepalive" ? "reconstructed" : undefined,
+			keepaliveStrategy === "generated-current",
 		);
 	};
 
@@ -261,13 +273,25 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 	};
 
 	const scheduleCacheKeepalive = (ctx: CodexContext, epoch: number) => {
-		if (!state.config.openai.cacheKeepalive) return;
+		const strategy = resolveCodexCacheKeepaliveStrategy(state.config.openai.cacheKeepalive, cacheExperiment);
+		if (!strategy) return;
 		if (cacheKeepaliveTimer) clearTimeout(cacheKeepaliveTimer);
+		diagnostics.sink()?.({
+			type: "keepalive",
+			phase: "armed",
+			strategy,
+			intervalMs: cacheExperiment.keepaliveIntervalMs,
+		});
 		cacheKeepaliveTimer = setTimeout(() => {
 			cacheKeepaliveTimer = undefined;
 			if (epoch !== cacheKeepaliveEpoch || !ctx.isIdle()) return;
-			const keepalive = currentContextPrewarm(ctx, true);
-			if (!keepalive) return;
+			const requestSource = "reconstructed";
+			diagnostics.sink()?.({ type: "keepalive", phase: "started", strategy, requestSource });
+			const keepalive = currentContextPrewarm(ctx, "keepalive");
+			if (!keepalive) {
+				diagnostics.sink()?.({ type: "keepalive", phase: "skipped", strategy, requestSource });
+				return;
+			}
 			void keepalive.then((result) => {
 				if (epoch !== cacheKeepaliveEpoch || result.status === "aborted" || result.status === "skipped") return;
 				if (result.status === "failed") {
@@ -275,13 +299,11 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 					scheduleCacheKeepalive(ctx, epoch);
 					return;
 				}
-				ctx.ui.notify(
-					`Codex cache keepalive refreshed · WS ${result.socketReused ? "reused" : "new"}`,
-					"info",
-				);
+				const action = "generated-refresh";
+				diagnostics.sink()?.({ type: "keepalive", phase: "applied", strategy, requestSource, action });
 				scheduleCacheKeepalive(ctx, epoch);
 			});
-		}, CACHE_KEEPALIVE_INTERVAL_MS);
+		}, cacheExperiment.keepaliveIntervalMs);
 		cacheKeepaliveTimer.unref?.();
 	};
 
@@ -322,10 +344,10 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 			return startPrewarm(ctx, systemPrompt, prepared);
 		},
 		startCompactionPrewarm(ctx) {
-			return currentContextPrewarm(ctx, false);
+			return currentContextPrewarm(ctx, "compaction");
 		},
 		startKeepalivePrewarm(ctx) {
-			return currentContextPrewarm(ctx, true);
+			return currentContextPrewarm(ctx, "keepalive");
 		},
 		armCacheKeepalive(ctx) {
 			armCacheKeepalive(ctx);
@@ -333,16 +355,12 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		cancelCacheKeepalive() {
 			cancelCacheKeepalive();
 		},
-		captureCacheKeepaliveRequest(payload) {
-			if (state.config.openai.cacheKeepalive) cacheKeepaliveRequest = structuredClone(payload);
-		},
 		resetTransport(sessionId) {
 			cancelCacheKeepalive();
 			prewarmController?.abort();
 			prewarmController = undefined;
 			pendingPrewarmKey = undefined;
-			prewarmedIdentity = undefined;
-			cacheKeepaliveRequest = undefined;
+			prewarmedKey = undefined;
 			state.codexTurnState.reset();
 			if (sessionId) resetOpenAICodexWebSocketSessions(sessionId);
 			else closeOpenAICodexWebSocketSessions();
@@ -357,18 +375,23 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 			closeOpenAICodexWebSocketSessions(sessionId);
 		},
 		waitForPrewarm(ctx, systemPrompt) {
-			return runtime.startPrewarm(ctx, systemPrompt, true);
+			return startPrewarm(ctx, systemPrompt, true, currentMessages(ctx), true);
 		},
 		prewarmIdentity(ctx, systemPrompt) {
 			return buildPrewarmPlan(ctx, systemPrompt, true, [], false)?.identity;
 		},
 		configureDiagnostics(ctx, announceLog = false) {
+			if (!cacheExperimentWarningsReported && cacheExperiment.warnings.length > 0) {
+				cacheExperimentWarningsReported = true;
+				ctx.ui.notify(`Codex cache experiment: ${cacheExperiment.warnings.join("; ")}`, "warning");
+			}
 			return diagnostics.configure({
 				mode: state.config.openai.cacheDiagnostics,
 				active: ctx.model?.provider === "openai-codex",
 				ctx,
 				agentDir: dirname(getCodexConversionConfigPath()),
-				announceLog,
+				logName: cacheExperiment.logName,
+				announceLog: announceLog || cacheExperiment.logName !== undefined,
 			});
 		},
 		diagnosticsSink() {

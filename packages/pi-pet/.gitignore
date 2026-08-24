@@ -4,6 +4,7 @@ __pycache__/
 .DS_Store
 *.log
 coverage/
+dist/
 release/
 desktop/dist/
 desktop/node_modules/

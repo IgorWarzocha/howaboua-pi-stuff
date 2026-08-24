@@ -58,7 +58,7 @@
 		"@earendil-works/pi-coding-agent": "0.84.1",
 		"@types/node": "^24.10.0",
 		"typescript": "^5.9.3",
-		"@biomejs/biome": "^2.4.16"
+		"@biomejs/biome": "^2.5.10"
 	},
 	"publishConfig": {
 		"access": "public"

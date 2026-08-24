@@ -65,7 +65,7 @@
 		"oxfmt": "^0.35.0",
 		"typescript": "^5.9.3",
 		"@earendil-works/pi-coding-agent": "0.82.0",
-		"@biomejs/biome": "^2.4.16",
+		"@biomejs/biome": "^2.5.10",
 		"typebox": "1.1.38"
 	},
 	"peerDependencies": {
