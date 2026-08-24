@@ -12,6 +12,7 @@ import {
 	RealtimeDelegationHandoff,
 	type RealtimeHandoffChannel,
 	type RealtimeHandoffTarget,
+	type RealtimePiInputBehavior,
 } from "./handoff.ts";
 import type { CodexRealtimePeer, CodexRealtimePeerEvent } from "./peer.ts";
 import { RealtimeSpeakableQueue } from "./speakable-queue.ts";
@@ -166,8 +167,15 @@ export class CodexRealtimeConversation {
 		this.handoff.activate(id);
 	}
 
-	piInput(input: unknown, startsTurn: boolean): boolean {
-		return this.handoff.piInput(input, startsTurn);
+	piInput(
+		input: unknown,
+		streamingBehavior?: RealtimePiInputBehavior,
+	): boolean {
+		return this.handoff.piInput(input, streamingBehavior);
+	}
+
+	piUserMessage(message: unknown): boolean {
+		return this.handoff.piUserMessage(message);
 	}
 
 	get microphoneMuted(): boolean {

@@ -40,7 +40,13 @@ test("voice routing preserves presentation, handoff pacing, and compaction order
 	handoff.progress("Routine follow-on update");
 	handoff.result("Finished result");
 	handoff.settle();
-	handoff.piInput("Typed request", true);
+	handoff.piInput("Typed request");
+	handoff.piInput("Queued request", "followUp");
+	assert.equal(contexts.length, 4);
+	handoff.piUserMessage({
+		role: "user",
+		content: [{ type: "text", text: "Queued request" }],
+	});
 	assert.deepEqual(contexts, [
 		{
 			target: { type: "delegation", id: "delegation-1" },
@@ -65,6 +71,13 @@ test("voice routing preserves presentation, handoff pacing, and compaction order
 			channel: "commentary",
 			content:
 				"<pi_steer>\n  <input>Typed request</input>\n  <routing>already delivered to the active Pi run; update context, do not delegate it, and wait for authoritative Pi updates</routing>\n</pi_steer>",
+			kind: undefined,
+		},
+		{
+			target: { type: "session" },
+			channel: "commentary",
+			content:
+				"<pi_steer>\n  <input>Queued request</input>\n  <routing>already delivered to the active Pi run; update context, do not delegate it, and wait for authoritative Pi updates</routing>\n</pi_steer>",
 			kind: undefined,
 		},
 	]);

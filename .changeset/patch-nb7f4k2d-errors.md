@@ -9,7 +9,10 @@ Make Code and Notebook Mode failures actionable and easier to recover.
 - Clarify safe shell interpolation, terminal input, and Deno tool composition in model-facing guidance.
 - Keep concurrent Code and Notebook sessions from taking optional Git index locks during read-only commands.
 - Retry idempotent browser reads after delayed Chrome responses without blaming debugger approval, while warning against blind retries of timed-out page mutations.
+- Return unambiguous tab references and refuse native clicks when another element covers the requested control.
 - Keep the Agents custom tool self-contained and remove the superseded Herdr Agent example.
 - Let the Skills custom tool load one or more routed references directly by name.
 - Preserve explicit `models.json` endpoints when installing the custom Codex transport and Daybreak model catalog.
 - Keep LAN voice certificate startup compatible with asynchronous certificate generation.
+- Release queued realtime delegations when native compaction fails or is aborted.
+- Defer queued Pi follow-up context until that follow-up begins its realtime handoff.

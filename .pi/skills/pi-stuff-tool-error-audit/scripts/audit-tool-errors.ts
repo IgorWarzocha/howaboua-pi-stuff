@@ -43,9 +43,16 @@ if (!(since < until)) {
 }
 if (
   options.markChecked &&
-  (options.tool || options.family || options.signature || options.session)
+  (
+    options.since ||
+    options.until ||
+    options.tool ||
+    options.family ||
+    options.signature ||
+    options.session
+  )
 ) {
-  throw new Error("--mark-checked requires an unfiltered audit");
+  throw new Error("--mark-checked requires the complete default cursor window");
 }
 
 const home = Deno.env.get("HOME");

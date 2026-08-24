@@ -268,10 +268,17 @@ export class CodexVoiceController {
 		return this.messages.filterContext(messages);
 	}
 
-	piInput(input: unknown, startsTurn: boolean): boolean {
+	piInput(input: unknown, streamingBehavior?: "steer" | "followUp"): boolean {
 		return (
 			this.runtime.state.type === "conversation" &&
-			this.runtime.state.session.piInput(input, startsTurn)
+			this.runtime.state.session.piInput(input, streamingBehavior)
+		);
+	}
+
+	piUserMessage(message: unknown): boolean {
+		return (
+			this.runtime.state.type === "conversation" &&
+			this.runtime.state.session.piUserMessage(message)
 		);
 	}
 

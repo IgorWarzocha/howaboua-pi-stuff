@@ -166,6 +166,8 @@ export function registerCodexEvents(
 	});
 
 	pi.on("message_start", async (event) => {
+		if (event.message.role === "user")
+			runtime.voice.piUserMessage(event.message);
 		if (event.message.role !== "toolResult" && !isToolCallOnlyAssistantMessage(event.message)) tracker.resetExplorationGroup();
 	});
 	pi.on("message_end", async (event) => {
@@ -205,7 +207,7 @@ export function registerCodexEvents(
 	pi.on("input", async (event) => {
 		if (event.streamingBehavior === undefined) state.codexTurnState.beginTurn();
 		if (event.source !== "extension")
-			runtime.voice.piInput(event.text, event.streamingBehavior === undefined);
+			runtime.voice.piInput(event.text, event.streamingBehavior);
 	});
 	pi.on("before_agent_start", async (event, ctx) => {
 		const systemPrompt = event.systemPrompt;
@@ -272,6 +274,10 @@ export function registerCodexEvents(
 			runtime.voice.compactionFinished();
 			throw error;
 		}
+	});
+	pi.on("session_compact_failed", async () => {
+		state.pendingPiCompactionNativeWindow = undefined;
+		runtime.voice.compactionFinished();
 	});
 	pi.on("session_compact", async (event, ctx) => {
 		runtime.voice.resetContextAnnouncements();

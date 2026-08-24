@@ -78,7 +78,7 @@ export function registerGippityControl(pi: ExtensionAPI): void {
 	});
 	pi.on("input", async (event) => {
 		if (event.source !== "extension")
-			voice.piInput(event.text, event.streamingBehavior === undefined);
+			voice.piInput(event.text, event.streamingBehavior);
 		lanVoice.piEvent("input", event);
 	});
 	pi.on("agent_start", async (event) => {
@@ -104,9 +104,10 @@ export function registerGippityControl(pi: ExtensionAPI): void {
 	pi.on("agent_end", async (event) => lanVoice.piEvent("agent_end", event));
 	pi.on("turn_start", async (event) => lanVoice.piEvent("turn_start", event));
 	pi.on("turn_end", async (event) => lanVoice.piEvent("turn_end", event));
-	pi.on("message_start", async (event) =>
-		lanVoice.piEvent("message_start", event),
-	);
+	pi.on("message_start", async (event) => {
+		if (event.message.role === "user") voice.piUserMessage(event.message);
+		lanVoice.piEvent("message_start", event);
+	});
 	pi.on("tool_execution_start", async (event) =>
 		lanVoice.piEvent("tool_execution_start", event),
 	);

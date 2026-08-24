@@ -438,6 +438,12 @@ function formatPagesJson(pages) {
   })));
 }
 
+async function getTargetRef(cdp, targetId) {
+  const pages = await getPages(cdp);
+  const prefixLen = getDisplayPrefixLength(pages.map(page => page.targetId));
+  return targetId.slice(0, prefixLen);
+}
+
 function shouldShowAxNode(node, compact = false) {
   const role = node.role?.value || '';
   const name = node.name?.value ?? '';
@@ -722,13 +728,33 @@ async function scrollBackendIntoView(cdp, sid, backendNodeId) {
 
 async function backendCenter(cdp, sid, backendNodeId) {
   await scrollBackendIntoView(cdp, sid, backendNodeId);
-  const { model } = await cdp.send('DOM.getBoxModel', { backendNodeId }, sid);
-  const quad = model?.content || model?.border;
-  if (!Array.isArray(quad) || quad.length < 8) throw new Error('Element has no clickable box');
-  return {
-    x: (quad[0] + quad[2] + quad[4] + quad[6]) / 4,
-    y: (quad[1] + quad[3] + quad[5] + quad[7]) / 4,
-  };
+  const objectId = await resolveBackendObject(cdp, sid, backendNodeId);
+  const result = await cdp.send('Runtime.callFunctionOn', {
+    objectId,
+    functionDeclaration: `function() {
+      const rect = this.getBoundingClientRect();
+      const style = getComputedStyle(this);
+      const disabled = this.matches(':disabled') || this.getAttribute('aria-disabled') === 'true';
+      const hidden = rect.width <= 0 || rect.height <= 0 || style.display === 'none' ||
+        style.visibility === 'hidden' || style.visibility === 'collapse' ||
+        style.pointerEvents === 'none' || Number(style.opacity) === 0 ||
+        this.closest('[inert]') !== null;
+      if (hidden) return { ok: false, error: 'Element is not visible or interactable' };
+      if (disabled) return { ok: false, error: 'Element is disabled' };
+      const x = rect.left + rect.width / 2;
+      const y = rect.top + rect.height / 2;
+      const hit = this.ownerDocument.elementFromPoint(x, y);
+      if (!hit || (hit !== this && !this.contains(hit))) {
+        const blocker = hit ? '<' + hit.tagName.toLowerCase() + '>' : 'no element';
+        return { ok: false, error: 'Element center is covered by ' + blocker };
+      }
+      return { ok: true, x, y };
+    }`,
+    returnByValue: true,
+  }, sid);
+  const point = result.result?.value;
+  if (!point?.ok) throw new Error(point?.error || 'Element has no clickable box');
+  return point;
 }
 
 async function shotRefStr(cdp, sid, elementRefs, id, filePath, targetId) {
@@ -857,6 +883,11 @@ async function clickStr(cdp, sid, selector) {
 
       const x = rect.left + rect.width / 2;
       const y = rect.top + rect.height / 2;
+      const hit = document.elementFromPoint(x, y);
+      if (!hit || (hit !== el && !el.contains(hit))) {
+        const blocker = hit ? '<' + hit.tagName.toLowerCase() + '>' : 'no element';
+        return { ok: false, error: 'Element center is covered by ' + blocker + ': ' + selector };
+      }
       return {
         ok: true,
         tag: el.tagName,
@@ -1045,7 +1076,7 @@ async function runDaemon(targetId) {
   }
 
   // Handle a command
-  async function handleCommand({ cmd, args }) {
+  async function handleCommand({ cmd, args, targetRef }) {
     resetIdle();
     try {
       let result;
@@ -1065,8 +1096,8 @@ async function runDaemon(targetId) {
           result = formatPagesJson(pages);
           break;
         }
-        case 'snap': case 'snapshot': result = await snapshotStr(cdp, sessionId, elementRefs, targetId.slice(0, 8), args[0], args[1]); break;
-        case 'find': result = await findStr(cdp, sessionId, elementRefs, targetId.slice(0, 8), args[0], args[1], args[2]); break;
+        case 'snap': case 'snapshot': result = await snapshotStr(cdp, sessionId, elementRefs, targetRef || await getTargetRef(cdp, targetId), args[0], args[1]); break;
+        case 'find': result = await findStr(cdp, sessionId, elementRefs, targetRef || await getTargetRef(cdp, targetId), args[0], args[1], args[2]); break;
         case 'eval': result = await evalStr(cdp, sessionId, args[0]); break;
         case 'shot': case 'screenshot': result = await shotStr(cdp, sessionId, args[0], targetId); break;
         case 'shotel': case 'screenshot-element': case 'elementshot': result = await shotElementStr(cdp, sessionId, args[0], args[1], targetId); break;
@@ -1375,6 +1406,7 @@ async function main() {
   }
   const pages = JSON.parse(readFileSync(PAGES_CACHE, 'utf8'));
   const targetId = resolvePrefix(targetPrefix, pages.map(p => p.targetId), 'target', 'Run "cdp list".');
+  const targetRef = targetId.slice(0, getDisplayPrefixLength(pages.map(page => page.targetId)));
 
   const conn = await getOrStartTabDaemon(targetId);
 
@@ -1400,7 +1432,7 @@ async function main() {
     process.exit(1);
   }
 
-  const response = await sendCommand(conn, { cmd, args: cmdArgs });
+  const response = await sendCommand(conn, { cmd, args: cmdArgs, targetRef });
 
   if (response.ok) {
     if (response.result) console.log(response.result);
@@ -1410,7 +1442,7 @@ async function main() {
   }
 }
 
-export { clickStr, formatPagesJson, htmlStr, snapshotData };
+export { clickStr, formatPagesJson, getTargetRef, htmlStr, snapshotData };
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   main().catch(e => { console.error(e.message); process.exit(1); });
