@@ -51,15 +51,15 @@
 		"access": "public"
 	},
 	"devDependencies": {
-		"@types/node": "^24.10.0",
-		"typescript": "^5.9.3",
-		"@earendil-works/pi-coding-agent": "0.82.0",
+		"@types/node": "^26.2.0",
+		"typescript": "^7.0.2",
+		"@earendil-works/pi-coding-agent": "0.84.3",
 		"@biomejs/biome": "^2.5.10",
-		"@earendil-works/pi-ai": "0.82.0"
+		"@earendil-works/pi-ai": "0.84.3"
 	},
 	"peerDependencies": {
-		"@earendil-works/pi-ai": ">=0.80.6",
-		"@earendil-works/pi-coding-agent": ">=0.80.6",
-		"@earendil-works/pi-tui": "*"
+		"@earendil-works/pi-ai": ">=0.84.3",
+		"@earendil-works/pi-coding-agent": ">=0.84.3",
+		"@earendil-works/pi-tui": ">=0.84.3"
 	}
 }

@@ -11,3 +11,4 @@ Make Code and Notebook Mode failures actionable and easier to recover.
 - Keep the Agents custom tool self-contained and remove the superseded Herdr Agent example.
 - Let the Skills custom tool load one or more routed references directly by name.
 - Preserve explicit `models.json` endpoints when installing the custom Codex transport and Daybreak model catalog.
+- Keep LAN voice certificate startup compatible with asynchronous certificate generation.

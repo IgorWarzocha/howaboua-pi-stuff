@@ -42,14 +42,14 @@
 		]
 	},
 	"peerDependencies": {
-		"@earendil-works/pi-coding-agent": "*",
-		"@earendil-works/pi-tui": "*"
+		"@earendil-works/pi-coding-agent": ">=0.84.3",
+		"@earendil-works/pi-tui": ">=0.84.3"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.10",
-		"@earendil-works/pi-coding-agent": "0.84.1",
+		"@earendil-works/pi-coding-agent": "0.84.3",
 		"tsx": "^4.23.12",
-		"typescript": "^6.0.3"
+		"typescript": "^7.0.2"
 	},
 	"scripts": {
 		"lint": "biome check .",

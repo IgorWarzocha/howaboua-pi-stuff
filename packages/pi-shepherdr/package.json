@@ -42,17 +42,17 @@
 		"pack:dry": "npm pack --dry-run"
 	},
 	"peerDependencies": {
-		"@earendil-works/pi-ai": ">=0.84.1",
-		"@earendil-works/pi-coding-agent": ">=0.84.1",
-		"@earendil-works/pi-tui": ">=0.84.1"
+		"@earendil-works/pi-ai": ">=0.84.3",
+		"@earendil-works/pi-coding-agent": ">=0.84.3",
+		"@earendil-works/pi-tui": ">=0.84.3"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.10",
-		"@earendil-works/pi-ai": "0.84.1",
-		"@earendil-works/pi-coding-agent": "0.84.1",
-		"@earendil-works/pi-tui": "0.84.1",
-		"@types/node": "^24.10.0",
-		"typescript": "^6.0.3"
+		"@earendil-works/pi-ai": "0.84.3",
+		"@earendil-works/pi-coding-agent": "0.84.3",
+		"@earendil-works/pi-tui": "0.84.3",
+		"@types/node": "^26.2.0",
+		"typescript": "^7.0.2"
 	},
 	"pi": {
 		"extensions": [

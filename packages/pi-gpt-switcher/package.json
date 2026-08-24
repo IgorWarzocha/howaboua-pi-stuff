@@ -46,13 +46,13 @@
 		]
 	},
 	"peerDependencies": {
-		"@earendil-works/pi-coding-agent": ">=0.80.6",
-		"@earendil-works/pi-tui": "*"
+		"@earendil-works/pi-coding-agent": ">=0.84.3",
+		"@earendil-works/pi-tui": ">=0.84.3"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.10",
-		"@earendil-works/pi-coding-agent": "0.82.0",
-		"typescript": "^6.0.3"
+		"@earendil-works/pi-coding-agent": "0.84.3",
+		"typescript": "^7.0.2"
 	},
 	"scripts": {
 		"check": "bun run lint && bun run typecheck && bun run test",

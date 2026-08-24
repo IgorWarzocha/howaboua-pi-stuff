@@ -14,7 +14,7 @@ export interface LanVoiceCertificate {
 	ipAddresses: string[];
 }
 
-export function resolveLanVoiceCertificate(agentDir: string): LanVoiceCertificate {
+export async function resolveLanVoiceCertificate(agentDir: string): Promise<LanVoiceCertificate> {
 	const hostnames = [
 		...new Set([hostname(), "localhost"].filter(Boolean)),
 	].sort();
@@ -41,11 +41,13 @@ export function resolveLanVoiceCertificate(agentDir: string): LanVoiceCertificat
 		privateKeyEncoding: { format: "pem", type: "pkcs8" },
 		publicKeyEncoding: { format: "pem", type: "spki" },
 	});
-	const generated = generate(
+	const notBeforeDate = new Date();
+	const generated = await generate(
 		[{ name: "commonName", value: hostnames[0] ?? "localhost" }],
 		{
 			algorithm: "sha256",
-			days: CERTIFICATE_DAYS,
+			notBeforeDate,
+			notAfterDate: new Date(notBeforeDate.getTime() + CERTIFICATE_DAYS * 24 * 60 * 60 * 1_000),
 			keyPair: { privateKey: keyPair.privateKey, publicKey: keyPair.publicKey },
 			extensions: [
 				{ name: "basicConstraints", cA: false },
@@ -54,12 +56,12 @@ export function resolveLanVoiceCertificate(agentDir: string): LanVoiceCertificat
 				{
 					name: "subjectAltName",
 					altNames: [
-						...hostnames.map((value) => ({ type: 2, value })),
-						...ipAddresses.map((ip) => ({ type: 7, ip })),
+						...hostnames.map((value) => ({ type: 2 as const, value })),
+						...ipAddresses.map((ip) => ({ type: 7 as const, ip })),
 					],
 				},
 			],
-		} as Parameters<typeof generate>[1] & { keyPair: { privateKey: string; publicKey: string } },
+		},
 	);
 	mkdirSync(directory, { recursive: true, mode: 0o700 });
 	writeFileSync(certPath, generated.cert, { mode: 0o600 });

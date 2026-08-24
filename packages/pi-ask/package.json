@@ -46,16 +46,16 @@
 		]
 	},
 	"peerDependencies": {
-		"@earendil-works/pi-coding-agent": ">=0.80.7",
-		"@earendil-works/pi-tui": ">=0.80.7",
+		"@earendil-works/pi-coding-agent": ">=0.84.3",
+		"@earendil-works/pi-tui": ">=0.84.3",
 		"typebox": "*"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.10",
-		"@earendil-works/pi-coding-agent": "0.82.0",
-		"@earendil-works/pi-tui": "0.82.0",
-		"typebox": "1.1.38",
-		"typescript": "^6.0.3"
+		"@earendil-works/pi-coding-agent": "0.84.3",
+		"@earendil-works/pi-tui": "0.84.3",
+		"typebox": "1.3.18",
+		"typescript": "^7.0.2"
 	},
 	"scripts": {
 		"check": "bun run lint && bun run typecheck && bun run test",

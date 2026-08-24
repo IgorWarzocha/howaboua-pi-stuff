@@ -57,10 +57,10 @@
 		"prepack": "bun run ../../scripts/prepare-aggregate-package.mjs"
 	},
 	"peerDependencies": {
-		"@earendil-works/pi-coding-agent": "*",
-		"@earendil-works/pi-tui": "*"
+		"@earendil-works/pi-coding-agent": ">=0.84.3",
+		"@earendil-works/pi-tui": ">=0.84.3"
 	},
 	"devDependencies": {
-		"@earendil-works/pi-coding-agent": "0.82.0"
+		"@earendil-works/pi-coding-agent": "0.84.3"
 	}
 }
