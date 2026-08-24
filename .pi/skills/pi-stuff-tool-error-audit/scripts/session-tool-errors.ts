@@ -143,13 +143,18 @@ async function recentSessionFiles(
 ): Promise<string[]> {
   const paths: string[] = [];
   async function walk(directory: string): Promise<void> {
-    for await (const entry of Deno.readDir(directory)) {
-      const path = `${directory}/${entry.name}`;
-      if (entry.isDirectory) await walk(path);
-      else if (entry.isFile && entry.name.endsWith(".jsonl")) {
-        const stat = await Deno.stat(path);
-        if (stat.mtime && stat.mtime >= since) paths.push(path);
+    try {
+      for await (const entry of Deno.readDir(directory)) {
+        const path = `${directory}/${entry.name}`;
+        if (entry.isDirectory) await walk(path);
+        else if (entry.isFile && entry.name.endsWith(".jsonl")) {
+          const stat = await Deno.stat(path);
+          if (stat.mtime && stat.mtime >= since) paths.push(path);
+        }
       }
+    } catch (error) {
+      if (error instanceof Deno.errors.NotFound) return;
+      throw error;
     }
   }
   await walk(root);
