@@ -69,11 +69,13 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 3.0.18
+### @howaboua/pi-codex-conversion — 3.0.19
 
 ### Changes
 
-- [#331](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/331) [`6b42bb6`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/6b42bb6cb878b0bee860016a2698e4bb9351ced5) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Allow native OpenAI Codex compaction requests up to the 872k subscription context budget without truncating tool outputs.
+- [#339](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/339) [`ee0220c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ee0220cdc44cd732dff9caf0c913e098ed14404f) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Keep long Codex sessions cached through idle periods by generating and discarding an isolated completion over the complete settled context every 25 minutes. Resume transport from the complete current branch instead of a system-only baseline, and add named diagnostics with socket, continuation, and authoritative refresh usage.
+
+- [#339](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/339) [`ee0220c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ee0220cdc44cd732dff9caf0c913e098ed14404f) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Preserve native compaction cache continuity after switching Codex models.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
@@ -187,47 +189,6 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-shepherdr/CHANGELOG.md)
 
-### @howaboua/pi-skill-adversarial-qa — 0.0.1
-
-### Changes
-
-- [#126](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/126) [`8983df4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8983df436423fdc2933863611285946dd0319cf5) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
-  - Add the adversarial-qa skill for falsifying code behaviour with property, differential, mutation, and fuzz testing.
-
-[Full changelog](./packages/pi-skill-adversarial-qa/CHANGELOG.md)
-
-### @howaboua/pi-skill-agent-native-hardening — 0.0.6
-
-### Changes
-
-- [#166](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/166) [`5118fd9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/5118fd9c29c050316a4fa1cf9122b501710e7056) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
-  - Add execution-topology guidance for agent-navigable call stacks.
-  - Measure import, initialization, startup, and bundle performance.
-
-[Full changelog](./packages/pi-skill-agent-native-hardening/CHANGELOG.md)
-
-### @howaboua/pi-skill-agents-md — 0.0.4
-
-### Changes
-
-- [#126](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/126) [`8983df4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8983df436423fdc2933863611285946dd0319cf5) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
-  - Make skill descriptions terse semantic indexes.
-  - Remove redundant purpose or job restatements.
-  - Distinguish operational from creative body language where applicable.
-
-[Full changelog](./packages/pi-skill-agents-md/CHANGELOG.md)
-
-### @howaboua/pi-skill-anti-ai-copy — 0.0.4
-
-### Changes
-
-- [#126](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/126) [`8983df4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8983df436423fdc2933863611285946dd0319cf5) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
-  - Make skill descriptions terse semantic indexes.
-  - Remove redundant purpose or job restatements.
-  - Distinguish operational from creative body language where applicable.
-
-[Full changelog](./packages/pi-skill-anti-ai-copy/CHANGELOG.md)
-
 ### @howaboua/pi-skill-chrome-cdp — 0.0.4
 
 ### Changes
@@ -239,90 +200,62 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-skill-chrome-cdp/CHANGELOG.md)
 
-### @howaboua/pi-skill-codex-prompt-caching — 0.0.1
+### @howaboua/pi-skill-code — 0.0.1
 
 ### Changes
 
-- [#214](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/214) [`2023aa0`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/2023aa005da4d32f9af0b9bc161c9224d8c60486) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
-  - Add a Codex prompt-caching skill covering GPT-5.6 caching, Codex request continuity, Pi hooks, compaction, dynamic tools, measurement, and extension review.
+- [#339](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/339) [`ee0220c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ee0220cdc44cd732dff9caf0c913e098ed14404f) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Publish rebuilt portable skills in category packages
 
-[Full changelog](./packages/pi-skill-codex-prompt-caching/CHANGELOG.md)
+[Full changelog](./packages/pi-skill-code/CHANGELOG.md)
 
-### @howaboua/pi-skill-gh-issue-pr-flow — 0.0.7
-
-### Changes
-
-- [#168](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/168) [`70c9973`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/70c9973b8509d2ebefc26acef5c25d1e01b47d47) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
-  - Cull feature-existence and implementation-coupled tests before final PR submission, retaining only independently justified contract coverage.
-
-[Full changelog](./packages/pi-skill-gh-issue-pr-flow/CHANGELOG.md)
-
-### @howaboua/pi-skill-gh-stack — 0.0.2
+### @howaboua/pi-skill-foundations — 0.0.1
 
 ### Changes
 
-- [#231](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/231) [`f05fa46`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/f05fa469e034ec0e47f238f213437e5a11f2b13c) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
-  - Add tested noninteractive command guidance.
-  - Lazy-load command and recovery references.
-  - Add machine-readable state contracts and issue-batch stack design.
+- [#339](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/339) [`ee0220c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ee0220cdc44cd732dff9caf0c913e098ed14404f) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Publish rebuilt portable skills in category packages
 
-[Full changelog](./packages/pi-skill-gh-stack/CHANGELOG.md)
+[Full changelog](./packages/pi-skill-foundations/CHANGELOG.md)
 
-### @howaboua/pi-skill-model-facing-api-design — 0.0.5
+### @howaboua/pi-skill-harness-and-agent-engineering — 0.0.1
 
 ### Changes
 
-- [#149](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/149) [`94b2252`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/94b225295be07e04206460963fd3da754a74565e) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
-  - Document model-facing punctuation and token-cost hygiene
+- [#339](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/339) [`ee0220c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ee0220cdc44cd732dff9caf0c913e098ed14404f) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Publish rebuilt portable skills in category packages
 
-[Full changelog](./packages/pi-skill-model-facing-api-design/CHANGELOG.md)
+[Full changelog](./packages/pi-skill-harness-and-agent-engineering/CHANGELOG.md)
 
-### @howaboua/pi-skill-omarchy-help — 0.0.4
+### @howaboua/pi-skill-omarchy-help — 0.0.5
 
 ### Changes
 
-- [#126](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/126) [`8983df4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8983df436423fdc2933863611285946dd0319cf5) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
-  - Make skill descriptions terse semantic indexes.
-  - Remove redundant purpose or job restatements.
-  - Distinguish operational from creative body language where applicable.
+- [#339](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/339) [`ee0220c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ee0220cdc44cd732dff9caf0c913e098ed14404f) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Refresh Omarchy guidance for portable workstation maintenance
 
 [Full changelog](./packages/pi-skill-omarchy-help/CHANGELOG.md)
 
-### @howaboua/pi-skill-project-reference-research — 0.0.4
-
-### Changes
-
-- [#126](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/126) [`8983df4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8983df436423fdc2933863611285946dd0319cf5) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
-  - Make skill descriptions terse semantic indexes.
-  - Remove redundant purpose or job restatements.
-  - Distinguish operational from creative body language where applicable.
-
-[Full changelog](./packages/pi-skill-project-reference-research/CHANGELOG.md)
-
-### @howaboua/pi-skill-skill-creator — 0.0.5
-
-### Changes
-
-- [#126](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/126) [`8983df4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8983df436423fdc2933863611285946dd0319cf5) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
-  - Make skill descriptions terse semantic indexes.
-  - Remove redundant purpose or job restatements.
-  - Distinguish operational from creative body language where applicable.
-
-[Full changelog](./packages/pi-skill-skill-creator/CHANGELOG.md)
-
-### @howaboua/pi-skills — 0.0.16
+### @howaboua/pi-skills — 0.0.17
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-skill-gh-stack:
-    - Add tested noninteractive command guidance.
-    - Lazy-load command and recovery references.
-    - Add machine-readable state contracts and issue-batch stack design.
+  - @howaboua/pi-skill-code: Publish rebuilt portable skills in category packages.
+  - @howaboua/pi-skill-foundations: Publish rebuilt portable skills in category packages.
+  - @howaboua/pi-skill-harness-and-agent-engineering: Publish rebuilt portable skills in category packages.
+  - @howaboua/pi-skill-adversarial-qa: Remove retired bundled skill.
+  - @howaboua/pi-skill-agent-native-hardening: Remove retired bundled skill.
+  - @howaboua/pi-skill-agents-md: Remove retired bundled skill.
+  - @howaboua/pi-skill-anti-ai-copy: Remove retired bundled skill.
+  - @howaboua/pi-skill-codex-prompt-caching: Remove retired bundled skill.
+  - @howaboua/pi-skill-gh-issue-pr-flow: Remove retired bundled skill.
+  - @howaboua/pi-skill-gh-stack: Remove retired bundled skill.
+  - @howaboua/pi-skill-model-facing-api-design: Remove retired bundled skill.
+  - @howaboua/pi-skill-project-reference-research: Remove retired bundled skill.
+  - @howaboua/pi-skill-skill-creator: Remove retired bundled skill.
 
-- Updated dependencies [[`f05fa46`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/f05fa469e034ec0e47f238f213437e5a11f2b13c)]:
-  - @howaboua/pi-skill-gh-stack@0.0.2
+- Updated dependencies [[`ee0220c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ee0220cdc44cd732dff9caf0c913e098ed14404f)]:
+  - @howaboua/pi-skill-code@0.0.1
+  - @howaboua/pi-skill-foundations@0.0.1
+  - @howaboua/pi-skill-harness-and-agent-engineering@0.0.1
 
 [Full changelog](./packages/pi-skills/CHANGELOG.md)
 
@@ -337,16 +270,30 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.68
+### @howaboua/pi-stuff — 0.0.69
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-gpt-switcher: Add configurable session context windows and reasoning defaults for GPT shortcuts.
+  - @howaboua/pi-skill-code: Publish rebuilt portable skills in category packages.
+  - @howaboua/pi-skill-foundations: Publish rebuilt portable skills in category packages.
+  - @howaboua/pi-skill-harness-and-agent-engineering: Publish rebuilt portable skills in category packages.
+  - @howaboua/pi-skill-adversarial-qa: Remove retired bundled skill.
+  - @howaboua/pi-skill-agent-native-hardening: Remove retired bundled skill.
+  - @howaboua/pi-skill-agents-md: Remove retired bundled skill.
+  - @howaboua/pi-skill-anti-ai-copy: Remove retired bundled skill.
+  - @howaboua/pi-skill-codex-prompt-caching: Remove retired bundled skill.
+  - @howaboua/pi-skill-gh-issue-pr-flow: Remove retired bundled skill.
+  - @howaboua/pi-skill-gh-stack: Remove retired bundled skill.
+  - @howaboua/pi-skill-model-facing-api-design: Remove retired bundled skill.
+  - @howaboua/pi-skill-project-reference-research: Remove retired bundled skill.
+  - @howaboua/pi-skill-skill-creator: Remove retired bundled skill.
 
-- Updated dependencies [[`a9143cf`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/a9143cfeb802406c2e62b4424e27b69da141b7ae)]:
-  - @howaboua/pi-gpt-switcher@0.1.1
+- Updated dependencies [[`ee0220c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ee0220cdc44cd732dff9caf0c913e098ed14404f)]:
+  - @howaboua/pi-skill-code@0.0.1
+  - @howaboua/pi-skill-foundations@0.0.1
+  - @howaboua/pi-skill-harness-and-agent-engineering@0.0.1
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 
@@ -357,6 +304,14 @@ Going forward, package-level changelogs remain the source of truth for each pack
 - [#314](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/314) [`536910d`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/536910d3b0a89f1caaa7a37844bdb80b62c1f844) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Review a focused JJ revision when its workspace cursor is an empty child commit.
 
 [Full changelog](./packages/pi-subagent-review/CHANGELOG.md)
+
+### @howaboua/pi-subdir-agents — 0.0.1
+
+### Changes
+
+- [#339](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/339) [`ee0220c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ee0220cdc44cd732dff9caf0c913e098ed14404f) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Load nested AGENTS.md context when repository discovery reaches a subdirectory.
+
+[Full changelog](./packages/pi-subdir-agents/CHANGELOG.md)
 
 ### @howaboua/pi-unicode-charts — 0.1.0
 

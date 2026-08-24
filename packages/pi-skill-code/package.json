@@ -1,13 +1,29 @@
 {
 	"name": "@howaboua/pi-skill-code",
-	"version": "0.0.0",
+	"version": "0.0.1",
 	"description": "Portable Pi skills for maintained code",
 	"type": "module",
-	"keywords": ["pi-package", "pi", "pi-skill", "skill", "code"],
+	"keywords": [
+		"pi-package",
+		"pi",
+		"pi-skill",
+		"skill",
+		"code"
+	],
 	"license": "MIT",
-	"publishConfig": { "access": "public" },
-	"files": ["skills", "README.md", "LICENSE"],
-	"pi": { "skills": ["./skills"] },
+	"publishConfig": {
+		"access": "public"
+	},
+	"files": [
+		"skills",
+		"README.md",
+		"LICENSE"
+	],
+	"pi": {
+		"skills": [
+			"./skills"
+		]
+	},
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",

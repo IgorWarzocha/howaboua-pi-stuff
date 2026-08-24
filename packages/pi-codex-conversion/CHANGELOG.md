@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.0.19
+
+### Changes
+
+- [#339](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/339) [`ee0220c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ee0220cdc44cd732dff9caf0c913e098ed14404f) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Keep long Codex sessions cached through idle periods by generating and discarding an isolated completion over the complete settled context every 25 minutes. Resume transport from the complete current branch instead of a system-only baseline, and add named diagnostics with socket, continuation, and authoritative refresh usage.
+
+- [#339](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/339) [`ee0220c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ee0220cdc44cd732dff9caf0c913e098ed14404f) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Preserve native compaction cache continuity after switching Codex models.
+
 ## 3.0.18
 
 ### Changes

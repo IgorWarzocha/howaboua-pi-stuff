@@ -1,6 +1,6 @@
 {
   "name": "@howaboua/pi-skill-omarchy-help",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Pi skill package for omarchy-help.",
   "type": "module",
   "keywords": [

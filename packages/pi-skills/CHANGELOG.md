@@ -1,5 +1,30 @@
 # @howaboua/pi-skills
 
+## 0.0.17
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-skill-code: Publish rebuilt portable skills in category packages.
+  - @howaboua/pi-skill-foundations: Publish rebuilt portable skills in category packages.
+  - @howaboua/pi-skill-harness-and-agent-engineering: Publish rebuilt portable skills in category packages.
+  - @howaboua/pi-skill-adversarial-qa: Remove retired bundled skill.
+  - @howaboua/pi-skill-agent-native-hardening: Remove retired bundled skill.
+  - @howaboua/pi-skill-agents-md: Remove retired bundled skill.
+  - @howaboua/pi-skill-anti-ai-copy: Remove retired bundled skill.
+  - @howaboua/pi-skill-codex-prompt-caching: Remove retired bundled skill.
+  - @howaboua/pi-skill-gh-issue-pr-flow: Remove retired bundled skill.
+  - @howaboua/pi-skill-gh-stack: Remove retired bundled skill.
+  - @howaboua/pi-skill-model-facing-api-design: Remove retired bundled skill.
+  - @howaboua/pi-skill-project-reference-research: Remove retired bundled skill.
+  - @howaboua/pi-skill-skill-creator: Remove retired bundled skill.
+
+- Updated dependencies [[`ee0220c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ee0220cdc44cd732dff9caf0c913e098ed14404f)]:
+  - @howaboua/pi-skill-code@0.0.1
+  - @howaboua/pi-skill-foundations@0.0.1
+  - @howaboua/pi-skill-harness-and-agent-engineering@0.0.1
+
 ## 0.0.16
 
 ### Changes
@@ -279,6 +304,7 @@
 ### Changes
 
 - [`3c8c222`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/3c8c2222bb8d907a85517dd2155f8ea77d2441fb) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
+
   - Initial public release from the Howaboua Pi Stuff monorepo.
 
 - Updated dependencies [[`f252da3`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/f252da342444236f06c6da3f7d92cbdab420d770)]:
