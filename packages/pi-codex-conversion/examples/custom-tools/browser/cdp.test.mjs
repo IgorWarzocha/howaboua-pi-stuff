@@ -306,16 +306,21 @@ test("missing HTML selector is an error, not successful content", async () => {
 });
 
 test("snapshot emits compact line content and numbered interactive refs", async () => {
+	let snapshotNumber = 0;
 	const cdp = {
 		async send(method) {
-			if (method === "Accessibility.getFullAXTree") return {
-				nodes: [
-					{ nodeId: "root", role: { value: "RootWebArea" }, name: { value: "" }, childIds: ["button", "text"] },
-					{ nodeId: "button", parentId: "root", backendDOMNodeId: 42, role: { value: "button" }, name: { value: "Continue" }, childIds: ["button-text"] },
-					{ nodeId: "button-text", parentId: "button", role: { value: "StaticText" }, name: { value: "Continue" } },
-					{ nodeId: "text", parentId: "root", role: { value: "StaticText" }, name: { value: "Hello   world" } },
-				],
-			};
+			if (method === "Accessibility.getFullAXTree") {
+				snapshotNumber++;
+				return {
+					nodes: [
+						{ nodeId: "root", role: { value: "RootWebArea" }, name: { value: "" }, childIds: ["button", "menu", "text"] },
+						{ nodeId: "button", parentId: "root", backendDOMNodeId: 40 + snapshotNumber, role: { value: "button" }, name: { value: "Continue" }, childIds: ["button-text"] },
+						{ nodeId: "button-text", parentId: "button", role: { value: "StaticText" }, name: { value: "Continue" } },
+						{ nodeId: "menu", parentId: "root", backendDOMNodeId: 80 + snapshotNumber, role: { value: "menuitemcheckbox" }, name: { value: "Show archived" } },
+						{ nodeId: "text", parentId: "root", role: { value: "StaticText" }, name: { value: "Hello   world" } },
+					],
+				};
+			}
 			if (method === "Runtime.evaluate")
 				return { result: { value: { title: "Page", url: "https://example.com" } } };
 			return {};
@@ -325,10 +330,18 @@ test("snapshot emits compact line content and numbered interactive refs", async 
 	const result = await snapshotData(cdp, "session", refs, { refId: "ABCDEF12", responseLength: "short" });
 	assert.deepEqual(result.content, [
 		{ line: 1, text: "[1] button Continue", element_id: 1 },
-		{ line: 2, text: "Hello world" },
+		{ line: 2, text: "[2] menuitemcheckbox Show archived", element_id: 2 },
+		{ line: 3, text: "Hello world" },
 	]);
-	assert.deepEqual(result.elements, [{ id: 1, role: "button", name: "Continue" }]);
-	assert.equal(refs.get(1), 42);
+	assert.deepEqual(result.elements, [
+		{ id: 1, role: "button", name: "Continue" },
+		{ id: 2, role: "menuitemcheckbox", name: "Show archived" },
+	]);
+	assert.equal(refs.get(1), 41);
+	const next = await snapshotData(cdp, "session", refs, { refId: "ABCDEF12", responseLength: "short" });
+	assert.deepEqual(next.elements.map((element) => element.id), [3, 4]);
+	assert.equal(refs.has(1), false);
+	assert.equal(refs.get(3), 42);
 	await assert.rejects(snapshotData(cdp, "session", refs, { lineno: Number.NaN }), /line cursor/);
 	await assert.rejects(snapshotData(cdp, "session", refs, { responseLength: "huge" }), /response length/);
 });

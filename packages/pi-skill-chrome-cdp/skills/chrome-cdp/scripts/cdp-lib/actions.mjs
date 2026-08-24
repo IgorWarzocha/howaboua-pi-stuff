@@ -184,25 +184,42 @@ async function selectorBackendNode(cdp, sid, selector) {
   }
 }
 
+async function visibleElementClip(cdp, sid, quad, padding = 10) {
+  const metrics = await cdp.send('Page.getLayoutMetrics', {}, sid);
+  const viewport = metrics.cssVisualViewport ?? metrics.visualViewport ??
+    metrics.cssLayoutViewport ?? metrics.layoutViewport;
+  if (!(viewport?.clientWidth > 0) || !(viewport?.clientHeight > 0)) {
+    throw new Error('Could not determine a bounded screenshot viewport');
+  }
+  const pageX = viewport.pageX ?? 0;
+  const pageY = viewport.pageY ?? 0;
+  const xs = [quad[0], quad[2], quad[4], quad[6]];
+  const ys = [quad[1], quad[3], quad[5], quad[7]];
+  const x = Math.max(pageX, Math.min(...xs) - padding);
+  const y = Math.max(pageY, Math.min(...ys) - padding);
+  const right = Math.min(pageX + viewport.clientWidth, Math.max(...xs) + padding);
+  const bottom = Math.min(pageY + viewport.clientHeight, Math.max(...ys) + padding);
+  if (right <= x || bottom <= y) throw new Error('Element has no visible screenshot box');
+  return { x, y, width: right - x, height: bottom - y, scale: 1 };
+}
+
 async function shotRefStr(cdp, sid, elementRefs, id, filePath, targetId) {
   const ref = requireElementRef(elementRefs, id);
   await scrollBackendIntoView(cdp, sid, ref.backendNodeId);
   const { model } = await cdp.send('DOM.getBoxModel', { backendNodeId: ref.backendNodeId }, sid);
   const quad = model?.border;
   if (!Array.isArray(quad) || quad.length < 8) throw new Error('Element has no screenshot box');
-  const xs = [quad[0], quad[2], quad[4], quad[6]];
-  const ys = [quad[1], quad[3], quad[5], quad[7]];
-  const x = Math.max(0, Math.min(...xs) - 10);
-  const y = Math.max(0, Math.min(...ys) - 10);
-  const width = Math.max(1, Math.max(...xs) - Math.min(...xs) + 20);
-  const height = Math.max(1, Math.max(...ys) - Math.min(...ys) + 20);
+  const clip = await visibleElementClip(cdp, sid, quad);
   const dpr = await getDpr(cdp, sid);
   const { data } = await cdp.send('Page.captureScreenshot', {
-    format: 'png', clip: { x, y, width, height, scale: 1 },
+    format: 'png', clip, captureBeyondViewport: false,
   }, sid);
   const out = filePath || resolve(RUNTIME_DIR, `screenshot-${(targetId || 'unknown').slice(0, 8)}-element.png`);
   writeFileSync(out, Buffer.from(data, 'base64'));
-  return screenshotReport(out, dpr, [`Element screenshot saved for id: ${ref.id}`]);
+  return screenshotReport(out, dpr, [
+    `Element screenshot saved for id: ${ref.id}`,
+    `Clip: ${Math.round(clip.width)}×${Math.round(clip.height)} visible CSS px`,
+  ]);
 }
 
 async function htmlStr(cdp, sid, selector) {

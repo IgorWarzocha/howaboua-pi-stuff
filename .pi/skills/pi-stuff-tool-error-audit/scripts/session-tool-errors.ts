@@ -234,9 +234,8 @@ function resultExitCode(value: unknown): number | undefined {
   const details = result.details && typeof result.details === "object"
     ? result.details as JsonRecord
     : result;
-  return Number.isInteger(details.exit_code)
-    ? details.exit_code as number
-    : undefined;
+  const exitCode = details.exit_code ?? details.exitCode;
+  return Number.isInteger(exitCode) ? exitCode as number : undefined;
 }
 
 function assess(message: JsonRecord): Assessment {

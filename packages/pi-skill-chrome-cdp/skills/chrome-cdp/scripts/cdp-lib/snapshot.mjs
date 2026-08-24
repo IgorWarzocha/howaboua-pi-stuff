@@ -40,10 +40,11 @@ function orderedAxChildren(node, nodesById, childrenByParent) {
 
 const INTERACTIVE_ROLES = new Set([
   'button', 'checkbox', 'combobox', 'link', 'listbox', 'menuitem', 'option',
-  'radio', 'searchbox', 'slider', 'spinbutton', 'switch', 'tab', 'textbox',
-  'treeitem',
+  'menuitemcheckbox', 'menuitemradio', 'radio', 'searchbox', 'slider',
+  'spinbutton', 'switch', 'tab', 'textbox', 'treeitem',
 ]);
 const SNAPSHOT_LIMITS = { short: 60, medium: 140, long: 300 };
+const NEXT_ELEMENT_IDS = new WeakMap();
 
 function normalizeSnapshotText(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
@@ -73,7 +74,12 @@ async function snapshotData(cdp, sid, elementRefs, options = {}) {
   const lines = [];
   const elements = [];
   const visited = new Set();
-  let nextElementId = 1;
+  function nextElementId() {
+    const id = NEXT_ELEMENT_IDS.get(elementRefs) ?? 1;
+    if (!Number.isSafeInteger(id)) throw new Error('Element id limit reached; restart the tab bridge');
+    NEXT_ELEMENT_IDS.set(elementRefs, id + 1);
+    return id;
+  }
   function addLine(text, element, kind = 'text') {
     for (const part of splitSnapshotText(text)) {
       const line = { line: lines.length + 1, text: part, kind };
@@ -102,7 +108,7 @@ async function snapshotData(cdp, sid, elementRefs, options = {}) {
       const interactive = INTERACTIVE_ROLES.has(role) && node.backendDOMNodeId;
       if (interactive) {
         const element = {
-          id: nextElementId++,
+          id: nextElementId(),
           role,
           ...(name ? { name } : {}),
           ...(value === '' || value == null ? {} : { value }),
