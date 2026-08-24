@@ -77,7 +77,7 @@
     "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
     "test": "tsx --test tests/**/*.test.ts",
-    "check": "bun run typecheck && bun run test",
+    "check": "node ../../scripts/sync-browser-cdp.mjs --check && bun run typecheck && bun run test",
     "publish:dry-run": "npm publish --dry-run",
     "publish:dev": "npm publish --tag dev",
     "release:dev": "npm version prerelease --preid dev && npm publish --tag dev",
