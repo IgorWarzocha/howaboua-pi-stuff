@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { cdpTimeoutAttempts, clickStr, formatPagesJson, getTargetRef, htmlStr, snapshotData } from "./cdp.mjs";
+import { cdpTimeoutAttempts, clickStr, formatPagesJson, getTargetRef, htmlStr, snapshotData, typeRefStr } from "./cdp.mjs";
 
 test("CDP transport preserves protocol boundaries", async () => {
 	const tabs = JSON.parse(formatPagesJson([
@@ -25,7 +25,7 @@ test("CDP transport preserves protocol boundaries", async () => {
 	assert.equal(cdpTimeoutAttempts("Runtime.evaluate"), 1);
 });
 
-test("selector click dispatches trusted pointer events instead of DOM click", async () => {
+test("browser mutations preserve trusted click and safe typing boundaries", async () => {
 	const calls = [];
 	const cdp = {
 		async send(method, params) {
@@ -52,6 +52,45 @@ test("selector click dispatches trusted pointer events instead of DOM click", as
 	};
 	await assert.rejects(clickStr(blocked, "session", "a.next"), /covered by <dialog>/);
 	assert.equal(blockedCalls.includes("Input.dispatchMouseEvent"), false);
+
+	const typeCalls = [];
+	const editable = {
+		async send(method, params) {
+			typeCalls.push({ method, params });
+			if (method === "DOM.resolveNode") return { object: { objectId: "field" } };
+			if (method === "Runtime.callFunctionOn")
+				return { result: { value: typeCalls.filter(call => call.method === "Runtime.callFunctionOn").length === 1
+					? { ok: true, x: 12, y: 34 }
+					: { ok: true } } };
+			if (method === "Runtime.evaluate") return {
+				result: { value: typeCalls.filter(call => call.method === "Runtime.evaluate").length === 1
+					? { ok: true, tag: "INPUT", inspectable: true, before: "" }
+					: { focused: true, tag: "INPUT", value: "hello" } },
+			};
+			return {};
+		},
+	};
+	assert.equal(
+		await typeRefStr(editable, "session", new Map([[7, 42]]), "7", "hello"),
+		"Typed 5 characters into focused <INPUT>",
+	);
+	assert.equal(typeCalls.some(call => call.method === "Input.dispatchMouseEvent"), false);
+
+	const buttonCalls = [];
+	const button = {
+		async send(method) {
+			buttonCalls.push(method);
+			if (method === "DOM.resolveNode") return { object: { objectId: "button" } };
+			if (method === "Runtime.callFunctionOn")
+				return { result: { value: buttonCalls.filter(call => call === "Runtime.callFunctionOn").length === 1
+					? { ok: true, x: 12, y: 34 }
+					: { ok: false, error: "<BUTTON> is not editable" } } };
+			return {};
+		},
+	};
+	await assert.rejects(typeRefStr(button, "session", new Map([[8, 43]]), "8", "no"), /not editable/);
+	assert.equal(buttonCalls.includes("Input.dispatchMouseEvent"), false);
+	assert.equal(buttonCalls.includes("Input.insertText"), false);
 });
 
 test("missing HTML selector is an error, not successful content", async () => {

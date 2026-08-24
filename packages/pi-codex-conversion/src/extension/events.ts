@@ -280,33 +280,33 @@ export function registerCodexEvents(
 		runtime.voice.compactionFinished();
 	});
 	pi.on("session_compact", async (event, ctx) => {
-		runtime.voice.resetContextAnnouncements();
-		state.pendingPiCompactionNativeWindow = undefined;
-		let nativeCompaction = false;
-		const compactionEntry = findLatestCompactionEntry(ctx.sessionManager.getBranch());
-		if (event.fromExtension && compactionEntry && isNativeCompactionDetails(compactionEntry.details)) {
-			const details = compactionEntry.details;
-			nativeCompaction = true;
-			// Presentation entries persist and render without entering Pi's turn queue or LLM context.
-			pi.appendEntry<NativeCompactionDisplayEntry>(NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, {
-				content: NATIVE_COMPACTION_DISPLAY_TEXT,
-				compactionEntryId: compactionEntry.id,
-			});
-			if (details.strategy === NATIVE_COMPACTION_STRATEGY && details.usage) {
-				pi.appendEntry<NativeCompactionDisplayEntry>(NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, {
-					content: formatCompactionUsage(details.usage),
-					compactionEntryId: compactionEntry.id,
-					kind: "usage",
-				});
-			}
-		}
-		const postCompactionPrompt = codeMode.refreshPromptTools(
-			state.activeProviderSystemPrompt ?? ctx.getSystemPrompt(),
-			ctx,
-		);
-		state.activeProviderSystemPrompt = postCompactionPrompt;
-		runtime.resetTransportAfterCompaction(ctx.sessionManager.getSessionId());
 		try {
+			runtime.voice.resetContextAnnouncements();
+			state.pendingPiCompactionNativeWindow = undefined;
+			let nativeCompaction = false;
+			const compactionEntry = findLatestCompactionEntry(ctx.sessionManager.getBranch());
+			if (event.fromExtension && compactionEntry && isNativeCompactionDetails(compactionEntry.details)) {
+				const details = compactionEntry.details;
+				nativeCompaction = true;
+				// Presentation entries persist and render without entering Pi's turn queue or LLM context.
+				pi.appendEntry<NativeCompactionDisplayEntry>(NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, {
+					content: NATIVE_COMPACTION_DISPLAY_TEXT,
+					compactionEntryId: compactionEntry.id,
+				});
+				if (details.strategy === NATIVE_COMPACTION_STRATEGY && details.usage) {
+					pi.appendEntry<NativeCompactionDisplayEntry>(NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, {
+						content: formatCompactionUsage(details.usage),
+						compactionEntryId: compactionEntry.id,
+						kind: "usage",
+					});
+				}
+			}
+			const postCompactionPrompt = codeMode.refreshPromptTools(
+				state.activeProviderSystemPrompt ?? ctx.getSystemPrompt(),
+				ctx,
+			);
+			state.activeProviderSystemPrompt = postCompactionPrompt;
+			runtime.resetTransportAfterCompaction(ctx.sessionManager.getSessionId());
 			await (nativeCompaction
 				? runtime.startCompactionPrewarm(ctx)
 				: runtime.startPrewarm(ctx, postCompactionPrompt, true));

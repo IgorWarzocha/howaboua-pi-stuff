@@ -866,7 +866,30 @@ async function typeStr(cdp, sid, text) {
 }
 
 async function typeRefStr(cdp, sid, elementRefs, id, text) {
-  await clickRefStr(cdp, sid, elementRefs, id);
+  const ref = requireElementRef(elementRefs, id);
+  await backendCenter(cdp, sid, ref.backendNodeId);
+  const objectId = await resolveBackendObject(cdp, sid, ref.backendNodeId);
+  const focusState = (await cdp.send('Runtime.callFunctionOn', {
+    objectId,
+    functionDeclaration: `function() {
+      const tag = this.tagName;
+      const inputTypes = new Set(['text', 'search', 'email', 'url', 'tel', 'password', 'number']);
+      const input = tag === 'INPUT' && inputTypes.has((this.type || 'text').toLowerCase());
+      const textarea = tag === 'TEXTAREA';
+      const contentEditable = this.isContentEditable;
+      if (!input && !textarea && !contentEditable)
+        return { ok: false, error: '<' + tag + '> is not editable' };
+      if ((input || textarea) && (this.disabled || this.readOnly))
+        return { ok: false, error: '<' + tag + '> is disabled or read-only' };
+      this.focus({ preventScroll: true });
+      const root = this.getRootNode();
+      if (root.activeElement !== this && this.ownerDocument.activeElement !== this)
+        return { ok: false, error: 'Could not focus editable <' + tag + '>' };
+      return { ok: true };
+    }`,
+    returnByValue: true,
+  }, sid)).result?.value;
+  if (!focusState?.ok) throw new Error(focusState?.error || 'Element is not editable');
   return typeStr(cdp, sid, text);
 }
 
