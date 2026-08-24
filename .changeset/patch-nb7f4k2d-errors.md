@@ -7,6 +7,7 @@ Make Code and Notebook Mode failures actionable and easier to recover.
 - Surface Deno syntax diagnostics instead of generic execution failures and isolate bridge networking from user bindings.
 - Encode action-specific notebook control inputs and return targeted recovery for persistent binding redeclarations.
 - Clarify safe shell interpolation, terminal input, and Deno tool composition in model-facing guidance.
+- Keep concurrent Code and Notebook sessions from taking optional Git index locks during read-only commands.
 - Retry idempotent browser reads after delayed Chrome responses without blaming debugger approval, while warning against blind retries of timed-out page mutations.
 - Keep the Agents custom tool self-contained and remove the superseded Herdr Agent example.
 - Let the Skills custom tool load one or more routed references directly by name.
