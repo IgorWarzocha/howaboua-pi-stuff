@@ -502,6 +502,8 @@ function splitSnapshotText(value, max = 700) {
 }
 
 async function snapshotData(cdp, sid, elementRefs, options = {}) {
+  const lineno = positiveInteger(options.lineno ?? '1', 'line cursor');
+  const responseLength = snapshotResponseLength(options.responseLength);
   const { nodes } = await cdp.send('Accessibility.getFullAXTree', {}, sid);
   const nodesById = new Map(nodes.map(node => [node.nodeId, node]));
   const childrenByParent = new Map();
@@ -574,8 +576,8 @@ async function snapshotData(cdp, sid, elementRefs, options = {}) {
   const matching = pattern
     ? lines.filter(line => line.text.toLowerCase().includes(pattern))
     : lines;
-  const start = Math.max(0, (options.lineno || 1) - 1);
-  const limit = SNAPSHOT_LIMITS[options.responseLength] || SNAPSHOT_LIMITS.medium;
+  const start = lineno - 1;
+  const limit = SNAPSHOT_LIMITS[responseLength];
   const content = matching.slice(start, start + limit).map(({ kind: _kind, ...line }) => line);
   const visibleIds = new Set(content.map(line => line.element_id).filter(Boolean));
   const visibleElements = elements.filter(element => visibleIds.has(element.id));
@@ -595,8 +597,8 @@ async function snapshotData(cdp, sid, elementRefs, options = {}) {
 async function snapshotStr(cdp, sid, elementRefs, refId, lineno, responseLength) {
   return JSON.stringify(await snapshotData(cdp, sid, elementRefs, {
     refId,
-    lineno: Number.parseInt(lineno || '1', 10),
-    responseLength,
+    lineno: positiveInteger(lineno ?? '1', 'line cursor'),
+    responseLength: snapshotResponseLength(responseLength),
   }));
 }
 
@@ -605,9 +607,25 @@ async function findStr(cdp, sid, elementRefs, refId, pattern, lineno, responseLe
   return JSON.stringify(await snapshotData(cdp, sid, elementRefs, {
     refId,
     pattern,
-    lineno: Number.parseInt(lineno || '1', 10),
-    responseLength,
+    lineno: positiveInteger(lineno ?? '1', 'line cursor'),
+    responseLength: snapshotResponseLength(responseLength),
   }));
+}
+
+function positiveInteger(value, label) {
+  const source = String(value);
+  if (!/^[1-9]\d*$/.test(source)) throw new Error(`${label} must be a positive integer`);
+  const parsed = Number(source);
+  if (!Number.isSafeInteger(parsed)) throw new Error(`${label} must be a safe positive integer`);
+  return parsed;
+}
+
+function snapshotResponseLength(value) {
+  const resolved = value ?? 'medium';
+  if (!Object.hasOwn(SNAPSHOT_LIMITS, resolved)) {
+    throw new Error(`response length must be one of: ${Object.keys(SNAPSHOT_LIMITS).join(', ')}`);
+  }
+  return resolved;
 }
 
 async function evalStr(cdp, sid, expression) {
@@ -705,7 +723,7 @@ async function shotElementStr(cdp, sid, selector, filePath, targetId) {
 }
 
 function requireElementRef(elementRefs, id) {
-  const parsed = Number.parseInt(id, 10);
+  const parsed = positiveInteger(id, 'element id');
   const backendNodeId = elementRefs.get(parsed);
   if (!backendNodeId) throw new Error(`Unknown element id ${id}; run open again and use a current element id`);
   return { id: parsed, backendNodeId };
@@ -726,8 +744,8 @@ async function scrollBackendIntoView(cdp, sid, backendNodeId) {
   await sleep(50);
 }
 
-async function backendCenter(cdp, sid, backendNodeId) {
-  await scrollBackendIntoView(cdp, sid, backendNodeId);
+async function backendCenter(cdp, sid, backendNodeId, scroll = true) {
+  if (scroll) await scrollBackendIntoView(cdp, sid, backendNodeId);
   const objectId = await resolveBackendObject(cdp, sid, backendNodeId);
   const result = await cdp.send('Runtime.callFunctionOn', {
     objectId,
@@ -743,18 +761,54 @@ async function backendCenter(cdp, sid, backendNodeId) {
       if (disabled) return { ok: false, error: 'Element is disabled' };
       const x = rect.left + rect.width / 2;
       const y = rect.top + rect.height / 2;
-      const hit = this.ownerDocument.elementFromPoint(x, y);
+      const root = this.getRootNode();
+      const hit = root && typeof root.elementFromPoint === 'function'
+        ? root.elementFromPoint(x, y)
+        : this.ownerDocument.elementFromPoint(x, y);
       if (!hit || (hit !== this && !this.contains(hit))) {
         const blocker = hit ? '<' + hit.tagName.toLowerCase() + '>' : 'no element';
         return { ok: false, error: 'Element center is covered by ' + blocker };
       }
-      return { ok: true, x, y };
+      return {
+        ok: true,
+        x,
+        y,
+        tag: this.tagName,
+        text: (this.textContent || '').trim().substring(0, 80)
+      };
     }`,
     returnByValue: true,
   }, sid);
   const point = result.result?.value;
   if (!point?.ok) throw new Error(point?.error || 'Element has no clickable box');
   return point;
+}
+
+async function selectorBackendNode(cdp, sid, selector) {
+  await cdp.send('Runtime.enable', {}, sid);
+  const selected = await cdp.send('Runtime.evaluate', {
+    expression: `(() => {
+      const selector = ${JSON.stringify(selector)};
+      const matches = document.querySelectorAll(selector);
+      if (matches.length === 0) throw new Error('Element not found: ' + selector);
+      if (matches.length > 1) throw new Error('Selector matched ' + matches.length + ' elements: ' + selector);
+      return matches[0];
+    })()`,
+    returnByValue: false,
+    awaitPromise: true,
+  }, sid);
+  if (selected.exceptionDetails) {
+    throw new Error(selected.exceptionDetails.exception?.description || selected.exceptionDetails.text);
+  }
+  const objectId = selected.result?.objectId;
+  if (!objectId) throw new Error(`Element is no longer available: ${selector}`);
+  try {
+    const { node } = await cdp.send('DOM.describeNode', { objectId }, sid);
+    if (!node?.backendNodeId) throw new Error(`Element is no longer available: ${selector}`);
+    return node.backendNodeId;
+  } finally {
+    await cdp.send('Runtime.releaseObject', { objectId }, sid).catch(() => {});
+  }
 }
 
 async function shotRefStr(cdp, sid, elementRefs, id, filePath, targetId) {
@@ -863,52 +917,23 @@ async function netStr(cdp, sid) {
 // Click element by CSS selector
 async function clickStr(cdp, sid, selector) {
   if (!selector) throw new Error('CSS selector required');
-  const expr = `
-    (function() {
-      const selector = ${JSON.stringify(selector)};
-      const matches = document.querySelectorAll(selector);
-      if (matches.length === 0) return { ok: false, error: 'Element not found: ' + selector };
-      if (matches.length > 1) return { ok: false, error: 'Selector matched ' + matches.length + ' elements: ' + selector };
-      const el = matches[0];
-      el.scrollIntoView({ block: 'center' });
-      const rect = el.getBoundingClientRect();
-      const style = getComputedStyle(el);
-      const disabled = el.matches(':disabled') || el.getAttribute('aria-disabled') === 'true';
-      const hidden = rect.width <= 0 || rect.height <= 0 || style.display === 'none' ||
-        style.visibility === 'hidden' || style.visibility === 'collapse' ||
-        style.pointerEvents === 'none' || Number(style.opacity) === 0 ||
-        el.closest('[inert]') !== null;
-      if (hidden) return { ok: false, error: 'Element is not visible or interactable: ' + selector };
-      if (disabled) return { ok: false, error: 'Element is disabled: ' + selector };
-
-      const x = rect.left + rect.width / 2;
-      const y = rect.top + rect.height / 2;
-      const hit = document.elementFromPoint(x, y);
-      if (!hit || (hit !== el && !el.contains(hit))) {
-        const blocker = hit ? '<' + hit.tagName.toLowerCase() + '>' : 'no element';
-        return { ok: false, error: 'Element center is covered by ' + blocker + ': ' + selector };
-      }
-      return {
-        ok: true,
-        tag: el.tagName,
-        text: el.textContent.trim().substring(0, 80),
-        x,
-        y
-      };
-    })()
-  `;
-  const result = await evalStr(cdp, sid, expr);
-  const r = JSON.parse(result);
-  if (!r.ok) throw new Error(r.error);
-  await clickXyStr(cdp, sid, r.x, r.y);
-  return `Clicked <${r.tag}> "${r.text}"`;
+  const backendNodeId = await selectorBackendNode(cdp, sid, selector);
+  const point = await clickBackendNode(cdp, sid, backendNodeId);
+  return `Clicked <${point.tag}> "${point.text}"`;
 }
 
 async function clickRefStr(cdp, sid, elementRefs, id) {
   const ref = requireElementRef(elementRefs, id);
-  const point = await backendCenter(cdp, sid, ref.backendNodeId);
-  await clickXyStr(cdp, sid, point.x, point.y);
+  await clickBackendNode(cdp, sid, ref.backendNodeId);
   return `Clicked element ${ref.id}`;
+}
+
+async function clickBackendNode(cdp, sid, backendNodeId) {
+  const initial = await backendCenter(cdp, sid, backendNodeId);
+  await dispatchMouse(cdp, sid, 'mouseMoved', initial);
+  const point = await backendCenter(cdp, sid, backendNodeId, false);
+  await pressAndRelease(cdp, sid, point);
+  return point;
 }
 
 // Click at CSS pixel coordinates using Input.dispatchMouseEvent
@@ -916,12 +941,34 @@ async function clickXyStr(cdp, sid, x, y) {
   const cx = parseFloat(x);
   const cy = parseFloat(y);
   if (isNaN(cx) || isNaN(cy)) throw new Error('x and y must be numbers (CSS pixels)');
-  const base = { x: cx, y: cy, button: 'left', clickCount: 1, modifiers: 0 };
-  await cdp.send('Input.dispatchMouseEvent', { ...base, type: 'mouseMoved' }, sid);
-  await cdp.send('Input.dispatchMouseEvent', { ...base, type: 'mousePressed' }, sid);
-  await sleep(50);
-  await cdp.send('Input.dispatchMouseEvent', { ...base, type: 'mouseReleased' }, sid);
+  const point = { x: cx, y: cy };
+  await dispatchMouse(cdp, sid, 'mouseMoved', point);
+  await pressAndRelease(cdp, sid, point);
   return `Clicked at CSS (${cx}, ${cy})`;
+}
+
+function dispatchMouse(cdp, sid, type, point) {
+  return cdp.send('Input.dispatchMouseEvent', {
+    x: point.x,
+    y: point.y,
+    button: 'left',
+    clickCount: 1,
+    modifiers: 0,
+    type,
+  }, sid);
+}
+
+async function pressAndRelease(cdp, sid, point) {
+  let pressed = false;
+  try {
+    await dispatchMouse(cdp, sid, 'mousePressed', point);
+    pressed = true;
+    await sleep(50);
+    await dispatchMouse(cdp, sid, 'mouseReleased', point);
+    pressed = false;
+  } finally {
+    if (pressed) await dispatchMouse(cdp, sid, 'mouseReleased', point).catch(() => {});
+  }
 }
 
 // Type text using Input.insertText (works in cross-origin iframes, unlike eval)
@@ -980,6 +1027,7 @@ async function typeStr(cdp, sid, text) {
 }
 
 async function typeRefStr(cdp, sid, elementRefs, id, text) {
+  if (text == null || text === '') throw new Error('text required');
   const ref = requireElementRef(elementRefs, id);
   await backendCenter(cdp, sid, ref.backendNodeId);
   const objectId = await resolveBackendObject(cdp, sid, ref.backendNodeId);
@@ -999,12 +1047,39 @@ async function typeRefStr(cdp, sid, elementRefs, id, text) {
       const root = this.getRootNode();
       if (root.activeElement !== this && this.ownerDocument.activeElement !== this)
         return { ok: false, error: 'Could not focus editable <' + tag + '>' };
-      return { ok: true };
+      const before = input || textarea ? this.value : this.textContent;
+      return { ok: true, tag, before };
     }`,
     returnByValue: true,
   }, sid)).result?.value;
   if (!focusState?.ok) throw new Error(focusState?.error || 'Element is not editable');
-  return typeStr(cdp, sid, text);
+  const activeBefore = (await cdp.send('Runtime.callFunctionOn', {
+    objectId,
+    functionDeclaration: `function() {
+      const root = this.getRootNode();
+      return root.activeElement === this || this.ownerDocument.activeElement === this;
+    }`,
+    returnByValue: true,
+  }, sid)).result?.value;
+  if (!activeBefore) throw new Error('Focus changed before typing; input was not sent');
+
+  await cdp.send('Input.insertText', { text }, sid);
+  const after = (await cdp.send('Runtime.callFunctionOn', {
+    objectId,
+    functionDeclaration: `function(before) {
+      const root = this.getRootNode();
+      const active = root.activeElement === this || this.ownerDocument.activeElement === this;
+      const value = this.tagName === 'INPUT' || this.tagName === 'TEXTAREA'
+        ? this.value
+        : this.textContent;
+      return { active, changed: value !== before };
+    }`,
+    arguments: [{ value: focusState.before }],
+    returnByValue: true,
+  }, sid)).result?.value;
+  if (!after?.active) throw new Error('Focus changed while typing; input result could not be verified');
+  if (!after.changed) throw new Error(`Input.insertText completed but referenced <${focusState.tag}> did not change`);
+  return `Typed ${text.length} characters into referenced <${focusState.tag}>`;
 }
 
 // Load-more: repeatedly click a button/selector until it disappears

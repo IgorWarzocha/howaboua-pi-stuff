@@ -92,6 +92,11 @@ if (options.json) {
 }
 
 if (options.markChecked) {
+  if (summary.malformedLines > 0) {
+    throw new Error(
+      `Cannot mark audit window: found ${summary.malformedLines} malformed JSONL line(s)`,
+    );
+  }
   await Deno.writeTextFile(
     stateUrl,
     `${

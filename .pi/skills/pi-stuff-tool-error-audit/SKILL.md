@@ -17,4 +17,4 @@ Use the cursor in `state.json` for the normal audit. Override it with `--since 1
 
 Do not print tool inputs, user messages, or raw session content in a broad audit. Use the reported session path and line numbers to inspect only a selected incident after the aggregate identifies it.
 
-Advance the cursor with `--mark-checked` only after reviewing the complete unfiltered window. Add `--allow-write=.pi/skills/pi-stuff-tool-error-audit/state.json` to that run. The script records the audit start as the next lower bound, so calls arriving during the scan remain eligible.
+Advance the cursor with `--mark-checked` only after reviewing the complete unfiltered window with no malformed JSONL lines. Add `--allow-write=.pi/skills/pi-stuff-tool-error-audit/state.json` to that run. The script records the audit start as the next lower bound, so calls arriving during the scan remain eligible.

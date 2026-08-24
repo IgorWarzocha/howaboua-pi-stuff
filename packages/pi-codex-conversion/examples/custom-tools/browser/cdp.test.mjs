@@ -31,66 +31,212 @@ test("browser mutations preserve trusted click and safe typing boundaries", asyn
 		async send(method, params) {
 			calls.push({ method, params });
 			if (method === "Runtime.evaluate")
-				return { result: { value: { ok: true, tag: "A", text: "Next", x: 12, y: 34 } } };
+				return { result: { objectId: "selected" } };
+			if (method === "DOM.describeNode") return { node: { backendNodeId: 42 } };
+			if (method === "DOM.resolveNode")
+				return { object: { objectId: "target" } };
+			if (
+				method === "Runtime.callFunctionOn" &&
+				params.functionDeclaration.includes("getBoundingClientRect")
+			)
+				return {
+					result: { value: { ok: true, tag: "A", text: "Next", x: 12, y: 34 } },
+				};
 			return {};
 		},
 	};
 	assert.equal(await clickStr(cdp, "session", "a.next"), 'Clicked <A> "Next"');
 	assert.deepEqual(
-		calls.filter(call => call.method === "Input.dispatchMouseEvent").map(call => call.params.type),
+		calls
+			.filter((call) => call.method === "Input.dispatchMouseEvent")
+			.map((call) => call.params.type),
 		["mouseMoved", "mousePressed", "mouseReleased"],
+	);
+	const hitTests = calls.filter(
+		(call) =>
+			call.method === "Runtime.callFunctionOn" &&
+			call.params.functionDeclaration.includes("getBoundingClientRect"),
+	);
+	assert.equal(hitTests.length, 2);
+	assert.match(
+		hitTests[0].params.functionDeclaration,
+		/root\.elementFromPoint/,
 	);
 
 	const blockedCalls = [];
+	let blockedHitTests = 0;
 	const blocked = {
-		async send(method) {
-			blockedCalls.push(method);
+		async send(method, params) {
+			blockedCalls.push({ method, params });
 			if (method === "Runtime.evaluate")
-				return { result: { value: { ok: false, error: "Element center is covered by <dialog>: a.next" } } };
+				return { result: { objectId: "selected" } };
+			if (method === "DOM.describeNode") return { node: { backendNodeId: 42 } };
+			if (method === "DOM.resolveNode")
+				return { object: { objectId: "target" } };
+			if (
+				method === "Runtime.callFunctionOn" &&
+				params.functionDeclaration.includes("getBoundingClientRect")
+			) {
+				blockedHitTests++;
+				return {
+					result: {
+						value:
+							blockedHitTests === 1
+								? { ok: true, tag: "A", text: "Next", x: 12, y: 34 }
+								: { ok: false, error: "Element center is covered by <dialog>" },
+					},
+				};
+			}
 			return {};
 		},
 	};
-	await assert.rejects(clickStr(blocked, "session", "a.next"), /covered by <dialog>/);
-	assert.equal(blockedCalls.includes("Input.dispatchMouseEvent"), false);
+	await assert.rejects(
+		clickStr(blocked, "session", "a.next"),
+		/covered by <dialog>/,
+	);
+	assert.deepEqual(
+		blockedCalls
+			.filter((call) => call.method === "Input.dispatchMouseEvent")
+			.map((call) => call.params.type),
+		["mouseMoved"],
+	);
+
+	let releases = 0;
+	const releaseFailure = {
+		async send(method, params) {
+			if (method === "Runtime.evaluate")
+				return { result: { objectId: "selected" } };
+			if (method === "DOM.describeNode") return { node: { backendNodeId: 42 } };
+			if (method === "DOM.resolveNode")
+				return { object: { objectId: "target" } };
+			if (
+				method === "Runtime.callFunctionOn" &&
+				params.functionDeclaration.includes("getBoundingClientRect")
+			)
+				return {
+					result: { value: { ok: true, tag: "A", text: "Next", x: 12, y: 34 } },
+				};
+			if (
+				method === "Input.dispatchMouseEvent" &&
+				params.type === "mouseReleased" &&
+				++releases === 1
+			)
+				throw new Error("release failed");
+			return {};
+		},
+	};
+	await assert.rejects(
+		clickStr(releaseFailure, "session", "a.next"),
+		/release failed/,
+	);
+	assert.equal(releases, 2);
 
 	const typeCalls = [];
 	const editable = {
 		async send(method, params) {
 			typeCalls.push({ method, params });
-			if (method === "DOM.resolveNode") return { object: { objectId: "field" } };
+			if (method === "DOM.resolveNode")
+				return { object: { objectId: "field" } };
+			if (
+				method === "Runtime.callFunctionOn" &&
+				params.functionDeclaration.includes("getBoundingClientRect")
+			)
+				return { result: { value: { ok: true, x: 12, y: 34 } } };
+			if (
+				method === "Runtime.callFunctionOn" &&
+				params.functionDeclaration.includes("this.focus")
+			)
+				return { result: { value: { ok: true, tag: "INPUT", before: "" } } };
+			if (
+				method === "Runtime.callFunctionOn" &&
+				params.functionDeclaration.includes("function(before)")
+			)
+				return { result: { value: { active: true, changed: true } } };
 			if (method === "Runtime.callFunctionOn")
-				return { result: { value: typeCalls.filter(call => call.method === "Runtime.callFunctionOn").length === 1
-					? { ok: true, x: 12, y: 34 }
-					: { ok: true } } };
-			if (method === "Runtime.evaluate") return {
-				result: { value: typeCalls.filter(call => call.method === "Runtime.evaluate").length === 1
-					? { ok: true, tag: "INPUT", inspectable: true, before: "" }
-					: { focused: true, tag: "INPUT", value: "hello" } },
-			};
+				return { result: { value: true } };
 			return {};
 		},
 	};
 	assert.equal(
 		await typeRefStr(editable, "session", new Map([[7, 42]]), "7", "hello"),
-		"Typed 5 characters into focused <INPUT>",
+		"Typed 5 characters into referenced <INPUT>",
 	);
-	assert.equal(typeCalls.some(call => call.method === "Input.dispatchMouseEvent"), false);
+	assert.equal(
+		typeCalls.some((call) => call.method === "Input.dispatchMouseEvent"),
+		false,
+	);
+	assert.equal(
+		typeCalls.some((call) => call.method === "Runtime.evaluate"),
+		false,
+	);
+	assert.equal(
+		typeCalls
+			.filter((call) => call.method === "Runtime.callFunctionOn")
+			.every((call) => call.params.objectId === "field"),
+		true,
+	);
+	await assert.rejects(
+		typeRefStr(editable, "session", new Map([[7, 42]]), "7junk", "hello"),
+		/element id must be a positive integer/,
+	);
 
-	const buttonCalls = [];
-	const button = {
-		async send(method) {
-			buttonCalls.push(method);
-			if (method === "DOM.resolveNode") return { object: { objectId: "button" } };
+	const drifted = {
+		async send(method, params) {
+			if (method === "DOM.resolveNode")
+				return { object: { objectId: "field" } };
+			if (
+				method === "Runtime.callFunctionOn" &&
+				params.functionDeclaration.includes("getBoundingClientRect")
+			)
+				return { result: { value: { ok: true, x: 12, y: 34 } } };
+			if (
+				method === "Runtime.callFunctionOn" &&
+				params.functionDeclaration.includes("this.focus")
+			)
+				return { result: { value: { ok: true, tag: "INPUT", before: "" } } };
 			if (method === "Runtime.callFunctionOn")
-				return { result: { value: buttonCalls.filter(call => call === "Runtime.callFunctionOn").length === 1
-					? { ok: true, x: 12, y: 34 }
-					: { ok: false, error: "<BUTTON> is not editable" } } };
+				return { result: { value: false } };
 			return {};
 		},
 	};
-	await assert.rejects(typeRefStr(button, "session", new Map([[8, 43]]), "8", "no"), /not editable/);
-	assert.equal(buttonCalls.includes("Input.dispatchMouseEvent"), false);
-	assert.equal(buttonCalls.includes("Input.insertText"), false);
+	await assert.rejects(
+		typeRefStr(drifted, "session", new Map([[7, 42]]), "7", "hello"),
+		/Focus changed before typing/,
+	);
+
+	const buttonCalls = [];
+	const button = {
+		async send(method, params) {
+			buttonCalls.push({ method, params });
+			if (method === "DOM.resolveNode")
+				return { object: { objectId: "button" } };
+			if (
+				method === "Runtime.callFunctionOn" &&
+				params.functionDeclaration.includes("getBoundingClientRect")
+			)
+				return { result: { value: { ok: true, x: 12, y: 34 } } };
+			if (
+				method === "Runtime.callFunctionOn" &&
+				params.functionDeclaration.includes("this.focus")
+			)
+				return {
+					result: { value: { ok: false, error: "<BUTTON> is not editable" } },
+				};
+			return {};
+		},
+	};
+	await assert.rejects(
+		typeRefStr(button, "session", new Map([[8, 43]]), "8", "no"),
+		/not editable/,
+	);
+	assert.equal(
+		buttonCalls.some((call) => call.method === "Input.dispatchMouseEvent"),
+		false,
+	);
+	assert.equal(
+		buttonCalls.some((call) => call.method === "Input.insertText"),
+		false,
+	);
 });
 
 test("missing HTML selector is an error, not successful content", async () => {
@@ -127,4 +273,6 @@ test("snapshot emits compact line content and numbered interactive refs", async 
 	]);
 	assert.deepEqual(result.elements, [{ id: 1, role: "button", name: "Continue" }]);
 	assert.equal(refs.get(1), 42);
+	await assert.rejects(snapshotData(cdp, "session", refs, { lineno: Number.NaN }), /line cursor/);
+	await assert.rejects(snapshotData(cdp, "session", refs, { responseLength: "huge" }), /response length/);
 });
