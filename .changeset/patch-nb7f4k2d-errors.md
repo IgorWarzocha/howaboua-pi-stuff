@@ -9,7 +9,7 @@ Make Code and Notebook Mode failures actionable and easier to recover.
 - Clarify safe shell interpolation, terminal input, and Deno tool composition in model-facing guidance.
 - Keep concurrent Code and Notebook sessions from taking optional Git index locks during read-only commands.
 - Retry idempotent browser reads after delayed Chrome responses without blaming debugger approval, while warning against blind retries of timed-out page mutations.
-- Return unambiguous tab references, validate browser references and pagination, revalidate the requested control immediately before a native click, and expose the complete reference workflow in launcher help.
+- Return unambiguous tab references, validate browser references and pagination, revalidate the requested control immediately before a native click, keep linked CLI entries executable, and expose the complete reference workflow in launcher help.
 - Focus and verify the identity of referenced editable fields without first dispatching a potentially consequential click.
 - Keep the Agents custom tool self-contained and remove the superseded Herdr Agent example.
 - Let the Skills custom tool load one or more routed references directly by name.

@@ -1,14 +1,17 @@
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { getOrStartTabDaemon, runDaemon, sendCommand, stopDaemons } from './daemon.mjs';
 import { formatPageList, formatPagesJson, getPages, waitForOpenedTarget } from './pages.mjs';
 import { CDP } from './protocol.mjs';
 import { PAGES_CACHE, getDisplayPrefixLength, getWsUrl, resolvePrefix } from './runtime.mjs';
 
-const SKILL_USAGE = `cdp - lightweight Chrome DevTools Protocol CLI (no Puppeteer)
+const USAGE_HEADER = `cdp - lightweight Chrome DevTools Protocol CLI (no Puppeteer)
 
 Usage: cdp <command> [args]
 
-  list                              List open pages (shows unique target prefixes)
+`;
+
+const COMMAND_USAGE = `  list                              List open pages (shows unique target prefixes)
   tabsjson                          List open pages as compact JSON
   snap  <target> [line] [length]    Bounded accessibility snapshot with element ids
   find  <target> <text> [line] [length]  Search a bounded snapshot
@@ -33,7 +36,9 @@ Usage: cdp <command> [args]
   open  [url]                       Open a new tab (default: about:blank)
                                     Chrome may show an "Allow debugging?" prompt on first access
   stop  [target]                    Stop daemon(s)
+`;
 
+const USAGE_FOOTER = `
 <target> is a unique targetId prefix from "cdp list". If a prefix is ambiguous,
 use more characters.
 
@@ -64,8 +69,16 @@ DAEMON IPC (for advanced use / scripting)
   The socket disappears after 20 min of inactivity or when the tab closes.
 `;
 
-export function cdpUsage() {
-  return SKILL_USAGE;
+export function cdpUsage({ commands = [] } = {}) {
+  const extraCommands = commands
+    .map(({ syntax, description }) => `  ${syntax.padEnd(32)}  ${description}\n`)
+    .join('');
+  return `${USAGE_HEADER}${extraCommands}${COMMAND_USAGE}${USAGE_FOOTER}`;
+}
+
+export function isMainModule(moduleUrl) {
+  return Boolean(process.argv[1]) &&
+    realpathSync(process.argv[1]) === realpathSync(fileURLToPath(moduleUrl));
 }
 
 const NEEDS_TARGET = new Set([

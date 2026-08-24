@@ -2,11 +2,12 @@ import { spawn } from 'child_process';
 import { cdpUsage } from './cdp-lib/cli.mjs';
 import { probeDebugPort, sleep } from './cdp-lib/runtime.mjs';
 
-const launcherUsage = cdpUsage().replace(
-  '  list                              List open pages (shows unique target prefixes)',
-  '  start                             Start the authenticated graphical browser on demand (Linux/systemd)\n' +
-    '  list                              List open pages (shows unique target prefixes)',
-);
+const launcherUsage = cdpUsage({
+  commands: [{
+    syntax: 'start',
+    description: 'Start the authenticated graphical browser on demand (Linux/systemd)',
+  }],
+});
 const discoveryRecovery = 'Run "cdp start", enable remote debugging, or set CDP_PORT/CDP_PORT_FILE.';
 
 const BROWSER_START_TIMEOUT = 10000;

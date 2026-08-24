@@ -3,8 +3,7 @@
 // Uses raw CDP over WebSocket, no Puppeteer dependency.
 // Requires Node 22+ (built-in WebSocket).
 
-import { fileURLToPath } from 'url';
-import { runCli } from './cdp-lib/cli.mjs';
+import { isMainModule, runCli } from './cdp-lib/cli.mjs';
 import { discoveryRecovery, launcherUsage, startBrowser } from './launcher.mjs';
 
 export { clickStr, htmlStr, typeRefStr } from './cdp-lib/actions.mjs';
@@ -12,7 +11,7 @@ export { formatPagesJson, getTargetRef } from './cdp-lib/pages.mjs';
 export { cdpTimeoutAttempts } from './cdp-lib/protocol.mjs';
 export { snapshotData } from './cdp-lib/snapshot.mjs';
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   runCli({
     discoveryRecovery,
     startBrowser,

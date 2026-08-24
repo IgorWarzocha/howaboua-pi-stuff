@@ -1,8 +1,13 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import { cdpTimeoutAttempts, clickStr, formatPagesJson, getTargetRef, htmlStr, snapshotData, typeRefStr } from "./cdp.mjs";
 
-test("CDP transport preserves protocol boundaries", async () => {
+test("CDP transport and entry routing preserve protocol boundaries", async () => {
 	const tabs = JSON.parse(formatPagesJson([
 		{ targetId: "ABCDEF120000", title: "First\nSecond", url: "https://example.com/a b" },
 		{ targetId: "ABCDEF121111", title: "Second", url: "https://example.com/second" },
@@ -23,6 +28,33 @@ test("CDP transport preserves protocol boundaries", async () => {
 	assert.equal(cdpTimeoutAttempts("Accessibility.getFullAXTree"), 2);
 	assert.equal(cdpTimeoutAttempts("Runtime.enable"), 2);
 	assert.equal(cdpTimeoutAttempts("Runtime.evaluate"), 1);
+
+	const directory = mkdtempSync(join(tmpdir(), "browser-cdp-entry-"));
+	try {
+		const entries = [
+			{
+				path: fileURLToPath(new URL("./cdp.mjs", import.meta.url)),
+				link: join(directory, "codex-cdp"),
+				start: true,
+			},
+			{
+				path: fileURLToPath(new URL("../../../../pi-skill-chrome-cdp/skills/chrome-cdp/scripts/cdp.mjs", import.meta.url)),
+				link: join(directory, "skill-cdp"),
+				start: false,
+			},
+		];
+		for (const entry of entries) {
+			symlinkSync(entry.path, entry.link);
+			const result = spawnSync(process.execPath, [entry.link, "--help"], {
+				encoding: "utf8",
+			});
+			assert.equal(result.status, 0, result.stderr);
+			assert.match(result.stdout, / {2}list\s+List open pages/);
+			assert.equal(/ {2}start\s+Start the authenticated/.test(result.stdout), entry.start);
+		}
+	} finally {
+		rmSync(directory, { force: true, recursive: true });
+	}
 });
 
 test("browser mutations preserve trusted click and safe typing boundaries", async () => {
