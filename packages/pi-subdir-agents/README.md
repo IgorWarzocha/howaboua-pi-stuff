@@ -31,8 +31,4 @@ That keeps the stable system prompt, tools, and earlier history intact for provi
 - It does not mutate Pi's system prompt, rewrite earlier messages, or add a model tool.
 - It does not inspect arbitrary shell commands. It reacts only to commands that plausibly discover or read paths.
 
-## Markdown Workflows
-
-Do not install this package beside the current `pi-markdown-workflows` release. That package still registers the same loader until its planned deprecation.
-
-This package is intentionally standalone until that transition. It is not included in `@howaboua/pi-extensions` or `@howaboua/pi-stuff` yet.
+This package is intentionally standalone. It is not included in `@howaboua/pi-extensions` or `@howaboua/pi-stuff`.

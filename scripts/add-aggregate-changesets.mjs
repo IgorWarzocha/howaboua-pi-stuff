@@ -55,10 +55,23 @@ function retiredPackageChanges() {
 			});
 			if (previous.status !== 0) return [];
 			const pkg = JSON.parse(previous.stdout);
-			return Array.isArray(pkg.pi?.skills) &&
-				!aggregateExcludedNames.has(pkg.name)
-				? [{ name: pkg.name, body: "Remove retired bundled skill" }]
-				: [];
+			if (aggregateExcludedNames.has(pkg.name)) return [];
+			return [
+				...(Array.isArray(pkg.pi?.extensions) && pkg.pi.extensions.length > 0
+					? [{
+							name: pkg.name,
+							body: "Remove retired bundled extension",
+							kind: "extension",
+						}]
+					: []),
+				...(Array.isArray(pkg.pi?.skills) && pkg.pi.skills.length > 0
+					? [{
+							name: pkg.name,
+							body: "Remove retired bundled skill",
+							kind: "skill",
+						}]
+					: []),
+			];
 		});
 }
 
@@ -141,7 +154,10 @@ for (const { pkg } of packageInfos) {
 	}
 }
 
-changedSkills.push(...retiredPackageChanges());
+for (const retired of retiredPackageChanges()) {
+	if (retired.kind === "extension") changedExtensions.push(retired);
+	else changedSkills.push(retired);
+}
 
 const changedStuff = [...changedExtensions, ...changedSkills];
 let wrote = false;

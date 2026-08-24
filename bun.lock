@@ -46,22 +46,6 @@
         "typebox": "*",
       },
     },
-    "packages/pi-auto-reasoning-tool": {
-      "name": "@howaboua/pi-auto-reasoning-tool",
-      "version": "0.1.11",
-      "devDependencies": {
-        "@biomejs/biome": "^2.5.10",
-        "@earendil-works/pi-ai": "0.84.3",
-        "@earendil-works/pi-coding-agent": "0.84.3",
-        "@types/node": "^26.2.0",
-        "typescript": "^7.0.2",
-      },
-      "peerDependencies": {
-        "@earendil-works/pi-ai": ">=0.84.3",
-        "@earendil-works/pi-coding-agent": ">=0.84.3",
-        "@earendil-works/pi-tui": ">=0.84.3",
-      },
-    },
     "packages/pi-auto-trees": {
       "name": "@howaboua/pi-auto-trees",
       "version": "0.1.13",
@@ -166,14 +150,12 @@
       "version": "0.0.63",
       "dependencies": {
         "@howaboua/pi-ask": "0.0.5",
-        "@howaboua/pi-auto-reasoning-tool": "0.1.11",
         "@howaboua/pi-auto-trees": "0.1.13",
         "@howaboua/pi-cache-hit-predictor": "0.0.1",
         "@howaboua/pi-dynamic-tools": "0.0.8",
         "@howaboua/pi-explore-subagents": "0.1.13",
         "@howaboua/pi-gippity-control": "0.0.13",
         "@howaboua/pi-gpt-switcher": "0.1.1",
-        "@howaboua/pi-markdown-workflows": "0.2.20",
         "@howaboua/pi-memories": "0.1.4",
         "@howaboua/pi-pet": "0.1.1",
         "@howaboua/pi-semantic-grep": "0.1.19",
@@ -188,7 +170,7 @@
       },
       "peerDependencies": {
         "@earendil-works/pi-coding-agent": ">=0.84.3",
-        "@earendil-works/pi-tui": ">=0.84.3",
+        "@earendil-works/pi-tui": "*",
       },
     },
     "packages/pi-gippity-control": {
@@ -226,26 +208,6 @@
       "peerDependencies": {
         "@earendil-works/pi-coding-agent": ">=0.84.3",
         "@earendil-works/pi-tui": ">=0.84.3",
-      },
-    },
-    "packages/pi-markdown-workflows": {
-      "name": "@howaboua/pi-markdown-workflows",
-      "version": "0.2.20",
-      "dependencies": {
-        "@howaboua/pi-howaboua-extensions-primitives-sdk": "^0.3.2",
-      },
-      "devDependencies": {
-        "@biomejs/biome": "^2.5.10",
-        "@earendil-works/pi-coding-agent": "0.84.3",
-        "@types/node": "^26.2.0",
-        "oxfmt": "^0.64.0",
-        "typebox": "1.3.18",
-        "typescript": "^7.0.2",
-      },
-      "peerDependencies": {
-        "@earendil-works/pi-coding-agent": ">=0.84.3",
-        "@earendil-works/pi-tui": ">=0.84.3",
-        "typebox": "*",
       },
     },
     "packages/pi-memories": {
@@ -384,14 +346,12 @@
       "version": "0.0.69",
       "dependencies": {
         "@howaboua/pi-ask": "0.0.5",
-        "@howaboua/pi-auto-reasoning-tool": "0.1.11",
         "@howaboua/pi-auto-trees": "0.1.13",
         "@howaboua/pi-cache-hit-predictor": "0.0.1",
         "@howaboua/pi-dynamic-tools": "0.0.8",
         "@howaboua/pi-explore-subagents": "0.1.13",
         "@howaboua/pi-gippity-control": "0.0.13",
         "@howaboua/pi-gpt-switcher": "0.1.1",
-        "@howaboua/pi-markdown-workflows": "0.2.20",
         "@howaboua/pi-memories": "0.1.4",
         "@howaboua/pi-pet": "0.1.1",
         "@howaboua/pi-semantic-grep": "0.1.19",
@@ -410,7 +370,7 @@
       },
       "peerDependencies": {
         "@earendil-works/pi-coding-agent": ">=0.84.3",
-        "@earendil-works/pi-tui": ">=0.84.3",
+        "@earendil-works/pi-tui": "*",
       },
     },
     "packages/pi-subagent-review": {
@@ -668,8 +628,6 @@
 
     "@howaboua/pi-ask": ["@howaboua/pi-ask@workspace:packages/pi-ask"],
 
-    "@howaboua/pi-auto-reasoning-tool": ["@howaboua/pi-auto-reasoning-tool@workspace:packages/pi-auto-reasoning-tool"],
-
     "@howaboua/pi-auto-trees": ["@howaboua/pi-auto-trees@workspace:packages/pi-auto-trees"],
 
     "@howaboua/pi-cache-hit-predictor": ["@howaboua/pi-cache-hit-predictor@workspace:packages/pi-cache-hit-predictor"],
@@ -685,10 +643,6 @@
     "@howaboua/pi-gippity-control": ["@howaboua/pi-gippity-control@workspace:packages/pi-gippity-control"],
 
     "@howaboua/pi-gpt-switcher": ["@howaboua/pi-gpt-switcher@workspace:packages/pi-gpt-switcher"],
-
-    "@howaboua/pi-howaboua-extensions-primitives-sdk": ["@howaboua/pi-howaboua-extensions-primitives-sdk@0.3.2", "", { "peerDependencies": { "@earendil-works/pi-coding-agent": "*", "@earendil-works/pi-tui": "*" } }, "sha512-HVTZJh6wX4G+C6eFKEEnb7/tj5AY9oIINyHl6cgcRLRnoHZpEU5Mv5aDwGc5rJofjhiWGpB+jZOYYSHgPtCZGA=="],
-
-    "@howaboua/pi-markdown-workflows": ["@howaboua/pi-markdown-workflows@workspace:packages/pi-markdown-workflows"],
 
     "@howaboua/pi-memories": ["@howaboua/pi-memories@workspace:packages/pi-memories"],
 

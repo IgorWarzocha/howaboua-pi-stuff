@@ -10,10 +10,7 @@ This repository brings the previously separate Pi packages into one Bun workspac
 - `@howaboua/pi-extensions`
 - `@howaboua/pi-skills`
 
-Legacy package history remains in the original package changelogs where available:
-
-- [`@howaboua/pi-auto-reasoning-tool`](./packages/pi-auto-reasoning-tool/CHANGELOG.md)
-- [`@howaboua/pi-codex-conversion`](./packages/pi-codex-conversion/CHANGELOG.md)
+Legacy Pi Codex history remains in its [package changelog](./packages/pi-codex-conversion/CHANGELOG.md).
 
 Going forward, package-level changelogs remain the source of truth for each package, and this top-level changelog summarizes monorepo-wide releases.
 
@@ -34,16 +31,6 @@ Going forward, package-level changelogs remain the source of truth for each pack
   - Reduce LAN playback dropouts with one more jitter-buffer frame.
 
 [Full changelog](./packages/pi-ask/CHANGELOG.md)
-
-### @howaboua/pi-auto-reasoning-tool — 0.1.11
-
-### Changes
-
-- [#140](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/140) [`c95d68a`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/c95d68a21939860e4c6dcff9c58a6bf8a50044ff) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
-  - Show inline cache-hit predictions when switching models or reasoning lanes.
-  - Warn once that automatic reasoning changes can miss the prompt cache and affect costs or quotas.
-
-[Full changelog](./packages/pi-auto-reasoning-tool/CHANGELOG.md)
 
 ### @howaboua/pi-auto-trees — 0.1.13
 
@@ -131,17 +118,6 @@ Going forward, package-level changelogs remain the source of truth for each pack
 - [#333](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/333) [`a9143cf`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/a9143cfeb802406c2e62b4424e27b69da141b7ae) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add configurable session context windows and reasoning defaults for GPT shortcuts.
 
 [Full changelog](./packages/pi-gpt-switcher/CHANGELOG.md)
-
-### @howaboua/pi-markdown-workflows — 0.2.20
-
-### Changes
-
-- [#126](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/126) [`8983df4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8983df436423fdc2933863611285946dd0319cf5) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
-  - Make skill descriptions terse semantic indexes.
-  - Remove redundant purpose or job restatements.
-  - Distinguish operational from creative body language where applicable.
-
-[Full changelog](./packages/pi-markdown-workflows/CHANGELOG.md)
 
 ### @howaboua/pi-memories — 0.1.4
 

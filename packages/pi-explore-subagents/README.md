@@ -2,11 +2,7 @@
 
 Adds an agent-callable `explore_subagent` tool for isolated, discovery-only codebase research. The child receives a standalone brief rather than the parent conversation and is instructed to inspect and report, not edit.
 
-## Install
-
-```bash
-pi install npm:@howaboua/pi-explore-subagents
-```
+This package is no longer maintained. Pi Codex includes integrated agent tooling. Clone and adapt this package if you need an independent variant.
 
 ## Modes
 
