@@ -26,7 +26,12 @@ import {
 	toolLoadingMessages,
 } from "./openai-codex-test-support.ts";
 
-test("buildRequestBody keeps Codex request shape stable for common options", () => {
+test("Codex provider registration stays route-independent and request shape stable", () => {
+	const { registration } = createRegisteredCodexProvider();
+	assert.equal(registration.baseUrl, undefined);
+	assert.ok(registration.models?.length);
+	assert.equal(registration.models.every((model) => model.provider === undefined && model.baseUrl === undefined), true);
+
 	const body = buildRequestBody(
 		codexModel,
 		{

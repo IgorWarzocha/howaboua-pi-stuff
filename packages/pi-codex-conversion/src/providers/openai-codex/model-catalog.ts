@@ -40,8 +40,10 @@ const DAYBREAK_MODELS: Model<"openai-codex-responses">[] = [
 	},
 ];
 
-export function openAICodexModelsWithDaybreak(): Model<Api>[] {
+export function openAICodexProviderModelsWithDaybreak(): Array<Omit<Model<Api>, "provider" | "baseUrl">> {
 	const models: Model<Api>[] = getBuiltinModels("openai-codex");
 	const existing = new Set(models.map(({ id }) => id));
-	return [...models, ...DAYBREAK_MODELS.filter(({ id }) => !existing.has(id))];
+	return [...models, ...DAYBREAK_MODELS.filter(({ id }) => !existing.has(id))].map(
+		({ provider: _provider, baseUrl: _baseUrl, ...model }) => model,
+	);
 }

@@ -203,12 +203,17 @@ export function createRegisteredCodexProvider(options?: {
 	getDiagnostics?: (() => CodexDiagnosticsSink | undefined) | undefined;
 }) {
 	const turnState = createCodexTurnState();
-	const providers = new Map<string, { streamSimple: (...args: never[]) => AsyncIterable<unknown> }>();
+	type RegisteredProvider = {
+		baseUrl?: string | undefined;
+		models?: Array<{ id: string; provider?: string | undefined; baseUrl?: string | undefined }> | undefined;
+		streamSimple: (...args: never[]) => AsyncIterable<unknown>;
+	};
+	const providers = new Map<string, RegisteredProvider>();
 	const handlers = new Map<string, Array<(...args: never[]) => unknown>>();
 	const renderers = new Map<string, unknown>();
 	const sentMessages: Array<{ message: unknown; options: unknown }> = [];
 	const pi = {
-		registerProvider(id: string, provider: { streamSimple: (...args: never[]) => AsyncIterable<unknown> }) {
+		registerProvider(id: string, provider: RegisteredProvider) {
 			providers.set(id, provider);
 		},
 		on(event: string, handler: (...args: never[]) => unknown) {
@@ -231,5 +236,6 @@ export function createRegisteredCodexProvider(options?: {
 		...(options?.onPreparedPayload ? { onPreparedPayload: options.onPreparedPayload as never } : {}),
 		...(options?.getDiagnostics ? { getDiagnostics: options.getDiagnostics } : {}),
 	});
-	return { provider: providers.get("openai-codex")!, handlers, renderers, sentMessages, turnState };
+	const provider = providers.get("openai-codex")!;
+	return { provider, registration: provider, handlers, renderers, sentMessages, turnState };
 }
