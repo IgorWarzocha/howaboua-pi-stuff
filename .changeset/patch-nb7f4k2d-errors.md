@@ -9,3 +9,4 @@ Make Code and Notebook Mode failures actionable and easier to recover.
 - Clarify safe shell interpolation, terminal input, and Deno tool composition in model-facing guidance.
 - Retry idempotent browser reads after delayed Chrome responses without blaming debugger approval, while warning against blind retries of timed-out page mutations.
 - Keep the Agents custom tool self-contained and remove the superseded Herdr Agent example.
+- Let the Skills custom tool load one or more routed references directly by name.

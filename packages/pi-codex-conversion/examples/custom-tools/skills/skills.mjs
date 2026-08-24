@@ -219,11 +219,13 @@ export function parseRequest(input) {
 	const parts = input.trim().split(/\s+/).filter(Boolean);
 	const [action, ...arguments_] = parts;
 	if (!action || action === "list") return { action: "list", categories: [...new Set(arguments_)] };
-	if (action === "read" && arguments_.length === 1) {
-		return { action, name: arguments_[0] };
+	if (action === "read" && arguments_.length >= 1) {
+		return { action, name: arguments_[0], references: [...new Set(arguments_.slice(1))] };
 	}
-	if (action === "read") throw new Error('read expects exactly one skill name: "read <exact-skill-name>"');
-	throw new Error('Expected "list", "list <category>...", or "read <exact-skill-name>"');
+	if (action === "read") {
+		throw new Error('read expects one skill name and optional reference names: "read <exact-skill-name> [reference...]"');
+	}
+	throw new Error('Expected "list", "list <category>...", or "read <exact-skill-name> [reference...]"');
 }
 
 function formatSkillList(skills, requestedCategories = []) {
@@ -309,9 +311,38 @@ export function packageFiles(skill) {
 	});
 }
 
-function formatSkill(skill) {
+function formatSkillPaths(skill) {
 	const paths = packageFiles(skill);
-	return `${skill.body}\n\n---\nSkill paths (${paths.length}):\n${paths.map((path) => `- ${path}`).join("\n")}`;
+	return `---\nSkill paths (${paths.length}):\n${paths.map((path) => `- ${path}`).join("\n")}`;
+}
+
+function formatSkill(skill) {
+	return `${skill.body}\n\n${formatSkillPaths(skill)}`;
+}
+
+function referenceFiles(skill) {
+	const root = resolve(skill.directory, "references");
+	return packageFiles(skill).filter((path) => isWithin(root, path) && path.toLowerCase().endsWith(".md") && statSync(path).isFile());
+}
+
+function readReferences(skill, references) {
+	const root = resolve(skill.directory, "references");
+	const available = new Map(referenceFiles(skill).map((path) => [
+		relative(root, path).replaceAll(sep, "/").replace(/\.md$/i, ""),
+		path,
+	]));
+	const selected = references.map((reference) => {
+		const path = available.get(reference);
+		if (!path) {
+			const choices = [...available.keys()].join(", ") || "none";
+			throw new Error(`Unknown reference "${reference}" for skill "${skill.name}". Available: ${choices}`);
+		}
+		return { reference, content: readFileSync(path, "utf8").trim() };
+	});
+	const content = selected.length === 1
+		? selected[0].content
+		: selected.map(({ reference, content: body }) => `--- ${reference} ---\n${body}`).join("\n\n");
+	return `${content}\n\n${formatSkillPaths(skill)}`;
 }
 
 function enforceOutputLimit(output) {
@@ -332,7 +363,7 @@ export function run(input, globalRoot = defaultSkillsDir(), sessionRoot = global
 	if (!skill) {
 		throw new Error(`Unknown skill "${request.name}". Available: ${skills.map(({ name }) => name).join(", ") || "none"}`);
 	}
-	return enforceOutputLimit(formatSkill(skill));
+	return enforceOutputLimit(request.references.length ? readReferences(skill, request.references) : formatSkill(skill));
 }
 
 function isMainModule() {

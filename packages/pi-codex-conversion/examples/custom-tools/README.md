@@ -18,7 +18,7 @@ An example consists of its top-level TOML definition and any companion directory
 
 ## Skills
 
-The `skills` example assumes Pi was launched with `--no-skills`. It reads the normal global catalog and the current repository's `.pi/skills/` addenda. A same-named session skill overrides the global skill.
+The `skills` example assumes Pi was launched with `--no-skills`. It reads the normal global catalog, the current repository's `.pi/skills/` addenda and one or more references by name. A same-named session skill overrides the global skill.
 
 Do not use it in a session where Pi loaded native skills at startup. The tool would repeat those instructions when reading a skill.
 
