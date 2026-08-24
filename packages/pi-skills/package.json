@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-skills",
-	"version": "0.0.16",
+	"version": "0.0.17",
 	"description": "all Howaboua Pi skills",
 	"type": "module",
 	"keywords": [
@@ -14,9 +14,9 @@
 	},
 	"dependencies": {
 		"@howaboua/pi-skill-chrome-cdp": "0.0.4",
-		"@howaboua/pi-skill-code": "0.0.0",
-		"@howaboua/pi-skill-foundations": "0.0.0",
-		"@howaboua/pi-skill-harness-and-agent-engineering": "0.0.0"
+		"@howaboua/pi-skill-code": "0.0.1",
+		"@howaboua/pi-skill-foundations": "0.0.1",
+		"@howaboua/pi-skill-harness-and-agent-engineering": "0.0.1"
 	},
 	"files": [
 		"README.md",

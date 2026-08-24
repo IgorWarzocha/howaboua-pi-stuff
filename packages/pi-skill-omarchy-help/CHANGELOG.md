@@ -1,5 +1,11 @@
 # @howaboua/pi-skill-omarchy-help
 
+## 0.0.5
+
+### Changes
+
+- [#339](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/339) [`ee0220c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ee0220cdc44cd732dff9caf0c913e098ed14404f) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Refresh Omarchy guidance for portable workstation maintenance
+
 ## 0.0.4
 
 ### Changes
