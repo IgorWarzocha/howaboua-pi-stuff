@@ -1,5 +1,16 @@
 # @howaboua/pi-skills
 
+## 0.0.18
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-skill-chrome-cdp: Give Chrome CDP agents bounded snapshots and screenshots with non-aliasing reusable element references, broader ARIA control support, targeted search, serialized daemon commands, released remote object handles, revalidated native clicks, identity-safe referenced-field input, Shadow DOM support, actionable timeout recovery, and reliable linked CLI execution.
+
+- Updated dependencies [[`35182d9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/35182d9a002daded7610cca64c47b25bed3267df)]:
+  - @howaboua/pi-skill-chrome-cdp@0.0.5
+
 ## 0.0.17
 
 ### Changes

@@ -1,5 +1,20 @@
 # @howaboua/pi-stuff
 
+## 0.0.70
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-gippity-control: Keep GipPity voice responsive across typed Pi turns and active speech. Speak one meaningful progress update, serialize final results, preserve interruptions, defer queued follow-up context until its Pi turn begins, resume dropped calls through the dedicated recovery owner, keep LAN certificate startup compatible with asynchronous generation, and keep package changelogs disabled with the extension in Pi config.
+  - @howaboua/pi-auto-reasoning-tool: Remove retired bundled extension.
+  - @howaboua/pi-markdown-workflows: Remove retired bundled extension.
+  - @howaboua/pi-skill-chrome-cdp: Give Chrome CDP agents bounded snapshots and screenshots with non-aliasing reusable element references, broader ARIA control support, targeted search, serialized daemon commands, released remote object handles, revalidated native clicks, identity-safe referenced-field input, Shadow DOM support, actionable timeout recovery, and reliable linked CLI execution.
+
+- Updated dependencies [[`35182d9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/35182d9a002daded7610cca64c47b25bed3267df), [`35182d9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/35182d9a002daded7610cca64c47b25bed3267df)]:
+  - @howaboua/pi-gippity-control@0.0.14
+  - @howaboua/pi-skill-chrome-cdp@0.0.5
+
 ## 0.0.69
 
 ### Changes
