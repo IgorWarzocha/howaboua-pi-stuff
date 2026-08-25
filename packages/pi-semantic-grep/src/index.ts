@@ -6,6 +6,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { type Static, Type } from "typebox";
+import registerPackageChangelog from "../changelog.js";
 import { ensureConfig } from "./config.js";
 import { dbPathFor, openSearchDb } from "./db.js";
 import { runIndex } from "./index-runner.js";
@@ -38,6 +39,7 @@ function cwdFromCtx(ctx: ExtensionContext): string {
 }
 
 export default function semanticGrepExtension(pi: ExtensionAPI) {
+	registerPackageChangelog(pi);
 	const extensionConfig = ensureConfig();
 	let indexingController: AbortController | undefined;
 

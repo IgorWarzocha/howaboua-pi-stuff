@@ -13,6 +13,11 @@ test("coalesces a model clamp into one inline notification", async () => {
 	>();
 	const notifications: string[] = [];
 	const pi = {
+		events: {
+			emit(_channel: string, event: unknown) {
+				(event as { accept?: () => void }).accept?.();
+			},
+		},
 		on(
 			event: string,
 			handler: (event: never, ctx: ExtensionContext) => unknown,

@@ -4,6 +4,7 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { Box, Text } from "@earendil-works/pi-tui";
+import registerPackageChangelog from "./changelog.js";
 import { ensureConfig, readConfig } from "./src/config.js";
 import {
 	DEFAULT_SHORTCUTS,
@@ -297,6 +298,7 @@ function renderBtwEntry(
 
 export default function (pi: ExtensionAPI) {
 	if (process.env["PI_SMART_BTW_CHILD"] === "1") return;
+	registerPackageChangelog(pi);
 	ensureConfig();
 	const state = createInitialState();
 

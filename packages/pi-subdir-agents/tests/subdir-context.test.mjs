@@ -13,6 +13,11 @@ function mockPi() {
 	return {
 		handlers,
 		sentMessages,
+		events: {
+			emit(_channel, event) {
+				event?.accept?.();
+			},
+		},
 		on(name, handler) {
 			handlers.set(name, handler);
 		},

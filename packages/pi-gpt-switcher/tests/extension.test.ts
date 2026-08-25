@@ -11,6 +11,11 @@ type CommandHandler = (args: string, ctx: ExtensionContext) => unknown;
 test("reports model authentication failures without changing reasoning", async () => {
 	const notifications: string[] = [];
 	const pi = {
+		events: {
+			emit(_channel: string, event: unknown) {
+				(event as { accept?: () => void }).accept?.();
+			},
+		},
 		registerCommand(_name: string, options: { handler: CommandHandler }) {
 			void options;
 		},

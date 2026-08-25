@@ -56,7 +56,6 @@
 	},
 	"pi": {
 		"extensions": [
-			"./changelog.ts",
 			"./extensions/vent.ts"
 		]
 	},

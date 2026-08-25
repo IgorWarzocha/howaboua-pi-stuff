@@ -35,7 +35,6 @@
 	],
 	"pi": {
 		"extensions": [
-			"./changelog.ts",
 			"./src/index.ts"
 		]
 	},

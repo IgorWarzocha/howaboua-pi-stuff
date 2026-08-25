@@ -1,4 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import registerPackageChangelog from "./changelog.js";
 import howabouaPiAsk from "@howaboua/pi-ask";
 import howabouaPiAutoTrees from "@howaboua/pi-auto-trees";
 import howabouaPiCacheHitPredictor from "@howaboua/pi-cache-hit-predictor";
@@ -16,6 +17,7 @@ import howabouaPiUnicodeCharts from "@howaboua/pi-unicode-charts";
 import howabouaPiVent from "@howaboua/pi-vent";
 
 export default async function (pi: ExtensionAPI) {
+	registerPackageChangelog(pi);
 	await howabouaPiAsk(pi);
 	await howabouaPiAutoTrees(pi);
 	await howabouaPiCacheHitPredictor(pi);

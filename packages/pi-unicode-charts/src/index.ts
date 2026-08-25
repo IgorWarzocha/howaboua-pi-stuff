@@ -1,4 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import registerPackageChangelog from "../changelog.js";
 import { transformChartMarkdown } from "./chart.js";
 
 const CHART_PROMPT = [
@@ -9,6 +10,7 @@ const CHART_PROMPT = [
 ].join("\n");
 
 export default function unicodeCharts(pi: ExtensionAPI): void {
+	registerPackageChangelog(pi);
 	pi.registerMarkdownTransformer((markdown, context) => {
 		if (context.messageType === "assistant-thinking") return markdown;
 		return transformChartMarkdown(markdown, context.availableWidth);
