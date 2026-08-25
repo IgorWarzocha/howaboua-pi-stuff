@@ -3,3 +3,4 @@
 - Code Mode inserts its dynamic tool section under `tools/code-mode/` before this builder runs. Keep that narrow exception there.
 - Provider code may serialize or capture final instructions but must not author prompt text. Later Pi extensions may still mutate the prompt; inspect the final provider payload when exact sent instructions matter.
 - Keep construction deterministic and cache-stable.
+- Assume GPT knows durable Codex concepts; emit only Pi/local/failure deltas. On new models delete first, restore only real-use regressions; ignore synthetic evals.

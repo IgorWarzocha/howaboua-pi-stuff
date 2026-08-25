@@ -3,3 +3,4 @@
 - Stream Pi progress through session speakable context so successive updates extend live speech; reserve delegation context for an unstreamed final result.
 - Keep Pi session mutation and custom-card queueing outside this subtree; emit typed turns and callbacks.
 - VAD and conversational interruption belong here. Never copy them into manual dictation.
+- Keep speech and Pi concurrent with request-scoped waits only; never block independent talk on tools, agent, compaction, prewarm, or settlement.

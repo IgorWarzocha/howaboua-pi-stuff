@@ -2,7 +2,8 @@ This repo publishes through Changesets; every merge to `main` feeds the version 
 
 - Resolve package names by matching their words against immediate subdirectories of packages; search the unique match first and follow direct references only.
 - Agent-facing text is behavior: keep tool contracts, skill files, prompt metadata, and subagent prompts compact.
-- Protect prompt caches: measure exact model-visible tool schemas and system-prompt additions before changing them. Do not duplicate self-evident contracts across names, descriptions, schemas, `promptSnippet`, or `promptGuidelines`; use the latter two only when they prevent a concrete failure. Never rewrite prior tool calls or results merely to integrate a tool.
+- Measure package-emitted tool schemas and system-prompt deltas for cache impact; repository `AGENTS.md` is internal, not product prompt cost.
+- Do not repeat self-evident contracts across names, descriptions, schemas, `promptSnippet`, or `promptGuidelines`; use the latter two only for concrete failures. Never rewrite prior tool calls/results to integrate a tool.
 - Agent-facing prose need not perform grammatical polish; optimize semantic signal per token and omit cosmetic punctuation when it saves tokens. Preserve syntax, structural delimiters, meaning, evidence, caveats, and recovery instructions.
 - Contract spine, not feature museum: feature-existence and regression-tour tests die; retain only independent protocol, routing, migration, or model-visible contracts.
 - When review questions test scope, cull first: delete whole cases or narrow to the minimum independent contract. Never increase permanent test count unless the user explicitly requests more coverage.

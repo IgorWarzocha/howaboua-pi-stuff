@@ -2,6 +2,9 @@
 - Under `conversation/`, `session.ts` owns V3 transport sequencing, `call-setup.ts` HTTP setup, `handoff.ts` delegation output, and `wire.ts` validation. `auth.ts`, `dictation/`, and `session-messages.ts` retain their boundaries.
 - `helper.ts` owns the process; `helper-protocol.ts` owns JSONL framing and validation. LAN browser transport, ownership, and decoding stay in `browser-connections.ts`, `browser-session.ts`, and `browser-wire.ts`.
 - `controls.ts` owns start/stop/setup policy; settings commands and shortcuts route through it into the controller.
+- Voice/Pi are one screenless-capable assistant: typed/spoken input shares work; speak progress/blockers/failures/completion; hide the split and preserve cache.
+- Realtime is conversation, not executor: delegate tools/actions/facts/state/substantial reasoning; clarify only cutoff or material ambiguity.
+- Spoken delegations equal typed authority: use Pi safeguards, hide routing/partials/duplicates, retain finalized audit, no voice approval gate.
 - The native helper never reads credential stores or executes agent work.
 - Helper IPC is versioned JSONL on stdio. Stdout is protocol-only; diagnostics go to stderr. Validate and bound every wire string/blob.
 - V3 conversation and V2 dictation keep independent transport state. No implicit fallback between them.
@@ -19,6 +22,6 @@
 - Realtime mic mute keeps V3 warm. Gate browser tracks, discard captured samples, send silence RTP, and reset mute when input ownership ends.
 - Native `v3.rs` owns WebRTC signaling/session state; `v3_media.rs` owns audio tracks, playout, encoding, and silence RTP.
 - Pi model selection changes the delegation target, not the fixed realtime transport; keep active voice connected.
-- `REALTIME-SYSTEM-PROMPT.md` is the shipped template and schema source. Record every schema change cumulatively in its adjacent changelog. Never rewrite an existing user prompt; check its marker only when realtime voice is engaged and direct the user's agent to migrate it.
+- `REALTIME-SYSTEM-PROMPT.md` owns template/schema. Users own identity/tone/presentation; routing owns one-assistant continuity/delegation/immediacy. Log schema changes; never overwrite user prompts; check only when engaged and direct agent migration.
 - Normal Codex Responses has no usable output-audio channel; keep voice on Realtime transport rather than teaching the provider stream speculative audio events.
 - Live network and hardware checks stay opt-in; deterministic tests own parsing, state, framing, resampling, and cleanup.

@@ -1,4 +1,6 @@
-- Keep Pi behavior as close as practical to the Codex toolkit; document intentional differences.
+- Port model-native Codex prompt/tool/transport/context behaviour into Pi; add Codex features only for model fit, quota efficiency, or Pi integration.
+- Preserve prompt-cache/continuation across prompt, tool, request, replay, and transport changes.
+- Own GPT harness integration, not universal compatibility, UI, enterprise, or a Pi fork; route uncommon needs to documented overrides, other extensions, or forks.
 - Responses transport recovery follows Codex: initial generation plus five fresh full-request WebSocket retries, then sticky SSE for the session; 426 and WebSocket close 1009 fall back immediately.
 - Pi intentionally retries `server_is_overloaded` and `slow_down` across WebSocket/SSE with a shared three-minute wait budget.
 - Streamed rate-limit delays are exact within a shared three-minute budget; longer delays fail instead of retrying early.

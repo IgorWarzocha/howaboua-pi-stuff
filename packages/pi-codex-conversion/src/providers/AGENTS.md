@@ -6,3 +6,4 @@
 - Configured Code Mode proxies own idempotent Responses Lite relocation/header; never depend on `onPayload`.
 - `functions` namespace grouping is part of Responses Lite, not provider identity; keep it identical across stock, renamed, and configured proxy routes while standard Responses stays flat.
 - Configured-provider compaction uses its registered plan-aware stream; Code Mode compaction/replay carries the owned `exec` grammar contract.
+- Honor declared Responses contracts; never compensate incomplete providers with backend-specific heuristics.
