@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.0.23
+
+### Changes
+
+- [#352](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/352) [`4e2b773`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/4e2b773f8e069f4b61316bccc859faafe3451b9c) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Keep installed Codex startup and prompt-cache keepalive reliable.
+
+  - Load the package changelog from shipped JavaScript so the extension starts correctly from `node_modules`.
+  - Replace the generic keepalive experiment with bounded global Luna windows and a project-only 25-minute Sol/Terra policy.
+  - Refresh prompt caches independently from cached WebSocket continuation and retention.
+  - Preserve first-party Codex behavior through renamed and proxied Codex routes, and clean isolated keepalive sockets on transport reset.
+
 ## 3.0.22
 
 ### Changes

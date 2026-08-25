@@ -74,7 +74,7 @@
     },
     "packages/pi-codex-conversion": {
       "name": "@howaboua/pi-codex-conversion",
-      "version": "3.0.21",
+      "version": "3.0.22",
       "dependencies": {
         "js-tiktoken": "^1.0.21",
         "openai": "7.5.0",
@@ -147,7 +147,7 @@
     },
     "packages/pi-extensions": {
       "name": "@howaboua/pi-extensions",
-      "version": "0.0.65",
+      "version": "0.0.66",
       "dependencies": {
         "@howaboua/pi-ask": "0.0.5",
         "@howaboua/pi-auto-trees": "0.1.13",
@@ -175,7 +175,7 @@
     },
     "packages/pi-gippity-control": {
       "name": "@howaboua/pi-gippity-control",
-      "version": "0.0.15",
+      "version": "0.0.16",
       "dependencies": {
         "proxy-from-env": "2.1.0",
         "selfsigned": "^5.5.0",
@@ -343,7 +343,7 @@
     },
     "packages/pi-stuff": {
       "name": "@howaboua/pi-stuff",
-      "version": "0.0.71",
+      "version": "0.0.72",
       "dependencies": {
         "@howaboua/pi-ask": "0.0.5",
         "@howaboua/pi-auto-trees": "0.1.13",
