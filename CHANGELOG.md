@@ -56,28 +56,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 3.0.20
+### @howaboua/pi-codex-conversion — 3.0.21
 
 ### Changes
 
-- [#342](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/342) [`35182d9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/35182d9a002daded7610cca64c47b25bed3267df) Thanks [@howaclawa](https://github.com/howaclawa)! - Keep realtime voice responsive across typed Pi turns, active speech, and compaction. Speak one meaningful progress update, serialize final results, and queue delegations until native compaction and prewarm finish.
-
-- [#342](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/342) [`35182d9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/35182d9a002daded7610cca64c47b25bed3267df) Thanks [@howaclawa](https://github.com/howaclawa)! - Make Code and Notebook Mode failures actionable and easier to recover.
-
-  - Surface Deno syntax diagnostics instead of generic execution failures and isolate bridge networking from user bindings.
-  - Encode action-specific notebook control inputs and return targeted recovery for persistent binding redeclarations.
-  - Clarify safe shell interpolation, terminal input, and Deno tool composition in model-facing guidance.
-  - Keep concurrent Code and Notebook sessions from taking optional Git index locks during read-only commands.
-  - Retry idempotent browser reads after delayed Chrome responses without blaming debugger approval, while warning against blind retries of timed-out page mutations.
-  - Return unambiguous tab references, prevent stale element aliases, support common ARIA menu controls, bound reference screenshots, validate browser references and pagination, serialize shared daemon state, release remote object handles, revalidate the requested control immediately before a native click, keep linked CLI entries executable, and expose the complete reference workflow in launcher help.
-  - Focus and verify the identity of referenced editable fields without first dispatching a potentially consequential click.
-  - Keep the Agents custom tool self-contained and remove the superseded Herdr Agent example.
-  - Let the Skills custom tool load one or more routed references directly by name.
-  - Preserve explicit `models.json` endpoints when installing the custom Codex transport and Daybreak model catalog.
-  - Keep package changelogs disabled with the Codex extension in Pi config.
-  - Keep LAN voice certificate startup compatible with asynchronous certificate generation.
-  - Release queued realtime delegations when native compaction fails, is aborted, or any post-compaction step errors.
-  - Defer queued Pi follow-up context until that follow-up begins its realtime handoff.
+- [#346](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/346) [`bf42276`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/bf42276a2fdc10e41ce0d3f48855607ff89e50c8) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Speak Pi progress and final results as soon as they reach realtime voice instead of waiting for turn completion.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
@@ -99,26 +82,24 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.64
+### @howaboua/pi-extensions — 0.0.65
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-gippity-control: Keep GipPity voice responsive across typed Pi turns and active speech. Speak one meaningful progress update, serialize final results, preserve interruptions, defer queued follow-up context until its Pi turn begins, resume dropped calls through the dedicated recovery owner, keep LAN certificate startup compatible with asynchronous generation, and keep package changelogs disabled with the extension in Pi config.
-  - @howaboua/pi-auto-reasoning-tool: Remove retired bundled extension.
-  - @howaboua/pi-markdown-workflows: Remove retired bundled extension.
+  - @howaboua/pi-gippity-control: Speak Pi progress and final results as soon as they reach realtime voice instead of waiting for turn completion.
 
-- Updated dependencies [[`35182d9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/35182d9a002daded7610cca64c47b25bed3267df)]:
-  - @howaboua/pi-gippity-control@0.0.14
+- Updated dependencies [[`bf42276`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/bf42276a2fdc10e41ce0d3f48855607ff89e50c8)]:
+  - @howaboua/pi-gippity-control@0.0.15
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
-### @howaboua/pi-gippity-control — 0.0.14
+### @howaboua/pi-gippity-control — 0.0.15
 
 ### Changes
 
-- [#342](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/342) [`35182d9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/35182d9a002daded7610cca64c47b25bed3267df) Thanks [@howaclawa](https://github.com/howaclawa)! - Keep GipPity voice responsive across typed Pi turns and active speech. Speak one meaningful progress update, serialize final results, preserve interruptions, defer queued follow-up context until its Pi turn begins, resume dropped calls through the dedicated recovery owner, keep LAN certificate startup compatible with asynchronous generation, and keep package changelogs disabled with the extension in Pi config.
+- [#346](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/346) [`bf42276`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/bf42276a2fdc10e41ce0d3f48855607ff89e50c8) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Speak Pi progress and final results as soon as they reach realtime voice instead of waiting for turn completion.
 
 [Full changelog](./packages/pi-gippity-control/CHANGELOG.md)
 
@@ -240,20 +221,16 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.70
+### @howaboua/pi-stuff — 0.0.71
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-gippity-control: Keep GipPity voice responsive across typed Pi turns and active speech. Speak one meaningful progress update, serialize final results, preserve interruptions, defer queued follow-up context until its Pi turn begins, resume dropped calls through the dedicated recovery owner, keep LAN certificate startup compatible with asynchronous generation, and keep package changelogs disabled with the extension in Pi config.
-  - @howaboua/pi-auto-reasoning-tool: Remove retired bundled extension.
-  - @howaboua/pi-markdown-workflows: Remove retired bundled extension.
-  - @howaboua/pi-skill-chrome-cdp: Give Chrome CDP agents bounded snapshots and screenshots with non-aliasing reusable element references, broader ARIA control support, targeted search, serialized daemon commands, released remote object handles, revalidated native clicks, identity-safe referenced-field input, Shadow DOM support, actionable timeout recovery, and reliable linked CLI execution.
+  - @howaboua/pi-gippity-control: Speak Pi progress and final results as soon as they reach realtime voice instead of waiting for turn completion.
 
-- Updated dependencies [[`35182d9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/35182d9a002daded7610cca64c47b25bed3267df), [`35182d9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/35182d9a002daded7610cca64c47b25bed3267df)]:
-  - @howaboua/pi-gippity-control@0.0.14
-  - @howaboua/pi-skill-chrome-cdp@0.0.5
+- Updated dependencies [[`bf42276`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/bf42276a2fdc10e41ce0d3f48855607ff89e50c8)]:
+  - @howaboua/pi-gippity-control@0.0.15
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 
