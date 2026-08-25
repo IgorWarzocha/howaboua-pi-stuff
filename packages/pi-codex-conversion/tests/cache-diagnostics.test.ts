@@ -3,6 +3,8 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import test from "node:test";
+import { resolveCodexCacheKeepalivePlan } from "../src/adapter/activation/cache-keepalive.ts";
+import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import {
 	codexDiagnosticsLogPath,
 	createCodexDiagnosticsLog,
@@ -17,7 +19,30 @@ import {
 } from "./openai-codex-test-support.ts";
 import { context, model, sentFrames, streamOptions, textResponse, user } from "./websocket-test-support.ts";
 
-test("cache diagnostics log is session-derived, readable, and omits raw provider payloads", async () => {
+test("model cache policy is bounded and its diagnostics omit raw provider payloads", async () => {
+	for (const [minutes, maxOperations] of [[5, 2], [10, 4], [15, 6]] as const) {
+		assert.deepEqual(resolveCodexCacheKeepalivePlan("gpt-5.6-luna", {
+			...DEFAULT_CODEX_CONVERSION_CONFIG.openai,
+			lunaCacheKeepaliveMinutes: minutes,
+		}), {
+			strategy: "generated-current",
+			intervalMs: 150_000,
+			maxOperations,
+		});
+	}
+	assert.deepEqual(resolveCodexCacheKeepalivePlan("gpt-5.6-sol", {
+		...DEFAULT_CODEX_CONVERSION_CONFIG.openai,
+		cacheKeepalive: true,
+	}), {
+		strategy: "generated-current",
+		intervalMs: 1_500_000,
+	});
+	assert.equal(resolveCodexCacheKeepalivePlan("gpt-5.6-terra", DEFAULT_CODEX_CONVERSION_CONFIG.openai), undefined);
+	assert.equal(resolveCodexCacheKeepalivePlan("gpt-5.5", {
+		...DEFAULT_CODEX_CONVERSION_CONFIG.openai,
+		cacheKeepalive: true,
+		lunaCacheKeepaliveMinutes: 15,
+	}), undefined);
 	const agentDir = await mkdtemp(join(tmpdir(), "pi-codex-log-"));
 	try {
 		const sessionId = "019fd7ca-66ba-7c47-8925-d2cdc17e2bd7";

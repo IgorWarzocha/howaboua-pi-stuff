@@ -152,6 +152,7 @@ export async function prewarmWebSocket(
 	preserveContinuation = false,
 	prewarm: CodexPrewarmDiagnostics = { kind: "ordinary" },
 	generate = false,
+	retainSocket = true,
 ): Promise<CodexPrewarmResult> {
 	const recordDiagnostics = noThrowCodexDiagnosticsSink(diagnostics);
 	const websocketConnectTimeoutMs = normalizeTimeoutMs(options.websocketConnectTimeoutMs, "websocketConnectTimeoutMs");
@@ -225,6 +226,6 @@ export async function prewarmWebSocket(
 		});
 		throw error;
 	} finally {
-		release({ keep: keepConnection });
+		release({ keep: keepConnection && retainSocket });
 	}
 }

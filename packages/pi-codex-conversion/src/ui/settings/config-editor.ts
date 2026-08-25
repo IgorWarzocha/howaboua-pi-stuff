@@ -46,14 +46,14 @@ export function splitEditorCommand(command: string, platform: NodeJS.Platform = 
 
 export async function openCodexConfigInExternalEditor(
 	file: string,
-	preserveProjectCacheKeepalive: boolean,
+	folderScope: boolean,
 	stopTui: () => void,
 	startTui: () => void,
 	requestRender: (full?: boolean) => void,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
 	const editorCmd = editorCommand();
 	if (!editorCmd) return { ok: false, error: "Set $VISUAL or $EDITOR to edit the config file." };
-	writeCodexConversionConfig(readCodexConversionConfig(file), file, preserveProjectCacheKeepalive);
+	writeCodexConversionConfig(readCodexConversionConfig(file), file, folderScope);
 	try {
 		stopTui();
 		const status = await new Promise<number | null>((resolve) => {

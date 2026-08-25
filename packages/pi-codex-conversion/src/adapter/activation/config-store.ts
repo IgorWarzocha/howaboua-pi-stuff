@@ -2,8 +2,8 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync 
 import { dirname, join } from "node:path";
 import { CONFIG_DIR_NAME, getAgentDir } from "@earendil-works/pi-coding-agent";
 import { migrateCodexConversionConfigIfNeeded } from "./config-migration.ts";
-import { DEFAULT_CODEX_CONVERSION_CONFIG, normalizeCodexConversionConfig, type CodexConversionConfig } from "./config.ts";
-import { readCodexCacheExperimentEnvironment } from "./cache-experiment.ts";
+import { DEFAULT_CODEX_CONVERSION_CONFIG, normalizeCodexConversionConfig, type CodexConversionConfig, type LunaCacheKeepaliveMinutes } from "./config.ts";
+import { readCodexCacheEnvironment } from "./cache-environment.ts";
 
 // Lite deliberately shares the original package's config so replacing either
 // package does not require a reset or a second settings file.
@@ -75,6 +75,26 @@ function withoutProjectOnlyDocument(document: Record<string, unknown>): Record<s
 	return next;
 }
 
+function withoutGlobalOnlyDocument(document: Record<string, unknown>): Record<string, unknown> {
+	const openai = isRecord(document["openai"]) ? { ...document["openai"] } : undefined;
+	if (!openai) return document;
+	delete openai["lunaCacheKeepaliveMinutes"];
+	const next = { ...document };
+	if (Object.keys(openai).length > 0) next["openai"] = openai;
+	else delete next["openai"];
+	return next;
+}
+
+function withoutDisabledProjectCacheKeepalive(document: Record<string, unknown>): Record<string, unknown> {
+	const openai = isRecord(document["openai"]) ? { ...document["openai"] } : undefined;
+	if (!openai || openai["cacheKeepalive"] !== false) return document;
+	delete openai["cacheKeepalive"];
+	const next = { ...document };
+	if (Object.keys(openai).length > 0) next["openai"] = openai;
+	else delete next["openai"];
+	return next;
+}
+
 export function getCodexConversionConfigPath(agentDir: string = getAgentDir()): string {
 	return join(agentDir, CODEX_CONVERSION_CONFIG_BASENAME);
 }
@@ -113,7 +133,7 @@ export function readProjectCodexConversionDocument(cwd: string, projectTrusted: 
 	const parsed = readConfigDocument(path, "trusted project");
 	if (!isRecord(parsed)) return undefined;
 	const migration = migrateCodexConversionConfigIfNeeded(parsed);
-	return isRecord(migration.config) ? migration.config : undefined;
+	return isRecord(migration.config) ? withoutGlobalOnlyDocument(migration.config) : undefined;
 }
 
 export function hasFolderCodexConversionConfig(cwd: string, projectTrusted: boolean): boolean {
@@ -127,7 +147,7 @@ export function hasFolderCodexConversionConfig(cwd: string, projectTrusted: bool
 }
 
 function applyProcessOverrides(config: CodexConversionConfig, env: NodeJS.ProcessEnv): CodexConversionConfig {
-	const cacheExperiment = readCodexCacheExperimentEnvironment(env);
+	const cacheEnvironment = readCodexCacheEnvironment(env);
 	const fast = env["PI_CODEX_FAST"]?.trim().toLowerCase();
 	const fastOverride = fast === "1" || fast === "true"
 		? true
@@ -136,19 +156,15 @@ function applyProcessOverrides(config: CodexConversionConfig, env: NodeJS.Proces
 			: undefined;
 	if (
 		fastOverride === undefined
-		&& cacheExperiment.keepalive === undefined
-		&& cacheExperiment.diagnostics === undefined
+		&& cacheEnvironment.diagnostics === undefined
 	) return config;
 	return {
 		...config,
 		openai: {
 			...config.openai,
 			...(fastOverride !== undefined ? { fast: fastOverride } : {}),
-			...(cacheExperiment.keepalive !== undefined
-				? { cacheKeepalive: cacheExperiment.keepalive !== false }
-				: {}),
-			...(cacheExperiment.diagnostics !== undefined
-				? { cacheDiagnostics: cacheExperiment.diagnostics }
+			...(cacheEnvironment.diagnostics !== undefined
+				? { cacheDiagnostics: cacheEnvironment.diagnostics }
 				: {}),
 		},
 	};
@@ -195,6 +211,17 @@ export function setProjectCodexCacheKeepalive(
 	}
 }
 
+export function setGlobalCodexLunaCacheKeepalive(
+	minutes: LunaCacheKeepaliveMinutes,
+	globalConfigPath: string = getCodexConversionConfigPath(),
+): { ok: true } | { ok: false; error: string } {
+	const config = readCodexConversionConfig(globalConfigPath);
+	return writeCodexConversionConfig({
+		...config,
+		openai: { ...config.openai, lunaCacheKeepaliveMinutes: minutes },
+	}, globalConfigPath);
+}
+
 export function materializeFolderCodexConversionConfig(
 	cwd: string,
 	projectTrusted: boolean,
@@ -217,7 +244,7 @@ export function clearFolderCodexConversionConfig(
 	for (const key of [...OWNED_CONFIG_KEYS, ...LEGACY_OWNED_CONFIG_KEYS]) {
 		if (key === "openai" && isRecord(project[key])) {
 			const keepalive = project[key]["cacheKeepalive"];
-			const nextOpenAI = typeof keepalive === "boolean" ? { cacheKeepalive: keepalive } : {};
+			const nextOpenAI = keepalive === true ? { cacheKeepalive: true } : {};
 			if (Object.keys(nextOpenAI).length === 0) delete project[key];
 			else project[key] = nextOpenAI;
 			continue;
@@ -238,10 +265,13 @@ export function clearFolderCodexConversionConfig(
 export function writeCodexConversionConfig(
 	config: CodexConversionConfig,
 	configPath: string = getCodexConversionConfigPath(),
-	preserveProjectCacheKeepalive = false,
+	folderScope = false,
 ): { ok: true } | { ok: false; error: string } {
 	try {
-		const normalized = withoutProjectOnlyDocument(normalizeCodexConversionConfig(config) as unknown as Record<string, unknown>);
+		const normalizedConfig = normalizeCodexConversionConfig(config) as unknown as Record<string, unknown>;
+		const normalized = folderScope
+			? withoutDisabledProjectCacheKeepalive(withoutGlobalOnlyDocument(normalizedConfig))
+			: withoutProjectOnlyDocument(normalizedConfig);
 		let document = normalized;
 		if (existsSync(configPath)) {
 			try {
@@ -251,7 +281,9 @@ export function writeCodexConversionConfig(
 				// A valid explicit settings write replaces an unreadable document.
 			}
 		}
-		if (!preserveProjectCacheKeepalive) document = withoutProjectOnlyDocument(document);
+		document = folderScope
+			? withoutDisabledProjectCacheKeepalive(withoutGlobalOnlyDocument(document))
+			: withoutProjectOnlyDocument(document);
 		clearAbsentOwnedOptionals(document, normalized);
 		for (const key of LEGACY_OWNED_CONFIG_KEYS) delete document[key];
 		writeConfigDocumentAtomic(configPath, document);

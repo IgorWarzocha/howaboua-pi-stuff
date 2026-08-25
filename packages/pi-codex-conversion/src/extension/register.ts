@@ -47,7 +47,10 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 						&& config.openai.cacheDiagnostics === "status-and-log",
 				);
 			}
-			if (config.openai.cacheKeepalive !== previousConfig.openai.cacheKeepalive) {
+			if (
+				config.openai.cacheKeepalive !== previousConfig.openai.cacheKeepalive
+				|| config.openai.lunaCacheKeepaliveMinutes !== previousConfig.openai.lunaCacheKeepaliveMinutes
+			) {
 				runtime.cancelCacheKeepalive();
 			}
 			if (

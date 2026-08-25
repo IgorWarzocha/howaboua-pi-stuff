@@ -59,6 +59,7 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 		turnState?: CodexTurnState | undefined;
 		getDiagnostics?: (() => CodexDiagnosticsSink | undefined) | undefined;
 		preserveContinuation?: boolean | undefined;
+		retainSocket?: boolean | undefined;
 		generate?: boolean | undefined;
 		prewarmDiagnostics?: CodexPrewarmDiagnostics | undefined;
 	},
@@ -97,6 +98,7 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 			deps.preserveContinuation,
 			deps.prewarmDiagnostics,
 			deps.generate,
+			deps.retainSocket,
 		);
 	} catch (error) {
 		if (!options.signal?.aborted && (isWebSocketUpgradeRequiredError(error) || isWebSocketMessageTooBigError(error))) {

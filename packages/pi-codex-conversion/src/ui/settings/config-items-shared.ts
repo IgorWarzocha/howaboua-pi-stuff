@@ -14,7 +14,7 @@ export interface ConfigSetting {
 	update?:
 		| ((value: string, config: CodexConversionConfig) => CodexConversionConfig)
 		| undefined;
-	action?: "edit-config" | "project-cache-keepalive" | undefined;
+	action?: "edit-config" | "global-luna-cache-keepalive" | "project-cache-keepalive" | undefined;
 }
 
 export class TextSettingSubmenu extends Container implements Focusable {
@@ -77,9 +77,9 @@ export function toggle(
 	);
 }
 
-export function projectToggle(id: string, label: string, current: boolean): ConfigSetting {
+export function projectCacheKeepalive(id: string, label: string, current: boolean): ConfigSetting {
 	return {
-		item: { id, label, currentValue: current ? "on" : "off", values: ["off", "on"] },
+		item: { id, label, currentValue: current ? "25 mins" : "off", values: ["off", "25 mins"] },
 		action: "project-cache-keepalive",
 	};
 }
