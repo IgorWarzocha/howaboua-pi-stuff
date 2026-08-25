@@ -1,7 +1,6 @@
 import { renderPiSteer } from "../prompts.ts";
 
 export type RealtimeHandoffChannel = "commentary" | "speakable";
-export type RealtimeHandoffKind = "progress" | "result";
 export type RealtimePiInputBehavior = "steer" | "followUp";
 
 export type RealtimeHandoffTarget =
@@ -14,7 +13,6 @@ interface RealtimeDelegationHandoffCallbacks {
 		target: RealtimeHandoffTarget,
 		channel: RealtimeHandoffChannel,
 		content: string,
-		kind?: RealtimeHandoffKind,
 	): void;
 	onSettled(id: string): void;
 }
@@ -96,19 +94,14 @@ export class RealtimeDelegationHandoff {
 		const text = content.trim();
 		if (!this.callbacks.isActive() || !this.target || !text) return;
 		const channel = this.progressSpoken ? "commentary" : "speakable";
-		this.callbacks.onContext(
-			this.target,
-			channel,
-			text,
-			channel === "speakable" ? "progress" : undefined,
-		);
+		this.callbacks.onContext(this.target, channel, text);
 		this.progressSpoken = true;
 	}
 
 	result(content: string): void {
 		const text = content.trim();
 		if (!this.callbacks.isActive() || !this.target || !text) return;
-		this.callbacks.onContext(this.target, "speakable", text, "result");
+		this.callbacks.onContext(this.target, "speakable", text);
 	}
 
 	settle(): void {

@@ -1,5 +1,5 @@
 - `controller.ts` owns the public facade, teardown, mute, and Pi event bridge; `controller-start.ts` owns startup/auth/state transitions; `controller-reconnect.ts` owns dropped-call replacement and peer-owner notifications; `controller-sessions.ts` loads modes and guards cancellation across imports; `controller-support.ts` owns shared state/presentation helpers.
-- Under `conversation/`, `session.ts` owns V3 transport sequencing, `call-setup.ts` HTTP setup, `handoff.ts` delegation output, `speakable-queue.ts` serialized speech policy, and `wire.ts` validation. `auth.ts`, `dictation/`, and `session-messages.ts` retain their boundaries.
+- Under `conversation/`, `session.ts` owns V3 transport sequencing, `call-setup.ts` HTTP setup, `handoff.ts` delegation output, and `wire.ts` validation. `auth.ts`, `dictation/`, and `session-messages.ts` retain their boundaries.
 - `helper.ts` owns the process; `helper-protocol.ts` owns JSONL framing and validation. LAN browser transport, ownership, and decoding stay in `browser-connections.ts`, `browser-session.ts`, and `browser-wire.ts`.
 - `controls.ts` owns start/stop/setup policy; settings commands and shortcuts route through it into the controller.
 - The native helper never reads credential stores or executes agent work.
@@ -11,7 +11,7 @@
 - Realtime start/end are fixed model-visible purple lifecycle messages: steer an active Pi turn or append while idle, never trigger a turn. Start scopes spoken progress/formatting guidance to delegations; end restores normal interaction.
 - Delegation `<input>` is authoritative. `<transcript_delta>` contains deduplicated finalized frontend history before that input; keep partial recognition and the current utterance out.
 - Show a delegation's authoritative input as one display-only `You said` entry before routing it; consume its later `turn.done` without duplicate display. Nondelegated turns use their finalized transcript. Never render partial recognition.
-- Speak the first meaningful Pi progress update once per agent turn, keep later progress as commentary, and always queue the final result. Never forward raw thinking deltas; a completed compatible-model summary may supply only that first otherwise-silent progress update.
+- Speak the first meaningful Pi progress update once per agent turn, keep later progress as commentary, and always send the final result. Never forward raw thinking deltas; a completed compatible-model summary may supply only that first otherwise-silent progress update.
 - Hold realtime delegations behind native compaction and its post-compaction prewarm; never start a competing Pi turn from the compaction window.
 - Each mode owns its helper process and idempotent cleanup; the controller owns replacement/reload/shutdown ordering.
 - Opt-in auto-resume replaces only established host-to-OpenAI V3 calls after terminal transport drops. Preserve LAN browser ownership, rerun normal context startup, omit lifecycle end/start, and leave failed replacement startup terminal.

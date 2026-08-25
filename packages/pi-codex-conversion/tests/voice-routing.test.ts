@@ -31,8 +31,8 @@ test("voice routing preserves presentation, handoff pacing, and compaction order
 	const settled: string[] = [];
 	const handoff = new RealtimeDelegationHandoff({
 		isActive: () => true,
-		onContext: (target, channel, content, kind) =>
-			contexts.push({ target, channel, content, kind }),
+		onContext: (target, channel, content) =>
+			contexts.push({ target, channel, content }),
 		onSettled: (id) => settled.push(id),
 	});
 	handoff.activate("delegation-1");
@@ -52,33 +52,28 @@ test("voice routing preserves presentation, handoff pacing, and compaction order
 			target: { type: "delegation", id: "delegation-1" },
 			channel: "speakable",
 			content: "First useful update",
-			kind: "progress",
 		},
 		{
 			target: { type: "delegation", id: "delegation-1" },
 			channel: "commentary",
 			content: "Routine follow-on update",
-			kind: undefined,
 		},
 		{
 			target: { type: "delegation", id: "delegation-1" },
 			channel: "speakable",
 			content: "Finished result",
-			kind: "result",
 		},
 		{
 			target: { type: "session" },
 			channel: "commentary",
 			content:
 				"<pi_steer>\n  <input>Typed request</input>\n  <routing>already delivered to the active Pi run; update context, do not delegate it, and wait for authoritative Pi updates</routing>\n</pi_steer>",
-			kind: undefined,
 		},
 		{
 			target: { type: "session" },
 			channel: "commentary",
 			content:
 				"<pi_steer>\n  <input>Queued request</input>\n  <routing>already delivered to the active Pi run; update context, do not delegate it, and wait for authoritative Pi updates</routing>\n</pi_steer>",
-			kind: undefined,
 		},
 	]);
 	assert.deepEqual(settled, ["delegation-1"]);

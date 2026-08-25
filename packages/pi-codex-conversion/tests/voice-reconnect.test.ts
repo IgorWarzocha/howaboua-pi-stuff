@@ -18,7 +18,7 @@ const AUTH: CodexVoiceAuth = {
 	officialCodex: false,
 };
 
-test("only an established realtime transport failure is a resumable drop", async () => {
+test("realtime forwards final speech before reporting established drops", async () => {
 	const startup = createConversation("closed");
 	await startup.session.start(
 		AUTH,
@@ -34,6 +34,20 @@ test("only an established realtime transport failure is a resumable drop", async
 		DEFAULT_CODEX_CONVERSION_CONFIG,
 		"instructions",
 	);
+	active.session.piInput("Typed request", "steer");
+	active.session.agentProgress("First useful update");
+	active.session.agentResult("Finished result");
+	assert.deepEqual(active.peer.sentText().slice(-2), [
+		["session.context.append", "speakable", "First useful update"],
+		["session.context.append", "speakable", "Finished result"],
+	]);
+	active.peer.emit({
+		type: "data",
+		message: { type: "turn.done", turn: { role: "assistant" } },
+	});
+	active.session.piInput("Silent request", "steer");
+	active.session.settleAgentTurn();
+	assert.equal(active.statuses.at(-1), "listening");
 	active.session.markEstablished();
 	active.peer.emit({
 		type: "error",
@@ -50,14 +64,16 @@ function createConversation(answerState: "ready" | "closed"): {
 	peer: FakeRealtimePeer;
 	failures: string[];
 	drops: string[];
+	statuses: string[];
 } {
 	const failures: string[] = [];
 	const drops: string[] = [];
+	const statuses: string[] = [];
 	const peer = new FakeRealtimePeer(answerState);
 	const callbacks: CodexConversationCallbacks = {
 		onError: (error) => failures.push(error.message),
 		onDrop: (error) => drops.push(error.message),
-		onStatus: () => {},
+		onStatus: (status) => statuses.push(status),
 		onTurn: () => {},
 		onUserTranscript: () => {},
 		onTranscriptTail: () => {},
@@ -67,11 +83,12 @@ function createConversation(answerState: "ready" | "closed"): {
 		status: 201,
 		answer: "answer",
 	});
-	return { session, peer, failures, drops };
+	return { session, peer, failures, drops, statuses };
 }
 
 class FakeRealtimePeer implements CodexRealtimeWebRtcPeer {
 	readonly kind = "webrtc" as const;
+	private readonly sent: unknown[] = [];
 	private readonly answerState: "ready" | "closed";
 	private readonly eventListeners = new Set<(event: CodexRealtimePeerEvent) => void>();
 	private readonly exitListeners = new Set<(error: Error) => void>();
@@ -102,7 +119,17 @@ class FakeRealtimePeer implements CodexRealtimeWebRtcPeer {
 		for (const listener of this.eventListeners) listener(event);
 	}
 
-	sendData(): void {}
+	sendData(message: unknown): void {
+		this.sent.push(message);
+	}
+
+	sentText(): [unknown, unknown, unknown][] {
+		return this.sent.map((value) => {
+			const message = value as Record<string, unknown>;
+			const content = message["content"] as Array<Record<string, unknown>>;
+			return [message["type"], message["channel"], content[0]?.["text"]];
+		});
+	}
 	setInputMuted(): void {}
 	async close(): Promise<void> {}
 }
