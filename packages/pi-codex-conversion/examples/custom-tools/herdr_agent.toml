@@ -1,6 +1,0 @@
-usage = '''await tools.herdr_agent("help") // Pi-panel messaging; advanced orchestration: await tools.skills("read herdr")'''
-description = '''Find and coordinate with Pi agents in Herdr panels. send automatically prompts an idle Pi or steers a working Pi; queue=true waits behind current work. It waits by default and returns only the new assistant text. For advanced workspace/tab/pane lifecycle, generic command panes, raw terminal input, or output waits, load the herdr skill with skills.'''
-output = "Compact JSON: pane/status plus only relevant panels, text, ask, acknowledgement, timeout, truncation, or transcript-pending fields."
-command = "./herdr-agent/herdr-agent.mjs"
-input = "stdin"
-defer_loading = false

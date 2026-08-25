@@ -143,7 +143,7 @@ function createNestedTools(
 		),
 		toNestedTool(
 			createWriteStdinTool(runtime.sessions, options),
-			"await tools.write_stdin({ session_id: number, chars?: string, yield_time_ms?: number, max_output_tokens?: number })",
+			"await tools.write_stdin({ session_id: number, chars?: string, yield_time_ms?: number, max_output_tokens?: number }) // non-empty chars only when the original exec_command used tty=true",
 			{},
 			{ yieldTimeMs: LONG_RUNNING_TOOL_OUTER_YIELD_MS },
 		),

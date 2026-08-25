@@ -6,6 +6,10 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { GippityControlConfig } from "../config.ts";
 import {
+	markRealtimePeerInactive,
+	resumeDroppedConversation,
+} from "./controller-reconnect.ts";
+import {
 	type RealtimePeerPlan,
 	startControllerMode,
 	type VoiceControllerRuntime,
@@ -18,7 +22,6 @@ import {
 	type VoiceSession,
 	voiceModeForState,
 } from "./controller-support.ts";
-import { realtimeHandoffChannel } from "./conversation/handoff.ts";
 import type { CodexRealtimeConversation } from "./conversation/session.ts";
 import { completedVoiceReasoningSummary } from "./reasoning-summary.ts";
 import { CodexVoiceSessionMessages } from "./session-messages.ts";
@@ -265,16 +268,18 @@ export class CodexVoiceController {
 		return this.messages.filterContext(messages);
 	}
 
-	mirrorPiSteer(input: unknown): boolean {
+	piInput(input: unknown, streamingBehavior?: "steer" | "followUp"): boolean {
 		return (
 			this.runtime.state.type === "conversation" &&
-			this.runtime.state.session.mirrorPiSteer(input)
+			this.runtime.state.session.piInput(input, streamingBehavior)
 		);
 	}
 
-	streamDelta(delta: string): void {
-		if (this.runtime.state.type === "conversation")
-			this.runtime.state.session.streamAgentDelta(delta);
+	piUserMessage(message: unknown): boolean {
+		return (
+			this.runtime.state.type === "conversation" &&
+			this.runtime.state.session.piUserMessage(message)
+		);
 	}
 
 	finishAgentMessage(
@@ -282,26 +287,19 @@ export class CodexVoiceController {
 		forwardReasoningSummaries: boolean,
 	): void {
 		if (this.runtime.state.type !== "conversation") return;
-		const channel = realtimeHandoffChannel(message.stopReason);
 		const completedText = message.content
 			.flatMap((part) => (part.type === "text" ? [part.text] : []))
 			.join("\n");
-		if (this.runtime.state.session.agentProgressStreamed) {
-			this.runtime.state.session.finishAgentProgress();
+		if (message.stopReason === "toolUse") {
+			const progress = completedText.trim()
+				? completedText
+				: forwardReasoningSummaries
+					? completedVoiceReasoningSummary(message)
+					: undefined;
+			if (progress) this.runtime.state.session.agentProgress(progress);
 			return;
 		}
-		if (channel === "commentary") {
-			if (completedText.trim()) {
-				this.runtime.state.session.finishAgentProgress(completedText);
-			} else if (forwardReasoningSummaries) {
-				this.runtime.state.session.finishAgentMessage(
-					"speakable",
-					completedVoiceReasoningSummary(message),
-				);
-			}
-			return;
-		}
-		this.runtime.state.session.finishAgentMessage(channel, completedText);
+		this.runtime.state.session.agentResult(completedText);
 	}
 
 	settleTurn(): void {
@@ -334,7 +332,7 @@ export class CodexVoiceController {
 		const wasMuted = this.inputMuted;
 		const session = this.currentSession();
 		if (failedSession)
-			this.markRealtimePeerInactive(failedSession, error, false);
+			markRealtimePeerInactive(this.runtime, failedSession, error, false);
 		const closePromise = session?.close();
 		this.runtime.state = { type: "failed", message };
 		this.runtime.announcedMode = undefined;
@@ -351,81 +349,28 @@ export class CodexVoiceController {
 	}
 
 	private drop(session: CodexRealtimeConversation, error: Error): void {
-		if (this.currentSession() !== session) return;
-		const config = this.runtime.config;
-		const ctx = this.runtime.context;
-		if (!config?.voice.autoResumeRealtime || !ctx) {
-			this.markRealtimePeerInactive(session, error, false);
-			this.fail(error);
-			return;
-		}
-		const realtimePeerPlan = this.runtime.realtimePeerPlan;
-		this.markRealtimePeerInactive(session, error, true);
-		this.runtime.startAbortController?.abort();
-		this.runtime.startAbortController = undefined;
-		const resumeGeneration = ++this.runtime.startGeneration;
-		const wasMuted = this.inputMuted;
-		this.runtime.state = { type: "reconnecting", session };
-		this.renderStatus("reconnecting…");
-		void (async () => {
-			await Promise.allSettled([session.close()]);
-			if (
-				this.runtime.startGeneration !== resumeGeneration ||
-				this.runtime.state.type !== "reconnecting"
-			)
-				return;
-			const resumePromise = this.startMode(
-				ctx,
-				config,
-				"realtime",
-				realtimePeerPlan,
-				undefined,
-				true,
-				wasMuted,
-			);
-			const replacementGeneration = this.runtime.startGeneration;
-			let resumed: CodexRealtimeConversation | undefined;
-			try {
-				resumed = await resumePromise;
-			} catch (resumeError) {
-				if (this.runtime.startGeneration === replacementGeneration)
-					this.fail(
-						resumeError instanceof Error
-							? resumeError
-							: new Error(String(resumeError)),
-					);
-				return;
-			}
-			if (!resumed) {
-				const resumeError = new Error("Codex realtime voice could not resume");
-				this.markRealtimePeerInactive(
-					session,
-					resumeError,
-					false,
-					realtimePeerPlan,
-				);
-				if (this.runtime.state.type === "reconnecting") this.fail(resumeError);
-				return;
-			}
-			if (wasMuted && this.currentSession() === resumed)
-				this.renderCurrentStatus();
-		})();
-	}
-
-	private markRealtimePeerInactive(
-		session: CodexRealtimeConversation,
-		error: Error,
-		resuming: boolean,
-		plan = this.runtime.realtimePeerPlan,
-	): void {
-		try {
-			plan?.onInactive?.(session, error, resuming);
-		} catch (ownerError) {
-			this.runtime.context?.ui.notify(
-				`Could not update realtime voice owner: ${ownerError instanceof Error ? ownerError.message : String(ownerError)}`,
-				"error",
-			);
-		}
+		resumeDroppedConversation({
+			runtime: this.runtime,
+			session,
+			error,
+			callbacks: {
+				currentSession: () => this.currentSession(),
+				fail: (failure) => this.fail(failure),
+				inputMuted: () => this.inputMuted,
+				renderCurrentStatus: () => this.renderCurrentStatus(),
+				renderStatus: (status) => this.renderStatus(status),
+				startReplacement: (ctx, config, plan, inputMuted) =>
+					this.startMode(
+						ctx,
+						config,
+						"realtime",
+						plan,
+						undefined,
+						true,
+						inputMuted,
+					),
+			},
+		});
 	}
 
 	private renderStatus(status: string): void {

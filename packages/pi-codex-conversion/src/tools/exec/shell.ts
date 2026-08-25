@@ -47,6 +47,9 @@ function buildSyncedBashCommand(command: string, env: NodeJS.ProcessEnv): string
 export function resolveExecution(requestedShell: string | undefined, command: string, extraEnv?: NodeJS.ProcessEnv, baseEnv: NodeJS.ProcessEnv = process.env): { shell: string; command: string; env: NodeJS.ProcessEnv } {
 	const shell = resolveShell(requestedShell);
 	const env: NodeJS.ProcessEnv = { ...baseEnv, ...extraEnv };
+	// Shared checkouts should not acquire Git's optional index lock for read-only commands.
+	// Git mutations still take their required locks, and an explicit caller value wins.
+	env["GIT_OPTIONAL_LOCKS"] ??= "0";
 	if (!shouldSyncBashEnv(requestedShell, shell)) return { shell, command, env };
 	env["SHELL"] = CODEX_FALLBACK_SHELL;
 	return { shell, command: buildSyncedBashCommand(command, env), env };

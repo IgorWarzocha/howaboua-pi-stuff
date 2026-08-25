@@ -6,4 +6,4 @@ output = "Bounded JSON with ref_id, line content, numbered elements, continuatio
 command = "./browser/browser.mjs"
 input = "stdin"
 defer_loading = false
-yield_time_ms = 30000
+yield_time_ms = 50000

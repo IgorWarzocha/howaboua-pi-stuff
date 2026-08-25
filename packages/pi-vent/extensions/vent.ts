@@ -6,6 +6,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
+import registerPackageChangelog from "../changelog.js";
 
 const ventSchema = Type.Object(
 	{
@@ -34,6 +35,7 @@ async function fileExists(path: string): Promise<boolean> {
 }
 
 export default function ventExtension(pi: ExtensionAPI) {
+	registerPackageChangelog(pi);
 	pi.registerTool({
 		name: "vent",
 		label: "vent",

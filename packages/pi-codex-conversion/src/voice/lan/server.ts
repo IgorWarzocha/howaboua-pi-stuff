@@ -39,7 +39,7 @@ export async function startCodexLanVoiceServer(options: {
 	port?: number | undefined;
 	certificateAgentDir: string;
 }): Promise<CodexLanVoiceServer> {
-	const certificate = resolveLanVoiceCertificate(options.certificateAgentDir);
+	const certificate = await resolveLanVoiceCertificate(options.certificateAgentDir);
 	const ownerIsActive = () => options.ctx.sessionManager.getSessionId() === options.ownerSessionId;
 	let activeConversation: { peer: LanHostRealtimePeer; conversation: CodexRealtimeConversation } | undefined;
 	let conversationStart: { abort: AbortController; promise: Promise<void> } | undefined;

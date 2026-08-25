@@ -3,6 +3,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { CANCELLED, interruptible } from "./cancellation.ts";
 import { isVoiceContextExcludedMessage } from "./context-visibility.ts";
 import { renderRealtimeTranscriptTail } from "./prompts.ts";
 import type { RealtimeVoiceTurn } from "./turns.ts";
@@ -44,6 +45,9 @@ export class CodexVoiceSessionMessages {
 	private dictationAnnounced = false;
 	private delegationTail: Promise<void> = Promise.resolve();
 	private delegationAbortController = new AbortController();
+	private compactionBarrier:
+		| ReturnType<typeof Promise.withResolvers<void>>
+		| undefined;
 	private contextGeneration = 0;
 
 	constructor(pi: ExtensionAPI, callbacks: CodexVoiceSessionMessageCallbacks) {
@@ -80,6 +84,7 @@ export class CodexVoiceSessionMessages {
 	}
 
 	resetSessionContext(): void {
+		this.compactionFinished();
 		this.replaceContext(undefined);
 		this.piTurnActive = false;
 	}
@@ -120,6 +125,15 @@ export class CodexVoiceSessionMessages {
 
 	cancelPendingDelegations(): void {
 		this.delegationAbortController.abort();
+	}
+
+	compactionStarted(): void {
+		this.compactionBarrier ??= Promise.withResolvers<void>();
+	}
+
+	compactionFinished(): void {
+		this.compactionBarrier?.resolve();
+		this.compactionBarrier = undefined;
 	}
 
 	retainTranscriptTail(transcriptDelta: string): void {
@@ -192,22 +206,36 @@ export class CodexVoiceSessionMessages {
 		let deliveryStarted = false;
 		let failureAction = "prepare";
 		try {
-			let startsTurn = !this.piTurnActive && ctx.isIdle();
-			if (startsTurn) {
+			for (;;) {
 				for (;;) {
-					preflight = await this.callbacks.prepareDelegation(ctx, signal);
+					const barrier = this.compactionBarrier;
+					if (!barrier) break;
+					if ((await interruptible(barrier.promise, signal)) === CANCELLED)
+						signal.throwIfAborted();
 					if (
 						generation !== this.contextGeneration ||
 						this.context !== ctx
 					) return;
-					startsTurn = !this.piTurnActive && ctx.isIdle();
-					if (!startsTurn) break;
-					deliveryStarted = true;
-					if (preflight?.commit() !== false) break;
-					deliveryStarted = false;
-					preflight = undefined;
 				}
+				let startsTurn = !this.piTurnActive && ctx.isIdle();
+				if (!startsTurn) break;
+				preflight = await this.callbacks.prepareDelegation(ctx, signal);
+				if (
+					generation !== this.contextGeneration ||
+					this.context !== ctx
+				) return;
+				if (this.compactionBarrier) {
+					preflight = undefined;
+					continue;
+				}
+				startsTurn = !this.piTurnActive && ctx.isIdle();
+				if (!startsTurn) break;
+				deliveryStarted = true;
+				if (preflight?.commit() !== false) break;
+				deliveryStarted = false;
+				preflight = undefined;
 			}
+			const startsTurn = !this.piTurnActive && ctx.isIdle();
 			failureAction = "deliver";
 			deliveryStarted = true;
 			this.callbacks.onDelegation(turn.delegationId);

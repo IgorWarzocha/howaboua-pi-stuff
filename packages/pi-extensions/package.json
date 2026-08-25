@@ -14,14 +14,12 @@
 	},
 	"dependencies": {
 		"@howaboua/pi-ask": "0.0.5",
-		"@howaboua/pi-auto-reasoning-tool": "0.1.11",
 		"@howaboua/pi-auto-trees": "0.1.13",
 		"@howaboua/pi-cache-hit-predictor": "0.0.1",
 		"@howaboua/pi-dynamic-tools": "0.0.8",
 		"@howaboua/pi-explore-subagents": "0.1.13",
 		"@howaboua/pi-gippity-control": "0.0.13",
 		"@howaboua/pi-gpt-switcher": "0.1.1",
-		"@howaboua/pi-markdown-workflows": "0.2.20",
 		"@howaboua/pi-memories": "0.1.4",
 		"@howaboua/pi-pet": "0.1.1",
 		"@howaboua/pi-semantic-grep": "0.1.19",
@@ -40,7 +38,6 @@
 	],
 	"pi": {
 		"extensions": [
-			"./changelog.ts",
 			"./index.ts"
 		]
 	},
@@ -57,10 +54,10 @@
 		"prepack": "bun run ../../scripts/prepare-aggregate-package.mjs"
 	},
 	"peerDependencies": {
-		"@earendil-works/pi-coding-agent": "*",
+		"@earendil-works/pi-coding-agent": ">=0.84.3",
 		"@earendil-works/pi-tui": "*"
 	},
 	"devDependencies": {
-		"@earendil-works/pi-coding-agent": "0.82.0"
+		"@earendil-works/pi-coding-agent": "0.84.3"
 	}
 }

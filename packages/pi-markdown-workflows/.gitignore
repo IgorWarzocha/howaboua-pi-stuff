@@ -1,5 +1,0 @@
-node_modules/
-dist/
-.pi/semantic-grep.sqlite
-*.log
-.DS_Store

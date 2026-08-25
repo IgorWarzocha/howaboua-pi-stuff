@@ -15,6 +15,7 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import registerPackageChangelog from "../changelog.js";
 
 const NATIVE_COMPACTION_STRATEGY = "openai-native-compact-v1";
 type ThinkingLevel = ReturnType<ExtensionAPI["getThinkingLevel"]>;
@@ -341,6 +342,7 @@ function appendInbox(
 }
 
 export default function piMemories(pi: ExtensionAPI) {
+	registerPackageChangelog(pi);
 	loadConfig();
 
 	pi.on("session_shutdown", async (event, ctx) => {

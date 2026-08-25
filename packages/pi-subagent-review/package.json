@@ -36,14 +36,13 @@
 	},
 	"pi": {
 		"extensions": [
-			"./changelog.ts",
 			"./index.ts"
 		]
 	},
 	"peerDependencies": {
-		"@earendil-works/pi-ai": ">=0.80.8",
-		"@earendil-works/pi-coding-agent": ">=0.82.0",
-		"@earendil-works/pi-tui": "*"
+		"@earendil-works/pi-ai": ">=0.84.3",
+		"@earendil-works/pi-coding-agent": ">=0.84.3",
+		"@earendil-works/pi-tui": ">=0.84.3"
 	},
 	"scripts": {
 		"check": "bun run lint && bun run typecheck && bun run test",
@@ -54,10 +53,10 @@
 		"format": "biome check --write ."
 	},
 	"devDependencies": {
-		"@earendil-works/pi-ai": "0.84.1",
-		"@earendil-works/pi-coding-agent": "0.84.1",
-		"@types/node": "^24.10.0",
-		"typescript": "^5.9.3",
+		"@earendil-works/pi-ai": "0.84.3",
+		"@earendil-works/pi-coding-agent": "0.84.3",
+		"@types/node": "^26.2.0",
+		"typescript": "^7.0.2",
 		"@biomejs/biome": "^2.5.10"
 	},
 	"publishConfig": {

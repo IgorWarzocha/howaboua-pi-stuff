@@ -1,145 +1,160 @@
-import type { AssistantMessage } from "@earendil-works/pi-ai";
 import { renderPiSteer } from "../prompts.ts";
-import type { CodexRealtimePeer } from "./peer.ts";
-import { utf8Chunks } from "./wire.ts";
-
-const HANDOFF_CHUNK_BYTES = 500;
 
 export type RealtimeHandoffChannel = "commentary" | "speakable";
+export type RealtimeHandoffKind = "progress" | "result";
+export type RealtimePiInputBehavior = "steer" | "followUp";
 
-export function realtimeHandoffChannel(
-	stopReason: AssistantMessage["stopReason"],
-): RealtimeHandoffChannel {
-	return stopReason === "toolUse" ? "commentary" : "speakable";
-}
+export type RealtimeHandoffTarget =
+	| { type: "delegation"; id: string }
+	| { type: "session" };
 
 interface RealtimeDelegationHandoffCallbacks {
 	isActive(): boolean;
-	onFailure(error: Error): void;
+	onContext(
+		target: RealtimeHandoffTarget,
+		channel: RealtimeHandoffChannel,
+		content: string,
+		kind?: RealtimeHandoffKind,
+	): void;
 	onSettled(id: string): void;
-	onStatus(status: string): void;
 }
 
+/** Routes one Pi turn back into the active realtime conversation. */
 export class RealtimeDelegationHandoff {
-	private readonly peer: CodexRealtimePeer;
 	private readonly callbacks: RealtimeDelegationHandoffCallbacks;
-	private activeDelegationId: string | undefined;
-	private buffer = "";
-	private streamedProgress = false;
+	private target: RealtimeHandoffTarget | undefined;
+	private progressSpoken = false;
+	private readonly queuedSteers: string[] = [];
+	private readonly queuedFollowUps: Array<{ input: string; frame: string }> =
+		[];
 
-	constructor(peer: CodexRealtimePeer, callbacks: RealtimeDelegationHandoffCallbacks) {
-		this.peer = peer;
+	constructor(callbacks: RealtimeDelegationHandoffCallbacks) {
 		this.callbacks = callbacks;
 	}
 
 	activate(id: string): void {
-		if (!this.callbacks.isActive() || this.activeDelegationId === id) return;
-		const previousDelegationId = this.activeDelegationId;
-		this.finishMessage("speakable");
-		if (!this.callbacks.isActive()) return;
-		if (previousDelegationId) this.callbacks.onSettled(previousDelegationId);
-		this.activeDelegationId = id;
+		if (
+			!this.callbacks.isActive() ||
+			(this.target?.type === "delegation" && this.target.id === id)
+		)
+			return;
+		this.settleDelegation();
+		this.target = { type: "delegation", id };
+		this.progressSpoken = false;
 	}
 
-	mirrorPiSteer(input: unknown): boolean {
-		const delegationId = this.activeDelegationId;
+	piInput(
+		input: unknown,
+		streamingBehavior?: RealtimePiInputBehavior,
+	): boolean {
 		const frame = renderPiSteer(input);
-		if (!this.callbacks.isActive() || !delegationId || !frame) return false;
-		try {
-			this.send(delegationId, "commentary", frame);
-			return true;
-		} catch (error) {
-			this.callbacks.onFailure(asError(error));
+		if (!this.callbacks.isActive() || !frame || typeof input !== "string")
 			return false;
+		const normalizedInput = input.trim();
+		if (streamingBehavior === "followUp") {
+			this.queuedFollowUps.push({ input: normalizedInput, frame });
+			return true;
 		}
+		if (streamingBehavior === "steer") this.queuedSteers.push(normalizedInput);
+		this.routePiInput(frame, streamingBehavior === undefined);
+		return true;
 	}
 
-	stream(delta: string): void {
-		if (!this.callbacks.isActive() || !this.activeDelegationId || !delta) return;
-		this.buffer += delta;
-		for (;;) {
-			const boundary = this.streamedProgress
-				? paragraphBoundary(this.buffer)
-				: secondSentenceBoundary(this.buffer);
-			if (boundary === undefined) break;
-			const chunk = this.buffer.slice(0, boundary);
-			this.buffer = this.buffer.slice(boundary);
-			if (chunk.trim()) this.sendProgress(chunk);
+	piUserMessage(message: unknown): boolean {
+		if (!this.callbacks.isActive()) return false;
+		const input = userMessageText(message);
+		if (!input) return false;
+		const steerIndex = this.queuedSteers.indexOf(input);
+		if (steerIndex >= 0) {
+			this.queuedSteers.splice(steerIndex, 1);
+			return true;
 		}
+		const followUpIndex = this.queuedFollowUps.findIndex(
+			(pending) => pending.input === input,
+		);
+		if (followUpIndex < 0) return false;
+		const [pending] = this.queuedFollowUps.splice(followUpIndex, 1);
+		if (!pending) return false;
+		this.routePiInput(pending.frame, true);
+		return true;
 	}
 
-	finishMessage(channel: RealtimeHandoffChannel, fallback = ""): void {
-		const delegationId = this.activeDelegationId;
-		const text = fallback || this.buffer;
-		this.buffer = "";
-		this.streamedProgress = false;
-		if (!this.callbacks.isActive() || !delegationId || !text) return;
-		if (channel === "speakable") this.callbacks.onStatus("speaking");
-		try {
-			this.send(delegationId, channel, text);
-		} catch (error) {
-			this.callbacks.onFailure(asError(error));
+	private routePiInput(frame: string, startsTurn: boolean): void {
+		if (startsTurn) {
+			this.settleDelegation();
+			this.target = { type: "session" };
+			this.progressSpoken = false;
+		} else if (!this.target) {
+			this.target = { type: "session" };
+			this.progressSpoken = false;
 		}
+		if (!this.target) return;
+		this.callbacks.onContext(this.target, "commentary", frame);
 	}
 
-	finishProgress(fallback = ""): void {
-		const text = fallback || this.buffer;
-		this.buffer = "";
-		const active = this.callbacks.isActive() && Boolean(this.activeDelegationId);
-		if (active && text) this.sendProgress(text, false);
-		this.streamedProgress = false;
+	progress(content: string): void {
+		const text = content.trim();
+		if (!this.callbacks.isActive() || !this.target || !text) return;
+		const channel = this.progressSpoken ? "commentary" : "speakable";
+		this.callbacks.onContext(
+			this.target,
+			channel,
+			text,
+			channel === "speakable" ? "progress" : undefined,
+		);
+		this.progressSpoken = true;
 	}
 
-	hasStreamedProgress(): boolean {
-		return this.streamedProgress;
-	}
-
-	private sendProgress(text: string, markStreamed = true): void {
-		this.callbacks.onStatus("speaking");
-		try {
-			for (const content of utf8Chunks(text, HANDOFF_CHUNK_BYTES)) {
-				this.peer.sendData({
-					type: "session.context.append",
-					channel: "speakable",
-					content: [{ type: "input_text", text: content }],
-				});
-			}
-			if (markStreamed) this.streamedProgress = true;
-		} catch (error) {
-			this.callbacks.onFailure(asError(error));
-		}
+	result(content: string): void {
+		const text = content.trim();
+		if (!this.callbacks.isActive() || !this.target || !text) return;
+		this.callbacks.onContext(this.target, "speakable", text, "result");
 	}
 
 	settle(): void {
-		this.finishMessage("speakable");
-		if (this.activeDelegationId) this.callbacks.onSettled(this.activeDelegationId);
-		this.activeDelegationId = undefined;
-		if (this.callbacks.isActive()) this.callbacks.onStatus("listening");
+		this.settleDelegation();
+		this.target = undefined;
+		this.progressSpoken = false;
+		this.clearQueuedInputs();
 	}
 
 	clear(): void {
-		this.buffer = "";
-		this.streamedProgress = false;
-		this.activeDelegationId = undefined;
+		this.target = undefined;
+		this.progressSpoken = false;
+		this.clearQueuedInputs();
 	}
 
-	private send(delegationId: string, channel: RealtimeHandoffChannel, content: string): void {
-		for (const text of utf8Chunks(content, HANDOFF_CHUNK_BYTES)) {
-			this.peer.sendData({ type: "delegation.context.append", delegation_item_id: delegationId, channel, content: [{ type: "input_text", text }] });
-		}
+	private clearQueuedInputs(): void {
+		this.queuedSteers.length = 0;
+		this.queuedFollowUps.length = 0;
+	}
+
+	private settleDelegation(): void {
+		if (this.target?.type === "delegation")
+			this.callbacks.onSettled(this.target.id);
 	}
 }
 
-function secondSentenceBoundary(text: string): number | undefined {
-	const ends = [...text.matchAll(/[.!?](?:["')\]]+)?(?=\s|$)/g)];
-	return ends[1]?.index === undefined ? undefined : ends[1].index + ends[1][0].length;
-}
-
-function paragraphBoundary(text: string): number | undefined {
-	const match = /\n\s*\n/.exec(text);
-	return match?.index === undefined ? undefined : match.index + match[0].length;
-}
-
-function asError(error: unknown): Error {
-	return error instanceof Error ? error : new Error(String(error));
+function userMessageText(message: unknown): string | undefined {
+	if (!message || typeof message !== "object") return undefined;
+	const candidate = message as {
+		role?: unknown;
+		content?: unknown;
+	};
+	if (candidate.role !== "user") return undefined;
+	if (typeof candidate.content === "string")
+		return candidate.content.trim() || undefined;
+	if (!Array.isArray(candidate.content)) return undefined;
+	const text = candidate.content
+		.flatMap((part) =>
+			part &&
+			typeof part === "object" &&
+			(part as { type?: unknown }).type === "text" &&
+			typeof (part as { text?: unknown }).text === "string"
+				? [(part as { text: string }).text]
+				: [],
+		)
+		.join("\n")
+		.trim();
+	return text || undefined;
 }

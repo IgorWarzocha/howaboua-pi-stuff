@@ -32,5 +32,8 @@
   "homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-skill-chrome-cdp#readme",
   "bugs": {
     "url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
+  },
+  "scripts": {
+    "check": "node ../../scripts/sync-browser-cdp.mjs --check"
   }
 }

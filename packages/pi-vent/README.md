@@ -2,21 +2,11 @@
 
 Adds an agent-callable `vent` tool for recording repeated or systemic workflow friction in the current workspace's `VENT.md`.
 
+This package is no longer maintained. The workflow now lives as a Pi Codex custom tool. Clone and adapt this package if you need an independent extension.
+
 Use it for recurring tool failures, repeated manual workarounds, noisy output that forces the same retries, or instructions that repeatedly cause backtracking. Ordinary lint errors, one-off mistakes, and routine debugging do not belong there.
 
 Entries are batched near the end of an agent turn to avoid constant tool chatter.
-
-## Install
-
-```bash
-pi install npm:@howaboua/pi-vent
-```
-
-Project-only install:
-
-```bash
-pi install -l npm:@howaboua/pi-vent
-```
 
 ## Tool
 

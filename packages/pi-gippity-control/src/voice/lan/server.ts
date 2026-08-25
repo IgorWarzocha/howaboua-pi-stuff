@@ -89,7 +89,9 @@ export async function startCodexLanVoiceServer(options: {
 	};
 	const initialConfig = options.getConfig();
 	const initialWebApp = resolveWebApp(initialConfig);
-	const certificate = resolveLanVoiceCertificate(options.certificateAgentDir);
+	const certificate = await resolveLanVoiceCertificate(
+		options.certificateAgentDir,
+	);
 	const ownerIsActive = () =>
 		options.ctx.sessionManager.getSessionId() === options.ownerSessionId;
 	let activeConversation:

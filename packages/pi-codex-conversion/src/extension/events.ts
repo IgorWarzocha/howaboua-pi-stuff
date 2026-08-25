@@ -166,6 +166,8 @@ export function registerCodexEvents(
 	});
 
 	pi.on("message_start", async (event) => {
+		if (event.message.role === "user")
+			runtime.voice.piUserMessage(event.message);
 		if (event.message.role !== "toolResult" && !isToolCallOnlyAssistantMessage(event.message)) tracker.resetExplorationGroup();
 	});
 	pi.on("message_end", async (event) => {
@@ -204,7 +206,8 @@ export function registerCodexEvents(
 	});
 	pi.on("input", async (event) => {
 		if (event.streamingBehavior === undefined) state.codexTurnState.beginTurn();
-		else if (event.streamingBehavior === "steer" && event.source !== "extension") runtime.voice.mirrorPiSteer(event.text);
+		if (event.source !== "extension")
+			runtime.voice.piInput(event.text, event.streamingBehavior);
 	});
 	pi.on("before_agent_start", async (event, ctx) => {
 		const systemPrompt = event.systemPrompt;
@@ -222,10 +225,6 @@ export function registerCodexEvents(
 		return {
 			systemPrompt: codexSystemPrompt,
 		};
-	});
-	pi.on("message_update", async (event) => {
-		const update = event.assistantMessageEvent;
-		if (update.type === "text_delta" && typeof update.delta === "string") runtime.voice.streamDelta(update.delta);
 	});
 	pi.on("agent_start", async () => {
 		runtime.cancelCacheKeepalive();
@@ -251,44 +250,69 @@ export function registerCodexEvents(
 	pi.on("session_before_compact", async (event, ctx) => {
 		state.cwd = ctx.cwd;
 		if (event.reason !== "manual") runtime.voice.announceCompactionStart(event.reason);
+		const nativeCompaction = resolveCodexRuntimePlanForState(
+			ctx,
+			state,
+		).nativeCompaction;
+		if (nativeCompaction) runtime.voice.compactionStarted();
 		try {
 			await codeMode.checkpointNotebook();
 		} catch (error) {
 			ctx.ui.notify(`Notebook checkpoint before compaction failed: ${error instanceof Error ? error.message : String(error)}`, "warning");
 		}
-		if (!resolveCodexRuntimePlanForState(ctx, state).nativeCompaction) return undefined;
-		return handleCodexSessionBeforeCompact(event, ctx, state, pi);
+		if (!nativeCompaction) return undefined;
+		try {
+			const result = await handleCodexSessionBeforeCompact(
+				event,
+				ctx,
+				state,
+				pi,
+			);
+			if (!result?.compaction) runtime.voice.compactionFinished();
+			return result;
+		} catch (error) {
+			runtime.voice.compactionFinished();
+			throw error;
+		}
+	});
+	pi.on("session_compact_failed", async () => {
+		state.pendingPiCompactionNativeWindow = undefined;
+		runtime.voice.compactionFinished();
 	});
 	pi.on("session_compact", async (event, ctx) => {
-		runtime.voice.resetContextAnnouncements();
-		state.pendingPiCompactionNativeWindow = undefined;
-		let nativeCompaction = false;
-		const compactionEntry = findLatestCompactionEntry(ctx.sessionManager.getBranch());
-		if (event.fromExtension && compactionEntry && isNativeCompactionDetails(compactionEntry.details)) {
-			const details = compactionEntry.details;
-			nativeCompaction = true;
-			// Presentation entries persist and render without entering Pi's turn queue or LLM context.
-			pi.appendEntry<NativeCompactionDisplayEntry>(NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, {
-				content: NATIVE_COMPACTION_DISPLAY_TEXT,
-				compactionEntryId: compactionEntry.id,
-			});
-			if (details.strategy === NATIVE_COMPACTION_STRATEGY && details.usage) {
+		try {
+			runtime.voice.resetContextAnnouncements();
+			state.pendingPiCompactionNativeWindow = undefined;
+			let nativeCompaction = false;
+			const compactionEntry = findLatestCompactionEntry(ctx.sessionManager.getBranch());
+			if (event.fromExtension && compactionEntry && isNativeCompactionDetails(compactionEntry.details)) {
+				const details = compactionEntry.details;
+				nativeCompaction = true;
+				// Presentation entries persist and render without entering Pi's turn queue or LLM context.
 				pi.appendEntry<NativeCompactionDisplayEntry>(NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, {
-					content: formatCompactionUsage(details.usage),
+					content: NATIVE_COMPACTION_DISPLAY_TEXT,
 					compactionEntryId: compactionEntry.id,
-					kind: "usage",
 				});
+				if (details.strategy === NATIVE_COMPACTION_STRATEGY && details.usage) {
+					pi.appendEntry<NativeCompactionDisplayEntry>(NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, {
+						content: formatCompactionUsage(details.usage),
+						compactionEntryId: compactionEntry.id,
+						kind: "usage",
+					});
+				}
 			}
+			const postCompactionPrompt = codeMode.refreshPromptTools(
+				state.activeProviderSystemPrompt ?? ctx.getSystemPrompt(),
+				ctx,
+			);
+			state.activeProviderSystemPrompt = postCompactionPrompt;
+			runtime.resetTransportAfterCompaction(ctx.sessionManager.getSessionId());
+			await (nativeCompaction
+				? runtime.startCompactionPrewarm(ctx)
+				: runtime.startPrewarm(ctx, postCompactionPrompt, true));
+		} finally {
+			runtime.voice.compactionFinished();
 		}
-		const postCompactionPrompt = codeMode.refreshPromptTools(
-			state.activeProviderSystemPrompt ?? ctx.getSystemPrompt(),
-			ctx,
-		);
-		state.activeProviderSystemPrompt = postCompactionPrompt;
-		runtime.resetTransportAfterCompaction(ctx.sessionManager.getSessionId());
-		await (nativeCompaction
-			? runtime.startCompactionPrewarm(ctx)
-			: runtime.startPrewarm(ctx, postCompactionPrompt, true));
 	});
 	pi.on("context", async (event) => {
 		const messages = event.messages.filter((message) => !isProviderContextExcludedMessage(message));

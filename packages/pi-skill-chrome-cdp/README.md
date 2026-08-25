@@ -15,6 +15,6 @@ pi install npm:@howaboua/pi-skill-chrome-cdp
 
 The bundled CLI is `scripts/cdp.mjs`. It discovers Chrome on `CDP_PORT` or port `9222`, then falls back to `DevToolsActivePort`; set `CDP_PORT_FILE` for a non-standard port-file location.
 
-Use the skill when an agent needs a real rendered page or existing browser state. It includes commands for tab listing, accessibility snapshots, HTML, navigation, network timing, clicks, typing, screenshots, and raw CDP calls.
+Use the skill when an agent needs a real rendered page or existing browser state. It includes bounded accessibility snapshots with reusable element IDs, targeted page search, HTML, navigation, network timing, clicks, typing, screenshots, raw CDP calls, and clearer timeout recovery.
 
 Based on [`pasky/chrome-cdp-skill`](https://github.com/pasky/chrome-cdp-skill), with Pi packaging and local changes.

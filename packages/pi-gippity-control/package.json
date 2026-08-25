@@ -36,7 +36,6 @@
 	],
 	"pi": {
 		"extensions": [
-			"./changelog.ts",
 			"./index.ts"
 		]
 	},
@@ -51,23 +50,23 @@
 		"build:voice-helper": "node scripts/build-voice-helper.mjs"
 	},
 	"dependencies": {
-		"proxy-from-env": "1.1.0",
-		"selfsigned": "^3.0.1",
+		"proxy-from-env": "2.1.0",
+		"selfsigned": "^5.5.0",
 		"undici": "8.10.0",
-		"ws": "^8.21.0"
+		"ws": "^8.21.3"
 	},
 	"peerDependencies": {
-		"@earendil-works/pi-ai": "*",
-		"@earendil-works/pi-coding-agent": "*",
-		"@earendil-works/pi-tui": "*"
+		"@earendil-works/pi-ai": ">=0.84.3",
+		"@earendil-works/pi-coding-agent": ">=0.84.3",
+		"@earendil-works/pi-tui": ">=0.84.3"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.10",
-		"@earendil-works/pi-ai": "0.84.1",
-		"@earendil-works/pi-coding-agent": "0.84.1",
-		"@earendil-works/pi-tui": "0.84.1",
-		"@types/node": "^25.9.1",
+		"@earendil-works/pi-ai": "0.84.3",
+		"@earendil-works/pi-coding-agent": "0.84.3",
+		"@earendil-works/pi-tui": "0.84.3",
+		"@types/node": "^26.2.0",
 		"@types/ws": "^8.18.1",
-		"typescript": "^6.0.3"
+		"typescript": "^7.0.2"
 	}
 }

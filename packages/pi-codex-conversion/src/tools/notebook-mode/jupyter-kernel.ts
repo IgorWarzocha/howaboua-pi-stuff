@@ -5,6 +5,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { Dealer, Subscriber } from "zeromq";
 import type { RuntimeContentItem } from "../code-mode/types.ts";
 import { createJupyterConnectionFile, jupyterEndpoint, type JupyterConnectionInfo } from "./jupyter-connection.ts";
+import { diagnoseDenoSyntax } from "./deno-syntax-diagnostics.ts";
 import {
 	applyExecuteReplyError,
 	applyKernelOutput,
@@ -162,6 +163,21 @@ export class DenoJupyterKernel {
 			if (options.signal?.aborted) {
 				if (options.interruptOnAbort !== false) this.failKernel(new Error("Deno Jupyter execution was aborted"));
 				return { ...replied, status: "aborted" };
+			}
+			if (
+				replied.errorName === "Error" &&
+				replied.errorValue === "Execution failed" &&
+				replied.errorText === "Error: Execution failed"
+			) {
+				const diagnostic = await diagnoseDenoSyntax(this.deno, code, this.env);
+				if (diagnostic) {
+					return {
+						...replied,
+						errorName: "SyntaxError",
+						errorValue: diagnostic.split("\n")[0]!.replace(/^SyntaxError:\s*/, ""),
+						errorText: diagnostic,
+					};
+				}
 			}
 			return replied;
 		} catch (error) {

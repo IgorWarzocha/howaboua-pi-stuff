@@ -48,16 +48,24 @@ test("reads instructions and appends absolute package file paths", (t) => {
 	const f = fixture();
 	t.after(() => f.cleanup());
 	f.add("engineering/tooling", "---\nname: tooling\ndescription: Tooling.\n---\n# Tooling\n");
-	f.file("engineering/tooling/references/api.md");
+	f.file("engineering/tooling/references/api.md", "API reference\n");
+	f.file("engineering/tooling/references/runtime.md", "Runtime reference\n");
 	f.file("engineering/tooling/scripts/check.mjs");
 	f.file("engineering/tooling/.private", "hidden");
 
 	const output = run("read tooling", f.root);
-	assert.match(output, /^# Tooling\n\n---\nSkill paths \(3\):/);
+	assert.match(output, /^# Tooling\n\n---\nSkill paths \(4\):/);
 	assert.match(output, new RegExp(resolve(f.root, "engineering/tooling/SKILL.md").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 	assert.match(output, /references\/api\.md/);
 	assert.match(output, /scripts\/check\.mjs/);
 	assert.doesNotMatch(output, /\.private/);
+	const reference = run("read tooling api", f.root);
+	assert.match(reference, /^API reference\n\n---\nSkill paths \(4\):/);
+	assert.match(reference, new RegExp(resolve(f.root, "engineering/tooling/references/api.md").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+	assert.match(
+		run("read tooling runtime api", f.root),
+		/^--- runtime ---\nRuntime reference\n\n--- api ---\nAPI reference\n\n---\nSkill paths \(4\):/,
+	);
 });
 
 test("rejects malformed commands, unknown categories, and names", (t) => {
@@ -67,10 +75,10 @@ test("rejects malformed commands, unknown categories, and names", (t) => {
 
 	assert.deepEqual(parseRequest(""), { action: "list", categories: [] });
 	assert.throws(() => parseRequest("search visual"), /Expected/);
-	assert.throws(() => parseRequest("read"), /exactly one skill name/);
-	assert.throws(() => parseRequest("read visual extra"), /exactly one skill name/);
+	assert.throws(() => parseRequest("read"), /one skill name/);
 	assert.throws(() => run("list missing", f.root), /Unknown category/);
 	assert.throws(() => run("read missing", f.root), /Unknown skill/);
+	assert.throws(() => run("read visual SKILL", f.root), /Unknown reference/);
 });
 
 test("keeps names unique across category packages", (t) => {

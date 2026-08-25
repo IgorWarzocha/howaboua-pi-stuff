@@ -2,11 +2,7 @@
 
 Exposes command-line programs to Pi through Codex-style JavaScript Code Mode. Tools are small TOML definitions; the model composes them inside one isolated `exec` environment.
 
-## Install
-
-```bash
-pi install npm:@howaboua/pi-dynamic-tools
-```
+This package is no longer maintained. Pi Codex includes the integrated implementation. Clone and adapt this package if you need an independent variant.
 
 Definitions live globally in `~/.pi/agent/dynamic-tools/` (or `$PI_CODING_AGENT_DIR/dynamic-tools/`) and in trusted projects at `<launch-directory>/.pi/dynamic-tools/`. Only the directory where Pi was launched is checked; project-local definitions override same-named global definitions. Installing the package does not enable the bundled examples.
 

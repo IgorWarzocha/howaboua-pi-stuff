@@ -36,22 +36,29 @@ All commands use `scripts/cdp.mjs`. The `<target>` is a **unique** targetId pref
 
 ```bash
 scripts/cdp.mjs list
+scripts/cdp.mjs tabsjson
 ```
+
+`tabsjson` returns compact `{ ref_id, title, url }` records.
+
+### Inspect the page
+
+```bash
+scripts/cdp.mjs snap <target> [lineno] [short|medium|long]
+scripts/cdp.mjs find <target> <pattern> [lineno] [short|medium|long]
+```
+
+Snapshots return bounded JSON with page metadata, numbered lines, and stable element IDs for the current tab bridge. Use `next_lineno` to continue. A new snapshot replaces the previous element IDs.
 
 ### Take a screenshot
 
 ```bash
-scripts/cdp.mjs shot <target> [file]             # viewport; default: screenshot-<target>.png in runtime dir
+scripts/cdp.mjs shot <target> [file]              # viewport; default: screenshot-<target>.png in runtime dir
 scripts/cdp.mjs shotel <target> <selector> [file] # one element/div by CSS selector, with built-in 10px padding
+scripts/cdp.mjs shotref <target> <id> [file]      # one element from the latest snapshot
 ```
 
 `shot` captures the **viewport only**. `shotel` scrolls the selected element into view and captures only its visible bounding box plus 10px padding. Keep it simple: use a stable CSS selector; no extra padding/size params. Output includes the page's DPR and coordinate conversion hint (see **Coordinates** below).
-
-### Accessibility tree snapshot
-
-```bash
-scripts/cdp.mjs snap <target>
-```
 
 ### Evaluate JavaScript
 
@@ -65,11 +72,14 @@ scripts/cdp.mjs eval <target> <expr>
 
 ```bash
 scripts/cdp.mjs html    <target> [selector]   # full page or element HTML
+scripts/cdp.mjs htmlref <target> <id>         # latest snapshot element HTML
 scripts/cdp.mjs nav     <target> <url>         # navigate and wait for load
 scripts/cdp.mjs net     <target>               # resource timing entries
 scripts/cdp.mjs click   <target> <selector>    # click one visible element by unique CSS selector
+scripts/cdp.mjs clickref <target> <id>         # click latest snapshot element
 scripts/cdp.mjs clickxy <target> <x> <y>       # click at CSS pixel coords
 scripts/cdp.mjs type    <target> <text>         # type at verified editable focus; supports focused cross-origin iframes
+scripts/cdp.mjs typeref <target> <id> <text>   # focus snapshot element and type
 scripts/cdp.mjs loadall <target> <selector> [ms]  # click "load more" until gone (default 1500ms between clicks)
 scripts/cdp.mjs evalraw <target> <method> [json]  # raw CDP command passthrough
 scripts/cdp.mjs open    [url]                  # open new tab; Chrome may show an Allow prompt
@@ -88,7 +98,9 @@ CSS px = screenshot image px / DPR
 
 ## Tips
 
-- Prefer `snap` over `html` when you want page structure instead of raw markup; this CLI already uses the compact accessibility snapshot mode.
+- Prefer `snap` over `html` when you want page structure instead of raw markup. Continue with `find` or `next_lineno` instead of requesting unbounded page output.
+- Prefer `clickref`, `typeref`, `shotref`, and `htmlref` after a snapshot. Use selectors when the page exposes a stable unique selector.
 - Use a unique selector for `click`; it rejects ambiguous, hidden, disabled, or non-interactable matches.
 - Use `type` (not eval) to enter text. Focus a visible editable control with `click` or `clickxy` first; `type` fails when no editable control is focused and labels cross-origin iframe input as unverified.
 - Chrome may show an "Allow debugging" modal when a tab is first attached. A background daemon keeps the session alive afterward and auto-exits after 20 minutes of inactivity.
+- Safe read operations retry one CDP timeout. Mutating evaluation is never retried because it may already have taken effect.

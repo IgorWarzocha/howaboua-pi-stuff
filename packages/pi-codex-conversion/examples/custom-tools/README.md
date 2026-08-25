@@ -6,7 +6,6 @@ Read when a user asks to configure one of these disabled examples. Do not enable
 | --- | --- |
 | `agents` | The user wants persistent explorer or reviewer agents in Herdr panels |
 | `browser` | The user wants evidence or interaction from an existing logged-in CDP browser |
-| `herdr_agent` | A current Herdr agent needs finding, messaging, reading, or answering |
 | `skills` | Pi was launched with `--no-skills` and the agent needs on-demand global or project skills |
 | `port_info` | A process or listener needs identifying |
 | `semantic_grep` | An installed Pi Semantic Grep index needs querying |
@@ -19,10 +18,10 @@ An example consists of its top-level TOML definition and any companion directory
 
 ## Skills
 
-The `skills` example assumes Pi was launched with `--no-skills`. It reads the normal global catalog and the current repository's `.pi/skills/` addenda. A same-named session skill overrides the global skill.
+The `skills` example assumes Pi was launched with `--no-skills`. It reads the normal global catalog, the current repository's `.pi/skills/` addenda and one or more references by name. A same-named session skill overrides the global skill.
 
 Do not use it in a session where Pi loaded native skills at startup. The tool would repeat those instructions when reading a skill.
 
 ## Sensitive examples
 
-`browser` controls an existing logged-in browser. `agents` and `herdr_agent` affect other Pi sessions. `sites` can create production deployments and change access, environment, or domains. Follow its verification and repair loop in `sites/README.md`, then follow user intent and ask before consequential external actions.
+`browser` controls an existing logged-in browser. `agents` affects other Pi sessions. `sites` can create production deployments and change access, environment, or domains. Follow its verification and repair loop in `sites/README.md`, then follow user intent and ask before consequential external actions.

@@ -212,7 +212,7 @@ async function runRemote(host, request, options = {}) {
 		});
 		if (code !== 0) {
 			throw new Error(
-				stderr.trim() || stdout.trim() || `remote herdr_agent exited with code ${code}`,
+				stderr.trim() || stdout.trim() || `remote agents coordination exited with code ${code}`,
 			);
 		}
 		try {
@@ -221,7 +221,7 @@ async function runRemote(host, request, options = {}) {
 			return result;
 		} catch (error) {
 			throw new Error(
-				`remote herdr_agent returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`,
+				`remote agents coordination returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`,
 			);
 		}
 	} finally {
@@ -241,7 +241,7 @@ class HerdrClient {
 
 	request(method, params = {}, timeoutMs = 10_000) {
 		return new Promise((resolve, reject) => {
-			const id = `herdr-agent:${crypto.randomUUID()}`;
+			const id = `agents:${crypto.randomUUID()}`;
 			let buffer = "";
 			let settled = false;
 			const socket = createConnection(this.socketPath, () =>
@@ -680,9 +680,9 @@ function askOutput(ask) {
 	};
 }
 
-export function herdrHelp() {
+export function coordinationHelp() {
 	return {
-		call: "await tools.herdr_agent(JSON.stringify(request))",
+		call: "await tools.agents(JSON.stringify(request))",
 		routing: {
 			host: "desktop | laptop | server? (default current host)",
 			note: "host routes Herdr agent operations over SSH; use normal SSH for shell commands",
@@ -1070,7 +1070,7 @@ async function answerAsk(client, reader, panel, request) {
 }
 
 async function execute(request, options = {}) {
-	if (request.action === "help") return herdrHelp();
+	if (request.action === "help") return coordinationHelp();
 	const client = new HerdrClient();
 	const reader = new SessionReader();
 	if (request.action === "find") {
@@ -1291,7 +1291,7 @@ async function main() {
 if (process.argv[1] === new URL(import.meta.url).pathname)
 	main().catch((error) => {
 		process.stderr.write(
-			`herdr_agent: ${error instanceof Error ? error.message : String(error)}\n`,
+			`agents coordination: ${error instanceof Error ? error.message : String(error)}\n`,
 		);
 		process.exitCode = 1;
 	});

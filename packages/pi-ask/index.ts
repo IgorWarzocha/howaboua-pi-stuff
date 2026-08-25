@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { loadAskConfig } from "./ask/config.js";
 import { createAskTool } from "./ask/tool.js";
+import registerPackageChangelog from "./changelog.js";
 
 export { createAskTool } from "./ask/tool.js";
 
@@ -11,6 +12,7 @@ const REALTIME_VOICE_PROMPT_CHANNEL =
 	"@howaboua/pi-codex-conversion/realtime-voice-prompt/v1";
 
 export default function humanInTheLoop(pi: ExtensionAPI): void {
+	registerPackageChangelog(pi);
 	pi.registerTool(
 		createAskTool({
 			onBlockedChange: (state) => {

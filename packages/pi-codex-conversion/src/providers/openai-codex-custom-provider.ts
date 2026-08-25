@@ -3,9 +3,8 @@ import type { Api, Context, Model } from "@earendil-works/pi-ai";
 import { createGrammarToolInputProperties } from "./constrained-sampling.js";
 import { extractAccountId, buildWebSocketHeaders, PI_CODEX_CONVERSION_ORIGINATOR, resolveCodexRequestRouting, resolveCodexWebSocketUrl } from "./openai-codex/headers.ts";
 import { noThrowCodexDiagnosticsSink } from "./openai-codex/diagnostic-failure.ts";
-import { DEFAULT_CODEX_BASE_URL } from "./openai-codex/constants.ts";
 import { buildRequestBody } from "./openai-codex/request-body.ts";
-import { openAICodexModelsWithDaybreak } from "./openai-codex/model-catalog.ts";
+import { openAICodexProviderModelsWithDaybreak } from "./openai-codex/model-catalog.ts";
 import { supportsResponsesLiteModel } from "./openai-codex/responses-lite-model.ts";
 import { applyResponsesLiteRequest, applyResponsesLiteWebSocketMetadata, isResponsesLiteRequest, namespaceExistingResponsesLiteRequest, prepareResponsesLiteRequestImages } from "./openai-codex/responses-lite.ts";
 import type { CodexDiagnosticsSink, CodexPrewarmDiagnostics, CodexPrewarmResult, OpenAICodexStreamOptions, ResponsesBody } from "./openai-codex/types.ts";
@@ -117,8 +116,7 @@ export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: {
 }): void {
 	pi.registerProvider("openai-codex", {
 		api: "openai-codex-responses",
-		baseUrl: DEFAULT_CODEX_BASE_URL,
-		models: openAICodexModelsWithDaybreak(),
+		models: openAICodexProviderModelsWithDaybreak(),
 		oauth: openaiCodexNativeOAuthProvider,
 		streamSimple: (model, context, streamOptions) => createCodexTransportStream(model, context, streamOptions, {
 			prepareRequestBody: prepareCodexRequestBody,

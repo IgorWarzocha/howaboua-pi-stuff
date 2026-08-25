@@ -18,14 +18,17 @@ for (const dir of listActivePackageDirs(root)) {
 	if (!existsSync(join(packagesDir, dir, "CHANGELOG.md")))
 		throw new Error(`${pkg.name ?? dir} has no CHANGELOG.md`);
 
-	copyFileSync(template, join(packagesDir, dir, "changelog.ts"));
+	const changelogPath = join(packagesDir, dir, "changelog.ts");
+	const embeddedChangelog =
+		existsSync(changelogPath) && !pkg.pi.extensions.includes("./changelog.ts");
+	copyFileSync(template, changelogPath);
 	pkg.files = Array.from(
 		new Set([...(pkg.files ?? []), "changelog.ts", "CHANGELOG.md"]),
 	);
-	pkg.pi.extensions = [
-		"./changelog.ts",
-		...pkg.pi.extensions.filter((entry) => entry !== "./changelog.ts"),
-	];
+	const extensionEntries = pkg.pi.extensions.filter((entry) => entry !== "./changelog.ts");
+	pkg.pi.extensions = embeddedChangelog
+		? extensionEntries
+		: ["./changelog.ts", ...extensionEntries];
 	pkg.peerDependencies = {
 		...(pkg.peerDependencies ?? {}),
 		...(!pkg.peerDependencies?.["@earendil-works/pi-tui"]
