@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.0.22
+
+### Changes
+
+- [#349](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/349) [`ef7656c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ef7656c2aab3d2aa1cff581bae26dc9b102aece7) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Restore live Pi speech by streaming visible progress, speaking enabled completed reasoning summaries, and integrating successive updates without replacing active speech.
+
 ## 3.0.21
 
 ### Changes

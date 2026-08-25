@@ -56,11 +56,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 3.0.21
+### @howaboua/pi-codex-conversion — 3.0.22
 
 ### Changes
 
-- [#346](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/346) [`bf42276`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/bf42276a2fdc10e41ce0d3f48855607ff89e50c8) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Speak Pi progress and final results as soon as they reach realtime voice instead of waiting for turn completion.
+- [#349](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/349) [`ef7656c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ef7656c2aab3d2aa1cff581bae26dc9b102aece7) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Restore live Pi speech by streaming visible progress, speaking enabled completed reasoning summaries, and integrating successive updates without replacing active speech.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
@@ -82,24 +82,24 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.65
+### @howaboua/pi-extensions — 0.0.66
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-gippity-control: Speak Pi progress and final results as soon as they reach realtime voice instead of waiting for turn completion.
+  - @howaboua/pi-gippity-control: Restore live Pi speech by streaming visible progress, speaking enabled completed reasoning summaries, and integrating successive updates without replacing active speech.
 
-- Updated dependencies [[`bf42276`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/bf42276a2fdc10e41ce0d3f48855607ff89e50c8)]:
-  - @howaboua/pi-gippity-control@0.0.15
+- Updated dependencies [[`ef7656c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ef7656c2aab3d2aa1cff581bae26dc9b102aece7)]:
+  - @howaboua/pi-gippity-control@0.0.16
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
-### @howaboua/pi-gippity-control — 0.0.15
+### @howaboua/pi-gippity-control — 0.0.16
 
 ### Changes
 
-- [#346](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/346) [`bf42276`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/bf42276a2fdc10e41ce0d3f48855607ff89e50c8) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Speak Pi progress and final results as soon as they reach realtime voice instead of waiting for turn completion.
+- [#349](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/349) [`ef7656c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ef7656c2aab3d2aa1cff581bae26dc9b102aece7) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Restore live Pi speech by streaming visible progress, speaking enabled completed reasoning summaries, and integrating successive updates without replacing active speech.
 
 [Full changelog](./packages/pi-gippity-control/CHANGELOG.md)
 
@@ -221,16 +221,16 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.71
+### @howaboua/pi-stuff — 0.0.72
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-gippity-control: Speak Pi progress and final results as soon as they reach realtime voice instead of waiting for turn completion.
+  - @howaboua/pi-gippity-control: Restore live Pi speech by streaming visible progress, speaking enabled completed reasoning summaries, and integrating successive updates without replacing active speech.
 
-- Updated dependencies [[`bf42276`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/bf42276a2fdc10e41ce0d3f48855607ff89e50c8)]:
-  - @howaboua/pi-gippity-control@0.0.15
+- Updated dependencies [[`ef7656c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ef7656c2aab3d2aa1cff581bae26dc9b102aece7)]:
+  - @howaboua/pi-gippity-control@0.0.16
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 
