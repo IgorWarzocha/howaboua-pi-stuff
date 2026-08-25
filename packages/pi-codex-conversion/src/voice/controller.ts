@@ -312,6 +312,11 @@ export class CodexVoiceController {
 		);
 	}
 
+	streamDelta(delta: string): void {
+		if (this.runtime.state.type === "conversation")
+			this.runtime.state.session.streamAgentDelta(delta);
+	}
+
 	finishAgentMessage(
 		message: AssistantMessage,
 		forwardReasoningSummaries: boolean,

@@ -21,7 +21,8 @@ interface RealtimeDelegationHandoffCallbacks {
 export class RealtimeDelegationHandoff {
 	private readonly callbacks: RealtimeDelegationHandoffCallbacks;
 	private target: RealtimeHandoffTarget | undefined;
-	private progressSpoken = false;
+	private buffer = "";
+	private streamedProgress = false;
 	private readonly queuedSteers: string[] = [];
 	private readonly queuedFollowUps: Array<{ input: string; frame: string }> =
 		[];
@@ -36,9 +37,10 @@ export class RealtimeDelegationHandoff {
 			(this.target?.type === "delegation" && this.target.id === id)
 		)
 			return;
+		this.finishResult();
+		if (!this.callbacks.isActive()) return;
 		this.settleDelegation();
 		this.target = { type: "delegation", id };
-		this.progressSpoken = false;
 	}
 
 	piInput(
@@ -79,42 +81,72 @@ export class RealtimeDelegationHandoff {
 
 	private routePiInput(frame: string, startsTurn: boolean): void {
 		if (startsTurn) {
+			this.finishResult();
 			this.settleDelegation();
 			this.target = { type: "session" };
-			this.progressSpoken = false;
 		} else if (!this.target) {
 			this.target = { type: "session" };
-			this.progressSpoken = false;
 		}
 		if (!this.target) return;
 		this.callbacks.onContext(this.target, "commentary", frame);
 	}
 
+	stream(delta: string): void {
+		if (!this.callbacks.isActive() || !this.target || !delta) return;
+		this.buffer += delta;
+		for (;;) {
+			const boundary = this.streamedProgress
+				? paragraphBoundary(this.buffer)
+				: secondSentenceBoundary(this.buffer);
+			if (boundary === undefined) break;
+			const chunk = this.buffer.slice(0, boundary);
+			this.buffer = this.buffer.slice(boundary);
+			if (chunk.trim()) {
+				this.callbacks.onContext({ type: "session" }, "speakable", chunk);
+				this.streamedProgress = true;
+			}
+		}
+	}
+
 	progress(content: string): void {
-		const text = content.trim();
-		if (!this.callbacks.isActive() || !this.target || !text) return;
-		const channel = this.progressSpoken ? "commentary" : "speakable";
-		this.callbacks.onContext(this.target, channel, text);
-		this.progressSpoken = true;
+		this.finishProgress(content);
 	}
 
 	result(content: string): void {
-		const text = content.trim();
-		if (!this.callbacks.isActive() || !this.target || !text) return;
-		this.callbacks.onContext(this.target, "speakable", text);
+		this.finishResult(content);
 	}
 
 	settle(): void {
+		this.finishResult();
 		this.settleDelegation();
 		this.target = undefined;
-		this.progressSpoken = false;
 		this.clearQueuedInputs();
 	}
 
 	clear(): void {
 		this.target = undefined;
-		this.progressSpoken = false;
+		this.buffer = "";
+		this.streamedProgress = false;
 		this.clearQueuedInputs();
+	}
+
+	private finishProgress(fallback = ""): void {
+		const text = (this.streamedProgress ? this.buffer : fallback).trim();
+		this.buffer = "";
+		this.streamedProgress = false;
+		if (!this.callbacks.isActive() || !this.target || !text) return;
+		this.callbacks.onContext({ type: "session" }, "speakable", text);
+	}
+
+	private finishResult(fallback = ""): void {
+		if (this.streamedProgress) {
+			this.finishProgress();
+			return;
+		}
+		const text = (fallback || this.buffer).trim();
+		this.buffer = "";
+		if (!this.callbacks.isActive() || !this.target || !text) return;
+		this.callbacks.onContext(this.target, "speakable", text);
 	}
 
 	private clearQueuedInputs(): void {
@@ -126,6 +158,18 @@ export class RealtimeDelegationHandoff {
 		if (this.target?.type === "delegation")
 			this.callbacks.onSettled(this.target.id);
 	}
+}
+
+function secondSentenceBoundary(text: string): number | undefined {
+	const ends = [...text.matchAll(/[.!?](?:["')\]]+)?(?=\s|$)/g)];
+	return ends[1]?.index === undefined
+		? undefined
+		: ends[1].index + ends[1][0].length;
+}
+
+function paragraphBoundary(text: string): number | undefined {
+	const match = /\n\s*\n/.exec(text);
+	return match?.index === undefined ? undefined : match.index + match[0].length;
 }
 
 function userMessageText(message: unknown): string | undefined {
