@@ -4,6 +4,10 @@ import { getCodexSkillPaths } from "./adapter/prompt/skills.ts";
 import { registerCodexConversion } from "./extension/register.ts";
 
 export default async function codexConversion(pi: ExtensionAPI): Promise<void> {
+	const { default: registerPackageChangelog } = (await import(
+		new URL("../changelog.ts", import.meta.url).href
+	)) as { default: (pi: ExtensionAPI) => void };
+	registerPackageChangelog(pi);
 	await registerCodexConversion(pi);
 }
 

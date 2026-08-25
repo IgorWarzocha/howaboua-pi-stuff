@@ -14,6 +14,7 @@ Make Code and Notebook Mode failures actionable and easier to recover.
 - Keep the Agents custom tool self-contained and remove the superseded Herdr Agent example.
 - Let the Skills custom tool load one or more routed references directly by name.
 - Preserve explicit `models.json` endpoints when installing the custom Codex transport and Daybreak model catalog.
+- Keep package changelogs disabled with the Codex extension in Pi config.
 - Keep LAN voice certificate startup compatible with asynchronous certificate generation.
 - Release queued realtime delegations when native compaction fails, is aborted, or any post-compaction step errors.
 - Defer queued Pi follow-up context until that follow-up begins its realtime handoff.

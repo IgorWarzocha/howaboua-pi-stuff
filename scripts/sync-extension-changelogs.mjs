@@ -6,6 +6,7 @@ import { listActivePackageDirs } from "./active-packages.mjs";
 const root = process.cwd();
 const packagesDir = join(root, "packages");
 const template = join(root, "scripts", "templates", "extension-changelog.ts");
+const embeddedChangelogPackages = new Set(["@howaboua/pi-codex-conversion"]);
 let count = 0;
 
 for (const dir of listActivePackageDirs(root)) {
@@ -22,10 +23,10 @@ for (const dir of listActivePackageDirs(root)) {
 	pkg.files = Array.from(
 		new Set([...(pkg.files ?? []), "changelog.ts", "CHANGELOG.md"]),
 	);
-	pkg.pi.extensions = [
-		"./changelog.ts",
-		...pkg.pi.extensions.filter((entry) => entry !== "./changelog.ts"),
-	];
+	const extensionEntries = pkg.pi.extensions.filter((entry) => entry !== "./changelog.ts");
+	pkg.pi.extensions = embeddedChangelogPackages.has(pkg.name)
+		? extensionEntries
+		: ["./changelog.ts", ...extensionEntries];
 	pkg.peerDependencies = {
 		...(pkg.peerDependencies ?? {}),
 		...(!pkg.peerDependencies?.["@earendil-works/pi-tui"]
