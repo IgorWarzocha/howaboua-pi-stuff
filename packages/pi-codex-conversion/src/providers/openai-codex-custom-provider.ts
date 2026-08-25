@@ -8,9 +8,9 @@ import { openAICodexProviderModelsWithDaybreak } from "./openai-codex/model-cata
 import { supportsResponsesLiteModel } from "./openai-codex/responses-lite-model.ts";
 import { applyResponsesLiteRequest, applyResponsesLiteWebSocketMetadata, isResponsesLiteRequest, namespaceExistingResponsesLiteRequest, prepareResponsesLiteRequestImages } from "./openai-codex/responses-lite.ts";
 import type { CodexDiagnosticsSink, CodexPrewarmDiagnostics, CodexPrewarmResult, OpenAICodexStreamOptions, ResponsesBody } from "./openai-codex/types.ts";
-import { recordWebSocketSseFallback } from "./openai-codex/websocket.ts";
+import { closeOpenAICodexWebSocketSessions, recordWebSocketSseFallback } from "./openai-codex/websocket.ts";
 import { isWebSocketMessageTooBigError, isWebSocketUpgradeRequiredError } from "./openai-codex/websocket-connection.ts";
-import { prewarmWebSocket } from "./openai-codex/websocket-stream.ts";
+import { codexCacheKeepaliveSocketSessionId, prewarmWebSocket } from "./openai-codex/websocket-stream.ts";
 import { openaiCodexNativeOAuthProvider } from "./openai-codex/oauth.ts";
 import { type CodexTurnState, withCodexTurnState } from "./openai-codex/turn-state.ts";
 import { withRemoteCompactionV2Feature } from "./openai-responses/compaction-v2-feature.ts";
@@ -24,8 +24,12 @@ import {
 export { buildRequestBody } from "./openai-codex/request-body.ts";
 export { parseSSE } from "./openai-codex/sse.ts";
 export { buildCachedWebSocketRequestBody } from "./openai-codex/websocket-continuation.ts";
-export { closeOpenAICodexWebSocketSessions } from "./openai-codex/websocket.ts";
+export { closeOpenAICodexWebSocketSessions };
 export type { ResponsesBody } from "./openai-codex/types.ts";
+
+export function closeOpenAICodexKeepaliveWebSocketSession(sessionId: string): void {
+	closeOpenAICodexWebSocketSessions(codexCacheKeepaliveSocketSessionId(sessionId));
+}
 
 async function prepareCodexRequestBody<TApi extends Api>(
 	model: Model<TApi>,
@@ -59,6 +63,7 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 		turnState?: CodexTurnState | undefined;
 		getDiagnostics?: (() => CodexDiagnosticsSink | undefined) | undefined;
 		preserveContinuation?: boolean | undefined;
+		retainSocket?: boolean | undefined;
 		generate?: boolean | undefined;
 		prewarmDiagnostics?: CodexPrewarmDiagnostics | undefined;
 	},
@@ -97,6 +102,7 @@ export async function prewarmOpenAICodexWebSocket<TApi extends Api>(
 			deps.preserveContinuation,
 			deps.prewarmDiagnostics,
 			deps.generate,
+			deps.retainSocket,
 		);
 	} catch (error) {
 		if (!options.signal?.aborted && (isWebSocketUpgradeRequiredError(error) || isWebSocketMessageTooBigError(error))) {

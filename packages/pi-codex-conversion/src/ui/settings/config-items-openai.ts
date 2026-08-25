@@ -2,11 +2,12 @@ import type { Theme } from "@earendil-works/pi-coding-agent";
 import {
 	type CodexConversionConfig,
 	DEFAULT_CODEX_CONVERSION_CONFIG,
+	LUNA_CACHE_KEEPALIVE_MINUTES_OPTIONS,
 	normalizeCodexVerbosity,
 	normalizeV2UserMessageRetention,
 	V2_USER_MESSAGE_RETENTION_OPTIONS,
 } from "../../adapter/activation/config.ts";
-import { type ConfigSetting, projectToggle, setting, toggle } from "./config-items-shared.ts";
+import { type ConfigSetting, projectCacheKeepalive, setting, toggle } from "./config-items-shared.ts";
 
 export function buildOpenAISettings(
 	config: CodexConversionConfig,
@@ -17,9 +18,20 @@ export function buildOpenAISettings(
 			...current,
 			openai: { ...current.openai, fast: enabled },
 		})),
-		projectToggle(
+		{
+			item: {
+				id: "lunaCacheKeepaliveMinutes",
+				label: "Luna cache keepalive for",
+				currentValue: config.openai.lunaCacheKeepaliveMinutes === 0
+					? "off"
+					: `${config.openai.lunaCacheKeepaliveMinutes} mins`,
+				values: LUNA_CACHE_KEEPALIVE_MINUTES_OPTIONS.map((minutes) => minutes === 0 ? "off" : `${minutes} mins`),
+			},
+			action: "global-luna-cache-keepalive",
+		},
+		projectCacheKeepalive(
 			"cacheKeepalive",
-			"Experimental cache keepalive",
+			"Sol/Terra cache keepalive ping every",
 			config.openai.cacheKeepalive,
 		),
 		setting(

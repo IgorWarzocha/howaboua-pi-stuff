@@ -4,19 +4,19 @@ import { registerOpenAICodexCustomProvider } from "../providers/openai-codex-cus
 import { registerApplyPatchDisplayBroker } from "../tools/apply-patch/display-broker.ts";
 import { registerCodexCommand } from "../ui/settings/command.ts";
 import { registerCodexCodeMode } from "../adapter/code-mode.ts";
-import { prepareCodeModeHost, registerCanonicalAliasEndpointPreflight, registerCodexEvents } from "./events.ts";
+import { prepareCodeModeHost, registerCodexEvents } from "./events.ts";
 import { createCodexExtensionRuntime } from "./runtime.ts";
 import { registerCodexTools } from "./tools.ts";
 import { registerCodexUi } from "./ui.ts";
 import { registerCodexVoiceRenderer } from "../voice/ui.ts";
 import { resolveCodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
 import { captureActiveProviderSystemPrompt } from "../adapter/provider-request.ts";
+import { hasCodexCacheKeepalivePlanChanged } from "../adapter/activation/cache-keepalive.ts";
 
 export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 	registerCodexVoiceRenderer(pi);
 	registerApplyPatchDisplayBroker(pi);
 	const runtime = createCodexExtensionRuntime(pi);
-	registerCanonicalAliasEndpointPreflight(pi, runtime);
 	const codeMode = await registerCodexCodeMode(pi, runtime);
 	let cleanupProxyProvider: ReturnType<typeof registerCodeModeProxyProvider> | undefined;
 	try {
@@ -47,7 +47,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 						&& config.openai.cacheDiagnostics === "status-and-log",
 				);
 			}
-			if (config.openai.cacheKeepalive !== previousConfig.openai.cacheKeepalive) {
+			if (hasCodexCacheKeepalivePlanChanged(ctx.model?.id, previousConfig.openai, config.openai)) {
 				runtime.cancelCacheKeepalive();
 			}
 			if (

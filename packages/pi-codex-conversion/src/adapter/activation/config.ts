@@ -2,6 +2,7 @@ import { normalizeExecutionMode, type ExecutionMode } from "./execution-mode.ts"
 
 export type CodexVerbosity = "low" | "medium" | "high";
 export type CacheDiagnosticsMode = "off" | "status" | "status-and-log";
+export type LunaCacheKeepaliveMinutes = 0 | 5 | 10 | 15;
 export type AllProvidersMode = "off" | "on" | "extras";
 export type HelperModel =
 	| "gpt-5.6-luna"
@@ -52,6 +53,8 @@ export const WEB_SEARCH_MODELS: readonly WebSearchModel[] = [
 ];
 export const V2_USER_MESSAGE_RETENTION_OPTIONS: readonly V2UserMessageRetention[] =
 	[16, 32, 64];
+export const LUNA_CACHE_KEEPALIVE_MINUTES_OPTIONS: readonly LunaCacheKeepaliveMinutes[] =
+	[0, 5, 10, 15];
 
 export interface CodexConversionConfig {
 	executionMode: ExecutionMode;
@@ -103,6 +106,7 @@ export interface CodexConversionConfig {
 	openai: {
 		fast: boolean;
 		verbosity: CodexVerbosity;
+		lunaCacheKeepaliveMinutes: LunaCacheKeepaliveMinutes;
 		cacheKeepalive: boolean;
 		proxyResponsesLite: boolean;
 		forceCachedWebSockets: boolean;
@@ -156,6 +160,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	openai: {
 		fast: false,
 		verbosity: "low",
+		lunaCacheKeepaliveMinutes: 0,
 		cacheKeepalive: false,
 		proxyResponsesLite: false,
 		forceCachedWebSockets: true,
@@ -196,6 +201,14 @@ export function normalizeCacheDiagnosticsMode(
 ): CacheDiagnosticsMode | undefined {
 	return value === "off" || value === "status" || value === "status-and-log"
 		? value
+		: undefined;
+}
+
+export function normalizeLunaCacheKeepaliveMinutes(
+	value: unknown,
+): LunaCacheKeepaliveMinutes | undefined {
+	return (LUNA_CACHE_KEEPALIVE_MINUTES_OPTIONS as readonly unknown[]).includes(value)
+		? value as LunaCacheKeepaliveMinutes
 		: undefined;
 }
 
@@ -466,6 +479,9 @@ export function normalizeCodexConversionConfig(
 			verbosity:
 				normalizeCodexVerbosity(openai["verbosity"]) ??
 				DEFAULT_CODEX_CONVERSION_CONFIG.openai["verbosity"],
+			lunaCacheKeepaliveMinutes:
+				normalizeLunaCacheKeepaliveMinutes(openai["lunaCacheKeepaliveMinutes"])
+					?? DEFAULT_CODEX_CONVERSION_CONFIG.openai.lunaCacheKeepaliveMinutes,
 			cacheKeepalive: bool(
 				openai["cacheKeepalive"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.openai["cacheKeepalive"],

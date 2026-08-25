@@ -9,6 +9,7 @@ import {
 	readCodexConversionConfig,
 	readEffectiveCodexConversionConfig,
 	readLayeredCodexConversionConfig,
+	setGlobalCodexLunaCacheKeepalive,
 	setProjectCodexCacheKeepalive,
 	type CodexConversionConfigScope,
 	writeCodexConversionConfig,
@@ -96,6 +97,7 @@ export function registerCodexCommand(
 			}
 		}
 		const readSelectedConfig = () => {
+			const effective = effectiveConfig(ctx);
 			const selected = configScope === "folder"
 				? readLayeredCodexConversionConfig({ cwd: ctx.cwd, projectTrusted: true })
 				: readCodexConversionConfig();
@@ -103,7 +105,8 @@ export function registerCodexCommand(
 				...selected,
 				openai: {
 					...selected.openai,
-					cacheKeepalive: effectiveConfig(ctx).openai.cacheKeepalive,
+					lunaCacheKeepaliveMinutes: effective.openai.lunaCacheKeepaliveMinutes,
+					cacheKeepalive: effective.openai.cacheKeepalive,
 				},
 			};
 		};
@@ -111,6 +114,16 @@ export function registerCodexCommand(
 			initialConfig: readSelectedConfig(),
 			initialTab: tab,
 			onChange: (config) => saveAndApply(ctx, configScope, config),
+			onGlobalLunaCacheKeepalive: (minutes) => {
+				const result = setGlobalCodexLunaCacheKeepalive(minutes);
+				if (!result.ok) {
+					ctx.ui.notify(`Failed to save global Luna cache keepalive: ${result.error}`, "error");
+					return undefined;
+				}
+				const previousConfig = state.config;
+				applyEffectiveConfig(ctx, previousConfig);
+				return readSelectedConfig();
+			},
 			onProjectCacheKeepalive: (enabled) => {
 				const result = setProjectCodexCacheKeepalive(ctx.cwd, ctx.isProjectTrusted(), enabled);
 				if (!result.ok) {
@@ -215,5 +228,5 @@ function formatAllProvidersMode(value: CodexConversionConfig["scope"]["allProvid
 }
 
 function formatCodexSettings(config: CodexConversionConfig): string {
-	return `Codex settings: extension ${config.voiceFeaturesOnly ? "voice only" : "adapter and voice"}, execution ${config.executionMode}, providers ${formatAllProvidersMode(config.scope.allProviders)}, Rust binaries ${config.tools.customRustBinariesDir || "bundled"}, heavy prompt overwrite ${config.prompt.heavySystemPromptOverwrite ? "on" : "off"}, harness identifier ${config.openai.harnessIdentifierHeader ? "on" : "off"}, Proxy Responses Lite ${config.openai.proxyResponsesLite ? "on" : "off"}, compaction V2 ${config.compaction.responsesCompaction ? "on" : "off"}, cache diagnostics ${config.openai.cacheDiagnostics}, fast ${config.openai.fast ? "on" : "off"}, verbosity ${config.openai.verbosity}`;
+	return `Codex settings: extension ${config.voiceFeaturesOnly ? "voice only" : "adapter and voice"}, execution ${config.executionMode}, providers ${formatAllProvidersMode(config.scope.allProviders)}, Rust binaries ${config.tools.customRustBinariesDir || "bundled"}, heavy prompt overwrite ${config.prompt.heavySystemPromptOverwrite ? "on" : "off"}, harness identifier ${config.openai.harnessIdentifierHeader ? "on" : "off"}, Proxy Responses Lite ${config.openai.proxyResponsesLite ? "on" : "off"}, compaction V2 ${config.compaction.responsesCompaction ? "on" : "off"}, Luna cache keepalive ${config.openai.lunaCacheKeepaliveMinutes === 0 ? "off" : `${config.openai.lunaCacheKeepaliveMinutes} mins`}, Sol/Terra cache keepalive ${config.openai.cacheKeepalive ? "25 mins" : "off"}, cache diagnostics ${config.openai.cacheDiagnostics}, fast ${config.openai.fast ? "on" : "off"}, verbosity ${config.openai.verbosity}`;
 }

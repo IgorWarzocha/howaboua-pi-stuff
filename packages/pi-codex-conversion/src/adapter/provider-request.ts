@@ -1,6 +1,6 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { ProviderHeaders } from "@earendil-works/pi-ai";
-import { canonicalCodexAliasModelKey, isCanonicalCodexAliasModel, isCanonicalCodexBaseUrl, isResponsesContext } from "./prompt/codex-model.ts";
+import { isResponsesContext } from "./prompt/codex-model.ts";
 import { applyCodexRequestOptions } from "./request-options.ts";
 import type { AdapterState } from "./activation/state.ts";
 import { isAdapterRuntime, isCodeModeRuntime, resolveCodexRuntimePlanForState } from "./activation/runtime-plan.ts";
@@ -33,34 +33,14 @@ function applyCodexRuntimePayload(payload: unknown, codeMode: boolean): unknown 
 		: payload;
 }
 
-export async function prepareCanonicalAliasEndpoint(ctx: ExtensionContext, state: AdapterState): Promise<boolean> {
-	const model = ctx.model;
-	if (!model || !isCanonicalCodexAliasModel(model)) {
-		state.canonicalAliasEndpoint = undefined;
-		return true;
-	}
-	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
-	const trusted = auth.ok && isCanonicalCodexBaseUrl(auth.baseUrl ?? model.baseUrl);
-	state.canonicalAliasEndpoint = { modelKey: canonicalCodexAliasModelKey(model), trusted };
-	return trusted;
-}
-
-function hasCanonicalAliasEndpoint(ctx: ExtensionContext, state: AdapterState): boolean {
-	const model = ctx.model;
-	if (!model || !isCanonicalCodexAliasModel(model)) return true;
-	const endpoint = state.canonicalAliasEndpoint;
-	return endpoint?.modelKey === canonicalCodexAliasModelKey(model) && endpoint.trusted;
-}
-
 export function rewriteCodexProviderHeaders(
 	headers: ProviderHeaders,
 	ctx: ExtensionContext,
 	state: AdapterState,
 ): void {
 	if (state.config.voiceFeaturesOnly) return;
-	if (isCanonicalCodexAliasModel(ctx.model)
-		&& isCodeModeRuntime(resolveCodexRuntimePlanForState(ctx, state))
-		&& hasCanonicalAliasEndpoint(ctx, state)) {
+	const plan = resolveCodexRuntimePlanForState(ctx, state);
+	if (plan.codexTransport && isCodeModeRuntime(plan)) {
 		headers[RESPONSES_LITE_HEADER] = "true";
 	}
 }
@@ -74,7 +54,6 @@ export function captureActiveProviderSystemPrompt(payload: unknown, state: Adapt
 export async function rewriteCodexProviderRequest(payload: unknown, ctx: ExtensionContext, state: AdapterState): Promise<unknown | undefined> {
 	const prepared = prepareCodexProviderRequest(payload, ctx, state);
 	if (!prepared) return undefined;
-	if (!hasCanonicalAliasEndpoint(ctx, state)) return undefined;
 	const { plan, configuredPayload } = prepared;
 	let rewrittenPayload = configuredPayload;
 	if (plan.nativeCompaction || state.pendingPiCompactionNativeWindow) {

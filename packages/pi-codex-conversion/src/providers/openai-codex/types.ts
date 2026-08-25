@@ -1,7 +1,7 @@
 import type { AssistantMessage, SimpleStreamOptions } from "@earendil-works/pi-ai";
 import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
 import type { CodexCompactionDiagnostic } from "../../adapter/compaction/diagnostics.ts";
-import type { CodexCacheKeepaliveStrategy } from "../../adapter/activation/cache-experiment.ts";
+import type { CodexCacheKeepaliveStrategy } from "../../adapter/activation/cache-keepalive.ts";
 
 export interface WebSocketLike {
 	readyState?: number | undefined;

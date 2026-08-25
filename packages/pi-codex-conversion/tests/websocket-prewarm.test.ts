@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
-import { canonicalCodexAliasModelKey } from "../src/adapter/prompt/codex-model.ts";
 import { createCodexExtensionRuntime } from "../src/extension/runtime.ts";
 import { prewarmOpenAICodexWebSocket } from "../src/providers/openai-codex-custom-provider.ts";
 import { isWebSocketSseFallbackActive, recordWebSocketSseFallback } from "../src/providers/openai-codex/websocket.ts";
@@ -73,7 +72,7 @@ test("stalled auth in an aborted prewarm cannot block a newer equivalent operati
 	await current;
 });
 
-test("post-compaction reset prewarms canonical aliases with normalized cache usage", async () => {
+test("transport reset prewarms renamed Codex routes and closes their keepalive lane", async () => {
 	const restoreWebSocket = installScriptedWebSocket([(socket) => {
 		socket.emitJson({ type: "response.created", response: { id: "resp_cached" } });
 		socket.emitJson({
@@ -87,7 +86,7 @@ test("post-compaction reset prewarms canonical aliases with normalized cache usa
 				},
 			},
 		});
-	}]);
+	}, websocketSuccess, websocketSuccess]);
 	const sessionId = "history-prewarm-identity";
 	try {
 		const runtime = createCodexExtensionRuntime({
@@ -102,16 +101,13 @@ test("post-compaction reset prewarms canonical aliases with normalized cache usa
 		runtime.state.config = {
 			...DEFAULT_CODEX_CONVERSION_CONFIG,
 			executionMode: "code",
+			openai: { ...DEFAULT_CODEX_CONVERSION_CONFIG.openai, lunaCacheKeepaliveMinutes: 5 },
 		};
 		runtime.state.activeProviderSystemPrompt = "Stable prompt";
 		const alias = {
 			...model,
 			provider: "openai-codex-personal",
-			baseUrl: "https://chatgpt.com/backend-api",
-		};
-		runtime.state.canonicalAliasEndpoint = {
-			modelKey: canonicalCodexAliasModelKey(alias),
-			trusted: true,
+			baseUrl: "https://codex-proxy.example.com/backend-api",
 		};
 		const extensionContext = {
 			cwd: "/repo",
@@ -138,6 +134,11 @@ test("post-compaction reset prewarms canonical aliases with normalized cache usa
 
 		assert.equal(runtime.waitForPrewarm(extensionContext, "Stable prompt"), undefined);
 		assert.equal(sentFrames().length, 1);
+		assert.equal((await runtime.startKeepalivePrewarm(extensionContext))?.status, "ready");
+		assert.equal(ScriptedWebSocket.opened, 2);
+		runtime.resetTransport(sessionId);
+		assert.equal((await runtime.startKeepalivePrewarm(extensionContext))?.status, "ready");
+		assert.equal(ScriptedWebSocket.opened, 3);
 	} finally {
 		restoreWebSocket();
 	}

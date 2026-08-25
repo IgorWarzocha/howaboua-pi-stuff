@@ -70,10 +70,11 @@
     "scripts/code-mode",
     "!src/**/AGENTS.md",
     "!src/tools/target/**",
-    "changelog.ts"
+    "changelog.ts",
+    "changelog.js"
   ],
   "scripts": {
-    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json",
+    "build": "node -e \"const fs=require('node:fs'); fs.rmSync('dist', { recursive: true, force: true }); fs.rmSync('changelog.js', { force: true })\" && tsc -p tsconfig.build.json && node ../../scripts/build-extension-changelog.mjs .",
     "typecheck": "tsc -p tsconfig.json",
     "test": "tsx --test tests/**/*.test.ts examples/custom-tools/browser/*.test.mjs",
     "check": "node ../../scripts/sync-browser-cdp.mjs --check && bun run typecheck && bun run test",

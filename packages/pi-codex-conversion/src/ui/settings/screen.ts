@@ -5,7 +5,7 @@ import {
 	type Theme,
 } from "@earendil-works/pi-coding-agent";
 import { SettingsList, truncateToWidth } from "@earendil-works/pi-tui";
-import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
+import type { CodexConversionConfig, LunaCacheKeepaliveMinutes } from "../../adapter/activation/config.ts";
 import type { CodexConversionConfigScope } from "../../adapter/activation/config-store.ts";
 import type { ExecutionMode } from "../../adapter/activation/execution-mode.ts";
 import type { CodexLanVoiceServerStatus } from "../../voice/lan/controller.ts";
@@ -24,6 +24,7 @@ import { createUsageTab, type UsageTabOptions } from "./usage-tab.ts";
 export interface CodexSettingsScreenOptions extends UsageTabOptions {
 	initialConfig: CodexConversionConfig;
 	onChange: (nextConfig: CodexConversionConfig) => boolean;
+	onGlobalLunaCacheKeepalive: (minutes: LunaCacheKeepaliveMinutes) => CodexConversionConfig | undefined;
 	onProjectCacheKeepalive: (enabled: boolean) => CodexConversionConfig | undefined;
 	initialTab?: SettingsTab | undefined;
 	configScope: {
@@ -141,7 +142,19 @@ export async function openCodexSettingsScreen(
 						return;
 					}
 					if (definition?.action === "project-cache-keepalive") {
-						const nextDraft = options.onProjectCacheKeepalive(value === "on");
+						const nextDraft = options.onProjectCacheKeepalive(value !== "off");
+						if (nextDraft) {
+							draft = nextDraft;
+							for (const { item } of buildSettings()) list.updateValue(item.id, item.currentValue);
+						} else {
+							list.updateValue(id, definition.item.currentValue);
+						}
+						tui.requestRender();
+						return;
+					}
+					if (definition?.action === "global-luna-cache-keepalive") {
+						const minutes = (value === "off" ? 0 : Number.parseInt(value, 10)) as LunaCacheKeepaliveMinutes;
+						const nextDraft = options.onGlobalLunaCacheKeepalive(minutes);
 						if (nextDraft) {
 							draft = nextDraft;
 							for (const { item } of buildSettings()) list.updateValue(item.id, item.currentValue);
@@ -369,8 +382,8 @@ function withConfigScopeDetails(
 	const scopeIndex = next.findIndex((line) => line.includes("Settings"));
 	if (scopeIndex < 0) return next;
 	const detail = scope === "folder"
-		? "Changes here update this project only and leave global defaults unchanged."
-		: "Changes here update global defaults. Projects with their own .pi/pi-codex-conversion.json keep their settings.";
+		? "Other changes update this project. Luna keepalive remains global; Sol/Terra keepalive remains project-only."
+		: "Other changes update global defaults. Luna keepalive is global; Sol/Terra keepalive is project-only.";
 	next.splice(scopeIndex + 1, 0, theme.fg("dim", `  ${detail}`));
 	return next;
 }

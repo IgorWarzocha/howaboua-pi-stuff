@@ -2,7 +2,8 @@ import { buildSessionContext, convertToLlm, type ExtensionAPI, type ExtensionCon
 import type { Context } from "@earendil-works/pi-ai";
 import { dirname } from "node:path";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
-import { readCodexCacheExperimentEnvironment, resolveCodexCacheKeepaliveStrategy, type CodexCacheKeepaliveStrategy } from "../adapter/activation/cache-experiment.ts";
+import { readCodexCacheEnvironment } from "../adapter/activation/cache-environment.ts";
+import { resolveCodexCacheKeepalivePlan, type CodexCacheKeepalivePlan, type CodexCacheKeepaliveStrategy } from "../adapter/activation/cache-keepalive.ts";
 import { getCodexConversionConfigPath, readEffectiveCodexConversionConfig } from "../adapter/activation/config-store.ts";
 import { isAdapterRuntime, resolveCodexRuntimePlan, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import type { AdapterState } from "../adapter/activation/state.ts";
@@ -10,7 +11,7 @@ import { rewriteCodexPrewarmProviderRequest, rewriteCodexProviderRequest } from 
 import { getPiCodexRuntimeShell } from "../adapter/prompt/runtime-shell.ts";
 import { isProviderContextExcludedMessage } from "../adapter/prompt/context-filter.ts";
 import { buildCodexSystemPrompt, type PiSystemPromptOptions } from "../prompt/build-system-prompt.ts";
-import { closeOpenAICodexWebSocketSessions, prewarmOpenAICodexWebSocket } from "../providers/openai-codex-custom-provider.ts";
+import { closeOpenAICodexKeepaliveWebSocketSession, closeOpenAICodexWebSocketSessions, prewarmOpenAICodexWebSocket } from "../providers/openai-codex-custom-provider.ts";
 import { resetOpenAICodexWebSocketSessions } from "../providers/openai-codex/websocket.ts";
 import { createCodexTurnState } from "../providers/openai-codex/turn-state.ts";
 import type { CodexPrewarmUsage, OpenAICodexStreamOptions } from "../providers/openai-codex/types.ts";
@@ -67,8 +68,8 @@ function prewarmReasoningOption(level: ReturnType<ExtensionAPI["getThinkingLevel
 }
 
 export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRuntime {
-	const cacheExperiment = readCodexCacheExperimentEnvironment();
-	for (const warning of cacheExperiment.warnings) {
+	const cacheEnvironment = readCodexCacheEnvironment();
+	for (const warning of cacheEnvironment.warnings) {
 		console.warn(`[pi-codex-conversion] ${warning}`);
 	}
 	const initialConfig = readEffectiveCodexConversionConfig({ cwd: process.cwd(), projectTrusted: false });
@@ -95,19 +96,25 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 	let cacheKeepaliveEpoch = 0;
 	const voice = new CodexVoiceController(pi);
 	const diagnostics = createLazyCodexDiagnostics();
-	let cacheExperimentWarningsReported = false;
+	let cacheEnvironmentWarningsReported = false;
 	const buildPrewarmPlan = (
 		ctx: CodexContext,
 		systemPrompt: string,
 		prepared: boolean,
 		messages: Context["messages"],
 		rewriteFinalRequest: boolean,
+		promptCacheRefresh = false,
 	) => {
 		const model = ctx.model;
 		const config = structuredClone(state.config);
 		const executionMode = state.executionMode;
-		const runtimePlan = resolveCodexRuntimePlan(ctx, config, executionMode);
-		if (!model || !runtimePlan.codexTransport || !isAdapterRuntime(runtimePlan) || !config.openai.forceCachedWebSockets) return undefined;
+		const runtimePlan = resolveCodexRuntimePlanForState(ctx, { config, executionMode });
+		if (
+			!model
+			|| !runtimePlan.codexTransport
+			|| !isAdapterRuntime(runtimePlan)
+			|| (!promptCacheRefresh && !config.openai.forceCachedWebSockets)
+		) return undefined;
 		const preparedSystemPrompt = prepared
 			? systemPrompt
 			: runtime.codexSystemPrompt(systemPrompt, ctx);
@@ -151,7 +158,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		requestSource?: "captured" | "reconstructed",
 		generate = false,
 	): Promise<CodexPrewarmResult> | undefined => {
-		const plan = buildPrewarmPlan(ctx, systemPrompt, prepared, messages, rewriteFinalRequest);
+		const plan = buildPrewarmPlan(ctx, systemPrompt, prepared, messages, rewriteFinalRequest, kind === "keepalive");
 		if (!plan) return undefined;
 		const { model, config, executionMode, preparedSystemPrompt, tools, reasoning, key: requestKey } = plan;
 		const prewarmKey = JSON.stringify({ requestKey, preserveContinuation, generate });
@@ -198,6 +205,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 						turnState: state.codexTurnState,
 						getDiagnostics: () => diagnostics.sink(),
 						...(preserveContinuation ? { preserveContinuation: true } : {}),
+						...(kind === "keepalive" ? { retainSocket: config.openai.forceCachedWebSockets } : {}),
 						prewarmDiagnostics: {
 							kind,
 							...(keepaliveStrategy ? { keepaliveStrategy } : {}),
@@ -244,11 +252,11 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 	);
 
 	const currentContextPrewarm = (ctx: CodexContext, kind: "compaction" | "keepalive") => {
-		const keepaliveStrategy = kind === "keepalive"
-			? resolveCodexCacheKeepaliveStrategy(state.config.openai.cacheKeepalive, cacheExperiment)
-			: false;
-		if (kind === "keepalive" && !keepaliveStrategy) return undefined;
-		const preserveContinuation = keepaliveStrategy !== false;
+		const keepalivePlan = kind === "keepalive"
+			? resolveCodexCacheKeepalivePlan(ctx.model?.id, state.config.openai)
+			: undefined;
+		if (kind === "keepalive" && !keepalivePlan) return undefined;
+		const preserveContinuation = kind === "keepalive";
 		const activeSystemPrompt = state.activeProviderSystemPrompt;
 		return startPrewarm(
 			ctx,
@@ -259,9 +267,9 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 			kind === "keepalive",
 			kind,
 			preserveContinuation,
-			keepaliveStrategy || undefined,
+			keepalivePlan?.strategy,
 			kind === "keepalive" ? "reconstructed" : undefined,
-			keepaliveStrategy === "generated-current",
+			keepalivePlan?.strategy === "generated-current",
 		);
 	};
 
@@ -272,44 +280,50 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		if (activePrewarmKind === "keepalive") prewarmController?.abort();
 	};
 
-	const scheduleCacheKeepalive = (ctx: CodexContext, epoch: number) => {
-		const strategy = resolveCodexCacheKeepaliveStrategy(state.config.openai.cacheKeepalive, cacheExperiment);
-		if (!strategy) return;
+	const scheduleCacheKeepalive = (
+		ctx: CodexContext,
+		epoch: number,
+		plan: CodexCacheKeepalivePlan,
+		completedOperations: number,
+	) => {
+		if (plan.maxOperations !== undefined && completedOperations >= plan.maxOperations) return;
 		if (cacheKeepaliveTimer) clearTimeout(cacheKeepaliveTimer);
 		diagnostics.sink()?.({
 			type: "keepalive",
 			phase: "armed",
-			strategy,
-			intervalMs: cacheExperiment.keepaliveIntervalMs,
+			strategy: plan.strategy,
+			intervalMs: plan.intervalMs,
 		});
 		cacheKeepaliveTimer = setTimeout(() => {
 			cacheKeepaliveTimer = undefined;
 			if (epoch !== cacheKeepaliveEpoch || !ctx.isIdle()) return;
+			const nextCompletedOperations = completedOperations + 1;
 			const requestSource = "reconstructed";
-			diagnostics.sink()?.({ type: "keepalive", phase: "started", strategy, requestSource });
+			diagnostics.sink()?.({ type: "keepalive", phase: "started", strategy: plan.strategy, requestSource });
 			const keepalive = currentContextPrewarm(ctx, "keepalive");
 			if (!keepalive) {
-				diagnostics.sink()?.({ type: "keepalive", phase: "skipped", strategy, requestSource });
+				diagnostics.sink()?.({ type: "keepalive", phase: "skipped", strategy: plan.strategy, requestSource });
 				return;
 			}
 			void keepalive.then((result) => {
 				if (epoch !== cacheKeepaliveEpoch || result.status === "aborted" || result.status === "skipped") return;
 				if (result.status === "failed") {
 					ctx.ui.notify(`Codex cache keepalive failed: ${result.error.message}`, "warning");
-					scheduleCacheKeepalive(ctx, epoch);
+					scheduleCacheKeepalive(ctx, epoch, plan, nextCompletedOperations);
 					return;
 				}
 				const action = "generated-refresh";
-				diagnostics.sink()?.({ type: "keepalive", phase: "applied", strategy, requestSource, action });
-				scheduleCacheKeepalive(ctx, epoch);
+				diagnostics.sink()?.({ type: "keepalive", phase: "applied", strategy: plan.strategy, requestSource, action });
+				scheduleCacheKeepalive(ctx, epoch, plan, nextCompletedOperations);
 			});
-		}, cacheExperiment.keepaliveIntervalMs);
+		}, plan.intervalMs);
 		cacheKeepaliveTimer.unref?.();
 	};
 
 	const armCacheKeepalive = (ctx: CodexContext) => {
 		cancelCacheKeepalive();
-		scheduleCacheKeepalive(ctx, cacheKeepaliveEpoch);
+		const plan = resolveCodexCacheKeepalivePlan(ctx.model?.id, state.config.openai);
+		if (plan) scheduleCacheKeepalive(ctx, cacheKeepaliveEpoch, plan, 0);
 	};
 
 	const runtime: CodexExtensionRuntime = {
@@ -362,8 +376,10 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 			pendingPrewarmKey = undefined;
 			prewarmedKey = undefined;
 			state.codexTurnState.reset();
-			if (sessionId) resetOpenAICodexWebSocketSessions(sessionId);
-			else closeOpenAICodexWebSocketSessions();
+			if (sessionId) {
+				resetOpenAICodexWebSocketSessions(sessionId);
+				closeOpenAICodexKeepaliveWebSocketSession(sessionId);
+			} else closeOpenAICodexWebSocketSessions();
 		},
 		resetTransportAfterCompaction(sessionId) {
 			runtime.resetTransport(sessionId);
@@ -381,17 +397,17 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 			return buildPrewarmPlan(ctx, systemPrompt, true, [], false)?.identity;
 		},
 		configureDiagnostics(ctx, announceLog = false) {
-			if (!cacheExperimentWarningsReported && cacheExperiment.warnings.length > 0) {
-				cacheExperimentWarningsReported = true;
-				ctx.ui.notify(`Codex cache experiment: ${cacheExperiment.warnings.join("; ")}`, "warning");
+			if (!cacheEnvironmentWarningsReported && cacheEnvironment.warnings.length > 0) {
+				cacheEnvironmentWarningsReported = true;
+				ctx.ui.notify(`Codex cache diagnostics: ${cacheEnvironment.warnings.join("; ")}`, "warning");
 			}
 			return diagnostics.configure({
 				mode: state.config.openai.cacheDiagnostics,
 				active: ctx.model?.provider === "openai-codex",
 				ctx,
 				agentDir: dirname(getCodexConversionConfigPath()),
-				logName: cacheExperiment.logName,
-				announceLog: announceLog || cacheExperiment.logName !== undefined,
+				logName: cacheEnvironment.logName,
+				announceLog: announceLog || cacheEnvironment.logName !== undefined,
 			});
 		},
 		diagnosticsSink() {
