@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import test from "node:test";
-import { resolveCodexCacheKeepalivePlan } from "../src/adapter/activation/cache-keepalive.ts";
+import { hasCodexCacheKeepalivePlanChanged, resolveCodexCacheKeepalivePlan } from "../src/adapter/activation/cache-keepalive.ts";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import {
 	codexDiagnosticsLogPath,
@@ -43,6 +43,16 @@ test("model cache policy is bounded and its diagnostics omit raw provider payloa
 		cacheKeepalive: true,
 		lunaCacheKeepaliveMinutes: 15,
 	}), undefined);
+	assert.equal(hasCodexCacheKeepalivePlanChanged(
+		"gpt-5.6-sol",
+		{ ...DEFAULT_CODEX_CONVERSION_CONFIG.openai, cacheKeepalive: true },
+		{ ...DEFAULT_CODEX_CONVERSION_CONFIG.openai, cacheKeepalive: true, lunaCacheKeepaliveMinutes: 15 },
+	), false);
+	assert.equal(hasCodexCacheKeepalivePlanChanged(
+		"gpt-5.6-luna",
+		{ ...DEFAULT_CODEX_CONVERSION_CONFIG.openai, lunaCacheKeepaliveMinutes: 5 },
+		{ ...DEFAULT_CODEX_CONVERSION_CONFIG.openai, lunaCacheKeepaliveMinutes: 10 },
+	), true);
 	const agentDir = await mkdtemp(join(tmpdir(), "pi-codex-log-"));
 	try {
 		const sessionId = "019fd7ca-66ba-7c47-8925-d2cdc17e2bd7";

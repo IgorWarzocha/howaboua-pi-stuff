@@ -9,6 +9,10 @@ import { DEFAULT_STREAM_IDLE_TIMEOUT_MS, DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS } 
 import { codexDiagnosticsFailure, noThrowCodexDiagnosticsSink } from "./diagnostic-failure.ts";
 import { recordCanonicalSessionResponse, type CanonicalSessionToken } from "./session-continuity.ts";
 
+export function codexCacheKeepaliveSocketSessionId(sessionId: string): string {
+	return `${sessionId}:cache-keepalive`;
+}
+
 export async function processWebSocketStream<TApi extends Api>(
 	url: string,
 	body: ResponsesBody,
@@ -156,7 +160,9 @@ export async function prewarmWebSocket(
 ): Promise<CodexPrewarmResult> {
 	const recordDiagnostics = noThrowCodexDiagnosticsSink(diagnostics);
 	const websocketConnectTimeoutMs = normalizeTimeoutMs(options.websocketConnectTimeoutMs, "websocketConnectTimeoutMs");
-	const socketSessionId = preserveContinuation ? `${options.sessionId}:cache-keepalive` : options.sessionId;
+	const socketSessionId = preserveContinuation && options.sessionId
+		? codexCacheKeepaliveSocketSessionId(options.sessionId)
+		: options.sessionId;
 	const socketLane = preserveContinuation ? "keepalive" : "main";
 	const { socket, entry, release, reused, socketAgeMs } = await acquireWebSocket(url, headers, socketSessionId, accountId, options.signal, websocketConnectTimeoutMs, options.env);
 	let keepConnection = true;

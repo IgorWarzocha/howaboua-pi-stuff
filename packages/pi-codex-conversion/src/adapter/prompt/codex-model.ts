@@ -38,20 +38,13 @@ export function isCanonicalCodexSubscriptionModel(
 		&& isCanonicalCodexBaseUrl(model.baseUrl));
 }
 
-export function isCanonicalCodexAliasModel(
-	model: Partial<CodexLikeModelDescriptor> | null | undefined,
-): boolean {
-	return !isOpenAICodexModel(model) && isCanonicalCodexSubscriptionModel(model);
-}
-
-export function canonicalCodexAliasModelKey(model: Partial<CodexLikeModelDescriptor>): string {
-	return JSON.stringify([model.provider, model.api, model.id, model.baseUrl]);
-}
-
 export function isCodexTransportModel(
 	model: Partial<CodexLikeModelDescriptor> | null | undefined,
 ): boolean {
-	return isOpenAICodexModel(model) || isCanonicalCodexSubscriptionModel(model);
+	return Boolean(model && (
+		isOpenAICodexModel(model)
+		|| (model.api ?? "").trim().toLowerCase() === "openai-codex-responses"
+	));
 }
 
 export function isResponsesModel(model: Partial<CodexLikeModelDescriptor> | null | undefined): boolean {
@@ -71,16 +64,8 @@ export function isCodexLikeModel(model: Partial<CodexLikeModelDescriptor> | null
 	return provider.includes("codex") || api.includes("codex") || id.includes("codex") || (provider.includes("openai") && id.includes("gpt")) || isCopilotGpt;
 }
 
-export function isCanonicalCodexSubscriptionContext(ctx: Pick<ExtensionContext, "model">): boolean {
-	return isCanonicalCodexSubscriptionModel(ctx.model);
-}
-
-export function isOpenAICodexContext(ctx: Pick<ExtensionContext, "model">): boolean {
-	return isOpenAICodexModel(ctx.model);
-}
-
 export function isCodexTransportContext(ctx: Pick<ExtensionContext, "model">): boolean {
-	return isOpenAICodexContext(ctx) || isCanonicalCodexSubscriptionContext(ctx);
+	return isCodexTransportModel(ctx.model);
 }
 
 export function isResponsesContext(ctx: Pick<ExtensionContext, "model">): boolean {

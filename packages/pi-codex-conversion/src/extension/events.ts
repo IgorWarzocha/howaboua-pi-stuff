@@ -1,11 +1,11 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { readEffectiveCodexConversionConfig } from "../adapter/activation/config-store.ts";
 import { syncAdapter } from "../adapter/activation/activation.ts";
-import { isAdapterRuntime, resolveCodexRuntimePlan, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
+import { isAdapterRuntime, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import { isNativeCompactionDetails, NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, NATIVE_COMPACTION_DISPLAY_TEXT, NATIVE_COMPACTION_STRATEGY, type NativeCompactionDisplayEntry, type NativeCompactionUsage } from "../adapter/compaction/types.ts";
 import { findLatestCompactionEntry } from "../adapter/compaction/details-store.ts";
 import { handleCodexSessionBeforeCompact } from "../adapter/compaction/compaction.ts";
-import { prepareCanonicalAliasEndpoint, rewriteCodexProviderHeaders, rewriteCodexProviderRequest } from "../adapter/provider-request.ts";
+import { rewriteCodexProviderHeaders, rewriteCodexProviderRequest } from "../adapter/provider-request.ts";
 import { isProviderContextExcludedMessage } from "../adapter/prompt/context-filter.ts";
 import { hasNoSkillsFlag } from "../adapter/prompt/skills.ts";
 import { extractPiPromptSkills, resolvePromptSkills } from "../prompt/build-system-prompt.ts";
@@ -55,18 +55,6 @@ export function prepareCodeModeHost(codeMode: CodeModeRegistration, ctx: Extensi
 	});
 }
 
-export function registerCanonicalAliasEndpointPreflight(pi: ExtensionAPI, runtime: CodexExtensionRuntime): void {
-	pi.on("before_agent_start", async (_event, ctx) => {
-		const { state } = runtime;
-		if (!isAdapterRuntime(resolveCodexRuntimePlan(ctx, state.config, state.executionMode))) {
-			state.canonicalAliasEndpoint = undefined;
-			return;
-		}
-		await prepareCanonicalAliasEndpoint(ctx, state);
-		syncAdapter(pi, ctx, state);
-	});
-}
-
 export function registerCodexEvents(
 	pi: ExtensionAPI,
 	runtime: CodexExtensionRuntime,
@@ -100,7 +88,6 @@ export function registerCodexEvents(
 		state.executionMode = state.config.executionMode;
 		state.activeProviderSystemPrompt = undefined;
 		state.voiceSystemPromptOverride = undefined;
-		state.canonicalAliasEndpoint = undefined;
 		proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 		if (state.config.voiceFeaturesOnly) {
@@ -131,7 +118,6 @@ export function registerCodexEvents(
 		state.cwd = ctx.cwd;
 		state.activeProviderSystemPrompt = undefined;
 		state.voiceSystemPromptOverride = undefined;
-		state.canonicalAliasEndpoint = undefined;
 		state.weeklyUsageLeft = undefined;
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 		proxyProvider.applyConfig(state.config, ctx.modelRegistry);

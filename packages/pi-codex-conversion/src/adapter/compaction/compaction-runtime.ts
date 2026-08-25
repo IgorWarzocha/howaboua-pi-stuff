@@ -1,6 +1,6 @@
 import type { Api, Model, ProviderHeaders } from "@earendil-works/pi-ai";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { isCanonicalCodexSubscriptionModel, isOpenAICodexModel } from "../prompt/codex-model.ts";
+import { isCodexTransportModel } from "../prompt/codex-model.ts";
 
 export const DEFAULT_SUPPORTED_PROVIDERS = ["openai", "openai-codex"] as const;
 export const DEFAULT_SUPPORTED_APIS = ["openai-responses", "openai-codex-responses"] as const;
@@ -167,7 +167,7 @@ export async function resolveNativeCompactionEnvironment(
 	}
 	const supportedProviders = normalizeConfiguredProviderSet(options.supportedProviders);
 	const providerSupported = supportedProviders.has(descriptor.provider.trim().toLowerCase());
-	if (!providerSupported && !isCanonicalCodexSubscriptionModel(currentModel)) {
+	if (!providerSupported && !isCodexTransportModel(currentModel)) {
 		return {
 			ok: false,
 			reason: "unsupported-provider",
@@ -184,18 +184,7 @@ export async function resolveNativeCompactionEnvironment(
 			...descriptor,
 		};
 	}
-	const canonicalSubscription = isCanonicalCodexSubscriptionModel({
-		...currentModel,
-		baseUrl: effectiveBaseUrl,
-	});
-	if (!canonicalSubscription && !providerSupported) {
-		return {
-			ok: false,
-			reason: "unsupported-provider",
-			...descriptor,
-		};
-	}
-	const codexTransport = isOpenAICodexModel(currentModel) || canonicalSubscription;
+	const codexTransport = isCodexTransportModel(currentModel);
 
 	let requestPayload: ResponsesCompatibleRequestPayload | undefined;
 	if (payload !== undefined) {

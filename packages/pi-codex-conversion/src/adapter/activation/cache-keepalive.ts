@@ -31,3 +31,15 @@ export function resolveCodexCacheKeepalivePlan(
 	}
 	return undefined;
 }
+
+export function hasCodexCacheKeepalivePlanChanged(
+	modelId: string | undefined,
+	previous: CodexConversionConfig["openai"],
+	next: CodexConversionConfig["openai"],
+): boolean {
+	const previousPlan = resolveCodexCacheKeepalivePlan(modelId, previous);
+	const nextPlan = resolveCodexCacheKeepalivePlan(modelId, next);
+	return previousPlan?.strategy !== nextPlan?.strategy
+		|| previousPlan?.intervalMs !== nextPlan?.intervalMs
+		|| previousPlan?.maxOperations !== nextPlan?.maxOperations;
+}

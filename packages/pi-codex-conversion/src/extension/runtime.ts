@@ -11,7 +11,7 @@ import { rewriteCodexPrewarmProviderRequest, rewriteCodexProviderRequest } from 
 import { getPiCodexRuntimeShell } from "../adapter/prompt/runtime-shell.ts";
 import { isProviderContextExcludedMessage } from "../adapter/prompt/context-filter.ts";
 import { buildCodexSystemPrompt, type PiSystemPromptOptions } from "../prompt/build-system-prompt.ts";
-import { closeOpenAICodexWebSocketSessions, prewarmOpenAICodexWebSocket } from "../providers/openai-codex-custom-provider.ts";
+import { closeOpenAICodexKeepaliveWebSocketSession, closeOpenAICodexWebSocketSessions, prewarmOpenAICodexWebSocket } from "../providers/openai-codex-custom-provider.ts";
 import { resetOpenAICodexWebSocketSessions } from "../providers/openai-codex/websocket.ts";
 import { createCodexTurnState } from "../providers/openai-codex/turn-state.ts";
 import type { CodexPrewarmUsage, OpenAICodexStreamOptions } from "../providers/openai-codex/types.ts";
@@ -108,7 +108,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		const model = ctx.model;
 		const config = structuredClone(state.config);
 		const executionMode = state.executionMode;
-		const runtimePlan = resolveCodexRuntimePlan(ctx, config, executionMode);
+		const runtimePlan = resolveCodexRuntimePlanForState(ctx, { config, executionMode });
 		if (
 			!model
 			|| !runtimePlan.codexTransport
@@ -376,8 +376,10 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 			pendingPrewarmKey = undefined;
 			prewarmedKey = undefined;
 			state.codexTurnState.reset();
-			if (sessionId) resetOpenAICodexWebSocketSessions(sessionId);
-			else closeOpenAICodexWebSocketSessions();
+			if (sessionId) {
+				resetOpenAICodexWebSocketSessions(sessionId);
+				closeOpenAICodexKeepaliveWebSocketSession(sessionId);
+			} else closeOpenAICodexWebSocketSessions();
 		},
 		resetTransportAfterCompaction(sessionId) {
 			runtime.resetTransport(sessionId);
