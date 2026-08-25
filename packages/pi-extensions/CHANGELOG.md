@@ -1,5 +1,16 @@
 # @howaboua/pi-extensions
 
+## 0.0.66
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-gippity-control: Restore live Pi speech by streaming visible progress, speaking enabled completed reasoning summaries, and integrating successive updates without replacing active speech.
+
+- Updated dependencies [[`ef7656c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ef7656c2aab3d2aa1cff581bae26dc9b102aece7)]:
+  - @howaboua/pi-gippity-control@0.0.16
+
 ## 0.0.65
 
 ### Changes
