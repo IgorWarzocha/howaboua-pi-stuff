@@ -1,5 +1,16 @@
 # @howaboua/pi-stuff
 
+## 0.0.71
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-gippity-control: Speak Pi progress and final results as soon as they reach realtime voice instead of waiting for turn completion.
+
+- Updated dependencies [[`bf42276`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/bf42276a2fdc10e41ce0d3f48855607ff89e50c8)]:
+  - @howaboua/pi-gippity-control@0.0.15
+
 ## 0.0.70
 
 ### Changes
