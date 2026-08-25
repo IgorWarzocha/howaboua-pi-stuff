@@ -6,7 +6,6 @@ import { listActivePackageDirs } from "./active-packages.mjs";
 const root = process.cwd();
 const packagesDir = join(root, "packages");
 const template = join(root, "scripts", "templates", "extension-changelog.ts");
-const embeddedChangelogPackages = new Set(["@howaboua/pi-codex-conversion"]);
 let count = 0;
 
 for (const dir of listActivePackageDirs(root)) {
@@ -19,12 +18,15 @@ for (const dir of listActivePackageDirs(root)) {
 	if (!existsSync(join(packagesDir, dir, "CHANGELOG.md")))
 		throw new Error(`${pkg.name ?? dir} has no CHANGELOG.md`);
 
-	copyFileSync(template, join(packagesDir, dir, "changelog.ts"));
+	const changelogPath = join(packagesDir, dir, "changelog.ts");
+	const embeddedChangelog =
+		existsSync(changelogPath) && !pkg.pi.extensions.includes("./changelog.ts");
+	copyFileSync(template, changelogPath);
 	pkg.files = Array.from(
 		new Set([...(pkg.files ?? []), "changelog.ts", "CHANGELOG.md"]),
 	);
 	const extensionEntries = pkg.pi.extensions.filter((entry) => entry !== "./changelog.ts");
-	pkg.pi.extensions = embeddedChangelogPackages.has(pkg.name)
+	pkg.pi.extensions = embeddedChangelog
 		? extensionEntries
 		: ["./changelog.ts", ...extensionEntries];
 	pkg.peerDependencies = {
