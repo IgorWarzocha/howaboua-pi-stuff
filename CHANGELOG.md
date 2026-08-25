@@ -56,13 +56,28 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 3.0.19
+### @howaboua/pi-codex-conversion — 3.0.20
 
 ### Changes
 
-- [#339](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/339) [`ee0220c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ee0220cdc44cd732dff9caf0c913e098ed14404f) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Keep long Codex sessions cached through idle periods by generating and discarding an isolated completion over the complete settled context every 25 minutes. Resume transport from the complete current branch instead of a system-only baseline, and add named diagnostics with socket, continuation, and authoritative refresh usage.
+- [#342](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/342) [`35182d9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/35182d9a002daded7610cca64c47b25bed3267df) Thanks [@howaclawa](https://github.com/howaclawa)! - Keep realtime voice responsive across typed Pi turns, active speech, and compaction. Speak one meaningful progress update, serialize final results, and queue delegations until native compaction and prewarm finish.
 
-- [#339](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/339) [`ee0220c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ee0220cdc44cd732dff9caf0c913e098ed14404f) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Preserve native compaction cache continuity after switching Codex models.
+- [#342](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/342) [`35182d9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/35182d9a002daded7610cca64c47b25bed3267df) Thanks [@howaclawa](https://github.com/howaclawa)! - Make Code and Notebook Mode failures actionable and easier to recover.
+
+  - Surface Deno syntax diagnostics instead of generic execution failures and isolate bridge networking from user bindings.
+  - Encode action-specific notebook control inputs and return targeted recovery for persistent binding redeclarations.
+  - Clarify safe shell interpolation, terminal input, and Deno tool composition in model-facing guidance.
+  - Keep concurrent Code and Notebook sessions from taking optional Git index locks during read-only commands.
+  - Retry idempotent browser reads after delayed Chrome responses without blaming debugger approval, while warning against blind retries of timed-out page mutations.
+  - Return unambiguous tab references, prevent stale element aliases, support common ARIA menu controls, bound reference screenshots, validate browser references and pagination, serialize shared daemon state, release remote object handles, revalidate the requested control immediately before a native click, keep linked CLI entries executable, and expose the complete reference workflow in launcher help.
+  - Focus and verify the identity of referenced editable fields without first dispatching a potentially consequential click.
+  - Keep the Agents custom tool self-contained and remove the superseded Herdr Agent example.
+  - Let the Skills custom tool load one or more routed references directly by name.
+  - Preserve explicit `models.json` endpoints when installing the custom Codex transport and Daybreak model catalog.
+  - Keep package changelogs disabled with the Codex extension in Pi config.
+  - Keep LAN voice certificate startup compatible with asynchronous certificate generation.
+  - Release queued realtime delegations when native compaction fails, is aborted, or any post-compaction step errors.
+  - Defer queued Pi follow-up context until that follow-up begins its realtime handoff.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
@@ -84,30 +99,26 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.63
+### @howaboua/pi-extensions — 0.0.64
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-gpt-switcher: Add configurable session context windows and reasoning defaults for GPT shortcuts.
+  - @howaboua/pi-gippity-control: Keep GipPity voice responsive across typed Pi turns and active speech. Speak one meaningful progress update, serialize final results, preserve interruptions, defer queued follow-up context until its Pi turn begins, resume dropped calls through the dedicated recovery owner, keep LAN certificate startup compatible with asynchronous generation, and keep package changelogs disabled with the extension in Pi config.
+  - @howaboua/pi-auto-reasoning-tool: Remove retired bundled extension.
+  - @howaboua/pi-markdown-workflows: Remove retired bundled extension.
 
-- Updated dependencies [[`a9143cf`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/a9143cfeb802406c2e62b4424e27b69da141b7ae)]:
-  - @howaboua/pi-gpt-switcher@0.1.1
+- Updated dependencies [[`35182d9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/35182d9a002daded7610cca64c47b25bed3267df)]:
+  - @howaboua/pi-gippity-control@0.0.14
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
-### @howaboua/pi-gippity-control — 0.0.13
+### @howaboua/pi-gippity-control — 0.0.14
 
 ### Changes
 
-- [#304](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/304) [`4b4e42f`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/4b4e42f7659e42854ec81cb502bf69a48422d9eb) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Run Pi Pet as a first-class GipPity companion.
-
-  - Meet Clawa through the browser, voice, desktop dictation, a transparent desktop window, or the headless pet-state feed.
-  - Import compatible Codex and ChatGPT pets or author new pets through free-form `/pet` requests.
-  - Keep authored pets and generated displays in durable Pi agent storage, with optional per-repository pet selection.
-  - Attach the local device directly or remote devices through Pi-owned SSH sessions, with each folder remembering where its sessions appear.
-  - Get exact install and reload guidance when GipPity Control is missing or outdated.
+- [#342](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/342) [`35182d9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/35182d9a002daded7610cca64c47b25bed3267df) Thanks [@howaclawa](https://github.com/howaclawa)! - Keep GipPity voice responsive across typed Pi turns and active speech. Speak one meaningful progress update, serialize final results, preserve interruptions, defer queued follow-up context until its Pi turn begins, resume dropped calls through the dedicated recovery owner, keep LAN certificate startup compatible with asynchronous generation, and keep package changelogs disabled with the extension in Pi config.
 
 [Full changelog](./packages/pi-gippity-control/CHANGELOG.md)
 
@@ -165,14 +176,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-shepherdr/CHANGELOG.md)
 
-### @howaboua/pi-skill-chrome-cdp — 0.0.4
+### @howaboua/pi-skill-chrome-cdp — 0.0.5
 
 ### Changes
 
-- [#126](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/126) [`8983df4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8983df436423fdc2933863611285946dd0319cf5) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
-  - Make skill descriptions terse semantic indexes.
-  - Remove redundant purpose or job restatements.
-  - Distinguish operational from creative body language where applicable.
+- [#342](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/342) [`35182d9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/35182d9a002daded7610cca64c47b25bed3267df) Thanks [@howaclawa](https://github.com/howaclawa)! - Give Chrome CDP agents bounded snapshots and screenshots with non-aliasing reusable element references, broader ARIA control support, targeted search, serialized daemon commands, released remote object handles, revalidated native clicks, identity-safe referenced-field input, Shadow DOM support, actionable timeout recovery, and reliable linked CLI execution.
 
 [Full changelog](./packages/pi-skill-chrome-cdp/CHANGELOG.md)
 
@@ -208,30 +216,16 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-skill-omarchy-help/CHANGELOG.md)
 
-### @howaboua/pi-skills — 0.0.17
+### @howaboua/pi-skills — 0.0.18
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-skill-code: Publish rebuilt portable skills in category packages.
-  - @howaboua/pi-skill-foundations: Publish rebuilt portable skills in category packages.
-  - @howaboua/pi-skill-harness-and-agent-engineering: Publish rebuilt portable skills in category packages.
-  - @howaboua/pi-skill-adversarial-qa: Remove retired bundled skill.
-  - @howaboua/pi-skill-agent-native-hardening: Remove retired bundled skill.
-  - @howaboua/pi-skill-agents-md: Remove retired bundled skill.
-  - @howaboua/pi-skill-anti-ai-copy: Remove retired bundled skill.
-  - @howaboua/pi-skill-codex-prompt-caching: Remove retired bundled skill.
-  - @howaboua/pi-skill-gh-issue-pr-flow: Remove retired bundled skill.
-  - @howaboua/pi-skill-gh-stack: Remove retired bundled skill.
-  - @howaboua/pi-skill-model-facing-api-design: Remove retired bundled skill.
-  - @howaboua/pi-skill-project-reference-research: Remove retired bundled skill.
-  - @howaboua/pi-skill-skill-creator: Remove retired bundled skill.
+  - @howaboua/pi-skill-chrome-cdp: Give Chrome CDP agents bounded snapshots and screenshots with non-aliasing reusable element references, broader ARIA control support, targeted search, serialized daemon commands, released remote object handles, revalidated native clicks, identity-safe referenced-field input, Shadow DOM support, actionable timeout recovery, and reliable linked CLI execution.
 
-- Updated dependencies [[`ee0220c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ee0220cdc44cd732dff9caf0c913e098ed14404f)]:
-  - @howaboua/pi-skill-code@0.0.1
-  - @howaboua/pi-skill-foundations@0.0.1
-  - @howaboua/pi-skill-harness-and-agent-engineering@0.0.1
+- Updated dependencies [[`35182d9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/35182d9a002daded7610cca64c47b25bed3267df)]:
+  - @howaboua/pi-skill-chrome-cdp@0.0.5
 
 [Full changelog](./packages/pi-skills/CHANGELOG.md)
 
@@ -246,30 +240,20 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.69
+### @howaboua/pi-stuff — 0.0.70
 
 ### Changes
 
 - Include bundled package updates:
 
-  - @howaboua/pi-skill-code: Publish rebuilt portable skills in category packages.
-  - @howaboua/pi-skill-foundations: Publish rebuilt portable skills in category packages.
-  - @howaboua/pi-skill-harness-and-agent-engineering: Publish rebuilt portable skills in category packages.
-  - @howaboua/pi-skill-adversarial-qa: Remove retired bundled skill.
-  - @howaboua/pi-skill-agent-native-hardening: Remove retired bundled skill.
-  - @howaboua/pi-skill-agents-md: Remove retired bundled skill.
-  - @howaboua/pi-skill-anti-ai-copy: Remove retired bundled skill.
-  - @howaboua/pi-skill-codex-prompt-caching: Remove retired bundled skill.
-  - @howaboua/pi-skill-gh-issue-pr-flow: Remove retired bundled skill.
-  - @howaboua/pi-skill-gh-stack: Remove retired bundled skill.
-  - @howaboua/pi-skill-model-facing-api-design: Remove retired bundled skill.
-  - @howaboua/pi-skill-project-reference-research: Remove retired bundled skill.
-  - @howaboua/pi-skill-skill-creator: Remove retired bundled skill.
+  - @howaboua/pi-gippity-control: Keep GipPity voice responsive across typed Pi turns and active speech. Speak one meaningful progress update, serialize final results, preserve interruptions, defer queued follow-up context until its Pi turn begins, resume dropped calls through the dedicated recovery owner, keep LAN certificate startup compatible with asynchronous generation, and keep package changelogs disabled with the extension in Pi config.
+  - @howaboua/pi-auto-reasoning-tool: Remove retired bundled extension.
+  - @howaboua/pi-markdown-workflows: Remove retired bundled extension.
+  - @howaboua/pi-skill-chrome-cdp: Give Chrome CDP agents bounded snapshots and screenshots with non-aliasing reusable element references, broader ARIA control support, targeted search, serialized daemon commands, released remote object handles, revalidated native clicks, identity-safe referenced-field input, Shadow DOM support, actionable timeout recovery, and reliable linked CLI execution.
 
-- Updated dependencies [[`ee0220c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ee0220cdc44cd732dff9caf0c913e098ed14404f)]:
-  - @howaboua/pi-skill-code@0.0.1
-  - @howaboua/pi-skill-foundations@0.0.1
-  - @howaboua/pi-skill-harness-and-agent-engineering@0.0.1
+- Updated dependencies [[`35182d9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/35182d9a002daded7610cca64c47b25bed3267df), [`35182d9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/35182d9a002daded7610cca64c47b25bed3267df)]:
+  - @howaboua/pi-gippity-control@0.0.14
+  - @howaboua/pi-skill-chrome-cdp@0.0.5
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 

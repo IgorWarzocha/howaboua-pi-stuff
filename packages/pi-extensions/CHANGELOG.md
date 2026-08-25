@@ -1,5 +1,18 @@
 # @howaboua/pi-extensions
 
+## 0.0.64
+
+### Changes
+
+- Include bundled package updates:
+
+  - @howaboua/pi-gippity-control: Keep GipPity voice responsive across typed Pi turns and active speech. Speak one meaningful progress update, serialize final results, preserve interruptions, defer queued follow-up context until its Pi turn begins, resume dropped calls through the dedicated recovery owner, keep LAN certificate startup compatible with asynchronous generation, and keep package changelogs disabled with the extension in Pi config.
+  - @howaboua/pi-auto-reasoning-tool: Remove retired bundled extension.
+  - @howaboua/pi-markdown-workflows: Remove retired bundled extension.
+
+- Updated dependencies [[`35182d9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/35182d9a002daded7610cca64c47b25bed3267df)]:
+  - @howaboua/pi-gippity-control@0.0.14
+
 ## 0.0.63
 
 ### Changes
