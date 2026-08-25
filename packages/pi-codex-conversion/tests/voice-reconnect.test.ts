@@ -35,10 +35,21 @@ test("realtime forwards final speech before reporting established drops", async 
 		"instructions",
 	);
 	active.session.piInput("Typed request", "steer");
-	active.session.agentProgress("First useful update");
+	active.session.streamAgentDelta(
+		"First useful sentence. Second useful sentence.",
+	);
+	active.session.agentProgress(
+		"First useful sentence. Second useful sentence.",
+	);
+	active.session.agentProgress("Completed reasoning summary");
 	active.session.agentResult("Finished result");
-	assert.deepEqual(active.peer.sentText().slice(-2), [
-		["session.context.append", "speakable", "First useful update"],
+	assert.deepEqual(active.peer.sentText().slice(-3), [
+		[
+			"session.context.append",
+			"speakable",
+			"First useful sentence. Second useful sentence.",
+		],
+		["session.context.append", "speakable", "Completed reasoning summary"],
 		["session.context.append", "speakable", "Finished result"],
 	]);
 	active.peer.emit({

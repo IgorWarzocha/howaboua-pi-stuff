@@ -179,6 +179,11 @@ export function registerCodexEvents(
 			runtime.lanVoice.assistantMessage(event.message);
 		}
 	});
+	pi.on("message_update", async (event) => {
+		const update = event.assistantMessageEvent;
+		if (update.type === "text_delta" && typeof update.delta === "string")
+			runtime.voice.streamDelta(update.delta);
+	});
 	pi.on("tool_execution_start", async (event) => {
 		if (event.toolName !== "exec_command") {
 			tracker.resetExplorationGroup();

@@ -35,8 +35,13 @@ test("realtime forwards final speech before reporting established drops", async 
 		"instructions",
 	);
 	active.session.piInput("Typed request", "steer");
-	active.session.agentProgress("First useful update");
-	active.session.agentProgress("Routine follow-on update");
+	active.session.streamAgentDelta(
+		"First useful sentence. Second useful sentence.",
+	);
+	active.session.agentProgress(
+		"First useful sentence. Second useful sentence.",
+	);
+	active.session.agentProgress("Completed reasoning summary");
 	active.session.agentResult("Finished result");
 	assert.deepEqual(active.peer.sentText(), [
 		[
@@ -44,8 +49,12 @@ test("realtime forwards final speech before reporting established drops", async 
 			"commentary",
 			"<pi_steer>\n  <input>Typed request</input>\n  <routing>already delivered to the active Pi run; update context, do not delegate it, and wait for authoritative Pi updates</routing>\n</pi_steer>",
 		],
-		["session.context.append", "speakable", "First useful update"],
-		["session.context.append", "commentary", "Routine follow-on update"],
+		[
+			"session.context.append",
+			"speakable",
+			"First useful sentence. Second useful sentence.",
+		],
+		["session.context.append", "speakable", "Completed reasoning summary"],
 		["session.context.append", "speakable", "Finished result"],
 	]);
 	active.peer.emit({

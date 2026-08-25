@@ -1,4 +1,5 @@
 - Own V3 call setup, realtime wire parsing, turn tracking, and delegation handoff framing here.
 - `turn.done` closes backend output; never wait for it before appending final speakable context.
+- Stream Pi progress through session speakable context so successive updates extend live speech; reserve delegation context for an unstreamed final result.
 - Keep Pi session mutation and custom-card queueing outside this subtree; emit typed turns and callbacks.
 - VAD and conversational interruption belong here. Never copy them into manual dictation.

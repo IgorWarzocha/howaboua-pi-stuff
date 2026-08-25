@@ -181,6 +181,10 @@ export class CodexRealtimeConversation {
 		this.inputMuted = muted;
 	}
 
+	streamAgentDelta(delta: string): void {
+		this.handoff.stream(delta);
+	}
+
 	agentProgress(content: string): void {
 		this.handoff.progress(content);
 	}
