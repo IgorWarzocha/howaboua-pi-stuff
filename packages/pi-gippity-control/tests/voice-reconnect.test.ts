@@ -18,7 +18,7 @@ const AUTH: CodexVoiceAuth = {
 	officialCodex: false,
 };
 
-test("active realtime speech stays ordered until a resumable drop", async () => {
+test("realtime forwards final speech before reporting established drops", async () => {
 	const startup = createConversation("closed");
 	await startup.session.start(
 		AUTH,
@@ -34,7 +34,7 @@ test("active realtime speech stays ordered until a resumable drop", async () => 
 		DEFAULT_GIPPITY_CONTROL_CONFIG,
 		"instructions",
 	);
-	active.session.piInput("Typed request", true);
+	active.session.piInput("Typed request", "steer");
 	active.session.agentProgress("First useful update");
 	active.session.agentProgress("Routine follow-on update");
 	active.session.agentResult("Finished result");
@@ -46,16 +46,15 @@ test("active realtime speech stays ordered until a resumable drop", async () => 
 		],
 		["session.context.append", "speakable", "First useful update"],
 		["session.context.append", "commentary", "Routine follow-on update"],
+		["session.context.append", "speakable", "Finished result"],
 	]);
 	active.peer.emit({
 		type: "data",
 		message: { type: "turn.done", turn: { role: "assistant" } },
 	});
-	assert.deepEqual(active.peer.sentText().at(-1), [
-		"session.context.append",
-		"speakable",
-		"Finished result",
-	]);
+	active.session.piInput("Silent request", "steer");
+	active.session.settleAgentTurn();
+	assert.equal(active.statuses.at(-1), "listening");
 	active.session.markEstablished();
 	active.peer.emit({
 		type: "error",
@@ -72,14 +71,16 @@ function createConversation(answerState: "ready" | "closed"): {
 	peer: FakeRealtimePeer;
 	failures: string[];
 	drops: string[];
+	statuses: string[];
 } {
 	const failures: string[] = [];
 	const drops: string[] = [];
+	const statuses: string[] = [];
 	const peer = new FakeRealtimePeer(answerState);
 	const callbacks: CodexConversationCallbacks = {
 		onError: (error) => failures.push(error.message),
 		onDrop: (error) => drops.push(error.message),
-		onStatus: () => {},
+		onStatus: (status) => statuses.push(status),
 		onTurn: () => {},
 		onUserTranscript: () => {},
 		onTranscriptTail: () => {},
@@ -90,7 +91,7 @@ function createConversation(answerState: "ready" | "closed"): {
 			status: 201,
 			answer: "answer",
 		});
-	return { session, peer, failures, drops };
+	return { session, peer, failures, drops, statuses };
 }
 
 class FakeRealtimePeer implements CodexRealtimeWebRtcPeer {
