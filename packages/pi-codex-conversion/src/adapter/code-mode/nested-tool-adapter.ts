@@ -4,6 +4,7 @@ import type {
 	ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import type { TSchema } from "typebox";
+import { Check } from "typebox/value";
 import type {
 	ProgrammaticCodeModeToolDefinition,
 	CodeModeToolIdentity,
@@ -17,6 +18,10 @@ interface NestedToolLifecycle {
 
 interface NestedToolContract {
 	kind?: "function" | "freeform";
+	blocking?: boolean;
+	deferLoading?: boolean;
+	discoverWhenDeferred?: boolean;
+	translatePromptMetadata?: boolean;
 	toolName?: CodeModeToolIdentity;
 	yieldTimeMs?: number;
 	prepareInput?(input: unknown): unknown;
@@ -33,12 +38,55 @@ export function toNestedTool<TParams extends TSchema, TDetails, TState>(
 	const kind = contract.kind ?? "function";
 	const prepareInput = (input: unknown) =>
 		contract.prepareInput ? contract.prepareInput(input) : input;
+	const invoke = async (
+		input: unknown,
+		context: ToolExecutionContext,
+		signal: AbortSignal,
+	): Promise<unknown> => {
+		if (signal.aborted) throw new Error(`${tool.name} aborted`);
+		const extensionContext = requireExtensionContext(context);
+		const toolInput = prepareInput(input);
+		const prepared = tool.prepareArguments
+			? tool.prepareArguments(toolInput)
+			: toolInput;
+		if (!Check(tool.parameters, prepared))
+			throw new Error(`Invalid ${tool.name} arguments`);
+		if (signal.aborted) throw new Error(`${tool.name} aborted`);
+		const toolCallId = context.toolCallId ?? `code-mode-${tool.name}`;
+		lifecycle.start?.(toolCallId, prepared);
+		context.refreshTrace?.();
+		try {
+			const result = await tool.execute(
+				toolCallId,
+				prepared as never,
+				signal,
+				(update) => forwardUpdate(update, context),
+				extensionContext,
+			);
+			const resultError = contract.resultError?.(result);
+			if (resultError) throw new Error(resultError);
+			context.captureResult?.(result);
+			return contract.resultValue?.(result) ?? compactNestedResult(result);
+		} finally {
+			lifecycle.end?.(toolCallId);
+		}
+	};
 	return {
 		name: tool.name,
 		usage,
 		description: tool.description,
-		deferLoading: false,
+		...(contract.translatePromptMetadata && tool.promptSnippet
+			? { promptSnippet: tool.promptSnippet }
+			: {}),
+		...(contract.translatePromptMetadata && tool.promptGuidelines?.length
+			? { promptGuidelines: tool.promptGuidelines }
+			: {}),
+		deferLoading: contract.deferLoading ?? false,
 		kind,
+		...(contract.blocking ? { blocking: true } : {}),
+		...(contract.discoverWhenDeferred ? { discoverWhenDeferred: true } : {}),
+		...(contract.translatePromptMetadata ? { translatePromptMetadata: true } : {}),
+		...(tool.executionMode ? { executionMode: tool.executionMode } : {}),
 		...(contract.toolName ? { toolName: contract.toolName } : {}),
 		...(contract.yieldTimeMs === undefined ? {} : { yieldTimeMs: contract.yieldTimeMs }),
 		...(kind === "function" ? { inputSchema: tool.parameters } : {}),
@@ -59,33 +107,7 @@ export function toNestedTool<TParams extends TSchema, TDetails, TState>(
 						),
 				}
 			: {}),
-		async invoke(input, context, signal) {
-			if (signal.aborted) throw new Error(`${tool.name} aborted`);
-			const extensionContext = requireExtensionContext(context);
-			const toolInput = prepareInput(input);
-			const prepared = tool.prepareArguments
-				? tool.prepareArguments(toolInput)
-				: toolInput;
-			if (signal.aborted) throw new Error(`${tool.name} aborted`);
-			const toolCallId = context.toolCallId ?? `code-mode-${tool.name}`;
-			lifecycle.start?.(toolCallId, prepared);
-			context.refreshTrace?.();
-			try {
-				const result = await tool.execute(
-					toolCallId,
-					prepared as never,
-					signal,
-					(update) => forwardUpdate(update, context),
-					extensionContext,
-				);
-				const resultError = contract.resultError?.(result);
-				if (resultError) throw new Error(resultError);
-				context.captureResult?.(result);
-				return contract.resultValue?.(result) ?? compactNestedResult(result);
-			} finally {
-				lifecycle.end?.(toolCallId);
-			}
-		},
+		invoke,
 	};
 }
 

@@ -14,6 +14,8 @@ Try it for one session:
 pi -e npm:@howaboua/pi-ask
 ```
 
+When [Pi Codex](https://www.npmjs.com/package/@howaboua/pi-codex-conversion) is installed too, `ask` is available inside Code and Notebook Mode as `await tools.ask({ prompts, handoff? })`.
+
 ## How it behaves
 
 The agent can present several independently decidable prompts in one tabbed panel. Each prompt supports a short title, supporting evidence, one or more choices, free text, and an optional comment. Review findings become one prompt each, so you can fix, defer, or reject them without translating a wall of prose back into instructions.

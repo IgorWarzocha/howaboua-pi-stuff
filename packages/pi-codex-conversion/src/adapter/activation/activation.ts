@@ -1,6 +1,7 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { AdapterState } from "./state.ts";
-import { ALL_CODEX_ADAPTER_TOOL_NAMES, isAdapterRuntime, resolveCodexRuntimePlanForState, type CodexRuntimePlan } from "./runtime-plan.ts";
+import { getCodeModeExtensionTools } from "../../code-mode-extension-tools.ts";
+import { ALL_CODEX_ADAPTER_TOOL_NAMES, isAdapterRuntime, isCodeModeRuntime, resolveCodexRuntimePlanForState, type CodexRuntimePlan } from "./runtime-plan.ts";
 import { DEFAULT_TOOL_NAMES, STATUS_KEY, buildExtraToolsOnlyStatusText } from "./tool-set.ts";
 import { renderCodexStatus } from "../../ui/status.ts";
 
@@ -26,7 +27,14 @@ function enableExtraTools(pi: ExtensionAPI, ctx: ExtensionContext, state: Adapte
 
 function enableAdapter(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState, plan: Extract<CodexRuntimePlan, { kind: "normal" | "code" | "notebook" }>): void {
 	const owned = state.enabled ? mergeToolNames(state.adapterOwnedToolNames ?? plan.ownedToolNames, plan.ownedToolNames) : plan.ownedToolNames;
-	const tools = mergeAdapterTools(pi.getActiveTools(), plan.toolNames, owned);
+	const nestedToolNames = isCodeModeRuntime(plan)
+		? new Set(getCodeModeExtensionTools(pi, ctx).map((tool) => tool.name))
+		: undefined;
+	const activeTools = plan.kind === "normal" && state.enabled
+		? restoreTools(state.previousToolNames ?? [], pi.getActiveTools(), owned)
+		: pi.getActiveTools();
+	const tools = mergeAdapterTools(activeTools, plan.toolNames, owned)
+		.filter((name) => !nestedToolNames?.has(name));
 	if (!state.enabled) {
 		state.previousToolNames = stripAdapterTools(pi.getActiveTools(), owned);
 		state.enabled = true;

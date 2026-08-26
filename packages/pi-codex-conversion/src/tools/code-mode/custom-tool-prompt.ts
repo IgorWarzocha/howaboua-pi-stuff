@@ -14,7 +14,8 @@ export const WAIT_DESCRIPTION =
 
 const BUNDLED_TOOLS_HEADING = "Tools available in exec:";
 const CUSTOM_TOOLS_HEADING = "Configured custom tools:";
-const DEFERRED_CUSTOM_TOOLS_GUIDANCE = "Deferred custom tools: find by name in ALL_TOOLS";
+const TOOL_GUIDANCE_HEADING = "Tool guidance:";
+const DEFERRED_TOOLS_GUIDANCE = "Deferred tools: find by name in ALL_TOOLS";
 const CUSTOM_TOOL_DOCUMENTATION_MARKER = "To create or edit a custom tool, read";
 const CUSTOM_TOOL_DOCUMENTATION_GUIDANCE = "Never read that file to discover or call tools";
 const CUSTOM_TOOLS_GUIDANCE =
@@ -26,14 +27,47 @@ function isConfiguredCustomTool(
 	return "command" in tool;
 }
 
-export function formatCodeModeToolHelp(tool: CodeModeToolMetadata): string {
+function isDeferredDiscoverableTool(tool: CodeModeToolDefinition): boolean {
+	return tool.deferLoading &&
+		(isConfiguredCustomTool(tool) || ("invoke" in tool && tool.discoverWhenDeferred === true));
+}
+
+export function formatCodeModeToolHelp(tool: CodeModeToolDefinition): string {
 	return [
 		`Usage: ${tool.usage}`,
 		tool.description,
+		tool.promptSnippet,
+		...(tool.promptGuidelines ?? []),
+		"inputSchema" in tool && tool.inputSchema ? `Schema: ${formatSchema(tool.inputSchema)}` : undefined,
 		tool.output ? `Output: ${tool.output}` : undefined,
 	]
 		.filter(Boolean)
 		.join("\n");
+}
+
+function formatSchema(schema: unknown): string {
+	try {
+		return JSON.stringify(schema);
+	} catch {
+		return "[unavailable schema]";
+	}
+}
+
+function translatedPromptLines(tool: CodeModeToolDefinition): string[] {
+	if (!("invoke" in tool) || tool.translatePromptMetadata !== true) return [];
+	return [
+		tool.description ? `- ${tool.name}: ${tool.description}` : undefined,
+		tool.promptSnippet ? `- ${tool.name}: ${tool.promptSnippet}` : undefined,
+		...(tool.promptGuidelines ?? []).map((guideline) => `- ${guideline}`),
+		tool.inputSchema ? `- ${tool.name} schema: ${formatSchema(tool.inputSchema)}` : undefined,
+	].filter((line): line is string => Boolean(line));
+}
+
+function buildGuidanceSection(tools: CodeModeToolDefinition[]): string {
+	const lines = tools
+		.filter((tool) => !tool.deferLoading)
+		.flatMap(translatedPromptLines);
+	return lines.length ? `${TOOL_GUIDANCE_HEADING}\n${lines.join("\n")}` : "";
 }
 
 function buildUsageSection(
@@ -61,11 +95,14 @@ export function buildCodeModeToolsPrompt(
 		existingPrompt.includes(BUNDLED_TOOLS_HEADING)
 			? undefined
 			: buildUsageSection(BUNDLED_TOOLS_HEADING, bundled),
-		existingPrompt.includes(CUSTOM_TOOLS_HEADING)
+		 existingPrompt.includes(CUSTOM_TOOLS_HEADING)
 			? undefined
 			: buildUsageSection(CUSTOM_TOOLS_HEADING, promotedCustom),
-		custom.some((tool) => tool.deferLoading) && !existingPrompt.includes(DEFERRED_CUSTOM_TOOLS_GUIDANCE)
-			? DEFERRED_CUSTOM_TOOLS_GUIDANCE
+		existingPrompt.includes(TOOL_GUIDANCE_HEADING)
+			? undefined
+			: buildGuidanceSection(tools),
+		tools.some(isDeferredDiscoverableTool) && !existingPrompt.includes(DEFERRED_TOOLS_GUIDANCE)
+			? DEFERRED_TOOLS_GUIDANCE
 			: undefined,
 		documentationPath && !existingPrompt.includes(CUSTOM_TOOL_DOCUMENTATION_MARKER)
 			? `${CUSTOM_TOOL_DOCUMENTATION_MARKER} ${documentationPath}; do not read Pi docs\n${CUSTOM_TOOL_DOCUMENTATION_GUIDANCE}`

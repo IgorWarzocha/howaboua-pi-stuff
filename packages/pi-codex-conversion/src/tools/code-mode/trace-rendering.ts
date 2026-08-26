@@ -61,6 +61,7 @@ function renderTrace(
 		cwd: context?.cwd,
 		expanded: options.expanded,
 		isError: trace.status === "error",
+		isBlocked: trace.status === "blocked",
 		args: trace.input,
 		invalidate: context?.invalidate,
 	};
@@ -78,7 +79,7 @@ function renderTrace(
 		try {
 			components.push(programmatic.renderResult(
 				renderedTrace.result,
-				{ expanded: options.expanded, isPartial: trace.status === "running" },
+				{ expanded: options.expanded, isPartial: trace.status === "running" || trace.status === "blocked" },
 				theme,
 				renderContext,
 			));
@@ -111,7 +112,7 @@ function renderGenericTraceCall(
 	theme: CodeModeRenderTheme,
 	expanded: boolean,
 ): Text {
-	const verb = trace.status === "running" ? "Running" : trace.status === "error" ? "Failed" : "Ran";
+	const verb = trace.status === "running" ? "Running" : trace.status === "blocked" ? "Blocked" : trace.status === "error" ? "Failed" : "Ran";
 	let text = `${theme.fg("dim", "•")} ${theme.bold(`${verb} ${trace.name}`)}`;
 	if (expanded) {
 		const input = typeof trace.input === "string" ? trace.input : safeRenderString(trace.input);

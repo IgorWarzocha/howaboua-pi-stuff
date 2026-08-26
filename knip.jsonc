@@ -8,6 +8,7 @@
 			"ignoreExportsUsedInFile": true,
 			"entry": [
 				"src/index.ts",
+				"src/code-mode.ts",
 				"src/code-mode-preflight.ts",
 				"src/realtime-voice.ts",
 				"scripts/**/*.mjs",

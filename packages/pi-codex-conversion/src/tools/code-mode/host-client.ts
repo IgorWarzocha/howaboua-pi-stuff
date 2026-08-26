@@ -104,8 +104,9 @@ export class CodeModeHostClient {
 				abort();
 				throw abortError();
 			}
+			const response = this.delegation.attach(parseRuntimeResponse(await initial));
 			return {
-				...this.delegation.attach(parseRuntimeResponse(await initial)),
+				...(await this.waitForBlockers(response, context, effectiveYieldTimeMs, signal)),
 				maxOutputTokens: maxOutputTokens ?? 10_000,
 			};
 		} catch (error) {
@@ -116,13 +117,32 @@ export class CodeModeHostClient {
 		}
 	}
 
+	private async waitForBlockers(
+		response: RuntimeResponse,
+		context: ToolExecutionContext,
+		yieldTimeMs: number,
+		signal?: AbortSignal,
+	): Promise<RuntimeResponse> {
+		let current = response;
+		while (current.kind === "yielded" && this.delegation.isBlocked(current.cellId)) {
+			await this.delegation.waitUntilUnblocked(current.cellId, signal);
+			current = await this.cells.wait(current.cellId, yieldTimeMs, context, signal);
+		}
+		return current;
+	}
+
 	async wait(
 		cellId: string,
 		yieldTimeMs: number,
 		context: ToolExecutionContext,
 		signal?: AbortSignal,
 	): Promise<RuntimeResponse> {
-		return this.cells.wait(cellId, yieldTimeMs, context, signal);
+		return this.waitForBlockers(
+			await this.cells.wait(cellId, yieldTimeMs, context, signal),
+			context,
+			yieldTimeMs,
+			signal,
+		);
 	}
 
 	async terminate(

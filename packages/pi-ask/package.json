@@ -45,11 +45,18 @@
 		]
 	},
 	"peerDependencies": {
+		"@howaboua/pi-codex-conversion": ">=3.0.24",
 		"@earendil-works/pi-coding-agent": ">=0.84.3",
 		"@earendil-works/pi-tui": ">=0.84.3",
 		"typebox": "*"
 	},
+	"peerDependenciesMeta": {
+		"@howaboua/pi-codex-conversion": {
+			"optional": true
+		}
+	},
 	"devDependencies": {
+		"@howaboua/pi-codex-conversion": "3.0.23",
 		"@biomejs/biome": "^2.5.10",
 		"@earendil-works/pi-coding-agent": "0.84.3",
 		"@earendil-works/pi-tui": "0.84.3",

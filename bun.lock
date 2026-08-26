@@ -37,14 +37,19 @@
         "@biomejs/biome": "^2.5.10",
         "@earendil-works/pi-coding-agent": "0.84.3",
         "@earendil-works/pi-tui": "0.84.3",
+        "@howaboua/pi-codex-conversion": "3.0.23",
         "typebox": "1.3.18",
         "typescript": "^7.0.2",
       },
       "peerDependencies": {
         "@earendil-works/pi-coding-agent": ">=0.84.3",
         "@earendil-works/pi-tui": ">=0.84.3",
+        "@howaboua/pi-codex-conversion": ">=3.0.24",
         "typebox": "*",
       },
+      "optionalPeers": [
+        "@howaboua/pi-codex-conversion",
+      ],
     },
     "packages/pi-auto-trees": {
       "name": "@howaboua/pi-auto-trees",
@@ -74,7 +79,7 @@
     },
     "packages/pi-codex-conversion": {
       "name": "@howaboua/pi-codex-conversion",
-      "version": "3.0.22",
+      "version": "3.0.23",
       "dependencies": {
         "js-tiktoken": "^1.0.21",
         "openai": "7.5.0",

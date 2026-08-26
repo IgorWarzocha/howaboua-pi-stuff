@@ -23,6 +23,8 @@ export class NotebookCell {
 	private cursor = 0;
 	private completedValue = false;
 	private yielded = deferred();
+	private blockersChanged = deferred();
+	private readonly blockers = new Set<string>();
 	private readonly completed = deferred();
 
 	constructor(options: {
@@ -39,16 +41,26 @@ export class NotebookCell {
 
 	async observe(yieldTimeMs: number, signal?: AbortSignal): Promise<"result" | "yielded"> {
 		signal?.throwIfAborted();
-		if (!this.result) {
+		while (!this.result) {
+			const blockersChanged = this.blockersChanged.promise;
+			const blocked = this.blockers.size > 0;
 			await Promise.race([
 				this.completed.promise,
-				this.yielded.promise,
-				abortableDelay(yieldTimeMs, signal),
+				blockersChanged,
+				...(blocked
+					? [waitForAbort(signal)]
+					: [this.yielded.promise, abortableDelay(yieldTimeMs, signal)]),
 			]);
+			if (this.result) return "result";
+			if (this.blockersChanged.promise !== blockersChanged) continue;
+			if (this.blockers.size > 0) {
+				this.yielded = deferred();
+				continue;
+			}
+			this.yielded = deferred();
+			return "yielded";
 		}
-		if (this.result) return "result";
-		this.yielded = deferred();
-		return "yielded";
+		return "result";
 	}
 
 	markCompleted(): void {
@@ -66,6 +78,15 @@ export class NotebookCell {
 
 	requestYield(): void {
 		this.yielded.resolve();
+	}
+
+	setBlocked(blockerId: string, active: boolean): void {
+		const changed = active ? !this.blockers.has(blockerId) : this.blockers.delete(blockerId);
+		if (active) this.blockers.add(blockerId);
+		if (!changed) return;
+		if (active) this.yielded = deferred();
+		this.blockersChanged.resolve();
+		this.blockersChanged = deferred();
 	}
 
 	takeContent(): RuntimeContentItem[] {
@@ -127,5 +148,13 @@ function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
 			resolve();
 		}
 		signal?.addEventListener("abort", abort, { once: true });
+	});
+}
+
+function waitForAbort(signal?: AbortSignal): Promise<void> {
+	if (!signal) return new Promise(() => {});
+	if (signal.aborted) return Promise.reject(signal.reason ?? new Error("Operation aborted"));
+	return new Promise((_, reject) => {
+		signal.addEventListener("abort", () => reject(signal.reason ?? new Error("Operation aborted")), { once: true });
 	});
 }

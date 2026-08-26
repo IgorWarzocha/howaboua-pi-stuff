@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { syncAdapter } from "../src/adapter/activation/activation.ts";
 import { resolveCodexRuntimePlan } from "../src/adapter/activation/runtime-plan.ts";
+import { registerCodeModeExtensionTools } from "../src/code-mode-extension-tools.ts";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 
@@ -10,7 +11,19 @@ const CANONICAL_CODEX_BASE_URL = "https://chatgpt.com/backend-api";
 
 function createToolHarness(activeTools: string[]) {
 	const registeredTools = new Set(activeTools);
+	const handlers = new Map<string, Array<(value: unknown) => void>>();
 	return {
+		events: {
+			emit: (channel: string, value: unknown) => {
+				for (const handler of handlers.get(channel) ?? []) handler(value);
+			},
+			on: (channel: string, handler: (value: unknown) => void) => {
+				const entries = handlers.get(channel) ?? [];
+				entries.push(handler);
+				handlers.set(channel, entries);
+				return () => handlers.set(channel, entries.filter((entry) => entry !== handler));
+			},
+		},
 		getActiveTools: () => activeTools,
 		setActiveTools: (nextTools: string[]) => {
 			activeTools = nextTools;
@@ -63,7 +76,15 @@ test("Code Mode activation stays within its model, API, and provider scope", () 
 	];
 
 	for (const { model, configured, active } of cases) {
-		const pi = createToolHarness(["read", "bash", "edit", "write", "exec", "wait", "parallel"]);
+		const pi = createToolHarness(["read", "bash", "edit", "write", "exec", "wait", "parallel", "nested"]);
+		registerCodeModeExtensionTools(pi as never, () => [{
+			name: "nested",
+			usage: "await tools.nested()",
+			deferLoading: false,
+			kind: "function",
+			inputSchema: {},
+			async invoke() { return ""; },
+		}]);
 		const state = createAdapterState({
 			executionMode: "code",
 			openai: { ...DEFAULT_CODEX_CONVERSION_CONFIG.openai, proxyResponsesLite: true },
@@ -73,6 +94,12 @@ test("Code Mode activation stays within its model, API, and provider scope", () 
 
 		assert.equal(pi.activeTools().includes("exec"), active, JSON.stringify(model));
 		assert.equal(pi.activeTools().includes("wait"), active, JSON.stringify(model));
+		assert.equal(pi.activeTools().includes("nested"), !active, JSON.stringify(model));
+		if (active) {
+			state.executionMode = "normal";
+			syncAdapter(pi as never, createContext(model) as never, state);
+			assert.equal(pi.activeTools().includes("nested"), true, JSON.stringify(model));
+		}
 	}
 });
 

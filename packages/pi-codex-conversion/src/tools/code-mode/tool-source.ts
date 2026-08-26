@@ -6,8 +6,10 @@ export function scopeAllToolsToDeferredCustom(
 	tools: CodeModeToolDefinition[],
 ): string {
 	const names = tools
-		.filter(isCustomToolDefinition)
-		.filter((tool) => tool.deferLoading)
+		.filter((tool) =>
+			tool.deferLoading &&
+				(isCustomToolDefinition(tool) || ("invoke" in tool && tool.discoverWhenDeferred)),
+		)
 		.map((tool) => tool.name);
 	return `globalThis.ALL_TOOLS=globalThis.ALL_TOOLS.filter(({name})=>${JSON.stringify(names)}.includes(name));${source}`;
 }

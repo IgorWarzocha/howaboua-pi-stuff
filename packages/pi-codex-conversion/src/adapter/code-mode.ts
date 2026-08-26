@@ -1,5 +1,6 @@
 import { getAgentDir, type AgentToolResult, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { CodexExtensionRuntime } from "../extension/runtime.ts";
+import { getCodeModeExtensionTools } from "../code-mode-extension-tools.ts";
 import { formatRunningExecSessionGuidance } from "../tools/code-mode/tool-result.ts";
 import {
 	type CodeModeRegistration,
@@ -29,7 +30,13 @@ export async function registerCodexCodeMode(
 		isActive,
 	});
 	const programmaticRuntime = await registerCodeModeTools(pi, {
-		getTools: (ctx) => createNestedTools(runtime, ctx as ExtensionContext | undefined),
+		getTools: (ctx) => {
+			const context = ctx as ExtensionContext | undefined;
+			return [
+				...createNestedTools(runtime, context),
+				...getCodeModeExtensionTools(pi, context),
+			];
+		},
 		isActive,
 		executionKind: (ctx) =>
 			resolveCodexRuntimePlanForState(ctx as ExtensionContext, runtime.state).kind === "notebook"

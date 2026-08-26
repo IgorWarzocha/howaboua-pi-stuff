@@ -26,6 +26,14 @@ export class CodeModeHostDelegation {
 		this.runtime.updateCellContext(cellId, context);
 	}
 
+	isBlocked(cellId: string): boolean {
+		return this.runtime.isBlocked(cellId);
+	}
+
+	waitUntilUnblocked(cellId: string, signal?: AbortSignal): Promise<void> {
+		return this.runtime.waitUntilUnblocked(cellId, signal);
+	}
+
 	attach(response: RuntimeResponse): RuntimeResponse {
 		return this.runtime.attach(response);
 	}

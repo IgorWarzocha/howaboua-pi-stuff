@@ -122,7 +122,24 @@ const status = await tools.exec_command({ cmd: "git status --short" });
 text(status);
 ```
 
-Pi tools that genuinely need Pi's UI remain ordinary tools. `ask` is the obvious example; pretending an interactive questionnaire is a shell command would be daft.
+Pi tools that genuinely need Pi's UI can also appear inside Code and Notebook Mode. Install [`pi-ask`](../pi-ask) and `await tools.ask(...)` opens the same interactive panel from a cell.
+
+Extensions can adapt an existing Pi tool without rebuilding it for Code Mode:
+
+```ts
+import {
+	adaptToolForCodeMode,
+	registerCodeModeExtensionTools,
+} from "@howaboua/pi-codex-conversion/code-mode";
+
+const unregister = registerCodeModeExtensionTools(pi, () => [
+	adaptToolForCodeMode(tool, { usage: "await tools.example(input)" }),
+]);
+pi.on("session_shutdown", () => unregister());
+```
+
+The adapted tool runs through Pi with its ordinary context, UI, and result contract. Code Mode only owns the JavaScript call.
+Set `blocking: true` when the call must hold the agent turn until it settles. The default stays async, so long-running work yields to `wait` normally. Set `deferLoading: true` to omit the usage line and expose the tool through `ALL_TOOLS` instead.
 
 Custom tools are top-level TOML definitions plus a command that accepts one string. Put them in:
 
