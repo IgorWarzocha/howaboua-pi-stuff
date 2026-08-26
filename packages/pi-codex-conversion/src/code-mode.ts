@@ -18,6 +18,7 @@ export function adaptToolForCodeMode<
 	options: { usage: string; blocking?: boolean; deferLoading?: boolean },
 ): ProgrammaticCodeModeToolDefinition {
 	return toNestedTool(tool, options.usage, {}, {
+		modelVisibleResult: true,
 		translatePromptMetadata: true,
 		...(options.blocking ? { blocking: true } : {}),
 		...(options.deferLoading

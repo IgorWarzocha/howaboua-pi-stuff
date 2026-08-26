@@ -138,7 +138,8 @@ const unregister = registerCodeModeExtensionTools(pi, () => [
 pi.on("session_shutdown", () => unregister());
 ```
 
-The adapted tool runs through Pi with its ordinary context, UI, and result contract. Code Mode only owns the JavaScript call.
+The adapted definition keeps its Pi context, UI, schema and progress updates. JavaScript receives model-usable result content, while the tool's exact result remains available to its ordinary Pi renderer. Code Mode owns the JavaScript call and runs its own nested-tool preflight.
+Tool names that are not JavaScript identifiers receive the same translated name in Code and Notebook Mode, including prompt guidance and `ALL_TOOLS`.
 Set `blocking: true` when the call must hold the agent turn until it settles. The default stays async, so long-running work yields to `wait` normally. Set `deferLoading: true` to omit the usage line and expose the tool through `ALL_TOOLS` instead.
 
 Custom tools are top-level TOML definitions plus a command that accepts one string. Put them in:

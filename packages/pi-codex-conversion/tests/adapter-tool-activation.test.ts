@@ -101,6 +101,24 @@ test("Code Mode activation stays within its model, API, and provider scope", () 
 			assert.equal(pi.activeTools().includes("nested"), true, JSON.stringify(model));
 		}
 	}
+
+	const conflicting = createToolHarness(["read", "bash", "edit", "write"]);
+	registerCodeModeExtensionTools(conflicting as never, () => [{
+		name: "exec",
+		usage: "await tools.exec()",
+		deferLoading: false,
+		kind: "function",
+		inputSchema: {},
+		async invoke() { return ""; },
+	}]);
+	assert.throws(
+		() => syncAdapter(
+			conflicting as never,
+			createContext(cases[0]!.model) as never,
+			createAdapterState({ executionMode: "code" }),
+		),
+		/Reserved Code Mode extension tool name: exec/,
+	);
 });
 
 test("runtime plan keeps unsupported and non-Lite models on structured standard Responses", () => {

@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { formatCodeModeToolHelp } from "../src/tools/code-mode/custom-tool-prompt.ts";
 import { scopeAllToolsToDeferredCustom } from "../src/tools/code-mode/host-client.ts";
+import { codeModeGlobalName } from "../src/tools/code-mode/tool-identity.ts";
 import type {
 	CustomToolDefinition,
 	ProgrammaticCodeModeToolDefinition,
@@ -39,13 +41,14 @@ test("ALL_TOOLS exposes deferred configured and opted-in programmatic tools", ()
 	const deferred = customTool("deferred_tool", true);
 	const deferredProgrammatic = {
 		...bundled,
-		name: "deferred_programmatic_tool",
+		name: "deferred-programmatic-tool",
+		usage: 'await tools["deferred-programmatic-tool"]({ cmd })',
 		deferLoading: true,
 		discoverWhenDeferred: true,
 	};
 	const state = {
 		ALL_TOOLS: [bundled, promoted, deferred, deferredProgrammatic].map(({ name, description }) => ({
-			name,
+			name: codeModeGlobalName(name),
 			description,
 		})),
 	};
@@ -56,4 +59,23 @@ test("ALL_TOOLS exposes deferred configured and opted-in programmatic tools", ()
 		{ name: "deferred_tool", description: "deferred_tool help" },
 		{ name: "deferred_programmatic_tool", description: "Run command" },
 	]);
+	assert.match(
+		formatCodeModeToolHelp(deferredProgrammatic),
+		/^Usage: await tools\.deferred_programmatic_tool\(\{ cmd \}\)/,
+	);
+	const punctuationHelp = formatCodeModeToolHelp({
+			...deferredProgrammatic,
+			name: "foo-$$bar",
+			usage: 'await tools["foo-$$bar"]({ cmd })',
+			description: "Call tools.foo-$$bar, not tools.other",
+			promptSnippet: 'Inspect tools["foo-$$bar"]',
+			promptGuidelines: ["foo-$$bar: Await tools.foo-$$bar"],
+		});
+	assert.match(
+		punctuationHelp,
+		/^Usage: await tools\.foo_\$\$bar\(\{ cmd \}\)/,
+	);
+	assert.match(punctuationHelp, /Call tools\.foo_\$\$bar, not tools\.other/);
+	assert.match(punctuationHelp, /Inspect tools\.foo_\$\$bar/);
+	assert.match(punctuationHelp, /foo_\$\$bar: Await tools\.foo_\$\$bar/);
 });

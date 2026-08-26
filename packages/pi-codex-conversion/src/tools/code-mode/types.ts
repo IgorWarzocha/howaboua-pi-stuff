@@ -81,7 +81,13 @@ export interface CodeModeRenderTheme {
 export interface CodeModeNestedRenderContext {
 	toolCallId?: string | undefined;
 	cwd?: string | undefined;
+	lastComponent?: Component | undefined;
+	state?: Record<string, unknown> | undefined;
+	executionStarted?: boolean | undefined;
+	argsComplete?: boolean | undefined;
+	isPartial?: boolean | undefined;
 	expanded?: boolean | undefined;
+	showImages?: boolean | undefined;
 	isError?: boolean | undefined;
 	isBlocked?: boolean | undefined;
 	args?: unknown;

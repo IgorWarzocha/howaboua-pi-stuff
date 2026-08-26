@@ -18,6 +18,7 @@ import {
 	directToolYieldTime,
 	scopeAllToolsToDeferredCustom,
 } from "./tool-source.js";
+import type { CodeModeNestedRenderStore } from "./trace-render-state.js";
 import type {
 	CodeModeToolDefinition,
 	RuntimeResponse,
@@ -29,6 +30,7 @@ export { scopeAllToolsToDeferredCustom } from "./tool-source.js";
 type HostClientOptions = {
 	binary: string;
 	tools: CodeModeToolDefinition[];
+	renderStore?: CodeModeNestedRenderStore | undefined;
 	shutdownGraceMs?: number | undefined;
 };
 
@@ -41,8 +43,9 @@ export class CodeModeHostClient {
 	constructor(options: HostClientOptions) {
 		this.tools = new Map(options.tools.map((tool) => [tool.name, tool]));
 		let session: CodeModeHostSession;
-		this.delegation = new CodeModeHostDelegation((message) =>
-			session.send(message),
+		this.delegation = new CodeModeHostDelegation(
+			(message) => session.send(message),
+			options.renderStore,
 		);
 		session = new CodeModeHostSession({
 			binary: options.binary,

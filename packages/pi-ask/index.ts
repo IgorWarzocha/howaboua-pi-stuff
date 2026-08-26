@@ -10,6 +10,8 @@ export { createAskTool } from "./ask/tool.js";
 const PROMPTS_DIR = join(dirname(fileURLToPath(import.meta.url)), "prompts");
 const REALTIME_VOICE_PROMPT_CHANNEL =
 	"@howaboua/pi-codex-conversion/realtime-voice-prompt/v1";
+const CODE_MODE_PACKAGE = "@howaboua/pi-codex-conversion";
+const CODE_MODE_MODULE = `${CODE_MODE_PACKAGE}/code-mode`;
 
 export default async function humanInTheLoop(pi: ExtensionAPI): Promise<void> {
 	registerPackageChangelog(pi);
@@ -61,14 +63,18 @@ async function registerAskInCodeMode(
 }
 
 function isMissingCodeModeExtension(error: unknown): boolean {
-	return Boolean(
-		error &&
-			typeof error === "object" &&
-			"code" in error &&
-			(error.code === "ERR_MODULE_NOT_FOUND" ||
-				error.code === "MODULE_NOT_FOUND") &&
-			"message" in error &&
-			typeof error.message === "string" &&
-			error.message.includes("@howaboua/pi-codex-conversion"),
-	);
+	if (
+		!error ||
+		typeof error !== "object" ||
+		!("code" in error) ||
+		(error.code !== "ERR_MODULE_NOT_FOUND" &&
+			error.code !== "MODULE_NOT_FOUND") ||
+		!("message" in error) ||
+		typeof error.message !== "string"
+	)
+		return false;
+	const missing = error.message.match(
+		/Cannot find (?:package|module) ['"]([^'"]+)['"]/,
+	)?.[1];
+	return missing === CODE_MODE_PACKAGE || missing === CODE_MODE_MODULE;
 }

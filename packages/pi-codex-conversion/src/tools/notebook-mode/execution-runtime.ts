@@ -6,7 +6,12 @@ import {
 	parseExecSource,
 } from "../code-mode/host-protocol.ts";
 import { directToolYieldTime } from "../code-mode/tool-source.ts";
-import { codeModeNameForToolIdentity, resolveCodeModeToolIdentity } from "../code-mode/tool-identity.ts";
+import type { CodeModeNestedRenderStore } from "../code-mode/trace-render-state.ts";
+import {
+	codeModeGlobalName,
+	codeModeNameForToolIdentity,
+	resolveCodeModeToolIdentity,
+} from "../code-mode/tool-identity.ts";
 import type {
 	CodeModeToolIdentity,
 	CodeModeToolDefinition,
@@ -27,7 +32,7 @@ export class NotebookExecutionRuntime {
 	readonly bridge: NotebookBridgeServer;
 	private readonly session: () => NotebookSessionRuntime;
 	private readonly prepareSession: (context: ToolExecutionContext, signal?: AbortSignal) => Promise<void>;
-	private readonly delegate = new CodeModeDelegateRuntime(() => undefined);
+	private readonly delegate: CodeModeDelegateRuntime;
 	private readonly stopOperations = new WeakMap<NotebookCell, Promise<void>>();
 	private activeCell: NotebookCell | undefined;
 	private nextCellId = 1;
@@ -35,9 +40,11 @@ export class NotebookExecutionRuntime {
 	constructor(
 		session: () => NotebookSessionRuntime,
 		prepareSession: (context: ToolExecutionContext, signal?: AbortSignal) => Promise<void>,
+		renderStore?: CodeModeNestedRenderStore,
 	) {
 		this.session = session;
 		this.prepareSession = prepareSession;
+		this.delegate = new CodeModeDelegateRuntime(() => undefined, renderStore);
 		this.bridge = new NotebookBridgeServer({
 			callTool: (cellId, requestId, toolName, input) => this.callTool(cellId, requestId, toolName, input),
 			cancelTools: (cellId) => this.cancelTools(cellId),
@@ -97,8 +104,14 @@ export class NotebookExecutionRuntime {
 				tool.deferLoading &&
 					(isCustomToolDefinition(tool) || ("invoke" in tool && tool.discoverWhenDeferred)),
 			)
-			.map((tool) => ({ name: tool.name, description: formatCodeModeToolHelp(tool) }));
-		const toolNames = Object.fromEntries(tools.map((tool) => [tool.name, resolveCodeModeToolIdentity(tool)]));
+			.map((tool) => ({
+				name: codeModeGlobalName(tool.name),
+				description: formatCodeModeToolHelp(tool),
+			}));
+		const toolNames = Object.fromEntries(tools.map((tool) => [
+			codeModeGlobalName(tool.name),
+			resolveCodeModeToolIdentity(tool),
+		]));
 		const wrapped = [
 			`if (typeof globalThis.__piNotebook?.begin !== "function") throw new Error("Notebook runtime bootstrap unavailable: __piNotebook.begin");`,
 			`await globalThis.__piNotebook.begin(${JSON.stringify(id)}, ${JSON.stringify(metadata)}, ${JSON.stringify(toolNames)});`,

@@ -312,6 +312,7 @@ function createResultRenderer(
 			theme,
 			context,
 			tracker,
+			runtime.renderStore,
 			runtime.collectRenderTools(),
 			runtime.useRichRendering(),
 		);

@@ -2,6 +2,7 @@ import { runCustomTool } from "./custom-tool-runner.js";
 import { isCustomToolDefinition, type DelegateRequestMessage } from "./host-protocol.js";
 import { runCodeModeToolPreflight } from "./nested-tool-preflight.js";
 import { codeModeNameForToolIdentity } from "./tool-identity.ts";
+import { CodeModeNestedRenderStore } from "./trace-render-state.js";
 import { CodeModeTraceStore } from "./trace-store.js";
 import { toolResultFromValue, truncateTraceText } from "./trace-values.js";
 import type {
@@ -38,9 +39,14 @@ export class CodeModeDelegateRuntime {
 	private readonly traces = new CodeModeTraceStore();
 	private readonly cleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
 	private readonly send: SendMessage;
+	private readonly renderStore: CodeModeNestedRenderStore;
 
-	constructor(send: SendMessage) {
+	constructor(
+		send: SendMessage,
+		renderStore = new CodeModeNestedRenderStore(),
+	) {
 		this.send = send;
+		this.renderStore = renderStore;
 	}
 
 	bindCell(
@@ -223,48 +229,59 @@ export class CodeModeDelegateRuntime {
 		const context = this.cellContexts.get(cellId);
 		if (!tool) throw new Error(`Unknown custom tool: ${toolName}`);
 		if (!context) throw new Error("Code-mode cell context is unavailable");
+		const currentContext = () => this.cellContexts.get(cellId) ?? context;
+		const emitTrace = () => this.traces.emitUpdate(cellId, currentContext());
 		const trace = this.traces.start(
 			cellId,
 			`${this.traceRuntimeGeneration}:${cellId}:${traceId}`,
 			tool.name,
 			input,
 		);
+		const captureRendererValues =
+			!isCustomToolDefinition(tool) &&
+			Boolean(tool.renderCall || tool.renderResult);
+		let finalResultCaptured = false;
+		if (captureRendererValues)
+			this.renderStore.captureInput(trace.id, input);
 		const invocationContext: ToolExecutionContext = {
 			...context,
 			toolCallId: trace.id,
 			onUpdate: (update) => {
+				if (captureRendererValues)
+					this.renderStore.captureResult(trace.id, update);
 				trace.result = this.traces.captureResult(cellId, trace, update);
-				this.traces.emitUpdate(cellId, context);
+				emitTrace();
 			},
 			captureResult: (result) => {
+				finalResultCaptured = true;
+				if (captureRendererValues)
+					this.renderStore.captureResult(trace.id, result);
 				trace.result = this.traces.captureResult(cellId, trace, result);
-				this.traces.emitUpdate(cellId, context);
+				emitTrace();
 			},
-			refreshTrace: () => this.traces.emitUpdate(cellId, context),
+			refreshTrace: emitTrace,
 		};
 		const blocking = !isCustomToolDefinition(tool) && tool.blocking === true;
+		let blockerActive = false;
 		try {
+			if (blocking) {
+				blockerActive = true;
+				trace.status = "blocked";
+				this.setBlocked(cellId, trace.id, true);
+				emitTrace();
+			}
 			await runCodeModeToolPreflight(
 				tool.name,
 				input,
 				invocationContext,
 				controller.signal,
 			);
-			if (isCustomToolDefinition(tool)) this.traces.emitUpdate(cellId, context);
+			if (isCustomToolDefinition(tool)) emitTrace();
 			controller.signal.throwIfAborted();
 			const run = async (): Promise<unknown> => {
-				if (blocking) {
-					trace.status = "blocked";
-					this.setBlocked(cellId, trace.id, true, context);
-					this.traces.emitUpdate(cellId, context);
-				}
-				try {
-					return isCustomToolDefinition(tool)
-						? await runCustomTool(tool, input, invocationContext.cwd, controller.signal)
-						: await tool.invoke(input, invocationContext, controller.signal);
-				} finally {
-					if (blocking) this.setBlocked(cellId, trace.id, false, context);
-				}
+				return isCustomToolDefinition(tool)
+					? await runCustomTool(tool, input, invocationContext.cwd, controller.signal)
+					: await tool.invoke(input, invocationContext, controller.signal);
 			};
 			const result = !isCustomToolDefinition(tool) && tool.executionMode === "sequential"
 				? await this.invokeSequential(cellId, controller.signal, run)
@@ -272,16 +289,32 @@ export class CodeModeDelegateRuntime {
 			if (!trace.result)
 				trace.result = this.traces.captureResult(cellId, trace, toolResultFromValue(result));
 			trace.status = "done";
-			this.traces.emitUpdate(cellId, context);
+			emitTrace();
 			return result;
 		} catch (error) {
+			const errorText =
+				error instanceof Error ? error.message : String(error);
+			if (captureRendererValues && !finalResultCaptured) {
+				const errorResult = {
+					content: [{ type: "text" as const, text: errorText }],
+					details: {},
+				};
+				this.renderStore.captureResult(trace.id, errorResult);
+				trace.result = this.traces.captureResult(
+					cellId,
+					trace,
+					errorResult,
+				);
+			}
 			trace.status = "error";
 			trace.error = truncateTraceText(
-				error instanceof Error ? error.message : String(error),
+				errorText,
 				MAX_TRACE_ERROR_CHARS,
 			);
-			this.traces.emitUpdate(cellId, context);
+			emitTrace();
 			throw error;
+		} finally {
+			if (blockerActive) this.setBlocked(cellId, trace.id, false);
 		}
 	}
 
@@ -308,7 +341,6 @@ export class CodeModeDelegateRuntime {
 		cellId: string,
 		blockerId: string,
 		active: boolean,
-		context: ToolExecutionContext,
 	): void {
 		const blockers = this.blockers.get(cellId) ?? new Set<string>();
 		const changed = active ? !blockers.has(blockerId) : blockers.delete(blockerId);
@@ -316,7 +348,7 @@ export class CodeModeDelegateRuntime {
 		if (!changed) return;
 		if (blockers.size === 0) this.blockers.delete(cellId);
 		else this.blockers.set(cellId, blockers);
-		context.setBlocked?.(blockerId, active);
+		this.cellContexts.get(cellId)?.setBlocked?.(blockerId, active);
 		this.blockerChanges.get(cellId)?.resolve();
 		this.blockerChanges.set(cellId, deferred());
 	}

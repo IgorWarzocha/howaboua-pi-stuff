@@ -3,6 +3,12 @@ import type {
 	CodeModeToolMetadata,
 	CustomToolDefinition,
 } from "./types.js";
+import {
+	codeModeGlobalName,
+	translateCodeModeGuideline,
+	translateCodeModeToolReferences,
+	translateCodeModeUsage,
+} from "./tool-identity.ts";
 
 export const EXEC_DESCRIPTION = `Run JavaScript to compose tools; source only, no JSON or fences
 Runtime follows the selected mode: Code is fresh restricted JS with no console/imports/Node/browser APIs; Notebook is one persistent Deno TypeScript global environment shared by every exec call, with console, imports, npm, Deno, and Web APIs
@@ -34,10 +40,15 @@ function isDeferredDiscoverableTool(tool: CodeModeToolDefinition): boolean {
 
 export function formatCodeModeToolHelp(tool: CodeModeToolDefinition): string {
 	return [
-		`Usage: ${tool.usage}`,
-		tool.description,
-		tool.promptSnippet,
-		...(tool.promptGuidelines ?? []),
+		`Usage: ${translateCodeModeUsage(tool.usage, tool.name)}`,
+		tool.description
+			? translateCodeModeToolReferences(tool.description, tool.name)
+			: undefined,
+		tool.promptSnippet
+			? translateCodeModeToolReferences(tool.promptSnippet, tool.name)
+			: undefined,
+		...(tool.promptGuidelines ?? []).map((guideline) =>
+			translateCodeModeGuideline(guideline, tool.name)),
 		"inputSchema" in tool && tool.inputSchema ? `Schema: ${formatSchema(tool.inputSchema)}` : undefined,
 		tool.output ? `Output: ${tool.output}` : undefined,
 	]
@@ -55,11 +66,17 @@ function formatSchema(schema: unknown): string {
 
 function translatedPromptLines(tool: CodeModeToolDefinition): string[] {
 	if (!("invoke" in tool) || tool.translatePromptMetadata !== true) return [];
+	const name = codeModeGlobalName(tool.name);
 	return [
-		tool.description ? `- ${tool.name}: ${tool.description}` : undefined,
-		tool.promptSnippet ? `- ${tool.name}: ${tool.promptSnippet}` : undefined,
-		...(tool.promptGuidelines ?? []).map((guideline) => `- ${guideline}`),
-		tool.inputSchema ? `- ${tool.name} schema: ${formatSchema(tool.inputSchema)}` : undefined,
+		tool.description
+			? `- ${name}: ${translateCodeModeToolReferences(tool.description, tool.name)}`
+			: undefined,
+		tool.promptSnippet
+			? `- ${name}: ${translateCodeModeToolReferences(tool.promptSnippet, tool.name)}`
+			: undefined,
+		...(tool.promptGuidelines ?? []).map((guideline) =>
+			`- ${translateCodeModeGuideline(guideline, tool.name)}`),
+		tool.inputSchema ? `- ${name} schema: ${formatSchema(tool.inputSchema)}` : undefined,
 	].filter((line): line is string => Boolean(line));
 }
 
@@ -77,7 +94,7 @@ function buildUsageSection(
 	if (tools.length === 0) return "";
 	return `${heading}\n${[...tools]
 		.sort((left, right) => left.name.localeCompare(right.name))
-		.map((tool) => `- ${tool.usage}`)
+		.map((tool) => `- ${translateCodeModeUsage(tool.usage, tool.name)}`)
 		.join("\n")}`;
 }
 

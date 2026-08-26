@@ -44,13 +44,11 @@ export class NotebookCell {
 		while (!this.result) {
 			const blockersChanged = this.blockersChanged.promise;
 			const blocked = this.blockers.size > 0;
-			await Promise.race([
+			await waitForObservation([
 				this.completed.promise,
 				blockersChanged,
-				...(blocked
-					? [waitForAbort(signal)]
-					: [this.yielded.promise, abortableDelay(yieldTimeMs, signal)]),
-			]);
+				...(blocked ? [] : [this.yielded.promise]),
+			], blocked ? undefined : yieldTimeMs, signal);
 			if (this.result) return "result";
 			if (this.blockersChanged.promise !== blockersChanged) continue;
 			if (this.blockers.size > 0) {
@@ -134,27 +132,30 @@ function deferred(): Deferred {
 	return { promise, resolve };
 }
 
-function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
-	if (signal?.aborted) return Promise.reject(signal.reason ?? new Error("Operation aborted"));
+function waitForObservation(
+	promises: Promise<void>[],
+	timeoutMs: number | undefined,
+	signal?: AbortSignal,
+): Promise<void> {
+	if (signal?.aborted)
+		return Promise.reject(signal.reason ?? new Error("Operation aborted"));
 	return new Promise<void>((resolve, reject) => {
-		const timer = setTimeout(finish, Math.max(0, ms));
-		const abort = () => {
-			clearTimeout(timer);
+		let settled = false;
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		const abort = () =>
+			finish(signal?.reason ?? new Error("Operation aborted"));
+		const finish = (error?: unknown) => {
+			if (settled) return;
+			settled = true;
+			if (timer) clearTimeout(timer);
 			signal?.removeEventListener("abort", abort);
-			reject(signal?.reason ?? new Error("Operation aborted"));
+			if (error === undefined) resolve();
+			else reject(error);
 		};
-		function finish() {
-			signal?.removeEventListener("abort", abort);
-			resolve();
-		}
+		for (const promise of promises)
+			void promise.then(() => finish(), (error) => finish(error));
+		if (timeoutMs !== undefined)
+			timer = setTimeout(() => finish(), Math.max(0, timeoutMs));
 		signal?.addEventListener("abort", abort, { once: true });
-	});
-}
-
-function waitForAbort(signal?: AbortSignal): Promise<void> {
-	if (!signal) return new Promise(() => {});
-	if (signal.aborted) return Promise.reject(signal.reason ?? new Error("Operation aborted"));
-	return new Promise((_, reject) => {
-		signal.addEventListener("abort", () => reject(signal.reason ?? new Error("Operation aborted")), { once: true });
 	});
 }

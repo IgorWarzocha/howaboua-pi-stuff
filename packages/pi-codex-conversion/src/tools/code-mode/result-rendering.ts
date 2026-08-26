@@ -12,7 +12,10 @@ import {
 } from "./render-content.js";
 import type { CodeModeRenderTracker } from "./render-tracker.js";
 import { formatNotebookMemory } from "./tool-result.js";
-import { renderTraceAndOutput } from "./trace-rendering.js";
+import {
+	type CodeModeNestedRenderStore,
+	renderTraceAndOutput,
+} from "./trace-rendering.js";
 import type {
 	CodeModeRenderContext,
 	CodeModeRenderTheme,
@@ -37,6 +40,7 @@ export function renderTrackedCodeModeResult(
 	theme: CodeModeRenderTheme,
 	context: CodeModeRenderContext | undefined,
 	tracker: CodeModeRenderTracker,
+	renderStore: CodeModeNestedRenderStore,
 	tools: CodeModeToolDefinition[] = [],
 	richRendering = true,
 ): Component {
@@ -44,7 +48,15 @@ export function renderTrackedCodeModeResult(
 		const details = asDetails(result.details);
 		tracker.finish(context.toolCallId, details.status === "yielded" ? "yielded" : "done");
 	}
-	return renderCodeModeResult(result, options, theme, context, tools, richRendering);
+	return renderCodeModeResult(
+		result,
+		options,
+		theme,
+		context,
+		tools,
+		renderStore,
+		richRendering,
+	);
 }
 
 function renderCodeModeResult(
@@ -53,6 +65,7 @@ function renderCodeModeResult(
 	theme: CodeModeRenderTheme,
 	context: CodeModeRenderContext | undefined,
 	tools: CodeModeToolDefinition[],
+	renderStore: CodeModeNestedRenderStore,
 	richRendering: boolean,
 ): Component {
 	const details = asDetails(result.details);
@@ -99,6 +112,7 @@ function renderCodeModeResult(
 		theme,
 		context,
 		emittedImages,
+		renderStore,
 	);
 	if (!details.notebookMemory || !notebookMemoryText) return body;
 	const container = new Container();
