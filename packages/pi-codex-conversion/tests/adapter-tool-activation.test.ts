@@ -3,7 +3,11 @@ import assert from "node:assert/strict";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { syncAdapter } from "../src/adapter/activation/activation.ts";
 import { resolveCodexRuntimePlan } from "../src/adapter/activation/runtime-plan.ts";
-import { registerCodeModeExtensionTools } from "../src/code-mode-extension-tools.ts";
+import {
+	getCodeModeExtensionTools,
+	onCodeModeExtensionToolsRefresh,
+	registerCodeModeExtensionTools,
+} from "../src/code-mode-extension-tools.ts";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 
@@ -102,23 +106,105 @@ test("Code Mode activation stays within its model, API, and provider scope", () 
 		}
 	}
 
+	const dynamic = createToolHarness([
+		"read",
+		"bash",
+		"edit",
+		"write",
+		"herdr_agents",
+	]);
+	let masterActive = false;
+	let refreshes = 0;
+	const stopRefreshListener = onCodeModeExtensionToolsRefresh(
+		dynamic as never,
+		() => refreshes++,
+	);
+	const registration = registerCodeModeExtensionTools(
+		dynamic as never,
+		() => [{
+			name: "herdr_agents",
+			usage: "await tools.herdr_agents(input)",
+			deferLoading: false,
+			kind: "function",
+			inputSchema: {},
+			async invoke() { return ""; },
+		}],
+		{ isActive: () => masterActive },
+	);
+	assert.equal(refreshes, 1);
+	registration.refresh();
+	assert.equal(refreshes, 2);
+	const dynamicState = createAdapterState({ executionMode: "code" });
+	const dynamicModel = cases[0]?.model;
+	assert.ok(dynamicModel);
+	const dynamicContext = createContext(dynamicModel);
+	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
+	assert.equal(dynamic.activeTools().includes("herdr_agents"), false);
+	assert.deepEqual(getCodeModeExtensionTools(dynamic as never, dynamicContext as never), []);
+
+	masterActive = true;
+	assert.deepEqual(getCodeModeExtensionTools(dynamic as never, dynamicContext as never), []);
+	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
+	assert.equal(dynamic.activeTools().includes("herdr_agents"), false);
+	assert.deepEqual(
+		getCodeModeExtensionTools(dynamic as never, dynamicContext as never).map(
+			(tool) => tool.name,
+		),
+		["herdr_agents"],
+	);
+
+	masterActive = false;
+	assert.equal(
+		getCodeModeExtensionTools(dynamic as never, dynamicContext as never).length,
+		1,
+	);
+	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
+	assert.deepEqual(getCodeModeExtensionTools(dynamic as never, dynamicContext as never), []);
+
+	masterActive = true;
+	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
+	dynamicState.executionMode = "normal";
+	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
+	assert.equal(dynamic.activeTools().includes("herdr_agents"), true);
+	dynamicState.executionMode = "code";
+	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
+	assert.equal(dynamic.activeTools().includes("herdr_agents"), false);
+	registration.unregister();
+	assert.equal(refreshes, 3);
+	registration.unregister();
+	assert.equal(refreshes, 3);
+	stopRefreshListener();
+	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
+	assert.equal(dynamic.activeTools().includes("herdr_agents"), true);
+
 	const conflicting = createToolHarness(["read", "bash", "edit", "write"]);
-	registerCodeModeExtensionTools(conflicting as never, () => [{
-		name: "exec",
-		usage: "await tools.exec()",
-		deferLoading: false,
-		kind: "function",
-		inputSchema: {},
-		async invoke() { return ""; },
-	}]);
-	assert.throws(
+	const conflictingState = createAdapterState({ executionMode: "code" });
+	const conflictingContext = createContext(dynamicModel);
+	const stopConflictingRefresh = onCodeModeExtensionToolsRefresh(
+		conflicting as never,
 		() => syncAdapter(
 			conflicting as never,
-			createContext(cases[0]!.model) as never,
-			createAdapterState({ executionMode: "code" }),
+			conflictingContext as never,
+			conflictingState,
 		),
+	);
+	assert.throws(
+		() => registerCodeModeExtensionTools(conflicting as never, () => [{
+			name: "exec",
+			usage: "await tools.exec()",
+			deferLoading: false,
+			kind: "function",
+			inputSchema: {},
+			async invoke() { return ""; },
+		}]),
 		/Reserved Code Mode extension tool name: exec/,
 	);
+	stopConflictingRefresh();
+	assert.doesNotThrow(() => syncAdapter(
+		conflicting as never,
+		conflictingContext as never,
+		conflictingState,
+	));
 });
 
 test("runtime plan keeps unsupported and non-Lite models on structured standard Responses", () => {

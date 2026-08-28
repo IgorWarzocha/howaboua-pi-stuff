@@ -3,10 +3,14 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { TSchema } from "typebox";
 import { toNestedTool } from "./adapter/code-mode/nested-tool-adapter.ts";
+
 export {
-	registerCodeModeExtensionTools,
 	type CodeModeExtensionToolProvider,
+	type CodeModeExtensionToolRegistration,
+	type CodeModeExtensionToolRegistrationOptions,
+	registerCodeModeExtensionTools,
 } from "./code-mode-extension-tools.ts";
+
 import type { ProgrammaticCodeModeToolDefinition } from "./tools/code-mode/types.ts";
 
 export function adaptToolForCodeMode<

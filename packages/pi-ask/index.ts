@@ -48,14 +48,14 @@ async function registerAskInCodeMode(
 	try {
 		const { adaptToolForCodeMode, registerCodeModeExtensionTools } =
 			await import("@howaboua/pi-codex-conversion/code-mode");
-		const unregister = registerCodeModeExtensionTools(pi, () => [
+		const registration = registerCodeModeExtensionTools(pi, () => [
 			adaptToolForCodeMode(ask, {
 				blocking: true,
 				usage:
 					"await tools.ask({ prompts: [{ title, body?, multiple?, choices?: [{ label, description? }] }], handoff? })",
 			}),
 		]);
-		pi.on("session_shutdown", () => unregister());
+		pi.on("session_shutdown", () => registration.unregister());
 	} catch (error) {
 		if (isMissingCodeModeExtension(error)) return;
 		throw error;

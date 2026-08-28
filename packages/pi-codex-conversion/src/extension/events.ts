@@ -8,6 +8,7 @@ import { handleCodexSessionBeforeCompact } from "../adapter/compaction/compactio
 import { rewriteCodexProviderHeaders, rewriteCodexProviderRequest } from "../adapter/provider-request.ts";
 import { isProviderContextExcludedMessage } from "../adapter/prompt/context-filter.ts";
 import { hasNoSkillsFlag } from "../adapter/prompt/skills.ts";
+import { onCodeModeExtensionToolsRefresh } from "../code-mode-extension-tools.ts";
 import { extractPiPromptSkills, resolvePromptSkills } from "../prompt/build-system-prompt.ts";
 import type { CodeModeProxyProviderRegistration } from "../providers/code-mode-proxy-provider.ts";
 import { maybeWarnLocalCheckoutVersion } from "../adapter/local-version-warning.ts";
@@ -64,6 +65,20 @@ export function registerCodexEvents(
 	proxyProvider: CodeModeProxyProviderRegistration,
 ): void {
 	const { state, tracker, sessions } = runtime;
+	let activeContext: ExtensionContext | undefined;
+	let pendingExtensionToolRefresh = false;
+	const unregisterExtensionToolRefresh = onCodeModeExtensionToolsRefresh(
+		pi,
+		() => {
+			if (!activeContext) return;
+			if (!activeContext.isIdle()) {
+				pendingExtensionToolRefresh = true;
+				return;
+			}
+			pendingExtensionToolRefresh = false;
+			syncAdapter(pi, activeContext, state);
+		},
+	);
 	pi.events.on(REALTIME_VOICE_PROMPT_CHANNEL, (value) => {
 		const report = parseRealtimeVoicePrompt(value);
 		if (report) runtime.voice.setPrompt(report);
@@ -72,6 +87,8 @@ export function registerCodexEvents(
 	sessions.onSessionExit((sessionId) => tracker.recordSessionFinished(sessionId));
 
 	pi.on("session_start", async (event, ctx) => {
+		activeContext = ctx;
+		pendingExtensionToolRefresh = false;
 		ui.invalidateUsageStatus();
 		await runtime.lanVoice.stop(ctx);
 		runtime.voice.resetContextAnnouncements();
@@ -113,6 +130,8 @@ export function registerCodexEvents(
 	});
 
 	pi.on("model_select", async (_event, ctx) => {
+		activeContext = ctx;
+		pendingExtensionToolRefresh = false;
 		ui.invalidateUsageStatus();
 		runtime.resetTransport(ctx.sessionManager.getSessionId());
 		state.cwd = ctx.cwd;
@@ -137,6 +156,8 @@ export function registerCodexEvents(
 			void runtime.startPrewarm(ctx, codeMode.refreshPromptTools(ctx.getSystemPrompt(), ctx));
 	});
 	pi.on("session_tree", async (_event, ctx) => {
+		activeContext = ctx;
+		pendingExtensionToolRefresh = false;
 		const previousMode = state.executionMode;
 		state.activeProviderSystemPrompt = undefined;
 		state.voiceSystemPromptOverride = undefined;
@@ -184,6 +205,9 @@ export function registerCodexEvents(
 
 	pi.on("session_shutdown", async (_event, ctx) => {
 		const failures: unknown[] = [];
+		activeContext = undefined;
+		pendingExtensionToolRefresh = false;
+		await runShutdownStep(failures, unregisterExtensionToolRefresh);
 		await runShutdownStep(failures, () => ui.invalidateBackgroundWidget());
 		await runShutdownStep(failures, () => runtime.lanVoice.stop(ctx));
 		await runShutdownStep(failures, () => runtime.voice.stop({ announce: true }));
@@ -195,8 +219,13 @@ export function registerCodexEvents(
 		if (failures.length === 1) throw failures[0];
 		if (failures.length > 1) throw new AggregateError(failures, "Codex extension shutdown failed");
 	});
-	pi.on("input", async (event) => {
-		if (event.streamingBehavior === undefined) state.codexTurnState.beginTurn();
+	pi.on("input", async (event, ctx) => {
+		if (event.streamingBehavior === undefined) {
+			activeContext = ctx;
+			pendingExtensionToolRefresh = false;
+			state.codexTurnState.beginTurn();
+			syncAdapter(pi, ctx, state);
+		}
 		if (event.source !== "extension")
 			runtime.voice.piInput(event.text, event.streamingBehavior);
 	});
@@ -223,6 +252,10 @@ export function registerCodexEvents(
 		runtime.lanVoice.agentStarted();
 	});
 	pi.on("agent_settled", async (_event, ctx) => {
+		if (pendingExtensionToolRefresh) {
+			pendingExtensionToolRefresh = false;
+			syncAdapter(pi, ctx, state);
+		}
 		state.pendingActiveProviderPromptCapture = false;
 		state.voiceSystemPromptOverride = undefined;
 		state.codexTurnState.reset();
