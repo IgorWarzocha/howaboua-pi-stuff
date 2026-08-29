@@ -21,6 +21,7 @@ import { getActiveToolsInActiveOrder } from "../active-tools.ts";
 import { resolveCanonicalCompactionPromptInput } from "../../providers/openai-codex/session-continuity.ts";
 import { extractAccountId, resolveCodexWebSocketUrl } from "../../providers/openai-codex/headers.ts";
 import type { CodexCompactionDiagnostic } from "./diagnostics.ts";
+import { prepareResponsesLiteConversationInput } from "../../providers/openai-codex/responses-lite.ts";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === "object" && !Array.isArray(value);
@@ -172,6 +173,24 @@ export function buildNativeCompactionInput(args: {
 	};
 }
 
+export async function resolveCanonicalCompactionReplay(args: {
+	codeMode: boolean;
+	sessionId: string;
+	model: string;
+	identity?: { url: string; accountId: string } | undefined;
+	reconstructedInput: readonly ResponsesInputItem[];
+}) {
+	const reconstructedInput = args.codeMode
+		? await prepareResponsesLiteConversationInput(args.reconstructedInput)
+		: args.reconstructedInput;
+	return resolveCanonicalCompactionPromptInput(
+		args.sessionId,
+		args.model,
+		args.identity,
+		reconstructedInput,
+	);
+}
+
 export async function handleCodexSessionBeforeCompact(event: SessionBeforeCompactEvent, ctx: ExtensionContext, state: AdapterState, pi: ExtensionAPI) {
 	if (!resolveCodexRuntimePlanForState(ctx, state).nativeCompaction) {
 		return undefined;
@@ -231,10 +250,16 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 		return { cancel: true };
 	}
 	const canonicalReplay = runtime.codexTransport && runtime.apiKey
-		? resolveCanonicalCompactionPromptInput(ctx.sessionManager.getSessionId(), runtime.model, {
-			url: resolveCodexWebSocketUrl(runtime.baseUrl),
-			accountId: extractAccountId(runtime.apiKey),
-		}, builtInput.input)
+		? await resolveCanonicalCompactionReplay({
+			codeMode,
+			sessionId: ctx.sessionManager.getSessionId(),
+			model: runtime.model,
+			identity: {
+				url: resolveCodexWebSocketUrl(runtime.baseUrl),
+				accountId: extractAccountId(runtime.apiKey),
+			},
+			reconstructedInput: builtInput.input,
+		})
 		: { decision: "not_applicable" as const };
 	const validatedCanonicalInput = canonicalReplay.input?.every(isRecord)
 		? canonicalReplay.input as ResponsesInputItem[]
