@@ -4,7 +4,11 @@ export type SettledAgentStatus = Exclude<AgentStatus, "working">;
 
 export type StableAgentActivity =
 	| { readonly phase: "settled"; readonly status: SettledAgentStatus }
-	| { readonly phase: "working"; readonly task?: string };
+	| {
+			readonly attemptId?: string;
+			readonly phase: "working";
+			readonly task?: string;
+	  };
 
 export type AgentActivity =
 	| StableAgentActivity
@@ -81,6 +85,22 @@ export interface LatestAssistant {
 	id: string;
 	stopReason?: string;
 	text: string;
+}
+
+export interface PendingAsk {
+	handoff: boolean;
+	prompts: Array<{
+		body?: string;
+		choices: Array<{ description?: string; label: string }>;
+		multiple: boolean;
+		title: string;
+	}>;
+	toolCallId: string;
+}
+
+export interface SessionView {
+	ask?: PendingAsk;
+	assistant?: LatestAssistant;
 }
 
 export interface HerdrEvent {

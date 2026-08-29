@@ -19,12 +19,19 @@ export function adaptToolForCodeMode<
 	TState,
 >(
 	tool: ToolDefinition<TParams, TDetails, TState>,
-	options: { usage: string; blocking?: boolean; deferLoading?: boolean },
+	options: {
+		usage: string;
+		blocking?: boolean | ((input: unknown) => boolean);
+		deferLoading?: boolean;
+	},
 ): ProgrammaticCodeModeToolDefinition {
 	return toNestedTool(tool, options.usage, {}, {
 		modelVisibleResult: true,
 		translatePromptMetadata: true,
-		...(options.blocking ? { blocking: true } : {}),
+		...(options.blocking === true ? { blocking: true } : {}),
+		...(typeof options.blocking === "function"
+			? { isBlocking: options.blocking }
+			: {}),
 		...(options.deferLoading
 			? { deferLoading: true, discoverWhenDeferred: true }
 			: {}),

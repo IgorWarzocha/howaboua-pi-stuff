@@ -11,7 +11,10 @@ import {
 } from "./machines-config.js";
 import { enableMasterDirectory, isMasterDirectory } from "./master-config.js";
 
-const TOOL_NAME = "herdr_agents";
+interface MasterModeOptions {
+	onActiveChange?(): void;
+	toolName?: string;
+}
 
 function parseSshArguments(value: string): string[] {
 	const parts: string[] = [];
@@ -58,7 +61,16 @@ function parseSshArguments(value: string): string[] {
 	return [...parts, "--", target];
 }
 
-export function registerMasterMode(pi: ExtensionAPI, fleet: AgentFleet): void {
+export function registerMasterMode(
+	pi: ExtensionAPI,
+	fleet: AgentFleet,
+	options: MasterModeOptions = {},
+): void {
+	const toolName = options.toolName ?? "herdr_agents";
+	const setActive = (active: boolean) => {
+		setToolActive(pi, toolName, active);
+		options.onActiveChange?.();
+	};
 	pi.registerCommand("herdr", {
 		description: "Manage Herdr master mode and machines",
 		getArgumentCompletions: (prefix) =>
@@ -69,7 +81,7 @@ export function registerMasterMode(pi: ExtensionAPI, fleet: AgentFleet): void {
 			const [rawAction = "", target] = args.trim().split(/\s+/, 2);
 			const action = rawAction.toLowerCase();
 			if (!action) {
-				await showHerdrMenu(pi, fleet, ctx);
+				await showHerdrMenu(fleet, ctx, setActive);
 				return;
 			}
 			if (action === "connect") {
@@ -94,7 +106,7 @@ export function registerMasterMode(pi: ExtensionAPI, fleet: AgentFleet): void {
 				);
 				return;
 			}
-			if (!(await activateMaster(pi, fleet, ctx))) return;
+			if (!(await activateMaster(fleet, ctx, setActive))) return;
 			if (action === "master") {
 				ctx.ui.notify("Herdr master enabled for this Pi session", "info");
 				return;
@@ -123,10 +135,10 @@ export function registerMasterMode(pi: ExtensionAPI, fleet: AgentFleet): void {
 			);
 		}
 		if (!master) {
-			setToolActive(pi, false);
+			setActive(false);
 			return;
 		}
-		await activateMaster(pi, fleet, ctx);
+		await activateMaster(fleet, ctx, setActive);
 	});
 
 	pi.on("session_shutdown", async () => {
@@ -135,9 +147,9 @@ export function registerMasterMode(pi: ExtensionAPI, fleet: AgentFleet): void {
 }
 
 async function showHerdrMenu(
-	pi: ExtensionAPI,
 	fleet: AgentFleet,
 	ctx: ExtensionContext,
+	setActive: (active: boolean) => void,
 ): Promise<void> {
 	const config = await readMachinesConfig().catch((error) => {
 		ctx.ui.notify(
@@ -167,12 +179,13 @@ async function showHerdrMenu(
 	]);
 	if (!selected) return;
 	if (selected === "Enable master for this session") {
-		if (await activateMaster(pi, fleet, ctx))
+		if (await activateMaster(fleet, ctx, setActive))
 			ctx.ui.notify("Herdr master enabled for this Pi session", "info");
 		return;
 	}
 	if (selected === "Enable master in this folder") {
-		if (!fleet.isActive() && !(await activateMaster(pi, fleet, ctx))) return;
+		if (!fleet.isActive() && !(await activateMaster(fleet, ctx, setActive)))
+			return;
 		try {
 			const path = await enableMasterDirectory(ctx.cwd);
 			ctx.ui.notify(`Herdr master enabled in ${path}`, "info");
@@ -196,7 +209,8 @@ async function showHerdrMenu(
 		"Remove",
 	]);
 	if (action === "Connect") {
-		if (!fleet.isActive() && !(await activateMaster(pi, fleet, ctx))) return;
+		if (!fleet.isActive() && !(await activateMaster(fleet, ctx, setActive)))
+			return;
 		ctx.ui.notify(fleet.connect(name), "info");
 	} else if (action === "Remove") {
 		const confirmed = await ctx.ui.confirm(
@@ -258,22 +272,23 @@ async function addMachine(
 }
 
 async function activateMaster(
-	pi: ExtensionAPI,
 	fleet: AgentFleet,
 	ctx: ExtensionContext,
+	setActive: (active: boolean) => void,
 ): Promise<boolean> {
 	if (process.env["HERDR_ENV"] !== "1" || !process.env["HERDR_SOCKET_PATH"]) {
-		setToolActive(pi, false);
+		setActive(false);
 		ctx.ui.notify("Herdr master mode requires Pi to run inside Herdr", "error");
 		return false;
 	}
 	try {
-		setToolActive(pi, true);
+		setActive(true);
 		await fleet.activate(ctx);
+		setActive(true);
 		return true;
 	} catch (error) {
-		setToolActive(pi, false);
 		fleet.deactivate();
+		setActive(false);
 		ctx.ui.notify(
 			`Herdr master could not start: ${error instanceof Error ? error.message : String(error)}`,
 			"error",
@@ -282,10 +297,14 @@ async function activateMaster(
 	}
 }
 
-function setToolActive(pi: ExtensionAPI, active: boolean): void {
+function setToolActive(
+	pi: ExtensionAPI,
+	toolName: string,
+	active: boolean,
+): void {
 	const current = pi.getActiveTools();
-	const withoutTool = current.filter((name) => name !== TOOL_NAME);
-	const next = active ? [...withoutTool, TOOL_NAME] : withoutTool;
+	const withoutTool = current.filter((name) => name !== toolName);
+	const next = active ? [...withoutTool, toolName] : withoutTool;
 	if (
 		next.length !== current.length ||
 		next.some((name, index) => name !== current[index])

@@ -33,6 +33,7 @@ interface AgentEventLabels {
 
 interface AgentEventOptions {
 	agent: PaneInfo;
+	agentToolName: string;
 	blockedMessage?: string;
 	labels: AgentEventLabels;
 	machine: string;
@@ -123,19 +124,21 @@ function operatorCommand(operatorPrefix: string, command: string): string {
 }
 
 function blockedOperatorHint(
+	agentToolName: string,
 	machine: string,
 	operatorPrefix: string,
 	paneId: string,
 ): string {
-	return `Inspect first with ${operatorCommand(operatorPrefix, `agent read ${paneId} --source visible`)}; respond through herdr_agents with machine=${JSON.stringify(machine)}, or use ${operatorCommand(operatorPrefix, `agent send-keys ${paneId} <keys>`)} for interactive controls.`;
+	return `Inspect first with ${operatorCommand(operatorPrefix, `agent read ${paneId} --source visible`)}; respond through ${agentToolName} with machine=${JSON.stringify(machine)}, or use ${operatorCommand(operatorPrefix, `agent send-keys ${paneId} <keys>`)} for interactive controls.`;
 }
 
 function failedOperatorHint(
+	agentToolName: string,
 	machine: string,
 	operatorPrefix: string,
 	paneId: string,
 ): string {
-	return `Inspect with ${operatorCommand(operatorPrefix, `agent read ${paneId} --source recent-unwrapped --lines 80`)} and assess the failure. If this task has not already been retried and one simple corrective prompt could recover it, try once through herdr_agents with machine=${JSON.stringify(machine)}. If it fails again or the setup looks broken, stop retrying and tell the user.`;
+	return `Inspect with ${operatorCommand(operatorPrefix, `agent read ${paneId} --source recent-unwrapped --lines 80`)} and assess the failure. If this task has not already been retried and one simple corrective prompt could recover it, try once through ${agentToolName} with machine=${JSON.stringify(machine)}. If it fails again or the setup looks broken, stop retrying and tell the user.`;
 }
 
 function eventDetails(value: unknown): AgentEventDetails | undefined {
@@ -176,6 +179,7 @@ function agentEvent(options: AgentEventOptions): {
 } {
 	const {
 		agent,
+		agentToolName,
 		blockedMessage,
 		labels,
 		machine,
@@ -208,12 +212,12 @@ function agentEvent(options: AgentEventOptions): {
 	}
 	if (blocked) {
 		lines.push(
-			`<operator_hint>${xml(blockedOperatorHint(machine, operatorPrefix, agent.pane_id))}</operator_hint>`,
+			`<operator_hint>${xml(blockedOperatorHint(agentToolName, machine, operatorPrefix, agent.pane_id))}</operator_hint>`,
 		);
 	}
 	if (failed) {
 		lines.push(
-			`<operator_hint>${xml(failedOperatorHint(machine, operatorPrefix, agent.pane_id))}</operator_hint>`,
+			`<operator_hint>${xml(failedOperatorHint(agentToolName, machine, operatorPrefix, agent.pane_id))}</operator_hint>`,
 		);
 	}
 	if (reply) lines.push(`<response>${xml(reply.text)}</response>`);

@@ -28,9 +28,16 @@ function stableActivity(value: unknown): StableAgentActivity | undefined {
 	}
 	if (activity["phase"] !== "working") return undefined;
 	const task = optionalString(activity, "task");
+	const attemptId = optionalString(activity, "attemptId");
 	return task === false
 		? undefined
-		: { phase: "working", ...(task ? { task } : {}) };
+		: attemptId === false
+			? undefined
+			: {
+					phase: "working",
+					...(attemptId ? { attemptId } : {}),
+					...(task ? { task } : {}),
+				};
 }
 
 function parsedActivity(value: unknown): AgentActivity | undefined {

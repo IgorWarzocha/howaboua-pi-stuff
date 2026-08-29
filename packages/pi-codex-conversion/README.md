@@ -143,7 +143,7 @@ pi.on("session_shutdown", () => registration.unregister());
 
 The adapted definition keeps its Pi context, UI, schema and progress updates. JavaScript receives model-usable result content, while the tool's exact result remains available to its ordinary Pi renderer. Code Mode owns the JavaScript call and runs its own nested-tool preflight.
 Tool names that are not JavaScript identifiers receive the same translated name in Code and Notebook Mode, including prompt guidance and `ALL_TOOLS`.
-Set `blocking: true` when the call must hold the agent turn until it settles. The default stays async, so long-running work yields to `wait` normally. Set `deferLoading: true` to omit the usage line and expose the tool through `ALL_TOOLS` instead.
+Set `blocking: true` when every call must hold the agent turn until it settles, or pass `blocking: input => boolean` when the choice depends on the invocation. The default allows long-running work to yield to `wait` normally. Set `deferLoading: true` to omit the usage line and expose the tool through `ALL_TOOLS` instead.
 Use the optional `isActive` gate when an extension exposes its tool only in a session mode. Keep returning the tool definition from the provider and call `registration.refresh()` when the mode changes. Code Mode also resamples gates at normal session and input boundaries, then keeps its prompt, nested registry and outer tool filtering fixed through that run.
 
 Custom tools are top-level TOML definitions plus a command that accepts one string. Put them in:

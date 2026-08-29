@@ -48,6 +48,20 @@ export type DirectoryResolver = (
 	fallback: string,
 ) => Promise<string>;
 
+export function resolveStartDirectory(
+	params: StartAgentParams,
+	fallbackCwd: string,
+	resolveDirectory: DirectoryResolver = directory,
+): Promise<string> {
+	return params.placement === "pane"
+		? Promise.resolve(fallbackCwd)
+		: resolveDirectory(params.cwd, fallbackCwd);
+}
+
+interface StartAgentOptions {
+	agentArgs?: string[];
+}
+
 async function createStartPane(
 	client: HerdrConnection,
 	params: StartAgentParams,
@@ -165,7 +179,8 @@ export async function startAgent(
 	params: StartAgentParams,
 	fallbackCwd: string,
 	resolveDirectory: DirectoryResolver = directory,
-): Promise<{ id: string }> {
+	options: StartAgentOptions = {},
+): Promise<{ agent: PaneInfo; id: string }> {
 	const name = required(params.name, "name");
 	if (!AGENT_NAME.test(name)) {
 		throw new Error("name must match [a-z][a-z0-9_-]{0,31}");
@@ -176,10 +191,11 @@ export async function startAgent(
 			"cwd cannot change an existing pane; prepare the pane through Herdr",
 		);
 	}
-	const cwd =
-		params.placement === "pane"
-			? fallbackCwd
-			: await resolveDirectory(params.cwd, fallbackCwd);
+	const cwd = await resolveStartDirectory(
+		params,
+		fallbackCwd,
+		resolveDirectory,
+	);
 	const created = await createStartPane(client, params, cwd, label);
 	let agent: PaneInfo;
 	try {
@@ -187,7 +203,7 @@ export async function startAgent(
 			name,
 			kind: "pi",
 			pane_id: created.paneId,
-			args: ["--name", label],
+			args: ["--name", label, ...(options.agentArgs ?? [])],
 			timeout_ms: 30_000,
 		});
 	} catch (error) {
@@ -213,6 +229,7 @@ export async function startAgent(
 		}
 	}
 	return {
+		agent,
 		id: agent.pane_id,
 	};
 }

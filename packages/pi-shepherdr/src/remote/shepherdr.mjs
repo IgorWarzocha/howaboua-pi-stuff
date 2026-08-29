@@ -1,14 +1,14 @@
 // @howaboua/pi-shepherdr managed bridge
-import { open, stat } from "node:fs/promises";
+import { open, readFile, stat } from "node:fs/promises";
 import { createConnection } from "node:net";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
-const BRIDGE_VERSION = 1;
+const BRIDGE_VERSION = 2;
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const READ_CHUNK_BYTES = 64 * 1024;
 const subscriptions = new Map();
-const assistantCache = new Map();
+const sessionCache = new Map();
 
 function argument(name) {
 	const index = process.argv.indexOf(`--${name}`);
@@ -212,10 +212,8 @@ function subscribe(id, requested) {
 	});
 }
 
-function assistantFromEntry(entry) {
-	const message = entry.message;
-	if (!message || typeof message !== "object" || message.role !== "assistant")
-		return undefined;
+function assistantFromMessage(id, message) {
+	if (message.role !== "assistant") return undefined;
 	const text = [];
 	if (typeof message.content === "string") text.push(message.content);
 	else if (Array.isArray(message.content)) {
@@ -234,31 +232,100 @@ function assistantFromEntry(entry) {
 		typeof message.stopReason === "string" ? message.stopReason : undefined;
 	if (!joined && stopReason !== "error") return undefined;
 	return {
-		id: entry.id,
+		id,
 		text: joined,
 		...(stopReason ? { stopReason } : {}),
 	};
 }
 
-async function latestAssistant(path, size) {
+function askChoice(value) {
+	if (!value || typeof value !== "object" || typeof value.label !== "string")
+		return undefined;
+	return {
+		label: value.label,
+		...(typeof value.description === "string"
+			? { description: value.description }
+			: {}),
+	};
+}
+
+function askPrompt(value) {
+	if (!value || typeof value !== "object" || typeof value.title !== "string")
+		return undefined;
+	return {
+		title: value.title,
+		multiple: value.multiple === true,
+		choices: (Array.isArray(value.choices) ? value.choices : [])
+			.map(askChoice)
+			.filter(Boolean),
+		...(typeof value.body === "string" ? { body: value.body } : {}),
+	};
+}
+
+function askCall(value) {
+	if (
+		!value ||
+		typeof value !== "object" ||
+		value.type !== "toolCall" ||
+		value.name !== "ask" ||
+		typeof value.id !== "string" ||
+		!value.arguments ||
+		typeof value.arguments !== "object"
+	)
+		return undefined;
+	const prompts = (
+		Array.isArray(value.arguments.prompts) ? value.arguments.prompts : []
+	)
+		.map(askPrompt)
+		.filter(Boolean);
+	if (prompts.length === 0) return undefined;
+	return {
+		toolCallId: value.id,
+		handoff: value.arguments.handoff === true,
+		prompts,
+	};
+}
+
+async function sessionView(path, size) {
 	const file = await open(path, "r");
 	let targetId;
+	let assistant;
+	let ask;
+	const resolved = new Set();
 	const inspect = (line) => {
-		if (line.length === 0) return undefined;
+		if (line.length === 0) return false;
 		let entry;
 		try {
 			entry = JSON.parse(line.toString("utf8"));
 		} catch {
-			return undefined;
+			return false;
 		}
-		if (typeof entry.id !== "string") return undefined;
+		if (typeof entry.id !== "string") return false;
 		targetId ??= entry.id;
-		if (entry.id !== targetId) return undefined;
-		const assistant = assistantFromEntry(entry);
-		if (assistant) return assistant;
-		if (typeof entry.parentId !== "string") return null;
+		if (entry.id !== targetId) return false;
+		const message = entry.message;
+		if (message && typeof message === "object") {
+			if (
+				(message.role === "toolResult" || message.role === "tool") &&
+				typeof (message.toolCallId ?? message.tool_call_id) === "string"
+			)
+				resolved.add(message.toolCallId ?? message.tool_call_id);
+			assistant ??= assistantFromMessage(entry.id, message);
+			if (
+				!ask &&
+				message.role === "assistant" &&
+				Array.isArray(message.content)
+			)
+				ask = [...message.content]
+					.reverse()
+					.map(askCall)
+					.find(
+						(candidate) => candidate && !resolved.has(candidate.toolCallId),
+					);
+		}
+		if (typeof entry.parentId !== "string") return true;
 		targetId = entry.parentId;
-		return undefined;
+		return false;
 	};
 
 	try {
@@ -273,34 +340,40 @@ async function latestAssistant(path, size) {
 			let lineEnd = data.length;
 			for (let index = data.length - 1; index >= 0; index -= 1) {
 				if (data[index] !== 0x0a) continue;
-				const result = inspect(data.subarray(index + 1, lineEnd));
-				if (result !== undefined) return result ?? undefined;
+				if (inspect(data.subarray(index + 1, lineEnd)))
+					return {
+						...(assistant ? { assistant } : {}),
+						...(ask ? { ask } : {}),
+					};
 				lineEnd = index;
 			}
 			partial = data.subarray(0, lineEnd);
 		}
-		const result = inspect(partial);
-		return result ?? undefined;
+		inspect(partial);
+		return {
+			...(assistant ? { assistant } : {}),
+			...(ask ? { ask } : {}),
+		};
 	} finally {
 		await file.close();
 	}
 }
 
-async function latest(path) {
-	if (!path) return undefined;
+async function view(path) {
+	if (!path) return {};
 	const expanded = expandHome(path);
 	let metadata;
 	try {
 		metadata = await stat(expanded);
 	} catch (error) {
-		if (error.code === "ENOENT") return undefined;
+		if (error.code === "ENOENT") return {};
 		throw error;
 	}
-	const cached = assistantCache.get(expanded);
+	const cached = sessionCache.get(expanded);
 	if (cached?.size === metadata.size && cached.mtimeMs === metadata.mtimeMs)
 		return cached.result;
-	const result = await latestAssistant(expanded, metadata.size);
-	assistantCache.set(expanded, {
+	const result = await sessionView(expanded, metadata.size);
+	sessionCache.set(expanded, {
 		size: metadata.size,
 		mtimeMs: metadata.mtimeMs,
 		result,
@@ -319,6 +392,19 @@ async function directory(value, fallback) {
 	if (!metadata.isDirectory())
 		throw new Error(`${JSON.stringify(path)} is not a directory`);
 	return path;
+}
+
+async function keybindings() {
+	const directory =
+		process.env.PI_CODING_AGENT_DIR || join(homedir(), ".pi", "agent");
+	try {
+		const value = JSON.parse(
+			await readFile(join(directory, "keybindings.json"), "utf8"),
+		);
+		return value && typeof value === "object" ? value : {};
+	} catch {
+		return {};
+	}
 }
 
 function serializableError(error) {
@@ -350,7 +436,8 @@ async function handle(message) {
 		subscriptions.delete(message.subscription);
 		return { unsubscribed: true };
 	}
-	if (message.op === "latest") return latest(message.path);
+	if (message.op === "view") return view(message.path);
+	if (message.op === "keybindings") return keybindings();
 	if (message.op === "directory")
 		return directory(message.value, message.fallback);
 	throw new Error(`unsupported Shepherdr bridge operation ${message.op}`);

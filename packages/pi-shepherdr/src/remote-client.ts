@@ -5,9 +5,9 @@ import { fileURLToPath } from "node:url";
 import type { HerdrConnection } from "./herdr-client.js";
 import type { RemoteMachineConfig } from "./machines-config.js";
 import type { AssistantReader } from "./session-reader.js";
-import type { HerdrEvent, LatestAssistant } from "./types.js";
+import type { HerdrEvent, LatestAssistant, SessionView } from "./types.js";
 
-const BRIDGE_VERSION = 1;
+const BRIDGE_VERSION = 2;
 const REMOTE_HELPER = "~/.pi/agent/shepherdr.mjs";
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const MAX_DIAGNOSTIC_BYTES = 8 * 1024;
@@ -230,9 +230,15 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 	}
 
 	async latest(path?: string): Promise<LatestAssistant | undefined> {
-		return (await this.call({ op: "latest", path })) as
-			| LatestAssistant
-			| undefined;
+		return (await this.view(path)).assistant;
+	}
+
+	async view(path?: string): Promise<SessionView> {
+		return (await this.call({ op: "view", path })) as SessionView;
+	}
+
+	async keybindings(): Promise<Record<string, unknown>> {
+		return (await this.call({ op: "keybindings" })) as Record<string, unknown>;
 	}
 
 	async directory(

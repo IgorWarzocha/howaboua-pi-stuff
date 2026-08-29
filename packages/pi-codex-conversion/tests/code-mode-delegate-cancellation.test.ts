@@ -64,13 +64,17 @@ test("nested cell lifecycle preserves cancellation, blockers, and resumed progre
 			deferLoading: false,
 			kind: "function",
 			executionMode: "sequential",
-			blocking: true,
-			async invoke() { return "answered"; },
+			isBlocking: (input: unknown) =>
+				typeof input === "object" &&
+				input !== null &&
+				"blocking" in input &&
+				input.blocking === true,
+			async invoke() {},
 		}],
 	]));
 	const first = queued.invokeDirect("cell-b", 1, "first", {});
 	await firstActive;
-	const ask = queued.invokeDirect("cell-b", 2, "ask", {});
+	const ask = queued.invokeDirect("cell-b", 2, "ask", { blocking: true });
 	await Promise.resolve();
 	assert.equal(queued.isBlocked("cell-b"), true);
 	assert.deepEqual(blockerStates, [true]);

@@ -36,6 +36,7 @@ export interface ProgrammaticCodeModeToolDefinition
 	extends CodeModeToolMetadata {
 	kind: "function" | "freeform";
 	blocking?: boolean | undefined;
+	isBlocking?(input: unknown): boolean;
 	discoverWhenDeferred?: boolean | undefined;
 	translatePromptMetadata?: boolean | undefined;
 	executionMode?: "sequential" | "parallel" | undefined;

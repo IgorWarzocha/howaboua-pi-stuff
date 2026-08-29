@@ -27,6 +27,10 @@ export function activityTask(activity: AgentActivity): string | undefined {
 	return activity.phase === "settled" ? undefined : activity.task;
 }
 
+export function activityAttemptId(activity: AgentActivity): string | undefined {
+	return activity.phase === "settled" ? undefined : activity.attemptId;
+}
+
 export function isSettledStatus(
 	status: AgentStatus,
 ): status is SettledAgentStatus {
@@ -52,7 +56,7 @@ export function sameAgentActivity(
 		return left.status === right.status;
 	}
 	if (left.phase === "working" && right.phase === "working") {
-		return left.task === right.task;
+		return left.attemptId === right.attemptId && left.task === right.task;
 	}
 	return (
 		left.phase === "submitting" &&

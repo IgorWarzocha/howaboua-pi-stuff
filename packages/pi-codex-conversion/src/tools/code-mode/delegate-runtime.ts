@@ -261,9 +261,12 @@ export class CodeModeDelegateRuntime {
 			},
 			refreshTrace: emitTrace,
 		};
-		const blocking = !isCustomToolDefinition(tool) && tool.blocking === true;
+		let blocking = false;
 		let blockerActive = false;
 		try {
+			blocking =
+				!isCustomToolDefinition(tool) &&
+				(tool.blocking === true || tool.isBlocking?.(input) === true);
 			if (blocking) {
 				blockerActive = true;
 				trace.status = "blocked";
