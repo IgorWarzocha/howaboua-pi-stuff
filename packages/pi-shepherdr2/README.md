@@ -2,7 +2,7 @@
 
 One persistent subagent system for ordinary Pi, Code Mode and Notebook Mode.
 
-Shepherdr 2 combines Shepherdr's monitored Herdr fleet with the blocking and asynchronous agent calls previously supplied by Pi Codex's custom `agents` tool. It registers one structured `agents` tool in normal Pi. When Pi Codex is installed, the same definition, renderer and implementation become `tools.agents` inside Code and Notebook Mode.
+Shepherdr 2 combines Shepherdr's monitored Herdr fleet with the blocking and asynchronous agent calls previously supplied by Pi Codex's custom `agents` tool. It registers one routed `agents` tool in normal Pi. When Pi Codex is installed, the same definition, renderer and implementation become `tools.agents` inside Code and Notebook Mode.
 
 Asynchronous work is still subagent work. The call returns after dispatch, then Shepherdr pushes completion, failure or blockage into the master with a `steer` message. The model never has to poll. Blocking work holds the tool call and returns the worker's reply directly.
 
@@ -30,17 +30,21 @@ Run Pi inside Herdr, then enable orchestration for the current session:
 /herdr master
 ```
 
-Use `/herdr json` to persist master mode in the current directory. Machine configuration and the `/herdr` management interface are shared with Shepherdr.
+Use `/herdr json` to persist master mode in the current directory. `/herdr machines` opens the existing Add/Remove Machine interface; settings remain in `~/.pi/agent/shepherdr.json`, and `/herdr connect [machine]` retries configured remotes.
 
-Run `/herdr delegate` before a request when the master should delegate project implementation, synthesize the workers' results and report them back. The command arms that policy for the next request without adding permanent orchestration instructions to the system prompt.
+Run bare `/herdr` to toggle between normal and orchestration mode. The command records the switch as a synthetic mode message without triggering a turn. Actual requests, including work sent to agents, remain ordinary user messages. Run `/herdr` again to return to normal mode. Existing `/herdr master`, `/herdr json` and `/herdr connect` management forms remain available.
 
 ## Agent calls
 
-The `agents` tool supports:
+In normal Pi, call the `agents` tool with `action: "help"` before first use, then send flat request objects. Code and Notebook Mode expose the same router as `await tools.agents("help")`; later calls pass `JSON.stringify(request)`. Neither surface carries the full action schema in its standing prompt.
+
+The routed tool supports:
 
 | Action | Result |
 | --- | --- |
+| `help` | Live profiles, request shapes, coordination rules and the advanced Herdr escape hatch |
 | `list` | Profiles, machines and matching Pi agents |
+| `find` | Agents matching a query or status |
 | `start` | Start a profiled Pi agent and send its initial task |
 | `send` | Send work or a follow-up to an existing agent |
 | `read` | Read the latest assistant reply or bounded terminal output |
@@ -54,13 +58,12 @@ Cancelling a blocking call does not kill its worker. The waiter detaches and the
 
 ## Profiles
 
-Three profiles work without configuration:
+Two profiles work without configuration:
 
-- `general` for implementation and investigation
-- `explorer` for read-only discovery
-- `reviewer` for read-only review
+- `explorer` uses `openai-codex/gpt-5.6-terra` with `high` thinking for read-only discovery
+- `reviewer` uses `openai-codex/gpt-5.6-luna` with `xhigh` thinking for generic read-only review
 
-They inherit the master's current model and thinking level. Add or replace profiles under:
+Profiles never inherit the master's model or thinking level. Add or replace complete profile definitions under:
 
 ```text
 ~/.pi/agent/shepherdr2/profiles/<name>/profile.json
@@ -80,6 +83,10 @@ Example:
 ```
 
 `prompt` is read as system-prompt text. An optional `prepare` module may export `prepare({ cwd, message, base })` and return the worker message. Preparation runs on the controlling machine before dispatch.
+
+## Advanced Herdr control
+
+Ordinary delegation stays inside `agents`. For workspace, tab, pane, process, focus, layout or raw-terminal operations, run `herdr --skill` and follow the installed Herdr skill. The `help` response and standing tool guidance both expose that route; Shepherdr 2 does not duplicate those controls.
 
 ## What remains native
 

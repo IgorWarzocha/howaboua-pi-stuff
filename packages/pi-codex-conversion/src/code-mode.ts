@@ -23,11 +23,18 @@ export function adaptToolForCodeMode<
 		usage: string;
 		blocking?: boolean | ((input: unknown) => boolean);
 		deferLoading?: boolean;
+		kind?: "function" | "freeform";
+		prepareInput?(input: unknown): unknown;
 	},
 ): ProgrammaticCodeModeToolDefinition {
+	if (options.kind === "freeform" && !options.prepareInput) {
+		throw new Error("Freeform Code Mode tools require prepareInput");
+	}
 	return toNestedTool(tool, options.usage, {}, {
 		modelVisibleResult: true,
 		translatePromptMetadata: true,
+		...(options.kind ? { kind: options.kind } : {}),
+		...(options.prepareInput ? { prepareInput: options.prepareInput } : {}),
 		...(options.blocking === true ? { blocking: true } : {}),
 		...(typeof options.blocking === "function"
 			? { isBlocking: options.blocking }

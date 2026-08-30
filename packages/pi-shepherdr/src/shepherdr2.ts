@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { isBlockingAgentsCall } from "./agents-contract.js";
+import { isBlockingAgentsCall, parseAgentsRequest } from "./agents-contract.js";
 import { createAgentsTool } from "./agents-tool.js";
 import { AgentFleet } from "./fleet.js";
 import { registerMasterMode } from "./master-mode.js";
@@ -18,8 +18,8 @@ export default async function shepherdr2Extension(
 	pi.registerTool(tool);
 	const registration = await registerAgentsInCodeMode(pi, tool, fleet);
 	registerMasterMode(pi, fleet, {
-		delegationInstruction:
-			"<herdr_delegation_request>For the next user request, act as an orchestrator: delegate project implementation, synthesize worker results, and report them to the user. Work directly only when explicitly asked or for configuration, documentation, and routine operations in the current directory.</herdr_delegation_request>",
+		orchestrationInstruction:
+			"Herdr orchestration mode is active. Delegate project implementation, synthesize worker results, and report them to the user. Work directly only when explicitly asked or for configuration, documentation, and routine operations in the current directory.",
 		toolName: tool.name,
 		onActiveChange: () => registration?.refresh(),
 	});
@@ -38,7 +38,14 @@ async function registerAgentsInCodeMode(
 			() => [
 				adaptToolForCodeMode(tool, {
 					blocking: isBlockingAgentsCall,
-					usage: "await tools.agents({ action, ...args })",
+					kind: "freeform",
+					prepareInput(input) {
+						if (typeof input !== "string") {
+							throw new Error("agents expects a request string");
+						}
+						return parseAgentsRequest(input);
+					},
+					usage: 'await tools.agents("help") // Persistent Pi agents via Herdr',
 				}),
 			],
 			{ isActive: () => fleet.isActive() },

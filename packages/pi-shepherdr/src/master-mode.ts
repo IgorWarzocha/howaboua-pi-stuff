@@ -12,12 +12,12 @@ import {
 import { enableMasterDirectory, isMasterDirectory } from "./master-config.js";
 
 interface MasterModeOptions {
-	delegationInstruction?: string;
+	orchestrationInstruction?: string;
 	onActiveChange?(): void;
 	toolName?: string;
 }
 
-const DELEGATION_MESSAGE_TYPE = "pi-shepherdr-delegation";
+const ORCHESTRATION_STATE_TYPE = "pi-shepherdr-orchestration-state";
 
 function parseSshArguments(value: string): string[] {
 	const parts: string[] = [];
@@ -69,20 +69,18 @@ export function registerMasterMode(
 	fleet: AgentFleet,
 	options: MasterModeOptions = {},
 ): void {
+	let orchestrationEnabled = false;
 	const toolName = options.toolName ?? "herdr_agents";
 	const setActive = (active: boolean) => {
 		setToolActive(pi, toolName, active);
 		options.onActiveChange?.();
 	};
 	pi.registerCommand("herdr", {
-		description: "Manage Herdr master mode and machines",
+		description: options.orchestrationInstruction
+			? "Toggle Herdr orchestration mode"
+			: "Manage Herdr master mode and machines",
 		getArgumentCompletions: (prefix) =>
-			[
-				"master",
-				"json",
-				"connect",
-				...(options.delegationInstruction ? ["delegate"] : []),
-			]
+			["machines", "master", "json", "connect"]
 				.filter((action) => action.startsWith(prefix.trim().toLowerCase()))
 				.map((value) => ({ label: value, value })),
 		handler: async (args, ctx) => {
@@ -90,29 +88,39 @@ export function registerMasterMode(
 			const action = rawAction.toLowerCase();
 			const target = rest[0];
 			if (!action) {
+				if (options.orchestrationInstruction) {
+					orchestrationEnabled = restoreOrchestrationMode(ctx).enabled;
+					if (
+						!fleet.isActive() &&
+						!(await activateMaster(fleet, ctx, setActive))
+					) {
+						return;
+					}
+					orchestrationEnabled = !orchestrationEnabled;
+					pi.sendMessage(
+						{
+							customType: ORCHESTRATION_STATE_TYPE,
+							content: orchestrationEnabled
+								? "Herdr orchestration mode enabled."
+								: "Herdr normal mode enabled.",
+							details: { enabled: orchestrationEnabled },
+							display: false,
+						},
+						{ triggerTurn: false },
+					);
+					ctx.ui.notify(
+						orchestrationEnabled
+							? "Herdr orchestration enabled"
+							: "Herdr normal mode enabled",
+						"info",
+					);
+					return;
+				}
 				await showHerdrMenu(fleet, ctx, setActive);
 				return;
 			}
-			if (action === "delegate" && options.delegationInstruction) {
-				if (rest.length > 0) {
-					ctx.ui.notify("Usage: /herdr delegate", "warning");
-					return;
-				}
-				if (
-					!fleet.isActive() &&
-					!(await activateMaster(fleet, ctx, setActive))
-				) {
-					return;
-				}
-				pi.sendMessage(
-					{
-						customType: DELEGATION_MESSAGE_TYPE,
-						content: options.delegationInstruction,
-						display: false,
-					},
-					{ deliverAs: "nextTurn" },
-				);
-				ctx.ui.notify("Delegation armed for the next request", "info");
+			if (action === "machines") {
+				await showHerdrMenu(fleet, ctx, setActive);
 				return;
 			}
 			if (action === "connect") {
@@ -132,7 +140,7 @@ export function registerMasterMode(
 			}
 			if (action !== "master" && action !== "json") {
 				ctx.ui.notify(
-					`Usage: /herdr [master|json|connect [machine]${options.delegationInstruction ? "|delegate" : ""}]`,
+					"Usage: /herdr [machines|master|json|connect [machine]]",
 					"warning",
 				);
 				return;
@@ -154,11 +162,25 @@ export function registerMasterMode(
 		},
 	});
 
+	pi.on("before_agent_start", (event) => {
+		if (
+			!orchestrationEnabled ||
+			!options.orchestrationInstruction ||
+			!fleet.isActive()
+		)
+			return;
+		return {
+			systemPrompt: `${event.systemPrompt}\n\n${options.orchestrationInstruction}`,
+		};
+	});
+
 	pi.on("session_start", async (_event, ctx) => {
+		const orchestration = restoreOrchestrationMode(ctx);
+		orchestrationEnabled = orchestration.enabled;
 		fleet.deactivate();
-		let master = false;
+		let master = orchestration.recorded;
 		try {
-			master = await isMasterDirectory(ctx.cwd);
+			master = (await isMasterDirectory(ctx.cwd)) || master;
 		} catch (error) {
 			ctx.ui.notify(
 				`Herdr master config is invalid: ${error instanceof Error ? error.message : String(error)}`,
@@ -175,6 +197,37 @@ export function registerMasterMode(
 	pi.on("session_shutdown", async () => {
 		fleet.deactivate();
 	});
+}
+
+function restoreOrchestrationMode(ctx: ExtensionContext): {
+	enabled: boolean;
+	recorded: boolean;
+} {
+	let enabled = false;
+	let recorded = false;
+	for (const entry of ctx.sessionManager.getBranch()) {
+		if (
+			(entry.type !== "custom" && entry.type !== "custom_message") ||
+			entry.customType !== ORCHESTRATION_STATE_TYPE
+		)
+			continue;
+		const state =
+			entry.type === "custom"
+				? entry.data
+				: entry.type === "custom_message"
+					? entry.details
+					: undefined;
+		if (
+			typeof state === "object" &&
+			state !== null &&
+			"enabled" in state &&
+			typeof state.enabled === "boolean"
+		) {
+			enabled = state.enabled;
+			recorded = true;
+		}
+	}
+	return { enabled, recorded };
 }
 
 async function showHerdrMenu(

@@ -1,9 +1,16 @@
 import { defineTool, getMarkdownTheme } from "@earendil-works/pi-coding-agent";
 import { Container, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
-import { AgentsParameters, type AgentsParams } from "./agents-contract.js";
 import {
+	AgentsParameters,
+	type AgentsParams,
+	type AgentsToolParams,
+	parseAgentsRequest,
+} from "./agents-contract.js";
+import {
+	agentsHelp,
 	allocateAgentName,
 	dispatchAgentWork,
+	findFleetAgents,
 	listFleetAgents,
 	readAgentTerminal,
 	reportProgress,
@@ -29,20 +36,33 @@ export function createAgentsTool(fleet: AgentFleet) {
 	return defineTool({
 		name: "agents",
 		label: "Shepherdr 2",
-		description:
-			"Persistent Pi agents across configured Herdr machines. Blocking work returns its result; asynchronous work pushes completion or blockage automatically.",
+		description: "Persistent Pi agents across configured Herdr machines.",
 		parameters: AgentsParameters,
-		promptSnippet: "Delegate to persistent Pi agents.",
+		promptSnippet: "Load agents help before first use.",
 		promptGuidelines: [
 			"agents: Blocking is default; set blocking false only while continuing other work. Asynchronous settlement is pushed automatically, so never poll.",
 			"agents: Give specialists only the concrete task and inaccessible context. Reuse an agent only for the same investigation or requested follow-up.",
+			"agents: For advanced Herdr workspace, pane, process or layout control, run herdr --skill.",
 		],
 		executionMode: "sequential",
-		async execute(_toolCallId, params: AgentsParams, signal, onUpdate, ctx) {
+		async execute(
+			_toolCallId,
+			input: AgentsToolParams,
+			signal,
+			onUpdate,
+			_ctx,
+		) {
+			const params = parseAgentsRequest(input);
 			const executionSignal = signal ?? new AbortController().signal;
 			const update = onUpdate ?? (() => undefined);
+			if (params.action === "help") {
+				return toolResult(await agentsHelp());
+			}
 			if (params.action === "list") {
 				return toolResult(await listFleetAgents(fleet, params));
+			}
+			if (params.action === "find") {
+				return toolResult(await findFleetAgents(fleet, params));
 			}
 
 			const runtime = fleet.connected(params.machine);
@@ -99,7 +119,7 @@ export function createAgentsTool(fleet: AgentFleet) {
 					startParams,
 					runtime.fallbackCwd,
 					runtime.resolveDirectory,
-					{ agentArgs: profileAgentArgs(profile, ctx) },
+					{ agentArgs: profileAgentArgs(profile) },
 				);
 				const settlement = await dispatchAgentWork(
 					runtime,
@@ -269,14 +289,24 @@ export function createAgentsTool(fleet: AgentFleet) {
 			throw new Error(`unsupported action ${params.action}`);
 		},
 		renderCall(args, theme, context) {
+			let params: AgentsParams | undefined;
+			try {
+				params = parseAgentsRequest(args);
+			} catch {
+				params = undefined;
+			}
 			const identity =
-				args.target ?? args.label ?? args.name ?? args.profile ?? "";
+				params?.target ??
+				params?.label ??
+				params?.name ??
+				params?.profile ??
+				"";
 			return new Text(
 				theme.fg(
 					context && "isBlocked" in context && context.isBlocked === true
 						? "warning"
 						: "toolTitle",
-					theme.bold(`agents ${args.action}`),
+					theme.bold(`agents ${params?.action ?? "request"}`),
 				) + (identity ? theme.fg("muted", ` · ${identity}`) : ""),
 				0,
 				0,

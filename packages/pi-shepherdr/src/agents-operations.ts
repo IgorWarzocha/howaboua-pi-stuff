@@ -27,6 +27,40 @@ export function reportProgress(
 	});
 }
 
+export async function agentsHelp(): Promise<Record<string, unknown>> {
+	const profiles = await loadAgentProfiles();
+	return {
+		call: 'Normal Pi: action="help", then a request object. Code/Notebook: tools.agents("help"), then JSON.stringify(request)',
+		actions: {
+			help: 'action only; Code/Notebook shorthand "help"',
+			list: "action, machine?",
+			find: "action, query?, status?, machine?",
+			start:
+				"action, profile, message, label?, name?, machine?, placement?, workspace?, pane?, cwd?, base?, blocking? (default true)",
+			watch: "action, target, machine?",
+			unwatch: "action, target, machine?",
+			send: "action, target, message, machine?, blocking? (default true)",
+			read: "action, target, machine?, source?, lines?",
+			answer: "action, target, answers, machine?, blocking? (default true)",
+		},
+		notes: {
+			target: "Exact target returned by start or find",
+			blocking:
+				"Use true or omit for requested findings; false only while continuing other work. Async settlement is pushed automatically; never poll",
+			prompting:
+				"Give specialists only the concrete task and inaccessible context. Reuse only for the same investigation or requested follow-up",
+		},
+		profiles: Object.fromEntries(
+			[...profiles].map(([name, profile]) => [name, profile.description]),
+		),
+		advanced: {
+			run: "herdr --skill",
+			covers:
+				"workspace, tab, pane, process, focus, layout and raw terminal control",
+		},
+	};
+}
+
 function labels(snapshot: SessionSnapshot) {
 	return {
 		tabs: new Map(snapshot.tabs.map((tab) => [tab.tab_id, tab.label])),
@@ -124,6 +158,19 @@ export async function listFleetAgents(
 		...(workspaces.length > MAX_LIST_ITEMS
 			? { moreWorkspaces: workspaces.length - MAX_LIST_ITEMS }
 			: {}),
+	};
+}
+
+export async function findFleetAgents(
+	fleet: AgentFleet,
+	params: Pick<AgentsParams, "machine" | "query" | "status">,
+): Promise<Record<string, unknown>> {
+	const listed = await listFleetAgents(fleet, params);
+	return {
+		agents: listed["agents"],
+		...(listed["moreAgents"] === undefined
+			? {}
+			: { moreAgents: listed["moreAgents"] }),
 	};
 }
 

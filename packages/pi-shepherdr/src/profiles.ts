@@ -2,7 +2,6 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 const PROFILE_NAME = /^[a-z][a-z0-9_-]{0,31}$/;
 const PROFILES_DIRECTORY = join(
@@ -14,12 +13,12 @@ const PROFILES_DIRECTORY = join(
 export interface AgentProfile {
 	accepts: string[];
 	description: string;
-	model?: string;
+	model: string;
 	name: string;
 	piArgs: string[];
 	prepare?: string;
 	prompt?: string;
-	thinking?: string;
+	thinking: string;
 }
 
 interface ProfileFile {
@@ -35,25 +34,23 @@ interface ProfileFile {
 const BUILT_IN_PROFILES: readonly AgentProfile[] = [
 	{
 		accepts: [],
-		description: "General implementation and investigation",
-		name: "general",
-		piArgs: [],
-	},
-	{
-		accepts: [],
 		description: "Read-only discovery",
+		model: "openai-codex/gpt-5.6-terra",
 		name: "explorer",
 		piArgs: [],
 		prompt:
 			"You are a read-only explorer. Treat the task as the complete brief. Do not change files or Git state, propose implementation, or spawn agents.",
+		thinking: "high",
 	},
 	{
 		accepts: ["base"],
 		description: "Read-only review",
+		model: "openai-codex/gpt-5.6-luna",
 		name: "reviewer",
 		piArgs: [],
 		prompt:
 			"You are a read-only reviewer. Treat the task as the complete brief. Do not change files or Git state or spawn agents.",
+		thinking: "xhigh",
 	},
 ];
 
@@ -106,6 +103,10 @@ async function readProfile(
 	}
 	const description = optionalString(parsed.description, `${name}.description`);
 	if (!description) throw new Error(`${name}.description is required`);
+	const model = optionalString(parsed.model, `${name}.model`);
+	if (!model) throw new Error(`${name}.model is required`);
+	const thinking = optionalString(parsed.thinking, `${name}.thinking`);
+	if (!thinking) throw new Error(`${name}.thinking is required`);
 	const promptPath = optionalString(parsed.prompt, `${name}.prompt`);
 	const preparePath = optionalString(parsed.prepare, `${name}.prepare`);
 	const prompt = promptPath
@@ -118,18 +119,14 @@ async function readProfile(
 	return {
 		name,
 		description,
+		model,
+		thinking,
 		accepts: parsed.accepts
 			? stringArray(parsed.accepts, `${name}.accepts`)
 			: [],
 		piArgs: parsed.pi_args
 			? stringArray(parsed.pi_args, `${name}.pi_args`)
 			: [],
-		...(optionalString(parsed.model, `${name}.model`)
-			? { model: optionalString(parsed.model, `${name}.model`)! }
-			: {}),
-		...(optionalString(parsed.thinking, `${name}.thinking`)
-			? { thinking: optionalString(parsed.thinking, `${name}.thinking`)! }
-			: {}),
 		...(prompt ? { prompt } : {}),
 		...(prepare ? { prepare } : {}),
 	};
@@ -159,18 +156,12 @@ export async function loadAgentProfiles(): Promise<Map<string, AgentProfile>> {
 	return profiles;
 }
 
-export function profileAgentArgs(
-	profile: AgentProfile,
-	ctx: ExtensionContext,
-): string[] {
-	const inheritedModel = ctx.model
-		? `${ctx.model.provider}/${ctx.model.id}`
-		: undefined;
-	const model = profile.model ?? inheritedModel;
-	const thinking = profile.thinking ?? ctx.thinkingLevel;
+export function profileAgentArgs(profile: AgentProfile): string[] {
 	return [
-		...(model ? ["--model", model] : []),
-		...(thinking ? ["--thinking", thinking] : []),
+		"--model",
+		profile.model,
+		"--thinking",
+		profile.thinking,
 		...(profile.prompt ? ["--append-system-prompt", profile.prompt] : []),
 		...profile.piArgs,
 	];

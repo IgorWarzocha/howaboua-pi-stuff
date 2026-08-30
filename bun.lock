@@ -290,6 +290,7 @@
         "@earendil-works/pi-tui": "0.84.3",
         "@howaboua/pi-codex-conversion": "3.0.23",
         "@types/node": "^26.2.0",
+        "typebox": "1.3.18",
         "typescript": "^7.0.2",
       },
       "peerDependencies": {
@@ -297,6 +298,7 @@
         "@earendil-works/pi-coding-agent": ">=0.84.3",
         "@earendil-works/pi-tui": ">=0.84.3",
         "@howaboua/pi-codex-conversion": ">=3.0.24",
+        "typebox": "*",
       },
       "optionalPeers": [
         "@howaboua/pi-codex-conversion",

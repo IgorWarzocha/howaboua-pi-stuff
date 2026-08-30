@@ -63,6 +63,54 @@ test("Code Mode nested tools preserve public results and specialized web values"
 	);
 	lateUpdate();
 	assert.equal(forwardedUpdates, 0);
+	const freeform = adaptToolForCodeMode(
+		{
+			name: "routed",
+			label: "Routed",
+			description: "One routed string",
+			parameters: Type.Object({ request: Type.String() }),
+			async execute(_id, params) {
+				return {
+					content: [{ type: "text" as const, text: params.request }],
+					details: {},
+				};
+			},
+		},
+		{
+			kind: "freeform",
+			prepareInput: (input) => ({ request: input }),
+			usage: 'await tools.routed("help")',
+		},
+	);
+	assert.equal(freeform.kind, "freeform");
+	assert.equal("inputSchema" in freeform, false);
+	assert.equal(
+		await freeform.invoke(
+			"help",
+			{ cwd: process.cwd(), extensionContext: {} as ExtensionContext },
+			new AbortController().signal,
+		),
+		"help",
+	);
+	assert.throws(
+		() =>
+			adaptToolForCodeMode(
+				{
+					name: "invalid_freeform",
+					label: "Invalid freeform",
+					description: "Missing input projection",
+					parameters: Type.Object({ request: Type.String() }),
+					async execute() {
+						return {
+							content: [{ type: "text" as const, text: "unused" }],
+							details: {},
+						};
+					},
+				},
+				{ kind: "freeform", usage: "await tools.invalid_freeform(input)" },
+			),
+		/require prepareInput/i,
+	);
 	const renderStore = new CodeModeNestedRenderStore();
 	const runtime = new CodeModeDelegateRuntime(() => undefined, renderStore);
 	runtime.bindCell(
