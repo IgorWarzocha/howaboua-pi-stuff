@@ -12,9 +12,12 @@ import {
 import { enableMasterDirectory, isMasterDirectory } from "./master-config.js";
 
 interface MasterModeOptions {
+	delegationInstruction?: string;
 	onActiveChange?(): void;
 	toolName?: string;
 }
+
+const DELEGATION_MESSAGE_TYPE = "pi-shepherdr-delegation";
 
 function parseSshArguments(value: string): string[] {
 	const parts: string[] = [];
@@ -74,14 +77,42 @@ export function registerMasterMode(
 	pi.registerCommand("herdr", {
 		description: "Manage Herdr master mode and machines",
 		getArgumentCompletions: (prefix) =>
-			["master", "json", "connect"]
+			[
+				"master",
+				"json",
+				"connect",
+				...(options.delegationInstruction ? ["delegate"] : []),
+			]
 				.filter((action) => action.startsWith(prefix.trim().toLowerCase()))
 				.map((value) => ({ label: value, value })),
 		handler: async (args, ctx) => {
-			const [rawAction = "", target] = args.trim().split(/\s+/, 2);
+			const [rawAction = "", ...rest] = args.trim().split(/\s+/);
 			const action = rawAction.toLowerCase();
+			const target = rest[0];
 			if (!action) {
 				await showHerdrMenu(fleet, ctx, setActive);
+				return;
+			}
+			if (action === "delegate" && options.delegationInstruction) {
+				if (rest.length > 0) {
+					ctx.ui.notify("Usage: /herdr delegate", "warning");
+					return;
+				}
+				if (
+					!fleet.isActive() &&
+					!(await activateMaster(fleet, ctx, setActive))
+				) {
+					return;
+				}
+				pi.sendMessage(
+					{
+						customType: DELEGATION_MESSAGE_TYPE,
+						content: options.delegationInstruction,
+						display: false,
+					},
+					{ deliverAs: "nextTurn" },
+				);
+				ctx.ui.notify("Delegation armed for the next request", "info");
 				return;
 			}
 			if (action === "connect") {
@@ -101,7 +132,7 @@ export function registerMasterMode(
 			}
 			if (action !== "master" && action !== "json") {
 				ctx.ui.notify(
-					"Usage: /herdr [master|json|connect [machine]]",
+					`Usage: /herdr [master|json|connect [machine]${options.delegationInstruction ? "|delegate" : ""}]`,
 					"warning",
 				);
 				return;

@@ -32,6 +32,8 @@ Run Pi inside Herdr, then enable orchestration for the current session:
 
 Use `/herdr json` to persist master mode in the current directory. Machine configuration and the `/herdr` management interface are shared with Shepherdr.
 
+Run `/herdr delegate` before a request when the master should delegate project implementation, synthesize the workers' results and report them back. The command arms that policy for the next request without adding permanent orchestration instructions to the system prompt.
+
 ## Agent calls
 
 The `agents` tool supports:

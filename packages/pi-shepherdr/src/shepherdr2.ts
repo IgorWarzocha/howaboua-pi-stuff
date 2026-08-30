@@ -18,6 +18,8 @@ export default async function shepherdr2Extension(
 	pi.registerTool(tool);
 	const registration = await registerAgentsInCodeMode(pi, tool, fleet);
 	registerMasterMode(pi, fleet, {
+		delegationInstruction:
+			"<herdr_delegation_request>For the next user request, act as an orchestrator: delegate project implementation, synthesize worker results, and report them to the user. Work directly only when explicitly asked or for configuration, documentation, and routine operations in the current directory.</herdr_delegation_request>",
 		toolName: tool.name,
 		onActiveChange: () => registration?.refresh(),
 	});
