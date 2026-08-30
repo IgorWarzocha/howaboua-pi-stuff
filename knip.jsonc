@@ -4,6 +4,17 @@
 		"packages/pi-auto-trees": {
 			"entry": ["changelog.ts"]
 		},
+		"packages/pi-browser": {
+			"entry": ["tests/*.test.mjs"],
+			"project": [
+				"src/**/*.ts",
+				"browser/**/*.mjs",
+				"tests/*.test.mjs"
+			],
+			"ignoreIssues": {
+				"browser/cdp-lib/snapshot.mjs": ["exports"]
+			}
+		},
 		"packages/pi-codex-conversion": {
 			"ignoreExportsUsedInFile": true,
 			"entry": [

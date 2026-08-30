@@ -64,6 +64,28 @@
         "@earendil-works/pi-tui": ">=0.84.3",
       },
     },
+    "packages/pi-browser": {
+      "name": "@howaboua/pi-browser",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@biomejs/biome": "^2.5.10",
+        "@earendil-works/pi-ai": "0.84.3",
+        "@earendil-works/pi-coding-agent": "0.84.3",
+        "@howaboua/pi-codex-conversion": "3.0.23",
+        "@types/node": "^26.2.0",
+        "typebox": "1.3.18",
+        "typescript": "^7.0.2",
+      },
+      "peerDependencies": {
+        "@earendil-works/pi-ai": ">=0.84.3",
+        "@earendil-works/pi-coding-agent": ">=0.84.3",
+        "@howaboua/pi-codex-conversion": ">=3.0.24",
+        "typebox": "*",
+      },
+      "optionalPeers": [
+        "@howaboua/pi-codex-conversion",
+      ],
+    },
     "packages/pi-cache-hit-predictor": {
       "name": "@howaboua/pi-cache-hit-predictor",
       "version": "0.0.1",
@@ -667,6 +689,8 @@
     "@howaboua/pi-ask": ["@howaboua/pi-ask@workspace:packages/pi-ask"],
 
     "@howaboua/pi-auto-trees": ["@howaboua/pi-auto-trees@workspace:packages/pi-auto-trees"],
+
+    "@howaboua/pi-browser": ["@howaboua/pi-browser@workspace:packages/pi-browser"],
 
     "@howaboua/pi-cache-hit-predictor": ["@howaboua/pi-cache-hit-predictor@workspace:packages/pi-cache-hit-predictor"],
 

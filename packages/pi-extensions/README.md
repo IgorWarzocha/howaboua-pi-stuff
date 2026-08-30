@@ -12,6 +12,7 @@ pi install npm:@howaboua/pi-extensions
 
 - `pi-ask` — interactive decisions, review triage, human handoffs, and optional `/fold` and `/grill` prompts
 - `pi-auto-trees` — `/marker` and `/end` for incremental long sessions
+- `pi-browser` — logged-in browser inspection and interaction across Pi tool modes
 - `pi-cache-hit-predictor` — inline prompt-cache hit predictions when switching models or reasoning levels
 - `pi-dynamic-tools` — TOML-defined command tools through JavaScript Code Mode
 - `pi-explore-subagents` — isolated, discovery-only subagents
@@ -26,6 +27,6 @@ pi install npm:@howaboua/pi-extensions
 - `pi-unicode-charts` — terminal-native Unicode charts for Pi Markdown
 - `pi-vent` — repeated workflow-friction notes in `VENT.md`
 
-The Codex conversion packages are not included because they change the GPT/Codex tool surface. Install one separately when you want that behavior.
+Pi Codex and Shepherdr 2 remain standalone. Codex changes the GPT tool surface, while Shepherdr 2 overlaps the bundled original Shepherdr until it replaces it.
 
 Installing this bundle loads every extension above. Install individual packages instead if you only want part of the set.

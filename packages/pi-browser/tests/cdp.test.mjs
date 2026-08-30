@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { cdpTimeoutAttempts, clickStr, formatPagesJson, getTargetRef, htmlStr, snapshotData, typeRefStr } from "./cdp.mjs";
+import { cdpTimeoutAttempts, clickStr, formatPagesJson, getTargetRef, htmlStr, snapshotData, typeRefStr } from "../browser/cdp.mjs";
 
 test("CDP transport and entry routing preserve protocol boundaries", async () => {
 	const tabs = JSON.parse(formatPagesJson([
@@ -33,12 +33,12 @@ test("CDP transport and entry routing preserve protocol boundaries", async () =>
 	try {
 		const entries = [
 			{
-				path: fileURLToPath(new URL("./cdp.mjs", import.meta.url)),
+				path: fileURLToPath(new URL("../browser/cdp.mjs", import.meta.url)),
 				link: join(directory, "codex-cdp"),
 				start: true,
 			},
 			{
-				path: fileURLToPath(new URL("../../../../pi-skill-chrome-cdp/skills/chrome-cdp/scripts/cdp.mjs", import.meta.url)),
+				path: fileURLToPath(new URL("../../pi-skill-chrome-cdp/skills/chrome-cdp/scripts/cdp.mjs", import.meta.url)),
 				link: join(directory, "skill-cdp"),
 				start: false,
 			},

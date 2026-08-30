@@ -9,10 +9,17 @@ import {
 	pruneResultCache,
 	readCachedResult,
 	runProgram,
-} from "./browser.mjs";
+} from "../browser/browser.mjs";
 
 test("parser accepts web_run-style operation arrays and canonicalizes batches", () => {
 	assert.deepEqual(parseRequest("help"), { help: true });
+	assert.deepEqual(parseRequest({ action: "help" }), { help: true });
+	assert.deepEqual(parseRequest({
+		action: "tabs",
+		query: "linkedin",
+	}), {
+		operations: [{ action: "tabs", query: "linkedin", offset: 0 }],
+	});
 	assert.deepEqual(parseRequest(JSON.stringify({
 		response_length: "short",
 		tabs: [{ query: "linkedin" }],
@@ -84,6 +91,22 @@ test("child output is bounded before result formatting", async () => {
 		runProgram(process.execPath, ["-e", "process.stdout.write('x'.repeat(9 * 1024 * 1024))"]),
 		/output exceeded 8 MiB/,
 	);
+});
+
+test("child execution follows tool cancellation", { timeout: 4_000 }, async () => {
+	const controller = new AbortController();
+	const running = runProgram(
+		process.execPath,
+		[
+			"-e",
+			'process.on("SIGTERM", () => {}); setInterval(() => {}, 1000)',
+		],
+		undefined,
+		controller.signal,
+	);
+	await new Promise((resolve) => setTimeout(resolve, 100));
+	controller.abort(new Error("cancelled by caller"));
+	await assert.rejects(running, /cancelled by caller/);
 });
 
 test("tabs are structured, filterable, and byte-bounded", async () => {
