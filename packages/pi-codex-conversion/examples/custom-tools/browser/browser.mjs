@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 const TOOL_DIR = dirname(fileURLToPath(import.meta.url));
 const CDP_PATH = join(TOOL_DIR, "cdp.mjs");
 const REMOTE_TOOL_PATH = undefined;
-// const REMOTE_TOOL_PATH = "/absolute/path/to/browser/browser.mjs";
+// const REMOTE_TOOL_PATH = "/absolute/path/to/codex-conversion-custom-tools/browser/browser.mjs";
 const HOSTS = new Set([
 	// "workstation",
 ]);
@@ -110,17 +110,15 @@ function parseRef(value) {
 	return requiredString(value, "ref_id");
 }
 
-function parseActionRequest(input) {
-	if (typeof input === "string" && input.trim() === "help") return { action: "help" };
-	let value = input;
-	if (typeof input === "string") {
-		try {
-			value = JSON.parse(input);
-		} catch (error) {
-			throw new Error(
-				`input must be "help" or valid JSON: ${error instanceof Error ? error.message : String(error)}`,
-			);
-		}
+function parseActionRequest(text) {
+	if (text.trim() === "help") return { action: "help" };
+	let value;
+	try {
+		value = JSON.parse(text);
+	} catch (error) {
+		throw new Error(
+			`input must be "help" or valid JSON: ${error instanceof Error ? error.message : String(error)}`,
+		);
 	}
 	if (!isObject(value)) throw new Error("input must be a JSON object");
 	if (typeof value.action !== "string" || !Object.hasOwn(ACTION_FIELDS, value.action))
@@ -215,29 +213,17 @@ function parseActionRequest(input) {
 	throw new Error(`unsupported action: ${value.action}`);
 }
 
-export function parseRequest(input) {
-	let value = input;
-	if (typeof input === "string") {
-		const text = input.trim();
-		if (text === "help") return { help: true };
-		try {
-			value = JSON.parse(text);
-		} catch (error) {
-			throw new Error(
-				`input must be "help" or valid JSON: ${error instanceof Error ? error.message : String(error)}`,
-			);
-		}
+export function parseRequest(text) {
+	if (text.trim() === "help") return { help: true };
+	let value;
+	try {
+		value = JSON.parse(text);
+	} catch (error) {
+		throw new Error(
+			`input must be "help" or valid JSON: ${error instanceof Error ? error.message : String(error)}`,
+		);
 	}
 	if (!isObject(value)) throw new Error("input must be a JSON object");
-	if (Object.hasOwn(value, "action")) {
-		const operation = parseActionRequest(value);
-		if (operation.action === "help") return { help: true };
-		const { host, ...localOperation } = operation;
-		return {
-			operations: [localOperation],
-			...(host ? { host } : {}),
-		};
-	}
 	const unknown = Object.keys(value).filter(key => !BATCH_FIELDS.has(key));
 	if (unknown.length) throw new Error(`unknown browser field(s): ${unknown.join(", ")}`);
 	const host = parseHost(value.host);
@@ -251,11 +237,11 @@ export function parseRequest(input) {
 			if (!isObject(item)) throw new Error(`${action}[${index}] must be an object`);
 			const reserved = ["action", "host", "response_length"].filter(key => Object.hasOwn(item, key));
 			if (reserved.length) throw new Error(`${action}[${index}] has top-level field(s): ${reserved.join(", ")}`);
-			const parsed = parseActionRequest({
+			const parsed = parseActionRequest(JSON.stringify({
 				action,
 				...item,
 				...(["open", "find"].includes(action) ? { response_length: responseLength } : {}),
-			});
+			}));
 			operations.push(parsed);
 		}
 	}
@@ -331,20 +317,12 @@ export async function cliInvocation(request) {
 	}
 }
 
-function abortReason(signal) {
-	return signal?.reason instanceof Error
-		? signal.reason
-		: new Error("browser operation aborted");
-}
-
-export async function runProgram(command, args, input, signal) {
-	if (signal?.aborted) throw abortReason(signal);
+export async function runProgram(command, args, input) {
 	const child = spawn(command, args, { stdio: [input === undefined ? "ignore" : "pipe", "pipe", "pipe"] });
 	let stdout = "";
 	let stderr = "";
 	let outputBytes = 0;
 	let outputLimitExceeded = false;
-	let abortKillTimer;
 	child.stdout.setEncoding("utf8");
 	child.stderr.setEncoding("utf8");
 	const append = (current, chunk) => {
@@ -359,19 +337,9 @@ export async function runProgram(command, args, input, signal) {
 	};
 	child.stdout.on("data", chunk => { stdout = append(stdout, chunk); });
 	child.stderr.on("data", chunk => { stderr = append(stderr, chunk); });
-	const isRunning = () => child.exitCode === null && child.signalCode === null;
-	const interrupt = () => { if (isRunning()) child.kill("SIGINT"); };
-	const terminate = () => { if (isRunning()) child.kill("SIGTERM"); };
-	const abort = () => {
-		terminate();
-		abortKillTimer = setTimeout(() => {
-			if (isRunning()) child.kill("SIGKILL");
-		}, 1_000);
-		abortKillTimer.unref?.();
-	};
-	process.once("SIGINT", interrupt);
-	process.once("SIGTERM", terminate);
-	signal?.addEventListener("abort", abort, { once: true });
+	const forward = signal => { if (!child.killed) child.kill(signal); };
+	process.once("SIGINT", forward);
+	process.once("SIGTERM", forward);
 	try {
 		if (input !== undefined) child.stdin.end(input);
 		const code = await new Promise((resolve, reject) => {
@@ -380,13 +348,10 @@ export async function runProgram(command, args, input, signal) {
 		});
 		if (outputLimitExceeded)
 			throw new Error("browser child output exceeded 8 MiB; narrow the operation and retry");
-		if (signal?.aborted) throw abortReason(signal);
 		return { code, stdout: stdout.trim(), stderr: stderr.trim() };
 	} finally {
-		if (abortKillTimer) clearTimeout(abortKillTimer);
-		process.off("SIGINT", interrupt);
-		process.off("SIGTERM", terminate);
-		signal?.removeEventListener("abort", abort);
+		process.off("SIGINT", forward);
+		process.off("SIGTERM", forward);
 	}
 }
 
@@ -582,33 +547,29 @@ export async function formatLocalResult(request, stdout, file) {
 	return { ...(request.ref_id ? { ref_id: request.ref_id } : {}), result: stdout || "ok" };
 }
 
-function browserHelp() {
+export function browserHelp() {
 	const sshEnabled = HOSTS.size > 0 && typeof REMOTE_TOOL_PATH === "string";
 	return {
-		call: 'Normal Pi: action="help", then a request object. Code/Notebook: tools.browser("help"), then JSON.stringify(request)',
+		call: `await tools.browser(JSON.stringify({ ${sshEnabled ? "host?, " : ""}response_length?, tabs?, open?, find?, click?, ... }))`,
 		...(sshEnabled ? { host: `optional ${[...HOSTS].join(" | ")}` } : {}),
-		requests: {
-			single: `{ action, ${sshEnabled ? "host?, " : ""}...fields }`,
-			batch: `{ ${sshEnabled ? "host?, " : ""}response_length?, tabs?: [{...}], open?: [{...}], ... }`,
-		},
 		batching: "operations are non-empty arrays; independent items may share one call; dependent steps use separate calls",
 		actions: {
-			tabs: "query?, offset? -> ref_id/title/url",
-			open: "ref_id, lineno?, response_length? to inspect | url to open a tab",
-			find: "ref_id, pattern, lineno?, response_length?",
-			click: "ref_id, id | selector | x+y",
-			type: "ref_id, text, id?; id focuses first",
-			screenshot: "ref_id, id? | selector? -> local file",
-			navigate: "ref_id, url",
-			html: "ref_id, id? | selector?",
-			evaluate: "ref_id, expression",
-			network: "ref_id",
-			load_all: "ref_id, selector, interval_ms?",
-			raw: "ref_id, method, params?",
-			start: "no fields",
-			stop: "ref_id?",
-			read_result: "handle, offset; same host",
-			discard_result: "handle; same host",
+			tabs: "[{query?, offset?}] -> ref_id/title/url",
+			open: "[{ref_id, lineno?} inspect | {url} new tab]",
+			find: "[{ref_id, pattern, lineno?}]",
+			click: "[{ref_id, id | selector | x+y}]",
+			type: "[{ref_id, text, id?}]; id focuses first",
+			screenshot: "[{ref_id, id? | selector?}] -> local file",
+			navigate: "[{ref_id, url}]",
+			html: "[{ref_id, id? | selector?}]",
+			evaluate: "[{ref_id, expression}]",
+			network: "[{ref_id}]",
+			load_all: "[{ref_id, selector, interval_ms?}]",
+			raw: "[{ref_id, method, params?}]",
+			start: "[{}]",
+			stop: "[{ref_id?}]",
+			read_result: "[{handle, offset}]; same host",
+			discard_result: "[{handle}]; same host",
 		},
 		notes: [
 			"Prefer tabs -> open -> click/type; ref_id/id/lineno follow web__run vocabulary",
@@ -619,23 +580,21 @@ function browserHelp() {
 	};
 }
 
-async function executeOperation(request, signal) {
+async function executeOperation(request) {
 	if (request.action === "read_result") return readCachedResult(request);
 	if (request.action === "discard_result") return discardCachedResult(request.handle);
 	const invocation = await cliInvocation(request);
-	const result = await runProgram(process.execPath, [CDP_PATH, ...invocation.args], undefined, signal);
+	const result = await runProgram(process.execPath, [CDP_PATH, ...invocation.args]);
 	if (result.code !== 0)
 		throw new Error(cleanFailure(result.stderr || result.stdout || `browser command exited with code ${result.code}`));
 	return await formatLocalResult(request, result.stdout, invocation.file);
 }
 
-async function executeBatch(request, options = {}) {
+async function executeBatch(request) {
 	const results = [];
 	for (const [index, operation] of request.operations.entries()) {
 		try {
-			options.signal?.throwIfAborted();
-			options.onOperation?.(operation, index, request.operations.length);
-			results.push(await executeOperation(operation, options.signal));
+			results.push(await executeOperation(operation));
 		} catch (error) {
 			throw new Error(
 				`batch failed at ${operation.action}[${index}] after ${results.length} completed operation(s): ${error instanceof Error ? error.message : String(error)}`,
@@ -652,25 +611,25 @@ async function executeBatch(request, options = {}) {
 	};
 }
 
-async function copyRemoteArtifact(host, remoteFile, signal) {
+async function copyRemoteArtifact(host, remoteFile) {
 	if (!/^\/[A-Za-z0-9_./-]+$/.test(remoteFile))
 		throw new Error(`remote browser returned an unsafe artifact path: ${remoteFile}`);
 	await mkdir(artifactDir(), { recursive: true, mode: 0o700 });
 	const localFile = join(artifactDir(), `${host}-${basename(remoteFile)}`);
-	const copied = await runProgram("scp", ["-q", `${host}:${remoteFile}`, localFile], undefined, signal);
+	const copied = await runProgram("scp", ["-q", `${host}:${remoteFile}`, localFile]);
 	if (copied.code !== 0)
 		throw new Error(copied.stderr || copied.stdout || "could not copy remote screenshot");
-	const removed = await runProgram("ssh", [host, `/usr/bin/rm -- ${remoteFile}`], undefined, signal);
+	const removed = await runProgram("ssh", [host, `/usr/bin/rm -- ${remoteFile}`]);
 	if (removed.code !== 0) await rm(localFile, { force: true });
 	if (removed.code !== 0)
 		throw new Error(removed.stderr || removed.stdout || "copied screenshot but could not remove remote artifact");
 	return localFile;
 }
 
-async function runRemote(host, request, signal) {
+async function runRemote(host, request) {
 	if (!REMOTE_TOOL_PATH)
 		throw new Error("SSH browser routing requires REMOTE_TOOL_PATH");
-	const result = await runProgram("ssh", [host, `/usr/bin/node ${REMOTE_TOOL_PATH} --parsed`], JSON.stringify(request), signal);
+	const result = await runProgram("ssh", [host, `/usr/bin/node ${REMOTE_TOOL_PATH} --parsed`], JSON.stringify(request));
 	if (result.code !== 0)
 		throw new Error(cleanFailure(result.stderr || result.stdout || `remote browser exited with code ${result.code}`));
 	const parsed = parseJsonOutput(result.stdout, "remote browser");
@@ -682,7 +641,7 @@ async function runRemote(host, request, signal) {
 		const result = request.operations.length === 1 ? parsed : parsed.results?.[index];
 		if (!isObject(result) || typeof result.file !== "string")
 			throw new Error(`remote screenshot result ${index} has no file path`);
-		result.file = await copyRemoteArtifact(host, result.file, signal);
+		result.file = await copyRemoteArtifact(host, result.file);
 	}
 	return parsed;
 }
@@ -693,22 +652,19 @@ async function readStdin() {
 	return input;
 }
 
-export async function executeBrowserRequest(request, options = {}) {
-	options.signal?.throwIfAborted();
-	await pruneResultCache();
-	if (request.help) return browserHelp();
-	const route = planHostRoute(request);
-	const result = !route.remote
-		? await executeBatch(route.request, options)
-		: await runRemote(route.host, route.request, options.signal);
-	return route.host ? { host: route.host, ...result } : result;
-}
-
 async function main() {
 	const input = await readStdin();
 	const request = process.argv[2] === "--parsed" ? JSON.parse(input) : parseRequest(input);
-	const result = await executeBrowserRequest(request);
-	process.stdout.write(`${JSON.stringify(result)}\n`);
+	await pruneResultCache();
+	if (request.help) {
+		process.stdout.write(`${JSON.stringify(browserHelp())}\n`);
+		return;
+	}
+	const route = planHostRoute(request);
+	const result = !route.remote
+		? await executeBatch(route.request)
+		: await runRemote(route.host, route.request);
+	process.stdout.write(`${JSON.stringify(route.host ? { host: route.host, ...result } : result)}\n`);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url))

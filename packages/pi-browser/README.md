@@ -2,7 +2,7 @@
 
 One logged-in browser tool for ordinary Pi, Code Mode and Notebook Mode.
 
-The extension inspects rendered pages and authenticated tabs through Chrome DevTools Protocol. It returns bounded accessibility content, reusable element references, continuations and local screenshot paths. The same definition, parser, progress updates and execution path run on every Pi surface.
+The extension is the TypeScript counterpart of Pi Codex's browser custom tool. It keeps persistent typed CDP sessions inside Pi instead of starting one command process per call, while preserving the same help-first actions, batching, accessibility references, bounded continuations and screenshot paths.
 
 ## Install
 
@@ -22,9 +22,9 @@ In normal Pi, call `browser` with `action: "help"` before first use. In Code or 
 await tools.browser("help")
 ```
 
-Help returns the same single-action and batched request contract for both surfaces. A common route is `tabs`, then `open`, then `click` or `type` with the returned `ref_id` and element ID.
+Help returns equivalent single-action and batched request contracts for both surfaces. A common route is `tabs`, then `open`, then `click` or `type` with the returned `ref_id` and element ID.
 
-Long Code and Notebook calls use the normal `exec` and `wait` lifecycle. Cancellation stops the active tool subprocess. An operation already handed to a persistent tab daemon may still finish.
+Long Code and Notebook calls use the normal `exec` and `wait` lifecycle. Cancellation stops pending CDP work, though an already dispatched browser mutation may still take effect.
 
 ## Browser startup
 
@@ -38,4 +38,4 @@ Keep each result's `ref_id` and element IDs together. Continue truncated output 
 
 Ask before unfamiliar low-trust navigation or consequential external actions such as sending, posting, purchasing, uploading, deleting or changing account settings, unless the user already authorized the action. Never close a shared browser after a task.
 
-The CDP runtime is based on [pasky/chrome-cdp-skill](https://github.com/pasky/chrome-cdp-skill).
+The CDP implementation is based on [pasky/chrome-cdp-skill](https://github.com/pasky/chrome-cdp-skill).

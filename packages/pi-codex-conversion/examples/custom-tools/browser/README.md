@@ -1,7 +1,5 @@
 # Browser
 
-Install `@howaboua/pi-browser` instead when the same tool should work in ordinary Pi, Code Mode and Notebook Mode. This directory remains the standalone Code Mode compatibility example. Do not enable both surfaces together.
-
 Use for rendered evidence or interaction in an existing CDP-enabled browser. Start with `tabs`, open one returned `ref_id`, then use the numbered element references from the page result.
 
 Use `find` before `click` or `type` when the target is not already visible. Keep a browser result's `ref_id` and element IDs together. Read truncated results through the returned continuation rather than reopening the same page blindly.

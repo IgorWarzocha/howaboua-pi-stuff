@@ -1,4 +1,7 @@
 {
 	"extends": "../../tsconfig.base.json",
-	"include": ["index.ts", "src/**/*.ts", "browser/*.d.mts"]
+	"compilerOptions": {
+		"lib": ["ESNext", "DOM"]
+	},
+	"include": ["index.ts", "src/**/*.ts", "tests/**/*.ts"]
 }

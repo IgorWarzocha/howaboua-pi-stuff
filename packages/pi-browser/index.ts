@@ -1,4 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { BrowserRuntime } from "./src/browser/runtime.js";
 import {
 	createBrowserTool,
 	prepareBrowserCodeModeInput,
@@ -12,19 +13,24 @@ const CODE_MODE_MODULE = `${CODE_MODE_PACKAGE}/code-mode`;
 export default async function browserExtension(
 	pi: ExtensionAPI,
 ): Promise<void> {
-	const tool = createBrowserTool();
+	const runtime = new BrowserRuntime();
+	const tool = createBrowserTool(runtime);
 	pi.registerTool(tool);
-	await registerBrowserInCodeMode(pi, tool);
+	const registration = await registerBrowserInCodeMode(pi, tool);
+	pi.on("session_shutdown", () => {
+		registration?.unregister();
+		runtime.close();
+	});
 }
 
 async function registerBrowserInCodeMode(
 	pi: ExtensionAPI,
 	tool: ReturnType<typeof createBrowserTool>,
-): Promise<void> {
+) {
 	try {
 		const { adaptToolForCodeMode, registerCodeModeExtensionTools } =
 			await import("@howaboua/pi-codex-conversion/code-mode");
-		const registration = registerCodeModeExtensionTools(pi, () => [
+		return registerCodeModeExtensionTools(pi, () => [
 			adaptToolForCodeMode(tool, {
 				kind: "freeform",
 				prepareInput: prepareBrowserCodeModeInput,
@@ -32,9 +38,8 @@ async function registerBrowserInCodeMode(
 					'await tools.browser("help") // Logged-in local browser with web__run refs; ask before consequential external actions',
 			}),
 		]);
-		pi.on("session_shutdown", () => registration.unregister());
 	} catch (error) {
-		if (isMissingCodeModeExtension(error)) return;
+		if (isMissingCodeModeExtension(error)) return undefined;
 		throw error;
 	}
 }

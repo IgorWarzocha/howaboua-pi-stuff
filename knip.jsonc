@@ -5,15 +5,11 @@
 			"entry": ["changelog.ts"]
 		},
 		"packages/pi-browser": {
-			"entry": ["tests/*.test.mjs"],
+			"entry": ["tests/**/*.test.ts"],
 			"project": [
 				"src/**/*.ts",
-				"browser/**/*.mjs",
-				"tests/*.test.mjs"
-			],
-			"ignoreIssues": {
-				"browser/cdp-lib/snapshot.mjs": ["exports"]
-			}
+				"tests/**/*.ts"
+			]
 		},
 		"packages/pi-codex-conversion": {
 			"ignoreExportsUsedInFile": true,

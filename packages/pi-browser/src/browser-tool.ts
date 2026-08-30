@@ -2,31 +2,9 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import { defineTool } from "@earendil-works/pi-coding-agent";
 import type { Static } from "typebox";
 import { Type } from "typebox";
-import {
-	type BrowserRequest,
-	executeBrowserRequest,
-	parseRequest,
-} from "../browser/browser.mjs";
-
-const BROWSER_ACTIONS = [
-	"help",
-	"start",
-	"tabs",
-	"open",
-	"find",
-	"click",
-	"type",
-	"screenshot",
-	"html",
-	"navigate",
-	"evaluate",
-	"network",
-	"load_all",
-	"raw",
-	"read_result",
-	"discard_result",
-	"stop",
-] as const;
+import { BROWSER_ACTIONS } from "./browser/operation.js";
+import { type BrowserRequest, parseBrowserRequest } from "./browser/request.js";
+import { BrowserRuntime } from "./browser/runtime.js";
 
 const BrowserParameters = Type.Object({
 	action: Type.Optional(StringEnum(BROWSER_ACTIONS)),
@@ -46,7 +24,7 @@ export function prepareBrowserCodeModeInput(input: unknown): BrowserToolParams {
 	}
 	const prepared: BrowserToolParams = {};
 	Object.defineProperty(prepared, preparedBrowserRequest, {
-		value: parseRequest(input),
+		value: parseBrowserRequest(input),
 	});
 	return prepared;
 }
@@ -62,10 +40,10 @@ function isPreparedBrowserInput(input: unknown): input is PreparedBrowserInput {
 function browserRequest(input: unknown): BrowserRequest {
 	return isPreparedBrowserInput(input)
 		? input[preparedBrowserRequest]
-		: parseRequest(input);
+		: parseBrowserRequest(input);
 }
 
-export function createBrowserTool() {
+export function createBrowserTool(runtime: BrowserRuntime) {
 	return defineTool({
 		name: "browser",
 		label: "Browser",
@@ -78,7 +56,7 @@ export function createBrowserTool() {
 			"browser: Ask before unfamiliar low-trust navigation or consequential external actions unless already authorized. Never close the shared browser after a task.",
 		],
 		async execute(_toolCallId, input, signal, onUpdate) {
-			const result = await executeBrowserRequest(browserRequest(input), {
+			const result = await runtime.execute(browserRequest(input), {
 				signal: signal ?? new AbortController().signal,
 				onOperation(operation, index, total) {
 					onUpdate?.({
