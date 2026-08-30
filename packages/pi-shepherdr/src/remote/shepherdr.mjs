@@ -4,7 +4,7 @@ import { createConnection } from "node:net";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
-const BRIDGE_VERSION = 2;
+const BRIDGE_VERSION = 3;
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const READ_CHUNK_BYTES = 64 * 1024;
 const subscriptions = new Map();
@@ -238,6 +238,25 @@ function assistantFromMessage(id, message) {
 	};
 }
 
+function userFromMessage(id, message) {
+	if (message.role !== "user") return undefined;
+	const text = [];
+	if (typeof message.content === "string") text.push(message.content);
+	else if (Array.isArray(message.content)) {
+		for (const part of message.content) {
+			if (
+				part &&
+				typeof part === "object" &&
+				part.type === "text" &&
+				typeof part.text === "string"
+			)
+				text.push(part.text);
+		}
+	}
+	const joined = text.join("");
+	return joined ? { id, text: joined } : undefined;
+}
+
 function askChoice(value) {
 	if (!value || typeof value !== "object" || typeof value.label !== "string")
 		return undefined;
@@ -290,8 +309,20 @@ async function sessionView(path, size) {
 	const file = await open(path, "r");
 	let targetId;
 	let assistant;
+	let assistantDepth;
 	let ask;
+	let depth = 0;
+	let user;
+	let userDepth;
 	const resolved = new Set();
+	const result = () => ({
+		...(assistant ? { assistant } : {}),
+		...(ask ? { ask } : {}),
+		...(user ? { user } : {}),
+		...(assistantDepth !== undefined && userDepth !== undefined
+			? { assistantAfterUser: assistantDepth < userDepth }
+			: {}),
+	});
 	const inspect = (line) => {
 		if (line.length === 0) return false;
 		let entry;
@@ -303,6 +334,8 @@ async function sessionView(path, size) {
 		if (typeof entry.id !== "string") return false;
 		targetId ??= entry.id;
 		if (entry.id !== targetId) return false;
+		const currentDepth = depth;
+		depth += 1;
 		const message = entry.message;
 		if (message && typeof message === "object") {
 			if (
@@ -310,7 +343,14 @@ async function sessionView(path, size) {
 				typeof (message.toolCallId ?? message.tool_call_id) === "string"
 			)
 				resolved.add(message.toolCallId ?? message.tool_call_id);
-			assistant ??= assistantFromMessage(entry.id, message);
+			if (!assistant) {
+				assistant = assistantFromMessage(entry.id, message);
+				if (assistant) assistantDepth = currentDepth;
+			}
+			if (!user) {
+				user = userFromMessage(entry.id, message);
+				if (user) userDepth = currentDepth;
+			}
 			if (
 				!ask &&
 				message.role === "assistant" &&
@@ -340,20 +380,13 @@ async function sessionView(path, size) {
 			let lineEnd = data.length;
 			for (let index = data.length - 1; index >= 0; index -= 1) {
 				if (data[index] !== 0x0a) continue;
-				if (inspect(data.subarray(index + 1, lineEnd)))
-					return {
-						...(assistant ? { assistant } : {}),
-						...(ask ? { ask } : {}),
-					};
+				if (inspect(data.subarray(index + 1, lineEnd))) return result();
 				lineEnd = index;
 			}
 			partial = data.subarray(0, lineEnd);
 		}
 		inspect(partial);
-		return {
-			...(assistant ? { assistant } : {}),
-			...(ask ? { ask } : {}),
-		};
+		return result();
 	} finally {
 		await file.close();
 	}

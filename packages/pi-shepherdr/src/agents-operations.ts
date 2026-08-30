@@ -202,8 +202,17 @@ export async function dispatchAgentWork(
 	signal: AbortSignal,
 	onUpdate: AgentToolUpdateCallback<Record<string, unknown>>,
 	send: () => Promise<void>,
+	options: { expectUserMessage?: boolean } = {},
 ): Promise<ClaimedSettlement | undefined> {
-	const attempt = runtime.monitor.beginWork(panel.pane_id, task);
+	signal.throwIfAborted();
+	const baseline = options.expectUserMessage
+		? await runtime.monitor.view(panel)
+		: undefined;
+	const attempt = runtime.monitor.beginWork(
+		panel.pane_id,
+		task,
+		options.expectUserMessage ? (baseline?.user?.id ?? null) : undefined,
+	);
 	if (!attempt) throw new Error(`${panel.pane_id} is not monitored`);
 	const settlement = blocking
 		? runtime.monitor.claimWork(attempt, signal)

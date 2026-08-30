@@ -7,7 +7,7 @@ import type { RemoteMachineConfig } from "./machines-config.js";
 import type { AssistantReader } from "./session-reader.js";
 import type { HerdrEvent, LatestAssistant, SessionView } from "./types.js";
 
-const BRIDGE_VERSION = 2;
+const BRIDGE_VERSION = 3;
 const REMOTE_HELPER = "~/.pi/agent/shepherdr.mjs";
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const MAX_DIAGNOSTIC_BYTES = 8 * 1024;

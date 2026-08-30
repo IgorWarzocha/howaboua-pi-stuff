@@ -4,6 +4,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import {
 	activityAttemptId,
+	activityExpectedUser,
 	activityTask,
 	isSettledStatus,
 } from "./activity.js";
@@ -26,12 +27,16 @@ interface SettlementLabels {
 	workspace?: string;
 }
 
-export interface CollectedSettlement {
+interface CollectedSettlement {
 	agent: PaneInfo;
 	ask?: PendingAsk;
 	labels: SettlementLabels;
 	reply?: LatestAssistant;
 	status: SettledAgentStatus;
+}
+
+interface CollectedSettlementWithSession extends CollectedSettlement {
+	session: SessionView;
 }
 
 export interface ClaimedSettlement extends CollectedSettlement {
@@ -81,7 +86,7 @@ export class SettlementCollector {
 
 	async collect(
 		record: MonitoredAgent,
-	): Promise<CollectedSettlement | undefined> {
+	): Promise<CollectedSettlementWithSession | undefined> {
 		const [current, snapshot] = await Promise.all([
 			getAgent(this.client, record.paneId),
 			getSnapshot(this.client),
@@ -110,6 +115,7 @@ export class SettlementCollector {
 			...(current.agent_status === "blocked" && view.ask
 				? { ask: view.ask }
 				: {}),
+			session: view,
 			status: current.agent_status,
 		};
 	}
@@ -194,9 +200,18 @@ export class SettlementReporter {
 
 	releaseClaim(attempt: WorkAttempt | undefined, error: unknown): void {
 		if (!attempt) return;
-		const claim = this.claims.get(attempt.attemptId);
+		this.releaseAttempt(attempt.attemptId, error);
+	}
+
+	releaseAgentClaim(record: MonitoredAgent, error: unknown): void {
+		const attemptId = activityAttemptId(record.activity);
+		if (attemptId) this.releaseAttempt(attemptId, error);
+	}
+
+	private releaseAttempt(attemptId: string, error: unknown): void {
+		const claim = this.claims.get(attemptId);
 		if (!claim) return;
-		this.claims.delete(attempt.attemptId);
+		this.claims.delete(attemptId);
 		claim.cleanup();
 		claim.reject(error instanceof Error ? error : new Error(String(error)));
 	}
@@ -215,12 +230,27 @@ export class SettlementReporter {
 			if (!settlement || !lifecycle.isCurrent()) return;
 			const current = this.state.byPane(settlement.agent.pane_id);
 			if (!current || current.terminalId !== request.record.terminalId) return;
+			if (activityTask(current.activity) !== task) return;
+			const retryRequest = task ? { ...request, task } : request;
+			const expectedUser = activityExpectedUser(current.activity);
+			if (
+				expectedUser &&
+				(settlement.session.assistantAfterUser !== true ||
+					!settlement.session.user ||
+					settlement.session.user.id === expectedUser.after ||
+					settlement.session.user.text !== expectedUser.text)
+			) {
+				if (!retried) this.retry(lifecycle, retryRequest);
+				return;
+			}
 			const newReply =
 				settlement.reply?.id !== current.lastAssistantId
 					? settlement.reply
 					: undefined;
-			if (request.requireNewReply && !newReply && !settlement.ask) return;
-			if (activityTask(current.activity) !== task) return;
+			if (request.requireNewReply && !newReply && !settlement.ask) {
+				if (!retried) this.retry(lifecycle, retryRequest);
+				return;
+			}
 			const blockedMessage =
 				settlement.status === request.status
 					? request.blockedMessage
@@ -240,7 +270,11 @@ export class SettlementReporter {
 				if (claim && attemptId) {
 					this.claims.delete(attemptId);
 					claim.cleanup();
-					const { reply: _latestReply, ...claimedSettlement } = settlement;
+					const {
+						reply: _latestReply,
+						session: _session,
+						...claimedSettlement
+					} = settlement;
 					claim.resolve({
 						...claimedSettlement,
 						record: current,

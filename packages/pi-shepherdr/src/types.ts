@@ -6,6 +6,7 @@ export type StableAgentActivity =
 	| { readonly phase: "settled"; readonly status: SettledAgentStatus }
 	| {
 			readonly attemptId?: string;
+			readonly expectedUserAfter?: string | null;
 			readonly phase: "working";
 			readonly task?: string;
 	  };
@@ -14,6 +15,7 @@ export type AgentActivity =
 	| StableAgentActivity
 	| {
 			readonly attemptId: string;
+			readonly expectedUserAfter?: string | null;
 			readonly phase: "submitting";
 			readonly previous: StableAgentActivity;
 			readonly task: string;
@@ -87,6 +89,11 @@ export interface LatestAssistant {
 	text: string;
 }
 
+export interface LatestUser {
+	id: string;
+	text: string;
+}
+
 export interface PendingAsk {
 	handoff: boolean;
 	prompts: Array<{
@@ -101,6 +108,8 @@ export interface PendingAsk {
 export interface SessionView {
 	ask?: PendingAsk;
 	assistant?: LatestAssistant;
+	assistantAfterUser?: boolean;
+	user?: LatestUser;
 }
 
 export interface HerdrEvent {

@@ -113,6 +113,7 @@ export function createAgentsTool(fleet: AgentFleet) {
 							target: started.id,
 							text: message,
 						}),
+					{ expectUserMessage: true },
 				);
 				return toolResult(
 					settlement
@@ -213,6 +214,7 @@ export function createAgentsTool(fleet: AgentFleet) {
 							target: panel.pane_id,
 							text: message,
 						}),
+					{ expectUserMessage: true },
 				);
 				return toolResult(
 					settlement

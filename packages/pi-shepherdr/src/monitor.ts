@@ -143,13 +143,21 @@ export class AgentMonitor {
 	async unwatch(paneId: string): Promise<boolean> {
 		const record = this.state.removePane(paneId);
 		if (!record) return false;
+		this.settlements.releaseAgentClaim(
+			record,
+			new Error(`${paneId} was unwatched before its work settled`),
+		);
 		this.persist();
 		await this.events.refresh();
 		return true;
 	}
 
-	beginWork(paneId: string, task: string): WorkAttempt | undefined {
-		const attempt = this.state.beginWork(paneId, task);
+	beginWork(
+		paneId: string,
+		task: string,
+		expectedUserAfter?: string | null,
+	): WorkAttempt | undefined {
+		const attempt = this.state.beginWork(paneId, task, expectedUserAfter);
 		if (attempt) this.persist();
 		return attempt;
 	}
@@ -223,10 +231,16 @@ export class AgentMonitor {
 		const snapshot = await getSnapshot(this.client);
 		if (generation !== this.activationGeneration || context !== this.context)
 			return;
-		const { changed, completions } = this.state.reconcile(
+		const { changed, completions, removed } = this.state.reconcile(
 			snapshot,
 			this.selfPaneId,
 		);
+		for (const record of removed) {
+			this.settlements.releaseAgentClaim(
+				record,
+				new Error(`${record.paneId} closed before its work settled`),
+			);
+		}
 		if (changed || persistRestoration) this.persist();
 		else this.onRefresh();
 		for (const completion of completions) {
@@ -240,6 +254,10 @@ export class AgentMonitor {
 		if (parsed.type === "closed") {
 			const record = this.state.removePane(parsed.paneId);
 			if (record) {
+				this.settlements.releaseAgentClaim(
+					record,
+					new Error(`${parsed.paneId} closed before its work settled`),
+				);
 				this.persist();
 				void this.events.refresh();
 			}

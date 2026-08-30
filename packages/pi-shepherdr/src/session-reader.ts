@@ -1,5 +1,10 @@
 import { open, stat } from "node:fs/promises";
-import type { LatestAssistant, PendingAsk, SessionView } from "./types.js";
+import type {
+	LatestAssistant,
+	LatestUser,
+	PendingAsk,
+	SessionView,
+} from "./types.js";
 
 const READ_CHUNK_BYTES = 64 * 1024;
 
@@ -36,6 +41,26 @@ function assistantFromMessage(
 		text: joined,
 		...(stopReason ? { stopReason } : {}),
 	};
+}
+
+function userFromMessage(
+	id: string,
+	message: Record<string, unknown>,
+): LatestUser | undefined {
+	if (message["role"] !== "user") return undefined;
+	const text: string[] = [];
+	if (typeof message["content"] === "string") {
+		text.push(message["content"]);
+	} else if (Array.isArray(message["content"])) {
+		for (const value of message["content"]) {
+			const part = record(value);
+			if (part?.["type"] === "text" && typeof part["text"] === "string") {
+				text.push(part["text"]);
+			}
+		}
+	}
+	const joined = text.join("");
+	return joined ? { id, text: joined } : undefined;
 }
 
 function askChoice(
@@ -106,8 +131,20 @@ async function readSessionView(
 	const file = await open(path, "r");
 	let targetId: string | undefined;
 	let assistant: LatestAssistant | undefined;
+	let assistantDepth: number | undefined;
 	let ask: PendingAsk | undefined;
+	let depth = 0;
+	let user: LatestUser | undefined;
+	let userDepth: number | undefined;
 	const resolved = new Set<string>();
+	const result = (): SessionView => ({
+		...(assistant ? { assistant } : {}),
+		...(ask ? { ask } : {}),
+		...(user ? { user } : {}),
+		...(assistantDepth !== undefined && userDepth !== undefined
+			? { assistantAfterUser: assistantDepth < userDepth }
+			: {}),
+	});
 	const inspect = (line: Buffer): boolean => {
 		if (line.length === 0) return false;
 		let entry: Record<string, unknown>;
@@ -120,11 +157,20 @@ async function readSessionView(
 		if (typeof id !== "string") return false;
 		targetId ??= id;
 		if (id !== targetId) return false;
+		const currentDepth = depth;
+		depth += 1;
 		const message = record(entry["message"]);
 		if (message) {
 			const resolvedId = resolvedToolCallId(message);
 			if (resolvedId) resolved.add(resolvedId);
-			assistant ??= assistantFromMessage(id, message);
+			if (!assistant) {
+				assistant = assistantFromMessage(id, message);
+				if (assistant) assistantDepth = currentDepth;
+			}
+			if (!user) {
+				user = userFromMessage(id, message);
+				if (user) userDepth = currentDepth;
+			}
 			if (
 				!ask &&
 				message["role"] === "assistant" &&
@@ -158,20 +204,14 @@ async function readSessionView(
 			for (let index = data.length - 1; index >= 0; index -= 1) {
 				if (data[index] !== 0x0a) continue;
 				if (inspect(data.subarray(index + 1, lineEnd))) {
-					return {
-						...(assistant ? { assistant } : {}),
-						...(ask ? { ask } : {}),
-					};
+					return result();
 				}
 				lineEnd = index;
 			}
 			partial = data.subarray(0, lineEnd);
 		}
 		inspect(partial);
-		return {
-			...(assistant ? { assistant } : {}),
-			...(ask ? { ask } : {}),
-		};
+		return result();
 	} finally {
 		await file.close();
 	}

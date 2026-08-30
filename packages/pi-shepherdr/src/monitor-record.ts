@@ -16,6 +16,18 @@ function optionalString(
 		: false;
 }
 
+function optionalNullableString(
+	value: Record<string, unknown>,
+	field: string,
+): string | null | undefined | false {
+	const candidate = value[field];
+	return candidate === undefined ||
+		candidate === null ||
+		typeof candidate === "string"
+		? candidate
+		: false;
+}
+
 function stableActivity(value: unknown): StableAgentActivity | undefined {
 	if (typeof value !== "object" || value === null) return undefined;
 	const activity = value as Record<string, unknown>;
@@ -29,15 +41,23 @@ function stableActivity(value: unknown): StableAgentActivity | undefined {
 	if (activity["phase"] !== "working") return undefined;
 	const task = optionalString(activity, "task");
 	const attemptId = optionalString(activity, "attemptId");
+	const expectedUserAfter = optionalNullableString(
+		activity,
+		"expectedUserAfter",
+	);
 	return task === false
 		? undefined
 		: attemptId === false
 			? undefined
-			: {
-					phase: "working",
-					...(attemptId ? { attemptId } : {}),
-					...(task ? { task } : {}),
-				};
+			: expectedUserAfter === false ||
+					(expectedUserAfter !== undefined && !task)
+				? undefined
+				: {
+						phase: "working",
+						...(attemptId ? { attemptId } : {}),
+						...(expectedUserAfter !== undefined ? { expectedUserAfter } : {}),
+						...(task ? { task } : {}),
+					};
 }
 
 function parsedActivity(value: unknown): AgentActivity | undefined {
@@ -46,10 +66,15 @@ function parsedActivity(value: unknown): AgentActivity | undefined {
 	if (typeof value !== "object" || value === null) return undefined;
 	const activity = value as Record<string, unknown>;
 	const previous = stableActivity(activity["previous"]);
+	const expectedUserAfter = optionalNullableString(
+		activity,
+		"expectedUserAfter",
+	);
 	if (
 		activity["phase"] !== "submitting" ||
 		typeof activity["attemptId"] !== "string" ||
 		typeof activity["task"] !== "string" ||
+		expectedUserAfter === false ||
 		!previous
 	) {
 		return undefined;
@@ -59,6 +84,7 @@ function parsedActivity(value: unknown): AgentActivity | undefined {
 		phase: "submitting",
 		previous,
 		task: activity["task"],
+		...(expectedUserAfter !== undefined ? { expectedUserAfter } : {}),
 	};
 }
 
