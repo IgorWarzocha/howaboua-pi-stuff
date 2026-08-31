@@ -224,6 +224,7 @@ let stateRevision = -1;
 let settleTimer: ReturnType<typeof setTimeout> | undefined;
 let bubbleTimer: ReturnType<typeof setTimeout> | undefined;
 let explicitReaction = false;
+let uiPromptWaiting = false;
 
 function cancelSettle(): void {
   if (settleTimer) clearTimeout(settleTimer);
@@ -281,37 +282,51 @@ function settle(text?: string): void {
 
 function handleActivity(value: { state?: string; text?: string }): void {
   if (value.state === "working") {
+    uiPromptWaiting = false;
     activity = "working";
     if (!explicitReaction) show("running", "Pi is working", "working");
+  } else if (value.state === "waiting") {
+    const promptTitle = value.text?.replace(/\s+/g, " ").trim().slice(0, 280);
+    uiPromptWaiting = true;
+    activity = "waiting";
+    if (!explicitReaction) show("waiting", promptTitle || "Waiting for your answer", "waiting");
   } else if (value.state === "settled") {
+    uiPromptWaiting = false;
     activeTools.clear();
     explicitReaction = false;
     settle(value.text);
   } else if (value.state === "idle") {
+    uiPromptWaiting = false;
     activeTools.clear();
     explicitReaction = false;
     show(catalog.defaultAction, "Following the active Pi session", "idle");
   }
 }
 
+function hasActiveAsk(): boolean {
+  return [...activeTools.values()].includes("ask");
+}
+
 function toolStarted(value: { toolCallId?: string; toolName?: string }): void {
   if (!(value.toolCallId && value.toolName) || value.toolName === "pet_show") return;
   activeTools.set(value.toolCallId, value.toolName);
-  if (value.toolName === "ask") {
+  if (uiPromptWaiting) return;
+  if (hasActiveAsk()) {
     activity = "waiting";
     if (!explicitReaction) show("waiting", "Waiting for your answer", "waiting");
-  } else {
-    activity = "working";
-    if (!explicitReaction) show("running", `Using ${value.toolName}`, "working");
+    return;
   }
+  activity = "working";
+  if (!explicitReaction) show("running", `Using ${value.toolName}`, "working");
 }
 
 function toolEnded(value: { toolCallId?: string; isError?: boolean }): void {
   if (!(value.toolCallId && activeTools.delete(value.toolCallId))) return;
+  if (uiPromptWaiting) return;
   if (value.isError) {
     activity = "failed";
     if (!explicitReaction) show("failed", "A tool failed", "failed");
-  } else if ([...activeTools.values()].includes("ask")) {
+  } else if (hasActiveAsk()) {
     activity = "waiting";
     if (!explicitReaction) show("waiting", "Waiting for your answer", "waiting");
   } else {

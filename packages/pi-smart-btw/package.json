@@ -30,13 +30,13 @@
 		"@earendil-works/pi-agent-core": ">=0.84.3"
 	},
 	"devDependencies": {
-		"@earendil-works/pi-ai": "0.84.3",
-		"@earendil-works/pi-coding-agent": "0.84.3",
-		"@earendil-works/pi-tui": "0.84.3",
+		"@earendil-works/pi-ai": "0.84.4",
+		"@earendil-works/pi-coding-agent": "0.84.4",
+		"@earendil-works/pi-tui": "0.84.4",
 		"@types/node": "^26.2.0",
 		"typescript": "^7.0.2",
 		"@biomejs/biome": "^2.5.10",
-		"@earendil-works/pi-agent-core": "0.84.3"
+		"@earendil-works/pi-agent-core": "0.84.4"
 	},
 	"pi": {
 		"extensions": [

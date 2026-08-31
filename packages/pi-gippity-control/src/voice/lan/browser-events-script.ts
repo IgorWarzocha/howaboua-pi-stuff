@@ -9,6 +9,10 @@ function connectBrowserEvents({ client, connection, activity, activityState, act
           activity.hidden = false;
           activityState.textContent = 'Working…';
           activityText.textContent = '';
+        } else if (command.state === 'waiting') {
+          activity.hidden = false;
+          activityState.textContent = 'Waiting for you';
+          activityText.textContent = typeof command.text === 'string' ? command.text : '';
         } else if (command.state === 'settled' && typeof command.text === 'string' && command.text) {
           activity.hidden = false;
           activityState.textContent = '';

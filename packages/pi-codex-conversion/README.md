@@ -12,7 +12,7 @@ For the argument and token numbers, read [How I gave Pi 17 tools without loading
 pi install npm:@howaboua/pi-codex-conversion
 ```
 
-Requires Pi 0.82 or newer and Node.js 22.19 or newer. Native helpers for macOS, Linux and Windows are bundled for x64 and arm64.
+Requires Pi 0.84.4 or newer and Node.js 22.19 or newer. Native helpers for macOS, Linux and Windows are bundled for x64 and arm64.
 
 Open `/codex` after installation. The defaults give Codex-like GPT models the structured adapter and leave Code Mode, heavy prompt overwrite and native compaction opt-in. All of them are highly recommended, though. That's what I'm daily-driving and fine-tuning towards.
 

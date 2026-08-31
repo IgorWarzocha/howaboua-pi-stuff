@@ -89,6 +89,14 @@ export function registerGippityControl(pi: ExtensionAPI): void {
 		lanVoice.agentStarted();
 		lanVoice.piEvent("agent_start", event);
 	});
+	pi.on("ui_prompt_start", async (event) => {
+		lanVoice.uiPromptStarted(event.title);
+		lanVoice.piEvent("ui_prompt_start", event);
+	});
+	pi.on("ui_prompt_end", async (event, ctx) => {
+		lanVoice.uiPromptEnded(!ctx.isIdle());
+		lanVoice.piEvent("ui_prompt_end", event);
+	});
 	pi.on("agent_settled", async (event) => {
 		voice.settleTurn();
 		lanVoice.agentSettled();

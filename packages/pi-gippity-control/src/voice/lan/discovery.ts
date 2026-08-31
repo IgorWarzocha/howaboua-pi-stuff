@@ -88,7 +88,7 @@ export function createLanRemoteDiscovery(options: {
 				"{ type: 'connection', state: 'connected' | 'reconnecting' } (browser client only)",
 			draft: "{ type: 'draft', text, revision, sourceClientId?, reason? }",
 			activity:
-				"{ type: 'activity', state: 'idle' | 'working' | 'settled', text? }",
+				"{ type: 'activity', state: 'idle' | 'working' | 'waiting' | 'settled', text? }",
 			voice: ["status", "mute", "microphone", "stop", "error"],
 			pi: "{ type: 'pi.event', event, data }",
 			appState: "{ type: 'app.state', app, data }",
@@ -99,6 +99,8 @@ export function createLanRemoteDiscovery(options: {
 				"agent_start",
 				"agent_end",
 				"agent_settled",
+				"ui_prompt_start",
+				"ui_prompt_end",
 				"turn_start",
 				"turn_end",
 				"message_start",

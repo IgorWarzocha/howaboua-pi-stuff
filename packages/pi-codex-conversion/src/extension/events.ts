@@ -251,6 +251,12 @@ export function registerCodexEvents(
 		runtime.voice.agentStarted();
 		runtime.lanVoice.agentStarted();
 	});
+	pi.on("ui_prompt_start", async (event) => {
+		runtime.lanVoice.uiPromptStarted(event.title);
+	});
+	pi.on("ui_prompt_end", async (_event, ctx) => {
+		runtime.lanVoice.uiPromptEnded(!ctx.isIdle());
+	});
 	pi.on("agent_settled", async (_event, ctx) => {
 		if (pendingExtensionToolRefresh) {
 			pendingExtensionToolRefresh = false;
