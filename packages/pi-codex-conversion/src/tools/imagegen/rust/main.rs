@@ -14,6 +14,8 @@ const DEFAULT_BASE_URL: &str = "https://chatgpt.com/backend-api";
 const IMAGE_DIR: &str = ".pi/openai-codex-images";
 const LATEST_IMAGE_NAME: &str = "latest.png";
 const IMAGE_MODEL: &str = "gpt-image-2";
+const MAX_EDIT_IMAGES: usize = 5;
+const X_CODEX_IMAGEGEN_REQUEST_ID_HEADER: &str = "x-codex-imagegen-request-id";
 
 #[derive(Debug, Deserialize)]
 struct PiAuthFile {
@@ -33,24 +35,22 @@ struct CodexAuth {
     account_id: String,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "lowercase")]
-enum ImagegenAction {
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum ImagegenOperation {
     Generate,
     Edit,
 }
 
-fn default_action() -> ImagegenAction {
-    ImagegenAction::Generate
-}
-
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ImagegenArgs {
     prompt: String,
-    #[serde(default = "default_action")]
-    action: ImagegenAction,
     #[serde(default)]
-    images: Vec<String>,
+    referenced_image_paths: Vec<String>,
+    #[serde(default)]
+    num_last_images_to_include: Option<usize>,
+    #[serde(default)]
+    recent_images: Vec<String>,
     #[serde(default)]
     model: Option<String>,
     #[serde(default)]
@@ -104,8 +104,10 @@ struct ImagegenOutput {
     latest_path: String,
     images: Vec<SavedImage>,
     background: Option<ImageBackground>,
+    transparent_background: Option<bool>,
     quality: Option<ImageQuality>,
     size: Option<String>,
+    imagegen_request_id: Option<String>,
 }
 
 fn parse_args() -> anyhow::Result<ImagegenArgs> {
@@ -221,26 +223,30 @@ fn relative_path(root: &Path, path: &Path) -> String {
         .unwrap_or_else(|_| path.to_string_lossy().to_string())
 }
 
-fn image_url_from_arg(value: &str) -> anyhow::Result<String> {
-    if value.starts_with("data:image/")
-        || value.starts_with("http://")
-        || value.starts_with("https://")
-    {
-        return Ok(value.to_string());
-    }
+fn image_url_from_path(value: &str) -> anyhow::Result<String> {
     let bytes = fs::read(value).with_context(|| format!("failed to read edit image `{value}`"))?;
     load_for_prompt_bytes(Path::new(value), bytes, PromptImageMode::Original)
         .with_context(|| format!("failed to process edit image `{value}`"))
         .map(|image| image.into_data_url())
 }
 
+fn recent_image_url(value: &str) -> anyhow::Result<String> {
+    let Some((metadata, data)) = value.split_once(',') else {
+        anyhow::bail!("recent conversation image is not a base64 image data URL");
+    };
+    if !metadata.starts_with("data:image/") || !metadata.ends_with(";base64") || data.is_empty() {
+        anyhow::bail!("recent conversation image is not a base64 image data URL");
+    }
+    Ok(value.to_string())
+}
+
 fn codex_base_url() -> String {
     let base = env::var("PI_CODEX_BASE_URL").unwrap_or_else(|_| DEFAULT_BASE_URL.to_string());
     let normalized = base.trim_end_matches('/');
-    if let Ok(url) = reqwest::Url::parse(normalized) {
-        if url.path().is_empty() || url.path() == "/" {
-            return format!("{normalized}/api/codex");
-        }
+    if let Ok(url) = reqwest::Url::parse(normalized)
+        && (url.path().is_empty() || url.path() == "/")
+    {
+        return format!("{normalized}/api/codex");
     }
     if normalized.ends_with("/codex/responses") {
         normalized.trim_end_matches("/responses").to_string()
@@ -253,48 +259,91 @@ fn codex_base_url() -> String {
     }
 }
 
-fn image_endpoint_url(action: &ImagegenAction) -> String {
-    let operation = match action {
-        ImagegenAction::Generate => "generations",
-        ImagegenAction::Edit => "edits",
+fn image_endpoint_url(operation: ImagegenOperation) -> String {
+    let operation = match operation {
+        ImagegenOperation::Generate => "generations",
+        ImagegenOperation::Edit => "edits",
     };
     format!("{}/images/{operation}", codex_base_url())
 }
 
-fn build_request(args: &ImagegenArgs) -> anyhow::Result<serde_json::Value> {
+fn build_request(args: &ImagegenArgs) -> anyhow::Result<(ImagegenOperation, serde_json::Value)> {
     let model = args
         .model
         .clone()
         .unwrap_or_else(|| IMAGE_MODEL.to_string());
-    match args.action {
-        ImagegenAction::Generate => Ok(json!({
+    if args.referenced_image_paths.len() > MAX_EDIT_IMAGES {
+        anyhow::bail!("`referenced_image_paths` must contain at most {MAX_EDIT_IMAGES} paths");
+    }
+    if args.num_last_images_to_include.is_none() && !args.recent_images.is_empty() {
+        anyhow::bail!("internal `recent_images` requires `num_last_images_to_include`");
+    }
+    let images = match (
+        args.referenced_image_paths.is_empty(),
+        args.num_last_images_to_include,
+    ) {
+        (true, None) => {
+            return Ok((
+                ImagegenOperation::Generate,
+                json!({
+                    "prompt": args.prompt,
+                    "model": model,
+                    "background": "auto",
+                    "quality": "auto",
+                    "size": "auto",
+                }),
+            ));
+        }
+        (false, None) => {
+            let mut images = Vec::with_capacity(args.referenced_image_paths.len());
+            for image in &args.referenced_image_paths {
+                images.push(json!({ "image_url": image_url_from_path(image)? }));
+            }
+            images
+        }
+        (true, Some(count)) => {
+            if !(1..=MAX_EDIT_IMAGES).contains(&count) {
+                anyhow::bail!(
+                    "`num_last_images_to_include` must be between 1 and {MAX_EDIT_IMAGES}"
+                );
+            }
+            if args.recent_images.len() != count {
+                anyhow::bail!(
+                    "requested the last {count} conversation images, but only {} were available",
+                    args.recent_images.len()
+                );
+            }
+            let mut images = Vec::with_capacity(count);
+            for image in &args.recent_images {
+                images.push(json!({ "image_url": recent_image_url(image)? }));
+            }
+            images
+        }
+        (false, Some(_)) => {
+            anyhow::bail!(
+                "provide only one of `referenced_image_paths` or \
+                 `num_last_images_to_include`"
+            );
+        }
+    };
+    Ok((
+        ImagegenOperation::Edit,
+        json!({
+            "images": images,
             "prompt": args.prompt,
             "model": model,
             "background": "auto",
             "quality": "auto",
             "size": "auto",
-        })),
-        ImagegenAction::Edit => {
-            if args.images.is_empty() {
-                anyhow::bail!("image edit requires an images array of paths or image URLs");
-            }
-            let mut images = Vec::with_capacity(args.images.len());
-            for image in &args.images {
-                images.push(json!({ "image_url": image_url_from_arg(image)? }));
-            }
-            Ok(json!({
-                "images": images,
-                "prompt": args.prompt,
-                "model": model,
-                "background": "auto",
-                "quality": "auto",
-                "size": "auto",
-            }))
-        }
-    }
+        }),
+    ))
 }
 
-fn save_images(args: &ImagegenArgs, response: ImageResponse) -> anyhow::Result<ImagegenOutput> {
+fn save_images(
+    args: &ImagegenArgs,
+    response: ImageResponse,
+    imagegen_request_id: Option<String>,
+) -> anyhow::Result<ImagegenOutput> {
     let cwd = args
         .cwd
         .as_ref()
@@ -333,13 +382,20 @@ fn save_images(args: &ImagegenArgs, response: ImageResponse) -> anyhow::Result<I
     if saved.is_empty() {
         anyhow::bail!("image generation returned no image data");
     }
+    let transparent_background = match response.background {
+        Some(ImageBackground::Transparent) => Some(true),
+        Some(ImageBackground::Opaque) => Some(false),
+        Some(ImageBackground::Auto) | None => None,
+    };
     Ok(ImagegenOutput {
         path: saved[0].path.clone(),
         latest_path: saved[0].latest_path.clone(),
         images: saved,
         background: response.background,
+        transparent_background,
         quality: response.quality,
         size: response.size,
+        imagegen_request_id,
     })
 }
 
@@ -347,15 +403,21 @@ fn save_images(args: &ImagegenArgs, response: ImageResponse) -> anyhow::Result<I
 async fn main() -> anyhow::Result<()> {
     let args = parse_args()?;
     let auth = read_codex_auth()?;
-    let body = build_request(&args)?;
+    let (operation, body) = build_request(&args)?;
     let response = reqwest::Client::new()
-        .post(image_endpoint_url(&args.action))
+        .post(image_endpoint_url(operation))
         .headers(headers(&auth.token, &auth.account_id)?)
         .json(&body)
         .send()
         .await
         .context("image generation request failed")?;
     let status = response.status();
+    let imagegen_request_id = response
+        .headers()
+        .get(X_CODEX_IMAGEGEN_REQUEST_ID_HEADER)
+        .and_then(|value| value.to_str().ok())
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
     let text = response
         .text()
         .await
@@ -365,7 +427,7 @@ async fn main() -> anyhow::Result<()> {
     }
     let image_response: ImageResponse =
         serde_json::from_str(&text).context("failed to decode image generation response")?;
-    let output = save_images(&args, image_response)?;
+    let output = save_images(&args, image_response, imagegen_request_id)?;
     println!("{}", serde_json::to_string(&output)?);
     Ok(())
 }
@@ -375,17 +437,43 @@ mod tests {
     use super::*;
 
     #[test]
-    fn local_edit_images_use_validated_content_type() {
+    fn request_selectors_route_generation_and_validated_edits() {
         let bytes = base64::engine::general_purpose::STANDARD
             .decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")
             .expect("valid PNG fixture");
         let path = env::temp_dir().join(format!("pi-imagegen-{}.data", Uuid::new_v4().simple()));
         fs::write(&path, &bytes).expect("write image fixture");
 
-        let result = image_url_from_arg(path.to_str().expect("UTF-8 temporary path"));
-        fs::remove_file(path).expect("remove image fixture");
+        let mut args = ImagegenArgs {
+            prompt: "draw a fox".to_string(),
+            referenced_image_paths: Vec::new(),
+            num_last_images_to_include: None,
+            recent_images: Vec::new(),
+            model: None,
+            cwd: None,
+        };
+        assert_eq!(
+            build_request(&args).expect("build generation request"),
+            (
+                ImagegenOperation::Generate,
+                json!({
+                    "prompt": "draw a fox",
+                    "model": IMAGE_MODEL,
+                    "background": "auto",
+                    "quality": "auto",
+                    "size": "auto",
+                }),
+            )
+        );
 
-        let url = result.expect("process image fixture");
+        args.referenced_image_paths =
+            vec![path.to_str().expect("UTF-8 temporary path").to_string()];
+        let (operation, request) = build_request(&args).expect("build local edit request");
+        assert_eq!(operation, ImagegenOperation::Edit);
+        let url = request["images"][0]["image_url"]
+            .as_str()
+            .expect("edit image data URL");
+
         let encoded = url
             .strip_prefix("data:image/png;base64,")
             .expect("detect PNG content independently of extension");
@@ -395,5 +483,33 @@ mod tests {
                 .expect("decode resulting data URL"),
             bytes
         );
+
+        args.referenced_image_paths.clear();
+        args.num_last_images_to_include = Some(1);
+        args.recent_images = vec!["data:image/png;base64,Zm9v".to_string()];
+        assert_eq!(
+            build_request(&args).expect("build recent-image edit request"),
+            (
+                ImagegenOperation::Edit,
+                json!({
+                    "images": [{"image_url": "data:image/png;base64,Zm9v"}],
+                    "prompt": "draw a fox",
+                    "model": IMAGE_MODEL,
+                    "background": "auto",
+                    "quality": "auto",
+                    "size": "auto",
+                }),
+            )
+        );
+
+        args.referenced_image_paths =
+            vec![path.to_str().expect("UTF-8 temporary path").to_string()];
+        assert!(
+            build_request(&args)
+                .expect_err("reject mixed image selectors")
+                .to_string()
+                .contains("provide only one")
+        );
+        fs::remove_file(path).expect("remove image fixture");
     }
 }

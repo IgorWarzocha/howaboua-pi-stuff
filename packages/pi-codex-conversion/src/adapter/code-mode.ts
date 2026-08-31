@@ -194,7 +194,7 @@ function createNestedTools(
 		});
 		tools.push(toNestedTool(
 			{ ...imagegen, name: "image_gen__imagegen", label: "image_gen__imagegen" },
-			"await tools.image_gen__imagegen({ prompt: string, action?: \"generate\" | \"edit\", images?: string[] })",
+			"generatedImage(await tools.image_gen__imagegen({ prompt: string, referenced_image_paths?: string[], num_last_images_to_include?: number })) // omit selectors to generate; edits use paths, or the smallest recent count for pathless targets",
 			{},
 			{
 				toolName: { namespace: "image_gen", name: "imagegen" },

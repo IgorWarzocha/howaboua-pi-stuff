@@ -91,6 +91,12 @@ Do not add hosted file search, code interpreter, computer use, MCP, or image gen
 
 Relevant Codex area: `codex-rs/core/src/tools/hosted_spec.rs` and `hosted_model_tool_specs` in `spec_plan.rs`.
 
+### Standalone image generation
+
+The model-facing `imagegen` contract follows Codex's `referenced_image_paths` and `num_last_images_to_include` selectors. Pi resolves recent images from its compaction-aware active context, then sends those bytes to the helper over stdin. The helper keeps Pi's workspace-local `.pi/openai-codex-images` artifacts and `latest.png` alias.
+
+Pi preserves the response's transparent-background flag and `x-codex-imagegen-request-id` in tool details for session diagnostics. These are not model-facing arguments. Pi does not send `x-codex-image-turn-id`: the tool API exposes session, message, and call identities, but no stable equivalent of Codex's turn ID. Do not substitute a call ID and mislabel it as turn telemetry.
+
 ### Reasoning context
 
 Lite currently sends `reasoning.context: "all_turns"`; classic Responses omits it and uses the backend default. Track request-builder and compaction changes. Preserve this distinction unless Codex changes it concretely.
