@@ -6,16 +6,50 @@ import { type BrowserRequest, parseBrowserRequest } from "./browser/request.js";
 import { BrowserRuntime } from "./browser/runtime.js";
 
 function browserParameters(hosts: readonly string[]) {
-	return Type.Object({
-		action: Type.Optional(StringEnum(BROWSER_ACTIONS)),
-		...(hosts.length > 0
-			? {
-					host: Type.Optional(
-						StringEnum(hosts, { description: "Configured browser host" }),
-					),
-				}
-			: {}),
-	});
+	return Type.Object(
+		{
+			action: StringEnum(BROWSER_ACTIONS),
+			...(hosts.length > 0
+				? {
+						host: Type.Optional(
+							StringEnum(hosts, { description: "Configured browser host" }),
+						),
+					}
+				: {}),
+			ref_id: Type.Optional(
+				Type.String({
+					minLength: 1,
+					description: "Tab ref_id returned by tabs",
+				}),
+			),
+			query: Type.Optional(Type.String({ minLength: 1 })),
+			offset: Type.Optional(Type.Integer({ minimum: 0 })),
+			url: Type.Optional(Type.String({ minLength: 1 })),
+			lineno: Type.Optional(Type.Integer({ minimum: 1 })),
+			response_length: Type.Optional(
+				StringEnum(["short", "medium", "long"] as const),
+			),
+			pattern: Type.Optional(Type.String({ minLength: 1 })),
+			id: Type.Optional(
+				Type.Integer({
+					minimum: 1,
+					description: "Element id returned by open or find",
+				}),
+			),
+			selector: Type.Optional(Type.String({ minLength: 1 })),
+			x: Type.Optional(Type.Number()),
+			y: Type.Optional(Type.Number()),
+			text: Type.Optional(Type.String({ minLength: 1 })),
+			expression: Type.Optional(Type.String({ minLength: 1 })),
+			method: Type.Optional(Type.String({ minLength: 1 })),
+			params: Type.Optional(Type.Object({}, { additionalProperties: true })),
+			interval_ms: Type.Optional(Type.Integer({ minimum: 0, maximum: 60_000 })),
+			handle: Type.Optional(
+				Type.String({ description: "Continuation handle returned by browser" }),
+			),
+		},
+		{ additionalProperties: false },
+	);
 }
 
 interface BrowserToolParams {
