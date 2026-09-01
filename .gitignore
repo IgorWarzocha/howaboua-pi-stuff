@@ -1,6 +1,9 @@
 node_modules
 .DS_Store
 *.tgz
+.afreet/
+pulses/
+vault/
 .pi/*
 !.pi/skills/
 !.pi/skills/**
