@@ -105,20 +105,20 @@ async function manageAdvanced(
 	let config = initial;
 	while (true) {
 		const node = `Remote Node · ${compactPath(config.remoteNodePath)}`;
-		const worker = `Remote worker · ${compactPath(config.remoteToolPath)}`;
 		const selected = await ctx.ui.select("Advanced browser routing", [
 			node,
-			worker,
 			BACK,
 		]);
 		if (!selected || selected === BACK) return config;
-		const field = selected === node ? "remoteNodePath" : "remoteToolPath";
-		const label =
-			field === "remoteNodePath" ? "Remote Node path" : "Remote worker path";
-		const value = (await ctx.ui.input(label, config[field]))?.trim();
+		const value = (
+			await ctx.ui.input("Remote Node path", config.remoteNodePath)
+		)?.trim();
 		if (!value) continue;
 		try {
-			config = normalizeBrowserRouteConfig({ ...config, [field]: value });
+			config = normalizeBrowserRouteConfig({
+				...config,
+				remoteNodePath: value,
+			});
 		} catch (error) {
 			ctx.ui.notify(
 				error instanceof Error ? error.message : String(error),

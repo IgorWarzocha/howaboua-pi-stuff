@@ -7,7 +7,6 @@ import {
 
 export interface BrowserRemoteCommand {
 	nodePath: string;
-	toolPath: string;
 }
 
 export interface BrowserRoute {
@@ -46,7 +45,6 @@ function routesFromConfig(
 		shortHostname;
 	const remote = {
 		nodePath: config.remoteNodePath,
-		toolPath: config.remoteToolPath,
 	};
 	const routes = new Map<string, BrowserRoute>();
 	for (const name of config.hosts) {

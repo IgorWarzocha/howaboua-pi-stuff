@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -15,8 +17,13 @@ async function readStdin(): Promise<string> {
 }
 
 async function main(): Promise<void> {
+	const entryPath = fileURLToPath(import.meta.url);
+	const workerId = createHash("sha256")
+		.update(readFileSync(entryPath))
+		.digest("hex")
+		.slice(0, 12);
 	if (process.argv.includes("--daemon")) {
-		await serveBrowserWorker();
+		await serveBrowserWorker(workerId);
 		return;
 	}
 	const controller = new AbortController();
@@ -26,7 +33,8 @@ async function main(): Promise<void> {
 	try {
 		const result = await requestBrowserWorker(
 			await readStdin(),
-			fileURLToPath(import.meta.url),
+			entryPath,
+			workerId,
 			controller.signal,
 		);
 		process.stdout.write(`${JSON.stringify(result)}\n`);

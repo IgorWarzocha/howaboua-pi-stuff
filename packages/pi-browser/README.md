@@ -28,9 +28,9 @@ Long Code and Notebook calls use the normal `exec` and `wait` lifecycle. Cancell
 
 ## Host routing
 
-Run `/browser`, add the SSH host names, identify the current machine, then save. Pi reloads the extension with the corresponding `host` choices. Advanced settings expose the remote Node and worker paths when their defaults do not fit the installation.
+Run `/browser`, add the SSH host names, identify the current machine, then save. Pi reloads the extension with the corresponding `host` choices. Advanced settings expose the remote Node path when its default does not fit the machine.
 
-Install the extension on every routed host. Each name must be an existing SSH alias. Remote calls invoke that host's already-installed worker, which talks to its local CDP browser; calls do not copy or install anything remotely. Screenshots return through SCP and the remote artifact is removed. Keep `host` on follow-up calls that use a returned ref, screenshot, or continuation handle. Settings are stored in `pi-browser.json` under Pi's agent directory; `PI_BROWSER_CONFIG` overrides that storage path.
+Each name must be an existing SSH alias. On first use, the extension atomically installs or updates its managed worker at `~/.pi/agent/pi-browser-worker.mjs` on that host, then invokes it against the host's local CDP browser. No package installation is required on routed machines. Screenshots return through SCP and the remote artifact is removed. Keep `host` on follow-up calls that use a returned ref, screenshot, or continuation handle. Settings are stored in `pi-browser.json` under Pi's agent directory; `PI_BROWSER_CONFIG` overrides that storage path.
 
 ## Browser startup
 

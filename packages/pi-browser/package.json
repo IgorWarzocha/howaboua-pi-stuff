@@ -36,7 +36,7 @@
 		"biome.json"
 	],
 	"scripts": {
-		"build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json",
+		"build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json && bun build remote-worker.ts --target=node --format=esm --outfile=dist/remote-worker.js --banner='// @howaboua/pi-browser managed worker'",
 		"check": "bun run lint && bun run typecheck && bun run test",
 		"prepack": "bun run check && bun run build",
 		"typecheck": "tsgo --noEmit",

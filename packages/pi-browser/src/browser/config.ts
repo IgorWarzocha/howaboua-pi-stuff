@@ -10,21 +10,17 @@ import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 
 const DEFAULT_REMOTE_NODE_PATH = "$HOME/.local/share/mise/shims/node";
-const DEFAULT_REMOTE_TOOL_PATH =
-	"$HOME/.pi/agent/npm/node_modules/@howaboua/pi-browser/dist/remote-worker.js";
 
 export interface BrowserRouteConfig {
 	aliases: Record<string, string>;
 	hosts: string[];
 	remoteNodePath: string;
-	remoteToolPath: string;
 }
 
 interface BrowserRouteConfigInput {
 	aliases?: Record<string, string>;
 	hosts?: string[];
 	remoteNodePath?: string;
-	remoteToolPath?: string;
 }
 
 const ROUTE_NAME = /^[A-Za-z0-9_.-]+$/;
@@ -45,7 +41,6 @@ export function defaultBrowserRouteConfig(): BrowserRouteConfig {
 		aliases: {},
 		hosts: [],
 		remoteNodePath: DEFAULT_REMOTE_NODE_PATH,
-		remoteToolPath: DEFAULT_REMOTE_TOOL_PATH,
 	};
 }
 
@@ -109,10 +104,6 @@ export function normalizeBrowserRouteConfig(
 		remoteNodePath: remoteWord(
 			input.remoteNodePath ?? DEFAULT_REMOTE_NODE_PATH,
 			"pi-browser remoteNodePath",
-		),
-		remoteToolPath: remoteWord(
-			input.remoteToolPath ?? DEFAULT_REMOTE_TOOL_PATH,
-			"pi-browser remoteToolPath",
 		),
 	};
 }

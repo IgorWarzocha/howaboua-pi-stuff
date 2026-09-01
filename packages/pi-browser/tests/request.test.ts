@@ -108,7 +108,6 @@ test("browser requests share one validated single and batch contract", () => {
 			hosts: ["server", "laptop"],
 			aliases: { "igor-server": "server" },
 			remoteNodePath: "$HOME/.local/share/mise/shims/node",
-			remoteToolPath: "/opt/pi-browser/browser.mjs",
 		},
 		"igor-server",
 	);
@@ -123,12 +122,11 @@ test("browser requests share one validated single and batch contract", () => {
 		local: false,
 		remote: {
 			nodePath: "$HOME/.local/share/mise/shims/node",
-			toolPath: "/opt/pi-browser/browser.mjs",
 		},
 	});
 	assert.equal(
 		remoteNodeCommand(laptop.remote!),
-		"$HOME/.local/share/mise/shims/node --preserve-symlinks-main /opt/pi-browser/browser.mjs --parsed",
+		'$HOME/.local/share/mise/shims/node --preserve-symlinks-main "$HOME"/.pi/agent/pi-browser-worker.mjs',
 	);
 	assert.throws(() => routes.resolve("desktop"), /server, laptop/);
 	assert.throws(
@@ -137,7 +135,6 @@ test("browser requests share one validated single and batch contract", () => {
 				hosts: ["server", "laptop"],
 				aliases: { "igor-server": "server" },
 				remoteNodePath: "/usr/bin/node;false",
-				remoteToolPath: "/opt/pi-browser/browser.mjs",
 			}),
 		/unsupported shell characters/,
 	);
@@ -157,7 +154,6 @@ test("browser requests share one validated single and batch contract", () => {
 				aliases: { testbox: "server" },
 				hosts: ["server", "laptop"],
 				remoteNodePath: "/opt/node/bin/node",
-				remoteToolPath: "/opt/pi-browser/worker.js",
 			},
 			path,
 		);
@@ -165,7 +161,6 @@ test("browser requests share one validated single and batch contract", () => {
 			aliases: { testbox: "server" },
 			hosts: ["server", "laptop"],
 			remoteNodePath: "/opt/node/bin/node",
-			remoteToolPath: "/opt/pi-browser/worker.js",
 		});
 		writeBrowserRouteConfig(defaultBrowserRouteConfig(), path);
 		assert.equal(existsSync(path), false);
