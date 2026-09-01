@@ -94,7 +94,13 @@ async function deployRemoteHelper(
 	command: BrowserRemoteCommand,
 ): Promise<void> {
 	helperSourcePromise ??= readHelperSource();
-	const source = await helperSourcePromise;
+	let source: string;
+	try {
+		source = await helperSourcePromise;
+	} catch (error) {
+		helperSourcePromise = undefined;
+		throw error;
+	}
 	const deployment = await runProgram(
 		"ssh",
 		[
