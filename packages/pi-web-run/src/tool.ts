@@ -54,6 +54,9 @@ export function createWebSearchTool(
 		...(toolOptions.promptSnippet === false
 			? {}
 			: { promptSnippet: "Use explicit args" }),
+		promptGuidelines: [
+			"web_run: Use turn-prefixed ref_ids only in tool calls. Final answers cite result URLs with Markdown links, never internal refs or cite... markers.",
+		],
 		parameters: WEB_SEARCH_PARAMETERS,
 		prepareArguments: (args) =>
 			args && typeof args === "object" ? (args as Record<string, unknown>) : {},

@@ -27,8 +27,11 @@ export function createImageGenerationTool(
 		...(options.promptSnippet === false
 			? {}
 			: { promptSnippet: "Generate and edit images" }),
+		promptGuidelines: [
+			"imagegen: Set background transparent for native alpha output or opaque for a solid canvas; prompt text alone leaves Codex on auto.",
+		],
 		parameters: IMAGE_GENERATION_PARAMETERS,
-		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+		async execute(toolCallId, params, signal, _onUpdate, ctx) {
 			if (!supportsExecutableImageGeneration(ctx.model, options))
 				throw new Error(IMAGE_GENERATION_UNSUPPORTED_MESSAGE);
 			const details = await executeCodexImageGeneration(
@@ -36,6 +39,7 @@ export function createImageGenerationTool(
 				ctx,
 				signal,
 				options,
+				toolCallId,
 			);
 			const imageContent = supportsImageInputs(ctx.model)
 				? imageContentsFromImagegenOutput(details)
@@ -51,9 +55,13 @@ export function createImageGenerationTool(
 		...(options.customRendering === false
 			? {}
 			: {
-					renderCall(args, theme) {
+					renderCall(args, theme, context) {
 						return renderToolCell(
-							"Generated Image:",
+							context.isPartial
+								? "Generating image"
+								: context.isError
+									? "Image generation failed"
+									: "Generated image",
 							typeof args.prompt === "string" ? args.prompt : undefined,
 							theme,
 						);

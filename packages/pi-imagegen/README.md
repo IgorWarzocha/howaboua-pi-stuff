@@ -14,4 +14,6 @@ Pi Codex 3.0.24 or newer is optional. With it installed, the normal imagegen too
 
 Provide only a prompt to generate. For edits, provide up to five PNG, JPEG, GIF, or WebP paths, or select the smallest recent conversation-image count that covers the targets.
 
+Set the background to transparent for native alpha output or opaque for a solid canvas. Omission keeps Codex's automatic choice.
+
 Images are saved beneath the workspace at .pi/openai-codex-images with a latest.png alias.

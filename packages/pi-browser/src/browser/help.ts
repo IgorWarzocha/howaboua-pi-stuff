@@ -1,9 +1,13 @@
-export function browserHelp(): Record<string, unknown> {
+export function browserHelp(
+	hosts: readonly string[] = [],
+): Record<string, unknown> {
+	const routed = hosts.length > 0;
 	return {
 		call: 'Normal Pi: action="help", then a request object. Code/Notebook: tools.browser("help"), then JSON.stringify(request)',
+		...(routed ? { host: `optional ${hosts.join(" | ")}` } : {}),
 		requests: {
-			single: "{ action, ...fields }",
-			batch: "{ response_length?, tabs?: [{...}], open?: [{...}], ... }",
+			single: `{ action, ${routed ? "host?, " : ""}...fields }`,
+			batch: `{ ${routed ? "host?, " : ""}response_length?, tabs?: [{...}], open?: [{...}], ... }`,
 		},
 		batching:
 			"operations are non-empty arrays; independent items may share one call; dependent steps use separate calls",
@@ -22,8 +26,8 @@ export function browserHelp(): Record<string, unknown> {
 			raw: "ref_id, method, params?",
 			start: "no fields",
 			stop: "ref_id?",
-			read_result: "handle, offset",
-			discard_result: "handle",
+			read_result: `handle, offset${routed ? "; same host" : ""}`,
+			discard_result: `handle${routed ? "; same host" : ""}`,
 		},
 		notes: [
 			"Prefer tabs -> open -> click/type; ref_id/id/lineno follow web__run vocabulary",

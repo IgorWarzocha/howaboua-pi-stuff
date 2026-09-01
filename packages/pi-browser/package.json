@@ -24,7 +24,10 @@
 		"code-mode"
 	],
 	"files": [
+		"dist/**/*.js",
+		"dist/**/*.d.ts",
 		"index.ts",
+		"remote-worker.ts",
 		"src",
 		"README.md",
 		"LICENSE",
@@ -33,8 +36,9 @@
 		"biome.json"
 	],
 	"scripts": {
+		"build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json",
 		"check": "bun run lint && bun run typecheck && bun run test",
-		"prepack": "bun run check",
+		"prepack": "bun run check && bun run build",
 		"typecheck": "tsgo --noEmit",
 		"lint": "biome check .",
 		"test": "tsx --test tests/**/*.test.ts",
@@ -63,14 +67,23 @@
 	},
 	"pi": {
 		"extensions": [
-			"./index.ts"
+			"./dist/index.js"
 		]
 	},
 	"engines": {
 		"node": ">=22.19.0"
 	},
-	"main": "index.ts",
-	"exports": "./index.ts",
+	"bin": {
+		"pi-browser-worker": "./dist/remote-worker.js"
+	},
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
 	"publishConfig": {
 		"access": "public"
 	}

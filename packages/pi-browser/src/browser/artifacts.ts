@@ -13,7 +13,7 @@ const RESULT_TTL_MS = 60 * 60 * 1_000;
 const SCREENSHOT_TTL_MS = 24 * 60 * 60 * 1_000;
 const TEXT_BUDGET_BYTES = 32_000;
 
-function artifactDirectory(): string {
+export function artifactDirectory(): string {
 	return process.env["XDG_RUNTIME_DIR"]
 		? join(process.env["XDG_RUNTIME_DIR"], "browser-tool")
 		: join(tmpdir(), `browser-tool-${process.getuid?.() ?? "user"}`);
@@ -146,7 +146,7 @@ export async function readCachedResult(request: {
 			error.code === "ENOENT"
 		) {
 			throw new Error(
-				`result handle not found: ${request.handle}; rerun the original action`,
+				`result handle not found: ${request.handle}; check the host or rerun the original action`,
 			);
 		}
 		throw error;

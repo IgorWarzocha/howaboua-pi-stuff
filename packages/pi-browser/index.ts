@@ -16,7 +16,11 @@ export default async function browserExtension(
 	const runtime = new BrowserRuntime();
 	const tool = createBrowserTool(runtime);
 	pi.registerTool(tool);
-	const registration = await registerBrowserInCodeMode(pi, tool);
+	const registration = await registerBrowserInCodeMode(
+		pi,
+		tool,
+		runtime.hosts.length > 0,
+	);
 	pi.on("session_shutdown", () => {
 		registration?.unregister();
 		runtime.close();
@@ -26,6 +30,7 @@ export default async function browserExtension(
 async function registerBrowserInCodeMode(
 	pi: ExtensionAPI,
 	tool: ReturnType<typeof createBrowserTool>,
+	routed: boolean,
 ) {
 	try {
 		const { adaptToolForCodeMode, registerCodeModeExtensionTools } =
@@ -34,8 +39,9 @@ async function registerBrowserInCodeMode(
 			adaptToolForCodeMode(tool, {
 				kind: "freeform",
 				prepareInput: prepareBrowserCodeModeInput,
-				usage:
-					'await tools.browser("help") // Logged-in local browser with web__run refs; ask before consequential external actions',
+				usage: `await tools.browser("help") // Logged-in ${
+					routed ? "routed " : "local "
+				}browser with web__run refs; ask before consequential external actions`,
 			}),
 		]);
 	} catch (error) {

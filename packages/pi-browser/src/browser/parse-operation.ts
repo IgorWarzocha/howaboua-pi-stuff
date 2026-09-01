@@ -7,7 +7,7 @@ import {
 
 export type ActionRequest = BrowserOperation | { action: "help" };
 
-const fields = (...names: string[]) => new Set(["action", "host", ...names]);
+const fields = (...names: string[]) => new Set(["action", ...names]);
 
 const ACTION_FIELDS: Record<BrowserAction, ReadonlySet<string>> = {
 	help: fields(),
@@ -101,9 +101,6 @@ export function parseActionRequest(value: unknown): ActionRequest {
 	);
 	if (unknown.length > 0) {
 		throw new Error(`unknown ${action} field(s): ${unknown.join(", ")}`);
-	}
-	if (value["host"] !== undefined) {
-		throw new Error("SSH browser routing is disabled");
 	}
 	if (action === "help" || action === "start") return { action };
 	if (action === "tabs") {

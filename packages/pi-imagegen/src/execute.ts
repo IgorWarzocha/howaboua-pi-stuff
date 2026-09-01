@@ -44,6 +44,7 @@ export async function executeCodexImageGeneration(
 	ctx: ExtensionContext,
 	signal: AbortSignal | undefined,
 	options: ImageGenerationToolOptions = {},
+	turnId?: string,
 ): Promise<ImagegenOutput> {
 	if (signal?.aborted) throw new Error("imagegen aborted");
 	const recentImages =
@@ -77,6 +78,7 @@ export async function executeCodexImageGeneration(
 		provider.baseUrl.replace(/\/+$/, "") + "/images/" + request.operation;
 	const headers = codexToolProviderHeaders(provider);
 	headers.set("accept", "application/json");
+	if (turnId) headers.set("x-codex-image-turn-id", turnId);
 	const response = await fetchCodexTool(endpoint, {
 		method: "POST",
 		headers,

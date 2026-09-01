@@ -1,3 +1,4 @@
+import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 
@@ -10,6 +11,11 @@ export const MAX_EDIT_IMAGES = 5;
 export const IMAGE_GENERATION_PARAMETERS = Type.Object(
 	{
 		prompt: Type.String(),
+		background: Type.Optional(
+			StringEnum(["transparent", "opaque"] as const, {
+				description: "Set transparent for native alpha output",
+			}),
+		),
 		referenced_image_paths: Type.Optional(
 			Type.Array(Type.String(), {
 				description: "Local edit targets",
@@ -29,6 +35,7 @@ export const IMAGE_GENERATION_PARAMETERS = Type.Object(
 
 export interface ImagegenArgs {
 	prompt: string;
+	background?: "transparent" | "opaque";
 	referenced_image_paths?: string[];
 	num_last_images_to_include?: number;
 }

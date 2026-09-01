@@ -1,9 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { imagegenCodeModeResult } from "../index.js";
+import { formatImagegenOutput } from "../src/output.js";
 import { buildImageGenerationRequest } from "../src/request.js";
 
 test("image generation preserves Codex request and Code Mode value contracts", async () => {
+	assert.equal(
+		formatImagegenOutput({
+			path: "output.png",
+			latest_path: "latest.png",
+			transparent_background: true,
+		}),
+		"Generated image: output.png\nLatest: latest.png\nTransparent background: yes",
+	);
 	assert.deepEqual(
 		imagegenCodeModeResult({
 			content: [
@@ -44,6 +53,7 @@ test("image generation preserves Codex request and Code Mode value contracts", a
 		await buildImageGenerationRequest(
 			{
 				prompt: "add snow",
+				background: "transparent",
 				num_last_images_to_include: 1,
 			},
 			[recent],
@@ -55,7 +65,7 @@ test("image generation preserves Codex request and Code Mode value contracts", a
 				images: [{ image_url: recent }],
 				prompt: "add snow",
 				model: "gpt-image-2",
-				background: "auto",
+				background: "transparent",
 				quality: "auto",
 				size: "auto",
 			},

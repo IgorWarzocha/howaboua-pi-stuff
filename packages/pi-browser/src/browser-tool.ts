@@ -1,16 +1,27 @@
 import { StringEnum } from "@earendil-works/pi-ai";
 import { defineTool } from "@earendil-works/pi-coding-agent";
-import type { Static } from "typebox";
 import { Type } from "typebox";
 import { BROWSER_ACTIONS } from "./browser/operation.js";
 import { type BrowserRequest, parseBrowserRequest } from "./browser/request.js";
 import { BrowserRuntime } from "./browser/runtime.js";
 
-const BrowserParameters = Type.Object({
-	action: Type.Optional(StringEnum(BROWSER_ACTIONS)),
-});
+function browserParameters(hosts: readonly string[]) {
+	return Type.Object({
+		action: Type.Optional(StringEnum(BROWSER_ACTIONS)),
+		...(hosts.length > 0
+			? {
+					host: Type.Optional(
+						StringEnum(hosts, { description: "Configured browser host" }),
+					),
+				}
+			: {}),
+	});
+}
 
-type BrowserToolParams = Static<typeof BrowserParameters>;
+interface BrowserToolParams {
+	action?: (typeof BROWSER_ACTIONS)[number];
+	host?: string;
+}
 
 const preparedBrowserRequest = Symbol("preparedBrowserRequest");
 
@@ -44,15 +55,21 @@ function browserRequest(input: unknown): BrowserRequest {
 }
 
 export function createBrowserTool(runtime: BrowserRuntime) {
+	const parameters = browserParameters(runtime.hosts);
 	return defineTool({
 		name: "browser",
 		label: "Browser",
 		description:
 			"Inspect and control logged-in browser tabs with bounded accessibility content, interactive references, continuations and expert CDP actions.",
-		parameters: BrowserParameters,
+		parameters,
 		promptSnippet: "Load browser help before first use.",
 		promptGuidelines: [
 			"browser: Start with tabs, then open one ref_id. Keep element IDs with that page result and follow returned continuation cursors.",
+			...(runtime.hosts.length > 0
+				? [
+						"browser: When the user names a browser host, set host on every call and keep it with refs, screenshots and continuation handles.",
+					]
+				: []),
 			"browser: Ask before unfamiliar low-trust navigation or consequential external actions unless already authorized. Never close the shared browser after a task.",
 		],
 		async execute(_toolCallId, input, signal, onUpdate) {

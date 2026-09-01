@@ -1,0 +1,12 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"declaration": true,
+		"noEmit": false,
+		"outDir": "dist",
+		"rootDir": ".",
+		"target": "ES2022"
+	},
+	"include": ["index.ts", "remote-worker.ts", "src/**/*.ts"],
+	"exclude": ["tests/**/*.ts"]
+}

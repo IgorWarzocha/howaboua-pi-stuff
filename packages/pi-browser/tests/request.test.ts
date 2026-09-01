@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { remoteNodeCommand } from "../src/browser/remote.js";
 import { parseBrowserRequest } from "../src/browser/request.js";
+import { parseBrowserRoutes } from "../src/browser/routes.js";
 
 test("browser requests share one validated single and batch contract", () => {
 	assert.deepEqual(parseBrowserRequest("help"), { help: true });
@@ -83,13 +85,53 @@ test("browser requests share one validated single and batch contract", () => {
 			}),
 		/exactly one/,
 	);
+	assert.deepEqual(
+		parseBrowserRequest({
+			host: "workstation",
+			tabs: [{}],
+		}),
+		{
+			host: "workstation",
+			operations: [{ action: "tabs", offset: 0 }],
+		},
+	);
+	const routes = parseBrowserRoutes(
+		{
+			hosts: ["server", "laptop"],
+			aliases: { "igor-server": "server" },
+			remoteNodePath: "$HOME/.local/share/mise/shims/node",
+			remoteToolPath: "/opt/pi-browser/browser.mjs",
+		},
+		"igor-server",
+	);
+	assert.deepEqual(routes.names, ["server", "laptop"]);
+	assert.deepEqual(routes.resolve("server"), {
+		name: "server",
+		local: true,
+	});
+	const laptop = routes.resolve("laptop");
+	assert.deepEqual(laptop, {
+		name: "laptop",
+		local: false,
+		remote: {
+			nodePath: "$HOME/.local/share/mise/shims/node",
+			toolPath: "/opt/pi-browser/browser.mjs",
+		},
+	});
+	assert.equal(
+		remoteNodeCommand(laptop.remote!),
+		"$HOME/.local/share/mise/shims/node --preserve-symlinks-main /opt/pi-browser/browser.mjs --parsed",
+	);
+	assert.throws(() => routes.resolve("desktop"), /server, laptop/);
 	assert.throws(
 		() =>
-			parseBrowserRequest({
-				host: "workstation",
-				tabs: [{}],
+			parseBrowserRoutes({
+				hosts: ["server", "laptop"],
+				aliases: { "igor-server": "server" },
+				remoteNodePath: "/usr/bin/node;false",
+				remoteToolPath: "/opt/pi-browser/browser.mjs",
 			}),
-		/SSH browser routing is disabled/,
+		/unsupported shell characters/,
 	);
 	assert.throws(
 		() =>

@@ -2,7 +2,7 @@
 
 One logged-in browser tool for ordinary Pi, Code Mode and Notebook Mode.
 
-The extension is the TypeScript counterpart of Pi Codex's browser custom tool. It keeps persistent typed CDP sessions inside Pi instead of starting one command process per call, while preserving the same help-first actions, batching, accessibility references, bounded continuations and screenshot paths.
+The extension is the TypeScript counterpart of Pi Codex's browser custom tool. It keeps a persistent typed CDP session for the local browser while preserving the same help-first actions, SSH host routing, batching, accessibility references, bounded continuations and screenshot paths.
 
 ## Install
 
@@ -26,11 +26,28 @@ Help returns equivalent single-action and batched request contracts for both sur
 
 Long Code and Notebook calls use the normal `exec` and `wait` lifecycle. Cancellation stops pending CDP work, though an already dispatched browser mutation may still take effect.
 
+## Host routing
+
+Configure optional SSH host names in `~/.pi/agent/pi-browser.json`, or the equivalent path under `$PI_CODING_AGENT_DIR`:
+
+```json
+{
+  "hosts": ["workstation", "laptop"],
+  "aliases": {
+    "current-hostname": "workstation"
+  },
+  "remoteNodePath": "$HOME/.local/share/mise/shims/node",
+  "remoteToolPath": "$HOME/.pi/agent/npm/node_modules/@howaboua/pi-browser/dist/remote-worker.js"
+}
+```
+
+Install the extension on every routed host. Each name must be an existing SSH alias. Remote calls invoke that host's already-installed worker, which talks to its local CDP browser; calls do not copy or install anything remotely. Screenshots return through SCP and the remote artifact is removed. Keep `host` on follow-up calls that use a returned ref, screenshot, or continuation handle.
+
 ## Browser startup
 
 The tool discovers CDP through `CDP_PORT`, port 9222, or `DevToolsActivePort`. Set `CDP_PORT_FILE` for a non-standard port file.
 
-The `start` action can launch Chromium through a Linux systemd user session. Override the executable with `CDP_BROWSER` and the profile with `CDP_PROFILE_DIRECTORY`. On other systems, start the browser normally with remote debugging enabled.
+The `start` action runs on the selected host and can launch Chromium through a Linux systemd user session. Override the executable with `CDP_BROWSER` and the profile with `CDP_PROFILE_DIRECTORY`. On other systems, start the browser normally with remote debugging enabled.
 
 ## Boundaries
 

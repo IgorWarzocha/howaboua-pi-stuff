@@ -3,9 +3,17 @@ import { isRecordValue, parseActionRequest } from "./parse-operation.js";
 
 export type BrowserRequest =
 	| { help: true }
-	| { operations: BrowserOperation[] };
+	| { operations: BrowserOperation[]; host?: string | undefined };
 
 const BATCH_FIELDS = new Set(["host", "response_length", ...OPERATION_ORDER]);
+
+function requestHost(value: unknown): string | undefined {
+	if (value === undefined) return undefined;
+	if (typeof value !== "string" || !value.trim()) {
+		throw new Error("host must be a non-empty string");
+	}
+	return value.trim();
+}
 
 export function parseBrowserRequest(input: unknown): BrowserRequest {
 	let value = input;
@@ -26,18 +34,18 @@ export function parseBrowserRequest(input: unknown): BrowserRequest {
 		throw new Error("input must be a JSON object");
 	}
 	if (Object.hasOwn(value, "action")) {
-		const operation = parseActionRequest(value);
+		const host = requestHost(value["host"]);
+		const { host: _host, ...actionValue } = value;
+		const operation = parseActionRequest(actionValue);
 		return operation.action === "help"
 			? { help: true }
-			: { operations: [operation] };
+			: { operations: [operation], ...(host ? { host } : {}) };
 	}
 	const unknown = Object.keys(value).filter((key) => !BATCH_FIELDS.has(key));
 	if (unknown.length > 0) {
 		throw new Error(`unknown browser field(s): ${unknown.join(", ")}`);
 	}
-	if (value["host"] !== undefined) {
-		throw new Error("SSH browser routing is disabled");
-	}
+	const host = requestHost(value["host"]);
 	const responseLength = value["response_length"] ?? "medium";
 	if (
 		responseLength !== "short" &&
@@ -83,5 +91,5 @@ export function parseBrowserRequest(input: unknown): BrowserRequest {
 			`provide at least one operation: ${OPERATION_ORDER.join(", ")}`,
 		);
 	}
-	return { operations };
+	return { operations, ...(host ? { host } : {}) };
 }
