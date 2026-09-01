@@ -1,5 +1,13 @@
 import assert from "node:assert/strict";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
+import {
+	defaultBrowserRouteConfig,
+	readBrowserRouteConfig,
+	writeBrowserRouteConfig,
+} from "../src/browser/config.js";
 import { remoteNodeCommand } from "../src/browser/remote.js";
 import { parseBrowserRequest } from "../src/browser/request.js";
 import { parseBrowserRoutes } from "../src/browser/routes.js";
@@ -141,4 +149,27 @@ test("browser requests share one validated single and batch contract", () => {
 			}),
 		/response_length/,
 	);
+	const directory = mkdtempSync(join(tmpdir(), "pi-browser-config-"));
+	const path = join(directory, "pi-browser.json");
+	try {
+		writeBrowserRouteConfig(
+			{
+				aliases: { testbox: "server" },
+				hosts: ["server", "laptop"],
+				remoteNodePath: "/opt/node/bin/node",
+				remoteToolPath: "/opt/pi-browser/worker.js",
+			},
+			path,
+		);
+		assert.deepEqual(readBrowserRouteConfig(path), {
+			aliases: { testbox: "server" },
+			hosts: ["server", "laptop"],
+			remoteNodePath: "/opt/node/bin/node",
+			remoteToolPath: "/opt/pi-browser/worker.js",
+		});
+		writeBrowserRouteConfig(defaultBrowserRouteConfig(), path);
+		assert.equal(existsSync(path), false);
+	} finally {
+		rmSync(directory, { recursive: true, force: true });
+	}
 });

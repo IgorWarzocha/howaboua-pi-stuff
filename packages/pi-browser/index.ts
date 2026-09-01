@@ -1,5 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { BrowserRoutes, loadBrowserRoutes } from "./src/browser/routes.js";
 import { BrowserRuntime } from "./src/browser/runtime.js";
+import { registerBrowserCommand } from "./src/browser/settings.js";
 import {
 	createBrowserTool,
 	prepareBrowserCodeModeInput,
@@ -13,8 +15,17 @@ const CODE_MODE_MODULE = `${CODE_MODE_PACKAGE}/code-mode`;
 export default async function browserExtension(
 	pi: ExtensionAPI,
 ): Promise<void> {
-	const runtime = new BrowserRuntime();
+	let configError: string | undefined;
+	let routes: BrowserRoutes;
+	try {
+		routes = loadBrowserRoutes();
+	} catch (error) {
+		routes = new BrowserRoutes();
+		configError = error instanceof Error ? error.message : String(error);
+	}
+	const runtime = new BrowserRuntime(routes);
 	const tool = createBrowserTool(runtime);
+	registerBrowserCommand(pi);
 	pi.registerTool(tool);
 	const registration = await registerBrowserInCodeMode(
 		pi,
@@ -25,6 +36,11 @@ export default async function browserExtension(
 		registration?.unregister();
 		runtime.close();
 	});
+	if (configError) {
+		pi.on("session_start", (_event, ctx) => {
+			ctx.ui.notify(`${configError}. Run /browser to repair it.`, "warning");
+		});
+	}
 }
 
 async function registerBrowserInCodeMode(
