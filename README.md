@@ -10,8 +10,8 @@ Pi packages run with your local permissions. You can obviously trust me, a stran
 
 | Package | Includes | Deliberate exclusions |
 |---|---|---|
-| [`@howaboua/pi-stuff`](./packages/pi-stuff) | 15 general extensions and 15 shareable skills | Codex conversion, Omarchy support, and the standalone nested AGENTS loader |
-| [`@howaboua/pi-extensions`](./packages/pi-extensions) | 15 general extensions | Codex conversion and the standalone nested AGENTS loader |
+| [`@howaboua/pi-stuff`](./packages/pi-stuff) | 16 general extensions and 15 shareable skills | Codex conversion, Omarchy support, and the standalone nested AGENTS loader |
+| [`@howaboua/pi-extensions`](./packages/pi-extensions) | 16 general extensions | Codex conversion and the standalone nested AGENTS loader |
 | [`@howaboua/pi-skills`](./packages/pi-skills) | 15 shareable skills | Omarchy support |
 
 ```bash
@@ -39,6 +39,7 @@ pi install npm:@howaboua/pi-skills
 | [`pi-pet`](./packages/pi-pet) | Animated companion miniapps for GipPity Remote |
 | [`pi-semantic-grep`](./packages/pi-semantic-grep) | Meaning-based code and docs search backed by repo-local SQLite indexes |
 | [`pi-shepherdr`](./packages/pi-shepherdr) | Herdr-native multi-agent orchestration |
+| [`pi-skills-tool`](./packages/pi-skills-tool) | Progressive skill discovery in normal Pi, Code Mode, and Notebook Mode |
 | [`pi-smart-btw`](./packages/pi-smart-btw) | Async side-session questions with explicit injection into the main chat |
 | [`pi-subagent-review`](./packages/pi-subagent-review) | `/review` through an isolated review subagent |
 | [`pi-subdir-agents`](./packages/pi-subdir-agents) | Nested `AGENTS.md` context during repository discovery |

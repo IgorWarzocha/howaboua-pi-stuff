@@ -21,6 +21,7 @@ pi install npm:@howaboua/pi-extensions
 - `pi-pet` — animated companion miniapps for GipPity Remote
 - `pi-semantic-grep` — semantic code and docs search
 - `pi-shepherdr` — Herdr-native multi-agent orchestration
+- `pi-skills-tool`: progressive skill discovery in normal Pi, Code Mode, and Notebook Mode
 - `pi-smart-btw` — async side-session questions
 - `pi-subagent-review` — isolated review subagents through `/review`
 - `pi-unicode-charts` — terminal-native Unicode charts for Pi Markdown

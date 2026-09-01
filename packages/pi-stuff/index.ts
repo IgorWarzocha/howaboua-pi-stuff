@@ -11,6 +11,7 @@ import howabouaPiMemories from "@howaboua/pi-memories";
 import howabouaPiPet from "@howaboua/pi-pet";
 import howabouaPiSemanticGrep from "@howaboua/pi-semantic-grep";
 import howabouaPiShepherdr from "@howaboua/pi-shepherdr";
+import howabouaPiSkillsTool from "@howaboua/pi-skills-tool";
 import howabouaPiSmartBtw from "@howaboua/pi-smart-btw";
 import howabouaPiSubagentReview from "@howaboua/pi-subagent-review";
 import howabouaPiUnicodeCharts from "@howaboua/pi-unicode-charts";
@@ -29,6 +30,7 @@ export default async function (pi: ExtensionAPI) {
 	await howabouaPiPet(pi);
 	await howabouaPiSemanticGrep(pi);
 	await howabouaPiShepherdr(pi);
+	await howabouaPiSkillsTool(pi);
 	await howabouaPiSmartBtw(pi);
 	await howabouaPiSubagentReview(pi);
 	await howabouaPiUnicodeCharts(pi);
