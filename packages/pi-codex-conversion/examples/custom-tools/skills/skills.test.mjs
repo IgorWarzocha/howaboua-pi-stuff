@@ -62,8 +62,16 @@ test("reads instructions and appends absolute package file paths", (t) => {
 	const reference = run("read tooling api", f.root);
 	assert.match(reference, /^API reference\n\n---\nSkill paths \(4\):/);
 	assert.match(reference, new RegExp(resolve(f.root, "engineering/tooling/references/api.md").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+	assert.equal(run("read tooling.md api.md", f.root), reference);
+	assert.equal(run("read tooling references/api.md", f.root), reference);
+	assert.equal(run("read tooling/references/api", f.root), reference);
+	assert.equal(run("read tooling/references/api.md", f.root), reference);
+	assert.equal(run("read tooling REFERENCES/api.md", f.root), reference);
+	assert.equal(run(`read ${resolve(f.root, "engineering/tooling/references/api.md")}`, f.root), reference);
+	assert.equal(run("read tooling/SKILL.md", f.root), output);
+	assert.equal(run("read tooling SKILL.md", f.root), output);
 	assert.match(
-		run("read tooling runtime api", f.root),
+		run("read tooling.md references/runtime.md api references/api.md", f.root),
 		/^--- runtime ---\nRuntime reference\n\n--- api ---\nAPI reference\n\n---\nSkill paths \(4\):/,
 	);
 });
@@ -72,6 +80,7 @@ test("rejects malformed commands, unknown categories, and names", (t) => {
 	const f = fixture();
 	t.after(() => f.cleanup());
 	f.add("design/visual", "---\nname: visual\ndescription: Visual work.\n---\nBody\n");
+	f.add("engineering/review", "---\nname: review\ndescription: Review work.\n---\nReview body\n");
 
 	assert.deepEqual(parseRequest(""), { action: "list", categories: [] });
 	assert.throws(() => parseRequest("search visual"), /Expected/);
@@ -79,6 +88,7 @@ test("rejects malformed commands, unknown categories, and names", (t) => {
 	assert.throws(() => run("list missing", f.root), /Unknown category/);
 	assert.throws(() => run("read missing", f.root), /Unknown skill/);
 	assert.throws(() => run("read visual SKILL", f.root), /Unknown reference/);
+	assert.throws(() => run("read visual review", f.root), /Read it separately with "read review"/);
 });
 
 test("keeps names unique across category packages", (t) => {

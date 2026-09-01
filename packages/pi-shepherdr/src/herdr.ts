@@ -88,6 +88,7 @@ export function parsePaneInfo(value: unknown, path = "pane"): PaneInfo {
 		...optionalNullableString(pane, "agent", path),
 		...optionalNullableString(pane, "cwd", path),
 		...optionalNullableString(pane, "foreground_cwd", path),
+		...optionalNullableString(pane, "label", path),
 		...optionalNullableString(pane, "name", path),
 		...optionalBoolean(pane, "interactive_ready", path),
 		...optionalBoolean(pane, "launch_pending", path),
@@ -170,7 +171,7 @@ function parseAgentSession(
 }
 
 function optionalNullableString<
-	K extends "agent" | "cwd" | "foreground_cwd" | "name",
+	K extends "agent" | "cwd" | "foreground_cwd" | "label" | "name",
 >(
 	value: Record<string, unknown>,
 	key: K,

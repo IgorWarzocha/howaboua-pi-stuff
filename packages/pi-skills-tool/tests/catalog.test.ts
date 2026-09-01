@@ -94,6 +94,18 @@ test("reads instructions and appends absolute package file paths", (t) => {
 	);
 	assert.equal(runSkills("read tooling.md api.md", f.root), reference);
 	assert.equal(runSkills("read tooling references/api.md", f.root), reference);
+	assert.equal(runSkills("read tooling/references/api", f.root), reference);
+	assert.equal(runSkills("read tooling/references/api.md", f.root), reference);
+	assert.equal(runSkills("read tooling REFERENCES/api.md", f.root), reference);
+	assert.equal(
+		runSkills(
+			`read ${resolve(f.root, "engineering/tooling/references/api.md")}`,
+			f.root,
+		),
+		reference,
+	);
+	assert.equal(runSkills("read tooling/SKILL.md", f.root), output);
+	assert.equal(runSkills("read tooling SKILL.md", f.root), output);
 	assert.match(
 		runSkills(
 			"read tooling.md references/runtime.md api references/api.md",
@@ -110,6 +122,10 @@ test("rejects malformed commands, unknown categories, and names", (t) => {
 		"design/visual",
 		"---\nname: visual\ndescription: Visual work.\n---\nBody\n",
 	);
+	f.add(
+		"engineering/review",
+		"---\nname: review\ndescription: Review work.\n---\nReview body\n",
+	);
 
 	assert.deepEqual(parseRequest(""), { action: "list", categories: [] });
 	assert.throws(() => parseRequest("search visual"), /Expected/);
@@ -119,6 +135,10 @@ test("rejects malformed commands, unknown categories, and names", (t) => {
 	assert.throws(
 		() => runSkills("read visual SKILL", f.root),
 		/Unknown reference/,
+	);
+	assert.throws(
+		() => runSkills("read visual review", f.root),
+		/Read it separately with "read review"/,
 	);
 });
 

@@ -18,7 +18,7 @@ export function markdownReport(
   const marked = selected.filter((incident) => incident.marked);
   const families = grouped(marked, (incident) => incident.family);
   const signatures = grouped(selected, (incident) => incident.signature);
-  const recovery = grouped(marked, (incident) => incident.recovery);
+  const followOn = grouped(marked, (incident) => incident.followOn);
   const lines = [
     "# Pi tool error audit",
     "",
@@ -45,17 +45,17 @@ export function markdownReport(
       `| ${escapeCell(name)} | ${rows.length} |`
     ),
     "",
-    "### Recovery evidence",
+    "### Follow-on chronology",
     "",
     "| Observed chain | Count |",
     "| --- | ---: |",
-    ...recovery.map(([name, rows]) =>
+    ...followOn.map(([name, rows]) =>
       `| ${escapeCell(name)} | ${rows.length} |`
     ),
     "",
     "## Signature clusters",
     "",
-    "| Count | Recovery | Signature | Latest sample |",
+    "| Count | Follow-on | Signature | Latest sample |",
     "| ---: | --- | --- | --- |",
   ];
 
@@ -63,12 +63,12 @@ export function markdownReport(
     const latest = [...rows].sort((a, b) =>
       b.timestamp.localeCompare(a.timestamp)
     )[0];
-    const recoveries = grouped(
+    const followOns = grouped(
       rows.filter((row) => row.marked),
-      (row) => row.recovery,
+      (row) => row.followOn,
     ).map(([name, group]) => `${name} ${group.length}`).join(", ");
     lines.push(
-      `| ${rows.length} | ${escapeCell(recoveries || "nonzero")} | ${
+      `| ${rows.length} | ${escapeCell(followOns || "nonzero")} | ${
         escapeCell(signature)
       } | ${escapeCell(shortPath(latest.path))}:${latest.line} |`,
     );
@@ -89,7 +89,7 @@ export function markdownReport(
         incident.leaves.some((leaf) => leaf !== incident.outerTool)
           ? ` via ${incident.leaves.join("+")}`
           : ""
-      }; ${incident.recovery}`,
+      }; ${incident.followOn}`,
       "",
       `> ${
         normalizeError(incident.error) ||

@@ -74,6 +74,10 @@ function createNestedTools(
 		showOutputWhenCollapsed: true,
 		compactTools: runtime.state.config.ui.compactTools,
 	};
+	const execOptions = {
+		...options,
+		waitForNonInteractiveExit: true,
+	};
 	const allowConfiguredProvider = (model: ExtensionContext["model"]) => {
 		const plan = resolveCodexRuntimePlanForState({ model }, runtime.state);
 		return isCodeModeRuntime(plan) && plan.configuredProvider && !plan.codexTransport;
@@ -110,7 +114,7 @@ function createNestedTools(
 			},
 		),
 		toNestedTool(
-			createExecCommandTool(runtime.tracker, runtime.sessions, options),
+			createExecCommandTool(runtime.tracker, runtime.sessions, execOptions),
 			"await tools.exec_command({ cmd: string, workdir?: string, shell?: string, tty?: boolean, yield_time_ms?: number, max_output_tokens?: number, login?: boolean }) // returns { output: string, session_id?: number, exit_code?: number }",
 			{
 				start(id, input) {

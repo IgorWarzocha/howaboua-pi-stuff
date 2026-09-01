@@ -37,6 +37,7 @@ export interface ExecCommandInput {
 	max_yield_time_ms?: number | undefined;
 	max_output_tokens?: number | undefined;
 	login?: boolean | undefined;
+	wait_until_exit?: boolean | undefined;
 }
 
 export interface WriteStdinInput {
@@ -228,13 +229,23 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 				onUpdate?.(makeSnapshotResult(session, 0, input.max_output_tokens, true));
 				const execYieldMs = clampExecYieldTime(input.yield_time_ms, defaultExecYieldTimeMs, session.interactive, minNonInteractiveExecYieldTimeMs, input.max_yield_time_ms);
 				const maxExecWaitMs = Math.max(execYieldMs, input.max_yield_time_ms ?? execYieldMs);
-				const waitedMs = await waitForExitOrInactivity(
-					session,
-					execYieldMs,
-					maxExecWaitMs,
-					signal,
-					onUpdate ? (elapsedMs) => onUpdate(makeSnapshotResult(session, elapsedMs, input.max_output_tokens)) : undefined,
-				);
+				let waitedMs = 0;
+				let idleTimeMs = execYieldMs;
+				for (;;) {
+					const elapsedMs = await waitForExitOrInactivity(
+						session,
+						idleTimeMs,
+						maxExecWaitMs,
+						signal,
+						onUpdate ? (elapsed) => onUpdate(makeSnapshotResult(session, waitedMs + elapsed, input.max_output_tokens)) : undefined,
+					);
+					waitedMs += elapsedMs;
+					if (signal?.aborted) {
+						throw signal.reason instanceof Error ? signal.reason : new Error("exec aborted");
+					}
+					if (!input.wait_until_exit || (session.exitCode !== undefined && session.exitCode !== null)) break;
+					idleTimeMs = Math.min(maxExecWaitMs, idleTimeMs * 2);
+				}
 				await bridgeSessions.waitForStartup(session, signal);
 				if (session.started) await bridgeSessions.poll(session, bridgeHooks, 0);
 				if (session.exitCode === undefined || session.exitCode === null)

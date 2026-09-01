@@ -63,6 +63,7 @@ export async function agentsHelp(): Promise<Record<string, unknown>> {
 
 function labels(snapshot: SessionSnapshot) {
 	return {
+		panes: new Map(snapshot.panes.map((pane) => [pane.pane_id, pane.label])),
 		tabs: new Map(snapshot.tabs.map((tab) => [tab.tab_id, tab.label])),
 		workspaces: new Map(
 			snapshot.workspaces.map((workspace) => [
@@ -84,6 +85,9 @@ function compactAgent(
 		machine,
 		target: agent.pane_id,
 		...(agent.name ? { name: agent.name } : {}),
+		...(agent.label || names.panes.get(agent.pane_id)
+			? { label: agent.label ?? names.panes.get(agent.pane_id) }
+			: {}),
 		status: agent.agent_status,
 		cwd: agent.foreground_cwd ?? agent.cwd ?? null,
 		workspace: names.workspaces.get(agent.workspace_id) ?? agent.workspace_id,

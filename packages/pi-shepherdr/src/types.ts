@@ -35,6 +35,7 @@ export interface PaneInfo {
 	cwd?: string | null;
 	foreground_cwd?: string | null;
 	interactive_ready?: boolean;
+	label?: string | null;
 	launch_pending?: boolean;
 	name?: string | null;
 	pane_id: string;

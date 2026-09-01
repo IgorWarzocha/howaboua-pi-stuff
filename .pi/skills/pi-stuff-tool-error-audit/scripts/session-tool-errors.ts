@@ -39,7 +39,7 @@ export type Incident = Assessment & {
   timestamp: string;
   family: string;
   signature: string;
-  recovery: string;
+  followOn: string;
   follow: Follow[];
 };
 
@@ -98,7 +98,7 @@ export async function auditSessions(
 
       const code = calls.get(String(message.toolCallId ?? "")) ?? "";
       const normalizedError = normalizeError(assessment.error);
-      const { follow, recovery } = traceRecovery(
+      const { follow, followOn } = traceFollowOn(
         records,
         index,
         assessment,
@@ -113,7 +113,7 @@ export async function auditSessions(
         family: familyOf(assessment, code),
         error: normalizedError,
         signature: `${assessment.leaves.join("+")}: ${normalizedError}`,
-        recovery,
+        followOn,
         follow,
       });
     }
@@ -331,13 +331,13 @@ export function normalizeError(error: string): string {
     .slice(0, 220);
 }
 
-function traceRecovery(
+function traceFollowOn(
   records: StoredRecord[],
   start: number,
   incident: Assessment,
   visibleLimit: number,
   until: Date,
-): { follow: Follow[]; recovery: string } {
+): { follow: Follow[]; followOn: string } {
   const follow: Follow[] = [];
   const targets = incident.source === "nested tool"
     ? incident.leaves
@@ -401,7 +401,7 @@ function traceRecovery(
     }
   }
 
-  const recovery = sameToolSuccess
+  const followOn = sameToolSuccess
     ? "same-tool success"
     : userBoundary
     ? "user boundary"
@@ -410,5 +410,5 @@ function traceRecovery(
     : otherSuccess
     ? "other success"
     : "no follow-up";
-  return { follow, recovery };
+  return { follow, followOn };
 }
