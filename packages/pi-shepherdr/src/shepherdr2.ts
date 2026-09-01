@@ -1,8 +1,8 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { isBlockingAgentsCall } from "./agents-contract.js";
 import { createAgentsTool } from "./agents-tool.js";
+import { registerAgentController } from "./controller.js";
 import { AgentFleet } from "./fleet.js";
-import { registerMasterMode } from "./master-mode.js";
 import { registerAgentEventRenderer } from "./messages.js";
 
 const CODE_MODE_PACKAGE = "@howaboua/pi-codex-conversion";
@@ -17,9 +17,7 @@ export default async function shepherdr2Extension(
 	registerAgentEventRenderer(pi);
 	pi.registerTool(tool);
 	const registration = await registerAgentsInCodeMode(pi, tool, fleet);
-	registerMasterMode(pi, fleet, {
-		orchestrationInstruction:
-			"Herdr orchestration mode is active. Delegate project implementation, synthesize worker results, and report them to the user. Work directly only when explicitly asked or for configuration, documentation, and routine operations in the current directory.",
+	registerAgentController(pi, fleet, {
 		toolName: tool.name,
 		onActiveChange: () => registration?.refresh(),
 	});
@@ -38,7 +36,7 @@ async function registerAgentsInCodeMode(
 			() => [
 				adaptToolForCodeMode(tool, {
 					blocking: isBlockingAgentsCall,
-					usage: 'await tools.agents({ action: "help" })',
+					usage: 'await tools.agents({ action: "help" }) // first call alone',
 				}),
 			],
 			{ isActive: () => fleet.isActive() },

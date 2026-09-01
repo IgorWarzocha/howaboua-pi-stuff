@@ -4,7 +4,7 @@ One persistent subagent system for ordinary Pi, Code Mode and Notebook Mode.
 
 Shepherdr 2 combines Shepherdr's monitored Herdr fleet with the blocking and asynchronous agent calls previously supplied by Pi Codex's custom `agents` tool. It registers one routed `agents` tool in normal Pi. When Pi Codex is installed, the same definition, renderer and implementation become `tools.agents` inside Code and Notebook Mode.
 
-Asynchronous work is still subagent work. The call returns after dispatch, then Shepherdr pushes completion, failure or blockage into the master with a `steer` message. The model never has to poll. Blocking work holds the tool call and returns the worker's reply directly.
+Asynchronous work is still subagent work. The call returns after dispatch, then Shepherdr pushes completion, failure or blockage into the controller with a `steer` message. The model never has to poll. Blocking work holds the tool call and returns the worker's reply directly.
 
 ## Install
 
@@ -18,21 +18,21 @@ Requires Pi 0.84.3 or newer, Herdr 0.8.x and the Herdr Pi integration:
 herdr integration install pi
 ```
 
-Do not load `pi-shepherdr` or Pi Codex's example `agents.toml` custom tool alongside Shepherdr 2. They own overlapping master commands and agent surfaces.
+Do not load `pi-shepherdr` or Pi Codex's example `agents.toml` custom tool alongside Shepherdr 2. They own overlapping commands and agent surfaces.
 
 Pi Codex 3.0.24 or newer is optional. Without it, Shepherdr 2 remains a normal Pi extension.
 
-## Enable the master
+## Enable orchestration
 
-Run Pi inside Herdr, then enable orchestration for the current session:
+Pi sessions remain ordinary workers until explicitly promoted. Run Pi inside Herdr, then activate the agent tool and orchestration guidance for the current session:
 
 ```text
-/herdr master
+/herdr
 ```
 
-Use `/herdr json` to persist master mode in the current directory. `/herdr machines` opens the existing Add/Remove Machine interface; settings remain in `~/.pi/agent/shepherdr.json`, and `/herdr connect [machine]` retries configured remotes.
+The command records one visible mode message without triggering a turn. Run `/herdr` again to return to normal guidance while keeping the agent tool available. Resumed controller sessions restore their last mode; new worker sessions in the same directory remain dormant.
 
-Run bare `/herdr` to toggle between normal and orchestration mode. The command records the switch as a synthetic mode message without triggering a turn. Actual requests, including work sent to agents, remain ordinary user messages. Run `/herdr` again to return to normal mode. Existing `/herdr master`, `/herdr json` and `/herdr connect` management forms remain available.
+`/herdr machines` opens the Add/Remove Machine interface. Settings remain in `~/.pi/agent/shepherdr.json`, and `/herdr connect [machine]` retries configured remotes after activation.
 
 ## Agent calls
 
@@ -52,7 +52,7 @@ The routed tool supports:
 | `watch` | Push future settlement from an existing Pi agent |
 | `unwatch` | Stop reporting an agent |
 
-`start`, `send` and `answer` block by default. Set `blocking: false` only when the master should continue other work immediately. Completion and blockage are then delivered automatically.
+`start`, `send` and `answer` block by default. Set `blocking: false` only when the controller should continue other work immediately. Completion and blockage are then delivered automatically.
 
 Cancelling a blocking call does not kill its worker. The waiter detaches and the eventual result returns through normal asynchronous delivery.
 
@@ -63,7 +63,7 @@ Two profiles work without configuration:
 - `explorer` uses `openai-codex/gpt-5.6-terra` with `high` thinking for read-only discovery
 - `reviewer` uses `openai-codex/gpt-5.6-luna` with `xhigh` thinking for generic read-only review
 
-Profiles never inherit the master's model or thinking level. Add or replace complete profile definitions under:
+Profiles never inherit the controller's model or thinking level. Add or replace complete profile definitions under:
 
 ```text
 ~/.pi/agent/shepherdr2/profiles/<name>/profile.json

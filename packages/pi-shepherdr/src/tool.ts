@@ -89,9 +89,6 @@ export function registerHerdrAgentsTool(
 		label: "Shepherdr",
 		description:
 			"Herdr Pi agents across configured machines. start needs name and placement; new_tab needs workspace; pane placement needs pane ID. watch/unwatch need target; send needs target and prompt.",
-		promptGuidelines: [
-			"Act as an orchestrator: delegate project implementation, synthesize worker results, and report them to the user. Work directly only when explicitly asked or for configuration, documentation, and routine operations in the current working directory",
-		],
 		parameters: Type.Object({
 			action: StringEnum(ACTIONS),
 			machine: Type.Optional(
