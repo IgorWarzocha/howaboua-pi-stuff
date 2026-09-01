@@ -2,3 +2,4 @@
 - Runtime variants: `inactive`, `extras`, `normal`, `code`, `notebook`. Recommend Notebook; never auto-select mode. Ignore legacy `mode: "path"`; never restore PATH injection or shell interception.
 - Startup/resume may read and normalize config in memory; persistence belongs only to explicit settings actions.
 - Explicit writes preserve unknown fields while updating the adapter-owned config.
+- `config.ts` is the compatibility facade; contracts/defaults, shared value readers, public normalizers, and aggregate normalization stay in their named `config-*` modules.

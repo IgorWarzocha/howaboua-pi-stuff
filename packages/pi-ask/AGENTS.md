@@ -5,3 +5,4 @@
 - Preserve the blank `Other/rephrase` contract: it means the agent should rephrase or follow up.
 - Keep response state in named objects, not parallel arrays.
 - When changing TUI behavior, check pi extension/TUI docs and examples first.
+- Keep TUI lifecycle composition in `tui.ts`, drawing in `tui-render.ts`, and key-driven transitions in `tui-input.ts`.
