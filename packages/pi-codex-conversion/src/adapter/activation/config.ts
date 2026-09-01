@@ -320,6 +320,10 @@ export function normalizeCodexConversionConfig(
 	const notebookProfile = normalizeNotebookProfile(notebook["profile"]);
 	const executionMode = normalizeExecutionMode(value["executionMode"])
 		?? DEFAULT_CODEX_CONVERSION_CONFIG.executionMode;
+	const responsesCompaction = bool(
+		compaction["responsesCompaction"],
+		DEFAULT_CODEX_CONVERSION_CONFIG.compaction.responsesCompaction,
+	);
 	return {
 		executionMode,
 		voiceFeaturesOnly: bool(
@@ -413,14 +417,11 @@ export function normalizeCodexConversionConfig(
 			),
 		},
 		compaction: {
-			responsesCompaction: bool(
-				compaction["responsesCompaction"],
-				DEFAULT_CODEX_CONVERSION_CONFIG.compaction["responsesCompaction"],
-			),
+			responsesCompaction,
 			portableSummary: bool(
 				compaction["portableSummary"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.compaction["portableSummary"],
-			),
+			) && responsesCompaction,
 			v2UserMessageRetention:
 				normalizeV2UserMessageRetention(compaction["v2UserMessageRetention"])
 					?? DEFAULT_CODEX_CONVERSION_CONFIG.compaction.v2UserMessageRetention,

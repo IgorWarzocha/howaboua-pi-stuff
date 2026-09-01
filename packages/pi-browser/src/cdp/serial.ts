@@ -1,18 +1,18 @@
-export function waitForTurn(
-	promise: Promise<void>,
+export function waitForTurn<T>(
+	promise: Promise<T>,
 	signal?: AbortSignal,
-): Promise<void> {
+): Promise<T> {
 	if (!signal) return promise;
 	if (signal.aborted) {
 		return Promise.reject(signal.reason ?? new Error("Operation aborted"));
 	}
-	return new Promise((resolveValue, reject) => {
+	return new Promise<T>((resolveValue, reject) => {
 		const abort = () => reject(signal.reason ?? new Error("Operation aborted"));
 		signal.addEventListener("abort", abort, { once: true });
 		void promise.then(
-			() => {
+			(value) => {
 				signal.removeEventListener("abort", abort);
-				resolveValue();
+				resolveValue(value);
 			},
 			(error: unknown) => {
 				signal.removeEventListener("abort", abort);

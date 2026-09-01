@@ -102,7 +102,11 @@ export function buildOpenAISettings(
 			config.compaction.responsesCompaction,
 			(enabled, current) => ({
 				...current,
-				compaction: { ...current.compaction, responsesCompaction: enabled },
+				compaction: {
+					...current.compaction,
+					responsesCompaction: enabled,
+					...(enabled ? {} : { portableSummary: false }),
+				},
 			}),
 		),
 		toggle(
@@ -111,7 +115,11 @@ export function buildOpenAISettings(
 			config.compaction.portableSummary,
 			(enabled, current) => ({
 				...current,
-				compaction: { ...current.compaction, portableSummary: enabled },
+				compaction: {
+					...current.compaction,
+					portableSummary: enabled,
+					...(enabled ? { responsesCompaction: true } : {}),
+				},
 			}),
 		),
 		setting(

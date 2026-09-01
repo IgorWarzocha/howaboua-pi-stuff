@@ -18,6 +18,12 @@ export interface ActiveTab {
 	refId: string;
 }
 
+interface PendingConnection<T> {
+	controller: AbortController;
+	promise: Promise<T>;
+	value?: T;
+}
+
 class TabBridge {
 	readonly elementRefs: ElementRefs = new Map();
 	readonly targetId: string;
@@ -137,9 +143,12 @@ class TabBridge {
 
 export class BrowserCdpSession {
 	private root: CdpClient | undefined;
-	private rootPromise: Promise<CdpClient> | undefined;
+	private rootPending: PendingConnection<CdpClient> | undefined;
 	private readonly tabs = new Map<string, TabBridge>();
-	private readonly tabPromises = new Map<string, Promise<TabBridge>>();
+	private readonly tabPromises = new Map<
+		string,
+		PendingConnection<TabBridge>
+	>();
 
 	async pages(signal?: AbortSignal): Promise<PageInfo[]> {
 		return getPages(await this.rootConnection(signal), signal);
@@ -194,17 +203,34 @@ export class BrowserCdpSession {
 		if (!bridge) {
 			let pending = this.tabPromises.get(targetId);
 			if (!pending) {
-				pending = this.connectTab(targetId, signal);
+				const controller = new AbortController();
+				const promise = this.connectTab(targetId, controller.signal);
+				pending = { controller, promise };
 				this.tabPromises.set(targetId, pending);
+				void promise.then(
+					(value) => {
+						pending!.value = value;
+					},
+					() => {
+						if (this.tabPromises.get(targetId) === pending) {
+							this.tabPromises.delete(targetId);
+						}
+					},
+				);
 			}
-			try {
-				bridge = await pending;
-			} finally {
-				if (this.tabPromises.get(targetId) === pending) {
-					this.tabPromises.delete(targetId);
+			const connected = await waitForTurn(pending.promise, signal);
+			bridge = this.tabs.get(targetId);
+			if (!bridge) {
+				if (this.tabPromises.get(targetId) !== pending) {
+					connected.close();
+					throw new Error("Tab bridge was stopped while connecting");
 				}
+				this.tabPromises.delete(targetId);
+				this.tabs.set(targetId, connected);
+				bridge = connected;
+			} else if (bridge !== connected) {
+				connected.close();
 			}
-			this.tabs.set(targetId, bridge);
 		}
 		const prefixLength = getDisplayPrefixLength(
 			pages.map((page) => page.targetId),
@@ -214,6 +240,9 @@ export class BrowserCdpSession {
 
 	async stop(refId?: string): Promise<void> {
 		if (!refId) {
+			for (const targetId of this.tabPromises.keys()) {
+				this.stopPendingTab(targetId, "All tab bridges were stopped");
+			}
 			for (const bridge of this.tabs.values()) bridge.close();
 			this.tabs.clear();
 			return;
@@ -224,28 +253,49 @@ export class BrowserCdpSession {
 			pages.map((page) => page.targetId),
 			"target",
 		);
+		this.stopPendingTab(targetId, "Tab bridge " + refId + " was stopped");
 		this.tabs.get(targetId)?.close();
 		this.tabs.delete(targetId);
 	}
 
 	close(): void {
+		for (const targetId of this.tabPromises.keys()) {
+			this.stopPendingTab(targetId, "Browser session closed");
+		}
 		for (const bridge of this.tabs.values()) bridge.close();
 		this.tabs.clear();
-		this.tabPromises.clear();
+		const rootPending = this.rootPending;
+		this.rootPending = undefined;
+		if (rootPending) {
+			rootPending.controller.abort(new Error("Browser session closed"));
+			void rootPending.promise.then(
+				(client) => client.close(),
+				() => undefined,
+			);
+		}
 		this.root?.close();
 		this.root = undefined;
-		this.rootPromise = undefined;
 	}
 
 	private async rootConnection(signal?: AbortSignal): Promise<CdpClient> {
 		if (this.root) return this.root;
-		this.rootPromise ??= this.connectRoot(signal);
-		try {
-			return await this.rootPromise;
-		} catch (error) {
-			this.rootPromise = undefined;
-			throw error;
+		let pending = this.rootPending;
+		if (!pending) {
+			const controller = new AbortController();
+			const promise = this.connectRoot(controller.signal);
+			pending = { controller, promise };
+			this.rootPending = pending;
+			void promise.then(
+				(value) => {
+					pending!.value = value;
+					if (this.rootPending === pending) this.rootPending = undefined;
+				},
+				() => {
+					if (this.rootPending === pending) this.rootPending = undefined;
+				},
+			);
 		}
+		return waitForTurn(pending.promise, signal);
 	}
 
 	private async connectTab(
@@ -259,20 +309,34 @@ export class BrowserCdpSession {
 				if (bridge && this.tabs.get(targetId) === bridge) {
 					this.tabs.delete(targetId);
 				}
+				const pending = this.tabPromises.get(targetId);
+				if (bridge && pending?.value === bridge) {
+					this.tabPromises.delete(targetId);
+				}
 			},
 			signal,
 		);
 		return bridge;
 	}
 
-	private async connectRoot(signal?: AbortSignal): Promise<CdpClient> {
+	private stopPendingTab(targetId: string, message: string): void {
+		const pending = this.tabPromises.get(targetId);
+		if (!pending) return;
+		this.tabPromises.delete(targetId);
+		pending.controller.abort(new Error(message));
+		void pending.promise.then(
+			(bridge) => bridge.close(),
+			() => undefined,
+		);
+	}
+
+	private async connectRoot(signal: AbortSignal): Promise<CdpClient> {
 		const client = new CdpClient();
 		await client.connect(await getWebSocketUrl(), signal);
 		this.root = client;
 		client.onClose(() => {
 			if (this.root !== client) return;
 			this.root = undefined;
-			this.rootPromise = undefined;
 		});
 		return client;
 	}
