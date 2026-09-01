@@ -1,0 +1,2 @@
+- Keep alpha/search request and result shapes aligned with the pinned Codex snapshot in upstream/; Pi-facing auth, proxying, rendering, and Code Mode projection remain TypeScript.
+- Preserve explicit search/navigation arguments and reusable result refs without adding conversation-history disclosure.

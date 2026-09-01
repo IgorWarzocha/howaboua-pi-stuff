@@ -337,6 +337,10 @@ function formatVoiceDetails(
 			"dim",
 			`  Change keybinds: ${configPath} (/reload to apply)`,
 		),
+		theme.fg(
+			"dim",
+			"  Realtime compaction refresh uses the selected Voice context model",
+		),
 		"",
 		theme.fg(
 			"dim",

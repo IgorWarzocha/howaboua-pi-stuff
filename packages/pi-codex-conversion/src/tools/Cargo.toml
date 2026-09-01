@@ -3,8 +3,6 @@ members = [
   "apply-patch/rust",
   "exec/rust",
   "view-image/rust",
-  "web-run/rust",
-  "imagegen/rust",
   "rust/crates/codex-utils-cache",
   "rust/crates/codex-utils-image",
   "rust/crates/codex-utils-pty",

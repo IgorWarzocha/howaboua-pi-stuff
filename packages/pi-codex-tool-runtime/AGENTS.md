@@ -1,0 +1,2 @@
+- Keep auth/routing independent of Pi Codex; its synchronous policy channel may only opt explicitly configured Responses providers into tool routing.
+- HTTP proxying follows environment policy. Persist only allowlisted Cloudflare cookies on HTTPS ChatGPT hosts, reject cookie redirects outside that boundary, and bound every buffered response.

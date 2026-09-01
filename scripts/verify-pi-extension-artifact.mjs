@@ -15,6 +15,17 @@ if (packageArgs.length === 0) {
 }
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const workspacePackages = new Map(
+	readdirSync(join(repoRoot, "packages"), { withFileTypes: true })
+		.filter((entry) => entry.isDirectory())
+		.flatMap((entry) => {
+			const root = join(repoRoot, "packages", entry.name);
+			const manifest = join(root, "package.json");
+			if (!existsSync(manifest)) return [];
+			const pkg = JSON.parse(readFileSync(manifest, "utf8"));
+			return typeof pkg.name === "string" ? [[pkg.name, { root, pkg }]] : [];
+		}),
+);
 const allowedLoaderModules = new Set([
 	"@earendil-works/pi-agent-core",
 	"@earendil-works/pi-ai",
@@ -167,24 +178,66 @@ function stagePackageUnderNodeModules(packageRoot, isolatedRoot) {
 function installRuntimeDependencies(packageRoot, isolatedRoot) {
 	const packageJson = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8"));
 	const workspaceJson = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8"));
-	const peerDependencies = Object.fromEntries(
-		Object.entries(packageJson.peerDependencies ?? {}).map(([name, range]) => [
-			name,
-			workspaceJson.devDependencies?.[name] ?? range,
-		]),
-	);
+	const externalDependencies = {};
+	const localDependencies = new Set();
+	const visited = new Set([packageJson.name]);
+	const collect = (pkg) => {
+		const optionalPeers = pkg.peerDependenciesMeta ?? {};
+		for (const [name, range] of [
+			...Object.entries(pkg.dependencies ?? {}),
+			...Object.entries(pkg.peerDependencies ?? {}).filter(
+				([name]) => optionalPeers[name]?.optional !== true,
+			),
+		]) {
+			const workspace = workspacePackages.get(name);
+			if (workspace) {
+				if (visited.has(name)) continue;
+				visited.add(name);
+				localDependencies.add(name);
+				collect(workspace.pkg);
+				continue;
+			}
+			externalDependencies[name] = workspaceJson.devDependencies?.[name] ?? range;
+		}
+	};
+	collect(packageJson);
 	writeFileSync(join(isolatedRoot, "package.json"), JSON.stringify({
 		private: true,
-		dependencies: {
-			...(packageJson.dependencies ?? {}),
-			...peerDependencies,
-		},
+		dependencies: externalDependencies,
 	}));
 	run("npm", ["install", "--ignore-scripts", "--legacy-peer-deps", "--no-audit", "--no-fund", "--package-lock=false"], {
 		cwd: isolatedRoot,
 		capture: true,
 		env: { npm_config_dry_run: "false", NPM_CONFIG_DRY_RUN: "false" },
 	});
+	return [...localDependencies];
+}
+
+function stageWorkspaceDependencies(names, isolatedRoot) {
+	const packRoot = join(isolatedRoot, "workspace-packs");
+	mkdirSync(packRoot);
+	for (const name of names) {
+		const workspace = workspacePackages.get(name);
+		if (!workspace) throw new Error(`Missing workspace dependency ${name}`);
+		const output = run(
+			"npm",
+			["pack", "--ignore-scripts", "--json", "--pack-destination", packRoot, workspace.root],
+			{
+				cwd: repoRoot,
+				capture: true,
+				env: { npm_config_dry_run: "false", NPM_CONFIG_DRY_RUN: "false" },
+			},
+		);
+		const packed = JSON.parse(output);
+		const filename = Array.isArray(packed) && typeof packed[0]?.filename === "string"
+			? packed[0].filename
+			: undefined;
+		if (!filename) throw new Error(`npm pack did not report an artifact for ${name}`);
+		const staged = join(isolatedRoot, "node_modules", ...name.split("/"));
+		rmSync(staged, { recursive: true, force: true });
+		mkdirSync(staged, { recursive: true });
+		run("tar", ["-xzf", join(packRoot, filename), "--strip-components=1", "-C", staged]);
+	}
 }
 
 async function loadLazyLocalModules(packageRoot) {
@@ -236,7 +289,8 @@ for (const packageArg of packageArgs) {
 		const isolatedPackage = noPack
 			? copyPackage(packageRoot, tempRoot)
 			: packPackage(packageRoot, tempRoot);
-		installRuntimeDependencies(isolatedPackage, tempRoot);
+		const workspaceDependencies = installRuntimeDependencies(isolatedPackage, tempRoot);
+		stageWorkspaceDependencies(workspaceDependencies, tempRoot);
 		const stagedPackage = stagePackageUnderNodeModules(isolatedPackage, tempRoot);
 		await loadPackedExtensions(stagedPackage, tempRoot);
 		await loadLazyLocalModules(stagedPackage);

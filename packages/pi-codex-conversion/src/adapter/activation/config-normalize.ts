@@ -16,7 +16,6 @@ import {
 	normalizeRealtimeV3Voice,
 	normalizeV2UserMessageRetention,
 	normalizeVoiceContextReasoning,
-	normalizeWebSearchModel,
 } from "./config-normalizers.ts";
 import {
 	normalizeBoolean,
@@ -73,14 +72,6 @@ export function normalizeCodexConversionConfig(
 			customRustBinariesDir: normalizeCustomRustBinariesDir(
 				tools["customRustBinariesDir"],
 			),
-			webRun: normalizeBoolean(
-				tools["webRun"],
-				DEFAULT_CODEX_CONVERSION_CONFIG.tools["webRun"],
-			),
-			imageGeneration: normalizeBoolean(
-				tools["imageGeneration"],
-				DEFAULT_CODEX_CONVERSION_CONFIG.tools["imageGeneration"],
-			),
 			viewImageFallback: normalizeBoolean(
 				tools["viewImageFallback"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.tools["viewImageFallback"],
@@ -92,14 +83,6 @@ export function normalizeCodexConversionConfig(
 			viewImageOnly: normalizeBoolean(
 				tools["viewImageOnly"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.tools["viewImageOnly"],
-			),
-			webRunOnly: normalizeBoolean(
-				tools["webRunOnly"],
-				DEFAULT_CODEX_CONVERSION_CONFIG.tools["webRunOnly"],
-			),
-			imageGenerationOnly: normalizeBoolean(
-				tools["imageGenerationOnly"],
-				DEFAULT_CODEX_CONVERSION_CONFIG.tools["imageGenerationOnly"],
 			),
 		},
 		ui: {
@@ -171,6 +154,10 @@ export function normalizeCodexConversionConfig(
 				voice["autoResumeRealtime"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.voice.autoResumeRealtime,
 			),
+			refreshRealtimeAfterCompaction: normalizeBoolean(
+				voice["refreshRealtimeAfterCompaction"],
+				DEFAULT_CODEX_CONVERSION_CONFIG.voice.refreshRealtimeAfterCompaction,
+			),
 			audioSetupCompleted: normalizeBoolean(
 				voice["audioSetupCompleted"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.voice.audioSetupCompleted,
@@ -240,9 +227,6 @@ export function normalizeCodexConversionConfig(
 				openai["harnessIdentifierHeader"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.openai["harnessIdentifierHeader"],
 			),
-			webSearchModel:
-				normalizeWebSearchModel(openai["webSearchModel"]) ??
-				DEFAULT_CODEX_CONVERSION_CONFIG.openai["webSearchModel"],
 		},
 	};
 }

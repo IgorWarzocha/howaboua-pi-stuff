@@ -4,14 +4,6 @@ export type CodexVerbosity = "low" | "medium" | "high";
 export type CacheDiagnosticsMode = "off" | "status" | "status-and-log";
 export type LunaCacheKeepaliveMinutes = 0 | 5 | 10 | 15;
 export type AllProvidersMode = "off" | "on" | "extras";
-export type HelperModel =
-	| "gpt-5.6-luna"
-	| "gpt-5.6-terra"
-	| "gpt-5.6-sol"
-	| "gpt-5.5"
-	| "gpt-5.4-mini"
-	| "gpt-5.3-codex-spark";
-export type WebSearchModel = HelperModel;
 export type V2UserMessageRetention = 16 | 32 | 64;
 export const MIN_NOTEBOOK_HEAP_MIB = 256;
 export const MAX_NOTEBOOK_HEAP_MIB = 65_536;
@@ -43,14 +35,6 @@ export const REALTIME_V3_VOICES = [
 ] as const;
 export type RealtimeV3Voice = (typeof REALTIME_V3_VOICES)[number];
 
-export const WEB_SEARCH_MODELS: readonly WebSearchModel[] = [
-	"gpt-5.6-luna",
-	"gpt-5.6-terra",
-	"gpt-5.6-sol",
-	"gpt-5.5",
-	"gpt-5.4-mini",
-	"gpt-5.3-codex-spark",
-];
 export const V2_USER_MESSAGE_RETENTION_OPTIONS: readonly V2UserMessageRetention[] =
 	[16, 32, 64];
 export const LUNA_CACHE_KEEPALIVE_MINUTES_OPTIONS: readonly LunaCacheKeepaliveMinutes[] =
@@ -63,13 +47,9 @@ export interface CodexConversionConfig {
 	scope: { allProviders: AllProvidersMode; additionalProviders: string[] };
 	tools: {
 		customRustBinariesDir: string;
-		webRun: boolean;
-		imageGeneration: boolean;
 		viewImageFallback: boolean;
 		applyPatchOnly: boolean;
 		viewImageOnly: boolean;
-		webRunOnly: boolean;
-		imageGenerationOnly: boolean;
 	};
 	ui: {
 		statusLine: boolean;
@@ -91,6 +71,7 @@ export interface CodexConversionConfig {
 	voice: {
 		v3Voice: RealtimeV3Voice;
 		autoResumeRealtime: boolean;
+		refreshRealtimeAfterCompaction: boolean;
 		audioSetupCompleted: boolean;
 		delegationAcknowledgements: boolean;
 		forwardReasoningSummaries: boolean;
@@ -113,7 +94,6 @@ export interface CodexConversionConfig {
 		forceCachedWebSockets: boolean;
 		cacheDiagnostics: CacheDiagnosticsMode;
 		harnessIdentifierHeader: boolean;
-		webSearchModel: WebSearchModel;
 	};
 }
 
@@ -124,13 +104,9 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	scope: { allProviders: "off", additionalProviders: [] },
 	tools: {
 		customRustBinariesDir: "",
-		webRun: true,
-		imageGeneration: true,
 		viewImageFallback: false,
 		applyPatchOnly: false,
 		viewImageOnly: false,
-		webRunOnly: false,
-		imageGenerationOnly: false,
 	},
 	ui: {
 		statusLine: true,
@@ -152,6 +128,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	voice: {
 		v3Voice: "cove",
 		autoResumeRealtime: false,
+		refreshRealtimeAfterCompaction: false,
 		audioSetupCompleted: false,
 		delegationAcknowledgements: true,
 		forwardReasoningSummaries: true,
@@ -171,6 +148,5 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 		forceCachedWebSockets: true,
 		cacheDiagnostics: "off",
 		harnessIdentifierHeader: false,
-		webSearchModel: "gpt-5.6-luna",
 	},
 };

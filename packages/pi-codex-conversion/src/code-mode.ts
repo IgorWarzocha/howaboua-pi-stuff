@@ -1,8 +1,10 @@
 import type {
+	AgentToolResult,
 	ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import type { TSchema } from "typebox";
 import { toNestedTool } from "./adapter/code-mode/nested-tool-adapter.ts";
+import { codeModeNameForToolIdentity } from "./tools/code-mode/tool-identity.ts";
 
 export {
 	type CodeModeExtensionToolProvider,
@@ -11,7 +13,7 @@ export {
 	registerCodeModeExtensionTools,
 } from "./code-mode-extension-tools.ts";
 
-import type { ProgrammaticCodeModeToolDefinition } from "./tools/code-mode/types.ts";
+import type { CodeModeToolIdentity, ProgrammaticCodeModeToolDefinition } from "./tools/code-mode/types.ts";
 
 export function adaptToolForCodeMode<
 	TParams extends TSchema,
@@ -25,16 +27,23 @@ export function adaptToolForCodeMode<
 		deferLoading?: boolean;
 		kind?: "function" | "freeform";
 		prepareInput?(input: unknown): unknown;
+		toolName?: CodeModeToolIdentity;
+		resultValue?(result: AgentToolResult<NoInfer<TDetails>>): unknown;
 	},
 ): ProgrammaticCodeModeToolDefinition {
 	if (options.kind === "freeform" && !options.prepareInput) {
 		throw new Error("Freeform Code Mode tools require prepareInput");
 	}
-	return toNestedTool(tool, options.usage, {}, {
+	const nestedTool = options.toolName
+		? { ...tool, name: codeModeNameForToolIdentity(options.toolName) }
+		: tool;
+	const adapted = toNestedTool(nestedTool, options.usage, {}, {
 		modelVisibleResult: true,
 		translatePromptMetadata: true,
 		...(options.kind ? { kind: options.kind } : {}),
 		...(options.prepareInput ? { prepareInput: options.prepareInput } : {}),
+		...(options.toolName ? { toolName: options.toolName } : {}),
+		...(options.resultValue ? { resultValue: options.resultValue as (result: AgentToolResult<unknown>) => unknown } : {}),
 		...(options.blocking === true ? { blocking: true } : {}),
 		...(typeof options.blocking === "function"
 			? { isBlocking: options.blocking }
@@ -43,4 +52,7 @@ export function adaptToolForCodeMode<
 			? { deferLoading: true, discoverWhenDeferred: true }
 			: {}),
 	});
+	return nestedTool.name === tool.name
+		? adapted
+		: { ...adapted, topLevelName: tool.name };
 }

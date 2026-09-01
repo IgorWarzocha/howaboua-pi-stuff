@@ -138,18 +138,6 @@ export function codeModeImageResult(
 	};
 }
 
-export function codeModeWebResult(result: AgentToolResult<unknown>): unknown {
-	const details = result.details;
-	if (
-		details &&
-		typeof details === "object" &&
-		"webRun" in details &&
-		details.webRun &&
-		typeof details.webRun === "object"
-	) return details.webRun;
-	return compactNestedResult(result);
-}
-
 function requireExtensionContext(
 	context: ToolExecutionContext,
 ): ExtensionContext {

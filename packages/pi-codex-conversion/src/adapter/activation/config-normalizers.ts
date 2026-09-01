@@ -11,8 +11,6 @@ import {
 	type V2UserMessageRetention,
 	VOICE_CONTEXT_REASONING_LEVELS,
 	type VoiceContextReasoning,
-	WEB_SEARCH_MODELS,
-	type WebSearchModel,
 } from "./config-contract.ts";
 import { normalizeOptionalString } from "./config-values.ts";
 
@@ -55,15 +53,6 @@ export function normalizeLunaCacheKeepaliveMinutes(
 		value,
 	)
 		? (value as LunaCacheKeepaliveMinutes)
-		: undefined;
-}
-
-export function normalizeWebSearchModel(
-	value: unknown,
-): WebSearchModel | undefined {
-	if (typeof value !== "string") return undefined;
-	return (WEB_SEARCH_MODELS as readonly string[]).includes(value)
-		? (value as WebSearchModel)
 		: undefined;
 }
 

@@ -1,4 +1,4 @@
-- `controller.ts` owns the public facade, teardown, mute, and Pi event bridge; `controller-start.ts` owns startup/auth/state transitions; `controller-reconnect.ts` owns dropped-call replacement and peer-owner notifications; `controller-sessions.ts` loads modes and guards cancellation across imports; `controller-support.ts` owns shared state/presentation helpers.
+- `controller.ts` owns the public facade, teardown, mute, and Pi event bridge; `controller-compaction.ts` owns serialized post-compaction preparation and replacement; `controller-start.ts` owns startup/auth/state transitions; `controller-reconnect.ts` owns dropped-call replacement and peer-owner notifications; `controller-sessions.ts` loads modes and guards cancellation across imports; `controller-support.ts` owns shared state/presentation helpers.
 - Under `conversation/`, `session.ts` owns V3 transport sequencing, `call-setup.ts` HTTP setup, `handoff.ts` delegation output, and `wire.ts` validation. `auth.ts`, `dictation/`, and `session-messages.ts` retain their boundaries.
 - `helper.ts` owns the process; `helper-protocol.ts` owns JSONL framing and validation. LAN browser transport, ownership, and decoding stay in `browser-connections.ts`, `browser-session.ts`, and `browser-wire.ts`.
 - `controls.ts` owns start/stop/setup policy; settings commands and shortcuts route through it into the controller.
@@ -18,6 +18,7 @@
 - Hold realtime delegations behind native compaction and its post-compaction prewarm; never start a competing Pi turn from the compaction window.
 - Each mode owns its helper process and idempotent cleanup; the controller owns replacement/reload/shutdown ordering.
 - Opt-in auto-resume replaces only established host-to-OpenAI V3 calls after terminal transport drops. Preserve LAN browser ownership, rerun normal context startup, omit lifecycle end/start, and leave failed replacement startup terminal.
+- Opt-in compaction refresh is awaited at Pi's successful compaction boundary. Summarize while the established call remains active, recheck the branch, then close and replace it serially without lifecycle chatter; summary failure leaves it untouched, while replacement failure is terminal. Preserve LAN ownership and mute.
 - LAN voice is host-owned: one helper WebRTC V3 call owns authenticated setup and delegation; browser disconnect/takeover preserves it, explicit Stop closes it so the next Start snapshots fresh Pi context. Never replace supported V3 WebRTC with standalone ChatGPT OAuth WebSocket.
 - Realtime mic mute keeps V3 warm. Gate browser tracks, discard captured samples, send silence RTP, and reset mute when input ownership ends.
 - Native `v3.rs` owns WebRTC signaling/session state; `v3_media.rs` owns audio tracks, playout, encoding, and silence RTP.

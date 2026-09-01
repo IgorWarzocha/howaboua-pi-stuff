@@ -9,4 +9,3 @@ Let Pi extensions expose existing and session-gated tools inside Code and Notebo
 - Per-call blocking lets one bridged tool offer both blocking and asynchronous operations.
 - Image-bearing Code Mode histories keep native compaction on the canonical cache lane without carrying old images beyond its retained-context budget.
 - Native compaction can retain an opt-in readable Pi summary for switching providers without moving Codex replay off its encrypted cache lane.
-- Image generation edits can select local paths or recent conversation images and retain transparency and request metadata.

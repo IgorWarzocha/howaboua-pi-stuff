@@ -3,7 +3,6 @@ import test from "node:test";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Container, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import { codeModeWebResult } from "../src/adapter/code-mode/nested-tool-adapter.ts";
 import { adaptToolForCodeMode } from "../src/code-mode.ts";
 import { CodeModeDelegateRuntime } from "../src/tools/code-mode/delegate-runtime.ts";
 import {
@@ -11,7 +10,7 @@ import {
 	renderTraceAndOutput,
 } from "../src/tools/code-mode/trace-rendering.ts";
 
-test("Code Mode nested tools preserve public results and specialized web values", async () => {
+test("Code Mode nested tools preserve public and namespaced extension results", async () => {
 	const rendererStates: unknown[] = [];
 	const previousCallComponents: unknown[] = [];
 	const renderedInputLengths: number[] = [];
@@ -60,6 +59,28 @@ test("Code Mode nested tools preserve public results and specialized web values"
 			new AbortController().signal,
 		),
 		"Done",
+	);
+	const namespaced = adaptToolForCodeMode(
+		{
+			...adaptedTool(),
+			name: "external",
+		},
+		{
+			usage: "await tools.media__external({ value })",
+			toolName: { namespace: "media", name: "external" },
+			resultValue: (result) => result.details,
+		},
+	);
+	assert.equal(namespaced.name, "media__external");
+	assert.equal(namespaced.topLevelName, "external");
+	assert.deepEqual(namespaced.toolName, { namespace: "media", name: "external" });
+	assert.deepEqual(
+		await namespaced.invoke(
+			{ value: "mapped" },
+			{ cwd: process.cwd(), extensionContext: {} as ExtensionContext },
+			new AbortController().signal,
+		),
+		{ value: "mapped" },
 	);
 	lateUpdate();
 	assert.equal(forwardedUpdates, 0);
@@ -209,15 +230,19 @@ test("Code Mode nested tools preserve public results and specialized web values"
 		renderStore.get(`later-trace-${index}`);
 	assert.notEqual(renderStore.get("trace-1"), firstRenderState);
 
-	const webRun = {
-		output: "Search summary with internal refs",
-		search_results: [
-			{ title: "Example", url: "https://example.com/source" },
-		],
-	};
-
-	assert.deepEqual(codeModeWebResult({
-		content: [{ type: "text", text: webRun.output }],
-		details: { webRun },
-	}), webRun);
 });
+
+function adaptedTool() {
+	return {
+		name: "external",
+		label: "External",
+		description: "External extension tool",
+		parameters: Type.Object({ value: Type.String() }),
+		async execute(_id: string, params: { value: string }) {
+			return {
+				content: [{ type: "text" as const, text: params.value }],
+				details: { value: params.value },
+			};
+		},
+	};
+}

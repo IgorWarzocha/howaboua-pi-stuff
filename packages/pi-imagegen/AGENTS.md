@@ -1,0 +1,2 @@
+- Keep generation/edit selectors and response metadata aligned with the pinned Codex snapshot in upstream/; Pi-facing auth, artifacts, rendering, and Code Mode projection remain TypeScript.
+- Local edit targets accept validated PNG, JPEG, GIF, or WebP bytes. Recent targets come only from Pi's active compaction-aware context.

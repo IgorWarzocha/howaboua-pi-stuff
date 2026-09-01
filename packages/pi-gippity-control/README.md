@@ -36,6 +36,8 @@ Commands:
 
 Settings live in `~/.pi/agent/pi-gippity-control.json`. Keybind changes take effect after `/reload`.
 
+Set a **Voice context model** to seed realtime from Pi's readable history. **Refresh realtime voice after compaction** then pauses at each successful compaction boundary, summarizes the compacted branch, and starts a fresh voice call without ending spoken mode. An initial summarization failure leaves the old call untouched.
+
 `lan.customWebAppPath` controls the app's scope. Use an absolute path for one global app in every Pi directory, or a relative path resolved from the active Pi session cwd for a project-specific app. It must point to a static directory containing `index.html`; the running server rereads it on refresh. `lan.port` is optional and defaults to `43120`.
 
 Companion extensions can register one built static app through `registerGippityRemoteApp`. GipPity serves it under `/_gippity/apps/<id>/` alongside the main remote UI, replays its bounded `app.state` snapshot on browser reconnect, and forwards transient `app.event` messages through the existing mini-SDK. The app still uses `GippityRemote` for activity, Pi events, prompts, drafts, voice, and reconnection; extensions must not start another server.

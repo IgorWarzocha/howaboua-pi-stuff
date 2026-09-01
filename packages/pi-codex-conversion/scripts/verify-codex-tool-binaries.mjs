@@ -9,8 +9,6 @@ const tools = [
 	{ dir: "apply-patch", unix: "apply_patch", win: "apply_patch.exe" },
 	{ dir: "exec", unix: "exec_bridge", win: "exec_bridge.exe" },
 	{ dir: "view-image", unix: "view_image", win: "view_image.exe" },
-	{ dir: "web-run", unix: "web_run", win: "web_run.exe" },
-	{ dir: "imagegen", unix: "imagegen", win: "imagegen.exe" },
 ];
 
 const missing = [];

@@ -2,7 +2,7 @@
 
 If you're expecting details about the code, you've come to the wrong place. Clone it and ask your Clanka.
 
-Pi already runs GPT models. This extension gives them Codex-shaped tools and prompt handling, then adds web, images, voice, compaction and OpenAI controls without turning the provider request into a schema landfill.
+Pi already runs GPT models. This extension gives them Codex-shaped tools and prompt handling, then adds voice, compaction and OpenAI controls without turning the provider request into a schema landfill.
 
 For the argument and token numbers, read [How I gave Pi 17 tools without loading 17 schemas](https://howaboua.dev/writing/how-i-gave-pi-17-tools-without-loading-17-schemas/). This README is for using the thing.
 
@@ -30,23 +30,25 @@ Open `/codex` after installation. The defaults give Codex-like GPT models the st
 
 ## What you get
 
-- Codex-shaped `exec_command`, `write_stdin`, `apply_patch`, `view_image`, `web_run` and `imagegen` tools
+- Codex-shaped `exec_command`, `write_stdin`, `apply_patch` and `view_image` tools
 - GPT-5.6 Code Mode with only `exec` and `wait` added by the conversion at provider level
 - foreground, background and interactive shell sessions with resumable output
-- web search, page navigation, image generation/editing and image descriptions for blind models
+- image descriptions for blind models
 - realtime voice, push-to-dictate and the GipPity LAN remote mini WebUI
 - OpenAI verbosity, fast mode, cached transport, usage, reset credits and Responses compaction
 - compact Pi-native rendering, status and background-shell controls
 
 Pi keeps its sessions, project context, skills and UI. The model gets the dialect it already knows.
 
+Install [`pi-web-run`](../pi-web-run) or [`pi-imagegen`](../pi-imagegen) when you want Codex web search or image generation. They remain ordinary Pi extensions and automatically compose into Code and Notebook Mode.
+
 ## Modes
 
 | Mode | Behaviour |
 | --- | --- |
 | **Structured adapter** | Replaces Pi's default file and shell tools with the Codex-shaped set. This is the default for Codex-like GPT models and configured providers. |
-| **Code Mode** | Exposes `exec` and `wait`; shell, patch, image, web and custom tools compose locally inside `exec`. |
-| **Extra tools only** | Adds individually selected `apply_patch`, `view_image`, `web_run` or `imagegen` tools without replacing the active model's normal setup. |
+| **Code Mode** | Exposes `exec` and `wait`; shell, patch, image and extension tools compose locally inside `exec`. |
+| **Extra tools only** | Adds individually selected `apply_patch` or `view_image` without replacing the active model's normal setup. |
 | **Voice only** | Leaves the active model's prompt, tools, requests, compaction and adapter widgets untouched while retaining voice and dictation. |
 
 Structured mode has no separate text `read`, `edit` or `write` tool. The model inspects files through the shell and edits with `apply_patch`.
@@ -60,7 +62,7 @@ Provider scope can stay on **Codex and configured**, expand to **all providers**
 | Tab | Covers |
 | --- | --- |
 | General | Extension mode, provider scope, configured providers and heavy prompt overwrite |
-| Tools | Code Mode, web, images, text image descriptions and activate-only tools |
+| Tools | Code Mode, text image descriptions and activate-only tools |
 | OpenAI | Fast mode, verbosity, transport, cache diagnostics, Responses Lite and compaction |
 | Display | Statusline, tool rendering, Code Mode detail and background shells |
 | Voice | LAN server, voice, dictation behaviour, shortcuts and prompt paths |
@@ -73,7 +75,7 @@ The first `/codex` setting chooses **Defaults** or **Project**. Defaults live in
 
 Without folder settings, the project inherits the complete global configuration. `PI_CODEX_FAST=1` or `PI_CODEX_FAST=0` can override Fast Mode for one Pi process, which is useful for independently launched workers. Run `/reload` after changing files by hand.
 
-`tools.customRustBinariesDir` can override any bundled native helper by filename, including `exec_bridge`, `apply_patch`, `view_image`, `web_run`, `imagegen` and `pi-codex-voice`. Build helpers on the target machine, collect the needed binaries in one directory, set that directory in the config, then run `/reload`.
+`tools.customRustBinariesDir` can override any bundled native helper by filename, including `exec_bridge`, `apply_patch`, `view_image` and `pi-codex-voice`. Build helpers on the target machine, collect the needed binaries in one directory, set that directory in the config, then run `/reload`.
 
 The optional **Heavy system prompt overwrite** removes roughly 40% of Pi's known default scaffold while preserving additions from other extensions. It is off by default.
 
@@ -86,7 +88,7 @@ Open `/codex openai` and enable **Cache status line**. **Cache log file** is an 
 Pi has one extension-status row, so the existing adapter and optional cache state appear together:
 
 ```text
-Codex adapter V: low • web search • image gen Codex Cache • HIT • WS delta
+Codex adapter V: low • notebook mode Codex Cache • HIT • WS delta
 ```
 
 Pi's built-in footer already shows the latest cache percentage. `Codex Cache` instead explains the transport and continuation decision:
@@ -145,6 +147,7 @@ pi.on("session_shutdown", () => registration.unregister());
 
 The adapted definition keeps its Pi context, UI, schema and progress updates. JavaScript receives model-usable result content, while the tool's exact result remains available to its ordinary Pi renderer. Code Mode owns the JavaScript call and runs its own nested-tool preflight.
 Tool names that are not JavaScript identifiers receive the same translated name in Code and Notebook Mode, including prompt guidance and `ALL_TOOLS`.
+Use `toolName` for a non-default Responses namespace and `resultValue` when JavaScript needs a structured value instead of the ordinary model-visible result.
 Set `blocking: true` when every call must hold the agent turn until it settles, or pass `blocking: input => boolean` when the choice depends on the invocation. The default allows long-running work to yield to `wait` normally. Set `deferLoading: true` to omit the usage line and expose the tool through `ALL_TOOLS` instead.
 For a compact routed string surface, set `kind: "freeform"` and provide `prepareInput` to map that string into the normal Pi tool parameters. Code and Notebook Mode then omit the original JSON schema while execution, rendering and prompt metadata still come from the same tool.
 Use the optional `isActive` gate when an extension exposes its tool only in a session mode. Keep returning the tool definition from the provider and call `registration.refresh()` when the mode changes. Code Mode also resamples gates at normal session and input boundaries, then keeps its prompt, nested registry and outer tool filtering fixed through that run.
@@ -174,6 +177,8 @@ Defaults:
 - `Ctrl+Alt+G` toggles the GipPity LAN server
 
 Voice input and output follow the system defaults. Set `voice.inputDevice` or `voice.outputDevice` only to pin an endpoint. Dictation returns one editable transcript to Pi's input.
+
+Set a **Voice context model** to seed realtime from the current Pi history. **Refresh realtime voice after compaction** then pauses at each successful compaction boundary, summarizes the compacted branch, and starts a fresh voice call without ending spoken mode. An initial summarization failure leaves the old call untouched.
 
 The visible realtime prompt lives at `~/.pi/agent/REALTIME-SYSTEM-PROMPT.md`. A trusted project can append `.pi/REALTIME-SYSTEM-PROMPT.md`. Keep coding and project instructions in AGENTS.md rather than duplicating them into the spoken assistant.
 
@@ -214,7 +219,7 @@ The server belongs only to the Pi session that started it and stops when that se
 
 The default scope activates conservatively for Codex-like GPT routes and Responses providers listed under **Additional providers**. Switching to an unrelated model restores Pi's ordinary tools.
 
-Voice, usage, web search, image generation and text image descriptions can use the Pi OpenAI Codex login while another provider's model remains active. This is how a text-only model can receive a small vision model's plain-text image description without caring how it got there.
+Voice, usage and text image descriptions can use the Pi OpenAI Codex login while another provider's model remains active. The standalone web and image-generation extensions use the same login independently.
 
 Native Responses compaction is intentionally narrower: OpenAI Codex and explicitly configured OpenAI/Codex-compatible passthrough providers only. Unsupported states fail visibly or fall back to Pi compaction rather than silently discarding context. A portable summary must be enabled before the native checkpoint that you want to carry across providers.
 
@@ -231,6 +236,13 @@ pi install npm:@howaboua/pi-codex-conversion
 
 Your existing `~/.pi/agent/pi-codex-conversion.json` continues to load.
 
+Web search and image generation are now independently installed extensions:
+
+```bash
+pi install npm:@howaboua/pi-web-run
+pi install npm:@howaboua/pi-imagegen
+```
+
 This is also a major change for users of the old canonical package. Legacy PATH mode and its package binaries are gone. Old PATH-mode settings normalize to the structured adapter. Use structured tools or Code Mode custom commands instead.
 
 ## Troubleshooting
@@ -238,7 +250,7 @@ This is also a major change for users of the old canonical package. Legacy PATH 
 - **Voice cannot find a device:** let the setup turn inspect the endpoints, save the selected device IDs, then start voice again.
 - **GipPity cannot open the microphone:** use one of Pi's HTTPS URLs and accept its local certificate. Browsers block microphone access on plain LAN HTTP.
 - **Code Mode cannot start:** its pinned host is prepared lazily and honours normal proxy environment variables. Pi reports setup failures instead of hanging the first execution.
-- **A helper cannot run on this system:** build it from a checkout on the target machine, put it in `tools.customRustBinariesDir`, then run `/reload`. Do not replace system glibc for this.
+- **A bundled helper cannot run on this system:** build the core helper from a checkout on the target machine, put it in `tools.customRustBinariesDir`, then run `/reload`. Do not replace system glibc for this. Web search and image generation are TypeScript extensions and need no platform helper.
 - **A configured provider fails:** it must implement the OpenAI Responses contracts required by the enabled feature. Code Mode additionally needs Responses Lite compatibility; native compaction needs the Codex compaction contract.
 
 For anything stranger, clone the repository and ask your Clanka:

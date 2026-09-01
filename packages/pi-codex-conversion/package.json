@@ -59,7 +59,6 @@
     "src/**/*.md",
     "types/**/*.d.ts",
     "src/voice/lan/assets/**",
-    "available-tools.png",
     "examples/custom-tools",
     "CHANGELOG.md",
     "README.md",
@@ -118,6 +117,7 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
+    "@howaboua/pi-codex-tool-runtime": "0.0.0",
     "js-tiktoken": "^1.0.21",
     "openai": "7.5.0",
     "partial-json": "^0.1.7",

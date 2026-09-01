@@ -57,7 +57,7 @@ const CODE_MODE_GUIDELINES = [
 		"{...} interpolates and backticks terminate it; do not embed shell, patches, or source containing either delimiter",
 	"Long command: keep tools.exec_command awaited inside exec; resume the yielded cell_id with wait near completion. Do not request a short child yield and poll its session_id with tools.write_stdin",
 	"Use tty=true only for input or persistent processes",
-	"Use tools.apply_patch(patch) for file edits; split large patches; reserve shell/Python for formatting or bulk rewrites",
+	"Patch each file in one tools.apply_patch call; batch independent files with Promise.allSettled, inspect and recover every rejection, and await same-file edits sequentially; split large patches; use shell/Python only for formatting or bulk rewrites",
 	"Await dependencies; use Promise.all for independent calls",
 	"Use text() only for concise final output",
 ];
@@ -74,7 +74,7 @@ const NOTEBOOK_MODE_GUIDELINES = [
 	"Each result reports memory; use notebook release/prune before pressure becomes critical",
 	"exec calls run sequentially; use wait only to observe or terminate the currently yielded call",
 	"Treat all npm packages as unsafe by default; Notebook startup lists prior project imports, and any unlisted package requires user approval before first use plus an exact-version npm: specifier",
-	"Compose dependent tool calls in Deno with block-local values; filter results locally",
+	"Exploit Deno for multi-step discovery, parsing, filtering, and dependent tool calls inside one cell; avoid model-context round trips",
 ];
 
 const CODE_MODE_REPLACED_GUIDELINES = new Set([

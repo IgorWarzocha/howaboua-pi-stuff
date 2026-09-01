@@ -205,6 +205,38 @@ test("Code Mode activation stays within its model, API, and provider scope", () 
 		conflictingContext as never,
 		conflictingState,
 	));
+
+	const namespaced = createToolHarness([
+		"read",
+		"bash",
+		"edit",
+		"write",
+		"web_run",
+	]);
+	registerCodeModeExtensionTools(namespaced as never, () => [{
+		name: "web__run",
+		topLevelName: "web_run",
+		toolName: { namespace: "web", name: "run" },
+		usage: "await tools.web__run(input)",
+		deferLoading: false,
+		kind: "function",
+		inputSchema: {},
+		async invoke() { return ""; },
+	}]);
+	const namespacedState = createAdapterState({ executionMode: "code" });
+	syncAdapter(
+		namespaced as never,
+		conflictingContext as never,
+		namespacedState,
+	);
+	assert.equal(namespaced.activeTools().includes("web_run"), false);
+	namespacedState.executionMode = "normal";
+	syncAdapter(
+		namespaced as never,
+		conflictingContext as never,
+		namespacedState,
+	);
+	assert.equal(namespaced.activeTools().includes("web_run"), true);
 });
 
 test("runtime plan keeps unsupported and non-Lite models on structured standard Responses", () => {

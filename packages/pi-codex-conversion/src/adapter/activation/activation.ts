@@ -107,7 +107,9 @@ function reconcileExtensionToolProjection(
 	const releasedActiveNames = previousManagedNames.filter(
 		(name) => !managedNames.has(name) && previousTools.includes(name),
 	);
-	const activeNames = new Set(extensionTools.tools.map((tool) => tool.name));
+	const activeNames = new Set(
+		extensionTools.tools.map((tool) => tool.topLevelName ?? tool.name),
+	);
 	state.previousToolNames = previousTools.filter(
 		(name) => !managedNames.has(name) || activeNames.has(name),
 	);

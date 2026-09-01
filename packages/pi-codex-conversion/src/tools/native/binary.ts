@@ -5,9 +5,7 @@ import { fileURLToPath } from "node:url";
 const TOOL_DIRS: Record<string, string> = {
 	apply_patch: "apply-patch",
 	exec_bridge: "exec",
-	imagegen: "imagegen",
 	view_image: "view-image",
-	web_run: "web-run",
 };
 
 function packageRoot(): string {

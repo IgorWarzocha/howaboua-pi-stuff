@@ -109,7 +109,6 @@ export function registerCodexEvents(
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 		if (state.config.voiceFeaturesOnly) {
 			clearApplyPatchRenderState();
-			tools.ensureOptionalTools();
 			ui.clearBackgroundWidget();
 			syncAdapter(pi, ctx, state);
 			await runtime.configureDiagnostics(ctx);
@@ -118,7 +117,6 @@ export function registerCodexEvents(
 		sessions.setBaseEnv(runtime.execEnv());
 		tracker.clear();
 		clearApplyPatchRenderState();
-		tools.ensureOptionalTools();
 		ui.renderBackgroundWidget();
 		syncAdapter(pi, ctx, state);
 		await runtime.configureDiagnostics(ctx);
@@ -141,13 +139,11 @@ export function registerCodexEvents(
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 		proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 		if (state.config.voiceFeaturesOnly) {
-			tools.ensureOptionalTools();
 			ui.clearBackgroundWidget();
 			syncAdapter(pi, ctx, state);
 			await runtime.configureDiagnostics(ctx);
 			return;
 		}
-		tools.ensureOptionalTools();
 		syncAdapter(pi, ctx, state);
 		await runtime.configureDiagnostics(ctx);
 		void ui.refreshUsageStatus(ctx);
@@ -214,6 +210,7 @@ export function registerCodexEvents(
 		await runShutdownStep(failures, () => runtime.shutdownTransport(ctx.sessionManager.getSessionId()));
 		await runShutdownStep(failures, () => runtime.shutdownDiagnostics());
 		await runShutdownStep(failures, () => sessions.shutdown());
+		await runShutdownStep(failures, () => tools.shutdown());
 		await runShutdownStep(failures, () => proxyProvider.shutdown());
 		await runShutdownStep(failures, () => codeMode.shutdown());
 		if (failures.length === 1) throw failures[0];
@@ -342,6 +339,7 @@ export function registerCodexEvents(
 			await (nativeCompaction
 				? runtime.startCompactionPrewarm(ctx)
 				: runtime.startPrewarm(ctx, postCompactionPrompt, true));
+			await runtime.voice.refreshRealtimeAfterCompaction(ctx, state.config);
 		} finally {
 			runtime.voice.compactionFinished();
 		}

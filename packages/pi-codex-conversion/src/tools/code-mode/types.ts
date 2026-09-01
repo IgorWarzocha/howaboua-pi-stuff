@@ -14,6 +14,7 @@ export interface CodeModeToolIdentity {
 
 export interface CodeModeToolMetadata {
 	name: string;
+	topLevelName?: string | undefined;
 	toolName?: CodeModeToolIdentity | undefined;
 	usage: string;
 	description?: string | undefined;

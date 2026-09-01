@@ -127,6 +127,23 @@ export function buildVoiceSettings(
 		),
 		setting(
 			{
+				id: "refreshRealtimeAfterCompaction",
+				label: "Refresh realtime voice after compaction",
+				currentValue: config.voice.refreshRealtimeAfterCompaction
+					? "on"
+					: "off",
+				values: ["off", "on"],
+			},
+			(value, current) => ({
+				...current,
+				voice: {
+					...current.voice,
+					refreshRealtimeAfterCompaction: value === "on",
+				},
+			}),
+		),
+		setting(
+			{
 				id: "dictationShortcutMode",
 				label: "Dictation key behavior",
 				currentValue:

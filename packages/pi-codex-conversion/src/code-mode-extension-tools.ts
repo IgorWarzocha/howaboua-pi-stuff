@@ -112,7 +112,11 @@ export function getCodeModeExtensionToolSnapshot(
 		tools: resolved
 			.filter(({ active }) => active)
 			.flatMap(({ tools }) => tools),
-		allToolNames: [...new Set(allTools.map((tool) => tool.name))],
+		allToolNames: [
+			...new Set(
+				allTools.map((tool) => tool.topLevelName ?? tool.name),
+			),
+		],
 	};
 }
 

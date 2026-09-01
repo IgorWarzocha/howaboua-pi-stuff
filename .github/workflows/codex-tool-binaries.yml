@@ -68,8 +68,6 @@ jobs:
           path: |
             packages/pi-codex-conversion/src/tools/apply-patch/bin/${{ matrix.platform_arch }}/
             packages/pi-codex-conversion/src/tools/view-image/bin/${{ matrix.platform_arch }}/
-            packages/pi-codex-conversion/src/tools/web-run/bin/${{ matrix.platform_arch }}/
-            packages/pi-codex-conversion/src/tools/imagegen/bin/${{ matrix.platform_arch }}/
             packages/pi-codex-conversion/src/tools/exec/bin/${{ matrix.platform_arch }}/
             packages/pi-codex-conversion/src/voice/bin/${{ matrix.platform_arch }}/
 

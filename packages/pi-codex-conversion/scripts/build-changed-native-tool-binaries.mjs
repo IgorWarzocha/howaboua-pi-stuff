@@ -5,8 +5,6 @@ const tools = [
 	{ key: "apply-patch", packageName: "codex-apply-patch", binName: "apply_patch", script: "build:apply-patch", roots: ["src/tools/apply-patch/rust/", "src/tools/rust/crates/pi-apply-patch-fs/", "src/tools/rust/crates/codex-utils-absolute-path/", "src/tools/rust/crates/codex-utils-path-uri/", "scripts/build-apply-patch-binary.mjs"] },
 	{ key: "exec", packageName: "codex-exec-shim", binName: "exec_bridge", script: "build:native-tool", roots: ["src/tools/exec/rust/", "src/tools/rust/crates/codex-utils-pty/"] },
 	{ key: "view-image", packageName: "codex-view-image", binName: "view_image", script: "build:native-tool", roots: ["src/tools/view-image/rust/", "src/tools/rust/crates/codex-utils-cache/", "src/tools/rust/crates/codex-utils-image/"] },
-	{ key: "web-run", packageName: "codex-web-run", binName: "web_run", script: "build:native-tool", roots: ["src/tools/web-run/rust/"] },
-	{ key: "imagegen", packageName: "codex-imagegen", binName: "imagegen", script: "build:native-tool", roots: ["src/tools/imagegen/rust/"] },
 ];
 
 const voice = {

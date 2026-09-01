@@ -1,0 +1,64 @@
+{
+	"name": "@howaboua/pi-codex-tool-runtime",
+	"version": "0.0.0",
+	"description": "Shared OpenAI Codex authentication and routing for standalone Pi tools.",
+	"type": "module",
+	"license": "MIT",
+	"author": "Igor Warzocha",
+	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-codex-tool-runtime#readme",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
+		"directory": "packages/pi-codex-tool-runtime"
+	},
+	"bugs": {
+		"url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
+	},
+	"keywords": [
+		"pi",
+		"codex",
+		"openai",
+		"tool-runtime"
+	],
+	"files": [
+		"index.ts",
+		"src",
+		"README.md",
+		"LICENSE",
+		"CHANGELOG.md",
+		"tsconfig.json",
+		"biome.json"
+	],
+	"scripts": {
+		"check": "bun run lint && bun run typecheck && bun run test",
+		"prepack": "bun run check",
+		"typecheck": "tsgo --noEmit",
+		"lint": "biome check .",
+		"test": "tsx --test tests/**/*.test.ts",
+		"pack:dry": "npm pack --dry-run"
+	},
+	"dependencies": {
+		"proxy-from-env": "2.1.0",
+		"undici": "8.10.0"
+	},
+	"peerDependencies": {
+		"@earendil-works/pi-ai": ">=0.84.4",
+		"@earendil-works/pi-coding-agent": ">=0.84.4"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.5.10",
+		"@earendil-works/pi-ai": "0.84.4",
+		"@earendil-works/pi-coding-agent": "0.84.4",
+		"@types/node": "^26.2.0",
+		"tsx": "^4.23.12",
+		"typescript": "^7.0.2"
+	},
+	"engines": {
+		"node": ">=22.19.0"
+	},
+	"main": "index.ts",
+	"exports": "./index.ts",
+	"publishConfig": {
+		"access": "public"
+	}
+}

@@ -7,10 +7,10 @@
 - Before npm, publish, release, or merge work, compare `src/providers/openai-codex-custom-provider.ts` with Pi's stock `openai-codex-responses` provider: request shape, transport/headers, reasoning/service tier, retry, stream termination, and touched behavior.
 - Structured mode uses flat TypeScript tools over standard Responses. GPT-5.6 Code Mode uses `exec`/`wait` over Responses Lite; Notebook Mode additionally exposes host-side `notebook` lifecycle control.
 - Keep prompt guidance short and argv-shaped.
-- Native runners execute bundled helpers directly. Rebuild for the local platform and use the checkout; never patch installed npm files.
+- Core native runners execute bundled helpers directly. Rebuild for the local platform and use the checkout; never patch installed npm files. Web search and image generation belong to their TypeScript extension packages.
 - `src/voice/rust/**` and `scripts/build-voice-helper.mjs` must stay byte-identical with `pi-gippity-control`; change and changeset both packages together.
 - For native GitHub builds, run `gh run watch <id> --exit-status` directly and wait near the expected 10–15 minutes. Never wrap it in polling loops, background shells, or temporary log redirection.
-- `tools.customRustBinariesDir` is the shared filename-based override for tool and voice helpers; native startup incompatibilities point there without dumping loader noise.
+- `tools.customRustBinariesDir` is the shared filename-based override for core tool and voice helpers; native startup incompatibilities point there without dumping loader noise.
 - Vendored apply-patch engine, path-uri, and absolute-path sources track one Codex commit. Pi-owned changes belong only in `standalone_executable.rs` and the `pi-apply-patch-fs` adapter.
 - Do not accept review-driven drift from stock Pi behavior unless backend-verified or intentional.
 - Provider names and endpoint routing are not backend identity. Models using `openai-codex-responses` retain first-party Codex transport, Fast Mode, and account isolation across renamed providers and proxies.

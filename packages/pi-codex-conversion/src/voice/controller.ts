@@ -10,10 +10,12 @@ import {
 	resumeDroppedConversation,
 } from "./controller-reconnect.ts";
 import {
+	type PreparedRealtimeContext,
 	type RealtimePeerPlan,
 	startControllerMode,
 	type VoiceControllerRuntime,
 } from "./controller-start.ts";
+import { RealtimeCompactionRefresh } from "./controller-compaction.ts";
 import {
 	currentVoiceSession,
 	prepareRealtimeVoicePrompt,
@@ -39,6 +41,7 @@ export class CodexVoiceController {
 		inputTooQuiet: false,
 	};
 	private readonly messages: CodexVoiceSessionMessages;
+	private readonly compactionRefresh: RealtimeCompactionRefresh;
 	private readonly inputMuteListeners = new Set<(muted: boolean) => void>();
 	private readonly activePrompts = new Map<string, string>();
 	private delegationPreflight: (
@@ -60,6 +63,22 @@ export class CodexVoiceController {
 			},
 			onWorking: () => this.renderStatus("working"),
 		});
+		this.compactionRefresh = new RealtimeCompactionRefresh(
+			this.runtime,
+			{
+				inputMuted: () => this.inputMuted,
+				replace: (ctx, config, previous, plan, inputMuted, prepared, signal) =>
+					this.replaceRealtimeAfterCompaction(
+						ctx,
+						config,
+						previous,
+						plan,
+						inputMuted,
+						prepared,
+						signal,
+					),
+			},
+		);
 	}
 
 	setDelegationPreflight(
@@ -144,6 +163,7 @@ export class CodexVoiceController {
 	}
 
 	resetSessionContext(): void {
+		this.compactionRefresh.cancel();
 		this.activePrompts.clear();
 		this.messages.resetSessionContext();
 	}
@@ -167,6 +187,13 @@ export class CodexVoiceController {
 		signal?: AbortSignal,
 	): Promise<CodexRealtimeConversation | undefined> {
 		return this.startMode(ctx, config, "realtime", plan, signal);
+	}
+
+	async refreshRealtimeAfterCompaction(
+		ctx: ExtensionContext,
+		config: CodexConversionConfig,
+	): Promise<void> {
+		await this.compactionRefresh.run(ctx, config);
 	}
 	prepareRealtimePrompt(ctx: ExtensionContext): string | undefined {
 		return prepareRealtimeVoicePrompt(ctx);
@@ -211,6 +238,7 @@ export class CodexVoiceController {
 		signal?: AbortSignal,
 		resume = false,
 		inputMuted = false,
+		preparedRealtimeContext?: PreparedRealtimeContext,
 	): Promise<CodexRealtimeConversation | undefined> {
 		const session = await startControllerMode({
 			runtime: this.runtime,
@@ -222,6 +250,7 @@ export class CodexVoiceController {
 			signal,
 			resume,
 			inputMuted,
+			...(preparedRealtimeContext ? { preparedRealtimeContext } : {}),
 			prepareRealtimePrompt: (current) => this.prepareRealtimePrompt(current),
 			stopCurrent: () => this.stop({ announce: true }),
 			finishCurrentDictation: () => this.finishDictation({ announce: true }),
@@ -235,6 +264,7 @@ export class CodexVoiceController {
 	}
 
 	async stop(options?: { announce?: boolean }): Promise<void> {
+		this.compactionRefresh.cancel();
 		this.runtime.startAbortController?.abort();
 		this.runtime.startAbortController = undefined;
 		this.runtime.startGeneration += 1;
@@ -347,10 +377,60 @@ export class CodexVoiceController {
 		return currentVoiceSession(this.runtime.state);
 	}
 
+	private async replaceRealtimeAfterCompaction(
+		ctx: ExtensionContext,
+		config: CodexConversionConfig,
+		previous: CodexRealtimeConversation,
+		plan: RealtimePeerPlan | undefined,
+		inputMuted: boolean,
+		prepared: PreparedRealtimeContext,
+		signal: AbortSignal,
+	): Promise<void> {
+		if (!this.prepareRealtimePrompt(ctx))
+			throw new Error("Realtime voice prompt is unavailable");
+		this.messages.cancelPendingDelegations();
+		markRealtimePeerInactive(
+			this.runtime,
+			previous,
+			new Error("Realtime voice refreshed after compaction"),
+			true,
+			plan,
+		);
+		this.runtime.startAbortController?.abort();
+		this.runtime.startAbortController = undefined;
+		const generation = ++this.runtime.startGeneration;
+		this.runtime.state = { type: "reconnecting", session: previous };
+		this.renderStatus("reconnecting…");
+		plan?.onStatus?.("reconnecting…");
+		await Promise.allSettled([
+			previous.close(),
+			this.messages.waitForDelegations(),
+		]);
+		if (
+			signal.aborted ||
+			this.runtime.startGeneration !== generation ||
+			this.runtime.state.type !== "reconnecting"
+		)
+			return;
+		const replacement = await this.startMode(
+			ctx,
+			config,
+			"realtime",
+			plan,
+			signal,
+			true,
+			inputMuted,
+			prepared,
+		);
+		if (!replacement && !signal.aborted && this.runtime.state.type === "reconnecting")
+			this.fail(new Error("Codex realtime voice could not refresh"), previous);
+	}
+
 	private fail(
 		error: Error,
 		failedSession?: CodexRealtimeConversation | undefined,
 	): void {
+		this.compactionRefresh.cancel();
 		if (
 			this.runtime.state.type === "idle" ||
 			this.runtime.state.type === "failed"
@@ -393,6 +473,7 @@ export class CodexVoiceController {
 	}
 
 	private drop(session: CodexRealtimeConversation, error: Error): void {
+		this.compactionRefresh.cancel();
 		resumeDroppedConversation({
 			runtime: this.runtime,
 			messages: this.messages,
