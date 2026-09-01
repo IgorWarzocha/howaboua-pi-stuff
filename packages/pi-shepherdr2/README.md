@@ -36,7 +36,7 @@ Run bare `/herdr` to toggle between normal and orchestration mode. The command r
 
 ## Agent calls
 
-In normal Pi, call the `agents` tool with `action: "help"` before first use, then send flat request objects. Code and Notebook Mode expose the same router as `await tools.agents("help")`; later calls pass `JSON.stringify(request)`. Neither surface carries the full action schema in its standing prompt.
+Call the `agents` tool with `action: "help"` before first use, then send flat request objects. Code and Notebook Mode expose the same router as `await tools.agents({ action: "help" })`; every call requires `action`. Neither surface carries the full action schema in its standing prompt.
 
 The routed tool supports:
 

@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { isBlockingAgentsCall, parseAgentsRequest } from "./agents-contract.js";
+import { isBlockingAgentsCall } from "./agents-contract.js";
 import { createAgentsTool } from "./agents-tool.js";
 import { AgentFleet } from "./fleet.js";
 import { registerMasterMode } from "./master-mode.js";
@@ -38,14 +38,7 @@ async function registerAgentsInCodeMode(
 			() => [
 				adaptToolForCodeMode(tool, {
 					blocking: isBlockingAgentsCall,
-					kind: "freeform",
-					prepareInput(input) {
-						if (typeof input !== "string") {
-							throw new Error("agents expects a request string");
-						}
-						return parseAgentsRequest(input);
-					},
-					usage: 'await tools.agents("help") // Persistent Pi agents via Herdr',
+					usage: 'await tools.agents({ action: "help" })',
 				}),
 			],
 			{ isActive: () => fleet.isActive() },

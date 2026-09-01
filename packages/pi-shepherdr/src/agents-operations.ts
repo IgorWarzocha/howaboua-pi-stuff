@@ -30,9 +30,9 @@ export function reportProgress(
 export async function agentsHelp(): Promise<Record<string, unknown>> {
 	const profiles = await loadAgentProfiles();
 	return {
-		call: 'Normal Pi: action="help", then a request object. Code/Notebook: tools.agents("help"), then JSON.stringify(request)',
+		call: 'await tools.agents({ action: "<action>", ...fields }) in Code/Notebook; normal Pi uses the same request object',
 		actions: {
-			help: 'action only; Code/Notebook shorthand "help"',
+			help: "action only",
 			list: "action, machine?",
 			find: "action, query?, status?, machine?",
 			start:
