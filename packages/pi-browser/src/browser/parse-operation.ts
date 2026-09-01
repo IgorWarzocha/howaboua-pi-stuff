@@ -45,6 +45,15 @@ function optionalString(value: unknown, field: string): string | undefined {
 	return requiredString(value, field);
 }
 
+function requiredRef(value: unknown, action: BrowserAction): string {
+	if (typeof value !== "string" || !value.trim()) {
+		throw new Error(
+			`${action} requires a ref_id returned by tabs; call tabs first`,
+		);
+	}
+	return value.trim();
+}
+
 function offset(value: unknown, field = "offset", fallback = 0): number {
 	if (value === undefined) return fallback;
 	if (!Number.isInteger(value) || Number(value) < 0) {
@@ -129,7 +138,7 @@ export function parseActionRequest(value: unknown): ActionRequest {
 	if (action === "find") {
 		return {
 			action,
-			ref_id: requiredString(value["ref_id"], "ref_id"),
+			ref_id: requiredRef(value["ref_id"], action),
 			pattern: requiredString(value["pattern"], "pattern"),
 			lineno: line(value["lineno"]),
 			response_length: responseLength(value["response_length"]),
@@ -150,7 +159,7 @@ export function parseActionRequest(value: unknown): ActionRequest {
 		return { action, ...(refId ? { ref_id: refId } : {}) };
 	}
 
-	const refId = requiredString(value["ref_id"], "ref_id");
+	const refId = requiredRef(value["ref_id"], action);
 	if (action === "network") return { action, ref_id: refId };
 	if (action === "navigate") {
 		return {
