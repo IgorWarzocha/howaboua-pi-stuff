@@ -105,6 +105,15 @@ export function buildOpenAISettings(
 				compaction: { ...current.compaction, responsesCompaction: enabled },
 			}),
 		),
+		toggle(
+			"portableSummary",
+			"Portable Pi summary",
+			config.compaction.portableSummary,
+			(enabled, current) => ({
+				...current,
+				compaction: { ...current.compaction, portableSummary: enabled },
+			}),
+		),
 		setting(
 			{
 				id: "v2UserMessageRetention",

@@ -77,6 +77,8 @@ Without folder settings, the project inherits the complete global configuration.
 
 The optional **Heavy system prompt overwrite** removes roughly 40% of Pi's known default scaffold while preserving additions from other extensions. It is off by default.
 
+Responses compaction V2 stores an encrypted checkpoint for the Codex lane. If you switch providers inside long sessions, enable **Portable Pi summary** beside it. Each native compaction then runs Pi's normal cumulative summarizer on an isolated request lane and stores the readable result alongside the encrypted checkpoint. Codex replay keeps using the native checkpoint, while other providers receive the Pi summary. This adds summarization cost, so it is off by default.
+
 ## Cache diagnostics
 
 Open `/codex openai` and enable **Cache status line**. **Cache log file** is an additional tier and enables the status automatically. Both are off by default.
@@ -214,7 +216,7 @@ The default scope activates conservatively for Codex-like GPT routes and Respons
 
 Voice, usage, web search, image generation and text image descriptions can use the Pi OpenAI Codex login while another provider's model remains active. This is how a text-only model can receive a small vision model's plain-text image description without caring how it got there.
 
-Native Responses compaction is intentionally narrower: OpenAI Codex and explicitly configured OpenAI/Codex-compatible passthrough providers only. Unsupported states fail visibly or fall back to Pi compaction rather than silently discarding context.
+Native Responses compaction is intentionally narrower: OpenAI Codex and explicitly configured OpenAI/Codex-compatible passthrough providers only. Unsupported states fail visibly or fall back to Pi compaction rather than silently discarding context. A portable summary must be enabled before the native checkpoint that you want to carry across providers.
 
 ## Migrating from Lite
 

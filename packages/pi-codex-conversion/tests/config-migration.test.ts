@@ -22,6 +22,8 @@ test("legacy persisted config shapes migrate to the current groups", () => {
 		openai: { proxyResponsesLite: false },
 		compaction: { v2UserMessageRetention: 64 },
 	});
+	assert.equal(normalizeCodexConversionConfig(code.config).compaction.portableSummary, false);
+	assert.equal(normalizeCodexConversionConfig({ compaction: { portableSummary: true } }).compaction.portableSummary, true);
 });
 
 test("Notebook heap configuration is bounded without migrating grouped config", () => {

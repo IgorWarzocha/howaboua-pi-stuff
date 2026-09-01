@@ -41,6 +41,7 @@ export type NativeCompactionRuntime = {
 	baseUrl: string;
 	apiKey?: string | undefined;
 	headers?: ProviderHeaders | undefined;
+	env?: Record<string, string> | undefined;
 	payload?: ResponsesCompatibleRequestPayload | undefined;
 	currentModel: RuntimeModel;
 };
@@ -80,10 +81,10 @@ export function normalizeBaseUrl(baseUrl: string | undefined | null): string | u
 async function resolveRequestAuth(
 	ctx: ExtensionContext,
 	model: RuntimeModel,
-): Promise<{ apiKey?: string | undefined; headers?: ProviderHeaders | undefined; baseUrl?: string | undefined }> {
+): Promise<{ apiKey?: string | undefined; headers?: ProviderHeaders | undefined; baseUrl?: string | undefined; env?: Record<string, string> | undefined }> {
 	const modelRegistry = ctx.modelRegistry as {
 		getApiKeyAndHeaders?: (currentModel: RuntimeModel) => Promise<
-			| { ok: true; apiKey?: string | undefined; headers?: ProviderHeaders | undefined; baseUrl?: string | undefined }
+			| { ok: true; apiKey?: string | undefined; headers?: ProviderHeaders | undefined; baseUrl?: string | undefined; env?: Record<string, string> | undefined }
 			| { ok: false; error: string }
 		> | undefined;
 	};
@@ -93,7 +94,7 @@ async function resolveRequestAuth(
 	}
 
 	const auth = await modelRegistry.getApiKeyAndHeaders(model);
-	return auth && auth.ok ? { apiKey: auth.apiKey, headers: auth.headers, baseUrl: auth.baseUrl } : {};
+	return auth && auth.ok ? { apiKey: auth.apiKey, headers: auth.headers, baseUrl: auth.baseUrl, env: auth.env } : {};
 }
 
 export function isSupportedApi(api: string): api is DefaultSupportedApi {
@@ -175,7 +176,7 @@ export async function resolveNativeCompactionEnvironment(
 		};
 	}
 
-	const { apiKey, headers, baseUrl: authBaseUrl } = await resolveRequestAuth(ctx, currentModel);
+	const { apiKey, headers, baseUrl: authBaseUrl, env } = await resolveRequestAuth(ctx, currentModel);
 	const effectiveBaseUrl = normalizeBaseUrl(authBaseUrl) ?? descriptor.baseUrl;
 	if (!effectiveBaseUrl) {
 		return {
@@ -227,6 +228,7 @@ export async function resolveNativeCompactionEnvironment(
 			baseUrl: effectiveBaseUrl,
 			apiKey: resolvedApiKey,
 			headers,
+			env,
 			payload: requestPayload,
 			currentModel: authBaseUrl ? { ...currentModel, baseUrl: effectiveBaseUrl } : currentModel,
 		},

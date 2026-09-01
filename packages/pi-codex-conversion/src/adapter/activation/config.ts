@@ -84,6 +84,7 @@ export interface CodexConversionConfig {
 	};
 	compaction: {
 		responsesCompaction: boolean;
+		portableSummary: boolean;
 		v2UserMessageRetention: V2UserMessageRetention;
 	};
 	notebook: { maxHeapMiB: number; profile?: string | undefined };
@@ -142,7 +143,11 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 		backgroundShellNextShortcut: "alt+e",
 		backgroundShellCloseShortcut: "alt+r",
 	},
-	compaction: { responsesCompaction: false, v2UserMessageRetention: 64 },
+	compaction: {
+		responsesCompaction: false,
+		portableSummary: false,
+		v2UserMessageRetention: 64,
+	},
 	notebook: { maxHeapMiB: 4_096 },
 	voice: {
 		v3Voice: "cove",
@@ -411,6 +416,10 @@ export function normalizeCodexConversionConfig(
 			responsesCompaction: bool(
 				compaction["responsesCompaction"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.compaction["responsesCompaction"],
+			),
+			portableSummary: bool(
+				compaction["portableSummary"],
+				DEFAULT_CODEX_CONVERSION_CONFIG.compaction["portableSummary"],
 			),
 			v2UserMessageRetention:
 				normalizeV2UserMessageRetention(compaction["v2UserMessageRetention"])
