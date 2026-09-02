@@ -5,7 +5,7 @@ Read when a user asks to configure one of these disabled examples. Do not enable
 | Example | Use when |
 | --- | --- |
 | `agents` | The user wants persistent explorer or reviewer agents in Herdr panels |
-| `browser` | The user wants evidence or interaction from an existing logged-in CDP browser |
+| `browser` | Legacy command-backed CDP access; prefer `@howaboua/pi-browser` |
 | `skills` | Pi was launched with `--no-skills` and the agent needs on-demand global or project skills |
 | `port_info` | A process or listener needs identifying |
 | `semantic_grep` | An installed Pi Semantic Grep index needs querying |

@@ -14,6 +14,12 @@ import {
 test("parser accepts web_run-style operation arrays and canonicalizes batches", () => {
 	assert.deepEqual(parseRequest("help"), { help: true });
 	assert.deepEqual(parseRequest(JSON.stringify({
+		action: "tabs",
+		query: "linkedin",
+	})), {
+		operations: [{ action: "tabs", query: "linkedin", offset: 0 }],
+	});
+	assert.deepEqual(parseRequest(JSON.stringify({
 		response_length: "short",
 		tabs: [{ query: "linkedin" }],
 		open: [{ ref_id: "ABCDEF12" }],
@@ -34,6 +40,10 @@ test("parser accepts web_run-style operation arrays and canonicalizes batches", 
 	assert.throws(
 		() => parseRequest('{"click":[{"ref_id":"ABCDEF12","id":1,"selector":"a"}]}'),
 		/exactly one/,
+	);
+	assert.throws(
+		() => parseRequest('{"action":"click","id":1}'),
+		/click requires a ref_id returned by tabs; call tabs first/,
 	);
 	assert.throws(
 		() => parseRequest('{"host":"workstation","tabs":[{}]}'),

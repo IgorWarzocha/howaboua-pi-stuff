@@ -106,8 +106,10 @@ function parseHandle(value) {
 	return handle;
 }
 
-function parseRef(value) {
-	return requiredString(value, "ref_id");
+function parseRef(value, action) {
+	if (typeof value !== "string" || !value.trim())
+		throw new Error(`${action} requires a ref_id returned by tabs; call tabs first`);
+	return value.trim();
 }
 
 function parseActionRequest(text) {
@@ -154,7 +156,7 @@ function parseActionRequest(text) {
 	if (value.action === "find")
 		return routed({
 			action: "find",
-			ref_id: parseRef(value.ref_id),
+			ref_id: parseRef(value.ref_id, value.action),
 			pattern: requiredString(value.pattern, "pattern"),
 			lineno: parseLine(value.lineno),
 			response_length: parseResponseLength(value.response_length),
@@ -169,7 +171,7 @@ function parseActionRequest(text) {
 			...(optionalString(value.ref_id, "ref_id") ? { ref_id: value.ref_id.trim() } : {}),
 		});
 
-	const refId = parseRef(value.ref_id);
+	const refId = parseRef(value.ref_id, value.action);
 	if (value.action === "network") return routed({ action: "network", ref_id: refId });
 	if (value.action === "navigate")
 		return routed({ action: "navigate", ref_id: refId, url: requiredString(value.url, "url") });
@@ -224,6 +226,12 @@ export function parseRequest(text) {
 		);
 	}
 	if (!isObject(value)) throw new Error("input must be a JSON object");
+	if (Object.hasOwn(value, "action")) {
+		const parsed = parseActionRequest(text);
+		if (parsed.action === "help") return { help: true };
+		const { host, ...operation } = parsed;
+		return { operations: [operation], ...(host ? { host } : {}) };
+	}
 	const unknown = Object.keys(value).filter(key => !BATCH_FIELDS.has(key));
 	if (unknown.length) throw new Error(`unknown browser field(s): ${unknown.join(", ")}`);
 	const host = parseHost(value.host);
@@ -550,33 +558,31 @@ export async function formatLocalResult(request, stdout, file) {
 export function browserHelp() {
 	const sshEnabled = HOSTS.size > 0 && typeof REMOTE_TOOL_PATH === "string";
 	return {
-		call: `await tools.browser(JSON.stringify({ ${sshEnabled ? "host?, " : ""}response_length?, tabs?, open?, find?, click?, ... }))`,
-		...(sshEnabled ? { host: `optional ${[...HOSTS].join(" | ")}` } : {}),
-		batching: "operations are non-empty arrays; independent items may share one call; dependent steps use separate calls",
+		input: 'JSON.stringify({action:"tabs", ...}) or batched action arrays',
+		...(sshEnabled ? { host: `${[...HOSTS].join("|")} optional` } : {}),
+		batch:
+			"top-level nonempty action arrays; items omit action/host/response_length; independent only",
 		actions: {
-			tabs: "[{query?, offset?}] -> ref_id/title/url",
-			open: "[{ref_id, lineno?} inspect | {url} new tab]",
-			find: "[{ref_id, pattern, lineno?}]",
-			click: "[{ref_id, id | selector | x+y}]",
-			type: "[{ref_id, text, id?}]; id focuses first",
-			screenshot: "[{ref_id, id? | selector?}] -> local file",
-			navigate: "[{ref_id, url}]",
-			html: "[{ref_id, id? | selector?}]",
-			evaluate: "[{ref_id, expression}]",
-			network: "[{ref_id}]",
-			load_all: "[{ref_id, selector, interval_ms?}]",
-			raw: "[{ref_id, method, params?}]",
-			start: "[{}]",
-			stop: "[{ref_id?}]",
-			read_result: "[{handle, offset}]; same host",
-			discard_result: "[{handle}]; same host",
+			tabs: "query? offset? -> ref_id title url",
+			open: "ref_id lineno? response_length? | url",
+			find: "ref_id pattern lineno? response_length?",
+			click: "ref_id id|selector|x+y",
+			type: "ref_id text id?; id focuses",
+			screenshot: "ref_id id?|selector? -> file",
+			navigate: "ref_id url",
+			html: "ref_id id?|selector?",
+			evaluate: "ref_id expression",
+			network: "ref_id",
+			load_all: "ref_id selector interval_ms?",
+			raw: "ref_id method params?",
+			start: "",
+			stop: "ref_id?",
+			read_result: `handle offset${sshEnabled ? "; same host" : ""}`,
+			discard_result: `handle${sshEnabled ? "; same host" : ""}`,
 		},
-		notes: [
-			"Prefer tabs -> open -> click/type; ref_id/id/lineno follow web__run vocabulary",
-			"Continue with next_lineno or next_offset; top-level response_length is short|medium|long",
-			"Ask before unfamiliar low-trust navigation or consequential external actions unless already authorized",
-			"Never close the shared browser after a task",
-		],
+		continue: "next_lineno/next_offset; response_length=short|medium|long",
+		safety:
+			"ask before unfamiliar low-trust or consequential actions; never close the shared browser",
 	};
 }
 

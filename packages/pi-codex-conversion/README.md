@@ -161,9 +161,9 @@ Custom tools are top-level TOML definitions plus a command that accepts one stri
 
 A promoted tool adds one compact usage line to the prompt. A deferred tool adds no tool-specific startup text and remains discoverable through `ALL_TOOLS`. Neither becomes another provider schema. Keep in mind if a tool is deferred, YOU need to remember that it exists and tell your Clanka to invoke it. Otherwise it might never realise it's there.
 
-Working, disabled examples live in [`examples/custom-tools/`](./examples/custom-tools/). They include Herdr coordination, subagents, semantic search, port diagnostics, workflow creation and two lazy skill loaders. See [`CUSTOM-TOOLS.md`](./src/tools/code-mode/CUSTOM-TOOLS.md) for the definition contract.
+Working, disabled examples live in [`examples/custom-tools/`](./examples/custom-tools/). They include legacy browser and agent runners, progressive skills, semantic search, port diagnostics, site management and workflow helpers. See [`CUSTOM-TOOLS.md`](./src/tools/code-mode/CUSTOM-TOOLS.md) for the definition contract.
 
-For skills, keep repository SOPs in normal `.pi/skills/` and general workflows in global `lazy-skills/` behind the example `skills` tool. `--no-skills` is optional. The older additive `more_skills` example remains available if you want to mix & match and still use Pi's skills alongside a bigger catalogue invoked via `more_skills`.
+The legacy `skills` example assumes Pi starts with `--no-skills`. Prefer the maintained [`pi-skills-tool`](../pi-skills-tool) extension.
 
 ## Voice, dictation and GipPity
 
