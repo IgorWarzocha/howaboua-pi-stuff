@@ -12,7 +12,7 @@ interface AgentControllerOptions {
 
 const ORCHESTRATION_STATE_TYPE = "pi-shepherdr-orchestration-state";
 const ORCHESTRATION_MESSAGE =
-	"Your main goal from now on is to orchestrate agents. Delegate implementation, synthesize their results, and report the outcome. Work directly only when asked or for routine local tasks.";
+	"Your main goal from now on is to orchestrate agents. Fan out suitable work to general agents, synthesize their results, and report the outcome. Work directly only when asked or for routine local tasks.";
 const NORMAL_MESSAGE = "Work normally. Delegate only when useful or requested.";
 
 export function registerAgentController(

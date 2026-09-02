@@ -60,10 +60,13 @@ Cancelling a blocking call does not kill its worker. The waiter detaches and the
 
 ## Profiles
 
-Two profiles work without configuration:
+Three profiles work without configuration:
 
+- `general` uses `openai-codex/gpt-5.6-sol` with `high` thinking for implementation
 - `explorer` uses `openai-codex/gpt-5.6-terra` with `high` thinking for read-only discovery
 - `reviewer` uses `openai-codex/gpt-5.6-luna` with `xhigh` thinking for generic read-only review
+
+Use `general` sparingly, mainly when requested or while orchestration is active. For work in the controller's repository, create a dedicated worktree, run its normal dependency/bootstrap setup, then pass that directory as `cwd` when starting the agent.
 
 Profiles never inherit the controller's model or thinking level. Add or replace complete profile definitions under:
 

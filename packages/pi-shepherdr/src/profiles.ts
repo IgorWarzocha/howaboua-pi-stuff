@@ -34,6 +34,16 @@ interface ProfileFile {
 const BUILT_IN_PROFILES: readonly AgentProfile[] = [
 	{
 		accepts: [],
+		description: "General implementation",
+		model: "openai-codex/gpt-5.6-sol",
+		name: "general",
+		piArgs: [],
+		prompt:
+			"You are a general implementation agent. Complete the assigned task in the given directory, validate your work, and report the result.",
+		thinking: "high",
+	},
+	{
+		accepts: [],
 		description: "Read-only discovery",
 		model: "openai-codex/gpt-5.6-terra",
 		name: "explorer",
