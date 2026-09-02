@@ -59,6 +59,7 @@
     "src/**/*.md",
     "types/**/*.d.ts",
     "src/voice/lan/assets/**",
+    "examples/code-mode-extension",
     "examples/custom-tools",
     "CHANGELOG.md",
     "README.md",
