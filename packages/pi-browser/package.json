@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-browser",
-	"version": "0.0.0",
+	"version": "0.0.1",
 	"description": "Logged-in browser inspection and control for Pi, Code Mode and Notebook Mode.",
 	"type": "module",
 	"license": "MIT",
@@ -58,7 +58,7 @@
 		}
 	},
 	"devDependencies": {
-		"@howaboua/pi-codex-conversion": "3.0.23",
+		"@howaboua/pi-codex-conversion": "3.0.24",
 		"@biomejs/biome": "^2.5.10",
 		"@earendil-works/pi-ai": "0.84.4",
 		"@earendil-works/pi-coding-agent": "0.84.4",

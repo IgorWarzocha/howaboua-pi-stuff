@@ -18,17 +18,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ## Latest package changelogs
 
-### @howaboua/pi-ask — 0.0.5
+### @howaboua/pi-ask — 0.0.6
 
-### Changes
-
-- [#269](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/269) [`6138ffd`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/6138ffd735bb4f7f80e451320dbfd0933a4acaa7) Thanks [@howaclawa](https://github.com/howaclawa)!:
-  - Add shared realtime voice prompts for ask prompts, Auto Trees, Shepherdr settlements, and review progress.
-  - Announce compaction and stream conversational Pi updates after two sentences.
-  - Keep silent tool-step summaries compatible without exposing Chat Completions thinking content.
-  - Configure delegation acknowledgements and deliver V3 delegations immediately.
-  - Preserve late delegations, calls after data-channel closure, prepared Code Mode prompts, and Codex cache continuity.
-  - Reduce LAN playback dropouts with one more jitter-buffer frame.
+- Added a Code and Notebook Mode bridge API. This allows extensions that use Pi TUI to run inside `exec`.
 
 [Full changelog](./packages/pi-ask/CHANGELOG.md)
 
@@ -46,6 +38,24 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-auto-trees/CHANGELOG.md)
 
+### @howaboua/pi-better-skills-tool — 0.0.1
+
+- Initial release of Better Skills for progressive skill discovery in normal Pi, Code Mode, and Notebook Mode.
+
+  - List the available catalog first, then load only the requested skill and references.
+  - Combine global, project, and package-provided skills while respecting invocation visibility and local precedence.
+
+[Full changelog](./packages/pi-better-skills-tool/CHANGELOG.md)
+
+### @howaboua/pi-browser — 0.0.1
+
+- Initial release of Browser, a persistent typed CDP tool for normal Pi, Code Mode, and Notebook Mode.
+
+  - Inspect existing browser tabs, follow references, find text, click, type, capture screenshots, and use raw CDP when needed.
+  - Connect to local or configured remote hosts, with aliases and worker setup managed through `/browser`.
+
+[Full changelog](./packages/pi-browser/CHANGELOG.md)
+
 ### @howaboua/pi-cache-hit-predictor — 0.0.1
 
 ### Changes
@@ -56,18 +66,44 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 3.0.23
+### @howaboua/pi-codex-conversion — 3.0.24
 
-### Changes
+- **BREAKING CHANGE:** Removed web search and image generation from Pi Codex's bundled toolkit. Install their standalone extensions to keep using them:
 
-- [#352](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/352) [`4e2b773`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/4e2b773f8e069f4b61316bccc859faafe3451b9c) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Keep installed Codex startup and prompt-cache keepalive reliable.
+  - `pi install npm:@howaboua/pi-codex-web-run`
+  - `pi install npm:@howaboua/pi-codex-imagegen`
 
-  - Load the package changelog from shipped JavaScript so the extension starts correctly from `node_modules`.
-  - Replace the generic keepalive experiment with bounded global Luna windows and a project-only 25-minute Sol/Terra policy.
-  - Refresh prompt caches independently from cached WebSocket continuation and retention.
-  - Preserve first-party Codex behavior through renamed and proxied Codex routes, and clean isolated keepalive sockets on transport reset.
+- Updated Code and Notebook Mode instructions to encourage batching independent file edits and composing multi-step tool calls in Deno.
+
+- Simplified the `/codex` settings menu.
+
+- Added a Code and Notebook Mode bridge API. This allows extensions that use Pi TUI to run inside `exec`.
+
+- Added optional dual compaction. OpenAI compaction can run in parallel with Pi-native compaction to allow switching providers in a single session.
+
+- Fixed waiting indicators for extension UI prompts.
+
+- Voice summarisation now runs whenever Pi compacts, then starts a fresh realtime session.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
+
+### @howaboua/pi-codex-imagegen — 0.0.1
+
+- Initial release of Imagegen for Codex image generation and editing in normal Pi, Code Mode, and Notebook Mode.
+
+  - Generate new images or edit recent and workspace-local PNG, JPEG, GIF, or WebP files.
+  - Save outputs beneath the workspace and use stock, renamed, or proxied Codex providers.
+
+[Full changelog](./packages/pi-codex-imagegen/CHANGELOG.md)
+
+### @howaboua/pi-codex-web-run — 0.0.1
+
+- Initial release of Web Run for Codex web search and page navigation in normal Pi, Code Mode, and Notebook Mode.
+
+  - Search the web or images, open results, follow links, and find text while retaining reusable source references.
+  - Use stock, renamed, or proxied Codex providers through a small JSON route file.
+
+[Full changelog](./packages/pi-codex-web-run/CHANGELOG.md)
 
 ### @howaboua/pi-dynamic-tools — 0.0.8
 
@@ -87,24 +123,24 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.66
-
-### Changes
+### @howaboua/pi-extensions — 0.0.67
 
 - Include bundled package updates:
 
-  - @howaboua/pi-gippity-control: Restore live Pi speech by streaming visible progress, speaking enabled completed reasoning summaries, and integrating successive updates without replacing active speech.
-
-- Updated dependencies [[`ef7656c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ef7656c2aab3d2aa1cff581bae26dc9b102aece7)]:
-  - @howaboua/pi-gippity-control@0.0.16
+  - @howaboua/pi-ask: Added a Code and Notebook Mode bridge API. This allows extensions that use Pi TUI to run inside `exec`.
+  - @howaboua/pi-better-skills-tool: Initial release of Better Skills for progressive skill discovery in normal Pi, Code Mode, and Notebook Mode. - List the available catalog first, then load only the requested skill and references. - Combine global, project, and package-provided skills while respecting invocation visibility and local precedence.
+  - @howaboua/pi-gippity-control: Fixed waiting indicators for extension UI prompts.
+  - @howaboua/pi-gippity-control: Voice summarisation now runs whenever Pi compacts, then starts a fresh realtime session.
+  - @howaboua/pi-pet: Fixed waiting indicators for extension UI prompts.
+  - @howaboua/pi-shepherdr: Replaced Shepherdr's fire-and-forget tool with persistent blocking and asynchronous agents in normal Pi, Code Mode, and Notebook Mode. - Start, steer, inspect, and answer multiple agents through the `agents` tool. - Customize the bundled general, explorer, and reviewer profiles or add your own. - Activate orchestration mode with `/herdr` when the main session should coordinate agent work.
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
-### @howaboua/pi-gippity-control — 0.0.16
+### @howaboua/pi-gippity-control — 0.0.17
 
-### Changes
+- Fixed waiting indicators for extension UI prompts.
 
-- [#349](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/349) [`ef7656c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ef7656c2aab3d2aa1cff581bae26dc9b102aece7) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Restore live Pi speech by streaming visible progress, speaking enabled completed reasoning summaries, and integrating successive updates without replacing active speech.
+- Voice summarisation now runs whenever Pi compacts, then starts a fresh realtime session.
 
 [Full changelog](./packages/pi-gippity-control/CHANGELOG.md)
 
@@ -125,20 +161,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-memories/CHANGELOG.md)
 
-### @howaboua/pi-pet — 0.1.1
+### @howaboua/pi-pet — 0.1.2
 
-### Changes
-
-- [#304](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/304) [`4b4e42f`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/4b4e42f7659e42854ec81cb502bf69a48422d9eb) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Run Pi Pet as a first-class GipPity companion.
-
-  - Meet Clawa through the browser, voice, desktop dictation, a transparent desktop window, or the headless pet-state feed.
-  - Import compatible Codex and ChatGPT pets or author new pets through free-form `/pet` requests.
-  - Keep authored pets and generated displays in durable Pi agent storage, with optional per-repository pet selection.
-  - Attach the local device directly or remote devices through Pi-owned SSH sessions, with each folder remembering where its sessions appear.
-  - Get exact install and reload guidance when GipPity Control is missing or outdated.
-
-- Updated dependencies [[`4b4e42f`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/4b4e42f7659e42854ec81cb502bf69a48422d9eb)]:
-  - @howaboua/pi-gippity-control@0.0.13
+- Fixed waiting indicators for extension UI prompts.
 
 [Full changelog](./packages/pi-pet/CHANGELOG.md)
 
@@ -154,11 +179,13 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-semantic-grep/CHANGELOG.md)
 
-### @howaboua/pi-shepherdr — 0.1.2
+### @howaboua/pi-shepherdr — 0.1.3
 
-### Changes
+- Replaced Shepherdr's fire-and-forget tool with persistent blocking and asynchronous agents in normal Pi, Code Mode, and Notebook Mode.
 
-- [#298](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/298) [`b20e7de`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/b20e7de137fe89344bc15b06c7e7e0bf02a896b3) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Orchestrate Pi agents across named remote Herdr machines with automatic SSH bridge deployment and explicit reconnect controls.
+  - Start, steer, inspect, and answer multiple agents through the `agents` tool.
+  - Customize the bundled general, explorer, and reviewer profiles or add your own.
+  - Activate orchestration mode with `/herdr` when the main session should coordinate agent work.
 
 [Full changelog](./packages/pi-shepherdr/CHANGELOG.md)
 
@@ -210,9 +237,6 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
   - @howaboua/pi-skill-chrome-cdp: Give Chrome CDP agents bounded snapshots and screenshots with non-aliasing reusable element references, broader ARIA control support, targeted search, serialized daemon commands, released remote object handles, revalidated native clicks, identity-safe referenced-field input, Shadow DOM support, actionable timeout recovery, and reliable linked CLI execution.
 
-- Updated dependencies [[`35182d9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/35182d9a002daded7610cca64c47b25bed3267df)]:
-  - @howaboua/pi-skill-chrome-cdp@0.0.5
-
 [Full changelog](./packages/pi-skills/CHANGELOG.md)
 
 ### @howaboua/pi-smart-btw — 0.2.6
@@ -226,16 +250,16 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.72
-
-### Changes
+### @howaboua/pi-stuff — 0.0.73
 
 - Include bundled package updates:
 
-  - @howaboua/pi-gippity-control: Restore live Pi speech by streaming visible progress, speaking enabled completed reasoning summaries, and integrating successive updates without replacing active speech.
-
-- Updated dependencies [[`ef7656c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ef7656c2aab3d2aa1cff581bae26dc9b102aece7)]:
-  - @howaboua/pi-gippity-control@0.0.16
+  - @howaboua/pi-ask: Added a Code and Notebook Mode bridge API. This allows extensions that use Pi TUI to run inside `exec`.
+  - @howaboua/pi-better-skills-tool: Initial release of Better Skills for progressive skill discovery in normal Pi, Code Mode, and Notebook Mode. - List the available catalog first, then load only the requested skill and references. - Combine global, project, and package-provided skills while respecting invocation visibility and local precedence.
+  - @howaboua/pi-gippity-control: Fixed waiting indicators for extension UI prompts.
+  - @howaboua/pi-gippity-control: Voice summarisation now runs whenever Pi compacts, then starts a fresh realtime session.
+  - @howaboua/pi-pet: Fixed waiting indicators for extension UI prompts.
+  - @howaboua/pi-shepherdr: Replaced Shepherdr's fire-and-forget tool with persistent blocking and asynchronous agents in normal Pi, Code Mode, and Notebook Mode. - Start, steer, inspect, and answer multiple agents through the `agents` tool. - Customize the bundled general, explorer, and reviewer profiles or add your own. - Activate orchestration mode with `/herdr` when the main session should coordinate agent work.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 

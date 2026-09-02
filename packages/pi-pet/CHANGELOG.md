@@ -1,5 +1,9 @@
 # @howaboua/pi-pet
 
+## 0.1.2
+
+- Fixed waiting indicators for extension UI prompts.
+
 ## 0.1.1
 
 ### Changes
@@ -12,5 +16,3 @@
   - Attach the local device directly or remote devices through Pi-owned SSH sessions, with each folder remembering where its sessions appear.
   - Get exact install and reload guidance when GipPity Control is missing or outdated.
 
-- Updated dependencies [[`4b4e42f`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/4b4e42f7659e42854ec81cb502bf69a48422d9eb)]:
-  - @howaboua/pi-gippity-control@0.0.13

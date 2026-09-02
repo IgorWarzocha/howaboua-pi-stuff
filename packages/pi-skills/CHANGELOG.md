@@ -8,9 +8,6 @@
 
   - @howaboua/pi-skill-chrome-cdp: Give Chrome CDP agents bounded snapshots and screenshots with non-aliasing reusable element references, broader ARIA control support, targeted search, serialized daemon commands, released remote object handles, revalidated native clicks, identity-safe referenced-field input, Shadow DOM support, actionable timeout recovery, and reliable linked CLI execution.
 
-- Updated dependencies [[`35182d9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/35182d9a002daded7610cca64c47b25bed3267df)]:
-  - @howaboua/pi-skill-chrome-cdp@0.0.5
-
 ## 0.0.17
 
 ### Changes
@@ -31,11 +28,6 @@
   - @howaboua/pi-skill-project-reference-research: Remove retired bundled skill.
   - @howaboua/pi-skill-skill-creator: Remove retired bundled skill.
 
-- Updated dependencies [[`ee0220c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ee0220cdc44cd732dff9caf0c913e098ed14404f)]:
-  - @howaboua/pi-skill-code@0.0.1
-  - @howaboua/pi-skill-foundations@0.0.1
-  - @howaboua/pi-skill-harness-and-agent-engineering@0.0.1
-
 ## 0.0.16
 
 ### Changes
@@ -46,9 +38,6 @@
     - Add tested noninteractive command guidance.
     - Lazy-load command and recovery references.
     - Add machine-readable state contracts and issue-batch stack design.
-
-- Updated dependencies [[`f05fa46`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/f05fa469e034ec0e47f238f213437e5a11f2b13c)]:
-  - @howaboua/pi-skill-gh-stack@0.0.2
 
 ## 0.0.15
 
@@ -61,9 +50,6 @@
     - Cover synchronization and conflict recovery.
     - Support safe partial or whole-stack merges.
 
-- Updated dependencies [[`f3dcf5e`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/f3dcf5e01b850e4de57801450eba9464f750b11d)]:
-  - @howaboua/pi-skill-gh-stack@0.0.1
-
 ## 0.0.14
 
 ### Changes
@@ -73,9 +59,6 @@
   - @howaboua/pi-skill-codex-prompt-caching:
     - Add a Codex prompt-caching skill covering GPT-5.6 caching, Codex request continuity, Pi hooks, compaction, dynamic tools, measurement, and extension review.
 
-- Updated dependencies [[`2023aa0`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/2023aa005da4d32f9af0b9bc161c9224d8c60486)]:
-  - @howaboua/pi-skill-codex-prompt-caching@0.0.1
-
 ## 0.0.13
 
 ### Changes
@@ -84,9 +67,6 @@
 
   - @howaboua/pi-skill-gh-issue-pr-flow:
     - Cull feature-existence and implementation-coupled tests before final PR submission, retaining only independently justified contract coverage.
-
-- Updated dependencies [[`70c9973`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/70c9973b8509d2ebefc26acef5c25d1e01b47d47)]:
-  - @howaboua/pi-skill-gh-issue-pr-flow@0.0.7
 
 ## 0.0.12
 
@@ -98,9 +78,6 @@
     - Add execution-topology guidance for agent-navigable call stacks.
     - Measure import, initialization, startup, and bundle performance.
 
-- Updated dependencies [[`5118fd9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/5118fd9c29c050316a4fa1cf9122b501710e7056)]:
-  - @howaboua/pi-skill-agent-native-hardening@0.0.6
-
 ## 0.0.11
 
 ### Changes
@@ -109,9 +86,6 @@
 
   - @howaboua/pi-skill-model-facing-api-design:
     - Document model-facing punctuation and token-cost hygiene.
-
-- Updated dependencies [[`94b2252`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/94b225295be07e04206460963fd3da754a74565e)]:
-  - @howaboua/pi-skill-model-facing-api-design@0.0.5
 
 ## 0.0.10
 
@@ -154,16 +128,6 @@
     - Remove redundant purpose or job restatements.
     - Distinguish operational from creative body language where applicable.
 
-- Updated dependencies [[`8983df4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8983df436423fdc2933863611285946dd0319cf5), [`8983df4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8983df436423fdc2933863611285946dd0319cf5)]:
-  - @howaboua/pi-skill-project-reference-research@0.0.4
-  - @howaboua/pi-skill-model-facing-api-design@0.0.4
-  - @howaboua/pi-skill-agent-native-hardening@0.0.5
-  - @howaboua/pi-skill-gh-issue-pr-flow@0.0.6
-  - @howaboua/pi-skill-anti-ai-copy@0.0.4
-  - @howaboua/pi-skill-chrome-cdp@0.0.4
-  - @howaboua/pi-skill-agents-md@0.0.4
-  - @howaboua/pi-skill-skill-creator@0.0.5
-
 ## 0.0.9
 
 ### Changes
@@ -186,16 +150,6 @@
     - Rewrite package documentation around current installation, configuration, usage, and behavior.
   - @howaboua/pi-skill-anti-ai-copy:
     - Rewrite package documentation around current installation, configuration, usage, and behavior.
-
-- Updated dependencies [[`c423031`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/c4230312f24db0e49c95eafff959109d74017c3d)]:
-  - @howaboua/pi-skill-agent-native-hardening@0.0.4
-  - @howaboua/pi-skill-agents-md@0.0.3
-  - @howaboua/pi-skill-anti-ai-copy@0.0.3
-  - @howaboua/pi-skill-chrome-cdp@0.0.3
-  - @howaboua/pi-skill-gh-issue-pr-flow@0.0.5
-  - @howaboua/pi-skill-model-facing-api-design@0.0.3
-  - @howaboua/pi-skill-project-reference-research@0.0.3
-  - @howaboua/pi-skill-skill-creator@0.0.4
 
 ## 0.0.8
 
@@ -227,16 +181,6 @@
     - Expand the skill into universal drafting, rewriting, and prose review.
     - Add genre-aware guidance and a broader AI-writing trope reference.
 
-- Updated dependencies [[`ff8d5cf`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ff8d5cf9412ec07fea8b613f0aadc906c6c398f9), [`ff8d5cf`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ff8d5cf9412ec07fea8b613f0aadc906c6c398f9), [`ff8d5cf`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ff8d5cf9412ec07fea8b613f0aadc906c6c398f9), [`ff8d5cf`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ff8d5cf9412ec07fea8b613f0aadc906c6c398f9), [`ff8d5cf`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ff8d5cf9412ec07fea8b613f0aadc906c6c398f9), [`ff8d5cf`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ff8d5cf9412ec07fea8b613f0aadc906c6c398f9), [`ff8d5cf`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ff8d5cf9412ec07fea8b613f0aadc906c6c398f9), [`ff8d5cf`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ff8d5cf9412ec07fea8b613f0aadc906c6c398f9)]:
-  - @howaboua/pi-skill-chrome-cdp@0.0.2
-  - @howaboua/pi-skill-project-reference-research@0.0.2
-  - @howaboua/pi-skill-gh-issue-pr-flow@0.0.4
-  - @howaboua/pi-skill-anti-ai-copy@0.0.2
-  - @howaboua/pi-skill-model-facing-api-design@0.0.2
-  - @howaboua/pi-skill-agents-md@0.0.2
-  - @howaboua/pi-skill-skill-creator@0.0.3
-  - @howaboua/pi-skill-agent-native-hardening@0.0.3
-
 ## 0.0.7
 
 ### Changes
@@ -251,11 +195,6 @@
     - Add the model-facing-api-design skill package.
     - Prevent fresh sessions from recursively shrinking reused model context windows.
     - Add a default-on Proxy tools override for web search, image generation, and fast mode.
-
-- Updated dependencies [[`2f03bc0`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/2f03bc04bfac5d7c41db7d3f53280baefa3a5ccc), [`2f03bc0`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/2f03bc04bfac5d7c41db7d3f53280baefa3a5ccc), [`2f03bc0`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/2f03bc04bfac5d7c41db7d3f53280baefa3a5ccc)]:
-  - @howaboua/pi-skill-model-facing-api-design@0.0.1
-  - @howaboua/pi-skill-skill-creator@0.0.2
-  - @howaboua/pi-skill-agents-md@0.0.1
 
 ## 0.0.6
 
@@ -277,9 +216,6 @@
   - @howaboua/pi-skill-gh-issue-pr-flow:
     - Keep sponsor-check status out of PR bodies and avoid reporting successful sponsor checks in final summaries.
 
-- Updated dependencies [[`d312d81`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/d312d81f82e24645f7cc59f4b6ead1834afd19f9)]:
-  - @howaboua/pi-skill-gh-issue-pr-flow@0.0.3
-
 ## 0.0.4
 
 ### Changes
@@ -289,9 +225,6 @@
   - @howaboua/pi-skill-agent-native-hardening:
     - Make the skill language-agnostic.
     - Add JavaScript/TypeScript, Python, Rust, and Go reference guidance.
-
-- Updated dependencies [[`26d4e8b`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/26d4e8b89fb050463bf5cf3486ba1fa0ba84d8b3)]:
-  - @howaboua/pi-skill-agent-native-hardening@0.0.2
 
 ## 0.0.3
 
@@ -318,10 +251,3 @@
 
   - Initial public release from the Howaboua Pi Stuff monorepo.
 
-- Updated dependencies [[`f252da3`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/f252da342444236f06c6da3f7d92cbdab420d770)]:
-  - @howaboua/pi-skill-agent-native-hardening@0.0.1
-  - @howaboua/pi-skill-anti-ai-copy@0.0.1
-  - @howaboua/pi-skill-chrome-cdp@0.0.1
-  - @howaboua/pi-skill-gh-issue-pr-flow@0.0.1
-  - @howaboua/pi-skill-project-reference-research@0.0.1
-  - @howaboua/pi-skill-skill-creator@0.0.1

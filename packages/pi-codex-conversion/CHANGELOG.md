@@ -1,5 +1,24 @@
 # Changelog
 
+## 3.0.24
+
+- **BREAKING CHANGE:** Removed web search and image generation from Pi Codex's bundled toolkit. Install their standalone extensions to keep using them:
+
+  - `pi install npm:@howaboua/pi-codex-web-run`
+  - `pi install npm:@howaboua/pi-codex-imagegen`
+
+- Updated Code and Notebook Mode instructions to encourage batching independent file edits and composing multi-step tool calls in Deno.
+
+- Simplified the `/codex` settings menu.
+
+- Added a Code and Notebook Mode bridge API. This allows extensions that use Pi TUI to run inside `exec`.
+
+- Added optional dual compaction. OpenAI compaction can run in parallel with Pi-native compaction to allow switching providers in a single session.
+
+- Fixed waiting indicators for extension UI prompts.
+
+- Voice summarisation now runs whenever Pi compacts, then starts a fresh realtime session.
+
 ## 3.0.23
 
 ### Changes
