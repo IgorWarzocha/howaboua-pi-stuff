@@ -5,7 +5,12 @@
 			"entry": ["changelog.ts"]
 		},
 		"packages/pi-browser": {
-			"entry": ["index.ts", "remote-worker.ts", "tests/**/*.test.ts"],
+			"entry": [
+				"changelog.ts",
+				"index.ts",
+				"remote-worker.ts",
+				"tests/**/*.test.ts"
+			],
 			"project": [
 				"*.ts",
 				"src/**/*.ts",
