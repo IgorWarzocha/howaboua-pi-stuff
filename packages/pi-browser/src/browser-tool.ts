@@ -48,15 +48,15 @@ export function createBrowserTool(runtime: BrowserRuntime) {
 		description:
 			"Inspect and control logged-in browser tabs with bounded accessibility content, interactive references, continuations and expert CDP actions.",
 		parameters,
-		promptSnippet: "Load browser help before first use.",
+		promptSnippet: "Help first.",
 		promptGuidelines: [
-			"browser: Start with tabs, then open one ref_id. Keep element IDs with that page result and follow returned continuation cursors.",
+			"browser: tabs -> open; keep ref_id/id/cursors with their result.",
 			...(runtime.hosts.length > 0
 				? [
-						"browser: When the user names a browser host, set host on every call and keep it with refs, screenshots and continuation handles.",
+						"browser: Keep a user-named host on every call and its refs/handles.",
 					]
 				: []),
-			"browser: Ask before unfamiliar low-trust navigation or consequential external actions unless already authorized. Never close the shared browser after a task.",
+			"browser: Ask before unfamiliar low-trust navigation or consequential action unless authorized; never close shared browser.",
 		],
 		async execute(_toolCallId, input, signal, onUpdate) {
 			const result = await runtime.execute(browserRequest(input), {
