@@ -30,44 +30,39 @@ export function reportProgress(
 export async function agentsHelp(): Promise<Record<string, unknown>> {
 	const profiles = await loadAgentProfiles();
 	return {
-		call: 'await tools.agents({ action: "<action>", ...fields }) in Code/Notebook; normal Pi uses the same request object',
 		actions: {
-			help: "action only",
-			list: "action, machine?",
-			find: "action, query?, status?, machine?",
+			help: "",
+			list: "machine?",
+			find: "query? status? machine?",
 			spawn:
-				"action, agent_type, label, message, name?, machine?, placement?, workspace?, pane?, cwd?, base?, blocking? (default true)",
-			watch: "action, target, machine?",
-			unwatch: "action, target, machine?",
-			send: "action, target, message, machine?, blocking? (default true)",
-			read: "action, target, machine?, source?, lines?",
-			answer: "action, target, answers, machine?, blocking? (default true)",
+				"agent_type label message name? machine? placement? workspace? pane? cwd? base? blocking?",
+			watch: "target machine?",
+			unwatch: "target machine?",
+			send: "target message machine? blocking?",
+			read: "target machine? source? lines?",
+			answer: "target answers machine? blocking?",
 		},
-		notes: {
-			target: "Exact target returned by spawn or find",
-			label: "2-3 words; names the Herdr tab and Pi session",
-			answers: "[{selections?: string[], other?: string, comment?: string}]",
+		rules: {
+			target: "Use spawn/find target exactly",
+			label: "2-3 words; tab/session",
+			answers: "[{selections?:string[],other?:string,comment?:string}]",
 			blocking:
-				"Use true or omit for requested findings; false only while continuing other work. Async settlement is pushed automatically; never poll",
-			prompting:
-				"Specialists know their job. Give only the concrete task and relevant context they cannot access, including session details and prior decisions. Stop there; never append generic method, evidence, or reporting instructions",
+				"true default; false only while continuing work; results push, never poll",
+			prompt:
+				"Only task + inaccessible context; no method/evidence/reporting boilerplate",
 			reuse:
-				"Reuse specialists only for the same investigation. Keep reviews independent. New scope gets a new agent",
+				"Reuse only same investigation; reviews independent; new scope = new agent",
 			...(profiles.has("general")
 				? {
 						general:
-							"Use sparingly, mainly when the user asks or orchestration mode is active. For current-repo work, create and bootstrap a dedicated worktree, then spawn the agent with its cwd",
+							"Only when requested/orchestrating. Current repo: create + bootstrap worktree; pass cwd",
 					}
 				: {}),
 		},
 		profiles: Object.fromEntries(
 			[...profiles].map(([name, profile]) => [name, profile.description]),
 		),
-		advanced: {
-			run: "herdr --skill",
-			covers:
-				"workspace, tab, pane, process, focus, layout and raw terminal control",
-		},
+		advanced: "herdr --skill: workspace/tab/pane/process/focus/layout/terminal",
 	};
 }
 
