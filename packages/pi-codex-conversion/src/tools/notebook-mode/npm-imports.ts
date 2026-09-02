@@ -56,8 +56,8 @@ export async function recordNotebookNpmImports(
 }
 
 export function formatNotebookNpmImportsNotice(imports: string[]): string {
-	const prefix = `Available npm imports previously established in this project: ${imports.length === 0 ? "none" : boundedImportList(imports)}`;
-	return `${prefix}. All npm packages are unsafe by default; ask the user before first use of any unlisted package and use an exact-version npm: specifier`;
+	const prefix = `Available npm imports in this notebook: ${imports.length === 0 ? "none" : boundedImportList(imports)}`;
+	return `${prefix}. Ask before adding another, then use an exact-version npm: specifier`;
 }
 
 function npmImportPaths(identity: { project: string; agentDir: string }) {
