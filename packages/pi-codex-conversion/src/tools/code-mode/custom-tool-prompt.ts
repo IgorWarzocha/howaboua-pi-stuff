@@ -3,6 +3,12 @@ import type {
 	CodeModeToolMetadata,
 	CustomToolDefinition,
 } from "./types.js";
+import {
+	codeModeGlobalName,
+	translateCodeModeGuideline,
+	translateCodeModeToolReferences,
+	translateCodeModeUsage,
+} from "./tool-identity.ts";
 
 export const EXEC_DESCRIPTION = `Run JavaScript to compose tools; source only, no JSON or fences
 Runtime follows the selected mode: Code is fresh restricted JS with no console/imports/Node/browser APIs; Notebook is one persistent Deno TypeScript global environment shared by every exec call, with console, imports, npm, Deno, and Web APIs
@@ -14,7 +20,8 @@ export const WAIT_DESCRIPTION =
 
 const BUNDLED_TOOLS_HEADING = "Tools available in exec:";
 const CUSTOM_TOOLS_HEADING = "Configured custom tools:";
-const DEFERRED_CUSTOM_TOOLS_GUIDANCE = "Deferred custom tools: find by name in ALL_TOOLS";
+const TOOL_GUIDANCE_HEADING = "Tool guidance:";
+const DEFERRED_TOOLS_GUIDANCE = "Deferred tools: find by name in ALL_TOOLS";
 const CUSTOM_TOOL_DOCUMENTATION_MARKER = "To create or edit a custom tool, read";
 const CUSTOM_TOOL_DOCUMENTATION_GUIDANCE = "Never read that file to discover or call tools";
 const CUSTOM_TOOLS_GUIDANCE =
@@ -26,14 +33,58 @@ function isConfiguredCustomTool(
 	return "command" in tool;
 }
 
-export function formatCodeModeToolHelp(tool: CodeModeToolMetadata): string {
+function isDeferredDiscoverableTool(tool: CodeModeToolDefinition): boolean {
+	return tool.deferLoading &&
+		(isConfiguredCustomTool(tool) || ("invoke" in tool && tool.discoverWhenDeferred === true));
+}
+
+export function formatCodeModeToolHelp(tool: CodeModeToolDefinition): string {
 	return [
-		`Usage: ${tool.usage}`,
-		tool.description,
+		`Usage: ${translateCodeModeUsage(tool.usage, tool.name)}`,
+		tool.description
+			? translateCodeModeToolReferences(tool.description, tool.name)
+			: undefined,
+		tool.promptSnippet
+			? translateCodeModeToolReferences(tool.promptSnippet, tool.name)
+			: undefined,
+		...(tool.promptGuidelines ?? []).map((guideline) =>
+			translateCodeModeGuideline(guideline, tool.name)),
+		"inputSchema" in tool && tool.inputSchema ? `Schema: ${formatSchema(tool.inputSchema)}` : undefined,
 		tool.output ? `Output: ${tool.output}` : undefined,
 	]
 		.filter(Boolean)
 		.join("\n");
+}
+
+function formatSchema(schema: unknown): string {
+	try {
+		return JSON.stringify(schema);
+	} catch {
+		return "[unavailable schema]";
+	}
+}
+
+function translatedPromptLines(tool: CodeModeToolDefinition): string[] {
+	if (!("invoke" in tool) || tool.translatePromptMetadata !== true) return [];
+	const name = codeModeGlobalName(tool.name);
+	return [
+		tool.description
+			? `- ${name}: ${translateCodeModeToolReferences(tool.description, tool.name)}`
+			: undefined,
+		tool.promptSnippet
+			? `- ${name}: ${translateCodeModeToolReferences(tool.promptSnippet, tool.name)}`
+			: undefined,
+		...(tool.promptGuidelines ?? []).map((guideline) =>
+			`- ${translateCodeModeGuideline(guideline, tool.name)}`),
+		tool.inputSchema ? `- ${name} schema: ${formatSchema(tool.inputSchema)}` : undefined,
+	].filter((line): line is string => Boolean(line));
+}
+
+function buildGuidanceSection(tools: CodeModeToolDefinition[]): string {
+	const lines = tools
+		.filter((tool) => !tool.deferLoading)
+		.flatMap(translatedPromptLines);
+	return lines.length ? `${TOOL_GUIDANCE_HEADING}\n${lines.join("\n")}` : "";
 }
 
 function buildUsageSection(
@@ -43,7 +94,7 @@ function buildUsageSection(
 	if (tools.length === 0) return "";
 	return `${heading}\n${[...tools]
 		.sort((left, right) => left.name.localeCompare(right.name))
-		.map((tool) => `- ${tool.usage}`)
+		.map((tool) => `- ${translateCodeModeUsage(tool.usage, tool.name)}`)
 		.join("\n")}`;
 }
 
@@ -61,11 +112,14 @@ export function buildCodeModeToolsPrompt(
 		existingPrompt.includes(BUNDLED_TOOLS_HEADING)
 			? undefined
 			: buildUsageSection(BUNDLED_TOOLS_HEADING, bundled),
-		existingPrompt.includes(CUSTOM_TOOLS_HEADING)
+		 existingPrompt.includes(CUSTOM_TOOLS_HEADING)
 			? undefined
 			: buildUsageSection(CUSTOM_TOOLS_HEADING, promotedCustom),
-		custom.some((tool) => tool.deferLoading) && !existingPrompt.includes(DEFERRED_CUSTOM_TOOLS_GUIDANCE)
-			? DEFERRED_CUSTOM_TOOLS_GUIDANCE
+		existingPrompt.includes(TOOL_GUIDANCE_HEADING)
+			? undefined
+			: buildGuidanceSection(tools),
+		tools.some(isDeferredDiscoverableTool) && !existingPrompt.includes(DEFERRED_TOOLS_GUIDANCE)
+			? DEFERRED_TOOLS_GUIDANCE
 			: undefined,
 		documentationPath && !existingPrompt.includes(CUSTOM_TOOL_DOCUMENTATION_MARKER)
 			? `${CUSTOM_TOOL_DOCUMENTATION_MARKER} ${documentationPath}; do not read Pi docs\n${CUSTOM_TOOL_DOCUMENTATION_GUIDANCE}`

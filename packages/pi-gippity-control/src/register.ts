@@ -89,6 +89,14 @@ export function registerGippityControl(pi: ExtensionAPI): void {
 		lanVoice.agentStarted();
 		lanVoice.piEvent("agent_start", event);
 	});
+	pi.on("ui_prompt_start", async (event) => {
+		lanVoice.uiPromptStarted(event.title);
+		lanVoice.piEvent("ui_prompt_start", event);
+	});
+	pi.on("ui_prompt_end", async (event, ctx) => {
+		lanVoice.uiPromptEnded(!ctx.isIdle());
+		lanVoice.piEvent("ui_prompt_end", event);
+	});
 	pi.on("agent_settled", async (event) => {
 		voice.settleTurn();
 		lanVoice.agentSettled();
@@ -100,9 +108,10 @@ export function registerGippityControl(pi: ExtensionAPI): void {
 	pi.on("session_before_compact", async (event) => {
 		if (event.reason !== "manual") voice.announceCompactionStart(event.reason);
 	});
-	pi.on("session_compact", async (event) => {
+	pi.on("session_compact", async (event, ctx) => {
 		voice.resetContextAnnouncements();
 		lanVoice.piEvent("session_compact", event);
+		await voice.refreshRealtimeAfterCompaction(ctx, state.config);
 	});
 	pi.on("agent_end", async (event) => lanVoice.piEvent("agent_end", event));
 	pi.on("turn_start", async (event) => lanVoice.piEvent("turn_start", event));

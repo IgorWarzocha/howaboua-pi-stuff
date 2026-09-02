@@ -1,5 +1,13 @@
 # Browser
 
+This is the final legacy command-backed browser example. For the maintained browser in ordinary Pi, Code Mode and Notebook Mode, install:
+
+```bash
+pi install npm:@howaboua/pi-browser
+```
+
+The extension adds typed Pi schemas, persistent CDP sessions, configurable hosts and automatic remote-worker deployment. Do not load this custom tool alongside it.
+
 Use for rendered evidence or interaction in an existing CDP-enabled browser. Start with `tabs`, open one returned `ref_id`, then use the numbered element references from the page result.
 
 Use `find` before `click` or `type` when the target is not already visible. Keep a browser result's `ref_id` and element IDs together. Read truncated results through the returned continuation rather than reopening the same page blindly.

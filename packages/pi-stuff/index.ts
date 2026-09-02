@@ -2,6 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import registerPackageChangelog from "./changelog.js";
 import howabouaPiAsk from "@howaboua/pi-ask";
 import howabouaPiAutoTrees from "@howaboua/pi-auto-trees";
+import howabouaPiBetterSkillsTool from "@howaboua/pi-better-skills-tool";
 import howabouaPiCacheHitPredictor from "@howaboua/pi-cache-hit-predictor";
 import howabouaPiDynamicTools from "@howaboua/pi-dynamic-tools";
 import howabouaPiExploreSubagents from "@howaboua/pi-explore-subagents";
@@ -20,6 +21,7 @@ export default async function (pi: ExtensionAPI) {
 	registerPackageChangelog(pi);
 	await howabouaPiAsk(pi);
 	await howabouaPiAutoTrees(pi);
+	await howabouaPiBetterSkillsTool(pi);
 	await howabouaPiCacheHitPredictor(pi);
 	await howabouaPiDynamicTools(pi);
 	await howabouaPiExploreSubagents(pi);

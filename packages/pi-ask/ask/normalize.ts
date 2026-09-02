@@ -14,7 +14,7 @@ export function textContent(text: string): { type: "text"; text: string } {
 	return { type: "text", text };
 }
 
-export function normalizePromptChoice(choice: unknown): PromptChoice | null {
+function normalizePromptChoice(choice: unknown): PromptChoice | null {
 	if (!isRecord(choice)) return null;
 	const label =
 		typeof choice["label"] === "string" ? choice["label"].trim() : "";
@@ -26,7 +26,7 @@ export function normalizePromptChoice(choice: unknown): PromptChoice | null {
 	return { label, ...(description ? { description } : {}) };
 }
 
-export function normalizePrompt(
+function normalizePrompt(
 	input: unknown,
 	index: number,
 	handoff = false,

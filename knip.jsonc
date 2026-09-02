@@ -4,10 +4,24 @@
 		"packages/pi-auto-trees": {
 			"entry": ["changelog.ts"]
 		},
+		"packages/pi-browser": {
+			"entry": [
+				"changelog.ts",
+				"index.ts",
+				"remote-worker.ts",
+				"tests/**/*.test.ts"
+			],
+			"project": [
+				"*.ts",
+				"src/**/*.ts",
+				"tests/**/*.ts"
+			]
+		},
 		"packages/pi-codex-conversion": {
 			"ignoreExportsUsedInFile": true,
 			"entry": [
 				"src/index.ts",
+				"src/code-mode.ts",
 				"src/code-mode-preflight.ts",
 				"src/realtime-voice.ts",
 				"scripts/**/*.mjs",
@@ -45,7 +59,7 @@
 			}
 		},
 		"packages/pi-shepherdr": {
-			"entry": ["changelog.ts"]
+			"entry": ["changelog.ts", "profiles/**/*.mjs"]
 		},
 		"packages/pi-smart-btw": {
 			"entry": ["changelog.ts"]

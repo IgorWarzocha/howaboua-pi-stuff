@@ -81,14 +81,6 @@ export function findLatestNativeCompactionEntryIndex(
 	return undefined;
 }
 
-export function findLatestNativeCompactionEntry(
-	entries: readonly SessionEntry[],
-	match: NativeCompactionEntryMatch = {},
-): NativeCompactionEntry | undefined {
-	const index = findLatestNativeCompactionEntryIndex(entries, match);
-	return index === undefined ? undefined : (entries[index]! as NativeCompactionEntry);
-}
-
 export function resolveLatestNativeCompactionEntry(
 	entries: readonly SessionEntry[],
 	match: NativeCompactionEntryMatch = {},

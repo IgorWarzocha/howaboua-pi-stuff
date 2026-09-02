@@ -58,7 +58,7 @@ describe("bundled port_info example", () => {
 	});
 
 	test("normalizes lsof output", () => {
-		const rows = `COMMAND PID USER FD TYPE DEVICE SIZE/OFF NODE NAME\nnode 4321 alice 20u IPv4 0x123 0t0 TCP 127.0.0.1:3000 (LISTEN)`;
+		const rows = `COMMAND PID USER FD TYPE DEVICE SIZE/OFF NODE NAME\nnode 2147483647 alice 20u IPv4 0x123 0t0 TCP 127.0.0.1:3000 (LISTEN)`;
 		const [endpoint] = parseLsof(rows);
 		expect(endpoint).toMatchObject({
 			protocol: "tcp4",
@@ -67,7 +67,7 @@ describe("bundled port_info example", () => {
 			remote_address: null,
 			remote_port: null,
 			state: "listen",
-			owners: [{ pid: 4321, user: "alice", command: "node" }],
+			owners: [{ pid: 2147483647, user: "alice", command: "node" }],
 		});
 	});
 

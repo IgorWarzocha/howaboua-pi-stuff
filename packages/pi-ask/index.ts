@@ -10,24 +10,26 @@ export { createAskTool } from "./ask/tool.js";
 const PROMPTS_DIR = join(dirname(fileURLToPath(import.meta.url)), "prompts");
 const REALTIME_VOICE_PROMPT_CHANNEL =
 	"@howaboua/pi-codex-conversion/realtime-voice-prompt/v1";
+const CODE_MODE_PACKAGE = "@howaboua/pi-codex-conversion";
+const CODE_MODE_MODULE = `${CODE_MODE_PACKAGE}/code-mode`;
 
-export default function humanInTheLoop(pi: ExtensionAPI): void {
+export default async function humanInTheLoop(pi: ExtensionAPI): Promise<void> {
 	registerPackageChangelog(pi);
-	pi.registerTool(
-		createAskTool({
-			onBlockedChange: (state) => {
-				pi.events.emit(REALTIME_VOICE_PROMPT_CHANNEL, {
-					id: state.id,
-					active: state.active,
-					prompt: state.prompt,
-				});
-				pi.events.emit("herdr:blocked", {
-					active: state.active,
-					label: state.label,
-				});
-			},
-		}),
-	);
+	const ask = createAskTool({
+		onBlockedChange: (state) => {
+			pi.events.emit(REALTIME_VOICE_PROMPT_CHANNEL, {
+				id: state.id,
+				active: state.active,
+				prompt: state.prompt,
+			});
+			pi.events.emit("herdr:blocked", {
+				active: state.active,
+				label: state.label,
+			});
+		},
+	});
+	pi.registerTool(ask);
+	await registerAskInCodeMode(pi, ask);
 	pi.on("resources_discover", () => {
 		const config = loadAskConfig();
 		return {
@@ -37,4 +39,68 @@ export default function humanInTheLoop(pi: ExtensionAPI): void {
 			],
 		};
 	});
+}
+
+async function registerAskInCodeMode(
+	pi: ExtensionAPI,
+	ask: ReturnType<typeof createAskTool>,
+): Promise<void> {
+	try {
+		const { adaptToolForCodeMode, registerCodeModeExtensionTools } =
+			await import("@howaboua/pi-codex-conversion/code-mode");
+		const registration = registerCodeModeExtensionTools(pi, () => [
+			adaptToolForCodeMode(ask, {
+				blocking: true,
+				usage:
+					"await tools.ask({ prompts: [{ title, body?, multiple?, choices?: [{ label, description? }] }], handoff? })",
+			}),
+		]);
+		pi.on("session_shutdown", () => registration.unregister());
+	} catch (error) {
+		if (isMissingCodeModeExtension(error)) return;
+		if (isOutdatedCodeModeExtension(error)) {
+			throw new Error(
+				"Update " +
+					CODE_MODE_PACKAGE +
+					" to 3.0.24 or newer to use Pi Ask with it",
+				{ cause: error },
+			);
+		}
+		throw error;
+	}
+}
+
+function isMissingCodeModeExtension(error: unknown): boolean {
+	if (
+		!error ||
+		typeof error !== "object" ||
+		!("code" in error) ||
+		(error.code !== "ERR_MODULE_NOT_FOUND" &&
+			error.code !== "MODULE_NOT_FOUND") ||
+		!("message" in error) ||
+		typeof error.message !== "string"
+	)
+		return false;
+	const missing = error.message.match(
+		/Cannot find (?:package|module) ['"]([^'"]+)['"]/,
+	)?.[1];
+	return missing === CODE_MODE_PACKAGE || missing === CODE_MODE_MODULE;
+}
+
+function isOutdatedCodeModeExtension(error: unknown): boolean {
+	if (
+		!error ||
+		typeof error !== "object" ||
+		!("code" in error) ||
+		!("message" in error) ||
+		typeof error.message !== "string"
+	)
+		return false;
+	return (
+		(error.code === "ERR_PACKAGE_PATH_NOT_EXPORTED" ||
+			error.code === "ERR_UNSUPPORTED_DIR_IMPORT") &&
+		(error.message.includes(CODE_MODE_MODULE) ||
+			(error.message.includes("Package subpath './code-mode'") &&
+				error.message.includes(CODE_MODE_PACKAGE)))
+	);
 }

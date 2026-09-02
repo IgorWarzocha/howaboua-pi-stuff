@@ -4,7 +4,12 @@ import {
 	getSettingsListTheme,
 	type Theme,
 } from "@earendil-works/pi-coding-agent";
-import { SettingsList, truncateToWidth } from "@earendil-works/pi-tui";
+import {
+	Key,
+	matchesKey,
+	SettingsList,
+	truncateToWidth,
+} from "@earendil-works/pi-tui";
 import type { CodexConversionConfig, LunaCacheKeepaliveMinutes } from "../../adapter/activation/config.ts";
 import type { CodexConversionConfigScope } from "../../adapter/activation/config-store.ts";
 import type { ExecutionMode } from "../../adapter/activation/execution-mode.ts";
@@ -88,11 +93,11 @@ export async function openCodexSettingsScreen(
 				{
 					item: {
 						id: "configScope",
-						label: "Settings",
-						currentValue: options.configScope.current() === "folder" ? "Project" : "Defaults",
+						label: "Editing",
+						currentValue: options.configScope.current() === "folder" ? "This project" : "Global",
 						values: options.configScope.canUseFolder
-							? ["Defaults", "Project"]
-							: ["Defaults"],
+							? ["Global", "This project"]
+							: ["Global"],
 					},
 				},
 				...(activeTab === "adapter"
@@ -100,12 +105,12 @@ export async function openCodexSettingsScreen(
 							item: {
 								id: "executionMode",
 								label: "Execution mode",
-								currentValue: draft.executionMode,
-								values: ["normal", "code", "notebook"],
+								currentValue: formatExecutionMode(draft.executionMode),
+								values: ["Structured", "Code", "Notebook (recommended)"],
 							},
 							update: (value: string, current: CodexConversionConfig) => ({
 								...current,
-								executionMode: value as ExecutionMode,
+								executionMode: parseExecutionMode(value),
 							}),
 						}]
 					: []),
@@ -128,7 +133,6 @@ export async function openCodexSettingsScreen(
 					draft,
 					theme,
 					availableContextModels,
-					options.configScope.path(),
 				),
 			];
 			list = new SettingsList(
@@ -165,8 +169,8 @@ export async function openCodexSettingsScreen(
 						return;
 					}
 					if (id === "configScope") {
-						const previousValue = options.configScope.current() === "folder" ? "Project" : "Defaults";
-						const nextDraft = options.configScope.set(value === "Project" ? "folder" : "global");
+						const previousValue = options.configScope.current() === "folder" ? "This project" : "Global";
+						const nextDraft = options.configScope.set(value === "This project" ? "folder" : "global");
 						if (nextDraft) {
 							draft = nextDraft;
 							settingsList = createSettingsList();
@@ -229,6 +233,11 @@ export async function openCodexSettingsScreen(
 						theme,
 						options.configScope.current(),
 					);
+				if (activeTab === "tools")
+					settingsLines = withSettingsDetails(
+						settingsLines,
+						formatToolsDetails(theme, options.configScope.path()),
+					);
 				if (activeTab === "voice")
 					settingsLines = withSettingsDetails(
 						settingsLines,
@@ -252,7 +261,18 @@ export async function openCodexSettingsScreen(
 			},
 			invalidate: () => settingsList.invalidate(),
 			handleInput: (data: string) => {
-				if (data === "\t") {
+				if (matchesKey(data, Key.shift(Key.tab))) {
+					const currentIndex = SETTINGS_TABS.findIndex(
+						({ id }) => id === activeTab,
+					);
+					activateTab(
+						SETTINGS_TABS[
+							(currentIndex - 1 + SETTINGS_TABS.length) % SETTINGS_TABS.length
+						]?.id ?? "adapter",
+					);
+					return;
+				}
+				if (matchesKey(data, Key.tab)) {
 					const currentIndex = SETTINGS_TABS.findIndex(
 						({ id }) => id === activeTab,
 					);
@@ -337,6 +357,10 @@ function formatVoiceDetails(
 			"dim",
 			`  Change keybinds: ${configPath} (/reload to apply)`,
 		),
+		theme.fg(
+			"dim",
+			"  Post-compaction context summarisation uses the selected model",
+		),
 		"",
 		theme.fg(
 			"dim",
@@ -353,10 +377,10 @@ function formatVoiceDetails(
 
 function formatFooter(activeTab: SettingsTab): string {
 	if (activeTab === "usage")
-		return "  Tab to switch sections · R to refresh · Ctrl+R to use reset";
+		return "  Tab/Shift+Tab to switch sections · R to refresh · Ctrl+R to use reset";
 	if (activeTab === "about")
-		return "  Tab to switch sections · G/C/D/I to open links · Esc to close";
-	return "  Tab to switch sections · Esc to close";
+		return "  Tab/Shift+Tab to switch sections · G/C/D/I to open links · Esc to close";
+	return "  Tab/Shift+Tab to switch sections · Esc to close";
 }
 
 function withSettingsFooter(lines: string[], theme: Theme): string[] {
@@ -365,7 +389,7 @@ function withSettingsFooter(lines: string[], theme: Theme): string[] {
 		if (next[index]?.includes("Enter/Space")) {
 			next[index] = theme.fg(
 				"dim",
-				"  Enter/Space to change · Esc to close · Tab to switch sections",
+				"  Enter/Space to change · Esc to close · Tab/Shift+Tab to switch sections",
 			);
 			break;
 		}
@@ -379,13 +403,32 @@ function withConfigScopeDetails(
 	scope: CodexConversionConfigScope,
 ): string[] {
 	const next = [...lines];
-	const scopeIndex = next.findIndex((line) => line.includes("Settings"));
+	const scopeIndex = next.findIndex((line) => line.includes("Editing"));
 	if (scopeIndex < 0) return next;
 	const detail = scope === "folder"
-		? "Other changes update this project. Luna keepalive remains global; Sol/Terra keepalive remains project-only."
-		: "Other changes update global defaults. Luna keepalive is global; Sol/Terra keepalive is project-only.";
-	next.splice(scopeIndex + 1, 0, theme.fg("dim", `  ${detail}`));
+		? "Changes here update this project."
+		: "Changes here update global settings.";
+	next.splice(scopeIndex + 1, 0, theme.fg("dim", "  " + detail));
 	return next;
+}
+
+function formatToolsDetails(theme: Theme, configPath: string): string[] {
+	return [
+		theme.fg("dim", "  Custom native helper overrides:"),
+		theme.fg("dim", "  " + configPath),
+	];
+}
+
+function formatExecutionMode(mode: ExecutionMode): string {
+	if (mode === "code") return "Code";
+	if (mode === "notebook") return "Notebook (recommended)";
+	return "Structured";
+}
+
+function parseExecutionMode(value: string): ExecutionMode {
+	if (value === "Code") return "code";
+	if (value === "Notebook (recommended)") return "notebook";
+	return "normal";
 }
 
 function withSettingsDetails(lines: string[], details: string[]): string[] {

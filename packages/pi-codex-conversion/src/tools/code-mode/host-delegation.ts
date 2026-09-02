@@ -5,12 +5,16 @@ import type {
 	RuntimeResponse,
 	ToolExecutionContext,
 } from "./types.js";
+import type { CodeModeNestedRenderStore } from "./trace-render-state.js";
 
 export class CodeModeHostDelegation {
 	private readonly runtime: CodeModeDelegateRuntime;
 
-	constructor(send: (message: unknown) => void) {
-		this.runtime = new CodeModeDelegateRuntime(send);
+	constructor(
+		send: (message: unknown) => void,
+		renderStore?: CodeModeNestedRenderStore,
+	) {
+		this.runtime = new CodeModeDelegateRuntime(send, renderStore);
 	}
 
 	bindResponse(
@@ -24,6 +28,14 @@ export class CodeModeHostDelegation {
 
 	updateCellContext(cellId: string, context: ToolExecutionContext): void {
 		this.runtime.updateCellContext(cellId, context);
+	}
+
+	isBlocked(cellId: string): boolean {
+		return this.runtime.isBlocked(cellId);
+	}
+
+	waitUntilUnblocked(cellId: string, signal?: AbortSignal): Promise<void> {
+		return this.runtime.waitUntilUnblocked(cellId, signal);
 	}
 
 	attach(response: RuntimeResponse): RuntimeResponse {

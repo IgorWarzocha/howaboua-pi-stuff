@@ -42,6 +42,7 @@ export interface GippityControlConfig {
 	voice: {
 		v3Voice: RealtimeV3Voice;
 		autoResumeRealtime: boolean;
+		refreshRealtimeAfterCompaction: boolean;
 		audioSetupCompleted: boolean;
 		delegationAcknowledgements: boolean;
 		forwardReasoningSummaries: boolean;
@@ -64,6 +65,7 @@ export const DEFAULT_GIPPITY_CONTROL_CONFIG: GippityControlConfig = {
 	voice: {
 		v3Voice: "cove",
 		autoResumeRealtime: false,
+		refreshRealtimeAfterCompaction: false,
 		audioSetupCompleted: false,
 		delegationAcknowledgements: true,
 		forwardReasoningSummaries: true,
@@ -152,6 +154,10 @@ export function normalizeGippityControlConfig(
 				typeof voice["autoResumeRealtime"] === "boolean"
 					? voice["autoResumeRealtime"]
 					: DEFAULT_GIPPITY_CONTROL_CONFIG.voice.autoResumeRealtime,
+			refreshRealtimeAfterCompaction:
+				typeof voice["refreshRealtimeAfterCompaction"] === "boolean"
+					? voice["refreshRealtimeAfterCompaction"]
+					: DEFAULT_GIPPITY_CONTROL_CONFIG.voice.refreshRealtimeAfterCompaction,
 			audioSetupCompleted:
 				typeof voice["audioSetupCompleted"] === "boolean"
 					? voice["audioSetupCompleted"]

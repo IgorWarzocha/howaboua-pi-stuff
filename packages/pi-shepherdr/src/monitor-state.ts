@@ -34,6 +34,7 @@ interface CompletionCandidate {
 interface ReconcileResult {
 	changed: boolean;
 	completions: CompletionCandidate[];
+	removed: MonitoredAgent[];
 }
 
 interface StatusResult {
@@ -85,10 +86,12 @@ export class MonitorState {
 	watch(
 		panel: PaneInfo,
 		lastAssistantId?: string,
+		reportSettled = true,
 	): { record: MonitoredAgent; reportCurrent: boolean } {
 		const existing =
 			this.byTerminal(panel.terminal_id) ?? this.byPane(panel.pane_id);
 		const reportCurrent =
+			reportSettled &&
 			!existing &&
 			(panel.agent_status === "done" || panel.agent_status === "blocked");
 		const activity = reportCurrent
@@ -114,7 +117,11 @@ export class MonitorState {
 		return record;
 	}
 
-	beginWork(paneId: string, task: string): WorkAttempt | undefined {
+	beginWork(
+		paneId: string,
+		task: string,
+		expectedUserAfter?: string | null,
+	): WorkAttempt | undefined {
 		const record = this.byPane(paneId);
 		if (!record) return undefined;
 		if (record.activity.phase === "submitting") {
@@ -133,6 +140,7 @@ export class MonitorState {
 				phase: "submitting",
 				previous: record.activity,
 				task,
+				...(expectedUserAfter !== undefined ? { expectedUserAfter } : {}),
 			},
 		});
 		return attempt;
@@ -149,7 +157,14 @@ export class MonitorState {
 		}
 		this.agents.set(record.terminalId, {
 			...record,
-			activity: { phase: "working", task: record.activity.task },
+			activity: {
+				attemptId: record.activity.attemptId,
+				...(record.activity.expectedUserAfter !== undefined
+					? { expectedUserAfter: record.activity.expectedUserAfter }
+					: {}),
+				phase: "working",
+				task: record.activity.task,
+			},
 		});
 		return true;
 	}
@@ -175,8 +190,18 @@ export class MonitorState {
 		if (!record) return { changed: false };
 		if (status === "working") {
 			const task = activityTask(record.activity);
+			const attemptId =
+				record.activity.phase === "settled"
+					? undefined
+					: record.activity.attemptId;
+			const expectedUserAfter =
+				record.activity.phase === "settled"
+					? undefined
+					: record.activity.expectedUserAfter;
 			const next: AgentActivity = {
 				phase: "working",
+				...(attemptId ? { attemptId } : {}),
+				...(expectedUserAfter !== undefined ? { expectedUserAfter } : {}),
 				...(task ? { task } : {}),
 			};
 			const changed = !sameAgentActivity(record.activity, next);
@@ -210,6 +235,7 @@ export class MonitorState {
 	): ReconcileResult {
 		let changed = false;
 		const completions: CompletionCandidate[] = [];
+		const removed: MonitoredAgent[] = [];
 		for (const record of this.list()) {
 			const panel =
 				snapshot.agents.find(
@@ -226,6 +252,7 @@ export class MonitorState {
 				);
 				if (!paneStillExists) {
 					this.agents.delete(record.terminalId);
+					removed.push(record);
 					changed = true;
 				}
 				continue;
@@ -236,7 +263,16 @@ export class MonitorState {
 			let completion: Omit<CompletionCandidate, "record"> | undefined;
 			if (panel.agent_status === "working") {
 				const task = activityTask(activity);
-				activity = { phase: "working", ...(task ? { task } : {}) };
+				const attemptId =
+					activity.phase === "settled" ? undefined : activity.attemptId;
+				const expectedUserAfter =
+					activity.phase === "settled" ? undefined : activity.expectedUserAfter;
+				activity = {
+					phase: "working",
+					...(attemptId ? { attemptId } : {}),
+					...(expectedUserAfter !== undefined ? { expectedUserAfter } : {}),
+					...(task ? { task } : {}),
+				};
 			} else if (
 				isSettledStatus(panel.agent_status) &&
 				activity.phase !== "settled"
@@ -259,7 +295,7 @@ export class MonitorState {
 			this.agents.set(updated.terminalId, updated);
 			if (completion) completions.push({ ...completion, record: updated });
 		}
-		return { changed, completions };
+		return { changed, completions, removed };
 	}
 
 	movePane(

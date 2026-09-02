@@ -12,6 +12,11 @@ export const NATIVE_COMPACTION_DISPLAY_TEXT = [
 	"",
 	"Warning: do not turn Responses compaction off or switch providers mid-session; old context may be much less reliable.",
 ].join("\n");
+export const NATIVE_COMPACTION_PORTABLE_DISPLAY_TEXT = [
+	"Codex native compaction was used for this checkpoint.",
+	"",
+	"The encrypted Codex checkpoint is retained for native replay. A readable Pi summary is also stored for other providers.",
+].join("\n");
 
 export type NativeCompactionDisplayEntry = {
 	content: string;
@@ -66,6 +71,7 @@ export type CreateNativeCompactionShimResultInput = {
 	firstKeptEntryId: string;
 	tokensBefore: number;
 	details: NativeCompactionDetails;
+	usage?: CompactionResult["usage"];
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -186,6 +192,14 @@ export function isNativeCompactionEntry(value: unknown): value is NativeCompacti
 	return isRecord(value) && value["type"] === "compaction" && isNativeCompactionDetails(value["details"]!);
 }
 
+export function hasPortableNativeCompactionSummary(
+	entry: CompactionEntry | undefined,
+): boolean {
+	return isNativeCompactionEntry(entry)
+		&& isNonEmptyString(entry.summary)
+		&& entry.summary !== NATIVE_COMPACTION_SHIM_SUMMARY;
+}
+
 export function createNativeCompactionDetails(input: CreateNativeCompactionDetailsInput): NativeCompactionDetails {
 	return {
 		strategy: NATIVE_COMPACTION_STRATEGY,
@@ -219,5 +233,6 @@ export function createNativeCompactionShimResult(
 		firstKeptEntryId: input.firstKeptEntryId,
 		tokensBefore: input.tokensBefore,
 		details: input.details,
+		...(input.usage ? { usage: input.usage } : {}),
 	};
 }

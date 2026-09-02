@@ -40,8 +40,6 @@ export function migrateCodexConversionConfigIfNeeded(value: unknown): { migrated
 		}
 		return { migrated: false, config: value };
 	}
-	const adapterProviderCodexToolsDisabled = value["adapterProviderCodexTools"] === false;
-
 	const config: CodexConversionConfig = {
 		...structuredClone(DEFAULT_CODEX_CONVERSION_CONFIG),
 	scope: {
@@ -50,13 +48,9 @@ export function migrateCodexConversionConfigIfNeeded(value: unknown): { migrated
 		},
 		tools: {
 			customRustBinariesDir: DEFAULT_CODEX_CONVERSION_CONFIG.tools["customRustBinariesDir"],
-			webRun: adapterProviderCodexToolsDisabled ? false : typeof value["webSearch"] === "boolean" ? value["webSearch"] : DEFAULT_CODEX_CONVERSION_CONFIG.tools["webRun"],
-			imageGeneration: adapterProviderCodexToolsDisabled ? false : typeof value["imageGeneration"] === "boolean" ? value["imageGeneration"] : DEFAULT_CODEX_CONVERSION_CONFIG.tools["imageGeneration"],
 			viewImageFallback: DEFAULT_CODEX_CONVERSION_CONFIG.tools["viewImageFallback"],
 			applyPatchOnly: typeof value["applyPatchOnly"] === "boolean" ? value["applyPatchOnly"] : DEFAULT_CODEX_CONVERSION_CONFIG.tools["applyPatchOnly"],
 			viewImageOnly: DEFAULT_CODEX_CONVERSION_CONFIG.tools["viewImageOnly"],
-			webRunOnly: DEFAULT_CODEX_CONVERSION_CONFIG.tools["webRunOnly"],
-			imageGenerationOnly: DEFAULT_CODEX_CONVERSION_CONFIG.tools["imageGenerationOnly"],
 		},
 		ui: {
 			statusLine: typeof value["statusLine"] === "boolean" ? value["statusLine"] : DEFAULT_CODEX_CONVERSION_CONFIG.ui["statusLine"],
@@ -71,6 +65,7 @@ export function migrateCodexConversionConfigIfNeeded(value: unknown): { migrated
 		},
 		compaction: {
 			responsesCompaction: typeof value["responsesCompaction"] === "boolean" ? value["responsesCompaction"] : DEFAULT_CODEX_CONVERSION_CONFIG.compaction["responsesCompaction"],
+			portableSummary: DEFAULT_CODEX_CONVERSION_CONFIG.compaction.portableSummary,
 			v2UserMessageRetention: DEFAULT_CODEX_CONVERSION_CONFIG.compaction.v2UserMessageRetention,
 		},
 		openai: {
@@ -82,7 +77,6 @@ export function migrateCodexConversionConfigIfNeeded(value: unknown): { migrated
 			forceCachedWebSockets: typeof value["forceCachedWebSockets"] === "boolean" ? value["forceCachedWebSockets"] : DEFAULT_CODEX_CONVERSION_CONFIG.openai["forceCachedWebSockets"],
 			cacheDiagnostics: DEFAULT_CODEX_CONVERSION_CONFIG.openai.cacheDiagnostics,
 			harnessIdentifierHeader: DEFAULT_CODEX_CONVERSION_CONFIG.openai["harnessIdentifierHeader"],
-			webSearchModel: DEFAULT_CODEX_CONVERSION_CONFIG.openai["webSearchModel"],
 		},
 	};
 	return { migrated: true, config };

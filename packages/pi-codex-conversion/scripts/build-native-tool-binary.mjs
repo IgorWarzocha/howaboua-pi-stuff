@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 
 const packageName = process.argv[2] ?? "codex-view-image";
 const binName = process.argv[3] ?? "view_image";
-const toolDirs = { exec_bridge: "exec", imagegen: "imagegen", view_image: "view-image", web_run: "web-run" };
+const toolDirs = { exec_bridge: "exec", view_image: "view-image" };
 const sourceRoot = resolve(process.env.CODEX_TOOLS_SOURCE_DIR ?? "src/tools");
 const platform = process.platform;
 const arch = process.arch;

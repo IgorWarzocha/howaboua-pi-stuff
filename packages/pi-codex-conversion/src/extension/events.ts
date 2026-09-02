@@ -2,12 +2,13 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { readEffectiveCodexConversionConfig } from "../adapter/activation/config-store.ts";
 import { syncAdapter } from "../adapter/activation/activation.ts";
 import { isAdapterRuntime, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
-import { isNativeCompactionDetails, NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, NATIVE_COMPACTION_DISPLAY_TEXT, NATIVE_COMPACTION_STRATEGY, type NativeCompactionDisplayEntry, type NativeCompactionUsage } from "../adapter/compaction/types.ts";
+import { hasPortableNativeCompactionSummary, isNativeCompactionDetails, NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, NATIVE_COMPACTION_DISPLAY_TEXT, NATIVE_COMPACTION_PORTABLE_DISPLAY_TEXT, NATIVE_COMPACTION_STRATEGY, type NativeCompactionDisplayEntry, type NativeCompactionUsage } from "../adapter/compaction/types.ts";
 import { findLatestCompactionEntry } from "../adapter/compaction/details-store.ts";
 import { handleCodexSessionBeforeCompact } from "../adapter/compaction/compaction.ts";
 import { rewriteCodexProviderHeaders, rewriteCodexProviderRequest } from "../adapter/provider-request.ts";
 import { isProviderContextExcludedMessage } from "../adapter/prompt/context-filter.ts";
 import { hasNoSkillsFlag } from "../adapter/prompt/skills.ts";
+import { onCodeModeExtensionToolsRefresh } from "../code-mode-extension-tools.ts";
 import { extractPiPromptSkills, resolvePromptSkills } from "../prompt/build-system-prompt.ts";
 import type { CodeModeProxyProviderRegistration } from "../providers/code-mode-proxy-provider.ts";
 import { maybeWarnLocalCheckoutVersion } from "../adapter/local-version-warning.ts";
@@ -64,6 +65,20 @@ export function registerCodexEvents(
 	proxyProvider: CodeModeProxyProviderRegistration,
 ): void {
 	const { state, tracker, sessions } = runtime;
+	let activeContext: ExtensionContext | undefined;
+	let pendingExtensionToolRefresh = false;
+	const unregisterExtensionToolRefresh = onCodeModeExtensionToolsRefresh(
+		pi,
+		() => {
+			if (!activeContext) return;
+			if (!activeContext.isIdle()) {
+				pendingExtensionToolRefresh = true;
+				return;
+			}
+			pendingExtensionToolRefresh = false;
+			syncAdapter(pi, activeContext, state);
+		},
+	);
 	pi.events.on(REALTIME_VOICE_PROMPT_CHANNEL, (value) => {
 		const report = parseRealtimeVoicePrompt(value);
 		if (report) runtime.voice.setPrompt(report);
@@ -72,6 +87,8 @@ export function registerCodexEvents(
 	sessions.onSessionExit((sessionId) => tracker.recordSessionFinished(sessionId));
 
 	pi.on("session_start", async (event, ctx) => {
+		activeContext = ctx;
+		pendingExtensionToolRefresh = false;
 		ui.invalidateUsageStatus();
 		await runtime.lanVoice.stop(ctx);
 		runtime.voice.resetContextAnnouncements();
@@ -92,7 +109,6 @@ export function registerCodexEvents(
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 		if (state.config.voiceFeaturesOnly) {
 			clearApplyPatchRenderState();
-			tools.ensureOptionalTools();
 			ui.clearBackgroundWidget();
 			syncAdapter(pi, ctx, state);
 			await runtime.configureDiagnostics(ctx);
@@ -101,7 +117,6 @@ export function registerCodexEvents(
 		sessions.setBaseEnv(runtime.execEnv());
 		tracker.clear();
 		clearApplyPatchRenderState();
-		tools.ensureOptionalTools();
 		ui.renderBackgroundWidget();
 		syncAdapter(pi, ctx, state);
 		await runtime.configureDiagnostics(ctx);
@@ -113,6 +128,8 @@ export function registerCodexEvents(
 	});
 
 	pi.on("model_select", async (_event, ctx) => {
+		activeContext = ctx;
+		pendingExtensionToolRefresh = false;
 		ui.invalidateUsageStatus();
 		runtime.resetTransport(ctx.sessionManager.getSessionId());
 		state.cwd = ctx.cwd;
@@ -122,13 +139,11 @@ export function registerCodexEvents(
 		state.promptSkills = extractPiPromptSkills(ctx.getSystemPrompt());
 		proxyProvider.applyConfig(state.config, ctx.modelRegistry);
 		if (state.config.voiceFeaturesOnly) {
-			tools.ensureOptionalTools();
 			ui.clearBackgroundWidget();
 			syncAdapter(pi, ctx, state);
 			await runtime.configureDiagnostics(ctx);
 			return;
 		}
-		tools.ensureOptionalTools();
 		syncAdapter(pi, ctx, state);
 		await runtime.configureDiagnostics(ctx);
 		void ui.refreshUsageStatus(ctx);
@@ -137,6 +152,8 @@ export function registerCodexEvents(
 			void runtime.startPrewarm(ctx, codeMode.refreshPromptTools(ctx.getSystemPrompt(), ctx));
 	});
 	pi.on("session_tree", async (_event, ctx) => {
+		activeContext = ctx;
+		pendingExtensionToolRefresh = false;
 		const previousMode = state.executionMode;
 		state.activeProviderSystemPrompt = undefined;
 		state.voiceSystemPromptOverride = undefined;
@@ -184,19 +201,28 @@ export function registerCodexEvents(
 
 	pi.on("session_shutdown", async (_event, ctx) => {
 		const failures: unknown[] = [];
+		activeContext = undefined;
+		pendingExtensionToolRefresh = false;
+		await runShutdownStep(failures, unregisterExtensionToolRefresh);
 		await runShutdownStep(failures, () => ui.invalidateBackgroundWidget());
 		await runShutdownStep(failures, () => runtime.lanVoice.stop(ctx));
 		await runShutdownStep(failures, () => runtime.voice.stop({ announce: true }));
 		await runShutdownStep(failures, () => runtime.shutdownTransport(ctx.sessionManager.getSessionId()));
 		await runShutdownStep(failures, () => runtime.shutdownDiagnostics());
 		await runShutdownStep(failures, () => sessions.shutdown());
+		await runShutdownStep(failures, () => tools.shutdown());
 		await runShutdownStep(failures, () => proxyProvider.shutdown());
 		await runShutdownStep(failures, () => codeMode.shutdown());
 		if (failures.length === 1) throw failures[0];
 		if (failures.length > 1) throw new AggregateError(failures, "Codex extension shutdown failed");
 	});
-	pi.on("input", async (event) => {
-		if (event.streamingBehavior === undefined) state.codexTurnState.beginTurn();
+	pi.on("input", async (event, ctx) => {
+		if (event.streamingBehavior === undefined) {
+			activeContext = ctx;
+			pendingExtensionToolRefresh = false;
+			state.codexTurnState.beginTurn();
+			syncAdapter(pi, ctx, state);
+		}
 		if (event.source !== "extension")
 			runtime.voice.piInput(event.text, event.streamingBehavior);
 	});
@@ -222,7 +248,17 @@ export function registerCodexEvents(
 		runtime.voice.agentStarted();
 		runtime.lanVoice.agentStarted();
 	});
+	pi.on("ui_prompt_start", async (event) => {
+		runtime.lanVoice.uiPromptStarted(event.title);
+	});
+	pi.on("ui_prompt_end", async (_event, ctx) => {
+		runtime.lanVoice.uiPromptEnded(!ctx.isIdle());
+	});
 	pi.on("agent_settled", async (_event, ctx) => {
+		if (pendingExtensionToolRefresh) {
+			pendingExtensionToolRefresh = false;
+			syncAdapter(pi, ctx, state);
+		}
 		state.pendingActiveProviderPromptCapture = false;
 		state.voiceSystemPromptOverride = undefined;
 		state.codexTurnState.reset();
@@ -281,7 +317,9 @@ export function registerCodexEvents(
 				nativeCompaction = true;
 				// Presentation entries persist and render without entering Pi's turn queue or LLM context.
 				pi.appendEntry<NativeCompactionDisplayEntry>(NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, {
-					content: NATIVE_COMPACTION_DISPLAY_TEXT,
+					content: hasPortableNativeCompactionSummary(compactionEntry)
+						? NATIVE_COMPACTION_PORTABLE_DISPLAY_TEXT
+						: NATIVE_COMPACTION_DISPLAY_TEXT,
 					compactionEntryId: compactionEntry.id,
 				});
 				if (details.strategy === NATIVE_COMPACTION_STRATEGY && details.usage) {
@@ -301,6 +339,7 @@ export function registerCodexEvents(
 			await (nativeCompaction
 				? runtime.startCompactionPrewarm(ctx)
 				: runtime.startPrewarm(ctx, postCompactionPrompt, true));
+			await runtime.voice.refreshRealtimeAfterCompaction(ctx, state.config);
 		} finally {
 			runtime.voice.compactionFinished();
 		}

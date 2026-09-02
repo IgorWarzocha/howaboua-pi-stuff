@@ -83,7 +83,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 	};
 	const tracker = createExecCommandTracker();
 	const sessions = createExecSessionManager({
-		env: { ...process.env, PI_CODEX_MODEL: state.config.openai.webSearchModel },
+		env: { ...process.env },
 		bridgeBinaryPath: () => getBundledToolBinaryPath("exec_bridge", {}, state.config.tools.customRustBinariesDir),
 	});
 	let prewarmController: AbortController | undefined;
@@ -341,8 +341,8 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 			},
 			dirname(getCodexConversionConfigPath()),
 		),
-		execEnv(config = state.config) {
-			return { ...process.env, PI_CODEX_MODEL: config.openai.webSearchModel };
+		execEnv(_config = state.config) {
+			return { ...process.env };
 		},
 		codexSystemPrompt(basePrompt, ctx, skills = state.promptSkills, systemPromptOptions) {
 			const plan = resolveCodexRuntimePlanForState(ctx, state);

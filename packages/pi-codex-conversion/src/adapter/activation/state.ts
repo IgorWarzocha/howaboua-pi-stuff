@@ -17,6 +17,7 @@ export interface AdapterState {
 	enabled: boolean;
 	cwd: string;
 	adapterOwnedToolNames?: string[] | undefined;
+	codeModeExtensionToolNames?: string[] | undefined;
 	previousToolNames?: string[] | undefined;
 	promptSkills: PromptSkill[];
 	activeProviderSystemPrompt?: string | undefined;

@@ -5,13 +5,20 @@ import {
 	Text,
 } from "@earendil-works/pi-tui";
 import { previewText, renderTextAndImages } from "./render-content.js";
+import {
+	CodeModeNestedRenderStore,
+	type NestedRenderState,
+} from "./trace-render-state.js";
 import type {
 	CodeModeRenderContext,
+	CodeModeNestedRenderContext,
 	CodeModeRenderTheme,
 	CodeModeToolDefinition,
 	ProgrammaticCodeModeToolDefinition,
 	RuntimeToolTrace,
 } from "./types.js";
+
+export { CodeModeNestedRenderStore } from "./trace-render-state.js";
 
 export function renderTraceAndOutput(
 	traces: RuntimeToolTrace[],
@@ -23,6 +30,7 @@ export function renderTraceAndOutput(
 	theme: CodeModeRenderTheme,
 	context: CodeModeRenderContext | undefined,
 	emittedImages: Map<string, Set<string>>,
+	renderStore: CodeModeNestedRenderStore,
 ): Component {
 	if (traces.length === 0 && droppedTraceCount === 0) return output;
 	const byName = new Map(tools.map((tool) => [tool.name, tool]));
@@ -37,7 +45,15 @@ export function renderTraceAndOutput(
 		);
 	}
 	for (const trace of traces) {
-		const rendered = renderTrace(trace, byName.get(trace.name), options, theme, context, emittedImages);
+		const rendered = renderTrace(
+			trace,
+			byName.get(trace.name),
+			options,
+			theme,
+			context,
+			emittedImages,
+			renderStore,
+		);
 		for (const component of rendered) container.addChild(component);
 	}
 	if (hasOutput) {
@@ -54,43 +70,69 @@ function renderTrace(
 	theme: CodeModeRenderTheme,
 	context: CodeModeRenderContext | undefined,
 	emittedImages: Map<string, Set<string>>,
+	renderStore: CodeModeNestedRenderStore,
 ): Component[] {
 	const renderedTrace = withoutEmittedImages(trace, emittedImages);
-	const renderContext = {
-		toolCallId: trace.id,
-		cwd: context?.cwd,
-		expanded: options.expanded,
-		isError: trace.status === "error",
-		args: trace.input,
-		invalidate: context?.invalidate,
-	};
 	const programmatic = isProgrammaticTool(tool) ? tool : undefined;
+	const renderState: NestedRenderState = programmatic?.renderCall || programmatic?.renderResult
+		? renderStore.get(trace.id)
+		: { state: {} };
+	const rendererInput = renderState.input ?? trace.input;
+	const rendererResult = renderState.result ?? renderedTrace.result;
+	const partial = trace.status === "running" || trace.status === "blocked";
+	const renderContext: CodeModeNestedRenderContext = {
+		toolCallId: trace.id,
+		cwd: context?.cwd ?? "",
+		state: renderState.state,
+		executionStarted: true,
+		argsComplete: true,
+		isPartial: partial,
+		expanded: options.expanded,
+		showImages: context?.showImages ?? true,
+		isError: trace.status === "error",
+		isBlocked: trace.status === "blocked",
+		args: rendererInput,
+		invalidate: context?.invalidate ?? (() => undefined),
+	};
 	let call: Component;
 	try {
 		call = programmatic?.renderCall
-			? programmatic.renderCall(trace.input, theme, renderContext)
+			? programmatic.renderCall(rendererInput, theme, {
+					...renderContext,
+					lastComponent: renderState.callComponent,
+				})
 			: renderGenericTraceCall(trace, theme, options.expanded);
+		if (programmatic?.renderCall) renderState.callComponent = call;
 	} catch {
+		if (programmatic?.renderCall) renderState.callComponent = undefined;
 		call = renderGenericTraceCall(trace, theme, options.expanded);
 	}
 	const components = [call];
-	if (renderedTrace.result && programmatic?.renderResult) {
+	let customResultRendered = false;
+	if (rendererResult && programmatic?.renderResult) {
 		try {
-			components.push(programmatic.renderResult(
-				renderedTrace.result,
-				{ expanded: options.expanded, isPartial: trace.status === "running" },
+			const resultComponent = programmatic.renderResult(
+				rendererResult,
+				{ expanded: options.expanded, isPartial: partial },
 				theme,
-				renderContext,
-			));
+				{ ...renderContext, lastComponent: renderState.resultComponent },
+			);
+			renderState.resultComponent = resultComponent;
+			components.push(resultComponent);
+			customResultRendered = true;
 		} catch {
-			// A stale persisted trace must not break the whole transcript.
+			renderState.resultComponent = undefined;
+			// An extension renderer must not break the whole transcript.
 		}
 	}
 	if (trace.status === "error" && trace.error) {
-		components.push(new Text(theme.fg("error", trace.error), 4, 0));
-	} else if (renderedTrace.result && !programmatic?.renderResult) {
+		if (!customResultRendered)
+			components.push(new Text(theme.fg("error", trace.error), 4, 0));
+	} else if (renderedTrace.result && !customResultRendered) {
 		components.push(renderGenericTraceResult(renderedTrace, theme, options.expanded || options.isPartial));
 	}
+	if (programmatic?.renderCall || programmatic?.renderResult)
+		renderStore.rebalance(trace.id);
 	return components;
 }
 
@@ -111,7 +153,7 @@ function renderGenericTraceCall(
 	theme: CodeModeRenderTheme,
 	expanded: boolean,
 ): Text {
-	const verb = trace.status === "running" ? "Running" : trace.status === "error" ? "Failed" : "Ran";
+	const verb = trace.status === "running" ? "Running" : trace.status === "blocked" ? "Blocked" : trace.status === "error" ? "Failed" : "Ran";
 	let text = `${theme.fg("dim", "•")} ${theme.bold(`${verb} ${trace.name}`)}`;
 	if (expanded) {
 		const input = typeof trace.input === "string" ? trace.input : safeRenderString(trace.input);

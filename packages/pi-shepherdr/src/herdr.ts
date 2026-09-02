@@ -35,6 +35,17 @@ export async function getAgent(
 	return parsePaneInfo(result["agent"], "agent.get result.agent");
 }
 
+export async function getPane(
+	client: HerdrConnection,
+	paneId: string,
+): Promise<PaneInfo> {
+	const result = record(
+		await client.request<unknown>("pane.get", { pane_id: paneId }),
+		"pane.get result",
+	);
+	return parsePaneInfo(result["pane"], "pane.get result.pane");
+}
+
 export async function resolvePiAgent(
 	client: HerdrConnection,
 	target: string,
@@ -88,6 +99,7 @@ export function parsePaneInfo(value: unknown, path = "pane"): PaneInfo {
 		...optionalNullableString(pane, "agent", path),
 		...optionalNullableString(pane, "cwd", path),
 		...optionalNullableString(pane, "foreground_cwd", path),
+		...optionalNullableString(pane, "label", path),
 		...optionalNullableString(pane, "name", path),
 		...optionalBoolean(pane, "interactive_ready", path),
 		...optionalBoolean(pane, "launch_pending", path),
@@ -170,7 +182,7 @@ function parseAgentSession(
 }
 
 function optionalNullableString<
-	K extends "agent" | "cwd" | "foreground_cwd" | "name",
+	K extends "agent" | "cwd" | "foreground_cwd" | "label" | "name",
 >(
 	value: Record<string, unknown>,
 	key: K,

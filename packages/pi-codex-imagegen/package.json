@@ -1,0 +1,83 @@
+{
+	"name": "@howaboua/pi-codex-imagegen",
+	"version": "0.0.0",
+	"description": "Codex image generation and editing for Pi, Code Mode and Notebook Mode.",
+	"type": "module",
+	"license": "MIT",
+	"author": "Igor Warzocha",
+	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-codex-imagegen#readme",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
+		"directory": "packages/pi-codex-imagegen"
+	},
+	"bugs": {
+		"url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
+	},
+	"keywords": [
+		"pi-package",
+		"pi-extension",
+		"pi",
+		"codex",
+		"image-generation",
+		"code-mode"
+	],
+	"files": [
+		"index.ts",
+		"src",
+		"upstream",
+		"README.md",
+		"UPSTREAM_SYNC.md",
+		"LICENSE",
+		"CHANGELOG.md",
+		"changelog.ts",
+		"tsconfig.json",
+		"biome.json"
+	],
+	"scripts": {
+		"check": "bun run lint && bun run typecheck && bun run test",
+		"prepack": "bun run check",
+		"typecheck": "tsgo --noEmit",
+		"lint": "biome check .",
+		"test": "tsx --test tests/**/*.test.ts",
+		"pack:dry": "npm pack --dry-run"
+	},
+	"dependencies": {
+		"proxy-from-env": "2.1.0",
+		"undici": "8.10.0"
+	},
+	"peerDependencies": {
+		"@howaboua/pi-codex-conversion": ">=3.0.24",
+		"@earendil-works/pi-coding-agent": ">=0.84.4",
+		"@earendil-works/pi-tui": ">=0.84.4",
+		"typebox": "*"
+	},
+	"peerDependenciesMeta": {
+		"@howaboua/pi-codex-conversion": {
+			"optional": true
+		}
+	},
+	"devDependencies": {
+		"@howaboua/pi-codex-conversion": "3.0.23",
+		"@biomejs/biome": "^2.5.10",
+		"@earendil-works/pi-coding-agent": "0.84.4",
+		"@earendil-works/pi-tui": "0.84.4",
+		"@types/node": "^26.2.0",
+		"tsx": "^4.23.12",
+		"typebox": "1.3.18",
+		"typescript": "^7.0.2"
+	},
+	"pi": {
+		"extensions": [
+			"./index.ts"
+		]
+	},
+	"engines": {
+		"node": ">=22.19.0"
+	},
+	"main": "index.ts",
+	"exports": "./index.ts",
+	"publishConfig": {
+		"access": "public"
+	}
+}

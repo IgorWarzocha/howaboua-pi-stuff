@@ -1,72 +1,194 @@
 import { open, stat } from "node:fs/promises";
-import type { LatestAssistant } from "./types.js";
+import type {
+	LatestAssistant,
+	LatestUser,
+	PendingAsk,
+	SessionView,
+} from "./types.js";
 
 const READ_CHUNK_BYTES = 64 * 1024;
 
-function assistantFromEntry(
-	entry: Record<string, unknown>,
+function record(value: unknown): Record<string, unknown> | undefined {
+	return typeof value === "object" && value !== null && !Array.isArray(value)
+		? (value as Record<string, unknown>)
+		: undefined;
+}
+
+function assistantFromMessage(
+	id: string,
+	message: Record<string, unknown>,
 ): LatestAssistant | undefined {
-	const message = entry["message"];
-	if (
-		typeof message !== "object" ||
-		message === null ||
-		!("role" in message) ||
-		message.role !== "assistant"
-	) {
-		return undefined;
-	}
+	if (message["role"] !== "assistant") return undefined;
 	const text: string[] = [];
-	if ("content" in message && typeof message.content === "string") {
-		text.push(message.content);
-	} else if ("content" in message && Array.isArray(message.content)) {
-		for (const part of message.content) {
-			if (
-				typeof part === "object" &&
-				part !== null &&
-				"type" in part &&
-				part.type === "text" &&
-				"text" in part &&
-				typeof part.text === "string"
-			) {
-				text.push(part.text);
+	if (typeof message["content"] === "string") {
+		text.push(message["content"]);
+	} else if (Array.isArray(message["content"])) {
+		for (const value of message["content"]) {
+			const part = record(value);
+			if (part?.["type"] === "text" && typeof part["text"] === "string") {
+				text.push(part["text"]);
 			}
 		}
 	}
 	const joined = text.join("");
 	const stopReason =
-		"stopReason" in message && typeof message.stopReason === "string"
-			? message.stopReason
+		typeof message["stopReason"] === "string"
+			? message["stopReason"]
 			: undefined;
 	if (!joined && stopReason !== "error") return undefined;
 	return {
-		id: entry["id"] as string,
+		id,
 		text: joined,
 		...(stopReason ? { stopReason } : {}),
 	};
 }
 
-async function latestAssistant(
+function userFromMessage(
+	id: string,
+	message: Record<string, unknown>,
+): LatestUser | undefined {
+	if (message["role"] !== "user") return undefined;
+	const text: string[] = [];
+	if (typeof message["content"] === "string") {
+		text.push(message["content"]);
+	} else if (Array.isArray(message["content"])) {
+		for (const value of message["content"]) {
+			const part = record(value);
+			if (part?.["type"] === "text" && typeof part["text"] === "string") {
+				text.push(part["text"]);
+			}
+		}
+	}
+	const joined = text.join("");
+	return joined ? { id, text: joined } : undefined;
+}
+
+function askChoice(
+	value: unknown,
+): PendingAsk["prompts"][number]["choices"][number] | undefined {
+	const choice = record(value);
+	if (!choice || typeof choice["label"] !== "string") return undefined;
+	return {
+		label: choice["label"],
+		...(typeof choice["description"] === "string"
+			? { description: choice["description"] }
+			: {}),
+	};
+}
+
+function askPrompt(value: unknown): PendingAsk["prompts"][number] | undefined {
+	const prompt = record(value);
+	if (!prompt || typeof prompt["title"] !== "string") return undefined;
+	return {
+		title: prompt["title"],
+		multiple: prompt["multiple"] === true,
+		choices: (Array.isArray(prompt["choices"]) ? prompt["choices"] : [])
+			.map(askChoice)
+			.filter((choice): choice is NonNullable<typeof choice> =>
+				Boolean(choice),
+			),
+		...(typeof prompt["body"] === "string" ? { body: prompt["body"] } : {}),
+	};
+}
+
+function askCall(value: unknown): PendingAsk | undefined {
+	const part = record(value);
+	if (
+		!part ||
+		part["type"] !== "toolCall" ||
+		part["name"] !== "ask" ||
+		typeof part["id"] !== "string"
+	) {
+		return undefined;
+	}
+	const args = record(part["arguments"]);
+	if (!args) return undefined;
+	const prompts = (Array.isArray(args["prompts"]) ? args["prompts"] : [])
+		.map(askPrompt)
+		.filter((prompt): prompt is NonNullable<typeof prompt> => Boolean(prompt));
+	if (prompts.length === 0) return undefined;
+	return {
+		toolCallId: part["id"],
+		handoff: args["handoff"] === true,
+		prompts,
+	};
+}
+
+function resolvedToolCallId(
+	message: Record<string, unknown>,
+): string | undefined {
+	if (message["role"] !== "toolResult" && message["role"] !== "tool") {
+		return undefined;
+	}
+	const value = message["toolCallId"] ?? message["tool_call_id"];
+	return typeof value === "string" ? value : undefined;
+}
+
+async function readSessionView(
 	path: string,
 	size: number,
-): Promise<LatestAssistant | undefined> {
+): Promise<SessionView> {
 	const file = await open(path, "r");
 	let targetId: string | undefined;
-	const inspect = (line: Buffer): LatestAssistant | null | undefined => {
-		if (line.length === 0) return undefined;
+	let assistant: LatestAssistant | undefined;
+	let assistantDepth: number | undefined;
+	let ask: PendingAsk | undefined;
+	let depth = 0;
+	let user: LatestUser | undefined;
+	let userDepth: number | undefined;
+	const resolved = new Set<string>();
+	const result = (): SessionView => ({
+		...(assistant ? { assistant } : {}),
+		...(ask ? { ask } : {}),
+		...(user ? { user } : {}),
+		...(assistantDepth !== undefined && userDepth !== undefined
+			? { assistantAfterUser: assistantDepth < userDepth }
+			: {}),
+	});
+	const inspect = (line: Buffer): boolean => {
+		if (line.length === 0) return false;
 		let entry: Record<string, unknown>;
 		try {
 			entry = JSON.parse(line.toString("utf8")) as Record<string, unknown>;
 		} catch {
-			return undefined;
+			return false;
 		}
-		if (typeof entry["id"] !== "string") return undefined;
-		targetId ??= entry["id"];
-		if (entry["id"] !== targetId) return undefined;
-		const assistant = assistantFromEntry(entry);
-		if (assistant) return assistant;
-		if (typeof entry["parentId"] !== "string") return null;
-		targetId = entry["parentId"];
-		return undefined;
+		const id = entry["id"];
+		if (typeof id !== "string") return false;
+		targetId ??= id;
+		if (id !== targetId) return false;
+		const currentDepth = depth;
+		depth += 1;
+		const message = record(entry["message"]);
+		if (message) {
+			const resolvedId = resolvedToolCallId(message);
+			if (resolvedId) resolved.add(resolvedId);
+			if (!assistant) {
+				assistant = assistantFromMessage(id, message);
+				if (assistant) assistantDepth = currentDepth;
+			}
+			if (!user) {
+				user = userFromMessage(id, message);
+				if (user) userDepth = currentDepth;
+			}
+			if (
+				!ask &&
+				message["role"] === "assistant" &&
+				Array.isArray(message["content"])
+			) {
+				ask = [...message["content"]]
+					.reverse()
+					.map(askCall)
+					.find(
+						(candidate) =>
+							candidate !== undefined && !resolved.has(candidate.toolCallId),
+					);
+			}
+		}
+		const parentId = entry["parentId"];
+		if (typeof parentId !== "string") return true;
+		targetId = parentId;
+		return false;
 	};
 
 	try {
@@ -81,14 +203,15 @@ async function latestAssistant(
 			let lineEnd = data.length;
 			for (let index = data.length - 1; index >= 0; index -= 1) {
 				if (data[index] !== 0x0a) continue;
-				const result = inspect(data.subarray(index + 1, lineEnd));
-				if (result !== undefined) return result ?? undefined;
+				if (inspect(data.subarray(index + 1, lineEnd))) {
+					return result();
+				}
 				lineEnd = index;
 			}
 			partial = data.subarray(0, lineEnd);
 		}
-		const result = inspect(partial);
-		return result ?? undefined;
+		inspect(partial);
+		return result();
 	} finally {
 		await file.close();
 	}
@@ -97,23 +220,23 @@ async function latestAssistant(
 export class SessionReader {
 	private readonly cache = new Map<
 		string,
-		{ mtimeMs: number; result: LatestAssistant | undefined; size: number }
+		{ mtimeMs: number; result: SessionView; size: number }
 	>();
 
-	async latest(path?: string): Promise<LatestAssistant | undefined> {
-		if (!path) return undefined;
+	async view(path?: string): Promise<SessionView> {
+		if (!path) return {};
 		let metadata;
 		try {
 			metadata = await stat(path);
 		} catch (error) {
-			if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+			if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
 			throw error;
 		}
 		const cached = this.cache.get(path);
 		if (cached?.size === metadata.size && cached.mtimeMs === metadata.mtimeMs) {
 			return cached.result;
 		}
-		const result = await latestAssistant(path, metadata.size);
+		const result = await readSessionView(path, metadata.size);
 		this.cache.set(path, {
 			mtimeMs: metadata.mtimeMs,
 			result,
@@ -121,8 +244,13 @@ export class SessionReader {
 		});
 		return result;
 	}
+
+	async latest(path?: string): Promise<LatestAssistant | undefined> {
+		return (await this.view(path)).assistant;
+	}
 }
 
 export interface AssistantReader {
 	latest(path?: string): Promise<LatestAssistant | undefined>;
+	view(path?: string): Promise<SessionView>;
 }

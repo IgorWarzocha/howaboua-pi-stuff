@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { formatCodeModeToolHelp } from "../src/tools/code-mode/custom-tool-prompt.ts";
 import { scopeAllToolsToDeferredCustom } from "../src/tools/code-mode/host-client.ts";
+import { codeModeGlobalName } from "../src/tools/code-mode/tool-identity.ts";
 import type {
 	CustomToolDefinition,
 	ProgrammaticCodeModeToolDefinition,
@@ -34,19 +36,31 @@ function customTool(
 	};
 }
 
-test("ALL_TOOLS exposes only deferred configured custom tools", () => {
+test("ALL_TOOLS exposes deferred configured and opted-in programmatic tools", () => {
 	const promoted = customTool("promoted_tool", false);
 	const deferred = customTool("deferred_tool", true);
+	const deferredProgrammatic = {
+		...bundled,
+		name: "deferred-programmatic-tool",
+		usage: 'await tools["deferred-programmatic-tool"]({ cmd })',
+		deferLoading: true,
+		discoverWhenDeferred: true,
+	};
 	const state = {
-		ALL_TOOLS: [bundled, promoted, deferred].map(({ name, description }) => ({
-			name,
+		ALL_TOOLS: [bundled, promoted, deferred, deferredProgrammatic].map(({ name, description }) => ({
+			name: codeModeGlobalName(name),
 			description,
 		})),
 	};
-	const source = scopeAllToolsToDeferredCustom("", [bundled, promoted, deferred]);
+	const source = scopeAllToolsToDeferredCustom("", [bundled, promoted, deferred, deferredProgrammatic]);
 	Function("globalThis", source)(state);
 
 	assert.deepEqual(state.ALL_TOOLS, [
 		{ name: "deferred_tool", description: "deferred_tool help" },
+		{ name: "deferred_programmatic_tool", description: "Run command" },
 	]);
+	assert.match(
+		formatCodeModeToolHelp(deferredProgrammatic),
+		/^Usage: await tools\.deferred_programmatic_tool\(\{ cmd \}\)/,
+	);
 });

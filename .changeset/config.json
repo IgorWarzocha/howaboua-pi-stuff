@@ -1,6 +1,10 @@
 {
   "$schema": "https://unpkg.com/@changesets/config@3.1.1/schema.json",
-  "changelog": ["@changesets/changelog-github", { "repo": "IgorWarzocha/howaboua-pi-stuff" }],
+  "changelog": ["@changesets/changelog-github", {
+    "repo": "IgorWarzocha/howaboua-pi-stuff",
+    "disableThanks": true,
+    "template": "\n\n- {summary}"
+  }],
   "commit": false,
   "fixed": [],
   "linked": [],

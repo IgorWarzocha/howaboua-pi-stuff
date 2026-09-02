@@ -7,9 +7,12 @@ const root = process.cwd();
 const packagesDir = join(root, "packages");
 const aggregateDirs = new Set(["pi-stuff", "pi-skills", "pi-extensions"]);
 const bundleExcludedPackages = new Set([
-  "@howaboua/pi-codex-conversion",
+	"@howaboua/pi-browser",
+	"@howaboua/pi-codex-conversion",
+	"@howaboua/pi-codex-imagegen",
   "@howaboua/pi-skill-omarchy-help",
   "@howaboua/pi-subdir-agents",
+	"@howaboua/pi-codex-web-run",
 ]);
 const packages = listActivePackageDirs(root)
   .filter((dir) => !aggregateDirs.has(dir))

@@ -1,6 +1,8 @@
 import { ensureCodeModeHostBinary } from "./binary.js";
 import { CodeModeHostClient } from "./host-client.js";
 import { createNotebookControlProxy } from "./notebook-tool.ts";
+import { codeModeGlobalName } from "./tool-identity.ts";
+import { CodeModeNestedRenderStore } from "./trace-render-state.js";
 import type {
 	CodeModeToolDefinition,
 	NotebookControlRequest,
@@ -38,6 +40,7 @@ export interface CodeModeToolProvider {
 
 export class SharedCodeModeRuntime {
 	readonly providers = new Map<object, CodeModeToolProvider>();
+	readonly renderStore = new CodeModeNestedRenderStore();
 	private clientPromise: Promise<CodeModeHostClient> | undefined;
 	private notebookClientPromise: Promise<CodeModeExecutionClient> | undefined;
 	private notebookClientOptionsKey: string | undefined;
@@ -121,7 +124,11 @@ export class SharedCodeModeRuntime {
 		if (!this.clientPromise) {
 			const startupAbort = new AbortController();
 			const pending = ensureCodeModeHostBinary(startupAbort.signal).then(
-				(binary) => new CodeModeHostClient({ binary, tools: [] }),
+				(binary) => new CodeModeHostClient({
+					binary,
+					tools: [],
+					renderStore: this.renderStore,
+				}),
 			);
 			this.clientPromise = pending;
 			this.clientStartupAbort = startupAbort;
@@ -153,7 +160,8 @@ export class SharedCodeModeRuntime {
 			}
 			if (!this.notebookClientPromise) {
 				const pending = import("../notebook-mode/client.ts").then(
-					({ NotebookCodeModeClient }) => new NotebookCodeModeClient(options),
+					({ NotebookCodeModeClient }) =>
+						new NotebookCodeModeClient(options, this.renderStore),
 				);
 				this.notebookClientPromise = pending;
 				this.notebookClientOptionsKey = key;
@@ -257,17 +265,24 @@ function collectUniqueTools(
 	const byName = new Map<string, CodeModeToolDefinition>();
 	const unique: CodeModeToolDefinition[] = [];
 	for (const tool of tools) {
-		const previous = byName.get(tool.name);
+		const globalName = codeModeGlobalName(tool.name);
+		const previous = byName.get(globalName);
 		if (previous) {
 			if (
+				previous.name === tool.name &&
 				"sourcePath" in previous &&
 				"sourcePath" in tool &&
 				previous.sourcePath === tool.sourcePath
 			)
 				continue;
+			if (previous.name !== tool.name) {
+				throw new Error(
+					`Code Mode tool names ${previous.name} and ${tool.name} both translate to ${globalName}`,
+				);
+			}
 			throw new Error(`Duplicate code-mode tool: ${tool.name}`);
 		}
-		byName.set(tool.name, tool);
+		byName.set(globalName, tool);
 		unique.push(tool);
 	}
 	return unique;

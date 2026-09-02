@@ -70,7 +70,7 @@ export function buildVoiceSettings(
 		setting(
 			{
 				id: "forwardReasoningSummaries",
-				label: "Forward reasoning summaries for compatible models",
+				label: "Speak reasoning summaries",
 				currentValue: config.voice.forwardReasoningSummaries ? "on" : "off",
 				values: ["off", "on"],
 			},
@@ -79,49 +79,6 @@ export function buildVoiceSettings(
 				voice: {
 					...current.voice,
 					forwardReasoningSummaries: value === "on",
-				},
-			}),
-		),
-		setting(
-			{
-				id: "voiceContextModel",
-				label: "Voice context model",
-				currentValue: currentContextModel,
-				values: [
-					"off",
-					...new Set([
-						...(config.voice.contextModel ? [currentContextModel] : []),
-						...[...contextModels.keys()].sort(),
-					]),
-				],
-			},
-			(value, current) => {
-				const { contextModel: _contextModel, ...voice } = current.voice;
-				const selected = contextModels.get(value);
-				return {
-					...current,
-					voice:
-						value === "off"
-							? voice
-							: {
-									...voice,
-									contextModel: selected ?? current.voice.contextModel,
-								},
-				};
-			},
-		),
-		setting(
-			{
-				id: "voiceContextReasoning",
-				label: "Voice context reasoning",
-				currentValue: currentContextReasoning,
-				values: [...VOICE_CONTEXT_REASONING_LEVELS],
-			},
-			(value, current) => ({
-				...current,
-				voice: {
-					...current.voice,
-					contextReasoning: normalizeVoiceContextReasoning(value),
 				},
 			}),
 		),
@@ -140,6 +97,66 @@ export function buildVoiceSettings(
 				voice: {
 					...current.voice,
 					dictationShortcutMode: value === "toggle" ? "toggle" : "push",
+				},
+			}),
+		),
+		setting(
+			{
+				id: "voiceContextModel",
+				label: "Context summarisation model",
+				currentValue: currentContextModel,
+				values: [
+					"off",
+					...new Set([
+						...(config.voice.contextModel ? [currentContextModel] : []),
+						...[...contextModels.keys()].sort(),
+					]),
+				],
+			},
+			(value, current) => {
+				const { contextModel: _contextModel, ...voice } = current.voice;
+				const selected = contextModels.get(value);
+				return {
+					...current,
+					voice:
+						value === "off"
+							? { ...voice, refreshRealtimeAfterCompaction: false }
+							: {
+									...voice,
+									contextModel: selected ?? current.voice.contextModel,
+								},
+				};
+			},
+		),
+		setting(
+			{
+				id: "voiceContextReasoning",
+				label: "Context summarisation reasoning",
+				currentValue: currentContextReasoning,
+				values: [...VOICE_CONTEXT_REASONING_LEVELS],
+			},
+			(value, current) => ({
+				...current,
+				voice: {
+					...current.voice,
+					contextReasoning: normalizeVoiceContextReasoning(value),
+				},
+			}),
+		),
+		setting(
+			{
+				id: "refreshRealtimeAfterCompaction",
+				label: "Run summarisation",
+				currentValue: config.voice.refreshRealtimeAfterCompaction
+					? "on"
+					: "off",
+				values: ["off", "on"],
+			},
+			(value, current) => ({
+				...current,
+				voice: {
+					...current.voice,
+					refreshRealtimeAfterCompaction: value === "on",
 				},
 			}),
 		),

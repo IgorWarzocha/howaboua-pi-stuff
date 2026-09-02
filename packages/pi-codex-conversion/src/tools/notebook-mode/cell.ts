@@ -23,6 +23,8 @@ export class NotebookCell {
 	private cursor = 0;
 	private completedValue = false;
 	private yielded = deferred();
+	private blockersChanged = deferred();
+	private readonly blockers = new Set<string>();
 	private readonly completed = deferred();
 
 	constructor(options: {
@@ -39,16 +41,24 @@ export class NotebookCell {
 
 	async observe(yieldTimeMs: number, signal?: AbortSignal): Promise<"result" | "yielded"> {
 		signal?.throwIfAborted();
-		if (!this.result) {
-			await Promise.race([
+		while (!this.result) {
+			const blockersChanged = this.blockersChanged.promise;
+			const blocked = this.blockers.size > 0;
+			await waitForObservation([
 				this.completed.promise,
-				this.yielded.promise,
-				abortableDelay(yieldTimeMs, signal),
-			]);
+				blockersChanged,
+				...(blocked ? [] : [this.yielded.promise]),
+			], blocked ? undefined : yieldTimeMs, signal);
+			if (this.result) return "result";
+			if (this.blockersChanged.promise !== blockersChanged) continue;
+			if (this.blockers.size > 0) {
+				this.yielded = deferred();
+				continue;
+			}
+			this.yielded = deferred();
+			return "yielded";
 		}
-		if (this.result) return "result";
-		this.yielded = deferred();
-		return "yielded";
+		return "result";
 	}
 
 	markCompleted(): void {
@@ -66,6 +76,15 @@ export class NotebookCell {
 
 	requestYield(): void {
 		this.yielded.resolve();
+	}
+
+	setBlocked(blockerId: string, active: boolean): void {
+		const changed = active ? !this.blockers.has(blockerId) : this.blockers.delete(blockerId);
+		if (active) this.blockers.add(blockerId);
+		if (!changed) return;
+		if (active) this.yielded = deferred();
+		this.blockersChanged.resolve();
+		this.blockersChanged = deferred();
 	}
 
 	takeContent(): RuntimeContentItem[] {
@@ -113,19 +132,30 @@ function deferred(): Deferred {
 	return { promise, resolve };
 }
 
-function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
-	if (signal?.aborted) return Promise.reject(signal.reason ?? new Error("Operation aborted"));
+function waitForObservation(
+	promises: Promise<void>[],
+	timeoutMs: number | undefined,
+	signal?: AbortSignal,
+): Promise<void> {
+	if (signal?.aborted)
+		return Promise.reject(signal.reason ?? new Error("Operation aborted"));
 	return new Promise<void>((resolve, reject) => {
-		const timer = setTimeout(finish, Math.max(0, ms));
-		const abort = () => {
-			clearTimeout(timer);
+		let settled = false;
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		const abort = () =>
+			finish(signal?.reason ?? new Error("Operation aborted"));
+		const finish = (error?: unknown) => {
+			if (settled) return;
+			settled = true;
+			if (timer) clearTimeout(timer);
 			signal?.removeEventListener("abort", abort);
-			reject(signal?.reason ?? new Error("Operation aborted"));
+			if (error === undefined) resolve();
+			else reject(error);
 		};
-		function finish() {
-			signal?.removeEventListener("abort", abort);
-			resolve();
-		}
+		for (const promise of promises)
+			void promise.then(() => finish(), (error) => finish(error));
+		if (timeoutMs !== undefined)
+			timer = setTimeout(() => finish(), Math.max(0, timeoutMs));
 		signal?.addEventListener("abort", abort, { once: true });
 	});
 }

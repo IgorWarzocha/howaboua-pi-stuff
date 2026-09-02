@@ -1,13 +1,11 @@
 import { type Static, Type } from "typebox";
 
-export { OTHER_OPTION_LABEL, REPHRASE_REQUEST_RESPONSE } from "./constants.js";
-
-export const ChoiceSchema = Type.Object({
+const ChoiceSchema = Type.Object({
 	label: Type.String({ description: "Short choice." }),
 	description: Type.Optional(Type.String({ description: "Optional detail." })),
 });
 
-export const PromptSchema = Type.Object({
+const PromptSchema = Type.Object({
 	title: Type.String({ description: "Short prompt." }),
 	body: Type.Optional(Type.String({ description: "Context or evidence." })),
 	multiple: Type.Optional(Type.Boolean({ description: "Allow multiple." })),

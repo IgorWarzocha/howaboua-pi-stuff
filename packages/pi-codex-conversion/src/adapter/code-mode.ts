@@ -1,5 +1,6 @@
 import { getAgentDir, type AgentToolResult, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { CodexExtensionRuntime } from "../extension/runtime.ts";
+import { getCodeModeExtensionTools } from "../code-mode-extension-tools.ts";
 import { formatRunningExecSessionGuidance } from "../tools/code-mode/tool-result.ts";
 import {
 	type CodeModeRegistration,
@@ -10,12 +11,10 @@ import type { ProgrammaticCodeModeToolDefinition } from "../tools/code-mode/type
 import { createApplyPatchTool } from "../tools/apply-patch/tool.ts";
 import { createExecCommandTool } from "../tools/exec/command-tool.ts";
 import { createWriteStdinTool } from "../tools/exec/write-stdin-tool.ts";
-import { createImageGenerationTool } from "../tools/imagegen/tool.ts";
 import { createViewImageTool } from "../tools/view-image/tool.ts";
-import { createWebSearchTool } from "../tools/web-run/tool.ts";
-import { supportsNativeImageGeneration, supportsViewImageInputs } from "./tool-support.ts";
+import { supportsViewImageInputs } from "./tool-support.ts";
 import { isCodeModeRuntime, resolveCodexRuntimePlanForState } from "./activation/runtime-plan.ts";
-import { codeModeImageResult, codeModeWebResult, toNestedTool } from "./code-mode/nested-tool-adapter.ts";
+import { codeModeImageResult, toNestedTool } from "./code-mode/nested-tool-adapter.ts";
 
 const LONG_RUNNING_TOOL_OUTER_YIELD_MS = 1_800_000;
 
@@ -29,7 +28,13 @@ export async function registerCodexCodeMode(
 		isActive,
 	});
 	const programmaticRuntime = await registerCodeModeTools(pi, {
-		getTools: (ctx) => createNestedTools(runtime, ctx as ExtensionContext | undefined),
+		getTools: (ctx) => {
+			const context = ctx as ExtensionContext | undefined;
+			return [
+				...createNestedTools(runtime, context),
+				...getCodeModeExtensionTools(pi, context),
+			];
+		},
 		isActive,
 		executionKind: (ctx) =>
 			resolveCodexRuntimePlanForState(ctx as ExtensionContext, runtime.state).kind === "notebook"
@@ -67,9 +72,9 @@ function createNestedTools(
 		showOutputWhenCollapsed: true,
 		compactTools: runtime.state.config.ui.compactTools,
 	};
-	const allowConfiguredProvider = (model: ExtensionContext["model"]) => {
-		const plan = resolveCodexRuntimePlanForState({ model }, runtime.state);
-		return isCodeModeRuntime(plan) && plan.configuredProvider && !plan.codexTransport;
+	const execOptions = {
+		...options,
+		waitForNonInteractiveExit: true,
 	};
 	const tools: ProgrammaticCodeModeToolDefinition[] = [
 		toNestedTool(
@@ -103,7 +108,7 @@ function createNestedTools(
 			},
 		),
 		toNestedTool(
-			createExecCommandTool(runtime.tracker, runtime.sessions, options),
+			createExecCommandTool(runtime.tracker, runtime.sessions, execOptions),
 			"await tools.exec_command({ cmd: string, workdir?: string, shell?: string, tty?: boolean, yield_time_ms?: number, max_output_tokens?: number, login?: boolean }) // returns { output: string, session_id?: number, exit_code?: number }",
 			{
 				start(id, input) {
@@ -162,43 +167,6 @@ function createNestedTools(
 				: "const description = await tools.view_image({ path: string }); text(description)",
 			{},
 			{ ...(imageCapable ? { resultValue: codeModeImageResult } : {}) },
-		));
-	}
-	if (runtime.state.config.tools.webRun) {
-		tools.push(toNestedTool(
-			createWebSearchTool("web__run", {
-				customRustBinariesDir: runtime.state.config.tools.customRustBinariesDir,
-				model: () => runtime.state.config.openai.webSearchModel,
-				allowConfiguredProvider,
-				promptSnippet: false,
-				customRendering: runtime.state.config.ui.toolRenaming,
-			}),
-			"await tools.web__run({ search_query?: [{ q: string, recency?: number, domains?: string[] }], image_query?: [{ q: string }], open?: [{ ref_id: string, lineno?: number }], click?: [{ ref_id: string, id: number }], find?: [{ ref_id: string, pattern: string }], response_length?: \"short\" | \"medium\" | \"long\" }) // turn… ref_ids only for web__run; final answers cite result URLs with Markdown links, never turn… or cite…",
-			{},
-			{ toolName: { namespace: "web", name: "run" }, resultValue: codeModeWebResult },
-		));
-	}
-	if (runtime.state.config.tools.imageGeneration && (!ctx || supportsNativeImageGeneration(ctx.model) || allowConfiguredProvider(ctx.model))) {
-		const imagegen = createImageGenerationTool({
-			customRustBinariesDir: runtime.state.config.tools.customRustBinariesDir,
-			allowConfiguredProvider,
-			promptSnippet: false,
-			customRendering: runtime.state.config.ui.toolRenaming,
-		});
-		tools.push(toNestedTool(
-			{ ...imagegen, name: "image_gen__imagegen", label: "image_gen__imagegen" },
-			"await tools.image_gen__imagegen({ prompt: string, action?: \"generate\" | \"edit\", images?: string[] })",
-			{},
-			{
-				toolName: { namespace: "image_gen", name: "imagegen" },
-				resultValue(result) {
-					const outputHint = result.content
-						.filter((item) => item.type === "text")
-						.map((item) => item.text)
-						.join("\n") || undefined;
-					return codeModeImageResult(result, outputHint);
-				},
-			},
 		));
 	}
 	return tools;

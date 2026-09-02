@@ -1,0 +1,93 @@
+{
+	"name": "@howaboua/pi-browser",
+	"version": "0.0.0",
+	"description": "Logged-in browser inspection and control for Pi, Code Mode and Notebook Mode.",
+	"type": "module",
+	"license": "MIT",
+	"author": "Igor Warzocha",
+	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-browser#readme",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
+		"directory": "packages/pi-browser"
+	},
+	"bugs": {
+		"url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
+	},
+	"keywords": [
+		"pi-package",
+		"pi-extension",
+		"pi",
+		"browser",
+		"chrome",
+		"cdp",
+		"code-mode"
+	],
+	"files": [
+		"dist/**/*.js",
+		"dist/**/*.d.ts",
+		"index.ts",
+		"remote-worker.ts",
+		"src",
+		"README.md",
+		"LICENSE",
+		"CHANGELOG.md",
+		"tsconfig.json",
+		"biome.json",
+		"changelog.ts"
+	],
+	"scripts": {
+		"build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json && bun build remote-worker.ts --target=node --format=esm --outfile=dist/remote-worker.js --banner='// @howaboua/pi-browser managed worker'",
+		"check": "bun run lint && bun run typecheck && bun run test",
+		"prepack": "bun run check && bun run build",
+		"typecheck": "tsgo --noEmit",
+		"lint": "biome check .",
+		"test": "tsx --test tests/**/*.test.ts",
+		"pack:dry": "npm pack --dry-run"
+	},
+	"peerDependencies": {
+		"@howaboua/pi-codex-conversion": ">=3.0.24",
+		"@earendil-works/pi-ai": ">=0.84.3",
+		"@earendil-works/pi-coding-agent": ">=0.84.3",
+		"typebox": "*",
+		"@earendil-works/pi-tui": "*"
+	},
+	"peerDependenciesMeta": {
+		"@howaboua/pi-codex-conversion": {
+			"optional": true
+		}
+	},
+	"devDependencies": {
+		"@howaboua/pi-codex-conversion": "3.0.23",
+		"@biomejs/biome": "^2.5.10",
+		"@earendil-works/pi-ai": "0.84.4",
+		"@earendil-works/pi-coding-agent": "0.84.4",
+		"@types/node": "^26.2.0",
+		"tsx": "^4.23.12",
+		"typebox": "1.3.18",
+		"typescript": "^7.0.2"
+	},
+	"pi": {
+		"extensions": [
+			"./changelog.ts",
+			"./dist/index.js"
+		]
+	},
+	"engines": {
+		"node": ">=22.19.0"
+	},
+	"bin": {
+		"pi-browser-worker": "./dist/remote-worker.js"
+	},
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"publishConfig": {
+		"access": "public"
+	}
+}

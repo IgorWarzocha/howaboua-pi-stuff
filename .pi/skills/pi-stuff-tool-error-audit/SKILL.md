@@ -11,7 +11,7 @@ Run the bundled script instead of grepping session JSONL:
 deno run --no-config --allow-read --allow-env=HOME,PI_CODING_AGENT_DIR .pi/skills/pi-stuff-tool-error-audit/scripts/audit-tool-errors.ts
 ```
 
-It treats a persisted `isError` result or failed nested Notebook trace as a marked failure, keeps unmarked nonzero subprocess exits separate, clusters signatures, and follows later tool results to the next user boundary.
+It treats a persisted `isError` result or failed nested Notebook trace as a marked failure, keeps unmarked nonzero subprocess exits separate, reports signatures for mechanism-level review, and records later tool results only as chronology. A later green call never makes the failed call successful.
 
 Use the cursor in `state.json` for the normal audit. Override it with `--since 14d` only for an explicit retrospective. Read `references/interpretation.md` before judging the report.
 

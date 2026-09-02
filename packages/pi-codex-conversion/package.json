@@ -33,6 +33,10 @@
       "types": "./dist/code-mode-preflight.d.ts",
       "import": "./dist/code-mode-preflight.js"
     },
+    "./code-mode": {
+      "types": "./dist/code-mode.d.ts",
+      "import": "./dist/code-mode.js"
+    },
     "./apply-patch-display": {
       "types": "./dist/apply-patch-display.d.ts",
       "import": "./dist/apply-patch-display.js"
@@ -55,7 +59,7 @@
     "src/**/*.md",
     "types/**/*.d.ts",
     "src/voice/lan/assets/**",
-    "available-tools.png",
+    "examples/code-mode-extension",
     "examples/custom-tools",
     "CHANGELOG.md",
     "README.md",
@@ -99,15 +103,15 @@
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": ">=0.84.3",
-    "@earendil-works/pi-coding-agent": ">=0.84.3",
+    "@earendil-works/pi-coding-agent": ">=0.84.4",
     "@earendil-works/pi-tui": ">=0.84.3",
     "typebox": "*"
   },
   "devDependencies": {
-    "@earendil-works/pi-agent-core": "0.84.3",
-    "@earendil-works/pi-ai": "0.84.3",
-    "@earendil-works/pi-coding-agent": "0.84.3",
-    "@earendil-works/pi-tui": "0.84.3",
+    "@earendil-works/pi-agent-core": "0.84.4",
+    "@earendil-works/pi-ai": "0.84.4",
+    "@earendil-works/pi-coding-agent": "0.84.4",
+    "@earendil-works/pi-tui": "0.84.4",
     "@types/ws": "^8.18.1",
     "tsx": "^4.23.12",
     "typebox": "1.3.18",

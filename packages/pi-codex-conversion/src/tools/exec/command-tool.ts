@@ -35,6 +35,7 @@ interface ExecCommandToolOptions {
 	customRendering?: boolean | undefined;
 	promptSnippet?: boolean | undefined;
 	showOutputWhenCollapsed?: boolean | undefined;
+	waitForNonInteractiveExit?: boolean | undefined;
 }
 
 interface ExecCommandRenderContextLike {
@@ -188,7 +189,11 @@ export function createExecCommandTool(tracker: ExecCommandTracker, sessions: Exe
 			});
 			const execInput = input.tty
 				? input
-				: { ...input, max_yield_time_ms: MAX_EXEC_YIELD_TIME_MS };
+				: {
+						...input,
+						max_yield_time_ms: MAX_EXEC_YIELD_TIME_MS,
+						...(options.waitForNonInteractiveExit ? { wait_until_exit: true } : {}),
+					};
 			const result = await sessions.exec(execInput, ctx.cwd, signal, onUpdate ? (partial) => onUpdate(toToolResult(partial)) : undefined);
 			if (result.session_id !== undefined) tracker.recordPersistentSession(toolCallId, result.session_id);
 			return toToolResult(result);

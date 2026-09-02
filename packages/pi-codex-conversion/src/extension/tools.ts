@@ -1,72 +1,89 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { Api, Model } from "@earendil-works/pi-ai";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
-import { usesCodexProviderFallback } from "../adapter/activation/runtime-plan.ts";
-import { WEB_SEARCH_TOOL_NAME } from "../adapter/activation/tool-set.ts";
+import {
+	registerCodexToolProviderPolicy,
+	registerCodexToolProviderResolver,
+	resolveCodexToolProvider,
+} from "../adapter/codex-tool-provider.ts";
 import { isResponsesModel } from "../adapter/prompt/codex-model.ts";
-import { registerApplyPatchResultEvent, registerApplyPatchTool } from "../tools/apply-patch/tool.ts";
+import {
+	registerApplyPatchResultEvent,
+	registerApplyPatchTool,
+} from "../tools/apply-patch/tool.ts";
 import { registerExecCommandTool } from "../tools/exec/command-tool.ts";
 import { registerWriteStdinTool } from "../tools/exec/write-stdin-tool.ts";
-import { registerImageGenerationTool } from "../tools/imagegen/tool.ts";
 import { registerViewImageTool } from "../tools/view-image/tool.ts";
-import { registerWebSearchTool } from "../tools/web-run/tool.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
 
 export interface CodexToolRegistration {
 	applyConfig(config: CodexConversionConfig): void;
-	ensureOptionalTools(config?: CodexConversionConfig): void;
+	shutdown(): void;
 }
 
-export function isExplicitlyConfiguredToolProvider(model: Model<Api> | undefined, config: CodexConversionConfig): boolean {
+export function isExplicitlyConfiguredToolProvider(
+	model: Model<Api> | undefined,
+	config: CodexConversionConfig,
+): boolean {
 	const provider = model?.provider?.trim().toLowerCase();
-	return Boolean(isResponsesModel(model) && provider && config.scope.additionalProviders.some((entry) => entry.trim().toLowerCase() === provider));
+	return Boolean(
+		isResponsesModel(model) &&
+			provider &&
+			config.scope.additionalProviders.some(
+				(entry) => entry.trim().toLowerCase() === provider,
+			),
+	);
 }
 
-export function registerCodexTools(pi: ExtensionAPI, runtime: CodexExtensionRuntime): CodexToolRegistration {
+export function registerCodexTools(
+	pi: ExtensionAPI,
+	runtime: CodexExtensionRuntime,
+): CodexToolRegistration {
 	registerApplyPatchResultEvent(pi);
-	const renderOptions = (config: CodexConversionConfig) => ({ customRendering: config.ui.toolRenaming });
-	const registerApplyPatch = (config: CodexConversionConfig) =>
-		registerApplyPatchTool(pi, { customRustBinariesDir: config.tools.customRustBinariesDir, showDiffWhenCollapsed: !config.ui.compactTools });
-	const registerViewImage = (config: CodexConversionConfig) =>
-		registerViewImageTool(pi, { customRustBinariesDir: config.tools.customRustBinariesDir, describeForTextModels: config.tools.viewImageFallback, ...renderOptions(config) });
+	const allowsProvider = (model: Model<Api> | undefined) =>
+		isExplicitlyConfiguredToolProvider(model, runtime.state.config);
+	const unregisterProviderPolicy = registerCodexToolProviderPolicy(
+		pi,
+		(model) => allowsProvider(model as Model<Api> | undefined),
+	);
+	const unregisterProviderResolver = registerCodexToolProviderResolver(
+		pi,
+		(ctx) =>
+			resolveCodexToolProvider(ctx, (model) =>
+				allowsProvider(model as Model<Api> | undefined),
+			),
+	);
+	const renderOptions = (config: CodexConversionConfig) => ({
+		customRendering: config.ui.toolRenaming,
+	});
 	const registerCore = (config: CodexConversionConfig) => {
-		registerApplyPatch(config);
+		registerApplyPatchTool(pi, {
+			customRustBinariesDir: config.tools.customRustBinariesDir,
+			showDiffWhenCollapsed: !config.ui.compactTools,
+		});
 		registerExecCommandTool(pi, runtime.tracker, runtime.sessions, {
 			...renderOptions(config),
 			showOutputWhenCollapsed: true,
 		});
-		registerWriteStdinTool(pi, runtime.sessions, { showOutputWhenCollapsed: true });
-		registerViewImage(config);
+		registerWriteStdinTool(pi, runtime.sessions, {
+			showOutputWhenCollapsed: true,
+		});
+		registerViewImageTool(pi, {
+			customRustBinariesDir: config.tools.customRustBinariesDir,
+			describeForTextModels: config.tools.viewImageFallback,
+			...renderOptions(config),
+		});
 	};
-	const ensureOptionalTools = (config = runtime.state.config) => {
-		if (config.voiceFeaturesOnly) {
-			if (config.tools.applyPatchOnly) registerApplyPatch(config);
-			if (config.tools.viewImageOnly) registerViewImage(config);
-		}
-		const allowConfiguredProvider = (model: Model<Api> | undefined): boolean =>
-			isExplicitlyConfiguredToolProvider(model, config);
-		const allowCodexProviderFallback = usesCodexProviderFallback(config);
-		if ((!config.voiceFeaturesOnly && config.tools.webRun) || config.tools.webRunOnly) {
-			registerWebSearchTool(pi, WEB_SEARCH_TOOL_NAME, {
-				customRustBinariesDir: config.tools.customRustBinariesDir,
-				model: () => runtime.state.config.openai.webSearchModel,
-				allowConfiguredProvider,
-				allowCodexProviderFallback,
-				...renderOptions(config),
-			});
-		}
-		if ((!config.voiceFeaturesOnly && config.tools.imageGeneration) || config.tools.imageGenerationOnly) {
-			registerImageGenerationTool(pi, { customRustBinariesDir: config.tools.customRustBinariesDir, allowConfiguredProvider, allowCodexProviderFallback, ...renderOptions(config) });
-		}
-	};
-	if (!runtime.state.config.voiceFeaturesOnly) registerCore(runtime.state.config);
-	ensureOptionalTools();
+	if (!runtime.state.config.voiceFeaturesOnly)
+		registerCore(runtime.state.config);
 	return {
-		ensureOptionalTools,
 		applyConfig(config) {
 			if (!config.voiceFeaturesOnly) registerCore(config);
-			ensureOptionalTools(config);
 			runtime.sessions.setBaseEnv(runtime.execEnv(config));
+		},
+		shutdown() {
+			unregisterProviderResolver();
+			unregisterProviderPolicy();
 		},
 	};
 }

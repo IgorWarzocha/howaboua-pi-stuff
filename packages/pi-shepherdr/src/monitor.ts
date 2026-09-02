@@ -9,8 +9,17 @@ import { parseMonitorEvent } from "./monitor-event.js";
 import { MonitorEvents } from "./monitor-events.js";
 import { MonitorState, type WorkAttempt } from "./monitor-state.js";
 import type { AssistantReader } from "./session-reader.js";
-import { SettlementReporter, type SettlementRequest } from "./settlement.js";
-import type { HerdrEvent, MonitoredAgent, PaneInfo } from "./types.js";
+import {
+	type ClaimedSettlement,
+	SettlementReporter,
+	type SettlementRequest,
+} from "./settlement.js";
+import type {
+	HerdrEvent,
+	MonitoredAgent,
+	PaneInfo,
+	SessionView,
+} from "./types.js";
 
 interface AgentMonitorOptions {
 	client: HerdrConnection;
@@ -100,11 +109,26 @@ export class AgentMonitor {
 	}
 
 	async watch(panel: PaneInfo): Promise<MonitoredAgent> {
+		return this.watchPanel(panel, true);
+	}
+
+	async track(panel: PaneInfo): Promise<MonitoredAgent> {
+		return this.watchPanel(panel, false);
+	}
+
+	private async watchPanel(
+		panel: PaneInfo,
+		reportSettled: boolean,
+	): Promise<MonitoredAgent> {
 		if (panel.pane_id === this.selfPaneId) {
 			throw new Error("refusing to monitor the controlling Pi session");
 		}
 		const reply = await this.settlements.latest(panel);
-		const { record, reportCurrent } = this.state.watch(panel, reply?.id);
+		const { record, reportCurrent } = this.state.watch(
+			panel,
+			reply?.id,
+			reportSettled,
+		);
 		this.persist();
 		await this.events.refresh();
 		await this.reconcile(this.activationGeneration, this.context);
@@ -117,15 +141,38 @@ export class AgentMonitor {
 	async unwatch(paneId: string): Promise<boolean> {
 		const record = this.state.removePane(paneId);
 		if (!record) return false;
+		this.settlements.releaseAgentClaim(
+			record,
+			new Error(`${paneId} was unwatched before its work settled`),
+		);
 		this.persist();
 		await this.events.refresh();
 		return true;
 	}
 
-	beginWork(paneId: string, task: string): WorkAttempt | undefined {
-		const attempt = this.state.beginWork(paneId, task);
+	beginWork(
+		paneId: string,
+		task: string,
+		expectedUserAfter?: string | null,
+	): WorkAttempt | undefined {
+		const attempt = this.state.beginWork(paneId, task, expectedUserAfter);
 		if (attempt) this.persist();
 		return attempt;
+	}
+
+	claimWork(
+		attempt: WorkAttempt,
+		signal: AbortSignal,
+	): Promise<ClaimedSettlement> {
+		return this.settlements.claim(attempt, signal);
+	}
+
+	releaseWorkClaim(attempt: WorkAttempt | undefined, error: unknown): void {
+		this.settlements.releaseClaim(attempt, error);
+	}
+
+	view(panel: PaneInfo): Promise<SessionView> {
+		return this.settlements.view(panel);
 	}
 
 	acceptWork(attempt: WorkAttempt | undefined): void {
@@ -182,10 +229,16 @@ export class AgentMonitor {
 		const snapshot = await getSnapshot(this.client);
 		if (generation !== this.activationGeneration || context !== this.context)
 			return;
-		const { changed, completions } = this.state.reconcile(
+		const { changed, completions, removed } = this.state.reconcile(
 			snapshot,
 			this.selfPaneId,
 		);
+		for (const record of removed) {
+			this.settlements.releaseAgentClaim(
+				record,
+				new Error(`${record.paneId} closed before its work settled`),
+			);
+		}
 		if (changed || persistRestoration) this.persist();
 		else this.onRefresh();
 		for (const completion of completions) {
@@ -199,6 +252,10 @@ export class AgentMonitor {
 		if (parsed.type === "closed") {
 			const record = this.state.removePane(parsed.paneId);
 			if (record) {
+				this.settlements.releaseAgentClaim(
+					record,
+					new Error(`${parsed.paneId} closed before its work settled`),
+				);
 				this.persist();
 				void this.events.refresh();
 			}

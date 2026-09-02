@@ -2,6 +2,9 @@ import { normalizeResponsesToolHistory } from "../../providers/openai-responses/
 
 const RETAINED_MESSAGE_TOKEN_BUDGET = 64_000;
 const APPROX_BYTES_PER_TOKEN = 4;
+// Match Codex's coarse model-visible estimate for resized and auto-detail images.
+const RESIZED_IMAGE_BYTES_ESTIMATE = 7_373;
+const RETAINED_IMAGE_TOKEN_ESTIMATE = Math.ceil(RESIZED_IMAGE_BYTES_ESTIMATE / APPROX_BYTES_PER_TOKEN);
 
 const CONTEXTUAL_USER_MARKERS: ReadonlyArray<readonly [string, string]> = [
 	["# AGENTS.md instructions", "</INSTRUCTIONS>"],
@@ -106,11 +109,14 @@ function approxTokenCount(value: string): number {
 	return Math.ceil(utf8Bytes(value) / APPROX_BYTES_PER_TOKEN);
 }
 
-function messageTextTokenCount(item: Record<string, unknown>): number {
+function messageContentTokenCount(item: Record<string, unknown>): number {
 	if (!Array.isArray(item["content"])) return 0;
 	return item["content"].reduce((tokens, part) => {
-		if (!isRecord(part) || (part["type"] !== "input_text" && part["type"] !== "output_text") || typeof part["text"] !== "string") return tokens;
-		return tokens + approxTokenCount(part["text"]);
+		if (!isRecord(part)) return tokens;
+		if ((part["type"] === "input_text" || part["type"] === "output_text") && typeof part["text"] === "string") {
+			return tokens + approxTokenCount(part["text"]);
+		}
+		return part["type"] === "input_image" ? tokens + RETAINED_IMAGE_TOKEN_ESTIMATE : tokens;
 	}, 0);
 }
 
@@ -127,7 +133,7 @@ export function buildRemoteCompactionV2Window(
 	const reversed: Record<string, unknown>[] = [];
 	for (let index = retained.length - 1; index >= 0; index--) {
 		const item = retained[index]!;
-		const tokens = Math.max(1, messageTextTokenCount(item));
+		const tokens = Math.max(1, messageContentTokenCount(item));
 		if (tokens <= remaining) {
 			reversed.push(item);
 			remaining = Math.max(0, remaining - tokens);

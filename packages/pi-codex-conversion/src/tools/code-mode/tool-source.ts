@@ -1,4 +1,5 @@
 import { isCustomToolDefinition } from "./host-protocol.js";
+import { codeModeGlobalName } from "./tool-identity.ts";
 import type { CodeModeToolDefinition } from "./types.js";
 
 export function scopeAllToolsToDeferredCustom(
@@ -6,9 +7,11 @@ export function scopeAllToolsToDeferredCustom(
 	tools: CodeModeToolDefinition[],
 ): string {
 	const names = tools
-		.filter(isCustomToolDefinition)
-		.filter((tool) => tool.deferLoading)
-		.map((tool) => tool.name);
+		.filter((tool) =>
+			tool.deferLoading &&
+				(isCustomToolDefinition(tool) || ("invoke" in tool && tool.discoverWhenDeferred)),
+		)
+		.map((tool) => codeModeGlobalName(tool.name));
 	return `globalThis.ALL_TOOLS=globalThis.ALL_TOOLS.filter(({name})=>${JSON.stringify(names)}.includes(name));${source}`;
 }
 
@@ -20,7 +23,7 @@ export function directToolYieldTime(
 	let forced: number | undefined;
 	for (const tool of tools) {
 		if (tool.yieldTimeMs === undefined) continue;
-		const name = escapeRegExp(tool.name);
+		const name = escapeRegExp(codeModeGlobalName(tool.name));
 		const directReference = new RegExp(
 			`\\btools\\s*\\.\\s*${name}(?![a-zA-Z0-9_$])\\s*\\(`,
 		);

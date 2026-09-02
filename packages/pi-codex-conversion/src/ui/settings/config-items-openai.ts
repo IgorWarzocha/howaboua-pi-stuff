@@ -1,4 +1,3 @@
-import type { Theme } from "@earendil-works/pi-coding-agent";
 import {
 	type CodexConversionConfig,
 	DEFAULT_CODEX_CONVERSION_CONFIG,
@@ -11,7 +10,6 @@ import { type ConfigSetting, projectCacheKeepalive, setting, toggle } from "./co
 
 export function buildOpenAISettings(
 	config: CodexConversionConfig,
-	theme: Theme,
 ): ConfigSetting[] {
 	return [
 		toggle("fast", "Fast mode", config.openai.fast, (enabled, current) => ({
@@ -21,7 +19,7 @@ export function buildOpenAISettings(
 		{
 			item: {
 				id: "lunaCacheKeepaliveMinutes",
-				label: "Luna cache keepalive for",
+				label: "Luna cache keepalive (global)",
 				currentValue: config.openai.lunaCacheKeepaliveMinutes === 0
 					? "off"
 					: `${config.openai.lunaCacheKeepaliveMinutes} mins`,
@@ -31,7 +29,7 @@ export function buildOpenAISettings(
 		},
 		projectCacheKeepalive(
 			"cacheKeepalive",
-			"Sol/Terra cache keepalive ping every",
+			"Sol/Terra cache keepalive (this project)",
 			config.openai.cacheKeepalive,
 		),
 		setting(
@@ -51,11 +49,6 @@ export function buildOpenAISettings(
 				},
 			}),
 		),
-		setting({
-			id: "transportHeader",
-			label: theme.fg("dim", "Transport"),
-			currentValue: "",
-		}),
 		toggle(
 			"responsesLite",
 			"Proxy Responses Lite",
@@ -91,18 +84,30 @@ export function buildOpenAISettings(
 				},
 			}),
 		),
-		setting({
-			id: "compactionHeader",
-			label: theme.fg("dim", "Compaction"),
-			currentValue: "",
-		}),
 		toggle(
 			"responsesCompaction",
 			"Responses compaction V2",
 			config.compaction.responsesCompaction,
 			(enabled, current) => ({
 				...current,
-				compaction: { ...current.compaction, responsesCompaction: enabled },
+				compaction: {
+					...current.compaction,
+					responsesCompaction: enabled,
+					...(enabled ? {} : { portableSummary: false }),
+				},
+			}),
+		),
+		toggle(
+			"portableSummary",
+			"Parallel Pi-native compaction",
+			config.compaction.portableSummary,
+			(enabled, current) => ({
+				...current,
+				compaction: {
+					...current.compaction,
+					portableSummary: enabled,
+					...(enabled ? { responsesCompaction: true } : {}),
+				},
 			}),
 		),
 		setting(
@@ -123,38 +128,36 @@ export function buildOpenAISettings(
 				},
 			}),
 		),
-		setting({
-			id: "diagnosticsHeader",
-			label: theme.fg("dim", "Diagnostics"),
-			currentValue: "",
-		}),
-		toggle(
-			"cacheDiagnosticsStatus",
-			"Cache status line",
-			config.openai.cacheDiagnostics !== "off",
-			(enabled, current) => ({
+		setting(
+			{
+				id: "cacheDiagnostics",
+				label: "Cache diagnostics",
+				currentValue: formatCacheDiagnostics(config.openai.cacheDiagnostics),
+				values: ["Off", "Status", "Status + log"],
+			},
+			(value, current) => ({
 				...current,
 				openai: {
 					...current.openai,
-					cacheDiagnostics: enabled ? "status" : "off",
-				},
-			}),
-		),
-		toggle(
-			"cacheDiagnosticsLog",
-			"Cache log file",
-			config.openai.cacheDiagnostics === "status-and-log",
-			(enabled, current) => ({
-				...current,
-				openai: {
-					...current.openai,
-					cacheDiagnostics: enabled
-						? "status-and-log"
-						: current.openai.cacheDiagnostics === "off"
-							? "off"
-							: "status",
+					cacheDiagnostics: parseCacheDiagnostics(value),
 				},
 			}),
 		),
 	];
+}
+
+function formatCacheDiagnostics(
+	mode: CodexConversionConfig["openai"]["cacheDiagnostics"],
+): string {
+	if (mode === "status-and-log") return "Status + log";
+	if (mode === "status") return "Status";
+	return "Off";
+}
+
+function parseCacheDiagnostics(
+	value: string,
+): CodexConversionConfig["openai"]["cacheDiagnostics"] {
+	if (value === "Status + log") return "status-and-log";
+	if (value === "Status") return "status";
+	return "off";
 }

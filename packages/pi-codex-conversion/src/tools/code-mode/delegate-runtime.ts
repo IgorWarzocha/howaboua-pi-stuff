@@ -2,6 +2,7 @@ import { runCustomTool } from "./custom-tool-runner.js";
 import { isCustomToolDefinition, type DelegateRequestMessage } from "./host-protocol.js";
 import { runCodeModeToolPreflight } from "./nested-tool-preflight.js";
 import { codeModeNameForToolIdentity } from "./tool-identity.ts";
+import { CodeModeNestedRenderStore } from "./trace-render-state.js";
 import { CodeModeTraceStore } from "./trace-store.js";
 import { toolResultFromValue, truncateTraceText } from "./trace-values.js";
 import type {
@@ -19,6 +20,11 @@ interface DelegateController {
 	controller: AbortController;
 }
 
+interface Deferred {
+	promise: Promise<void>;
+	resolve(): void;
+}
+
 type SendMessage = (message: unknown) => void;
 
 export class CodeModeDelegateRuntime {
@@ -27,12 +33,20 @@ export class CodeModeDelegateRuntime {
 	private readonly cellTools = new Map<string, Map<string, CodeModeToolDefinition>>();
 	private readonly controllers = new Map<string, DelegateController>();
 	private readonly notifications = new Map<string, string[]>();
+	private readonly blockers = new Map<string, Set<string>>();
+	private readonly blockerChanges = new Map<string, Deferred>();
+	private readonly sequentialTails = new Map<string, Promise<void>>();
 	private readonly traces = new CodeModeTraceStore();
 	private readonly cleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
 	private readonly send: SendMessage;
+	private readonly renderStore: CodeModeNestedRenderStore;
 
-	constructor(send: SendMessage) {
+	constructor(
+		send: SendMessage,
+		renderStore = new CodeModeNestedRenderStore(),
+	) {
 		this.send = send;
+		this.renderStore = renderStore;
 	}
 
 	bindCell(
@@ -51,6 +65,10 @@ export class CodeModeDelegateRuntime {
 	closeCell(cellId: string): void {
 		this.cellContexts.delete(cellId);
 		this.cellTools.delete(cellId);
+		this.blockers.delete(cellId);
+		this.blockerChanges.get(cellId)?.resolve();
+		this.blockerChanges.delete(cellId);
+		this.sequentialTails.delete(cellId);
 		const previous = this.cleanupTimers.get(cellId);
 		if (previous) clearTimeout(previous);
 		this.cleanupTimers.set(cellId, setTimeout(() => {
@@ -66,9 +84,26 @@ export class CodeModeDelegateRuntime {
 		this.cellContexts.clear();
 		this.cellTools.clear();
 		this.traces.clear();
+		this.renderStore.clear();
 		this.notifications.clear();
+		for (const change of this.blockerChanges.values()) change.resolve();
+		this.blockers.clear();
+		this.blockerChanges.clear();
+		this.sequentialTails.clear();
 		for (const timer of this.cleanupTimers.values()) clearTimeout(timer);
 		this.cleanupTimers.clear();
+	}
+
+	isBlocked(cellId: string): boolean {
+		return (this.blockers.get(cellId)?.size ?? 0) > 0;
+	}
+
+	async waitUntilUnblocked(cellId: string, signal?: AbortSignal): Promise<void> {
+		while (this.isBlocked(cellId)) {
+			const change = this.blockerChanges.get(cellId) ?? deferred();
+			this.blockerChanges.set(cellId, change);
+			await waitForChange(change.promise, signal);
+		}
 	}
 
 	cancel(id: number): void {
@@ -195,51 +230,131 @@ export class CodeModeDelegateRuntime {
 		const context = this.cellContexts.get(cellId);
 		if (!tool) throw new Error(`Unknown custom tool: ${toolName}`);
 		if (!context) throw new Error("Code-mode cell context is unavailable");
+		const currentContext = () => this.cellContexts.get(cellId) ?? context;
+		const emitTrace = () => this.traces.emitUpdate(cellId, currentContext());
 		const trace = this.traces.start(
 			cellId,
 			`${this.traceRuntimeGeneration}:${cellId}:${traceId}`,
 			tool.name,
 			input,
 		);
+		const captureRendererValues =
+			!isCustomToolDefinition(tool) &&
+			Boolean(tool.renderCall || tool.renderResult);
+		let finalResultCaptured = false;
+		if (captureRendererValues)
+			this.renderStore.captureInput(trace.id, input);
 		const invocationContext: ToolExecutionContext = {
 			...context,
 			toolCallId: trace.id,
 			onUpdate: (update) => {
+				if (captureRendererValues)
+					this.renderStore.captureResult(trace.id, update);
 				trace.result = this.traces.captureResult(cellId, trace, update);
-				this.traces.emitUpdate(cellId, context);
+				emitTrace();
 			},
 			captureResult: (result) => {
+				finalResultCaptured = true;
+				if (captureRendererValues)
+					this.renderStore.captureResult(trace.id, result);
 				trace.result = this.traces.captureResult(cellId, trace, result);
-				this.traces.emitUpdate(cellId, context);
+				emitTrace();
 			},
-			refreshTrace: () => this.traces.emitUpdate(cellId, context),
+			refreshTrace: emitTrace,
 		};
+		let blocking = false;
+		let blockerActive = false;
 		try {
+			blocking =
+				!isCustomToolDefinition(tool) &&
+				(tool.blocking === true || tool.isBlocking?.(input) === true);
+			if (blocking) {
+				blockerActive = true;
+				trace.status = "blocked";
+				this.setBlocked(cellId, trace.id, true);
+				emitTrace();
+			}
 			await runCodeModeToolPreflight(
 				tool.name,
 				input,
 				invocationContext,
 				controller.signal,
 			);
-			if (isCustomToolDefinition(tool)) this.traces.emitUpdate(cellId, context);
+			if (isCustomToolDefinition(tool)) emitTrace();
 			controller.signal.throwIfAborted();
-			const result = isCustomToolDefinition(tool)
-				? await runCustomTool(tool, input, invocationContext.cwd, controller.signal)
-				: await tool.invoke(input, invocationContext, controller.signal);
+			const run = async (): Promise<unknown> => {
+				return isCustomToolDefinition(tool)
+					? await runCustomTool(tool, input, invocationContext.cwd, controller.signal)
+					: await tool.invoke(input, invocationContext, controller.signal);
+			};
+			const result = !isCustomToolDefinition(tool) && tool.executionMode === "sequential"
+				? await this.invokeSequential(cellId, controller.signal, run)
+				: await run();
 			if (!trace.result)
 				trace.result = this.traces.captureResult(cellId, trace, toolResultFromValue(result));
 			trace.status = "done";
-			this.traces.emitUpdate(cellId, context);
+			emitTrace();
 			return result;
 		} catch (error) {
+			const errorText =
+				error instanceof Error ? error.message : String(error);
+			if (captureRendererValues && !finalResultCaptured) {
+				const errorResult = {
+					content: [{ type: "text" as const, text: errorText }],
+					details: {},
+				};
+				this.renderStore.captureResult(trace.id, errorResult);
+				trace.result = this.traces.captureResult(
+					cellId,
+					trace,
+					errorResult,
+				);
+			}
 			trace.status = "error";
 			trace.error = truncateTraceText(
-				error instanceof Error ? error.message : String(error),
+				errorText,
 				MAX_TRACE_ERROR_CHARS,
 			);
-			this.traces.emitUpdate(cellId, context);
+			emitTrace();
 			throw error;
+		} finally {
+			if (blockerActive) this.setBlocked(cellId, trace.id, false);
 		}
+	}
+
+	private async invokeSequential(
+		cellId: string,
+		signal: AbortSignal,
+		run: () => Promise<unknown>,
+	): Promise<unknown> {
+		let release: () => void;
+		const turn = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const previous = this.sequentialTails.get(cellId) ?? Promise.resolve();
+		this.sequentialTails.set(cellId, previous.then(() => turn));
+		try {
+			await waitForChange(previous, signal);
+			return await run();
+		} finally {
+			release!();
+		}
+	}
+
+	private setBlocked(
+		cellId: string,
+		blockerId: string,
+		active: boolean,
+	): void {
+		const blockers = this.blockers.get(cellId) ?? new Set<string>();
+		const changed = active ? !blockers.has(blockerId) : blockers.delete(blockerId);
+		if (active) blockers.add(blockerId);
+		if (!changed) return;
+		if (blockers.size === 0) this.blockers.delete(cellId);
+		else this.blockers.set(cellId, blockers);
+		this.cellContexts.get(cellId)?.setBlocked?.(blockerId, active);
+		this.blockerChanges.get(cellId)?.resolve();
+		this.blockerChanges.set(cellId, deferred());
 	}
 
 	private handleNotification(
@@ -291,4 +406,29 @@ function hostControllerKey(id: number): string {
 
 function directControllerKey(cellId: string, requestId: number): string {
 	return `direct:${cellId}:${requestId}`;
+}
+
+function deferred(): Deferred {
+	let resolve!: () => void;
+	const promise = new Promise<void>((done) => { resolve = done; });
+	return { promise, resolve };
+}
+
+function waitForChange(change: Promise<void>, signal?: AbortSignal): Promise<void> {
+	if (!signal) return change;
+	if (signal.aborted) return Promise.reject(signal.reason ?? new Error("Operation aborted"));
+	return new Promise((resolve, reject) => {
+		const abort = () => reject(signal.reason ?? new Error("Operation aborted"));
+		signal.addEventListener("abort", abort, { once: true });
+		void change.then(
+			() => {
+				signal.removeEventListener("abort", abort);
+				resolve();
+			},
+			(error: unknown) => {
+				signal.removeEventListener("abort", abort);
+				reject(error);
+			},
+		);
+	});
 }

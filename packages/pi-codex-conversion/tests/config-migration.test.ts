@@ -22,6 +22,20 @@ test("legacy persisted config shapes migrate to the current groups", () => {
 		openai: { proxyResponsesLite: false },
 		compaction: { v2UserMessageRetention: 64 },
 	});
+	assert.equal(normalizeCodexConversionConfig(code.config).compaction.portableSummary, false);
+	assert.equal(normalizeCodexConversionConfig({ compaction: { portableSummary: true } }).compaction.portableSummary, false);
+	assert.equal(normalizeCodexConversionConfig({
+		compaction: { responsesCompaction: true, portableSummary: true },
+	}).compaction.portableSummary, true);
+	assert.equal(normalizeCodexConversionConfig({
+		voice: { refreshRealtimeAfterCompaction: true },
+	}).voice.refreshRealtimeAfterCompaction, false);
+	assert.equal(normalizeCodexConversionConfig({
+		voice: {
+			contextModel: { provider: "openai-codex", modelId: "gpt-5.6-luna" },
+			refreshRealtimeAfterCompaction: true,
+		},
+	}).voice.refreshRealtimeAfterCompaction, true);
 });
 
 test("Notebook heap configuration is bounded without migrating grouped config", () => {

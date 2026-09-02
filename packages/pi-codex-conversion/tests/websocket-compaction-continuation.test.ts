@@ -8,6 +8,7 @@ import {
 	recordCanonicalSessionResponse,
 } from "../src/providers/openai-codex/session-continuity.ts";
 import { executeRemoteCompactionV2 } from "../src/adapter/compaction/remote-v2-client.ts";
+import { resolveCanonicalCompactionReplay } from "../src/adapter/compaction/compaction.ts";
 import { serializeMessagesToResponsesInput } from "../src/adapter/compaction/serializer.ts";
 import { CODE_MODE_EXEC_GRAMMAR_INPUTS } from "../src/tools/code-mode/exec-contract.ts";
 import {
@@ -28,7 +29,7 @@ import {
 	user,
 } from "./websocket-test-support.ts";
 
-test("V2 compaction exactly replays the provider baseline after its WebSocket dies", async () => {
+test("V2 compaction exactly replays an image-bearing provider baseline after its WebSocket dies", async () => {
 	const restoreWebSocket = installScriptedWebSocket([
 		[(socket) => {
 			textResponse("resp_1", "first")(socket);
@@ -39,18 +40,37 @@ test("V2 compaction exactly replays the provider baseline after its WebSocket di
 	try {
 		const registered = createRegisteredCodexProvider({ codeMode: true });
 		const sessionId = "compaction-reconnect";
-		const firstUser = user("first user", 1);
+		const imageModel = { ...model, input: ["text", "image"] } as typeof model;
+		const firstUser = {
+			role: "user",
+			content: [
+				{ type: "text", text: "first user" },
+				{
+					type: "image",
+					data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==",
+					mimeType: "image/png",
+				},
+			],
+			timestamp: 1,
+		} as AgentMessage;
 		const firstAssistant = doneMessage(await collectStream(registered.provider.streamSimple(
-			model as never,
+			imageModel as never,
 			context([firstUser]) as never,
 			streamOptions(sessionId) as never,
 		)));
 		const firstRequest = sentFrames()[0]!;
 		const liveTail = user("live tail", 2);
-		const rebuiltInput = serializeMessagesToResponsesInput(model, [firstUser, firstAssistant as AgentMessage, liveTail], {
+		const rebuiltInput = serializeMessagesToResponsesInput(imageModel, [firstUser, firstAssistant as AgentMessage, liveTail], {
 			grammarToolInputProperties: CODE_MODE_EXEC_GRAMMAR_INPUTS,
 		});
-		const canonicalInput = canonicalCompactionPromptInput(sessionId, model.id, undefined, rebuiltInput);
+		const canonicalReplay = await resolveCanonicalCompactionReplay({
+			codeMode: true,
+			sessionId,
+			model: imageModel.id,
+			reconstructedInput: rebuiltInput,
+		});
+		assert.equal(canonicalReplay.decision, "validated");
+		const canonicalInput = canonicalReplay.input;
 		assert.ok(canonicalInput);
 
 		const compactResult = await executeRemoteCompactionV2({
@@ -59,11 +79,11 @@ test("V2 compaction exactly replays the provider baseline after its WebSocket di
 				api: model.api,
 				apiFamily: model.api,
 				codexTransport: true,
-				model: model.id,
+				model: imageModel.id,
 				baseUrl: model.baseUrl!,
 				apiKey,
 				headers: {},
-				currentModel: model,
+				currentModel: imageModel,
 			},
 			modelRegistry: {
 				getRegisteredProviderConfig: () => ({ api: model.api, streamSimple: registered.provider.streamSimple }),

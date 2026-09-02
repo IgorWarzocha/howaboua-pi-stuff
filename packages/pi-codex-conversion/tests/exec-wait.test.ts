@@ -39,10 +39,24 @@ test("exec waits through output activity but yields on silence or the hard limit
 	assert.equal(await activeWait, 30);
 });
 
-test("sessions finish after the shell exits when a detached child retains stdio", async () => {
+test("sessions stay owned until exit when requested and ignore detached inherited stdio", async () => {
 	const sessions = createExecSessionManager({ minNonInteractiveExecYieldTimeMs: 250 });
 	let childId: number | undefined;
 	try {
+		const delayed = `${JSON.stringify(process.execPath)} -e ${JSON.stringify("setTimeout(() => {}, 750)")}`;
+		const awaited = await sessions.exec(
+			{
+				cmd: delayed,
+				yield_time_ms: 250,
+				max_yield_time_ms: 250,
+				wait_until_exit: true,
+				login: false,
+			},
+			process.cwd(),
+		);
+		assert.equal(awaited.exit_code, 0);
+		assert.equal(awaited.session_id, undefined);
+
 		const script = "const {spawn}=require('node:child_process');const child=spawn(process.execPath,['-e','setTimeout(()=>{},60000)'],{stdio:'inherit',detached:true});console.log('child-id:'+child.pid);child.unref()";
 		const command = `${JSON.stringify(process.execPath)} -e ${JSON.stringify(script)}`;
 		const completed = await sessions.exec({ cmd: command, yield_time_ms: 1_500, max_yield_time_ms: 1_500, login: false }, process.cwd());

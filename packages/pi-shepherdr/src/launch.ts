@@ -2,6 +2,7 @@ import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import {
 	getAgent,
+	getPane,
 	getSnapshot,
 	parsePaneInfo,
 	resolveWorkspace,
@@ -48,13 +49,51 @@ export type DirectoryResolver = (
 	fallback: string,
 ) => Promise<string>;
 
+function resolveStartDirectory(
+	params: StartAgentParams,
+	fallbackCwd: string,
+	resolveDirectory: DirectoryResolver = directory,
+): Promise<string> {
+	return params.placement === "pane"
+		? Promise.resolve(fallbackCwd)
+		: resolveDirectory(params.cwd, fallbackCwd);
+}
+
+export async function resolvePreparationDirectory(
+	client: HerdrConnection,
+	params: StartAgentParams,
+	fallbackCwd: string,
+	resolveDirectory: DirectoryResolver = directory,
+): Promise<string> {
+	if (params.placement !== "pane") {
+		return resolveStartDirectory(params, fallbackCwd, resolveDirectory);
+	}
+	const pane = await getPane(client, required(params.pane, "pane"));
+	return pane.foreground_cwd?.trim() || pane.cwd?.trim() || fallbackCwd;
+}
+
+interface StartAgentOptions {
+	agentArgs?: string[];
+}
+
+interface CreatedLocationCleanup {
+	id: string;
+	method: "tab.close" | "workspace.close";
+}
+
+export interface StartedAgent {
+	agent: PaneInfo;
+	cleanup?: CreatedLocationCleanup;
+	id: string;
+}
+
 async function createStartPane(
 	client: HerdrConnection,
 	params: StartAgentParams,
 	cwd: string,
 	label: string,
 ): Promise<{
-	cleanup?: { id: string; method: "tab.close" | "workspace.close" };
+	cleanup?: CreatedLocationCleanup;
 	paneId: string;
 }> {
 	const placement = params.placement;
@@ -165,7 +204,8 @@ export async function startAgent(
 	params: StartAgentParams,
 	fallbackCwd: string,
 	resolveDirectory: DirectoryResolver = directory,
-): Promise<{ id: string }> {
+	options: StartAgentOptions = {},
+): Promise<StartedAgent> {
 	const name = required(params.name, "name");
 	if (!AGENT_NAME.test(name)) {
 		throw new Error("name must match [a-z][a-z0-9_-]{0,31}");
@@ -176,10 +216,11 @@ export async function startAgent(
 			"cwd cannot change an existing pane; prepare the pane through Herdr",
 		);
 	}
-	const cwd =
-		params.placement === "pane"
-			? fallbackCwd
-			: await resolveDirectory(params.cwd, fallbackCwd);
+	const cwd = await resolveStartDirectory(
+		params,
+		fallbackCwd,
+		resolveDirectory,
+	);
 	const created = await createStartPane(client, params, cwd, label);
 	let agent: PaneInfo;
 	try {
@@ -187,7 +228,7 @@ export async function startAgent(
 			name,
 			kind: "pi",
 			pane_id: created.paneId,
-			args: ["--name", label],
+			args: ["--name", label, ...(options.agentArgs ?? [])],
 			timeout_ms: 30_000,
 		});
 	} catch (error) {
@@ -213,13 +254,26 @@ export async function startAgent(
 		}
 	}
 	return {
+		agent,
+		...(created.cleanup ? { cleanup: created.cleanup } : {}),
 		id: agent.pane_id,
 	};
 }
 
+export async function rollbackStartedAgent(
+	client: HerdrConnection,
+	monitor: AgentMonitor,
+	started: StartedAgent,
+	cause: unknown,
+): Promise<never> {
+	if (!started.cleanup) throw cause;
+	await monitor.unwatch(started.id).catch(() => undefined);
+	return rollbackCreatedLocation(client, started.cleanup, cause);
+}
+
 async function rollbackCreatedLocation(
 	client: HerdrConnection,
-	cleanup: { id: string; method: "tab.close" | "workspace.close" } | undefined,
+	cleanup: CreatedLocationCleanup | undefined,
 	cause: unknown,
 ): Promise<never> {
 	if (!cleanup) throw cause;

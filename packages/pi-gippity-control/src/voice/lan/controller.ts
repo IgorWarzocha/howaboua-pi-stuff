@@ -105,6 +105,14 @@ export class CodexLanVoiceServerController {
 		this.server.agentStarted();
 	}
 
+	uiPromptStarted(title?: string): void {
+		this.server?.uiPromptStarted(title);
+	}
+
+	uiPromptEnded(agentRunning: boolean): void {
+		this.server?.uiPromptEnded(agentRunning);
+	}
+
 	assistantMessage(message: AssistantMessage): void {
 		if (!this.server) return;
 		const text = boundedAssistantText(message.content);

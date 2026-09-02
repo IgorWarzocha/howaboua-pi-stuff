@@ -1,10 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { DEFAULT_COMPACTION_SETTINGS, type SessionBeforeCompactEvent } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
-import { buildNativeCompactionInput, injectPendingNativeWindowIntoPiCompactionRequest } from "../src/adapter/compaction/compaction.ts";
+import { buildNativeCompactionInput, injectPendingNativeWindowIntoPiCompactionRequest, resolveOpaqueNativeCompactionFallbackEntry } from "../src/adapter/compaction/compaction.ts";
+import { runPortablePiCompaction } from "../src/adapter/compaction/portable-summary.ts";
+import { hasPortableNativeCompactionSummary, NATIVE_COMPACTION_SHIM_SUMMARY, NATIVE_COMPACTION_STRATEGY, type NativeCompactionEntry } from "../src/adapter/compaction/types.ts";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
-import type { Model } from "@earendil-works/pi-ai";
+import { createAssistantMessageEventStream, type AssistantMessage, type Model, type SimpleStreamOptions } from "@earendil-works/pi-ai";
 import { serializeActiveSessionToResponsesInput } from "../src/adapter/compaction/serializer.ts";
 import {
 	REALTIME_DELEGATION_MESSAGE_TYPE,
@@ -19,6 +22,36 @@ const model = {
 	reasoning: true,
 	input: ["text", "image"],
 } as Model<any>;
+
+function summaryMessage(
+	requestModel: Model<any>,
+	text: string,
+): AssistantMessage {
+	return {
+		role: "assistant",
+		content: text ? [{ type: "text", text }] : [],
+		api: requestModel.api,
+		provider: requestModel.provider,
+		model: requestModel.id,
+		usage: {
+			input: text ? 10 : 0,
+			output: text ? 4 : 0,
+			cacheRead: 0,
+			cacheWrite: 0,
+			totalTokens: text ? 14 : 0,
+			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+		},
+		stopReason: "stop",
+		timestamp: 1,
+	};
+}
+
+function summaryStream(message: AssistantMessage) {
+	const stream = createAssistantMessageEventStream();
+	stream.push({ type: "done", reason: "stop", message });
+	stream.end();
+	return stream;
+}
 
 test("first native compaction sends the full active Pi context", () => {
 	const entry = (id: string, parentId: string | null, content: string) => ({
@@ -107,11 +140,19 @@ test("native compaction request routing reuses only the latest matching checkpoi
 		id: "checkpoint",
 		parentId: null,
 		timestamp: new Date(1).toISOString(),
-		summary: "shim",
+		summary: NATIVE_COMPACTION_SHIM_SUMMARY,
 		firstKeptEntryId: "tail",
 		tokensBefore: 100,
-		details: { compactedWindow: [{ type: "compaction", encrypted_content: "sealed" }] },
-	} as never;
+		details: {
+			strategy: NATIVE_COMPACTION_STRATEGY,
+			provider: model.provider,
+			api: model.api,
+			model: model.id,
+			baseUrl: model.baseUrl,
+			compactedWindow: [{ type: "compaction", encrypted_content: "sealed" }],
+			createdAt: new Date(1).toISOString(),
+		},
+	} as NativeCompactionEntry;
 	const common = {
 		model,
 		branchEntries: [checkpoint, tailEntry],
@@ -126,17 +167,33 @@ test("native compaction request routing reuses only the latest matching checkpoi
 	assert.equal(matching?.compactedKeptWindow, false);
 	assert.equal((matching?.input[0] as { encrypted_content: string }).encrypted_content, "sealed");
 	assert.match(JSON.stringify(matching?.input), /exact live tail/);
+	assert.equal(hasPortableNativeCompactionSummary(checkpoint), false);
 
+	const portableCheckpoint: NativeCompactionEntry = { ...checkpoint, summary: "Readable cumulative Pi summary" };
 	const mismatched = buildNativeCompactionInput({
 		...common,
-		latestNativeCompaction: { ok: false, reason: "latest-native-compaction-mismatch", latestCompactionIndex: 0, latestCompaction: checkpoint },
+		branchEntries: [portableCheckpoint, tailEntry],
+		allEntries: [portableCheckpoint, tailEntry],
+		latestNativeCompaction: { ok: false, reason: "latest-native-compaction-mismatch", latestCompactionIndex: 0, latestCompaction: portableCheckpoint },
 	});
+	assert.equal(hasPortableNativeCompactionSummary(portableCheckpoint), true);
 	assert.equal(mismatched?.compactedKeptWindow, true);
 	assert.doesNotMatch(JSON.stringify(mismatched?.input), /sealed/);
+	assert.match(JSON.stringify(mismatched?.input), /Readable cumulative Pi summary/);
 	assert.match(JSON.stringify(mismatched?.input), /exact live tail/);
+	const runtime = { provider: model.provider, api: model.api, baseUrl: model.baseUrl };
+	assert.equal(resolveOpaqueNativeCompactionFallbackEntry([checkpoint], runtime)?.id, checkpoint.id);
+	const portableOtherLaneDetails = portableCheckpoint.details;
+	assert.ok(portableOtherLaneDetails);
+	const portableOtherLane: NativeCompactionEntry = {
+		...portableCheckpoint,
+		id: "portable-other-lane",
+		details: { ...portableOtherLaneDetails, provider: "other-codex-provider" },
+	};
+	assert.equal(resolveOpaqueNativeCompactionFallbackEntry([checkpoint, portableOtherLane], runtime), undefined);
 });
 
-test("injects pending native compacted window into Pi compaction summarization payload", async () => {
+test("portable Pi compaction consumes opaque checkpoints on an isolated summary lane", async () => {
 	const ctx = {
 		model,
 		sessionManager: { getSessionId: () => "session-1" },
@@ -165,7 +222,44 @@ test("injects pending native compacted window into Pi compaction summarization p
 		],
 	};
 
-	const rewritten = await injectPendingNativeWindowIntoPiCompactionRequest(payload, ctx, state) as typeof payload;
-	assert.deepEqual(rewritten.input.map((item) => (item as { type?: string; role?: string }).type ?? (item as { role?: string }).role), ["developer", "compaction_summary", "user"]);
+	const portableEvent = {
+		type: "session_before_compact",
+		preparation: {
+			firstKeptEntryId: "tail",
+			messagesToSummarize: [{ role: "user", content: "new work", timestamp: 1 }],
+			turnPrefixMessages: [],
+			isSplitTurn: false,
+			tokensBefore: 100,
+			previousSummary: "Earlier readable state",
+			fileOps: { read: new Set<string>(), written: new Set<string>(), edited: new Set<string>() },
+			settings: DEFAULT_COMPACTION_SETTINGS,
+		},
+		branchEntries: [],
+		customInstructions: "Keep exact decisions",
+		reason: "manual",
+		willRetry: false,
+		signal: new AbortController().signal,
+	} satisfies SessionBeforeCompactEvent;
+	let summaryRequest: { context: string; options?: SimpleStreamOptions | undefined } | undefined;
+	const portable = await runPortablePiCompaction(portableEvent, {
+		model,
+		thinkingLevel: "high",
+		onPayload: async (requestPayload) => (
+			await injectPendingNativeWindowIntoPiCompactionRequest(requestPayload, ctx, state)
+		) ?? requestPayload,
+		stream: async (requestModel, context, options) => {
+			summaryRequest = { context: JSON.stringify(context), options };
+			const portablePayload = await options?.onPayload?.(payload, requestModel) as typeof payload;
+			assert.deepEqual(portablePayload.input.map((item) => (item as { type?: string; role?: string }).type ?? (item as { role?: string }).role), ["developer", "compaction_summary", "user"]);
+			return summaryStream(summaryMessage(requestModel, "Readable cumulative summary"));
+		},
+	});
+	assert.equal(portable.summary, "Readable cumulative summary");
+	assert.match(summaryRequest?.context ?? "", /Earlier readable state/);
+	assert.match(summaryRequest?.context ?? "", /Keep exact decisions/);
+	assert.equal(summaryRequest?.options?.cacheRetention, "none");
+	assert.equal(summaryRequest?.options?.transport, "sse");
+	assert.notEqual(summaryRequest?.options?.sessionId, "session-1");
+	assert.ok(summaryRequest?.options?.sessionId);
 	assert.equal(state.pendingPiCompactionNativeWindow, undefined);
 });

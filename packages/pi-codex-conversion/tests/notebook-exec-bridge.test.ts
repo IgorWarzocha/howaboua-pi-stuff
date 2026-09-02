@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { getEventListeners } from "node:events";
 import test from "node:test";
 import { buildCodeModeToolsPrompt } from "../src/tools/code-mode/custom-tool-prompt.ts";
+import { NotebookCell } from "../src/tools/notebook-mode/cell.ts";
 import { createNotebookControlProxy } from "../src/tools/code-mode/notebook-tool.ts";
 import { SharedCodeModeRuntime } from "../src/tools/code-mode/shared-runtime.ts";
 import type { NotebookControlRequest, ToolExecutionContext } from "../src/tools/code-mode/types.ts";
@@ -75,4 +77,23 @@ test("Notebook exec proxy shares control normalization without changing the prom
 		/notebook save accepts name only/,
 	);
 	assert.equal(calls.length, 3);
+
+	const cell = new NotebookCell({
+		id: "blocked-cell",
+		source: "",
+		context: { cwd: process.cwd() },
+		maxOutputTokens: 1,
+	});
+	const observationController = new AbortController();
+	for (const blocker of ["first", "second"]) {
+		cell.setBlocked(blocker, true);
+		const observation = cell.observe(0, observationController.signal);
+		await Promise.resolve();
+		cell.setBlocked(blocker, false);
+		await observation;
+	}
+	assert.equal(
+		getEventListeners(observationController.signal, "abort").length,
+		0,
+	);
 });

@@ -95,11 +95,13 @@ export function createAskTool({
 				details: { kind: handoff ? "handoff" : "prompt", responses },
 			};
 		},
-		renderCall(args, theme) {
+		renderCall(args, theme, context) {
 			const count = Array.isArray(args.prompts) ? args.prompts.length : 0;
 			return new Text(
 				theme.fg(
-					"toolTitle",
+					context && "isBlocked" in context && context.isBlocked === true
+						? "warning"
+						: "toolTitle",
 					theme.bold(args.handoff === true ? "ask handoff " : "ask "),
 				) + theme.fg("muted", `${count} prompt${count === 1 ? "" : "s"}`),
 				0,

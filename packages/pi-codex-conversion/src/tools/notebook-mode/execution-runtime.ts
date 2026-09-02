@@ -6,7 +6,12 @@ import {
 	parseExecSource,
 } from "../code-mode/host-protocol.ts";
 import { directToolYieldTime } from "../code-mode/tool-source.ts";
-import { codeModeNameForToolIdentity, resolveCodeModeToolIdentity } from "../code-mode/tool-identity.ts";
+import type { CodeModeNestedRenderStore } from "../code-mode/trace-render-state.ts";
+import {
+	codeModeGlobalName,
+	codeModeNameForToolIdentity,
+	resolveCodeModeToolIdentity,
+} from "../code-mode/tool-identity.ts";
 import type {
 	CodeModeToolIdentity,
 	CodeModeToolDefinition,
@@ -27,7 +32,7 @@ export class NotebookExecutionRuntime {
 	readonly bridge: NotebookBridgeServer;
 	private readonly session: () => NotebookSessionRuntime;
 	private readonly prepareSession: (context: ToolExecutionContext, signal?: AbortSignal) => Promise<void>;
-	private readonly delegate = new CodeModeDelegateRuntime(() => undefined);
+	private readonly delegate: CodeModeDelegateRuntime;
 	private readonly stopOperations = new WeakMap<NotebookCell, Promise<void>>();
 	private activeCell: NotebookCell | undefined;
 	private nextCellId = 1;
@@ -35,9 +40,11 @@ export class NotebookExecutionRuntime {
 	constructor(
 		session: () => NotebookSessionRuntime,
 		prepareSession: (context: ToolExecutionContext, signal?: AbortSignal) => Promise<void>,
+		renderStore?: CodeModeNestedRenderStore,
 	) {
 		this.session = session;
 		this.prepareSession = prepareSession;
+		this.delegate = new CodeModeDelegateRuntime(() => undefined, renderStore);
 		this.bridge = new NotebookBridgeServer({
 			callTool: (cellId, requestId, toolName, input) => this.callTool(cellId, requestId, toolName, input),
 			cancelTools: (cellId) => this.cancelTools(cellId),
@@ -77,10 +84,11 @@ export class NotebookExecutionRuntime {
 			context,
 			maxOutputTokens: maxOutputTokens ?? 10_000,
 		});
+		cell.context = this.withCellContext(cell, context);
 		const notice = session.takeNotice();
 		this.activeCell = cell;
 		if (notice) cell.emit([{ type: "input_text", text: notice }]);
-		this.delegate.bindCell(id, context, new Map(tools.map((tool) => [tool.name, tool])));
+		this.delegate.bindCell(id, cell.context, new Map(tools.map((tool) => [tool.name, tool])));
 		let journaled = false;
 		const journal = session.journal();
 		if (journal) {
@@ -92,9 +100,18 @@ export class NotebookExecutionRuntime {
 			}
 		}
 		const metadata = tools
-			.filter((tool) => isCustomToolDefinition(tool) && tool.deferLoading)
-			.map((tool) => ({ name: tool.name, description: formatCodeModeToolHelp(tool) }));
-		const toolNames = Object.fromEntries(tools.map((tool) => [tool.name, resolveCodeModeToolIdentity(tool)]));
+			.filter((tool) =>
+				tool.deferLoading &&
+					(isCustomToolDefinition(tool) || ("invoke" in tool && tool.discoverWhenDeferred)),
+			)
+			.map((tool) => ({
+				name: codeModeGlobalName(tool.name),
+				description: formatCodeModeToolHelp(tool),
+			}));
+		const toolNames = Object.fromEntries(tools.map((tool) => [
+			codeModeGlobalName(tool.name),
+			resolveCodeModeToolIdentity(tool),
+		]));
 		const wrapped = [
 			`if (typeof globalThis.__piNotebook?.begin !== "function") throw new Error("Notebook runtime bootstrap unavailable: __piNotebook.begin");`,
 			`await globalThis.__piNotebook.begin(${JSON.stringify(id)}, ${JSON.stringify(metadata)}, ${JSON.stringify(toolNames)});`,
@@ -125,8 +142,8 @@ export class NotebookExecutionRuntime {
 	): Promise<RuntimeResponse> {
 		const cell = this.activeCell;
 		if (!cell || cell.id !== cellId) return this.withMemory({ kind: "result", cellId, contentItems: [], missingCell: true });
-		cell.context = context;
-		this.delegate.updateCellContext(cellId, context);
+		cell.context = this.withCellContext(cell, context);
+		this.delegate.updateCellContext(cellId, cell.context);
 		return this.observe(cell, yieldTimeMs, signal);
 	}
 
@@ -138,8 +155,8 @@ export class NotebookExecutionRuntime {
 		signal?.throwIfAborted();
 		const cell = this.activeCell;
 		if (!cell || cell.id !== cellId) return this.withMemory({ kind: "terminated", cellId, contentItems: [], missingCell: true });
-		cell.context = context;
-		this.delegate.updateCellContext(cellId, context);
+		cell.context = this.withCellContext(cell, context);
+		this.delegate.updateCellContext(cellId, cell.context);
 		await this.stopCell(cell);
 		return this.finishObservation(cell, "terminated");
 	}
@@ -289,6 +306,13 @@ export class NotebookExecutionRuntime {
 	private closeCell(cell: NotebookCell): void {
 		if (this.activeCell === cell) this.activeCell = undefined;
 		this.delegate.closeCell(cell.id);
+	}
+
+	private withCellContext(cell: NotebookCell, context: ToolExecutionContext): ToolExecutionContext {
+		return {
+			...context,
+			setBlocked: (blockerId, active) => cell.setBlocked(blockerId, active),
+		};
 	}
 
 	private async callTool(cellId: string, requestId: number, toolName: CodeModeToolIdentity, input: unknown): Promise<unknown> {

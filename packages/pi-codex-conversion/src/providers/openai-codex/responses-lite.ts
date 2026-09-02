@@ -97,8 +97,8 @@ async function prepareLiteImageContent(content: unknown): Promise<unknown> {
 	}));
 }
 
-export async function prepareResponsesLiteRequestImages<TBody extends ResponsesLiteCompatibleBody>(body: TBody): Promise<TBody> {
-	const input = await Promise.all(body.input.map(async (item) => {
+async function prepareResponsesLiteInputImages(input: readonly unknown[]): Promise<unknown[]> {
+	return Promise.all(input.map(async (item) => {
 		if (!isRecord(item)) return item;
 		if ((item["type"] === "message" || item["role"] === "user" || item["role"] === "developer" || item["role"] === "system") && "content" in item) {
 			return { ...item, content: await prepareLiteImageContent(item["content"]) };
@@ -111,7 +111,14 @@ export async function prepareResponsesLiteRequestImages<TBody extends ResponsesL
 		}
 		return item;
 	}));
-	return { ...body, input };
+}
+
+export async function prepareResponsesLiteConversationInput(input: readonly unknown[]): Promise<unknown[]> {
+	return prepareResponsesLiteInputImages(prepareLiteInput(input));
+}
+
+export async function prepareResponsesLiteRequestImages<TBody extends ResponsesLiteCompatibleBody>(body: TBody): Promise<TBody> {
+	return { ...body, input: await prepareResponsesLiteInputImages(body.input) };
 }
 
 export function applyResponsesLiteRequest<TBody extends ResponsesLiteCompatibleBody>(

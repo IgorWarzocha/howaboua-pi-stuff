@@ -8,8 +8,8 @@ This is the maintainer checklist for syncing the bundled provider with Pi and Op
 - Codex checkout used for the provider comparison: `e7d0e14172`
 - Exact apply-patch source revision: [`src/tools/rust/UPSTREAM.apply-patch`](src/tools/rust/UPSTREAM.apply-patch)
 - Exact image utility source revision: [`src/tools/rust/crates/codex-utils-image/UPSTREAM`](src/tools/rust/crates/codex-utils-image/UPSTREAM)
-- Exact standalone web-search source revision: [`src/tools/web-run/rust/UPSTREAM`](src/tools/web-run/rust/UPSTREAM)
-- Exact standalone image-generation source revision: [`src/tools/imagegen/rust/UPSTREAM`](src/tools/imagegen/rust/UPSTREAM)
+- Standalone web search: [`../pi-codex-web-run/UPSTREAM_SYNC.md`](../pi-codex-web-run/UPSTREAM_SYNC.md)
+- Standalone image generation: [`../pi-codex-imagegen/UPSTREAM_SYNC.md`](../pi-codex-imagegen/UPSTREAM_SYNC.md)
 
 ## Implemented portable behavior
 
@@ -85,7 +85,7 @@ Do not invent a migration based on comments alone. Revisit when Codex changes th
 
 ### Hosted tools
 
-Current Codex uses hosted Responses `web_search` only outside Lite. Image generation and Lite web search are client-executed standalone tools. This package follows the standalone path: `web_run` sends every search and navigation command through Codex `alpha/search`, while `imagegen` uses the native image endpoint.
+Current Codex uses hosted Responses `web_search` only outside Lite. Image generation and Lite web search are client-executed standalone tools. The separate `pi-codex-web-run` and `pi-codex-imagegen` extensions follow those standalone paths and compose into Code Mode through its extension-tool bridge.
 
 Do not add hosted file search, code interpreter, computer use, MCP, or image generation merely because the wider Responses API offers them. Reconsider only when Codex itself exposes them through the same model/provider path.
 

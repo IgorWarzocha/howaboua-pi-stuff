@@ -178,6 +178,21 @@ export async function openGippitySettings(options: {
 					},
 				}),
 			},
+			{
+				id: "refreshRealtimeAfterCompaction",
+				label: "Refresh realtime voice after compaction",
+				currentValue: config.voice.refreshRealtimeAfterCompaction
+					? "on"
+					: "off",
+				values: ["off", "on"],
+				update: (value, current) => ({
+					...current,
+					voice: {
+						...current.voice,
+						refreshRealtimeAfterCompaction: value === "on",
+					},
+				}),
+			},
 		];
 		const createList = () => {
 			let next!: SettingsList;
@@ -270,6 +285,7 @@ function details(
 		dim(
 			`Config (/reload after keybind/device/port edits): ${getGippityControlConfigPath()}`,
 		),
+		dim("Realtime compaction refresh uses the selected Voice context model"),
 		...(status.running
 			? [
 					theme.fg(

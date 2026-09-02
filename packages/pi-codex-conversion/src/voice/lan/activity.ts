@@ -2,6 +2,7 @@ const MAX_ACTIVITY_BYTES = 16 * 1024;
 
 export type LanVoiceActivityMessage =
 	| { type: "activity"; state: "idle" | "working" }
+	| { type: "activity"; state: "waiting"; text?: string }
 	| { type: "activity"; state: "settled"; text: string };
 
 export class LanVoiceActivity {
@@ -22,6 +23,14 @@ export class LanVoiceActivity {
 
 	working(): void {
 		this.state = { type: "activity", state: "working" };
+		this.publish(this.state);
+	}
+
+	waiting(text?: string): void {
+		const bounded = text ? truncateUtf8(text.trim(), MAX_ACTIVITY_BYTES) : "";
+		this.state = bounded
+			? { type: "activity", state: "waiting", text: bounded }
+			: { type: "activity", state: "waiting" };
 		this.publish(this.state);
 	}
 
