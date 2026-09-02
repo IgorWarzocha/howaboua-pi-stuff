@@ -47,9 +47,9 @@ The remote device needs npm and Node 22 or newer; runtime extraction uses PowerS
 /pet attach desktop
 ```
 
-Pi Pet starts GipPity for the active Pi session and uses its saved LAN settings unless `/pet attach <device> <gippity-url>` supplies an override. Local attachment runs the Pi-owned bootstrap directly; remote attachment sends it through SSH. Both keep the desktop source and build at `~/.pi/agent/pi-pet` on that device. On connection Pi Pet compares the loaded package version and source digest with the recorded build, runs the copy, `npm install`, and `npm run build` steps only when they differ, then starts Electron. Pi or Clawa exiting stops Electron and GipPity but does not discard the build. It creates no application installation, login item, or background service.
+Pi Pet starts GipPity for the active Pi session and uses its saved LAN settings unless `/pet attach <device> <gippity-url>` supplies an override. Local attachment runs the Pi-owned bootstrap directly and keeps its build under Pi's agent directory at `pi-pet/`. Remote attachment sends the bootstrap through SSH and uses `~/.pi/agent/pi-pet` on that device. On connection Pi Pet compares the loaded package version and source digest with the recorded build, runs the copy, `npm install`, and `npm run build` steps only when they differ, then starts Electron. Pi exiting stops Electron and GipPity. Closing Clawa stops Electron while GipPity remains active for its Pi session. Neither path discards the build or creates an application installation, login item, or background service.
 
-The global registry at `<pi-agent-directory>/pi-pet.json`, normally `~/.pi/agent/pi-pet.json`, retains reusable local and SSH device definitions. The current folder's `.pi/pi-pet.json` selects which devices receive that folder's Pi sessions. Later sessions opened in the same folder start only those devices automatically. Inspect them with `/pet status`, relaunch them with `/pet restart`, or remove one from the folder with `/pet detach desktop`. SSH options, keys, proxies, and host routing stay in `~/.ssh/config`.
+The global registry at `<pi-agent-directory>/pi-pet.json`, normally `~/.pi/agent/pi-pet.json`, retains reusable local and SSH device definitions. `PI_CODING_AGENT_DIR` changes that local agent directory. The current folder's `.pi/pi-pet.json` selects which devices receive that folder's Pi sessions. Later sessions opened in the same folder start only those devices automatically. Inspect them with `/pet status`, relaunch them with `/pet restart`, or remove one from the folder with `/pet detach desktop`. SSH options, keys, proxies, and host routing stay in `~/.ssh/config`.
 
 ```json
 {
@@ -77,7 +77,7 @@ Authoring guides are loaded only when requested rather than exposed as permanent
 
 Pi Pet resolves `authoring/PET-GUIDE.md` from its own source or npm installation and asks Pi to follow it. That guide routes one-action work or full character hatching into the bundled references, deterministic atlas tooling, and visual review process.
 
-Pi resolves its installed package from the guide path and uses its npm/Node authoring commands without requiring Bun or a monorepo checkout. Bundled pets are templates: the first edit copies one to `~/.pi/agent/pi-pet/pets/`, authoring evidence stays under `~/.pi/agent/pi-pet/runs/`, and generated miniapp assets stay under `~/.pi/agent/pi-pet/web/`. Package updates therefore do not overwrite user pets.
+Pi resolves its installed package from the guide path and uses its npm/Node authoring commands without requiring Bun or a monorepo checkout. Bundled pets are templates: the first edit copies one to `<pi-agent-directory>/pi-pet/pets/`, authoring evidence stays under `<pi-agent-directory>/pi-pet/runs/`, and generated miniapp assets stay under `<pi-agent-directory>/pi-pet/web/`. Package updates therefore do not overwrite user pets.
 
 A repository can select any generated durable pet and its devices without duplicating assets in `.pi/pi-pet.json`:
 

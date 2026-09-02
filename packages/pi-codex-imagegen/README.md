@@ -6,7 +6,9 @@ Codex image generation and editing for ordinary Pi, Code Mode, and Notebook Mode
 
     pi install npm:@howaboua/pi-codex-imagegen
 
-Run /login openai-codex first. When the active model uses a compatible Codex transport, the tool can use it directly. Pi Codex also lets explicitly configured Responses providers opt into the same route.
+Requires Pi 0.84.4 or newer and Node.js 22.19 or newer.
+
+Run `/login openai-codex` for the normal Codex route. When the active model uses a compatible Codex transport, the tool can use it directly. Pi Codex can instead route an explicitly configured Responses provider with that provider's own credentials.
 
 Pi Codex 3.0.24 or newer is optional. With it installed, the normal imagegen tool becomes tools.image_gen__imagegen inside Code and Notebook Mode.
 

@@ -32,9 +32,9 @@ Pi sessions remain ordinary workers until explicitly promoted. Run Pi inside Her
 
 The command records one visible mode message without triggering a turn. Run `/herdr` again to return to normal guidance while keeping the agent tool available. Resumed controller sessions restore their last mode; new worker sessions in the same directory remain dormant.
 
-`/herdr machines` opens the Add/Remove Machine interface. Settings live in `~/.pi/agent/shepherdr.json`, and `/herdr connect [machine]` retries configured remotes after activation.
+`/herdr machines` opens the Add/Remove Machine interface. Settings live at `<pi-agent-directory>/shepherdr.json`, where the directory defaults to `~/.pi/agent` and `PI_CODING_AGENT_DIR` overrides it. `/herdr connect [machine]` retries configured remotes after activation.
 
-Remote machines connect over SSH. Shepherdr installs one helper at `~/.pi/agent/shepherdr.mjs` on each remote, runs it only for the connection lifetime and leaves no remote daemon behind.
+Remote machines connect over noninteractive SSH. The target needs Node, Herdr 0.8.x, the Herdr Pi integration and a running Herdr session. Shepherdr installs one helper at `~/.pi/agent/shepherdr.mjs` on each remote, runs it only for the connection lifetime and leaves no remote daemon behind.
 
 ## Agent calls
 
@@ -71,7 +71,7 @@ Use `general` sparingly, mainly when requested or while orchestration is active.
 Profiles live under:
 
 ```text
-~/.pi/agent/shepherdr/profiles/<name>/profile.json
+<pi-agent-directory>/shepherdr/profiles/<name>/profile.json
 ```
 
 That directory is authoritative after initialization. Edit a profile to change it, add a directory to create an agent type, or delete its directory to remove it; deleted defaults are not recreated. Profiles never inherit the controller's model or thinking level.

@@ -71,7 +71,7 @@ Provider scope can stay on **Codex and configured**, expand to **all providers**
 
 Open a tab directly with `/codex tools`, `/codex openai`, `/codex display`, `/codex voice`, `/codex usage` or `/codex about`.
 
-The first `/codex` setting chooses **Global** or **This project**. Global settings live in `~/.pi/agent/pi-codex-conversion.json`. Choosing **This project** creates a complete snapshot at `.pi/pi-codex-conversion.json`; every tab and **Edit config** then targets that file. Switching back to Global removes the project overrides. Project settings are read only for trusted folders.
+The first `/codex` setting chooses **Global** or **This project**. Global settings live in `~/.pi/agent/pi-codex-conversion.json`. Choosing **This project** creates a project snapshot at `.pi/pi-codex-conversion.json`. Every tab and **Edit config** then targets that file. Luna cache keepalive remains global, while Sol and Terra keepalive follows the project. Switching back to Global removes the project overrides. Project settings are read only for trusted folders.
 
 Without folder settings, the project inherits the complete global configuration. `PI_CODEX_FAST=1` or `PI_CODEX_FAST=0` can override Fast Mode for one Pi process, which is useful for independently launched workers. Run `/reload` after changing files by hand.
 
@@ -117,7 +117,7 @@ Logs contain request lane, transport, socket reuse, continuation decision, item 
 
 ## Code Mode and custom tools
 
-Select **Code** or **Notebook (recommended)** under `/codex` → **General**. They currently support OpenAI Codex Luna, Terra and Sol. Configured OpenAI Responses-compatible providers can also use those model IDs or the GPT-5.6 alias with **Proxy Responses Lite** enabled. Other models stay on structured tools.
+Select **Code** or **Notebook (recommended)** under `/codex` → **General**. They currently support OpenAI Codex Luna, Terra, Sol, Daybreak Blue and Daybreak Red. Configured OpenAI Responses-compatible providers can also use those model IDs or the GPT-5.6 alias with **Proxy Responses Lite** enabled. Other configured or all-provider routes stay on the structured adapter. Unrelated models retain Pi's ordinary tools.
 
 The model can compose tools in one freeform JavaScript cell:
 
@@ -125,6 +125,8 @@ The model can compose tools in one freeform JavaScript cell:
 const status = await tools.exec_command({ cmd: "git status --short" });
 text(status);
 ```
+
+Notebook Mode keeps `exec` and `wait`, adds a top-level `notebook` lifecycle tool, and preserves JavaScript or TypeScript bindings in one persistent Deno runtime. The `notebook` tool owns status, checkpoints, restarts, resets and stored profiles.
 
 Pi tools that genuinely need Pi's UI can also appear inside Code and Notebook Mode. Install [`pi-ask`](../pi-ask) and `await tools.ask(...)` opens the same interactive panel from a cell.
 
