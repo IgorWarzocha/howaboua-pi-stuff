@@ -37,7 +37,7 @@ async function registerImagegenInCodeMode(
 		return registerCodeModeExtensionTools(pi, () => [
 			adaptToolForCodeMode(tool, {
 				usage:
-					'generatedImage(await tools.image_gen__imagegen({prompt:string,background?:"transparent"|"opaque",referenced_image_paths?:string[],num_last_images_to_include?:number})) // no selectors=generate; paths/recent count=edit; never text/serialize base64 result',
+					"generatedImage(await tools.image_gen__imagegen({prompt:string,referenced_image_paths?:string[],num_last_images_to_include?:number})) // no selectors=generate; paths/recent count=edit; never text/serialize base64 result",
 				promptMetadata: false,
 				toolName: { namespace: "image_gen", name: "imagegen" },
 				resultValue: imagegenCodeModeResult,

@@ -18,7 +18,7 @@
     "check:changed": "bun run scripts/check-changed.mjs",
     "refactor:compare": "node scripts/refactor-compare.mjs",
     "browser-cdp:sync": "node scripts/sync-browser-cdp.mjs --write",
-    "knip": "knip --workspace @howaboua/pi-browser --workspace @howaboua/pi-codex-conversion --workspace @howaboua/pi-codex-tool-runtime --workspace @howaboua/pi-imagegen --workspace @howaboua/pi-web-run --workspace @howaboua/pi-gippity-control --workspace @howaboua/pi-auto-trees --workspace @howaboua/pi-pet --workspace @howaboua/pi-subagent-review --workspace @howaboua/pi-smart-btw --workspace @howaboua/pi-shepherdr --workspace @howaboua/pi-shepherdr2 --workspace @howaboua/pi-skills-tool --no-progress --include files,dependencies,unlisted,unresolved,cycles,exports,nsExports,types,nsTypes,enumMembers,namespaceMembers,duplicates",
+    "knip": "knip --workspace @howaboua/pi-browser --workspace @howaboua/pi-codex-conversion --workspace @howaboua/pi-codex-imagegen --workspace @howaboua/pi-codex-tool-runtime --workspace @howaboua/pi-codex-web-run --workspace @howaboua/pi-gippity-control --workspace @howaboua/pi-auto-trees --workspace @howaboua/pi-pet --workspace @howaboua/pi-subagent-review --workspace @howaboua/pi-smart-btw --workspace @howaboua/pi-shepherdr --workspace @howaboua/pi-skills-tool --no-progress --include files,dependencies,unlisted,unresolved,cycles,exports,nsExports,types,nsTypes,enumMembers,namespaceMembers,duplicates",
     "changeset:aggregates": "bun run scripts/add-aggregate-changesets.mjs",
     "hooks:install": "git config core.hooksPath .githooks",
     "changeset:check": "bun run scripts/require-changeset.mjs origin/main",

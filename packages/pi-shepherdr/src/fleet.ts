@@ -118,16 +118,14 @@ function groupSaved(values: unknown[]): Map<string, unknown[]> {
 }
 
 export class AgentFleet {
-	private readonly agentToolName: string;
 	private config: MachinesConfig = { machines: {} };
 	private context: ExtensionContext | undefined;
 	private generation = 0;
 	private readonly pi: ExtensionAPI;
 	private readonly runtimes = new Map<string, Runtime>();
 
-	constructor(pi: ExtensionAPI, options: { agentToolName?: string } = {}) {
+	constructor(pi: ExtensionAPI) {
 		this.pi = pi;
-		this.agentToolName = options.agentToolName ?? "herdr_agents";
 	}
 
 	async activate(ctx: ExtensionContext): Promise<void> {
@@ -417,7 +415,6 @@ export class AgentFleet {
 		client: HerdrConnection,
 	): AgentMonitor {
 		return new AgentMonitor(this.pi, {
-			agentToolName: this.agentToolName,
 			client,
 			machine,
 			onChange: () => this.changed(),

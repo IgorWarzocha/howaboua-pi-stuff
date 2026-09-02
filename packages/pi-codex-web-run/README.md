@@ -1,10 +1,10 @@
-# pi-web-run
+# pi-codex-web-run
 
 Codex web search, page opening, link traversal, and in-page finding for ordinary Pi, Code Mode, and Notebook Mode.
 
 ## Install
 
-    pi install npm:@howaboua/pi-web-run
+    pi install npm:@howaboua/pi-codex-web-run
 
 Run /login openai-codex first. When the active model uses a compatible Codex transport, the tool can use it directly. Pi Codex also lets explicitly configured Responses providers opt into the same route.
 

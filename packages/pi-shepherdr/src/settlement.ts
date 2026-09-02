@@ -136,7 +136,6 @@ export class SettlementReporter {
 	private readonly persist: () => void;
 	private readonly pi: ExtensionAPI;
 	private readonly machine: string;
-	private readonly agentToolName: string;
 	private readonly operatorPrefix: string;
 	private readonly reporting = new Set<string>();
 	private readonly claims = new Map<string, SettlementClaim>();
@@ -151,14 +150,12 @@ export class SettlementReporter {
 		reader?: AssistantReader,
 		machine = "local",
 		operatorPrefix = "herdr",
-		agentToolName = "herdr_agents",
 	) {
 		this.pi = pi;
 		this.collector = new SettlementCollector(client, reader);
 		this.state = state;
 		this.persist = persist;
 		this.machine = machine;
-		this.agentToolName = agentToolName;
 		this.operatorPrefix = operatorPrefix;
 	}
 
@@ -311,7 +308,7 @@ export class SettlementReporter {
 				} else {
 					injectAgentEvent(this.pi, lifecycle.context, {
 						agent: settlement.agent,
-						agentToolName: this.agentToolName,
+						agentToolName: "agents",
 						...(settlement.ask ? { ask: settlement.ask } : {}),
 						machine: this.machine,
 						operatorPrefix: this.operatorPrefix,

@@ -16,7 +16,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const PROFILE_NAME = /^[a-z][a-z0-9_-]{0,31}$/;
 const AGENT_DIRECTORY =
 	process.env["PI_CODING_AGENT_DIR"] ?? join(homedir(), ".pi", "agent");
-const PROFILES_ROOT = join(AGENT_DIRECTORY, "shepherdr2");
+const PROFILES_ROOT = join(AGENT_DIRECTORY, "shepherdr");
 const PROFILES_DIRECTORY = join(PROFILES_ROOT, "profiles");
 const PROFILE_INSTALL_MARKER = join(PROFILES_ROOT, ".profiles-initialized");
 const BUNDLED_PROFILES_DIRECTORY = fileURLToPath(

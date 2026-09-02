@@ -26,9 +26,6 @@ export function createImageGenerationTool(
 		...(options.promptSnippet === false
 			? {}
 			: { promptSnippet: "Generate/edit" }),
-		promptGuidelines: [
-			"imagegen: Set background transparent for native alpha output or opaque for a solid canvas; prompt text alone leaves Codex on auto.",
-		],
 		parameters: IMAGE_GENERATION_PARAMETERS,
 		async execute(toolCallId, params, signal, _onUpdate, ctx) {
 			if (!supportsExecutableImageGeneration(ctx.model, options))

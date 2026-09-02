@@ -1,2 +1,0 @@
-- Keep generation/edit selectors and response metadata aligned with the pinned Codex snapshot in upstream/; Pi adds the API-native background override because automatic selection can return opaque output for explicit alpha requests.
-- Local edit targets accept validated PNG, JPEG, GIF, or WebP bytes. Recent targets come only from Pi's active compaction-aware context.

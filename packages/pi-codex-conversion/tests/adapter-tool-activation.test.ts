@@ -111,9 +111,9 @@ test("Code Mode activation stays within its model, API, and provider scope", () 
 		"bash",
 		"edit",
 		"write",
-		"herdr_agents",
+		"agents",
 	]);
-	let masterActive = false;
+	let orchestrationActive = false;
 	let refreshes = 0;
 	const stopRefreshListener = onCodeModeExtensionToolsRefresh(
 		dynamic as never,
@@ -122,14 +122,14 @@ test("Code Mode activation stays within its model, API, and provider scope", () 
 	const registration = registerCodeModeExtensionTools(
 		dynamic as never,
 		() => [{
-			name: "herdr_agents",
-			usage: "await tools.herdr_agents(input)",
+			name: "agents",
+			usage: "await tools.agents(input)",
 			deferLoading: false,
 			kind: "function",
 			inputSchema: {},
 			async invoke() { return ""; },
 		}],
-		{ isActive: () => masterActive },
+		{ isActive: () => orchestrationActive },
 	);
 	assert.equal(refreshes, 1);
 	registration.refresh();
@@ -139,21 +139,21 @@ test("Code Mode activation stays within its model, API, and provider scope", () 
 	assert.ok(dynamicModel);
 	const dynamicContext = createContext(dynamicModel);
 	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
-	assert.equal(dynamic.activeTools().includes("herdr_agents"), false);
+	assert.equal(dynamic.activeTools().includes("agents"), false);
 	assert.deepEqual(getCodeModeExtensionTools(dynamic as never, dynamicContext as never), []);
 
-	masterActive = true;
+	orchestrationActive = true;
 	assert.deepEqual(getCodeModeExtensionTools(dynamic as never, dynamicContext as never), []);
 	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
-	assert.equal(dynamic.activeTools().includes("herdr_agents"), false);
+	assert.equal(dynamic.activeTools().includes("agents"), false);
 	assert.deepEqual(
 		getCodeModeExtensionTools(dynamic as never, dynamicContext as never).map(
 			(tool) => tool.name,
 		),
-		["herdr_agents"],
+		["agents"],
 	);
 
-	masterActive = false;
+	orchestrationActive = false;
 	assert.equal(
 		getCodeModeExtensionTools(dynamic as never, dynamicContext as never).length,
 		1,
@@ -161,21 +161,21 @@ test("Code Mode activation stays within its model, API, and provider scope", () 
 	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
 	assert.deepEqual(getCodeModeExtensionTools(dynamic as never, dynamicContext as never), []);
 
-	masterActive = true;
+	orchestrationActive = true;
 	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
 	dynamicState.executionMode = "normal";
 	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
-	assert.equal(dynamic.activeTools().includes("herdr_agents"), true);
+	assert.equal(dynamic.activeTools().includes("agents"), true);
 	dynamicState.executionMode = "code";
 	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
-	assert.equal(dynamic.activeTools().includes("herdr_agents"), false);
+	assert.equal(dynamic.activeTools().includes("agents"), false);
 	registration.unregister();
 	assert.equal(refreshes, 3);
 	registration.unregister();
 	assert.equal(refreshes, 3);
 	stopRefreshListener();
 	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
-	assert.equal(dynamic.activeTools().includes("herdr_agents"), true);
+	assert.equal(dynamic.activeTools().includes("agents"), true);
 
 	const conflicting = createToolHarness(["read", "bash", "edit", "write"]);
 	const conflictingState = createAdapterState({ executionMode: "code" });

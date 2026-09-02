@@ -1,7 +1,7 @@
 {
 	"name": "@howaboua/pi-shepherdr",
 	"version": "0.1.2",
-	"description": "Herdr-native multi-agent orchestration for Pi.",
+	"description": "Persistent blocking and asynchronous Pi agents through Herdr.",
 	"type": "module",
 	"license": "MIT",
 	"author": "Igor Warzocha",
@@ -73,10 +73,7 @@
 		"node": ">=20.6.0"
 	},
 	"main": "index.ts",
-	"exports": {
-		".": "./index.ts",
-		"./shepherdr2": "./src/shepherdr2.ts"
-	},
+	"exports": "./index.ts",
 	"publishConfig": {
 		"access": "public"
 	}

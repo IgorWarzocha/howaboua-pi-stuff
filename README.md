@@ -21,7 +21,7 @@ pi install npm:@howaboua/pi-extensions
 pi install npm:@howaboua/pi-skills
 ```
 
-`pi-codex-conversion` is separate because it changes Pi's tool surface for GPT/Codex models. `pi-web-run` and `pi-imagegen` are separate because they use Codex endpoints and login. `omarchy-help` is separate because it targets Arch desktops configured with Omarchy.
+`pi-codex-conversion` is separate because it changes Pi's tool surface for GPT/Codex models. `pi-codex-web-run` and `pi-codex-imagegen` are separate because they use Codex endpoints and login. `omarchy-help` is separate because it targets Arch desktops configured with Omarchy.
 
 ## Extensions
 
@@ -35,7 +35,7 @@ pi install npm:@howaboua/pi-skills
 | [`pi-explore-subagents`](./packages/pi-explore-subagents) | Isolated, discovery-only shallow and deep subagents |
 | [`pi-gippity-control`](./packages/pi-gippity-control) | Realtime voice and LAN remote control for any Pi model |
 | [`pi-gpt-switcher`](./packages/pi-gpt-switcher) | `/sol`, `/terra`, and `/luna` commands for GPT-5.6 Codex models |
-| [`pi-imagegen`](./packages/pi-imagegen) | Codex image generation and editing in normal Pi, Code Mode, and Notebook Mode |
+| [`pi-codex-imagegen`](./packages/pi-codex-imagegen) | Codex image generation and editing in normal Pi, Code Mode, and Notebook Mode |
 | [`pi-memories`](./packages/pi-memories) | Shutdown memory candidates in a plain Markdown inbox |
 | [`pi-pet`](./packages/pi-pet) | Animated companion miniapps for GipPity Remote |
 | [`pi-semantic-grep`](./packages/pi-semantic-grep) | Meaning-based code and docs search backed by repo-local SQLite indexes |
@@ -46,7 +46,7 @@ pi install npm:@howaboua/pi-skills
 | [`pi-subdir-agents`](./packages/pi-subdir-agents) | Nested `AGENTS.md` context during repository discovery |
 | [`pi-unicode-charts`](./packages/pi-unicode-charts) | Terminal-native Unicode charts for Pi Markdown |
 | [`pi-vent`](./packages/pi-vent) | Batched notes about repeated workflow friction in `VENT.md` |
-| [`pi-web-run`](./packages/pi-web-run) | Codex web search and navigation in normal Pi, Code Mode, and Notebook Mode |
+| [`pi-codex-web-run`](./packages/pi-codex-web-run) | Codex web search and navigation in normal Pi, Code Mode, and Notebook Mode |
 
 ## Skills
 

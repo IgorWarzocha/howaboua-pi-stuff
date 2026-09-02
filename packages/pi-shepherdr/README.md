@@ -1,16 +1,10 @@
 # pi-shepherdr
 
-Talk to one Pi. Let it run the others.
+One persistent agent system for ordinary Pi, Code Mode and Notebook Mode.
 
-Shepherdr turns one Pi session into an orchestrator for Pi agents running across [Herdr](https://herdr.dev). Give work to the controller; it can find existing agents, start new ones in explicit locations, send follow-ups and bring their full replies back into the same conversation.
+Shepherdr combines a monitored [Herdr](https://herdr.dev) fleet with blocking and asynchronous agent calls. It registers one routed `agents` tool in normal Pi. When Pi Codex is installed, the same definition, renderer and implementation become `tools.agents` inside Code and Notebook Mode.
 
-The controller gets one small JSON-schema tool with the actions and arguments it needs. Workers load none of it.
-
-Enable orchestration and Pi already knows its job. You do not have to explain Herdr, ask it to load an orchestration skill or remind it to delegate. The schema handles ordinary delegation without `--help` or improvised CLI commands. Herdr and Shepherdr should be enough on their own; any other Pi extensions and skills continue to work alongside them.
-
-This is particularly handy with realtime voice. You keep talking to one agent while the workers operate in their panes and project directories. Finished work comes back automatically. If a worker needs approval or an answer, the controller is steered at the next opportunity instead of leaving you to hunt through panes.
-
-Herdr still owns the terminals, layout and restored sessions. Shepherdr connects them to one Pi conversation.
+Asynchronous calls return after dispatch, then push completion, failure or blockage into the controller with a steer message. The model never has to poll. Blocking calls hold the tool call and return the worker's reply directly.
 
 ## Install
 
@@ -18,19 +12,19 @@ Herdr still owns the terminals, layout and restored sessions. Shepherdr connects
 pi install npm:@howaboua/pi-shepherdr
 ```
 
-Requires Pi 0.84.1 or newer and the Herdr Pi integration:
+Requires Pi 0.84.3 or newer, Herdr 0.8.x and the Herdr Pi integration:
 
 ```bash
 herdr integration install pi
 ```
 
-Shepherdr supports Herdr 0.8.x. It was developed and validated with 0.8.0; Herdr 0.7.x and older are unsupported. The controlling Pi session must run inside Herdr.
+Do not load Pi Codex's example `agents.toml` custom tool alongside Shepherdr; they own the same agent surface.
+
+Pi Codex 3.0.24 or newer is optional. Without it, Shepherdr remains a normal Pi extension.
 
 ## Enable orchestration
 
-Pi sessions remain ordinary workers by default. They receive no orchestration tool or instructions.
-
-Run Pi inside Herdr, then activate the agent tool and orchestration guidance for the current session:
+Pi sessions remain ordinary workers until explicitly promoted. Run Pi inside Herdr, then activate the agent tool and orchestration guidance for the current session:
 
 ```text
 /herdr
@@ -38,43 +32,68 @@ Run Pi inside Herdr, then activate the agent tool and orchestration guidance for
 
 The command records one visible mode message without triggering a turn. Run `/herdr` again to return to normal guidance while keeping the agent tool available. Resumed controller sessions restore their last mode; new worker sessions in the same directory remain dormant.
 
-## Connect more machines
+`/herdr machines` opens the Add/Remove Machine interface. Settings live in `~/.pi/agent/shepherdr.json`, and `/herdr connect [machine]` retries configured remotes after activation.
 
-Run `/herdr machines` and choose **Add machine**. Give the machine a name and an SSH target that already connects noninteractively; the remote machine needs Node, Herdr and the Pi integration. Machine settings live in `~/.pi/agent/shepherdr.json`.
+Remote machines connect over SSH. Shepherdr installs one helper at `~/.pi/agent/shepherdr.mjs` on each remote, runs it only for the connection lifetime and leaves no remote daemon behind.
 
-Controller activation connects every configured machine once in parallel. A failed or dropped connection remains unavailable without retrying automatically; use `/herdr connect` or `/herdr connect <machine>` to try again.
+## Agent calls
 
-Shepherdr maintains one remote helper at `~/.pi/agent/shepherdr.mjs`. It updates that file atomically when needed, runs it only for the lifetime of the SSH connection and leaves no remote daemon behind. Agent lists, workspaces, monitored state and full replies retain their machine identity. Ask the controller naturally—for example, “run this on desktop”—and it routes the existing `herdr_agents` tool with the configured machine name.
+Call the `agents` tool with `action: "help"` before first use, then send flat request objects. Code and Notebook Mode expose the same router as `await tools.agents({ action: "help" })`; every call requires `action`.
 
-## What the controller can do
-
-Shepherdr adds one compact `herdr_agents` tool. Its schema is the complete model-facing control surface:
-
-| Action | What it does |
+| Action | Result |
 | --- | --- |
-| `list` | Find Pi agents and Herdr workspaces. |
-| `start` | Launch a named Pi agent in an explicitly selected new workspace, new tab or existing pane. An optional prompt starts work immediately. |
-| `watch` | Subscribe to an existing Pi agent. |
-| `send` | Send a follow-up to any Pi agent and monitor it automatically. |
-| `unwatch` | Stop reporting an agent without stopping or moving it. |
+| `help` | Live profiles, request shapes, coordination rules and the advanced Herdr escape hatch |
+| `list` | Profiles, machines and matching Pi agents |
+| `find` | Agents matching a query or status |
+| `spawn` | Spawn a profiled Pi agent and send its initial task |
+| `send` | Send work or a follow-up to an existing agent |
+| `read` | Read the latest assistant reply or bounded terminal output |
+| `answer` | Answer a worker blocked on Pi Ask |
+| `watch` | Push future settlement from an existing Pi agent |
+| `unwatch` | Stop reporting an agent |
 
-Delegation is fire-and-forget. A `start` with an initial prompt, plus every `watch` and `send`, tells the controller not to poll. Completion or blockage arrives automatically.
+`spawn`, `send` and `answer` block by default. Set `blocking: false` only when the controller should continue other work immediately. Completion and blockage are then delivered automatically.
 
-Shepherdr does not invent another workspace model or resume mechanism. It never silently moves, focuses, releases or closes existing panes. Herdr remains responsible for detach, reattach, layout restoration and native Pi session restoration.
+Every `spawn` needs an `agent_type` and a concise two- or three-word `label`. The label names both the Herdr tab and Pi session; the routing `name` remains optional and is derived from it when omitted.
 
-## Results and blocked workers
+Cancelling a blocking call does not kill its worker. The waiter detaches and the eventual result returns through normal asynchronous delivery.
 
-A live widget shows the watched agents and their state. When work settles, the controller receives a labelled purple message containing the original task and the full, untruncated worker response.
+## Profiles
 
-Finished, failed and blocked events all steer the controller. During an active turn, the event arrives after the current tool calls and before the next model response. While idle, it starts a response immediately.
+On first load, Shepherdr installs three editable profiles:
 
-A blocked event includes the pane ID and concrete Herdr commands for inspecting and operating it:
+- `general` uses `openai-codex/gpt-5.6-sol` with `high` thinking for implementation
+- `explorer` uses `openai-codex/gpt-5.6-terra` with `high` thinking for read-only discovery
+- `reviewer` uses `openai-codex/gpt-5.6-luna` with `xhigh` thinking for generic read-only review
 
-```bash
-herdr agent read <pane> --source visible
-herdr agent prompt <pane> "<text>"
-herdr agent send-keys <pane> <keys>
+Use `general` sparingly, mainly when requested or while orchestration is active. For work in the controller's repository, create and prepare a dedicated worktree, then pass it as `cwd`.
+
+Profiles live under:
+
+```text
+~/.pi/agent/shepherdr/profiles/<name>/profile.json
 ```
+
+That directory is authoritative after initialization. Edit a profile to change it, add a directory to create an agent type, or delete its directory to remove it; deleted defaults are not recreated. Profiles never inherit the controller's model or thinking level.
+
+```json
+{
+  "description": "Read-only dependency review",
+  "model": "provider/model",
+  "thinking": "high",
+  "prompt": "prompt.md",
+  "accepts": ["base"],
+  "pi_args": []
+}
+```
+
+`prompt` is read as system-prompt text. An optional `prepare` module may export `prepare({ cwd, message, base, local })` and return the worker message. Preparation runs on the controlling machine before dispatch; `local` says whether that machine also hosts the worker.
+
+## Advanced Herdr control
+
+Ordinary delegation stays inside `agents`. For workspace, tab, pane, process, focus, layout or raw-terminal operations, run `herdr --skill` and follow the installed Herdr skill. Shepherdr does not duplicate those controls.
+
+Herdr still owns terminals, layout, agent processes and restored sessions. Shepherdr owns event subscriptions, remote routing, the fleet widget and purple settlement messages.
 
 ## License
 

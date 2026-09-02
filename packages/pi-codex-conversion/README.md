@@ -40,7 +40,7 @@ Open `/codex` after installation. The defaults give Codex-like GPT models the st
 
 Pi keeps its sessions, project context, skills and UI. The model gets the dialect it already knows.
 
-Install [`pi-web-run`](../pi-web-run) or [`pi-imagegen`](../pi-imagegen) when you want Codex web search or image generation. They remain ordinary Pi extensions and automatically compose into Code and Notebook Mode.
+Install [`pi-codex-web-run`](../pi-codex-web-run) or [`pi-codex-imagegen`](../pi-codex-imagegen) when you want Codex web search or image generation. They remain ordinary Pi extensions and automatically compose into Code and Notebook Mode.
 
 ## Modes
 
@@ -239,8 +239,8 @@ Your existing `~/.pi/agent/pi-codex-conversion.json` continues to load.
 Web search and image generation are now independently installed extensions:
 
 ```bash
-pi install npm:@howaboua/pi-web-run
-pi install npm:@howaboua/pi-imagegen
+pi install npm:@howaboua/pi-codex-web-run
+pi install npm:@howaboua/pi-codex-imagegen
 ```
 
 This is also a major change for users of the old canonical package. Legacy PATH mode and its package binaries are gone. Old PATH-mode settings normalize to the structured adapter. Use structured tools or Code Mode custom commands instead.

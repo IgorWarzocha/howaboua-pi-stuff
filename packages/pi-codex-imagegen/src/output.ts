@@ -49,12 +49,5 @@ export function formatImagegenOutput(output: ImagegenOutput): string {
 	return [
 		`Generated image: ${output.path}`,
 		...(output.latest_path ? [`Latest: ${output.latest_path}`] : []),
-		`Transparent background: ${
-			output.transparent_background === true
-				? "yes"
-				: output.transparent_background === false
-					? "no"
-					: "unreported"
-		}`,
 	].join("\n");
 }

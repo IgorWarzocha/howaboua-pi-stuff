@@ -8,7 +8,6 @@ import { loadAgentProfiles } from "./profiles.js";
 
 interface AgentControllerOptions {
 	onActiveChange?(): void;
-	toolName?: string;
 }
 
 const ORCHESTRATION_STATE_TYPE = "pi-shepherdr-orchestration-state";
@@ -25,7 +24,7 @@ export function registerAgentController(
 ): void {
 	let orchestrationEnabled = false;
 	const setActive = (active: boolean) => {
-		setToolActive(pi, options.toolName ?? "herdr_agents", active);
+		setToolActive(pi, "agents", active);
 		options.onActiveChange?.();
 	};
 	pi.registerCommand("herdr", {

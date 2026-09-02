@@ -88,7 +88,7 @@ export async function buildImageGenerationRequest(
 			body: {
 				prompt: args.prompt,
 				model: IMAGE_MODEL,
-				background: args.background ?? "auto",
+				background: "auto",
 				quality: "auto",
 				size: "auto",
 			},
@@ -110,7 +110,7 @@ export async function buildImageGenerationRequest(
 			images,
 			prompt: args.prompt,
 			model: IMAGE_MODEL,
-			background: args.background ?? "auto",
+			background: "auto",
 			quality: "auto",
 			size: "auto",
 		},

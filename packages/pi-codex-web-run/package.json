@@ -1,15 +1,15 @@
 {
-	"name": "@howaboua/pi-imagegen",
+	"name": "@howaboua/pi-codex-web-run",
 	"version": "0.0.0",
-	"description": "Codex image generation and editing for Pi, Code Mode and Notebook Mode.",
+	"description": "Codex web search and navigation for Pi, Code Mode and Notebook Mode.",
 	"type": "module",
 	"license": "MIT",
 	"author": "Igor Warzocha",
-	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-imagegen#readme",
+	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-codex-web-run#readme",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
-		"directory": "packages/pi-imagegen"
+		"directory": "packages/pi-codex-web-run"
 	},
 	"bugs": {
 		"url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
@@ -19,7 +19,7 @@
 		"pi-extension",
 		"pi",
 		"codex",
-		"image-generation",
+		"web-search",
 		"code-mode"
 	],
 	"files": [
@@ -47,7 +47,6 @@
 	},
 	"peerDependencies": {
 		"@howaboua/pi-codex-conversion": ">=3.0.24",
-		"@earendil-works/pi-ai": ">=0.84.4",
 		"@earendil-works/pi-coding-agent": ">=0.84.4",
 		"@earendil-works/pi-tui": ">=0.84.4",
 		"typebox": "*"
@@ -60,7 +59,6 @@
 	"devDependencies": {
 		"@howaboua/pi-codex-conversion": "3.0.23",
 		"@biomejs/biome": "^2.5.10",
-		"@earendil-works/pi-ai": "0.84.4",
 		"@earendil-works/pi-coding-agent": "0.84.4",
 		"@earendil-works/pi-tui": "0.84.4",
 		"@types/node": "^26.2.0",

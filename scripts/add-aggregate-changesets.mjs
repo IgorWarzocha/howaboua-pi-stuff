@@ -22,11 +22,11 @@ const aggregateExcludedNames = new Set([
 	"@howaboua/pi-browser",
 	"@howaboua/pi-codex-conversion",
 	"@howaboua/pi-codex-tool-runtime",
-	"@howaboua/pi-imagegen",
+	"@howaboua/pi-codex-imagegen",
 	"@howaboua/pi-shepherdr2",
 	"@howaboua/pi-skill-omarchy-help",
 	"@howaboua/pi-subdir-agents",
-	"@howaboua/pi-web-run",
+	"@howaboua/pi-codex-web-run",
 ]);
 const generatedFiles = [
 	"aggregate-bundles.md",

@@ -49,7 +49,7 @@ function agentLabel(value: string | undefined): string {
 export function createAgentsTool(fleet: AgentFleet) {
 	return defineTool({
 		name: "agents",
-		label: "Shepherdr 2",
+		label: "Shepherdr",
 		description: "Persistent Pi agents across configured Herdr machines.",
 		parameters: AgentsParameters,
 		promptSnippet: "Load agents help before first use.",

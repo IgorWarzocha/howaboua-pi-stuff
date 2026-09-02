@@ -2,4 +2,4 @@
 
 Shared OpenAI Codex subscription authentication and explicitly configured Responses-provider routing for standalone Pi tools.
 
-This is an implementation dependency of pi-web-run, pi-imagegen, and pi-codex-conversion, not a Pi extension to install directly.
+This is an implementation dependency of pi-codex-web-run, pi-codex-imagegen, and pi-codex-conversion, not a Pi extension to install directly.

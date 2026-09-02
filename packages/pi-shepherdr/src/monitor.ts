@@ -22,7 +22,6 @@ import type {
 } from "./types.js";
 
 interface AgentMonitorOptions {
-	agentToolName?: string;
 	client: HerdrConnection;
 	machine: string;
 	onChange: () => void;
@@ -62,7 +61,6 @@ export class AgentMonitor {
 			options.reader,
 			this.machine,
 			options.operatorPrefix,
-			options.agentToolName,
 		);
 		this.events = new MonitorEvents({
 			client: this.client,

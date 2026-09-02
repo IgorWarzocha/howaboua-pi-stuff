@@ -1,15 +1,15 @@
 {
-	"name": "@howaboua/pi-web-run",
+	"name": "@howaboua/pi-codex-imagegen",
 	"version": "0.0.0",
-	"description": "Codex web search and navigation for Pi, Code Mode and Notebook Mode.",
+	"description": "Codex image generation and editing for Pi, Code Mode and Notebook Mode.",
 	"type": "module",
 	"license": "MIT",
 	"author": "Igor Warzocha",
-	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-web-run#readme",
+	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-codex-imagegen#readme",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
-		"directory": "packages/pi-web-run"
+		"directory": "packages/pi-codex-imagegen"
 	},
 	"bugs": {
 		"url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
@@ -19,7 +19,7 @@
 		"pi-extension",
 		"pi",
 		"codex",
-		"web-search",
+		"image-generation",
 		"code-mode"
 	],
 	"files": [
