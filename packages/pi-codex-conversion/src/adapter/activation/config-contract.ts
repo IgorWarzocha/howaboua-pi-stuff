@@ -127,8 +127,8 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	notebook: { maxHeapMiB: 4_096 },
 	voice: {
 		v3Voice: "cove",
-		autoResumeRealtime: false,
-		refreshRealtimeAfterCompaction: false,
+		autoResumeRealtime: true,
+		refreshRealtimeAfterCompaction: true,
 		audioSetupCompleted: false,
 		delegationAcknowledgements: true,
 		forwardReasoningSummaries: true,
@@ -137,6 +137,10 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 		muteShortcut: "ctrl+alt+m",
 		serverShortcut: "ctrl+alt+g",
 		dictationShortcutMode: "push",
+		contextModel: {
+			provider: "openai-codex",
+			modelId: "gpt-5.6-luna",
+		},
 		contextReasoning: DEFAULT_VOICE_CONTEXT_REASONING,
 	},
 	openai: {

@@ -29,6 +29,12 @@ test("legacy persisted config shapes migrate to the current groups", () => {
 	}).compaction.portableSummary, true);
 	assert.equal(normalizeCodexConversionConfig({
 		voice: { refreshRealtimeAfterCompaction: true },
+	}).voice.refreshRealtimeAfterCompaction, false);
+	assert.equal(normalizeCodexConversionConfig({
+		voice: {
+			contextModel: { provider: "openai-codex", modelId: "gpt-5.6-luna" },
+			refreshRealtimeAfterCompaction: true,
+		},
 	}).voice.refreshRealtimeAfterCompaction, true);
 });
 

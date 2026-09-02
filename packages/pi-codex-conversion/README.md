@@ -61,17 +61,17 @@ Provider scope can stay on **Codex and configured**, expand to **all providers**
 
 | Tab | Covers |
 | --- | --- |
-| General | Extension mode, provider scope, configured providers and heavy prompt overwrite |
-| Tools | Code Mode, text image descriptions and activate-only tools |
+| General | Settings scope, execution mode, extension mode, providers and heavy prompt overwrite |
+| Tools | Image description fallback and standalone tools |
 | OpenAI | Fast mode, verbosity, transport, cache diagnostics, Responses Lite and compaction |
 | Display | Statusline, tool rendering, Code Mode detail and background shells |
-| Voice | LAN server, voice, dictation behaviour, shortcuts and prompt paths |
+| Voice | LAN server, realtime behaviour, context summarisation, dictation, shortcuts and prompt paths |
 | Usage | Codex limits, reset times and banked reset credits |
 | About | GitHub, changelog, Discord and issue links |
 
 Open a tab directly with `/codex tools`, `/codex openai`, `/codex display`, `/codex voice`, `/codex usage` or `/codex about`.
 
-The first `/codex` setting chooses **Defaults** or **Project**. Defaults live in `~/.pi/agent/pi-codex-conversion.json`. Choosing **Project** creates a complete snapshot at `.pi/pi-codex-conversion.json`; every tab and **Edit config** then targets that file. Switching back to Defaults removes the project overrides while preserving its top-level `executionMode` setting. Project settings are read only for trusted folders.
+The first `/codex` setting chooses **Global** or **This project**. Global settings live in `~/.pi/agent/pi-codex-conversion.json`. Choosing **This project** creates a complete snapshot at `.pi/pi-codex-conversion.json`; every tab and **Edit config** then targets that file. Switching back to Global removes the project overrides. Project settings are read only for trusted folders.
 
 Without folder settings, the project inherits the complete global configuration. `PI_CODEX_FAST=1` or `PI_CODEX_FAST=0` can override Fast Mode for one Pi process, which is useful for independently launched workers. Run `/reload` after changing files by hand.
 
@@ -79,11 +79,11 @@ Without folder settings, the project inherits the complete global configuration.
 
 The optional **Heavy system prompt overwrite** removes roughly 40% of Pi's known default scaffold while preserving additions from other extensions. It is off by default.
 
-Responses compaction V2 stores an encrypted checkpoint for the Codex lane. If you switch providers inside long sessions, enable **Portable Pi summary** beside it. Each native compaction then runs Pi's normal cumulative summarizer on an isolated request lane and stores the readable result alongside the encrypted checkpoint. Codex replay keeps using the native checkpoint, while other providers receive the Pi summary. This adds summarization cost, so it is off by default.
+Responses compaction V2 stores an encrypted checkpoint for the Codex lane. If you switch providers inside long sessions, enable **Parallel Pi-native compaction** beside it. Each native compaction then runs Pi's normal cumulative summarizer on an isolated request lane and stores the readable result alongside the encrypted checkpoint. Codex replay keeps using the native checkpoint, while other providers receive the Pi summary. This adds summarization cost, so it is off by default.
 
 ## Cache diagnostics
 
-Open `/codex openai` and enable **Cache status line**. **Cache log file** is an additional tier and enables the status automatically. Both are off by default.
+Open `/codex openai` and set **Cache diagnostics** to **Status** or **Status + log**. Diagnostics are off by default.
 
 Pi has one extension-status row, so the existing adapter and optional cache state appear together:
 
@@ -117,7 +117,7 @@ Logs contain request lane, transport, socket reuse, continuation decision, item 
 
 ## Code Mode and custom tools
 
-Enable **GPT-5.6 Code Mode** in `/codex` → **Tools**. It currently supports OpenAI Codex Luna, Terra and Sol. Configured OpenAI Responses-compatible providers can also use those model IDs or the GPT-5.6 alias with **Proxy Responses Lite** enabled. Other models stay on structured tools.
+Select **Code** or **Notebook (recommended)** under `/codex` → **General**. They currently support OpenAI Codex Luna, Terra and Sol. Configured OpenAI Responses-compatible providers can also use those model IDs or the GPT-5.6 alias with **Proxy Responses Lite** enabled. Other models stay on structured tools.
 
 The model can compose tools in one freeform JavaScript cell:
 
@@ -178,7 +178,7 @@ Defaults:
 
 Voice input and output follow the system defaults. Set `voice.inputDevice` or `voice.outputDevice` only to pin an endpoint. Dictation returns one editable transcript to Pi's input.
 
-Set a **Voice context model** to seed realtime from the current Pi history. **Refresh realtime voice after compaction** then pauses at each successful compaction boundary, summarizes the compacted branch, and starts a fresh voice call without ending spoken mode. An initial summarization failure leaves the old call untouched.
+Fresh installs use Cove for realtime voice and Luna with high reasoning for context summarisation. Realtime calls resume after transport drops, and **Run context summarisation after compaction** pauses at each successful compaction boundary, summarizes the compacted branch, and starts a fresh voice call without ending spoken mode. An initial summarization failure leaves the old call untouched.
 
 The visible realtime prompt lives at `~/.pi/agent/REALTIME-SYSTEM-PROMPT.md`. A trusted project can append `.pi/REALTIME-SYSTEM-PROMPT.md`. Keep coding and project instructions in AGENTS.md rather than duplicating them into the spoken assistant.
 

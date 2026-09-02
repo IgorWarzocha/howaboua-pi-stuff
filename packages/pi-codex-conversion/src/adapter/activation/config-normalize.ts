@@ -157,7 +157,7 @@ export function normalizeCodexConversionConfig(
 			refreshRealtimeAfterCompaction: normalizeBoolean(
 				voice["refreshRealtimeAfterCompaction"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.voice.refreshRealtimeAfterCompaction,
-			),
+			) && contextModel !== undefined,
 			audioSetupCompleted: normalizeBoolean(
 				voice["audioSetupCompleted"],
 				DEFAULT_CODEX_CONVERSION_CONFIG.voice.audioSetupCompleted,
