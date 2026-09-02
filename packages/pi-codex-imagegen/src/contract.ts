@@ -1,5 +1,6 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import type { CodexToolProvider } from "./codex-runtime/types.js";
 
 export const IMAGE_GENERATION_TOOL_NAME = "imagegen";
 export const IMAGE_GENERATION_UNSUPPORTED_MESSAGE =
@@ -40,8 +41,13 @@ export interface ImageResponse {
 	size?: string | null;
 }
 
+export type CodexToolProviderResolver = (
+	ctx: ExtensionContext,
+) => Promise<CodexToolProvider | undefined>;
+
 export interface ImageGenerationToolOptions {
 	allowConfiguredProvider?: (model: ExtensionContext["model"]) => boolean;
+	resolveProvider?: CodexToolProviderResolver;
 	allowCodexProviderFallback?: boolean;
 	customRendering?: boolean;
 	promptSnippet?: boolean;

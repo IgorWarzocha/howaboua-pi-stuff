@@ -12,6 +12,8 @@ import {
 
 const CONFIGURED_PROVIDER_CHANNEL =
 	"@howaboua/pi-codex-conversion.configured-provider/v1";
+const PROVIDER_RESOLVER_CHANNEL =
+	"@howaboua/pi-codex-conversion.provider-resolver/v1";
 const CODEX_TOOL_ORIGINATOR = "codex_cli_rs";
 const OPENAI_CODEX_PROVIDER = "openai-codex";
 const PREFERRED_MODELS = [
@@ -39,10 +41,17 @@ export interface CodexToolProvider {
 export type AllowConfiguredCodexToolProvider = (
 	model: ExtensionContext["model"],
 ) => boolean;
+export type CodexToolProviderResolver = (
+	ctx: ExtensionContext,
+) => Promise<CodexToolProvider>;
 
 interface ConfiguredProviderRequest {
 	model: ExtensionContext["model"];
 	allow(): void;
+}
+
+interface ProviderResolverRequest {
+	use(resolver: CodexToolProviderResolver): void;
 }
 
 export function registerCodexToolProviderPolicy(
@@ -52,6 +61,15 @@ export function registerCodexToolProviderPolicy(
 	return pi.events.on(CONFIGURED_PROVIDER_CHANNEL, (value) => {
 		if (!isConfiguredProviderRequest(value)) return;
 		if (allows(value.model)) value.allow();
+	});
+}
+
+export function registerCodexToolProviderResolver(
+	pi: ExtensionAPI,
+	resolver: CodexToolProviderResolver,
+): () => void {
+	return pi.events.on(PROVIDER_RESOLVER_CHANNEL, (value) => {
+		if (isProviderResolverRequest(value)) value.use(resolver);
 	});
 }
 
@@ -150,6 +168,17 @@ function isConfiguredProviderRequest(
 	);
 }
 
+function isProviderResolverRequest(
+	value: unknown,
+): value is ProviderResolverRequest {
+	return Boolean(
+		value &&
+			typeof value === "object" &&
+			"use" in value &&
+			typeof value.use === "function",
+	);
+}
+
 function isResponsesModel(model: ExtensionContext["model"]): boolean {
 	return Boolean(model?.api?.includes("responses"));
 }
@@ -232,8 +261,7 @@ function codexWebRunUserAgent(): string {
 					: process.platform;
 	const arch = process.arch === "arm64" ? "arm64" : process.arch;
 	const { TERM_PROGRAM, TERM } = process.env;
-	const terminal =
-		TERM_PROGRAM?.trim() || TERM?.trim() || "unknown";
+	const terminal = TERM_PROGRAM?.trim() || TERM?.trim() || "unknown";
 	return (
 		CODEX_TOOL_ORIGINATOR +
 		"/0.0.0 (" +

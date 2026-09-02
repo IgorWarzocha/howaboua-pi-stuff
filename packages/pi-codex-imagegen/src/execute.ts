@@ -1,10 +1,5 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { saveGeneratedImages } from "./artifacts.js";
-import {
-	codexToolProviderHeaders,
-	fetchCodexTool,
-	resolveCodexToolProvider,
-} from "./codex-runtime/index.js";
 import type {
 	ImageGenerationToolOptions,
 	ImagegenArgs,
@@ -39,6 +34,18 @@ function parseImageResponse(text: string): ImageResponse {
 	return parsed as ImageResponse;
 }
 
+async function resolveProvider(
+	ctx: ExtensionContext,
+	options: ImageGenerationToolOptions,
+) {
+	const hosted = await options.resolveProvider?.(ctx);
+	if (hosted) return hosted;
+	const { resolveCodexToolProvider } = await import(
+		"./codex-runtime/resolve.js"
+	);
+	return resolveCodexToolProvider(ctx, options.allowConfiguredProvider);
+}
+
 export async function executeCodexImageGeneration(
 	args: ImagegenArgs,
 	ctx: ExtensionContext,
@@ -70,10 +77,11 @@ export async function executeCodexImageGeneration(
 		recentImages,
 		ctx.cwd,
 	);
-	const provider = await resolveCodexToolProvider(
-		ctx,
-		options.allowConfiguredProvider,
-	);
+	const provider = await resolveProvider(ctx, options);
+	const [{ codexToolProviderHeaders }, { fetchCodexTool }] = await Promise.all([
+		import("./codex-runtime/headers.js"),
+		import("./codex-runtime/http.js"),
+	]);
 	const endpoint =
 		provider.baseUrl.replace(/\/+$/, "") + "/images/" + request.operation;
 	const headers = codexToolProviderHeaders(provider);

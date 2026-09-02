@@ -1,7 +1,11 @@
 import type { Api, Model } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
-import { registerCodexToolProviderPolicy } from "../adapter/codex-tool-provider.ts";
+import {
+	registerCodexToolProviderPolicy,
+	registerCodexToolProviderResolver,
+	resolveCodexToolProvider,
+} from "../adapter/codex-tool-provider.ts";
 import { isResponsesModel } from "../adapter/prompt/codex-model.ts";
 import {
 	registerApplyPatchResultEvent,
@@ -36,12 +40,17 @@ export function registerCodexTools(
 	runtime: CodexExtensionRuntime,
 ): CodexToolRegistration {
 	registerApplyPatchResultEvent(pi);
+	const allowsProvider = (model: Model<Api> | undefined) =>
+		isExplicitlyConfiguredToolProvider(model, runtime.state.config);
 	const unregisterProviderPolicy = registerCodexToolProviderPolicy(
 		pi,
-		(model) =>
-			isExplicitlyConfiguredToolProvider(
-				model as Model<Api> | undefined,
-				runtime.state.config,
+		(model) => allowsProvider(model as Model<Api> | undefined),
+	);
+	const unregisterProviderResolver = registerCodexToolProviderResolver(
+		pi,
+		(ctx) =>
+			resolveCodexToolProvider(ctx, (model) =>
+				allowsProvider(model as Model<Api> | undefined),
 			),
 	);
 	const renderOptions = (config: CodexConversionConfig) => ({
@@ -72,6 +81,9 @@ export function registerCodexTools(
 			if (!config.voiceFeaturesOnly) registerCore(config);
 			runtime.sessions.setBaseEnv(runtime.execEnv(config));
 		},
-		shutdown: unregisterProviderPolicy,
+		shutdown() {
+			unregisterProviderResolver();
+			unregisterProviderPolicy();
+		},
 	};
 }

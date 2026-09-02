@@ -1,22 +1,29 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ChatGptCloudflareCookieStore } from "../src/codex-runtime/cloudflare-cookies.js";
+import { fetchCodexTool } from "../src/codex-runtime/http.js";
 import {
-	fetchCodexTool,
 	isConfiguredCodexToolProvider,
-} from "../src/codex-runtime/index.js";
+	resolveHostedCodexToolProvider,
+} from "../src/codex-runtime/policy.js";
 import { resolveCodexSearchUrl } from "../src/codex-runtime/urls.js";
 
 test("Codex requests keep provider policy and bounded HTTP state", async () => {
-	const handlers: Array<(value: unknown) => void> = [];
+	const handlers = new Map<string, Array<(value: unknown) => void>>();
 	const pi = {
 		events: {
-			on(_channel: string, handler: (value: unknown) => void) {
-				handlers.push(handler);
-				return () => handlers.splice(handlers.indexOf(handler), 1);
+			on(channel: string, handler: (value: unknown) => void) {
+				const entries = handlers.get(channel) ?? [];
+				entries.push(handler);
+				handlers.set(channel, entries);
+				return () =>
+					handlers.set(
+						channel,
+						entries.filter((entry) => entry !== handler),
+					);
 			},
-			emit(_channel: string, value: unknown) {
-				for (const handler of handlers) handler(value);
+			emit(channel: string, value: unknown) {
+				for (const handler of handlers.get(channel) ?? []) handler(value);
 			},
 		},
 	};
@@ -49,6 +56,31 @@ test("Codex requests keep provider policy and bounded HTTP state", async () => {
 			{ provider: "configured" } as never,
 		),
 		false,
+	);
+	const provider = {
+		route: "openai-codex" as const,
+		baseUrl: "https://chatgpt.com/backend-api/codex",
+		responsesUrl: "https://chatgpt.com/backend-api/codex/responses",
+		searchUrl: "https://chatgpt.com/backend-api/codex/alpha/search",
+		model: "gpt-5.6-luna",
+		token: "token",
+		accountId: "account",
+	};
+	pi.events.on(
+		"@howaboua/pi-codex-conversion.provider-resolver/v1",
+		(value) => {
+			if (
+				value &&
+				typeof value === "object" &&
+				"use" in value &&
+				typeof value.use === "function"
+			)
+				value.use(async () => provider);
+		},
+	);
+	assert.deepEqual(
+		await resolveHostedCodexToolProvider(pi as never, {} as never),
+		provider,
 	);
 	assert.equal(
 		resolveCodexSearchUrl("https://chatgpt.com/backend-api/codex/responses"),

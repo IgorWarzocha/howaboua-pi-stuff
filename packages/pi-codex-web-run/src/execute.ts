@@ -1,11 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
-	codexToolProviderHeaders,
-	fetchCodexTool,
-	resolveCodexToolProvider,
-} from "./codex-runtime/index.js";
-import {
 	DEFAULT_WEB_SEARCH_MODEL,
 	WEB_SEARCH_MAX_RESPONSE_BYTES,
 	type WebRunOutput,
@@ -44,16 +39,29 @@ function configuredModel(options: WebSearchToolOptions): string | undefined {
 	return value ?? (process.env["PI_CODEX_MODEL"]?.trim() || undefined);
 }
 
+async function resolveProvider(
+	ctx: ExtensionContext,
+	options: WebSearchToolOptions,
+) {
+	const hosted = await options.resolveProvider?.(ctx);
+	if (hosted) return hosted;
+	const { resolveCodexToolProvider } = await import(
+		"./codex-runtime/resolve.js"
+	);
+	return resolveCodexToolProvider(ctx, options.allowConfiguredProvider);
+}
+
 export async function executeCodexWebSearch(
 	params: Record<string, unknown>,
 	ctx: ExtensionContext,
 	signal: AbortSignal | undefined | null,
 	options: WebSearchToolOptions = {},
 ): Promise<WebRunExecutionResult> {
-	const provider = await resolveCodexToolProvider(
-		ctx,
-		options.allowConfiguredProvider,
-	);
+	const provider = await resolveProvider(ctx, options);
+	const [{ codexToolProviderHeaders }, { fetchCodexTool }] = await Promise.all([
+		import("./codex-runtime/headers.js"),
+		import("./codex-runtime/http.js"),
+	]);
 	const body = buildWebSearchRequest(params, {
 		id:
 			ctx.sessionManager?.getSessionId?.() || options.sessionId || randomUUID(),

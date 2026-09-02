@@ -1,5 +1,6 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import type { CodexToolProvider } from "./codex-runtime/types.js";
 
 export const WEB_SEARCH_TOOL_NAME = "web_run";
 export const WEB_SEARCH_UNSUPPORTED_MESSAGE =
@@ -79,10 +80,15 @@ export type WebRunOutput = Record<string, unknown> & {
 	search_results?: unknown[];
 };
 
+export type CodexToolProviderResolver = (
+	ctx: ExtensionContext,
+) => Promise<CodexToolProvider | undefined>;
+
 export interface WebSearchToolOptions {
 	sessionId?: string;
 	model?: string | (() => string | undefined);
 	allowConfiguredProvider?: (model: ExtensionContext["model"]) => boolean;
+	resolveProvider?: CodexToolProviderResolver;
 	allowCodexProviderFallback?: boolean;
 	customRendering?: boolean;
 	promptSnippet?: boolean;
