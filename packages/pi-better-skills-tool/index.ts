@@ -4,7 +4,9 @@ import { createSkillsTool, prepareSkillsCodeModeInput } from "./src/tool.js";
 
 export { createSkillsTool, prepareSkillsCodeModeInput } from "./src/tool.js";
 
-const REGISTRATION_KEY = Symbol.for("@howaboua/pi-skills-tool.registered");
+const REGISTRATION_KEY = Symbol.for(
+	"@howaboua/pi-better-skills-tool.registered",
+);
 const CODE_MODE_PACKAGE = "@howaboua/pi-codex-conversion";
 const CODE_MODE_MODULE = `${CODE_MODE_PACKAGE}/code-mode`;
 

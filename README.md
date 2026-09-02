@@ -29,6 +29,7 @@ pi install npm:@howaboua/pi-skills
 |---|---|
 | [`pi-ask`](./packages/pi-ask) | Interactive user decisions, review triage, and human handoffs |
 | [`pi-auto-trees`](./packages/pi-auto-trees) | `/marker` and `/end` for rolling completed work into a compact branch summary |
+| [`pi-better-skills-tool`](./packages/pi-better-skills-tool) | Progressive skill discovery in normal Pi, Code Mode, and Notebook Mode |
 | [`pi-cache-hit-predictor`](./packages/pi-cache-hit-predictor) | Inline prompt-cache hit predictions when switching models or reasoning levels |
 | [`pi-codex-conversion`](./packages/pi-codex-conversion) | Codex-shaped shell, patch, image inspection, and Code Mode tools for GPT/Codex models |
 | [`pi-dynamic-tools`](./packages/pi-dynamic-tools) | TOML-defined command-line tools exposed through JavaScript Code Mode |
@@ -40,7 +41,6 @@ pi install npm:@howaboua/pi-skills
 | [`pi-pet`](./packages/pi-pet) | Animated companion miniapps for GipPity Remote |
 | [`pi-semantic-grep`](./packages/pi-semantic-grep) | Meaning-based code and docs search backed by repo-local SQLite indexes |
 | [`pi-shepherdr`](./packages/pi-shepherdr) | Herdr-native multi-agent orchestration |
-| [`pi-skills-tool`](./packages/pi-skills-tool) | Progressive skill discovery in normal Pi, Code Mode, and Notebook Mode |
 | [`pi-smart-btw`](./packages/pi-smart-btw) | Async side-session questions with explicit injection into the main chat |
 | [`pi-subagent-review`](./packages/pi-subagent-review) | `/review` through an isolated review subagent |
 | [`pi-subdir-agents`](./packages/pi-subdir-agents) | Nested `AGENTS.md` context during repository discovery |

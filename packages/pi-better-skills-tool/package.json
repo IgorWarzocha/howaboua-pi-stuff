@@ -1,15 +1,15 @@
 {
-	"name": "@howaboua/pi-skills-tool",
+	"name": "@howaboua/pi-better-skills-tool",
 	"version": "0.0.0",
 	"description": "Progressive skill discovery for Pi, Code Mode and Notebook Mode.",
 	"type": "module",
 	"license": "MIT",
 	"author": "Igor Warzocha",
-	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-skills-tool#readme",
+	"homepage": "https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-better-skills-tool#readme",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
-		"directory": "packages/pi-skills-tool"
+		"directory": "packages/pi-better-skills-tool"
 	},
 	"bugs": {
 		"url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"

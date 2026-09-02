@@ -1,5 +1,5 @@
 ---
-"@howaboua/pi-skills-tool": patch
+"@howaboua/pi-better-skills-tool": patch
 ---
 
 Add progressive skill discovery across normal Pi, Code Mode, and Notebook Mode.

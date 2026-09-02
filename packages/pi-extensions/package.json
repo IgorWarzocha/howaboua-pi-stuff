@@ -15,6 +15,7 @@
 	"dependencies": {
 		"@howaboua/pi-ask": "0.0.5",
 		"@howaboua/pi-auto-trees": "0.1.13",
+		"@howaboua/pi-better-skills-tool": "0.0.0",
 		"@howaboua/pi-cache-hit-predictor": "0.0.1",
 		"@howaboua/pi-dynamic-tools": "0.0.8",
 		"@howaboua/pi-explore-subagents": "0.1.13",
@@ -24,7 +25,6 @@
 		"@howaboua/pi-pet": "0.1.1",
 		"@howaboua/pi-semantic-grep": "0.1.19",
 		"@howaboua/pi-shepherdr": "0.1.2",
-		"@howaboua/pi-skills-tool": "0.0.0",
 		"@howaboua/pi-smart-btw": "0.2.6",
 		"@howaboua/pi-subagent-review": "0.2.19",
 		"@howaboua/pi-unicode-charts": "0.1.0",

@@ -1,11 +1,11 @@
-# @howaboua/pi-skills-tool
+# @howaboua/pi-better-skills-tool
 
 Progressive skill discovery for Pi, Code Mode and Notebook Mode. The `skills` tool lists the active catalog by category, reads one skill, or reads selected references without loading an entire package into context.
 
 ## Install
 
 ```bash
-pi install npm:@howaboua/pi-skills-tool
+pi install npm:@howaboua/pi-better-skills-tool
 ```
 
 Install `@howaboua/pi-codex-conversion` too for Code Mode and Notebook Mode. The extension remains a normal Pi tool when Codex conversion is absent.

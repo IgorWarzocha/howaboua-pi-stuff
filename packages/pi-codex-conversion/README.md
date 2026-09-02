@@ -163,7 +163,7 @@ A promoted tool adds one compact usage line to the prompt. A deferred tool adds 
 
 Working, disabled examples live in [`examples/custom-tools/`](./examples/custom-tools/). They include legacy browser and agent runners, progressive skills, semantic search, port diagnostics, site management and workflow helpers. See [`CUSTOM-TOOLS.md`](./src/tools/code-mode/CUSTOM-TOOLS.md) for the definition contract.
 
-The legacy `skills` example assumes Pi starts with `--no-skills`. Prefer the maintained [`pi-skills-tool`](../pi-skills-tool) extension.
+The legacy `skills` example assumes Pi starts with `--no-skills`. Prefer the maintained [`pi-better-skills-tool`](../pi-better-skills-tool) extension.
 
 ## Voice, dictation and GipPity
 
