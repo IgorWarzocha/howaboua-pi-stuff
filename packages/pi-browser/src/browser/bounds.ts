@@ -1,3 +1,4 @@
+import { StringDecoder } from "node:string_decoder";
 import { getDisplayPrefixLength } from "../cdp/discovery.js";
 import type {
 	SnapshotElement,
@@ -6,9 +7,43 @@ import type {
 import type { PageInfo } from "../cdp/types.js";
 
 const OUTPUT_BUDGET_BYTES = 38_000;
+const SNAPSHOT_TITLE_BYTES = 1_000;
+const SNAPSHOT_URL_BYTES = 8_000;
+const SNAPSHOT_PATTERN_BYTES = 2_000;
+const SNAPSHOT_ELEMENT_NAME_BYTES = 2_000;
+const SNAPSHOT_ELEMENT_VALUE_BYTES = 4_000;
 
 function byteLength(value: unknown): number {
 	return Buffer.byteLength(JSON.stringify(value));
+}
+
+function truncateUtf8(value: string, maxBytes: number): string {
+	const bytes = Buffer.from(value);
+	if (bytes.length <= maxBytes) return value;
+	return new StringDecoder("utf8").write(bytes.subarray(0, maxBytes));
+}
+
+function boundedElement(element: SnapshotElement): SnapshotElement {
+	let value = element.value;
+	if (typeof value === "string") {
+		value = truncateUtf8(value, SNAPSHOT_ELEMENT_VALUE_BYTES);
+	} else if (value !== undefined) {
+		const serialized = JSON.stringify(value);
+		if (
+			serialized &&
+			Buffer.byteLength(serialized) > SNAPSHOT_ELEMENT_VALUE_BYTES
+		) {
+			value = truncateUtf8(serialized, SNAPSHOT_ELEMENT_VALUE_BYTES);
+		}
+	}
+	return {
+		...element,
+		role: truncateUtf8(element.role, 128),
+		...(element.name === undefined
+			? {}
+			: { name: truncateUtf8(element.name, SNAPSHOT_ELEMENT_NAME_BYTES) }),
+		...(value === undefined ? {} : { value }),
+	};
 }
 
 export function boundTabs(
@@ -61,14 +96,17 @@ export function boundTabs(
 
 export function boundSnapshot(page: SnapshotResult): Record<string, unknown> {
 	const base = {
-		ref_id: page.ref_id,
-		title: page.title,
-		url: page.url,
+		ref_id:
+			page.ref_id === undefined ? undefined : truncateUtf8(page.ref_id, 512),
+		title: truncateUtf8(page.title, SNAPSHOT_TITLE_BYTES),
+		url: truncateUtf8(page.url, SNAPSHOT_URL_BYTES),
 		lineno: page.lineno,
-		...(page.pattern ? { pattern: page.pattern } : {}),
+		...(page.pattern
+			? { pattern: truncateUtf8(page.pattern, SNAPSHOT_PATTERN_BYTES) }
+			: {}),
 	};
 	const elements = new Map<number, SnapshotElement>(
-		page.elements.map((element) => [element.id, element]),
+		page.elements.map((element) => [element.id, boundedElement(element)]),
 	);
 	const content: SnapshotResult["content"] = [];
 	const includedElements: SnapshotElement[] = [];

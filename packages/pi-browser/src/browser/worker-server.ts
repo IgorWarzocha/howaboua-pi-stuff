@@ -1,8 +1,9 @@
 import { spawn } from "node:child_process";
-import { mkdir, rm } from "node:fs/promises";
+import { chmod, lstat, mkdir, rm } from "node:fs/promises";
 import { createConnection, createServer, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { StringDecoder } from "node:string_decoder";
 import type { BrowserOperation } from "./operation.js";
 import { isRecordValue, parseActionRequest } from "./parse-operation.js";
 import { BrowserRoutes } from "./routes.js";
@@ -25,6 +26,25 @@ function workerSocketPath(workerId: string): string {
 		? join(process.env["XDG_RUNTIME_DIR"], "browser-tool")
 		: join(tmpdir(), `browser-tool-${process.getuid?.() ?? "user"}`);
 	return join(directory, `worker-${workerId}.sock`);
+}
+
+async function ensureWorkerSocketDirectory(workerId: string): Promise<void> {
+	if (IS_WINDOWS) return;
+	const directory = dirname(workerSocketPath(workerId));
+	await mkdir(directory, { recursive: true, mode: 0o700 });
+	const info = await lstat(directory);
+	const uid = process.getuid?.();
+	if (info.isSymbolicLink() || !info.isDirectory()) {
+		throw new Error(
+			`Browser worker socket directory is not a directory: ${directory}`,
+		);
+	}
+	if (uid === undefined || info.uid !== uid) {
+		throw new Error(
+			`Browser worker socket directory is not owned by this user: ${directory}`,
+		);
+	}
+	if ((info.mode & 0o077) !== 0) await chmod(directory, 0o700);
 }
 
 function parseWorkerOperations(input: string): BrowserOperation[] {
@@ -60,6 +80,7 @@ function readLine(socket: Socket): Promise<string> {
 	return new Promise((resolveValue, reject) => {
 		let input = "";
 		let bytes = 0;
+		const decoder = new StringDecoder("utf8");
 		const cleanup = () => {
 			socket.off("data", onData);
 			socket.off("end", onEnd);
@@ -77,7 +98,7 @@ function readLine(socket: Socket): Promise<string> {
 				reject(new Error("Browser worker input exceeded 8 MiB"));
 				return;
 			}
-			input += chunk.toString("utf8");
+			input += decoder.write(chunk);
 			const newline = input.indexOf("\n");
 			if (newline < 0) return;
 			cleanup();
@@ -93,12 +114,20 @@ async function handleConnection(
 	socket: Socket,
 	runtime: BrowserRuntime,
 ): Promise<void> {
+	const controller = new AbortController();
+	const abort = () =>
+		controller.abort(new Error("Browser worker requester disconnected"));
+	socket.once("close", abort);
+	socket.once("error", abort);
 	let response: WorkerResponse;
 	try {
 		const operations = parseWorkerOperations(await readLine(socket));
 		response = {
 			ok: true,
-			result: await runtime.execute({ operations }),
+			result: await runtime.execute(
+				{ operations },
+				{ signal: controller.signal },
+			),
 		};
 	} catch (error) {
 		response = {
@@ -106,12 +135,14 @@ async function handleConnection(
 			error: error instanceof Error ? error.message : String(error),
 		};
 	}
-	socket.end(`${JSON.stringify(response)}\n`);
+	socket.off("close", abort);
+	socket.off("error", abort);
+	if (!socket.destroyed) socket.end(`${JSON.stringify(response)}\n`);
 }
 
 export async function serveBrowserWorker(workerId: string): Promise<void> {
 	const path = workerSocketPath(workerId);
-	if (!IS_WINDOWS) await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+	await ensureWorkerSocketDirectory(workerId);
 	const runtime = new BrowserRuntime(new BrowserRoutes());
 	let ownsSocket = false;
 	const server = createServer((socket) => {
@@ -146,7 +177,7 @@ export async function serveBrowserWorker(workerId: string): Promise<void> {
 	}
 }
 
-function requestOnce(
+async function requestOnce(
 	input: string,
 	workerId: string,
 	signal?: AbortSignal,
@@ -155,6 +186,10 @@ function requestOnce(
 		return Promise.reject(
 			signal.reason ?? new Error("Browser worker request aborted"),
 		);
+	}
+	await ensureWorkerSocketDirectory(workerId);
+	if (signal?.aborted) {
+		throw signal.reason ?? new Error("Browser worker request aborted");
 	}
 	return new Promise((resolveValue, reject) => {
 		const socket = createConnection(workerSocketPath(workerId));

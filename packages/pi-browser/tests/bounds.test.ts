@@ -42,6 +42,26 @@ test("tab and page results remain bounded with visible continuations", () => {
 	assert.equal(page["truncated"], true);
 	assert.ok(Buffer.byteLength(JSON.stringify(page)) < 50_000);
 	assert.ok(Array.isArray(page["elements"]) && page["elements"].length > 0);
+	const pathological = boundSnapshot({
+		ref_id: "A".repeat(10_000),
+		title: "🤣".repeat(20_000),
+		url: "https://example.com/" + "u".repeat(100_000),
+		pattern: "p".repeat(100_000),
+		lineno: 1,
+		content: [{ line: 1, text: "first result", element_id: 1 }],
+		elements: [
+			{
+				id: 1,
+				role: "link".repeat(10_000),
+				name: "name".repeat(20_000),
+				value: "value".repeat(20_000),
+			},
+		],
+		next_lineno: 2,
+	});
+	assert.ok(Buffer.byteLength(JSON.stringify(pathological)) <= 38_000);
+	assert.equal((pathological["content"] as unknown[]).length, 1);
+	assert.equal(pathological["next_lineno"], 2);
 });
 
 test("large escaped text is recoverable and removed after completion", async () => {

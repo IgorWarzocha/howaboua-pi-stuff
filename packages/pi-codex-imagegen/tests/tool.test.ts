@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import { imagegenCodeModeResult } from "../index.js";
 import {
@@ -95,4 +98,22 @@ test("image generation preserves Codex request and Code Mode value contracts", a
 			},
 		},
 	);
+	const directory = await mkdtemp(join(tmpdir(), "pi-imagegen-validation-"));
+	try {
+		const malformed = join(directory, "broken.png");
+		await writeFile(
+			malformed,
+			Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]),
+		);
+		await assert.rejects(
+			buildImageGenerationRequest(
+				{ prompt: "edit", referenced_image_paths: [malformed] },
+				undefined,
+				process.cwd(),
+			),
+			/edit image must be PNG, JPEG, GIF, or WebP/,
+		);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
 });

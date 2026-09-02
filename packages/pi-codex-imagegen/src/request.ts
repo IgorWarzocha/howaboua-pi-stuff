@@ -1,39 +1,9 @@
 import { readFile, stat } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 import { IMAGE_MODEL, type ImagegenArgs, MAX_EDIT_IMAGES } from "./contract.js";
+import { validatedImageMime } from "./image-validation.js";
 
 const MAX_IMAGE_BYTES = 1024 * 1024 * 1024;
-
-function imageMime(bytes: Uint8Array): string | undefined {
-	if (
-		bytes.length >= 8 &&
-		bytes[0] === 0x89 &&
-		bytes[1] === 0x50 &&
-		bytes[2] === 0x4e &&
-		bytes[3] === 0x47 &&
-		bytes[4] === 0x0d &&
-		bytes[5] === 0x0a &&
-		bytes[6] === 0x1a &&
-		bytes[7] === 0x0a
-	)
-		return "image/png";
-	if (
-		bytes.length >= 3 &&
-		bytes[0] === 0xff &&
-		bytes[1] === 0xd8 &&
-		bytes[2] === 0xff
-	)
-		return "image/jpeg";
-	const prefix = Buffer.from(bytes.subarray(0, 6)).toString("ascii");
-	if (prefix === "GIF87a" || prefix === "GIF89a") return "image/gif";
-	if (
-		bytes.length >= 12 &&
-		Buffer.from(bytes.subarray(0, 4)).toString("ascii") === "RIFF" &&
-		Buffer.from(bytes.subarray(8, 12)).toString("ascii") === "WEBP"
-	)
-		return "image/webp";
-	return undefined;
-}
 
 async function localImageDataUrl(value: string, cwd: string): Promise<string> {
 	const path = isAbsolute(value) ? value : resolve(cwd, value);
@@ -44,7 +14,7 @@ async function localImageDataUrl(value: string, cwd: string): Promise<string> {
 			"edit image exceeds " + MAX_IMAGE_BYTES + " bytes: " + value,
 		);
 	const bytes = await readFile(path);
-	const mime = imageMime(bytes);
+	const mime = validatedImageMime(bytes);
 	if (!mime)
 		throw new Error("edit image must be PNG, JPEG, GIF, or WebP: " + value);
 	return "data:" + mime + ";base64," + bytes.toString("base64");

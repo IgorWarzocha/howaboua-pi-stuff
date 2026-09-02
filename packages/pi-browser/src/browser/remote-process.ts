@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { StringDecoder } from "node:string_decoder";
 
 const OUTPUT_LIMIT_BYTES = 8 * 1_024 * 1_024;
 
@@ -27,6 +28,8 @@ export function runProgram(
 		});
 		let stdout = "";
 		let stderr = "";
+		const stdoutDecoder = new StringDecoder("utf8");
+		const stderrDecoder = new StringDecoder("utf8");
 		let bytes = 0;
 		let settled = false;
 		let killTimer: ReturnType<typeof setTimeout> | undefined;
@@ -55,14 +58,16 @@ export function runProgram(
 				finish(() => reject(new Error("Remote browser output exceeded 8 MiB")));
 				return;
 			}
-			if (target === "stdout") stdout += chunk.toString("utf8");
-			else stderr += chunk.toString("utf8");
+			if (target === "stdout") stdout += stdoutDecoder.write(chunk);
+			else stderr += stderrDecoder.write(chunk);
 		};
 		child.stdout?.on("data", (chunk: Buffer) => append("stdout", chunk));
 		child.stderr?.on("data", (chunk: Buffer) => append("stderr", chunk));
 		child.on("error", (error) => finish(() => reject(error)));
 		child.on("close", (code) =>
 			finish(() => {
+				stdout += stdoutDecoder.end();
+				stderr += stderrDecoder.end();
 				if (signal?.aborted) {
 					reject(abortReason(signal));
 					return;
