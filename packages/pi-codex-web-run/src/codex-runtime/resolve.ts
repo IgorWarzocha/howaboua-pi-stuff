@@ -30,11 +30,13 @@ function isOpenAICodexModel(
 
 function isCodexTransportModel(
 	model: Partial<Model<any>> | null | undefined,
+	isConfiguredCodexTransport?: AllowConfiguredCodexToolProvider,
 ): boolean {
 	return Boolean(
 		model &&
 			(isOpenAICodexModel(model) ||
-				(model.api ?? "").trim().toLowerCase() === "openai-codex-responses"),
+				(model.api ?? "").trim().toLowerCase() === "openai-codex-responses" ||
+				isConfiguredCodexTransport?.(model as ExtensionContext["model"])),
 	);
 }
 
@@ -102,7 +104,9 @@ function resolveOpenAICodexAuthModel(
 function resolveAuthModel(
 	ctx: ExtensionContext,
 	allowConfiguredProvider?: AllowConfiguredCodexToolProvider,
+	isConfiguredCodexTransport?: AllowConfiguredCodexToolProvider,
 ): Model<any> {
+	if (isConfiguredCodexTransport?.(ctx.model)) return ctx.model as Model<any>;
 	if (isCodexTransportModel(ctx.model) && isResponsesModel(ctx.model))
 		return ctx.model as Model<any>;
 	if (isResponsesModel(ctx.model) && allowConfiguredProvider?.(ctx.model))
@@ -127,12 +131,20 @@ function resolveConfiguredResponsesUrl(
 export async function resolveCodexToolProvider(
 	ctx: ExtensionContext,
 	allowConfiguredProvider?: AllowConfiguredCodexToolProvider,
+	isConfiguredCodexTransport?: AllowConfiguredCodexToolProvider,
 ): Promise<CodexToolProvider> {
-	const model = resolveAuthModel(ctx, allowConfiguredProvider);
+	const model = resolveAuthModel(
+		ctx,
+		allowConfiguredProvider,
+		isConfiguredCodexTransport,
+	);
 	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
 	if (!auth.ok) throw new Error(auth.error);
 	const resolvedBaseUrl = auth.baseUrl ?? model.baseUrl;
-	const codexTransport = isCodexTransportModel(model);
+	const codexTransport = isCodexTransportModel(
+		model,
+		isConfiguredCodexTransport,
+	);
 	const authorization = headerValue(auth.headers, "Authorization")
 		?.match(/^Bearer\s+(.+)$/i)?.[1]
 		?.trim();

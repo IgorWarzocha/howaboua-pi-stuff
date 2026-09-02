@@ -1,9 +1,11 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { saveGeneratedImages } from "./artifacts.js";
-import type {
-	ImageGenerationToolOptions,
-	ImagegenArgs,
-	ImageResponse,
+import type { CodexToolRouteConfig } from "./codex-runtime/config.js";
+import {
+	IMAGE_MODEL,
+	type ImageGenerationToolOptions,
+	type ImagegenArgs,
+	type ImageResponse,
 } from "./contract.js";
 import { recentConversationImageUrls } from "./history.js";
 import type { ImagegenOutput } from "./output.js";
@@ -37,13 +39,31 @@ function parseImageResponse(text: string): ImageResponse {
 async function resolveProvider(
 	ctx: ExtensionContext,
 	options: ImageGenerationToolOptions,
+	config: CodexToolRouteConfig,
 ) {
+	const { isCodexToolRoute } = await import("./codex-runtime/config.js");
+	const isConfiguredCodexTransport = (model: ExtensionContext["model"]) =>
+		isCodexToolRoute(config, model);
+	if (isConfiguredCodexTransport(ctx.model)) {
+		const { resolveCodexToolProvider } = await import(
+			"./codex-runtime/resolve.js"
+		);
+		return resolveCodexToolProvider(
+			ctx,
+			options.allowConfiguredProvider,
+			isConfiguredCodexTransport,
+		);
+	}
 	const hosted = await options.resolveProvider?.(ctx);
 	if (hosted) return hosted;
 	const { resolveCodexToolProvider } = await import(
 		"./codex-runtime/resolve.js"
 	);
-	return resolveCodexToolProvider(ctx, options.allowConfiguredProvider);
+	return resolveCodexToolProvider(
+		ctx,
+		options.allowConfiguredProvider,
+		isConfiguredCodexTransport,
+	);
 }
 
 export async function executeCodexImageGeneration(
@@ -54,6 +74,10 @@ export async function executeCodexImageGeneration(
 	turnId?: string,
 ): Promise<ImagegenOutput> {
 	if (signal?.aborted) throw new Error("imagegen aborted");
+	const { readCodexToolRouteConfig, resolveCodexToolModel } = await import(
+		"./codex-runtime/config.js"
+	);
+	const routeConfig = readCodexToolRouteConfig();
 	const recentImages =
 		args.num_last_images_to_include === undefined
 			? undefined
@@ -76,8 +100,9 @@ export async function executeCodexImageGeneration(
 		args,
 		recentImages,
 		ctx.cwd,
+		resolveCodexToolModel(routeConfig, ctx.model, IMAGE_MODEL),
 	);
-	const provider = await resolveProvider(ctx, options);
+	const provider = await resolveProvider(ctx, options, routeConfig);
 	const [{ codexToolProviderHeaders }, { fetchCodexTool }] = await Promise.all([
 		import("./codex-runtime/headers.js"),
 		import("./codex-runtime/http.js"),

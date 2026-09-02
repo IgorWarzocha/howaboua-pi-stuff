@@ -1,10 +1,35 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { imagegenCodeModeResult } from "../index.js";
+import {
+	isCodexToolRoute,
+	normalizeCodexToolRouteConfig,
+	resolveCodexToolModel,
+} from "../src/codex-runtime/config.js";
 import { formatImagegenOutput } from "../src/output.js";
 import { buildImageGenerationRequest } from "../src/request.js";
 
 test("image generation preserves Codex request and Code Mode value contracts", async () => {
+	const routes = normalizeCodexToolRouteConfig({
+		providers: {
+			"image-proxy": { "gpt-image-2": "company-image" },
+		},
+	});
+	assert.equal(
+		isCodexToolRoute(routes, {
+			provider: "IMAGE-PROXY",
+			id: "other",
+		} as never),
+		true,
+	);
+	assert.equal(
+		resolveCodexToolModel(
+			routes,
+			{ provider: "image-proxy" } as never,
+			"gpt-image-2",
+		),
+		"company-image",
+	);
 	assert.equal(
 		formatImagegenOutput({
 			path: "output.png",
@@ -35,12 +60,13 @@ test("image generation preserves Codex request and Code Mode value contracts", a
 			{ prompt: "draw a fox" },
 			undefined,
 			process.cwd(),
+			"company-image",
 		),
 		{
 			operation: "generations",
 			body: {
 				prompt: "draw a fox",
-				model: "gpt-image-2",
+				model: "company-image",
 				background: "auto",
 				quality: "auto",
 				size: "auto",

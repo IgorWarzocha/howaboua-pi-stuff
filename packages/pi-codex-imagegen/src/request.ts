@@ -67,6 +67,7 @@ export async function buildImageGenerationRequest(
 	args: ImagegenArgs,
 	recentImages: string[] | undefined,
 	cwd: string,
+	model: string = IMAGE_MODEL,
 ): Promise<{
 	operation: "generations" | "edits";
 	body: Record<string, unknown>;
@@ -87,7 +88,7 @@ export async function buildImageGenerationRequest(
 			operation: "generations",
 			body: {
 				prompt: args.prompt,
-				model: IMAGE_MODEL,
+				model,
 				background: "auto",
 				quality: "auto",
 				size: "auto",
@@ -109,7 +110,7 @@ export async function buildImageGenerationRequest(
 		body: {
 			images,
 			prompt: args.prompt,
-			model: IMAGE_MODEL,
+			model,
 			background: "auto",
 			quality: "auto",
 			size: "auto",

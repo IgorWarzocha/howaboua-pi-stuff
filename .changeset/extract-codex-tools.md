@@ -10,3 +10,4 @@ Make Codex web search and image generation independently installable TypeScript 
 - Web search preserves native alpha/search navigation and reusable references without platform binaries.
 - Image generation supports generation plus local or recent-image edits and workspace-local artifacts.
 - Both extensions remain normal Pi tools and automatically compose into Code and Notebook Mode.
+- A shared JSON route file supports renamed or proxied Codex providers and model aliases.

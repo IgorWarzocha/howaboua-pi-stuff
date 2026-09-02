@@ -1,14 +1,76 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ChatGptCloudflareCookieStore } from "../src/codex-runtime/cloudflare-cookies.js";
+import {
+	isCodexToolRoute,
+	normalizeCodexToolRouteConfig,
+	resolveCodexToolModel,
+} from "../src/codex-runtime/config.js";
 import { fetchCodexTool } from "../src/codex-runtime/http.js";
 import {
 	isConfiguredCodexToolProvider,
 	resolveHostedCodexToolProvider,
 } from "../src/codex-runtime/policy.js";
+import { resolveCodexToolProvider } from "../src/codex-runtime/resolve.js";
 import { resolveCodexSearchUrl } from "../src/codex-runtime/urls.js";
 
 test("Codex requests keep provider policy and bounded HTTP state", async () => {
+	const routes = normalizeCodexToolRouteConfig({
+		providers: {
+			"Company-Codex": { "gpt-5.6-luna": "company-luna" },
+		},
+	});
+	assert.equal(
+		isCodexToolRoute(routes, {
+			provider: "company-codex",
+			id: "other",
+		} as never),
+		true,
+	);
+	assert.equal(
+		resolveCodexToolModel(
+			routes,
+			{ provider: "COMPANY-CODEX" } as never,
+			"gpt-5.6-luna",
+		),
+		"company-luna",
+	);
+	assert.equal(
+		resolveCodexToolModel(
+			routes,
+			{ provider: "openai-codex" } as never,
+			"gpt-5.6-luna",
+		),
+		"gpt-5.6-luna",
+	);
+	const routed = await resolveCodexToolProvider(
+		{
+			model: {
+				provider: "company-codex",
+				id: "company-luna",
+				api: "renamed-responses",
+				baseUrl: "https://proxy.example/api/codex",
+			},
+			modelRegistry: {
+				getApiKeyAndHeaders: async () => ({
+					ok: true,
+					apiKey: "token",
+					headers: { "chatgpt-account-id": "account" },
+				}),
+			},
+		} as never,
+		undefined,
+		(model) => isCodexToolRoute(routes, model),
+	);
+	assert.deepEqual(routed, {
+		route: "openai-codex",
+		baseUrl: "https://proxy.example/api/codex",
+		responsesUrl: "https://proxy.example/api/codex/responses",
+		searchUrl: "https://proxy.example/api/codex/alpha/search",
+		model: "company-luna",
+		token: "token",
+		accountId: "account",
+	});
 	const handlers = new Map<string, Array<(value: unknown) => void>>();
 	const pi = {
 		events: {

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { CodexToolRouteConfig } from "./codex-runtime/config.js";
 import {
 	DEFAULT_WEB_SEARCH_MODEL,
 	WEB_SEARCH_MAX_RESPONSE_BYTES,
@@ -42,13 +43,31 @@ function configuredModel(options: WebSearchToolOptions): string | undefined {
 async function resolveProvider(
 	ctx: ExtensionContext,
 	options: WebSearchToolOptions,
+	config: CodexToolRouteConfig,
 ) {
+	const { isCodexToolRoute } = await import("./codex-runtime/config.js");
+	const isConfiguredCodexTransport = (model: ExtensionContext["model"]) =>
+		isCodexToolRoute(config, model);
+	if (isConfiguredCodexTransport(ctx.model)) {
+		const { resolveCodexToolProvider } = await import(
+			"./codex-runtime/resolve.js"
+		);
+		return resolveCodexToolProvider(
+			ctx,
+			options.allowConfiguredProvider,
+			isConfiguredCodexTransport,
+		);
+	}
 	const hosted = await options.resolveProvider?.(ctx);
 	if (hosted) return hosted;
 	const { resolveCodexToolProvider } = await import(
 		"./codex-runtime/resolve.js"
 	);
-	return resolveCodexToolProvider(ctx, options.allowConfiguredProvider);
+	return resolveCodexToolProvider(
+		ctx,
+		options.allowConfiguredProvider,
+		isConfiguredCodexTransport,
+	);
 }
 
 export async function executeCodexWebSearch(
@@ -57,7 +76,11 @@ export async function executeCodexWebSearch(
 	signal: AbortSignal | undefined | null,
 	options: WebSearchToolOptions = {},
 ): Promise<WebRunExecutionResult> {
-	const provider = await resolveProvider(ctx, options);
+	const { readCodexToolRouteConfig, resolveCodexToolModel } = await import(
+		"./codex-runtime/config.js"
+	);
+	const routeConfig = readCodexToolRouteConfig();
+	const provider = await resolveProvider(ctx, options, routeConfig);
 	const [{ codexToolProviderHeaders }, { fetchCodexTool }] = await Promise.all([
 		import("./codex-runtime/headers.js"),
 		import("./codex-runtime/http.js"),
@@ -68,7 +91,11 @@ export async function executeCodexWebSearch(
 		model:
 			provider.route === "configured-responses"
 				? (provider.model ?? DEFAULT_WEB_SEARCH_MODEL)
-				: (configuredModel(options) ?? DEFAULT_WEB_SEARCH_MODEL),
+				: resolveCodexToolModel(
+						routeConfig,
+						ctx.model,
+						configuredModel(options) ?? DEFAULT_WEB_SEARCH_MODEL,
+					),
 	});
 	const response = await fetchCodexTool(provider.searchUrl, {
 		method: "POST",

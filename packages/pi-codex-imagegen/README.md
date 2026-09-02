@@ -17,3 +17,17 @@ Pi Codex 3.0.24 or newer is optional. With it installed, the normal imagegen too
 Provide only a prompt to generate. For edits, provide up to five PNG, JPEG, GIF, or WebP paths, or select the smallest recent conversation-image count that covers the targets.
 
 Images are saved beneath the workspace at .pi/openai-codex-images with a latest.png alias.
+
+For a proxy that renames Codex providers or models, create `pi-codex-tools.json` in Pi's agent directory:
+
+```json
+{
+  "providers": {
+    "company-codex": {
+      "gpt-image-2": "company-image"
+    }
+  }
+}
+```
+
+Each provider key identifies a Codex endpoint route. Its object maps the tool's canonical model names to that provider's aliases. Use an empty object when the provider renames no models.
