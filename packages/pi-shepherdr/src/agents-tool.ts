@@ -32,6 +32,15 @@ function required(value: string | undefined, field: string): string {
 	return value.trim();
 }
 
+function agentLabel(value: string | undefined): string {
+	const label = required(value, "label");
+	const words = label.split(/\s+/u);
+	if (words.length < 2 || words.length > 3) {
+		throw new Error("label must contain 2 or 3 words");
+	}
+	return label;
+}
+
 export function createAgentsTool(fleet: AgentFleet) {
 	return defineTool({
 		name: "agents",
@@ -41,7 +50,8 @@ export function createAgentsTool(fleet: AgentFleet) {
 		promptSnippet: "Load agents help before first use.",
 		promptGuidelines: [
 			"agents: Blocking is default; set blocking false only while continuing other work. Asynchronous settlement is pushed automatically, so never poll.",
-			"agents: Give specialists only the concrete task and inaccessible context. Reuse an agent only for the same investigation or requested follow-up.",
+			"agents: Specialists know their job. Give only the concrete task and inaccessible context; never append generic method, evidence, or reporting instructions.",
+			"agents: Reuse explorers only for the same investigation. Keep reviewers independent. New scope gets a new agent.",
 			"agents: For advanced Herdr workspace, pane, process or layout control, run herdr --skill.",
 		],
 		executionMode: "sequential",
@@ -75,8 +85,7 @@ export function createAgentsTool(fleet: AgentFleet) {
 						`unknown profile ${JSON.stringify(profileName)}; available: ${[...profiles.keys()].join(", ")}`,
 					);
 				}
-				const label =
-					params.label?.trim() || params.name?.trim() || profile.name;
+				const label = agentLabel(params.label);
 				const name =
 					params.name?.trim() || (await allocateAgentName(runtime, label));
 				const placement =

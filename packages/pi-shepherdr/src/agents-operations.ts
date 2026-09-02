@@ -36,7 +36,7 @@ export async function agentsHelp(): Promise<Record<string, unknown>> {
 			list: "action, machine?",
 			find: "action, query?, status?, machine?",
 			start:
-				"action, profile, message, label?, name?, machine?, placement?, workspace?, pane?, cwd?, base?, blocking? (default true)",
+				"action, profile, label, message, name?, machine?, placement?, workspace?, pane?, cwd?, base?, blocking? (default true)",
 			watch: "action, target, machine?",
 			unwatch: "action, target, machine?",
 			send: "action, target, message, machine?, blocking? (default true)",
@@ -45,10 +45,13 @@ export async function agentsHelp(): Promise<Record<string, unknown>> {
 		},
 		notes: {
 			target: "Exact target returned by start or find",
+			label: "2-3 words; names the Herdr tab and Pi session",
 			blocking:
 				"Use true or omit for requested findings; false only while continuing other work. Async settlement is pushed automatically; never poll",
 			prompting:
-				"Give specialists only the concrete task and inaccessible context. Reuse only for the same investigation or requested follow-up",
+				"Specialists know their job. Give only the concrete task and relevant context they cannot access, including session details and prior decisions. Stop there; never append generic method, evidence, or reporting instructions",
+			reuse:
+				"Reuse explorers only for the same investigation. Keep reviewers independent. New scope gets a new agent",
 		},
 		profiles: Object.fromEntries(
 			[...profiles].map(([name, profile]) => [name, profile.description]),

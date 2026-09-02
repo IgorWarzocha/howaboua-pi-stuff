@@ -54,6 +54,8 @@ The routed tool supports:
 
 `start`, `send` and `answer` block by default. Set `blocking: false` only when the controller should continue other work immediately. Completion and blockage are then delivered automatically.
 
+Every `start` needs a concise two- or three-word `label`. It names both the Herdr tab and Pi session; the routing `name` remains optional and is derived from the label when omitted.
+
 Cancelling a blocking call does not kill its worker. The waiter detaches and the eventual result returns through normal asynchronous delivery.
 
 ## Profiles
