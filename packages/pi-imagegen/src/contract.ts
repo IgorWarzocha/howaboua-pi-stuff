@@ -24,7 +24,7 @@ export const IMAGE_GENERATION_PARAMETERS = Type.Object(
 		),
 		num_last_images_to_include: Type.Optional(
 			Type.Integer({
-				description: "Smallest recent count covering pathless edit targets",
+				description: "Smallest recent edit count",
 				minimum: 1,
 				maximum: MAX_EDIT_IMAGES,
 			}),

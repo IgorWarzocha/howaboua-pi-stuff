@@ -11,10 +11,8 @@ export const WEB_SEARCH_MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
 const SearchQueryParameters = Type.Object(
 	{
 		q: Type.String(),
-		recency: Type.Optional(Type.Number({ description: "Recent days" })),
-		domains: Type.Optional(
-			Type.Array(Type.String(), { description: "Domains" }),
-		),
+		recency: Type.Optional(Type.Number({ description: "Days" })),
+		domains: Type.Optional(Type.Array(Type.String())),
 	},
 	{ additionalProperties: true },
 );
@@ -52,10 +50,11 @@ export const WEB_SEARCH_PARAMETERS = Type.Object(
 			),
 		),
 		response_length: Type.Optional(
-			Type.Union(
-				[Type.Literal("short"), Type.Literal("medium"), Type.Literal("long")],
-				{ description: "Answer length" },
-			),
+			Type.Union([
+				Type.Literal("short"),
+				Type.Literal("medium"),
+				Type.Literal("long"),
+			]),
 		),
 		settings: Type.Optional(
 			Type.Object(

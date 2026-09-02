@@ -22,11 +22,10 @@ export function createImageGenerationTool(
 	return {
 		name: IMAGE_GENERATION_TOOL_NAME,
 		label: IMAGE_GENERATION_TOOL_NAME,
-		description:
-			"Generate images or edit local or recent images. Omit selectors to generate",
+		description: "Generate/edit images; omit selectors to generate",
 		...(options.promptSnippet === false
 			? {}
-			: { promptSnippet: "Generate and edit images" }),
+			: { promptSnippet: "Generate/edit" }),
 		promptGuidelines: [
 			"imagegen: Set background transparent for native alpha output or opaque for a solid canvas; prompt text alone leaves Codex on auto.",
 		],

@@ -17,6 +17,7 @@ export default async function webRunExtension(pi: ExtensionAPI): Promise<void> {
 		allowCodexProviderFallback: true,
 		allowConfiguredProvider: (model) =>
 			isConfiguredCodexToolProvider(pi, model),
+		promptSnippet: false,
 	});
 	pi.registerTool(tool);
 	const registration = await registerWebRunInCodeMode(pi, tool);
@@ -33,7 +34,8 @@ async function registerWebRunInCodeMode(
 		return registerCodeModeExtensionTools(pi, () => [
 			adaptToolForCodeMode(tool, {
 				usage:
-					'await tools.web__run({ search_query?: [{ q: string, recency?: number, domains?: string[] }], image_query?: [{ q: string }], open?: [{ ref_id: string, lineno?: number }], click?: [{ ref_id: string, id: number }], find?: [{ ref_id: string, pattern: string }], response_length?: "short" | "medium" | "long" })',
+					'await tools.web__run({search_query?:[{q:string,recency?:number,domains?:string[]}],image_query?:[{q:string}],open?:[{ref_id:string,lineno?:number}],click?:[{ref_id:string,id:number}],find?:[{ref_id:string,pattern:string}],response_length?:"short"|"medium"|"long"}) // calls use returned ref_ids; final answers use Markdown result URLs, never refs/cite markers',
+				promptMetadata: false,
 				toolName: { namespace: "web", name: "run" },
 				resultValue: webRunCodeModeResult,
 			}),

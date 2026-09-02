@@ -26,6 +26,7 @@ export function adaptToolForCodeMode<
 		blocking?: boolean | ((input: unknown) => boolean);
 		deferLoading?: boolean;
 		kind?: "function" | "freeform";
+		promptMetadata?: boolean;
 		prepareInput?(input: unknown): unknown;
 		toolName?: CodeModeToolIdentity;
 		resultValue?(result: AgentToolResult<NoInfer<TDetails>>): unknown;
@@ -39,7 +40,7 @@ export function adaptToolForCodeMode<
 		: tool;
 	const adapted = toNestedTool(nestedTool, options.usage, {}, {
 		modelVisibleResult: true,
-		translatePromptMetadata: true,
+		translatePromptMetadata: options.promptMetadata !== false,
 		...(options.kind ? { kind: options.kind } : {}),
 		...(options.prepareInput ? { prepareInput: options.prepareInput } : {}),
 		...(options.toolName ? { toolName: options.toolName } : {}),
