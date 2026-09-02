@@ -1,14 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { ChatGptCloudflareCookieStore } from "../src/codex-runtime/cloudflare-cookies.js";
 import {
 	fetchCodexTool,
 	isConfiguredCodexToolProvider,
-	registerCodexToolProviderPolicy,
-	resolveCodexSearchUrl,
-} from "../index.js";
-import { ChatGptCloudflareCookieStore } from "../src/cloudflare-cookies.js";
+} from "../src/codex-runtime/index.js";
+import { resolveCodexSearchUrl } from "../src/codex-runtime/urls.js";
 
-test("tool runtime composes provider policy with bounded, restricted HTTP state", async () => {
+test("Codex requests keep provider policy and bounded HTTP state", async () => {
 	const handlers: Array<(value: unknown) => void> = [];
 	const pi = {
 		events: {
@@ -21,9 +20,20 @@ test("tool runtime composes provider policy with bounded, restricted HTTP state"
 			},
 		},
 	};
-	const unregister = registerCodexToolProviderPolicy(
-		pi as never,
-		(model) => model?.provider === "configured",
+	const unregister = pi.events.on(
+		"@howaboua/pi-codex-conversion.configured-provider/v1",
+		(value) => {
+			if (
+				!value ||
+				typeof value !== "object" ||
+				!("model" in value) ||
+				!("allow" in value) ||
+				typeof value.allow !== "function"
+			)
+				return;
+			const model = value.model as { provider?: string } | undefined;
+			if (model?.provider === "configured") value.allow();
+		},
 	);
 	assert.equal(
 		isConfiguredCodexToolProvider(

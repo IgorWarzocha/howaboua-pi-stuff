@@ -1,7 +1,7 @@
-import { registerCodexToolProviderPolicy } from "@howaboua/pi-codex-tool-runtime";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
+import { registerCodexToolProviderPolicy } from "../adapter/codex-tool-provider.ts";
 import { isResponsesModel } from "../adapter/prompt/codex-model.ts";
 import {
 	registerApplyPatchResultEvent,

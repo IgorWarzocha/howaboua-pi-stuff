@@ -43,7 +43,8 @@
 		"pack:dry": "npm pack --dry-run"
 	},
 	"dependencies": {
-		"@howaboua/pi-codex-tool-runtime": "0.0.0"
+		"proxy-from-env": "2.1.0",
+		"undici": "8.10.0"
 	},
 	"peerDependencies": {
 		"@howaboua/pi-codex-conversion": ">=3.0.24",

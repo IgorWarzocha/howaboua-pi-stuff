@@ -1,6 +1,5 @@
 ---
 "@howaboua/pi-codex-conversion": patch
-"@howaboua/pi-codex-tool-runtime": patch
 "@howaboua/pi-codex-imagegen": patch
 "@howaboua/pi-codex-web-run": patch
 ---

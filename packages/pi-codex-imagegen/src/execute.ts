@@ -1,10 +1,10 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { saveGeneratedImages } from "./artifacts.js";
 import {
 	codexToolProviderHeaders,
 	fetchCodexTool,
 	resolveCodexToolProvider,
-} from "@howaboua/pi-codex-tool-runtime";
-import { saveGeneratedImages } from "./artifacts.js";
+} from "./codex-runtime/index.js";
 import type {
 	ImageGenerationToolOptions,
 	ImagegenArgs,

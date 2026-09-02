@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { isConfiguredCodexToolProvider } from "@howaboua/pi-codex-tool-runtime";
 import registerPackageChangelog from "./changelog.js";
 import { webRunCodeModeResult } from "./src/code-mode.js";
+import { isConfiguredCodexToolProvider } from "./src/codex-runtime/index.js";
 import { createWebSearchTool } from "./src/tool.js";
 
 const CODE_MODE_PACKAGE = "@howaboua/pi-codex-conversion";

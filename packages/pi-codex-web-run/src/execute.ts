@@ -4,7 +4,7 @@ import {
 	codexToolProviderHeaders,
 	fetchCodexTool,
 	resolveCodexToolProvider,
-} from "@howaboua/pi-codex-tool-runtime";
+} from "./codex-runtime/index.js";
 import {
 	DEFAULT_WEB_SEARCH_MODEL,
 	WEB_SEARCH_MAX_RESPONSE_BYTES,
