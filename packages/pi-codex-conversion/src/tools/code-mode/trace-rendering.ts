@@ -131,6 +131,8 @@ function renderTrace(
 	} else if (renderedTrace.result && !customResultRendered) {
 		components.push(renderGenericTraceResult(renderedTrace, theme, options.expanded || options.isPartial));
 	}
+	if (programmatic?.renderCall || programmatic?.renderResult)
+		renderStore.rebalance(trace.id);
 	return components;
 }
 

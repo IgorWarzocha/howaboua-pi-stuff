@@ -8,6 +8,7 @@ import { getPages, waitForOpenedTarget } from "./pages.js";
 import { waitForTurn } from "./serial.js";
 import type { ElementRefs, PageInfo } from "./types.js";
 import { asRecord } from "./types.js";
+import { assertHttpUrl } from "./url.js";
 
 const TAB_IDLE_MS = 20 * 60 * 1_000;
 
@@ -160,6 +161,7 @@ export class BrowserCdpSession {
 	): Promise<{
 		refId: string;
 	}> {
+		assertHttpUrl(url);
 		const root = await this.rootConnection(signal);
 		const response = asRecord(
 			await root.send("Target.createTarget", { url }, undefined, signal),

@@ -12,3 +12,4 @@ Make Codex web search and image generation independently installable TypeScript 
 - Both extensions remain normal Pi tools and automatically compose into Code and Notebook Mode.
 - A shared JSON route file supports renamed or proxied Codex providers and model aliases.
 - Local edits validate complete image structure, and outdated Pi Codex installations receive an explicit update error.
+- Nested custom renderer state stays within a session-wide byte budget.

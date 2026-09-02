@@ -2,6 +2,7 @@ import { NAVIGATION_TIMEOUT_MS, sleep } from "../discovery.js";
 import { evaluate, evaluateText } from "../evaluate.js";
 import type { CdpConnection, ElementRefs } from "../types.js";
 import { asRecord } from "../types.js";
+import { assertHttpUrl } from "../url.js";
 import { clickSelector } from "./click.js";
 import { requireElementRef, withBackendObject } from "./element.js";
 
@@ -111,33 +112,36 @@ export async function navigate(
 	url: string,
 	signal?: AbortSignal,
 ): Promise<string> {
-	let parsed: URL;
-	try {
-		parsed = new URL(url);
-	} catch {
-		throw new Error(`Invalid URL: ${url}`);
-	}
-	if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-		throw new Error(`Only http/https URLs allowed, got: ${url}`);
-	}
+	assertHttpUrl(url);
 	await cdp.send("Page.enable", {}, sessionId, signal);
 	const loadEvent = cdp.waitForEvent(
 		"Page.loadEventFired",
 		NAVIGATION_TIMEOUT_MS,
 		signal,
 	);
-	const response = asRecord(
-		await cdp.send("Page.navigate", { url }, sessionId, signal),
-		"Page.navigate response",
-	);
+	let responseValue: unknown;
+	try {
+		responseValue = await cdp.send("Page.navigate", { url }, sessionId, signal);
+	} catch (error) {
+		cancelEventWait(loadEvent);
+		throw error;
+	}
+	const response = asRecord(responseValue, "Page.navigate response");
 	if (typeof response["errorText"] === "string") {
-		loadEvent.cancel();
+		cancelEventWait(loadEvent);
 		throw new Error(response["errorText"]);
 	}
 	if (response["loaderId"]) await loadEvent.promise;
-	else loadEvent.cancel();
+	else cancelEventWait(loadEvent);
 	await waitForDocumentReady(cdp, sessionId, 5_000, signal);
 	return `Navigated to ${url}`;
+}
+
+function cancelEventWait(
+	wait: ReturnType<CdpConnection["waitForEvent"]>,
+): void {
+	wait.cancel();
+	void wait.promise.catch(() => undefined);
 }
 
 export async function networkEntries(

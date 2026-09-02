@@ -229,6 +229,18 @@ test("Code Mode nested tools preserve public and namespaced extension results", 
 	for (let index = 0; index < 512; index += 1)
 		renderStore.get(`later-trace-${index}`);
 	assert.notEqual(renderStore.get("trace-1"), firstRenderState);
+	const byteBoundedStore = new CodeModeNestedRenderStore(128);
+	const oversizedState = byteBoundedStore.get("oversized");
+	byteBoundedStore.captureResult("oversized", {
+		content: [
+			{
+				type: "image",
+				data: "x".repeat(256),
+				mimeType: "image/png",
+			},
+		],
+	});
+	assert.notEqual(byteBoundedStore.get("oversized"), oversizedState);
 
 });
 

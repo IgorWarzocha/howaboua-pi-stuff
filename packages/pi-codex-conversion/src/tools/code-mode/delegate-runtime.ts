@@ -84,6 +84,7 @@ export class CodeModeDelegateRuntime {
 		this.cellContexts.clear();
 		this.cellTools.clear();
 		this.traces.clear();
+		this.renderStore.clear();
 		this.notifications.clear();
 		for (const change of this.blockerChanges.values()) change.resolve();
 		this.blockers.clear();
