@@ -1,5 +1,9 @@
 # @howaboua/pi-ask
 
+## 0.0.6
+
+- Added a Code and Notebook Mode bridge API. This allows extensions that use Pi TUI to run inside `exec`.
+
 ## 0.0.5
 
 ### Changes

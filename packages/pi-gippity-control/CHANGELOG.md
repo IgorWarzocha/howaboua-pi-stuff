@@ -1,5 +1,11 @@
 # @howaboua/pi-gippity-control
 
+## 0.0.17
+
+- Fixed waiting indicators for extension UI prompts.
+
+- Voice summarisation now runs whenever Pi compacts, then starts a fresh realtime session.
+
 ## 0.0.16
 
 ### Changes
