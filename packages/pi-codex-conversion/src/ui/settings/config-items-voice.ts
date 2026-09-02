@@ -146,7 +146,7 @@ export function buildVoiceSettings(
 		setting(
 			{
 				id: "refreshRealtimeAfterCompaction",
-				label: "Run context summarisation after compaction",
+				label: "Run summarisation",
 				currentValue: config.voice.refreshRealtimeAfterCompaction
 					? "on"
 					: "off",
