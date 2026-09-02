@@ -2,6 +2,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { prepareReviewerMessage } from "./review-context.js";
 
 const PROFILE_NAME = /^[a-z][a-z0-9_-]{0,31}$/;
 const PROFILES_DIRECTORY = join(
@@ -12,13 +13,21 @@ const PROFILES_DIRECTORY = join(
 
 export interface AgentProfile {
 	accepts: string[];
+	builtInPrepare?: (input: ProfilePreparationInput) => string;
 	description: string;
 	model: string;
 	name: string;
 	piArgs: string[];
 	prepare?: string;
 	prompt?: string;
+	promptPath?: string;
 	thinking: string;
+}
+
+interface ProfilePreparationInput {
+	base?: string;
+	cwd: string;
+	message: string;
 }
 
 interface ProfileFile {
@@ -54,6 +63,7 @@ const BUILT_IN_PROFILES: readonly AgentProfile[] = [
 	},
 	{
 		accepts: ["base"],
+		builtInPrepare: prepareReviewerMessage,
 		description: "Read-only review",
 		model: "openai-codex/gpt-5.6-luna",
 		name: "reviewer",
@@ -119,10 +129,13 @@ async function readProfile(
 	if (!thinking) throw new Error(`${name}.thinking is required`);
 	const promptPath = optionalString(parsed.prompt, `${name}.prompt`);
 	const preparePath = optionalString(parsed.prepare, `${name}.prepare`);
-	const prompt = promptPath
-		? await readFile(resolve(directory, promptPath), "utf8")
+	const resolvedPromptPath = promptPath
+		? resolve(directory, promptPath)
 		: undefined;
 	const prepare = preparePath ? resolve(directory, preparePath) : undefined;
+	if (resolvedPromptPath && !(await stat(resolvedPromptPath)).isFile()) {
+		throw new Error(`${name}.prompt is not a file`);
+	}
 	if (prepare && !(await stat(prepare)).isFile()) {
 		throw new Error(`${name}.prepare is not a file`);
 	}
@@ -137,7 +150,12 @@ async function readProfile(
 		piArgs: parsed.pi_args
 			? stringArray(parsed.pi_args, `${name}.pi_args`)
 			: [],
-		...(prompt ? { prompt } : {}),
+		...(resolvedPromptPath
+			? {
+					prompt: await readFile(resolvedPromptPath, "utf8"),
+					promptPath: resolvedPromptPath,
+				}
+			: {}),
 		...(prepare ? { prepare } : {}),
 	};
 }
@@ -166,20 +184,42 @@ export async function loadAgentProfiles(): Promise<Map<string, AgentProfile>> {
 	return profiles;
 }
 
-export function profileAgentArgs(profile: AgentProfile): string[] {
+function promptArgument(
+	profile: AgentProfile,
+	targetLocal: boolean,
+): string | undefined {
+	if (
+		targetLocal &&
+		profile.promptPath &&
+		![...profile.promptPath].some((character) => /\p{Cc}/u.test(character))
+	) {
+		return profile.promptPath;
+	}
+	return profile.prompt
+		?.replace(/\p{Cc}+/gu, " ")
+		.replace(/\s+/gu, " ")
+		.trim();
+}
+
+export function profileAgentArgs(
+	profile: AgentProfile,
+	options: { targetLocal?: boolean } = {},
+): string[] {
+	const prompt = promptArgument(profile, options.targetLocal !== false);
 	return [
 		"--model",
 		profile.model,
 		"--thinking",
 		profile.thinking,
-		...(profile.prompt ? ["--append-system-prompt", profile.prompt] : []),
+		...(prompt ? ["--append-system-prompt", prompt] : []),
 		...profile.piArgs,
 	];
 }
 
 export async function prepareProfileMessage(
 	profile: AgentProfile,
-	input: { base?: string; cwd: string; message: string },
+	input: ProfilePreparationInput,
+	options: { targetLocal?: boolean } = {},
 ): Promise<string> {
 	if (input.base && !profile.accepts.includes("base")) {
 		throw new Error(`base is not supported by ${profile.name}`);
@@ -197,6 +237,9 @@ export async function prepareProfileMessage(
 			throw new Error(`${profile.name}.prepare must return a non-empty string`);
 		}
 		return prepared;
+	}
+	if (profile.builtInPrepare && options.targetLocal !== false) {
+		return profile.builtInPrepare(input);
 	}
 	return input.base
 		? `Review base: ${input.base}\n\n${input.message}`

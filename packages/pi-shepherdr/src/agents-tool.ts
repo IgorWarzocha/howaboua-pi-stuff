@@ -20,7 +20,12 @@ import {
 import { type AskAnswer, prepareAskAnswer } from "./ask-answer.js";
 import type { AgentFleet } from "./fleet.js";
 import { resolvePiAgent } from "./herdr.js";
-import { resolveStartDirectory, startAgent } from "./launch.js";
+import { isHerdrResponseError } from "./herdr-client.js";
+import {
+	resolvePreparationDirectory,
+	rollbackStartedAgent,
+	startAgent,
+} from "./launch.js";
 import {
 	loadAgentProfiles,
 	prepareProfileMessage,
@@ -76,13 +81,13 @@ export function createAgentsTool(fleet: AgentFleet) {
 			}
 
 			const runtime = fleet.connected(params.machine);
-			if (params.action === "start") {
+			if (params.action === "spawn") {
 				const profiles = await loadAgentProfiles();
-				const profileName = required(params.profile, "profile");
+				const profileName = required(params.agent_type, "agent_type");
 				const profile = profiles.get(profileName);
 				if (!profile) {
 					throw new Error(
-						`unknown profile ${JSON.stringify(profileName)}; available: ${[...profiles.keys()].join(", ")}`,
+						`unknown agent_type ${JSON.stringify(profileName)}; available: ${[...profiles.keys()].join(", ")}`,
 					);
 				}
 				const label = agentLabel(params.label);
@@ -106,17 +111,22 @@ export function createAgentsTool(fleet: AgentFleet) {
 					...(params.pane ? { pane: params.pane } : {}),
 					...(params.cwd ? { cwd: params.cwd } : {}),
 				};
-				const cwd = await resolveStartDirectory(
+				const cwd = await resolvePreparationDirectory(
+					runtime.client,
 					startParams,
 					runtime.fallbackCwd,
 					runtime.resolveDirectory,
 				);
-				const message = await prepareProfileMessage(profile, {
-					cwd,
-					message: required(params.message, "message"),
-					...(params.base ? { base: params.base } : {}),
-				});
-				reportProgress(update, `Starting ${label}`, {
+				const message = await prepareProfileMessage(
+					profile,
+					{
+						cwd,
+						message: required(params.message, "message"),
+						...(params.base ? { base: params.base } : {}),
+					},
+					{ targetLocal: runtime.local },
+				);
+				reportProgress(update, `Spawning ${label}`, {
 					machine: runtime.machine,
 					name,
 					profile: profile.name,
@@ -128,30 +138,55 @@ export function createAgentsTool(fleet: AgentFleet) {
 					startParams,
 					runtime.fallbackCwd,
 					runtime.resolveDirectory,
-					{ agentArgs: profileAgentArgs(profile) },
-				);
-				const settlement = await dispatchAgentWork(
-					runtime,
-					started.agent,
-					message,
-					params.blocking !== false,
-					executionSignal,
-					update,
-					() =>
-						runtime.client.request("agent.prompt", {
-							target: started.id,
-							text: message,
+					{
+						agentArgs: profileAgentArgs(profile, {
+							targetLocal: runtime.local,
 						}),
-					{ expectUserMessage: true },
+					},
 				);
+				let promptSubmissionStarted = false;
+				let promptAccepted = false;
+				let settlement;
+				try {
+					settlement = await dispatchAgentWork(
+						runtime,
+						started.agent,
+						message,
+						params.blocking !== false,
+						executionSignal,
+						update,
+						async () => {
+							promptSubmissionStarted = true;
+							await runtime.client.request("agent.prompt", {
+								target: started.id,
+								text: message,
+							});
+							promptAccepted = true;
+						},
+						{ expectUserMessage: true },
+					);
+				} catch (error) {
+					if (
+						!promptAccepted &&
+						(!promptSubmissionStarted || isHerdrResponseError(error))
+					) {
+						return rollbackStartedAgent(
+							runtime.client,
+							runtime.monitor,
+							started,
+							error,
+						);
+					}
+					throw error;
+				}
 				return toolResult(
 					settlement
 						? {
-								started: true,
+								spawned: true,
 								...settlementResult(runtime.machine, settlement),
 							}
 						: {
-								started: true,
+								spawned: true,
 								machine: runtime.machine,
 								target: started.id,
 								name,
@@ -308,7 +343,7 @@ export function createAgentsTool(fleet: AgentFleet) {
 				params?.target ??
 				params?.label ??
 				params?.name ??
-				params?.profile ??
+				params?.agent_type ??
 				"";
 			return new Text(
 				theme.fg(
@@ -331,8 +366,8 @@ export function createAgentsTool(fleet: AgentFleet) {
 					? details["status"]
 					: details["sent"] === true
 						? "sent"
-						: details["started"] === true
-							? "started"
+						: details["spawned"] === true
+							? "spawned"
 							: "done";
 			const target =
 				typeof details["name"] === "string"
@@ -359,9 +394,26 @@ export function createAgentsTool(fleet: AgentFleet) {
 				typeof details["ask"] === "object" && details["ask"] !== null
 					? (details["ask"] as { prompts?: unknown })
 					: undefined;
-			if (!reply && !Array.isArray(ask?.prompts)) return title;
+			const informational = Object.fromEntries(
+				Object.entries(details).filter(
+					([key]) => key !== "reply" && key !== "ask",
+				),
+			);
+			if (
+				!reply &&
+				!Array.isArray(ask?.prompts) &&
+				Object.keys(informational).length === 0
+			) {
+				return title;
+			}
 			const container = new Container();
 			container.addChild(title);
+			if (Object.keys(informational).length > 0) {
+				container.addChild(new Spacer(1));
+				container.addChild(
+					new Text(JSON.stringify(informational, null, 2), 0, 0),
+				);
+			}
 			if (reply) {
 				container.addChild(new Spacer(1));
 				container.addChild(new Markdown(reply, 0, 0, getMarkdownTheme()));

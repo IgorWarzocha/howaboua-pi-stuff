@@ -45,16 +45,16 @@ The routed tool supports:
 | `help` | Live profiles, request shapes, coordination rules and the advanced Herdr escape hatch |
 | `list` | Profiles, machines and matching Pi agents |
 | `find` | Agents matching a query or status |
-| `start` | Start a profiled Pi agent and send its initial task |
+| `spawn` | Spawn a profiled Pi agent and send its initial task |
 | `send` | Send work or a follow-up to an existing agent |
 | `read` | Read the latest assistant reply or bounded terminal output |
 | `answer` | Answer a worker blocked on Pi Ask |
 | `watch` | Push future settlement from an existing Pi agent |
 | `unwatch` | Stop reporting an agent |
 
-`start`, `send` and `answer` block by default. Set `blocking: false` only when the controller should continue other work immediately. Completion and blockage are then delivered automatically.
+`spawn`, `send` and `answer` block by default. Set `blocking: false` only when the controller should continue other work immediately. Completion and blockage are then delivered automatically.
 
-Every `start` needs a concise two- or three-word `label`. It names both the Herdr tab and Pi session; the routing `name` remains optional and is derived from the label when omitted.
+Every `spawn` needs an `agent_type` and a concise two- or three-word `label`. The label names both the Herdr tab and Pi session; the routing `name` remains optional and is derived from it when omitted.
 
 Cancelling a blocking call does not kill its worker. The waiter detaches and the eventual result returns through normal asynchronous delivery.
 
@@ -66,7 +66,7 @@ Three profiles work without configuration:
 - `explorer` uses `openai-codex/gpt-5.6-terra` with `high` thinking for read-only discovery
 - `reviewer` uses `openai-codex/gpt-5.6-luna` with `xhigh` thinking for generic read-only review
 
-Use `general` sparingly, mainly when requested or while orchestration is active. For work in the controller's repository, create a dedicated worktree, run its normal dependency/bootstrap setup, then pass that directory as `cwd` when starting the agent.
+Use `general` sparingly, mainly when requested or while orchestration is active. For work in the controller's repository, create a dedicated worktree, run its normal dependency/bootstrap setup, then pass that directory as `cwd` when spawning the agent.
 
 Profiles never inherit the controller's model or thinking level. Add or replace complete profile definitions under:
 

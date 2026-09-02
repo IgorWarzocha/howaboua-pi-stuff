@@ -35,8 +35,8 @@ export async function agentsHelp(): Promise<Record<string, unknown>> {
 			help: "action only",
 			list: "action, machine?",
 			find: "action, query?, status?, machine?",
-			start:
-				"action, profile, label, message, name?, machine?, placement?, workspace?, pane?, cwd?, base?, blocking? (default true)",
+			spawn:
+				"action, agent_type, label, message, name?, machine?, placement?, workspace?, pane?, cwd?, base?, blocking? (default true)",
 			watch: "action, target, machine?",
 			unwatch: "action, target, machine?",
 			send: "action, target, message, machine?, blocking? (default true)",
@@ -44,8 +44,9 @@ export async function agentsHelp(): Promise<Record<string, unknown>> {
 			answer: "action, target, answers, machine?, blocking? (default true)",
 		},
 		notes: {
-			target: "Exact target returned by start or find",
+			target: "Exact target returned by spawn or find",
 			label: "2-3 words; names the Herdr tab and Pi session",
+			answers: "[{selections?: string[], other?: string, comment?: string}]",
 			blocking:
 				"Use true or omit for requested findings; false only while continuing other work. Async settlement is pushed automatically; never poll",
 			prompting:
@@ -53,7 +54,7 @@ export async function agentsHelp(): Promise<Record<string, unknown>> {
 			reuse:
 				"Reuse explorers only for the same investigation. Keep reviewers independent. New scope gets a new agent",
 			general:
-				"Use sparingly, mainly when the user asks or orchestration mode is active. For current-repo work, create and bootstrap a dedicated worktree, then start the agent with its cwd",
+				"Use sparingly, mainly when the user asks or orchestration mode is active. For current-repo work, create and bootstrap a dedicated worktree, then spawn the agent with its cwd",
 		},
 		profiles: Object.fromEntries(
 			[...profiles].map(([name, profile]) => [name, profile.description]),
@@ -270,17 +271,21 @@ export async function dispatchAgentWork(
 		options.expectUserMessage ? (baseline?.user?.id ?? null) : undefined,
 	);
 	if (!attempt) throw new Error(`${panel.pane_id} is not monitored`);
-	const settlement = blocking
-		? runtime.monitor.claimWork(attempt, signal)
-		: undefined;
-	void settlement?.catch(() => undefined);
+	let settlement: Promise<ClaimedSettlement> | undefined;
+	let sendStarted = false;
 	try {
+		settlement = blocking
+			? runtime.monitor.claimWork(attempt, signal)
+			: undefined;
+		void settlement?.catch(() => undefined);
 		signal.throwIfAborted();
+		sendStarted = true;
 		await send();
 		runtime.monitor.acceptWork(attempt);
 	} catch (error) {
 		runtime.monitor.releaseWorkClaim(attempt, error);
-		await runtime.monitor.handleWorkFailure(attempt, error);
+		if (sendStarted) await runtime.monitor.handleWorkFailure(attempt, error);
+		else runtime.monitor.rejectWork(attempt);
 		throw error;
 	}
 	if (!blocking) return undefined;
@@ -289,7 +294,7 @@ export async function dispatchAgentWork(
 		target: panel.pane_id,
 		status: "working",
 	});
-	return await settlement;
+	return await settlement!;
 }
 
 export async function readAgentTerminal(

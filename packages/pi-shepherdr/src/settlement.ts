@@ -312,6 +312,7 @@ export class SettlementReporter {
 					injectAgentEvent(this.pi, lifecycle.context, {
 						agent: settlement.agent,
 						agentToolName: this.agentToolName,
+						...(settlement.ask ? { ask: settlement.ask } : {}),
 						machine: this.machine,
 						operatorPrefix: this.operatorPrefix,
 						...(blockedMessage ? { blockedMessage } : {}),

@@ -7,14 +7,14 @@ const ACTIONS = [
 	"help",
 	"list",
 	"find",
-	"start",
+	"spawn",
 	"watch",
 	"unwatch",
 	"send",
 	"read",
 	"answer",
 ] as const;
-const BLOCKING_ACTIONS = new Set<string>(["start", "send", "answer"]);
+const BLOCKING_ACTIONS = new Set<string>(["spawn", "send", "answer"]);
 export const READ_SOURCES = ["latest", "visible", "recent"] as const;
 const STATUSES = ["idle", "working", "blocked", "done", "unknown"] as const;
 
@@ -22,10 +22,10 @@ const ACTION_FIELDS: Record<(typeof ACTIONS)[number], ReadonlySet<string>> = {
 	help: new Set(["action"]),
 	list: new Set(["action", "machine"]),
 	find: new Set(["action", "machine", "query", "status"]),
-	start: new Set([
+	spawn: new Set([
 		"action",
 		"machine",
-		"profile",
+		"agent_type",
 		"name",
 		"label",
 		"placement",
@@ -43,11 +43,14 @@ const ACTION_FIELDS: Record<(typeof ACTIONS)[number], ReadonlySet<string>> = {
 	answer: new Set(["action", "machine", "target", "answers", "blocking"]),
 };
 
-const AskAnswerParameters = Type.Object({
-	selections: Type.Optional(Type.Array(Type.String())),
-	other: Type.Optional(Type.String()),
-	comment: Type.Optional(Type.String()),
-});
+const AskAnswerParameters = Type.Object(
+	{
+		selections: Type.Optional(Type.Array(Type.String())),
+		other: Type.Optional(Type.String()),
+		comment: Type.Optional(Type.String()),
+	},
+	{ additionalProperties: false },
+);
 
 const AgentsRequest = Type.Object(
 	{
@@ -58,7 +61,7 @@ const AgentsRequest = Type.Object(
 		target: Type.Optional(
 			Type.String({ description: "Agent name or pane ID" }),
 		),
-		profile: Type.Optional(Type.String()),
+		agent_type: Type.Optional(Type.String()),
 		name: Type.Optional(
 			Type.String({
 				description: "Agent name; derived from label when omitted",

@@ -9,6 +9,7 @@ import type {
 	LatestAssistant,
 	MonitoredAgent,
 	PaneInfo,
+	PendingAsk,
 	SettledAgentStatus,
 } from "./types.js";
 
@@ -34,6 +35,7 @@ interface AgentEventLabels {
 interface AgentEventOptions {
 	agent: PaneInfo;
 	agentToolName: string;
+	ask?: PendingAsk;
 	blockedMessage?: string;
 	labels: AgentEventLabels;
 	machine: string;
@@ -44,6 +46,7 @@ interface AgentEventOptions {
 }
 
 interface AgentEventDetails {
+	ask?: PendingAsk;
 	blockedOn?: string;
 	cwd?: string;
 	machine: string;
@@ -54,6 +57,54 @@ interface AgentEventDetails {
 	tab?: string;
 	task?: string;
 	workspace?: string;
+}
+
+function eventAsk(value: unknown): PendingAsk | undefined {
+	if (typeof value !== "object" || value === null) return undefined;
+	const record = value as Record<string, unknown>;
+	if (
+		typeof record["toolCallId"] !== "string" ||
+		typeof record["handoff"] !== "boolean" ||
+		!Array.isArray(record["prompts"])
+	) {
+		return undefined;
+	}
+	const prompts: PendingAsk["prompts"] = [];
+	for (const value of record["prompts"]) {
+		if (typeof value !== "object" || value === null) return undefined;
+		const prompt = value as Record<string, unknown>;
+		if (
+			typeof prompt["title"] !== "string" ||
+			typeof prompt["multiple"] !== "boolean" ||
+			!Array.isArray(prompt["choices"])
+		) {
+			return undefined;
+		}
+		const choices: PendingAsk["prompts"][number]["choices"] = [];
+		for (const value of prompt["choices"]) {
+			if (typeof value !== "object" || value === null) return undefined;
+			const choice = value as Record<string, unknown>;
+			if (typeof choice["label"] !== "string") return undefined;
+			choices.push({
+				label: choice["label"],
+				...(typeof choice["description"] === "string"
+					? { description: choice["description"] }
+					: {}),
+			});
+		}
+		prompts.push({
+			title: prompt["title"],
+			multiple: prompt["multiple"],
+			choices,
+			...(typeof prompt["body"] === "string" ? { body: prompt["body"] } : {}),
+		});
+	}
+	if (prompts.length === 0) return undefined;
+	return {
+		toolCallId: record["toolCallId"],
+		handoff: record["handoff"],
+		prompts,
+	};
 }
 
 function boundedVoicePrompt(prompt: string, truncationNotice: string): string {
@@ -89,6 +140,11 @@ function agentVoicePrompt(details: AgentEventDetails): string {
 			"The blocked worker details above were truncated. Tell the user and ask whether they would like the rest.";
 		if (details.blockedOn?.trim())
 			lines.push(`Reason:\n${details.blockedOn.trim()}`);
+		if (details.ask) {
+			lines.push(
+				`Questions:\n${details.ask.prompts.map((prompt) => prompt.title).join(", ")}`,
+			);
+		}
 	} else {
 		instruction =
 			details.state === "failed"
@@ -158,11 +214,13 @@ function eventDetails(value: unknown): AgentEventDetails | undefined {
 		typeof details[field] === "string"
 			? { [field]: details[field] as string }
 			: {};
+	const ask = eventAsk(details["ask"]);
 	return {
 		machine:
 			typeof details["machine"] === "string" ? details["machine"] : "local",
 		paneId: details["paneId"],
 		state: details["state"],
+		...(ask ? { ask } : {}),
 		...optional("blockedOn"),
 		...optional("cwd"),
 		...optional("name"),
@@ -180,6 +238,7 @@ function agentEvent(options: AgentEventOptions): {
 	const {
 		agent,
 		agentToolName,
+		ask,
 		blockedMessage,
 		labels,
 		machine,
@@ -210,6 +269,11 @@ function agentEvent(options: AgentEventOptions): {
 	if (blockedMessage) {
 		lines.push(`<blocked_on>${xml(blockedMessage)}</blocked_on>`);
 	}
+	if (blocked && ask) {
+		lines.push(
+			`<ask>${xml(JSON.stringify({ handoff: ask.handoff, prompts: ask.prompts }))}</ask>`,
+		);
+	}
 	if (blocked) {
 		lines.push(
 			`<operator_hint>${xml(blockedOperatorHint(agentToolName, machine, operatorPrefix, agent.pane_id))}</operator_hint>`,
@@ -229,6 +293,7 @@ function agentEvent(options: AgentEventOptions): {
 			machine,
 			paneId: agent.pane_id,
 			state: blocked ? "blocked" : failed ? "failed" : "finished",
+			...(blocked && ask ? { ask } : {}),
 			...(record.name ? { name: record.name } : {}),
 			...(cwd ? { cwd } : {}),
 			...(labels.workspace ? { workspace: labels.workspace } : {}),
@@ -312,6 +377,38 @@ export function registerAgentEventRenderer(pi: ExtensionAPI): void {
 						0,
 					),
 				);
+				if (details.ask) {
+					box.addChild(
+						new Text(
+							theme.fg(
+								"muted",
+								`Questions: ${details.ask.prompts.map((prompt) => prompt.title).join(", ")}`,
+							),
+							0,
+							0,
+						),
+					);
+					if (expanded) {
+						for (const prompt of details.ask.prompts) {
+							box.addChild(new Spacer(1));
+							box.addChild(new Text(theme.fg("muted", prompt.title), 0, 0));
+							if (prompt.body) {
+								box.addChild(
+									new Markdown(prompt.body, 0, 0, getMarkdownTheme()),
+								);
+							}
+							if (prompt.choices.length > 0) {
+								box.addChild(
+									new Text(
+										`Choices: ${prompt.choices.map((choice) => choice.label).join(", ")}`,
+										0,
+										0,
+									),
+								);
+							}
+						}
+					}
+				}
 			}
 			if (expanded && details?.task) {
 				box.addChild(new Spacer(1));

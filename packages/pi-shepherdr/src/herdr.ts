@@ -35,6 +35,17 @@ export async function getAgent(
 	return parsePaneInfo(result["agent"], "agent.get result.agent");
 }
 
+export async function getPane(
+	client: HerdrConnection,
+	paneId: string,
+): Promise<PaneInfo> {
+	const result = record(
+		await client.request<unknown>("pane.get", { pane_id: paneId }),
+		"pane.get result",
+	);
+	return parsePaneInfo(result["pane"], "pane.get result.pane");
+}
+
 export async function resolvePiAgent(
 	client: HerdrConnection,
 	target: string,
