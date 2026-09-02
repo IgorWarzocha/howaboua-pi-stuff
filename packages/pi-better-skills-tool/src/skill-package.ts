@@ -106,7 +106,7 @@ function isOwnSkillDocument(reference: string, skill: CatalogSkill): boolean {
 	);
 }
 
-export function packageFiles(skill: CatalogSkill): string[] {
+function packageFiles(skill: CatalogSkill): string[] {
 	const root = realpathSync(skill.directory);
 	const paths: string[] = [];
 	const visitedDirectories = new Set<string>();

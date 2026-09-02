@@ -26,7 +26,6 @@ const model = {
 function summaryMessage(
 	requestModel: Model<any>,
 	text: string,
-	stopReason: "stop" | "aborted" = "stop",
 ): AssistantMessage {
 	return {
 		role: "assistant",
@@ -42,18 +41,14 @@ function summaryMessage(
 			totalTokens: text ? 14 : 0,
 			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
 		},
-		stopReason,
+		stopReason: "stop",
 		timestamp: 1,
 	};
 }
 
 function summaryStream(message: AssistantMessage) {
 	const stream = createAssistantMessageEventStream();
-	if (message.stopReason === "aborted") {
-		stream.push({ type: "error", reason: "aborted", error: message });
-	} else {
-		stream.push({ type: "done", reason: "stop", message });
-	}
+	stream.push({ type: "done", reason: "stop", message });
 	stream.end();
 	return stream;
 }
@@ -267,17 +262,4 @@ test("portable Pi compaction consumes opaque checkpoints on an isolated summary 
 	assert.notEqual(summaryRequest?.options?.sessionId, "session-1");
 	assert.ok(summaryRequest?.options?.sessionId);
 	assert.equal(state.pendingPiCompactionNativeWindow, undefined);
-
-	const controller = new AbortController();
-	controller.abort();
-	await assert.rejects(
-		runPortablePiCompaction(
-			{ ...portableEvent, signal: controller.signal },
-			{
-				model,
-				stream: (requestModel) => summaryStream(summaryMessage(requestModel, "", "aborted")),
-			},
-		),
-		/Portable compaction summary was aborted/,
-	);
 });

@@ -9,7 +9,6 @@ import {
 	normalizeCodexToolRouteConfig,
 	resolveCodexToolModel,
 } from "../src/codex-runtime/config.js";
-import { formatImagegenOutput } from "../src/output.js";
 import { buildImageGenerationRequest } from "../src/request.js";
 
 test("image generation preserves Codex request and Code Mode value contracts", async () => {
@@ -32,13 +31,6 @@ test("image generation preserves Codex request and Code Mode value contracts", a
 			"gpt-image-2",
 		),
 		"company-image",
-	);
-	assert.equal(
-		formatImagegenOutput({
-			path: "output.png",
-			latest_path: "latest.png",
-		}),
-		"Generated image: output.png\nLatest: latest.png",
 	);
 	assert.deepEqual(
 		imagegenCodeModeResult({

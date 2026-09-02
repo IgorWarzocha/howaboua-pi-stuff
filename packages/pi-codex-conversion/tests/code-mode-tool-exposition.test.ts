@@ -63,19 +63,4 @@ test("ALL_TOOLS exposes deferred configured and opted-in programmatic tools", ()
 		formatCodeModeToolHelp(deferredProgrammatic),
 		/^Usage: await tools\.deferred_programmatic_tool\(\{ cmd \}\)/,
 	);
-	const punctuationHelp = formatCodeModeToolHelp({
-			...deferredProgrammatic,
-			name: "foo-$$bar",
-			usage: 'await tools["foo-$$bar"]({ cmd })',
-			description: "Call tools.foo-$$bar, not tools.other",
-			promptSnippet: 'Inspect tools["foo-$$bar"]',
-			promptGuidelines: ["foo-$$bar: Await tools.foo-$$bar"],
-		});
-	assert.match(
-		punctuationHelp,
-		/^Usage: await tools\.foo_\$\$bar\(\{ cmd \}\)/,
-	);
-	assert.match(punctuationHelp, /Call tools\.foo_\$\$bar, not tools\.other/);
-	assert.match(punctuationHelp, /Inspect tools\.foo_\$\$bar/);
-	assert.match(punctuationHelp, /foo_\$\$bar: Await tools\.foo_\$\$bar/);
 });

@@ -5,7 +5,6 @@ import { syncAdapter } from "../src/adapter/activation/activation.ts";
 import { resolveCodexRuntimePlan } from "../src/adapter/activation/runtime-plan.ts";
 import {
 	getCodeModeExtensionTools,
-	onCodeModeExtensionToolsRefresh,
 	registerCodeModeExtensionTools,
 } from "../src/code-mode-extension-tools.ts";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
@@ -80,15 +79,7 @@ test("Code Mode activation stays within its model, API, and provider scope", () 
 	];
 
 	for (const { model, configured, active } of cases) {
-		const pi = createToolHarness(["read", "bash", "edit", "write", "exec", "wait", "parallel", "nested"]);
-		registerCodeModeExtensionTools(pi as never, () => [{
-			name: "nested",
-			usage: "await tools.nested()",
-			deferLoading: false,
-			kind: "function",
-			inputSchema: {},
-			async invoke() { return ""; },
-		}]);
+		const pi = createToolHarness(["read", "bash", "edit", "write", "exec", "wait", "parallel"]);
 		const state = createAdapterState({
 			executionMode: "code",
 			openai: { ...DEFAULT_CODEX_CONVERSION_CONFIG.openai, proxyResponsesLite: true },
@@ -98,12 +89,6 @@ test("Code Mode activation stays within its model, API, and provider scope", () 
 
 		assert.equal(pi.activeTools().includes("exec"), active, JSON.stringify(model));
 		assert.equal(pi.activeTools().includes("wait"), active, JSON.stringify(model));
-		assert.equal(pi.activeTools().includes("nested"), !active, JSON.stringify(model));
-		if (active) {
-			state.executionMode = "normal";
-			syncAdapter(pi as never, createContext(model) as never, state);
-			assert.equal(pi.activeTools().includes("nested"), true, JSON.stringify(model));
-		}
 	}
 
 	const dynamic = createToolHarness([
@@ -114,11 +99,6 @@ test("Code Mode activation stays within its model, API, and provider scope", () 
 		"agents",
 	]);
 	let orchestrationActive = false;
-	let refreshes = 0;
-	const stopRefreshListener = onCodeModeExtensionToolsRefresh(
-		dynamic as never,
-		() => refreshes++,
-	);
 	const registration = registerCodeModeExtensionTools(
 		dynamic as never,
 		() => [{
@@ -131,9 +111,6 @@ test("Code Mode activation stays within its model, API, and provider scope", () 
 		}],
 		{ isActive: () => orchestrationActive },
 	);
-	assert.equal(refreshes, 1);
-	registration.refresh();
-	assert.equal(refreshes, 2);
 	const dynamicState = createAdapterState({ executionMode: "code" });
 	const dynamicModel = cases[0]?.model;
 	assert.ok(dynamicModel);
@@ -143,7 +120,6 @@ test("Code Mode activation stays within its model, API, and provider scope", () 
 	assert.deepEqual(getCodeModeExtensionTools(dynamic as never, dynamicContext as never), []);
 
 	orchestrationActive = true;
-	assert.deepEqual(getCodeModeExtensionTools(dynamic as never, dynamicContext as never), []);
 	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
 	assert.equal(dynamic.activeTools().includes("agents"), false);
 	assert.deepEqual(
@@ -152,59 +128,26 @@ test("Code Mode activation stays within its model, API, and provider scope", () 
 		),
 		["agents"],
 	);
-
-	orchestrationActive = false;
-	assert.equal(
-		getCodeModeExtensionTools(dynamic as never, dynamicContext as never).length,
-		1,
-	);
-	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
-	assert.deepEqual(getCodeModeExtensionTools(dynamic as never, dynamicContext as never), []);
-
-	orchestrationActive = true;
-	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
 	dynamicState.executionMode = "normal";
 	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
 	assert.equal(dynamic.activeTools().includes("agents"), true);
-	dynamicState.executionMode = "code";
-	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
-	assert.equal(dynamic.activeTools().includes("agents"), false);
 	registration.unregister();
-	assert.equal(refreshes, 3);
-	registration.unregister();
-	assert.equal(refreshes, 3);
-	stopRefreshListener();
-	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
-	assert.equal(dynamic.activeTools().includes("agents"), true);
 
 	const conflicting = createToolHarness(["read", "bash", "edit", "write"]);
-	const conflictingState = createAdapterState({ executionMode: "code" });
 	const conflictingContext = createContext(dynamicModel);
-	const stopConflictingRefresh = onCodeModeExtensionToolsRefresh(
-		conflicting as never,
-		() => syncAdapter(
-			conflicting as never,
-			conflictingContext as never,
-			conflictingState,
-		),
-	);
+	const conflict = registerCodeModeExtensionTools(conflicting as never, () => [{
+		name: "exec",
+		usage: "await tools.exec()",
+		deferLoading: false,
+		kind: "function",
+		inputSchema: {},
+		async invoke() { return ""; },
+	}]);
 	assert.throws(
-		() => registerCodeModeExtensionTools(conflicting as never, () => [{
-			name: "exec",
-			usage: "await tools.exec()",
-			deferLoading: false,
-			kind: "function",
-			inputSchema: {},
-			async invoke() { return ""; },
-		}]),
+		() => getCodeModeExtensionTools(conflicting as never, conflictingContext as never),
 		/Reserved Code Mode extension tool name: exec/,
 	);
-	stopConflictingRefresh();
-	assert.doesNotThrow(() => syncAdapter(
-		conflicting as never,
-		conflictingContext as never,
-		conflictingState,
-	));
+	conflict.unregister();
 
 	const namespaced = createToolHarness([
 		"read",

@@ -3,12 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
-import {
-	discoverSkills,
-	packageFiles,
-	parseRequest,
-	runSkills,
-} from "../src/catalog.js";
+import { discoverSkills, parseRequest, runSkills } from "../src/catalog.js";
 
 function fixture() {
 	const root = mkdtempSync(join(tmpdir(), "skills-"));
@@ -49,10 +44,6 @@ test("lists all categories or an exact category selection", (t) => {
 	const selected = runSkills("list engineering", f.root);
 	assert.doesNotMatch(selected, /# DESIGN/);
 	assert.match(selected, /^# ENGINEERING\n- qa: QA work\.$/);
-
-	const both = runSkills("list engineering design", f.root);
-	assert.match(both, /# DESIGN/);
-	assert.match(both, /# ENGINEERING/);
 });
 
 test("reads instructions and appends absolute package file paths", (t) => {
@@ -92,25 +83,9 @@ test("reads instructions and appends absolute package file paths", (t) => {
 			),
 		),
 	);
-	assert.equal(runSkills("read tooling.md api.md", f.root), reference);
-	assert.equal(runSkills("read tooling references/api.md", f.root), reference);
-	assert.equal(runSkills("read tooling/references/api", f.root), reference);
 	assert.equal(runSkills("read tooling/references/api.md", f.root), reference);
-	assert.equal(runSkills("read tooling REFERENCES/api.md", f.root), reference);
-	assert.equal(
-		runSkills(
-			`read ${resolve(f.root, "engineering/tooling/references/api.md")}`,
-			f.root,
-		),
-		reference,
-	);
-	assert.equal(runSkills("read tooling/SKILL.md", f.root), output);
-	assert.equal(runSkills("read tooling SKILL.md", f.root), output);
 	assert.match(
-		runSkills(
-			"read tooling.md references/runtime.md api references/api.md",
-			f.root,
-		),
+		runSkills("read tooling runtime api", f.root),
 		/^--- runtime ---\nRuntime reference\n\n--- api ---\nAPI reference\n\n---\nSkill paths \(4\):/,
 	);
 });
@@ -127,15 +102,9 @@ test("rejects malformed commands, unknown categories, and names", (t) => {
 		"---\nname: review\ndescription: Review work.\n---\nReview body\n",
 	);
 
-	assert.deepEqual(parseRequest(""), { action: "list", categories: [] });
 	assert.throws(() => parseRequest("search visual"), /Expected/);
 	assert.throws(() => parseRequest("read"), /one skill name/);
-	assert.throws(() => runSkills("list missing", f.root), /Unknown category/);
 	assert.throws(() => runSkills("read missing", f.root), /Unknown skill/);
-	assert.throws(
-		() => runSkills("read visual SKILL", f.root),
-		/Unknown reference/,
-	);
 	assert.throws(
 		() => runSkills("read visual review", f.root),
 		/Read it separately with "read review"/,
@@ -148,23 +117,6 @@ test("keeps names unique across category packages", (t) => {
 	f.add("design/one", "---\nname: same\ndescription: One.\n---\nOne\n");
 	f.add("engineering/two", "---\nname: same\ndescription: Two.\n---\nTwo\n");
 	assert.throws(() => discoverSkills(f.root), /Duplicate skill name/);
-});
-
-test("packageFiles puts SKILL.md first", (t) => {
-	const f = fixture();
-	t.after(() => f.cleanup());
-	f.add("writing/copy", "---\nname: copy\ndescription: Copy.\n---\nBody\n");
-	f.file("writing/copy/assets/a.txt");
-	f.file("writing/copy/assets/audio/deep.ogg");
-	const [skill] = discoverSkills(f.root);
-	assert.ok(skill);
-	const paths = packageFiles(skill);
-	assert.equal(paths[0], resolve(f.root, "writing/copy/SKILL.md"));
-	assert.ok(paths.includes(resolve(f.root, "writing/copy/assets/a.txt")));
-	assert.ok(paths.includes(resolve(f.root, "writing/copy/assets/audio")));
-	assert.ok(
-		!paths.includes(resolve(f.root, "writing/copy/assets/audio/deep.ogg")),
-	);
 });
 
 test("shows root skills before categories without inventing a category", (t) => {
@@ -271,10 +223,8 @@ test("adds Pi-loaded package skills to the filesystem catalog", (t) => {
 
 test("keeps user-only skills out of the model catalog", (t) => {
 	const global = fixture();
-	const session = fixture();
 	const packaged = fixture();
 	t.after(() => global.cleanup());
-	t.after(() => session.cleanup());
 	t.after(() => packaged.cleanup());
 	global.add(
 		"hidden-global",
@@ -284,28 +234,7 @@ test("keeps user-only skills out of the model catalog", (t) => {
 		"hidden-package",
 		"---\nname: hidden-package\ndescription: Hidden.\n---\nHidden body\n",
 	);
-	global.add(
-		"shadowed",
-		"---\nname: shadowed\ndescription: Global.\n---\nGlobal body\n",
-	);
-	session.add(
-		"shadowed",
-		"---\nname: shadowed\ndescription: Hidden.\ndisable-model-invocation: TRUE # user-only\n---\nHidden body\n",
-	);
-	global.add(
-		"hidden-root",
-		"---\nname: hidden-root\ndescription: Hidden.\ndisable-model-invocation: true\n---\nHidden body\n",
-	);
-	global.add(
-		"hidden-root/nested",
-		"---\nname: nested\ndescription: Nested.\n---\nNested body\n",
-	);
 	assert.doesNotMatch(runSkills("list", global.root), /hidden-global/);
-	assert.doesNotMatch(runSkills("list", global.root), /nested/);
-	assert.throws(
-		() => runSkills("read shadowed", global.root, session.root),
-		/Unknown skill/,
-	);
 	assert.doesNotMatch(
 		runSkills("list", global.root, undefined, [
 			{

@@ -14,7 +14,6 @@ export {
 	defaultSkillsDir,
 	discoverSkills,
 } from "./discovery.js";
-export { packageFiles } from "./skill-package.js";
 
 const MAX_OUTPUT_BYTES = 48 * 1024;
 

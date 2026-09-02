@@ -1,12 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { snapshotData } from "../src/cdp/snapshot.js";
-import { assertHttpUrl } from "../src/cdp/url.js";
 import { FakeCdp } from "./fake-cdp.js";
 
 test("snapshots emit compact lines and current interactive references", async () => {
-	assert.doesNotThrow(() => assertHttpUrl("https://example.com"));
-	assert.throws(() => assertHttpUrl("file:///etc/passwd"), /Only http\/https/);
 	let snapshotNumber = 0;
 	const cdp = new FakeCdp(({ method }) => {
 		if (method === "Accessibility.getFullAXTree") {

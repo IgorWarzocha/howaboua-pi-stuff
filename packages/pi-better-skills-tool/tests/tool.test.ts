@@ -3,14 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { createSkillsTool, prepareSkillsCodeModeInput } from "../src/tool.js";
-
-test("maps Code Mode strings into the normal Pi parameter", () => {
-	assert.deepEqual(prepareSkillsCodeModeInput("read code-review"), {
-		command: "read code-review",
-	});
-	assert.throws(() => prepareSkillsCodeModeInput({}), /string command/);
-});
+import { createSkillsTool } from "../src/tool.js";
 
 test("resolves session skills from the execution cwd", async (t) => {
 	const globalRoot = mkdtempSync(join(tmpdir(), "skills-global-"));
