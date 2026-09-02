@@ -55,7 +55,7 @@ async function registerBrowserInCodeMode(
 			adaptToolForCodeMode(tool, {
 				kind: "freeform",
 				prepareInput: prepareBrowserCodeModeInput,
-				usage: `await tools.browser("help") // Logged-in ${
+				usage: `await tools.browser("help"); await tools.browser(JSON.stringify({ action: "tabs" })) // Logged-in ${
 					routed ? "routed " : "local "
 				}browser with web__run refs; ask before consequential external actions`,
 			}),

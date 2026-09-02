@@ -5,8 +5,7 @@ import { BrowserRuntime } from "./browser/runtime.js";
 import { browserParameters } from "./browser-parameters.js";
 
 interface BrowserToolParams {
-	action?: (typeof BROWSER_ACTIONS)[number];
-	host?: string;
+	action: (typeof BROWSER_ACTIONS)[number];
 }
 
 const preparedBrowserRequest = Symbol("preparedBrowserRequest");
@@ -16,10 +15,9 @@ interface PreparedBrowserInput {
 }
 
 export function prepareBrowserCodeModeInput(input: unknown): BrowserToolParams {
-	if (typeof input !== "string") {
-		throw new Error("browser expects a request string");
-	}
-	const prepared: BrowserToolParams = {};
+	// Freeform requests can batch operations that the normal Pi schema does not
+	// expose. Carry the parsed request beside a schema-valid adapter input.
+	const prepared: BrowserToolParams = { action: "help" };
 	Object.defineProperty(prepared, preparedBrowserRequest, {
 		value: parseBrowserRequest(input),
 	});
