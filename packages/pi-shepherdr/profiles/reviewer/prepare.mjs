@@ -2,22 +2,7 @@ import { spawnSync } from "node:child_process";
 
 const GIT_TIMEOUT_MS = 10_000;
 
-interface GitResult {
-	code: number;
-	stderr: string;
-	stdout: string;
-}
-
-interface ReviewContext {
-	base?: string;
-	current: string;
-	mergeBase?: string;
-	root: string;
-	scope: "base-diff" | "current-state" | "latest-commit";
-	status: string;
-}
-
-function runGit(cwd: string, args: string[]): GitResult {
+function runGit(cwd, args) {
 	const result = spawnSync("git", args, {
 		cwd,
 		encoding: "utf8",
@@ -32,7 +17,7 @@ function runGit(cwd: string, args: string[]): GitResult {
 	};
 }
 
-function gitString(cwd: string, args: string[]): string {
+function gitString(cwd, args) {
 	const result = runGit(cwd, args);
 	if (result.code !== 0) {
 		throw new Error(
@@ -44,12 +29,12 @@ function gitString(cwd: string, args: string[]): string {
 	return result.stdout;
 }
 
-function gitStringOrUndefined(cwd: string, args: string[]): string | undefined {
+function gitStringOrUndefined(cwd, args) {
 	const result = runGit(cwd, args);
 	return result.code === 0 ? result.stdout : undefined;
 }
 
-function hasLocalBranch(cwd: string, branch: string): boolean {
+function hasLocalBranch(cwd, branch) {
 	const result = runGit(cwd, [
 		"rev-parse",
 		"--verify",
@@ -59,10 +44,7 @@ function hasLocalBranch(cwd: string, branch: string): boolean {
 	return result.code === 0 && Boolean(result.stdout);
 }
 
-function selectBaseBranch(
-	current: string,
-	branches: { dev: boolean; main: boolean; master: boolean },
-): string | undefined {
+function selectBaseBranch(current, branches) {
 	if (current === "dev") {
 		return branches.main ? "main" : branches.master ? "master" : undefined;
 	}
@@ -81,7 +63,7 @@ function selectBaseBranch(
 	return current;
 }
 
-function resolveBaseRef(cwd: string, branch: string): string {
+function resolveBaseRef(cwd, branch) {
 	if (runGit(cwd, ["check-ref-format", "--branch", branch]).code !== 0) {
 		throw new Error(`base is not a valid branch name: ${branch}`);
 	}
@@ -101,10 +83,7 @@ function resolveBaseRef(cwd: string, branch: string): string {
 	throw new Error(`base branch does not exist locally: ${branch}`);
 }
 
-function collectReviewContext(
-	cwd: string,
-	requestedBase?: string,
-): ReviewContext {
+function collectReviewContext(cwd, requestedBase) {
 	const root = gitString(cwd, ["rev-parse", "--show-toplevel"]);
 	const current = gitString(root, ["branch", "--show-current"]);
 	const branches = {
@@ -156,15 +135,16 @@ function collectReviewContext(
 	};
 }
 
-function safeStatus(value: string): string {
+function safeStatus(value) {
 	return value.replaceAll("</git_status>", "&lt;/git_status&gt;");
 }
 
-export function prepareReviewerMessage(input: {
-	base?: string;
-	cwd: string;
-	message: string;
-}): string {
+export function prepare(input) {
+	if (input.local === false) {
+		return input.base
+			? `Review base: ${input.base}\n\n${input.message}`
+			: input.message;
+	}
 	if (runGit(input.cwd, ["rev-parse", "--show-toplevel"]).code !== 0) {
 		return input.base
 			? `Review base: ${input.base}\n\n${input.message}`

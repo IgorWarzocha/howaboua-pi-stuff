@@ -54,7 +54,7 @@
 			}
 		},
 		"packages/pi-shepherdr": {
-			"entry": ["changelog.ts"]
+			"entry": ["changelog.ts", "profiles/**/*.mjs"]
 		},
 		"packages/pi-smart-btw": {
 			"entry": ["changelog.ts"]

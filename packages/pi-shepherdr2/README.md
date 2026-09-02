@@ -60,7 +60,7 @@ Cancelling a blocking call does not kill its worker. The waiter detaches and the
 
 ## Profiles
 
-Three profiles work without configuration:
+On first load, the extension installs three editable profiles:
 
 - `general` uses `openai-codex/gpt-5.6-sol` with `high` thinking for implementation
 - `explorer` uses `openai-codex/gpt-5.6-terra` with `high` thinking for read-only discovery
@@ -68,11 +68,13 @@ Three profiles work without configuration:
 
 Use `general` sparingly, mainly when requested or while orchestration is active. For work in the controller's repository, create a dedicated worktree, run its normal dependency/bootstrap setup, then pass that directory as `cwd` when spawning the agent.
 
-Profiles never inherit the controller's model or thinking level. Add or replace complete profile definitions under:
+They live under:
 
 ```text
 ~/.pi/agent/shepherdr2/profiles/<name>/profile.json
 ```
+
+That directory is authoritative after initialization. Edit a profile to change it, add a directory to create an agent type, or delete its directory to remove it; deleted defaults are not recreated. Profiles never inherit the controller's model or thinking level.
 
 Example:
 
@@ -87,7 +89,7 @@ Example:
 }
 ```
 
-`prompt` is read as system-prompt text. An optional `prepare` module may export `prepare({ cwd, message, base })` and return the worker message. Preparation runs on the controlling machine before dispatch.
+`prompt` is read as system-prompt text. An optional `prepare` module may export `prepare({ cwd, message, base, local })` and return the worker message. Preparation runs on the controlling machine before dispatch; `local` says whether that machine also hosts the worker.
 
 ## Advanced Herdr control
 

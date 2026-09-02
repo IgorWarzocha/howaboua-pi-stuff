@@ -52,9 +52,13 @@ export async function agentsHelp(): Promise<Record<string, unknown>> {
 			prompting:
 				"Specialists know their job. Give only the concrete task and relevant context they cannot access, including session details and prior decisions. Stop there; never append generic method, evidence, or reporting instructions",
 			reuse:
-				"Reuse explorers only for the same investigation. Keep reviewers independent. New scope gets a new agent",
-			general:
-				"Use sparingly, mainly when the user asks or orchestration mode is active. For current-repo work, create and bootstrap a dedicated worktree, then spawn the agent with its cwd",
+				"Reuse specialists only for the same investigation. Keep reviews independent. New scope gets a new agent",
+			...(profiles.has("general")
+				? {
+						general:
+							"Use sparingly, mainly when the user asks or orchestration mode is active. For current-repo work, create and bootstrap a dedicated worktree, then spawn the agent with its cwd",
+					}
+				: {}),
 		},
 		profiles: Object.fromEntries(
 			[...profiles].map(([name, profile]) => [name, profile.description]),

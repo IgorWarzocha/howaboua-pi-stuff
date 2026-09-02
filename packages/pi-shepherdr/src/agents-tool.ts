@@ -56,7 +56,7 @@ export function createAgentsTool(fleet: AgentFleet) {
 		promptGuidelines: [
 			"agents: Blocking is default; set blocking false only while continuing other work. Asynchronous settlement is pushed automatically, so never poll.",
 			"agents: Specialists know their job. Give only the concrete task and inaccessible context; never append generic method, evidence, or reporting instructions.",
-			"agents: Reuse explorers only for the same investigation. Keep reviewers independent. New scope gets a new agent.",
+			"agents: Reuse specialists only for the same investigation. Keep reviews independent. New scope gets a new agent.",
 			"agents: For advanced Herdr workspace, pane, process or layout control, run herdr --skill.",
 		],
 		executionMode: "sequential",

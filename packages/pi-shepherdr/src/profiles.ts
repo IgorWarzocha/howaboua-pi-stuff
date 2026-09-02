@@ -1,19 +1,30 @@
-import { readdir, readFile, stat } from "node:fs/promises";
+import {
+	cp,
+	mkdir,
+	mkdtemp,
+	readdir,
+	readFile,
+	rename,
+	rm,
+	stat,
+	writeFile,
+} from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
-import { prepareReviewerMessage } from "./review-context.js";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const PROFILE_NAME = /^[a-z][a-z0-9_-]{0,31}$/;
-const PROFILES_DIRECTORY = join(
-	process.env["PI_CODING_AGENT_DIR"] ?? join(homedir(), ".pi", "agent"),
-	"shepherdr2",
-	"profiles",
+const AGENT_DIRECTORY =
+	process.env["PI_CODING_AGENT_DIR"] ?? join(homedir(), ".pi", "agent");
+const PROFILES_ROOT = join(AGENT_DIRECTORY, "shepherdr2");
+const PROFILES_DIRECTORY = join(PROFILES_ROOT, "profiles");
+const PROFILE_INSTALL_MARKER = join(PROFILES_ROOT, ".profiles-initialized");
+const BUNDLED_PROFILES_DIRECTORY = fileURLToPath(
+	new URL("../profiles", import.meta.url),
 );
 
 export interface AgentProfile {
 	accepts: string[];
-	builtInPrepare?: (input: ProfilePreparationInput) => string;
 	description: string;
 	model: string;
 	name: string;
@@ -30,6 +41,8 @@ interface ProfilePreparationInput {
 	message: string;
 }
 
+type ProfilePreparationContext = ProfilePreparationInput & { local: boolean };
+
 interface ProfileFile {
 	accepts?: unknown;
 	description?: unknown;
@@ -39,40 +52,6 @@ interface ProfileFile {
 	prompt?: unknown;
 	thinking?: unknown;
 }
-
-const BUILT_IN_PROFILES: readonly AgentProfile[] = [
-	{
-		accepts: [],
-		description: "General implementation",
-		model: "openai-codex/gpt-5.6-sol",
-		name: "general",
-		piArgs: [],
-		prompt:
-			"You are a general implementation agent. Complete the assigned task in the given directory, validate your work, and report the result.",
-		thinking: "high",
-	},
-	{
-		accepts: [],
-		description: "Read-only discovery",
-		model: "openai-codex/gpt-5.6-terra",
-		name: "explorer",
-		piArgs: [],
-		prompt:
-			"You are a read-only explorer. Treat the task as the complete brief. Do not change files or Git state, propose implementation, or spawn agents.",
-		thinking: "high",
-	},
-	{
-		accepts: ["base"],
-		builtInPrepare: prepareReviewerMessage,
-		description: "Read-only review",
-		model: "openai-codex/gpt-5.6-luna",
-		name: "reviewer",
-		piArgs: [],
-		prompt:
-			"You are a read-only reviewer. Treat the task as the complete brief. Do not change files or Git state or spawn agents.",
-		thinking: "xhigh",
-	},
-];
 
 function stringArray(value: unknown, field: string): string[] {
 	if (
@@ -160,10 +139,73 @@ async function readProfile(
 	};
 }
 
-export async function loadAgentProfiles(): Promise<Map<string, AgentProfile>> {
-	const profiles = new Map(
-		BUILT_IN_PROFILES.map((profile) => [profile.name, profile]),
+function hasCode(error: unknown, ...codes: string[]): boolean {
+	return (
+		error instanceof Error &&
+		"code" in error &&
+		typeof error.code === "string" &&
+		codes.includes(error.code)
 	);
+}
+
+async function exists(path: string): Promise<boolean> {
+	try {
+		await stat(path);
+		return true;
+	} catch (error) {
+		if (hasCode(error, "ENOENT")) return false;
+		throw error;
+	}
+}
+
+async function installProfile(name: string): Promise<void> {
+	const target = join(PROFILES_DIRECTORY, name);
+	if (await exists(target)) return;
+	const stagingRoot = await mkdtemp(join(PROFILES_ROOT, `.${name}-`));
+	const staging = join(stagingRoot, name);
+	try {
+		await cp(join(BUNDLED_PROFILES_DIRECTORY, name), staging, {
+			errorOnExist: true,
+			force: false,
+			recursive: true,
+		});
+		try {
+			await rename(staging, target);
+		} catch (error) {
+			if (!hasCode(error, "EEXIST", "ENOTEMPTY")) throw error;
+		}
+	} finally {
+		await rm(stagingRoot, { force: true, recursive: true });
+	}
+}
+
+export async function installAgentProfiles(): Promise<void> {
+	if (await exists(PROFILE_INSTALL_MARKER)) return;
+	await mkdir(PROFILES_DIRECTORY, { mode: 0o700, recursive: true });
+	const entries = await readdir(BUNDLED_PROFILES_DIRECTORY, {
+		withFileTypes: true,
+	});
+	for (const entry of entries.sort((left, right) =>
+		left.name.localeCompare(right.name),
+	)) {
+		if (!entry.isDirectory()) continue;
+		if (!PROFILE_NAME.test(entry.name)) {
+			throw new Error(`invalid bundled agent profile: ${entry.name}`);
+		}
+		await installProfile(entry.name);
+	}
+	try {
+		await writeFile(PROFILE_INSTALL_MARKER, "1\n", {
+			flag: "wx",
+			mode: 0o600,
+		});
+	} catch (error) {
+		if (!hasCode(error, "EEXIST")) throw error;
+	}
+}
+
+export async function loadAgentProfiles(): Promise<Map<string, AgentProfile>> {
+	const profiles = new Map<string, AgentProfile>();
 	let entries;
 	try {
 		entries = await readdir(PROFILES_DIRECTORY, { withFileTypes: true });
@@ -171,7 +213,9 @@ export async function loadAgentProfiles(): Promise<Map<string, AgentProfile>> {
 		if ((error as NodeJS.ErrnoException).code === "ENOENT") return profiles;
 		throw error;
 	}
-	for (const entry of entries) {
+	for (const entry of entries.sort((left, right) =>
+		left.name.localeCompare(right.name),
+	)) {
 		if (!entry.isDirectory()) continue;
 		if (!PROFILE_NAME.test(entry.name)) {
 			throw new Error(`invalid agent profile directory: ${entry.name}`);
@@ -228,18 +272,18 @@ export async function prepareProfileMessage(
 		const metadata = await stat(profile.prepare);
 		const module = (await import(
 			`${pathToFileURL(profile.prepare).href}?mtime=${metadata.mtimeMs}`
-		)) as { prepare?: (value: typeof input) => unknown };
+		)) as { prepare?: (value: ProfilePreparationContext) => unknown };
 		if (typeof module.prepare !== "function") {
 			throw new Error(`${profile.name}.prepare must export prepare()`);
 		}
-		const prepared = await module.prepare(input);
+		const prepared = await module.prepare({
+			...input,
+			local: options.targetLocal !== false,
+		});
 		if (typeof prepared !== "string" || prepared.trim().length === 0) {
 			throw new Error(`${profile.name}.prepare must return a non-empty string`);
 		}
 		return prepared;
-	}
-	if (profile.builtInPrepare && options.targetLocal !== false) {
-		return profile.builtInPrepare(input);
 	}
 	return input.base
 		? `Review base: ${input.base}\n\n${input.message}`

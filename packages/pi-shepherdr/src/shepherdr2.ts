@@ -4,6 +4,7 @@ import { createAgentsTool } from "./agents-tool.js";
 import { registerAgentController } from "./controller.js";
 import { AgentFleet } from "./fleet.js";
 import { registerAgentEventRenderer } from "./messages.js";
+import { installAgentProfiles } from "./profiles.js";
 
 const CODE_MODE_PACKAGE = "@howaboua/pi-codex-conversion";
 const CODE_MODE_MODULE = `${CODE_MODE_PACKAGE}/code-mode`;
@@ -11,6 +12,7 @@ const CODE_MODE_MODULE = `${CODE_MODE_PACKAGE}/code-mode`;
 export default async function shepherdr2Extension(
 	pi: ExtensionAPI,
 ): Promise<void> {
+	await installAgentProfiles();
 	const fleet = new AgentFleet(pi, { agentToolName: "agents" });
 	const tool = createAgentsTool(fleet);
 

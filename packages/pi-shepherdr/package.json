@@ -26,6 +26,7 @@
 	"files": [
 		"index.ts",
 		"src",
+		"profiles",
 		"README.md",
 		"LICENSE",
 		"tsconfig.json",

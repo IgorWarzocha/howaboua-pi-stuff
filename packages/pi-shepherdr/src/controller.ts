@@ -4,6 +4,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { AgentFleet } from "./fleet.js";
 import { showMachineMenu } from "./machine-menu.js";
+import { loadAgentProfiles } from "./profiles.js";
 
 interface AgentControllerOptions {
 	onActiveChange?(): void;
@@ -11,8 +12,10 @@ interface AgentControllerOptions {
 }
 
 const ORCHESTRATION_STATE_TYPE = "pi-shepherdr-orchestration-state";
-const ORCHESTRATION_MESSAGE =
+const GENERAL_ORCHESTRATION_MESSAGE =
 	"Your main goal from now on is to orchestrate agents. Fan out suitable work to general agents, synthesize their results, and report the outcome. Work directly only when asked or for routine local tasks.";
+const ORCHESTRATION_MESSAGE =
+	"Your main goal from now on is to orchestrate agents. Fan out suitable work, synthesize agent results, and report the outcome. Work directly only when asked or for routine local tasks.";
 const NORMAL_MESSAGE = "Work normally. Delegate only when useful or requested.";
 
 export function registerAgentController(
@@ -47,7 +50,7 @@ export function registerAgentController(
 					{
 						customType: ORCHESTRATION_STATE_TYPE,
 						content: orchestrationEnabled
-							? ORCHESTRATION_MESSAGE
+							? await orchestrationMessage()
 							: NORMAL_MESSAGE,
 						details: { enabled: orchestrationEnabled },
 						display: true,
@@ -96,6 +99,12 @@ export function registerAgentController(
 	pi.on("session_shutdown", () => {
 		fleet.deactivate();
 	});
+}
+
+async function orchestrationMessage(): Promise<string> {
+	return (await loadAgentProfiles()).has("general")
+		? GENERAL_ORCHESTRATION_MESSAGE
+		: ORCHESTRATION_MESSAGE;
 }
 
 function restoreOrchestrationState(ctx: ExtensionContext): {
