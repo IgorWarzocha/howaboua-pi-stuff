@@ -48,6 +48,14 @@ async function registerAgentsInCodeMode(
 		return registration;
 	} catch (error) {
 		if (isMissingCodeModeExtension(error)) return undefined;
+		if (isOutdatedCodeModeExtension(error)) {
+			throw new Error(
+				"Update " +
+					CODE_MODE_PACKAGE +
+					" to 3.0.24 or newer to use Shepherdr with it",
+				{ cause: error },
+			);
+		}
 		throw error;
 	}
 }
@@ -62,12 +70,6 @@ function isMissingCodeModeExtension(error: unknown): boolean {
 	) {
 		return false;
 	}
-	if (error.code === "ERR_PACKAGE_PATH_NOT_EXPORTED") {
-		return (
-			error.message.includes("Package subpath './code-mode'") &&
-			error.message.includes(CODE_MODE_PACKAGE)
-		);
-	}
 	if (
 		error.code !== "ERR_MODULE_NOT_FOUND" &&
 		error.code !== "MODULE_NOT_FOUND"
@@ -78,4 +80,22 @@ function isMissingCodeModeExtension(error: unknown): boolean {
 		/Cannot find (?:package|module) ['"]([^'"]+)['"]/,
 	)?.[1];
 	return missing === CODE_MODE_PACKAGE || missing === CODE_MODE_MODULE;
+}
+
+function isOutdatedCodeModeExtension(error: unknown): boolean {
+	if (
+		!error ||
+		typeof error !== "object" ||
+		!("code" in error) ||
+		!("message" in error) ||
+		typeof error.message !== "string"
+	)
+		return false;
+	return (
+		(error.code === "ERR_PACKAGE_PATH_NOT_EXPORTED" ||
+			error.code === "ERR_UNSUPPORTED_DIR_IMPORT") &&
+		(error.message.includes(CODE_MODE_MODULE) ||
+			(error.message.includes("Package subpath './code-mode'") &&
+				error.message.includes(CODE_MODE_PACKAGE)))
+	);
 }

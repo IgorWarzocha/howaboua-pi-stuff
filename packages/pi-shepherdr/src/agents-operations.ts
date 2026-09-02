@@ -246,7 +246,9 @@ export function settlementResult(
 		...(settlement.blockedMessage
 			? { blocked_on: settlement.blockedMessage }
 			: {}),
-		...(!settlement.reply && !settlement.ask ? { completed: true } : {}),
+		...(settlement.status === "done" && !settlement.reply && !settlement.ask
+			? { completed: true }
+			: {}),
 	};
 }
 

@@ -9,7 +9,7 @@ import {
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 
-const DEFAULT_REMOTE_NODE_PATH = "$HOME/.local/share/mise/shims/node";
+const DEFAULT_REMOTE_NODE_PATH = "node";
 
 export interface BrowserRouteConfig {
 	aliases: Record<string, string>;

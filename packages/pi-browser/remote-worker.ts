@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -46,7 +46,8 @@ async function main(): Promise<void> {
 
 if (
 	process.argv[1] &&
-	fileURLToPath(import.meta.url) === resolve(process.argv[1])
+	realpathSync(fileURLToPath(import.meta.url)) ===
+		realpathSync(resolve(process.argv[1]))
 ) {
 	main().catch((error) => {
 		process.stderr.write(

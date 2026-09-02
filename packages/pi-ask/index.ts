@@ -58,6 +58,14 @@ async function registerAskInCodeMode(
 		pi.on("session_shutdown", () => registration.unregister());
 	} catch (error) {
 		if (isMissingCodeModeExtension(error)) return;
+		if (isOutdatedCodeModeExtension(error)) {
+			throw new Error(
+				"Update " +
+					CODE_MODE_PACKAGE +
+					" to 3.0.24 or newer to use Pi Ask with it",
+				{ cause: error },
+			);
+		}
 		throw error;
 	}
 }
@@ -77,4 +85,22 @@ function isMissingCodeModeExtension(error: unknown): boolean {
 		/Cannot find (?:package|module) ['"]([^'"]+)['"]/,
 	)?.[1];
 	return missing === CODE_MODE_PACKAGE || missing === CODE_MODE_MODULE;
+}
+
+function isOutdatedCodeModeExtension(error: unknown): boolean {
+	if (
+		!error ||
+		typeof error !== "object" ||
+		!("code" in error) ||
+		!("message" in error) ||
+		typeof error.message !== "string"
+	)
+		return false;
+	return (
+		(error.code === "ERR_PACKAGE_PATH_NOT_EXPORTED" ||
+			error.code === "ERR_UNSUPPORTED_DIR_IMPORT") &&
+		(error.message.includes(CODE_MODE_MODULE) ||
+			(error.message.includes("Package subpath './code-mode'") &&
+				error.message.includes(CODE_MODE_PACKAGE)))
+	);
 }
