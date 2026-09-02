@@ -3,9 +3,4 @@
 "@howaboua/pi-codex-conversion": patch
 ---
 
-Let Pi extensions expose existing and session-gated tools inside Code and Notebook Mode.
-
-- Pi Ask now works from cells.
-- Per-call blocking lets one bridged tool offer both blocking and asynchronous operations.
-- Image-bearing Code Mode histories keep native compaction on the canonical cache lane without carrying old images beyond its retained-context budget.
-- Native compaction can retain an opt-in readable Pi summary for switching providers without moving Codex replay off its encrypted cache lane.
+Added a Code and Notebook Mode bridge API. This allows extensions that use Pi TUI to run inside `exec`.

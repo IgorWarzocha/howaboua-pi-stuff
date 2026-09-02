@@ -6,7 +6,7 @@
       "name": "@howaboua/pi-stuff-monorepo",
       "devDependencies": {
         "@biomejs/biome": "^2.5.10",
-        "@changesets/changelog-github": "^1.0.0",
+        "@changesets/changelog-github": "1.0.0",
         "@changesets/cli": "^3.0.1",
         "@earendil-works/pi-agent-core": "0.84.4",
         "@earendil-works/pi-ai": "0.84.4",
@@ -90,6 +90,9 @@
     "packages/pi-browser": {
       "name": "@howaboua/pi-browser",
       "version": "0.0.0",
+      "bin": {
+        "pi-browser-worker": "./dist/remote-worker.js",
+      },
       "devDependencies": {
         "@biomejs/biome": "^2.5.10",
         "@earendil-works/pi-ai": "0.84.4",
@@ -103,6 +106,7 @@
       "peerDependencies": {
         "@earendil-works/pi-ai": ">=0.84.3",
         "@earendil-works/pi-coding-agent": ">=0.84.3",
+        "@earendil-works/pi-tui": "*",
         "@howaboua/pi-codex-conversion": ">=3.0.24",
         "typebox": "*",
       },

@@ -182,9 +182,19 @@ function packageMarkdown(
 	registration: PackageRegistration,
 	entries: ChangelogEntry[],
 ): string {
+	const body = (entry: ChangelogEntry) =>
+		entry.content
+			.replace(/^##[^\n]*\n*/, "")
+			.replace(/^###\s+(?:Changes|Minor Changes|Patch Changes)\s*\n*/gim, "")
+			.replace(/^###\s+(.+)$/gm, "**$1**");
+	if (entries.length === 1) {
+		const [entry] = entries;
+		if (!entry) return "";
+		return `## ${registration.name} ${entry.version}\n\n${body(entry)}`;
+	}
 	return [
 		`## ${registration.name}`,
-		...entries.map((entry) => entry.content.replace(/^##\s+/, "### ")),
+		...entries.map((entry) => `**${entry.version}**\n\n${body(entry)}`),
 	].join("\n\n");
 }
 

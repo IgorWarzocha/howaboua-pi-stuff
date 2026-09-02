@@ -2,6 +2,7 @@
 "@howaboua/pi-better-skills-tool": patch
 ---
 
-Add progressive skill discovery across normal Pi, Code Mode, and Notebook Mode.
+Initial release of Better Skills for progressive skill discovery in normal Pi, Code Mode, and Notebook Mode.
 
-Outdated Pi Codex installations receive an explicit update error.
+- List the available catalog first, then load only the requested skill and references.
+- Combine global, project, and package-provided skills while respecting invocation visibility and local precedence.
