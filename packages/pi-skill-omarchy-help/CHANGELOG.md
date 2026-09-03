@@ -1,5 +1,9 @@
 # @howaboua/pi-skill-omarchy-help
 
+## 0.0.6
+
+- Expanded Omarchy guidance for personalization, maintenance, recovery, Bluetooth, crashes, and runtime triage.
+
 ## 0.0.5
 
 ### Changes

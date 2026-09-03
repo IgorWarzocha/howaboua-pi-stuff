@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-skill-code",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"description": "Portable Pi skills for maintained code",
 	"type": "module",
 	"keywords": [

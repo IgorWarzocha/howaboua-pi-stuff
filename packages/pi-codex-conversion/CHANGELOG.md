@@ -1,5 +1,10 @@
 # Changelog
 
+## 3.0.25
+
+- - Repeated OpenAI `additional_tools` updates now retain every previously loaded deferred tool.
+  - Updated agent instructions for direct tool workflows, filtered output, and persistent Deno work.
+
 ## 3.0.24
 
 - **BREAKING CHANGE:** Removed web search and image generation from Pi Codex's bundled toolkit. Install their standalone extensions to keep using them:

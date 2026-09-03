@@ -1,5 +1,9 @@
 # @howaboua/pi-skill-foundations
 
+## 0.0.2
+
+- Updated communication guidance for concise conversation, writing, teaching, and non-code review.
+
 ## 0.0.1
 
 ### Changes

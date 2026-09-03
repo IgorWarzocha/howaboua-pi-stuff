@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-stuff",
-	"version": "0.0.73",
+	"version": "0.0.74",
 	"description": "all Howaboua Pi extensions and skills",
 	"type": "module",
 	"keywords": [
@@ -26,8 +26,8 @@
 		"@howaboua/pi-semantic-grep": "0.1.19",
 		"@howaboua/pi-shepherdr": "0.1.3",
 		"@howaboua/pi-skill-chrome-cdp": "0.0.5",
-		"@howaboua/pi-skill-code": "0.0.1",
-		"@howaboua/pi-skill-foundations": "0.0.1",
+		"@howaboua/pi-skill-code": "0.0.2",
+		"@howaboua/pi-skill-foundations": "0.0.2",
 		"@howaboua/pi-skill-harness-and-agent-engineering": "0.0.1",
 		"@howaboua/pi-smart-btw": "0.2.6",
 		"@howaboua/pi-subagent-review": "0.2.19",
