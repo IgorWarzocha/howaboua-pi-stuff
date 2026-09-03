@@ -97,7 +97,7 @@ export function convertResponsesMessages<TApi extends Api>(
 	options?: ConvertResponsesMessagesOptions,
 ): ResponseInput {
 	const messages: ResponseInput = [];
-	const loadedToolNames = new Set<string>();
+	const loadedTools = new Map<string, Tool>();
 	const normalizeIdPart = (part: string) => {
 		const sanitized = part.replace(/[^a-zA-Z0-9_-]/g, "_");
 		const normalized = sanitized.length > 64 ? sanitized.slice(0, 64) : sanitized;
@@ -227,21 +227,21 @@ export function convertResponsesMessages<TApi extends Api>(
 				output: output as any,
 			} as ResponseInput[number]);
 
-			const deferredTools: Tool[] = [];
+			const newlyLoadedTools: Tool[] = [];
 			for (const name of msg.addedToolNames ?? []) {
 				const tool = options?.deferredTools?.get(name);
-				if (!tool || loadedToolNames.has(name)) continue;
-				loadedToolNames.add(name);
-				deferredTools.push(tool);
+				if (!tool || loadedTools.has(name)) continue;
+				loadedTools.set(name, tool);
+				newlyLoadedTools.push(tool);
 			}
-			if (deferredTools.length > 0 && options?.deferredToolsMode === "additional-tools") {
+			if (newlyLoadedTools.length > 0 && options?.deferredToolsMode === "additional-tools") {
 				messages.push({
 					type: "additional_tools",
 					role: "developer",
-					tools: convertResponsesTools(deferredTools, options.toolOptions),
+					tools: convertResponsesTools([...loadedTools.values()], options.toolOptions),
 				} as unknown as ResponseInputItem);
-			} else if (deferredTools.length > 0 && options?.deferredToolsMode === "tool-search") {
-				const names = deferredTools.map((tool) => tool.name);
+			} else if (newlyLoadedTools.length > 0 && options?.deferredToolsMode === "tool-search") {
+				const names = newlyLoadedTools.map((tool) => tool.name);
 				const searchCallId = `pi_tool_load_${shortHash(`${msg.toolCallId}:${names.join(",")}`)}`;
 				messages.push({
 					type: "tool_search_call",
@@ -255,7 +255,7 @@ export function convertResponsesMessages<TApi extends Api>(
 					call_id: searchCallId,
 					execution: "client",
 					status: "completed",
-					tools: convertResponsesTools(deferredTools, {
+					tools: convertResponsesTools(newlyLoadedTools, {
 						...options.toolOptions,
 						deferLoading: true,
 					}),

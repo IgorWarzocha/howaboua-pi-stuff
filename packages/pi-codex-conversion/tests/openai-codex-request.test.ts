@@ -254,9 +254,25 @@ test("GPT-5.6 Code Mode sends the GPT-5.6 input-item contract", async () => {
 	const registered = createRegisteredCodexProvider({ codeMode: true });
 	const deferredExec = { ...(codeModeTools[0] as object), name: "deferred_exec" } as never;
 	const messages = [
-		toolLoadingMessages[0],
-		toolLoadingMessages[1],
-		{ ...(toolLoadingMessages[2] as object), addedToolNames: ["example_tool", "deferred_exec"] },
+		...toolLoadingMessages,
+		{
+			role: "assistant",
+			content: [{ type: "toolCall", id: "call_search_2|fc_search_2", name: "search_tools", arguments: { query: "deferred exec" } }],
+			api: "openai-codex-responses",
+			provider: "openai-codex",
+			model: "gpt-5.4",
+			stopReason: "toolUse",
+			timestamp: 3,
+		},
+		{
+			role: "toolResult",
+			toolCallId: "call_search_2|fc_search_2",
+			toolName: "search_tools",
+			content: [{ type: "text", text: "Loaded tools: deferred_exec" }],
+			addedToolNames: ["deferred_exec"],
+			isError: false,
+			timestamp: 4,
+		},
 	] as never;
 	let captured: RequestInit | undefined;
 	try {
@@ -288,9 +304,13 @@ test("GPT-5.6 Code Mode sends the GPT-5.6 input-item contract", async () => {
 		assert.equal("parameters" in body.input[0].tools[0].tools[0], false);
 		assert.deepEqual(body.input[1], { type: "message", role: "developer", content: [{ type: "input_text", text: "Lite instructions" }] });
 		const additionalTools = body.input.filter((item: { type?: string }) => item.type === "additional_tools");
-		assert.equal(additionalTools.length, 2);
+		assert.equal(additionalTools.length, 3);
 		assert.deepEqual(additionalTools[1].tools.map((tool: { type: string; name: string }) => [tool.type, tool.name]), [["namespace", "functions"]]);
 		assert.deepEqual(additionalTools[1].tools[0].tools.map((tool: { type: string; name: string; defer_loading?: boolean }) => [tool.type, tool.name, tool.defer_loading]), [
+			["function", "example_tool", undefined],
+		]);
+		assert.deepEqual(additionalTools[2].tools.map((tool: { type: string; name: string }) => [tool.type, tool.name]), [["namespace", "functions"]]);
+		assert.deepEqual(additionalTools[2].tools[0].tools.map((tool: { type: string; name: string; defer_loading?: boolean }) => [tool.type, tool.name, tool.defer_loading]), [
 			["function", "example_tool", undefined],
 			["custom", "deferred_exec", undefined],
 		]);

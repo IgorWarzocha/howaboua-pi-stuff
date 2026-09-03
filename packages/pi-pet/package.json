@@ -2,6 +2,7 @@
   "name": "@howaboua/pi-pet",
   "version": "0.1.2",
   "description": "Animated companions for GipPity Remote.",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/IgorWarzocha/howaboua-pi-stuff.git",
