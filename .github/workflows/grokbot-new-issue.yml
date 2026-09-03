@@ -1,0 +1,24 @@
+name: Grok Bot new issue
+
+on:
+  issues:
+    types: [opened]
+
+permissions: {}
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: POST issue payload to Grok Bot
+        env:
+          WEBHOOK_URL: ${{ secrets.GROKBOT_ISSUE_WEBHOOK_URL }}
+          WEBHOOK_KEY: ${{ secrets.GROKBOT_ISSUE_WEBHOOK_KEY }}
+        run: |
+          test -n "$WEBHOOK_URL"
+          test -n "$WEBHOOK_KEY"
+          curl -fsS -X POST "$WEBHOOK_URL" \
+            -H "Authorization: Bearer $WEBHOOK_KEY" \
+            -H "Content-Type: application/json" \
+            -H "X-GitHub-Event: issues" \
+            --data-binary @"$GITHUB_EVENT_PATH"
