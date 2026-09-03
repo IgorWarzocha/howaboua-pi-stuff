@@ -1,5 +1,9 @@
 # @howaboua/pi-skill-code
 
+## 0.0.2
+
+- Added React hygiene guidance for state, effects, identity, rendering, and framework ownership.
+
 ## 0.0.1
 
 ### Changes

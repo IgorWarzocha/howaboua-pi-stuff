@@ -1,5 +1,12 @@
 # @howaboua/pi-skills
 
+## 0.0.19
+
+- Include bundled package updates:
+
+  - @howaboua/pi-skill-code: Added React hygiene guidance for state, effects, identity, rendering, and framework ownership.
+  - @howaboua/pi-skill-foundations: Updated communication guidance for concise conversation, writing, teaching, and non-code review.
+
 ## 0.0.18
 
 ### Changes
@@ -250,4 +257,3 @@
 - [`3c8c222`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/3c8c2222bb8d907a85517dd2155f8ea77d2441fb) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)!:
 
   - Initial public release from the Howaboua Pi Stuff monorepo.
-

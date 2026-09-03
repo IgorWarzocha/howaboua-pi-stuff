@@ -66,24 +66,10 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 3.0.24
+### @howaboua/pi-codex-conversion — 3.0.25
 
-- **BREAKING CHANGE:** Removed web search and image generation from Pi Codex's bundled toolkit. Install their standalone extensions to keep using them:
-
-  - `pi install npm:@howaboua/pi-codex-web-run`
-  - `pi install npm:@howaboua/pi-codex-imagegen`
-
-- Updated Code and Notebook Mode instructions to encourage batching independent file edits and composing multi-step tool calls in Deno.
-
-- Simplified the `/codex` settings menu.
-
-- Added a Code and Notebook Mode bridge API. This allows extensions that use Pi TUI to run inside `exec`.
-
-- Added optional dual compaction. OpenAI compaction can run in parallel with Pi-native compaction to allow switching providers in a single session.
-
-- Fixed waiting indicators for extension UI prompts.
-
-- Voice summarisation now runs whenever Pi compacts, then starts a fresh realtime session.
+- - Repeated OpenAI `additional_tools` updates now retain every previously loaded deferred tool.
+  - Updated agent instructions for direct tool workflows, filtered output, and persistent Deno work.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
@@ -197,19 +183,15 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-skill-chrome-cdp/CHANGELOG.md)
 
-### @howaboua/pi-skill-code — 0.0.1
+### @howaboua/pi-skill-code — 0.0.2
 
-### Changes
-
-- [#339](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/339) [`ee0220c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ee0220cdc44cd732dff9caf0c913e098ed14404f) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Publish rebuilt portable skills in category packages
+- Added React hygiene guidance for state, effects, identity, rendering, and framework ownership.
 
 [Full changelog](./packages/pi-skill-code/CHANGELOG.md)
 
-### @howaboua/pi-skill-foundations — 0.0.1
+### @howaboua/pi-skill-foundations — 0.0.2
 
-### Changes
-
-- [#339](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/339) [`ee0220c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ee0220cdc44cd732dff9caf0c913e098ed14404f) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Publish rebuilt portable skills in category packages
+- Updated communication guidance for concise conversation, writing, teaching, and non-code review.
 
 [Full changelog](./packages/pi-skill-foundations/CHANGELOG.md)
 
@@ -221,21 +203,18 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-skill-harness-and-agent-engineering/CHANGELOG.md)
 
-### @howaboua/pi-skill-omarchy-help — 0.0.5
+### @howaboua/pi-skill-omarchy-help — 0.0.6
 
-### Changes
-
-- [#339](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/339) [`ee0220c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ee0220cdc44cd732dff9caf0c913e098ed14404f) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Refresh Omarchy guidance for portable workstation maintenance
+- Expanded Omarchy guidance for personalization, maintenance, recovery, Bluetooth, crashes, and runtime triage.
 
 [Full changelog](./packages/pi-skill-omarchy-help/CHANGELOG.md)
 
-### @howaboua/pi-skills — 0.0.18
-
-### Changes
+### @howaboua/pi-skills — 0.0.19
 
 - Include bundled package updates:
 
-  - @howaboua/pi-skill-chrome-cdp: Give Chrome CDP agents bounded snapshots and screenshots with non-aliasing reusable element references, broader ARIA control support, targeted search, serialized daemon commands, released remote object handles, revalidated native clicks, identity-safe referenced-field input, Shadow DOM support, actionable timeout recovery, and reliable linked CLI execution.
+  - @howaboua/pi-skill-code: Added React hygiene guidance for state, effects, identity, rendering, and framework ownership.
+  - @howaboua/pi-skill-foundations: Updated communication guidance for concise conversation, writing, teaching, and non-code review.
 
 [Full changelog](./packages/pi-skills/CHANGELOG.md)
 
@@ -250,16 +229,12 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.73
+### @howaboua/pi-stuff — 0.0.74
 
 - Include bundled package updates:
 
-  - @howaboua/pi-ask: Added a Code and Notebook Mode bridge API. This allows extensions that use Pi TUI to run inside `exec`.
-  - @howaboua/pi-better-skills-tool: Initial release of Better Skills for progressive skill discovery in normal Pi, Code Mode, and Notebook Mode. - List the available catalog first, then load only the requested skill and references. - Combine global, project, and package-provided skills while respecting invocation visibility and local precedence.
-  - @howaboua/pi-gippity-control: Fixed waiting indicators for extension UI prompts.
-  - @howaboua/pi-gippity-control: Voice summarisation now runs whenever Pi compacts, then starts a fresh realtime session.
-  - @howaboua/pi-pet: Fixed waiting indicators for extension UI prompts.
-  - @howaboua/pi-shepherdr: Replaced Shepherdr's fire-and-forget tool with persistent blocking and asynchronous agents in normal Pi, Code Mode, and Notebook Mode. - Start, steer, inspect, and answer multiple agents through the `agents` tool. - Customize the bundled general, explorer, and reviewer profiles or add your own. - Activate orchestration mode with `/herdr` when the main session should coordinate agent work.
+  - @howaboua/pi-skill-code: Added React hygiene guidance for state, effects, identity, rendering, and framework ownership.
+  - @howaboua/pi-skill-foundations: Updated communication guidance for concise conversation, writing, teaching, and non-code review.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 

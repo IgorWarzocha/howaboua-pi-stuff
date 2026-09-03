@@ -1,6 +1,6 @@
 {
   "name": "@howaboua/pi-skill-omarchy-help",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Portable Pi skill for Omarchy Quattro workstations",
   "type": "module",
   "keywords": [
