@@ -64,7 +64,7 @@ const CODE_MODE_GUIDELINES = [
 const NOTEBOOK_MODE_GUIDELINES = [
 	"exec is a persistent Deno/TypeScript Jupyter notebook; project globals may come from earlier agents and sessions",
 	"Check notebook status and reuse matching retained globals; inspect description/usage before creating reusable ones",
-	"Keep one-offs block-local; retain reusable analysis and helpers as purpose-named unpinned globals with concise description/usage; pin prune-resistant state",
+	"Keep one-offs block-local; retain reusable analysis and helpers as named globals with concise description/usage; pin valuable state before pruning",
 	...CODE_MODE_GUIDELINES,
 	"Run notebook diagnostics after state or helper failures; release/prune disposable state",
 	"Filter retained data inside exec and return the needed findings",
@@ -72,7 +72,7 @@ const NOTEBOOK_MODE_GUIDELINES = [
 	"Keep retained helpers self-contained; recreate imports, closures, and live handles after restart",
 	"Notebook results report memory; release/prune before pressure becomes critical",
 	"exec calls run sequentially; use wait to observe or terminate the currently yielded call",
-	"Use Deno as a persistent programming environment: retain state, transform data, and orchestrate multi-step work",
+	"Treat Notebook as a persistent Deno REPL: build small programs on retained state across cells",
 ];
 
 const CODE_MODE_REPLACED_GUIDELINES = new Set([
