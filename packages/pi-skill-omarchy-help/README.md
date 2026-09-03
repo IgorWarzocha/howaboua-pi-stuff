@@ -1,6 +1,6 @@
 # @howaboua/pi-skill-omarchy-help
 
-Maintains user-owned configuration and diagnoses failures on Arch Linux workstations configured with Omarchy.
+Maintains user-owned configuration and diagnoses failures on Omarchy Quattro workstations.
 
 ## Install
 

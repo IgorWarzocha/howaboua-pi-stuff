@@ -1,7 +1,7 @@
 ---
 name: codebase-hygiene
 description: "Must always apply when working on maintained code."
-last-changed: "2026-08-22"
+last-changed: "2026-08-30"
 ---
 
 ## Load applicable rules
@@ -13,6 +13,7 @@ Loaded references are authoritative.
 - Calls, dispatch, callbacks, continuations, imports, initialization, startup, and runtime cost: `references/execution-topology.md`
 - Dependencies, lockfiles, installers, scripts, CI actions, runtimes, compilers, and third-party tools: `references/dependency-safety.md`
 - Load every reference matching a repository language: `references/js-ts.md`, `references/python.md`, `references/go.md`, `references/rust.md`
+- React components, Hooks, rendering, state, and framework boundaries: `references/react.md`
 - For other languages, use repository evidence and current official ecosystem documentation.
 - Scores and caps: `references/scoring-rubric.md`. Score only when requested or already required.
 
