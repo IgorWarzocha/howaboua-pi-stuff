@@ -45,7 +45,7 @@ await tools.skills("read code-review")
 await tools.skills("read codebase-hygiene testing js-ts")
 ```
 
-Pi's loaded skill catalog is authoritative during normal use. When Pi has no loaded skills, including `--no-skills` sessions, the tool falls back to the standard global `skills/` directory under Pi's agent directory and `$PWD/.pi/skills/`. A same-named session skill overrides the global skill. Reads return the requested Markdown and absolute package paths for later reference, script, or asset access.
+Pi's loaded skill catalog is authoritative during normal use. When Pi has no loaded skills, including `--no-skills` sessions, the tool falls back to the standard global `skills/` directory under Pi's agent directory and `$PWD/.pi/skills/`. A same-named session skill overrides the global skill. Skill reads include absolute package paths for later reference, script, or asset access. Reference reads return only the requested Markdown and its source paths, without repeating the package inventory.
 
 Remove or disable any legacy `codex-conversion-custom-tools/skills.toml` after installing this extension. Keeping both definitions gives Code Mode two tools named `skills`, which it rejects.
 

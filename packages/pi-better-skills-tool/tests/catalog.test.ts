@@ -46,7 +46,7 @@ test("lists all categories or an exact category selection", (t) => {
 	assert.match(selected, /^# ENGINEERING\n- qa: QA work\.$/);
 });
 
-test("reads instructions and appends absolute package file paths", (t) => {
+test("reads instructions with package paths and references with only selected sources", (t) => {
 	const f = fixture();
 	t.after(() => f.cleanup());
 	f.add(
@@ -75,20 +75,14 @@ test("reads instructions and appends absolute package file paths", (t) => {
 	assert.doesNotMatch(output, /\.private/);
 	assert.doesNotMatch(output, /node_modules/);
 	const reference = runSkills("read tooling api", f.root);
-	assert.match(reference, /^API reference\n\n---\nSkill paths \(4\):/);
-	assert.match(
+	assert.equal(
 		reference,
-		new RegExp(
-			resolve(f.root, "engineering/tooling/references/api.md").replace(
-				/[.*+?^${}()|[\]\\]/g,
-				"\\$&",
-			),
-		),
+		`API reference\n\n---\nSources:\n- ${resolve(f.root, "engineering/tooling/references/api.md")}`,
 	);
 	assert.equal(runSkills("read tooling/references/api.md", f.root), reference);
-	assert.match(
+	assert.equal(
 		runSkills("read tooling runtime api", f.root),
-		/^--- runtime ---\nRuntime reference\n\n--- api ---\nAPI reference\n\n---\nSkill paths \(4\):/,
+		`--- runtime ---\nRuntime reference\n\n--- api ---\nAPI reference\n\n---\nSources:\n- ${resolve(f.root, "engineering/tooling/references/runtime.md")}\n- ${resolve(f.root, "engineering/tooling/references/api.md")}`,
 	);
 });
 

@@ -188,7 +188,8 @@ function readReferences(
 			path,
 		]),
 	);
-	const selected: Array<{ reference: string; content: string }> = [];
+	const selected: Array<{ reference: string; path: string; content: string }> =
+		[];
 	const seen = new Set<string>();
 	for (const requestedReference of references) {
 		const absoluteReference = isAbsolute(requestedReference)
@@ -221,7 +222,11 @@ function readReferences(
 		}
 		if (seen.has(reference)) continue;
 		seen.add(reference);
-		selected.push({ reference, content: readFileSync(path, "utf8").trim() });
+		selected.push({
+			reference,
+			path,
+			content: readFileSync(path, "utf8").trim(),
+		});
 	}
 	const content =
 		selected.length === 1
@@ -231,7 +236,7 @@ function readReferences(
 						({ reference, content: body }) => `--- ${reference} ---\n${body}`,
 					)
 					.join("\n\n");
-	return `${content}\n\n${formatSkillPaths(skill)}`;
+	return `${content}\n\n---\nSources:\n${selected.map(({ path }) => `- ${path}`).join("\n")}`;
 }
 
 export function readSkillPackage(
