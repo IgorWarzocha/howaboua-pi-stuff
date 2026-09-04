@@ -1,5 +1,5 @@
 /**
- * Adds short slash commands for the three OpenAI Codex model variants.
+ * Adds short slash commands for OpenAI Codex model variants.
  * The commands use Pi's model registry, so normal provider authentication and
  * model availability checks remain in charge.
  */
@@ -18,6 +18,7 @@ const MODELS = {
 	sol: "gpt-5.6-sol",
 	terra: "gpt-5.6-terra",
 	luna: "gpt-5.6-luna",
+	astra: "gpt-6-astra",
 } as const;
 
 type Alias = keyof typeof MODELS & ShortcutAlias;
@@ -42,7 +43,7 @@ export default function (
 
 	for (const alias of Object.keys(MODELS) as Alias[]) {
 		pi.registerCommand(alias, {
-			description: `Switch to GPT-5.6 ${alias.charAt(0).toUpperCase()}${alias.slice(1)}`,
+			description: `Switch to GPT-${alias === "astra" ? "6" : "5.6"} ${alias.charAt(0).toUpperCase()}${alias.slice(1)}`,
 			handler: async (args, ctx) => {
 				const defaults = getConfig()[alias];
 				const thinkingLevel = parseThinkingLevel(args, defaults.reasoning);
