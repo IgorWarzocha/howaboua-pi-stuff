@@ -21,7 +21,7 @@ Open `/codex` after installation. The defaults give Codex-like GPT models the st
 - [What you get](#what-you-get)
 - [Modes](#modes)
 - [Settings](#settings)
-- [Context windows](#context-windows)
+- [Context management](#context-management)
 - [Cache diagnostics](#cache-diagnostics)
 - [Code Mode and custom tools](#code-mode-and-custom-tools)
 - [Voice, dictation and GipPity](#voice-dictation-and-gippity)
@@ -36,7 +36,7 @@ Open `/codex` after installation. The defaults give Codex-like GPT models the st
 - foreground, background and interactive shell sessions with resumable output
 - image descriptions for blind models
 - realtime voice, push-to-dictate and the GipPity LAN remote mini WebUI
-- OpenAI verbosity, fast mode, cached transport, usage, reset credits, context windows and Responses compaction
+- OpenAI verbosity, fast mode, cached transport, usage, reset credits, context management and Responses compaction
 - compact Pi-native rendering, status and background-shell controls
 
 Pi keeps its sessions, project context, skills and UI. The model gets the dialect it already knows.
@@ -62,7 +62,7 @@ Provider scope can stay on **Codex and configured**, expand to **all providers**
 
 | Tab | Covers |
 | --- | --- |
-| General | Settings scope, execution mode, context windows, extension mode, providers and heavy prompt overwrite |
+| General | Settings scope, execution mode, context management, extension mode, providers and heavy prompt overwrite |
 | Tools | Image description fallback and standalone tools |
 | OpenAI | Fast mode, verbosity, transport, cache diagnostics, Responses Lite and compaction |
 | Display | Statusline, tool rendering, Code Mode detail and background shells |
@@ -82,13 +82,15 @@ The optional **Heavy system prompt overwrite** removes roughly 40% of Pi's known
 
 Responses compaction V2 stores an encrypted checkpoint for the Codex lane. If you switch providers inside long sessions, enable **Parallel Pi-native compaction** beside it. Each native compaction then runs Pi's normal cumulative summarizer on an isolated request lane and stores the readable result alongside the encrypted checkpoint. Codex replay keeps using the native checkpoint, while other providers receive the Pi summary. This adds summarization cost, so it is off by default.
 
-## Context windows
+## Context management
 
-**Context windows (experimental)** ports Codex's newer no-summary context lifecycle. A session starts with a persisted purple window marker. `new_context` closes the active model context and continues from a fresh marker while the shell, Notebook runtime, workspace and complete Pi JSONL remain intact. Nothing summarizes the old window automatically.
+**Context management (experimental)** ports Codex's newer no-summary context lifecycle. A session starts with a persisted purple window marker. `new_context` closes the active model context and continues from a fresh marker while the shell, Notebook runtime, workspace and complete Pi JSONL remain intact. Nothing summarizes the old window automatically.
+
+Keep Context management enabled when resuming sessions that used it. To disable it for a session, first run `/compact` while it is enabled, then switch it off in the new window. Disabling it earlier removes its recovery tools and may rejoin previously separated windows into ordinary Pi context.
 
 Choose its backend under `/codex` → **General**:
 
-- **Off** disables context windows.
+- **Off** disables context management.
 - **Local** reads prior windows from Pi's JSONL and persists private note updates there as model-invisible entries.
 - **Hybrid** uses Codex's encrypted history/notes service on an `openai-codex-responses` transport when available, then sticks to local storage after a capability or connection miss. Other Responses transports use local storage immediately.
 
@@ -96,7 +98,7 @@ The model receives Codex's native `history.*` and `notes.*` namespace operations
 
 The model receives one reminder at 6,144 tokens remaining. At the normal Pi reserve boundary it must checkpoint and roll over; an actual overflow forces a fresh window before Pi retries. `/compact` also starts a fresh no-summary window while this mode is active. Pi may still add internal compaction entries to prune its live in-memory context, but those entries contain only a fixed boundary marker and never enter provider context.
 
-Context windows work anywhere the active Pi Codex adapter uses a Responses API and are mutually exclusive with Responses compaction V2. Other provider APIs ignore the setting. Switching it on mid-session starts a fresh model window on the next input.
+Context management works anywhere the active Pi Codex adapter uses a Responses API and is mutually exclusive with Responses compaction V2. Other provider APIs ignore the setting. Switching it on mid-session starts a fresh model window on the next input.
 
 ## Cache diagnostics
 

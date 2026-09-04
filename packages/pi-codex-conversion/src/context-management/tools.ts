@@ -101,7 +101,7 @@ function assertContextManagementActive(
 	const plan = resolveCodexRuntimePlanForState(ctx, state);
 	if (!plan.contextManagement)
 		throw new Error(
-			"Codex context management requires an active Responses adapter with Context windows enabled",
+			"Codex context management requires an active Responses adapter with Context management enabled",
 		);
 	return plan;
 }

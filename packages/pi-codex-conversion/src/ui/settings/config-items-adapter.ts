@@ -70,7 +70,7 @@ export function buildAdapterSettings(
 		setting(
 			{
 				id: "contextManagement",
-				label: "Context windows (experimental)",
+				label: "Context management (experimental)",
 				currentValue: config.compaction.contextManagement,
 				values: ["off", "local", "hybrid"],
 			},
