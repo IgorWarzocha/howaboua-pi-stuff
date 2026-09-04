@@ -50,12 +50,40 @@ test("context windows preserve rollover and native request semantics", async () 
 	);
 	const ctx = createContext();
 	manager.ensureInitialized(contextPi, ctx, true);
+	const contextEntries = () =>
+		contextMessages.map((message, index) => ({
+			type: "custom_message",
+			id: "entry-" + index,
+			parentId: index === 0 ? null : "entry-" + (index - 1),
+			timestamp: new Date(index).toISOString(),
+			customType: message["customType"],
+			content: message["content"],
+			display: message["display"],
+			details: message["details"],
+		}));
+	const compactionEvent = (branchEntries = contextEntries()) => ({
+		reason: "threshold",
+		branchEntries,
+		preparation: {
+			firstKeptEntryId: "default-cut",
+			tokensBefore: 240_000,
+		},
+	}) as never;
+	assert.deepEqual(manager.prepareCompaction(compactionEvent(), "remote"), {
+		cancel: true,
+	});
+	const initialEntries = contextEntries();
 	assert.equal(
 		await manager.startNewWindow(contextPi, ctx, {
 			triggerTurn: false,
 			mode: "remote",
+			trimPreviousWindow: true,
 		}),
 		true,
+	);
+	assert.deepEqual(
+		manager.prepareCompaction(compactionEvent(initialEntries), "remote"),
+		{ cancel: true },
 	);
 	assert.equal(contextMessages.length, 2);
 	assert.equal(
@@ -91,24 +119,8 @@ test("context windows preserve rollover and native request semantics", async () 
 		windowId: currentWindowId,
 		contextWindow: 255_616,
 	});
-	assert.deepEqual(
-		manager.createCompaction({
-			branchEntries: contextMessages.map((message, index) => ({
-				type: "custom_message",
-				id: "entry-" + index,
-				parentId: index === 0 ? null : "entry-" + (index - 1),
-				timestamp: new Date(index).toISOString(),
-				customType: message["customType"],
-				content: message["content"],
-				display: message["display"],
-				details: message["details"],
-			})),
-			preparation: {
-				firstKeptEntryId: "default-cut",
-				tokensBefore: 240_000,
-			},
-		} as never),
-		{
+	const expectedCompaction = {
+		compaction: {
 			summary: CONTEXT_WINDOW_COMPACTION_SUMMARY,
 			firstKeptEntryId: "entry-1",
 			tokensBefore: 240_000,
@@ -118,7 +130,16 @@ test("context windows preserve rollover and native request semantics", async () 
 				windowId: currentWindowId,
 			},
 		},
+	};
+	manager.restore(contextEntries() as never);
+	assert.deepEqual(
+		manager.prepareCompaction(compactionEvent(), "remote"),
+		expectedCompaction,
 	);
+	manager.recordCompaction(expectedCompaction.compaction.details);
+	assert.deepEqual(manager.prepareCompaction(compactionEvent(), "remote"), {
+		cancel: true,
+	});
 
 	const contextBridge = new CodexDeveloperMessageBridge();
 	const contextState: AdapterState = {

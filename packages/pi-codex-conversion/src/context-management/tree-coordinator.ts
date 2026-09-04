@@ -171,6 +171,7 @@ export class CodexContextTreeCoordinator {
 			const started = await this.windows.startNewWindow(pi, ctx, {
 				triggerTurn: true,
 				mode: "tree",
+				trimPreviousWindow: false,
 			});
 			if (!started) throw new Error("A new context window could not be started");
 			this.navigation = undefined;

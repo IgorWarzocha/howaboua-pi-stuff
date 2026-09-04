@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createHistoryNotesTools } from "../src/context-management/history-notes.ts";
+import {
+	createHistoryNotesTools,
+	fetchHistoryNotesThreadHint,
+} from "../src/context-management/history-notes.ts";
 import { CODEX_CONTEXT_WINDOW_MESSAGE_TYPE } from "../src/context-management/messages.ts";
 import { fakeJwt } from "./openai-codex-test-support.ts";
 
@@ -145,7 +148,11 @@ test("remote context storage is exact while local storage stays in Pi", async ()
 				),
 				/History and notes backend failed \(400\)/,
 			);
-		assert.equal(failedRequests, 2);
+		assert.equal(
+			await fetchHistoryNotesThreadHint(context, "remote"),
+			undefined,
+		);
+		assert.equal(failedRequests, 3);
 
 		const [localHistory, localNotes] = createHistoryNotesTools(pi, () => "local");
 		await localNotes.execute(

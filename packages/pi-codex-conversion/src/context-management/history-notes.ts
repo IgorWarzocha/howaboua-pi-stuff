@@ -215,17 +215,22 @@ export async function fetchHistoryNotesThreadHint(
 	signal?: AbortSignal,
 ): Promise<string | undefined> {
 	if (!usesRemoteHistoryNotes(ctx, mode)) return undefined;
-	const result = await callHistoryNotesBackend(
-		"alpha/notes/v2/thread_hint",
-		{},
-		ctx,
-		signal,
-		{ mode: "bytes", limit: THREAD_HINT_MAX_BYTES },
-	);
-	const text = typeof result["text"] === "string" ? result["text"] : "";
-	return text && Buffer.byteLength(text, "utf8") <= THREAD_HINT_MAX_BYTES
-		? text
-		: undefined;
+	try {
+		const result = await callHistoryNotesBackend(
+			"alpha/notes/v2/thread_hint",
+			{},
+			ctx,
+			signal,
+			{ mode: "bytes", limit: THREAD_HINT_MAX_BYTES },
+		);
+		const text = typeof result["text"] === "string" ? result["text"] : "";
+		return text && Buffer.byteLength(text, "utf8") <= THREAD_HINT_MAX_BYTES
+			? text
+			: undefined;
+	} catch (error) {
+		if (signal?.aborted) throw error;
+		return undefined;
+	}
 }
 
 async function callHistoryNotesTool(

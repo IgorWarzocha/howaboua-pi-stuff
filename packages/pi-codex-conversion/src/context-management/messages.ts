@@ -30,6 +30,7 @@ export interface CodexContextManagementMessageDetails
 		firstWindowId: string;
 		currentWindowId: string;
 		previousWindowId?: string | undefined;
+		trimPreviousWindow?: true | undefined;
 		windowNumber: number;
 	};
 }
@@ -96,6 +97,8 @@ export function isCodexContextManagementMessageDetails(
 		record["currentWindowId"] !== "" &&
 		(record["previousWindowId"] === undefined ||
 			typeof record["previousWindowId"] === "string") &&
+		(record["trimPreviousWindow"] === undefined ||
+			record["trimPreviousWindow"] === true) &&
 		Number.isInteger(record["windowNumber"]) &&
 		(record["windowNumber"] as number) >= 0
 	);

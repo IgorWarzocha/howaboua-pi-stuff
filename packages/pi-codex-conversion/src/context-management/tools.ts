@@ -43,6 +43,7 @@ export function createContextWindowTools(
 						triggerTurn: true,
 						signal,
 						mode: plan.contextManagementMode,
+						trimPreviousWindow: true,
 					});
 				return {
 					content: [

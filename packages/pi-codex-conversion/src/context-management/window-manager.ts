@@ -23,6 +23,7 @@ import {
 	type ContextWindowIdentity,
 	isCodexContextManagementMessageDetails,
 	isContextWindowBoundary,
+	isContextWindowCompactionDetails,
 	renderContextWindowMessage,
 	renderContextWindowReminder,
 } from "./messages.ts";
@@ -35,6 +36,7 @@ interface StartContextWindowOptions {
 	triggerTurn: boolean;
 	signal?: AbortSignal | undefined;
 	mode?: ContextManagementMode | undefined;
+	trimPreviousWindow: boolean;
 }
 
 interface ContextRemaining {
@@ -54,6 +56,7 @@ export class CodexContextWindowManager {
 	private readonly remindedWindows = new Set<string>();
 	private readonly exhaustedWindows = new Set<string>();
 	private rolloverPending = false;
+	private trimPendingWindowId: string | undefined;
 	private readonly loadThreadHint: ThreadHintLoader;
 
 	constructor(loadThreadHint: ThreadHintLoader = fetchHistoryNotesThreadHint) {
@@ -65,6 +68,7 @@ export class CodexContextWindowManager {
 		this.remindedWindows.clear();
 		this.exhaustedWindows.clear();
 		this.rolloverPending = false;
+		this.trimPendingWindowId = undefined;
 	}
 
 	currentIdentity(): ContextWindowIdentity | undefined {
@@ -74,6 +78,10 @@ export class CodexContextWindowManager {
 	restore(entries: readonly SessionEntry[]): void {
 		this.reset();
 		for (const entry of entries) {
+			if (entry.type === "compaction") {
+				this.recordCompaction(entry.details);
+				continue;
+			}
 			if (
 				entry.type !== "custom_message" ||
 				entry.customType !== CODEX_CONTEXT_WINDOW_MESSAGE_TYPE ||
@@ -81,8 +89,12 @@ export class CodexContextWindowManager {
 			)
 				continue;
 			const details = entry.details.contextManagement;
-			if (details.kind === "window")
+			if (details.kind === "window") {
 				this.identity = identityFromDetails(entry.details);
+				this.trimPendingWindowId = details.trimPreviousWindow
+					? details.currentWindowId
+					: undefined;
+			}
 			if (details.kind === "reminder")
 				this.remindedWindows.add(details.currentWindowId);
 			if (details.kind === "fallback")
@@ -106,7 +118,7 @@ export class CodexContextWindowManager {
 				currentWindowId: windowId,
 				windowNumber: 0,
 			},
-			{ triggerTurn: false },
+			{ triggerTurn: false, trimPreviousWindow: false },
 		);
 	}
 
@@ -253,6 +265,34 @@ export class CodexContextWindowManager {
 		};
 	}
 
+	prepareCompaction(
+		event: SessionBeforeCompactEvent,
+		mode: ContextManagementMode,
+	):
+		| { cancel: true }
+		| { compaction: CompactionResult<ContextWindowCompactionDetails> }
+		| undefined {
+		if (event.reason === "threshold") {
+			const boundary = findLatestWindowBoundaryEntry(event.branchEntries);
+			if (
+				!boundary ||
+				boundary.details.contextManagement.currentWindowId !==
+					this.trimPendingWindowId
+			)
+				return { cancel: true };
+		}
+		if (mode === "tree" && event.reason === "manual") return undefined;
+		return { compaction: this.createCompaction(event) };
+	}
+
+	recordCompaction(details: unknown): void {
+		if (
+			isContextWindowCompactionDetails(details) &&
+			details.windowId === this.trimPendingWindowId
+		)
+			this.trimPendingWindowId = undefined;
+	}
+
 	createCompaction(
 		event: SessionBeforeCompactEvent,
 	): CompactionResult<ContextWindowCompactionDetails> {
@@ -326,12 +366,16 @@ export class CodexContextWindowManager {
 		threadHint?: string,
 	): void {
 		this.identity = identity;
+		this.trimPendingWindowId = options.trimPreviousWindow
+			? identity.currentWindowId
+			: undefined;
 		this.sendContextMessage(
 			pi,
 			renderContextWindowMessage(identity, threadHint),
 			"window",
 			identity,
 			options,
+			options.trimPreviousWindow,
 		);
 	}
 
@@ -340,7 +384,8 @@ export class CodexContextWindowManager {
 		content: string,
 		kind: ContextManagementMessageKind,
 		identity: ContextWindowIdentity,
-		options: StartContextWindowOptions,
+		options: { triggerTurn: boolean },
+		trimPreviousWindow = false,
 	): void {
 		pi.sendMessage<CodexContextManagementMessageDetails>(
 			{
@@ -354,6 +399,9 @@ export class CodexContextWindowManager {
 						protocol: 1,
 						kind,
 						...identity,
+						...(trimPreviousWindow
+							? { trimPreviousWindow: true as const }
+							: {}),
 					},
 				},
 			},

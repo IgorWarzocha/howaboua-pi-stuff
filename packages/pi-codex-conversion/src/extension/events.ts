@@ -326,11 +326,19 @@ export function registerCodexEvents(
 	});
 	pi.on("session_before_compact", async (event, ctx) => {
 		state.cwd = ctx.cwd;
-		if (event.reason !== "manual") runtime.voice.announceCompactionStart(event.reason);
 		const plan = resolveCodexRuntimePlanForState(
 			ctx,
 			state,
 		);
+		const contextManagementResult = plan.contextManagement
+			? state.contextWindows.prepareCompaction(
+				event,
+				plan.contextManagementMode,
+			)
+			: undefined;
+		if (contextManagementResult && "cancel" in contextManagementResult)
+			return contextManagementResult;
+		if (event.reason !== "manual") runtime.voice.announceCompactionStart(event.reason);
 		const nativeCompaction = plan.nativeCompaction;
 		if (nativeCompaction || plan.contextManagement)
 			runtime.voice.compactionStarted();
@@ -339,11 +347,7 @@ export function registerCodexEvents(
 		} catch (error) {
 			ctx.ui.notify(`Notebook checkpoint before compaction failed: ${error instanceof Error ? error.message : String(error)}`, "warning");
 		}
-		if (
-			plan.contextManagement &&
-			!(plan.contextManagementMode === "tree" && event.reason === "manual")
-		)
-			return { compaction: state.contextWindows.createCompaction(event) };
+		if (contextManagementResult) return contextManagementResult;
 		if (!nativeCompaction) return undefined;
 		try {
 			const result = await handleCodexSessionBeforeCompact(
@@ -367,6 +371,7 @@ export function registerCodexEvents(
 		try {
 			runtime.voice.resetContextAnnouncements();
 			state.pendingPiCompactionNativeWindow = undefined;
+			state.contextWindows.recordCompaction(event.compactionEntry.details);
 			const plan = resolveCodexRuntimePlanForState(ctx, state);
 			let nativeCompaction = false;
 			let treeRolloverScheduled = false;
@@ -403,6 +408,7 @@ export function registerCodexEvents(
 						triggerTurn: event.reason === "overflow",
 						...(ctx.signal ? { signal: ctx.signal } : {}),
 						mode: plan.contextManagementMode,
+						trimPreviousWindow: false,
 					});
 				}
 			} else if (
@@ -412,6 +418,7 @@ export function registerCodexEvents(
 				await state.contextWindows.startNewWindow(pi, ctx, {
 					triggerTurn: false,
 					mode: "tree",
+					trimPreviousWindow: false,
 				});
 			}
 			const postCompactionPrompt = codeMode.refreshPromptTools(
