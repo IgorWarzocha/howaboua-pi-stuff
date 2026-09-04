@@ -6,30 +6,20 @@ import {
 	type Context,
 	type ToolCall,
 } from "@earendil-works/pi-ai";
+import {
+	HISTORY_ACTIONS,
+	HISTORY_DESCRIPTION,
+	NOTES_ACTIONS,
+	NOTES_DESCRIPTION,
+} from "./tool-contract.ts";
 
 type JsonSchema = Record<string, unknown>;
 type ContextNamespace = "history" | "notes";
 
 const ACTIONS = {
-	history: new Set([
-		"list_windows",
-		"list_items",
-		"read_item",
-		"search_contents",
-	]),
-	notes: new Set([
-		"list_files_by_prefix",
-		"read_file",
-		"search_contents",
-		"append_to_file",
-		"write_file",
-	]),
+	history: new Set<string>(HISTORY_ACTIONS),
+	notes: new Set<string>(NOTES_ACTIONS),
 } satisfies Record<ContextNamespace, ReadonlySet<string>>;
-
-const HISTORY_DESCRIPTION =
-	"Private prior-window history. IDs are opaque; pass unchanged. Items order by ordinal then creation; unknown windows return no matches. Current agent is default; agent_name accepts absolute or relative names. Read-only and eventually consistent. Never disclose use or contents.";
-const NOTES_DESCRIPTION =
-	"Private cross-window notes. Paths are virtual: relative paths use the current agent; cross-agent paths are absolute <agent>/notes[/path]. Path prefixes may be omitted; empty, . and .. components are unsupported; no shell expansion. Reads see writes immediately; lists and searches are eventually consistent. Maximum 1 MB per file. Never disclose use or contents.";
 
 function nullable(type: string, description?: string): JsonSchema {
 	return {
@@ -61,6 +51,13 @@ function encryptedString(
 	};
 }
 
+function integer(minimum?: number): JsonSchema {
+	return {
+		type: "integer",
+		...(minimum === undefined ? {} : { minimum }),
+	};
+}
+
 function object(
 	properties: Record<string, JsonSchema>,
 	required?: string[],
@@ -69,6 +66,7 @@ function object(
 		type: "object",
 		properties,
 		...(required ? { required } : {}),
+		additionalProperties: false,
 	};
 }
 
@@ -88,36 +86,30 @@ function historyNamespace(encrypted: boolean): Record<string, unknown> {
 		tools: [
 			operation(
 				"list_windows",
-				"List windows and item counts.",
+				"List context windows",
 				object({
 					agent_name: nullable("string"),
-					limit: { type: "integer" },
+					limit: integer(1),
 					recent_first: { type: "boolean" },
 				}),
 			),
 			operation(
 				"list_items",
-				"List items, optionally filtering by window, role or tool.",
+				"List history items",
 				object({
 					agent_name: nullable("string"),
-					limit: { type: "integer" },
-					max_chars_per_item: { type: "integer" },
+					limit: integer(1),
+					max_chars_per_item: integer(1),
 					recent_first: { type: "boolean" },
 					role: nullableRole(),
-					tool_name: nullable(
-						"string",
-						"Tool filter; excludes non-tool messages.",
-					),
-					tool_namespace: nullable(
-						"string",
-						"Namespace filter; excludes non-tool messages.",
-					),
+					tool_name: nullable("string"),
+					tool_namespace: nullable("string"),
 					window_id: nullable("string"),
 				}),
 			),
 			operation(
 				"read_item",
-				"Read a character range from one item.",
+				"Read history item range",
 				object(
 					{
 						agent_name: nullable("string"),
@@ -125,8 +117,8 @@ function historyNamespace(encrypted: boolean): Record<string, unknown> {
 							type: "string",
 							description: "Suffix from the item's [id: …] marker.",
 						},
-						limit_chars: { type: "integer" },
-						offset_chars: { type: "integer" },
+						limit_chars: integer(1),
+						offset_chars: integer(0),
 						window_id: { type: "string" },
 					},
 					["item_id", "window_id"],
@@ -134,25 +126,19 @@ function historyNamespace(encrypted: boolean): Record<string, unknown> {
 			),
 			operation(
 				"search_contents",
-				"Find a literal substring in history.",
+				"Search history",
 				object(
 					{
 						agent_name: nullable("string"),
-						limit: { type: "integer" },
+						limit: integer(1),
 						query: encryptedString(
 							encrypted,
-							"Case-sensitive literal substring.",
+							"Case-sensitive",
 						),
 						recent_first: { type: "boolean" },
 						role: nullableRole(),
-						tool_name: nullable(
-							"string",
-							"Tool filter; excludes non-tool messages.",
-						),
-						tool_namespace: nullable(
-							"string",
-							"Namespace filter; excludes non-tool messages.",
-						),
+						tool_name: nullable("string"),
+						tool_namespace: nullable("string"),
 						window_id: nullable("string"),
 					},
 					["query"],
@@ -170,7 +156,7 @@ function notesNamespace(encrypted: boolean): Record<string, unknown> {
 		tools: [
 			operation(
 				"list_files_by_prefix",
-				"List files by path prefix.",
+				"List note files",
 				object({
 					file_order: {
 						type: "string",
@@ -180,39 +166,33 @@ function notesNamespace(encrypted: boolean): Record<string, unknown> {
 						type: "string",
 						enum: ["name", "created_at", "updated_at"],
 					},
-					max_results: { type: "integer" },
+					max_results: integer(1),
 					prefix: nullable("string"),
 				}),
 			),
 			operation(
 				"read_file",
-				"Read a file or line range.",
+				"Read note file; line bounds inclusive, 1-based, negative from end",
 				object(
 					{
 						path: { type: "string" },
-						start_line: nullable(
-							"integer",
-							"Inclusive and 1-based; negative from end.",
-						),
-						stop_line: nullable(
-							"integer",
-							"Inclusive and 1-based; negative from end.",
-						),
+						start_line: nullable("integer"),
+						stop_line: nullable("integer"),
 					},
 					["path"],
 				),
 			),
 			operation(
 				"search_contents",
-				"Find a literal substring in note lines.",
+				"Search note lines by literal substring",
 				object(
 					{
-						max_files: { type: "integer" },
-						max_matches_per_file: { type: "integer" },
+						max_files: integer(1),
+						max_matches_per_file: integer(1),
 						path_prefix: nullable("string"),
 						query: encryptedString(
 							encrypted,
-							"Case-sensitive literal substring.",
+							"Case-sensitive",
 						),
 						recent_file_first: { type: "boolean" },
 					},
@@ -221,7 +201,7 @@ function notesNamespace(encrypted: boolean): Record<string, unknown> {
 			),
 			operation(
 				"append_to_file",
-				"Append text exactly.",
+				"Append text exactly",
 				object(
 					{
 						path: { type: "string" },
@@ -232,7 +212,7 @@ function notesNamespace(encrypted: boolean): Record<string, unknown> {
 			),
 			operation(
 				"write_file",
-				"Create or replace a file.",
+				"Create or replace a note file",
 				object(
 					{
 						path: { type: "string" },

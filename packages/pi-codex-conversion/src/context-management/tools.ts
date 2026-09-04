@@ -34,6 +34,7 @@ export function createContextWindowTools(
 			description:
 				"Start a new context window. Does not clear, reset, or otherwise affect environment state.",
 			parameters: EMPTY_PARAMETERS,
+			executionMode: "sequential",
 			async execute(_id, _params, signal, _update, ctx) {
 				const plan = assertContextManagementActive(ctx, state);
 				const started = await state.contextWindows.startNewWindow(pi, ctx, {
@@ -57,7 +58,7 @@ export function createContextWindowTools(
 		{
 			name: "get_context_remaining",
 			label: "get_context_remaining",
-			description: "Get remaining tokens in the current context window.",
+			description: "Get the remaining tokens in the current context window.",
 			parameters: EMPTY_PARAMETERS,
 			async execute(_id, _params, _signal, _update, ctx) {
 				assertContextManagementActive(ctx, state);
@@ -68,7 +69,7 @@ export function createContextWindowTools(
 							type: "text",
 							text:
 								remaining.remainingTokens === undefined
-									? "The remaining context-window token budget is unknown."
+									? "You have unknown tokens left in this context window."
 									: `You have ${remaining.remainingTokens} tokens left in this context window.`,
 						},
 					],

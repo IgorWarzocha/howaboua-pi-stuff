@@ -175,7 +175,7 @@ function createNestedTools(
 		const [, getContextRemaining] = createContextWindowTools(pi, runtime.state);
 		tools.push(toNestedTool(
 			getContextRemaining,
-			"await tools.get_context_remaining({}) // remaining tokens in the current model context",
+			"await tools.get_context_remaining({})",
 			{},
 			{
 				resultValue: (result) => {

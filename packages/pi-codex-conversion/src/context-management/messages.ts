@@ -41,7 +41,7 @@ export interface ContextWindowCompactionDetails {
 }
 
 const CONTEXT_WINDOW_GUIDANCE = `<context_window_guidance>
-For work that may span context windows, use notes to maintain a concise checkpoint with the goal, decisions, progress, learnings and next steps. If notes are unavailable, checkpoint in durable Notebook state or a workspace file. get_context_remaining reports the current budget. Before new_context, save what the next window needs because no conversation summary is carried forward. When Previous context window id is present, read the checkpoint and use history to recover any missing detail. Treat this bookkeeping as private and do not mention it to the user.
+Maintain concise notes of the goal, decisions, progress, learnings and next steps. Update them before new_context; no conversation summary carries over. After rollover, read notes and use history only for missing detail.
 </context_window_guidance>`;
 
 export function renderContextWindowMessage(
@@ -63,12 +63,12 @@ export function renderContextWindowMessage(
 
 export function renderContextWindowReminder(remainingTokens: number): string {
 	return `<context_window_reminder>
-Your current context window is nearly exhausted; only ${Math.max(0, Math.floor(remainingTokens))} tokens remain. Save a concise checkpoint with notes, then call new_context to continue in a fresh window. The next window will not automatically include this conversation.
+Only ${Math.max(0, Math.floor(remainingTokens))} context tokens remain. Update notes, then call new_context; no conversation summary carries over.
 </context_window_reminder>`;
 }
 
 export const CONTEXT_WINDOW_FALLBACK_MESSAGE = `<context_window_reminder>
-The current context window is exhausted. Do not continue the task or give a final answer in this window. Make exactly one notes write or append call to save a concise checkpoint with the goal, decisions, progress, learnings and next steps, then call new_context. Do not use other tools before starting the new window.
+Context exhausted. Do not continue or answer. Make exactly one notes write or append call, then call new_context. Use no other tools before rollover.
 </context_window_reminder>`;
 
 export function isCodexContextManagementMessageDetails(

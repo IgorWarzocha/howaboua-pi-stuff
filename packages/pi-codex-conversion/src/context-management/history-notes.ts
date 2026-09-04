@@ -4,6 +4,7 @@ import type {
 	ExtensionContext,
 	ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
+import { StringEnum } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
 import type { ContextManagementMode } from "../adapter/activation/config.ts";
 import {
@@ -12,6 +13,14 @@ import {
 } from "../adapter/codex-tool-provider.ts";
 import { readPiSessionHistory } from "./local-history.ts";
 import { usePiSessionNotes } from "./local-notes.ts";
+import {
+	HISTORY_ACTIONS,
+	HISTORY_DESCRIPTION,
+	type HistoryAction,
+	NOTES_ACTIONS,
+	NOTES_DESCRIPTION,
+	type NotesAction,
+} from "./tool-contract.ts";
 
 const BACKEND_TIMEOUT_MS = 35_000;
 const THREAD_HINT_MAX_BYTES = 4_000;
@@ -25,7 +34,7 @@ const HISTORY_ENDPOINTS = {
 	list_items: "alpha/history/v2/list_items",
 	read_item: "alpha/history/v2/read_item",
 	search_contents: "alpha/history/v2/search_contents",
-} as const;
+} as const satisfies Record<HistoryAction, string>;
 
 const NOTES_ENDPOINTS = {
 	list_files_by_prefix: "alpha/notes/v2/list_files_by_prefix",
@@ -33,7 +42,55 @@ const NOTES_ENDPOINTS = {
 	search_contents: "alpha/notes/v2/search_contents",
 	append_to_file: "alpha/notes/v2/append_to_file",
 	write_file: "alpha/notes/v2/write_file",
-} as const;
+} as const satisfies Record<NotesAction, string>;
+
+const HISTORY_ACTION_SET = new Set<string>(HISTORY_ACTIONS);
+const NOTES_ACTION_SET = new Set<string>(NOTES_ACTIONS);
+
+const HISTORY_ACTION_FIELDS = {
+	list_windows: ["agent_name", "limit", "recent_first"],
+	list_items: [
+		"agent_name",
+		"limit",
+		"max_chars_per_item",
+		"recent_first",
+		"role",
+		"tool_name",
+		"tool_namespace",
+		"window_id",
+	],
+	read_item: [
+		"agent_name",
+		"item_id",
+		"limit_chars",
+		"offset_chars",
+		"window_id",
+	],
+	search_contents: [
+		"agent_name",
+		"limit",
+		"query",
+		"recent_first",
+		"role",
+		"tool_name",
+		"tool_namespace",
+		"window_id",
+	],
+} satisfies Record<HistoryAction, readonly string[]>;
+
+const NOTES_ACTION_FIELDS = {
+	list_files_by_prefix: ["file_order", "file_order_by", "max_results", "prefix"],
+	read_file: ["path", "start_line", "stop_line"],
+	search_contents: [
+		"max_files",
+		"max_matches_per_file",
+		"path_prefix",
+		"query",
+		"recent_file_first",
+	],
+	append_to_file: ["path", "text"],
+	write_file: ["path", "text"],
+} satisfies Record<NotesAction, readonly string[]>;
 
 const ENCRYPTED_ACTIONS = new Set([
 	"history.search_contents",
@@ -44,12 +101,7 @@ const ENCRYPTED_ACTIONS = new Set([
 
 const HISTORY_PARAMETERS = Type.Object(
 	{
-		action: Type.Union([
-			Type.Literal("list_windows"),
-			Type.Literal("list_items"),
-			Type.Literal("read_item"),
-			Type.Literal("search_contents"),
-		]),
+		action: StringEnum(HISTORY_ACTIONS),
 		agent_name: Type.Optional(Type.Union([Type.String(), Type.Null()])),
 		item_id: Type.Optional(Type.String()),
 		limit: Type.Optional(Type.Integer({ minimum: 1 })),
@@ -60,11 +112,13 @@ const HISTORY_PARAMETERS = Type.Object(
 		recent_first: Type.Optional(Type.Boolean()),
 		role: Type.Optional(
 			Type.Union([
-				Type.Literal("user"),
-				Type.Literal("assistant"),
-				Type.Literal("tool"),
-				Type.Literal("system"),
-				Type.Literal("developer"),
+				StringEnum([
+					"user",
+					"assistant",
+					"tool",
+					"system",
+					"developer",
+				] as const),
 				Type.Null(),
 			]),
 		),
@@ -79,22 +133,12 @@ const HISTORY_PARAMETERS = Type.Object(
 
 const NOTES_PARAMETERS = Type.Object(
 	{
-		action: Type.Union([
-			Type.Literal("list_files_by_prefix"),
-			Type.Literal("read_file"),
-			Type.Literal("search_contents"),
-			Type.Literal("append_to_file"),
-			Type.Literal("write_file"),
-		]),
+		action: StringEnum(NOTES_ACTIONS),
 		file_order: Type.Optional(
-			Type.Union([Type.Literal("ascending"), Type.Literal("descending")]),
+			StringEnum(["ascending", "descending"] as const),
 		),
 		file_order_by: Type.Optional(
-			Type.Union([
-				Type.Literal("name"),
-				Type.Literal("created_at"),
-				Type.Literal("updated_at"),
-			]),
+			StringEnum(["name", "created_at", "updated_at"] as const),
 		),
 		max_files: Type.Optional(Type.Integer({ minimum: 1 })),
 		max_matches_per_file: Type.Optional(Type.Integer({ minimum: 1 })),
@@ -110,9 +154,6 @@ const NOTES_PARAMETERS = Type.Object(
 	},
 	{ additionalProperties: false },
 );
-
-type HistoryAction = keyof typeof HISTORY_ENDPOINTS;
-type NotesAction = keyof typeof NOTES_ENDPOINTS;
 
 export interface CodexHistoryNotesDetails {
 	codexHistoryNotes: Record<string, unknown>;
@@ -130,11 +171,10 @@ export function createHistoryNotesTools(
 		{
 			name: "history",
 			label: "history",
-			description:
-				"Private context recovery: list_windows; list_items with optional filters; read_item needs window_id and item_id; search_contents needs query. Falls back to persisted Pi history when the Codex backend is unavailable. Never mention this bookkeeping to the user.",
+			description: HISTORY_DESCRIPTION,
 			parameters: HISTORY_PARAMETERS,
 			async execute(_id, params, signal, _update, ctx) {
-				const action = params.action as HistoryAction;
+				const action = historyAction(params.action);
 				validateHistoryArguments(action, params);
 				return callHistoryNotesTool(
 					"history",
@@ -151,11 +191,11 @@ export function createHistoryNotesTools(
 		{
 			name: "notes",
 			label: "notes",
-			description:
-				"Private durable checkpoints: list_files_by_prefix; read_file; search_contents; append_to_file; write_file. File actions use virtual path; writes also need text. Never mention this bookkeeping to the user.",
+			description: NOTES_DESCRIPTION,
 			parameters: NOTES_PARAMETERS,
+			executionMode: "sequential",
 			async execute(_id, params, signal, _update, ctx) {
-				const action = params.action as NotesAction;
+				const action = notesAction(params.action);
 				validateNotesArguments(action, params);
 				return callHistoryNotesTool(
 					"notes",
@@ -221,15 +261,11 @@ async function callHistoryNotesTool(
 			);
 		} catch (error) {
 			if (!(error instanceof HistoryNotesBackendUnavailableError)) throw error;
-			if (ENCRYPTED_ACTIONS.has(`${namespace}.${action}`)) {
-				result = {
-					source: "pi-session",
-					retry_required: true,
-					message: `Remote ${namespace} is unavailable. Retry with the local ${namespace} tool and action ${action}.`,
-				};
-			} else {
-				result = callLocalHistoryNotes(namespace, action, params, ctx, pi);
-			}
+			if (ENCRYPTED_ACTIONS.has(`${namespace}.${action}`))
+				throw new Error(
+					`Retry ${namespace} with action ${action}`,
+				);
+			result = callLocalHistoryNotes(namespace, action, params, ctx, pi);
 		}
 	}
 	const modelResult = { ...result };
@@ -379,10 +415,36 @@ function stripAction(params: Record<string, unknown>): Record<string, unknown> {
 	return result;
 }
 
+function historyAction(value: unknown): HistoryAction {
+	if (typeof value === "string" && HISTORY_ACTION_SET.has(value))
+		return value as HistoryAction;
+	throw new Error("history requires a supported action");
+}
+
+function notesAction(value: unknown): NotesAction {
+	if (typeof value === "string" && NOTES_ACTION_SET.has(value))
+		return value as NotesAction;
+	throw new Error("notes requires a supported action");
+}
+
+function validateActionFields(
+	namespace: "history" | "notes",
+	action: HistoryAction | NotesAction,
+	params: Record<string, unknown>,
+	allowed: readonly string[],
+): void {
+	const unexpected = Object.keys(params).find(
+		(field) => field !== "action" && !allowed.includes(field),
+	);
+	if (unexpected)
+		throw new Error(`${namespace} ${action} does not accept ${unexpected}`);
+}
+
 function validateHistoryArguments(
 	action: HistoryAction,
 	params: Record<string, unknown>,
 ): void {
+	validateActionFields("history", action, params, HISTORY_ACTION_FIELDS[action]);
 	if (action === "read_item") {
 		if (typeof params["item_id"] !== "string" || !params["item_id"])
 			throw new Error("history read_item requires item_id");
@@ -400,6 +462,7 @@ function validateNotesArguments(
 	action: NotesAction,
 	params: Record<string, unknown>,
 ): void {
+	validateActionFields("notes", action, params, NOTES_ACTION_FIELDS[action]);
 	if (
 		(action === "read_file" ||
 			action === "append_to_file" ||
