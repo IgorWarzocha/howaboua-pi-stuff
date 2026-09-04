@@ -1,8 +1,13 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import { loadAskConfig } from "./ask/config.js";
-import { createAskTool } from "./ask/tool.js";
+import { isSteeringAskInput } from "./ask/normalize.js";
+import { PENDING_ASK_ENTRY_TYPE, readPendingAsks } from "./ask/pending.js";
+import { createAskRuntime, createAskTool } from "./ask/tool.js";
 import registerPackageChangelog from "./changelog.js";
 
 export { createAskTool } from "./ask/tool.js";
@@ -15,7 +20,10 @@ const CODE_MODE_MODULE = `${CODE_MODE_PACKAGE}/code-mode`;
 
 export default async function humanInTheLoop(pi: ExtensionAPI): Promise<void> {
 	registerPackageChangelog(pi);
-	const ask = createAskTool({
+	const askRuntime = createAskRuntime({
+		deliverSteer: (message) => {
+			pi.sendUserMessage(message, { deliverAs: "steer" });
+		},
 		onBlockedChange: (state) => {
 			pi.events.emit(REALTIME_VOICE_PROMPT_CHANNEL, {
 				id: state.id,
@@ -27,9 +35,22 @@ export default async function humanInTheLoop(pi: ExtensionAPI): Promise<void> {
 				label: state.label,
 			});
 		},
+		onPendingChange: (update) => {
+			pi.appendEntry(PENDING_ASK_ENTRY_TYPE, update);
+		},
 	});
+	const ask = askRuntime.tool;
+	const restorePending = (ctx: ExtensionContext) => {
+		askRuntime.restorePending(
+			readPendingAsks(ctx.sessionManager.getBranch()),
+			ctx,
+		);
+	};
 	pi.registerTool(ask);
 	await registerAskInCodeMode(pi, ask);
+	pi.on("session_start", (_event, ctx) => restorePending(ctx));
+	pi.on("session_tree", (_event, ctx) => restorePending(ctx));
+	pi.on("session_shutdown", () => askRuntime.shutdown());
 	pi.on("resources_discover", () => {
 		const config = loadAskConfig();
 		return {
@@ -50,9 +71,9 @@ async function registerAskInCodeMode(
 			await import("@howaboua/pi-codex-conversion/code-mode");
 		const registration = registerCodeModeExtensionTools(pi, () => [
 			adaptToolForCodeMode(ask, {
-				blocking: true,
+				blocking: (input) => !isSteeringAskInput(input),
 				usage:
-					"await tools.ask({ prompts: [{ title, body?, multiple?, choices?: [{ label, description? }] }], handoff? })",
+					'await tools.ask({ prompts: [{ title, body?, multiple?, choices?: [{ label, description? }] }], delivery?: "wait"|"steer", handoff? })',
 			}),
 		]);
 		pi.on("session_shutdown", () => registration.unregister());

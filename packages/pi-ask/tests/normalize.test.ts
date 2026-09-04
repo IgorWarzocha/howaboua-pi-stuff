@@ -7,7 +7,8 @@ import {
 
 describe("review prompt normalization", () => {
 	test("keeps a trimmed body and choices", () => {
-		const { handoff, prompts } = normalizeAskInput({
+		const { delivery, handoff, prompts } = normalizeAskInput({
+			delivery: "steer",
 			prompts: [
 				{
 					title: " Delivery can duplicate ",
@@ -17,6 +18,7 @@ describe("review prompt normalization", () => {
 			],
 		});
 
+		expect(delivery).toBe("steer");
 		expect(handoff).toBe(false);
 		expect(prompts).toEqual([
 			{
@@ -36,6 +38,7 @@ describe("review prompt normalization", () => {
 				prompts: [{ title: "Authorize GitHub" }],
 			}),
 		).toEqual({
+			delivery: "wait",
 			handoff: true,
 			prompts: [
 				{

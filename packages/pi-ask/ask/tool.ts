@@ -1,19 +1,17 @@
 import { defineTool } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
-import { AskParameters, type AskPrompt } from "./contracts.js";
+import { AskParameters } from "./contracts.js";
 import {
+	type AskCoordinatorOptions,
+	createAskCoordinator,
+} from "./coordinator.js";
+import {
+	isSteeringAskInput,
 	normalizeAskInput,
 	normalizeResponses,
 	summarizeResponses,
 	textContent,
 } from "./normalize.js";
-import { askWithPiUi } from "./pi-ui.js";
-import { askInTui } from "./tui.js";
-
-type AskInComposer = (
-	prompts: AskPrompt[],
-	signal: AbortSignal | undefined,
-) => Promise<unknown>;
 
 interface BlockedState {
 	id: string;
@@ -24,28 +22,36 @@ interface BlockedState {
 
 type OnBlockedChange = (state: BlockedState) => void;
 
-export function createAskTool({
-	askInComposer,
-	onBlockedChange,
-}: {
-	askInComposer?: AskInComposer;
+interface AskToolOptions extends AskCoordinatorOptions {
 	onBlockedChange?: OnBlockedChange;
-} = {}) {
-	return defineTool({
+}
+
+export function createAskRuntime({
+	askInComposer,
+	deliverSteer,
+	onBlockedChange,
+	onPendingChange,
+}: AskToolOptions = {}) {
+	const coordinator = createAskCoordinator({
+		...(askInComposer ? { askInComposer } : {}),
+		...(deliverSteer ? { deliverSteer } : {}),
+		...(onPendingChange ? { onPendingChange } : {}),
+	});
+
+	const tool = defineTool({
 		name: "ask",
 		label: "Ask",
-		description:
-			"Request user input or action and return the response. Requires interactive UI.",
+		description: "Request user input or action. Requires interactive UI.",
 		parameters: AskParameters,
 		promptSnippet: "Request human input or action.",
 		promptGuidelines: [
-			"ask: Use for needed user decisions or input; set handoff true for a user-only action and state its completion signal.",
+			"ask: Use steer only while useful reversible work can continue; wait for gating answers and handoffs, stating a handoff's completion signal.",
 			"ask: For reviews, make each finding a prompt with disposition choices; do not report first.",
 			"ask: Do not add Other/rephrase; it is automatic.",
 		],
 		executionMode: "sequential",
 		async execute(toolCallId, params, signal, _onUpdate, ctx) {
-			const { handoff, prompts } = normalizeAskInput(params);
+			const { delivery, handoff, prompts } = normalizeAskInput(params);
 			if (prompts.length === 0) {
 				throw new Error(
 					"ask requires at least one prompt with a non-empty title.",
@@ -53,6 +59,22 @@ export function createAskTool({
 			}
 			if (!askInComposer && !ctx.hasUI)
 				throw new Error("ask requires an interactive UI.");
+			if (handoff && delivery === "steer")
+				throw new Error("ask handoffs require delivery wait.");
+			if (delivery === "steer") {
+				if (!coordinator.canSteer)
+					throw new Error("ask steering delivery is unavailable.");
+				signal?.throwIfAborted();
+				coordinator.requestSteer({ id: toolCallId, prompts }, ctx);
+				return {
+					content: [
+						textContent(
+							"Question presented. Continue working; the response will arrive as user steering.",
+						),
+					],
+					details: { kind: "prompt", pending: true, id: toolCallId },
+				};
+			}
 
 			const blockedState = {
 				id: toolCallId,
@@ -65,17 +87,13 @@ export function createAskTool({
 			onBlockedChange?.(blockedState);
 			let rawResponses: unknown;
 			try {
-				rawResponses = askInComposer
-					? await askInComposer(prompts, signal)
-					: ctx.mode === "tui"
-						? await askInTui(ctx, prompts, {
-								handoff,
-								...(signal ? { signal } : {}),
-							})
-						: await askWithPiUi(ctx, prompts, {
-								handoff,
-								...(signal ? { signal } : {}),
-							});
+				const presentationSignal = signal
+					? AbortSignal.any([signal, coordinator.sessionSignal])
+					: coordinator.sessionSignal;
+				rawResponses = await coordinator.present(ctx, prompts, {
+					handoff,
+					signal: presentationSignal,
+				});
 			} finally {
 				onBlockedChange?.({ ...blockedState, active: false });
 			}
@@ -97,12 +115,18 @@ export function createAskTool({
 		},
 		renderCall(args, theme, context) {
 			const count = Array.isArray(args.prompts) ? args.prompts.length : 0;
+			const label =
+				args.handoff === true
+					? "ask handoff "
+					: isSteeringAskInput(args)
+						? "ask steer "
+						: "ask ";
 			return new Text(
 				theme.fg(
 					context && "isBlocked" in context && context.isBlocked === true
 						? "warning"
 						: "toolTitle",
-					theme.bold(args.handoff === true ? "ask handoff " : "ask "),
+					theme.bold(label),
 				) + theme.fg("muted", `${count} prompt${count === 1 ? "" : "s"}`),
 				0,
 				0,
@@ -114,4 +138,14 @@ export function createAskTool({
 			return new Text(theme.fg("success", text), 0, 0);
 		},
 	});
+
+	return {
+		tool,
+		restorePending: coordinator.restorePending,
+		shutdown: coordinator.shutdown,
+	};
+}
+
+export function createAskTool(options: AskToolOptions = {}) {
+	return createAskRuntime(options).tool;
 }

@@ -22,9 +22,14 @@ async function askOther(
 	return value === undefined ? null : customSelectionFor(value);
 }
 
-function promptText(prompt: AskPrompt, handoff: boolean): string {
+function promptText(
+	prompt: AskPrompt,
+	handoff: boolean,
+	steering: boolean,
+): string {
 	const text = prompt.body ? `${prompt.title}\n\n${prompt.body}` : prompt.title;
-	return handoff ? `Human action needed\n\n${text}` : text;
+	if (handoff) return `Human action needed\n\n${text}`;
+	return steering ? `Agent continues while you decide\n\n${text}` : text;
 }
 
 async function askComment(
@@ -56,18 +61,19 @@ async function askSingleWithPiUi(
 	ctx: ExtensionContext,
 	prompt: AskPrompt,
 	handoff: boolean,
+	steering: boolean,
 	signal?: AbortSignal,
 ): Promise<string[] | null> {
 	const choices = prompt.choices.map((choice) => choice.label);
 	const picked =
 		choices.length > 0
 			? await ctx.ui.select(
-					promptText(prompt, handoff),
+					promptText(prompt, handoff, steering),
 					[...choices, OTHER_OPTION_LABEL],
 					dialogOptions(signal),
 				)
 			: await ctx.ui.input(
-					promptText(prompt, handoff),
+					promptText(prompt, handoff, steering),
 					"Response",
 					dialogOptions(signal),
 				);
@@ -82,6 +88,7 @@ async function askMultipleWithPiUi(
 	ctx: ExtensionContext,
 	prompt: AskPrompt,
 	handoff: boolean,
+	steering: boolean,
 	signal?: AbortSignal,
 ): Promise<string[] | null> {
 	const choices = prompt.choices.map((choice) => choice.label);
@@ -89,7 +96,7 @@ async function askMultipleWithPiUi(
 	const picked: string[] = [];
 	while (true) {
 		const next = await ctx.ui.select(
-			promptText(prompt, handoff),
+			promptText(prompt, handoff, steering),
 			[
 				...choices.filter((choice) => !picked.includes(choice)),
 				OTHER_OPTION_LABEL,
@@ -112,14 +119,18 @@ async function askMultipleWithPiUi(
 export async function askWithPiUi(
 	ctx: ExtensionContext,
 	prompts: AskPrompt[],
-	{ handoff = false, signal }: { handoff?: boolean; signal?: AbortSignal } = {},
+	{
+		handoff = false,
+		steering = false,
+		signal,
+	}: { handoff?: boolean; steering?: boolean; signal?: AbortSignal } = {},
 ): Promise<AskResponse[] | null> {
 	if (!ctx.hasUI || signal?.aborted) return null;
 	const responses: AskResponse[] = [];
 	for (const prompt of prompts) {
 		const selections = prompt.multiple
-			? await askMultipleWithPiUi(ctx, prompt, handoff, signal)
-			: await askSingleWithPiUi(ctx, prompt, handoff, signal);
+			? await askMultipleWithPiUi(ctx, prompt, handoff, steering, signal)
+			: await askSingleWithPiUi(ctx, prompt, handoff, steering, signal);
 		if (!selections) return null;
 		const comment = await askComment(ctx, prompt, signal);
 		if (comment === null || signal?.aborted) return null;
