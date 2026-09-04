@@ -7,6 +7,7 @@ import { Type } from "typebox";
 import { resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import type { AdapterState } from "../adapter/activation/state.ts";
 import { createHistoryNotesTools } from "./history-notes.ts";
+import { contextRemainingRenderers, newContextRenderers } from "./rendering.ts";
 
 const EMPTY_PARAMETERS = Type.Object({}, { additionalProperties: false });
 
@@ -34,6 +35,7 @@ export function createContextWindowTools(
 			description:
 				"Start a new context window. Does not clear, reset, or otherwise affect environment state.",
 			parameters: EMPTY_PARAMETERS,
+			...newContextRenderers,
 			executionMode: "sequential",
 			async execute(_id, _params, signal, _update, ctx) {
 				const plan = assertContextManagementActive(ctx, state);
@@ -63,6 +65,7 @@ export function createContextWindowTools(
 			label: "get_context_remaining",
 			description: "Get the remaining tokens in the current context window.",
 			parameters: EMPTY_PARAMETERS,
+			...contextRemainingRenderers,
 			async execute(_id, _params, _signal, _update, ctx) {
 				assertContextManagementActive(ctx, state);
 				const remaining = state.contextWindows.remaining(ctx);

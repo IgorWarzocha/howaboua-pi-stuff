@@ -7,6 +7,7 @@ import type {
 import { StringEnum } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
 import type { ContextManagementMode } from "../adapter/activation/config.ts";
+import { historyNotesRenderers } from "./rendering.ts";
 import {
 	codexToolProviderHeaders,
 	resolveCodexToolProvider,
@@ -176,6 +177,7 @@ export function createHistoryNotesTools(
 			label: "history",
 			description: HISTORY_DESCRIPTION,
 			parameters: HISTORY_PARAMETERS,
+			...historyNotesRenderers("history"),
 			async execute(_id, params, signal, _update, ctx) {
 				const action = historyAction(params.action);
 				validateHistoryArguments(action, params);
@@ -196,6 +198,7 @@ export function createHistoryNotesTools(
 			label: "notes",
 			description: NOTES_DESCRIPTION,
 			parameters: NOTES_PARAMETERS,
+			...historyNotesRenderers("notes"),
 			executionMode: "sequential",
 			async execute(_id, params, signal, _update, ctx) {
 				const action = notesAction(params.action);

@@ -9,6 +9,7 @@ import {
 	type CodexContextManagementMessageDetails,
 	isCodexContextManagementMessageDetails,
 } from "../context-management/messages.ts";
+import { renderContextWindowBoundary } from "../context-management/rendering.ts";
 import { BACKGROUND_BASH_WIDGET_ID, registerBackgroundBashWidgetShortcuts, renderBackgroundBashWidget } from "../ui/background-bash-widget.ts";
 import { renderCodexStatus } from "../ui/status.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
@@ -75,26 +76,7 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 				typeof message.content !== "string"
 			)
 				return undefined;
-			const box = new Box(1, 1, (text) => theme.bg("customMessageBg", text));
-			box.addChild(
-				new Text(
-					theme.fg(
-						"customMessageLabel",
-						theme.bold(`[${CODEX_CONTEXT_WINDOW_MESSAGE_TYPE}]`),
-					),
-					0,
-					0,
-				),
-			);
-			if (expanded)
-				box.addChild(
-					new Text(
-						`\n${theme.fg("customMessageText", message.content)}`,
-						0,
-						0,
-					),
-				);
-			return box;
+			return renderContextWindowBoundary(message.details, expanded, theme);
 		},
 	);
 	// Legacy sessions stored display-only compaction records as custom messages.

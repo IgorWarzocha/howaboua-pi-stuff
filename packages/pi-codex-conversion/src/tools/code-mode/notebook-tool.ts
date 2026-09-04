@@ -4,6 +4,7 @@ import { Type } from "typebox";
 import { getExperimentalToolSampling } from "../tool-sampling.ts";
 import { canExecuteNotebookControlInsideExec } from "../notebook-mode/control-contract.ts";
 import type { SharedCodeModeRuntime } from "./shared-runtime.ts";
+import { notebookRenderers } from "./notebook-rendering.ts";
 import type {
 	NotebookControlRequest,
 	NotebookControlResult,
@@ -50,6 +51,7 @@ export function registerNotebookTool(pi: ExtensionAPI, runtime: SharedCodeModeRu
 		description: NOTEBOOK_DESCRIPTION,
 		promptSnippet: "Inspect, recover, or control notebook state",
 		parameters: NOTEBOOK_PARAMETERS,
+		...notebookRenderers,
 		...(constrainedSampling ? { constrainedSampling } : {}),
 		async execute(_id, params, signal, _onUpdate, ctx) {
 			const result = await executeNotebookControl(runtime, params, {
