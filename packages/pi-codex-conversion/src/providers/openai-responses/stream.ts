@@ -413,7 +413,8 @@ export async function processResponsesStream<TApi extends Api>(
 			if (rawStopReason !== undefined) output.rawStopReason = rawStopReason;
 			const mappedStop = mapStopReason(response?.status, incompleteReason);
 			output.stopReason = mappedStop.stopReason;
-			if (mappedStop.errorMessage !== undefined) output.errorMessage = mappedStop.errorMessage;
+			if (mappedStop.errorMessage === undefined) delete output.errorMessage;
+			else output.errorMessage = mappedStop.errorMessage;
 			if (output.content.some((block) => block.type === "toolCall") && output.stopReason === "stop") {
 				output.stopReason = "toolUse";
 			}

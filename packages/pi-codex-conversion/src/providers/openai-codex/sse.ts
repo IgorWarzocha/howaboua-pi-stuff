@@ -120,13 +120,12 @@ export async function* parseSSE(response: Response, signal?: AbortSignal, idleTi
 			if (signal?.aborted) {
 				throw new Error("Request was aborted");
 			}
-			if (done) break;
-
-			buffer += decoder.decode(value, { stream: true });
-			const trailingCarriageReturn = buffer.endsWith("\r");
+			buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
+			const trailingCarriageReturn = !done && buffer.endsWith("\r");
 			const complete = trailingCarriageReturn ? buffer.slice(0, -1) : buffer;
 			buffer = complete.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
 				+ (trailingCarriageReturn ? "\r" : "");
+			if (done && buffer.trim()) buffer += "\n\n";
 			let idx = buffer.indexOf("\n\n");
 			while (idx !== -1) {
 				const chunk = buffer.slice(0, idx);
@@ -147,6 +146,7 @@ export async function* parseSSE(response: Response, signal?: AbortSignal, idleTi
 				}
 				idx = buffer.indexOf("\n\n");
 			}
+			if (done) break;
 		}
 	} finally {
 		signal?.removeEventListener("abort", onAbort);

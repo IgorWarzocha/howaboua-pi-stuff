@@ -308,7 +308,7 @@ test("preserves credential-derived OAuth endpoints", async () => {
 		registry = new ModelRegistry(runtime);
 		let receivedModel: Model<Api> | undefined;
 		registry.registerProvider(provider, {
-			api: "openai-completions",
+			api: "anthropic-messages",
 			streamSimple(model, _context, options) {
 				receivedModel = model;
 				return responseStream(options, model).stream;
