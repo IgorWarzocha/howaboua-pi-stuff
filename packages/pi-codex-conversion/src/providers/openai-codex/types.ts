@@ -157,10 +157,10 @@ export interface CachedWebSocketRequestBodyResult {
 
 export type ServiceTier = ResponseCreateParamsStreaming["service_tier"];
 export type ProviderEnv = Record<string, string>;
-export type CodexProviderStreamOptions = SimpleStreamOptions & {
+export type CodexProviderStreamOptions = Omit<SimpleStreamOptions, "toolChoice"> & {
 	serviceTier?: ServiceTier | undefined;
 	textVerbosity?: string | undefined;
-	reasoningSummary?: string | undefined;
+	reasoningSummary?: string | null | undefined;
 	toolChoice?: "auto" | "none" | "required" | undefined;
 };
 export type CodexReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";

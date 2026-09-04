@@ -242,13 +242,14 @@ export function registerCodexEvents(
 
 	pi.on("session_shutdown", async (_event, ctx) => {
 		const failures: unknown[] = [];
-		activeContext = undefined;
 		pendingExtensionToolRefresh = false;
 		await runShutdownStep(failures, unregisterExtensionToolRefresh);
-		await runShutdownStep(failures, unregisterDeveloperMessageBroker);
 		await runShutdownStep(failures, () => ui.invalidateBackgroundWidget());
 		await runShutdownStep(failures, () => runtime.lanVoice.stop(ctx));
 		await runShutdownStep(failures, () => runtime.voice.stop({ announce: true }));
+		// Voice's persisted end policy still needs the active developer broker.
+		activeContext = undefined;
+		await runShutdownStep(failures, unregisterDeveloperMessageBroker);
 		await runShutdownStep(failures, () => runtime.shutdownTransport(ctx.sessionManager.getSessionId()));
 		await runShutdownStep(failures, () => runtime.shutdownDiagnostics());
 		await runShutdownStep(failures, () => sessions.shutdown());

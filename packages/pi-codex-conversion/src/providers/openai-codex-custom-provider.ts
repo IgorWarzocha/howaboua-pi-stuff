@@ -1,14 +1,15 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import type { Api, Context, Model } from "@earendil-works/pi-ai";
+import type { Api, Context, Model, Provider } from "@earendil-works/pi-ai";
 import { createGrammarToolInputProperties } from "./constrained-sampling.js";
 import { extractAccountId, buildWebSocketHeaders, PI_CODEX_CONVERSION_ORIGINATOR, resolveCodexRequestRouting, resolveCodexWebSocketUrl } from "./openai-codex/headers.ts";
 import { noThrowCodexDiagnosticsSink } from "./openai-codex/diagnostic-failure.ts";
 import { buildRequestBody } from "./openai-codex/request-body.ts";
 import { normalizeCodexConfigurationUpdates } from "../adapter/reasoning-updates.ts";
 import { openAICodexProviderModels } from "./openai-codex/model-catalog.ts";
+import { DEFAULT_CODEX_BASE_URL } from "./openai-codex/constants.ts";
 import { supportsResponsesLiteModel } from "./openai-codex/responses-lite-model.ts";
 import { applyResponsesLiteRequest, applyResponsesLiteWebSocketMetadata, isResponsesLiteRequest, namespaceExistingResponsesLiteRequest, prepareResponsesLiteRequestImages } from "./openai-codex/responses-lite.ts";
-import type { CodexDiagnosticsSink, CodexPrewarmDiagnostics, CodexPrewarmResult, OpenAICodexStreamOptions, ResponsesBody } from "./openai-codex/types.ts";
+import type { CodexDiagnosticsSink, CodexPrewarmDiagnostics, CodexPrewarmResult, CodexProviderStreamOptions, OpenAICodexStreamOptions, ResponsesBody } from "./openai-codex/types.ts";
 import { closeOpenAICodexWebSocketSessions, recordWebSocketSseFallback } from "./openai-codex/websocket.ts";
 import { isWebSocketMessageTooBigError, isWebSocketUpgradeRequiredError } from "./openai-codex/websocket-connection.ts";
 import { codexCacheKeepaliveSocketSessionId, prewarmWebSocket } from "./openai-codex/websocket-stream.ts";
@@ -125,22 +126,29 @@ export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: {
 	onPreparedPayload?: ((payload: ResponsesBody) => void) | undefined;
 	getDiagnostics?: (() => CodexDiagnosticsSink | undefined) | undefined;
 }): void {
-	pi.registerProvider("openai-codex", {
-		api: "openai-codex-responses",
-		models: openAICodexProviderModels(),
-		oauth: openaiCodexNativeOAuthProvider,
-		streamSimple: (model, context, streamOptions) => {
-			const stream = createCodexTransportStream(model, context, streamOptions, {
-				prepareRequestBody: prepareCodexRequestBody,
-				...(options.getConfig ? { getConfig: options.getConfig } : {}),
-				...(options.useResponsesLite ? { useResponsesLite: options.useResponsesLite } : {}),
-				...(options.turnState ? { turnState: options.turnState } : {}),
-				...(options.onPreparedPayload ? { onPreparedPayload: options.onPreparedPayload } : {}),
-				...(options.getDiagnostics ? { getDiagnostics: options.getDiagnostics } : {}),
-			});
-			return hasContextNamespaceRouters(context)
-				? routeContextNamespaceToolStream(stream)
-				: stream;
-		},
-	});
+	const streamSimple = (model: Model<Api>, context: Context, streamOptions?: CodexProviderStreamOptions) => {
+		const stream = createCodexTransportStream(model, context, streamOptions, {
+			prepareRequestBody: prepareCodexRequestBody,
+			...(options.getConfig ? { getConfig: options.getConfig } : {}),
+			...(options.useResponsesLite ? { useResponsesLite: options.useResponsesLite } : {}),
+			...(options.turnState ? { turnState: options.turnState } : {}),
+			...(options.onPreparedPayload ? { onPreparedPayload: options.onPreparedPayload } : {}),
+			...(options.getDiagnostics ? { getDiagnostics: options.getDiagnostics } : {}),
+		});
+		return hasContextNamespaceRouters(context)
+			? routeContextNamespaceToolStream(stream)
+			: stream;
+	};
+	const models = openAICodexProviderModels();
+	// Native registration puts the catalog below models.json, not above it.
+	const provider: Provider<"openai-codex-responses"> = {
+		id: "openai-codex",
+		name: "OpenAI Codex",
+		baseUrl: DEFAULT_CODEX_BASE_URL,
+		auth: { oauth: openaiCodexNativeOAuthProvider },
+		getModels: () => models,
+		stream: streamSimple,
+		streamSimple,
+	};
+	pi.registerProvider(provider);
 }

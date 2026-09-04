@@ -6,6 +6,8 @@ Shepherdr combines a monitored [Herdr](https://herdr.dev) fleet with blocking an
 
 Asynchronous calls return after dispatch, then push completion, failure or blockage into the controller with a steer message. The model never has to poll. Blocking calls hold the tool call and return the worker's reply directly.
 
+With Pi Codex's compatible custom developer-message API active, asynchronous worker reports and orchestration toggles use the Responses developer role while retaining their normal display and session restoration. Without that API or adapter, delivery remains ordinary Pi custom messages. Blocking results stay in the tool response.
+
 ## Install
 
 ```bash

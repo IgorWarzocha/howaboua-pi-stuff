@@ -68,7 +68,7 @@ function cloneCompactedWindow(window: readonly unknown[]): ResponsesInputItem[] 
 function buildCompactionTools(pi: ExtensionAPI, codeMode: boolean): unknown[] | undefined {
 	const tools = getActiveToolsInActiveOrder(pi, codeMode);
 	if (tools.length === 0) return undefined;
-	return convertResponsesTools(tools, { strict: null });
+	return convertResponsesTools(tools, { strict: false });
 }
 
 function buildCompactionReasoning(

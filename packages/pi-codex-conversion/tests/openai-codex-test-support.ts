@@ -1,4 +1,5 @@
 import { zstdDecompressSync } from "node:zlib";
+import type { Provider } from "@earendil-works/pi-ai";
 import { registerOpenAICodexCustomProvider, closeOpenAICodexWebSocketSessions } from "../src/providers/openai-codex-custom-provider.ts";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
@@ -203,18 +204,13 @@ export function createRegisteredCodexProvider(options?: {
 	getDiagnostics?: (() => CodexDiagnosticsSink | undefined) | undefined;
 }) {
 	const turnState = createCodexTurnState();
-	type RegisteredProvider = {
-		baseUrl?: string | undefined;
-		models?: Array<{ id: string; provider?: string | undefined; baseUrl?: string | undefined }> | undefined;
-		streamSimple: (...args: never[]) => AsyncIterable<unknown>;
-	};
-	const providers = new Map<string, RegisteredProvider>();
+	const providers = new Map<string, Provider>();
 	const handlers = new Map<string, Array<(...args: never[]) => unknown>>();
 	const renderers = new Map<string, unknown>();
 	const sentMessages: Array<{ message: unknown; options: unknown }> = [];
 	const pi = {
-		registerProvider(id: string, provider: RegisteredProvider) {
-			providers.set(id, provider);
+		registerProvider(provider: Provider) {
+			providers.set(provider.id, provider);
 		},
 		on(event: string, handler: (...args: never[]) => unknown) {
 			handlers.set(event, [...(handlers.get(event) ?? []), handler]);

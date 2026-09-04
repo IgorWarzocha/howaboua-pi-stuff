@@ -137,7 +137,7 @@ async function runAttempt(options: ExecuteRemoteCompactionV2Options, streamSimpl
 	const canonicalBody = options.promptInputSource !== "reconstructed" && canonicalIdentity
 		? canonicalCompactionRequestBody(options.sessionId, options.runtime.model, canonicalIdentity)
 		: undefined;
-	const streamOptions: OpenAICodexStreamOptions = {
+	const streamOptions = {
 		...(options.runtime.apiKey ? { apiKey: options.runtime.apiKey } : {}),
 		headers: withRemoteCompactionV2Feature(options.runtime.headers),
 		sessionId: options.sessionId,
@@ -175,7 +175,7 @@ async function runAttempt(options: ExecuteRemoteCompactionV2Options, streamSimpl
 					: {}),
 			};
 		},
-	};
+	} satisfies OpenAICodexStreamOptions;
 
 	let completed: AssistantMessage | undefined;
 	let completedNormally = false;

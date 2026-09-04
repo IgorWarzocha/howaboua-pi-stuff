@@ -24,6 +24,8 @@ Anything after `/review` becomes additional reviewer guidance. A leading `loop` 
 
 Findings are advisory. The command tells the main agent to verify and categorize them against the current implementation and session context rather than treating them as a TODO list.
 
+With a compatible optional Pi Codex Responses adapter, the review preface and triage follow-up use developer-role policy. The preface keeps its existing display and deduplication; the follow-up appears as an extension developer message rather than user input. Raw reviewer findings remain lower-authority custom-message content. Without the API or active adapter, ordinary Pi delivery is unchanged.
+
 ## Review scope
 
 In a JJ workspace, the extension reviews the active revision before considering an enclosing Git checkout. It pins the active change and commit IDs, reviews against its direct parent by default, and uses `stack=<ancestor revset>` for a cumulative range. The active revision must be conflict-free. The read-only command reviews stored commit content; capture filesystem edits with JJ before invoking `/review`.

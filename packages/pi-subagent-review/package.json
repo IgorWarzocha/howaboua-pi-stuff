@@ -40,9 +40,15 @@
 		]
 	},
 	"peerDependencies": {
+		"@howaboua/pi-codex-conversion": ">=3.0.25",
 		"@earendil-works/pi-ai": ">=0.84.3",
 		"@earendil-works/pi-coding-agent": ">=0.84.3",
 		"@earendil-works/pi-tui": ">=0.84.3"
+	},
+	"peerDependenciesMeta": {
+		"@howaboua/pi-codex-conversion": {
+			"optional": true
+		}
 	},
 	"scripts": {
 		"check": "bun run lint && bun run typecheck && bun run test",
@@ -53,6 +59,7 @@
 		"format": "biome check --write ."
 	},
 	"devDependencies": {
+		"@howaboua/pi-codex-conversion": "3.0.25",
 		"@earendil-works/pi-ai": "0.85.0",
 		"@earendil-works/pi-coding-agent": "0.85.0",
 		"@types/node": "^26.2.0",

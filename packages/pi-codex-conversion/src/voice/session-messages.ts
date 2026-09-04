@@ -3,6 +3,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { trySendCodexDeveloperCustomMessage } from "../developer-messages.ts";
 import { CANCELLED, interruptible } from "./cancellation.ts";
 import { isVoiceContextExcludedMessage } from "./context-visibility.ts";
 import { renderRealtimeTranscriptTail } from "./prompts.ts";
@@ -169,10 +170,13 @@ export class CodexVoiceSessionMessages {
 
 	private appendMode(mode: CodexVoiceMode, state: CodexVoiceModeState): void {
 		if (mode === "realtime") {
-			this.pi.sendMessage(codexVoiceModeMessage(mode, state), {
+			const message = codexVoiceModeMessage(mode, state);
+			const delivery = {
 				triggerTurn: false,
-				deliverAs: "steer",
-			});
+				deliverAs: "steer" as const,
+			};
+			if (!trySendCodexDeveloperCustomMessage(this.pi, message, delivery))
+				this.pi.sendMessage(message, delivery);
 			return;
 		}
 		this.pi.appendEntry<CodexVoiceModeMessageDetails>(

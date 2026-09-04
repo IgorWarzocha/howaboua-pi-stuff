@@ -1,5 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { InMemoryCredentialStore, InMemoryModelsStore } from "@earendil-works/pi-ai";
+import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { buildRequestBody } from "../src/providers/openai-codex-custom-provider.ts";
 import {
 	buildSSEHeaders,
@@ -22,12 +27,43 @@ import {
 	toolLoadingMessages,
 } from "./openai-codex-test-support.ts";
 
-function assertCodexRequestShape() {
+async function assertCodexCatalogComposition() {
 	const { registration } = createRegisteredCodexProvider();
-	assert.equal(registration.baseUrl, undefined);
-	assert.ok(registration.models?.length);
-	assert.equal(registration.models.every((model) => model.provider === undefined && model.baseUrl === undefined), true);
+	const dir = await mkdtemp(join(tmpdir(), "codex-catalog-"));
+	try {
+		const modelsPath = join(dir, "models.json");
+		const config = { providers: { "openai-codex": {
+			baseUrl: "https://proxy.example.test/backend-api",
+			models: [{ id: "custom-codex", name: "User Codex", contextWindow: 123456 }],
+			modelOverrides: { "gpt-6-astra": { contextWindow: 234567 } },
+		} } };
+		await writeFile(modelsPath, JSON.stringify(config));
+		const credentials = new InMemoryCredentialStore();
+		await credentials.modify("openai-codex", async () => ({ type: "oauth", access: "test-access", refresh: "test-refresh", expires: Date.now() + 3600000 }));
+		const runtime = await ModelRuntime.create({ modelsPath, credentials, modelsStore: new InMemoryModelsStore(), refreshOnCreate: false });
+		runtime.registerNativeProvider(registration);
+		await runtime.refresh({ allowNetwork: false });
+		const available = await runtime.getAvailable("openai-codex");
+		const custom = available.find(({ id }) => id === "custom-codex")!;
+		assert.equal(custom.name, "User Codex");
+		assert.equal(custom.contextWindow, 123456);
+		assert.equal(custom.api, "openai-codex-responses");
+		assert.equal(custom.baseUrl, config.providers["openai-codex"].baseUrl);
+		assert.equal(available.find(({ id }) => id === "gpt-6-astra")?.contextWindow, 234567);
+		assert.ok(available.some(({ id }) => id === "gpt-daybreak-red-latest"));
+		assert.deepEqual(await runtime.getAuth(custom), { auth: { apiKey: "test-access", headers: undefined }, source: "OAuth" });
+		config.providers["openai-codex"].models = [{ id: "replacement-codex", name: "Reloaded", contextWindow: 345678 }];
+		await writeFile(modelsPath, JSON.stringify(config));
+		await runtime.refresh({ allowNetwork: false });
+		const reloaded = await runtime.getAvailable("openai-codex");
+		assert.equal(reloaded.some(({ id }) => id === "custom-codex"), false);
+		assert.equal(reloaded.find(({ id }) => id === "replacement-codex")?.contextWindow, 345678);
+	} finally {
+		await rm(dir, { recursive: true, force: true });
+	}
+}
 
+function assertCodexRequestShape() {
 	const body = buildRequestBody(
 		codexModel,
 		{
@@ -72,7 +108,7 @@ function assertCodexRequestShape() {
 				properties: { value: { type: "string" } },
 				required: ["value"],
 			},
-			strict: null,
+			strict: false,
 		},
 	]);
 	assert.equal("max_output_tokens" in body, false, "Codex ChatGPT backend rejects max_output_tokens");
@@ -107,6 +143,8 @@ function assertStrictToolConstraints() {
 		parameters,
 		constrainedSampling: { type: "json_schema", strict: "prefer" },
 	};
+	const ordinaryBody = buildRequestBody(codexModel, { messages: [], tools: [{ ...strictTool, constrainedSampling: undefined }] } as never);
+	assert.deepEqual(ordinaryBody.tools, [{ type: "function", name: "strict_tool", description: "Strict tool", parameters, strict: false }]);
 	const body = buildRequestBody(codexModel, { messages: [], tools: [strictTool] } as never);
 	assert.deepEqual(body.tools, [{
 		type: "function",
@@ -141,7 +179,7 @@ function assertStrictToolConstraints() {
 		messages: [],
 		tools: [{ ...strictTool, parameters: unsupportedParameters }],
 	} as never).tools as Array<{ strict: boolean | null; parameters: unknown }>;
-	assert.equal(fallback[0]?.strict, null);
+	assert.equal(fallback[0]?.strict, false);
 	assert.equal(fallback[0]?.parameters, unsupportedParameters);
 
 	assert.throws(() => buildRequestBody(codexModel, {
@@ -160,7 +198,8 @@ function assertStrictToolConstraints() {
 	assert.equal("strict" in (unsupportedProviderBody.tools as object[])[0]!, false);
 }
 
-test("Codex request serialization preserves strict schemas and Fast Mode identity", () => {
+test("Codex catalog composition and request serialization preserve user overrides, strict schemas and Fast Mode identity", async () => {
+	await assertCodexCatalogComposition();
 	assertCodexRequestShape();
 	assertStrictToolConstraints();
 	const model = "gpt-5.6-luna";

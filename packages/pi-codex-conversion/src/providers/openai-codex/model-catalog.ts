@@ -1,6 +1,8 @@
 import { getBuiltinModels } from "@earendil-works/pi-ai/providers/all";
-import type { Api, Model } from "@earendil-works/pi-ai";
+import type { Model } from "@earendil-works/pi-ai";
 import { DEFAULT_CODEX_BASE_URL } from "./constants.ts";
+
+const GPT_56_PRODUCTION_CONTEXT_WINDOW = 272_000;
 
 const UNKNOWN_SUBSCRIPTION_COST = {
 	input: 0,
@@ -60,10 +62,12 @@ const SUPPLEMENTAL_MODELS: Model<"openai-codex-responses">[] = [
 	},
 ];
 
-export function openAICodexProviderModels(): Array<Omit<Model<Api>, "provider" | "baseUrl">> {
-	const models: Model<Api>[] = getBuiltinModels("openai-codex");
+export function openAICodexProviderModels(): Model<"openai-codex-responses">[] {
+	const models = getBuiltinModels("openai-codex");
 	const existing = new Set(models.map(({ id }) => id));
-	return [...models, ...SUPPLEMENTAL_MODELS.filter(({ id }) => !existing.has(id))].map(
-		({ provider: _provider, baseUrl: _baseUrl, ...model }) => model,
+	return [...models, ...SUPPLEMENTAL_MODELS.filter(({ id }) => !existing.has(id))].map((model) =>
+		/^gpt-5\.6-(?:luna|terra|sol)$/i.test(model.id) && model.contextWindow > GPT_56_PRODUCTION_CONTEXT_WINDOW
+			? { ...model, contextWindow: GPT_56_PRODUCTION_CONTEXT_WINDOW }
+			: model,
 	);
 }

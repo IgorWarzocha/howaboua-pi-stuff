@@ -501,6 +501,7 @@
         "@biomejs/biome": "^2.5.10",
         "@earendil-works/pi-ai": "0.85.0",
         "@earendil-works/pi-coding-agent": "0.85.0",
+        "@howaboua/pi-codex-conversion": "3.0.25",
         "@types/node": "^26.2.0",
         "typescript": "^7.0.2",
       },
@@ -508,7 +509,11 @@
         "@earendil-works/pi-ai": ">=0.84.3",
         "@earendil-works/pi-coding-agent": ">=0.84.3",
         "@earendil-works/pi-tui": ">=0.84.3",
+        "@howaboua/pi-codex-conversion": ">=3.0.25",
       },
+      "optionalPeers": [
+        "@howaboua/pi-codex-conversion",
+      ],
     },
     "packages/pi-subdir-agents": {
       "name": "@howaboua/pi-subdir-agents",

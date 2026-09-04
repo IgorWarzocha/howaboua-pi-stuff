@@ -3,6 +3,7 @@ import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import {
 	CODEX_DEVELOPER_MESSAGE_TYPE,
+	customDeveloperMessageMetadata,
 	isCodexDeveloperMessageDetails,
 } from "../developer-messages.ts";
 import { CODEX_CONTEXT_WINDOW_MESSAGE_TYPE } from "../context-management/messages.ts";
@@ -21,17 +22,23 @@ export class CodexDeveloperMessageBridge {
 		const seen = new Set<string>();
 		const projected: AgentMessage[] = [];
 		for (const message of messages) {
+			const customMetadata = message.role === "custom"
+				? customDeveloperMessageMetadata(message.details) : undefined;
 			if (
 				message.role !== "custom" ||
 				(message.customType !== CODEX_DEVELOPER_MESSAGE_TYPE &&
 					message.customType !== CODEX_CONTEXT_WINDOW_MESSAGE_TYPE &&
-					message.customType !== CODEX_REASONING_UPDATE_TYPE)
+					message.customType !== CODEX_REASONING_UPDATE_TYPE && customMetadata === undefined)
 			) {
 				projected.push(message);
 				continue;
 			}
-			if (!active) continue;
-			const reasoningUpdate = message.customType === CODEX_REASONING_UPDATE_TYPE;
+			if (!active) {
+				if (message.customType === CODEX_DEVELOPER_MESSAGE_TYPE || customMetadata !== undefined)
+					projected.push(message);
+				continue;
+			}
+			const reasoningUpdate = customMetadata === undefined && message.customType === CODEX_REASONING_UPDATE_TYPE;
 			let value: string | CodexReasoningUpdate;
 			let id: string;
 			if (reasoningUpdate) {
@@ -40,10 +47,11 @@ export class CodexDeveloperMessageBridge {
 				if (value.lane !== codexReasoningLane(model)) continue;
 				id = value.id;
 			} else {
-				if (typeof message.content !== "string" || message.content.trim() === "" || !isCodexDeveloperMessageDetails(message.details))
+				const metadata = customMetadata ?? message.details;
+				if (typeof message.content !== "string" || message.content.trim() === "" || !isCodexDeveloperMessageDetails(metadata))
 					throw new Error("Malformed persisted Codex developer message");
 				value = message.content;
-				id = message.details.id;
+				id = metadata.id;
 			}
 			const marker = this.marker(id);
 			if (seen.has(marker))

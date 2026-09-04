@@ -18,8 +18,20 @@ export interface CodexDeveloperMessageDetails {
 
 export const CODEX_DEVELOPER_MESSAGE_TYPE = "codex-developer-message";
 
+const CUSTOM_DEVELOPER_DETAILS_KEY = "@howaboua/pi-codex-conversion/developer-message";
+
+export interface CodexDeveloperCustomMessage {
+	customType: string;
+	content: string;
+	display: boolean;
+	/** Plain object; the namespaced developer-message key is reserved. */
+	details?: object;
+}
+
 const DEVELOPER_MESSAGE_CHANNEL =
 	"@howaboua/pi-codex-conversion.developer-message/v1";
+const CUSTOM_DEVELOPER_MESSAGE_CHANNEL =
+	"@howaboua/pi-codex-conversion.developer-custom-message/v1";
 
 type DeveloperMessageOutcome =
 	| { ok: true }
@@ -29,6 +41,7 @@ interface DeveloperMessageRequest {
 	protocol: 1;
 	content: string;
 	options?: CodexDeveloperMessageOptions | undefined;
+	message?: CodexDeveloperCustomMessage | undefined;
 	outcome?: DeveloperMessageOutcome | undefined;
 }
 
@@ -52,10 +65,24 @@ export function trySendCodexDeveloperMessage(
 	throw new Error(outcome.error);
 }
 
+/** Preserve caller rendering and detail fields; false means nothing was sent. */
+export function trySendCodexDeveloperCustomMessage(
+	pi: ExtensionAPI,
+	message: CodexDeveloperCustomMessage,
+	options?: CodexDeveloperMessageOptions,
+): boolean {
+	validateCustomMessage(message);
+	const outcome = dispatchCodexDeveloperMessage(pi, message.content, options, message);
+	if (outcome.ok) return true;
+	if (outcome.reason === "unavailable") return false;
+	throw new Error(outcome.error);
+}
+
 function dispatchCodexDeveloperMessage(
 	pi: ExtensionAPI,
 	content: string,
 	options: CodexDeveloperMessageOptions | undefined,
+	message?: CodexDeveloperCustomMessage,
 ): DeveloperMessageOutcome {
 	if (typeof content !== "string" || content.trim() === "")
 		throw new Error("Codex developer message content cannot be empty");
@@ -64,8 +91,9 @@ function dispatchCodexDeveloperMessage(
 		protocol: 1,
 		content,
 		...(options ? { options } : {}),
+		...(message ? { message } : {}),
 	};
-	pi.events.emit(DEVELOPER_MESSAGE_CHANNEL, request);
+	pi.events.emit(message ? CUSTOM_DEVELOPER_MESSAGE_CHANNEL : DEVELOPER_MESSAGE_CHANNEL, request);
 	return (
 		request.outcome ?? {
 			ok: false,
@@ -79,7 +107,7 @@ export function registerCodexDeveloperMessageBroker(
 	pi: ExtensionAPI,
 	isActive: () => boolean,
 ): () => void {
-	return pi.events.on(DEVELOPER_MESSAGE_CHANNEL, (value) => {
+	const deliver = (value: unknown) => {
 		if (!isDeveloperMessageRequest(value) || value.outcome) return;
 		if (!isActive()) {
 			value.outcome = {
@@ -91,12 +119,16 @@ export function registerCodexDeveloperMessageBroker(
 			return;
 		}
 		try {
-			pi.sendMessage<CodexDeveloperMessageDetails>(
-				{
+			const metadata: CodexDeveloperMessageDetails = { protocol: 1, id: randomUUID() };
+			pi.sendMessage<object>(
+				value.message ? {
+					...value.message,
+					details: { ...value.message.details, [CUSTOM_DEVELOPER_DETAILS_KEY]: metadata },
+				} : {
 					customType: CODEX_DEVELOPER_MESSAGE_TYPE,
 					content: value.content,
 					display: true,
-					details: { protocol: 1, id: randomUUID() },
+					details: metadata,
 				},
 				value.options,
 			);
@@ -108,7 +140,29 @@ export function registerCodexDeveloperMessageBroker(
 				error: error instanceof Error ? error.message : String(error),
 			};
 		}
-	});
+	};
+	const unregister = [
+		pi.events.on(DEVELOPER_MESSAGE_CHANNEL, deliver),
+		pi.events.on(CUSTOM_DEVELOPER_MESSAGE_CHANNEL, deliver),
+	];
+	return () => { for (const remove of unregister) remove(); };
+}
+
+export function customDeveloperMessageMetadata(details: unknown): unknown {
+	return details && typeof details === "object" && CUSTOM_DEVELOPER_DETAILS_KEY in details
+		? details[CUSTOM_DEVELOPER_DETAILS_KEY] : undefined;
+}
+
+function validateCustomMessage(message: CodexDeveloperCustomMessage): void {
+	if (!message || typeof message !== "object" ||
+		typeof message.customType !== "string" || !message.customType.trim() ||
+		typeof message.display !== "boolean")
+		throw new Error("Codex developer custom messages require a caller-owned customType and boolean display");
+	const details = message.details;
+	if (details !== undefined && (!details || typeof details !== "object" ||
+		(Object.getPrototypeOf(details) !== Object.prototype && Object.getPrototypeOf(details) !== null) ||
+		CUSTOM_DEVELOPER_DETAILS_KEY in details))
+		throw new Error("Codex developer custom message details must be a plain object without the reserved developer-message key");
 }
 
 export function isCodexDeveloperMessageDetails(
@@ -145,6 +199,10 @@ function isDeveloperMessageRequest(
 	)
 		return false;
 	try {
+		if ("message" in value && value.message !== undefined) {
+			validateCustomMessage(value.message as CodexDeveloperCustomMessage);
+			if ((value.message as CodexDeveloperCustomMessage).content !== value.content) return false;
+		}
 		validateOptions(
 			"options" in value
 				? (value.options as CodexDeveloperMessageOptions | undefined)

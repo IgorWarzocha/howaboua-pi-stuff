@@ -16,5 +16,5 @@
 - Provider names and endpoint routing are not backend identity. Models using `openai-codex-responses` retain first-party Codex transport, Fast Mode, and account isolation across renamed providers and proxies.
 - Proxies are deliberate monitoring, routing, and policy seams. Environment HTTP(S)/ALL proxies do not change the canonical ChatGPT contract; explicitly configured `openai-responses` passthrough providers are different and receive only the capabilities their backend supports. Never reject either path from provider name alone or assume “proxy” means non-ChatGPT.
 - Native compaction supports only OpenAI Codex and explicitly configured OpenAI/Codex passthrough proxies; V2 must preserve raw Responses output-item access rather than delegate to arbitrary registered provider streams.
-- Extension developer messages persist as visible Pi custom messages, stay out of normal user conversion, and become true `developer` items only at compatible Responses boundaries.
+- Extension developer messages persist as visible Pi custom messages: promote to `developer` at compatible Responses boundaries; otherwise preserve ordinary Pi conversion, including after model switches.
 - After TypeScript topology changes, run root `bun run knip`; it enforces file, dependency, cycle, and export-surface hygiene.

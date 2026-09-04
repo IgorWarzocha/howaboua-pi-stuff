@@ -245,12 +245,12 @@ export class SettlementReporter {
 			if (activityAttemptId(current.activity) !== retryState.attemptId) return;
 			const retryRequest = task ? { ...request, task } : request;
 			const expectedUser = activityExpectedUser(current.activity);
+			// Pi persists expanded skills/templates, not the submitted command text.
 			if (
 				expectedUser &&
 				(settlement.session.assistantAfterUser !== true ||
 					!settlement.session.user ||
-					settlement.session.user.id === expectedUser.after ||
-					settlement.session.user.text !== expectedUser.text)
+					settlement.session.user.id === expectedUser.after)
 			) {
 				if (!this.retry(lifecycle, retryRequest, retryState)) {
 					this.failReconciliation(

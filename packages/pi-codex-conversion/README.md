@@ -188,6 +188,12 @@ The message persists in the session and appears in Pi's fixed purple message blo
 
 Optional integrations can use `trySendCodexDeveloperMessage` instead. It returns `false` when the broker or a compatible adapter is unavailable, while actual delivery failures still throw.
 
+To retain an extension's own renderer and restoration fields, use `trySendCodexDeveloperCustomMessage(pi, { customType, content, display, details }, options)`. It preserves the custom type, display flag and caller detail fields, adding the reserved `@howaboua/pi-codex-conversion/developer-message` key to a copy of `details`. Content must be nonempty text; details must be a plain object (or omitted). It returns `false` without sending when a compatible broker is unavailable, including older brokers. Lazy integrations should check that this export exists before calling it, then send their ordinary custom message only on absence or `false`; delivery errors throw and must not trigger a second send.
+
+Persisted developer messages retain ordinary Pi conversion after switching to an incompatible model, and regain the developer role on compatible Responses models. Caller-owned custom messages keep their original renderer and restoration fields in either case.
+
+Realtime voice start/end guidance uses this same developer-message path. Spoken delegations and transcript-tail context remain user-role content; lifecycle messages retain their display and never start a turn.
+
 The adapted definition keeps its Pi context, UI, schema and progress updates. JavaScript receives model-usable result content, while the tool's exact result remains available to its ordinary Pi renderer. Code Mode owns the JavaScript call and runs its own nested-tool preflight.
 Tool names that are not JavaScript identifiers receive the same translated name in Code and Notebook Mode, including prompt guidance and `ALL_TOOLS`.
 Use `toolName` for a non-default Responses namespace and `resultValue` when JavaScript needs a structured value instead of the ordinary model-visible result.
