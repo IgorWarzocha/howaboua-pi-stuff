@@ -92,9 +92,9 @@ Choose its backend under `/codex` → **General**:
 
 - **Off** disables context management.
 - **Local** reads prior windows from Pi's JSONL and persists private note updates there as model-invisible entries.
-- **Hybrid** uses Codex's encrypted history/notes service on an `openai-codex-responses` transport when available, then sticks to local storage after a capability or connection miss. Other Responses transports use local storage immediately.
+- **Hybrid** tries Codex's history/notes service on an `openai-codex-responses` transport, transparently completes a failed operation from Pi's JSONL, then stays local for the session. Other Responses transports use local storage immediately.
 
-The model receives Codex's native `history.*` and `notes.*` namespace operations with terser contracts. Structured mode also adds `new_context` and `get_context_remaining`. In Code and Notebook Mode, the lifecycle and recovery tools stay direct while `get_context_remaining` is available inside `exec`, matching native exposure. Encrypted remote outputs remain true Responses tool output. Codex transport rejects its reserved namespaces without encrypted arguments, so **Local**—and **Hybrid** after its first encrypted capability miss—uses equivalent flat `history` and `notes` action routers there.
+The model receives terse context tools. Other Responses transports can use Codex's native `history.*` and `notes.*` namespace operations. Codex transport uses stable flat `history` and `notes` action routers in both **Local** and **Hybrid**, so remote fallback does not change tools or spend another model turn. Structured mode also adds `new_context` and `get_context_remaining`. In Code and Notebook Mode, the lifecycle and recovery tools stay direct while `get_context_remaining` is available inside `exec`, matching native exposure. Encrypted remote outputs remain true Responses tool output.
 
 The model receives one reminder at 6,144 tokens remaining. At the normal Pi reserve boundary it must checkpoint and roll over; an actual overflow forces a fresh window before Pi retries. `/compact` also starts a fresh no-summary window while this mode is active. Pi may still add internal compaction entries to prune its live in-memory context, but those entries contain only a fixed boundary marker and never enter provider context.
 

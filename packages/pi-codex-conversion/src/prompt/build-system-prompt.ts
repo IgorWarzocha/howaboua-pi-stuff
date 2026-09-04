@@ -66,7 +66,7 @@ const NOTEBOOK_MODE_GUIDELINES = [
 	"Check notebook status and reuse matching retained globals; inspect description/usage before creating reusable ones",
 	"Keep one-offs block-local; retain reusable analysis and helpers as named globals with concise description/usage; pin valuable state before pruning",
 	...CODE_MODE_GUIDELINES,
-	"Run notebook diagnostics after state or helper failures; release/prune disposable state",
+	"Diagnose state or helper failures; repair or prune failed state and verify recovery",
 	"Filter retained data inside exec and return the needed findings",
 	"Keep canonical project artifacts in files; carry shell state across tools.exec_command calls through files or arguments",
 	"Keep retained helpers self-contained; recreate imports, closures, and live handles after restart",

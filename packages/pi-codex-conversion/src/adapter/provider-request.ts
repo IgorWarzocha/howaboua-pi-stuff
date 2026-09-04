@@ -80,7 +80,6 @@ export async function rewriteCodexProviderRequest(payload: unknown, ctx: Extensi
 		rewrittenPayload = rewriteContextTools(
 			rewrittenPayload,
 			ctx,
-			remoteHistoryNotes,
 		);
 		if (plan.contextManagementRemote && remoteHistoryNotes)
 			rewrittenPayload = state.contextWindows.rewritePayload(rewrittenPayload, ctx);
@@ -119,7 +118,6 @@ export function rewriteCodexPrewarmProviderRequest(
 		rewritten = rewriteContextTools(
 			rewritten,
 			ctx,
-			remoteHistoryNotes,
 		);
 		if (prepared.plan.contextManagementRemote && remoteHistoryNotes)
 			rewritten = state.contextWindows.rewritePayload(rewritten, ctx);
@@ -139,12 +137,11 @@ function isCodeModeCompatibleBody(value: unknown): value is ResponsesLiteCompati
 function rewriteContextTools(
 	payload: unknown,
 	ctx: Pick<ExtensionContext, "model">,
-	remote: boolean,
 ): unknown {
 	const codexTransport = (ctx.model?.api ?? "").trim().toLowerCase() ===
 		"openai-codex-responses";
-	return remote || !codexTransport
-		? rewriteContextNamespaceTools(payload, remote)
+	return !codexTransport
+		? rewriteContextNamespaceTools(payload)
 		: payload;
 }
 

@@ -175,54 +175,25 @@ test("context windows preserve rollover and native request semantics", async () 
 		tools: Array<{
 			type: string;
 			name: string;
-			tools: Array<{
-				name: string;
-				strict: boolean;
-				parameters: {
-					additionalProperties: boolean;
-					properties: Record<string, Record<string, unknown>>;
-				};
-			}>;
+			parameters: {
+				additionalProperties: boolean;
+				properties: Record<string, Record<string, unknown>>;
+			};
 		}>;
 	};
 	assert.deepEqual(contextPayload.input.map(({ role }) => role), ["developer"]);
 	assert.deepEqual(
-		contextPayload.tools.map((namespace) => [
-			namespace.type,
-			namespace.name,
-			namespace.tools.map((tool) => tool.name),
-		]),
-		[
-			["namespace", "history", [
-				"list_windows",
-				"list_items",
-				"read_item",
-				"search_contents",
-			]],
-			["namespace", "notes", [
-				"list_files_by_prefix",
-				"read_file",
-				"search_contents",
-				"append_to_file",
-				"write_file",
-			]],
-		],
+		contextPayload.tools.map(({ type, name }) => [type, name]),
+		[["function", "history"], ["function", "notes"]],
 	);
 	assert.equal(
-		contextPayload.tools.every((namespace) =>
-			namespace.tools.every(
-				(tool) =>
-					tool.strict === false &&
-					tool.parameters.additionalProperties === false,
-			)
-		),
+		"encrypted" in contextPayload.tools[1]!.parameters.properties["text"]!,
+		false,
+	);
+	assert.equal(
+		"action" in contextPayload.tools[1]!.parameters.properties,
 		true,
 	);
-	const remoteWrite = contextPayload.tools[1]!.tools.find(
-		(tool) => tool.name === "write_file",
-	)!;
-	assert.equal(remoteWrite.parameters.properties["text"]?.["encrypted"], true);
-	assert.equal("action" in remoteWrite.parameters.properties, false);
 	const metadata = JSON.parse(
 		contextPayload.client_metadata["x-codex-turn-metadata"]!,
 	) as Record<string, unknown>;

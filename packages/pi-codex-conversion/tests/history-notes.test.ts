@@ -22,7 +22,7 @@ const windowMessage = {
 	},
 };
 
-function createContext() {
+function createContext(noteEntries: readonly Record<string, unknown>[]) {
 	return {
 		cwd: "/repo",
 		model: {
@@ -52,6 +52,7 @@ function createContext() {
 						timestamp: 1,
 					},
 				},
+				...noteEntries,
 			],
 		},
 		modelRegistry: {
@@ -68,7 +69,7 @@ function createContext() {
 	} as never;
 }
 
-test("history and notes preserve remote encryption and sticky local recovery", async () => {
+test("history and notes fall through once and stay local after remote failure", async () => {
 	const originalFetch = globalThis.fetch;
 	let request: { url: string; init: RequestInit } | undefined;
 	try {
@@ -82,8 +83,21 @@ test("history and notes preserve remote encryption and sticky local recovery", a
 				{ status: 200 },
 			);
 		}) as typeof fetch;
-		const context = createContext();
-		const [history, notes] = createHistoryNotesTools();
+		const noteEntries: Array<Record<string, unknown>> = [];
+		const pi = {
+			appendEntry(customType: string, data: unknown) {
+				noteEntries.push({
+					type: "custom",
+					id: "note-" + (noteEntries.length + 1),
+					parentId: null,
+					timestamp: new Date(noteEntries.length).toISOString(),
+					customType,
+					data,
+				});
+			},
+		} as never;
+		const context = createContext(noteEntries);
+		const [history, notes] = createHistoryNotesTools(pi);
 		const noteResult = await notes.execute(
 			"write-note",
 			{ action: "write_file", path: "checkpoint.md", text: "progress" },
@@ -102,7 +116,7 @@ test("history and notes preserve remote encryption and sticky local recovery", a
 			new Headers(request?.init.headers).get(
 				"x-openai-encrypted-tool-arguments",
 			),
-			"true",
+			null,
 		);
 		assert.deepEqual(JSON.parse(String(request?.init.body)), {
 			path: "checkpoint.md",
@@ -128,19 +142,24 @@ test("history and notes preserve remote encryption and sticky local recovery", a
 			/notes write_file does not accept query/,
 		);
 
-		globalThis.fetch = (async () => new Response(
-			JSON.stringify({ detail: "Not found" }),
-			{ status: 404 },
-		)) as typeof fetch;
-		await assert.rejects(
-			() => notes.execute(
-				"fallback-note",
-				{ action: "write_file", path: "checkpoint.md", text: "progress" },
-				undefined,
-				undefined,
-				context,
-			),
-			/Retry notes with action write_file/,
+		let failedRequests = 0;
+		globalThis.fetch = (async () => {
+			failedRequests += 1;
+			return new Response(
+				JSON.stringify({ detail: "Unsupported" }),
+				{ status: 400 },
+			);
+		}) as typeof fetch;
+		const fallbackNote = await notes.execute(
+			"fallback-note",
+			{ action: "write_file", path: "checkpoint.md", text: "progress" },
+			undefined,
+			undefined,
+			context,
+		);
+		assert.equal(
+			fallbackNote.details.codexHistoryNotes["source"],
+			"pi-session",
 		);
 		const fallback = await history.execute(
 			"list-old-window",
@@ -160,58 +179,26 @@ test("history and notes preserve remote encryption and sticky local recovery", a
 			}],
 		});
 
-		const entries: Array<Record<string, unknown>> = [];
-		const localPi = {
-			appendEntry(customType: string, data: unknown) {
-				entries.push({
-					type: "custom",
-					id: "note-" + (entries.length + 1),
-					parentId: null,
-					timestamp: new Date(entries.length).toISOString(),
-					customType,
-					data,
-				});
-			},
-		} as never;
-		const localContext = {
-			cwd: "/repo",
-			model: {
-				provider: "passthrough",
-				api: "openai-responses",
-				id: "gpt-5.6",
-			},
-			sessionManager: {
-				getSessionId: () => "session-local-notes",
-				getBranch: () => entries,
-			},
-		} as never;
-		const [, localNotes] = createHistoryNotesTools(localPi, () => "local");
-		await localNotes.execute(
-			"write-local-note",
-			{ action: "write_file", path: "checkpoint.md", text: "progress" },
-			undefined,
-			undefined,
-			localContext,
-		);
-		await localNotes.execute(
-			"append-local-note",
+		await notes.execute(
+			"append-after-fallback",
 			{ action: "append_to_file", path: "checkpoint.md", text: "\nnext" },
 			undefined,
 			undefined,
-			localContext,
+			context,
 		);
-		const localRead = await localNotes.execute(
-			"read-local-note",
+		const localRead = await notes.execute(
+			"read-after-fallback",
 			{ action: "read_file", path: "/root/notes/checkpoint.md" },
 			undefined,
 			undefined,
-			localContext,
+			context,
 		);
 		assert.equal(
 			(localRead.details.codexHistoryNotes["file"] as { content: string })
 				.content,
 			"progress\nnext",
 		);
+		assert.equal(failedRequests, 1);
 	} finally {
 		globalThis.fetch = originalFetch;
 	}

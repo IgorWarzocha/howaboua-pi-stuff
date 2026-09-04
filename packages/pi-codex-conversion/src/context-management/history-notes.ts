@@ -92,13 +92,6 @@ const NOTES_ACTION_FIELDS = {
 	write_file: ["path", "text"],
 } satisfies Record<NotesAction, readonly string[]>;
 
-const ENCRYPTED_ACTIONS = new Set([
-	"history.search_contents",
-	"notes.search_contents",
-	"notes.append_to_file",
-	"notes.write_file",
-]);
-
 const HISTORY_PARAMETERS = Type.Object(
 	{
 		action: StringEnum(HISTORY_ACTIONS),
@@ -225,7 +218,6 @@ export async function fetchHistoryNotesThreadHint(
 			ctx,
 			signal,
 			{ mode: "bytes", limit: THREAD_HINT_MAX_BYTES },
-			false,
 		);
 		const text = typeof result["text"] === "string" ? result["text"] : "";
 		return text && Buffer.byteLength(text, "utf8") <= THREAD_HINT_MAX_BYTES
@@ -257,14 +249,9 @@ async function callHistoryNotesTool(
 				ctx,
 				signal,
 				{ mode: "tokens", limit: TOOL_OUTPUT_TOKEN_LIMIT },
-				ENCRYPTED_ACTIONS.has(`${namespace}.${action}`),
 			);
 		} catch (error) {
 			if (!(error instanceof HistoryNotesBackendUnavailableError)) throw error;
-			if (ENCRYPTED_ACTIONS.has(`${namespace}.${action}`))
-				throw new Error(
-					`Retry ${namespace} with action ${action}`,
-				);
 			result = callLocalHistoryNotes(namespace, action, params, ctx, pi);
 		}
 	}
@@ -292,39 +279,23 @@ async function callHistoryNotesBackend(
 	ctx: ExtensionContext,
 	signal: AbortSignal | undefined,
 	truncationPolicy: { mode: "bytes" | "tokens"; limit: number },
-	encryptedArguments: boolean,
 ): Promise<Record<string, unknown>> {
 	const unavailableKey = historyNotesAvailabilityKey(ctx);
 	if (UNAVAILABLE_BACKENDS.has(unavailableKey))
 		throw new HistoryNotesBackendUnavailableError(
 			"History and notes backend is unavailable",
 		);
-	let provider: Awaited<ReturnType<typeof resolveCodexToolProvider>>;
 	try {
-		provider = await resolveCodexToolProvider(ctx);
-	} catch (error) {
-		UNAVAILABLE_BACKENDS.add(unavailableKey);
-		throw new HistoryNotesBackendUnavailableError(
-			error instanceof Error ? error.message : String(error),
+		const provider = await resolveCodexToolProvider(ctx);
+		if (provider.route !== "openai-codex")
+			throw new Error("History and notes require the OpenAI Codex backend");
+		const headers = codexToolProviderHeaders(provider);
+		headers.set(
+			"x-openai-tool-output-truncation-policy",
+			JSON.stringify(truncationPolicy),
 		);
-	}
-	if (provider.route !== "openai-codex") {
-		UNAVAILABLE_BACKENDS.add(unavailableKey);
-		throw new HistoryNotesBackendUnavailableError(
-			"History and notes require the OpenAI Codex backend",
-		);
-	}
-	const headers = codexToolProviderHeaders(provider);
-	headers.set(
-		"x-openai-tool-output-truncation-policy",
-		JSON.stringify(truncationPolicy),
-	);
-	if (encryptedArguments)
-		headers.set("x-openai-encrypted-tool-arguments", "true");
-	const timeoutSignal = AbortSignal.timeout(BACKEND_TIMEOUT_MS);
-	let response: Response;
-	try {
-		response = await fetch(
+		const timeoutSignal = AbortSignal.timeout(BACKEND_TIMEOUT_MS);
+		const response = await fetch(
 			`${provider.baseUrl.replace(/\/+$/, "")}/${endpoint}`,
 			{
 				method: "POST",
@@ -341,6 +312,11 @@ async function callHistoryNotesBackend(
 				}),
 			},
 		);
+		if (!response.ok) throw new Error("History and notes backend failed");
+		const result: unknown = JSON.parse(await response.text());
+		if (!result || typeof result !== "object" || Array.isArray(result))
+			throw new Error("History and notes backend returned invalid data");
+		return result as Record<string, unknown>;
 	} catch (error) {
 		if (signal?.aborted) throw error;
 		UNAVAILABLE_BACKENDS.add(unavailableKey);
@@ -348,24 +324,6 @@ async function callHistoryNotesBackend(
 			"History and notes backend is unavailable",
 		);
 	}
-	const text = await response.text();
-	if ([401, 403, 404, 405, 501].includes(response.status)) {
-		UNAVAILABLE_BACKENDS.add(unavailableKey);
-		throw new HistoryNotesBackendUnavailableError(
-			"History and notes backend is unavailable",
-		);
-	}
-	let result: unknown;
-	try {
-		result = JSON.parse(text);
-	} catch {
-		throw new Error("History backend returned invalid JSON");
-	}
-	if (!response.ok)
-		throw new Error(`History backend failed: HTTP ${response.status}`);
-	if (!result || typeof result !== "object" || Array.isArray(result))
-		throw new Error("History backend returned an invalid result");
-	return result as Record<string, unknown>;
 }
 
 export function usesRemoteHistoryNotes(
