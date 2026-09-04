@@ -1,12 +1,17 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Box, Text, truncateToWidth } from "@earendil-works/pi-tui";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
-import { NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, NATIVE_COMPACTION_DISPLAY_TEXT, type NativeCompactionDisplayEntry } from "../adapter/compaction/types.ts";
-import { BACKGROUND_BASH_WIDGET_ID, registerBackgroundBashWidgetShortcuts, renderBackgroundBashWidget } from "../ui/background-bash-widget.ts";
-import type { CodexExtensionRuntime } from "./runtime.ts";
-import { renderCodexStatus } from "../ui/status.ts";
 import { isAdapterRuntime, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
+import { NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, NATIVE_COMPACTION_DISPLAY_TEXT, type NativeCompactionDisplayEntry } from "../adapter/compaction/types.ts";
 import { fetchCodexWeeklyUsageLeft } from "../codex-usage/client.ts";
+import {
+	CODEX_CONTEXT_WINDOW_MESSAGE_TYPE,
+	type CodexContextManagementMessageDetails,
+	isCodexContextManagementMessageDetails,
+} from "../context-management/messages.ts";
+import { BACKGROUND_BASH_WIDGET_ID, registerBackgroundBashWidgetShortcuts, renderBackgroundBashWidget } from "../ui/background-bash-widget.ts";
+import { renderCodexStatus } from "../ui/status.ts";
+import type { CodexExtensionRuntime } from "./runtime.ts";
 
 export interface CodexUiController {
 	clearBackgroundWidget(): void;
@@ -61,6 +66,37 @@ export function registerCodexUi(pi: ExtensionAPI, runtime: CodexExtensionRuntime
 		box.render = (width) => render(width).map((line) => truncateToWidth(line, width, ""));
 		return box;
 	};
+	pi.registerMessageRenderer<CodexContextManagementMessageDetails>(
+		CODEX_CONTEXT_WINDOW_MESSAGE_TYPE,
+		(message, { expanded }, theme) => {
+			if (
+				!isCodexContextManagementMessageDetails(message.details) ||
+				message.details.contextManagement.kind !== "window" ||
+				typeof message.content !== "string"
+			)
+				return undefined;
+			const box = new Box(1, 1, (text) => theme.bg("customMessageBg", text));
+			box.addChild(
+				new Text(
+					theme.fg(
+						"customMessageLabel",
+						theme.bold(`[${CODEX_CONTEXT_WINDOW_MESSAGE_TYPE}]`),
+					),
+					0,
+					0,
+				),
+			);
+			if (expanded)
+				box.addChild(
+					new Text(
+						`\n${theme.fg("customMessageText", message.content)}`,
+						0,
+						0,
+					),
+				);
+			return box;
+		},
+	);
 	// Legacy sessions stored display-only compaction records as custom messages.
 	pi.registerMessageRenderer<{ kind?: "usage" | undefined }>(NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, (message, _options, theme) => {
 		const content = typeof message.content === "string" ? message.content : NATIVE_COMPACTION_DISPLAY_TEXT;
