@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { registerCodexDeveloperMessageBroker } from "../../pi-codex-conversion/src/developer-messages.ts";
 
 import extension from "../index.ts";
 
@@ -9,12 +10,18 @@ const DETAILS_KEY = "subdirContextAutoload";
 
 function mockPi() {
 	const handlers = new Map();
+	const listeners = new Map();
 	const sentMessages = [];
 	return {
 		handlers,
 		sentMessages,
 		events: {
-			emit(_channel, event) {
+			on(channel, listener) {
+				listeners.set(channel, listener);
+				return () => listeners.delete(channel);
+			},
+			emit(channel, event) {
+				listeners.get(channel)?.(event);
 				event?.accept?.();
 			},
 		},
@@ -71,7 +78,7 @@ async function run() {
 
 	const branchEntries = [];
 	const pi = mockPi();
-	extension(pi);
+	await extension(pi);
 
 	const ctx = {
 		cwd,
@@ -637,6 +644,44 @@ async function run() {
 		textContent(codeModeScriptError),
 		/<agents_file path="a\/code-mode-error\/AGENTS\.md">/,
 	);
+
+	// Same discovery contract, routed through the optional developer broker.
+	branchEntries.length = 0;
+	sessionStart({}, ctx);
+	let active = true;
+	const removeBroker = registerCodexDeveloperMessageBroker(pi, () => active);
+	const sendMessage = pi.sendMessage;
+	pi.sendMessage = () => {
+		throw new Error("delivery failed");
+	};
+	await assert.rejects(toolResult(readEvent, ctx), /delivery failed/);
+	assert.equal(pi.sentMessages.length, 0);
+	pi.sendMessage = (message, options) => {
+		assert.deepEqual(options, { deliverAs: "steer", triggerTurn: false });
+		sendMessage(message);
+	};
+	assert.equal(await toolResult(readEvent, ctx), undefined);
+	assert.equal(pi.sentMessages.length, 1);
+	const developerMessage = pi.sentMessages[0];
+	assert.equal(developerMessage.customType, "subdir-agents-context");
+	assert.equal(developerMessage.display, true);
+	assert.match(developerMessage.content, /<subdirectory_agents_context>/);
+	assert.equal(persistedFiles(developerMessage.details).length, 3);
+	assert.deepEqual(readEvent.details, {});
+	assert.equal(textContent(readEvent), "FILE");
+	branchEntries.push({ type: "custom_message", ...developerMessage });
+	sessionStart({}, ctx);
+	assert.equal(await toolResult(readEvent, ctx), undefined);
+	assert.equal(pi.sentMessages.length, 1);
+	active = false;
+	branchEntries.length = 0;
+	sessionStart({}, ctx);
+	assert.match(
+		textContent(await toolResult(readEvent, ctx)),
+		/<subdirectory_agents_context>/,
+	);
+	assert.equal(pi.sentMessages.length, 1);
+	removeBroker();
 
 	await fs.rm(root, { recursive: true, force: true });
 	console.log("subdir-context test passed");

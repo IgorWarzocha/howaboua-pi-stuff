@@ -12,9 +12,13 @@ export function collectBranchContext(
 	const out = new Map<string, string>();
 	const branchEntries = ctx.sessionManager.getBranch();
 	for (const entry of branchEntries) {
-		if (!entry || typeof entry !== "object" || entry.type !== "message")
-			continue;
-		const message = (entry as { message?: unknown }).message;
+		if (!entry || typeof entry !== "object") continue;
+		const message =
+			entry.type === "custom_message"
+				? entry
+				: entry.type === "message"
+					? entry.message
+					: undefined;
 		if (!message || typeof message !== "object" || Array.isArray(message))
 			continue;
 		const details = (message as { details?: unknown }).details;

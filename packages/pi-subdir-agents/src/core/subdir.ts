@@ -23,7 +23,15 @@ import {
 	type DiscoveryEvent,
 } from "./subdir/tool-events.js";
 
-export function registerSubdirContextAutoload(pi: ExtensionAPI): void {
+export function registerSubdirContextAutoload(
+	pi: ExtensionAPI,
+	developerMessages?: Partial<
+		Pick<
+			typeof import("@howaboua/pi-codex-conversion/developer-messages"),
+			"trySendCodexDeveloperCustomMessage"
+		>
+	>,
+): void {
 	const loadedAgents = new Set<string>();
 	const loadedAgentsContent = new Map<string, string>();
 	let currentCwd = "";
@@ -168,8 +176,6 @@ export function registerSubdirContextAutoload(pi: ExtensionAPI): void {
 				const previousContent =
 					loadedAgentsContent.get(agentsPath) ?? branchContext.get(agentsPath);
 				const changed = previousContent !== content;
-				loadedAgents.add(agentsPath);
-				loadedAgentsContent.set(agentsPath, content);
 				const rel = relativePath(agentsPath);
 				if (changed) persistedFiles.push({ path: rel, content });
 				if (!wasLoaded || changed || refreshAppendix)
@@ -231,10 +237,35 @@ export function registerSubdirContextAutoload(pi: ExtensionAPI): void {
 			}
 		}
 
-		notifyLoaded(ctx, result.loadedNow);
-
 		if (!result.persistedFiles.length && !result.appendixFiles.length)
 			return undefined;
+		const sent =
+			result.appendixFiles.length > 0 &&
+			typeof developerMessages?.trySendCodexDeveloperCustomMessage ===
+				"function" &&
+			developerMessages.trySendCodexDeveloperCustomMessage(
+				pi,
+				{
+					customType: "subdir-agents-context",
+					content: appendAgentsContext([], result.appendixFiles)
+						.map((item) => item.text)
+						.join("\n"),
+					display: true,
+					details: mergePersistedContextDetails(undefined, {
+						files: result.appendixFiles,
+					}),
+				},
+				{ deliverAs: "steer", triggerTurn: false },
+			);
+
+		// Commit only after delivery; failed sends must remain retryable.
+		for (const file of result.appendixFiles) {
+			const absolutePath = resolvePath(file.path, currentCwd);
+			loadedAgents.add(absolutePath);
+			loadedAgentsContent.set(absolutePath, file.content);
+		}
+		notifyLoaded(ctx, result.loadedNow);
+		if (sent) return undefined;
 		const details = result.persistedFiles.length
 			? mergePersistedContextDetails(event.details, {
 					files: result.persistedFiles,
