@@ -69,7 +69,7 @@ export function createAskRuntime({
 				return {
 					content: [
 						textContent(
-							"Question presented. Continue working; the response will arrive as user steering.",
+							"Question presented. Continue working; the response will arrive as steering.",
 						),
 					],
 					details: { kind: "prompt", pending: true, id: toolCallId },

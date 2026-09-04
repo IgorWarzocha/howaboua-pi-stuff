@@ -5,6 +5,10 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { loadAskConfig } from "./ask/config.js";
+import {
+	createSteerDelivery,
+	type TryCodexDeveloperMessage,
+} from "./ask/delivery.js";
 import { isSteeringAskInput } from "./ask/normalize.js";
 import { PENDING_ASK_ENTRY_TYPE, readPendingAsks } from "./ask/pending.js";
 import { createAskRuntime, createAskTool } from "./ask/tool.js";
@@ -17,13 +21,13 @@ const REALTIME_VOICE_PROMPT_CHANNEL =
 	"@howaboua/pi-codex-conversion/realtime-voice-prompt/v1";
 const CODE_MODE_PACKAGE = "@howaboua/pi-codex-conversion";
 const CODE_MODE_MODULE = `${CODE_MODE_PACKAGE}/code-mode`;
+const DEVELOPER_MESSAGES_MODULE = `${CODE_MODE_PACKAGE}/developer-messages`;
 
 export default async function humanInTheLoop(pi: ExtensionAPI): Promise<void> {
 	registerPackageChangelog(pi);
+	const trySendCodexDeveloperMessage = await loadCodexDeveloperMessageSender();
 	const askRuntime = createAskRuntime({
-		deliverSteer: (message) => {
-			pi.sendUserMessage(message, { deliverAs: "steer" });
-		},
+		deliverSteer: createSteerDelivery(pi, trySendCodexDeveloperMessage),
 		onBlockedChange: (state) => {
 			pi.events.emit(REALTIME_VOICE_PROMPT_CHANNEL, {
 				id: state.id,
@@ -62,6 +66,24 @@ export default async function humanInTheLoop(pi: ExtensionAPI): Promise<void> {
 	});
 }
 
+async function loadCodexDeveloperMessageSender(): Promise<
+	TryCodexDeveloperMessage | undefined
+> {
+	try {
+		const { trySendCodexDeveloperMessage } = await import(
+			"@howaboua/pi-codex-conversion/developer-messages"
+		);
+		return trySendCodexDeveloperMessage;
+	} catch (error) {
+		if (
+			isMissingCodexModule(error, DEVELOPER_MESSAGES_MODULE) ||
+			isUnavailableCodexSubpath(error, "developer-messages")
+		)
+			return undefined;
+		throw error;
+	}
+}
+
 async function registerAskInCodeMode(
 	pi: ExtensionAPI,
 	ask: ReturnType<typeof createAskTool>,
@@ -78,7 +100,7 @@ async function registerAskInCodeMode(
 		]);
 		pi.on("session_shutdown", () => registration.unregister());
 	} catch (error) {
-		if (isMissingCodeModeExtension(error)) return;
+		if (isMissingCodexModule(error, CODE_MODE_MODULE)) return;
 		if (isOutdatedCodeModeExtension(error)) {
 			throw new Error(
 				"Update " +
@@ -91,7 +113,7 @@ async function registerAskInCodeMode(
 	}
 }
 
-function isMissingCodeModeExtension(error: unknown): boolean {
+function isMissingCodexModule(error: unknown, moduleName: string): boolean {
 	if (
 		!error ||
 		typeof error !== "object" ||
@@ -105,7 +127,29 @@ function isMissingCodeModeExtension(error: unknown): boolean {
 	const missing = error.message.match(
 		/Cannot find (?:package|module) ['"]([^'"]+)['"]/,
 	)?.[1];
-	return missing === CODE_MODE_PACKAGE || missing === CODE_MODE_MODULE;
+	const normalizedMissing = missing?.replaceAll("\\", "/").replace(/\.js$/, "");
+	return (
+		missing === CODE_MODE_PACKAGE ||
+		normalizedMissing === moduleName ||
+		normalizedMissing?.endsWith(`/${moduleName}`) === true
+	);
+}
+
+function isUnavailableCodexSubpath(error: unknown, subpath: string): boolean {
+	if (
+		!error ||
+		typeof error !== "object" ||
+		!("code" in error) ||
+		!("message" in error) ||
+		typeof error.message !== "string"
+	)
+		return false;
+	return (
+		(error.code === "ERR_PACKAGE_PATH_NOT_EXPORTED" ||
+			error.code === "ERR_UNSUPPORTED_DIR_IMPORT") &&
+		error.message.includes(`Package subpath './${subpath}'`) &&
+		error.message.includes(CODE_MODE_PACKAGE)
+	);
 }
 
 function isOutdatedCodeModeExtension(error: unknown): boolean {

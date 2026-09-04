@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { createSteerDelivery } from "../ask/delivery.js";
 import type { PendingAskUpdate } from "../ask/pending.js";
 import { createAskTool } from "../ask/tool.js";
 
@@ -70,17 +71,36 @@ describe("ask tool results", () => {
 		const presentations: string[] = [];
 		const resolvers: Array<(value: unknown) => void> = [];
 		const deliveries: string[] = [];
+		const developerDeliveries: Array<{
+			message: string;
+			options: unknown;
+		}> = [];
+		const userDeliveries: Array<{ message: string; options: unknown }> = [];
 		const deliveryWaiters: Array<() => void> = [];
 		const pendingUpdates: PendingAskUpdate[] = [];
+		let developerAvailable = true;
+		const deliverSteer = createSteerDelivery(
+			{
+				sendUserMessage(message: string, options: unknown) {
+					userDeliveries.push({ message, options });
+					deliveries.push(message);
+					deliveryWaiters.shift()?.();
+				},
+			} as never,
+			(_pi, message, options) => {
+				if (!developerAvailable) return false;
+				developerDeliveries.push({ message, options });
+				deliveries.push(message);
+				deliveryWaiters.shift()?.();
+				return true;
+			},
+		);
 		const tool = createAskTool({
 			askInComposer: async (prompts) => {
 				presentations.push(prompts[0]?.title ?? "");
 				return await new Promise<unknown>((resolve) => resolvers.push(resolve));
 			},
-			deliverSteer: (message) => {
-				deliveries.push(message);
-				deliveryWaiters.shift()?.();
-			},
+			deliverSteer,
 			onPendingChange: (update) => pendingUpdates.push(update),
 		});
 
@@ -107,7 +127,7 @@ describe("ask tool results", () => {
 			content: [
 				{
 					type: "text",
-					text: "Question presented. Continue working; the response will arrive as user steering.",
+					text: "Question presented. Continue working; the response will arrive as steering.",
 				},
 			],
 			details: { kind: "prompt", pending: true, id: "steer-1" },
@@ -130,12 +150,26 @@ describe("ask tool results", () => {
 		const secondDelivery = new Promise<void>((resolve) =>
 			deliveryWaiters.push(resolve),
 		);
+		developerAvailable = false;
 		resolvers[1]?.(null);
 		await secondDelivery;
 
 		expect(deliveries).toEqual([
 			"Response to your earlier ask:\nFirst: Yes\n  Comment: Proceed.",
 			"I dismissed your earlier ask: Second",
+		]);
+		expect(developerDeliveries).toEqual([
+			{
+				message:
+					"Response to your earlier ask:\nFirst: Yes\n  Comment: Proceed.",
+				options: { deliverAs: "steer", triggerTurn: true },
+			},
+		]);
+		expect(userDeliveries).toEqual([
+			{
+				message: "I dismissed your earlier ask: Second",
+				options: { deliverAs: "steer" },
+			},
 		]);
 		expect(pendingUpdates.map(({ state, id }) => ({ state, id }))).toEqual([
 			{ state: "pending", id: "steer-1" },

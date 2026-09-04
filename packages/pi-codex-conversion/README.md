@@ -184,6 +184,8 @@ sendCodexDeveloperMessage(pi, "Re-evaluate the plan before editing.", {
 
 The message persists in the session and appears in Pi's fixed purple message block, while the active Responses adapter sends its content to the model with role `developer`. The purple wrapper, label and persistence metadata stay model-invisible. `deliverAs` accepts Pi's native `steer`, `followUp` and `nextTurn` modes; `triggerTurn` independently starts an idle turn for the first two modes. The call fails when no compatible Pi Codex Responses adapter is active and never falls back to a user message.
 
+Optional integrations can use `trySendCodexDeveloperMessage` instead. It returns `false` when the broker or a compatible adapter is unavailable, while actual delivery failures still throw.
+
 The adapted definition keeps its Pi context, UI, schema and progress updates. JavaScript receives model-usable result content, while the tool's exact result remains available to its ordinary Pi renderer. Code Mode owns the JavaScript call and runs its own nested-tool preflight.
 Tool names that are not JavaScript identifiers receive the same translated name in Code and Notebook Mode, including prompt guidance and `ALL_TOOLS`.
 Use `toolName` for a non-default Responses namespace and `resultValue` when JavaScript needs a structured value instead of the ordinary model-visible result.

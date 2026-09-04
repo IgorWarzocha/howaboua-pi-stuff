@@ -23,7 +23,7 @@ const DEVELOPER_MESSAGE_CHANNEL =
 
 type DeveloperMessageOutcome =
 	| { ok: true }
-	| { ok: false; error: string };
+	| { ok: false; reason: "unavailable" | "delivery"; error: string };
 
 interface DeveloperMessageRequest {
 	protocol: 1;
@@ -37,6 +37,26 @@ export function sendCodexDeveloperMessage(
 	content: string,
 	options?: CodexDeveloperMessageOptions,
 ): void {
+	const outcome = dispatchCodexDeveloperMessage(pi, content, options);
+	if (!outcome.ok) throw new Error(outcome.error);
+}
+
+export function trySendCodexDeveloperMessage(
+	pi: ExtensionAPI,
+	content: string,
+	options?: CodexDeveloperMessageOptions,
+): boolean {
+	const outcome = dispatchCodexDeveloperMessage(pi, content, options);
+	if (outcome.ok) return true;
+	if (outcome.reason === "unavailable") return false;
+	throw new Error(outcome.error);
+}
+
+function dispatchCodexDeveloperMessage(
+	pi: ExtensionAPI,
+	content: string,
+	options: CodexDeveloperMessageOptions | undefined,
+): DeveloperMessageOutcome {
 	if (typeof content !== "string" || content.trim() === "")
 		throw new Error("Codex developer message content cannot be empty");
 	validateOptions(options);
@@ -46,9 +66,13 @@ export function sendCodexDeveloperMessage(
 		...(options ? { options } : {}),
 	};
 	pi.events.emit(DEVELOPER_MESSAGE_CHANNEL, request);
-	if (!request.outcome)
-		throw new Error("Pi Codex developer messages are unavailable");
-	if (!request.outcome.ok) throw new Error(request.outcome.error);
+	return (
+		request.outcome ?? {
+			ok: false,
+			reason: "unavailable",
+			error: "Pi Codex developer messages are unavailable",
+		}
+	);
 }
 
 export function registerCodexDeveloperMessageBroker(
@@ -60,6 +84,7 @@ export function registerCodexDeveloperMessageBroker(
 		if (!isActive()) {
 			value.outcome = {
 				ok: false,
+				reason: "unavailable",
 				error:
 					"Pi Codex developer messages require an active Responses adapter",
 			};
@@ -79,6 +104,7 @@ export function registerCodexDeveloperMessageBroker(
 		} catch (error) {
 			value.outcome = {
 				ok: false,
+				reason: "delivery",
 				error: error instanceof Error ? error.message : String(error),
 			};
 		}
@@ -139,6 +165,8 @@ function isDeveloperMessageOutcome(
 			"ok" in value &&
 			(value.ok === true ||
 				(value.ok === false &&
+					"reason" in value &&
+					(value.reason === "unavailable" || value.reason === "delivery") &&
 					"error" in value &&
 					typeof value.error === "string")),
 	);

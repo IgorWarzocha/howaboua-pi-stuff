@@ -33,6 +33,7 @@ export {
 } from "../dist/tools/apply-patch/tool.js";
 export {
 	sendCodexDeveloperMessage,
+	trySendCodexDeveloperMessage,
 	type CodexDeveloperMessageDelivery,
 	type CodexDeveloperMessageOptions,
 } from "../dist/developer-messages.js";

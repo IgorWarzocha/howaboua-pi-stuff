@@ -6,12 +6,14 @@ import {
 	isCodexDeveloperMessageDetails,
 	registerCodexDeveloperMessageBroker,
 	sendCodexDeveloperMessage,
+	trySendCodexDeveloperMessage,
 	type CodexDeveloperMessageOptions,
 } from "../src/developer-messages.ts";
 
 test("developer messages preserve delivery and provider-role semantics", () => {
 	const handlers = new Map<string, Set<(value: unknown) => void>>();
 	const sent: Array<{ message: Record<string, unknown>; options: unknown }> = [];
+	let deliveryError: Error | undefined;
 	const pi = {
 		events: {
 			on(channel: string, handler: (value: unknown) => void) {
@@ -25,6 +27,7 @@ test("developer messages preserve delivery and provider-role semantics", () => {
 			},
 		},
 		sendMessage(message: Record<string, unknown>, options: unknown) {
+			if (deliveryError) throw deliveryError;
 			sent.push({ message, options });
 		},
 	} as never;
@@ -35,8 +38,12 @@ test("developer messages preserve delivery and provider-role semantics", () => {
 		{ deliverAs: "followUp", triggerTurn: false },
 		{ deliverAs: "nextTurn", triggerTurn: true },
 	] satisfies CodexDeveloperMessageOptions[];
-	for (const [index, options] of deliveries.entries())
-		sendCodexDeveloperMessage(pi, "Developer " + index, options);
+	assert.equal(
+		trySendCodexDeveloperMessage(pi, "Developer 0", deliveries[0]),
+		true,
+	);
+	for (let index = 1; index < deliveries.length; index++)
+		sendCodexDeveloperMessage(pi, "Developer " + index, deliveries[index]);
 
 	assert.deepEqual(sent.map(({ options }) => options), deliveries);
 	assert.equal(
@@ -73,12 +80,20 @@ test("developer messages preserve delivery and provider-role semantics", () => {
 		},
 	);
 
+	deliveryError = new Error("Developer delivery failed");
+	assert.throws(
+		() => trySendCodexDeveloperMessage(pi, "Undeliverable"),
+		/Developer delivery failed/,
+	);
+	deliveryError = undefined;
 	active = false;
+	assert.equal(trySendCodexDeveloperMessage(pi, "Inactive"), false);
 	assert.throws(
 		() => sendCodexDeveloperMessage(pi, "Inactive"),
 		/require an active Responses adapter/,
 	);
 	unregister();
+	assert.equal(trySendCodexDeveloperMessage(pi, "Unavailable"), false);
 	assert.throws(
 		() => sendCodexDeveloperMessage(pi, "Unavailable"),
 		/developer messages are unavailable/,

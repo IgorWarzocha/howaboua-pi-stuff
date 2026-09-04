@@ -1,6 +1,6 @@
 - Feature behavior enters through `index.ts`; generated `changelog.ts` is shared release UI infrastructure.
 - `ask` is the single human-in-the-loop surface for input, review, and handoff.
-- Wait and steer delivery share one panel; only wait reports blocked, while steer responses return as user steering.
+- Wait and steer delivery share one panel; only wait reports blocked. Steer responses use the developer role under active Pi Codex Responses and user steering elsewhere.
 - Feature code lives under `ask/`; coordinator owns queued delivery and pending owns persisted restoration.
 - Keep LLM-facing tool text short and user-facing.
 - Preserve the blank `Other/rephrase` contract: it means the agent should rephrase or follow up.
