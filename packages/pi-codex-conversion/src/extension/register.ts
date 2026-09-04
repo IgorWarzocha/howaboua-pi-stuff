@@ -56,7 +56,8 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 				void runtime.state.contextWindows.startNewWindow(pi, ctx, {
 					triggerTurn: false,
 					mode: config.compaction.contextManagement,
-					trimPreviousWindow: true,
+					trimPreviousWindow:
+						config.compaction.contextManagement !== "tree",
 				}).catch((error: unknown) => {
 					ctx.ui.notify(`Could not start context window: ${error instanceof Error ? error.message : String(error)}`, "warning");
 				});

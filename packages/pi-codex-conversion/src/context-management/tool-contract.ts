@@ -17,7 +17,7 @@ export type HistoryAction = (typeof HISTORY_ACTIONS)[number];
 export type NotesAction = (typeof NOTES_ACTIONS)[number];
 
 export const HISTORY_DESCRIPTION =
-	"Prior-window recovery. Pass IDs unchanged.";
+	"Prior-window detail. Pass IDs unchanged. Search, never browse.";
 
 export const NOTES_DESCRIPTION =
 	"Cross-window checkpoints on virtual paths. Relative uses current agent; cross-agent uses <agent>/notes[/path].";

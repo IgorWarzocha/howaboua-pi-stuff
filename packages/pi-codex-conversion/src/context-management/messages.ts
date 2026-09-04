@@ -42,7 +42,7 @@ export interface ContextWindowCompactionDetails {
 }
 
 const CONTEXT_WINDOW_GUIDANCE = `<context_window_guidance>
-Maintain concise notes of the goal, decisions, progress, learnings and next steps. Update them before new_context; no conversation summary carries over. After rollover, read notes and use history only for missing detail.
+Checkpoint the active request, known history IDs, decisions, progress, learnings and next steps in notes before new_context; no summary carries over. After rollover, read hinted notes. Use history only for a missing detail.
 </context_window_guidance>`;
 
 export function renderContextWindowMessage(
@@ -64,12 +64,12 @@ export function renderContextWindowMessage(
 
 export function renderContextWindowReminder(remainingTokens: number): string {
 	return `<context_window_reminder>
-Only ${Math.max(0, Math.floor(remainingTokens))} context tokens remain. Update notes, then call new_context; no conversation summary carries over.
+Only ${Math.max(0, Math.floor(remainingTokens))} context tokens remain. Checkpoint the active request, state and known history IDs in notes, then call new_context; no conversation summary carries over.
 </context_window_reminder>`;
 }
 
 export const CONTEXT_WINDOW_FALLBACK_MESSAGE = `<context_window_reminder>
-Context exhausted. Do not continue or answer. Make exactly one notes write or append call, then call new_context. Use no other tools before rollover.
+Context exhausted. Do not continue or answer. Make exactly one notes write or append call that checkpoints the active request, state and known history IDs, then call new_context. Use no other tools before rollover.
 </context_window_reminder>`;
 
 export function isCodexContextManagementMessageDetails(

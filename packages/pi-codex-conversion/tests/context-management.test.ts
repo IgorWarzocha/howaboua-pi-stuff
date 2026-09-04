@@ -132,6 +132,13 @@ test("context windows preserve rollover and native request semantics", async () 
 		},
 	};
 	manager.restore(contextEntries() as never);
+	assert.deepEqual(manager.prepareCompaction(compactionEvent(), "tree"), {
+		cancel: true,
+	});
+	assert.deepEqual(
+		manager.prepareCompaction(compactionEvent(), "local"),
+		expectedCompaction,
+	);
 	assert.deepEqual(
 		manager.prepareCompaction(compactionEvent(), "remote"),
 		expectedCompaction,
@@ -232,6 +239,31 @@ test("context windows preserve rollover and native request semantics", async () 
 			window_number: 1,
 			context_window_id: currentWindowId,
 		},
+	);
+
+	const modeHints = await Promise.all(
+		(["local", "tree", "remote"] as const).map(async (mode) => {
+			const sent: Array<Record<string, unknown>> = [];
+			const windows = new CodexContextWindowManager(
+				async (_context, loadedMode) => `hint:${loadedMode}`,
+			);
+			const pi = {
+				sendMessage(message: Record<string, unknown>) {
+					sent.push(message);
+				},
+			} as never;
+			windows.ensureInitialized(pi, ctx, true);
+			await windows.startNewWindow(pi, ctx, {
+				triggerTurn: false,
+				mode,
+				trimPreviousWindow: mode !== "tree",
+			});
+			return sent.at(-1)?.["content"];
+		}),
+	);
+	assert.deepEqual(
+		modeHints.map((hint) => String(hint).match(/hint:(local|tree|remote)/)?.[1]),
+		["local", "tree", "remote"],
 	);
 
 });

@@ -3,13 +3,17 @@ import type {
 	SessionEntry,
 } from "@earendil-works/pi-coding-agent";
 import type { ContextManagementMode } from "../adapter/activation/config.ts";
-import { CODEX_CONTEXT_WINDOW_MESSAGE_TYPE } from "./messages.ts";
+import {
+	CODEX_CONTEXT_WINDOW_MESSAGE_TYPE,
+	isCodexContextManagementMessageDetails,
+} from "./messages.ts";
 import { buildTreeArchiveIndex } from "./tree-archive.ts";
 
 const LIST_ITEM_LIMIT = 25;
 const LIST_ITEM_PREVIEW_CHARS = 1_000;
 const READ_ITEM_LIMIT_CHARS = 8_000;
 const LIST_OUTPUT_LIMIT_CHARS = 8_000;
+const RECOVERY_USER_ITEM_LIMIT = 5;
 
 type LocalHistoryAction =
 	| "list_windows"
@@ -30,6 +34,50 @@ interface LocalHistoryItem {
 interface LocalHistoryWindow {
 	window_id: string;
 	items: LocalHistoryItem[];
+}
+
+export interface LocalHistoryRecoveryHint {
+	window_id: string;
+	summary_item_id?: string | undefined;
+	user_item_ids?: string[] | undefined;
+}
+
+export function getPiSessionHistoryRecoveryHint(
+	ctx: ExtensionContext,
+	mode: ContextManagementMode,
+): LocalHistoryRecoveryHint | undefined {
+	if (mode !== "local" && mode !== "tree") return undefined;
+	let window = latestWindowEntries(ctx.sessionManager.getBranch());
+	let summaryItemId: string | undefined;
+	if (mode === "tree" && !window) {
+		const index = buildTreeArchiveIndex(
+			ctx.sessionManager.getEntries(),
+			ctx.sessionManager.getBranch(),
+		);
+		if (index.invalidManifest) return undefined;
+		const archive = index.archives.at(-1);
+		if (!archive) return undefined;
+		window = {
+			windowId: archive.manifest.windowId,
+			entries: archive.entries,
+		};
+		summaryItemId = archive.summary.id;
+	}
+	if (!window) return undefined;
+	const userItemIds = window.entries
+		.filter(
+			(entry) =>
+				entry.type === "message" && entry.message.role === "user",
+		)
+		.slice(-RECOVERY_USER_ITEM_LIMIT)
+		.reverse()
+		.map((entry) => entry.id);
+	if (!summaryItemId && userItemIds.length === 0) return undefined;
+	return {
+		window_id: window.windowId,
+		...(summaryItemId ? { summary_item_id: summaryItemId } : {}),
+		...(userItemIds.length > 0 ? { user_item_ids: userItemIds } : {}),
+	};
 }
 
 export function readPiSessionHistory(
@@ -151,6 +199,26 @@ function collectTreeWindows(
 	}));
 	const current = collectWindows(activeBranch).at(-1);
 	return current ? [...archived, current] : archived;
+}
+
+function latestWindowEntries(
+	entries: readonly SessionEntry[],
+): { windowId: string; entries: readonly SessionEntry[] } | undefined {
+	for (let index = entries.length - 1; index >= 0; index -= 1) {
+		const entry = entries[index]!;
+		if (
+			entry.type !== "custom_message" ||
+			entry.customType !== CODEX_CONTEXT_WINDOW_MESSAGE_TYPE ||
+			!isCodexContextManagementMessageDetails(entry.details) ||
+			entry.details.contextManagement.kind !== "window"
+		)
+			continue;
+		return {
+			windowId: entry.details.contextManagement.currentWindowId,
+			entries: entries.slice(index + 1),
+		};
+	}
+	return undefined;
 }
 
 function historyItem(

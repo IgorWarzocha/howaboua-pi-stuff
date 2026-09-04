@@ -1,10 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
 	createHistoryNotesTools,
-	fetchHistoryNotesThreadHint,
+	loadHistoryNotesThreadHint,
 } from "../src/context-management/history-notes.ts";
 import { CODEX_CONTEXT_WINDOW_MESSAGE_TYPE } from "../src/context-management/messages.ts";
+import { createTreeArchiveManifest } from "../src/context-management/tree-archive.ts";
 import { fakeJwt } from "./openai-codex-test-support.ts";
 
 const windowId = "window-0";
@@ -57,6 +59,9 @@ function createContext(noteEntries: readonly Record<string, unknown>[]) {
 				},
 				...noteEntries,
 			],
+			getEntries() {
+				return this.getBranch();
+			},
 		},
 		modelRegistry: {
 			getApiKeyAndHeaders: async () => ({
@@ -69,7 +74,7 @@ function createContext(noteEntries: readonly Record<string, unknown>[]) {
 				baseUrl: "https://chatgpt.com/backend-api",
 			}),
 		},
-	} as never;
+	} as unknown as ExtensionContext;
 }
 
 test("remote context storage is exact while local storage stays in Pi", async () => {
@@ -149,7 +154,7 @@ test("remote context storage is exact while local storage stays in Pi", async ()
 				/History and notes backend failed \(400\)/,
 			);
 		assert.equal(
-			await fetchHistoryNotesThreadHint(context, "remote"),
+			await loadHistoryNotesThreadHint(context, "remote"),
 			undefined,
 		);
 		assert.equal(failedRequests, 3);
@@ -191,6 +196,46 @@ test("remote context storage is exact while local storage stays in Pi", async ()
 			(localRead.details.codexHistoryNotes["file"] as { content: string })
 				.content,
 			"progress",
+		);
+		assert.equal(
+			await loadHistoryNotesThreadHint(context, "local"),
+			'Recent notes (up to 5, most-recent first):\n- /root/notes/checkpoint.md (1 line, 8 UTF-8 bytes)\nPrevious window history IDs: {"window_id":"window-0","user_item_ids":["user-entry"]}',
+		);
+
+		const [boundary, user] = context.sessionManager.getBranch();
+		const summary = {
+			type: "branch_summary",
+			id: "tree-summary",
+			parentId: null,
+			fromId: "user-entry",
+			summary: "Hidden recovery summary",
+			timestamp: new Date(2).toISOString(),
+		};
+		const manifest = {
+			type: "custom",
+			id: "tree-manifest",
+			parentId: summary.id,
+			timestamp: new Date(3).toISOString(),
+			customType: "codex-context-tree-archive",
+			data: createTreeArchiveManifest(
+				windowId,
+				"window-entry",
+				summary as never,
+			),
+		};
+		const note = { ...noteEntries.at(-1)!, parentId: manifest.id };
+		const treeBranch = [summary, manifest, note];
+		const treeContext = {
+			...context,
+			sessionManager: {
+				...context.sessionManager,
+				getBranch: () => treeBranch,
+				getEntries: () => [boundary, user, ...treeBranch],
+			},
+		} as unknown as ExtensionContext;
+		assert.equal(
+			await loadHistoryNotesThreadHint(treeContext, "tree"),
+			'Recent notes (up to 5, most-recent first):\n- /root/notes/checkpoint.md (1 line, 8 UTF-8 bytes)\nPrevious window history IDs: {"window_id":"window-0","summary_item_id":"tree-summary","user_item_ids":["user-entry"]}',
 		);
 	} finally {
 		globalThis.fetch = originalFetch;

@@ -11,8 +11,14 @@ import {
 	codexToolProviderHeaders,
 	resolveCodexToolProvider,
 } from "../adapter/codex-tool-provider.ts";
-import { readPiSessionHistory } from "./local-history.ts";
-import { usePiSessionNotes } from "./local-notes.ts";
+import {
+	getPiSessionHistoryRecoveryHint,
+	readPiSessionHistory,
+} from "./local-history.ts";
+import {
+	renderPiSessionNotesThreadHint,
+	usePiSessionNotes,
+} from "./local-notes.ts";
 import {
 	HISTORY_ACTIONS,
 	HISTORY_DESCRIPTION,
@@ -209,11 +215,13 @@ export function createHistoryNotesTools(
 	];
 }
 
-export async function fetchHistoryNotesThreadHint(
+export async function loadHistoryNotesThreadHint(
 	ctx: ExtensionContext,
 	mode: ContextManagementMode,
 	signal?: AbortSignal,
 ): Promise<string | undefined> {
+	if (mode === "local" || mode === "tree")
+		return piSessionThreadHint(ctx, mode);
 	if (!usesRemoteHistoryNotes(ctx, mode)) return undefined;
 	try {
 		const result = await callHistoryNotesBackend(
@@ -231,6 +239,29 @@ export async function fetchHistoryNotesThreadHint(
 		if (signal?.aborted) throw error;
 		return undefined;
 	}
+}
+
+function piSessionThreadHint(
+	ctx: ExtensionContext,
+	mode: ContextManagementMode,
+): string | undefined {
+	const recovery = getPiSessionHistoryRecoveryHint(ctx, mode);
+	const recoveryHint = recovery
+		? `Previous window history IDs: ${JSON.stringify(recovery)}`
+		: undefined;
+	const recoveryBytes = recoveryHint
+		? Buffer.byteLength(`\n${recoveryHint}`, "utf8")
+		: 0;
+	const notesHint = renderPiSessionNotesThreadHint(
+		ctx.sessionManager.getBranch(),
+		Math.max(0, THREAD_HINT_MAX_BYTES - recoveryBytes),
+	);
+	const hint = [notesHint, recoveryHint].filter(
+		(value): value is string => Boolean(value),
+	).join("\n");
+	return hint && Buffer.byteLength(hint, "utf8") <= THREAD_HINT_MAX_BYTES
+		? hint
+		: undefined;
 }
 
 async function callHistoryNotesTool(

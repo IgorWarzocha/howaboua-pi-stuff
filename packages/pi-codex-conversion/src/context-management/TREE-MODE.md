@@ -9,7 +9,7 @@ Add a provider-independent **Tree** context-management mode that uses Pi's appen
 Tree mode preserves the same model semantics as the no-summary window flow:
 
 - the next model window does not automatically receive a conversation summary
-- the model receives the current window marker and previous window ID
+- the model receives the current window marker, previous window ID, recent note paths and bounded history IDs
 - shell, workspace and Notebook runtime state survive rollover
 - prior summaries and raw work are available only through history and notes
 - Pi JSONL remains append-only and is never rewritten
@@ -46,7 +46,7 @@ Tree is a separate mode because its persisted topology differs from Local, not b
 
 ## Verified Pi machinery
 
-The design was checked against canonical Pi source and the Pi 0.84.4 declarations used by this package.
+The design was checked against canonical Pi source and the Pi 0.85.0 declarations used by this package.
 
 ### Command context capture
 
@@ -156,6 +156,8 @@ The marker retains:
 - current window ID
 - previous window ID
 - zero-based window number
+- up to five recent note paths
+- the available previous summary and recent user item IDs
 
 Tree navigation removes the previous boundary from the active branch, so the pending rollover must carry identity forward instead of rebuilding it only from the newly active branch.
 
@@ -197,7 +199,7 @@ For each valid manifest:
 
 Apply hard bounds to traversal depth, output characters and item count. Reject cycles, missing parents and cross-archive mismatches locally.
 
-The summary itself is a searchable history item. It is never injected automatically.
+The summary itself is a searchable history item. Its text is never injected automatically. The next window receives its opaque item ID so the model can read it directly instead of listing the archived window.
 
 ### Codex-shaped operations
 
@@ -275,7 +277,7 @@ Only the last emitted model-visible entry may trigger a turn.
 
 Tree mode should require no new model tool and no user command.
 
-The next window receives the existing terse context guidance and previous window ID. The history and notes operations preserve Codex names, action names, opaque-ID flow and result shapes. Host-side tree indexing is invisible to the model.
+The next window receives the same context guidance and notes bootstrap as Local and Remote. Tree adds bounded opaque IDs for its hidden summary and recent user requests. The model reads known items directly or searches for a specific missing detail; it must not enumerate the archived window. The history and notes operations preserve Codex names, action names, opaque-ID flow and result shapes. Host-side tree indexing is invisible to the model.
 
 Transport constraints still apply:
 
@@ -349,7 +351,7 @@ Keep tree machinery out of provider transports. It is Pi session lifecycle, not 
 
 ## Validation plan
 
-The focused lifecycle proof against Pi 0.84.4 must cover:
+The focused lifecycle proof against Pi 0.85.0 must cover:
 
 1. the internal command captures a working `ExtensionCommandContext` on startup and resume
 2. `new_context` aborts and reaches exactly one `agent_settled`
@@ -384,4 +386,4 @@ Use focused checks while iterating and the package umbrella gate once after revi
 4. Pi's default branch-summary instructions are sufficient; Tree adds no standing prompt or Tree-specific model tool.
 5. Remote mirrors the native namespace schemas, encrypted sensitive arguments and encrypted output contract. A live enabled account remains the final backend acceptance check.
 
-Canonical source, checked-in regression tests and installed 0.84.4 API declarations agree on the lifecycle mechanics above.
+Canonical source, checked-in regression tests and installed 0.85.0 API declarations agree on the lifecycle mechanics above.

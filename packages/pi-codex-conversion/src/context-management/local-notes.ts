@@ -13,6 +13,7 @@ const MAX_SNAPSHOT_BYTES = 10_000_000;
 const MAX_LIST_RESULTS = 100;
 const MAX_SEARCH_FILES = 100;
 const MAX_MATCHES_PER_FILE = 100;
+const THREAD_HINT_NOTE_LIMIT = 5;
 
 type LocalNotesAction =
 	| "list_files_by_prefix"
@@ -79,6 +80,26 @@ export function createPiSessionNotesSnapshot(
 	if (Buffer.byteLength(JSON.stringify(snapshot), "utf8") > MAX_SNAPSHOT_BYTES)
 		throw new Error("Context note snapshot exceeds the 10,000,000-byte limit");
 	return snapshot;
+}
+
+export function renderPiSessionNotesThreadHint(
+	entries: readonly SessionEntry[],
+	maxBytes: number,
+): string | undefined {
+	const header = "Recent notes (up to 5, most-recent first):";
+	const lines: string[] = [];
+	const notes = [...collectNotes(entries).values()].sort(
+		(left, right) =>
+			right.updatedAt - left.updatedAt || left.path.localeCompare(right.path),
+	);
+	for (const note of notes) {
+		if (lines.length >= THREAD_HINT_NOTE_LIMIT) break;
+		const lineCount = note.text === "" ? 0 : note.text.split("\n").length;
+		const line = `- ${note.path} (${lineCount} ${lineCount === 1 ? "line" : "lines"}, ${Buffer.byteLength(note.text, "utf8")} UTF-8 bytes)`;
+		const candidate = [header, ...lines, line].join("\n");
+		if (Buffer.byteLength(candidate, "utf8") <= maxBytes) lines.push(line);
+	}
+	return lines.length > 0 ? [header, ...lines].join("\n") : undefined;
 }
 
 function collectNotes(entries: readonly SessionEntry[]): Map<string, LocalNote> {

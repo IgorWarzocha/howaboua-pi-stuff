@@ -9,7 +9,7 @@ import type {
 	SessionEntry,
 } from "@earendil-works/pi-coding-agent";
 import type { ContextManagementMode } from "../adapter/activation/config.ts";
-import { fetchHistoryNotesThreadHint } from "./history-notes.ts";
+import { loadHistoryNotesThreadHint } from "./history-notes.ts";
 import {
 	CODEX_CONTEXT_WINDOW_MESSAGE_TYPE,
 	CONTEXT_WINDOW_COMPACTION_STRATEGY,
@@ -59,7 +59,7 @@ export class CodexContextWindowManager {
 	private trimPendingWindowId: string | undefined;
 	private readonly loadThreadHint: ThreadHintLoader;
 
-	constructor(loadThreadHint: ThreadHintLoader = fetchHistoryNotesThreadHint) {
+	constructor(loadThreadHint: ThreadHintLoader = loadHistoryNotesThreadHint) {
 		this.loadThreadHint = loadThreadHint;
 	}
 
@@ -171,7 +171,7 @@ export class CodexContextWindowManager {
 		this.rolloverPending = true;
 		try {
 			const current = this.identity;
-			const threadHint = current && options.mode === "remote"
+			const threadHint = current && options.mode
 				? await this.loadThreadHint(ctx, options.mode, options.signal)
 				: undefined;
 			const currentWindowId = randomUUID();
@@ -273,6 +273,7 @@ export class CodexContextWindowManager {
 		| { compaction: CompactionResult<ContextWindowCompactionDetails> }
 		| undefined {
 		if (event.reason === "threshold") {
+			if (mode === "tree") return { cancel: true };
 			const boundary = findLatestWindowBoundaryEntry(event.branchEntries);
 			if (
 				!boundary ||
