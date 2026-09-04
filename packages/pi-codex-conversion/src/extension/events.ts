@@ -6,7 +6,6 @@ import { hasPortableNativeCompactionSummary, isNativeCompactionDetails, NATIVE_C
 import { findLatestCompactionEntry } from "../adapter/compaction/details-store.ts";
 import { handleCodexSessionBeforeCompact } from "../adapter/compaction/compaction.ts";
 import { rewriteCodexProviderHeaders, rewriteCodexProviderRequest, supportsCodexDeveloperMessages } from "../adapter/provider-request.ts";
-import { isProviderContextExcludedMessage } from "../adapter/prompt/context-filter.ts";
 import { hasNoSkillsFlag } from "../adapter/prompt/skills.ts";
 import { onCodeModeExtensionToolsRefresh } from "../code-mode-extension-tools.ts";
 import { extractPiPromptSkills, resolvePromptSkills } from "../prompt/build-system-prompt.ts";
@@ -24,6 +23,7 @@ import type { CodexToolRegistration } from "./tools.ts";
 import type { CodexUiController } from "./ui.ts";
 import { registerCodexDeveloperMessageBroker } from "../developer-messages.ts";
 import { isContextWindowCompactionDetails } from "../context-management/messages.ts";
+import { recordCodexReasoningUpdate } from "../adapter/reasoning-updates.ts";
 
 function formatCompactionUsage(usage: NativeCompactionUsage): string {
 	const ratio = usage.inputTokens > 0 ? `${((usage.cachedInputTokens / usage.inputTokens) * 100).toFixed(1)}%` : "0%";
@@ -144,6 +144,9 @@ export function registerCodexEvents(
 		if (event.reason === "startup") await maybeWarnLocalCheckoutVersion(ctx);
 	});
 
+	pi.on("thinking_level_select", (event, ctx) => {
+		if (supportsCodexDeveloperMessages(ctx, state)) recordCodexReasoningUpdate(pi, ctx, runtime.projectContextMessages(ctx), event.previousLevel);
+	});
 	pi.on("model_select", async (_event, ctx) => {
 		activeContext = ctx;
 		pendingExtensionToolRefresh = false;
@@ -283,6 +286,7 @@ export function registerCodexEvents(
 			state.pendingActiveProviderPromptCapture = false;
 			return undefined;
 		}
+		recordCodexReasoningUpdate(pi, ctx, runtime.projectContextMessages(ctx));
 		const skills = resolvePromptSkills(event.systemPromptOptions?.skills, hasNoSkillsFlag() ? [] : state.promptSkills);
 		const codexSystemPrompt = runtime.codexSystemPrompt(systemPrompt, ctx, skills, event.systemPromptOptions);
 		state.activeProviderSystemPrompt = codexSystemPrompt;
@@ -438,22 +442,12 @@ export function registerCodexEvents(
 		}
 	});
 	pi.on("context", async (event, ctx) => {
-		const plan = resolveCodexRuntimePlanForState(ctx, state);
-		const branch = ctx.sessionManager.getBranch();
-		const messages = state.contextWindows
-			.project(
-				event.messages,
-				plan.contextManagementMode,
-				branch,
-				plan.contextManagementMode === "tree"
-					? ctx.sessionManager.getEntries()
-					: branch,
-			)
-			.filter((message) => !isProviderContextExcludedMessage(message));
+		const messages = runtime.projectContextMessages(ctx, event.messages);
 		return {
 			messages: state.developerMessages.prepare(
 				messages,
 				supportsCodexDeveloperMessages(ctx, state),
+				ctx.model,
 			),
 		};
 	});

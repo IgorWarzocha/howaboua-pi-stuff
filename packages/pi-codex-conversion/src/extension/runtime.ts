@@ -1,5 +1,6 @@
 import { buildSessionContext, convertToLlm, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { Context } from "@earendil-works/pi-ai";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { dirname } from "node:path";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import { readCodexCacheEnvironment } from "../adapter/activation/cache-environment.ts";
@@ -27,6 +28,7 @@ import type { CodexDiagnosticsSink } from "../providers/openai-codex/types.ts";
 import { CodexDeveloperMessageBridge } from "../adapter/developer-messages.ts";
 import { CodexContextWindowManager } from "../context-management/window-manager.ts";
 import { CodexContextTreeCoordinator } from "../context-management/tree-coordinator.ts";
+import { hasPendingCodexReasoningUpdate, supportsCodexReasoningUpdates } from "../adapter/reasoning-updates.ts";
 
 export type CodexContext = ExtensionContext;
 
@@ -43,6 +45,7 @@ export interface CodexExtensionRuntime {
 	backgroundWidget: BackgroundBashWidgetState;
 	voice: CodexVoiceController;
 	lanVoice: CodexLanVoiceServerController;
+	projectContextMessages(ctx: CodexContext, messages?: readonly AgentMessage[]): AgentMessage[];
 	execEnv(config?: CodexConversionConfig): NodeJS.ProcessEnv;
 	codexSystemPrompt(basePrompt: string, ctx: CodexContext, skills?: AdapterState["promptSkills"], systemPromptOptions?: PiSystemPromptOptions): string;
 	startPrewarm(ctx: CodexContext, systemPrompt?: string, prepared?: boolean): Promise<CodexPrewarmResult> | undefined;
@@ -122,6 +125,9 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 			|| !isAdapterRuntime(runtimePlan)
 			|| (!promptCacheRefresh && !config.openai.forceCachedWebSockets)
 		) return undefined;
+		// A non-generating warmup must not consume an update before the next
+		// response, otherwise more selector presses could rewrite its sent tail.
+		if (supportsCodexReasoningUpdates(model) && hasPendingCodexReasoningUpdate(projectContextMessages(ctx))) return undefined;
 		const preparedSystemPrompt = prepared
 			? systemPrompt
 			: runtime.codexSystemPrompt(systemPrompt, ctx);
@@ -253,23 +259,26 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		return promise;
 	};
 
-	const currentMessages = (ctx: CodexContext) => {
+	const projectContextMessages = (ctx: CodexContext, messages?: readonly AgentMessage[]) => {
 		const plan = resolveCodexRuntimePlanForState(ctx, state);
 		const branch = ctx.sessionManager.getBranch();
 		const projected = state.contextWindows.project(
-			buildSessionContext(branch).messages,
+			messages ?? buildSessionContext(branch).messages,
 			plan.contextManagementMode,
 			branch,
 			plan.contextManagementMode === "tree"
 				? ctx.sessionManager.getEntries()
 				: branch,
 		);
+		return projected.filter((message) => !isProviderContextExcludedMessage(message));
+	};
+
+	const currentMessages = (ctx: CodexContext) => {
 		return convertToLlm(
 			state.developerMessages.prepare(
-				projected.filter(
-					(message) => !isProviderContextExcludedMessage(message),
-				),
+				projectContextMessages(ctx),
 				supportsCodexDeveloperMessages(ctx, state),
+				ctx.model,
 			),
 		);
 	};
@@ -367,6 +376,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		execEnv(_config = state.config) {
 			return { ...process.env };
 		},
+		projectContextMessages,
 		codexSystemPrompt(basePrompt, ctx, skills = state.promptSkills, systemPromptOptions) {
 			const plan = resolveCodexRuntimePlanForState(ctx, state);
 			return buildCodexSystemPrompt(basePrompt, {

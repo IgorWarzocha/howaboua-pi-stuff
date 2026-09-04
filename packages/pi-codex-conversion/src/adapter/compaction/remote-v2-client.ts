@@ -170,6 +170,9 @@ async function runAttempt(options: ExecuteRemoteCompactionV2Options, streamSimpl
 				...requestBody,
 				input: [...request.request.input, { type: "compaction_trigger" }],
 				...(!canonicalBody && options.requestOptions.reasoning ? { reasoning: structuredClone(options.requestOptions.reasoning) } : {}),
+				...(canonicalBody?.reasoning?.effort && request.request.input.some((item) => "type" in item && item.type === "configuration_update")
+					? { reasoning: { ...requestBody.reasoning, effort: canonicalBody.reasoning.effort } }
+					: {}),
 			};
 		},
 	};

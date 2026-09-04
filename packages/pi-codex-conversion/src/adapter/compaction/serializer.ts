@@ -161,7 +161,7 @@ export function serializeMessagesToResponsesInput<TApi extends Api>(
 ): ResponsesInputItem[] {
 	const developerMessages = new CodexDeveloperMessageBridge();
 	const llmMessages = applyBlockImages(
-		convertToLlm(developerMessages.prepare(messages, true)),
+		convertToLlm(developerMessages.prepare(messages, true, model)),
 		options.blockImages ?? readBlockImagesSetting(),
 	);
 	const allowedToolCallProviders = isCodexTransportModel(model) && !CODEX_TOOL_CALL_PROVIDERS.has(model.provider)

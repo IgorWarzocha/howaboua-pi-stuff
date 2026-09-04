@@ -4,6 +4,7 @@ import { createGrammarToolInputProperties } from "./constrained-sampling.js";
 import { extractAccountId, buildWebSocketHeaders, PI_CODEX_CONVERSION_ORIGINATOR, resolveCodexRequestRouting, resolveCodexWebSocketUrl } from "./openai-codex/headers.ts";
 import { noThrowCodexDiagnosticsSink } from "./openai-codex/diagnostic-failure.ts";
 import { buildRequestBody } from "./openai-codex/request-body.ts";
+import { normalizeCodexConfigurationUpdates } from "../adapter/reasoning-updates.ts";
 import { openAICodexProviderModels } from "./openai-codex/model-catalog.ts";
 import { supportsResponsesLiteModel } from "./openai-codex/responses-lite-model.ts";
 import { applyResponsesLiteRequest, applyResponsesLiteWebSocketMetadata, isResponsesLiteRequest, namespaceExistingResponsesLiteRequest, prepareResponsesLiteRequestImages } from "./openai-codex/responses-lite.ts";
@@ -54,7 +55,7 @@ async function prepareCodexRequestBody<TApi extends Api>(
 		const input = normalizeResponsesToolHistory(body.input ?? []);
 		if (input !== body.input) body = { ...body, input };
 	}
-	return body;
+	return normalizeCodexConfigurationUpdates(body);
 }
 
 export async function prewarmOpenAICodexWebSocket<TApi extends Api>(

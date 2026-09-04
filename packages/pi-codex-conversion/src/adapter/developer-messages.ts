@@ -1,19 +1,22 @@
 import { createHmac, randomBytes } from "node:crypto";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import type { Api, Model } from "@earendil-works/pi-ai";
 import {
 	CODEX_DEVELOPER_MESSAGE_TYPE,
 	isCodexDeveloperMessageDetails,
 } from "../developer-messages.ts";
 import { CODEX_CONTEXT_WINDOW_MESSAGE_TYPE } from "../context-management/messages.ts";
+import { CODEX_REASONING_UPDATE_TYPE, codexReasoningLane, normalizeCodexConfigurationUpdates, readCodexReasoningUpdate, supportsCodexReasoningUpdates, type CodexReasoningUpdate } from "./reasoning-updates.ts";
 
 /** Authenticated carrier through Pi's custom-message-to-user conversion. */
 export class CodexDeveloperMessageBridge {
 	private readonly secret = randomBytes(32);
-	private carriers = new Map<string, string>();
+	private carriers = new Map<string, string | CodexReasoningUpdate>();
 
 	prepare(
 		messages: readonly AgentMessage[],
 		active: boolean,
+		model?: Model<Api>,
 	): AgentMessage[] {
 		const seen = new Set<string>();
 		const projected: AgentMessage[] = [];
@@ -21,26 +24,35 @@ export class CodexDeveloperMessageBridge {
 			if (
 				message.role !== "custom" ||
 				(message.customType !== CODEX_DEVELOPER_MESSAGE_TYPE &&
-					message.customType !== CODEX_CONTEXT_WINDOW_MESSAGE_TYPE)
+					message.customType !== CODEX_CONTEXT_WINDOW_MESSAGE_TYPE &&
+					message.customType !== CODEX_REASONING_UPDATE_TYPE)
 			) {
 				projected.push(message);
 				continue;
 			}
 			if (!active) continue;
-			if (
-				typeof message.content !== "string" ||
-				message.content.trim() === "" ||
-				!isCodexDeveloperMessageDetails(message.details)
-			)
-				throw new Error("Malformed persisted Codex developer message");
-			const marker = this.marker(message.details.id);
+			const reasoningUpdate = message.customType === CODEX_REASONING_UPDATE_TYPE;
+			let value: string | CodexReasoningUpdate;
+			let id: string;
+			if (reasoningUpdate) {
+				if (!model || !supportsCodexReasoningUpdates(model)) continue;
+				value = readCodexReasoningUpdate(message.details);
+				if (value.lane !== codexReasoningLane(model)) continue;
+				id = value.id;
+			} else {
+				if (typeof message.content !== "string" || message.content.trim() === "" || !isCodexDeveloperMessageDetails(message.details))
+					throw new Error("Malformed persisted Codex developer message");
+				value = message.content;
+				id = message.details.id;
+			}
+			const marker = this.marker(id);
 			if (seen.has(marker))
 				throw new Error("Duplicate persisted Codex developer message");
 			seen.add(marker);
 			const existing = this.carriers.get(marker);
-			if (existing !== undefined && existing !== message.content)
+			if (existing !== undefined && JSON.stringify(existing) !== JSON.stringify(value))
 				throw new Error("Persisted Codex developer message changed content");
-			this.carriers.set(marker, message.content);
+			this.carriers.set(marker, value);
 			projected.push({ ...message, content: marker });
 		}
 		return projected;
@@ -55,6 +67,7 @@ export class CodexDeveloperMessageBridge {
 			);
 		}
 		const matched = new Set<string>();
+		let initialEffort: string | undefined;
 		const input = payload["input"].map((item) => {
 			const marker = readCarrierMarker(item);
 			if (!marker) return item;
@@ -63,13 +76,18 @@ export class CodexDeveloperMessageBridge {
 			if (matched.has(marker))
 				throw new Error("Codex developer message carrier was duplicated");
 			matched.add(marker);
+			if (typeof carrier !== "string") {
+				initialEffort ??= carrier.initialEffort;
+				return { type: "configuration_update", reasoning: { effort: carrier.effort } };
+			}
 			return toDeveloperMessage(item, carrier);
 		});
 		if (containsCarrier(input, this.carriers))
 			throw new Error(
 				"Codex developer message carrier reached an unsupported Responses shape",
 			);
-		return { ...payload, input };
+		if (!initialEffort) return { ...payload, input };
+		return normalizeCodexConfigurationUpdates({ ...payload, input, reasoning: { ...(isRecord(payload["reasoning"]) ? payload["reasoning"] : {}), effort: initialEffort } });
 	}
 
 	clear(): void {
@@ -117,7 +135,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function containsCarrier(
 	value: unknown,
-	carriers: ReadonlyMap<string, string>,
+	carriers: ReadonlyMap<string, unknown>,
 ): boolean {
 	if (typeof value === "string") return carriers.has(value);
 	if (Array.isArray(value))
