@@ -10,6 +10,7 @@ import {
 	CONTEXT_WINDOW_COMPACTION_SUMMARY,
 } from "../src/context-management/messages.ts";
 import { CodexContextWindowManager } from "../src/context-management/window-manager.ts";
+import { CodexContextTreeCoordinator } from "../src/context-management/tree-coordinator.ts";
 import { buildRequestBody } from "../src/providers/openai-codex-custom-provider.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 import { codexModel } from "./openai-codex-test-support.ts";
@@ -52,7 +53,7 @@ test("context windows preserve rollover and native request semantics", async () 
 	assert.equal(
 		await manager.startNewWindow(contextPi, ctx, {
 			triggerTurn: false,
-			mode: "hybrid",
+			mode: "remote",
 		}),
 		true,
 	);
@@ -73,7 +74,7 @@ test("context windows preserve rollover and native request semantics", async () 
 				timestamp: index + 2,
 			})),
 		] as never,
-		true,
+		"remote",
 	);
 	assert.equal(activeWindow.length, 1);
 	assert.match(
@@ -128,13 +129,14 @@ test("context windows preserve rollover and native request semantics", async () 
 		codexTurnState: createCodexTurnState(),
 		developerMessages: contextBridge,
 		contextWindows: manager,
+		contextTree: new CodexContextTreeCoordinator(manager),
 		pendingActiveProviderPromptCapture: true,
 		activeProviderSystemPrompt: "",
 		config: {
 			...DEFAULT_CODEX_CONVERSION_CONFIG,
 			compaction: {
 				...DEFAULT_CODEX_CONVERSION_CONFIG.compaction,
-				contextManagement: "hybrid",
+				contextManagement: "remote",
 			},
 		},
 	};
@@ -175,23 +177,24 @@ test("context windows preserve rollover and native request semantics", async () 
 		tools: Array<{
 			type: string;
 			name: string;
-			parameters: {
-				additionalProperties: boolean;
-				properties: Record<string, Record<string, unknown>>;
-			};
+			tools: Array<{
+				name: string;
+				parameters: {
+					properties: Record<string, Record<string, unknown>>;
+				};
+			}>;
 		}>;
 	};
 	assert.deepEqual(contextPayload.input.map(({ role }) => role), ["developer"]);
 	assert.deepEqual(
 		contextPayload.tools.map(({ type, name }) => [type, name]),
-		[["function", "history"], ["function", "notes"]],
+		[["namespace", "history"], ["namespace", "notes"]],
 	);
+	const notesWrite = contextPayload.tools[1]!.tools.find(
+		(operation) => operation.name === "write_file",
+	)!;
 	assert.equal(
-		"encrypted" in contextPayload.tools[1]!.parameters.properties["text"]!,
-		false,
-	);
-	assert.equal(
-		"action" in contextPayload.tools[1]!.parameters.properties,
+		notesWrite.parameters.properties["text"]!["encrypted"],
 		true,
 	);
 	const metadata = JSON.parse(

@@ -30,9 +30,10 @@ export function normalizeAllProvidersMode(
 export function normalizeContextManagementMode(
 	value: unknown,
 ): ContextManagementMode | undefined {
-	if (value === true) return "hybrid";
-	if (value === false) return "off";
-	return value === "off" || value === "local" || value === "hybrid"
+	return value === "off" ||
+		value === "local" ||
+		value === "tree" ||
+		value === "remote"
 		? value
 		: undefined;
 }

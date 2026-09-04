@@ -2,7 +2,9 @@ import type {
 	ExtensionContext,
 	SessionEntry,
 } from "@earendil-works/pi-coding-agent";
+import type { ContextManagementMode } from "../adapter/activation/config.ts";
 import { CODEX_CONTEXT_WINDOW_MESSAGE_TYPE } from "./messages.ts";
+import { buildTreeArchiveIndex } from "./tree-archive.ts";
 
 const LIST_ITEM_LIMIT = 25;
 const LIST_ITEM_PREVIEW_CHARS = 1_000;
@@ -22,6 +24,7 @@ interface LocalHistoryItem {
 	tool_name?: string | undefined;
 	tool_namespace?: string | undefined;
 	content: string;
+	summary?: true | undefined;
 }
 
 interface LocalHistoryWindow {
@@ -33,8 +36,14 @@ export function readPiSessionHistory(
 	action: LocalHistoryAction,
 	params: Record<string, unknown>,
 	ctx: ExtensionContext,
+	mode: ContextManagementMode = "local",
 ): Record<string, unknown> {
-	const windows = collectWindows(ctx.sessionManager.getBranch());
+	const windows = mode === "tree"
+		? collectTreeWindows(
+			ctx.sessionManager.getEntries(),
+			ctx.sessionManager.getBranch(),
+		)
+		: collectWindows(ctx.sessionManager.getBranch());
 	if (!isCurrentAgent(params["agent_name"]))
 		return action === "list_windows" ? { windows: [] } : { items: [] };
 	if (action === "list_windows") {
@@ -49,10 +58,6 @@ export function readPiSessionHistory(
 	}
 	if (action === "read_item") return readItem(windows, params);
 	const query = action === "search_contents" ? string(params["query"]) : undefined;
-	if (query?.startsWith("gAAAA"))
-		throw new Error(
-			"Encrypted backend history search is unavailable; use list_items and read_item with the previous window ID",
-		);
 	let items = windows.flatMap((window) => window.items);
 	const windowId = nullableString(params["window_id"]);
 	if (windowId) items = items.filter((item) => item.window_id === windowId);
@@ -64,7 +69,15 @@ export function readPiSessionHistory(
 	if (toolNamespace)
 		items = items.filter((item) => item.tool_namespace === toolNamespace);
 	if (query) items = items.filter((item) => item.content.includes(query));
-	if (params["recent_first"] === true) items.reverse();
+	if (mode === "tree" && query) {
+		const summaries = items.filter((item) => item.summary);
+		const raw = items.filter((item) => !item.summary);
+		if (params["recent_first"] === true) {
+			summaries.reverse();
+			raw.reverse();
+		}
+		items = [...summaries, ...raw];
+	} else if (params["recent_first"] === true) items.reverse();
 	const previews = boundedPreviews(
 		items,
 		integer(params["limit"], 10, LIST_ITEM_LIMIT),
@@ -108,6 +121,36 @@ function collectWindows(entries: readonly SessionEntry[]): LocalHistoryWindow[] 
 		if (item) current.items.push(item);
 	}
 	return windows;
+}
+
+function collectTreeWindows(
+	allEntries: readonly SessionEntry[],
+	activeBranch: readonly SessionEntry[],
+): LocalHistoryWindow[] {
+	const index = buildTreeArchiveIndex(allEntries, activeBranch);
+	const archived = index.archives.map(({ manifest, summary, entries }) => ({
+		window_id: manifest.windowId,
+		items: [
+			{
+				window_id: manifest.windowId,
+				item_id: summary.id,
+				role: "assistant",
+				content: summary.summary,
+				summary: true as const,
+			},
+			...entries.flatMap((entry) => {
+				if (
+					entry.type === "custom_message" &&
+					entry.customType === CODEX_CONTEXT_WINDOW_MESSAGE_TYPE
+				)
+					return [];
+				const item = historyItem(entry, manifest.windowId);
+				return item ? [item] : [];
+			}),
+		],
+	}));
+	const current = collectWindows(activeBranch).at(-1);
+	return current ? [...archived, current] : archived;
 }
 
 function historyItem(

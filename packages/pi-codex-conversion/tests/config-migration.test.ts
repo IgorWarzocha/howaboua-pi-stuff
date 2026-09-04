@@ -29,12 +29,12 @@ test("legacy persisted config shapes migrate to the current groups", () => {
 	}).compaction.portableSummary, true);
 	assert.deepEqual(normalizeCodexConversionConfig({
 		compaction: {
-			contextManagement: true,
+			contextManagement: "remote",
 			responsesCompaction: true,
 			portableSummary: true,
 		},
 	}).compaction, {
-		contextManagement: "hybrid",
+		contextManagement: "remote",
 		responsesCompaction: false,
 		portableSummary: false,
 		v2UserMessageRetention: 64,

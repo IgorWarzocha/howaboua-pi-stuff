@@ -4,6 +4,6 @@
 - `openai-responses/tool-history.ts` is the final pairing boundary after message, replay, and payload rewrites; do not bypass it before transport.
 - `openai-responses/message-history.ts` owns model-switch cleanup, image downgrades, tool-call ID pairing, and synthetic aborted results before `shared.ts` serializes Responses wire items.
 - Configured Code Mode proxies own idempotent Responses Lite relocation/header; never depend on `onPayload`.
-- `functions` grouping belongs to Responses Lite. Context windows may expose `history.*` and `notes.*` namespaces on other Responses transports; stream and replay adapters map them to Pi's flat internal routers. Codex transport keeps stable flat routers for transparent Hybrid fallback.
+- `functions` grouping belongs to Responses Lite. Context windows may expose `history.*` and `notes.*` namespaces on other Responses transports; stream and replay adapters map them to Pi's flat internal routers. Codex transport keeps flat Local/Tree routers and uses exact native namespaces for Remote.
 - Configured-provider compaction uses its registered plan-aware stream; Code Mode compaction/replay carries the owned `exec` grammar contract.
 - Honor declared Responses contracts; never compensate incomplete providers with backend-specific heuristics.

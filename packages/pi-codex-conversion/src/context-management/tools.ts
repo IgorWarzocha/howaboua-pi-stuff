@@ -37,11 +37,13 @@ export function createContextWindowTools(
 			executionMode: "sequential",
 			async execute(_id, _params, signal, _update, ctx) {
 				const plan = assertContextManagementActive(ctx, state);
-				const started = await state.contextWindows.startNewWindow(pi, ctx, {
-					triggerTurn: true,
-					signal,
-					mode: plan.contextManagementMode,
-				});
+				const started = plan.contextManagementMode === "tree"
+					? state.contextTree.schedule(ctx)
+					: await state.contextWindows.startNewWindow(pi, ctx, {
+						triggerTurn: true,
+						signal,
+						mode: plan.contextManagementMode,
+					});
 				return {
 					content: [
 						{

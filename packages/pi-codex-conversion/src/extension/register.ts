@@ -12,12 +12,12 @@ import { registerCodexVoiceRenderer } from "../voice/ui.ts";
 import { resolveCodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
 import { captureActiveProviderSystemPrompt } from "../adapter/provider-request.ts";
 import { hasCodexCacheKeepalivePlanChanged } from "../adapter/activation/cache-keepalive.ts";
-import { resetHistoryNotesAvailability } from "../context-management/history-notes.ts";
 
 export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 	registerCodexVoiceRenderer(pi);
 	registerApplyPatchDisplayBroker(pi);
 	const runtime = createCodexExtensionRuntime(pi);
+	runtime.state.contextTree.register(pi);
 	const codeMode = await registerCodexCodeMode(pi, runtime);
 	let cleanupProxyProvider: ReturnType<typeof registerCodeModeProxyProvider> | undefined;
 	try {
@@ -41,8 +41,6 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 			const contextManagementChanged =
 				config.compaction.contextManagement !==
 				previousConfig.compaction.contextManagement;
-			if (contextManagementChanged)
-				resetHistoryNotesAvailability(ctx);
 			if (
 				previousConfig.compaction.contextManagement === "off" &&
 				config.compaction.contextManagement !== "off" &&
@@ -57,7 +55,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 				);
 				void runtime.state.contextWindows.startNewWindow(pi, ctx, {
 					triggerTurn: false,
-					mode: "local",
+					mode: config.compaction.contextManagement,
 				}).catch((error: unknown) => {
 					ctx.ui.notify(`Could not start context window: ${error instanceof Error ? error.message : String(error)}`, "warning");
 				});

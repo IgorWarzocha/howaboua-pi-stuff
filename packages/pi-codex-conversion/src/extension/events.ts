@@ -106,6 +106,7 @@ export function registerCodexEvents(
 		runtime.resetTransport();
 		state.developerMessages.clear();
 		state.contextWindows.reset();
+		state.contextTree.beginSession(pi);
 		runtime.backgroundWidget.ctx = ctx;
 		state.cwd = ctx.cwd;
 		state.config = readEffectiveCodexConversionConfig({
@@ -172,13 +173,14 @@ export function registerCodexEvents(
 		if (!state.config.prompt.heavySystemPromptOverwrite)
 			void runtime.startPrewarm(ctx, codeMode.refreshPromptTools(ctx.getSystemPrompt(), ctx));
 	});
-	pi.on("session_tree", async (_event, ctx) => {
+	pi.on("session_tree", async (event, ctx) => {
 		activeContext = ctx;
 		pendingExtensionToolRefresh = false;
 		const previousMode = state.executionMode;
 		state.activeProviderSystemPrompt = undefined;
 		state.voiceSystemPromptOverride = undefined;
 		runtime.resetTransport(ctx.sessionManager.getSessionId());
+		if (state.contextTree.handleSessionTree(event)) return;
 		if (previousMode === "notebook" || state.executionMode === "notebook") appendNotebookTreeEpoch(pi);
 		await codeMode.shutdownHost();
 		proxyProvider.applyConfig(state.config, ctx.modelRegistry);
@@ -252,10 +254,13 @@ export function registerCodexEvents(
 		await runShutdownStep(failures, () => codeMode.shutdown());
 		state.developerMessages.clear();
 		state.contextWindows.reset();
+		state.contextTree.reset();
 		if (failures.length === 1) throw failures[0];
 		if (failures.length > 1) throw new AggregateError(failures, "Codex extension shutdown failed");
 	});
 	pi.on("input", async (event, ctx) => {
+		const intercepted = state.contextTree.interceptInput(event);
+		if (intercepted) return intercepted;
 		if (event.streamingBehavior === undefined) {
 			activeContext = ctx;
 			pendingExtensionToolRefresh = false;
@@ -309,7 +314,8 @@ export function registerCodexEvents(
 		runtime.voice.settleTurn();
 		runtime.lanVoice.agentSettled();
 		if (!state.config.voiceFeaturesOnly) void ui.refreshUsageStatus(ctx);
-		runtime.armCacheKeepalive(ctx);
+		const rolled = await state.contextTree.settle(pi, ctx);
+		if (!rolled) runtime.armCacheKeepalive(ctx);
 	});
 	pi.on("before_provider_request", async (event, ctx) => {
 		state.cwd = ctx.cwd;
@@ -333,7 +339,10 @@ export function registerCodexEvents(
 		} catch (error) {
 			ctx.ui.notify(`Notebook checkpoint before compaction failed: ${error instanceof Error ? error.message : String(error)}`, "warning");
 		}
-		if (plan.contextManagement)
+		if (
+			plan.contextManagement &&
+			!(plan.contextManagementMode === "tree" && event.reason === "manual")
+		)
 			return { compaction: state.contextWindows.createCompaction(event) };
 		if (!nativeCompaction) return undefined;
 		try {
@@ -358,7 +367,9 @@ export function registerCodexEvents(
 		try {
 			runtime.voice.resetContextAnnouncements();
 			state.pendingPiCompactionNativeWindow = undefined;
+			const plan = resolveCodexRuntimePlanForState(ctx, state);
 			let nativeCompaction = false;
+			let treeRolloverScheduled = false;
 			const contextCompaction =
 				event.fromExtension &&
 				isContextWindowCompactionDetails(event.compactionEntry.details);
@@ -384,22 +395,35 @@ export function registerCodexEvents(
 			if (
 				contextCompaction &&
 				(event.reason === "manual" || event.reason === "overflow")
-			)
+			) {
+				if (plan.contextManagementMode === "tree") {
+					treeRolloverScheduled = state.contextTree.schedule(ctx);
+				} else {
+					await state.contextWindows.startNewWindow(pi, ctx, {
+						triggerTurn: event.reason === "overflow",
+						...(ctx.signal ? { signal: ctx.signal } : {}),
+						mode: plan.contextManagementMode,
+					});
+				}
+			} else if (
+				event.reason === "manual" &&
+				plan.contextManagementMode === "tree"
+			) {
 				await state.contextWindows.startNewWindow(pi, ctx, {
-					triggerTurn: event.reason === "overflow",
-					...(ctx.signal ? { signal: ctx.signal } : {}),
-					mode: resolveCodexRuntimePlanForState(ctx, state)
-						.contextManagementMode,
+					triggerTurn: false,
+					mode: "tree",
 				});
+			}
 			const postCompactionPrompt = codeMode.refreshPromptTools(
 				state.activeProviderSystemPrompt ?? ctx.getSystemPrompt(),
 				ctx,
 			);
 			state.activeProviderSystemPrompt = postCompactionPrompt;
 			runtime.resetTransportAfterCompaction(ctx.sessionManager.getSessionId());
-			await (nativeCompaction
-				? runtime.startCompactionPrewarm(ctx)
-				: runtime.startPrewarm(ctx, postCompactionPrompt, true));
+			if (!treeRolloverScheduled)
+				await (nativeCompaction
+					? runtime.startCompactionPrewarm(ctx)
+					: runtime.startPrewarm(ctx, postCompactionPrompt, true));
 			if (!contextCompaction)
 				await runtime.voice.refreshRealtimeAfterCompaction(ctx, state.config);
 		} finally {
@@ -408,8 +432,16 @@ export function registerCodexEvents(
 	});
 	pi.on("context", async (event, ctx) => {
 		const plan = resolveCodexRuntimePlanForState(ctx, state);
+		const branch = ctx.sessionManager.getBranch();
 		const messages = state.contextWindows
-			.project(event.messages, plan.contextManagement)
+			.project(
+				event.messages,
+				plan.contextManagementMode,
+				branch,
+				plan.contextManagementMode === "tree"
+					? ctx.sessionManager.getEntries()
+					: branch,
+			)
 			.filter((message) => !isProviderContextExcludedMessage(message));
 		return {
 			messages: state.developerMessages.prepare(

@@ -26,6 +26,10 @@ import {
 	renderContextWindowMessage,
 	renderContextWindowReminder,
 } from "./messages.ts";
+import {
+	buildTreeArchiveIndex,
+	filterTreeArchiveSummaries,
+} from "./tree-archive.ts";
 
 interface StartContextWindowOptions {
 	triggerTurn: boolean;
@@ -61,6 +65,10 @@ export class CodexContextWindowManager {
 		this.remindedWindows.clear();
 		this.exhaustedWindows.clear();
 		this.rolloverPending = false;
+	}
+
+	currentIdentity(): ContextWindowIdentity | undefined {
+		return this.identity ? { ...this.identity } : undefined;
 	}
 
 	restore(entries: readonly SessionEntry[]): void {
@@ -102,8 +110,13 @@ export class CodexContextWindowManager {
 		);
 	}
 
-	project(messages: readonly AgentMessage[], active: boolean): AgentMessage[] {
-		if (!active)
+	project(
+		messages: readonly AgentMessage[],
+		mode: ContextManagementMode,
+		activeEntries: readonly SessionEntry[] = [],
+		allEntries: readonly SessionEntry[] = activeEntries,
+	): AgentMessage[] {
+		if (mode === "off")
 			return messages.filter(
 				(message) =>
 					message.role !== "custom" ||
@@ -124,6 +137,14 @@ export class CodexContextWindowManager {
 				message.details as CodexContextManagementMessageDetails,
 			);
 		}
+		if (mode === "tree") {
+			const index = buildTreeArchiveIndex(allEntries, activeEntries);
+			const projected = (index.archives.length === 0 || index.invalidManifest) && boundaryIndex >= 0
+				? messages.slice(boundaryIndex)
+				: messages;
+			this.rolloverPending = false;
+			return filterTreeArchiveSummaries(projected, index);
+		}
 		if (boundaryIndex < 0) return [...messages];
 		this.rolloverPending = false;
 		return messages.slice(boundaryIndex);
@@ -138,7 +159,7 @@ export class CodexContextWindowManager {
 		this.rolloverPending = true;
 		try {
 			const current = this.identity;
-			const threadHint = current && options.mode === "hybrid"
+			const threadHint = current && options.mode === "remote"
 				? await this.loadThreadHint(ctx, options.mode, options.signal)
 				: undefined;
 			const currentWindowId = randomUUID();
@@ -357,9 +378,11 @@ function identityFromDetails(
 	};
 }
 
-function findLatestWindowBoundaryEntry(
+export function findLatestWindowBoundaryEntry(
 	entries: readonly SessionEntry[],
-): Extract<SessionEntry, { type: "custom_message" }> | undefined {
+): (Extract<SessionEntry, { type: "custom_message" }> & {
+	details: CodexContextManagementMessageDetails;
+}) | undefined {
 	for (let index = entries.length - 1; index >= 0; index -= 1) {
 		const entry = entries[index]!;
 		if (
@@ -368,7 +391,9 @@ function findLatestWindowBoundaryEntry(
 			isCodexContextManagementMessageDetails(entry.details) &&
 			entry.details.contextManagement.kind === "window"
 		)
-			return entry;
+			return entry as Extract<SessionEntry, { type: "custom_message" }> & {
+				details: CodexContextManagementMessageDetails;
+			};
 	}
 	return undefined;
 }

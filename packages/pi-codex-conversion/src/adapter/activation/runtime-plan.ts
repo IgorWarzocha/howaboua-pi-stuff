@@ -145,12 +145,15 @@ export function resolveCodexRuntimePlan(
 
 	const active = config.scope.allProviders === "on" || isConfigured || isCodexLikeModel(ctx.model);
 	if (!active) return { ...base, kind: "inactive", toolNames: [], prompt: undefined, transport: undefined };
-	const contextManagementMode = isResponsesContext(ctx)
+	const configuredContextManagementMode = isResponsesContext(ctx)
 		? config.compaction.contextManagement
 		: "off";
-	const contextManagement = contextManagementMode !== "off";
-	const contextManagementRemote = contextManagementMode === "hybrid" &&
-		(ctx.model?.api ?? "").trim().toLowerCase() === "openai-codex-responses";
+	const contextManagement = configuredContextManagementMode !== "off" &&
+		(configuredContextManagementMode !== "remote" || codexTransport);
+	const contextManagementMode = contextManagement
+		? configuredContextManagementMode
+		: "off";
+	const contextManagementRemote = contextManagementMode === "remote";
 	const nativeCompaction = config.compaction.responsesCompaction && effectiveOpenAICodex && !contextManagement;
 	const configuredExecutionMode = executionMode ?? config.executionMode;
 	const requestedCodeMode = configuredExecutionMode === "code" || configuredExecutionMode === "notebook"

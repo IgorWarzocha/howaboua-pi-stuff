@@ -72,14 +72,16 @@ export function buildAdapterSettings(
 				id: "contextManagement",
 				label: "Context management (experimental)",
 				currentValue: config.compaction.contextManagement,
-				values: ["off", "local", "hybrid"],
+				values: ["off", "local", "tree", "remote"],
 			},
 			(value, current) => ({
 				...current,
 				compaction: {
 					...current.compaction,
 					contextManagement:
-						value === "local" || value === "hybrid" ? value : "off",
+						value === "local" || value === "tree" || value === "remote"
+							? value
+							: "off",
 					...(value !== "off"
 						? { responsesCompaction: false, portableSummary: false }
 						: {}),

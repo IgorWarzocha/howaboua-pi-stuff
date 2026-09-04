@@ -40,10 +40,11 @@ function nullableRole(): JsonSchema {
 	};
 }
 
-function string(description?: string): JsonSchema {
+function string(description?: string, encrypted = false): JsonSchema {
 	return {
 		type: "string",
 		...(description ? { description } : {}),
+		...(encrypted ? { encrypted: true } : {}),
 	};
 }
 
@@ -74,7 +75,7 @@ function operation(
 	return { type: "function", name, description, strict: false, parameters };
 }
 
-function historyNamespace(): Record<string, unknown> {
+function historyNamespace(encrypted: boolean): Record<string, unknown> {
 	return {
 		type: "namespace",
 		name: "history",
@@ -127,7 +128,7 @@ function historyNamespace(): Record<string, unknown> {
 					{
 						agent_name: nullable("string"),
 						limit: integer(1),
-						query: string("Case-sensitive"),
+						query: string("Case-sensitive", encrypted),
 						recent_first: { type: "boolean" },
 						role: nullableRole(),
 						tool_name: nullable("string"),
@@ -141,7 +142,7 @@ function historyNamespace(): Record<string, unknown> {
 	};
 }
 
-function notesNamespace(): Record<string, unknown> {
+function notesNamespace(encrypted: boolean): Record<string, unknown> {
 	return {
 		type: "namespace",
 		name: "notes",
@@ -183,7 +184,7 @@ function notesNamespace(): Record<string, unknown> {
 						max_files: integer(1),
 						max_matches_per_file: integer(1),
 						path_prefix: nullable("string"),
-						query: string("Case-sensitive"),
+						query: string("Case-sensitive", encrypted),
 						recent_file_first: { type: "boolean" },
 					},
 					["query"],
@@ -195,7 +196,7 @@ function notesNamespace(): Record<string, unknown> {
 				object(
 					{
 						path: { type: "string" },
-						text: string(),
+						text: string(undefined, encrypted),
 					},
 					["text", "path"],
 				),
@@ -206,7 +207,7 @@ function notesNamespace(): Record<string, unknown> {
 				object(
 					{
 						path: { type: "string" },
-						text: string(),
+						text: string(undefined, encrypted),
 					},
 					["text", "path"],
 				),
@@ -217,10 +218,11 @@ function notesNamespace(): Record<string, unknown> {
 
 function contextNamespace(
 	name: ContextNamespace,
+	encrypted: boolean,
 ): Record<string, unknown> {
 	return name === "history"
-		? historyNamespace()
-		: notesNamespace();
+		? historyNamespace(encrypted)
+		: notesNamespace(encrypted);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -238,25 +240,28 @@ function namespaceName(value: unknown): ContextNamespace | undefined {
 
 function rewriteTools(
 	tools: readonly unknown[],
+	encrypted: boolean,
 ): { tools: unknown[]; changed: boolean } {
 	let changed = false;
 	const rewritten = tools.map((tool) => {
 		const name = namespaceName(tool);
 		if (!name) return tool;
 		changed = true;
-		return contextNamespace(name);
+		return contextNamespace(name, encrypted);
 	});
 	return { tools: rewritten, changed };
 }
 
 export function rewriteContextNamespaceTools(
 	payload: unknown,
+	options: { encrypted?: boolean } = {},
 ): unknown {
 	if (!isRecord(payload)) return payload;
+	const encrypted = options.encrypted === true;
 	let changed = false;
 	let tools = payload["tools"];
 	if (Array.isArray(tools)) {
-		const result = rewriteTools(tools);
+		const result = rewriteTools(tools, encrypted);
 		tools = result.tools;
 		changed ||= result.changed;
 	}
@@ -264,7 +269,7 @@ export function rewriteContextNamespaceTools(
 	if (Array.isArray(input)) {
 		input = input.map((item) => {
 			if (!isRecord(item) || !Array.isArray(item["tools"])) return item;
-			const result = rewriteTools(item["tools"]);
+			const result = rewriteTools(item["tools"], encrypted);
 			if (!result.changed) return item;
 			changed = true;
 			return { ...item, tools: result.tools };

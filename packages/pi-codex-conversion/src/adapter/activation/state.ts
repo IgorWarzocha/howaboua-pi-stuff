@@ -5,6 +5,7 @@ import type { CodexTurnState } from "../../providers/openai-codex/turn-state.ts"
 import type { ExecutionMode } from "./execution-mode.ts";
 import type { CodexDeveloperMessageBridge } from "../developer-messages.ts";
 import type { CodexContextWindowManager } from "../../context-management/window-manager.ts";
+import type { CodexContextTreeCoordinator } from "../../context-management/tree-coordinator.ts";
 
 export interface PendingPiCompactionNativeWindow {
 	window: ResponsesInputItem[];
@@ -31,5 +32,6 @@ export interface AdapterState {
 	codexTurnState: CodexTurnState;
 	developerMessages: CodexDeveloperMessageBridge;
 	contextWindows: CodexContextWindowManager;
+	contextTree: CodexContextTreeCoordinator;
 	pendingPiCompactionNativeWindow?: PendingPiCompactionNativeWindow | undefined;
 }

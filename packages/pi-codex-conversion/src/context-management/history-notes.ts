@@ -25,9 +25,6 @@ import {
 const BACKEND_TIMEOUT_MS = 35_000;
 const THREAD_HINT_MAX_BYTES = 4_000;
 const TOOL_OUTPUT_TOKEN_LIMIT = 10_000;
-const UNAVAILABLE_BACKENDS = new Set<string>();
-
-class HistoryNotesBackendUnavailableError extends Error {}
 
 const HISTORY_ENDPOINTS = {
 	list_windows: "alpha/history/v2/list_windows",
@@ -43,6 +40,13 @@ const NOTES_ENDPOINTS = {
 	append_to_file: "alpha/notes/v2/append_to_file",
 	write_file: "alpha/notes/v2/write_file",
 } as const satisfies Record<NotesAction, string>;
+
+const ENCRYPTED_ARGUMENT_ENDPOINTS = new Set<string>([
+	HISTORY_ENDPOINTS.search_contents,
+	NOTES_ENDPOINTS.search_contents,
+	NOTES_ENDPOINTS.append_to_file,
+	NOTES_ENDPOINTS.write_file,
+]);
 
 const HISTORY_ACTION_SET = new Set<string>(HISTORY_ACTIONS);
 const NOTES_ACTION_SET = new Set<string>(NOTES_ACTIONS);
@@ -155,7 +159,7 @@ export interface CodexHistoryNotesDetails {
 export function createHistoryNotesTools(
 	pi?: Pick<ExtensionAPI, "appendEntry">,
 	resolveMode: (ctx: ExtensionContext) => ContextManagementMode = () =>
-		"hybrid",
+		"local",
 ): [
 	ToolDefinition<typeof HISTORY_PARAMETERS, CodexHistoryNotesDetails>,
 	ToolDefinition<typeof NOTES_PARAMETERS, CodexHistoryNotesDetails>,
@@ -211,21 +215,17 @@ export async function fetchHistoryNotesThreadHint(
 	signal?: AbortSignal,
 ): Promise<string | undefined> {
 	if (!usesRemoteHistoryNotes(ctx, mode)) return undefined;
-	try {
-		const result = await callHistoryNotesBackend(
-			"alpha/notes/v2/thread_hint",
-			{},
-			ctx,
-			signal,
-			{ mode: "bytes", limit: THREAD_HINT_MAX_BYTES },
-		);
-		const text = typeof result["text"] === "string" ? result["text"] : "";
-		return text && Buffer.byteLength(text, "utf8") <= THREAD_HINT_MAX_BYTES
-			? text
-			: undefined;
-	} catch {
-		return undefined;
-	}
+	const result = await callHistoryNotesBackend(
+		"alpha/notes/v2/thread_hint",
+		{},
+		ctx,
+		signal,
+		{ mode: "bytes", limit: THREAD_HINT_MAX_BYTES },
+	);
+	const text = typeof result["text"] === "string" ? result["text"] : "";
+	return text && Buffer.byteLength(text, "utf8") <= THREAD_HINT_MAX_BYTES
+		? text
+		: undefined;
 }
 
 async function callHistoryNotesTool(
@@ -239,22 +239,17 @@ async function callHistoryNotesTool(
 	pi: Pick<ExtensionAPI, "appendEntry"> | undefined,
 ): Promise<AgentToolResult<CodexHistoryNotesDetails>> {
 	let result: Record<string, unknown>;
-	if (!usesRemoteHistoryNotes(ctx, mode)) {
-		result = callLocalHistoryNotes(namespace, action, params, ctx, pi);
-	} else {
-		try {
-			result = await callHistoryNotesBackend(
-				endpoint,
-				stripAction(params),
-				ctx,
-				signal,
-				{ mode: "tokens", limit: TOOL_OUTPUT_TOKEN_LIMIT },
-			);
-		} catch (error) {
-			if (!(error instanceof HistoryNotesBackendUnavailableError)) throw error;
-			result = callLocalHistoryNotes(namespace, action, params, ctx, pi);
-		}
-	}
+	if (mode === "remote") {
+		if (!usesRemoteHistoryNotes(ctx, mode))
+			throw new Error("Remote history and notes require Codex transport");
+		result = await callHistoryNotesBackend(
+			endpoint,
+			stripAction(params),
+			ctx,
+			signal,
+			{ mode: "tokens", limit: TOOL_OUTPUT_TOKEN_LIMIT },
+		);
+	} else result = callLocalHistoryNotes(namespace, action, params, ctx, pi, mode);
 	const modelResult = { ...result };
 	delete modelResult["images"];
 	const content: AgentToolResult<CodexHistoryNotesDetails>["content"] = [
@@ -280,77 +275,49 @@ async function callHistoryNotesBackend(
 	signal: AbortSignal | undefined,
 	truncationPolicy: { mode: "bytes" | "tokens"; limit: number },
 ): Promise<Record<string, unknown>> {
-	const unavailableKey = historyNotesAvailabilityKey(ctx);
-	if (UNAVAILABLE_BACKENDS.has(unavailableKey))
-		throw new HistoryNotesBackendUnavailableError(
-			"History and notes backend is unavailable",
-		);
-	try {
-		const provider = await resolveCodexToolProvider(ctx);
-		if (provider.route !== "openai-codex")
-			throw new Error("History and notes require the OpenAI Codex backend");
-		const headers = codexToolProviderHeaders(provider);
-		headers.set(
-			"x-openai-tool-output-truncation-policy",
-			JSON.stringify(truncationPolicy),
-		);
-		const timeoutSignal = AbortSignal.timeout(BACKEND_TIMEOUT_MS);
-		const response = await fetch(
-			`${provider.baseUrl.replace(/\/+$/, "")}/${endpoint}`,
-			{
-				method: "POST",
-				headers,
-				signal: signal
-					? AbortSignal.any([signal, timeoutSignal])
-					: timeoutSignal,
-				body: JSON.stringify({
-					...arguments_,
-					context: {
-						session_id: ctx.sessionManager.getSessionId(),
-						current_agent_name: "/root",
-					},
-				}),
-			},
-		);
-		if (!response.ok) throw new Error("History and notes backend failed");
-		const result: unknown = JSON.parse(await response.text());
-		if (!result || typeof result !== "object" || Array.isArray(result))
-			throw new Error("History and notes backend returned invalid data");
-		return result as Record<string, unknown>;
-	} catch (error) {
-		if (signal?.aborted) throw error;
-		UNAVAILABLE_BACKENDS.add(unavailableKey);
-		throw new HistoryNotesBackendUnavailableError(
-			"History and notes backend is unavailable",
-		);
-	}
+	const provider = await resolveCodexToolProvider(ctx);
+	if (provider.route !== "openai-codex")
+		throw new Error("History and notes require the OpenAI Codex backend");
+	const headers = codexToolProviderHeaders(provider);
+	headers.set(
+		"x-openai-tool-output-truncation-policy",
+		JSON.stringify(truncationPolicy),
+	);
+	if (ENCRYPTED_ARGUMENT_ENDPOINTS.has(endpoint))
+		headers.set("x-openai-encrypted-tool-arguments", "true");
+	const timeoutSignal = AbortSignal.timeout(BACKEND_TIMEOUT_MS);
+	const response = await fetch(
+		`${provider.baseUrl.replace(/\/+$/, "")}/${endpoint}`,
+		{
+			method: "POST",
+			headers,
+			signal: signal
+				? AbortSignal.any([signal, timeoutSignal])
+				: timeoutSignal,
+			body: JSON.stringify({
+				...arguments_,
+				context: {
+					session_id: ctx.sessionManager.getSessionId(),
+					current_agent_name: "/root",
+				},
+			}),
+		},
+	);
+	if (!response.ok)
+		throw new Error(`History and notes backend failed (${response.status})`);
+	const result: unknown = JSON.parse(await response.text());
+	if (!result || typeof result !== "object" || Array.isArray(result))
+		throw new Error("History and notes backend returned invalid data");
+	return result as Record<string, unknown>;
 }
 
 export function usesRemoteHistoryNotes(
 	ctx: Pick<ExtensionContext, "model" | "sessionManager">,
 	mode: ContextManagementMode,
 ): boolean {
-	return mode === "hybrid" &&
+	return mode === "remote" &&
 		(ctx.model?.api ?? "").trim().toLowerCase() ===
-			"openai-codex-responses" &&
-		!UNAVAILABLE_BACKENDS.has(historyNotesAvailabilityKey(ctx));
-}
-
-export function resetHistoryNotesAvailability(
-	ctx: Pick<ExtensionContext, "model" | "sessionManager">,
-): void {
-	UNAVAILABLE_BACKENDS.delete(historyNotesAvailabilityKey(ctx));
-}
-
-function historyNotesAvailabilityKey(
-	ctx: Pick<ExtensionContext, "model" | "sessionManager">,
-): string {
-	return [
-		ctx.sessionManager.getSessionId(),
-		ctx.model?.provider ?? "",
-		ctx.model?.api ?? "",
-		ctx.model?.baseUrl ?? "",
-	].join("\0");
+			"openai-codex-responses";
 }
 
 function callLocalHistoryNotes(
@@ -359,9 +326,10 @@ function callLocalHistoryNotes(
 	params: Record<string, unknown>,
 	ctx: ExtensionContext,
 	pi: Pick<ExtensionAPI, "appendEntry"> | undefined,
+	mode: ContextManagementMode,
 ): Record<string, unknown> {
 	if (namespace === "history")
-		return readPiSessionHistory(action as HistoryAction, params, ctx);
+		return readPiSessionHistory(action as HistoryAction, params, ctx, mode);
 	if (!pi) throw new Error("Local notes require an active Pi session");
 	return usePiSessionNotes(pi, action as NotesAction, params, ctx);
 }

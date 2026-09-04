@@ -26,6 +26,7 @@ import { createLazyCodexDiagnostics } from "../diagnostics/lazy.ts";
 import type { CodexDiagnosticsSink } from "../providers/openai-codex/types.ts";
 import { CodexDeveloperMessageBridge } from "../adapter/developer-messages.ts";
 import { CodexContextWindowManager } from "../context-management/window-manager.ts";
+import { CodexContextTreeCoordinator } from "../context-management/tree-coordinator.ts";
 
 export type CodexContext = ExtensionContext;
 
@@ -75,6 +76,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		console.warn(`[pi-codex-conversion] ${warning}`);
 	}
 	const initialConfig = readEffectiveCodexConversionConfig({ cwd: process.cwd(), projectTrusted: false });
+	const contextWindows = new CodexContextWindowManager();
 	const state: AdapterState = {
 		enabled: false,
 		cwd: process.cwd(),
@@ -83,7 +85,8 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		executionMode: initialConfig.executionMode,
 		codexTurnState: createCodexTurnState(),
 		developerMessages: new CodexDeveloperMessageBridge(),
-		contextWindows: new CodexContextWindowManager(),
+		contextWindows,
+		contextTree: new CodexContextTreeCoordinator(contextWindows),
 	};
 	const tracker = createExecCommandTracker();
 	const sessions = createExecSessionManager({
@@ -252,9 +255,14 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 
 	const currentMessages = (ctx: CodexContext) => {
 		const plan = resolveCodexRuntimePlanForState(ctx, state);
+		const branch = ctx.sessionManager.getBranch();
 		const projected = state.contextWindows.project(
-			buildSessionContext(ctx.sessionManager.getBranch()).messages,
-			plan.contextManagement,
+			buildSessionContext(branch).messages,
+			plan.contextManagementMode,
+			branch,
+			plan.contextManagementMode === "tree"
+				? ctx.sessionManager.getEntries()
+				: branch,
 		);
 		return convertToLlm(
 			state.developerMessages.prepare(

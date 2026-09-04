@@ -69,7 +69,7 @@ function createContext(noteEntries: readonly Record<string, unknown>[]) {
 	} as never;
 }
 
-test("history and notes fall through once and stay local after remote failure", async () => {
+test("remote context storage is exact while local storage stays in Pi", async () => {
 	const originalFetch = globalThis.fetch;
 	let request: { url: string; init: RequestInit } | undefined;
 	try {
@@ -97,8 +97,8 @@ test("history and notes fall through once and stay local after remote failure", 
 			},
 		} as never;
 		const context = createContext(noteEntries);
-		const [history, notes] = createHistoryNotesTools(pi);
-		const noteResult = await notes.execute(
+		const [, remoteNotes] = createHistoryNotesTools(pi, () => "remote");
+		const noteResult = await remoteNotes.execute(
 			"write-note",
 			{ action: "write_file", path: "checkpoint.md", text: "progress" },
 			undefined,
@@ -116,7 +116,7 @@ test("history and notes fall through once and stay local after remote failure", 
 			new Headers(request?.init.headers).get(
 				"x-openai-encrypted-tool-arguments",
 			),
-			null,
+			"true",
 		);
 		assert.deepEqual(JSON.parse(String(request?.init.body)), {
 			path: "checkpoint.md",
@@ -126,22 +126,6 @@ test("history and notes fall through once and stay local after remote failure", 
 				current_agent_name: "/root",
 			},
 		});
-		await assert.rejects(
-			() => notes.execute(
-				"invalid-note",
-				{
-					action: "write_file",
-					path: "checkpoint.md",
-					text: "progress",
-					query: "irrelevant",
-				},
-				undefined,
-				undefined,
-				context,
-			),
-			/notes write_file does not accept query/,
-		);
-
 		let failedRequests = 0;
 		globalThis.fetch = (async () => {
 			failedRequests += 1;
@@ -150,25 +134,35 @@ test("history and notes fall through once and stay local after remote failure", 
 				{ status: 400 },
 			);
 		}) as typeof fetch;
-		const fallbackNote = await notes.execute(
-			"fallback-note",
+		for (let attempt = 0; attempt < 2; attempt += 1)
+			await assert.rejects(
+				() => remoteNotes.execute(
+					`failed-note-${attempt}`,
+					{ action: "write_file", path: "checkpoint.md", text: "progress" },
+					undefined,
+					undefined,
+					context,
+				),
+				/History and notes backend failed \(400\)/,
+			);
+		assert.equal(failedRequests, 2);
+
+		const [localHistory, localNotes] = createHistoryNotesTools(pi, () => "local");
+		await localNotes.execute(
+			"write-local-note",
 			{ action: "write_file", path: "checkpoint.md", text: "progress" },
 			undefined,
 			undefined,
 			context,
 		);
-		assert.equal(
-			fallbackNote.details.codexHistoryNotes["source"],
-			"pi-session",
-		);
-		const fallback = await history.execute(
+		const localItems = await localHistory.execute(
 			"list-old-window",
 			{ action: "list_items", window_id: windowId },
 			undefined,
 			undefined,
 			context,
 		);
-		assert.deepEqual(fallback.details.codexHistoryNotes, {
+		assert.deepEqual(localItems.details.codexHistoryNotes, {
 			source: "pi-session",
 			items: [{
 				window_id: windowId,
@@ -179,15 +173,8 @@ test("history and notes fall through once and stay local after remote failure", 
 			}],
 		});
 
-		await notes.execute(
-			"append-after-fallback",
-			{ action: "append_to_file", path: "checkpoint.md", text: "\nnext" },
-			undefined,
-			undefined,
-			context,
-		);
-		const localRead = await notes.execute(
-			"read-after-fallback",
+		const localRead = await localNotes.execute(
+			"read-local-note",
 			{ action: "read_file", path: "/root/notes/checkpoint.md" },
 			undefined,
 			undefined,
@@ -196,9 +183,8 @@ test("history and notes fall through once and stay local after remote failure", 
 		assert.equal(
 			(localRead.details.codexHistoryNotes["file"] as { content: string })
 				.content,
-			"progress\nnext",
+			"progress",
 		);
-		assert.equal(failedRequests, 1);
 	} finally {
 		globalThis.fetch = originalFetch;
 	}

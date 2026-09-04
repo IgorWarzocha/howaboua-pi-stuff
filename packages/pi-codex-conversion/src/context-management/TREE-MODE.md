@@ -1,6 +1,6 @@
 # Tree context management
 
-Status: design only. Do not begin implementation from conversational memory; reread this file after compaction.
+Status: implemented contract. Keep this file synchronized with the runtime.
 
 ## Outcome
 
@@ -31,7 +31,7 @@ flowchart LR
 
 ## Mode model
 
-Replace the mixed Hybrid mode with four explicit choices:
+Use four explicit choices:
 
 | Mode | Storage and recovery | Provider contract |
 | --- | --- | --- |
@@ -40,13 +40,13 @@ Replace the mixed Hybrid mode with four explicit choices:
 | **Tree** | Pi side branches, hidden summaries and local note snapshots | Local retrieval; no remote calls |
 | **Remote** | Codex history and notes service | Exact Codex namespaces, encrypted arguments and outputs; Codex transport only; no fallback |
 
-Hybrid should not survive this redesign. It mixes backend detection, changing schemas, encrypted and plaintext calls, and local state into one session. Remote must either work as the native Codex feature or fail honestly. Users choose Local or Tree when they want provider-independent recovery.
+Remote must either work as the native Codex feature or fail honestly. Users choose Local or Tree when they want provider-independent recovery.
 
 Tree is a separate mode because its persisted topology differs from Local, not because the model sees different rollover semantics.
 
 ## Verified Pi machinery
 
-The design was checked against both the Pi source checkout at `/home/igorw/Frameworks/pi` and the installed Pi 0.84.4 declarations used by this package.
+The design was checked against canonical Pi source and the Pi 0.84.4 declarations used by this package.
 
 ### Command context capture
 
@@ -334,7 +334,7 @@ Never silently fall back from Remote to Local or Tree.
 
 Likely ownership:
 
-- `adapter/activation/config.ts`, migration and settings UI: replace Hybrid with Tree and Remote
+- `adapter/activation/config.ts` and settings UI: expose Tree and Remote
 - `context-management/window-manager.ts`: boundary entry IDs, pending identities and Tree projection
 - new `context-management/tree-coordinator.ts`: command capture, abort/settled state machine and internal-navigation guard
 - new `context-management/tree-archive.ts`: manifest validation, bounded traversal and index rebuild
@@ -349,7 +349,7 @@ Keep tree machinery out of provider transports. It is Pi session lifecycle, not 
 
 ## Validation plan
 
-Before broad implementation, build one focused lifecycle prototype against Pi 0.84.4 proving:
+The focused lifecycle proof against Pi 0.84.4 must cover:
 
 1. the internal command captures a working `ExtensionCommandContext` on startup and resume
 2. `new_context` aborts and reaches exactly one `agent_settled`
@@ -376,14 +376,12 @@ Then protect the independent contracts:
 
 Use focused checks while iterating and the package umbrella gate once after review. Do not turn the test suite back into a lifecycle tour.
 
-## Open proof points
+## Verified choices
 
-These are implementation questions, not design ambiguity:
+1. The tool aborts only after recording the pending rollover. Pi persists its tool result before emitting `agent_settled`.
+2. Navigation runs directly in the awaited `agent_settled` handler; the final boundary triggers only after the summary, manifest and note snapshot exist.
+3. Input submitted during navigation is intercepted and replayed as follow-up input after the new boundary.
+4. Pi's default branch-summary instructions are sufficient; Tree adds no standing prompt or Tree-specific model tool.
+5. Remote mirrors the native namespace schemas, encrypted sensitive arguments and encrypted output contract. A live enabled account remains the final backend acceptance check.
 
-1. Find the abort point that guarantees the triggering tool result is persisted before tree navigation.
-2. Prove whether the final boundary can safely trigger from `session_tree`, or whether a guarded post-navigation continuation is required.
-3. Prove queued user input cannot overtake manifest and boundary persistence.
-4. Decide whether default Pi branch-summary instructions are sufficient or need concise Tree-specific indexing instructions.
-5. Verify Remote history/notes accepts the exact native encrypted contract on a live enabled account.
-
-The Pi framework checkout does not currently have dependencies installed, so its focused Vitest files could not be executed during this investigation. The source, checked-in regression tests and installed 0.84.4 API declarations all agree on the mechanics above.
+Canonical source, checked-in regression tests and installed 0.84.4 API declarations agree on the lifecycle mechanics above.

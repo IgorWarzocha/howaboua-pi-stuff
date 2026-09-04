@@ -5,9 +5,11 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 
 const CONTEXT_NOTE_ENTRY_TYPE = "codex-context-note";
+export const CONTEXT_NOTE_SNAPSHOT_ENTRY_TYPE = "codex-context-note-snapshot";
 const NOTE_PROTOCOL = 1;
 const CURRENT_NOTES_ROOT = "/root/notes";
 const MAX_FILE_BYTES = 1_000_000;
+const MAX_SNAPSHOT_BYTES = 10_000_000;
 const MAX_LIST_RESULTS = 100;
 const MAX_SEARCH_FILES = 100;
 const MAX_MATCHES_PER_FILE = 100;
@@ -25,6 +27,17 @@ interface NoteEntryData {
 	path: string;
 	text: string;
 	timestamp: number;
+}
+
+export interface NoteSnapshotData {
+	protocol: 1;
+	timestamp: number;
+	files: Array<{
+		path: string;
+		text: string;
+		createdAt: number;
+		updatedAt: number;
+	}>;
 }
 
 interface LocalNote {
@@ -47,9 +60,39 @@ export function usePiSessionNotes(
 	return writeNote(pi, notes, action, params);
 }
 
+export function createPiSessionNotesSnapshot(
+	entries: readonly SessionEntry[],
+): NoteSnapshotData {
+	const files = [...collectNotes(entries).values()]
+		.sort((left, right) => left.path.localeCompare(right.path))
+		.map((note) => ({
+			path: note.path,
+			text: note.text,
+			createdAt: note.createdAt,
+			updatedAt: note.updatedAt,
+		}));
+	const snapshot: NoteSnapshotData = {
+		protocol: NOTE_PROTOCOL,
+		timestamp: Date.now(),
+		files,
+	};
+	if (Buffer.byteLength(JSON.stringify(snapshot), "utf8") > MAX_SNAPSHOT_BYTES)
+		throw new Error("Context note snapshot exceeds the 10,000,000-byte limit");
+	return snapshot;
+}
+
 function collectNotes(entries: readonly SessionEntry[]): Map<string, LocalNote> {
 	const notes = new Map<string, LocalNote>();
 	for (const entry of entries) {
+		if (
+			entry.type === "custom" &&
+			entry.customType === CONTEXT_NOTE_SNAPSHOT_ENTRY_TYPE &&
+			isNoteSnapshotData(entry.data)
+		) {
+			notes.clear();
+			for (const file of entry.data.files) notes.set(file.path, { ...file });
+			continue;
+		}
 		if (
 			entry.type !== "custom" ||
 			entry.customType !== CONTEXT_NOTE_ENTRY_TYPE ||
@@ -262,4 +305,21 @@ function isNoteEntryData(value: unknown): value is NoteEntryData {
 		typeof entry["path"] === "string" &&
 		typeof entry["text"] === "string" &&
 		typeof entry["timestamp"] === "number";
+}
+
+function isNoteSnapshotData(value: unknown): value is NoteSnapshotData {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+	const snapshot = value as Record<string, unknown>;
+	return snapshot["protocol"] === NOTE_PROTOCOL &&
+		typeof snapshot["timestamp"] === "number" &&
+		Array.isArray(snapshot["files"]) &&
+		snapshot["files"].every((file) => {
+			if (!file || typeof file !== "object" || Array.isArray(file)) return false;
+			const record = file as Record<string, unknown>;
+			return typeof record["path"] === "string" &&
+				typeof record["text"] === "string" &&
+				Buffer.byteLength(record["text"], "utf8") <= MAX_FILE_BYTES &&
+				typeof record["createdAt"] === "number" &&
+				typeof record["updatedAt"] === "number";
+		});
 }

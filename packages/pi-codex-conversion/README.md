@@ -84,21 +84,22 @@ Responses compaction V2 stores an encrypted checkpoint for the Codex lane. If yo
 
 ## Context management
 
-**Context management (experimental)** ports Codex's newer no-summary context lifecycle. A session starts with a persisted purple window marker. `new_context` closes the active model context and continues from a fresh marker while the shell, Notebook runtime, workspace and complete Pi JSONL remain intact. Nothing summarizes the old window automatically.
+**Context management (experimental)** ports Codex's newer no-summary context lifecycle. A session starts with a persisted purple window marker. `new_context` closes the active model context and continues from a fresh marker while the shell, Notebook runtime, workspace and complete Pi JSONL remain intact. No summary is automatically added to the model's next window.
 
 Keep Context management enabled when resuming sessions that used it. To disable it for a session, first run `/compact` while it is enabled, then switch it off in the new window. Disabling it earlier removes its recovery tools and may rejoin previously separated windows into ordinary Pi context.
 
 Choose its backend under `/codex` → **General**:
 
 - **Off** disables context management.
-- **Local** reads prior windows from Pi's JSONL and persists private note updates there as model-invisible entries.
-- **Hybrid** tries Codex's history/notes service on an `openai-codex-responses` transport, transparently completes a failed operation from Pi's JSONL, then stays local for the session. Other Responses transports use local storage immediately.
+- **Local** keeps the current latest-boundary projection, reads prior windows from Pi's JSONL and persists note updates there as model-invisible entries.
+- **Tree** archives completed windows as Pi side branches. Pi's branch summary stays visible in the transcript but out of model context; history search prioritizes it and can still return every archived raw entry.
+- **Remote** uses Codex's history and notes service on `openai-codex-responses`. It uses the native encrypted contract and fails without changing storage modes. Other transports ignore this setting.
 
-The model receives terse context tools. Other Responses transports can use Codex's native `history.*` and `notes.*` namespace operations. Codex transport uses stable flat `history` and `notes` action routers in both **Local** and **Hybrid**, so remote fallback does not change tools or spend another model turn. Structured mode also adds `new_context` and `get_context_remaining`. In Code and Notebook Mode, the lifecycle and recovery tools stay direct while `get_context_remaining` is available inside `exec`, matching native exposure. Encrypted remote outputs remain true Responses tool output.
+The model receives terse context tools. Local and Tree use flat `history` and `notes` routers on Codex transport and native `history.*` and `notes.*` namespaces on other Responses transports. Remote uses Codex's native namespaces, encrypted sensitive arguments and encrypted tool output. Structured mode also adds `new_context` and `get_context_remaining`. In Code and Notebook Mode, the lifecycle and recovery tools stay direct while `get_context_remaining` is available inside `exec`, matching native exposure.
 
-The model receives one reminder at 6,144 tokens remaining. At the normal Pi reserve boundary it must checkpoint and roll over; an actual overflow forces a fresh window before Pi retries. `/compact` also starts a fresh no-summary window while this mode is active. Pi may still add internal compaction entries to prune its live in-memory context, but those entries contain only a fixed boundary marker and never enter provider context.
+The model receives one reminder at 6,144 tokens remaining. At the normal Pi reserve boundary it must checkpoint and roll over; an actual overflow forces a fresh window before Pi retries. Local and Remote use a fixed no-summary marker for internal Pi compaction. Tree turns each completed window into a searchable side branch. Manual `/compact` in Tree instead creates a readable cumulative Pi summary and a fresh window, making it the safe point to disable Context management.
 
-Context management works anywhere the active Pi Codex adapter uses a Responses API and is mutually exclusive with Responses compaction V2. Other provider APIs ignore the setting. Switching it on mid-session starts a fresh model window on the next input.
+Local and Tree work anywhere the active Pi Codex adapter uses a Responses API. Remote requires Codex transport. Context management is mutually exclusive with Responses compaction V2; other provider APIs ignore it. Switching it on mid-session starts a fresh model window on the next input.
 
 ## Cache diagnostics
 

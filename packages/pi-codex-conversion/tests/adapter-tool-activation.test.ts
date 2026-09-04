@@ -10,6 +10,7 @@ import {
 import type { AdapterState } from "../src/adapter/activation/state.ts";
 import { CodexDeveloperMessageBridge } from "../src/adapter/developer-messages.ts";
 import { CodexContextWindowManager } from "../src/context-management/window-manager.ts";
+import { CodexContextTreeCoordinator } from "../src/context-management/tree-coordinator.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 
 const CANONICAL_CODEX_BASE_URL = "https://chatgpt.com/backend-api";
@@ -41,6 +42,7 @@ function createToolHarness(activeTools: string[]) {
 }
 
 function createAdapterState(overrides: Partial<AdapterState["config"]> = {}): AdapterState {
+	const contextWindows = new CodexContextWindowManager();
 	return {
 		enabled: false,
 		cwd: process.cwd(),
@@ -48,7 +50,8 @@ function createAdapterState(overrides: Partial<AdapterState["config"]> = {}): Ad
 		executionMode: overrides.executionMode ?? DEFAULT_CODEX_CONVERSION_CONFIG.executionMode,
 		codexTurnState: createCodexTurnState(),
 		developerMessages: new CodexDeveloperMessageBridge(),
-		contextWindows: new CodexContextWindowManager(),
+		contextWindows,
+		contextTree: new CodexContextTreeCoordinator(contextWindows),
 		config: {
 			...DEFAULT_CODEX_CONVERSION_CONFIG,
 			...overrides,
@@ -238,7 +241,7 @@ test("native Responses compaction stays scoped to OpenAI Codex and explicit prov
 		...config,
 		compaction: {
 			...config.compaction,
-			contextManagement: "hybrid" as const,
+			contextManagement: "remote" as const,
 			responsesCompaction: true,
 		},
 	};
@@ -273,9 +276,27 @@ test("native Responses compaction stays scoped to OpenAI Codex and explicit prov
 			mode: generic.contextManagementMode,
 			remote: generic.contextManagementRemote,
 		},
-		{ active: true, mode: "hybrid", remote: false },
+		{ active: false, mode: "off", remote: false },
 	);
-	assert.equal([...generic.toolNames].includes("new_context"), true);
+	assert.equal([...generic.toolNames].includes("new_context"), false);
+	const tree = resolveCodexRuntimePlan(
+		createContext({ provider: "openai", api: "openai-responses", id: "gpt-5.6" }) as never,
+		{
+			...contextWindows,
+			compaction: {
+				...contextWindows.compaction,
+				contextManagement: "tree",
+			},
+		},
+	);
+	assert.deepEqual(
+		{
+			active: tree.contextManagement,
+			mode: tree.contextManagementMode,
+			remote: tree.contextManagementRemote,
+		},
+		{ active: true, mode: "tree", remote: false },
+	);
 
 	const notebook = resolveCodexRuntimePlan(
 		createContext({
