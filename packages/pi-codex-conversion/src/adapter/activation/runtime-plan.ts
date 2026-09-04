@@ -81,7 +81,7 @@ function proxySupportsResponsesLite(ctx: RuntimeContext, config: CodexConversion
 	const modelId = ctx.model?.id;
 	if (!modelId) return false;
 	const id = modelId.includes("/") ? (modelId.split("/").pop() ?? modelId) : modelId;
-	return /^gpt-5\.6(?:-(?:luna|terra|sol))?$/.test(id.toLowerCase());
+	return /^(?:gpt-6-astra|gpt-5\.6(?:-(?:luna|terra|sol))?)$/.test(id.toLowerCase());
 }
 
 function usesResponsesLite(ctx: RuntimeContext, config: CodexConversionConfig): boolean {

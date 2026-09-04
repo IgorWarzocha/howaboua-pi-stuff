@@ -4,7 +4,7 @@ import { createGrammarToolInputProperties } from "./constrained-sampling.js";
 import { extractAccountId, buildWebSocketHeaders, PI_CODEX_CONVERSION_ORIGINATOR, resolveCodexRequestRouting, resolveCodexWebSocketUrl } from "./openai-codex/headers.ts";
 import { noThrowCodexDiagnosticsSink } from "./openai-codex/diagnostic-failure.ts";
 import { buildRequestBody } from "./openai-codex/request-body.ts";
-import { openAICodexProviderModelsWithDaybreak } from "./openai-codex/model-catalog.ts";
+import { openAICodexProviderModels } from "./openai-codex/model-catalog.ts";
 import { supportsResponsesLiteModel } from "./openai-codex/responses-lite-model.ts";
 import { applyResponsesLiteRequest, applyResponsesLiteWebSocketMetadata, isResponsesLiteRequest, namespaceExistingResponsesLiteRequest, prepareResponsesLiteRequestImages } from "./openai-codex/responses-lite.ts";
 import type { CodexDiagnosticsSink, CodexPrewarmDiagnostics, CodexPrewarmResult, OpenAICodexStreamOptions, ResponsesBody } from "./openai-codex/types.ts";
@@ -126,7 +126,7 @@ export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: {
 }): void {
 	pi.registerProvider("openai-codex", {
 		api: "openai-codex-responses",
-		models: openAICodexProviderModelsWithDaybreak(),
+		models: openAICodexProviderModels(),
 		oauth: openaiCodexNativeOAuthProvider,
 		streamSimple: (model, context, streamOptions) => {
 			const stream = createCodexTransportStream(model, context, streamOptions, {

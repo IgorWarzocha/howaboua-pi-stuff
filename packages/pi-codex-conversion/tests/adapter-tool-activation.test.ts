@@ -191,14 +191,16 @@ test("execution mode and Responses Lite transport resolve independently", () => 
 		scope: { allProviders: "off", additionalProviders: ["litellm"] },
 	}).config;
 	const pre56 = resolveCodexRuntimePlan(createContext({ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.5", baseUrl: CANONICAL_CODEX_BASE_URL }) as never, config);
+	const astra = resolveCodexRuntimePlan(createContext({ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-6-astra", baseUrl: CANONICAL_CODEX_BASE_URL }) as never, config);
 	const proxyWithoutLite = resolveCodexRuntimePlan(createContext({ provider: "litellm", api: "openai-responses", id: "gpt-5.6" }) as never, config);
 	const proxyWithLite = resolveCodexRuntimePlan(
-		createContext({ provider: "litellm", api: "openai-responses", id: "gpt-5.6" }) as never,
+		createContext({ provider: "litellm", api: "openai-responses", id: "gpt-6-astra" }) as never,
 		{ ...config, openai: { ...config.openai, proxyResponsesLite: true } },
 	);
 
 	assert.deepEqual({ kind: pre56.kind, transport: pre56.transport }, { kind: "code", transport: "responses" });
 	assert.deepEqual(pre56.toolNames, ["exec", "wait"]);
+	assert.deepEqual({ kind: astra.kind, transport: astra.transport }, { kind: "code", transport: "responses-lite" });
 	assert.deepEqual({ kind: proxyWithoutLite.kind, transport: proxyWithoutLite.transport }, { kind: "code", transport: "responses" });
 	assert.deepEqual({ kind: proxyWithLite.kind, transport: proxyWithLite.transport }, { kind: "code", transport: "responses-lite" });
 
