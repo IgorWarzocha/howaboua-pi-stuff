@@ -7,7 +7,7 @@ import { resolveCodexCacheKeepalivePlan, type CodexCacheKeepalivePlan, type Code
 import { getCodexConversionConfigPath, readEffectiveCodexConversionConfig } from "../adapter/activation/config-store.ts";
 import { isAdapterRuntime, resolveCodexRuntimePlan, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import type { AdapterState } from "../adapter/activation/state.ts";
-import { rewriteCodexPrewarmProviderRequest, rewriteCodexProviderRequest } from "../adapter/provider-request.ts";
+import { rewriteCodexPrewarmProviderRequest, rewriteCodexProviderRequest, supportsCodexDeveloperMessages } from "../adapter/provider-request.ts";
 import { getPiCodexRuntimeShell } from "../adapter/prompt/runtime-shell.ts";
 import { isProviderContextExcludedMessage } from "../adapter/prompt/context-filter.ts";
 import { buildCodexSystemPrompt, type PiSystemPromptOptions } from "../prompt/build-system-prompt.ts";
@@ -24,6 +24,8 @@ import { CodexLanVoiceServerController } from "../voice/lan/controller.ts";
 import { getActiveToolsInActiveOrder } from "../adapter/active-tools.ts";
 import { createLazyCodexDiagnostics } from "../diagnostics/lazy.ts";
 import type { CodexDiagnosticsSink } from "../providers/openai-codex/types.ts";
+import { CodexDeveloperMessageBridge } from "../adapter/developer-messages.ts";
+import { CodexContextWindowManager } from "../context-management/window-manager.ts";
 
 export type CodexContext = ExtensionContext;
 
@@ -80,6 +82,8 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		config: initialConfig,
 		executionMode: initialConfig.executionMode,
 		codexTurnState: createCodexTurnState(),
+		developerMessages: new CodexDeveloperMessageBridge(),
+		contextWindows: new CodexContextWindowManager(),
 	};
 	const tracker = createExecCommandTracker();
 	const sessions = createExecSessionManager({
@@ -246,10 +250,21 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		return promise;
 	};
 
-	const currentMessages = (ctx: CodexContext) => convertToLlm(
-		buildSessionContext(ctx.sessionManager.getBranch()).messages
-			.filter((message) => !isProviderContextExcludedMessage(message)),
-	);
+	const currentMessages = (ctx: CodexContext) => {
+		const plan = resolveCodexRuntimePlanForState(ctx, state);
+		const projected = state.contextWindows.project(
+			buildSessionContext(ctx.sessionManager.getBranch()).messages,
+			plan.contextManagement,
+		);
+		return convertToLlm(
+			state.developerMessages.prepare(
+				projected.filter(
+					(message) => !isProviderContextExcludedMessage(message),
+				),
+				supportsCodexDeveloperMessages(ctx, state),
+			),
+		);
+	};
 
 	const currentContextPrewarm = (ctx: CodexContext, kind: "compaction" | "keepalive") => {
 		const keepalivePlan = kind === "keepalive"

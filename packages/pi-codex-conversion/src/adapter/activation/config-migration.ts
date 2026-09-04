@@ -64,6 +64,7 @@ export function migrateCodexConversionConfigIfNeeded(value: unknown): { migrated
 			backgroundShellCloseShortcut: stringValue(value["backgroundShellCloseShortcut"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellCloseShortcut"]),
 		},
 		compaction: {
+			contextManagement: DEFAULT_CODEX_CONVERSION_CONFIG.compaction.contextManagement,
 			responsesCompaction: typeof value["responsesCompaction"] === "boolean" ? value["responsesCompaction"] : DEFAULT_CODEX_CONVERSION_CONFIG.compaction["responsesCompaction"],
 			portableSummary: DEFAULT_CODEX_CONVERSION_CONFIG.compaction.portableSummary,
 			v2UserMessageRetention: DEFAULT_CODEX_CONVERSION_CONFIG.compaction.v2UserMessageRetention,

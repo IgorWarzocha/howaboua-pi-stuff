@@ -1,5 +1,6 @@
 - `runtime-plan.ts` is the sole model/provider activation, tool-surface, prompt, transport, and compaction policy; consumers execute its plan rather than reconstructing predicates.
 - Runtime variants: `inactive`, `extras`, `normal`, `code`, `notebook`. Recommend Notebook; never auto-select mode. Ignore legacy `mode: "path"`; never restore PATH injection or shell interception.
+- Execution mode follows adapter scope independently of provider transport. Responses Lite is an eligible-route transport choice, not a mode gate.
 - Startup/resume may read and normalize config in memory; persistence belongs only to explicit settings actions.
 - Explicit writes preserve unknown fields while updating the adapter-owned config.
 - `config.ts` is the compatibility facade; contracts/defaults, shared value readers, public normalizers, and aggregate normalization stay in their named `config-*` modules.

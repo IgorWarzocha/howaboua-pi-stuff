@@ -20,6 +20,10 @@ import {
 	getEffectiveCodexTransport,
 	type CodexProviderRuntimeConfig,
 } from "./openai-codex/transport-recovery.ts";
+import {
+	hasContextNamespaceRouters,
+	routeContextNamespaceToolStream,
+} from "../context-management/namespace-tools.ts";
 
 export { buildRequestBody } from "./openai-codex/request-body.ts";
 export { parseSSE } from "./openai-codex/sse.ts";
@@ -124,13 +128,18 @@ export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: {
 		api: "openai-codex-responses",
 		models: openAICodexProviderModelsWithDaybreak(),
 		oauth: openaiCodexNativeOAuthProvider,
-		streamSimple: (model, context, streamOptions) => createCodexTransportStream(model, context, streamOptions, {
-			prepareRequestBody: prepareCodexRequestBody,
-			...(options.getConfig ? { getConfig: options.getConfig } : {}),
-			...(options.useResponsesLite ? { useResponsesLite: options.useResponsesLite } : {}),
-			...(options.turnState ? { turnState: options.turnState } : {}),
-			...(options.onPreparedPayload ? { onPreparedPayload: options.onPreparedPayload } : {}),
-			...(options.getDiagnostics ? { getDiagnostics: options.getDiagnostics } : {}),
-		}),
+		streamSimple: (model, context, streamOptions) => {
+			const stream = createCodexTransportStream(model, context, streamOptions, {
+				prepareRequestBody: prepareCodexRequestBody,
+				...(options.getConfig ? { getConfig: options.getConfig } : {}),
+				...(options.useResponsesLite ? { useResponsesLite: options.useResponsesLite } : {}),
+				...(options.turnState ? { turnState: options.turnState } : {}),
+				...(options.onPreparedPayload ? { onPreparedPayload: options.onPreparedPayload } : {}),
+				...(options.getDiagnostics ? { getDiagnostics: options.getDiagnostics } : {}),
+			});
+			return hasContextNamespaceRouters(context)
+				? routeContextNamespaceToolStream(stream)
+				: stream;
+		},
 	});
 }

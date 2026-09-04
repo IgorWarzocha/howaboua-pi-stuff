@@ -12,11 +12,15 @@ import type { ExtensionAPI, ModelRegistry } from "@earendil-works/pi-coding-agen
 import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import type { ExecutionMode } from "../adapter/activation/execution-mode.ts";
-import { isCodeModeRuntime, resolveCodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
+import { resolveCodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
 import { buildRequestBody } from "./openai-codex/request-body.ts";
 import { applyResponsesLiteRequest, isResponsesLiteRequest, namespaceExistingResponsesLiteRequest, prepareResponsesLiteRequestImages, RESPONSES_LITE_HEADER } from "./openai-codex/responses-lite.ts";
 import { assertSuccessfulCodexOutput, processCodexResponsesStream } from "./openai-codex/stream-events.ts";
 import type { OpenAICodexStreamOptions, ResponsesBody, StreamEventShape } from "./openai-codex/types.ts";
+import {
+	hasContextNamespaceRouters,
+	routeContextNamespaceToolStream,
+} from "../context-management/namespace-tools.ts";
 
 function initialAssistantMessage<TApi extends Api>(model: Model<TApi>): AssistantMessage {
 	return {
@@ -158,19 +162,35 @@ export interface CodeModeProxyProviderRegistration {
 
 type CodeModeModelRegistry = Pick<ModelRegistry, "getAll" | "getProvider" | "getRegisteredProviderConfig">;
 type RegisteredProviderConfig = Parameters<ExtensionAPI["registerProvider"]>[1];
+type ResponsesApi = "openai-responses" | "openai-codex-responses";
 
-function configuredProxyProviders(config: CodexConversionConfig, executionMode?: ExecutionMode): Set<string> {
-	const mode = executionMode ?? config.executionMode;
-	const enabled = mode === "code" || mode === "notebook";
-	return new Set(!config.voiceFeaturesOnly && enabled && config.openai.proxyResponsesLite
-		? config.scope.additionalProviders.filter((provider) => provider !== "openai-codex")
-		: []);
-}
-
-function resolveProviderIds(configuredProviders: Set<string>, modelRegistry: CodeModeModelRegistry): Set<string> {
-	const resolved = new Set<string>();
+function resolveProviderApis(
+	config: CodexConversionConfig,
+	executionMode: ExecutionMode | undefined,
+	modelRegistry: CodeModeModelRegistry,
+): Map<string, ResponsesApi> {
+	const resolved = new Map<string, ResponsesApi>();
 	for (const model of modelRegistry.getAll()) {
-		if (model.api === "openai-responses" && configuredProviders.has(model.provider.trim().toLowerCase())) resolved.add(model.provider);
+		if (
+			model.api !== "openai-responses" &&
+			model.api !== "openai-codex-responses"
+		)
+			continue;
+		const api: ResponsesApi = model.api === "openai-responses"
+			? "openai-responses"
+			: "openai-codex-responses";
+		const plan = resolveCodexRuntimePlan({ model }, config, executionMode);
+		const mode = executionMode ?? config.executionMode;
+		const configuredResponsesLite =
+			model.api === "openai-responses" &&
+			!config.voiceFeaturesOnly &&
+			(mode === "code" || mode === "notebook") &&
+			config.openai.proxyResponsesLite &&
+			config.scope.additionalProviders.includes(
+				model.provider.trim().toLowerCase(),
+			);
+		if (configuredResponsesLite || plan.contextManagement)
+			resolved.set(model.provider, api);
 	}
 	return resolved;
 }
@@ -184,6 +204,7 @@ export function registerCodeModeProxyProvider(
 		previous: RegisteredProviderConfig | undefined;
 		overlayStream: NonNullable<RegisteredProviderConfig["streamSimple"]>;
 		modelRegistry: CodeModeModelRegistry;
+		api: ResponsesApi;
 	}>();
 	const restoreProvider = (provider: string, registration: NonNullable<ReturnType<typeof registeredProviders.get>>) => {
 		const current = registration.modelRegistry.getRegisteredProviderConfig?.(provider) as RegisteredProviderConfig | undefined;
@@ -192,7 +213,7 @@ export function registerCodeModeProxyProvider(
 		if (registration.previous?.streamSimple) restored.streamSimple = registration.previous.streamSimple;
 		else delete restored.streamSimple;
 		if (registration.previous?.api) restored.api = registration.previous.api;
-		else if (!registration.previous?.streamSimple && current.api === "openai-responses") delete restored.api;
+		else if (!registration.previous?.streamSimple && current.api === registration.api) delete restored.api;
 		pi.unregisterProvider(provider);
 		if (Object.keys(restored).length > 0) pi.registerProvider(provider, restored);
 	};
@@ -201,23 +222,57 @@ export function registerCodeModeProxyProvider(
 		registeredProviders.clear();
 	};
 	const applyConfig = (config: CodexConversionConfig, modelRegistry: CodeModeModelRegistry) => {
-		const configuredProviders = configuredProxyProviders(config, getExecutionMode());
-		const desiredProviders = resolveProviderIds(configuredProviders, modelRegistry);
-		for (const provider of desiredProviders) {
-			if (registeredProviders.has(provider)) continue;
+		const desiredProviders = resolveProviderApis(
+			config,
+			getExecutionMode(),
+			modelRegistry,
+		);
+		for (const [provider, api] of desiredProviders) {
+			const existing = registeredProviders.get(provider);
+			if (existing?.api === api) continue;
+			if (existing) {
+				restoreProvider(provider, existing);
+				registeredProviders.delete(provider);
+			}
 			const previous = modelRegistry.getRegisteredProviderConfig(provider) as RegisteredProviderConfig | undefined;
-			if (previous?.streamSimple && previous.api !== "openai-responses") continue;
+			if (
+				previous?.streamSimple &&
+				previous.api !== "openai-responses" &&
+				previous.api !== "openai-codex-responses"
+			)
+				continue;
 			const fallbackProvider = modelRegistry.getProvider(provider);
 			if (!fallbackProvider) throw new Error(`Cannot overlay missing provider: ${provider}`);
-			const overlayStream: NonNullable<RegisteredProviderConfig["streamSimple"]> = (model, context, options) =>
-				isCodeModeRuntime(resolveCodexRuntimePlan({ model }, getConfig(), getExecutionMode()))
-					? streamCodeModeResponsesProxy(model, context, options)
-					: fallbackProvider.streamSimple(model as never, context, options);
+			const overlayStream: NonNullable<RegisteredProviderConfig["streamSimple"]> = (model, context, options) => {
+				const plan = resolveCodexRuntimePlan(
+					{ model },
+					getConfig(),
+					getExecutionMode(),
+				);
+				if (
+					model.api === "openai-responses" &&
+					plan.transport === "responses-lite"
+				)
+					return streamCodeModeResponsesProxy(model, context, options);
+				const stream = fallbackProvider.streamSimple(
+					model as never,
+					context,
+					options,
+				);
+				return plan.contextManagement && hasContextNamespaceRouters(context)
+					? routeContextNamespaceToolStream(stream)
+					: stream;
+			};
 			pi.registerProvider(provider, {
-				api: "openai-responses",
+				api,
 				streamSimple: overlayStream,
 			});
-			registeredProviders.set(provider, { previous, overlayStream, modelRegistry });
+			registeredProviders.set(provider, {
+				previous,
+				overlayStream,
+				modelRegistry,
+				api,
+			});
 		}
 		for (const [provider, registration] of registeredProviders) {
 			if (desiredProviders.has(provider)) continue;

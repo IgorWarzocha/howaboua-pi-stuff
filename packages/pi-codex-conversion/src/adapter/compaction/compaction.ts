@@ -232,7 +232,9 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 	const runtime = resolution.runtime;
 	const compactionTargetModel = runtime.currentModel;
 	const codeMode = isCodeModeRuntime(plan);
-	const serializationOptions = codeMode ? { grammarToolInputProperties: CODE_MODE_EXEC_GRAMMAR_INPUTS } : undefined;
+	const serializationOptions = plan.transport === "responses-lite"
+		? { grammarToolInputProperties: CODE_MODE_EXEC_GRAMMAR_INPUTS }
+		: undefined;
 	const requestOptions = buildCompactionRequestOptions(pi, ctx, state, compactionTargetModel, codeMode);
 	const branchEntries = ctx.sessionManager.getBranch();
 	const latestNativeCompaction = resolveLatestNativeCompactionEntry(branchEntries, {
@@ -411,7 +413,9 @@ export async function rewriteCodexCompactedProviderRequest(payload: unknown, ctx
 		payload: runtime.payload,
 		branchEntries,
 		compactionEntry,
-		serializationOptions: isCodeModeRuntime(plan) ? { grammarToolInputProperties: CODE_MODE_EXEC_GRAMMAR_INPUTS } : undefined,
+		serializationOptions: plan.transport === "responses-lite"
+			? { grammarToolInputProperties: CODE_MODE_EXEC_GRAMMAR_INPUTS }
+			: undefined,
 	});
 	if (rewrite.ok) return rewrite.rewrittenPayload;
 	const detail = rewrite.parity?.mismatches.slice(0, 3).join("; ");

@@ -21,6 +21,7 @@ Open `/codex` after installation. The defaults give Codex-like GPT models the st
 - [What you get](#what-you-get)
 - [Modes](#modes)
 - [Settings](#settings)
+- [Context windows](#context-windows)
 - [Cache diagnostics](#cache-diagnostics)
 - [Code Mode and custom tools](#code-mode-and-custom-tools)
 - [Voice, dictation and GipPity](#voice-dictation-and-gippity)
@@ -31,11 +32,11 @@ Open `/codex` after installation. The defaults give Codex-like GPT models the st
 ## What you get
 
 - Codex-shaped `exec_command`, `write_stdin`, `apply_patch` and `view_image` tools
-- GPT-5.6 Code Mode with only `exec` and `wait` added by the conversion at provider level
+- Code and Notebook modes that compose the active toolset behind `exec`
 - foreground, background and interactive shell sessions with resumable output
 - image descriptions for blind models
 - realtime voice, push-to-dictate and the GipPity LAN remote mini WebUI
-- OpenAI verbosity, fast mode, cached transport, usage, reset credits and Responses compaction
+- OpenAI verbosity, fast mode, cached transport, usage, reset credits, context windows and Responses compaction
 - compact Pi-native rendering, status and background-shell controls
 
 Pi keeps its sessions, project context, skills and UI. The model gets the dialect it already knows.
@@ -61,7 +62,7 @@ Provider scope can stay on **Codex and configured**, expand to **all providers**
 
 | Tab | Covers |
 | --- | --- |
-| General | Settings scope, execution mode, extension mode, providers and heavy prompt overwrite |
+| General | Settings scope, execution mode, context windows, extension mode, providers and heavy prompt overwrite |
 | Tools | Image description fallback and standalone tools |
 | OpenAI | Fast mode, verbosity, transport, cache diagnostics, Responses Lite and compaction |
 | Display | Statusline, tool rendering, Code Mode detail and background shells |
@@ -80,6 +81,22 @@ Without folder settings, the project inherits the complete global configuration.
 The optional **Heavy system prompt overwrite** removes roughly 40% of Pi's known default scaffold while preserving additions from other extensions. It is off by default.
 
 Responses compaction V2 stores an encrypted checkpoint for the Codex lane. If you switch providers inside long sessions, enable **Parallel Pi-native compaction** beside it. Each native compaction then runs Pi's normal cumulative summarizer on an isolated request lane and stores the readable result alongside the encrypted checkpoint. Codex replay keeps using the native checkpoint, while other providers receive the Pi summary. This adds summarization cost, so it is off by default.
+
+## Context windows
+
+**Context windows (experimental)** ports Codex's newer no-summary context lifecycle. A session starts with a persisted purple window marker. `new_context` closes the active model context and continues from a fresh marker while the shell, Notebook runtime, workspace and complete Pi JSONL remain intact. Nothing summarizes the old window automatically.
+
+Choose its backend under `/codex` → **General**:
+
+- **Off** disables context windows.
+- **Local** reads prior windows from Pi's JSONL and persists private note updates there as model-invisible entries.
+- **Hybrid** uses Codex's encrypted history/notes service on an `openai-codex-responses` transport when available, then sticks to local storage after a capability or connection miss. Other Responses transports use local storage immediately.
+
+The model receives Codex's native `history.*` and `notes.*` namespace operations with terser contracts. Structured mode also adds `new_context` and `get_context_remaining`. In Code and Notebook Mode, the lifecycle and recovery tools stay direct while `get_context_remaining` is available inside `exec`, matching native exposure. Encrypted remote outputs remain true Responses tool output. Codex transport rejects its reserved namespaces without encrypted arguments, so **Local**—and **Hybrid** after its first encrypted capability miss—uses equivalent flat `history` and `notes` action routers there.
+
+The model receives one reminder at 6,144 tokens remaining. At the normal Pi reserve boundary it must checkpoint and roll over; an actual overflow forces a fresh window before Pi retries. `/compact` also starts a fresh no-summary window while this mode is active. Pi may still add internal compaction entries to prune its live in-memory context, but those entries contain only a fixed boundary marker and never enter provider context.
+
+Context windows work anywhere the active Pi Codex adapter uses a Responses API and are mutually exclusive with Responses compaction V2. Other provider APIs ignore the setting. Switching it on mid-session starts a fresh model window on the next input.
 
 ## Cache diagnostics
 
@@ -117,7 +134,7 @@ Logs contain request lane, transport, socket reuse, continuation decision, item 
 
 ## Code Mode and custom tools
 
-Select **Code** or **Notebook (recommended)** under `/codex` → **General**. They currently support OpenAI Codex Luna, Terra, Sol, Daybreak Blue and Daybreak Red. Configured OpenAI Responses-compatible providers can also use those model IDs or the GPT-5.6 alias with **Proxy Responses Lite** enabled. Other configured or all-provider routes stay on the structured adapter. Unrelated models retain Pi's ordinary tools.
+Select **Code** or **Notebook (recommended)** under `/codex` → **General**. The selected execution mode applies everywhere the adapter is active, including **all providers** scope. Each provider keeps its normal transport. Compatible Codex models use Responses Lite automatically, while configured OpenAI Responses proxies can opt into it separately with **Proxy Responses Lite**.
 
 The model can compose tools in one freeform JavaScript cell:
 
@@ -150,6 +167,19 @@ pi.on("session_shutdown", () => registration.unregister());
 ```
 
 The complete bundled example at [`examples/code-mode-extension/`](./examples/code-mode-extension) includes the tool, extension entry point and package manifest. Declare `@howaboua/pi-codex-conversion` 3.0.24 or newer as a peer dependency. Import the API lazily when the extension should still work without Pi Codex.
+
+Extensions can also inject a real Responses `developer` message:
+
+```ts
+import { sendCodexDeveloperMessage } from "@howaboua/pi-codex-conversion/developer-messages";
+
+sendCodexDeveloperMessage(pi, "Re-evaluate the plan before editing.", {
+	deliverAs: "steer",
+	triggerTurn: false,
+});
+```
+
+The message persists in the session and appears in Pi's fixed purple message block, while the active Responses adapter sends its content to the model with role `developer`. The purple wrapper, label and persistence metadata stay model-invisible. `deliverAs` accepts Pi's native `steer`, `followUp` and `nextTurn` modes; `triggerTurn` independently starts an idle turn for the first two modes. The call fails when no compatible Pi Codex Responses adapter is active and never falls back to a user message.
 
 The adapted definition keeps its Pi context, UI, schema and progress updates. JavaScript receives model-usable result content, while the tool's exact result remains available to its ordinary Pi renderer. Code Mode owns the JavaScript call and runs its own nested-tool preflight.
 Tool names that are not JavaScript identifiers receive the same translated name in Code and Notebook Mode, including prompt guidance and `ALL_TOOLS`.
@@ -266,7 +296,7 @@ This is also a major change for users of the old canonical package. Legacy PATH 
 - **GipPity cannot open the microphone:** use one of Pi's HTTPS URLs and accept its local certificate. Browsers block microphone access on plain LAN HTTP.
 - **Code Mode cannot start:** its pinned host is prepared lazily and honours normal proxy environment variables. Pi reports setup failures instead of hanging the first execution.
 - **A bundled helper cannot run on this system:** build the core helper from a checkout on the target machine, put it in `tools.customRustBinariesDir`, then run `/reload`. Do not replace system glibc for this. Web search and image generation are TypeScript extensions and need no platform helper.
-- **A configured provider fails:** it must implement the OpenAI Responses contracts required by the enabled feature. Code Mode additionally needs Responses Lite compatibility; native compaction needs the Codex compaction contract.
+- **A configured provider fails:** it must implement its declared provider API. Proxy Responses Lite and native compaction additionally need their respective backend contracts.
 
 For anything stranger, clone the repository and ask your Clanka:
 

@@ -1,11 +1,11 @@
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { calculateContextTokens, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { readEffectiveCodexConversionConfig } from "../adapter/activation/config-store.ts";
 import { syncAdapter } from "../adapter/activation/activation.ts";
 import { isAdapterRuntime, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import { hasPortableNativeCompactionSummary, isNativeCompactionDetails, NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE, NATIVE_COMPACTION_DISPLAY_TEXT, NATIVE_COMPACTION_PORTABLE_DISPLAY_TEXT, NATIVE_COMPACTION_STRATEGY, type NativeCompactionDisplayEntry, type NativeCompactionUsage } from "../adapter/compaction/types.ts";
 import { findLatestCompactionEntry } from "../adapter/compaction/details-store.ts";
 import { handleCodexSessionBeforeCompact } from "../adapter/compaction/compaction.ts";
-import { rewriteCodexProviderHeaders, rewriteCodexProviderRequest } from "../adapter/provider-request.ts";
+import { rewriteCodexProviderHeaders, rewriteCodexProviderRequest, supportsCodexDeveloperMessages } from "../adapter/provider-request.ts";
 import { isProviderContextExcludedMessage } from "../adapter/prompt/context-filter.ts";
 import { hasNoSkillsFlag } from "../adapter/prompt/skills.ts";
 import { onCodeModeExtensionToolsRefresh } from "../code-mode-extension-tools.ts";
@@ -22,6 +22,8 @@ import { formatCompactionCacheDiagnostic } from "../adapter/compaction/diagnosti
 import type { CodexExtensionRuntime } from "./runtime.ts";
 import type { CodexToolRegistration } from "./tools.ts";
 import type { CodexUiController } from "./ui.ts";
+import { registerCodexDeveloperMessageBroker } from "../developer-messages.ts";
+import { isContextWindowCompactionDetails } from "../context-management/messages.ts";
 
 function formatCompactionUsage(usage: NativeCompactionUsage): string {
 	const ratio = usage.inputTokens > 0 ? `${((usage.cachedInputTokens / usage.inputTokens) * 100).toFixed(1)}%` : "0%";
@@ -67,6 +69,13 @@ export function registerCodexEvents(
 	const { state, tracker, sessions } = runtime;
 	let activeContext: ExtensionContext | undefined;
 	let pendingExtensionToolRefresh = false;
+	const unregisterDeveloperMessageBroker = registerCodexDeveloperMessageBroker(
+		pi,
+		() => Boolean(
+			activeContext &&
+			supportsCodexDeveloperMessages(activeContext, state),
+		),
+	);
 	const unregisterExtensionToolRefresh = onCodeModeExtensionToolsRefresh(
 		pi,
 		() => {
@@ -95,6 +104,8 @@ export function registerCodexEvents(
 		runtime.voice.resetSessionContext();
 		initializeBashParser();
 		runtime.resetTransport();
+		state.developerMessages.clear();
+		state.contextWindows.reset();
 		runtime.backgroundWidget.ctx = ctx;
 		state.cwd = ctx.cwd;
 		state.config = readEffectiveCodexConversionConfig({
@@ -118,7 +129,12 @@ export function registerCodexEvents(
 		tracker.clear();
 		clearApplyPatchRenderState();
 		ui.renderBackgroundWidget();
-		syncAdapter(pi, ctx, state);
+		const plan = syncAdapter(pi, ctx, state);
+		state.contextWindows.ensureInitialized(
+			pi,
+			ctx,
+			plan.contextManagement,
+		);
 		await runtime.configureDiagnostics(ctx);
 		void ui.refreshUsageStatus(ctx);
 		prepareCodeModeHost(codeMode, ctx);
@@ -144,7 +160,12 @@ export function registerCodexEvents(
 			await runtime.configureDiagnostics(ctx);
 			return;
 		}
-		syncAdapter(pi, ctx, state);
+		const plan = syncAdapter(pi, ctx, state);
+		state.contextWindows.ensureInitialized(
+			pi,
+			ctx,
+			plan.contextManagement,
+		);
 		await runtime.configureDiagnostics(ctx);
 		void ui.refreshUsageStatus(ctx);
 		prepareCodeModeHost(codeMode, ctx);
@@ -161,7 +182,12 @@ export function registerCodexEvents(
 		if (previousMode === "notebook" || state.executionMode === "notebook") appendNotebookTreeEpoch(pi);
 		await codeMode.shutdownHost();
 		proxyProvider.applyConfig(state.config, ctx.modelRegistry);
-		syncAdapter(pi, ctx, state);
+		const plan = syncAdapter(pi, ctx, state);
+		state.contextWindows.ensureInitialized(
+			pi,
+			ctx,
+			plan.contextManagement,
+		);
 		prepareCodeModeHost(codeMode, ctx);
 		if (previousMode === "notebook" || state.executionMode === "notebook") {
 			ctx.ui.notify("Notebook state reset after conversation-tree navigation", "info");
@@ -173,13 +199,23 @@ export function registerCodexEvents(
 			runtime.voice.piUserMessage(event.message);
 		if (event.message.role !== "toolResult" && !isToolCallOnlyAssistantMessage(event.message)) tracker.resetExplorationGroup();
 	});
-	pi.on("message_end", async (event) => {
+	pi.on("message_end", async (event, ctx) => {
 		if (event.message.role === "assistant") {
 			runtime.voice.finishAgentMessage(
 				event.message,
 				state.config.voice.forwardReasoningSummaries,
 			);
 			runtime.lanVoice.assistantMessage(event.message);
+			if (
+				event.message.stopReason !== "error" &&
+				event.message.stopReason !== "length"
+			)
+				state.contextWindows.recordBudget(
+					pi,
+					ctx,
+					resolveCodexRuntimePlanForState(ctx, state).contextManagement,
+					calculateContextTokens(event.message.usage),
+				);
 		}
 	});
 	pi.on("message_update", async (event) => {
@@ -204,6 +240,7 @@ export function registerCodexEvents(
 		activeContext = undefined;
 		pendingExtensionToolRefresh = false;
 		await runShutdownStep(failures, unregisterExtensionToolRefresh);
+		await runShutdownStep(failures, unregisterDeveloperMessageBroker);
 		await runShutdownStep(failures, () => ui.invalidateBackgroundWidget());
 		await runShutdownStep(failures, () => runtime.lanVoice.stop(ctx));
 		await runShutdownStep(failures, () => runtime.voice.stop({ announce: true }));
@@ -213,6 +250,8 @@ export function registerCodexEvents(
 		await runShutdownStep(failures, () => tools.shutdown());
 		await runShutdownStep(failures, () => proxyProvider.shutdown());
 		await runShutdownStep(failures, () => codeMode.shutdown());
+		state.developerMessages.clear();
+		state.contextWindows.reset();
 		if (failures.length === 1) throw failures[0];
 		if (failures.length > 1) throw new AggregateError(failures, "Codex extension shutdown failed");
 	});
@@ -221,7 +260,12 @@ export function registerCodexEvents(
 			activeContext = ctx;
 			pendingExtensionToolRefresh = false;
 			state.codexTurnState.beginTurn();
-			syncAdapter(pi, ctx, state);
+			const plan = syncAdapter(pi, ctx, state);
+			state.contextWindows.ensureInitialized(
+				pi,
+				ctx,
+				plan.contextManagement,
+			);
 		}
 		if (event.source !== "extension")
 			runtime.voice.piInput(event.text, event.streamingBehavior);
@@ -277,16 +321,20 @@ export function registerCodexEvents(
 	pi.on("session_before_compact", async (event, ctx) => {
 		state.cwd = ctx.cwd;
 		if (event.reason !== "manual") runtime.voice.announceCompactionStart(event.reason);
-		const nativeCompaction = resolveCodexRuntimePlanForState(
+		const plan = resolveCodexRuntimePlanForState(
 			ctx,
 			state,
-		).nativeCompaction;
-		if (nativeCompaction) runtime.voice.compactionStarted();
+		);
+		const nativeCompaction = plan.nativeCompaction;
+		if (nativeCompaction || plan.contextManagement)
+			runtime.voice.compactionStarted();
 		try {
 			await codeMode.checkpointNotebook();
 		} catch (error) {
 			ctx.ui.notify(`Notebook checkpoint before compaction failed: ${error instanceof Error ? error.message : String(error)}`, "warning");
 		}
+		if (plan.contextManagement)
+			return { compaction: state.contextWindows.createCompaction(event) };
 		if (!nativeCompaction) return undefined;
 		try {
 			const result = await handleCodexSessionBeforeCompact(
@@ -311,6 +359,9 @@ export function registerCodexEvents(
 			runtime.voice.resetContextAnnouncements();
 			state.pendingPiCompactionNativeWindow = undefined;
 			let nativeCompaction = false;
+			const contextCompaction =
+				event.fromExtension &&
+				isContextWindowCompactionDetails(event.compactionEntry.details);
 			const compactionEntry = findLatestCompactionEntry(ctx.sessionManager.getBranch());
 			if (event.fromExtension && compactionEntry && isNativeCompactionDetails(compactionEntry.details)) {
 				const details = compactionEntry.details;
@@ -330,6 +381,16 @@ export function registerCodexEvents(
 					});
 				}
 			}
+			if (
+				contextCompaction &&
+				(event.reason === "manual" || event.reason === "overflow")
+			)
+				await state.contextWindows.startNewWindow(pi, ctx, {
+					triggerTurn: event.reason === "overflow",
+					...(ctx.signal ? { signal: ctx.signal } : {}),
+					mode: resolveCodexRuntimePlanForState(ctx, state)
+						.contextManagementMode,
+				});
 			const postCompactionPrompt = codeMode.refreshPromptTools(
 				state.activeProviderSystemPrompt ?? ctx.getSystemPrompt(),
 				ctx,
@@ -339,15 +400,23 @@ export function registerCodexEvents(
 			await (nativeCompaction
 				? runtime.startCompactionPrewarm(ctx)
 				: runtime.startPrewarm(ctx, postCompactionPrompt, true));
-			await runtime.voice.refreshRealtimeAfterCompaction(ctx, state.config);
+			if (!contextCompaction)
+				await runtime.voice.refreshRealtimeAfterCompaction(ctx, state.config);
 		} finally {
 			runtime.voice.compactionFinished();
 		}
 	});
-	pi.on("context", async (event) => {
-		const messages = event.messages.filter((message) => !isProviderContextExcludedMessage(message));
-		if (state.config.voiceFeaturesOnly) return { messages };
-		return { messages };
+	pi.on("context", async (event, ctx) => {
+		const plan = resolveCodexRuntimePlanForState(ctx, state);
+		const messages = state.contextWindows
+			.project(event.messages, plan.contextManagement)
+			.filter((message) => !isProviderContextExcludedMessage(message));
+		return {
+			messages: state.developerMessages.prepare(
+				messages,
+				supportsCodexDeveloperMessages(ctx, state),
+			),
+		};
 	});
 }
 

@@ -15,6 +15,7 @@ import { createViewImageTool } from "../tools/view-image/tool.ts";
 import { supportsViewImageInputs } from "./tool-support.ts";
 import { isCodeModeRuntime, resolveCodexRuntimePlanForState } from "./activation/runtime-plan.ts";
 import { codeModeImageResult, toNestedTool } from "./code-mode/nested-tool-adapter.ts";
+import { createContextWindowTools } from "../context-management/tools.ts";
 
 const LONG_RUNNING_TOOL_OUTER_YIELD_MS = 1_800_000;
 
@@ -31,7 +32,7 @@ export async function registerCodexCodeMode(
 		getTools: (ctx) => {
 			const context = ctx as ExtensionContext | undefined;
 			return [
-				...createNestedTools(runtime, context),
+				...createNestedTools(pi, runtime, context),
 				...getCodeModeExtensionTools(pi, context),
 			];
 		},
@@ -62,6 +63,7 @@ export async function registerCodexCodeMode(
 }
 
 function createNestedTools(
+	pi: ExtensionAPI,
 	runtime: CodexExtensionRuntime,
 	ctx?: ExtensionContext,
 ): ProgrammaticCodeModeToolDefinition[] {
@@ -167,6 +169,20 @@ function createNestedTools(
 				: "const description = await tools.view_image({ path: string }); text(description)",
 			{},
 			{ ...(imageCapable ? { resultValue: codeModeImageResult } : {}) },
+		));
+	}
+	if (ctx && resolveCodexRuntimePlanForState(ctx, runtime.state).contextManagement) {
+		const [, getContextRemaining] = createContextWindowTools(pi, runtime.state);
+		tools.push(toNestedTool(
+			getContextRemaining,
+			"await tools.get_context_remaining({}) // remaining tokens in the current model context",
+			{},
+			{
+				resultValue: (result) => {
+					const details = result.details as { remainingTokens?: number };
+					return { tokens_left: details.remainingTokens ?? null };
+				},
+			},
 		));
 	}
 	return tools;

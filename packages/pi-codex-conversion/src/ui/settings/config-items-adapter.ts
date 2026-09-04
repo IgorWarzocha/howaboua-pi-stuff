@@ -69,6 +69,25 @@ export function buildAdapterSettings(
 		),
 		setting(
 			{
+				id: "contextManagement",
+				label: "Context windows (experimental)",
+				currentValue: config.compaction.contextManagement,
+				values: ["off", "local", "hybrid"],
+			},
+			(value, current) => ({
+				...current,
+				compaction: {
+					...current.compaction,
+					contextManagement:
+						value === "local" || value === "hybrid" ? value : "off",
+					...(value !== "off"
+						? { responsesCompaction: false, portableSummary: false }
+						: {}),
+				},
+			}),
+		),
+		setting(
+			{
 				id: "heavySystemPromptOverwrite",
 				label: "Heavy system prompt overwrite",
 				currentValue: config.prompt.heavySystemPromptOverwrite

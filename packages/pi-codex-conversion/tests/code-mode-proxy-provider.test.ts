@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
+import type { CodexConversionConfig } from "../src/adapter/activation/config.ts";
 import { registerCodeModeProxyProvider, streamCodeModeResponsesProxy } from "../src/providers/code-mode-proxy-provider.ts";
 
 function sseResponse(events: unknown[]): Response {
@@ -16,9 +17,21 @@ async function collect(stream: AsyncIterable<unknown>): Promise<unknown[]> {
 	return events;
 }
 
-function fallbackResponsesStream() {
+function fallbackResponsesStream(
+	_model?: unknown,
+	context?: { systemPrompt?: string },
+) {
 	return (async function* () {
-		yield { type: "done", message: { content: [{ type: "text", text: "fallback", textSignature: '{"v":1,"id":"msg_1"}' }] } };
+		const content = context?.systemPrompt === "Context windows"
+			? [{
+				type: "toolCall",
+				id: "call_note|fc_note",
+				name: "write_file",
+				namespace: "notes",
+				arguments: { path: "checkpoint.md", text: "done" },
+			}]
+			: [{ type: "text", text: "fallback", textSignature: '{"v":1,"id":"msg_1"}' }];
+		yield { type: "done", message: { content } };
 	})();
 }
 
@@ -63,12 +76,16 @@ test("the Code Mode proxy rejects unfinished terminal response statuses", async 
 });
 
 test("the provider-scoped proxy stream delegates ordinary Responses models without recursion", async () => {
-	const providers = new Map<string, { streamSimple: (...args: never[]) => AsyncIterable<unknown> }>();
+	const providers = new Map<string, {
+		api?: string;
+		streamSimple: (...args: never[]) => AsyncIterable<unknown>;
+	}>();
 	const unregistered: string[] = [];
-	const config = {
+	const config: CodexConversionConfig = {
 		...DEFAULT_CODEX_CONVERSION_CONFIG,
 		executionMode: "code" as const,
 		openai: { ...DEFAULT_CODEX_CONVERSION_CONFIG.openai, proxyResponsesLite: true },
+		compaction: { ...DEFAULT_CODEX_CONVERSION_CONFIG.compaction },
 		scope: { allProviders: "off" as const, additionalProviders: ["proxy"] },
 	};
 	const registration = registerCodeModeProxyProvider({
@@ -99,6 +116,40 @@ test("the provider-scoped proxy stream delegates ordinary Responses models witho
 	assert.equal(done.type, "done");
 	assert.deepEqual(done.message.content, [{ type: "text", text: "fallback", textSignature: "{\"v\":1,\"id\":\"msg_1\"}" }]);
 
+	config.compaction.contextManagement = "local";
+	registration.applyConfig(config, {
+		getAll: () => [
+			{ provider: "proxy", api: "openai-responses" },
+			{ provider: "renamed", api: "openai-codex-responses", id: "gpt-5.6" },
+		] as never,
+		getProvider: () => ({ streamSimple: fallbackResponsesStream }) as never,
+		getRegisteredProviderConfig: (name: string) => providers.get(name) as never,
+	});
+	const contextEvents = await collect(provider.streamSimple(
+		{ ...proxyModel, id: "gpt-5.5" } as never,
+		{
+			systemPrompt: "Context windows",
+			messages: [],
+			tools: [{ name: "history" }, { name: "notes" }],
+		} as never,
+		{ apiKey: "test-key" } as never,
+	));
+	assert.deepEqual(
+		(contextEvents.at(-1) as { message: { content: unknown[] } }).message.content,
+		[{
+			type: "toolCall",
+			id: "call_note|fc_note",
+			name: "notes",
+			namespace: "notes",
+			arguments: {
+				action: "write_file",
+				path: "checkpoint.md",
+				text: "done",
+			},
+		}],
+	);
+	assert.equal(providers.get("renamed")?.api, "openai-codex-responses");
+
 	config.voiceFeaturesOnly = true;
 	registration.applyConfig(config, {
 		getAll: () => [{ provider: "proxy", api: "openai-responses" }] as never,
@@ -110,5 +161,5 @@ test("the provider-scoped proxy stream delegates ordinary Responses models witho
 	registration.shutdown();
 	registration.shutdown();
 	assert.equal(providers.size, 0);
-	assert.equal(unregistered.length, 1);
+	assert.equal(unregistered.length, 2);
 });
