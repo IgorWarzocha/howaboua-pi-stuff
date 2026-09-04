@@ -56,6 +56,7 @@ test("reads instructions and appends absolute package file paths", (t) => {
 	f.file("engineering/tooling/references/api.md", "API reference\n");
 	f.file("engineering/tooling/references/runtime.md", "Runtime reference\n");
 	f.file("engineering/tooling/scripts/check.mjs");
+	f.file("engineering/tooling/scripts/node_modules/dependency/index.js");
 	f.file("engineering/tooling/.private", "hidden");
 
 	const output = runSkills("read tooling", f.root);
@@ -72,6 +73,7 @@ test("reads instructions and appends absolute package file paths", (t) => {
 	assert.match(output, /references\/api\.md/);
 	assert.match(output, /scripts\/check\.mjs/);
 	assert.doesNotMatch(output, /\.private/);
+	assert.doesNotMatch(output, /node_modules/);
 	const reference = runSkills("read tooling api", f.root);
 	assert.match(reference, /^API reference\n\n---\nSkill paths \(4\):/);
 	assert.match(

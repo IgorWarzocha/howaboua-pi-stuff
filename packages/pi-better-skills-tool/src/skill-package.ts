@@ -141,6 +141,7 @@ function packageFiles(skill: CatalogSkill): string[] {
 			}
 			if (!isWithin(root, realPath)) continue;
 			if (kind === "directory") {
+				if (entry.name === "node_modules") continue;
 				if (directory === skill.directory && entry.name === "assets")
 					listAssetEntries(path);
 				else visit(path);

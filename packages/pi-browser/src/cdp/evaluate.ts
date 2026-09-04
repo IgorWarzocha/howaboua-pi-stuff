@@ -31,10 +31,10 @@ export async function evaluate(
 				? (details["exception"] as Record<string, unknown>)
 				: undefined;
 		throw new Error(
-			typeof details["text"] === "string"
-				? details["text"]
-				: typeof nested?.["description"] === "string"
-					? nested["description"]
+			typeof nested?.["description"] === "string"
+				? nested["description"]
+				: typeof details["text"] === "string"
+					? details["text"]
 					: "Runtime evaluation failed",
 		);
 	}
