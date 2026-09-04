@@ -47,7 +47,7 @@ export async function registerCodexCodeMode(
 			...(runtime.state.config.notebook.profile ? { profile: runtime.state.config.notebook.profile } : {}),
 		}),
 		providesRenderers: true,
-		richRendering: () => runtime.state.executionMode === "notebook" || runtime.state.config.ui.codeModeDetails,
+		richRendering: () => runtime.state.config.ui.codeModeDetails,
 	});
 	return {
 		prepare: (ctx) => programmaticRuntime.prepare(ctx),

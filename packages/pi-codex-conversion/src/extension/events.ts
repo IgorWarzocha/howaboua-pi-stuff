@@ -69,6 +69,7 @@ export function registerCodexEvents(
 	const { state, tracker, sessions } = runtime;
 	let activeContext: ExtensionContext | undefined;
 	let pendingExtensionToolRefresh = false;
+	let turnPrewarm: ReturnType<CodexExtensionRuntime["waitForPrewarm"]>;
 	const unregisterDeveloperMessageBroker = registerCodexDeveloperMessageBroker(
 		pi,
 		() => Boolean(
@@ -96,6 +97,7 @@ export function registerCodexEvents(
 	sessions.onSessionExit((sessionId) => tracker.recordSessionFinished(sessionId));
 
 	pi.on("session_start", async (event, ctx) => {
+		turnPrewarm = undefined;
 		activeContext = ctx;
 		pendingExtensionToolRefresh = false;
 		ui.invalidateUsageStatus();
@@ -148,6 +150,7 @@ export function registerCodexEvents(
 		if (supportsCodexDeveloperMessages(ctx, state)) recordCodexReasoningUpdate(pi, ctx, runtime.projectContextMessages(ctx), event.previousLevel);
 	});
 	pi.on("model_select", async (_event, ctx) => {
+		turnPrewarm = undefined;
 		activeContext = ctx;
 		pendingExtensionToolRefresh = false;
 		ui.invalidateUsageStatus();
@@ -177,6 +180,7 @@ export function registerCodexEvents(
 			void runtime.startPrewarm(ctx, codeMode.refreshPromptTools(ctx.getSystemPrompt(), ctx));
 	});
 	pi.on("session_tree", async (event, ctx) => {
+		turnPrewarm = undefined;
 		activeContext = ctx;
 		pendingExtensionToolRefresh = false;
 		const previousMode = state.executionMode;
@@ -241,6 +245,7 @@ export function registerCodexEvents(
 	});
 
 	pi.on("session_shutdown", async (_event, ctx) => {
+		turnPrewarm = undefined;
 		const failures: unknown[] = [];
 		pendingExtensionToolRefresh = false;
 		await runShutdownStep(failures, unregisterExtensionToolRefresh);
@@ -280,6 +285,7 @@ export function registerCodexEvents(
 			runtime.voice.piInput(event.text, event.streamingBehavior);
 	});
 	pi.on("before_agent_start", async (event, ctx) => {
+		turnPrewarm = undefined;
 		const systemPrompt = event.systemPrompt;
 		state.voiceSystemPromptOverride = undefined;
 		if (!isAdapterRuntime(resolveCodexRuntimePlanForState(ctx, state))) {
@@ -292,7 +298,12 @@ export function registerCodexEvents(
 		const codexSystemPrompt = runtime.codexSystemPrompt(systemPrompt, ctx, skills, event.systemPromptOptions);
 		state.activeProviderSystemPrompt = codexSystemPrompt;
 		state.pendingActiveProviderPromptCapture = true;
-		await runtime.waitForPrewarm(ctx, codexSystemPrompt);
+		// Let Pi display the submitted message; serialize transport at the request boundary.
+		turnPrewarm = runtime.waitForPrewarm(ctx, codexSystemPrompt)?.catch((error: unknown) => {
+			const failure = error instanceof Error ? error : new Error(String(error));
+			ctx.ui.notify(`Codex WebSocket prewarm failed: ${failure.message}`, "warning");
+			return { status: "failed" as const, error: failure };
+		});
 		return {
 			systemPrompt: codexSystemPrompt,
 		};
@@ -309,6 +320,7 @@ export function registerCodexEvents(
 		runtime.lanVoice.uiPromptEnded(!ctx.isIdle());
 	});
 	pi.on("agent_settled", async (_event, ctx) => {
+		turnPrewarm = undefined;
 		if (pendingExtensionToolRefresh) {
 			pendingExtensionToolRefresh = false;
 			syncAdapter(pi, ctx, state);
@@ -323,6 +335,7 @@ export function registerCodexEvents(
 		if (!rolled) runtime.armCacheKeepalive(ctx);
 	});
 	pi.on("before_provider_request", async (event, ctx) => {
+		await turnPrewarm;
 		state.cwd = ctx.cwd;
 		return rewriteCodexProviderRequest(event.payload, ctx, state);
 	});
