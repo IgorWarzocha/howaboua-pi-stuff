@@ -47,6 +47,7 @@ export function migrateCodexConversionConfigIfNeeded(value: unknown): { migrated
 			additionalProviders: value["useAdapterProviders"] === true ? normalizeProviderList(value["adapterProviders"]) : [],
 		},
 		tools: {
+			autoReasoning: DEFAULT_CODEX_CONVERSION_CONFIG.tools.autoReasoning,
 			customRustBinariesDir: DEFAULT_CODEX_CONVERSION_CONFIG.tools["customRustBinariesDir"],
 			viewImageFallback: DEFAULT_CODEX_CONVERSION_CONFIG.tools["viewImageFallback"],
 			applyPatchOnly: typeof value["applyPatchOnly"] === "boolean" ? value["applyPatchOnly"] : DEFAULT_CODEX_CONVERSION_CONFIG.tools["applyPatchOnly"],

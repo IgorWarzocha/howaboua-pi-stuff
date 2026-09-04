@@ -1,4 +1,5 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { supportsCodexReasoningUpdates } from "../reasoning-updates.ts";
 import { supportsViewImageInputs } from "../tool-support.ts";
 import { supportsResponsesLiteModel } from "../../providers/openai-codex/responses-lite-model.ts";
 import { isCodexLikeModel, isCodexTransportContext, isOpenAIResponsesContext, isResponsesContext } from "../prompt/codex-model.ts";
@@ -29,6 +30,7 @@ interface RuntimePlanBase {
 	contextManagement: boolean;
 	contextManagementMode: ContextManagementMode;
 	contextManagementRemote: boolean;
+	autoReasoning: boolean;
 }
 
 export interface InactiveRuntimePlan extends RuntimePlanBase {
@@ -65,6 +67,7 @@ export interface NotebookRuntimePlan extends RuntimePlanBase {
 export type CodexRuntimePlan = InactiveRuntimePlan | ExtrasRuntimePlan | NormalRuntimePlan | CodeRuntimePlan | NotebookRuntimePlan;
 
 const ALL_ADAPTER_TOOL_NAMES = [
+	"change_reasoning",
 	...CORE_ADAPTER_TOOL_NAMES,
 	...NOTEBOOK_MODE_TOOL_NAMES,
 	VIEW_IMAGE_TOOL_NAME,
@@ -118,6 +121,7 @@ export function resolveCodexRuntimePlan(
 	const codexTransport = isCodexTransportContext(ctx);
 	const effectiveOpenAICodex = codexTransport || isConfigured;
 	const ownedToolNames = [
+		"change_reasoning",
 		...SHELL_ADAPTER_TOOL_NAMES,
 		...NOTEBOOK_MODE_TOOL_NAMES,
 		APPLY_PATCH_TOOL_NAME,
@@ -133,6 +137,7 @@ export function resolveCodexRuntimePlan(
 		contextManagement: false,
 		contextManagementMode: "off" as const,
 		contextManagementRemote: false,
+		autoReasoning: false,
 	};
 	const extras = hasExtras(config)
 		&& (config.scope.allProviders === "extras"
@@ -155,6 +160,7 @@ export function resolveCodexRuntimePlan(
 		: "off";
 	const contextManagementRemote = contextManagementMode === "remote";
 	const nativeCompaction = config.compaction.responsesCompaction && effectiveOpenAICodex && !contextManagement;
+	base.autoReasoning = config.tools.autoReasoning && supportsCodexReasoningUpdates(ctx.model);
 	const configuredExecutionMode = executionMode ?? config.executionMode;
 	const requestedCodeMode = configuredExecutionMode === "code" || configuredExecutionMode === "notebook"
 		? configuredExecutionMode
@@ -199,7 +205,7 @@ export function resolveCodexRuntimePlan(
 	return {
 		...base,
 		kind: "normal",
-		toolNames: normalToolNames(ctx, config, contextManagement),
+		toolNames: [...normalToolNames(ctx, config, contextManagement), ...(base.autoReasoning ? ["change_reasoning"] : [])],
 		prompt: "normal",
 		transport: "responses",
 		nativeCompaction,

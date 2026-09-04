@@ -29,6 +29,7 @@ import { CodexDeveloperMessageBridge } from "../adapter/developer-messages.ts";
 import { CodexContextWindowManager } from "../context-management/window-manager.ts";
 import { CodexContextTreeCoordinator } from "../context-management/tree-coordinator.ts";
 import { hasPendingCodexReasoningUpdate, supportsCodexReasoningUpdates } from "../adapter/reasoning-updates.ts";
+import { createAutoReasoning } from "../adapter/auto-reasoning.ts";
 
 export type CodexContext = ExtensionContext;
 
@@ -39,6 +40,7 @@ export type CodexPrewarmResult =
 	| { status: "failed"; error: Error };
 
 export interface CodexExtensionRuntime {
+	autoReasoning: ReturnType<typeof createAutoReasoning>;
 	state: AdapterState;
 	tracker: ReturnType<typeof createExecCommandTracker>;
 	sessions: ReturnType<typeof createExecSessionManager>;
@@ -359,6 +361,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 	};
 
 	const runtime: CodexExtensionRuntime = {
+		autoReasoning: createAutoReasoning(pi, state),
 		state,
 		tracker,
 		sessions,

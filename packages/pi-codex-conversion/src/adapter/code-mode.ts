@@ -185,6 +185,9 @@ function createNestedTools(
 			},
 		));
 	}
+	if (ctx && resolveCodexRuntimePlanForState(ctx, runtime.state).autoReasoning) {
+		tools.push(toNestedTool(runtime.autoReasoning.tool, `await tools.change_reasoning({ level: "low" | "medium" | "high" }) // ${runtime.autoReasoning.tool.description}`));
+	}
 	return tools;
 }
 

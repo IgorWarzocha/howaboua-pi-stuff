@@ -47,6 +47,7 @@ export interface CodexConversionConfig {
 	prompt: { heavySystemPromptOverwrite: boolean };
 	scope: { allProviders: AllProvidersMode; additionalProviders: string[] };
 	tools: {
+		autoReasoning: boolean;
 		customRustBinariesDir: string;
 		viewImageFallback: boolean;
 		applyPatchOnly: boolean;
@@ -105,6 +106,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	prompt: { heavySystemPromptOverwrite: false },
 	scope: { allProviders: "off", additionalProviders: [] },
 	tools: {
+		autoReasoning: false,
 		customRustBinariesDir: "",
 		viewImageFallback: false,
 		applyPatchOnly: false,

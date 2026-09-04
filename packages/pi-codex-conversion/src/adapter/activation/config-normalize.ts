@@ -73,6 +73,7 @@ export function normalizeCodexConversionConfig(
 			additionalProviders: normalizeProviderList(scope["additionalProviders"]),
 		},
 		tools: {
+			autoReasoning: normalizeBoolean(tools["autoReasoning"], DEFAULT_CODEX_CONVERSION_CONFIG.tools.autoReasoning),
 			customRustBinariesDir: normalizeCustomRustBinariesDir(
 				tools["customRustBinariesDir"],
 			),

@@ -6,6 +6,12 @@ export function buildToolsSettings(
 ): ConfigSetting[] {
 	return [
 		toggle(
+			"autoReasoning",
+			"Auto reasoning (Astra only)",
+			config.tools.autoReasoning,
+			(enabled, current) => ({ ...current, tools: { ...current.tools, autoReasoning: enabled } }),
+		),
+		toggle(
 			"viewImageFallback",
 			"Image descriptions fallback",
 			config.tools.viewImageFallback,

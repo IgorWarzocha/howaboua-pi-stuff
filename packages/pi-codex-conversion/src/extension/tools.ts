@@ -41,6 +41,7 @@ export function registerCodexTools(
 	runtime: CodexExtensionRuntime,
 ): CodexToolRegistration {
 	registerApplyPatchResultEvent(pi);
+	pi.registerTool(runtime.autoReasoning.tool);
 	registerContextManagementTools(pi, runtime.state);
 	const allowsProvider = (model: Model<Api> | undefined) =>
 		isExplicitlyConfiguredToolProvider(model, runtime.state.config);

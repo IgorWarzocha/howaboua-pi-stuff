@@ -285,6 +285,7 @@ export function registerCodexEvents(
 			runtime.voice.piInput(event.text, event.streamingBehavior);
 	});
 	pi.on("before_agent_start", async (event, ctx) => {
+		runtime.autoReasoning.begin(ctx);
 		turnPrewarm = undefined;
 		const systemPrompt = event.systemPrompt;
 		state.voiceSystemPromptOverride = undefined;
@@ -308,7 +309,8 @@ export function registerCodexEvents(
 			systemPrompt: codexSystemPrompt,
 		};
 	});
-	pi.on("agent_start", async () => {
+	pi.on("agent_start", async (_event, ctx) => {
+		runtime.autoReasoning.begin(ctx);
 		runtime.cancelCacheKeepalive();
 		runtime.voice.agentStarted();
 		runtime.lanVoice.agentStarted();
@@ -320,6 +322,7 @@ export function registerCodexEvents(
 		runtime.lanVoice.uiPromptEnded(!ctx.isIdle());
 	});
 	pi.on("agent_settled", async (_event, ctx) => {
+		runtime.autoReasoning.settle(ctx);
 		turnPrewarm = undefined;
 		if (pendingExtensionToolRefresh) {
 			pendingExtensionToolRefresh = false;
