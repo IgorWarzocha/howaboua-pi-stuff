@@ -1,5 +1,48 @@
 # Changelog
 
+## 3.0.26
+
+- Preserve extension-owned messages while delivering true developer-role policy through compatible Pi Codex Responses adapters.
+
+  - Add an optional custom-message API that retains caller rendering and restoration fields.
+  - Route Shepherdr's unclaimed worker events and orchestration toggles through it, preserving ordinary Pi delivery when unavailable.
+  - Send review preface/triage policy and realtime voice start/end guidance as developer messages without elevating raw reviewer findings, spoken delegations, or transcript tails.
+  - Keep persisted developer messages in context across model switches, using ordinary Pi conversion on incompatible models.
+
+- Added backend-authorized Luna Reserve fallback after Codex quota exhaustion.
+
+  - Show Reserve as a separate, limited allowance in `/codex usage`.
+  - Switch to Luna Reserve and ask the user to continue, without automatic retries or reset-credit redemption.
+  - Restore the original model and reasoning level when ordinary usage recovers, including resumed sessions.
+
+- Simplify Notebook metadata persistence and realtime voice startup without changing saved data, connection behavior, or tool output.
+
+- Expand Pi Codex execution and extension integration.
+
+  - Apply Code and Notebook execution modes across the full configured adapter scope without changing each provider's transport.
+  - Let extensions inject persisted, visibly rendered Responses developer messages with Pi-native delivery controls.
+  - Add experimental no-summary context management with Local JSONL recovery, Tree archives, exact Remote Codex storage, budget reminders, and Code/Notebook controls.
+  - Support GPT-6 Astra with its native Codex catalog and Responses Lite routing.
+  - Fix Remote context management schema rejection on Astra while keeping compact tool descriptions.
+
+- Fixed GPT-6 Astra reasoning changes through Pi’s selector to preserve prompt-cache and WebSocket continuation eligibility, including session resume and native compaction.
+
+- Add optional Astra effort control and clearer auxiliary tool activity.
+
+  - Enable Astra-only reasoning adjustment in Structured, Code and Notebook modes, respecting the user's floor and restoring it after the run.
+  - Show notes, history, notebook and context-window actions with compact outcomes and expandable detail.
+
+- Fixed Codex streams that end immediately after an unterminated terminal SSE event, and cleared stale incomplete-response errors after successful recovery.
+
+- Fix worker settlement, custom model preservation, and prompt-only image generation.
+
+  - Settle Shepherdr workers after Pi expands skill or prompt-template invocations.
+  - Preserve custom Codex models and `models.json` overrides, including after refresh.
+  - Keep optional tool arguments optional in Codex Responses requests while preserving explicit strict sampling.
+  - Treat null image selectors as absent, so prompt-only requests generate rather than edit.
+  - Honor the details toggle in Notebook Mode to hide duplicate output previews.
+  - Show submitted messages without waiting for cached WebSocket warmup, while keeping generation serialized behind it.
+
 ## 3.0.25
 
 - - Repeated OpenAI `additional_tools` updates now retain every previously loaded deferred tool.

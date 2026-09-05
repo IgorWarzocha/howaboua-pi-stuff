@@ -1,5 +1,9 @@
 # @howaboua/pi-pet
 
+## 0.1.3
+
+- Expose Pi Pet's extension from the package root so aggregate extension packages can load it.
+
 ## 0.1.2
 
 - Fixed waiting indicators for extension UI prompts.
@@ -15,4 +19,3 @@
   - Keep authored pets and generated displays in durable Pi agent storage, with optional per-repository pet selection.
   - Attach the local device directly or remote devices through Pi-owned SSH sessions, with each folder remembering where its sessions appear.
   - Get exact install and reload guidance when GipPity Control is missing or outdated.
-

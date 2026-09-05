@@ -1,5 +1,9 @@
 # @howaboua/pi-gpt-switcher
 
+## 0.1.2
+
+- Add /astra for GPT-6 Astra with low reasoning by default and an optional reasoning override.
+
 ## 0.1.1
 
 ### Changes

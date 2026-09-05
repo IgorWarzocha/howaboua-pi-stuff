@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-ask",
-	"version": "0.0.6",
+	"version": "0.0.7",
 	"description": "Interactive decisions, review triage, and human handoffs for Pi.",
 	"type": "module",
 	"license": "MIT",
@@ -45,7 +45,7 @@
 		]
 	},
 	"peerDependencies": {
-		"@howaboua/pi-codex-conversion": ">=3.0.25",
+		"@howaboua/pi-codex-conversion": ">=3.0.26",
 		"@earendil-works/pi-ai": ">=0.84.3",
 		"@earendil-works/pi-coding-agent": ">=0.84.3",
 		"@earendil-works/pi-tui": ">=0.84.3",
@@ -57,7 +57,7 @@
 		}
 	},
 	"devDependencies": {
-		"@howaboua/pi-codex-conversion": "3.0.25",
+		"@howaboua/pi-codex-conversion": "3.0.26",
 		"@biomejs/biome": "^2.5.10",
 		"@earendil-works/pi-ai": "0.85.0",
 		"@earendil-works/pi-coding-agent": "0.85.0",
