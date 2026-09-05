@@ -35,6 +35,7 @@ interface RuntimePlanBase {
 
 export interface InactiveRuntimePlan extends RuntimePlanBase {
 	kind: "inactive";
+	missingToolNames?: string[];
 	toolNames: [];
 	prompt: undefined;
 	transport: undefined;
@@ -217,9 +218,26 @@ export function resolveCodexRuntimePlan(
 
 export function resolveCodexRuntimePlanForState(
 	ctx: RuntimeContext,
-	state: Pick<AdapterState, "config" | "executionMode">,
+	state: Pick<AdapterState, "config" | "executionMode" | "availableToolNames">,
 ): CodexRuntimePlan {
-	return resolveCodexRuntimePlan(ctx, state.config, state.executionMode);
+	const plan = resolveCodexRuntimePlan(ctx, state.config, state.executionMode);
+	const missingToolNames = state.availableToolNames === undefined
+		? []
+		: plan.toolNames.filter((name) => !state.availableToolNames?.includes(name));
+	if (!missingToolNames.length) return plan;
+	return {
+		...plan,
+		kind: "inactive",
+		toolNames: [],
+		missingToolNames,
+		prompt: undefined,
+		transport: undefined,
+		nativeCompaction: false,
+		contextManagement: false,
+		contextManagementMode: "off",
+		contextManagementRemote: false,
+		autoReasoning: false,
+	};
 }
 
 export function isAdapterRuntime(plan: CodexRuntimePlan): plan is NormalRuntimePlan | CodeRuntimePlan | NotebookRuntimePlan {

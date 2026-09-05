@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { syncAdapter } from "../src/adapter/activation/activation.ts";
-import { resolveCodexRuntimePlan } from "../src/adapter/activation/runtime-plan.ts";
+import { ALL_CODEX_ADAPTER_TOOL_NAMES, resolveCodexRuntimePlan, resolveCodexRuntimePlanForState } from "../src/adapter/activation/runtime-plan.ts";
 import {
 	getCodeModeExtensionTools,
 	registerCodeModeExtensionTools,
@@ -15,8 +15,8 @@ import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.t
 
 const CANONICAL_CODEX_BASE_URL = "https://chatgpt.com/backend-api";
 
-function createToolHarness(activeTools: string[]) {
-	const registeredTools = new Set(activeTools);
+function createToolHarness(activeTools: string[], availableTools = [...activeTools, ...ALL_CODEX_ADAPTER_TOOL_NAMES]) {
+	const registeredTools = new Set(availableTools);
 	const handlers = new Map<string, Array<(value: unknown) => void>>();
 	return {
 		events: {
@@ -31,8 +31,9 @@ function createToolHarness(activeTools: string[]) {
 			},
 		},
 		getActiveTools: () => activeTools,
+		getAllTools: () => [...registeredTools].map((name) => ({ name })),
 		setActiveTools: (nextTools: string[]) => {
-			activeTools = nextTools;
+			activeTools = nextTools.filter((name) => registeredTools.has(name));
 		},
 		on: () => undefined,
 		registerTool: (tool: { name: string }) => registeredTools.add(tool.name),
@@ -70,7 +71,23 @@ function createContext(model: { provider: string; api: string; id: string; baseU
 	};
 }
 
-test("Code Mode activation follows adapter scope independently of provider transport", () => {
+test("adapter activation requires registered tools and follows scope independently of transport", () => {
+	for (const executionMode of ["normal", "code", "notebook"] as const) {
+		const original = ["read", "bash", "edit", "write", "contact_supervisor", executionMode === "normal" ? "exec_command" : "exec"];
+		const pi = createToolHarness(original, original);
+		const state = createAdapterState({ executionMode });
+		const statuses: unknown[] = [];
+		const ctx = createContext({ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-6-astra" }, statuses);
+		const plan = syncAdapter(pi as never, ctx as never, state);
+		assert.equal(plan.kind, "inactive");
+		assert.equal(plan.prompt, undefined);
+		assert.equal(plan.transport, undefined);
+		assert.equal(plan.contextManagement, false);
+		assert.equal(state.enabled, false);
+		assert.deepEqual(pi.activeTools(), original);
+		assert.deepEqual(resolveCodexRuntimePlanForState(ctx as never, state), plan);
+		assert.match(String(statuses.at(-1)), /Codex adapter off: unavailable tools/);
+	}
 	const cases = [
 		{ model: { provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.6-luna", baseUrl: CANONICAL_CODEX_BASE_URL }, configured: false, active: true },
 		{ model: { provider: "litellm", api: "openai-responses", id: "gpt-5.6" }, configured: true, active: true },
@@ -105,6 +122,7 @@ test("Code Mode activation follows adapter scope independently of provider trans
 		dynamic as never,
 		() => [{
 			name: "agents",
+			topLevelName: "agents",
 			usage: "await tools.agents(input)",
 			deferLoading: false,
 			kind: "function",
@@ -133,6 +151,10 @@ test("Code Mode activation follows adapter scope independently of provider trans
 	dynamicState.executionMode = "normal";
 	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
 	assert.equal(dynamic.activeTools().includes("agents"), true);
+	dynamic.registeredTools().delete("agents");
+	dynamicState.executionMode = "code";
+	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
+	assert.deepEqual(getCodeModeExtensionTools(dynamic as never, dynamicContext as never), []);
 	registration.unregister();
 
 	const conflicting = createToolHarness(["read", "bash", "edit", "write"]);

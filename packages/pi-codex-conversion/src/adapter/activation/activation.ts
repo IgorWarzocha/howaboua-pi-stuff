@@ -6,6 +6,7 @@ import type { AdapterState } from "./state.ts";
 import { DEFAULT_TOOL_NAMES, STATUS_KEY, buildExtraToolsOnlyStatusText } from "./tool-set.ts";
 
 export function syncAdapter(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState): CodexRuntimePlan {
+	state.availableToolNames = pi.getAllTools().map((tool) => tool.name);
 	const plan = resolveCodexRuntimePlanForState(ctx, state);
 	const extensionTools =
 		state.enabled || plan.kind === "extras" || isAdapterRuntime(plan)
@@ -77,7 +78,7 @@ function disableAdapter(
 	extensionTools: ExtensionToolSnapshot,
 ): void {
 	const owned = state.adapterOwnedToolNames ?? plan.ownedToolNames;
-	if (state.enabled || pi.getActiveTools().some((name) => owned.includes(name))) {
+	if (state.enabled || (!(plan.kind === "inactive" && plan.missingToolNames) && pi.getActiveTools().some((name) => owned.includes(name)))) {
 		const currentTools = state.enabled
 			? reconcileExtensionToolProjection(
 					state,
@@ -93,7 +94,10 @@ function disableAdapter(
 	state.enabled = false;
 	delete state.adapterOwnedToolNames;
 	delete state.codeModeExtensionToolNames;
-	if (ctx.hasUI) ctx.ui.setStatus(STATUS_KEY, undefined);
+	if (ctx.hasUI) ctx.ui.setStatus(STATUS_KEY,
+		plan.kind === "inactive" && plan.missingToolNames
+			? `Codex adapter off: unavailable tools (${plan.missingToolNames.join(", ")}); check tool allowlist`
+			: undefined);
 }
 
 function reconcileExtensionToolProjection(

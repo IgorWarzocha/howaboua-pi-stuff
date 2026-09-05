@@ -6,7 +6,7 @@ import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import { readCodexCacheEnvironment } from "../adapter/activation/cache-environment.ts";
 import { resolveCodexCacheKeepalivePlan, type CodexCacheKeepalivePlan, type CodexCacheKeepaliveStrategy } from "../adapter/activation/cache-keepalive.ts";
 import { getCodexConversionConfigPath, readEffectiveCodexConversionConfig } from "../adapter/activation/config-store.ts";
-import { isAdapterRuntime, resolveCodexRuntimePlan, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
+import { isAdapterRuntime, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import type { AdapterState } from "../adapter/activation/state.ts";
 import { rewriteCodexPrewarmProviderRequest, rewriteCodexProviderRequest, supportsCodexDeveloperMessages } from "../adapter/provider-request.ts";
 import { getPiCodexRuntimeShell } from "../adapter/prompt/runtime-shell.ts";
@@ -120,7 +120,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		const model = ctx.model;
 		const config = structuredClone(state.config);
 		const executionMode = state.executionMode;
-		const runtimePlan = resolveCodexRuntimePlanForState(ctx, { config, executionMode });
+		const runtimePlan = resolveCodexRuntimePlanForState(ctx, { ...state, config, executionMode });
 		if (
 			!model
 			|| !runtimePlan.codexTransport
@@ -216,7 +216,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 					},
 					{
 						getConfig: () => ({ executionMode, openai: config.openai, compaction: config.compaction }),
-						useResponsesLite: (currentModel) => resolveCodexRuntimePlan({ model: currentModel }, config, executionMode).transport === "responses-lite",
+						useResponsesLite: (currentModel) => resolveCodexRuntimePlanForState({ model: currentModel }, { ...state, config, executionMode }).transport === "responses-lite",
 						turnState: state.codexTurnState,
 						getDiagnostics: () => diagnostics.sink(),
 						...(preserveContinuation ? { preserveContinuation: true } : {}),
