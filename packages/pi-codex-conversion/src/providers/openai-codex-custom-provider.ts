@@ -6,6 +6,7 @@ import { noThrowCodexDiagnosticsSink } from "./openai-codex/diagnostic-failure.t
 import { buildRequestBody } from "./openai-codex/request-body.ts";
 import { normalizeCodexConfigurationUpdates } from "../adapter/reasoning-updates.ts";
 import { openAICodexProviderModels } from "./openai-codex/model-catalog.ts";
+import { CODEX_RESERVE_MODEL } from "../codex-usage/reserve-policy.ts";
 import { DEFAULT_CODEX_BASE_URL } from "./openai-codex/constants.ts";
 import { supportsResponsesLiteModel } from "./openai-codex/responses-lite-model.ts";
 import { applyResponsesLiteRequest, applyResponsesLiteWebSocketMetadata, isResponsesLiteRequest, namespaceExistingResponsesLiteRequest, prepareResponsesLiteRequestImages } from "./openai-codex/responses-lite.ts";
@@ -147,6 +148,7 @@ export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: {
 		baseUrl: DEFAULT_CODEX_BASE_URL,
 		auth: { oauth: openaiCodexNativeOAuthProvider },
 		getModels: () => models,
+		filterModels: (available) => available.filter(({ id }) => id !== CODEX_RESERVE_MODEL),
 		stream: streamSimple,
 		streamSimple,
 	};

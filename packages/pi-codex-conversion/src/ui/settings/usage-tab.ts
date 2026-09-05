@@ -1,5 +1,6 @@
 import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import { matchesKey } from "@earendil-works/pi-tui";
+import { CODEX_RESERVE_USAGE_NOTE, codexUsageLimitName } from "../../codex-usage/format.ts";
 import {
 	consumeCodexRateLimitResetCredit,
 	createCodexRateLimitResetRedeemRequestId,
@@ -101,7 +102,7 @@ function formatUsageLines(theme: Theme, usageState: CodexUsageSnapshot | { error
 	const rows = usageState.limits.map((limit) => {
 		const primary = usageColumns(limit.primary);
 		const secondary = usageColumns(limit.secondary);
-		return [limit.limitName ?? limit.limitId, primary.bar, primary.percent, primary.reset, secondary.bar, secondary.percent, secondary.reset];
+		return [codexUsageLimitName(limit), primary.bar, primary.percent, primary.reset, secondary.bar, secondary.percent, secondary.reset];
 	});
 	const headers = ["Limit", "5h left", "", "Reset", "Weekly left", "", "Reset"];
 	const widths = columnWidths([headers, ...rows]);
@@ -112,6 +113,7 @@ function formatUsageLines(theme: Theme, usageState: CodexUsageSnapshot | { error
 		formatUsageRow(headers.map((header) => theme.fg("dim", header)), widths),
 		theme.fg("borderMuted", `  ${"─".repeat(widths.reduce((sum, width) => sum + width, 0) + (2 * (widths.length - 1)))}`),
 		...rows.map((row) => formatUsageRow(row, widths)),
+		...(usageState.limits.some((limit) => codexUsageLimitName(limit) === "Luna Reserve") ? ["", theme.fg("dim", `  ${CODEX_RESERVE_USAGE_NOTE}`)] : []),
 	];
 }
 

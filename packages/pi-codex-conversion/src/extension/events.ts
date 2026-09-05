@@ -24,6 +24,7 @@ import type { CodexUiController } from "./ui.ts";
 import { registerCodexDeveloperMessageBroker } from "../developer-messages.ts";
 import { isContextWindowCompactionDetails } from "../context-management/messages.ts";
 import { recordCodexReasoningUpdate } from "../adapter/reasoning-updates.ts";
+import { createCodexReserveController } from "../codex-usage/reserve.ts";
 
 function formatCompactionUsage(usage: NativeCompactionUsage): string {
 	const ratio = usage.inputTokens > 0 ? `${((usage.cachedInputTokens / usage.inputTokens) * 100).toFixed(1)}%` : "0%";
@@ -67,6 +68,7 @@ export function registerCodexEvents(
 	proxyProvider: CodeModeProxyProviderRegistration,
 ): void {
 	const { state, tracker, sessions } = runtime;
+	const reserve = createCodexReserveController(pi);
 	let activeContext: ExtensionContext | undefined;
 	let pendingExtensionToolRefresh = false;
 	let turnPrewarm: ReturnType<CodexExtensionRuntime["waitForPrewarm"]>;
@@ -150,6 +152,7 @@ export function registerCodexEvents(
 		if (supportsCodexDeveloperMessages(ctx, state)) recordCodexReasoningUpdate(pi, ctx, runtime.projectContextMessages(ctx), event.previousLevel);
 	});
 	pi.on("model_select", async (_event, ctx) => {
+		reserve.modelSelected(ctx);
 		turnPrewarm = undefined;
 		activeContext = ctx;
 		pendingExtensionToolRefresh = false;
@@ -285,6 +288,7 @@ export function registerCodexEvents(
 			runtime.voice.piInput(event.text, event.streamingBehavior);
 	});
 	pi.on("before_agent_start", async (event, ctx) => {
+		if (!state.config.voiceFeaturesOnly) await reserve.beforeTurn(ctx);
 		runtime.autoReasoning.begin(ctx);
 		turnPrewarm = undefined;
 		const systemPrompt = event.systemPrompt;
@@ -323,6 +327,7 @@ export function registerCodexEvents(
 	});
 	pi.on("agent_settled", async (_event, ctx) => {
 		runtime.autoReasoning.settle(ctx);
+		const quotaExhausted = !state.config.voiceFeaturesOnly && await reserve.settled(ctx);
 		turnPrewarm = undefined;
 		if (pendingExtensionToolRefresh) {
 			pendingExtensionToolRefresh = false;
@@ -335,7 +340,7 @@ export function registerCodexEvents(
 		runtime.lanVoice.agentSettled();
 		if (!state.config.voiceFeaturesOnly) void ui.refreshUsageStatus(ctx);
 		const rolled = await state.contextTree.settle(pi, ctx);
-		if (!rolled) runtime.armCacheKeepalive(ctx);
+		if (!rolled && !quotaExhausted) runtime.armCacheKeepalive(ctx);
 	});
 	pi.on("before_provider_request", async (event, ctx) => {
 		await turnPrewarm;
