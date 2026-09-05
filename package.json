@@ -13,7 +13,7 @@
     "pack:dry": "bun run scripts/workspaces.mjs pack:dry",
     "changeset": "node scripts/add-patch-changeset.mjs",
     "changeset:raw": "changeset",
-    "version-packages": "changeset version && bun run changelog:polish && bun run aggregate:sync && bun run changelog:extensions && bun run changelog:sync",
+    "version-packages": "changeset version && bun run changelog:polish && bun run aggregate:sync && bun run changelog:extensions && bun run changelog:sync && bun install --lockfile-only --ignore-scripts",
     "release": "changeset publish",
     "check:changed": "bun run scripts/check-changed.mjs",
     "refactor:compare": "node scripts/refactor-compare.mjs",
