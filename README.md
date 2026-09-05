@@ -10,8 +10,8 @@ Pi packages run with your local permissions. You can obviously trust me, a stran
 
 | Package | Includes | Deliberate exclusions |
 |---|---|---|
-| [`@howaboua/pi-stuff`](./packages/pi-stuff) | 16 general extensions and 15 shareable skills | Codex conversion, Omarchy support, and the standalone nested AGENTS loader |
-| [`@howaboua/pi-extensions`](./packages/pi-extensions) | 16 general extensions | Codex conversion and the standalone nested AGENTS loader |
+| [`@howaboua/pi-stuff`](./packages/pi-stuff) | 16 general extensions and 15 shareable skills | Browser, Codex conversion/web/image, Omarchy support, and the standalone nested AGENTS loader |
+| [`@howaboua/pi-extensions`](./packages/pi-extensions) | 16 general extensions | Browser, Codex conversion/web/image, and the standalone nested AGENTS loader |
 | [`@howaboua/pi-skills`](./packages/pi-skills) | 15 shareable skills | Omarchy support |
 
 ```bash
@@ -23,6 +23,8 @@ pi install npm:@howaboua/pi-skills
 
 `pi-codex-conversion` is separate because it changes Pi's tool surface for GPT/Codex models. `pi-codex-web-run` and `pi-codex-imagegen` are separate because they use Codex endpoints and login. `omarchy-help` is separate because it targets Arch desktops configured with Omarchy.
 
+Install `pi-browser` separately for logged-in browser control. The standalone `pi-subdir-agents` loader is also opt-in.
+
 ## Extensions
 
 | Package | What it adds |
@@ -30,6 +32,7 @@ pi install npm:@howaboua/pi-skills
 | [`pi-ask`](./packages/pi-ask) | Interactive user decisions, review triage, and human handoffs |
 | [`pi-auto-trees`](./packages/pi-auto-trees) | `/marker` and `/end` for rolling completed work into a compact branch summary |
 | [`pi-better-skills-tool`](./packages/pi-better-skills-tool) | Progressive skill discovery in normal Pi, Code Mode, and Notebook Mode |
+| [`pi-browser`](./packages/pi-browser) | Logged-in browser control with local CDP sessions and SSH host routing |
 | [`pi-cache-hit-predictor`](./packages/pi-cache-hit-predictor) | Inline prompt-cache hit predictions when switching models or reasoning levels |
 | [`pi-codex-conversion`](./packages/pi-codex-conversion) | Codex-shaped shell, patch, image inspection, and Code Mode tools for GPT/Codex models |
 | [`pi-dynamic-tools`](./packages/pi-dynamic-tools) | TOML-defined command-line tools exposed through JavaScript Code Mode |

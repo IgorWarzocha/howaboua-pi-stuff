@@ -27,6 +27,6 @@ pi install npm:@howaboua/pi-extensions
 - `pi-unicode-charts` — terminal-native Unicode charts for Pi Markdown
 - `pi-vent` — repeated workflow-friction notes in `VENT.md`
 
-The Codex conversion packages are not included because they change the GPT/Codex tool surface. Install one separately when you want that behavior.
+`pi-browser`, `pi-codex-conversion`, `pi-codex-web-run`, `pi-codex-imagegen`, and `pi-subdir-agents` are not included. Install them separately for logged-in browser access, Codex integration, or nested agent guidance.
 
 Installing this bundle loads every extension above. Install individual packages instead if you only want part of the set.
