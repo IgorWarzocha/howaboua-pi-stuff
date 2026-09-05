@@ -3,6 +3,7 @@ import test from "node:test";
 import { formatCodeModeToolHelp } from "../src/tools/code-mode/custom-tool-prompt.ts";
 import { scopeAllToolsToDeferredCustom } from "../src/tools/code-mode/host-client.ts";
 import { codeModeGlobalName } from "../src/tools/code-mode/tool-identity.ts";
+import { notebookBootstrapSource } from "../src/tools/notebook-mode/kernel-runtime.ts";
 import type {
 	CustomToolDefinition,
 	ProgrammaticCodeModeToolDefinition,
@@ -36,7 +37,7 @@ function customTool(
 	};
 }
 
-test("ALL_TOOLS exposes deferred configured and opted-in programmatic tools", () => {
+test("Notebook tool names follow the live registry while ALL_TOOLS contains deferred help", async () => {
 	const promoted = customTool("promoted_tool", false);
 	const deferred = customTool("deferred_tool", true);
 	const deferredProgrammatic = {
@@ -63,4 +64,37 @@ test("ALL_TOOLS exposes deferred configured and opted-in programmatic tools", ()
 		formatCodeModeToolHelp(deferredProgrammatic),
 		/^Usage: await tools\.deferred_programmatic_tool\(\{ cmd \}\)/,
 	);
+
+	const calls: unknown[] = [];
+	const kernel: Record<string, unknown> = {
+		fetch: async (_url: string, request: { body: string }) => {
+			const payload = JSON.parse(request.body);
+			if (payload.kind === "tool") calls.push(payload.toolName);
+			return { ok: true, text: async () => JSON.stringify({ ok: true, result: "delivered" }) };
+		},
+	};
+	const bootstrap = new Function("globalThis", "Deno", "setInterval", "clearInterval",
+		`return (async () => ${notebookBootstrapSource("http://localhost", "token", "exit", "/project")})()`);
+	await bootstrap(kernel, { chdir() {}, ppid: 1, memoryUsage: () => ({ rss: 0 }) }, () => 0, () => {});
+	const runtime = kernel["__piNotebook"] as {
+		begin(id: string, tools: unknown[], names: Record<string, { name: string }>): Promise<void>;
+		end(id: string): void;
+	};
+	await runtime.begin("first", state.ALL_TOOLS, {
+		exec_command: { name: "exec_command" },
+		deferred_programmatic_tool: { name: "deferred-programmatic-tool" },
+	});
+	const tools = kernel["tools"] as Record<string, (input: unknown) => Promise<unknown>>;
+	assert.deepEqual(Object.keys(tools), ["exec_command", "deferred_programmatic_tool"]);
+	assert.equal("exec_command" in tools, true);
+	assert.equal("missing" in tools, false);
+	assert.equal(Object.hasOwn(tools, "exec_command"), true);
+	assert.equal(Object.hasOwn(tools, "missing"), false);
+	assert.equal(await tools["deferred_programmatic_tool"]!({}), "delivered");
+	assert.deepEqual(calls, [{ name: "deferred-programmatic-tool" }]);
+	runtime.end("first");
+	await runtime.begin("second", [], { replacement: { name: "replacement" } });
+	assert.deepEqual(Object.keys(tools), ["replacement"]);
+	assert.equal("exec_command" in tools, false);
+	runtime.end("second");
 });

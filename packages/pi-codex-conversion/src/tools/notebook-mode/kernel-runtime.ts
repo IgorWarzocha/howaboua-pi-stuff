@@ -151,6 +151,16 @@ export function notebookBootstrapSource(origin: string, token: string, exitToken
 	__emit([{ type: "input_image", image_url, detail: resolvedDetail }]);
   };
   const __tools = new Proxy({}, {
+    ownKeys() {
+      return Object.keys(__state.toolNames);
+    },
+    has(_target, name) {
+      return Object.hasOwn(__state.toolNames, name);
+    },
+    getOwnPropertyDescriptor(_target, name) {
+      if (!Object.hasOwn(__state.toolNames, name)) return undefined;
+      return { configurable: true, enumerable: true };
+    },
     get(_target, name) {
       if (typeof name !== "string") return undefined;
       return (input) => {
