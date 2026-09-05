@@ -74,25 +74,15 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
-### @howaboua/pi-codex-imagegen — 0.0.2
+### @howaboua/pi-codex-imagegen — 0.0.3
 
-- Fix worker settlement, custom model preservation, and prompt-only image generation.
-
-  - Settle Shepherdr workers after Pi expands skill or prompt-template invocations.
-  - Preserve custom Codex models and `models.json` overrides, including after refresh.
-  - Keep optional tool arguments optional in Codex Responses requests while preserving explicit strict sampling.
-  - Treat null image selectors as absent, so prompt-only requests generate rather than edit.
-  - Honor the details toggle in Notebook Mode to hide duplicate output previews.
-  - Show submitted messages without waiting for cached WebSocket warmup, while keeping generation serialized behind it.
+- Fixed Codex web search and image generation to use local Codex authentication on unrelated chat providers while preserving explicit Codex routes and optional Pi Codex integration. Removed Pi Codex package dependencies.
 
 [Full changelog](./packages/pi-codex-imagegen/CHANGELOG.md)
 
-### @howaboua/pi-codex-web-run — 0.0.1
+### @howaboua/pi-codex-web-run — 0.0.2
 
-- Initial release of Web Run for Codex web search and page navigation in normal Pi, Code Mode, and Notebook Mode.
-
-  - Search the web or images, open results, follow links, and find text while retaining reusable source references.
-  - Use stock, renamed, or proxied Codex providers through a small JSON route file.
+- Fixed Codex web search and image generation to use local Codex authentication on unrelated chat providers while preserving explicit Codex routes and optional Pi Codex integration. Removed Pi Codex package dependencies.
 
 [Full changelog](./packages/pi-codex-web-run/CHANGELOG.md)
 
@@ -270,9 +260,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-subagent-review/CHANGELOG.md)
 
-### @howaboua/pi-subdir-agents — 0.0.3
+### @howaboua/pi-subdir-agents — 0.0.4
 
-- Fixed developer-role AGENTS.md context always displaying in full. Messages now show file paths and expand with Ctrl+O.
+- Fixed repeated AGENTS.md context injection during repository discovery. Unchanged guidance stays deduplicated; new and edited files still load.
 
 [Full changelog](./packages/pi-subdir-agents/CHANGELOG.md)
 

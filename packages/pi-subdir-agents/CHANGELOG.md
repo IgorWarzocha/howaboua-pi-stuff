@@ -1,5 +1,9 @@
 # @howaboua/pi-subdir-agents
 
+## 0.0.4
+
+- Fixed repeated AGENTS.md context injection during repository discovery. Unchanged guidance stays deduplicated; new and edited files still load.
+
 ## 0.0.3
 
 - Fixed developer-role AGENTS.md context always displaying in full. Messages now show file paths and expand with Ctrl+O.

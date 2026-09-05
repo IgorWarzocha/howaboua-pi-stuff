@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-codex-imagegen",
-	"version": "0.0.2",
+	"version": "0.0.3",
 	"description": "Codex image generation and editing for Pi, Code Mode and Notebook Mode.",
 	"type": "module",
 	"license": "MIT",
