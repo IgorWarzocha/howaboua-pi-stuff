@@ -169,18 +169,10 @@ async function run() {
 		ctx,
 	);
 
-	assert.ok(
-		tenthQualifyingAction,
-		"cadence refresh should re-append unchanged AGENTS context on the tenth qualifying operation",
-	);
 	assert.equal(
-		persistedFiles(tenthQualifyingAction.details).length,
-		0,
-		"cadence refresh should not persist duplicate unchanged AGENTS context",
-	);
-	assert.match(
-		textContent(tenthQualifyingAction),
-		/<agents_file path="a\/AGENTS\.md">/,
+		tenthQualifyingAction,
+		undefined,
+		"unchanged AGENTS context must stay deduplicated across discovery operations",
 	);
 
 	await fs.writeFile(path.join(cwd, "a", "b", "c", "AGENTS.md"), "C");

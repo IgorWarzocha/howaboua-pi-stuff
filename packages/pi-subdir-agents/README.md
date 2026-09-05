@@ -16,7 +16,7 @@ When a read or discovery command reaches a file or directory, the extension find
 
 The loader recognizes direct file reads, directory tools, common read-oriented shell commands, their reported paths, and completed Code Mode traces. It follows the discovered command working directory, including `cd` and `git -C`.
 
-Loaded files are persisted in developer custom-message or tool-result details. A resumed or revisited branch does not receive unchanged guidance again. The extension periodically refreshes the guidance without rewriting persisted history. Pi Codex is optional; unavailable developer-message support keeps the tool-result route.
+Loaded files are persisted in developer custom-message or tool-result details. A resumed or revisited branch does not receive unchanged guidance again. Discovery reloads guidance only when its content changes. Pi Codex is optional; unavailable developer-message support keeps the tool-result route.
 
 ## Why append guidance instead of changing the system prompt
 
