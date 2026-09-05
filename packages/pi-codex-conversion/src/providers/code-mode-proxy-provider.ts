@@ -12,7 +12,7 @@ import type { ExtensionAPI, ModelRegistry } from "@earendil-works/pi-coding-agen
 import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import type { ExecutionMode } from "../adapter/activation/execution-mode.ts";
-import { resolveCodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
+import { resolveCodexRuntimePlan, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import { buildRequestBody } from "./openai-codex/request-body.ts";
 import { applyResponsesLiteRequest, isResponsesLiteRequest, namespaceExistingResponsesLiteRequest, prepareResponsesLiteRequestImages, RESPONSES_LITE_HEADER } from "./openai-codex/responses-lite.ts";
 import { assertSuccessfulCodexOutput, processCodexResponsesStream } from "./openai-codex/stream-events.ts";
@@ -199,6 +199,7 @@ export function registerCodeModeProxyProvider(
 	pi: ExtensionAPI,
 	getConfig: () => CodexConversionConfig,
 	getExecutionMode: () => ExecutionMode | undefined = () => undefined,
+	getAvailableToolNames: () => string[] | undefined = () => undefined,
 ): CodeModeProxyProviderRegistration {
 	const registeredProviders = new Map<string, {
 		previous: RegisteredProviderConfig | undefined;
@@ -244,10 +245,13 @@ export function registerCodeModeProxyProvider(
 			const fallbackProvider = modelRegistry.getProvider(provider);
 			if (!fallbackProvider) throw new Error(`Cannot overlay missing provider: ${provider}`);
 			const overlayStream: NonNullable<RegisteredProviderConfig["streamSimple"]> = (model, context, options) => {
-				const plan = resolveCodexRuntimePlan(
+				const plan = resolveCodexRuntimePlanForState(
 					{ model },
-					getConfig(),
-					getExecutionMode(),
+					{
+						config: getConfig(),
+						executionMode: getExecutionMode() ?? getConfig().executionMode,
+						availableToolNames: getAvailableToolNames(),
+					},
 				);
 				if (
 					model.api === "openai-responses" &&

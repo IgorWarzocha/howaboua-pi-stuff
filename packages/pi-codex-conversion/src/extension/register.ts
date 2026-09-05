@@ -9,7 +9,7 @@ import { createCodexExtensionRuntime } from "./runtime.ts";
 import { registerCodexTools } from "./tools.ts";
 import { registerCodexUi } from "./ui.ts";
 import { registerCodexVoiceRenderer } from "../voice/ui.ts";
-import { resolveCodexRuntimePlan } from "../adapter/activation/runtime-plan.ts";
+import { resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import { captureActiveProviderSystemPrompt } from "../adapter/provider-request.ts";
 import { hasCodexCacheKeepalivePlanChanged } from "../adapter/activation/cache-keepalive.ts";
 
@@ -23,7 +23,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 	try {
 		registerOpenAICodexCustomProvider(pi, {
 			getConfig: () => ({ executionMode: runtime.state.executionMode, openai: runtime.state.config.openai, compaction: runtime.state.config.compaction }),
-			useResponsesLite: (model) => resolveCodexRuntimePlan({ model }, runtime.state.config, runtime.state.executionMode).transport === "responses-lite",
+			useResponsesLite: (model) => resolveCodexRuntimePlanForState({ model }, runtime.state).transport === "responses-lite",
 			turnState: runtime.state.codexTurnState,
 			getDiagnostics: () => runtime.diagnosticsSink(),
 			onPreparedPayload: (payload) => {
@@ -32,7 +32,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 				runtime.state.pendingActiveProviderPromptCapture = false;
 			},
 		});
-		const proxyProvider = registerCodeModeProxyProvider(pi, () => runtime.state.config, () => runtime.state.executionMode);
+		const proxyProvider = registerCodeModeProxyProvider(pi, () => runtime.state.config, () => runtime.state.executionMode, () => runtime.state.availableToolNames);
 		cleanupProxyProvider = proxyProvider;
 		const tools = registerCodexTools(pi, runtime);
 		const ui = registerCodexUi(pi, runtime);
@@ -44,11 +44,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 			if (
 				previousConfig.compaction.contextManagement === "off" &&
 				config.compaction.contextManagement !== "off" &&
-				resolveCodexRuntimePlan(
-					{ model: ctx.model },
-					config,
-					runtime.state.executionMode,
-				).contextManagement
+				resolveCodexRuntimePlanForState(ctx, runtime.state).contextManagement
 			) {
 				runtime.state.contextWindows.restore(
 					ctx.sessionManager.getBranch(),

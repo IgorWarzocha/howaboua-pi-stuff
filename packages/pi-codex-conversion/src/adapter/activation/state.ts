@@ -18,6 +18,7 @@ export interface PendingPiCompactionNativeWindow {
 
 export interface AdapterState {
 	enabled: boolean;
+	availableToolNames?: string[] | undefined;
 	cwd: string;
 	adapterOwnedToolNames?: string[] | undefined;
 	codeModeExtensionToolNames?: string[] | undefined;
