@@ -30,6 +30,7 @@ function mockPi() {
 		},
 		registerTool() {},
 		registerCommand() {},
+		registerMessageRenderer() {},
 		sendUserMessage() {},
 		sendMessage(message) {
 			sentMessages.push(message);
