@@ -233,6 +233,8 @@ export async function openCodexSettingsScreen(
 						theme,
 						options.configScope.current(),
 					);
+				if (activeTab === "adapter")
+					settingsLines = withContextWindowsWarning(settingsLines, theme);
 				if (activeTab === "tools")
 					settingsLines = withSettingsDetails(
 						settingsLines,
@@ -409,6 +411,31 @@ function withConfigScopeDetails(
 		? "Changes here update this project."
 		: "Changes here update global settings.";
 	next.splice(scopeIndex + 1, 0, theme.fg("dim", "  " + detail));
+	return next;
+}
+
+function withContextWindowsWarning(lines: string[], theme: Theme): string[] {
+	const next = [...lines];
+	const settingIndex = next.findIndex((line) =>
+		line.includes("Context management (experimental)")
+	);
+	if (settingIndex < 0) return next;
+	next.splice(
+		settingIndex,
+		0,
+		theme.fg(
+			"warning",
+			"  ⚠ Keep Context management enabled when resuming sessions that used it.",
+		),
+		theme.fg(
+			"warning",
+			"    To disable it for that session, run /compact first,",
+		),
+		theme.fg(
+			"warning",
+			"    then switch it off in the new window.",
+		),
+	);
 	return next;
 }
 

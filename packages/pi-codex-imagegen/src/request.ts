@@ -49,11 +49,11 @@ export async function buildImageGenerationRequest(
 				MAX_EDIT_IMAGES +
 				" paths",
 		);
-	if (paths.length > 0 && args.num_last_images_to_include !== undefined)
+	if (paths.length > 0 && args.num_last_images_to_include != null)
 		throw new Error(
 			"provide only one of referenced_image_paths or num_last_images_to_include",
 		);
-	if (paths.length === 0 && args.num_last_images_to_include === undefined) {
+	if (paths.length === 0 && args.num_last_images_to_include == null) {
 		return {
 			operation: "generations",
 			body: {

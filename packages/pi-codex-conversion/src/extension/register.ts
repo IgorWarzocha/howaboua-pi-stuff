@@ -17,6 +17,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 	registerCodexVoiceRenderer(pi);
 	registerApplyPatchDisplayBroker(pi);
 	const runtime = createCodexExtensionRuntime(pi);
+	runtime.state.contextTree.register(pi);
 	const codeMode = await registerCodexCodeMode(pi, runtime);
 	let cleanupProxyProvider: ReturnType<typeof registerCodeModeProxyProvider> | undefined;
 	try {
@@ -37,6 +38,30 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 		const ui = registerCodexUi(pi, runtime);
 		registerCodexCommand(pi, runtime.state, runtime.voice, runtime.lanVoice, (config, ctx, previousConfig) => {
 			const executionModeChanged = config.executionMode !== previousConfig.executionMode;
+			const contextManagementChanged =
+				config.compaction.contextManagement !==
+				previousConfig.compaction.contextManagement;
+			if (
+				previousConfig.compaction.contextManagement === "off" &&
+				config.compaction.contextManagement !== "off" &&
+				resolveCodexRuntimePlan(
+					{ model: ctx.model },
+					config,
+					runtime.state.executionMode,
+				).contextManagement
+			) {
+				runtime.state.contextWindows.restore(
+					ctx.sessionManager.getBranch(),
+				);
+				void runtime.state.contextWindows.startNewWindow(pi, ctx, {
+					triggerTurn: false,
+					mode: config.compaction.contextManagement,
+					trimPreviousWindow:
+						config.compaction.contextManagement !== "tree",
+				}).catch((error: unknown) => {
+					ctx.ui.notify(`Could not start context window: ${error instanceof Error ? error.message : String(error)}`, "warning");
+				});
+			}
 			proxyProvider.applyConfig(config, ctx.modelRegistry);
 			tools.applyConfig(config);
 			ui.applyConfig(config, ctx, previousConfig);
@@ -56,6 +81,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 				|| config.prompt.heavySystemPromptOverwrite !== previousConfig.prompt.heavySystemPromptOverwrite
 				|| config.openai.fast !== previousConfig.openai.fast
 				|| config.openai.harnessIdentifierHeader !== previousConfig.openai.harnessIdentifierHeader
+				|| contextManagementChanged
 				|| config.compaction.responsesCompaction !== previousConfig.compaction.responsesCompaction
 			) {
 				runtime.resetTransport(ctx.sessionManager.getSessionId());

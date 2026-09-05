@@ -2,6 +2,7 @@ import {
 	type AllProvidersMode,
 	type CacheDiagnosticsMode,
 	type CodexVerbosity,
+	type ContextManagementMode,
 	DEFAULT_VOICE_CONTEXT_REASONING,
 	type DictationShortcutMode,
 	LUNA_CACHE_KEEPALIVE_MINUTES_OPTIONS,
@@ -22,6 +23,17 @@ export function normalizeAllProvidersMode(
 	if (value === true) return "on";
 	if (value === false) return "off";
 	return value === "off" || value === "on" || value === "extras"
+		? value
+		: undefined;
+}
+
+export function normalizeContextManagementMode(
+	value: unknown,
+): ContextManagementMode | undefined {
+	return value === "off" ||
+		value === "local" ||
+		value === "tree" ||
+		value === "remote"
 		? value
 		: undefined;
 }

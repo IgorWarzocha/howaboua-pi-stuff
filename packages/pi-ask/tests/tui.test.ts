@@ -129,7 +129,7 @@ describe("TUI ask cancellation", () => {
 					choices: [{ label: "C" }, { label: "D" }],
 				},
 			],
-			{ handoff: true },
+			{ steering: true },
 		);
 
 		expect(result?.map((response) => response.selections)).toEqual([
@@ -138,6 +138,7 @@ describe("TUI ask cancellation", () => {
 		]);
 		expect(screens[0]).toContain("j down");
 		expect(screens[0]).toContain("x choose/type");
+		expect(screens[0]).toContain("Agent continues while you decide");
 		expect(screens[1]).toContain("s save");
 		expect(screens[1]).toContain("q cancel edit");
 		expect(screens[2]).toContain("h previous prompt");

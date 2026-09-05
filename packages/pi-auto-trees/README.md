@@ -24,6 +24,8 @@ pi -e npm:@howaboua/pi-auto-trees
 
 `/prime` asks the agent for a concise orientation briefing and does not ask it to implement anything. The automatic marker is set only after Pi reports that the agent is fully settled, including any retry or compaction work.
 
+Use `/marker` to mark the current conversation point without a priming turn. It waits for Pi to become idle before setting the checkpoint.
+
 `/end` summarizes the branch since the marker, navigates back to that point, carries the summary forward, and advances the marker to the new compact point. The summary keeps accepted changes, decisions, constraints, and relevant follow-up while dropping temporary implementation noise.
 
 ### `/end` modes

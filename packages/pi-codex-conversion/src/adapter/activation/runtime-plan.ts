@@ -1,8 +1,9 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { supportsCodexReasoningUpdates } from "../reasoning-updates.ts";
 import { supportsViewImageInputs } from "../tool-support.ts";
 import { supportsResponsesLiteModel } from "../../providers/openai-codex/responses-lite-model.ts";
 import { isCodexLikeModel, isCodexTransportContext, isOpenAIResponsesContext, isResponsesContext } from "../prompt/codex-model.ts";
-import type { CodexConversionConfig } from "./config.ts";
+import type { CodexConversionConfig, ContextManagementMode } from "./config.ts";
 import type { ExecutionMode } from "./execution-mode.ts";
 import type { AdapterState } from "./state.ts";
 import {
@@ -12,6 +13,8 @@ import {
 	NOTEBOOK_MODE_TOOL_NAMES,
 	SHELL_ADAPTER_TOOL_NAMES,
 	VIEW_IMAGE_TOOL_NAME,
+	CONTEXT_DIRECT_TOOL_NAMES,
+	CONTEXT_MANAGEMENT_TOOL_NAMES,
 } from "./tool-set.ts";
 
 type RuntimeContext = Pick<ExtensionContext, "model">;
@@ -24,6 +27,10 @@ interface RuntimePlanBase {
 	codexTransport: boolean;
 	effectiveOpenAICodex: boolean;
 	nativeCompaction: boolean;
+	contextManagement: boolean;
+	contextManagementMode: ContextManagementMode;
+	contextManagementRemote: boolean;
+	autoReasoning: boolean;
 }
 
 export interface InactiveRuntimePlan extends RuntimePlanBase {
@@ -48,21 +55,23 @@ export interface NormalRuntimePlan extends RuntimePlanBase {
 export interface CodeRuntimePlan extends RuntimePlanBase {
 	kind: "code";
 	prompt: "code";
-	transport: "responses-lite";
+	transport: "responses" | "responses-lite";
 }
 
 export interface NotebookRuntimePlan extends RuntimePlanBase {
 	kind: "notebook";
 	prompt: "notebook";
-	transport: "responses-lite";
+	transport: "responses" | "responses-lite";
 }
 
 export type CodexRuntimePlan = InactiveRuntimePlan | ExtrasRuntimePlan | NormalRuntimePlan | CodeRuntimePlan | NotebookRuntimePlan;
 
 const ALL_ADAPTER_TOOL_NAMES = [
+	"change_reasoning",
 	...CORE_ADAPTER_TOOL_NAMES,
 	...NOTEBOOK_MODE_TOOL_NAMES,
 	VIEW_IMAGE_TOOL_NAME,
+	...CONTEXT_MANAGEMENT_TOOL_NAMES,
 ];
 
 function configuredProvider(ctx: RuntimeContext, config: CodexConversionConfig): boolean {
@@ -70,18 +79,18 @@ function configuredProvider(ctx: RuntimeContext, config: CodexConversionConfig):
 	return Boolean(provider && isResponsesContext(ctx) && config.scope.additionalProviders.includes(provider));
 }
 
-function proxySupportsCodeMode(ctx: RuntimeContext, config: CodexConversionConfig): boolean {
+function proxySupportsResponsesLite(ctx: RuntimeContext, config: CodexConversionConfig): boolean {
 	if (!config.openai.proxyResponsesLite || !configuredProvider(ctx, config) || !isOpenAIResponsesContext(ctx)) return false;
 	const modelId = ctx.model?.id;
 	if (!modelId) return false;
 	const id = modelId.includes("/") ? (modelId.split("/").pop() ?? modelId) : modelId;
-	return /^gpt-5\.6(?:-(?:luna|terra|sol))?$/.test(id.toLowerCase());
+	return /^(?:gpt-6-astra|gpt-5\.6(?:-(?:luna|terra|sol))?)$/.test(id.toLowerCase());
 }
 
-function codeModeEligible(ctx: RuntimeContext, config: CodexConversionConfig): boolean {
+function usesResponsesLite(ctx: RuntimeContext, config: CodexConversionConfig): boolean {
 	return isCodexTransportContext(ctx)
 		? supportsResponsesLiteModel(ctx.model?.id)
-		: proxySupportsCodeMode(ctx, config);
+		: proxySupportsResponsesLite(ctx, config);
 }
 
 function hasExtras(config: CodexConversionConfig): boolean {
@@ -96,9 +105,10 @@ function extraToolNames(ctx: RuntimeContext, config: CodexConversionConfig): str
 	return names;
 }
 
-function normalToolNames(ctx: RuntimeContext, config: CodexConversionConfig): string[] {
+function normalToolNames(ctx: RuntimeContext, config: CodexConversionConfig, contextManagement: boolean): string[] {
 	const names = [...CORE_ADAPTER_TOOL_NAMES];
 	if (supportsViewImageInputs(ctx.model) || config.tools.viewImageFallback) names.push(VIEW_IMAGE_TOOL_NAME);
+	if (contextManagement) names.push(...CONTEXT_MANAGEMENT_TOOL_NAMES);
 	return names;
 }
 
@@ -111,10 +121,12 @@ export function resolveCodexRuntimePlan(
 	const codexTransport = isCodexTransportContext(ctx);
 	const effectiveOpenAICodex = codexTransport || isConfigured;
 	const ownedToolNames = [
+		"change_reasoning",
 		...SHELL_ADAPTER_TOOL_NAMES,
 		...NOTEBOOK_MODE_TOOL_NAMES,
 		APPLY_PATCH_TOOL_NAME,
 		VIEW_IMAGE_TOOL_NAME,
+		...CONTEXT_MANAGEMENT_TOOL_NAMES,
 	];
 	const base = {
 		ownedToolNames,
@@ -122,6 +134,10 @@ export function resolveCodexRuntimePlan(
 		codexTransport,
 		effectiveOpenAICodex,
 		nativeCompaction: false,
+		contextManagement: false,
+		contextManagementMode: "off" as const,
+		contextManagementRemote: false,
+		autoReasoning: false,
 	};
 	const extras = hasExtras(config)
 		&& (config.scope.allProviders === "extras"
@@ -134,26 +150,68 @@ export function resolveCodexRuntimePlan(
 
 	const active = config.scope.allProviders === "on" || isConfigured || isCodexLikeModel(ctx.model);
 	if (!active) return { ...base, kind: "inactive", toolNames: [], prompt: undefined, transport: undefined };
-	const nativeCompaction = config.compaction.responsesCompaction && effectiveOpenAICodex;
+	const configuredContextManagementMode = isResponsesContext(ctx)
+		? config.compaction.contextManagement
+		: "off";
+	const contextManagement = configuredContextManagementMode !== "off" &&
+		(configuredContextManagementMode !== "remote" || codexTransport);
+	const contextManagementMode = contextManagement
+		? configuredContextManagementMode
+		: "off";
+	const contextManagementRemote = contextManagementMode === "remote";
+	const nativeCompaction = config.compaction.responsesCompaction && effectiveOpenAICodex && !contextManagement;
+	base.autoReasoning = config.tools.autoReasoning && supportsCodexReasoningUpdates(ctx.model);
 	const configuredExecutionMode = executionMode ?? config.executionMode;
 	const requestedCodeMode = configuredExecutionMode === "code" || configuredExecutionMode === "notebook"
 		? configuredExecutionMode
 		: configuredExecutionMode === "normal"
 			? undefined
 			: undefined;
-	if (requestedCodeMode && codeModeEligible(ctx, config)) {
+	if (requestedCodeMode) {
+		const transport = usesResponsesLite(ctx, config)
+			? "responses-lite"
+			: "responses";
 		if (requestedCodeMode === "notebook") {
-			return { ...base, kind: "notebook", toolNames: [...NOTEBOOK_MODE_TOOL_NAMES], prompt: "notebook", transport: "responses-lite", nativeCompaction };
+			return {
+				...base,
+				kind: "notebook",
+				toolNames: [
+					...NOTEBOOK_MODE_TOOL_NAMES,
+					...(contextManagement ? CONTEXT_DIRECT_TOOL_NAMES : []),
+				],
+				prompt: "notebook",
+				transport,
+				nativeCompaction,
+				contextManagement,
+				contextManagementMode,
+				contextManagementRemote,
+			};
 		}
-		return { ...base, kind: "code", toolNames: [...CODE_MODE_TOOL_NAMES], prompt: "code", transport: "responses-lite", nativeCompaction };
+		return {
+			...base,
+			kind: "code",
+			toolNames: [
+				...CODE_MODE_TOOL_NAMES,
+				...(contextManagement ? CONTEXT_DIRECT_TOOL_NAMES : []),
+			],
+			prompt: "code",
+			transport,
+			nativeCompaction,
+			contextManagement,
+			contextManagementMode,
+			contextManagementRemote,
+		};
 	}
 	return {
 		...base,
 		kind: "normal",
-		toolNames: normalToolNames(ctx, config),
+		toolNames: [...normalToolNames(ctx, config, contextManagement), ...(base.autoReasoning ? ["change_reasoning"] : [])],
 		prompt: "normal",
 		transport: "responses",
 		nativeCompaction,
+		contextManagement,
+		contextManagementMode,
+		contextManagementRemote,
 	};
 }
 

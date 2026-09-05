@@ -1,8 +1,22 @@
 name: Release
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
+    paths:
+      - 'packages/**'
+      - '.changeset/**'
+      - 'scripts/**'
+      - 'package.json'
+      - 'bun.lock'
+      - 'bunfig.toml'
+      - '.npmrc'
+      - '.github/workflows/release.yml'
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -11,6 +25,7 @@ permissions:
 
 jobs:
   release:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: npm-release
     steps:
@@ -21,7 +36,7 @@ jobs:
         with:
           registry-url: https://registry.npmjs.org
       - uses: oven-sh/setup-bun@v2
-      - run: bun install
+      - run: bun install --frozen-lockfile
       - name: Build pi-codex-conversion extension
         run: bun run --cwd packages/pi-codex-conversion build
       - name: Verify packed Pi extensions load in isolation

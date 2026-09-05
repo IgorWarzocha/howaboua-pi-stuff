@@ -27,6 +27,24 @@ test("legacy persisted config shapes migrate to the current groups", () => {
 	assert.equal(normalizeCodexConversionConfig({
 		compaction: { responsesCompaction: true, portableSummary: true },
 	}).compaction.portableSummary, true);
+	assert.deepEqual(normalizeCodexConversionConfig({
+		compaction: {
+			contextManagement: "remote",
+			responsesCompaction: true,
+			portableSummary: true,
+		},
+	}).compaction, {
+		contextManagement: "remote",
+		responsesCompaction: false,
+		portableSummary: false,
+		v2UserMessageRetention: 64,
+	});
+	assert.equal(normalizeCodexConversionConfig({
+		compaction: { contextManagement: "local" },
+	}).compaction.contextManagement, "local");
+	assert.equal(normalizeCodexConversionConfig({
+		compaction: { contextManagement: "invalid" },
+	}).compaction.contextManagement, "off");
 	assert.equal(normalizeCodexConversionConfig({
 		voice: { refreshRealtimeAfterCompaction: true },
 	}).voice.refreshRealtimeAfterCompaction, false);

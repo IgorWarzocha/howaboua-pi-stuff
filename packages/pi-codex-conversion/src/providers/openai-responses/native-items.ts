@@ -38,6 +38,13 @@ export function encryptedWebRunOutputFromDetails(details: unknown): string | und
 	return encryptedOutputFromWebRunLike(record["webRun"]);
 }
 
+export function encryptedToolOutputFromDetails(details: unknown): string | undefined {
+	if (!details || typeof details !== "object") return undefined;
+	const record = details as Record<string, unknown>;
+	return encryptedWebRunOutputFromDetails(details)
+		?? encryptedOutputFromWebRunLike(record["codexHistoryNotes"]);
+}
+
 export function isImageGenerationCallBlock(block: { type: string; item?: unknown }): block is ImageGenerationCallBlock {
 	return block.type === "image_generation_call" && typeof block.item === "object" && block.item !== null && (block.item as Record<string, unknown>)["type"] === "image_generation_call";
 }

@@ -12,7 +12,9 @@ test("Responses compaction v2 retains real turns and reconciles tool history", (
 		{ type: "function_call_output", call_id: "orphan", output: "drop" },
 		{ type: "function_call", id: "fc_pending", call_id: "pending", name: "exec", arguments: "{}" },
 		contextual,
+		{ type: "configuration_update", reasoning: { effort: "medium" } },
 		real,
+		{ type: "configuration_update", reasoning: { effort: "high" } },
 	]);
 	const window = buildRemoteCompactionV2Window(normalized, { type: "compaction", encrypted_content: "sealed" });
 
@@ -22,7 +24,9 @@ test("Responses compaction v2 retains real turns and reconciles tool history", (
 	assert.deepEqual(normalizeRemoteCompactionV2PromptInput(normalized), normalized);
 	assert.doesNotMatch(JSON.stringify(window), /private scaffolding|hidden hook|orphan/);
 	assert.match(JSON.stringify(window), /remember this exactly/);
-	assert.equal(window.at(-1)?.["encrypted_content"], "sealed");
+	assert.equal(window.at(-2)?.["encrypted_content"], "sealed");
+	assert.deepEqual(window.at(-1), { type: "configuration_update", reasoning: { effort: "high" } });
+	assert.equal(window.filter((item) => item["type"] === "configuration_update").length, 1);
 });
 
 test("Responses compaction v2 does not backfill past an image outside the retained budget", () => {

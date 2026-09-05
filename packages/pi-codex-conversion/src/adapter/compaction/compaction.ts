@@ -1,4 +1,4 @@
-import type { CompactionResult, ExtensionAPI, ExtensionContext, SessionBeforeCompactEvent, SessionEntry } from "@earendil-works/pi-coding-agent";
+import { buildSessionContext, type CompactionResult, type ExtensionAPI, type ExtensionContext, type SessionBeforeCompactEvent, type SessionEntry } from "@earendil-works/pi-coding-agent";
 import { clampThinkingLevel, type Api, type Context, type Model, type ModelThinkingLevel } from "@earendil-works/pi-ai";
 import { findLatestNativeCompactionEntryIndex, resolveLatestNativeCompactionEntry, type LatestNativeCompactionResolution } from "./details-store.ts";
 import { rewriteResponsesPayloadWithNativeReplay, serializeLiveTailToResponsesInput } from "../replay/payload-rewrite.ts";
@@ -23,6 +23,7 @@ import { extractAccountId, resolveCodexWebSocketUrl } from "../../providers/open
 import type { CodexCompactionDiagnostic } from "./diagnostics.ts";
 import { prepareResponsesLiteConversationInput } from "../../providers/openai-codex/responses-lite.ts";
 import { runPortablePiCompaction } from "./portable-summary.ts";
+import { codexReasoningUpdates } from "../reasoning-updates.ts";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === "object" && !Array.isArray(value);
@@ -67,7 +68,7 @@ function cloneCompactedWindow(window: readonly unknown[]): ResponsesInputItem[] 
 function buildCompactionTools(pi: ExtensionAPI, codeMode: boolean): unknown[] | undefined {
 	const tools = getActiveToolsInActiveOrder(pi, codeMode);
 	if (tools.length === 0) return undefined;
-	return convertResponsesTools(tools, { strict: null });
+	return convertResponsesTools(tools, { strict: false });
 }
 
 function buildCompactionReasoning(
@@ -78,6 +79,8 @@ function buildCompactionReasoning(
 ): NativeCompactionRequestOptions["reasoning"] {
 	const level = pi.getThinkingLevel();
 	if (!compactionTargetModel.reasoning || level === "off") return undefined;
+	const initialEffort = codexReasoningUpdates(buildSessionContext(ctx.sessionManager.getBranch()).messages, compactionTargetModel)[0]?.initialEffort;
+	if (initialEffort) return { effort: initialEffort, summary: "auto" };
 	const clampedLevel = clampThinkingLevel(compactionTargetModel, level as ModelThinkingLevel);
 	const rawEffort = compactionTargetModel.thinkingLevelMap?.[clampedLevel] ?? clampedLevel;
 	const effort = typeof rawEffort === "string" && resolveCodexRuntimePlanForState(ctx, state).effectiveOpenAICodex
@@ -232,7 +235,9 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 	const runtime = resolution.runtime;
 	const compactionTargetModel = runtime.currentModel;
 	const codeMode = isCodeModeRuntime(plan);
-	const serializationOptions = codeMode ? { grammarToolInputProperties: CODE_MODE_EXEC_GRAMMAR_INPUTS } : undefined;
+	const serializationOptions = plan.transport === "responses-lite"
+		? { grammarToolInputProperties: CODE_MODE_EXEC_GRAMMAR_INPUTS }
+		: undefined;
 	const requestOptions = buildCompactionRequestOptions(pi, ctx, state, compactionTargetModel, codeMode);
 	const branchEntries = ctx.sessionManager.getBranch();
 	const latestNativeCompaction = resolveLatestNativeCompactionEntry(branchEntries, {
@@ -411,7 +416,9 @@ export async function rewriteCodexCompactedProviderRequest(payload: unknown, ctx
 		payload: runtime.payload,
 		branchEntries,
 		compactionEntry,
-		serializationOptions: isCodeModeRuntime(plan) ? { grammarToolInputProperties: CODE_MODE_EXEC_GRAMMAR_INPUTS } : undefined,
+		serializationOptions: plan.transport === "responses-lite"
+			? { grammarToolInputProperties: CODE_MODE_EXEC_GRAMMAR_INPUTS }
+			: undefined,
 	});
 	if (rewrite.ok) return rewrite.rewrittenPayload;
 	const detail = rewrite.parity?.mismatches.slice(0, 3).join("; ");

@@ -93,6 +93,7 @@ export function buildOpenAISettings(
 				compaction: {
 					...current.compaction,
 					responsesCompaction: enabled,
+					...(enabled ? { contextManagement: "off" as const } : {}),
 					...(enabled ? {} : { portableSummary: false }),
 				},
 			}),
@@ -106,7 +107,9 @@ export function buildOpenAISettings(
 				compaction: {
 					...current.compaction,
 					portableSummary: enabled,
-					...(enabled ? { responsesCompaction: true } : {}),
+					...(enabled
+						? { responsesCompaction: true, contextManagement: "off" as const }
+						: {}),
 				},
 			}),
 		),

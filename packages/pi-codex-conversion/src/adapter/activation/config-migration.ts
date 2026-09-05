@@ -47,6 +47,7 @@ export function migrateCodexConversionConfigIfNeeded(value: unknown): { migrated
 			additionalProviders: value["useAdapterProviders"] === true ? normalizeProviderList(value["adapterProviders"]) : [],
 		},
 		tools: {
+			autoReasoning: DEFAULT_CODEX_CONVERSION_CONFIG.tools.autoReasoning,
 			customRustBinariesDir: DEFAULT_CODEX_CONVERSION_CONFIG.tools["customRustBinariesDir"],
 			viewImageFallback: DEFAULT_CODEX_CONVERSION_CONFIG.tools["viewImageFallback"],
 			applyPatchOnly: typeof value["applyPatchOnly"] === "boolean" ? value["applyPatchOnly"] : DEFAULT_CODEX_CONVERSION_CONFIG.tools["applyPatchOnly"],
@@ -64,6 +65,7 @@ export function migrateCodexConversionConfigIfNeeded(value: unknown): { migrated
 			backgroundShellCloseShortcut: stringValue(value["backgroundShellCloseShortcut"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellCloseShortcut"]),
 		},
 		compaction: {
+			contextManagement: DEFAULT_CODEX_CONVERSION_CONFIG.compaction.contextManagement,
 			responsesCompaction: typeof value["responsesCompaction"] === "boolean" ? value["responsesCompaction"] : DEFAULT_CODEX_CONVERSION_CONFIG.compaction["responsesCompaction"],
 			portableSummary: DEFAULT_CODEX_CONVERSION_CONFIG.compaction.portableSummary,
 			v2UserMessageRetention: DEFAULT_CODEX_CONVERSION_CONFIG.compaction.v2UserMessageRetention,

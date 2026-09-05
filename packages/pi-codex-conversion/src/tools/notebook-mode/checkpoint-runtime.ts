@@ -1,10 +1,6 @@
+import { BINDING_METADATA_READER_SOURCE, BINDING_METADATA_RESTORE_SOURCE } from "./binding-metadata-source.ts";
 import { CHECKPOINT_SCHEMA, type CheckpointManifest, type NotebookCheckpointIdentity } from "./checkpoint-format.ts";
-import {
-	MAX_PROJECT_DESCRIPTION_BYTES,
-	MAX_PROJECT_MANIFEST_BYTES,
-	MAX_PROJECT_USAGE_BYTES,
-	MAX_PROJECT_USAGE_LINES,
-} from "./project-state-format.ts";
+import { MAX_PROJECT_MANIFEST_BYTES } from "./project-state-format.ts";
 
 export function checkpointSource(options: {
 	candidates: string[];
@@ -61,31 +57,7 @@ export function checkpointSource(options: {
   const __entries = [];
   const __skipped = ${JSON.stringify(options.skippedInvalid)};
   let __total = 0;
-  const __readBindingMetadata = (__value) => {
-    if (__value === null || (typeof __value !== "object" && typeof __value !== "function")) return {};
-    const __metadata = {};
-    for (const [__key, __max, __multiline, __lines] of [
-      ["description", ${MAX_PROJECT_DESCRIPTION_BYTES}, false, 1],
-      ["usage", ${MAX_PROJECT_USAGE_BYTES}, true, ${MAX_PROJECT_USAGE_LINES}],
-    ]) {
-      const __descriptor = Object.getOwnPropertyDescriptor(__value, __key);
-      if (!__descriptor || !("value" in __descriptor) || typeof __descriptor.value !== "string") continue;
-      const __text = __descriptor.value;
-      if (!__text || new TextEncoder().encode(__text).byteLength > __max || __text.includes("\\r")) continue;
-      const __textLines = __text.split("\\n");
-      if (__textLines.length > __lines) continue;
-      let __valid = true;
-      for (const __character of __text) {
-        const __codePoint = __character.codePointAt(0);
-        if ((__codePoint < 0x20 && __codePoint !== 0x0a) || __codePoint === 0x7f || !__multiline && __codePoint === 0x0a) {
-          __valid = false;
-          break;
-        }
-      }
-      if (__valid) __metadata[__key] = __text;
-    }
-    return __metadata;
-  };
+${BINDING_METADATA_READER_SOURCE}
   const __skip = (name, reason) => __skipped.push({ name, reason: String(reason).slice(0, 240) });
 	const __file = await Deno.open(${JSON.stringify(options.payloadPath)}, { create: true, write: true, truncate: true, mode: 0o600 });
 	const __writeAll = async (__bytes) => {
@@ -142,20 +114,7 @@ export function restoreSource(manifest: CheckpointManifest, payloadPath: string,
 	if (__entry.kind === "function") __functions.push([__entry.name, __captured, __entry]);
 	else __values.push([__entry.name, __captured, __entry]);
 	}
-	const __applyMetadata = (__value, __entry) => {
-	  if (__value === null || (typeof __value !== "object" && typeof __value !== "function")) return;
-	  for (const __key of ["description", "usage"]) {
-	    if (typeof __entry[__key] !== "string") continue;
-	    try {
-	      Object.defineProperty(__value, __key, {
-	        value: __entry[__key],
-	        writable: true,
-	        configurable: true,
-	        enumerable: true,
-	      });
-	    } catch {}
-	  }
-	};
+${BINDING_METADATA_RESTORE_SOURCE}
 	for (const [__name, __value, __entry] of __values) {
 	  __applyMetadata(__value, __entry);
 	  Object.defineProperty(globalThis, __name, { value: __value, writable: true, configurable: true, enumerable: true });

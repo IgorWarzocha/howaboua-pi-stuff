@@ -12,17 +12,23 @@ export const IMAGE_GENERATION_PARAMETERS = Type.Object(
 	{
 		prompt: Type.String(),
 		referenced_image_paths: Type.Optional(
-			Type.Array(Type.String(), {
-				description: "Local edit targets",
-				maxItems: MAX_EDIT_IMAGES,
-			}),
+			Type.Union([
+				Type.Array(Type.String(), {
+					description: "Local edit targets",
+					maxItems: MAX_EDIT_IMAGES,
+				}),
+				Type.Null(),
+			]),
 		),
 		num_last_images_to_include: Type.Optional(
-			Type.Integer({
-				description: "Smallest recent edit count",
-				minimum: 1,
-				maximum: MAX_EDIT_IMAGES,
-			}),
+			Type.Union([
+				Type.Integer({
+					description: "Smallest recent edit count",
+					minimum: 1,
+					maximum: MAX_EDIT_IMAGES,
+				}),
+				Type.Null(),
+			]),
 		),
 	},
 	{ additionalProperties: false },
@@ -30,8 +36,8 @@ export const IMAGE_GENERATION_PARAMETERS = Type.Object(
 
 export interface ImagegenArgs {
 	prompt: string;
-	referenced_image_paths?: string[];
-	num_last_images_to_include?: number;
+	referenced_image_paths?: string[] | null;
+	num_last_images_to_include?: number | null;
 }
 
 export interface ImageResponse {

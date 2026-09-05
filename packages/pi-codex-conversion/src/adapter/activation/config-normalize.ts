@@ -9,6 +9,7 @@ import {
 	normalizeAllProvidersMode,
 	normalizeCacheDiagnosticsMode,
 	normalizeCodexVerbosity,
+	normalizeContextManagementMode,
 	normalizeCustomRustBinariesDir,
 	normalizeDictationShortcutMode,
 	normalizeLunaCacheKeepaliveMinutes,
@@ -46,10 +47,13 @@ export function normalizeCodexConversionConfig(
 	const executionMode =
 		normalizeExecutionMode(value["executionMode"]) ??
 		DEFAULT_CODEX_CONVERSION_CONFIG.executionMode;
+	const contextManagement =
+		normalizeContextManagementMode(compaction["contextManagement"]) ??
+		DEFAULT_CODEX_CONVERSION_CONFIG.compaction.contextManagement;
 	const responsesCompaction = normalizeBoolean(
 		compaction["responsesCompaction"],
 		DEFAULT_CODEX_CONVERSION_CONFIG.compaction.responsesCompaction,
-	);
+	) && contextManagement === "off";
 	return {
 		executionMode,
 		voiceFeaturesOnly: normalizeBoolean(
@@ -69,6 +73,7 @@ export function normalizeCodexConversionConfig(
 			additionalProviders: normalizeProviderList(scope["additionalProviders"]),
 		},
 		tools: {
+			autoReasoning: normalizeBoolean(tools["autoReasoning"], DEFAULT_CODEX_CONVERSION_CONFIG.tools.autoReasoning),
 			customRustBinariesDir: normalizeCustomRustBinariesDir(
 				tools["customRustBinariesDir"],
 			),
@@ -127,6 +132,7 @@ export function normalizeCodexConversionConfig(
 			),
 		},
 		compaction: {
+			contextManagement,
 			responsesCompaction,
 			portableSummary:
 				normalizeBoolean(

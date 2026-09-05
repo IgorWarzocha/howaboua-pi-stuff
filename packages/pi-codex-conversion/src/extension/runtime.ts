@@ -1,5 +1,6 @@
 import { buildSessionContext, convertToLlm, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { Context } from "@earendil-works/pi-ai";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { dirname } from "node:path";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
 import { readCodexCacheEnvironment } from "../adapter/activation/cache-environment.ts";
@@ -7,7 +8,7 @@ import { resolveCodexCacheKeepalivePlan, type CodexCacheKeepalivePlan, type Code
 import { getCodexConversionConfigPath, readEffectiveCodexConversionConfig } from "../adapter/activation/config-store.ts";
 import { isAdapterRuntime, resolveCodexRuntimePlan, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
 import type { AdapterState } from "../adapter/activation/state.ts";
-import { rewriteCodexPrewarmProviderRequest, rewriteCodexProviderRequest } from "../adapter/provider-request.ts";
+import { rewriteCodexPrewarmProviderRequest, rewriteCodexProviderRequest, supportsCodexDeveloperMessages } from "../adapter/provider-request.ts";
 import { getPiCodexRuntimeShell } from "../adapter/prompt/runtime-shell.ts";
 import { isProviderContextExcludedMessage } from "../adapter/prompt/context-filter.ts";
 import { buildCodexSystemPrompt, type PiSystemPromptOptions } from "../prompt/build-system-prompt.ts";
@@ -24,6 +25,11 @@ import { CodexLanVoiceServerController } from "../voice/lan/controller.ts";
 import { getActiveToolsInActiveOrder } from "../adapter/active-tools.ts";
 import { createLazyCodexDiagnostics } from "../diagnostics/lazy.ts";
 import type { CodexDiagnosticsSink } from "../providers/openai-codex/types.ts";
+import { CodexDeveloperMessageBridge } from "../adapter/developer-messages.ts";
+import { CodexContextWindowManager } from "../context-management/window-manager.ts";
+import { CodexContextTreeCoordinator } from "../context-management/tree-coordinator.ts";
+import { hasPendingCodexReasoningUpdate, supportsCodexReasoningUpdates } from "../adapter/reasoning-updates.ts";
+import { createAutoReasoning } from "../adapter/auto-reasoning.ts";
 
 export type CodexContext = ExtensionContext;
 
@@ -34,12 +40,14 @@ export type CodexPrewarmResult =
 	| { status: "failed"; error: Error };
 
 export interface CodexExtensionRuntime {
+	autoReasoning: ReturnType<typeof createAutoReasoning>;
 	state: AdapterState;
 	tracker: ReturnType<typeof createExecCommandTracker>;
 	sessions: ReturnType<typeof createExecSessionManager>;
 	backgroundWidget: BackgroundBashWidgetState;
 	voice: CodexVoiceController;
 	lanVoice: CodexLanVoiceServerController;
+	projectContextMessages(ctx: CodexContext, messages?: readonly AgentMessage[]): AgentMessage[];
 	execEnv(config?: CodexConversionConfig): NodeJS.ProcessEnv;
 	codexSystemPrompt(basePrompt: string, ctx: CodexContext, skills?: AdapterState["promptSkills"], systemPromptOptions?: PiSystemPromptOptions): string;
 	startPrewarm(ctx: CodexContext, systemPrompt?: string, prepared?: boolean): Promise<CodexPrewarmResult> | undefined;
@@ -73,6 +81,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		console.warn(`[pi-codex-conversion] ${warning}`);
 	}
 	const initialConfig = readEffectiveCodexConversionConfig({ cwd: process.cwd(), projectTrusted: false });
+	const contextWindows = new CodexContextWindowManager();
 	const state: AdapterState = {
 		enabled: false,
 		cwd: process.cwd(),
@@ -80,6 +89,9 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		config: initialConfig,
 		executionMode: initialConfig.executionMode,
 		codexTurnState: createCodexTurnState(),
+		developerMessages: new CodexDeveloperMessageBridge(),
+		contextWindows,
+		contextTree: new CodexContextTreeCoordinator(contextWindows),
 	};
 	const tracker = createExecCommandTracker();
 	const sessions = createExecSessionManager({
@@ -115,6 +127,9 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 			|| !isAdapterRuntime(runtimePlan)
 			|| (!promptCacheRefresh && !config.openai.forceCachedWebSockets)
 		) return undefined;
+		// A non-generating warmup must not consume an update before the next
+		// response, otherwise more selector presses could rewrite its sent tail.
+		if (supportsCodexReasoningUpdates(model) && hasPendingCodexReasoningUpdate(projectContextMessages(ctx))) return undefined;
 		const preparedSystemPrompt = prepared
 			? systemPrompt
 			: runtime.codexSystemPrompt(systemPrompt, ctx);
@@ -246,10 +261,29 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		return promise;
 	};
 
-	const currentMessages = (ctx: CodexContext) => convertToLlm(
-		buildSessionContext(ctx.sessionManager.getBranch()).messages
-			.filter((message) => !isProviderContextExcludedMessage(message)),
-	);
+	const projectContextMessages = (ctx: CodexContext, messages?: readonly AgentMessage[]) => {
+		const plan = resolveCodexRuntimePlanForState(ctx, state);
+		const branch = ctx.sessionManager.getBranch();
+		const projected = state.contextWindows.project(
+			messages ?? buildSessionContext(branch).messages,
+			plan.contextManagementMode,
+			branch,
+			plan.contextManagementMode === "tree"
+				? ctx.sessionManager.getEntries()
+				: branch,
+		);
+		return projected.filter((message) => !isProviderContextExcludedMessage(message));
+	};
+
+	const currentMessages = (ctx: CodexContext) => {
+		return convertToLlm(
+			state.developerMessages.prepare(
+				projectContextMessages(ctx),
+				supportsCodexDeveloperMessages(ctx, state),
+				ctx.model,
+			),
+		);
+	};
 
 	const currentContextPrewarm = (ctx: CodexContext, kind: "compaction" | "keepalive") => {
 		const keepalivePlan = kind === "keepalive"
@@ -327,6 +361,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 	};
 
 	const runtime: CodexExtensionRuntime = {
+		autoReasoning: createAutoReasoning(pi, state),
 		state,
 		tracker,
 		sessions,
@@ -344,6 +379,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		execEnv(_config = state.config) {
 			return { ...process.env };
 		},
+		projectContextMessages,
 		codexSystemPrompt(basePrompt, ctx, skills = state.promptSkills, systemPromptOptions) {
 			const plan = resolveCodexRuntimePlanForState(ctx, state);
 			return buildCodexSystemPrompt(basePrompt, {

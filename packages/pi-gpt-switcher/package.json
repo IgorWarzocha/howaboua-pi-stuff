@@ -1,7 +1,7 @@
 {
 	"name": "@howaboua/pi-gpt-switcher",
 	"version": "0.1.1",
-	"description": "Quick Pi commands for switching between GPT-5.6 Codex models and reasoning levels.",
+	"description": "Quick Pi commands for switching between GPT Codex models and reasoning levels.",
 	"type": "module",
 	"license": "MIT",
 	"author": "Igor Warzocha",
@@ -50,7 +50,7 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.10",
-		"@earendil-works/pi-coding-agent": "0.84.4",
+		"@earendil-works/pi-coding-agent": "0.85.0",
 		"typescript": "^7.0.2"
 	},
 	"scripts": {

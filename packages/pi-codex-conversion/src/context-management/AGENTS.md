@@ -1,0 +1,8 @@
+- A persisted context-window message is the sole rollover boundary. Pi keeps the full JSONL; provider projection starts at the latest boundary.
+- Local, Tree and Remote are one context-management contract with 1:1 model-visible behavior. Keep guidance, bootstrap hints, tools, rollover triggers and continuation semantics in parity; only persistence, retrieval, archival and transport may differ. Test shared boundaries across every active mode.
+- Local rollover never invents a summary. Tree archives windows as Pi side branches and filters only owned branch summaries from model context. Remote uses Codex history and notes only on Codex transport and never falls back.
+- Context UUIDs appear in window prompts and turn metadata. Request window IDs use Pi session ID plus zero-based window generation, matching Codex headers.
+- In Code/Notebook, `new_context`, history and notes remain direct; only `get_context_remaining` joins the nested execution surface.
+- Other Responses transports may use native `history.*` and `notes.*` namespaces. Codex transport keeps flat routers for Local and Tree; Remote uses exact native namespaces with encrypted sensitive arguments.
+- Local note writes are model-invisible custom entries. Tree snapshots them across branch cuts. Remote failures remain failures.
+- Encrypted history/notes output must remain a top-level Responses tool result; never unwrap it inside Code or Notebook execution.

@@ -13,6 +13,8 @@
     "url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
   },
   "type": "module",
+  "main": "./extensions/index.ts",
+  "exports": "./extensions/index.ts",
   "keywords": [
     "pi-package",
     "pi-extension",
@@ -86,8 +88,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.10",
-    "@earendil-works/pi-coding-agent": "0.84.4",
-    "@earendil-works/pi-tui": "0.84.4",
+    "@earendil-works/pi-coding-agent": "0.85.0",
+    "@earendil-works/pi-tui": "0.85.0",
     "@types/node": "^26.2.0",
     "electron": "43.4.1",
     "knip": "^6.32.2",

@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
-export const SHORTCUT_ALIASES = ["sol", "terra", "luna"] as const;
+export const SHORTCUT_ALIASES = ["sol", "terra", "luna", "astra"] as const;
 export type ShortcutAlias = (typeof SHORTCUT_ALIASES)[number];
 export type ThinkingLevel =
 	| "off"
@@ -34,6 +34,7 @@ export const DEFAULT_GPT_SWITCHER_CONFIG: GptSwitcherConfig = {
 	sol: { contextWindow: 272_000, reasoning: "high" },
 	terra: { contextWindow: 872_000, reasoning: "high" },
 	luna: { contextWindow: 472_000, reasoning: "xhigh" },
+	astra: { contextWindow: 272_000, reasoning: "low" },
 };
 
 const CONFIG_BASENAME = "pi-gpt-switcher.json";

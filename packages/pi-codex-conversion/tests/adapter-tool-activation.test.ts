@@ -8,6 +8,9 @@ import {
 	registerCodeModeExtensionTools,
 } from "../src/code-mode-extension-tools.ts";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
+import { CodexDeveloperMessageBridge } from "../src/adapter/developer-messages.ts";
+import { CodexContextWindowManager } from "../src/context-management/window-manager.ts";
+import { CodexContextTreeCoordinator } from "../src/context-management/tree-coordinator.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 
 const CANONICAL_CODEX_BASE_URL = "https://chatgpt.com/backend-api";
@@ -39,12 +42,16 @@ function createToolHarness(activeTools: string[]) {
 }
 
 function createAdapterState(overrides: Partial<AdapterState["config"]> = {}): AdapterState {
+	const contextWindows = new CodexContextWindowManager();
 	return {
 		enabled: false,
 		cwd: process.cwd(),
 		promptSkills: [],
 		executionMode: overrides.executionMode ?? DEFAULT_CODEX_CONVERSION_CONFIG.executionMode,
 		codexTurnState: createCodexTurnState(),
+		developerMessages: new CodexDeveloperMessageBridge(),
+		contextWindows,
+		contextTree: new CodexContextTreeCoordinator(contextWindows),
 		config: {
 			...DEFAULT_CODEX_CONVERSION_CONFIG,
 			...overrides,
@@ -63,18 +70,13 @@ function createContext(model: { provider: string; api: string; id: string; baseU
 	};
 }
 
-test("Code Mode activation stays within its model, API, and provider scope", () => {
+test("Code Mode activation follows adapter scope independently of provider transport", () => {
 	const cases = [
 		{ model: { provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.6-luna", baseUrl: CANONICAL_CODEX_BASE_URL }, configured: false, active: true },
-		{ model: { provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.6-luna", baseUrl: "https://codex-proxy.example.com/backend-api" }, configured: false, active: true },
-		{ model: { provider: "openai-codex-personal", api: "openai-codex-responses", id: "gpt-5.6-luna", baseUrl: CANONICAL_CODEX_BASE_URL }, configured: false, active: true },
-		{ model: { provider: "openai-codex-personal", api: "openai-codex-responses", id: "gpt-5.6-luna", baseUrl: "https://codex-proxy.example.com/backend-api" }, configured: false, active: true },
 		{ model: { provider: "litellm", api: "openai-responses", id: "gpt-5.6" }, configured: true, active: true },
 		{ model: { provider: "litellm", api: "openai-completions", id: "gpt-5.6" }, configured: true, active: false },
-		{ model: { provider: "litellm", api: "azure-openai-responses", id: "gpt-5.6" }, configured: true, active: false },
-		{ model: { provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.5", baseUrl: CANONICAL_CODEX_BASE_URL }, configured: false, active: false },
-		{ model: { provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.6", baseUrl: CANONICAL_CODEX_BASE_URL }, configured: false, active: false },
-		{ model: { provider: "openai", api: "openai-responses", id: "gpt-5.6-luna" }, configured: false, active: false },
+		{ model: { provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.5", baseUrl: CANONICAL_CODEX_BASE_URL }, configured: false, active: true },
+		{ model: { provider: "openai", api: "openai-responses", id: "gpt-5.6-luna" }, configured: false, active: true },
 		{ model: { provider: "litellm", api: "openai-responses", id: "gpt-5.6" }, configured: false, active: false },
 	];
 
@@ -182,24 +184,46 @@ test("Code Mode activation stays within its model, API, and provider scope", () 
 	assert.equal(namespaced.activeTools().includes("web_run"), true);
 });
 
-test("runtime plan keeps unsupported and non-Lite models on structured standard Responses", () => {
+test("execution mode and Responses Lite transport resolve independently", () => {
 	const config = createAdapterState({
 		executionMode: "code",
 		openai: { ...DEFAULT_CODEX_CONVERSION_CONFIG.openai, proxyResponsesLite: false },
 		scope: { allProviders: "off", additionalProviders: ["litellm"] },
 	}).config;
 	const pre56 = resolveCodexRuntimePlan(createContext({ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.5", baseUrl: CANONICAL_CODEX_BASE_URL }) as never, config);
+	const astra = resolveCodexRuntimePlan(createContext({ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-6-astra", baseUrl: CANONICAL_CODEX_BASE_URL }) as never, config);
 	const proxyWithoutLite = resolveCodexRuntimePlan(createContext({ provider: "litellm", api: "openai-responses", id: "gpt-5.6" }) as never, config);
 	const proxyWithLite = resolveCodexRuntimePlan(
-		createContext({ provider: "litellm", api: "openai-responses", id: "gpt-5.6" }) as never,
+		createContext({ provider: "litellm", api: "openai-responses", id: "gpt-6-astra" }) as never,
 		{ ...config, openai: { ...config.openai, proxyResponsesLite: true } },
 	);
 
-	assert.equal(pre56.kind, "normal");
-	assert.equal(pre56.transport, "responses");
-	assert.ok(pre56.toolNames.includes("exec_command"));
-	assert.deepEqual({ kind: proxyWithoutLite.kind, transport: proxyWithoutLite.transport }, { kind: "normal", transport: "responses" });
+	assert.deepEqual({ kind: pre56.kind, transport: pre56.transport }, { kind: "code", transport: "responses" });
+	assert.deepEqual(pre56.toolNames, ["exec", "wait"]);
+	assert.deepEqual({ kind: astra.kind, transport: astra.transport }, { kind: "code", transport: "responses-lite" });
+	assert.deepEqual({ kind: proxyWithoutLite.kind, transport: proxyWithoutLite.transport }, { kind: "code", transport: "responses" });
 	assert.deepEqual({ kind: proxyWithLite.kind, transport: proxyWithLite.transport }, { kind: "code", transport: "responses-lite" });
+
+	const notebookEverywhere = resolveCodexRuntimePlan(
+		createContext({ provider: "meta", api: "openai-responses", id: "muse-spark-1.3-contributor" }) as never,
+		{
+			...config,
+			executionMode: "notebook",
+			scope: { allProviders: "on", additionalProviders: [] },
+		},
+	);
+	assert.deepEqual(
+		{
+			kind: notebookEverywhere.kind,
+			transport: notebookEverywhere.transport,
+			tools: notebookEverywhere.toolNames,
+		},
+		{
+			kind: "notebook",
+			transport: "responses",
+			tools: ["exec", "wait", "notebook"],
+		},
+	);
 });
 
 test("native Responses compaction stays scoped to OpenAI Codex and explicit providers", () => {
@@ -214,4 +238,85 @@ test("native Responses compaction stays scoped to OpenAI Codex and explicit prov
 	assert.equal(resolveCodexRuntimePlan(createContext({ provider: "openai-codex-personal", api: "openai-codex-responses", id: "gpt-5", baseUrl: CANONICAL_CODEX_BASE_URL }) as never, config).nativeCompaction, true);
 	assert.equal(resolveCodexRuntimePlan(createContext({ provider: "openai-codex-personal", api: "openai-codex-responses", id: "gpt-5", baseUrl: "https://codex-proxy.example.com/backend-api" }) as never, config).nativeCompaction, true);
 	assert.equal(resolveCodexRuntimePlan(createContext({ provider: "my-provider", api: "openai-codex-responses", id: "gpt-5" }) as never, config).nativeCompaction, true);
+
+	const contextWindows = {
+		...config,
+		compaction: {
+			...config.compaction,
+			contextManagement: "remote" as const,
+			responsesCompaction: true,
+		},
+	};
+	const canonical = resolveCodexRuntimePlan(
+		createContext({
+			provider: "openai-codex",
+			api: "openai-codex-responses",
+			id: "gpt-5.6",
+			baseUrl: CANONICAL_CODEX_BASE_URL,
+		}) as never,
+		contextWindows,
+	);
+	assert.deepEqual(
+		{
+			contextManagement: canonical.contextManagement,
+			nativeCompaction: canonical.nativeCompaction,
+			tools: canonical.toolNames.slice(-4),
+		},
+		{
+			contextManagement: true,
+			nativeCompaction: false,
+			tools: ["new_context", "get_context_remaining", "history", "notes"],
+		},
+	);
+	const generic = resolveCodexRuntimePlan(
+		createContext({ provider: "openai", api: "openai-responses", id: "gpt-5.6" }) as never,
+		contextWindows,
+	);
+	assert.deepEqual(
+		{
+			active: generic.contextManagement,
+			mode: generic.contextManagementMode,
+			remote: generic.contextManagementRemote,
+		},
+		{ active: false, mode: "off", remote: false },
+	);
+	assert.equal([...generic.toolNames].includes("new_context"), false);
+	const tree = resolveCodexRuntimePlan(
+		createContext({ provider: "openai", api: "openai-responses", id: "gpt-5.6" }) as never,
+		{
+			...contextWindows,
+			compaction: {
+				...contextWindows.compaction,
+				contextManagement: "tree",
+			},
+		},
+	);
+	assert.deepEqual(
+		{
+			active: tree.contextManagement,
+			mode: tree.contextManagementMode,
+			remote: tree.contextManagementRemote,
+		},
+		{ active: true, mode: "tree", remote: false },
+	);
+
+	const notebook = resolveCodexRuntimePlan(
+		createContext({
+			provider: "openai-codex",
+			api: "openai-codex-responses",
+			id: "gpt-5.6",
+			baseUrl: CANONICAL_CODEX_BASE_URL,
+		}) as never,
+		{ ...contextWindows, executionMode: "notebook" },
+	);
+	assert.deepEqual(notebook.toolNames, [
+		"exec",
+		"wait",
+		"notebook",
+		"new_context",
+		"history",
+		"notes",
+	]);
+	assert.equal([...notebook.toolNames].includes("get_context_remaining"), false);
+	assert.equal(notebook.ownedToolNames.includes("history"), true);
 });

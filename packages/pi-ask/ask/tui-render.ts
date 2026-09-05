@@ -14,6 +14,7 @@ interface RenderTabsOptions {
 	handoff: boolean;
 	prompts: AskPrompt[];
 	responded: (index: number) => boolean;
+	steering: boolean;
 	tab: number;
 	theme: AskTheme;
 }
@@ -80,10 +81,11 @@ export function renderAskTabs({
 	handoff,
 	prompts,
 	responded,
+	steering,
 	tab,
 	theme,
 }: RenderTabsOptions): string {
-	return ` ${Array.from({ length: prompts.length + 1 }, (_, index) => {
+	const tabs = Array.from({ length: prompts.length + 1 }, (_, index) => {
 		const active = index === tab;
 		const label =
 			index === prompts.length
@@ -94,7 +96,8 @@ export function renderAskTabs({
 		return active
 			? theme.bg("selectedBg", theme.fg("text", ` ${label} `))
 			: theme.fg("muted", ` ${label} `);
-	}).join(" ")}`;
+	}).join(" ");
+	return ` ${tabs}${steering ? theme.fg("muted", "  Agent continues while you decide") : ""}`;
 }
 
 export function renderAskReview({

@@ -33,11 +33,11 @@ export function activityAttemptId(activity: AgentActivity): string | undefined {
 
 export function activityExpectedUser(
 	activity: AgentActivity,
-): { after: string | null; text: string } | undefined {
+): { after: string | null } | undefined {
 	return activity.phase !== "settled" &&
 		activity.expectedUserAfter !== undefined &&
 		activity.task
-		? { after: activity.expectedUserAfter, text: activity.task }
+		? { after: activity.expectedUserAfter }
 		: undefined;
 }
 

@@ -5,6 +5,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { Box, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
 import { activityTask } from "./activity.js";
+import { sendPolicyMessage } from "./delivery.js";
 import type {
 	LatestAssistant,
 	MonitoredAgent,
@@ -314,7 +315,8 @@ export function injectAgentEvent(
 	const delivery = ctx.isIdle()
 		? { triggerTurn: true, deliverAs: "steer" as const }
 		: { deliverAs: "steer" as const };
-	pi.sendMessage(
+	sendPolicyMessage(
+		pi,
 		{
 			customType: AGENT_EVENT_MESSAGE_TYPE,
 			content: message.content,

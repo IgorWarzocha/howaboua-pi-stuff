@@ -1,9 +1,7 @@
+import { BINDING_METADATA_READER_SOURCE, BINDING_METADATA_RESTORE_SOURCE } from "./binding-metadata-source.ts";
 import {
-	MAX_PROJECT_DESCRIPTION_BYTES,
 	MAX_PROJECT_ENTRIES,
 	MAX_PROJECT_MANIFEST_BYTES,
-	MAX_PROJECT_USAGE_BYTES,
-	MAX_PROJECT_USAGE_LINES,
 	type ProjectStateManifest,
 } from "./project-state-format.ts";
 import type { KernelExecutionResult } from "./jupyter-kernel.ts";
@@ -82,31 +80,7 @@ export function projectStateCaptureSource(options: {
 	  const __entries = [];
 	  const __skipped = [];
 	  let __total = 0;
-	const __readBindingMetadata = (__value) => {
-	  if (__value === null || (typeof __value !== "object" && typeof __value !== "function")) return {};
-	  const __metadata = {};
-	  for (const [__key, __max, __multiline, __lines] of [
-	    ["description", ${MAX_PROJECT_DESCRIPTION_BYTES}, false, 1],
-	    ["usage", ${MAX_PROJECT_USAGE_BYTES}, true, ${MAX_PROJECT_USAGE_LINES}],
-	  ]) {
-	    const __descriptor = Object.getOwnPropertyDescriptor(__value, __key);
-	    if (!__descriptor || !("value" in __descriptor) || typeof __descriptor.value !== "string") continue;
-	    const __text = __descriptor.value;
-	    if (!__text || new TextEncoder().encode(__text).byteLength > __max || __text.includes("\\r")) continue;
-	    const __textLines = __text.split("\\n");
-	    if (__textLines.length > __lines) continue;
-	    let __valid = true;
-	    for (const __character of __text) {
-	      const __codePoint = __character.codePointAt(0);
-	      if ((__codePoint < 0x20 && __codePoint !== 0x0a) || __codePoint === 0x7f || !__multiline && __codePoint === 0x0a) {
-	        __valid = false;
-	        break;
-	      }
-	    }
-	    if (__valid) __metadata[__key] = __text;
-	  }
-	  return __metadata;
-	};
+${BINDING_METADATA_READER_SOURCE}
 	const __file = await Deno.open(${JSON.stringify(options.payloadPath)}, { create: true, write: true, truncate: true, mode: 0o600 });
 	const __writeAll = async (__bytes) => {
 	  let __offset = 0;
@@ -166,20 +140,7 @@ export function projectStateRestoreSource(
   const __matches = (__currentValue, __restore) => __restore.kind === "function"
     ? typeof __currentValue === "function" && Function.prototype.toString.call(__currentValue) === __restore.captured
     : __sameBytes(__currentValue, __restore.value);
-  const __applyMetadata = (__value, __entry) => {
-    if (__value === null || (typeof __value !== "object" && typeof __value !== "function")) return;
-    for (const __key of ["description", "usage"]) {
-      if (typeof __entry[__key] !== "string") continue;
-      try {
-        Object.defineProperty(__value, __key, {
-          value: __entry[__key],
-          writable: true,
-          configurable: true,
-          enumerable: true,
-        });
-      } catch {}
-    }
-  };
+${BINDING_METADATA_RESTORE_SOURCE}
   const __slot = "__piNotebookRebind_" + crypto.randomUUID().replaceAll("-", "");
   const __assign = (__name, __value) => {
     globalThis[__slot] = __value;

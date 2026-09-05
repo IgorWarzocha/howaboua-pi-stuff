@@ -28,4 +28,10 @@ export {
 	isApplyPatchToolDetails,
 	registerApplyPatchResultEvent,
 } from "./tools/apply-patch/tool.ts";
+export {
+	sendCodexDeveloperMessage,
+	trySendCodexDeveloperMessage,
+	type CodexDeveloperMessageDelivery,
+	type CodexDeveloperMessageOptions,
+} from "./developer-messages.ts";
 export { getCodexSkillPaths, mergeAdapterTools, restoreTools, stripAdapterTools };

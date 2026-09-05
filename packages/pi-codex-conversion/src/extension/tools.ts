@@ -14,6 +14,7 @@ import {
 import { registerExecCommandTool } from "../tools/exec/command-tool.ts";
 import { registerWriteStdinTool } from "../tools/exec/write-stdin-tool.ts";
 import { registerViewImageTool } from "../tools/view-image/tool.ts";
+import { registerContextManagementTools } from "../context-management/tools.ts";
 import type { CodexExtensionRuntime } from "./runtime.ts";
 
 export interface CodexToolRegistration {
@@ -40,6 +41,8 @@ export function registerCodexTools(
 	runtime: CodexExtensionRuntime,
 ): CodexToolRegistration {
 	registerApplyPatchResultEvent(pi);
+	pi.registerTool(runtime.autoReasoning.tool);
+	registerContextManagementTools(pi, runtime.state);
 	const allowsProvider = (model: Model<Api> | undefined) =>
 		isExplicitlyConfiguredToolProvider(model, runtime.state.config);
 	const unregisterProviderPolicy = registerCodexToolProviderPolicy(

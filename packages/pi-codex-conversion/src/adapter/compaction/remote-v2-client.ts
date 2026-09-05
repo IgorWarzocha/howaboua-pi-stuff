@@ -137,7 +137,7 @@ async function runAttempt(options: ExecuteRemoteCompactionV2Options, streamSimpl
 	const canonicalBody = options.promptInputSource !== "reconstructed" && canonicalIdentity
 		? canonicalCompactionRequestBody(options.sessionId, options.runtime.model, canonicalIdentity)
 		: undefined;
-	const streamOptions: OpenAICodexStreamOptions = {
+	const streamOptions = {
 		...(options.runtime.apiKey ? { apiKey: options.runtime.apiKey } : {}),
 		headers: withRemoteCompactionV2Feature(options.runtime.headers),
 		sessionId: options.sessionId,
@@ -170,9 +170,12 @@ async function runAttempt(options: ExecuteRemoteCompactionV2Options, streamSimpl
 				...requestBody,
 				input: [...request.request.input, { type: "compaction_trigger" }],
 				...(!canonicalBody && options.requestOptions.reasoning ? { reasoning: structuredClone(options.requestOptions.reasoning) } : {}),
+				...(canonicalBody?.reasoning?.effort && request.request.input.some((item) => "type" in item && item.type === "configuration_update")
+					? { reasoning: { ...requestBody.reasoning, effort: canonicalBody.reasoning.effort } }
+					: {}),
 			};
 		},
-	};
+	} satisfies OpenAICodexStreamOptions;
 
 	let completed: AssistantMessage | undefined;
 	let completedNormally = false;

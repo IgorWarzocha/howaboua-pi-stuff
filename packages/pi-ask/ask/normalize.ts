@@ -1,10 +1,5 @@
 import { HANDOFF_CHOICES, OTHER_OPTION_LABEL } from "./constants.js";
-import type {
-	AskInput,
-	AskPrompt,
-	AskResponse,
-	PromptChoice,
-} from "./contracts.js";
+import type { AskPrompt, AskResponse, PromptChoice } from "./contracts.js";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null;
@@ -49,17 +44,31 @@ function normalizePrompt(
 	};
 }
 
-export function normalizeAskInput(params: AskInput | null | undefined): {
+export function isSteeringAskInput(input: unknown): boolean {
+	return (
+		isRecord(input) &&
+		input["delivery"] === "steer" &&
+		input["handoff"] !== true
+	);
+}
+
+export function normalizeAskInput(params: unknown): {
+	delivery: "wait" | "steer";
 	handoff: boolean;
 	prompts: AskPrompt[];
 } {
-	const handoff = params?.handoff === true;
-	const prompts = Array.isArray(params?.prompts)
-		? params.prompts
+	const input = isRecord(params) ? params : {};
+	const handoff = input["handoff"] === true;
+	const prompts = Array.isArray(input["prompts"])
+		? input["prompts"]
 				.map((prompt, index) => normalizePrompt(prompt, index, handoff))
 				.filter((prompt) => prompt !== null)
 		: [];
-	return { handoff, prompts };
+	return {
+		delivery: input["delivery"] === "steer" ? "steer" : "wait",
+		handoff,
+		prompts,
+	};
 }
 
 export function normalizeResponses(

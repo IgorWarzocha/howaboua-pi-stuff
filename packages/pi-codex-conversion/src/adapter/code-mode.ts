@@ -15,6 +15,7 @@ import { createViewImageTool } from "../tools/view-image/tool.ts";
 import { supportsViewImageInputs } from "./tool-support.ts";
 import { isCodeModeRuntime, resolveCodexRuntimePlanForState } from "./activation/runtime-plan.ts";
 import { codeModeImageResult, toNestedTool } from "./code-mode/nested-tool-adapter.ts";
+import { createContextWindowTools } from "../context-management/tools.ts";
 
 const LONG_RUNNING_TOOL_OUTER_YIELD_MS = 1_800_000;
 
@@ -31,7 +32,7 @@ export async function registerCodexCodeMode(
 		getTools: (ctx) => {
 			const context = ctx as ExtensionContext | undefined;
 			return [
-				...createNestedTools(runtime, context),
+				...createNestedTools(pi, runtime, context),
 				...getCodeModeExtensionTools(pi, context),
 			];
 		},
@@ -46,7 +47,7 @@ export async function registerCodexCodeMode(
 			...(runtime.state.config.notebook.profile ? { profile: runtime.state.config.notebook.profile } : {}),
 		}),
 		providesRenderers: true,
-		richRendering: () => runtime.state.executionMode === "notebook" || runtime.state.config.ui.codeModeDetails,
+		richRendering: () => runtime.state.config.ui.codeModeDetails,
 	});
 	return {
 		prepare: (ctx) => programmaticRuntime.prepare(ctx),
@@ -62,6 +63,7 @@ export async function registerCodexCodeMode(
 }
 
 function createNestedTools(
+	pi: ExtensionAPI,
 	runtime: CodexExtensionRuntime,
 	ctx?: ExtensionContext,
 ): ProgrammaticCodeModeToolDefinition[] {
@@ -168,6 +170,23 @@ function createNestedTools(
 			{},
 			{ ...(imageCapable ? { resultValue: codeModeImageResult } : {}) },
 		));
+	}
+	if (ctx && resolveCodexRuntimePlanForState(ctx, runtime.state).contextManagement) {
+		const [, getContextRemaining] = createContextWindowTools(pi, runtime.state);
+		tools.push(toNestedTool(
+			getContextRemaining,
+			"await tools.get_context_remaining({})",
+			{},
+			{
+				resultValue: (result) => {
+					const details = result.details as { remainingTokens?: number };
+					return { tokens_left: details.remainingTokens ?? null };
+				},
+			},
+		));
+	}
+	if (ctx && resolveCodexRuntimePlanForState(ctx, runtime.state).autoReasoning) {
+		tools.push(toNestedTool(runtime.autoReasoning.tool, `await tools.change_reasoning({ level: "low" | "medium" | "high" }) // ${runtime.autoReasoning.tool.description}`));
 	}
 	return tools;
 }

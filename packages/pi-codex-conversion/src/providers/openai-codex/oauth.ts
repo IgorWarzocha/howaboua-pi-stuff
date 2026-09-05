@@ -1,8 +1,7 @@
 import { createServer, type Server } from "node:http";
 import { randomBytes, createHash } from "node:crypto";
-import type { OAuthDeviceCodeInfo } from "@earendil-works/pi-ai/oauth";
-import type { Api, Model } from "@earendil-works/pi-ai";
-import type { ProviderConfig } from "@earendil-works/pi-coding-agent";
+import type { OAuthDeviceCodeInfo, OAuthLoginCallbacks } from "@earendil-works/pi-ai/oauth";
+import type { OAuthAuth } from "@earendil-works/pi-ai";
 import {
 	type OAuthDeviceCodePollResult,
 	pollOAuthDeviceCodeFlow,
@@ -19,13 +18,12 @@ const DEVICE_VERIFICATION_URI = `${AUTH_BASE_URL}/codex/device`;
 const DEVICE_REDIRECT_URI = `${AUTH_BASE_URL}/deviceauth/callback`;
 const DEVICE_CODE_TIMEOUT_SECONDS = 15 * 60;
 const JWT_CLAIM_PATH = "https://api.openai.com/auth";
-const GPT_56_PRODUCTION_CONTEXT_WINDOW = 272_000;
 function oauthSuccessHtml(message: string): string { return `<!doctype html><meta charset="utf-8"><title>Login complete</title><body>${message}</body>`; }
 function oauthErrorHtml(message: string): string { return `<!doctype html><meta charset="utf-8"><title>Login error</title><body>${message}</body>`; }
 export const OPENAI_CODEX_NATIVE_SCOPE = "openid profile email offline_access api.connectors.read api.connectors.invoke";
 
 type OAuthCredentials = { access: string; refresh: string; expires: number; accountId: string };
-type OAuthCallbacks = Parameters<NonNullable<ProviderConfig["oauth"]>["login"]>[0];
+type OAuthCallbacks = OAuthLoginCallbacks;
 type DeviceAuthToken = { authorization_code: string; code_verifier: string };
 
 function getCallbackHost(): string { return process.env["PI_OAUTH_CALLBACK_HOST"] || "127.0.0.1"; }
@@ -44,14 +42,6 @@ function decodeJwt(token: string): Record<string, unknown> | null {
 export function getOpenAICodexAccountId(accessToken: string): string | null {
 	const auth = decodeJwt(accessToken)?.[JWT_CLAIM_PATH] as { chatgpt_account_id?: unknown } | undefined;
 	return typeof auth?.chatgpt_account_id === "string" && auth.chatgpt_account_id ? auth.chatgpt_account_id : null;
-}
-
-export function clampOpenAICodexModelWindows(models: Model<Api>[]): Model<Api>[] {
-	return models.map((model) =>
-		/^gpt-5\.6-(?:luna|terra|sol)$/i.test(model.id) && model.contextWindow > GPT_56_PRODUCTION_CONTEXT_WINDOW
-			? { ...model, contextWindow: GPT_56_PRODUCTION_CONTEXT_WINDOW }
-			: model,
-	);
 }
 
 function compactCodeState(code: string | null | undefined, state?: string | null | undefined): { code?: string; state?: string } {
@@ -213,17 +203,24 @@ async function loginDeviceCode(callbacks: OAuthCallbacks): Promise<OAuthCredenti
 	return exchangeAuthorizationCode(code.authorization_code, code.code_verifier, DEVICE_REDIRECT_URI, callbacks.signal);
 }
 
-export const openaiCodexNativeOAuthProvider: NonNullable<ProviderConfig["oauth"]> & { usesCallbackServer: true } = {
+export const openaiCodexNativeOAuthProvider: OAuthAuth = {
 	name: "ChatGPT Plus/Pro (Codex Subscription)",
 	isSubscription: true,
-	usesCallbackServer: true,
-	async login(callbacks) {
+	async login(interaction) {
+		const callbacks: OAuthCallbacks = {
+			onAuth: (info) => interaction.notify({ type: "auth_url", ...info }),
+			onDeviceCode: (info) => interaction.notify({ type: "device_code", ...info }),
+			onPrompt: (prompt) => interaction.prompt({ type: "text", ...prompt }),
+			onProgress: (message) => interaction.notify({ type: "progress", message }),
+			onManualCodeInput: () => interaction.prompt({ type: "manual_code", message: "Paste the authorization code" }),
+			onSelect: (prompt) => interaction.prompt({ type: "select", ...prompt }),
+			signal: interaction.signal,
+		};
 		const method = await callbacks.onSelect({ message: "Select OpenAI Codex login method:", options: [{ id: "browser", label: "Browser login (default)" }, { id: "device_code", label: "Device code login (headless)" }] });
-		if (method === "device_code") return loginDeviceCode(callbacks);
+		if (method === "device_code") return { ...await loginDeviceCode(callbacks), type: "oauth" };
 		if (method && method !== "browser") throw new Error(`Unknown OpenAI Codex login method: ${method}`);
-		return loginBrowser(callbacks);
+		return { ...await loginBrowser(callbacks), type: "oauth" };
 	},
-	refreshToken(credentials, signal) { return tokenRequest(new URLSearchParams({ grant_type: "refresh_token", refresh_token: credentials.refresh, client_id: CLIENT_ID }), "refresh", signal); },
-	getApiKey(credentials) { return credentials.access; },
-	modifyModels(models) { return clampOpenAICodexModelWindows(models); },
+	async refresh(credentials, signal) { return { ...await tokenRequest(new URLSearchParams({ grant_type: "refresh_token", refresh_token: credentials.refresh, client_id: CLIENT_ID }), "refresh", signal), type: "oauth" }; },
+	async toAuth(credentials) { return { apiKey: credentials.access }; },
 };

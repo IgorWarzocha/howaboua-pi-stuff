@@ -114,7 +114,7 @@ test("processResponsesStream keeps interleaved message items separate by output 
 });
 
 test("processResponsesStream records cache writes and reasoning tokens", async () => {
-	const output = createAssistantOutput();
+	const output = { ...createAssistantOutput(), errorMessage: "stale incomplete response" };
 	await processResponsesStream(
 		asAsyncIterable([{
 			type: "response.completed",
@@ -144,6 +144,7 @@ test("processResponsesStream records cache writes and reasoning tokens", async (
 		totalTokens: 28,
 		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
 	});
+	assert.equal(output.errorMessage, undefined);
 });
 
 test("processResponsesStream retains finalized freeform input for execution and continuation", async () => {

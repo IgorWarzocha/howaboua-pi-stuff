@@ -2,6 +2,7 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { sendPolicyMessage } from "./delivery.js";
 import type { AgentFleet } from "./fleet.js";
 import { showMachineMenu } from "./machine-menu.js";
 import { loadAgentProfiles } from "./profiles.js";
@@ -45,7 +46,8 @@ export function registerAgentController(
 					return;
 				}
 				orchestrationEnabled = !orchestrationEnabled;
-				pi.sendMessage(
+				sendPolicyMessage(
+					pi,
 					{
 						customType: ORCHESTRATION_STATE_TYPE,
 						content: orchestrationEnabled

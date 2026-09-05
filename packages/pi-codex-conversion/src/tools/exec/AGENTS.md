@@ -2,4 +2,4 @@
 - `bridge-client.ts` owns helper framing; `bridge-session.ts` owns per-process startup, decoding, polling, exit, and termination; `session-manager.ts` owns IDs, retention, wait policy, snapshots, and public operations.
 - TTY output stays raw and bounded in session state; display boundaries strip controls and collapse CR/backspace without terminal-grid emulation.
 - Keep wait policy host-side and model wording generic: output extends ordinary non-TTY and empty-poll waits, silence yields a session, and agents only need the continuation handle.
-- Completed replay retention is separate from immediate delivery; never apply its bound to the exit-observing call (PATH may intentionally disable truncation).
+- Completed replay retention is separate from immediate delivery; never apply its bound to the exit-observing call.

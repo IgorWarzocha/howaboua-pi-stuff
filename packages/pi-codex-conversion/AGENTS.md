@@ -5,7 +5,7 @@
 - Pi intentionally retries `server_is_overloaded` and `slow_down` across WebSocket/SSE with a shared three-minute wait budget.
 - Streamed rate-limit delays are exact within a shared three-minute budget; longer delays fail instead of retrying early.
 - Before npm, publish, release, or merge work, compare `src/providers/openai-codex-custom-provider.ts` with Pi's stock `openai-codex-responses` provider: request shape, transport/headers, reasoning/service tier, retry, stream termination, and touched behavior.
-- Structured mode uses flat TypeScript tools over standard Responses. GPT-5.6 Code Mode uses `exec`/`wait` over Responses Lite; Notebook Mode additionally exposes host-side `notebook` lifecycle control.
+- Structured mode uses flat TypeScript tools except native context namespaces. Code Mode uses `exec`/`wait`; Notebook Mode additionally exposes host-side `notebook` lifecycle control.
 - Keep prompt guidance short and argv-shaped.
 - Core native runners execute bundled helpers directly. Rebuild for the local platform and use the checkout; never patch installed npm files. Web search and image generation belong to their TypeScript extension packages.
 - `src/voice/rust/**` and `scripts/build-voice-helper.mjs` must stay byte-identical with `pi-gippity-control`; change and changeset both packages together.
@@ -16,4 +16,5 @@
 - Provider names and endpoint routing are not backend identity. Models using `openai-codex-responses` retain first-party Codex transport, Fast Mode, and account isolation across renamed providers and proxies.
 - Proxies are deliberate monitoring, routing, and policy seams. Environment HTTP(S)/ALL proxies do not change the canonical ChatGPT contract; explicitly configured `openai-responses` passthrough providers are different and receive only the capabilities their backend supports. Never reject either path from provider name alone or assume “proxy” means non-ChatGPT.
 - Native compaction supports only OpenAI Codex and explicitly configured OpenAI/Codex passthrough proxies; V2 must preserve raw Responses output-item access rather than delegate to arbitrary registered provider streams.
+- Extension developer messages persist as visible Pi custom messages: promote to `developer` at compatible Responses boundaries; otherwise preserve ordinary Pi conversion, including after model switches.
 - After TypeScript topology changes, run root `bun run knip`; it enforces file, dependency, cycle, and export-surface hygiene.

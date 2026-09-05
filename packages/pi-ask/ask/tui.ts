@@ -27,7 +27,11 @@ type AddLine = (line?: string) => void;
 export async function askInTui(
 	ctx: ExtensionContext,
 	prompts: AskPrompt[],
-	{ handoff = false, signal }: { handoff?: boolean; signal?: AbortSignal } = {},
+	{
+		handoff = false,
+		steering = false,
+		signal,
+	}: { handoff?: boolean; steering?: boolean; signal?: AbortSignal } = {},
 ): Promise<AskResponse[] | null> {
 	if (!ctx.hasUI || signal?.aborted) return null;
 	return await ctx.ui.custom<AskResponse[] | null>((tui, theme, kb, done) => {
@@ -170,7 +174,14 @@ export async function askInTui(
 				lines.push(truncateToWidth(line, width));
 			add(theme.fg("accent", "─".repeat(width)));
 			add(
-				renderAskTabs({ handoff, prompts, responded, tab: state.tab, theme }),
+				renderAskTabs({
+					handoff,
+					prompts,
+					responded,
+					steering,
+					tab: state.tab,
+					theme,
+				}),
 			);
 			add();
 			if (isReview()) {

@@ -15,7 +15,8 @@ import {
 import { parseTextSignature, shortHash } from "./signatures.ts";
 import { normalizeResponsesToolHistory } from "./tool-history.ts";
 import { normalizeResponsesMessageHistory } from "./message-history.ts";
-import { encryptedWebRunOutputFromDetails, imageDetailForResponses, isImageGenerationCallBlock, isWebSearchCallBlock, sanitizeImageGenerationCallItem, sanitizeWebSearchCallItem, type ImageDetail, type ImageGenerationCallBlock, type WebSearchCallBlock } from "./native-items.ts";
+import { encryptedToolOutputFromDetails, imageDetailForResponses, isImageGenerationCallBlock, isWebSearchCallBlock, sanitizeImageGenerationCallItem, sanitizeWebSearchCallItem, type ImageDetail, type ImageGenerationCallBlock, type WebSearchCallBlock } from "./native-items.ts";
+import { unrouteContextNamespaceToolCall } from "../../context-management/namespace-tools.ts";
 
 type Message = Context["messages"][number];
 
@@ -168,6 +169,7 @@ export function convertResponsesMessages<TApi extends Api>(
 						...(parsedSignature?.phase ? { phase: parsedSignature.phase } : {}),
 					});
 				} else if (block.type === "toolCall") {
+					const wireCall = unrouteContextNamespaceToolCall(block);
 					const [callId, itemIdRaw] = block.id.split("|");
 					const customInputProperty = options?.grammarToolInputProperties?.get(block.name);
 					let itemId: string | undefined = itemIdRaw;
@@ -184,16 +186,16 @@ export function convertResponsesMessages<TApi extends Api>(
 								type: "function_call",
 								...(itemId ? { id: itemId } : {}),
 								call_id: callId,
-								name: block.name,
-								arguments: JSON.stringify(block.arguments),
+								name: wireCall.name,
+								arguments: JSON.stringify(wireCall.arguments),
 								...(canReplayNamespace && block.namespace !== undefined ? { namespace: block.namespace } : {}),
 							} as ResponseInput[number]
 						: {
 								type: "custom_tool_call",
 								...(itemId ? { id: itemId } : {}),
 								call_id: callId,
-								name: block.name,
-								input: sanitizeSurrogates(getGrammarToolInput(block.name, block.arguments, customInputProperty)),
+								name: wireCall.name,
+								input: sanitizeSurrogates(getGrammarToolInput(block.name, wireCall.arguments, customInputProperty)),
 								...(canReplayNamespace && block.namespace !== undefined ? { namespace: block.namespace } : {}),
 							} as ResponseInput[number]);
 				}
@@ -204,9 +206,20 @@ export function convertResponsesMessages<TApi extends Api>(
 			const hasImages = msg.content.some((c) => c.type === "image");
 			const hasText = textResult.length > 0;
 			const [callId] = msg.toolCallId.split("|");
-			const encryptedWebRunOutput = encryptedWebRunOutputFromDetails(msg.details);
-			const output = encryptedWebRunOutput
-				? [{ type: "encrypted_content" as const, encrypted_content: encryptedWebRunOutput }]
+			const encryptedToolOutput = encryptedToolOutputFromDetails(msg.details);
+			const output = encryptedToolOutput
+				? [
+						{ type: "encrypted_content" as const, encrypted_content: encryptedToolOutput },
+						...(hasImages && model.input.includes("image")
+							? msg.content
+									.filter((block): block is ImageContentWithDetail => block.type === "image")
+									.map((block) => ({
+										type: "input_image" as const,
+										detail: imageDetailForResponses(block),
+										image_url: `data:${block.mimeType};base64,${block.data}`,
+									}))
+							: []),
+					]
 				: hasImages && model.input.includes("image")
 					? [
 							...(hasText ? [{ type: "input_text" as const, text: sanitizeSurrogates(textResult) }] : []),

@@ -16,13 +16,39 @@ on:
       - 'packages/pi-codex-conversion/scripts/build-voice-helper.mjs'
       - 'packages/pi-gippity-control/src/voice/rust/**'
       - 'packages/pi-gippity-control/scripts/build-voice-helper.mjs'
+      - '.github/workflows/codex-tool-binaries.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: write
 
 jobs:
+  plan:
+    name: Resolve native targets
+    runs-on: ubuntu-latest
+    outputs:
+      targets: ${{ steps.targets.outputs.targets }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Select targets before starting platform runners
+        id: targets
+        working-directory: packages/pi-codex-conversion
+        env:
+          FALLBACK_BASE_REF: origin/${{ github.event.repository.default_branch }}
+          FORCE_ALL_CODEX_TOOL_BUILDS: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
+        run: |
+          targets=$(node scripts/build-changed-native-tool-binaries.mjs --list)
+          echo "targets=$targets" >> "$GITHUB_OUTPUT"
+
   build:
     name: ${{ matrix.platform_arch }}
+    needs: plan
+    if: needs.plan.outputs.targets != '[]'
     strategy:
       fail-fast: false
       matrix:
@@ -44,20 +70,16 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - name: Fetch default branch for force-push diffs
-        run: git fetch --no-tags origin "+refs/heads/${{ github.event.repository.default_branch }}:refs/remotes/origin/${{ github.event.repository.default_branch }}"
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - uses: oven-sh/setup-bun@v2
       - name: Install Linux audio headers
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && contains(fromJSON(needs.plan.outputs.targets), 'voice')
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev
       - name: Build bundled tools
         working-directory: packages/pi-codex-conversion
         env:
           CMAKE_POLICY_VERSION_MINIMUM: '3.5'
-          GITHUB_EVENT_BEFORE: ${{ github.event.before }}
-          FALLBACK_BASE_REF: origin/${{ github.event.repository.default_branch }}
-          FORCE_ALL_CODEX_TOOL_BUILDS: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
+          CODEX_NATIVE_TARGETS: ${{ needs.plan.outputs.targets }}
         run: |
           git diff --no-index --quiet -- src/voice/rust ../pi-gippity-control/src/voice/rust
           git diff --no-index --quiet -- scripts/build-voice-helper.mjs ../pi-gippity-control/scripts/build-voice-helper.mjs
@@ -86,7 +108,19 @@ jobs:
           merge-multiple: true
           path: packages/pi-codex-conversion/src
       - name: Commit bundled binaries
+        env:
+          BUILT_SHA: ${{ github.sha }}
+          BRANCH_NAME: ${{ github.ref_name }}
         run: |
+          if ! git merge-base --is-ancestor "$BUILT_SHA" HEAD; then
+            echo "::error::Branch history changed during the native build; rerun on the current head."
+            exit 1
+          fi
+          targets=$(cd packages/pi-codex-conversion && BASE_SHA="$BUILT_SHA" HEAD_SHA=HEAD node scripts/build-changed-native-tool-binaries.mjs --list)
+          if [ "$targets" != '[]' ]; then
+            echo "::error::Native sources changed during the build; refusing to bundle stale binaries."
+            exit 1
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           find packages/pi-codex-conversion/src/tools packages/pi-codex-conversion/src/voice/bin -path '*/bin/*' -type f ! -name '*.exe' -exec chmod 755 {} +
@@ -100,4 +134,4 @@ jobs:
             exit 0
           fi
           git commit -m "Bundle Codex tool binaries"
-          git push origin HEAD:${{ github.ref_name }}
+          git push origin "HEAD:$BRANCH_NAME"

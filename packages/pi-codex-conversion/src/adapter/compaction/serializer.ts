@@ -6,6 +6,7 @@ import type { Api, ImageContent, Message, Model, TextContent, ToolResultMessage,
 import { CODEX_TOOL_CALL_PROVIDERS, convertResponsesMessages } from "../../providers/openai-responses/shared.ts";
 import { isCodexTransportModel } from "../prompt/codex-model.ts";
 import { isProviderContextExcludedMessage } from "../prompt/context-filter.ts";
+import { CodexDeveloperMessageBridge } from "../developer-messages.ts";
 
 /**
  * Responses compaction reuses the provider's serializer.
@@ -158,11 +159,15 @@ export function serializeMessagesToResponsesInput<TApi extends Api>(
 	messages: AgentMessage[],
 	options: SerializeResponsesMessagesOptions = {},
 ): ResponsesInputItem[] {
-	const llmMessages = applyBlockImages(convertToLlm(messages), options.blockImages ?? readBlockImagesSetting());
+	const developerMessages = new CodexDeveloperMessageBridge();
+	const llmMessages = applyBlockImages(
+		convertToLlm(developerMessages.prepare(messages, true, model)),
+		options.blockImages ?? readBlockImagesSetting(),
+	);
 	const allowedToolCallProviders = isCodexTransportModel(model) && !CODEX_TOOL_CALL_PROVIDERS.has(model.provider)
 		? new Set([...CODEX_TOOL_CALL_PROVIDERS, model.provider])
 		: CODEX_TOOL_CALL_PROVIDERS;
-	return convertResponsesMessages(
+	const input = convertResponsesMessages(
 		model,
 		{
 			messages: llmMessages,
@@ -174,6 +179,7 @@ export function serializeMessagesToResponsesInput<TApi extends Api>(
 			...(options.grammarToolInputProperties ? { grammarToolInputProperties: options.grammarToolInputProperties } : {}),
 		},
 	) as ResponsesInputItem[];
+	return (developerMessages.rewritePayload({ input }) as { input: ResponsesInputItem[] }).input;
 }
 
 export function createResponsesInputParitySignature(input: readonly unknown[]): string[] {

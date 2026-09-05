@@ -1,4 +1,12 @@
-import type { CodexUsageSnapshot, CodexUsageWindow } from "./payload.ts";
+import type { CodexUsageLimit, CodexUsageSnapshot, CodexUsageWindow } from "./payload.ts";
+import { CODEX_RESERVE_MODEL } from "./reserve-policy.ts";
+
+export const CODEX_RESERVE_USAGE_NOTE = "Luna Reserve: separate, limited allowance after ordinary quota runs out; availability is backend-controlled.";
+
+export function codexUsageLimitName(limit: CodexUsageLimit): string {
+	const name = limit.limitName ?? limit.limitId;
+	return name.toLowerCase() === CODEX_RESERVE_MODEL ? "Luna Reserve" : name;
+}
 
 function formatReset(timestampSeconds: number | undefined): string {
 	if (!timestampSeconds) return "reset unknown";
@@ -19,9 +27,10 @@ export function formatCodexUsage(snapshot: CodexUsageSnapshot): string {
 	const lines = [`Codex usage${snapshot.planType ? ` (${snapshot.planType})` : ""}:`];
 	if (snapshot.resetCredits) lines.push(`- resets available: ${snapshot.resetCredits.availableCount}`);
 	for (const limit of snapshot.limits) {
-		const title = limit.limitName ?? limit.limitId;
+		const title = codexUsageLimitName(limit);
 		const parts = [formatWindow("5h", limit.primary), formatWindow("weekly", limit.secondary)].filter(Boolean);
 		lines.push(`- ${title}: ${parts.length ? parts.join("; ") : "no usage data"}`);
 	}
+	if (snapshot.limits.some((limit) => codexUsageLimitName(limit) === "Luna Reserve")) lines.push(CODEX_RESERVE_USAGE_NOTE);
 	return lines.join("\n");
 }

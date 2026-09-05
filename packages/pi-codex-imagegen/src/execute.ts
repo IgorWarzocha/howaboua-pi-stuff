@@ -79,14 +79,14 @@ export async function executeCodexImageGeneration(
 	);
 	const routeConfig = readCodexToolRouteConfig();
 	const recentImages =
-		args.num_last_images_to_include === undefined
+		args.num_last_images_to_include == null
 			? undefined
 			: recentConversationImageUrls(
 					ctx.sessionManager.buildContextEntries(),
 					args.num_last_images_to_include,
 				);
 	if (
-		args.num_last_images_to_include !== undefined &&
+		args.num_last_images_to_include != null &&
 		recentImages?.length !== args.num_last_images_to_include
 	)
 		throw new Error(

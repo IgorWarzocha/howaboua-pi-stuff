@@ -9,6 +9,13 @@ import {
 } from "./constants.js";
 import type { ReviewContext } from "./types.js";
 
+export type ReviewDeveloperMessages = Partial<
+	Pick<
+		typeof import("@howaboua/pi-codex-conversion/developer-messages"),
+		"trySendCodexDeveloperCustomMessage" | "trySendCodexDeveloperMessage"
+	>
+>;
+
 const REALTIME_VOICE_PROMPT_CHANNEL =
 	"@howaboua/pi-codex-conversion/realtime-voice-prompt/v1";
 const REVIEW_LOOP_PREFACE_MESSAGE = [
@@ -83,16 +90,22 @@ export function sendReviewPreface(
 	pi: ExtensionAPI,
 	ctx: ExtensionCommandContext,
 	options: { freshLoop?: boolean } = {},
+	developerMessages?: ReviewDeveloperMessages,
 ): void {
 	if (!options.freshLoop && getReviewPrefaceMessageId(ctx)) return;
-	pi.sendMessage(
-		{
-			customType: REVIEW_PREFACE_MESSAGE_TYPE,
-			content: REVIEW_LOOP_PREFACE_MESSAGE,
-			display: true,
-		},
-		{ triggerTurn: false },
-	);
+	const message = {
+		customType: REVIEW_PREFACE_MESSAGE_TYPE,
+		content: REVIEW_LOOP_PREFACE_MESSAGE,
+		display: true,
+	};
+	const delivery = { triggerTurn: false };
+	if (
+		typeof developerMessages?.trySendCodexDeveloperCustomMessage ===
+			"function" &&
+		developerMessages.trySendCodexDeveloperCustomMessage(pi, message, delivery)
+	)
+		return;
+	pi.sendMessage(message, delivery);
 }
 
 function buildJjReviewScopeText(
@@ -177,6 +190,7 @@ export function sendReviewFindings(
 	ctx: ExtensionCommandContext,
 	review: ReviewContext,
 	findings: string,
+	developerMessages?: ReviewDeveloperMessages,
 ): void {
 	const normalizedFindings = findings.trim();
 	const idle = ctx.isIdle();
@@ -192,6 +206,17 @@ export function sendReviewFindings(
 	if (
 		!normalizedFindings ||
 		normalizedFindings === "No actionable issues found."
+	)
+		return;
+	if (
+		typeof developerMessages?.trySendCodexDeveloperMessage === "function" &&
+		developerMessages.trySendCodexDeveloperMessage(
+			pi,
+			REVIEW_FINDINGS_FOLLOW_UP,
+			idle
+				? { triggerTurn: true }
+				: { triggerTurn: true, deliverAs: "followUp" },
+		)
 	)
 		return;
 	pi.sendUserMessage(

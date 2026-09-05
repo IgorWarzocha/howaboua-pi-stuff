@@ -2,6 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_COMPACTION_SETTINGS, type SessionBeforeCompactEvent } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
+import { CodexDeveloperMessageBridge } from "../src/adapter/developer-messages.ts";
+import { CodexContextWindowManager } from "../src/context-management/window-manager.ts";
+import { CodexContextTreeCoordinator } from "../src/context-management/tree-coordinator.ts";
 import { buildNativeCompactionInput, injectPendingNativeWindowIntoPiCompactionRequest, resolveOpaqueNativeCompactionFallbackEntry } from "../src/adapter/compaction/compaction.ts";
 import { runPortablePiCompaction } from "../src/adapter/compaction/portable-summary.ts";
 import { hasPortableNativeCompactionSummary, NATIVE_COMPACTION_SHIM_SUMMARY, NATIVE_COMPACTION_STRATEGY, type NativeCompactionEntry } from "../src/adapter/compaction/types.ts";
@@ -9,6 +12,10 @@ import type { AdapterState } from "../src/adapter/activation/state.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 import { createAssistantMessageEventStream, type AssistantMessage, type Model, type SimpleStreamOptions } from "@earendil-works/pi-ai";
 import { serializeActiveSessionToResponsesInput } from "../src/adapter/compaction/serializer.ts";
+import {
+	CODEX_DEVELOPER_MESSAGE_TYPE,
+	type CodexDeveloperMessageDetails,
+} from "../src/developer-messages.ts";
 import {
 	REALTIME_DELEGATION_MESSAGE_TYPE,
 	REALTIME_VOICE_MESSAGE_TYPE,
@@ -93,6 +100,7 @@ test("native compaction excludes voice-only chatter but preserves Pi delegations
 		parentId: string | null,
 		customType: string,
 		content: string,
+		details: unknown = {},
 	) => ({
 		type: "custom_message",
 		id,
@@ -101,7 +109,7 @@ test("native compaction excludes voice-only chatter but preserves Pi delegations
 		customType,
 		content,
 		display: false,
-		details: {},
+		details,
 	});
 	const chatter = customEntry(
 		"chatter",
@@ -115,16 +123,27 @@ test("native compaction excludes voice-only chatter but preserves Pi delegations
 		REALTIME_DELEGATION_MESSAGE_TYPE,
 		"Pi-visible delegation",
 	);
+	const developer = customEntry(
+		"developer",
+		"delegation",
+		CODEX_DEVELOPER_MESSAGE_TYPE,
+		"Provider-level guidance",
+		{ protocol: 1, id: "developer-1" } satisfies CodexDeveloperMessageDetails,
+	);
 
 	const input = serializeActiveSessionToResponsesInput({
 		model,
-		entries: [chatter, delegation] as never,
-		leafId: "delegation",
+		entries: [chatter, delegation, developer] as never,
+		leafId: "developer",
 	});
 	const serialized = JSON.stringify(input);
 
 	assert.doesNotMatch(serialized, /voice-only conversation/);
 	assert.match(serialized, /Pi-visible delegation/);
+	assert.deepEqual(input.at(-1), {
+		role: "developer",
+		content: [{ type: "input_text", text: "Provider-level guidance" }],
+	});
 });
 
 test("native compaction request routing reuses only the latest matching checkpoint", () => {
@@ -194,6 +213,7 @@ test("native compaction request routing reuses only the latest matching checkpoi
 });
 
 test("portable Pi compaction consumes opaque checkpoints on an isolated summary lane", async () => {
+	const contextWindows = new CodexContextWindowManager();
 	const ctx = {
 		model,
 		sessionManager: { getSessionId: () => "session-1" },
@@ -205,6 +225,9 @@ test("portable Pi compaction consumes opaque checkpoints on an isolated summary 
 		promptSkills: [],
 		executionMode: DEFAULT_CODEX_CONVERSION_CONFIG.executionMode,
 		codexTurnState: createCodexTurnState(),
+		developerMessages: new CodexDeveloperMessageBridge(),
+		contextWindows,
+		contextTree: new CodexContextTreeCoordinator(contextWindows),
 		config: { ...DEFAULT_CODEX_CONVERSION_CONFIG, compaction: { ...DEFAULT_CODEX_CONVERSION_CONFIG.compaction, responsesCompaction: true } },
 		pendingPiCompactionNativeWindow: {
 			window: [{ type: "compaction_summary", encrypted_content: "sealed" }],

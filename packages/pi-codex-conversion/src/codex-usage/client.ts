@@ -3,6 +3,7 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import { isCanonicalCodexBaseUrl, isCanonicalCodexSubscriptionModel } from "../adapter/prompt/codex-model.ts";
 import { DEFAULT_CODEX_BASE_URL, JWT_CLAIM_PATH } from "../providers/openai-codex/constants.ts";
+import { parseCodexReserveStatus, type CodexReserveStatus } from "./reserve-policy.ts";
 import {
 	codexWeeklyUsageLeft,
 	type CodexRateLimitResetConsumeResult,
@@ -47,16 +48,20 @@ export function buildCodexRateLimitResetConsumeUrl(): string {
 	return `${DEFAULT_CODEX_BASE_URL}/wham/rate-limit-reset-credits/consume`;
 }
 
-function extractAccountId(token: string): string | undefined {
+function extractIdentity(token: string): { accountId?: string | undefined; userId?: string | undefined; fedramp?: boolean | undefined } {
 	try {
 		const parts = token.split(".");
-		if (parts.length !== 3) return undefined;
+		if (parts.length !== 3) return {};
 		const payload = JSON.parse(Buffer.from(parts[1] ?? "", "base64").toString("utf8")) as unknown;
 		const authClaims = isRecord(payload) ? payload[JWT_CLAIM_PATH]! : undefined;
-		const accountId = isRecord(authClaims) ? authClaims["chatgpt_account_id"]! : undefined;
-		return stringValue(accountId);
+		if (!isRecord(authClaims)) return {};
+		return {
+			accountId: stringValue(authClaims["chatgpt_account_id"]),
+			userId: stringValue(authClaims["chatgpt_user_id"]) ?? stringValue(authClaims["user_id"]),
+			fedramp: authClaims["chatgpt_account_is_fedramp"] === true,
+		};
 	} catch {
-		return undefined;
+		return {};
 	}
 }
 
@@ -69,7 +74,7 @@ async function buildCodexUsageHeaders(ctx: ExtensionContext, model: RuntimeModel
 	if (!token || !isCanonicalCodexBaseUrl(resolved?.auth.baseUrl ?? model.baseUrl)) {
 		throw new Error("Canonical OpenAI Codex subscription auth is required.");
 	}
-	const accountId = extractAccountId(token);
+	const { accountId } = extractIdentity(token);
 	if (!accountId) throw new Error("Canonical OpenAI Codex subscription auth is required.");
 	const headers = new Headers({
 		authorization: `Bearer ${token}`,
@@ -134,6 +139,24 @@ export async function fetchCodexUsage(ctx: ExtensionContext): Promise<CodexUsage
 	}
 	const headers = await buildCodexUsageHeaders(ctx, model);
 	return fetchCodexUsageWithHeaders(headers, ctx.signal);
+}
+
+// Only the fallback controller opts in. Passive usage reads must not expose the experiment.
+export async function fetchCodexReserveStatus(ctx: ExtensionContext): Promise<CodexReserveStatus | undefined> {
+	const model = ctx.model;
+	if (!model || !isCanonicalCodexSubscriptionModel(model)) return undefined;
+	const signal = ctx.signal
+		? AbortSignal.any([ctx.signal, AbortSignal.timeout(WEEKLY_USAGE_TIMEOUT_MS)])
+		: AbortSignal.timeout(WEEKLY_USAGE_TIMEOUT_MS);
+	const headers = await withAbort(buildCodexUsageHeaders(ctx, model), signal);
+	const { accountId, userId, fedramp } = extractIdentity((headers.get("authorization") ?? "").replace(/^Bearer /, ""));
+	if (!accountId || !userId || fedramp) return undefined;
+	headers.set("x-openai-codex-luna-reserve", "1");
+	const snapshot = await fetchCodexUsageWithHeaders(headers, signal, false);
+	const currentHeaders = await withAbort(buildCodexUsageHeaders(ctx, model), signal);
+	const current = extractIdentity((currentHeaders.get("authorization") ?? "").replace(/^Bearer /, ""));
+	if (current.accountId !== accountId || current.userId !== userId || current.fedramp) return undefined;
+	return parseCodexReserveStatus(snapshot.raw, { accountId, userId }, model.id);
 }
 
 export async function fetchCodexWeeklyUsageLeft(ctx: ExtensionContext): Promise<number | undefined> {

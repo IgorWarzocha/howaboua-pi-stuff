@@ -16,15 +16,17 @@ describe("Pi UI ask fallback", () => {
 	test("keeps blank free text as a rephrase request and forwards the signal", async () => {
 		const controller = new AbortController();
 		const signals: Array<AbortSignal | undefined> = [];
+		const titles: string[] = [];
 		const values: Array<string | undefined> = ["", ""];
 		const ctx = {
 			hasUI: true,
 			ui: {
 				input: async (
-					_title: string,
+					title: string,
 					_placeholder: string,
 					options: { signal?: AbortSignal },
 				) => {
+					titles.push(title);
 					signals.push(options.signal);
 					return values.shift();
 				},
@@ -32,10 +34,12 @@ describe("Pi UI ask fallback", () => {
 		} as unknown as ExtensionContext;
 
 		const result = await askWithPiUi(ctx, [prompt()], {
+			steering: true,
 			signal: controller.signal,
 		});
 
 		expect(result?.[0]?.selections).toEqual([REPHRASE_REQUEST_RESPONSE]);
+		expect(titles[0]).toContain("Agent continues while you decide");
 		expect(signals).toEqual([controller.signal, controller.signal]);
 	});
 

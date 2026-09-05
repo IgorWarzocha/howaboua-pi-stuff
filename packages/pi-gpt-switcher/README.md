@@ -7,6 +7,7 @@ Pi extension adding quick model commands:
 | `/sol [reasoning]` | `openai-codex/gpt-5.6-sol` |
 | `/terra [reasoning]` | `openai-codex/gpt-5.6-terra` |
 | `/luna [reasoning]` | `openai-codex/gpt-5.6-luna` |
+| `/astra [reasoning]` | `openai-codex/gpt-6-astra` |
 
 An explicit reasoning argument overrides the configured default. Valid arguments
 are `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`; for example,
@@ -21,7 +22,8 @@ agent directory:
 {
   "sol": { "contextWindow": 272000, "reasoning": "high" },
   "terra": { "contextWindow": 872000, "reasoning": "high" },
-  "luna": { "contextWindow": 472000, "reasoning": "xhigh" }
+  "luna": { "contextWindow": 472000, "reasoning": "xhigh" },
+  "astra": { "contextWindow": 272000, "reasoning": "low" }
 }
 ```
 
@@ -29,6 +31,8 @@ Edit the file to change a shortcut's session context window or default
 reasoning. Changes apply on the next shortcut invocation and do not alter the
 provider catalogue. Context windows may be lowered to 128k but not raised
 above the shortcut's shipped limit.
+
+Existing config files need no migration: omitted shortcuts use their shipped defaults.
 
 ## Install
 

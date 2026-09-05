@@ -137,6 +137,52 @@ test("native grammar metadata controls custom replay and function fallback", () 
 			{ type: "function_call_output", call_id: "call_1", output: "42" },
 		],
 	);
+	const encryptedHistory = {
+		messages: [
+			{
+				role: "assistant",
+				content: [{ type: "toolCall", id: "history_call|fc_history", name: "history", namespace: "history", arguments: { action: "list_windows" } }],
+				provider: "openai-codex",
+				api: "openai-codex-responses",
+				model: "gpt-5.6",
+				stopReason: "toolUse",
+				timestamp: 3,
+			},
+			{
+				role: "toolResult",
+				toolCallId: "history_call|fc_history",
+				toolName: "history",
+				content: [
+					{ type: "text", text: "history operation completed" },
+					{ type: "image", data: "aW1hZ2U=", mimeType: "image/png", detail: "high" },
+				],
+				details: { codexHistoryNotes: { encrypted_output: "encrypted-history" } },
+				isError: false,
+				timestamp: 4,
+			},
+		],
+	} as never;
+	assert.deepEqual(
+		convertResponsesMessages(
+			{
+				...(model as unknown as Record<string, unknown>),
+				input: ["text", "image"],
+			} as never,
+			encryptedHistory,
+			new Set(["openai-codex"]),
+		),
+		[
+			{ type: "function_call", id: "fc_history", call_id: "history_call", name: "list_windows", arguments: "{}", namespace: "history" },
+			{
+				type: "function_call_output",
+				call_id: "history_call",
+				output: [
+					{ type: "encrypted_content", encrypted_content: "encrypted-history" },
+					{ type: "input_image", detail: "high", image_url: "data:image/png;base64,aW1hZ2U=" },
+				],
+			},
+		],
+	);
 });
 
 test("cross-provider replay keeps deterministic type-correct item IDs", () => {

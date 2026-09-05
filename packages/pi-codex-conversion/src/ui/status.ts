@@ -16,6 +16,7 @@ export function renderCodexStatus(ctx: ExtensionContext, state: AdapterState, pl
 		useOnAllModels: config.scope.allProviders === "on",
 		additionalProvider: plan.configuredProvider,
 		fast: plan.effectiveOpenAICodex && config.openai.fast,
+		contextManagement: plan.contextManagementMode,
 		compaction: plan.nativeCompaction,
 		weeklyUsageLeft: state.weeklyUsageLeft,
 		...(isResponsesContext(ctx) ? { verbosity: config.openai.verbosity } : {}),

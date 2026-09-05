@@ -34,7 +34,7 @@ export function buildDisplaySettings(
 		),
 		toggle(
 			"codeModeDetails",
-			"Code Mode details",
+			"Code / Notebook details",
 			config.ui.codeModeDetails,
 			(enabled, current) => ({
 				...current,
