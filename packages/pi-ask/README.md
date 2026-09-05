@@ -14,7 +14,7 @@ Try it for one session:
 pi -e npm:@howaboua/pi-ask
 ```
 
-When [Pi Codex](https://www.npmjs.com/package/@howaboua/pi-codex-conversion) 3.0.24 or newer is installed too, `ask` is available inside Code and Notebook Mode as `await tools.ask({ prompts, delivery?, handoff? })`.
+When [Pi Codex](https://www.npmjs.com/package/@howaboua/pi-codex-conversion) 3.0.25 or newer is installed too, `ask` is available inside Code and Notebook Mode as `await tools.ask({ prompts, delivery?, handoff? })`.
 
 ## How it behaves
 

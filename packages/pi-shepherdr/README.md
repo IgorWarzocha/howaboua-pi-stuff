@@ -22,7 +22,7 @@ herdr integration install pi
 
 Do not load Pi Codex's example `agents.toml` custom tool alongside Shepherdr; they own the same agent surface.
 
-Pi Codex 3.0.24 or newer is optional. Without it, Shepherdr remains a normal Pi extension.
+Pi Codex 3.0.25 or newer is optional. Without it, Shepherdr remains a normal Pi extension.
 
 ## Enable orchestration
 
