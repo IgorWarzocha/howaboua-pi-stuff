@@ -40,7 +40,7 @@
 		"pack:dry": "npm pack --dry-run"
 	},
 	"peerDependencies": {
-		"@howaboua/pi-codex-conversion": ">=3.0.27",
+		"@howaboua/pi-codex-conversion": ">=3.0.28",
 		"@earendil-works/pi-coding-agent": ">=0.84.3",
 		"@earendil-works/pi-tui": ">=0.84.3",
 		"typebox": "*"
@@ -51,7 +51,7 @@
 		}
 	},
 	"devDependencies": {
-		"@howaboua/pi-codex-conversion": "3.0.27",
+		"@howaboua/pi-codex-conversion": "3.0.28",
 		"@biomejs/biome": "^2.5.10",
 		"@earendil-works/pi-coding-agent": "0.85.0",
 		"@earendil-works/pi-tui": "0.85.0",

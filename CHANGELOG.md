@@ -68,9 +68,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 3.0.27
+### @howaboua/pi-codex-conversion — 3.0.28
 
-- Fixed Responses compaction v2 falling back to Pi compaction after native Codex provider registration.
+- Fixed empty Notebook tool enumeration. `Object.keys(tools)` and membership checks now reflect callable tools; `ALL_TOOLS` remains limited to deferred tools.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 

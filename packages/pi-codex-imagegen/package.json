@@ -47,7 +47,7 @@
 		"undici": "8.10.0"
 	},
 	"peerDependencies": {
-		"@howaboua/pi-codex-conversion": ">=3.0.27",
+		"@howaboua/pi-codex-conversion": ">=3.0.28",
 		"@earendil-works/pi-coding-agent": ">=0.84.4",
 		"@earendil-works/pi-tui": ">=0.84.4",
 		"typebox": "*"
@@ -58,7 +58,7 @@
 		}
 	},
 	"devDependencies": {
-		"@howaboua/pi-codex-conversion": "3.0.27",
+		"@howaboua/pi-codex-conversion": "3.0.28",
 		"@biomejs/biome": "^2.5.10",
 		"@earendil-works/pi-coding-agent": "0.85.0",
 		"@earendil-works/pi-tui": "0.85.0",
