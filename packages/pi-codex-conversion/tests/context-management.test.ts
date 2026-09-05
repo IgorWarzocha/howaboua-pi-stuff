@@ -218,6 +218,15 @@ test("context windows preserve rollover and native request semantics", async () 
 		contextPayload.tools.map(({ type, name }) => [type, name]),
 		[["namespace", "history"], ["namespace", "notes"]],
 	);
+	// Astra rejects either keyword on reserved Remote schemas, independently.
+	for (const namespace of contextPayload.tools) {
+		for (const operation of namespace.tools) {
+			assert.equal(Object.hasOwn(operation.parameters, "additionalProperties"), false);
+			for (const property of Object.values(operation.parameters.properties)) {
+				assert.equal(Object.hasOwn(property, "minimum"), false);
+			}
+		}
+	}
 	const notesWrite = contextPayload.tools[1]!.tools.find(
 		(operation) => operation.name === "write_file",
 	)!;

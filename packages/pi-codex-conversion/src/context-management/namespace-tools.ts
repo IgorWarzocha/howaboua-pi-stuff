@@ -58,7 +58,7 @@ function integer(minimum?: number): JsonSchema {
 function object(
 	properties: Record<string, JsonSchema>,
 	required?: string[],
-): JsonSchema {
+) {
 	return {
 		type: "object",
 		properties,
@@ -70,12 +70,12 @@ function object(
 function operation(
 	name: string,
 	description: string,
-	parameters: JsonSchema,
-): Record<string, unknown> {
+	parameters: ReturnType<typeof object>,
+) {
 	return { type: "function", name, description, strict: false, parameters };
 }
 
-function historyNamespace(encrypted: boolean): Record<string, unknown> {
+function historyNamespace(encrypted: boolean) {
 	return {
 		type: "namespace",
 		name: "history",
@@ -142,7 +142,7 @@ function historyNamespace(encrypted: boolean): Record<string, unknown> {
 	};
 }
 
-function notesNamespace(encrypted: boolean): Record<string, unknown> {
+function notesNamespace(encrypted: boolean) {
 	return {
 		type: "namespace",
 		name: "notes",
@@ -220,9 +220,22 @@ function contextNamespace(
 	name: ContextNamespace,
 	encrypted: boolean,
 ): Record<string, unknown> {
-	return name === "history"
+	const namespace = name === "history"
 		? historyNamespace(encrypted)
 		: notesNamespace(encrypted);
+	// Codex validates reserved schemas against its serialized contract: open
+	// objects, with numeric bounds omitted by its JsonSchema serializer.
+	if (!encrypted) return namespace;
+	return {
+		...namespace,
+		tools: namespace.tools.map((tool) => {
+			const { additionalProperties: _additionalProperties, ...parameters } = tool.parameters;
+			for (const property of Object.values(parameters.properties)) {
+				delete property["minimum"];
+			}
+			return { ...tool, parameters };
+		}),
+	};
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
