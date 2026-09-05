@@ -101,7 +101,7 @@ function resolveOpenAICodexAuthModel(
 	);
 }
 
-function resolveAuthModel(
+export function resolveAuthModel(
 	ctx: ExtensionContext,
 	allowConfiguredProvider?: AllowConfiguredCodexToolProvider,
 	isConfiguredCodexTransport?: AllowConfiguredCodexToolProvider,

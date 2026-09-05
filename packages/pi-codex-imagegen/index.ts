@@ -1,10 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import registerPackageChangelog from "./changelog.js";
 import { imagegenCodeModeResult } from "./src/code-mode.js";
-import {
-	isConfiguredCodexToolProvider,
-	resolveHostedCodexToolProvider,
-} from "./src/codex-runtime/policy.js";
+import { resolveHostedCodexToolProvider } from "./src/codex-runtime/policy.js";
 import { createImageGenerationTool } from "./src/tool.js";
 
 const CODE_MODE_PACKAGE = "@howaboua/pi-codex-conversion";
@@ -21,8 +18,6 @@ export default async function imagegenExtension(
 	registerPackageChangelog(pi);
 	const tool = createImageGenerationTool({
 		allowCodexProviderFallback: true,
-		allowConfiguredProvider: (model) =>
-			isConfiguredCodexToolProvider(pi, model),
 		resolveProvider: (ctx) => resolveHostedCodexToolProvider(pi, ctx),
 		promptSnippet: false,
 	});
@@ -37,7 +32,7 @@ async function registerImagegenInCodeMode(
 ) {
 	try {
 		const { adaptToolForCodeMode, registerCodeModeExtensionTools } =
-			await import("@howaboua/pi-codex-conversion/code-mode");
+			await import(CODE_MODE_MODULE);
 		return registerCodeModeExtensionTools(pi, () => [
 			adaptToolForCodeMode(tool, {
 				usage:

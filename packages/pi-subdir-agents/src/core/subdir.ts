@@ -36,7 +36,6 @@ export function registerSubdirContextAutoload(
 	const loadedAgentsContent = new Map<string, string>();
 	let currentCwd = "";
 	let cwdAgentsPath = "";
-	let readCount = 0;
 
 	function relativePath(absolutePath: string): string {
 		const relative = currentCwd
@@ -48,7 +47,6 @@ export function registerSubdirContextAutoload(
 	function resetSession(cwd: string): void {
 		currentCwd = resolvePath(cwd, process.cwd());
 		cwdAgentsPath = path.join(currentCwd, "AGENTS.md");
-		readCount = 0;
 		loadedAgents.clear();
 		loadedAgentsContent.clear();
 		loadedAgents.add(cwdAgentsPath);
@@ -162,7 +160,6 @@ export function registerSubdirContextAutoload(
 	async function readAppendixFiles(
 		agentFiles: string[],
 		branchContext: Map<string, string>,
-		refreshAppendix: boolean,
 	) {
 		const loadedNow: string[] = [];
 		const persistedFiles: PersistedContextFile[] = [];
@@ -178,8 +175,7 @@ export function registerSubdirContextAutoload(
 				const changed = previousContent !== content;
 				const rel = relativePath(agentsPath);
 				if (changed) persistedFiles.push({ path: rel, content });
-				if (!wasLoaded || changed || refreshAppendix)
-					appendixFiles.push({ path: rel, content });
+				if (!wasLoaded || changed) appendixFiles.push({ path: rel, content });
 				if (!wasLoaded) loadedNow.push(rel);
 			} catch (error) {
 				if (error instanceof Error) failedFiles.push({ agentsPath, error });
@@ -218,16 +214,11 @@ export function registerSubdirContextAutoload(
 
 		const branchContext = collectBranchContext(ctx, currentCwd, cwdAgentsPath);
 		mergeRuntimeFromBranch(branchContext);
-		readCount += 1;
 
 		const agentFiles = agentsForTargets(targets);
 		if (!agentFiles.length) return undefined;
 
-		const result = await readAppendixFiles(
-			agentFiles,
-			branchContext,
-			readCount % 10 === 0,
-		);
+		const result = await readAppendixFiles(agentFiles, branchContext);
 		if (ctx.hasUI) {
 			for (const failed of result.failedFiles) {
 				ctx.ui.notify(

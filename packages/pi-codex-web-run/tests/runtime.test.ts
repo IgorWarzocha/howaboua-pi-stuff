@@ -7,10 +7,7 @@ import {
 	resolveCodexToolModel,
 } from "../src/codex-runtime/config.js";
 import { fetchCodexTool } from "../src/codex-runtime/http.js";
-import {
-	isConfiguredCodexToolProvider,
-	resolveHostedCodexToolProvider,
-} from "../src/codex-runtime/policy.js";
+import { resolveHostedCodexToolProvider } from "../src/codex-runtime/policy.js";
 import { resolveCodexToolProvider } from "../src/codex-runtime/resolve.js";
 import { resolveCodexSearchUrl } from "../src/codex-runtime/urls.js";
 
@@ -89,36 +86,6 @@ test("Codex requests keep provider policy and bounded HTTP state", async () => {
 			},
 		},
 	};
-	const unregister = pi.events.on(
-		"@howaboua/pi-codex-conversion.configured-provider/v1",
-		(value) => {
-			if (
-				!value ||
-				typeof value !== "object" ||
-				!("model" in value) ||
-				!("allow" in value) ||
-				typeof value.allow !== "function"
-			)
-				return;
-			const model = value.model as { provider?: string } | undefined;
-			if (model?.provider === "configured") value.allow();
-		},
-	);
-	assert.equal(
-		isConfiguredCodexToolProvider(
-			pi as never,
-			{ provider: "configured" } as never,
-		),
-		true,
-	);
-	unregister();
-	assert.equal(
-		isConfiguredCodexToolProvider(
-			pi as never,
-			{ provider: "configured" } as never,
-		),
-		false,
-	);
 	const provider = {
 		route: "openai-codex" as const,
 		baseUrl: "https://chatgpt.com/backend-api/codex",
@@ -137,11 +104,26 @@ test("Codex requests keep provider policy and bounded HTTP state", async () => {
 				"use" in value &&
 				typeof value.use === "function"
 			)
-				value.use(async () => provider);
+				value.use(async (ctx: { model: { provider: string } }) => {
+					assert.equal(ctx.model.provider, "openai-codex");
+					return provider;
+				});
 		},
 	);
 	assert.deepEqual(
-		await resolveHostedCodexToolProvider(pi as never, {} as never),
+		await resolveHostedCodexToolProvider(
+			pi as never,
+			{
+				model: { provider: "meta", api: "openai-responses", id: "muse" },
+				modelRegistry: {
+					find: () => ({
+						provider: "openai-codex",
+						api: "openai-codex-responses",
+						id: "gpt-5.6-luna",
+					}),
+				},
+			} as never,
+		),
 		provider,
 	);
 	assert.equal(
