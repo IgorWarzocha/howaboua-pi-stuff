@@ -41,6 +41,8 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 			const contextManagementChanged =
 				config.compaction.contextManagement !==
 				previousConfig.compaction.contextManagement;
+			tools.applyConfig(config);
+			runtime.state.availableToolNames = pi.getAllTools().map((tool) => tool.name);
 			if (
 				previousConfig.compaction.contextManagement === "off" &&
 				config.compaction.contextManagement !== "off" &&
@@ -59,7 +61,6 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 				});
 			}
 			proxyProvider.applyConfig(config, ctx.modelRegistry);
-			tools.applyConfig(config);
 			ui.applyConfig(config, ctx, previousConfig);
 			if (config.openai.cacheDiagnostics !== previousConfig.openai.cacheDiagnostics) {
 				void runtime.configureDiagnostics(

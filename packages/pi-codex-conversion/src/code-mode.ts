@@ -53,7 +53,5 @@ export function adaptToolForCodeMode<
 			? { deferLoading: true, discoverWhenDeferred: true }
 			: {}),
 	});
-	return nestedTool.name === tool.name
-		? adapted
-		: { ...adapted, topLevelName: tool.name };
+	return { ...adapted, topLevelName: tool.name };
 }

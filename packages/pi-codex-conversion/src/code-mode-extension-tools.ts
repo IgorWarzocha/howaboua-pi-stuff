@@ -104,6 +104,7 @@ export function getCodeModeExtensionToolSnapshot(
 		tools: provider(context),
 	}));
 	const allTools = resolved.flatMap(({ tools }) => tools);
+	const registeredNames = new Set(pi.getAllTools().map((tool) => tool.name));
 	for (const tool of allTools) {
 		if (RESERVED_EXTENSION_TOOL_NAMES.has(codeModeGlobalName(tool.name)))
 			throw new Error(`Reserved Code Mode extension tool name: ${tool.name}`);
@@ -111,7 +112,8 @@ export function getCodeModeExtensionToolSnapshot(
 	return {
 		tools: resolved
 			.filter(({ active }) => active)
-			.flatMap(({ tools }) => tools),
+			.flatMap(({ tools }) => tools)
+			.filter((tool) => tool.topLevelName === undefined || registeredNames.has(tool.topLevelName)),
 		allToolNames: [
 			...new Set(
 				allTools.map((tool) => tool.topLevelName ?? tool.name),

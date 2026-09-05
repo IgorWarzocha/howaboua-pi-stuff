@@ -122,6 +122,7 @@ test("adapter activation requires registered tools and follows scope independent
 		dynamic as never,
 		() => [{
 			name: "agents",
+			topLevelName: "agents",
 			usage: "await tools.agents(input)",
 			deferLoading: false,
 			kind: "function",
@@ -150,6 +151,10 @@ test("adapter activation requires registered tools and follows scope independent
 	dynamicState.executionMode = "normal";
 	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
 	assert.equal(dynamic.activeTools().includes("agents"), true);
+	dynamic.registeredTools().delete("agents");
+	dynamicState.executionMode = "code";
+	syncAdapter(dynamic as never, dynamicContext as never, dynamicState);
+	assert.deepEqual(getCodeModeExtensionTools(dynamic as never, dynamicContext as never), []);
 	registration.unregister();
 
 	const conflicting = createToolHarness(["read", "bash", "edit", "write"]);
