@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-subdir-agents",
-	"version": "0.0.2",
+	"version": "0.0.3",
 	"description": "Pi extension that loads nested AGENTS.md context during repository discovery",
 	"type": "module",
 	"license": "MIT",
@@ -43,7 +43,7 @@
 	"peerDependencies": {
 		"@earendil-works/pi-coding-agent": ">=0.84.3",
 		"@earendil-works/pi-tui": ">=0.84.3",
-		"@howaboua/pi-codex-conversion": ">=3.0.26"
+		"@howaboua/pi-codex-conversion": ">=3.0.27"
 	},
 	"peerDependenciesMeta": {
 		"@howaboua/pi-codex-conversion": {
@@ -53,7 +53,7 @@
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.10",
 		"@earendil-works/pi-coding-agent": "0.85.0",
-		"@howaboua/pi-codex-conversion": "3.0.26",
+		"@howaboua/pi-codex-conversion": "3.0.27",
 		"tsx": "^4.23.12",
 		"typescript": "^7.0.2"
 	},

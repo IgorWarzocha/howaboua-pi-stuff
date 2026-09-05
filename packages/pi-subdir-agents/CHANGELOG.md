@@ -1,5 +1,9 @@
 # @howaboua/pi-subdir-agents
 
+## 0.0.3
+
+- Fixed developer-role AGENTS.md context always displaying in full. Messages now show file paths and expand with Ctrl+O.
+
 ## 0.0.2
 
 - Deliver nested AGENTS.md guidance as developer messages when Pi Codex is active, retaining standalone tool-result delivery and branch-aware deduplication.
