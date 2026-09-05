@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-extensions",
-	"version": "0.0.68",
+	"version": "0.0.69",
 	"description": "all Howaboua Pi extensions",
 	"type": "module",
 	"keywords": [
@@ -24,7 +24,7 @@
 		"@howaboua/pi-memories": "0.1.4",
 		"@howaboua/pi-pet": "0.1.3",
 		"@howaboua/pi-semantic-grep": "0.1.19",
-		"@howaboua/pi-shepherdr": "0.1.4",
+		"@howaboua/pi-shepherdr": "0.1.5",
 		"@howaboua/pi-smart-btw": "0.2.6",
 		"@howaboua/pi-subagent-review": "0.2.20",
 		"@howaboua/pi-unicode-charts": "0.1.0",

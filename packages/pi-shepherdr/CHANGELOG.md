@@ -1,5 +1,9 @@
 # @howaboua/pi-shepherdr
 
+## 0.1.5
+
+- Make the agents tool always available and start fleet monitoring automatically. `/herdr` now toggles only orchestration guidance, not tool availability.
+
 ## 0.1.4
 
 - Preserve extension-owned messages while delivering true developer-role policy through compatible Pi Codex Responses adapters.

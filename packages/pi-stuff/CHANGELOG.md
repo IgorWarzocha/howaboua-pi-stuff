@@ -1,5 +1,11 @@
 # @howaboua/pi-stuff
 
+## 0.0.76
+
+- Include bundled package updates:
+
+  - @howaboua/pi-shepherdr: Make the agents tool always available and start fleet monitoring automatically. `/herdr` now toggles only orchestration guidance, not tool availability.
+
 ## 0.0.75
 
 - Include bundled package updates:
