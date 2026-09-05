@@ -166,7 +166,7 @@
     },
     "packages/pi-codex-imagegen": {
       "name": "@howaboua/pi-codex-imagegen",
-      "version": "0.0.2",
+      "version": "0.0.3",
       "dependencies": {
         "proxy-from-env": "2.1.0",
         "undici": "8.10.0",
@@ -188,7 +188,7 @@
     },
     "packages/pi-codex-web-run": {
       "name": "@howaboua/pi-codex-web-run",
-      "version": "0.0.1",
+      "version": "0.0.2",
       "dependencies": {
         "proxy-from-env": "2.1.0",
         "undici": "8.10.0",
@@ -507,7 +507,7 @@
     },
     "packages/pi-subdir-agents": {
       "name": "@howaboua/pi-subdir-agents",
-      "version": "0.0.3",
+      "version": "0.0.4",
       "devDependencies": {
         "@biomejs/biome": "^2.5.10",
         "@earendil-works/pi-coding-agent": "0.85.0",

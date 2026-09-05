@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-codex-web-run",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"description": "Codex web search and navigation for Pi, Code Mode and Notebook Mode.",
 	"type": "module",
 	"license": "MIT",
