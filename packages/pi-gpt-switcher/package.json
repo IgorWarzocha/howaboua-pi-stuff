@@ -1,6 +1,6 @@
 {
 	"name": "@howaboua/pi-gpt-switcher",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"description": "Quick Pi commands for switching between GPT Codex models and reasoning levels.",
 	"type": "module",
 	"license": "MIT",

@@ -1,5 +1,9 @@
 # @howaboua/pi-subdir-agents
 
+## 0.0.2
+
+- Deliver nested AGENTS.md guidance as developer messages when Pi Codex is active, retaining standalone tool-result delivery and branch-aware deduplication.
+
 ## 0.0.1
 
 ### Changes

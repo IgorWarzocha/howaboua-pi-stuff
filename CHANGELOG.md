@@ -18,9 +18,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ## Latest package changelogs
 
-### @howaboua/pi-ask — 0.0.6
+### @howaboua/pi-ask — 0.0.7
 
-- Added a Code and Notebook Mode bridge API. This allows extensions that use Pi TUI to run inside `exec`.
+- The `ask` tool now supports steering questions that return immediately, preserve the full response panel, and deliver answers at the next safe boundary using the developer role under active Pi Codex Responses.
 
 [Full changelog](./packages/pi-ask/CHANGELOG.md)
 
@@ -38,21 +38,23 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-auto-trees/CHANGELOG.md)
 
-### @howaboua/pi-better-skills-tool — 0.0.1
+### @howaboua/pi-better-skills-tool — 0.0.2
 
-- Initial release of Better Skills for progressive skill discovery in normal Pi, Code Mode, and Notebook Mode.
+- Batch independent skill reads in one execution cell.
 
-  - List the available catalog first, then load only the requested skill and references.
-  - Combine global, project, and package-provided skills while respecting invocation visibility and local precedence.
+- Keep tool results actionable.
+
+  - Browser evaluation errors preserve JavaScript exception details instead of a generic “Uncaught”.
+  - Skill path inventories omit installed dependencies; reference reads list only the requested sources instead of repeating the full inventory.
 
 [Full changelog](./packages/pi-better-skills-tool/CHANGELOG.md)
 
-### @howaboua/pi-browser — 0.0.1
+### @howaboua/pi-browser — 0.0.2
 
-- Initial release of Browser, a persistent typed CDP tool for normal Pi, Code Mode, and Notebook Mode.
+- Keep tool results actionable.
 
-  - Inspect existing browser tabs, follow references, find text, click, type, capture screenshots, and use raw CDP when needed.
-  - Connect to local or configured remote hosts, with aliases and worker setup managed through `/browser`.
+  - Browser evaluation errors preserve JavaScript exception details instead of a generic “Uncaught”.
+  - Skill path inventories omit installed dependencies; reference reads list only the requested sources instead of repeating the full inventory.
 
 [Full changelog](./packages/pi-browser/CHANGELOG.md)
 
@@ -66,19 +68,61 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 3.0.25
+### @howaboua/pi-codex-conversion — 3.0.26
 
-- - Repeated OpenAI `additional_tools` updates now retain every previously loaded deferred tool.
-  - Updated agent instructions for direct tool workflows, filtered output, and persistent Deno work.
+- Preserve extension-owned messages while delivering true developer-role policy through compatible Pi Codex Responses adapters.
+
+  - Add an optional custom-message API that retains caller rendering and restoration fields.
+  - Route Shepherdr's unclaimed worker events and orchestration toggles through it, preserving ordinary Pi delivery when unavailable.
+  - Send review preface/triage policy and realtime voice start/end guidance as developer messages without elevating raw reviewer findings, spoken delegations, or transcript tails.
+  - Keep persisted developer messages in context across model switches, using ordinary Pi conversion on incompatible models.
+
+- Added backend-authorized Luna Reserve fallback after Codex quota exhaustion.
+
+  - Show Reserve as a separate, limited allowance in `/codex usage`.
+  - Switch to Luna Reserve and ask the user to continue, without automatic retries or reset-credit redemption.
+  - Restore the original model and reasoning level when ordinary usage recovers, including resumed sessions.
+
+- Simplify Notebook metadata persistence and realtime voice startup without changing saved data, connection behavior, or tool output.
+
+- Expand Pi Codex execution and extension integration.
+
+  - Apply Code and Notebook execution modes across the full configured adapter scope without changing each provider's transport.
+  - Let extensions inject persisted, visibly rendered Responses developer messages with Pi-native delivery controls.
+  - Add experimental no-summary context management with Local JSONL recovery, Tree archives, exact Remote Codex storage, budget reminders, and Code/Notebook controls.
+  - Support GPT-6 Astra with its native Codex catalog and Responses Lite routing.
+  - Fix Remote context management schema rejection on Astra while keeping compact tool descriptions.
+
+- Fixed GPT-6 Astra reasoning changes through Pi’s selector to preserve prompt-cache and WebSocket continuation eligibility, including session resume and native compaction.
+
+- Add optional Astra effort control and clearer auxiliary tool activity.
+
+  - Enable Astra-only reasoning adjustment in Structured, Code and Notebook modes, respecting the user's floor and restoring it after the run.
+  - Show notes, history, notebook and context-window actions with compact outcomes and expandable detail.
+
+- Fixed Codex streams that end immediately after an unterminated terminal SSE event, and cleared stale incomplete-response errors after successful recovery.
+
+- Fix worker settlement, custom model preservation, and prompt-only image generation.
+
+  - Settle Shepherdr workers after Pi expands skill or prompt-template invocations.
+  - Preserve custom Codex models and `models.json` overrides, including after refresh.
+  - Keep optional tool arguments optional in Codex Responses requests while preserving explicit strict sampling.
+  - Treat null image selectors as absent, so prompt-only requests generate rather than edit.
+  - Honor the details toggle in Notebook Mode to hide duplicate output previews.
+  - Show submitted messages without waiting for cached WebSocket warmup, while keeping generation serialized behind it.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
-### @howaboua/pi-codex-imagegen — 0.0.1
+### @howaboua/pi-codex-imagegen — 0.0.2
 
-- Initial release of Imagegen for Codex image generation and editing in normal Pi, Code Mode, and Notebook Mode.
+- Fix worker settlement, custom model preservation, and prompt-only image generation.
 
-  - Generate new images or edit recent and workspace-local PNG, JPEG, GIF, or WebP files.
-  - Save outputs beneath the workspace and use stock, renamed, or proxied Codex providers.
+  - Settle Shepherdr workers after Pi expands skill or prompt-template invocations.
+  - Preserve custom Codex models and `models.json` overrides, including after refresh.
+  - Keep optional tool arguments optional in Codex Responses requests while preserving explicit strict sampling.
+  - Treat null image selectors as absent, so prompt-only requests generate rather than edit.
+  - Honor the details toggle in Notebook Mode to hide duplicate output previews.
+  - Show submitted messages without waiting for cached WebSocket warmup, while keeping generation serialized behind it.
 
 [Full changelog](./packages/pi-codex-imagegen/CHANGELOG.md)
 
@@ -109,16 +153,18 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.67
+### @howaboua/pi-extensions — 0.0.68
 
 - Include bundled package updates:
 
-  - @howaboua/pi-ask: Added a Code and Notebook Mode bridge API. This allows extensions that use Pi TUI to run inside `exec`.
-  - @howaboua/pi-better-skills-tool: Initial release of Better Skills for progressive skill discovery in normal Pi, Code Mode, and Notebook Mode. - List the available catalog first, then load only the requested skill and references. - Combine global, project, and package-provided skills while respecting invocation visibility and local precedence.
-  - @howaboua/pi-gippity-control: Fixed waiting indicators for extension UI prompts.
-  - @howaboua/pi-gippity-control: Voice summarisation now runs whenever Pi compacts, then starts a fresh realtime session.
-  - @howaboua/pi-pet: Fixed waiting indicators for extension UI prompts.
-  - @howaboua/pi-shepherdr: Replaced Shepherdr's fire-and-forget tool with persistent blocking and asynchronous agents in normal Pi, Code Mode, and Notebook Mode. - Start, steer, inspect, and answer multiple agents through the `agents` tool. - Customize the bundled general, explorer, and reviewer profiles or add your own. - Activate orchestration mode with `/herdr` when the main session should coordinate agent work.
+  - @howaboua/pi-ask: The `ask` tool now supports steering questions that return immediately, preserve the full response panel, and deliver answers at the next safe boundary using the developer role under active Pi Codex Responses.
+  - @howaboua/pi-better-skills-tool: Batch independent skill reads in one execution cell.
+  - @howaboua/pi-better-skills-tool: Keep tool results actionable. - Browser evaluation errors preserve JavaScript exception details instead of a generic “Uncaught”. - Skill path inventories omit installed dependencies; reference reads list only the requested sources instead of repeating the full inventory.
+  - @howaboua/pi-gpt-switcher: Add /astra for GPT-6 Astra with low reasoning by default and an optional reasoning override.
+  - @howaboua/pi-pet: Expose Pi Pet's extension from the package root so aggregate extension packages can load it.
+  - @howaboua/pi-shepherdr: Preserve extension-owned messages while delivering true developer-role policy through compatible Pi Codex Responses adapters. - Add an optional custom-message API that retains caller rendering and restoration fields. - Route Shepherdr's unclaimed worker events and orchestration toggles through it, preserving ordinary Pi delivery when unavailable. - Send review preface/triage policy and realtime voice start/end guidance as developer messages without elevating raw reviewer findings, spoken delegations, or transcript tails. - Keep persisted developer messages in context across model switches, using ordinary Pi conversion on incompatible models.
+  - @howaboua/pi-shepherdr: Fix worker settlement, custom model preservation, and prompt-only image generation. - Settle Shepherdr workers after Pi expands skill or prompt-template invocations. - Preserve custom Codex models and `models.json` overrides, including after refresh. - Keep optional tool arguments optional in Codex Responses requests while preserving explicit strict sampling. - Treat null image selectors as absent, so prompt-only requests generate rather than edit. - Honor the details toggle in Notebook Mode to hide duplicate output previews. - Show submitted messages without waiting for cached WebSocket warmup, while keeping generation serialized behind it.
+  - @howaboua/pi-subagent-review: Preserve extension-owned messages while delivering true developer-role policy through compatible Pi Codex Responses adapters. - Add an optional custom-message API that retains caller rendering and restoration fields. - Route Shepherdr's unclaimed worker events and orchestration toggles through it, preserving ordinary Pi delivery when unavailable. - Send review preface/triage policy and realtime voice start/end guidance as developer messages without elevating raw reviewer findings, spoken delegations, or transcript tails. - Keep persisted developer messages in context across model switches, using ordinary Pi conversion on incompatible models.
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
@@ -130,11 +176,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-gippity-control/CHANGELOG.md)
 
-### @howaboua/pi-gpt-switcher — 0.1.1
+### @howaboua/pi-gpt-switcher — 0.1.2
 
-### Changes
-
-- [#333](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/333) [`a9143cf`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/a9143cfeb802406c2e62b4424e27b69da141b7ae) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add configurable session context windows and reasoning defaults for GPT shortcuts.
+- Add /astra for GPT-6 Astra with low reasoning by default and an optional reasoning override.
 
 [Full changelog](./packages/pi-gpt-switcher/CHANGELOG.md)
 
@@ -147,9 +191,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-memories/CHANGELOG.md)
 
-### @howaboua/pi-pet — 0.1.2
+### @howaboua/pi-pet — 0.1.3
 
-- Fixed waiting indicators for extension UI prompts.
+- Expose Pi Pet's extension from the package root so aggregate extension packages can load it.
 
 [Full changelog](./packages/pi-pet/CHANGELOG.md)
 
@@ -165,13 +209,23 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-semantic-grep/CHANGELOG.md)
 
-### @howaboua/pi-shepherdr — 0.1.3
+### @howaboua/pi-shepherdr — 0.1.4
 
-- Replaced Shepherdr's fire-and-forget tool with persistent blocking and asynchronous agents in normal Pi, Code Mode, and Notebook Mode.
+- Preserve extension-owned messages while delivering true developer-role policy through compatible Pi Codex Responses adapters.
 
-  - Start, steer, inspect, and answer multiple agents through the `agents` tool.
-  - Customize the bundled general, explorer, and reviewer profiles or add your own.
-  - Activate orchestration mode with `/herdr` when the main session should coordinate agent work.
+  - Add an optional custom-message API that retains caller rendering and restoration fields.
+  - Route Shepherdr's unclaimed worker events and orchestration toggles through it, preserving ordinary Pi delivery when unavailable.
+  - Send review preface/triage policy and realtime voice start/end guidance as developer messages without elevating raw reviewer findings, spoken delegations, or transcript tails.
+  - Keep persisted developer messages in context across model switches, using ordinary Pi conversion on incompatible models.
+
+- Fix worker settlement, custom model preservation, and prompt-only image generation.
+
+  - Settle Shepherdr workers after Pi expands skill or prompt-template invocations.
+  - Preserve custom Codex models and `models.json` overrides, including after refresh.
+  - Keep optional tool arguments optional in Codex Responses requests while preserving explicit strict sampling.
+  - Treat null image selectors as absent, so prompt-only requests generate rather than edit.
+  - Honor the details toggle in Notebook Mode to hide duplicate output previews.
+  - Show submitted messages without waiting for cached WebSocket warmup, while keeping generation serialized behind it.
 
 [Full changelog](./packages/pi-shepherdr/CHANGELOG.md)
 
@@ -229,28 +283,35 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.74
+### @howaboua/pi-stuff — 0.0.75
 
 - Include bundled package updates:
 
-  - @howaboua/pi-skill-code: Added React hygiene guidance for state, effects, identity, rendering, and framework ownership.
-  - @howaboua/pi-skill-foundations: Updated communication guidance for concise conversation, writing, teaching, and non-code review.
+  - @howaboua/pi-ask: The `ask` tool now supports steering questions that return immediately, preserve the full response panel, and deliver answers at the next safe boundary using the developer role under active Pi Codex Responses.
+  - @howaboua/pi-better-skills-tool: Batch independent skill reads in one execution cell.
+  - @howaboua/pi-better-skills-tool: Keep tool results actionable. - Browser evaluation errors preserve JavaScript exception details instead of a generic “Uncaught”. - Skill path inventories omit installed dependencies; reference reads list only the requested sources instead of repeating the full inventory.
+  - @howaboua/pi-gpt-switcher: Add /astra for GPT-6 Astra with low reasoning by default and an optional reasoning override.
+  - @howaboua/pi-pet: Expose Pi Pet's extension from the package root so aggregate extension packages can load it.
+  - @howaboua/pi-shepherdr: Preserve extension-owned messages while delivering true developer-role policy through compatible Pi Codex Responses adapters. - Add an optional custom-message API that retains caller rendering and restoration fields. - Route Shepherdr's unclaimed worker events and orchestration toggles through it, preserving ordinary Pi delivery when unavailable. - Send review preface/triage policy and realtime voice start/end guidance as developer messages without elevating raw reviewer findings, spoken delegations, or transcript tails. - Keep persisted developer messages in context across model switches, using ordinary Pi conversion on incompatible models.
+  - @howaboua/pi-shepherdr: Fix worker settlement, custom model preservation, and prompt-only image generation. - Settle Shepherdr workers after Pi expands skill or prompt-template invocations. - Preserve custom Codex models and `models.json` overrides, including after refresh. - Keep optional tool arguments optional in Codex Responses requests while preserving explicit strict sampling. - Treat null image selectors as absent, so prompt-only requests generate rather than edit. - Honor the details toggle in Notebook Mode to hide duplicate output previews. - Show submitted messages without waiting for cached WebSocket warmup, while keeping generation serialized behind it.
+  - @howaboua/pi-subagent-review: Preserve extension-owned messages while delivering true developer-role policy through compatible Pi Codex Responses adapters. - Add an optional custom-message API that retains caller rendering and restoration fields. - Route Shepherdr's unclaimed worker events and orchestration toggles through it, preserving ordinary Pi delivery when unavailable. - Send review preface/triage policy and realtime voice start/end guidance as developer messages without elevating raw reviewer findings, spoken delegations, or transcript tails. - Keep persisted developer messages in context across model switches, using ordinary Pi conversion on incompatible models.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 
-### @howaboua/pi-subagent-review — 0.2.19
+### @howaboua/pi-subagent-review — 0.2.20
 
-### Changes
+- Preserve extension-owned messages while delivering true developer-role policy through compatible Pi Codex Responses adapters.
 
-- [#314](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/314) [`536910d`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/536910d3b0a89f1caaa7a37844bdb80b62c1f844) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Review a focused JJ revision when its workspace cursor is an empty child commit.
+  - Add an optional custom-message API that retains caller rendering and restoration fields.
+  - Route Shepherdr's unclaimed worker events and orchestration toggles through it, preserving ordinary Pi delivery when unavailable.
+  - Send review preface/triage policy and realtime voice start/end guidance as developer messages without elevating raw reviewer findings, spoken delegations, or transcript tails.
+  - Keep persisted developer messages in context across model switches, using ordinary Pi conversion on incompatible models.
 
 [Full changelog](./packages/pi-subagent-review/CHANGELOG.md)
 
-### @howaboua/pi-subdir-agents — 0.0.1
+### @howaboua/pi-subdir-agents — 0.0.2
 
-### Changes
-
-- [#339](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/339) [`ee0220c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/ee0220cdc44cd732dff9caf0c913e098ed14404f) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Load nested AGENTS.md context when repository discovery reaches a subdirectory.
+- Deliver nested AGENTS.md guidance as developer messages when Pi Codex is active, retaining standalone tool-result delivery and branch-aware deduplication.
 
 [Full changelog](./packages/pi-subdir-agents/CHANGELOG.md)
 

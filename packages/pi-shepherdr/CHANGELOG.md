@@ -1,5 +1,23 @@
 # @howaboua/pi-shepherdr
 
+## 0.1.4
+
+- Preserve extension-owned messages while delivering true developer-role policy through compatible Pi Codex Responses adapters.
+
+  - Add an optional custom-message API that retains caller rendering and restoration fields.
+  - Route Shepherdr's unclaimed worker events and orchestration toggles through it, preserving ordinary Pi delivery when unavailable.
+  - Send review preface/triage policy and realtime voice start/end guidance as developer messages without elevating raw reviewer findings, spoken delegations, or transcript tails.
+  - Keep persisted developer messages in context across model switches, using ordinary Pi conversion on incompatible models.
+
+- Fix worker settlement, custom model preservation, and prompt-only image generation.
+
+  - Settle Shepherdr workers after Pi expands skill or prompt-template invocations.
+  - Preserve custom Codex models and `models.json` overrides, including after refresh.
+  - Keep optional tool arguments optional in Codex Responses requests while preserving explicit strict sampling.
+  - Treat null image selectors as absent, so prompt-only requests generate rather than edit.
+  - Honor the details toggle in Notebook Mode to hide duplicate output previews.
+  - Show submitted messages without waiting for cached WebSocket warmup, while keeping generation serialized behind it.
+
 ## 0.1.3
 
 - Replaced Shepherdr's fire-and-forget tool with persistent blocking and asynchronous agents in normal Pi, Code Mode, and Notebook Mode.

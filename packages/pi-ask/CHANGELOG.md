@@ -1,5 +1,9 @@
 # @howaboua/pi-ask
 
+## 0.0.7
+
+- The `ask` tool now supports steering questions that return immediately, preserve the full response panel, and deliver answers at the next safe boundary using the developer role under active Pi Codex Responses.
+
 ## 0.0.6
 
 - Added a Code and Notebook Mode bridge API. This allows extensions that use Pi TUI to run inside `exec`.
