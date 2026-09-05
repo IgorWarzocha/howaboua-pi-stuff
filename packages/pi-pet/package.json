@@ -13,6 +13,8 @@
     "url": "https://github.com/IgorWarzocha/howaboua-pi-stuff/issues"
   },
   "type": "module",
+  "main": "./extensions/index.ts",
+  "exports": "./extensions/index.ts",
   "keywords": [
     "pi-package",
     "pi-extension",
