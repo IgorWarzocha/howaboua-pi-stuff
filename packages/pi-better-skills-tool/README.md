@@ -8,7 +8,7 @@ Progressive skill discovery for Pi, Code Mode and Notebook Mode. The `skills` to
 pi install npm:@howaboua/pi-better-skills-tool
 ```
 
-Install `@howaboua/pi-codex-conversion` 3.0.24 or newer too for Code Mode and Notebook Mode. The extension remains a normal Pi tool when Codex conversion is absent.
+Requires Pi 0.84.3 or newer. Install `@howaboua/pi-codex-conversion` 3.0.25 or newer too for Code Mode and Notebook Mode. The extension remains a normal Pi tool when Codex conversion is absent.
 
 ## Start Pi without native skills
 

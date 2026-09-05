@@ -10,7 +10,7 @@ GipPity uses an OpenAI Codex login for its realtime audio connection, then route
 pi install npm:@howaboua/pi-gippity-control
 ```
 
-Log into `openai-codex` in Pi, then run `/gippity`.
+Requires Pi 0.84.4 or newer and Node.js 22.19 or newer. Log into `openai-codex` in Pi, then run `/gippity`.
 
 Do not install this alongside `@howaboua/pi-codex-conversion`; that package already includes GipPity voice control.
 
@@ -38,7 +38,7 @@ Settings live at `<pi-agent-directory>/pi-gippity-control.json`, where the direc
 
 **Refresh realtime voice after compaction** is off by default and requires a **Voice context model**. When enabled, it pauses at each successful compaction boundary, summarizes the compacted branch, and starts a fresh voice call without ending spoken mode. An initial summarization failure leaves the old call untouched.
 
-`lan.customWebAppPath` controls the app's scope. Use an absolute path for one global app in every Pi directory, or a relative path resolved from the active Pi session cwd for a project-specific app. It must point to a static directory containing `index.html`; the running server rereads it on refresh. `lan.port` is optional and defaults to `43120`.
+Set `lan.customWebApp: true` to enable a custom main UI, then set `lan.customWebAppPath`. Use an absolute path for one global app in every Pi directory, or a relative path resolved from the active Pi session cwd for a project-specific app. It must point to a static directory containing `index.html`; the running server rereads it on refresh. `lan.port` is optional and defaults to `43120`.
 
 Companion extensions can register one built static app through `registerGippityRemoteApp`. GipPity serves it under `/_gippity/apps/<id>/` alongside the main remote UI, replays its bounded `app.state` snapshot on browser reconnect, and forwards transient `app.event` messages through the existing mini-SDK. The app still uses `GippityRemote` for activity, Pi events, prompts, drafts, voice, and reconnection; extensions must not start another server. While Pi waits on an extension prompt, activity enters `waiting` with the prompt title and the bundled UI shows **Waiting for you**.
 
