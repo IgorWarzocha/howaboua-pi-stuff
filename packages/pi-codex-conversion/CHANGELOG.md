@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.0.28
+
+- Fixed empty Notebook tool enumeration. `Object.keys(tools)` and membership checks now reflect callable tools; `ALL_TOOLS` remains limited to deferred tools.
+
 ## 3.0.27
 
 - Fixed Responses compaction v2 falling back to Pi compaction after native Codex provider registration.
