@@ -60,8 +60,8 @@
 	},
 	"devDependencies": {
 		"@howaboua/pi-codex-conversion": "3.0.28",
-		"@earendil-works/pi-ai": "0.85.0",
-		"@earendil-works/pi-coding-agent": "0.85.0",
+		"@earendil-works/pi-ai": "0.85.1",
+		"@earendil-works/pi-coding-agent": "0.85.1",
 		"@types/node": "^26.2.0",
 		"typescript": "^7.0.2",
 		"@biomejs/biome": "^2.5.10"
