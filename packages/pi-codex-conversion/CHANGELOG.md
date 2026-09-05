@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.0.27
+
+- Fixed Responses compaction v2 falling back to Pi compaction after native Codex provider registration.
+
 ## 3.0.26
 
 - Preserve extension-owned messages while delivering true developer-role policy through compatible Pi Codex Responses adapters.
