@@ -49,7 +49,7 @@ function resolveStream(options: ExecuteRemoteCompactionV2Options): V2Stream | un
 		const registration = options.modelRegistry.getRegisteredProviderConfig("openai-codex");
 		return registration?.api === "openai-codex-responses" && registration.streamSimple
 			? registration.streamSimple as V2Stream
-			: undefined;
+			: options.modelRegistry.getRegisteredNativeProvider("openai-codex")?.streamSimple as V2Stream | undefined;
 	}
 	const configuredRegistration = options.modelRegistry.getRegisteredProviderConfig(options.runtime.provider);
 	return options.runtime.api === "openai-responses"

@@ -1,10 +1,32 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
 import registerPackageChangelog from "./changelog.js";
-
+import { parsePersistedContextDetails } from "./src/core/subdir/details.js";
 import { registerSubdirContextAutoload } from "./src/core/subdir.js";
 
 export default async function (pi: ExtensionAPI): Promise<void> {
 	registerPackageChangelog(pi);
+	pi.registerMessageRenderer(
+		"subdir-agents-context",
+		(message, { expanded, outputPad }, theme) => {
+			const files = parsePersistedContextDetails(message.details)?.files ?? [];
+			const summary = files.length
+				? files.map((file) => file.path).join(", ")
+				: "Subdirectory AGENTS.md context";
+			const content =
+				typeof message.content === "string"
+					? message.content
+					: message.content
+							.filter((item) => item.type === "text")
+							.map((item) => item.text)
+							.join("\n");
+			return new Text(
+				theme.fg("dim", summary) + (expanded ? `\n${content}` : ""),
+				outputPad,
+				0,
+			);
+		},
+	);
 	registerSubdirContextAutoload(pi, await loadDeveloperMessages());
 }
 
