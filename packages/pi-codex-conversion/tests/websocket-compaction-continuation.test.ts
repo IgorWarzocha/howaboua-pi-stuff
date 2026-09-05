@@ -86,7 +86,8 @@ test("V2 compaction exactly replays an image-bearing provider baseline after its
 				currentModel: imageModel,
 			},
 			modelRegistry: {
-				getRegisteredProviderConfig: () => ({ api: model.api, streamSimple: registered.provider.streamSimple }),
+				getRegisteredProviderConfig: () => undefined,
+				getRegisteredNativeProvider: () => registered.provider,
 			} as never,
 			context: context([], "Changed instructions", [] as never),
 			promptInput: canonicalInput as never,
