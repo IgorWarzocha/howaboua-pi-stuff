@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { ProviderHeaders } from "@earendil-works/pi-ai";
+import { ContextWindowBudget, type ContextRemaining } from "./window-budget.ts";
+import { rewriteWindowPayload, rewriteWindowHeaders } from "./window-request.ts";
 import type {
 	CompactionResult,
 	ExtensionAPI,
@@ -14,18 +16,14 @@ import {
 	CODEX_CONTEXT_WINDOW_MESSAGE_TYPE,
 	CONTEXT_WINDOW_COMPACTION_STRATEGY,
 	CONTEXT_WINDOW_COMPACTION_SUMMARY,
-	CONTEXT_WINDOW_FALLBACK_BUFFER,
-	CONTEXT_WINDOW_FALLBACK_MESSAGE,
-	CONTEXT_WINDOW_REMINDER_THRESHOLD,
 	type CodexContextManagementMessageDetails,
-	type ContextManagementMessageKind,
 	type ContextWindowCompactionDetails,
 	type ContextWindowIdentity,
 	isCodexContextManagementMessageDetails,
 	isContextWindowBoundary,
 	isContextWindowCompactionDetails,
 	renderContextWindowMessage,
-	renderContextWindowReminder,
+	sendContextWindowMessage,
 } from "./messages.ts";
 import {
 	buildTreeArchiveIndex,
@@ -39,12 +37,6 @@ interface StartContextWindowOptions {
 	trimPreviousWindow: boolean;
 }
 
-interface ContextRemaining {
-	remainingTokens: number | undefined;
-	windowId: string | undefined;
-	contextWindow: number;
-}
-
 type ThreadHintLoader = (
 	ctx: ExtensionContext,
 	mode: ContextManagementMode,
@@ -53,8 +45,7 @@ type ThreadHintLoader = (
 
 export class CodexContextWindowManager {
 	private identity: ContextWindowIdentity | undefined;
-	private readonly remindedWindows = new Set<string>();
-	private readonly exhaustedWindows = new Set<string>();
+	private readonly budget = new ContextWindowBudget();
 	private rolloverPending = false;
 	private trimPendingWindowId: string | undefined;
 	private readonly loadThreadHint: ThreadHintLoader;
@@ -65,8 +56,7 @@ export class CodexContextWindowManager {
 
 	reset(): void {
 		this.identity = undefined;
-		this.remindedWindows.clear();
-		this.exhaustedWindows.clear();
+		this.budget.reset();
 		this.rolloverPending = false;
 		this.trimPendingWindowId = undefined;
 	}
@@ -95,10 +85,7 @@ export class CodexContextWindowManager {
 					? details.currentWindowId
 					: undefined;
 			}
-			if (details.kind === "reminder")
-				this.remindedWindows.add(details.currentWindowId);
-			if (details.kind === "fallback")
-				this.exhaustedWindows.add(details.currentWindowId);
+			this.budget.restore(details.kind, details.currentWindowId);
 		}
 	}
 
@@ -202,67 +189,15 @@ export class CodexContextWindowManager {
 		contextTokens?: number,
 	): void {
 		if (!active || !this.identity) return;
-		const remaining = this.remaining(ctx, contextTokens);
-		if (remaining.remainingTokens === undefined) return;
-		const windowId = this.identity.currentWindowId;
-		if (
-			remaining.remainingTokens <= 0 &&
-			!this.exhaustedWindows.has(windowId)
-		) {
-			this.exhaustedWindows.add(windowId);
-			this.sendContextMessage(
-				pi,
-				CONTEXT_WINDOW_FALLBACK_MESSAGE,
-				"fallback",
-				this.identity,
-				{ triggerTurn: true },
-			);
-			return;
-		}
-		if (
-			remaining.remainingTokens <= CONTEXT_WINDOW_REMINDER_THRESHOLD &&
-			!this.remindedWindows.has(windowId)
-		) {
-			this.remindedWindows.add(windowId);
-			this.sendContextMessage(
-				pi,
-				renderContextWindowReminder(remaining.remainingTokens),
-				"reminder",
-				this.identity,
-				{ triggerTurn: false },
-			);
-		}
+		const reminder = this.budget.record(ctx, this.identity, contextTokens);
+		if (reminder) sendContextWindowMessage(
+			pi, reminder.content, reminder.kind, this.identity,
+			{ triggerTurn: reminder.kind === "fallback" },
+		);
 	}
 
-	remaining(
-		ctx: ExtensionContext,
-		contextTokens?: number,
-	): ContextRemaining {
-		const usage = ctx.getContextUsage();
-		if (!usage && contextTokens === undefined)
-			return {
-				remainingTokens: undefined,
-				windowId: this.identity?.currentWindowId,
-				contextWindow: Math.max(
-					0,
-					(ctx.model?.contextWindow ?? 0) - CONTEXT_WINDOW_FALLBACK_BUFFER,
-				),
-			};
-		const contextWindow = usage?.contextWindow ?? ctx.model?.contextWindow ?? 0;
-		const limit = Math.max(
-			0,
-			contextWindow - CONTEXT_WINDOW_FALLBACK_BUFFER,
-		);
-		return {
-			remainingTokens:
-				contextTokens !== undefined
-					? Math.max(0, limit - contextTokens)
-					: usage?.tokens === null || usage?.tokens === undefined
-					? undefined
-					: Math.max(0, limit - usage.tokens),
-			windowId: this.identity?.currentWindowId,
-			contextWindow: limit,
-		};
+	remaining(ctx: ExtensionContext, contextTokens?: number): ContextRemaining {
+		return this.budget.remaining(ctx, this.identity, contextTokens);
 	}
 
 	prepareCompaction(
@@ -314,50 +249,11 @@ export class CodexContextWindowManager {
 	}
 
 	rewritePayload(payload: unknown, ctx: ExtensionContext): unknown {
-		if (!this.identity || !isRecord(payload)) return payload;
-		const metadata = this.requestMetadata(ctx);
-		const clientMetadata = isRecord(payload["client_metadata"])
-			? payload["client_metadata"]
-			: {};
-		return {
-			...payload,
-			client_metadata: {
-				...clientMetadata,
-				"x-codex-window-id": metadata.window_id,
-				"x-codex-turn-metadata": JSON.stringify(metadata),
-			},
-		};
+		return rewriteWindowPayload(payload, ctx, this.identity);
 	}
 
 	rewriteHeaders(headers: ProviderHeaders, ctx: ExtensionContext): void {
-		if (!this.identity) return;
-		const metadata = this.requestMetadata(ctx);
-		headers["x-codex-window-id"] = metadata.window_id;
-		headers["x-codex-turn-metadata"] = JSON.stringify(metadata);
-	}
-
-	private requestMetadata(ctx: ExtensionContext): {
-		session_id: string;
-		thread_id: string;
-		agent_name: string;
-		window_id: string;
-		window_number: number;
-		context_window_id: string;
-		request_kind: "turn";
-		history_ingest_requested: true;
-	} {
-		const sessionId = ctx.sessionManager.getSessionId();
-		const identity = this.identity!;
-		return {
-			session_id: sessionId,
-			thread_id: sessionId,
-			agent_name: "/root",
-			window_id: `${sessionId}:${identity.windowNumber}`,
-			window_number: identity.windowNumber,
-			context_window_id: identity.currentWindowId,
-			request_kind: "turn",
-			history_ingest_requested: true,
-		};
+		rewriteWindowHeaders(headers, ctx, this.identity);
 	}
 
 	private sendWindowMessage(
@@ -370,7 +266,7 @@ export class CodexContextWindowManager {
 		this.trimPendingWindowId = options.trimPreviousWindow
 			? identity.currentWindowId
 			: undefined;
-		this.sendContextMessage(
+		sendContextWindowMessage(
 			pi,
 			renderContextWindowMessage(identity, threadHint),
 			"window",
@@ -380,37 +276,6 @@ export class CodexContextWindowManager {
 		);
 	}
 
-	private sendContextMessage(
-		pi: ExtensionAPI,
-		content: string,
-		kind: ContextManagementMessageKind,
-		identity: ContextWindowIdentity,
-		options: { triggerTurn: boolean },
-		trimPreviousWindow = false,
-	): void {
-		pi.sendMessage<CodexContextManagementMessageDetails>(
-			{
-				customType: CODEX_CONTEXT_WINDOW_MESSAGE_TYPE,
-				content,
-				display: true,
-				details: {
-					protocol: 1,
-					id: randomUUID(),
-					contextManagement: {
-						protocol: 1,
-						kind,
-						...identity,
-						...(trimPreviousWindow
-							? { trimPreviousWindow: true as const }
-							: {}),
-					},
-				},
-			},
-			options.triggerTurn
-				? { deliverAs: "steer", triggerTurn: true }
-				: { triggerTurn: false },
-		);
-	}
 }
 
 function identityFromDetails(
@@ -445,8 +310,4 @@ export function findLatestWindowBoundaryEntry(
 			};
 	}
 	return undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }

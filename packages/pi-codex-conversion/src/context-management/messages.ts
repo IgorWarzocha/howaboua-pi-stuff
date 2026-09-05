@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { CodexDeveloperMessageDetails } from "../developer-messages.ts";
 
@@ -127,5 +129,37 @@ export function isContextWindowCompactionDetails(
 			value.protocol === 1 &&
 			"strategy" in value &&
 			value.strategy === CONTEXT_WINDOW_COMPACTION_STRATEGY,
+	);
+}
+
+export function sendContextWindowMessage(
+	pi: ExtensionAPI,
+	content: string,
+	kind: ContextManagementMessageKind,
+	identity: ContextWindowIdentity,
+	options: { triggerTurn: boolean },
+	trimPreviousWindow = false,
+): void {
+	pi.sendMessage<CodexContextManagementMessageDetails>(
+		{
+			customType: CODEX_CONTEXT_WINDOW_MESSAGE_TYPE,
+			content,
+			display: true,
+			details: {
+				protocol: 1,
+				id: randomUUID(),
+				contextManagement: {
+					protocol: 1,
+					kind,
+					...identity,
+					...(trimPreviousWindow
+						? { trimPreviousWindow: true as const }
+						: {}),
+				},
+			},
+		},
+		options.triggerTurn
+			? { deliverAs: "steer", triggerTurn: true }
+			: { triggerTurn: false },
 	);
 }
