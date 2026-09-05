@@ -22,30 +22,23 @@ export default async function shepherdrExtension(
 
 	registerAgentEventRenderer(pi);
 	pi.registerTool(tool);
-	const registration = await registerAgentsInCodeMode(pi, tool, fleet);
-	registerAgentController(pi, fleet, {
-		onActiveChange: () => registration?.refresh(),
-	});
+	await registerAgentsInCodeMode(pi, tool);
+	registerAgentController(pi, fleet);
 }
 
 async function registerAgentsInCodeMode(
 	pi: ExtensionAPI,
 	tool: ReturnType<typeof createAgentsTool>,
-	fleet: AgentFleet,
 ) {
 	try {
 		const { adaptToolForCodeMode, registerCodeModeExtensionTools } =
 			await import("@howaboua/pi-codex-conversion/code-mode");
-		const registration = registerCodeModeExtensionTools(
-			pi,
-			() => [
-				adaptToolForCodeMode(tool, {
-					blocking: isBlockingAgentsCall,
-					usage: 'await tools.agents({ action: "help" }) // first call alone',
-				}),
-			],
-			{ isActive: () => fleet.isActive() },
-		);
+		const registration = registerCodeModeExtensionTools(pi, () => [
+			adaptToolForCodeMode(tool, {
+				blocking: isBlockingAgentsCall,
+				usage: 'await tools.agents({ action: "help" }) // first call alone',
+			}),
+		]);
 		pi.on("session_shutdown", () => registration.unregister());
 		return registration;
 	} catch (error) {

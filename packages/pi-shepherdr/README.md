@@ -26,13 +26,13 @@ Pi Codex 3.0.25 or newer is optional. Without it, Shepherdr remains a normal Pi 
 
 ## Enable orchestration
 
-Pi sessions remain ordinary workers until explicitly promoted. Run Pi inside Herdr, then activate the agent tool and orchestration guidance for the current session:
+The agent tool is always available in Pi, Code Mode and Notebook Mode. Run Pi inside Herdr to connect the fleet and start monitoring automatically. To prioritize orchestration over direct work for the current session:
 
 ```text
 /herdr
 ```
 
-The command records one visible mode message without triggering a turn. Run `/herdr` again to return to normal guidance while keeping the agent tool available. Resumed controller sessions restore their last mode; new worker sessions in the same directory remain dormant.
+The command only records one visible guidance message without triggering a turn. Run `/herdr` again to return to normal guidance. Resumed sessions restore their last mode; new sessions start with normal guidance. Tool availability and monitoring do not depend on this mode.
 
 `/herdr machines` opens the Add/Remove Machine interface. Settings live at `<pi-agent-directory>/shepherdr.json`, where the directory defaults to `~/.pi/agent` and `PI_CODING_AGENT_DIR` overrides it. `/herdr connect [machine]` retries configured remotes after activation.
 

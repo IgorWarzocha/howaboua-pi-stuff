@@ -94,7 +94,10 @@ export async function showMachineMenu(
 	]);
 	if (action === "Connect") {
 		if (!fleet.isActive()) {
-			ctx.ui.notify("Run /herdr to activate agents first", "warning");
+			ctx.ui.notify(
+				"Fleet unavailable; run /herdr connect to retry",
+				"warning",
+			);
 			return;
 		}
 		ctx.ui.notify(fleet.connect(name), "info");
