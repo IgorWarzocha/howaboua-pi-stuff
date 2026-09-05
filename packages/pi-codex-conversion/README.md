@@ -63,7 +63,7 @@ Provider scope can stay on **Codex and configured**, expand to **all providers**
 | Tab | Covers |
 | --- | --- |
 | General | Settings scope, execution mode, context management, extension mode, providers and heavy prompt overwrite |
-| Tools | Image description fallback and standalone tools |
+| Tools | Auto reasoning (Astra only), image description fallback and standalone tools |
 | OpenAI | Fast mode, verbosity, transport, cache diagnostics, Responses Lite and compaction |
 | Display | Statusline, tool rendering, Code Mode detail and background shells |
 | Voice | LAN server, realtime behaviour, context summarisation, dictation, shortcuts and prompt paths |
