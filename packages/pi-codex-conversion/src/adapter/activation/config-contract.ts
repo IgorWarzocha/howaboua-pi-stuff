@@ -66,6 +66,7 @@ export interface CodexConversionConfig {
 	};
 	compaction: {
 		contextManagement: ContextManagementMode;
+		hybridCompaction: boolean;
 		responsesCompaction: boolean;
 		portableSummary: boolean;
 		v2UserMessageRetention: V2UserMessageRetention;
@@ -125,6 +126,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	},
 	compaction: {
 		contextManagement: "off",
+		hybridCompaction: false,
 		responsesCompaction: false,
 		portableSummary: false,
 		v2UserMessageRetention: 64,

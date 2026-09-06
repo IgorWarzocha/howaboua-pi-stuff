@@ -1,6 +1,6 @@
 import { runCustomTool } from "./custom-tool-runner.js";
 import { isCustomToolDefinition, type DelegateRequestMessage } from "./host-protocol.js";
-import { runCodeModeToolPreflight } from "./nested-tool-preflight.js";
+import { runCodeModeToolWithHooks } from "./nested-tool-completion.js";
 import { codeModeNameForToolIdentity } from "./tool-identity.ts";
 import { CodeModeNestedRenderStore } from "./trace-render-state.js";
 import { CodeModeTraceStore } from "./trace-store.js";
@@ -274,22 +274,24 @@ export class CodeModeDelegateRuntime {
 				this.setBlocked(cellId, trace.id, true);
 				emitTrace();
 			}
-			await runCodeModeToolPreflight(
+			const result = await runCodeModeToolWithHooks(
 				tool.name,
 				input,
 				invocationContext,
 				controller.signal,
+				async (hookContext) => {
+					if (isCustomToolDefinition(tool)) emitTrace();
+					controller.signal.throwIfAborted();
+					const run = async (): Promise<unknown> => {
+						return isCustomToolDefinition(tool)
+							? await runCustomTool(tool, input, hookContext.cwd, controller.signal)
+							: await tool.invoke(input, hookContext, controller.signal);
+					};
+					return !isCustomToolDefinition(tool) && tool.executionMode === "sequential"
+						? await this.invokeSequential(cellId, controller.signal, run)
+						: await run();
+				},
 			);
-			if (isCustomToolDefinition(tool)) emitTrace();
-			controller.signal.throwIfAborted();
-			const run = async (): Promise<unknown> => {
-				return isCustomToolDefinition(tool)
-					? await runCustomTool(tool, input, invocationContext.cwd, controller.signal)
-					: await tool.invoke(input, invocationContext, controller.signal);
-			};
-			const result = !isCustomToolDefinition(tool) && tool.executionMode === "sequential"
-				? await this.invokeSequential(cellId, controller.signal, run)
-				: await run();
 			if (!trace.result)
 				trace.result = this.traces.captureResult(cellId, trace, toolResultFromValue(result));
 			trace.status = "done";

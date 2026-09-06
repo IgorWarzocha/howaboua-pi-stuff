@@ -10,7 +10,7 @@ export const CONTEXT_WINDOW_COMPACTION_STRATEGY =
 	"codex-context-window";
 
 export const CONTEXT_WINDOW_REMINDER_THRESHOLD = 6_144;
-export const CONTEXT_WINDOW_FALLBACK_BUFFER = 16_384;
+export const CONTEXT_WINDOW_MIN_RESERVE = 16_384;
 
 export type ContextManagementMessageKind =
 	| "window"
@@ -43,9 +43,22 @@ export interface ContextWindowCompactionDetails {
 	windowId?: string | undefined;
 }
 
+const CONTEXT_WINDOW_BACKLOG_GUIDANCE = "Keep deferred ideas and tasks—including those unrelated to the current work—in notes for later resumption. Update them as decisions change; recording is not permission to implement.";
+
 const CONTEXT_WINDOW_GUIDANCE = `<context_window_guidance>
-Checkpoint the active request, known history IDs, decisions, progress, learnings and next steps in notes before new_context; no summary carries over. After rollover, read hinted notes. Use history only for a missing detail.
+Checkpoint the active request, known history IDs, decisions, progress, learnings and next steps in notes before new_context. After rollover, read hinted notes. Use history only for a missing detail.
+${CONTEXT_WINDOW_BACKLOG_GUIDANCE}
 </context_window_guidance>`;
+
+const CONTEXT_WINDOW_EXPLICIT_GUIDANCE = `<context_window_guidance>
+Notes persist across windows; history retrieves earlier conversation. Update existing notes with task state, decisions and next steps before new_context. After rollover, read hinted notes and resume; consult history only for missing details. Save enough in notes to resume the task without rereading the conversation.
+${CONTEXT_WINDOW_BACKLOG_GUIDANCE}
+</context_window_guidance>`;
+
+export function rewriteContextWindowGuidance(content: string, astra: boolean): string {
+	return content.replace(/^<context_window_guidance>[\s\S]*?<\/context_window_guidance>/,
+		astra ? CONTEXT_WINDOW_GUIDANCE : CONTEXT_WINDOW_EXPLICIT_GUIDANCE);
+}
 
 export function renderContextWindowMessage(
 	identity: ContextWindowIdentity,
@@ -66,13 +79,15 @@ export function renderContextWindowMessage(
 
 export function renderContextWindowReminder(remainingTokens: number): string {
 	return `<context_window_reminder>
-Only ${Math.max(0, Math.floor(remainingTokens))} context tokens remain. Checkpoint the active request, state and known history IDs in notes, then call new_context; no conversation summary carries over.
+Only ${Math.max(0, Math.floor(remainingTokens))} context tokens remain before the compaction reserve. Checkpoint the active request, state and known history IDs in notes, then call new_context before continuing work.
 </context_window_reminder>`;
 }
 
-export const CONTEXT_WINDOW_FALLBACK_MESSAGE = `<context_window_reminder>
-Context exhausted. Do not continue or answer. Make exactly one notes write or append call that checkpoints the active request, state and known history IDs, then call new_context. Use no other tools before rollover.
-</context_window_reminder>`;
+export function renderManualContextCheckpoint(customInstructions?: string): string {
+	return `<context_window_reminder>
+Manual context rollover requested. If you haven't just created or appended a note covering the current state, save it with notes. Then call new_context immediately, before other work. If saving fails, report the failure without rolling over.
+</context_window_reminder>${customInstructions?.trim() ? `\n\nCheckpoint guidance from /compact:\n${customInstructions}` : ""}`;
+}
 
 export function isCodexContextManagementMessageDetails(
 	value: unknown,

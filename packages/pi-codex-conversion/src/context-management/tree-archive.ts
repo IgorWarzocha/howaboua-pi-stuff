@@ -1,4 +1,5 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import { CODEX_CONTEXT_WINDOW_MESSAGE_TYPE, isCodexContextManagementMessageDetails } from "./messages.ts";
 import type {
 	BranchSummaryEntry,
 	SessionEntry,
@@ -16,6 +17,7 @@ export interface TreeArchiveManifestData {
 	summaryEntryId: string;
 	archivedLeafId: string;
 	branchBaseId: string | null;
+	compactionEntryId?: string;
 }
 
 export interface TreeArchive {
@@ -34,6 +36,7 @@ export function createTreeArchiveManifest(
 	windowId: string,
 	boundaryEntryId: string,
 	summary: BranchSummaryEntry,
+	compactionEntryId?: string,
 ): TreeArchiveManifestData {
 	return {
 		protocol: TREE_ARCHIVE_PROTOCOL,
@@ -43,6 +46,7 @@ export function createTreeArchiveManifest(
 		summaryEntryId: summary.id,
 		archivedLeafId: summary.fromId,
 		branchBaseId: summary.parentId,
+		...(compactionEntryId ? { compactionEntryId } : {}),
 	};
 }
 
@@ -86,14 +90,17 @@ export function buildTreeArchiveIndex(
 			continue;
 		}
 		const archivedEntries = archivedPath(manifest, byId);
-		if (!archivedEntries) {
+		if (!archivedEntries || (manifest.compactionEntryId !== undefined &&
+			!archivedEntries.some((entry) => entry.id === manifest.compactionEntryId && entry.type === "compaction"))) {
 			invalidManifest = true;
 			continue;
 		}
 		seenSummaries.add(summary.id);
 		seenWindows.add(manifest.windowId);
 		archives.push({ manifest, summary, entries: archivedEntries });
-		hiddenSummarySignatures.add(branchSummarySignature(summary));
+		// A hybrid archive is not model-authoritative until its successor window commits.
+		if (!manifest.compactionEntryId || hasTreeArchiveSuccessor(activeBranch, manifest.windowId))
+			hiddenSummarySignatures.add(branchSummarySignature(summary));
 	}
 	return { archives, hiddenSummarySignatures, invalidManifest };
 }
@@ -162,10 +169,19 @@ function isTreeArchiveManifestData(
 		nonEmptyString(manifest["boundaryEntryId"]) &&
 		nonEmptyString(manifest["summaryEntryId"]) &&
 		nonEmptyString(manifest["archivedLeafId"]) &&
+		(manifest["compactionEntryId"] === undefined || nonEmptyString(manifest["compactionEntryId"])) &&
 		(manifest["branchBaseId"] === null ||
 			nonEmptyString(manifest["branchBaseId"]));
 }
 
 function nonEmptyString(value: unknown): value is string {
 	return typeof value === "string" && value !== "";
+}
+
+export function hasTreeArchiveSuccessor(entries: readonly SessionEntry[], windowId: string): boolean {
+	return entries.some((entry) => entry.type === "custom_message" &&
+		entry.customType === CODEX_CONTEXT_WINDOW_MESSAGE_TYPE &&
+		isCodexContextManagementMessageDetails(entry.details) &&
+		entry.details.contextManagement.kind === "window" &&
+		entry.details.contextManagement.previousWindowId === windowId);
 }

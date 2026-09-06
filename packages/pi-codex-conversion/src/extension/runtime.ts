@@ -1,4 +1,4 @@
-import { buildSessionContext, convertToLlm, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { convertToLlm, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { Context } from "@earendil-works/pi-ai";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { dirname } from "node:path";
@@ -28,7 +28,9 @@ import type { CodexDiagnosticsSink } from "../providers/openai-codex/types.ts";
 import { CodexDeveloperMessageBridge } from "../adapter/developer-messages.ts";
 import { CodexContextWindowManager } from "../context-management/window-manager.ts";
 import { CodexContextTreeCoordinator } from "../context-management/tree-coordinator.ts";
+import { projectTreeCheckpointBranch, projectTreeCheckpointMessages } from "../context-management/tree-checkpoint.ts";
 import { hasPendingCodexReasoningUpdate, supportsCodexReasoningUpdates } from "../adapter/reasoning-updates.ts";
+import { projectCodexReasoningHistory } from "../adapter/reasoning-history.ts";
 import { createAutoReasoning } from "../adapter/auto-reasoning.ts";
 
 export type CodexContext = ExtensionContext;
@@ -264,13 +266,15 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 	const projectContextMessages = (ctx: CodexContext, messages?: readonly AgentMessage[]) => {
 		const plan = resolveCodexRuntimePlanForState(ctx, state);
 		const branch = ctx.sessionManager.getBranch();
+		const allEntries = plan.contextManagementMode === "tree" ? ctx.sessionManager.getEntries() : branch;
+		const checkpointBranch = plan.contextManagementMode === "tree" && plan.contextManagementHybrid
+			? projectTreeCheckpointBranch(branch, allEntries) : branch;
 		const projected = state.contextWindows.project(
-			messages ?? buildSessionContext(branch).messages,
+			projectCodexReasoningHistory(checkpointBranch, projectTreeCheckpointMessages(branch, checkpointBranch, messages)),
 			plan.contextManagementMode,
 			branch,
-			plan.contextManagementMode === "tree"
-				? ctx.sessionManager.getEntries()
-				: branch,
+			allEntries,
+			plan.contextManagementHybrid,
 		);
 		return projected.filter((message) => !isProviderContextExcludedMessage(message));
 	};

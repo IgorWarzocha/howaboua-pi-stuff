@@ -84,7 +84,7 @@ export function buildOpenAISettings(
 				},
 			}),
 		),
-		toggle(
+		...(config.compaction.contextManagement === "off" ? [toggle(
 			"responsesCompaction",
 			"Responses compaction V2",
 			config.compaction.responsesCompaction,
@@ -93,7 +93,6 @@ export function buildOpenAISettings(
 				compaction: {
 					...current.compaction,
 					responsesCompaction: enabled,
-					...(enabled ? { contextManagement: "off" as const } : {}),
 					...(enabled ? {} : { portableSummary: false }),
 				},
 			}),
@@ -108,11 +107,11 @@ export function buildOpenAISettings(
 					...current.compaction,
 					portableSummary: enabled,
 					...(enabled
-						? { responsesCompaction: true, contextManagement: "off" as const }
+						? { responsesCompaction: true }
 						: {}),
 				},
 			}),
-		),
+		)] : []),
 		setting(
 			{
 				id: "v2UserMessageRetention",

@@ -4,6 +4,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
 import type { CodeModeToolPreflightRunner } from "./nested-tool-preflight.js";
+import type { CodeModeToolCompletion } from "./preflight-protocol.js";
 
 export type CustomToolInputMode = "arg" | "stdin";
 
@@ -69,6 +70,7 @@ export interface ToolExecutionContext {
 	toolCallId?: string | undefined;
 	extensionContext?: ExtensionContext | undefined;
 	preflight?: CodeModeToolPreflightRunner | undefined;
+	completion?: CodeModeToolCompletion | undefined;
 	onUpdate?: ((result: AgentToolResult<unknown>) => void) | undefined;
 	captureResult?: ((result: RuntimeToolResult) => void) | undefined;
 	refreshTrace?: (() => void) | undefined;

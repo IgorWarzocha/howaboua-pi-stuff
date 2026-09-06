@@ -47,7 +47,7 @@ export async function agentsHelp(): Promise<Record<string, unknown>> {
 			label: "2-3 words; tab/session",
 			answers: "[{selections?:string[],other?:string,comment?:string}]",
 			blocking:
-				"true default; false only while continuing work; results push, never poll",
+				"reviewers always wait; otherwise false only for independent work; async results push, never poll",
 			prompt:
 				"Only task + inaccessible context; no method/evidence/reporting boilerplate",
 			reuse:

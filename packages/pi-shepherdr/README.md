@@ -56,6 +56,8 @@ Call the `agents` tool with `action: "help"` before first use, then send flat re
 
 `spawn`, `send` and `answer` block by default. Set `blocking: false` only when the controller should continue other work immediately. Completion and blockage are then delivered automatically.
 
+Reviewer spawns always block, even when `blocking: false` is supplied. The controller waits for the review before continuing work on its scope.
+
 Every `spawn` needs an `agent_type` and a concise two- or three-word `label`. The label names both the Herdr tab and Pi session; the routing `name` remains optional and is derived from it when omitted.
 
 Cancelling a blocking call does not kill its worker. The waiter detaches and the eventual result returns through normal asynchronous delivery.

@@ -6,13 +6,14 @@ import {
 	customDeveloperMessageMetadata,
 	isCodexDeveloperMessageDetails,
 } from "../developer-messages.ts";
-import { CODEX_CONTEXT_WINDOW_MESSAGE_TYPE } from "../context-management/messages.ts";
+import { CODEX_CONTEXT_WINDOW_MESSAGE_TYPE, isContextWindowBoundary, rewriteContextWindowGuidance } from "../context-management/messages.ts";
 import { CODEX_REASONING_UPDATE_TYPE, codexReasoningLane, normalizeCodexConfigurationUpdates, readCodexReasoningUpdate, supportsCodexReasoningUpdates, type CodexReasoningUpdate } from "./reasoning-updates.ts";
 
 /** Authenticated carrier through Pi's custom-message-to-user conversion. */
 export class CodexDeveloperMessageBridge {
 	private readonly secret = randomBytes(32);
 	private carriers = new Map<string, string | CodexReasoningUpdate>();
+	private readonly contextWindowCarriers = new Set<string>();
 
 	prepare(
 		messages: readonly AgentMessage[],
@@ -61,12 +62,13 @@ export class CodexDeveloperMessageBridge {
 			if (existing !== undefined && JSON.stringify(existing) !== JSON.stringify(value))
 				throw new Error("Persisted Codex developer message changed content");
 			this.carriers.set(marker, value);
+			if (isContextWindowBoundary(message)) this.contextWindowCarriers.add(marker);
 			projected.push({ ...message, content: marker });
 		}
 		return projected;
 	}
 
-	rewritePayload(payload: unknown): unknown {
+	rewritePayload(payload: unknown, model?: Model<Api>): unknown {
 		if (this.carriers.size === 0) return payload;
 		if (!isRecord(payload) || !Array.isArray(payload["input"])) {
 			if (!containsCarrier(payload, this.carriers)) return payload;
@@ -88,7 +90,9 @@ export class CodexDeveloperMessageBridge {
 				initialEffort ??= carrier.initialEffort;
 				return { type: "configuration_update", reasoning: { effort: carrier.effort } };
 			}
-			return toDeveloperMessage(item, carrier);
+			return toDeveloperMessage(item, this.contextWindowCarriers.has(marker)
+				? rewriteContextWindowGuidance(carrier, supportsCodexReasoningUpdates(model))
+				: carrier);
 		});
 		if (containsCarrier(input, this.carriers))
 			throw new Error(
@@ -100,6 +104,7 @@ export class CodexDeveloperMessageBridge {
 
 	clear(): void {
 		this.carriers.clear();
+		this.contextWindowCarriers.clear();
 	}
 
 	private marker(id: string): string {

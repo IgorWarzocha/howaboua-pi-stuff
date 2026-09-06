@@ -40,6 +40,7 @@ export type ExecuteRemoteCompactionV2Options = {
 	retryDelayMs?: number | undefined;
 	promptInputSource?: "canonical" | "reconstructed" | undefined;
 	compactionDiagnostic?: CodexCompactionDiagnostic | undefined;
+	rewritePayload?: ((payload: unknown) => unknown) | undefined;
 };
 
 function resolveStream(options: ExecuteRemoteCompactionV2Options): V2Stream | undefined {
@@ -166,7 +167,7 @@ async function runAttempt(options: ExecuteRemoteCompactionV2Options, streamSimpl
 				contextWindow: options.runtime.currentModel.contextWindow,
 			}), tokensBefore: options.tokensBefore });
 			compactionDiagnostic.rewrittenToolOutputs = request.rewrittenOutputs;
-			return {
+			const rewritten = {
 				...requestBody,
 				input: [...request.request.input, { type: "compaction_trigger" }],
 				...(!canonicalBody && options.requestOptions.reasoning ? { reasoning: structuredClone(options.requestOptions.reasoning) } : {}),
@@ -174,6 +175,7 @@ async function runAttempt(options: ExecuteRemoteCompactionV2Options, streamSimpl
 					? { reasoning: { ...requestBody.reasoning, effort: canonicalBody.reasoning.effort } }
 					: {}),
 			};
+			return options.rewritePayload ? options.rewritePayload(rewritten) : rewritten;
 		},
 	} satisfies OpenAICodexStreamOptions;
 

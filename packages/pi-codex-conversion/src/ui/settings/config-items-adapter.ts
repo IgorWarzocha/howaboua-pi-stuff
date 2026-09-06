@@ -84,10 +84,19 @@ export function buildAdapterSettings(
 							: "off",
 					...(value !== "off"
 						? { responsesCompaction: false, portableSummary: false }
-						: {}),
+						: { hybridCompaction: false }),
 				},
 			}),
 		),
+		...(config.compaction.contextManagement === "off" ? [] : [setting(
+			{ id: "hybridCompaction", label: "Hybrid compaction",
+				currentValue: config.compaction.hybridCompaction ? "on" : "off", values: ["off", "on"],
+				description: "Keep a checkpoint at rollover: V2 where supported, Pi summary elsewhere." },
+			(value, current) => ({
+				...current,
+				compaction: { ...current.compaction, hybridCompaction: value === "on" },
+			}),
+		)]),
 		setting(
 			{
 				id: "heavySystemPromptOverwrite",

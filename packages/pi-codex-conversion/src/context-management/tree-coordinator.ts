@@ -40,6 +40,8 @@ interface PendingRollover {
 	boundaryEntryId: string;
 	identity: ContextWindowIdentity;
 	leafIdAtRequest: string;
+	compactionEntryId?: string;
+	triggerTurn: boolean;
 }
 
 interface Navigation {
@@ -90,7 +92,7 @@ export class CodexContextTreeCoordinator {
 		this.queuedInputs = [];
 	}
 
-	schedule(ctx: ExtensionContext): boolean {
+	schedule(ctx: ExtensionContext, checkpoint?: { compactionEntryId: string; triggerTurn: boolean }): boolean {
 		if (this.pending) return false;
 		const sessionId = ctx.sessionManager.getSessionId();
 		if (!this.captured || this.captured.sessionId !== sessionId)
@@ -112,8 +114,10 @@ export class CodexContextTreeCoordinator {
 			boundaryEntryId: boundary.id,
 			identity,
 			leafIdAtRequest: leaf.id,
+			...(checkpoint ? { compactionEntryId: checkpoint.compactionEntryId } : {}),
+			triggerTurn: checkpoint?.triggerTurn ?? true,
 		};
-		ctx.abort();
+		if (!checkpoint) ctx.abort();
 		return true;
 	}
 
@@ -164,12 +168,13 @@ export class CodexContextTreeCoordinator {
 					pending.identity.currentWindowId,
 					pending.boundaryEntryId,
 					summary,
+					pending.compactionEntryId,
 				),
 			);
 			pi.appendEntry(CONTEXT_NOTE_SNAPSHOT_ENTRY_TYPE, snapshot);
 			this.pending = undefined;
 			const started = await this.windows.startNewWindow(pi, ctx, {
-				triggerTurn: true,
+				triggerTurn: pending.triggerTurn,
 				mode: "tree",
 				trimPreviousWindow: false,
 			});
@@ -206,6 +211,9 @@ export class CodexContextTreeCoordinator {
 			throw new Error("The active branch changed before rollover");
 		if (!branch.some((entry) => entry.id === pending.boundaryEntryId))
 			throw new Error("The context-window boundary is no longer active");
+		if (pending.compactionEntryId && !branch.some((entry) =>
+			entry.id === pending.compactionEntryId && entry.type === "compaction"))
+			throw new Error("The completed compaction is no longer active");
 	}
 
 	private restoreEditorAfterNavigation(

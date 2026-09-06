@@ -1,10 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import type { Api, Model } from "@earendil-works/pi-ai";
+import { SettingsManager, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
 import { CodexDeveloperMessageBridge } from "../src/adapter/developer-messages.ts";
+import { serializeMessagesToResponsesInput } from "../src/adapter/compaction/serializer.ts";
 import { rewriteCodexProviderRequest } from "../src/adapter/provider-request.ts";
 import { createHistoryNotesTools } from "../src/context-management/history-notes.ts";
+import { createContextWindowTools } from "../src/context-management/tools.ts";
 import {
 	CODEX_CONTEXT_WINDOW_MESSAGE_TYPE,
 	CONTEXT_WINDOW_COMPACTION_SUMMARY,
@@ -35,10 +39,12 @@ function createContext() {
 			percent: 4.4,
 		}),
 		isIdle: () => true,
+		isProjectTrusted: () => false,
 	} as never;
 }
 
-test("context windows preserve rollover and native request semantics", async () => {
+test("context windows preserve rollover and native request semantics", async (t) => {
+	t.mock.method(SettingsManager, "create", () => SettingsManager.inMemory({ compaction: { reserveTokens: 32_768 } }));
 	const contextMessages: Array<Record<string, unknown>> = [];
 	const contextPi = {
 		sendMessage(message: Record<string, unknown>) {
@@ -86,6 +92,8 @@ test("context windows preserve rollover and native request semantics", async () 
 		{ cancel: true },
 	);
 	assert.equal(contextMessages.length, 2);
+	manager.recordBudget(contextPi, ctx, true, 272_000);
+	assert.equal(contextMessages.length, 2, "old usage cannot checkpoint the newly scheduled window");
 	assert.equal(
 		contextMessages.every(
 			(message) =>
@@ -115,9 +123,9 @@ test("context windows preserve rollover and native request semantics", async () 
 		}
 	).contextManagement.currentWindowId;
 	assert.deepEqual(manager.remaining(ctx), {
-		remainingTokens: 243_616,
+		remainingTokens: 227_232,
 		windowId: currentWindowId,
-		contextWindow: 255_616,
+		contextWindow: 239_232,
 	});
 	const expectedCompaction = {
 		compaction: {
@@ -147,6 +155,41 @@ test("context windows preserve rollover and native request semantics", async () 
 	assert.deepEqual(manager.prepareCompaction(compactionEvent(), "remote"), {
 		cancel: true,
 	});
+
+	for (const mode of ["local", "tree", "remote"] as const) {
+		assert.deepEqual(manager.prepareCompaction(compactionEvent(), mode, true), { cancel: true });
+		assert.equal(manager.prepareCompaction({ reason: "manual" } as never, mode, true), undefined);
+		const checkpointManager = new CodexContextWindowManager();
+		const sent: Array<{ message: Record<string, unknown>; options: unknown }> = [];
+		const pi = { sendMessage: (message: Record<string, unknown>, options: unknown) => sent.push({ message, options }) } as never;
+		checkpointManager.ensureInitialized(pi, ctx, true);
+		const identity = checkpointManager.currentIdentity();
+		const controller = new AbortController();
+		const manual = { reason: "manual", customInstructions: "Preserve the deployment decision", signal: controller.signal } as never;
+		const cancelled = { reason: "manual", aborted: true } as never;
+		assert.deepEqual(checkpointManager.prepareCompaction(manual, mode), { cancel: true });
+		assert.equal(sent.length, 1, "checkpoint waits until Pi leaves manual compaction");
+		checkpointManager.finishManualCheckpointRequest(pi, cancelled, true);
+		assert.equal(sent.length, 2);
+		assert.deepEqual(sent[1]!.options, { deliverAs: "steer", triggerTurn: true });
+		assert.match(String(sent[1]!.message["content"]), /Preserve the deployment decision/);
+		assert.deepEqual(checkpointManager.currentIdentity(), identity, "manual request does not cut the window");
+		checkpointManager.finishManualCheckpointRequest(pi, cancelled, true);
+		assert.equal(sent.length, 2, "cancellation completion consumes the request once");
+		checkpointManager.prepareCompaction(manual, mode);
+		checkpointManager.finishManualCheckpointRequest(pi, cancelled, false);
+		assert.equal(sent.length, 2, "disabled mode cannot start a checkpoint turn");
+		checkpointManager.prepareCompaction(manual, mode);
+		controller.abort();
+		checkpointManager.finishManualCheckpointRequest(pi, cancelled, true);
+		assert.equal(sent.length, 2, "user cancellation cannot start a checkpoint turn");
+	}
+	const hybridMessages = [
+		{ role: "user", content: "retained checkpoint tail", timestamp: 1 },
+		...activeWindow,
+	] as never;
+	for (const mode of ["local", "tree", "remote"] as const)
+		assert.deepEqual(manager.project(hybridMessages, mode, [], [], true), hybridMessages);
 
 	const contextBridge = new CodexDeveloperMessageBridge();
 	const contextState: AdapterState = {
@@ -251,7 +294,7 @@ test("context windows preserve rollover and native request semantics", async () 
 	);
 
 	const modeHints = await Promise.all(
-		(["local", "tree", "remote"] as const).map(async (mode) => {
+		(["local", "tree", "remote"] as const).flatMap((mode) => [false, true].map(async (hybridCompaction) => {
 			const sent: Array<Record<string, unknown>> = [];
 			const windows = new CodexContextWindowManager(
 				async (_context, loadedMode) => `hint:${loadedMode}`,
@@ -262,17 +305,63 @@ test("context windows preserve rollover and native request semantics", async () 
 				},
 			} as never;
 			windows.ensureInitialized(pi, ctx, true);
-			await windows.startNewWindow(pi, ctx, {
+			if (hybridCompaction) {
+				let complete: (() => void) | undefined;
+				let compactions = 0;
+				const compactContext = {
+					...(ctx as ExtensionContext),
+					compact(options: { onComplete: () => void }) {
+						compactions++;
+						complete = options.onComplete;
+					},
+				} as never;
+				const [rollover] = createContextWindowTools(pi, {
+					...contextState,
+					contextWindows: windows,
+					config: { ...contextState.config, compaction: { ...contextState.config.compaction, contextManagement: mode, hybridCompaction } },
+				});
+				const result = await rollover.execute("rollover", {}, undefined, undefined, compactContext);
+				assert.equal(result.details.started, true);
+				assert.equal(result.terminate, true);
+				assert.equal(windows.scheduleHybridCompaction(), false);
+				windows.cancelScheduledCompaction();
+				const continueWindow = () => windows.startNewWindow(pi, ctx, { mode, triggerTurn: true, trimPreviousWindow: false });
+				assert.equal(windows.finishTurn(compactContext, continueWindow), false);
+				assert.equal(windows.scheduleHybridCompaction(), true);
+				assert.equal(compactions, 0, "tool execution only schedules rollover");
+				windows.finishTurn(compactContext, continueWindow);
+				windows.finishTurn(compactContext, continueWindow);
+				assert.equal(compactions, 1);
+				await windows.completeHybridCompaction(pi, ctx, mode);
+				assert.equal(sent.length, 1, "window changes only after explicit compaction completes");
+				complete!();
+				await new Promise<void>((resolve) => setImmediate(resolve));
+				assert.equal(sent.length, 2);
+			} else await windows.startNewWindow(pi, ctx, {
 				triggerTurn: false,
 				mode,
 				trimPreviousWindow: mode !== "tree",
 			});
+			const persisted = sent.map((message) => ({ ...message, role: "custom", timestamp: 1 })) as never;
+			const bridge = new CodexDeveloperMessageBridge();
+			for (const id of ["gpt-6-astra", "gpt-5.6-luna", "gpt-6-astra"]) {
+				const model = { ...(codexModel as Model<Api>), id };
+				const carried = bridge.prepare(persisted, true, model);
+				const payload = bridge.rewritePayload({ input: carried.map((message) => ({ role: "user", content: (message as { content: string }).content })) }, model);
+				const serialized = serializeMessagesToResponsesInput(model, persisted);
+				for (const output of [payload, serialized]) {
+					const text = JSON.stringify(output);
+					assert.equal(text.includes("Notes persist across windows"), id !== "gpt-6-astra");
+					assert.equal(text.includes("Checkpoint the active request"), id === "gpt-6-astra");
+				}
+			}
+			assert.equal(JSON.stringify(sent).includes("Notes persist across windows"), false, "request guidance does not mutate persisted window markers");
 			return sent.at(-1)?.["content"];
-		}),
+		})),
 	);
 	assert.deepEqual(
 		modeHints.map((hint) => String(hint).match(/hint:(local|tree|remote)/)?.[1]),
-		["local", "tree", "remote"],
+		["local", "local", "tree", "tree", "remote", "remote"],
 	);
 
 });

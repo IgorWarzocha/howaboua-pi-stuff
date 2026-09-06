@@ -23,6 +23,7 @@
 				"src/index.ts",
 				"src/code-mode.ts",
 				"src/code-mode-preflight.ts",
+				"src/code-mode-hooks.ts",
 				"src/realtime-voice.ts",
 				"scripts/**/*.mjs",
 				"examples/custom-tools/**/*.mjs",

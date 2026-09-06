@@ -1,6 +1,6 @@
 import type { ResponsesCompatibleRequestPayload } from "../compaction/compaction-runtime.ts";
 import type { ResponsesInputMessageItem } from "../compaction/serializer.js";
-import { cloneResponsesInputMessageItem, isPreambleRole, isResponsesInputMessageItem } from "./payload-structured.ts";
+import { areEquivalentValues, cloneResponsesInputMessageItem, isPreambleRole, isResponsesInputMessageItem } from "./payload-structured.ts";
 
 export type FreshAuthoritativePreamble = {
 	instructions?: string | undefined;
@@ -8,21 +8,22 @@ export type FreshAuthoritativePreamble = {
 	trailingInput: ResponsesInputMessageItem[];
 };
 
-function isPromptEnvelopeItem(item: unknown): item is ResponsesInputMessageItem {
-	return isResponsesInputMessageItem(item) && isPreambleRole(item.role);
+function isPromptEnvelopeItem(item: unknown, persisted: readonly unknown[]): item is ResponsesInputMessageItem {
+	return isResponsesInputMessageItem(item) && isPreambleRole(item.role) &&
+		!persisted.some((known) => areEquivalentValues(item, known));
 }
 
-export function extractFreshAuthoritativePreamble(payload: ResponsesCompatibleRequestPayload): FreshAuthoritativePreamble | undefined {
+export function extractFreshAuthoritativePreamble(payload: ResponsesCompatibleRequestPayload, persisted: readonly unknown[] = []): FreshAuthoritativePreamble | undefined {
 	if (payload.instructions !== undefined && typeof payload.instructions !== "string") return undefined;
 
 	let leadingBoundary = 0;
-	while (leadingBoundary < payload.input.length && isPromptEnvelopeItem(payload.input[leadingBoundary]!)) leadingBoundary += 1;
+	while (leadingBoundary < payload.input.length && isPromptEnvelopeItem(payload.input[leadingBoundary]!, persisted)) leadingBoundary += 1;
 
 	let trailingBoundary = payload.input.length;
-	while (trailingBoundary > leadingBoundary && isPromptEnvelopeItem(payload.input[trailingBoundary - 1]!)) trailingBoundary -= 1;
+	while (trailingBoundary > leadingBoundary && isPromptEnvelopeItem(payload.input[trailingBoundary - 1]!, persisted)) trailingBoundary -= 1;
 
 	for (let index = leadingBoundary; index < trailingBoundary; index++) {
-		if (isPromptEnvelopeItem(payload.input[index]!)) return undefined;
+		if (isPromptEnvelopeItem(payload.input[index]!, persisted)) return undefined;
 	}
 
 	return {
