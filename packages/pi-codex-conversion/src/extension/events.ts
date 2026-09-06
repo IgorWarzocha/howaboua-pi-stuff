@@ -404,9 +404,13 @@ export function registerCodexEvents(
 			throw error;
 		}
 	});
-	pi.on("session_compact_failed", async () => {
+	pi.on("session_compact_failed", async (event, ctx) => {
 		state.pendingPiCompactionNativeWindow = undefined;
 		runtime.voice.compactionFinished();
+		const plan = resolveCodexRuntimePlanForState(ctx, state);
+		state.contextWindows.finishManualCheckpointRequest(
+			pi, event, plan.contextManagement && !plan.contextManagementHybrid,
+		);
 	});
 	pi.on("session_compact", async (event, ctx) => {
 		try {
@@ -452,27 +456,18 @@ export function registerCodexEvents(
 				} else await state.contextWindows.completeHybridCompaction(pi, ctx, plan.contextManagementMode, event.reason === "overflow");
 			} else if (
 				contextCompaction &&
-				(event.reason === "manual" || event.reason === "overflow")
+				event.reason === "overflow"
 			) {
 				if (plan.contextManagementMode === "tree") {
 					treeRolloverScheduled = state.contextTree.schedule(ctx);
 				} else {
 					await state.contextWindows.startNewWindow(pi, ctx, {
-						triggerTurn: event.reason === "overflow",
+						triggerTurn: true,
 						...(ctx.signal ? { signal: ctx.signal } : {}),
 						mode: plan.contextManagementMode,
 						trimPreviousWindow: false,
 					});
 				}
-			} else if (
-				event.reason === "manual" &&
-				plan.contextManagementMode === "tree"
-			) {
-				await state.contextWindows.startNewWindow(pi, ctx, {
-					triggerTurn: false,
-					mode: "tree",
-					trimPreviousWindow: false,
-				});
 			}
 			const postCompactionPrompt = codeMode.refreshPromptTools(
 				state.activeProviderSystemPrompt ?? ctx.getSystemPrompt(),

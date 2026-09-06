@@ -92,7 +92,7 @@ Responses compaction V2 stores an encrypted checkpoint for the Codex lane. If yo
 
 **Context management (experimental)** gives the model history, notes and explicit context-window rollover. A session starts with a persisted purple window marker. `new_context` continues in a new window while the shell, Notebook runtime, workspace and complete Pi JSONL remain intact.
 
-Keep Context management enabled when resuming sessions that used it. To disable it for a session, first run `/compact` while it is enabled, then switch it off in the new window. Disabling it earlier removes its recovery tools and may rejoin previously separated windows into ordinary Pi context.
+Keep Context management enabled when resuming sessions that used it. Disabling it removes its recovery tools and may rejoin previously separated windows into ordinary Pi context. Notes-only `/compact` is a checkpoint request, not an exit from context management.
 
 Choose its backend under `/codex` → **General**:
 
@@ -105,7 +105,7 @@ Choose its backend under `/codex` → **General**:
 
 The model receives terse context tools. Local and Tree use flat `history` and `notes` routers on Codex transport and native `history.*` and `notes.*` namespaces on other Responses transports. Remote uses Codex's native namespaces, encrypted sensitive arguments and encrypted tool output. Structured mode also adds `new_context` and `get_context_remaining`. In Code and Notebook Mode, the lifecycle and recovery tools stay direct while `get_context_remaining` is available inside `exec`, matching native exposure.
 
-After each completed assistant/tool turn, usage is checked against the model context size minus Pi's configured compaction reserve (at least 16,384 tokens). At 6,144 tokens remaining before that reserve, a developer message requests a notes checkpoint and `new_context`, including after a final assistant reply. The checkpoint turn keeps the same tools; no tool is interrupted or notes content validated. Pi's server-overflow recovery remains available. Without Hybrid, Local and Remote use a fixed no-summary marker for internal Pi compaction, while manual `/compact` in Tree creates a readable cumulative Pi summary and a fresh window. With Hybrid, Tree also archives manual and overflow checkpoints; overflow waits for the retry tail to settle.
+After each completed assistant/tool turn, usage is checked against the model context size minus Pi's configured compaction reserve (at least 16,384 tokens). At 6,144 tokens remaining before that reserve, a developer message requests a notes checkpoint and `new_context`, including after a final assistant reply. The checkpoint turn keeps the same tools; no tool is interrupted or notes content validated. Pi's server-overflow recovery remains available. Without Hybrid, manual `/compact` asks the agent to save the current state in notes if it hasn't just done so, then call `new_context` immediately. Local and Remote still use a fixed no-summary marker for internal Pi compaction. With Hybrid, Tree also archives manual and overflow checkpoints; overflow waits for the retry tail to settle.
 
 Local and Tree work anywhere the active Pi Codex adapter uses a Responses API. Remote requires Codex transport, without a model-name gate. Other provider APIs ignore context management. Without Hybrid, enabling a backend mid-session starts a fresh model window on the next input. Hybrid retains the current conversation until compaction. Standalone V2 and Parallel Pi-native compaction remain available when Context management is Off.
 

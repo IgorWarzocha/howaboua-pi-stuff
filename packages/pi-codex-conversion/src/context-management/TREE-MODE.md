@@ -16,7 +16,7 @@ With Hybrid compaction off, Tree preserves the no-summary window flow:
 
 With Hybrid on, rollover first runs Responses V2 where supported or Pi compaction elsewhere. The archive manifest references the original `CompactionEntry` by `compactionEntryId`. `tree-checkpoint.ts` reconstructs its source path, retained entries and post-compaction tail for model context and native replay; it never duplicates the stored checkpoint. The reference becomes model-authoritative only after the successor window marker exists.
 
-Manual `/compact` archives inside `session_compact` without starting a turn. Tool-requested compaction archives from `ctx.compact().onComplete`, after Pi clears its manual compaction state, then starts the next window. Overflow records the checkpoint and archives at `agent_settled`, after the automatic retry tail. The ordinary notes-only lifecycle below remains unchanged.
+With Hybrid, manual `/compact` archives inside `session_compact` without starting a turn. Tool-requested compaction archives from `ctx.compact().onComplete`, after Pi clears its manual compaction state, then starts the next window. Overflow records the checkpoint and archives at `agent_settled`, after the automatic retry tail. Without Hybrid, `/compact` requests a notes checkpoint and `new_context` through the ordinary notes-only lifecycle below.
 
 ```mermaid
 flowchart LR
@@ -303,7 +303,7 @@ On resume with Tree mode enabled:
 
 With Tree mode disabled, tagged summaries remain ordinary persisted Pi summaries but our provider filter and retrieval tools disappear. Because the summaries were intentionally hidden from the managed model, sessions are not guaranteed to continue correctly without the feature.
 
-The existing “run `/compact` before disabling” escape path needs Tree-specific treatment. Manual compaction while Tree mode is active must materialize a readable cumulative summary from archived summaries plus the current window. The fixed no-summary compaction marker is insufficient for leaving Tree mode.
+In notes-only mode, `/compact` cancels compaction and asks the agent to save the current state in notes unless it has just done so, then call `new_context` immediately. The request starts after Pi clears its manual compaction state. It does not generate a portable summary or make disabling Tree safe.
 
 User navigation into an archived branch is ordinary tree navigation, not an internal rollover. It resets Notebook state as it does today, rebuilds indexes for the selected branch and initializes a fresh context boundary if required.
 
@@ -378,7 +378,7 @@ Then protect the independent contracts:
 - repeated rollovers
 - mode routing for Off, Local, Tree and Remote
 - Remote failure without fallback
-- manual compaction exit from Tree mode
+- manual notes checkpoint versus Hybrid compaction routing
 
 Use focused checks while iterating and the package umbrella gate once after review. Do not turn the test suite back into a lifecycle tour.
 

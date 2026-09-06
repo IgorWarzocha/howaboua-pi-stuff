@@ -427,14 +427,6 @@ function withContextWindowsWarning(lines: string[], theme: Theme): string[] {
 			"warning",
 			"  ⚠ Keep Context management enabled when resuming sessions that used it.",
 		),
-		theme.fg(
-			"warning",
-			"    To disable it for that session, run /compact first,",
-		),
-		theme.fg(
-			"warning",
-			"    then switch it off in the new window.",
-		),
 	);
 	return next;
 }

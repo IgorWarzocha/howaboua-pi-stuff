@@ -7,6 +7,7 @@ import type {
 	CompactionResult,
 	ExtensionAPI,
 	ExtensionContext,
+	ExtensionEvent,
 	SessionBeforeCompactEvent,
 	SessionEntry,
 } from "@earendil-works/pi-coding-agent";
@@ -23,6 +24,7 @@ import {
 	isContextWindowBoundary,
 	isContextWindowCompactionDetails,
 	renderContextWindowMessage,
+	renderManualContextCheckpoint,
 	sendContextWindowMessage,
 } from "./messages.ts";
 import {
@@ -48,6 +50,11 @@ export class CodexContextWindowManager {
 	private readonly budget = new ContextWindowBudget();
 	private rolloverPending = false;
 	private hybridCompaction: { phase: "scheduled" | "running" } | undefined;
+	private manualCheckpoint: {
+		identity: ContextWindowIdentity;
+		customInstructions: string | undefined;
+		signal: AbortSignal;
+	} | undefined;
 	private trimPendingWindowId: string | undefined;
 	private readonly loadThreadHint: ThreadHintLoader;
 
@@ -60,6 +67,7 @@ export class CodexContextWindowManager {
 		this.budget.reset();
 		this.rolloverPending = false;
 		this.hybridCompaction = undefined;
+		this.manualCheckpoint = undefined;
 		this.trimPendingWindowId = undefined;
 	}
 
@@ -257,6 +265,15 @@ export class CodexContextWindowManager {
 		| { compaction: CompactionResult<ContextWindowCompactionDetails> }
 		| undefined {
 		if (hybridCompaction) return event.reason === "threshold" ? { cancel: true } : undefined;
+		if (event.reason === "manual") {
+			if (!this.identity) return { cancel: true };
+			this.manualCheckpoint = {
+				identity: { ...this.identity },
+				customInstructions: event.customInstructions,
+				signal: event.signal,
+			};
+			return { cancel: true };
+		}
 		if (event.reason === "threshold") {
 			if (mode === "tree") return { cancel: true };
 			const boundary = findLatestWindowBoundaryEntry(event.branchEntries);
@@ -267,8 +284,19 @@ export class CodexContextWindowManager {
 			)
 				return { cancel: true };
 		}
-		if (mode === "tree" && event.reason === "manual") return undefined;
 		return { compaction: this.createCompaction(event) };
+	}
+
+	finishManualCheckpointRequest(pi: ExtensionAPI, event: Extract<ExtensionEvent, { type: "session_compact_failed" }>, active: boolean): void {
+		const pending = this.manualCheckpoint;
+		this.manualCheckpoint = undefined;
+		if (
+			!pending || !active || event.reason !== "manual" || !event.aborted ||
+			pending.signal.aborted || pending.identity.currentWindowId !== this.identity?.currentWindowId
+		) return;
+		// Pi clears its manual compaction controller before session_compact_failed.
+		sendContextWindowMessage(pi, renderManualContextCheckpoint(pending.customInstructions),
+			"reminder", pending.identity, { triggerTurn: true });
 	}
 
 	recordCompaction(details: unknown): void {

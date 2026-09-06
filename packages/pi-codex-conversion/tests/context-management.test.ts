@@ -159,6 +159,30 @@ test("context windows preserve rollover and native request semantics", async (t)
 	for (const mode of ["local", "tree", "remote"] as const) {
 		assert.deepEqual(manager.prepareCompaction(compactionEvent(), mode, true), { cancel: true });
 		assert.equal(manager.prepareCompaction({ reason: "manual" } as never, mode, true), undefined);
+		const checkpointManager = new CodexContextWindowManager();
+		const sent: Array<{ message: Record<string, unknown>; options: unknown }> = [];
+		const pi = { sendMessage: (message: Record<string, unknown>, options: unknown) => sent.push({ message, options }) } as never;
+		checkpointManager.ensureInitialized(pi, ctx, true);
+		const identity = checkpointManager.currentIdentity();
+		const controller = new AbortController();
+		const manual = { reason: "manual", customInstructions: "Preserve the deployment decision", signal: controller.signal } as never;
+		const cancelled = { reason: "manual", aborted: true } as never;
+		assert.deepEqual(checkpointManager.prepareCompaction(manual, mode), { cancel: true });
+		assert.equal(sent.length, 1, "checkpoint waits until Pi leaves manual compaction");
+		checkpointManager.finishManualCheckpointRequest(pi, cancelled, true);
+		assert.equal(sent.length, 2);
+		assert.deepEqual(sent[1]!.options, { deliverAs: "steer", triggerTurn: true });
+		assert.match(String(sent[1]!.message["content"]), /Preserve the deployment decision/);
+		assert.deepEqual(checkpointManager.currentIdentity(), identity, "manual request does not cut the window");
+		checkpointManager.finishManualCheckpointRequest(pi, cancelled, true);
+		assert.equal(sent.length, 2, "cancellation completion consumes the request once");
+		checkpointManager.prepareCompaction(manual, mode);
+		checkpointManager.finishManualCheckpointRequest(pi, cancelled, false);
+		assert.equal(sent.length, 2, "disabled mode cannot start a checkpoint turn");
+		checkpointManager.prepareCompaction(manual, mode);
+		controller.abort();
+		checkpointManager.finishManualCheckpointRequest(pi, cancelled, true);
+		assert.equal(sent.length, 2, "user cancellation cannot start a checkpoint turn");
 	}
 	const hybridMessages = [
 		{ role: "user", content: "retained checkpoint tail", timestamp: 1 },

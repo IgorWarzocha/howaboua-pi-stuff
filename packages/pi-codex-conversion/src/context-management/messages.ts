@@ -83,6 +83,12 @@ Only ${Math.max(0, Math.floor(remainingTokens))} context tokens remain before th
 </context_window_reminder>`;
 }
 
+export function renderManualContextCheckpoint(customInstructions?: string): string {
+	return `<context_window_reminder>
+Manual context rollover requested. If you haven't just created or appended a note covering the current state, save it with notes. Then call new_context immediately, before other work. If saving fails, report the failure without rolling over.
+</context_window_reminder>${customInstructions?.trim() ? `\n\nCheckpoint guidance from /compact:\n${customInstructions}` : ""}`;
+}
+
 export function isCodexContextManagementMessageDetails(
 	value: unknown,
 ): value is CodexContextManagementMessageDetails {
