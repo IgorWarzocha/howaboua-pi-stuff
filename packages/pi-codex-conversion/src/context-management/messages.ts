@@ -43,18 +43,21 @@ export interface ContextWindowCompactionDetails {
 	windowId?: string | undefined;
 }
 
+const CONTEXT_WINDOW_BACKLOG_GUIDANCE = "Keep deferred ideas and tasks—including those unrelated to the current work—in notes for later resumption. Update them as decisions change; recording is not permission to implement.";
+
 const CONTEXT_WINDOW_GUIDANCE = `<context_window_guidance>
 Checkpoint the active request, known history IDs, decisions, progress, learnings and next steps in notes before new_context. After rollover, read hinted notes. Use history only for a missing detail.
+${CONTEXT_WINDOW_BACKLOG_GUIDANCE}
 </context_window_guidance>`;
 
 const CONTEXT_WINDOW_EXPLICIT_GUIDANCE = `<context_window_guidance>
 Notes persist across windows; history retrieves earlier conversation. Update existing notes with task state, decisions and next steps before new_context. After rollover, read hinted notes and resume; consult history only for missing details. Save enough in notes to resume the task without rereading the conversation.
+${CONTEXT_WINDOW_BACKLOG_GUIDANCE}
 </context_window_guidance>`;
 
 export function rewriteContextWindowGuidance(content: string, astra: boolean): string {
-	if (astra) return content;
 	return content.replace(/^<context_window_guidance>[\s\S]*?<\/context_window_guidance>/,
-		CONTEXT_WINDOW_EXPLICIT_GUIDANCE);
+		astra ? CONTEXT_WINDOW_GUIDANCE : CONTEXT_WINDOW_EXPLICIT_GUIDANCE);
 }
 
 export function renderContextWindowMessage(
