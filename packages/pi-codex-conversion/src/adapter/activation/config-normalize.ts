@@ -50,10 +50,14 @@ export function normalizeCodexConversionConfig(
 	const contextManagement =
 		normalizeContextManagementMode(compaction["contextManagement"]) ??
 		DEFAULT_CODEX_CONVERSION_CONFIG.compaction.contextManagement;
-	const responsesCompaction = contextManagement === "hybrid" || (normalizeBoolean(
+	const hybridCompaction = contextManagement !== "off" && normalizeBoolean(
+		compaction["hybridCompaction"],
+		DEFAULT_CODEX_CONVERSION_CONFIG.compaction.hybridCompaction,
+	);
+	const responsesCompaction = normalizeBoolean(
 		compaction["responsesCompaction"],
 		DEFAULT_CODEX_CONVERSION_CONFIG.compaction.responsesCompaction,
-	) && contextManagement === "off");
+	) && contextManagement === "off";
 	return {
 		executionMode,
 		voiceFeaturesOnly: normalizeBoolean(
@@ -133,12 +137,13 @@ export function normalizeCodexConversionConfig(
 		},
 		compaction: {
 			contextManagement,
+			hybridCompaction,
 			responsesCompaction,
 			portableSummary:
 				normalizeBoolean(
 					compaction["portableSummary"],
 					DEFAULT_CODEX_CONVERSION_CONFIG.compaction["portableSummary"],
-				) && responsesCompaction,
+				) && responsesCompaction && contextManagement === "off",
 			v2UserMessageRetention:
 				normalizeV2UserMessageRetention(compaction["v2UserMessageRetention"]) ??
 				DEFAULT_CODEX_CONVERSION_CONFIG.compaction.v2UserMessageRetention,

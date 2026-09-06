@@ -4,7 +4,7 @@ export type CodexVerbosity = "low" | "medium" | "high";
 export type CacheDiagnosticsMode = "off" | "status" | "status-and-log";
 export type LunaCacheKeepaliveMinutes = 0 | 5 | 10 | 15;
 export type AllProvidersMode = "off" | "on" | "extras";
-export type ContextManagementMode = "off" | "local" | "tree" | "remote" | "hybrid";
+export type ContextManagementMode = "off" | "local" | "tree" | "remote";
 export type V2UserMessageRetention = 16 | 32 | 64;
 export const MIN_NOTEBOOK_HEAP_MIB = 256;
 export const MAX_NOTEBOOK_HEAP_MIB = 65_536;
@@ -66,6 +66,7 @@ export interface CodexConversionConfig {
 	};
 	compaction: {
 		contextManagement: ContextManagementMode;
+		hybridCompaction: boolean;
 		responsesCompaction: boolean;
 		portableSummary: boolean;
 		v2UserMessageRetention: V2UserMessageRetention;
@@ -125,6 +126,7 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 	},
 	compaction: {
 		contextManagement: "off",
+		hybridCompaction: false,
 		responsesCompaction: false,
 		portableSummary: false,
 		v2UserMessageRetention: 64,

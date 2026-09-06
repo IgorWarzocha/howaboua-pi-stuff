@@ -26,6 +26,14 @@ import { runPortablePiCompaction } from "./portable-summary.ts";
 import { codexReasoningUpdates } from "../reasoning-updates.ts";
 import { projectCodexReasoningHistory } from "../reasoning-history.ts";
 import { rewriteContextNamespaceTools } from "../../context-management/namespace-tools.ts";
+import { projectTreeCheckpointBranch } from "../../context-management/tree-checkpoint.ts";
+
+function compactionBranch(ctx: ExtensionContext, state: AdapterState): SessionEntry[] {
+	const branch = ctx.sessionManager.getBranch();
+	const plan = resolveCodexRuntimePlanForState(ctx, state);
+	return plan.contextManagementMode === "tree" && plan.contextManagementHybrid
+		? [...projectTreeCheckpointBranch(branch, ctx.sessionManager.getEntries())] : branch;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === "object" && !Array.isArray(value);
@@ -81,7 +89,7 @@ function buildCompactionReasoning(
 ): NativeCompactionRequestOptions["reasoning"] {
 	const level = pi.getThinkingLevel();
 	if (!compactionTargetModel.reasoning || level === "off") return undefined;
-	const initialEffort = codexReasoningUpdates(projectCodexReasoningHistory(ctx.sessionManager.getBranch()), compactionTargetModel)[0]?.initialEffort;
+	const initialEffort = codexReasoningUpdates(projectCodexReasoningHistory(compactionBranch(ctx, state)), compactionTargetModel)[0]?.initialEffort;
 	if (initialEffort) return { effort: initialEffort, summary: "auto" };
 	const clampedLevel = clampThinkingLevel(compactionTargetModel, level as ModelThinkingLevel);
 	const rawEffort = compactionTargetModel.thinkingLevelMap?.[clampedLevel] ?? clampedLevel;
@@ -245,7 +253,7 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 		? { grammarToolInputProperties: CODE_MODE_EXEC_GRAMMAR_INPUTS }
 		: undefined;
 	const requestOptions = buildCompactionRequestOptions(pi, ctx, state, compactionTargetModel, codeMode);
-	const branchEntries = ctx.sessionManager.getBranch();
+	const branchEntries = compactionBranch(ctx, state);
 	const latestNativeCompaction = resolveLatestNativeCompactionEntry(branchEntries, {
 		provider: runtime.provider,
 		api: runtime.api,
@@ -286,7 +294,7 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 	const builtInput = buildNativeCompactionInput({
 		model: compactionTargetModel,
 		branchEntries,
-		allEntries: ctx.sessionManager.getEntries(),
+		allEntries: branchEntries,
 		leafId: ctx.sessionManager.getLeafId(),
 		latestNativeCompaction,
 		serializationOptions,
@@ -350,10 +358,12 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 		promptInputSource: compactionDiagnostic.inputSource,
 		compactionDiagnostic,
 		requestOptions,
-		...(plan.contextManagementRemote ? {
-			rewritePayload: (payload: unknown) => state.contextWindows.rewritePayload(
-				rewriteContextNamespaceTools(payload, { encrypted: true }), ctx,
-			),
+		...(plan.contextManagement ? {
+			rewritePayload: (payload: unknown) => {
+				const rewritten = plan.contextManagementRemote || !plan.codexTransport
+					? rewriteContextNamespaceTools(payload, { encrypted: plan.contextManagementRemote }) : payload;
+				return plan.contextManagementRemote ? state.contextWindows.rewritePayload(rewritten, ctx) : rewritten;
+			},
 		} : {}),
 		tokensBefore: event.preparation.tokensBefore,
 		sessionId: ctx.sessionManager.getSessionId(),
@@ -413,7 +423,7 @@ export async function rewriteCodexCompactedProviderRequest(payload: unknown, ctx
 	const resolution = await resolveNativeCompactionEnvironment(ctx, { enabled: true, supportedProviders: getSupportedNativeCompactionProviders(state) }, payload);
 	if (!resolution.ok) return undefined;
 	const runtime = resolution.runtime;
-	const branchEntries = ctx.sessionManager.getBranch();
+	const branchEntries = compactionBranch(ctx, state);
 	const latestNativeCompactionIndex = findLatestNativeCompactionEntryIndex(branchEntries, {
 		provider: runtime.provider,
 		api: runtime.api,

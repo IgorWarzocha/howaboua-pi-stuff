@@ -75,7 +75,9 @@ test("adapter activation requires registered tools and follows scope independent
 	for (const executionMode of ["normal", "code", "notebook"] as const) {
 		const original = ["read", "bash", "edit", "write", "contact_supervisor", executionMode === "normal" ? "exec_command" : "exec"];
 		const pi = createToolHarness(original, original);
-		const state = createAdapterState({ executionMode });
+		const state = createAdapterState({ executionMode,
+			compaction: { ...DEFAULT_CODEX_CONVERSION_CONFIG.compaction, contextManagement: "local", hybridCompaction: true },
+		});
 		const statuses: unknown[] = [];
 		const ctx = createContext({ provider: "openai-codex", api: "openai-codex-responses", id: "gpt-6-astra" }, statuses);
 		const plan = syncAdapter(pi as never, ctx as never, state);
@@ -83,6 +85,7 @@ test("adapter activation requires registered tools and follows scope independent
 		assert.equal(plan.prompt, undefined);
 		assert.equal(plan.transport, undefined);
 		assert.equal(plan.contextManagement, false);
+		assert.equal(plan.contextManagementHybrid, false);
 		assert.equal(state.enabled, false);
 		assert.deepEqual(pi.activeTools(), original);
 		assert.deepEqual(resolveCodexRuntimePlanForState(ctx as never, state), plan);
@@ -269,8 +272,9 @@ test("native Responses compaction stays scoped to OpenAI Codex and explicit prov
 			responsesCompaction: true,
 		},
 	};
-	for (const contextManagement of ["remote", "hybrid"] as const) {
-		const modeConfig = { ...contextWindows, compaction: { ...contextWindows.compaction, contextManagement } };
+	for (const contextManagement of ["local", "tree", "remote"] as const) {
+	for (const hybridCompaction of [false, true]) {
+		const modeConfig = { ...contextWindows, compaction: { ...contextWindows.compaction, contextManagement, hybridCompaction } };
 		const canonical = resolveCodexRuntimePlan(
 			createContext({
 				provider: "openai-codex",
@@ -288,7 +292,7 @@ test("native Responses compaction stays scoped to OpenAI Codex and explicit prov
 			},
 			{
 				contextManagement: true,
-				nativeCompaction: contextManagement === "hybrid",
+				nativeCompaction: hybridCompaction,
 				tools: ["new_context", "get_context_remaining", "history", "notes"],
 			},
 		);
@@ -301,11 +305,14 @@ test("native Responses compaction stays scoped to OpenAI Codex and explicit prov
 				active: generic.contextManagement,
 				mode: generic.contextManagementMode,
 				remote: generic.contextManagementRemote,
+				hybrid: generic.contextManagementHybrid,
 			},
-			{ active: false, mode: "off", remote: false },
+			{ active: contextManagement !== "remote", mode: contextManagement === "remote" ? "off" : contextManagement,
+				remote: false, hybrid: contextManagement !== "remote" && hybridCompaction },
 		);
-		assert.equal([...generic.toolNames].includes("new_context"), false);
+		assert.equal([...generic.toolNames].includes("new_context"), contextManagement !== "remote");
 		assert.equal(generic.nativeCompaction, false);
+	}
 	}
 	const tree = resolveCodexRuntimePlan(
 		createContext({ provider: "openai", api: "openai-responses", id: "gpt-5.6" }) as never,

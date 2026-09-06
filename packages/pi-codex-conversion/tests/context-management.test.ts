@@ -156,13 +156,16 @@ test("context windows preserve rollover and native request semantics", async (t)
 		cancel: true,
 	});
 
-	assert.deepEqual(manager.prepareCompaction(compactionEvent(), "hybrid"), { cancel: true });
-	assert.equal(manager.prepareCompaction({ reason: "manual" } as never, "hybrid"), undefined);
+	for (const mode of ["local", "tree", "remote"] as const) {
+		assert.deepEqual(manager.prepareCompaction(compactionEvent(), mode, true), { cancel: true });
+		assert.equal(manager.prepareCompaction({ reason: "manual" } as never, mode, true), undefined);
+	}
 	const hybridMessages = [
 		{ role: "user", content: "retained checkpoint tail", timestamp: 1 },
 		...activeWindow,
 	] as never;
-	assert.deepEqual(manager.project(hybridMessages, "hybrid"), hybridMessages);
+	for (const mode of ["local", "tree", "remote"] as const)
+		assert.deepEqual(manager.project(hybridMessages, mode, [], [], true), hybridMessages);
 
 	const contextBridge = new CodexDeveloperMessageBridge();
 	const contextState: AdapterState = {
@@ -267,7 +270,7 @@ test("context windows preserve rollover and native request semantics", async (t)
 	);
 
 	const modeHints = await Promise.all(
-		(["local", "tree", "remote", "hybrid"] as const).map(async (mode) => {
+		(["local", "tree", "remote"] as const).flatMap((mode) => [false, true].map(async (hybridCompaction) => {
 			const sent: Array<Record<string, unknown>> = [];
 			const windows = new CodexContextWindowManager(
 				async (_context, loadedMode) => `hint:${loadedMode}`,
@@ -278,7 +281,7 @@ test("context windows preserve rollover and native request semantics", async (t)
 				},
 			} as never;
 			windows.ensureInitialized(pi, ctx, true);
-			if (mode === "hybrid") {
+			if (hybridCompaction) {
 				let complete: (() => void) | undefined;
 				let compactions = 0;
 				const compactContext = {
@@ -291,20 +294,21 @@ test("context windows preserve rollover and native request semantics", async (t)
 				const [rollover] = createContextWindowTools(pi, {
 					...contextState,
 					contextWindows: windows,
-					config: { ...contextState.config, compaction: { ...contextState.config.compaction, contextManagement: mode, responsesCompaction: true } },
+					config: { ...contextState.config, compaction: { ...contextState.config.compaction, contextManagement: mode, hybridCompaction } },
 				});
 				const result = await rollover.execute("rollover", {}, undefined, undefined, compactContext);
 				assert.equal(result.details.started, true);
 				assert.equal(result.terminate, true);
 				assert.equal(windows.scheduleHybridCompaction(), false);
 				windows.cancelScheduledCompaction();
-				assert.equal(windows.finishTurn(pi, compactContext), false);
+				const continueWindow = () => windows.startNewWindow(pi, ctx, { mode, triggerTurn: true, trimPreviousWindow: false });
+				assert.equal(windows.finishTurn(compactContext, continueWindow), false);
 				assert.equal(windows.scheduleHybridCompaction(), true);
 				assert.equal(compactions, 0, "tool execution only schedules rollover");
-				windows.finishTurn(pi, compactContext);
-				windows.finishTurn(pi, compactContext);
+				windows.finishTurn(compactContext, continueWindow);
+				windows.finishTurn(compactContext, continueWindow);
 				assert.equal(compactions, 1);
-				await windows.completeHybridCompaction(pi, ctx);
+				await windows.completeHybridCompaction(pi, ctx, mode);
 				assert.equal(sent.length, 1, "window changes only after explicit compaction completes");
 				complete!();
 				await new Promise<void>((resolve) => setImmediate(resolve));
@@ -329,11 +333,11 @@ test("context windows preserve rollover and native request semantics", async (t)
 			}
 			assert.equal(JSON.stringify(sent).includes("Notes persist across windows"), false, "request guidance does not mutate persisted window markers");
 			return sent.at(-1)?.["content"];
-		}),
+		})),
 	);
 	assert.deepEqual(
-		modeHints.map((hint) => String(hint).match(/hint:(local|tree|remote|hybrid)/)?.[1]),
-		["local", "tree", "remote", "hybrid"],
+		modeHints.map((hint) => String(hint).match(/hint:(local|tree|remote)/)?.[1]),
+		["local", "local", "tree", "tree", "remote", "remote"],
 	);
 
 });

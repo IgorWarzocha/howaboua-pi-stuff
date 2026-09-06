@@ -2,8 +2,9 @@
 "@howaboua/pi-codex-conversion": patch
 ---
 
-Add Hybrid context management with remote notes and history backed by V2 encrypted checkpoints.
+Keep compaction checkpoints alongside notes with a Hybrid toggle for Local, Tree and Remote context management.
 
+- Use Responses V2 where supported and Pi summaries elsewhere; preserve Tree checkpoints and their exact replay tails across archival.
 - Request a notes checkpoint after completed tool turns before the configured compaction reserve, including after final replies.
 - Give non-Astra models explicit notes and recovery guidance in every context-management mode.
 - Keep deferred ideas and unrelated tasks in notes for later resumption without treating them as permission to implement.

@@ -227,11 +227,19 @@ export function registerCodexEvents(
 			state.contextWindows.cancelScheduledCompaction();
 			return;
 		}
-		if (state.contextWindows.finishTurn(pi, ctx)) return;
+		const plan = resolveCodexRuntimePlanForState(ctx, state);
+		if (state.contextWindows.finishTurn(ctx, async () => {
+			if (plan.contextManagementMode === "tree") {
+				runtime.resetTransportAfterCompaction(ctx.sessionManager.getSessionId());
+				await state.contextTree.settle(pi, ctx);
+			} else await state.contextWindows.startNewWindow(pi, ctx, {
+				mode: plan.contextManagementMode, triggerTurn: true, trimPreviousWindow: false,
+			});
+		})) return;
 		state.contextWindows.recordBudget(
 			pi,
 			ctx,
-			resolveCodexRuntimePlanForState(ctx, state).contextManagement,
+			plan.contextManagement,
 		);
 	});
 	pi.on("message_update", async (event) => {
@@ -345,6 +353,7 @@ export function registerCodexEvents(
 		runtime.lanVoice.agentSettled();
 		if (!state.config.voiceFeaturesOnly) void ui.refreshUsageStatus(ctx);
 		const rolled = await state.contextTree.settle(pi, ctx);
+		if (rolled) runtime.resetTransportAfterCompaction(ctx.sessionManager.getSessionId());
 		if (!rolled && !quotaExhausted) runtime.armCacheKeepalive(ctx);
 	});
 	pi.on("before_provider_request", async (event, ctx) => {
@@ -365,6 +374,7 @@ export function registerCodexEvents(
 			? state.contextWindows.prepareCompaction(
 				event,
 				plan.contextManagementMode,
+				plan.contextManagementHybrid,
 			)
 			: undefined;
 		if (contextManagementResult && "cancel" in contextManagementResult)
@@ -405,7 +415,6 @@ export function registerCodexEvents(
 			state.contextWindows.recordCompaction(event.compactionEntry.details);
 			const plan = resolveCodexRuntimePlanForState(ctx, state);
 			let nativeCompaction = false;
-			if (plan.contextManagementMode === "hybrid") await state.contextWindows.completeHybridCompaction(pi, ctx);
 			let treeRolloverScheduled = false;
 			const contextCompaction =
 				event.fromExtension &&
@@ -429,7 +438,19 @@ export function registerCodexEvents(
 					});
 				}
 			}
-			if (
+			if (plan.contextManagementHybrid) {
+				if (plan.contextManagementMode === "tree" && compactionEntry) {
+					const requested = state.contextWindows.isHybridCompactionRunning();
+					treeRolloverScheduled = state.contextTree.schedule(ctx, {
+						compactionEntryId: compactionEntry.id,
+						triggerTurn: requested || event.reason === "overflow",
+					});
+					if (event.reason === "manual" && !requested) {
+						await state.contextTree.settle(pi, ctx);
+						treeRolloverScheduled = false;
+					}
+				} else await state.contextWindows.completeHybridCompaction(pi, ctx, plan.contextManagementMode, event.reason === "overflow");
+			} else if (
 				contextCompaction &&
 				(event.reason === "manual" || event.reason === "overflow")
 			) {
@@ -458,11 +479,13 @@ export function registerCodexEvents(
 				ctx,
 			);
 			state.activeProviderSystemPrompt = postCompactionPrompt;
-			runtime.resetTransportAfterCompaction(ctx.sessionManager.getSessionId());
-			if (!treeRolloverScheduled)
-				await (nativeCompaction
+			if (!treeRolloverScheduled) {
+				runtime.resetTransportAfterCompaction(ctx.sessionManager.getSessionId());
+				// Tool-requested rollover appends its marker in onComplete; do not prewarm the old window.
+				if (!state.contextWindows.isHybridCompactionRunning()) await (nativeCompaction
 					? runtime.startCompactionPrewarm(ctx)
 					: runtime.startPrewarm(ctx, postCompactionPrompt, true));
+			}
 			if (!contextCompaction)
 				await runtime.voice.refreshRealtimeAfterCompaction(ctx, state.config);
 		} finally {

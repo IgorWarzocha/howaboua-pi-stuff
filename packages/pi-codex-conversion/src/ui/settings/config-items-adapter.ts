@@ -72,22 +72,31 @@ export function buildAdapterSettings(
 				id: "contextManagement",
 				label: "Context management (experimental)",
 				currentValue: config.compaction.contextManagement,
-				values: ["off", "local", "tree", "remote", "hybrid"],
+				values: ["off", "local", "tree", "remote"],
 			},
 			(value, current) => ({
 				...current,
 				compaction: {
 					...current.compaction,
 					contextManagement:
-						value === "local" || value === "tree" || value === "remote" || value === "hybrid"
+						value === "local" || value === "tree" || value === "remote"
 							? value
 							: "off",
 					...(value !== "off"
-						? { responsesCompaction: value === "hybrid", portableSummary: false }
-						: {}),
+						? { responsesCompaction: false, portableSummary: false }
+						: { hybridCompaction: false }),
 				},
 			}),
 		),
+		...(config.compaction.contextManagement === "off" ? [] : [setting(
+			{ id: "hybridCompaction", label: "Hybrid compaction",
+				currentValue: config.compaction.hybridCompaction ? "on" : "off", values: ["off", "on"],
+				description: "Keep a checkpoint at rollover: V2 where supported, Pi summary elsewhere." },
+			(value, current) => ({
+				...current,
+				compaction: { ...current.compaction, hybridCompaction: value === "on" },
+			}),
+		)]),
 		setting(
 			{
 				id: "heavySystemPromptOverwrite",

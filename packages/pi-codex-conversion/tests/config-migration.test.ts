@@ -35,16 +35,19 @@ test("legacy persisted config shapes migrate to the current groups", () => {
 		},
 	}).compaction, {
 		contextManagement: "remote",
+		hybridCompaction: false,
 		responsesCompaction: false,
 		portableSummary: false,
 		v2UserMessageRetention: 64,
 	});
-	for (const contextManagement of ["local", "tree", "hybrid"] as const) {
+	for (const contextManagement of ["off", "local", "tree", "remote"] as const) {
 		const compaction = normalizeCodexConversionConfig({
-			compaction: { contextManagement, responsesCompaction: false },
+			compaction: { contextManagement, hybridCompaction: true, responsesCompaction: true, portableSummary: true },
 		}).compaction;
 		assert.equal(compaction.contextManagement, contextManagement);
-		assert.equal(compaction.responsesCompaction, contextManagement === "hybrid");
+		assert.equal(compaction.hybridCompaction, contextManagement !== "off");
+		assert.equal(compaction.responsesCompaction, contextManagement === "off");
+		assert.equal(compaction.portableSummary, contextManagement === "off");
 	}
 	assert.equal(normalizeCodexConversionConfig({
 		compaction: { contextManagement: "invalid" },

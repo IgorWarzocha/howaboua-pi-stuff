@@ -39,7 +39,7 @@ export function createContextWindowTools(
 			executionMode: "sequential",
 			async execute(_id, _params, signal, _update, ctx) {
 				const plan = assertContextManagementActive(ctx, state);
-				const started = plan.contextManagementMode === "hybrid"
+				const started = plan.contextManagementHybrid
 					? state.contextWindows.scheduleHybridCompaction()
 					: plan.contextManagementMode === "tree"
 					? state.contextTree.schedule(ctx)
@@ -50,13 +50,13 @@ export function createContextWindowTools(
 						trimPreviousWindow: true,
 					});
 				return {
-					...(plan.contextManagementMode === "hybrid" ? { terminate: true } : {}),
+					...(plan.contextManagementHybrid ? { terminate: true } : {}),
 					content: [
 						{
 							type: "text",
 							text: started
-								? plan.contextManagementMode === "hybrid"
-									? "A new context window will continue from an encrypted compaction checkpoint."
+								? plan.contextManagementHybrid
+									? "A new context window will continue from a compaction checkpoint."
 									: "A new context window will start without summarizing conversation history."
 								: "A new context window is already scheduled.",
 						},

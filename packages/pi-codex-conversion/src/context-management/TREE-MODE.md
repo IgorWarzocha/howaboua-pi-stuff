@@ -6,13 +6,17 @@ Status: implemented contract. Keep this file synchronized with the runtime.
 
 Add a provider-independent **Tree** context-management mode that uses Pi's append-only session tree to remove completed windows from the active branch. Pi-generated branch summaries remain in the session and UI but are filtered from model context. The existing Codex-shaped history and notes tools retrieve them and their archived raw entries on demand.
 
-Tree mode preserves the same model semantics as the no-summary window flow:
+With Hybrid compaction off, Tree preserves the no-summary window flow:
 
 - the next model window does not automatically receive a conversation summary
 - the model receives the current window marker, previous window ID, recent note paths and bounded history IDs
 - shell, workspace and Notebook runtime state survive rollover
 - prior summaries and raw work are available only through history and notes
 - Pi JSONL remains append-only and is never rewritten
+
+With Hybrid on, rollover first runs Responses V2 where supported or Pi compaction elsewhere. The archive manifest references the original `CompactionEntry` by `compactionEntryId`. `tree-checkpoint.ts` reconstructs its source path, retained entries and post-compaction tail for model context and native replay; it never duplicates the stored checkpoint. The reference becomes model-authoritative only after the successor window marker exists.
+
+Manual `/compact` archives inside `session_compact` without starting a turn. Tool-requested compaction archives from `ctx.compact().onComplete`, after Pi clears its manual compaction state, then starts the next window. Overflow records the checkpoint and archives at `agent_settled`, after the automatic retry tail. The ordinary notes-only lifecycle below remains unchanged.
 
 ```mermaid
 flowchart LR
