@@ -23,7 +23,7 @@ import type { CodexToolRegistration } from "./tools.ts";
 import type { CodexUiController } from "./ui.ts";
 import { registerCodexDeveloperMessageBroker } from "../developer-messages.ts";
 import { isContextWindowCompactionDetails } from "../context-management/messages.ts";
-import { recordCodexReasoningUpdate } from "../adapter/reasoning-updates.ts";
+import { flushCodexReasoningUpdates, recordCodexReasoningUpdate } from "../adapter/reasoning-updates.ts";
 import { createCodexReserveController } from "../codex-usage/reserve.ts";
 
 function formatCompactionUsage(usage: NativeCompactionUsage): string {
@@ -221,6 +221,7 @@ export function registerCodexEvents(
 		}
 	});
 	pi.on("turn_end", (event, ctx) => {
+		flushCodexReasoningUpdates(pi, ctx);
 		if (event.message.role !== "assistant") return;
 		if (ctx.signal?.aborted || event.message.stopReason === "error" || event.message.stopReason === "length" || event.message.stopReason === "aborted") {
 			state.contextWindows.cancelScheduledCompaction();
@@ -329,6 +330,7 @@ export function registerCodexEvents(
 		runtime.lanVoice.uiPromptEnded(!ctx.isIdle());
 	});
 	pi.on("agent_settled", async (_event, ctx) => {
+		flushCodexReasoningUpdates(pi, ctx);
 		runtime.autoReasoning.settle(ctx);
 		const quotaExhausted = !state.config.voiceFeaturesOnly && await reserve.settled(ctx);
 		turnPrewarm = undefined;

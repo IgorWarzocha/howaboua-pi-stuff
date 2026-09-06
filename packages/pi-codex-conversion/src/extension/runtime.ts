@@ -1,4 +1,4 @@
-import { buildSessionContext, convertToLlm, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { convertToLlm, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { Context } from "@earendil-works/pi-ai";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { dirname } from "node:path";
@@ -29,6 +29,7 @@ import { CodexDeveloperMessageBridge } from "../adapter/developer-messages.ts";
 import { CodexContextWindowManager } from "../context-management/window-manager.ts";
 import { CodexContextTreeCoordinator } from "../context-management/tree-coordinator.ts";
 import { hasPendingCodexReasoningUpdate, supportsCodexReasoningUpdates } from "../adapter/reasoning-updates.ts";
+import { projectCodexReasoningHistory } from "../adapter/reasoning-history.ts";
 import { createAutoReasoning } from "../adapter/auto-reasoning.ts";
 
 export type CodexContext = ExtensionContext;
@@ -265,7 +266,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		const plan = resolveCodexRuntimePlanForState(ctx, state);
 		const branch = ctx.sessionManager.getBranch();
 		const projected = state.contextWindows.project(
-			messages ?? buildSessionContext(branch).messages,
+			projectCodexReasoningHistory(branch, messages),
 			plan.contextManagementMode,
 			branch,
 			plan.contextManagementMode === "tree"

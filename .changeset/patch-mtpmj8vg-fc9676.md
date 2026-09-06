@@ -8,3 +8,4 @@ Add Hybrid context management with remote notes and history backed by V2 encrypt
 - Give non-Astra models explicit notes and recovery guidance in every context-management mode.
 - Keep deferred ideas and unrelated tasks in notes for later resumption without treating them as permission to implement.
 - Apply concise follow-through guidance to all models, including heavy system-prompt rewrite.
+- Keep reasoning-level bookkeeping out of Pi's default tree view while preserving model updates and replay.
