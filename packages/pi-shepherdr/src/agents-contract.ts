@@ -135,8 +135,17 @@ export function parseAgentsRequest(input: unknown): AgentsParams {
 export function isBlockingAgentsCall(input: unknown): boolean {
 	try {
 		const value = parseAgentsRequest(input);
+		if (value.action === "spawn")
+			return shouldBlockAgentSpawn(value.agent_type, value.blocking);
 		return BLOCKING_ACTIONS.has(value.action) && value.blocking !== false;
 	} catch {
 		return false;
 	}
+}
+
+export function shouldBlockAgentSpawn(
+	agentType: string | undefined,
+	blocking: boolean | undefined,
+): boolean {
+	return agentType?.trim() === "reviewer" || blocking !== false;
 }

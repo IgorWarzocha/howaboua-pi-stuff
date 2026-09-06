@@ -95,7 +95,7 @@ export class MonitorState {
 			!existing &&
 			(panel.agent_status === "done" || panel.agent_status === "blocked");
 		const activity = reportCurrent
-			? ({ phase: "working" } as const)
+			? ({ attemptId: randomUUID(), phase: "working" } as const)
 			: (existing?.activity ?? activityForPanel(panel));
 		const record = recordForPanel(
 			panel,
@@ -208,6 +208,28 @@ export class MonitorState {
 			this.agents.set(record.terminalId, { ...record, activity: next });
 			return { changed };
 		}
+		if (
+			status === "blocked" &&
+			record.activity.phase === "settled" &&
+			record.activity.status !== "blocked"
+		) {
+			const observed = {
+				...record,
+				activity: {
+					attemptId: randomUUID(),
+					phase: "working",
+				} as const,
+			};
+			this.agents.set(record.terminalId, observed);
+			return {
+				changed: true,
+				completion: {
+					record: observed,
+					requireNewReply: false,
+					status,
+				},
+			};
+		}
 		if (isSettledStatus(status) && record.activity.phase !== "settled") {
 			const task = activityTask(record.activity);
 			return {
@@ -272,6 +294,19 @@ export class MonitorState {
 					...(attemptId ? { attemptId } : {}),
 					...(expectedUserAfter !== undefined ? { expectedUserAfter } : {}),
 					...(task ? { task } : {}),
+				};
+			} else if (
+				panel.agent_status === "blocked" &&
+				activity.phase === "settled" &&
+				activity.status !== "blocked"
+			) {
+				activity = {
+					attemptId: randomUUID(),
+					phase: "working",
+				};
+				completion = {
+					requireNewReply: false,
+					status: panel.agent_status,
 				};
 			} else if (
 				isSettledStatus(panel.agent_status) &&

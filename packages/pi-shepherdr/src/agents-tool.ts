@@ -5,6 +5,7 @@ import {
 	type AgentsParams,
 	type AgentsToolParams,
 	parseAgentsRequest,
+	shouldBlockAgentSpawn,
 } from "./agents-contract.js";
 import {
 	agentsHelp,
@@ -54,7 +55,7 @@ export function createAgentsTool(fleet: AgentFleet) {
 		parameters: AgentsParameters,
 		promptSnippet: "Load agents help before first use.",
 		promptGuidelines: [
-			"agents: Blocking is default; set blocking false only while continuing other work. Asynchronous settlement is pushed automatically, so never poll.",
+			"agents: Reviewer spawns always block. Await the review before continuing work on its scope. Set blocking false only for independent work.",
 			"agents: Specialists know their job. Give only the concrete task and inaccessible context; never append generic method, evidence, or reporting instructions.",
 			"agents: Reuse specialists only for the same investigation. Keep reviews independent. New scope gets a new agent.",
 			"agents: For advanced Herdr workspace, pane, process or layout control, run herdr --skill.",
@@ -147,12 +148,13 @@ export function createAgentsTool(fleet: AgentFleet) {
 				let promptSubmissionStarted = false;
 				let promptAccepted = false;
 				let settlement;
+				const blocking = shouldBlockAgentSpawn(profile.name, params.blocking);
 				try {
 					settlement = await dispatchAgentWork(
 						runtime,
 						started.agent,
 						message,
-						params.blocking !== false,
+						blocking,
 						executionSignal,
 						update,
 						async () => {
