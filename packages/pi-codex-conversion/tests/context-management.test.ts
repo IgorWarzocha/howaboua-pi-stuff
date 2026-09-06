@@ -1,9 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import type { Api, Model } from "@earendil-works/pi-ai";
 import { SettingsManager, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
 import { CodexDeveloperMessageBridge } from "../src/adapter/developer-messages.ts";
+import { serializeMessagesToResponsesInput } from "../src/adapter/compaction/serializer.ts";
 import { rewriteCodexProviderRequest } from "../src/adapter/provider-request.ts";
 import { createHistoryNotesTools } from "../src/context-management/history-notes.ts";
 import { createContextWindowTools } from "../src/context-management/tools.ts";
@@ -312,6 +314,20 @@ test("context windows preserve rollover and native request semantics", async (t)
 				mode,
 				trimPreviousWindow: mode !== "tree",
 			});
+			const persisted = sent.map((message) => ({ ...message, role: "custom", timestamp: 1 })) as never;
+			const bridge = new CodexDeveloperMessageBridge();
+			for (const id of ["gpt-6-astra", "gpt-5.6-luna", "gpt-6-astra"]) {
+				const model = { ...(codexModel as Model<Api>), id };
+				const carried = bridge.prepare(persisted, true, model);
+				const payload = bridge.rewritePayload({ input: carried.map((message) => ({ role: "user", content: (message as { content: string }).content })) }, model);
+				const serialized = serializeMessagesToResponsesInput(model, persisted);
+				for (const output of [payload, serialized]) {
+					const text = JSON.stringify(output);
+					assert.equal(text.includes("Notes persist across windows"), id !== "gpt-6-astra");
+					assert.equal(text.includes("Checkpoint the active request"), id === "gpt-6-astra");
+				}
+			}
+			assert.equal(JSON.stringify(sent).includes("Notes persist across windows"), false, "request guidance does not mutate persisted window markers");
 			return sent.at(-1)?.["content"];
 		}),
 	);

@@ -179,7 +179,7 @@ export function serializeMessagesToResponsesInput<TApi extends Api>(
 			...(options.grammarToolInputProperties ? { grammarToolInputProperties: options.grammarToolInputProperties } : {}),
 		},
 	) as ResponsesInputItem[];
-	return (developerMessages.rewritePayload({ input }) as { input: ResponsesInputItem[] }).input;
+	return (developerMessages.rewritePayload({ input }, model) as { input: ResponsesInputItem[] }).input;
 }
 
 export function createResponsesInputParitySignature(input: readonly unknown[]): string[] {
