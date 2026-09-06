@@ -155,12 +155,14 @@ export function resolveCodexRuntimePlan(
 		? config.compaction.contextManagement
 		: "off";
 	const contextManagement = configuredContextManagementMode !== "off" &&
-		(configuredContextManagementMode !== "remote" || codexTransport);
+		((configuredContextManagementMode !== "remote" && configuredContextManagementMode !== "hybrid") || codexTransport);
 	const contextManagementMode = contextManagement
 		? configuredContextManagementMode
 		: "off";
-	const contextManagementRemote = contextManagementMode === "remote";
-	const nativeCompaction = config.compaction.responsesCompaction && effectiveOpenAICodex && !contextManagement;
+	const contextManagementRemote = contextManagementMode === "remote" || contextManagementMode === "hybrid";
+	const nativeCompaction = config.compaction.responsesCompaction && effectiveOpenAICodex &&
+		(configuredContextManagementMode !== "hybrid" || codexTransport) &&
+		(!contextManagement || contextManagementMode === "hybrid");
 	base.autoReasoning = config.tools.autoReasoning && supportsCodexReasoningUpdates(ctx.model);
 	const configuredExecutionMode = executionMode ?? config.executionMode;
 	const requestedCodeMode = configuredExecutionMode === "code" || configuredExecutionMode === "notebook"

@@ -33,7 +33,8 @@ export function normalizeContextManagementMode(
 	return value === "off" ||
 		value === "local" ||
 		value === "tree" ||
-		value === "remote"
+		value === "remote" ||
+		value === "hybrid"
 		? value
 		: undefined;
 }

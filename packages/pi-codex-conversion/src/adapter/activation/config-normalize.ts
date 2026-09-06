@@ -50,10 +50,10 @@ export function normalizeCodexConversionConfig(
 	const contextManagement =
 		normalizeContextManagementMode(compaction["contextManagement"]) ??
 		DEFAULT_CODEX_CONVERSION_CONFIG.compaction.contextManagement;
-	const responsesCompaction = normalizeBoolean(
+	const responsesCompaction = contextManagement === "hybrid" || (normalizeBoolean(
 		compaction["responsesCompaction"],
 		DEFAULT_CODEX_CONVERSION_CONFIG.compaction.responsesCompaction,
-	) && contextManagement === "off";
+	) && contextManagement === "off");
 	return {
 		executionMode,
 		voiceFeaturesOnly: normalizeBoolean(

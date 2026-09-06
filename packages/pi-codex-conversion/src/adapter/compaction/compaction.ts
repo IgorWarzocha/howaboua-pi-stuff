@@ -24,6 +24,7 @@ import type { CodexCompactionDiagnostic } from "./diagnostics.ts";
 import { prepareResponsesLiteConversationInput } from "../../providers/openai-codex/responses-lite.ts";
 import { runPortablePiCompaction } from "./portable-summary.ts";
 import { codexReasoningUpdates } from "../reasoning-updates.ts";
+import { rewriteContextNamespaceTools } from "../../context-management/namespace-tools.ts";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === "object" && !Array.isArray(value);
@@ -234,6 +235,10 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 
 	const runtime = resolution.runtime;
 	const compactionTargetModel = runtime.currentModel;
+	if (plan.contextManagementRemote) {
+		runtime.headers = { ...runtime.headers };
+		state.contextWindows.rewriteHeaders(runtime.headers, ctx);
+	}
 	const codeMode = isCodeModeRuntime(plan);
 	const serializationOptions = plan.transport === "responses-lite"
 		? { grammarToolInputProperties: CODE_MODE_EXEC_GRAMMAR_INPUTS }
@@ -344,6 +349,11 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 		promptInputSource: compactionDiagnostic.inputSource,
 		compactionDiagnostic,
 		requestOptions,
+		...(plan.contextManagementRemote ? {
+			rewritePayload: (payload: unknown) => state.contextWindows.rewritePayload(
+				rewriteContextNamespaceTools(payload, { encrypted: true }), ctx,
+			),
+		} : {}),
 		tokensBefore: event.preparation.tokensBefore,
 		sessionId: ctx.sessionManager.getSessionId(),
 		signal: event.signal,

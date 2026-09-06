@@ -1,4 +1,4 @@
-import { calculateContextTokens, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { readEffectiveCodexConversionConfig } from "../adapter/activation/config-store.ts";
 import { syncAdapter } from "../adapter/activation/activation.ts";
 import { isAdapterRuntime, resolveCodexRuntimePlanForState } from "../adapter/activation/runtime-plan.ts";
@@ -211,24 +211,27 @@ export function registerCodexEvents(
 			runtime.voice.piUserMessage(event.message);
 		if (event.message.role !== "toolResult" && !isToolCallOnlyAssistantMessage(event.message)) tracker.resetExplorationGroup();
 	});
-	pi.on("message_end", async (event, ctx) => {
+	pi.on("message_end", async (event) => {
 		if (event.message.role === "assistant") {
 			runtime.voice.finishAgentMessage(
 				event.message,
 				state.config.voice.forwardReasoningSummaries,
 			);
 			runtime.lanVoice.assistantMessage(event.message);
-			if (
-				event.message.stopReason !== "error" &&
-				event.message.stopReason !== "length"
-			)
-				state.contextWindows.recordBudget(
-					pi,
-					ctx,
-					resolveCodexRuntimePlanForState(ctx, state).contextManagement,
-					calculateContextTokens(event.message.usage),
-				);
 		}
+	});
+	pi.on("turn_end", (event, ctx) => {
+		if (event.message.role !== "assistant") return;
+		if (ctx.signal?.aborted || event.message.stopReason === "error" || event.message.stopReason === "length" || event.message.stopReason === "aborted") {
+			state.contextWindows.cancelScheduledCompaction();
+			return;
+		}
+		if (state.contextWindows.finishTurn(pi, ctx)) return;
+		state.contextWindows.recordBudget(
+			pi,
+			ctx,
+			resolveCodexRuntimePlanForState(ctx, state).contextManagement,
+		);
 	});
 	pi.on("message_update", async (event) => {
 		const update = event.assistantMessageEvent;
@@ -400,6 +403,7 @@ export function registerCodexEvents(
 			state.contextWindows.recordCompaction(event.compactionEntry.details);
 			const plan = resolveCodexRuntimePlanForState(ctx, state);
 			let nativeCompaction = false;
+			if (plan.contextManagementMode === "hybrid") await state.contextWindows.completeHybridCompaction(pi, ctx);
 			let treeRolloverScheduled = false;
 			const contextCompaction =
 				event.fromExtension &&

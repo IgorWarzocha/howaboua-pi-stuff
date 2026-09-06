@@ -93,7 +93,9 @@ export function buildOpenAISettings(
 				compaction: {
 					...current.compaction,
 					responsesCompaction: enabled,
-					...(enabled ? { contextManagement: "off" as const } : {}),
+					contextManagement: current.compaction.contextManagement === "hybrid"
+						? (enabled ? "hybrid" : "remote")
+						: enabled ? "off" : current.compaction.contextManagement,
 					...(enabled ? {} : { portableSummary: false }),
 				},
 			}),

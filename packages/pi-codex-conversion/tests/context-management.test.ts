@@ -1,10 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { SettingsManager, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
 import { CodexDeveloperMessageBridge } from "../src/adapter/developer-messages.ts";
 import { rewriteCodexProviderRequest } from "../src/adapter/provider-request.ts";
 import { createHistoryNotesTools } from "../src/context-management/history-notes.ts";
+import { createContextWindowTools } from "../src/context-management/tools.ts";
 import {
 	CODEX_CONTEXT_WINDOW_MESSAGE_TYPE,
 	CONTEXT_WINDOW_COMPACTION_SUMMARY,
@@ -35,10 +37,12 @@ function createContext() {
 			percent: 4.4,
 		}),
 		isIdle: () => true,
+		isProjectTrusted: () => false,
 	} as never;
 }
 
-test("context windows preserve rollover and native request semantics", async () => {
+test("context windows preserve rollover and native request semantics", async (t) => {
+	t.mock.method(SettingsManager, "create", () => SettingsManager.inMemory({ compaction: { reserveTokens: 32_768 } }));
 	const contextMessages: Array<Record<string, unknown>> = [];
 	const contextPi = {
 		sendMessage(message: Record<string, unknown>) {
@@ -86,6 +90,8 @@ test("context windows preserve rollover and native request semantics", async () 
 		{ cancel: true },
 	);
 	assert.equal(contextMessages.length, 2);
+	manager.recordBudget(contextPi, ctx, true, 272_000);
+	assert.equal(contextMessages.length, 2, "old usage cannot checkpoint the newly scheduled window");
 	assert.equal(
 		contextMessages.every(
 			(message) =>
@@ -115,9 +121,9 @@ test("context windows preserve rollover and native request semantics", async () 
 		}
 	).contextManagement.currentWindowId;
 	assert.deepEqual(manager.remaining(ctx), {
-		remainingTokens: 243_616,
+		remainingTokens: 227_232,
 		windowId: currentWindowId,
-		contextWindow: 255_616,
+		contextWindow: 239_232,
 	});
 	const expectedCompaction = {
 		compaction: {
@@ -147,6 +153,14 @@ test("context windows preserve rollover and native request semantics", async () 
 	assert.deepEqual(manager.prepareCompaction(compactionEvent(), "remote"), {
 		cancel: true,
 	});
+
+	assert.deepEqual(manager.prepareCompaction(compactionEvent(), "hybrid"), { cancel: true });
+	assert.equal(manager.prepareCompaction({ reason: "manual" } as never, "hybrid"), undefined);
+	const hybridMessages = [
+		{ role: "user", content: "retained checkpoint tail", timestamp: 1 },
+		...activeWindow,
+	] as never;
+	assert.deepEqual(manager.project(hybridMessages, "hybrid"), hybridMessages);
 
 	const contextBridge = new CodexDeveloperMessageBridge();
 	const contextState: AdapterState = {
@@ -251,7 +265,7 @@ test("context windows preserve rollover and native request semantics", async () 
 	);
 
 	const modeHints = await Promise.all(
-		(["local", "tree", "remote"] as const).map(async (mode) => {
+		(["local", "tree", "remote", "hybrid"] as const).map(async (mode) => {
 			const sent: Array<Record<string, unknown>> = [];
 			const windows = new CodexContextWindowManager(
 				async (_context, loadedMode) => `hint:${loadedMode}`,
@@ -262,7 +276,38 @@ test("context windows preserve rollover and native request semantics", async () 
 				},
 			} as never;
 			windows.ensureInitialized(pi, ctx, true);
-			await windows.startNewWindow(pi, ctx, {
+			if (mode === "hybrid") {
+				let complete: (() => void) | undefined;
+				let compactions = 0;
+				const compactContext = {
+					...(ctx as ExtensionContext),
+					compact(options: { onComplete: () => void }) {
+						compactions++;
+						complete = options.onComplete;
+					},
+				} as never;
+				const [rollover] = createContextWindowTools(pi, {
+					...contextState,
+					contextWindows: windows,
+					config: { ...contextState.config, compaction: { ...contextState.config.compaction, contextManagement: mode, responsesCompaction: true } },
+				});
+				const result = await rollover.execute("rollover", {}, undefined, undefined, compactContext);
+				assert.equal(result.details.started, true);
+				assert.equal(result.terminate, true);
+				assert.equal(windows.scheduleHybridCompaction(), false);
+				windows.cancelScheduledCompaction();
+				assert.equal(windows.finishTurn(pi, compactContext), false);
+				assert.equal(windows.scheduleHybridCompaction(), true);
+				assert.equal(compactions, 0, "tool execution only schedules rollover");
+				windows.finishTurn(pi, compactContext);
+				windows.finishTurn(pi, compactContext);
+				assert.equal(compactions, 1);
+				await windows.completeHybridCompaction(pi, ctx);
+				assert.equal(sent.length, 1, "window changes only after explicit compaction completes");
+				complete!();
+				await new Promise<void>((resolve) => setImmediate(resolve));
+				assert.equal(sent.length, 2);
+			} else await windows.startNewWindow(pi, ctx, {
 				triggerTurn: false,
 				mode,
 				trimPreviousWindow: mode !== "tree",
@@ -271,8 +316,8 @@ test("context windows preserve rollover and native request semantics", async () 
 		}),
 	);
 	assert.deepEqual(
-		modeHints.map((hint) => String(hint).match(/hint:(local|tree|remote)/)?.[1]),
-		["local", "tree", "remote"],
+		modeHints.map((hint) => String(hint).match(/hint:(local|tree|remote|hybrid)/)?.[1]),
+		["local", "tree", "remote", "hybrid"],
 	);
 
 });

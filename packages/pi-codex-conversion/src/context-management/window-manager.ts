@@ -47,6 +47,7 @@ export class CodexContextWindowManager {
 	private identity: ContextWindowIdentity | undefined;
 	private readonly budget = new ContextWindowBudget();
 	private rolloverPending = false;
+	private hybridCompaction: "scheduled" | "running" | undefined;
 	private trimPendingWindowId: string | undefined;
 	private readonly loadThreadHint: ThreadHintLoader;
 
@@ -58,6 +59,7 @@ export class CodexContextWindowManager {
 		this.identity = undefined;
 		this.budget.reset();
 		this.rolloverPending = false;
+		this.hybridCompaction = undefined;
 		this.trimPendingWindowId = undefined;
 	}
 
@@ -146,7 +148,47 @@ export class CodexContextWindowManager {
 		}
 		if (boundaryIndex < 0) return [...messages];
 		this.rolloverPending = false;
-		return messages.slice(boundaryIndex);
+		return mode === "hybrid" ? [...messages] : messages.slice(boundaryIndex);
+	}
+
+	scheduleHybridCompaction(): boolean {
+		if (this.hybridCompaction || this.rolloverPending) return false;
+		this.hybridCompaction = "scheduled";
+		return true;
+	}
+
+	cancelScheduledCompaction(): void {
+		if (this.hybridCompaction === "scheduled") this.hybridCompaction = undefined;
+	}
+
+	finishTurn(pi: ExtensionAPI, ctx: ExtensionContext): boolean {
+		if (!this.hybridCompaction) return false;
+		if (this.hybridCompaction === "running") return true;
+		this.hybridCompaction = "running";
+		// Pi compaction aborts and waits for the loop; the turn hook must return first.
+		ctx.compact({
+			onComplete: () => {
+				this.hybridCompaction = undefined;
+				void this.startNewWindow(pi, ctx, {
+					mode: "hybrid", triggerTurn: true, trimPreviousWindow: false,
+				}).catch((error: unknown) => {
+					ctx.ui.notify(`Compaction completed, but context rollover failed: ${error instanceof Error ? error.message : String(error)}`, "error");
+				});
+			},
+			onError: (error) => {
+				this.hybridCompaction = undefined;
+				ctx.ui.notify(`Context rollover failed: ${error.message}`, "error");
+			},
+		});
+		return true;
+	}
+
+	async completeHybridCompaction(pi: ExtensionAPI, ctx: ExtensionContext): Promise<void> {
+		if (this.hybridCompaction === "running") return;
+		this.cancelScheduledCompaction();
+		await this.startNewWindow(pi, ctx, {
+			mode: "hybrid", triggerTurn: false, trimPreviousWindow: false,
+		});
 	}
 
 	async startNewWindow(
@@ -188,11 +230,11 @@ export class CodexContextWindowManager {
 		active: boolean,
 		contextTokens?: number,
 	): void {
-		if (!active || !this.identity) return;
+		if (!active || !this.identity || this.rolloverPending) return;
 		const reminder = this.budget.record(ctx, this.identity, contextTokens);
 		if (reminder) sendContextWindowMessage(
 			pi, reminder.content, reminder.kind, this.identity,
-			{ triggerTurn: reminder.kind === "fallback" },
+			{ triggerTurn: true },
 		);
 	}
 
@@ -207,6 +249,7 @@ export class CodexContextWindowManager {
 		| { cancel: true }
 		| { compaction: CompactionResult<ContextWindowCompactionDetails> }
 		| undefined {
+		if (mode === "hybrid") return event.reason === "threshold" ? { cancel: true } : undefined;
 		if (event.reason === "threshold") {
 			if (mode === "tree") return { cancel: true };
 			const boundary = findLatestWindowBoundaryEntry(event.branchEntries);

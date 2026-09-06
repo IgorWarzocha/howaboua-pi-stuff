@@ -269,40 +269,44 @@ test("native Responses compaction stays scoped to OpenAI Codex and explicit prov
 			responsesCompaction: true,
 		},
 	};
-	const canonical = resolveCodexRuntimePlan(
-		createContext({
-			provider: "openai-codex",
-			api: "openai-codex-responses",
-			id: "gpt-5.6",
-			baseUrl: CANONICAL_CODEX_BASE_URL,
-		}) as never,
-		contextWindows,
-	);
-	assert.deepEqual(
-		{
-			contextManagement: canonical.contextManagement,
-			nativeCompaction: canonical.nativeCompaction,
-			tools: canonical.toolNames.slice(-4),
-		},
-		{
-			contextManagement: true,
-			nativeCompaction: false,
-			tools: ["new_context", "get_context_remaining", "history", "notes"],
-		},
-	);
-	const generic = resolveCodexRuntimePlan(
-		createContext({ provider: "openai", api: "openai-responses", id: "gpt-5.6" }) as never,
-		contextWindows,
-	);
-	assert.deepEqual(
-		{
-			active: generic.contextManagement,
-			mode: generic.contextManagementMode,
-			remote: generic.contextManagementRemote,
-		},
-		{ active: false, mode: "off", remote: false },
-	);
-	assert.equal([...generic.toolNames].includes("new_context"), false);
+	for (const contextManagement of ["remote", "hybrid"] as const) {
+		const modeConfig = { ...contextWindows, compaction: { ...contextWindows.compaction, contextManagement } };
+		const canonical = resolveCodexRuntimePlan(
+			createContext({
+				provider: "openai-codex",
+				api: "openai-codex-responses",
+				id: "gpt-5.6",
+				baseUrl: CANONICAL_CODEX_BASE_URL,
+			}) as never,
+			modeConfig,
+		);
+		assert.deepEqual(
+			{
+				contextManagement: canonical.contextManagement,
+				nativeCompaction: canonical.nativeCompaction,
+				tools: canonical.toolNames.slice(-4),
+			},
+			{
+				contextManagement: true,
+				nativeCompaction: contextManagement === "hybrid",
+				tools: ["new_context", "get_context_remaining", "history", "notes"],
+			},
+		);
+		const generic = resolveCodexRuntimePlan(
+			createContext({ provider: "openai", api: "openai-responses", id: "gpt-5.6" }) as never,
+			modeConfig,
+		);
+		assert.deepEqual(
+			{
+				active: generic.contextManagement,
+				mode: generic.contextManagementMode,
+				remote: generic.contextManagementRemote,
+			},
+			{ active: false, mode: "off", remote: false },
+		);
+		assert.equal([...generic.toolNames].includes("new_context"), false);
+		assert.equal(generic.nativeCompaction, false);
+	}
 	const tree = resolveCodexRuntimePlan(
 		createContext({ provider: "openai", api: "openai-responses", id: "gpt-5.6" }) as never,
 		{

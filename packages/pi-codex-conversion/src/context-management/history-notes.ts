@@ -278,7 +278,7 @@ async function callHistoryNotesTool(
 	pi: Pick<ExtensionAPI, "appendEntry"> | undefined,
 ): Promise<AgentToolResult<CodexHistoryNotesDetails>> {
 	let result: Record<string, unknown>;
-	if (mode === "remote") {
+	if (mode === "remote" || mode === "hybrid") {
 		if (!usesRemoteHistoryNotes(ctx, mode))
 			throw new Error("Remote history and notes require Codex transport");
 		result = await callHistoryNotesBackend(
@@ -354,7 +354,7 @@ export function usesRemoteHistoryNotes(
 	ctx: Pick<ExtensionContext, "model" | "sessionManager">,
 	mode: ContextManagementMode,
 ): boolean {
-	return mode === "remote" &&
+	return (mode === "remote" || mode === "hybrid") &&
 		(ctx.model?.api ?? "").trim().toLowerCase() ===
 			"openai-codex-responses";
 }
