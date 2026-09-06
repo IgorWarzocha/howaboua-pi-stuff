@@ -1,5 +1,5 @@
 import { type Context, type Model, uuidv7 } from "@earendil-works/pi-ai";
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionContext, SessionEntry } from "@earendil-works/pi-coding-agent";
 import {
 	DEFAULT_VOICE_CONTEXT_REASONING,
 	type VoiceContextReasoning,
@@ -21,6 +21,7 @@ interface VoiceContextModelSelection {
 
 interface NativeVoiceContextRequest {
 	ctx: ExtensionContext;
+	entries: readonly SessionEntry[];
 	model: VoiceContextModelSelection;
 	systemPrompt: string;
 	request: string;
@@ -34,7 +35,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export async function createNativeVoiceContextSummary(
 	request: NativeVoiceContextRequest,
 ): Promise<string> {
-	const branch = request.ctx.sessionManager.getBranch();
+	const branch = request.entries;
 	const checkpointIndex = findLatestCompactionEntryIndex(branch);
 	if (checkpointIndex === undefined)
 		throw new Error("Native checkpoint is missing from the active branch");

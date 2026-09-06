@@ -62,9 +62,10 @@ Provider scope can stay on **Codex and configured**, expand to **all providers**
 
 | Tab | Covers |
 | --- | --- |
-| General | Settings scope, execution mode, context management, extension mode, providers and heavy prompt overwrite |
+| General | Settings scope, execution mode, extension mode, providers and heavy prompt overwrite |
+| Context | Notes, history, Hybrid compaction, Responses V2 and preserved user messages |
 | Tools | Auto reasoning (Astra only), image description fallback and standalone tools |
-| OpenAI | Fast mode, verbosity, transport, cache diagnostics, Responses Lite and compaction |
+| OpenAI | Fast mode, verbosity, transport, cache diagnostics and Responses Lite |
 | Display | Statusline, tool rendering, Code Mode detail and background shells |
 | Voice | LAN server, realtime behaviour, context summarisation, dictation, shortcuts and prompt paths |
 | Usage | Codex limits, reset times and banked reset credits |
@@ -266,7 +267,7 @@ Defaults:
 
 Voice input and output follow the system defaults. Set `voice.inputDevice` or `voice.outputDevice` only to pin an endpoint. Dictation returns one editable transcript to Pi's input.
 
-Fresh installs use Cove for realtime voice and Luna with high reasoning for context summarisation. Realtime calls resume after transport drops, and **Run summarisation** pauses at each successful compaction boundary, summarizes the compacted branch, and starts a fresh voice call without ending spoken mode. An initial summarization failure leaves the old call untouched.
+Fresh installs use Cove for realtime voice and Luna with high reasoning for context summarisation. Realtime calls resume after transport drops. **Refresh voice context** summarizes the outgoing context and starts a fresh voice call at each context rollover or compaction, including notes-only handoffs. It preserves microphone mute and LAN ownership without ending spoken mode. A summarization failure leaves the old call untouched.
 
 The visible realtime prompt lives at `~/.pi/agent/REALTIME-SYSTEM-PROMPT.md`. A trusted project can append `.pi/REALTIME-SYSTEM-PROMPT.md`. Keep coding and project instructions in AGENTS.md rather than duplicating them into the spoken assistant.
 

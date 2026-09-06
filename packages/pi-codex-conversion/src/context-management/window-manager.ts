@@ -37,6 +37,7 @@ interface StartContextWindowOptions {
 	signal?: AbortSignal | undefined;
 	mode?: ContextManagementMode | undefined;
 	trimPreviousWindow: boolean;
+	sourceLeafId?: string | undefined;
 }
 
 type ThreadHintLoader = (
@@ -48,7 +49,7 @@ type ThreadHintLoader = (
 export class CodexContextWindowManager {
 	private identity: ContextWindowIdentity | undefined;
 	private readonly budget = new ContextWindowBudget();
-	private rolloverPending = false;
+	private rolloverPending: object | undefined;
 	private hybridCompaction: { phase: "scheduled" | "running" } | undefined;
 	private manualCheckpoint: {
 		identity: ContextWindowIdentity;
@@ -57,15 +58,20 @@ export class CodexContextWindowManager {
 	} | undefined;
 	private trimPendingWindowId: string | undefined;
 	private readonly loadThreadHint: ThreadHintLoader;
+	private readonly beforeWindowStart: ((ctx: ExtensionContext, options: Pick<StartContextWindowOptions, "sourceLeafId" | "signal">) => Promise<void>) | undefined;
 
-	constructor(loadThreadHint: ThreadHintLoader = loadHistoryNotesThreadHint) {
+	constructor(
+		loadThreadHint: ThreadHintLoader = loadHistoryNotesThreadHint,
+		beforeWindowStart?: (ctx: ExtensionContext, options: Pick<StartContextWindowOptions, "sourceLeafId" | "signal">) => Promise<void>,
+	) {
 		this.loadThreadHint = loadThreadHint;
+		this.beforeWindowStart = beforeWindowStart;
 	}
 
 	reset(): void {
 		this.identity = undefined;
 		this.budget.reset();
-		this.rolloverPending = false;
+		this.rolloverPending = undefined;
 		this.hybridCompaction = undefined;
 		this.manualCheckpoint = undefined;
 		this.trimPendingWindowId = undefined;
@@ -152,11 +158,11 @@ export class CodexContextWindowManager {
 			const projected = !hybridCompaction && (index.archives.length === 0 || index.invalidManifest) && boundaryIndex >= 0
 				? messages.slice(boundaryIndex)
 				: messages;
-			this.rolloverPending = false;
+			this.rolloverPending = undefined;
 			return filterTreeArchiveSummaries(projected, index);
 		}
 		if (boundaryIndex < 0) return [...messages];
-		this.rolloverPending = false;
+		this.rolloverPending = undefined;
 		return hybridCompaction ? [...messages] : messages.slice(boundaryIndex);
 	}
 
@@ -210,13 +216,23 @@ export class CodexContextWindowManager {
 		ctx: ExtensionContext,
 		options: StartContextWindowOptions,
 	): Promise<boolean> {
-		if (this.rolloverPending) return false;
-		this.rolloverPending = true;
+		if (this.rolloverPending || options.signal?.aborted) return false;
+		const pending = {};
+		this.rolloverPending = pending;
 		try {
 			const current = this.identity;
 			const threadHint = current && options.mode
 				? await this.loadThreadHint(ctx, options.mode, options.signal)
 				: undefined;
+			if (this.rolloverPending !== pending || options.signal?.aborted) {
+				if (this.rolloverPending === pending) this.rolloverPending = undefined;
+				return false;
+			}
+			await this.beforeWindowStart?.(ctx, options);
+			if (this.rolloverPending !== pending || options.signal?.aborted) {
+				if (this.rolloverPending === pending) this.rolloverPending = undefined;
+				return false;
+			}
 			const currentWindowId = randomUUID();
 			const next: ContextWindowIdentity = current
 				? {
@@ -233,7 +249,7 @@ export class CodexContextWindowManager {
 			this.sendWindowMessage(pi, next, options, threadHint);
 			return true;
 		} catch (error) {
-			this.rolloverPending = false;
+			if (this.rolloverPending === pending) this.rolloverPending = undefined;
 			throw error;
 		}
 	}

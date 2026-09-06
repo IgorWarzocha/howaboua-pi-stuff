@@ -296,8 +296,13 @@ test("context windows preserve rollover and native request semantics", async (t)
 	const modeHints = await Promise.all(
 		(["local", "tree", "remote"] as const).flatMap((mode) => [false, true].map(async (hybridCompaction) => {
 			const sent: Array<Record<string, unknown>> = [];
+			let boundaryRefreshes = 0;
 			const windows = new CodexContextWindowManager(
 				async (_context, loadedMode) => `hint:${loadedMode}`,
+				async () => {
+					assert.equal(sent.length, 1, "refresh finishes before the successor can start a turn");
+					boundaryRefreshes++;
+				},
 			);
 			const pi = {
 				sendMessage(message: Record<string, unknown>) {
@@ -305,6 +310,7 @@ test("context windows preserve rollover and native request semantics", async (t)
 				},
 			} as never;
 			windows.ensureInitialized(pi, ctx, true);
+			assert.equal(boundaryRefreshes, 0, "initialization is not a rollover");
 			if (hybridCompaction) {
 				let complete: (() => void) | undefined;
 				let compactions = 0;
@@ -342,6 +348,7 @@ test("context windows preserve rollover and native request semantics", async (t)
 				mode,
 				trimPreviousWindow: mode !== "tree",
 			});
+			assert.equal(boundaryRefreshes, 1, "Hybrid compaction and its successor share one refresh");
 			const persisted = sent.map((message) => ({ ...message, role: "custom", timestamp: 1 })) as never;
 			const bridge = new CodexDeveloperMessageBridge();
 			for (const id of ["gpt-6-astra", "gpt-5.6-luna", "gpt-6-astra"]) {

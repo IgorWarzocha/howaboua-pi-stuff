@@ -41,6 +41,7 @@ interface PendingRollover {
 	identity: ContextWindowIdentity;
 	leafIdAtRequest: string;
 	compactionEntryId?: string;
+	sourceLeafId?: string;
 	triggerTurn: boolean;
 }
 
@@ -92,7 +93,7 @@ export class CodexContextTreeCoordinator {
 		this.queuedInputs = [];
 	}
 
-	schedule(ctx: ExtensionContext, checkpoint?: { compactionEntryId: string; triggerTurn: boolean }): boolean {
+	schedule(ctx: ExtensionContext, options?: { compactionEntryId?: string; triggerTurn?: boolean; sourceLeafId?: string | undefined }): boolean {
 		if (this.pending) return false;
 		const sessionId = ctx.sessionManager.getSessionId();
 		if (!this.captured || this.captured.sessionId !== sessionId)
@@ -114,10 +115,11 @@ export class CodexContextTreeCoordinator {
 			boundaryEntryId: boundary.id,
 			identity,
 			leafIdAtRequest: leaf.id,
-			...(checkpoint ? { compactionEntryId: checkpoint.compactionEntryId } : {}),
-			triggerTurn: checkpoint?.triggerTurn ?? true,
+			...(options?.compactionEntryId ? { compactionEntryId: options.compactionEntryId } : {}),
+			...(options?.sourceLeafId ? { sourceLeafId: options.sourceLeafId } : {}),
+			triggerTurn: options?.triggerTurn ?? true,
 		};
-		if (!checkpoint) ctx.abort();
+		if (!options?.compactionEntryId) ctx.abort();
 		return true;
 	}
 
@@ -177,6 +179,8 @@ export class CodexContextTreeCoordinator {
 				triggerTurn: pending.triggerTurn,
 				mode: "tree",
 				trimPreviousWindow: false,
+				// The outgoing branch remains readable after Pi archives it.
+				sourceLeafId: pending.sourceLeafId ?? oldLeaf.id,
 			});
 			if (!started) throw new Error("A new context window could not be started");
 			this.navigation = undefined;

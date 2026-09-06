@@ -459,13 +459,16 @@ export function registerCodexEvents(
 				event.reason === "overflow"
 			) {
 				if (plan.contextManagementMode === "tree") {
-					treeRolloverScheduled = state.contextTree.schedule(ctx);
+					treeRolloverScheduled = state.contextTree.schedule(ctx, {
+						sourceLeafId: compactionEntry?.parentId ?? undefined,
+					});
 				} else {
 					await state.contextWindows.startNewWindow(pi, ctx, {
 						triggerTurn: true,
 						...(ctx.signal ? { signal: ctx.signal } : {}),
 						mode: plan.contextManagementMode,
 						trimPreviousWindow: false,
+						sourceLeafId: compactionEntry?.parentId ?? undefined,
 					});
 				}
 			}
@@ -481,8 +484,9 @@ export function registerCodexEvents(
 					? runtime.startCompactionPrewarm(ctx)
 					: runtime.startPrewarm(ctx, postCompactionPrompt, true));
 			}
-			if (!contextCompaction)
-				await runtime.voice.refreshRealtimeAfterCompaction(ctx, state.config);
+			// Hybrid refreshes at its window boundary, after compaction and before continuation.
+			if (!contextCompaction && !plan.contextManagementHybrid)
+				await runtime.voice.refreshRealtimeContext(ctx, state.config);
 		} finally {
 			runtime.voice.compactionFinished();
 		}

@@ -93,6 +93,7 @@ export async function openCodexSettingsScreen(
 				{
 					item: {
 						id: "configScope",
+						description: "Choose where changes are saved. Switching to Global removes this project\u0027s overrides.",
 						label: "Editing",
 						currentValue: options.configScope.current() === "folder" ? "This project" : "Global",
 						values: options.configScope.canUseFolder
@@ -104,6 +105,7 @@ export async function openCodexSettingsScreen(
 					? [{
 							item: {
 								id: "executionMode",
+								description: "Structured: standard JSON schemas. Code: JavaScript. Notebook: persistent Deno shell with checkpoints.",
 								label: "Execution mode",
 								currentValue: formatExecutionMode(draft.executionMode),
 								values: ["Structured", "Code", "Notebook (recommended)"],
@@ -119,6 +121,7 @@ export async function openCodexSettingsScreen(
 							{
 								item: {
 									id: "lanVoiceServer",
+									description: "Serve this session\u0027s voice interface to a browser on your local network. Stops when the session changes.",
 									label: "LAN voice server",
 									currentValue: options.lanVoiceServer.status().running
 										? "on"
@@ -201,8 +204,13 @@ export async function openCodexSettingsScreen(
 					const nextDraft = definition.update(value, draft);
 					if (options.onChange(nextDraft)) {
 						draft = nextDraft;
-						for (const { item } of buildSettings())
-							list.updateValue(item.id, item.currentValue);
+						if (activeTab === "context") {
+							settingsList = createSettingsList();
+							settingsList.selectItem(id);
+						} else {
+							for (const { item } of buildSettings())
+								list.updateValue(item.id, item.currentValue);
+						}
 					} else {
 						list.updateValue(id, previousValue);
 					}
@@ -233,8 +241,12 @@ export async function openCodexSettingsScreen(
 						theme,
 						options.configScope.current(),
 					);
-				if (activeTab === "adapter")
+				if (activeTab === "context")
 					settingsLines = withContextWindowsWarning(settingsLines, theme);
+				if (activeTab === "context" && draft.compaction.contextManagement !== "off" && !draft.compaction.hybridCompaction)
+					settingsLines = withSettingsDetails(settingsLines, [
+						theme.fg("dim", "  /compact asks the model to save notes and hand off to a new context window, instead of summarizing."),
+					]);
 				if (activeTab === "tools")
 					settingsLines = withSettingsDetails(
 						settingsLines,
@@ -361,7 +373,7 @@ function formatVoiceDetails(
 		),
 		theme.fg(
 			"dim",
-			"  Post-compaction context summarisation uses the selected model",
+			"  Voice context refresh uses the selected summarisation model",
 		),
 		"",
 		theme.fg(

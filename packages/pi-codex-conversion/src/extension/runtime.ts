@@ -83,7 +83,9 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 		console.warn(`[pi-codex-conversion] ${warning}`);
 	}
 	const initialConfig = readEffectiveCodexConversionConfig({ cwd: process.cwd(), projectTrusted: false });
-	const contextWindows = new CodexContextWindowManager();
+	const voice = new CodexVoiceController(pi);
+	const contextWindows = new CodexContextWindowManager(undefined, (ctx, options) =>
+		voice.refreshRealtimeContext(ctx, state.config, options));
 	const state: AdapterState = {
 		enabled: false,
 		cwd: process.cwd(),
@@ -108,7 +110,6 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 	let activePrewarmKind: "ordinary" | "compaction" | "keepalive" | undefined;
 	let cacheKeepaliveTimer: ReturnType<typeof setTimeout> | undefined;
 	let cacheKeepaliveEpoch = 0;
-	const voice = new CodexVoiceController(pi);
 	const diagnostics = createLazyCodexDiagnostics();
 	let cacheEnvironmentWarningsReported = false;
 	const buildPrewarmPlan = (

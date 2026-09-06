@@ -49,11 +49,15 @@ export async function prepareControllerRealtimeContext(options: {
 	config: CodexConversionConfig;
 	signal?: AbortSignal | undefined;
 	onSummaryStatus?: ((active: boolean) => void) | undefined;
+	sourceLeafId?: string | undefined;
+	forceSummary?: boolean | undefined;
 }): Promise<PreparedRealtimeContext> {
 	let summary: string | undefined;
 	const initialItems = await buildRealtimeInitialItems({
 		ctx: options.ctx,
 		config: options.config,
+		sourceLeafId: options.sourceLeafId,
+		forceSummary: options.forceSummary,
 		onSummary: (value) => {
 			summary = value;
 		},

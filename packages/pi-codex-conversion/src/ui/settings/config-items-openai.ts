@@ -3,8 +3,6 @@ import {
 	DEFAULT_CODEX_CONVERSION_CONFIG,
 	LUNA_CACHE_KEEPALIVE_MINUTES_OPTIONS,
 	normalizeCodexVerbosity,
-	normalizeV2UserMessageRetention,
-	V2_USER_MESSAGE_RETENTION_OPTIONS,
 } from "../../adapter/activation/config.ts";
 import { type ConfigSetting, projectCacheKeepalive, setting, toggle } from "./config-items-shared.ts";
 
@@ -15,10 +13,11 @@ export function buildOpenAISettings(
 		toggle("fast", "Fast mode", config.openai.fast, (enabled, current) => ({
 			...current,
 			openai: { ...current.openai, fast: enabled },
-		})),
+		}), "Request priority processing where supported. May use more quota or cost more."),
 		{
 			item: {
 				id: "lunaCacheKeepaliveMinutes",
+				description: "Send idle requests every 2.5 minutes for this duration to keep Luna's prompt cache warm. Uses quota.",
 				label: "Luna cache keepalive (global)",
 				currentValue: config.openai.lunaCacheKeepaliveMinutes === 0
 					? "off"
@@ -35,6 +34,7 @@ export function buildOpenAISettings(
 		setting(
 			{
 				id: "verbosity",
+				description: "Set the model's preferred answer detail. This does not change its reasoning effort.",
 				label: "Verbosity",
 				currentValue: config.openai.verbosity,
 				values: ["low", "medium", "high"],
@@ -57,6 +57,7 @@ export function buildOpenAISettings(
 				...current,
 				openai: { ...current.openai, proxyResponsesLite: enabled },
 			}),
+			"Use Responses Lite for supported models on configured proxies in Code or Notebook mode. Requires proxy support.",
 		),
 		toggle(
 			"forceCachedWebSockets",
@@ -66,10 +67,12 @@ export function buildOpenAISettings(
 				...current,
 				openai: { ...current.openai, forceCachedWebSockets: enabled },
 			}),
+			"Upgrade explicit WebSocket transport to reuse connections between requests. Leaves SSE unchanged.",
 		),
 		setting(
 			{
 				id: "harnessIdentifierHeader",
+				description: "Identify this extension in the request originator header instead of the default Pi identifier.",
 				label: "Harness identifier header",
 				currentValue: config.openai.harnessIdentifierHeader
 					? "pi-codex-conversion <3"
@@ -84,55 +87,10 @@ export function buildOpenAISettings(
 				},
 			}),
 		),
-		...(config.compaction.contextManagement === "off" ? [toggle(
-			"responsesCompaction",
-			"Responses compaction V2",
-			config.compaction.responsesCompaction,
-			(enabled, current) => ({
-				...current,
-				compaction: {
-					...current.compaction,
-					responsesCompaction: enabled,
-					...(enabled ? {} : { portableSummary: false }),
-				},
-			}),
-		),
-		toggle(
-			"portableSummary",
-			"Parallel Pi-native compaction",
-			config.compaction.portableSummary,
-			(enabled, current) => ({
-				...current,
-				compaction: {
-					...current.compaction,
-					portableSummary: enabled,
-					...(enabled
-						? { responsesCompaction: true }
-						: {}),
-				},
-			}),
-		)] : []),
-		setting(
-			{
-				id: "v2UserMessageRetention",
-				label: "Preserved user messages",
-				currentValue: `${config.compaction.v2UserMessageRetention}k${config.compaction.v2UserMessageRetention === 64 ? " (Codex native)" : ""}`,
-				values: V2_USER_MESSAGE_RETENTION_OPTIONS.map(
-					(value) => `${value}k${value === 64 ? " (Codex native)" : ""}`,
-				),
-			},
-			(value, current) => ({
-				...current,
-				compaction: {
-					...current.compaction,
-					v2UserMessageRetention:
-						normalizeV2UserMessageRetention(Number.parseInt(value, 10)) ?? 64,
-				},
-			}),
-		),
 		setting(
 			{
 				id: "cacheDiagnostics",
+				description: "Show cache and continuation status below the editor, with optional diagnostic logging.",
 				label: "Cache diagnostics",
 				currentValue: formatCacheDiagnostics(config.openai.cacheDiagnostics),
 				values: ["Off", "Status", "Status + log"],
