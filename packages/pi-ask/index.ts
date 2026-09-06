@@ -29,15 +29,35 @@ export default async function humanInTheLoop(pi: ExtensionAPI): Promise<void> {
 	const askRuntime = createAskRuntime({
 		deliverSteer: createSteerDelivery(pi, trySendCodexDeveloperMessage),
 		onBlockedChange: (state) => {
-			pi.events.emit(REALTIME_VOICE_PROMPT_CHANNEL, {
-				id: state.id,
-				active: state.active,
-				prompt: state.prompt,
-			});
-			pi.events.emit("herdr:blocked", {
-				active: state.active,
-				label: state.label,
-			});
+			const notify = () => {
+				pi.events.emit(REALTIME_VOICE_PROMPT_CHANNEL, {
+					id: state.id,
+					active: state.active,
+					prompt: state.prompt,
+				});
+				pi.events.emit("herdr:blocked", {
+					active: state.active,
+					label: state.label,
+				});
+			};
+			// Publish before Herdr reports blocked, including calls nested inside exec.
+			try {
+				pi.appendEntry(
+					"pi-ask-active",
+					state.active
+						? {
+								version: 1,
+								state: "active",
+								id: state.id,
+								handoff: state.handoff,
+								prompts: state.prompts,
+							}
+						: { version: 1, state: "closed", id: state.id },
+				);
+			} finally {
+				if (!state.active) notify();
+			}
+			if (state.active) notify();
 		},
 		onPendingChange: (update) => {
 			pi.appendEntry(PENDING_ASK_ENTRY_TYPE, update);

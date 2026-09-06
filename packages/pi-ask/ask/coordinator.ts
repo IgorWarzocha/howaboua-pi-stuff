@@ -17,6 +17,7 @@ export interface AskCoordinatorOptions {
 }
 
 interface PresentAskOptions {
+	onActiveChange?: (active: boolean) => void;
 	handoff?: boolean;
 	steering?: boolean;
 	signal?: AbortSignal;
@@ -42,23 +43,33 @@ export function createAskCoordinator({
 	const present = (
 		ctx: ExtensionContext,
 		prompts: AskPrompt[],
-		{ handoff = false, steering = false, signal }: PresentAskOptions = {},
+		{
+			handoff = false,
+			steering = false,
+			signal,
+			onActiveChange,
+		}: PresentAskOptions = {},
 	): Promise<unknown> => {
 		const run = async () => {
 			if (signal?.aborted) return null;
-			return askInComposer
-				? await askInComposer(prompts, signal)
-				: ctx.mode === "tui"
-					? await askInTui(ctx, prompts, {
-							handoff,
-							steering,
-							...(signal ? { signal } : {}),
-						})
-					: await askWithPiUi(ctx, prompts, {
-							handoff,
-							steering,
-							...(signal ? { signal } : {}),
-						});
+			try {
+				onActiveChange?.(true);
+				return askInComposer
+					? await askInComposer(prompts, signal)
+					: ctx.mode === "tui"
+						? await askInTui(ctx, prompts, {
+								handoff,
+								steering,
+								...(signal ? { signal } : {}),
+							})
+						: await askWithPiUi(ctx, prompts, {
+								handoff,
+								steering,
+								...(signal ? { signal } : {}),
+							});
+			} finally {
+				onActiveChange?.(false);
+			}
 		};
 		const result = presentationTail.then(run, run);
 		presentationTail = result.then(

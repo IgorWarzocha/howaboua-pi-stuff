@@ -1,6 +1,6 @@
 import { defineTool } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
-import { AskParameters } from "./contracts.js";
+import { AskParameters, type AskPrompt } from "./contracts.js";
 import {
 	type AskCoordinatorOptions,
 	createAskCoordinator,
@@ -18,6 +18,8 @@ interface BlockedState {
 	active: boolean;
 	label: string;
 	prompt: string;
+	handoff: boolean;
+	prompts: AskPrompt[];
 }
 
 type OnBlockedChange = (state: BlockedState) => void;
@@ -79,24 +81,22 @@ export function createAskRuntime({
 			const blockedState = {
 				id: toolCallId,
 				active: true,
+				handoff,
+				prompts,
 				label: handoff ? "Human action needed" : "Waiting for input",
 				prompt: handoff
 					? "The user needs to complete an action before the active work can continue. Please announce this briefly in your natural voice."
 					: "User input is required before the active work can continue. Please announce this briefly in your natural voice.",
 			};
-			onBlockedChange?.(blockedState);
-			let rawResponses: unknown;
-			try {
-				const presentationSignal = signal
-					? AbortSignal.any([signal, coordinator.sessionSignal])
-					: coordinator.sessionSignal;
-				rawResponses = await coordinator.present(ctx, prompts, {
-					handoff,
-					signal: presentationSignal,
-				});
-			} finally {
-				onBlockedChange?.({ ...blockedState, active: false });
-			}
+			const presentationSignal = signal
+				? AbortSignal.any([signal, coordinator.sessionSignal])
+				: coordinator.sessionSignal;
+			const rawResponses = await coordinator.present(ctx, prompts, {
+				handoff,
+				signal: presentationSignal,
+				onActiveChange: (active) =>
+					onBlockedChange?.({ ...blockedState, active }),
+			});
 			const responses = normalizeResponses(prompts, rawResponses);
 			if (!responses) {
 				return {

@@ -101,14 +101,21 @@ function askCall(value: unknown): PendingAsk | undefined {
 	) {
 		return undefined;
 	}
-	const args = record(part["arguments"]);
+	return askFromInput(part["id"], part["arguments"]);
+}
+
+function askFromInput(
+	toolCallId: string,
+	input: unknown,
+): PendingAsk | undefined {
+	const args = record(input);
 	if (!args) return undefined;
 	const prompts = (Array.isArray(args["prompts"]) ? args["prompts"] : [])
 		.map(askPrompt)
 		.filter((prompt): prompt is NonNullable<typeof prompt> => Boolean(prompt));
 	if (prompts.length === 0) return undefined;
 	return {
-		toolCallId: part["id"],
+		toolCallId,
 		handoff: args["handoff"] === true,
 		prompts,
 	};
@@ -159,6 +166,20 @@ async function readSessionView(
 		if (id !== targetId) return false;
 		const currentDepth = depth;
 		depth += 1;
+		if (entry["type"] === "custom" && entry["customType"] === "pi-ask-active") {
+			const update = record(entry["data"]);
+			if (update?.["version"] === 1 && typeof update["id"] === "string") {
+				const callId = update["id"];
+				if (update["state"] === "closed") resolved.add(callId);
+				else if (
+					update["state"] === "active" &&
+					!ask &&
+					!resolved.has(callId)
+				) {
+					ask = askFromInput(callId, update);
+				}
+			}
+		}
 		const message = record(entry["message"]);
 		if (message) {
 			const resolvedId = resolvedToolCallId(message);

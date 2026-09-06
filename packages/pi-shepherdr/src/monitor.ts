@@ -17,6 +17,7 @@ import {
 import type {
 	HerdrEvent,
 	MonitoredAgent,
+	MonitoringIssue,
 	PaneInfo,
 	SessionView,
 } from "./types.js";
@@ -27,7 +28,8 @@ interface AgentMonitorOptions {
 	onChange: () => void;
 	onRefresh: () => void;
 	operatorPrefix: string;
-	onWarning: (message: string) => void;
+	onWarning: (issue: MonitoringIssue) => void;
+	onRecovered: () => void;
 	reader?: AssistantReader;
 	reconnect: boolean;
 	selfPaneId?: string;
@@ -39,7 +41,6 @@ export class AgentMonitor {
 	private readonly onChange: () => void;
 	private readonly onRefresh: () => void;
 	private readonly selfPaneId: string | undefined;
-	private readonly onWarning: (message: string) => void;
 	private readonly state = new MonitorState();
 	private readonly events: MonitorEvents;
 	private readonly settlements: SettlementReporter;
@@ -52,7 +53,6 @@ export class AgentMonitor {
 		this.onChange = options.onChange;
 		this.onRefresh = options.onRefresh;
 		this.selfPaneId = options.selfPaneId;
-		this.onWarning = options.onWarning;
 		this.settlements = new SettlementReporter(
 			pi,
 			this.client,
@@ -66,8 +66,9 @@ export class AgentMonitor {
 			client: this.client,
 			reconnect: options.reconnect,
 			onEvent: (event) => this.handleEvent(event),
-			onReconnect: () => this.reconcileNow(),
-			onWarning: (message) => this.onWarning(message),
+			reconcile: () => this.reconcileNow(),
+			onWarning: options.onWarning,
+			onRecovered: options.onRecovered,
 			targets: () => this.list().map((record) => record.paneId),
 		});
 	}
@@ -131,7 +132,6 @@ export class AgentMonitor {
 		);
 		this.persist();
 		await this.events.refresh();
-		await this.reconcile(this.activationGeneration, this.context);
 		if (reportCurrent && isSettledStatus(panel.agent_status)) {
 			await this.report({ record, status: panel.agent_status });
 		}
@@ -205,6 +205,10 @@ export class AgentMonitor {
 		await this.reconcile(this.activationGeneration, this.context);
 	}
 
+	retryMonitoring(): Promise<void> {
+		return this.events.retry();
+	}
+
 	private persist(): void {
 		this.onChange();
 	}
@@ -257,14 +261,14 @@ export class AgentMonitor {
 					new Error(`${parsed.paneId} closed before its work settled`),
 				);
 				this.persist();
-				void this.events.refresh();
+				this.refreshAfterEvent();
 			}
 			return;
 		}
 		if (parsed.type === "moved") {
 			if (!this.state.movePane(parsed.previousPaneId, parsed.pane)) return;
 			this.persist();
-			void this.events.refresh();
+			this.refreshAfterEvent();
 			return;
 		}
 		const result = this.state.applyStatus(parsed.paneId, parsed.status);
@@ -277,6 +281,11 @@ export class AgentMonitor {
 					: {}),
 			});
 		}
+	}
+
+	private refreshAfterEvent(): void {
+		// MonitorEvents reports failures through onWarning before rejecting awaited updates.
+		void this.events.refresh().catch(() => undefined);
 	}
 
 	private report(request: SettlementRequest): Promise<void> {

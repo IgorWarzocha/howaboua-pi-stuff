@@ -6,6 +6,7 @@ import {
 	readMachinesConfig,
 	writeMachinesConfig,
 } from "./machines-config.js";
+import type { MachineStatus } from "./types.js";
 
 function parseSshArguments(value: string): string[] {
 	const parts: string[] = [];
@@ -64,7 +65,7 @@ export async function showMachineMenu(
 		return undefined;
 	});
 	if (!config) return;
-	const statuses = fleet.isActive()
+	const statuses: MachineStatus[] = fleet.isActive()
 		? fleet.statuses()
 		: Object.keys(config.machines).map((name) => ({
 				local: false,
@@ -77,7 +78,7 @@ export async function showMachineMenu(
 			.filter((machine) => !machine.local)
 			.map(
 				(machine) =>
-					`${machine.status === "connected" ? "●" : machine.status === "connecting" ? "◌" : "○"} ${machine.name} · ${machine.status}`,
+					`${machine.status === "connected" ? "●" : machine.status === "connecting" ? "◌" : "○"} ${machine.name} · ${machine.status}${machine.monitoringIssue ? " · monitoring needs attention" : ""}`,
 			),
 	]);
 	if (!selected) return;
@@ -89,10 +90,11 @@ export async function showMachineMenu(
 	if (!name) return;
 	const status = statuses.find((machine) => machine.name === name);
 	const action = await ctx.ui.select(name, [
+		...(status?.monitoringIssue ? ["Retry monitoring"] : []),
 		...(status?.status !== "connected" ? ["Connect"] : []),
 		"Remove",
 	]);
-	if (action === "Connect") {
+	if (action === "Connect" || action === "Retry monitoring") {
 		if (!fleet.isActive()) {
 			ctx.ui.notify(
 				"Fleet unavailable; run /herdr connect to retry",

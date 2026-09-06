@@ -7,7 +7,7 @@ import type { RemoteMachineConfig } from "./machines-config.js";
 import type { AssistantReader } from "./session-reader.js";
 import type { HerdrEvent, LatestAssistant, SessionView } from "./types.js";
 
-const BRIDGE_VERSION = 3;
+const BRIDGE_VERSION = 4;
 const REMOTE_HELPER = "~/.pi/agent/shepherdr.mjs";
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const MAX_DIAGNOSTIC_BYTES = 8 * 1024;
@@ -212,21 +212,29 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 		subscriptions: object[],
 		onEvent: (event: HerdrEvent) => void,
 		onDisconnect: (error?: Error) => void,
+		signal?: AbortSignal,
 	): Promise<() => void> {
+		signal?.throwIfAborted();
 		const id = randomUUID();
 		this.subscriptions.set(id, { onEvent, onDisconnect });
-		try {
-			await this.call({ id, op: "subscribe", subscriptions }, 11_000);
-		} catch (error) {
-			this.subscriptions.delete(id);
-			throw error;
-		}
-		return () => {
+		const unsubscribe = () => {
+			signal?.removeEventListener("abort", unsubscribe);
 			if (!this.subscriptions.delete(id) || this.closed) return;
 			void this.call({ op: "unsubscribe", subscription: id }).catch(
 				() => undefined,
 			);
 		};
+		try {
+			const ready = this.call({ id, op: "subscribe", subscriptions }, 11_000);
+			signal?.addEventListener("abort", unsubscribe, { once: true });
+			if (signal?.aborted) unsubscribe();
+			await ready;
+			signal?.throwIfAborted();
+		} catch (error) {
+			unsubscribe();
+			throw error;
+		}
+		return unsubscribe;
 	}
 
 	async latest(path?: string): Promise<LatestAssistant | undefined> {
