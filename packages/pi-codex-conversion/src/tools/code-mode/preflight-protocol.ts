@@ -24,10 +24,20 @@ export type CodeModeToolPreflight = (
 	| void
 	| Promise<CodeModeToolPreflightResult | void>;
 
+export type CodeModeToolCompletionCall = CodeModeToolPreflightCall & (
+	| { status: "success"; result: unknown }
+	| { status: "error"; phase: "preflight" | "execution"; error: string; result: unknown }
+);
+
+export type CodeModeToolCompletion = (
+	call: CodeModeToolCompletionCall,
+) => void | Promise<void>;
+
 export interface PreflightBroker {
 	protocol: typeof PREFLIGHT_PROTOCOL;
 	isActive(): boolean;
 	register(preflight: CodeModeToolPreflight): () => void;
+	registerCompletion?(completion: CodeModeToolCompletion): () => void;
 }
 
 export function isProtocolRequest(value: unknown): boolean {

@@ -214,6 +214,30 @@ Shipped integrations provide larger examples:
 - [`pi-codex-web-run`](../pi-codex-web-run) and [`pi-codex-imagegen`](../pi-codex-imagegen) use namespaced tool names and structured Code Mode results.
 - [`pi-shepherdr`](../pi-shepherdr) uses an activation gate, refreshes its registration when state changes and chooses blocking per call.
 
+### Nested tool hooks
+
+Pi's `tool_call` and `tool_result` events see the outer `exec` or `wait`, not its nested calls. Extensions can subscribe separately to preflight and completion through `@howaboua/pi-codex-conversion/code-mode-hooks`. The existing `code-mode-preflight` import remains supported.
+
+```ts
+import {
+  registerCodeModeToolPreflight,
+  registerCodeModeToolCompletion,
+} from "@howaboua/pi-codex-conversion/code-mode-hooks";
+
+const guard = registerCodeModeToolPreflight(pi, async (call) => {
+  // Return { block: true, reason } to reject a nested call before execution.
+});
+const observer = registerCodeModeToolCompletion(pi, async (call) => {
+  // Persist call.toolName, call.toolCallId, call.input, call.status and call.result.
+});
+```
+
+Both registrations expose `available` and `dispose()`, handle either extension load order, and dispose on session shutdown. Completion remains unavailable with older brokers that support only preflight.
+
+Completion runs once when a recognized nested call settles in Code or Notebook Mode. `input` is the original argument before tool preparation. `result` is the full captured Pi tool result, including details and images, or the returned value for tools without a captured result. It is not the bounded trace or compact JavaScript return. Errors have `status: "error"`, an `error` string and `phase: "preflight" | "execution"`; `result` is `undefined` if no result was captured. A failed call can still have partial side effects. Cancellation is visible through `signal.aborted`.
+
+Each subscriber receives independent structured clones of the arguments and result. Callbacks are awaited in registration order, including after cancellation, so they must settle promptly. Subscriber failures and values that cannot be cloned are logged to stderr without changing the tool outcome. Hooks do not expand agent-visible output or replace either registration's purpose: preflight can block, completion only observes.
+
 ### TOML custom tools
 
 Custom tools are top-level TOML definitions plus a command that accepts one string. Put them in:

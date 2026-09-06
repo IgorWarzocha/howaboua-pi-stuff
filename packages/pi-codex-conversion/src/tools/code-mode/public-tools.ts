@@ -28,8 +28,8 @@ import type {
 import { CODE_MODE_EXEC_CONSTRAINED_SAMPLING } from "./exec-contract.js";
 import {
 	registerCodeModePreflightBroker,
-	runCodeModeToolPreflight,
 } from "./nested-tool-preflight.js";
+import { runCodeModeToolWithHooks } from "./nested-tool-completion.js";
 import { registerNotebookTool } from "./notebook-tool.ts";
 
 const DEFAULT_WAIT_MS = 10_000;
@@ -64,9 +64,10 @@ export function registerPublicCodeModeTools(
 	const tracker = createCodeModeRenderTracker();
 	const waitAttempts = new Map<string, number>();
 	const renderResult = createResultRenderer(runtime, tracker);
-	const preflight = registerCodeModePreflightBroker(pi).run;
-	pi.registerTool(createExecTool(runtime, tracker, renderResult, preflight));
-	pi.registerTool(createWaitTool(runtime, tracker, renderResult, waitAttempts, preflight));
+	const broker = registerCodeModePreflightBroker(pi);
+	const hooks = { preflight: broker.run, completion: broker.complete };
+	pi.registerTool(createExecTool(runtime, tracker, renderResult, hooks));
+	pi.registerTool(createWaitTool(runtime, tracker, renderResult, waitAttempts, hooks));
 	registerNotebookTool(pi, runtime);
 }
 
@@ -74,7 +75,7 @@ function createExecTool(
 	runtime: SharedCodeModeRuntime,
 	tracker: RenderTracker,
 	renderResult: ReturnType<typeof createResultRenderer>,
-	preflight: NonNullable<ToolExecutionContext["preflight"]>,
+	hooks: Pick<ToolExecutionContext, "preflight" | "completion">,
 ): ToolDefinition<typeof EXEC_PARAMETERS> {
 	return {
 		name: "exec",
@@ -88,7 +89,7 @@ function createExecTool(
 			try {
 				const response = await (await runtime.getClient(ctx)).execute(
 					params.code,
-					{ cwd: ctx.cwd, toolCallId: id, extensionContext: ctx, preflight, onUpdate },
+					{ cwd: ctx.cwd, toolCallId: id, extensionContext: ctx, ...hooks, onUpdate },
 					signal,
 					runtime.collectTools(ctx),
 				);
@@ -123,7 +124,7 @@ function createWaitTool(
 	tracker: RenderTracker,
 	renderResult: ReturnType<typeof createResultRenderer>,
 	waitAttempts: Map<string, number>,
-	preflight: NonNullable<ToolExecutionContext["preflight"]>,
+	hooks: Pick<ToolExecutionContext, "preflight" | "completion">,
 ): ToolDefinition<typeof WAIT_PARAMETERS> {
 	const constrainedSampling = getExperimentalToolSampling("wait");
 	return {
@@ -137,7 +138,7 @@ function createWaitTool(
 			tracker.start(id);
 			try {
 				const client = await runtime.getClient(ctx);
-				const context = { cwd: ctx.cwd, toolCallId: id, extensionContext: ctx, preflight, onUpdate };
+				const context = { cwd: ctx.cwd, toolCallId: id, extensionContext: ctx, ...hooks, onUpdate };
 				const attempt = waitAttempts.get(params.cell_id) ?? 0;
 				const response = params.terminate
 					? await client.terminate(params.cell_id, context, signal)
@@ -227,26 +228,25 @@ async function continueExecSessionFromMistakenWait(
 			: { max_output_tokens: maxOutputTokens }),
 	};
 	const nestedSignal = signal ?? new AbortController().signal;
-	await runCodeModeToolPreflight(
-		writeStdin.name,
-		input,
-		context,
-		nestedSignal,
-	);
-	nestedSignal.throwIfAborted();
 	let value: unknown;
+	let invoked = false;
 	try {
-		value = await writeStdin.invoke(
+		value = await runCodeModeToolWithHooks(
+			writeStdin.name,
 			input,
 			context,
 			nestedSignal,
+			(hookContext) => {
+				invoked = true;
+				return writeStdin.invoke(input, hookContext, nestedSignal);
+			},
 		);
 	} catch (fallbackError) {
 		const fallbackMessage =
 			fallbackError instanceof Error
 				? fallbackError.message
 				: String(fallbackError);
-		if (/unknown process id/i.test(fallbackMessage)) return undefined;
+		if (invoked && /unknown process id/i.test(fallbackMessage)) return undefined;
 		throw fallbackError;
 	}
 	if (!value || typeof value !== "object" || !("output" in value))

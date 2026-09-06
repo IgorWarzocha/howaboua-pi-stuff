@@ -1,6 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
 	type CodeModeToolPreflight,
+	type CodeModeToolCompletion,
 	type CodeModeToolPreflightCall,
 	isProtocolRequest,
 	PREFLIGHT_AVAILABLE_CHANNEL,
@@ -16,12 +17,14 @@ export type CodeModeToolPreflightRunner = (
 
 interface BrokerRegistration {
 	run: CodeModeToolPreflightRunner;
+	complete: CodeModeToolCompletion;
 }
 
 export function registerCodeModePreflightBroker(
 	pi: ExtensionAPI,
 ): BrokerRegistration {
 	const preflights = new Set<CodeModeToolPreflight>();
+	const completions = new Set<CodeModeToolCompletion>();
 	let active = true;
 	const broker: PreflightBroker = {
 		protocol: PREFLIGHT_PROTOCOL,
@@ -30,6 +33,11 @@ export function registerCodeModePreflightBroker(
 			if (!active) return () => {};
 			preflights.add(preflight);
 			return () => preflights.delete(preflight);
+		},
+		registerCompletion(completion) {
+			if (!active) return () => {};
+			completions.add(completion);
+			return () => completions.delete(completion);
 		},
 	};
 	const announce = () => {
@@ -41,9 +49,24 @@ export function registerCodeModePreflightBroker(
 	pi.on("session_shutdown", () => {
 		active = false;
 		preflights.clear();
+		completions.clear();
 	});
 	announce();
 	return {
+		async complete(call) {
+			for (const completion of [...completions]) {
+				if (!active) break;
+				try {
+					await completion(Object.freeze({
+						...call,
+						input: structuredClone(call.input),
+						result: structuredClone(call.result),
+					}));
+				} catch (error) {
+					console.error("Code Mode completion subscriber failed", error);
+				}
+			}
+		},
 		async run(call) {
 			for (const preflight of [...preflights]) {
 				call.signal.throwIfAborted();

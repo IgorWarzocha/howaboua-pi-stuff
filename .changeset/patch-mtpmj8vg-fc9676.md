@@ -11,3 +11,4 @@ Keep compaction checkpoints alongside notes with a Hybrid toggle for Local, Tree
 - Keep deferred ideas and unrelated tasks in notes for later resumption without treating them as permission to implement.
 - Apply concise follow-through guidance to all models, including heavy system-prompt rewrite.
 - Keep reasoning-level bookkeeping out of Pi's default tree view while preserving model updates and replay.
+- Added nested tool completion subscriptions through `code-mode-hooks`, with original arguments and full results for extension-side tracking without expanding agent output. Existing preflight imports remain supported.

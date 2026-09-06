@@ -29,6 +29,10 @@
       "types": "./types/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./code-mode-hooks": {
+      "types": "./dist/code-mode-hooks.d.ts",
+      "import": "./dist/code-mode-hooks.js"
+    },
     "./code-mode-preflight": {
       "types": "./dist/code-mode-preflight.d.ts",
       "import": "./dist/code-mode-preflight.js"
