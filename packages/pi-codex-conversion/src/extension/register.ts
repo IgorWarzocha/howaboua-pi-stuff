@@ -55,7 +55,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 					triggerTurn: false,
 					mode: config.compaction.contextManagement,
 					trimPreviousWindow:
-						config.compaction.contextManagement !== "tree",
+						!config.compaction.hybridCompaction && config.compaction.contextManagement !== "tree",
 				}).catch((error: unknown) => {
 					ctx.ui.notify(`Could not start context window: ${error instanceof Error ? error.message : String(error)}`, "warning");
 				});
@@ -79,6 +79,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 				|| config.openai.fast !== previousConfig.openai.fast
 				|| config.openai.harnessIdentifierHeader !== previousConfig.openai.harnessIdentifierHeader
 				|| contextManagementChanged
+				|| config.compaction.hybridCompaction !== previousConfig.compaction.hybridCompaction
 				|| config.compaction.responsesCompaction !== previousConfig.compaction.responsesCompaction
 			) {
 				runtime.resetTransport(ctx.sessionManager.getSessionId());

@@ -4,10 +4,12 @@ import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { buildSessionContext, convertToLlm, SessionManager } from "@earendil-works/pi-coding-agent";
 import { buildCachedWebSocketRequestBody, buildRequestBody, type ResponsesBody } from "../src/providers/openai-codex-custom-provider.ts";
 import { CodexDeveloperMessageBridge } from "../src/adapter/developer-messages.ts";
-import { codexReasoningUpdates, hasPendingCodexReasoningUpdate, recordCodexReasoningUpdate, normalizeCodexConfigurationUpdates } from "../src/adapter/reasoning-updates.ts";
+import { codexReasoningUpdates, flushCodexReasoningUpdates, hasPendingCodexReasoningUpdate, recordCodexReasoningUpdate, normalizeCodexConfigurationUpdates } from "../src/adapter/reasoning-updates.ts";
+import { projectCodexReasoningHistory } from "../src/adapter/reasoning-history.ts";
 import { applyResponsesLiteRequest } from "../src/providers/openai-codex/responses-lite.ts";
-import { serializeMessagesToResponsesInput } from "../src/adapter/compaction/serializer.ts";
+import { serializeActiveSessionToResponsesInput, serializeMessagesToResponsesInput } from "../src/adapter/compaction/serializer.ts";
 import { createAutoReasoning } from "../src/adapter/auto-reasoning.ts";
+import { serializeLiveTailToResponsesInput } from "../src/adapter/replay/native-replay-segments.ts";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { resolveCodexRuntimePlan } from "../src/adapter/activation/runtime-plan.ts";
 import {
@@ -51,6 +53,7 @@ test("request reasoning must match; persisted Astra updates extend the input ins
 	const astra = { ...model, id: "gpt-6-astra" };
 	const session = SessionManager.inMemory("/repo");
 	let level: "low" | "medium" | "high" = "low";
+	let idle = true;
 	const pi = {
 		getThinkingLevel: () => level,
 		setThinkingLevel: (next: typeof level) => {
@@ -58,14 +61,10 @@ test("request reasoning must match; persisted Astra updates extend the input ins
 			level = next;
 			recordCodexReasoningUpdate(pi, ctx, messages(), previous);
 		},
-		sendMessage: (message: any, options: unknown) => {
-			assert.deepEqual(options, { triggerTurn: false });
-			assert.equal(message.display, false);
-			session.appendCustomMessageEntry(message.customType, message.content, message.display, message.details);
-		},
+		appendEntry: (type: string, data: unknown) => session.appendCustomEntry(type, data),
 	} as never;
-	const ctx = { model: astra, sessionManager: session } as never;
-	const messages = () => buildSessionContext(session.getBranch()).messages;
+	const ctx = { model: astra, sessionManager: session, isIdle: () => idle } as never;
+	const messages = () => projectCodexReasoningHistory(session.getBranch());
 	const config = structuredClone(DEFAULT_CODEX_CONVERSION_CONFIG);
 	assert.equal(resolveCodexRuntimePlan({ model: astra }, config).autoReasoning, false);
 	config.tools.autoReasoning = true;
@@ -89,9 +88,16 @@ test("request reasoning must match; persisted Astra updates extend the input ins
 	session.appendMessage({ role: "assistant", content: [{ type: "text", text: "answer" }], api: astra.api, provider: astra.provider, model: astra.id, stopReason: "stop", timestamp: 2, usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } });
 	const baseline = build().input;
 	auto.begin(ctx);
+	idle = false;
 	await auto.tool.execute("raise", { level: "high" }, undefined, undefined, ctx);
 	auto.begin(ctx); // Retry/compaction does not replace the user floor.
 	await auto.tool.execute("lower", { level: "medium" }, undefined, undefined, ctx);
+	assert.equal(codexReasoningUpdates(messages(), astra).length, 0, "in-flight changes wait for the completed turn");
+	flushCodexReasoningUpdates(pi, ctx);
+	idle = true;
+	assert.equal(session.getBranch().filter((entry) => entry.type === "custom_message").length, 0);
+	assert.equal(buildSessionContext(session.getBranch()).messages.length, 2, "bookkeeping stays out of Pi chat/tree context");
+	assert.deepEqual(projectCodexReasoningHistory(session.getBranch(), buildSessionContext(session.getBranch()).messages), messages());
 	const persistedCount = session.getBranch().length;
 	recordCodexReasoningUpdate(pi, ctx, messages());
 	assert.equal(session.getBranch().length, persistedCount);
@@ -106,6 +112,8 @@ test("request reasoning must match; persisted Astra updates extend the input ins
 	assert.equal(codexReasoningUpdates(messages(), astra)[0]?.initialEffort, "low");
 	assert.deepEqual(build(), updated, "resume reconstructs native items independently of carrier secrets");
 	assert.deepEqual(serializeMessagesToResponsesInput(astra, messages()).slice(-2), updated.input.slice(-2));
+	assert.deepEqual(serializeActiveSessionToResponsesInput({ model: astra, entries: session.getBranch() }).slice(-2), updated.input.slice(-2));
+	assert.deepEqual(serializeLiveTailToResponsesInput({ model: astra, entries: session.getBranch().slice(2) }).slice(-2), updated.input.slice(-2));
 	const result = buildCachedWebSocketRequestBody({ lastRequestBody: initial, lastResponseId: "low_response", lastResponseItems: baseline.slice(initial.input.length) }, updated);
 	assert.equal(result.decision, "delta");
 	assert.deepEqual(result.body.input, updated.input.slice(baseline.length));
@@ -127,6 +135,10 @@ test("request reasoning must match; persisted Astra updates extend the input ins
 	level = "high";
 	recordCodexReasoningUpdate(pi, ctx, [], "medium");
 	assert.equal(codexReasoningUpdates(messages(), astra).at(-1)?.initialEffort, "medium", "a fresh projected window must not inherit the previous window's baseline");
+	const legacy = { ...codexReasoningUpdates(messages(), astra).at(-1)!, id: "legacy-saved", effort: "medium" };
+	session.appendCustomMessageEntry("codex-reasoning-update", "Reasoning effort: medium", false, legacy);
+	assert.equal(codexReasoningUpdates(messages(), astra).at(-1)?.id, legacy.id);
+	assert.deepEqual(serializeActiveSessionToResponsesInput({ model: astra, entries: session.getBranch() }).at(-1), { type: "configuration_update", reasoning: { effort: "medium" } });
 });
 
 test("continuation sends only a pending custom-tool output", () => {

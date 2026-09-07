@@ -26,13 +26,15 @@ pi -e npm:@howaboua/pi-auto-trees
 
 Use `/marker` to mark the current conversation point without a priming turn. It waits for Pi to become idle before setting the checkpoint.
 
-`/end` summarizes the branch since the marker, navigates back to that point, carries the summary forward, and advances the marker to the new compact point. The summary keeps accepted changes, decisions, constraints, and relevant follow-up while dropping temporary implementation noise.
+`/end` summarizes the conversation since the marker, navigates back to that point, carries the summary forward, and advances the marker. It uses Pi's normal summary guidance, without assuming the conversation is about coding.
+
+With Pi Codex context management active, `/end` asks the current agent to save that conversation summary through the active notes backend. The save ends the agent turn without a follow-up reply. The destination receives a branch summary directing the agent to read the note before resuming. Auto Trees remains standalone when context management is inactive.
 
 ### `/end` modes
 
-- `/end` — use the extension's completed-work summary guidance
+- `/end` — summarize the conversation since the marker
 - `/end git` — also capture the commit that should be made
-- `/end full` — use Pi's normal branch-summary prompt
+- `/end full` — equivalent to `/end`
 - `/end <guidance>` — add a custom focus, for example `/end focus on API changes and migration notes`
 
 The marker is stored in the session branch and restored when you return to it. Existing labels are preserved if the checkpoint already has one.
@@ -51,7 +53,7 @@ On first load, the extension creates `~/.pi/agent/pi-auto-trees.json`, or the eq
 }
 ```
 
-`/end` uses the configured lightweight model for branch summaries. If that model or its credentials are unavailable, the extension reports the fallback and uses Pi's current session model.
+`/end` uses the configured lightweight model for ordinary branch summaries, not managed notes handoffs. If that model or its credentials are unavailable, the extension reports the fallback and uses Pi's current session model.
 
 ## Local development
 

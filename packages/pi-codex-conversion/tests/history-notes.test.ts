@@ -1,12 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { buildSessionContext, type ExtensionContext, type SessionEntry } from "@earendil-works/pi-coding-agent";
 import {
 	createHistoryNotesTools,
 	loadHistoryNotesThreadHint,
 } from "../src/context-management/history-notes.ts";
 import { CODEX_CONTEXT_WINDOW_MESSAGE_TYPE } from "../src/context-management/messages.ts";
 import { createTreeArchiveManifest } from "../src/context-management/tree-archive.ts";
+import { projectTreeCheckpointBranch } from "../src/context-management/tree-checkpoint.ts";
 import { fakeJwt } from "./openai-codex-test-support.ts";
 
 const windowId = "window-0";
@@ -237,6 +238,24 @@ test("remote context storage is exact while local storage stays in Pi", async ()
 			await loadHistoryNotesThreadHint(treeContext, "tree"),
 			'Recent notes (up to 5, most-recent first):\n- /root/notes/checkpoint.md (1 line, 8 UTF-8 bytes)\nPrevious window history IDs: {"window_id":"window-0","summary_item_id":"tree-summary","user_item_ids":["user-entry"]}',
 		);
+		const checkpoint: SessionEntry = {
+			type: "compaction", id: "checkpoint", parentId: "user-entry", timestamp: new Date(2).toISOString(),
+			summary: "Cumulative checkpoint", firstKeptEntryId: "user-entry", tokensBefore: 100_000,
+		};
+		const hybridSummary = { ...summary, fromId: checkpoint.id };
+		const hybridManifest = { ...manifest, data: createTreeArchiveManifest(windowId, "window-entry", hybridSummary as never, checkpoint.id) };
+		const next = { ...boundary, id: "next-window", parentId: manifest.id,
+			details: { ...windowMessage.details, id: "next-marker", contextManagement: {
+				...windowMessage.details.contextManagement, currentWindowId: "window-1", previousWindowId: windowId, windowNumber: 1,
+			} } };
+		const active = [hybridSummary, hybridManifest, next] as SessionEntry[];
+		const all = [boundary, user, checkpoint, ...active] as SessionEntry[];
+		const stored = JSON.stringify(all);
+		assert.equal(projectTreeCheckpointBranch(active.slice(0, -1), all).some((entry) => entry.id === checkpoint.id), false);
+		const restored = projectTreeCheckpointBranch(active, all);
+		assert.deepEqual(buildSessionContext([...restored]).messages.map((message) => message.role), ["compactionSummary", "user", "custom"]);
+		assert.equal(JSON.stringify(all), stored);
+		assert.throws(() => projectTreeCheckpointBranch(active, all.filter((entry) => entry.id !== checkpoint.id)), /Invalid Tree archive/);
 	} finally {
 		globalThis.fetch = originalFetch;
 	}

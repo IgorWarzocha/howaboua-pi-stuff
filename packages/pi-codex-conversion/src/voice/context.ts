@@ -2,12 +2,14 @@ import { type Context, type Model, uuidv7 } from "@earendil-works/pi-ai";
 import {
 	buildSessionContext,
 	type ExtensionContext,
+	type SessionEntry,
 } from "@earendil-works/pi-coding-agent";
 import type {
 	CodexConversionConfig,
 	VoiceContextModel,
 } from "../adapter/activation/config.ts";
 import { createNativeVoiceContextSummary } from "./native-context.ts";
+import { projectTreeCheckpointBranch } from "../context-management/tree-checkpoint.ts";
 import { REALTIME_DELEGATION_MESSAGE_TYPE } from "./ui.ts";
 
 const VOICE_CONTEXT_SYSTEM_PROMPT = `Summarize the current Pi conversation for a realtime voice assistant joining the same session. Preserve the user's goal, relevant preferences, decisions, current state, unresolved questions, and next step. Treat the conversation as history: do not continue its work or answer it. Return only the self-contained continuity summary.`;
@@ -36,13 +38,15 @@ export async function buildRealtimeInitialItems(args: {
 	onSummary?: ((summary: string) => void) | undefined;
 	onSummaryStatus?: ((active: boolean) => void) | undefined;
 	signal?: AbortSignal | undefined;
+	sourceLeafId?: string | undefined;
+	forceSummary?: boolean | undefined;
 }): Promise<RealtimeInitialMessageItem[] | undefined> {
 	const selected = args.config.voice.contextModel;
 	const initialItems: RealtimeInitialMessageItem[] = [];
 	if (selected) {
 		const reasoning = args.config.voice.contextReasoning;
-		const cacheKey = voiceContextCacheKey(args.ctx, selected, reasoning);
-		let text = summaryCache.get(cacheKey);
+		const cacheKey = voiceContextCacheKey(args.ctx, selected, reasoning, args.sourceLeafId);
+		let text = args.forceSummary ? undefined : summaryCache.get(cacheKey);
 		if (!text) {
 			args.onSummaryStatus?.(true);
 			try {
@@ -51,10 +55,11 @@ export async function buildRealtimeInitialItems(args: {
 					selected,
 					reasoning,
 					args.signal,
+					args.sourceLeafId,
 				);
 				if (generated) {
 					text = generated;
-					if (cacheKey === voiceContextCacheKey(args.ctx, selected, reasoning)) {
+					if (cacheKey === voiceContextCacheKey(args.ctx, selected, reasoning, args.sourceLeafId)) {
 						summaryCache.set(cacheKey, text);
 						while (summaryCache.size > SUMMARY_CACHE_LIMIT)
 							summaryCache.delete(summaryCache.keys().next().value!);
@@ -85,11 +90,17 @@ async function createVoiceContextSummary(
 	selected: VoiceContextModel,
 	reasoning: CodexConversionConfig["voice"]["contextReasoning"],
 	signal?: AbortSignal,
+	sourceLeafId?: string,
 ): Promise<string | undefined> {
-	if (latestCompactionIsOpaque(ctx))
+	const entries = projectTreeCheckpointBranch(
+		ctx.sessionManager.getBranch(sourceLeafId),
+		ctx.sessionManager.getEntries(),
+	);
+	if (latestCompactionIsOpaque(entries))
 		return requireSummary(
 			await createNativeVoiceContextSummary({
 				ctx,
+				entries,
 				model: { ...selected, reasoning },
 				systemPrompt: VOICE_CONTEXT_SYSTEM_PROMPT,
 				request: VOICE_CONTEXT_REQUEST,
@@ -97,10 +108,7 @@ async function createVoiceContextSummary(
 			}),
 		);
 
-	const messages = buildSessionContext(
-		ctx.sessionManager.getEntries(),
-		ctx.sessionManager.getLeafId(),
-	).messages;
+	const messages = buildSessionContext([...entries]).messages;
 	const conversation = serializeVoiceConversation(messages);
 	if (!conversation) return undefined;
 	const model = resolveSelectedModel(ctx, selected);
@@ -232,9 +240,8 @@ async function completeWithSelectedModel(
 	);
 }
 
-function latestCompactionIsOpaque(ctx: ExtensionContext): boolean {
-	const latest = ctx.sessionManager
-		.getBranch()
+function latestCompactionIsOpaque(entries: readonly SessionEntry[]): boolean {
+	const latest = entries
 		.findLast((entry) => entry.type === "compaction");
 	if (!latest || latest.type !== "compaction") return false;
 	const details = latest.details;
@@ -258,9 +265,10 @@ function voiceContextCacheKey(
 	ctx: ExtensionContext,
 	model: VoiceContextModel,
 	reasoning: CodexConversionConfig["voice"]["contextReasoning"],
+	sourceLeafId?: string,
 ): string {
 	const boundary = ctx.sessionManager
-		.getBranch()
+		.getBranch(sourceLeafId)
 		.findLast(
 			(entry) =>
 				entry.type === "message" ||

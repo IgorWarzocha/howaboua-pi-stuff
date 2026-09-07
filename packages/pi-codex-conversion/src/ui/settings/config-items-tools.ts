@@ -10,6 +10,7 @@ export function buildToolsSettings(
 			"Auto reasoning (Astra only)",
 			config.tools.autoReasoning,
 			(enabled, current) => ({ ...current, tools: { ...current.tools, autoReasoning: enabled } }),
+			"Let Astra adjust reasoning during a task, never below your starting level, then restore it when finished.",
 		),
 		toggle(
 			"viewImageFallback",
@@ -19,6 +20,7 @@ export function buildToolsSettings(
 				...current,
 				tools: { ...current.tools, viewImageFallback: enabled },
 			}),
+			"Use a vision model to describe images for text-only models instead of rejecting image requests.",
 		),
 		toggle(
 			"applyPatchOnly",
@@ -28,6 +30,7 @@ export function buildToolsSettings(
 				...current,
 				tools: { ...current.tools, applyPatchOnly: enabled },
 			}),
+			"Expose apply_patch without the full adapter.",
 		),
 		toggle(
 			"viewImageOnly",
@@ -37,6 +40,7 @@ export function buildToolsSettings(
 				...current,
 				tools: { ...current.tools, viewImageOnly: enabled },
 			}),
+			"Expose view_image without the full adapter. Text-only models also need Image descriptions fallback.",
 		),
 	];
 }

@@ -15,7 +15,7 @@ import {
 	startControllerMode,
 	type VoiceControllerRuntime,
 } from "./controller-start.ts";
-import { RealtimeCompactionRefresh } from "./controller-compaction.ts";
+import { RealtimeContextRefresh, type RealtimeContextRefreshOptions } from "./controller-context.ts";
 import {
 	currentVoiceSession,
 	prepareRealtimeVoicePrompt,
@@ -41,7 +41,7 @@ export class CodexVoiceController {
 		inputTooQuiet: false,
 	};
 	private readonly messages: CodexVoiceSessionMessages;
-	private readonly compactionRefresh: RealtimeCompactionRefresh;
+	private readonly contextRefresh: RealtimeContextRefresh;
 	private readonly inputMuteListeners = new Set<(muted: boolean) => void>();
 	private readonly activePrompts = new Map<string, string>();
 	private delegationPreflight: (
@@ -63,12 +63,12 @@ export class CodexVoiceController {
 			},
 			onWorking: () => this.renderStatus("working"),
 		});
-		this.compactionRefresh = new RealtimeCompactionRefresh(
+		this.contextRefresh = new RealtimeContextRefresh(
 			this.runtime,
 			{
 				inputMuted: () => this.inputMuted,
 				replace: (ctx, config, previous, plan, inputMuted, prepared, signal) =>
-					this.replaceRealtimeAfterCompaction(
+					this.replaceRealtimeContext(
 						ctx,
 						config,
 						previous,
@@ -163,7 +163,7 @@ export class CodexVoiceController {
 	}
 
 	resetSessionContext(): void {
-		this.compactionRefresh.cancel();
+		this.contextRefresh.cancel();
 		this.activePrompts.clear();
 		this.messages.resetSessionContext();
 	}
@@ -189,11 +189,12 @@ export class CodexVoiceController {
 		return this.startMode(ctx, config, "realtime", plan, signal);
 	}
 
-	async refreshRealtimeAfterCompaction(
+	async refreshRealtimeContext(
 		ctx: ExtensionContext,
 		config: CodexConversionConfig,
+		options: RealtimeContextRefreshOptions = {},
 	): Promise<void> {
-		await this.compactionRefresh.run(ctx, config);
+		await this.contextRefresh.run(ctx, config, options);
 	}
 	prepareRealtimePrompt(ctx: ExtensionContext): string | undefined {
 		return prepareRealtimeVoicePrompt(ctx);
@@ -264,7 +265,7 @@ export class CodexVoiceController {
 	}
 
 	async stop(options?: { announce?: boolean }): Promise<void> {
-		this.compactionRefresh.cancel();
+		this.contextRefresh.cancel();
 		this.runtime.startAbortController?.abort();
 		this.runtime.startAbortController = undefined;
 		this.runtime.startGeneration += 1;
@@ -377,7 +378,7 @@ export class CodexVoiceController {
 		return currentVoiceSession(this.runtime.state);
 	}
 
-	private async replaceRealtimeAfterCompaction(
+	private async replaceRealtimeContext(
 		ctx: ExtensionContext,
 		config: CodexConversionConfig,
 		previous: CodexRealtimeConversation,
@@ -392,7 +393,7 @@ export class CodexVoiceController {
 		markRealtimePeerInactive(
 			this.runtime,
 			previous,
-			new Error("Realtime voice refreshed after compaction"),
+			new Error("Realtime voice refreshed for a new context"),
 			true,
 			plan,
 		);
@@ -430,7 +431,7 @@ export class CodexVoiceController {
 		error: Error,
 		failedSession?: CodexRealtimeConversation | undefined,
 	): void {
-		this.compactionRefresh.cancel();
+		this.contextRefresh.cancel();
 		if (
 			this.runtime.state.type === "idle" ||
 			this.runtime.state.type === "failed"
@@ -473,7 +474,7 @@ export class CodexVoiceController {
 	}
 
 	private drop(session: CodexRealtimeConversation, error: Error): void {
-		this.compactionRefresh.cancel();
+		this.contextRefresh.cancel();
 		resumeDroppedConversation({
 			runtime: this.runtime,
 			messages: this.messages,

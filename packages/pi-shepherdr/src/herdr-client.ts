@@ -45,6 +45,7 @@ export interface HerdrConnection {
 		subscriptions: object[],
 		onEvent: (event: HerdrEvent) => void,
 		onDisconnect: (error?: Error) => void,
+		signal?: AbortSignal,
 	): Promise<() => void>;
 }
 
@@ -129,6 +130,7 @@ export class HerdrClient implements HerdrConnection {
 		subscriptions: object[],
 		onEvent: (event: HerdrEvent) => void,
 		onDisconnect: (error?: Error) => void,
+		signal?: AbortSignal,
 	): Promise<() => void> {
 		return new Promise((resolve, reject) => {
 			const id = `pi-shepherdr:subscribe:${crypto.randomUUID()}`;
@@ -138,21 +140,35 @@ export class HerdrClient implements HerdrConnection {
 			let disconnected = false;
 			const socket = createConnection(socketEndpoint(this.socketPath));
 			socket.setEncoding("utf8");
-			const timer = setTimeout(() => {
-				const error = new Error("Herdr events.subscribe timed out");
-				socket.destroy();
-				reject(error);
-			}, 10_000);
+			const timer = setTimeout(
+				() => disconnect(new Error("Herdr events.subscribe timed out")),
+				10_000,
+			);
 			timer.unref();
 
 			const disconnect = (error?: Error) => {
 				if (disconnected) return;
 				disconnected = true;
 				clearTimeout(timer);
+				signal?.removeEventListener("abort", abort);
+				socket.destroy();
 				if (!acknowledged)
-					reject(error ?? new Error("Herdr subscription disconnected"));
+					reject(
+						error ??
+							new Error("Herdr events.subscribe closed before acknowledgement"),
+					);
 				else if (!closed) onDisconnect(error);
 			};
+			const abort = () => {
+				closed = true;
+				disconnect(
+					signal?.reason instanceof Error
+						? signal.reason
+						: new Error("Herdr subscription cancelled"),
+				);
+			};
+			signal?.addEventListener("abort", abort, { once: true });
+			if (signal?.aborted) abort();
 
 			socket.on("connect", () => {
 				socket.write(
@@ -163,6 +179,7 @@ export class HerdrClient implements HerdrConnection {
 			socket.on("end", () => disconnect());
 			socket.on("close", () => disconnect());
 			socket.on("data", (chunk: string) => {
+				if (disconnected) return;
 				buffer += chunk;
 				if (buffer.length > MAX_FRAME_BUFFER) {
 					disconnect(new Error("Herdr event frame is too large"));
@@ -212,7 +229,7 @@ export class HerdrClient implements HerdrConnection {
 						clearTimeout(timer);
 						resolve(() => {
 							closed = true;
-							socket.destroy();
+							disconnect();
 						});
 						continue;
 					}

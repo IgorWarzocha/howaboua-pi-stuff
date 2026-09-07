@@ -30,6 +30,7 @@ interface RuntimePlanBase {
 	contextManagement: boolean;
 	contextManagementMode: ContextManagementMode;
 	contextManagementRemote: boolean;
+	contextManagementHybrid: boolean;
 	autoReasoning: boolean;
 }
 
@@ -138,6 +139,7 @@ export function resolveCodexRuntimePlan(
 		contextManagement: false,
 		contextManagementMode: "off" as const,
 		contextManagementRemote: false,
+		contextManagementHybrid: false,
 		autoReasoning: false,
 	};
 	const extras = hasExtras(config)
@@ -160,7 +162,9 @@ export function resolveCodexRuntimePlan(
 		? configuredContextManagementMode
 		: "off";
 	const contextManagementRemote = contextManagementMode === "remote";
-	const nativeCompaction = config.compaction.responsesCompaction && effectiveOpenAICodex && !contextManagement;
+	base.contextManagementHybrid = contextManagement && config.compaction.hybridCompaction;
+	const nativeCompaction = effectiveOpenAICodex &&
+		(base.contextManagementHybrid || (config.compaction.responsesCompaction && configuredContextManagementMode === "off"));
 	base.autoReasoning = config.tools.autoReasoning && supportsCodexReasoningUpdates(ctx.model);
 	const configuredExecutionMode = executionMode ?? config.executionMode;
 	const requestedCodeMode = configuredExecutionMode === "code" || configuredExecutionMode === "notebook"
@@ -236,6 +240,7 @@ export function resolveCodexRuntimePlanForState(
 		contextManagement: false,
 		contextManagementMode: "off",
 		contextManagementRemote: false,
+		contextManagementHybrid: false,
 		autoReasoning: false,
 	};
 }

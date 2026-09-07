@@ -7,6 +7,7 @@ import type {
 	CompactionResult,
 	ExtensionAPI,
 	ExtensionContext,
+	ExtensionEvent,
 	SessionBeforeCompactEvent,
 	SessionEntry,
 } from "@earendil-works/pi-coding-agent";
@@ -23,6 +24,7 @@ import {
 	isContextWindowBoundary,
 	isContextWindowCompactionDetails,
 	renderContextWindowMessage,
+	renderManualContextCheckpoint,
 	sendContextWindowMessage,
 } from "./messages.ts";
 import {
@@ -35,6 +37,7 @@ interface StartContextWindowOptions {
 	signal?: AbortSignal | undefined;
 	mode?: ContextManagementMode | undefined;
 	trimPreviousWindow: boolean;
+	sourceLeafId?: string | undefined;
 }
 
 type ThreadHintLoader = (
@@ -46,18 +49,31 @@ type ThreadHintLoader = (
 export class CodexContextWindowManager {
 	private identity: ContextWindowIdentity | undefined;
 	private readonly budget = new ContextWindowBudget();
-	private rolloverPending = false;
+	private rolloverPending: object | undefined;
+	private hybridCompaction: { phase: "scheduled" | "running" } | undefined;
+	private manualCheckpoint: {
+		identity: ContextWindowIdentity;
+		customInstructions: string | undefined;
+		signal: AbortSignal;
+	} | undefined;
 	private trimPendingWindowId: string | undefined;
 	private readonly loadThreadHint: ThreadHintLoader;
+	private readonly beforeWindowStart: ((ctx: ExtensionContext, options: Pick<StartContextWindowOptions, "sourceLeafId" | "signal">) => Promise<void>) | undefined;
 
-	constructor(loadThreadHint: ThreadHintLoader = loadHistoryNotesThreadHint) {
+	constructor(
+		loadThreadHint: ThreadHintLoader = loadHistoryNotesThreadHint,
+		beforeWindowStart?: (ctx: ExtensionContext, options: Pick<StartContextWindowOptions, "sourceLeafId" | "signal">) => Promise<void>,
+	) {
 		this.loadThreadHint = loadThreadHint;
+		this.beforeWindowStart = beforeWindowStart;
 	}
 
 	reset(): void {
 		this.identity = undefined;
 		this.budget.reset();
-		this.rolloverPending = false;
+		this.rolloverPending = undefined;
+		this.hybridCompaction = undefined;
+		this.manualCheckpoint = undefined;
 		this.trimPendingWindowId = undefined;
 	}
 
@@ -114,6 +130,7 @@ export class CodexContextWindowManager {
 		mode: ContextManagementMode,
 		activeEntries: readonly SessionEntry[] = [],
 		allEntries: readonly SessionEntry[] = activeEntries,
+		hybridCompaction = false,
 	): AgentMessage[] {
 		if (mode === "off")
 			return messages.filter(
@@ -138,15 +155,60 @@ export class CodexContextWindowManager {
 		}
 		if (mode === "tree") {
 			const index = buildTreeArchiveIndex(allEntries, activeEntries);
-			const projected = (index.archives.length === 0 || index.invalidManifest) && boundaryIndex >= 0
+			const projected = !hybridCompaction && (index.archives.length === 0 || index.invalidManifest) && boundaryIndex >= 0
 				? messages.slice(boundaryIndex)
 				: messages;
-			this.rolloverPending = false;
+			this.rolloverPending = undefined;
 			return filterTreeArchiveSummaries(projected, index);
 		}
 		if (boundaryIndex < 0) return [...messages];
-		this.rolloverPending = false;
-		return messages.slice(boundaryIndex);
+		this.rolloverPending = undefined;
+		return hybridCompaction ? [...messages] : messages.slice(boundaryIndex);
+	}
+
+	scheduleHybridCompaction(): boolean {
+		if (this.hybridCompaction || this.rolloverPending) return false;
+		this.hybridCompaction = { phase: "scheduled" };
+		return true;
+	}
+
+	cancelScheduledCompaction(): void {
+		if (this.hybridCompaction?.phase === "scheduled") this.hybridCompaction = undefined;
+	}
+
+	finishTurn(ctx: ExtensionContext, continueWindow: () => Promise<unknown>): boolean {
+		if (!this.hybridCompaction) return false;
+		if (this.hybridCompaction.phase === "running") return true;
+		const pending = this.hybridCompaction;
+		pending.phase = "running";
+		// Pi compaction aborts and waits for the loop; the turn hook must return first.
+		ctx.compact({
+			onComplete: () => {
+				if (this.hybridCompaction !== pending) return;
+				this.hybridCompaction = undefined;
+				void continueWindow().catch((error: unknown) => {
+					ctx.ui.notify(`Compaction completed, but context rollover failed: ${error instanceof Error ? error.message : String(error)}`, "error");
+				});
+			},
+			onError: (error) => {
+				if (this.hybridCompaction !== pending) return;
+				this.hybridCompaction = undefined;
+				ctx.ui.notify(`Context rollover failed: ${error.message}`, "error");
+			},
+		});
+		return true;
+	}
+
+	async completeHybridCompaction(pi: ExtensionAPI, ctx: ExtensionContext, mode: ContextManagementMode, triggerTurn = false): Promise<void> {
+		if (this.isHybridCompactionRunning()) return;
+		this.cancelScheduledCompaction();
+		await this.startNewWindow(pi, ctx, {
+			mode, triggerTurn, trimPreviousWindow: false,
+		});
+	}
+
+	isHybridCompactionRunning(): boolean {
+		return this.hybridCompaction?.phase === "running";
 	}
 
 	async startNewWindow(
@@ -154,13 +216,23 @@ export class CodexContextWindowManager {
 		ctx: ExtensionContext,
 		options: StartContextWindowOptions,
 	): Promise<boolean> {
-		if (this.rolloverPending) return false;
-		this.rolloverPending = true;
+		if (this.rolloverPending || options.signal?.aborted) return false;
+		const pending = {};
+		this.rolloverPending = pending;
 		try {
 			const current = this.identity;
 			const threadHint = current && options.mode
 				? await this.loadThreadHint(ctx, options.mode, options.signal)
 				: undefined;
+			if (this.rolloverPending !== pending || options.signal?.aborted) {
+				if (this.rolloverPending === pending) this.rolloverPending = undefined;
+				return false;
+			}
+			await this.beforeWindowStart?.(ctx, options);
+			if (this.rolloverPending !== pending || options.signal?.aborted) {
+				if (this.rolloverPending === pending) this.rolloverPending = undefined;
+				return false;
+			}
 			const currentWindowId = randomUUID();
 			const next: ContextWindowIdentity = current
 				? {
@@ -177,7 +249,7 @@ export class CodexContextWindowManager {
 			this.sendWindowMessage(pi, next, options, threadHint);
 			return true;
 		} catch (error) {
-			this.rolloverPending = false;
+			if (this.rolloverPending === pending) this.rolloverPending = undefined;
 			throw error;
 		}
 	}
@@ -188,11 +260,11 @@ export class CodexContextWindowManager {
 		active: boolean,
 		contextTokens?: number,
 	): void {
-		if (!active || !this.identity) return;
+		if (!active || !this.identity || this.rolloverPending) return;
 		const reminder = this.budget.record(ctx, this.identity, contextTokens);
 		if (reminder) sendContextWindowMessage(
 			pi, reminder.content, reminder.kind, this.identity,
-			{ triggerTurn: reminder.kind === "fallback" },
+			{ triggerTurn: true },
 		);
 	}
 
@@ -203,10 +275,21 @@ export class CodexContextWindowManager {
 	prepareCompaction(
 		event: SessionBeforeCompactEvent,
 		mode: ContextManagementMode,
+		hybridCompaction = false,
 	):
 		| { cancel: true }
 		| { compaction: CompactionResult<ContextWindowCompactionDetails> }
 		| undefined {
+		if (hybridCompaction) return event.reason === "threshold" ? { cancel: true } : undefined;
+		if (event.reason === "manual") {
+			if (!this.identity) return { cancel: true };
+			this.manualCheckpoint = {
+				identity: { ...this.identity },
+				customInstructions: event.customInstructions,
+				signal: event.signal,
+			};
+			return { cancel: true };
+		}
 		if (event.reason === "threshold") {
 			if (mode === "tree") return { cancel: true };
 			const boundary = findLatestWindowBoundaryEntry(event.branchEntries);
@@ -217,8 +300,19 @@ export class CodexContextWindowManager {
 			)
 				return { cancel: true };
 		}
-		if (mode === "tree" && event.reason === "manual") return undefined;
 		return { compaction: this.createCompaction(event) };
+	}
+
+	finishManualCheckpointRequest(pi: ExtensionAPI, event: Extract<ExtensionEvent, { type: "session_compact_failed" }>, active: boolean): void {
+		const pending = this.manualCheckpoint;
+		this.manualCheckpoint = undefined;
+		if (
+			!pending || !active || event.reason !== "manual" || !event.aborted ||
+			pending.signal.aborted || pending.identity.currentWindowId !== this.identity?.currentWindowId
+		) return;
+		// Pi clears its manual compaction controller before session_compact_failed.
+		sendContextWindowMessage(pi, renderManualContextCheckpoint(pending.customInstructions),
+			"reminder", pending.identity, { triggerTurn: true });
 	}
 
 	recordCompaction(details: unknown): void {

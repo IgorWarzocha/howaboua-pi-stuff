@@ -34,7 +34,7 @@ The agent tool is always available in Pi, Code Mode and Notebook Mode. Run Pi in
 
 The command only records one visible guidance message without triggering a turn. Run `/herdr` again to return to normal guidance. Resumed sessions restore their last mode; new sessions start with normal guidance. Tool availability and monitoring do not depend on this mode.
 
-`/herdr machines` opens the Add/Remove Machine interface. Settings live at `<pi-agent-directory>/shepherdr.json`, where the directory defaults to `~/.pi/agent` and `PI_CODING_AGENT_DIR` overrides it. `/herdr connect [machine]` retries configured remotes after activation.
+`/herdr machines` opens the Add/Remove Machine interface. Settings live at `<pi-agent-directory>/shepherdr.json`, where the directory defaults to `~/.pi/agent` and `PI_CODING_AGENT_DIR` overrides it. `/herdr connect [machine]` retries failed connections or incomplete monitoring without dropping a working remote connection.
 
 Remote machines connect over noninteractive SSH. The target needs Node, Herdr 0.8.x, the Herdr Pi integration and a running Herdr session. Shepherdr installs one helper at `~/.pi/agent/shepherdr.mjs` on each remote, runs it only for the connection lifetime and leaves no remote daemon behind.
 
@@ -56,9 +56,13 @@ Call the `agents` tool with `action: "help"` before first use, then send flat re
 
 `spawn`, `send` and `answer` block by default. Set `blocking: false` only when the controller should continue other work immediately. Completion and blockage are then delivered automatically.
 
+Reviewer spawns always block, even when `blocking: false` is supplied. The controller waits for the review before continuing work on its scope.
+
 Every `spawn` needs an `agent_type` and a concise two- or three-word `label`. The label names both the Herdr tab and Pi session; the routing `name` remains optional and is derived from it when omitted.
 
 Cancelling a blocking call does not kill its worker. The waiter detaches and the eventual result returns through normal asynchronous delivery.
+
+For `answer` inside Code or Notebook Mode, update Pi Ask on workers together with Shepherdr on controllers.
 
 ## Profiles
 

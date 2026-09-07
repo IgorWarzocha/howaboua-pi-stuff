@@ -62,9 +62,10 @@ Provider scope can stay on **Codex and configured**, expand to **all providers**
 
 | Tab | Covers |
 | --- | --- |
-| General | Settings scope, execution mode, context management, extension mode, providers and heavy prompt overwrite |
+| General | Settings scope, execution mode, extension mode, providers and heavy prompt overwrite |
+| Context | Notes, history, Hybrid compaction, Responses V2 and preserved user messages |
 | Tools | Auto reasoning (Astra only), image description fallback and standalone tools |
-| OpenAI | Fast mode, verbosity, transport, cache diagnostics, Responses Lite and compaction |
+| OpenAI | Fast mode, verbosity, transport, cache diagnostics and Responses Lite |
 | Display | Statusline, tool rendering, Code Mode detail and background shells |
 | Voice | LAN server, realtime behaviour, context summarisation, dictation, shortcuts and prompt paths |
 | Usage | Codex limits, reset times and banked reset credits |
@@ -90,9 +91,9 @@ Responses compaction V2 stores an encrypted checkpoint for the Codex lane. If yo
 
 ## Context management
 
-**Context management (experimental)** ports Codex's newer no-summary context lifecycle. A session starts with a persisted purple window marker. `new_context` closes the active model context and continues from a fresh marker while the shell, Notebook runtime, workspace and complete Pi JSONL remain intact. No summary is automatically added to the model's next window.
+**Context management (experimental)** gives the model history, notes and explicit context-window rollover. A session starts with a persisted purple window marker. `new_context` continues in a new window while the shell, Notebook runtime, workspace and complete Pi JSONL remain intact.
 
-Keep Context management enabled when resuming sessions that used it. To disable it for a session, first run `/compact` while it is enabled, then switch it off in the new window. Disabling it earlier removes its recovery tools and may rejoin previously separated windows into ordinary Pi context.
+Keep Context management enabled when resuming sessions that used it. Disabling it removes its recovery tools and may rejoin previously separated windows into ordinary Pi context. Notes-only `/compact` is a checkpoint request, not an exit from context management.
 
 Choose its backend under `/codex` → **General**:
 
@@ -101,11 +102,15 @@ Choose its backend under `/codex` → **General**:
 - **Tree** archives completed windows as Pi side branches. Pi's branch summary stays visible in the transcript but out of model context; history search prioritizes it and can still return every archived raw entry.
 - **Remote** uses Codex's history and notes service on `openai-codex-responses`. It uses the native encrypted contract and fails without changing storage modes. Other transports ignore this setting.
 
+**Hybrid compaction** is a separate toggle for Local, Tree and Remote. Off by default, rollover starts without a conversation summary. Turn it on to preserve a compaction checkpoint alongside notes: Responses V2 where supported, Pi's readable summary elsewhere. Tree still archives completed windows and preserves the original checkpoint by reference. Reaching the token threshold requests a notes checkpoint; compaction waits for `new_context`, manual `/compact` or overflow recovery. Native checkpoints remain encrypted and require a compatible transport.
+
+With context management active, choosing a summary in Pi's tree navigator asks the current agent to summarize what happened since the selected conversation boundary, following any summary instructions you provide. The prompt identifies that boundary by a previous summary, context window, note or quoted message, not an internal branch ID. Local and Tree carry the note into the destination without replacing its existing notes. Remote uses its normal notes service. Completing the requested note write ends the agent turn without another reply. The destination receives a branch summary directing the agent to read the note's exact path before resuming. Remote results remain encrypted, so the extension cannot independently verify the saved contents. An interrupted or errored handoff cancels the jump. Choosing **No summary** remains a plain jump. This works with or without Hybrid.
+
 The model receives terse context tools. Local and Tree use flat `history` and `notes` routers on Codex transport and native `history.*` and `notes.*` namespaces on other Responses transports. Remote uses Codex's native namespaces, encrypted sensitive arguments and encrypted tool output. Structured mode also adds `new_context` and `get_context_remaining`. In Code and Notebook Mode, the lifecycle and recovery tools stay direct while `get_context_remaining` is available inside `exec`, matching native exposure.
 
-The model receives one reminder at 6,144 tokens remaining. At the normal Pi reserve boundary it must checkpoint and roll over; an actual overflow forces a fresh window before Pi retries. Local and Remote use a fixed no-summary marker for internal Pi compaction. Tree turns each completed window into a searchable side branch. Manual `/compact` in Tree instead creates a readable cumulative Pi summary and a fresh window, making it the safe point to disable Context management.
+After each completed assistant/tool turn, usage is checked against the model context size minus Pi's configured compaction reserve (at least 16,384 tokens). At 6,144 tokens remaining before that reserve, a developer message requests a notes checkpoint and `new_context`, including after a final assistant reply. The checkpoint turn keeps the same tools; no tool is interrupted or notes content validated. Pi's server-overflow recovery remains available. Without Hybrid, manual `/compact` asks the agent to save the current state in notes if it hasn't just done so, then call `new_context` immediately. Pi's existing preparation limits and queued-message order still apply. Local and Remote still use a fixed no-summary marker for internal Pi compaction. With Hybrid, Tree also archives manual and overflow checkpoints; overflow waits for the retry tail to settle.
 
-Local and Tree work anywhere the active Pi Codex adapter uses a Responses API. Remote requires Codex transport. Context management is mutually exclusive with Responses compaction V2; other provider APIs ignore it. Switching it on mid-session starts a fresh model window on the next input.
+Local and Tree work anywhere the active Pi Codex adapter uses a Responses API. Remote requires Codex transport, without a model-name gate. Other provider APIs ignore context management. Without Hybrid, enabling a backend mid-session starts a fresh model window on the next input. Hybrid retains the current conversation until compaction. Standalone V2 and Parallel Pi-native compaction remain available when Context management is Off.
 
 ## Cache diagnostics
 
@@ -212,6 +217,30 @@ Shipped integrations provide larger examples:
 - [`pi-codex-web-run`](../pi-codex-web-run) and [`pi-codex-imagegen`](../pi-codex-imagegen) use namespaced tool names and structured Code Mode results.
 - [`pi-shepherdr`](../pi-shepherdr) uses an activation gate, refreshes its registration when state changes and chooses blocking per call.
 
+### Nested tool hooks
+
+Pi's `tool_call` and `tool_result` events see the outer `exec` or `wait`, not its nested calls. Extensions can subscribe separately to preflight and completion through `@howaboua/pi-codex-conversion/code-mode-hooks`. The existing `code-mode-preflight` import remains supported.
+
+```ts
+import {
+  registerCodeModeToolPreflight,
+  registerCodeModeToolCompletion,
+} from "@howaboua/pi-codex-conversion/code-mode-hooks";
+
+const guard = registerCodeModeToolPreflight(pi, async (call) => {
+  // Return { block: true, reason } to reject a nested call before execution.
+});
+const observer = registerCodeModeToolCompletion(pi, async (call) => {
+  // Persist call.toolName, call.toolCallId, call.input, call.status and call.result.
+});
+```
+
+Both registrations expose `available` and `dispose()`, handle either extension load order, and dispose on session shutdown. Completion remains unavailable with older brokers that support only preflight.
+
+Completion runs once when a recognized nested call settles in Code or Notebook Mode. `input` is the original argument before tool preparation. `result` is the full captured Pi tool result, including details and images, or the returned value for tools without a captured result. It is not the bounded trace or compact JavaScript return. Errors have `status: "error"`, an `error` string and `phase: "preflight" | "execution"`; `result` is `undefined` if no result was captured. A failed call can still have partial side effects. Cancellation is visible through `signal.aborted`.
+
+Each subscriber receives independent structured clones of the arguments and result. Callbacks are awaited in registration order, including after cancellation, so they must settle promptly. Subscriber failures and values that cannot be cloned are logged to stderr without changing the tool outcome. Hooks do not expand agent-visible output or replace either registration's purpose: preflight can block, completion only observes.
+
 ### TOML custom tools
 
 Custom tools are top-level TOML definitions plus a command that accepts one string. Put them in:
@@ -240,7 +269,7 @@ Defaults:
 
 Voice input and output follow the system defaults. Set `voice.inputDevice` or `voice.outputDevice` only to pin an endpoint. Dictation returns one editable transcript to Pi's input.
 
-Fresh installs use Cove for realtime voice and Luna with high reasoning for context summarisation. Realtime calls resume after transport drops, and **Run summarisation** pauses at each successful compaction boundary, summarizes the compacted branch, and starts a fresh voice call without ending spoken mode. An initial summarization failure leaves the old call untouched.
+Fresh installs use Cove for realtime voice and Luna with high reasoning for context summarisation. Realtime calls resume after transport drops. **Refresh voice context** summarizes the outgoing context and starts a fresh voice call at each context rollover or compaction, including notes-only handoffs. It preserves microphone mute and LAN ownership without ending spoken mode. A summarization failure leaves the old call untouched.
 
 The visible realtime prompt lives at `~/.pi/agent/REALTIME-SYSTEM-PROMPT.md`. A trusted project can append `.pi/REALTIME-SYSTEM-PROMPT.md`. Keep coding and project instructions in AGENTS.md rather than duplicating them into the spoken assistant.
 

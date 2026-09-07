@@ -4,7 +4,7 @@ import { createConnection } from "node:net";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
-const BRIDGE_VERSION = 3;
+const BRIDGE_VERSION = 4;
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const READ_CHUNK_BYTES = 64 * 1024;
 const subscriptions = new Map();
@@ -145,16 +145,24 @@ function subscribe(id, requested) {
 		const requestId = `pi-shepherdr-bridge:subscribe:${crypto.randomUUID()}`;
 		let acknowledged = false;
 		let closed = false;
+		let ended = false;
 		let socket;
-		const timer = setTimeout(() => {
-			socket.destroy();
-			reject(new Error("Herdr events.subscribe timed out"));
-		}, 10_000);
+		const timer = setTimeout(
+			() => disconnected(new Error("Herdr events.subscribe timed out")),
+			10_000,
+		);
 		timer.unref();
 		const disconnected = (error) => {
+			if (ended) return;
+			ended = true;
 			clearTimeout(timer);
+			subscriptions.delete(id);
+			socket.destroy();
 			if (!acknowledged)
-				reject(error ?? new Error("Herdr subscription disconnected"));
+				reject(
+					error ??
+						new Error("Herdr events.subscribe closed before acknowledgement"),
+				);
 			else if (!closed) {
 				process.stderr.write(
 					`Herdr monitoring disconnected${error ? `: ${error.message}` : ""}\n`,
@@ -171,6 +179,7 @@ function subscribe(id, requested) {
 				params: { subscriptions: requested },
 			},
 			(value) => {
+				if (ended) return;
 				if (!acknowledged && value.id === requestId) {
 					if (value.error !== undefined) {
 						disconnected(errorFromResponse(value.error));
@@ -188,10 +197,6 @@ function subscribe(id, requested) {
 					}
 					acknowledged = true;
 					clearTimeout(timer);
-					subscriptions.set(id, () => {
-						closed = true;
-						socket.destroy();
-					});
 					resolveSubscription();
 					return;
 				}
@@ -209,6 +214,10 @@ function subscribe(id, requested) {
 			},
 			disconnected,
 		);
+		subscriptions.set(id, () => {
+			closed = true;
+			disconnected(new Error("Herdr subscription cancelled"));
+		});
 	});
 }
 
@@ -287,20 +296,22 @@ function askCall(value) {
 		typeof value !== "object" ||
 		value.type !== "toolCall" ||
 		value.name !== "ask" ||
-		typeof value.id !== "string" ||
-		!value.arguments ||
-		typeof value.arguments !== "object"
+		typeof value.id !== "string"
 	)
 		return undefined;
-	const prompts = (
-		Array.isArray(value.arguments.prompts) ? value.arguments.prompts : []
-	)
+	return askFromInput(value.id, value.arguments);
+}
+
+function askFromInput(toolCallId, input) {
+	if (!input || typeof input !== "object" || Array.isArray(input))
+		return undefined;
+	const prompts = (Array.isArray(input.prompts) ? input.prompts : [])
 		.map(askPrompt)
 		.filter(Boolean);
 	if (prompts.length === 0) return undefined;
 	return {
-		toolCallId: value.id,
-		handoff: value.arguments.handoff === true,
+		toolCallId,
+		handoff: input.handoff === true,
 		prompts,
 	};
 }
@@ -336,6 +347,19 @@ async function sessionView(path, size) {
 		if (entry.id !== targetId) return false;
 		const currentDepth = depth;
 		depth += 1;
+		if (entry.type === "custom" && entry.customType === "pi-ask-active") {
+			const update = entry.data;
+			if (update?.version === 1 && typeof update.id === "string") {
+				if (update.state === "closed") resolved.add(update.id);
+				else if (
+					update.state === "active" &&
+					!ask &&
+					!resolved.has(update.id)
+				) {
+					ask = askFromInput(update.id, update);
+				}
+			}
+		}
 		const message = entry.message;
 		if (message && typeof message === "object") {
 			if (

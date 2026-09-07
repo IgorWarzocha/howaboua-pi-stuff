@@ -7,10 +7,30 @@ const context = { hasUI: false, mode: "print" } as never;
 
 describe("ask tool results", () => {
 	test("returns waiting responses and keeps handoff dismissal distinct", async () => {
+		const blocked: Array<{
+			id: string;
+			active: boolean;
+			handoff: boolean;
+			prompts: unknown[];
+		}> = [];
 		const tool = createAskTool({
-			askInComposer: async () => [
-				{ selections: ["Defer"], comment: "After the release." },
-			],
+			onBlockedChange: (state) => blocked.push(state),
+			askInComposer: async () => {
+				expect(blocked).toMatchObject([
+					{
+						id: "call-1",
+						active: true,
+						handoff: false,
+						prompts: [
+							{
+								title: "Delivery can duplicate",
+								choices: [{ label: "Fix" }, { label: "Defer" }],
+							},
+						],
+					},
+				]);
+				return [{ selections: ["Defer"], comment: "After the release." }];
+			},
 		});
 
 		const result = await tool.execute(
@@ -28,6 +48,10 @@ describe("ask tool results", () => {
 			undefined,
 			context,
 		);
+		expect(blocked.map(({ id, active }) => ({ id, active }))).toEqual([
+			{ id: "call-1", active: true },
+			{ id: "call-1", active: false },
+		]);
 
 		expect(result.content).toEqual([
 			{

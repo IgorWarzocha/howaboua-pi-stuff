@@ -75,9 +75,15 @@ export interface MonitoredAgent {
 
 type MachineConnectionStatus = "connected" | "connecting" | "unavailable";
 
+export interface MonitoringIssue {
+	state: "degraded" | "unavailable";
+	message: string;
+}
+
 export interface MachineStatus {
 	local: boolean;
 	name: string;
+	monitoringIssue?: MonitoringIssue;
 	reason?: string;
 	status: MachineConnectionStatus;
 }

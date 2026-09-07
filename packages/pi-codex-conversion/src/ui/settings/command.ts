@@ -24,7 +24,7 @@ import { openCodexSettingsScreen } from "./screen.ts";
 
 const VOICE_ACTIONS = ["voice realtime", "voice mute", "voice dictation", "voice stop", "voice server", "voice setup"] as const;
 const CODEX_COMMAND_COMPLETIONS = [...ROUTABLE_SETTINGS_TABS.map(({ id }) => id), ...VOICE_ACTIONS];
-const CODEX_USAGE = "Usage: /codex [tools|openai|display|voice [realtime|mute|dictation|stop|server|setup]|usage|about]";
+const CODEX_USAGE = "Usage: /codex [context|tools|openai|display|voice [realtime|mute|dictation|stop|server|setup]|usage|about]";
 
 export function registerCodexCommand(
 	pi: ExtensionAPI,
@@ -228,5 +228,5 @@ function formatAllProvidersMode(value: CodexConversionConfig["scope"]["allProvid
 }
 
 function formatCodexSettings(config: CodexConversionConfig): string {
-	return `Codex settings: extension ${config.voiceFeaturesOnly ? "voice only" : "adapter and voice"}, execution ${config.executionMode}, providers ${formatAllProvidersMode(config.scope.allProviders)}, Rust binaries ${config.tools.customRustBinariesDir || "bundled"}, heavy prompt overwrite ${config.prompt.heavySystemPromptOverwrite ? "on" : "off"}, harness identifier ${config.openai.harnessIdentifierHeader ? "on" : "off"}, Proxy Responses Lite ${config.openai.proxyResponsesLite ? "on" : "off"}, context management ${config.compaction.contextManagement}, compaction V2 ${config.compaction.responsesCompaction ? "on" : "off"}, portable summary ${config.compaction.portableSummary ? "on" : "off"}, Luna cache keepalive ${config.openai.lunaCacheKeepaliveMinutes === 0 ? "off" : `${config.openai.lunaCacheKeepaliveMinutes} mins`}, Sol/Terra cache keepalive ${config.openai.cacheKeepalive ? "25 mins" : "off"}, cache diagnostics ${config.openai.cacheDiagnostics}, fast ${config.openai.fast ? "on" : "off"}, verbosity ${config.openai.verbosity}`;
+	return `Codex settings: extension ${config.voiceFeaturesOnly ? "voice only" : "adapter and voice"}, execution ${config.executionMode}, providers ${formatAllProvidersMode(config.scope.allProviders)}, Rust binaries ${config.tools.customRustBinariesDir || "bundled"}, heavy prompt overwrite ${config.prompt.heavySystemPromptOverwrite ? "on" : "off"}, harness identifier ${config.openai.harnessIdentifierHeader ? "on" : "off"}, Proxy Responses Lite ${config.openai.proxyResponsesLite ? "on" : "off"}, context management ${config.compaction.contextManagement}, compaction ${config.compaction.hybridCompaction ? "hybrid (V2 where supported, Pi elsewhere)" : config.compaction.contextManagement !== "off" ? "notes only" : config.compaction.responsesCompaction ? "V2" : "Pi"}, portable summary ${config.compaction.portableSummary ? "on" : "off"}, Luna cache keepalive ${config.openai.lunaCacheKeepaliveMinutes === 0 ? "off" : `${config.openai.lunaCacheKeepaliveMinutes} mins`}, Sol/Terra cache keepalive ${config.openai.cacheKeepalive ? "25 mins" : "off"}, cache diagnostics ${config.openai.cacheDiagnostics}, fast ${config.openai.fast ? "on" : "off"}, verbosity ${config.openai.verbosity}`;
 }

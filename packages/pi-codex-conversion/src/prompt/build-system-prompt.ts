@@ -42,6 +42,7 @@ const PI_DEFAULT_GUIDELINES = new Set([
 ]);
 
 const EXEC_SESSION_GUIDELINE = "For unfinished exec_command sessions, use write_stdin with yield_time_ms near the command's expected remaining time and lengthen later waits";
+const FOLLOW_THROUGH_GUIDELINE = "Finish the requested work; ask only when missing information changes what you should do.";
 
 const NORMAL_CODEX_GUIDELINES = [
 	"Use exec_command for shell commands, file inspection, builds, and tests; use rg and rg --files for discovery; filter large output at the source",
@@ -86,6 +87,7 @@ const REMOVED_GUIDELINES = new Set([
 ]);
 
 const ALL_STATIC_CODEX_GUIDELINES = [
+	FOLLOW_THROUGH_GUIDELINE,
 	...NORMAL_CODEX_GUIDELINES,
 	...CODE_MODE_GUIDELINES,
 	...NOTEBOOK_MODE_GUIDELINES,
@@ -119,6 +121,7 @@ function buildCodexGuidelines(mode: CodexPromptMode = "normal", piPackageRoot?: 
 		: mode === "notebook"
 			? [...NOTEBOOK_MODE_GUIDELINES]
 			: [...CODE_MODE_GUIDELINES];
+	guidelines.unshift(FOLLOW_THROUGH_GUIDELINE);
 	if (piPackageRoot) {
 		guidelines.push(`When work depends on Pi APIs or runtime behavior not established in the current repository, consult the relevant README.md, docs/, or examples/ files under ${piPackageRoot} and follow their references before implementing`);
 	}
@@ -313,7 +316,7 @@ function stripPiDocumentation(prompt: string): string {
 }
 
 function replaceHeavyGuidelines(prompt: string, guidelines: string[]): string {
-	const match = prompt.match(/(^Guidelines:\n)([\s\S]*?)(?=\n\n(?:Pi documentation\b|<project_context>|The following skills\b|<skills_instructions>|<available_skills>|Current working directory:|Current date:))/m);
+	const match = prompt.match(/(^Guidelines:\n)([\s\S]*?)(?=\n\n(?:Pi documentation\b|<project_context>|The following skills\b|<skills_instructions>|<available_skills>|Current working directory:|Current date:|Date:))/m);
 	const additions = guidelines.map((line) => `- ${line}`);
 	if (!match || match.index === undefined) {
 		const section = `Guidelines:\n${additions.join("\n")}`;

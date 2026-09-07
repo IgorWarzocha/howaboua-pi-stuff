@@ -10,6 +10,7 @@ const bundleExcludedPackages = new Set([
 	"@howaboua/pi-browser",
 	"@howaboua/pi-codex-conversion",
 	"@howaboua/pi-codex-imagegen",
+	"@howaboua/pi-dynamic-tools",
   "@howaboua/pi-skill-omarchy-help",
   "@howaboua/pi-subdir-agents",
 	"@howaboua/pi-codex-web-run",

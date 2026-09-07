@@ -71,7 +71,7 @@ export async function rewriteCodexProviderRequest(payload: unknown, ctx: Extensi
 	const prepared = prepareCodexProviderRequest(payload, ctx, state);
 	if (!prepared) return undefined;
 	const { plan, configuredPayload } = prepared;
-	let rewrittenPayload = state.developerMessages.rewritePayload(configuredPayload);
+	let rewrittenPayload = state.developerMessages.rewritePayload(configuredPayload, ctx.model);
 	if (plan.contextManagement) {
 		const remoteHistoryNotes = usesRemoteHistoryNotes(
 			ctx,
@@ -110,6 +110,7 @@ export function rewriteCodexPrewarmProviderRequest(
 	if (!prepared) return undefined;
 	let rewritten = state.developerMessages.rewritePayload(
 		prepared.configuredPayload,
+		ctx.model,
 	);
 	if (prepared.plan.contextManagement) {
 		const remoteHistoryNotes = usesRemoteHistoryNotes(

@@ -35,9 +35,12 @@ function agentLine(
 ): string {
 	const theme = ctx.ui.theme;
 	const status = activityStatus(agent.activity);
-	const connected = machines.get(agent.machine)?.status === "connected";
+	const machine = machines.get(agent.machine);
+	const connected = machine?.status === "connected";
 	const appearance = connected
-		? statusAppearance(status)
+		? machine.monitoringIssue
+			? ({ icon: "?", tone: "warning" } as const)
+			: statusAppearance(status)
 		: ({ icon: "?", tone: "error" } as const);
 	const name = `${agent.machine} / ${agent.name ?? agent.paneId}`;
 	const location = agent.cwd ? basename(agent.cwd) : agent.paneId;
@@ -45,7 +48,12 @@ function agentLine(
 		theme.fg("muted", "│"),
 		theme.fg(appearance.tone, appearance.icon),
 		theme.fg("accent", name),
-		theme.fg(appearance.tone, connected ? status : "offline"),
+		theme.fg(
+			appearance.tone,
+			connected
+				? `${status}${machine.monitoringIssue ? " (last seen)" : ""}`
+				: "offline",
+		),
 		theme.fg("dim", `· ${location}`),
 	].join(" ");
 }
@@ -79,6 +87,19 @@ export function renderAgentWidget(
 	if (ordered.length > MAX_VISIBLE_AGENTS) {
 		lines.push(
 			`${theme.fg("muted", "│")} ${theme.fg("dim", `+${ordered.length - MAX_VISIBLE_AGENTS} more`)}`,
+		);
+	}
+	for (const machine of machines) {
+		if (!machine.monitoringIssue) continue;
+		const status =
+			machine.monitoringIssue.state === "degraded"
+				? "incomplete"
+				: "unavailable";
+		const recovery = machine.local
+			? "retrying"
+			: `/herdr connect ${machine.name}`;
+		lines.push(
+			`${theme.fg("muted", "│")} ${theme.fg("warning", `${machine.name} monitoring ${status} · ${recovery}`)}`,
 		);
 	}
 	lines.push(theme.fg("muted", "╰─"));

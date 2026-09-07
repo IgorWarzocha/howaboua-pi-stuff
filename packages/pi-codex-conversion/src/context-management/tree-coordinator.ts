@@ -14,6 +14,7 @@ import type {
 	SessionTreeEvent,
 } from "@earendil-works/pi-coding-agent";
 import type { ContextWindowIdentity } from "./messages.ts";
+import { CodexTreeHandoff } from "./tree-handoff.ts";
 import {
 	CONTEXT_NOTE_SNAPSHOT_ENTRY_TYPE,
 	createPiSessionNotesSnapshot,
@@ -40,6 +41,9 @@ interface PendingRollover {
 	boundaryEntryId: string;
 	identity: ContextWindowIdentity;
 	leafIdAtRequest: string;
+	compactionEntryId?: string;
+	sourceLeafId?: string;
+	triggerTurn: boolean;
 }
 
 interface Navigation {
@@ -55,6 +59,7 @@ interface QueuedInput {
 }
 
 export class CodexContextTreeCoordinator {
+	readonly handoff = new CodexTreeHandoff();
 	private readonly windows: CodexContextWindowManager;
 	private captured: CapturedCommandContext | undefined;
 	private pending: PendingRollover | undefined;
@@ -64,6 +69,8 @@ export class CodexContextTreeCoordinator {
 	constructor(windows: CodexContextWindowManager) {
 		this.windows = windows;
 	}
+
+	get archiving(): boolean { return this.navigation !== undefined; }
 
 	register(pi: ExtensionAPI): void {
 		pi.registerCommand(CAPTURE_COMMAND, {
@@ -84,13 +91,14 @@ export class CodexContextTreeCoordinator {
 	}
 
 	reset(): void {
+		this.handoff.reset();
 		this.captured = undefined;
 		this.pending = undefined;
 		this.navigation = undefined;
 		this.queuedInputs = [];
 	}
 
-	schedule(ctx: ExtensionContext): boolean {
+	schedule(ctx: ExtensionContext, options?: { compactionEntryId?: string; triggerTurn?: boolean; sourceLeafId?: string | undefined }): boolean {
 		if (this.pending) return false;
 		const sessionId = ctx.sessionManager.getSessionId();
 		if (!this.captured || this.captured.sessionId !== sessionId)
@@ -112,8 +120,11 @@ export class CodexContextTreeCoordinator {
 			boundaryEntryId: boundary.id,
 			identity,
 			leafIdAtRequest: leaf.id,
+			...(options?.compactionEntryId ? { compactionEntryId: options.compactionEntryId } : {}),
+			...(options?.sourceLeafId ? { sourceLeafId: options.sourceLeafId } : {}),
+			triggerTurn: options?.triggerTurn ?? true,
 		};
-		ctx.abort();
+		if (!options?.compactionEntryId) ctx.abort();
 		return true;
 	}
 
@@ -164,14 +175,17 @@ export class CodexContextTreeCoordinator {
 					pending.identity.currentWindowId,
 					pending.boundaryEntryId,
 					summary,
+					pending.compactionEntryId,
 				),
 			);
 			pi.appendEntry(CONTEXT_NOTE_SNAPSHOT_ENTRY_TYPE, snapshot);
 			this.pending = undefined;
 			const started = await this.windows.startNewWindow(pi, ctx, {
-				triggerTurn: true,
+				triggerTurn: pending.triggerTurn,
 				mode: "tree",
 				trimPreviousWindow: false,
+				// The outgoing branch remains readable after Pi archives it.
+				sourceLeafId: pending.sourceLeafId ?? oldLeaf.id,
 			});
 			if (!started) throw new Error("A new context window could not be started");
 			this.navigation = undefined;
@@ -206,6 +220,9 @@ export class CodexContextTreeCoordinator {
 			throw new Error("The active branch changed before rollover");
 		if (!branch.some((entry) => entry.id === pending.boundaryEntryId))
 			throw new Error("The context-window boundary is no longer active");
+		if (pending.compactionEntryId && !branch.some((entry) =>
+			entry.id === pending.compactionEntryId && entry.type === "compaction"))
+			throw new Error("The completed compaction is no longer active");
 	}
 
 	private restoreEditorAfterNavigation(

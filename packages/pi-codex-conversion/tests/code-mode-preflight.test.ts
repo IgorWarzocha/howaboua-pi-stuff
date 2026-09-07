@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { Type } from "typebox";
+import { toNestedTool } from "../src/adapter/code-mode/nested-tool-adapter.ts";
+import {
+	registerCodeModeToolCompletion,
+	type CodeModeToolCompletionCall,
+} from "../src/code-mode-hooks.ts";
 import {
 	createEventBus,
 	type ExtensionAPI,
@@ -41,9 +47,17 @@ function extensionApi(bus = createEventBus()) {
 	};
 }
 
-test("Code Mode preflight broker survives extension load order and reload", async () => {
+test("Code Mode hook broker survives extension load order and reload", async (t) => {
+	const diagnostics: unknown[][] = [];
+	t.mock.method(console, "error", (...args: unknown[]) => diagnostics.push(args));
 	const bus = createEventBus();
 	const guardApi = extensionApi(bus);
+	const completions: CodeModeToolCompletionCall[] = [];
+	const completionRegistration = registerCodeModeToolCompletion(guardApi.pi, (call) => {
+		(call.input as { cmd: string }).cmd = "subscriber mutation";
+		throw new Error("Tracker failed");
+	});
+	assert.equal(completionRegistration.available, false);
 	let calls = 0;
 	let block = false;
 	let captureInput = false;
@@ -62,6 +76,7 @@ test("Code Mode preflight broker survives extension load order and reload", asyn
 
 	const firstCodeModeApi = extensionApi(bus);
 	const firstBroker = registerCodeModePreflightBroker(firstCodeModeApi.pi);
+	assert.equal(completionRegistration.available, true);
 	assert.equal(registration.available, true);
 	await firstBroker.run({
 		toolName: "exec_command",
@@ -74,9 +89,11 @@ test("Code Mode preflight broker survives extension load order and reload", asyn
 	assert.equal(calls, 1);
 
 	await firstCodeModeApi.shutdown();
+	assert.equal(completionRegistration.available, false);
 	assert.equal(registration.available, false);
 	const reloadedCodeModeApi = extensionApi(bus);
 	const reloadedBroker = registerCodeModePreflightBroker(reloadedCodeModeApi.pi);
+	assert.equal(completionRegistration.available, true);
 	assert.equal(registration.available, true);
 	block = true;
 	await assert.rejects(reloadedBroker.run({
@@ -90,6 +107,11 @@ test("Code Mode preflight broker survives extension load order and reload", asyn
 	block = false;
 
 	const lateGuardApi = extensionApi(bus);
+	const lateCompletion = registerCodeModeToolCompletion(lateGuardApi.pi, async (call) => {
+		await Promise.resolve();
+		completions.push(call);
+	});
+	assert.equal(lateCompletion.available, true);
 	let lateInput: unknown;
 	const lateRegistration = registerCodeModeToolPreflight(lateGuardApi.pi, (call) => {
 		calls += 10;
@@ -110,9 +132,26 @@ test("Code Mode preflight broker survives extension load order and reload", asyn
 	assert.deepEqual(firstInput, approvedInput);
 	assert.deepEqual(lateInput, approvedInput);
 	assert.notEqual(firstInput, lateInput);
+	const completion: CodeModeToolCompletionCall = {
+		toolName: "exec_command", input: approvedInput, toolCallId: "nested-2",
+		cwd: "/tmp", extensionContext: {} as ExtensionContext,
+		signal: new AbortController().signal, status: "success",
+		result: { content: [{ type: "text", text: "x".repeat(100_000) }] },
+	};
+	await reloadedBroker.complete(completion);
+	assert.equal(diagnostics.length, 1);
+	assert.deepEqual(completions, [completion]);
+	assert.notEqual(completions[0]?.input, approvedInput);
+	assert.notEqual(completions[0]?.result, completion.result);
+	completionRegistration.dispose();
+	completionRegistration.dispose();
+	await lateGuardApi.shutdown();
+	assert.equal(lateCompletion.available, false);
+	await reloadedBroker.complete(completion);
+	assert.equal(completions.length, 1);
 });
 
-test("nested preflight blocks or cancels tools before invocation", async () => {
+test("nested hooks preserve preflight, raw completion and compact return boundaries", async () => {
 	const waiters: Array<(value: unknown) => void> = [];
 	const runtime = new CodeModeDelegateRuntime((message) => {
 		waiters.shift()?.(message);
@@ -140,9 +179,11 @@ test("nested preflight blocks or cancels tools before invocation", async () => {
 		sourcePath: "/tmp/custom_shell.toml",
 	};
 	let preflightCalls = 0;
+	const completions: CodeModeToolCompletionCall[] = [];
 	const context: ToolExecutionContext = {
 		cwd: process.cwd(),
 		extensionContext: {} as ExtensionContext,
+		completion: async (call) => { completions.push(call); },
 		preflight: async () => {
 			preflightCalls += 1;
 			throw new Error(
@@ -198,4 +239,37 @@ test("nested preflight blocks or cancels tools before invocation", async () => {
 		"error",
 	);
 	assert.equal(programmaticInvoked, false);
+	assert.equal(completions.length, 3);
+	assert.ok(completions.every((call) => call.status === "error" && call.phase === "preflight"));
+	assert.equal(completions[2]?.signal.aborted, true);
+	context.preflight = undefined;
+	const raw = { content: [{ type: "text" as const, text: "x".repeat(100_000) }], details: { patch: "y".repeat(100_000) } };
+	let fail = false;
+	const adapted = toNestedTool({
+		name: "edit", label: "Edit", description: "Edit", parameters: Type.Object({ path: Type.String() }),
+		async execute() { return raw; },
+	}, "await tools.edit(input)", {}, {
+		prepareInput(input) {
+			(input as { path: string }).path = "prepared";
+			return input;
+		},
+		resultValue: () => "compact",
+		resultError: () => fail ? "Edit failed" : undefined,
+	});
+	const success = await invoke("cell-4", 4, adapted, { path: "original" });
+	assert.deepEqual(success, { type: "delegate/response", id: 4, result: { status: "ok", value: { type: "tool/result", result: "compact" } } });
+	const completed = completions[3];
+	assert.equal(completed?.status, "success");
+	assert.deepEqual(completed?.input, { path: "original" });
+	assert.deepEqual(completed?.result, raw);
+	assert.match(completed?.toolCallId ?? "", /cell-4:nested-4$/);
+	fail = true;
+	await invoke("cell-5", 5, adapted, { path: "original" });
+	const failed = completions[4];
+	assert.equal(failed?.status, "error");
+	if (failed?.status !== "error") throw new Error("Expected completion failure");
+	assert.equal(failed.phase, "execution");
+	assert.equal(failed.error, "Edit failed");
+	assert.deepEqual(failed.result, raw);
+	assert.equal(completions.length, 5);
 });

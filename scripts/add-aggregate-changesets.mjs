@@ -22,6 +22,7 @@ const aggregateExcludedNames = new Set([
 	"@howaboua/pi-browser",
 	"@howaboua/pi-codex-conversion",
 	"@howaboua/pi-codex-imagegen",
+	"@howaboua/pi-dynamic-tools",
 	"@howaboua/pi-shepherdr2",
 	"@howaboua/pi-skill-omarchy-help",
 	"@howaboua/pi-subdir-agents",
@@ -37,6 +38,29 @@ const removalBase = process.env.AGGREGATE_BASE ?? "HEAD~1";
 
 function readJson(path) {
 	return JSON.parse(readFileSync(path, "utf8"));
+}
+
+function removedBundledPackageChanges() {
+	return [
+		["pi-extensions", "extension"],
+		["pi-skills", "skill"],
+	].flatMap(([dir, kind]) => {
+		const path = `packages/${dir}/package.json`;
+		const previous = spawnSync("git", ["show", `${removalBase}:${path}`], {
+			cwd: root,
+			encoding: "utf8",
+		});
+		if (previous.status !== 0) return [];
+		const previousDependencies = JSON.parse(previous.stdout).dependencies ?? {};
+		const currentDependencies = readJson(join(root, path)).dependencies ?? {};
+		return Object.keys(previousDependencies)
+			.filter((name) => !(name in currentDependencies))
+			.map((name) => ({
+				name,
+				body: `Remove retired bundled ${kind}`,
+				kind,
+			}));
+	});
 }
 
 function retiredPackageChanges() {
@@ -158,7 +182,16 @@ for (const { pkg } of packageInfos) {
 	}
 }
 
-for (const retired of retiredPackageChanges()) {
+const removedBundledPackages = removedBundledPackageChanges();
+const removedKeys = new Set(
+	removedBundledPackages.map(({ name, kind }) => `${kind}:${name}`),
+);
+for (const retired of [
+	...removedBundledPackages,
+	...retiredPackageChanges().filter(
+		({ name, kind }) => !removedKeys.has(`${kind}:${name}`),
+	),
+]) {
 	if (retired.kind === "extension") changedExtensions.push(retired);
 	else changedSkills.push(retired);
 }

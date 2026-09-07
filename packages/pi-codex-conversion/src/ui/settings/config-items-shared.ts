@@ -10,7 +10,7 @@ import {
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 
 export interface ConfigSetting {
-	item: SettingItem;
+	item: SettingItem & { description: string };
 	update?:
 		| ((value: string, config: CodexConversionConfig) => CodexConversionConfig)
 		| undefined;
@@ -56,7 +56,7 @@ export class TextSettingSubmenu extends Container implements Focusable {
 }
 
 export function setting(
-	item: SettingItem,
+	item: ConfigSetting["item"],
 	update?: ConfigSetting["update"],
 ): ConfigSetting {
 	return { item, ...(update ? { update } : {}) };
@@ -70,16 +70,20 @@ export function toggle(
 		enabled: boolean,
 		config: CodexConversionConfig,
 	) => CodexConversionConfig,
+	description: string,
 ): ConfigSetting {
 	return setting(
-		{ id, label, currentValue: current ? "on" : "off", values: ["off", "on"] },
+		{ id, label, currentValue: current ? "on" : "off", values: ["off", "on"], description },
 		(value, config) => update(value === "on", config),
 	);
 }
 
 export function projectCacheKeepalive(id: string, label: string, current: boolean): ConfigSetting {
 	return {
-		item: { id, label, currentValue: current ? "25 mins" : "off", values: ["off", "25 mins"] },
+		item: {
+			id, label, currentValue: current ? "25 mins" : "off", values: ["off", "25 mins"],
+			description: "Send idle requests every 25 minutes to keep this project\u0027s Sol or Terra prompt cache warm. Uses quota.",
+		},
 		action: "project-cache-keepalive",
 	};
 }

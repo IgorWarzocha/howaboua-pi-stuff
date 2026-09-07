@@ -101,7 +101,12 @@ function buildNativeReplaySegmentsInternal<TApi extends Api>(args: {
 		};
 	}
 
-	const freshPreamble = extractFreshAuthoritativePreamble(args.payload);
+	const preCompactionEntries = args.branchEntries.slice(firstKeptEntryIndex, boundaryIndex);
+	const postCompactionEntries = args.branchEntries.slice(boundaryIndex + 1);
+	// Window markers and persisted developer updates belong to history, not the fresh prompt envelope.
+	const persistedInput = serializeMessagesToResponsesInput(args.model,
+		collectReplayMessages([...preCompactionEntries, ...postCompactionEntries]), args.serializationOptions);
+	const freshPreamble = extractFreshAuthoritativePreamble(args.payload, persistedInput);
 	if (!freshPreamble) {
 		return {
 			ok: false,
@@ -154,8 +159,6 @@ function buildNativeReplaySegmentsInternal<TApi extends Api>(args: {
 		};
 	}
 
-	const preCompactionEntries = args.branchEntries.slice(firstKeptEntryIndex, boundaryIndex);
-	const postCompactionEntries = args.branchEntries.slice(boundaryIndex + 1);
 	const contextPostCompactionTailMessages = collectReplayMessages(postCompactionEntries);
 	const compactionSummaryMessage = createCompactionSummaryAgentMessage(args.compactionEntry);
 	const replayMatch = findReplayMatch({

@@ -14,6 +14,15 @@ export interface CodexReasoningUpdate {
 	effort: string;
 }
 
+const pendingUpdates = new WeakMap<ExtensionAPI, { sessionId: string; updates: CodexReasoningUpdate[] }>();
+
+export function flushCodexReasoningUpdates(pi: ExtensionAPI, ctx: ExtensionContext): void {
+	const pending = pendingUpdates.get(pi);
+	pendingUpdates.delete(pi);
+	if (pending?.sessionId !== ctx.sessionManager.getSessionId()) return;
+	for (const update of pending.updates) pi.appendEntry(CODEX_REASONING_UPDATE_TYPE, update);
+}
+
 export function supportsCodexReasoningUpdates(model: Model<Api> | undefined): boolean {
 	return model?.api === "openai-codex-responses" && model.id.split("/").at(-1)?.toLowerCase() === "gpt-6-astra";
 }
@@ -60,17 +69,19 @@ export function recordCodexReasoningUpdate(pi: ExtensionAPI, ctx: ExtensionConte
 	const model = ctx.model;
 	if (!model || !supportsCodexReasoningUpdates(model)) return;
 	const lane = codexReasoningLane(model);
-	const updates = codexReasoningUpdates(messages, model);
+	const sessionId = ctx.sessionManager.getSessionId();
+	const pending = pendingUpdates.get(pi);
+	const queued = pending?.sessionId === sessionId ? pending.updates : [];
+	const updates = [...codexReasoningUpdates(messages, model), ...queued.filter((update) => update.lane === lane)];
 	const effort = effortForLevel(model, pi.getThinkingLevel());
-	// During streaming earlier selector records may still be queued by Pi.
+	// Streaming changes become bookkeeping only after the current tool batch finishes.
 	const previous = previousLevel ? effortForLevel(model, previousLevel) : updates.at(-1)?.effort;
 	if (previous === undefined || previous === effort) return;
-	pi.sendMessage<CodexReasoningUpdate>({
-		customType: CODEX_REASONING_UPDATE_TYPE,
-		content: `Reasoning effort: ${effort}`,
-		display: false,
-		details: { protocol: 1, id: randomUUID(), lane, initialEffort: updates[0]?.initialEffort ?? previous, effort },
-	}, { triggerTurn: false });
+	const update: CodexReasoningUpdate = { protocol: 1, id: randomUUID(), lane, initialEffort: updates[0]?.initialEffort ?? previous, effort };
+	if (ctx.isIdle()) {
+		flushCodexReasoningUpdates(pi, ctx);
+		pi.appendEntry(CODEX_REASONING_UPDATE_TYPE, update);
+	} else pendingUpdates.set(pi, { sessionId, updates: [...queued, update] });
 }
 
 export function hasPendingCodexReasoningUpdate(messages: readonly AgentMessage[]): boolean {

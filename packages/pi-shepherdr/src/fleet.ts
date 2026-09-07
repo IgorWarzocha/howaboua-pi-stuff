@@ -16,6 +16,7 @@ import { RemoteHerdrClient } from "./remote-client.js";
 import type {
 	MachineStatus,
 	MonitoredAgent,
+	MonitoringIssue,
 	ScopedMonitoredAgent,
 	SessionSnapshot,
 } from "./types.js";
@@ -29,6 +30,7 @@ interface Runtime {
 	config?: RemoteMachineConfig;
 	local: boolean;
 	monitor?: AgentMonitor;
+	monitoringIssue?: MonitoringIssue;
 	pending: unknown[];
 	reason?: string;
 	status: MachineStatus["status"];
@@ -247,12 +249,7 @@ export class AgentFleet {
 	}
 
 	statuses(): MachineStatus[] {
-		return [...this.runtimes.entries()].map(([name, runtime]) => ({
-			name,
-			local: runtime.local,
-			status: runtime.status,
-			...(runtime.reason ? { reason: runtime.reason } : {}),
-		}));
+		return [...this.runtimes.keys()].map((name) => this.statusFor(name));
 	}
 
 	list(): ScopedMonitoredAgent[] {
@@ -356,6 +353,12 @@ export class AgentFleet {
 			const runtime = this.runtimes.get(target);
 			if (!runtime)
 				throw new Error(`unknown Herdr machine ${JSON.stringify(target)}`);
+			if (runtime.status === "connected" && runtime.monitoringIssue) {
+				if (runtime.attempting)
+					return `Already retrying monitoring on ${target}`;
+				void this.retryMonitoring(target, runtime);
+				return `Retrying monitoring on ${target}`;
+			}
 			if (runtime.local) {
 				return `${target} is the local machine and is already connected`;
 			}
@@ -369,6 +372,14 @@ export class AgentFleet {
 			return `Connecting to ${target}`;
 		}
 
+		const retries = [...this.runtimes.entries()].filter(
+			([, runtime]) =>
+				runtime.status === "connected" &&
+				runtime.monitoringIssue &&
+				!runtime.attempting,
+		);
+		for (const [name, runtime] of retries)
+			void this.retryMonitoring(name, runtime);
 		const names = [...this.runtimes.entries()]
 			.filter(
 				([, runtime]) =>
@@ -380,8 +391,15 @@ export class AgentFleet {
 		for (const name of names) {
 			void this.connectMachine(name, this.generation, false);
 		}
-		if (names.length > 0) {
-			return `Connecting to ${names.join(", ")}`;
+		if (names.length > 0 || retries.length > 0) {
+			return [
+				retries.length > 0
+					? `Retrying monitoring on ${retries.map(([name]) => name).join(", ")}`
+					: "",
+				names.length > 0 ? `Connecting to ${names.join(", ")}` : "",
+			]
+				.filter(Boolean)
+				.join(". ");
 		}
 		const remotes = [...this.runtimes.entries()].filter(
 			([, runtime]) => !runtime.local,
@@ -405,6 +423,9 @@ export class AgentFleet {
 			name,
 			local: runtime.local,
 			status: runtime.status,
+			...(runtime.monitoringIssue
+				? { monitoringIssue: runtime.monitoringIssue }
+				: {}),
 			...(runtime.reason ? { reason: runtime.reason } : {}),
 		};
 	}
@@ -420,19 +441,64 @@ export class AgentFleet {
 			onChange: () => this.changed(),
 			onRefresh: () => this.refresh(),
 			operatorPrefix: runtime.local ? "herdr" : operatorPrefix(runtime.config!),
-			onWarning: runtime.local
-				? (message) => this.context?.ui.notify(message, "warning")
-				: (message) => {
-						if (this.runtimes.get(machine) === runtime) {
-							this.disconnected(machine, runtime, message);
-						}
-					},
+			onWarning: (issue) => {
+				if (this.runtimes.get(machine) !== runtime) return;
+				if (!runtime.local && issue.state === "unavailable") {
+					this.disconnected(machine, runtime, issue.message);
+					return;
+				}
+				runtime.monitoringIssue = {
+					...issue,
+					message: errorMessage(issue.message),
+				};
+				this.refresh();
+				this.context?.ui.notify(
+					`${machine}: ${issue.message}${runtime.local ? "" : `\nRun /herdr connect ${machine} to retry`}`,
+					"warning",
+				);
+			},
+			onRecovered: () => {
+				if (this.runtimes.get(machine) !== runtime || !runtime.monitoringIssue)
+					return;
+				delete runtime.monitoringIssue;
+				this.refresh();
+				if (runtime.monitor?.list().length)
+					this.context?.ui.notify(
+						`Herdr monitoring restored: ${machine}`,
+						"info",
+					);
+			},
 			reconnect: runtime.local,
 			...(client instanceof RemoteHerdrClient ? { reader: client } : {}),
 			...(runtime.local && process.env["HERDR_PANE_ID"]
 				? { selfPaneId: process.env["HERDR_PANE_ID"] }
 				: {}),
 		});
+	}
+
+	private async retryMonitoring(name: string, runtime: Runtime): Promise<void> {
+		const monitor = runtime.monitor;
+		const ctx = this.context;
+		const generation = this.generation;
+		if (!monitor || !ctx || runtime.attempting) return;
+		runtime.attempting = true;
+		try {
+			await monitor.retryMonitoring();
+		} catch (error) {
+			if (
+				this.isCurrent(generation, ctx) &&
+				this.runtimes.get(name) === runtime &&
+				runtime.monitor === monitor
+			) {
+				ctx.ui.notify(
+					`Monitoring retry failed on ${name}: ${errorMessage(error)}`,
+					"warning",
+				);
+			}
+		} finally {
+			if (this.runtimes.get(name) === runtime && runtime.monitor === monitor)
+				delete runtime.attempting;
+		}
 	}
 
 	private async connectMachine(
@@ -500,6 +566,18 @@ export class AgentFleet {
 			if (!initial) ctx.ui.notify(`Connected to ${name}`, "info");
 		} catch (error) {
 			delete runtime.attempting;
+			if (
+				this.isCurrent(generation, ctx) &&
+				this.runtimes.get(name) === runtime &&
+				runtime.client === client &&
+				runtime.monitor &&
+				runtime.monitoringIssue?.state === "degraded"
+			) {
+				runtime.pending = [];
+				runtime.status = "connected";
+				this.refresh();
+				return;
+			}
 			client?.close();
 			if (generation !== this.generation || ctx !== this.context) return;
 			if (
@@ -522,12 +600,13 @@ export class AgentFleet {
 		if (runtime.client instanceof RemoteHerdrClient) runtime.client.close();
 		delete runtime.monitor;
 		delete runtime.client;
+		delete runtime.monitoringIssue;
 		runtime.status = "unavailable";
 		delete runtime.attempting;
 		runtime.reason = reason;
 		this.changed();
 		this.context?.ui.notify(
-			`Shepherdr could not connect to ${name}: ${reason}\nRun /herdr connect ${name} to retry`,
+			`Shepherdr unavailable on ${name}: ${reason}\nRun /herdr connect ${name} to retry`,
 			"warning",
 		);
 	}

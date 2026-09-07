@@ -18,6 +18,7 @@ export function buildAdapterSettings(
 		setting(
 			{
 				id: "extensionMode",
+				description: "Voice only disables the prompt and tool adapter. Standalone tools remain controlled by Provider scope.",
 				label: "Extension mode",
 				currentValue: config.voiceFeaturesOnly
 					? "voice only"
@@ -32,6 +33,7 @@ export function buildAdapterSettings(
 		setting(
 			{
 				id: "allProviders",
+				description: "Choose which models use the adapter. Extra tools only exposes standalone tools without replacing the prompt.",
 				label: "Provider scope",
 				currentValue: formatAllProvidersMode(config.scope.allProviders),
 				values: ["Codex and configured", "all providers", "extra tools only"],
@@ -47,6 +49,7 @@ export function buildAdapterSettings(
 		setting(
 			{
 				id: "additionalProviders",
+				description: "Provider IDs for compatible Responses endpoints, including passthrough proxies, that should use the adapter.",
 				label: "Additional providers",
 				currentValue: config.scope.additionalProviders.join(", "),
 				submenu: (currentValue, done) =>
@@ -69,28 +72,8 @@ export function buildAdapterSettings(
 		),
 		setting(
 			{
-				id: "contextManagement",
-				label: "Context management (experimental)",
-				currentValue: config.compaction.contextManagement,
-				values: ["off", "local", "tree", "remote"],
-			},
-			(value, current) => ({
-				...current,
-				compaction: {
-					...current.compaction,
-					contextManagement:
-						value === "local" || value === "tree" || value === "remote"
-							? value
-							: "off",
-					...(value !== "off"
-						? { responsesCompaction: false, portableSummary: false }
-						: {}),
-				},
-			}),
-		),
-		setting(
-			{
 				id: "heavySystemPromptOverwrite",
+				description: "Remove generic instructions from the system prompt.",
 				label: "Heavy system prompt overwrite",
 				currentValue: config.prompt.heavySystemPromptOverwrite
 					? "on (40% smaller)"
@@ -108,6 +91,7 @@ export function buildAdapterSettings(
 		{
 			item: {
 				id: "editConfig",
+				description: "Open the selected scope's config file in your editor for settings not exposed here.",
 				label: "Edit config",
 				currentValue: editorCommand()
 					? "Opens in default editor (please /reload)"

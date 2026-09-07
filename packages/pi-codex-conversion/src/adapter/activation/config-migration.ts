@@ -66,6 +66,7 @@ export function migrateCodexConversionConfigIfNeeded(value: unknown): { migrated
 		},
 		compaction: {
 			contextManagement: DEFAULT_CODEX_CONVERSION_CONFIG.compaction.contextManagement,
+			hybridCompaction: DEFAULT_CODEX_CONVERSION_CONFIG.compaction.hybridCompaction,
 			responsesCompaction: typeof value["responsesCompaction"] === "boolean" ? value["responsesCompaction"] : DEFAULT_CODEX_CONVERSION_CONFIG.compaction["responsesCompaction"],
 			portableSummary: DEFAULT_CODEX_CONVERSION_CONFIG.compaction.portableSummary,
 			v2UserMessageRetention: DEFAULT_CODEX_CONVERSION_CONFIG.compaction.v2UserMessageRetention,

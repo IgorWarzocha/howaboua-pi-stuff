@@ -13,6 +13,7 @@ export function buildDisplaySettings(
 				...current,
 				ui: { ...current.ui, statusLine: enabled },
 			}),
+			"Show the adapter mode, context settings and available Codex usage information in Pi's status area.",
 		),
 		toggle(
 			"toolRenaming",
@@ -22,6 +23,7 @@ export function buildDisplaySettings(
 				...current,
 				ui: { ...current.ui, toolRenaming: enabled },
 			}),
+			"Rename tool calls to user-friendly names.",
 		),
 		toggle(
 			"compactTools",
@@ -31,6 +33,7 @@ export function buildDisplaySettings(
 				...current,
 				ui: { ...current.ui, compactTools: enabled },
 			}),
+			"Hide patch diffs in collapsed tool results. Expand a result to inspect the changes.",
 		),
 		toggle(
 			"codeModeDetails",
@@ -40,6 +43,7 @@ export function buildDisplaySettings(
 				...current,
 				ui: { ...current.ui, codeModeDetails: enabled },
 			}),
+			"Show Code and Notebook source previews and execution output alongside nested tool results.",
 		),
 		toggle(
 			"backgroundShellWidget",
@@ -49,6 +53,7 @@ export function buildDisplaySettings(
 				...current,
 				ui: { ...current.ui, backgroundShellWidget: enabled },
 			}),
+			"Show tracked background shell sessions and their status above the editor.",
 		),
 	];
 }
