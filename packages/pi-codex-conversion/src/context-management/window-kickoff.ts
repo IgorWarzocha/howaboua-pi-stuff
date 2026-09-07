@@ -94,7 +94,7 @@ export class CodexContextWindowKickoff {
 		this.continuation = undefined;
 		// Only settled user input enters Pi's complete before_agent_start chain.
 		pi.sendUserMessage(
-			pending.input ?? "Continue in the new context window using the checkpoint notes.",
+			pending.input ?? "Continue.",
 			pending.input === undefined ? undefined : { expandPromptTemplates: true },
 		);
 		return true;
