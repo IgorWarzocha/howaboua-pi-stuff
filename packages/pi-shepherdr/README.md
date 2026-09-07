@@ -34,9 +34,7 @@ The agent tool is always available in Pi, Code Mode and Notebook Mode. Run Pi in
 
 The command only records one visible guidance message without triggering a turn. Run `/herdr` again to return to normal guidance. Resumed sessions restore their last mode; new sessions start with normal guidance. Tool availability and monitoring do not depend on this mode.
 
-`/herdr machines` manages Herdr's saved SSH profiles. Add, rename, enable, disable and remove use Herdr's native CLI. Setup runs interactively so Herdr can request SSH authentication or approval before installing or replacing a server. These profiles are shared with other Herdr clients on the same host.
-
-Shepherdr connects enabled profiles at session startup. `/herdr connect [profile-id]` refreshes the catalog and retries failed connections or incomplete monitoring without dropping working connections. Opening `/herdr machines` also refreshes the catalog. Disabling or removing a profile stops its watches without stopping remote agents.
+Shepherdr reads Herdr's existing machine profiles and connects enabled profiles at session startup. Manage profiles in Herdr. `/herdr connect [profile-id]` refreshes the catalog and retries failed connections or incomplete monitoring without dropping working connections. A catalog refresh stops watches for disabled or removed profiles without stopping remote agents.
 
 Profiles belong to the host running Pi, not the laptop or desktop displaying its terminal. Each profile targets one remote session. Agent calls use the opaque profile ID returned by `list`; `local` means Pi's current server. Renaming a profile changes its label, not its routing identity.
 
@@ -44,7 +42,7 @@ Remote machines connect over noninteractive SSH. The target needs `node` on its 
 
 ### Migrating from separate Shepherdr machines
 
-`shepherdr.json` is no longer read. Re-add your machines through `/herdr machines` or `herdr machine add` on the host running Pi. Old machine aliases are not migrated. Legacy watches, including local watches, are cleared with a notice because they cannot distinguish explicit subscriptions from accidental ones. Re-select any ongoing watches explicitly.
+`shepherdr.json` is no longer read. Existing Herdr profiles are used directly. Configure any missing profiles in Herdr on the host running Pi. Old machine aliases are not migrated. Legacy watches, including local watches, are cleared with a notice because they cannot distinguish explicit subscriptions from accidental ones. Re-select any ongoing watches explicitly.
 
 ## Agent calls
 

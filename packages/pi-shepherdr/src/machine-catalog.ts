@@ -22,17 +22,13 @@ const Machine = Type.Object({
 const Catalog = Type.Array(Machine);
 export type SshMachine = Static<typeof Machine>;
 
-export function herdrBinary(): string {
-	return process.env["HERDR_BIN_PATH"]?.trim() || "herdr";
-}
-
 export async function readMachineCatalog(): Promise<
 	Record<string, SshMachine>
 > {
 	let stdout: string;
 	try {
 		({ stdout } = await promisify(execFile)(
-			herdrBinary(),
+			process.env["HERDR_BIN_PATH"]?.trim() || "herdr",
 			["machine", "list", "--json"],
 			{
 				timeout: 10_000,
