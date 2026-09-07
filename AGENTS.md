@@ -3,6 +3,7 @@ This repo publishes through Changesets; every merge to `main` feeds the version 
 - Resolve package names by matching their words against immediate subdirectories of packages; search the unique match first and follow direct references only.
 - Keep the vendored `src/codex-runtime` trees in pi-codex-web-run and pi-codex-imagegen identical; do not publish a shared runtime package.
 - Agent-facing text is behavior: keep tool contracts, skill files, prompt metadata, and subagent prompts compact.
+- Keep extension internals out of agent-facing prompts, descriptions, and results. Expose only intent and information needed to act; lifecycle triggers must not narrate host machinery or invent workflow instructions.
 - Measure package-emitted tool schemas and system-prompt deltas for cache impact; repository `AGENTS.md` is internal, not product prompt cost.
 - Do not repeat self-evident contracts across names, descriptions, schemas, `promptSnippet`, or `promptGuidelines`; use the latter two only for concrete failures. Never rewrite prior tool calls/results to integrate a tool.
 - Agent-facing prose need not perform grammatical polish; optimize semantic signal per token and omit cosmetic punctuation when it saves tokens. Preserve syntax, structural delimiters, meaning, evidence, caveats, and recovery instructions.
