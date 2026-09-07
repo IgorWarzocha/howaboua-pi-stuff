@@ -18,23 +18,19 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 ## Latest package changelogs
 
-### @howaboua/pi-ask — 0.0.7
+### @howaboua/pi-ask — 0.0.8
 
-- The `ask` tool now supports steering questions that return immediately, preserve the full response panel, and deliver answers at the next safe boundary using the developer role under active Pi Codex Responses.
+- Shepherdr now discovers and answers waiting questions invoked inside Code and Notebook Mode.
 
 [Full changelog](./packages/pi-ask/CHANGELOG.md)
 
-### @howaboua/pi-auto-trees — 0.1.13
+### @howaboua/pi-auto-trees — 0.1.14
 
-### Changes
+- Tree navigation and `/end` now carry conversation summaries through the active notes backend.
 
-- [#269](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/269) [`6138ffd`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/6138ffd735bb4f7f80e451320dbfd0933a4acaa7) Thanks [@howaclawa](https://github.com/howaclawa)!:
-  - Add shared realtime voice prompts for ask prompts, Auto Trees, Shepherdr settlements, and review progress.
-  - Announce compaction and stream conversational Pi updates after two sentences.
-  - Keep silent tool-step summaries compatible without exposing Chat Completions thinking content.
-  - Configure delegation acknowledgements and deliver V3 delegations immediately.
-  - Preserve late delegations, calls after data-channel closure, prepared Code Mode prompts, and Codex cache continuity.
-  - Reduce LAN playback dropouts with one more jitter-buffer frame.
+  - The agent turn ends after the requested note write, without a follow-up reply.
+  - Arriving agents receive a branch summary directing them to read the note before resuming.
+  - Default `/end` guidance is task-neutral.
 
 [Full changelog](./packages/pi-auto-trees/CHANGELOG.md)
 
@@ -68,12 +64,27 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 3.0.29
+### @howaboua/pi-codex-conversion — 3.0.30
 
-- Preserve Pi tools and prompt when a tool allowlist excludes required Codex adapter tools. Report unavailable tools instead of activating an incomplete adapter.
+- Keep compaction checkpoints alongside notes with a Hybrid toggle for Local, Tree and Remote context management.
 
-  - Keep excluded Pi tools out of their Code and Notebook projections.
-  - Refresh tool availability before applying context-window settings.
+  - Use Responses V2 where supported and Pi summaries elsewhere; preserve Tree checkpoints and their exact replay tails across archival.
+  - Request a notes checkpoint after completed tool turns before the configured compaction reserve, including after final replies.
+  - Make notes-only `/compact` request a checkpoint and immediate rollover instead of cutting context; reuse notes just saved for the current state.
+  - Give non-Astra models explicit notes and recovery guidance in every context-management mode.
+  - Gather notes, history and compaction settings in a dedicated Context tab under `/codex`.
+  - Explain every setting on selection, including dependencies and non-obvious effects.
+  - Refresh active voice calls with a fresh summary on context handoffs as well as compaction, preserving mute and LAN ownership.
+  - Keep deferred ideas and unrelated tasks in notes for later resumption without treating them as permission to implement.
+  - Apply concise follow-through guidance to all models, including heavy system-prompt rewrite.
+  - Keep reasoning-level bookkeeping out of Pi's default tree view while preserving model updates and replay.
+  - Added nested tool completion subscriptions through `code-mode-hooks`, with original arguments and full results for extension-side tracking without expanding agent output. Existing preflight imports remain supported.
+
+- Tree navigation and `/end` now carry conversation summaries through the active notes backend.
+
+  - The agent turn ends after the requested note write, without a follow-up reply.
+  - Arriving agents receive a branch summary directing them to read the note before resuming.
+  - Default `/end` guidance is task-neutral.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
@@ -107,11 +118,14 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.69
+### @howaboua/pi-extensions — 0.0.70
 
 - Include bundled package updates:
 
-  - @howaboua/pi-shepherdr: Make the agents tool always available and start fleet monitoring automatically. `/herdr` now toggles only orchestration guidance, not tool availability.
+  - @howaboua/pi-ask: Shepherdr now discovers and answers waiting questions invoked inside Code and Notebook Mode.
+  - @howaboua/pi-auto-trees: Tree navigation and `/end` now carry conversation summaries through the active notes backend. - The agent turn ends after the requested note write, without a follow-up reply. - Arriving agents receive a branch summary directing them to read the note before resuming. - Default `/end` guidance is task-neutral.
+  - @howaboua/pi-shepherdr: Deliver blocked-agent handoffs even when transcripts are unavailable. - Reviewer spawns wait for their result before the controller continues. - Implementation subagents are instructed to work directly rather than delegate implementation again. - Discover and answer Pi Ask questions called inside Code and Notebook Mode. - Retain working local and remote monitoring during connection updates, distinguish incomplete coverage from disconnection, and report recovery. - Worker states now show their last-known status during incomplete monitoring. `/herdr connect` retries without replacing a working remote connection. - Catch worker completions during reconnect setup and cancel obsolete or stopped monitoring connections.
+  - @howaboua/pi-dynamic-tools: Remove retired bundled extension.
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
@@ -156,9 +170,16 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-semantic-grep/CHANGELOG.md)
 
-### @howaboua/pi-shepherdr — 0.1.5
+### @howaboua/pi-shepherdr — 0.1.6
 
-- Make the agents tool always available and start fleet monitoring automatically. `/herdr` now toggles only orchestration guidance, not tool availability.
+- Deliver blocked-agent handoffs even when transcripts are unavailable.
+
+  - Reviewer spawns wait for their result before the controller continues.
+  - Implementation subagents are instructed to work directly rather than delegate implementation again.
+  - Discover and answer Pi Ask questions called inside Code and Notebook Mode.
+  - Retain working local and remote monitoring during connection updates, distinguish incomplete coverage from disconnection, and report recovery.
+  - Worker states now show their last-known status during incomplete monitoring. `/herdr connect` retries without replacing a working remote connection.
+  - Catch worker completions during reconnect setup and cancel obsolete or stopped monitoring connections.
 
 [Full changelog](./packages/pi-shepherdr/CHANGELOG.md)
 
@@ -216,11 +237,14 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.76
+### @howaboua/pi-stuff — 0.0.77
 
 - Include bundled package updates:
 
-  - @howaboua/pi-shepherdr: Make the agents tool always available and start fleet monitoring automatically. `/herdr` now toggles only orchestration guidance, not tool availability.
+  - @howaboua/pi-ask: Shepherdr now discovers and answers waiting questions invoked inside Code and Notebook Mode.
+  - @howaboua/pi-auto-trees: Tree navigation and `/end` now carry conversation summaries through the active notes backend. - The agent turn ends after the requested note write, without a follow-up reply. - Arriving agents receive a branch summary directing them to read the note before resuming. - Default `/end` guidance is task-neutral.
+  - @howaboua/pi-shepherdr: Deliver blocked-agent handoffs even when transcripts are unavailable. - Reviewer spawns wait for their result before the controller continues. - Implementation subagents are instructed to work directly rather than delegate implementation again. - Discover and answer Pi Ask questions called inside Code and Notebook Mode. - Retain working local and remote monitoring during connection updates, distinguish incomplete coverage from disconnection, and report recovery. - Worker states now show their last-known status during incomplete monitoring. `/herdr connect` retries without replacing a working remote connection. - Catch worker completions during reconnect setup and cancel obsolete or stopped monitoring connections.
+  - @howaboua/pi-dynamic-tools: Remove retired bundled extension.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 

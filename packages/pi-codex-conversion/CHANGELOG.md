@@ -1,5 +1,27 @@
 # Changelog
 
+## 3.0.30
+
+- Keep compaction checkpoints alongside notes with a Hybrid toggle for Local, Tree and Remote context management.
+
+  - Use Responses V2 where supported and Pi summaries elsewhere; preserve Tree checkpoints and their exact replay tails across archival.
+  - Request a notes checkpoint after completed tool turns before the configured compaction reserve, including after final replies.
+  - Make notes-only `/compact` request a checkpoint and immediate rollover instead of cutting context; reuse notes just saved for the current state.
+  - Give non-Astra models explicit notes and recovery guidance in every context-management mode.
+  - Gather notes, history and compaction settings in a dedicated Context tab under `/codex`.
+  - Explain every setting on selection, including dependencies and non-obvious effects.
+  - Refresh active voice calls with a fresh summary on context handoffs as well as compaction, preserving mute and LAN ownership.
+  - Keep deferred ideas and unrelated tasks in notes for later resumption without treating them as permission to implement.
+  - Apply concise follow-through guidance to all models, including heavy system-prompt rewrite.
+  - Keep reasoning-level bookkeeping out of Pi's default tree view while preserving model updates and replay.
+  - Added nested tool completion subscriptions through `code-mode-hooks`, with original arguments and full results for extension-side tracking without expanding agent output. Existing preflight imports remain supported.
+
+- Tree navigation and `/end` now carry conversation summaries through the active notes backend.
+
+  - The agent turn ends after the requested note write, without a follow-up reply.
+  - Arriving agents receive a branch summary directing them to read the note before resuming.
+  - Default `/end` guidance is task-neutral.
+
 ## 3.0.29
 
 - Preserve Pi tools and prompt when a tool allowlist excludes required Codex adapter tools. Report unavailable tools instead of activating an incomplete adapter.
