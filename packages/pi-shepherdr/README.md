@@ -44,7 +44,7 @@ Remote machines connect over noninteractive SSH. The target needs `node` on its 
 
 ### Migrating from separate Shepherdr machines
 
-`shepherdr.json` is no longer read. Re-add your machines through `/herdr machines` or `herdr machine add` on the host running Pi. Old machine aliases and their saved watches are not migrated. Re-select agents using their new profile IDs.
+`shepherdr.json` is no longer read. Re-add your machines through `/herdr machines` or `herdr machine add` on the host running Pi. Old machine aliases are not migrated. Legacy watches, including local watches, are cleared with a notice because they cannot distinguish explicit subscriptions from accidental ones. Re-select any ongoing watches explicitly.
 
 ## Agent calls
 
@@ -56,15 +56,18 @@ Call the `agents` tool with `action: "help"` before first use, then send flat re
 | `list` | Profiles, machines and matching Pi agents |
 | `find` | Agents matching a query or status |
 | `spawn` | Spawn a profiled Pi agent and send its initial task |
-| `send` | Send work or a follow-up to an existing agent |
+| `send` | Send a peer message without waiting or subscribing |
+| `assign` | Delegate a task to an existing agent |
 | `read` | Read the latest assistant reply or bounded terminal output |
 | `answer` | Answer a worker blocked on Pi Ask |
 | `watch` | Push future settlement from an existing Pi agent |
 | `unwatch` | Stop reporting an agent |
 
-`spawn`, `send` and `answer` block by default. Set `blocking: false` only when the controller should continue other work immediately. Completion and blockage are then delivered automatically.
+`spawn`, `assign` and `answer` block by default. Set `blocking: false` when the controller should continue other work immediately. Task completion and blockage are then delivered automatically.
 
-Questions, status updates and replies to a running peer use `send` with `blocking: false`. A blocking send waits for the receiving agent to settle, not merely to receive the message. Blocking coordination in both directions can leave agents waiting on each other.
+Questions, status updates and replies use `send`. It returns after submission, does not accept `blocking`, and never creates or changes a watch or task. Use `assign` only to delegate work whose result you need, not to exchange coordination messages.
+
+Automatic delegation watches end when the task finishes or fails. Blocked tasks stay watched until resolved. Only an explicit `watch` keeps reporting subsequent work until `unwatch`. Sending an update to your worker preserves its existing task watch without replacing the task.
 
 Reviewer spawns always block, even when `blocking: false` is supplied. The controller waits for the review before continuing work on its scope.
 
@@ -72,7 +75,7 @@ Every `spawn` needs an `agent_type` and a concise two- or three-word `label`. Th
 
 Cancelling a blocking call does not kill its worker. The waiter detaches and the eventual result returns through normal asynchronous delivery.
 
-Prompts sent through `agents` include the sender's host, session, workspace, tab and pane identity, with current names. Reports include source workspace and tab names too. Raw `herdr agent prompt` calls bypass this attribution. These are runtime locations, not the desktop window showing a pane.
+Prompts sent through `agents` identify peer messages versus delegated tasks and include the sender's host, session, workspace, tab and pane identity, with current names. Reports include source workspace and tab names too. Raw `herdr agent prompt` calls bypass this attribution. These are runtime locations, not the desktop window showing a pane.
 
 Idle task prompts retain Pi's normal user kickoff and extension preparation. When the receiving agent is already running and Pi Codex developer delivery is active, Shepherdr routes attributed messages into that prepared run as developer steering. Without it, messages remain normal prompts. Install Shepherdr on receiving agents as well as controllers for this delivery.
 

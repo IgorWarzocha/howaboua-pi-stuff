@@ -58,7 +58,10 @@ export class AgentMonitor {
 			pi,
 			this.client,
 			this.state,
-			() => this.persist(),
+			() => {
+				this.persist();
+				this.refreshAfterEvent();
+			},
 			options.reader,
 			{
 				machine: this.machine,
@@ -107,10 +110,6 @@ export class AgentMonitor {
 
 	list(): MonitoredAgent[] {
 		return this.state.list();
-	}
-
-	isMonitored(paneId: string): boolean {
-		return this.state.isMonitored(paneId);
 	}
 
 	async watch(panel: PaneInfo): Promise<MonitoredAgent> {

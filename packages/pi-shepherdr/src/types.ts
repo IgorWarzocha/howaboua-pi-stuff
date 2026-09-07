@@ -64,6 +64,7 @@ export interface SessionSnapshot {
 }
 
 export interface MonitoredAgent {
+	readonly scope: "task" | "persistent";
 	readonly activity: AgentActivity;
 	readonly cwd?: string;
 	readonly lastAssistantId?: string;

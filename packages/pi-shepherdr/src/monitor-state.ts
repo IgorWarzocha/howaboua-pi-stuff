@@ -79,10 +79,6 @@ export class MonitorState {
 		return this.agents.get(terminalId);
 	}
 
-	isMonitored(paneId: string): boolean {
-		return this.byPane(paneId) !== undefined;
-	}
-
 	watch(
 		panel: PaneInfo,
 		lastAssistantId?: string,
@@ -100,6 +96,7 @@ export class MonitorState {
 		const record = recordForPanel(
 			panel,
 			activity,
+			reportSettled ? "persistent" : (existing?.scope ?? "task"),
 			reportCurrent
 				? undefined
 				: (existing?.lastAssistantId ?? lastAssistantId),
@@ -128,6 +125,9 @@ export class MonitorState {
 			throw new Error(
 				`prompt submission to ${record.name ?? paneId} is still unresolved`,
 			);
+		}
+		if (record.activity.phase === "working" && record.activity.task) {
+			throw new Error("Agent already has delegated work; use send for updates");
 		}
 		const attempt = {
 			attemptId: randomUUID(),
@@ -322,7 +322,12 @@ export class MonitorState {
 				activity = { phase: "settled", status: panel.agent_status };
 			}
 
-			const updated = recordForPanel(panel, activity, record.lastAssistantId);
+			const updated = recordForPanel(
+				panel,
+				activity,
+				record.scope,
+				record.lastAssistantId,
+			);
 			if (!sameMonitorRecord(record, updated)) changed = true;
 			if (record.terminalId !== updated.terminalId) {
 				this.agents.delete(record.terminalId);
@@ -356,6 +361,10 @@ export class MonitorState {
 	): boolean {
 		const record = this.byTerminal(terminalId);
 		if (!record || activityTask(record.activity) !== task) return false;
+		if (record.scope === "task" && status !== "blocked") {
+			this.agents.delete(terminalId);
+			return true;
+		}
 		this.agents.set(terminalId, {
 			...record,
 			activity: { phase: "settled", status },

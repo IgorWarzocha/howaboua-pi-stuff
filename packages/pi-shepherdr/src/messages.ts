@@ -62,6 +62,7 @@ function sourceAttributes(source: Record<string, string | undefined>): string {
 export async function attributeAgentPrompt(
 	client: HerdrConnection,
 	message: string,
+	kind: "message" | "task",
 ): Promise<string> {
 	const [pane, snapshot] = await Promise.all([
 		getCurrentPane(client),
@@ -72,6 +73,7 @@ export async function attributeAgentPrompt(
 	)?.label;
 	const tab = snapshot.tabs.find((tab) => tab.tab_id === pane.tab_id)?.label;
 	const source = {
+		kind,
 		host: hostname(),
 		session: process.env["HERDR_SESSION"] || "default",
 		...agentSource(pane, {

@@ -8,7 +8,6 @@ import {
 	resolveWorkspace,
 } from "./herdr.js";
 import { type HerdrConnection, isHerdrErrorCode } from "./herdr-client.js";
-import type { AgentMonitor } from "./monitor.js";
 import type { PaneInfo } from "./types.js";
 
 export const START_PLACEMENTS = ["new_workspace", "new_tab", "pane"] as const;
@@ -20,7 +19,6 @@ export interface StartAgentParams {
 	name?: string;
 	pane?: string;
 	placement?: (typeof START_PLACEMENTS)[number];
-	prompt?: string;
 	workspace?: string;
 }
 
@@ -200,7 +198,6 @@ function nestedId(value: unknown, key: string, path: string): string {
 
 export async function startAgent(
 	client: HerdrConnection,
-	monitor: AgentMonitor,
 	params: StartAgentParams,
 	fallbackCwd: string,
 	resolveDirectory: DirectoryResolver = directory,
@@ -234,25 +231,6 @@ export async function startAgent(
 	} catch (error) {
 		return rollbackCreatedLocation(client, created.cleanup, error);
 	}
-	try {
-		await monitor.watch(agent);
-	} catch (error) {
-		return rollbackCreatedLocation(client, created.cleanup, error);
-	}
-	if (params.prompt?.trim()) {
-		const prompt = params.prompt.trim();
-		const attempt = monitor.beginWork(agent.pane_id, prompt);
-		try {
-			await client.request("agent.prompt", {
-				target: agent.pane_id,
-				text: prompt,
-			});
-			monitor.acceptWork(attempt);
-		} catch (error) {
-			await monitor.handleWorkFailure(attempt, error);
-			throw error;
-		}
-	}
 	return {
 		agent,
 		...(created.cleanup ? { cleanup: created.cleanup } : {}),
@@ -262,12 +240,9 @@ export async function startAgent(
 
 export async function rollbackStartedAgent(
 	client: HerdrConnection,
-	monitor: AgentMonitor,
 	started: StartedAgent,
 	cause: unknown,
 ): Promise<never> {
-	if (!started.cleanup) throw cause;
-	await monitor.unwatch(started.id).catch(() => undefined);
 	return rollbackCreatedLocation(client, started.cleanup, cause);
 }
 

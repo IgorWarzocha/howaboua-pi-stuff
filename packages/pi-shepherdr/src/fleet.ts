@@ -68,11 +68,22 @@ function operatorPrefix(config: SshMachine): string {
 
 function savedAgents(ctx: ExtensionContext): unknown[] {
 	let latest: unknown[] = [];
+	let version: unknown;
 	for (const entry of ctx.sessionManager.getBranch()) {
 		if (entry.type !== "custom" || entry.customType !== MONITOR_STATE_TYPE)
 			continue;
-		const data = entry.data as { agents?: unknown };
-		if (Array.isArray(data?.agents)) latest = data.agents;
+		const data = entry.data as { version?: unknown; agents?: unknown };
+		if (Array.isArray(data?.agents)) {
+			latest = data.agents;
+			version = data.version;
+		}
+	}
+	if (latest.length > 0 && version !== 2) {
+		ctx.ui.notify(
+			"Cleared legacy Shepherdr watches; use watch to subscribe explicitly. Remote agents are unchanged.",
+			"warning",
+		);
+		return [];
 	}
 	return latest;
 }
@@ -162,7 +173,7 @@ export class AgentFleet {
 		}
 		localRuntime.pending = [];
 		localRuntime.status = "connected";
-		this.refresh();
+		this.changed();
 
 		for (const [name] of machines) {
 			void this.connectMachine(name, generation, true);
@@ -530,11 +541,12 @@ export class AgentFleet {
 				client.close();
 				return;
 			}
+			const pending = runtime.monitor?.list() ?? runtime.pending;
 			const monitor = this.createMonitor(name, runtime, client);
 			runtime.client = client;
 			runtime.monitor = monitor;
 			attached = true;
-			await monitor.activate(ctx, runtime.pending);
+			await monitor.activate(ctx, pending);
 			if (
 				!this.isCurrent(generation, ctx) ||
 				this.runtimes.get(name) !== runtime ||
@@ -579,12 +591,10 @@ export class AgentFleet {
 	private disconnected(name: string, runtime: Runtime, reason: string): void {
 		reason = errorMessage(reason);
 		if (runtime.status === "unavailable" && runtime.reason === reason) return;
-		if (runtime.monitor) {
-			runtime.pending = runtime.monitor.list();
-			runtime.monitor.deactivate();
-		}
+		// Keep the stopped owner until reconnect so in-flight dispatch cleanup
+		// updates the state we persist, rather than a detached snapshot.
+		runtime.monitor?.deactivate();
 		if (runtime.client instanceof RemoteHerdrClient) runtime.client.close();
-		delete runtime.monitor;
 		delete runtime.client;
 		delete runtime.monitoringIssue;
 		runtime.status = "unavailable";
@@ -600,7 +610,7 @@ export class AgentFleet {
 	private changed(): void {
 		if (!this.context) return;
 		const agents = this.persistedAgents();
-		this.pi.appendEntry(MONITOR_STATE_TYPE, { agents });
+		this.pi.appendEntry(MONITOR_STATE_TYPE, { version: 2, agents });
 		this.refresh();
 	}
 

@@ -1,8 +1,11 @@
 import type { AgentToolUpdateCallback } from "@earendil-works/pi-coding-agent";
+import { activityTask } from "./activity.js";
 import type { AgentsParams, READ_SOURCES } from "./agents-contract.js";
 import type { AgentFleet, ConnectedMachine } from "./fleet.js";
 import { getSnapshot } from "./herdr.js";
+import { isHerdrResponseError } from "./herdr-client.js";
 import { agentSource } from "./messages.js";
+import type { WorkAttempt } from "./monitor-state.js";
 import { loadAgentProfiles } from "./profiles.js";
 import type { ClaimedSettlement } from "./settlement.js";
 import type { AgentStatus, PaneInfo, SessionSnapshot } from "./types.js";
@@ -39,7 +42,8 @@ export async function agentsHelp(): Promise<Record<string, unknown>> {
 				"agent_type label message name? machine? placement? workspace? pane? cwd? base? blocking?",
 			watch: "target machine?",
 			unwatch: "target machine?",
-			send: "target message machine? blocking?",
+			send: "target message machine?",
+			assign: "target message machine? blocking?",
 			read: "target machine? source? lines?",
 			answer: "target answers machine? blocking?",
 		},
@@ -48,8 +52,12 @@ export async function agentsHelp(): Promise<Record<string, unknown>> {
 			target: "Use spawn/find target exactly",
 			label: "2-3 words; tab/session",
 			answers: "[{selections?:string[],other?:string,comment?:string}]",
+			send: "Peer questions, updates, replies; submission only, no wait or watch",
+			assign: "Delegate a task to an existing agent",
 			blocking:
-				"true waits for settlement, not receipt; peer coordination uses false; async results push, never poll",
+				"spawn/assign/answer default true; false pushes task settlement; reviewers always wait; never poll",
+			watch:
+				"Explicit watch persists until unwatch; automatic task watches end on finish/failure, not blockage",
 			prompt:
 				"Only task + inaccessible context; no method/evidence/reporting boilerplate",
 			reuse:
@@ -270,18 +278,27 @@ export async function dispatchAgentWork(
 	options: { expectUserMessage?: boolean } = {},
 ): Promise<ClaimedSettlement | undefined> {
 	signal.throwIfAborted();
-	const baseline = options.expectUserMessage
-		? await runtime.monitor.view(panel)
-		: undefined;
-	const attempt = runtime.monitor.beginWork(
-		panel.pane_id,
-		task,
-		options.expectUserMessage ? (baseline?.input?.id ?? null) : undefined,
-	);
-	if (!attempt) throw new Error(`${panel.pane_id} is not monitored`);
+	const addedWatch = !runtime.monitor
+		.list()
+		.some(
+			(record) =>
+				record.terminalId === panel.terminal_id ||
+				record.paneId === panel.pane_id,
+		);
+	let attempt: WorkAttempt | undefined;
 	let settlement: Promise<ClaimedSettlement> | undefined;
 	let sendStarted = false;
 	try {
+		await runtime.monitor.track(panel);
+		const baseline = options.expectUserMessage
+			? await runtime.monitor.view(panel)
+			: undefined;
+		attempt = runtime.monitor.beginWork(
+			panel.pane_id,
+			task,
+			options.expectUserMessage ? (baseline?.input?.id ?? null) : undefined,
+		);
+		if (!attempt) throw new Error(`${panel.pane_id} is not monitored`);
 		settlement = blocking
 			? runtime.monitor.claimWork(attempt, signal)
 			: undefined;
@@ -294,6 +311,21 @@ export async function dispatchAgentWork(
 		runtime.monitor.releaseWorkClaim(attempt, error);
 		if (sendStarted) await runtime.monitor.handleWorkFailure(attempt, error);
 		else runtime.monitor.rejectWork(attempt);
+		if (addedWatch && (!sendStarted || isHerdrResponseError(error))) {
+			const record = runtime.monitor
+				.list()
+				.find((record) => record.terminalId === panel.terminal_id);
+			try {
+				if (record?.scope === "task" && !activityTask(record.activity)) {
+					await runtime.monitor.unwatch(record.paneId);
+				}
+			} catch (cleanupError) {
+				throw new AggregateError(
+					[error, cleanupError],
+					"Delegation failed; temporary watch cleanup also failed",
+				);
+			}
+		}
 		throw error;
 	}
 	if (!blocking) return undefined;

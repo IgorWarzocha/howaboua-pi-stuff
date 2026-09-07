@@ -11,10 +11,11 @@ const ACTIONS = [
 	"watch",
 	"unwatch",
 	"send",
+	"assign",
 	"read",
 	"answer",
 ] as const;
-const BLOCKING_ACTIONS = new Set<string>(["spawn", "send", "answer"]);
+const BLOCKING_ACTIONS = new Set<string>(["spawn", "assign", "answer"]);
 export const READ_SOURCES = ["latest", "visible", "recent"] as const;
 const STATUSES = ["idle", "working", "blocked", "done", "unknown"] as const;
 
@@ -38,7 +39,8 @@ const ACTION_FIELDS: Record<(typeof ACTIONS)[number], ReadonlySet<string>> = {
 	]),
 	watch: new Set(["action", "machine", "target"]),
 	unwatch: new Set(["action", "machine", "target"]),
-	send: new Set(["action", "machine", "target", "message", "blocking"]),
+	send: new Set(["action", "machine", "target", "message"]),
+	assign: new Set(["action", "machine", "target", "message", "blocking"]),
 	read: new Set(["action", "machine", "target", "source", "lines"]),
 	answer: new Set(["action", "machine", "target", "answers", "blocking"]),
 };
@@ -79,7 +81,7 @@ const AgentsRequest = Type.Object(
 		blocking: Type.Optional(
 			Type.Boolean({
 				description:
-					"Wait for this work; defaults true. False returns now and pushes settlement later",
+					"Delegation only; defaults true. False pushes task settlement later",
 			}),
 		),
 		query: Type.Optional(Type.String()),
@@ -117,6 +119,11 @@ export function parseAgentsRequest(input: unknown): AgentsParams {
 	const action = "action" in value ? value.action : undefined;
 	if (typeof action !== "string" || !Object.hasOwn(ACTION_FIELDS, action)) {
 		throw new Error(`agents action must be one of: ${ACTIONS.join(", ")}`);
+	}
+	if (action === "send" && "blocking" in value) {
+		throw new Error(
+			"send is message-only; omit blocking. Use assign to delegate work",
+		);
 	}
 	const unknown = Object.keys(value).filter(
 		(key) => !ACTION_FIELDS[action as keyof typeof ACTION_FIELDS].has(key),
