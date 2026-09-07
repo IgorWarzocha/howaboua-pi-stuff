@@ -23,10 +23,10 @@ Prime remains the answer for users who want its Python/IPython harness. This fea
 Use a pinned Deno Jupyter kernel rather than modifying the existing V8 host.
 
 - Deno supplies maintained TypeScript compilation, top-level await, natural REPL redeclaration semantics, npm imports, rich MIME output, and isolate interruption.
-- The extension speaks Jupyter over ZeroMQ. `zeromq` 6.1.2 is already proven by Prime's TypeScript client and adds about 11.3 MB unpacked before transitive installation overhead.
+- The extension speaks Jupyter over a bounded TypeScript ZMTP 3.0 TCP transport, avoiding native ZeroMQ addons in both Node and standalone Bun Pi.
 - Lazily download one exact, checksummed Deno release on first Notebook Code Mode use. Deno 2.9.5 archives are 38.5–42.7 MB and installed executables are 80.9–97.7 MB across supported targets, without inflating the npm package by the binary's full size.
 - Pin official Deno archives and extracted executables for Linux, macOS, and Windows on x64/arm64. Linux means the official glibc build; do not claim musl support without a Deno distribution path.
-- Use ZeroMQ 6.5.0, whose package includes Node-API prebuilds for the same six targets; validate actual kernel startup on each target rather than inferring support from package contents.
+- Validate actual kernel startup on each target rather than inferring support from package contents.
 - Keep Deno/Jupyter ownership outside the pinned upstream V8 source tree. Reuse Pi-owned nested-tool definitions and custom-tool discovery rather than duplicating their policies.
 
 Deno's kernel closes arbitrary Jupyter `comm_open` targets, so Prime's comm bridge is not reusable. Bootstrap an authenticated loopback bridge into the persistent notebook instead:

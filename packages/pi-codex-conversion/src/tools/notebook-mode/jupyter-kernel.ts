@@ -2,10 +2,10 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { rmSync } from "node:fs";
 import { setTimeout as sleep } from "node:timers/promises";
-import { Dealer, Subscriber } from "zeromq";
 import type { RuntimeContentItem } from "../code-mode/types.ts";
-import { createJupyterConnectionFile, jupyterEndpoint, type JupyterConnectionInfo } from "./jupyter-connection.ts";
+import { createJupyterConnectionFile, type JupyterConnectionInfo } from "./jupyter-connection.ts";
 import { diagnoseDenoSyntax } from "./deno-syntax-diagnostics.ts";
+import { JupyterSocket } from "./jupyter-socket.ts";
 import {
 	applyExecuteReplyError,
 	applyKernelOutput,
@@ -22,10 +22,8 @@ import {
 
 const STARTUP_TIMEOUT_MS = 30_000;
 const REQUEST_TIMEOUT_MS = 8_000;
-const SEND_TIMEOUT_MS = 5_000;
 const SHUTDOWN_GRACE_MS = 1_500;
 const MAX_STDERR_CHARS = 16_384;
-const MAX_JUPYTER_MESSAGE_BYTES = 40 * 1024 * 1024;
 export type { KernelExecutionResult } from "./jupyter-output.ts";
 
 interface ShellReplyWaiter {
@@ -44,9 +42,9 @@ export class DenoJupyterKernel {
 	private process: ChildProcess | undefined;
 	private tempDir: string | undefined;
 	private connection: JupyterConnectionInfo | undefined;
-	private shell: Dealer | undefined;
-	private control: Dealer | undefined;
-	private iopub: Subscriber | undefined;
+	private shell: JupyterSocket | undefined;
+	private control: JupyterSocket | undefined;
+	private iopub: JupyterSocket | undefined;
 	private shellPump: Promise<void> | undefined;
 	private iopubPump: Promise<void> | undefined;
 	private startup: Promise<void> | undefined;
@@ -273,21 +271,10 @@ export class DenoJupyterKernel {
 		});
 		const connection = info;
 		this.connection = connection;
-		this.shell = new Dealer();
-		this.control = new Dealer();
-		this.iopub = new Subscriber();
-		this.shell.maxMessageSize = MAX_JUPYTER_MESSAGE_BYTES;
-		this.control.maxMessageSize = MAX_JUPYTER_MESSAGE_BYTES;
-		this.iopub.maxMessageSize = MAX_JUPYTER_MESSAGE_BYTES;
-		this.shell.sendTimeout = SEND_TIMEOUT_MS;
-		this.control.sendTimeout = SEND_TIMEOUT_MS;
-		this.shell.linger = 0;
-		this.control.linger = 0;
-		this.iopub.linger = 0;
-		this.shell.connect(jupyterEndpoint(connection, connection.shell_port));
-		this.control.connect(jupyterEndpoint(connection, connection.control_port));
-		this.iopub.connect(jupyterEndpoint(connection, connection.iopub_port));
-		this.iopub.subscribe("");
+		this.shell = new JupyterSocket("DEALER", connection.shell_port);
+		this.control = new JupyterSocket("DEALER", connection.control_port);
+		this.iopub = new JupyterSocket("SUB", connection.iopub_port);
+		await Promise.all([this.shell.connect(signal), this.control.connect(signal), this.iopub.connect(signal)]);
 		this.shellPump = this.runShellPump(this.shell, connection);
 		let markIopubReady!: () => void;
 		const iopubReady = new Promise<void>((resolve) => { markIopubReady = resolve; });
@@ -359,8 +346,8 @@ export class DenoJupyterKernel {
 		this.shellReplies.set(requestId, waiter);
 		try {
 			signal?.throwIfAborted();
-			await shell.send(encodeJupyterMessage(request, connection.key));
-			return await reply;
+			const [, response] = await Promise.all([shell.send(encodeJupyterMessage(request, connection.key)), reply]);
+			return response;
 		} catch (error) {
 			if (this.shellReplies.get(requestId) === waiter) this.shellReplies.delete(requestId);
 			if (waiter.timer) clearTimeout(waiter.timer);
@@ -370,7 +357,7 @@ export class DenoJupyterKernel {
 		}
 	}
 
-	private async runShellPump(socket: Dealer, connection: JupyterConnectionInfo): Promise<void> {
+	private async runShellPump(socket: JupyterSocket, connection: JupyterConnectionInfo): Promise<void> {
 		try {
 			for await (const frames of socket) {
 				const message = decodeJupyterMessage([...frames] as Buffer[], connection.key);

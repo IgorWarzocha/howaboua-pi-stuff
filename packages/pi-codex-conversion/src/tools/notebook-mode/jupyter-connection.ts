@@ -37,10 +37,6 @@ export async function createJupyterConnectionFile(): Promise<{ info: JupyterConn
 	return { info, path, dir };
 }
 
-export function jupyterEndpoint(connection: JupyterConnectionInfo, port: number): string {
-	return `${connection.transport}://${connection.ip}:${port}`;
-}
-
 async function reserveLoopbackPorts(count: number): Promise<number[]> {
 	const servers: Server[] = [];
 	try {
