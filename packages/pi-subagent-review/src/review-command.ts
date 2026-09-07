@@ -190,7 +190,7 @@ export function registerReviewCommand(
 						details.errorMessage || details.stderr || finalOutput,
 					);
 
-				sendReviewFindings(pi, ctx, review, finalOutput, developerMessages);
+				sendReviewFindings(pi, ctx, review, finalOutput);
 				announceReviewFindingsReady(pi);
 				ctx.ui.notify(
 					`Review findings sent back to the main agent from /${REVIEW_COMMAND}.`,

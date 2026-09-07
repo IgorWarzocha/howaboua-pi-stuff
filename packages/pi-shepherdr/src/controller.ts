@@ -4,7 +4,6 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { sendPolicyMessage } from "./delivery.js";
 import type { AgentFleet } from "./fleet.js";
-import { showMachineMenu } from "./machine-menu.js";
 import { loadAgentProfiles } from "./profiles.js";
 
 const ORCHESTRATION_STATE_TYPE = "pi-shepherdr-orchestration-state";
@@ -20,9 +19,9 @@ export function registerAgentController(
 ): void {
 	let orchestrationEnabled = false;
 	pi.registerCommand("herdr", {
-		description: "Toggle agent orchestration or manage Herdr machines",
+		description: "Toggle agent orchestration or reconnect machines",
 		getArgumentCompletions: (prefix) =>
-			["machines", "connect"]
+			["connect"]
 				.filter((action) => action.startsWith(prefix.trim().toLowerCase()))
 				.map((value) => ({ label: value, value })),
 		handler: async (args, ctx) => {
@@ -51,16 +50,13 @@ export function registerAgentController(
 				);
 				return;
 			}
-			if (action === "machines") {
-				await showMachineMenu(fleet, ctx);
-				return;
-			}
 			if (action === "connect") {
 				if (!fleet.isActive()) {
 					await activateController(fleet, ctx);
 					if (!fleet.isActive()) return;
 				}
 				try {
+					await fleet.reload();
 					ctx.ui.notify(fleet.connect(rest[0]), "info");
 				} catch (error) {
 					ctx.ui.notify(
@@ -70,7 +66,7 @@ export function registerAgentController(
 				}
 				return;
 			}
-			ctx.ui.notify("Usage: /herdr [machines|connect [machine]]", "warning");
+			ctx.ui.notify("Usage: /herdr [connect [machine]]", "warning");
 		},
 	});
 

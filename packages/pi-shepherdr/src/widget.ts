@@ -42,7 +42,7 @@ function agentLine(
 			? ({ icon: "?", tone: "warning" } as const)
 			: statusAppearance(status)
 		: ({ icon: "?", tone: "error" } as const);
-	const name = `${agent.machine} / ${agent.name ?? agent.paneId}`;
+	const name = `${machine?.label ?? agent.machine} / ${agent.name ?? agent.paneId}`;
 	const location = agent.cwd ? basename(agent.cwd) : agent.paneId;
 	return [
 		theme.fg("muted", "│"),
@@ -76,7 +76,7 @@ export function renderAgentWidget(
 			(left.name ?? left.paneId).localeCompare(right.name ?? right.paneId),
 	);
 	const machinesByName = new Map(
-		machines.map((machine) => [machine.name, machine]),
+		machines.map((machine) => [machine.id, machine]),
 	);
 	const lines = [
 		`${theme.fg("accent", "╭─ herdr agents")} ${theme.fg("dim", `${agents.length} · ${machines.filter((machine) => machine.status === "connected").length}/${machines.length} machines`)}`,
@@ -97,9 +97,9 @@ export function renderAgentWidget(
 				: "unavailable";
 		const recovery = machine.local
 			? "retrying"
-			: `/herdr connect ${machine.name}`;
+			: `/herdr connect ${machine.id}`;
 		lines.push(
-			`${theme.fg("muted", "│")} ${theme.fg("warning", `${machine.name} monitoring ${status} · ${recovery}`)}`,
+			`${theme.fg("muted", "│")} ${theme.fg("warning", `${machine.id} monitoring ${status} · ${recovery}`)}`,
 		);
 	}
 	lines.push(theme.fg("muted", "╰─"));

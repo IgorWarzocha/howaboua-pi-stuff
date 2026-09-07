@@ -85,7 +85,7 @@ test("review policy preserves preface restoration, delivery, and lower-authority
 	for (const isIdle of [true, false]) {
 		idle = isIdle;
 		const count = sent.length;
-		sendReviewFindings(pi, ctx, review, raw, developerMessages);
+		sendReviewFindings(pi, ctx, review, raw);
 		expect(sent.length).toBe(count + 2);
 		const findings = sent[count]!;
 		expect((findings.message as ExtensionMessage).customType).toBe(
@@ -98,10 +98,9 @@ test("review policy preserves preface restoration, delivery, and lower-authority
 		expect(findings.options).toEqual(
 			idle ? { triggerTurn: false } : { deliverAs: "followUp" },
 		);
+		expect(typeof sent[count + 1]!.message).toBe("string");
 		expect(sent[count + 1]!.options).toEqual(
-			idle
-				? { triggerTurn: true }
-				: { triggerTurn: true, deliverAs: "followUp" },
+			idle ? undefined : { deliverAs: "followUp" },
 		);
 	}
 	const persisted = buildSessionContext(sessionManager.getBranch()).messages;
@@ -118,26 +117,18 @@ test("review policy preserves preface restoration, delivery, and lower-authority
 		"user",
 		"developer",
 		"user",
-		"developer",
 		"user",
-		"developer",
 	]);
 	for (const item of result.input.filter((item) => item.content.includes(raw)))
 		expect(item.role).toBe("user");
 	expect(bridge.prepare(persisted, false)).toEqual(persisted);
 	const count = sent.length;
-	sendReviewFindings(
-		pi,
-		ctx,
-		review,
-		"No actionable issues found.",
-		developerMessages,
-	);
+	sendReviewFindings(pi, ctx, review, "No actionable issues found.");
 	expect(sent.length).toBe(count + 1);
 	active = false;
 	sendReviewPreface(pi, ctx, { freshLoop: true }, developerMessages);
 	expect(sent.at(-1)).toEqual(ordinaryPreface);
-	sendReviewFindings(pi, ctx, review, raw, developerMessages);
+	sendReviewFindings(pi, ctx, review, raw);
 	expect(typeof sent.at(-1)!.message).toBe("string");
 	expect(sent.at(-1)!.options).toEqual({ deliverAs: "followUp" });
 	active = true;

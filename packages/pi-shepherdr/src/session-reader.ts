@@ -1,7 +1,7 @@
 import { open, stat } from "node:fs/promises";
 import type {
 	LatestAssistant,
-	LatestUser,
+	LatestInput,
 	PendingAsk,
 	SessionView,
 } from "./types.js";
@@ -43,10 +43,10 @@ function assistantFromMessage(
 	};
 }
 
-function userFromMessage(
+function inputFromMessage(
 	id: string,
 	message: Record<string, unknown>,
-): LatestUser | undefined {
+): LatestInput | undefined {
 	if (message["role"] !== "user") return undefined;
 	const text: string[] = [];
 	if (typeof message["content"] === "string") {
@@ -141,15 +141,15 @@ async function readSessionView(
 	let assistantDepth: number | undefined;
 	let ask: PendingAsk | undefined;
 	let depth = 0;
-	let user: LatestUser | undefined;
-	let userDepth: number | undefined;
+	let input: LatestInput | undefined;
+	let inputDepth: number | undefined;
 	const resolved = new Set<string>();
 	const result = (): SessionView => ({
 		...(assistant ? { assistant } : {}),
 		...(ask ? { ask } : {}),
-		...(user ? { user } : {}),
-		...(assistantDepth !== undefined && userDepth !== undefined
-			? { assistantAfterUser: assistantDepth < userDepth }
+		...(input ? { input } : {}),
+		...(assistantDepth !== undefined && inputDepth !== undefined
+			? { assistantAfterInput: assistantDepth < inputDepth }
 			: {}),
 	});
 	const inspect = (line: Buffer): boolean => {
@@ -180,6 +180,16 @@ async function readSessionView(
 				}
 			}
 		}
+		if (
+			!input &&
+			entry["type"] === "custom_message" &&
+			entry["customType"] === "herdr-agent-message" &&
+			typeof entry["content"] === "string" &&
+			entry["content"]
+		) {
+			input = { id, text: entry["content"] };
+			inputDepth = currentDepth;
+		}
 		const message = record(entry["message"]);
 		if (message) {
 			const resolvedId = resolvedToolCallId(message);
@@ -188,9 +198,9 @@ async function readSessionView(
 				assistant = assistantFromMessage(id, message);
 				if (assistant) assistantDepth = currentDepth;
 			}
-			if (!user) {
-				user = userFromMessage(id, message);
-				if (user) userDepth = currentDepth;
+			if (!input) {
+				input = inputFromMessage(id, message);
+				if (input) inputDepth = currentDepth;
 			}
 			if (
 				!ask &&

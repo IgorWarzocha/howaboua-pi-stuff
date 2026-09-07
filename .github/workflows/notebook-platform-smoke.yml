@@ -36,3 +36,32 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - run: bun x tsx packages/pi-codex-conversion/scripts/smoke-notebook-platform.ts
+      - name: Run through standalone Pi 0.85.1
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          dir=$(mktemp -d)
+          trap 'rm -rf "$dir"' EXIT
+          target='${{ matrix.platform_arch }}'
+          target=${target/win32/windows}
+          suffix=tar.gz
+          if [[ "$RUNNER_OS" == Windows ]]; then suffix=zip; fi
+          archive="pi-$target.$suffix"
+          gh release download v0.85.1 --repo earendil-works/pi --pattern "$archive" --pattern SHA256SUMS --dir "$dir"
+          if [[ "$RUNNER_OS" == macOS ]]; then
+            (cd "$dir" && grep " $archive$" SHA256SUMS | shasum -a 256 --check --status)
+          else
+            (cd "$dir" && grep " $archive$" SHA256SUMS | sha256sum --check --status)
+          fi
+          binary="$dir/pi/pi"
+          if [[ "$suffix" == zip ]]; then
+            unzip -q "$dir/$archive" -d "$dir"
+            binary="$dir/pi.exe"
+          else
+            tar -xzf "$dir/$archive" -C "$dir"
+          fi
+          PI_CODING_AGENT_DIR="$dir/agent" "$binary" \
+            --no-session --no-extensions --no-skills --no-prompt-templates --no-themes \
+            -e "$PWD/packages/pi-codex-conversion/scripts/smoke-notebook-platform.ts" \
+            --print 'Notebook smoke exits before any model call'

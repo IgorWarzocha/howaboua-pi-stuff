@@ -3,11 +3,11 @@ import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import type { HerdrConnection } from "./herdr-client.js";
-import type { RemoteMachineConfig } from "./machines-config.js";
+import type { SshMachine } from "./machine-catalog.js";
 import type { AssistantReader } from "./session-reader.js";
 import type { HerdrEvent, LatestAssistant, SessionView } from "./types.js";
 
-const BRIDGE_VERSION = 4;
+const BRIDGE_VERSION = 5;
 const REMOTE_HELPER = "~/.pi/agent/shepherdr.mjs";
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const MAX_DIAGNOSTIC_BYTES = 8 * 1024;
@@ -73,26 +73,28 @@ function executablePath(path: string): string {
 		: shellQuote(path);
 }
 
-function remoteCommand(config: RemoteMachineConfig): string {
+function remoteCommand(config: SshMachine): string {
 	const args = [
 		"exec",
-		shellQuote(config.node),
+		"node",
 		executablePath(REMOTE_HELPER),
-		...(config.socket ? ["--socket", shellQuote(config.socket)] : []),
-		...(config.session ? ["--session", shellQuote(config.session)] : []),
+		"--session",
+		shellQuote(config.session),
 	];
 	return args.join(" ");
 }
 
 function spawnConnector(
-	config: RemoteMachineConfig,
+	config: SshMachine,
 	command: string,
 ): ChildProcessWithoutNullStreams {
-	const [program, ...args] = config.command;
-	if (!program) throw new Error("remote machine command is empty");
-	return spawn(program, [...args, command], {
-		stdio: ["pipe", "pipe", "pipe"],
-	});
+	return spawn(
+		"ssh",
+		["-T", "-o", "BatchMode=yes", "--", config.target, command],
+		{
+			stdio: ["pipe", "pipe", "pipe"],
+		},
+	);
 }
 
 function appendBounded(current: string, chunk: Buffer): string {
@@ -102,12 +104,9 @@ function appendBounded(current: string, chunk: Buffer): string {
 		: next.slice(next.length - MAX_DIAGNOSTIC_BYTES);
 }
 
-async function deploy(
-	config: RemoteMachineConfig,
-	source: Buffer,
-): Promise<void> {
+async function deploy(config: SshMachine, source: Buffer): Promise<void> {
 	const command = [
-		shellQuote(config.node),
+		"node",
 		"-e",
 		shellQuote(DEPLOY_SOURCE),
 		shellQuote(REMOTE_HELPER),
@@ -179,7 +178,7 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 	}
 
 	static async connect(
-		config: RemoteMachineConfig,
+		config: SshMachine,
 		onClose: (error: Error) => void,
 	): Promise<RemoteHerdrClient> {
 		const source = await readFile(

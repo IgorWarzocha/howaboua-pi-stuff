@@ -110,6 +110,7 @@ export function registerCodexEvents(
 		runtime.resetTransport();
 		state.developerMessages.clear();
 		state.contextWindows.reset();
+		state.contextKickoff.reset();
 		state.contextTree.beginSession(pi);
 		runtime.backgroundWidget.ctx = ctx;
 		state.cwd = ctx.cwd;
@@ -242,9 +243,10 @@ export function registerCodexEvents(
 			if (plan.contextManagementMode === "tree") {
 				runtime.resetTransportAfterCompaction(ctx.sessionManager.getSessionId());
 				await state.contextTree.settle(pi, ctx);
-			} else await state.contextWindows.startNewWindow(pi, ctx, {
+			} else await state.contextKickoff.startWindow(pi, ctx, {
 				mode: plan.contextManagementMode, triggerTurn: true, trimPreviousWindow: false,
 			});
+			state.contextKickoff.continue(pi, ctx);
 		})) return;
 		if (state.contextTree.handoff.active) return;
 		state.contextWindows.recordBudget(
@@ -289,6 +291,7 @@ export function registerCodexEvents(
 		await runShutdownStep(failures, () => codeMode.shutdown());
 		state.developerMessages.clear();
 		state.contextWindows.reset();
+		state.contextKickoff.reset();
 		state.contextTree.reset();
 		if (failures.length === 1) throw failures[0];
 		if (failures.length > 1) throw new AggregateError(failures, "Codex extension shutdown failed");
@@ -365,10 +368,11 @@ export function registerCodexEvents(
 		runtime.voice.settleTurn();
 		runtime.lanVoice.agentSettled();
 		if (!state.config.voiceFeaturesOnly) void ui.refreshUsageStatus(ctx);
-		const rolled = await state.contextTree.settle(pi, ctx);
+		const rolled = await state.contextTree.settle(pi, ctx) || await state.contextKickoff.settlePostCompaction(pi, ctx);
 		if (rolled) runtime.resetTransportAfterCompaction(ctx.sessionManager.getSessionId());
-		if (!rolled && !quotaExhausted) runtime.armCacheKeepalive(ctx);
 		state.contextTree.handoff.settled(ctx);
+		const continued = state.contextKickoff.continue(pi, ctx);
+		if (!rolled && !continued && !quotaExhausted) runtime.armCacheKeepalive(ctx);
 	});
 	pi.on("before_provider_request", async (event, ctx) => {
 		await turnPrewarm;
@@ -468,7 +472,11 @@ export function registerCodexEvents(
 						await state.contextTree.settle(pi, ctx);
 						treeRolloverScheduled = false;
 					}
-				} else await state.contextWindows.completeHybridCompaction(pi, ctx, plan.contextManagementMode, event.reason === "overflow");
+				} else if (event.reason === "overflow") {
+					state.contextKickoff.schedulePostCompactionWindow(ctx, {
+						mode: plan.contextManagementMode, triggerTurn: true, trimPreviousWindow: false,
+					});
+				} else await state.contextWindows.completeHybridCompaction(pi, ctx, plan.contextManagementMode);
 			} else if (
 				contextCompaction &&
 				event.reason === "overflow"
@@ -478,9 +486,8 @@ export function registerCodexEvents(
 						sourceLeafId: compactionEntry?.parentId ?? undefined,
 					});
 				} else {
-					await state.contextWindows.startNewWindow(pi, ctx, {
+					state.contextKickoff.schedulePostCompactionWindow(ctx, {
 						triggerTurn: true,
-						...(ctx.signal ? { signal: ctx.signal } : {}),
 						mode: plan.contextManagementMode,
 						trimPreviousWindow: false,
 						sourceLeafId: compactionEntry?.parentId ?? undefined,
@@ -495,7 +502,7 @@ export function registerCodexEvents(
 			if (!treeRolloverScheduled) {
 				runtime.resetTransportAfterCompaction(ctx.sessionManager.getSessionId());
 				// Tool-requested rollover appends its marker in onComplete; do not prewarm the old window.
-				if (!state.contextWindows.isHybridCompactionRunning()) await (nativeCompaction
+				if (!state.contextWindows.isHybridCompactionRunning() && !state.contextKickoff.pending) await (nativeCompaction
 					? runtime.startCompactionPrewarm(ctx)
 					: runtime.startPrewarm(ctx, postCompactionPrompt, true));
 			}

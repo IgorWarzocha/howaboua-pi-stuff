@@ -4,6 +4,7 @@ import { DEFAULT_COMPACTION_SETTINGS, type SessionBeforeCompactEvent } from "@ea
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
 import { CodexDeveloperMessageBridge } from "../src/adapter/developer-messages.ts";
 import { CodexContextWindowManager } from "../src/context-management/window-manager.ts";
+import { CodexContextWindowKickoff } from "../src/context-management/window-kickoff.ts";
 import { CodexContextTreeCoordinator } from "../src/context-management/tree-coordinator.ts";
 import { buildNativeCompactionInput, injectPendingNativeWindowIntoPiCompactionRequest, resolveOpaqueNativeCompactionFallbackEntry } from "../src/adapter/compaction/compaction.ts";
 import { runPortablePiCompaction } from "../src/adapter/compaction/portable-summary.ts";
@@ -214,6 +215,7 @@ test("native compaction request routing reuses only the latest matching checkpoi
 
 test("portable Pi compaction consumes opaque checkpoints on an isolated summary lane", async () => {
 	const contextWindows = new CodexContextWindowManager();
+	const contextKickoff = new CodexContextWindowKickoff(contextWindows);
 	const ctx = {
 		model,
 		sessionManager: { getSessionId: () => "session-1" },
@@ -227,7 +229,8 @@ test("portable Pi compaction consumes opaque checkpoints on an isolated summary 
 		codexTurnState: createCodexTurnState(),
 		developerMessages: new CodexDeveloperMessageBridge(),
 		contextWindows,
-		contextTree: new CodexContextTreeCoordinator(contextWindows),
+		contextKickoff,
+		contextTree: new CodexContextTreeCoordinator(contextWindows, contextKickoff),
 		config: { ...DEFAULT_CODEX_CONVERSION_CONFIG, compaction: { ...DEFAULT_CODEX_CONVERSION_CONFIG.compaction, responsesCompaction: true } },
 		pendingPiCompactionNativeWindow: {
 			window: [{ type: "compaction_summary", encrypted_content: "sealed" }],

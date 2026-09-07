@@ -88,30 +88,13 @@ function parsedActivity(value: unknown): AgentActivity | undefined {
 	};
 }
 
-function legacyActivity(
-	record: Record<string, unknown>,
-): AgentActivity | undefined {
-	if (!isAgentStatus(record["lastStatus"])) return undefined;
-	const task = optionalString(record, "task");
-	if (task === false) return undefined;
-	if (record["lastStatus"] === "working") {
-		return { phase: "working", ...(task ? { task } : {}) };
-	}
-	if (!task) return { phase: "settled", status: record["lastStatus"] };
-	return {
-		attemptId: `restored:${String(record["terminalId"])}`,
-		phase: "submitting",
-		previous: { phase: "settled", status: record["lastStatus"] },
-		task,
-	};
-}
-
 export function parseMonitoredAgent(
 	value: unknown,
 ): MonitoredAgent | undefined {
 	if (typeof value !== "object" || value === null) return undefined;
 	const record = value as Record<string, unknown>;
 	if (
+		(record["scope"] !== "task" && record["scope"] !== "persistent") ||
 		typeof record["paneId"] !== "string" ||
 		typeof record["terminalId"] !== "string" ||
 		typeof record["workspaceId"] !== "string" ||
@@ -122,7 +105,7 @@ export function parseMonitoredAgent(
 	const cwd = optionalString(record, "cwd");
 	const lastAssistantId = optionalString(record, "lastAssistantId");
 	const name = optionalString(record, "name");
-	const activity = parsedActivity(record["activity"]) ?? legacyActivity(record);
+	const activity = parsedActivity(record["activity"]);
 	if (
 		cwd === false ||
 		lastAssistantId === false ||
@@ -132,6 +115,7 @@ export function parseMonitoredAgent(
 		return undefined;
 	}
 	return {
+		scope: record["scope"],
 		activity,
 		paneId: record["paneId"],
 		terminalId: record["terminalId"],
@@ -146,10 +130,12 @@ export function parseMonitoredAgent(
 export function recordForPanel(
 	panel: PaneInfo,
 	activity: AgentActivity,
+	scope: MonitoredAgent["scope"],
 	lastAssistantId?: string,
 ): MonitoredAgent {
 	const cwd = panel.foreground_cwd ?? panel.cwd;
 	return {
+		scope,
 		activity,
 		paneId: panel.pane_id,
 		terminalId: panel.terminal_id,
@@ -166,6 +152,7 @@ export function sameMonitorRecord(
 	right: MonitoredAgent,
 ): boolean {
 	return (
+		left.scope === right.scope &&
 		left.paneId === right.paneId &&
 		left.terminalId === right.terminalId &&
 		left.workspaceId === right.workspaceId &&

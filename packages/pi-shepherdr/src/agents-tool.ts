@@ -27,6 +27,7 @@ import {
 	rollbackStartedAgent,
 	startAgent,
 } from "./launch.js";
+import { attributeAgentPrompt } from "./messages.js";
 import {
 	loadAgentProfiles,
 	prepareProfileMessage,
@@ -55,7 +56,7 @@ export function createAgentsTool(fleet: AgentFleet) {
 		parameters: AgentsParameters,
 		promptSnippet: "Load agents help before first use.",
 		promptGuidelines: [
-			"agents: Reviewer spawns always block. Await the review before continuing work on its scope. Set blocking false only for independent work.",
+			"agents: send messages to peers; assign delegates work. Reviewer spawns always block; await review before working its scope.",
 			"agents: Specialists know their job. Give only the concrete task and inaccessible context; never append generic method, evidence, or reporting instructions.",
 			"agents: Reuse specialists only for the same investigation. Keep reviews independent. New scope gets a new agent.",
 			"agents: For advanced Herdr workspace, pane, process or layout control, run herdr --skill.",
@@ -127,6 +128,11 @@ export function createAgentsTool(fleet: AgentFleet) {
 					},
 					{ targetLocal: runtime.local },
 				);
+				const attributedMessage = await attributeAgentPrompt(
+					fleet.connected().client,
+					message,
+					"task",
+				);
 				reportProgress(update, `Spawning ${label}`, {
 					machine: runtime.machine,
 					name,
@@ -135,7 +141,6 @@ export function createAgentsTool(fleet: AgentFleet) {
 				});
 				const started = await startAgent(
 					runtime.client,
-					runtime.monitor,
 					startParams,
 					runtime.fallbackCwd,
 					runtime.resolveDirectory,
@@ -161,7 +166,7 @@ export function createAgentsTool(fleet: AgentFleet) {
 							promptSubmissionStarted = true;
 							await runtime.client.request("agent.prompt", {
 								target: started.id,
-								text: message,
+								text: attributedMessage,
 							});
 							promptAccepted = true;
 						},
@@ -172,12 +177,7 @@ export function createAgentsTool(fleet: AgentFleet) {
 						!promptAccepted &&
 						(!promptSubmissionStarted || isHerdrResponseError(error))
 					) {
-						return rollbackStartedAgent(
-							runtime.client,
-							runtime.monitor,
-							started,
-							error,
-						);
+						return rollbackStartedAgent(runtime.client, started, error);
 					}
 					throw error;
 				}
@@ -257,7 +257,7 @@ export function createAgentsTool(fleet: AgentFleet) {
 						: {}),
 				});
 			}
-			if (params.action === "send") {
+			if (params.action === "send" || params.action === "assign") {
 				if (panel.agent_status === "blocked") {
 					const view = await runtime.monitor.view(panel);
 					throw new Error(
@@ -265,8 +265,22 @@ export function createAgentsTool(fleet: AgentFleet) {
 					);
 				}
 				const message = required(params.message, "message");
-				if (!runtime.monitor.isMonitored(panel.pane_id)) {
-					await runtime.monitor.track(panel);
+				const attributedMessage = await attributeAgentPrompt(
+					fleet.connected().client,
+					message,
+					params.action === "send" ? "message" : "task",
+				);
+				if (params.action === "send") {
+					executionSignal.throwIfAborted();
+					await runtime.client.request("agent.prompt", {
+						target: panel.pane_id,
+						text: attributedMessage,
+					});
+					return toolResult({
+						sent: true,
+						machine: runtime.machine,
+						target: panel.pane_id,
+					});
 				}
 				const settlement = await dispatchAgentWork(
 					runtime,
@@ -278,15 +292,18 @@ export function createAgentsTool(fleet: AgentFleet) {
 					() =>
 						runtime.client.request("agent.prompt", {
 							target: panel.pane_id,
-							text: message,
+							text: attributedMessage,
 						}),
 					{ expectUserMessage: true },
 				);
 				return toolResult(
 					settlement
-						? { sent: true, ...settlementResult(runtime.machine, settlement) }
+						? {
+								assigned: true,
+								...settlementResult(runtime.machine, settlement),
+							}
 						: {
-								sent: true,
+								assigned: true,
 								machine: runtime.machine,
 								target: panel.pane_id,
 								status: "working",
@@ -295,9 +312,6 @@ export function createAgentsTool(fleet: AgentFleet) {
 				);
 			}
 			if (params.action === "answer") {
-				if (!runtime.monitor.isMonitored(panel.pane_id)) {
-					await runtime.monitor.track(panel);
-				}
 				const prepared = await prepareAskAnswer(
 					runtime.client,
 					runtime.monitor,

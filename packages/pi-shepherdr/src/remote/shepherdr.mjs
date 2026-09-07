@@ -4,7 +4,7 @@ import { createConnection } from "node:net";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
-const BRIDGE_VERSION = 4;
+const BRIDGE_VERSION = 5;
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const READ_CHUNK_BYTES = 64 * 1024;
 const subscriptions = new Map();
@@ -24,11 +24,17 @@ function expandHome(path) {
 }
 
 function socketPath() {
-	const explicit = argument("socket");
-	if (explicit) return expandHome(explicit);
 	const root = process.env.XDG_CONFIG_HOME || join(homedir(), ".config");
 	const session = argument("session");
-	return session
+	if (
+		!session ||
+		!/^[a-zA-Z0-9_.-]{1,64}$/.test(session) ||
+		session === "." ||
+		session === ".."
+	) {
+		throw new Error("A valid Herdr --session is required");
+	}
+	return session !== "default"
 		? join(root, "herdr", "sessions", session, "herdr.sock")
 		: join(root, "herdr", "herdr.sock");
 }
@@ -247,7 +253,7 @@ function assistantFromMessage(id, message) {
 	};
 }
 
-function userFromMessage(id, message) {
+function inputFromMessage(id, message) {
 	if (message.role !== "user") return undefined;
 	const text = [];
 	if (typeof message.content === "string") text.push(message.content);
@@ -323,15 +329,15 @@ async function sessionView(path, size) {
 	let assistantDepth;
 	let ask;
 	let depth = 0;
-	let user;
-	let userDepth;
+	let input;
+	let inputDepth;
 	const resolved = new Set();
 	const result = () => ({
 		...(assistant ? { assistant } : {}),
 		...(ask ? { ask } : {}),
-		...(user ? { user } : {}),
-		...(assistantDepth !== undefined && userDepth !== undefined
-			? { assistantAfterUser: assistantDepth < userDepth }
+		...(input ? { input } : {}),
+		...(assistantDepth !== undefined && inputDepth !== undefined
+			? { assistantAfterInput: assistantDepth < inputDepth }
 			: {}),
 	});
 	const inspect = (line) => {
@@ -360,6 +366,16 @@ async function sessionView(path, size) {
 				}
 			}
 		}
+		if (
+			!input &&
+			entry.type === "custom_message" &&
+			entry.customType === "herdr-agent-message" &&
+			typeof entry.content === "string" &&
+			entry.content
+		) {
+			input = { id: entry.id, text: entry.content };
+			inputDepth = currentDepth;
+		}
 		const message = entry.message;
 		if (message && typeof message === "object") {
 			if (
@@ -371,9 +387,9 @@ async function sessionView(path, size) {
 				assistant = assistantFromMessage(entry.id, message);
 				if (assistant) assistantDepth = currentDepth;
 			}
-			if (!user) {
-				user = userFromMessage(entry.id, message);
-				if (user) userDepth = currentDepth;
+			if (!input) {
+				input = inputFromMessage(entry.id, message);
+				if (input) inputDepth = currentDepth;
 			}
 			if (
 				!ask &&

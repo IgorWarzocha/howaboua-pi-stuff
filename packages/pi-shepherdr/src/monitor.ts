@@ -25,6 +25,7 @@ import type {
 interface AgentMonitorOptions {
 	client: HerdrConnection;
 	machine: string;
+	machineLabel: () => string;
 	onChange: () => void;
 	onRefresh: () => void;
 	operatorPrefix: string;
@@ -57,10 +58,16 @@ export class AgentMonitor {
 			pi,
 			this.client,
 			this.state,
-			() => this.persist(),
+			() => {
+				this.persist();
+				this.refreshAfterEvent();
+			},
 			options.reader,
-			this.machine,
-			options.operatorPrefix,
+			{
+				machine: this.machine,
+				label: options.machineLabel,
+				operatorPrefix: options.operatorPrefix,
+			},
 		);
 		this.events = new MonitorEvents({
 			client: this.client,
@@ -103,10 +110,6 @@ export class AgentMonitor {
 
 	list(): MonitoredAgent[] {
 		return this.state.list();
-	}
-
-	isMonitored(paneId: string): boolean {
-		return this.state.isMonitored(paneId);
 	}
 
 	async watch(panel: PaneInfo): Promise<MonitoredAgent> {

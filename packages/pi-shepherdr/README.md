@@ -14,7 +14,7 @@ With Pi Codex's compatible custom developer-message API active, asynchronous wor
 pi install npm:@howaboua/pi-shepherdr
 ```
 
-Requires Pi 0.84.3 or newer, Herdr 0.8.x and the Herdr Pi integration:
+Requires Pi 0.84.3 or newer, Herdr 0.9 or newer and the Herdr Pi integration:
 
 ```bash
 herdr integration install pi
@@ -34,9 +34,15 @@ The agent tool is always available in Pi, Code Mode and Notebook Mode. Run Pi in
 
 The command only records one visible guidance message without triggering a turn. Run `/herdr` again to return to normal guidance. Resumed sessions restore their last mode; new sessions start with normal guidance. Tool availability and monitoring do not depend on this mode.
 
-`/herdr machines` opens the Add/Remove Machine interface. Settings live at `<pi-agent-directory>/shepherdr.json`, where the directory defaults to `~/.pi/agent` and `PI_CODING_AGENT_DIR` overrides it. `/herdr connect [machine]` retries failed connections or incomplete monitoring without dropping a working remote connection.
+Shepherdr reads Herdr's existing machine profiles and connects enabled profiles at session startup. Manage profiles in Herdr. `/herdr connect [profile-id]` refreshes the catalog and retries failed connections or incomplete monitoring without dropping working connections. A catalog refresh stops watches for disabled or removed profiles without stopping remote agents.
 
-Remote machines connect over noninteractive SSH. The target needs Node, Herdr 0.8.x, the Herdr Pi integration and a running Herdr session. Shepherdr installs one helper at `~/.pi/agent/shepherdr.mjs` on each remote, runs it only for the connection lifetime and leaves no remote daemon behind.
+Profiles belong to the host running Pi, not the laptop or desktop displaying its terminal. Each profile targets one remote session. Agent calls use the opaque profile ID returned by `list`; `local` means Pi's current server. Renaming a profile changes its label, not its routing identity.
+
+Remote machines connect over noninteractive SSH. The target needs `node` on its SSH PATH, Herdr 0.9 or newer, the Herdr Pi integration and a running Herdr session. Shepherdr installs one helper at `~/.pi/agent/shepherdr.mjs` on each remote, runs it only for the connection lifetime and leaves no remote daemon behind. Herdr's multi-machine UI does not expose a cross-machine automation socket, so Shepherdr still owns its remote transport and Pi transcript reads.
+
+### Migrating from separate Shepherdr machines
+
+`shepherdr.json` is no longer read. Existing Herdr profiles are used directly. Configure any missing profiles in Herdr on the host running Pi. Old machine aliases are not migrated. Legacy watches, including local watches, are cleared with a notice because they cannot distinguish explicit subscriptions from accidental ones. Re-select any ongoing watches explicitly.
 
 ## Agent calls
 
@@ -48,19 +54,28 @@ Call the `agents` tool with `action: "help"` before first use, then send flat re
 | `list` | Profiles, machines and matching Pi agents |
 | `find` | Agents matching a query or status |
 | `spawn` | Spawn a profiled Pi agent and send its initial task |
-| `send` | Send work or a follow-up to an existing agent |
+| `send` | Send a peer message without waiting or subscribing |
+| `assign` | Delegate a task to an existing agent |
 | `read` | Read the latest assistant reply or bounded terminal output |
 | `answer` | Answer a worker blocked on Pi Ask |
 | `watch` | Push future settlement from an existing Pi agent |
 | `unwatch` | Stop reporting an agent |
 
-`spawn`, `send` and `answer` block by default. Set `blocking: false` only when the controller should continue other work immediately. Completion and blockage are then delivered automatically.
+`spawn`, `assign` and `answer` block by default. Set `blocking: false` when the controller should continue other work immediately. Task completion and blockage are then delivered automatically.
+
+Questions, status updates and replies use `send`. It returns after submission, does not accept `blocking`, and never creates or changes a watch or task. Use `assign` only to delegate work whose result you need, not to exchange coordination messages.
+
+Automatic delegation watches end when the task finishes or fails. Blocked tasks stay watched until resolved. Only an explicit `watch` keeps reporting subsequent work until `unwatch`. Sending an update to your worker preserves its existing task watch without replacing the task.
 
 Reviewer spawns always block, even when `blocking: false` is supplied. The controller waits for the review before continuing work on its scope.
 
 Every `spawn` needs an `agent_type` and a concise two- or three-word `label`. The label names both the Herdr tab and Pi session; the routing `name` remains optional and is derived from it when omitted.
 
 Cancelling a blocking call does not kill its worker. The waiter detaches and the eventual result returns through normal asynchronous delivery.
+
+Prompts sent through `agents` identify peer messages versus delegated tasks and include the sender's host, session, workspace, tab and pane identity, with current names. Reports include source workspace and tab names too. Raw `herdr agent prompt` calls bypass this attribution. These are runtime locations, not the desktop window showing a pane.
+
+Idle task prompts retain Pi's normal user kickoff and extension preparation. When the receiving agent is already running and Pi Codex developer delivery is active, Shepherdr routes attributed messages into that prepared run as developer steering. Without it, messages remain normal prompts. Install Shepherdr on receiving agents as well as controllers for this delivery.
 
 For `answer` inside Code or Notebook Mode, update Pi Ask on workers together with Shepherdr on controllers.
 

@@ -3,6 +3,7 @@ This repo publishes through Changesets; every merge to `main` feeds the version 
 - Resolve package names by matching their words against immediate subdirectories of packages; search the unique match first and follow direct references only.
 - Keep the vendored `src/codex-runtime` trees in pi-codex-web-run and pi-codex-imagegen identical; do not publish a shared runtime package.
 - Agent-facing text is behavior: keep tool contracts, skill files, prompt metadata, and subagent prompts compact.
+- Keep extension internals out of agent-facing prompts, descriptions, and results. Expose only intent and information needed to act; lifecycle triggers must not narrate host machinery or invent workflow instructions.
 - Measure package-emitted tool schemas and system-prompt deltas for cache impact; repository `AGENTS.md` is internal, not product prompt cost.
 - Do not repeat self-evident contracts across names, descriptions, schemas, `promptSnippet`, or `promptGuidelines`; use the latter two only for concrete failures. Never rewrite prior tool calls/results to integrate a tool.
 - Agent-facing prose need not perform grammatical polish; optimize semantic signal per token and omit cosmetic punctuation when it saves tokens. Preserve syntax, structural delimiters, meaning, evidence, caveats, and recovery instructions.
@@ -10,6 +11,7 @@ This repo publishes through Changesets; every merge to `main` feeds the version 
 - When review questions test scope, cull first: delete whole cases or narrow to the minimum independent contract. Never increase permanent test count unless the user explicitly requests more coverage.
 - Never encode agent tool-call mistakes or prompt-following failures as programmatic tests. Discover them in real use and fix the model-facing contract; tests may cover only deterministic parser, executor, result, or routing boundaries independently of model compliance.
 - Skills and extensions must work for any user. Never ship local paths, personal names, machine assumptions, or private workflow details.
+- Treat `before_agent_start` as the critical preparation boundary for Pi integration: trace whether each kickoff actually runs the complete extension chain before prompt/tool rewrites and prewarm. Custom/developer-message turns and in-run steering bypass it; a user-message kickoff must enter while settled. Never replace other extensions' preparation with a captured-prompt patch. Code/Notebook nested tools live outside provider JSON schemas, so callable tools do not prove their prompt contracts survived; verify final instructions and native tool schemas separately.
 - Slash commands are for users; agents use tools. Prefer one routed entry command over several command names unless explicitly requested.
 - Treat related package work from one session as one release unit: one PR or one directly, atomically merged stack. Installed users should not absorb serial cleanup releases.
 - Changed published behavior or payload requires a changeset; ordinary docs and tests do not. Use concrete release language; never write “upcoming release”, “unreleased”, or speculative notes.

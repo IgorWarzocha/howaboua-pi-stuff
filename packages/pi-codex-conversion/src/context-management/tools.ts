@@ -43,14 +43,16 @@ export function createContextWindowTools(
 					? state.contextWindows.scheduleHybridCompaction()
 					: plan.contextManagementMode === "tree"
 					? state.contextTree.schedule(ctx)
-					: await state.contextWindows.startNewWindow(pi, ctx, {
+					: await state.contextKickoff.startWindow(pi, ctx, {
 						triggerTurn: true,
 						signal,
 						mode: plan.contextManagementMode,
 						trimPreviousWindow: true,
 					});
+				// Pi's terminate flag only stops a batch when every result terminates.
+				if (started && !plan.contextManagementHybrid) ctx.abort();
 				return {
-					...(plan.contextManagementHybrid ? { terminate: true } : {}),
+					...(started ? { terminate: true } : {}),
 					content: [
 						{
 							type: "text",

@@ -14,6 +14,7 @@ import {
 	CONTEXT_WINDOW_COMPACTION_SUMMARY,
 } from "../src/context-management/messages.ts";
 import { CodexContextWindowManager } from "../src/context-management/window-manager.ts";
+import { CodexContextWindowKickoff } from "../src/context-management/window-kickoff.ts";
 import { CodexContextTreeCoordinator } from "../src/context-management/tree-coordinator.ts";
 import { buildRequestBody } from "../src/providers/openai-codex-custom-provider.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
@@ -81,7 +82,6 @@ test("context windows preserve rollover and native request semantics", async (t)
 	const initialEntries = contextEntries();
 	assert.equal(
 		await manager.startNewWindow(contextPi, ctx, {
-			triggerTurn: false,
 			mode: "remote",
 			trimPreviousWindow: true,
 		}),
@@ -192,6 +192,7 @@ test("context windows preserve rollover and native request semantics", async (t)
 		assert.deepEqual(manager.project(hybridMessages, mode, [], [], true), hybridMessages);
 
 	const contextBridge = new CodexDeveloperMessageBridge();
+	const contextKickoff = new CodexContextWindowKickoff(manager);
 	const contextState: AdapterState = {
 		enabled: true,
 		cwd: "/repo",
@@ -200,7 +201,8 @@ test("context windows preserve rollover and native request semantics", async (t)
 		codexTurnState: createCodexTurnState(),
 		developerMessages: contextBridge,
 		contextWindows: manager,
-		contextTree: new CodexContextTreeCoordinator(manager),
+		contextKickoff,
+		contextTree: new CodexContextTreeCoordinator(manager, contextKickoff),
 		pendingActiveProviderPromptCapture: true,
 		activeProviderSystemPrompt: "",
 		config: {
@@ -296,6 +298,9 @@ test("context windows preserve rollover and native request semantics", async (t)
 	const modeHints = await Promise.all(
 		(["local", "tree", "remote"] as const).flatMap((mode) => [false, true].map(async (hybridCompaction) => {
 			const sent: Array<Record<string, unknown>> = [];
+			const kickoffs: string[] = [];
+			let idle = false;
+			const continuationContext = { ...(ctx as ExtensionContext), isIdle: () => idle } as ExtensionContext;
 			let boundaryRefreshes = 0;
 			const windows = new CodexContextWindowManager(
 				async (_context, loadedMode) => `hint:${loadedMode}`,
@@ -304,10 +309,13 @@ test("context windows preserve rollover and native request semantics", async (t)
 					boundaryRefreshes++;
 				},
 			);
+			const kickoff = new CodexContextWindowKickoff(windows);
 			const pi = {
-				sendMessage(message: Record<string, unknown>) {
+				sendMessage(message: Record<string, unknown>, options: unknown) {
+					assert.deepEqual(options, { triggerTurn: false }, "window markers never bypass the prompt lifecycle");
 					sent.push(message);
 				},
+				sendUserMessage(text: string) { kickoffs.push(text); },
 			} as never;
 			windows.ensureInitialized(pi, ctx, true);
 			assert.equal(boundaryRefreshes, 0, "initialization is not a rollover");
@@ -324,6 +332,7 @@ test("context windows preserve rollover and native request semantics", async (t)
 				const [rollover] = createContextWindowTools(pi, {
 					...contextState,
 					contextWindows: windows,
+					contextKickoff: kickoff,
 					config: { ...contextState.config, compaction: { ...contextState.config.compaction, contextManagement: mode, hybridCompaction } },
 				});
 				const result = await rollover.execute("rollover", {}, undefined, undefined, compactContext);
@@ -331,7 +340,7 @@ test("context windows preserve rollover and native request semantics", async (t)
 				assert.equal(result.terminate, true);
 				assert.equal(windows.scheduleHybridCompaction(), false);
 				windows.cancelScheduledCompaction();
-				const continueWindow = () => windows.startNewWindow(pi, ctx, { mode, triggerTurn: true, trimPreviousWindow: false });
+				const continueWindow = () => kickoff.startWindow(pi, ctx, { mode, triggerTurn: true, trimPreviousWindow: false });
 				assert.equal(windows.finishTurn(compactContext, continueWindow), false);
 				assert.equal(windows.scheduleHybridCompaction(), true);
 				assert.equal(compactions, 0, "tool execution only schedules rollover");
@@ -343,11 +352,18 @@ test("context windows preserve rollover and native request semantics", async (t)
 				complete!();
 				await new Promise<void>((resolve) => setImmediate(resolve));
 				assert.equal(sent.length, 2);
-			} else await windows.startNewWindow(pi, ctx, {
-				triggerTurn: false,
+			} else await kickoff.startWindow(pi, ctx, {
+				triggerTurn: true,
 				mode,
 				trimPreviousWindow: mode !== "tree",
 			});
+			assert.equal(kickoff.pending, true);
+			assert.equal(kickoff.continue(pi, continuationContext), false, "never steer a synthetic kickoff into the departing run");
+			assert.equal(kickoffs.length, 0);
+			idle = true;
+			assert.equal(kickoff.continue(pi, continuationContext), true);
+			assert.equal(kickoff.continue(pi, continuationContext), false, "one kickoff per window");
+			assert.equal(kickoffs.length, 1);
 			assert.equal(boundaryRefreshes, 1, "Hybrid compaction and its successor share one refresh");
 			const persisted = sent.map((message) => ({ ...message, role: "custom", timestamp: 1 })) as never;
 			const bridge = new CodexDeveloperMessageBridge();
@@ -370,5 +386,4 @@ test("context windows preserve rollover and native request semantics", async (t)
 		modeHints.map((hint) => String(hint).match(/hint:(local|tree|remote)/)?.[1]),
 		["local", "local", "tree", "tree", "remote", "remote"],
 	);
-
 });

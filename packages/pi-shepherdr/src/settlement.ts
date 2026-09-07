@@ -179,8 +179,11 @@ export class SettlementReporter {
 	private readonly collector: SettlementCollector;
 	private readonly persist: () => void;
 	private readonly pi: ExtensionAPI;
-	private readonly machine: string;
-	private readonly operatorPrefix: string;
+	private readonly origin: {
+		machine: string;
+		label: () => string;
+		operatorPrefix: string;
+	};
 	private readonly reporting = new Map<string, SettledAgentStatus>();
 	private readonly pendingBlocked = new Map<string, PendingBlockedSettlement>();
 	private readonly claims = new Map<string, SettlementClaim>();
@@ -192,16 +195,14 @@ export class SettlementReporter {
 		client: HerdrConnection,
 		state: MonitorState,
 		persist: () => void,
-		reader?: AssistantReader,
-		machine = "local",
-		operatorPrefix = "herdr",
+		reader: AssistantReader | undefined,
+		origin: { machine: string; label: () => string; operatorPrefix: string },
 	) {
 		this.pi = pi;
 		this.collector = new SettlementCollector(client, reader);
 		this.state = state;
 		this.persist = persist;
-		this.machine = machine;
-		this.operatorPrefix = operatorPrefix;
+		this.origin = origin;
 	}
 
 	latest(panel: PaneInfo): Promise<LatestAssistant | undefined> {
@@ -328,15 +329,15 @@ export class SettlementReporter {
 			if (
 				!blocked &&
 				expectedUser &&
-				(settlement.session.assistantAfterUser !== true ||
-					!settlement.session.user ||
-					settlement.session.user.id === expectedUser.after)
+				(settlement.session.assistantAfterInput !== true ||
+					!settlement.session.input ||
+					settlement.session.input.id === expectedUser.after)
 			) {
 				if (!this.retry(lifecycle, retryRequest, retryState)) {
 					this.failReconciliation(
 						lifecycle,
 						current,
-						"the submitted user message and reply were not persisted",
+						"the submitted input and reply were not persisted",
 					);
 				}
 				return;
@@ -466,8 +467,9 @@ export class SettlementReporter {
 			agent: settlement.agent,
 			agentToolName: "agents",
 			...(settlement.ask ? { ask: settlement.ask } : {}),
-			machine: this.machine,
-			operatorPrefix: this.operatorPrefix,
+			machine: this.origin.machine,
+			machineLabel: this.origin.label(),
+			operatorPrefix: this.origin.operatorPrefix,
 			...(blockedMessage ? { blockedMessage } : {}),
 			labels: settlement.labels,
 			record,
