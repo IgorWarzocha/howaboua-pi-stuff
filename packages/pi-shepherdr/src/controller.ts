@@ -61,6 +61,7 @@ export function registerAgentController(
 					if (!fleet.isActive()) return;
 				}
 				try {
+					await fleet.reload();
 					ctx.ui.notify(fleet.connect(rest[0]), "info");
 				} catch (error) {
 					ctx.ui.notify(

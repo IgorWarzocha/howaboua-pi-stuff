@@ -1,3 +1,4 @@
+import { hostname } from "node:os";
 import {
 	type ExtensionAPI,
 	type ExtensionContext,
@@ -6,6 +7,8 @@ import {
 import { Box, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
 import { activityTask } from "./activity.js";
 import { sendPolicyMessage } from "./delivery.js";
+import { getCurrentPane, getSnapshot } from "./herdr.js";
+import type { HerdrConnection } from "./herdr-client.js";
 import type {
 	LatestAssistant,
 	MonitoredAgent,
@@ -33,6 +36,52 @@ interface AgentEventLabels {
 	workspace?: string;
 }
 
+export function agentSource(agent: PaneInfo, labels: AgentEventLabels) {
+	const paneName = agent.label || agent.title;
+	return {
+		pane: agent.pane_id,
+		workspace: agent.workspace_id,
+		tab: agent.tab_id,
+		...(agent.name ? { name: agent.name } : {}),
+		...(paneName ? { pane_name: paneName } : {}),
+		...(labels.workspace ? { workspace_name: labels.workspace } : {}),
+		...(labels.tab ? { tab_name: labels.tab } : {}),
+	};
+}
+
+function sourceAttributes(source: Record<string, string | undefined>): string {
+	return Object.entries(source)
+		.filter((entry): entry is [string, string] => entry[1] !== undefined)
+		.map(
+			([key, value]) =>
+				`${key}="${xml(value).replaceAll("\n", "&#10;").replaceAll("\r", "&#13;")}"`,
+		)
+		.join(" ");
+}
+
+export async function attributeAgentPrompt(
+	client: HerdrConnection,
+	message: string,
+): Promise<string> {
+	const [pane, snapshot] = await Promise.all([
+		getCurrentPane(client),
+		getSnapshot(client),
+	]);
+	const workspace = snapshot.workspaces.find(
+		(workspace) => workspace.workspace_id === pane.workspace_id,
+	)?.label;
+	const tab = snapshot.tabs.find((tab) => tab.tab_id === pane.tab_id)?.label;
+	const source = {
+		host: hostname(),
+		session: process.env["HERDR_SESSION"] || "default",
+		...agentSource(pane, {
+			...(workspace ? { workspace } : {}),
+			...(tab ? { tab } : {}),
+		}),
+	};
+	return `<herdr_sender ${sourceAttributes(source)} />\n${message}`;
+}
+
 interface AgentEventOptions {
 	agent: PaneInfo;
 	agentToolName: string;
@@ -40,6 +89,7 @@ interface AgentEventOptions {
 	blockedMessage?: string;
 	labels: AgentEventLabels;
 	machine: string;
+	machineLabel: string;
 	operatorPrefix: string;
 	record: MonitoredAgent;
 	reply?: LatestAssistant;
@@ -51,6 +101,7 @@ interface AgentEventDetails {
 	blockedOn?: string;
 	cwd?: string;
 	machine: string;
+	machineLabel?: string;
 	name?: string;
 	paneId: string;
 	response?: string;
@@ -128,7 +179,7 @@ function boundedVoicePrompt(prompt: string, truncationNotice: string): string {
 
 function agentVoicePrompt(details: AgentEventDetails): string {
 	const lines = [
-		`Worker: ${details.machine} / ${details.name?.trim() || "unnamed"}`,
+		`Worker: ${details.machineLabel ?? details.machine} / ${details.name?.trim() || "unnamed"}`,
 		`State: ${details.state}`,
 	];
 	if (details.task?.trim()) lines.push(`Task:\n${details.task.trim()}`);
@@ -224,6 +275,7 @@ function eventDetails(value: unknown): AgentEventDetails | undefined {
 		...(ask ? { ask } : {}),
 		...optional("blockedOn"),
 		...optional("cwd"),
+		...optional("machineLabel"),
 		...optional("name"),
 		...optional("response"),
 		...optional("tab"),
@@ -243,6 +295,7 @@ function agentEvent(options: AgentEventOptions): {
 		blockedMessage,
 		labels,
 		machine,
+		machineLabel,
 		operatorPrefix,
 		record,
 		reply,
@@ -257,14 +310,13 @@ function agentEvent(options: AgentEventOptions): {
 		: failed
 			? "herdr_agent_failed"
 			: "herdr_agent_result";
-	const attributes = [
-		`machine="${xml(machine)}"`,
-		`pane="${xml(agent.pane_id)}"`,
-		record.name ? `name="${xml(record.name)}"` : undefined,
-		cwd ? `directory="${xml(cwd)}"` : undefined,
-	]
-		.filter(Boolean)
-		.join(" ");
+	const attributes = sourceAttributes({
+		machine,
+		machine_name: machineLabel !== machine ? machineLabel : undefined,
+		...agentSource(agent, labels),
+		name: agent.name ?? record.name,
+		directory: cwd,
+	});
 	const lines = [`<${tag} ${attributes}>`];
 	if (task) lines.push(`<task>${xml(task)}</task>`);
 	if (blockedMessage) {
@@ -292,10 +344,11 @@ function agentEvent(options: AgentEventOptions): {
 		content: lines.join("\n"),
 		details: {
 			machine,
+			machineLabel,
 			paneId: agent.pane_id,
 			state: blocked ? "blocked" : failed ? "failed" : "finished",
 			...(blocked && ask ? { ask } : {}),
-			...(record.name ? { name: record.name } : {}),
+			...(agent.name || record.name ? { name: agent.name || record.name } : {}),
 			...(cwd ? { cwd } : {}),
 			...(labels.workspace ? { workspace: labels.workspace } : {}),
 			...(labels.tab ? { tab: labels.tab } : {}),
@@ -353,7 +406,7 @@ export function registerAgentEventRenderer(pi: ExtensionAPI): void {
 			const agentIdentity = details?.name
 				? `${details.name} (${details.paneId})`
 				: (details?.paneId ?? "unknown");
-			const identity = `${details.machine} / ${agentIdentity}`;
+			const identity = `${details.machineLabel ?? details.machine} / ${agentIdentity}`;
 			const title = theme.fg(
 				blocked || failed ? "error" : "success",
 				`Herdr agent ${identity} · ${blocked ? "blocked" : failed ? "failed" : "finished"}`,

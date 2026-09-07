@@ -6,10 +6,9 @@ import { getSnapshot } from "./herdr.js";
 import { HerdrClient, type HerdrConnection } from "./herdr-client.js";
 import {
 	LOCAL_MACHINE,
-	type MachinesConfig,
-	type RemoteMachineConfig,
-	readMachinesConfig,
-} from "./machines-config.js";
+	readMachineCatalog,
+	type SshMachine,
+} from "./machine-catalog.js";
 import { AgentMonitor } from "./monitor.js";
 import { parseMonitoredAgent } from "./monitor-record.js";
 import { RemoteHerdrClient } from "./remote-client.js";
@@ -27,7 +26,7 @@ const MONITOR_STATE_TYPE = "herdr-agents-monitor-state";
 interface Runtime {
 	attempting?: boolean;
 	client?: HerdrConnection;
-	config?: RemoteMachineConfig;
+	config?: SshMachine;
 	local: boolean;
 	monitor?: AgentMonitor;
 	monitoringIssue?: MonitoringIssue;
@@ -63,32 +62,8 @@ function shellQuote(value: string): string {
 	return `'${value.replaceAll("'", `'"'"'`)}'`;
 }
 
-function operatorPrefix(config: RemoteMachineConfig): string {
-	const socket = config.socket?.startsWith("~/")
-		? `HERDR_SOCKET_PATH="$HOME"/${shellQuote(config.socket.slice(2))}`
-		: config.socket === "~"
-			? 'HERDR_SOCKET_PATH="$HOME"'
-			: config.socket
-				? `HERDR_SOCKET_PATH=${shellQuote(config.socket)}`
-				: undefined;
-	const remote = socket
-		? ["env", socket, config.herdr]
-		: [config.herdr, ...(config.session ? ["--session", config.session] : [])];
-	return [...config.command, ...remote].map(shellQuote).join(" ");
-}
-
-function sameMachineConfig(
-	left: RemoteMachineConfig,
-	right: RemoteMachineConfig,
-): boolean {
-	return (
-		left.herdr === right.herdr &&
-		left.node === right.node &&
-		left.session === right.session &&
-		left.socket === right.socket &&
-		left.command.length === right.command.length &&
-		left.command.every((part, index) => part === right.command[index])
-	);
+function operatorPrefix(config: SshMachine): string {
+	return `ssh -T -o BatchMode=yes -- ${shellQuote(config.target)} herdr --session ${shellQuote(config.session)}`;
 }
 
 function savedAgents(ctx: ExtensionContext): unknown[] {
@@ -120,7 +95,6 @@ function groupSaved(values: unknown[]): Map<string, unknown[]> {
 }
 
 export class AgentFleet {
-	private config: MachinesConfig = { machines: {} };
 	private context: ExtensionContext | undefined;
 	private generation = 0;
 	private readonly pi: ExtensionAPI;
@@ -134,14 +108,13 @@ export class AgentFleet {
 		this.deactivate();
 		const generation = this.generation;
 		this.context = ctx;
-		const config = await readMachinesConfig();
+		const catalog = await readMachineCatalog();
 		if (!this.isCurrent(generation, ctx)) return;
-		this.config = config;
+		const machines = Object.entries(catalog).filter(
+			([, machine]) => machine.enabled,
+		);
 		const grouped = groupSaved(savedAgents(ctx));
-		const known = new Set([
-			LOCAL_MACHINE,
-			...Object.keys(this.config.machines),
-		]);
+		const known = new Set([LOCAL_MACHINE, ...machines.map(([id]) => id)]);
 		const orphaned = [...grouped.entries()]
 			.filter(([machine]) => !known.has(machine))
 			.reduce((count, [, records]) => count + records.length, 0);
@@ -158,7 +131,7 @@ export class AgentFleet {
 			status: "connecting",
 		};
 		this.runtimes.set(LOCAL_MACHINE, localRuntime);
-		for (const [name, config] of Object.entries(this.config.machines)) {
+		for (const [name, config] of machines) {
 			this.runtimes.set(name, {
 				config,
 				local: false,
@@ -191,7 +164,7 @@ export class AgentFleet {
 		localRuntime.status = "connected";
 		this.refresh();
 
-		for (const name of Object.keys(this.config.machines)) {
+		for (const [name] of machines) {
 			void this.connectMachine(name, generation, true);
 		}
 	}
@@ -215,19 +188,25 @@ export class AgentFleet {
 		const ctx = this.context;
 		if (!ctx) return;
 		const generation = this.generation;
-		const config = await readMachinesConfig();
+		const catalog = await readMachineCatalog();
 		if (!this.isCurrent(generation, ctx)) return;
 		const reconnect: string[] = [];
 
 		for (const [name, runtime] of this.runtimes) {
-			if (runtime.local || Object.hasOwn(config.machines, name)) continue;
+			if (runtime.local || catalog[name]?.enabled) continue;
 			runtime.monitor?.deactivate();
 			if (runtime.client instanceof RemoteHerdrClient) runtime.client.close();
 			this.runtimes.delete(name);
 		}
-		for (const [name, machineConfig] of Object.entries(config.machines)) {
+		for (const [name, machineConfig] of Object.entries(catalog)) {
+			if (!machineConfig.enabled) continue;
 			const runtime = this.runtimes.get(name);
-			if (runtime?.config && sameMachineConfig(runtime.config, machineConfig)) {
+			if (
+				runtime?.config &&
+				runtime.config.target === machineConfig.target &&
+				runtime.config.session === machineConfig.session
+			) {
+				runtime.config = machineConfig;
 				continue;
 			}
 			const pending = runtime?.monitor?.list() ?? runtime?.pending ?? [];
@@ -241,7 +220,6 @@ export class AgentFleet {
 			});
 			reconnect.push(name);
 		}
-		this.config = config;
 		this.changed();
 		for (const name of reconnect) {
 			void this.connectMachine(name, generation, true);
@@ -302,7 +280,7 @@ export class AgentFleet {
 			: this.statuses();
 		return Promise.all(
 			selected.map(async (status) => {
-				const runtime = this.runtimes.get(status.name);
+				const runtime = this.runtimes.get(status.id);
 				if (
 					status.status !== "connected" ||
 					!runtime?.client ||
@@ -317,10 +295,10 @@ export class AgentFleet {
 						runtime.status !== "connected" ||
 						runtime.client !== client ||
 						runtime.monitor !== monitor ||
-						this.runtimes.get(status.name) !== runtime
+						this.runtimes.get(status.id) !== runtime
 					) {
-						return this.runtimes.has(status.name)
-							? this.statusFor(status.name)
+						return this.runtimes.has(status.id)
+							? this.statusFor(status.id)
 							: status;
 					}
 					return {
@@ -335,10 +313,10 @@ export class AgentFleet {
 						runtime.status !== "connected" ||
 						runtime.client !== client ||
 						runtime.monitor !== monitor ||
-						this.runtimes.get(status.name) !== runtime
+						this.runtimes.get(status.id) !== runtime
 					) {
-						return this.runtimes.has(status.name)
-							? this.statusFor(status.name)
+						return this.runtimes.has(status.id)
+							? this.statusFor(status.id)
 							: status;
 					}
 					return { ...status, snapshotError: errorMessage(error) };
@@ -420,8 +398,15 @@ export class AgentFleet {
 		if (!runtime)
 			throw new Error(`unknown Herdr machine ${JSON.stringify(name)}`);
 		return {
-			name,
+			id: name,
 			local: runtime.local,
+			...(runtime.config
+				? {
+						label: runtime.config.label,
+						target: runtime.config.target,
+						session: runtime.config.session,
+					}
+				: {}),
 			status: runtime.status,
 			...(runtime.monitoringIssue
 				? { monitoringIssue: runtime.monitoringIssue }
@@ -438,6 +423,7 @@ export class AgentFleet {
 		return new AgentMonitor(this.pi, {
 			client,
 			machine,
+			machineLabel: () => runtime.config?.label ?? LOCAL_MACHINE,
 			onChange: () => this.changed(),
 			onRefresh: () => this.refresh(),
 			operatorPrefix: runtime.local ? "herdr" : operatorPrefix(runtime.config!),

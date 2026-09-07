@@ -39,6 +39,7 @@ export interface PaneInfo {
 	launch_pending?: boolean;
 	name?: string | null;
 	pane_id: string;
+	title?: string | null;
 	tab_id: string;
 	terminal_id: string;
 	workspace_id: string;
@@ -82,7 +83,10 @@ export interface MonitoringIssue {
 
 export interface MachineStatus {
 	local: boolean;
-	name: string;
+	id: string;
+	label?: string;
+	target?: string;
+	session?: string;
 	monitoringIssue?: MonitoringIssue;
 	reason?: string;
 	status: MachineConnectionStatus;
@@ -96,7 +100,7 @@ export interface LatestAssistant {
 	text: string;
 }
 
-export interface LatestUser {
+export interface LatestInput {
 	id: string;
 	text: string;
 }
@@ -115,8 +119,8 @@ export interface PendingAsk {
 export interface SessionView {
 	ask?: PendingAsk;
 	assistant?: LatestAssistant;
-	assistantAfterUser?: boolean;
-	user?: LatestUser;
+	assistantAfterInput?: boolean;
+	input?: LatestInput;
 }
 
 export interface HerdrEvent {

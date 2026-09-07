@@ -46,6 +46,21 @@ export async function getPane(
 	return parsePaneInfo(result["pane"], "pane.get result.pane");
 }
 
+export async function getCurrentPane(
+	client: HerdrConnection,
+): Promise<PaneInfo> {
+	const callerPaneId = process.env["HERDR_PANE_ID"];
+	if (!callerPaneId)
+		throw new Error("HERDR_PANE_ID is required to identify the sender");
+	const result = record(
+		await client.request<unknown>("pane.current", {
+			caller_pane_id: callerPaneId,
+		}),
+		"pane.current result",
+	);
+	return parsePaneInfo(result["pane"], "pane.current result.pane");
+}
+
 export async function resolvePiAgent(
 	client: HerdrConnection,
 	target: string,
@@ -101,6 +116,7 @@ export function parsePaneInfo(value: unknown, path = "pane"): PaneInfo {
 		...optionalNullableString(pane, "foreground_cwd", path),
 		...optionalNullableString(pane, "label", path),
 		...optionalNullableString(pane, "name", path),
+		...optionalNullableString(pane, "title", path),
 		...optionalBoolean(pane, "interactive_ready", path),
 		...optionalBoolean(pane, "launch_pending", path),
 		...parseAgentSession(pane["agent_session"], path),
@@ -182,7 +198,7 @@ function parseAgentSession(
 }
 
 function optionalNullableString<
-	K extends "agent" | "cwd" | "foreground_cwd" | "label" | "name",
+	K extends "agent" | "cwd" | "foreground_cwd" | "label" | "name" | "title",
 >(
 	value: Record<string, unknown>,
 	key: K,

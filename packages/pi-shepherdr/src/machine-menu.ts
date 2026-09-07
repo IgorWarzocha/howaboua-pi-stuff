@@ -1,163 +1,126 @@
+import { spawn } from "node:child_process";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { AgentFleet } from "./fleet.js";
-import {
-	isMachineName,
-	LOCAL_MACHINE,
-	readMachinesConfig,
-	writeMachinesConfig,
-} from "./machines-config.js";
-import type { MachineStatus } from "./types.js";
+import { herdrBinary, readMachineCatalog } from "./machine-catalog.js";
 
-function parseSshArguments(value: string): string[] {
-	const parts: string[] = [];
-	let current = "";
-	let quote: "'" | '"' | undefined;
-	let escaped = false;
-	let started = false;
-	for (const character of value) {
-		if (escaped) {
-			current += character;
-			escaped = false;
-			started = true;
-			continue;
-		}
-		if (character === "\\" && quote !== "'") {
-			escaped = true;
-			started = true;
-			continue;
-		}
-		if (quote) {
-			if (character === quote) quote = undefined;
-			else current += character;
-			continue;
-		}
-		if (character === "'" || character === '"') {
-			quote = character;
-			started = true;
-		} else if (/\s/.test(character)) {
-			if (started) {
-				parts.push(current);
-				current = "";
-				started = false;
+async function runMachineCommand(
+	ctx: ExtensionContext,
+	args: string[],
+): Promise<void> {
+	if (ctx.mode !== "tui")
+		throw new Error("Herdr machine setup requires an interactive Pi terminal");
+	const result = await ctx.ui.custom<{ code: number | null; error?: string }>(
+		(tui, _theme, _keys, done) => {
+			tui.stop();
+			process.stdout.write("\x1b[2J\x1b[H");
+			let finished = false;
+			const finish = (code: number | null, error?: string) => {
+				if (finished) return;
+				finished = true;
+				tui.start();
+				tui.requestRender(true);
+				done({ code, ...(error ? { error } : {}) });
+			};
+			try {
+				const child = spawn(herdrBinary(), ["machine", ...args], {
+					stdio: "inherit",
+				});
+				child.once("error", (error) => finish(null, error.message));
+				child.once("close", (code) => finish(code));
+				return {
+					render: () => [],
+					invalidate: () => {},
+					dispose: () => {
+						if (!finished) child.kill();
+					},
+				};
+			} catch (error) {
+				finish(null, error instanceof Error ? error.message : String(error));
+				return { render: () => [], invalidate: () => {} };
 			}
-		} else {
-			current += character;
-			started = true;
-		}
-	}
-	if (quote) throw new Error("SSH arguments contain an unclosed quote");
-	if (escaped) throw new Error("SSH arguments end with an incomplete escape");
-	if (started) parts.push(current);
-	if (parts.length === 0) throw new Error("SSH target is required");
-	const target = parts.pop()!;
-	return [...parts, "--", target];
+		},
+	);
+	if (result.code !== 0)
+		throw new Error(
+			result.error ??
+				`Herdr machine command exited ${result.code ?? "by signal"}; profile setup was not completed`,
+		);
 }
 
 export async function showMachineMenu(
 	fleet: AgentFleet,
 	ctx: ExtensionContext,
 ): Promise<void> {
-	const config = await readMachinesConfig().catch((error) => {
-		ctx.ui.notify(
-			`Shepherdr machine config is invalid: ${error instanceof Error ? error.message : String(error)}`,
-			"error",
-		);
-		return undefined;
-	});
-	if (!config) return;
-	const statuses: MachineStatus[] = fleet.isActive()
-		? fleet.statuses()
-		: Object.keys(config.machines).map((name) => ({
-				local: false,
-				name,
-				status: "unavailable" as const,
-			}));
-	const selected = await ctx.ui.select("Shepherdr machines", [
-		"Add machine",
-		...statuses
-			.filter((machine) => !machine.local)
-			.map(
-				(machine) =>
-					`${machine.status === "connected" ? "●" : machine.status === "connecting" ? "◌" : "○"} ${machine.name} · ${machine.status}${machine.monitoringIssue ? " · monitoring needs attention" : ""}`,
-			),
-	]);
-	if (!selected) return;
-	if (selected === "Add machine") {
-		await addMachine(ctx, fleet);
-		return;
-	}
-	const name = selected.slice(2).split(" · ", 1)[0];
-	if (!name) return;
-	const status = statuses.find((machine) => machine.name === name);
-	const action = await ctx.ui.select(name, [
-		...(status?.monitoringIssue ? ["Retry monitoring"] : []),
-		...(status?.status !== "connected" ? ["Connect"] : []),
-		"Remove",
-	]);
-	if (action === "Connect" || action === "Retry monitoring") {
-		if (!fleet.isActive()) {
-			ctx.ui.notify(
-				"Fleet unavailable; run /herdr connect to retry",
-				"warning",
-			);
-			return;
-		}
-		ctx.ui.notify(fleet.connect(name), "info");
-	} else if (action === "Remove") {
-		const confirmed = await ctx.ui.confirm(
-			`Remove ${name}?`,
-			"The remote Shepherdr helper will remain available for other controllers",
-		);
-		if (!confirmed) return;
-		delete config.machines[name];
-		await writeMachinesConfig(config);
-		await fleet.reload();
-		ctx.ui.notify(`Removed ${name}`, "info");
-	}
-}
-
-async function addMachine(
-	ctx: ExtensionContext,
-	fleet: AgentFleet,
-): Promise<void> {
-	const name = (await ctx.ui.input("Machine name", "desktop"))?.trim();
-	if (!name) return;
-	if (!isMachineName(name)) {
-		ctx.ui.notify("Machine name must match [a-z][a-z0-9_-]{0,31}", "error");
-		return;
-	}
-	const ssh = (
-		await ctx.ui.input("SSH options and target (target last)", name)
-	)?.trim();
-	if (!ssh) return;
-	let sshArguments: string[];
 	try {
-		sshArguments = parseSshArguments(ssh);
+		const catalog = await readMachineCatalog();
+		await fleet.reload();
+		const statuses = new Map(
+			fleet.statuses().map((machine) => [machine.id, machine]),
+		);
+		const choices = Object.values(catalog).map((machine) => ({
+			machine,
+			label: `${machine.label} · ${machine.target} · ${machine.session} · ${machine.enabled ? (statuses.get(machine.id)?.status ?? "unavailable") : "disabled"} [${machine.id}]`,
+		}));
+		const selected = await ctx.ui.select("Herdr machines", [
+			"Add machine",
+			...choices.map((choice) => choice.label),
+		]);
+		if (!selected) return;
+		if (selected === "Add machine") {
+			const target = (
+				await ctx.ui.input("SSH target", "SSH alias or ssh://user@host:port")
+			)?.trim();
+			if (!target) return;
+			const label = (await ctx.ui.input("Machine label", target))?.trim();
+			if (!label) return;
+			const session = (await ctx.ui.input("Herdr session", "default"))?.trim();
+			if (session === undefined) return;
+			await runMachineCommand(ctx, [
+				"add",
+				target,
+				"--label",
+				label,
+				"--remote-session",
+				session || "default",
+			]);
+		} else {
+			const machine = choices.find(
+				(choice) => choice.label === selected,
+			)?.machine;
+			if (!machine) return;
+			const action = await ctx.ui.select(machine.label, [
+				...(machine.enabled ? ["Connect", "Disable"] : ["Enable"]),
+				"Rename",
+				"Remove",
+			]);
+			if (!action) return;
+			if (action === "Connect") {
+				ctx.ui.notify(fleet.connect(machine.id), "info");
+				return;
+			}
+			if (action === "Rename") {
+				const label = (
+					await ctx.ui.input("Machine label", machine.label)
+				)?.trim();
+				if (!label) return;
+				await runMachineCommand(ctx, ["rename", machine.id, "--label", label]);
+			} else {
+				if (
+					action === "Remove" &&
+					!(await ctx.ui.confirm(
+						`Remove ${machine.label}?`,
+						"Removes the Herdr profile for every local client. Remote agents keep running.",
+					))
+				)
+					return;
+				await runMachineCommand(ctx, [action.toLowerCase(), machine.id]);
+			}
+		}
+		await fleet.reload();
 	} catch (error) {
 		ctx.ui.notify(
 			error instanceof Error ? error.message : String(error),
 			"error",
 		);
-		return;
 	}
-	const session = (
-		await ctx.ui.input("Herdr session", "default (leave blank)")
-	)?.trim();
-	const config = await readMachinesConfig();
-	if (name === LOCAL_MACHINE || Object.hasOwn(config.machines, name)) {
-		ctx.ui.notify(`Machine ${name} already exists`, "error");
-		return;
-	}
-	config.machines[name] = {
-		command: ["ssh", "-o", "BatchMode=yes", ...sshArguments],
-		herdr: "herdr",
-		node: "node",
-		...(session && session !== "default (leave blank)" ? { session } : {}),
-	};
-	const path = await writeMachinesConfig(config);
-	await fleet.reload();
-	ctx.ui.notify(
-		`Added ${name} in ${path}; Shepherdr manages ~/.pi/agent/shepherdr.mjs remotely`,
-		"info",
-	);
 }

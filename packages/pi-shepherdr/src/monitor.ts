@@ -25,6 +25,7 @@ import type {
 interface AgentMonitorOptions {
 	client: HerdrConnection;
 	machine: string;
+	machineLabel: () => string;
 	onChange: () => void;
 	onRefresh: () => void;
 	operatorPrefix: string;
@@ -59,8 +60,11 @@ export class AgentMonitor {
 			this.state,
 			() => this.persist(),
 			options.reader,
-			this.machine,
-			options.operatorPrefix,
+			{
+				machine: this.machine,
+				label: options.machineLabel,
+				operatorPrefix: options.operatorPrefix,
+			},
 		);
 		this.events = new MonitorEvents({
 			client: this.client,

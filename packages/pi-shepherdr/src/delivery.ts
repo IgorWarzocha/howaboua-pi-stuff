@@ -24,6 +24,30 @@ export async function registerDeveloperDelivery(
 	} catch (error) {
 		if (!isUnavailable(error)) throw error;
 	}
+	pi.on("input", (event, ctx) => {
+		// Idle prompts must run Pi's complete before_agent_start preparation chain.
+		if (
+			ctx.isIdle() ||
+			event.streamingBehavior === undefined ||
+			event.images?.length ||
+			!/^<herdr_sender [^\n]+ \/>\n/.test(event.text)
+		)
+			return;
+		if (
+			senders.get(pi)?.(
+				pi,
+				{
+					customType: "herdr-agent-message",
+					content: event.text,
+					display: true,
+				},
+				{ deliverAs: event.streamingBehavior },
+			)
+		) {
+			return { action: "handled" };
+		}
+		return;
+	});
 }
 
 export function sendPolicyMessage(

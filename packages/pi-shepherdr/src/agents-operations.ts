@@ -2,6 +2,7 @@ import type { AgentToolUpdateCallback } from "@earendil-works/pi-coding-agent";
 import type { AgentsParams, READ_SOURCES } from "./agents-contract.js";
 import type { AgentFleet, ConnectedMachine } from "./fleet.js";
 import { getSnapshot } from "./herdr.js";
+import { agentSource } from "./messages.js";
 import { loadAgentProfiles } from "./profiles.js";
 import type { ClaimedSettlement } from "./settlement.js";
 import type { AgentStatus, PaneInfo, SessionSnapshot } from "./types.js";
@@ -43,11 +44,12 @@ export async function agentsHelp(): Promise<Record<string, unknown>> {
 			answer: "target answers machine? blocking?",
 		},
 		rules: {
+			machine: "Herdr profile ID from list; local = current server",
 			target: "Use spawn/find target exactly",
 			label: "2-3 words; tab/session",
 			answers: "[{selections?:string[],other?:string,comment?:string}]",
 			blocking:
-				"reviewers always wait; otherwise false only for independent work; async results push, never poll",
+				"true waits for settlement, not receipt; peer coordination uses false; async results push, never poll",
 			prompt:
 				"Only task + inaccessible context; no method/evidence/reporting boilerplate",
 			reuse:
@@ -135,7 +137,7 @@ export async function listFleetAgents(
 				compactAgent(
 					agent,
 					machine.snapshot!,
-					machine.name,
+					machine.id,
 					machine.monitoredPaneIds?.has(agent.pane_id) ?? false,
 				),
 			)
@@ -143,7 +145,7 @@ export async function listFleetAgents(
 	});
 	const workspaces = machines.flatMap((machine) =>
 		(machine.snapshot?.workspaces ?? []).map((workspace) => ({
-			machine: machine.name,
+			machine: machine.id,
 			id: workspace.workspace_id,
 			label: workspace.label,
 		})),
@@ -224,10 +226,15 @@ export function settlementResult(
 				`${settlement.agent.pane_id} assistant stopped with an error`,
 		);
 	}
+	const { pane, name, ...source } = agentSource(
+		settlement.agent,
+		settlement.labels,
+	);
 	return {
 		machine,
-		target: settlement.agent.pane_id,
-		...(settlement.agent.name ? { name: settlement.agent.name } : {}),
+		target: pane,
+		...(name ? { name } : {}),
+		source,
 		status: settlement.status,
 		...(settlement.reply ? { reply: settlement.reply.text } : {}),
 		...(settlement.ask
@@ -269,7 +276,7 @@ export async function dispatchAgentWork(
 	const attempt = runtime.monitor.beginWork(
 		panel.pane_id,
 		task,
-		options.expectUserMessage ? (baseline?.user?.id ?? null) : undefined,
+		options.expectUserMessage ? (baseline?.input?.id ?? null) : undefined,
 	);
 	if (!attempt) throw new Error(`${panel.pane_id} is not monitored`);
 	let settlement: Promise<ClaimedSettlement> | undefined;

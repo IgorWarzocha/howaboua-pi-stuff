@@ -27,6 +27,7 @@ import {
 	rollbackStartedAgent,
 	startAgent,
 } from "./launch.js";
+import { attributeAgentPrompt } from "./messages.js";
 import {
 	loadAgentProfiles,
 	prepareProfileMessage,
@@ -55,7 +56,7 @@ export function createAgentsTool(fleet: AgentFleet) {
 		parameters: AgentsParameters,
 		promptSnippet: "Load agents help before first use.",
 		promptGuidelines: [
-			"agents: Reviewer spawns always block. Await the review before continuing work on its scope. Set blocking false only for independent work.",
+			"agents: Reviewer spawns always block; await review before working its scope. Questions, updates and replies to running peers: send blocking:false. Blocking waits for settlement, not acknowledgement.",
 			"agents: Specialists know their job. Give only the concrete task and inaccessible context; never append generic method, evidence, or reporting instructions.",
 			"agents: Reuse specialists only for the same investigation. Keep reviews independent. New scope gets a new agent.",
 			"agents: For advanced Herdr workspace, pane, process or layout control, run herdr --skill.",
@@ -127,6 +128,10 @@ export function createAgentsTool(fleet: AgentFleet) {
 					},
 					{ targetLocal: runtime.local },
 				);
+				const attributedMessage = await attributeAgentPrompt(
+					fleet.connected().client,
+					message,
+				);
 				reportProgress(update, `Spawning ${label}`, {
 					machine: runtime.machine,
 					name,
@@ -161,7 +166,7 @@ export function createAgentsTool(fleet: AgentFleet) {
 							promptSubmissionStarted = true;
 							await runtime.client.request("agent.prompt", {
 								target: started.id,
-								text: message,
+								text: attributedMessage,
 							});
 							promptAccepted = true;
 						},
@@ -265,6 +270,10 @@ export function createAgentsTool(fleet: AgentFleet) {
 					);
 				}
 				const message = required(params.message, "message");
+				const attributedMessage = await attributeAgentPrompt(
+					fleet.connected().client,
+					message,
+				);
 				if (!runtime.monitor.isMonitored(panel.pane_id)) {
 					await runtime.monitor.track(panel);
 				}
@@ -278,7 +287,7 @@ export function createAgentsTool(fleet: AgentFleet) {
 					() =>
 						runtime.client.request("agent.prompt", {
 							target: panel.pane_id,
-							text: message,
+							text: attributedMessage,
 						}),
 					{ expectUserMessage: true },
 				);
