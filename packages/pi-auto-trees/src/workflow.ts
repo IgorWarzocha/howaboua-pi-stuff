@@ -86,7 +86,7 @@ export function registerIncrementalWorkflow(
 
 	pi.registerCommand("end", {
 		description:
-			"Roll up work since /marker into a summary and advance the marker",
+			"Summarize the conversation since /marker and advance the marker",
 		handler: async (args, ctx) => {
 			await ctx.waitForIdle();
 			if (!marker.id) {
@@ -105,13 +105,16 @@ export function registerIncrementalWorkflow(
 				return;
 			}
 
-			ctx.ui.setWorkingMessage(
-				ctx.ui.theme.fg("dim", "Summarizing increment…"),
-			);
+			ctx.ui.setWorkingMessage(ctx.ui.theme.fg("dim", "Saving summary…"));
 			if (ctx.hasUI) {
 				ctx.ui.setWidget(
 					INCREMENTAL_WORKFLOW_END_WIDGET,
-					[ctx.ui.theme.fg("dim", "Summarising back to marker...")],
+					[
+						ctx.ui.theme.fg(
+							"dim",
+							"Saving summary before returning to marker...",
+						),
+					],
 					{ placement: "aboveEditor" },
 				);
 			}
@@ -156,12 +159,7 @@ export function registerIncrementalWorkflow(
 				);
 				return;
 			}
-			marker.apply(
-				pi,
-				ctx,
-				nextMarkerId,
-				"Increment summarized and marker advanced",
-			);
+			marker.apply(pi, ctx, nextMarkerId, "Summary saved and marker advanced");
 			announceEndCompleted(pi);
 		},
 	});

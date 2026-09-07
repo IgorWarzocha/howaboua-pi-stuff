@@ -14,6 +14,7 @@ import type {
 	SessionTreeEvent,
 } from "@earendil-works/pi-coding-agent";
 import type { ContextWindowIdentity } from "./messages.ts";
+import { CodexTreeHandoff } from "./tree-handoff.ts";
 import {
 	CONTEXT_NOTE_SNAPSHOT_ENTRY_TYPE,
 	createPiSessionNotesSnapshot,
@@ -58,6 +59,7 @@ interface QueuedInput {
 }
 
 export class CodexContextTreeCoordinator {
+	readonly handoff = new CodexTreeHandoff();
 	private readonly windows: CodexContextWindowManager;
 	private captured: CapturedCommandContext | undefined;
 	private pending: PendingRollover | undefined;
@@ -67,6 +69,8 @@ export class CodexContextTreeCoordinator {
 	constructor(windows: CodexContextWindowManager) {
 		this.windows = windows;
 	}
+
+	get archiving(): boolean { return this.navigation !== undefined; }
 
 	register(pi: ExtensionAPI): void {
 		pi.registerCommand(CAPTURE_COMMAND, {
@@ -87,6 +91,7 @@ export class CodexContextTreeCoordinator {
 	}
 
 	reset(): void {
+		this.handoff.reset();
 		this.captured = undefined;
 		this.pending = undefined;
 		this.navigation = undefined;

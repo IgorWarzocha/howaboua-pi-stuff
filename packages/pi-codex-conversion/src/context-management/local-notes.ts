@@ -63,8 +63,10 @@ export function usePiSessionNotes(
 
 export function createPiSessionNotesSnapshot(
 	entries: readonly SessionEntry[],
+	path?: string,
 ): NoteSnapshotData {
 	const files = [...collectNotes(entries).values()]
+		.filter((note) => path === undefined || note.path === path)
 		.sort((left, right) => left.path.localeCompare(right.path))
 		.map((note) => ({
 			path: note.path,
@@ -105,6 +107,12 @@ export function renderPiSessionNotesThreadHint(
 function collectNotes(entries: readonly SessionEntry[]): Map<string, LocalNote> {
 	const notes = new Map<string, LocalNote>();
 	for (const entry of entries) {
+		// A managed jump carries only its handoff, never replacing destination notes.
+		if (entry.type === "branch_summary" && entry.details && typeof entry.details === "object" &&
+			"codexContextNoteHandoff" in entry.details && isNoteSnapshotData(entry.details.codexContextNoteHandoff)) {
+			for (const file of entry.details.codexContextNoteHandoff.files) notes.set(file.path, { ...file });
+			continue;
+		}
 		if (
 			entry.type === "custom" &&
 			entry.customType === CONTEXT_NOTE_SNAPSHOT_ENTRY_TYPE &&

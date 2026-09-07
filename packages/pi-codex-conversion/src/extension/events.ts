@@ -152,6 +152,7 @@ export function registerCodexEvents(
 		if (supportsCodexDeveloperMessages(ctx, state)) recordCodexReasoningUpdate(pi, ctx, runtime.projectContextMessages(ctx), event.previousLevel);
 	});
 	pi.on("model_select", async (_event, ctx) => {
+		state.contextTree.handoff.reset();
 		reserve.modelSelected(ctx);
 		turnPrewarm = undefined;
 		activeContext = ctx;
@@ -181,6 +182,15 @@ export function registerCodexEvents(
 		prepareCodeModeHost(codeMode, ctx);
 		if (!state.config.prompt.heavySystemPromptOverwrite)
 			void runtime.startPrewarm(ctx, codeMode.refreshPromptTools(ctx.getSystemPrompt(), ctx));
+	});
+	pi.on("session_before_switch", () => state.contextTree.handoff.active ? { cancel: true } : undefined);
+	pi.on("session_before_fork", () => state.contextTree.handoff.active ? { cancel: true } : undefined);
+	pi.on("session_before_tree", (event, ctx) => {
+		if (state.contextTree.handoff.active) return { cancel: true };
+		if (state.contextTree.archiving) return;
+		const plan = resolveCodexRuntimePlanForState(ctx, state);
+		if (!plan.contextManagement || !event.preparation.userWantsSummary) return;
+		return state.contextTree.handoff.prepare(pi, event, ctx, plan.contextManagementMode);
 	});
 	pi.on("session_tree", async (event, ctx) => {
 		turnPrewarm = undefined;
@@ -236,6 +246,7 @@ export function registerCodexEvents(
 				mode: plan.contextManagementMode, triggerTurn: true, trimPreviousWindow: false,
 			});
 		})) return;
+		if (state.contextTree.handoff.active) return;
 		state.contextWindows.recordBudget(
 			pi,
 			ctx,
@@ -300,6 +311,7 @@ export function registerCodexEvents(
 			runtime.voice.piInput(event.text, event.streamingBehavior);
 	});
 	pi.on("before_agent_start", async (event, ctx) => {
+		state.contextTree.handoff.preparing(event.prompt);
 		if (!state.config.voiceFeaturesOnly) await reserve.beforeTurn(ctx);
 		runtime.autoReasoning.begin(ctx);
 		turnPrewarm = undefined;
@@ -326,6 +338,7 @@ export function registerCodexEvents(
 		};
 	});
 	pi.on("agent_start", async (_event, ctx) => {
+		state.contextTree.handoff.started(ctx);
 		runtime.autoReasoning.begin(ctx);
 		runtime.cancelCacheKeepalive();
 		runtime.voice.agentStarted();
@@ -355,6 +368,7 @@ export function registerCodexEvents(
 		const rolled = await state.contextTree.settle(pi, ctx);
 		if (rolled) runtime.resetTransportAfterCompaction(ctx.sessionManager.getSessionId());
 		if (!rolled && !quotaExhausted) runtime.armCacheKeepalive(ctx);
+		state.contextTree.handoff.settled(ctx);
 	});
 	pi.on("before_provider_request", async (event, ctx) => {
 		await turnPrewarm;
@@ -365,6 +379,7 @@ export function registerCodexEvents(
 		rewriteCodexProviderHeaders(event.headers, ctx, state);
 	});
 	pi.on("session_before_compact", async (event, ctx) => {
+		if (state.contextTree.handoff.active) return { cancel: true };
 		state.cwd = ctx.cwd;
 		const plan = resolveCodexRuntimePlanForState(
 			ctx,
