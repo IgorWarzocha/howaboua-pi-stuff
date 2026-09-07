@@ -44,7 +44,6 @@ async function smokeNotebookPlatform(): Promise<void> {
 	}
 }
 
-// Run unchanged through Node/tsx or through the real standalone Pi extension loader.
 export default function notebookPlatformSmoke(pi: ExtensionAPI): void {
 	pi.on("session_start", async () => {
 		try {

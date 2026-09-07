@@ -5,8 +5,7 @@ const MAX_MESSAGE_BYTES = 40 * 1024 * 1024;
 const MAX_FRAMES = 1024;
 const IO_TIMEOUT_MS = 5_000;
 
-// ZMTP 3.0 NULL, restricted to the local Deno kernel's DEALER and SUB peers.
-// https://rfc.zeromq.org/spec/23/ — Jupyter HMAC remains in jupyter-wire.ts.
+// Local Deno peers: ZMTP 3.0 NULL, DEALER/SUB. https://rfc.zeromq.org/spec/23/
 export class JupyterSocket {
 	private socket: Socket | undefined;
 	private reader: AsyncIterator<Buffer> | undefined;

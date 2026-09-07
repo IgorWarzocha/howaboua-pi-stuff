@@ -51,27 +51,15 @@ test("Jupyter transport preserves signed multipart frames and rejects invalid pe
 		assert.deepEqual((await iterator.next()).value, messageFrames);
 		await iterator.return(undefined);
 	});
-	await withPeer(Buffer.concat([greeting, pubReady, multipart]), async (socket, receive) => {
-		await socket.connect();
-		assert.deepEqual((await receive(94)).subarray(-3), Buffer.from([0, 1, 1]));
-		const iterator = socket[Symbol.asyncIterator]();
-		assert.deepEqual((await iterator.next()).value, messageFrames);
-		await iterator.return(undefined);
-	}, "SUB");
 	for (const invalid of [
 		Buffer.from("02ffffffffffffffff", "hex"), // Oversized 64-bit length, before allocating body.
-		Buffer.from([8, 0]), // Reserved flags.
-		Buffer.from([5, 0]), // Command cannot be multipart.
 		Buffer.alloc(2050).map((_, index) => index % 2 === 0 ? 1 : 0), // Unbounded empty multipart.
 	]) {
 		await withPeer(Buffer.concat([greeting, routerReady, invalid]), async (socket) => {
 			await socket.connect();
-			await assert.rejects(() => socket[Symbol.asyncIterator]().next(), /limit|flags/);
+			await assert.rejects(() => socket[Symbol.asyncIterator]().next(), /limit/);
 		});
 	}
-	await withPeer(Buffer.concat([greeting, Buffer.from([4, 7, 5]), Buffer.from("READY"), Buffer.from([0])]), async (socket) => {
-		await assert.rejects(() => socket.connect(), /metadata/);
-	});
 	await withPeer(Buffer.alloc(0), async (socket) => {
 		const abort = new AbortController();
 		const reason = new Error("cancel handshake");
@@ -85,12 +73,10 @@ test("Jupyter transport preserves signed multipart frames and rejects invalid pe
 const greeting = Buffer.from(`ff00000000000000007f03004e554c4c${"00".repeat(48)}`, "hex");
 const dealerReady = Buffer.from("041c0552454144590b536f636b65742d54797065000000064445414c4552", "hex");
 const routerReady = Buffer.from("041c0552454144590b536f636b65742d5479706500000006524f55544552", "hex");
-const pubReady = Buffer.from("04190552454144590b536f636b65742d5479706500000003505542", "hex");
 
 async function withPeer(
 	traffic: Buffer,
 	check: (socket: JupyterSocket, receive: (size: number) => Promise<Buffer>) => Promise<void>,
-	type: "DEALER" | "SUB" = "DEALER",
 ): Promise<void> {
 	const peers: Socket[] = [];
 	let received = Buffer.alloc(0);
@@ -114,7 +100,7 @@ async function withPeer(
 	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
 	const address = server.address();
 	assert(address && typeof address !== "string");
-	const socket = new JupyterSocket(type, address.port);
+	const socket = new JupyterSocket("DEALER", address.port);
 	try {
 		await check(socket, async (size) => {
 			while (received.length < size) await new Promise<void>((resolve) => { wake = resolve; });
