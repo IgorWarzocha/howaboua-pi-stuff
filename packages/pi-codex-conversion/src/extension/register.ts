@@ -52,7 +52,6 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 					ctx.sessionManager.getBranch(),
 				);
 				void runtime.state.contextWindows.startNewWindow(pi, ctx, {
-					triggerTurn: false,
 					mode: config.compaction.contextManagement,
 					trimPreviousWindow:
 						!config.compaction.hybridCompaction && config.compaction.contextManagement !== "tree",

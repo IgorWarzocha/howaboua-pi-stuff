@@ -117,6 +117,9 @@ export function registerTreeSummaryModel(
 	});
 
 	return async (ctx, targetId, options, config) => {
+		// Codex projects new_context only while context management is active.
+		if (pi.getActiveTools().includes("new_context"))
+			return ctx.navigateTree(targetId, options);
 		if (!config.enabled) return ctx.navigateTree(targetId, options);
 		if (pending) throw new Error("A tree summary is already in progress");
 

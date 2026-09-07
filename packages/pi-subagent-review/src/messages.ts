@@ -12,7 +12,7 @@ import type { ReviewContext } from "./types.js";
 export type ReviewDeveloperMessages = Partial<
 	Pick<
 		typeof import("@howaboua/pi-codex-conversion/developer-messages"),
-		"trySendCodexDeveloperCustomMessage" | "trySendCodexDeveloperMessage"
+		"trySendCodexDeveloperCustomMessage"
 	>
 >;
 
@@ -190,7 +190,6 @@ export function sendReviewFindings(
 	ctx: ExtensionCommandContext,
 	review: ReviewContext,
 	findings: string,
-	developerMessages?: ReviewDeveloperMessages,
 ): void {
 	const normalizedFindings = findings.trim();
 	const idle = ctx.isIdle();
@@ -206,17 +205,6 @@ export function sendReviewFindings(
 	if (
 		!normalizedFindings ||
 		normalizedFindings === "No actionable issues found."
-	)
-		return;
-	if (
-		typeof developerMessages?.trySendCodexDeveloperMessage === "function" &&
-		developerMessages.trySendCodexDeveloperMessage(
-			pi,
-			REVIEW_FINDINGS_FOLLOW_UP,
-			idle
-				? { triggerTurn: true }
-				: { triggerTurn: true, deliverAs: "followUp" },
-		)
 	)
 		return;
 	pi.sendUserMessage(

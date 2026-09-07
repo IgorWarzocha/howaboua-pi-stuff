@@ -32,8 +32,7 @@ import {
 	filterTreeArchiveSummaries,
 } from "./tree-archive.ts";
 
-interface StartContextWindowOptions {
-	triggerTurn: boolean;
+export interface StartContextWindowOptions {
 	signal?: AbortSignal | undefined;
 	mode?: ContextManagementMode | undefined;
 	trimPreviousWindow: boolean;
@@ -121,7 +120,7 @@ export class CodexContextWindowManager {
 				currentWindowId: windowId,
 				windowNumber: 0,
 			},
-			{ triggerTurn: false, trimPreviousWindow: false },
+			{ trimPreviousWindow: false },
 		);
 	}
 
@@ -199,11 +198,11 @@ export class CodexContextWindowManager {
 		return true;
 	}
 
-	async completeHybridCompaction(pi: ExtensionAPI, ctx: ExtensionContext, mode: ContextManagementMode, triggerTurn = false): Promise<void> {
+	async completeHybridCompaction(pi: ExtensionAPI, ctx: ExtensionContext, mode: ContextManagementMode): Promise<void> {
 		if (this.isHybridCompactionRunning()) return;
 		this.cancelScheduledCompaction();
 		await this.startNewWindow(pi, ctx, {
-			mode, triggerTurn, trimPreviousWindow: false,
+			mode, trimPreviousWindow: false,
 		});
 	}
 
@@ -365,7 +364,7 @@ export class CodexContextWindowManager {
 			renderContextWindowMessage(identity, threadHint),
 			"window",
 			identity,
-			options,
+			{ ...options, triggerTurn: false },
 			options.trimPreviousWindow,
 		);
 	}

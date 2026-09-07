@@ -10,6 +10,7 @@ import {
 import type { AdapterState } from "../src/adapter/activation/state.ts";
 import { CodexDeveloperMessageBridge } from "../src/adapter/developer-messages.ts";
 import { CodexContextWindowManager } from "../src/context-management/window-manager.ts";
+import { CodexContextWindowKickoff } from "../src/context-management/window-kickoff.ts";
 import { CodexContextTreeCoordinator } from "../src/context-management/tree-coordinator.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 
@@ -44,6 +45,7 @@ function createToolHarness(activeTools: string[], availableTools = [...activeToo
 
 function createAdapterState(overrides: Partial<AdapterState["config"]> = {}): AdapterState {
 	const contextWindows = new CodexContextWindowManager();
+	const contextKickoff = new CodexContextWindowKickoff(contextWindows);
 	return {
 		enabled: false,
 		cwd: process.cwd(),
@@ -52,7 +54,8 @@ function createAdapterState(overrides: Partial<AdapterState["config"]> = {}): Ad
 		codexTurnState: createCodexTurnState(),
 		developerMessages: new CodexDeveloperMessageBridge(),
 		contextWindows,
-		contextTree: new CodexContextTreeCoordinator(contextWindows),
+		contextKickoff,
+		contextTree: new CodexContextTreeCoordinator(contextWindows, contextKickoff),
 		config: {
 			...DEFAULT_CODEX_CONVERSION_CONFIG,
 			...overrides,
