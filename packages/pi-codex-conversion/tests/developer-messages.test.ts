@@ -6,34 +6,78 @@ import {
 	isCodexDeveloperMessageDetails,
 	registerCodexDeveloperMessageBroker,
 	sendCodexDeveloperMessage,
+	tryStartCodexPreparedIdleKickoff,
 	trySendCodexDeveloperMessage,
 	trySendCodexDeveloperCustomMessage,
+	updateCodexPreparedIdleKickoff,
 	type CodexDeveloperMessageOptions,
 } from "../src/developer-messages.ts";
 
 test("developer messages preserve delivery and provider-role semantics", () => {
 	const handlers = new Map<string, Set<(value: unknown) => void>>();
 	const sent: Array<{ message: Record<string, unknown>; options: unknown }> = [];
+	const kickoffs: Array<{ content: string; options: unknown }> = [];
+	const notifications: string[] = [];
 	let deliveryError: Error | undefined;
-	const pi = {
-		events: {
-			on(channel: string, handler: (value: unknown) => void) {
-				const listeners = handlers.get(channel) ?? new Set();
-				listeners.add(handler);
-				handlers.set(channel, listeners);
-				return () => listeners.delete(handler);
-			},
-			emit(channel: string, value: unknown) {
-				for (const handler of handlers.get(channel) ?? []) handler(value);
-			},
+	let kickoffError: Error | undefined;
+	const eventBus = {
+		on(channel: string, handler: (value: unknown) => void) {
+			const listeners = handlers.get(channel) ?? new Set();
+			listeners.add(handler);
+			handlers.set(channel, listeners);
+			return () => listeners.delete(handler);
 		},
+		emit(channel: string, value: unknown) {
+			for (const handler of handlers.get(channel) ?? []) handler(value);
+		},
+	};
+	const pi = {
+		events: eventBus,
 		sendMessage(message: Record<string, unknown>, options: unknown) {
 			if (deliveryError) throw deliveryError;
 			sent.push({ message, options });
 		},
+		sendUserMessage(content: string, options: unknown) {
+			if (kickoffError) throw kickoffError;
+			kickoffs.push({ content, options });
+		},
 	} as never;
-	let active = true;
+	let active = false;
 	const unregister = registerCodexDeveloperMessageBroker(pi, () => active);
+	const callerPi = { events: eventBus } as never;
+	const kickoffContext = {
+		ui: { notify: (message: string) => notifications.push(message) },
+	} as never;
+	assert.equal(tryStartCodexPreparedIdleKickoff(callerPi, kickoffContext), true);
+	assert.equal(tryStartCodexPreparedIdleKickoff(pi, kickoffContext), true);
+	assert.deepEqual(kickoffs, [{
+		content: "Continue.",
+		options: { deliverAs: "steer" },
+	}], "facades sharing Pi's event bus claim one prepared kickoff");
+	assert.match(notifications[0]!, /send a user message or reload the session/);
+	updateCodexPreparedIdleKickoff(pi, "agent_settled");
+	assert.equal(tryStartCodexPreparedIdleKickoff(callerPi, kickoffContext), true);
+	assert.equal(kickoffs.length, 1,
+		"a settlement cannot release a claim created during its own handlers");
+	updateCodexPreparedIdleKickoff(pi, "agent_start");
+	updateCodexPreparedIdleKickoff(pi, "agent_settled");
+	assert.equal(tryStartCodexPreparedIdleKickoff(callerPi, kickoffContext), true,
+		"lifecycle owners can release an orphaned claim");
+	updateCodexPreparedIdleKickoff(callerPi, "session_reset");
+	assert.equal(tryStartCodexPreparedIdleKickoff(callerPi, kickoffContext), true,
+		"a facade sharing Pi's event bus can release the claim");
+	assert.equal(kickoffs.length, 3);
+	updateCodexPreparedIdleKickoff(pi, "session_reset");
+	kickoffError = new Error("Prepared kickoff failed");
+	assert.throws(
+		() => tryStartCodexPreparedIdleKickoff(callerPi, kickoffContext),
+		/Prepared kickoff failed/,
+	);
+	kickoffError = undefined;
+	assert.equal(tryStartCodexPreparedIdleKickoff(callerPi, kickoffContext), true,
+		"a synchronous failure releases the claim without falling back");
+	assert.equal(kickoffs.length, 4);
+	active = true;
 	const deliveries = [
 		{ deliverAs: "steer", triggerTurn: true },
 		{ deliverAs: "followUp", triggerTurn: false },

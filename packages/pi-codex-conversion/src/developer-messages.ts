@@ -1,5 +1,8 @@
 import { randomUUID } from "node:crypto";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 
 export type CodexDeveloperMessageDelivery =
 	| "steer"
@@ -32,6 +35,8 @@ const DEVELOPER_MESSAGE_CHANNEL =
 	"@howaboua/pi-codex-conversion.developer-message/v1";
 const CUSTOM_DEVELOPER_MESSAGE_CHANNEL =
 	"@howaboua/pi-codex-conversion.developer-custom-message/v1";
+const PREPARED_IDLE_KICKOFF_CHANNEL =
+	"@howaboua/pi-codex-conversion.prepared-idle-kickoff/v1";
 
 type DeveloperMessageOutcome =
 	| { ok: true }
@@ -43,6 +48,12 @@ interface DeveloperMessageRequest {
 	options?: CodexDeveloperMessageOptions | undefined;
 	message?: CodexDeveloperCustomMessage | undefined;
 	outcome?: DeveloperMessageOutcome | undefined;
+}
+
+interface PreparedIdleKickoffRequest {
+	protocol: 1;
+	action: "claim" | "agent_start" | "agent_settled" | "session_reset";
+	outcome?: "started" | "pending" | { error: string } | undefined;
 }
 
 export function sendCodexDeveloperMessage(
@@ -78,6 +89,33 @@ export function trySendCodexDeveloperCustomMessage(
 	throw new Error(outcome.error);
 }
 
+export function tryStartCodexPreparedIdleKickoff(
+	pi: ExtensionAPI,
+	ctx: Pick<ExtensionContext, "ui">,
+): boolean {
+	const request: PreparedIdleKickoffRequest = { protocol: 1, action: "claim" };
+	pi.events.emit(PREPARED_IDLE_KICKOFF_CHANNEL, request);
+	if (request.outcome === "pending") {
+		ctx.ui.notify(
+			"An automatic turn is still starting. If no turn starts, send a user message or reload the session.",
+			"warning",
+		);
+	}
+	if (request.outcome && typeof request.outcome === "object")
+		throw new Error(request.outcome.error);
+	return request.outcome !== undefined;
+}
+
+export function updateCodexPreparedIdleKickoff(
+	pi: ExtensionAPI,
+	action: Exclude<PreparedIdleKickoffRequest["action"], "claim">,
+): void {
+	pi.events.emit(PREPARED_IDLE_KICKOFF_CHANNEL, {
+		protocol: 1,
+		action,
+	} satisfies PreparedIdleKickoffRequest);
+}
+
 function dispatchCodexDeveloperMessage(
 	pi: ExtensionAPI,
 	content: string,
@@ -107,6 +145,7 @@ export function registerCodexDeveloperMessageBroker(
 	pi: ExtensionAPI,
 	isActive: () => boolean,
 ): () => void {
+	let preparedIdleKickoff: "preparing" | "running" | undefined;
 	const deliver = (value: unknown) => {
 		if (!isDeveloperMessageRequest(value) || value.outcome) return;
 		if (!isActive()) {
@@ -141,11 +180,52 @@ export function registerCodexDeveloperMessageBroker(
 			};
 		}
 	};
+	const kickoff = (value: unknown) => {
+		if (!isPreparedIdleKickoffRequest(value)) return;
+		if (value.action === "session_reset") {
+			preparedIdleKickoff = undefined;
+			return;
+		}
+		if (value.action === "agent_start") {
+			if (preparedIdleKickoff === "preparing")
+				preparedIdleKickoff = "running";
+			return;
+		}
+		if (value.action === "agent_settled") {
+			if (preparedIdleKickoff === "running")
+				preparedIdleKickoff = undefined;
+			return;
+		}
+		if (value.outcome) return;
+		if (preparedIdleKickoff) {
+			value.outcome = "pending";
+			return;
+		}
+		// Pi exposes no completion for async preflight. Lifecycle owners clear the
+		// claim; guessing here could launch a concurrent turn.
+		preparedIdleKickoff = "preparing";
+		try {
+			pi.sendUserMessage("Continue.", { deliverAs: "steer" });
+			value.outcome = "started";
+		} catch (error) {
+			preparedIdleKickoff = undefined;
+			value.outcome = {
+				error: error instanceof Error ? error.message : String(error),
+			};
+		}
+	};
+	const clearPreparedIdleKickoff = () => {
+		preparedIdleKickoff = undefined;
+	};
 	const unregister = [
 		pi.events.on(DEVELOPER_MESSAGE_CHANNEL, deliver),
 		pi.events.on(CUSTOM_DEVELOPER_MESSAGE_CHANNEL, deliver),
+		pi.events.on(PREPARED_IDLE_KICKOFF_CHANNEL, kickoff),
 	];
-	return () => { for (const remove of unregister) remove(); };
+	return () => {
+		clearPreparedIdleKickoff();
+		for (const remove of unregister) remove();
+	};
 }
 
 export function customDeveloperMessageMetadata(details: unknown): unknown {
@@ -227,6 +307,23 @@ function isDeveloperMessageOutcome(
 					(value.reason === "unavailable" || value.reason === "delivery") &&
 					"error" in value &&
 					typeof value.error === "string")),
+	);
+}
+
+function isPreparedIdleKickoffRequest(
+	value: unknown,
+): value is PreparedIdleKickoffRequest {
+	return Boolean(
+		value &&
+			typeof value === "object" &&
+			"protocol" in value &&
+			value.protocol === 1 &&
+			"action" in value &&
+			(value.action === "claim" ||
+				value.action === "agent_start" ||
+				value.action === "agent_settled" ||
+				value.action === "session_reset") &&
+			(!("outcome" in value) || value.outcome === undefined),
 	);
 }
 

@@ -12,6 +12,7 @@ import type {
 	SessionEntry,
 } from "@earendil-works/pi-coding-agent";
 import type { ContextManagementMode } from "../adapter/activation/config.ts";
+import { tryStartCodexPreparedIdleKickoff } from "../developer-messages.ts";
 import { loadHistoryNotesThreadHint } from "./history-notes.ts";
 import {
 	CODEX_CONTEXT_WINDOW_MESSAGE_TYPE,
@@ -302,7 +303,7 @@ export class CodexContextWindowManager {
 		return { compaction: this.createCompaction(event) };
 	}
 
-	finishManualCheckpointRequest(pi: ExtensionAPI, event: Extract<ExtensionEvent, { type: "session_compact_failed" }>, active: boolean): void {
+	finishManualCheckpointRequest(pi: ExtensionAPI, ctx: Pick<ExtensionContext, "isIdle" | "ui">, event: Extract<ExtensionEvent, { type: "session_compact_failed" }>, active: boolean): void {
 		const pending = this.manualCheckpoint;
 		this.manualCheckpoint = undefined;
 		if (
@@ -310,8 +311,11 @@ export class CodexContextWindowManager {
 			pending.signal.aborted || pending.identity.currentWindowId !== this.identity?.currentWindowId
 		) return;
 		// Pi clears its manual compaction controller before session_compact_failed.
+		const idle = ctx.isIdle();
 		sendContextWindowMessage(pi, renderManualContextCheckpoint(pending.customInstructions),
-			"reminder", pending.identity, { triggerTurn: true });
+			"reminder", pending.identity, { triggerTurn: !idle });
+		if (idle && !tryStartCodexPreparedIdleKickoff(pi, ctx))
+			pi.sendUserMessage("Continue.", { deliverAs: "steer" });
 	}
 
 	recordCompaction(details: unknown): void {

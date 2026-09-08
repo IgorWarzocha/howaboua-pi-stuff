@@ -1,14 +1,23 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import type {
 	CodexDeveloperCustomMessage,
 	CodexDeveloperMessageOptions,
 	trySendCodexDeveloperCustomMessage,
+	tryStartCodexPreparedIdleKickoff,
 } from "@howaboua/pi-codex-conversion/developer-messages";
 
 const senders = new WeakMap<
 	ExtensionAPI,
 	typeof trySendCodexDeveloperCustomMessage
 >();
+const preparedKickoffs = new WeakMap<
+	ExtensionAPI,
+	typeof tryStartCodexPreparedIdleKickoff
+>();
+const fallbackKickoffs = new WeakMap<ExtensionAPI, "preparing" | "running">();
 const PACKAGE = "@howaboua/pi-codex-conversion";
 const MODULE = `${PACKAGE}/developer-messages`;
 
@@ -21,9 +30,27 @@ export async function registerDeveloperDelivery(
 		);
 		if (typeof api.trySendCodexDeveloperCustomMessage === "function")
 			senders.set(pi, api.trySendCodexDeveloperCustomMessage);
+		if (typeof api.tryStartCodexPreparedIdleKickoff === "function")
+			preparedKickoffs.set(pi, api.tryStartCodexPreparedIdleKickoff);
 	} catch (error) {
 		if (!isUnavailable(error)) throw error;
 	}
+	pi.on("session_start", () => {
+		fallbackKickoffs.delete(pi);
+	});
+	pi.on("session_tree", () => {
+		fallbackKickoffs.delete(pi);
+	});
+	pi.on("agent_start", () => {
+		if (fallbackKickoffs.get(pi) === "preparing")
+			fallbackKickoffs.set(pi, "running");
+	});
+	pi.on("agent_settled", () => {
+		if (fallbackKickoffs.get(pi) === "running") fallbackKickoffs.delete(pi);
+	});
+	pi.on("session_shutdown", () => {
+		fallbackKickoffs.delete(pi);
+	});
 	pi.on("input", (event, ctx) => {
 		// Idle prompts must run Pi's complete before_agent_start preparation chain.
 		if (
@@ -48,6 +75,27 @@ export async function registerDeveloperDelivery(
 		}
 		return;
 	});
+}
+
+export function startPreparedIdleTurn(
+	pi: ExtensionAPI,
+	ctx: Pick<ExtensionContext, "ui">,
+): void {
+	if (preparedKickoffs.get(pi)?.(pi, ctx)) return;
+	if (fallbackKickoffs.has(pi)) {
+		ctx.ui.notify(
+			"An automatic turn is still starting. If no turn starts, send a user message or reload the session.",
+			"warning",
+		);
+		return;
+	}
+	fallbackKickoffs.set(pi, "preparing");
+	try {
+		pi.sendUserMessage("Continue.", { deliverAs: "steer" });
+	} catch (error) {
+		fallbackKickoffs.delete(pi);
+		throw error;
+	}
 }
 
 export function sendPolicyMessage(

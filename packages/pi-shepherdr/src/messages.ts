@@ -6,7 +6,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { Box, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
 import { activityTask } from "./activity.js";
-import { sendPolicyMessage } from "./delivery.js";
+import { sendPolicyMessage, startPreparedIdleTurn } from "./delivery.js";
 import { getCurrentPane, getSnapshot } from "./herdr.js";
 import type { HerdrConnection } from "./herdr-client.js";
 import type {
@@ -367,8 +367,9 @@ export function injectAgentEvent(
 	options: AgentEventOptions,
 ): void {
 	const message = agentEvent(options);
-	const delivery = ctx.isIdle()
-		? { triggerTurn: true, deliverAs: "steer" as const }
+	const idle = ctx.isIdle();
+	const delivery = idle
+		? { triggerTurn: false, deliverAs: "steer" as const }
 		: { deliverAs: "steer" as const };
 	sendPolicyMessage(
 		pi,
@@ -380,6 +381,7 @@ export function injectAgentEvent(
 		},
 		delivery,
 	);
+	if (idle) startPreparedIdleTurn(pi, ctx);
 	announceAgentEvent(pi, message.details);
 }
 

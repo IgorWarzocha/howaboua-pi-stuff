@@ -21,7 +21,7 @@ import { formatCompactionCacheDiagnostic } from "../adapter/compaction/diagnosti
 import type { CodexExtensionRuntime } from "./runtime.ts";
 import type { CodexToolRegistration } from "./tools.ts";
 import type { CodexUiController } from "./ui.ts";
-import { registerCodexDeveloperMessageBroker } from "../developer-messages.ts";
+import { registerCodexDeveloperMessageBroker, updateCodexPreparedIdleKickoff } from "../developer-messages.ts";
 import { isContextWindowCompactionDetails } from "../context-management/messages.ts";
 import { flushCodexReasoningUpdates, recordCodexReasoningUpdate } from "../adapter/reasoning-updates.ts";
 import { createCodexReserveController } from "../codex-usage/reserve.ts";
@@ -99,6 +99,7 @@ export function registerCodexEvents(
 	sessions.onSessionExit((sessionId) => tracker.recordSessionFinished(sessionId));
 
 	pi.on("session_start", async (event, ctx) => {
+		updateCodexPreparedIdleKickoff(pi, "session_reset");
 		turnPrewarm = undefined;
 		activeContext = ctx;
 		pendingExtensionToolRefresh = false;
@@ -194,6 +195,7 @@ export function registerCodexEvents(
 		return state.contextTree.handoff.prepare(pi, event, ctx, plan.contextManagementMode);
 	});
 	pi.on("session_tree", async (event, ctx) => {
+		updateCodexPreparedIdleKickoff(pi, "session_reset");
 		turnPrewarm = undefined;
 		activeContext = ctx;
 		pendingExtensionToolRefresh = false;
@@ -273,6 +275,7 @@ export function registerCodexEvents(
 	});
 
 	pi.on("session_shutdown", async (_event, ctx) => {
+		updateCodexPreparedIdleKickoff(pi, "session_reset");
 		turnPrewarm = undefined;
 		const failures: unknown[] = [];
 		pendingExtensionToolRefresh = false;
@@ -341,6 +344,7 @@ export function registerCodexEvents(
 		};
 	});
 	pi.on("agent_start", async (_event, ctx) => {
+		updateCodexPreparedIdleKickoff(pi, "agent_start");
 		state.contextTree.handoff.started(ctx);
 		runtime.autoReasoning.begin(ctx);
 		runtime.cancelCacheKeepalive();
@@ -354,6 +358,7 @@ export function registerCodexEvents(
 		runtime.lanVoice.uiPromptEnded(!ctx.isIdle());
 	});
 	pi.on("agent_settled", async (_event, ctx) => {
+		updateCodexPreparedIdleKickoff(pi, "agent_settled");
 		flushCodexReasoningUpdates(pi, ctx);
 		runtime.autoReasoning.settle(ctx);
 		const quotaExhausted = !state.config.voiceFeaturesOnly && await reserve.settled(ctx);
@@ -428,7 +433,7 @@ export function registerCodexEvents(
 		runtime.voice.compactionFinished();
 		const plan = resolveCodexRuntimePlanForState(ctx, state);
 		state.contextWindows.finishManualCheckpointRequest(
-			pi, event, plan.contextManagement && !plan.contextManagementHybrid,
+			pi, ctx, event, plan.contextManagement && !plan.contextManagementHybrid,
 		);
 	});
 	pi.on("session_compact", async (event, ctx) => {
