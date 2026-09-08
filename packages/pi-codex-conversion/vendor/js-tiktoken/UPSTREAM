@@ -1,0 +1,28 @@
+Source: https://github.com/dqbd/tiktoken
+npm: js-tiktoken@1.0.21
+Commit: 4c8b748e07992c00386f3180af5c574b27b65139
+License: MIT (LICENSE, from the source commit)
+npm tarball integrity: sha512-biOj/6M5qdgx5TKjDnFT1ymSpM5tbd3ylwDtrQvFQSu0Z7bBYko2dF+W/aUkXUPuk6IVpRxk/3Q2sHOzGlS36g==
+
+Only the ESM lite entry, encoder chunk, their declarations, and o200k_base ranks
+are retained from dist/. Other encodings and the duplicated CommonJS build
+are not used. The sole encoder change routes its base64-js import to
+./base64.cjs; tokenizer logic and rank data are unchanged.
+
+Base64 source: https://github.com/beatgammit/base64-js
+npm: base64-js@1.5.1
+Commit: 88957c9943c7e2a0f03cdf73e71d579e433627d3
+License: MIT (LICENSE.base64-js)
+npm tarball integrity: sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==
+base64.cjs is the unmodified index.js from that tarball.
+
+Vendored SHA-256:
+64d44e7b5ebff31ad424b69ae614c692b4354a08a80663cef333b287ccfc6697  chunk-VL2OQCWN.js
+a9e8a0c1f332c58f1a9cef2f8d7be59b31bb4b42531a3a0a64d9ad3b3d19033b  ranks/o200k_base.js
+829eadd8a1a441d25be0cb93b00e16a0d0c20fd294db95d8f2ed87e6954b7182  base64.cjs
+
+To update, verify the tarball integrities, copy the same ESM/declaration subset
+and licenses, and reapply only the local base64 import. Keep declaration and
+chunk filenames consistent with the lite entry. Update these pins and compare
+token arrays, special-token errors, and compaction truncation decisions against
+the upstream package before accepting a new version.

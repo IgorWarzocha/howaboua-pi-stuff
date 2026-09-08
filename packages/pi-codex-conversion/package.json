@@ -68,6 +68,7 @@
     "types/**/*.d.ts",
     "src/voice/lan/assets/**",
     "vendor/tree-sitter-bash/**",
+    "vendor/js-tiktoken/**",
     "examples/code-mode-extension",
     "examples/custom-tools",
     "CHANGELOG.md",
@@ -127,7 +128,6 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
-    "js-tiktoken": "^1.0.21",
     "openai": "7.10.0",
     "partial-json": "^0.1.7",
     "proxy-from-env": "2.1.0",
