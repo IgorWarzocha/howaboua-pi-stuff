@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { Open } from "unzipper";
 import {
 	chmodSync,
 	existsSync,
@@ -97,7 +98,6 @@ async function installDeno(
 		}
 		const actualSha256 = createHash("sha256").update(bytes).digest("hex");
 		if (actualSha256 !== asset.archiveSha256) throw new Error(`checksum mismatch for ${asset.archive}`);
-		const { Open } = await import("unzipper");
 		const archive = await Open.buffer(bytes);
 		const entry = archive.files.find((candidate) => candidate.path === asset.executable && candidate.type !== "Directory");
 		if (!entry) throw new Error(`pinned Deno archive does not contain ${asset.executable}`);
