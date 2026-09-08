@@ -65,10 +65,9 @@ function filesUnder(path, predicate = () => true) {
 }
 
 function verifyLoaderImports(packageRoot) {
-	const dist = join(packageRoot, "dist");
 	let files;
 	try {
-		files = filesUnder(dist, (path) => /\.(?:c|m)?js$/.test(path));
+		files = runtimeModuleFiles(packageRoot);
 	} catch (error) {
 		if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") return;
 		throw error;
@@ -133,6 +132,14 @@ function verifyLoaderImports(packageRoot) {
 	process.exit(1);
 }
 
+function runtimeModuleFiles(packageRoot) {
+	const isJavaScript = (path) => /\.(?:c|m)?js$/.test(path);
+	const files = filesUnder(join(packageRoot, "dist"), isJavaScript);
+	const vendor = join(packageRoot, "vendor");
+	if (existsSync(vendor)) files.push(...filesUnder(vendor, isJavaScript));
+	return files;
+}
+
 function packPackage(packageRoot, tempRoot) {
 	const output = run(
 		"npm",
@@ -159,6 +166,8 @@ function copyPackage(packageRoot, tempRoot) {
 	mkdirSync(unpacked);
 	cpSync(join(packageRoot, "dist"), join(unpacked, "dist"), { recursive: true });
 	cpSync(join(packageRoot, "package.json"), join(unpacked, "package.json"));
+	const vendor = join(packageRoot, "vendor");
+	if (existsSync(vendor)) cpSync(vendor, join(unpacked, "vendor"), { recursive: true });
 	const changelogRuntime = join(packageRoot, "changelog.js");
 	if (existsSync(changelogRuntime)) cpSync(changelogRuntime, join(unpacked, "changelog.js"));
 	return unpacked;
@@ -241,8 +250,7 @@ function stageWorkspaceDependencies(names, isolatedRoot) {
 }
 
 async function loadLazyLocalModules(packageRoot) {
-	const dist = join(packageRoot, "dist");
-	const files = filesUnder(dist, (path) => /\.(?:c|m)?js$/.test(path));
+	const files = runtimeModuleFiles(packageRoot);
 	const dynamicSpecifierPattern = /\bimport\(\s*["'](\.[^"']+)["']\s*\)/g;
 	const modules = new Set();
 	for (const path of files) {
