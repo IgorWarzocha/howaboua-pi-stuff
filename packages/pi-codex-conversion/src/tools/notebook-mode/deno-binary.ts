@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { Open } from "unzipper";
 import {
 	chmodSync,
 	existsSync,
@@ -12,6 +11,7 @@ import {
 } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { denoAssetUrl, DENO_VERSION, resolveDenoAsset } from "./deno-assets.ts";
+import { extractDenoArchive } from "./deno-archive.ts";
 import { acquireDirectoryLock } from "./directory-lock.ts";
 
 const DOWNLOAD_TIMEOUT_MS = 180_000;
@@ -74,7 +74,7 @@ async function installDeno(
 	if (!lock) return;
 	const staged = `${destination}.${process.pid}.tmp`;
 	try {
-			const url = denoAssetUrl(asset.archive);
+		const url = denoAssetUrl(asset.archive);
 		let bytes: Buffer;
 		try {
 			const timeout = AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS);
@@ -98,10 +98,7 @@ async function installDeno(
 		}
 		const actualSha256 = createHash("sha256").update(bytes).digest("hex");
 		if (actualSha256 !== asset.archiveSha256) throw new Error(`checksum mismatch for ${asset.archive}`);
-		const archive = await Open.buffer(bytes);
-		const entry = archive.files.find((candidate) => candidate.path === asset.executable && candidate.type !== "Directory");
-		if (!entry) throw new Error(`pinned Deno archive does not contain ${asset.executable}`);
-		const binary = Buffer.from(await entry.buffer());
+		const binary = await extractDenoArchive(bytes, asset);
 		signal?.throwIfAborted();
 		if (binary.length !== asset.binaryBytes || createHash("sha256").update(binary).digest("hex") !== asset.binarySha256) {
 			throw new Error("extracted Deno binary checksum mismatch");
