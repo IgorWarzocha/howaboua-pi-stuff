@@ -16,7 +16,7 @@ import { buildImageGenerationRequest } from "../src/request.js";
 test("image generation preserves Codex request and Code Mode value contracts", async () => {
 	const routes = normalizeCodexToolRouteConfig({
 		providers: {
-			"image-proxy": { "gpt-image-2": "company-image" },
+			"image-proxy": { "gpt-image-2.5": "company-image" },
 		},
 	});
 	assert.equal(
@@ -30,7 +30,7 @@ test("image generation preserves Codex request and Code Mode value contracts", a
 		resolveCodexToolModel(
 			routes,
 			{ provider: "image-proxy" } as never,
-			"gpt-image-2",
+			"gpt-image-2.5",
 		),
 		"company-image",
 	);
@@ -106,7 +106,7 @@ test("image generation preserves Codex request and Code Mode value contracts", a
 			body: {
 				images: [{ image_url: recent }],
 				prompt: "add snow",
-				model: "gpt-image-2",
+				model: "gpt-image-2.5",
 				background: "auto",
 				quality: "auto",
 				size: "auto",
