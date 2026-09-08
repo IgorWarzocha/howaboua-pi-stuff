@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.0.31
+
+- Restore full extension prompt preparation when continuing into a new context window or starting review triage.
+
+  - Keep tool instructions current through Pi's normal startup hooks without resetting the Notebook.
+  - Let active context management own review-loop navigation summaries.
+
+- Keep Notebook Mode working in standalone Pi without loading the native ZeroMQ addon that crashes Bun. Notebook uses a TypeScript TCP transport to its Deno kernel; no separate Node installation is required.
+
 ## 3.0.30
 
 - Keep compaction checkpoints alongside notes with a Hybrid toggle for Local, Tree and Remote context management.

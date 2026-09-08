@@ -64,27 +64,14 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 3.0.30
+### @howaboua/pi-codex-conversion — 3.0.31
 
-- Keep compaction checkpoints alongside notes with a Hybrid toggle for Local, Tree and Remote context management.
+- Restore full extension prompt preparation when continuing into a new context window or starting review triage.
 
-  - Use Responses V2 where supported and Pi summaries elsewhere; preserve Tree checkpoints and their exact replay tails across archival.
-  - Request a notes checkpoint after completed tool turns before the configured compaction reserve, including after final replies.
-  - Make notes-only `/compact` request a checkpoint and immediate rollover instead of cutting context; reuse notes just saved for the current state.
-  - Give non-Astra models explicit notes and recovery guidance in every context-management mode.
-  - Gather notes, history and compaction settings in a dedicated Context tab under `/codex`.
-  - Explain every setting on selection, including dependencies and non-obvious effects.
-  - Refresh active voice calls with a fresh summary on context handoffs as well as compaction, preserving mute and LAN ownership.
-  - Keep deferred ideas and unrelated tasks in notes for later resumption without treating them as permission to implement.
-  - Apply concise follow-through guidance to all models, including heavy system-prompt rewrite.
-  - Keep reasoning-level bookkeeping out of Pi's default tree view while preserving model updates and replay.
-  - Added nested tool completion subscriptions through `code-mode-hooks`, with original arguments and full results for extension-side tracking without expanding agent output. Existing preflight imports remain supported.
+  - Keep tool instructions current through Pi's normal startup hooks without resetting the Notebook.
+  - Let active context management own review-loop navigation summaries.
 
-- Tree navigation and `/end` now carry conversation summaries through the active notes backend.
-
-  - The agent turn ends after the requested note write, without a follow-up reply.
-  - Arriving agents receive a branch summary directing them to read the note before resuming.
-  - Default `/end` guidance is task-neutral.
+- Keep Notebook Mode working in standalone Pi without loading the native ZeroMQ addon that crashes Bun. Notebook uses a TypeScript TCP transport to its Deno kernel; no separate Node installation is required.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
@@ -118,14 +105,12 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.70
+### @howaboua/pi-extensions — 0.0.71
 
 - Include bundled package updates:
 
-  - @howaboua/pi-ask: Shepherdr now discovers and answers waiting questions invoked inside Code and Notebook Mode.
-  - @howaboua/pi-auto-trees: Tree navigation and `/end` now carry conversation summaries through the active notes backend. - The agent turn ends after the requested note write, without a follow-up reply. - Arriving agents receive a branch summary directing them to read the note before resuming. - Default `/end` guidance is task-neutral.
-  - @howaboua/pi-shepherdr: Deliver blocked-agent handoffs even when transcripts are unavailable. - Reviewer spawns wait for their result before the controller continues. - Implementation subagents are instructed to work directly rather than delegate implementation again. - Discover and answer Pi Ask questions called inside Code and Notebook Mode. - Retain working local and remote monitoring during connection updates, distinguish incomplete coverage from disconnection, and report recovery. - Worker states now show their last-known status during incomplete monitoring. `/herdr connect` retries without replacing a working remote connection. - Catch worker completions during reconnect setup and cancel obsolete or stopped monitoring connections.
-  - @howaboua/pi-dynamic-tools: Remove retired bundled extension.
+  - @howaboua/pi-shepherdr: Shepherdr now reads existing Herdr machine profiles and requires Herdr 0.9 or newer. Manage profiles in Herdr; `shepherdr.json`, old machine aliases and their saved watches are no longer used. - Agent prompts and reports identify their source workspace, tab and pane, including current names. - Attributed messages to running Pi Codex agents use developer steering. Idle tasks retain normal user kickoff and extension preparation. - `send` delivers peer messages without blocking or subscribing; use `assign` to delegate work to an existing agent. - Automatic task watches end on completion or failure. Only explicit `watch` subscriptions persist; legacy watches are cleared with a notice.
+  - @howaboua/pi-subagent-review: Restore full extension prompt preparation when continuing into a new context window or starting review triage. - Keep tool instructions current through Pi's normal startup hooks without resetting the Notebook. - Let active context management own review-loop navigation summaries.
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
@@ -170,16 +155,14 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-semantic-grep/CHANGELOG.md)
 
-### @howaboua/pi-shepherdr — 0.1.6
+### @howaboua/pi-shepherdr — 0.2.0
 
-- Deliver blocked-agent handoffs even when transcripts are unavailable.
+- Shepherdr now reads existing Herdr machine profiles and requires Herdr 0.9 or newer. Manage profiles in Herdr; `shepherdr.json`, old machine aliases and their saved watches are no longer used.
 
-  - Reviewer spawns wait for their result before the controller continues.
-  - Implementation subagents are instructed to work directly rather than delegate implementation again.
-  - Discover and answer Pi Ask questions called inside Code and Notebook Mode.
-  - Retain working local and remote monitoring during connection updates, distinguish incomplete coverage from disconnection, and report recovery.
-  - Worker states now show their last-known status during incomplete monitoring. `/herdr connect` retries without replacing a working remote connection.
-  - Catch worker completions during reconnect setup and cancel obsolete or stopped monitoring connections.
+  - Agent prompts and reports identify their source workspace, tab and pane, including current names.
+  - Attributed messages to running Pi Codex agents use developer steering. Idle tasks retain normal user kickoff and extension preparation.
+  - `send` delivers peer messages without blocking or subscribing; use `assign` to delegate work to an existing agent.
+  - Automatic task watches end on completion or failure. Only explicit `watch` subscriptions persist; legacy watches are cleared with a notice.
 
 [Full changelog](./packages/pi-shepherdr/CHANGELOG.md)
 
@@ -237,25 +220,21 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.77
+### @howaboua/pi-stuff — 0.0.78
 
 - Include bundled package updates:
 
-  - @howaboua/pi-ask: Shepherdr now discovers and answers waiting questions invoked inside Code and Notebook Mode.
-  - @howaboua/pi-auto-trees: Tree navigation and `/end` now carry conversation summaries through the active notes backend. - The agent turn ends after the requested note write, without a follow-up reply. - Arriving agents receive a branch summary directing them to read the note before resuming. - Default `/end` guidance is task-neutral.
-  - @howaboua/pi-shepherdr: Deliver blocked-agent handoffs even when transcripts are unavailable. - Reviewer spawns wait for their result before the controller continues. - Implementation subagents are instructed to work directly rather than delegate implementation again. - Discover and answer Pi Ask questions called inside Code and Notebook Mode. - Retain working local and remote monitoring during connection updates, distinguish incomplete coverage from disconnection, and report recovery. - Worker states now show their last-known status during incomplete monitoring. `/herdr connect` retries without replacing a working remote connection. - Catch worker completions during reconnect setup and cancel obsolete or stopped monitoring connections.
-  - @howaboua/pi-dynamic-tools: Remove retired bundled extension.
+  - @howaboua/pi-shepherdr: Shepherdr now reads existing Herdr machine profiles and requires Herdr 0.9 or newer. Manage profiles in Herdr; `shepherdr.json`, old machine aliases and their saved watches are no longer used. - Agent prompts and reports identify their source workspace, tab and pane, including current names. - Attributed messages to running Pi Codex agents use developer steering. Idle tasks retain normal user kickoff and extension preparation. - `send` delivers peer messages without blocking or subscribing; use `assign` to delegate work to an existing agent. - Automatic task watches end on completion or failure. Only explicit `watch` subscriptions persist; legacy watches are cleared with a notice.
+  - @howaboua/pi-subagent-review: Restore full extension prompt preparation when continuing into a new context window or starting review triage. - Keep tool instructions current through Pi's normal startup hooks without resetting the Notebook. - Let active context management own review-loop navigation summaries.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 
-### @howaboua/pi-subagent-review — 0.2.20
+### @howaboua/pi-subagent-review — 0.2.21
 
-- Preserve extension-owned messages while delivering true developer-role policy through compatible Pi Codex Responses adapters.
+- Restore full extension prompt preparation when continuing into a new context window or starting review triage.
 
-  - Add an optional custom-message API that retains caller rendering and restoration fields.
-  - Route Shepherdr's unclaimed worker events and orchestration toggles through it, preserving ordinary Pi delivery when unavailable.
-  - Send review preface/triage policy and realtime voice start/end guidance as developer messages without elevating raw reviewer findings, spoken delegations, or transcript tails.
-  - Keep persisted developer messages in context across model switches, using ordinary Pi conversion on incompatible models.
+  - Keep tool instructions current through Pi's normal startup hooks without resetting the Notebook.
+  - Let active context management own review-loop navigation summaries.
 
 [Full changelog](./packages/pi-subagent-review/CHANGELOG.md)
 
