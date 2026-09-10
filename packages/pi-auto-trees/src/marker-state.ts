@@ -21,18 +21,20 @@ function isIncrementalWorkflowState(
 
 function readStateFromBranch(
 	ctx: ExtensionContext,
-): IncrementalWorkflowState | undefined {
-	let state: IncrementalWorkflowState | undefined;
+): { state: IncrementalWorkflowState; entryId: string } | undefined {
+	let checkpoint:
+		| { state: IncrementalWorkflowState; entryId: string }
+		| undefined;
 	for (const entry of ctx.sessionManager.getBranch()) {
 		if (
 			entry.type === "custom" &&
 			entry.customType === INCREMENTAL_WORKFLOW_STATE_ENTRY &&
 			isIncrementalWorkflowState(entry.data)
 		) {
-			state = entry.data;
+			checkpoint = { state: entry.data, entryId: entry.id };
 		}
 	}
-	return state;
+	return checkpoint;
 }
 
 export function getSemanticLeafId(ctx: ExtensionContext): string | undefined {
@@ -57,7 +59,21 @@ export class WorkflowMarker {
 	}
 
 	refresh(ctx: ExtensionContext): void {
-		this.#markerId = readStateFromBranch(ctx)?.markerId;
+		this.#markerId = readStateFromBranch(ctx)?.state.markerId;
+	}
+
+	navigationTargetId(ctx: ExtensionContext): string | undefined {
+		if (
+			!this.#markerId ||
+			ctx.sessionManager.getEntry(this.#markerId)?.type !== "custom_message"
+		)
+			return this.#markerId;
+		// Pi edits custom-message targets from their parent. Our existing state
+		// entry is after the message, so it keeps that context without editing it.
+		const checkpoint = readStateFromBranch(ctx);
+		return checkpoint?.state.markerId === this.#markerId
+			? checkpoint.entryId
+			: undefined;
 	}
 
 	apply(

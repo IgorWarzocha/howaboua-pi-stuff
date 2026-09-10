@@ -93,7 +93,11 @@ export function registerIncrementalWorkflow(
 				ctx.ui.notify("No marker set. Run /marker first", "warning");
 				return;
 			}
-			if (!ctx.sessionManager.getEntry(marker.id)) {
+			const navigationTargetId = marker.navigationTargetId(ctx);
+			if (
+				!navigationTargetId ||
+				!ctx.sessionManager.getEntry(navigationTargetId)
+			) {
 				ctx.ui.notify(
 					"Stored marker no longer exists on this session. Run /marker again",
 					"warning",
@@ -135,11 +139,11 @@ export function registerIncrementalWorkflow(
 				result = summaryConfig
 					? await navigateWithSummaryModel(
 							ctx,
-							marker.id,
+							navigationTargetId,
 							navigationOptions,
 							summaryConfig,
 						)
-					: await ctx.navigateTree(marker.id, navigationOptions);
+					: await ctx.navigateTree(navigationTargetId, navigationOptions);
 			} finally {
 				if (ctx.hasUI) {
 					ctx.ui.setWidget(INCREMENTAL_WORKFLOW_END_WIDGET, undefined);
