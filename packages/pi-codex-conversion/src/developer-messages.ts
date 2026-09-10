@@ -97,7 +97,7 @@ export function tryStartCodexPreparedIdleKickoff(
 	pi.events.emit(PREPARED_IDLE_KICKOFF_CHANNEL, request);
 	if (request.outcome === "pending") {
 		ctx.ui.notify(
-			"An automatic turn is still starting. If no turn starts, send a user message or reload the session.",
+			"An automatic turn is pending. If no turn starts, send a user message or reload the session.",
 			"warning",
 		);
 	}
@@ -110,10 +110,13 @@ export function updateCodexPreparedIdleKickoff(
 	pi: ExtensionAPI,
 	action: Exclude<PreparedIdleKickoffRequest["action"], "claim">,
 ): void {
-	pi.events.emit(PREPARED_IDLE_KICKOFF_CHANNEL, {
+	const request: PreparedIdleKickoffRequest = {
 		protocol: 1,
 		action,
-	} satisfies PreparedIdleKickoffRequest);
+	};
+	pi.events.emit(PREPARED_IDLE_KICKOFF_CHANNEL, request);
+	if (request.outcome && typeof request.outcome === "object")
+		throw new Error(request.outcome.error);
 }
 
 function dispatchCodexDeveloperMessage(
@@ -145,7 +148,19 @@ export function registerCodexDeveloperMessageBroker(
 	pi: ExtensionAPI,
 	isActive: () => boolean,
 ): () => void {
-	let preparedIdleKickoff: "preparing" | "running" | undefined;
+	let preparedIdleKickoff: "preparing" | "running" | "queued" | undefined;
+	const startKickoff = (): PreparedIdleKickoffRequest["outcome"] => {
+		// Pi exposes no completion for async preflight. Lifecycle owners clear the
+		// claim; guessing here could launch a concurrent turn.
+		preparedIdleKickoff = "preparing";
+		try {
+			pi.sendUserMessage("Continue.", { deliverAs: "steer" });
+			return "started";
+		} catch (error) {
+			preparedIdleKickoff = undefined;
+			return { error: error instanceof Error ? error.message : String(error) };
+		}
+	};
 	const deliver = (value: unknown) => {
 		if (!isDeveloperMessageRequest(value) || value.outcome) return;
 		if (!isActive()) {
@@ -192,27 +207,21 @@ export function registerCodexDeveloperMessageBroker(
 			return;
 		}
 		if (value.action === "agent_settled") {
-			if (preparedIdleKickoff === "running")
+			if (preparedIdleKickoff === "queued")
+				value.outcome = startKickoff();
+			else if (preparedIdleKickoff === "running")
 				preparedIdleKickoff = undefined;
 			return;
 		}
 		if (value.outcome) return;
 		if (preparedIdleKickoff) {
+			// Pi becomes idle before awaiting settlement handlers. A claim then
+			// belongs to the next turn, not the response that just finished.
+			if (preparedIdleKickoff === "running") preparedIdleKickoff = "queued";
 			value.outcome = "pending";
 			return;
 		}
-		// Pi exposes no completion for async preflight. Lifecycle owners clear the
-		// claim; guessing here could launch a concurrent turn.
-		preparedIdleKickoff = "preparing";
-		try {
-			pi.sendUserMessage("Continue.", { deliverAs: "steer" });
-			value.outcome = "started";
-		} catch (error) {
-			preparedIdleKickoff = undefined;
-			value.outcome = {
-				error: error instanceof Error ? error.message : String(error),
-			};
-		}
+		value.outcome = startKickoff();
 	};
 	const clearPreparedIdleKickoff = () => {
 		preparedIdleKickoff = undefined;

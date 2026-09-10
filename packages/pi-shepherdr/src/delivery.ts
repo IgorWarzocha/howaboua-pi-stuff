@@ -17,7 +17,10 @@ const preparedKickoffs = new WeakMap<
 	ExtensionAPI,
 	typeof tryStartCodexPreparedIdleKickoff
 >();
-const fallbackKickoffs = new WeakMap<ExtensionAPI, "preparing" | "running">();
+const fallbackKickoffs = new WeakMap<
+	ExtensionAPI,
+	"preparing" | "running" | "queued"
+>();
 const PACKAGE = "@howaboua/pi-codex-conversion";
 const MODULE = `${PACKAGE}/developer-messages`;
 
@@ -45,8 +48,10 @@ export async function registerDeveloperDelivery(
 		if (fallbackKickoffs.get(pi) === "preparing")
 			fallbackKickoffs.set(pi, "running");
 	});
-	pi.on("agent_settled", () => {
-		if (fallbackKickoffs.get(pi) === "running") fallbackKickoffs.delete(pi);
+	pi.on("agent_settled", (_event, ctx) => {
+		const state = fallbackKickoffs.get(pi);
+		if (state === "running" || state === "queued") fallbackKickoffs.delete(pi);
+		if (state === "queued") startPreparedIdleTurn(pi, ctx);
 	});
 	pi.on("session_shutdown", () => {
 		fallbackKickoffs.delete(pi);
@@ -83,8 +88,11 @@ export function startPreparedIdleTurn(
 ): void {
 	if (preparedKickoffs.get(pi)?.(pi, ctx)) return;
 	if (fallbackKickoffs.has(pi)) {
+		// Pi is already idle while earlier settlement handlers are awaiting.
+		if (fallbackKickoffs.get(pi) === "running")
+			fallbackKickoffs.set(pi, "queued");
 		ctx.ui.notify(
-			"An automatic turn is still starting. If no turn starts, send a user message or reload the session.",
+			"An automatic turn is pending. If no turn starts, send a user message or reload the session.",
 			"warning",
 		);
 		return;

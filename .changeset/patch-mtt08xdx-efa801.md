@@ -3,4 +3,4 @@
 "@howaboua/pi-codex-conversion": patch
 ---
 
-Fixed idle agent reports and manual checkpoint requests to preserve prompt preparation and coalesce concurrent continuations.
+Fixed idle agent reports and manual checkpoint requests to preserve prompt preparation, coalesce concurrent continuations, and process reports arriving during turn settlement.
