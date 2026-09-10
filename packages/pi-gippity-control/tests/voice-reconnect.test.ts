@@ -42,7 +42,10 @@ test("realtime forwards final speech before reporting established drops", async 
 		"First useful sentence. Second useful sentence.",
 	);
 	active.session.agentProgress("Completed reasoning summary");
-	active.session.agentResult("Finished result");
+	active.session.activateDelegation("delegation-1");
+	const final = "Finished result. Everything checked. Ready to continue.";
+	active.session.streamAgentDelta(final);
+	active.session.agentResult(final);
 	assert.deepEqual(active.peer.sentText(), [
 		[
 			"session.context.append",
@@ -55,7 +58,12 @@ test("realtime forwards final speech before reporting established drops", async 
 			"First useful sentence. Second useful sentence.",
 		],
 		["session.context.append", "speakable", "Completed reasoning summary"],
-		["session.context.append", "speakable", "Finished result"],
+		[
+			"session.context.append",
+			"speakable",
+			"Finished result. Everything checked.",
+		],
+		["delegation.context.append", "speakable", "Ready to continue."],
 	]);
 	active.peer.emit({
 		type: "data",

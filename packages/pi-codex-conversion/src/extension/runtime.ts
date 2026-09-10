@@ -85,8 +85,10 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 	}
 	const initialConfig = readEffectiveCodexConversionConfig({ cwd: process.cwd(), projectTrusted: false });
 	const voice = new CodexVoiceController(pi);
-	const contextWindows = new CodexContextWindowManager(undefined, (ctx, options) =>
-		voice.refreshRealtimeContext(ctx, state.config, options));
+	const contextWindows = new CodexContextWindowManager(undefined, async (ctx, options) => {
+		voice.announceContextTransition("rollover");
+		await voice.refreshRealtimeContext(ctx, state.config, options);
+	});
 	const contextKickoff = new CodexContextWindowKickoff(contextWindows);
 	const state: AdapterState = {
 		enabled: false,

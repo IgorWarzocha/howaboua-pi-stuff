@@ -7,7 +7,7 @@ import {
 	type VoiceControllerRuntime,
 } from "./controller-start.ts";
 import type { CodexRealtimeConversation } from "./conversation/session.ts";
-import { REALTIME_EVENT_ENTRY_TYPE } from "./message-types.ts";
+import { REALTIME_EVENT_ENTRY_TYPE, REALTIME_VOICE_MESSAGE_TYPE } from "./message-types.ts";
 
 export interface RealtimeContextRefreshOptions {
 	sourceLeafId?: string | undefined;
@@ -131,8 +131,12 @@ export class RealtimeContextRefresh {
 }
 
 function conversationLeafId(ctx: ExtensionContext): string | undefined {
-	// Wire diagnostics do not change the conversation being summarized.
+	// Display-only speech and wire diagnostics do not change the summary input.
+	// Keep user transcript entries: a new utterance must prevent replacement.
 	return ctx.sessionManager.getBranch().findLast(
-		(entry) => entry.type !== "custom" || entry.customType !== REALTIME_EVENT_ENTRY_TYPE,
+		(entry) => entry.type !== "custom" || (
+			entry.customType !== REALTIME_EVENT_ENTRY_TYPE &&
+			entry.customType !== REALTIME_VOICE_MESSAGE_TYPE
+		),
 	)?.id;
 }

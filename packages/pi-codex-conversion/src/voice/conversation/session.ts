@@ -56,8 +56,6 @@ export class CodexRealtimeConversation {
 	private established = false;
 	private speakableResponsePending = false;
 	private readonly callId = randomUUID();
-	private readonly inputItemIds = new Set<string>();
-	private readonly completedTurnIds = new Set<string>();
 
 	constructor(callbacks: CodexConversationCallbacks, peer: CodexRealtimePeer) {
 		this.callbacks = callbacks;
@@ -151,7 +149,7 @@ export class CodexRealtimeConversation {
 		this.appendSpeakableContext(prompt);
 	}
 
-	announceCompactionStart(reason: "threshold" | "overflow" | "rollover"): void {
+	announceContextTransition(reason: "threshold" | "overflow" | "rollover"): void {
 		if (this.state !== "active") return;
 		const prompt =
 			reason === "rollover"
@@ -264,6 +262,10 @@ export class CodexRealtimeConversation {
 			this.fail(new Error(remoteError(event)));
 			return;
 		}
+		if (event["type"] === "turn.created" || event["type"] === "delegation.context.appended" || event["type"] === "session.context.appended") {
+			this.callbacks.onEvent?.(realtimeEventDetails(this.callId, event, undefined, true));
+			return;
+		}
 		if (event["type"] === "input_transcript.added") {
 			const input = boundedTranscript(transcriptItemText(event["item"]));
 			if (input === "oversized") {
@@ -271,11 +273,8 @@ export class CodexRealtimeConversation {
 				return;
 			}
 			if (input) {
-				const details = realtimeEventDetails(this.callId, event, input, true);
-				const accepted = claimIdentity(this.inputItemIds,
-					details.itemId ? `${details.itemId}:${details.textHash}` : undefined);
-				this.callbacks.onEvent?.({ ...details, accepted });
-				if (accepted) this.turnTracker.inputAdded(input);
+				this.callbacks.onEvent?.(realtimeEventDetails(this.callId, event, input, true));
+				this.turnTracker.inputAdded(input);
 			}
 			return;
 		}
@@ -288,9 +287,8 @@ export class CodexRealtimeConversation {
 			return;
 		}
 		if (event["type"] === "turn.done") {
-			const accepted = claimIdentity(this.completedTurnIds, realtimeEventIdentity(event["turn"]));
-			this.callbacks.onEvent?.(realtimeEventDetails(this.callId, event, undefined, accepted));
-			if (accepted) this.handleCompletedTurn(event["turn"]);
+			this.callbacks.onEvent?.(realtimeEventDetails(this.callId, event, undefined, true));
+			this.handleCompletedTurn(event["turn"]);
 			return;
 		}
 		if (event["type"] !== "delegation.created" || this.state !== "active")
@@ -422,18 +420,6 @@ export class CodexRealtimeConversation {
 		else this.callbacks.onError(error);
 		void this.close();
 	}
-}
-
-function claimIdentity(seen: Set<string>, id: string | undefined): boolean {
-	if (!id) return true;
-	if (seen.has(id)) return false;
-	seen.add(id);
-	// Bound per-call replay history without retaining transcript content.
-	if (seen.size > 2_048) {
-		const oldest = seen.values().next().value;
-		if (oldest !== undefined) seen.delete(oldest);
-	}
-	return true;
 }
 
 function terminalTransportError(message: string): boolean {

@@ -49,11 +49,13 @@ test("voice routing preserves presentation, handoff pacing, and compaction order
 	handoff.stream("First useful sentence. Second useful sentence.");
 	handoff.progress("First useful sentence. Second useful sentence.");
 	handoff.progress("Completed reasoning summary");
-	handoff.result("Finished result");
+	const final = "Finished result. Everything checked. Ready to continue.";
+	handoff.stream(final);
+	handoff.result(final);
 	handoff.settle();
 	handoff.piInput("Typed request");
 	handoff.piInput("Queued request", "followUp");
-	assert.equal(contexts.length, 4);
+	assert.equal(contexts.length, 5);
 	handoff.piUserMessage({
 		role: "user",
 		content: [{ type: "text", text: "Queued request" }],
@@ -70,9 +72,14 @@ test("voice routing preserves presentation, handoff pacing, and compaction order
 			content: "Completed reasoning summary",
 		},
 		{
+			target: { type: "session" },
+			channel: "speakable",
+			content: "Finished result. Everything checked.",
+		},
+		{
 			target: { type: "delegation", id: "delegation-1" },
 			channel: "speakable",
-			content: "Finished result",
+			content: "Ready to continue.",
 		},
 		{
 			target: { type: "session" },

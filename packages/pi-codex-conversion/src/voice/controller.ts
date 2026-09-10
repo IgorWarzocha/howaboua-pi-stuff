@@ -101,9 +101,9 @@ export class CodexVoiceController {
 		if (this.runtime.state.type === "conversation")
 			this.runtime.state.session.announcePrompt(report.prompt);
 	}
-	announceCompactionStart(reason: "threshold" | "overflow" | "rollover"): void {
+	announceContextTransition(reason: "threshold" | "overflow" | "rollover"): void {
 		if (this.runtime.state.type === "conversation")
-			this.runtime.state.session.announceCompactionStart(reason);
+			this.runtime.state.session.announceContextTransition(reason);
 	}
 	compactionStarted(): void {
 		this.messages.compactionStarted();

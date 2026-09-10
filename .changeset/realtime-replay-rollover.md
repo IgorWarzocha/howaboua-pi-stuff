@@ -2,7 +2,7 @@
 "@howaboua/pi-codex-conversion": patch
 ---
 
-Realtime voice now rejects replayed input events and repeated delegation without fresh user input.
+Streamed realtime replies now return their final text to the requesting delegation instead of leaving the entire answer in general session context.
 
-- Explicit Hybrid context rollover now requests a brief spoken acknowledgement before compaction.
+- Context-window rollover now requests a brief spoken acknowledgement before voice-context refresh, including notes-only mode.
 - Session diagnostics retain voice call, transcript and delegation identities with text hashes to distinguish event replay from fresh recognition.
