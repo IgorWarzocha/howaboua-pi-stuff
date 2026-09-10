@@ -194,6 +194,8 @@ export class AgentMonitor {
 			this.rejectWork(attempt);
 			return;
 		}
+		// An unknown acknowledgement must not leave status processing suspended.
+		this.state.endSubmission(attempt);
 		try {
 			await this.reconcileNow();
 		} catch (reconcileError) {

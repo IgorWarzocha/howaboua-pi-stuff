@@ -13,6 +13,7 @@ import type {
 	LatestAssistant,
 	MonitoredAgent,
 	PaneInfo,
+	PeerMessage,
 	PendingAsk,
 	SettledAgentStatus,
 } from "./types.js";
@@ -63,7 +64,7 @@ export async function attributeAgentPrompt(
 	client: HerdrConnection,
 	message: string,
 	kind: "message" | "task",
-): Promise<string> {
+): Promise<PeerMessage> {
 	const [pane, snapshot] = await Promise.all([
 		getCurrentPane(client),
 		getSnapshot(client),
@@ -81,7 +82,10 @@ export async function attributeAgentPrompt(
 			...(tab ? { tab } : {}),
 		}),
 	};
-	return `<herdr_sender ${sourceAttributes(source)} />\n${message}`;
+	return {
+		sender: `<herdr_sender ${sourceAttributes(source)} />`,
+		text: message,
+	};
 }
 
 interface AgentEventOptions {

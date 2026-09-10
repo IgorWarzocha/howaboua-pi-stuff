@@ -1,6 +1,11 @@
 import { createConnection } from "node:net";
 import { sendPeerMessage } from "./remote/shepherdr-peer.mjs";
-import type { HerdrEvent, PaneInfo } from "./types.js";
+import type {
+	HerdrEvent,
+	PaneInfo,
+	PeerDelivery,
+	PeerMessage,
+} from "./types.js";
 
 const MAX_FRAME_BUFFER = 8 * 1024 * 1024;
 
@@ -51,7 +56,7 @@ export function isHerdrErrorCode(error: unknown, code: string): boolean {
 
 export interface HerdrConnection {
 	request<T>(method: string, params?: object, timeoutMs?: number): Promise<T>;
-	sendMessage(agent: PaneInfo, text: string): Promise<void>;
+	sendMessage(agent: PaneInfo, message: PeerMessage): Promise<PeerDelivery>;
 	subscribe(
 		subscriptions: object[],
 		onEvent: (event: HerdrEvent) => void,
@@ -72,11 +77,11 @@ export class HerdrClient implements HerdrConnection {
 		this.socketPath = socketPath;
 	}
 
-	sendMessage(agent: PaneInfo, text: string): Promise<void> {
+	sendMessage(agent: PaneInfo, message: PeerMessage): Promise<PeerDelivery> {
 		return sendPeerMessage(
 			(method, params) => this.request(method, params),
 			agent,
-			text,
+			message,
 		);
 	}
 

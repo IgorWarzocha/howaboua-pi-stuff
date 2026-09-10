@@ -44,9 +44,11 @@ interface StatusResult {
 
 export class MonitorState {
 	private readonly agents = new Map<string, MonitoredAgent>();
+	private readonly pendingSubmissions = new Set<string>();
 
 	restore(values: unknown[], controllingPaneId?: string): number {
 		this.agents.clear();
+		this.pendingSubmissions.clear();
 		let dropped = 0;
 		for (const value of values) {
 			const record = parseMonitoredAgent(value);
@@ -133,6 +135,7 @@ export class MonitorState {
 			attemptId: randomUUID(),
 			terminalId: record.terminalId,
 		};
+		this.pendingSubmissions.add(attempt.attemptId);
 		this.agents.set(record.terminalId, {
 			...record,
 			activity: {
@@ -146,7 +149,12 @@ export class MonitorState {
 		return attempt;
 	}
 
+	endSubmission(attempt: WorkAttempt | undefined): void {
+		if (attempt) this.pendingSubmissions.delete(attempt.attemptId);
+	}
+
 	acceptWork(attempt: WorkAttempt | undefined): boolean {
+		this.endSubmission(attempt);
 		const record = attempt ? this.byTerminal(attempt.terminalId) : undefined;
 		if (
 			!record ||
@@ -170,6 +178,7 @@ export class MonitorState {
 	}
 
 	rejectWork(attempt: WorkAttempt | undefined): boolean {
+		this.endSubmission(attempt);
 		const record = attempt ? this.byTerminal(attempt.terminalId) : undefined;
 		if (
 			!record ||
@@ -188,6 +197,13 @@ export class MonitorState {
 	applyStatus(paneId: string, status: AgentStatus): StatusResult {
 		const record = this.byPane(paneId);
 		if (!record) return { changed: false };
+		// Submission owns the transaction until its receipt decides whether this
+		// is delegated work at all. The caller reconciles after accepting it.
+		if (
+			record.activity.phase === "submitting" &&
+			this.pendingSubmissions.has(record.activity.attemptId)
+		)
+			return { changed: false };
 		if (status === "working") {
 			const task = activityTask(record.activity);
 			const attemptId =
@@ -283,7 +299,12 @@ export class MonitorState {
 
 			let activity = record.activity;
 			let completion: Omit<CompletionCandidate, "record"> | undefined;
-			if (panel.agent_status === "working") {
+			if (
+				activity.phase === "submitting" &&
+				this.pendingSubmissions.has(activity.attemptId)
+			) {
+				// Keep the rollback state until submission is acknowledged.
+			} else if (panel.agent_status === "working") {
 				const task = activityTask(activity);
 				const attemptId =
 					activity.phase === "settled" ? undefined : activity.attemptId;

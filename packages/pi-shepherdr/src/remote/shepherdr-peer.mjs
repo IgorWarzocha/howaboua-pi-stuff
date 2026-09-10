@@ -83,9 +83,10 @@ async function readReceiver(path) {
 /**
  * @param {(method: string, params: object) => Promise<unknown>} request
  * @param {import("../types.js").PaneInfo} expected
- * @param {string} text
+ * @param {import("../types.js").PeerMessage} message
+ * @returns {Promise<import("../types.js").PeerDelivery>}
  */
-export async function sendPeerMessage(request, expected, text) {
+export async function sendPeerMessage(request, expected, message) {
 	const result = await request("agent.get", { target: expected.pane_id });
 	const agent =
 		result &&
@@ -160,12 +161,14 @@ export async function sendPeerMessage(request, expected, text) {
 			token: descriptor.token,
 			sessionFile,
 			terminalId: agent.terminal_id,
-			text,
+			text: message.text,
+			sender: message.sender,
+			context: message.context,
 		}) + "\n";
 	if (Buffer.byteLength(frame) > MAX_PEER_FRAME_BYTES) {
 		throw deliveryError("Peer message is too large", true);
 	}
-	await new Promise((resolve, reject) => {
+	return new Promise((resolve, reject) => {
 		let attempted = false;
 		let settled = false;
 		let buffer = "";
@@ -173,14 +176,14 @@ export async function sendPeerMessage(request, expected, text) {
 			host: "127.0.0.1",
 			port: descriptor.port,
 		});
-		/** @param {unknown} [error] */
-		const finish = (error) => {
+		/** @param {unknown} [error] @param {import("../types.js").PeerDelivery} [receipt] */
+		const finish = (error, receipt) => {
 			if (settled) return;
 			settled = true;
 			clearTimeout(timer);
 			socket.destroy();
 			if (error) reject(error);
-			else resolve(undefined);
+			else if (receipt) resolve(receipt);
 		};
 		const failed = () =>
 			finish(
@@ -209,7 +212,8 @@ export async function sendPeerMessage(request, expected, text) {
 			try {
 				const reply = JSON.parse(buffer.slice(0, newline));
 				if (reply.protocol !== 1 || reply.id !== id) return failed();
-				if (reply.ok === true) finish();
+				if (reply.ok === true && typeof reply.command === "boolean")
+					finish(undefined, { command: reply.command });
 				else if (reply.ok === false && typeof reply.error === "string")
 					finish(deliveryError(reply.error, reply.rejected === true));
 				else failed();

@@ -9,6 +9,8 @@ import type {
 	HerdrEvent,
 	LatestAssistant,
 	PaneInfo,
+	PeerDelivery,
+	PeerMessage,
 	SessionView,
 } from "./types.js";
 
@@ -223,8 +225,21 @@ export class RemoteHerdrClient implements HerdrConnection, AssistantReader {
 		)) as T;
 	}
 
-	async sendMessage(agent: PaneInfo, text: string): Promise<void> {
-		await this.call({ op: "message", agent, text }, 26_000);
+	async sendMessage(
+		agent: PaneInfo,
+		message: PeerMessage,
+	): Promise<PeerDelivery> {
+		const result = await this.call({ op: "message", agent, message }, 26_000);
+		if (
+			!result ||
+			typeof result !== "object" ||
+			!("command" in result) ||
+			typeof result.command !== "boolean"
+		)
+			throw new Error(
+				"Invalid peer acknowledgement; inspect the target before retrying",
+			);
+		return { command: result.command };
 	}
 
 	async subscribe(

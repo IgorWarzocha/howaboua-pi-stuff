@@ -92,7 +92,11 @@ async function openInbox(
 				ctx.sessionManager.getSessionFile() !== sessionFile ||
 				typeof request["id"] !== "string" ||
 				typeof request["text"] !== "string" ||
-				!request["text"].trim()
+				!request["text"].trim() ||
+				typeof request["sender"] !== "string" ||
+				!/^<herdr_sender [^\n]+ \/>$/.test(request["sender"]) ||
+				(request["context"] !== undefined &&
+					typeof request["context"] !== "string")
 			) {
 				reply({
 					ok: false,
@@ -101,6 +105,7 @@ async function openInbox(
 				});
 				return;
 			}
+			let submitted = false;
 			try {
 				const idle = ctx.isIdle();
 				// Manual compaction/tree navigation can be busy without an agent
@@ -113,11 +118,47 @@ async function openInbox(
 					});
 					return;
 				}
+				const text = request["text"];
+				const sender = request["context"]
+					? `${request["sender"]}\n${request["context"]}`
+					: request["sender"];
+				if (text.startsWith("/")) {
+					// Match only Pi's extension-command boundary, not its argument or
+					// skill/template parsers. Extension commands may never start a turn.
+					const space = text.indexOf(" ");
+					const name = text.slice(1, space < 0 ? undefined : space);
+					const command = pi
+						.getCommands()
+						.some(
+							(entry) => entry.source === "extension" && entry.name === name,
+						);
+					const submit = () => {
+						submitted = true;
+						sendPolicyMessage(
+							pi,
+							{
+								customType: "herdr-agent-source",
+								content: sender,
+								display: true,
+							},
+							{ triggerTurn: false, deliverAs: "steer" },
+						);
+						pi.sendUserMessage(text, {
+							expandPromptTemplates: true,
+							deliverAs: "steer",
+						});
+					};
+					if (idle && !command) startPreparedIdleTurn(pi, ctx, submit);
+					else submit();
+					reply({ ok: true, command });
+					return;
+				}
+				submitted = true;
 				sendPolicyMessage(
 					pi,
 					{
 						customType: "herdr-agent-message",
-						content: request["text"],
+						content: `${sender}\n${text}`,
 						display: true,
 					},
 					idle
@@ -127,12 +168,12 @@ async function openInbox(
 				// Appending then claiming the shared kickoff also coalesces arrivals
 				// during async preparation, when Pi still reports itself idle.
 				if (idle) startPreparedIdleTurn(pi, ctx);
-				reply({ ok: true });
+				reply({ ok: true, command: false });
 			} catch (error) {
 				reply({
 					ok: false,
-					rejected: false,
-					error: `Peer delivery failed; inspect the target before retrying: ${error instanceof Error ? error.message : String(error)}`,
+					rejected: !submitted,
+					error: `${submitted ? "Peer delivery failed; inspect the target before retrying" : "Peer delivery rejected"}: ${error instanceof Error ? error.message : String(error)}`,
 				});
 			}
 		});

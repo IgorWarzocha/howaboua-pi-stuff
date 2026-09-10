@@ -502,8 +502,7 @@ async function handle(message) {
 		return request(message.method, message.params ?? {}, message.timeoutMs);
 	}
 	if (message.op === "message") {
-		await sendPeerMessage(request, message.agent, message.text);
-		return { accepted: true };
+		return sendPeerMessage(request, message.agent, message.message);
 	}
 	if (message.op === "subscribe") {
 		await subscribe(message.id, message.subscriptions ?? []);

@@ -7,6 +7,7 @@ import type {
 	CodexDeveloperMessageOptions,
 	trySendCodexDeveloperCustomMessage,
 	tryStartCodexPreparedIdleKickoff,
+	tryStartCodexPreparedIdlePrompt,
 } from "@howaboua/pi-codex-conversion/developer-messages";
 
 const senders = new WeakMap<
@@ -20,6 +21,10 @@ const preparedKickoffs = new WeakMap<
 const fallbackKickoffs = new WeakMap<
 	ExtensionAPI,
 	"preparing" | "running" | "queued"
+>();
+const preparedPrompts = new WeakMap<
+	ExtensionAPI,
+	typeof tryStartCodexPreparedIdlePrompt
 >();
 const PACKAGE = "@howaboua/pi-codex-conversion";
 const MODULE = `${PACKAGE}/developer-messages`;
@@ -35,6 +40,8 @@ export async function registerDeveloperDelivery(
 			senders.set(pi, api.trySendCodexDeveloperCustomMessage);
 		if (typeof api.tryStartCodexPreparedIdleKickoff === "function")
 			preparedKickoffs.set(pi, api.tryStartCodexPreparedIdleKickoff);
+		if (typeof api.tryStartCodexPreparedIdlePrompt === "function")
+			preparedPrompts.set(pi, api.tryStartCodexPreparedIdlePrompt);
 	} catch (error) {
 		if (!isUnavailable(error)) throw error;
 	}
@@ -85,9 +92,20 @@ export async function registerDeveloperDelivery(
 export function startPreparedIdleTurn(
 	pi: ExtensionAPI,
 	ctx: Pick<ExtensionContext, "ui">,
+	start?: () => void,
 ): void {
-	if (preparedKickoffs.get(pi)?.(pi, ctx)) return;
+	if (start) {
+		if (preparedPrompts.get(pi)?.(pi, start)) return;
+		if (preparedKickoffs.has(pi) && !preparedPrompts.has(pi))
+			throw new Error(
+				"Update Pi Codex Conversion and reload before sending slash commands",
+			);
+	} else if (preparedKickoffs.get(pi)?.(pi, ctx)) return;
 	if (fallbackKickoffs.has(pi)) {
+		if (start)
+			throw new Error(
+				"Target has a pending turn; retry after it starts or settles",
+			);
 		// Pi is already idle while earlier settlement handlers are awaiting.
 		if (fallbackKickoffs.get(pi) === "running")
 			fallbackKickoffs.set(pi, "queued");
@@ -99,7 +117,8 @@ export function startPreparedIdleTurn(
 	}
 	fallbackKickoffs.set(pi, "preparing");
 	try {
-		pi.sendUserMessage("Continue.", { deliverAs: "steer" });
+		if (start) start();
+		else pi.sendUserMessage("Continue.", { deliverAs: "steer" });
 	} catch (error) {
 		fallbackKickoffs.delete(pi);
 		throw error;

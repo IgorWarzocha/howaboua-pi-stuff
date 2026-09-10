@@ -1,5 +1,15 @@
 export type AgentStatus = "idle" | "working" | "blocked" | "done" | "unknown";
 
+export interface PeerMessage {
+	text: string;
+	sender: string;
+	context?: string;
+}
+
+export interface PeerDelivery {
+	command: boolean;
+}
+
 export type SettledAgentStatus = Exclude<AgentStatus, "working">;
 
 export type StableAgentActivity =

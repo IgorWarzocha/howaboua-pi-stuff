@@ -53,6 +53,7 @@ interface DeveloperMessageRequest {
 interface PreparedIdleKickoffRequest {
 	protocol: 1;
 	action: "claim" | "agent_start" | "agent_settled" | "session_reset";
+	start?: () => void;
 	outcome?: "started" | "pending" | { error: string } | undefined;
 }
 
@@ -106,6 +107,18 @@ export function tryStartCodexPreparedIdleKickoff(
 	return request.outcome !== undefined;
 }
 
+/** Reserve preparation for a distinct user prompt; never coalesce it away. */
+export function tryStartCodexPreparedIdlePrompt(
+	pi: ExtensionAPI,
+	start: () => void,
+): boolean {
+	const request: PreparedIdleKickoffRequest = { protocol: 1, action: "claim", start };
+	pi.events.emit(PREPARED_IDLE_KICKOFF_CHANNEL, request);
+	if (request.outcome && typeof request.outcome === "object")
+		throw new Error(request.outcome.error);
+	return request.outcome !== undefined;
+}
+
 export function updateCodexPreparedIdleKickoff(
 	pi: ExtensionAPI,
 	action: Exclude<PreparedIdleKickoffRequest["action"], "claim">,
@@ -149,12 +162,13 @@ export function registerCodexDeveloperMessageBroker(
 	isActive: () => boolean,
 ): () => void {
 	let preparedIdleKickoff: "preparing" | "running" | "queued" | undefined;
-	const startKickoff = (): PreparedIdleKickoffRequest["outcome"] => {
+	const startKickoff = (start?: () => void): PreparedIdleKickoffRequest["outcome"] => {
 		// Pi exposes no completion for async preflight. Lifecycle owners clear the
 		// claim; guessing here could launch a concurrent turn.
 		preparedIdleKickoff = "preparing";
 		try {
-			pi.sendUserMessage("Continue.", { deliverAs: "steer" });
+			if (start) start();
+			else pi.sendUserMessage("Continue.", { deliverAs: "steer" });
 			return "started";
 		} catch (error) {
 			preparedIdleKickoff = undefined;
@@ -215,13 +229,17 @@ export function registerCodexDeveloperMessageBroker(
 		}
 		if (value.outcome) return;
 		if (preparedIdleKickoff) {
+			if (value.start) {
+				value.outcome = { error: "Target has a pending turn; retry after it starts or settles" };
+				return;
+			}
 			// Pi becomes idle before awaiting settlement handlers. A claim then
 			// belongs to the next turn, not the response that just finished.
 			if (preparedIdleKickoff === "running") preparedIdleKickoff = "queued";
 			value.outcome = "pending";
 			return;
 		}
-		value.outcome = startKickoff();
+		value.outcome = startKickoff(value.start);
 	};
 	const clearPreparedIdleKickoff = () => {
 		preparedIdleKickoff = undefined;
@@ -328,6 +346,7 @@ function isPreparedIdleKickoffRequest(
 			"protocol" in value &&
 			value.protocol === 1 &&
 			"action" in value &&
+			(!("start" in value) || typeof value.start === "function") &&
 			(value.action === "claim" ||
 				value.action === "agent_start" ||
 				value.action === "agent_settled" ||
