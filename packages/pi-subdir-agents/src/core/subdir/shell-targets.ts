@@ -2,6 +2,58 @@ import fs from "node:fs";
 
 import { resolvePath } from "./paths.js";
 
+const RG_VALUE_OPTIONS = new Set([
+	"-e",
+	"--regexp",
+	"-f",
+	"--file",
+	"--pre",
+	"--pre-glob",
+	"--dfa-size-limit",
+	"-E",
+	"--encoding",
+	"--engine",
+	"-m",
+	"--max-count",
+	"--regex-size-limit",
+	"-j",
+	"--threads",
+	"-g",
+	"--glob",
+	"--iglob",
+	"--ignore-file",
+	"-d",
+	"--max-depth",
+	"--max-filesize",
+	"-t",
+	"--type",
+	"-T",
+	"--type-not",
+	"--type-add",
+	"--type-clear",
+	"-A",
+	"--after-context",
+	"-B",
+	"--before-context",
+	"--color",
+	"--colors",
+	"-C",
+	"--context",
+	"--context-separator",
+	"--field-context-separator",
+	"--field-match-separator",
+	"--hostname-bin",
+	"--hyperlink-format",
+	"-M",
+	"--max-columns",
+	"--path-separator",
+	"-r",
+	"--replace",
+	"--sort",
+	"--sortr",
+	"--generate",
+]);
+
 function shellCommandParts(value: string): string[] {
 	const parts: string[] = [];
 	let current = "";
@@ -104,35 +156,38 @@ function isDiscoveryCommandAt(parts: string[], index: number): boolean {
 	return subcommand === "ls-files" || subcommand === "grep";
 }
 
-function isPathOutputCommandAt(parts: string[], index: number): boolean {
+function isContentSearchCommandAt(parts: string[], index: number): boolean {
 	const command = parts[index]?.toLowerCase() ?? "";
-	if (["ls", "find", "rg", "grep", "fd", "tree"].includes(command)) return true;
+	if (command === "grep") return true;
+	if (command === "rg") {
+		for (let cursor = index + 1; cursor < parts.length; cursor += 1) {
+			const argument = parts[cursor]!;
+			if (argument === ";" || argument === "--") break;
+			if (argument === "--files") return false;
+			const shortValueIndex = /^-[^-]/.test(argument)
+				? [...argument.slice(1)].findIndex((flag) =>
+						RG_VALUE_OPTIONS.has(`-${flag}`),
+					)
+				: -1;
+			if (
+				RG_VALUE_OPTIONS.has(argument) ||
+				(shortValueIndex >= 0 && shortValueIndex === argument.length - 2)
+			)
+				cursor += 1;
+		}
+		return true;
+	}
 	if (command !== "git") return false;
 	const { subcommand } = gitCommandInfo(parts, index);
-	return subcommand === "ls-files" || subcommand === "grep";
+	return subcommand === "grep";
 }
 
-export function isPathOutputShellCommand(value: string): boolean {
+export function isContentSearchShellCommand(value: string): boolean {
 	const parts = shellCommandParts(value);
 	for (let index = 0; index < parts.length; index += 1) {
-		if (isPathOutputCommandAt(parts, index)) return true;
+		if (isContentSearchCommandAt(parts, index)) return true;
 	}
 	return false;
-}
-
-export function shellOutputToolName(value: string): "grep" | "shell" {
-	const parts = shellCommandParts(value);
-	for (let index = 0; index < parts.length; index += 1) {
-		const command = parts[index]?.toLowerCase() ?? "";
-		if (command === "rg" || command === "grep") return "grep";
-		if (
-			command === "git" &&
-			gitCommandInfo(parts, index).subcommand === "grep"
-		) {
-			return "grep";
-		}
-	}
-	return "shell";
 }
 
 function pathExists(candidate: string, base: string): boolean {
@@ -172,6 +227,7 @@ export function shellTargets(value: string, base: string): string[] {
 	let scanningDiscoveryCommand = false;
 	let discoveryBase = cwd;
 	let skipNextPathLikeToken = false;
+	let endOfOptions = false;
 	for (let index = 0; index < parts.length; index += 1) {
 		const item = parts[index];
 		if (!item) continue;
@@ -179,19 +235,20 @@ export function shellTargets(value: string, base: string): string[] {
 			scanningDiscoveryCommand = false;
 			discoveryBase = cwd;
 			skipNextPathLikeToken = false;
+			endOfOptions = false;
 			continue;
 		}
-		if (item === "cd") {
+		if (!endOfOptions && item === "cd") {
 			const next = parts[index + 1];
 			if (next) cwd = resolvePath(next, cwd);
 			index += 1;
 			scanningDiscoveryCommand = false;
 			continue;
 		}
-		if (isDiscoveryCommandAt(parts, index)) {
+		if (!endOfOptions && isDiscoveryCommandAt(parts, index)) {
 			scanningDiscoveryCommand = true;
 			discoveryBase = cwd;
-			skipNextPathLikeToken = item === "rg" || item === "grep";
+			skipNextPathLikeToken = isContentSearchCommandAt(parts, index);
 			if (item.toLowerCase() === "git") {
 				const { directory, subcommand, subcommandIndex } = gitCommandInfo(
 					parts,
@@ -207,7 +264,11 @@ export function shellTargets(value: string, base: string): string[] {
 			continue;
 		}
 		if (!scanningDiscoveryCommand) continue;
-		if (item.startsWith("-")) continue;
+		if (!endOfOptions && item === "--") {
+			endOfOptions = true;
+			continue;
+		}
+		if (!endOfOptions && item.startsWith("-")) continue;
 		if (item.includes("=")) continue;
 		if (skipNextPathLikeToken) {
 			skipNextPathLikeToken = false;
