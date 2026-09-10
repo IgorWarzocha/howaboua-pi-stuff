@@ -29,7 +29,7 @@ function errorFromResponse(value: unknown): Error {
 	return error;
 }
 
-export function isHerdrResponseError(error: unknown): boolean {
+function isHerdrResponseError(error: unknown): boolean {
 	return (error as Error & { herdrResponse?: unknown }).herdrResponse === true;
 }
 

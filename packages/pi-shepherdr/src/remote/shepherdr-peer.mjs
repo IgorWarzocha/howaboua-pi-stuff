@@ -7,6 +7,7 @@ import { basename, dirname } from "node:path";
 
 export const MAX_PEER_FRAME_BYTES = 8 * 1024 * 1024;
 
+/** @param {string} sessionFile @param {string} terminalId */
 export function peerInboxPath(sessionFile, terminalId) {
 	const terminal = createHash("sha256")
 		.update(terminalId)
@@ -15,6 +16,7 @@ export function peerInboxPath(sessionFile, terminalId) {
 	return `${sessionFile}.shepherdr-${terminal}.json`;
 }
 
+/** @param {string} message @param {boolean} rejected */
 function deliveryError(message, rejected) {
 	return Object.assign(new Error(message), {
 		code: rejected
@@ -23,28 +25,37 @@ function deliveryError(message, rejected) {
 	});
 }
 
+/** @param {unknown} error */
+function isMissing(error) {
+	return error instanceof Error && "code" in error && error.code === "ENOENT";
+}
+
+/** @param {string} path @returns {Promise<string>} */
 async function readReceiver(path) {
 	try {
 		return await readFile(path, "utf8");
 	} catch (error) {
-		if (error.code !== "ENOENT") throw error;
+		if (!isMissing(error)) throw error;
 	}
 	// Herdr can report Pi ready before all session_start handlers complete.
 	// Wait for receiver publication, never retry a submitted message.
 	return new Promise((resolve, reject) => {
 		const watcher = watch(dirname(path));
 		let settled = false;
-		const finish = (error, value) => {
-			if (settled) return;
+		const finish = () => {
+			if (settled) return false;
 			settled = true;
 			clearTimeout(timer);
 			watcher.close();
-			if (error) reject(error);
-			else resolve(value);
+			return true;
+		};
+		/** @param {unknown} error */
+		const fail = (error) => {
+			if (finish()) reject(error);
 		};
 		const timer = setTimeout(
 			() =>
-				finish(
+				fail(
 					Object.assign(new Error("Receiver not published"), {
 						code: "ENOENT",
 					}),
@@ -53,13 +64,15 @@ async function readReceiver(path) {
 		);
 		const read = () => {
 			void readFile(path, "utf8").then(
-				(value) => finish(undefined, value),
+				(value) => {
+					if (finish()) resolve(value);
+				},
 				(error) => {
-					if (error.code !== "ENOENT") finish(error);
+					if (!isMissing(error)) fail(error);
 				},
 			);
 		};
-		watcher.on("error", (error) => finish(error));
+		watcher.on("error", fail);
 		watcher.on("change", (_event, file) => {
 			if (file === null || file === basename(path)) read();
 		});
@@ -67,14 +80,36 @@ async function readReceiver(path) {
 	});
 }
 
+/**
+ * @param {(method: string, params: object) => Promise<unknown>} request
+ * @param {import("../types.js").PaneInfo} expected
+ * @param {string} text
+ */
 export async function sendPeerMessage(request, expected, text) {
-	const { agent } = await request("agent.get", { target: expected.pane_id });
+	const result = await request("agent.get", { target: expected.pane_id });
+	const agent =
+		result &&
+		typeof result === "object" &&
+		"agent" in result &&
+		result.agent &&
+		typeof result.agent === "object"
+			? result.agent
+			: {};
+	const session = "agent_session" in agent ? agent.agent_session : undefined;
 	const sessionFile =
-		agent?.agent_session?.kind === "path"
-			? agent.agent_session.value
+		session &&
+		typeof session === "object" &&
+		"kind" in session &&
+		session.kind === "path" &&
+		"value" in session &&
+		typeof session.value === "string"
+			? session.value
 			: undefined;
 	if (
-		agent?.agent !== "pi" ||
+		!("agent" in agent) ||
+		agent.agent !== "pi" ||
+		!("terminal_id" in agent) ||
+		typeof agent.terminal_id !== "string" ||
 		agent.terminal_id !== expected.terminal_id ||
 		!sessionFile ||
 		(expected.agent_session?.kind === "path" &&
@@ -85,7 +120,7 @@ export async function sendPeerMessage(request, expected, text) {
 			true,
 		);
 	}
-	if (agent.agent_status === "blocked") {
+	if ("agent_status" in agent && agent.agent_status === "blocked") {
 		throw deliveryError(
 			"Target is blocked; answer its pending question first",
 			true,
@@ -98,9 +133,9 @@ export async function sendPeerMessage(request, expected, text) {
 		);
 	} catch (error) {
 		throw deliveryError(
-			error.code === "ENOENT"
+			isMissing(error)
 				? "Target has no native Shepherdr receiver; update and reload Shepherdr in the target Pi session"
-				: `Could not read target Shepherdr receiver: ${error.message}`,
+				: `Could not read target Shepherdr receiver: ${error instanceof Error ? error.message : String(error)}`,
 			true,
 		);
 	}
@@ -138,13 +173,14 @@ export async function sendPeerMessage(request, expected, text) {
 			host: "127.0.0.1",
 			port: descriptor.port,
 		});
+		/** @param {unknown} [error] */
 		const finish = (error) => {
 			if (settled) return;
 			settled = true;
 			clearTimeout(timer);
 			socket.destroy();
 			if (error) reject(error);
-			else resolve();
+			else resolve(undefined);
 		};
 		const failed = () =>
 			finish(

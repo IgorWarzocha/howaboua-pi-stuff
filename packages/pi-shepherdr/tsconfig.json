@@ -1,4 +1,10 @@
 {
 	"extends": "../../tsconfig.base.json",
-	"include": ["index.ts", "src/**/*.ts", "tests/**/*.ts"]
+	"compilerOptions": { "allowJs": true, "checkJs": true },
+	"include": [
+		"index.ts",
+		"src/**/*.ts",
+		"src/remote/shepherdr-peer.mjs",
+		"tests/**/*.ts"
+	]
 }
