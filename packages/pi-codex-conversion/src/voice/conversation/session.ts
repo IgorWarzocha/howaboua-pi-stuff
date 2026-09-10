@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import type { CodexVoiceAuth } from "../auth.ts";
 import type { RealtimeInitialMessageItem } from "../context.ts";
@@ -19,6 +20,9 @@ import {
 	boundedAssistantTranscript,
 	boundedTranscript,
 	realtimePeerStateFailure,
+	realtimeEventDetails,
+	realtimeEventIdentity,
+	type RealtimeVoiceEventDetails,
 	remoteError,
 	transcriptItemText,
 	utf8Chunks,
@@ -35,6 +39,7 @@ export interface CodexConversationCallbacks {
 	onTurn(turn: RealtimeVoiceTurn): void;
 	onUserTranscript(transcript: string): void;
 	onTranscriptTail(transcriptDelta: string): void;
+	onEvent?(event: RealtimeVoiceEventDetails): void;
 }
 
 export class CodexRealtimeConversation {
@@ -50,6 +55,9 @@ export class CodexRealtimeConversation {
 	private inputMuted = false;
 	private established = false;
 	private speakableResponsePending = false;
+	private readonly callId = randomUUID();
+	private readonly inputItemIds = new Set<string>();
+	private readonly completedTurnIds = new Set<string>();
 
 	constructor(callbacks: CodexConversationCallbacks, peer: CodexRealtimePeer) {
 		this.callbacks = callbacks;
@@ -143,10 +151,12 @@ export class CodexRealtimeConversation {
 		this.appendSpeakableContext(prompt);
 	}
 
-	announceCompactionStart(reason: "threshold" | "overflow"): void {
+	announceCompactionStart(reason: "threshold" | "overflow" | "rollover"): void {
 		if (this.state !== "active") return;
 		const prompt =
-			reason === "overflow"
+			reason === "rollover"
+				? "I'm moving to a fresh context window and carrying our conversation forward. Briefly acknowledge this in your natural voice."
+				: reason === "overflow"
 				? "The conversation exceeded its context limit and is being compacted. The interrupted work will continue automatically afterward. Please announce this briefly in your natural voice."
 				: "The conversation is being compacted. Please announce this briefly in your natural voice.";
 		this.appendSpeakableContext(prompt);
@@ -260,7 +270,13 @@ export class CodexRealtimeConversation {
 				this.fail(new Error("Codex voice transcript was oversized"));
 				return;
 			}
-			if (input) this.turnTracker.inputAdded(input);
+			if (input) {
+				const details = realtimeEventDetails(this.callId, event, input, true);
+				const accepted = claimIdentity(this.inputItemIds,
+					details.itemId ? `${details.itemId}:${details.textHash}` : undefined);
+				this.callbacks.onEvent?.({ ...details, accepted });
+				if (accepted) this.turnTracker.inputAdded(input);
+			}
 			return;
 		}
 		if (event["type"] === "output_transcript.added") {
@@ -272,7 +288,9 @@ export class CodexRealtimeConversation {
 			return;
 		}
 		if (event["type"] === "turn.done") {
-			this.handleCompletedTurn(event["turn"]);
+			const accepted = claimIdentity(this.completedTurnIds, realtimeEventIdentity(event["turn"]));
+			this.callbacks.onEvent?.(realtimeEventDetails(this.callId, event, undefined, accepted));
+			if (accepted) this.handleCompletedTurn(event["turn"]);
 			return;
 		}
 		if (event["type"] !== "delegation.created" || this.state !== "active")
@@ -280,10 +298,11 @@ export class CodexRealtimeConversation {
 		const item = event["item"];
 		if (!item || typeof item !== "object") return;
 		const record = item as Record<string, unknown>;
+		const delegationId = realtimeEventIdentity(record);
 		if (
 			record["type"] !== "delegation" ||
 			record["target"] !== "client" ||
-			typeof record["id"] !== "string" ||
+			!delegationId ||
 			!Array.isArray(record["content"])
 		)
 			return;
@@ -302,7 +321,8 @@ export class CodexRealtimeConversation {
 			this.fail(new Error("Codex voice delegation was empty or oversized"));
 			return;
 		}
-		const delegated = this.turnTracker.delegated(input, record["id"]);
+		const delegated = this.turnTracker.delegated(input, delegationId);
+		this.callbacks.onEvent?.(realtimeEventDetails(this.callId, event, input, Boolean(delegated)));
 		if (!delegated) return;
 		if (delegated.displayInput) this.callbacks.onUserTranscript(input);
 		this.callbacks.onTurn(delegated.turn);
@@ -402,6 +422,18 @@ export class CodexRealtimeConversation {
 		else this.callbacks.onError(error);
 		void this.close();
 	}
+}
+
+function claimIdentity(seen: Set<string>, id: string | undefined): boolean {
+	if (!id) return true;
+	if (seen.has(id)) return false;
+	seen.add(id);
+	// Bound per-call replay history without retaining transcript content.
+	if (seen.size > 2_048) {
+		const oldest = seen.values().next().value;
+		if (oldest !== undefined) seen.delete(oldest);
+	}
+	return true;
 }
 
 function terminalTransportError(message: string): boolean {

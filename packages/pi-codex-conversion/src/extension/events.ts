@@ -404,6 +404,8 @@ export function registerCodexEvents(
 		if (contextManagementResult && "cancel" in contextManagementResult)
 			return contextManagementResult;
 		if (event.reason !== "manual") runtime.voice.announceCompactionStart(event.reason);
+		else if (state.contextWindows.isHybridCompactionRunning())
+			runtime.voice.announceCompactionStart("rollover");
 		const nativeCompaction = plan.nativeCompaction;
 		if (nativeCompaction || plan.contextManagement)
 			runtime.voice.compactionStarted();

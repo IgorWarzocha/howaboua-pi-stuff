@@ -7,6 +7,7 @@ import {
 	type VoiceControllerRuntime,
 } from "./controller-start.ts";
 import type { CodexRealtimeConversation } from "./conversation/session.ts";
+import { REALTIME_EVENT_ENTRY_TYPE } from "./message-types.ts";
 
 export interface RealtimeContextRefreshOptions {
 	sourceLeafId?: string | undefined;
@@ -67,7 +68,7 @@ export class RealtimeContextRefresh {
 		}
 		const previous = activeState.session;
 		const generation = this.runtime.startGeneration;
-		const leafId = ctx.sessionManager.getLeafId();
+		const leafId = conversationLeafId(ctx);
 		const sessionId = ctx.sessionManager.getSessionId();
 		const plan = this.runtime.realtimePeerPlan;
 		const abortController = new AbortController();
@@ -87,7 +88,7 @@ export class RealtimeContextRefresh {
 				!this.isCurrent(previous, generation, abortController)
 			)
 				return;
-			if (!prepared.summary || ctx.sessionManager.getLeafId() !== leafId) {
+			if (!prepared.summary || conversationLeafId(ctx) !== leafId) {
 				ctx.ui.notify("Voice context refresh skipped because the conversation was empty or changed while summarizing. Keeping the current call.", "warning");
 				return;
 			}
@@ -127,4 +128,11 @@ export class RealtimeContextRefresh {
 			this.runtime.state.session === session
 		);
 	}
+}
+
+function conversationLeafId(ctx: ExtensionContext): string | undefined {
+	// Wire diagnostics do not change the conversation being summarized.
+	return ctx.sessionManager.getBranch().findLast(
+		(entry) => entry.type !== "custom" || entry.customType !== REALTIME_EVENT_ENTRY_TYPE,
+	)?.id;
 }

@@ -1,4 +1,47 @@
+import { createHash } from "node:crypto";
 import { MAX_REALTIME_VOICE_INPUT_BYTES } from "../prompts.ts";
+
+export interface RealtimeVoiceEventDetails {
+	callId: string;
+	type: string;
+	itemId?: string;
+	turnId?: string;
+	role?: "user" | "assistant";
+	offsetMs?: number;
+	textHash?: string;
+	accepted: boolean;
+}
+
+export function realtimeEventIdentity(value: unknown): string | undefined {
+	if (!value || typeof value !== "object") return undefined;
+	const id = (value as Record<string, unknown>)["id"];
+	return typeof id === "string" && id.length > 0 && Buffer.byteLength(id) <= 256 ? id : undefined;
+}
+
+export function realtimeEventDetails(
+	callId: string,
+	event: Record<string, unknown>,
+	text: string | undefined,
+	accepted: boolean,
+): RealtimeVoiceEventDetails {
+	const itemId = realtimeEventIdentity(event["item"]);
+	const turnId = realtimeEventIdentity(event["turn"]);
+	const offset = event["offset_ms"];
+	const turn = event["turn"];
+	const record = turn && typeof turn === "object" ? turn as Record<string, unknown> : undefined;
+	const role = record?.["role"];
+	const transcript = text ?? boundedAssistantTranscript(record?.["transcript"]);
+	return {
+		callId,
+		type: String(event["type"]),
+		...(itemId ? { itemId } : {}),
+		...(turnId ? { turnId } : {}),
+		...(role === "user" || role === "assistant" ? { role } : {}),
+		...(typeof offset === "number" && Number.isFinite(offset) ? { offsetMs: offset } : {}),
+		...(transcript ? { textHash: createHash("sha256").update(transcript).digest("hex") } : {}),
+		accepted,
+	};
+}
 
 export function boundedTranscript(value: unknown): string | "oversized" | undefined {
 	if (typeof value !== "string") return undefined;

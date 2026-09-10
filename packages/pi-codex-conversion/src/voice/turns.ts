@@ -124,10 +124,12 @@ export class RealtimeVoiceTurnTracker {
 	private readonly delegationIds = new Set<string>();
 	private readonly outstandingDelegations = new Map<string, string>();
 	private readonly outstandingInputs = new Set<string>();
+	private readonly delegatedInputsSinceSpeech = new Set<string>();
 
 	inputAdded(input: string): void {
 		const startsTurn = !this.activeUserTurn;
 		if (!this.activeUserTurn) {
+			this.delegatedInputsSinceSpeech.clear();
 			this.recentlyAnsweredUserInput = undefined;
 			this.activeUserTurn = {};
 			this.unfinishedUserTurns.push(this.activeUserTurn);
@@ -145,6 +147,9 @@ export class RealtimeVoiceTurnTracker {
 			return false;
 		}
 		const turn = this.unfinishedUserTurns.shift();
+		// A finalized-only user turn is also fresh input. Late delegated finishes
+		// return above and must not reopen admission for the old request.
+		if (!turn) this.delegatedInputsSinceSpeech.clear();
 		if (this.activeUserTurn === turn) this.activeUserTurn = undefined;
 		const transcript = this.transcript.finish("user", input);
 		this.pendingUserInputs.push({ input, transcript });
@@ -157,9 +162,10 @@ export class RealtimeVoiceTurnTracker {
 	): TrackedRealtimeDelegation | undefined {
 		if (this.delegationIds.has(delegationId)) return undefined;
 		this.delegationIds.add(delegationId);
-		if (this.outstandingInputs.has(input)) return undefined;
+		if (this.outstandingInputs.has(input) || this.delegatedInputsSinceSpeech.has(input)) return undefined;
 		this.outstandingDelegations.set(delegationId, input);
 		this.outstandingInputs.add(input);
+		this.delegatedInputsSinceSpeech.add(input);
 
 		if (this.activeUserTurn) {
 			const active = this.activeUserTurn;
@@ -234,6 +240,7 @@ export class RealtimeVoiceTurnTracker {
 		this.delegationIds.clear();
 		this.outstandingDelegations.clear();
 		this.outstandingInputs.clear();
+		this.delegatedInputsSinceSpeech.clear();
 	}
 
 	private finishDelegation(

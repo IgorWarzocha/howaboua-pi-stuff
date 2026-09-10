@@ -252,6 +252,7 @@ async function startConversation(
 			},
 			onStatus: options.onStatus,
 			onTurn: (turn) => { void options.messages.voiceTurn(turn); },
+			onEvent: (event) => options.messages.realtimeEvent(event),
 			onUserTranscript: (transcript) =>
 				options.messages.userTranscript(transcript),
 			onTranscriptTail: (transcript) =>

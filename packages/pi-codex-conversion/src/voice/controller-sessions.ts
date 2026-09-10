@@ -3,6 +3,7 @@ import type { CodexVoiceAuth } from "./auth.ts";
 import type { RealtimeInitialMessageItem } from "./context.ts";
 import type { CodexRealtimePeer } from "./conversation/peer.ts";
 import type { CodexRealtimeConversation } from "./conversation/session.ts";
+import type { RealtimeVoiceEventDetails } from "./conversation/wire.ts";
 import type { CodexDictationSession } from "./dictation/session.ts";
 import type { RealtimeVoiceTurn } from "./turns.ts";
 
@@ -20,6 +21,7 @@ interface RealtimeSessionLifecycle extends SessionLifecycle<CodexRealtimeConvers
 	onTurn(turn: RealtimeVoiceTurn): void;
 	onUserTranscript(transcript: string): void;
 	onTranscriptTail(transcript: string): void;
+	onEvent(event: RealtimeVoiceEventDetails): void;
 }
 
 interface DictationSessionLifecycle extends SessionLifecycle<CodexDictationSession> {
@@ -50,6 +52,7 @@ export async function startControllerConversation(options: {
 		onTurn: options.lifecycle.onTurn,
 		onUserTranscript: options.lifecycle.onUserTranscript,
 		onTranscriptTail: options.lifecycle.onTranscriptTail,
+		onEvent: options.lifecycle.onEvent,
 	}, realtimePeer);
 	options.lifecycle.onCreated(session);
 	if (options.signal?.aborted) { await session.close(); return; }

@@ -6,6 +6,8 @@ import type {
 import { trySendCodexDeveloperCustomMessage } from "../developer-messages.ts";
 import { CANCELLED, interruptible } from "./cancellation.ts";
 import { isVoiceContextExcludedMessage } from "./context-visibility.ts";
+import type { RealtimeVoiceEventDetails } from "./conversation/wire.ts";
+import { REALTIME_EVENT_ENTRY_TYPE } from "./message-types.ts";
 import { renderRealtimeTranscriptTail } from "./prompts.ts";
 import type { RealtimeVoiceTurn } from "./turns.ts";
 import {
@@ -63,6 +65,10 @@ export class CodexVoiceSessionMessages {
 
 	contextSummary(summary: string): void {
 		this.pi.appendEntry(VOICE_CONTEXT_MESSAGE_TYPE, { summary });
+	}
+
+	realtimeEvent(event: RealtimeVoiceEventDetails): void {
+		this.pi.appendEntry(REALTIME_EVENT_ENTRY_TYPE, event);
 	}
 
 	userTranscript(transcript: string): void {
