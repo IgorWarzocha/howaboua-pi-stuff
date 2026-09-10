@@ -3,7 +3,7 @@ import { activityTask } from "./activity.js";
 import type { AgentsParams, READ_SOURCES } from "./agents-contract.js";
 import type { AgentFleet, ConnectedMachine } from "./fleet.js";
 import { getSnapshot } from "./herdr.js";
-import { isHerdrResponseError } from "./herdr-client.js";
+import { isDispatchRejected } from "./herdr-client.js";
 import { agentSource } from "./messages.js";
 import type { WorkAttempt } from "./monitor-state.js";
 import { loadAgentProfiles } from "./profiles.js";
@@ -311,7 +311,7 @@ export async function dispatchAgentWork(
 		runtime.monitor.releaseWorkClaim(attempt, error);
 		if (sendStarted) await runtime.monitor.handleWorkFailure(attempt, error);
 		else runtime.monitor.rejectWork(attempt);
-		if (addedWatch && (!sendStarted || isHerdrResponseError(error))) {
+		if (addedWatch && (!sendStarted || isDispatchRejected(error))) {
 			const record = runtime.monitor
 				.list()
 				.find((record) => record.terminalId === panel.terminal_id);

@@ -75,7 +75,9 @@ Cancelling a blocking call does not kill its worker. The waiter detaches and the
 
 Prompts sent through `agents` identify peer messages versus delegated tasks and include the sender's host, session, workspace, tab and pane identity, with current names. Reports include source workspace and tab names too. Raw `herdr agent prompt` calls bypass this attribution. These are runtime locations, not the desktop window showing a pane.
 
-Idle task prompts retain Pi's normal user kickoff and extension preparation. When the receiving agent is already running and Pi Codex developer delivery is active, Shepherdr routes attributed messages into that prepared run as developer steering. Without it, messages remain normal prompts. Install Shepherdr on receiving agents as well as controllers for this delivery.
+Messages sent through `agents` bypass the receiving Pi editor, preserving unsent drafts. Update and reload Shepherdr on receiving agents as well as controllers. If a receiver is unavailable, delivery fails without pasting into its terminal. Raw `herdr agent prompt` still uses terminal input and does not provide this protection.
+
+Idle messages start a prepared user turn. Messages arriving during a run use steering, promoted to developer messages when Pi Codex developer delivery is active. Otherwise they remain ordinary Pi custom messages.
 
 For `answer` inside Code or Notebook Mode, update Pi Ask on workers together with Shepherdr on controllers.
 

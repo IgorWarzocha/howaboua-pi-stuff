@@ -1,5 +1,6 @@
 import { createConnection } from "node:net";
-import type { HerdrEvent } from "./types.js";
+import { sendPeerMessage } from "./remote/shepherdr-peer.mjs";
+import type { HerdrEvent, PaneInfo } from "./types.js";
 
 const MAX_FRAME_BUFFER = 8 * 1024 * 1024;
 
@@ -32,6 +33,15 @@ export function isHerdrResponseError(error: unknown): boolean {
 	return (error as Error & { herdrResponse?: unknown }).herdrResponse === true;
 }
 
+export function isDispatchRejected(error: unknown): boolean {
+	return (
+		isHerdrResponseError(error) ||
+		(error instanceof Error &&
+			"code" in error &&
+			error.code === "SHEPHERDR_DELIVERY_REJECTED")
+	);
+}
+
 export function isHerdrErrorCode(error: unknown, code: string): boolean {
 	return (
 		isHerdrResponseError(error) &&
@@ -41,6 +51,7 @@ export function isHerdrErrorCode(error: unknown, code: string): boolean {
 
 export interface HerdrConnection {
 	request<T>(method: string, params?: object, timeoutMs?: number): Promise<T>;
+	sendMessage(agent: PaneInfo, text: string): Promise<void>;
 	subscribe(
 		subscriptions: object[],
 		onEvent: (event: HerdrEvent) => void,
@@ -59,6 +70,14 @@ export class HerdrClient implements HerdrConnection {
 			);
 		}
 		this.socketPath = socketPath;
+	}
+
+	sendMessage(agent: PaneInfo, text: string): Promise<void> {
+		return sendPeerMessage(
+			(method, params) => this.request(method, params),
+			agent,
+			text,
+		);
 	}
 
 	request<T>(

@@ -21,7 +21,7 @@ import {
 import { type AskAnswer, prepareAskAnswer } from "./ask-answer.js";
 import type { AgentFleet } from "./fleet.js";
 import { resolvePiAgent } from "./herdr.js";
-import { isHerdrResponseError } from "./herdr-client.js";
+import { isDispatchRejected } from "./herdr-client.js";
 import {
 	resolvePreparationDirectory,
 	rollbackStartedAgent,
@@ -164,10 +164,10 @@ export function createAgentsTool(fleet: AgentFleet) {
 						update,
 						async () => {
 							promptSubmissionStarted = true;
-							await runtime.client.request("agent.prompt", {
-								target: started.id,
-								text: attributedMessage,
-							});
+							await runtime.client.sendMessage(
+								started.agent,
+								attributedMessage,
+							);
 							promptAccepted = true;
 						},
 						{ expectUserMessage: true },
@@ -175,7 +175,7 @@ export function createAgentsTool(fleet: AgentFleet) {
 				} catch (error) {
 					if (
 						!promptAccepted &&
-						(!promptSubmissionStarted || isHerdrResponseError(error))
+						(!promptSubmissionStarted || isDispatchRejected(error))
 					) {
 						return rollbackStartedAgent(runtime.client, started, error);
 					}
@@ -272,10 +272,7 @@ export function createAgentsTool(fleet: AgentFleet) {
 				);
 				if (params.action === "send") {
 					executionSignal.throwIfAborted();
-					await runtime.client.request("agent.prompt", {
-						target: panel.pane_id,
-						text: attributedMessage,
-					});
+					await runtime.client.sendMessage(panel, attributedMessage);
 					return toolResult({
 						sent: true,
 						machine: runtime.machine,
@@ -289,11 +286,7 @@ export function createAgentsTool(fleet: AgentFleet) {
 					params.blocking !== false,
 					executionSignal,
 					update,
-					() =>
-						runtime.client.request("agent.prompt", {
-							target: panel.pane_id,
-							text: attributedMessage,
-						}),
+					() => runtime.client.sendMessage(panel, attributedMessage),
 					{ expectUserMessage: true },
 				);
 				return toolResult(

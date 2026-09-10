@@ -4,7 +4,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { isSettledStatus } from "./activity.js";
 import { getSnapshot } from "./herdr.js";
-import { type HerdrConnection, isHerdrResponseError } from "./herdr-client.js";
+import { type HerdrConnection, isDispatchRejected } from "./herdr-client.js";
 import { parseMonitorEvent } from "./monitor-event.js";
 import { MonitorEvents } from "./monitor-events.js";
 import { MonitorState, type WorkAttempt } from "./monitor-state.js";
@@ -190,7 +190,7 @@ export class AgentMonitor {
 		attempt: WorkAttempt | undefined,
 		error: unknown,
 	): Promise<void> {
-		if (isHerdrResponseError(error)) {
+		if (isDispatchRejected(error)) {
 			this.rejectWork(attempt);
 			return;
 		}
