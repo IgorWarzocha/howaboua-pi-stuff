@@ -94,29 +94,26 @@ export function tryStartCodexPreparedIdleKickoff(
 	pi: ExtensionAPI,
 	ctx: Pick<ExtensionContext, "ui">,
 ): boolean {
-	const request: PreparedIdleKickoffRequest = { protocol: 1, action: "claim" };
-	pi.events.emit(PREPARED_IDLE_KICKOFF_CHANNEL, request);
-	if (request.outcome === "pending") {
+	const outcome = tryStartCodexPreparedIdlePrompt(pi);
+	if (outcome === "pending") {
 		ctx.ui.notify(
 			"An automatic turn is pending. If no turn starts, send a user message or reload the session.",
 			"warning",
 		);
 	}
-	if (request.outcome && typeof request.outcome === "object")
-		throw new Error(request.outcome.error);
-	return request.outcome !== undefined;
+	return outcome !== false;
 }
 
-/** Reserve preparation for a distinct user prompt; never coalesce it away. */
+/** Claim idle preparation; callback prompts are distinct, never coalesced away. */
 export function tryStartCodexPreparedIdlePrompt(
 	pi: ExtensionAPI,
-	start: () => void,
-): boolean {
-	const request: PreparedIdleKickoffRequest = { protocol: 1, action: "claim", start };
+	start?: () => void,
+): "started" | "pending" | false {
+	const request: PreparedIdleKickoffRequest = { protocol: 1, action: "claim", ...(start ? { start } : {}) };
 	pi.events.emit(PREPARED_IDLE_KICKOFF_CHANNEL, request);
 	if (request.outcome && typeof request.outcome === "object")
 		throw new Error(request.outcome.error);
-	return request.outcome !== undefined;
+	return request.outcome ?? false;
 }
 
 export function updateCodexPreparedIdleKickoff(
