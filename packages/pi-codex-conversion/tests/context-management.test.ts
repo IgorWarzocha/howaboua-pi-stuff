@@ -199,6 +199,28 @@ test("context windows preserve rollover and native request semantics", async (t)
 		);
 		assert.deepEqual(sent[2]!.options, { deliverAs: "steer", triggerTurn: true });
 		assert.equal(kickoffs.length, 1, "active runs receive steering without another kickoff");
+
+		const completedCtx = createContext() as ExtensionContext;
+		completedCtx.sessionManager.getBranch = () => [{
+			type: "message", message: { role: "assistant", stopReason: "stop" },
+		}] as never;
+		const compactWithSavedNotes = (customInstructions?: string) => {
+			checkpointManager.prepareCompaction({ reason: "manual", customInstructions, signal: new AbortController().signal } as never, mode);
+			return checkpointManager.finishManualCheckpointRequest(pi, completedCtx, cancelled, true);
+		};
+		checkpointManager.beginTurn(completedCtx);
+		const oldWrite = checkpointManager.trackNoteWrite(completedCtx);
+		oldWrite();
+		checkpointManager.settleTurn(completedCtx);
+		assert.equal(compactWithSavedNotes(), true, "completed note save needs no checkpoint turn");
+		assert.equal(sent.length, 3);
+		assert.equal(kickoffs.length, 1);
+		assert.equal(compactWithSavedNotes("Preserve the decision"), false, "explicit instructions still need a model turn");
+		checkpointManager.clearTurnNotes();
+		checkpointManager.beginTurn(completedCtx);
+		oldWrite();
+		checkpointManager.settleTurn(completedCtx);
+		assert.equal(compactWithSavedNotes(), false, "a late write cannot credit the next turn");
 	}
 	const hybridMessages = [
 		{ role: "user", content: "retained checkpoint tail", timestamp: 1 },

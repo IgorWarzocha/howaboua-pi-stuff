@@ -167,7 +167,7 @@ export function createHistoryNotesTools(
 	pi?: Pick<ExtensionAPI, "appendEntry">,
 	resolveMode: (ctx: ExtensionContext) => ContextManagementMode = () =>
 		"local",
-	finishNoteWrite?: (action: NotesAction, path: unknown, ctx: ExtensionContext) => boolean,
+	prepareNoteWrite?: (action: NotesAction, path: unknown, ctx: ExtensionContext) => () => boolean,
 ): [
 	ToolDefinition<typeof HISTORY_PARAMETERS, CodexHistoryNotesDetails>,
 	ToolDefinition<typeof NOTES_PARAMETERS, CodexHistoryNotesDetails>,
@@ -204,6 +204,9 @@ export function createHistoryNotesTools(
 			async execute(_id, params, signal, _update, ctx) {
 				const action = notesAction(params.action);
 				validateNotesArguments(action, params);
+				const finishNoteWrite = action === "write_file" || action === "append_to_file"
+					? prepareNoteWrite?.(action, params.path, ctx)
+					: undefined;
 				const result = await callHistoryNotesTool(
 					"notes",
 					action,
@@ -214,7 +217,7 @@ export function createHistoryNotesTools(
 					resolveMode(ctx),
 					pi,
 				);
-				return finishNoteWrite?.(action, params.path, ctx)
+				return finishNoteWrite?.()
 					? { ...result, terminate: true }
 					: result;
 			},

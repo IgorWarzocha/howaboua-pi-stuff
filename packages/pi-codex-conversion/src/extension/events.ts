@@ -317,6 +317,7 @@ export function registerCodexEvents(
 			runtime.voice.piInput(event.text, event.streamingBehavior);
 	});
 	pi.on("before_agent_start", async (event, ctx) => {
+		state.contextWindows.clearTurnNotes();
 		state.contextTree.handoff.preparing(event.prompt);
 		if (!state.config.voiceFeaturesOnly) await reserve.beforeTurn(ctx);
 		runtime.autoReasoning.begin(ctx);
@@ -344,6 +345,7 @@ export function registerCodexEvents(
 		};
 	});
 	pi.on("agent_start", async (_event, ctx) => {
+		state.contextWindows.beginTurn(ctx);
 		updateCodexPreparedIdleKickoff(pi, "agent_start");
 		state.contextTree.handoff.started(ctx);
 		runtime.autoReasoning.begin(ctx);
@@ -358,6 +360,7 @@ export function registerCodexEvents(
 		runtime.lanVoice.uiPromptEnded(!ctx.isIdle());
 	});
 	pi.on("agent_settled", async (_event, ctx) => {
+		state.contextWindows.settleTurn(ctx);
 		updateCodexPreparedIdleKickoff(pi, "agent_settled");
 		flushCodexReasoningUpdates(pi, ctx);
 		runtime.autoReasoning.settle(ctx);
@@ -432,9 +435,24 @@ export function registerCodexEvents(
 		state.pendingPiCompactionNativeWindow = undefined;
 		runtime.voice.compactionFinished();
 		const plan = resolveCodexRuntimePlanForState(ctx, state);
-		state.contextWindows.finishManualCheckpointRequest(
+		const reuseNotes = state.contextWindows.finishManualCheckpointRequest(
 			pi, ctx, event, plan.contextManagement && !plan.contextManagementHybrid,
 		);
+		if (!reuseNotes) return;
+		try {
+			const rolled = plan.contextManagementMode === "tree"
+				? state.contextTree.schedule(ctx, { triggerTurn: false }) && await state.contextTree.settle(pi, ctx)
+				: await state.contextKickoff.startWindow(pi, ctx, {
+					triggerTurn: false,
+					mode: plan.contextManagementMode,
+					trimPreviousWindow: true,
+				});
+			if (rolled) runtime.resetTransportAfterCompaction(ctx.sessionManager.getSessionId());
+			else if (plan.contextManagementMode !== "tree")
+				ctx.ui.notify("Context rollover did not start", "warning");
+		} catch (error) {
+			ctx.ui.notify(`Context rollover failed: ${error instanceof Error ? error.message : String(error)}`, "error");
+		}
 	});
 	pi.on("session_compact", async (event, ctx) => {
 		try {

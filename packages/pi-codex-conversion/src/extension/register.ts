@@ -41,6 +41,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 			const contextManagementChanged =
 				config.compaction.contextManagement !==
 				previousConfig.compaction.contextManagement;
+			if (contextManagementChanged) runtime.state.contextWindows.clearTurnNotes();
 			tools.applyConfig(config);
 			runtime.state.availableToolNames = pi.getAllTools().map((tool) => tool.name);
 			if (
