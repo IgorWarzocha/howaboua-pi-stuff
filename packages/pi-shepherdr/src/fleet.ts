@@ -119,8 +119,9 @@ export class AgentFleet {
 		this.deactivate();
 		const generation = this.generation;
 		this.context = ctx;
-		const catalog = await readMachineCatalog();
+		const { machines: catalog, warning } = await readMachineCatalog();
 		if (!this.isCurrent(generation, ctx)) return;
+		if (warning) ctx.ui.notify(warning, "warning");
 		const machines = Object.entries(catalog).filter(
 			([, machine]) => machine.enabled,
 		);
@@ -199,8 +200,9 @@ export class AgentFleet {
 		const ctx = this.context;
 		if (!ctx) return;
 		const generation = this.generation;
-		const catalog = await readMachineCatalog();
+		const { machines: catalog, warning } = await readMachineCatalog();
 		if (!this.isCurrent(generation, ctx)) return;
+		if (warning) ctx.ui.notify(warning, "warning");
 		const reconnect: string[] = [];
 
 		for (const [name, runtime] of this.runtimes) {

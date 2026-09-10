@@ -54,7 +54,8 @@ export async function agentsHelp(): Promise<Record<string, unknown>> {
 			answer: "target answers machine? blocking?",
 		},
 		rules: {
-			machine: "Herdr profile ID from list; local = current server",
+			machine:
+				"Omit for local (host running Pi); list/find omit for all machines. Remote: profile ID from list, not label/hostname",
 			target: "Use spawn/find target exactly",
 			label: "2-3 words; tab/session",
 			answers: "[{selections?:string[],other?:string,comment?:string}]",
