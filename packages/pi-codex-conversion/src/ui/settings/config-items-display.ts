@@ -1,5 +1,5 @@
-import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
-import { type ConfigSetting, toggle } from "./config-items-shared.ts";
+import { type CodexConversionConfig, normalizeCompactToolsMode } from "../../adapter/activation/config.ts";
+import { type ConfigSetting, setting, toggle } from "./config-items-shared.ts";
 
 export function buildDisplaySettings(
 	config: CodexConversionConfig,
@@ -25,15 +25,18 @@ export function buildDisplaySettings(
 			}),
 			"Rename tool calls to user-friendly names.",
 		),
-		toggle(
-			"compactTools",
-			"Compact tool output",
-			config.ui.compactTools,
-			(enabled, current) => ({
+		setting(
+			{
+				id: "compactTools",
+				label: "Compact tool output",
+				currentValue: config.ui.compactTools,
+				values: ["off", "on", "minimal"],
+				description: "On hides collapsed patch diffs. Minimal also replaces Code / Notebook text previews with an expand hint; nested tool output stays visible.",
+			},
+			(value, current) => ({
 				...current,
-				ui: { ...current.ui, compactTools: enabled },
+				ui: { ...current.ui, compactTools: normalizeCompactToolsMode(value) ?? current.ui.compactTools },
 			}),
-			"Hide patch diffs in collapsed tool results. Expand a result to inspect the changes.",
 		),
 		toggle(
 			"codeModeDetails",
