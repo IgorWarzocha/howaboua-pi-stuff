@@ -1,5 +1,14 @@
 # @howaboua/pi-extensions
 
+## 0.0.72
+
+- Include bundled package updates:
+
+  - @howaboua/pi-auto-trees: Keep custom messages out of the editor when returning to their markers with `/end`. Preserve the marked context by navigating to its existing checkpoint rather than reopening the message for editing.
+  - @howaboua/pi-gippity-control: Streamed realtime replies now return their final text to the requesting delegation instead of leaving the entire answer in general session context.
+  - @howaboua/pi-shepherdr: Deliver peer messages directly to Pi without submitting unsent human drafts. - Preserve slash-command arguments and use the target session's skill and prompt-template expansion. - Return submission-only acknowledgements for registered extension commands instead of waiting for an assistant reply. Requires Pi 0.84.4 or newer. Update and reload Shepherdr on both controllers and workers, and Pi Codex Conversion where installed.
+  - @howaboua/pi-shepherdr: Fixed idle agent reports and manual checkpoint requests to preserve prompt preparation, coalesce concurrent continuations, and process reports arriving during turn settlement. - Manual Compact reuses notes saved in the last completed turn for Local, Tree, and Remote notes-only windows, avoiding a redundant checkpoint turn. Explicit compaction instructions still request a checkpoint. - Compact tool output now offers Off, On, and Minimal. Minimal keeps nested tool results and an expand hint while hiding the trailing Code / Notebook text preview until expanded. Existing Off and On settings keep their behavior. - Shepherdr help makes local routing explicit: agent calls default to the host running Pi, while unfiltered discovery searches all machines. Remote calls use profile IDs, not machine labels or hostnames. - Fixed Shepherdr startup after a Herdr executable replacement leaves a stale ` (deleted)` path. Recovery silently uses the replacement at the same location. Command failures remain visible and no longer imply that Herdr is outdated.
+
 ## 0.0.71
 
 - Include bundled package updates:
