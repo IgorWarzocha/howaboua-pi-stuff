@@ -1,5 +1,21 @@
 # @howaboua/pi-shepherdr
 
+## 0.2.1
+
+- Deliver peer messages directly to Pi without submitting unsent human drafts.
+
+  - Preserve slash-command arguments and use the target session's skill and prompt-template expansion.
+  - Return submission-only acknowledgements for registered extension commands instead of waiting for an assistant reply.
+
+  Requires Pi 0.84.4 or newer. Update and reload Shepherdr on both controllers and workers, and Pi Codex Conversion where installed.
+
+- Fixed idle agent reports and manual checkpoint requests to preserve prompt preparation, coalesce concurrent continuations, and process reports arriving during turn settlement.
+
+  - Manual Compact reuses notes saved in the last completed turn for Local, Tree, and Remote notes-only windows, avoiding a redundant checkpoint turn. Explicit compaction instructions still request a checkpoint.
+  - Compact tool output now offers Off, On, and Minimal. Minimal keeps nested tool results and an expand hint while hiding the trailing Code / Notebook text preview until expanded. Existing Off and On settings keep their behavior.
+  - Shepherdr help makes local routing explicit: agent calls default to the host running Pi, while unfiltered discovery searches all machines. Remote calls use profile IDs, not machine labels or hostnames.
+  - Fixed Shepherdr startup after a Herdr executable replacement leaves a stale ` (deleted)` path. Recovery silently uses the replacement at the same location. Command failures remain visible and no longer imply that Herdr is outdated.
+
 ## 0.2.0
 
 - Shepherdr now reads existing Herdr machine profiles and requires Herdr 0.9 or newer. Manage profiles in Herdr; `shepherdr.json`, old machine aliases and their saved watches are no longer used.

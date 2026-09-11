@@ -1,5 +1,35 @@
 # Changelog
 
+## 3.0.32
+
+- Fix Notebook's first-run Deno installation in standalone Pi by loading the archive extractor through the extension's static module graph.
+
+- Reduced installation dependencies without removing Notebook or shell-summary features.
+
+  - Removed the general ZIP library and Bash grammar package's native install hook.
+  - Removed the tokenizer dependency and unused encodings while preserving compaction token counts.
+  - Updated OpenAI, Undici, and the shell parser runtime, including transport security fixes.
+
+- Deliver peer messages directly to Pi without submitting unsent human drafts.
+
+  - Preserve slash-command arguments and use the target session's skill and prompt-template expansion.
+  - Return submission-only acknowledgements for registered extension commands instead of waiting for an assistant reply.
+
+  Requires Pi 0.84.4 or newer. Update and reload Shepherdr on both controllers and workers, and Pi Codex Conversion where installed.
+
+- Fixed idle agent reports and manual checkpoint requests to preserve prompt preparation, coalesce concurrent continuations, and process reports arriving during turn settlement.
+
+  - Manual Compact reuses notes saved in the last completed turn for Local, Tree, and Remote notes-only windows, avoiding a redundant checkpoint turn. Explicit compaction instructions still request a checkpoint.
+  - Compact tool output now offers Off, On, and Minimal. Minimal keeps nested tool results and an expand hint while hiding the trailing Code / Notebook text preview until expanded. Existing Off and On settings keep their behavior.
+  - Shepherdr help makes local routing explicit: agent calls default to the host running Pi, while unfiltered discovery searches all machines. Remote calls use profile IDs, not machine labels or hostnames.
+  - Fixed Shepherdr startup after a Herdr executable replacement leaves a stale ` (deleted)` path. Recovery silently uses the replacement at the same location. Command failures remain visible and no longer imply that Herdr is outdated.
+
+- Streamed realtime replies now return their final text to the requesting delegation instead of leaving the entire answer in general session context.
+
+  - Context-window rollover now requests a brief spoken acknowledgement before voice-context refresh, including notes-only mode.
+  - Voice context refresh now preserves the summary and queues arriving spoken requests across call replacement instead of discarding them. Accepted speech finishes on the current call before replacement.
+  - Session diagnostics retain voice call, transcript and delegation identities with text hashes to distinguish event replay from fresh recognition.
+
 ## 3.0.31
 
 - Restore full extension prompt preparation when continuing into a new context window or starting review triage.

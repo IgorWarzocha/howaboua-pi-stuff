@@ -24,13 +24,9 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-ask/CHANGELOG.md)
 
-### @howaboua/pi-auto-trees — 0.1.14
+### @howaboua/pi-auto-trees — 0.1.15
 
-- Tree navigation and `/end` now carry conversation summaries through the active notes backend.
-
-  - The agent turn ends after the requested note write, without a follow-up reply.
-  - Arriving agents receive a branch summary directing them to read the note before resuming.
-  - Default `/end` guidance is task-neutral.
+- Keep custom messages out of the editor when returning to their markers with `/end`. Preserve the marked context by navigating to its existing checkpoint rather than reopening the message for editing.
 
 [Full changelog](./packages/pi-auto-trees/CHANGELOG.md)
 
@@ -64,20 +60,41 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-cache-hit-predictor/CHANGELOG.md)
 
-### @howaboua/pi-codex-conversion — 3.0.31
+### @howaboua/pi-codex-conversion — 3.0.32
 
-- Restore full extension prompt preparation when continuing into a new context window or starting review triage.
+- Fix Notebook's first-run Deno installation in standalone Pi by loading the archive extractor through the extension's static module graph.
 
-  - Keep tool instructions current through Pi's normal startup hooks without resetting the Notebook.
-  - Let active context management own review-loop navigation summaries.
+- Reduced installation dependencies without removing Notebook or shell-summary features.
 
-- Keep Notebook Mode working in standalone Pi without loading the native ZeroMQ addon that crashes Bun. Notebook uses a TypeScript TCP transport to its Deno kernel; no separate Node installation is required.
+  - Removed the general ZIP library and Bash grammar package's native install hook.
+  - Removed the tokenizer dependency and unused encodings while preserving compaction token counts.
+  - Updated OpenAI, Undici, and the shell parser runtime, including transport security fixes.
+
+- Deliver peer messages directly to Pi without submitting unsent human drafts.
+
+  - Preserve slash-command arguments and use the target session's skill and prompt-template expansion.
+  - Return submission-only acknowledgements for registered extension commands instead of waiting for an assistant reply.
+
+  Requires Pi 0.84.4 or newer. Update and reload Shepherdr on both controllers and workers, and Pi Codex Conversion where installed.
+
+- Fixed idle agent reports and manual checkpoint requests to preserve prompt preparation, coalesce concurrent continuations, and process reports arriving during turn settlement.
+
+  - Manual Compact reuses notes saved in the last completed turn for Local, Tree, and Remote notes-only windows, avoiding a redundant checkpoint turn. Explicit compaction instructions still request a checkpoint.
+  - Compact tool output now offers Off, On, and Minimal. Minimal keeps nested tool results and an expand hint while hiding the trailing Code / Notebook text preview until expanded. Existing Off and On settings keep their behavior.
+  - Shepherdr help makes local routing explicit: agent calls default to the host running Pi, while unfiltered discovery searches all machines. Remote calls use profile IDs, not machine labels or hostnames.
+  - Fixed Shepherdr startup after a Herdr executable replacement leaves a stale ` (deleted)` path. Recovery silently uses the replacement at the same location. Command failures remain visible and no longer imply that Herdr is outdated.
+
+- Streamed realtime replies now return their final text to the requesting delegation instead of leaving the entire answer in general session context.
+
+  - Context-window rollover now requests a brief spoken acknowledgement before voice-context refresh, including notes-only mode.
+  - Voice context refresh now preserves the summary and queues arriving spoken requests across call replacement instead of discarding them. Accepted speech finishes on the current call before replacement.
+  - Session diagnostics retain voice call, transcript and delegation identities with text hashes to distinguish event replay from fresh recognition.
 
 [Full changelog](./packages/pi-codex-conversion/CHANGELOG.md)
 
-### @howaboua/pi-codex-imagegen — 0.0.3
+### @howaboua/pi-codex-imagegen — 0.0.4
 
-- Fixed Codex web search and image generation to use local Codex authentication on unrelated chat providers while preserving explicit Codex routes and optional Pi Codex integration. Removed Pi Codex package dependencies.
+- Image generation and editing now request gpt-image-2.5. Proxy model mappings must use gpt-image-2.5 as their canonical key.
 
 [Full changelog](./packages/pi-codex-imagegen/CHANGELOG.md)
 
@@ -105,20 +122,20 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-explore-subagents/CHANGELOG.md)
 
-### @howaboua/pi-extensions — 0.0.71
+### @howaboua/pi-extensions — 0.0.72
 
 - Include bundled package updates:
 
-  - @howaboua/pi-shepherdr: Shepherdr now reads existing Herdr machine profiles and requires Herdr 0.9 or newer. Manage profiles in Herdr; `shepherdr.json`, old machine aliases and their saved watches are no longer used. - Agent prompts and reports identify their source workspace, tab and pane, including current names. - Attributed messages to running Pi Codex agents use developer steering. Idle tasks retain normal user kickoff and extension preparation. - `send` delivers peer messages without blocking or subscribing; use `assign` to delegate work to an existing agent. - Automatic task watches end on completion or failure. Only explicit `watch` subscriptions persist; legacy watches are cleared with a notice.
-  - @howaboua/pi-subagent-review: Restore full extension prompt preparation when continuing into a new context window or starting review triage. - Keep tool instructions current through Pi's normal startup hooks without resetting the Notebook. - Let active context management own review-loop navigation summaries.
+  - @howaboua/pi-auto-trees: Keep custom messages out of the editor when returning to their markers with `/end`. Preserve the marked context by navigating to its existing checkpoint rather than reopening the message for editing.
+  - @howaboua/pi-gippity-control: Streamed realtime replies now return their final text to the requesting delegation instead of leaving the entire answer in general session context.
+  - @howaboua/pi-shepherdr: Deliver peer messages directly to Pi without submitting unsent human drafts. - Preserve slash-command arguments and use the target session's skill and prompt-template expansion. - Return submission-only acknowledgements for registered extension commands instead of waiting for an assistant reply. Requires Pi 0.84.4 or newer. Update and reload Shepherdr on both controllers and workers, and Pi Codex Conversion where installed.
+  - @howaboua/pi-shepherdr: Fixed idle agent reports and manual checkpoint requests to preserve prompt preparation, coalesce concurrent continuations, and process reports arriving during turn settlement. - Manual Compact reuses notes saved in the last completed turn for Local, Tree, and Remote notes-only windows, avoiding a redundant checkpoint turn. Explicit compaction instructions still request a checkpoint. - Compact tool output now offers Off, On, and Minimal. Minimal keeps nested tool results and an expand hint while hiding the trailing Code / Notebook text preview until expanded. Existing Off and On settings keep their behavior. - Shepherdr help makes local routing explicit: agent calls default to the host running Pi, while unfiltered discovery searches all machines. Remote calls use profile IDs, not machine labels or hostnames. - Fixed Shepherdr startup after a Herdr executable replacement leaves a stale ` (deleted)` path. Recovery silently uses the replacement at the same location. Command failures remain visible and no longer imply that Herdr is outdated.
 
 [Full changelog](./packages/pi-extensions/CHANGELOG.md)
 
-### @howaboua/pi-gippity-control — 0.0.17
+### @howaboua/pi-gippity-control — 0.0.18
 
-- Fixed waiting indicators for extension UI prompts.
-
-- Voice summarisation now runs whenever Pi compacts, then starts a fresh realtime session.
+- Streamed realtime replies now return their final text to the requesting delegation instead of leaving the entire answer in general session context.
 
 [Full changelog](./packages/pi-gippity-control/CHANGELOG.md)
 
@@ -155,14 +172,21 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-semantic-grep/CHANGELOG.md)
 
-### @howaboua/pi-shepherdr — 0.2.0
+### @howaboua/pi-shepherdr — 0.2.1
 
-- Shepherdr now reads existing Herdr machine profiles and requires Herdr 0.9 or newer. Manage profiles in Herdr; `shepherdr.json`, old machine aliases and their saved watches are no longer used.
+- Deliver peer messages directly to Pi without submitting unsent human drafts.
 
-  - Agent prompts and reports identify their source workspace, tab and pane, including current names.
-  - Attributed messages to running Pi Codex agents use developer steering. Idle tasks retain normal user kickoff and extension preparation.
-  - `send` delivers peer messages without blocking or subscribing; use `assign` to delegate work to an existing agent.
-  - Automatic task watches end on completion or failure. Only explicit `watch` subscriptions persist; legacy watches are cleared with a notice.
+  - Preserve slash-command arguments and use the target session's skill and prompt-template expansion.
+  - Return submission-only acknowledgements for registered extension commands instead of waiting for an assistant reply.
+
+  Requires Pi 0.84.4 or newer. Update and reload Shepherdr on both controllers and workers, and Pi Codex Conversion where installed.
+
+- Fixed idle agent reports and manual checkpoint requests to preserve prompt preparation, coalesce concurrent continuations, and process reports arriving during turn settlement.
+
+  - Manual Compact reuses notes saved in the last completed turn for Local, Tree, and Remote notes-only windows, avoiding a redundant checkpoint turn. Explicit compaction instructions still request a checkpoint.
+  - Compact tool output now offers Off, On, and Minimal. Minimal keeps nested tool results and an expand hint while hiding the trailing Code / Notebook text preview until expanded. Existing Off and On settings keep their behavior.
+  - Shepherdr help makes local routing explicit: agent calls default to the host running Pi, while unfiltered discovery searches all machines. Remote calls use profile IDs, not machine labels or hostnames.
+  - Fixed Shepherdr startup after a Herdr executable replacement leaves a stale ` (deleted)` path. Recovery silently uses the replacement at the same location. Command failures remain visible and no longer imply that Herdr is outdated.
 
 [Full changelog](./packages/pi-shepherdr/CHANGELOG.md)
 
@@ -220,12 +244,14 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-smart-btw/CHANGELOG.md)
 
-### @howaboua/pi-stuff — 0.0.78
+### @howaboua/pi-stuff — 0.0.79
 
 - Include bundled package updates:
 
-  - @howaboua/pi-shepherdr: Shepherdr now reads existing Herdr machine profiles and requires Herdr 0.9 or newer. Manage profiles in Herdr; `shepherdr.json`, old machine aliases and their saved watches are no longer used. - Agent prompts and reports identify their source workspace, tab and pane, including current names. - Attributed messages to running Pi Codex agents use developer steering. Idle tasks retain normal user kickoff and extension preparation. - `send` delivers peer messages without blocking or subscribing; use `assign` to delegate work to an existing agent. - Automatic task watches end on completion or failure. Only explicit `watch` subscriptions persist; legacy watches are cleared with a notice.
-  - @howaboua/pi-subagent-review: Restore full extension prompt preparation when continuing into a new context window or starting review triage. - Keep tool instructions current through Pi's normal startup hooks without resetting the Notebook. - Let active context management own review-loop navigation summaries.
+  - @howaboua/pi-auto-trees: Keep custom messages out of the editor when returning to their markers with `/end`. Preserve the marked context by navigating to its existing checkpoint rather than reopening the message for editing.
+  - @howaboua/pi-gippity-control: Streamed realtime replies now return their final text to the requesting delegation instead of leaving the entire answer in general session context.
+  - @howaboua/pi-shepherdr: Deliver peer messages directly to Pi without submitting unsent human drafts. - Preserve slash-command arguments and use the target session's skill and prompt-template expansion. - Return submission-only acknowledgements for registered extension commands instead of waiting for an assistant reply. Requires Pi 0.84.4 or newer. Update and reload Shepherdr on both controllers and workers, and Pi Codex Conversion where installed.
+  - @howaboua/pi-shepherdr: Fixed idle agent reports and manual checkpoint requests to preserve prompt preparation, coalesce concurrent continuations, and process reports arriving during turn settlement. - Manual Compact reuses notes saved in the last completed turn for Local, Tree, and Remote notes-only windows, avoiding a redundant checkpoint turn. Explicit compaction instructions still request a checkpoint. - Compact tool output now offers Off, On, and Minimal. Minimal keeps nested tool results and an expand hint while hiding the trailing Code / Notebook text preview until expanded. Existing Off and On settings keep their behavior. - Shepherdr help makes local routing explicit: agent calls default to the host running Pi, while unfiltered discovery searches all machines. Remote calls use profile IDs, not machine labels or hostnames. - Fixed Shepherdr startup after a Herdr executable replacement leaves a stale ` (deleted)` path. Recovery silently uses the replacement at the same location. Command failures remain visible and no longer imply that Herdr is outdated.
 
 [Full changelog](./packages/pi-stuff/CHANGELOG.md)
 
@@ -238,9 +264,11 @@ Going forward, package-level changelogs remain the source of truth for each pack
 
 [Full changelog](./packages/pi-subagent-review/CHANGELOG.md)
 
-### @howaboua/pi-subdir-agents — 0.0.4
+### @howaboua/pi-subdir-agents — 0.0.5
 
-- Fixed repeated AGENTS.md context injection during repository discovery. Unchanged guidance stays deduplicated; new and edited files still load.
+- Directory listings load AGENTS.md guidance only for the queried scope, without preloading rules from every child they name. Explicit child access and content-search matches still load the relevant nested guidance.
+
+  Fixed Windows drive-letter paths in content-search matches so they load nested guidance.
 
 [Full changelog](./packages/pi-subdir-agents/CHANGELOG.md)
 

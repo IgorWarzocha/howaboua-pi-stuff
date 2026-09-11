@@ -1,5 +1,9 @@
 # @howaboua/pi-codex-imagegen
 
+## 0.0.4
+
+- Image generation and editing now request gpt-image-2.5. Proxy model mappings must use gpt-image-2.5 as their canonical key.
+
 ## 0.0.3
 
 - Fixed Codex web search and image generation to use local Codex authentication on unrelated chat providers while preserving explicit Codex routes and optional Pi Codex integration. Removed Pi Codex package dependencies.

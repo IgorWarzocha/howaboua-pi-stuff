@@ -1,5 +1,9 @@
 # @howaboua/pi-gippity-control
 
+## 0.0.18
+
+- Streamed realtime replies now return their final text to the requesting delegation instead of leaving the entire answer in general session context.
+
 ## 0.0.17
 
 - Fixed waiting indicators for extension UI prompts.
