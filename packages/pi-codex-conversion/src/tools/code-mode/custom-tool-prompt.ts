@@ -4,7 +4,6 @@ import type {
 	CustomToolDefinition,
 } from "./types.js";
 import {
-	codeModeGlobalName,
 	translateCodeModeGuideline,
 	translateCodeModeToolReferences,
 	translateCodeModeUsage,
@@ -66,18 +65,9 @@ function formatSchema(schema: unknown): string {
 
 function translatedPromptLines(tool: CodeModeToolDefinition): string[] {
 	if (!("invoke" in tool) || tool.translatePromptMetadata !== true) return [];
-	const name = codeModeGlobalName(tool.name);
-	return [
-		tool.description
-			? `- ${name}: ${translateCodeModeToolReferences(tool.description, tool.name)}`
-			: undefined,
-		tool.promptSnippet
-			? `- ${name}: ${translateCodeModeToolReferences(tool.promptSnippet, tool.name)}`
-			: undefined,
-		...(tool.promptGuidelines ?? []).map((guideline) =>
-			`- ${translateCodeModeGuideline(guideline, tool.name)}`),
-		tool.inputSchema ? `- ${name} schema: ${formatSchema(tool.inputSchema)}` : undefined,
-	].filter((line): line is string => Boolean(line));
+	// Usage owns the callable contract here; native descriptions and schemas do not.
+	return (tool.promptGuidelines ?? []).map((guideline) =>
+		`- ${translateCodeModeGuideline(guideline, tool.name)}`);
 }
 
 function buildGuidanceSection(tools: CodeModeToolDefinition[]): string {

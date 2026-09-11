@@ -43,13 +43,12 @@ export function createAskRuntime({
 	const tool = defineTool({
 		name: "ask",
 		label: "Ask",
-		description: "Request user input or action. Requires interactive UI.",
+		description: "Request user input or action",
 		parameters: AskParameters,
-		promptSnippet: "Request human input or action.",
 		promptGuidelines: [
-			"ask: Use steer only while useful reversible work can continue; wait for gating answers and handoffs, stating a handoff's completion signal.",
+			"ask: Omit delivery to wait; steer only while reversible work can continue. Handoffs wait for user action; state the completion signal",
 			"ask: For reviews, make each finding a prompt with disposition choices; do not report first.",
-			"ask: Do not add Other/rephrase; it is automatic.",
+			"ask: Other/rephrase is automatic; omit choices for free text",
 		],
 		executionMode: "sequential",
 		async execute(toolCallId, params, signal, _onUpdate, ctx) {

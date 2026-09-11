@@ -207,7 +207,8 @@ The adapted definition keeps its Pi context, UI, schema and progress updates. Ja
 Tool names that are not JavaScript identifiers receive the same translated name in Code and Notebook Mode, including prompt guidance and `ALL_TOOLS`.
 Use `toolName` for a non-default Responses namespace and `resultValue` when JavaScript needs a structured value instead of the ordinary model-visible result.
 Set `blocking: true` when every call must hold the agent turn until it settles, or pass `blocking: input => boolean` when the choice depends on the invocation. The default allows long-running work to yield to `wait` normally. Set `deferLoading: true` to omit the usage line and expose the tool through `ALL_TOOLS` instead.
-For a compact routed string surface, set `kind: "freeform"` and provide `prepareInput` to map that string into the normal Pi tool parameters. Code and Notebook Mode then omit the original JSON schema while execution, rendering and prompt metadata still come from the same tool.
+The `usage` line owns the callable contract in Code and Notebook Mode. Include the needed arguments or a help entry point. Only `promptGuidelines` are added beside it, not the native description, snippet or schema. Deferred tools retain full metadata in their discoverable help.
+For a compact routed string surface, set `kind: "freeform"` and provide `prepareInput` to map that string into the normal Pi tool parameters. Execution and rendering still use the same tool.
 Use the optional `isActive` gate when an extension exposes its tool only in a session mode. Keep returning the tool definition from the provider and call `registration.refresh()` when the mode changes. Code Mode also resamples gates at normal session and input boundaries, then keeps its prompt, nested registry and outer tool filtering fixed through that run.
 
 Shipped integrations provide larger examples:

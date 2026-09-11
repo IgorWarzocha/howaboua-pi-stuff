@@ -62,7 +62,7 @@ export async function agentsHelp(): Promise<Record<string, unknown>> {
 			send: "Peer questions, updates, replies; submission only, no wait or watch",
 			assign: "Delegate a task to an existing agent",
 			blocking:
-				"spawn/assign/answer default true; false pushes task settlement; reviewers always wait; never poll",
+				"spawn/assign/answer default true; false pushes task settlement; never poll. Reviewer spawns always block; await review before working its scope",
 			watch:
 				"Explicit watch persists until unwatch; automatic task watches end on finish/failure, not blockage",
 			prompt:
@@ -73,8 +73,7 @@ export async function agentsHelp(): Promise<Record<string, unknown>> {
 				"Reuse only same investigation; reviews independent; new scope = new agent",
 			...(profiles.has("general")
 				? {
-						general:
-							"Only when requested/orchestrating. Current repo: create + bootstrap worktree; pass cwd",
+						general: "Only when requested/orchestrating",
 					}
 				: {}),
 		},
