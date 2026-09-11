@@ -20,7 +20,8 @@ The proxy is not the emitted schema or prompt payload. It can miss dynamic strin
 
 - Capture the before-and-after emitted tool schemas and complete tool-related system-prompt additions for every affected active mode, including Structured, Code, and Notebook. Include relevant conditional tool sets and final provider rewrites.
 - Inspect the assembled output across extension boundaries. Apply the general tool-design rejection rules to both extension-authored contracts and integration-generated text; fixing one does not excuse the other.
-- Record token counts for schemas and prompt additions separately. Show the exact before-and-after artifacts with the change, not just a total or selected source lines.
+- Measure schema and prompt-addition tokens separately. Report counts and material findings.
+- Keep captures and probes temporary and delete them after validation; do not retain reports or scratchpads for routine checks.
 - Do not accept the change without this evidence. Source proxies, preserved metadata, and passing functional tests are not substitutes. If a mode cannot be captured, report that gap instead of certifying its prompt.
 
 Check model-visible results and run the owning package's direct check after changes.
