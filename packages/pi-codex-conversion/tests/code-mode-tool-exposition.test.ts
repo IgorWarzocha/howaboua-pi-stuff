@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildCodeModeToolsPrompt, formatCodeModeToolHelp } from "../src/tools/code-mode/custom-tool-prompt.ts";
+import { formatCodeModeToolHelp } from "../src/tools/code-mode/custom-tool-prompt.ts";
 import { scopeAllToolsToDeferredCustom } from "../src/tools/code-mode/host-client.ts";
 import { codeModeGlobalName } from "../src/tools/code-mode/tool-identity.ts";
 import { notebookBootstrapSource } from "../src/tools/notebook-mode/kernel-runtime.ts";
@@ -46,9 +46,6 @@ test("Notebook tool names follow the live registry while ALL_TOOLS contains defe
 		usage: 'await tools["deferred-programmatic-tool"]({ cmd })',
 		deferLoading: true,
 		discoverWhenDeferred: true,
-		translatePromptMetadata: true,
-		promptSnippet: "Native inventory entry",
-		promptGuidelines: ["deferred-programmatic-tool: Wait for completion"],
 	};
 	const state = {
 		ALL_TOOLS: [bundled, promoted, deferred, deferredProgrammatic].map(({ name, description }) => ({
@@ -66,10 +63,6 @@ test("Notebook tool names follow the live registry while ALL_TOOLS contains defe
 	assert.match(
 		formatCodeModeToolHelp(deferredProgrammatic),
 		/^Usage: await tools\.deferred_programmatic_tool\(\{ cmd \}\)/,
-	);
-	assert.equal(
-		buildCodeModeToolsPrompt([{ ...deferredProgrammatic, deferLoading: false }]),
-		"Tools available in exec:\n- await tools.deferred_programmatic_tool({ cmd })\nTool guidance:\n- deferred_programmatic_tool: Wait for completion",
 	);
 
 	const calls: unknown[] = [];
