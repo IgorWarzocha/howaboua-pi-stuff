@@ -112,7 +112,8 @@ export async function startControllerMode(options: {
 	runtime.context = options.ctx;
 	runtime.config = options.config;
 	runtime.realtimePeerPlan = options.mode === "realtime" ? options.realtimePeerPlan : undefined;
-	options.messages.setContext(options.ctx);
+	// A prepared refresh replaces only the call, not its queued Pi work.
+	if (!options.preparedRealtimeContext) options.messages.setContext(options.ctx);
 	runtime.state =
 		options.mode === "realtime"
 			? { type: "connecting", mode: "realtime", phase: "authorizing" }
@@ -251,7 +252,7 @@ async function startConversation(
 					options.onDrop(session, error);
 			},
 			onStatus: options.onStatus,
-			onTurn: (turn) => { void options.messages.voiceTurn(turn); },
+			onTurn: (session, turn) => { void options.messages.voiceTurn(turn, session); },
 			onEvent: (event) => options.messages.realtimeEvent(event),
 			onUserTranscript: (transcript) =>
 				options.messages.userTranscript(transcript),

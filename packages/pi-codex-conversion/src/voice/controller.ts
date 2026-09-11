@@ -53,9 +53,12 @@ export class CodexVoiceController {
 		this.messages = new CodexVoiceSessionMessages(pi, {
 			canDelegate: () => this.runtime.state.type === "conversation",
 			prepareDelegation: (ctx, signal) => this.delegationPreflight(ctx, signal),
-			onDelegation: (id) => {
-				if (this.runtime.state.type === "conversation")
-					this.runtime.state.session.activateDelegation(id);
+			onDelegation: (id, input, source) => {
+				if (this.runtime.state.type !== "conversation") return;
+				const current = this.runtime.state.session;
+				// Delegation IDs belong to their call. Carried work uses session output.
+				if (current === source) current.activateDelegation(id);
+				else current.piInput(input);
 			},
 			onDelegationFailed: () => {
 				if (this.runtime.state.type === "conversation")
@@ -67,6 +70,7 @@ export class CodexVoiceController {
 			this.runtime,
 			{
 				inputMuted: () => this.inputMuted,
+				holdDelegations: () => this.messages.holdDelegationsForRefresh(),
 				replace: (ctx, config, previous, plan, inputMuted, prepared, signal) =>
 					this.replaceRealtimeContext(
 						ctx,
@@ -389,7 +393,6 @@ export class CodexVoiceController {
 	): Promise<void> {
 		if (!this.prepareRealtimePrompt(ctx))
 			throw new Error("Realtime voice prompt is unavailable");
-		this.messages.cancelPendingDelegations();
 		markRealtimePeerInactive(
 			this.runtime,
 			previous,
@@ -403,10 +406,12 @@ export class CodexVoiceController {
 		this.runtime.state = { type: "reconnecting", session: previous };
 		this.renderStatus("reconnecting…");
 		plan?.onStatus?.("reconnecting…");
-		await Promise.allSettled([
-			previous.close(),
-			this.messages.waitForDelegations(),
-		]);
+		try {
+			await previous.close();
+		} catch (error) {
+			this.fail(error instanceof Error ? error : new Error(String(error)), previous);
+			return;
+		}
 		if (
 			signal.aborted ||
 			this.runtime.startGeneration !== generation ||

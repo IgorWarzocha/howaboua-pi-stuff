@@ -1,5 +1,6 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
+import { renderVoiceStartupContext } from "./context.ts";
 import {
 	prepareControllerRealtimeContext,
 	type PreparedRealtimeContext,
@@ -7,7 +8,11 @@ import {
 	type VoiceControllerRuntime,
 } from "./controller-start.ts";
 import type { CodexRealtimeConversation } from "./conversation/session.ts";
-import { REALTIME_EVENT_ENTRY_TYPE, REALTIME_VOICE_MESSAGE_TYPE } from "./message-types.ts";
+import {
+	REALTIME_EVENT_ENTRY_TYPE,
+	REALTIME_USER_TRANSCRIPT_MESSAGE_TYPE,
+	REALTIME_VOICE_MESSAGE_TYPE,
+} from "./message-types.ts";
 
 export interface RealtimeContextRefreshOptions {
 	sourceLeafId?: string | undefined;
@@ -16,6 +21,7 @@ export interface RealtimeContextRefreshOptions {
 
 interface RealtimeContextRefreshCallbacks {
 	inputMuted(): boolean;
+	holdDelegations(): () => void;
 	replace(
 		ctx: ExtensionContext,
 		config: CodexConversionConfig,
@@ -69,11 +75,13 @@ export class RealtimeContextRefresh {
 		const previous = activeState.session;
 		const generation = this.runtime.startGeneration;
 		const leafId = conversationLeafId(ctx);
+		const voiceLeafId = ctx.sessionManager.getLeafId();
 		const sessionId = ctx.sessionManager.getSessionId();
 		const plan = this.runtime.realtimePeerPlan;
 		const abortController = new AbortController();
 		this.abortController = abortController;
 		const signal = options.signal ? AbortSignal.any([options.signal, abortController.signal]) : abortController.signal;
+		const releaseDelegations = this.callbacks.holdDelegations();
 		try {
 			const prepared = await prepareControllerRealtimeContext({
 				ctx,
@@ -82,6 +90,8 @@ export class RealtimeContextRefresh {
 				sourceLeafId: options.sourceLeafId,
 				forceSummary: true,
 			});
+			// Finish accepted speech on the old call, including its delegation decision.
+			if (prepared.summary) await previous.waitForInput(signal);
 			if (
 				signal.aborted ||
 				ctx.sessionManager.getSessionId() !== sessionId ||
@@ -91,6 +101,14 @@ export class RealtimeContextRefresh {
 			if (!prepared.summary || conversationLeafId(ctx) !== leafId) {
 				ctx.ui.notify("Voice context refresh skipped because the conversation was empty or changed while summarizing. Keeping the current call.", "warning");
 				return;
+			}
+			const tail = voiceContextSince(ctx, voiceLeafId);
+			if (tail) {
+				prepared.initialItems?.push({
+					type: "message",
+					role: "developer",
+					content: [{ type: "input_text", text: renderVoiceStartupContext(tail) }],
+				});
 			}
 			await this.callbacks.replace(
 				ctx,
@@ -110,6 +128,7 @@ export class RealtimeContextRefresh {
 					"warning",
 				);
 		} finally {
+			releaseDelegations();
 			if (this.abortController === abortController)
 				this.abortController = undefined;
 		}
@@ -131,12 +150,31 @@ export class RealtimeContextRefresh {
 }
 
 function conversationLeafId(ctx: ExtensionContext): string | undefined {
-	// Display-only speech and wire diagnostics do not change the summary input.
-	// Keep user transcript entries: a new utterance must prevent replacement.
+	// Voice arrivals are carried after the summary, not grounds to discard it.
 	return ctx.sessionManager.getBranch().findLast(
 		(entry) => entry.type !== "custom" || (
 			entry.customType !== REALTIME_EVENT_ENTRY_TYPE &&
+			entry.customType !== REALTIME_USER_TRANSCRIPT_MESSAGE_TYPE &&
 			entry.customType !== REALTIME_VOICE_MESSAGE_TYPE
 		),
 	)?.id;
+}
+
+function voiceContextSince(ctx: ExtensionContext, leafId: string | null): string {
+	const branch = ctx.sessionManager.getBranch();
+	const tail = branch.slice(branch.findIndex((entry) => entry.id === leafId) + 1);
+	return tail.flatMap((entry) => {
+		if (entry.type !== "custom" || !entry.data || typeof entry.data !== "object") return [];
+		if (
+			entry.customType === REALTIME_USER_TRANSCRIPT_MESSAGE_TYPE &&
+			"transcript" in entry.data && typeof entry.data.transcript === "string"
+		)
+			return [`user: ${entry.data.transcript}`];
+		if (
+			entry.customType === REALTIME_VOICE_MESSAGE_TYPE &&
+			"input" in entry.data && typeof entry.data.input === "string"
+		)
+			return [`assistant: ${entry.data.input}`];
+		return [];
+	}).join("\n");
 }

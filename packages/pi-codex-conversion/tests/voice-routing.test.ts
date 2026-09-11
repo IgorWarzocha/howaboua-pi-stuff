@@ -101,17 +101,17 @@ test("voice routing preserves presentation, handoff pacing, and compaction order
 		ui: { notify() {} },
 	} as unknown as ExtensionContext);
 	messages.compactionStarted();
-	messages.setContext({
-		isIdle: () => true,
-		ui: { notify() {} },
-	} as unknown as ExtensionContext);
+	const releaseRefresh = messages.holdDelegationsForRefresh();
 	const delivery = messages.voiceTurn({
-		input: "Queued after context replacement",
+		input: "Queued during voice refresh",
 		delegationId: "delegation-2",
 	});
 	await Promise.resolve();
 	assert.deepEqual([...modelMessages], []);
 	messages.compactionFinished();
+	await Promise.resolve();
+	assert.deepEqual([...modelMessages], []);
+	releaseRefresh();
 	await delivery;
 	assert.equal(modelMessages.length, 1);
 	assert.deepEqual(modelMessages[0]?.options, { triggerTurn: true });

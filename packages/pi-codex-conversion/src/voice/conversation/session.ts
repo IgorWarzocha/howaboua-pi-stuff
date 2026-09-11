@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { CodexConversionConfig } from "../../adapter/activation/config.ts";
 import type { CodexVoiceAuth } from "../auth.ts";
+import { CANCELLED, interruptible } from "../cancellation.ts";
 import type { RealtimeInitialMessageItem } from "../context.ts";
 import { MAX_REALTIME_VOICE_INPUT_BYTES } from "../prompts.ts";
 import { type RealtimeVoiceTurn, RealtimeVoiceTurnTracker } from "../turns.ts";
@@ -56,6 +57,7 @@ export class CodexRealtimeConversation {
 	private established = false;
 	private speakableResponsePending = false;
 	private readonly callId = randomUUID();
+	private inputChanged = Promise.withResolvers<void>();
 
 	constructor(callbacks: CodexConversationCallbacks, peer: CodexRealtimePeer) {
 		this.callbacks = callbacks;
@@ -211,6 +213,13 @@ export class CodexRealtimeConversation {
 		return this.closePromise;
 	}
 
+	async waitForInput(signal: AbortSignal): Promise<void> {
+		while (this.state === "active" && this.turnTracker.hasPendingInput) {
+			if (await interruptible(this.inputChanged.promise, signal) === CANCELLED)
+				signal.throwIfAborted();
+		}
+	}
+
 	private async closeSession(): Promise<void> {
 		this.state = "closed";
 		this.established = false;
@@ -218,6 +227,7 @@ export class CodexRealtimeConversation {
 		this.abortSetup();
 		this.handoff.clear();
 		this.drainConversation();
+		this.inputChanged.resolve();
 		this.inputMuted = false;
 		this.peerReady?.resolve();
 		this.peerReady = undefined;
@@ -237,7 +247,11 @@ export class CodexRealtimeConversation {
 			else this.fail(error);
 			return;
 		}
-		if (event.type === "data") this.handleServerEvent(event.message);
+		if (event.type === "data") {
+			this.handleServerEvent(event.message);
+			this.inputChanged.resolve();
+			this.inputChanged = Promise.withResolvers<void>();
+		}
 		if (event.type === "state") this.handleHelperState(event.state);
 	}
 

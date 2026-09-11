@@ -81,7 +81,7 @@ export async function buildRealtimeInitialItems(args: {
 	return initialItems.length > 0 ? initialItems : undefined;
 }
 
-function renderVoiceStartupContext(summary: string): string {
+export function renderVoiceStartupContext(summary: string): string {
 	return `${VOICE_STARTUP_CONTEXT_HEADER}\n<startup_context>\n${summary}\n</startup_context>`;
 }
 
