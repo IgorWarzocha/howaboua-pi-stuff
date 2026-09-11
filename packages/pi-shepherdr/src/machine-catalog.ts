@@ -23,10 +23,9 @@ const Machine = Type.Object({
 const Catalog = Type.Array(Machine);
 export type SshMachine = Static<typeof Machine>;
 
-export async function readMachineCatalog(): Promise<{
-	machines: Record<string, SshMachine>;
-	warning?: string;
-}> {
+export async function readMachineCatalog(): Promise<
+	Record<string, SshMachine>
+> {
 	const inheritedBinary = process.env["HERDR_BIN_PATH"]?.trim() || "herdr";
 	let binary = inheritedBinary;
 	const read = (path: string) =>
@@ -74,10 +73,5 @@ export async function readMachineCatalog(): Promise<{
 	if (new Set(value.map((machine) => machine.id)).size !== value.length) {
 		throw new Error("Herdr machine list returned duplicate profile IDs");
 	}
-	return {
-		machines: Object.fromEntries(value.map((machine) => [machine.id, machine])),
-		...(binary !== inheritedBinary
-			? { warning: `Recovered stale HERDR_BIN_PATH; using ${binary}` }
-			: {}),
-	};
+	return Object.fromEntries(value.map((machine) => [machine.id, machine]));
 }
