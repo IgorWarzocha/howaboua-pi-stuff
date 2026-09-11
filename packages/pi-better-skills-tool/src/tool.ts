@@ -34,10 +34,9 @@ export function createSkillsTool(options: SkillsToolOptions = {}) {
 	return defineTool({
 		name: "skills",
 		label: "Skills",
-		description: "Active skill catalog, selected references and package paths.",
-		promptSnippet: "List or read skill instructions and references",
+		description: "Load skill instructions and references",
 		promptGuidelines: [
-			'skills: At session start call skills once with "list". Before work read always-applicable and task-relevant skills, one skill plus its references per tools.skills call. Batch independent calls in one exec cell.',
+			"skills: List once at session start; read always-applicable and task-relevant skills before work",
 		],
 		parameters: SkillsParameters,
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {

@@ -52,15 +52,8 @@ export function createAgentsTool(fleet: AgentFleet) {
 	return defineTool({
 		name: "agents",
 		label: "Shepherdr",
-		description: "Persistent Pi agents across configured Herdr machines.",
+		description: "Delegate to persistent agents; call help first, alone",
 		parameters: AgentsParameters,
-		promptSnippet: "Load agents help before first use.",
-		promptGuidelines: [
-			"agents: send messages to peers; assign delegates work. Reviewer spawns always block; await review before working its scope.",
-			"agents: Specialists know their job. Give only the concrete task and inaccessible context; never append generic method, evidence, or reporting instructions.",
-			"agents: Reuse specialists only for the same investigation. Keep reviews independent. New scope gets a new agent.",
-			"agents: For advanced Herdr workspace, pane, process or layout control, run herdr --skill.",
-		],
 		executionMode: "sequential",
 		async execute(
 			_toolCallId,

@@ -38,7 +38,8 @@ async function registerAgentsInCodeMode(
 		const registration = registerCodeModeExtensionTools(pi, () => [
 			adaptToolForCodeMode(tool, {
 				blocking: isBlockingAgentsCall,
-				usage: 'await tools.agents({ action: "help" }) // first call alone',
+				usage:
+					'await tools.agents({ action: "help" }) // Persistent agents; first call alone',
 			}),
 		]);
 		pi.on("session_shutdown", () => registration.unregister());

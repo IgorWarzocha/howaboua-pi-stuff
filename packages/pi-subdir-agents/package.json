@@ -60,7 +60,7 @@
 	"scripts": {
 		"lint": "biome check .",
 		"typecheck": "tsgo --noEmit",
-		"test": "tsx --test tests/subdir-context.test.mjs",
+		"test": "tsx --test tests/subdir-context.test.ts",
 		"check": "bun run lint && bun run typecheck && bun run test",
 		"pack:dry": "npm pack --dry-run"
 	},

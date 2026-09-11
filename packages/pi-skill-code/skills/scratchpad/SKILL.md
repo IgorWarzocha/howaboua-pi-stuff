@@ -1,30 +1,16 @@
 ---
 name: scratchpad
-description: "Read before putting experimental or disposable work that should survive the session into the persistent scratchpad."
-last-changed: "2026-08-22"
+description: "Read before creating an experimental workspace or scratchpad."
+last-changed: "2026-09-11"
 ---
 
-Use the scratchpad when work needs persistent files but does not belong in a maintained repository:
+One-off probes, comparisons, captures, and check logs belong in a temporary directory. Delete them when the task finishes; do not turn validation evidence into retained reports or archives.
 
-- experiments and reproductions
-- model, agent, or tool comparisons
-- generated prototypes and sample projects
-- benchmark runs and result sets
-- temporary implementations or disposable checkouts worth retaining
-- investigations without a proper project home
+Use a persistent scratchpad only for a project the user explicitly wants to keep or resume. Choose a short kebab-case name:
 
-Do not create one for a tiny command probe, normal repository work, or files that already have a durable owner.
+```bash
+eval "$(try-rs <name>)"
+pwd
+```
 
-1. Choose one short, descriptive kebab-case name. Try RS uses it verbatim and adds no date prefix.
-2. Create or enter it with:
-
-   ```bash
-   eval "$(try-rs <name>)"
-   pwd
-   ```
-
-3. Keep one top-level scratchpad per coherent effort. Create ordinary subdirectories inside it for variants, fixtures, captures, or results.
-4. Use `try-rs <git-url> [destination]` when the scratch work begins from a disposable checkout.
-5. Do not use Try RS worktree mode.
-6. Keep useful outputs. Add notes only when they help preserve what was run or learned.
-7. Report the scratchpad path and important outputs when finished.
+To start from a repository, use `try-rs <git-url> [destination]`. Do not use Try RS worktree mode.

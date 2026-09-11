@@ -4,7 +4,14 @@ export function browserHelp(
 	const routed = hosts.length > 0;
 	return {
 		input: "Code=JSON.stringify(request); normal=request",
-		...(routed ? { host: `${hosts.join("|")} optional` } : {}),
+		...(routed
+			? {
+					host: `${hosts.join("|")} optional; keep a user-named host on every call and its refs/handles`,
+				}
+			: {}),
+		refs: "tabs -> open; keep ref_id/id/cursors with their result",
+		safety:
+			"Ask before unfamiliar low-trust navigation or consequential action unless authorized; never close shared browser",
 		batch:
 			"top-level nonempty action arrays; items omit action/host/response_length; independent only",
 		actions: {
@@ -22,8 +29,8 @@ export function browserHelp(
 			raw: "ref_id method params?",
 			start: "",
 			stop: "ref_id?",
-			read_result: `handle offset${routed ? "; same host" : ""}`,
-			discard_result: `handle${routed ? "; same host" : ""}`,
+			read_result: "handle offset",
+			discard_result: "handle",
 		},
 		continue: "next_lineno/next_offset; response_length=short|medium|long",
 	};

@@ -14,4 +14,14 @@ node .pi/skills/pi-stuff-tool-contracts/scripts/tool-token-lines.mjs <extension-
 
 Add `--json` for machine-readable output. The helper rejects known obsolete TypeBox, Pi package-scope, and removed custom-tool API markers before reporting an o200k token proxy over detected source lines.
 
-The proxy is not the emitted schema or prompt payload. It can miss dynamic strings, imported schemas, conditional modes, and provider serialization. Use it to find likely duplication, then inspect the final registered schemas, prompt metadata, system-prompt additions, and model-visible results for each active mode. Run the owning package's direct check after changes.
+The proxy is not the emitted schema or prompt payload. It can miss dynamic strings, imported schemas, conditional modes, and provider serialization. Use it only to locate likely duplication.
+
+## Acceptance gate
+
+- Capture the before-and-after emitted tool schemas and complete tool-related system-prompt additions for every affected active mode, including Structured, Code, and Notebook. Include relevant conditional tool sets and final provider rewrites.
+- Inspect the assembled output across extension boundaries. Apply the general tool-design rejection rules to both extension-authored contracts and integration-generated text; fixing one does not excuse the other.
+- Measure schema and prompt-addition tokens separately. Report counts and material findings.
+- Keep captures and probes temporary and delete them after validation; do not retain reports or scratchpads for routine checks.
+- Do not accept the change without this evidence. Source proxies, preserved metadata, and passing functional tests are not substitutes. If a mode cannot be captured, report that gap instead of certifying its prompt.
+
+Check model-visible results and run the owning package's direct check after changes.
